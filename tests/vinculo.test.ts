@@ -20,7 +20,13 @@
 //     trabajador todos los meses — que pesa más en una inspección que el contrato.
 // ============================================================================
 import { describe, it, expect } from "vitest";
-import { esPrestadorDeServicios, leCorrespondeCuspp, nombreDelDocumentoDePago } from "@cayla-dynamic/shared";
+import {
+  MAXIMO_LEGAL_SEMANAL,
+  esPrestadorDeServicios,
+  leCorrespondeCuspp,
+  maximoSemanalPracticante,
+  nombreDelDocumentoDePago,
+} from "@cayla-dynamic/shared";
 
 describe("esPrestadorDeServicios — solo un «no» explícito cuenta", () => {
   it("quien está en planilla NO es prestador de servicios", () => {
@@ -122,5 +128,73 @@ describe("leCorrespondeCuspp — tres descartes por tres razones distintas", () 
   it("un `en_planilla` que no llegó NO exime a nadie: se sigue pidiendo", () => {
     expect(leCorrespondeCuspp(undefined, "integra")).toBe(true);
     expect(leCorrespondeCuspp(null, "integra")).toBe(true);
+  });
+});
+
+// ============================================================================
+// maximoSemanalPracticante — el tope que sostiene que el convenio sea formativo
+// ============================================================================
+// Existía desde la 0324 SIN UNA SOLA PRUEBA, y desde entonces decide dos cosas
+// que cuestan caro por separado:
+//
+//   · el texto del convenio — «seis (6) horas diarias ni treinta (30) semanales»
+//     contra «ocho (8) y cuarenta y ocho (48)», art. 44 de la Ley 28518;
+//   · y, desde el arreglo del hallazgo 12, contra qué número Incidencias mide el
+//     exceso de jornada de una practicante.
+//
+// Las 30 h de una preprofesional no son «una jornada más corta»: son la
+// condición que sostiene que la relación sea FORMATIVA. Pasarse es un indicio
+// de desnaturalización, y esas horas quedan en `marcajes`, que es append-only.
+//
+// LAS DOS MITADES QUE ESTO DEFIENDE, y que se rompen por separado:
+//
+//   · QUE DISTINGA. Si las dos modalidades devolvieran lo mismo, un convenio
+//     preprofesional saldría prometiendo 48 h y el aviso de Incidencias se
+//     callaría hasta las 48 — justo con quien menos margen tiene.
+//
+//   · QUE EL `null` SIGA SIENDO `null`. Es lo que le dice a quien arma el
+//     horario que FALTA UN DATO, no que no hay límite. El día que alguien lo
+//     «simplifique» devolviendo 30 por defecto, se le estaría acusando de
+//     exceso a una profesional que trabaja 40 h con todo derecho; y si lo
+//     simplifica a 48, se deja de avisar a la preprofesional. Los dos errores
+//     son silenciosos y ninguno falla al desplegar.
+describe("maximoSemanalPracticante — 30 h o 48 h, según la modalidad", () => {
+  it("preprofesional: 30 h mientras estudia", () => {
+    expect(maximoSemanalPracticante("practicante", "preprofesional")).toBe(30);
+  });
+
+  it("profesional: 48 h, ya egresó", () => {
+    expect(maximoSemanalPracticante("practicante", "profesional")).toBe(48);
+  });
+
+  it("distingue de verdad entre las dos modalidades", () => {
+    expect(maximoSemanalPracticante("practicante", "preprofesional"))
+      .not.toBe(maximoSemanalPracticante("practicante", "profesional"));
+  });
+
+  it("quien no es practicante no tiene tope de modalidad", () => {
+    expect(maximoSemanalPracticante("planilla", "preprofesional")).toBeNull();
+    expect(maximoSemanalPracticante("prueba", null)).toBeNull();
+    expect(maximoSemanalPracticante("rxh", null)).toBeNull();
+    expect(maximoSemanalPracticante("no_trabajador", null)).toBeNull();
+    expect(maximoSemanalPracticante(null, null)).toBeNull();
+    expect(maximoSemanalPracticante(undefined, undefined)).toBeNull();
+  });
+
+  // EL null QUE NO SIGNIFICA «SIN LÍMITE», SINO «FALTA UN DATO».
+  it("practicante sin modalidad: null, nunca un número inventado", () => {
+    expect(maximoSemanalPracticante("practicante", null)).toBeNull();
+    expect(maximoSemanalPracticante("practicante", undefined)).toBeNull();
+    expect(maximoSemanalPracticante("practicante", "")).toBeNull();
+    expect(maximoSemanalPracticante("practicante", "cualquier_cosa")).toBeNull();
+  });
+
+  // La decisión que toman sus dos consumidores con ese null, escrita acá para
+  // que se lea junta: caen al tope general. Inventarle 30 a quien quizá sea
+  // profesional sería acusar de más, y acá el falso positivo es el peor error.
+  it("el tope efectivo de quien no tiene modalidad es el general, no el más estricto", () => {
+    const efectivo = maximoSemanalPracticante("practicante", null) ?? MAXIMO_LEGAL_SEMANAL;
+    expect(efectivo).toBe(MAXIMO_LEGAL_SEMANAL);
+    expect(efectivo).not.toBe(30);
   });
 });

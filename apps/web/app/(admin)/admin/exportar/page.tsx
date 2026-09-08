@@ -6,7 +6,8 @@ import { descargarCsv, generarCsv } from "@/lib/admin/csv";
 import { traerTodo } from "@/lib/admin/traer-todo";
 import { hoyLima, puedeExportarAsistencia, rangoDelDiaLima, TIPO_MARCA_LABELS, type TipoMarca } from "@cayla-dynamic/shared";
 import { usePersonaActual } from "@/lib/admin/use-rol";
-import { AdminNav } from "../nav";
+import { Boton } from "@/components/ui/boton";
+import { Campo } from "@/components/ui/campo";
 
 interface JornadaFila {
   fecha: string;
@@ -81,10 +82,22 @@ export default function ExportarPage() {
   const [hasta, setHasta] = useState(hoyLima());
   const [cargando, setCargando] = useState<Exportacion | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Qué exportación reintentar si `error` viene de una falla real (no de un
+  // rango vacío): guarda la función, no solo el nombre, para que "Reintentar"
+  // dispare exactamente la misma acción sin que la pantalla tenga que
+  // recordar el mapeo tipo → función.
+  const [reintentar, setReintentar] = useState<(() => Promise<void>) | null>(null);
+  // Antes un rango sin datos bajaba un CSV con solo encabezados, indistinguible
+  // de un export exitoso — y un export exitoso no confirmaba nada tampoco.
+  // "vacio" e "info" son dos colores porque son dos preguntas distintas: una es
+  // "¿pasó algo?" (no, no se descargó nada) y la otra es "¿cuánto bajé?".
+  const [resultado, setResultado] = useState<{ tipo: "vacio" | "exito"; texto: string } | null>(null);
 
   async function exportarJornadas() {
     setCargando("jornadas");
     setError(null);
+    setResultado(null);
+    setReintentar(null);
 
     const supabase = createAdminSupabaseClient();
     // Por lotes: sin esto PostgREST cortaba en 1000 filas y, como el orden es
@@ -106,6 +119,7 @@ export default function ExportarPage() {
 
     if (error) {
       setError(error.message);
+      setReintentar(() => exportarJornadas);
       setCargando(null);
       return;
     }
@@ -133,6 +147,15 @@ export default function ExportarPage() {
       estado: j.estado,
     }));
 
+    if (filas.length === 0) {
+      setResultado({
+        tipo: "vacio",
+        texto: `No hay jornadas entre el ${desde} y el ${hasta} — no se descargó ningún archivo.`,
+      });
+      setCargando(null);
+      return;
+    }
+
     const csv = generarCsv(filas, [
       "fecha",
       "sede",
@@ -148,12 +171,15 @@ export default function ExportarPage() {
     ]);
 
     descargarCsv(`dynamic-asistencia-${desde}_a_${hasta}.csv`, csv);
+    setResultado({ tipo: "exito", texto: `${filas.length.toLocaleString("es-PE")} filas descargadas.` });
     setCargando(null);
   }
 
   async function exportarMarcajes() {
     setCargando("marcajes");
     setError(null);
+    setResultado(null);
+    setReintentar(null);
 
     const supabase = createAdminSupabaseClient();
     const { inicio } = rangoDelDiaLima(desde);
@@ -184,11 +210,13 @@ export default function ExportarPage() {
 
     if (errPersonas) {
       setError(errPersonas.message);
+      setReintentar(() => exportarMarcajes);
       setCargando(null);
       return;
     }
     if (error) {
       setError(error.message);
+      setReintentar(() => exportarMarcajes);
       setCargando(null);
       return;
     }
@@ -213,6 +241,15 @@ export default function ExportarPage() {
         m.confirmo_sin_refrigerio === null ? "" : m.confirmo_sin_refrigerio ? "sí" : "no",
     }));
 
+    if (filas.length === 0) {
+      setResultado({
+        tipo: "vacio",
+        texto: `No hay marcajes entre el ${desde} y el ${hasta} — no se descargó ningún archivo.`,
+      });
+      setCargando(null);
+      return;
+    }
+
     const csv = generarCsv(filas, [
       "fecha_hora",
       "sede",
@@ -228,12 +265,15 @@ export default function ExportarPage() {
     ]);
 
     descargarCsv(`dynamic-marcajes-${desde}_a_${hasta}.csv`, csv);
+    setResultado({ tipo: "exito", texto: `${filas.length.toLocaleString("es-PE")} filas descargadas.` });
     setCargando(null);
   }
 
   async function exportarCorrecciones() {
     setCargando("correcciones");
     setError(null);
+    setResultado(null);
+    setReintentar(null);
 
     const supabase = createAdminSupabaseClient();
     const { inicio } = rangoDelDiaLima(desde);
@@ -259,11 +299,13 @@ export default function ExportarPage() {
 
     if (errPersonas) {
       setError(errPersonas.message);
+      setReintentar(() => exportarCorrecciones);
       setCargando(null);
       return;
     }
     if (error) {
       setError(error.message);
+      setReintentar(() => exportarCorrecciones);
       setCargando(null);
       return;
     }
@@ -289,6 +331,15 @@ export default function ExportarPage() {
       motivo: c.motivo,
     }));
 
+    if (filas.length === 0) {
+      setResultado({
+        tipo: "vacio",
+        texto: `No hay correcciones entre el ${desde} y el ${hasta} — no se descargó ningún archivo.`,
+      });
+      setCargando(null);
+      return;
+    }
+
     const csv = generarCsv(filas, [
       "fecha_hora",
       "persona",
@@ -300,6 +351,7 @@ export default function ExportarPage() {
     ]);
 
     descargarCsv(`dynamic-correcciones-${desde}_a_${hasta}.csv`, csv);
+    setResultado({ tipo: "exito", texto: `${filas.length.toLocaleString("es-PE")} filas descargadas.` });
     setCargando(null);
   }
 
@@ -309,8 +361,7 @@ export default function ExportarPage() {
   // se decide nada, para no parpadear un «no puedes» a quien sí puede.
   if (rol !== null && !puedeExportar) {
     return (
-      <div className="flex min-h-screen flex-col">
-        <AdminNav />
+      <div className="flex flex-1 flex-col">
         <main className="flex flex-1 items-center justify-center p-6">
           <p className="max-w-md text-center text-taupe">No tienes permiso para exportar datos.</p>
         </main>
@@ -319,56 +370,64 @@ export default function ExportarPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <AdminNav />
-      <div className="flex flex-1 flex-col items-center justify-center gap-6 p-8">
+    <div className="flex flex-1 flex-col">
+      <div className="flex flex-1 flex-col items-center justify-center gap-6 p-6">
         <h1 className="font-serif text-2xl">Exportar (CSV)</h1>
-        <div className="flex items-end gap-4">
-          <label className="flex flex-col gap-1 text-sm">
-            Desde
-            <input
-              type="date"
-              value={desde}
-              onChange={(e) => setDesde(e.target.value)}
-              className="rounded-lg border px-3 py-2"
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-sm">
-            Hasta
-            <input
-              type="date"
-              value={hasta}
-              onChange={(e) => setHasta(e.target.value)}
-              className="rounded-lg border px-3 py-2"
-            />
-          </label>
+        <div className="flex flex-wrap items-end gap-3">
+          <Campo etiqueta="Desde" type="date" value={desde} onChange={(e) => setDesde(e.target.value)} />
+          <Campo etiqueta="Hasta" type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} />
         </div>
 
         <div className="flex flex-wrap items-center justify-center gap-3">
-          <button
-            onClick={exportarJornadas}
+          <Boton
+            variante="primario"
+            tamano="lg"
+            cargando={cargando === "jornadas"}
             disabled={cargando !== null}
-            className="rounded-lg bg-tinta px-5 py-2 font-medium text-crema disabled:opacity-50"
+            onClick={() => void exportarJornadas()}
           >
-            {cargando === "jornadas" ? "Generando…" : "Jornadas (resumen)"}
-          </button>
-          <button
-            onClick={exportarMarcajes}
+            Jornadas (resumen)
+          </Boton>
+          <Boton
+            variante="primario"
+            tamano="lg"
+            cargando={cargando === "marcajes"}
             disabled={cargando !== null}
-            className="rounded-lg bg-tinta px-5 py-2 font-medium text-crema disabled:opacity-50"
+            onClick={() => void exportarMarcajes()}
           >
-            {cargando === "marcajes" ? "Generando…" : "Marcajes (crudo)"}
-          </button>
-          <button
-            onClick={exportarCorrecciones}
+            Marcajes (crudo)
+          </Boton>
+          <Boton
+            variante="primario"
+            tamano="lg"
+            cargando={cargando === "correcciones"}
             disabled={cargando !== null}
-            className="rounded-lg bg-tinta px-5 py-2 font-medium text-crema disabled:opacity-50"
+            onClick={() => void exportarCorrecciones()}
           >
-            {cargando === "correcciones" ? "Generando…" : "Correcciones de auditoría"}
-          </button>
+            Correcciones de auditoría
+          </Boton>
         </div>
 
-        {error && <p className="text-sm text-rojo">{error}</p>}
+        {error && (
+          <div className="max-w-md rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
+            {error}{" "}
+            {reintentar && (
+              <Boton variante="enlace" onClick={() => void reintentar()}>
+                Reintentar
+              </Boton>
+            )}
+          </div>
+        )}
+
+        {resultado && (
+          <p
+            className={`max-w-md rounded-lg px-4 py-3 text-sm ${
+              resultado.tipo === "exito" ? "bg-verde/10 text-verde" : "bg-pizarra/8 text-pizarra"
+            }`}
+          >
+            {resultado.texto}
+          </p>
+        )}
 
         <p className="max-w-md text-center text-xs text-taupe">
           Incluye a todas las personas y sedes visibles para tu rol. Ábrelo directamente con Excel o

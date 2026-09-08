@@ -4,9 +4,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
-import { AdminNav } from "../nav";
 import { Cargando, SinDatos } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
+import { Campo, CampoSelect } from "@/components/ui/campo";
+import { Insignia } from "@/components/ui/insignia";
+import { Fila, Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
 import { useToast } from "@/components/toast";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
@@ -72,6 +74,15 @@ interface Acta {
 }
 
 const ESTADOS = ["PENDIENTE", "OTORGADO", "NO_OTORGADO"] as const;
+// Mismo semáforo en las dos listas de la pantalla (feriados laborados y
+// descansos registrados): otorgado ya no debe sobretasa (positivo), no
+// otorgado la sigue debiendo (alerta), pendiente todavía se está definiendo
+// (informativo — ni bien ni mal, un acuerdo a medio confirmar).
+function varianteEstadoDescanso(estado: string): "positivo" | "alerta" | "informativo" {
+  if (estado === "OTORGADO") return "positivo";
+  if (estado === "NO_OTORGADO") return "alerta";
+  return "informativo";
+}
 // Mismo tope que el resto de papeles firmados desde que el acta vive en el
 // almacén y no en una columna de la base (mig. 0175). Antes eran 3 MB, que no
 // era una decisión sobre las actas: era el precio de guardarlas como texto.
@@ -101,6 +112,10 @@ export default function FeriadosPage() {
   const [sedes, setSedes] = useState<Sede[]>([]);
   const [feriados, setFeriados] = useState<Feriado[]>([]);
   const [laborados, setLaborados] = useState<Laborado[]>([]);
+  // Cuándo fn_feriados_laborados falla, guardar la nada como "sin datos"
+  // mentía: se veía igual que un rango sin nadie trabajando un feriado. Este
+  // mensaje distingue las dos cosas en la pantalla.
+  const [errorLaborados, setErrorLaborados] = useState<string | null>(null);
   /**
    * persona + feriado → por qué ese día compensatorio no compensa.
    *
@@ -168,6 +183,7 @@ export default function FeriadosPage() {
     setSedes((sd as Sede[]) ?? []);
     setFeriados((f as Feriado[]) ?? []);
     setLaborados(eL ? [] : ((l as unknown as Laborado[]) ?? []));
+    setErrorLaborados(eL ? mensajeDeError(eL, "cargar quién trabajó feriados") : null);
     setRegistros((r as Registro[]) ?? []);
     setActas(Array.isArray(ac) ? (ac as unknown as Acta[]) : []);
     setCargando(false);
@@ -388,8 +404,7 @@ export default function FeriadosPage() {
 
   if (rol !== null && !puedeGestionar) {
     return (
-      <div className="flex min-h-screen flex-col">
-        <AdminNav />
+      <div className="flex flex-1 flex-col">
         <main className="flex flex-1 items-center justify-center p-6">
           <p className="max-w-md text-center text-taupe">No tienes permiso para gestionar feriados.</p>
         </main>
@@ -398,8 +413,7 @@ export default function FeriadosPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <AdminNav />
+    <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
         <h1 className="mb-1 font-serif text-2xl">Feriados laborados</h1>
         <p className="mb-5 max-w-3xl text-sm text-taupe">
@@ -417,11 +431,10 @@ export default function FeriadosPage() {
           <div className="mb-4">
             <div className="mb-2 flex flex-wrap items-center gap-3">
               <span className="text-sm">A quiénes</span>
-              <select value={sedeFiltro} onChange={(e) => setSedeFiltro(e.target.value)}
-                className="rounded-lg border bg-crema px-2 py-1 text-sm">
+              <CampoSelect value={sedeFiltro} onChange={(e) => setSedeFiltro(e.target.value)}>
                 <option value="">Todas las sedes</option>
                 {sedes.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
-              </select>
+              </CampoSelect>
               <Boton type="button" variante="sutil" tamano="sm" onClick={todasVisibles}>
                 Marcar / desmarcar visibles
               </Boton>
@@ -432,7 +445,7 @@ export default function FeriadosPage() {
             <div className="grid max-h-52 gap-1 overflow-y-auto rounded-lg border border-sand bg-crema p-2 sm:grid-cols-2 lg:grid-cols-3">
               {visibles.map((p) => (
                 <label key={p.id} className="flex items-center gap-2 rounded px-2 py-1 text-sm hover:bg-sand/40">
-                  <input type="checkbox" checked={elegidas.has(p.id)} onChange={() => alternar(p.id)} />
+                  <input type="checkbox" checked={elegidas.has(p.id)} onChange={() => alternar(p.id)} className="size-4 accent-tinta" />
                   {p.nombres} {p.apellidos}
                 </label>
               ))}
@@ -446,13 +459,12 @@ export default function FeriadosPage() {
             <div className="grid gap-2">
               {parejas.map((par, i) => (
                 <div key={i} className="flex flex-wrap items-center gap-2">
-                  <select value={par.feriado} onChange={(e) => cambiarPareja(i, "feriado", e.target.value)}
-                    className="min-w-56 rounded-lg border bg-crema px-3 py-2 text-sm">
+                  <CampoSelect className="min-w-56" value={par.feriado} onChange={(e) => cambiarPareja(i, "feriado", e.target.value)}>
                     <option value="">Feriado trabajado…</option>
                     {feriados.map((f) => (
                       <option key={f.fecha} value={f.fecha}>{fechaCorta(f.fecha)} — {f.nombre}</option>
                     ))}
-                  </select>
+                  </CampoSelect>
                   <span className="text-taupe">→</span>
                   <input ref={(el) => { refsDescanso.current[i] = el; }} type="date" value={par.descanso}
                     onChange={(e) => cambiarPareja(i, "descanso", e.target.value)}
@@ -480,18 +492,16 @@ export default function FeriadosPage() {
 
           {/* 3 · Estado y acta */}
           <div className="flex flex-wrap items-end gap-3">
-            <label className="flex flex-col gap-1 text-sm">
-              Estado
-              <select value={estado} onChange={(e) => setEstado(e.target.value)}
-                className="rounded-lg border bg-crema px-3 py-2">
-                {ESTADOS.map((e) => <option key={e} value={e}>{e}</option>)}
-              </select>
-            </label>
-            <label className="flex min-w-72 flex-1 flex-col gap-1 text-sm">
-              Acta firmada {estado === "OTORGADO" && <span className="text-rojo">· obligatoria para OTORGADO</span>}
-              <input value={actaRef} onChange={(e) => setActaRef(e.target.value)}
-                className="rounded-lg border px-3 py-2" placeholder="ej. Acta 2026-07-28 Taller LIM" />
-            </label>
+            <CampoSelect etiqueta="Estado" value={estado} onChange={(e) => setEstado(e.target.value)}>
+              {ESTADOS.map((e) => <option key={e} value={e}>{e}</option>)}
+            </CampoSelect>
+            <div className="flex min-w-72 flex-1 flex-col gap-1">
+              <span className="text-sm text-taupe">
+                Acta firmada {estado === "OTORGADO" && <span className="text-rojo">· obligatoria para OTORGADO</span>}
+              </span>
+              <Campo value={actaRef} onChange={(e) => setActaRef(e.target.value)}
+                placeholder="ej. Acta 2026-07-28 Taller LIM" />
+            </div>
           </div>
 
           <p className="mt-3 max-w-2xl text-xs text-taupe">
@@ -502,8 +512,8 @@ export default function FeriadosPage() {
 
           {/* Cuántos registros van a salir — antes de crearlos. */}
           <div className="mt-4 flex flex-wrap items-center gap-3">
-            <Boton variante="primario" onClick={registrarLote} disabled={guardando || totalRegistros === 0}>
-              {guardando ? "Guardando…" : "Registrar"}
+            <Boton variante="primario" onClick={registrarLote} cargando={guardando} disabled={totalRegistros === 0}>
+              Registrar
             </Boton>
             <span className="text-sm text-taupe">
               {totalRegistros === 0
@@ -540,18 +550,14 @@ export default function FeriadosPage() {
           </p>
 
           <div className="flex flex-wrap items-end gap-3">
-            <label className="flex flex-col gap-1 text-sm">
-              ¿De qué acuerdo?
-              <select value={refActa} onChange={(e) => setRefActa(e.target.value)}
-                className="min-w-64 rounded-lg border bg-crema px-3 py-2">
-                <option value="">Elegir…</option>
-                {referencias.map((ref) => (
-                  <option key={ref} value={ref}>
-                    {ref}{actaPorRef.get(ref)?.tiene_archivo ? " — ya tiene acta" : ""}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <CampoSelect etiqueta="¿De qué acuerdo?" className="min-w-64" value={refActa} onChange={(e) => setRefActa(e.target.value)}>
+              <option value="">Elegir…</option>
+              {referencias.map((ref) => (
+                <option key={ref} value={ref}>
+                  {ref}{actaPorRef.get(ref)?.tiene_archivo ? " — ya tiene acta" : ""}
+                </option>
+              ))}
+            </CampoSelect>
             <label className="flex flex-col gap-1 text-sm">
               Archivo
               {/* HEIC/HEIF entran porque es lo que sale de la cámara de un
@@ -626,12 +632,10 @@ export default function FeriadosPage() {
           <div className="border-b bg-sand/50 px-4 py-2">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-sm font-medium">Quién trabajó feriados</h2>
-              <div className="flex items-center gap-2 text-xs">
-                <input type="date" value={desde} onChange={(e) => setDesde(e.target.value)}
-                  className="rounded border px-2 py-1" />
-                <span className="text-taupe">→</span>
-                <input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)}
-                  className="rounded border px-2 py-1" />
+              <div className="flex items-center gap-2">
+                <Campo type="date" value={desde} onChange={(e) => setDesde(e.target.value)} className="py-1" />
+                <span className="text-xs text-taupe">→</span>
+                <Campo type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} className="py-1" />
               </div>
             </div>
             {sobretasaSinResolver > 0 && (
@@ -643,62 +647,50 @@ export default function FeriadosPage() {
           </div>
           {cargando ? (
             <Cargando />
+          ) : errorLaborados ? (
+            <p className="px-4 py-6 text-sm text-rojo">No se pudo cargar quién trabajó feriados: {errorLaborados}</p>
           ) : laborados.length === 0 ? (
             <p className="px-4 py-6 text-sm text-taupe">Nadie marcó horas en un feriado de este rango.</p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[720px] text-sm">
-                <thead className="bg-sand/70 text-left text-taupe">
-                  <tr>
-                    <th className="px-4 py-2 font-normal">Persona</th>
-                    <th className="px-4 py-2 font-normal">Feriado</th>
-                    <th className="px-4 py-2 text-right font-normal">Horas</th>
-                    <th className="px-4 py-2 text-right font-normal">Sobretasa</th>
-                    <th className="px-4 py-2 font-normal">Compensación</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {laborados.map((l) => (
-                    <tr key={`${l.persona_id}-${l.fecha_feriado}`} className="border-t align-top">
-                      <td className="px-4 py-2">
-                        {l.nombre}
-                        <div className="text-xs text-taupe">{l.sede}</div>
-                      </td>
-                      <td className="px-4 py-2">
-                        {fechaCorta(l.fecha_feriado)}
-                        <div className="text-xs text-taupe">{l.feriado_nombre}</div>
-                      </td>
-                      <td className="px-4 py-2 text-right tabular-nums">{l.horas}</td>
-                      <td className={`px-4 py-2 text-right tabular-nums ${l.estado === "OTORGADO" ? "text-taupe line-through" : ""}`}>
-                        {l.sobretasa === null ? <span className="text-taupe/60">sin salario</span> : soles(l.sobretasa)}
-                      </td>
-                      <td className="px-4 py-2">
-                        {l.estado === null ? (
-                          <span className="text-taupe">— paga sobretasa</span>
-                        ) : (
-                          <>
-                            <span
-                              className={
-                                l.estado === "OTORGADO"
-                                  ? "font-medium text-tinta"
-                                  : l.estado === "NO_OTORGADO"
-                                    ? "font-medium text-rojo"
-                                    : "text-taupe"
-                              }
-                            >
-                              {l.estado}
-                            </span>
-                            {l.fecha_descanso && (
-                              <div className="text-xs text-taupe">libre el {fechaCorta(l.fecha_descanso)}</div>
-                            )}
-                          </>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <Tabla className="min-w-[720px]">
+              <TablaEncabezado>
+                <Th>Persona</Th>
+                <Th>Feriado</Th>
+                <Th className="text-right">Horas</Th>
+                <Th className="text-right">Sobretasa</Th>
+                <Th>Compensación</Th>
+              </TablaEncabezado>
+              <tbody>
+                {laborados.map((l) => (
+                  <Fila key={`${l.persona_id}-${l.fecha_feriado}`} className="align-top">
+                    <td className="px-4 py-2">
+                      {l.nombre}
+                      <div className="text-xs text-taupe">{l.sede}</div>
+                    </td>
+                    <td className="px-4 py-2">
+                      {fechaCorta(l.fecha_feriado)}
+                      <div className="text-xs text-taupe">{l.feriado_nombre}</div>
+                    </td>
+                    <td className="px-4 py-2 text-right tabular-nums">{l.horas}</td>
+                    <td className={`px-4 py-2 text-right tabular-nums ${l.estado === "OTORGADO" ? "text-taupe line-through" : ""}`}>
+                      {l.sobretasa === null ? <span className="text-taupe">sin salario</span> : soles(l.sobretasa)}
+                    </td>
+                    <td className="px-4 py-2">
+                      {l.estado === null ? (
+                        <span className="text-taupe">— paga sobretasa</span>
+                      ) : (
+                        <>
+                          <Insignia variante={varianteEstadoDescanso(l.estado)}>{l.estado}</Insignia>
+                          {l.fecha_descanso && (
+                            <div className="text-xs text-taupe">libre el {fechaCorta(l.fecha_descanso)}</div>
+                          )}
+                        </>
+                      )}
+                    </td>
+                  </Fila>
+                ))}
+              </tbody>
+            </Tabla>
           )}
         </div>
 
@@ -719,17 +711,7 @@ export default function FeriadosPage() {
                       <span className="text-taupe">
                         · trabajó el {fechaCorta(r.fecha_feriado)} · libre el {fechaCorta(r.fecha_descanso_sustitutorio)}
                       </span>{" "}
-                      <span
-                        className={
-                          r.estado === "OTORGADO"
-                            ? "font-medium"
-                            : r.estado === "NO_OTORGADO"
-                              ? "font-medium text-rojo"
-                              : "text-taupe"
-                        }
-                      >
-                        · {r.estado}
-                      </span>
+                      <Insignia variante={varianteEstadoDescanso(r.estado)} className="ml-1">{r.estado}</Insignia>
                     </span>
                     <Boton variante="peligro" tamano="sm" onClick={() => quitar(r.id)} disabled={guardando}>
                       Quitar

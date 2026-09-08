@@ -3,7 +3,6 @@
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
-import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { MESES, lecturaObjetivos, nivelColorObjetivos, type MesHistorial, type ObjetivoItem } from "@/lib/objetivos";
@@ -11,6 +10,11 @@ import { GraficoObjetivos } from "@/components/grafico-objetivos";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { useToast } from "@/components/toast";
 import { TZ_LIMA, puedeVerTodasLasSedes } from "@cayla-dynamic/shared";
+import { Boton } from "@/components/ui/boton";
+import { Insignia } from "@/components/ui/insignia";
+import { Modal } from "@/components/ui/modal";
+import { Campo, CampoSelect } from "@/components/ui/campo";
+import { AreaTexto } from "@/components/ui/area-texto";
 
 
 // Mapa explícito (no `bg-${nivel}` interpolado) para que Tailwind encuentre
@@ -76,6 +80,11 @@ function ObjetivosContenido() {
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [textoEdicion, setTextoEdicion] = useState("");
   const [indicacionesEdicion, setIndicacionesEdicion] = useState("");
+  // Reemplaza el window.confirm() que pedía esta misma confirmación en un
+  // diálogo nativo del navegador — Felipe aprobó migrar todos los diálogos
+  // nativos del panel a <Modal> (ver CLAUDE.md).
+  const [aEliminar, setAEliminar] = useState<ObjetivoItem | null>(null);
+  const [eliminando, setEliminando] = useState(false);
 
   useEffect(() => {
     const supabase = createAdminSupabaseClient();
@@ -288,13 +297,15 @@ function ObjetivosContenido() {
   }
 
   async function eliminar(item: ObjetivoItem) {
-    if (!window.confirm(`¿Eliminar el objetivo “${item.descripcion}”?`)) return;
+    setEliminando(true);
     const supabase = createAdminSupabaseClient();
     const { error } = await supabase.rpc("fn_objetivo_eliminar", { p_item_id: item.id });
+    setEliminando(false);
     if (error) {
       avisar("error", mensajeDeError(error, "eliminar"));
       return;
     }
+    setAEliminar(null);
     await cargar();
     await cargarHistorial();
   }
@@ -308,8 +319,7 @@ function ObjetivosContenido() {
   const registroManual = resumen.find((r) => r.persona_id === personaId && !r.con_checklist);
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <AdminNav />
+    <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
         <h1 className="mb-1 font-serif text-2xl">Objetivos del mes</h1>
         <p className="mb-5 text-sm text-taupe">
@@ -320,49 +330,33 @@ function ObjetivosContenido() {
         </p>
 
         <div className="mb-6 flex flex-wrap items-end gap-4">
-          <label className="flex flex-col gap-1 text-sm">
-            Persona
-            <select
-              value={personaId}
-              onChange={(e) => setPersonaId(e.target.value)}
-              className="min-w-56 rounded-lg border border-sand bg-crema px-3 py-2"
-            >
-              <option value="">Elegir…</option>
-              {personas.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.nombres} {p.apellidos}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex flex-col gap-1 text-sm">
-            Mes
-            <select
-              value={mes}
-              onChange={(e) => setMes(Number(e.target.value))}
-              className="rounded-lg border border-sand bg-crema px-3 py-2"
-            >
-              {MESES.map((m, i) => (
-                <option key={m} value={i + 1}>
-                  {m}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex flex-col gap-1 text-sm">
-            Año
-            <select
-              value={anio}
-              onChange={(e) => setAnio(Number(e.target.value))}
-              className="rounded-lg border border-sand bg-crema px-3 py-2"
-            >
-              {[hoy.anio - 1, hoy.anio, hoy.anio + 1].map((a) => (
-                <option key={a} value={a}>
-                  {a}
-                </option>
-              ))}
-            </select>
-          </label>
+          <CampoSelect
+            etiqueta="Persona"
+            value={personaId}
+            onChange={(e) => setPersonaId(e.target.value)}
+            className="min-w-56"
+          >
+            <option value="">Elegir…</option>
+            {personas.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.nombres} {p.apellidos}
+              </option>
+            ))}
+          </CampoSelect>
+          <CampoSelect etiqueta="Mes" value={mes} onChange={(e) => setMes(Number(e.target.value))}>
+            {MESES.map((m, i) => (
+              <option key={m} value={i + 1}>
+                {m}
+              </option>
+            ))}
+          </CampoSelect>
+          <CampoSelect etiqueta="Año" value={anio} onChange={(e) => setAnio(Number(e.target.value))}>
+            {[hoy.anio - 1, hoy.anio, hoy.anio + 1].map((a) => (
+              <option key={a} value={a}>
+                {a}
+              </option>
+            ))}
+          </CampoSelect>
         </div>
 
         {!personaId ? (
@@ -386,11 +380,8 @@ function ObjetivosContenido() {
                       desempeño se queda — nunca fue un pago, es un aviso para
                       conversar. */}
                   {total > 0 && nivel.observacion && (
-                    <span
-                      className="rounded-full bg-rojo/10 px-3 py-0.5 text-rojo"
-                      title="Menos del 30% de objetivos — amerita conversación (principios CAYLA)"
-                    >
-                      Observación
+                    <span title="Menos del 30% de objetivos — amerita conversación (principios CAYLA)">
+                      <Insignia variante="alerta">Observación</Insignia>
                     </span>
                   )}
                 </span>
@@ -412,21 +403,18 @@ function ObjetivosContenido() {
                   <p className="text-xs font-medium text-taupe">
                     Historial ({rangoHistorial === 1 ? "1 mes" : `${rangoHistorial} meses`})
                   </p>
-                  <label className="flex items-center gap-2 text-xs text-taupe">
-                    Rango
-                    <select
-                      value={rangoHistorial}
-                      onChange={(e) => setRangoHistorial(Number(e.target.value))}
-                      className="rounded-lg border border-sand bg-crema px-2 py-1 text-xs"
-                    >
-                      <option value={1}>Último mes</option>
-                      <option value={2}>Últimos 2 meses</option>
-                      <option value={3}>Últimos 3 meses</option>
-                      <option value={6}>Últimos 6 meses</option>
-                      <option value={12}>Últimos 12 meses</option>
-                      <option value={24}>Últimos 24 meses</option>
-                    </select>
-                  </label>
+                  <CampoSelect
+                    etiqueta="Rango"
+                    value={rangoHistorial}
+                    onChange={(e) => setRangoHistorial(Number(e.target.value))}
+                  >
+                    <option value={1}>Último mes</option>
+                    <option value={2}>Últimos 2 meses</option>
+                    <option value={3}>Últimos 3 meses</option>
+                    <option value={6}>Últimos 6 meses</option>
+                    <option value={12}>Últimos 12 meses</option>
+                    <option value={24}>Últimos 24 meses</option>
+                  </CampoSelect>
                 </div>
                 <GraficoObjetivos
                   key={historialClave ?? "sin-historial"}
@@ -464,28 +452,34 @@ function ObjetivosContenido() {
                 <li className="flex flex-col items-center gap-3 px-4 py-6 text-center text-sm text-taupe">
                   <span>Sin objetivos registrados para {MESES[mes - 1].toLowerCase()} {anio}.</span>
                   {puedeGestionar && (
-                    <button
+                    <Boton
+                      tamano="sm"
                       onClick={() => void copiarMesAnterior()}
                       disabled={copiando}
-                      className="rounded-lg border border-sand px-3 py-1.5 text-xs font-medium text-tinta hover:bg-sand/40 disabled:opacity-50"
+                      cargando={copiando}
                     >
                       {copiando ? "Copiando…" : "Copiar del mes anterior"}
-                    </button>
+                    </Boton>
                   )}
                 </li>
               ) : (
                 items.map((item) => (
                   <li key={item.id} className="flex items-start gap-3 px-4 py-2.5">
+                    {/* Casilla suelta: no hay <CampoCasilla> todavía en
+                        components/ui/campo.tsx pese a lo anunciado — se deja con
+                        las clases que ya usan las demás casillas sueltas del panel
+                        (accent-tinta, border-sand) para que migrar sea trivial en
+                        cuanto exista. Ver 'pendientes'. */}
                     <input
                       type="checkbox"
                       checked={item.cumplido}
                       disabled={!puedeGestionar}
                       onChange={(e) => void marcar(item, e.target.checked)}
-                      className="mt-1 h-4 w-4 rounded border"
+                      className="mt-1 size-4 rounded border-sand accent-tinta"
                     />
                     {editandoId === item.id ? (
                       <div className="flex-1">
-                        <input
+                        <Campo
                           value={textoEdicion}
                           onChange={(e) => setTextoEdicion(e.target.value)}
                           onKeyDown={(e) => {
@@ -494,30 +488,22 @@ function ObjetivosContenido() {
                           autoFocus
                           maxLength={300}
                           placeholder="El objetivo"
-                          className="w-full rounded-lg border border-sand bg-crema px-3 py-1.5 text-sm"
                         />
-                        <textarea
+                        <AreaTexto
                           value={indicacionesEdicion}
                           onChange={(e) => setIndicacionesEdicion(e.target.value)}
                           placeholder="Indicaciones (opcional) — el detalle que ayuda a cumplirlo"
                           maxLength={2000}
                           rows={2}
-                          className="mt-2 w-full rounded-lg border border-sand bg-crema px-3 py-1.5 text-sm"
+                          className="mt-2 w-full"
                         />
                         <div className="mt-2 flex gap-2">
-                          <button
-                            onClick={() => void guardarEdicion(item)}
-                            disabled={guardando}
-                            className="rounded-lg bg-tinta px-3 py-1.5 text-xs font-medium text-crema disabled:opacity-50"
-                          >
+                          <Boton variante="primario" tamano="sm" onClick={() => void guardarEdicion(item)} disabled={guardando} cargando={guardando}>
                             Guardar
-                          </button>
-                          <button
-                            onClick={() => setEditandoId(null)}
-                            className="rounded-lg border px-3 py-1.5 text-xs"
-                          >
+                          </Boton>
+                          <Boton tamano="sm" onClick={() => setEditandoId(null)}>
                             Cancelar
-                          </button>
+                          </Boton>
                         </div>
                       </div>
                     ) : (
@@ -532,22 +518,19 @@ function ObjetivosContenido() {
                         </div>
                         {puedeGestionar && (
                           <div className="flex shrink-0 gap-2 text-xs">
-                            <button
+                            <Boton
+                              tamano="sm"
                               onClick={() => {
                                 setEditandoId(item.id);
                                 setTextoEdicion(item.descripcion);
                                 setIndicacionesEdicion(item.indicaciones ?? "");
                               }}
-                              className="rounded border px-2 py-1 hover:bg-sand/50"
                             >
                               Editar
-                            </button>
-                            <button
-                              onClick={() => void eliminar(item)}
-                              className="rounded border border-rojo/30 px-2 py-1 text-rojo hover:bg-rojo/10"
-                            >
+                            </Boton>
+                            <Boton variante="peligro" tamano="sm" onClick={() => setAEliminar(item)}>
                               Eliminar
-                            </button>
+                            </Boton>
                           </div>
                         )}
                       </>
@@ -560,30 +543,55 @@ function ObjetivosContenido() {
             {/* Agregar */}
             {puedeGestionar && (
               <div className="flex flex-col gap-2 rounded-2xl border border-sand bg-papel p-3">
-                <input
+                <Campo
                   value={nuevoTexto}
                   onChange={(e) => setNuevoTexto(e.target.value)}
                   placeholder="ej. Completar la capacitación de atención al cliente"
                   maxLength={300}
-                  className="rounded-lg border border-sand bg-crema px-3 py-2 text-sm"
                 />
-                <textarea
+                <AreaTexto
                   value={nuevasIndicaciones}
                   onChange={(e) => setNuevasIndicaciones(e.target.value)}
                   placeholder="Indicaciones (opcional) — el detalle que ayuda a cumplirlo: qué se espera, cómo se mide, con quién coordinar"
                   maxLength={2000}
                   rows={2}
-                  className="rounded-lg border border-sand bg-crema px-3 py-2 text-sm"
                 />
-                <button
+                <Boton
+                  variante="primario"
                   onClick={() => void agregar()}
                   disabled={guardando || !nuevoTexto.trim()}
-                  className="self-start rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50"
+                  cargando={guardando}
+                  className="self-start"
                 >
                   {guardando ? "Agregando…" : "+ Agregar"}
-                </button>
+                </Boton>
               </div>
             )}
+
+            {/* Confirmar eliminación: reemplaza el window.confirm() nativo. */}
+            <Modal
+              abierto={aEliminar !== null}
+              onCerrar={() => setAEliminar(null)}
+              bloqueado={eliminando}
+              titulo="Eliminar objetivo"
+              ancho="sm"
+            >
+              {aEliminar && (
+                <>
+                  <p className="mb-4 text-sm text-taupe">
+                    ¿Eliminar el objetivo “{aEliminar.descripcion}”? No se puede deshacer.
+                  </p>
+                  <div className="flex justify-end gap-2">
+                    <Boton onClick={() => setAEliminar(null)} disabled={eliminando}>
+                      Cancelar
+                    </Boton>
+                    <Boton variante="peligro" onClick={() => void eliminar(aEliminar)} cargando={eliminando}>
+                      Eliminar
+                    </Boton>
+                  </div>
+                </>
+              )}
+            </Modal>
 
             <p className="mt-4 text-xs text-taupe">
               Mes con planilla PAGADA = solo lectura (para corregir, un administrador reabre el periodo en

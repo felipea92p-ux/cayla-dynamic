@@ -11,6 +11,16 @@
   --color-rojo-profundo: #8b2a1f; /* énfasis sobre crema */
   --color-sand: #e8e0d0; /* recuadros, headers de tabla, líneas */
   --color-taupe: #805c4c; /* acento tonal, estados intermedios */
+  /* Borde de control: sand como borde de un input/select da 1.16:1 sobre crema
+     y 1.24:1 sobre papel — muy por debajo del 3:1 que WCAG 1.4.11 pide para lo
+     que identifica un control (Campo, CampoSelect y el Boton "secundario" hoy
+     usan border-sand). Sand sigue siendo la línea decorativa correcta para
+     separadores y marcos de tarjeta; para un control interactivo hace falta
+     más peso. Alias a taupe, que ya lo tiene: 5.21:1 sobre crema, 5.57:1 sobre
+     papel, sin sumar un color nuevo al sistema. Definido acá para que Campo,
+     CampoSelect y Boton puedan pedir border-borde-control — aplicarlo es
+     trabajo de esos archivos, no de este. */
+  --color-borde-control: var(--color-taupe);
   /* Estados operativos: verdes/ámbar cálidos, apagados para convivir con la crema.
      Retunados el 2026-09-06: los valores anteriores (#5b754f, #8d6726) daban
      4.51:1 sobre crema — el límite exacto de WCAG AA, tal como se pinta el pill
@@ -31,16 +41,32 @@
      borrador, pendiente de firma) que hoy se apila sin distinguirse sobre sand
      neutro — ninguno de los estados existentes (verde=positivo,
      ámbar=advertencia, rojo=alerta) le queda, y esa ausencia es justo lo que
-     empuja a usar un color de Tailwind por defecto por error. 5.13:1 sobre
-     crema. */
-  --color-pizarra: #55677a;
+     empuja a usar un color de Tailwind por defecto por error.
+     Retonado el 2026-09-07: el valor de partida (#55677a) daba 5.13:1 sobre
+     crema PLANA, pero pizarra no se usa así — se pinta como pill
+     (Insignia: `bg-pizarra/15 text-pizarra`, el mismo patrón que verde y
+     ámbar), y compuesto ese 15% da 4.21:1 sobre crema y 4.49:1 sobre papel:
+     los dos por debajo del 4.5:1 que exige WCAG AA para texto normal. Este
+     valor, medido igual que como se pinta de verdad, da 4.86:1 como pill
+     sobre crema y 5.17:1 sobre papel — mismo matiz, un paso más oscuro.
+     Cualquier contraste que se declare acá de ahora en más se mide con la
+     opacidad y el fondo con que el componente lo pinta de verdad, nunca sobre
+     el token plano. */
+  --color-pizarra: #4c5d6e;
 
   /* ── Radios ───────────────────────────────────────────────────
      Antes convivían 7 escalas (rounded, rounded-md, rounded-lg, rounded-xl,
      rounded-2xl...) sin ningún criterio de qué componente usa cuál. Estos
      cuatro son los únicos que un componente compartido debería usar de acá en
-     adelante. */
-  --radius-control: 0.625rem; /* 10px — botones, inputs, selects, badges cuadrados */
+     adelante.
+     Control quedó en 0.5rem (8px) —no 10px— a propósito: es el mismo valor
+     que ya llevan los 636 `rounded-lg` escritos a mano en el panel. Medido
+     el 2026-09-07: con 10px, un `<Boton>` quedaba al lado de un `<select>`
+     sin migrar con un radio distinto en la misma fila (admin/feriados,
+     cuentas, sedes, areas). El nombre se gana sin abrir una octava escala;
+     si de verdad hicieran falta 10px, la migración de esos 636 usos deja de
+     ser opcional. */
+  --radius-control: 0.5rem; /* 8px — botones, inputs, selects, badges cuadrados: igual a rounded-lg */
   --radius-superficie: 1rem; /* 16px — tarjetas y el contenedor de Tabla (mismo valor que rounded-2xl de hoy, ahora con nombre) */
   --radius-flotante: 1.25rem; /* 20px — modales, dropdowns, popovers: un paso más que "superficie" para que se sienta encima */
   --radius-pildora: 999px; /* insignias, avatares */
@@ -49,6 +75,18 @@
      Serif para títulos y datos con alma; sans para el sistema. */
   --font-sans: var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif;
   --font-serif: var(--font-eb-garamond), ui-serif, Georgia, "Times New Roman", serif;
+
+  /* Piso de tamaño: no había ni un --text-*, así que cualquier pantalla se salía
+     de la escala con un text-[Npx] arbitrario sin que nada lo notara. Medido en
+     apps/web: 83 usos por debajo de text-sm (53 en 11px, 21 en 10px, 3 en 9px,
+     2 en 13px — el resto de 12px ya tiene nombre: text-xs). Estos dos son el
+     piso de acá en adelante: --text-nano es el mínimo del sistema, y los tres
+     usos de 9px (mio/page.tsx, admin/horas/page.tsx: el calendario personal y
+     la tira de asistencia) tienen que subir hasta acá, no quedarse más chicos. */
+  --text-micro: 0.6875rem; /* 11px — la talla más repetida por debajo de text-sm */
+  --text-micro--line-height: 1rem;
+  --text-nano: 0.625rem; /* 10px — el piso: nada del sistema va más chico que esto */
+  --text-nano--line-height: 0.875rem;
 }
 
 /* ── Modo oscuro ────────────────────────────────────────────────
@@ -78,10 +116,16 @@
     --color-rojo-profundo: #e8836b;
     --color-sand: #332e27;
     --color-taupe: #ab9080;
-    --color-verde: #85a476;
+    --color-verde: #8fae80; /* retonado 2026-09-07: #85a476 daba 4.43:1 como pill (bg-verde/15) sobre papel oscuro, bajo AA; este da 4.91:1 */
     --color-ambar: #c99a4a;
     --color-hueso: #15110d;
     --color-pizarra: #9db0c2;
+    /* Sin esto, el calendario de <input type="date">, la lista de <select>,
+       las scrollbars y el resaltado de autocompletado los sigue pintando el
+       navegador en su paleta clara aunque la app esté en oscuro — invisibles
+       o casi (ver "Fecha de emisión" de Ausencias, el mismo campo que
+       CLAUDE.md ya documenta como el que costó una tarde). */
+    color-scheme: dark;
   }
 }
 :root[data-tema="oscuro"] {
@@ -92,13 +136,23 @@
   --color-rojo-profundo: #e8836b;
   --color-sand: #332e27;
   --color-taupe: #ab9080;
-  --color-verde: #85a476;
+  --color-verde: #8fae80; /* retonado 2026-09-07: #85a476 daba 4.43:1 como pill (bg-verde/15) sobre papel oscuro, bajo AA; este da 4.91:1 */
   --color-ambar: #c99a4a;
   --color-hueso: #15110d;
   --color-pizarra: #9db0c2;
+  color-scheme: dark;
 }
 
 @layer base {
+  /* Los controles nativos del navegador (calendario de <input type="date">,
+     lista de <select>, scrollbars, resaltado de autocompletado) los pinta el
+     navegador, no este CSS, y solo cambian de paleta si la raíz declara
+     color-scheme. Claro por defecto; los bloques de tema oscuro (arriba) y el
+     de impresión (abajo) lo redeclaran cada uno al suyo. */
+  :root {
+    color-scheme: light;
+  }
+
   /* La línea fina es el único elemento decorativo: por defecto, Sand. */
   *,
   ::after,
@@ -117,24 +171,43 @@
   /* Foco de teclado de sistema, agregado el 2026-09-06: antes solo 2-9 de ~40
      archivos de admin definían algún estado de foco visible, y el resto
      dependía del anillo azul por defecto del navegador (ni token, ni
-     garantizado sobre rounded-lg ni en modo oscuro). Una sola regla lo resuelve
-     para todos los botones, enlaces e inputs de una vez. */
+     garantizado sobre rounded-lg ni en modo oscuro). Esta regla vive en
+     @layer base, así que NO alcanza a ningún control que traiga la utilidad
+     outline-none escrita a mano: esa utilidad vive en @layer utilities y gana
+     por orden de capa, sin importar la especificidad. Quedan ~14 sitios así —
+     login, nueva-clave, olvide-clave, vincular del terminal, el buscador del
+     kiosco, cuentas, mio, buscador-global, grafico-objetivos — que hoy caen a
+     un borde de 1px (focus:border-taupe) como único foco, un lenguaje visual
+     distinto del anillo rojo de 2px de todo lo demás. Quitar esos
+     outline-none —cosa de cada archivo, no de este— es lo que de verdad cierra
+     la cobertura; esta regla sola no puede. */
   :focus-visible {
     outline: 2px solid var(--color-rojo);
     outline-offset: 2px;
   }
+
+  /* Tailwind v4 cambió el cursor por defecto de <button> a `default` (antes
+     era `pointer` en todo navegador). Sin esto, cualquier botón sin :hover
+     que lo repusiera a mano no daba ninguna señal de que fuera interactivo
+     ni con teclado ni con mouse — agregado el 2026-09-07 al medir el mismo
+     problema en el terminal (components.tsx: las casillas de nombre), pero
+     alcanza a las 24 pantallas del panel de una sola vez. */
+  button:not(:disabled) {
+    cursor: pointer;
+  }
 }
 
-/* Vitalidad: el botón primario (fondo tinta) "prende" en el acento sagrado al
-   pasar el cursor. Es transición, no color fijo — solo prende el que tocas, así
-   sigue habiendo "un rojo por vista". Sin capa: gana sobre las utilidades. */
-.bg-tinta {
-  transition: background-color 180ms ease;
-}
-button.bg-tinta:not(:disabled):hover,
-a.bg-tinta:hover {
-  background-color: var(--color-rojo);
-}
+/* La "vitalidad" del botón primario (prende en el acento sagrado al pasar el
+   cursor) vive en Boton (`hover:bg-rojo-profundo duration-150`), no acá.
+   Hasta el 2026-09-07 hubo además esta regla, fuera de cualquier @layer, que
+   por eso le ganaba a CUALQUIER utilidad de Tailwind sin importar su
+   especificidad — incluida la de Boton, que quedó de adorno pidiendo
+   bg-rojo-profundo mientras esto pintaba bg-rojo. Y como el selector era de
+   elemento (`button.bg-tinta`) y no de componente, alcanzaba también al
+   terminal —apps/web/app/(terminal)/error.tsx y
+   terminal/marcar/components.tsx, que ni importan Boton—, pese a que ningún
+   cambio de estilo compartido puede tocar el terminal. Quitarla deja que
+   cada botón haga lo que su propio className ya declara. */
 
 /* Etiqueta de sistema: mayúsculas con tracking amplio (escala del manual). */
 .etiqueta {
@@ -142,6 +215,55 @@ a.bg-tinta:hover {
   letter-spacing: 0.16em;
   font-size: 0.7rem;
   font-weight: 500;
+}
+
+/* ── La barra de desplazamiento ──────────────────────────────────
+   Hasta el 2026-09-07 era la del sistema operativo: en Windows, 15px de gris
+   plano que no aparece en ninguna paleta de esta casa, pegados al borde del
+   sidebar nuevo y a las 16 pantallas con tabla ancha. En una app donde "la
+   línea fina es el único elemento decorativo", eso era el elemento más grueso
+   de la pantalla.
+
+   Ahora es taupe translúcido sobre pista transparente, así que hereda el tema
+   sin una sola regla de modo oscuro: en claro, taupe es #805c4c y se lee sobre
+   crema; en oscuro es #ab9080 y se lee sobre el crema oscuro. Mismo mecanismo
+   que el resto de la pantalla — se redefine el token, no el componente.
+
+   POR QUÉ DOS VÍAS Y NO UNA. Las dos formas de estilar esto no conviven: desde
+   Chrome 121, si `scrollbar-color` o `scrollbar-width` valen algo distinto de
+   `auto`, el navegador DESCARTA las reglas `::-webkit-scrollbar` (resolución
+   del CSS WG). Escribir las dos a secas deja la mitad del trabajo muerto y sin
+   avisar. El `@supports not selector(...)` reparte: quien entiende el selector
+   de webkit (Chrome, Safari, Edge — o sea las Mac mini, la Mac y el navegador
+   de Felipe) se salta el bloque estándar y usa el detallado; quien no lo
+   entiende (Firefox) se queda con el estándar, que da lo mismo con menos
+   control. Comprobado en el navegador antes de escribirlo, no deducido. */
+@supports not selector(::-webkit-scrollbar) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklab, var(--color-taupe) 35%, transparent) transparent;
+  }
+}
+
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+/* El borde transparente con `background-clip` es lo que deja el pulgar en 6px
+   visibles conservando 12px de zona agarrable: fino a la vista, cómodo al
+   ratón. Sin él habría que elegir entre las dos cosas. */
+::-webkit-scrollbar-thumb {
+  background-color: color-mix(in oklab, var(--color-taupe) 30%, transparent);
+  border: 3px solid transparent;
+  background-clip: content-box;
+  border-radius: var(--radius-pildora);
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in oklab, var(--color-taupe) 55%, transparent);
 }
 
 /* Aleteo del colibrí para estados de carga: un flotar suave, no un giro. */
@@ -268,19 +390,20 @@ a.bg-tinta:hover {
   margin: 0 0 0.3rem;
   position: relative;
 }
-/* La firma escaneada se apoya sobre la raya, no la reemplaza.
-   `mix-blend-mode: multiply` hace que el fondo blanco del escaneo desaparezca
-   contra el papel: sin esto se veía un recuadro blanco opaco tapando la línea,
-   como una pegatina pegada encima. Desde 2026-08-24 las firmas nuevas se
-   guardan ya con el fondo transparente, pero esto sigue haciendo falta para
-   las que se subieron antes — y no estorba a las nuevas. */
+/* La firma escaneada se apoya sobre la raya, no la reemplaza. El blend que le
+   quita el fondo blanco al escaneo antiguo (mix-blend-mode: multiply, dentro
+   de @media print más abajo) se aplica SOLO al imprimir: sobre el fondo real
+   de .contrato en pantalla, que sigue el tema de la app como cualquier .hoja,
+   `multiply` nunca puede aclarar — así que en modo oscuro no tapaba solo el
+   recuadro blanco, borraba la firma entera (fondo × imagen nunca es más claro
+   que el más oscuro de los dos). Desde 2026-08-24 las firmas nuevas se
+   guardan con el fondo transparente y no necesitan el blend en ningún lado. */
 .contrato .linea img {
   position: absolute;
   bottom: 2px;
   left: 50%;
   transform: translateX(-50%);
   max-height: 3rem;
-  mix-blend-mode: multiply;
 }
 .contrato .pie-hoja {
   text-align: center;
@@ -320,8 +443,25 @@ a.bg-tinta:hover {
      Selector repetido con la misma especificidad que las reglas de tema de
      arriba (0,1,0,1: un atributo) y NO solo `:root`, que perdería el empate
      por especificidad contra `:root[data-tema="oscuro"]` aunque este bloque
-     vaya después en el archivo. */
-  :root,
+     vaya después en el archivo.
+
+     Y el primer selector es `:not([data-tema="claro"])`, no `:root` a
+     secas: medido el 2026-09-07, `:root` solo tiene especificidad (0,1,0) y
+     pierde contra `:root:not([data-tema="claro"])` (0,2,0) del bloque de
+     `prefers-color-scheme: dark` de arriba —el estado de quien nunca tocó
+     el selector de tema (`use-tema.ts` quita el atributo para «sistema»)—,
+     así que quien imprime con el sistema en oscuro y sin tema elegido a
+     mano se llevaba la paleta oscura al papel pese a este bloque. Con la
+     misma especificidad, gana el que va después en el archivo: este.
+
+     Once tokens, no nueve: la lista tiene que llevar los mismos --color- que
+     @theme y el modo oscuro, o una superficie o un estado nuevo se queda con
+     su valor de pantalla al imprimir. Ya se desincronizó una vez (verde/ámbar
+     quedaron en los valores que el 2026-09-06 se retiraron por dar justo el
+     mínimo de WCAG AA, y faltaban hueso/pizarra, agregados ese mismo día).
+     Los once valores de acá son una copia exacta de los de `@theme` en modo
+     claro — si uno se retona, este bloque también. */
+  :root:not([data-tema="claro"]),
   :root[data-tema="claro"],
   :root[data-tema="oscuro"] {
     --color-crema: #f5f0e8;
@@ -331,8 +471,11 @@ a.bg-tinta:hover {
     --color-rojo-profundo: #8b2a1f;
     --color-sand: #e8e0d0;
     --color-taupe: #805c4c;
-    --color-verde: #5b754f;
-    --color-ambar: #8d6726;
+    --color-verde: #48603f;
+    --color-ambar: #74501a;
+    --color-hueso: #eae1d2;
+    --color-pizarra: #4c5d6e;
+    color-scheme: light;
   }
 
   @page {
@@ -391,5 +534,15 @@ a.bg-tinta:hover {
 
   .contrato .firmas {
     break-inside: avoid;
+  }
+
+  /* La firma escaneada se apoya sobre la raya solo en papel: `multiply` hace
+     que el fondo blanco del escaneo desaparezca contra el papel (fondo ×
+     imagen nunca aclara). En pantalla NO se aplica — ver el comentario junto a
+     .contrato .linea img más arriba — porque ahí el fondo sigue el tema y
+     puede ser oscuro, donde `multiply` borraría la firma entera en vez de
+     solo el recuadro blanco. */
+  .contrato .linea img {
+    mix-blend-mode: multiply;
   }
 }

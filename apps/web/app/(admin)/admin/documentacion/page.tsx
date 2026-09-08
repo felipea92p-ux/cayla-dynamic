@@ -5,11 +5,13 @@ import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
-import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
 import { Marca } from "@/components/marca";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { useToast } from "@/components/toast";
+import { Boton } from "@/components/ui/boton";
+import { Campo, CampoSelect } from "@/components/ui/campo";
+import { TablaEncabezado, Th, Fila } from "@/components/ui/tabla";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 import { abrirArchivoFirmado } from "@/lib/abrir-archivo-firmado";
 import { EMPRESA, hoyLima, rangoDelMesLima, puedeGestionarCatalogos } from "@cayla-dynamic/shared";
@@ -1376,7 +1378,6 @@ export default function DocumentacionPage() {
 
   return (
     <>
-      <div className="print:hidden"><AdminNav /></div>
 
       <main className="mx-auto max-w-3xl p-6 print:max-w-none print:p-0">
         {/* Controles — no se imprimen */}
@@ -1420,12 +1421,12 @@ export default function DocumentacionPage() {
               {/* Sin este botón el aviso se podía leer pero no cerrar: decía qué
                   falta y no dejaba resolverlo en la misma pantalla. */}
               <div className="mt-2 flex flex-wrap items-center gap-3">
-                <button onClick={() => { setTipo("politica"); setTimeout(() => window.print(), 60); }}
-                  className="text-xs font-medium underline">Imprimir</button>
-                <button onClick={() => abrirSubida("politica", null)}
-                  className="rounded-lg border border-rojo px-3 py-1 text-xs font-medium text-rojo">
+                <Boton variante="enlace" onClick={() => { setTipo("politica"); setTimeout(() => window.print(), 60); }}>
+                  Imprimir
+                </Boton>
+                <Boton variante="peligro" tamano="sm" onClick={() => abrirSubida("politica", null)}>
                   {politica.cargada ? "Subir otra" : "Subir la política firmada"}
-                </button>
+                </Boton>
               </div>
             </div>
           )}
@@ -1440,18 +1441,17 @@ export default function DocumentacionPage() {
                 <strong className="text-tinta">{fechaLarga(politica.fecha_firma!)}</strong>.
               </span>
               {politica.storage_path && (
-                <button onClick={() => void verDocumento(politica.storage_path!)}
-                  className="text-xs font-medium underline">Ver</button>
+                <Boton variante="enlace" onClick={() => void verDocumento(politica.storage_path!)}>Ver</Boton>
               )}
-              <button onClick={() => abrirSubida("politica", null)}
-                className="text-xs underline">Reemplazar</button>
+              <Boton variante="enlace" onClick={() => abrirSubida("politica", null)}>Reemplazar</Boton>
               {/* Anular, no borrar. Solo hace falta cuando se quiere retirar la
                   política SIN subir otra —reemplazarla ya anula la anterior sola—,
                   y deja a CAYLA pagando movilidad sin papel que la sostenga: por
                   eso el aviso rojo de arriba vuelve a aparecer en cuanto se hace. */}
               {politica.id && (
-                <button onClick={() => setAnulando({ id: politica.id!, motivo: "" })}
-                  className="text-xs text-taupe underline">Anular</button>
+                <Boton variante="enlace" className="text-taupe" onClick={() => setAnulando({ id: politica.id!, motivo: "" })}>
+                  Anular
+                </Boton>
               )}
             </div>
           )}
@@ -1466,17 +1466,17 @@ export default function DocumentacionPage() {
                 No se borra: queda guardado en el historial con tu nombre, la hora y este motivo.
               </p>
               <div className="mt-2 flex flex-wrap items-center gap-2">
-                <input value={anulando.motivo}
-                  onChange={(e) => setAnulando({ ...anulando, motivo: e.target.value })}
-                  placeholder="ej. se subió el escaneo equivocado"
-                  className="min-w-64 flex-1 rounded-lg border px-3 py-1.5 text-sm" />
-                <button
+                <div className="min-w-64 flex-1">
+                  <Campo value={anulando.motivo}
+                    onChange={(e) => setAnulando({ ...anulando, motivo: e.target.value })}
+                    placeholder="ej. se subió el escaneo equivocado" />
+                </div>
+                <Boton variante="peligro" tamano="sm"
                   onClick={() => void anularDocumento(anulando.id, anulando.motivo.trim())}
-                  disabled={anulando.motivo.trim().length < 4}
-                  className="rounded-lg bg-rojo px-3 py-1.5 text-xs font-medium text-crema disabled:opacity-40">
+                  disabled={anulando.motivo.trim().length < 4}>
                   Anular
-                </button>
-                <button onClick={() => setAnulando(null)} className="text-xs underline">Cancelar</button>
+                </Boton>
+                <Boton variante="enlace" onClick={() => setAnulando(null)}>Cancelar</Boton>
               </div>
             </div>
           )}
@@ -1500,8 +1500,7 @@ export default function DocumentacionPage() {
                     {d.registrado_por && <span className="text-taupe">la registró {d.registrado_por}</span>}
                     <span className="text-taupe">· {d.anulado_motivo ?? "sin motivo anotado"}</span>
                     {d.storage_path && (
-                      <button onClick={() => void verDocumento(d.storage_path!)}
-                        className="font-medium underline">Ver</button>
+                      <Boton variante="enlace" onClick={() => void verDocumento(d.storage_path!)}>Ver</Boton>
                     )}
                   </li>
                 ))}
@@ -1570,26 +1569,23 @@ export default function DocumentacionPage() {
               </p>
 
               <div className="grid gap-3 sm:grid-cols-2">
-                <label className="flex flex-col gap-1 text-sm">
-                  {subiendo.negativa ? "Acta de la negativa" : ETIQUETA_SUBIDA[subiendo.que].archivo}
-                  <input type="file" accept={TIPOS_DOC}
-                    onChange={(e) => setArchivoDoc(e.target.files?.[0] ?? null)}
-                    className="rounded-lg border bg-crema px-3 py-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-sand file:px-3 file:py-1 file:text-sm" />
-                </label>
-                <label className="flex flex-col gap-1 text-sm">
-                  {subiendo.negativa ? "Fecha de la negativa" : ETIQUETA_SUBIDA[subiendo.que].fecha}
-                  <input type="date" value={fechaFirma} max={hoyLima()}
-                    onChange={(e) => setFechaFirma(e.target.value)}
-                    className="rounded-lg border px-3 py-2" />
-                </label>
-                <label className="flex flex-col gap-1 text-sm sm:col-span-2">
-                  Nota (opcional)
-                  <input value={notaDoc} onChange={(e) => setNotaDoc(e.target.value)}
+                <Campo
+                  etiqueta={subiendo.negativa ? "Acta de la negativa" : ETIQUETA_SUBIDA[subiendo.que].archivo}
+                  type="file" accept={TIPOS_DOC}
+                  onChange={(e) => setArchivoDoc(e.target.files?.[0] ?? null)}
+                  className="file:mr-3 file:rounded file:border-0 file:bg-sand file:px-3 file:py-1 file:text-sm" />
+                <Campo
+                  etiqueta={subiendo.negativa ? "Fecha de la negativa" : ETIQUETA_SUBIDA[subiendo.que].fecha}
+                  type="date" value={fechaFirma} max={hoyLima()}
+                  onChange={(e) => setFechaFirma(e.target.value)} />
+                <div className="sm:col-span-2">
+                  <Campo
+                    etiqueta="Nota (opcional)"
+                    value={notaDoc} onChange={(e) => setNotaDoc(e.target.value)}
                     placeholder={subiendo.negativa
                       ? "ej. presente la encargada de TRU como testigo"
-                      : ETIQUETA_SUBIDA[subiendo.que].ejemploNota}
-                    className="rounded-lg border px-3 py-2" />
-                </label>
+                      : ETIQUETA_SUBIDA[subiendo.que].ejemploNota} />
+                </div>
               </div>
 
               {progresoDoc !== null && (
@@ -1605,13 +1601,12 @@ export default function DocumentacionPage() {
               )}
 
               <div className="mt-3 flex items-center gap-3">
-                <button onClick={() => void guardarDocumento()} disabled={guardandoDoc}
-                  className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50">
-                  {progresoDoc !== null ? `Subiendo… ${progresoDoc}%` : guardandoDoc ? "Guardando…" : "Guardar"}
-                </button>
-                <button onClick={() => setSubiendo(null)} className="rounded-lg border px-4 py-2 text-sm">
+                <Boton variante="primario" cargando={guardandoDoc} onClick={() => void guardarDocumento()}>
+                  {progresoDoc !== null ? `Subiendo… ${progresoDoc}%` : "Guardar"}
+                </Boton>
+                <Boton variante="secundario" onClick={() => setSubiendo(null)}>
                   Cancelar
-                </button>
+                </Boton>
               </div>
             </div>
           )}
@@ -1650,29 +1645,32 @@ export default function DocumentacionPage() {
                     peor todavía. */}
                 {rutasPendientes.length > 0 && (
                   <div className="flex flex-wrap items-center gap-3 border-t border-sand px-4 py-2">
-                    <button onClick={() => imprimirLote("ruta", rutasPendientes)}
-                      className="rounded-lg bg-tinta px-3 py-1.5 text-xs font-medium text-crema">
+                    <Boton variante="primario" tamano="sm" onClick={() => imprimirLote("ruta", rutasPendientes)}>
                       Imprimir las {rutasPendientes.length} que faltan
-                    </button>
+                    </Boton>
                     <span className="text-xs text-taupe">
                       Sale una hoja por persona, cada una en su página.
                     </span>
                   </div>
                 )}
 
+                {/* Sin el envoltorio <Tabla> a propósito: esta tabla ya vive
+                    dentro de la tarjeta con borde del <details> que la
+                    contiene, y el borde+esquinas propios de <Tabla> le
+                    quedarían doble aro. Sí toma TablaEncabezado/Th/Fila, que
+                    es lo que unifica el tipo de letra del encabezado y la
+                    zebra de las filas con el resto del panel. */}
                 <div className="overflow-x-auto border-t border-sand">
                   <table className="w-full text-sm">
-                    <thead className="text-left text-xs text-taupe">
-                      <tr className="border-b border-sand">
-                        <th className="px-4 py-2 font-normal">Integrante</th>
-                        <th className="px-4 py-2 font-normal">Sede</th>
-                        <th className="px-4 py-2 font-normal">Su declaración</th>
-                        <th className="px-4 py-2 font-normal"></th>
-                      </tr>
-                    </thead>
+                    <TablaEncabezado>
+                      <Th>Integrante</Th>
+                      <Th>Sede</Th>
+                      <Th>Su declaración</Th>
+                      <Th>{""}</Th>
+                    </TablaEncabezado>
                     <tbody>
                       {tablero.map((f) => (
-                        <tr key={f.persona_id} className="border-t border-sand">
+                        <Fila key={f.persona_id}>
                           <td className="px-4 py-2">{f.persona}</td>
                           <td className="px-4 py-2 text-xs text-taupe">{f.sede}</td>
                           <td className="px-4 py-2">
@@ -1703,24 +1701,22 @@ export default function DocumentacionPage() {
                                   inspector. Si la fila no tiene archivo, no hay botón
                                   —mejor que uno que abre una pestaña en blanco—. */}
                               {f.ruta_id && rutasDeArchivo.has(f.ruta_id) && (
-                                <button onClick={() => void verDocumento(rutasDeArchivo.get(f.ruta_id!)!)}
-                                  className="text-xs font-medium underline">Ver</button>
+                                <Boton variante="enlace" onClick={() => void verDocumento(rutasDeArchivo.get(f.ruta_id!)!)}>Ver</Boton>
                               )}
-                              <button onClick={() => imprimirFila(f.persona_id, "ruta")}
-                                className="text-xs font-medium underline">Imprimir</button>
-                              <button onClick={() => abrirSubida("ruta", f.persona_id)}
-                                className="rounded-lg border px-3 py-1 text-xs font-medium">
+                              <Boton variante="enlace" onClick={() => imprimirFila(f.persona_id, "ruta")}>Imprimir</Boton>
+                              <Boton variante="secundario" tamano="sm" onClick={() => abrirSubida("ruta", f.persona_id)}>
                                 {f.estado === "ok" ? "Subir otra" : "Subir firmada"}
-                              </button>
+                              </Boton>
                               {f.estado === "sin_ruta" && (
                                 // Discreto a propósito: registrar una negativa no debería
                                 // ser tan fácil como registrar una firma.
-                                <button onClick={() => abrirSubida("ruta", f.persona_id, true)}
-                                  className="text-xs text-taupe underline">se negó</button>
+                                <Boton variante="enlace" className="text-taupe" onClick={() => abrirSubida("ruta", f.persona_id, true)}>
+                                  se negó
+                                </Boton>
                               )}
                             </div>
                           </td>
-                        </tr>
+                        </Fila>
                       ))}
                     </tbody>
                   </table>
@@ -1744,29 +1740,29 @@ export default function DocumentacionPage() {
 
                 {bonoPendientes.length > 0 && (
                   <div className="flex flex-wrap items-center gap-3 border-t border-sand px-4 py-2">
-                    <button onClick={() => imprimirLote("bono", bonoPendientes)}
-                      className="rounded-lg bg-tinta px-3 py-1.5 text-xs font-medium text-crema">
+                    <Boton variante="primario" tamano="sm" onClick={() => imprimirLote("bono", bonoPendientes)}>
                       Imprimir las {bonoPendientes.length} que faltan
-                    </button>
+                    </Boton>
                     <span className="text-xs text-taupe">
                       Solo de quien ya cumplió o cumple este mes.
                     </span>
                   </div>
                 )}
 
+                {/* Mismo criterio que la tabla de rutas de arriba: sin
+                    <Tabla> a propósito, porque ya vive dentro de la tarjeta
+                    con borde del <details>. */}
                 <div className="overflow-x-auto border-t border-sand">
                   <table className="w-full text-sm">
-                    <thead className="text-left text-xs text-taupe">
-                      <tr className="border-b border-sand">
-                        <th className="px-4 py-2 font-normal">Integrante</th>
-                        <th className="px-4 py-2 font-normal">Sede</th>
-                        <th className="px-4 py-2 font-normal">Su cargo</th>
-                        <th className="px-4 py-2 font-normal"></th>
-                      </tr>
-                    </thead>
+                    <TablaEncabezado>
+                      <Th>Integrante</Th>
+                      <Th>Sede</Th>
+                      <Th>Su cargo</Th>
+                      <Th>{""}</Th>
+                    </TablaEncabezado>
                     <tbody>
                       {bonoRelevantes.map((f) => (
-                        <tr key={f.persona_id} className="border-t border-sand">
+                        <Fila key={f.persona_id}>
                           <td className="px-4 py-2">{f.persona}</td>
                           <td className="px-4 py-2 text-xs text-taupe">{f.sede}</td>
                           <td className="px-4 py-2">
@@ -1783,26 +1779,23 @@ export default function DocumentacionPage() {
                           <td className="px-4 py-2">
                             <div className="flex flex-wrap items-center justify-end gap-3">
                               {f.bono_id && rutasDeArchivo.has(f.bono_id) && (
-                                <button onClick={() => void verDocumento(rutasDeArchivo.get(f.bono_id!)!)}
-                                  className="text-xs font-medium underline">Ver</button>
+                                <Boton variante="enlace" onClick={() => void verDocumento(rutasDeArchivo.get(f.bono_id!)!)}>Ver</Boton>
                               )}
-                              <button onClick={() => imprimirFila(f.persona_id, "bono")}
-                                className="text-xs font-medium underline">Imprimir</button>
-                              <button onClick={() => abrirSubida("bono", f.persona_id)}
-                                className="rounded-lg border px-3 py-1 text-xs font-medium">
+                              <Boton variante="enlace" onClick={() => imprimirFila(f.persona_id, "bono")}>Imprimir</Boton>
+                              <Boton variante="secundario" tamano="sm" onClick={() => abrirSubida("bono", f.persona_id)}>
                                 {f.bono_estado === "ok" ? "Subir otro" : "Subir cargo"}
-                              </button>
+                              </Boton>
                             </div>
                           </td>
-                        </tr>
+                        </Fila>
                       ))}
                       {bonoRelevantes.length === 0 && (
-                        <tr className="border-t border-sand">
+                        <Fila>
                           <td colSpan={4} className="px-4 py-3 text-sm text-taupe">
                             Nadie tiene el cargo pendiente. Aquí van apareciendo en el mes de su
                             onomástico.
                           </td>
-                        </tr>
+                        </Fila>
                       )}
                     </tbody>
                   </table>
@@ -1813,31 +1806,33 @@ export default function DocumentacionPage() {
           )}
 
           <div className="mb-4 grid gap-3 sm:grid-cols-2">
-            <label className="block text-sm">
-              <span className="mb-1 block text-taupe">Documento</span>
-              <select
-                value={tipo}
-                onChange={(e) => setTipo(e.target.value as TipoDoc)}
-                className="w-full rounded-lg border px-3 py-2"
-              >
-                {DOCS.map((d) => <option key={d.id} value={d.id}>{d.titulo}</option>)}
-              </select>
-            </label>
+            <CampoSelect
+              etiqueta="Documento"
+              value={tipo}
+              onChange={(e) => setTipo(e.target.value as TipoDoc)}
+            >
+              {DOCS.map((d) => <option key={d.id} value={d.id}>{d.titulo}</option>)}
+            </CampoSelect>
 
             {doc.necesitaPersona && (
-              <label className="block text-sm">
-                <span className="mb-1 block text-taupe">Persona</span>
-                <select
-                  value={personaId}
-                  onChange={(e) => setPersonaId(e.target.value)}
-                  className="w-full rounded-lg border px-3 py-2"
-                >
-                  <option value="">Elige a quién…</option>
-                  {personas.map((p) => (
-                    <option key={p.id} value={p.id}>{p.apellidos}, {p.nombres}</option>
-                  ))}
-                </select>
-              </label>
+              <CampoSelect
+                etiqueta="Persona"
+                value={personaId}
+                onChange={(e) => setPersonaId(e.target.value)}
+              >
+                <option value="">Elige a quién…</option>
+                {/* Solo en_planilla: "ruta" y "bono" son papeles que declaran una
+                    asignación por asistencia y una política de movilidad — que
+                    un locador los firme es, en palabras del propio comentario
+                    de esta pantalla, un indicio de subordinación en un vínculo
+                    que por definición no la tiene, y esa es la prueba que se
+                    usa para desnaturalizar un contrato civil. El tablero de
+                    arriba ya excluye a quien no está en planilla; este
+                    desplegable se había quedado sin ese mismo filtro. */}
+                {personas.filter((p) => p.en_planilla).map((p) => (
+                  <option key={p.id} value={p.id}>{p.apellidos}, {p.nombres}</option>
+                ))}
+              </CampoSelect>
             )}
           </div>
 
@@ -1879,6 +1874,7 @@ export default function DocumentacionPage() {
                           return s;
                         })
                       }
+                      className="size-4 accent-tinta"
                     />
                     <span>
                       {p.apellidos}, {p.nombres}
@@ -1917,13 +1913,13 @@ export default function DocumentacionPage() {
             </p>
           )}
 
-          <button
+          <Boton
+            variante="primario"
             onClick={() => window.print()}
             disabled={doc.necesitaPersona && !persona}
-            className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema hover:bg-rojo-profundo disabled:opacity-40"
           >
             Imprimir / Guardar como PDF
-          </button>
+          </Boton>
           <span className="ml-3 text-xs text-taupe">
             Al imprimir, desmarca «Encabezados y pies de página».
           </span>

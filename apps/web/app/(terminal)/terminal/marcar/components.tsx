@@ -1,14 +1,49 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import type { TipoMarca } from "@cayla-dynamic/shared";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { MarcajeDelDia, SiguienteAccion, TipoMarca } from "@cayla-dynamic/shared";
+import { createTerminalSupabaseClient } from "@cayla-dynamic/database";
 import { Cargando } from "@/components/cargando";
+import { Insignia } from "@/components/ui/insignia";
 import type { RosterEntry } from "@/lib/terminal/offline-db";
+import { siguienteAccionPara } from "@/lib/terminal/estado-dia";
+import { inicialesDe, urlPublicaFotoPerfil } from "@/lib/foto-perfil";
 
 // Estilos compartidos de la superficie clara del terminal (crema, líneas finas Sand).
-const TILE = "rounded-xl border border-sand bg-sand/35 transition-colors hover:bg-sand/70 active:scale-95";
-const BTN_PRIMARIO = "rounded-xl bg-rojo px-5 py-3 font-medium text-crema transition-colors hover:bg-rojo-profundo active:scale-95";
-const BTN_SECUNDARIO = "rounded-xl border border-sand px-5 py-3 text-tinta transition-colors hover:bg-sand/50";
+//
+// El radio usa los tokens con nombre de globals.css (2026-09-06): `rounded-control`
+// es el mismo 8px que ya tenían 480 usos de `rounded-lg` en el resto de la casa —
+// estas casillas y botones vivían en `rounded-xl` (12px), la única de las tres
+// escalas del terminal que no tenía nombre. Sustitución mecánica, sin sorpresas:
+// 4px menos de esquina, nada que cambie el layout.
+//
+// El borde y el relleno de TILE sí cambian de verdad, medidos con la fórmula de
+// contraste WCAG: `border-sand` sobre `crema` daba 1.16:1 y `bg-sand/35` 1.05:1
+// — muy por debajo del 3:1 que pide WCAG 1.4.11 para el límite de un control. A
+// un metro de una Mac mini, eso es una nube de nombres sin nada que diga "esto
+// es un botón". `border-borde-control` (globals.css, 2026-09-06: alias de taupe,
+// 5.21:1 sobre crema, ya definido justo para este caso — "Campo, CampoSelect y
+// Boton puedan pedir border-borde-control") reemplaza a `border-sand` acá,
+// primer uso real del token. Con `bg-papel` (superficie elevada) en vez del
+// mismo sand diluido, la casilla se despega del fondo aun sin tocarla. El
+// hover/active mueve el BORDE a rojo, no solo la opacidad del relleno: una
+// opacidad no se nota a un metro, un color sí. `cursor-pointer` explícito en
+// los tres porque Tailwind v4 dejó de ponerlo solo en los `<button>` — la casa
+// entera lo necesita (ver `globals.css`), pero eso no toca este archivo; acá
+// se repone donde se puede.
+const TILE =
+  "cursor-pointer rounded-control border border-borde-control bg-papel transition-colors hover:border-rojo hover:bg-sand active:scale-95";
+const BTN_PRIMARIO =
+  "cursor-pointer rounded-control bg-rojo px-5 py-3 font-medium text-crema transition-colors hover:bg-rojo-profundo active:scale-95";
+const BTN_SECUNDARIO =
+  "cursor-pointer rounded-control border border-sand px-5 py-3 text-tinta transition-colors hover:bg-sand/50";
+// Salidas de emergencia (Cancelar, "otra salida"): en un kiosco NINGÚN objetivo
+// debería bajar de 44-48px, ni siquiera el que se toca poco — sobre todo el que
+// se toca con prisa y arrepentimiento, cuando alguien tocó "Me voy" por error y
+// busca cómo volver. El peso visual se mantiene bajo con el color (taupe,
+// subrayado), nunca reduciendo la caja que hay que acertar con el dedo.
+const BTN_ENLACE =
+  "cursor-pointer min-h-12 rounded-control px-5 py-3 text-sm text-taupe underline transition-colors hover:text-tinta active:scale-95";
 
 // Selector de sede discreto. El terminal abre en SU sede; esto deja cambiarla
 // (para quien viaja entre tiendas). Si solo hay una sede visible, no se muestra.
@@ -25,12 +60,12 @@ export function SelectorSede({
   return (
     <div className="flex items-center gap-3">
       <span className="etiqueta text-taupe">Sede</span>
-      <div className="flex gap-1 rounded-full border border-sand p-1">
+      <div className="flex gap-1 rounded-pildora border border-sand p-1">
         {sedes.map((s) => (
           <button
             key={s.codigo}
             onClick={() => onCambiar(s.codigo)}
-            className={`rounded-full px-4 py-1.5 text-sm transition-colors ${
+            className={`cursor-pointer rounded-pildora px-4 py-1.5 text-sm transition-colors ${
               activa === s.codigo ? "bg-tinta text-crema" : "text-taupe hover:text-tinta"
             }`}
           >
@@ -54,14 +89,51 @@ export function SelectorSede({
  */
 export type EstadoRoster = "cargando" | "listo" | "error";
 
+// Traduce la siguiente acción disponible —la MISMA máquina de estados que
+// decide qué se ofrece al tocar el nombre, `siguienteAccionPara`— a lo que se
+// ve en la casilla ANTES de tocarla. Sin esto, tocar era la única forma de
+// consultar en qué estado está alguien, y tocar arranca la cuenta atrás de
+// 3 s que marca sola: una duda se volvía un marcaje.
+function estadoDeLaCasilla(accion: SiguienteAccion): {
+  variante: "neutral" | "advertencia" | "positivo" | "informativo";
+  texto: string;
+} {
+  switch (accion.modo) {
+    case "unico":
+      // "entrada": todavía no llegó hoy. Cualquier otro "unico" es el retorno
+      // de una salida temporal (almuerzo, trámite…) que quedó abierta.
+      return accion.tipo === "entrada"
+        ? { variante: "neutral", texto: "Entrar" }
+        : { variante: "advertencia", texto: "Volver" };
+    case "elegir_salida":
+      // Ya entró, no tiene una salida abierta pendiente de retorno: está
+      // trabajando y lo único que le queda hoy es elegir cómo sale.
+      return { variante: "positivo", texto: "Salir" };
+    case "cerrado":
+      return { variante: "informativo", texto: "Día cerrado" };
+  }
+}
+
 export function NombreGrid({
   roster,
   estado,
+  marcajesPorPersona,
   onSeleccionar,
   onReintentar,
 }: {
   roster: RosterEntry[];
   estado: EstadoRoster;
+  /**
+   * Marcajes de HOY por persona — el mismo mapa que `page.tsx` ya trae en
+   * `marcajesHoyRef` con `cargarMarcajesHoyPorPersona()`, sin ninguna consulta
+   * nueva. Opcional: sin él la grilla vuelve a como estaba, todas las
+   * casillas iguales — pero entonces la única forma de saber si alguien ya
+   * marcó su entrada es tocar su nombre, y eso ya arranca la cuenta atrás que
+   * marca sola. Para que el punto de color se vea al día, quien llame a este
+   * componente necesita que este mapa se actualice cuando cambian los
+   * marcajes (hoy es un `ref`, que no fuerza un nuevo render por sí solo).
+   */
+  marcajesPorPersona?: Map<string, MarcajeDelDia[]>;
   onSeleccionar: (persona: RosterEntry) => void;
   onReintentar: () => void;
 }) {
@@ -115,17 +187,75 @@ export function NombreGrid({
   }
 
   return (
-    <div className="grid w-full max-w-2xl grid-cols-2 gap-3 sm:grid-cols-3">
-      {roster.map((persona) => (
-        <button
-          key={persona.id}
-          onClick={() => onSeleccionar(persona)}
-          className={`${TILE} px-4 py-6 font-serif text-xl`}
-        >
-          {persona.nombres} {persona.apellidos}
-        </button>
-      ))}
+    // `max-w-2xl` + tope en 3 columnas eran una grilla pensada para un
+    // teléfono: en un monitor de sede de 1920px la lista ocupaba un tercio de
+    // la pantalla y la fila 13 caía por debajo del borde sin que nada avisara
+    // que había más gente. `lg:`/`xl:` dejan que el ancho del monitor sume
+    // columnas en vez de apilar filas.
+    <div className="grid w-full max-w-5xl grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+      {roster.map((persona) => {
+        const accion = marcajesPorPersona
+          ? siguienteAccionPara(marcajesPorPersona.get(persona.id) ?? [])
+          : null;
+        const casilla = accion ? estadoDeLaCasilla(accion) : null;
+        return (
+          <button
+            key={persona.id}
+            onClick={() => onSeleccionar(persona)}
+            className={`${TILE} flex flex-col items-center gap-2 px-4 py-5 font-serif text-xl`}
+          >
+            <AvatarPersona persona={persona} />
+            <span>
+              {persona.nombres} {persona.apellidos}
+            </span>
+            {casilla && (
+              <Insignia variante={casilla.variante} tamano="sm" className="font-sans">
+                {casilla.texto}
+              </Insignia>
+            )}
+          </button>
+        );
+      })}
     </div>
+  );
+}
+
+/**
+ * La foto que cada quien sube desde «Lo mío» (0381), o sus iniciales mientras
+ * no haya subido ninguna — nunca un hueco vacío ni un ícono de imagen rota.
+ * Ayuda a no tocar a la persona equivocada por apuro, sobre todo con nombres
+ * parecidos, pero NO es una prueba de identidad: el terminal sigue marcando
+ * sin PIN, a propósito (decisión de Felipe, jul-2026).
+ */
+function AvatarPersona({ persona }: { persona: RosterEntry }) {
+  // El cliente es un singleton cacheado por storageKey (client.ts): pedirlo
+  // acá no crea una conexión nueva por cada tile de la grilla.
+  const supabase = useMemo(() => createTerminalSupabaseClient(), []);
+  const url = urlPublicaFotoPerfil(supabase, persona.fotoUrl);
+  // La promesa del comentario de arriba ("nunca un hueco vacío ni un ícono de
+  // imagen rota") solo se cumplía cuando `fotoUrl` era null. Sin `onError`,
+  // el día en que la foto no carga —sin internet, que es justo el escenario
+  // para el que existe la copia offline del roster, o porque el objeto del
+  // bucket se borró— el navegador pinta su ícono de imagen rota, y desaparece
+  // la ayuda para no tocar el nombre equivocado exactamente cuando el
+  // terminal está funcionando de memoria.
+  const [fotoFallo, setFotoFallo] = useState(false);
+
+  if (url && !fotoFallo) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element -- foto de un bucket externo, no un asset local
+      <img
+        src={url}
+        alt=""
+        className="h-14 w-14 rounded-pildora object-cover"
+        onError={() => setFotoFallo(true)}
+      />
+    );
+  }
+  return (
+    <span className="flex h-14 w-14 items-center justify-center rounded-pildora bg-sand text-lg text-taupe">
+      {inicialesDe(persona.nombres, persona.apellidos)}
+    </span>
   );
 }
 
@@ -180,12 +310,12 @@ export function SelectorSalida({
             ))}
           </div>
         ) : (
-          <button onClick={() => setMostrarOtras(true)} className="mt-1 text-sm text-taupe underline">
+          <button onClick={() => setMostrarOtras(true)} className={`mt-1 ${BTN_ENLACE}`}>
             Otra salida (personal, médico, trámite…)
           </button>
         )}
       </div>
-      <button onClick={onCancelar} className="text-sm text-taupe underline">
+      <button onClick={onCancelar} className={BTN_ENLACE}>
         Cancelar
       </button>
     </div>
@@ -209,9 +339,15 @@ export function FormularioMotivoOtro({
         value={motivo}
         onChange={(e) => setMotivo(e.target.value)}
         rows={3}
-        className="w-full max-w-sm rounded-lg border border-sand bg-crema p-3 text-tinta outline-none placeholder:text-taupe/60 focus:border-taupe"
+        className="w-full max-w-sm rounded-control border border-sand bg-crema p-3 text-tinta outline-none placeholder:text-taupe/60 focus:border-taupe"
         placeholder="Ej: trámite bancario personal"
       />
+      {/* La regla para habilitar "Continuar" (3 letras, línea de abajo) no se
+          anunciaba en ningún lado: el botón apagado no decía qué faltaba, y
+          quien escribía "ok" se quedaba mirando algo que parecía roto. */}
+      <p className="-mt-2 w-full max-w-sm text-left text-sm text-taupe">
+        Escribe al menos 3 letras para continuar.
+      </p>
       <div className="flex gap-3">
         <button onClick={onCancelar} className={BTN_SECUNDARIO}>
           Cancelar
@@ -219,7 +355,7 @@ export function FormularioMotivoOtro({
         <button
           disabled={!valido}
           onClick={() => onConfirmar(motivo.trim())}
-          className={`${BTN_PRIMARIO} disabled:opacity-40`}
+          className={`${BTN_PRIMARIO} disabled:opacity-50`}
         >
           Continuar
         </button>
@@ -240,12 +376,25 @@ export function ConfirmacionToast({
   onCancelar: () => void;
 }) {
   const [segundosRestantes, setSegundosRestantes] = useState(segundosTotal);
+  // Arranca en el 100% del ancho y, un instante después de montar, pasa al
+  // 0% con una transición CSS de `segundosTotal` segundos — el navegador
+  // interpola el ancho solo, sin depender de que el re-render de cada
+  // segundo caiga justo a tiempo. El paso por `requestAnimationFrame` es
+  // necesario: si el 0% se pidiera en el MISMO render que el 100% inicial,
+  // el navegador nunca llega a pintar el punto de partida y no hay nada que
+  // animar.
+  const [vaciando, setVaciando] = useState(false);
   const yaConfirmoRef = useRef(false);
   const confirmarUnaVez = () => {
     if (yaConfirmoRef.current) return;
     yaConfirmoRef.current = true;
     onConfirmar();
   };
+
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setVaciando(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
 
   useEffect(() => {
     if (segundosRestantes <= 0) {
@@ -260,12 +409,40 @@ export function ConfirmacionToast({
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-6 p-8 text-center">
       <p className="font-serif text-3xl">{texto}</p>
-      <p className="text-taupe">Confirmando en {segundosRestantes}s…</p>
-      <div className="flex gap-3">
-        <button onClick={onCancelar} className={BTN_SECUNDARIO}>
+      {/*
+       * El reloj se DIBUJA, no se lee: antes lo único que avisaba de la
+       * cuenta atrás era este mismo texto en 16px, taupe, bajo una pregunta
+       * de 30px — quien duda pierde la duda contra el reloj sin darse cuenta
+       * de que hay un reloj corriendo. La barra se vacía a la misma
+       * velocidad con la que baja `segundosRestantes` (comparten
+       * `segundosTotal`), así que la lectura visual y la numérica cuentan la
+       * misma historia.
+       */}
+      <div className="w-full max-w-xs">
+        <div className="h-2 overflow-hidden rounded-pildora bg-sand" aria-hidden>
+          <div
+            className="h-full rounded-pildora bg-rojo"
+            style={{
+              width: vaciando ? "0%" : "100%",
+              transition: vaciando ? `width ${segundosTotal}s linear` : "none",
+            }}
+          />
+        </div>
+        <p className="mt-2 text-sm text-taupe" aria-live="polite">
+          Confirmando en {segundosRestantes}s…
+        </p>
+      </div>
+      {/* Cancelar con el mismo ancho, relleno y peso de letra que Confirmar:
+          este es el único momento en que cancelar es gratis, y hasta acá
+          las dos cajas medían lo mismo (`px-5 py-3` en las dos) pero
+          "Confirmar ahora" ganaba con un rojo sólido contra un simple
+          contorno — la única diferencia que debería quedar es esa, de
+          color, no de tamaño. */}
+      <div className="flex w-full max-w-xs gap-3">
+        <button onClick={onCancelar} className={`${BTN_SECUNDARIO} flex-1 py-4 text-lg font-medium`}>
           Cancelar
         </button>
-        <button onClick={confirmarUnaVez} className={BTN_PRIMARIO}>
+        <button onClick={confirmarUnaVez} className={`${BTN_PRIMARIO} flex-1 py-4 text-lg`}>
           Confirmar ahora
         </button>
       </div>
@@ -289,7 +466,10 @@ export function PantallaCerrado({
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-6 p-8 text-center">
       <p className="font-serif text-2xl">{nombre}</p>
-      <div className="w-full max-w-sm rounded-xl border border-sand bg-sand/25 px-5 py-4 text-left">
+      {/* Tarjeta, no botón: usa `rounded-superficie` (el token de "tarjetas y
+          el contenedor de Tabla"), no `rounded-control` como TILE/BTN_* de
+          arriba. */}
+      <div className="w-full max-w-sm rounded-superficie border border-sand bg-sand/25 px-5 py-4 text-left">
         <div className="etiqueta mb-2 text-taupe">Tu día de hoy</div>
         <ul className="flex flex-col gap-1.5 text-sm">
           {historial.map((h, i) => (
@@ -339,7 +519,7 @@ export function ConfirmarRefrigerio({
           No, sí almorcé — se me olvidó marcar
         </button>
       </div>
-      <button onClick={onCancelar} className="text-sm text-taupe underline">
+      <button onClick={onCancelar} className={BTN_ENLACE}>
         Cancelar
       </button>
     </div>
@@ -365,7 +545,7 @@ export function MotivoReentrada({
           </button>
         ))}
       </div>
-      <button onClick={onCancelar} className="text-sm text-taupe underline">
+      <button onClick={onCancelar} className={BTN_ENLACE}>
         Cancelar
       </button>
     </div>

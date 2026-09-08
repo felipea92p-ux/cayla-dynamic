@@ -12,6 +12,11 @@ import { useEffect } from "react";
 // nunca al selector de la app: leer `localStorage` a mano en la pantalla que
 // existe justamente porque algo más ya reventó sería cambiar robustez por
 // pulir un detalle que casi nadie va a ver.
+//
+// Los seis hex de abajo (tres claros, tres oscuros) son una copia deliberada
+// de --color-crema/--color-tinta/--color-taupe de globals.css: no hay forma
+// de que un linter ate estos literales a los tokens, porque esta pantalla no
+// puede depender de la hoja de estilos que puede ser justo lo que reventó.
 export default function GlobalError({
   error,
   reset,
@@ -46,8 +51,8 @@ export default function GlobalError({
           alignItems: "center",
           justifyContent: "center",
           gap: "20px",
-          background: "#f2ece1",
-          color: "#1f1e1b",
+          background: "#f5f0e8",
+          color: "#1a1a18",
           fontFamily: "ui-sans-serif, system-ui, sans-serif",
           textAlign: "center",
           padding: "24px",
@@ -68,7 +73,7 @@ export default function GlobalError({
           style={{
             maxWidth: "22rem",
             fontSize: "14px",
-            color: "#9c7563",
+            color: "#805c4c",
             margin: 0,
             lineHeight: 1.6,
           }}
@@ -82,8 +87,8 @@ export default function GlobalError({
           style={{
             border: "none",
             borderRadius: "8px",
-            background: "#1f1e1b",
-            color: "#f2ece1",
+            background: "#1a1a18",
+            color: "#f5f0e8",
             padding: "10px 20px",
             fontSize: "14px",
             fontWeight: 500,

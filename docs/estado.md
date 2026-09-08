@@ -4,6 +4,46 @@
 copias con fecha. Lo ya cerrado vive en [`historico.md`](historico.md). Cómo se
 trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
+---
+
+## 2026-09-07 — 25 hallazgos de diseño de la auditoría del 2026-09-06/07, cerrados
+
+Rama `claude/stoic-chandrasekhar-5a16c4`, 4 commits. De los 27 hallazgos de
+categoría "diseño" con severidad alta o media que dejó la Radiografía Dynamic
+(ver la auditoría en el worktree `kaila-dynamic-retail-audit-7d5733`), 25
+quedaron resueltos aquí; los otros 2 eran el mismo bug del mapa de calor de
+Turnos citado dos veces por lectores distintos.
+
+**Lo tocado:** `globals.css` (paleta de impresión desfasada, radio duplicado,
+regla de hover que le ganaba a Boton y alcanzaba al terminal, pizarra/verde
+oscuro medidos mal), `Campo`/`CampoSelect` (etiqueta en mayúsculas → caja
+normal tras comparar a ojo, zoom de iOS, flecha del select con color cocido),
+`Modal` (ancho fijo, título que no se dibujaba), `Insignia` (variante alerta
+bajo 4.5:1, variante `contador` nueva), el mapa de calor de Turnos (colores
+que ignoraban el tema — commit aparte, el primero de la rama), y ocho
+hallazgos sueltos en contratos, equipo, login, correcciones, horarios y el
+terminal de marcaje (borde invisible de las casillas de nombre, grilla
+dimensionada para teléfono, aviso de marcas apartadas ilegible).
+
+Cada número de contraste se midió tal como el componente lo pinta de verdad
+(pill compuesto a su opacidad real, en los dos temas), no contra el color
+plano — siguiendo el mismo método que ya usa `globals.css` para verde/ámbar,
+que varios de estos hallazgos señalaron que no se había aplicado a pizarra,
+rojo ni al verde oscuro. Typecheck atrapó un JSX comment mal ubicado que
+rompía la sintaxis en dos archivos antes de llegar a comitear.
+
+✅ **`personas/[id]/page.tsx:645` — resuelto, era una falsa alarma.** El plan
+de apariencia lo marcaba como "decisión abierta, no resolverla sin preguntar",
+pero esa nota ya estaba vieja: `CLAUDE.md` (commit `06afd11`, 2026-09-05, un
+día antes del plan) ya documenta el `bg-white` fijo de esa tarjeta como parte
+de la excepción de política salarial. Corregida la nota obsoleta del plan.
+
+**Sin tocar hoy, a propósito:** los 3 hallazgos de esfuerzo "día" y el de
+"semana" (el envoltorio de tabla copiado 15 veces, el botón primario copiado
+82 veces en 38 archivos, los 36 diálogos del navegador de Planilla) — se
+solapan con el "Día 2" ya escrito en `plan-apariencia-2026-09-06.md`, y
+migrarlos aquí habría sido reinventar esa secuencia a medio camino.
+
 ## Qué va acá y qué no
 
 Este archivo guarda **solo lo que ninguna herramienta puede responder sola**:
@@ -34,6 +74,255 @@ calculan en el mismo minuto o no se calculan.
 **Regla para quien edite este archivo:** si lo que vas a agregar es un número que
 un comando puede calcular, no va acá — va el comando. Y si es una lista de
 nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
+
+---
+
+## 2026-09-07 — Radiografía Dynamic: primer lote de críticos de seguridad/plata, PEGADO Y VERIFICADO EN PRODUCCIÓN
+
+Sale de la Radiografía Dynamic (92 agentes lectores, 731 hallazgos confirmados,
+38 críticos — [artifact](https://claude.ai/code/artifact/1bd904f7-cff2-4a01-830b-475badb31ab5)).
+Se decidió atender el resto de los críticos de plata/ley/seguridad por lotes
+chicos, cada uno verificado empíricamente antes de escribir el siguiente, en
+vez de una migración gigante de una sola vez.
+
+✅ **Primer lote (2 "minutos" + 5 de Retail, consolidados en 3 causas raíz)
+PEGADO Y VERIFICADO EN PRODUCCIÓN el 2026-09-07.** [PR #238](https://github.com/felipea92p-ux/cayla-dynamic/pull/238),
+fusionado a `main`:
+
+- `fn_cuentas` (`app/api/admin/cuentas/route.ts`): una admin/líder **cesada**
+  conservaba acceso completo a gestión de cuentas — la ruta usa el cliente
+  `service-role`, que se salta RLS y `fn_rol_actual()`. Ahora valida
+  `rol` + `estado === 'activo'` con el cliente normal antes de autorizar.
+- `admin/documentacion`: el desplegable de "a quién imprimir" ofrecía
+  locadores para documentos (movilidad, bonos) que solo debería recibir
+  personal en planilla — riesgo de desnaturalización del contrato. Filtrado
+  a `en_planilla`.
+- **`supabase/migrations/0392`** — `retail.es_lider()`, `retail.es_supervisor()`
+  y `retail.puede_operar_sede()` sin `coalesce` devolvían `NULL` (no `FALSE`)
+  para una persona cesada; como `if not NULL` nunca se dispara en PL/pgSQL,
+  una excolaboradora con sesión de Auth todavía viva podía seguir abriendo
+  caja y vendiendo en **cualquier** sede. `abrir_caja`/`cerrar_caja`/
+  `registrar_venta` ni siquiera llamaban al guardián. `recalcular_stock()`
+  no tenía candado y su `truncate`+`rebuild` borraba `stock_minimo`/
+  `contenedor_id` en silencio. Prueba `311` (11 aserciones pgTAP) en verde
+  en `db-tests`. Verificado contra producción DESPUÉS de pegar: los siete
+  `md5(prosrc)` coinciden exactos con el Postgres local tras el arreglo, y
+  `migraciones_aplicadas` registra `numero=392` a las 2026-09-07 22:14:24 UTC.
+  **Alcance deliberado, no cerrado:** ~8 sitios más de retail con
+  `if not retail.es_lider()` quedan seguros por el `coalesce` sin tocarse
+  (mejora de consistencia aparte), y `fn_sede_actual_persona()` —que no
+  filtra por estado— queda como riesgo residual anotado, no como algo que
+  esta migración debía resolver.
+
+Quedan por atender el resto de los críticos del catálogo priorizado, en
+lotes sucesivos con el mismo protocolo.
+
+⚠️ **[PR #232](https://github.com/felipea92p-ux/cayla-dynamic/pull/232) (los
+25 hallazgos de diseño, del mapa de calor de Turnos a Modal/Insignia) sigue
+ABIERTO, sin fusionar** — pendiente de revisión.
+
+---
+
+## 2026-09-07 — Un practicante puede cobrar movilidad y educación (0397) · PEGADA Y VERIFICADA
+
+Motivado por un caso real: Geison Alcantára —de prácticas, ingresó el 3 de
+septiembre— estaba mal registrado como planilla normal y su boleta le
+descontaba AFP y le acumulaba gratificación/CTS que no le correspondían.
+Se corrigió su `tipo_vinculo` a `practicante` desde `/admin/equipo` (dato, no
+código), y de ahí salió la pregunta: ¿puede CAYLA ofrecerle también movilidad
+y educación? Legalmente sí (Ley 28518 no lo prohíbe) — pero el sistema no se
+las pagaba, porque las dos seguían condicionadas solo a `en_planilla`, que
+para un practicante es `false` por definición.
+
+**La 0397** amplía la condición a `pe.en_planilla or pe.tipo_vinculo =
+'practicante'` en los 7 sitios exactos de `fn_planilla_calcular_nucleo` donde
+se leía `en_planilla` para estos dos conceptos — el mismo patrón quirúrgico
+que la 0322 usó para EsSalud. AFP, CTS, gratificación, bonificación
+extraordinaria y asignación familiar **no se tocan** y siguen en cero para un
+practicante. Sigue siendo una opción: sin tarifa de movilidad cargada para su
+sede o sin una asignación de educación con comprobante, un practicante sigue
+cobrando S/0 de los dos, igual que hoy.
+
+Auditado contra Postgres local dentro de `BEGIN…ROLLBACK` antes de escribir
+([PR #254](https://github.com/felipea92p-ux/cayla-dynamic/pull/254)): monto
+correcto, `total` cuadra con `chk_foto_cuadra`, el periodo cierra por el grupo
+`practicante` (0323), y las pruebas 115/193 (educación/movilidad existentes)
+sin regresión. `db-tests` en verde (3m57s). **Confirmado en producción el
+2026-09-07**: la consulta de comprobación del final de la migración devolvió
+exactamente lo esperado — las dos funciones núcleo creadas, en la lista negra,
+y NO ejecutables directamente por `authenticated`.
+
+**Pendiente que no se arregla solo:** para que esto mueva un sol de verdad hay
+que cargarle a la persona una tarifa de movilidad vigente para su sede (si no
+la tiene) y/o una asignación de educación con comprobante desde
+`/admin/educacion`. Sin eso, nada cambia para nadie.
+
+---
+
+## 2026-09-07 — El mega menú pasa a sidebar lateral colapsable, y los grupos de 5 a 7 · SIN MIGRACIONES, SIN DESPLEGAR
+
+Ejecuta la decisión que [`plan-apariencia-2026-09-06.md`](plan-apariencia-2026-09-06.md)
+dejó aplazada por escrito («la decisión de navegación de libertad total —sidebar
+colapsable— si el ajuste evolutivo del Día 2 no alcanza»), saltándose el paso
+evolutivo. **El Día 2 paso 1 de ese plan —bajar el corte a `lg` y mostrar las
+etiquetas de grupo en la barra horizontal— queda sin efecto: ya no hay barra
+horizontal que ajustar.** El resto de ese plan sigue en pie.
+
+**Por qué ahora y no otro parche.** Es el tercer intento sobre el mismo
+problema. El 5 de septiembre se probó scroll horizontal (`688e8e5`) y se
+revirtió el mismo día (`21591a7`) con el criterio «nunca esconde ítems con
+scroll». Con treinta renglones la barra envolvía en tres o cuatro filas y se
+comía ~145px de alto en las 24 pantallas; por debajo de 1280px —un portátil con
+la ventana sin maximizar— desaparecía entera en la hamburguesa. Ahora el
+encabezado son 64px fijos.
+
+**Los tres anchos:** ≥1280px sidebar de 256px con títulos de grupo · 768–1279px
+rail de 64px solo con iconos · <768px cajón sobre velo. El botón de plegar gana
+sobre el ancho y se recuerda en localStorage, como el tema.
+
+**Y cada grupo se contrae desde su título**, con su chevron, también recordado.
+Hacía falta: desplegado y con los siete grupos abiertos el menú mide 1303px
+contra los ~790 que se ven en un portátil, o sea que Configuración quedaba
+debajo del pliegue. Contrayendo cuatro grupos baja a 801px y cabe entero.
+**En rail NO se contraen, a propósito:** ahí no hay títulos, así que no habría
+dónde volver a pulsar y quien hubiera contraído «Nómina» se quedaría sin
+Planilla hasta ensanchar la ventana. Y si la pantalla en la que estás vive en un
+grupo contraído, su título se pinta en tinta en vez de taupe — sin eso, cerrar
+el grupo en el que estás borra la única señal de dónde estás.
+
+**La reagrupación, que es la parte que hay que discutir si algo se discute:**
+
+- **«Ausencias» sale de Nómina y entra a Asistencia.** Era el único renglón de
+  rol SEDE dentro de un grupo entero de rol DO: para una encargada, «Nómina»
+  tenía exactamente un ítem.
+- **«Publicaciones» es un grupo nuevo** con política salarial, normas y
+  anuncios — las tres únicas entradas sin filtro de rol, y no por casualidad
+  (Ley 30709 y entrega del RIT). Estaban en tres grupos distintos, así que una
+  integrante veía cuatro renglones sueltos sin lógica visible.
+- **«Apariencia» baja a Configuración**, con Áreas, Sedes y Cuentas: mismo
+  permiso y misma frecuencia.
+- **«Feriados» se queda en Nómina** aunque sea discutible: registra el
+  compensatorio que quita la sobretasa del feriado trabajado, o sea que existe
+  por el pago. Si al usarlo se siente de Asistencia, es un cambio de una línea.
+
+Ninguna URL, ningún permiso y ningún nombre de pantalla cambian.
+
+**Lo que ya no depende de que alguien lo recuerde.** `tests/nav-items.test.ts`
+(21 aserciones) vigila que esas tres pantallas de obligación legal sigan sin
+`roles`, que no haya rutas repetidas y que los contadores sean tres. Es la
+primera prueba del repo sobre la navegación: hasta hoy solo la miraba el
+typecheck, y el typecheck no sabe que «Normas» la tiene que ver todo el equipo.
+
+**Deuda que este cambio NO pagó, y que salió al explorar:**
+
+1. 🔴 **Una integrante no puede llegar a cambiar su propia clave.** `Cuentas`
+   está restringida a DO en el menú, pero la pantalla sí muestra «Mi cuenta» a
+   cualquiera. El renglón que lleva ahí no existe para quien lo necesita.
+2. **Seis sub-rutas dejan el menú sin nada resaltado** — `/planilla/boleta`,
+   `/disciplina/memo/[id]`, `/normas/[id]/imprimir`, `/normas/[id]/constancias`,
+   `/politica-salarial/constancias` y `/mio/boleta`. `esActivo` cubre tres
+   casos. No empeoró con este cambio: ya estaba así.
+3. **`/mio` no lleva marco** — tiene su propio encabezado a mano y queda fuera
+   del sidebar, siendo el destino del primer renglón del menú.
+4. **El bloque `@media print` de `globals.css` redefine nueve tokens, no once**
+   — le faltan `hueso` y `pizarra`, y usa los valores de `verde` y `ámbar`
+   previos al retuneo del 6 de septiembre.
+
+**Tres cosas del entorno, para quien trabaje en Windows** (esta sesión fue la
+primera):
+
+1. **Los archivos del árbol están en CRLF en disco y en LF en git.** Editar
+   cualquiera y guardarlo tal cual reescribe el archivo ENTERO: `globals.css`
+   pasó de un cambio de 49 líneas a uno de 444/395, y los 36 archivos del
+   sidebar llegaron a dar 28.000 líneas de diff antes de normalizarlos. No
+   rompe nada y por eso es peligroso — se ve como un cambio enorme y se revisa
+   como tal. **Convertir a LF antes de commitear** y comprobar con
+   `git diff --numstat` que el número cuadra con lo que se tocó de verdad.
+2. `npx pnpm install` **falla en silencio y sale con código 0** (npx no
+   encuentra el binario), así que hay que llamar a `pnpm` directo.
+3. `.claude/launch.json` arranca el servidor con `/bin/zsh`, que en Windows no
+   existe — se puede levantar con `pnpm --filter @cayla-dynamic/web dev`, pero
+   el panel del navegador necesitaría una entrada propia en ese archivo.
+
+Y una cuarta que no es de Windows: **el hook de pre-push llama a `python3`**
+(`fecha-que-bloquea.sh` y `lint-de-lo-nuevo.sh`, los dos con `|| exit 1`), así
+que sin Python instalado no se puede empujar desde esa máquina.
+
+## 2026-09-05 — Foto junto al nombre en el terminal, subida por cada quien desde «Lo mío» (0381) · PEGADA Y VERIFICADA EN PRODUCCIÓN
+
+Salió de la comparación contra BambooHR/Rippling/UKG del 2026-09-03 («Las Tres
+Referencias de CAYLA»,
+[PR #176](https://github.com/felipea92p-ux/cayla-dynamic/pull/176)): «Selector
+por nombre + foto en el terminal» era el ítem 02 del bloque BambooHR, y de esa
+misma comparación solo se había construido el tablón de anuncios (0351). Quedó
+sin hacer hasta hoy, a pedido de Felipe.
+
+**El mecanismo:** cada quien sube su foto desde `/mio` (comprimida a JPEG en
+el propio navegador, 480px de lado mayor, antes de subir), enlazada a
+`personas.foto_url` por una única función guardián
+(`fn_actualizar_foto_perfil`) que exige ser la propia persona o admin/DO. El
+terminal la recibe en `terminal_roster` (misma vista de la 0285/0375, una
+columna más) y la pinta junto al nombre en la grilla; quien no ha subido
+ninguna sigue viendo sus iniciales, nunca un hueco.
+
+**Por qué el bucket `fotos-perfil` es público, a diferencia de `comprobantes`
+o `expedientes`.** El terminal tiene que pintar todas las fotos de su sede sin
+depender de la red — puede pasar días marcando solo con lo que ya tiene en
+IndexedDB — y una URL firmada vence. El dato que protegería esa firma (un
+rostro) ya es visible a simple vista en la propia tienda, sin login, en la
+misma Mac mini: la misma razón por la que `terminal_roster` expone nombre y
+apellido sin sesión individual. Ya había precedente de esta forma en el
+repositorio: el buzón `fotos-productos` (0225, importado de cayla-retail)
+también es público.
+
+Auditada contra Postgres local dentro de `BEGIN … ROLLBACK` (11 aserciones:
+subir, reemplazar, el borde de que nadie sube a la carpeta de otra persona,
+que admin/DO sí puede hacerlo por quien nunca entra a «Lo mío», enlazar,
+quitar la foto, la defensa en profundidad contra una ruta de otro bucket, y
+que el terminal recibe lo enlazado) — prueba 301. Probada además de punta a
+punta en el navegador contra el Postgres local: Ana sube su foto desde `/mio`
+y aparece junto a su nombre en `/terminal/marcar`; Beto, que no subió
+ninguna, sigue mostrando sus iniciales. `npx pnpm typecheck` y `npx pnpm test`
+(468 pruebas) en verde.
+
+**Pegada y verificada en producción el 2026-09-05.** La consulta de
+comprobación del final de la 0381 devolvió las cinco piezas en `true`: la
+columna `personas.foto_url`, el bucket `fotos-perfil` público, las cuatro
+políticas de `storage.objects`, la columna nueva en `terminal_roster` y que
+esa vista sigue sin exponer nada sensible. Falta el commit/push de este
+código de pantalla (la migración ya vive en el repo desde que se escribió;
+lo pegado a mano fue solo el SQL).
+
+⚠️ **Repitió el accidente que la propia 0382 documenta — 0370/0375, tercera
+vez, y esta vez en las dos direcciones.** El `drop view` + `create view` de
+la 0381 partió del cuerpo de la 0375 sin saber que, en paralelo, la 0382 ya
+había fusionado a `main` la delegación de la regla de sede a
+`fn_persona_marca_en_sede`. Al pegarse la 0381 en producción DESPUÉS, se
+llevó esa delegación por delante en silencio — confirmado contra producción
+el 2026-09-05: `delega_en_0382 = false`, con las seis columnas (incluida
+`foto_url`) presentes.
+
+Y al revés también: la 0382, tal como estaba escrita, declaraba las CINCO
+columnas de la 0375 en un `create or replace view` — que no deja quitar ni
+reordenar columnas. En cualquier reconstrucción del esquema desde cero (CI,
+`supabase db reset`, restaurar un backup) habría fallado en seco al llegarle
+el turno, porque `foto_url` ya estaría puesta por la 0381. No era un
+problema de producción: era el pipeline de todo el equipo.
+
+**Resuelto corrigiendo el cuerpo de la 0382 antes de que llegara a pegarse
+nunca** (decisión de Felipe, 2026-09-05): ahora declara las seis columnas y
+conserva la delegación, con el relato completo en su cabecera. Se eligió eso
+en vez de una migración de parche encima porque el estado real de producción
+—seis columnas, sin delegación— es incompatible con que la 0382 haya corrido
+allí alguna vez, así que no hay estado persistente que dependa de su forma
+anterior. Auditado en local aplicando la secuencia 0377→0382 sobre el mismo
+estado que tiene producción: las pruebas 301 (11), 302 (9, con su aserción
+de columnas actualizada), 303 (4, nueva: la foto y el aislamiento de sede
+conviven) y 293 (17, el candado de sede completo) en verde.
+
+🔴 **Falta pegar la 0382 en producción** — es lo que repone la delegación.
+Antes de pegarla, confirmar que sigue dando `delega_en_0382 = false`: si
+otra sesión ya la pegó mientras tanto, su propia guardia lo dice sin daño.
 
 ---
 

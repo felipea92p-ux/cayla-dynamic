@@ -118,12 +118,16 @@ select is(
   'Ana,Cira',
   'ROSTER · salen la de esta sede y la que viaja; no la de la otra sede ni la cesada');
 
+-- SEIS columnas y no las cinco de la 0375: la 0381 (el mismo día, en otra
+-- rama) le agregó `foto_url` a esta misma vista sin saber de esta migración,
+-- y la 0382 se corrigió antes de pegarse para conservarla. Ver su cabecera
+-- para el relato completo — es el mismo patrón 0370/0375 una tercera vez.
 select is(
   (select string_agg(attname, ',' order by attnum) from pg_attribute
     where attrelid = 'public.terminal_roster'::regclass
       and attnum > 0 and not attisdropped),
-  'id,nombres,apellidos,sede_codigo,sede_nombre',
-  'COLUMNAS · siguen siendo las cinco de la 0375');
+  'id,nombres,apellidos,foto_url,sede_codigo,sede_nombre',
+  'COLUMNAS · las seis de la 0381, con foto_url conservada por la 0382');
 
 -- La 0375 existe para que el hash NO viaje al navegador. Que la 0382 reescriba
 -- la vista es exactamente la ocasión de devolverlo sin querer.

@@ -5,11 +5,14 @@ import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { AREA_DEFAULT, AREAS_FALLBACK, parseAreas, areaCorto, esOperativaEn, type Area } from "@/lib/areas";
-import { AdminNav } from "../nav";
 import { Cargando, SinDatos } from "@/components/cargando";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
 import { useToast } from "@/components/toast";
+import { Boton } from "@/components/ui/boton";
+import { Campo, CampoSelect } from "@/components/ui/campo";
+import { Insignia } from "@/components/ui/insignia";
+import { Modal } from "@/components/ui/modal";
 import { hoyLima, puedeOperarEquipo, puedeVerTodasLasSedes } from "@cayla-dynamic/shared";
 import { esperadoDelDia, horarioVigente, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
 import { cicloVigente, type DiaTrabajado } from "@/lib/admin/ciclo-sobretiempo";
@@ -87,17 +90,28 @@ const inicioFranja = (i: number) => HORA_INICIO_SEMANA + i * 0.5;
 function pctEnRango(horaDec: number): number {
   return Math.min(100, Math.max(0, ((horaDec - HORA_INICIO) / (HORA_FIN - HORA_INICIO)) * 100));
 }
-// Rojo (#b8412d) → Verde (#5f7a52) según qué tan cerca está de la meta; a partir
-// de la meta queda verde sólido (el excedente ya no necesita más degradado).
-// Sin meta no hay contra qué medir: taupe neutro, no rojo (el rojo sin
-// significado solo mete ruido de alarma).
-const ROJO_RGB: [number, number, number] = [184, 65, 45];
-const VERDE_RGB: [number, number, number] = [95, 122, 82];
+// Rojo → Verde según qué tan cerca está de la meta; a partir de la meta queda
+// verde sólido (el excedente ya no necesita más degradado). Sin meta no hay
+// contra qué medir: taupe neutro, no rojo (el rojo sin significado solo mete
+// ruido de alarma).
+//
+// `color-mix()` en vez de interpolar RGB a mano: antes esto devolvía un
+// `rgb(...)` fijo que JS calculaba una sola vez y que NUNCA cambiaba con el
+// tema, mientras que el texto de encima sí seguía `var(--color-crema)` —así
+// que en oscuro el texto se volvía casi negro sobre un fondo que seguía
+// siendo el rojo/verde de tema claro: 3.17:1 en el extremo rojo y 3.63:1 en
+// el verde, los dos por debajo del 4.5:1 que exige WCAG AA para texto de
+// 10-11px (medido 2026-09-07). Con `var(--color-rojo)`/`var(--color-verde)`
+// el navegador resuelve el color con los valores del tema activo en cada
+// pintado: en oscuro esos tokens son más claros a propósito, y el texto
+// crema-oscuro (casi negro) vuelve a leerse — 4.70:1 a 6.26:1 medido contra
+// el degradado completo. De paso, el verde fijo de antes (#5f7a52) ya no
+// coincidía con NINGÚN token vigente (#48603f claro / #85a476 oscuro): era
+// una copia que se quedó atrás cuando el token se retonó.
 function colorCobertura(n: number, meta: number): string {
-  if (meta <= 0) return "rgb(164, 120, 101)"; // taupe
-  const ratio = Math.min(n / meta, 1);
-  const [r, g, b] = ROJO_RGB.map((c0, i) => Math.round(c0 + (VERDE_RGB[i] - c0) * ratio));
-  return `rgb(${r}, ${g}, ${b})`;
+  if (meta <= 0) return "var(--color-taupe)";
+  const ratioPct = Math.round(Math.min(n / meta, 1) * 100);
+  return `color-mix(in oklab, var(--color-verde) ${ratioPct}%, var(--color-rojo))`;
 }
 // La meta cambia a media tarde: hasta 14:15 es la meta de la MAÑANA, después la
 // de la TARDE (fijo por ahora, ambas sedes — decisión de Felipe).
@@ -483,15 +497,14 @@ function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso
               {confirmarBulk ? (
                 <div className="flex flex-wrap items-center gap-2 text-xs">
                   <span className="text-rojo">Se quitarán {espejos.length} turnos y se recalcularán esas jornadas. ¿Confirmas?</span>
-                  <button onClick={() => limpiarEspejos(espejos)} className="rounded bg-tinta px-2.5 py-1 font-medium text-crema">Sí, quitar {espejos.length}</button>
-                  <button onClick={() => setConfirmarBulk(false)} className="rounded border px-2.5 py-1">Cancelar</button>
+                  <Boton variante="primario" tamano="sm" onClick={() => limpiarEspejos(espejos)}>Sí, quitar {espejos.length}</Boton>
+                  <Boton variante="secundario" tamano="sm" onClick={() => setConfirmarBulk(false)}>Cancelar</Boton>
                 </div>
               ) : (
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                  <button onClick={() => setConfirmarBulk(true)} disabled={procesando !== null}
-                    className="rounded border border-rojo/30 px-3 py-1 text-xs text-rojo hover:bg-rojo/10 disabled:opacity-40">
-                    {procesando === "bulk" ? "Quitando…" : `Quitar los ${espejos.length} espejos viejos`}
-                  </button>
+                  <Boton variante="peligro" tamano="sm" disabled={procesando !== null} cargando={procesando === "bulk"} onClick={() => setConfirmarBulk(true)}>
+                    Quitar los {espejos.length} espejos viejos
+                  </Boton>
                   <span className="text-[11px] text-taupe">
                     Esto <strong>descarta</strong> esas horas. Si a esa gente le cambiaron el horario de verdad, usa <strong>Hacer permanente</strong> fila por fila.
                   </span>
@@ -518,8 +531,8 @@ function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso
                   </div>
                   <div className="mt-1 flex flex-wrap items-center gap-2">
                     {d.espejo
-                      ? <span className="rounded-full bg-rojo/10 px-2 py-0.5 text-[10px] text-rojo">probable espejo viejo</span>
-                      : <span className="rounded-full bg-taupe/15 px-2 py-0.5 text-[10px] text-taupe">excepción a propósito</span>}
+                      ? <Insignia variante="alerta" tamano="sm">probable espejo viejo</Insignia>
+                      : <Insignia variante="neutral" atenuada tamano="sm">excepción a propósito</Insignia>}
                     <button onClick={() => hacerPermanente(d, clave)} disabled={procesando !== null}
                       className="rounded border border-tinta/30 bg-tinta/5 px-2 py-0.5 text-[11px] font-medium hover:bg-tinta/10 disabled:opacity-40">
                       {procesando === clave ? "Aplicando…" : "Hacer permanente"}
@@ -612,7 +625,11 @@ export default function TurnosPage() {
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data }) => {
       if (!data.session) { router.replace("/admin/login"); return; }
-      const { data: s } = await supabase.from("sedes").select("id, codigo, nombre").order("codigo");
+      const { data: s, error: eS } = await supabase.from("sedes").select("id, codigo, nombre").order("codigo");
+      // Sin esto, si la consulta fallaba `sedes` se quedaba en [] en silencio:
+      // el selector de sede salía vacío y la pantalla no decía por qué —
+      // se leía como "no hay sedes", no como el error que de verdad era.
+      if (eS) { avisar("error", mensajeDeError(eS, "cargar las sedes")); return; }
       const lista = (s as Sede[]) ?? [];
       setSedes(lista);
       // La encargada queda FIJA en su sede (su selector está oculto): forzamos su sede
@@ -621,7 +638,7 @@ export default function TurnosPage() {
       if (esAdmin) setSedeSel((prev) => prev || (lista[0]?.id ?? ""));
       else if (yo) setSedeSel(yo.sedeBaseId);
     });
-  }, [supabase, router, yo, esAdmin]);
+  }, [supabase, router, yo, esAdmin, avisar]);
 
   const cargar = useCallback(async () => {
     if (!sedeSel) return;
@@ -814,15 +831,14 @@ export default function TurnosPage() {
 
   if (rol !== null && !puedeVer) {
     return (
-      <div className="flex min-h-screen flex-col"><AdminNav />
+      <div className="flex flex-1 flex-col">
         <main className="flex flex-1 items-center justify-center p-6"><p className="max-w-md text-center text-taupe">No tienes permiso para ver los turnos.</p></main>
       </div>
     );
   }
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <AdminNav />
+    <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -850,9 +866,9 @@ export default function TurnosPage() {
               </select>
             )}
             <div className="flex items-center gap-1">
-              <button onClick={() => setLunes(addDays(lunes, -7))} disabled={cargando} className="rounded-lg border border-sand px-3 py-2 text-sm hover:bg-sand/40 disabled:opacity-50">←</button>
-              <button onClick={() => setLunes(lunesDeLaSemana(hoyLima()))} disabled={cargando} className="rounded-lg border border-sand px-3 py-2 text-sm hover:bg-sand/40 disabled:opacity-50">Hoy</button>
-              <button onClick={() => setLunes(addDays(lunes, 7))} disabled={cargando} className="rounded-lg border border-sand px-3 py-2 text-sm hover:bg-sand/40 disabled:opacity-50">→</button>
+              <Boton variante="secundario" disabled={cargando} onClick={() => setLunes(addDays(lunes, -7))}>←</Boton>
+              <Boton variante="secundario" disabled={cargando} onClick={() => setLunes(lunesDeLaSemana(hoyLima()))}>Hoy</Boton>
+              <Boton variante="secundario" disabled={cargando} onClick={() => setLunes(addDays(lunes, 7))}>→</Boton>
             </div>
           </div>
         </div>
@@ -860,7 +876,7 @@ export default function TurnosPage() {
         {funcionesFallo && !cargando && (
           <div className="mb-4 max-w-2xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
             No se pudo cargar el área del personal: la cobertura está contando a <strong>todos</strong> como
-            operativos y puede marcar de más. <button onClick={() => void cargar()} className="font-medium underline">Reintentar</button>
+            operativos y puede marcar de más. <Boton variante="enlace" onClick={() => void cargar()}>Reintentar</Boton>
           </div>
         )}
 
@@ -933,9 +949,12 @@ export default function TurnosPage() {
                               {nadieProgramado ? (
                                 <span className="font-medium text-rojo">¡nadie programado!</span>
                               ) : r.sinMeta ? (
-                                <span className="text-[11px] text-taupe/60">sin meta</span>
+                                // Medido: text-taupe/60 sobre crema da 2.4:1 (falla
+                                // 4.5:1 AA) — el token sin diluir da 5.2:1 claro y
+                                // 5.8:1 oscuro.
+                                <span className="text-[11px] text-taupe">sin meta</span>
                               ) : !r.hayTurnos ? (
-                                <span className="text-[11px] text-taupe/60">sin turnos</span>
+                                <span className="text-[11px] text-taupe">sin turnos</span>
                               ) : (
                                 <span className="font-medium" style={{ color: colorPct(r.pct) }}>cubierto {r.pct}%</span>
                               )}
@@ -947,7 +966,7 @@ export default function TurnosPage() {
                               ) : r.sug ? (
                                 <span className="text-[10px] text-rojo">+ falta personal</span>
                               ) : r.supHoras > 0 ? (
-                                <span className="text-[10px] text-taupe/60">sobra {r.supHoras}h</span>
+                                <span className="text-[10px] text-taupe">sobra {r.supHoras}h</span>
                               ) : null}
                             </div>
                           </button>
@@ -1037,10 +1056,10 @@ export default function TurnosPage() {
                               const bg = nOp > 0
                                 ? colorCobertura(nOp, metaOp)
                                 : nEnc > 0
-                                ? "rgba(164, 120, 101, 0.12)" // solo encargada esa hora
+                                ? "color-mix(in srgb, var(--color-taupe) 12%, transparent)" // solo encargada esa hora
                                 : metaOp > 0
-                                ? "rgba(184, 65, 45, 0.10)" // meta puesta pero nadie: falta suave
-                                : "rgba(232, 224, 208, 0.35)"; // sin meta: sand tenue
+                                ? "color-mix(in srgb, var(--color-rojo) 10%, transparent)" // meta puesta pero nadie: falta suave
+                                : "color-mix(in srgb, var(--color-sand) 35%, transparent)"; // sin meta: sand tenue
                               const claro = nOp > 0;
                               return (
                                 <button key={iso} onClick={() => setPanel({ fecha: iso, franjaIdx: fi })}
@@ -1110,7 +1129,7 @@ export default function TurnosPage() {
                               <input type="number" min={0} value={metaMan} title="meta de la mañana (hasta 14:15)"
                                 onChange={(e) => editarMeta(dia, "manana", e.target.value)} onBlur={() => comprometerMeta(dia)}
                                 className="w-11 rounded border border-sand bg-crema px-1 py-0.5 text-center" />
-                              <span className="text-taupe/60">/</span>
+                              <span className="text-taupe">/</span>
                               <input type="number" min={0} value={metaTar} title="meta de la tarde (desde 14:15)"
                                 onChange={(e) => editarMeta(dia, "tarde", e.target.value)} onBlur={() => comprometerMeta(dia)}
                                 className="w-11 rounded border border-sand bg-crema px-1 py-0.5 text-center" />
@@ -1118,7 +1137,7 @@ export default function TurnosPage() {
                           ) : (
                             <span>{metaMan}/{metaTar}</span>
                           )}
-                          <span className="text-taupe/60">mañ/tar</span>
+                          <span className="text-taupe">mañ/tar</span>
                         </label>
                         <span className="font-medium" style={{ color: !r.hayTurnos && Math.max(metaMan, metaTar) > 0 ? "var(--color-rojo)" : r.sinMeta || !r.hayTurnos ? "var(--color-taupe)" : colorDePct(r.pct) }}>
                           {!r.hayTurnos && Math.max(metaMan, metaTar) > 0 ? "¡nadie programado!" : r.sinMeta ? "sin meta" : !r.hayTurnos ? "sin turnos" : `cubierto ${r.pct}%`}
@@ -1164,7 +1183,7 @@ export default function TurnosPage() {
                           <span className="w-[176px] shrink-0 truncate px-3 py-2 text-xs">
                             {p.nombres} {p.apellidos}
                             {!operativa && (
-                              <span className="ml-1.5 whitespace-nowrap rounded-full bg-ambar/15 px-1.5 py-0.5 text-[10px] text-ambar">{areaCorto(areas, p.funcion)}</span>
+                              <Insignia variante="advertencia" tamano="sm" className="ml-1.5">{areaCorto(areas, p.funcion)}</Insignia>
                             )}
                           </span>
                           <span className="relative h-7 flex-1">
@@ -1200,7 +1219,7 @@ export default function TurnosPage() {
                               );
                             })()}
                             {c.tipo === "descanso" && <span className="absolute left-2 top-1.5 rounded bg-sand px-1.5 py-0.5 text-[10px] text-taupe">descanso</span>}
-                            {c.tipo === "libre" && <span className="absolute left-2 top-1.5 text-[10px] text-taupe/40">+</span>}
+                            {c.tipo === "libre" && <span className="absolute left-2 top-1.5 text-[10px] text-taupe">+</span>}
                           </span>
                         </button>
                       );
@@ -1259,61 +1278,55 @@ export default function TurnosPage() {
           // de una persona, no de "la hora" — la sábana es solo la puerta de entrada.
           const abrirDesdePanel = (id: string) => { setPanel(null); abrir(id, panel.fecha); };
           return (
-            <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/40 p-4" onClick={() => setPanel(null)}>
-              <div className="w-full max-w-sm rounded-xl border border-sand bg-crema p-6" onClick={(e) => e.stopPropagation()}>
-                <div className="mb-4 flex items-baseline justify-between gap-3">
-                  <h3 className="font-serif text-lg">{abr} <span className="text-taupe">{num}</span></h3>
-                  <span className="text-sm tabular-nums text-taupe">{desde}–{hasta}</span>
-                </div>
-
-                <div className="mb-4">
-                  <div className="etiqueta mb-2 text-taupe">Operativas · {ops.length}{metaOp > 0 ? ` / meta ${metaOp}` : ""}</div>
-                  {ops.length === 0 ? (
-                    <p className="text-sm text-taupe/60">Nadie esta media hora.</p>
-                  ) : (
-                    <div className="flex flex-wrap gap-1.5">
-                      {ops.map((p) => (
-                        <button key={p.id} onClick={() => abrirDesdePanel(p.id)}
-                          className="rounded-full border border-sand bg-crema px-3 py-1 text-sm transition-colors hover:bg-sand/40">
-                          {p.nombres} {p.apellidos}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <div className="mb-4">
-                  <div className="etiqueta mb-2 text-taupe">Encargadas · {encs.length}{metaEnc > 0 ? ` / meta ${metaEnc}` : ""}</div>
-                  {encs.length === 0 ? (
-                    <p className="text-sm text-taupe/60">Ninguna esta media hora.</p>
-                  ) : (
-                    <div className="flex flex-wrap gap-1.5">
-                      {encs.map((p) => (
-                        <button key={p.id} onClick={() => abrirDesdePanel(p.id)}
-                          className="rounded-full border border-taupe/30 bg-taupe/10 px-3 py-1 text-sm text-taupe transition-colors hover:bg-taupe/20">
-                          {p.nombres} {p.apellidos}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {resto.length > 0 && (
-                  <label className="flex flex-col gap-1.5">
-                    <span className="etiqueta text-taupe">Agregar a este día</span>
-                    <select value="" onChange={(e) => e.target.value && abrirDesdePanel(e.target.value)}
-                      className="rounded-lg border border-sand bg-crema px-3 py-2 text-sm">
-                      <option value="">Elegir persona…</option>
-                      {resto.map((p) => <option key={p.id} value={p.id}>{p.nombres} {p.apellidos}</option>)}
-                    </select>
-                  </label>
-                )}
-
-                <div className="mt-5 flex justify-end">
-                  <button onClick={() => setPanel(null)} className="rounded-lg border border-sand px-3 py-2 text-sm hover:bg-sand/40">Cerrar</button>
-                </div>
+            <Modal abierto onCerrar={() => setPanel(null)} ancho="sm">
+              <div className="mb-4 flex items-baseline justify-between gap-3">
+                <h3 className="font-serif text-lg">{abr} <span className="text-taupe">{num}</span></h3>
+                <span className="text-sm tabular-nums text-taupe">{desde}–{hasta}</span>
               </div>
-            </div>
+
+              <div className="mb-4">
+                <div className="etiqueta mb-2 text-taupe">Operativas · {ops.length}{metaOp > 0 ? ` / meta ${metaOp}` : ""}</div>
+                {ops.length === 0 ? (
+                  <p className="text-sm text-taupe">Nadie esta media hora.</p>
+                ) : (
+                  <div className="flex flex-wrap gap-1.5">
+                    {ops.map((p) => (
+                      <button key={p.id} onClick={() => abrirDesdePanel(p.id)}
+                        className="rounded-full border border-sand bg-crema px-3 py-1 text-sm transition-colors hover:bg-sand/40">
+                        {p.nombres} {p.apellidos}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="mb-4">
+                <div className="etiqueta mb-2 text-taupe">Encargadas · {encs.length}{metaEnc > 0 ? ` / meta ${metaEnc}` : ""}</div>
+                {encs.length === 0 ? (
+                  <p className="text-sm text-taupe">Ninguna esta media hora.</p>
+                ) : (
+                  <div className="flex flex-wrap gap-1.5">
+                    {encs.map((p) => (
+                      <button key={p.id} onClick={() => abrirDesdePanel(p.id)}
+                        className="rounded-full border border-taupe/30 bg-taupe/10 px-3 py-1 text-sm text-taupe transition-colors hover:bg-taupe/20">
+                        {p.nombres} {p.apellidos}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {resto.length > 0 && (
+                <CampoSelect etiqueta="Agregar a este día" value="" onChange={(e) => e.target.value && abrirDesdePanel(e.target.value)}>
+                  <option value="">Elegir persona…</option>
+                  {resto.map((p) => <option key={p.id} value={p.id}>{p.nombres} {p.apellidos}</option>)}
+                </CampoSelect>
+              )}
+
+              <div className="mt-5 flex justify-end">
+                <Boton variante="secundario" onClick={() => setPanel(null)}>Cerrar</Boton>
+              </div>
+            </Modal>
           );
         })()}
 
@@ -1322,50 +1335,46 @@ export default function TurnosPage() {
           const { abr, num } = etiquetaDia(edit.fecha);
           const propio = yo && edit.personaId === yo.id && !esAdmin;
           return (
-            <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/40 p-4" onClick={() => !guardando && setEdit(null)}>
-              <div className="w-full max-w-sm rounded-xl border border-sand bg-crema p-6" onClick={(e) => e.stopPropagation()}>
-                <h3 className="mb-1 font-serif text-lg">{p?.nombres} {p?.apellidos}</h3>
-                <p className="mb-4 text-sm text-taupe">{abr} {num}</p>
-                {propio ? (
-                  <p className="mb-2 rounded-lg bg-rojo/10 px-3 py-2 text-sm text-rojo">
-                    No puedes fijar tu propio turno (la hora de entrada define tu tardanza). Pídeselo a un administrador.
-                  </p>
-                ) : (
-                  <>
-                    <div className="grid grid-cols-2 gap-3">
-                      <label className="flex flex-col gap-1 text-sm">Entrada
-                        <input type="time" value={entrada} onChange={(e) => setEntrada(e.target.value)} className="rounded-lg border border-sand bg-crema px-3 py-2" /></label>
-                      <label className="flex flex-col gap-1 text-sm">Salida
-                        <input type="time" value={salida} onChange={(e) => setSalida(e.target.value)} className="rounded-lg border border-sand bg-crema px-3 py-2" /></label>
+            <Modal abierto onCerrar={() => setEdit(null)} bloqueado={guardando} ancho="sm">
+              <h3 className="mb-1 font-serif text-lg">{p?.nombres} {p?.apellidos}</h3>
+              <p className="mb-4 text-sm text-taupe">{abr} {num}</p>
+              {propio ? (
+                <p className="mb-2 rounded-lg bg-rojo/10 px-3 py-2 text-sm text-rojo">
+                  No puedes fijar tu propio turno (la hora de entrada define tu tardanza). Pídeselo a un administrador.
+                </p>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Campo etiqueta="Entrada" type="time" value={entrada} onChange={(e) => setEntrada(e.target.value)} />
+                    <Campo etiqueta="Salida" type="time" value={salida} onChange={(e) => setSalida(e.target.value)} />
+                  </div>
+                  {/* La pregunta que evita que una excepción se coma la regla:
+                      ¿es solo por hoy, o de ahora en adelante? Lo decide quien sabe. */}
+                  <div className="mt-5 rounded-lg border border-sand p-3">
+                    <p className="mb-2 text-xs text-taupe">¿Este cambio es solo por este día, o de ahora en adelante?</p>
+                    <div className="flex flex-wrap gap-2">
+                      <Boton variante="primario" disabled={guardando} onClick={guardarTurno}>
+                        {guardando ? "…" : "Solo este día"}
+                      </Boton>
+                      <Boton variante="secundario" disabled={guardando} onClick={guardarDesdeAqui}>
+                        De aquí en adelante
+                      </Boton>
                     </div>
-                    {/* La pregunta que evita que una excepción se coma la regla:
-                        ¿es solo por hoy, o de ahora en adelante? Lo decide quien sabe. */}
-                    <div className="mt-5 rounded-lg border border-sand p-3">
-                      <p className="mb-2 text-xs text-taupe">¿Este cambio es solo por este día, o de ahora en adelante?</p>
-                      <div className="flex flex-wrap gap-2">
-                        <button onClick={guardarTurno} disabled={guardando} className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50">
-                          {guardando ? "…" : "Solo este día"}
-                        </button>
-                        <button onClick={guardarDesdeAqui} disabled={guardando} className="rounded-lg border border-sand px-4 py-2 text-sm hover:bg-sand/40 disabled:opacity-50">
-                          De aquí en adelante
-                        </button>
-                      </div>
-                      <p className="mt-2 text-[11px] leading-relaxed text-taupe">
-                        <strong>Solo este día</strong> deja un turno puntual (no toca su horario).{" "}
-                        <strong>De aquí en adelante</strong> cambia su horario base de los {DIAS_PLURAL[diaSemana(edit.fecha)]} desde esta fecha y no deja turno puntual.
-                      </p>
+                    <p className="mt-2 text-[11px] leading-relaxed text-taupe">
+                      <strong>Solo este día</strong> deja un turno puntual (no toca su horario).{" "}
+                      <strong>De aquí en adelante</strong> cambia su horario base de los {DIAS_PLURAL[diaSemana(edit.fecha)]} desde esta fecha y no deja turno puntual.
+                    </p>
+                  </div>
+                  <div className="mt-3 flex flex-wrap justify-between gap-2">
+                    <div className="flex gap-2">
+                      <Boton variante="secundario" disabled={guardando} onClick={marcarDescanso}>Descanso</Boton>
+                      <Boton variante="sutil" disabled={guardando} onClick={quitar}>Quitar</Boton>
                     </div>
-                    <div className="mt-3 flex flex-wrap justify-between gap-2">
-                      <div className="flex gap-2">
-                        <button onClick={marcarDescanso} disabled={guardando} className="rounded-lg border border-sand px-3 py-2 text-sm hover:bg-sand/40">Descanso</button>
-                        <button onClick={quitar} disabled={guardando} className="rounded-lg border border-sand px-3 py-2 text-sm text-taupe hover:bg-sand/40">Quitar</button>
-                      </div>
-                      <button onClick={() => setEdit(null)} disabled={guardando} className="rounded-lg border border-sand px-3 py-2 text-sm">Cancelar</button>
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
+                    <Boton variante="secundario" disabled={guardando} onClick={() => setEdit(null)}>Cancelar</Boton>
+                  </div>
+                </>
+              )}
+            </Modal>
           );
         })()}
       </main>

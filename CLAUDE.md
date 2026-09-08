@@ -322,16 +322,24 @@ distintas, no una:
   correcta: nadie necesita ver un contrato en modo oscuro mientras lo revisa
   en pantalla, pero el papel que sale de la impresora sí tiene que ser
   siempre el mismo, para siempre.
-- Política salarial (y la vista previa "así se verá en el memo" de una firma)
-  usan `bg-white`/`slate-*` fijos A PROPÓSITO, en pantalla y en papel, sin
-  pasar por `.hoja` ni por los tokens. Ahí sí es deliberado que ni siquiera la
-  pantalla cambie: es un documento legal que se muestra tal cual a quien lo
-  firma, y esa pantalla no tiene por qué mirarse distinto según quién la abra.
+- La vista previa "Así se verá sobre la línea del memo" de la firma, en
+  `admin/personas/[id]/page.tsx`, usa `bg-white` fijo A PROPÓSITO, sin pasar
+  por `.hoja` ni por los tokens: es un rectángulo que simula el papel del memo
+  impreso, y ese papel no cambia con el tema de quien lo mira.
 
-La lección de las dos: nunca asumir cuál aplica sin mirar si el contenedor
-lleva `.hoja` o un color fijo — la resolvió al construir el memo, que hasta
-entonces caía en la segunda categoría sin que hubiera una razón para eso, solo
-porque nunca se había actualizado.
+**Política salarial ya NO es esta excepción.** Hasta el 2026-09-05 usaba
+`bg-white`/`slate-*` fijos igual que la firma, pero el commit `ea6286f`
+("La política salarial deja de ignorar el modo oscuro") la migró entera a
+los tokens — hoy sigue el tema como cualquier otra pantalla del panel. Si una
+sesión futura la encuentra con un color fijo, no es la excepción histórica
+reapareciendo: es una regresión real. (Pendiente sin resolver aquí: la lista
+de verificación del Día 2 en `docs/plan-apariencia-2026-09-06.md` todavía
+repite la suposición vieja de que política salarial se queda fija.)
+
+La lección de las dos que quedan: nunca asumir cuál aplica sin mirar si el
+contenedor lleva `.hoja` o un color fijo — la resolvió al construir el memo,
+que hasta entonces caía en la segunda categoría sin que hubiera una razón
+para eso, solo porque nunca se había actualizado.
 
 ```bash
 npx pnpm install
@@ -816,6 +824,101 @@ Supabase CLI 2.109.1.)
 Ojo con el resumen: `Bad plan. You planned N tests but ran M` **no** es un error de
 conteo, es un archivo que abortó a media ejecución — las pruebas que faltaron nunca
 verificaron nada. Se lee igual de discreto que un descuido y no lo es.
+
+**Y hay un tercer falso rojo que NO es deriva de la base, aunque se le parece:
+una prueba que va y viene sin que nadie toque nada.** Ahí lo que falla no es el
+entorno, es un empate sin desempatar dentro de la propia prueba.
+
+El molde es siempre el mismo: una columna `default now()`, y `now()` dentro de
+una transacción vale LO MISMO para todas las filas. Como toda prueba pgTAP corre
+entera dentro de `begin … rollback`, dos filas creadas ahí empatan al
+microsegundo — y si la consulta las ordena solo por esa columna, cuál gana lo
+decide el orden físico de la tabla, que cambia con lo que dejaron las
+transacciones revertidas de las pruebas anteriores. Por eso la misma prueba pasa
+en la suite completa y falla corriéndola sola, sin reconstruir nada.
+
+Ya pasó tres veces: la 0312 lo cazó en `fn_contrato_firmado_vigente_de`
+(ago-2026); el 2026-09-06 la prueba **274** volvió a hacerlo en
+`fn_contratos_tablero` — con `db-tests` verde en `main` al mismo tiempo, porque
+verde ahí es dónde cayó la moneda esa vez, no una prueba de que el caso esté
+bien—, y lo arregló la **0386** con los mismos tres desempates de la 0312; y al
+buscar la misma forma en el resto del esquema apareció en `fn_documentos_tablero`
+(**0387**), donde pesaba más: la fila que gana ahí decide si el tablero dice
+«firmó el pacto de movilidad» o «se negó a firmarlo», y sin pacto firmado ese
+monto no es no remunerativo (RTF 05449-4-2007). Dos personas con el MISMO
+expediente contestaban al revés una de la otra según el orden en que se
+guardaron sus papeles.
+
+Y una cuarta, la **0388**, que enseña que esta familia tiene DOS especies y
+conviene no confundirlas. `fn_expediente_generar_falta` ordenaba por
+`entregado_at desc limit 1`, y ahí el empate **no necesita una transacción**:
+`entregado_at` no es `now()`, es un parámetro, y la pantalla manda el MEDIODÍA
+DE LIMA cuando se marca una entrega con fecha pasada (`instanteEntrega`). Dos
+documentos entregados el mismo día pasado empatan al microsegundo **en
+producción**. De esa fila salen el escalón anterior, el corte de non bis in idem
+y el antecedente citado — así que dos personas con el mismo expediente recibían
+peldaños distintos de la escalera disciplinaria según el orden en que se
+guardaron sus papeles.
+
+**La distinción que hay que hacer siempre, y decide cuánto cuidado hace falta:**
+si el empate solo ocurre dentro de una transacción, el desempate es inerte en
+producción y se puede agregar sin más. Si la columna admite un valor elegido por
+quien usa la pantalla —una fecha pasada, un mediodía fijo—, el empate es real y
+el desempate **cambia comportamiento**: hay que medir a quién afecta antes de
+pegarlo, no después.
+
+Y ahí el criterio tampoco se inventa. La 0388 no eligió uno: copió el que
+`fn_tardanza_escalon_al` (0311) ya usaba para la misma pregunta en el motor de
+TARDANZAS. Las dos mitades del sistema disciplinario respondiendo distinto es lo
+que la 0237 ya había venido a cerrar una vez — conviene mirar la función hermana
+antes de decidir nada.
+
+Las cuatro que quedaban —`fn_contratos_listar`, `fn_documentos_estado_politica`,
+`fn_documentos_listar` y `fn_educacion_espejo_comprobante`— se cerraron juntas en
+la **0389**, todas del tipo inerte. **La familia está completa: hoy no queda
+ninguna.** Se comprueba de un tirón preguntándole al catálogo por un `order by`
+que termine en una columna de fecha dentro de una consulta con `distinct on` o
+`limit 1`:
+
+```sql
+select p.proname, m[1]
+  from pg_proc p join pg_namespace n on n.oid = p.pronamespace,
+  lateral regexp_matches(p.prosrc, 'order by[^;]{0,120}', 'gi') m
+ where n.nspname = 'public'
+   and (p.prosrc ~* 'distinct on' or p.prosrc ~* 'limit[[:space:]]+1')
+   and m[1] ~* '_at[[:space:]]+desc[[:space:]]*(limit|\)|$)';
+```
+
+Y el desempate nunca se inventa: se le pregunta primero a la función hermana —la
+que responde esa misma pregunta en la otra pantalla o en la otra mitad del
+sistema— y se copia el suyo. Las cuatro de la 0389 recibieron el de su hermana
+(`fn_contratos_tablero`, `fn_documentos_tablero`), no uno nuevo. Que dos
+funciones de la MISMA pantalla puedan contestar distinto a «cuál es el vigente»
+es el defecto de fondo; los empates solo son cómo se manifiesta.
+
+Un aviso sobre cómo se prueban estas: **el orden de inserción no siempre alcanza
+para hacer fallar el control.** El caso de `educacion_comprobantes` acertaba sin
+la migración porque el plan salía `Index Scan Backward` y devolvía el empate en
+el orden que casualmente convenía. Lo que sí prueba de verdad es forzar el otro
+plan —`set local enable_indexscan = off`, que dura solo la transacción—, porque
+lo que está en juego es exactamente eso: que la respuesta no dependa de CÓMO
+Postgres decida leer la tabla.
+
+Y el criterio que se agrega es un **ancla**, no una regla: `id desc` es un uuid,
+no significa nada. Va siempre DESPUÉS del último criterio real, así que solo
+puede disparar en un empate que producción no sabe producir — por eso es seguro.
+Inventar ahí un criterio de negocio («entre una firma y una negativa del mismo
+día manda la negativa») sería meter política laboral en un `order by`, y esa
+decisión no es de una migración.
+
+Cómo se reconoce en dos minutos, antes de sospechar del entorno: si el valor que
+sale es el de OTRA fila plausible —no un valor absurdo—, mira el `order by` de la
+consulta que lo eligió. Si termina en una columna `now()`, es esto.
+
+**Y la regla que deja atrás: un `distinct on` o un `limit 1` ordenado por una
+columna `now()` necesita desempate explícito, aunque en producción nunca empate.**
+En producción no empata porque cada escritura entra en su propia transacción; en
+una prueba siempre empata. Un orden que depende del orden físico no es un orden.
 
 En una urgencia real ambos se saltan: `git push --no-verify` y `npx vercel --prod`.
 Que se pueda saltar a propósito es parte del diseño; que se salte sin querer, no.

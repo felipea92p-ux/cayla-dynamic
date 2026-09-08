@@ -5,11 +5,13 @@ import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { desacuerdoAsignacionFamiliar, esPrestadorDeServicios, hoyLima, leCorrespondeCuspp, ESTADO_CIVIL_LABELS, ESTADOS_CIVILES, GENERO_LABELS, GENEROS, GRADO_INSTRUCCION_LABELS, GRADOS_INSTRUCCION, puedeExportarPadron, puedeOperarEquipo, puedeVerIdentidad, REGIMEN_PENSION_LABELS, REGIMENES_PENSION, siNoSinDato, VINCULO_DERECHOHABIENTE_LABELS, VINCULOS_DERECHOHABIENTE } from "@cayla-dynamic/shared";
 import { usePersonaActual } from "@/lib/admin/use-rol";
-import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { descargarCsv, generarCsv } from "@/lib/admin/csv";
 import { useToast } from "@/components/toast";
+import { Boton } from "@/components/ui/boton";
+import { Campo, CampoSelect } from "@/components/ui/campo";
+import { Modal } from "@/components/ui/modal";
 
 interface Persona {
   id: string; nombres: string; apellidos: string; documento: string | null;
@@ -49,7 +51,6 @@ interface Form {
   nombre_dni: string; fecha_nacimiento: string; estado_civil: string; genero: string; direccion: string; celular: string;
   entidad_bancaria: string; numero_cuenta: string; grado_instruccion: string;
   hijos_menores: "" | "si" | "no";
-  foto_dni_url: string; foto_personal_url: string; foto_profesional_url: string;
   emergencia_nombre: string; emergencia_vinculo: string; emergencia_telefono: string;
   discapacidad: "" | "si" | "no"; discapacidad_conadis: string;
   cuspp: string;   // CAMBIO 0198
@@ -58,7 +59,6 @@ interface Form {
 const VACIO: Form = {
   nombre_dni: "", fecha_nacimiento: "", estado_civil: "", genero: "", direccion: "", celular: "",
   entidad_bancaria: "", numero_cuenta: "", grado_instruccion: "", hijos_menores: "",
-  foto_dni_url: "", foto_personal_url: "", foto_profesional_url: "",
   emergencia_nombre: "", emergencia_vinculo: "", emergencia_telefono: "",
   discapacidad: "", discapacidad_conadis: "", cuspp: "",
 };
@@ -122,6 +122,9 @@ export default function DatosPersonalesPage() {
   // upsert según venga `p_id`, así que duplicarlo sería tener dos sitios donde
   // arreglar el próximo campo que falte.
   const [dhEditando, setDhEditando] = useState<string | null>(null);
+  // Reemplaza al `window.confirm` nativo (ver CLAUDE.md — Felipe aprobó migrar
+  // todos los diálogos nativos al Modal compartido). `null` = modal cerrado.
+  const [confirmarCierre, setConfirmarCierre] = useState<{ id: string; nombre: string } | null>(null);
   // `personas.con_hijos` es OTRO campo que el `hijos_menores` de la ficha, y es
   // el que de verdad decide si se paga la asignación familiar mensual
   // (fn_planilla_calcular). Lo escribe la pantalla de Equipo; la ficha escribe
@@ -240,7 +243,6 @@ export default function DatosPersonalesPage() {
       direccion: f.direccion ?? "", celular: f.celular ?? "", entidad_bancaria: f.entidad_bancaria ?? "",
       numero_cuenta: f.numero_cuenta ?? "", grado_instruccion: f.grado_instruccion ?? "",
       hijos_menores: f.hijos_menores === true ? "si" : f.hijos_menores === false ? "no" : "",
-      foto_dni_url: f.foto_dni_url ?? "", foto_personal_url: f.foto_personal_url ?? "", foto_profesional_url: f.foto_profesional_url ?? "",
       emergencia_nombre: f.emergencia_nombre ?? "", emergencia_vinculo: f.emergencia_vinculo ?? "",
       emergencia_telefono: f.emergencia_telefono ?? "",
       discapacidad: f.discapacidad === true ? "si" : f.discapacidad === false ? "no" : "",
@@ -305,8 +307,17 @@ export default function DatosPersonalesPage() {
     }
     setGuardando(true);
 
-    // Los quince campos de la ficha SIEMPRE se mandan completos: la función de
-    // la base es un upsert que reemplaza, no un update parcial. Si se omite uno,
+    // Las fotos/documentos ya no se editan desde esta pantalla — se cargan por
+    // otra vía — pero `fn_set_datos_personales` es un upsert que REEMPLAZA los
+    // tres campos en cada llamada (`foto_x_url = excluded.foto_x_url`, sin
+    // COALESCE contra lo que ya había: ver la migración 0369). Si se mandara
+    // "" o null acá, cada "Guardar ficha" borraría lo que esa otra vía haya
+    // cargado. Se manda de vuelta el valor que ya está en la fila, tal cual se
+    // cargó, para que guardar el resto de la ficha no lo toque.
+    const fichaActual = fichas.get(sel);
+
+    // Los campos de la ficha SIEMPRE se mandan completos: la función de la
+    // base es un upsert que reemplaza, no un update parcial. Si se omite uno,
     // se guarda en null.
     const { error } = await supabase.rpc("fn_set_datos_personales", {
       p_persona_id: sel,
@@ -320,9 +331,9 @@ export default function DatosPersonalesPage() {
       p_numero_cuenta: form.numero_cuenta.trim() || null,
       p_grado_instruccion: form.grado_instruccion.trim() || null,
       p_hijos_menores: form.hijos_menores === "" ? null : form.hijos_menores === "si",
-      p_foto_dni_url: form.foto_dni_url.trim() || null,
-      p_foto_personal_url: form.foto_personal_url.trim() || null,
-      p_foto_profesional_url: form.foto_profesional_url.trim() || null,
+      p_foto_dni_url: fichaActual?.foto_dni_url ?? null,
+      p_foto_personal_url: fichaActual?.foto_personal_url ?? null,
+      p_foto_profesional_url: fichaActual?.foto_profesional_url ?? null,
       p_emergencia_nombre: form.emergencia_nombre.trim() || null,
       p_emergencia_vinculo: form.emergencia_vinculo.trim() || null,
       p_emergencia_telefono: form.emergencia_telefono.trim() || null,
@@ -407,11 +418,11 @@ export default function DatosPersonalesPage() {
   }
 
   async function cerrarDerechohabiente(id: string, nombre: string) {
-    if (!window.confirm(`¿Cerrar a ${nombre}? No se borra: queda registrado hasta hoy, así que el periodo en que estuvo cubierto sigue explicándose.`)) return;
     setGuardando(true);
     const { error } = await supabase.rpc("fn_cerrar_derechohabiente", { p_id: id, p_hasta: null });
     setGuardando(false);
     if (error) { avisar("error", mensajeDeError(error)); return; }
+    setConfirmarCierre(null);
     await cargar();
     avisar("ok", `${nombre} quedó cerrado con la fecha de hoy.`);
   }
@@ -593,8 +604,7 @@ export default function DatosPersonalesPage() {
 
   if (rol !== null && !puede) {
     return (
-      <div className="flex min-h-screen flex-col">
-        <AdminNav />
+      <div className="flex flex-1 flex-col">
         <main className="flex flex-1 items-center justify-center p-6">
           <p className="max-w-md text-center text-taupe">No tienes permiso para ver datos personales.</p>
         </main>
@@ -604,11 +614,12 @@ export default function DatosPersonalesPage() {
 
   function campo(label: string, key: keyof Form, tipo: "text" | "date" = "text") {
     return (
-      <label className="flex flex-col gap-1 text-sm">
-        <span className="text-taupe">{label}</span>
-        <input type={tipo} value={form[key]} onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
-          className="rounded-lg border px-3 py-2" />
-      </label>
+      <Campo
+        etiqueta={label}
+        type={tipo}
+        value={form[key]}
+        onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
+      />
     );
   }
   /**
@@ -618,18 +629,29 @@ export default function DatosPersonalesPage() {
    * el valor guardado no está en el catálogo, se añade al desplegable como
    * opción propia y marcada, en vez de aparecer vacío: un campo que se ve vacío
    * invita a guardarlo vacío, y ahí se pierde el dato de una persona real.
+   *
+   * Se queda con su propio <select> en vez de <CampoSelect>: necesita cambiar
+   * SOLO el color del borde según `esAntiguo`, y CampoSelect ya trae
+   * "border-sand" fijo en su base — dos clases de color de borde a la vez
+   * (border-sand + border-ambar) es justo lo que `cx` NO fusiona (ver el
+   * comentario de components/ui/cx.ts: solo fondo y texto, nunca borde), así
+   * que cuál gana quedaría a la suerte del orden en que Tailwind generó su
+   * hoja. Por eso el ternario deja una sola clase de borde a la vez, igual que
+   * ya hacía este archivo — solo se corrige el fondo a `bg-hueso` (hallazgo de
+   * esta pantalla) y el radio a `rounded-control`, para que se vea igual que
+   * el resto de los controles aunque no sea el mismo componente.
    */
   function campoLista(label: string, key: keyof Form, opciones: readonly string[], etiquetas: Record<string, string>) {
     const actual = form[key] as string;
     const esAntiguo = actual !== "" && !opciones.includes(actual);
     return (
-      <label className="flex flex-col gap-1 text-sm">
-        <span className="text-taupe">
+      <label className="flex flex-col gap-1">
+        <span className="text-sm text-taupe">
           {label}
           {esAntiguo && <span className="ml-1 text-[11px] text-ambar">· valor antiguo, elige uno de la lista</span>}
         </span>
         <select value={actual} onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
-          className={`rounded-lg border bg-crema px-3 py-2 ${esAntiguo ? "border-ambar" : ""}`}>
+          className={`rounded-control border ${esAntiguo ? "border-ambar" : "border-sand"} bg-hueso px-3 py-2 text-base text-tinta transition-colors duration-150 sm:text-sm`}>
           <option value="">—</option>
           {esAntiguo && <option value={actual}>{actual} (como estaba)</option>}
           {opciones.map((o) => (
@@ -641,30 +663,20 @@ export default function DatosPersonalesPage() {
   }
   function campoSiNo(label: string, key: "hijos_menores" | "discapacidad") {
     return (
-      <label className="flex flex-col gap-1 text-sm">
-        <span className="text-taupe">{label}</span>
-        <select value={form[key]} onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value as "" | "si" | "no" }))}
-          className="rounded-lg border bg-crema px-3 py-2">
-          <option value="">—</option>
-          <option value="si">Sí</option>
-          <option value="no">No</option>
-        </select>
-      </label>
-    );
-  }
-  function campoFoto(label: string, key: keyof Form) {
-    return (
-      <label className="flex flex-col gap-1 text-sm">
-        <span className="text-taupe">{label} {form[key] && <a href={form[key] as string} target="_blank" rel="noreferrer" className="text-tinta underline">ver</a>}</span>
-        <input value={form[key]} onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
-          className="rounded-lg border px-3 py-2" placeholder="Enlace de Drive" />
-      </label>
+      <CampoSelect
+        etiqueta={label}
+        value={form[key]}
+        onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value as "" | "si" | "no" }))}
+      >
+        <option value="">—</option>
+        <option value="si">Sí</option>
+        <option value="no">No</option>
+      </CampoSelect>
     );
   }
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <AdminNav />
+    <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
         <div className="mb-1 flex flex-wrap items-baseline justify-between gap-3">
           <h1 className="font-serif text-2xl">Datos personales</h1>
@@ -672,17 +684,19 @@ export default function DatosPersonalesPage() {
               Ver `puedeExportarPadron` para por qué esto es más estrecho que ver
               las mismas fichas en pantalla. */}
           {puedeExportarPadron(rol) && personas.length > 0 && (
-            <button
+            <Boton
+              variante="secundario"
+              tamano="sm"
               onClick={exportarPadron}
-              className="no-print rounded-lg border border-sand px-3 py-1.5 text-sm hover:bg-sand/40"
+              className="no-print"
               title="Padrón completo para el contador: incluye DNI, dirección y cuentas bancarias"
             >
               Descargar padrón para el contador (CSV)
-            </button>
+            </Boton>
           )}
         </div>
         <p className="mb-5 max-w-2xl text-sm text-taupe">
-          Ficha personal de cada integrante: DNI, pensión, contacto, familia y documentos.
+          Ficha personal de cada integrante: DNI, pensión, contacto y familia.
           Datos sensibles — visibles solo para Desarrollo Organizacional, la encargada de tu sede y cada persona sobre sí misma.
         </p>
 
@@ -787,7 +801,7 @@ export default function DatosPersonalesPage() {
                   <h2 className="font-serif text-lg">{personaSel.nombres} {personaSel.apellidos}</h2>
                   <div className="flex items-center gap-3 text-xs">
                     <span className="text-taupe">{sedes.get(personaSel.sede_base_id)}</span>
-                    <button onClick={() => router.push(`/admin/personas/${personaSel.id}`)} className="text-tinta hover:underline">Ver perfil →</button>
+                    <Boton variante="enlace" className="text-tinta" onClick={() => router.push(`/admin/personas/${personaSel.id}`)}>Ver perfil →</Boton>
                   </div>
                 </div>
                 <div className="space-y-4">
@@ -796,14 +810,14 @@ export default function DatosPersonalesPage() {
                     <div className="grid gap-3 sm:grid-cols-2">
                       {/* El DNI vive en `personas` y se guarda con su propia función,
                           porque se imprime en papeles legales y su cambio va a auditoría. */}
-                      <label className="flex flex-col gap-1 text-sm">
-                        <span className="text-taupe">
+                      <label className="flex flex-col gap-1">
+                        <span className="text-sm text-taupe">
                           Número de DNI
                           {!puedeIdentidad && <span className="ml-1 text-[11px]">· solo Desarrollo Organizacional</span>}
                         </span>
                         <input value={dni} disabled={!puedeIdentidad}
                           onChange={(e) => setDni(e.target.value)}
-                          className={`rounded-lg border px-3 py-2 disabled:bg-sand/30 disabled:text-taupe ${dniCambio ? "border-ambar" : ""}`} />
+                          className={`rounded-control border ${dniCambio ? "border-ambar" : "border-sand"} bg-hueso px-3 py-2 text-base text-tinta transition-colors duration-150 disabled:bg-sand/30 disabled:text-taupe sm:text-sm`} />
                       </label>
                       {campo("Nombre completo (como en el DNI)", "nombre_dni")}
                       {dniEsCorreccion && (
@@ -813,7 +827,7 @@ export default function DatosPersonalesPage() {
                           </span>
                           <input value={motivoDni} onChange={(e) => setMotivoDni(e.target.value)}
                             placeholder="Por ejemplo: corregido contra la constancia de alta del T-Registro"
-                            className="rounded-lg border border-ambar px-3 py-2" />
+                            className="rounded-control border border-ambar bg-hueso px-3 py-2 text-base text-tinta transition-colors duration-150 sm:text-sm" />
                           <span className="text-[11px] text-taupe">
                             Este número se imprime en los memos disciplinarios y en los documentos de respaldo, así que el cambio queda registrado con su motivo.
                           </span>
@@ -831,14 +845,14 @@ export default function DatosPersonalesPage() {
                   <section>
                     <p className="mb-2 text-[11px] uppercase tracking-wider text-taupe">Pensión</p>
                     <div className="grid gap-3 sm:grid-cols-2">
-                      <label className="flex flex-col gap-1 text-sm">
-                        <span className="text-taupe">
+                      <label className="flex flex-col gap-1">
+                        <span className="text-sm text-taupe">
                           Sistema de pensiones
                           {!puedeIdentidad && <span className="ml-1 text-[11px]">· solo Desarrollo Organizacional</span>}
                         </span>
                         <select value={regimen} disabled={!puedeIdentidad}
                           onChange={(e) => setRegimen(e.target.value)}
-                          className={`rounded-lg border bg-crema px-3 py-2 disabled:bg-sand/30 disabled:text-taupe ${regimenCambio ? "border-ambar" : ""}`}>
+                          className={`rounded-control border ${regimenCambio ? "border-ambar" : "border-sand"} bg-hueso px-3 py-2 text-base text-tinta transition-colors duration-150 disabled:bg-sand/30 disabled:text-taupe sm:text-sm`}>
                           <option value="">— todavía no se sabe</option>
                           {REGIMENES_PENSION.map((r) => (
                             <option key={r} value={r}>{REGIMEN_PENSION_LABELS[r]}</option>
@@ -883,7 +897,7 @@ export default function DatosPersonalesPage() {
                           <span className="text-taupe">Rige desde</span>
                           <input type="date" value={regimenDesde} disabled={!puedeIdentidad}
                             onChange={(e) => setRegimenDesde(e.target.value)}
-                            className="rounded-lg border border-ambar bg-crema px-3 py-2 disabled:bg-sand/30 disabled:text-taupe" />
+                            className="rounded-control border border-ambar bg-hueso px-3 py-2 text-base text-tinta transition-colors duration-150 disabled:bg-sand/30 disabled:text-taupe sm:text-sm" />
                           <span className="text-[11px] text-ambar">
                             {periodoAbiertoIni
                               ? `El descuento cambia desde esta fecha, y queda registrado quién lo cambió. Viene puesta la del periodo abierto (${periodoAbiertoIni}); si eliges una de un periodo ya pagado, la base la rechaza — ese mes ya se pagó con el régimen anterior.`
@@ -897,22 +911,20 @@ export default function DatosPersonalesPage() {
                           a Raquel sería pedirle un código que no existe — y un
                           campo que no aplica enseña a ignorar los que sí. */}
                       {mostrarCuspp && (
-                        <label className="flex flex-col gap-1 text-sm sm:col-span-2">
-                          <span className="text-taupe">
-                            CUSPP · código de su cuenta en la AFP
-                          </span>
-                          <input
+                        <div className="flex flex-col gap-1 sm:col-span-2">
+                          <Campo
+                            etiqueta="CUSPP · código de su cuenta en la AFP"
                             value={form.cuspp}
                             onChange={(e) => setForm((f) => ({ ...f, cuspp: e.target.value }))}
                             placeholder="Sale en su estado de cuenta o en la app de su AFP"
-                            className="rounded-lg border px-3 py-2 font-mono uppercase"
+                            className="font-mono uppercase"
                           />
                           <span className="text-xs text-taupe">
                             {esAfp
                               ? "Obligatorio en el T-Registro. Sin él, el aporte se declara pero puede no llegar a su cuenta."
                               : "Esta persona no está en planilla, así que CAYLA no declara su aporte. El código queda visible para poder corregirlo o borrarlo."}
                           </span>
-                        </label>
+                        </div>
                       )}
                     </div>
                   </section>
@@ -926,18 +938,24 @@ export default function DatosPersonalesPage() {
                           creada queda de solo lectura: la 0198 rechaza el cambio
                           en la base, y una caja que acepta texto para después
                           fallar al guardar es peor que una que no deja escribir. */}
-                      <label className="flex flex-col gap-1 text-sm">
-                        <span className="text-taupe">
+                      <div className="flex flex-col gap-1">
+                        <span id="campo-correo-label" className="text-sm text-taupe">
                           Correo
                           {tieneCuenta && <span className="ml-1 text-[11px]">· es su usuario para entrar</span>}
                         </span>
-                        <input
+                        {/* Sin `etiqueta`: la nota condicional de arriba no es
+                            texto plano, y el mensaje de abajo tampoco cabe en
+                            el `error` de Campo (no es un error). Se asocia por
+                            aria-labelledby en vez de anidar un <label> dentro
+                            del que ya trae Campo. */}
+                        <Campo
+                          aria-labelledby="campo-correo-label"
                           type="email"
                           value={email}
                           onChange={(e) => setEmail(e.target.value)}
                           disabled={!puedeIdentidad || tieneCuenta}
                           placeholder="nombre@correo.com"
-                          className="rounded-lg border px-3 py-2 disabled:bg-sand/30 disabled:text-taupe"
+                          className="disabled:bg-sand/30 disabled:text-taupe"
                         />
                         {tieneCuenta ? (
                           <span className="text-xs text-taupe">
@@ -949,11 +967,11 @@ export default function DatosPersonalesPage() {
                             Todavía no tiene cuenta. Con el correo cargado se le puede invitar desde Cuentas.
                           </span>
                         ) : null}
-                      </label>
-                      <label className="flex flex-col gap-1 text-sm sm:col-span-2">
-                        <span className="text-taupe">Dirección</span>
-                        <input value={form.direccion} onChange={(e) => setForm((f) => ({ ...f, direccion: e.target.value }))} className="rounded-lg border px-3 py-2" />
-                      </label>
+                      </div>
+                      <div className="sm:col-span-2">
+                        <Campo etiqueta="Dirección" value={form.direccion}
+                          onChange={(e) => setForm((f) => ({ ...f, direccion: e.target.value }))} />
+                      </div>
                     </div>
                   </section>
 
@@ -977,15 +995,16 @@ export default function DatosPersonalesPage() {
                           haber estado editando a alguien dejaba sus datos cargados y
                           el próximo «Guardar» pisaba a esa persona en vez de crear
                           un familiar nuevo. */}
-                      <button
+                      <Boton
+                        variante="enlace"
+                        className="text-xs text-tinta"
                         onClick={() => {
                           if (dhAbierto) { setDhAbierto(false); setDhEditando(null); setDhNuevo(crearDhVacio()); }
                           else { setDhEditando(null); setDhNuevo(crearDhVacio()); setDhAbierto(true); }
                         }}
-                        className="text-xs text-tinta hover:underline"
                       >
                         {dhAbierto ? "Cancelar" : "+ Agregar familiar"}
-                      </button>
+                      </Boton>
                     </div>
                     <p className="mb-2 text-[11px] text-taupe">
                       Dos cosas distintas: <strong>EsSalud</strong> es quien está inscrito ante SUNAT y puede atenderse;
@@ -1016,10 +1035,10 @@ export default function DatosPersonalesPage() {
                                         DNI obligaba a cerrar el registro —dejándolo con los
                                         datos malos para siempre, porque no se borra— y crear
                                         otro. La base ya aceptaba corregir: faltaba el botón. */}
-                                    <button onClick={() => editarDerechohabiente(d)}
-                                      disabled={guardando} className="hover:underline disabled:opacity-50">editar</button>
-                                    <button onClick={() => void cerrarDerechohabiente(d.id, `${d.nombres} ${d.apellidos}`)}
-                                      disabled={guardando} className="text-rojo hover:underline disabled:opacity-50">cerrar</button>
+                                    <Boton variante="enlace" tamano="sm" disabled={guardando}
+                                      onClick={() => editarDerechohabiente(d)}>editar</Boton>
+                                    <Boton variante="peligro" tamano="sm" disabled={guardando}
+                                      onClick={() => setConfirmarCierre({ id: d.id, nombre: `${d.nombres} ${d.apellidos}` })}>cerrar</Boton>
                                   </>}
                             </span>
                           </li>
@@ -1030,58 +1049,54 @@ export default function DatosPersonalesPage() {
                     {dhAbierto && (
                       <div className="mt-3 rounded-lg border border-sand bg-crema/50 p-3">
                         <div className="grid gap-3 sm:grid-cols-2">
-                          <label className="flex flex-col gap-1 text-sm">
-                            <span className="text-taupe">Nombres</span>
-                            <input value={dhNuevo.nombres} onChange={(e) => setDhNuevo((d) => ({ ...d, nombres: e.target.value }))} className="rounded-lg border px-3 py-2" />
-                          </label>
-                          <label className="flex flex-col gap-1 text-sm">
-                            <span className="text-taupe">Apellidos</span>
-                            <input value={dhNuevo.apellidos} onChange={(e) => setDhNuevo((d) => ({ ...d, apellidos: e.target.value }))} className="rounded-lg border px-3 py-2" />
-                          </label>
-                          <label className="flex flex-col gap-1 text-sm">
-                            <span className="text-taupe">Vínculo</span>
-                            <select value={dhNuevo.vinculo} onChange={(e) => setDhNuevo((d) => ({ ...d, vinculo: e.target.value }))}
-                              className="rounded-lg border bg-crema px-3 py-2">
-                              {VINCULOS_DERECHOHABIENTE.map((v) => (
-                                <option key={v} value={v}>{VINCULO_DERECHOHABIENTE_LABELS[v]}</option>
-                              ))}
-                            </select>
-                          </label>
-                          <label className="flex flex-col gap-1 text-sm">
-                            <span className="text-taupe">DNI <span className="text-[11px]">(puede faltar en un recién nacido)</span></span>
-                            <input value={dhNuevo.documento} onChange={(e) => setDhNuevo((d) => ({ ...d, documento: e.target.value }))} className="rounded-lg border px-3 py-2" />
-                          </label>
-                          <label className="flex flex-col gap-1 text-sm">
-                            <span className="text-taupe">
+                          <Campo etiqueta="Nombres" value={dhNuevo.nombres}
+                            onChange={(e) => setDhNuevo((d) => ({ ...d, nombres: e.target.value }))} />
+                          <Campo etiqueta="Apellidos" value={dhNuevo.apellidos}
+                            onChange={(e) => setDhNuevo((d) => ({ ...d, apellidos: e.target.value }))} />
+                          <CampoSelect etiqueta="Vínculo" value={dhNuevo.vinculo}
+                            onChange={(e) => setDhNuevo((d) => ({ ...d, vinculo: e.target.value }))}>
+                            {VINCULOS_DERECHOHABIENTE.map((v) => (
+                              <option key={v} value={v}>{VINCULO_DERECHOHABIENTE_LABELS[v]}</option>
+                            ))}
+                          </CampoSelect>
+                          <div className="flex flex-col gap-1">
+                            <span id="campo-dh-documento-label" className="text-sm text-taupe">
+                              DNI <span className="text-[11px]">(puede faltar en un recién nacido)</span>
+                            </span>
+                            <Campo aria-labelledby="campo-dh-documento-label" value={dhNuevo.documento}
+                              onChange={(e) => setDhNuevo((d) => ({ ...d, documento: e.target.value }))} />
+                          </div>
+                          <div className="flex flex-col gap-1">
+                            <span id="campo-dh-nacimiento-label" className="text-sm text-taupe">
                               Fecha de nacimiento
                               {dhNuevo.vinculo === "hijo" && <span className="ml-1 text-[11px] text-ambar">· obligatoria</span>}
                             </span>
-                            <input type="date" value={dhNuevo.fecha_nacimiento} onChange={(e) => setDhNuevo((d) => ({ ...d, fecha_nacimiento: e.target.value }))} className="rounded-lg border px-3 py-2" />
-                          </label>
+                            <Campo aria-labelledby="campo-dh-nacimiento-label" type="date" value={dhNuevo.fecha_nacimiento}
+                              onChange={(e) => setDhNuevo((d) => ({ ...d, fecha_nacimiento: e.target.value }))} />
+                          </div>
                           <div className="flex flex-col gap-2 text-sm sm:self-end">
                             <label className="flex items-center gap-2">
-                              <input type="checkbox" checked={dhNuevo.essalud} onChange={(e) => setDhNuevo((d) => ({ ...d, essalud: e.target.checked }))} />
+                              <input type="checkbox" checked={dhNuevo.essalud} onChange={(e) => setDhNuevo((d) => ({ ...d, essalud: e.target.checked }))} className="size-4 accent-tinta" />
                               <span>Inscrito en EsSalud</span>
                             </label>
                             <label className="flex items-center gap-2">
-                              <input type="checkbox" checked={dhNuevo.vida_ley} onChange={(e) => setDhNuevo((d) => ({ ...d, vida_ley: e.target.checked }))} />
+                              <input type="checkbox" checked={dhNuevo.vida_ley} onChange={(e) => setDhNuevo((d) => ({ ...d, vida_ley: e.target.checked }))} className="size-4 accent-tinta" />
                               <span>Beneficiario de Vida Ley</span>
                             </label>
                           </div>
                         </div>
                         <div className="mt-3 flex items-center gap-3">
-                          <button onClick={() => void agregarDerechohabiente()} disabled={guardando}
-                            className="rounded-lg bg-tinta px-4 py-1.5 text-sm text-crema disabled:opacity-50">
+                          <Boton variante="primario" cargando={guardando} onClick={() => void agregarDerechohabiente()}>
                             {dhEditando ? "Guardar cambios" : "Agregar"}
-                          </button>
+                          </Boton>
                           {/* Cancelar solo al editar: al crear, el propio botón de
                               «Agregar familiar» cierra el formulario, y dos formas de
                               cerrar lo mismo confunden más de lo que ayudan. */}
                           {dhEditando && (
-                            <button onClick={() => { setDhAbierto(false); setDhEditando(null); setDhNuevo(crearDhVacio()); }}
-                              disabled={guardando} className="text-sm text-taupe hover:underline disabled:opacity-50">
+                            <Boton variante="enlace" className="text-taupe" disabled={guardando}
+                              onClick={() => { setDhAbierto(false); setDhEditando(null); setDhNuevo(crearDhVacio()); }}>
                               Cancelar
-                            </button>
+                            </Boton>
                           )}
                         </div>
                       </div>
@@ -1105,24 +1120,51 @@ export default function DatosPersonalesPage() {
                       {form.discapacidad === "si" && campo("N.° de certificado CONADIS", "discapacidad_conadis")}
                     </div>
                   </section>
-
-                  <section>
-                    <p className="mb-2 text-[11px] uppercase tracking-wider text-taupe">Documentos</p>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      {campoFoto("Foto DNI", "foto_dni_url")}
-                      {campoFoto("Foto personal", "foto_personal_url")}
-                      {campoFoto("Foto profesional", "foto_profesional_url")}
-                    </div>
-                  </section>
                 </div>
-                <button onClick={guardar} disabled={guardando || cargaFallida}
-                  className="mt-4 rounded-lg bg-tinta px-5 py-2 text-sm font-medium text-crema disabled:opacity-50">
-                  {guardando ? "Guardando…" : "Guardar ficha"}
-                </button>
+                <Boton
+                  variante="primario"
+                  tamano="lg"
+                  cargando={guardando}
+                  disabled={cargaFallida}
+                  onClick={guardar}
+                  className="mt-4"
+                >
+                  Guardar ficha
+                </Boton>
               </>
             )}
           </div>
         </div>
+
+        {/* Reemplaza al `window.confirm` nativo — Felipe aprobó migrar todos
+            los diálogos del panel al Modal compartido (ver CLAUDE.md). No
+            cambia qué función se llama al confirmar: sigue siendo
+            `cerrarDerechohabiente`, solo cambia cómo se pregunta. */}
+        <Modal
+          abierto={confirmarCierre !== null}
+          onCerrar={() => setConfirmarCierre(null)}
+          titulo="Cerrar a este familiar"
+          ancho="sm"
+          bloqueado={guardando}
+        >
+          <p className="mb-4 text-sm text-taupe">
+            ¿Cerrar a {confirmarCierre?.nombre}? No se borra: queda registrado hasta hoy, así que
+            el periodo en que estuvo cubierto sigue explicándose.
+          </p>
+          <div className="flex justify-end gap-2">
+            <Boton variante="secundario" tamano="sm" disabled={guardando} onClick={() => setConfirmarCierre(null)}>
+              Cancelar
+            </Boton>
+            <Boton
+              variante="peligro"
+              tamano="sm"
+              cargando={guardando}
+              onClick={() => confirmarCierre && void cerrarDerechohabiente(confirmarCierre.id, confirmarCierre.nombre)}
+            >
+              Sí, cerrar
+            </Boton>
+          </div>
+        </Modal>
       </main>
     </div>
   );

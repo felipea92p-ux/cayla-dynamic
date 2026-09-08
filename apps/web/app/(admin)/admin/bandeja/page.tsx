@@ -29,8 +29,9 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
-import { AdminNav } from "../nav";
 import { Cargando, SinDatos } from "@/components/cargando";
+import { Boton } from "@/components/ui/boton";
+import { Campo } from "@/components/ui/campo";
 import { useToast } from "@/components/toast";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
@@ -44,6 +45,21 @@ interface ItemEducacion {
   dias_para_vencer: number;
   meses_sin_papel: number;
   semaforo: "sin_comprobante" | "vencida" | "por_vencer" | "vigente";
+}
+
+/** Alguien que trabajó días que su horario no cubre (mig. 0385). La función ya
+ *  excluye a quien no le toca llevar horario (RxH y personal de dirección), así
+ *  que todo lo que llega aquí es un hueco de verdad. */
+interface ItemSinHorario {
+  persona_id: string; nombre: string; sede: string;
+  dias: number; primer_dia: string; ultimo_dia: string;
+  nunca_tuvo_horario: boolean;
+}
+function detalleSinHorario(h: ItemSinHorario): string {
+  const dias = `${h.dias} día${h.dias === 1 ? "" : "s"}`;
+  return h.nunca_tuvo_horario
+    ? `${dias} · nunca se le cargó un horario`
+    : `${dias} sin cubrir · ${h.primer_dia} a ${h.ultimo_dia}`;
 }
 
 interface ItemVacacion {
@@ -73,6 +89,29 @@ interface ItemSolicitudVacacion {
   fecha_fin: string;
   dias: number;
   comentario: string | null;
+}
+
+/** Una propuesta de cambio de perfil por resolver (migración 0399). */
+interface ItemSolicitudPerfil {
+  id: string;
+  persona_id: string;
+  nombre: string;
+  sede: string;
+  campo: string;
+  etiqueta: string;
+  valor_anterior: Record<string, unknown>;
+  valor_propuesto: Record<string, unknown>;
+  rutas_adjuntas: string[];
+  creada_at: string;
+}
+
+/** «celular: 987654321, direccion: Av. Uno 123» — genérico a propósito: son
+ *  11 campos con formas distintas, y esto solo es para que quien aprueba vea
+ *  de un vistazo qué cambia, no para imprimir un documento. */
+function resumenValorPerfil(v: Record<string, unknown>): string {
+  const entradas = Object.entries(v).filter(([, val]) => val !== null && val !== undefined && val !== "");
+  if (entradas.length === 0) return "—";
+  return entradas.map(([k, val]) => `${k}: ${typeof val === "boolean" ? (val ? "Sí" : "No") : String(val)}`).join(" · ");
 }
 
 // Lo que devuelve fn_alertas_despacho_resumen (0362): lo que el despacho
@@ -131,17 +170,24 @@ export default function BandejaPage() {
   // que ya usa fn_aprobar_ausencia — es DO, nunca la encargada de la sede.
   const puedeResolverVacaciones = puedeVerPlanilla(rol);
   const puedeSaludAlertas = puedeVerSaludDeAlertas(rol);
+  // Igual regla que vacaciones: DO, nunca la encargada de sede — decidido para
+  // los 11 campos por igual, no solo los sensibles (ver ADR 0001, DECIDÍ #9).
+  const puedeResolverPerfil = puedeVerPlanilla(rol);
 
   const [cargando, setCargando] = useState(true);
   const [resumenAlertas, setResumenAlertas] = useState<ResumenAlertas | null>(null);
   const [educacion, setEducacion] = useState<ItemEducacion[]>([]);
   const [vacaciones, setVacaciones] = useState<ItemVacacion[]>([]);
+  const [sinHorario, setSinHorario] = useState<ItemSinHorario[]>([]);
   const [revisiones, setRevisiones] = useState<ItemRevision[]>([]);
   const [solicitudesVacaciones, setSolicitudesVacaciones] = useState<ItemSolicitudVacacion[]>([]);
+  const [solicitudesPerfil, setSolicitudesPerfil] = useState<ItemSolicitudPerfil[]>([]);
   const [respuestas, setRespuestas] = useState<Record<string, string>>({});
   const [motivosRechazo, setMotivosRechazo] = useState<Record<string, string>>({});
+  const [motivosPerfil, setMotivosPerfil] = useState<Record<string, string>>({});
   const [atendiendo, setAtendiendo] = useState<string | null>(null);
   const [resolviendo, setResolviendo] = useState<string | null>(null);
+  const [resolviendoPerfil, setResolviendoPerfil] = useState<string | null>(null);
 
   const cargar = useCallback(async () => {
     const supabase = createAdminSupabaseClient();
@@ -175,6 +221,13 @@ export default function BandejaPage() {
         }),
       );
       tareas.push(
+        // Falla suave a propósito: si la base todavía no tiene la 0385, la
+        // bandeja sigue funcionando igual, solo sin esta sección.
+        supabase.rpc("fn_personas_sin_horario_vigente", { p_dias: 60 }).then(({ data }) => {
+          setSinHorario((data as unknown as ItemSinHorario[]) ?? []);
+        }),
+      );
+      tareas.push(
         supabase.rpc("fn_revisiones_pedidas", { p_solo_pendientes: true }).then(({ data, error }) => {
           if (error) { avisar("error", mensajeDeError(error, "cargar revisiones pedidas")); return; }
           setRevisiones((data as unknown as ItemRevision[]) ?? []);
@@ -183,6 +236,7 @@ export default function BandejaPage() {
     } else {
       setVacaciones([]);
       setRevisiones([]);
+      setSinHorario([]);
     }
 
     if (puedeResolverVacaciones) {
@@ -194,6 +248,17 @@ export default function BandejaPage() {
       );
     } else {
       setSolicitudesVacaciones([]);
+    }
+
+    if (puedeResolverPerfil) {
+      tareas.push(
+        supabase.rpc("fn_solicitudes_perfil_pendientes").then(({ data, error }) => {
+          if (error) { avisar("error", mensajeDeError(error, "cargar solicitudes de perfil")); return; }
+          setSolicitudesPerfil((data as unknown as ItemSolicitudPerfil[]) ?? []);
+        }),
+      );
+    } else {
+      setSolicitudesPerfil([]);
     }
 
     if (puedeSaludAlertas) {
@@ -213,7 +278,7 @@ export default function BandejaPage() {
 
     await Promise.all(tareas);
     setCargando(false);
-  }, [router, puedeEducacion, puedeEquipo, puedeResolverVacaciones, puedeSaludAlertas, avisar]);
+  }, [router, puedeEducacion, puedeEquipo, puedeResolverVacaciones, puedeResolverPerfil, puedeSaludAlertas, avisar]);
 
   // Cargar al montar es el mismo patrón que usa cada pantalla del panel que
   // trae datos de la base (Equipo, Ausencias, Disciplina...); el aviso de acá
@@ -245,17 +310,38 @@ export default function BandejaPage() {
     avisar("ok", aprobar ? "Vacaciones aprobadas." : "Solicitud rechazada.");
   }
 
+  async function resolverSolicitudPerfil(id: string, aprobar: boolean) {
+    setResolviendoPerfil(id);
+    const supabase = createAdminSupabaseClient();
+    const { error } = await supabase.rpc("fn_resolver_solicitud_perfil", {
+      p_id: id, p_aprobar: aprobar, p_motivo: (motivosPerfil[id] ?? "").trim() || undefined,
+    });
+    setResolviendoPerfil(null);
+    if (error) { avisar("error", mensajeDeError(error, aprobar ? "aprobar la solicitud" : "rechazar la solicitud")); return; }
+    setSolicitudesPerfil((s) => s.filter((x) => x.id !== id));
+    avisar("ok", aprobar ? "Cambio aprobado." : "Solicitud rechazada.");
+  }
+
+  /** El bucket es privado: cada documento se abre con una URL firmada, pedida
+   *  al momento de mirar — nunca se firman los 11 de golpe. */
+  async function verDocumentoPerfil(ruta: string) {
+    const supabase = createAdminSupabaseClient();
+    const { data, error } = await supabase.storage.from("solicitudes-perfil").createSignedUrl(ruta, 300);
+    if (error || !data) { avisar("error", "No se pudo abrir el documento."); return; }
+    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+  }
+
   // La tarjeta de avisos por correo solo aparece cuando hay algo que una
   // persona tiene que mirar: lo que se va a reintentar solo no se muestra.
   const alertasConProblema = resumenAlertas
     ? resumenAlertas.atascadas + resumenAlertas.fallidas_definitivas + resumenAlertas.caducadas
     : 0;
 
-  const total = educacion.length + vacaciones.length + revisiones.length + solicitudesVacaciones.length + alertasConProblema;
+  const total = educacion.length + vacaciones.length + revisiones.length + solicitudesVacaciones.length
+    + solicitudesPerfil.length + alertasConProblema + sinHorario.length;
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <AdminNav />
+    <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
         <h1 className="mb-1 font-serif text-2xl">Bandeja</h1>
         <p className="mb-6 max-w-2xl text-sm text-taupe">
@@ -350,16 +436,20 @@ export default function BandejaPage() {
                       </div>
                       <p className="mt-1.5">«{r.comentario}»</p>
                       <div className="mt-2 flex flex-wrap items-center gap-2">
-                        <input
-                          value={respuestas[r.id] ?? ""}
-                          onChange={(e) => setRespuestas((x) => ({ ...x, [r.id]: e.target.value }))}
-                          placeholder="En qué quedó (lo va a leer la persona)"
-                          className="min-w-56 flex-1 rounded-lg border border-sand bg-crema px-3 py-1.5"
-                        />
-                        <button onClick={() => void marcarAtendida(r.id)} disabled={atendiendo === r.id}
-                          className="rounded-lg bg-tinta px-4 py-1.5 font-medium text-crema disabled:opacity-50">
-                          {atendiendo === r.id ? "Guardando…" : "Marcar atendida"}
-                        </button>
+                        <div className="min-w-56 flex-1">
+                          <Campo
+                            value={respuestas[r.id] ?? ""}
+                            onChange={(e) => setRespuestas((x) => ({ ...x, [r.id]: e.target.value }))}
+                            placeholder="En qué quedó (lo va a leer la persona)"
+                          />
+                        </div>
+                        <Boton
+                          variante="primario"
+                          onClick={() => void marcarAtendida(r.id)}
+                          cargando={atendiendo === r.id}
+                        >
+                          Marcar atendida
+                        </Boton>
                       </div>
                     </li>
                   ))}
@@ -383,17 +473,76 @@ export default function BandejaPage() {
                       </div>
                       {s.comentario && <p className="mt-1.5">«{s.comentario}»</p>}
                       <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <div className="min-w-64 flex-1">
+                          <Campo
+                            value={motivosRechazo[s.id] ?? ""}
+                            onChange={(e) => setMotivosRechazo((x) => ({ ...x, [s.id]: e.target.value }))}
+                            placeholder="Motivo si rechazas (obligatorio solo para rechazar)"
+                          />
+                        </div>
+                        <Boton
+                          variante="primario"
+                          onClick={() => void resolverSolicitud(s.id, true)}
+                          cargando={resolviendo === s.id}
+                        >
+                          Aprobar
+                        </Boton>
+                        <Boton
+                          variante="peligro"
+                          onClick={() => void resolverSolicitud(s.id, false)}
+                          disabled={resolviendo === s.id}
+                        >
+                          Rechazar
+                        </Boton>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            {solicitudesPerfil.length > 0 && (
+              <section>
+                <h2 className="mb-1 font-serif text-lg">
+                  {solicitudesPerfil.length} solicitud{solicitudesPerfil.length === 1 ? "" : "es"} de cambio de perfil
+                </h2>
+                <p className="mb-3 text-sm text-taupe">
+                  Lo pidieron desde «Lo mío». Aprobar aplica el cambio real de una vez; rechazar exige decir por qué —esa respuesta la va a leer la persona.
+                </p>
+                <ul className="space-y-3">
+                  {solicitudesPerfil.map((s) => (
+                    <li key={s.id} className="rounded-xl border border-sand p-3 text-sm">
+                      <div className="flex flex-wrap items-baseline justify-between gap-2">
+                        <span><strong>{s.nombre}</strong> <span className="text-taupe">· {s.sede} · {s.etiqueta}</span></span>
+                      </div>
+                      <p className="mt-1.5 text-xs text-taupe">
+                        de: {resumenValorPerfil(s.valor_anterior)}
+                      </p>
+                      <p className="text-xs">
+                        a: {resumenValorPerfil(s.valor_propuesto)}
+                      </p>
+                      {s.rutas_adjuntas.length > 0 && (
+                        <div className="mt-1.5 flex flex-wrap gap-2">
+                          {s.rutas_adjuntas.map((ruta, i) => (
+                            <button key={ruta} onClick={() => void verDocumentoPerfil(ruta)}
+                              className="text-xs text-rojo hover:underline">
+                              Ver documento {s.rutas_adjuntas.length > 1 ? i + 1 : ""} →
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
                         <input
-                          value={motivosRechazo[s.id] ?? ""}
-                          onChange={(e) => setMotivosRechazo((x) => ({ ...x, [s.id]: e.target.value }))}
+                          value={motivosPerfil[s.id] ?? ""}
+                          onChange={(e) => setMotivosPerfil((x) => ({ ...x, [s.id]: e.target.value }))}
                           placeholder="Motivo si rechazas (obligatorio solo para rechazar)"
                           className="min-w-64 flex-1 rounded-lg border border-sand bg-crema px-3 py-1.5"
                         />
-                        <button onClick={() => void resolverSolicitud(s.id, true)} disabled={resolviendo === s.id}
+                        <button onClick={() => void resolverSolicitudPerfil(s.id, true)} disabled={resolviendoPerfil === s.id}
                           className="rounded-lg bg-tinta px-4 py-1.5 font-medium text-crema disabled:opacity-50">
-                          {resolviendo === s.id ? "Guardando…" : "Aprobar"}
+                          {resolviendoPerfil === s.id ? "Guardando…" : "Aprobar"}
                         </button>
-                        <button onClick={() => void resolverSolicitud(s.id, false)} disabled={resolviendo === s.id}
+                        <button onClick={() => void resolverSolicitudPerfil(s.id, false)} disabled={resolviendoPerfil === s.id}
                           className="rounded-lg border border-rojo px-4 py-1.5 font-medium text-rojo disabled:opacity-50">
                           Rechazar
                         </button>
@@ -401,6 +550,35 @@ export default function BandejaPage() {
                     </li>
                   ))}
                 </ul>
+              </section>
+            )}
+
+            {sinHorario.length > 0 && (
+              <section>
+                <h2 className="mb-1 font-serif text-lg">
+                  {sinHorario.length} persona{sinHorario.length === 1 ? "" : "s"} trabajó sin horario vigente
+                </h2>
+                <p className="mb-3 max-w-2xl text-xs leading-relaxed text-taupe">
+                  Marcaron días que ningún horario suyo cubre. Esos días no miden tardanza, ni
+                  salida anticipada, ni tiempo adicional — y si a alguien le cae un descanso médico
+                  o una licencia dentro del hueco, se le paga en cero, sin que nada falle. Suele
+                  ocurrir cuando se cambia el horario de una tienda y el tramo nuevo empieza unos
+                  días después de que terminó el anterior. Quien no lleva horario por su vínculo no
+                  aparece acá.
+                </p>
+                <ul className="space-y-2">
+                  {sinHorario.map((h) => (
+                    <li key={h.persona_id} className="rounded-xl border border-sand p-3 text-sm">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span><strong>{h.nombre}</strong> <span className="text-taupe">· {h.sede}</span></span>
+                        <span className={h.nunca_tuvo_horario ? "text-rojo" : "text-ambar"}>{detalleSinHorario(h)}</span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+                <Link href="/admin/horarios" className="mt-2 inline-block text-sm text-taupe hover:text-rojo">
+                  Ir a Horarios →
+                </Link>
               </section>
             )}
 

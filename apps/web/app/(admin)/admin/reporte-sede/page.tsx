@@ -4,9 +4,11 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { parseAreas, esOperativaEn, AREA_DEFAULT, type Area } from "@/lib/areas";
-import { AdminNav } from "../nav";
 import { Marca } from "@/components/marca";
 import { Cargando } from "@/components/cargando";
+import { Boton } from "@/components/ui/boton";
+import { Campo, CampoSelect } from "@/components/ui/campo";
+import { Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { traerTodo } from "@/lib/admin/traer-todo";
 import { loQueNoSePudo, sePuedeEntregar } from "@/lib/admin/lo-que-no-se-pudo";
@@ -267,10 +269,7 @@ function ReporteSedeContenido() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <div className="print:hidden">
-        <AdminNav />
-      </div>
+    <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6 sm:p-8 print:p-0">
         {/* Controles — no salen en el PDF */}
         <div className="mb-6 flex flex-wrap items-end justify-between gap-4 print:hidden">
@@ -279,30 +278,39 @@ function ReporteSedeContenido() {
             <p className="mt-1 text-sm text-taupe">El estado de una sede en una página: hoy, el periodo elegido y lo que necesita atención.</p>
           </div>
           <div className="flex flex-wrap items-end gap-3">
-            <label className="flex flex-col gap-1 text-sm">Sede
-              <select value={sedeId} onChange={(e) => { setSedeId(e.target.value); setSedeNoElegible(null); setCargado(false); }} className="min-w-40 rounded-xl border border-sand bg-crema px-3 py-2">
-                {/* Sin sede elegida el desplegable mostraría la primera de la lista
-                    mientras `sedeId` sigue vacío: se vería una sede que no es la que
-                    se está mirando. Esta opción hace visible que no hay ninguna. */}
-                {!sedeId && <option value="" disabled>Elegir sede…</option>}
-                {sedes.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
-              </select>
-            </label>
-            <label className="flex flex-col gap-1 text-sm">Desde
-              <input type="date" value={desde} max={hasta}
-                onChange={(e) => { const v = e.target.value; setDesde(v); if (v > hasta) setHasta(v); setCargado(false); }}
-                className="rounded-xl border border-sand bg-crema px-3 py-2" />
-            </label>
-            <label className="flex flex-col gap-1 text-sm">Hasta
-              <input type="date" value={hasta} min={desde} max={hoy}
-                onChange={(e) => { const v = e.target.value; setHasta(v); if (v < desde) setDesde(v); setCargado(false); }}
-                className="rounded-xl border border-sand bg-crema px-3 py-2" />
-            </label>
+            <CampoSelect
+              etiqueta="Sede"
+              value={sedeId}
+              onChange={(e) => { setSedeId(e.target.value); setSedeNoElegible(null); setCargado(false); }}
+              className="min-w-40"
+            >
+              {/* Sin sede elegida el desplegable mostraría la primera de la lista
+                  mientras `sedeId` sigue vacío: se vería una sede que no es la que
+                  se está mirando. Esta opción hace visible que no hay ninguna. */}
+              {!sedeId && <option value="" disabled>Elegir sede…</option>}
+              {sedes.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+            </CampoSelect>
+            <Campo
+              etiqueta="Desde"
+              type="date"
+              value={desde}
+              max={hasta}
+              onChange={(e) => { const v = e.target.value; setDesde(v); if (v > hasta) setHasta(v); setCargado(false); }}
+            />
+            <Campo
+              etiqueta="Hasta"
+              type="date"
+              value={hasta}
+              min={desde}
+              max={hoy}
+              onChange={(e) => { const v = e.target.value; setHasta(v); if (v < desde) setDesde(v); setCargado(false); }}
+            />
             {/* Sin todos los datos NO se imprime. El papel se firma y se lleva a
                 la sede: un cero que en realidad es «no se pudo consultar» dice por
                 escrito que esa persona no trabajó. */}
-            <button onClick={() => window.print()} disabled={!sePuedeEntregar(cargado, noSePudo)}
-              className="rounded-xl bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50">Descargar PDF</button>
+            <Boton variante="primario" onClick={() => window.print()} disabled={!sePuedeEntregar(cargado, noSePudo)}>
+              Descargar PDF
+            </Boton>
           </div>
         </div>
 
@@ -384,34 +392,30 @@ function ReporteSedeContenido() {
             {/* EL PERIODO */}
             <section className="mb-6 print:break-inside-avoid">
               <h3 className="mb-2 font-serif text-lg">El periodo · {rango}</h3>
-              <div className="overflow-x-auto rounded-2xl border border-sand bg-papel">
-                <table className="w-full text-sm [font-variant-numeric:tabular-nums]">
-                  <thead className="bg-sand/70 text-left text-taupe">
-                    <tr>
-                      <th className="px-4 py-2.5 font-medium">Nombre</th>
-                      <th className="px-4 py-2.5 font-medium">Días</th>
-                      <th className="px-4 py-2.5 font-medium">Horas</th>
-                      <th className="px-4 py-2.5 font-medium">Tardanzas</th>
-                      <th className="px-4 py-2.5 font-medium">Min. tarde</th>
-                      <th className="px-4 py-2.5 font-medium">Sal. antic.</th>
+              <Tabla className="[font-variant-numeric:tabular-nums]">
+                <TablaEncabezado>
+                  <Th>Nombre</Th>
+                  <Th>Días</Th>
+                  <Th>Horas</Th>
+                  <Th>Tardanzas</Th>
+                  <Th>Min. tarde</Th>
+                  <Th>Sal. antic.</Th>
+                </TablaEncabezado>
+                <tbody>
+                  {filas.length === 0 ? (
+                    <tr><td colSpan={6} className="px-4 py-6 text-center text-taupe">Sin gente asignada a esta sede.</td></tr>
+                  ) : filas.slice().sort((a, b) => b.horas - a.horas).map((f) => (
+                    <tr key={f.personaId} className="border-t border-sand">
+                      <td className="px-4 py-2.5">{f.nombre}</td>
+                      <td className="px-4 py-2.5">{f.dias}</td>
+                      <td className="px-4 py-2.5 font-medium">{fmtHoras(f.horas)}</td>
+                      <td className="px-4 py-2.5">{f.tardanzas > 0 ? <span className="text-rojo">{f.tardanzas}</span> : <span className="text-taupe/40">—</span>}</td>
+                      <td className="px-4 py-2.5">{f.minTarde > 0 ? `${f.minTarde} min` : <span className="text-taupe/40">—</span>}</td>
+                      <td className="px-4 py-2.5">{f.salidasTemp > 0 ? f.salidasTemp : <span className="text-taupe/40">—</span>}</td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {filas.length === 0 ? (
-                      <tr><td colSpan={6} className="px-4 py-6 text-center text-taupe">Sin gente asignada a esta sede.</td></tr>
-                    ) : filas.slice().sort((a, b) => b.horas - a.horas).map((f) => (
-                      <tr key={f.personaId} className="border-t border-sand">
-                        <td className="px-4 py-2.5">{f.nombre}</td>
-                        <td className="px-4 py-2.5">{f.dias}</td>
-                        <td className="px-4 py-2.5 font-medium">{fmtHoras(f.horas)}</td>
-                        <td className="px-4 py-2.5">{f.tardanzas > 0 ? <span className="text-rojo">{f.tardanzas}</span> : <span className="text-taupe/40">—</span>}</td>
-                        <td className="px-4 py-2.5">{f.minTarde > 0 ? `${f.minTarde} min` : <span className="text-taupe/40">—</span>}</td>
-                        <td className="px-4 py-2.5">{f.salidasTemp > 0 ? f.salidasTemp : <span className="text-taupe/40">—</span>}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                  ))}
+                </tbody>
+              </Tabla>
             </section>
 
             {/* ATENCIÓN */}

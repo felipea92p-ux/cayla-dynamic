@@ -7,12 +7,16 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { ESTADO_CIVIL_LABELS, GENERO_LABELS, GRADO_INSTRUCCION_LABELS, TZ_LIMA, etiquetaDeCatalogo, hoyLima, puedeOperarEquipo, puedeVerPlanilla } from "@cayla-dynamic/shared";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
-import { AdminNav } from "../../nav";
 import { Cargando } from "@/components/cargando";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { GraficoHoras, type DiaGrafico } from "@/components/grafico-horas";
 import { MESES, lecturaObjetivos, type ObjetivoItem } from "@/lib/objetivos";
 import { useToast } from "@/components/toast";
+import { Boton } from "@/components/ui/boton";
+import { Campo } from "@/components/ui/campo";
+import { Insignia } from "@/components/ui/insignia";
+import { Fila, Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
+import { FirmaEditor } from "./FirmaEditor";
 
 const META_DIA = 7.5; // horas objetivo por día (45h/semana)
 
@@ -85,9 +89,28 @@ function AvisoNoSeCargo({ que, motivo, noSignifica, reintentar }: { que: string;
       <p>No se pudo cargar {que}: {motivo}</p>
       <p className="mt-1">
         Esto <strong>no</strong> quiere decir que {noSignifica}.{" "}
-        <button onClick={reintentar} className="no-print font-medium underline">Reintentar</button>
+        <Boton variante="enlace" className="no-print" onClick={reintentar}>Reintentar</Boton>
       </p>
     </div>
+  );
+}
+
+// Fuera del componente por la misma razón de arriba: definirlo dentro de
+// PerfilPersonaPage lo recrearía en cada render (react-hooks/static-components),
+// y React desmontaba y volvía a montar los dos botones en cada cambio de
+// pestaña — quien llegaba con teclado hasta "Desempeño" y pulsaba Enter perdía
+// el foco al body y tenía que recorrer la página entera de nuevo para volver.
+function TabBtn({ valor, tab, setTab, children }: { valor: Tab; tab: Tab; setTab: (t: Tab) => void; children: React.ReactNode }) {
+  return (
+    <button
+      role="tab"
+      aria-selected={tab === valor}
+      onClick={() => setTab(valor)}
+      className={`-mb-px border-b-2 px-4 py-2 text-sm transition-colors ${
+        tab === valor ? "border-rojo font-medium text-tinta" : "border-transparent text-taupe hover:text-tinta"}`}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -133,8 +156,6 @@ export default function PerfilPersonaPage() {
   const [intento, setIntento] = useState(0);
   const reintentar = () => setIntento((n) => n + 1);
   const [incluirSueldo, setIncluirSueldo] = useState(true); // controla si el sueldo entra al PDF
-  const [miFirma, setMiFirma] = useState<string | null>(null);
-  const [subiendoFirma, setSubiendoFirma] = useState(false);
   const [vacas, setVacas] = useState<VacacionesSaldo | null>(null);
   const [contrato, setContrato] = useState<ContratoPorVencer | null>(null);
 
@@ -291,108 +312,10 @@ export default function PerfilPersonaPage() {
 
   // "Mi firma": solo en TU propio perfil, si puedes firmar (admin/líder).
   const esMiPerfil = !!yo && yo.id === id;
-  useEffect(() => {
-    if (!esMiPerfil) return;
-    void (async () => {
-      const { data } = await supabase.rpc("fn_mi_firma");
-      if (typeof data === "string" && data.startsWith("data:image")) setMiFirma(data);
-    })();
-  }, [esMiPerfil, supabase, id]);
-
-  async function subirFirma(file: File) {
-    setSubiendoFirma(true);
-    try {
-      const dataUrl = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onerror = () => reject(new Error("No se pudo leer el archivo."));
-        reader.onload = () => {
-          const img = new Image();
-          img.onerror = () => reject(new Error("La imagen no es válida."));
-          img.onload = () => {
-            const s0 = Math.min(1, 1000 / img.width);
-            const cw = Math.round(img.width * s0), ch = Math.round(img.height * s0);
-            const src = document.createElement("canvas");
-            src.width = cw; src.height = ch;
-            const sctx = src.getContext("2d");
-            if (!sctx) return reject(new Error("Sin canvas."));
-            sctx.drawImage(img, 0, 0, cw, ch);
-            // Recorta el rectángulo de la firma (píxeles con tinta) quitando el blanco
-            // del escaneo — así la firma llena el marco y no sale diminuta.
-            const d = sctx.getImageData(0, 0, cw, ch).data;
-            const rowInk = new Array(ch).fill(0), colInk = new Array(cw).fill(0);
-            for (let y = 0; y < ch; y++) {
-              for (let x = 0; x < cw; x++) {
-                const i = (y * cw + x) * 4;
-                const lum = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
-                if (d[i + 3] > 40 && lum < 210) { rowInk[y]++; colInk[x]++; }
-              }
-            }
-            // Recorte por DENSIDAD: descarta filas/columnas casi vacías (puntitos sueltos,
-            // borde del papel, sombras) que antes inflaban el recorte y dejaban espacio muerto.
-            let rowMax = 1, colMax = 1;
-            for (let y = 0; y < ch; y++) if (rowInk[y] > rowMax) rowMax = rowInk[y];
-            for (let x = 0; x < cw; x++) if (colInk[x] > colMax) colMax = colInk[x];
-            const rThr = rowMax * 0.05, cThr = colMax * 0.05;
-            let minX = 0, minY = 0, maxX = cw - 1, maxY = ch - 1;
-            while (minY < maxY && rowInk[minY] < rThr) minY++;
-            while (maxY > minY && rowInk[maxY] < rThr) maxY--;
-            while (minX < maxX && colInk[minX] < cThr) minX++;
-            while (maxX > minX && colInk[maxX] < cThr) maxX--;
-            const pad = Math.round(Math.min(cw, ch) * 0.02);
-            minX = Math.max(0, minX - pad); minY = Math.max(0, minY - pad);
-            maxX = Math.min(cw - 1, maxX + pad); maxY = Math.min(ch - 1, maxY + pad);
-            const bw = maxX - minX + 1, bh = maxY - minY + 1;
-            const s1 = Math.min(1, 520 / bw);
-            const ow = Math.max(1, Math.round(bw * s1)), oh = Math.max(1, Math.round(bh * s1));
-            const out = document.createElement("canvas");
-            out.width = ow; out.height = oh;
-            const octx = out.getContext("2d");
-            if (!octx) return reject(new Error("Sin canvas."));
-            octx.drawImage(src, minX, minY, bw, bh, 0, 0, ow, oh);
-            // EL FONDO DEL PAPEL SE VUELVE TRANSPARENTE, NO BLANCO.
-            //
-            // El recorte de arriba deja la firma ajustada, pero el blanco del
-            // escaneo seguía siendo opaco. Sobre la raya de un contrato eso se
-            // ve como una pegatina blanca encima de la línea — que es
-            // exactamente lo que reportó Felipe al imprimir el primero.
-            //
-            // El borde no se corta en seco: entre 160 y 240 de luminosidad se
-            // desvanece proporcionalmente, para que el antialiasing del trazo
-            // no quede como un dentado duro.
-            const salida = octx.getImageData(0, 0, ow, oh);
-            const px = salida.data;
-            for (let i = 0; i < px.length; i += 4) {
-              const lum = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
-              if (lum >= 240) px[i + 3] = 0;
-              else if (lum > 160) px[i + 3] = Math.round(px[i + 3] * ((240 - lum) / 80));
-            }
-            octx.putImageData(salida, 0, 0);
-            resolve(out.toDataURL("image/png"));
-          };
-          img.src = reader.result as string;
-        };
-        reader.readAsDataURL(file);
-      });
-      const { error } = await supabase.rpc("fn_set_mi_firma", { p_dataurl: dataUrl });
-      if (error) throw error;
-      setMiFirma(dataUrl);
-      avisar("ok", "Firma guardada. Aparecerá en los memos leves que firmes.");
-    } catch (e) {
-      avisar("error", e instanceof Error ? e.message : "No se pudo guardar la firma.");
-    } finally {
-      setSubiendoFirma(false);
-    }
-  }
-  async function quitarFirma() {
-    setSubiendoFirma(true);
-    const { error } = await supabase.rpc("fn_set_mi_firma", { p_dataurl: null });
-    if (!error) { setMiFirma(null); avisar("ok", "Firma quitada."); }
-    setSubiendoFirma(false);
-  }
 
   if (rol !== null && !puede) {
     return (
-      <div className="flex min-h-screen flex-col"><AdminNav />
+      <div className="flex flex-1 flex-col">
         <main className="flex flex-1 items-center justify-center p-6"><p className="max-w-md text-center text-taupe">No tienes permiso para ver perfiles.</p></main>
       </div>
     );
@@ -401,19 +324,8 @@ export default function PerfilPersonaPage() {
   const nombre = persona ? `${persona.nombres} ${persona.apellidos}` : "";
   const iniciales = persona ? `${persona.nombres[0] ?? ""}${persona.apellidos[0] ?? ""}` : "";
 
-  const TabBtn = ({ valor, children }: { valor: Tab; children: React.ReactNode }) => (
-    <button
-      onClick={() => setTab(valor)}
-      className={`-mb-px border-b-2 px-4 py-2 text-sm transition-colors ${
-        tab === valor ? "border-rojo font-medium text-tinta" : "border-transparent text-taupe hover:text-tinta"}`}
-    >
-      {children}
-    </button>
-  );
-
   return (
-    <div className="flex min-h-screen flex-col">
-      <AdminNav />
+    <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
         <style>{`
           .solo-print{display:none}
@@ -433,11 +345,15 @@ export default function PerfilPersonaPage() {
             <div className="flex items-center gap-3">
               {puedeSalario && (
                 <label className="flex items-center gap-1.5 text-xs text-taupe">
+                  {/* Casilla suelta: no hay CampoCasilla todavía en components/ui/campo.tsx
+                      (Fase A no la agregó pese a lo anunciado) — se deja con accent-tinta
+                      (ya es un token, no un color de Tailwind por defecto) para que migrar
+                      sea trivial en cuanto exista. Ver 'pendientes'. */}
                   <input type="checkbox" checked={incluirSueldo} onChange={(e) => setIncluirSueldo(e.target.checked)} className="h-3.5 w-3.5 accent-tinta" />
                   Incluir sueldo en el PDF
                 </label>
               )}
-              <button onClick={() => { setTab("ficha"); setTimeout(() => window.print(), 60); }} className="rounded-xl bg-tinta px-3 py-1.5 text-xs font-medium text-crema">Descargar PDF</button>
+              <Boton variante="primario" tamano="sm" onClick={() => { setTab("ficha"); setTimeout(() => window.print(), 60); }}>Descargar PDF</Boton>
             </div>
           )}
         </div>
@@ -458,7 +374,7 @@ export default function PerfilPersonaPage() {
             <p>{err}</p>
             {errReintentable && (
               <p className="mt-1">
-                <button onClick={reintentar} className="no-print font-medium underline">Reintentar</button>
+                <Boton variante="enlace" className="no-print" onClick={reintentar}>Reintentar</Boton>
               </p>
             )}
           </div>
@@ -471,22 +387,19 @@ export default function PerfilPersonaPage() {
                 <h1 className="font-serif text-2xl leading-tight">{ficha?.nombre_dni || nombre}</h1>
                 <p className="text-sm text-taupe">
                   {persona.funcion} · Sede {errSede ? <span className="text-rojo">no se pudo cargar</span> : sede || "—"}
-                  {persona.estado !== "activo" && <span className="ml-2 rounded-full bg-sand/60 px-2 py-0.5 text-xs">{persona.estado}</span>}
-                  {persona.sueldo_fijo && <span className="ml-2 rounded-full bg-sand/60 px-2 py-0.5 text-xs">sueldo fijo</span>}
+                  {persona.estado !== "activo" && <Insignia atenuada punto={false} className="ml-2">{persona.estado}</Insignia>}
+                  {persona.sueldo_fijo && <Insignia punto={false} className="ml-2">sueldo fijo</Insignia>}
                   {/* Estar marcada como dirección le quita un derecho —no genera
                       sobretiempo, art. 5 del D.S. 007-2002-TR— así que tiene que
                       verse. Se marca por SQL, igual que sueldo_fijo y en_planilla;
                       lo que no puede pasar es que además sea invisible: un permiso
                       que nadie ve es un permiso que nadie audita. */}
                   {persona.personal_direccion && (
-                    <span
-                      className="ml-2 rounded-full bg-sand/60 px-2 py-0.5 text-xs"
-                      title="Personal de dirección (art. 5, D.S. 007-2002-TR): fuera de la jornada máxima de 48 h, no genera sobretiempo. Sí le corresponde el descanso semanal."
-                    >
-                      dirección
+                    <span title="Personal de dirección (art. 5, D.S. 007-2002-TR): fuera de la jornada máxima de 48 h, no genera sobretiempo. Sí le corresponde el descanso semanal.">
+                      <Insignia punto={false} className="ml-2">dirección</Insignia>
                     </span>
                   )}
-                  {!persona.en_planilla && <span className="ml-2 rounded-full bg-ambar/15 px-2 py-0.5 text-xs text-ambar">fuera de planilla</span>}
+                  {!persona.en_planilla && <Insignia variante="advertencia" punto={false} className="ml-2">fuera de planilla</Insignia>}
                 </p>
                 {/* El motivo va en el CUERPO, no en un `title`. Esta ficha se
                     abre en el iPad de la sede —donde no hay puntero que
@@ -495,7 +408,7 @@ export default function PerfilPersonaPage() {
                 {errSede && (
                   <p className="mt-0.5 text-xs text-rojo">
                     No se pudo cargar la sede: {errSede}. Esto <strong>no</strong> quiere decir que no tenga sede asignada.{" "}
-                    <button onClick={reintentar} className="no-print font-medium underline">Reintentar</button>
+                    <Boton variante="enlace" className="no-print" onClick={reintentar}>Reintentar</Boton>
                   </p>
                 )}
                 <p className="mt-0.5 text-xs text-taupe">DNI {persona.documento ?? "—"} · Ingresó {fechaCorta(persona.fecha_ingreso)}</p>
@@ -503,9 +416,9 @@ export default function PerfilPersonaPage() {
             </div>
 
             {/* Pestañas */}
-            <div className="no-print mb-6 flex gap-1 border-b border-sand">
-              <TabBtn valor="ficha">Ficha</TabBtn>
-              <TabBtn valor="desempeno">Desempeño</TabBtn>
+            <div role="tablist" className="no-print mb-6 flex gap-1 border-b border-sand">
+              <TabBtn valor="ficha" tab={tab} setTab={setTab}>Ficha</TabBtn>
+              <TabBtn valor="desempeno" tab={tab} setTab={setTab}>Desempeño</TabBtn>
             </div>
 
             {tab === "ficha" ? (
@@ -628,7 +541,13 @@ export default function PerfilPersonaPage() {
                             </span>
                             <span className="flex items-center gap-2 text-xs text-taupe">
                               {selloLima(d.firmado_at ?? d.creado_at)}
-                              <span className={`rounded-full px-2 py-0.5 ${d.estado === "anulado" ? "bg-sand/50 text-taupe" : d.estado === "borrador" ? "bg-ambar/15 text-ambar" : "bg-sand/60 text-tinta"}`}>{ESTADO_DOC[d.estado] ?? d.estado}</span>
+                              <Insignia
+                                variante={d.estado === "borrador" ? "advertencia" : "neutral"}
+                                atenuada={d.estado === "anulado"}
+                                punto={false}
+                              >
+                                {ESTADO_DOC[d.estado] ?? d.estado}
+                              </Insignia>
                               <Link href={`/admin/disciplina/memo/${d.id}`} className="text-tinta hover:underline">ver</Link>
                             </span>
                           </li>
@@ -639,25 +558,8 @@ export default function PerfilPersonaPage() {
                   {esMiPerfil && puedeSalario && (
                     <section className="rounded-2xl border border-sand bg-papel p-5 lg:col-span-2">
                       <h2 className="mb-1 font-serif text-lg">Mi firma</h2>
-                      <p className="mb-3 text-sm text-taupe">Se imprime en los memos disciplinarios leves (amonestación, suspensión) que tú firmes, y en los contratos de trabajo si eres quien firma por la empresa. Sube una foto o escaneo de tu firma, mejor sobre fondo blanco. Despido/imputación van con firma a mano o digital certificada.</p>
-                      <div className="flex flex-wrap items-center gap-4">
-                        {miFirma ? (
-                          <div className="w-60 rounded-lg border border-sand bg-white px-4 pb-2 pt-3">
-                            <div className="flex h-20 items-end justify-center">
-                              <img src={miFirma} alt="Tu firma" className="block h-20 w-auto max-w-full" />
-                            </div>
-                            <div className="border-t border-tinta/40 pt-1 text-[11px] text-taupe">Así se verá sobre la línea del memo</div>
-                          </div>
-                        ) : (
-                          <span className="text-sm text-taupe">Aún no has subido tu firma.</span>
-                        )}
-                        <label className="cursor-pointer rounded-xl bg-tinta px-3 py-1.5 text-xs font-medium text-crema">
-                          {subiendoFirma ? "Guardando…" : miFirma ? "Cambiar firma" : "Subir firma"}
-                          <input type="file" accept="image/png,image/jpeg" className="hidden" disabled={subiendoFirma}
-                            onChange={(e) => { const f = e.target.files?.[0]; if (f) void subirFirma(f); e.target.value = ""; }} />
-                        </label>
-                        {miFirma && <button onClick={() => void quitarFirma()} disabled={subiendoFirma} className="text-xs text-rojo hover:underline">Quitar</button>}
-                      </div>
+                      <p className="mb-3 text-sm text-taupe">Se imprime en los memos disciplinarios leves (amonestación, suspensión) que tú firmes, y en los contratos de trabajo si eres quien firma por la empresa. Despido/imputación van con firma a mano o digital certificada.</p>
+                      <FirmaEditor supabase={supabase} nombreOficial={ficha?.nombre_dni || nombre} avisar={avisar} />
                     </section>
                   )}
                 </div>
@@ -678,21 +580,17 @@ export default function PerfilPersonaPage() {
               /* ── Pestaña Desempeño ── */
               <>
                 <div className="mb-6 flex flex-wrap items-end gap-4">
-                  <label className="flex flex-col gap-1 text-sm">Desde
-                    <input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} className="rounded-lg border border-sand bg-crema px-3 py-2" />
-                  </label>
-                  <label className="flex flex-col gap-1 text-sm">Hasta
-                    <input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} className="rounded-lg border border-sand bg-crema px-3 py-2" />
-                  </label>
-                  <button onClick={() => void cargarDesempeno()} disabled={cargandoDes} className="rounded-lg bg-tinta px-5 py-2 text-sm font-medium text-crema disabled:opacity-50">
-                    {cargandoDes ? "Cargando…" : "Actualizar"}
-                  </button>
+                  <Campo etiqueta="Desde" type="date" value={desde} onChange={(e) => setDesde(e.target.value)} />
+                  <Campo etiqueta="Hasta" type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} />
+                  <Boton variante="primario" tamano="lg" cargando={cargandoDes} onClick={() => void cargarDesempeno()}>
+                    Actualizar
+                  </Boton>
                 </div>
 
                 {errDes && (
                   <div className="mb-6 max-w-2xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
                     No se pudo cargar el desempeño: {errDes}{" "}
-                    <button onClick={() => void cargarDesempeno()} className="font-medium underline">Reintentar</button>
+                    <Boton variante="enlace" onClick={() => void cargarDesempeno()}>Reintentar</Boton>
                   </div>
                 )}
 
@@ -702,11 +600,15 @@ export default function PerfilPersonaPage() {
                     <ul className="mt-1 list-disc pl-5">
                       {errParcialDes.map((t) => <li key={t}>No se pudieron cargar {t}.</li>)}
                     </ul>
-                    <button onClick={() => void cargarDesempeno()} className="mt-1 font-medium underline">Reintentar</button>
+                    <Boton variante="enlace" className="mt-1" onClick={() => void cargarDesempeno()}>Reintentar</Boton>
                   </div>
                 )}
 
-                {!desCargado && cargandoDes && <p className="text-sm text-taupe">Cargando…</p>}
+                {/* Mismo colibrí que la ficha (<Cargando/>), no un "Cargando…" de texto
+                    plano: dos formas distintas de la misma espera dentro del mismo
+                    archivo es justo lo que components/cargando.tsx se escribió para
+                    evitar (ver su docblock). */}
+                {!desCargado && cargandoDes && <Cargando texto="Cargando su desempeño…" />}
 
                 {desCargado && (
                   <>
@@ -744,7 +646,7 @@ export default function PerfilPersonaPage() {
                             {/* Antes esto pintaba «Plus 21%» en verde. Desde la
                                 0171 los objetivos no pagan: la etiqueta dice el
                                 porcentaje cumplido y el color ya no premia. */}
-                            <span className="rounded-full bg-sand px-3 py-0.5 text-taupe">{objNivel.etiqueta}</span>
+                            <Insignia punto={false}>{objNivel.etiqueta}</Insignia>
                           </span>
                         </div>
                         <div className="mb-3 h-2 overflow-hidden rounded-full bg-sand">
@@ -753,7 +655,9 @@ export default function PerfilPersonaPage() {
                         <ul className="space-y-1 text-sm">
                           {objetivos.map((o) => (
                             <li key={o.id} className="flex items-start gap-2">
-                              <span className={o.cumplido ? "text-verde" : "text-taupe/50"}>{o.cumplido ? "✓" : "○"}</span>
+                              {/* text-taupe sin diluir: al 50% de opacidad este círculo
+                                  quedaba en ~1.8:1 sobre papel, muy por debajo de AA. */}
+                              <span className={o.cumplido ? "text-verde" : "text-taupe"}>{o.cumplido ? "✓" : "○"}</span>
                               <span className={o.cumplido ? "text-taupe line-through" : ""}>{o.descripcion}</span>
                             </li>
                           ))}
@@ -766,62 +670,58 @@ export default function PerfilPersonaPage() {
                       <GraficoHoras dias={stats.datosGrafico} meta={META_DIA} />
                     </div>
 
-                    <div className="overflow-x-auto rounded-2xl border border-sand">
-                      <table className="w-full text-sm">
-                        <thead className="bg-sand/70 text-left">
-                          <tr className="etiqueta text-taupe">
-                            <th className="px-4 py-2.5 font-medium">Fecha</th>
-                            <th className="px-4 py-2.5 font-medium">Entrada</th>
-                            <th className="px-4 py-2.5 font-medium">Salida</th>
-                            <th className="px-4 py-2.5 font-medium">Horas</th>
-                            <th className="px-4 py-2.5 font-medium">Tardanza</th>
-                            <th className="px-4 py-2.5 font-medium">Sal. antic.</th>
-                            <th className="px-4 py-2.5 font-medium">T. adicional</th>
-                            <th className="px-4 py-2.5 font-medium">Incidencia</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {jornadas.length === 0 ? (
-                            <tr><td colSpan={8} className="px-4 py-6 text-center text-taupe">Sin jornadas en el periodo.</td></tr>
-                          ) : (
-                            jornadas.map((j) => {
-                              const inc = incidencia(j);
-                              return (
-                                <tr key={j.fecha} className="border-t border-sand bg-papel transition-colors hover:bg-crema">
-                                  <td className="px-4 py-2.5 capitalize">
-                                    {fechaLarga(j.fecha)}
-                                    {stats.esAgregado(j) && (
-                                      <span className="ml-2 whitespace-nowrap rounded-full bg-taupe/15 px-2 py-0.5 text-[10px] normal-case text-taupe">total del mes · histórico 2025</span>
-                                    )}
-                                  </td>
-                                  <td className="px-4 py-2.5">{horaLima(j.entrada_ts)}</td>
-                                  <td className="px-4 py-2.5">{horaLima(j.salida_final_ts)}</td>
-                                  <td className="px-4 py-2.5">{j.horas_trabajadas != null ? fmtHoras(j.horas_trabajadas) : "—"}</td>
-                                  <td className="px-4 py-2.5">
-                                    {j.minutos_tarde ? (
-                                      levTard.has(j.fecha)
-                                        ? <span className="text-taupe" title="Tardanza levantada"><s>{j.minutos_tarde} min</s> · levantada</span>
-                                        : <span className="font-medium text-rojo">{j.minutos_tarde} min</span>
-                                    ) : <span className="text-taupe/40">—</span>}
-                                  </td>
-                                  <td className="px-4 py-2.5">
-                                    {j.minutos_salida_temprana ? <span className="text-ambar">{j.minutos_salida_temprana} min</span> : <span className="text-taupe/40">—</span>}
-                                  </td>
-                                  <td className="px-4 py-2.5">
-                                    {j.horas_extra_detectadas && j.horas_extra_detectadas > 0 ? <span className="font-medium text-verde">{fmtHoras(j.horas_extra_detectadas)}</span> : <span className="text-taupe/40">—</span>}
-                                  </td>
-                                  <td className="px-4 py-2.5">
-                                    {inc ? (
-                                      <Link href={`/admin/correcciones?persona=${id}&fecha=${j.fecha}`} className="font-medium text-rojo underline decoration-rojo/30 underline-offset-2 hover:decoration-rojo">{inc} ›</Link>
-                                    ) : <span className="text-taupe/40">—</span>}
-                                  </td>
-                                </tr>
-                              );
-                            })
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
+                    <Tabla>
+                      <TablaEncabezado>
+                        <Th>Fecha</Th>
+                        <Th>Entrada</Th>
+                        <Th>Salida</Th>
+                        <Th>Horas</Th>
+                        <Th>Tardanza</Th>
+                        <Th>Sal. antic.</Th>
+                        <Th>T. adicional</Th>
+                        <Th>Incidencia</Th>
+                      </TablaEncabezado>
+                      <tbody>
+                        {jornadas.length === 0 ? (
+                          <tr><td colSpan={8} className="px-4 py-6 text-center text-taupe">Sin jornadas en el periodo.</td></tr>
+                        ) : (
+                          jornadas.map((j) => {
+                            const inc = incidencia(j);
+                            return (
+                              <Fila key={j.fecha}>
+                                <td className="px-4 py-2.5 capitalize">
+                                  {fechaLarga(j.fecha)}
+                                  {stats.esAgregado(j) && (
+                                    <Insignia atenuada punto={false} className="ml-2 whitespace-nowrap normal-case">total del mes · histórico 2025</Insignia>
+                                  )}
+                                </td>
+                                <td className="px-4 py-2.5">{horaLima(j.entrada_ts)}</td>
+                                <td className="px-4 py-2.5">{horaLima(j.salida_final_ts)}</td>
+                                <td className="px-4 py-2.5">{j.horas_trabajadas != null ? fmtHoras(j.horas_trabajadas) : "—"}</td>
+                                <td className="px-4 py-2.5">
+                                  {j.minutos_tarde ? (
+                                    levTard.has(j.fecha)
+                                      ? <span className="text-taupe" title="Tardanza levantada"><s>{j.minutos_tarde} min</s> · levantada</span>
+                                      : <span className="font-medium text-rojo">{j.minutos_tarde} min</span>
+                                  ) : <span className="text-taupe">—</span>}
+                                </td>
+                                <td className="px-4 py-2.5">
+                                  {j.minutos_salida_temprana ? <span className="text-ambar">{j.minutos_salida_temprana} min</span> : <span className="text-taupe">—</span>}
+                                </td>
+                                <td className="px-4 py-2.5">
+                                  {j.horas_extra_detectadas && j.horas_extra_detectadas > 0 ? <span className="font-medium text-verde">{fmtHoras(j.horas_extra_detectadas)}</span> : <span className="text-taupe">—</span>}
+                                </td>
+                                <td className="px-4 py-2.5">
+                                  {inc ? (
+                                    <Link href={`/admin/correcciones?persona=${id}&fecha=${j.fecha}`} className="font-medium text-rojo underline decoration-rojo/30 underline-offset-2 hover:decoration-rojo">{inc} ›</Link>
+                                  ) : <span className="text-taupe">—</span>}
+                                </td>
+                              </Fila>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </Tabla>
                   </>
                 )}
               </>

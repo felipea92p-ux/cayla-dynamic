@@ -3,10 +3,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
-import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
 import { Insignia } from "@/components/ui/insignia";
+import { Modal } from "@/components/ui/modal";
 import { Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
@@ -51,6 +51,11 @@ export default function SedesPage() {
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [form, setForm] = useState<FormSede>(FORM_VACIO);
   const [guardando, setGuardando] = useState(false);
+
+  // Confirmación de "Desactivar" (antes window.confirm). Solo esa acción se
+  // confirma — "Reactivar" no tenía diálogo antes y sigue sin tenerlo.
+  const [confirmandoDesactivar, setConfirmandoDesactivar] = useState<Sede | null>(null);
+  const [desactivando, setDesactivando] = useState(false);
 
   const cargar = useCallback(async () => {
     const supabase = createAdminSupabaseClient();
@@ -107,9 +112,6 @@ export default function SedesPage() {
   }
 
   async function cambiarActiva(s: Sede, activa: boolean) {
-    if (!activa && !window.confirm(
-      `¿Desactivar la sede "${s.nombre}"? Deja de ofrecerse para nuevas asignaciones. Quien ya está asignado ahí lo conserva — puedes reactivarla cuando quieras.`
-    )) return;
     const supabase = createAdminSupabaseClient();
     const { error } = await supabase.rpc("fn_sede_activa", { p_codigo: s.codigo, p_activa: activa });
     if (error) { avisar("error", mensajeDeError(error)); return; }
@@ -117,6 +119,14 @@ export default function SedesPage() {
     avisar("ok", activa
       ? `“${s.nombre}” reactivada: vuelve a ofrecerse al asignar personas.`
       : `“${s.nombre}” desactivada. Quien ya está asignado ahí lo conserva; solo deja de ofrecerse para nuevas asignaciones.`);
+  }
+
+  async function confirmarDesactivar() {
+    if (!confirmandoDesactivar) return;
+    setDesactivando(true);
+    await cambiarActiva(confirmandoDesactivar, false);
+    setDesactivando(false);
+    setConfirmandoDesactivar(null);
   }
 
   const formulario = (modo: "alta" | "edicion") => (
@@ -176,8 +186,7 @@ export default function SedesPage() {
   );
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <AdminNav />
+    <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
         <div className="mb-4 flex items-center justify-between">
           <h1 className="font-serif text-2xl">Sedes</h1>
@@ -222,7 +231,9 @@ export default function SedesPage() {
                       <td className="px-4 py-2 font-mono text-xs text-taupe">{s.codigo}</td>
                       <td className="px-4 py-2 text-xs text-taupe">{ETIQUETA_TIPO[s.tipo] ?? s.tipo}</td>
                       <td className="px-4 py-2">
-                        <Insignia atenuada={!s.activa}>{s.activa ? "activa" : "inactiva"}</Insignia>
+                        <Insignia variante={s.activa ? "positivo" : "neutral"} atenuada={!s.activa}>
+                          {s.activa ? "activa" : "inactiva"}
+                        </Insignia>
                       </td>
                       <td className="px-4 py-2">
                         {edicionHabilitada && (
@@ -252,7 +263,7 @@ export default function SedesPage() {
                             </Boton>
                             <Boton variante="secundario" tamano="sm" onClick={() => empezarEdicion(s)}>Editar</Boton>
                             {s.activa ? (
-                              <Boton variante="peligro" tamano="sm" onClick={() => cambiarActiva(s, false)}>Desactivar</Boton>
+                              <Boton variante="peligro" tamano="sm" onClick={() => setConfirmandoDesactivar(s)}>Desactivar</Boton>
                             ) : (
                               <Boton variante="secundario" tamano="sm" onClick={() => cambiarActiva(s, true)}>Reactivar</Boton>
                             )}
@@ -271,6 +282,35 @@ export default function SedesPage() {
               taller— van como dos sedes, cada una con su terminal. Las sedes <span className="font-medium">no se borran</span>:
               se desactivan, y quien ya está asignado ahí lo conserva.
             </p>
+
+            {/* Antes era window.confirm(...) — Felipe aprobó migrar todos los
+                diálogos nativos del panel al Modal compartido (ver CLAUDE.md).
+                No cambia qué se llama al confirmar (fn_sede_activa vía
+                cambiarActiva): solo cómo se pregunta. */}
+            <Modal
+              abierto={confirmandoDesactivar !== null}
+              onCerrar={() => setConfirmandoDesactivar(null)}
+              bloqueado={desactivando}
+              titulo="Desactivar sede"
+              ancho="sm"
+            >
+              {confirmandoDesactivar && (
+                <>
+                  <p className="mb-4 text-sm text-taupe">
+                    ¿Desactivar la sede “{confirmandoDesactivar.nombre}”? Deja de ofrecerse para nuevas
+                    asignaciones. Quien ya está asignado ahí lo conserva — puedes reactivarla cuando quieras.
+                  </p>
+                  <div className="flex justify-end gap-2">
+                    <Boton onClick={() => setConfirmandoDesactivar(null)} disabled={desactivando}>
+                      Cancelar
+                    </Boton>
+                    <Boton variante="peligro" onClick={() => void confirmarDesactivar()} cargando={desactivando}>
+                      Sí, desactivar
+                    </Boton>
+                  </div>
+                </>
+              )}
+            </Modal>
           </>
         )}
       </main>

@@ -4,13 +4,17 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
-import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { useToast } from "@/components/toast";
 import { instanteEntrega } from "@/lib/admin/instante-entrega";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 import { abrirArchivoFirmado } from "@/lib/abrir-archivo-firmado";
+import { Boton } from "@/components/ui/boton";
+import { Insignia } from "@/components/ui/insignia";
+import { Modal } from "@/components/ui/modal";
+import { AreaTexto } from "@/components/ui/area-texto";
+import { Campo } from "@/components/ui/campo";
 import {
   NIVEL_DISCIPLINARIO_CORTO, NIVEL_DISCIPLINARIO_LABELS, TZ_LIMA, hoyLima, puedeOperarEquipo,
   rangoDelDiaLima, rangoDelMesLima, mesesRecientesLima, nombreDelMesLima, nombreDelMesLimaTitulo,
@@ -184,31 +188,27 @@ function FormularioCargo({
             className="rounded border bg-crema px-2 py-1 text-xs file:mr-2 file:rounded file:border-0 file:bg-sand file:px-2 file:py-0.5 file:text-xs" />
         </label>
         {pideFecha && (
-          <label className="flex flex-col gap-1 text-xs">
-            Fecha de entrega
-            <input type="date" value={fecha} max={hoyLima()}
-              onChange={(e) => alCambiarFecha(e.target.value)}
-              className="rounded border px-2 py-1 text-xs" />
-          </label>
+          <Campo etiqueta="Fecha de entrega" type="date" value={fecha} max={hoyLima()}
+            onChange={(e) => alCambiarFecha(e.target.value)}
+            className="text-xs" />
         )}
         {tipo === "acta_negativa" && (
-          <label className="flex flex-col gap-1 text-xs sm:col-span-2">
-            Testigo del acta — nombre y apellido
-            <input value={testigo} onChange={(e) => alCambiarTestigo(e.target.value)}
+          <div className="flex flex-col gap-1 sm:col-span-2">
+            <Campo etiqueta="Testigo del acta — nombre y apellido" value={testigo}
+              onChange={(e) => alCambiarTestigo(e.target.value)}
               placeholder="ej. Rosa Quispe Ramírez"
-              className="rounded border px-2 py-1 text-xs" />
-            <span className="text-taupe">
+              className="text-xs" />
+            <span className="text-xs text-taupe">
               Quien presenció la negativa y firma el acta junto a quien entrega. Puede ser
               cualquier persona presente, esté o no en el sistema.
             </span>
-          </label>
+          </div>
         )}
-        <label className="flex flex-col gap-1 text-xs sm:col-span-2">
-          Nota (opcional)
-          <input value={nota} onChange={(e) => alCambiarNota(e.target.value)}
+        <div className="sm:col-span-2">
+          <Campo etiqueta="Nota (opcional)" value={nota} onChange={(e) => alCambiarNota(e.target.value)}
             placeholder={tipo === "acta_negativa" ? "ej. se le leyó en voz alta y se negó también a recibir la copia" : tipo === "descargo" ? "ej. entregado en mesa de partes el 14/08" : "ej. recibido en la tienda"}
-            className="rounded border px-2 py-1 text-xs" />
-        </label>
+            className="text-xs" />
+        </div>
       </div>
       {progreso !== null && (
         <div className="mt-2">
@@ -222,12 +222,10 @@ function FormularioCargo({
         </div>
       )}
       <div className="mt-2 flex items-center gap-2">
-        <button onClick={alGuardar} disabled={ocupado}
-          className="rounded-lg bg-tinta px-3 py-1 text-xs font-medium text-crema disabled:opacity-40">
+        <Boton variante="primario" tamano="sm" onClick={alGuardar} disabled={ocupado}>
           {progreso !== null ? `Subiendo… ${progreso}%` : "Guardar"}
-        </button>
-        <button onClick={alCancelar}
-          className="rounded-lg border px-3 py-1 text-xs">Cancelar</button>
+        </Boton>
+        <Boton variante="secundario" tamano="sm" onClick={alCancelar}>Cancelar</Boton>
       </div>
     </div>
   );
@@ -247,6 +245,11 @@ export default function DisciplinaPage() {
   // que puede haber: da por revisado lo que no se revisó.
   const [falloTard, setFalloTard] = useState(false);
   const [falloFaltas, setFalloFaltas] = useState(false);
+  // El tercer panel de esta pantalla —Borradores pendientes— tenía la misma
+  // trampa que ya se corrigió arriba: si `expediente_disciplinario` no se
+  // pudo leer, `docs` queda vacío y el panel decía «No hay borradores por
+  // firmar», que es lo mismo que dice cuando de verdad no hay ninguno.
+  const [falloDocs, setFalloDocs] = useState(false);
   const [docs, setDocs] = useState<Doc[]>([]);
   const [nombres, setNombres] = useState<Map<string, string>>(new Map());
   const [cargando, setCargando] = useState(true);
@@ -313,6 +316,25 @@ export default function DisciplinaPage() {
   const [mesTard, setMesTard] = useState<string>(primeroDeMesLima());
   const borradoresRef = useRef<HTMLDivElement>(null);
 
+  // ── Diálogos que antes eran window.confirm/window.prompt ────────────────
+  // Felipe aprobó migrar los ocho de esta pantalla al Modal compartido: un
+  // diálogo nativo no se puede ni leer con calma ni volver a abrir si el
+  // texto no convenció a la primera, y en varios de estos el texto es la
+  // única explicación de un artículo del RIT antes de un acto que no se
+  // deshace. Cada estado de abajo abre un paso; la llamada de verdad vive en
+  // su "confirmar…" correspondiente, para que "abrir" nunca dispare la RPC.
+  const [confirmandoCargos, setConfirmandoCargos] = useState<Doc | null>(null);
+  const [pidiendoConstancia, setPidiendoConstancia] = useState<Doc | null>(null);
+  const [constanciaTexto, setConstanciaTexto] = useState("");
+  const [valorando, setValorando] = useState<{ d: Doc; acogido: string } | null>(null);
+  const [valoracionTexto, setValoracionTexto] = useState("");
+  const [firmando, setFirmando] = useState<string | null>(null);
+  const [resolviendo, setResolviendo] = useState<{ d: Doc; resultado: "archivado" | "despido" } | null>(null);
+  const [motivoResolucion, setMotivoResolucion] = useState("");
+  const [reabriendo, setReabriendo] = useState<string | null>(null);
+  const [anulando, setAnulando] = useState<{ id: string; entregado: boolean } | null>(null);
+  const [motivoAnular, setMotivoAnular] = useState("");
+
   const supabase = useMemo(() => createAdminSupabaseClient(), []);
 
   const cargar = useCallback(async () => {
@@ -354,6 +376,7 @@ export default function DisciplinaPage() {
     if (fallos.length) avisar("error", fallos.join(" · "));
     setFalloTard(!!eT);
     setFalloFaltas(!!eF);
+    setFalloDocs(!!eD);
     // El doble casteo no es pereza: `packages/database/src/types.ts` es un
     // archivo GENERADO y todavía describe la firma anterior de
     // fn_tardanzas_resumen, sin `sin_medir`. Regenerarlo con el CLI de hoy
@@ -451,16 +474,15 @@ export default function DisciplinaPage() {
    *
    * Va con confirmación porque el plazo NO se reabre: una vez comunicado,
    * comunicado. Si se hace por error hay que anular el borrador y generar otro.
+   * `abrirComunicarCargos` solo abre el Modal; la RPC vive en
+   * `confirmarComunicarCargos`, para que abrir el aviso nunca la dispare.
    */
-  async function comunicarCargos(d: Doc) {
-    if (!window.confirm(
-      `¿Comunicar los cargos a ${nombres.get(d.persona_id) ?? "esta persona"}?\n\n` +
-      "Se abre el plazo de dos días hábiles para que presente su descargo, y hasta " +
-      "que venza no se podrá firmar. El plazo no se reabre.\n\n" +
-      "Antes de continuar: entrégale por escrito los hechos con sus fechas, la norma " +
-      "que se le imputa y el detalle de la medición. El sistema guarda la fecha; el " +
-      "documento lo entregas tú.",
-    )) return;
+  function abrirComunicarCargos(d: Doc) {
+    setConfirmandoCargos(d);
+  }
+
+  async function confirmarComunicarCargos(d: Doc) {
+    setConfirmandoCargos(null);
     setOcupado(d.id);
     const { data, error } = await supabase.rpc("fn_expediente_comunicar_cargos", {
       p_id: d.id, p_dias: 2, p_nota: null,
@@ -497,13 +519,18 @@ export default function DisciplinaPage() {
    *
    * Por eso, además del campo, la llamada va envuelta en try/catch/finally:
    * pase lo que pase, la fila vuelve a su estado normal con un mensaje.
+   *
+   * La constancia —qué dice cómo consta esa comunicación— tampoco se pide
+   * con `window.prompt` (Felipe aprobó migrarlo, como el resto de esta
+   * pantalla): es el segundo paso, en un Modal con `AreaTexto`, y solo se
+   * abre si el día ya pasó las dos validaciones de arriba.
    */
   function abrirDeclaracion(d: Doc) {
     setDeclarando(d.id);
     setFechaCargos(hoyLima());
   }
 
-  async function declararCargos(d: Doc) {
+  function continuarDeclaracion(d: Doc) {
     // El día sale del estado que pinta el campo, no del DOM ni de un prompt.
     const dia = fechaCargos;
     if (!/^\d{4}-\d{2}-\d{2}$/.test(dia)) {
@@ -514,11 +541,13 @@ export default function DisciplinaPage() {
       avisar("error", "Ese día todavía no llega: los cargos no pudieron comunicarse en el futuro.");
       return;
     }
-    const constancia = window.prompt(
-      "¿Cómo consta esa comunicación? Quién se la hizo, dónde y quién más estaba delante.\n\n" +
-      "Queda escrito en el expediente con tu nombre y la fecha de hoy. Si fue verbal, " +
-      "dilo: es más débil que un cargo firmado y el expediente tiene que decirlo así.",
-    );
+    setConstanciaTexto("");
+    setPidiendoConstancia(d);
+  }
+
+  async function confirmarDeclararCargos(d: Doc) {
+    const dia = fechaCargos;
+    const constancia = constanciaTexto;
     if (!constancia || constancia.trim().length < 15) {
       avisar("error", "Falta decir cómo consta, y con detalle: va a ser la única prueba de que esa comunicación existió.");
       return;
@@ -552,6 +581,7 @@ export default function DisciplinaPage() {
     }
     // Desde acá ya está escrito. Si refrescar falla, se dice eso y no otra cosa.
     setDeclarando(null);
+    setPidiendoConstancia(null);
     const plazo = `Comunicación registrada · su plazo de descargo venció o vence el ${selloLima(vence)}`;
     try {
       await cargar();
@@ -566,41 +596,42 @@ export default function DisciplinaPage() {
    * acogió y —cuando no— por qué. Sin ella no se puede firmar, aunque no se
    * haya presentado ningún descargo: que no lo haya también hay que hacerlo
    * constar.
+   *
+   * "sin_descargo" y "total" no piden nada por escrito y se guardan directo;
+   * "parcial" y "no" sí, y ese texto se pide en un Modal —ya no en
+   * `window.prompt`— porque es el que se lee si alguien discute la sanción.
    */
-  async function valorarDescargo(d: Doc, acogido: string) {
-    let valoracion: string | null = null;
+  function elegirValoracion(d: Doc, acogido: string) {
+    if (!acogido) return;
     if (acogido === "parcial" || acogido === "no") {
-      valoracion = window.prompt(
-        acogido === "no"
-          ? "¿Por qué no se acoge el descargo? Queda escrito en el documento (art. 19.3)."
-          : "¿Qué parte se acoge y qué parte no? Queda escrito en el documento (art. 19.3).",
-      );
-      if (!valoracion || valoracion.trim().length < 10) {
-        avisar("error", "Hace falta el motivo, y con algo de detalle: es lo que se lee si alguien discute la sanción.");
-        return;
-      }
+      setValoracionTexto("");
+      setValorando({ d, acogido });
+      return;
     }
+    void confirmarValorarDescargo(d, acogido, null);
+  }
+
+  async function confirmarValorarDescargo(d: Doc, acogido: string, valoracion: string | null) {
     setOcupado(d.id);
     const { error } = await supabase.rpc("fn_expediente_valorar_descargo", {
       p_id: d.id, p_acogido: acogido, p_valoracion: valoracion,
     });
     setOcupado(null);
     if (error) { avisar("error", mensajeDeError(error)); return; }
+    setValorando(null);
     await cargar();
     avisar("ok", acogido === "total"
       ? "Descargo acogido. Si ya no corresponde sancionar, anula el borrador."
       : "Valoración guardada. Ya se puede firmar.");
   }
 
-  async function firmar(id: string) {
+  function abrirFirmar(id: string) {
+    setFirmando(id);
+  }
+
+  async function confirmarFirmar(id: string) {
     const elegido = firmanteElegido[id];
-    const f = elegido ? (firmantes[id] ?? []).find((x) => x.persona_id === elegido) : null;
-    // El cargo va en el aviso a propósito: es lo que se va a imprimir en el
-    // documento, y quien firma tiene que verlo antes de que sea definitivo.
-    const aviso = f
-      ? `¿Firmar este documento como ${f.nombre} (${f.cargo})? Le asigna su número oficial y deja de ser un borrador. Después podrás entregarlo o, si hizo falta, anularlo.`
-      : "¿Firmar este documento? Le asigna su número oficial y deja de ser un borrador. Después podrás entregarlo o, si hizo falta, anularlo.";
-    if (!window.confirm(aviso)) return;
+    setFirmando(null);
     setOcupado(id);
     const { data, error } = await supabase.rpc("fn_expediente_firmar", { p_id: id, p_firmante_id: elegido ?? null });
     setOcupado(null);
@@ -724,18 +755,18 @@ export default function DisciplinaPage() {
    * efectos; resolver lo deja donde está y solo anota la decisión. Mientras no
    * se resuelva, el semáforo seguirá pidiendo esa decisión durante doce meses.
    */
-  async function resolver(d: Doc, resultado: "archivado" | "despido") {
-    const que = resultado === "archivado"
-      ? "ARCHIVAR el procedimiento sin sancionar"
-      : "dejar constancia de que se resolvió con DESPIDO";
-    const motivo = window.prompt(
-      `Vas a ${que}.\n\n`
-      + "Explica la decisión (mínimo 10 caracteres). Es lo que sostiene el expediente si alguien lo revisa:\n\n"
-      + (resultado === "despido"
-        ? "Ojo: esto solo ANOTA la decisión. La carta de despido se redacta, se firma y se entrega aparte."
-        : "El documento sigue entregado y sigue contando como antecedente doce meses."),
-    );
-    if (!motivo || motivo.trim().length < 10) return;
+  function abrirResolver(d: Doc, resultado: "archivado" | "despido") {
+    setMotivoResolucion("");
+    setResolviendo({ d, resultado });
+  }
+
+  async function confirmarResolver() {
+    if (!resolviendo) return;
+    const { d, resultado } = resolviendo;
+    if (!motivoResolucion || motivoResolucion.trim().length < 10) {
+      avisar("error", "Explica la decisión con al menos 10 caracteres: es lo que sostiene el expediente si alguien lo revisa.");
+      return;
+    }
     setOcupado(d.id);
     // ⚠️ ESTE COMENTARIO YA NO ERA VERDAD, y se corrige el 2026-08-14. Decía que
     // `packages/database/src/types.ts` no conocía `fn_expediente_resolver` y que
@@ -747,10 +778,11 @@ export default function DisciplinaPage() {
     // Importa porque este comentario es el manual que va a leer quien choque con
     // el siguiente error de tipos, y le estaba diciendo que no regenerara.
     const { error } = await supabase.rpc("fn_expediente_resolver", {
-      p_id: d.id, p_resultado: resultado, p_motivo: motivo.trim(),
+      p_id: d.id, p_resultado: resultado, p_motivo: motivoResolucion.trim(),
     });
     setOcupado(null);
     if (error) { avisar("error", mensajeDeError(error)); return; }
+    setResolviendo(null);
     await cargar();
     avisar("ok", resultado === "archivado"
       ? "Procedimiento archivado. El semáforo deja de pedir una decisión ya tomada."
@@ -858,12 +890,12 @@ export default function DisciplinaPage() {
 
   // Volver un memo firmado a borrador para cambiar quién lo suscribe (mig. 0131).
   // Solo mientras no se haya entregado: una vez entregado se anula, no se reabre.
-  async function reabrirParaCambiarFirmante(id: string) {
-    if (!window.confirm(
-      "¿Volver este memo a borrador para cambiar quién lo firma?\n\n" +
-      "Pierde su número oficial actual; al volver a firmarlo se le asigna uno nuevo. " +
-      "Solo se puede mientras no se haya entregado.",
-    )) return;
+  function abrirReabrir(id: string) {
+    setReabriendo(id);
+  }
+
+  async function confirmarReabrir(id: string) {
+    setReabriendo(null);
     setOcupado(id);
     const { error } = await supabase.rpc("fn_expediente_reabrir", { p_id: id });
     setOcupado(null);
@@ -878,6 +910,9 @@ export default function DisciplinaPage() {
    * `entregado` decide el aviso, y la diferencia es real: anular un BORRADOR no
    * lo ha visto nadie; anular algo ENTREGADO retira un papel que una persona ya
    * tiene en la mano, y hay que decírselo. El sistema no puede hacer esa parte.
+   * El Modal muestra esa advertencia solo cuando `entregado` es cierto, y el
+   * motivo lo pide siempre — las dos cosas que antes eran un `window.confirm`
+   * seguido de un `window.prompt` se piden ahora en un solo paso.
    *
    * Se ofrece también en «Entregados» y no solo en «Borradores» porque a veces
    * el defecto se descubre después. Pasó el 2026-08-13: una imputación de cargos
@@ -888,23 +923,23 @@ export default function DisciplinaPage() {
    * archivar deja el escalón en «imputación» y perpetúa el salto; anular lo
    * devuelve al peldaño que de verdad tocaba.
    */
-  async function anular(id: string, entregado = false) {
-    if (entregado && !window.confirm(
-      "Este documento YA SE ENTREGÓ y la persona lo tiene.\n\n"
-      + "Anularlo lo deja sin efecto y queda el rastro con tu motivo, pero el sistema "
-      + "no puede avisarle: tendrás que comunicárselo tú por escrito.\n\n"
-      + "¿Continuar?",
-    )) return;
-    const motivo = window.prompt(
-      entregado
-        ? "Motivo de la anulación. Explica POR QUÉ se anula — si fue un defecto del documento o una decisión de la empresa, porque de eso depende que los antecedentes anteriores sigan contando:"
-        : "Motivo de la anulación (queda registrado en el documento):",
-    );
-    if (!motivo || motivo.trim().length < 3) return;
+  function abrirAnular(id: string, entregado = false) {
+    setMotivoAnular("");
+    setAnulando({ id, entregado });
+  }
+
+  async function confirmarAnular() {
+    if (!anulando) return;
+    const { id, entregado } = anulando;
+    if (!motivoAnular || motivoAnular.trim().length < 3) {
+      avisar("error", "Escribe el motivo de la anulación: queda registrado en el documento.");
+      return;
+    }
     setOcupado(id);
-    const { error } = await supabase.rpc("fn_expediente_anular", { p_id: id, p_motivo: motivo.trim() });
+    const { error } = await supabase.rpc("fn_expediente_anular", { p_id: id, p_motivo: motivoAnular.trim() });
     setOcupado(null);
     if (error) { avisar("error", mensajeDeError(error)); return; }
+    setAnulando(null);
     await cargar();
     avisar("ok", entregado
       ? "Documento anulado. Queda el rastro con tu motivo — ahora comunícaselo a la persona por escrito."
@@ -969,8 +1004,7 @@ export default function DisciplinaPage() {
 
   if (rol !== null && !puede) {
     return (
-      <div className="flex min-h-screen flex-col">
-        <AdminNav />
+      <div className="flex flex-1 flex-col">
         <main className="flex flex-1 items-center justify-center p-6">
           <p className="max-w-md text-center text-taupe">No tienes permiso para el módulo disciplinario.</p>
         </main>
@@ -991,8 +1025,7 @@ function fechasDe(h: Hecho[]): string {
   }
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <AdminNav />
+    <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
         <h1 className="mb-1 font-serif text-2xl">Disciplina</h1>
         <p className="mb-5 max-w-2xl text-sm text-taupe">
@@ -1012,6 +1045,11 @@ function fechasDe(h: Hecho[]): string {
                   ningún sitio: el botón de abajo está deshabilitado cuando el
                   contador del mes es 0, y el día 1 —el caso que se arregla— es
                   0 para todo el mundo. */}
+              {/* Filtro de barra de herramientas, no un campo de formulario: se
+                  queda con el <select> a mano y el rótulo AL LADO —
+                  CampoSelect apila el rótulo encima (pensado para formularios
+                  verticales) y aquí desalinearía esta cabecera con la de
+                  Faltas, que no tiene selector. */}
               <label className="flex items-center gap-1 text-xs text-taupe">
                 Mes
                 <select value={mesTard} onChange={(e) => setMesTard(e.target.value)}
@@ -1075,21 +1113,22 @@ function fechasDe(h: Hecho[]): string {
                   <span>
                     <strong>{t.nombre}</strong> <span className="text-taupe">· {t.sede}</span>
                     {t.tardanzas_mes > 0 && (
-                      <span className={`ml-2 rounded-full px-2 py-0.5 text-xs ${t.umbral === "aviso" ? "bg-ambar/15 text-ambar" : "bg-rojo/10 text-rojo"}`}>
+                      <Insignia variante={t.umbral === "aviso" ? "advertencia" : "alerta"} className="ml-2">
                         {t.tardanzas_mes}
                         {t.umbral === "aviso"
                           ? ` de ${t.minimo} en ${nombreDelMesLima(mesTard)} · aviso`
                           : t.umbral === "bloqueado"
                             ? " · imputación vigente, decide Gerencia"
                             : ` · corresponde ${NIVEL_DISCIPLINARIO_CORTO[t.umbral as keyof typeof NIVEL_DISCIPLINARIO_CORTO] ?? t.umbral}`}
-                      </span>
+                      </Insignia>
                     )}
                     {t.sin_medir > 0 && (
                       <span
-                        className="ml-2 rounded-full bg-sand px-2 py-0.5 text-xs text-taupe"
                         title="Entró más de tres horas después de su hora. Casi siempre significa que ese día tenía otro turno y el sistema comparó contra el equivocado. No cuenta para el umbral legal: míralo tú."
                       >
-                        {t.sin_medir} sin medir
+                        <Insignia variante="neutral" atenuada punto={false} className="ml-2">
+                          {t.sin_medir} sin medir
+                        </Insignia>
                       </span>
                     )}
                   </span>
@@ -1100,7 +1139,7 @@ function fechasDe(h: Hecho[]): string {
                   {/* Con una imputación vigente el generador se niega siempre
                       («decide Gerencia»). Ofrecer un botón que solo puede dar
                       error enseña a ignorar los errores de esta pantalla. */}
-                  <button onClick={() => generar("tardanza", t.persona_id)}
+                  <Boton variante="secundario" tamano="sm" onClick={() => generar("tardanza", t.persona_id)}
                     disabled={ocupado === t.persona_id || t.tardanzas_mes === 0 || t.umbral === "bloqueado" || pendientePorCausal.has(`${t.persona_id}:tardanza`)}
                     title={pendientePorCausal.has(`${t.persona_id}:tardanza`)
                       ? "Ya hay un borrador de tardanza pendiente para esta persona. Revísalo en «Borradores pendientes» antes de generar otro."
@@ -1110,10 +1149,9 @@ function fechasDe(h: Hecho[]): string {
                         ? "Ya tiene una imputación de cargos vigente. El siguiente paso es evaluar sus descargos (art. 31) y lo decide Gerencia, no el sistema."
                         : t.umbral === "aviso"
                           ? `Aún no llega a su umbral: lleva ${t.tardanzas_mes} en ${nombreDelMesLima(mesTard)} y su escalón exige ${t.minimo}.`
-                          : undefined}
-                    className="rounded-lg border border-tinta/30 px-3 py-1 text-xs text-tinta hover:bg-sand/40 disabled:opacity-40">
+                          : undefined}>
                     {ocupado === t.persona_id ? "Generando…" : "Generar borrador"}
-                  </button>
+                  </Boton>
                 </li>
               ))}
             </ul>
@@ -1141,18 +1179,17 @@ function fechasDe(h: Hecho[]): string {
                 <li key={f.persona_id} id={`falta-${f.persona_id}`} className={`flex flex-wrap items-center justify-between gap-3 scroll-mt-24 px-4 py-3 text-sm transition-colors ${resaltado === `falta-${f.persona_id}` ? "bg-rojo/10" : ""}`}>
                   <span>
                     <strong>{f.nombre}</strong> <span className="text-taupe">· {f.sede}</span>
-                    <span className={`ml-2 rounded-full px-2 py-0.5 text-xs ${f.nivel === "rojo" ? "bg-rojo/10 text-rojo" : "bg-ambar/15 text-ambar"}`}>
+                    <Insignia variante={f.nivel === "rojo" ? "alerta" : "advertencia"} className="ml-2">
                       {f.consecutivas} consec · {f.en_30} en 30d · {f.en_180} en 180d
-                    </span>
+                    </Insignia>
                   </span>
-                  <button onClick={() => generar("falta", f.persona_id)}
+                  <Boton variante="secundario" tamano="sm" onClick={() => generar("falta", f.persona_id)}
                     disabled={ocupado === f.persona_id || pendientePorCausal.has(`${f.persona_id}:falta`)}
                     title={pendientePorCausal.has(`${f.persona_id}:falta`)
                       ? "Ya hay un borrador de falta pendiente para esta persona. Revísalo en «Borradores pendientes» antes de generar otro."
-                      : undefined}
-                    className="rounded-lg border border-tinta/30 px-3 py-1 text-xs text-tinta hover:bg-sand/40 disabled:opacity-40">
+                      : undefined}>
                     {ocupado === f.persona_id ? "Generando…" : "Generar borrador"}
-                  </button>
+                  </Boton>
                 </li>
               ))}
             </ul>
@@ -1164,7 +1201,12 @@ function fechasDe(h: Hecho[]): string {
           <h2 className="border-b bg-sand/50 px-4 py-2 text-sm font-medium">
             Borradores pendientes {borradores.length > 0 && <span className="font-normal text-taupe">· {borradores.length}</span>}
           </h2>
-          {borradores.length === 0 ? (
+          {falloDocs ? (
+            <p className="px-4 py-6 text-sm text-rojo">
+              No se pudo leer el legajo. <strong>Esto NO significa que no haya borradores.</strong>{" "}
+              Vuelve a cargar la página; si sigue igual, avisa antes de dar el mes por revisado.
+            </p>
+          ) : borradores.length === 0 ? (
             <p className="px-4 py-6 text-sm text-taupe">No hay borradores por firmar.</p>
           ) : (
             <ul className="divide-y">
@@ -1189,8 +1231,7 @@ function fechasDe(h: Hecho[]): string {
                           ))}
                         </select>
                       )}
-                      <button onClick={() => router.push(`/admin/disciplina/memo/${d.id}`)}
-                        className="rounded-lg border border-tinta/30 px-3 py-1 text-xs text-tinta hover:bg-sand/40">Ver memo</button>
+                      <Boton variante="secundario" tamano="sm" onClick={() => router.push(`/admin/disciplina/memo/${d.id}`)}>Ver memo</Boton>
                       {/* El botón que sale es el del paso que toca, y en una
                           amonestación o una suspensión los tres primeros NO son
                           Firmar: comunicar los cargos, esperar el plazo y
@@ -1206,18 +1247,16 @@ function fechasDe(h: Hecho[]): string {
                           art. 31 de la LPCL, que es otro y más largo. */}
                       {exigeDescargo && esGradual(d.nivel) && d.cargos_comunicados_at === null ? (
                         <>
-                          <button onClick={() => void comunicarCargos(d)} disabled={ocupado === d.id}
-                            title="Art. 55.2 del RIT: antes de una amonestación o una suspensión hay que comunicarle los cargos y darle su plazo de descargo."
-                            className="rounded-lg bg-tinta px-3 py-1 text-xs font-medium text-crema disabled:opacity-40">
+                          <Boton variante="primario" tamano="sm" onClick={() => abrirComunicarCargos(d)} disabled={ocupado === d.id}
+                            title="Art. 55.2 del RIT: antes de una amonestación o una suspensión hay que comunicarle los cargos y darle su plazo de descargo.">
                             {ocupado === d.id ? "Comunicando…" : "Comunicar cargos"}
-                          </button>
+                          </Boton>
                           {/* Para lo que ya ocurrió. En texto pequeño y al lado,
                               no como botón: el camino normal es comunicar hoy;
                               este es la excepción de quien ya lo hizo y no tuvo
                               dónde anotarlo. */}
-                          <button onClick={() => abrirDeclaracion(d)} disabled={ocupado === d.id}
-                            title="Registrar una comunicación que ya ocurrió, con la fecha en que ocurrió. El plazo se cuenta desde esa fecha, no desde hoy."
-                            className="text-xs text-taupe underline disabled:opacity-40">ya se lo comuniqué</button>
+                          <Boton variante="enlace" className="text-xs text-taupe" onClick={() => abrirDeclaracion(d)} disabled={ocupado === d.id}
+                            title="Registrar una comunicación que ya ocurrió, con la fecha en que ocurrió. El plazo se cuenta desde esa fecha, no desde hoy.">ya se lo comuniqué</Boton>
                         </>
                       ) : exigeDescargo && esGradual(d.nivel) && plazoAbierto(d) ? (
                         <span className="text-xs text-taupe">Esperando su descargo</span>
@@ -1226,9 +1265,9 @@ function fechasDe(h: Hecho[]): string {
                            una lista escrita acá: son las mismas que acepta
                            fn_expediente_valorar_descargo. */
                         <select value="" disabled={ocupado === d.id}
-                          onChange={(e) => { if (e.target.value) void valorarDescargo(d, e.target.value); }}
+                          onChange={(e) => { if (e.target.value) elegirValoracion(d, e.target.value); }}
                           title="Art. 19.3 del RIT: hay que dejar por escrito si el descargo se acoge, aunque no se haya presentado ninguno."
-                          className="rounded-lg border border-tinta/30 bg-papel px-2 py-1 text-xs text-tinta disabled:opacity-40">
+                          className="rounded-lg border border-tinta/30 bg-papel px-2 py-1 text-xs text-tinta disabled:opacity-50">
                           <option value="">Valorar el descargo…</option>
                           {Object.entries(ETIQUETA_DESCARGO).map(([valor, etiqueta]) => (
                             <option key={valor} value={valor}>{etiqueta}</option>
@@ -1242,12 +1281,11 @@ function fechasDe(h: Hecho[]): string {
                            Se compara con `=== 0` y no con `?? []` a propósito:
                            la clave ausente es «todavía no se preguntó», y ahí el
                            botón se deja pasar para que decida la base. */
-                        <button onClick={() => firmar(d.id)}
+                        <Boton variante="primario" tamano="sm" onClick={() => abrirFirmar(d.id)}
                           disabled={ocupado === d.id || firmantes[d.id]?.length === 0}
                           title={firmantes[d.id]?.length === 0
                             ? `Un documento de nivel ${NIVEL_LABEL[d.nivel].toLowerCase()} no lo puedes suscribir tú (art. 54.4 del Reglamento).`
-                            : "Firmar este documento"}
-                          className="rounded-lg bg-tinta px-3 py-1 text-xs font-medium text-crema disabled:opacity-40">Firmar</button>
+                            : "Firmar este documento"}>Firmar</Boton>
                       )}
                       {/* El descargo previo también se archiva, y contra el
                           borrador: la 0212 abrió esa puerta en
@@ -1255,15 +1293,12 @@ function fechasDe(h: Hecho[]): string {
                           la imputación entregada tenía dónde subirlo. */}
                       {esGradual(d.nivel) && d.cargos_comunicados_at !== null
                         && !(adjuntos.get(d.id) ?? []).some((a) => a.tipo === "descargo") && (
-                        <button onClick={() => void abrirCargo(d.id, "descargo")} disabled={ocupado === d.id}
-                          className="text-xs text-taupe underline disabled:opacity-40">subir su descargo</button>
+                        <Boton variante="enlace" className="text-xs text-taupe" onClick={() => void abrirCargo(d.id, "descargo")} disabled={ocupado === d.id}>subir su descargo</Boton>
                       )}
                       {(adjuntos.get(d.id) ?? []).filter((a) => a.tipo === "descargo").map((a) => (
-                        <button key={a.id} onClick={() => void verAdjunto(a.storage_path)}
-                          className="text-xs font-medium underline">Ver descargo</button>
+                        <Boton key={a.id} variante="enlace" className="text-xs font-medium" onClick={() => void verAdjunto(a.storage_path)}>Ver descargo</Boton>
                       ))}
-                      <button onClick={() => anular(d.id)} disabled={ocupado === d.id}
-                        className="rounded border border-rojo/30 px-2 py-0.5 text-xs text-rojo hover:bg-rojo/10 disabled:opacity-40">Anular</button>
+                      <Boton variante="peligro" tamano="sm" onClick={() => abrirAnular(d.id)} disabled={ocupado === d.id}>Anular</Boton>
                     </div>
                   </div>
                   <p className="mt-1 text-xs text-taupe">Hechos: {fechasDe(d.hechos)}</p>
@@ -1397,19 +1432,16 @@ function fechasDe(h: Hecho[]): string {
                         el documento seguirá sin poder firmarse. Al continuar se te pedirá cómo consta esa
                         comunicación.
                       </p>
-                      <label className="flex flex-col gap-1 text-xs">
-                        Día de la comunicación
-                        <input type="date" value={fechaCargos} max={hoyLima()}
+                      <div className="w-44">
+                        <Campo etiqueta="Día de la comunicación" type="date" value={fechaCargos} max={hoyLima()}
                           onChange={(e) => setFechaCargos(e.target.value)}
-                          className="w-44 rounded border px-2 py-1 text-xs" />
-                      </label>
+                          className="text-xs" />
+                      </div>
                       <div className="mt-2 flex items-center gap-2">
-                        <button onClick={() => void declararCargos(d)} disabled={ocupado === d.id}
-                          className="rounded-lg bg-tinta px-3 py-1 text-xs font-medium text-crema disabled:opacity-40">
-                          {ocupado === d.id ? "Registrando…" : "Continuar"}
-                        </button>
-                        <button onClick={() => setDeclarando(null)}
-                          className="rounded-lg border px-3 py-1 text-xs">Cancelar</button>
+                        <Boton variante="primario" tamano="sm" onClick={() => continuarDeclaracion(d)} disabled={ocupado === d.id}>
+                          Continuar
+                        </Boton>
+                        <Boton variante="secundario" tamano="sm" onClick={() => setDeclarando(null)}>Cancelar</Boton>
                       </div>
                     </div>
                   )}
@@ -1448,18 +1480,15 @@ function fechasDe(h: Hecho[]): string {
                       <span className="text-taupe">· {CAUSAL_LABEL[d.tipo_causal]} · {NIVEL_LABEL[d.nivel]} · {d.correlativo}</span>
                     </span>
                     <div className="flex items-center gap-2">
-                      <button onClick={() => router.push(`/admin/disciplina/memo/${d.id}`)}
-                        className="rounded-lg border border-tinta/30 px-3 py-1 text-xs text-tinta hover:bg-sand/40">Ver memo</button>
+                      <Boton variante="secundario" tamano="sm" onClick={() => router.push(`/admin/disciplina/memo/${d.id}`)}>Ver memo</Boton>
                       {/* El camino que deja evidencia es el fácil. Marcar
                           entregado sin papel sigue siendo posible —una entrega
                           por correo certificado es válida y su cargo llega
                           días después— pero deja de ser el atajo. */}
-                      <button onClick={() => void abrirCargo(d.id, "cargo_firmado")} disabled={ocupado === d.id}
-                        className="rounded-lg bg-tinta px-3 py-1 text-xs font-medium text-crema disabled:opacity-40">
+                      <Boton variante="primario" tamano="sm" onClick={() => void abrirCargo(d.id, "cargo_firmado")} disabled={ocupado === d.id}>
                         Subir cargo firmado
-                      </button>
-                      <button onClick={() => void abrirCargo(d.id, "acta_negativa")} disabled={ocupado === d.id}
-                        className="text-xs text-taupe underline disabled:opacity-40">se negó a firmar</button>
+                      </Boton>
+                      <Boton variante="enlace" className="text-xs text-taupe" onClick={() => void abrirCargo(d.id, "acta_negativa")} disabled={ocupado === d.id}>se negó a firmar</Boton>
                       <details className="text-xs text-taupe">
                         <summary className="cursor-pointer">entregar sin papel</summary>
                         <div className="mt-2 flex items-center gap-2">
@@ -1469,15 +1498,13 @@ function fechasDe(h: Hecho[]): string {
                             <option value="correo">Correo</option>
                             <option value="notarial">Notarial</option>
                           </select>
-                          <button onClick={() => entregar(d.id)} disabled={ocupado === d.id}
-                            className="rounded-lg border border-tinta/30 px-3 py-1 text-xs text-tinta hover:bg-sand/40 disabled:opacity-40">Marcar entregado</button>
+                          <Boton variante="secundario" tamano="sm" onClick={() => entregar(d.id)} disabled={ocupado === d.id}>Marcar entregado</Boton>
                         </div>
                         <p className="mt-1 max-w-xs">
                           El cargo se puede subir después: no pisa la fecha de entrega que quede acá.
                         </p>
                       </details>
-                      <button onClick={() => reabrirParaCambiarFirmante(d.id)} disabled={ocupado === d.id}
-                        className="rounded-lg border border-taupe/30 px-3 py-1 text-xs text-taupe hover:bg-sand/40 disabled:opacity-40">Cambiar firmante</button>
+                      <Boton variante="sutil" tamano="sm" onClick={() => abrirReabrir(d.id)} disabled={ocupado === d.id}>Cambiar firmante</Boton>
                     </div>
                   </div>
                   {/* La firma, no la creación del borrador: de la firma cuelgan
@@ -1535,49 +1562,42 @@ function fechasDe(h: Hecho[]): string {
                           <span className="text-taupe">· {CAUSAL_LABEL[d.tipo_causal]} · {NIVEL_LABEL[d.nivel]} · {d.correlativo}</span>
                         </span>
                         <div className="flex flex-wrap items-center gap-2">
-                          <button onClick={() => router.push(`/admin/disciplina/memo/${d.id}`)}
-                            className="rounded-lg border border-tinta/30 px-3 py-1 text-xs text-tinta hover:bg-sand/40">Ver memo</button>
+                          <Boton variante="secundario" tamano="sm" onClick={() => router.push(`/admin/disciplina/memo/${d.id}`)}>Ver memo</Boton>
                           {papeles.map((a) => (
-                            <button key={a.id} onClick={() => void verAdjunto(a.storage_path)}
-                              className="text-xs font-medium underline">
+                            <Boton key={a.id} variante="enlace" className="text-xs font-medium" onClick={() => void verAdjunto(a.storage_path)}>
                               {ETIQUETA_PAPEL[a.tipo as TipoPapel] ?? "Ver papel"}
-                            </button>
+                            </Boton>
                           ))}
                           {!papeles.some((a) => a.tipo === "cargo_firmado" || a.tipo === "acta_negativa") && (
-                            <button onClick={() => void abrirCargo(d.id, "cargo_firmado")}
-                              className="rounded-lg border border-rojo/40 px-3 py-1 text-xs text-rojo">Subir cargo</button>
+                            <Boton variante="peligro" tamano="sm" onClick={() => void abrirCargo(d.id, "cargo_firmado")}>Subir cargo</Boton>
                           )}
                           {/* Solo la imputación abre un plazo de descargo, así que
                               solo ella lo pide. La base rechaza lo demás igual. */}
                           {d.nivel === "imputacion" && !papeles.some((a) => a.tipo === "descargo") && (
-                            <button onClick={() => void abrirCargo(d.id, "descargo")}
-                              className="rounded-lg border border-tinta/30 px-3 py-1 text-xs text-tinta hover:bg-sand/40">
+                            <Boton variante="secundario" tamano="sm" onClick={() => void abrirCargo(d.id, "descargo")}>
                               Subir su descargo
-                            </button>
+                            </Boton>
                           )}
                           {/* Cerrar el procedimiento. Sin esto el semáforo pide la
                               misma decisión durante doce meses. */}
                           {d.nivel === "imputacion" && !d.resuelto_at && (
                             <>
-                              <button onClick={() => void resolver(d, "archivado")} disabled={ocupado === d.id}
-                                className="rounded-lg border border-tinta/30 px-3 py-1 text-xs text-tinta hover:bg-sand/40 disabled:opacity-40">
+                              <Boton variante="secundario" tamano="sm" onClick={() => abrirResolver(d, "archivado")} disabled={ocupado === d.id}>
                                 Archivar sin sancionar
-                              </button>
-                              <button onClick={() => void resolver(d, "despido")} disabled={ocupado === d.id}
-                                className="rounded-lg border border-rojo/40 px-3 py-1 text-xs text-rojo hover:bg-rojo/10 disabled:opacity-40">
+                              </Boton>
+                              <Boton variante="peligro" tamano="sm" onClick={() => abrirResolver(d, "despido")} disabled={ocupado === d.id}>
                                 Se resolvió con despido
-                              </button>
+                              </Boton>
                             </>
                           )}
                           {/* Anular NO es lo mismo que archivar, y por eso está
                               aparte y en texto pequeño: archivar cierra un
                               procedimiento que se siguió bien; anular retira un
                               documento que no debió emitirse. */}
-                          <button onClick={() => anular(d.id, true)} disabled={ocupado === d.id}
-                            title="Retira el documento por un defecto propio. Distinto de archivar: anular devuelve el escalón al peldaño anterior."
-                            className="text-xs text-taupe underline disabled:opacity-40">
+                          <Boton variante="enlace" className="text-xs text-taupe" onClick={() => abrirAnular(d.id, true)} disabled={ocupado === d.id}
+                            title="Retira el documento por un defecto propio. Distinto de archivar: anular devuelve el escalón al peldaño anterior.">
                             anular
-                          </button>
+                          </Boton>
                         </div>
                       </div>
                       <p className="mt-1 text-xs text-taupe">
@@ -1622,6 +1642,181 @@ function fechasDe(h: Hecho[]): string {
             )}
           </div>
         )}
+
+        {/* ── Diálogos migrados de window.confirm/window.prompt ──────────
+            Felipe aprobó migrar los ocho de esta pantalla (ver CLAUDE.md,
+            Modal compartido). Cada uno solo pide confirmación o un texto
+            obligatorio; la llamada de verdad vive en su "confirmar…", nunca
+            en el botón que abre el Modal. */}
+
+        <Modal abierto={confirmandoCargos !== null} onCerrar={() => setConfirmandoCargos(null)}
+          titulo="Comunicar los cargos" bloqueado={ocupado === confirmandoCargos?.id}>
+          {confirmandoCargos && (
+            <>
+              <p className="mb-2 text-sm text-taupe">
+                ¿Comunicar los cargos a <strong>{nombres.get(confirmandoCargos.persona_id) ?? "esta persona"}</strong>?
+              </p>
+              <p className="mb-2 text-sm text-taupe">
+                Se abre el plazo de dos días hábiles para que presente su descargo, y hasta que venza
+                no se podrá firmar. <strong>El plazo no se reabre.</strong>
+              </p>
+              <p className="mb-4 text-sm text-taupe">
+                Antes de continuar: entrégale por escrito los hechos con sus fechas, la norma que se le
+                imputa y el detalle de la medición. El sistema guarda la fecha; el documento lo
+                entregas tú.
+              </p>
+              <div className="flex justify-end gap-3">
+                <Boton variante="secundario" onClick={() => setConfirmandoCargos(null)} disabled={ocupado === confirmandoCargos.id}>Cancelar</Boton>
+                <Boton variante="primario" onClick={() => void confirmarComunicarCargos(confirmandoCargos)} cargando={ocupado === confirmandoCargos.id}>
+                  Comunicar cargos
+                </Boton>
+              </div>
+            </>
+          )}
+        </Modal>
+
+        <Modal abierto={pidiendoConstancia !== null} onCerrar={() => setPidiendoConstancia(null)}
+          titulo="¿Cómo consta esa comunicación?" bloqueado={ocupado === pidiendoConstancia?.id}>
+          {pidiendoConstancia && (
+            <>
+              <p className="mb-3 text-sm text-taupe">
+                Quién se la hizo, dónde y quién más estaba delante. Queda escrito en el expediente con
+                tu nombre y la fecha de hoy. Si fue verbal, dilo: es más débil que un cargo firmado y
+                el expediente tiene que decirlo así.
+              </p>
+              <AreaTexto value={constanciaTexto} onChange={(e) => setConstanciaTexto(e.target.value)}
+                rows={3} autoFocus
+                placeholder="ej. se lo comuniqué en persona en la oficina de la sede, delante de la encargada" />
+              <div className="mt-4 flex justify-end gap-3">
+                <Boton variante="secundario" onClick={() => setPidiendoConstancia(null)} disabled={ocupado === pidiendoConstancia.id}>Cancelar</Boton>
+                <Boton variante="primario" onClick={() => void confirmarDeclararCargos(pidiendoConstancia)} cargando={ocupado === pidiendoConstancia.id}>
+                  Registrar
+                </Boton>
+              </div>
+            </>
+          )}
+        </Modal>
+
+        <Modal abierto={valorando !== null} onCerrar={() => setValorando(null)}
+          titulo={valorando?.acogido === "no" ? "¿Por qué no se acoge el descargo?" : "¿Qué parte se acoge y qué parte no?"}
+          bloqueado={ocupado === valorando?.d.id}>
+          {valorando && (
+            <>
+              <p className="mb-3 text-sm text-taupe">Queda escrito en el documento (art. 19.3 del RIT).</p>
+              <AreaTexto value={valoracionTexto} onChange={(e) => setValoracionTexto(e.target.value)} rows={3} autoFocus />
+              <div className="mt-4 flex justify-end gap-3">
+                <Boton variante="secundario" onClick={() => setValorando(null)} disabled={ocupado === valorando.d.id}>Cancelar</Boton>
+                <Boton variante="primario" cargando={ocupado === valorando.d.id}
+                  onClick={() => {
+                    if (!valoracionTexto || valoracionTexto.trim().length < 10) {
+                      avisar("error", "Hace falta el motivo, y con algo de detalle: es lo que se lee si alguien discute la sanción.");
+                      return;
+                    }
+                    void confirmarValorarDescargo(valorando.d, valorando.acogido, valoracionTexto.trim());
+                  }}>
+                  Guardar valoración
+                </Boton>
+              </div>
+            </>
+          )}
+        </Modal>
+
+        <Modal abierto={firmando !== null} onCerrar={() => setFirmando(null)}
+          titulo="Firmar este documento" bloqueado={ocupado === firmando}>
+          {firmando && (() => {
+            const elegido = firmanteElegido[firmando];
+            const f = elegido ? (firmantes[firmando] ?? []).find((x) => x.persona_id === elegido) : null;
+            return (
+              <>
+                {/* El cargo va en el aviso a propósito: es lo que se va a
+                    imprimir en el documento, y quien firma tiene que verlo
+                    antes de que sea definitivo. */}
+                <p className="mb-4 text-sm text-taupe">
+                  {f ? (
+                    <>¿Firmar este documento como <strong>{f.nombre}</strong> ({f.cargo})? Le asigna su
+                      número oficial y deja de ser un borrador. Después podrás entregarlo o, si hizo
+                      falta, anularlo.</>
+                  ) : (
+                    "Le asigna su número oficial y deja de ser un borrador. Después podrás entregarlo o, si hizo falta, anularlo."
+                  )}
+                </p>
+                <div className="flex justify-end gap-3">
+                  <Boton variante="secundario" onClick={() => setFirmando(null)} disabled={ocupado === firmando}>Cancelar</Boton>
+                  <Boton variante="primario" onClick={() => void confirmarFirmar(firmando)} cargando={ocupado === firmando}>Firmar</Boton>
+                </div>
+              </>
+            );
+          })()}
+        </Modal>
+
+        <Modal abierto={resolviendo !== null} onCerrar={() => setResolviendo(null)}
+          titulo={resolviendo?.resultado === "archivado" ? "Archivar el procedimiento sin sancionar" : "Se resolvió con despido"}
+          bloqueado={ocupado === resolviendo?.d.id}>
+          {resolviendo && (
+            <>
+              <p className="mb-3 text-sm text-taupe">
+                Explica la decisión (mínimo 10 caracteres). Es lo que sostiene el expediente si alguien
+                lo revisa.
+              </p>
+              <p className="mb-3 text-xs text-taupe">
+                {resolviendo.resultado === "despido"
+                  ? "Ojo: esto solo ANOTA la decisión. La carta de despido se redacta, se firma y se entrega aparte."
+                  : "El documento sigue entregado y sigue contando como antecedente doce meses."}
+              </p>
+              <AreaTexto value={motivoResolucion} onChange={(e) => setMotivoResolucion(e.target.value)} rows={3} autoFocus />
+              <div className="mt-4 flex justify-end gap-3">
+                <Boton variante="secundario" onClick={() => setResolviendo(null)} disabled={ocupado === resolviendo.d.id}>Cancelar</Boton>
+                <Boton variante={resolviendo.resultado === "despido" ? "peligro" : "primario"}
+                  onClick={() => void confirmarResolver()} cargando={ocupado === resolviendo.d.id}>
+                  {resolviendo.resultado === "archivado" ? "Archivar" : "Confirmar"}
+                </Boton>
+              </div>
+            </>
+          )}
+        </Modal>
+
+        <Modal abierto={reabriendo !== null} onCerrar={() => setReabriendo(null)}
+          titulo="Volver este memo a borrador" bloqueado={ocupado === reabriendo}>
+          {reabriendo && (
+            <>
+              <p className="mb-4 text-sm text-taupe">
+                Pierde su número oficial actual; al volver a firmarlo se le asigna uno nuevo. Solo se
+                puede mientras no se haya entregado.
+              </p>
+              <div className="flex justify-end gap-3">
+                <Boton variante="secundario" onClick={() => setReabriendo(null)} disabled={ocupado === reabriendo}>Cancelar</Boton>
+                <Boton variante="primario" onClick={() => void confirmarReabrir(reabriendo)} cargando={ocupado === reabriendo}>
+                  Volver a borrador
+                </Boton>
+              </div>
+            </>
+          )}
+        </Modal>
+
+        <Modal abierto={anulando !== null} onCerrar={() => setAnulando(null)}
+          titulo="Anular este documento" bloqueado={ocupado === anulando?.id}>
+          {anulando && (
+            <>
+              {anulando.entregado && (
+                <p className="mb-3 rounded-lg border border-rojo/30 bg-rojo/5 px-3 py-2 text-sm text-rojo-profundo">
+                  Este documento YA SE ENTREGÓ y la persona lo tiene. Anularlo lo deja sin efecto y
+                  queda el rastro con tu motivo, pero el sistema no puede avisarle: tendrás que
+                  comunicárselo tú por escrito.
+                </p>
+              )}
+              <p className="mb-2 text-sm text-taupe">
+                {anulando.entregado
+                  ? "Explica POR QUÉ se anula — si fue un defecto del documento o una decisión de la empresa, porque de eso depende que los antecedentes anteriores sigan contando."
+                  : "Motivo de la anulación (queda registrado en el documento)."}
+              </p>
+              <AreaTexto value={motivoAnular} onChange={(e) => setMotivoAnular(e.target.value)} rows={3} autoFocus />
+              <div className="mt-4 flex justify-end gap-3">
+                <Boton variante="secundario" onClick={() => setAnulando(null)} disabled={ocupado === anulando.id}>Cancelar</Boton>
+                <Boton variante="peligro" onClick={() => void confirmarAnular()} cargando={ocupado === anulando.id}>Anular</Boton>
+              </div>
+            </>
+          )}
+        </Modal>
       </main>
     </div>
   );

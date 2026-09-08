@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
-import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
 import { useToast } from "@/components/toast";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
@@ -727,8 +726,7 @@ export default function NormasPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <AdminNav />
+    <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
         <h1 className="mb-1 font-serif text-2xl">Normas</h1>
         <p className="mb-5 max-w-2xl text-sm text-taupe">
@@ -850,7 +848,7 @@ export default function NormasPage() {
                         )}
                       </label>
                       <label className="flex items-start gap-2 text-xs sm:pt-5">
-                        <input type="checkbox" checked={tipoNuevo.acuse} className="mt-0.5"
+                        <input type="checkbox" checked={tipoNuevo.acuse} className="mt-0.5 size-4 accent-tinta"
                           onChange={(e) => setTipoNuevo((t) => ({ ...t, acuse: e.target.checked }))} />
                         <span>
                           Pedir constancia a cada integrante
