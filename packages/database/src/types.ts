@@ -770,6 +770,32 @@ export type Database = {
         }
         Relationships: []
       }
+      consentimientos_dni: {
+        Row: {
+          aceptado_at: string
+          persona_id: string
+          storage_path: string
+        }
+        Insert: {
+          aceptado_at?: string
+          persona_id: string
+          storage_path: string
+        }
+        Update: {
+          aceptado_at?: string
+          persona_id?: string
+          storage_path?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "consentimientos_dni_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: true
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contratos_generados: {
         Row: {
           anulado_at: string | null
@@ -5631,6 +5657,13 @@ export type Database = {
           meses: number
         }[]
       }
+      fn_mi_consentimiento_dni: {
+        Args: never
+        Returns: {
+          aceptado_at: string
+          storage_path: string
+        }[]
+      }
       fn_mi_firma: { Args: never; Returns: string }
       fn_mi_firma_config: {
         Args: never
@@ -5989,6 +6022,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      fn_registrar_mi_dni: {
+        Args: { p_storage_path: string | null }
+        Returns: undefined
       }
       fn_reglamento_no_acusado: {
         Args: { p_fecha: string | null; p_persona_id: string | null }
