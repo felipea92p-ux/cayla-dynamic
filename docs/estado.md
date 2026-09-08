@@ -6,6 +6,65 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-09-08 — La 0393 está pegada y no está en `main` · PENDIENTE, DEPENDE DE FUSIONAR UN PR
+
+Medido contra producción el 2026-09-08: `migraciones_aplicadas` llega a la
+**400**, y todo lo que `main` tiene desde la 386 está pegado. La cuenta cuadra
+en esa dirección. En la otra, no:
+
+**La 0393 (`cualquiera_guarda_su_propia_firma`) se pegó el 2026-09-07 a las
+15:06 y no está en `main`.** No está en riesgo de perderse —vive en la rama
+`claude/signature-generator-function-bd2127`— así que basta con fusionar ese PR.
+Es una situación mucho menos grave que la de la 0177, la 0243 o la 0381, pero es
+el mismo patrón por tercera vez en tres días.
+
+**Y tres huecos de numeración sin explicar: 383, 389 y 394.** No figuran en
+`scripts/hooks/huecos-conocidos.txt`, así que el hook de numeración va a avisar
+de ellos en cada push hasta que alguien los documente o los reutilice. Un aviso
+que nadie va a atender es el que enseña a ignorar los avisos — es la misma razón
+por la que ese archivo existe.
+
+## 2026-09-07 — El freno SQL→producción deja de mirar el disco (la «mitad cara» del 🔴#0) · SIN FUSIONAR
+
+[PR #250](https://github.com/felipea92p-ux/cayla-dynamic/pull/250). El
+`estado.md` lo pedía desde el 2026-08-14 y era el único freno del repo que
+preguntaba en la dirección fácil.
+
+**El agujero era una línea.** `listar()` hacía `ls supabase/migrations/*.sql`
+—el DIRECTORIO DE TRABAJO—. Si una migración se aplicaba en producción desde un
+archivo que nunca se commiteó, y ese archivo seguía en el disco de esa Mac, `ls`
+lo veía, entraba a la lista `repo` y la consulta la marcaba «✓ aplicada». El
+hueco quedaba invisible **justo en la máquina donde había que verlo**.
+
+Pasó tres veces —la 0177 (2026-08-07), la 0243 (2026-08-14) y la 0381
+(2026-09-05, un día entera sin que nada avisara)— y a ninguna la cazó una
+herramienta: a las tres las encontró alguien mirando a mano.
+
+**Qué cambia.** La lista sale de la UNIÓN de `origin/main` y `HEAD`: lo que está
+en GitHub más lo commiteado en esta rama, que son las dos cosas que sobreviven a
+que ese disco falle. El directorio de trabajo queda fuera a propósito —un archivo
+sin commitear no es un ejemplar, es un borrador, y de eso ya avisa
+`migracion-sin-guardar.sh`—. Es la unión y no solo `origin/main` porque si no,
+cualquier rama de trabajo vería como huérfanas todas las migraciones de main.
+
+**Y la pregunta que la consulta nunca hacía.** Todo lo que respondía era «¿qué le
+falta a producción?». Ahora responde también **«¿qué tiene producción que no está
+guardado en ninguna parte?»**: la lista `huerfanas` sale ANTES del resumen y
+manda sobre él. Que falte pegar algo es atraso normal; que algo esté pegado y sin
+guardar es lo que costó tres sustos.
+
+**Probado en las dos direcciones, contra producción real** —y la segunda importa
+tanto como la primera, porque un guardián que chilla siempre se desactiva a la
+semana:
+
+| Caso | Resultado |
+|---|---|
+| Con la 0393 fuera de git (su estado real) | la cazó sola, con fecha y hora |
+| Con la 0393 dentro de la lista | «sin huérfanas» — no chilla |
+| Un archivo suelto en el directorio de trabajo | ya NO entra a la lista |
+| `--check` | estable: el hook no entra en el bucle de pedir un segundo push |
+| Sin red | genera igual, contra la última foto de `origin/main` |
+
 ## 2026-09-07 — 25 hallazgos de diseño de la auditoría del 2026-09-06/07, cerrados
 
 Rama `claude/stoic-chandrasekhar-5a16c4`, 4 commits. De los 27 hallazgos de
@@ -6417,11 +6476,13 @@ al tope.
    día). Cinco casos probados, incluido el que cazó un `git add` con las rutas
    pegadas sin espacio — justo la línea que existe para copiarse.
 
-   **Queda la mitad cara, y es la que de verdad cierra el agujero:** que
-   `que_falta_pegar.sql` compare lo que `migraciones_aplicadas` dice **en
-   producción** contra lo que hay **en GitHub** —no en el disco—, de modo que una
-   migración aplicada y no subida salga como hallazgo desde el lado autoritativo.
-   El aviso del hook depende de que alguien empuje; esto no dependería de nada.
+   **La mitad cara ESTÁ CONSTRUIDA y espera fusión** — [PR #250](https://github.com/felipea92p-ux/cayla-dynamic/pull/250),
+   2026-09-07. `que-falta-pegar.sh` dejó de leer el directorio de trabajo: la
+   lista sale ahora de la unión de `origin/main` y `HEAD`, y la consulta hace
+   además la pregunta al revés —qué tiene producción que no está guardado en
+   ninguna parte—. Ver la entrada del 2026-09-07 más arriba para las cinco
+   comprobaciones. **Este bloque se tacha el día que ese PR se fusione**, no
+   antes.
 
 1. **Julio: nadie tuvo descuento de pensión.** Medido el 2026-08-08 sobre el
    periodo 28-jun → 28-jul: `pension_descontada` = **S/0.00 para las 23
