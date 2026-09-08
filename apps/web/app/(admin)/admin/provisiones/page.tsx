@@ -8,6 +8,9 @@ import { useRolActual } from "@/lib/admin/use-rol";
 import { formatSoles } from "@/lib/rangos";
 import { descargarCsv, generarCsv } from "@/lib/admin/csv";
 import { puedeVerPlanilla } from "@cayla-dynamic/shared";
+import { Boton } from "@/components/ui/boton";
+import { CampoSelect } from "@/components/ui/campo";
+import { Tabla, Fila } from "@/components/ui/tabla";
 
 // ── Fechas (por string: NUNCA new Date(), para no correr un día por zona) ────
 // "2027-03-12" → "12/03/2027"
@@ -417,9 +420,9 @@ export default function ProvisionesPage() {
         {error && (
           <div className="mb-4 max-w-3xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
             No se pudieron cargar las provisiones: {error}{" "}
-            <button onClick={() => void cargar()} className="font-medium underline">
+            <Boton variante="enlace" className="font-medium" onClick={() => void cargar()}>
               Reintentar
-            </button>
+            </Boton>
           </div>
         )}
 
@@ -430,33 +433,31 @@ export default function ProvisionesPage() {
           <>
             {/* Filtro de sede + CSV */}
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-              <label className="flex items-center gap-2 text-sm">
-                Sede
-                <select
-                  value={sedeFiltro}
-                  onChange={(e) => setSedeFiltro(e.target.value)}
-                  className="rounded-lg border bg-crema px-3 py-1.5"
-                >
-                  <option value="todas">Todas</option>
-                  {sedes.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <button
+              <CampoSelect etiqueta="Sede" value={sedeFiltro} onChange={(e) => setSedeFiltro(e.target.value)}>
+                <option value="todas">Todas</option>
+                {sedes.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </CampoSelect>
+              <Boton
+                variante="primario"
                 onClick={descargarCsvProvisiones}
                 disabled={cargando || error !== null || visibles.length === 0}
-                className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50"
               >
                 Descargar CSV
-              </button>
+              </Boton>
             </div>
 
             {/* Tabla anual */}
-            <div className="overflow-x-auto rounded-2xl border border-sand bg-papel">
-              <table className="w-full text-sm">
+            {/* <Tabla> reemplaza el envoltorio a mano (mismo
+                overflow-x-auto/rounded-superficie/border/bg-papel), pero el
+                encabezado se queda nativo: son DOS filas —la de grupo
+                (Gratificación, CTS, Vacaciones, con colSpan) y la de
+                columna—, y <TablaEncabezado>/<Th> solo dan una fila y no
+                aceptan colSpan. */}
+            <Tabla>
                 <thead className="bg-sand/70 text-left text-taupe">
                   {/* Encabezados de grupo (fechas de pago del payload) */}
                   <tr>
@@ -523,7 +524,7 @@ export default function ProvisionesPage() {
                   {visibles.map((p) => {
                     const mp = montoProximo(p);
                     return (
-                      <tr key={p.persona_id} className="border-t">
+                      <Fila key={p.persona_id}>
                         <td className="px-4 py-2">
                           {p.nombre}
                           {/* CAMBIO 0365 — el cero de esta fila no es «aún no»:
@@ -612,7 +613,7 @@ export default function ProvisionesPage() {
                             <span className="text-taupe/50">—</span>
                           )}
                         </td>
-                      </tr>
+                      </Fila>
                     );
                   })}
                 </tbody>
@@ -646,8 +647,7 @@ export default function ProvisionesPage() {
                     </tr>
                   </tfoot>
                 )}
-              </table>
-            </div>
+            </Tabla>
 
             {/* Nota al pie */}
             <p className="mt-4 max-w-3xl text-xs text-taupe">
