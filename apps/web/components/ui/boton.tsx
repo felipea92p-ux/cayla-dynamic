@@ -8,11 +8,14 @@ import type { ButtonHTMLAttributes } from "react";
 import { cx } from "./cx";
 
 type Variante = "primario" | "secundario" | "peligro" | "sutil" | "enlace";
-type Tamano = "sm" | "md";
+type Tamano = "sm" | "md" | "lg";
 
 const CHROME: Record<Variante, string> = {
-  primario:
-    "rounded-control bg-tinta text-crema transition-colors duration-150 hover:bg-rojo-profundo active:scale-[0.98]",
+  // El hover y la duración de "bg-tinta" NO se declaran acá: los decide
+  // globals.css:131 (fuera de @layer, así que gana sobre cualquier utilidad
+  // de Tailwind) — prende en --color-rojo a 180ms. Escribir un
+  // hover:bg-* o duration-* acá sería código muerto que nadie vería aplicarse.
+  primario: "rounded-control bg-tinta text-crema active:scale-[0.98]",
   secundario:
     "rounded-control border transition-colors duration-150 hover:border-taupe/40 hover:bg-sand/50 active:scale-[0.98]",
   peligro:
@@ -25,9 +28,14 @@ const CHROME: Record<Variante, string> = {
   enlace: "underline underline-offset-2 transition-colors duration-150 hover:text-taupe",
 };
 
+// La escala sigue lo que el producto ya usaba a mano, no un valor inventado:
+// medido en el código escrito antes de este primitivo, "px-3 py-1 text-xs"
+// aparece 8 veces ("sm") y "px-5 py-2 text-sm" otras 4 ("lg", tamaño que
+// faltaba y obligaba a pasar className a mano). "md" es el tamaño normal.
 const TAMANOS: Record<Tamano, string> = {
-  sm: "px-2 py-1 text-xs",
+  sm: "px-3 py-1 text-xs",
   md: "px-4 py-2 text-sm",
+  lg: "px-5 py-2 text-sm",
 };
 
 export function Boton({
@@ -49,6 +57,7 @@ export function Boton({
 } & ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
     <button
+      type="button"
       disabled={disabled || cargando}
       className={cx(
         CHROME[variante],

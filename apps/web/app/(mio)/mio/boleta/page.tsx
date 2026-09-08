@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { Cargando } from "@/components/cargando";
+import { Boton } from "@/components/ui/boton";
 import { BoletaHoja } from "@/components/boleta-hoja";
 import { MESES_LARGO, type Fila, type Proyeccion } from "@/app/(admin)/admin/planilla/page";
 import { hoyLima } from "@cayla-dynamic/shared";
@@ -65,11 +66,19 @@ function MiBoletaContenido() {
       return;
     }
 
-    const { data: p } = await supabase
+    const { data: p, error: eP } = await supabase
       .from("personas")
       .select("id, nombres, apellidos, documento, fecha_ingreso, sueldo_base_legal")
       .eq("auth_user_id", uid)
       .maybeSingle();
+    // Separar "la consulta falló" de "la consulta contestó y no hay ficha":
+    // con solo `data`, un error de red se leía como cuenta no enlazada — la
+    // colaboradora se iba a molestar a DO por algo que no era cierto.
+    if (eP) {
+      setCargando(false);
+      setError("No se pudo comprobar tu ficha. Intenta de nuevo.");
+      return;
+    }
     if (!p) {
       setCargando(false);
       setError("Tu cuenta todavía no está enlazada con tu ficha. Avisa a Desarrollo Organizacional.");
@@ -87,11 +96,18 @@ function MiBoletaContenido() {
     // El periodo de pago en curso. Del 29 al 28, LEÍDO y nunca calculado —
     // mismo criterio que /mio (irAlPeriodoDePago).
     const hoy = hoyLima();
-    const { data: per } = await supabase
+    const { data: per, error: ePer } = await supabase
       .from("periodos_planilla")
       .select("id, fecha_ini, fecha_fin")
       .lte("fecha_ini", hoy).gte("fecha_fin", hoy)
       .maybeSingle();
+    // Mismo criterio que arriba: sin esto, un fallo de esta consulta también
+    // decía "no hay un periodo de pago abierto hoy" — falso sobre su propio pago.
+    if (ePer) {
+      setCargando(false);
+      setError("No se pudo comprobar el periodo de pago. Intenta de nuevo.");
+      return;
+    }
     if (!per) {
       setCargando(false);
       setPeriodo(null);
@@ -139,9 +155,9 @@ function MiBoletaContenido() {
       <main className="p-6">
         <p className="max-w-md rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
           {error}{" "}
-          <button onClick={() => void cargar()} className="font-medium underline">
+          <Boton variante="enlace" onClick={() => void cargar()}>
             Reintentar
-          </button>
+          </Boton>
         </p>
         <Link href="/mio" className="mt-3 inline-block text-sm text-taupe hover:text-tinta hover:underline">
           ← Volver a Mi perfil
@@ -198,12 +214,9 @@ function MiBoletaContenido() {
         <Link href="/mio" className="text-sm text-taupe hover:text-tinta hover:underline">
           ← Volver a Mi perfil
         </Link>
-        <button
-          onClick={() => window.print()}
-          className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema hover:bg-rojo-profundo"
-        >
+        <Boton variante="primario" onClick={() => window.print()}>
           Imprimir / Guardar como PDF
-        </button>
+        </Boton>
       </div>
 
       <BoletaHoja

@@ -30,6 +30,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Cargando, SinDatos } from "@/components/cargando";
+import { Boton } from "@/components/ui/boton";
+import { Campo } from "@/components/ui/campo";
 import { useToast } from "@/components/toast";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
@@ -438,16 +440,20 @@ export default function BandejaPage() {
                       </div>
                       <p className="mt-1.5">«{r.comentario}»</p>
                       <div className="mt-2 flex flex-wrap items-center gap-2">
-                        <input
-                          value={respuestas[r.id] ?? ""}
-                          onChange={(e) => setRespuestas((x) => ({ ...x, [r.id]: e.target.value }))}
-                          placeholder="En qué quedó (lo va a leer la persona)"
-                          className="min-w-56 flex-1 rounded-lg border border-sand bg-crema px-3 py-1.5"
-                        />
-                        <button onClick={() => void marcarAtendida(r.id)} disabled={atendiendo === r.id}
-                          className="rounded-lg bg-tinta px-4 py-1.5 font-medium text-crema disabled:opacity-50">
-                          {atendiendo === r.id ? "Guardando…" : "Marcar atendida"}
-                        </button>
+                        <div className="min-w-56 flex-1">
+                          <Campo
+                            value={respuestas[r.id] ?? ""}
+                            onChange={(e) => setRespuestas((x) => ({ ...x, [r.id]: e.target.value }))}
+                            placeholder="En qué quedó (lo va a leer la persona)"
+                          />
+                        </div>
+                        <Boton
+                          variante="primario"
+                          onClick={() => void marcarAtendida(r.id)}
+                          cargando={atendiendo === r.id}
+                        >
+                          Marcar atendida
+                        </Boton>
                       </div>
                     </li>
                   ))}
@@ -471,20 +477,27 @@ export default function BandejaPage() {
                       </div>
                       {s.comentario && <p className="mt-1.5">«{s.comentario}»</p>}
                       <div className="mt-2 flex flex-wrap items-center gap-2">
-                        <input
-                          value={motivosRechazo[s.id] ?? ""}
-                          onChange={(e) => setMotivosRechazo((x) => ({ ...x, [s.id]: e.target.value }))}
-                          placeholder="Motivo si rechazas (obligatorio solo para rechazar)"
-                          className="min-w-64 flex-1 rounded-lg border border-sand bg-crema px-3 py-1.5"
-                        />
-                        <button onClick={() => void resolverSolicitud(s.id, true)} disabled={resolviendo === s.id}
-                          className="rounded-lg bg-tinta px-4 py-1.5 font-medium text-crema disabled:opacity-50">
-                          {resolviendo === s.id ? "Guardando…" : "Aprobar"}
-                        </button>
-                        <button onClick={() => void resolverSolicitud(s.id, false)} disabled={resolviendo === s.id}
-                          className="rounded-lg border border-rojo px-4 py-1.5 font-medium text-rojo disabled:opacity-50">
+                        <div className="min-w-64 flex-1">
+                          <Campo
+                            value={motivosRechazo[s.id] ?? ""}
+                            onChange={(e) => setMotivosRechazo((x) => ({ ...x, [s.id]: e.target.value }))}
+                            placeholder="Motivo si rechazas (obligatorio solo para rechazar)"
+                          />
+                        </div>
+                        <Boton
+                          variante="primario"
+                          onClick={() => void resolverSolicitud(s.id, true)}
+                          cargando={resolviendo === s.id}
+                        >
+                          Aprobar
+                        </Boton>
+                        <Boton
+                          variante="peligro"
+                          onClick={() => void resolverSolicitud(s.id, false)}
+                          disabled={resolviendo === s.id}
+                        >
                           Rechazar
-                        </button>
+                        </Boton>
                       </div>
                     </li>
                   ))}
