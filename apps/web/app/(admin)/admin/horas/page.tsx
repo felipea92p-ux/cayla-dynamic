@@ -61,8 +61,9 @@ import {
   type Esperado, type EstadoDia, type HorarioTramo, type TurnoDia,
 } from "@/lib/admin/jornada-esperada";
 import { Insignia } from "@/components/ui/insignia";
-import { Campo, CampoSelect } from "@/components/ui/campo";
+import { Campo, CampoSelect, CampoCasilla } from "@/components/ui/campo";
 import { Boton } from "@/components/ui/boton";
+import { Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
 import { X, Search } from "lucide-react";
 
 // Por encima de esto la cuadrícula deja de ayudar y empieza a colgar el
@@ -518,66 +519,67 @@ function DetallePersona({ f, meta, anio, mes, sel, onDia }: {
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-2xl border border-sand bg-papel">
-        <table className="w-full text-sm [font-variant-numeric:tabular-nums]">
-          <thead className="bg-sand/70 text-left text-taupe">
-            <tr>
-              <th className="px-4 py-2 font-normal">Fecha</th>
-              <th className="px-4 py-2 font-normal">Entrada</th>
-              <th className="px-4 py-2 font-normal">Salida</th>
-              <th className="px-4 py-2 font-normal">Horas</th>
-              <th className="px-4 py-2 font-normal">Tardanza</th>
-              <th className="px-4 py-2 font-normal">Sal. antic.</th>
-              <th className="px-4 py-2 font-normal">T. adicional</th>
-              <th className="px-4 py-2 font-normal">Medido contra</th>
-              <th className="px-4 py-2 font-normal">Incidencia</th>
-            </tr>
-          </thead>
-          <tbody>
-            {conMarcaje.length === 0 ? (
-              <tr><td colSpan={9} className="px-4 py-6 text-center text-taupe">Sin jornadas en el periodo.</td></tr>
-            ) : conMarcaje.map((d) => {
-              const mc = medidoContra(d);
-              const activa = sel?.personaId === f.personaId && sel?.fecha === d.fecha;
-              return (
-                <tr key={d.fecha}
-                  onClick={() => onDia(f.personaId, d.fecha)}
-                  className={`cursor-pointer border-t border-sand transition-colors hover:bg-crema ${activa ? "bg-crema" : ""}`}
-                  title="Abrir este día">
-                  <td className="px-4 py-2 capitalize">{fechaLarga(d.fecha)}</td>
-                  <td className="px-4 py-2">{horaLima(d.entradaTs)}</td>
-                  <td className="px-4 py-2">{d.salidaTs ? horaLima(d.salidaTs) : <span className="text-ambar">—</span>}</td>
-                  <td className="px-4 py-2">{d.horas !== null ? fmtHoras(d.horas) : "—"}</td>
-                  <td className="px-4 py-2">
-                    {(d.minutosTarde ?? 0) > 0
-                      ? d.levantada
-                        ? <span className="text-taupe"><s>{fmtMinutos(d.minutosTarde!)}</s> · levantada</span>
-                        : <span className="text-rojo">{fmtMinutos(d.minutosTarde!)}</span>
-                      : <span className="text-taupe/50">—</span>}
-                  </td>
-                  <td className="px-4 py-2">
-                    {(d.minutosSalidaTemprana ?? 0) > 0
-                      ? <span className="text-ambar">{fmtMinutos(d.minutosSalidaTemprana!)}</span>
-                      : <span className="text-taupe/50">—</span>}
-                  </td>
-                  <td className="px-4 py-2">{d.horasExtra > 0 ? <span className="text-verde">{fmtHoras(d.horasExtra)}</span> : <span className="text-taupe/50">—</span>}</td>
-                  <td className={`px-4 py-2 text-xs ${mc.sospechoso ? "text-ambar" : "text-taupe"}`}>
-                    {mc.texto}
-                    {d.esperado.trabaja && <span className="text-taupe/60"> · {d.esperado.entrada}{d.esperado.salida ? `–${d.esperado.salida}` : ""}</span>}
-                    {mc.sospechoso && <span title="Este día no tenía turno cargado: la tardanza o la salida anticipada se midió contra el horario base."> ⚠</span>}
-                  </td>
-                  <td className="px-4 py-2 text-xs">
-                    {d.estado === "revisar" && <Insignia variante="advertencia" punto={false}>
-                      {d.jornadaEstado === "auto_cerrada_pendiente" ? "auto-cerrada" : "sin salida"}</Insignia>}
-                    {d.estado === "extra" && <Insignia variante="positivo" punto={false}>en su descanso</Insignia>}
-                    {d.agregado && <Insignia atenuada punto={false}>histórico 2025</Insignia>}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+      <Tabla className="[font-variant-numeric:tabular-nums]">
+        <TablaEncabezado>
+          <Th>Fecha</Th>
+          <Th>Entrada</Th>
+          <Th>Salida</Th>
+          <Th>Horas</Th>
+          <Th>Tardanza</Th>
+          <Th>Sal. antic.</Th>
+          <Th>T. adicional</Th>
+          <Th>Medido contra</Th>
+          <Th>Incidencia</Th>
+        </TablaEncabezado>
+        <tbody>
+          {conMarcaje.length === 0 ? (
+            <tr><td colSpan={9} className="px-4 py-6 text-center text-taupe">Sin jornadas en el periodo.</td></tr>
+          ) : conMarcaje.map((d) => {
+            const mc = medidoContra(d);
+            const activa = sel?.personaId === f.personaId && sel?.fecha === d.fecha;
+            return (
+              // <tr> nativo y no <Fila>: <Fila> trae su propia zebra
+              // (even:bg-hueso/50), y esa pseudoclase pesa más que un
+              // "bg-crema" suelto — en una fila par, la marca de "día
+              // abierto" quedaría tapada por la zebra. Mismo criterio que
+              // reporte-sede/page.tsx, que por eso tampoco usa <Fila> acá.
+              <tr key={d.fecha}
+                onClick={() => onDia(f.personaId, d.fecha)}
+                className={`cursor-pointer border-t border-sand transition-colors hover:bg-crema ${activa ? "bg-crema" : ""}`}
+                title="Abrir este día">
+                <td className="px-4 py-2 capitalize">{fechaLarga(d.fecha)}</td>
+                <td className="px-4 py-2">{horaLima(d.entradaTs)}</td>
+                <td className="px-4 py-2">{d.salidaTs ? horaLima(d.salidaTs) : <span className="text-ambar">—</span>}</td>
+                <td className="px-4 py-2">{d.horas !== null ? fmtHoras(d.horas) : "—"}</td>
+                <td className="px-4 py-2">
+                  {(d.minutosTarde ?? 0) > 0
+                    ? d.levantada
+                      ? <span className="text-taupe"><s>{fmtMinutos(d.minutosTarde!)}</s> · levantada</span>
+                      : <span className="text-rojo">{fmtMinutos(d.minutosTarde!)}</span>
+                    : <span className="text-taupe/50">—</span>}
+                </td>
+                <td className="px-4 py-2">
+                  {(d.minutosSalidaTemprana ?? 0) > 0
+                    ? <span className="text-ambar">{fmtMinutos(d.minutosSalidaTemprana!)}</span>
+                    : <span className="text-taupe/50">—</span>}
+                </td>
+                <td className="px-4 py-2">{d.horasExtra > 0 ? <span className="text-verde">{fmtHoras(d.horasExtra)}</span> : <span className="text-taupe/50">—</span>}</td>
+                <td className={`px-4 py-2 text-xs ${mc.sospechoso ? "text-ambar" : "text-taupe"}`}>
+                  {mc.texto}
+                  {d.esperado.trabaja && <span className="text-taupe/60"> · {d.esperado.entrada}{d.esperado.salida ? `–${d.esperado.salida}` : ""}</span>}
+                  {mc.sospechoso && <span title="Este día no tenía turno cargado: la tardanza o la salida anticipada se midió contra el horario base."> ⚠</span>}
+                </td>
+                <td className="px-4 py-2 text-xs">
+                  {d.estado === "revisar" && <Insignia variante="advertencia" punto={false}>
+                    {d.jornadaEstado === "auto_cerrada_pendiente" ? "auto-cerrada" : "sin salida"}</Insignia>}
+                  {d.estado === "extra" && <Insignia variante="positivo" punto={false}>en su descanso</Insignia>}
+                  {d.agregado && <Insignia atenuada punto={false}>histórico 2025</Insignia>}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </Tabla>
       <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
         <p className="text-taupe">Toca cualquier día para abrirlo, justificarlo o mandarlo a Correcciones.</p>
         <div className="flex gap-4">
@@ -982,7 +984,11 @@ function DesempenoContenido() {
             <div className="flex gap-1 rounded-lg border p-1 text-sm">
               {/* La más usada primero: es lo que una encargada mira el lunes
                   por la mañana, y antes había que armarla a mano con los dos
-                  calendarios. */}
+                  calendarios.
+                  Nativos a propósito: esto es un control segmentado (varias
+                  opciones dentro de un mismo marco), no un botón suelto —
+                  <Boton> siempre trae su propio padding/tamaño y forzarlo acá
+                  rompería el marco compartido "rounded-lg border p-1". */}
               <button onClick={() => aplicarPreset("semana")} className="rounded-md px-2.5 py-1 hover:bg-sand/60">Esta semana</button>
               <button onClick={() => aplicarPreset("mes")} className="rounded-md px-2.5 py-1 hover:bg-sand/60">Este mes</button>
               <button onClick={() => aplicarPreset("mesPasado")} className="rounded-md px-2.5 py-1 hover:bg-sand/60">Mes pasado</button>
@@ -1006,31 +1012,31 @@ function DesempenoContenido() {
             <Campo value={fBusca} onChange={(e) => setFBusca(e.target.value)} placeholder="Buscar por nombre…"
               aria-label="Buscar por nombre" className="w-52 pl-8" />
           </div>
-          <label className="flex items-center gap-2">Sede
-            <select value={fSede} onChange={(e) => setFSede(e.target.value)} className="rounded-lg border px-2.5 py-1.5">
-              <option value="">Todas</option>
-              {sedes.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </label>
-          <label className="flex items-center gap-2">Área
-            <select value={fArea} onChange={(e) => setFArea(e.target.value)} className="rounded-lg border px-2.5 py-1.5">
-              <option value="">Todas</option>
-              {areasPresentes.map((a) => <option key={a} value={a}>{areaNombre(areas, a)}</option>)}
-            </select>
-          </label>
-          <label className="flex items-center gap-2" title="Su historial sostiene los reportes de periodos pasados.">
-            <input type="checkbox" checked={verInactivas} onChange={(e) => setVerInactivas(e.target.checked)} className="size-4 accent-tinta" />
-            Incluir inactivas
-          </label>
+          <CampoSelect etiqueta="Sede" value={fSede} onChange={(e) => setFSede(e.target.value)}>
+            <option value="">Todas</option>
+            {sedes.map((s) => <option key={s} value={s}>{s}</option>)}
+          </CampoSelect>
+          <CampoSelect etiqueta="Área" value={fArea} onChange={(e) => setFArea(e.target.value)}>
+            <option value="">Todas</option>
+            {areasPresentes.map((a) => <option key={a} value={a}>{areaNombre(areas, a)}</option>)}
+          </CampoSelect>
+          <CampoCasilla
+            etiqueta="Incluir inactivas"
+            checked={verInactivas}
+            onChange={(e) => setVerInactivas(e.target.checked)}
+            title="Su historial sostiene los reportes de periodos pasados."
+          />
           <div className="ml-auto flex items-center gap-4">
             {orden.col !== "atencion" && (
-              <button onClick={() => setOrden({ col: "atencion", asc: true })} className="text-taupe underline hover:text-tinta">
+              <Boton variante="enlace" className="text-taupe hover:text-tinta" onClick={() => setOrden({ col: "atencion", asc: true })}>
                 Volver al orden por atención
-              </button>
+              </Boton>
             )}
             {hayFiltro && (
-              <button onClick={() => { setFSede(""); setFArea(""); setFBusca(""); setVerInactivas(false); }}
-                className="text-taupe underline hover:text-tinta">Quitar filtros</button>
+              <Boton variante="enlace" className="text-taupe hover:text-tinta"
+                onClick={() => { setFSede(""); setFArea(""); setFBusca(""); setVerInactivas(false); }}>
+                Quitar filtros
+              </Boton>
             )}
           </div>
         </div>
@@ -1073,38 +1079,41 @@ function DesempenoContenido() {
 
         {vista.length > 0 && (
           <>
-            <div className="overflow-x-auto rounded-2xl border border-sand bg-papel">
-              <table className="w-full text-sm [font-variant-numeric:tabular-nums]">
-                <thead className="bg-sand/70 text-taupe">
-                  <tr>
-                    <ThOrdenable col="nombre" orden={orden} setOrden={setOrden} sticky>Nombre</ThOrdenable>
-                    <ThOrdenable col="sede" orden={orden} setOrden={setOrden}>Sede</ThOrdenable>
-                    <ThOrdenable col="asistencia" orden={orden} setOrden={setOrden} num title="Días trabajados de los que le tocaban">Días</ThOrdenable>
-                    <ThOrdenable col="horas" orden={orden} setOrden={setOrden} num title="Horas trabajadas de las que le tocaban">Horas</ThOrdenable>
-                    <ThOrdenable col="tardanzas" orden={orden} setOrden={setOrden} num title="Cuántas, y la peor del periodo">Tardanzas</ThOrdenable>
-                    <ThOrdenable col="faltas" orden={orden} setOrden={setOrden} num>Faltas</ThOrdenable>
-                    <ThOrdenable col="revisar" orden={orden} setOrden={setOrden} num>Revisar</ThOrdenable>
-                    {hayAusencias && <ThOrdenable col="ausencias" orden={orden} setOrden={setOrden} num title="Días de ausencia en el periodo (vacaciones, descanso médico, permisos…)">Ausencias</ThOrdenable>}
-                    {hayObjetivos && <ThOrdenable col="objetivos" orden={orden} setOrden={setOrden} num>Objetivos</ThOrdenable>}
-                    {hayCuadricula && (
-                      <th className="px-3 py-1 text-left font-normal">
-                        <div className="flex">
-                          {fechas.map((f) => {
-                            const dw = dowDe(f);
-                            return (
-                              <div key={f} className={`w-[18px] shrink-0 text-center text-[9px] leading-tight ${dw === 0 ? "text-rojo/60" : ""}`}>
-                                <div>{LETRA_DIA[dw]}</div>
-                                <div className="text-taupe">{Number(f.slice(8, 10))}</div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </th>
-                    )}
-                  </tr>
-                </thead>
-                <tbody>
-                  {vista.map((f) => (
+            {/* <Tabla> solo por el envoltorio: el encabezado usa ThOrdenable
+                (ordena columnas, no es <Th>) y las filas llevan su propia
+                columna "Nombre" pegada al borde para el arrastre horizontal
+                — nada de eso es lo que <TablaEncabezado>/<Fila> resuelven. */}
+            <Tabla className="[font-variant-numeric:tabular-nums]">
+              <thead className="bg-sand/70 text-taupe">
+                <tr>
+                  <ThOrdenable col="nombre" orden={orden} setOrden={setOrden} sticky>Nombre</ThOrdenable>
+                  <ThOrdenable col="sede" orden={orden} setOrden={setOrden}>Sede</ThOrdenable>
+                  <ThOrdenable col="asistencia" orden={orden} setOrden={setOrden} num title="Días trabajados de los que le tocaban">Días</ThOrdenable>
+                  <ThOrdenable col="horas" orden={orden} setOrden={setOrden} num title="Horas trabajadas de las que le tocaban">Horas</ThOrdenable>
+                  <ThOrdenable col="tardanzas" orden={orden} setOrden={setOrden} num title="Cuántas, y la peor del periodo">Tardanzas</ThOrdenable>
+                  <ThOrdenable col="faltas" orden={orden} setOrden={setOrden} num>Faltas</ThOrdenable>
+                  <ThOrdenable col="revisar" orden={orden} setOrden={setOrden} num>Revisar</ThOrdenable>
+                  {hayAusencias && <ThOrdenable col="ausencias" orden={orden} setOrden={setOrden} num title="Días de ausencia en el periodo (vacaciones, descanso médico, permisos…)">Ausencias</ThOrdenable>}
+                  {hayObjetivos && <ThOrdenable col="objetivos" orden={orden} setOrden={setOrden} num>Objetivos</ThOrdenable>}
+                  {hayCuadricula && (
+                    <th className="px-3 py-1 text-left font-normal">
+                      <div className="flex">
+                        {fechas.map((f) => {
+                          const dw = dowDe(f);
+                          return (
+                            <div key={f} className={`w-[18px] shrink-0 text-center text-[9px] leading-tight ${dw === 0 ? "text-rojo/60" : ""}`}>
+                              <div>{LETRA_DIA[dw]}</div>
+                              <div className="text-taupe">{Number(f.slice(8, 10))}</div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </th>
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {vista.map((f) => (
                     <Fragment key={f.personaId}>
                     <tr
                       onClick={() => setAbierta((a) => (a === f.personaId ? null : f.personaId))}
@@ -1194,9 +1203,8 @@ function DesempenoContenido() {
                     )}
                     </Fragment>
                   ))}
-                </tbody>
-              </table>
-            </div>
+              </tbody>
+            </Tabla>
 
             <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-taupe">
               <span className="font-medium text-tinta">Cada cuadrito, un día:</span>
@@ -1362,10 +1370,11 @@ function DesempenoContenido() {
               ) : null}
 
               {diaSel.estado === "justificada" && !MOTIVO_NO_FALTA[diaSel.faltaMotivo ?? ""] && (
-                <button onClick={() => void quitarJustificacionFalta()} disabled={guardando}
-                  className="text-rojo underline hover:no-underline disabled:opacity-50">
+                <Boton variante="enlace" cargando={guardando}
+                  className="text-rojo hover:text-rojo hover:no-underline"
+                  onClick={() => void quitarJustificacionFalta()}>
                   Quitar la justificación — vuelve a contar como falta
-                </button>
+                </Boton>
               )}
 
               <div className="flex flex-col gap-2 border-t border-sand pt-4">
