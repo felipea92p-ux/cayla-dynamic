@@ -37,6 +37,52 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-09-07 — Radiografía Dynamic: primer lote de críticos de seguridad/plata, PEGADO Y VERIFICADO EN PRODUCCIÓN
+
+Sale de la Radiografía Dynamic (92 agentes lectores, 731 hallazgos confirmados,
+38 críticos — [artifact](https://claude.ai/code/artifact/1bd904f7-cff2-4a01-830b-475badb31ab5)).
+Se decidió atender el resto de los críticos de plata/ley/seguridad por lotes
+chicos, cada uno verificado empíricamente antes de escribir el siguiente, en
+vez de una migración gigante de una sola vez.
+
+✅ **Primer lote (2 "minutos" + 5 de Retail, consolidados en 3 causas raíz)
+PEGADO Y VERIFICADO EN PRODUCCIÓN el 2026-09-07.** [PR #238](https://github.com/felipea92p-ux/cayla-dynamic/pull/238),
+fusionado a `main`:
+
+- `fn_cuentas` (`app/api/admin/cuentas/route.ts`): una admin/líder **cesada**
+  conservaba acceso completo a gestión de cuentas — la ruta usa el cliente
+  `service-role`, que se salta RLS y `fn_rol_actual()`. Ahora valida
+  `rol` + `estado === 'activo'` con el cliente normal antes de autorizar.
+- `admin/documentacion`: el desplegable de "a quién imprimir" ofrecía
+  locadores para documentos (movilidad, bonos) que solo debería recibir
+  personal en planilla — riesgo de desnaturalización del contrato. Filtrado
+  a `en_planilla`.
+- **`supabase/migrations/0392`** — `retail.es_lider()`, `retail.es_supervisor()`
+  y `retail.puede_operar_sede()` sin `coalesce` devolvían `NULL` (no `FALSE`)
+  para una persona cesada; como `if not NULL` nunca se dispara en PL/pgSQL,
+  una excolaboradora con sesión de Auth todavía viva podía seguir abriendo
+  caja y vendiendo en **cualquier** sede. `abrir_caja`/`cerrar_caja`/
+  `registrar_venta` ni siquiera llamaban al guardián. `recalcular_stock()`
+  no tenía candado y su `truncate`+`rebuild` borraba `stock_minimo`/
+  `contenedor_id` en silencio. Prueba `311` (11 aserciones pgTAP) en verde
+  en `db-tests`. Verificado contra producción DESPUÉS de pegar: los siete
+  `md5(prosrc)` coinciden exactos con el Postgres local tras el arreglo, y
+  `migraciones_aplicadas` registra `numero=392` a las 2026-09-07 22:14:24 UTC.
+  **Alcance deliberado, no cerrado:** ~8 sitios más de retail con
+  `if not retail.es_lider()` quedan seguros por el `coalesce` sin tocarse
+  (mejora de consistencia aparte), y `fn_sede_actual_persona()` —que no
+  filtra por estado— queda como riesgo residual anotado, no como algo que
+  esta migración debía resolver.
+
+Quedan por atender el resto de los críticos del catálogo priorizado, en
+lotes sucesivos con el mismo protocolo.
+
+⚠️ **[PR #232](https://github.com/felipea92p-ux/cayla-dynamic/pull/232) (los
+25 hallazgos de diseño, del mapa de calor de Turnos a Modal/Insignia) sigue
+ABIERTO, sin fusionar** — pendiente de revisión.
+
+---
+
 ## 2026-09-07 — Un practicante puede cobrar movilidad y educación (0397) · PEGADA Y VERIFICADA
 
 Motivado por un caso real: Geison Alcantára —de prácticas, ingresó el 3 de
