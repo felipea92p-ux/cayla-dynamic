@@ -576,3 +576,44 @@ local compartido, y por minutos.
 - `seguimiento_planilla_por_solicitud` y el resto del diseño (estados,
   aprobador único DO, sin contador nuevo en el nav, notificación por correo
   diferida) se mantienen tal cual se decidieron arriba.
+
+## Corrección tras implementar (2026-09-08) — DECIDÍ #9 se revierte
+
+**DECIDÍ #9 ("aprueba solo DO — nunca la encargada de sede") se revierte al
+día siguiente de confirmarse.** Al construir `/mio/editar` — la pantalla que
+por fin le da un lugar visible a esta feature, antes escondida en una pestaña
+— se pidió explícitamente que la encargada de sede también pudiera resolver
+las solicitudes de su propio equipo, con el mismo alcance que ya tiene para
+editar la ficha directa desde `/admin/datos-personales`
+(`fn_set_datos_personales`). Se le mostró al usuario que esto contradecía
+DECIDÍ #9 y la alternativa ya descartada en DESCARTÉ ("que la encargada
+también pueda aprobar los 3 campos sin documento — se simplificó a 'DO para
+las 11', a pedido explícito"); confirmó que sí, quiere revertirlo — ahora para
+los 7 campos que el colaborador puede pedir desde `/mio/editar`, no solo los 3
+sin documento que se había planteado la vez anterior.
+
+Lo que cambia, en la migración 0402:
+
+- `fn_resolver_solicitud_perfil` y `fn_solicitudes_perfil_pendientes` aceptan
+  también `fn_rol_actual() = 'supervisor_sede' and` la sede de quien pidió el
+  cambio `= fn_sede_actual_persona()` — mismo guard que ya usan
+  `fn_set_datos_personales` / `fn_set_derechohabiente` / `fn_cerrar_derechohabiente`
+  desde esta misma migración (0399), copiado, no reinventado.
+- Nueva `fn_solicitud_perfil_puede_leer`, aparte de
+  `fn_solicitud_perfil_puede_escribir`: la encargada necesita ABRIR el
+  documento adjunto para poder aprobar con criterio, pero sigue sin poder
+  subir, reemplazar ni borrar el de nadie — esa función no se tocó.
+- `apps/web/app/(admin)/admin/bandeja/page.tsx`: `puedeResolverPerfil` pasa de
+  `puedeVerPlanilla` (DO) a `puedeOperarEquipo` (DO + encargada), para que la
+  sección de la Bandeja se le muestre.
+
+**Lo que la razón original de DECIDÍ #9 advertía sigue siendo cierto, y ahora
+es una consecuencia aceptada a propósito, no un descuido:** la encargada va a
+ver datos de su equipo que hoy están reservados a DO en el resto del sistema
+—estado civil, discapacidad si alguna vez se permitiera, cuenta bancaria—
+cada vez que alguien de su sede pida cambiarlos. La nota de privacidad de
+DECIDÍ #11 (no avisar a la encargada por correo cuando se crea o resuelve una
+solicitud, "para no filtrarle un dato potencialmente sensible... solo porque
+comparte sede") **no se revirtió**: sigue sin haber correo a la encargada:
+solo lo ve si entra a la Bandeja a resolverlo. Aviso explícito, decisión
+del usuario con la contradicción a la vista, ver conversación del 2026-09-08.
