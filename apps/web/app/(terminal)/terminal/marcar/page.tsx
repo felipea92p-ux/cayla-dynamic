@@ -15,15 +15,16 @@ import {
   type RosterEntry,
   encolarMarcaje,
   eliminarDeOutbox,
+  marcarComoDescartada,
   marcarComoRechazadaPorServidor,
   obtenerDescartadas,
   obtenerPendientes,
 } from "@/lib/terminal/offline-db";
 import { sincronizarApartadas } from "@/lib/terminal/apartadas";
-import { enviarMarcaje } from "@/lib/terminal/enviar-marcaje";
+import { enviarMarcaje, esRechazoDeEstado } from "@/lib/terminal/enviar-marcaje";
 import { conTope, topeDeRed } from "@/lib/terminal/tope-de-red";
 import { cargarRoster } from "@/lib/terminal/roster";
-import { cargarMarcajesHoyPorPersona, siguienteAccionPara } from "@/lib/terminal/estado-dia";
+import { cargarMarcajesHoyPorPersona, confirmarEstadoPuntual, siguienteAccionPara } from "@/lib/terminal/estado-dia";
 import { cargarEstadisticasSugerenciaPorPersona } from "@/lib/terminal/sugerencias";
 import { veredictoDeSesion } from "@/lib/terminal/sesion";
 import { leerInfoTerminalCacheada, refrescarInfoTerminal, type TerminalInfo } from "@/lib/terminal/terminal-info";
@@ -35,6 +36,7 @@ import {
 import { Marca } from "@/components/marca";
 import { RelojCentral } from "@/components/reloj";
 import { Insignia } from "@/components/ui/insignia";
+import { Cargando } from "@/components/cargando";
 import {
   ConfirmacionToast,
   ConfirmarRefrigerio,
@@ -56,7 +58,12 @@ type Pantalla =
   | "confirmando"
   | "mensaje"
   | "cerrado"
-  | "motivo_reentrada";
+  | "motivo_reentrada"
+  // Se muestra SOLO cuando esta pestaña todavía no confirmó el estado de
+  // nadie desde que arrancó (ver `marcajesConfiablesRef`) y alguien tocó un
+  // nombre: en vez de adivinar, pregunta puntualmente por esa persona antes
+  // de decidir qué ofrecerle. Dura ~1-3 s y desaparece sola.
+  | "confirmando_estado";
 
 type OpcionSalida = { tipo: TipoMarca; motivoRequerido: boolean; label: string };
 type SalidaConfig = {
@@ -67,13 +74,47 @@ type SalidaConfig = {
   // (personal/trámite/médico/otro) pasa a ser lo prominente y principal/secundaria
   // bajan a enlaces chicos. Nunca se ocultan, solo pierden protagonismo.
   neutra: boolean;
+  /** Ver `SelectorSalida` → `aviso`. Ausente en el menú de salida normal. */
+  aviso?: string;
 };
+
+function mk(tipo: TipoMarca, motivoRequerido: boolean, label?: string): OpcionSalida {
+  return { tipo, motivoRequerido, label: label ?? TIPO_MARCA_LABELS[tipo] };
+}
 
 // Etiquetas amables para las dos acciones principales del menú de salida.
 const LABEL_PRINCIPAL: Partial<Record<TipoMarca, string>> = {
   salida_almuerzo: "Salgo a refrigerio",
   salida_final: "Me voy — salida final",
 };
+
+// El respaldo cuando NO se pudo confirmar el estado de nadie (ver
+// `marcajesConfiablesRef`) ni tampoco la confirmación puntual de esta
+// persona en particular (ver `confirmarEstadoPuntual`). En vez de adivinar
+// —que es exactamente el bug de Raquel Ticona y Joselyn Gavilan (2026-09-09:
+// el terminal ofreció "Entrada" a quien llevaba horas adentro)— se le
+// muestran TODAS las opciones y elige la persona misma. El servidor sigue
+// validando igual: si se equivoca, no pasa nada grave, solo vuelve a
+// preguntar — pero ya no es el terminal el que apostó por ella.
+const AVISO_ESTADO_INCIERTO =
+  "No pudimos confirmar tu estado con el servidor. Elige qué corresponde — si te equivocas, el sistema no lo va a aceptar y no se registra nada malo.";
+
+function configDeAccionIncierta(): SalidaConfig {
+  return {
+    principal: mk("entrada", false, "Entrada"),
+    secundaria: null,
+    otras: [
+      mk("salida_final", false, LABEL_PRINCIPAL.salida_final),
+      mk("salida_almuerzo", false, LABEL_PRINCIPAL.salida_almuerzo),
+      mk("salida_personal", false),
+      mk("salida_tramite", false),
+      mk("salida_medico", false),
+      mk("salida_otro", true),
+    ],
+    neutra: false,
+    aviso: AVISO_ESTADO_INCIERTO,
+  };
+}
 
 const SEGUNDOS_CONFIRMACION = 3;
 const SEGUNDOS_MENSAJE = 2.5;
@@ -120,6 +161,19 @@ export default function MarcarPage() {
   const [estadoRoster, setEstadoRoster] = useState<EstadoRoster>("cargando");
   const [sedeSeleccionada, setSedeSeleccionada] = useState<string | null>(null);
   const marcajesHoyRef = useRef<Map<string, MarcajeDelDia[]>>(new Map());
+  // ¿Se pudo confirmar el estado de HOY contra el servidor al menos una vez
+  // desde que esta pestaña arrancó? Mientras sea `false`, `marcajesHoyRef` no
+  // es de fiar como "esta persona no tiene marcas hoy" — solo dice "todavía no
+  // lo sé", y `continuarConPersona` tiene que preguntar antes de ofrecer nada.
+  // Una vez en `true`, un refresco periódico que falle después YA NO borra lo
+  // que había: se ignora ese refresco y se sigue confiando en el último bueno
+  // (ver `cargarTodo`). Antes de esto, cualquier corte de red en el instante
+  // exacto del refresco de 2 min dejaba a TODO el mundo sin marcas en memoria,
+  // y el terminal volvía a ofrecer "Entrada" a quien llevaba horas adentro —
+  // el bug real detrás de los casos de Raquel Ticona y Joselyn Gavilan
+  // (2026-09-09): el servidor rechazó las dos marcas correctamente, pero nadie
+  // se enteró hasta horas después.
+  const marcajesConfiablesRef = useRef(false);
   // El ritmo de cada persona (media de refrigerio, hora de salida esperada),
   // para afinar sugerirSalidaPrincipal — ver lib/terminal/sugerencias.ts. En
   // un ref y no en state por lo mismo que marcajesHoyRef: continuarConPersona
@@ -128,6 +182,12 @@ export default function MarcarPage() {
 
   const [pantalla, setPantalla] = useState<Pantalla>("lista");
   const [personaActual, setPersonaActual] = useState<RosterEntry | null>(null);
+  // Espejo de `personaActual` en un ref, solo para `continuarConPersona`: tras
+  // el `await` de una confirmación puntual (~1-3 s), la persona pudo cancelar
+  // o tocar otro nombre. Un `useState` leído dentro de esa función async
+  // seguiría viendo el valor de cuando se llamó, no el de ahora — un ref sí
+  // se lee al vuelo, sin esperar a un re-render.
+  const personaActualRef = useRef<RosterEntry | null>(null);
   const [salidaConfig, setSalidaConfig] = useState<SalidaConfig | null>(null);
   const [historialCerrado, setHistorialCerrado] = useState<Array<{ label: string; hora: string }>>([]);
   const [pendientesSinEnviar, setPendientesSinEnviar] = useState(0);
@@ -156,7 +216,16 @@ export default function MarcarPage() {
         cargarEstadisticasSugerenciaPorPersona(),
       ]);
       setRoster(rosterCargado.entradas);
-      marcajesHoyRef.current = marcajes;
+      // Nunca se borra un mapa BUENO con uno que no se pudo confirmar. Si ya
+      // habíamos confirmado el estado de hoy al menos una vez, un refresco
+      // que falla (offline un instante, tiempo agotado) simplemente se
+      // ignora — se sigue con el último bueno más lo que ya se marcó en esta
+      // sesión, en vez de vaciar la memoria de todo el mundo por un corte de
+      // red que no tiene nada que ver con si alguien ya entró hoy.
+      if (marcajes.confiable || !marcajesConfiablesRef.current) {
+        marcajesHoyRef.current = marcajes.mapa;
+      }
+      if (marcajes.confiable) marcajesConfiablesRef.current = true;
       estadisticasSugerenciaRef.current = estadisticas;
       // EL ERROR LO DECLARA LA FUENTE, NO EL `catch`, y esa es la mitad que
       // faltaba: `cargarRoster` no lanza NUNCA por red ni por un 500 —devuelve
@@ -315,6 +384,7 @@ export default function MarcarPage() {
     confirmandoRef.current = false;
     setPantalla("lista");
     setPersonaActual(null);
+    personaActualRef.current = null;
     setSalidaConfig(null);
     setAccionPendiente(null);
     void cargarTodo();
@@ -341,12 +411,15 @@ export default function MarcarPage() {
   // se prioriza es que marcar sea instantáneo (Felipe, jul-2026 y 2026-09-04).
   function seleccionarPersona(persona: RosterEntry) {
     setPersonaActual(persona);
-    continuarConPersona(persona);
+    personaActualRef.current = persona;
+    void continuarConPersona(persona);
   }
 
-  // Determina y presenta la siguiente acción de la persona.
-  function continuarConPersona(persona: RosterEntry) {
-    const marcajesHoy = marcajesHoyRef.current.get(persona.id) ?? [];
+  // Determina y presenta la siguiente acción de la persona, a partir de SU
+  // historial de hoy ya conocido (de caché confiable o de una confirmación
+  // puntual recién hecha). Nunca decide con datos que no se confían — eso lo
+  // filtra `continuarConPersona` antes de llegar aquí.
+  function decidirYMostrarAccion(persona: RosterEntry, marcajesHoy: MarcajeDelDia[]) {
     const accion = siguienteAccionPara(marcajesHoy);
 
     if (accion.modo === "cerrado") {
@@ -363,11 +436,6 @@ export default function MarcarPage() {
 
     // Menú de salida simplificado: 1 acción sugerida (según hora + si ya almorzó hoy),
     // la otra principal como secundaria, y el resto de motivos bajo "otra salida".
-    const mk = (tipo: TipoMarca, motivoRequerido: boolean, label?: string): OpcionSalida => ({
-      tipo,
-      motivoRequerido,
-      label: label ?? TIPO_MARCA_LABELS[tipo],
-    });
     const yaAlmorzo = marcajesHoy.some((m) => m.tipo === "salida_almuerzo");
     const sugerida = sugerirSalidaPrincipal(
       marcajesHoy,
@@ -390,6 +458,42 @@ export default function MarcarPage() {
       ...(yaAlmorzo ? [almuerzo] : []),
     ];
     setSalidaConfig({ principal, secundaria, otras, neutra: sugerida === "neutra" });
+    setPantalla("elegir_salida");
+  }
+
+  // Punto de entrada al tocar un nombre. Antes de decidir nada, comprueba si
+  // esta pestaña YA confirmó el estado de hoy alguna vez contra el servidor
+  // (ver `marcajesConfiablesRef`). Si nunca lo confirmó, no hay caché de la
+  // que fiarse — ni para esta persona ni para nadie — y hay que preguntar
+  // puntualmente antes de ofrecer una acción. Es la corrección directa del
+  // caso real: el 2026-09-09 el terminal, sin esta comprobación, ofreció
+  // "Entrada" a Raquel Ticona y a Joselyn Gavilan cuando las dos llevaban
+  // horas trabajando — el servidor rechazó las dos marcas bien, pero nadie se
+  // enteró hasta que alguien las reconstruyó a mano esa noche.
+  async function continuarConPersona(persona: RosterEntry) {
+    if (marcajesConfiablesRef.current) {
+      decidirYMostrarAccion(persona, marcajesHoyRef.current.get(persona.id) ?? []);
+      return;
+    }
+
+    setPantalla("confirmando_estado");
+    const marcasConfirmadas = await confirmarEstadoPuntual(persona.id);
+
+    // Mientras esperábamos la respuesta, la persona pudo cancelar (volver a
+    // la lista) o tocar otro nombre: no seguir si esta respuesta ya no es
+    // para lo que hay en pantalla.
+    if (personaActualRef.current?.id !== persona.id) return;
+
+    if (marcasConfirmadas !== null) {
+      marcajesHoyRef.current.set(persona.id, marcasConfirmadas);
+      decidirYMostrarAccion(persona, marcasConfirmadas);
+      return;
+    }
+
+    // Tampoco se pudo confirmar puntualmente (sigue offline, o el servidor no
+    // contestó a tiempo): nunca se adivina "Entrada". Se le pregunta a la
+    // persona misma, con las opciones completas.
+    setSalidaConfig(configDeAccionIncierta());
     setPantalla("elegir_salida");
   }
 
@@ -553,11 +657,28 @@ export default function MarcarPage() {
       // inmediato es que deja de contar como "de hoy" (ver offline-db.ts).
       if (rechazadaPorElServidor && encolada) {
         try {
-          await marcarComoRechazadaPorServidor(entry.clientUuid, error ?? "sin detalle");
+          if (esRechazoDeEstado(error)) {
+            // No es "todavía no se pudo enviar": el servidor YA contestó que
+            // este tipo no corresponde, y reintentarlo igual no cambia esa
+            // respuesta. Se aparta de una vez — no en 90 s — para que quien
+            // revisa Correcciones se entere antes.
+            await marcarComoDescartada(entry.clientUuid, error ?? "sin detalle");
+          } else {
+            await marcarComoRechazadaPorServidor(entry.clientUuid, error ?? "sin detalle");
+          }
         } catch {
           // Sin almacén local no hay bandera que poner; el mensaje en pantalla
           // ya avisó del rechazo de todos modos.
         }
+        // El rechazo prueba que lo que este terminal creía saber de esta
+        // persona ya no vale — algo distinto a lo que se guardó pasó de
+        // verdad. Se pregunta de nuevo EN SEGUNDO PLANO, sin bloquear el
+        // cartel que la persona ya está leyendo: cuando conteste, deja el
+        // próximo toque de esta persona (o el de quien venga después) listo
+        // para acertar en vez de repetir la misma suposición equivocada.
+        void confirmarEstadoPuntual(entry.personaId).then((marcas) => {
+          if (marcas !== null) marcajesHoyRef.current.set(entry.personaId, marcas);
+        });
       }
     }
 
@@ -691,6 +812,10 @@ export default function MarcarPage() {
           </div>
         )}
 
+        {pantalla === "confirmando_estado" && personaActual && (
+          <Cargando texto={`Confirmando el estado de ${personaActual.nombres}…`} clase="font-serif text-2xl" />
+        )}
+
         {pantalla === "elegir_salida" && personaActual && salidaConfig && (
           <SelectorSalida
             nombre={`${personaActual.nombres} ${personaActual.apellidos}`}
@@ -698,6 +823,7 @@ export default function MarcarPage() {
             secundaria={salidaConfig.secundaria}
             otras={salidaConfig.otras}
             neutra={salidaConfig.neutra}
+            aviso={salidaConfig.aviso}
             onElegir={elegirTipoSalida}
             onCancelar={volverALista}
           />
