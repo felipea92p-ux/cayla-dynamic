@@ -1401,7 +1401,19 @@ export default function MioPage() {
   }
 
   return (
-    <main className="mx-auto min-h-screen w-full max-w-5xl bg-crema px-5 py-8 text-tinta">
+    // El marco de esta pantalla, con la misma forma que el del panel
+    // (`(admin)/layout.tsx`): el menú pegado al borde izquierdo y el contenido
+    // ocupando el resto. En teléfono se apila, y ahí el menú es la barra
+    // pegajosa de arriba que abre el cajón.
+    <div className="flex min-h-screen flex-col bg-crema text-tinta md:flex-row">
+      <MenuDetalle
+        secciones={secciones}
+        activo={tab}
+        onSel={elegirSeccion}
+        etiqueta="Secciones de tu perfil"
+      />
+
+    <main className="mx-auto min-w-0 max-w-5xl flex-1 px-5 py-8">
       {/* ══ 1 · QUIÉN ERES ══════════════════════════════════════════════════
           Lo primero de un perfil es la persona, y hasta hoy acá lo primero era
           una barrita de 14 píxeles con la foto encogida al lado del nombre.
@@ -1657,7 +1669,8 @@ export default function MioPage() {
       </div>
 
       {/* ══ 4 · EL DETALLE ══════════════════════════════════════════════════
-          Ocho secciones en un MENÚ LATERAL, no en una tira de pestañas.
+          Ocho secciones gobernadas por el menú de la izquierda, no por una
+          tira de pestañas.
 
           La tira estaba en `overflow-x-auto` con la barra de scroll escondida,
           así que en cualquier pantalla que no fuera ancha había secciones
@@ -1669,30 +1682,15 @@ export default function MioPage() {
 
           Lo de arriba NO se movió, y esa sigue siendo la regla de la pantalla
           (ver el comentario de `tab`): quién eres, lo que te exige actuar hoy y
-          tus cuatro cifras se ven completos sin tocar nada. El menú gobierna
-          solo lo que se viene a MIRAR, así que vive al lado del detalle y no
-          enmarcando la pantalla entera.
+          tus cuatro cifras se ven completos sin tocar nada. El menú solo decide
+          qué se MIRA aquí abajo.
 
-          Y el `<main>` pasó de `max-w-3xl` a `max-w-5xl` por lo mismo: con el
-          menú ancho puesto, el detalle se queda con ~700px, que es lo que tenía
-          antes de que existiera el menú. Sin ensancharlo, la tabla «Día por día»
-          habría perdido un tercio de su ancho. */}
-      <div id="detalle" className="flex flex-col gap-4 md:flex-row md:gap-6">
-        <MenuDetalle
-          secciones={secciones}
-          activo={tab}
-          onSel={elegirSeccion}
-          etiqueta="Secciones de tu perfil"
-        />
-
-        {/* OJO CON LA SANGRÍA de todo lo que viene: las ocho secciones siguen
-            escritas al nivel que tenían cuando eran hijas directas de <main>, y
-            NO se reindentaron a propósito. Al escribir esto había trece ramas
-            sin fusionar tocando este archivo; correr 760 líneas cuatro espacios
-            habría chocado con las trece a cambio de nada que se vea en
-            pantalla. Si alguna vez se paga, que sea en su propio commit y sin
-            nada más adentro. */}
-        <div className="min-w-0 flex-1">
+          El ancla de abajo es un div vacío y no un contenedor de las ocho
+          secciones: el menú vive en el marco, así que envolverlas no serviría
+          para nada salvo correr 760 líneas de sangría — y hay una docena de
+          ramas sin fusionar tocando este archivo. A esto suben `irArriba` y
+          `elegirSeccion`. */}
+      <div id="detalle" aria-hidden />
 
       {/* ── MIS DÍAS ─────────────────────────────────────────────────────── */}
       {tab === "dias" && (
@@ -2456,10 +2454,8 @@ export default function MioPage() {
         Si algo no cuadra, no lo dejes pasar: avisa a tu encargada y se corrige con el motivo anotado. Lo que
         ves sale de tus marcajes, y un marcaje mal registrado se arregla, no se discute al final del mes.
       </p>
-
-        </div>
-      </div>
     </main>
+    </div>
   );
 }
 
