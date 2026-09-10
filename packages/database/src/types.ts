@@ -5340,6 +5340,10 @@ export type Database = {
         Args: { p_id: string | null; p_motivo: string | null }
         Returns: undefined
       }
+      fn_expediente_cerrar_sin_entrega: {
+        Args: { p_id: string | null; p_motivo?: string | null }
+        Returns: undefined
+      }
       fn_expediente_comunicar_cargos: {
         Args: { p_dias?: number | null; p_id: string | null; p_nota?: string | null }
         Returns: string

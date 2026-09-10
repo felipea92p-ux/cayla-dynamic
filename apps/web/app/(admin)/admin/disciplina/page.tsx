@@ -252,6 +252,9 @@ export default function DisciplinaPage() {
   const [falloDocs, setFalloDocs] = useState(false);
   const [docs, setDocs] = useState<Doc[]>([]);
   const [nombres, setNombres] = useState<Map<string, string>>(new Map());
+  // `personas.estado` de cada quien: solo se lee para saber si ya cesó, y así
+  // ofrecer «Cerrar sin entrega» únicamente cuando de verdad aplica.
+  const [personaEstado, setPersonaEstado] = useState<Map<string, string>>(new Map());
   const [cargando, setCargando] = useState(true);
   const [resaltado, setResaltado] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState<string | null>(null);
@@ -334,6 +337,8 @@ export default function DisciplinaPage() {
   const [reabriendo, setReabriendo] = useState<string | null>(null);
   const [anulando, setAnulando] = useState<{ id: string; entregado: boolean } | null>(null);
   const [motivoAnular, setMotivoAnular] = useState("");
+  const [cerrandoSinEntrega, setCerrandoSinEntrega] = useState<string | null>(null);
+  const [motivoCierre, setMotivoCierre] = useState("");
 
   const supabase = useMemo(() => createAdminSupabaseClient(), []);
 
@@ -355,7 +360,7 @@ export default function DisciplinaPage() {
         //   papel de una entrega de hace dos meses.
         .in("estado", ["borrador", "firmado", "entregado"])
         .order("creado_at", { ascending: false }),
-      supabase.from("personas").select("id, nombres, apellidos"),
+      supabase.from("personas").select("id, nombres, apellidos, estado"),
     ]);
     // Los TRES errores, no solo el del legajo.
     //
@@ -387,7 +392,9 @@ export default function DisciplinaPage() {
     setFaltas(Array.isArray(f) ? (f as FaltaRow[]) : []);
     const lista = Array.isArray(d) ? (d as unknown as Doc[]) : [];
     setDocs(lista);
-    setNombres(new Map(((p as Array<{ id: string; nombres: string; apellidos: string }>) ?? []).map((x) => [x.id, `${x.nombres} ${x.apellidos}`])));
+    const personasList = (p as Array<{ id: string; nombres: string; apellidos: string; estado: string }>) ?? [];
+    setNombres(new Map(personasList.map((x) => [x.id, `${x.nombres} ${x.apellidos}`])));
+    setPersonaEstado(new Map(personasList.map((x) => [x.id, x.estado])));
 
     // Los firmantes posibles de cada borrador. Solo para borradores: un
     // documento ya firmado no cambia de firmante. Si alguna consulta falla, esa
@@ -944,6 +951,34 @@ export default function DisciplinaPage() {
     avisar("ok", entregado
       ? "Documento anulado. Queda el rastro con tu motivo — ahora comunícaselo a la persona por escrito."
       : "Documento anulado.");
+  }
+
+  /**
+   * Cerrar sin entrega: la persona cesó antes de que se le pudiera entregar
+   * el documento firmado.
+   *
+   * No es lo mismo que anular: el documento sí era válido, solo que ya no
+   * tiene a quién notificarse. `fn_expediente_cerrar_sin_entrega` exige que la
+   * persona ya esté cesada — mientras siga activa, el camino sigue siendo
+   * entregarle el documento (mig. 0412).
+   */
+  function abrirCerrarSinEntrega(id: string) {
+    setMotivoCierre("");
+    setCerrandoSinEntrega(id);
+  }
+
+  async function confirmarCerrarSinEntrega() {
+    if (!cerrandoSinEntrega) return;
+    const id = cerrandoSinEntrega;
+    setOcupado(id);
+    const { error } = await supabase.rpc("fn_expediente_cerrar_sin_entrega", {
+      p_id: id, p_motivo: motivoCierre.trim() || null,
+    });
+    setOcupado(null);
+    if (error) { avisar("error", mensajeDeError(error)); return; }
+    setCerrandoSinEntrega(null);
+    await cargar();
+    avisar("ok", "Cerrado sin entrega. Queda el rastro en el legajo.");
   }
 
   const borradores = docs.filter((d) => d.estado === "borrador");
@@ -1505,11 +1540,21 @@ function fechasDe(h: Hecho[]): string {
                         </p>
                       </details>
                       <Boton variante="sutil" tamano="sm" onClick={() => abrirReabrir(d.id)} disabled={ocupado === d.id}>Cambiar firmante</Boton>
+                      {/* Solo si ya cesó: mientras siga activa, el camino
+                          sigue siendo entregarle el documento, no cerrarlo. */}
+                      {personaEstado.get(d.persona_id) === "inactivo" && (
+                        <Boton variante="secundario" tamano="sm" onClick={() => abrirCerrarSinEntrega(d.id)} disabled={ocupado === d.id}>
+                          Cerrar sin entrega
+                        </Boton>
+                      )}
                     </div>
                   </div>
                   {/* La firma, no la creación del borrador: de la firma cuelgan
                       los plazos, y entre una y otra pueden pasar días. */}
                   <p className="mt-1 text-xs text-taupe">Firmado {selloLima(d.firmado_at ?? d.creado_at)}</p>
+                  {personaEstado.get(d.persona_id) === "inactivo" && (
+                    <p className="mt-1 text-xs text-ambar">Esta persona ya cesó — no se le puede entregar este documento.</p>
+                  )}
 
                   {subiendoCargo?.id === d.id && (
                     <FormularioCargo
@@ -1813,6 +1858,24 @@ function fechasDe(h: Hecho[]): string {
               <div className="mt-4 flex justify-end gap-3">
                 <Boton variante="secundario" onClick={() => setAnulando(null)} disabled={ocupado === anulando.id}>Cancelar</Boton>
                 <Boton variante="peligro" onClick={() => void confirmarAnular()} cargando={ocupado === anulando.id}>Anular</Boton>
+              </div>
+            </>
+          )}
+        </Modal>
+
+        <Modal abierto={cerrandoSinEntrega !== null} onCerrar={() => setCerrandoSinEntrega(null)}
+          titulo="Cerrar sin entrega" bloqueado={ocupado === cerrandoSinEntrega}>
+          {cerrandoSinEntrega && (
+            <>
+              <p className="mb-2 text-sm text-taupe">
+                La persona ya cesó y este documento nunca se le pudo entregar. Se cierra el caso
+                dejando constancia en el legajo — no es lo mismo que anular: el documento sí era
+                válido, solo que ya no tiene a quién notificarse. Puedes agregar una nota (opcional).
+              </p>
+              <AreaTexto value={motivoCierre} onChange={(e) => setMotivoCierre(e.target.value)} rows={3} autoFocus />
+              <div className="mt-4 flex justify-end gap-3">
+                <Boton variante="secundario" onClick={() => setCerrandoSinEntrega(null)} disabled={ocupado === cerrandoSinEntrega}>Cancelar</Boton>
+                <Boton variante="secundario" onClick={() => void confirmarCerrarSinEntrega()} cargando={ocupado === cerrandoSinEntrega}>Cerrar sin entrega</Boton>
               </div>
             </>
           )}

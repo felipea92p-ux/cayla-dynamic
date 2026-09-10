@@ -56,7 +56,7 @@ function Dato({ label, valor }: { label: string; valor: React.ReactNode }) {
 
 const NIVEL: Record<string, string> = { verbal: "Llamada verbal", amonestacion: "Amonestación escrita", suspension: "Suspensión", imputacion: "Imputación", despido: "Despido" };
 const CAUSAL: Record<string, string> = { tardanza: "Tardanzas", falta: "Faltas", conducta: "Conducta" };
-const ESTADO_DOC: Record<string, string> = { borrador: "Borrador", firmado: "Firmado", entregado: "Entregado", anulado: "Anulado" };
+const ESTADO_DOC: Record<string, string> = { borrador: "Borrador", firmado: "Firmado", entregado: "Entregado", anulado: "Anulado", cerrado_sin_entrega: "Cerrado sin entrega" };
 
 interface Persona { id: string; nombres: string; apellidos: string; documento: string | null; funcion: string; sede_base_id: string; fecha_ingreso: string; email: string | null; estado: string; en_planilla: boolean; sueldo_fijo: boolean; personal_direccion: boolean }
 interface Ficha { nombre_dni: string | null; fecha_nacimiento: string | null; estado_civil: string | null; genero: string | null; direccion: string | null; celular: string | null; entidad_bancaria: string | null; numero_cuenta: string | null; grado_instruccion: string | null; hijos_menores: boolean | null; foto_personal_url: string | null }
@@ -543,7 +543,7 @@ export default function PerfilPersonaPage() {
                               {selloLima(d.firmado_at ?? d.creado_at)}
                               <Insignia
                                 variante={d.estado === "borrador" ? "advertencia" : "neutral"}
-                                atenuada={d.estado === "anulado"}
+                                atenuada={d.estado === "anulado" || d.estado === "cerrado_sin_entrega"}
                                 punto={false}
                               >
                                 {ESTADO_DOC[d.estado] ?? d.estado}
