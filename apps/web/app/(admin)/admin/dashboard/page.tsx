@@ -189,6 +189,12 @@ interface ContratoRow { persona_id: string; nombre: string; sede: string; fecha_
 export default function DashboardPage() {
   const router = useRouter();
   const [filas, setFilas] = useState<FilaPersona[]>([]);
+  // Fuente de verdad de qué sedes existen: la tabla `sedes`, igual que las
+  // demás 14 pantallas del panel — nunca derivada de quién pasó el filtro de
+  // personas de abajo. Antes se armaba agrupando `filas` por sede_id, así que
+  // una sede sin nadie que cumpliera activo+en_planilla+no_sueldo_fijo
+  // desaparecía entera, sin aviso, en vez de mostrarse con "0 de 0".
+  const [sedesActivas, setSedesActivas] = useState<{ id: string; codigo: string }[]>([]);
   const [metasPorSede, setMetasPorSede] = useState<Map<string, MetaSede>>(new Map());
   const [actualizado, setActualizado] = useState<string>("");
   const [cargando, setCargando] = useState(true);
@@ -305,6 +311,7 @@ export default function DashboardPage() {
     // minutos_salida_temprana va por RPC (fn_jornadas_extra) porque el schema cache
     // de PostgREST no expone la columna; el select directo fallaría entero.
     const [
+      { data: sedesData, error: errSedes },
       { data: personas, error: errPersonas },
       { data: jornadas, error: errJornadas },
       { data: extras }, // fn_jornadas_extra ya está diseñada para fallar en silencio (ver comentario abajo)
@@ -316,6 +323,9 @@ export default function DashboardPage() {
       { data: turnosHoy }, // turno puntual de hoy, si alguien lo registró (falla suave: sin alerta de sede)
       { data: horariosVigentes }, // tramos de horario vigentes hoy, para la cascada de jornada-esperada.ts
     ] = await Promise.all([
+      // Misma consulta que /admin/reporte-sede: la lista de sedes a mostrar
+      // nunca se deriva de quién aparece en otra tabla.
+      supabase.from("sedes").select("id, codigo").eq("activa", true).order("codigo"),
       supabase
         .from("personas")
         .select("id, nombres, apellidos, rol, sede_base_id, sedes:sede_base_id(codigo)")
@@ -343,12 +353,13 @@ export default function DashboardPage() {
         .or(`vigente_hasta.is.null,vigente_hasta.gte.${hoy}`),
     ]);
 
-    if (errPersonas || errJornadas) {
-      setError((errPersonas ?? errJornadas)!.message);
+    if (errSedes || errPersonas || errJornadas) {
+      setError((errSedes ?? errPersonas ?? errJornadas)!.message);
       setCargando(false);
-      return; // no pisa `filas` con datos parciales/vacíos
+      return; // no pisa `filas`/`sedesActivas` con datos parciales/vacíos
     }
     setError(null);
+    setSedesActivas(sedesData ?? []);
 
     // Función/área/encargada: si la RPC falla, degradamos a "todos operativos"
     // (misma política que Turnos) — la cobertura puede marcar de más pero la
@@ -444,10 +455,11 @@ export default function DashboardPage() {
     };
   }, [cargar]);
 
-  // Agrupamos por sede_id (no por código) para poder cruzar con metas_cobertura.
-  const sedes = [...new Map(filas.map((f) => [f.sedeId, f.sede])).entries()]
-    .map(([sedeId, codigo]) => ({ sedeId, codigo }))
-    .sort((a, b) => a.codigo.localeCompare(b.codigo));
+  // sedeId (no código) porque es como se cruza con metas_cobertura más abajo.
+  // Viene de sedesActivas (tabla `sedes`), no de `filas`: así una sede sigue
+  // apareciendo — con "0 trabajando de 0" — aunque hoy nadie de su plantilla
+  // cumpla el filtro activo+en_planilla+no_sueldo_fijo.
+  const sedes = sedesActivas.map((s) => ({ sedeId: s.id, codigo: s.codigo }));
   const tramoTarde = horaDecimalLimaAhora() >= CORTE_TARDE;
   const tramoLabel = tramoTarde ? "tarde" : "mañana";
   const hoy = hoyLima();
