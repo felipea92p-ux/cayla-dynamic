@@ -96,3 +96,37 @@
 # 0352 chocaría con ese contenido abandonado.
 
 0352  Abandonado en el merge 7809713 (2026-09-03) a favor de la 0354, que resuelve lo mismo (aviso de auto-cierre por correo) sin tocar fn_auto_cierre. Nunca se aplicó en producción.
+
+# ── Los cuatro de septiembre (documentados el 2026-09-08) ────────────────────
+#
+# Los tres primeros son renumeraciones limpias: el número se tomó, el trabajo
+# salió con otro, y NINGUNO llegó a producción — comprobado contra
+# `migraciones_aplicadas`, que no tiene fila para 383, 389 ni 394.
+#
+# La 0393 es de otra clase y por eso lleva la explicación larga: su fila SÍ está
+# en producción. Es el primer caso medido del estado «SOBRA LA FILA», y la
+# instrucción correcta resultó ser la contraria a la que sugiere el aviso.
+
+0383  Renumerada dentro del mismo PR (#225, foto en el terminal). Nació en ad4120d como «la foto del roster entra al repositorio» y su contenido salió como 0382, que conserva foto_url en la misma vista. Nunca se aplicó en producción.
+0389  Renumerada a 0390/0391 en 9e08cd9, tras dos commits que la retiraron del push a propósito («la 0389 no viaja en este push»). Nunca se aplicó en producción.
+0394  Absorbida por la 0395 dentro del PR #251 (firma con tres métodos). Nació en ee97a97 como «la firma generada tiene que ser tu nombre» y esa regla vive hoy dentro de la 0395. Nunca se aplicó en producción.
+
+# 0393 — SU FILA SÍ ESTÁ EN PRODUCCIÓN, y aun así el número NO se recupera.
+#
+# Se pegó el 2026-09-07 a las 15:06 desde la rama claude/signature-generator-
+# function-bd2127, cuyo PR nunca se fusionó. Ese archivo crea
+# `fn_set_mi_firma(p_dataurl text)` — UN argumento.
+#
+# Producción tiene hoy `fn_set_mi_firma(p_dataurl, p_tipo, p_estilo)`, de TRES,
+# creada por la 0395 y ajustada por la 0398, las dos en main y las dos pegadas.
+# O sea: el contenido de la 0393 quedó superado por migraciones posteriores que
+# sí están guardadas. No falta nada por rescatar.
+#
+# Y fusionar aquel PR ahora sería un error: los tres argumentos de la versión
+# vigente tienen valor por defecto, así que una llamada con uno solo encajaría
+# en las dos firmas y Postgres se negaría a elegir — «function is not unique»,
+# el accidente de la 0297/0299, que no falla al pegar sino al abrir la pantalla.
+#
+# Medido el 2026-09-08 contra producción: la función existe con tres argumentos,
+# y no hay ninguna de un argumento.
+0393  Pegada el 07/09 desde una rama sin fusionar, pero su contenido quedó superado por la 0395 y la 0398, que sí están en main y en producción. NO se recupera el archivo: crearía una sobrecarga de fn_set_mi_firma y rompería la pantalla con «function is not unique». El PR de esa rama se cierra sin fusionar.

@@ -8,6 +8,9 @@ import { useRolActual } from "@/lib/admin/use-rol";
 import { formatSoles } from "@/lib/rangos";
 import { descargarCsv, generarCsv } from "@/lib/admin/csv";
 import { puedeVerPlanilla } from "@cayla-dynamic/shared";
+import { Boton } from "@/components/ui/boton";
+import { CampoSelect } from "@/components/ui/campo";
+import { Tabla, Fila } from "@/components/ui/tabla";
 
 // ── Fechas (por string: NUNCA new Date(), para no correr un día por zona) ────
 // "2027-03-12" → "12/03/2027"
@@ -317,7 +320,7 @@ export default function ProvisionesPage() {
       <div className="flex flex-1 flex-col">
         <main className="flex-1 p-6">
           {rolDemorado ? (
-            <p className="max-w-md rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
+            <p className="max-w-md rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo">
               No se pudo identificar tu usuario — cierra sesión y vuelve a entrar.
             </p>
           ) : (
@@ -331,7 +334,7 @@ export default function ProvisionesPage() {
     return (
       <div className="flex flex-1 flex-col">
         <main className="flex-1 p-6">
-          <p className="max-w-md rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
+          <p className="max-w-md rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo">
             Solo administradores y líderes pueden ver las provisiones.
           </p>
         </main>
@@ -350,11 +353,11 @@ export default function ProvisionesPage() {
         {/* Banda destacada: próximo desembolso */}
         {data &&
           (data.proximo?.fecha && data.proximo?.tipo ? (
-            <div className="mb-3 max-w-3xl rounded-lg bg-ambar/15 px-4 py-3 text-sm font-medium text-ambar">
+            <div className="mb-3 max-w-3xl rounded-control bg-ambar/15 px-4 py-3 text-sm font-medium text-ambar">
               Próximo desembolso: {tipoLabel(data.proximo.tipo)} el {fechaLarga(data.proximo.fecha)}
             </div>
           ) : (
-            <div className="mb-3 max-w-3xl rounded-lg bg-sand/40 px-4 py-3 text-sm text-taupe">
+            <div className="mb-3 max-w-3xl rounded-control bg-sand/40 px-4 py-3 text-sm text-taupe">
               No quedan desembolsos programados en lo que resta del año.
             </div>
           ))}
@@ -389,7 +392,7 @@ export default function ProvisionesPage() {
             que quien reserva no tenga que recorrer la tabla buscando el cero
             que miente. */}
         {data && ((data.personas_sin_salario ?? 0) > 0 || conHueco > 0) && (
-          <div className="mb-4 max-w-3xl rounded-lg border border-rojo bg-rojo/10 px-4 py-3 text-sm text-rojo">
+          <div className="mb-4 max-w-3xl rounded-control border border-rojo bg-rojo/10 px-4 py-3 text-sm text-rojo">
             {(data.personas_sin_salario ?? 0) > 0 && (
               <>
                 <strong className="font-medium">
@@ -415,11 +418,11 @@ export default function ProvisionesPage() {
 
         {/* Error de carga */}
         {error && (
-          <div className="mb-4 max-w-3xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
+          <div className="mb-4 max-w-3xl rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo">
             No se pudieron cargar las provisiones: {error}{" "}
-            <button onClick={() => void cargar()} className="font-medium underline">
+            <Boton variante="enlace" className="font-medium" onClick={() => void cargar()}>
               Reintentar
-            </button>
+            </Boton>
           </div>
         )}
 
@@ -430,33 +433,31 @@ export default function ProvisionesPage() {
           <>
             {/* Filtro de sede + CSV */}
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-              <label className="flex items-center gap-2 text-sm">
-                Sede
-                <select
-                  value={sedeFiltro}
-                  onChange={(e) => setSedeFiltro(e.target.value)}
-                  className="rounded-lg border bg-crema px-3 py-1.5"
-                >
-                  <option value="todas">Todas</option>
-                  {sedes.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <button
+              <CampoSelect etiqueta="Sede" value={sedeFiltro} onChange={(e) => setSedeFiltro(e.target.value)}>
+                <option value="todas">Todas</option>
+                {sedes.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </CampoSelect>
+              <Boton
+                variante="primario"
                 onClick={descargarCsvProvisiones}
                 disabled={cargando || error !== null || visibles.length === 0}
-                className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50"
               >
                 Descargar CSV
-              </button>
+              </Boton>
             </div>
 
             {/* Tabla anual */}
-            <div className="overflow-x-auto rounded-2xl border border-sand bg-papel">
-              <table className="w-full text-sm">
+            {/* <Tabla> reemplaza el envoltorio a mano (mismo
+                overflow-x-auto/rounded-superficie/border/bg-papel), pero el
+                encabezado se queda nativo: son DOS filas —la de grupo
+                (Gratificación, CTS, Vacaciones, con colSpan) y la de
+                columna—, y <TablaEncabezado>/<Th> solo dan una fila y no
+                aceptan colSpan. */}
+            <Tabla className="[font-variant-numeric:tabular-nums]">
                 <thead className="bg-sand/70 text-left text-taupe">
                   {/* Encabezados de grupo (fechas de pago del payload) */}
                   <tr>
@@ -523,7 +524,7 @@ export default function ProvisionesPage() {
                   {visibles.map((p) => {
                     const mp = montoProximo(p);
                     return (
-                      <tr key={p.persona_id} className="border-t">
+                      <Fila key={p.persona_id}>
                         <td className="px-4 py-2">
                           {p.nombre}
                           {/* CAMBIO 0365 — el cero de esta fila no es «aún no»:
@@ -536,7 +537,7 @@ export default function ProvisionesPage() {
                             <span className="mt-1 flex flex-wrap items-center gap-2">
                               {p.sin_salario_vigente && (
                                 <span
-                                  className="inline-block rounded-full border border-rojo bg-rojo/10 px-2 py-0.5 text-xs font-medium text-rojo"
+                                  className="inline-block rounded-pildora border border-rojo bg-rojo/10 px-2 py-0.5 text-xs font-medium text-rojo"
                                   title="No tiene ningún salario vigente a la fecha de corte (se asigna en Equipo). Sus reservas salen cortas o en cero, no porque no le toque."
                                 >
                                   Sin tramo de salario vigente
@@ -612,7 +613,7 @@ export default function ProvisionesPage() {
                             <span className="text-taupe/50">—</span>
                           )}
                         </td>
-                      </tr>
+                      </Fila>
                     );
                   })}
                 </tbody>
@@ -646,8 +647,7 @@ export default function ProvisionesPage() {
                     </tr>
                   </tfoot>
                 )}
-              </table>
-            </div>
+            </Tabla>
 
             {/* Nota al pie */}
             <p className="mt-4 max-w-3xl text-xs text-taupe">

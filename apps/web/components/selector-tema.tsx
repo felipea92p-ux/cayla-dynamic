@@ -31,6 +31,9 @@ export function SelectorTema({ className = "" }: { className?: string }) {
   const [tema, setTema] = useTema(createAdminSupabaseClient());
   const Icono = ICONO[tema];
   return (
+    // Nativo a propósito: botón de solo ícono (sin texto, sin padding de
+    // <Boton>), parte de la misma familia que Buscar y Atajos de teclado en
+    // el encabezado — ninguna variante de <Boton> cubre un ícono suelto.
     <button
       onClick={() => setTema(siguienteVisible(tema))}
       aria-label={`Tema: ${ETIQUETA[tema]}`}

@@ -32,7 +32,7 @@ import { Cargando } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
 import { CampoSelect } from "@/components/ui/campo";
 import { Insignia } from "@/components/ui/insignia";
-import { Tabla } from "@/components/ui/tabla";
+import { Fila, Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { formatSoles } from "@/lib/rangos";
 import { descargarCsv, generarCsv } from "@/lib/admin/csv";
@@ -137,9 +137,11 @@ const ETIQUETA_TIPO: Record<string, string> = {
   central: "Central (administración y DO)",
 };
 
-const NUM = "px-3 py-2 text-right tabular-nums";
-const TH = "px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-taupe";
-const THN = "px-3 py-2 text-right text-xs font-medium uppercase tracking-wide text-taupe";
+// Encabezados de tabla: TablaEncabezado + Th (@/components/ui/tabla), como el
+// resto del panel. Solo queda este ayudante para las celdas numéricas, que el
+// primitivo compartido deja a propósito fuera de su superficie (ver el
+// comentario de tabla.tsx).
+const NUM = "px-4 py-2 text-right tabular-nums";
 
 export default function CostosPage() {
   const router = useRouter();
@@ -259,7 +261,7 @@ export default function CostosPage() {
       <div className="flex flex-1 flex-col">
         <main className="flex-1 p-6">
           {rolDemorado ? (
-            <p className="max-w-md rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
+            <p className="max-w-md rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo">
               No se pudo identificar tu usuario — cierra sesión y vuelve a entrar.
             </p>
           ) : (
@@ -273,7 +275,7 @@ export default function CostosPage() {
     return (
       <div className="flex flex-1 flex-col">
         <main className="flex-1 p-6">
-          <p className="max-w-md rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
+          <p className="max-w-md rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo">
             Solo administradores y líderes pueden ver los costos de planilla.
           </p>
         </main>
@@ -311,7 +313,7 @@ export default function CostosPage() {
         </p>
 
         {error && (
-          <div className="mb-4 max-w-3xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
+          <div className="mb-4 max-w-3xl rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo">
             No se pudieron cargar los costos: {error}{" "}
             <Boton variante="enlace" onClick={reintentar}>Reintentar</Boton>
           </div>
@@ -322,14 +324,14 @@ export default function CostosPage() {
         )}
 
         {anios.length === 0 && !cargando && !error && (
-          <div className="max-w-3xl rounded-lg bg-sand/40 px-4 py-3 text-sm text-taupe">
+          <div className="max-w-3xl rounded-control bg-sand/40 px-4 py-3 text-sm text-taupe">
             Todavía no hay ningún periodo marcado como pagado, así que no hay costos que sumar. En cuanto
             cierres el primero, aparecerá aquí.
           </div>
         )}
 
         {data && data.periodos_retroactivos > 0 && (
-          <div className="mb-4 max-w-3xl rounded-lg bg-ambar/15 px-4 py-3 text-sm text-ambar">
+          <div className="mb-4 max-w-3xl rounded-control bg-ambar/15 px-4 py-3 text-sm text-ambar">
             {data.periodos_retroactivos === 1
               ? "Un periodo de este año tiene el desglose reconstruido"
               : `${data.periodos_retroactivos} periodos de este año tienen el desglose reconstruido`}{" "}
@@ -341,26 +343,26 @@ export default function CostosPage() {
 
         {t && (
           <div className="mb-6 grid max-w-5xl grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-            <div className="rounded-lg bg-tinta px-4 py-3 text-crema">
+            <div className="rounded-control bg-tinta px-4 py-3 text-crema">
               <div className="text-xs opacity-70">Costo real del año</div>
               <div className="text-xl font-medium tabular-nums">{formatSoles(t.costo)}</div>
             </div>
-            <div className="rounded-lg bg-sand/40 px-4 py-3">
+            <div className="rounded-control bg-sand/40 px-4 py-3">
               <div className="text-xs text-taupe">Se transfirió</div>
               <div className="text-xl font-medium tabular-nums">{formatSoles(t.neto)}</div>
             </div>
-            <div className="rounded-lg bg-sand/40 px-4 py-3">
+            <div className="rounded-control bg-sand/40 px-4 py-3">
               <div className="text-xs text-taupe">Provisiones devengadas</div>
               <div className="text-xl font-medium tabular-nums">{formatSoles(t.provisiones)}</div>
             </div>
             {t.salio_del_banco !== undefined && (
-              <div className="rounded-lg bg-sand/40 px-4 py-3">
+              <div className="rounded-control bg-sand/40 px-4 py-3">
                 <div className="text-xs text-taupe">Salió del banco</div>
                 <div className="text-xl font-medium tabular-nums">{formatSoles(t.salio_del_banco)}</div>
                 <div className="text-xs text-taupe">+ pensión, EsSalud y 4ta</div>
               </div>
             )}
-            <div className="rounded-lg bg-sand/40 px-4 py-3">
+            <div className="rounded-control bg-sand/40 px-4 py-3">
               <div className="text-xs text-taupe">Periodos cerrados</div>
               <div className="text-xl font-medium tabular-nums">{t.periodos}</div>
               <div className="text-xs text-taupe">{t.personas} personas</div>
@@ -371,21 +373,19 @@ export default function CostosPage() {
         {data && data.por_periodo.length > 0 && (
           <>
             <SeccionTabla titulo="Por periodo">
-              <thead>
-                <tr className="border-b">
-                  <th className={TH}>Periodo</th>
-                  <th className={TH}>Cerró en</th>
-                  <th className={THN}>Personas</th>
-                  <th className={THN}>Se transfirió</th>
-                  <th className={THN}>Provisiones</th>
-                  <th className={THN}>Costo real</th>
-                  <th className={THN}>Salió del banco</th>
-                </tr>
-              </thead>
+              <TablaEncabezado>
+                <Th>Periodo</Th>
+                <Th>Cerró en</Th>
+                <Th className="text-right">Personas</Th>
+                <Th className="text-right">Se transfirió</Th>
+                <Th className="text-right">Provisiones</Th>
+                <Th className="text-right">Costo real</Th>
+                <Th className="text-right">Salió del banco</Th>
+              </TablaEncabezado>
               <tbody>
                 {data.por_periodo.map((p) => (
-                  <tr key={p.periodo_id} className="border-b last:border-0">
-                    <td className="px-3 py-2">
+                  <Fila key={p.periodo_id}>
+                    <td className="px-4 py-2">
                       {fechaCorta(p.fecha_ini)} → {fechaCorta(p.fecha_fin)}
                       {p.reconstruida && (
                         <Insignia variante="advertencia" className="ml-2">reconstruido</Insignia>
@@ -396,67 +396,63 @@ export default function CostosPage() {
                         </Insignia>
                       )}
                     </td>
-                    <td className="px-3 py-2 capitalize">{MESES[p.mes - 1]}</td>
+                    <td className="px-4 py-2 capitalize">{MESES[p.mes - 1]}</td>
                     <td className={NUM}>{p.personas}</td>
                     <td className={NUM}>{formatSoles(p.neto)}</td>
                     <td className={NUM}>{formatSoles(p.provisiones)}</td>
                     <td className={`${NUM} font-medium`}>{formatSoles(p.costo)}</td>
                     <td className={NUM}>{p.salio_del_banco === undefined ? "—" : formatSoles(p.salio_del_banco)}</td>
-                  </tr>
+                  </Fila>
                 ))}
               </tbody>
             </SeccionTabla>
 
             <SeccionTabla titulo="Operar tiendas · producir · administrar">
-              <thead>
-                <tr className="border-b">
-                  <th className={TH}>Qué es</th>
-                  <th className={THN}>Sedes</th>
-                  <th className={THN}>Personas</th>
-                  <th className={THN}>Costo real</th>
-                  <th className={THN}>Salió del banco</th>
-                  <th className={THN}>Por persona</th>
-                  <th className={THN}>Por hora</th>
-                </tr>
-              </thead>
+              <TablaEncabezado>
+                <Th>Qué es</Th>
+                <Th className="text-right">Sedes</Th>
+                <Th className="text-right">Personas</Th>
+                <Th className="text-right">Costo real</Th>
+                <Th className="text-right">Salió del banco</Th>
+                <Th className="text-right">Por persona</Th>
+                <Th className="text-right">Por hora</Th>
+              </TablaEncabezado>
               <tbody>
                 {data.por_tipo.map((t) => (
-                  <tr key={t.tipo} className="border-b last:border-0">
-                    <td className="px-3 py-2">{ETIQUETA_TIPO[t.tipo] ?? t.tipo}</td>
+                  <Fila key={t.tipo}>
+                    <td className="px-4 py-2">{ETIQUETA_TIPO[t.tipo] ?? t.tipo}</td>
                     <td className={NUM}>{t.sedes}</td>
                     <td className={NUM}>{t.personas}</td>
                     <td className={`${NUM} font-medium`}>{formatSoles(t.costo)}</td>
                     <td className={NUM}>{t.salio_del_banco === undefined ? "—" : formatSoles(t.salio_del_banco)}</td>
                     <td className={NUM}>{t.costo_por_persona === null ? "—" : formatSoles(t.costo_por_persona)}</td>
                     <td className={NUM}>{t.costo_por_hora === null ? "—" : formatSoles(t.costo_por_hora)}</td>
-                  </tr>
+                  </Fila>
                 ))}
               </tbody>
             </SeccionTabla>
 
             <SeccionTabla titulo="Por sede">
-              <thead>
-                <tr className="border-b">
-                  <th className={TH}>Sede</th>
-                  <th className={TH}>Qué es</th>
-                  <th className={THN}>Personas</th>
-                  <th className={THN}>Costo real</th>
-                  <th className={THN}>Salió del banco</th>
-                  <th className={THN}>Por persona</th>
-                  <th className={THN}>Por hora</th>
-                </tr>
-              </thead>
+              <TablaEncabezado>
+                <Th>Sede</Th>
+                <Th>Qué es</Th>
+                <Th className="text-right">Personas</Th>
+                <Th className="text-right">Costo real</Th>
+                <Th className="text-right">Salió del banco</Th>
+                <Th className="text-right">Por persona</Th>
+                <Th className="text-right">Por hora</Th>
+              </TablaEncabezado>
               <tbody>
                 {data.por_sede.map((s) => (
-                  <tr key={s.sede} className="border-b last:border-0">
-                    <td className="px-3 py-2">{s.nombre}</td>
-                    <td className="px-3 py-2 text-taupe">{ETIQUETA_TIPO[s.tipo] ?? s.tipo}</td>
+                  <Fila key={s.sede}>
+                    <td className="px-4 py-2">{s.nombre}</td>
+                    <td className="px-4 py-2 text-taupe">{ETIQUETA_TIPO[s.tipo] ?? s.tipo}</td>
                     <td className={NUM}>{s.personas}</td>
                     <td className={`${NUM} font-medium`}>{formatSoles(s.costo)}</td>
                     <td className={NUM}>{s.salio_del_banco === undefined ? "—" : formatSoles(s.salio_del_banco)}</td>
                     <td className={NUM}>{s.costo_por_persona === null ? "—" : formatSoles(s.costo_por_persona)}</td>
                     <td className={NUM}>{s.costo_por_hora === null ? "—" : formatSoles(s.costo_por_hora)}</td>
-                  </tr>
+                  </Fila>
                 ))}
               </tbody>
             </SeccionTabla>
@@ -469,20 +465,18 @@ export default function CostosPage() {
             </p>
 
             <SeccionTabla titulo="Por área">
-              <thead>
-                <tr className="border-b">
-                  <th className={TH}>Área</th>
-                  <th className={THN}>Personas</th>
-                  <th className={THN}>Se transfirió</th>
-                  <th className={THN}>Provisiones</th>
-                  <th className={THN}>Costo real</th>
-                  <th className={THN}>Salió del banco</th>
-                </tr>
-              </thead>
+              <TablaEncabezado>
+                <Th>Área</Th>
+                <Th className="text-right">Personas</Th>
+                <Th className="text-right">Se transfirió</Th>
+                <Th className="text-right">Provisiones</Th>
+                <Th className="text-right">Costo real</Th>
+                <Th className="text-right">Salió del banco</Th>
+              </TablaEncabezado>
               <tbody>
                 {data.por_area.map((a) => (
-                  <tr key={a.area ?? "sin-area"} className="border-b last:border-0">
-                    <td className="px-3 py-2">
+                  <Fila key={a.area ?? "sin-area"}>
+                    <td className="px-4 py-2">
                       {a.nombre}
                       {a.operativa && (
                         <Insignia atenuada punto={false} className="ml-2">operativa</Insignia>
@@ -493,36 +487,34 @@ export default function CostosPage() {
                     <td className={NUM}>{formatSoles(a.provisiones)}</td>
                     <td className={`${NUM} font-medium`}>{formatSoles(a.costo)}</td>
                     <td className={NUM}>{a.salio_del_banco === undefined ? "—" : formatSoles(a.salio_del_banco)}</td>
-                  </tr>
+                  </Fila>
                 ))}
               </tbody>
             </SeccionTabla>
 
             <SeccionTabla titulo="Por persona">
-              <thead>
-                <tr className="border-b">
-                  <th className={TH}>Nombre</th>
-                  <th className={TH}>Sede</th>
-                  <th className={THN}>Periodos</th>
-                  <th className={THN}>Horas</th>
-                  <th className={THN}>Se transfirió</th>
-                  <th className={THN}>Provisiones</th>
-                  <th className={THN}>Costo real</th>
-                  <th className={THN}>Salió del banco</th>
-                </tr>
-              </thead>
+              <TablaEncabezado>
+                <Th>Nombre</Th>
+                <Th>Sede</Th>
+                <Th className="text-right">Periodos</Th>
+                <Th className="text-right">Horas</Th>
+                <Th className="text-right">Se transfirió</Th>
+                <Th className="text-right">Provisiones</Th>
+                <Th className="text-right">Costo real</Th>
+                <Th className="text-right">Salió del banco</Th>
+              </TablaEncabezado>
               <tbody>
                 {data.por_persona.map((p) => (
-                  <tr key={p.persona_id} className="border-b last:border-0">
-                    <td className="px-3 py-2">{p.nombre}</td>
-                    <td className="px-3 py-2 text-taupe">{nombreDeSede.get(p.sede) ?? p.sede}</td>
+                  <Fila key={p.persona_id}>
+                    <td className="px-4 py-2">{p.nombre}</td>
+                    <td className="px-4 py-2 text-taupe">{nombreDeSede.get(p.sede) ?? p.sede}</td>
                     <td className={NUM}>{p.periodos}</td>
                     <td className={NUM}>{p.horas.toLocaleString("es-PE", { maximumFractionDigits: 1 })}</td>
                     <td className={NUM}>{formatSoles(p.neto)}</td>
                     <td className={NUM}>{formatSoles(p.provisiones)}</td>
                     <td className={`${NUM} font-medium`}>{formatSoles(p.costo)}</td>
                     <td className={NUM}>{p.salio_del_banco === undefined ? "—" : formatSoles(p.salio_del_banco)}</td>
-                  </tr>
+                  </Fila>
                 ))}
               </tbody>
             </SeccionTabla>
@@ -530,7 +522,7 @@ export default function CostosPage() {
         )}
 
         {data && data.por_periodo.length === 0 && anios.length > 0 && !cargando && (
-          <div className="max-w-3xl rounded-lg bg-sand/40 px-4 py-3 text-sm text-taupe">
+          <div className="max-w-3xl rounded-control bg-sand/40 px-4 py-3 text-sm text-taupe">
             En {anio} no hay ningún periodo marcado como pagado.
           </div>
         )}

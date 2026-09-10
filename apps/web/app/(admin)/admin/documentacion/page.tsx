@@ -913,7 +913,7 @@ export default function DocumentacionPage() {
   if (!puede) {
     return (
       <main className="p-6">
-        <p className="max-w-md rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
+        <p className="max-w-md rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo">
           Solo administradores y líderes pueden generar documentación.
         </p>
       </main>
@@ -995,7 +995,7 @@ export default function DocumentacionPage() {
   function hoja(quien: Persona | null | undefined) {
     const tarifaSuya = quien ? tarifaDeSede(quien.sede_base_id) : null;
     return (
-      <div className="hoja rounded-lg border border-sand p-8 text-sm leading-relaxed print:rounded-none print:border-0 print:p-0">
+      <div className="hoja rounded-control border border-sand p-8 text-sm leading-relaxed print:rounded-none print:border-0 print:p-0">
         <div className="mb-6 flex items-start justify-between border-b border-sand pb-4">
           <Marca tono="tinta" isotipo="rojo" />
           <div className="text-right text-xs text-taupe">
@@ -1014,7 +1014,7 @@ export default function DocumentacionPage() {
             exactamente lo que el Exp. 1038-2019 usó para reclasificar una
             movilidad entera. */}
         {tipo === "ruta" && quien && tarifaSuya === null && (
-          <div className="rounded-lg border border-rojo bg-rojo/5 p-4 text-sm">
+          <div className="rounded-control border border-rojo bg-rojo/5 p-4 text-sm">
             <p className="mb-2">
               <strong className="text-rojo">
                 La sede {sedes.get(quien.sede_base_id) ?? "de esta persona"} no tiene
@@ -1121,7 +1121,7 @@ export default function DocumentacionPage() {
             por el código en vez de por la base es una afirmación que nadie
             decidió. */}
         {tipo === "bono" && bonoMonto === null && (
-          <div className="rounded-lg border border-rojo bg-rojo/5 p-4 text-sm">
+          <div className="rounded-control border border-rojo bg-rojo/5 p-4 text-sm">
             <p className="mb-2">
               <strong className="text-rojo">
                 No hay monto de bono de onomástico vigente en el sistema.
@@ -1225,7 +1225,7 @@ export default function DocumentacionPage() {
                   labores y su retorno. El monto se fija por sede, porque el costo del
                   pasaje difiere entre las ciudades donde CAYLA opera:
                 </p>
-                <table className="mb-4 w-full max-w-sm text-xs">
+                <table className="mb-4 w-full max-w-sm text-xs [font-variant-numeric:tabular-nums]">
                   <tbody>
                     {porSede.map((t) => (
                       <tr key={t.sede_codigo}>
@@ -1257,7 +1257,7 @@ export default function DocumentacionPage() {
                  emitir. Mismo criterio que la declaración de ruta — un
                  documento de empresa que afirma un monto inventado obliga a
                  las 22 personas a la vez. */
-              <p className="mb-4 rounded-lg border border-rojo bg-rojo/5 p-3 text-rojo print:hidden">
+              <p className="mb-4 rounded-control border border-rojo bg-rojo/5 p-3 text-rojo print:hidden">
                 No hay ninguna tarifa de movilidad vigente en el sistema, así que esta
                 política no puede afirmar un monto. Créala en parámetros laborales antes de
                 emitirla.
@@ -1395,7 +1395,7 @@ export default function DocumentacionPage() {
               un documento fechado en septiembre no justifica los pagos de agosto,
               y encima lo deja por escrito. */}
           {politica && (!politica.cargada || politica.llego_tarde) && (
-            <div className="mb-4 rounded-lg border border-rojo bg-rojo/5 p-3 text-sm">
+            <div className="mb-4 rounded-control border border-rojo bg-rojo/5 p-3 text-sm">
               {!politica.cargada ? (
                 <>
                   <strong className="text-rojo">Falta la política de movilidad de CAYLA.</strong>{" "}
@@ -1435,7 +1435,7 @@ export default function DocumentacionPage() {
               puede abrir lo archivado, nadie descubre que subió el papel
               equivocado hasta que lo pide un inspector. */}
           {politica?.cargada && !politica.llego_tarde && (
-            <div className="mb-4 flex flex-wrap items-center gap-3 rounded-lg border border-sand px-3 py-2 text-sm text-taupe">
+            <div className="mb-4 flex flex-wrap items-center gap-3 rounded-control border border-sand px-3 py-2 text-sm text-taupe">
               <span>
                 Política de movilidad firmada el{" "}
                 <strong className="text-tinta">{fechaLarga(politica.fecha_firma!)}</strong>.
@@ -1460,7 +1460,7 @@ export default function DocumentacionPage() {
               convierte en una lista de papeles retirados sin decir por qué, que no
               sirve para lo único que tiene que servir. */}
           {anulando && (
-            <div className="mb-4 rounded-lg border border-rojo/40 bg-rojo/[0.04] p-3 text-sm">
+            <div className="mb-4 rounded-control border border-rojo/40 bg-rojo/[0.04] p-3 text-sm">
               <div className="font-medium text-rojo">Anular este documento</div>
               <p className="mt-1 text-xs text-taupe">
                 No se borra: queda guardado en el historial con tu nombre, la hora y este motivo.
@@ -1487,7 +1487,7 @@ export default function DocumentacionPage() {
               importa el día que alguien discuta un pago de movilidad — qué papel
               regía entonces, quién lo registró y por qué dejó de regir. */}
           {politicasAnteriores.length > 0 && (
-            <details className="mb-4 rounded-lg border border-sand px-3 py-2 text-sm">
+            <details className="mb-4 rounded-control border border-sand px-3 py-2 text-sm">
               <summary className="cursor-pointer text-xs text-taupe">
                 Versiones anteriores de la política ({politicasAnteriores.length})
               </summary>
@@ -1513,7 +1513,7 @@ export default function DocumentacionPage() {
               se entrega una vez al año y en diciembre nadie recuerda si alguien
               firmó en agosto. Por eso el aviso es del MES, no de la persona. */}
           {bonoPendientes.length > 0 && (
-            <div className="mb-4 rounded-lg border border-sand bg-sand/20 p-3 text-sm">
+            <div className="mb-4 rounded-control border border-sand bg-sand/20 p-3 text-sm">
               {bonoEsteMes.length > 0 && (
                 <div>
                   <strong className="text-tinta">
@@ -1552,7 +1552,7 @@ export default function DocumentacionPage() {
               tablero venga vacío. Un formulario que existe pero no se ve es
               peor que uno que falta: quien lo usa cree que hizo clic mal. */}
           {subiendo && (
-            <div ref={panelRef} className="mb-6 rounded-lg border border-sand bg-sand/20 p-4">
+            <div ref={panelRef} className="mb-6 rounded-control border border-sand bg-sand/20 p-4">
               <h3 className="mb-1 text-sm font-medium">
                 {subiendo.negativa ? "Registrar una negativa a firmar" : ETIQUETA_SUBIDA[subiendo.que].titulo}
                 {/* La política no es de nadie: ponerle un nombre al lado la
@@ -1590,7 +1590,7 @@ export default function DocumentacionPage() {
 
               {progresoDoc !== null && (
                 <div className="mt-3">
-                  <div className="h-2 w-full overflow-hidden rounded-full bg-sand">
+                  <div className="h-2 w-full overflow-hidden rounded-pildora bg-sand">
                     <div className="h-full bg-tinta transition-[width] duration-200"
                       style={{ width: `${progresoDoc}%` }}
                       role="progressbar" aria-valuenow={progresoDoc} aria-valuemin={0} aria-valuemax={100}
@@ -1627,7 +1627,7 @@ export default function DocumentacionPage() {
             <div className="mb-6 space-y-3">
 
               {/* ── Declaraciones de ruta ────────────────────────────────── */}
-              <details open={rutasPendientes.length > 0} className="rounded-lg border border-sand">
+              <details open={rutasPendientes.length > 0} className="rounded-control border border-sand">
                 <summary className="flex cursor-pointer flex-wrap items-baseline justify-between gap-2 px-4 py-3">
                   <span className="font-medium">Declaraciones de ruta</span>
                   <span className="text-sm text-taupe">
@@ -1728,7 +1728,7 @@ export default function DocumentacionPage() {
                   completas con «cumple en octubre» repetido no informaban: el
                   90% del año la respuesta es «nada que hacer», y una lista que
                   casi siempre dice eso deja de leerse. */}
-              <details open={bonoPendientes.length > 0} className="rounded-lg border border-sand">
+              <details open={bonoPendientes.length > 0} className="rounded-control border border-sand">
                 <summary className="flex cursor-pointer flex-wrap items-baseline justify-between gap-2 px-4 py-3">
                   <span className="font-medium">Cargos de cumpleaños</span>
                   <span className="text-sm text-taupe">
@@ -1848,7 +1848,7 @@ export default function DocumentacionPage() {
               decisión final sigue siendo humana y porque un desmarcado que no se
               puede volver a marcar es una decisión escondida, no una ayuda. */}
           {!doc.necesitaPersona && personas.length > 0 && (
-            <details className="mb-4 rounded-lg border border-sand p-3">
+            <details className="mb-4 rounded-control border border-sand p-3">
               <summary className="cursor-pointer text-sm">
                 Quiénes reciben el documento —{" "}
                 <strong>{reciben.length} de {personas.length}</strong>
@@ -1896,7 +1896,7 @@ export default function DocumentacionPage() {
             </details>
           )}
 
-          <p className="mb-4 rounded-lg bg-sand/40 px-4 py-3 text-sm text-taupe">{doc.para}</p>
+          <p className="mb-4 rounded-control bg-sand/40 px-4 py-3 text-sm text-taupe">{doc.para}</p>
 
           {/* QUÉ VA A SALIR EN LA LÍNEA DE FIRMA, antes de gastar papel.
               Sin este aviso el estampado falla en silencio: quien imprime ve la

@@ -1,5 +1,16 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Freno de numeración: que dos trabajos no reclamen el mismo número.
+#
+# `#!/usr/bin/env bash` y no `#!/bin/bash` a propósito: este script usa
+# `declare -A` (mapas asociativos), que pide bash 4+, y macOS trae de fábrica
+# el bash 3.2 de 2007 en `/bin/bash` —Apple lo congeló ahí por licencia GPLv3—
+# sin planes de moverlo nunca. Con la ruta fija, este hook falla en CUALQUIER
+# Mac que no tenga instalado un bash más nuevo por su cuenta (típicamente vía
+# `brew install bash`, que lo deja en `/opt/homebrew/bin/bash`, antes que
+# `/usr/bin`/`/bin` en el PATH). `env bash` resuelve al primero que encuentre
+# ahí. Descubierto el 2026-09-08: el push de una migración real se frenó con
+# «declare: -A: invalid option» en una Mac sin bash de Homebrew — nada que ver
+# con una colisión de números, solo el intérprete equivocado.
 #
 # POR QUÉ EXISTE. El 2026-08-05, en una sola jornada, hubo CUATRO choques entre
 # sesiones que trabajaban en paralelo sobre este repo:
@@ -98,37 +109,83 @@ done
 # propio `db reset`) lo sigue cazando la comprobación 1, commiteados o no.
 NUEVOS=""
 if git rev-parse --verify --quiet origin/main >/dev/null 2>&1; then
+  # `sed 's#.*/##'` y no `xargs -n1 basename`: son el mismo resultado —el
+  # nombre del archivo, sin la carpeta— pero `xargs -n1` arranca un proceso
+  # `basename` POR LÍNEA. `supabase/migrations` + `supabase/tests` ya suman
+  # más de 600 archivos, así que esa única línea eran más de 600 procesos
+  # nuevos, y `sed` hace lo mismo en un solo proceso para todo el listado.
+  # Medido el 2026-09-08: esta línea sola, tal como estaba, se quedaba varios
+  # segundos colgada — y el mismo patrón se repetía más abajo, una vez por
+  # cada rama sin fusionar. En Windows/Git Bash cada proceso nuevo cuesta
+  # mucho más que en Linux —y con antivirus escaneando cada `.exe`, más
+  # todavía—, así que esto era, con diferencia, lo más caro de todo el hook.
   EN_MAIN=$(git ls-tree -r --name-only origin/main -- supabase/migrations supabase/tests 2>/dev/null \
-            | xargs -n1 basename 2>/dev/null | sort -u || true)
+            | sed 's#.*/##' | sort -u || true)
   AQUI=$(git diff --name-only --diff-filter=A --no-renames origin/main..HEAD \
            -- supabase/migrations supabase/tests 2>/dev/null \
-         | xargs -n1 basename 2>/dev/null | grep -E '^[0-9]+_' | sort -u || true)
+         | sed 's#.*/##' | grep -E '^[0-9]+_' | sort -u || true)
   NUEVOS=$(comm -23 <(echo "$AQUI") <(echo "$EN_MAIN") || true)
 fi
 
 if [ -n "$NUEVOS" ]; then
-  MERGED=$(git branch -r --merged origin/main 2>/dev/null | tr -d ' ' || true)
   CHOQUES=""
 
-  for ref in $(git for-each-ref --format='%(refname:short)' refs/remotes/origin 2>/dev/null); do
-    case "$ref" in origin/HEAD|origin/main) continue;; esac
-    echo "$MERGED" | grep -qx "$ref" && continue
+  # Antes esto recorría TODAS las ramas remotas y descartaba las ya fusionadas
+  # una por una, con un `echo | grep` por rama — dos procesos más, solo para
+  # decidir si saltarla. `--no-merged` le pide a git esa misma lista de una
+  # sola vez: una rama ya fusionada a `origin/main` no puede tener un choque
+  # de números que `main` no tenga ya resuelto, así que ni hace falta mirarla
+  # — ni con el grep de descarte, ni con el `ls-tree` de después.
+  #
+  # Medido el 2026-09-08 en este repo: 147 ramas remotas, 108 ya fusionadas y
+  # nunca borradas. `--no-merged` deja el bucle en las ~40 que sí importan.
 
+  # El número de cada archivo nuevo, con expansión de bash (nada de `sed` por
+  # línea): `${mio%%_*}` corta en el primer «_», y un nombre de archivo de
+  # este repo siempre empieza por «NNNN_». `NUEVOS_POR_NUM["0402"]` guarda el
+  # nombre exacto — hace falta para distinguir «mismo número, mismo trabajo»
+  # (se ignora) de «mismo número, archivo distinto» (choque de verdad) sin
+  # volver a forkear nada. `NUMS_REGEX` deja filtrar cada rama de un tirón, en
+  # vez de traer sus 600+ archivos numerados para compararlos uno por uno.
+  declare -A NUEVOS_POR_NUM=()
+  NUMS_REGEX=""
+  while IFS= read -r mio; do
+    [ -z "$mio" ] && continue
+    num="${mio%%_*}"
+    NUEVOS_POR_NUM["$num"]="$mio"
+    NUMS_REGEX="${NUMS_REGEX:+$NUMS_REGEX|}$num"
+  done <<< "$NUEVOS"
+
+  # Esto era, con diferencia, lo más caro de todo el hook: por cada una de las
+  # ~40 ramas, un `while read` volvía a forkear `echo`/`sed`/`grep`/`head` por
+  # cada archivo nuevo de ESTE push, comparando contra los 600+ archivos de
+  # ESA rama cada vez. En Windows/Git Bash cada proceso nuevo cuesta mucho más
+  # que en Linux —y con antivirus escaneando cada `.exe`, más todavía—, así
+  # que decenas de miles de forks de sobra se notaban: un push real llegó a
+  # tardar varios MINUTOS parado exactamente acá.
+  #
+  # Ahora, por rama: UN git ls-tree, UN sed, y UN grep que ya filtra solo a
+  # los números que importan (`NUMS_REGEX`) — así que lo normal es que
+  # `AJENOS` salga vacío y la rama se descarte sin tocar un array. Si algo
+  # coincide, comparar el nombre exacto es una búsqueda en el array de bash
+  # (`${NUEVOS_POR_NUM[$num]}`) y un `!=` de cadenas — cero procesos nuevos.
+  for ref in $(git branch -r --no-merged origin/main 2>/dev/null | tr -d ' '); do
+    [ -z "$NUMS_REGEX" ] && break
     AJENOS=$(git ls-tree -r --name-only "$ref" -- supabase/migrations supabase/tests 2>/dev/null \
-             | xargs -n1 basename 2>/dev/null | grep -E '^[0-9]+_' || true)
+             | sed 's#.*/##' | grep -E "^(${NUMS_REGEX})_" || true)
     [ -z "$AJENOS" ] && continue
 
-    while read -r mio; do
-      [ -z "$mio" ] && continue
-      num=$(echo "$mio" | sed -E 's/^([0-9]+)_.*/\1/')
+    while IFS= read -r otro; do
+      [ -z "$otro" ] && continue
+      num="${otro%%_*}"
+      mio="${NUEVOS_POR_NUM[$num]:-}"
       # Mismo número y nombre distinto = choque. Mismo nombre = el mismo trabajo.
-      otro=$(echo "$AJENOS" | grep -E "^${num}_" | grep -vFx "$mio" | head -1 || true)
-      if [ -n "$otro" ]; then
+      if [ -n "$mio" ] && [ "$otro" != "$mio" ]; then
         CHOQUES="${CHOQUES}    ${num} · tuyo «${mio}»
          ya usado en ${ref} por «${otro}»
 "
       fi
-    done <<< "$NUEVOS"
+    done <<< "$AJENOS"
   done
 
   if [ -n "$CHOQUES" ]; then

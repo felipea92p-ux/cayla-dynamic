@@ -6,6 +6,7 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Cargando } from "@/components/cargando";
 import { useToast } from "@/components/toast";
 import { useRolActual } from "@/lib/admin/use-rol";
+import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { formatSoles } from "@/lib/rangos";
 import { EMPRESA, hoyLima, puedeVerPlanilla } from "@cayla-dynamic/shared";
@@ -13,6 +14,7 @@ import { Boton } from "@/components/ui/boton";
 import { Campo } from "@/components/ui/campo";
 import { AreaTexto } from "@/components/ui/area-texto";
 import { Modal } from "@/components/ui/modal";
+import { Insignia } from "@/components/ui/insignia";
 
 // Liquidación por cese. La ley da 48 HORAS desde el cese para pagar (art. 4 del
 // D.S. 001-97-TR), así que esta pantalla existe para que ese plazo no dependa de
@@ -356,6 +358,20 @@ export default function LiquidacionesPage() {
     avisar("ok", `Liquidación de ${nombre} anulada con constancia. Vuelve a marcarla cuando el número esté bien.`);
   }
 
+  // El nombre con el que se guarda el PDF. Ver use-titulo-documento.ts: sin
+  // esto, los tres papeles de esta pantalla —liquidación, certificado de
+  // trabajo, constancia de cese— se guardaban todos como «Dynamic — CAYLA», y
+  // son justo los que se entregan a alguien que ya se fue de la empresa.
+  useTituloDocumento(
+    modalAbierto === "liquidacion" && detalle
+      ? `${detalle.persona} — Liquidación de beneficios sociales`
+      : modalAbierto === "certificado" && papelesCese
+        ? `${papelesCese.nombre_completo} — Certificado de trabajo`
+        : modalAbierto === "constancia" && papelesCese
+          ? `${papelesCese.nombre_completo} — Constancia de cese`
+          : null,
+  );
+
   if (cargando) return <Cargando />;
 
   if (!puede) {
@@ -388,7 +404,7 @@ export default function LiquidacionesPage() {
           </p>
 
           {cargaError && (
-            <p className="mb-4 rounded-lg border border-rojo bg-rojo/5 p-3 text-sm text-rojo">
+            <p className="mb-4 rounded-control border border-rojo bg-rojo/5 p-3 text-sm text-rojo">
               No se pudo leer la lista: {cargaError}
             </p>
           )}
@@ -398,7 +414,7 @@ export default function LiquidacionesPage() {
               esta es la pantalla que habla de beneficios. Solo aparece cuando ya
               pasó el mes: antes no cuesta nada y avisar sería ruido. */}
           {avisoUrgente.map((a) => (
-            <div key={a.persona_id} className="mb-4 rounded-lg border border-rojo bg-rojo/5 p-3 text-sm">
+            <div key={a.persona_id} className="mb-4 rounded-control border border-rojo bg-rojo/5 p-3 text-sm">
               <strong className="text-rojo">{a.persona} lleva {a.dias} días como «prueba».</strong>{" "}
               {a.aviso}
             </div>
@@ -595,7 +611,7 @@ function Bloque({
   onImprimir: (doc: "liquidacion" | "certificado" | "constancia") => void;
 }) {
   return (
-    <div className="mb-4 overflow-hidden rounded-2xl border border-sand bg-papel">
+    <div className="mb-4 overflow-hidden rounded-superficie border border-sand bg-papel">
       <h2 className="border-b bg-sand/50 px-4 py-2 text-sm font-medium">{titulo}</h2>
       {filas.length === 0 ? (
         <p className="px-4 py-4 text-sm text-taupe">{vacio}</p>
@@ -608,9 +624,9 @@ function Bloque({
                   <strong>{f.persona}</strong>{" "}
                   <span className="text-taupe">· {f.sede} · cesó el {fechaLarga(f.fecha_cese)}</span>
                   {f.descuadra && (
-                    <span className="ml-2 rounded bg-rojo/10 px-1.5 py-0.5 text-xs font-medium text-rojo">
+                    <Insignia variante="alerta" className="ml-2">
                       el cálculo ya no coincide
-                    </span>
+                    </Insignia>
                   )}
                 </span>
                 <div className="flex items-center gap-3">
@@ -718,7 +734,7 @@ function Desglose({
   onImprimir: (doc: "liquidacion" | "certificado" | "constancia") => void;
 }) {
   return (
-    <div className="mt-3 rounded-lg border border-sand bg-sand/20 p-3">
+    <div className="mt-3 rounded-control border border-sand bg-sand/20 p-3">
       {d.aviso_periodo && (
         <p className="mb-2 rounded border border-rojo/40 bg-rojo/5 p-2 text-xs text-rojo">
           {d.aviso_periodo}

@@ -92,7 +92,15 @@ export interface DatosContrato {
   centroFormacionNombre: string | null;
   centroFormacionRuc: string | null;
   centroFormacionDomicilio: string | null;
-  centroFormacionRepresentante: string | null;
+  /**
+   * Antes era un solo campo de texto libre («representante»). Se separó
+   * (0399) porque el convenio necesita decir en qué calidad firma esa
+   * persona por el centro — "representado por Juan Pérez, en su calidad de
+   * Director Académico" — y un campo único dejaba el cargo a discreción de
+   * quien tipeaba, o ausente.
+   */
+  centroFormacionRepresentanteNombre: string | null;
+  centroFormacionRepresentanteCargo: string | null;
   /** Preprofesional: qué carrera cursa y en qué ciclo. */
   carreraEspecialidad: string | null;
   cicloAcademico: string | null;
@@ -103,14 +111,18 @@ export interface DatosContrato {
    * ANEXO I — Plan Específico de Aprendizaje (0348, ambas modalidades). Antes
    * era un único texto libre (`planCapacitacionTexto`, que sigue existiendo
    * para "actividades principales"); el modelo de DO lo pide como ficha con
-   * estos campos propios, con dos hitos de evaluación porque un convenio
-   * formativo se supervisa por avance, no solo se firma y se olvida.
+   * estos campos propios.
+   *
+   * Traía además "hito de evaluación — mes 3 / mes 6", quitado (0404): eran
+   * meses de calendario fijos sobre un convenio de duración variable —se
+   * rompían en cualquier convenio de menos de 6 meses, pidiendo evaluar algo
+   * después de que ya había terminado— y sin ningún seguimiento real detrás
+   * en el sistema, el campo obligatorio solo empujaba a escribir relleno para
+   * poder generar el contrato.
    */
   areaProyecto: string;
   objetivoFormativoGeneral: string;
   supervisorAsignado: string;
-  hitoMes3: string;
-  hitoMes6: string;
 
   // Plazo — la jornada es siempre de 48h, el máximo legal; no se declara un
   // número calculado del horario, que es solo la disposición operativa de hoy.
@@ -294,15 +306,18 @@ function escapado(d: DatosContrato): DatosContrato {
     centroFormacionNombre: d.centroFormacionNombre ? escapeHtml(d.centroFormacionNombre) : null,
     centroFormacionRuc: d.centroFormacionRuc ? escapeHtml(d.centroFormacionRuc) : null,
     centroFormacionDomicilio: d.centroFormacionDomicilio ? escapeHtml(d.centroFormacionDomicilio) : null,
-    centroFormacionRepresentante: d.centroFormacionRepresentante ? escapeHtml(d.centroFormacionRepresentante) : null,
+    centroFormacionRepresentanteNombre: d.centroFormacionRepresentanteNombre
+      ? escapeHtml(d.centroFormacionRepresentanteNombre)
+      : null,
+    centroFormacionRepresentanteCargo: d.centroFormacionRepresentanteCargo
+      ? escapeHtml(d.centroFormacionRepresentanteCargo)
+      : null,
     carreraEspecialidad: d.carreraEspecialidad ? escapeHtml(d.carreraEspecialidad) : null,
     cicloAcademico: d.cicloAcademico ? escapeHtml(d.cicloAcademico) : null,
     gradoTituloTexto: d.gradoTituloTexto ? escapeHtml(d.gradoTituloTexto) : null,
     areaProyecto: escapeHtml(d.areaProyecto),
     objetivoFormativoGeneral: escapeHtml(d.objetivoFormativoGeneral),
     supervisorAsignado: escapeHtml(d.supervisorAsignado),
-    hitoMes3: escapeHtml(d.hitoMes3),
-    hitoMes6: escapeHtml(d.hitoMes6),
     activosPrincipales: escapeHtml(d.activosPrincipales),
     activosLibre: escapeHtml(d.activosLibre),
     adendumTexto: escapeHtml(d.adendumTexto),
@@ -427,7 +442,7 @@ function enLaCiudadDe(d: DatosContrato): string {
 function bloqueFirmas(
   d: DatosContrato,
   etiquetaPersona = "LA COLABORADORA",
-  tercero?: { etiqueta: string; nombre: string; ruc: string },
+  tercero?: { etiqueta: string; nombre: string; ruc: string; representanteNombre: string; representanteCargo: string },
 ): string {
   return `
     <div class="firmas">
@@ -439,7 +454,7 @@ function bloqueFirmas(
         tercero
           ? `<div>
         <p class="linea">&nbsp;</p>
-        <p><strong>${tercero.etiqueta}</strong><br/>${tercero.nombre}<br/>RUC N.° ${tercero.ruc}</p>
+        <p><strong>${(tercero.representanteCargo || tercero.etiqueta).toUpperCase()}</strong><br/>${tercero.representanteNombre}<br/>${tercero.nombre}<br/>RUC N.° ${tercero.ruc}</p>
       </div>`
           : ""
       }
@@ -919,13 +934,19 @@ function documentoConvenio(d: DatosContrato): string {
       : `<strong>[FALTA ASIGNAR LA MODALIDAD DE ${etiquetaPracticante} EN EQUIPO — preprofesional (30h) o profesional
         (48h), art. 44 Ley N.° 28518, antes de imprimir este convenio]</strong>`;
 
+  const representanteCentroTexto = d.centroFormacionRepresentanteNombre
+    ? `${d.centroFormacionRepresentanteNombre}${
+        d.centroFormacionRepresentanteCargo ? `, en su calidad de ${d.centroFormacionRepresentanteCargo}` : ""
+      }`
+    : "[completar]";
+
   const datosCentro = esPreprofesional
     ? `
     <h3>II. DATOS DEL CENTRO DE FORMACIÓN PROFESIONAL</h3>
     <p>${d.centroFormacionNombre ?? "[completar — razón social del centro de formación]"}, identificado con
     R.U.C. N.° ${d.centroFormacionRuc ?? "[completar]"}, con domicilio en
     ${d.centroFormacionDomicilio ?? "[completar]"}, representado por
-    ${d.centroFormacionRepresentante ?? "[completar]"}, a quien en adelante se denominará EL CENTRO DE FORMACIÓN
+    ${representanteCentroTexto}, a quien en adelante se denominará EL CENTRO DE FORMACIÓN
     PROFESIONAL.</p>`
     : "";
 
@@ -1055,11 +1076,22 @@ function documentoConvenio(d: DatosContrato): string {
     incidencias, conforme a la Ley N.° 29733. ${etiquetaPracticante} declara conocer y aceptar su existencia mediante la
     firma del presente convenio.</p>`,
 
+    // Espeja la cláusula DÉCIMA SÉPTIMA del contrato de trabajo, con las
+    // diferencias que impone la Ley N.° 28518: aquí NO hay AFP/ONP —una
+    // modalidad formativa no genera aportes previsionales— ni datos
+    // «remunerativos», porque la subvención económica no es remuneración y
+    // este mismo documento lo subraya dos cláusulas más arriba. Copiar la del
+    // contrato tal cual habría metido las dos cosas.
     `<h3>{{N}}. PROTECCIÓN DE DATOS PERSONALES</h3>
-    <p>De conformidad con la Ley N.° 29733, LA EMPRESA informa a ${etiquetaPracticante} que sus datos personales serán
-    tratados con las finalidades exclusivas de gestión del presente convenio, cumplimiento de obligaciones legales,
-    comunicaciones internas y emisión de constancias. ${etiquetaPracticante} otorga su consentimiento expreso mediante la
-    firma del presente convenio.</p>`,
+    <p>De conformidad con la Ley N.° 29733, Ley de Protección de Datos Personales, y su Reglamento aprobado por
+    Decreto Supremo N.° 016-2024-JUS, LA EMPRESA informa a ${etiquetaPracticante} que sus datos personales —incluyendo
+    nombre, documento de identidad, domicilio, datos formativos y los relativos a la subvención económica— serán
+    incorporados y tratados en los sistemas de LA EMPRESA con las siguientes finalidades exclusivas: (i) gestión del
+    presente convenio; (ii) cumplimiento de obligaciones legales ante el Ministerio de Trabajo y Promoción del Empleo,
+    EsSalud, el centro de formación profesional y demás autoridades competentes; (iii) comunicaciones internas propias
+    de las prácticas; (iv) emisión de constancias, certificados y documentos formativos; y (v) verificación de
+    identidad mediante la carga de la copia del Documento Nacional de Identidad (DNI) y constancia de la aceptación de
+    los términos del presente convenio.</p>`,
 
     `<h3>{{N}}. BENEFICIOS ADICIONALES VOLUNTARIOS</h3>
     <p>LA EMPRESA podrá, a su sola discreción, extender a ${etiquetaPracticante} beneficios adicionales no remunerativos
@@ -1137,6 +1169,8 @@ function documentoConvenio(d: DatosContrato): string {
             etiqueta: "EL CENTRO DE FORMACIÓN PROFESIONAL",
             nombre: d.centroFormacionNombre ?? "[completar]",
             ruc: d.centroFormacionRuc ?? "[completar]",
+            representanteNombre: d.centroFormacionRepresentanteNombre ?? "[completar]",
+            representanteCargo: d.centroFormacionRepresentanteCargo ?? "",
           })
         : bloqueFirmas(d, etiquetaPracticante)
     }
@@ -1149,8 +1183,6 @@ function documentoConvenio(d: DatosContrato): string {
       <p><strong>Actividades principales:</strong></p>
       ${listaDesdeTexto(d.planCapacitacionTexto)}
       <p><strong>Supervisor(a) asignado(a):</strong> ${d.supervisorAsignado || "[completar]"}</p>
-      <p><strong>Hito de evaluación — mes 3:</strong> ${d.hitoMes3 || "[completar]"}</p>
-      <p><strong>Hito de evaluación — mes 6:</strong> ${d.hitoMes6 || "[completar]"}</p>
       <p><strong>Fecha de inicio / término:</strong> ${formatearFecha(d.fechaInicio)} – ${formatearFecha(d.fechaFin)}</p>
       ${pieAnexo(d, etiquetaPracticante)}
     </section>
@@ -1278,10 +1310,14 @@ export function construirContrato(datosSinEscapar: DatosContrato): string {
     horas correspondientes se remunerarán como sobretiempo conforme a ley.</p>
 
     <h3>DÉCIMA SÉPTIMA. PROTECCIÓN DE DATOS PERSONALES</h3>
-    <p>De conformidad con la Ley N.° 29733, LA EMPRESA informa a LA COLABORADORA que sus datos personales serán
-    tratados con las finalidades exclusivas de gestión de la relación laboral, cumplimiento de obligaciones legales,
-    comunicaciones internas y emisión de constancias. LA COLABORADORA otorga su consentimiento expreso mediante la
-    firma del presente contrato.</p>
+    <p>De conformidad con la Ley N.° 29733, Ley de Protección de Datos Personales, y su Reglamento aprobado por
+    Decreto Supremo N.° 016-2024-JUS, LA EMPRESA informa a LA COLABORADORA que sus datos personales —incluyendo
+    nombre, documento de identidad, domicilio, datos laborales, remunerativos y previsionales— serán incorporados y
+    tratados en los sistemas de LA EMPRESA con las siguientes finalidades exclusivas: (i) gestión de la relación
+    laboral; (ii) cumplimiento de obligaciones legales ante el Ministerio de Trabajo, SUNAT, EsSalud, AFP/ONP y otras
+    autoridades; (iii) comunicaciones internas propias de la relación de trabajo; (iv) emisión de constancias,
+    certificados y documentos laborales; y (v) verificación de identidad mediante la carga de la copia del Documento
+    Nacional de Identidad (DNI) y constancia de la aceptación de los términos del presente contrato.</p>
 
     ${clausulaEntregaCopia(d)}
 

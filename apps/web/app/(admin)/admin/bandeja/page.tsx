@@ -35,7 +35,10 @@ import { Campo } from "@/components/ui/campo";
 import { useToast } from "@/components/toast";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
-import { fechaLima, puedeOperarEquipo, puedeVerPlanilla, puedeVerSaludDeAlertas } from "@cayla-dynamic/shared";
+import { BUCKET_SOLICITUDES_PERFIL } from "@/lib/foto-dni";
+import {
+  fechaLima, puedeOperarEquipo, puedeVerIdentidad, puedeVerPlanilla, puedeVerSaludDeAlertas,
+} from "@cayla-dynamic/shared";
 
 interface ItemEducacion {
   id: string;
@@ -103,15 +106,29 @@ interface ItemSolicitudPerfil {
   valor_propuesto: Record<string, unknown>;
   rutas_adjuntas: string[];
   creada_at: string;
+  /** Este campo solo lo aprueba DO, aunque la encargada vea la solicitud (0405).
+   *  Lo dice el catálogo, no esta pantalla: `catalogo_campos_perfil.solo_do`. */
+  solo_do: boolean;
 }
 
 /** «celular: 987654321, direccion: Av. Uno 123» — genérico a propósito: son
- *  11 campos con formas distintas, y esto solo es para que quien aprueba vea
- *  de un vistazo qué cambia, no para imprimir un documento. */
+ *  campos con formas distintas, y esto solo es para que quien aprueba vea
+ *  de un vistazo qué cambia, no para imprimir un documento.
+ *
+ *  Con una excepción, desde la 0401: cuando el valor ES un archivo (la foto del
+ *  DNI), su valor es una ruta del almacén —`solicitud/<uuid>/dni-anverso-….jpg`,
+ *  sesenta caracteres que no dicen nada y empujan el resto de la fila fuera de
+ *  la pantalla—. Ahí se anuncia la cara y ya está: lo que hay que mirar es la
+ *  imagen, y para eso están los botones de adjuntos de abajo. */
 function resumenValorPerfil(v: Record<string, unknown>): string {
   const entradas = Object.entries(v).filter(([, val]) => val !== null && val !== undefined && val !== "");
   if (entradas.length === 0) return "—";
-  return entradas.map(([k, val]) => `${k}: ${typeof val === "boolean" ? (val ? "Sí" : "No") : String(val)}`).join(" · ");
+  return entradas.map(([k, val]) => {
+    if (typeof val === "string" && val.startsWith("solicitud/")) {
+      return `${k.replace(/^foto_dni_|_ruta$/g, "")}: imagen adjunta`;
+    }
+    return `${k}: ${typeof val === "boolean" ? (val ? "Sí" : "No") : String(val)}`;
+  }).join(" · ");
 }
 
 // Lo que devuelve fn_alertas_despacho_resumen (0362): lo que el despacho
@@ -170,9 +187,13 @@ export default function BandejaPage() {
   // que ya usa fn_aprobar_ausencia — es DO, nunca la encargada de la sede.
   const puedeResolverVacaciones = puedeVerPlanilla(rol);
   const puedeSaludAlertas = puedeVerSaludDeAlertas(rol);
-  // Igual regla que vacaciones: DO, nunca la encargada de sede — decidido para
-  // los 11 campos por igual, no solo los sensibles (ver ADR 0001, DECIDÍ #9).
-  const puedeResolverPerfil = puedeVerPlanilla(rol);
+  // CAMBIO 0403 — Antes era DO en exclusiva (ADR 0001, DECIDÍ #9). Se revirtió
+  // al día siguiente de confirmarse, al construir /mio/editar: la encargada de
+  // sede también resuelve, pero solo lo de su propio equipo — el guard vive en
+  // fn_resolver_solicitud_perfil/fn_solicitudes_perfil_pendientes, esto solo
+  // decide si se le muestra la sección. Ver la "Corrección tras implementar
+  // (2026-09-08)" al final del ADR.
+  const puedeResolverPerfil = puedeOperarEquipo(rol);
 
   const [cargando, setCargando] = useState(true);
   const [resumenAlertas, setResumenAlertas] = useState<ResumenAlertas | null>(null);
@@ -323,10 +344,10 @@ export default function BandejaPage() {
   }
 
   /** El bucket es privado: cada documento se abre con una URL firmada, pedida
-   *  al momento de mirar — nunca se firman los 11 de golpe. */
+   *  al momento de mirar — nunca se firman todos de golpe. */
   async function verDocumentoPerfil(ruta: string) {
     const supabase = createAdminSupabaseClient();
-    const { data, error } = await supabase.storage.from("solicitudes-perfil").createSignedUrl(ruta, 300);
+    const { data, error } = await supabase.storage.from(BUCKET_SOLICITUDES_PERFIL).createSignedUrl(ruta, 300);
     if (error || !data) { avisar("error", "No se pudo abrir el documento."); return; }
     window.open(data.signedUrl, "_blank", "noopener,noreferrer");
   }
@@ -531,22 +552,42 @@ export default function BandejaPage() {
                           ))}
                         </div>
                       )}
+                      {/* La solicitud se muestra igual a la encargada —si no,
+                          su equipo estaría esperando algo que ella no ve— pero
+                          sin los botones cuando el campo es de DO (0405). Antes
+                          los botones estaban y reventaban al pulsarlos, con un
+                          mensaje que hablaba de un permiso que la pantalla
+                          acababa de decirle que tenía. */}
+                      {s.solo_do && !puedeVerIdentidad(rol) ? (
+                        <p className="mt-2 rounded-lg border border-pizarra/30 bg-pizarra/10 px-3 py-2 text-xs text-pizarra">
+                          Esta solicitud cambia el número de documento: la resuelve Desarrollo Organizacional.
+                          Avísales para que la revisen.
+                        </p>
+                      ) : (
                       <div className="mt-2 flex flex-wrap items-center gap-2">
-                        <input
-                          value={motivosPerfil[s.id] ?? ""}
-                          onChange={(e) => setMotivosPerfil((x) => ({ ...x, [s.id]: e.target.value }))}
-                          placeholder="Motivo si rechazas (obligatorio solo para rechazar)"
-                          className="min-w-64 flex-1 rounded-lg border border-sand bg-crema px-3 py-1.5"
-                        />
-                        <button onClick={() => void resolverSolicitudPerfil(s.id, true)} disabled={resolviendoPerfil === s.id}
-                          className="rounded-lg bg-tinta px-4 py-1.5 font-medium text-crema disabled:opacity-50">
-                          {resolviendoPerfil === s.id ? "Guardando…" : "Aprobar"}
-                        </button>
-                        <button onClick={() => void resolverSolicitudPerfil(s.id, false)} disabled={resolviendoPerfil === s.id}
-                          className="rounded-lg border border-rojo px-4 py-1.5 font-medium text-rojo disabled:opacity-50">
+                        <div className="min-w-64 flex-1">
+                          <Campo
+                            value={motivosPerfil[s.id] ?? ""}
+                            onChange={(e) => setMotivosPerfil((x) => ({ ...x, [s.id]: e.target.value }))}
+                            placeholder="Motivo si rechazas (obligatorio solo para rechazar)"
+                          />
+                        </div>
+                        <Boton
+                          variante="primario"
+                          onClick={() => void resolverSolicitudPerfil(s.id, true)}
+                          cargando={resolviendoPerfil === s.id}
+                        >
+                          Aprobar
+                        </Boton>
+                        <Boton
+                          variante="peligro"
+                          onClick={() => void resolverSolicitudPerfil(s.id, false)}
+                          disabled={resolviendoPerfil === s.id}
+                        >
                           Rechazar
-                        </button>
+                        </Boton>
                       </div>
+                      )}
                     </li>
                   ))}
                 </ul>

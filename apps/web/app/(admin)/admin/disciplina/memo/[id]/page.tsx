@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Cargando } from "@/components/cargando";
 import { Marca } from "@/components/marca";
+import { Boton } from "@/components/ui/boton";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { EMPRESA, TZ_LIMA, type Rol } from "@cayla-dynamic/shared";
 import { AREAS_FALLBACK, areaNombre, parseAreas, type Area } from "@/lib/areas";
@@ -120,6 +121,11 @@ interface Doc {
   /** Fecha de cese DECLARADA en la carta (art. 32 LPCL, mig. 0205). */
   fecha_cese: string | null;
   firmante_id: string | null; firmado_at: string | null; creado_at: string;
+  // Constancia digital DEL SANCIONADO (0404) — distinta de la firma de arriba,
+  // que es de quien EMITE. Nunca reemplaza el «Recibí conforme» en físico.
+  firma_sancionado: string | null;
+  firma_sancionado_confirmada_at: string | null;
+  sancionado_rechazo_firma_at: string | null;
 }
 interface Persona { nombres: string; apellidos: string; documento: string | null; funcion: string; sede_base_id: string; rol: string }
 
@@ -191,7 +197,7 @@ export default function MemoPage() {
     const { data: sesion } = await supabase.auth.getSession();
     if (!sesion.session) { router.replace("/admin/login"); return; }
     const { data: d, error: eD } = await supabase.from("expediente_disciplinario")
-      .select("id, correlativo, persona_id, tipo_causal, nivel, estado, periodo_desde, periodo_hasta, hechos, suspension_dias, suspension_desde, suspension_hasta, suspension_fechas, fecha_cese, firmante_id, firmado_at, creado_at")
+      .select("id, correlativo, persona_id, tipo_causal, nivel, estado, periodo_desde, periodo_hasta, hechos, suspension_dias, suspension_desde, suspension_hasta, suspension_fechas, fecha_cese, firmante_id, firmado_at, creado_at, firma_sancionado, firma_sancionado_confirmada_at, sancionado_rechazo_firma_at")
       .eq("id", id).maybeSingle();
     if (eD || !d) { setErr("No se encontró el documento (o no tienes permiso para verlo)."); setCargando(false); return; }
     const doc = d as unknown as Doc;
@@ -406,9 +412,9 @@ export default function MemoPage() {
         <div className="mb-4 flex max-w-[760px] items-center justify-between print:hidden">
           <button onClick={() => router.push("/admin/disciplina")} className="text-sm text-taupe hover:text-tinta">← Volver a Disciplina</button>
           {doc && !err && (
-            <button onClick={() => window.print()} className="rounded-lg bg-tinta px-5 py-2 text-sm font-medium text-crema">
+            <Boton variante="primario" tamano="lg" onClick={() => window.print()}>
               Imprimir / Guardar PDF
-            </button>
+            </Boton>
           )}
         </div>
 
@@ -505,6 +511,30 @@ export default function MemoPage() {
               Constancia de negativa a recibir (si aplica): el colaborador se negó a recibir el presente documento.
               Testigo 1: __________________  ·  Testigo 2: __________________
             </p>
+
+            {/* Constancia DIGITAL del sancionado (0404) — solo en pantalla,
+                nunca en el papel: el «Recibí conforme» de arriba sigue en
+                blanco para la firma física, que es la que de verdad prueba la
+                entrega. Esto es evidencia adicional, no un reemplazo. */}
+            {!esNivel4 && (doc.firma_sancionado_confirmada_at || doc.sancionado_rechazo_firma_at) && (
+              <div className="mt-4 rounded-lg border border-sand bg-papel p-3 text-xs text-taupe print:hidden">
+                {doc.firma_sancionado_confirmada_at ? (
+                  <>
+                    <p className="mb-2 text-verde">
+                      {nombre} confirmó su firma digital el {fechaLarga(doc.firma_sancionado_confirmada_at)}.
+                    </p>
+                    {doc.firma_sancionado && (
+                      <img src={doc.firma_sancionado} alt={`Firma digital de ${nombre}`} className="block h-16 w-auto max-w-full" />
+                    )}
+                  </>
+                ) : (
+                  <p>
+                    {nombre} dejó constancia de que prefiere no firmar digitalmente, el{" "}
+                    {fechaLarga(doc.sancionado_rechazo_firma_at!)}.
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         )}
       </main>

@@ -1,5 +1,5 @@
 import { createTerminalSupabaseClient } from "@cayla-dynamic/database";
-import { enviarMarcaje } from "./enviar-marcaje";
+import { enviarMarcaje, esRechazoDeEstado } from "./enviar-marcaje";
 import {
   obtenerPendientes,
   eliminarDeOutbox,
@@ -42,7 +42,13 @@ export async function sincronizarPendientes() {
         // llegó no dice nada sobre la marca: seis ticks son minuto y medio, así
         // que sin esta condición una caída corta de internet apartaría marcas
         // buenas — el mismo error de fondo que el db.delete() de antes.
-        if (llego && (entry.intentos ?? 0) + 1 >= 6) {
+        //
+        // EXCEPTO un rechazo de ESTADO ("tipo % no válido…"): ese no es una
+        // marca que "todavía no se pudo enviar", es una marca que el servidor
+        // ya evaluó y dijo que no corresponde — reintentarla igual seis veces
+        // no cambia la respuesta, solo demora minuto y medio en que alguien se
+        // entere. Se aparta en el primer rechazo confirmado.
+        if (llego && (esRechazoDeEstado(error) || (entry.intentos ?? 0) + 1 >= 6)) {
           await marcarComoDescartada(entry.clientUuid, error ?? "sin detalle");
         }
         continue; // no bloquea el resto de la cola por un fallo puntual

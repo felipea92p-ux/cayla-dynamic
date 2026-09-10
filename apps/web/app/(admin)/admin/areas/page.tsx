@@ -3,11 +3,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
+import { Check } from "lucide-react";
 import { Cargando } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
-import { Campo } from "@/components/ui/campo";
+import { Campo, CampoCasilla } from "@/components/ui/campo";
 import { Insignia } from "@/components/ui/insignia";
 import { Fila, Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
+import { TarjetaInfo } from "@/components/ui/tarjeta-info";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { type Area, AREA_DEFAULT, parseAreas, slugDeNombre } from "@/lib/areas";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
@@ -142,7 +144,7 @@ export default function AreasPage() {
   const formulario = (modo: "alta" | "edicion") => {
     const codigo = modo === "alta" ? slugDeNombre(form.nombre) : editandoCodigo ?? "";
     return (
-      <div className="mb-6 grid max-w-2xl gap-3 rounded-2xl border border-sand bg-papel p-5 sm:grid-cols-2">
+      <TarjetaInfo className="mb-6 grid max-w-2xl gap-3 sm:grid-cols-2">
         <div className="sm:col-span-2">
           <Campo
             etiqueta="Nombre"
@@ -157,15 +159,13 @@ export default function AreasPage() {
               : "(fijo — cambiar el nombre no cambia el código)"}
           </span>
         </div>
-        <label className="flex items-center gap-2 text-sm sm:col-span-2">
-          <input
-            type="checkbox"
+        <div className="sm:col-span-2">
+          <CampoCasilla
+            etiqueta="Es operativa de sede (cuenta para la cobertura de tienda)"
             checked={form.operativa}
             onChange={(e) => setForm({ ...form, operativa: e.target.checked })}
-            className="h-4 w-4 rounded border-sand accent-tinta"
           />
-          Es operativa de sede (cuenta para la cobertura de tienda)
-        </label>
+        </div>
         <Campo
           etiqueta="Orden (opcional)"
           type="number"
@@ -180,7 +180,7 @@ export default function AreasPage() {
           </Boton>
           <Boton variante="secundario" onClick={cancelarForm}>Cancelar</Boton>
         </div>
-      </div>
+      </TarjetaInfo>
     );
   };
 
@@ -197,13 +197,13 @@ export default function AreasPage() {
         {rol === null ? (
           <Cargando />
         ) : !puedeGestionar ? (
-          <div className="max-w-2xl rounded-lg bg-ambar/15 px-4 py-3 text-sm text-ambar">
+          <div className="max-w-2xl rounded-control bg-ambar/15 px-4 py-3 text-sm text-ambar">
             Solo administradores y líderes pueden gestionar áreas.
           </div>
         ) : (
           <>
             {cargaError && (
-              <div className="mb-4 max-w-3xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo-profundo">
+              <div className="mb-4 max-w-3xl rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo-profundo">
                 No se pudo cargar el catálogo desde el servidor: {cargaError}. Se muestra el respaldo
                 local y la edición queda deshabilitada (para no pisar los datos reales).{" "}
                 <Boton variante="enlace" onClick={() => void cargar()}>Reintentar</Boton>
@@ -235,7 +235,9 @@ export default function AreasPage() {
                         )}
                       </td>
                       <td className="px-4 py-2 font-mono text-xs text-taupe">{a.codigo}</td>
-                      <td className="px-4 py-2">{a.operativa ? "✓" : <span className="text-taupe">—</span>}</td>
+                      <td className="px-4 py-2">
+                        {a.operativa ? <Check size={14} className="text-verde" /> : <span className="text-taupe">—</span>}
+                      </td>
                       <td className="px-4 py-2">{a.orden}</td>
                       <td className="px-4 py-2">
                         <Insignia atenuada={!a.activa}>{a.activa ? "activa" : "inactiva"}</Insignia>

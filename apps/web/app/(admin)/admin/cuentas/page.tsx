@@ -6,6 +6,7 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { CargandoFila, SinDatos } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
+import { Campo } from "@/components/ui/campo";
 import { Tabla } from "@/components/ui/tabla";
 import { useToast } from "@/components/toast";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
@@ -56,11 +57,11 @@ interface Pendiente {
 // a buscar el porqué es la misma distancia que hace que un aviso no se lea.
 function ListaNoCargada({ que, motivo, noSignifica, reintentar }: { que: string; motivo: string; noSignifica: string; reintentar: () => void }) {
   return (
-    <div className="rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
+    <div className="rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo">
       <p>No se pudo cargar {que}: {motivo}</p>
       <p className="mt-1">
         Esto <strong>no</strong> quiere decir que {noSignifica}.{" "}
-        <button onClick={reintentar} className="font-medium underline">Reintentar</button>
+        <Boton variante="enlace" className="font-medium" onClick={reintentar}>Reintentar</Boton>
       </p>
     </div>
   );
@@ -314,11 +315,11 @@ export default function CuentasPage() {
         {/* Persistente a propósito: no es un aviso que se va solo. Mientras la
             lista no cargue, todo lo que se ve debajo puede estar incompleto. */}
         {errListado && (
-          <div className="mb-3 rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
+          <div className="mb-3 rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo">
             <p>No se pudo cargar la lista de cuentas: {errListado}</p>
             <p className="mt-1">
               Lo que se ve debajo puede estar incompleto o desactualizado — no lo leas como «así están las cuentas hoy».{" "}
-              <button onClick={() => void listar()} className="font-medium underline">Reintentar</button>
+              <Boton variante="enlace" className="font-medium" onClick={() => void listar()}>Reintentar</Boton>
             </p>
           </div>
         )}
@@ -388,13 +389,12 @@ export default function CuentasPage() {
                             </Boton>
                           </div>
                           {cambiando === c.id && (
-                            <div className="flex flex-wrap items-center gap-2 rounded-lg bg-sand/40 p-2">
-                              <input
+                            <div className="flex flex-wrap items-center gap-2 rounded-control bg-sand/40 p-2">
+                              <Campo
                                 type="email"
                                 placeholder="correo@gmail.com"
                                 value={emailNuevo[c.id] ?? ""}
                                 onChange={(e) => setEmailNuevo((m) => ({ ...m, [c.id]: e.target.value }))}
-                                className="rounded-lg border border-sand bg-crema px-2 py-1.5 text-sm"
                               />
                               <Boton
                                 variante="primario"
@@ -422,12 +422,11 @@ export default function CuentasPage() {
                         </div>
                       ) : (
                         <div className="flex flex-wrap items-center gap-2">
-                          <input
+                          <Campo
                             type="email"
                             placeholder="correo@gmail.com"
                             value={emailNuevo[c.id] ?? ""}
                             onChange={(e) => setEmailNuevo((m) => ({ ...m, [c.id]: e.target.value }))}
-                            className="rounded-lg border border-sand bg-crema px-2 py-1.5 text-sm"
                           />
                           <Boton
                             variante="primario"
@@ -470,7 +469,7 @@ export default function CuentasPage() {
               </Boton>
             )}
             {invitables.map((p) => (
-              <div key={p.id} className="flex items-center gap-3 rounded-lg border border-sand bg-sand/25 px-3 py-2">
+              <div key={p.id} className="flex items-center gap-3 rounded-control border border-sand bg-sand/25 px-3 py-2">
                 <span className="text-sm text-tinta">
                   {p.nombre} <span className="text-taupe">· {p.sede}</span>
                   {p.email ? (
@@ -516,7 +515,7 @@ export default function CuentasPage() {
               </Boton>
             )}
             {pendientes.map((p) => (
-              <div key={p.id} className="flex items-center gap-3 rounded-lg border border-sand bg-sand/25 px-3 py-2">
+              <div key={p.id} className="flex items-center gap-3 rounded-control border border-sand bg-sand/25 px-3 py-2">
                 <span className="text-sm text-tinta">
                   {p.nombre} <span className="text-taupe">· {p.sede} · {ROL_LABEL[p.rol] ?? p.rol}</span>
                   {p.email ? (
@@ -552,7 +551,7 @@ export default function CuentasPage() {
         ) : (
           <div className="flex flex-wrap gap-2">
             {promovibles.map((p) => (
-              <div key={p.id} className="flex items-center gap-3 rounded-lg border border-sand bg-sand/25 px-3 py-2">
+              <div key={p.id} className="flex items-center gap-3 rounded-control border border-sand bg-sand/25 px-3 py-2">
                 <span className="text-sm text-tinta">
                   {p.nombre} <span className="text-taupe">· {p.sede}</span>
                 </span>
@@ -580,13 +579,11 @@ function SeccionMiClave({
   guardandoMia: boolean; cambiarMiClave: () => void;
 }) {
   return (
-    <div className="max-w-md rounded-lg border border-sand bg-sand/25 p-5">
+    <div className="max-w-md rounded-superficie border border-sand bg-sand/25 p-5">
       <h2 className="mb-3 font-serif text-lg">Cambiar mi contraseña</h2>
       <div className="flex flex-col gap-3">
-        <input type="password" placeholder="Nueva contraseña" value={nueva} onChange={(e) => setNueva(e.target.value)}
-          className="rounded-lg border border-sand bg-crema px-3 py-2 outline-none focus:border-taupe" />
-        <input type="password" placeholder="Repite la nueva contraseña" value={confirma} onChange={(e) => setConfirma(e.target.value)}
-          className="rounded-lg border border-sand bg-crema px-3 py-2 outline-none focus:border-taupe" />
+        <Campo type="password" placeholder="Nueva contraseña" value={nueva} onChange={(e) => setNueva(e.target.value)} />
+        <Campo type="password" placeholder="Repite la nueva contraseña" value={confirma} onChange={(e) => setConfirma(e.target.value)} />
         {/* Los requisitos antes de escribir, no después de fallar. */}
         <ul className="flex flex-col gap-0.5 text-xs text-taupe">
           {REQUISITOS_CLAVE.map((r) => <li key={r}>· {r}</li>)}

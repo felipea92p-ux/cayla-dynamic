@@ -9,14 +9,12 @@
 // hamburguesa al cerrarse: con el teclado te ibas caminando por detrás del
 // menú abierto sin ninguna forma de volver.
 
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
 import { LogOut, X } from "lucide-react";
 import { PanelNavegacion, type Contadores } from "@/components/nav/panel-navegacion";
 import { Marca } from "@/components/marca";
+import { useFocoAtrapado } from "@/lib/use-foco-atrapado";
 import type { Grupo } from "@/app/(admin)/admin/nav-items";
-
-const FOCUSABLES =
-  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 export function CajonAdmin({
   abierto,
@@ -44,48 +42,7 @@ export function CajonAdmin({
 }) {
   const caja = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (!abierto) return;
-
-    const disparador = volverElFocoA.current;
-    // El primer enlace, no el contenedor: quien abre el menú con el teclado
-    // espera estar YA sobre algo que pueda pulsar.
-    const primero = caja.current?.querySelector<HTMLElement>(FOCUSABLES);
-    primero?.focus();
-
-    function alPresionar(e: KeyboardEvent) {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        onCerrar();
-        return;
-      }
-      if (e.key !== "Tab" || !caja.current) return;
-
-      // Atrapar el foco: sin esto, tabular desde el último enlace del menú
-      // sigue hacia la página que está debajo del velo, que no se puede ver
-      // ni tocar.
-      const focusables = Array.from(caja.current.querySelectorAll<HTMLElement>(FOCUSABLES));
-      if (focusables.length === 0) return;
-      const inicio = focusables[0];
-      const fin = focusables[focusables.length - 1];
-
-      if (e.shiftKey && document.activeElement === inicio) {
-        e.preventDefault();
-        fin.focus();
-      } else if (!e.shiftKey && document.activeElement === fin) {
-        e.preventDefault();
-        inicio.focus();
-      }
-    }
-
-    document.addEventListener("keydown", alPresionar);
-    return () => {
-      document.removeEventListener("keydown", alPresionar);
-      // Al cerrar, el foco vuelve de donde salió. Si no, se queda en el
-      // <body> y la siguiente tabulación arranca desde el principio de todo.
-      disparador?.focus();
-    };
-  }, [abierto, onCerrar, volverElFocoA]);
+  useFocoAtrapado({ abierto, onCerrar, caja, volverElFocoA });
 
   if (!abierto) return null;
 
