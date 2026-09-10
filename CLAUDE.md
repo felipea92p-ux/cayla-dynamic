@@ -164,6 +164,32 @@ npx vercel --prod --yes    # solo con OK explícito de Felipe
 ```
 Vista previa sin permiso: `npx vercel --yes`.
 
+⚠️ **PERO OJO: `main` se publica SOLA. Fusionar un PR ES desplegar a
+producción.** Medido el 2026-09-10 y decidido por Felipe ese día: se queda así.
+La integración de Git de Vercel tiene `main` como rama de producción, así que
+**cualquier push a `main` publica** — se comprobó con un commit que solo cambia
+un `.md` y aun así redesplegó en menos de un minuto.
+
+Lo que eso significa, y hay que tenerlo presente al pedir permiso:
+
+- **`desplegar.sh prod` vigila un camino por el que producción ya no pasa.**
+  Sus comprobaciones (árbol limpio, GitHub al día, CI verde incluidas las
+  pgTAP, escribir `publicar`) siguen siendo correctas y **no se aplican** a los
+  despliegues que salen de un `git push`. Misma forma que el agujero de la 0177
+  y la 0243 con `dame-el-sql.sh`: el freno está bien, el camino cómodo no pasa
+  por él.
+- **No hay garantía de «CI verde antes de publicar».** El 2026-09-10 producción
+  sirvió el código de tres merges durante ~20 minutos mientras `db-tests`
+  todavía corría.
+- **Y de aquí sale el orden que importa: la migración se pega ANTES de fusionar
+  el PR que la usa.** Después de fusionar, el frontend ya está en el aire. Ese
+  día falló dos veces —la 0404 dejó el envío del DNI rompiéndose *después* de
+  subir las dos fotos, y el PR de la 0407 iba a publicar un botón que llamaba a
+  una función inexistente— y a las dos las cazó alguien mirando, no un freno.
+
+Así que pedir permiso para fusionar y pedirlo para publicar son la misma
+petición. Dilo así cuando lo pidas.
+
 **Ojo con el entorno.** El panel apunta al Supabase **local** (127.0.0.1), no a
 producción. Para diagnosticar prod, Felipe corre SELECTs en el SQL Editor. Nunca
 asumir que lo que se ve en local es lo que pasa en prod.
@@ -441,6 +467,26 @@ en silencio toda la lógica de marcas anuladas. Lo cazaron dos pruebas por azar.
   su historial sostiene los reportes de periodos pasados.
 - **Numeración sin huecos.** Un hueco significa que algo se aplicó en producción
   sin quedar en el repo. Si tienes que saltarte un número, documenta por qué.
+- **El registro va con `do update`, no con `do nothing`.** La línea del final de
+  cada migración se escribe así:
+
+  ```sql
+  insert into migraciones_aplicadas (numero, nombre) values (NNN, 'descripcion')
+  on conflict (numero) do update set nombre = excluded.nombre, aplicada_at = now();
+  ```
+
+  Con `do nothing` —como estaba hasta el 2026-09-10— repegar sigue sin fallar,
+  pero **una colisión de número se vuelve invisible**: el DDL se aplica y el
+  registro se queda con la fila de OTRA migración, sin que nada avise. Ese día
+  pasó dos veces en la misma tarde: se tragó el registro de la **0405** (el
+  número lo tenía ocupado la migración de la AFP con su numeración vieja) y el
+  de la **0409** (lo tenía la del memo, renumerada después a 0412). Con
+  `do update` repegar sigue siendo seguro y el número robado **se ve**: la fila
+  cambia de nombre delante de quien pega.
+
+  Y la comprobación que va con esto: **al verificar un registro se piden
+  `numero` Y `nombre`.** Un `array_agg(numero)` no distingue «está la mía» de
+  «está otra con mi número» — ese fue justamente el paso que dejó pasar las dos.
 
 ---
 

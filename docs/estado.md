@@ -232,21 +232,56 @@ GitHub exigiendo que `db-tests` pase antes de poder fusionar. Las tres son
 defendibles; lo que no lo es es que el repositorio documente una regla y la
 configuración haga otra cosa.
 
-### Qué queda abierto de esta sesión
+### 7 · El molde del trigger NO hace falta siempre: depende de si la tabla tiene política de escritura
 
-- 🟡 **El trigger que le falta a `foto_dni_*_ruta`.** La 0401 no puso ninguno,
-  así que `fn_borrar_dni_de` (0407) audita la cancelación pero no la hace
-  inevitable: un admin puede seguir vaciando esas columnas con un `update`
-  directo por PostgREST. Es el molde `fn_set_rol`/`fn_bloquear_rol_directo`
-  (0295/0296) y `fn_set_sede_base`/`fn_bloquear_sede_directa` (0342) que el
-  `CLAUDE.md` ya declara obligatorio para campos sensibles. La exposición no la
-  abre la 0407 —existía desde la 0401— y solo alcanza a admin/líder.
+Durante esta sesión se dio por hallazgo que a `foto_dni_anverso_ruta` /
+`foto_dni_reverso_ruta` les faltaba el trigger del molde
+`fn_set_rol`/`fn_bloquear_rol_directo` (0295/0296) y
+`fn_set_sede_base`/`fn_bloquear_sede_directa` (0342): que `fn_borrar_dni_de`
+(0407) auditaba la cancelación pero un admin podía vaciar las columnas con un
+`update` directo por PostgREST. **Es falso, y se descartó midiendo:**
+
+| tabla | RLS | políticas en producción |
+|---|---|---|
+| `personas` | activa | `select` ×3 + **`personas_update_admin_lider [w]`** + `personas_insert_admin_lider [a]` |
+| `datos_personales` | activa | **solo `select` ×3** — ni update, ni insert, ni delete |
+
+Con RLS activa, **una operación sin política se deniega**, y los `grant` de
+tabla no cambian nada (`authenticated` los tiene todos por el
+`alter default privileges` de Supabase, y da igual). Así que a
+`datos_personales` no se le puede escribir por PostgREST: sus únicos escritores
+son funciones `security definer` —`fn_aplicar_cambio_perfil` (0399/0401), que
+las pone al aprobar, y `fn_borrar_dni_de` (0407), que las vacía—. La puerta ya
+está cerrada.
+
+**La regla que queda, y que el `CLAUDE.md` no dice:** el molde del trigger es
+obligatorio cuando la tabla **tiene** política de escritura que alcanza al
+campo. En `personas` la tiene (`personas_update_admin_lider`), y por eso `rol` y
+`sede_base_id` sí necesitaban su trigger — no era ceremonia. En una tabla sin
+políticas de escritura, el trigger es un guarda contra algo que no puede pasar.
+
+**Y el error de método, que es lo que hay que recordar:** se dedujo «no hay
+trigger → se puede escribir» sin comprobar si había política de escritura.
+Preguntarlo cuesta una consulta:
+
+```sql
+select relrowsecurity as rls,
+       (select array_agg(polname || ' [' || polcmd::text || ']' order by polcmd::text)
+          from pg_policy where polrelid = c.oid) as policies
+  from pg_class c where c.oid = 'public.la_tabla'::regclass;
+```
+
+### Qué queda abierto de esta sesión
 - 🟡 **`on conflict … do nothing`** → `do update set nombre = excluded.nombre`
   en la convención de migraciones (punto 1).
-- 🔴 **Qué se hace con el despliegue automático** (punto 6): aceptarlo y
-  escribir en `CLAUDE.md` que fusionar es publicar, apagarlo en Vercel para que
-  el único camino sea `desplegar.sh`, o poner la puerta en GitHub exigiendo
-  `db-tests` antes de fusionar. Sin decidir.
+- ✅ **El despliegue automático se queda** (punto 6). Decisión de Felipe,
+  2026-09-10, sabiendo lo que implica: **fusionar un PR a `main` publica a
+  producción**, y `desplegar.sh` con todas sus comprobaciones NO se aplica a
+  ese camino. Se descartó apagarlo y se descartó poner la puerta en GitHub. Lo
+  que queda a cambio es el cuidado de quien fusiona, y sobre todo el orden:
+  **la migración se pega ANTES de fusionar el PR que la usa**, porque después
+  de fusionar el frontend ya está en el aire. Hoy eso falló dos veces —la 0404
+  y la 0407— y las dos se cazaron a mano.
 - 🟢 **El linter del hook no revisó uno de los push de hoy** y lo dijo en voz
   alta («no devolvió nada analizable»). La causa es la que el `CLAUDE.md` ya
   documenta: el commit tocaba `packages/`, y colar una ruta de ahí hace que
