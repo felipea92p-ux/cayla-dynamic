@@ -273,7 +273,8 @@ with repo(numero, nombre, nunca) as (values
     (405, 'la_correccion_de_dni_se_queda_en_do', false),
     (406, 'confirmar_la_firma_dos_veces_no_borra_la_primera', false),
     (408, 'el_sancionado_firma_su_propio_memo', false),
-    (409, 'el_terminal_por_fin_puede_leer_horario_y_turno', false)
+    (409, 'el_terminal_por_fin_puede_leer_horario_y_turno', false),
+    (413, 'a_un_practicante_ya_se_le_mide_la_tardanza', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
