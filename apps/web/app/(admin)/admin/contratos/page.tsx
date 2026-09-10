@@ -407,6 +407,13 @@ export default function ContratosPage() {
   const [firmaUrl, setFirmaUrl] = useState<string | null>(null);
   const [esFirmante, setEsFirmante] = useState(false);
   const [contratos, setContratos] = useState<ContratoFila[]>([]);
+  // `fn_contratos_listar` no filtra por `estado`: el historial de quien ya
+  // cesó se queda en `contratos_generados` a propósito (no se borra), pero el
+  // Archivo es una pantalla operativa — nada que hacer con el contrato de
+  // alguien que ya no está. `personasActivasIds` es la ficha SIN el filtro de
+  // `en_planilla`/practicante que sí aplica `personas` (línea ~687), porque
+  // un RxH activo sin ese filtro igual merece verse aquí si tiene contrato.
+  const [personasActivasIds, setPersonasActivasIds] = useState<Set<string>>(new Set());
   // El tablero parte de las PERSONAS, no de los contratos: el historial arranca
   // de `contratos_generados`, así que quien no tiene ninguno es invisible ahí —
   // y con veinte venciendo el mismo día, «¿a quién le falta?» es la pregunta
@@ -695,7 +702,9 @@ export default function ContratosPage() {
     const cfgValor = (cfg.data as { valor: { persona_id?: string; cargo?: string } } | null)?.valor;
     const firmanteId = cfgValor?.persona_id ?? null;
     type Ficha = { id: string; nombres: string; apellidos: string; documento: string | null };
-    const fichaFirmante = ((fichas.data as Ficha[]) ?? []).find((p) => p.id === firmanteId);
+    const fichasActivas = (fichas.data as Ficha[]) ?? [];
+    const fichaFirmante = fichasActivas.find((p) => p.id === firmanteId);
+    setPersonasActivasIds(new Set(fichasActivas.map((p) => p.id)));
     setFirmante({
       nombre: fichaFirmante ? `${fichaFirmante.nombres} ${fichaFirmante.apellidos}` : FIRMANTE_POR_DEFECTO.nombre,
       dni: fichaFirmante?.documento ?? FIRMANTE_POR_DEFECTO.dni,
@@ -1575,6 +1584,9 @@ export default function ContratosPage() {
   const porPersona = (() => {
     const m = new Map<string, ContratoFila[]>();
     for (const c of contratos) {
+      // Quien ya cesó no aparece: su historial sigue en la base, pero esta
+      // pantalla es para gestionar contratos de quien sigue en la empresa.
+      if (!personasActivasIds.has(c.persona_id)) continue;
       const previo = m.get(c.persona);
       if (previo) previo.push(c);
       else m.set(c.persona, [c]);
