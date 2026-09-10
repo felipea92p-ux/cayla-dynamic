@@ -4,7 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  CalendarClock, CalendarDays, FileSignature, History, IdCard, Inbox, ScrollText, Target, TreePalm,
+  CalendarClock, CalendarDays, FileSignature, History, IdCard, Inbox, LayoutDashboard, ScrollText,
+  Target, TreePalm,
 } from "lucide-react";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Colibri } from "@/components/marca";
@@ -204,11 +205,12 @@ interface SolicitudDni {
   motivo: string | null;
 }
 
-/** Las ocho secciones del detalle. Ver el comentario de `tab`. */
-type Tab = "dias" | "turnos" | "dni" | "ausencias" | "contrato" | "firma" | "objetivos" | "historial";
+/** Las nueve secciones de la pantalla. Ver el comentario de `tab`. */
+type Tab =
+  | "resumen" | "dias" | "turnos" | "dni" | "ausencias" | "contrato" | "firma" | "objetivos" | "historial";
 
 /**
- * Las mismas ocho, con su icono y en el orden en que se leen.
+ * Las mismas nueve, con su icono y en el orden en que se leen.
  *
  * Los iconos NO se eligieron sueltos: cada uno es el que el menú del panel
  * (`admin/nav-items.ts`) ya usa para esa misma idea — Turnos, Datos personales,
@@ -217,6 +219,7 @@ type Tab = "dias" | "turnos" | "dni" | "ausencias" | "contrato" | "firma" | "obj
  * tiene son «Mis días» y «Historial», que no existen allá como pantalla.
  */
 const SECCIONES: readonly SeccionDetalle<Tab>[] = [
+  { valor: "resumen", label: "Resumen", Icon: LayoutDashboard },
   { valor: "dias", label: "Mis días", Icon: CalendarDays },
   { valor: "turnos", label: "Mis turnos", Icon: CalendarClock },
   { valor: "dni", label: "Mi DNI", Icon: IdCard },
@@ -756,16 +759,25 @@ export default function MioPage() {
    * De ahí sale la regla de esta pantalla, y es la que hay que respetar al
    * agregarle algo mañana:
    *
-   *   · ARRIBA, SIN PESTAÑA — quién eres, lo que te exige actuar hoy, y tus
-   *     cuatro cifras. Se ve completo sin tocar nada.
-   *   · DENTRO DE UNA PESTAÑA — solo lo que se viene a MIRAR.
+   *   · SIEMPRE A LA VISTA, FUERA DE TODA SECCIÓN — quién eres, cómo salir de
+   *     aquí, y lo que te exige actuar hoy: los acuses de ley, los anuncios,
+   *     «necesita que hagas algo» y tu jornada abierta. Nada de eso se
+   *     esconde detrás de un renglón del menú, porque son cosas con fecha.
+   *   · DENTRO DE UNA SECCIÓN — solo lo que se viene a MIRAR, y SOLO lo de
+   *     esa sección. Elegir «Mis turnos» no debe dejar en pantalla cifras que
+   *     hablan de otra cosa (2026-09-10).
    *
-   * Una acción no se esconde nunca detrás de una pestaña. Si alguien no
-   * encuentra dónde pedir sus vacaciones, el error es del diseño y no de la
-   * persona: por eso «Pedir vacaciones» tiene su botón arriba, aunque el
-   * formulario viva en su pestaña.
+   * Las cuatro cifras —periodo de pago, vacaciones, próximo turno, objetivos—
+   * viven por eso en «Resumen», que es la sección con la que ABRE la pantalla.
+   * Ese detalle es lo que sostiene la otra mitad de la regla: una acción no se
+   * esconde nunca detrás de un renglón del menú, y «Pedir vacaciones» sigue
+   * siendo de lo primero que se ve al entrar, sin tocar nada. Lo que cambió es
+   * que ya no TE SIGUE a las otras ocho.
+   *
+   * Si algún día «Resumen» deja de ser la sección inicial, esa acción queda
+   * escondida y hay que sacarla de ahí antes.
    */
-  const [tab, setTab] = useState<Tab>("dias");
+  const [tab, setTab] = useState<Tab>("resumen");
 
   // El día abierto desde la cuadrícula. En un teléfono no hay `hover`, así que
   // sin esto los cuadritos de colores son decoración: se ve que el 12 está en
@@ -1401,7 +1413,19 @@ export default function MioPage() {
   }
 
   return (
-    <main className="mx-auto min-h-screen w-full max-w-5xl bg-crema px-5 py-8 text-tinta">
+    // El marco de esta pantalla, con la misma forma que el del panel
+    // (`(admin)/layout.tsx`): el menú pegado al borde izquierdo y el contenido
+    // ocupando el resto. En teléfono se apila, y ahí el menú es la barra
+    // pegajosa de arriba que abre el cajón.
+    <div className="flex min-h-screen flex-col bg-crema text-tinta md:flex-row">
+      <MenuDetalle
+        secciones={secciones}
+        activo={tab}
+        onSel={elegirSeccion}
+        etiqueta="Secciones de tu perfil"
+      />
+
+    <main className="mx-auto min-w-0 max-w-5xl flex-1 px-5 py-8">
       {/* ══ 1 · QUIÉN ERES ══════════════════════════════════════════════════
           Lo primero de un perfil es la persona, y hasta hoy acá lo primero era
           una barrita de 14 píxeles con la foto encogida al lado del nombre.
@@ -1570,94 +1594,105 @@ export default function MioPage() {
         </div>
       )}
 
-      {/* ══ 3 · TUS CUATRO CIFRAS, Y LO QUE SE HACE CON ELLAS ═══════════════
+      {/* ══ 3 · RESUMEN — TUS CUATRO CIFRAS, Y LO QUE SE HACE CON ELLAS ═══
           Las cuatro preguntas que traen a alguien a esta pantalla: cuándo me
           pagan, cuántas vacaciones tengo, cuándo me toca entrar y cómo voy con
           lo mío. Cada una con su acción al lado.
 
-          Y las ACCIONES viven acá, fuera de las pestañas, a propósito: quien
-          entra a pedir vacaciones no debería tener que adivinar detrás de qué
-          pestaña están. La pestaña guarda lo que se viene a mirar; nunca lo
-          que se viene a hacer. */}
-      <div className="mb-6 grid gap-3 sm:grid-cols-2">
-        {/* El periodo de pago. Sin montos: la boleta vive en su propia pantalla
-            porque es un documento que se imprime, y el print de esta imprimiría
-            las quince secciones de arriba con él. */}
-        {periodo && estadoDelPeriodo ? (
-          <TarjetaClave
-            titulo="Tu periodo de pago"
-            valor={estadoDelPeriodo.cierra > 0
-              ? `Cierra en ${estadoDelPeriodo.cierra} día${estadoDelPeriodo.cierra === 1 ? "" : "s"}`
-              : "Cierra hoy"}
-            pie={`Del ${diaYMes(periodo.fecha_ini)} al ${diaYMes(periodo.fecha_fin)}. ${
-              !estadoDelPeriodo.cubre
-                ? "Estás mirando otro rango de fechas: toca «Periodo de pago» abajo para revisar el que se te va a pagar."
-                : estadoDelPeriodo.pendientes > 0
-                  ? `Tienes ${estadoDelPeriodo.pendientes} día${estadoDelPeriodo.pendientes === 1 ? "" : "s"} por revisar dentro de este periodo.`
-                  : "Todos tus días de este periodo están completos."}`}
-            alerta={estadoDelPeriodo.cubre && estadoDelPeriodo.pendientes > 0}
-            accion={<Link href="/mio/boleta" className="text-tinta underline underline-offset-2 hover:text-rojo-profundo">Ver mi boleta →</Link>}
-          />
-        ) : (
-          <TarjetaClave titulo="Tu periodo de pago" valor="—" pie="No hay un periodo de pago abierto para hoy." />
-        )}
+          Hasta el 2026-09-10 se pintaban SIEMPRE, por encima de la sección que
+          estuvieras mirando. Con el menú lateral eso dejó de tener sentido:
+          quien elige «Mis turnos» pide ver sus turnos, y cuatro cifras que
+          hablan de otra cosa compiten con lo que acaba de pedir.
 
-        {/* Nadie pide vacaciones que no sabe que tiene. */}
-        {vacas && (
+          Ahora son su propia sección, «Resumen», Y ES LA SECCIÓN CON LA QUE LA
+          PANTALLA ABRE. Eso no es un detalle de arranque: es lo que mantiene en
+          pie la regla de que una acción no se esconde detrás de un renglón del
+          menú. «Pedir vacaciones» y «Ver mi boleta» siguen viéndose al entrar,
+          sin tocar nada — lo que cambió es que ya no siguen a quien se fue a
+          mirar otra cosa. Ver el comentario de `tab`. */}
+      {tab === "resumen" && (
+        <div className="mb-6 grid gap-3 sm:grid-cols-2">
+          {/* El periodo de pago. Sin montos: la boleta vive en su propia pantalla
+              porque es un documento que se imprime, y el print de esta imprimiría
+              las quince secciones de arriba con él. */}
+          {periodo && estadoDelPeriodo ? (
+            <TarjetaClave
+              titulo="Tu periodo de pago"
+              valor={estadoDelPeriodo.cierra > 0
+                ? `Cierra en ${estadoDelPeriodo.cierra} día${estadoDelPeriodo.cierra === 1 ? "" : "s"}`
+                : "Cierra hoy"}
+              pie={`Del ${diaYMes(periodo.fecha_ini)} al ${diaYMes(periodo.fecha_fin)}. ${
+                !estadoDelPeriodo.cubre
+                  ? "Estás mirando otro rango de fechas: toca «Periodo de pago» abajo para revisar el que se te va a pagar."
+                  : estadoDelPeriodo.pendientes > 0
+                    ? `Tienes ${estadoDelPeriodo.pendientes} día${estadoDelPeriodo.pendientes === 1 ? "" : "s"} por revisar dentro de este periodo.`
+                    : "Todos tus días de este periodo están completos."}`}
+              alerta={estadoDelPeriodo.cubre && estadoDelPeriodo.pendientes > 0}
+              accion={<Link href="/mio/boleta" className="text-tinta underline underline-offset-2 hover:text-rojo-profundo">Ver mi boleta →</Link>}
+            />
+          ) : (
+            <TarjetaClave titulo="Tu periodo de pago" valor="—" pie="No hay un periodo de pago abierto para hoy." />
+          )}
+
+          {/* Nadie pide vacaciones que no sabe que tiene. */}
+          {vacas && (
+            <TarjetaClave
+              titulo="Tus vacaciones"
+              valor={`${vacas.dias_pendientes} días`}
+              pie={vacas.vence_el
+                ? `Sin tomar. El récord más antiguo vence el ${diaYMes(vacas.vence_el)}${
+                    typeof vacas.dias_para_vencer === "number" && vacas.dias_para_vencer >= 0
+                      ? ` — faltan ${vacas.dias_para_vencer} días.` : "."}`
+                : "Días pendientes de tomar."}
+              alerta={(vacas.dias_para_vencer ?? 999) <= 60 && vacas.records_sin_gozar > 0}
+              accion={
+                <button onClick={() => { setTab("ausencias"); irArriba(); }}
+                  className="text-tinta underline underline-offset-2 hover:text-rojo-profundo">
+                  Pedir vacaciones →
+                </button>
+              }
+            />
+          )}
+
+          {/* «¿Cuándo me toca?» es la pregunta que más veces abre esta pantalla, y
+              hasta hoy se respondía por WhatsApp. */}
           <TarjetaClave
-            titulo="Tus vacaciones"
-            valor={`${vacas.dias_pendientes} días`}
-            pie={vacas.vence_el
-              ? `Sin tomar. El récord más antiguo vence el ${diaYMes(vacas.vence_el)}${
-                  typeof vacas.dias_para_vencer === "number" && vacas.dias_para_vencer >= 0
-                    ? ` — faltan ${vacas.dias_para_vencer} días.` : "."}`
-              : "Días pendientes de tomar."}
-            alerta={(vacas.dias_para_vencer ?? 999) <= 60 && vacas.records_sin_gozar > 0}
+            titulo="Tu próximo turno"
+            valor={proximos.length > 0
+              ? `${proximos[0].esperado.entrada}${proximos[0].esperado.salida ? `–${proximos[0].esperado.salida}` : ""}`
+              : "—"}
+            pie={proximos.length > 0
+              ? `Te toca ${cuando(proximos[0].fecha)}.${feriados.length > 0 ? ` Próximo feriado: ${diaYMes(feriados[0].fecha)}, ${feriados[0].nombre}.` : ""}`
+              : "No hay turnos ni horario cargados para los próximos días. Si eso no es lo que esperabas, avísale a tu encargada."}
             accion={
-              <button onClick={() => { setTab("ausencias"); irArriba(); }}
+              <button onClick={() => { setTab("turnos"); irArriba(); }}
                 className="text-tinta underline underline-offset-2 hover:text-rojo-profundo">
-                Pedir vacaciones →
+                Ver mis próximos días →
               </button>
             }
           />
-        )}
 
-        {/* «¿Cuándo me toca?» es la pregunta que más veces abre esta pantalla, y
-            hasta hoy se respondía por WhatsApp. */}
-        <TarjetaClave
-          titulo="Tu próximo turno"
-          valor={proximos.length > 0
-            ? `${proximos[0].esperado.entrada}${proximos[0].esperado.salida ? `–${proximos[0].esperado.salida}` : ""}`
-            : "—"}
-          pie={proximos.length > 0
-            ? `Te toca ${cuando(proximos[0].fecha)}.${feriados.length > 0 ? ` Próximo feriado: ${diaYMes(feriados[0].fecha)}, ${feriados[0].nombre}.` : ""}`
-            : "No hay turnos ni horario cargados para los próximos días. Si eso no es lo que esperabas, avísale a tu encargada."}
-          accion={
-            <button onClick={() => { setTab("turnos"); irArriba(); }}
-              className="text-tinta underline underline-offset-2 hover:text-rojo-profundo">
-              Ver mis próximos días →
-            </button>
-          }
-        />
-
-        {/* Sin lenguaje de premio: desde la 0171 los objetivos NO pagan. */}
-        <TarjetaClave
-          titulo={`Tus objetivos de ${mesLabel}`}
-          valor={objetivos.length > 0 ? `${objCumplidos} de ${objetivos.length}` : "—"}
-          pie={objetivos.length > 0
-            ? "Los marca tu encargada cuando los conversan."
-            : `Todavía no tienes objetivos cargados para ${mesLabel}. Los acuerda contigo tu encargada.`}
-          accion={objetivos.length > 0 ? (
-            <button onClick={() => { setTab("objetivos"); irArriba(); }}
-              className="text-tinta underline underline-offset-2 hover:text-rojo-profundo">
-              Verlos →
-            </button>
-          ) : undefined}
-        />
-      </div>
+          {/* Sin lenguaje de premio: desde la 0171 los objetivos NO pagan. */}
+          <TarjetaClave
+            titulo={`Tus objetivos de ${mesLabel}`}
+            valor={objetivos.length > 0 ? `${objCumplidos} de ${objetivos.length}` : "—"}
+            pie={objetivos.length > 0
+              ? "Los marca tu encargada cuando los conversan."
+              : `Todavía no tienes objetivos cargados para ${mesLabel}. Los acuerda contigo tu encargada.`}
+            accion={objetivos.length > 0 ? (
+              <button onClick={() => { setTab("objetivos"); irArriba(); }}
+                className="text-tinta underline underline-offset-2 hover:text-rojo-profundo">
+                Verlos →
+              </button>
+            ) : undefined}
+          />
+        </div>
+      )}
 
       {/* ══ 4 · EL DETALLE ══════════════════════════════════════════════════
-          Ocho secciones en un MENÚ LATERAL, no en una tira de pestañas.
+          Las ocho secciones que se MIRAN, gobernadas por el menú de la
+          izquierda y no por una tira de pestañas. La novena, «Resumen», es la de
+          arriba: se pinta igual que estas y con la misma condición.
 
           La tira estaba en `overflow-x-auto` con la barra de scroll escondida,
           así que en cualquier pantalla que no fuera ancha había secciones
@@ -1669,30 +1704,15 @@ export default function MioPage() {
 
           Lo de arriba NO se movió, y esa sigue siendo la regla de la pantalla
           (ver el comentario de `tab`): quién eres, lo que te exige actuar hoy y
-          tus cuatro cifras se ven completos sin tocar nada. El menú gobierna
-          solo lo que se viene a MIRAR, así que vive al lado del detalle y no
-          enmarcando la pantalla entera.
+          tus cuatro cifras se ven completos sin tocar nada. El menú solo decide
+          qué se MIRA aquí abajo.
 
-          Y el `<main>` pasó de `max-w-3xl` a `max-w-5xl` por lo mismo: con el
-          menú ancho puesto, el detalle se queda con ~700px, que es lo que tenía
-          antes de que existiera el menú. Sin ensancharlo, la tabla «Día por día»
-          habría perdido un tercio de su ancho. */}
-      <div id="detalle" className="flex flex-col gap-4 md:flex-row md:gap-6">
-        <MenuDetalle
-          secciones={secciones}
-          activo={tab}
-          onSel={elegirSeccion}
-          etiqueta="Secciones de tu perfil"
-        />
-
-        {/* OJO CON LA SANGRÍA de todo lo que viene: las ocho secciones siguen
-            escritas al nivel que tenían cuando eran hijas directas de <main>, y
-            NO se reindentaron a propósito. Al escribir esto había trece ramas
-            sin fusionar tocando este archivo; correr 760 líneas cuatro espacios
-            habría chocado con las trece a cambio de nada que se vea en
-            pantalla. Si alguna vez se paga, que sea en su propio commit y sin
-            nada más adentro. */}
-        <div className="min-w-0 flex-1">
+          El ancla de abajo es un div vacío y no un contenedor de las ocho
+          secciones: el menú vive en el marco, así que envolverlas no serviría
+          para nada salvo correr 760 líneas de sangría — y hay una docena de
+          ramas sin fusionar tocando este archivo. A esto suben `irArriba` y
+          `elegirSeccion`. */}
+      <div id="detalle" aria-hidden />
 
       {/* ── MIS DÍAS ─────────────────────────────────────────────────────── */}
       {tab === "dias" && (
@@ -2456,10 +2476,8 @@ export default function MioPage() {
         Si algo no cuadra, no lo dejes pasar: avisa a tu encargada y se corrige con el motivo anotado. Lo que
         ves sale de tus marcajes, y un marcaje mal registrado se arregla, no se discute al final del mes.
       </p>
-
-        </div>
-      </div>
     </main>
+    </div>
   );
 }
 
