@@ -274,6 +274,8 @@ with repo(numero, nombre, nunca) as (values
     (406, 'confirmar_la_firma_dos_veces_no_borra_la_primera', false),
     (408, 'el_sancionado_firma_su_propio_memo', false),
     (409, 'el_terminal_por_fin_puede_leer_horario_y_turno', false),
+    (410, 'el_regimen_de_pension_tambien_se_cambia_por_una_puerta', false),
+    (411, 'la_tasa_de_pension_de_respaldo_se_valida_al_escribir', false),
     (412, 'el_memo_firmado_se_cierra_sin_entrega_si_la_persona_cesa', false)
 ),
 diff as (
