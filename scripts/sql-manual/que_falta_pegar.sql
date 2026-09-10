@@ -271,7 +271,10 @@ with repo(numero, nombre, nunca) as (values
     (403, 'la_encargada_de_sede_tambien_aprueba_el_perfil', false),
     (404, 'queda_constancia_de_que_acepto_el_tratamiento', false),
     (405, 'la_correccion_de_dni_se_queda_en_do', false),
-    (406, 'confirmar_la_firma_dos_veces_no_borra_la_primera', false)
+    (406, 'confirmar_la_firma_dos_veces_no_borra_la_primera', false),
+    (408, 'el_sancionado_firma_su_propio_memo', false),
+    (409, 'el_terminal_por_fin_puede_leer_horario_y_turno', false),
+    (412, 'el_memo_firmado_se_cierra_sin_entrega_si_la_persona_cesa', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte

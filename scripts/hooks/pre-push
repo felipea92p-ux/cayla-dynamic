@@ -81,6 +81,19 @@ echo "→ lo que main tiene y tú no…"
 echo "→ las reglas de la casa…"
 "$(dirname "$0")/reglas-de-la-casa.sh" || exit 1
 
+# ── Un PDF que se guarda con el nombre del sitio, no el de la persona ──────
+#
+# El 2026-09-10 Liquidaciones —sus tres papeles: liquidación, certificado de
+# trabajo, constancia de cese— llevaba meses sin useTituloDocumento(), la
+# convención que ya usan las otras 12 pantallas imprimibles. Misma historia
+# que "rol" y "America/Lima" arriba: una regla que solo vive en la memoria de
+# quien escribe la próxima pantalla se vuelve a romper.
+#
+# Va acá, con las demás reglas de la casa: bloquea, y solo mira lo que el push
+# toca.
+echo "→ el nombre del PDF al imprimir…"
+"$(dirname "$0")/descarga-sin-nombre.sh" || exit 1
+
 # ── Un campo de fecha que arranca vacío y bloquea el envío ─────────────────
 #
 # El 2026-08-26 no se pudo registrar un descanso médico: el campo mostraba la

@@ -3,11 +3,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import {
+  CalendarClock, CalendarDays, FileSignature, History, IdCard, Inbox, LayoutDashboard, ScrollText,
+  Target, TreePalm,
+} from "lucide-react";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Colibri } from "@/components/marca";
 import { AcusesPendientes } from "@/components/acuses-pendientes";
 import { AnunciosWidget } from "@/components/anuncios-widget";
 import { SelectorTema } from "@/components/selector-tema";
+import { MenuDetalle, type SeccionDetalle } from "@/components/nav/menu-detalle";
 import { Boton } from "@/components/ui/boton";
 import { Insignia } from "@/components/ui/insignia";
 import { Campo } from "@/components/ui/campo";
@@ -24,13 +29,15 @@ import {
   BUCKET_SOLICITUDES_PERFIL, CARAS_DNI, comprimirFotoDni, rutaNuevaCaraDni,
   urlFirmadaSolicitudPerfil, type CaraDni,
 } from "@/lib/foto-dni";
-import { EMPRESA, ROLES_CON_PANEL, TZ_LIMA, hoyLima } from "@cayla-dynamic/shared";
+import { EMPRESA, ROLES_CON_PANEL, TZ_LIMA, hoyLima, NIVEL_DISCIPLINARIO_LABELS } from "@cayla-dynamic/shared";
 import { MESES as MESES_LARGOS, type ObjetivoItem } from "@/lib/objetivos";
 import {
   esperadoDelDia, horarioVigente, fechasDelRango, dowDe, estadoDelDia,
   type Esperado, type EstadoDia, type HorarioTramo, type TurnoDia,
 } from "@/lib/admin/jornada-esperada";
 import { loQueNoSePudo } from "@/lib/admin/lo-que-no-se-pudo";
+import { mensajeDeError } from "@/lib/admin/mensaje-error";
+import { esMemoPorFirmar, traerBandeja } from "@/lib/bandeja-mia";
 
 /**
  * «Lo mío» — lo que cada persona ve de sí misma.
@@ -198,8 +205,30 @@ interface SolicitudDni {
   motivo: string | null;
 }
 
-/** Las siete pestañas del detalle. Ver el comentario de `tab`. */
-type Tab = "dias" | "turnos" | "dni" | "ausencias" | "contrato" | "firma" | "objetivos" | "historial";
+/** Las nueve secciones de la pantalla. Ver el comentario de `tab`. */
+type Tab =
+  | "resumen" | "dias" | "turnos" | "dni" | "ausencias" | "contrato" | "firma" | "objetivos" | "historial";
+
+/**
+ * Las mismas nueve, con su icono y en el orden en que se leen.
+ *
+ * Los iconos NO se eligieron sueltos: cada uno es el que el menú del panel
+ * (`admin/nav-items.ts`) ya usa para esa misma idea — Turnos, Datos personales,
+ * Ausencias, Contratos, Documentación, Objetivos —, así quien ve las dos
+ * superficies reconoce la sección sin leer la etiqueta. Los dos que el panel no
+ * tiene son «Mis días» y «Historial», que no existen allá como pantalla.
+ */
+const SECCIONES: readonly SeccionDetalle<Tab>[] = [
+  { valor: "resumen", label: "Resumen", Icon: LayoutDashboard },
+  { valor: "dias", label: "Mis días", Icon: CalendarDays },
+  { valor: "turnos", label: "Mis turnos", Icon: CalendarClock },
+  { valor: "dni", label: "Mi DNI", Icon: IdCard },
+  { valor: "ausencias", label: "Vacaciones y permisos", Icon: TreePalm },
+  { valor: "contrato", label: "Contrato", Icon: ScrollText },
+  { valor: "firma", label: "Firma", Icon: FileSignature },
+  { valor: "objetivos", label: "Objetivos", Icon: Target },
+  { valor: "historial", label: "Historial", Icon: History },
+];
 
 /**
  * Lo mínimo para saber si tiene contrato y a dónde llevarla a verlo. El texto
@@ -213,6 +242,21 @@ interface MiContrato {
   fecha_fin: string | null;
   fecha_firma: string | null;
 }
+
+/** Fila de `fn_mis_memos()` (0404) — ya filtrada a `estado = 'entregado'`,
+ *  nunca un borrador ni uno firmado-pero-no-entregado. */
+interface MiMemo {
+  id: string;
+  correlativo: string | null;
+  tipo_causal: string;
+  nivel: string;
+  entregado_at: string | null;
+  medio_entrega: string | null;
+  firma_sancionado_confirmada_at: string | null;
+  sancionado_rechazo_firma_at: string | null;
+}
+
+const CAUSAL_LABEL_MIO: Record<string, string> = { tardanza: "Tardanzas", falta: "Faltas", conducta: "Conducta" };
 
 const MESES = [
   "enero", "febrero", "marzo", "abril", "mayo", "junio",
@@ -406,6 +450,32 @@ function colorDia(d: Dia): string {
   }
 }
 
+/**
+ * ¿Este día es su jornada de HOY, todavía abierta?
+ *
+ * `estadoDelDia` la devuelve como "revisar" —marcó y el día no está cerrado—, y
+ * para un día PASADO eso es exactamente lo que hay que decir: falta la salida,
+ * así que las horas de ese día no son las que trabajó. Pero para HOY, con la
+ * jornada `abierta` o `en_pausa`, no falta nada: está trabajando en este
+ * momento. Llamarlo «marcaje incompleto» acusa de un problema a quien está
+ * cumpliendo su turno, y encima de uno que no puede arreglar hasta salir.
+ *
+ * Se distingue ACÁ, en la pantalla, y NO en `estadoDelDia`: esa función la
+ * comparten el panel y esta pantalla, y el color del día tiene que seguir
+ * significando lo mismo para la integrante y para su encargada.
+ *
+ * El corte por fecha es lo que hace segura la excepción: una jornada que quedó
+ * `abierta` de AYER sí es un marcaje roto —se fue sin marcar la salida— y
+ * sigue avisando como siempre. Queda un borde conocido y a propósito: un turno
+ * que cruza la medianoche (raro, pero existe — ver `lib/terminal/jornada-en-curso.ts`
+ * y la migración 0240) cuelga de la fecha de AYER, así que entre las 00:00 y su
+ * salida vuelve a leerse como incompleto. Cerrarlo pediría reconstruir acá la
+ * ventana de horas del terminal, y esa regla ya vive en un solo sitio.
+ */
+function enJornadaAbierta(d: Dia, hoy: string): boolean {
+  return d.fecha === hoy && (d.jornada?.estado === "abierta" || d.jornada?.estado === "en_pausa");
+}
+
 function explicaDia(d: Dia): string {
   const p: string[] = [diaYMes(d.fecha)];
   if (d.esperado.trabaja) p.push(`te tocaba ${d.esperado.entrada}${d.esperado.salida ? `–${d.esperado.salida}` : ""}`);
@@ -416,7 +486,9 @@ function explicaDia(d: Dia): string {
     p.push(d.perdonada ? "tardanza levantada" : `${comoMinutos(d.jornada!.minutos_tarde!)} tarde`);
   }
   if (d.estado === "falta") p.push("no hay marcaje");
-  if (d.estado === "revisar") p.push("marcaje incompleto");
+  if (d.estado === "revisar") {
+    p.push(enJornadaAbierta(d, hoyLima()) ? "en jornada, todavía sin marcar la salida" : "marcaje incompleto");
+  }
   return p.join(" · ");
 }
 
@@ -638,6 +710,8 @@ export default function MioPage() {
     vence_el: string | null; dias_para_vencer: number | null;
   } | null>(null);
   const [solicitudesVacas, setSolicitudesVacas] = useState<SolicitudVacacion[]>([]);
+  /** Cuántos avisos le esperan en /mio/bandeja. Ver `cargarAvisosDeBandeja`. */
+  const [avisosEnBandeja, setAvisosEnBandeja] = useState(0);
   // El rango del formulario de pedir vacaciones. Arranca en mañana y en un
   // solo día — nunca en "": un campo de fecha que arranca vacío y bloquea el
   // envío es justo el error que ya costó caro acá (ver CLAUDE.md, 2026-08-26).
@@ -685,16 +759,25 @@ export default function MioPage() {
    * De ahí sale la regla de esta pantalla, y es la que hay que respetar al
    * agregarle algo mañana:
    *
-   *   · ARRIBA, SIN PESTAÑA — quién eres, lo que te exige actuar hoy, y tus
-   *     cuatro cifras. Se ve completo sin tocar nada.
-   *   · DENTRO DE UNA PESTAÑA — solo lo que se viene a MIRAR.
+   *   · SIEMPRE A LA VISTA, FUERA DE TODA SECCIÓN — quién eres, cómo salir de
+   *     aquí, y lo que te exige actuar hoy: los acuses de ley, los anuncios,
+   *     «necesita que hagas algo» y tu jornada abierta. Nada de eso se
+   *     esconde detrás de un renglón del menú, porque son cosas con fecha.
+   *   · DENTRO DE UNA SECCIÓN — solo lo que se viene a MIRAR, y SOLO lo de
+   *     esa sección. Elegir «Mis turnos» no debe dejar en pantalla cifras que
+   *     hablan de otra cosa (2026-09-10).
    *
-   * Una acción no se esconde nunca detrás de una pestaña. Si alguien no
-   * encuentra dónde pedir sus vacaciones, el error es del diseño y no de la
-   * persona: por eso «Pedir vacaciones» tiene su botón arriba, aunque el
-   * formulario viva en su pestaña.
+   * Las cuatro cifras —periodo de pago, vacaciones, próximo turno, objetivos—
+   * viven por eso en «Resumen», que es la sección con la que ABRE la pantalla.
+   * Ese detalle es lo que sostiene la otra mitad de la regla: una acción no se
+   * esconde nunca detrás de un renglón del menú, y «Pedir vacaciones» sigue
+   * siendo de lo primero que se ve al entrar, sin tocar nada. Lo que cambió es
+   * que ya no TE SIGUE a las otras ocho.
+   *
+   * Si algún día «Resumen» deja de ser la sección inicial, esa acción queda
+   * escondida y hay que sacarla de ahí antes.
    */
-  const [tab, setTab] = useState<Tab>("dias");
+  const [tab, setTab] = useState<Tab>("resumen");
 
   // El día abierto desde la cuadrícula. En un teléfono no hay `hover`, así que
   // sin esto los cuadritos de colores son decoración: se ve que el 12 está en
@@ -928,6 +1011,39 @@ export default function MioPage() {
     return () => { vivo = false; };
   }, [supabase, yo?.id]);
 
+  // Sus propios memos disciplinarios ya entregados (0404). Aparte del bloque
+  // grande por la misma razón que `contrato`/`vacas`: depende solo de quién
+  // es. `fn_mis_memos()` ya filtra `estado = 'entregado'` del lado del
+  // servidor — nunca un borrador ni uno firmado-pero-no-entregado, que es
+  // justo lo que el comentario de cabecera de este archivo advierte que
+  // `exp_select_propia` por sí sola no evita.
+  const [misMemos, setMisMemos] = useState<MiMemo[]>([]);
+  const cargarMisMemos = useCallback(async () => {
+    if (!yo?.id) { setMisMemos([]); return; }
+    const { data } = await supabase.rpc("fn_mis_memos");
+    setMisMemos((data as MiMemo[] | null) ?? []);
+  }, [supabase, yo?.id]);
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { void cargarMisMemos(); }, [cargarMisMemos]);
+
+  // El criterio vive en lib/bandeja-mia.ts, que es de donde sale también el
+  // número del botón «Bandeja». Escrito dos veces, un día uno de los dos
+  // dejaría de contar los verbales y el recuadro y el número dirían distinto.
+  const memosPorFirmar = useMemo(() => misMemos.filter(esMemoPorFirmar), [misMemos]);
+
+  async function firmarMemo(id: string) {
+    const { error } = await supabase.rpc("fn_firmar_memo_como_sancionado", { p_id: id });
+    if (error) { avisar("error", mensajeDeError(error, "firmar el memo")); return; }
+    avisar("ok", "Firma guardada en el memo.");
+    void cargarMisMemos();
+  }
+  async function rechazarFirmaMemo(id: string) {
+    const { error } = await supabase.rpc("fn_rechazar_firma_memo", { p_id: id });
+    if (error) { avisar("error", mensajeDeError(error, "registrar tu respuesta")); return; }
+    avisar("ok", "Quedó anotado que prefieres no firmar digitalmente.");
+    void cargarMisMemos();
+  }
+
   // Sus propias solicitudes de vacaciones. Aparte del bloque grande de arriba
   // por la misma razón que `vacas`: depende solo de quién es, no del rango de
   // fechas que esté mirando en la cuadrícula del mes.
@@ -943,6 +1059,28 @@ export default function MioPage() {
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void cargarSolicitudesVacas(); }, [cargarSolicitudesVacas]);
+
+  // Cuántos avisos le esperan en la Bandeja: lo que le falta hacer (su contrato
+  // sin firmar, un documento por firmar, una constancia de ley, sus días con el
+  // marcaje incompleto) más lo que le respondieron estos días.
+  //
+  // Sale de `traerBandeja`, la MISMA función que arma la lista de /mio/bandeja,
+  // aunque esta pantalla ya tenga a mano varias de las fuentes. Contar acá con
+  // lo que ya está cargado sería más barato y crearía justo el defecto que la
+  // Bandeja vino a evitar: dos sitios respondiendo «cuántos» por su cuenta,
+  // listos para separarse el día que alguien cambie uno de los dos.
+  //
+  // Falla en silencio a propósito: si no se pudo contar, el botón sale sin
+  // número. Un aviso rojo en la portada por un contador es ruido — la propia
+  // Bandeja sí dice lo que no pudo traer, que es donde importa.
+  const cargarAvisosDeBandeja = useCallback(async () => {
+    if (!yo?.id) { setAvisosEnBandeja(0); return; }
+    const { bandeja } = await traerBandeja(supabase, yo.id);
+    setAvisosEnBandeja(bandeja.avisos);
+  }, [supabase, yo]);
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { void cargarAvisosDeBandeja(); }, [cargarAvisosDeBandeja]);
 
   /** Pedir un rango de vacaciones. No dice si alcanza el saldo: eso lo decide
    *  el servidor con el mismo cálculo que ya se le muestra arriba. */
@@ -1053,6 +1191,34 @@ export default function MioPage() {
     });
   }
 
+  /**
+   * Cambiar de sección desde el menú lateral.
+   *
+   * Sube al detalle SOLO si el detalle ya quedó por encima de la pantalla.
+   * Las dos mitades importan: estando arriba, elegir una sección no debe
+   * empujar la vista hacia abajo —eso no pasaba con la tira de pestañas y no
+   * hay razón para que empiece—; y estando abajo (o saliendo del cajón del
+   * teléfono, que tapa la pantalla entera) quedarse donde estabas te deja a
+   * media altura de una sección que ya no es la que estás mirando.
+   */
+  function elegirSeccion(valor: Tab) {
+    setTab(valor);
+    requestAnimationFrame(() => {
+      const el = document.getElementById("detalle");
+      if (el && el.getBoundingClientRect().top < 0) {
+        el.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    });
+  }
+
+  // «Mi DNI» solo existe si la base tiene dónde guardarlo: mientras la
+  // migración no esté pegada, esa sección no se ofrece (mismo criterio que ya
+  // usaba la pestaña).
+  const secciones = useMemo(
+    () => SECCIONES.filter((s) => s.valor !== "dni" || hayCampoDni),
+    [hayCampoDni],
+  );
+
   /** Desde un aviso de arriba hasta el día concreto del que habla. */
   function abrirDia(fecha: string) {
     setTab("dias");
@@ -1090,7 +1256,10 @@ export default function MioPage() {
       // por qué seguir viéndola en su marcador.
       tardanzas: jornadas.filter((d) => (d.minutos_tarde ?? 0) > 0 && !perdonadas.has(d.fecha)).length,
       medidos: jornadas.filter((d) => d.minutos_tarde !== null).length,
-      porRevisar: dias.filter((d) => d.estado === "revisar"),
+      // Su jornada de hoy todavía abierta NO es un día por revisar: está
+      // trabajando. Sale de la cuenta y se cuenta aparte (ver `enJornadaAbierta`).
+      porRevisar: dias.filter((d) => d.estado === "revisar" && !enJornadaAbierta(d, hoy)),
+      enJornadaAhora: dias.some((d) => enJornadaAbierta(d, hoy)),
       faltas: dias.filter((d) => d.estado === "falta"),
     };
   }, [jornadas, perdonadas, dias]);
@@ -1127,12 +1296,18 @@ export default function MioPage() {
   // puede afirmar sin decir una cifra.
   const estadoDelPeriodo = useMemo(() => {
     if (!periodo) return null;
-    const cierra = fechasDelRango(hoyLima(), periodo.fecha_fin).length - 1;
+    const hoy = hoyLima();
+    const cierra = fechasDelRango(hoy, periodo.fecha_fin).length - 1;
     const mios = dias.filter((d) => d.fecha >= periodo.fecha_ini && d.fecha <= periodo.fecha_fin);
-    const pendientes = mios.filter((d) => d.estado === "revisar" || d.estado === "falta").length;
+    // Misma exclusión que en `resumen`: su turno de hoy en curso no es un día
+    // pendiente, y sin esto la tarjeta seguía diciendo «tienes 1 día por
+    // revisar» —en alerta— justo debajo del aviso que se acaba de calmar.
+    const pendientes = mios.filter(
+      (d) => (d.estado === "revisar" && !enJornadaAbierta(d, hoy)) || d.estado === "falta",
+    ).length;
     // `cubre` dice si el rango que está mirando abarca el periodo entero: si no,
     // el «todo completo» sería una afirmación sobre días que no se consultaron.
-    const cubre = desde <= periodo.fecha_ini && hasta >= hoyLima();
+    const cubre = desde <= periodo.fecha_ini && hasta >= hoy;
     return { cierra, pendientes, cubre };
   }, [periodo, dias, desde, hasta]);
 
@@ -1186,9 +1361,20 @@ export default function MioPage() {
         ir: () => { setTab("ausencias"); irArriba(); },
       });
     }
+    // Genérica a propósito: ni el nivel ni el motivo de la sanción van acá.
+    // Esta tarjeta puede verla de reojo cualquiera que pase cerca de la
+    // pantalla — el detalle recién se ve al entrar al documento mismo.
+    if (memosPorFirmar.length > 0) {
+      const n = memosPorFirmar.length;
+      out.push({
+        clave: "memos",
+        texto: `Tienes ${n} documento${n === 1 ? "" : "s"} por revisar y firmar`,
+        ir: () => { setTab("historial"); irArriba(); },
+      });
+    }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resumen, respondidas, vacas]);
+  }, [resumen, respondidas, vacas, memosPorFirmar]);
 
   const objCumplidos = objetivos.filter((o) => o.cumplido).length;
   const mesLabel = `${MESES_LARGOS[Number(hasta.slice(5, 7)) - 1].toLowerCase()} ${hasta.slice(0, 4)}`;
@@ -1227,7 +1413,19 @@ export default function MioPage() {
   }
 
   return (
-    <main className="mx-auto min-h-screen w-full max-w-3xl bg-crema px-5 py-8 text-tinta">
+    // El marco de esta pantalla, con la misma forma que el del panel
+    // (`(admin)/layout.tsx`): el menú pegado al borde izquierdo y el contenido
+    // ocupando el resto. En teléfono se apila, y ahí el menú es la barra
+    // pegajosa de arriba que abre el cajón.
+    <div className="flex min-h-screen flex-col bg-crema text-tinta md:flex-row">
+      <MenuDetalle
+        secciones={secciones}
+        activo={tab}
+        onSel={elegirSeccion}
+        etiqueta="Secciones de tu perfil"
+      />
+
+    <main className="mx-auto min-w-0 max-w-5xl flex-1 px-5 py-8">
       {/* ══ 1 · QUIÉN ERES ══════════════════════════════════════════════════
           Lo primero de un perfil es la persona, y hasta hoy acá lo primero era
           una barrita de 14 píxeles con la foto encogida al lado del nombre.
@@ -1278,6 +1476,43 @@ export default function MioPage() {
               <Link href="/admin/dashboard"
                 className="rounded-lg border border-sand px-3 py-1.5 text-xs text-tinta transition-colors hover:bg-hueso">
                 Volver al panel
+              </Link>
+            )}
+            {/* La Bandeja va ANTES de «Editar datos» a propósito: es donde
+                aterriza el resultado de lo que se pide ahí al lado. El número
+                sale de la misma función que arma la lista (lib/bandeja-mia.ts),
+                nunca de una cuenta propia de esta pantalla.
+                Cuenta dos cosas distintas y por eso no se apaga igual: lo que
+                le falta HACER sigue contando hasta que lo firme o lo arregle;
+                lo que le RESPONDIERON caduca solo a los DIAS_NOVEDAD. */}
+            {yo && (
+              <Link href="/mio/bandeja"
+                title={avisosEnBandeja > 0
+                  ? `${avisosEnBandeja} cosa${avisosEnBandeja === 1 ? "" : "s"} en tu bandeja: lo que te falta hacer y lo que te respondieron`
+                  : "Lo que te falta hacer y lo que respondieron a lo que pediste"}
+                className="relative flex items-center gap-1.5 rounded-lg border border-sand px-3 py-1.5 text-xs text-tinta transition-colors hover:bg-hueso">
+                {/* El mismo ícono que el panel usa para su Bandeja
+                    (admin/nav-items.ts), no uno nuevo: es la misma idea en las
+                    dos superficies, y quien tiene panel la reconoce sin leer. */}
+                <Inbox size={14} strokeWidth={1.8} className="shrink-0" aria-hidden />
+                Bandeja
+                {avisosEnBandeja > 0 && (
+                  <>
+                    {/* El número montado en la esquina, con los tokens del
+                        contador del panel (`bg-rojo` sobre `text-crema`): un
+                        dígito sale círculo y dos salen píldora corta, sin
+                        deformar el botón. Va `aria-hidden` porque un número
+                        suelto no dice nada a quien no lo ve — el dato entero
+                        viaja en el `sr-only` de abajo y en el `title`. */}
+                    <span aria-hidden
+                      className="absolute -right-1.5 -top-1.5 min-w-[1.125rem] rounded-pildora bg-rojo px-1 text-center text-[10px] font-medium leading-[1.125rem] text-crema">
+                      {avisosEnBandeja}
+                    </span>
+                    <span className="sr-only">
+                      {avisosEnBandeja} cosa{avisosEnBandeja === 1 ? "" : "s"} en tu bandeja
+                    </span>
+                  </>
+                )}
               </Link>
             )}
             {yo && (
@@ -1348,120 +1583,136 @@ export default function MioPage() {
         </section>
       )}
 
-      {/* ══ 3 · TUS CUATRO CIFRAS, Y LO QUE SE HACE CON ELLAS ═══════════════
+      {/* Su jornada de hoy sigue abierta. No es un pendiente —no hay nada roto
+          que arreglar— así que va FUERA del recuadro ámbar «Necesita que hagas
+          algo»: en `pizarra`, el tono informativo/«en proceso», con el mismo
+          criterio que ya usa la banda de Equipo. Lo único que aporta es el
+          recordatorio de marcar al salir, que es lo único que ella puede hacer. */}
+      {resumen.enJornadaAhora && (
+        <div className="mb-6 rounded-2xl border border-pizarra/40 bg-pizarra/[0.07] px-5 py-4 text-sm">
+          Te encuentras en jornada laboral, no te olvides de marcar al salir.
+        </div>
+      )}
+
+      {/* ══ 3 · RESUMEN — TUS CUATRO CIFRAS, Y LO QUE SE HACE CON ELLAS ═══
           Las cuatro preguntas que traen a alguien a esta pantalla: cuándo me
           pagan, cuántas vacaciones tengo, cuándo me toca entrar y cómo voy con
           lo mío. Cada una con su acción al lado.
 
-          Y las ACCIONES viven acá, fuera de las pestañas, a propósito: quien
-          entra a pedir vacaciones no debería tener que adivinar detrás de qué
-          pestaña están. La pestaña guarda lo que se viene a mirar; nunca lo
-          que se viene a hacer. */}
-      <div className="mb-6 grid gap-3 sm:grid-cols-2">
-        {/* El periodo de pago. Sin montos: la boleta vive en su propia pantalla
-            porque es un documento que se imprime, y el print de esta imprimiría
-            las quince secciones de arriba con él. */}
-        {periodo && estadoDelPeriodo ? (
-          <TarjetaClave
-            titulo="Tu periodo de pago"
-            valor={estadoDelPeriodo.cierra > 0
-              ? `Cierra en ${estadoDelPeriodo.cierra} día${estadoDelPeriodo.cierra === 1 ? "" : "s"}`
-              : "Cierra hoy"}
-            pie={`Del ${diaYMes(periodo.fecha_ini)} al ${diaYMes(periodo.fecha_fin)}. ${
-              !estadoDelPeriodo.cubre
-                ? "Estás mirando otro rango de fechas: toca «Periodo de pago» abajo para revisar el que se te va a pagar."
-                : estadoDelPeriodo.pendientes > 0
-                  ? `Tienes ${estadoDelPeriodo.pendientes} día${estadoDelPeriodo.pendientes === 1 ? "" : "s"} por revisar dentro de este periodo.`
-                  : "Todos tus días de este periodo están completos."}`}
-            alerta={estadoDelPeriodo.cubre && estadoDelPeriodo.pendientes > 0}
-            accion={<Link href="/mio/boleta" className="text-tinta underline underline-offset-2 hover:text-rojo-profundo">Ver mi boleta →</Link>}
-          />
-        ) : (
-          <TarjetaClave titulo="Tu periodo de pago" valor="—" pie="No hay un periodo de pago abierto para hoy." />
-        )}
+          Hasta el 2026-09-10 se pintaban SIEMPRE, por encima de la sección que
+          estuvieras mirando. Con el menú lateral eso dejó de tener sentido:
+          quien elige «Mis turnos» pide ver sus turnos, y cuatro cifras que
+          hablan de otra cosa compiten con lo que acaba de pedir.
 
-        {/* Nadie pide vacaciones que no sabe que tiene. */}
-        {vacas && (
+          Ahora son su propia sección, «Resumen», Y ES LA SECCIÓN CON LA QUE LA
+          PANTALLA ABRE. Eso no es un detalle de arranque: es lo que mantiene en
+          pie la regla de que una acción no se esconde detrás de un renglón del
+          menú. «Pedir vacaciones» y «Ver mi boleta» siguen viéndose al entrar,
+          sin tocar nada — lo que cambió es que ya no siguen a quien se fue a
+          mirar otra cosa. Ver el comentario de `tab`. */}
+      {tab === "resumen" && (
+        <div className="mb-6 grid gap-3 sm:grid-cols-2">
+          {/* El periodo de pago. Sin montos: la boleta vive en su propia pantalla
+              porque es un documento que se imprime, y el print de esta imprimiría
+              las quince secciones de arriba con él. */}
+          {periodo && estadoDelPeriodo ? (
+            <TarjetaClave
+              titulo="Tu periodo de pago"
+              valor={estadoDelPeriodo.cierra > 0
+                ? `Cierra en ${estadoDelPeriodo.cierra} día${estadoDelPeriodo.cierra === 1 ? "" : "s"}`
+                : "Cierra hoy"}
+              pie={`Del ${diaYMes(periodo.fecha_ini)} al ${diaYMes(periodo.fecha_fin)}. ${
+                !estadoDelPeriodo.cubre
+                  ? "Estás mirando otro rango de fechas: toca «Periodo de pago» abajo para revisar el que se te va a pagar."
+                  : estadoDelPeriodo.pendientes > 0
+                    ? `Tienes ${estadoDelPeriodo.pendientes} día${estadoDelPeriodo.pendientes === 1 ? "" : "s"} por revisar dentro de este periodo.`
+                    : "Todos tus días de este periodo están completos."}`}
+              alerta={estadoDelPeriodo.cubre && estadoDelPeriodo.pendientes > 0}
+              accion={<Link href="/mio/boleta" className="text-tinta underline underline-offset-2 hover:text-rojo-profundo">Ver mi boleta →</Link>}
+            />
+          ) : (
+            <TarjetaClave titulo="Tu periodo de pago" valor="—" pie="No hay un periodo de pago abierto para hoy." />
+          )}
+
+          {/* Nadie pide vacaciones que no sabe que tiene. */}
+          {vacas && (
+            <TarjetaClave
+              titulo="Tus vacaciones"
+              valor={`${vacas.dias_pendientes} días`}
+              pie={vacas.vence_el
+                ? `Sin tomar. El récord más antiguo vence el ${diaYMes(vacas.vence_el)}${
+                    typeof vacas.dias_para_vencer === "number" && vacas.dias_para_vencer >= 0
+                      ? ` — faltan ${vacas.dias_para_vencer} días.` : "."}`
+                : "Días pendientes de tomar."}
+              alerta={(vacas.dias_para_vencer ?? 999) <= 60 && vacas.records_sin_gozar > 0}
+              accion={
+                <button onClick={() => { setTab("ausencias"); irArriba(); }}
+                  className="text-tinta underline underline-offset-2 hover:text-rojo-profundo">
+                  Pedir vacaciones →
+                </button>
+              }
+            />
+          )}
+
+          {/* «¿Cuándo me toca?» es la pregunta que más veces abre esta pantalla, y
+              hasta hoy se respondía por WhatsApp. */}
           <TarjetaClave
-            titulo="Tus vacaciones"
-            valor={`${vacas.dias_pendientes} días`}
-            pie={vacas.vence_el
-              ? `Sin tomar. El récord más antiguo vence el ${diaYMes(vacas.vence_el)}${
-                  typeof vacas.dias_para_vencer === "number" && vacas.dias_para_vencer >= 0
-                    ? ` — faltan ${vacas.dias_para_vencer} días.` : "."}`
-              : "Días pendientes de tomar."}
-            alerta={(vacas.dias_para_vencer ?? 999) <= 60 && vacas.records_sin_gozar > 0}
+            titulo="Tu próximo turno"
+            valor={proximos.length > 0
+              ? `${proximos[0].esperado.entrada}${proximos[0].esperado.salida ? `–${proximos[0].esperado.salida}` : ""}`
+              : "—"}
+            pie={proximos.length > 0
+              ? `Te toca ${cuando(proximos[0].fecha)}.${feriados.length > 0 ? ` Próximo feriado: ${diaYMes(feriados[0].fecha)}, ${feriados[0].nombre}.` : ""}`
+              : "No hay turnos ni horario cargados para los próximos días. Si eso no es lo que esperabas, avísale a tu encargada."}
             accion={
-              <button onClick={() => { setTab("ausencias"); irArriba(); }}
+              <button onClick={() => { setTab("turnos"); irArriba(); }}
                 className="text-tinta underline underline-offset-2 hover:text-rojo-profundo">
-                Pedir vacaciones →
+                Ver mis próximos días →
               </button>
             }
           />
-        )}
 
-        {/* «¿Cuándo me toca?» es la pregunta que más veces abre esta pantalla, y
-            hasta hoy se respondía por WhatsApp. */}
-        <TarjetaClave
-          titulo="Tu próximo turno"
-          valor={proximos.length > 0
-            ? `${proximos[0].esperado.entrada}${proximos[0].esperado.salida ? `–${proximos[0].esperado.salida}` : ""}`
-            : "—"}
-          pie={proximos.length > 0
-            ? `Te toca ${cuando(proximos[0].fecha)}.${feriados.length > 0 ? ` Próximo feriado: ${diaYMes(feriados[0].fecha)}, ${feriados[0].nombre}.` : ""}`
-            : "No hay turnos ni horario cargados para los próximos días. Si eso no es lo que esperabas, avísale a tu encargada."}
-          accion={
-            <button onClick={() => { setTab("turnos"); irArriba(); }}
-              className="text-tinta underline underline-offset-2 hover:text-rojo-profundo">
-              Ver mis próximos días →
-            </button>
-          }
-        />
-
-        {/* Sin lenguaje de premio: desde la 0171 los objetivos NO pagan. */}
-        <TarjetaClave
-          titulo={`Tus objetivos de ${mesLabel}`}
-          valor={objetivos.length > 0 ? `${objCumplidos} de ${objetivos.length}` : "—"}
-          pie={objetivos.length > 0
-            ? "Los marca tu encargada cuando los conversan."
-            : `Todavía no tienes objetivos cargados para ${mesLabel}. Los acuerda contigo tu encargada.`}
-          accion={objetivos.length > 0 ? (
-            <button onClick={() => { setTab("objetivos"); irArriba(); }}
-              className="text-tinta underline underline-offset-2 hover:text-rojo-profundo">
-              Verlos →
-            </button>
-          ) : undefined}
-        />
-      </div>
+          {/* Sin lenguaje de premio: desde la 0171 los objetivos NO pagan. */}
+          <TarjetaClave
+            titulo={`Tus objetivos de ${mesLabel}`}
+            valor={objetivos.length > 0 ? `${objCumplidos} de ${objetivos.length}` : "—"}
+            pie={objetivos.length > 0
+              ? "Los marca tu encargada cuando los conversan."
+              : `Todavía no tienes objetivos cargados para ${mesLabel}. Los acuerda contigo tu encargada.`}
+            accion={objetivos.length > 0 ? (
+              <button onClick={() => { setTab("objetivos"); irArriba(); }}
+                className="text-tinta underline underline-offset-2 hover:text-rojo-profundo">
+                Verlos →
+              </button>
+            ) : undefined}
+          />
+        </div>
+      )}
 
       {/* ══ 4 · EL DETALLE ══════════════════════════════════════════════════
-          Mismo patrón de pestañas que la ficha de una persona en el panel
-          (admin/personas/[id]): que las dos pantallas con pestañas del sistema
-          se vean iguales no es cosmético, es que quien aprendió una ya sabe
-          usar la otra.
+          Las ocho secciones que se MIRAN, gobernadas por el menú de la
+          izquierda y no por una tira de pestañas. La novena, «Resumen», es la de
+          arriba: se pinta igual que estas y con la misma condición.
 
-          Con 7 pestañas (antes 6, "Firma" es la que se agregó) ya no entran
-          todas en una pantalla angosta, así que este `overflow-x-auto` pasa de
-          decorativo a necesario — y ahí aparece la barra de scroll horizontal
-          que se veía pesada bajo el texto. Sigue desplazándose igual con el
-          dedo o el trackpad; solo se oculta la barra en sí, no la función.
-          `scrollbar-width:none` cubre Firefox y el Chrome/Edge actuales;
-          `::-webkit-scrollbar` es el remanente para Safari, que todavía no
-          soporta la propiedad estándar (mismo motivo de las dos vías que ya
-          explica el bloque de scrollbars globales en globals.css). */}
-      <div
-        id="detalle"
-        className="mb-5 flex gap-1 overflow-x-auto border-b border-sand [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-      >
-        <TabBtn valor="dias" activa={tab} onSel={setTab}>Mis días</TabBtn>
-        <TabBtn valor="turnos" activa={tab} onSel={setTab}>Mis turnos</TabBtn>
-        {hayCampoDni && <TabBtn valor="dni" activa={tab} onSel={setTab}>Mi DNI</TabBtn>}
-        <TabBtn valor="ausencias" activa={tab} onSel={setTab}>Vacaciones y permisos</TabBtn>
-        <TabBtn valor="contrato" activa={tab} onSel={setTab}>Contrato</TabBtn>
-        <TabBtn valor="firma" activa={tab} onSel={setTab}>Firma</TabBtn>
-        <TabBtn valor="objetivos" activa={tab} onSel={setTab}>Objetivos</TabBtn>
-        <TabBtn valor="historial" activa={tab} onSel={setTab}>Historial</TabBtn>
-      </div>
+          La tira estaba en `overflow-x-auto` con la barra de scroll escondida,
+          así que en cualquier pantalla que no fuera ancha había secciones
+          enteras —Contrato, Firma, Objetivos, Historial— fuera de la vista y
+          sin nada que anunciara que estaban ahí. Es el mismo problema que el
+          panel resolvió el 2026-09-07 cambiando su barra horizontal por un
+          sidebar, y ya se había intentado arreglar con scroll horizontal
+          (688e8e5) y revertido el mismo día (21591a7) por esconder ítems.
+
+          Lo de arriba NO se movió, y esa sigue siendo la regla de la pantalla
+          (ver el comentario de `tab`): quién eres, lo que te exige actuar hoy y
+          tus cuatro cifras se ven completos sin tocar nada. El menú solo decide
+          qué se MIRA aquí abajo.
+
+          El ancla de abajo es un div vacío y no un contenedor de las ocho
+          secciones: el menú vive en el marco, así que envolverlas no serviría
+          para nada salvo correr 760 líneas de sangría — y hay una docena de
+          ramas sin fusionar tocando este archivo. A esto suben `irArriba` y
+          `elegirSeccion`. */}
+      <div id="detalle" aria-hidden />
 
       {/* ── MIS DÍAS ─────────────────────────────────────────────────────── */}
       {tab === "dias" && (
@@ -2126,6 +2377,65 @@ export default function MioPage() {
           Estaba de tercera sección de la pantalla, ocupándole media vista a algo
           que se consulta una vez al mes. */}
       {tab === "historial" && (
+        <>
+          {/* Solo visible si tiene al menos un memo entregado — nada que
+              mostrar, nada que ocupe pantalla. `fn_mis_memos()` (0404) ya
+              garantiza que nunca llegue acá un borrador. */}
+          {misMemos.length > 0 && (
+            <section className="mb-4 rounded-2xl border border-sand p-5 text-sm">
+              <h2 className="mb-1 font-serif text-lg">Tus memos disciplinarios</h2>
+              <p className="mb-3 text-taupe">
+                Los que ya te entregaron. Firmarlos digitalmente (o dejar constancia de que prefieres no
+                hacerlo) no reemplaza el trámite en físico — es evidencia adicional, con su propia fecha y hora.
+              </p>
+              <ul className="space-y-3">
+                {misMemos.map((m) => {
+                  const puedeFirmar = ["verbal", "amonestacion", "suspension"].includes(m.nivel);
+                  const resuelto = Boolean(m.firma_sancionado_confirmada_at || m.sancionado_rechazo_firma_at);
+                  return (
+                    <li key={m.id} className="border-t border-sand pt-3 first:border-t-0 first:pt-0">
+                      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+                        <span className="font-medium">
+                          {NIVEL_DISCIPLINARIO_LABELS[m.nivel as keyof typeof NIVEL_DISCIPLINARIO_LABELS] ?? m.nivel}
+                        </span>
+                        <span className="text-xs text-taupe">
+                          {m.entregado_at ? diaYMes(m.entregado_at.slice(0, 10)) : "—"}
+                        </span>
+                      </div>
+                      <p className="text-taupe">
+                        {CAUSAL_LABEL_MIO[m.tipo_causal] ?? m.tipo_causal}
+                        {m.correlativo ? ` · ${m.correlativo}` : ""}
+                      </p>
+                      {m.firma_sancionado_confirmada_at && (
+                        <p className="mt-1 text-verde">
+                          Firmaste este documento el {diaYMes(m.firma_sancionado_confirmada_at.slice(0, 10))}.
+                        </p>
+                      )}
+                      {m.sancionado_rechazo_firma_at && (
+                        <p className="mt-1 text-taupe">
+                          Quedó anotado que preferiste no firmarlo digitalmente, el{" "}
+                          {diaYMes(m.sancionado_rechazo_firma_at.slice(0, 10))}.
+                        </p>
+                      )}
+                      {!resuelto && puedeFirmar && (
+                        <div className="mt-2 flex flex-wrap items-center gap-3">
+                          <Boton variante="primario" tamano="sm" onClick={() => void firmarMemo(m.id)}>Firmar</Boton>
+                          <Boton variante="enlace" className="text-xs text-taupe" onClick={() => void rechazarFirmaMemo(m.id)}>
+                            Prefiero no firmar digitalmente
+                          </Boton>
+                        </div>
+                      )}
+                      {!resuelto && !puedeFirmar && (
+                        <p className="mt-1 text-xs text-taupe">
+                          Este documento se firma en físico o vía notarial — no admite firma digital.
+                        </p>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          )}
         <section className="rounded-2xl border border-sand p-5 text-sm">
           <h2 className="mb-1 font-serif text-lg">Correcciones a tus marcajes</h2>
           <p className="mb-3 text-taupe">
@@ -2159,6 +2469,7 @@ export default function MioPage() {
             </ul>
           )}
         </section>
+        </>
       )}
 
       <p className="mt-6 text-xs text-taupe">
@@ -2166,6 +2477,7 @@ export default function MioPage() {
         ves sale de tus marcajes, y un marcaje mal registrado se arregla, no se discute al final del mes.
       </p>
     </main>
+    </div>
   );
 }
 
@@ -2264,30 +2576,5 @@ function TarjetaClave({
       {pie && <p className="mt-1 flex-1 text-xs leading-relaxed text-taupe">{pie}</p>}
       {accion && <div className="mt-3 text-sm font-medium">{accion}</div>}
     </div>
-  );
-}
-
-/**
- * Una pestaña del detalle. Mismo aspecto que las de la ficha de una persona en
- * el panel (`admin/personas/[id]`) a propósito: dos pantallas con pestañas que
- * se vean distintas obligan a aprenderlas dos veces.
- */
-function TabBtn({
-  valor, activa, onSel, children,
-}: {
-  valor: Tab;
-  activa: Tab;
-  onSel: (t: Tab) => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      onClick={() => onSel(valor)}
-      aria-current={activa === valor ? "page" : undefined}
-      className={`-mb-px shrink-0 border-b-2 px-3 py-2 text-sm transition-colors sm:px-4 ${
-        activa === valor ? "border-rojo font-medium text-tinta" : "border-transparent text-taupe hover:text-tinta"}`}
-    >
-      {children}
-    </button>
   );
 }

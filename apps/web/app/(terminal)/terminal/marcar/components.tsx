@@ -263,11 +263,19 @@ type OpcionSalida = { tipo: TipoMarca; motivoRequerido: boolean; label: string }
 
 // Menú de salida asertivo: una acción principal sugerida (grande), la otra opción
 // principal como secundaria, y las salidas por motivo escondidas bajo "otra salida".
+//
+// `neutra` cubre el caso en que NI refrigerio NI salida final tienen sentido
+// ahora mismo (ej. entró hace 1h) — ver sugerirSalidaPrincipal en shared. Ahí
+// se invierte qué es prominente: "otra salida" (personal/trámite/médico/otro)
+// sube arriba ya expandida, y principal/secundaria bajan a enlaces chicos.
+// Nada se oculta en ningún caso, solo cambia qué se ve grande.
 export function SelectorSalida({
   nombre,
   principal,
   secundaria,
   otras,
+  neutra = false,
+  aviso,
   onElegir,
   onCancelar,
 }: {
@@ -275,13 +283,67 @@ export function SelectorSalida({
   principal: OpcionSalida;
   secundaria: OpcionSalida | null;
   otras: OpcionSalida[];
+  neutra?: boolean;
+  /**
+   * Para el único caso en que este menú no es una sugerencia sino un
+   * respaldo: no se pudo confirmar el estado de la persona (ver
+   * `estado-dia.ts` → `confirmarEstadoPuntual`) y se le pide elegir a mano en
+   * vez de arriesgar una suposición. Sin esto, la pantalla es indistinguible
+   * del menú de salida de siempre, y nada explica por qué de golpe aparece
+   * "Entrada" junto a las salidas.
+   */
+  aviso?: string;
   onElegir: (tipo: TipoMarca, motivoRequerido: boolean) => void;
   onCancelar: () => void;
 }) {
   const [mostrarOtras, setMostrarOtras] = useState(false);
+
+  if (neutra) {
+    return (
+      <div className="flex flex-1 flex-col items-center justify-center gap-6 p-8">
+        <p className="font-serif text-2xl">{nombre}</p>
+        <div className="flex w-full max-w-sm flex-col gap-3">
+          {otras.map((op) => (
+            <button
+              key={op.tipo}
+              onClick={() => onElegir(op.tipo, op.motivoRequerido)}
+              className={`${TILE} px-5 py-4 text-lg text-left`}
+            >
+              {op.label}
+            </button>
+          ))}
+          <div className="mt-2 flex justify-center gap-4">
+            <button
+              onClick={() => onElegir(principal.tipo, principal.motivoRequerido)}
+              className="text-sm text-taupe underline"
+            >
+              {principal.label}
+            </button>
+            {secundaria && (
+              <button
+                onClick={() => onElegir(secundaria.tipo, secundaria.motivoRequerido)}
+                className="text-sm text-taupe underline"
+              >
+                {secundaria.label}
+              </button>
+            )}
+          </div>
+        </div>
+        <button onClick={onCancelar} className="text-sm text-taupe underline">
+          Cancelar
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-6 p-8">
       <p className="font-serif text-2xl">{nombre}</p>
+      {aviso && (
+        <p className="max-w-sm rounded-control bg-ambar/10 px-4 py-3 text-center text-sm text-tinta" role="alert">
+          {aviso}
+        </p>
+      )}
       <div className="flex w-full max-w-sm flex-col gap-3">
         <button
           onClick={() => onElegir(principal.tipo, principal.motivoRequerido)}

@@ -181,7 +181,7 @@ export default function ConstanciasPoliticaSalarialPage() {
   if (error || version === null) {
     return (
       <main className="mx-auto max-w-2xl p-6">
-        <p className="rounded-2xl border border-sand bg-papel px-4 py-6 text-sm text-taupe">
+        <p className="rounded-superficie border border-sand bg-papel px-4 py-6 text-sm text-taupe">
           {error ?? "No se pudo abrir la política salarial."}
         </p>
         <Boton variante="secundario" tamano="sm" className="mt-3" onClick={() => router.push("/admin/politica-salarial")}>
@@ -196,7 +196,7 @@ export default function ConstanciasPoliticaSalarialPage() {
   const total = filas.length;
 
   return (
-    <main className="mx-auto max-w-4xl p-6 print:max-w-none print:p-0">
+    <main className="hoja mx-auto max-w-4xl p-6 print:max-w-none print:p-0">
       <div className="mb-5 flex flex-wrap items-center gap-2 print:hidden">
         {/* Sin todos los datos NO se imprime: el papel es la prueba del
             numeral 25.23 del RLGIT, y un DNI o una sede en blanco por una
@@ -218,7 +218,7 @@ export default function ConstanciasPoliticaSalarialPage() {
           ⌘P saltándose el botón deshabilitado: el papel tiene que decir por
           escrito que está incompleto, no salir en blanco y silencio. */}
       {noSePudo.length > 0 && (
-        <p className="mb-5 rounded-lg border border-rojo/40 bg-rojo/10 px-4 py-3 text-xs text-rojo">
+        <p className="mb-5 rounded-control border border-rojo/40 bg-rojo/10 px-4 py-3 text-xs text-rojo">
           No se pudo traer {noSePudo.join(", ")}. Esta hoja no prueba nada mientras falte ese
           dato: recarga la página, y si sigue igual avisa a Felipe.
         </p>
@@ -234,7 +234,7 @@ export default function ConstanciasPoliticaSalarialPage() {
         <p className="mt-1 text-sm text-tinta">Cuadro de categorías y política salarial</p>
       </header>
 
-      <section className="mb-5 rounded-xl border border-sand bg-crema/40 px-4 py-3 text-xs text-tinta print:rounded-none print:bg-transparent">
+      <section className="mb-5 rounded-superficie border border-sand bg-crema/40 px-4 py-3 text-xs text-tinta print:rounded-none print:bg-transparent">
         <dl className="grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-2">
           <div><dt className="inline text-taupe">Documento: </dt><dd className="inline">Cuadro de categorías y política salarial</dd></div>
           <div><dt className="inline text-taupe">Versión: </dt><dd className="inline">{version}</dd></div>
@@ -243,7 +243,7 @@ export default function ConstanciasPoliticaSalarialPage() {
         <p className="mt-2 border-t border-sand pt-2 text-taupe">{BASE_LEGAL}</p>
       </section>
 
-      <section className="mb-5 rounded-xl border border-tinta/20 px-4 py-3 text-sm text-tinta print:rounded-none">
+      <section className="mb-5 rounded-superficie border border-tinta/20 px-4 py-3 text-sm text-tinta print:rounded-none">
         <p>
           Al <strong>{fechaLarga(hoyLima())}</strong>, de <strong>{total}</strong>{" "}
           {total === 1 ? "integrante comprendida" : "integrantes comprendidas"} —personal activo y en
@@ -259,7 +259,9 @@ export default function ConstanciasPoliticaSalarialPage() {
         )}
       </section>
 
-      <table className="w-full border-collapse text-xs">
+      {/* Tabla nativa a propósito: contenido de un documento que se imprime
+          como prueba legal. */}
+      <table className="w-full border-collapse text-xs [font-variant-numeric:tabular-nums]">
         <thead>
           <tr className="border-y border-tinta/30 text-left text-taupe">
             <th className="py-1.5 pr-2 font-normal">N.°</th>
@@ -295,7 +297,7 @@ export default function ConstanciasPoliticaSalarialPage() {
       </p>
 
       {pendientes.length > 0 && (
-        <section className="mt-5 break-inside-avoid rounded-xl border border-sand px-4 py-3 text-xs print:rounded-none">
+        <section className="mt-5 break-inside-avoid rounded-superficie border border-sand px-4 py-3 text-xs print:rounded-none">
           <h2 className="mb-1 font-medium text-tinta">
             Pendientes a la fecha de corte · {pendientes.length}
           </h2>

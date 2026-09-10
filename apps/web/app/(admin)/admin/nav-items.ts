@@ -25,7 +25,7 @@ const SEDE = ROLES_CON_PANEL;
 // mano contra el `href` y repetida SEIS veces (tres en la barra de escritorio y
 // tres en el cajón); si alguien cambiaba una ruta, cinco copias se quedaban
 // atrás en silencio. Ahora el ítem dice cuál le toca y el panel lo pinta una vez.
-export type Contador = "educacion" | "vacaciones" | "revisiones";
+export type Contador = "educacion" | "vacaciones" | "revisiones" | "mio";
 
 export type Item = {
   href: string;
@@ -72,7 +72,18 @@ export const GRUPOS: Grupo[] = [
     // «Lo mío» va sin `roles` y va PRIMERO: es lo único de este menú que habla de
     // quien lo está mirando. Para una integrante es su pantalla —sus días, sus
     // horas, sus tardanzas— y para DO es la suya, que también la tiene.
-    { href: "/mio", label: "Mi perfil", Icon: UserRound },
+    // El ÚNICO contador de este menú que habla de quien lo mira, no del equipo:
+    // su contrato sin firmar, su constancia de ley pendiente, sus días con el
+    // marcaje incompleto. Sale de lib/bandeja-mia.ts, la misma función que pinta
+    // el número del botón «Bandeja» de /mio — no hay una segunda cuenta.
+    //
+    // Se salta la vara de los otros tres («¿tiene fecha límite y cuesta plata
+    // pasarla?») a propósito y por la misma excepción que ya se escribió para el
+    // aviso de acuses: solo lo ve quien tiene algo pendiente, y deja de verlo el
+    // día que lo resuelve. No es un adorno permanente; es una tarea con final.
+    // Sin él, quien trabaja todo el día en el panel no se entera nunca de que
+    // tiene su propio contrato sin firmar.
+    { href: "/mio", label: "Mi perfil", Icon: UserRound, contador: "mio" },
     // Con `roles` desde el 2026-09-04. Antes iba sin filtro, así que una
     // integrante con cuenta —las hay: se les invita para que acusen la política
     // salarial (Ley 30709)— aterrizaba aquí y veía un tablero de encargada que su

@@ -61,23 +61,78 @@ export function determinarSiguienteAccion(marcajesHoy: MarcajeDelDia[]): Siguien
 }
 
 /**
- * Sugiere la salida PRINCIPAL a destacar (refrigerio vs salida final) según la hora
- * local y si la persona ya almorzó hoy — para que el terminal muestre una acción
- * obvia en vez de un menú de 6 opciones iguales. No cambia qué es válido (todas las
- * salidas siguen permitidas por fn_registrar_marcaje); solo qué se sugiere.
+ * Lo que se sabe del RITMO de una persona, para afinar la sugerencia de salida
+ * más allá de la regla fija de siempre. Ambos campos son horas decimales Lima
+ * (13.5 = 13:30) y pueden faltar por separado — una persona nueva puede tener
+ * horario asignado sin historial de refrigerio todavía, y viceversa.
+ */
+export interface EstadisticasSugerencia {
+  /** Media de sus últimas salidas a refrigerio (≥3 muestras en 30 días), o null si no hay patrón. */
+  horaMediaRefrigerio: number | null;
+  /** Su hora de salida esperada HOY según horario asignado (jornada-esperada.ts), o null sin horario. */
+  horaSalidaEsperada: number | null;
+}
+
+/**
+ * Media de la hora del día (Lima) de una lista de marcajes de salida a
+ * refrigerio. Exige al menos 3 muestras para hablar de "patrón" — con menos,
+ * un solo día atípico decidiría la sugerencia entera.
+ */
+export function calcularHoraMediaRefrigerio(
+  timestampsISO: string[],
+): { media: number; muestras: number } | null {
+  if (timestampsISO.length < 3) return null;
+  const horas = timestampsISO.map((t) => horaDecimalLima(new Date(t)));
+  const media = horas.reduce((a, b) => a + b, 0) / horas.length;
+  return { media, muestras: horas.length };
+}
+
+const TOLERANCIA_HORAS = 0.5; // ±30 min
+
+/**
+ * Sugiere la salida PRINCIPAL a destacar según tres zonas horarias — para que
+ * el terminal muestre una acción obvia en vez de un menú de 6 opciones
+ * iguales. No cambia qué es válido (todas las salidas siguen permitidas por
+ * fn_registrar_marcaje); solo qué se sugiere.
  *
- *  - Si ya almorzó hoy → salida final.
- *  - Si es mediodía (11–16h Lima), lleva ≥2h adentro y aún no almorzó → refrigerio.
- *  - En cualquier otro caso (temprano, tarde, o turno corto) → salida final.
+ * Sin `estadisticas` (u omitiendo sus dos campos), el comportamiento es
+ * IDÉNTICO al de siempre: regla fija de horario (11–16h Lima, ≥2h adentro)
+ * para refrigerio, salida final en cualquier otro caso. La zona "neutra"
+ * solo es alcanzable con datos reales de horario — ningún llamador existente
+ * puede empezar a recibirla sin pasar el tercer argumento.
+ *
+ * Con `estadisticas`:
+ *  - Si hay patrón de refrigerio (`horaMediaRefrigerio`): se confía en él por
+ *    completo dentro de ±30 min — no se vuelve a probar la regla fija encima
+ *    (mezclar los dos criterios sería la misma pregunta resuelta dos veces).
+ *  - Si no hay patrón, sigue la regla fija de siempre.
+ *  - Si ninguna de las dos aplicó: con horario asignado (`horaSalidaEsperada`),
+ *    ya se sabe con certeza si toca salida final o si es demasiado pronto
+ *    ("neutra" — ni refrigerio ni salida final tienen sentido ahora). Sin
+ *    horario asignado, salida final sigue siendo el respaldo de siempre.
  */
 export function sugerirSalidaPrincipal(
   marcajesHoy: MarcajeDelDia[],
   ahora: Date,
-): "salida_almuerzo" | "salida_final" {
-  if (marcajesHoy.some((m) => m.tipo === "salida_almuerzo")) return "salida_final";
-  const entrada = marcajesHoy.find((m) => m.tipo === "entrada");
-  const horasDentro = entrada ? (ahora.getTime() - new Date(entrada.timestamp).getTime()) / 3_600_000 : 0;
-  const hora = Math.floor(horaDecimalLima(ahora));
-  if (hora >= 11 && hora < 16 && horasDentro >= 2) return "salida_almuerzo";
+  estadisticas?: EstadisticasSugerencia,
+): "salida_almuerzo" | "salida_final" | "neutra" {
+  const yaAlmorzo = marcajesHoy.some((m) => m.tipo === "salida_almuerzo");
+  const hora = horaDecimalLima(ahora);
+
+  if (!yaAlmorzo) {
+    if (estadisticas?.horaMediaRefrigerio != null) {
+      if (Math.abs(hora - estadisticas.horaMediaRefrigerio) <= TOLERANCIA_HORAS) {
+        return "salida_almuerzo";
+      }
+    } else {
+      const entrada = marcajesHoy.find((m) => m.tipo === "entrada");
+      const horasDentro = entrada ? (ahora.getTime() - new Date(entrada.timestamp).getTime()) / 3_600_000 : 0;
+      if (Math.floor(hora) >= 11 && Math.floor(hora) < 16 && horasDentro >= 2) return "salida_almuerzo";
+    }
+  }
+
+  if (estadisticas?.horaSalidaEsperada != null) {
+    return hora >= estadisticas.horaSalidaEsperada - TOLERANCIA_HORAS ? "salida_final" : "neutra";
+  }
   return "salida_final";
 }

@@ -177,6 +177,11 @@ function fechaBonita(iso: string): string {
 // suspension · imputacion · bloqueado · aviso —, no solo «amonestacion o aviso».
 interface TardRow { persona_id: string; nombre: string; sede: string; tardanzas_mes: number; umbral: string; ultima_fecha: string | null; minimo: number | null }
 interface FaltaRow { persona_id: string; nombre: string; sede: string; nivel: string }
+/** Fila de `fn_memos_recientes_respuesta_sancionado()` (0404). */
+interface RespuestaMemoRow {
+  id: string; persona: string; correlativo: string | null; tipo_causal: string; nivel: string;
+  firmado_at: string | null; rechazado_at: string | null;
+}
 // Contratos a plazo fijo con fecha de término anotada (0144). `dias_restantes` es
 // negativo cuando la fecha ya pasó, y ese es el grupo que duele.
 interface ContratoRow { persona_id: string; nombre: string; sede: string; fecha_fin_contrato: string; dias_restantes: number; ya_vencio: boolean }
@@ -208,6 +213,7 @@ export default function DashboardPage() {
    * sitio donde el aviso no está dentro de un panel plegado.
    */
   const [discNoRespondio, setDiscNoRespondio] = useState(false);
+  const [respuestasMemo, setRespuestasMemo] = useState<RespuestaMemoRow[]>([]);
 
   // Semáforo disciplinario para la franja (aparte del refresco de asistencia).
   useEffect(() => {
@@ -250,6 +256,14 @@ export default function DashboardPage() {
         const conPapel = new Set(((papeles as Array<{ documento_id: string }>) ?? []).map((a) => a.documento_id));
         setSinCargo(((entregados as Array<{ id: string }>) ?? []).filter((d) => !conPapel.has(d.id)).length);
       }
+
+      // Quién firmó (o prefirió no firmar) su memo en los últimos 14 días
+      // (0404). Falla en silencio a propósito, igual que "Contratos a plazo
+      // fijo" más abajo: es informativo, no un aviso de plazo legal corriendo
+      // como el resto de esta franja — si la RPC no responde, la tarjeta
+      // simplemente no aparece.
+      const { data: resp } = await sb.rpc("fn_memos_recientes_respuesta_sancionado", { p_dias: 14 });
+      setRespuestasMemo(Array.isArray(resp) ? (resp as RespuestaMemoRow[]) : []);
     })();
   }, []);
 
@@ -559,6 +573,31 @@ export default function DashboardPage() {
             </div>
           );
         })()}
+
+        {/* QUIÉN RESPONDIÓ SU MEMO (0404). Aparte del panel de arriba porque
+            no es un plazo legal corriendo — es informativo: alguien ya vio su
+            documento y dejó una constancia digital, firmando o prefiriendo no
+            hacerlo. Ninguna de las dos reemplaza el trámite físico. */}
+        {respuestasMemo.length > 0 && (
+          <div className="mb-10 rounded-2xl border border-sand bg-verde/[0.04] p-5">
+            <div className="mb-2 flex items-center justify-between">
+              <span className="font-serif text-lg text-tinta">Colaboradores respondieron su memo</span>
+              <Link href="/admin/disciplina" className="text-xs font-medium text-taupe hover:underline">Ver disciplina →</Link>
+            </div>
+            {respuestasMemo.map((r) => (
+              <Link key={r.id} href={`/admin/disciplina/memo/${r.id}`}
+                className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-sand/60 py-2 text-sm transition-colors hover:bg-verde/[0.06]">
+                <span>
+                  <strong>{r.persona}</strong> <span className="text-taupe">· {NIVEL_DISCIPLINARIO_CORTO[r.nivel as keyof typeof NIVEL_DISCIPLINARIO_CORTO] ?? r.nivel}</span>
+                  <Insignia variante={r.firmado_at ? "positivo" : "neutral"} className="ml-2">
+                    {r.firmado_at ? "firmó digitalmente" : "prefirió no firmar"}
+                  </Insignia>
+                </span>
+                <span className="text-xs text-taupe">{fechaBonita((r.firmado_at ?? r.rechazado_at)!.slice(0, 10))}</span>
+              </Link>
+            ))}
+          </div>
+        )}
 
         {/* CONTRATOS A PLAZO FIJO. Dos grupos, y el importante es el primero:
             quien ya venció y sigue figurando activo. Ese caso no se nota en

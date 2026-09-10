@@ -155,6 +155,8 @@ export function BuscadorGlobal({
             aria-label="Buscar"
             className="w-full bg-transparent text-sm text-tinta placeholder:text-taupe focus:outline-none"
           />
+          {/* Nativo a propósito: botón de solo ícono, misma familia que
+              Tema/Atajos de teclado — <Boton> no tiene una variante para eso. */}
           <button onClick={onCerrar} aria-label="Cerrar buscador"
             className="shrink-0 rounded-md p-1 text-taupe transition hover:bg-sand/40 hover:text-tinta">
             <X size={16} strokeWidth={1.8} aria-hidden />
@@ -178,6 +180,9 @@ export function BuscadorGlobal({
                       {fila.tipo === "pantalla" ? "Pantallas" : "Equipo"}
                     </p>
                   )}
+                  {/* Nativo a propósito: fila de resultado navegable con flechas
+                      (resalta según `seleccionada`, no según :hover), no una
+                      acción — <Boton> no tiene un modo "fila de lista". */}
                   <button
                     onClick={() => ir(fila)}
                     onMouseEnter={() => setIndice(i)}
