@@ -6,6 +6,7 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Cargando } from "@/components/cargando";
 import { useToast } from "@/components/toast";
 import { useRolActual } from "@/lib/admin/use-rol";
+import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { formatSoles } from "@/lib/rangos";
 import { EMPRESA, hoyLima, puedeVerPlanilla } from "@cayla-dynamic/shared";
@@ -356,6 +357,20 @@ export default function LiquidacionesPage() {
     await cargarDetalle(personaId);
     avisar("ok", `Liquidación de ${nombre} anulada con constancia. Vuelve a marcarla cuando el número esté bien.`);
   }
+
+  // El nombre con el que se guarda el PDF. Ver use-titulo-documento.ts: sin
+  // esto, los tres papeles de esta pantalla —liquidación, certificado de
+  // trabajo, constancia de cese— se guardaban todos como «Dynamic — CAYLA», y
+  // son justo los que se entregan a alguien que ya se fue de la empresa.
+  useTituloDocumento(
+    modalAbierto === "liquidacion" && detalle
+      ? `${detalle.persona} — Liquidación de beneficios sociales`
+      : modalAbierto === "certificado" && papelesCese
+        ? `${papelesCese.nombre_completo} — Certificado de trabajo`
+        : modalAbierto === "constancia" && papelesCese
+          ? `${papelesCese.nombre_completo} — Constancia de cese`
+          : null,
+  );
 
   if (cargando) return <Cargando />;
 

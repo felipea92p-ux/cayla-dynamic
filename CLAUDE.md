@@ -680,6 +680,27 @@ ese día». Da 28 aciertos y casi todos son pantallas que leen esa columna con
 todo el derecho. Un guardián con ese ruido se desactiva a la semana, así que esa
 regla sigue dependiendo de que alguien la recuerde.
 
+**Y desde el 2026-09-10, una pantalla que imprime sin fijar el nombre del PDF**
+(`scripts/hooks/descarga-sin-nombre.sh`). El nombre con el que el navegador
+sugiere guardar un PDF es `document.title` al momento de imprimir; sin fijarlo
+queda en «Dynamic — CAYLA» para cualquier persona y cualquier papel. Ya existía
+`useTituloDocumento()` (`apps/web/lib/admin/use-titulo-documento.ts`, decidido
+con Felipe el 2026-07-28 tras el mismo problema con las boletas) y las otras 12
+pantallas imprimibles lo usaban — Liquidaciones lo tenía sin usar en sus tres
+papeles (liquidación, certificado de trabajo, constancia de cese), justo los
+que se entregan a alguien que ya se fue de la empresa.
+
+Distinto de los de arriba en una cosa: no mira **líneas** agregadas por el push,
+mira **archivos** que el push toca, enteros, en la versión que se empuja
+(`git show HEAD:archivo`, nunca el disco). Lo que hay que comprobar —¿este
+archivo llama a `window.print()` sin tener `useTituloDocumento()` en algún
+lado?— es una propiedad del archivo completo, no de una línea: el hook puede
+vivir a cientos de líneas de la llamada a imprimir, y mirar solo el diff de
+líneas se lo perdería si alguien le agrega un botón nuevo a una pantalla ya
+existente. Mismo criterio en lo demás: solo los archivos que el push toca
+—hoy no queda ninguno con este defecto, así que no hay deuda vieja que
+pagar—, y bloquea, no avisa.
+
 **Y hay una cosa que ese hook arregla solo, en vez de pedírtela.** La consulta
 `scripts/sql-manual/que_falta_pegar.sql` lleva dentro la lista de migraciones del
 repo, así que cada migración nueva la deja corta. Si la encuentra vieja, **la
