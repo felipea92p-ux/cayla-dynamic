@@ -45,6 +45,32 @@ export interface ResultadoEnvio {
 }
 
 /**
+ * ¿Este rechazo es del ESTADO (nunca va a tener éxito reintentando) o es algo
+ * que un reintento sí puede resolver?
+ *
+ * `fn_registrar_marcaje` (supabase/migrations) lanza `tipo % no válido…` en
+ * sus dos guardas de la máquina de estados — "se esperaba %" y "la jornada ya
+ * está cerrada…" — cuando la marca que llegó no es la que le tocaba a esa
+ * persona ahora mismo. Reintentar ESA marca, tal cual, seis veces no cambia
+ * nada: el servidor va a decir que no las seis veces, porque la pregunta no
+ * cambió. Es distinto de un corte de red, un tiempo de espera agotado o un
+ * error transitorio del servidor, donde el mismo intento sí puede tener éxito
+ * la segunda vez.
+ *
+ * Acoplado al texto exacto en español que escribe esa función — la misma
+ * clase de acoplamiento que `attendance-state-machine.ts` ya declara con la
+ * base de datos ("Debe reflejar exactamente la lógica de fn_registrar_marcaje
+ * en Postgres… cualquier cambio aquí debe replicarse allá"). Si el día de
+ * mañana se agrega un `raise exception` nuevo de este mismo tipo y no se
+ * añade aquí, no se rompe nada — ese rechazo vuelve a tratarse como si fuera
+ * de red: sigue los 6 reintentos de siempre, solo tarda más en apartarse.
+ */
+export function esRechazoDeEstado(error: string | undefined): boolean {
+  if (!error) return false;
+  return error.includes("no válido");
+}
+
+/**
  * Manda una marca al servidor con tope de tiempo. NUNCA lanza: quien la llama
  * decide qué hacer con la cola, y una excepción escapada aquí volvería a dejar
  * el terminal colgado, que es justo lo que esto vino a arreglar.

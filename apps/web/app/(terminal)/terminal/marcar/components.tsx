@@ -275,6 +275,7 @@ export function SelectorSalida({
   secundaria,
   otras,
   neutra = false,
+  aviso,
   onElegir,
   onCancelar,
 }: {
@@ -283,6 +284,15 @@ export function SelectorSalida({
   secundaria: OpcionSalida | null;
   otras: OpcionSalida[];
   neutra?: boolean;
+  /**
+   * Para el único caso en que este menú no es una sugerencia sino un
+   * respaldo: no se pudo confirmar el estado de la persona (ver
+   * `estado-dia.ts` → `confirmarEstadoPuntual`) y se le pide elegir a mano en
+   * vez de arriesgar una suposición. Sin esto, la pantalla es indistinguible
+   * del menú de salida de siempre, y nada explica por qué de golpe aparece
+   * "Entrada" junto a las salidas.
+   */
+  aviso?: string;
   onElegir: (tipo: TipoMarca, motivoRequerido: boolean) => void;
   onCancelar: () => void;
 }) {
@@ -329,6 +339,11 @@ export function SelectorSalida({
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-6 p-8">
       <p className="font-serif text-2xl">{nombre}</p>
+      {aviso && (
+        <p className="max-w-sm rounded-control bg-ambar/10 px-4 py-3 text-center text-sm text-tinta" role="alert">
+          {aviso}
+        </p>
+      )}
       <div className="flex w-full max-w-sm flex-col gap-3">
         <button
           onClick={() => onElegir(principal.tipo, principal.motivoRequerido)}
