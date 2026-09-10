@@ -3,12 +3,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Inbox } from "lucide-react";
+import {
+  CalendarClock, CalendarDays, FileSignature, History, IdCard, Inbox, ScrollText, Target, TreePalm,
+} from "lucide-react";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Colibri } from "@/components/marca";
 import { AcusesPendientes } from "@/components/acuses-pendientes";
 import { AnunciosWidget } from "@/components/anuncios-widget";
 import { SelectorTema } from "@/components/selector-tema";
+import { MenuDetalle, type SeccionDetalle } from "@/components/nav/menu-detalle";
 import { Boton } from "@/components/ui/boton";
 import { Insignia } from "@/components/ui/insignia";
 import { Campo } from "@/components/ui/campo";
@@ -201,8 +204,28 @@ interface SolicitudDni {
   motivo: string | null;
 }
 
-/** Las siete pestañas del detalle. Ver el comentario de `tab`. */
+/** Las ocho secciones del detalle. Ver el comentario de `tab`. */
 type Tab = "dias" | "turnos" | "dni" | "ausencias" | "contrato" | "firma" | "objetivos" | "historial";
+
+/**
+ * Las mismas ocho, con su icono y en el orden en que se leen.
+ *
+ * Los iconos NO se eligieron sueltos: cada uno es el que el menú del panel
+ * (`admin/nav-items.ts`) ya usa para esa misma idea — Turnos, Datos personales,
+ * Ausencias, Contratos, Documentación, Objetivos —, así quien ve las dos
+ * superficies reconoce la sección sin leer la etiqueta. Los dos que el panel no
+ * tiene son «Mis días» y «Historial», que no existen allá como pantalla.
+ */
+const SECCIONES: readonly SeccionDetalle<Tab>[] = [
+  { valor: "dias", label: "Mis días", Icon: CalendarDays },
+  { valor: "turnos", label: "Mis turnos", Icon: CalendarClock },
+  { valor: "dni", label: "Mi DNI", Icon: IdCard },
+  { valor: "ausencias", label: "Vacaciones y permisos", Icon: TreePalm },
+  { valor: "contrato", label: "Contrato", Icon: ScrollText },
+  { valor: "firma", label: "Firma", Icon: FileSignature },
+  { valor: "objetivos", label: "Objetivos", Icon: Target },
+  { valor: "historial", label: "Historial", Icon: History },
+];
 
 /**
  * Lo mínimo para saber si tiene contrato y a dónde llevarla a verlo. El texto
@@ -1156,6 +1179,34 @@ export default function MioPage() {
     });
   }
 
+  /**
+   * Cambiar de sección desde el menú lateral.
+   *
+   * Sube al detalle SOLO si el detalle ya quedó por encima de la pantalla.
+   * Las dos mitades importan: estando arriba, elegir una sección no debe
+   * empujar la vista hacia abajo —eso no pasaba con la tira de pestañas y no
+   * hay razón para que empiece—; y estando abajo (o saliendo del cajón del
+   * teléfono, que tapa la pantalla entera) quedarse donde estabas te deja a
+   * media altura de una sección que ya no es la que estás mirando.
+   */
+  function elegirSeccion(valor: Tab) {
+    setTab(valor);
+    requestAnimationFrame(() => {
+      const el = document.getElementById("detalle");
+      if (el && el.getBoundingClientRect().top < 0) {
+        el.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    });
+  }
+
+  // «Mi DNI» solo existe si la base tiene dónde guardarlo: mientras la
+  // migración no esté pegada, esa sección no se ofrece (mismo criterio que ya
+  // usaba la pestaña).
+  const secciones = useMemo(
+    () => SECCIONES.filter((s) => s.valor !== "dni" || hayCampoDni),
+    [hayCampoDni],
+  );
+
   /** Desde un aviso de arriba hasta el día concreto del que habla. */
   function abrirDia(fecha: string) {
     setTab("dias");
@@ -1350,7 +1401,7 @@ export default function MioPage() {
   }
 
   return (
-    <main className="mx-auto min-h-screen w-full max-w-3xl bg-crema px-5 py-8 text-tinta">
+    <main className="mx-auto min-h-screen w-full max-w-5xl bg-crema px-5 py-8 text-tinta">
       {/* ══ 1 · QUIÉN ERES ══════════════════════════════════════════════════
           Lo primero de un perfil es la persona, y hasta hoy acá lo primero era
           una barrita de 14 píxeles con la foto encogida al lado del nombre.
@@ -1606,33 +1657,42 @@ export default function MioPage() {
       </div>
 
       {/* ══ 4 · EL DETALLE ══════════════════════════════════════════════════
-          Mismo patrón de pestañas que la ficha de una persona en el panel
-          (admin/personas/[id]): que las dos pantallas con pestañas del sistema
-          se vean iguales no es cosmético, es que quien aprendió una ya sabe
-          usar la otra.
+          Ocho secciones en un MENÚ LATERAL, no en una tira de pestañas.
 
-          Con 7 pestañas (antes 6, "Firma" es la que se agregó) ya no entran
-          todas en una pantalla angosta, así que este `overflow-x-auto` pasa de
-          decorativo a necesario — y ahí aparece la barra de scroll horizontal
-          que se veía pesada bajo el texto. Sigue desplazándose igual con el
-          dedo o el trackpad; solo se oculta la barra en sí, no la función.
-          `scrollbar-width:none` cubre Firefox y el Chrome/Edge actuales;
-          `::-webkit-scrollbar` es el remanente para Safari, que todavía no
-          soporta la propiedad estándar (mismo motivo de las dos vías que ya
-          explica el bloque de scrollbars globales en globals.css). */}
-      <div
-        id="detalle"
-        className="mb-5 flex gap-1 overflow-x-auto border-b border-sand [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-      >
-        <TabBtn valor="dias" activa={tab} onSel={setTab}>Mis días</TabBtn>
-        <TabBtn valor="turnos" activa={tab} onSel={setTab}>Mis turnos</TabBtn>
-        {hayCampoDni && <TabBtn valor="dni" activa={tab} onSel={setTab}>Mi DNI</TabBtn>}
-        <TabBtn valor="ausencias" activa={tab} onSel={setTab}>Vacaciones y permisos</TabBtn>
-        <TabBtn valor="contrato" activa={tab} onSel={setTab}>Contrato</TabBtn>
-        <TabBtn valor="firma" activa={tab} onSel={setTab}>Firma</TabBtn>
-        <TabBtn valor="objetivos" activa={tab} onSel={setTab}>Objetivos</TabBtn>
-        <TabBtn valor="historial" activa={tab} onSel={setTab}>Historial</TabBtn>
-      </div>
+          La tira estaba en `overflow-x-auto` con la barra de scroll escondida,
+          así que en cualquier pantalla que no fuera ancha había secciones
+          enteras —Contrato, Firma, Objetivos, Historial— fuera de la vista y
+          sin nada que anunciara que estaban ahí. Es el mismo problema que el
+          panel resolvió el 2026-09-07 cambiando su barra horizontal por un
+          sidebar, y ya se había intentado arreglar con scroll horizontal
+          (688e8e5) y revertido el mismo día (21591a7) por esconder ítems.
+
+          Lo de arriba NO se movió, y esa sigue siendo la regla de la pantalla
+          (ver el comentario de `tab`): quién eres, lo que te exige actuar hoy y
+          tus cuatro cifras se ven completos sin tocar nada. El menú gobierna
+          solo lo que se viene a MIRAR, así que vive al lado del detalle y no
+          enmarcando la pantalla entera.
+
+          Y el `<main>` pasó de `max-w-3xl` a `max-w-5xl` por lo mismo: con el
+          menú ancho puesto, el detalle se queda con ~700px, que es lo que tenía
+          antes de que existiera el menú. Sin ensancharlo, la tabla «Día por día»
+          habría perdido un tercio de su ancho. */}
+      <div id="detalle" className="flex flex-col gap-4 md:flex-row md:gap-6">
+        <MenuDetalle
+          secciones={secciones}
+          activo={tab}
+          onSel={elegirSeccion}
+          etiqueta="Secciones de tu perfil"
+        />
+
+        {/* OJO CON LA SANGRÍA de todo lo que viene: las ocho secciones siguen
+            escritas al nivel que tenían cuando eran hijas directas de <main>, y
+            NO se reindentaron a propósito. Al escribir esto había trece ramas
+            sin fusionar tocando este archivo; correr 760 líneas cuatro espacios
+            habría chocado con las trece a cambio de nada que se vea en
+            pantalla. Si alguna vez se paga, que sea en su propio commit y sin
+            nada más adentro. */}
+        <div className="min-w-0 flex-1">
 
       {/* ── MIS DÍAS ─────────────────────────────────────────────────────── */}
       {tab === "dias" && (
@@ -2396,6 +2456,9 @@ export default function MioPage() {
         Si algo no cuadra, no lo dejes pasar: avisa a tu encargada y se corrige con el motivo anotado. Lo que
         ves sale de tus marcajes, y un marcaje mal registrado se arregla, no se discute al final del mes.
       </p>
+
+        </div>
+      </div>
     </main>
   );
 }
@@ -2495,30 +2558,5 @@ function TarjetaClave({
       {pie && <p className="mt-1 flex-1 text-xs leading-relaxed text-taupe">{pie}</p>}
       {accion && <div className="mt-3 text-sm font-medium">{accion}</div>}
     </div>
-  );
-}
-
-/**
- * Una pestaña del detalle. Mismo aspecto que las de la ficha de una persona en
- * el panel (`admin/personas/[id]`) a propósito: dos pantallas con pestañas que
- * se vean distintas obligan a aprenderlas dos veces.
- */
-function TabBtn({
-  valor, activa, onSel, children,
-}: {
-  valor: Tab;
-  activa: Tab;
-  onSel: (t: Tab) => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      onClick={() => onSel(valor)}
-      aria-current={activa === valor ? "page" : undefined}
-      className={`-mb-px shrink-0 border-b-2 px-3 py-2 text-sm transition-colors sm:px-4 ${
-        activa === valor ? "border-rojo font-medium text-tinta" : "border-transparent text-taupe hover:text-tinta"}`}
-    >
-      {children}
-    </button>
   );
 }
