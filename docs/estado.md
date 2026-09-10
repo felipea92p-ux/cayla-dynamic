@@ -6,6 +6,220 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-09-10 — Se pegó la 0403→0409, y el registro de migraciones resultó estar mintiendo dos veces
+
+Empezó como «a una integrante nueva de Trujillo no le sale el apartado Mi DNI».
+Terminó pegando siete migraciones, fusionando tres PR y arreglando a mano dos
+filas de `migraciones_aplicadas`. Lo que hay que recordar no son las
+migraciones: son las tres cosas de abajo.
+
+### 1 · `on conflict (numero) do nothing` falla EN SILENCIO, y hoy falló dos veces
+
+Todas las migraciones de este repo cierran con
+
+```sql
+insert into migraciones_aplicadas (numero, nombre) values (NNN, '…')
+on conflict (numero) do nothing;
+```
+
+Está ahí para que repegar una migración no reviente. El precio es que **una
+colisión de número no se ve**: el DDL se aplica, el registro se queda con la
+fila de otra migración, y nada avisa. Hoy pasó dos veces:
+
+- **La 0405** (`la_correccion_de_dni_se_queda_en_do`). A las 20:00:19 ya existía
+  una fila 405 con nombre `0405_la_tasa_de_pension_de_respaldo_se_valida_al_escribir`
+  — la migración de la AFP con su numeración vieja, que en su rama ya era la
+  0411 y que además estaba registrada ahí. Cuando se pegó la 0405 de verdad
+  (entre las 20:23:26 y las 20:30:19), su registro no se escribió.
+- **La 0409** (`el_terminal_por_fin_puede_leer_horario_y_turno`). Su contenido
+  estaba aplicado en producción —las dos policies ya usaban
+  `fn_persona_en_roster_terminal(persona_id)`, la corrección que trae esa
+  migración— y no tenía fila, porque el número 409 lo ocupaba la migración del
+  memo (ver punto 4).
+
+**Cómo se cazaron, y es la lección de método:** consultando el registro por
+NOMBRE y no solo por número. La comprobación que se hizo primero fue
+`array_agg(numero)` y devolvió `[403,404,405]`, que se leyó como «las tres
+entraron». Un array de números no distingue «está la mía» de «está otra con mi
+número». **Cuando se comprueba un registro de migraciones, se piden `numero` y
+`nombre`.**
+
+**Lo que se propone y NO se hizo todavía:** cambiar la convención de aquí en
+adelante a `on conflict (numero) do update set nombre = excluded.nombre,
+aplicada_at = now()`. Repegar sigue sin fallar, pero un número ocupado por otra
+cosa se ve — la fila cambia de nombre delante de quien pega, en vez de quedarse
+mintiendo. No arregla las migraciones ya escritas.
+
+**Ojo con la 0405:** su `aplicada_at` es `2026-09-10 21:09:01`, la hora de la
+corrección. La real está acotada entre las **20:23:26** y las **20:30:19** de
+ese día, por las filas vecinas.
+
+### 2 · El `\r` de Windows: medido, y el culpable NO es el portapapeles
+
+El `CLAUDE.md` documenta desde el 2026-09-08 que pegar desde Windows mete un
+`\r` por línea. Hoy se midió de dónde sale exactamente, y el resultado corrige
+la suposición:
+
+- **El portapapeles sale limpio.** `Get-Content -Raw -Encoding utf8 <archivo> |
+  Set-Clipboard` deja el portapapeles **byte por byte idéntico** al archivo:
+  medido en las seis migraciones de hoy, `CR=0` y los caracteres no-ASCII
+  intactos (159 en la 0404, 194 en la 0405, 222 en la 0408).
+- **El archivo en disco también.** 0 retornos de carro, `core.autocrlf = false`,
+  sin `.gitattributes`. El `\r` no viene de git.
+- **Lo mete el editor del SQL Editor de Supabase**, que normaliza los finales de
+  línea a la convención del sistema de quien pega. La prueba es el contraste:
+  las tres migraciones pegadas el 2026-09-08 a las 20:00 y 21:10 —desde la
+  Mac— tienen `cr = 0` en producción, y **todo lo pegado hoy desde Windows
+  tiene `cr` = su número de saltos de línea**, exacto.
+- **Y no se perdió nada más.** Se calculó el md5 del cuerpo del repositorio
+  convertido a CRLF y **coincidió con el de producción en las nueve funciones**.
+  Un solo carácter mal —un acento roto, el accidente de la 0185— habría
+  cambiado el hash. Así que el `\r` es lo único que pasó.
+
+**Cómo comprobarlo en un vistazo:**
+
+```sql
+select proname,
+       md5(prosrc)                                           as md5,
+       length(prosrc)                                        as length,
+       octet_length(prosrc)                                  as octet,
+       length(prosrc) - length(replace(prosrc, chr(13), '')) as cr
+  from pg_proc where proname = 'fn_lo_que_sea';
+```
+
+Si `cr` sale igual al número de saltos del cuerpo y `octet_length` es el del
+repositorio más ese mismo número, es esto y no hay nada roto. Si no cuadra
+ninguna de las dos, es otra versión y hay que parar.
+
+**Y `dame-el-sql.sh` no protege de esto en Windows.** Su comprobación byte por
+byte usa `pbcopy`/`pbpaste`, que son de macOS; en Windows cae al `else` y solo
+dice «ábrelo y cópialo». Verifica git y GitHub, **no** lo que llega al
+portapapeles. El equivalente que sí verifica, y que se usó hoy:
+
+```powershell
+$repo = Get-Content -Raw -Encoding utf8 <archivo>; Set-Clipboard -Value $repo
+$clip = Get-Clipboard -Raw
+"identico : " + ($clip -eq $repo)
+```
+
+### 3 · Los md5 de las funciones tocadas hoy, para que nadie pare en seco
+
+Estas nueve quedaron con `\r` y **su md5 no volverá a coincidir con el del
+repositorio**. Estos son los de producción, verificados uno por uno:
+
+| función | migración | md5 | length / octet / cr |
+|---|---|---|---|
+| `fn_resolver_solicitud_perfil` | 0405 | `e915954d8af0f81509a3e5d0b1d3429e` | 2572 / 2586 / 55 |
+| `fn_solicitudes_perfil_pendientes` | 0405 | `193cf79613372cd568b8bd9b83ede410` | 575 / 575 / 12 |
+| `fn_confirmar_mi_firma_contrato` | 0406 | `9fd167ef12e77545b4bd2ad6581cfbdf` | 1215 / 1224 / 30 |
+| `fn_borrar_dni_de` | 0407 | `2b47112565e76c77f20cf1fee5934d55` | 2333 / 2355 / 54 |
+| `fn_mis_memos` | 0408 | `0f02ee97f3187656e085eec4186f1dd7` | 338 / 338 / 7 |
+| `fn_firmar_memo_como_sancionado` | 0408 | `35c1a7558746e927ceab66347f6a8448` | 1195 / 1205 / 31 |
+| `fn_rechazar_firma_memo` | 0408 | `b03654032d2483ccc9b3593a2fc0a738` | 903 / 907 / 25 |
+| `fn_memos_recientes_respuesta_sancionado` | 0408 | `083da5faf9fb8413725eaaddc515bf58` | 718 / 718 / 12 |
+
+`fn_registrar_mi_consentimiento` (0404) se comprobó contra los dos candidatos y
+pasó, pero no se anotó cuál: el limpio es
+`0b9cf2e88249f965df93a63a65b7b98c` (710/721) y el de CRLF
+`4205deaca5788d7b21bba227a445716c` (729/740). `fn_solicitud_perfil_puede_leer`
+(0403) no se midió.
+
+Y las tres que **sí** coinciden con el repositorio, porque se pegaron desde la
+Mac — sirven de contraste:
+
+| función | md5 | length / octet / cr |
+|---|---|---|
+| `fn_bloquear_regimen_pension_directo` | `3c35b443adeb571b4c857c8479789dbd` | 247 / 249 / 0 |
+| `fn_valida_tasa_afp_respaldo` | `f0bb914b10f147a49eefdcd417feb5a2` | 787 / 800 / 0 |
+| `fn_expediente_cerrar_sin_entrega` | `e1940eb0ec92ca397e0ca7ee3dcbaecb` | 1369 / 1377 / 0 |
+
+### 4 · Las cuatro filas huérfanas (409/410/411/412), explicadas y cerradas
+
+Producción tenía cuatro filas que no cuadraban con el repositorio. Ninguna era
+el caso de la 0393 —contenido superado, no fusionar—: las tres funciones que
+creaban existían **solo** en ramas sin fusionar, así que era el caso (a),
+aplicado y sin guardar. Se comprobó midiendo el md5 de cada una contra la rama:
+las tres coincidieron byte por byte.
+
+- **410 y 411** venían de [PR #301](https://github.com/felipea92p-ux/cayla-dynamic/pull/301)
+  (`auditoria-afp-a1970d`). Habían sido 0404/0405 y se renumeraron bien para no
+  chocar con `main`; sus filas coinciden exactamente con lo que declaran los
+  archivos, prefijo `0410_`/`0411_` incluido.
+- **409** era en realidad la **0412** (`el_memo_firmado_se_cierra_sin_entrega_si_la_persona_cesa`,
+  [PR #299](https://github.com/felipea92p-ux/cayla-dynamic/pull/299)): se pegó
+  cuando era la 0409 y se renumeró después. Se corrigió la fila con
+  `update migraciones_aplicadas set numero = 412 where numero = 409 and nombre = …`
+  — con el `and nombre` para que no pudiera tocar otra.
+- Al liberar el 409, la **0409 de `main`** pudo por fin registrarse.
+
+Los tres PR (#288, #299, #301) se fusionaron. **`main` tiene ahora la 0399 a la
+0412 sin un solo hueco** y `numeracion.sh` dice «sin novedad».
+
+**Hallazgo de la revisión del #301:** no tenía **ni una** corrida de CI. Dos
+migraciones vivían en producción sin que ninguna prueba pgTAP las hubiera visto.
+Se resolvió empujando a la rama en vez de fusionar directo a `main`, para que
+`db-tests` corriera — pasó en 3m56s. Por eso los conflictos se resuelven en la
+rama y no en `main`: es lo único que consigue la señal.
+
+### 5 · Y la pregunta con la que empezó todo: «Mi DNI» no aparecía
+
+**No era la base, ni el consentimiento, ni el contrato.** La pestaña se enciende
+con una sola condición (`hayCampoDni`, que lee `catalogo_campos_perfil` buscando
+`foto_dni`), esa lectura no filtra por persona y su política es
+`using (true) to authenticated`. Se verificó contra producción: la fila existe,
+el esquema es `public`, la política está, el permiso está, y **leyéndola como
+`authenticated` devuelve la fila**. Así que no podía ser de esa integrante: si
+no la veía ella, no la veía nadie.
+
+La respuesta fue la más aburrida: **estaba fuera de la vista.** Las ocho
+secciones de `/mio` vivían en una tira horizontal con `overflow-x-auto` y la
+barra de scroll escondida, y en cualquier pantalla que no fuera ancha había
+secciones enteras sin nada que anunciara que seguían a la derecha. Otra sesión
+llegó al mismo diagnóstico ese mismo día y lo cambió por el menú lateral
+(`components/nav/menu-detalle.tsx`), con el antecedente escrito ahí: ya se había
+intentado con scroll horizontal (`688e8e5`) y se revirtió el mismo día
+(`21591a7`) por esconder ítems.
+
+**Dos propiedades del código que conviene tener escritas, porque las dos hacen
+que un problema global parezca una función que falta:**
+
+1. **Esa lectura falla cerrada y a propósito** (comentario en `mio/page.tsx`):
+   cualquier error de la consulta se trata como «el campo no existe», sin
+   mensaje en pantalla. Es la decisión correcta —vale más que la sección no
+   esté que que falle con las dos fotos ya subidas— pero significa que un 404
+   de PostgREST, un permiso o una fila ausente se ven **idénticos**.
+2. **`/mio` no tiene corte de render para `!yo`**, solo para `!sesion`. Si la
+   fila de `personas` no se puede leer, la pantalla se dibuja **completa** y
+   `cargarDni` sale por su `if (!yo?.id)`, así que desaparece **solo** la
+   sección condicional. Se investigó como causa y se descartó (no hay ningún
+   `auth_user_id` repartido en dos fichas), pero la propiedad es real: un
+   problema de identidad se manifiesta como una sección que falta.
+
+### Qué queda abierto de esta sesión
+
+- 🟡 **El trigger que le falta a `foto_dni_*_ruta`.** La 0401 no puso ninguno,
+  así que `fn_borrar_dni_de` (0407) audita la cancelación pero no la hace
+  inevitable: un admin puede seguir vaciando esas columnas con un `update`
+  directo por PostgREST. Es el molde `fn_set_rol`/`fn_bloquear_rol_directo`
+  (0295/0296) y `fn_set_sede_base`/`fn_bloquear_sede_directa` (0342) que el
+  `CLAUDE.md` ya declara obligatorio para campos sensibles. La exposición no la
+  abre la 0407 —existía desde la 0401— y solo alcanza a admin/líder.
+- 🟡 **`on conflict … do nothing`** → `do update set nombre = excluded.nombre`
+  en la convención de migraciones (punto 1).
+- ⚠️ **¿Vercel publica producción sola en cada push a `main`?** Durante esta
+  sesión el despliegue de producción cambió de `dpl_HVp7Wfmx…` a
+  `dpl_EaBg4eug…` y pasó a servir los dos frontends recién fusionados, sin que
+  nadie corriera `desplegar.sh`. No se pudo confirmar cómo: el conector de
+  Vercel devuelve 403 en el scope `cayla`. **Si la integración de Git está
+  desplegando sola, entonces fusionar un PR ES publicar a producción**, y la
+  regla de «desplegar se pregunta SIEMPRE» está saltada por la configuración
+  del proyecto y no por descuido. Hay que averiguarlo y escribirlo.
+- 🟢 **El linter del hook no revisó uno de los push de hoy** y lo dijo en voz
+  alta («no devolvió nada analizable»). La causa es la que el `CLAUDE.md` ya
+  documenta: el commit tocaba `packages/`, y colar una ruta de ahí hace que
+  eslint aborte. Se linteó a mano el único archivo de app afectado: 1 error, y
+  es deuda vieja —la misma línea existía antes, corrida de la 277 a la 323—.
+
 ## 2026-09-08 — Auditoría dedicada a AFP/ONP: dos huecos de permisos cerrados (0410/0411)
 
 10 agentes en paralelo, solo lectura, auditaron el descuento de AFP/ONP de
