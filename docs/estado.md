@@ -195,6 +195,43 @@ que un problema global parezca una función que falta:**
    `auth_user_id` repartido en dos fichas), pero la propiedad es real: un
    problema de identidad se manifiesta como una sección que falta.
 
+### 6 · 🔴 Vercel publica producción sola en cada push a `main`. Fusionar un PR ES publicar
+
+Medido hoy, y no admite otra lectura. El commit `482d2c30` **solo cambia
+`docs/estado.md`** —ni una línea de código— y el despliegue de producción pasó
+de `dpl_EaBg4eug…` a `dpl_9TUUtjVPJ8jtCRHUchmwztyuinsE` **en menos de un
+minuto**, sin que nadie corriera `desplegar.sh`. Antes, en la misma sesión,
+había pasado de `dpl_HVp7Wfmx…` a `dpl_EaBg4eug…` al fusionar los tres PR.
+
+La integración de Git de Vercel está conectada a `main` como rama de
+producción. Consecuencias, y las tres importan:
+
+- **`./scripts/desplegar.sh prod` vigila un camino por el que producción ya no
+  pasa.** Comprueba que no haya cambios sin guardar, que GitHub esté al día y
+  que la CI de ese commit esté verde —incluidas las pgTAP— y pide escribir
+  `publicar`. Todo eso sigue siendo correcto y **no se aplica a los despliegues
+  reales**, que salen de un `git push`. Es la misma forma del agujero que ya
+  costó la 0177 y la 0243 con `dame-el-sql.sh`: *el agujero no estaba en el
+  script, estaba en que el camino cómodo no pasa por él*.
+- **La garantía de «CI verde antes de publicar» hoy NO existe.** Se observó
+  directamente: producción ya servía el código de los tres merges mientras
+  `db-tests` sobre `c426fe69` seguía corriendo. Estuvo unos veinte minutos
+  sirviendo código que ninguna prueba de base de datos había validado todavía.
+  No falló nada, y eso es lo peligroso.
+- **Y «desplegar a producción se pregunta SIEMPRE» está saltado por la
+  configuración, no por descuido de nadie.** Hoy se pidió permiso para
+  *fusionar* tres PR; lo que ocurrió fue *publicar*. Quien aprueba un merge en
+  este repo está aprobando un despliegue, y hasta hoy eso no estaba escrito en
+  ninguna parte.
+
+**Qué hay que decidir** (no se tocó nada): o se acepta y se escribe así en
+`CLAUDE.md` —fusionar es publicar, y por tanto un merge se pide con el mismo
+cuidado que un despliegue—, o se apaga el despliegue automático de producción
+en Vercel para que el único camino sea `desplegar.sh`, o se mueve la puerta a
+GitHub exigiendo que `db-tests` pase antes de poder fusionar. Las tres son
+defendibles; lo que no lo es es que el repositorio documente una regla y la
+configuración haga otra cosa.
+
 ### Qué queda abierto de esta sesión
 
 - 🟡 **El trigger que le falta a `foto_dni_*_ruta`.** La 0401 no puso ninguno,
@@ -206,14 +243,10 @@ que un problema global parezca una función que falta:**
   abre la 0407 —existía desde la 0401— y solo alcanza a admin/líder.
 - 🟡 **`on conflict … do nothing`** → `do update set nombre = excluded.nombre`
   en la convención de migraciones (punto 1).
-- ⚠️ **¿Vercel publica producción sola en cada push a `main`?** Durante esta
-  sesión el despliegue de producción cambió de `dpl_HVp7Wfmx…` a
-  `dpl_EaBg4eug…` y pasó a servir los dos frontends recién fusionados, sin que
-  nadie corriera `desplegar.sh`. No se pudo confirmar cómo: el conector de
-  Vercel devuelve 403 en el scope `cayla`. **Si la integración de Git está
-  desplegando sola, entonces fusionar un PR ES publicar a producción**, y la
-  regla de «desplegar se pregunta SIEMPRE» está saltada por la configuración
-  del proyecto y no por descuido. Hay que averiguarlo y escribirlo.
+- 🔴 **Qué se hace con el despliegue automático** (punto 6): aceptarlo y
+  escribir en `CLAUDE.md` que fusionar es publicar, apagarlo en Vercel para que
+  el único camino sea `desplegar.sh`, o poner la puerta en GitHub exigiendo
+  `db-tests` antes de fusionar. Sin decidir.
 - 🟢 **El linter del hook no revisó uno de los push de hoy** y lo dijo en voz
   alta («no devolvió nada analizable»). La causa es la que el `CLAUDE.md` ya
   documenta: el commit tocaba `packages/`, y colar una ruta de ahí hace que
