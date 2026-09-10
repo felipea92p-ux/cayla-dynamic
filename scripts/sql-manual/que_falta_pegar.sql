@@ -272,6 +272,7 @@ with repo(numero, nombre, nunca) as (values
     (404, 'queda_constancia_de_que_acepto_el_tratamiento', false),
     (405, 'la_correccion_de_dni_se_queda_en_do', false),
     (406, 'confirmar_la_firma_dos_veces_no_borra_la_primera', false),
+    (407, 'el_dni_se_puede_cancelar_y_queda_dicho', false),
     (408, 'el_sancionado_firma_su_propio_memo', false),
     (409, 'el_terminal_por_fin_puede_leer_horario_y_turno', false),
     (412, 'el_memo_firmado_se_cierra_sin_entrega_si_la_persona_cesa', false)
