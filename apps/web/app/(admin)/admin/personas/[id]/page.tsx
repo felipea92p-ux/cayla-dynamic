@@ -4,9 +4,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
-import { ESTADO_CIVIL_LABELS, GENERO_LABELS, GRADO_INSTRUCCION_LABELS, TZ_LIMA, etiquetaDeCatalogo, hoyLima, puedeOperarEquipo, puedeVerPlanilla } from "@cayla-dynamic/shared";
+import { ESTADO_CIVIL_LABELS, GENERO_LABELS, GRADO_INSTRUCCION_LABELS, TZ_LIMA, etiquetaDeCatalogo, hoyLima, puedeOperarEquipo, puedeVerIdentidad, puedeVerPlanilla } from "@cayla-dynamic/shared";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
+import { BUCKET_SOLICITUDES_PERFIL } from "@/lib/foto-dni";
 import { Cargando } from "@/components/cargando";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { GraficoHoras, type DiaGrafico } from "@/components/grafico-horas";
@@ -59,7 +60,7 @@ const CAUSAL: Record<string, string> = { tardanza: "Tardanzas", falta: "Faltas",
 const ESTADO_DOC: Record<string, string> = { borrador: "Borrador", firmado: "Firmado", entregado: "Entregado", anulado: "Anulado", cerrado_sin_entrega: "Cerrado sin entrega" };
 
 interface Persona { id: string; nombres: string; apellidos: string; documento: string | null; funcion: string; sede_base_id: string; fecha_ingreso: string; email: string | null; estado: string; en_planilla: boolean; sueldo_fijo: boolean; personal_direccion: boolean }
-interface Ficha { nombre_dni: string | null; fecha_nacimiento: string | null; estado_civil: string | null; genero: string | null; direccion: string | null; celular: string | null; entidad_bancaria: string | null; numero_cuenta: string | null; grado_instruccion: string | null; hijos_menores: boolean | null; foto_personal_url: string | null }
+interface Ficha { nombre_dni: string | null; fecha_nacimiento: string | null; estado_civil: string | null; genero: string | null; direccion: string | null; celular: string | null; entidad_bancaria: string | null; numero_cuenta: string | null; grado_instruccion: string | null; hijos_menores: boolean | null; foto_personal_url: string | null; foto_dni_anverso_ruta: string | null; foto_dni_reverso_ruta: string | null }
 interface Salario { rango: string; salario_mensual_soles: number; vigente_desde: string; vigente_hasta: string | null }
 interface DocLite { id: string; correlativo: string | null; tipo_causal: string; nivel: string; estado: string; creado_at: string; firmado_at: string | null }
 interface Jornada { fecha: string; entrada_ts: string | null; salida_final_ts: string | null; horas_trabajadas: number | null; minutos_tarde: number | null; minutos_salida_temprana: number | null; horas_extra_detectadas: number | null; estado: string }
@@ -124,6 +125,9 @@ export default function PerfilPersonaPage() {
   // El sueldo solo lo ve DO (la fn_historial_salario ya lo bloquea en BD; aquí ocultamos
   // la sección para que a la encargada no le aparezca "sin salario" — que sería mentira).
   const puedeSalario = puedeVerPlanilla(rol);
+  // El DNI es identidad, y la identidad es de DO en todo el sistema — la
+  // encargada de sede no lo ve ni lo cancela (mismo criterio que la 0405).
+  const puedeIdentidad = puedeVerIdentidad(rol);
   const supabase = useMemo(() => createAdminSupabaseClient(), []);
   const { avisar } = useToast();
 
@@ -142,6 +146,13 @@ export default function PerfilPersonaPage() {
   // accionables: ofrecer «Reintentar» sobre la segunda invitaría a insistir
   // contra algo que nunca va a cambiar.
   const [errReintentable, setErrReintentable] = useState(false);
+  // ── Cancelación del DNI (0407) ──────────────────────────────────────────
+  // Derecho de cancelación de la Ley N.° 29733, el que el texto de
+  // consentimiento le promete a la persona. El motivo es obligatorio y va
+  // aparte del botón a propósito: acá queda escrito a petición de quién y bajo
+  // qué criterio de conservación se borró un documento de identidad.
+  const [motivoBorrarDni, setMotivoBorrarDni] = useState("");
+  const [borrandoDni, setBorrandoDni] = useState(false);
   // Un error por consulta, porque cada una pinta una sección distinta y el
   // fallo de una no puede vaciar en silencio a las otras tres.
   const [errSede, setErrSede] = useState<string | null>(null);
@@ -155,6 +166,41 @@ export default function PerfilPersonaPage() {
   // repetir el patrón que react-hooks/set-state-in-effect ya marca abajo.
   const [intento, setIntento] = useState(0);
   const reintentar = () => setIntento((n) => n + 1);
+
+  /**
+   * Cancela el DNI: primero la ficha y la auditoría (la RPC, que es atómica),
+   * y con las rutas que devuelve, los archivos del almacén. Ese orden está
+   * razonado en la cabecera de la 0407 — al revés, un fallo dejaría la ficha
+   * apuntando a archivos que ya no están y nadie se enteraría.
+   */
+  async function cancelarDni() {
+    if (!ficha || motivoBorrarDni.trim() === "") return;
+    setBorrandoDni(true);
+    try {
+      const { data, error } = await supabase.rpc("fn_borrar_dni_de", {
+        p_persona_id: id,
+        p_motivo: motivoBorrarDni.trim(),
+      });
+      if (error) { avisar("error", mensajeDeError(error)); return; }
+
+      const rutas = ((data as { ruta: string }[] | null) ?? []).map((r) => r.ruta);
+      const { error: eArchivos } = await supabase.storage
+        .from(BUCKET_SOLICITUDES_PERFIL).remove(rutas);
+      if (eArchivos) {
+        // La ficha YA quedó limpia y auditada; lo que falló es el almacén. Se
+        // dice tal cual, porque lo que hay que hacer no es repetir todo sino
+        // reintentar esa parte — y porque un «no se pudo» a secas dejaría creer
+        // que el DNI sigue en la ficha, que es lo contrario de lo que pasó.
+        avisar("error", `La ficha quedó limpia y auditada, pero los archivos siguen en el almacén: ${eArchivos.message}`);
+      } else {
+        avisar("ok", "DNI cancelado: se retiró de la ficha y se borraron los archivos.");
+      }
+      setMotivoBorrarDni("");
+      reintentar();
+    } finally {
+      setBorrandoDni(false);
+    }
+  }
   const [incluirSueldo, setIncluirSueldo] = useState(true); // controla si el sueldo entra al PDF
   const [vacas, setVacas] = useState<VacacionesSaldo | null>(null);
   const [contrato, setContrato] = useState<ContratoPorVencer | null>(null);
@@ -182,7 +228,7 @@ export default function PerfilPersonaPage() {
       const [{ data: s, error: eSedes }, { data: dp, error: eFicha }, { data: sal, error: eSal }, { data: dd, error: eDocs }, { data: vac, error: eVac }, { data: contratos, error: eContrato }] = await Promise.all([
         supabase.from("sedes").select("id, codigo"),
         supabase.from("datos_personales")
-          .select("nombre_dni, fecha_nacimiento, estado_civil, genero, direccion, celular, entidad_bancaria, numero_cuenta, grado_instruccion, hijos_menores, foto_personal_url")
+          .select("nombre_dni, fecha_nacimiento, estado_civil, genero, direccion, celular, entidad_bancaria, numero_cuenta, grado_instruccion, hijos_menores, foto_personal_url, foto_dni_anverso_ruta, foto_dni_reverso_ruta")
           .eq("persona_id", id).maybeSingle(),
         supabase.rpc("fn_historial_salario", { p_persona_id: id }),
         supabase.from("expediente_disciplinario")
@@ -445,6 +491,48 @@ export default function PerfilPersonaPage() {
                         <Dato label="Banco" valor={ficha.entidad_bancaria} />
                         <Dato label="N.° de cuenta" valor={ficha.numero_cuenta} />
                         {ficha.foto_personal_url && <Dato label="Foto" valor={<a href={ficha.foto_personal_url} target="_blank" rel="noreferrer" className="text-tinta underline">ver</a>} />}
+
+                        {/* El DNI y su cancelación (0407) — solo DO. Se dice si
+                            hay fotos aunque no se muestren acá: para responder a
+                            un pedido de cancelación hace falta saber si hay algo
+                            que cancelar, y para eso no hace falta abrir la
+                            imagen de un documento de identidad. */}
+                        {puedeIdentidad && (
+                          <>
+                            <Dato label="Fotos del DNI"
+                              valor={ficha.foto_dni_anverso_ruta || ficha.foto_dni_reverso_ruta
+                                ? "Cargadas y aprobadas"
+                                : "—"} />
+                            {(ficha.foto_dni_anverso_ruta || ficha.foto_dni_reverso_ruta) && (
+                              <div className="no-print mt-3 rounded-xl border border-sand bg-hueso p-3">
+                                <p className="text-xs text-taupe">
+                                  <strong className="text-tinta">Cancelar el DNI.</strong> Retira las fotos de la
+                                  ficha y las borra del almacén, dejando constancia de quién y por qué. Es el derecho
+                                  de cancelación que la Ley N.° 29733 le promete a la persona en el texto que aceptó
+                                  al subirlas. Antes de hacerlo, comprueba que no haya obligación de conservarlo
+                                  —el vínculo vigente y su plazo posterior—: eso lo decides tú, no el sistema.
+                                </p>
+                                <div className="mt-2 flex flex-wrap items-center gap-2">
+                                  <div className="min-w-64 flex-1">
+                                    <Campo
+                                      value={motivoBorrarDni}
+                                      onChange={(e) => setMotivoBorrarDni(e.target.value)}
+                                      placeholder="Motivo (obligatorio): a petición de quién y bajo qué criterio"
+                                    />
+                                  </div>
+                                  <Boton
+                                    variante="peligro"
+                                    onClick={() => void cancelarDni()}
+                                    cargando={borrandoDni}
+                                    disabled={motivoBorrarDni.trim() === ""}
+                                  >
+                                    Cancelar el DNI
+                                  </Boton>
+                                </div>
+                              </div>
+                            )}
+                          </>
+                        )}
                       </div>
                     ) : (
                       <p className="text-sm text-taupe">Sin ficha cargada. <Link href="/admin/datos-personales" className="text-tinta hover:underline">Completar</Link>.</p>
