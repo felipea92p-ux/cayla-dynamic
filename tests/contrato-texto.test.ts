@@ -284,6 +284,16 @@ describe("documentoConvenio", () => {
     expect(texto).not.toContain("LA PRACTICANTE");
   });
 
+  // Con los espacios colapsados, como lo imprime el navegador: la prueba de
+  // arriba no veía un «LA PRACTICANTE» partido en dos líneas del molde, y
+  // «trabajadora» se quedó fijo cuando el resto del convenio ya concordaba.
+  it("con género masculino no queda ningún femenino suelto en el convenio", () => {
+    const texto = construirContrato(datosConvenio({ genero: "masculino" })).replace(/\s+/g, " ");
+    expect(texto).toContain("no tiene la condición de trabajador, no mantiene relación laboral");
+    expect(texto).not.toContain("trabajadora");
+    expect(texto).not.toContain("LA PRACTICANTE");
+  });
+
   it("el Anexo I es el plan específico de aprendizaje, no las funciones del cargo", () => {
     const texto = construirContrato(datosConvenio({ planCapacitacionTexto: "Apoyo específico en X." }));
     expect(texto).toContain("ANEXO I — PLAN ESPECÍFICO DE APRENDIZAJE");

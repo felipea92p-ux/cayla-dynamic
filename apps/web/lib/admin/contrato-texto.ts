@@ -1077,7 +1077,7 @@ function documentoConvenio(d: DatosContrato): string {
 
     `<h3>{{N}}. NO SUJECIÓN AL REGLAMENTO INTERNO DE TRABAJO</h3>
     <p>Conforme al numeral 2.6 del Reglamento Interno de Trabajo de LA EMPRESA (versión ${d.ritVersion}, vigente
-    desde el ${d.ritFecha}), ${etiquetaPracticante} no tiene la condición de trabajadora, no mantiene relación laboral con
+    desde el ${d.ritFecha}), ${etiquetaPracticante} no tiene la condición de ${segunGenero(d, "trabajador", "trabajadora")}, no mantiene relación laboral con
     LA EMPRESA y no está comprendida por dicho Reglamento — se rige por el presente convenio y por la Ley N.° 28518.
     Ello no excluye las obligaciones de seguridad y salud en el trabajo, que sí alcanzan a ${etiquetaPracticante} desde el
     primer día conforme al artículo 68 de la Ley N.° 29783, Ley de Seguridad y Salud en el Trabajo.</p>`,
@@ -1154,8 +1154,8 @@ function documentoConvenio(d: DatosContrato): string {
       0,
       `<h3>{{N}}. OBLIGACIONES DEL CENTRO DE FORMACIÓN PROFESIONAL</h3>
     <p>EL CENTRO DE FORMACIÓN PROFESIONAL se obliga a dirigir y supervisar académicamente el desarrollo de las
-    prácticas, evaluar y certificar las actividades formativas, y coordinar con LA EMPRESA el monitoreo de LA
-    PRACTICANTE.</p>`,
+    prácticas, evaluar y certificar las actividades formativas, y coordinar con LA EMPRESA el monitoreo de
+    ${etiquetaPracticante}.</p>`,
     );
   }
 
