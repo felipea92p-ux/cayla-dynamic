@@ -38,7 +38,7 @@
 // (`useFocoAtrapado`) y su salida animada (`useSalidaAnimada`).
 
 import { useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { Menu, PanelLeftClose, PanelLeftOpen, X, type LucideIcon } from "lucide-react";
+import { LogOut, Menu, PanelLeftClose, PanelLeftOpen, X, type LucideIcon } from "lucide-react";
 import { useNavColapsado } from "@/lib/use-nav-colapsado";
 import { useFocoAtrapado } from "@/lib/use-foco-atrapado";
 import { useSalidaAnimada } from "@/lib/use-salida-animada";
@@ -184,6 +184,8 @@ export function MenuDetalle<T extends string>({
   onSel,
   etiqueta,
   accion,
+  onSalir,
+  sesion,
 }: {
   secciones: readonly SeccionDetalle<T>[];
   activo: T;
@@ -197,6 +199,17 @@ export function MenuDetalle<T extends string>({
    * cuenta. Opcional porque no toda pantalla larga tiene a dónde volver.
    */
   accion?: ReactNode;
+  /**
+   * Cerrar la sesión. Si viene, «Salir» se dibuja AL PIE DEL MENÚ en los dos
+   * tamaños —abajo del cajón en teléfono, encima de «Colapsar» en la columna—
+   * y no en la pantalla: es donde el cajón del panel tiene «Cerrar sesión», y
+   * quien lo aprende en una superficie lo encuentra en la otra. Lo dibuja
+   * este componente y no la pantalla porque en rail tiene que quedar el icono
+   * solo, y eso lo sabe él.
+   */
+  onSalir?: () => void;
+  /** El nombre de quien está en sesión, para el pie del cajón. */
+  sesion?: string;
 }) {
   // El MISMO plegado del panel, a propósito, con la misma clave de
   // localStorage: no son dos preferencias («quiero el menú del panel angosto» y
@@ -228,9 +241,10 @@ export function MenuDetalle<T extends string>({
     <>
       {/* ── Teléfono: la barra que abre el cajón ────────────────────────────
           Pegada arriba y no suelta encima del detalle, que es lo que hace el
-          panel por debajo de 768px. Misma altura y mismo padding que la
-          cabecera del panel (`nav.tsx`), porque son la misma pieza vista desde
-          dos superficies.
+          panel por debajo de 768px. Misma altura que la cabecera del panel
+          (`nav.tsx`), porque son la misma pieza vista desde dos superficies;
+          el padding cede 4px en teléfono porque acá caben cuatro cosas
+          —menú, título, tema y salida— donde allá caben dos.
 
           Tres cosas, en el orden en que un teléfono las pone desde siempre:
           a la izquierda lo que abre, en el centro dónde estás, a la derecha la
@@ -255,7 +269,7 @@ export function MenuDetalle<T extends string>({
             solo en la tarjeta del perfil porque en teléfono la tarjeta queda
             debajo del pliegue, y quien entró desde el panel necesita volver
             sin buscar. */}
-      <div className="sticky top-0 z-30 flex h-16 shrink-0 items-center gap-3 border-b border-sand bg-crema px-4 sm:px-6 md:hidden print:hidden">
+      <div className="sticky top-0 z-30 flex h-16 shrink-0 items-center gap-2 border-b border-sand bg-crema px-3 sm:gap-3 sm:px-6 md:hidden print:hidden">
         <button
           ref={disparador}
           type="button"
@@ -291,7 +305,10 @@ export function MenuDetalle<T extends string>({
         <p aria-live="polite" className="min-w-0 flex-1 text-center">
           <span
             key={actual?.valor ?? "sin-elegir"}
-            className="titulo-entra line-clamp-2 font-serif text-lg leading-tight text-tinta"
+            // `text-base` por debajo de 400px: con tema y «Volver al panel» a
+            // la derecha, a «Vacaciones y permisos» le quedan ~85px en un
+            // teléfono de 360, y en `text-lg` la primera línea ya no cabe.
+            className="titulo-entra line-clamp-2 font-serif text-base leading-tight text-tinta min-[400px]:text-lg"
           >
             {actual?.label ?? etiqueta}
           </span>
@@ -328,6 +345,25 @@ export function MenuDetalle<T extends string>({
         </nav>
 
         <div className="shrink-0 border-t border-sand p-2">
+          {/* «Salir», encima de «Colapsar» y con su misma forma: en rail queda
+              el icono solo y el nombre viaja en `title`/`aria-label`, igual que
+              el botón de abajo. */}
+          {onSalir ? (
+            <button
+              type="button"
+              onClick={onSalir}
+              aria-label="Salir"
+              title="Salir"
+              className={cx(
+                "flex w-full items-center rounded-control px-2 py-2 text-sm text-taupe transition-colors duration-150 hover:bg-sand/40 hover:text-rojo active:scale-[0.97]",
+                SEGUN_ANCHO[modo].caja,
+              )}
+            >
+              <LogOut size={16} strokeWidth={1.8} aria-hidden className="shrink-0" />
+              <span className={cx("truncate", SEGUN_ANCHO[modo].soloAncho)}>Salir</span>
+            </button>
+          ) : null}
+
           {/* Igual que el sidebar del panel, en modo "auto" quién manda es la
               CSS y no el estado: `expandido` recién es fiable después de
               montar, y decidir el icono con él haría parpadear el botón en cada
@@ -409,6 +445,26 @@ export function MenuDetalle<T extends string>({
                 onElegir={() => setCajonAbierto(false)}
               />
             </nav>
+
+            {/* El pie: clase por clase el de `cajon-admin.tsx`. Cerrar sesión
+                es la única acción del menú que no es una sección, y va abajo y
+                separada por la línea para que no se confunda con una. */}
+            {onSalir ? (
+              <div className="shrink-0 border-t border-sand p-3">
+                {sesion ? (
+                  <p className="px-1 pb-2 text-xs text-taupe" title="Sesión activa">
+                    Sesión: {sesion}
+                  </p>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={onSalir}
+                  className="flex w-full items-center gap-3 rounded-control border border-sand px-3 py-3 text-left text-sm text-taupe transition-colors duration-150 hover:border-rojo/30 hover:text-rojo active:scale-[0.97]"
+                >
+                  <LogOut size={18} strokeWidth={1.8} aria-hidden /> Salir
+                </button>
+              </div>
+            ) : null}
           </div>
         </>
       )}
