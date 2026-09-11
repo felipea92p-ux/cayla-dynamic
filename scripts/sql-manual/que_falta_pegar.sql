@@ -281,7 +281,8 @@ with repo(numero, nombre, nunca) as (values
     (413, 'a_un_practicante_ya_se_le_mide_la_tardanza', false),
     (414, 'los_practicantes_cuentan_sus_faltas_reales', false),
     (416, 'quien_cesa_sin_marcas_ya_no_desaparece_de_la_planilla', false),
-    (417, 'el_sueldo_fijo_se_prorratea_al_entrar_o_cesar_a_mitad', false)
+    (417, 'el_sueldo_fijo_se_prorratea_al_entrar_o_cesar_a_mitad', false),
+    (418, 'las_ausencias_dejan_de_pagarse_tras_el_cese_y_el_sobretiempo_no_pierde_el_ciclo_del_borde', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
