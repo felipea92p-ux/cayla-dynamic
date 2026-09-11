@@ -893,7 +893,7 @@ function Hoja({ d, miFirma }: { d: Detalle; miFirma: string | null }) {
           <Linea etiqueta="Vacaciones truncas"   jsonb={d.vacaciones_truncas} />
           <Linea etiqueta="Gratificación trunca" jsonb={d.gratificacion_trunca} />
           <Linea etiqueta="CTS trunca"           jsonb={d.cts_trunca} />
-          <tr className="border-t-2 border-black">
+          <tr className="border-t-2 border-tinta">
             <td className="py-2 font-medium">Total a pagar</td>
             <td className="py-2 text-right font-medium tabular-nums">{formatSoles(n(d.total))}</td>
           </tr>
@@ -907,12 +907,12 @@ function Hoja({ d, miFirma }: { d: Detalle; miFirma: string | null }) {
 
       <div className="mt-12 flex justify-between text-xs">
         <div>
-          <div className="w-56 border-t border-black pt-1">Firma de la integrante</div>
+          <div className="w-56 border-t border-tinta pt-1">Firma de la integrante</div>
           <div className="mt-1">{s(d.persona)}</div>
         </div>
         <div>
           {miFirma && <img src={miFirma} alt="Firma" className="h-14 w-auto" />}
-          <div className="w-56 border-t border-black pt-1">Por CAYLA</div>
+          <div className="w-56 border-t border-tinta pt-1">Por CAYLA</div>
           <div className="mt-1">Fecha: {fechaLarga(hoy)}</div>
         </div>
       </div>
@@ -948,7 +948,7 @@ function FirmaEmpresa({ firmante, firma }: { firmante: FirmanteEmpresa | null; f
   return (
     <div className="text-center text-xs">
       {firma && <img src={firma} alt="Firma" className="mx-auto h-14 w-auto" />}
-      <div className="w-56 border-t border-black pt-1">{firmante?.nombre ?? "—"}</div>
+      <div className="w-56 border-t border-tinta pt-1">{firmante?.nombre ?? "—"}</div>
       {firmante?.dni && <div>DNI N.° {firmante.dni}</div>}
       <div>{firmante?.cargo ?? "Gerencia General"}</div>
       <div>{EMPRESA.nombre}</div>
