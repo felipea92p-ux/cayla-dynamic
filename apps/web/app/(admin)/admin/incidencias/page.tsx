@@ -260,7 +260,12 @@ function IncidenciasContenido() {
       traerTodo<any>((ini, fin) =>
         supabase
           .from("jornadas")
-          .select("persona_id, fecha, entrada_ts, personas:persona_id(nombres, apellidos, sedes:sede_base_id(codigo))")
+          // `en_planilla` viaja para filtrar el patrón automático más abajo (0413):
+          // desde que un practicante también acumula minutos_tarde (informativo,
+          // para Desempeño), este "patrón" —que sí convierte el número en un aviso
+          // de "incidencia alta" sin que nadie lo pida— se queda exclusivo de quien
+          // está en_planilla. Un RxH nunca llega hasta acá: sigue sin minutos_tarde.
+          .select("persona_id, fecha, entrada_ts, personas:persona_id(nombres, apellidos, en_planilla, sedes:sede_base_id(codigo))")
           .gte("fecha", desdePatron).lte("fecha", HOY)
           .gt("minutos_tarde", 0)
           .order("fecha", { ascending: false })
@@ -425,6 +430,11 @@ function IncidenciasContenido() {
     const porPersonaTardias = new Map<string, { count: number; ultima: any }>();
     for (const j of (tardias as any[]) ?? []) {
       if (levantadas.has(`${j.persona_id}|${j.fecha}`)) continue; // tardanza perdonada
+      // 0413: el aviso automático de "patrón" es fiscalización activa del
+      // sistema, no solo un número mostrado — se queda para quien está
+      // en_planilla. Un practicante sigue viendo su tardanza en Desempeño;
+      // acá no genera ninguna incidencia.
+      if (j.personas?.en_planilla !== true) continue;
       const prev = porPersonaTardias.get(j.persona_id);
       if (prev) prev.count++;
       else porPersonaTardias.set(j.persona_id, { count: 1, ultima: j });
