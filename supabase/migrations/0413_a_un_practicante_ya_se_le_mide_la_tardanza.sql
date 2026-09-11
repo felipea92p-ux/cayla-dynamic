@@ -560,3 +560,6 @@ begin
     perform fn_recalcular_jornada(r.persona_id, r.fecha);
   end loop;
 end $$;
+
+insert into migraciones_aplicadas (numero, nombre) values (413, 'a_un_practicante_ya_se_le_mide_la_tardanza')
+on conflict (numero) do nothing;
