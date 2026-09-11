@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0419 · Quien cesa deja de estorbar, pero no antes de liquidarse
+-- 0421 · Quien cesa deja de estorbar, pero no antes de liquidarse
 -- ============================================================================
 -- QUÉ PROMETE
 --
@@ -72,7 +72,7 @@ returns jsonb language sql stable security definer set search_path = public as $
            'fecha_cese', p.fecha_cese,
            'motivo_cese', case when fn_es_admin_o_lider() is not true
                                then null else p.motivo_cese end,
-           -- CAMBIO 0419 · true solo si ya se le pagó la liquidación (y no está
+           -- CAMBIO 0421 · true solo si ya se le pagó la liquidación (y no está
            -- anulada). Para quien sigue activo, o cesó y aún no se liquida,
            -- da false — a propósito: todavía puede tener trabajo pendiente
            -- (una ausencia por registrar, un marcaje por corregir).
@@ -94,10 +94,10 @@ revoke execute on function fn_personas_funciones() from public, anon;
 notify pgrst, 'reload schema';
 
 insert into migraciones_aplicadas (numero, nombre)
-values (419, 'quien_se_liquida_deja_de_estorbar')
+values (421, 'quien_se_liquida_deja_de_estorbar')
 on conflict (numero) do update set nombre = excluded.nombre, aplicada_at = now();
 
 do $$
 begin
-  raise notice '0419 · fn_persona_liquidada existe; fn_personas_funciones ya dice "liquidada" por persona.';
+  raise notice '0421 · fn_persona_liquidada existe; fn_personas_funciones ya dice "liquidada" por persona.';
 end $$;

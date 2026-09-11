@@ -312,7 +312,7 @@ export default function CorreccionesPage() {
   const yo = usePersonaActual();
   const rol = yo?.rol ?? null;
   const [personas, setPersonas] = useState<Persona[]>([]);
-  // Quién ya se liquidó (0419) — solo esas desaparecen del selector. Mientras
+  // Quién ya se liquidó (0421) — solo esas desaparecen del selector. Mientras
   // esté cesada y sin liquidar, sigue disponible: puede tener un marcaje real
   // por corregir antes de calcularle esa liquidación.
   const [personaLiquidada, setPersonaLiquidada] = useState<Set<string>>(new Set());
@@ -378,7 +378,7 @@ export default function CorreccionesPage() {
       // Sin filtro de estado en la base: se incluye a quien ya cesó, y el
       // filtro real (activa, o cesada pero sin liquidar) se aplica abajo con
       // `personasCorregibles` — hay que poder corregir el marcaje de alguien
-      // que acaba de cesar ANTES de que se le calcule su liquidación (0419).
+      // que acaba de cesar ANTES de que se le calcule su liquidación (0421).
       const [{ data: p }, { data: pf }] = await Promise.all([
         supabase
           .from("personas").select("id, nombres, apellidos, rol, sede_base_id, tipo_vinculo, personal_direccion, estado")
@@ -631,7 +631,7 @@ export default function CorreccionesPage() {
   const puedeCorregir = puedeOperarEquipo(rol);
   const esSupervisor = rol === "supervisor_sede";
 
-  // Activa, o cesada pero todavía sin liquidar (0419/0420) — la ya liquidada
+  // Activa, o cesada pero todavía sin liquidar (0421/0422) — la ya liquidada
   // desaparece del selector, sin excepción, se vea o no el filtro de arriba:
   // aquí no aplica un toggle "ver todas", es el mismo caso "cerrado" en toda
   // la pantalla. Y una encargada no puede corregir su propia asistencia ni la

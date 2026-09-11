@@ -75,7 +75,7 @@ interface Candidato {
 
 // Igual criterio que Equipo, Planilla y Ausencias: "activos" no es el estado
 // literal de la persona — incluye también a quien cesó pero todavía no se le
-// liquida (0419/0420), porque sus comprobantes de estudios ya cargados pueden
+// liquida (0421/0422), porque sus comprobantes de estudios ya cargados pueden
 // seguir necesitando revisión hasta ese momento.
 type FiltroPersonaEstado = "activos" | "inactivos" | "todos";
 interface PersonaFacts { fechaCese: string | null; liquidada: boolean }
@@ -184,7 +184,7 @@ export default function EducacionPage() {
     ]);
     setFilas((lista.data as Fila[]) ?? []);
     setCandidatos((cands.data as Candidato[]) ?? []);
-    // Quién ya se liquidó, para el filtro "activos" de abajo (0419/0420). Si
+    // Quién ya se liquidó, para el filtro "activos" de abajo (0421/0422). Si
     // falla, no se oculta a nadie — más seguro que ocultar de más.
     setPersonaFacts(new Map(
       ((pf.data as { persona_id: string; fecha_cese: string | null; liquidada: boolean }[] | null) ?? [])

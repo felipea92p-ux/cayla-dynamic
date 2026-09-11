@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0420 · Las colas de Correcciones dejan de ver a quien ya se liquidó
+-- 0422 · Las colas de Correcciones dejan de ver a quien ya se liquidó
 -- ============================================================================
 -- QUÉ PROMETE
 --
@@ -13,16 +13,19 @@
 --
 --   Correcciones respondía la misma pregunta —"¿a quién le puedo corregir un
 --   marcaje?"— de dos formas distintas dentro de la MISMA pantalla. El
---   selector manual (`admin/correcciones/page.tsx`) excluye hoy a TODO
---   cesado sin excepción, mientras estas dos colas nunca excluían a nadie. La
---   0421 empareja el selector con la misma regla que esta migración les pone
---   a las colas: activo, o cesado pero todavía sin liquidar. Ninguna de las
---   dos mitades puede seguir contestando distinto — es el mismo criterio que
---   ya cerró la 0237 entre tardanzas y faltas.
+--   selector manual (`admin/correcciones/page.tsx`) excluía hasta hoy a TODO
+--   cesado sin excepción, mientras estas dos colas nunca excluían a nadie. El
+--   mismo commit que trae esta migración cambia también ese selector
+--   (`personasCorregibles`, en el propio `page.tsx` — no necesita SQL propio:
+--   ya le alcanza con `fn_personas_funciones`) para que responda la MISMA
+--   regla que esta migración les pone a las colas: activo, o cesado pero
+--   todavía sin liquidar. Ninguna de las dos mitades puede seguir
+--   contestando distinto — es el mismo criterio que ya cerró la 0237 entre
+--   tardanzas y faltas.
 --
 -- QUÉ ASUME
 --
---   `fn_persona_liquidada` (0419) ya existe. Ninguna otra condición de las
+--   `fn_persona_liquidada` (0421) ya existe. Ninguna otra condición de las
 --   dos funciones cambia: mismas columnas de retorno, mismo permiso de quién
 --   puede llamarlas.
 --
@@ -50,7 +53,7 @@ as $fn$
     join sedes s on s.id = p.sede_base_id
     where m.estado_revision = 'pendiente_revision'
       and m.anulada_at is null
-      -- ⇩ CAMBIO 0420: quien ya cobró su liquidación deja de aparecer para
+      -- ⇩ CAMBIO 0422: quien ya cobró su liquidación deja de aparecer para
       -- siempre en esta cola. Mientras no se le liquide, sigue viéndose —
       -- puede tener un marcaje real por corregir antes de calcularla.
       and not fn_persona_liquidada(p.id)
@@ -106,7 +109,7 @@ as $fn$
     join personas p on p.id = m.persona_id
     left join sedes s on s.id = p.sede_base_id
    where m.resuelta_at is null
-     -- ⇩ CAMBIO 0420: mismo criterio que fn_dias_por_revisar, arriba.
+     -- ⇩ CAMBIO 0422: mismo criterio que fn_dias_por_revisar, arriba.
      and not fn_persona_liquidada(p.id)
      and ( fn_es_admin_o_lider() is true
         or ( fn_rol_actual() = 'supervisor_sede'::rol_usuario
@@ -120,10 +123,10 @@ revoke execute on function fn_marcas_apartadas() from public, anon;
 notify pgrst, 'reload schema';
 
 insert into migraciones_aplicadas (numero, nombre)
-values (420, 'las_colas_de_correcciones_dejan_de_ver_a_quien_ya_se_liquido')
+values (422, 'las_colas_de_correcciones_dejan_de_ver_a_quien_ya_se_liquido')
 on conflict (numero) do update set nombre = excluded.nombre, aplicada_at = now();
 
 do $$
 begin
-  raise notice '0420 · fn_dias_por_revisar y fn_marcas_apartadas ya excluyen a quien se liquidó.';
+  raise notice '0422 · fn_dias_por_revisar y fn_marcas_apartadas ya excluyen a quien se liquidó.';
 end $$;

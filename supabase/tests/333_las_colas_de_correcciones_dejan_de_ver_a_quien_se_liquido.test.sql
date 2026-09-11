@@ -5,7 +5,7 @@
 -- Lo que sí se pega vive en supabase/migrations/ y scripts/sql-manual/.
 -- ============================================================================
 -- 333_las_colas_de_correcciones_dejan_de_ver_a_quien_se_liquido.test.sql
--- Defiende la 0420
+-- Defiende la 0422
 -- ============================================================================
 -- QUÉ DEFIENDE
 --

@@ -65,7 +65,7 @@ type FiltroEstado = "todas" | "pendientes" | "vigentes" | "anuladas";
 // Igual criterio que Equipo y Planilla, y con la misma etiqueta: "activos" no
 // es el estado literal de la persona — incluye también a quien cesó pero
 // todavía no se le liquida, porque esa persona puede tener una ausencia por
-// registrar o revisar antes de calcular su liquidación (0419/0420).
+// registrar o revisar antes de calcular su liquidación (0421/0422).
 type FiltroPersonaEstado = "activos" | "inactivos" | "todos";
 interface PersonaFacts { fechaCese: string | null; liquidada: boolean }
 
@@ -209,7 +209,7 @@ export default function AusenciasPage() {
   // "activos" no es el estado literal de la persona: incluye también a quien
   // cesó pero todavía no se le liquida, porque esa ausencia puede seguir
   // sirviendo para auditar o corregir antes de calcular esa liquidación
-  // (0419/0420). Solo desaparece cuando la persona ya se liquidó.
+  // (0421/0422). Solo desaparece cuando la persona ya se liquidó.
   const porPersona = useMemo(() => porFiltroEstadoYRango.filter((a) => {
     const f = personaFacts.get(a.persona_id);
     const cesada = !!f?.fechaCese;
@@ -257,7 +257,7 @@ export default function AusenciasPage() {
       supabase.rpc("fn_personas_funciones"),
     ]);
     // Quién ya se liquidó, para el filtro "activos" de la tabla de abajo
-    // (0419/0420). Si esto falla, la tabla sigue mostrando a todos —
+    // (0421/0422). Si esto falla, la tabla sigue mostrando a todos —
     // degradar a "no ocultar a nadie" es más seguro que ocultar de más.
     setPersonaFacts(new Map(
       (((pf as { persona_id: string; fecha_cese: string | null; liquidada: boolean }[] | null) ?? []))

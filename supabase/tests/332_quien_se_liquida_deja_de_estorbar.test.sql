@@ -4,7 +4,7 @@
 -- Se corre así, en esta Mac:   npx supabase test db
 -- Lo que sí se pega vive en supabase/migrations/ y scripts/sql-manual/.
 -- ============================================================================
--- 332_quien_se_liquida_deja_de_estorbar.test.sql — defiende la 0419
+-- 332_quien_se_liquida_deja_de_estorbar.test.sql — defiende la 0421
 -- ============================================================================
 -- QUÉ DEFIENDE
 --
