@@ -36,6 +36,7 @@ import {
   type Esperado, type EstadoDia, type HorarioTramo, type TurnoDia,
 } from "@/lib/admin/jornada-esperada";
 import { loQueNoSePudo } from "@/lib/admin/lo-que-no-se-pudo";
+import { cicloVigente, type DiaTrabajado } from "@/lib/admin/ciclo-sobretiempo";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { esMemoPorFirmar, traerBandeja } from "@/lib/bandeja-mia";
 
@@ -1182,6 +1183,16 @@ export default function MioPage() {
     [revisiones],
   );
 
+  // Las que pediste y todavía nadie contestó. Antes solo se veían reabriendo
+  // cada día en «Mis días»; sin esta lista, pedir una revisión y olvidarte de
+  // cuáles quedaron pendientes era el mismo callejón que la 0257 quiso evitar.
+  const pendientesRevision = useMemo(
+    () => [...revisiones.values()]
+      .filter((r) => !r.atendida_at)
+      .sort((a, b) => b.fecha.localeCompare(a.fecha)),
+    [revisiones],
+  );
+
   /** Sube al detalle después de cambiar de pestaña: sin esto, tocar un aviso de
    *  arriba cambia una pestaña que está fuera de la vista y no pasa nada
    *  visible — que es como se aprende que los avisos no hacen nada. */
@@ -1351,6 +1362,17 @@ export default function MioPage() {
         ir: () => abrirDia(respondidas[0].fecha),
       });
     }
+    if (pendientesRevision.length > 0) {
+      const n = pendientesRevision.length;
+      out.push({
+        clave: "revision-pendiente",
+        texto: n === 1
+          ? "Pediste que se revise un día y todavía no te responden"
+          : `Pediste que se revisen ${n} días y todavía no te responden`,
+        detalle: pendientesRevision.map((r) => `${diaYMes(r.fecha)}: «${r.comentario}»`).join(" · "),
+        ir: () => abrirDia(pendientesRevision[0].fecha),
+      });
+    }
     // Un récord de vacaciones que vence deja de poder tomarse como descanso:
     // avisa solo cuando queda poco, para que el aviso siga significando algo.
     if (vacas && vacas.records_sin_gozar > 0 && vacas.vence_el && (vacas.dias_para_vencer ?? 999) <= 60) {
@@ -1374,7 +1396,7 @@ export default function MioPage() {
     }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resumen, respondidas, vacas, memosPorFirmar]);
+  }, [resumen, respondidas, pendientesRevision, vacas, memosPorFirmar]);
 
   const objCumplidos = objetivos.filter((o) => o.cumplido).length;
   const mesLabel = `${MESES_LARGOS[Number(hasta.slice(5, 7)) - 1].toLowerCase()} ${hasta.slice(0, 4)}`;
@@ -1393,7 +1415,7 @@ export default function MioPage() {
         <div className="flex flex-col items-center gap-4">
           <Colibri tono="rojo" className="w-12" />
           <div className="text-center">
-            <h1 className="font-serif text-3xl leading-none">Mi perfil</h1>
+            <h1 className="font-serif text-3xl leading-none">Info</h1>
             <p className="etiqueta mt-2 text-taupe">Tus días y tus horas · CAYLA</p>
           </div>
         </div>
@@ -1490,8 +1512,8 @@ export default function MioPage() {
               <Colibri tono="rojo" className="w-12" />
             )}
             <div className="min-w-0">
-              <p className="etiqueta text-taupe">Mi perfil</p>
-              <h1 className="mt-0.5 font-serif text-3xl leading-tight">{yo?.nombre ?? "Mi perfil"}</h1>
+              <p className="etiqueta text-taupe">Info</p>
+              <h1 className="mt-0.5 font-serif text-3xl leading-tight">{yo?.nombre ?? "Info"}</h1>
               {/* El CARGO, nunca el rol del sistema: «supervisor_sede» no es a
                   lo que se dedica nadie, y en pantalla siempre es «encargada». */}
               <p className="mt-1 text-sm text-taupe">
@@ -1508,7 +1530,7 @@ export default function MioPage() {
           {/* ── La salida ──────────────────────────────────────────────────
               Esta pantalla vive FUERA de `(admin)`, así que no hereda el menú:
               sin estos enlaces es un callejón sin salida. Quien tiene panel
-              entró desde «Mi perfil» del menú y necesita volver; quien no lo
+              entró desde «Info» del menú y necesita volver; quien no lo
               tiene, no ve un enlace que le daría error.
 
               «Salir» ya no está acá: vive al pie del menú (ver `onSalir` de
@@ -1687,6 +1709,9 @@ export default function MioPage() {
           ) : (
             <TarjetaClave titulo="Tu periodo de pago" valor="—" pie="No hay un periodo de pago abierto para hoy." />
           )}
+
+          {yo && <AdelantoDePago personaId={yo.id} />}
+          {yo && <HorasDeLaSemana personaId={yo.id} />}
 
           {/* Nadie pide vacaciones que no sabe que tiene. */}
           {vacas && (
@@ -2530,6 +2555,8 @@ export default function MioPage() {
             </ul>
           )}
         </section>
+
+        {yo && <TusUltimosPeriodos personaId={yo.id} />}
         </>
       )}
 
@@ -2599,6 +2626,227 @@ function FotoDePerfil({
       />
       {error && <p className="max-w-[9rem] text-center text-[11px] text-rojo">{error}</p>}
     </div>
+  );
+}
+
+/**
+ * Cuántas horas lleva trabajadas en su semana (ciclo de 7 días) en curso.
+ *
+ * A PROPÓSITO no dice nada del tope de 48h ni usa la palabra «sobretiempo»:
+ * la cabecera de este archivo documenta que la pantalla decidió (2026-08-31)
+ * no mostrar el sobretiempo como horas por cobrar, porque invita a leerlo
+ * como «me deben esto» antes de que se cruce el tope legal. Esta tarjeta es
+ * un dato neutro — cuántas horas ya trabajó esta semana — y nada más.
+ *
+ * Fetch propio, independiente del filtro Desde/Hasta de «Mis días»: si
+ * alguien lo angosta para mirar un mes viejo, este dato de "ahora mismo" no
+ * debe romperse.
+ */
+function HorasDeLaSemana({ personaId }: { personaId: string }) {
+  const [dias, setDias] = useState<DiaTrabajado[] | null>(null);
+
+  useEffect(() => {
+    let vivo = true;
+    const supabase = createAdminSupabaseClient();
+    const hoy = hoyLima();
+    const [a, m, d] = hoy.split("-").map(Number);
+    const desde = new Date(Date.UTC(a, m - 1, d - 9)).toISOString().slice(0, 10);
+    void supabase
+      .from("jornadas")
+      .select("fecha, horas_trabajadas")
+      .eq("persona_id", personaId)          // ← explícito, como todo lo de esta pantalla
+      .gte("fecha", desde).lte("fecha", hoy)
+      .then(({ data }) => {
+        if (!vivo) return;
+        setDias(
+          ((data as { fecha: string; horas_trabajadas: number | null }[]) ?? [])
+            .map((j) => ({ fecha: j.fecha, horas: j.horas_trabajadas ?? 0 }))
+            .filter((j) => j.horas <= 24),   // un agregado histórico no es una jornada real
+        );
+      });
+    return () => { vivo = false; };
+  }, [personaId]);
+
+  const ciclo = useMemo(() => (dias ? cicloVigente(dias, hoyLima()) : null), [dias]);
+  if (!ciclo) return null;
+
+  return (
+    <TarjetaClave titulo="Tu semana" valor={comoReloj(ciclo.horas)}
+      pie={`Trabajadas desde el ${diaYMes(ciclo.desde)}.`} />
+  );
+}
+
+/**
+ * Un adelanto de «cómo va tu pago» del periodo actual, antes de entrar a la
+ * boleta completa. MISMA REGLA que ya rige toda esta pantalla (ver cabecera
+ * del archivo): SOLO el periodo actual, nunca uno cerrado —
+ * `fn_planilla_calcular_persona` lo hace cumplir del lado del servidor.
+ */
+function AdelantoDePago({ personaId }: { personaId: string }) {
+  const [fila, setFila] = useState<{ total: number; horas_mes: number; sin_datos?: boolean } | null>(null);
+
+  useEffect(() => {
+    let vivo = true;
+    const supabase = createAdminSupabaseClient();
+    void (async () => {
+      const hoy = hoyLima();
+      const { data: per } = await supabase
+        .from("periodos_planilla")
+        .select("id")
+        .lte("fecha_ini", hoy).gte("fecha_fin", hoy)
+        .maybeSingle();
+      if (!vivo || !per) return;
+      const { data: f } = await supabase.rpc("fn_planilla_calcular_persona", {
+        p_persona_id: personaId,
+        p_periodo_id: (per as { id: string }).id,
+      });
+      if (!vivo) return;
+      setFila((f ?? null) as { total: number; horas_mes: number; sin_datos?: boolean } | null);
+    })();
+    return () => { vivo = false; };
+  }, [personaId]);
+
+  if (!fila || fila.sin_datos) return null;
+
+  return (
+    <TarjetaClave
+      titulo="Cómo va tu pago"
+      valor={`S/ ${fila.total.toFixed(2)}`}
+      pie={`Horas trabajadas: ${comoReloj(fila.horas_mes)}. En vivo, con lo marcado hasta hoy — todavía puede cambiar antes de que cierre el periodo.`}
+      accion={<Link href="/mio/boleta" className="text-tinta underline underline-offset-2 hover:text-rojo-profundo">Ver el desglose completo →</Link>}
+    />
+  );
+}
+
+interface PeriodoTendencia {
+  id: string;
+  fecha_ini: string;
+  fecha_fin: string;
+  dias: number;           // largo del periodo — no son todos iguales (20 a 46 días)
+  horas: number;
+  diasTrabajados: number;
+  tardanzas: number;
+}
+
+/**
+ * Cómo vienen tus últimos periodos, uno al lado del otro.
+ *
+ * A PROPÓSITO no muestra ningún monto, ni siquiera del periodo actual (eso ya
+ * lo hace `AdelantoDePago`): un periodo CERRADO puede tener su foto de pago
+ * (`planilla_pagada_detalle`) desactualizada frente a errores de cálculo ya
+ * corregidos en el código — mezclar esa foto con una comparación de
+ * tendencia enseñaría un número que puede estar mal, sin ninguna de las
+ * advertencias que sí tiene `/mio/boleta`. Horas y tardanzas no tienen ese
+ * problema: salen de `jornadas`, la fuente de verdad siempre vigente.
+ *
+ * Cada fila muestra los días del periodo al lado de las horas — los periodos
+ * no duran lo mismo (20 a 46 días, CHECK de la 0025), así que comparar solo
+ * horas totales compararía peras con manzanas.
+ */
+function TusUltimosPeriodos({ personaId }: { personaId: string }) {
+  const [periodos, setPeriodos] = useState<PeriodoTendencia[] | null>(null);
+
+  useEffect(() => {
+    let vivo = true;
+    const supabase = createAdminSupabaseClient();
+    void (async () => {
+      const { data: pers } = await supabase
+        .from("periodos_planilla")
+        .select("id, fecha_ini, fecha_fin, estado")
+        .order("fecha_fin", { ascending: false })
+        .limit(6);
+      if (!vivo || !pers || pers.length === 0) { setPeriodos([]); return; }
+
+      const lista = pers as { id: string; fecha_ini: string; fecha_fin: string; estado: string }[];
+      const cerrados = lista.filter((p) => p.estado === "pagado");
+      const abiertos = lista.filter((p) => p.estado !== "pagado");
+
+      // Dos grupos, no un array de tamaño variable: mezclar la respuesta de
+      // Supabase (`{data, error}`) con la de la RPC por-abierto en un solo
+      // `Promise.all` de longitud dinámica le quita a TypeScript la forma de
+      // saber qué trae cada posición — con dos promesas fijas sí la sabe.
+      const [{ data: fotos }, calculosAbiertos] = await Promise.all([
+        cerrados.length > 0
+          ? supabase.from("v_planilla_pagada")
+              .select("periodo_id, horas_mes, dias_trabajados")
+              .eq("persona_id", personaId)
+              .in("periodo_id", cerrados.map((p) => p.id))
+          : Promise.resolve({ data: [] as { periodo_id: string; horas_mes: number; dias_trabajados: number }[] }),
+        Promise.all(
+          abiertos.map((p) =>
+            supabase.rpc("fn_planilla_calcular_persona", { p_persona_id: personaId, p_periodo_id: p.id })
+              .then(({ data }) => ({ periodo_id: p.id, fila: data as { horas_mes?: number; dias_trabajados?: number } | null })),
+          ),
+        ),
+      ]);
+      if (!vivo) return;
+
+      const horasPorPeriodo = new Map<string, { horas: number; dias: number }>();
+      for (const f of (fotos as { periodo_id: string; horas_mes: number; dias_trabajados: number }[] | null) ?? []) {
+        horasPorPeriodo.set(f.periodo_id, { horas: f.horas_mes, dias: f.dias_trabajados });
+      }
+      for (const c of calculosAbiertos) {
+        horasPorPeriodo.set(c.periodo_id, { horas: c.fila?.horas_mes ?? 0, dias: c.fila?.dias_trabajados ?? 0 });
+      }
+
+      // Tardanzas: un solo fetch sobre el rango completo de los periodos
+      // pedidos, en vez de uno por periodo.
+      const desde = lista.reduce((m, p) => (p.fecha_ini < m ? p.fecha_ini : m), lista[0].fecha_ini);
+      const hasta = lista.reduce((m, p) => (p.fecha_fin > m ? p.fecha_fin : m), lista[0].fecha_fin);
+      const [{ data: js }, { data: perd }] = await Promise.all([
+        supabase.from("jornadas").select("fecha, minutos_tarde")
+          .eq("persona_id", personaId).gte("fecha", desde).lte("fecha", hasta),
+        supabase.from("tardanzas_justificadas").select("fecha")
+          .eq("persona_id", personaId).gte("fecha", desde).lte("fecha", hasta),
+      ]);
+      if (!vivo) return;
+      const perdonadas = new Set(((perd as { fecha: string }[]) ?? []).map((t) => t.fecha));
+      const tardes = ((js as { fecha: string; minutos_tarde: number | null }[]) ?? [])
+        .filter((j) => (j.minutos_tarde ?? 0) > 0 && !perdonadas.has(j.fecha))
+        .map((j) => j.fecha);
+
+      setPeriodos(
+        [...lista].reverse().map((p) => ({
+          id: p.id,
+          fecha_ini: p.fecha_ini,
+          fecha_fin: p.fecha_fin,
+          dias: fechasDelRango(p.fecha_ini, p.fecha_fin).length,
+          horas: horasPorPeriodo.get(p.id)?.horas ?? 0,
+          diasTrabajados: horasPorPeriodo.get(p.id)?.dias ?? 0,
+          tardanzas: tardes.filter((f) => f >= p.fecha_ini && f <= p.fecha_fin).length,
+        })),
+      );
+    })();
+    return () => { vivo = false; };
+  }, [personaId]);
+
+  if (!periodos || periodos.length < 2) return null;   // una tendencia necesita al menos dos puntos
+
+  return (
+    <section className="mt-5 rounded-2xl border border-sand p-5 text-sm">
+      <h2 className="mb-1 font-serif text-lg">Tus últimos periodos</h2>
+      <p className="mb-3 text-taupe">
+        Sin montos: un periodo ya cerrado puede tener su foto de pago desactualizada — para eso está tu boleta.
+      </p>
+      <Tabla>
+        <TablaEncabezado>
+          <Th>Periodo</Th>
+          <Th>Días trabajados</Th>
+          <Th>Horas</Th>
+          <Th className="text-right">Tardanzas</Th>
+        </TablaEncabezado>
+        <tbody>
+          {periodos.map((p) => (
+            <Fila key={p.id}>
+              <td className="px-4 py-2">{diaYMes(p.fecha_ini)} – {diaYMes(p.fecha_fin)}</td>
+              <td className="px-4 py-2 text-taupe">{p.diasTrabajados} de {p.dias}</td>
+              <td className="px-4 py-2">{comoReloj(p.horas)}</td>
+              <td className="px-4 py-2 text-right">{p.tardanzas}</td>
+            </Fila>
+          ))}
+        </tbody>
+      </Tabla>
+    </section>
   );
 }
 

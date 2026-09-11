@@ -83,7 +83,7 @@ export const GRUPOS: Grupo[] = [
     // día que lo resuelve. No es un adorno permanente; es una tarea con final.
     // Sin él, quien trabaja todo el día en el panel no se entera nunca de que
     // tiene su propio contrato sin firmar.
-    { href: "/mio", label: "Mi perfil", Icon: UserRound, contador: "mio" },
+    { href: "/mio", label: "Info", Icon: UserRound, contador: "mio" },
     // Con `roles` desde el 2026-09-04. Antes iba sin filtro, así que una
     // integrante con cuenta —las hay: se les invita para que acusen la política
     // salarial (Ley 30709)— aterrizaba aquí y veía un tablero de encargada que su

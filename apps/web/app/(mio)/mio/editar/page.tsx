@@ -301,7 +301,7 @@ function MiEditarContenido() {
       <main className="p-6">
         <p className="max-w-md rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">{error}</p>
         <Link href="/mio" className="mt-3 inline-block text-sm text-taupe hover:text-tinta hover:underline">
-          ← Volver a Mi perfil
+          ← Volver a Info
         </Link>
       </main>
     );
@@ -377,7 +377,7 @@ function MiEditarContenido() {
       <div className="mb-1 flex flex-wrap items-baseline justify-between gap-3">
         <div>
           <Link href="/mio" className="text-sm text-taupe hover:text-tinta hover:underline">
-            ← Volver a Mi perfil
+            ← Volver a Info
           </Link>
           <h1 className="mt-1 font-serif text-2xl">{yo.nombres} {yo.apellidos}</h1>
           {yo.sede && <p className="text-xs text-taupe">{yo.sede}</p>}

@@ -168,7 +168,7 @@ function MiContratoContenido() {
           </Boton>
         </p>
         <Link href="/mio" className="mt-3 inline-block text-sm text-taupe hover:text-tinta hover:underline">
-          ← Volver a Mi perfil
+          ← Volver a Info
         </Link>
       </main>
     );
@@ -182,7 +182,7 @@ function MiContratoContenido() {
           Desarrollo Organizacional.
         </p>
         <Link href="/mio" className="mt-3 inline-block text-sm text-taupe hover:text-tinta hover:underline">
-          ← Volver a Mi perfil
+          ← Volver a Info
         </Link>
       </main>
     );
@@ -196,7 +196,7 @@ function MiContratoContenido() {
     <main className="mx-auto max-w-2xl p-6 print:p-0">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3 print:hidden">
         <Link href="/mio" className="text-sm text-taupe hover:text-tinta hover:underline">
-          ← Volver a Mi perfil
+          ← Volver a Info
         </Link>
         <div className="flex flex-wrap items-center gap-3">
           {contrato.storage_path && (

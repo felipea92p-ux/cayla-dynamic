@@ -171,7 +171,7 @@ export default function MiBandejaPage() {
   return (
     <main className="mx-auto min-h-screen w-full max-w-2xl bg-crema px-5 py-8 text-tinta">
       <Link href="/mio" className="text-sm text-taupe hover:text-tinta hover:underline">
-        ← Volver a Mi perfil
+        ← Volver a Info
       </Link>
 
       <h1 className="mt-3 font-serif text-2xl">Bandeja</h1>
