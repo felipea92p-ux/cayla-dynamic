@@ -330,7 +330,14 @@ export default function DashboardPage() {
         .from("personas")
         .select("id, nombres, apellidos, rol, sede_base_id, sedes:sede_base_id(codigo)")
         .eq("estado", "activo")
-        .eq("en_planilla", true)
+        // `tipo_vinculo = 'practicante'`, no simplemente `not en_planilla`:
+        // así un RxH no entra por accidente. Mismo criterio puntual que la
+        // 0333 usó para que un practicante dejara de ser invisible en
+        // Contratos — acá no toca el escalafón disciplinario
+        // (fn_tardanzas_resumen/fn_faltas siguen excluyendo a los
+        // practicantes en todo el sistema): esta pantalla solo muestra quién
+        // marcó hoy, no genera ninguna sanción.
+        .or("en_planilla.eq.true,tipo_vinculo.eq.practicante")
         .eq("sueldo_fijo", false) // quien cobra fijo no marca: no se le mide asistencia
         .order("nombres"),
       supabase
