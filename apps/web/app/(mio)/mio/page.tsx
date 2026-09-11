@@ -1458,7 +1458,18 @@ export default function MioPage() {
         sesion={yo?.nombre}
       />
 
-    <main className="mx-auto min-w-0 max-w-5xl flex-1 px-5 py-8">
+    {/* `w-full` no es adorno. En teléfono el marco es `flex-col`, y un hijo
+        con `mx-auto` en una columna flex deja de estirarse al ancho del
+        contenedor: pasa a medir «lo que su contenido necesite». Bastaba una
+        sola cosa con ancho intrínseco grande —la tira de 30 días de «Mis
+        días», la tabla «Día por día», el `input type="file"` del DNI— para
+        que `main` entero, tarjeta incluida, se fuera a 764px en un viewport de
+        375 y la pantalla se desplazara de lado (medido el 2026-09-11, visto
+        en producción desde un teléfono). Con un ancho definido, lo ancho
+        vuelve a desplazarse dentro de su propia caja (`overflow-x-auto`) y la
+        página solo se mueve hacia abajo. En escritorio no cambia nada:
+        `flex-1` fija la base en 0 y el ancho se reparte igual que antes. */}
+    <main className="mx-auto w-full min-w-0 max-w-5xl flex-1 px-5 py-8">
       {/* ══ 1 · QUIÉN ERES ══════════════════════════════════════════════════
           Lo primero de un perfil es la persona, y hasta hoy acá lo primero era
           una barrita de 14 píxeles con la foto encogida al lado del nombre.
@@ -2138,7 +2149,12 @@ export default function MioPage() {
                           elegir una que ya está en la galería. */}
                       <input type="file" accept="image/*" disabled={enviandoDni}
                         onChange={(e) => elegirCaraDni(cara.clave, e.target.files?.[0] ?? null)}
-                        className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta disabled:opacity-50" />
+                        // `w-full min-w-0`: un input de archivo mide por defecto lo
+                        // que mide su texto («Elegir archivo · Ningún archivo
+                        // seleccionado», ~350px en Android en español), más que la
+                        // tarjeta en un teléfono. Con ancho definido se recorta por
+                        // dentro en vez de sacar la tarjeta de la pantalla.
+                        className="w-full min-w-0 rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta disabled:opacity-50" />
                     </label>
                   </div>
                 );
