@@ -1431,16 +1431,31 @@ export default function MioPage() {
         // ve: crema sobre rojo da 4.83:1 en claro y 4.70:1 en oscuro, medido
         // como se pinta. El mismo enlace vive en la tarjeta para escritorio,
         // donde esta barra no existe.
+        //
+        // El tema va a su izquierda, en el mismo grupo: es lo que hace la
+        // cabecera del panel (tema arriba a la derecha), y en teléfono la
+        // tarjeta queda bajo el pliegue, que es justo donde estaba.
         accion={
-          yo && ROLES_CON_PANEL.includes(yo.rol as never) ? (
-            <Link
-              href="/admin/dashboard"
-              className="shrink-0 whitespace-nowrap rounded-control bg-rojo px-3 py-2 text-xs font-medium text-crema transition-colors duration-150 hover:bg-rojo-profundo active:scale-[0.97]"
-            >
-              Volver al panel
-            </Link>
-          ) : undefined
+          <div className="flex shrink-0 items-center gap-2">
+            <SelectorTema />
+            {yo && ROLES_CON_PANEL.includes(yo.rol as never) && (
+              <Link
+                href="/admin/dashboard"
+                className="whitespace-nowrap rounded-control bg-rojo px-3 py-2 text-xs font-medium text-crema transition-colors duration-150 hover:bg-rojo-profundo active:scale-[0.97]"
+              >
+                Volver al panel
+              </Link>
+            )}
+          </div>
         }
+        // «Salir» vive al pie del menú —cajón en teléfono, columna en
+        // escritorio— y no en la tarjeta: es donde el panel tiene «Cerrar
+        // sesión». Manda a /admin/login en vez de dejar el formulario de esta
+        // misma pantalla: ese formulario vuelve siempre a /mio, así que cerrar
+        // sesión y entrar de nuevo devolvía aquí para siempre. El login del
+        // panel sí reparte por rol.
+        onSalir={() => void supabase.auth.signOut().then(() => router.replace("/admin/login"))}
+        sesion={yo?.nombre}
       />
 
     <main className="mx-auto min-w-0 max-w-5xl flex-1 px-5 py-8">
@@ -1485,23 +1500,24 @@ export default function MioPage() {
               entró desde «Mi perfil» del menú y necesita volver; quien no lo
               tiene, no ve un enlace que le daría error.
 
-              Y «Salir» manda a /admin/login en vez de dejar el formulario de
-              esta misma pantalla: ese formulario vuelve siempre a /mio, así que
-              cerrar sesión y entrar de nuevo devolvía aquí para siempre. El
-              login del panel sí reparte por rol. */}
-          {/* En teléfono la fila ocupa el ancho entero debajo del nombre y
-              ENVUELVE: sin `flex-wrap`, cinco botones en 375px estrujaban
-              «Volver al panel» a tres líneas de alto (visto en producción el
-              2026-09-11). Y cada botón lleva `whitespace-nowrap`, para que lo
-              que no cabe pase a la fila siguiente entero, no partido. */}
-          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:gap-3">
-            {/* Escondido en teléfono: ahí ya está en la barra de arriba (ver
+              «Salir» ya no está acá: vive al pie del menú (ver `onSalir` de
+              MenuDetalle, arriba), que es donde el panel tiene «Cerrar sesión».
+
+              En teléfono quedan dos botones —Bandeja y Editar datos— en una
+              GRILLA de dos columnas iguales, y no en una fila que envuelve:
+              cada botón medía lo que medía su texto, así que al achicar o
+              agrandar la ventana cambiaban de tamaño y de sitio (visto en la
+              preview el 2026-09-11). Con la grilla miden siempre la mitad.
+              De 640px para arriba vuelven a ser una fila, con «Volver al
+              panel» y el tema, que en teléfono viven en la barra de arriba. */}
+          <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center sm:gap-3">
+            {/* Escondido hasta 768px: ahí ya está en la barra de arriba (ver
                 `accion` de MenuDetalle), y dos veces el mismo botón en la
                 misma pantalla es uno de más. Mismo rojo que allá, para que sea
                 el mismo botón se mire donde se mire. */}
             {yo && ROLES_CON_PANEL.includes(yo.rol as never) && (
               <Link href="/admin/dashboard"
-                className="hidden whitespace-nowrap rounded-control bg-rojo px-3 py-1.5 text-xs font-medium text-crema transition-colors duration-150 hover:bg-rojo-profundo active:scale-[0.97] md:inline-block">
+                className="hidden items-center justify-center whitespace-nowrap rounded-control bg-rojo px-3 py-2 text-sm font-medium text-crema transition-colors duration-150 hover:bg-rojo-profundo active:scale-[0.97] md:inline-flex">
                 Volver al panel
               </Link>
             )}
@@ -1517,11 +1533,11 @@ export default function MioPage() {
                 title={avisosEnBandeja > 0
                   ? `${avisosEnBandeja} cosa${avisosEnBandeja === 1 ? "" : "s"} en tu bandeja: lo que te falta hacer y lo que te respondieron`
                   : "Lo que te falta hacer y lo que respondieron a lo que pediste"}
-                className="relative flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-sand px-3 py-1.5 text-xs text-tinta transition-colors hover:bg-hueso">
+                className="relative flex items-center justify-center gap-1.5 whitespace-nowrap rounded-control border border-sand px-3 py-2 text-sm text-tinta transition-colors hover:bg-hueso">
                 {/* El mismo ícono que el panel usa para su Bandeja
                     (admin/nav-items.ts), no uno nuevo: es la misma idea en las
                     dos superficies, y quien tiene panel la reconoce sin leer. */}
-                <Inbox size={14} strokeWidth={1.8} className="shrink-0" aria-hidden />
+                <Inbox size={16} strokeWidth={1.8} className="shrink-0" aria-hidden />
                 Bandeja
                 {avisosEnBandeja > 0 && (
                   <>
@@ -1544,15 +1560,12 @@ export default function MioPage() {
             )}
             {yo && (
               <Link href="/mio/editar"
-                className="whitespace-nowrap rounded-lg border border-sand px-3 py-1.5 text-xs text-tinta transition-colors hover:bg-hueso">
+                className="flex items-center justify-center whitespace-nowrap rounded-control border border-sand px-3 py-2 text-sm text-tinta transition-colors hover:bg-hueso">
                 Editar datos
               </Link>
             )}
-            <Boton variante="sutil" tamano="sm"
-              onClick={() => void supabase.auth.signOut().then(() => router.replace("/admin/login"))}>
-              Salir
-            </Boton>
-            <SelectorTema />
+            {/* El tema, solo de 768px para arriba: en teléfono está en la barra. */}
+            <SelectorTema className="hidden md:inline-flex" />
           </div>
         </div>
       </header>
