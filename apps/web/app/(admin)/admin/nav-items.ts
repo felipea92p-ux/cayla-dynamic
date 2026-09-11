@@ -154,11 +154,19 @@ export const GRUPOS: Grupo[] = [
   { label: "Configuración", items: [
     { href: "/admin/areas", label: "Áreas", Icon: LayoutGrid, roles: DO },
     { href: "/admin/sedes", label: "Sedes", Icon: Building2, roles: DO },
-    // Con `roles` desde el 2026-09-04, por lo mismo que «Exportar CSV»: iba sin
-    // filtro, y la pantalla ya se degrada sola con `puedeGestionarCatalogos`, o
-    // sea que el renglón solo llevaba a una puerta cerrada — también desde el
-    // buscador (⌘K) y desde los atajos, que consumen esta misma lista.
-    { href: "/admin/cuentas", label: "Cuentas", Icon: KeyRound, roles: DO },
+    // `roles: SEDE`, no `DO`. Estuvo en `DO` desde el 2026-09-04 por un
+    // supuesto que no era cierto: el comentario de entonces decía que la
+    // pantalla "se degrada sola... o sea que el renglón solo llevaba a una
+    // puerta cerrada" para quien no gestiona catálogos. Pero
+    // `admin/cuentas/page.tsx` tiene esa rama para "no admin" desde que se
+    // creó, el 2026-07-12 (`4d71fd8`) — no lleva a una puerta cerrada, lleva a
+    // "Mi cuenta": solo cambiar la propia contraseña, sin la gestión de
+    // equipo. Gatearlo a DO dejó a cualquier encargada de sede sin ningún
+    // camino en la interfaz para cambiar su propia clave (hallazgo del
+    // 2026-09-07, `docs/estado.md`) — sí podía entrar por URL directa, pero
+    // ni el menú, ni el buscador (⌘K) ni los atajos, que comparten esta
+    // lista, se lo ofrecían.
+    { href: "/admin/cuentas", label: "Cuentas", Icon: KeyRound, roles: SEDE },
     // El tema global (claro/oscuro) de panel Y terminal — no un color libre,
     // ver apps/web/app/(admin)/admin/apariencia/page.tsx. Mismo permiso que
     // el resto de este grupo: es un catálogo del sistema, no un dato de una
@@ -167,10 +175,19 @@ export const GRUPOS: Grupo[] = [
   ] },
 ];
 
-// El perfil de una persona (/admin/personas/[id]) se entra desde Equipo, así que
-// mientras estás en él, resaltamos "Equipo" para no dejar la ubicación huérfana.
+// Cualquier sub-ruta cuelga de su pantalla: /admin/planilla/boleta resalta
+// "Planilla", /admin/normas/[id]/imprimir resalta "Normas", /mio/boleta
+// resalta "Mi perfil". Hasta el 2026-09-11 esto no existía y seis sub-rutas
+// (boleta de planilla, memo de disciplina, imprimir/constancias de normas,
+// constancias de política salarial, boleta de "lo mío") dejaban el menú sin
+// nada resaltado — un caso general, no seis excepciones para enumerar a mano.
 export function esActivo(pathname: string, href: string): boolean {
   if (pathname === href) return true;
+  if (pathname.startsWith(href + "/")) return true;
+  // El perfil de una persona (/admin/personas/[id]) se entra desde Equipo, así
+  // que mientras estás en él, resaltamos "Equipo" para no dejar la ubicación
+  // huérfana — son rutas hermanas, no una cuelga de la otra, así que la regla
+  // general de arriba no lo cubre.
   if (href === "/admin/equipo" && pathname.startsWith("/admin/personas")) return true;
   // Vacaciones se absorbió en Ausencias (0101); el enlace viejo sigue llevando allí.
   if (href === "/admin/ausencias" && pathname === "/admin/vacaciones") return true;
