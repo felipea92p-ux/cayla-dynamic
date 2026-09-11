@@ -266,12 +266,17 @@ function MarcoConChrome({ pathname, children }: { pathname: string; children: Re
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center gap-3 border-b border-sand bg-crema px-4 sm:px-6 print:hidden">
+          {/* Un cuadrado RELLENO en tinta, no uno con borde `sand`, desde el
+              2026-09-11: el borde sand da 1.16:1 sobre crema y a la vista era
+              un icono flotando — se probó con gente en el menú de «Lo mío»,
+              que es la misma receta, y no lo encontraban. Se cambian los dos a
+              la vez porque son la misma pieza vista desde dos superficies. */}
           <button
             ref={hamburguesa}
             onClick={() => setCajonAbierto(true)}
             aria-label="Abrir menú"
             aria-expanded={cajonAbierto}
-            className="rounded-control border border-sand p-2 text-tinta transition-colors duration-150 hover:border-taupe/40 hover:bg-sand/40 active:scale-[0.97] md:hidden"
+            className="rounded-control bg-tinta p-2 text-crema transition-colors duration-150 hover:bg-rojo active:scale-[0.97] md:hidden"
           >
             <Menu size={20} strokeWidth={1.8} aria-hidden />
           </button>

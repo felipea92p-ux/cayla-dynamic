@@ -87,6 +87,17 @@
   --text-micro--line-height: 1rem;
   --text-nano: 0.625rem; /* 10px — el piso: nada del sistema va más chico que esto */
   --text-nano--line-height: 0.875rem;
+
+  /* ── Movimiento ───────────────────────────────────────────────
+     Una sola curva para todo lo que ENTRA en pantalla —el cajón del menú, el
+     título de sección, las secciones de «Lo mío»—: arranca rápido y frena
+     suave. Es lo que hace que algo "llegue" a su sitio en vez de flotar
+     hasta él, y por eso se siente preciso y no lento. Con nombre para que
+     las utilidades (`ease-salida`) y las @keyframes de abajo usen LA MISMA
+     curva: dos curvas distintas en la misma pantalla se notan como dos
+     productos. Lo que sale usa `ease-in` a secas, más corto: lo que se va
+     no necesita aterrizar. */
+  --ease-salida: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 /* ── Modo oscuro ────────────────────────────────────────────────
@@ -282,6 +293,124 @@
 }
 .pulso-carga { animation: respira 1.6s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { .pulso-carga { animation: none; opacity: 0.75; } }
+
+/* ── Lo que entra y lo que sale ──────────────────────────────────
+   El movimiento del menú de teléfono y de las secciones de «Lo mío»
+   (2026-09-11). Cuatro piezas, y las cuatro con el mismo criterio que el
+   resto de esta hoja: sin sombras, sin brillos, sin gradientes — lo único
+   que se mueve es la posición y la opacidad, rápido y con la curva
+   `--ease-salida` de @theme. Ninguna dura más de 320 ms: una animación que
+   se alcanza a mirar ya es una espera.
+
+   1. El cajón. Hasta hoy aparecía y desaparecía de golpe (se montaba y
+      desmontaba sin transición). Ahora entra deslizando desde la izquierda
+      mientras el velo se funde, y al cerrar hace lo inverso. Lo de la
+      salida necesita que el cajón siga montado mientras se va: eso lo
+      resuelve `lib/use-salida-animada.ts`, no esta hoja.
+
+   2. Los renglones del cajón, en cascada: cada uno llega 28 ms después del
+      anterior. Se dispara solo con `.cajon-entra` como ancestro, para que al
+      cerrar no vuelvan a animarse; y `--i` (el índice) lo pone cada renglón.
+      Un `nth-child` escrito a mano tendría que saber cuántos renglones hay,
+      y son nueve hoy y diez cuando aparezca el DNI.
+
+   3. El título de sección de la barra de teléfono: el nombre nuevo sube y se
+      funde, como un marcador que cambia de cifra. Es lo que confirma que
+      tocar un renglón del cajón hizo algo, porque el cajón se cierra encima
+      del cambio.
+
+   Y una quinta que es la excepción a «ninguna se alcanza a mirar»: el botón
+   de menú de /mio late dos veces al cargar (`.menu-se-hace-notar`). Existe
+   porque se probó con gente y NO ENCONTRABAN EL MENÚ; el único trabajo de
+   este movimiento es ser visto, así que arranca cuando la pantalla ya está
+   quieta (700 ms) y se acaba en un segundo. Una sola vez por carga: un
+   botón que late siempre deja de decir nada a la segunda visita.
+
+   4. Las secciones de «Lo mío», con un leve ascenso al montarse. La regla es
+      de HERMANDAD (`#detalle ~ *`) y no de un contenedor con clase, a
+      propósito: el ancla `#detalle` de mio/page.tsx ya explica que envolver
+      las ocho secciones correría 760 líneas de sangría con una docena de
+      ramas tocando ese archivo. Todo lo que se monte después del ancla, en
+      el mismo `<main>`, entra animado; «Resumen» vive ANTES del ancla y por
+      eso lleva la clase `.entra-seccion` a mano. El último párrafo del
+      `<main>` también casa, pero no se remonta al cambiar de sección, así
+      que solo se anima una vez, al cargar.
+
+   Los `backwards` importan: el estado final de cada @keyframes es el estado
+   natural del elemento (`transform: none`), así que al terminar no queda
+   NINGÚN transform aplicado. Con `both`/`forwards` sí quedaría, y un
+   transform —aunque sea `translateY(0)`— convierte al elemento en el
+   contenedor de cualquier `position: fixed` que tenga adentro: un modal
+   abierto desde una sección se quedaría anclado a la sección en vez de a la
+   ventana. Solo la salida del cajón usa `forwards`, porque se desmonta en
+   cuanto termina. */
+@keyframes cajon-entra {
+  from { transform: translateX(-100%); }
+  to { transform: none; }
+}
+@keyframes cajon-sale {
+  from { transform: none; }
+  to { transform: translateX(-100%); }
+}
+@keyframes velo-entra {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes velo-sale {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+.cajon-entra { animation: cajon-entra 260ms var(--ease-salida) backwards; }
+.cajon-sale { animation: cajon-sale 200ms ease-in forwards; }
+.velo-entra { animation: velo-entra 200ms ease-out backwards; }
+.velo-sale { animation: velo-sale 200ms ease-in forwards; }
+
+@keyframes entra-fila {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+.cajon-entra .fila-en-cascada {
+  animation: entra-fila 240ms var(--ease-salida) backwards;
+  animation-delay: calc(60ms + var(--i, 0) * 28ms);
+}
+
+@keyframes titulo-entra {
+  from { opacity: 0; transform: translateY(0.35em); }
+  to { opacity: 1; transform: none; }
+}
+.titulo-entra { animation: titulo-entra 220ms var(--ease-salida) backwards; }
+
+@keyframes late {
+  0%, 100% { transform: none; }
+  50% { transform: scale(1.12); }
+}
+.menu-se-hace-notar { animation: late 480ms var(--ease-salida) 700ms 2; }
+
+@keyframes entra-seccion {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+#detalle ~ *,
+.entra-seccion {
+  animation: entra-seccion 260ms var(--ease-salida) backwards;
+}
+
+/* Quien pidió menos movimiento no ve nada de esto: el cajón aparece y
+   desaparece como hasta hoy (el hook de salida tampoco espera), y el resto
+   simplemente está donde tiene que estar. */
+@media (prefers-reduced-motion: reduce) {
+  .cajon-entra,
+  .cajon-sale,
+  .velo-entra,
+  .velo-sale,
+  .cajon-entra .fila-en-cascada,
+  .titulo-entra,
+  .menu-se-hace-notar,
+  #detalle ~ *,
+  .entra-seccion {
+    animation: none;
+  }
+}
 
 /* Isotipo recoloreable: usa el PNG de línea como máscara y lo tiñe con color plano. */
 .colibri {

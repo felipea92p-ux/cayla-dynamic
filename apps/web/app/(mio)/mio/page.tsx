@@ -1423,6 +1423,24 @@ export default function MioPage() {
         activo={tab}
         onSel={elegirSeccion}
         etiqueta="Secciones de tu perfil"
+        // «Volver al panel» en la esquina de la barra de teléfono, y no solo
+        // en la tarjeta de abajo: en 375px la tarjeta queda bajo el pliegue y
+        // quien entró desde el panel se quedaba sin salida a la vista (se
+        // probó con gente el 2026-09-11). En `rojo` relleno —el acento cálido
+        // de la casa, no un color de Tailwind— para que sea lo primero que se
+        // ve: crema sobre rojo da 4.83:1 en claro y 4.70:1 en oscuro, medido
+        // como se pinta. El mismo enlace vive en la tarjeta para escritorio,
+        // donde esta barra no existe.
+        accion={
+          yo && ROLES_CON_PANEL.includes(yo.rol as never) ? (
+            <Link
+              href="/admin/dashboard"
+              className="shrink-0 whitespace-nowrap rounded-control bg-rojo px-3 py-2 text-xs font-medium text-crema transition-colors duration-150 hover:bg-rojo-profundo active:scale-[0.97]"
+            >
+              Volver al panel
+            </Link>
+          ) : undefined
+        }
       />
 
     <main className="mx-auto min-w-0 max-w-5xl flex-1 px-5 py-8">
@@ -1471,10 +1489,19 @@ export default function MioPage() {
               esta misma pantalla: ese formulario vuelve siempre a /mio, así que
               cerrar sesión y entrar de nuevo devolvía aquí para siempre. El
               login del panel sí reparte por rol. */}
-          <div className="flex items-center gap-3">
+          {/* En teléfono la fila ocupa el ancho entero debajo del nombre y
+              ENVUELVE: sin `flex-wrap`, cinco botones en 375px estrujaban
+              «Volver al panel» a tres líneas de alto (visto en producción el
+              2026-09-11). Y cada botón lleva `whitespace-nowrap`, para que lo
+              que no cabe pase a la fila siguiente entero, no partido. */}
+          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:gap-3">
+            {/* Escondido en teléfono: ahí ya está en la barra de arriba (ver
+                `accion` de MenuDetalle), y dos veces el mismo botón en la
+                misma pantalla es uno de más. Mismo rojo que allá, para que sea
+                el mismo botón se mire donde se mire. */}
             {yo && ROLES_CON_PANEL.includes(yo.rol as never) && (
               <Link href="/admin/dashboard"
-                className="rounded-lg border border-sand px-3 py-1.5 text-xs text-tinta transition-colors hover:bg-hueso">
+                className="hidden whitespace-nowrap rounded-control bg-rojo px-3 py-1.5 text-xs font-medium text-crema transition-colors duration-150 hover:bg-rojo-profundo active:scale-[0.97] md:inline-block">
                 Volver al panel
               </Link>
             )}
@@ -1490,7 +1517,7 @@ export default function MioPage() {
                 title={avisosEnBandeja > 0
                   ? `${avisosEnBandeja} cosa${avisosEnBandeja === 1 ? "" : "s"} en tu bandeja: lo que te falta hacer y lo que te respondieron`
                   : "Lo que te falta hacer y lo que respondieron a lo que pediste"}
-                className="relative flex items-center gap-1.5 rounded-lg border border-sand px-3 py-1.5 text-xs text-tinta transition-colors hover:bg-hueso">
+                className="relative flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-sand px-3 py-1.5 text-xs text-tinta transition-colors hover:bg-hueso">
                 {/* El mismo ícono que el panel usa para su Bandeja
                     (admin/nav-items.ts), no uno nuevo: es la misma idea en las
                     dos superficies, y quien tiene panel la reconoce sin leer. */}
@@ -1517,7 +1544,7 @@ export default function MioPage() {
             )}
             {yo && (
               <Link href="/mio/editar"
-                className="rounded-lg border border-sand px-3 py-1.5 text-xs text-tinta transition-colors hover:bg-hueso">
+                className="whitespace-nowrap rounded-lg border border-sand px-3 py-1.5 text-xs text-tinta transition-colors hover:bg-hueso">
                 Editar datos
               </Link>
             )}
@@ -1611,7 +1638,10 @@ export default function MioPage() {
           sin tocar nada — lo que cambió es que ya no siguen a quien se fue a
           mirar otra cosa. Ver el comentario de `tab`. */}
       {tab === "resumen" && (
-        <div className="mb-6 grid gap-3 sm:grid-cols-2">
+        // `entra-seccion` a mano: las otras ocho entran animadas por vivir
+        // DESPUÉS del ancla `#detalle` (regla de hermandad en globals.css), y
+        // esta vive antes.
+        <div className="entra-seccion mb-6 grid gap-3 sm:grid-cols-2">
           {/* El periodo de pago. Sin montos: la boleta vive en su propia pantalla
               porque es un documento que se imprime, y el print de esta imprimiría
               las quince secciones de arriba con él. */}
@@ -1711,7 +1741,9 @@ export default function MioPage() {
           secciones: el menú vive en el marco, así que envolverlas no serviría
           para nada salvo correr 760 líneas de sangría — y hay una docena de
           ramas sin fusionar tocando este archivo. A esto suben `irArriba` y
-          `elegirSeccion`. */}
+          `elegirSeccion`, y de esto cuelga también la entrada animada de las
+          secciones: `#detalle ~ *` en globals.css anima lo que se monte
+          después del ancla, sin envolver nada. */}
       <div id="detalle" aria-hidden />
 
       {/* ── MIS DÍAS ─────────────────────────────────────────────────────── */}

@@ -13,8 +13,14 @@ import { useRef } from "react";
 import { LogOut, X } from "lucide-react";
 import { PanelNavegacion, type Contadores } from "@/components/nav/panel-navegacion";
 import { Marca } from "@/components/marca";
+import { cx } from "@/components/ui/cx";
 import { useFocoAtrapado } from "@/lib/use-foco-atrapado";
+import { useSalidaAnimada } from "@/lib/use-salida-animada";
 import type { Grupo } from "@/app/(admin)/admin/nav-items";
+
+// Lo que tarda el cajón en irse. Tiene que coincidir con `.cajon-sale` de
+// globals.css: es lo que el hook espera antes de desmontarlo.
+const SALIDA_DEL_CAJON_MS = 200;
 
 export function CajonAdmin({
   abierto,
@@ -44,19 +50,33 @@ export function CajonAdmin({
 
   useFocoAtrapado({ abierto, onCerrar, caja, volverElFocoA });
 
-  if (!abierto) return null;
+  // Entra y sale deslizando (`.cajon-entra`/`.cajon-sale` en globals.css), igual
+  // que el cajón de «Lo mío» desde el 2026-09-11: son la misma pieza en dos
+  // superficies y no pueden moverse distinto. El hook lo mantiene montado los
+  // 200 ms que tarda en irse; mientras tanto queda `inert`.
+  const { montado, saliendo } = useSalidaAnimada(abierto, SALIDA_DEL_CAJON_MS);
+
+  if (!montado) return null;
 
   return (
     <>
       {/* `bg-black/40` y no `bg-tinta/NN`: en modo oscuro tinta ACLARA, que es
           lo contrario de lo que un velo tiene que hacer. */}
-      <div onClick={onCerrar} className="fixed inset-0 z-40 bg-black/40 md:hidden" aria-hidden />
+      <div
+        onClick={onCerrar}
+        className={cx("fixed inset-0 z-40 bg-black/40 md:hidden", saliendo ? "velo-sale" : "velo-entra")}
+        aria-hidden
+      />
       <div
         ref={caja}
         role="dialog"
         aria-modal="true"
         aria-label="Menú principal"
-        className="fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col border-r border-sand bg-crema md:hidden print:hidden"
+        inert={saliendo || undefined}
+        className={cx(
+          "fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col border-r border-sand bg-crema md:hidden print:hidden",
+          saliendo ? "cajon-sale" : "cajon-entra",
+        )}
       >
         <div className="flex h-16 shrink-0 items-center justify-between border-b border-sand px-4">
           <Marca tono="tinta" isotipo="rojo" />
