@@ -170,6 +170,56 @@ describe("construirContrato", () => {
   });
 });
 
+// ── El género en el contrato de trabajo ────────────────────────────────────
+// Hasta la 0369 el sistema no guardaba el género, y el contrato de trabajo
+// decía siempre «LA COLABORADORA»: a un hombre le salía impreso, firmado y
+// registrado ante la Autoridad de Trabajo con el género equivocado. El
+// convenio de prácticas ya lo resolvía (PR #233); esto es el espejo para el
+// contrato de planilla y el adendum, con la misma convención: `null` (dato no
+// cargado) mantiene el femenino por ser el uso previo del documento, no una
+// suposición de género.
+describe("el género en el contrato de trabajo", () => {
+  it("con género masculino dice EL COLABORADOR en todo el contrato, y nunca LA COLABORADORA", () => {
+    const texto = construirContrato(datos({ genero: "masculino" }));
+    // Muchas veces, no una: cuerpo, firma y cada anexo. La etiqueta tiene que
+    // llegar a los bloques que se firman por separado, no solo al primer párrafo.
+    expect(texto.match(/EL COLABORADOR/g)!.length).toBeGreaterThan(10);
+    expect(texto).not.toContain("LA COLABORADORA");
+  });
+
+  it("con género masculino concuerdan también los participios que describen a la persona", () => {
+    const texto = construirContrato(datos({ genero: "masculino" })).replace(/\s+/g, " ");
+    expect(texto).toContain("Nombre Apellido, identificado con D.N.I. N.° 12345678");
+    expect(texto).toContain("EL COLABORADOR es contratado para desempeñar");
+    expect(texto).toContain("EL COLABORADOR está obligado a participar");
+    // La empresa sigue en femenino: el género es de la persona, no del documento.
+    expect(texto).toContain(", identificada con R.U.C.");
+  });
+
+  it("el indefinido y el adendum también cambian — tienen cláusulas propias que nombran a la persona", () => {
+    const indefinido = construirContrato(datos({ tipo: "indefinido", genero: "masculino" })).replace(/\s+/g, " ");
+    expect(indefinido).toContain("renuncia voluntaria de EL COLABORADOR");
+    expect(indefinido).not.toContain("LA COLABORADORA");
+
+    const adendum = construirContrato(
+      datos({ tipo: "adendum", adendumTexto: "Se modifica la Cláusula Sexta.", genero: "masculino" }),
+    ).replace(/\s+/g, " ");
+    expect(adendum).toContain("Nombre Apellido, identificado con D.N.I. N.° 12345678");
+    expect(adendum).toContain("se denominará EL COLABORADOR");
+    expect(adendum).not.toContain("LA COLABORADORA");
+  });
+
+  it("femenino, o sin el dato cargado, sigue diciendo LA COLABORADORA — nunca EL COLABORADOR", () => {
+    for (const genero of ["femenino", null] as const) {
+      const texto = construirContrato(datos({ genero })).replace(/\s+/g, " ");
+      expect(texto).toContain("LA COLABORADORA");
+      expect(texto).toContain("Nombre Apellido, identificada con D.N.I. N.° 12345678");
+      expect(texto).toContain("LA COLABORADORA es contratada para desempeñar");
+      expect(texto).not.toContain("EL COLABORADOR");
+    }
+  });
+});
+
 // ── El convenio de prácticas (0333) no es un contrato de trabajo ───────────
 // La mitad de las cláusulas del contrato de planilla son directamente falsas
 // para una practicante (0322: no es relación laboral, no tiene causa
