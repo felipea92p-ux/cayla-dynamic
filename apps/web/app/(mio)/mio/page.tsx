@@ -732,7 +732,7 @@ export default function MioPage() {
         <div className="flex flex-col items-center gap-4">
           <Colibri tono="rojo" className="w-12" />
           <div className="text-center">
-            <h1 className="font-serif text-3xl leading-none">Mi info</h1>
+            <h1 className="font-serif text-3xl leading-none">Info</h1>
             <p className="etiqueta mt-2 text-taupe">Tus días y tus horas · CAYLA</p>
           </div>
         </div>
@@ -764,7 +764,7 @@ export default function MioPage() {
             <Colibri tono="rojo" className="w-8" />
           )}
           <div>
-            <h1 className="font-serif text-2xl leading-tight">{yo?.nombre ?? "Mi info"}</h1>
+            <h1 className="font-serif text-2xl leading-tight">{yo?.nombre ?? "Info"}</h1>
             <p className="etiqueta text-taupe">Tus días, tus turnos y tus objetivos</p>
           </div>
         </div>

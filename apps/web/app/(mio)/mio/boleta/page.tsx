@@ -144,7 +144,7 @@ function MiBoletaContenido() {
           </button>
         </p>
         <Link href="/mio" className="mt-3 inline-block text-sm text-taupe hover:text-tinta hover:underline">
-          ← Volver a Mi info
+          ← Volver a Info
         </Link>
       </main>
     );
@@ -158,7 +158,7 @@ function MiBoletaContenido() {
           Desarrollo Organizacional.
         </p>
         <Link href="/mio" className="mt-3 inline-block text-sm text-taupe hover:text-tinta hover:underline">
-          ← Volver a Mi info
+          ← Volver a Info
         </Link>
       </main>
     );
@@ -196,7 +196,7 @@ function MiBoletaContenido() {
     <main className="mx-auto max-w-2xl p-6 print:p-0">
       <div className="mb-6 flex items-center justify-between print:hidden">
         <Link href="/mio" className="text-sm text-taupe hover:text-tinta hover:underline">
-          ← Volver a Mi info
+          ← Volver a Info
         </Link>
         <button
           onClick={() => window.print()}
