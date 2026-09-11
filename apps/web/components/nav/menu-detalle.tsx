@@ -34,15 +34,20 @@
 // pediría que cada ítem fuera «o un href o un onClick» y que lo activo llegara
 // de fuera — dos condicionales nuevas en la pieza más usada del panel, a cambio
 // de compartir un mapa de clases. Lo que sí se comparte es lo que tiene
-// COMPORTAMIENTO: el plegado (`useNavColapsado`) y la trampa de foco del cajón
-// (`useFocoAtrapado`).
+// COMPORTAMIENTO: el plegado (`useNavColapsado`), la trampa de foco del cajón
+// (`useFocoAtrapado`) y su salida animada (`useSalidaAnimada`).
 
-import { useRef, useState } from "react";
+import { useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Menu, PanelLeftClose, PanelLeftOpen, X, type LucideIcon } from "lucide-react";
 import { useNavColapsado } from "@/lib/use-nav-colapsado";
 import { useFocoAtrapado } from "@/lib/use-foco-atrapado";
+import { useSalidaAnimada } from "@/lib/use-salida-animada";
 import { Colibri, Marca } from "@/components/marca";
 import { cx } from "@/components/ui/cx";
+
+// Lo que tarda el cajón en irse. Tiene que coincidir con `.cajon-sale` de
+// globals.css: es lo que el hook espera antes de desmontarlo.
+const SALIDA_DEL_CAJON_MS = 200;
 
 export type SeccionDetalle<T extends string> = {
   valor: T;
@@ -122,7 +127,7 @@ function ListaSecciones<T extends string>({
 
   return (
     <div className="grid gap-0.5">
-      {secciones.map((s) => {
+      {secciones.map((s, i) => {
         const activa = s.valor === activo;
         return (
           <button
@@ -132,6 +137,11 @@ function ListaSecciones<T extends string>({
               onSel(s.valor);
               onElegir?.();
             }}
+            // Solo en el cajón: los renglones llegan en cascada, cada uno 28 ms
+            // después del anterior (`.fila-en-cascada` en globals.css lee `--i`).
+            // La columna de escritorio no se anima: está siempre a la vista, y
+            // algo que ya se ve no tiene de dónde llegar.
+            style={modo === "cajon" ? ({ "--i": i } as CSSProperties) : undefined}
             // `aria-current="page"`, y no un `role="tab"` con `aria-selected`,
             // porque es lo que estas secciones ya anunciaban cuando eran una
             // tira de pestañas. Un `tablist` de verdad obliga además a mover el
@@ -141,6 +151,7 @@ function ListaSecciones<T extends string>({
             title={s.label}
             className={cx(
               "relative flex items-center rounded-control text-left text-sm transition-colors duration-150 active:scale-[0.97]",
+              modo === "cajon" && "fila-en-cascada",
               c.fila,
               activa
                 ? "bg-sand/60 font-medium text-tinta"
@@ -172,12 +183,20 @@ export function MenuDetalle<T extends string>({
   activo,
   onSel,
   etiqueta,
+  accion,
 }: {
   secciones: readonly SeccionDetalle<T>[];
   activo: T;
   onSel: (valor: T) => void;
   /** Cómo se llama este menú para quien no lo ve. Ej.: «Secciones de tu perfil». */
   etiqueta: string;
+  /**
+   * Lo que va a la derecha de la barra de teléfono: la salida de la pantalla
+   * (en /mio, «Volver al panel»). Solo se ve por debajo de 768px, donde la
+   * barra existe; de ahí para arriba la pantalla tiene que ofrecerla por su
+   * cuenta. Opcional porque no toda pantalla larga tiene a dónde volver.
+   */
+  accion?: ReactNode;
 }) {
   // El MISMO plegado del panel, a propósito, con la misma clave de
   // localStorage: no son dos preferencias («quiero el menú del panel angosto» y
@@ -195,31 +214,90 @@ export function MenuDetalle<T extends string>({
     volverElFocoA: disparador,
   });
 
+  // El cajón sigue dibujado los 200 ms que tarda en irse (ver el hook): sin
+  // esto, cerrar lo desmonta en el acto y la animación de salida no tiene a
+  // qué aplicarse.
+  const { montado: cajonMontado, saliendo: cajonSaliendo } = useSalidaAnimada(
+    cajonAbierto,
+    SALIDA_DEL_CAJON_MS,
+  );
+
   const actual = secciones.find((s) => s.valor === activo);
 
   return (
     <>
       {/* ── Teléfono: la barra que abre el cajón ────────────────────────────
           Pegada arriba y no suelta encima del detalle, que es lo que hace el
-          panel por debajo de 768px. Dice en qué sección estás, que es la mitad
-          del trabajo de un menú: sin eso sería un icono que no informa. */}
-      <div className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-2 border-b border-sand bg-crema px-4 md:hidden print:hidden">
+          panel por debajo de 768px. Misma altura y mismo padding que la
+          cabecera del panel (`nav.tsx`), porque son la misma pieza vista desde
+          dos superficies.
+
+          Tres cosas, en el orden en que un teléfono las pone desde siempre:
+          a la izquierda lo que abre, en el centro dónde estás, a la derecha la
+          salida.
+
+          · La hamburguesa. Hasta el 2026-09-11 era un icono suelto pegado al
+            nombre de la sección, con un «Cambiar» chico a la derecha, y se
+            probó con gente de verdad: NO LA ENCONTRABAN. Ahora es un cuadrado
+            RELLENO en tinta —el tono del botón primario de la casa— con la
+            palabra «Menú» al lado, los dos dentro de un solo botón para que
+            tocar la palabra también abra. Es la misma receta que la
+            hamburguesa del panel (`nav.tsx`), que cambió el mismo día por la
+            misma razón: un cuadrado con borde `sand` da 1.16:1 sobre crema,
+            o sea que a la vista era un icono flotando.
+
+          · La sección en la que estás, en serif y al centro, como el título
+            de cualquier pantalla de teléfono. Dos líneas como máximo:
+            «Vacaciones y permisos» no cabe en una entre los dos botones.
+
+          · La salida, en `accion`: la pantalla decide qué va ahí (en /mio es
+            «Volver al panel», y solo para quien tiene panel). Va acá y no
+            solo en la tarjeta del perfil porque en teléfono la tarjeta queda
+            debajo del pliegue, y quien entró desde el panel necesita volver
+            sin buscar. */}
+      <div className="sticky top-0 z-30 flex h-16 shrink-0 items-center gap-3 border-b border-sand bg-crema px-4 sm:px-6 md:hidden print:hidden">
         <button
           ref={disparador}
           type="button"
           onClick={() => setCajonAbierto(true)}
           aria-expanded={cajonAbierto}
           aria-haspopup="dialog"
-          // Explícito, y no el texto de adentro: leído del contenido, este botón
-          // se anuncia «Mis días Cambiar», que no dice ni qué abre ni qué es lo
-          // que está pasando ahora.
-          aria-label={`${etiqueta} — ahora: ${actual?.label ?? "sin elegir"}`}
-          className="flex min-w-0 flex-1 items-center gap-2 rounded-control px-2 py-2 text-sm text-tinta transition-colors duration-150 hover:bg-sand/40 active:scale-[0.98]"
+          // El mismo nombre que la hamburguesa del panel. La sección actual ya
+          // no viaja acá: está al lado, visible y anunciada por su propia
+          // región en vivo.
+          aria-label="Abrir menú"
+          className="group flex shrink-0 items-center gap-2 text-sm font-medium text-tinta"
         >
-          <Menu size={20} strokeWidth={1.8} className="shrink-0" aria-hidden />
-          <span className="truncate font-medium">{actual?.label ?? etiqueta}</span>
-          <span className="ml-auto shrink-0 text-xs text-taupe">Cambiar</span>
+          {/* El cuadrado: clase por clase la hamburguesa de `nav.tsx`, con los
+              estados de hover/active colgados del botón entero (`group-*`)
+              para que se enciendan también al pasar por la palabra. Y
+              `.menu-se-hace-notar`: un par de latidos al cargar, una sola
+              vez, que es lo que enseña dónde está a quien no lo encontraba. */}
+          <span
+            aria-hidden
+            className="menu-se-hace-notar rounded-control bg-tinta p-2 text-crema transition-colors duration-150 group-hover:bg-rojo group-active:scale-[0.97]"
+          >
+            <Menu size={20} strokeWidth={1.8} aria-hidden />
+          </span>
+          <span>Menú</span>
         </button>
+
+        {/* En qué sección estás. `aria-live` porque el cajón se cierra ENCIMA
+            del cambio y el foco vuelve a la hamburguesa: sin esto, quien no ve
+            la pantalla elige «Mis turnos» y no oye nada que lo confirme.
+            El `key` es lo que hace que el nombre nuevo entre animado —al
+            cambiar de sección se remonta, y la CSS (`.titulo-entra` en
+            globals.css) corre al montarse. */}
+        <p aria-live="polite" className="min-w-0 flex-1 text-center">
+          <span
+            key={actual?.valor ?? "sin-elegir"}
+            className="titulo-entra line-clamp-2 font-serif text-lg leading-tight text-tinta"
+          >
+            {actual?.label ?? etiqueta}
+          </span>
+        </p>
+
+        {accion}
       </div>
 
       {/* ── De 768px para arriba: la columna ────────────────────────────────
@@ -285,14 +363,18 @@ export function MenuDetalle<T extends string>({
 
       {/* ── Por debajo de 768px: el cajón ───────────────────────────────────
           Mismo criterio que el del panel: entra desde la izquierda sobre un
-          velo, en vez de empujar la página hacia abajo. */}
-      {cajonAbierto && (
+          velo, en vez de empujar la página hacia abajo. Y desde el 2026-09-11
+          entra y sale DESLIZANDO (`.cajon-entra`/`.cajon-sale` en globals.css)
+          en vez de aparecer de golpe; mientras se va queda `inert`, para que
+          esos 200 ms no sean una ventana en la que todavía se puede tocar un
+          renglón de un menú que ya se cerró. */}
+      {cajonMontado && (
         <>
           {/* `bg-black/40` y no `bg-tinta/NN`: en modo oscuro tinta ACLARA, que
               es lo contrario de lo que un velo tiene que hacer. */}
           <div
             onClick={() => setCajonAbierto(false)}
-            className="fixed inset-0 z-40 bg-black/40 md:hidden"
+            className={cx("fixed inset-0 z-40 bg-black/40 md:hidden", cajonSaliendo ? "velo-sale" : "velo-entra")}
             aria-hidden
           />
           <div
@@ -300,7 +382,11 @@ export function MenuDetalle<T extends string>({
             role="dialog"
             aria-modal="true"
             aria-label={etiqueta}
-            className="fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col border-r border-sand bg-crema md:hidden print:hidden"
+            inert={cajonSaliendo || undefined}
+            className={cx(
+              "fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col border-r border-sand bg-crema md:hidden print:hidden",
+              cajonSaliendo ? "cajon-sale" : "cajon-entra",
+            )}
           >
             <div className="flex h-16 shrink-0 items-center justify-between border-b border-sand px-4">
               <Marca tono="tinta" isotipo="rojo" />
