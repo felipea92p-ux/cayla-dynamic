@@ -278,7 +278,8 @@ with repo(numero, nombre, nunca) as (values
     (410, 'el_regimen_de_pension_tambien_se_cambia_por_una_puerta', false),
     (411, 'la_tasa_de_pension_de_respaldo_se_valida_al_escribir', false),
     (412, 'el_memo_firmado_se_cierra_sin_entrega_si_la_persona_cesa', false),
-    (413, 'a_un_practicante_ya_se_le_mide_la_tardanza', false)
+    (413, 'a_un_practicante_ya_se_le_mide_la_tardanza', false),
+    (414, 'los_practicantes_cuentan_sus_faltas_reales', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
