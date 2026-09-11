@@ -164,6 +164,32 @@ npx vercel --prod --yes    # solo con OK explícito de Felipe
 ```
 Vista previa sin permiso: `npx vercel --yes`.
 
+⚠️ **PERO OJO: `main` se publica SOLA. Fusionar un PR ES desplegar a
+producción.** Medido el 2026-09-10 y decidido por Felipe ese día: se queda así.
+La integración de Git de Vercel tiene `main` como rama de producción, así que
+**cualquier push a `main` publica** — se comprobó con un commit que solo cambia
+un `.md` y aun así redesplegó en menos de un minuto.
+
+Lo que eso significa, y hay que tenerlo presente al pedir permiso:
+
+- **`desplegar.sh prod` vigila un camino por el que producción ya no pasa.**
+  Sus comprobaciones (árbol limpio, GitHub al día, CI verde incluidas las
+  pgTAP, escribir `publicar`) siguen siendo correctas y **no se aplican** a los
+  despliegues que salen de un `git push`. Misma forma que el agujero de la 0177
+  y la 0243 con `dame-el-sql.sh`: el freno está bien, el camino cómodo no pasa
+  por él.
+- **No hay garantía de «CI verde antes de publicar».** El 2026-09-10 producción
+  sirvió el código de tres merges durante ~20 minutos mientras `db-tests`
+  todavía corría.
+- **Y de aquí sale el orden que importa: la migración se pega ANTES de fusionar
+  el PR que la usa.** Después de fusionar, el frontend ya está en el aire. Ese
+  día falló dos veces —la 0404 dejó el envío del DNI rompiéndose *después* de
+  subir las dos fotos, y el PR de la 0407 iba a publicar un botón que llamaba a
+  una función inexistente— y a las dos las cazó alguien mirando, no un freno.
+
+Así que pedir permiso para fusionar y pedirlo para publicar son la misma
+petición. Dilo así cuando lo pidas.
+
 **Ojo con el entorno.** El panel apunta al Supabase **local** (127.0.0.1), no a
 producción. Para diagnosticar prod, Felipe corre SELECTs en el SQL Editor. Nunca
 asumir que lo que se ve en local es lo que pasa en prod.
@@ -441,6 +467,26 @@ en silencio toda la lógica de marcas anuladas. Lo cazaron dos pruebas por azar.
   su historial sostiene los reportes de periodos pasados.
 - **Numeración sin huecos.** Un hueco significa que algo se aplicó en producción
   sin quedar en el repo. Si tienes que saltarte un número, documenta por qué.
+- **El registro va con `do update`, no con `do nothing`.** La línea del final de
+  cada migración se escribe así:
+
+  ```sql
+  insert into migraciones_aplicadas (numero, nombre) values (NNN, 'descripcion')
+  on conflict (numero) do update set nombre = excluded.nombre, aplicada_at = now();
+  ```
+
+  Con `do nothing` —como estaba hasta el 2026-09-10— repegar sigue sin fallar,
+  pero **una colisión de número se vuelve invisible**: el DDL se aplica y el
+  registro se queda con la fila de OTRA migración, sin que nada avise. Ese día
+  pasó dos veces en la misma tarde: se tragó el registro de la **0405** (el
+  número lo tenía ocupado la migración de la AFP con su numeración vieja) y el
+  de la **0409** (lo tenía la del memo, renumerada después a 0412). Con
+  `do update` repegar sigue siendo seguro y el número robado **se ve**: la fila
+  cambia de nombre delante de quien pega.
+
+  Y la comprobación que va con esto: **al verificar un registro se piden
+  `numero` Y `nombre`.** Un `array_agg(numero)` no distingue «está la mía» de
+  «está otra con mi número» — ese fue justamente el paso que dejó pasar las dos.
 
 ---
 
@@ -679,6 +725,27 @@ fuera de `jornada-esperada.ts` para cazar las copias de «qué le tocaba trabaja
 ese día». Da 28 aciertos y casi todos son pantallas que leen esa columna con
 todo el derecho. Un guardián con ese ruido se desactiva a la semana, así que esa
 regla sigue dependiendo de que alguien la recuerde.
+
+**Y desde el 2026-09-10, una pantalla que imprime sin fijar el nombre del PDF**
+(`scripts/hooks/descarga-sin-nombre.sh`). El nombre con el que el navegador
+sugiere guardar un PDF es `document.title` al momento de imprimir; sin fijarlo
+queda en «Dynamic — CAYLA» para cualquier persona y cualquier papel. Ya existía
+`useTituloDocumento()` (`apps/web/lib/admin/use-titulo-documento.ts`, decidido
+con Felipe el 2026-07-28 tras el mismo problema con las boletas) y las otras 12
+pantallas imprimibles lo usaban — Liquidaciones lo tenía sin usar en sus tres
+papeles (liquidación, certificado de trabajo, constancia de cese), justo los
+que se entregan a alguien que ya se fue de la empresa.
+
+Distinto de los de arriba en una cosa: no mira **líneas** agregadas por el push,
+mira **archivos** que el push toca, enteros, en la versión que se empuja
+(`git show HEAD:archivo`, nunca el disco). Lo que hay que comprobar —¿este
+archivo llama a `window.print()` sin tener `useTituloDocumento()` en algún
+lado?— es una propiedad del archivo completo, no de una línea: el hook puede
+vivir a cientos de líneas de la llamada a imprimir, y mirar solo el diff de
+líneas se lo perdería si alguien le agrega un botón nuevo a una pantalla ya
+existente. Mismo criterio en lo demás: solo los archivos que el push toca
+—hoy no queda ninguno con este defecto, así que no hay deuda vieja que
+pagar—, y bloquea, no avisa.
 
 **Y hay una cosa que ese hook arregla solo, en vez de pedírtela.** La consulta
 `scripts/sql-manual/que_falta_pegar.sql` lleva dentro la lista de migraciones del
