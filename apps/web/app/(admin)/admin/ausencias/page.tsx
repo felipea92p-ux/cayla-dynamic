@@ -28,6 +28,7 @@ import { Campo, CampoSelect } from "@/components/ui/campo";
 import { AreaTexto } from "@/components/ui/area-texto";
 import { Modal } from "@/components/ui/modal";
 import { useRolActual } from "@/lib/admin/use-rol";
+import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
 import { hoyLima, puedeOperarEquipo, puedeVerTodasLasSedes } from "@cayla-dynamic/shared";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 import { reducirImagen, pesoLegible } from "@/lib/reducir-imagen";
@@ -61,6 +62,12 @@ function haceMeses(n: number): string {
 }
 
 type FiltroEstado = "todas" | "pendientes" | "vigentes" | "anuladas";
+// Igual criterio que Equipo y Planilla, y con la misma etiqueta: "activos" no
+// es el estado literal de la persona — incluye también a quien cesó pero
+// todavía no se le liquida, porque esa persona puede tener una ausencia por
+// registrar o revisar antes de calcular su liquidación (0419/0420).
+type FiltroPersonaEstado = "activos" | "inactivos" | "todos";
+interface PersonaFacts { fechaCese: string | null; liquidada: boolean }
 
 interface Persona { id: string; nombres: string; apellidos: string }
 interface Tipo {
@@ -135,6 +142,8 @@ export default function AusenciasPage() {
   const { avisar } = useToast();
   const [guardando, setGuardando] = useState(false);
   const [filtroEstado, setFiltroEstado] = useState<FiltroEstado>("todas");
+  const [filtroPersona, setFiltroPersona] = useFiltroGuardado<FiltroPersonaEstado>("ausencias.persona_estado", "activos");
+  const [personaFacts, setPersonaFacts] = useState<Map<string, PersonaFacts>>(new Map());
 
   // Formulario
   const [personaId, setPersonaId] = useState("");
@@ -190,15 +199,33 @@ export default function AusenciasPage() {
   // sea cual sea el filtro elegido — es la única fila de la tabla que pide
   // una acción, y con doce meses de historial por defecto se perdía entre
   // cientos de filas ya resueltas.
-  const listaOrdenada = useMemo(() => {
-    const filtrada = lista.filter((a) => {
-      if (filtroEstado === "pendientes") return esPendiente(a);
-      if (filtroEstado === "vigentes") return !a.anulada && !esPendiente(a);
-      if (filtroEstado === "anuladas") return a.anulada;
-      return true;
-    });
-    return [...filtrada].sort((x, y) => Number(esPendiente(y)) - Number(esPendiente(x)));
-  }, [lista, filtroEstado]);
+  const porFiltroEstadoYRango = useMemo(() => lista.filter((a) => {
+    if (filtroEstado === "pendientes") return esPendiente(a);
+    if (filtroEstado === "vigentes") return !a.anulada && !esPendiente(a);
+    if (filtroEstado === "anuladas") return a.anulada;
+    return true;
+  }), [lista, filtroEstado]);
+
+  // "activos" no es el estado literal de la persona: incluye también a quien
+  // cesó pero todavía no se le liquida, porque esa ausencia puede seguir
+  // sirviendo para auditar o corregir antes de calcular esa liquidación
+  // (0419/0420). Solo desaparece cuando la persona ya se liquidó.
+  const porPersona = useMemo(() => porFiltroEstadoYRango.filter((a) => {
+    const f = personaFacts.get(a.persona_id);
+    const cesada = !!f?.fechaCese;
+    if (filtroPersona === "activos") return !cesada || !f?.liquidada;
+    if (filtroPersona === "inactivos") return cesada;
+    return true; // "todos"
+  }), [porFiltroEstadoYRango, personaFacts, filtroPersona]);
+
+  // Mismo criterio que Equipo y Planilla: cuántas quedaron afuera del filtro
+  // de persona, para el aviso "N ocultas" bajo el selector.
+  const ocultasPorPersona = porFiltroEstadoYRango.length - porPersona.length;
+
+  const listaOrdenada = useMemo(
+    () => [...porPersona].sort((x, y) => Number(esPendiente(y)) - Number(esPendiente(x))),
+    [porPersona],
+  );
 
   // LA FECHA DE EMISIÓN NACE PUESTA, y no es comodidad.
   //
@@ -220,14 +247,22 @@ export default function AusenciasPage() {
     setCargando(true);
     const { data: sesion } = await supabase.auth.getSession();
     if (!sesion.session) { router.replace("/admin/login"); return; }
-    const [{ data: p, error: eP }, { data: t }, { data: a, error: eA }, { data: al }, { data: sub, error: eSub }, { data: pv }] = await Promise.all([
+    const [{ data: p, error: eP }, { data: t }, { data: a, error: eA }, { data: al }, { data: sub, error: eSub }, { data: pv }, { data: pf }] = await Promise.all([
       supabase.from("personas").select("id, nombres, apellidos").eq("estado", "activo").order("nombres"),
       supabase.rpc("fn_tipos_ausencia"),
       supabase.rpc("fn_ausencias", { p_desde: desde, p_hasta: hasta }),
       supabase.rpc("fn_ausencias_alerta", {}),
       supabase.rpc("fn_ausencias_subsidio", {}),
       supabase.rpc("fn_vacaciones_por_vencer", { p_dias: 60, p_as_of: null }),
+      supabase.rpc("fn_personas_funciones"),
     ]);
+    // Quién ya se liquidó, para el filtro "activos" de la tabla de abajo
+    // (0419/0420). Si esto falla, la tabla sigue mostrando a todos —
+    // degradar a "no ocultar a nadie" es más seguro que ocultar de más.
+    setPersonaFacts(new Map(
+      (((pf as { persona_id: string; fecha_cese: string | null; liquidada: boolean }[] | null) ?? []))
+        .map((f) => [f.persona_id, { fechaCese: f.fecha_cese, liquidada: f.liquidada }] as const),
+    ));
     // Si la carga falla no se pisa la lista con datos parciales: mostrar media
     // lista de ausencias es peor que no mostrar ninguna. Y se distingue del
     // "no hay ausencias" — un fallo de carga no dice que el rango esté vacío.
@@ -759,6 +794,24 @@ export default function AusenciasPage() {
             <option value="vigentes">Vigentes</option>
             <option value="anuladas">Anuladas</option>
           </CampoSelect>
+          <CampoSelect
+            etiqueta="Persona"
+            value={filtroPersona}
+            onChange={(e) => setFiltroPersona(e.target.value as FiltroPersonaEstado)}
+          >
+            <option value="activos">Sin quien ya se liquidó</option>
+            <option value="inactivos">Solo quienes ya cesaron</option>
+            <option value="todos">Todas</option>
+          </CampoSelect>
+          {ocultasPorPersona > 0 && (
+            <Boton
+              variante="enlace"
+              className="pb-2 text-xs text-taupe"
+              onClick={() => setFiltroPersona("todos")}
+            >
+              {ocultasPorPersona === 1 ? "1 oculta por liquidada" : `${ocultasPorPersona} ocultas por liquidadas`} — ver todas
+            </Boton>
+          )}
           {pendientesCount > 0 && (
             <span className="flex items-center gap-1.5 pb-2 text-xs text-taupe">
               <Insignia variante="contador" tamano="sm">{pendientesCount}</Insignia>

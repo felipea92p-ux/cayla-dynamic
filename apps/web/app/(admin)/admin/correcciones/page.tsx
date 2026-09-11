@@ -113,6 +113,7 @@ interface Persona {
   // convierte en ruido diario por algo correcto. Espeja las exclusiones de
   // fn_personas_sin_horario_vigente (mig. 0385): la verdad se dice una vez.
   tipo_vinculo: string; personal_direccion: boolean;
+  estado: string;
 }
 /** ¿A esta persona le toca tener horario? Un locador de servicios no tiene
  *  jornada que cumplir, y el personal de dirección está excluido de la jornada
@@ -311,6 +312,10 @@ export default function CorreccionesPage() {
   const yo = usePersonaActual();
   const rol = yo?.rol ?? null;
   const [personas, setPersonas] = useState<Persona[]>([]);
+  // Quién ya se liquidó (0419) — solo esas desaparecen del selector. Mientras
+  // esté cesada y sin liquidar, sigue disponible: puede tener un marcaje real
+  // por corregir antes de calcularle esa liquidación.
+  const [personaLiquidada, setPersonaLiquidada] = useState<Set<string>>(new Set());
   const [personaId, setPersonaId] = useState("");
   const [fecha, setFecha] = useState(hoyLima());
   const [marcajes, setMarcajes] = useState<Marcaje[]>([]);
@@ -370,10 +375,21 @@ export default function CorreccionesPage() {
     const supabase = createAdminSupabaseClient();
     supabase.auth.getSession().then(async ({ data }) => {
       if (!data.session) { router.replace("/admin/login"); return; }
-      const { data: p } = await supabase
-        .from("personas").select("id, nombres, apellidos, rol, sede_base_id, tipo_vinculo, personal_direccion")
-        .eq("estado", "activo").order("nombres");
+      // Sin filtro de estado en la base: se incluye a quien ya cesó, y el
+      // filtro real (activa, o cesada pero sin liquidar) se aplica abajo con
+      // `personasCorregibles` — hay que poder corregir el marcaje de alguien
+      // que acaba de cesar ANTES de que se le calcule su liquidación (0419).
+      const [{ data: p }, { data: pf }] = await Promise.all([
+        supabase
+          .from("personas").select("id, nombres, apellidos, rol, sede_base_id, tipo_vinculo, personal_direccion, estado")
+          .order("nombres"),
+        supabase.rpc("fn_personas_funciones"),
+      ]);
       setPersonas((p as Persona[]) ?? []);
+      setPersonaLiquidada(new Set(
+        (((pf as { persona_id: string; liquidada: boolean }[] | null) ?? []))
+          .filter((f) => f.liquidada).map((f) => f.persona_id),
+      ));
       // Días sellados por el sistema. Falla suave a propósito: si la base todavía
       // no tiene la migración 0068, la pantalla sigue funcionando igual (sin lista).
       const { data: dr } = await supabase.rpc("fn_dias_por_revisar", { p_limite: 50 });
@@ -615,11 +631,16 @@ export default function CorreccionesPage() {
   const puedeCorregir = puedeOperarEquipo(rol);
   const esSupervisor = rol === "supervisor_sede";
 
-  // Una encargada no puede corregir su propia asistencia ni la de un admin.
+  // Activa, o cesada pero todavía sin liquidar (0419/0420) — la ya liquidada
+  // desaparece del selector, sin excepción, se vea o no el filtro de arriba:
+  // aquí no aplica un toggle "ver todas", es el mismo caso "cerrado" en toda
+  // la pantalla. Y una encargada no puede corregir su propia asistencia ni la
+  // de un admin.
   const personasCorregibles = useMemo(() => {
-    if (!esSupervisor || !yo) return personas;
-    return personas.filter((p) => p.id !== yo.id && !ROLES_DO.includes(p.rol));
-  }, [personas, esSupervisor, yo]);
+    const disponibles = personas.filter((p) => p.estado === "activo" || !personaLiquidada.has(p.id));
+    if (!esSupervisor || !yo) return disponibles;
+    return disponibles.filter((p) => p.id !== yo.id && !ROLES_DO.includes(p.rol));
+  }, [personas, personaLiquidada, esSupervisor, yo]);
 
   if (rol !== null && !puedeCorregir) {
     return (
@@ -809,7 +830,11 @@ export default function CorreccionesPage() {
             className="min-w-56"
           >
             <option value="">Elegir…</option>
-            {personasCorregibles.map((p) => <option key={p.id} value={p.id}>{p.nombres} {p.apellidos}</option>)}
+            {personasCorregibles.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.nombres} {p.apellidos}{p.estado !== "activo" ? " (cesó)" : ""}
+              </option>
+            ))}
           </CampoSelect>
           <Campo
             etiqueta="Fecha"
