@@ -50,9 +50,10 @@ export interface DatosContrato {
   email: string | null;
   /**
    * De `datos_personales.genero` (0369). Decide "EL PRACTICANTE" / "LA
-   * PRACTICANTE" en el convenio de prácticas — `null` (dato no cargado)
-   * mantiene el femenino por ser el uso previo del documento, no una
-   * suposición de género.
+   * PRACTICANTE" en el convenio de prácticas y "EL COLABORADOR" / "LA
+   * COLABORADORA" en el contrato de trabajo y el adendum, con los participios
+   * que concuerdan (ver `segunGenero`) — `null` (dato no cargado) mantiene el
+   * femenino por ser el uso previo del documento, no una suposición de género.
    */
   genero: "femenino" | "masculino" | null;
 
@@ -423,6 +424,31 @@ function enLaCiudadDe(d: DatosContrato): string {
 }
 
 /**
+ * Elige la forma masculina o femenina según `datos_personales.genero` (0369),
+ * con la misma convención que estrenó el convenio de prácticas (PR #233):
+ * `null` —el dato no está cargado— mantiene el femenino, que era el uso previo
+ * de todos estos documentos. No es una suposición de género: es no cambiar lo
+ * que ya se imprimía cuando no hay dato que lo sostenga.
+ */
+function segunGenero(d: DatosContrato, masculino: string, femenino: string): string {
+  return d.genero === "masculino" ? masculino : femenino;
+}
+
+/**
+ * Cómo se nombra a la persona en el contrato de trabajo y en el adendum. Hasta
+ * la 0369 decía siempre «LA COLABORADORA»: a un hombre le salía impreso,
+ * firmado y registrado ante la Autoridad de Trabajo con el género equivocado.
+ *
+ * Es un término definido en la comparecencia («a quien en adelante se
+ * denominará EL COLABORADOR»), y por eso nunca se contrae: «de EL COLABORADOR»,
+ * «a EL COLABORADOR» — no «del» ni «al». Es la forma de los modelos de contrato
+ * del MTPE con EL TRABAJADOR, y la que ya usa acá el convenio con EL PRACTICANTE.
+ */
+function etiquetaColaborador(d: DatosContrato): string {
+  return segunGenero(d, "EL COLABORADOR", "LA COLABORADORA");
+}
+
+/**
  * Un bloque de firma. Va al pie del contrato Y al pie de cada anexo, como el
  * contrato modelo en papel: un anexo que se separa de su contrato y no lleva
  * firma no se puede atribuir a nadie, y el Anexo IV —el que sostiene el
@@ -431,7 +457,9 @@ function enLaCiudadDe(d: DatosContrato): string {
  * `etiquetaPersona` existe por el convenio de prácticas (0333): a quien firma
  * no se le puede llamar "LA COLABORADORA" en un documento cuyo primer párrafo
  * dice que no es una relación laboral (Ley 28518 art. 47) — sería el mismo
- * error de lenguaje que la 0322 evitó en la boleta.
+ * error de lenguaje que la 0322 evitó en la boleta. Sin pasarla, sigue el
+ * género de la persona (`etiquetaColaborador`), que es lo que quieren el
+ * contrato de trabajo y el adendum.
  */
 /**
  * `tercero`: SOLO el convenio preprofesional (0348) es tripartito — CAYLA, el
@@ -441,7 +469,7 @@ function enLaCiudadDe(d: DatosContrato): string {
  */
 function bloqueFirmas(
   d: DatosContrato,
-  etiquetaPersona = "LA COLABORADORA",
+  etiquetaPersona = etiquetaColaborador(d),
   tercero?: { etiqueta: string; nombre: string; ruc: string; representanteNombre: string; representanteCargo: string },
 ): string {
   return `
@@ -485,6 +513,7 @@ function pieAnexo(d: DatosContrato, etiquetaPersona?: string): string {
 }
 
 function clausulaJornada(d: DatosContrato): string {
+  const colaborador = etiquetaColaborador(d);
   return `
     <h3>QUINTA. JORNADA LABORAL, HORARIOS Y REGISTRO DE ASISTENCIA</h3>
     <p>La jornada laboral es de cuarenta y ocho (48) horas semanales, el máximo
@@ -504,7 +533,7 @@ function clausulaJornada(d: DatosContrato): string {
     <p>El día de descanso semanal es igualmente rotativo y podrá corresponder a
     cualquier día de la semana según la programación establecida por LA EMPRESA
     conforme a sus necesidades operativas, de acuerdo al artículo 2 del Decreto
-    Legislativo N.° 713. En todo caso, LA COLABORADORA gozará de veinticuatro (24)
+    Legislativo N.° 713. En todo caso, ${colaborador} gozará de veinticuatro (24)
     horas consecutivas de descanso semanal remunerado, así como del descanso en
     días feriados no laborables conforme a ley.</p>
     <p>El registro de asistencia será obligatorio mediante el sistema designado por
@@ -515,7 +544,7 @@ function clausulaJornada(d: DatosContrato): string {
     diaria — conforme al artículo 25 de la Constitución Política del Perú y al
     artículo 14 del Reglamento Interno de Trabajo, versión ${d.ritVersion},
     vigente desde el ${d.ritFecha}. Las horas trabajadas en sobretiempo serán
-    voluntarias para LA COLABORADORA y se remunerarán con un recargo de
+    voluntarias para ${colaborador} y se remunerarán con un recargo de
     veinticinco por ciento (25%) por las dos primeras horas y treinta y cinco por
     ciento (35%) por las horas restantes, conforme al artículo 10 del Decreto
     Supremo N.° 007-2002-TR, independientemente de que cuenten con autorización
@@ -523,11 +552,12 @@ function clausulaJornada(d: DatosContrato): string {
 }
 
 function clausulaRemuneracion(d: DatosContrato): string {
+  const colaborador = etiquetaColaborador(d);
   return `
     <h3>SEXTA. REMUNERACIÓN</h3>
-    <p>La remuneración mensual base de LA COLABORADORA es de S/ ${soles(d.remuneracionMensual)}
+    <p>La remuneración mensual base de ${colaborador} es de S/ ${soles(d.remuneracionMensual)}
     (${numeroALetras(d.remuneracionMensual)} soles), no menor a la Remuneración
-    Mínima Vital vigente. Sobre esta base, LA EMPRESA abona a LA COLABORADORA el
+    Mínima Vital vigente. Sobre esta base, LA EMPRESA abona a ${colaborador} el
     monto proporcional a las horas efectivamente laboradas en cada período, conforme
     al registro de asistencia, sujeto a los descuentos de ley.</p>
     <p>El pago se realizará mediante depósito bancario dentro de los primeros
@@ -539,15 +569,16 @@ function clausulaRemuneracion(d: DatosContrato): string {
 }
 
 function clausulaBeneficios(d: DatosContrato): string {
+  const colaborador = etiquetaColaborador(d);
   const movilidad = d.cobraMovilidad
-    ? `<li><strong>Movilidad:</strong> LA EMPRESA otorga a LA COLABORADORA una
+    ? `<li><strong>Movilidad:</strong> LA EMPRESA otorga a ${colaborador} una
        asignación diaria de movilidad conforme a la tarifa vigente para su sede
        (S/ ${soles(d.movilidadDiaria ?? 0)} a la fecha de este contrato), sujeta a la
        política de movilidad de la empresa y al convenio individual de ruta y
-       gasto de transporte que LA COLABORADORA suscribe por separado, conforme al
+       gasto de transporte que ${colaborador} suscribe por separado, conforme al
        artículo 19 inciso e) del Decreto Supremo N.° 001-97-TR y al artículo 28
        del Reglamento Interno de Trabajo.</li>`
-    : `<li><strong>Movilidad:</strong> no aplica a LA COLABORADORA a la fecha de
+    : `<li><strong>Movilidad:</strong> no aplica a ${colaborador} a la fecha de
        este contrato.</li>`;
 
   return `
@@ -556,7 +587,7 @@ function clausulaBeneficios(d: DatosContrato): string {
     Empresa, conforme al Texto Único Ordenado de la Ley de Impulso al Desarrollo
     Productivo y al Crecimiento Empresarial (Ley MYPE), aprobado por Decreto
     Supremo N.° 013-2013-PRODUCE, y su Reglamento aprobado por Decreto Supremo
-    N.° 008-2008-TR, correspondiendo a LA COLABORADORA los siguientes derechos:</p>
+    N.° 008-2008-TR, correspondiendo a ${colaborador} los siguientes derechos:</p>
     <ol type="a">
       <li><strong>Compensación por Tiempo de Servicios (CTS):</strong> Equivalente
       a quince (15) remuneraciones diarias por cada año completo de servicios, con
@@ -564,8 +595,7 @@ function clausulaBeneficios(d: DatosContrato): string {
       establecidos por ley.</li>
       <li><strong>Gratificaciones legales:</strong> Dos (2) gratificaciones al
       año, en julio y en diciembre, cada una equivalente al cincuenta por ciento
-      (50%) de la remuneración computable. Adicionalmente, LA EMPRESA pagará a LA
-      COLABORADORA una bonificación extraordinaria equivalente al nueve por ciento
+      (50%) de la remuneración computable. Adicionalmente, LA EMPRESA pagará a ${colaborador} una bonificación extraordinaria equivalente al nueve por ciento
       (9%) de cada gratificación, conforme a la Ley N.° 30334, inafecta a
       contribuciones.</li>
       <li><strong>Vacaciones:</strong> Quince (15) días calendario de descanso
@@ -574,23 +604,22 @@ function clausulaBeneficios(d: DatosContrato): string {
       013-2013-PRODUCE, siéndole de aplicación supletoria el Decreto Legislativo
       N.° 713 en lo que corresponda.</li>
       <li><strong>Afiliación a EsSalud:</strong> LA EMPRESA aportará el nueve por
-      ciento (9%) de la remuneración mensual de LA COLABORADORA al Seguro Social
+      ciento (9%) de la remuneración mensual de ${colaborador} al Seguro Social
       de Salud (EsSalud).</li>
-      <li><strong>Afiliación al sistema previsional:</strong> LA COLABORADORA
+      <li><strong>Afiliación al sistema previsional:</strong> ${colaborador}
       ejercerá su derecho a elegir entre el Sistema Privado de Pensiones (SPP) o
       el Sistema Nacional de Pensiones (SNP).</li>
-      <li><strong>Asignación familiar:</strong> LA EMPRESA otorga a LA
-      COLABORADORA, como mejora voluntaria por encima de los beneficios mínimos
+      <li><strong>Asignación familiar:</strong> LA EMPRESA otorga a ${colaborador}, como mejora voluntaria por encima de los beneficios mínimos
       del régimen laboral especial de la pequeña empresa, una asignación familiar
       equivalente al diez por ciento (10%) de la Remuneración Mínima Vital
-      vigente, en caso de que LA COLABORADORA acredite tener hijos menores de
+      vigente, en caso de que ${colaborador} acredite tener hijos menores de
       dieciocho (18) años, o mayores con discapacidad. Para tal efecto se toma
       como referencia el parámetro previsto en la Ley N.° 25129. La acreditación
       deberá realizarse mediante la presentación de la partida de nacimiento
       correspondiente ante LA EMPRESA. El derecho a esta asignación se genera a
       partir del mes en que se acredite fehacientemente dicha condición, sin
       efecto retroactivo.</li>
-      <li><strong>Seguro de Vida:</strong> LA COLABORADORA tendrá derecho a
+      <li><strong>Seguro de Vida:</strong> ${colaborador} tendrá derecho a
       seguro de vida conforme al Decreto Legislativo N.° 688 y sus normas
       modificatorias, así como al régimen laboral especial de la pequeña empresa
       (Decreto Supremo N.° 013-2013-PRODUCE), en las condiciones y desde el
@@ -598,12 +627,11 @@ function clausulaBeneficios(d: DatosContrato): string {
       ${movilidad}
       <li><strong>Asignación por educación:</strong> LA EMPRESA otorga, conforme
       a su política de asignación por educación vigente, una cobertura parcial de
-      los gastos de estudios de LA COLABORADORA o de sus hijos, contra la
+      los gastos de estudios de ${colaborador} o de sus hijos, contra la
       presentación del comprobante correspondiente y sujeta a los topes y
       condiciones de dicha política. No genera derecho adquirido: rige mientras
-      LA COLABORADORA mantenga vigente el estudio acreditado.</li>
-      <li><strong>Bono de onomástico:</strong> LA EMPRESA otorga a LA
-      COLABORADORA, en el mes de su cumpleaños, un bono de S/ ${soles(d.bonoOnomastico)}
+      ${colaborador} mantenga vigente el estudio acreditado.</li>
+      <li><strong>Bono de onomástico:</strong> LA EMPRESA otorga a ${colaborador}, en el mes de su cumpleaños, un bono de S/ ${soles(d.bonoOnomastico)}
       (monto vigente a la fecha de este contrato, conforme al artículo 19 inciso
       g) del Decreto Supremo N.° 001-97-TR), sujeto a la política de la empresa y
       a la constancia de entrega correspondiente.</li>
@@ -638,6 +666,7 @@ export function tipoQueCorresponde(
 }
 
 function clausulaPeriodoPrueba(d: DatosContrato): string {
+  const colaborador = etiquetaColaborador(d);
   if (d.tipo !== "nuevo") {
     // ¿HA CORRIDO DE VERDAD EL PERÍODO DE PRUEBA?
     //
@@ -658,15 +687,14 @@ function clausulaPeriodoPrueba(d: DatosContrato): string {
     <h3>TERCERA. PERÍODO DE PRUEBA</h3>
     <p>El período de prueba de tres (3) meses previsto en el artículo 10 del TUO
     del Decreto Legislativo N.° 728 se computa desde el inicio de la relación
-    laboral de LA COLABORADORA, ocurrido el ${formatearFecha(d.fechaIngresoOriginal)},
+    laboral de ${colaborador}, ocurrido el ${formatearFecha(d.fechaIngresoOriginal)},
     y NO se reinicia con la celebración del presente contrato. En consecuencia,
-    dicho período culmina el ${formatearFecha(fin)}. Superada esa fecha, LA
-    COLABORADORA gozará de estabilidad laboral durante la vigencia del presente
+    dicho período culmina el ${formatearFecha(fin)}. Superada esa fecha, ${colaborador} gozará de estabilidad laboral durante la vigencia del presente
     contrato conforme al artículo 79 del mismo cuerpo legal.</p>`;
     }
     return `
     <h3>TERCERA. PERÍODO DE PRUEBA</h3>
-    <p>No aplica un nuevo período de prueba: LA COLABORADORA ya superó el período
+    <p>No aplica un nuevo período de prueba: ${colaborador} ya superó el período
     de prueba correspondiente a su vínculo laboral iniciado el
     ${formatearFecha(d.fechaIngresoOriginal)}, y goza de estabilidad laboral
     durante la vigencia del presente contrato conforme al artículo 79 del TUO del
@@ -677,7 +705,7 @@ function clausulaPeriodoPrueba(d: DatosContrato): string {
     <p>El período de prueba es de tres (3) meses, contados a partir de la fecha
     de inicio del presente contrato. Durante dicho período, cualquiera de las
     partes podrá resolver el contrato sin expresión de causa y sin derecho a
-    indemnización. Superado el período de prueba, LA COLABORADORA gozará de
+    indemnización. Superado el período de prueba, ${colaborador} gozará de
     estabilidad laboral durante la vigencia del contrato conforme al artículo 79
     del TUO del Decreto Legislativo N.° 728.</p>`;
 }
@@ -736,29 +764,31 @@ function clausulaNaturalezaYPlazo(d: DatosContrato): string {
 
 /** DÉCIMA OCTAVA — difiere porque el registro ante la AAT (art. 72-73) solo alcanza a un plazo fijo. Ver 0347. */
 function clausulaEntregaCopia(d: DatosContrato): string {
+  const colaborador = etiquetaColaborador(d);
   if (d.tipo === "indefinido") {
     return `
     <h3>DÉCIMA OCTAVA. ENTREGA DE COPIA</h3>
-    <p>LA EMPRESA entregará a LA COLABORADORA copia del presente contrato dentro de los tres (3) días hábiles
+    <p>LA EMPRESA entregará a ${colaborador} copia del presente contrato dentro de los tres (3) días hábiles
     siguientes al inicio de la prestación de servicios.</p>`;
   }
   return `
     <h3>DÉCIMA OCTAVA. ENTREGA DE COPIA Y REGISTRO</h3>
-    <p>LA EMPRESA entregará a LA COLABORADORA copia del presente contrato dentro de los tres (3) días hábiles
+    <p>LA EMPRESA entregará a ${colaborador} copia del presente contrato dentro de los tres (3) días hábiles
     siguientes al inicio de la prestación de servicios, y lo comunicará a la Autoridad Administrativa de Trabajo
     para su registro dentro de los quince (15) días naturales siguientes a su suscripción.</p>`;
 }
 
 /** VIGÉSIMA — la indemnización de un indefinido se cuenta por años de servicio (art. 38), no por meses restantes de plazo (art. 76). Ver 0347. */
 function clausulaTerminacion(d: DatosContrato): string {
+  const colaborador = etiquetaColaborador(d);
   if (d.tipo === "indefinido") {
     return `
     <h3>VIGÉSIMA. TERMINACIÓN</h3>
     <p>El contrato se extingue por las causales previstas en el artículo 16 del TUO del Decreto Legislativo N.°
-    728: renuncia voluntaria de LA COLABORADORA (con treinta (30) días de anticipación, salvo exoneración por LA
+    728: renuncia voluntaria de ${colaborador} (con treinta (30) días de anticipación, salvo exoneración por LA
     EMPRESA), mutuo disenso, jubilación, invalidez absoluta permanente, o comisión de falta grave u otra causa
     justa de despido debidamente comprobada conforme a los artículos 22 a 25 del mismo cuerpo legal.</p>
-    <p>Si LA EMPRESA pusiera fin al contrato sin la existencia de causa justa, corresponderá a LA COLABORADORA la
+    <p>Si LA EMPRESA pusiera fin al contrato sin la existencia de causa justa, corresponderá a ${colaborador} la
     indemnización equivalente a una remuneración y media (1.5) ordinaria mensual por cada año completo de
     servicios, con las fracciones de año computadas por dozavos y treintavos, y con un tope de doce (12)
     remuneraciones, conforme al artículo 38 del TUO del Decreto Legislativo N.° 728.</p>`;
@@ -766,7 +796,7 @@ function clausulaTerminacion(d: DatosContrato): string {
   return `
     <h3>VIGÉSIMA. TERMINACIÓN</h3>
     <p>El contrato finalizará automáticamente en la fecha pactada o podrá resolverse anticipadamente por mutuo
-    acuerdo, renuncia voluntaria de LA COLABORADORA (con treinta (30) días de anticipación), comisión de falta
+    acuerdo, renuncia voluntaria de ${colaborador} (con treinta (30) días de anticipación), comisión de falta
     grave, o resolución anticipada sin causa justa por parte de LA EMPRESA — caso en el cual corresponderá la
     indemnización equivalente a una remuneración y media (1.5) por cada mes dejado de laborar hasta el término del
     contrato, con el límite de doce (12) remuneraciones, conforme al artículo 76 del TUO del Decreto Legislativo
@@ -774,6 +804,7 @@ function clausulaTerminacion(d: DatosContrato): string {
 }
 
 function clausulaDisciplina(d: DatosContrato): string {
+  const colaborador = etiquetaColaborador(d);
   return `
     <h3>DÉCIMA CUARTA. RÉGIMEN DISCIPLINARIO</h3>
     <p>Las sanciones podrán consistir en llamada de atención verbal, amonestación
@@ -782,24 +813,23 @@ function clausulaDisciplina(d: DatosContrato): string {
     N.° 728 y al Reglamento Interno de Trabajo, versión ${d.ritVersion}, vigente
     desde el ${d.ritFecha} — cuya entrega y acuse constan, conforme a su artículo
     60, en el sistema Dynamic o por los demás medios ahí previstos.</p>
-    <p>Para el caso del procedimiento previo al despido, LA EMPRESA otorgará a LA
-    COLABORADORA, mediante carta escrita, un plazo no menor a seis (6) días
+    <p>Para el caso del procedimiento previo al despido, LA EMPRESA otorgará a ${colaborador}, mediante carta escrita, un plazo no menor a seis (6) días
     naturales para que ejerza su derecho de defensa por escrito respecto a los
     cargos que se le formulen, conforme al artículo 31 del TUO del Decreto
     Legislativo N.° 728. Sin perjuicio de las medidas inmediatas de protección
     operativa que correspondan, el procedimiento previo al despido se cumplirá
     íntegramente en todos los casos.</p>
     <p>Cuando la causa invocada sea de naturaleza relacionada con la capacidad de
-    LA COLABORADORA —en particular, rendimiento deficiente conforme al artículo
+    ${colaborador} —en particular, rendimiento deficiente conforme al artículo
     23, inciso b), del TUO del Decreto Legislativo N.° 728—, el plazo otorgado
-    será de treinta (30) días naturales para que LA COLABORADORA demuestre su
+    será de treinta (30) días naturales para que ${colaborador} demuestre su
     capacidad o corrija su deficiencia, conforme al segundo supuesto del artículo
     31 del mismo cuerpo normativo. En estos casos, LA EMPRESA podrá solicitar el
     concurso de la Autoridad Administrativa de Trabajo conforme al artículo 34 del
     Reglamento aprobado por Decreto Supremo N.° 001-96-TR.</p>`;
 }
 
-function anexoIV(d: DatosContrato, etiquetaPersona = "LA COLABORADORA"): string {
+function anexoIV(d: DatosContrato, etiquetaPersona = etiquetaColaborador(d)): string {
   return `
     <section class="anexo">
     ${encabezadoAnexo(
@@ -839,6 +869,7 @@ function anexoIV(d: DatosContrato, etiquetaPersona = "LA COLABORADORA"): string 
  * plazo y su propio período de prueba, contradiría al primero.
  */
 function documentoAdendum(d: DatosContrato): string {
+  const colaborador = etiquetaColaborador(d);
   return `
   <article class="contrato">
     <header>
@@ -851,11 +882,11 @@ function documentoAdendum(d: DatosContrato): string {
     ${EMPRESA.nombre}, identificada con R.U.C. N.° ${EMPRESA.ruc}, con domicilio legal en
     ${EMPRESA.domicilio}, debidamente representada por ${d.firmanteNombre}, identificado(a) con
     D.N.I. N.° ${d.firmanteDni}, a quien en adelante se denominará LA EMPRESA; y de la otra parte
-    ${d.nombreDni}, identificada con D.N.I. N.° ${d.documento}, a quien en adelante se denominará
-    LA COLABORADORA.</p>
+    ${d.nombreDni}, ${segunGenero(d, "identificado", "identificada")} con D.N.I. N.° ${d.documento}, a quien en adelante se denominará
+    ${colaborador}.</p>
 
     <h3>PRIMERA. ANTECEDENTE</h3>
-    <p>Ambas partes mantienen vigente un contrato de trabajo por el cual LA COLABORADORA se
+    <p>Ambas partes mantienen vigente un contrato de trabajo por el cual ${colaborador} se
     desempeña como ${d.cargo} en la sede ${d.sedeNombre}, cuyo vínculo laboral se inició el
     ${formatearFecha(d.fechaIngresoOriginal)}.</p>
 
@@ -919,8 +950,8 @@ const ORDINALES_CONVENIO = [
  * `ORDINALES_CONVENIO`.
  */
 function documentoConvenio(d: DatosContrato): string {
-  const etiquetaPracticante = d.genero === "masculino" ? "EL PRACTICANTE" : "LA PRACTICANTE";
-  const identificadoTexto = d.genero === "masculino" ? "identificado" : "identificada";
+  const etiquetaPracticante = segunGenero(d, "EL PRACTICANTE", "LA PRACTICANTE");
+  const identificadoTexto = segunGenero(d, "identificado", "identificada");
   const horasMax = maximoSemanalPracticante("practicante", d.practicanteModalidad);
   const esPreprofesional = d.practicanteModalidad !== "profesional";
   const modalidadTexto = d.practicanteModalidad === "profesional" ? "PROFESIONALES" : "PREPROFESIONALES";
@@ -1046,7 +1077,7 @@ function documentoConvenio(d: DatosContrato): string {
 
     `<h3>{{N}}. NO SUJECIÓN AL REGLAMENTO INTERNO DE TRABAJO</h3>
     <p>Conforme al numeral 2.6 del Reglamento Interno de Trabajo de LA EMPRESA (versión ${d.ritVersion}, vigente
-    desde el ${d.ritFecha}), ${etiquetaPracticante} no tiene la condición de trabajadora, no mantiene relación laboral con
+    desde el ${d.ritFecha}), ${etiquetaPracticante} no tiene la condición de ${segunGenero(d, "trabajador", "trabajadora")}, no mantiene relación laboral con
     LA EMPRESA y no está comprendida por dicho Reglamento — se rige por el presente convenio y por la Ley N.° 28518.
     Ello no excluye las obligaciones de seguridad y salud en el trabajo, que sí alcanzan a ${etiquetaPracticante} desde el
     primer día conforme al artículo 68 de la Ley N.° 29783, Ley de Seguridad y Salud en el Trabajo.</p>`,
@@ -1123,8 +1154,8 @@ function documentoConvenio(d: DatosContrato): string {
       0,
       `<h3>{{N}}. OBLIGACIONES DEL CENTRO DE FORMACIÓN PROFESIONAL</h3>
     <p>EL CENTRO DE FORMACIÓN PROFESIONAL se obliga a dirigir y supervisar académicamente el desarrollo de las
-    prácticas, evaluar y certificar las actividades formativas, y coordinar con LA EMPRESA el monitoreo de LA
-    PRACTICANTE.</p>`,
+    prácticas, evaluar y certificar las actividades formativas, y coordinar con LA EMPRESA el monitoreo de
+    ${etiquetaPracticante}.</p>`,
     );
   }
 
@@ -1205,6 +1236,7 @@ export function construirContrato(datosSinEscapar: DatosContrato): string {
   const d = escapado(datosSinEscapar);
   if (d.tipo === "adendum") return documentoAdendum(d);
   if (d.tipo === "convenio_practicas") return documentoConvenio(d);
+  const colaborador = etiquetaColaborador(d);
 
   const esIndefinido = d.tipo === "indefinido";
   const titulo = esIndefinido
@@ -1235,10 +1267,10 @@ export function construirContrato(datosSinEscapar: DatosContrato): string {
     ${EMPRESA.domicilio}, debidamente representada por su representante legal, Sr(a). ${d.firmanteNombre},
     identificado(a) con D.N.I. N.° ${d.firmanteDni}, a quien en adelante se denominará LA EMPRESA.</p>
 
-    <h3>II. DATOS DE LA COLABORADORA</h3>
-    <p>${d.nombreDni}, identificada con D.N.I. N.° ${d.documento}${
+    <h3>II. DATOS DE ${colaborador}</h3>
+    <p>${d.nombreDni}, ${segunGenero(d, "identificado", "identificada")} con D.N.I. N.° ${d.documento}${
       d.direccion ? `, con domicilio en ${d.direccion}` : ""
-    }, a quien en adelante se denominará LA COLABORADORA.</p>
+    }, a quien en adelante se denominará ${colaborador}.</p>
 
     <p>Ambas partes declaran que celebran el presente contrato conforme a la legislación laboral vigente y sin
     vicios de voluntad.</p>
@@ -1248,7 +1280,7 @@ export function construirContrato(datosSinEscapar: DatosContrato): string {
     ${clausulaPeriodoPrueba(d)}
 
     <h3>CUARTA. CARGO Y FINALIDAD DEL SERVICIO</h3>
-    <p>LA COLABORADORA es contratada para desempeñar el cargo de ${d.cargo} en la sede ${d.sedeNombre}.</p>
+    <p>${colaborador} es ${segunGenero(d, "contratado", "contratada")} para desempeñar el cargo de ${d.cargo} en la sede ${d.sedeNombre}.</p>
     <p>Las funciones específicas se encuentran detalladas en el ANEXO I — Funciones del Cargo, el cual forma parte
     integrante del presente contrato.</p>
 
@@ -1257,18 +1289,18 @@ export function construirContrato(datosSinEscapar: DatosContrato): string {
     ${clausulaBeneficios(d)}
 
     <h3>OCTAVA. CONDUCTA, PRESENTACIÓN E INTEGRIDAD</h3>
-    <p>LA COLABORADORA se obliga a mantener conducta ética, profesional y respetuosa, así como una adecuada
+    <p>${colaborador} se obliga a mantener conducta ética, profesional y respetuosa, así como una adecuada
     presentación personal acorde a la imagen de LA EMPRESA. Es responsable del adecuado manejo de la caja, los
     bienes y los recursos que LA EMPRESA le asigne durante su turno para el ejercicio de sus funciones. El
     descuento de importes de su remuneración por faltantes comprobados se sujetará a los límites establecidos por
     la legislación vigente, en particular al límite del treinta por ciento (30%) de la remuneración neta mensual
-    previsto en el artículo 648 del Código Procesal Civil, y requerirá la autorización escrita de LA COLABORADORA o
+    previsto en el artículo 648 del Código Procesal Civil, y requerirá la autorización escrita de ${colaborador} o
     resolución judicial.</p>
-    <p>Los bienes que LA EMPRESA entrega a LA COLABORADORA bajo su custodia se detallan en el ANEXO IV —
+    <p>Los bienes que LA EMPRESA entrega a ${colaborador} bajo su custodia se detallan en el ANEXO IV —
     Constancia de Recepción y Responsabilidad de Activos, el cual forma parte integrante del presente contrato.</p>
 
     <h3>NOVENA. USO DE IMAGEN</h3>
-    <p>LA COLABORADORA autoriza expresamente a LA EMPRESA el uso de su imagen, voz y representación en fotografías
+    <p>${colaborador} autoriza expresamente a LA EMPRESA el uso de su imagen, voz y representación en fotografías
     o videos tomados durante actividades laborales o promocionales en la sede ${d.sedeNombre}, con fines
     corporativos, institucionales o publicitarios, sin compensación adicional, respetando siempre su dignidad e
     integridad personal, en los límites de la Ley N.° 29733, Ley de Protección de Datos Personales.</p>
@@ -1276,25 +1308,25 @@ export function construirContrato(datosSinEscapar: DatosContrato): string {
     <h3>DÉCIMA. CONFIDENCIALIDAD</h3>
     <p>Toda información relacionada con procesos internos, inventarios, proveedores, estrategias comerciales, datos
     de clientes, precios, márgenes, información financiera y cualquier información sensible de LA EMPRESA tiene
-    carácter estrictamente confidencial. LA COLABORADORA se obliga a no divulgarla, reproducirla ni utilizarla para
+    carácter estrictamente confidencial. ${colaborador} se obliga a no divulgarla, reproducirla ni utilizarla para
     fines distintos a sus funciones, durante la vigencia del contrato y hasta veinticuatro (24) meses después de su
     culminación.</p>
 
     <h3>DÉCIMA PRIMERA. DEBER DE LEALTAD Y FIDELIDAD</h3>
-    <p>Durante la vigencia del presente contrato, LA COLABORADORA se obliga a actuar en todo momento en interés de
+    <p>Durante la vigencia del presente contrato, ${colaborador} se obliga a actuar en todo momento en interés de
     LA EMPRESA y a abstenerse de favorecer a competidores, desviar clientela o facilitar información reservada o
     estratégica, bajo apercibimiento de falta grave conforme al artículo 25, incisos a) y d), del TUO del Decreto
     Legislativo N.° 728.</p>
 
     <h3>DÉCIMA SEGUNDA. PROHIBICIÓN DE DECLARACIONES LESIVAS</h3>
-    <p>LA COLABORADORA se obliga a abstenerse de emitir o difundir, por cualquier medio, declaraciones falsas o
+    <p>${colaborador} se obliga a abstenerse de emitir o difundir, por cualquier medio, declaraciones falsas o
     realizadas de mala fe con el propósito de dañar la reputación, imagen o intereses de LA EMPRESA. Esta cláusula
-    no restringe el derecho de LA COLABORADORA a formular denuncias de buena fe ante las autoridades competentes.</p>
+    no restringe el derecho de ${colaborador} a formular denuncias de buena fe ante las autoridades competentes.</p>
 
     <h3>DÉCIMA TERCERA. VIDEOVIGILANCIA</h3>
     <p>LA EMPRESA cuenta con sistemas de videovigilancia en las instalaciones del centro de trabajo, debidamente
     señalizados, que operan de forma permanente con fines de seguridad, control operativo y verificación de
-    incidencias, conforme a la Ley N.° 29733. LA COLABORADORA declara conocer y aceptar su existencia mediante la
+    incidencias, conforme a la Ley N.° 29733. ${colaborador} declara conocer y aceptar su existencia mediante la
     firma del presente contrato.</p>
 
     ${clausulaDisciplina(d)}
@@ -1305,13 +1337,13 @@ export function construirContrato(datosSinEscapar: DatosContrato): string {
 
     <h3>DÉCIMA SEXTA. CAPACITACIÓN Y APRENDIZAJE CONTINUO</h3>
     <p>LA EMPRESA está obligada a proporcionar capacitación conforme al artículo 84 del TUO del Decreto Legislativo
-    N.° 728. LA COLABORADORA está obligada a participar activamente en los programas de capacitación que LA EMPRESA
+    N.° 728. ${colaborador} está ${segunGenero(d, "obligado", "obligada")} a participar activamente en los programas de capacitación que LA EMPRESA
     organice dentro de la jornada de trabajo; de disponerse fuera de dicha jornada con carácter obligatorio, las
     horas correspondientes se remunerarán como sobretiempo conforme a ley.</p>
 
     <h3>DÉCIMA SÉPTIMA. PROTECCIÓN DE DATOS PERSONALES</h3>
     <p>De conformidad con la Ley N.° 29733, Ley de Protección de Datos Personales, y su Reglamento aprobado por
-    Decreto Supremo N.° 016-2024-JUS, LA EMPRESA informa a LA COLABORADORA que sus datos personales —incluyendo
+    Decreto Supremo N.° 016-2024-JUS, LA EMPRESA informa a ${colaborador} que sus datos personales —incluyendo
     nombre, documento de identidad, domicilio, datos laborales, remunerativos y previsionales— serán incorporados y
     tratados en los sistemas de LA EMPRESA con las siguientes finalidades exclusivas: (i) gestión de la relación
     laboral; (ii) cumplimiento de obligaciones legales ante el Ministerio de Trabajo, SUNAT, EsSalud, AFP/ONP y otras
@@ -1324,7 +1356,7 @@ export function construirContrato(datosSinEscapar: DatosContrato): string {
     <h3>DÉCIMA NOVENA. DOMICILIO ELECTRÓNICO Y COMUNICACIONES</h3>
     <p>Las partes acuerdan un domicilio electrónico válido para las comunicaciones de la relación laboral, conforme
     a los términos del ANEXO III — Domicilio Electrónico y Comunicaciones, el cual forma parte integrante del
-    presente contrato.${d.email ? ` El domicilio electrónico de LA COLABORADORA es ${d.email}.` : ""}</p>
+    presente contrato.${d.email ? ` El domicilio electrónico de ${colaborador} es ${d.email}.` : ""}</p>
 
     ${clausulaTerminacion(d)}
 
@@ -1361,7 +1393,7 @@ export function construirContrato(datosSinEscapar: DatosContrato): string {
 
     <section class="anexo">
       ${encabezadoAnexo(d, "ANEXO III — DOMICILIO ELECTRÓNICO Y COMUNICACIONES", "Cláusula Décima Novena del presente contrato")}
-      <p>LA EMPRESA: info@cayla.pe · LA COLABORADORA: ${d.email ?? "[completar]"}</p>
+      <p>LA EMPRESA: info@cayla.pe · ${colaborador}: ${d.email ?? "[completar]"}</p>
       <p>Las direcciones consignadas constituyen los domicilios electrónicos válidos para todos los efectos de la
       relación laboral, incluida la entrega del Reglamento Interno de Trabajo y demás documentos internos. Se
       exceptúan de esta vía la carta de preaviso de despido y la carta de despido, que se cursan por conducto notarial
