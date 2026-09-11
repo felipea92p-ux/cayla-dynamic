@@ -6,6 +6,88 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-09-11 — Revisión de pendientes de diseño/UX: casi todo ya estaba fusionado; tres bugs reales cerrados
+
+Se pidió trabajar "todos los pendientes de diseño e interfaz". Antes de tocar
+nada se verificó el estado real contra el código, no contra
+`plan-apariencia-2026-09-06.md` ni `plan-diseno-2026-07-27.md`: los dos días
+del plan, los 25 hallazgos de la Radiografía (PR #232) y los cuatro lotes de
+migración de pantallas (PR #273/#276/#278/#280, "lote4 (final)") **ya estaban
+fusionados a `main` entre el 2026-09-05 y el 2026-09-08** — este worktree ya
+estaba al día (`HEAD` = `origin/main`; el `main` local solo estaba atrasado,
+el síntoma habitual de trabajar en varias Mac sin `git fetch`). De la lista
+"Pendiente para después" de
+`plan-apariencia-2026-09-06.md`, dos ítems resultaron ya resueltos al
+verificarlos (el bloque `@media print` ya lleva los once tokens; `/mio` ya
+tiene marco desde PR #312/#313) y uno quedó sin evidencia clara de seguir roto
+(las "dos gramáticas" de tarjeta KPI en costos/provisiones — costos ya usa
+`SeccionTabla`/`bg-papel`/`rounded-superficie` compartidos; no se confirmó una
+segunda gramática real, así que no se tocó sin evidencia).
+
+**Tres quedaban abiertos, verificados contra el código vigente, y se
+cerraron** (rama `claude/design-interface-pending-75ac4d`):
+
+1. 🔴→✅ **Ninguna integrante de sede podía llegar a cambiar su propia
+   contraseña.** `nav-items.ts` gateaba "Cuentas" a `roles: DO` desde el
+   2026-09-04, con un comentario que decía que la pantalla "se degrada
+   sola... el renglón solo llevaba a una puerta cerrada" para quien no
+   gestiona catálogos. Era falso: `admin/cuentas/page.tsx` tiene la rama "Mi
+   cuenta" (solo cambiar la propia clave) desde que se creó, el 2026-07-12
+   (`4d71fd8`). El comentario de septiembre asumió sin volver a leer el
+   código de julio, y dejó a toda encargada de sede sin ningún camino en la
+   interfaz —ni menú, ni ⌘K, ni atajos— para cambiar su clave; solo por URL
+   directa. Cambiado a `roles: SEDE`; la pantalla ya sabía distinguir DO de
+   SEDE, no hizo falta tocar su lógica.
+2. ✅ **`esActivo()` no resaltaba 6 sub-rutas** (`planilla/boleta`,
+   `disciplina/memo/[id]`, `normas/[id]/imprimir`, `normas/[id]/constancias`,
+   `politica-salarial/constancias`, `mio/boleta`) — hallazgo ya escrito en la
+   entrada del 2026-09-07 sobre el sidebar nuevo, sin cerrar. En vez de
+   enumerar las seis a mano, una sola regla general
+   (`pathname.startsWith(href + "/")`) las cubre todas y cualquier sub-ruta
+   futura — se verificó que ningún href actual es prefijo de otro, así que no
+   hay riesgo de colisión.
+3. ✅ **`admin/liquidaciones`, `Hoja()`/`FirmaEmpresa` usaban `border-black`**
+   (4 sitios) en vez de un token de la casa — el único hallazgo de la
+   auditoría de colores sin excepción documentada. Cambiado a `border-tinta`:
+   en impresión es visualmente idéntico (tinta se fuerza a `#1a1a18` en
+   `@media print`, el mismo valor que tenía `black`), y en la vista previa en
+   pantalla ya sigue el tema en vez de una línea negra fija.
+
+**Verificado:** `pnpm typecheck` limpio, `pnpm test` 534/534 en verde,
+`eslint` sobre los dos archivos tocados sin errores nuevos (el único error
+que marca —`react-hooks/set-state-in-effect` en
+`liquidaciones/page.tsx:200`— es deuda vieja, ninguna línea tocada hoy queda
+cerca). **No verificado en el navegador:** el Postgres local compartido tenía
+solo el contenedor de base de datos arriba (18 h), sin API/Auth/Kong —
+`supabase start` no los levantó y se decidió no forzarlo sin saber si otra de
+las ~10 sesiones activas depende de que quede así ahora mismo. Falta mirar a
+ojo: el sidebar con una cuenta de encargada de sede, y la vista previa de una
+liquidación en modo oscuro.
+
+⚠️→✅ **Los otros 11 ítems `roles: DO` de `nav-items.ts`, revisados uno por
+uno el mismo día: ninguno tenía el error de Cuentas.** Se leyó qué hace de
+verdad cada pantalla con un rol que no es DO, no solo el nombre del ítem:
+`contratos`, `documentacion`, `planilla`, `provisiones`, `costos`,
+`liquidaciones`, `educacion`, `areas`, `sedes` y `apariencia` **todas**
+declaran su propio `if (!puede) { return <mensaje> }` con un texto explícito
+de rechazo ("Solo administradores y líderes pueden...", "Esta pantalla es de
+Desarrollo Organizacional") — ninguna ofrece una vista reducida de verdad,
+como sí hacía `admin/cuentas`. `feriados` tiene el mismo patrón
+("No tienes permiso para gestionar feriados."). En los once, el gate del
+menú coincide exactamente con lo que la pantalla ya hace: no hay nada que
+cerrar.
+
+**Por qué Cuentas era distinto, y vale la pena que quede escrito:** de los
+doce ítems `roles: DO` que existían, es el ÚNICO cuya rama para "no admin" es
+una función real (cambiar la propia clave) en vez de un mensaje de rechazo.
+El patrón correcto de la casa, confirmado en los once, es: **pantalla
+DO-only → mensaje de rechazo explícito para quien no lo es.** Si una pantalla
+nueva alguna vez ofrece algo real para SEDE además de la gestión completa
+para DO, ese es el caso especial que hay que recordar destrabar en el menú —
+como se hizo hoy con Cuentas.
+
+---
+
 ## 2026-09-10 — Se pegó la 0403→0409, y el registro de migraciones resultó estar mintiendo dos veces
 
 Empezó como «a una integrante nueva de Trujillo no le sale el apartado Mi DNI».
