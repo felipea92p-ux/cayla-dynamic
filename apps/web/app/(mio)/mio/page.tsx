@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   CalendarClock, CalendarDays, Car, FileSignature, History, IdCard, Inbox, LayoutDashboard, ScrollText,
-  Target, TreePalm,
+  Target, TreePalm, UserRound,
 } from "lucide-react";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Colibri } from "@/components/marca";
@@ -29,7 +29,11 @@ import {
   BUCKET_SOLICITUDES_PERFIL, CARAS_DNI, comprimirFotoDni, rutaNuevaCaraDni,
   urlFirmadaSolicitudPerfil, type CaraDni,
 } from "@/lib/foto-dni";
-import { EMPRESA, ROLES_CON_PANEL, TZ_LIMA, hoyLima, NIVEL_DISCIPLINARIO_LABELS } from "@cayla-dynamic/shared";
+import {
+  EMPRESA, ROLES_CON_PANEL, TZ_LIMA, hoyLima, NIVEL_DISCIPLINARIO_LABELS,
+  ESTADO_CIVIL_LABELS, GENERO_LABELS, GRADO_INSTRUCCION_LABELS, VINCULO_DERECHOHABIENTE_LABELS,
+  TIPO_VINCULO_LABEL,
+} from "@cayla-dynamic/shared";
 import { MESES as MESES_LARGOS, type ObjetivoItem } from "@/lib/objetivos";
 import {
   esperadoDelDia, horarioVigente, fechasDelRango, dowDe, estadoDelDia,
@@ -207,27 +211,71 @@ interface SolicitudDni {
   motivo: string | null;
 }
 
-/** Las nueve secciones de la pantalla. Ver el comentario de `tab`. */
+/** Su ficha completa, de solo lectura — corregir un dato sigue yendo por
+ *  Desarrollo Organizacional, no desde acá. Junta lo que ya vive repartido en
+ *  `personas` (identidad y laboral) y en `datos_personales` (contacto, banco,
+ *  salud): las dos filas de la misma persona, nunca mezcladas con la de nadie
+ *  más — ver la cabecera del archivo sobre por qué se filtra siempre por
+ *  `persona_id` explícito. */
+interface MisDatos {
+  documento: string | null;
+  tipoVinculo: string;
+  conHijos: boolean;
+  email: string | null;
+  funcion: string;
+  fechaNacimiento: string | null;
+  estadoCivil: string | null;
+  genero: string | null;
+  gradoInstruccion: string | null;
+  celular: string | null;
+  direccion: string | null;
+  entidadBancaria: string | null;
+  numeroCuenta: string | null;
+  discapacidad: boolean | null;
+  discapacidadConadis: string | null;
+  emergenciaNombre: string | null;
+  emergenciaTelefono: string | null;
+  emergenciaVinculo: string | null;
+}
+
+/** Una fila de `derechohabientes` — a quién cubre su Seguro de Vida Ley y/o su
+ *  EsSalud. La registra Desarrollo Organizacional; acá solo se ve. */
+interface Derechohabiente {
+  id: string;
+  nombres: string;
+  apellidos: string;
+  vinculo: string;
+  documento: string | null;
+  fechaNacimiento: string | null;
+  essalud: boolean;
+  vidaLey: boolean;
+}
+
+/** Las diez secciones de la pantalla. Ver el comentario de `tab`. */
 type Tab =
-  | "resumen" | "dias" | "turnos" | "dni" | "ausencias" | "contrato" | "movilidad" | "firma" | "objetivos"
-  | "historial";
+  | "resumen" | "dias" | "turnos" | "dni" | "datos" | "ausencias" | "contrato" | "movilidad" | "firma"
+  | "objetivos" | "historial";
 
 /**
- * Las mismas nueve, con su icono y en el orden en que se leen.
+ * Las mismas diez, con su icono y en el orden en que se leen.
  *
  * Los iconos NO se eligieron sueltos: cada uno es el que el menú del panel
  * (`admin/nav-items.ts`) ya usa para esa misma idea — Turnos, Datos personales,
  * Ausencias, Contratos, Documentación, Objetivos —, así quien ve las dos
- * superficies reconoce la sección sin leer la etiqueta. Las tres que el panel no
- * tiene así: «Mis días» y «Historial», que no existen allá como pantalla, y
+ * superficies reconoce la sección sin leer la etiqueta. Las cuatro que el panel
+ * no tiene así: «Mis días» y «Historial», que no existen allá como pantalla,
  * «Movilidad» (0423), que allá es una sub-vista de Documentación —junto con la
- * política y el bono— y no una pantalla propia con su propio ícono.
+ * política y el bono— y no una pantalla propia con su propio ícono, y «Tus
+ * datos»: el panel junta ficha y DNI en una sola pantalla con `IdCard`, y ese
+ * ícono ya lo usa acá «Mi DNI» — se le da uno propio para no repetirlo dentro
+ * de la misma pantalla.
  */
 const SECCIONES: readonly SeccionDetalle<Tab>[] = [
   { valor: "resumen", label: "Resumen", Icon: LayoutDashboard },
   { valor: "dias", label: "Mis días", Icon: CalendarDays },
   { valor: "turnos", label: "Mis turnos", Icon: CalendarClock },
   { valor: "dni", label: "Mi DNI", Icon: IdCard },
+  { valor: "datos", label: "Tus datos", Icon: UserRound },
   { valor: "ausencias", label: "Vacaciones y permisos", Icon: TreePalm },
   { valor: "contrato", label: "Contrato", Icon: ScrollText },
   { valor: "movilidad", label: "Movilidad", Icon: Car },
@@ -322,6 +370,21 @@ const TEXTO_CONSENTIMIENTO_DNI =
 function diaYMes(iso: string): string {
   const [, m, d] = iso.split("-");
   return `${Number(d)} de ${MESES[Number(m) - 1]}`;
+}
+
+/** «2026-07-29» → «29 de julio de 2026». Para fechas donde el año sí importa
+ *  (nacimiento, vigencia) — a diferencia de `diaYMes`, pensada para marcas del
+ *  mismo periodo, donde repetir el año de hoy sería ruido. */
+function diaMesYAnio(iso: string): string {
+  const [a, m, d] = iso.split("-");
+  return `${Number(d)} de ${MESES[Number(m) - 1]} de ${a}`;
+}
+
+/** Una etiqueta legible, o el valor crudo si no está en el catálogo — nunca
+ *  «undefined» en pantalla por un valor que el catálogo todavía no conoce. */
+function etiquetaDe(valor: string | null, mapa: Record<string, string>): string {
+  if (!valor) return "— no registrado —";
+  return mapa[valor] ?? valor;
 }
 
 /** 7.53 → «7h 32m». La gente cuenta en horas y minutos, no en decimales. */
@@ -624,6 +687,65 @@ export default function MioPage() {
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void cargarDni(); }, [cargarDni]);
+
+  const [misDatos, setMisDatos] = useState<MisDatos | null>(null);
+  const [derechohabientes, setDerechohabientes] = useState<Derechohabiente[]>([]);
+
+  /** Su ficha completa, de solo lectura. Con `persona_id`/`id` explícito, como
+   *  todo lo de esta pantalla — la RLS (`personas_select_propia`,
+   *  `dp_select_propia`, `dh_select_propia`) es la red de abajo, nunca el
+   *  mecanismo (ver la cabecera del archivo). Nunca `select("*")`: aunque la
+   *  RLS dejara leer la fila entera, `personas` lleva columnas que esta
+   *  pantalla no tiene por qué pedir (`pin_hash` entre ellas). */
+  const cargarMisDatos = useCallback(async () => {
+    if (!yo?.id) { setMisDatos(null); setDerechohabientes([]); return; }
+    const [persona, ficha, familia] = await Promise.all([
+      supabase.from("personas")
+        .select("documento, tipo_vinculo, con_hijos, email, funcion")
+        .eq("id", yo.id).maybeSingle(),
+      supabase.from("datos_personales")
+        .select("fecha_nacimiento, estado_civil, genero, grado_instruccion, celular, direccion, entidad_bancaria, numero_cuenta, discapacidad, discapacidad_conadis, emergencia_nombre, emergencia_telefono, emergencia_vinculo")
+        .eq("persona_id", yo.id).maybeSingle(),
+      supabase.from("derechohabientes")
+        .select("id, nombres, apellidos, vinculo, documento, fecha_nacimiento, essalud, vida_ley")
+        .eq("persona_id", yo.id).order("created_at", { ascending: true }),
+    ]);
+    setMisDatos({
+      documento: persona.data?.documento ?? null,
+      tipoVinculo: persona.data?.tipo_vinculo ?? "",
+      conHijos: persona.data?.con_hijos ?? false,
+      email: persona.data?.email ?? null,
+      funcion: persona.data?.funcion ?? "",
+      fechaNacimiento: ficha.data?.fecha_nacimiento ?? null,
+      estadoCivil: ficha.data?.estado_civil ?? null,
+      genero: ficha.data?.genero ?? null,
+      gradoInstruccion: ficha.data?.grado_instruccion ?? null,
+      celular: ficha.data?.celular ?? null,
+      direccion: ficha.data?.direccion ?? null,
+      entidadBancaria: ficha.data?.entidad_bancaria ?? null,
+      numeroCuenta: ficha.data?.numero_cuenta ?? null,
+      discapacidad: ficha.data?.discapacidad ?? null,
+      discapacidadConadis: ficha.data?.discapacidad_conadis ?? null,
+      emergenciaNombre: ficha.data?.emergencia_nombre ?? null,
+      emergenciaTelefono: ficha.data?.emergencia_telefono ?? null,
+      emergenciaVinculo: ficha.data?.emergencia_vinculo ?? null,
+    });
+    setDerechohabientes(
+      (familia.data ?? []).map((d) => ({
+        id: d.id,
+        nombres: d.nombres,
+        apellidos: d.apellidos,
+        vinculo: d.vinculo,
+        documento: d.documento,
+        fechaNacimiento: d.fecha_nacimiento,
+        essalud: d.essalud,
+        vidaLey: d.vida_ley,
+      })),
+    );
+  }, [supabase, yo]);
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { void cargarMisDatos(); }, [cargarMisDatos]);
 
   /** El bucket es privado —un DNI no se sirve por URL pública, a diferencia del
    *  retrato del terminal—, así que para pintarlas hace falta firmarlas. Se
@@ -2297,6 +2419,134 @@ export default function MioPage() {
                 className="mx-auto w-auto max-w-full rounded-lg" />
             )}
           </Modal>
+        </section>
+      )}
+
+      {/* ── TUS DATOS ────────────────────────────────────────────────────────
+          De solo lectura: corregir un dato sigue yendo por Desarrollo
+          Organizacional, igual que en el panel. No hay ningún formulario acá
+          a propósito — la 0198 dejó permiso de autoedición en la base
+          (fn_set_datos_personales acepta persona_id = fn_persona_actual_id())
+          pero ninguna pantalla lo ofrece; ver hallazgos-abiertos.md, no se
+          construye sin que Felipe lo pida. */}
+      {tab === "datos" && (
+        <section className="rounded-2xl border border-sand p-5 text-sm">
+          <h2 className="mb-1 font-serif text-lg">Tus datos</h2>
+          <p className="mb-4 text-taupe">
+            Lo que Desarrollo Organizacional tiene registrado de ti. Si algo está mal o falta, avísales — esta
+            pantalla no tiene botón de editar.
+          </p>
+          {!misDatos ? (
+            <p className="text-taupe">Cargando…</p>
+          ) : (
+            <div className="space-y-5">
+              <div>
+                <h3 className="mb-2 text-xs font-medium tracking-wide text-taupe uppercase">Identidad</h3>
+                <dl className="grid gap-x-4 gap-y-2 sm:grid-cols-3">
+                  <div><dt className="text-xs text-taupe">DNI</dt><dd>{misDatos.documento ?? "— no registrado —"}</dd></div>
+                  <div>
+                    <dt className="text-xs text-taupe">Fecha de nacimiento</dt>
+                    <dd>{misDatos.fechaNacimiento ? diaMesYAnio(misDatos.fechaNacimiento) : "— no registrado —"}</dd>
+                  </div>
+                  <div><dt className="text-xs text-taupe">Género</dt><dd>{etiquetaDe(misDatos.genero, GENERO_LABELS)}</dd></div>
+                  <div>
+                    <dt className="text-xs text-taupe">Estado civil</dt>
+                    <dd>{etiquetaDe(misDatos.estadoCivil, ESTADO_CIVIL_LABELS)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-taupe">Grado de instrucción</dt>
+                    <dd>{etiquetaDe(misDatos.gradoInstruccion, GRADO_INSTRUCCION_LABELS)}</dd>
+                  </div>
+                </dl>
+              </div>
+
+              <div>
+                <h3 className="mb-2 text-xs font-medium tracking-wide text-taupe uppercase">Laboral</h3>
+                <dl className="grid gap-x-4 gap-y-2 sm:grid-cols-3">
+                  <div><dt className="text-xs text-taupe">Cargo</dt><dd>{yo?.cargo ?? "— no registrado —"}</dd></div>
+                  <div><dt className="text-xs text-taupe">Sede</dt><dd>{yo?.sede ?? "— no registrado —"}</dd></div>
+                  <div><dt className="text-xs text-taupe">Función</dt><dd>{misDatos.funcion || "— no registrado —"}</dd></div>
+                  <div>
+                    <dt className="text-xs text-taupe">Tipo de vínculo</dt>
+                    <dd>{etiquetaDe(misDatos.tipoVinculo, TIPO_VINCULO_LABEL)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-taupe">Fecha de ingreso</dt>
+                    <dd>{yo?.fechaIngreso ? diaMesYAnio(yo.fechaIngreso) : "— no registrado —"}</dd>
+                  </div>
+                  <div><dt className="text-xs text-taupe">¿Con hijos?</dt><dd>{misDatos.conHijos ? "Sí" : "No"}</dd></div>
+                </dl>
+              </div>
+
+              <div>
+                <h3 className="mb-2 text-xs font-medium tracking-wide text-taupe uppercase">Contacto</h3>
+                <dl className="grid gap-x-4 gap-y-2 sm:grid-cols-3">
+                  <div><dt className="text-xs text-taupe">Celular</dt><dd>{misDatos.celular ?? "— no registrado —"}</dd></div>
+                  <div><dt className="text-xs text-taupe">Correo</dt><dd>{misDatos.email ?? "— no registrado —"}</dd></div>
+                  <div className="sm:col-span-3">
+                    <dt className="text-xs text-taupe">Dirección</dt>
+                    <dd>{misDatos.direccion ?? "— no registrado —"}</dd>
+                  </div>
+                </dl>
+              </div>
+
+              <div>
+                <h3 className="mb-2 text-xs font-medium tracking-wide text-taupe uppercase">Banco</h3>
+                <dl className="grid gap-x-4 gap-y-2 sm:grid-cols-3">
+                  <div><dt className="text-xs text-taupe">Entidad</dt><dd>{misDatos.entidadBancaria ?? "— no registrado —"}</dd></div>
+                  <div><dt className="text-xs text-taupe">Cuenta</dt><dd>{misDatos.numeroCuenta ?? "— no registrado —"}</dd></div>
+                </dl>
+              </div>
+
+              <div>
+                <h3 className="mb-2 text-xs font-medium tracking-wide text-taupe uppercase">Contacto de emergencia</h3>
+                <dl className="grid gap-x-4 gap-y-2 sm:grid-cols-3">
+                  <div><dt className="text-xs text-taupe">Nombre</dt><dd>{misDatos.emergenciaNombre ?? "— no registrado —"}</dd></div>
+                  <div><dt className="text-xs text-taupe">Teléfono</dt><dd>{misDatos.emergenciaTelefono ?? "— no registrado —"}</dd></div>
+                  <div><dt className="text-xs text-taupe">Vínculo</dt><dd>{misDatos.emergenciaVinculo ?? "— no registrado —"}</dd></div>
+                </dl>
+              </div>
+
+              {/* Solo si hay algo que decir: silencio es distinto de «No». Es la
+                  única diferencia con las secciones de arriba, porque acá SÍ hay
+                  un motivo legítimo y frecuente para no marcarlo (no aplica). */}
+              {misDatos.discapacidad !== null && (
+                <div>
+                  <h3 className="mb-2 text-xs font-medium tracking-wide text-taupe uppercase">Discapacidad</h3>
+                  <dl className="grid gap-x-4 gap-y-2 sm:grid-cols-3">
+                    <div><dt className="text-xs text-taupe">Registrada</dt><dd>{misDatos.discapacidad ? "Sí" : "No"}</dd></div>
+                    {misDatos.discapacidad && (
+                      <div>
+                        <dt className="text-xs text-taupe">CONADIS</dt>
+                        <dd>{misDatos.discapacidadConadis ?? "— no registrado —"}</dd>
+                      </div>
+                    )}
+                  </dl>
+                </div>
+              )}
+
+              <div>
+                <h3 className="mb-2 text-xs font-medium tracking-wide text-taupe uppercase">
+                  Familiares registrados (Seguro de Vida Ley / EsSalud)
+                </h3>
+                {derechohabientes.length === 0 ? (
+                  <p className="text-xs text-taupe">Ninguno registrado.</p>
+                ) : (
+                  <ul className="space-y-1.5">
+                    {derechohabientes.map((d) => (
+                      <li key={d.id} className="rounded-lg border border-sand p-2 text-xs">
+                        <span className="font-medium text-tinta">{d.nombres} {d.apellidos}</span>
+                        {" — "}{etiquetaDe(d.vinculo, VINCULO_DERECHOHABIENTE_LABELS)}
+                        {d.fechaNacimiento && ` · nacido el ${diaMesYAnio(d.fechaNacimiento)}`}
+                        {" · "}
+                        {[d.essalud && "EsSalud", d.vidaLey && "Vida Ley"].filter(Boolean).join(" y ") || "sin cobertura marcada"}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+          )}
         </section>
       )}
 
