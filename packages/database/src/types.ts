@@ -858,6 +858,65 @@ export type Database = {
           },
         ]
       }
+      contrato_revisiones_pedidas: {
+        Row: {
+          atendida_at: string | null
+          atendida_por: string | null
+          id: string
+          motivo: string
+          pedida_at: string
+          persona_id: string
+          respuesta: string | null
+        }
+        Insert: {
+          atendida_at?: string | null
+          atendida_por?: string | null
+          id?: string
+          motivo: string
+          pedida_at?: string
+          persona_id: string
+          respuesta?: string | null
+        }
+        Update: {
+          atendida_at?: string | null
+          atendida_por?: string | null
+          id?: string
+          motivo?: string
+          pedida_at?: string
+          persona_id?: string
+          respuesta?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contrato_revisiones_pedidas_atendida_por_fkey"
+            columns: ["atendida_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contrato_revisiones_pedidas_atendida_por_fkey"
+            columns: ["atendida_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contrato_revisiones_pedidas_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contrato_revisiones_pedidas_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contratos_generados: {
         Row: {
           anulado_at: string | null
@@ -4729,6 +4788,10 @@ export type Database = {
         Args: { p_id: string | null; p_respuesta: string | null }
         Returns: undefined
       }
+      fn_atender_revision_contrato: {
+        Args: { p_id: string | null; p_respuesta: string | null }
+        Returns: undefined
+      }
       fn_atender_revision_movilidad: {
         Args: { p_id: string | null; p_respuesta: string | null }
         Returns: undefined
@@ -4887,7 +4950,6 @@ export type Database = {
           p_medios_ida: number | null
           p_medios_vuelta: number | null
           p_provincia: string | null
-          p_usa_taxi?: boolean | null
         }
         Returns: string
       }
@@ -4978,6 +5040,10 @@ export type Database = {
           p_tipo?: string | null
         }
         Returns: string
+      }
+      fn_contrato_revisiones_pedidas: {
+        Args: { p_solo_pendientes?: boolean | null }
+        Returns: Json
       }
       fn_contratos_desnaturalizados: {
         Args: never
@@ -5967,6 +6033,10 @@ export type Database = {
       fn_papeles_cese: { Args: { p_persona_id: string | null }; Returns: Json }
       fn_pedir_revision: {
         Args: { p_comentario: string | null; p_fecha: string | null }
+        Returns: undefined
+      }
+      fn_pedir_revision_contrato: {
+        Args: { p_motivo: string | null }
         Returns: undefined
       }
       fn_pedir_revision_movilidad: {
