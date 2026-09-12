@@ -1495,6 +1495,10 @@ export type Database = {
           persona_id: string | null
           registrado_por: string
           ruta_declarada: string | null
+          ruta_distrito: string | null
+          ruta_medios_ida: number | null
+          ruta_medios_vuelta: number | null
+          ruta_provincia: string | null
           storage_path: string | null
           tipo: string
         }
@@ -1517,6 +1521,10 @@ export type Database = {
           persona_id?: string | null
           registrado_por: string
           ruta_declarada?: string | null
+          ruta_distrito?: string | null
+          ruta_medios_ida?: number | null
+          ruta_medios_vuelta?: number | null
+          ruta_provincia?: string | null
           storage_path?: string | null
           tipo: string
         }
@@ -1539,6 +1547,10 @@ export type Database = {
           persona_id?: string | null
           registrado_por?: string
           ruta_declarada?: string | null
+          ruta_distrito?: string | null
+          ruta_medios_ida?: number | null
+          ruta_medios_vuelta?: number | null
+          ruta_provincia?: string | null
           storage_path?: string | null
           tipo?: string
         }
@@ -5294,6 +5306,10 @@ export type Database = {
           persona_id: string
           registrado_por: string
           ruta_declarada: string
+          ruta_distrito: string
+          ruta_medios_ida: number
+          ruta_medios_vuelta: number
+          ruta_provincia: string
           storage_path: string
           tipo: string
           vigente: boolean

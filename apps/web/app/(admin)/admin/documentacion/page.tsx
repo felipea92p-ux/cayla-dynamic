@@ -308,6 +308,12 @@ interface DocArchivado {
    *  que ya usa el candado de la 0425 (fecha_firma desc, created_at desc, id
    *  desc), calculado una sola vez por `fn_documentos_listar`. */
   vigente: boolean;
+  /** Solo tipo=ruta, y solo desde la 0429 — null en todo lo firmado antes:
+   *  esa fecha vivía únicamente adentro de `ruta_declarada`. */
+  ruta_distrito: string | null;
+  ruta_provincia: string | null;
+  ruta_medios_ida: number | null;
+  ruta_medios_vuelta: number | null;
 }
 
 const MAX_BYTES_DOC = 50 * 1024 * 1024;
@@ -402,7 +408,13 @@ export default function DocumentacionPage() {
   // firmado», igual que el visor de contratos.
   const [verFirma, setVerFirma] = useState<{
     persona: string; documento: string | null; funcion: string | null; sedeNombre: string;
-    texto: string | null; firma: string | null; fecha: string | null;
+    texto: string | null; firma: string | null; fecha: string | null; tarifa: number | null;
+    // Las piezas por separado (0429) — cuando existen, se arma la MISMA lista
+    // numerada que ya usa /mio/movilidad al firmar. En lo firmado antes de la
+    // 0429 no existen, y ahí se cae al párrafo de `texto` tal cual: es el
+    // texto real que esa persona firmó, y no hay forma honesta de partirlo en
+    // columnas que no existían ese día.
+    distrito: string | null; provincia: string | null; mediosIda: number | null; mediosVuelta: number | null;
   } | null>(null);
   // La firma de la empresa para ese visor — ver el comentario junto a
   // `fn_firma_empresa` en `cargar()`.
@@ -635,6 +647,13 @@ export default function DocumentacionPage() {
       texto: doc?.ruta_declarada ?? null,
       firma: doc?.firma_persona ?? null,
       fecha: f.ruta_firmada_el,
+      // El monto QUE FIRMÓ, no el vigente hoy — si quedó desfasada, el papel
+      // tiene que seguir diciendo lo que de verdad se firmó ese día.
+      tarifa: f.ruta_monto,
+      distrito: doc?.ruta_distrito ?? null,
+      provincia: doc?.ruta_provincia ?? null,
+      mediosIda: doc?.ruta_medios_ida ?? null,
+      mediosVuelta: doc?.ruta_medios_vuelta ?? null,
     });
   }
 
@@ -1630,7 +1649,44 @@ export default function DocumentacionPage() {
                       mi traslado diario entre mi domicilio y mi centro de labores:
                     </p>
 
-                    {verFirma.texto ? (
+                    {verFirma.distrito ? (
+                      // Lista numerada (0429): las piezas se guardaron aparte
+                      // al firmar, así que se arma la MISMA estructura que ya
+                      // ve la persona al firmar en /mio/movilidad — nunca un
+                      // segundo intento de decir lo mismo con otra forma.
+                      <>
+                        <ol className="mb-6 list-decimal space-y-2 pl-6">
+                          <li>
+                            Reside en el distrito de <strong>{verFirma.distrito}</strong>, provincia de{" "}
+                            <strong>{verFirma.provincia}</strong>.
+                          </li>
+                          <li>
+                            Para llegar a su centro de labores utiliza <strong>{verFirma.mediosIda}</strong>{" "}
+                            medio(s) de transporte por tramo, y de regreso{" "}
+                            <strong>{verFirma.mediosVuelta}</strong>.
+                          </li>
+                          <li>
+                            Declara que la información consignada es veraz, y se compromete a informar a{" "}
+                            {EMPRESA.nombre} si cambia de domicilio o de ruta habitual.
+                          </li>
+                        </ol>
+                        <p className="mb-6">
+                          Toma conocimiento de que {EMPRESA.nombre} le otorga una asignación por movilidad de{" "}
+                          <strong>
+                            S/ {verFirma.tarifa !== null ? verFirma.tarifa.toFixed(2) : "—"} por día
+                            efectivamente asistido
+                          </strong>
+                          , destinada a cubrir dicho traslado; que se abona únicamente por los días en que
+                          asiste a laborar, no correspondiendo en caso de inasistencia, licencia o descanso; y
+                          que este concepto <strong>no tiene carácter remunerativo</strong>, conforme al
+                          artículo 19 inciso e) del Decreto Supremo N.º 001-97-TR.
+                        </p>
+                      </>
+                    ) : verFirma.texto ? (
+                      // Firmada antes de la 0429: esas cuatro columnas no
+                      // existían ese día, así que se muestra el texto real
+                      // que se firmó, tal cual — no se inventa una lista con
+                      // datos que no se guardaron por separado.
                       <p className="mb-6">{verFirma.texto}</p>
                     ) : (
                       <p className="mb-6 text-taupe">No se guardó el texto de esta declaración.</p>
