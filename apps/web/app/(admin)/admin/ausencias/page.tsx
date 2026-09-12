@@ -62,11 +62,18 @@ function haceMeses(n: number): string {
 }
 
 type FiltroEstado = "todas" | "pendientes" | "vigentes" | "anuladas";
-// Igual criterio que Equipo y Planilla, y con la misma etiqueta: "activos" no
-// es el estado literal de la persona — incluye también a quien cesó pero
-// todavía no se le liquida, porque esa persona puede tener una ausencia por
-// registrar o revisar antes de calcular su liquidación (0421/0422).
-type FiltroPersonaEstado = "activos" | "inactivos" | "todos";
+// "activos" sigue el mismo criterio que Equipo y Planilla, y con la misma
+// etiqueta: no es el estado literal de la persona — incluye también a quien
+// cesó pero todavía no se le liquida, porque esa persona puede tener una
+// ausencia por registrar o revisar antes de calcular su liquidación
+// (0421/0422).
+//
+// "solo_activos" es distinto A PROPÓSITO, y es el default desde el 2026-09-12
+// a pedido de Felipe: acá lo que se quiere ver día a día es quién está
+// trabajando hoy, así que oculta a TODO cesado, se haya liquidado o no. Quien
+// necesite auditar una ausencia antes de liquidar sigue teniendo "Sin quien
+// ya se liquidó" a un clic.
+type FiltroPersonaEstado = "solo_activos" | "activos" | "inactivos" | "todos";
 interface PersonaFacts { fechaCese: string | null; liquidada: boolean }
 
 interface Persona { id: string; nombres: string; apellidos: string }
@@ -149,7 +156,7 @@ export default function AusenciasPage() {
   const { avisar } = useToast();
   const [guardando, setGuardando] = useState(false);
   const [filtroEstado, setFiltroEstado] = useState<FiltroEstado>("todas");
-  const [filtroPersona, setFiltroPersona] = useFiltroGuardado<FiltroPersonaEstado>("ausencias.persona_estado", "activos");
+  const [filtroPersona, setFiltroPersona] = useFiltroGuardado<FiltroPersonaEstado>("ausencias.persona_estado", "solo_activos");
   const [personaFacts, setPersonaFacts] = useState<Map<string, PersonaFacts>>(new Map());
 
   // Formulario
@@ -217,16 +224,20 @@ export default function AusenciasPage() {
   // cesó pero todavía no se le liquida, porque esa ausencia puede seguir
   // sirviendo para auditar o corregir antes de calcular esa liquidación
   // (0421/0422). Solo desaparece cuando la persona ya se liquidó.
+  // "solo_activos" (el default) no hace esa distinción: cesó o no cesó, fuera.
   const porPersona = useMemo(() => porFiltroEstadoYRango.filter((a) => {
     const f = personaFacts.get(a.persona_id);
     const cesada = !!f?.fechaCese;
+    if (filtroPersona === "solo_activos") return !cesada;
     if (filtroPersona === "activos") return !cesada || !f?.liquidada;
     if (filtroPersona === "inactivos") return cesada;
     return true; // "todos"
   }), [porFiltroEstadoYRango, personaFacts, filtroPersona]);
 
-  // Mismo criterio que Equipo y Planilla: cuántas quedaron afuera del filtro
-  // de persona, para el aviso "N ocultas" bajo el selector.
+  // Cuántas quedaron afuera del filtro de persona, para el aviso "N ocultas"
+  // bajo el selector. El motivo del aviso cambia con el filtro activo: bajo
+  // "solo_activos" se oculta por haber cesado (liquidado o no); bajo "activos"
+  // (mismo criterio que Equipo y Planilla) solo se oculta por ya liquidado.
   const ocultasPorPersona = porFiltroEstadoYRango.length - porPersona.length;
 
   const listaOrdenada = useMemo(
@@ -824,6 +835,7 @@ export default function AusenciasPage() {
             value={filtroPersona}
             onChange={(e) => setFiltroPersona(e.target.value as FiltroPersonaEstado)}
           >
+            <option value="solo_activos">Solo activos (nunca cesados)</option>
             <option value="activos">Sin quien ya se liquidó</option>
             <option value="inactivos">Solo quienes ya cesaron</option>
             <option value="todos">Todas</option>
@@ -834,7 +846,8 @@ export default function AusenciasPage() {
               className="pb-2 text-xs text-taupe"
               onClick={() => setFiltroPersona("todos")}
             >
-              {ocultasPorPersona === 1 ? "1 oculta por liquidada" : `${ocultasPorPersona} ocultas por liquidadas`} — ver todas
+              {ocultasPorPersona === 1 ? "1 oculta" : `${ocultasPorPersona} ocultas`}
+              {" "}{filtroPersona === "activos" ? "por liquidada" : "por cesada"}{ocultasPorPersona === 1 ? "" : "s"} — ver todas
             </Boton>
           )}
           {pendientesCount > 0 && (
