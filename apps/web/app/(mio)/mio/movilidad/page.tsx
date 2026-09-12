@@ -10,6 +10,7 @@ import { Marca } from "@/components/marca";
 import { Boton } from "@/components/ui/boton";
 import { AreaTexto } from "@/components/ui/area-texto";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
+import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { FirmaEditor } from "@/app/(admin)/admin/personas/[id]/FirmaEditor";
 
 /**
@@ -63,6 +64,19 @@ interface MiRevision {
   respuesta: string | null;
 }
 
+/** El documento que ya firmó, para poder verlo y descargarlo — no solo el
+ *  resumen de una línea que ya trae `MiDeclaracion`. Las cuatro piezas
+ *  (distrito/provincia/medios) son `null` si firmó antes de la 0429: esa
+ *  fecha vivían solo adentro de `declarada`, y ahí se muestra tal cual. */
+interface MiDocumento {
+  declarada: string | null;
+  firma: string | null;
+  distrito: string | null;
+  provincia: string | null;
+  mediosIda: number | null;
+  mediosVuelta: number | null;
+}
+
 interface Yo {
   id: string;
   nombre: string;
@@ -92,6 +106,10 @@ function MiMovilidadContenido() {
   const [declaracion, setDeclaracion] = useState<MiDeclaracion | null | undefined>(undefined);
   const [miFirma, setMiFirma] = useState<string | null>(null);
   const [miRevision, setMiRevision] = useState<MiRevision | null>(null);
+  // El documento completo de lo que ya firmó — para poder verlo y bajarlo en
+  // PDF, no solo leer el resumen de una línea. `null` mientras no haya nada
+  // firmado todavía.
+  const [miDocumento, setMiDocumento] = useState<MiDocumento | null>(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -110,6 +128,10 @@ function MiMovilidadContenido() {
   const [mediosIda, setMediosIda] = useState("1");
   const [mediosVuelta, setMediosVuelta] = useState("1");
   const [firmando, setFirmando] = useState(false);
+
+  // Ver/descargar la declaración ya firmada (0430) — arranca cerrado para no
+  // alargar la pantalla en cada visita; un clic la despliega entera.
+  const [verDocumento, setVerDocumento] = useState(false);
 
   // Formulario de "pedir revisión" — la única puerta que queda una vez que la
   // declaración está vigente y al día.
@@ -176,7 +198,7 @@ function MiMovilidadContenido() {
     // p_solo_mi_fila => true: la MISMA función que usa el tablero admin, pero
     // pidiendo solo mi fila — necesario incluso si quien pregunta es admin
     // (ver el comentario CAMBIO 0423 en la migración).
-    const [{ data: fila, error: eFila }, { data: fu }, { data: revs, error: eRevs }, { data: fe }] =
+    const [{ data: fila, error: eFila }, { data: fu }, { data: revs, error: eRevs }, { data: fe }, { data: docs }] =
       await Promise.all([
         supabase.rpc("fn_documentos_tablero", { p_solo_mi_fila: true }),
         supabase.rpc("fn_mi_firma"),
@@ -184,6 +206,9 @@ function MiMovilidadContenido() {
         // RPC ya devuelve solo lo suyo (0425), igual que fn_documentos_tablero.
         supabase.rpc("fn_movilidad_revisiones_pedidas", { p_solo_pendientes: false }),
         supabase.rpc("fn_firma_empresa"),
+        // El documento completo (0429): sin admin de por medio, esta RPC
+        // también devuelve solo lo suyo — mismo criterio que las de arriba.
+        supabase.rpc("fn_documentos_listar"),
       ]);
     setCargando(false);
     if (eFila) {
@@ -198,10 +223,26 @@ function MiMovilidadContenido() {
     // La más reciente primero (fn_movilidad_revisiones_pedidas ya ordena por
     // pedida_at desc); si no falló, aunque venga vacía, es una respuesta real.
     setMiRevision(eRevs ? null : (((revs as MiRevision[] | null) ?? [])[0] ?? null));
+    type FilaDoc = {
+      tipo: string; vigente: boolean; ruta_declarada: string | null; firma_persona: string | null;
+      ruta_distrito: string | null; ruta_provincia: string | null;
+      ruta_medios_ida: number | null; ruta_medios_vuelta: number | null;
+    };
+    const miRuta = ((docs as FilaDoc[] | null) ?? []).find((d) => d.tipo === "ruta" && d.vigente);
+    setMiDocumento(miRuta ? {
+      declarada: miRuta.ruta_declarada,
+      firma: miRuta.firma_persona,
+      distrito: miRuta.ruta_distrito,
+      provincia: miRuta.ruta_provincia,
+      mediosIda: miRuta.ruta_medios_ida,
+      mediosVuelta: miRuta.ruta_medios_vuelta,
+    } : null);
   }, [supabase, router]);
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void cargar(); }, [cargar]);
+
+  useTituloDocumento(yo && miDocumento ? `${yo.nombre} — Declaración de ruta de transporte` : null);
 
   async function firmar() {
     if (!miFirma) {
@@ -326,7 +367,120 @@ function MiMovilidadContenido() {
                 Firmar ahora
               </Boton>
             )}
+            {declaracion!.estado === "ok" && miDocumento && !verDocumento && (
+              <Boton variante="enlace" className="mt-3 block" onClick={() => setVerDocumento(true)}>
+                Ver mi declaración firmada
+              </Boton>
+            )}
           </section>
+
+          {/* ── MI DECLARACIÓN YA FIRMADA — para ver y descargar (0430) ─────
+              Ya no se puede volver a firmar sola una vez vigente y al día
+              (0425): esta es la única forma de verla y bajarla en PDF, igual
+              que ya hace /mio/contrato con el contrato propio. */}
+          {declaracion!.estado === "ok" && miDocumento && verDocumento && (
+            <div className="mb-4 rounded-2xl border border-sand p-5">
+              <div className="mb-3 flex items-center justify-between print:hidden">
+                <h2 className="font-serif text-lg">Tu declaración firmada</h2>
+                <div className="flex items-center gap-3">
+                  <Boton variante="primario" tamano="sm" onClick={() => window.print()}>
+                    Imprimir / Guardar como PDF
+                  </Boton>
+                  <Boton variante="enlace" onClick={() => setVerDocumento(false)}>Cerrar</Boton>
+                </div>
+              </div>
+
+              <div className="hoja rounded-lg border border-sand p-8 text-sm leading-relaxed print:rounded-none print:border-0 print:p-0">
+                <div className="mb-6 flex items-start justify-between border-b border-sand pb-4">
+                  <Marca tono="tinta" isotipo="rojo" />
+                  <div className="text-right text-xs text-taupe">
+                    <p>{EMPRESA.nombre}</p>
+                    <p>RUC {EMPRESA.ruc}</p>
+                  </div>
+                </div>
+
+                <h2 className="mb-6 text-center font-serif text-xl">
+                  Declaración de ruta y gasto de transporte
+                </h2>
+
+                <p className="mb-4">
+                  Yo, <strong>{yo?.nombreOficial}</strong>, con documento de identidad N.º{" "}
+                  <strong>{yo?.documento ?? "—"}</strong>, que desempeño el cargo de{" "}
+                  <strong>{yo?.funcion ?? "—"}</strong> en la sede <strong>{yo?.sedeNombre ?? "—"}</strong> de{" "}
+                  {EMPRESA.nombre}, declaro lo siguiente respecto de mi traslado diario entre mi domicilio y mi
+                  centro de labores:
+                </p>
+
+                {miDocumento.distrito ? (
+                  // Firmada desde la 0429: las piezas se guardaron aparte, así
+                  // que se arma la misma lista que se vio al firmar.
+                  <>
+                    <ol className="mb-6 list-decimal space-y-2 pl-6">
+                      <li>
+                        Resido en el distrito de <strong>{miDocumento.distrito}</strong>, provincia de{" "}
+                        <strong>{miDocumento.provincia}</strong>.
+                      </li>
+                      <li>
+                        Para llegar a mi centro de labores utilizo <strong>{miDocumento.mediosIda}</strong>{" "}
+                        medio(s) de transporte por tramo, y de regreso <strong>{miDocumento.mediosVuelta}</strong>.
+                      </li>
+                      <li>
+                        Declaro que la información consignada es veraz, y me comprometo a informar a{" "}
+                        {EMPRESA.nombre} si cambio de domicilio o de ruta habitual.
+                      </li>
+                    </ol>
+                    <p className="mb-6">
+                      Tomo conocimiento de que {EMPRESA.nombre} me otorga una asignación por movilidad de{" "}
+                      <strong>
+                        S/ {declaracion!.ruta_monto !== null ? Number(declaracion!.ruta_monto).toFixed(2) : "—"} por
+                        día efectivamente asistido
+                      </strong>
+                      , destinada a cubrir dicho traslado; que se abona únicamente por los días en que asisto a
+                      laborar, no correspondiendo en caso de inasistencia, licencia o descanso; y que este
+                      concepto <strong>no tiene carácter remunerativo</strong>, conforme al artículo 19 inciso e)
+                      del Decreto Supremo N.º 001-97-TR.
+                    </p>
+                  </>
+                ) : miDocumento.declarada ? (
+                  // Firmada antes de la 0429: esas columnas no existían ese
+                  // día, así que se muestra el texto real que se firmó.
+                  <p className="mb-6">{miDocumento.declarada}</p>
+                ) : (
+                  <p className="mb-6 text-taupe">No se guardó el texto de esta declaración.</p>
+                )}
+
+                <p className="mb-10 text-xs text-taupe">
+                  Suscrito en {yo?.sedeNombre ?? "—"}
+                  {declaracion!.ruta_firmada_el && <>, el {fechaLarga(declaracion!.ruta_firmada_el)}</>}.
+                </p>
+
+                <div className="grid grid-cols-2 gap-10 pt-6">
+                  <div className="text-center">
+                    <div className="flex h-24 items-end justify-center">
+                      {miDocumento.firma && (
+                        <img src={miDocumento.firma} alt="" aria-hidden className="block h-24 w-auto max-w-full" />
+                      )}
+                    </div>
+                    <div className="mb-1 border-t border-tinta pt-2 text-xs">{yo?.nombreOficial}</div>
+                    <p className="text-xs text-taupe">DNI {yo?.documento ?? "—————"} · el/la declarante</p>
+                  </div>
+                  <div className="text-center">
+                    <div className="flex h-24 items-end justify-center">
+                      {firmaEmpresa && (
+                        <img src={firmaEmpresa} alt="" aria-hidden className="block h-24 w-auto max-w-full" />
+                      )}
+                    </div>
+                    <div className="mb-1 border-t border-tinta pt-2 text-xs">{firmanteNombre}</div>
+                    <p className="text-xs text-taupe">{firmanteCargo} · {EMPRESA.nombre}</p>
+                  </div>
+                </div>
+                <p className="mt-6 text-center text-xs text-taupe">
+                  Firma digital, confirmada desde el sistema
+                  {declaracion!.ruta_firmada_el && <> el {fechaLarga(declaracion!.ruta_firmada_el)}</>}.
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* ── VIGENTE Y AL DÍA: la única puerta es pedir revisión ───────── */}
           {vigenteYAlDia && (
