@@ -6475,6 +6475,10 @@ export type Database = {
         Args: { p_fecha: string | null; p_motivo?: string | null; p_persona_id: string | null }
         Returns: undefined
       }
+      fn_set_fin_contrato_nucleo: {
+        Args: { p_fecha: string | null; p_motivo: string | null; p_persona_id: string | null }
+        Returns: undefined
+      }
       fn_set_funcion: {
         Args: { p_funcion: string | null; p_persona_id: string | null }
         Returns: undefined
