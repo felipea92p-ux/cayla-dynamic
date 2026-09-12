@@ -396,11 +396,17 @@ export default function DocumentacionPage() {
   const panelRef = useRef<HTMLDivElement>(null);
 
   // «Ver» de una firma digital: no hay archivo que abrir —el texto y la firma
-  // viven en columnas, no en storage— así que se muestran en un recuadro
-  // propio, mismo patrón de modal que ya usa admin/contratos.
-  const [verFirma, setVerFirma] = useState<
-    { persona: string; sede: string; texto: string | null; firma: string | null; fecha: string | null } | null
-  >(null);
+  // viven en columnas, no en storage— así que se arma el mismo documento con
+  // membrete que ya se ve al imprimir, pero con los datos reales en vez de
+  // rayas en blanco. Pedido de Felipe: que se vea «tal cual el documento
+  // firmado», igual que el visor de contratos.
+  const [verFirma, setVerFirma] = useState<{
+    persona: string; documento: string | null; funcion: string | null; sedeNombre: string;
+    texto: string | null; firma: string | null; fecha: string | null;
+  } | null>(null);
+  // La firma de la empresa para ese visor — ver el comentario junto a
+  // `fn_firma_empresa` en `cargar()`.
+  const [firmaEmpresaGlobal, setFirmaEmpresaGlobal] = useState<string | null>(null);
   // Las hojas que se imprimen de una vez. `null` = modo normal, una sola hoja:
   // la de la persona elegida arriba. Se llena, se imprime y se vacía; no es un
   // modo en el que la pantalla se quede.
@@ -615,13 +621,17 @@ export default function DocumentacionPage() {
 
   /** «Ver» para una firma digital: no hay archivo en storage que abrir —el
    *  texto y la imagen de la firma viven en columnas de documentos_firmados,
-   *  no en un bucket—, así que se muestran en su propio recuadro en vez de
-   *  intentar reusar `verDocumento`, que abre una URL firmada de storage. */
+   *  no en un bucket—, así que se arma el mismo documento con membrete que ya
+   *  usa `hoja()` para imprimir, con los datos reales de esta persona y de su
+   *  declaración ya firmada. */
   function abrirVerFirma(f: FilaTablero) {
     const doc = rutaVigentePorPersona.get(f.persona_id);
+    const quien = personas.find((p) => p.id === f.persona_id);
     setVerFirma({
       persona: f.persona,
-      sede: f.sede,
+      documento: quien?.documento ?? null,
+      funcion: quien?.funcion ?? null,
+      sedeNombre: quien ? (sedes.get(quien.sede_base_id) ?? f.sede) : f.sede,
       texto: doc?.ruta_declarada ?? null,
       firma: doc?.firma_persona ?? null,
       fecha: f.ruta_firmada_el,
@@ -916,6 +926,14 @@ export default function DocumentacionPage() {
     // sale con la línea en blanco para firmar a mano, como hasta ahora.
     const { data: fu } = await supabase.rpc("fn_mi_firma");
     setFirmaUrl(typeof fu === "string" && fu.startsWith("data:image") ? fu : null);
+
+    // La firma de la empresa, para el «Ver» de una firma digital — a
+    // diferencia de `firmaUrl` (la de quien imprime, condicionada a que SEA
+    // el firmante), esta se muestra siempre: el documento ya está firmado, y
+    // quien lo mira no es quien lo firmó por CAYLA. Mismo criterio que ya usa
+    // /mio/contrato y /mio/movilidad.
+    const { data: fe } = await supabase.rpc("fn_firma_empresa");
+    setFirmaEmpresaGlobal((fe as string | null) ?? null);
 
     // ⇩ Desde la 0130 la tarifa es POR SEDE, porque el pasaje no cuesta lo mismo
     // en las tres ciudades. La política tiene que decir las tres: un documento
@@ -1565,39 +1583,80 @@ export default function DocumentacionPage() {
             </div>
           )}
 
-          {/* «Ver» de una firma digital — mismo patrón de modal que el de
-              anular arriba, pero informativo: no hay nada que confirmar. */}
+          {/* «Ver» de una firma digital — el documento tal cual quedó
+              firmado, con el mismo membrete que ya usa `hoja()` al imprimir
+              y el mismo patrón de modal que ya usa admin/contratos (título +
+              Imprimir, y el papel adentro). A diferencia de `hoja()`, acá NO
+              hay rayas en blanco: todo son los datos reales de ESTA
+              declaración ya firmada. */}
           {verFirma && (
             <div
-              className="fixed inset-0 z-30 flex items-center justify-center bg-black/40 p-4 print:hidden"
+              className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4 print:static print:block print:bg-transparent print:p-0"
               onClick={() => setVerFirma(null)}
             >
               <div
                 role="dialog"
                 aria-modal="true"
                 aria-label={`Declaración de ruta de ${verFirma.persona}`}
-                className="w-full max-w-lg rounded-flotante border border-sand bg-papel p-5 text-sm"
+                className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-flotante border border-sand bg-crema print:max-h-none print:w-auto print:max-w-none print:overflow-visible print:rounded-none print:border-0"
                 onClick={(e) => e.stopPropagation()}
               >
-                <h3 className="mb-1 font-serif text-lg">{verFirma.persona}</h3>
-                <p className="mb-3 text-xs text-taupe">
-                  Sede {verFirma.sede}
-                  {verFirma.fecha && <> · firmada el {fechaLarga(verFirma.fecha)}</>} · firma digital, desde el
-                  sistema
-                </p>
-                {verFirma.texto ? (
-                  <p className="leading-relaxed">{verFirma.texto}</p>
-                ) : (
-                  <p className="text-taupe">No se guardó el texto de esta declaración.</p>
-                )}
-                {verFirma.firma && (
-                  <div className="mt-4 border-t border-sand pt-3">
-                    <p className="mb-1 text-xs text-taupe">Firma:</p>
-                    <img src={verFirma.firma} alt={`Firma de ${verFirma.persona}`} className="max-h-16" />
-                  </div>
-                )}
-                <div className="mt-4">
+                <div className="flex items-center gap-3 border-b border-sand bg-sand/30 px-4 py-2 print:hidden">
+                  <Boton variante="primario" onClick={() => window.print()}>
+                    Imprimir / Guardar como PDF
+                  </Boton>
                   <Boton variante="enlace" onClick={() => setVerFirma(null)}>Cerrar</Boton>
+                </div>
+
+                <div className="overflow-y-auto p-5 print:overflow-visible print:p-0">
+                  <div className="hoja rounded-lg border border-sand p-8 text-sm leading-relaxed print:rounded-none print:border-0 print:p-0">
+                    <div className="mb-6 flex items-start justify-between border-b border-sand pb-4">
+                      <Marca tono="tinta" isotipo="rojo" />
+                      <div className="text-right text-xs text-taupe">
+                        <p>{EMPRESA.nombre}</p>
+                        <p>RUC {EMPRESA.ruc}</p>
+                      </div>
+                    </div>
+
+                    <h2 className="mb-6 text-center font-serif text-xl">
+                      Declaración de ruta y gasto de transporte
+                    </h2>
+
+                    <p className="mb-4">
+                      Yo, <strong>{verFirma.persona}</strong>, con documento de identidad N.º{" "}
+                      <strong>{verFirma.documento ?? "—"}</strong>, que desempeño el cargo de{" "}
+                      <strong>{verFirma.funcion ?? "—"}</strong> en la sede{" "}
+                      <strong>{verFirma.sedeNombre}</strong> de {EMPRESA.nombre}, declaro lo siguiente respecto de
+                      mi traslado diario entre mi domicilio y mi centro de labores:
+                    </p>
+
+                    {verFirma.texto ? (
+                      <p className="mb-6">{verFirma.texto}</p>
+                    ) : (
+                      <p className="mb-6 text-taupe">No se guardó el texto de esta declaración.</p>
+                    )}
+
+                    <p className="mb-10 text-xs text-taupe">
+                      Suscrito en {verFirma.sedeNombre}
+                      {verFirma.fecha && <>, el {fechaLarga(verFirma.fecha)}</>}.
+                    </p>
+
+                    <div className="grid grid-cols-2 gap-10 pt-6">
+                      <BloqueFirma
+                        imagen={verFirma.firma}
+                        nombre={verFirma.persona}
+                        pie={`DNI ${verFirma.documento ?? "—————"} · el/la declarante`}
+                      />
+                      <BloqueFirma
+                        imagen={firmaEmpresaGlobal}
+                        nombre={firmanteNombre}
+                        pie={`${firmanteCargo} · ${EMPRESA.nombre}`}
+                      />
+                    </div>
+                    <p className="mt-6 text-center text-xs text-taupe">
+                      Firma digital, confirmada desde el sistema{verFirma.fecha && <> el {fechaLarga(verFirma.fecha)}</>}.
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
