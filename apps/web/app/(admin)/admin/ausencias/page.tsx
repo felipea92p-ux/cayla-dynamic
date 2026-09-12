@@ -139,6 +139,13 @@ export default function AusenciasPage() {
   // cosas mostraban el mismo texto tranquilizador ("no hay ausencias").
   const [errorCarga, setErrorCarga] = useState<string | null>(null);
   const [errorSubsidio, setErrorSubsidio] = useState<string | null>(null);
+  // Mismo motivo que errorSubsidio: sin esto, un fallo de fn_ausencias_alerta
+  // o de fn_vacaciones_por_vencer se veía igual que "no hay nada que avisar".
+  // El segundo es el que más importa: es el único banner de esta pantalla con
+  // fecha límite legal (art. 23, D. Leg. 713 — indemnización de una
+  // remuneración si el récord vence sin gozarse).
+  const [errorAlertas, setErrorAlertas] = useState<string | null>(null);
+  const [errorPorVencer, setErrorPorVencer] = useState<string | null>(null);
   const { avisar } = useToast();
   const [guardando, setGuardando] = useState(false);
   const [filtroEstado, setFiltroEstado] = useState<FiltroEstado>("todas");
@@ -247,7 +254,7 @@ export default function AusenciasPage() {
     setCargando(true);
     const { data: sesion } = await supabase.auth.getSession();
     if (!sesion.session) { router.replace("/admin/login"); return; }
-    const [{ data: p, error: eP }, { data: t }, { data: a, error: eA }, { data: al }, { data: sub, error: eSub }, { data: pv }, { data: pf }] = await Promise.all([
+    const [{ data: p, error: eP }, { data: t }, { data: a, error: eA }, { data: al, error: eAl }, { data: sub, error: eSub }, { data: pv, error: ePv }, { data: pf }] = await Promise.all([
       supabase.from("personas").select("id, nombres, apellidos").eq("estado", "activo").order("nombres"),
       supabase.rpc("fn_tipos_ausencia"),
       supabase.rpc("fn_ausencias", { p_desde: desde, p_hasta: hasta }),
@@ -308,11 +315,14 @@ export default function AusenciasPage() {
     } else {
       setCertificados({});
     }
+    setErrorAlertas(eAl ? mensajeDeError(eAl, "calcular las alertas de ausencias") : null);
     setAlertas((al as unknown as Alerta[]) ?? []);
     // Este SÍ se mira: antes fallaba en silencio y el aviso de EsSalud
     // desaparecía sin que nadie lo notara — es plata que la empresa recupera.
     setErrorSubsidio(eSub ? mensajeDeError(eSub, "cargar el aviso de EsSalud") : null);
     setSubsidio((sub as unknown as Subsidio[]) ?? []);
+    // Este también: es el único aviso de la pantalla con fecha límite legal.
+    setErrorPorVencer(ePv ? mensajeDeError(ePv, "calcular las vacaciones por vencer") : null);
     setPorVencer((pv as unknown as VacacionPorVencer[]) ?? []);
     setCargando(false);
   }, [supabase, router, desde, hasta, avisar]);
@@ -555,7 +565,15 @@ export default function AusenciasPage() {
             Por eso existe: hasta la 0283, esto solo aparecía en la hoja de
             liquidación, o sea el día en que la persona ya se fue y el récord ya
             había vencido. Avisar ahí llega tarde por definición. */}
-        {porVencer.length > 0 && (
+        {errorPorVencer && (
+          <div className="mb-4 max-w-3xl rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo-profundo">
+            {errorPorVencer} — esto no quiere decir que nadie tenga vacaciones por vencer, solo que
+            el aviso no se pudo calcular. Es el único de esta pantalla con fecha límite legal (art. 23,
+            D. Leg. 713): conviene revisar a mano mientras no cargue.{" "}
+            <Boton variante="enlace" onClick={() => void cargar()}>Reintentar</Boton>
+          </div>
+        )}
+        {!errorPorVencer && porVencer.length > 0 && (
           <div className="mb-4 max-w-3xl rounded-control border border-sand bg-papel px-4 py-3 text-sm">
             <p className="font-medium text-tinta">Vacaciones que vencen: hay que programarlas.</p>
             {/* Mismo condicional de color que ya usa Bandeja para esta misma
@@ -584,7 +602,14 @@ export default function AusenciasPage() {
           </div>
         )}
 
-        {alertas.length > 0 && (
+        {errorAlertas && (
+          <div className="mb-4 max-w-3xl rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo-profundo">
+            {errorAlertas} — esto no quiere decir que nadie tenga un patrón de ausencias, solo que
+            el aviso no se pudo calcular.{" "}
+            <Boton variante="enlace" onClick={() => void cargar()}>Reintentar</Boton>
+          </div>
+        )}
+        {!errorAlertas && alertas.length > 0 && (
           <div className="mb-4 max-w-3xl rounded-control bg-ambar/15 px-4 py-3 text-sm text-ambar">
             <p className="font-medium">Para mirar, no para sancionar:</p>
             <ul className="mt-1 space-y-0.5 text-xs">
