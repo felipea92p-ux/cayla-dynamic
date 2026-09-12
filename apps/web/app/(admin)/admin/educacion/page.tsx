@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Cargando } from "@/components/cargando";
 import { useRolActual } from "@/lib/admin/use-rol";
+import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { useToast } from "@/components/toast";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
@@ -71,6 +72,13 @@ interface Candidato {
   rango: string;
   tope: number | null;
 }
+
+// Igual criterio que Equipo, Planilla y Ausencias: "activos" no es el estado
+// literal de la persona — incluye también a quien cesó pero todavía no se le
+// liquida (0421/0422), porque sus comprobantes de estudios ya cargados pueden
+// seguir necesitando revisión hasta ese momento.
+type FiltroPersonaEstado = "activos" | "inactivos" | "todos";
+interface PersonaFacts { fechaCese: string | null; liquidada: boolean }
 
 // Ni `monto` ni `coberturaPct`: el primero lo calcula la base y el segundo es
 // 75 % fijo desde la 0149. Pedirlos era pedirle a DO que hiciera una cuenta que
@@ -143,6 +151,8 @@ export default function EducacionPage() {
   // pantalla se ve colgada y alguien la recarga a mitad de camino.
   const [progreso, setProgreso] = useState<number | null>(null);
   const [verSoloVigentes, setVerSoloVigentes] = useState(true);
+  const [filtroPersona, setFiltroPersona] = useFiltroGuardado<FiltroPersonaEstado>("educacion.persona_estado", "activos");
+  const [personaFacts, setPersonaFacts] = useState<Map<string, PersonaFacts>>(new Map());
   // El detalle de papeles de UNA fila, abierto bajo ella. null = ninguna abierta.
   const [papelesDe, setPapelesDe] = useState<{ fila: Fila; papeles: Papel[]; faltan: string[] } | null>(null);
   const [adjuntando, setAdjuntando] = useState<string | null>(null);
@@ -166,13 +176,20 @@ export default function EducacionPage() {
     const { data: sesion } = await supabase.auth.getSession();
     if (!sesion.session) { router.replace("/admin/login"); return; }
 
-    const [lista, cands, lim] = await Promise.all([
+    const [lista, cands, lim, pf] = await Promise.all([
       supabase.rpc("fn_educacion_listar"),
       supabase.rpc("fn_educacion_candidatos"),
       supabase.rpc("fn_educacion_limite_comprobante"),
+      supabase.rpc("fn_personas_funciones"),
     ]);
     setFilas((lista.data as Fila[]) ?? []);
     setCandidatos((cands.data as Candidato[]) ?? []);
+    // Quién ya se liquidó, para el filtro "activos" de abajo (0421/0422). Si
+    // falla, no se oculta a nadie — más seguro que ocultar de más.
+    setPersonaFacts(new Map(
+      ((pf.data as { persona_id: string; fecha_cese: string | null; liquidada: boolean }[] | null) ?? [])
+        .map((f) => [f.persona_id, { fechaCese: f.fecha_cese, liquidada: f.liquidada }] as const),
+    ));
     // Si la consulta del límite falla se sigue con el respaldo: no poder leer
     // cuánto cabe no es razón para dejar a DO sin la pantalla entera.
     const l = (lim.data as { limite_bytes: number; tipos: string[] }[] | null)?.[0];
@@ -459,7 +476,17 @@ export default function EducacionPage() {
 
   // Antes "vigente" era `vigente_hasta === null`. Desde la 0149 toda asignación
   // tiene fecha de fin, así que quien decide es el semáforo que calcula la base.
-  const visibles = verSoloVigentes ? filas.filter((f) => f.semaforo !== "vencida") : filas;
+  const porVigencia = verSoloVigentes ? filas.filter((f) => f.semaforo !== "vencida") : filas;
+  // "activos": oculta solo a quien ya se liquidó. Mientras esté cesada y sin
+  // liquidar, sigue visible — puede tener un comprobante pendiente de revisar.
+  const visibles = porVigencia.filter((f) => {
+    const pf = personaFacts.get(f.persona_id);
+    const cesada = !!pf?.fechaCese;
+    if (filtroPersona === "activos") return !cesada || !pf?.liquidada;
+    if (filtroPersona === "inactivos") return cesada;
+    return true;
+  });
+  const ocultasPorPersona = porVigencia.length - visibles.length;
   // El total suma sólo lo que DE VERDAD se paga: una fila sin comprobante existe
   // pero no devenga, y sumarla daría un número que la planilla no va a pagar.
   //
@@ -758,6 +785,25 @@ export default function EducacionPage() {
                     />
                     Solo las vigentes
                   </label>
+                  <CampoSelect
+                    etiqueta="Persona"
+                    value={filtroPersona}
+                    onChange={(e) => setFiltroPersona(e.target.value as FiltroPersonaEstado)}
+                    className="w-56"
+                  >
+                    <option value="activos">Sin quien ya se liquidó</option>
+                    <option value="inactivos">Solo quienes ya cesaron</option>
+                    <option value="todos">Todas</option>
+                  </CampoSelect>
+                  {ocultasPorPersona > 0 && (
+                    <Boton
+                      variante="enlace"
+                      className="text-xs text-taupe"
+                      onClick={() => setFiltroPersona("todos")}
+                    >
+                      {ocultasPorPersona === 1 ? "1 oculta por liquidada" : `${ocultasPorPersona} ocultas por liquidadas`} — ver todas
+                    </Boton>
+                  )}
                   <span className="text-taupe">
                     Pagando: <strong className="text-tinta">{filas.filter(pagaEsteMes).length}</strong>
                     {porAtender > 0 && (

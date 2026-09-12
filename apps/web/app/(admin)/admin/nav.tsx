@@ -89,7 +89,7 @@ function MarcoConChrome({ pathname, children }: { pathname: string; children: Re
   // Antes de agregar un cuarto DE EQUIPO: la pregunta no es «¿es importante?»,
   // es «¿tiene fecha límite y cuesta plata pasarla?». Casi nada la pasa.
   //
-  // El de «Mi perfil» (2026-09-08) no compite con estos tres y por eso entra:
+  // El de «Info» (2026-09-08) no compite con estos tres y por eso entra:
   // los tres de arriba hablan del EQUIPO —lo que a esta persona le toca
   // atender— y aquel habla de ELLA: su contrato sin firmar, su constancia de
   // ley pendiente. Quien pasa el día en el panel no tenía forma de enterarse.
@@ -179,7 +179,7 @@ function MarcoConChrome({ pathname, children }: { pathname: string; children: Re
   // botón «Bandeja» de /mio: el menú del panel y esa pantalla no pueden decir
   // dos números distintos de lo mismo.
   //
-  // Sin `roles`, como el propio ítem «Mi perfil»: todo el mundo tiene un
+  // Sin `roles`, como el propio ítem «Info»: todo el mundo tiene un
   // contrato y una constancia que dejar, incluida DO. Y falla en silencio —si
   // no se pudo contar, el renglón sale sin número—, igual que en /mio.
   useEffect(() => {

@@ -350,7 +350,7 @@ export function armarBandeja(fuentes: FuentesBandeja, hoy: string = hoyLima()): 
         clave: `memo:${m.id}`, origen: "memo", estado: "por_firmar", fecha,
         titulo: "Tienes un documento por revisar y firmar",
         respuesta: null,
-        detalle: "Está en Mi perfil, en la pestaña «Historial». Firmarlo no es aceptar lo que dice: puedes firmarlo y presentar tu descargo, o dejar constancia de que te niegas a firmar.",
+        detalle: "Está en Info, en la pestaña «Historial». Firmarlo no es aceptar lo que dice: puedes firmarlo y presentar tu descargo, o dejar constancia de que te niegas a firmar.",
         nuevo: true,
         ir: "/mio",
       },
