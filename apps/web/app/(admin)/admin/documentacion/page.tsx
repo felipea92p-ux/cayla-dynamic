@@ -213,6 +213,9 @@ interface FilaTablero {
   ruta_monto: number | null;
   ruta_negativa: boolean;
   ruta_desfasada: boolean;
+  /** No null = la firmó ella misma desde /mio/movilidad (0423); null = fue el
+   *  escaneo de siempre, subido a mano. Las dos cuentan igual para `estado`. */
+  ruta_firma_persona_confirmada_at: string | null;
   bono_id: string | null;
   bono_anio: number | null;
   bono_firmada_el: string | null;
@@ -1682,7 +1685,12 @@ export default function DocumentacionPage() {
                               </span>
                             ) : (
                               <>
-                                <span className="text-tinta">firmada el {fechaLarga(f.ruta_firmada_el!)}</span>
+                                <span className="text-tinta">
+                                  firmada el {fechaLarga(f.ruta_firmada_el!)}
+                                  {f.ruta_firma_persona_confirmada_at && (
+                                    <span className="text-taupe"> · firma digital, desde el sistema</span>
+                                  )}
+                                </span>
                                 {f.ruta_desfasada && (
                                   <span className="block text-xs text-rojo">
                                     declara S/ {Number(f.ruta_monto).toFixed(2)} y hoy se paga otra tarifa —

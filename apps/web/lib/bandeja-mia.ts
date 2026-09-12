@@ -93,7 +93,7 @@ export type OrigenBandeja =
   // Lo que pediste y te contestaron.
   | "perfil" | "vacaciones" | "revision"
   // Lo que depende de ti. No caduca.
-  | "contrato" | "memo" | "acuse" | "marcaje";
+  | "contrato" | "memo" | "acuse" | "marcaje" | "ruta";
 
 /**
  * `atendido` es de las revisiones y no es lo mismo que `aprobado`: a un pedido
@@ -193,6 +193,20 @@ export interface PeriodoAbierto {
   fecha_fin: string;
 }
 
+/**
+ * Su propia declaración de ruta, de `fn_documentos_tablero(p_solo_mi_fila =>
+ * true)` (0423) — la MISMA función que usa el tablero de Documentación, pero
+ * pidiendo solo su fila en vez de la de todo el equipo. `null` cuando no le
+ * corresponde: no está en planilla, es quien firma por CAYLA, o su contrato
+ * ya termina este mes o antes (mismas exclusiones que el tablero admin).
+ */
+export interface FilaMovilidad {
+  estado: "sin_ruta" | "se_nego" | "ok";
+  ruta_firmada_el: string | null;
+  ruta_monto: number | null;
+  ruta_desfasada: boolean;
+}
+
 export interface FuentesBandeja {
   perfil: FilaPerfil[];
   vacaciones: FilaVacacion[];
@@ -206,6 +220,8 @@ export interface FuentesBandeja {
   marcajes: FilaMarcaje[];
   /** Sin periodo abierto no hay nada que arreglar a tiempo: los marcajes se ignoran. */
   periodo: PeriodoAbierto | null;
+  /** Su declaración de ruta. Ver `FilaMovilidad`. */
+  movilidad: FilaMovilidad | null;
 }
 
 export interface Bandeja {
@@ -301,12 +317,16 @@ function instanteDe(resuelta: string | null, pedida: string): number {
  *              reloj legal en contra de ELLA.
  *   contrato · es el papel que sostiene la relación. Sin su firma, lo que se
  *              pactó no está probado por ninguna de las dos partes.
+ *   ruta     · sostiene que su movilidad no pague impuestos ni descuentos
+ *              (0423). Menos urgente que el contrato —no define la relación
+ *              entera— pero es plata suya de por medio, así que va antes que
+ *              las obligaciones que son de la empresa.
  *   acuse    · obligación legal de la EMPRESA (Ley 30709, RIT). Importa, pero
  *              quien queda expuesta si falta no es ella.
  *   marcaje  · se arregla mientras el periodo siga abierto, y hasta entonces
  *              no hay nada perdido.
  */
-const PESO_PENDIENTE: Record<string, number> = { memo: 0, contrato: 1, acuse: 2, marcaje: 3 };
+const PESO_PENDIENTE: Record<string, number> = { memo: 0, contrato: 1, ruta: 2, acuse: 3, marcaje: 4 };
 
 export function armarBandeja(fuentes: FuentesBandeja, hoy: string = hoyLima()): Bandeja {
   const respuestas: { m: MensajeBandeja; instante: number }[] = [];
@@ -335,6 +355,32 @@ export function armarBandeja(fuentes: FuentesBandeja, hoy: string = hoyLima()): 
           : `Desde el ${diaYMes(c.fecha_inicio)}, sin fecha de término. Léelo entero y confirma tu firma; hasta que lo hagas seguirá acá.`,
         nuevo: true,
         ir: "/mio/contrato",
+      },
+    });
+  }
+
+  // La declaración de ruta y gasto de transporte (0423). Igual que el
+  // contrato: mientras no la firme, sigue contando — no caduca. Y si ya la
+  // firmó pero con una tarifa que quedó vieja, se le avisa igual: es la
+  // misma alerta que ya pinta el tablero de Documentación para DO, solo que
+  // acá le llega a ELLA, que es quien puede arreglarlo firmando de nuevo.
+  if (fuentes.movilidad && (fuentes.movilidad.estado === "sin_ruta" || fuentes.movilidad.ruta_desfasada)) {
+    const mov = fuentes.movilidad;
+    const desfasada = mov.estado !== "sin_ruta" && mov.ruta_desfasada;
+    pendientes.push({
+      instante: desfasada && mov.ruta_firmada_el ? Date.parse(`${mov.ruta_firmada_el}T00:00:00Z`) : 0,
+      m: {
+        clave: "ruta:declaracion", origen: "ruta", estado: "por_firmar",
+        fecha: desfasada && mov.ruta_firmada_el ? mov.ruta_firmada_el : hoy,
+        titulo: desfasada
+          ? "Tu declaración de ruta quedó desactualizada"
+          : "Falta tu declaración de ruta y gasto de transporte",
+        respuesta: null,
+        detalle: desfasada
+          ? `La firmaste declarando S/ ${Number(mov.ruta_monto).toFixed(2)} y hoy se paga otra tarifa. Vuelve a firmarla con el monto vigente.`
+          : "Sostiene que tu movilidad no pague impuestos ni descuentos. Fírmala desde el sistema — no hace falta imprimir ni escanear nada.",
+        nuevo: true,
+        ir: "/mio/movilidad",
       },
     });
   }
@@ -594,7 +640,7 @@ export async function traerBandeja(
   personaId: string,
   hoy: string = hoyLima(),
 ): Promise<{ bandeja: Bandeja; noSePudo: string[] }> {
-  const [perfil, catalogo, vacaciones, revisiones, contrato, memos, acuses, periodo] = await Promise.all([
+  const [perfil, catalogo, vacaciones, revisiones, contrato, memos, acuses, periodo, movilidad] = await Promise.all([
     supabase.from("solicitudes_cambio_perfil")
       .select("id, campo, estado, creada_at, resuelta_at, motivo")
       .eq("persona_id", personaId)
@@ -628,6 +674,11 @@ export async function traerBandeja(
     // y eso vive en la tabla (CLAUDE.md).
     supabase.from("periodos_planilla").select("fecha_ini, fecha_fin")
       .lte("fecha_ini", hoy).gte("fecha_fin", hoy).maybeSingle(),
+    // Su propia declaración de ruta (0423). `p_solo_mi_fila => true` es lo que
+    // hace seguro reusar la función del tablero admin: sin ese argumento,
+    // alguien con rol admin o líder que abra su PROPIA bandeja vería la fila
+    // de cualquier compañera (la primera que devuelva el orden), no la suya.
+    supabase.rpc("fn_documentos_tablero", { p_solo_mi_fila: true }),
   ]);
 
   // Las jornadas del periodo, solo si hay periodo abierto. Va en su propia
@@ -658,6 +709,7 @@ export async function traerBandeja(
     acuses,
     marcajes: ((marcajes?.data ?? []) as unknown as FilaMarcaje[]),
     periodo: per,
+    movilidad: ((movilidad.data ?? []) as FilaMovilidad[])[0] ?? null,
   }, hoy);
 
   return {
@@ -678,6 +730,7 @@ export async function traerBandeja(
       { error: contrato.error, que: "tu contrato" },
       { error: memos.error, que: "tus documentos por firmar" },
       { error: marcajes?.error ?? null, que: "tus días del periodo" },
+      { error: movilidad.error, que: "tu declaración de ruta" },
     ]),
   };
 }
