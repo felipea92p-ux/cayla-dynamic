@@ -93,6 +93,13 @@ interface ProvPersona {
   nombre: string;
   sede: string;
   fecha_ingreso: string;
+  // ⇩ 0428 ⇩ Un practicante no devenga gratificación, CTS ni vacaciones por
+  // ley (Ley 28518) y ahora SÍ ocupa una fila —antes no aparecía en
+  // absoluto—. Sin este dato, su fila en S/ 0.00 se leería igual que la de
+  // alguien recién ingresado a planilla que "aún no devengó", que es
+  // exactamente la ambigüedad que la 0274 vino a cerrar. Opcional: sin la
+  // 0428 pegada llega `undefined` y la fila no muestra ninguna insignia.
+  tipo_vinculo?: string;
   grati_s1: number;
   grati_s2: number;
   grati_total: number;
@@ -381,8 +388,10 @@ export default function ProvisionesPage() {
             entró esta semana—, porque ese cero significa «aún no». */}
         {data && (
           <p className="mb-4 max-w-3xl text-xs text-taupe">
-            Aparece quien devenga beneficios. Quien no devenga ninguno —recibo por honorarios, días de
-            prueba— no ocupa una fila: no hay nada que reservarle.
+            Aparece quien devenga beneficios, y también quien está en modalidad de prácticas (aunque su
+            fila salga en S/ 0.00, por ley no genera gratificación, CTS ni vacaciones). Quien no devenga
+            ninguno y no es practicante —recibo por honorarios, días de prueba— no ocupa una fila: no hay
+            nada que reservarle.
           </p>
         )}
 
@@ -527,6 +536,20 @@ export default function ProvisionesPage() {
                       <Fila key={p.persona_id}>
                         <td className="px-4 py-2">
                           {p.nombre}
+                          {/* CAMBIO 0428 — el cero de un practicante es «nunca», no
+                              «aún no»: por ley no devenga estos tres beneficios. Sin
+                              esta insignia se leería igual que el cero de alguien
+                              recién ingresado a planilla. */}
+                          {p.tipo_vinculo === "practicante" && (
+                            <span className="mt-1 flex flex-wrap items-center gap-2">
+                              <span
+                                className="inline-block rounded-pildora border border-taupe bg-sand/60 px-2 py-0.5 text-xs font-medium text-taupe"
+                                title="Practicante: por ley no genera gratificación, CTS ni vacaciones. Su fila sale en S/ 0.00 a propósito, no porque falte cargar algo."
+                              >
+                                Practicante · no devenga estos beneficios
+                              </span>
+                            </span>
+                          )}
                           {/* CAMBIO 0365 — el cero de esta fila no es «aún no»:
                               es que no hay tramo de salario que lo valore. */}
                           {/* La insignia solo cuando falta el tramo A LA FECHA DE CORTE; los

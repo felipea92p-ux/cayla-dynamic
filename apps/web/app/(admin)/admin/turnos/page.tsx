@@ -266,9 +266,15 @@ function AlertaSobretiempo({ sedeSel }: { sedeSel: string }) {
       // descanso (la ley exige uno semanal) y encontrar el inicio verdadero
       // del ciclo vigente, no solo su cola.
       const desde = addDays(hoy, -28);
+      // `tipo_vinculo = 'practicante'`, no simplemente `not en_planilla`:
+      // así un RxH no entra por accidente. Mismo criterio que ya usa el
+      // dashboard (7afe8e5): un practicante sí marca y sí acumula horas de
+      // su ciclo, y este aviso solo lee `jornadas` — no dispara disciplina.
       const { data: personas, error: eP } = await supabase.from("personas")
         .select("id, nombres, apellidos")
-        .eq("sede_base_id", sedeSel).eq("estado", "activo").eq("en_planilla", true).eq("sueldo_fijo", false);
+        .eq("sede_base_id", sedeSel).eq("estado", "activo")
+        .or("en_planilla.eq.true,tipo_vinculo.eq.practicante")
+        .eq("sueldo_fijo", false);
       if (eP) { if (vivo) setError(true); return; }
       const ids = (personas ?? []).map((p) => p.id);
       if (ids.length === 0) { if (vivo) setFilas([]); return; }
@@ -349,8 +355,12 @@ function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso
     if (!sedeSel) return;
     setDivs(null); setError(false);
     const hoy = hoyLima();
+    // Mismo criterio del dashboard (7afe8e5): un practicante también tiene
+    // turno y horario asignados, y esta pantalla solo compara uno contra otro.
     const { data: personas, error: eP } = await supabase.from("personas")
-      .select("id, nombres, apellidos").eq("sede_base_id", sedeSel).eq("estado", "activo").eq("en_planilla", true).eq("sueldo_fijo", false);
+      .select("id, nombres, apellidos").eq("sede_base_id", sedeSel).eq("estado", "activo")
+      .or("en_planilla.eq.true,tipo_vinculo.eq.practicante")
+      .eq("sueldo_fijo", false);
     if (eP) { setError(true); return; }
     const ids = (personas ?? []).map((p) => p.id);
     const nombre = new Map((personas ?? []).map((p: any) => [p.id, `${p.nombres} ${p.apellidos}`]));
@@ -653,7 +663,15 @@ export default function TurnosPage() {
       { data: f, error: fErr },
       { data: ar, error: arErr },
     ] = await Promise.all([
-      supabase.from("personas").select("id, nombres, apellidos, rol").eq("sede_base_id", sedeSel).eq("estado", "activo").eq("en_planilla", true).eq("sueldo_fijo", false).order("nombres"),
+      // Mismo criterio del dashboard (7afe8e5): un practicante cubre piso
+      // igual que cualquiera y cuenta para la meta de cobertura de la sede —
+      // decisión de Felipe (2026-09-12) — así que entra a la grilla con el
+      // mismo `OR` puntual, sin tocar `en_planilla` ni el escalafón
+      // disciplinario, que siguen igual para las demás pantallas.
+      supabase.from("personas").select("id, nombres, apellidos, rol")
+        .eq("sede_base_id", sedeSel).eq("estado", "activo")
+        .or("en_planilla.eq.true,tipo_vinculo.eq.practicante")
+        .eq("sueldo_fijo", false).order("nombres"),
       supabase.from("horarios_asignados").select("persona_id, hora_entrada, hora_salida, dias_laborables, horario_por_dia, almuerzo_min_minutos, vigente_desde, vigente_hasta").lte("vigente_desde", domingo).or(`vigente_hasta.is.null,vigente_hasta.gte.${lunes}`),
       supabase.from("turnos").select("persona_id, fecha, hora_entrada, hora_salida, es_descanso").gte("fecha", lunes).lte("fecha", domingo),
       supabase.from("metas_cobertura").select("dia_semana, meta, meta_tarde, meta_encargadas").eq("sede_id", sedeSel),

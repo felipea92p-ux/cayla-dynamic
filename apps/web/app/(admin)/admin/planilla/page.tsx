@@ -464,11 +464,40 @@ function etiquetaPeriodo(p: PeriodoInfo): string {
 // Un periodo ya terminó y nadie lo dice: `estado` es el agregado de los 5
 // grupos (fn_periodos), así que "abierto" con `fecha_fin` ya pasada significa
 // que a alguien le falta pagar. Entre varios así —no debería pasar, pero el
-// desplegable no lo impide—, el más antiguo es el más urgente de cerrar.
+// desplegable no lo impide—, el más antiguo sigue siendo el más urgente de
+// cerrar: se conserva sin cambios para la insignia y el aviso "terminó y
+// sigue sin pagar →". Lo que cambia es CUÁL periodo abre la pantalla por
+// defecto — ver `periodoInicialSugerido`, más abajo — porque esa es una
+// pregunta distinta: "qué es más urgente cerrar" no es lo mismo que "qué
+// periodo hace falta mirar hoy".
 function periodoVencidoSinPagar(lista: PeriodoInfo[], hoyIso: string): PeriodoInfo | null {
   const vencidos = lista.filter((p) => p.estado === "abierto" && p.fecha_fin < hoyIso);
   if (vencidos.length === 0) return null;
   return vencidos.reduce((a, b) => (a.fecha_fin < b.fecha_fin ? a : b));
+}
+
+// CAMBIO 2026-09-12 (decisión de Felipe). Hasta hoy la carga inicial abría
+// directo en `periodoVencidoSinPagar` (el MÁS ANTIGUO sin pagar) apenas
+// existía uno — y con dos periodos vencidos a la vez (pasa seguido: nadie
+// cierra el mismo día que vence) la pantalla podía arrancar dos meses atrás
+// del periodo real. El 2026-09-12 eso hizo que tres practicantes recién
+// ingresados (04, 05 y 11 de septiembre) salieran con "Sin horario asignado"
+// al abrir Planilla: el horario SÍ estaba cargado — el periodo que se veía
+// por defecto (28 jun → 28 jul) era anterior a que existieran.
+//
+// LA REGLA QUEDA: si HOY cae dentro del rango de algún periodo sin pagar
+// (`fecha_ini <= hoy <= fecha_fin`, sea el mes en curso o uno que ya venció),
+// ese es el que se ve — es el que de verdad hace falta mirar hoy. Solo si
+// ninguno contiene a hoy (nadie ha creado el periodo del mes en curso
+// todavía) se cae al más antiguo sin pagar, que sigue siendo lo más urgente
+// de cerrar en ese caso. El periodo vencido más viejo NUNCA se pierde de
+// vista: sigue con su propia insignia y su enlace "terminó y sigue sin
+// pagar →" para llegar ahí con un clic.
+function periodoInicialSugerido(lista: PeriodoInfo[], hoyIso: string): PeriodoInfo | null {
+  const deHoy = lista.find(
+    (p) => p.estado !== "pagado" && p.fecha_ini <= hoyIso && hoyIso <= p.fecha_fin,
+  );
+  return deHoy ?? periodoVencidoSinPagar(lista, hoyIso);
 }
 
 // Columnas de la tabla principal. Se usa como colSpan en las filas de estado
@@ -1215,17 +1244,18 @@ export default function PlanillaPage() {
     return lista;
   }, [supabase, puedeVer]);
 
-  // Carga inicial: lista + selección. Si hay un periodo que YA TERMINÓ y
-  // sigue sin pagar, arranca ahí — no en el más reciente. El día 29, en
-  // cuanto DO crea el periodo siguiente, "el más reciente" pasa a ser el mes
-  // en curso, y abrir la pantalla mostraba justo el que no había que mirar
-  // todavía en vez del que llevaba días esperando cerrarse.
+  // Carga inicial: lista + selección. `periodoInicialSugerido` (arriba)
+  // prefiere el periodo que CONTIENE a hoy, sin importar si ya venció; si
+  // ninguno contiene a hoy, cae al más antiguo sin pagar. Antes de la 2026-
+  // 09-12 se saltaba directo a "el más antiguo sin pagar" en cuanto existía
+  // uno, así que con dos periodos vencidos a la vez la pantalla podía abrir
+  // dos meses atrás del que de verdad hacía falta mirar.
   useEffect(() => {
     void (async () => {
       const lista = await cargarPeriodos();
       if (lista && lista.length > 0) {
-        const vencido = periodoVencidoSinPagar(lista, hoyLimaISO());
-        setPeriodoSel((prev) => prev ?? vencido?.id ?? lista[0].id);
+        const sugerido = periodoInicialSugerido(lista, hoyLimaISO());
+        setPeriodoSel((prev) => prev ?? sugerido?.id ?? lista[0].id);
       }
     })();
   }, [cargarPeriodos]);
@@ -2331,8 +2361,8 @@ export default function PlanillaPage() {
                 void (async () => {
                   const lista = await cargarPeriodos();
                   if (lista && lista.length > 0) {
-                    const vencido = periodoVencidoSinPagar(lista, hoyLimaISO());
-                    setPeriodoSel((prev) => prev ?? vencido?.id ?? lista[0].id);
+                    const sugerido = periodoInicialSugerido(lista, hoyLimaISO());
+                    setPeriodoSel((prev) => prev ?? sugerido?.id ?? lista[0].id);
                   }
                 })()
               }
