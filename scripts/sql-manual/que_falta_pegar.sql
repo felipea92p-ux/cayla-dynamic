@@ -287,7 +287,8 @@ with repo(numero, nombre, nunca) as (values
     (419, 'los_feriados_de_la_pantalla_usan_el_periodo_no_el_mes_calendario', false),
     (421, 'quien_se_liquida_deja_de_estorbar', false),
     (422, 'las_colas_de_correcciones_dejan_de_ver_a_quien_ya_se_liquido', false),
-    (423, 'la_declaracion_de_ruta_ya_no_necesita_escaneo', false)
+    (423, 'la_declaracion_de_ruta_ya_no_necesita_escaneo', false),
+    (424, 'una_practicante_tambien_declara_su_ruta', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
