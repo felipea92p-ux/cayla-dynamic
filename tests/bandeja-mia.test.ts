@@ -45,6 +45,7 @@ function enLima(fecha: string, hora = "10:00"): string {
 const VACIO = {
   perfil: [], vacaciones: [], revisiones: [],
   contrato: null, memos: [], acuses: [], marcajes: [], periodo: null,
+  movilidad: null, revisionesMovilidad: [],
 };
 
 describe("armarBandeja", () => {
