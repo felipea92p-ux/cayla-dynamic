@@ -284,7 +284,9 @@ with repo(numero, nombre, nunca) as (values
     (416, 'quien_cesa_sin_marcas_ya_no_desaparece_de_la_planilla', false),
     (417, 'el_sueldo_fijo_se_prorratea_al_entrar_o_cesar_a_mitad', false),
     (418, 'las_ausencias_dejan_de_pagarse_tras_el_cese_y_el_sobretiempo_no_pierde_el_ciclo_del_borde', false),
-    (419, 'los_feriados_de_la_pantalla_usan_el_periodo_no_el_mes_calendario', false)
+    (419, 'los_feriados_de_la_pantalla_usan_el_periodo_no_el_mes_calendario', false),
+    (421, 'quien_se_liquida_deja_de_estorbar', false),
+    (422, 'las_colas_de_correcciones_dejan_de_ver_a_quien_ya_se_liquido', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
