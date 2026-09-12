@@ -2425,10 +2425,14 @@ export default function MioPage() {
       {/* ── TUS DATOS ────────────────────────────────────────────────────────
           De solo lectura: corregir un dato sigue yendo por Desarrollo
           Organizacional, igual que en el panel. No hay ningún formulario acá
-          a propósito — la 0198 dejó permiso de autoedición en la base
-          (fn_set_datos_personales acepta persona_id = fn_persona_actual_id())
-          pero ninguna pantalla lo ofrece; ver hallazgos-abiertos.md, no se
-          construye sin que Felipe lo pida. */}
+          a propósito — desde la 0399 la propia persona ya NO puede escribir
+          su ficha directo (`fn_set_datos_personales` le quitó la rama
+          `persona_id = fn_persona_actual_id()`): el camino de autoedición es
+          `fn_crear_solicitud_perfil` + aprobación de DO, con su propia
+          pantalla (docs/adr/0001-solicitudes-cambio-perfil-colaborador.md).
+          Esta nota corrige la del PR #331, escrita antes de conocer la
+          0399 — no se construye el formulario de propuesta acá sin que
+          Felipe lo pida. */}
       {tab === "datos" && (
         <section className="rounded-2xl border border-sand p-5 text-sm">
           <h2 className="mb-1 font-serif text-lg">Tus datos</h2>
