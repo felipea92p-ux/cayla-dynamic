@@ -22,7 +22,7 @@ import { AreaTexto } from "@/components/ui/area-texto";
 // chocar.
 import { Tabla, TablaEncabezado, Th, Fila as FilaTabla } from "@/components/ui/tabla";
 import {
-  TZ_LIMA, parsearMontoSoles, puedeVerPlanilla,
+  TZ_LIMA, parsearMontoSoles, puedeVerPlanilla, esPrestadorDeServicios,
   TIPOS_VINCULO, TIPO_VINCULO_LABEL, type TipoVinculo,
 } from "@cayla-dynamic/shared";
 
@@ -805,6 +805,21 @@ function TablaPlanilla(props: {
                     {f.feriados_sin_salario > 0 && (
                       <p className="mt-1 text-xs text-rojo">
                         {f.feriados_sin_salario} feriado(s) sin salario asignado ese día — el premio no se pudo calcular
+                      </p>
+                    )}
+                    {/* `tasa_es_del_regimen` (0114): false cuando no se encontró un
+                        régimen de pensión asignado y el cálculo cayó al respaldo
+                        genérico (`configuracion.tasa_afp`) — hoy 0 %, así que el
+                        aporte de esta persona quedó en S/0.00 sin que nada más lo
+                        avise. Se excluye a quien por su vínculo no tiene régimen
+                        (locadores, practicantes): ahí la ausencia es la regla, no
+                        un dato que falte — mostrar el aviso ahí sería el falso
+                        positivo que este repositorio evita a propósito. */}
+                    {f.tasa_es_del_regimen === false && f.tipo_vinculo !== "practicante"
+                      && !esPrestadorDeServicios(f.en_planilla) && (
+                      <p className="mt-1 text-xs text-rojo">
+                        Sin régimen de pensión asignado — su aporte de este mes quedó en S/0.00. Asígnaselo en
+                        Datos personales.
                       </p>
                     )}
                   </td>
