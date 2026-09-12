@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { useRolActual } from "@/lib/admin/use-rol";
@@ -981,6 +981,20 @@ export default function DocumentacionPage() {
     (f) => BONO_PENDIENTE.has(f.bono_estado ?? "") || f.bono_estado === "ok");
   const rutasPendientes = tablero.filter((f) => f.estado !== "ok");
 
+  // Mismo criterio de arriba (sin firmar primero) MÁS una separación por
+  // sede dentro de cada grupo — a pedido de Felipe, 2026-09-12, para que un
+  // equipo de cuatro sedes no se lea como una sola lista revuelta. El sort es
+  // ESTABLE y compara solo "sin firmar vs firmada" y sede: cuando las dos
+  // coinciden, conserva el orden alfabético por apellido que `tablero` ya
+  // trae del servidor (`fn_documentos_tablero` ordena por p.apellidos), sin
+  // tener que repetirlo acá.
+  const tableroPorSede = [...tablero].sort((a, b) => {
+    const pa = a.ruta_id !== null ? 1 : 0;
+    const pb = b.ruta_id !== null ? 1 : 0;
+    if (pa !== pb) return pa - pb;
+    return a.sede.localeCompare(b.sede);
+  });
+
   // ── La hoja de un documento ─────────────────────────────────────────────
   // Esto vivía escrito directamente en el `return`, atado a la ÚNICA persona
   // elegida en el desplegable. Por eso no se podía imprimir un lote: no había
@@ -1672,8 +1686,30 @@ export default function DocumentacionPage() {
                       <Th>{""}</Th>
                     </TablaEncabezado>
                     <tbody>
-                      {tablero.map((f) => (
-                        <Fila key={f.persona_id}>
+                      {tableroPorSede.map((f, i) => {
+                        // El subtítulo sale la primera vez que aparece esta
+                        // sede DENTRO de su grupo (sin firmar / firmadas) —
+                        // por eso compara también el grupo, no solo la sede:
+                        // sin esto, la primera sede del segundo grupo no
+                        // repetiría su propio subtítulo si por casualidad es
+                        // la misma sede con la que terminó el primer grupo.
+                        const anterior = tableroPorSede[i - 1];
+                        const grupoDe = (x: FilaTablero) => (x.ruta_id !== null ? 1 : 0);
+                        const cambioDeSede =
+                          i === 0 || anterior.sede !== f.sede || grupoDe(anterior) !== grupoDe(f);
+                        return (
+                          <Fragment key={f.persona_id}>
+                            {cambioDeSede && (
+                              <tr>
+                                <td
+                                  colSpan={4}
+                                  className="border-t border-sand bg-sand/30 px-4 py-1 text-[11px] font-medium uppercase tracking-wide text-taupe"
+                                >
+                                  {f.sede}
+                                </td>
+                              </tr>
+                            )}
+                            <Fila>
                           <td className="px-4 py-2">{f.persona}</td>
                           <td className="px-4 py-2 text-xs text-taupe">{f.sede}</td>
                           <td className="px-4 py-2">
@@ -1724,8 +1760,10 @@ export default function DocumentacionPage() {
                               )}
                             </div>
                           </td>
-                        </Fila>
-                      ))}
+                            </Fila>
+                          </Fragment>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -1836,8 +1874,16 @@ export default function DocumentacionPage() {
                     que por definición no la tiene, y esa es la prueba que se
                     usa para desnaturalizar un contrato civil. El tablero de
                     arriba ya excluye a quien no está en planilla; este
-                    desplegable se había quedado sin ese mismo filtro. */}
-                {personas.filter((p) => p.en_planilla).map((p) => (
+                    desplegable se había quedado sin ese mismo filtro.
+
+                    CAMBIO 0424: para "ruta" (y solo para "ruta") también entra
+                    quien es practicante — mismo criterio que ya usan el tablero
+                    y `fn_documento_registrar` (`fn_persona_le_corresponde_movilidad`).
+                    El bono se queda exactamente como estaba: abrirlo también
+                    sería otra decisión de negocio, que nadie pidió. */}
+                {personas
+                  .filter((p) => p.en_planilla || (tipo === "ruta" && p.tipo_vinculo === "practicante"))
+                  .map((p) => (
                   <option key={p.id} value={p.id}>{p.apellidos}, {p.nombres}</option>
                 ))}
               </CampoSelect>
