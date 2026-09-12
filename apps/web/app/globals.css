@@ -675,3 +675,94 @@
     mix-blend-mode: multiply;
   }
 }
+
+/* ── Recorrido guiado (driver.js) ─────────────────────────────────────────
+   driver.js trae su propio CSS con `all: unset` — sin esto se ve como el
+   demo por defecto de la librería: recuadro blanco, botones grises, cero
+   relación con la casa. Todo va con la clase `recorrido-cayla` que el hook
+   agrega vía `popoverClass` (ver use-recorrido-guiado.ts): sube la
+   especificidad por encima de la de driver.css sin pelear con `!important`,
+   así el orden en que Next cargue los dos `<link>` deja de importar.
+
+   El recuadro usa --radius-flotante (20px): es exactamente para lo que ese
+   token se nombró — "modales, dropdowns, popovers: un paso más que
+   'superficie' para que se sienta encima" —, no un radio nuevo. */
+.driver-popover.recorrido-cayla {
+  background: var(--color-papel);
+  color: var(--color-tinta);
+  border: 1px solid var(--color-sand);
+  border-radius: var(--radius-flotante);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.22);
+  padding: 1.1rem 1.25rem;
+  max-width: 300px;
+  font-family: var(--font-sans);
+}
+.recorrido-cayla .driver-popover-title {
+  font-family: var(--font-serif);
+  font-size: 1.05rem;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--color-tinta);
+}
+.recorrido-cayla .driver-popover-description {
+  margin-top: 0.35rem;
+  font-size: 0.85rem;
+  line-height: 1.55;
+  color: var(--color-tinta);
+}
+.recorrido-cayla .driver-popover-close-btn {
+  color: var(--color-taupe);
+}
+.recorrido-cayla .driver-popover-close-btn:hover,
+.recorrido-cayla .driver-popover-close-btn:focus {
+  color: var(--color-tinta);
+}
+.recorrido-cayla .driver-popover-progress-text {
+  font-size: var(--text-nano);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-taupe);
+}
+.recorrido-cayla .driver-popover-footer-btn {
+  border-radius: var(--radius-control);
+  border: 1px solid var(--color-sand);
+  background: var(--color-papel);
+  color: var(--color-tinta);
+  padding: 0.4rem 0.85rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+.recorrido-cayla .driver-popover-footer-btn:hover,
+.recorrido-cayla .driver-popover-footer-btn:focus {
+  background: var(--color-hueso);
+}
+/* El botón "Siguiente"/"Entendido" — el único acento pizarra del recuadro,
+   mismo criterio que usa Insignia para "informativo/en proceso": un
+   recorrido es justo eso, nunca positivo ni de alerta. */
+.recorrido-cayla .driver-popover-footer-btn.recorrido-btn-primario {
+  background: var(--color-pizarra);
+  border-color: var(--color-pizarra);
+  color: var(--color-papel);
+}
+.recorrido-cayla .driver-popover-footer-btn.recorrido-btn-primario:hover,
+.recorrido-cayla .driver-popover-footer-btn.recorrido-btn-primario:focus {
+  background: var(--color-tinta);
+  border-color: var(--color-tinta);
+}
+.recorrido-cayla .driver-popover-arrow {
+  border-color: var(--color-papel);
+}
+.recorrido-checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  margin-top: 0.7rem;
+  font-size: var(--text-micro);
+  line-height: 1.4;
+  color: var(--color-taupe);
+  cursor: pointer;
+}
+.recorrido-checkbox input {
+  margin-top: 0.2rem;
+  accent-color: var(--color-pizarra);
+}
