@@ -37,8 +37,8 @@ import { usePersonaActual } from "@/lib/admin/use-rol";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { BUCKET_SOLICITUDES_PERFIL } from "@/lib/foto-dni";
 import {
-  fechaLima, puedeGestionarCatalogos, puedeOperarEquipo, puedeVerIdentidad, puedeVerPlanilla,
-  puedeVerSaludDeAlertas,
+  fechaLima, puedeGestionarCatalogos, puedeGestionarContratos, puedeOperarEquipo, puedeVerIdentidad,
+  puedeVerPlanilla, puedeVerSaludDeAlertas,
 } from "@cayla-dynamic/shared";
 
 interface ItemEducacion {
@@ -88,6 +88,16 @@ interface ItemRevision {
  *  ItemRevision, sobre movilidad_revisiones_pedidas en vez de revisiones_pedidas —
  *  no lleva `fecha` porque no hay "el día que se revisa", solo un motivo. */
 interface ItemRevisionMovilidad {
+  id: string;
+  persona_id: string;
+  nombre: string;
+  sede: string;
+  motivo: string;
+}
+
+/** Un pedido de revisión de un contrato ya generado (0427). Mismo molde que
+ *  ItemRevisionMovilidad, sobre contrato_revisiones_pedidas. */
+interface ItemRevisionContrato {
   id: string;
   persona_id: string;
   nombre: string;
@@ -211,6 +221,11 @@ export default function BandejaPage() {
   // sí le llegan a ella. La declaración de ruta es papeleo legal/tributario,
   // no operación del día a día de una sede.
   const puedeMovilidad = puedeGestionarCatalogos(rol);
+  // El contrato es papeleo legal/laboral igual que la declaración de ruta,
+  // pero con su propio permiso (`puedeGestionarContratos`) porque es el que
+  // ya usa admin/contratos para decidir quién entra ahí — no se inventa un
+  // criterio nuevo solo para la Bandeja.
+  const puedeContratos = puedeGestionarContratos(rol);
 
   const [cargando, setCargando] = useState(true);
   const [resumenAlertas, setResumenAlertas] = useState<ResumenAlertas | null>(null);
@@ -219,14 +234,17 @@ export default function BandejaPage() {
   const [sinHorario, setSinHorario] = useState<ItemSinHorario[]>([]);
   const [revisiones, setRevisiones] = useState<ItemRevision[]>([]);
   const [revisionesMovilidad, setRevisionesMovilidad] = useState<ItemRevisionMovilidad[]>([]);
+  const [revisionesContrato, setRevisionesContrato] = useState<ItemRevisionContrato[]>([]);
   const [solicitudesVacaciones, setSolicitudesVacaciones] = useState<ItemSolicitudVacacion[]>([]);
   const [solicitudesPerfil, setSolicitudesPerfil] = useState<ItemSolicitudPerfil[]>([]);
   const [respuestas, setRespuestas] = useState<Record<string, string>>({});
   const [respuestasMovilidad, setRespuestasMovilidad] = useState<Record<string, string>>({});
+  const [respuestasContrato, setRespuestasContrato] = useState<Record<string, string>>({});
   const [motivosRechazo, setMotivosRechazo] = useState<Record<string, string>>({});
   const [motivosPerfil, setMotivosPerfil] = useState<Record<string, string>>({});
   const [atendiendo, setAtendiendo] = useState<string | null>(null);
   const [atendiendoMovilidad, setAtendiendoMovilidad] = useState<string | null>(null);
+  const [atendiendoContrato, setAtendiendoContrato] = useState<string | null>(null);
   const [resolviendo, setResolviendo] = useState<string | null>(null);
   const [resolviendoPerfil, setResolviendoPerfil] = useState<string | null>(null);
 
@@ -291,6 +309,17 @@ export default function BandejaPage() {
       setRevisionesMovilidad([]);
     }
 
+    if (puedeContratos) {
+      tareas.push(
+        supabase.rpc("fn_contrato_revisiones_pedidas", { p_solo_pendientes: true }).then(({ data, error }) => {
+          if (error) { avisar("error", mensajeDeError(error, "cargar revisiones de contrato pedidas")); return; }
+          setRevisionesContrato((data as unknown as ItemRevisionContrato[]) ?? []);
+        }),
+      );
+    } else {
+      setRevisionesContrato([]);
+    }
+
     if (puedeResolverVacaciones) {
       tareas.push(
         supabase.rpc("fn_solicitudes_vacaciones", { p_solo_pendientes: true }).then(({ data, error }) => {
@@ -330,8 +359,8 @@ export default function BandejaPage() {
 
     await Promise.all(tareas);
     setCargando(false);
-  }, [router, puedeEducacion, puedeEquipo, puedeMovilidad, puedeResolverVacaciones, puedeResolverPerfil,
-      puedeSaludAlertas, avisar]);
+  }, [router, puedeEducacion, puedeEquipo, puedeMovilidad, puedeContratos, puedeResolverVacaciones,
+      puedeResolverPerfil, puedeSaludAlertas, avisar]);
 
   // Cargar al montar es el mismo patrón que usa cada pantalla del panel que
   // trae datos de la base (Equipo, Ausencias, Disciplina...); el aviso de acá
@@ -361,6 +390,18 @@ export default function BandejaPage() {
     if (error) { avisar("error", mensajeDeError(error, "marcar la revisión de movilidad como atendida")); return; }
     setRevisionesMovilidad((r) => r.filter((x) => x.id !== id));
     avisar("ok", "Revisión de movilidad marcada como atendida.");
+  }
+
+  async function marcarAtendidaContrato(id: string) {
+    setAtendiendoContrato(id);
+    const supabase = createAdminSupabaseClient();
+    const { error } = await supabase.rpc("fn_atender_revision_contrato", {
+      p_id: id, p_respuesta: (respuestasContrato[id] ?? "").trim() || null,
+    });
+    setAtendiendoContrato(null);
+    if (error) { avisar("error", mensajeDeError(error, "marcar la revisión de contrato como atendida")); return; }
+    setRevisionesContrato((r) => r.filter((x) => x.id !== id));
+    avisar("ok", "Revisión de contrato marcada como atendida.");
   }
 
   async function resolverSolicitud(id: string, aprobar: boolean) {
@@ -403,7 +444,8 @@ export default function BandejaPage() {
     : 0;
 
   const total = educacion.length + vacaciones.length + revisiones.length + revisionesMovilidad.length
-    + solicitudesVacaciones.length + solicitudesPerfil.length + alertasConProblema + sinHorario.length;
+    + revisionesContrato.length + solicitudesVacaciones.length + solicitudesPerfil.length
+    + alertasConProblema + sinHorario.length;
 
   return (
     <div className="flex flex-1 flex-col">
@@ -559,6 +601,51 @@ export default function BandejaPage() {
                           variante="primario"
                           onClick={() => void marcarAtendidaMovilidad(r.id)}
                           cargando={atendiendoMovilidad === r.id}
+                        >
+                          Marcar atendida
+                        </Boton>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            {/* Pedidos de revisión de un contrato ya generado (0427). Mismo
+                molde que la sección de movilidad de arriba: no hay un "Abrir
+                en Contratos" que filtre por persona (admin/contratos no lee
+                query params), así que enlaza a la pantalla a secas. */}
+            {revisionesContrato.length > 0 && (
+              <section>
+                <h2 className="mb-1 font-serif text-lg">
+                  {revisionesContrato.length === 1
+                    ? "Pidieron revisar un contrato"
+                    : `Pidieron revisar ${revisionesContrato.length} contratos`}
+                </h2>
+                <p className="mb-3 text-sm text-taupe">
+                  Lo escribieron desde «Contrato», en Lo mío. Si hace falta corregirlo, hazlo en Contratos y
+                  cierra acá diciendo en qué quedó.
+                </p>
+                <ul className="space-y-3">
+                  {revisionesContrato.map((r) => (
+                    <li key={r.id} className="rounded-xl border border-sand p-3 text-sm">
+                      <div className="flex flex-wrap items-baseline justify-between gap-2">
+                        <span><strong>{r.nombre}</strong> <span className="text-taupe">· {r.sede}</span></span>
+                        <Link href="/admin/contratos" className="text-rojo hover:underline">Abrir en Contratos →</Link>
+                      </div>
+                      <p className="mt-1.5">«{r.motivo}»</p>
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <div className="min-w-56 flex-1">
+                          <Campo
+                            value={respuestasContrato[r.id] ?? ""}
+                            onChange={(e) => setRespuestasContrato((x) => ({ ...x, [r.id]: e.target.value }))}
+                            placeholder="En qué quedó (lo va a leer la persona)"
+                          />
+                        </div>
+                        <Boton
+                          variante="primario"
+                          onClick={() => void marcarAtendidaContrato(r.id)}
+                          cargando={atendiendoContrato === r.id}
                         >
                           Marcar atendida
                         </Boton>

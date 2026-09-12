@@ -273,6 +273,9 @@ interface MiContrato {
   tipo: string;
   fecha_inicio: string;
   fecha_fin: string | null;
+  // Desde la 0430, confirmar tu firma en /mio/contrato ya fija esta columna
+  // (como Movilidad) — no hace falta mirar `firma_persona_confirmada_at`
+  // aparte para saber si el contrato está firmado.
   fecha_firma: string | null;
 }
 
@@ -2431,7 +2434,13 @@ export default function MioPage() {
             </p>
           ) : (
             <div>
-              <p className="text-taupe">
+              {/* CAMBIO (0430): antes esto decía «Pendiente de firma.» aunque
+                  ya hubieras confirmado tu firma digital en /mio/contrato,
+                  porque `fecha_firma` solo la ponía Desarrollo Organizacional
+                  al registrar un escaneo físico. Desde la 0430 confirmar tu
+                  firma ahí YA fija `fecha_firma` (como Movilidad), así que
+                  este texto vuelve a ser el único que hace falta. */}
+              <p className={contrato.fecha_firma ? "text-verde" : "text-taupe"}>
                 {!contrato.fecha_fin
                   ? `Desde el ${diaYMes(contrato.fecha_inicio)}, sin fecha de término.`
                   : `Del ${diaYMes(contrato.fecha_inicio)} al ${diaYMes(contrato.fecha_fin)}.`}{" "}
