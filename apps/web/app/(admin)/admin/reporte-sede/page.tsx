@@ -152,8 +152,14 @@ function ReporteSedeContenido() {
       { data: tardResumen, error: errTard },
       { data: faltasResumen, error: errFaltas },
     ] = await Promise.all([
+      // Mismo criterio del dashboard (7afe8e5): un practicante trabaja en la
+      // sede y tiene que salir en su hoja, aunque el escalafón disciplinario
+      // (fn_tardanzas_resumen/fn_faltas_resumen, más abajo) lo siga
+      // excluyendo — esta hoja solo lo muestra, no lo sanciona.
       supabase.from("personas").select("id, nombres, apellidos, rol, sede_base_id")
-        .eq("estado", "activo").eq("en_planilla", true).eq("sueldo_fijo", false).eq("sede_base_id", sedeId).order("nombres"),
+        .eq("estado", "activo")
+        .or("en_planilla.eq.true,tipo_vinculo.eq.practicante")
+        .eq("sueldo_fijo", false).eq("sede_base_id", sedeId).order("nombres"),
       // Por lotes: sin esto PostgREST cortaba en 1000 filas en silencio y la
       // hoja de sede salía con horas y tardanzas de menos.
       traerTodo<{ persona_id: string; fecha: string; estado: string; minutos_tarde: number | null; horas_trabajadas: number | null }>(

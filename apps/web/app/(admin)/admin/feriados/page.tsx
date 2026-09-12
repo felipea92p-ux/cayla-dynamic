@@ -28,7 +28,7 @@ function diaSemana(iso: string): string {
 }
 const soles = (n: number) => `S/ ${n.toFixed(2)}`;
 
-interface Persona { id: string; nombres: string; apellidos: string; sede_base_id: string; }
+interface Persona { id: string; nombres: string; apellidos: string; sede_base_id: string; tipo_vinculo: string; }
 interface Sede { id: string; codigo: string; nombre: string; }
 interface Feriado { fecha: string; nombre: string; }
 // Una fila por persona que TRABAJÓ un feriado del rango, con su estado de
@@ -163,8 +163,16 @@ export default function FeriadosPage() {
     const { data: sesion } = await supabase.auth.getSession();
     if (!sesion.session) { router.replace("/admin/login"); return; }
     const [{ data: p, error: eP }, { data: pt }, { data: sd }, { data: f }, { data: l, error: eL }, { data: r }, { data: ac }] = await Promise.all([
-      supabase.from("personas").select("id, nombres, apellidos, sede_base_id")
-        .eq("estado", "activo").eq("en_planilla", true).order("nombres"),
+      // Mismo criterio del dashboard (7afe8e5): el practicante sí sale en la
+      // lista para que la encargada no lo eche de menos, pero `tipo_vinculo`
+      // viaja para poder deshabilitar su casilla más abajo — un practicante
+      // no cobra la sobretasa de feriado (no es remuneración que le
+      // corresponda, mismo criterio que un locador desde la 0154) ni tiene
+      // "falta injustificada" que perdonar con un descanso sustitutorio.
+      supabase.from("personas").select("id, nombres, apellidos, sede_base_id, tipo_vinculo")
+        .eq("estado", "activo")
+        .or("en_planilla.eq.true,tipo_vinculo.eq.practicante")
+        .order("nombres"),
       supabase.from("personas").select("id, nombres, apellidos, sede_base_id").order("nombres"),
       supabase.from("sedes").select("id, codigo, nombre").order("codigo"),
       supabase.from("feriados").select("fecha, nombre").order("fecha", { ascending: false }).limit(40),
@@ -321,7 +329,12 @@ export default function FeriadosPage() {
     setTimeout(() => URL.revokeObjectURL(url), 60_000);
   }
 
+  // Un practicante no cobra sobretasa de feriado ni tiene falta injustificada
+  // que perdonar con esto (ver el porqué en la consulta de `personas`, más
+  // arriba): su casilla se ve pero no se puede marcar, ni a mano ni por el
+  // atajo "Marcar / desmarcar visibles".
   function alternar(id: string) {
+    if (personas.find((p) => p.id === id)?.tipo_vinculo === "practicante") return;
     setElegidas((prev) => {
       const s = new Set(prev);
       if (s.has(id)) s.delete(id); else s.add(id);
@@ -329,7 +342,7 @@ export default function FeriadosPage() {
     });
   }
   function todasVisibles() {
-    const ids = visibles.map((p) => p.id);
+    const ids = visibles.filter((p) => p.tipo_vinculo !== "practicante").map((p) => p.id);
     const faltan = ids.some((id) => !elegidas.has(id));
     setElegidas((prev) => {
       const s = new Set(prev);
@@ -450,12 +463,26 @@ export default function FeriadosPage() {
                   formulario suelto— y CampoCasilla fija esas clases en su
                   <label> interno sin dejarlas pasar por props. Mismo criterio
                   que los enlaces nativos de contratos/page.tsx. */}
-              {visibles.map((p) => (
-                <label key={p.id} className="flex items-center gap-2 rounded px-2 py-1 text-sm hover:bg-sand/40">
-                  <input type="checkbox" checked={elegidas.has(p.id)} onChange={() => alternar(p.id)} className="size-4 accent-tinta" />
-                  {p.nombres} {p.apellidos}
-                </label>
-              ))}
+              {visibles.map((p) => {
+                const esPracticante = p.tipo_vinculo === "practicante";
+                return (
+                  <label
+                    key={p.id}
+                    className={`flex items-center gap-2 rounded px-2 py-1 text-sm ${esPracticante ? "text-taupe" : "hover:bg-sand/40"}`}
+                    title={esPracticante ? "Practicante: no cobra sobretasa de feriado ni tiene falta que perdonar con un descanso sustitutorio." : undefined}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={elegidas.has(p.id)}
+                      onChange={() => alternar(p.id)}
+                      disabled={esPracticante}
+                      className="size-4 accent-tinta disabled:cursor-not-allowed disabled:opacity-40"
+                    />
+                    {p.nombres} {p.apellidos}
+                    {esPracticante && <span className="text-xs">· practicante</span>}
+                  </label>
+                );
+              })}
               {visibles.length === 0 && <p className="px-2 py-1 text-sm text-taupe">Sin personas en esa sede.</p>}
             </div>
           </div>
