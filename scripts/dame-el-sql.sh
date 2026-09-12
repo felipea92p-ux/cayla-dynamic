@@ -121,17 +121,35 @@ else
   fi
 
   # ── 3 · ¿Está en GitHub, byte por byte? ───────────────────────────────────
-  # `git fetch` primero: sin él se compara contra una foto vieja de origin/main
-  # y un archivo empujado hace un minuto parecería ausente.
+  # `git fetch` primero: sin él se compara contra una foto vieja y un archivo
+  # empujado hace un minuto parecería ausente.
   git fetch origin --quiet 2>/dev/null || gris "  (sin red: se compara con lo último que se trajo de GitHub)"
 
-  if ! git cat-file -e "origin/main:$ARCHIVO" 2>/dev/null; then
-    rojo "✗ NO está en GitHub. Si este disco falla, este SQL desaparece."
+  # El flujo de este repo pega la migración ANTES de fusionar el PR que la usa
+  # (ver CLAUDE.md). En ese momento el archivo vive en la rama remota del PR,
+  # no en origin/main todavía — comparar solo contra origin/main daba un falso
+  # "NO está en GitHub" para cualquier migración de un PR abierto sin fusionar.
+  # Encontrado el 2026-09-11 con las 0416/0417 (PR #315, sin fusionar).
+  #
+  # Así que se prueba primero la rama remota de SEGUIMIENTO del branch actual
+  # —@{upstream}, o si no está configurado, origin/<rama-actual> si existe— y
+  # solo si ninguna de las dos existe se cae a origin/main como antes.
+  REF_REMOTA=$(git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null || true)
+  if [ -z "$REF_REMOTA" ]; then
+    RAMA_ACTUAL=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)
+    if [ -n "$RAMA_ACTUAL" ] && git show-ref --verify --quiet "refs/remotes/origin/$RAMA_ACTUAL"; then
+      REF_REMOTA="origin/$RAMA_ACTUAL"
+    fi
+  fi
+  [ -z "$REF_REMOTA" ] && REF_REMOTA="origin/main"
+
+  if ! git cat-file -e "${REF_REMOTA}:$ARCHIVO" 2>/dev/null; then
+    rojo "✗ NO está en GitHub ($REF_REMOTA). Si este disco falla, este SQL desaparece."
     gris "    Es exactamente lo que pasó con la 0177 el 2026-08-07."
     gris "    git push"
     FALLO=1
-  elif ! git diff --quiet origin/main -- "$ARCHIVO" 2>/dev/null; then
-    rojo "✗ Lo que hay en GitHub NO es igual a este archivo."
+  elif ! git diff --quiet "$REF_REMOTA" -- "$ARCHIVO" 2>/dev/null; then
+    rojo "✗ Lo que hay en GitHub ($REF_REMOTA) NO es igual a este archivo."
     gris "    Pegarías una versión que nadie más tiene. Empuja lo tuyo:"
     gris "    git push"
     FALLO=1
