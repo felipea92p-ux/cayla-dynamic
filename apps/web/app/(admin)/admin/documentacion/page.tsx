@@ -983,16 +983,19 @@ export default function DocumentacionPage() {
 
   // Mismo criterio de arriba (sin firmar primero) MÁS una separación por
   // sede dentro de cada grupo — a pedido de Felipe, 2026-09-12, para que un
-  // equipo de cuatro sedes no se lea como una sola lista revuelta. El sort es
-  // ESTABLE y compara solo "sin firmar vs firmada" y sede: cuando las dos
-  // coinciden, conserva el orden alfabético por apellido que `tablero` ya
-  // trae del servidor (`fn_documentos_tablero` ordena por p.apellidos), sin
-  // tener que repetirlo acá.
+  // equipo de cuatro sedes no se lea como una sola lista revuelta. Dentro de
+  // cada sede, por NOMBRE: `tablero` trae el orden por apellido de
+  // `fn_documentos_tablero` (p.apellidos), pero Felipe pidió ese mismo día
+  // ordenar por el nombre de pila — así que acá se rehace explícito contra
+  // `personas`, que sí trae nombre y apellido por separado.
+  const nombrePorPersonaId = new Map(personas.map((p) => [p.id, p.nombres]));
   const tableroPorSede = [...tablero].sort((a, b) => {
     const pa = a.ruta_id !== null ? 1 : 0;
     const pb = b.ruta_id !== null ? 1 : 0;
     if (pa !== pb) return pa - pb;
-    return a.sede.localeCompare(b.sede);
+    if (a.sede !== b.sede) return a.sede.localeCompare(b.sede);
+    return (nombrePorPersonaId.get(a.persona_id) ?? "")
+      .localeCompare(nombrePorPersonaId.get(b.persona_id) ?? "");
   });
 
   // ── La hoja de un documento ─────────────────────────────────────────────
