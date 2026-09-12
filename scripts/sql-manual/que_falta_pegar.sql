@@ -291,8 +291,10 @@ with repo(numero, nombre, nunca) as (values
     (424, 'una_practicante_tambien_declara_su_ruta', false),
     (425, 'la_declaracion_de_ruta_queda_fija_al_firmarla', false),
     (426, 'la_declaracion_de_ruta_ya_no_pregunta_por_el_taxi', false),
+    (427, 'pedir_revision_de_contrato', false),
     (428, 'practicantes_visibles_en_provisiones', false),
-    (429, 'la_declaracion_de_ruta_guarda_sus_datos_por_separado', false)
+    (429, 'la_declaracion_de_ruta_guarda_sus_datos_por_separado', false),
+    (430, 'el_contrato_se_firma_completo_de_forma_digital', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte

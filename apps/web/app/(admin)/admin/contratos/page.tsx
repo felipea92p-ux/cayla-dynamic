@@ -922,7 +922,14 @@ export default function ContratosPage() {
         (c) => c.persona_id === persona.id && !c.anulado_at && c.id !== editando?.id && c.id !== borrador?.id,
       )
     : [];
-  const borradoresVivos = vivosDeLaPersona.filter((c) => !c.storage_path);
+  // CAMBIO (0430): antes medía `!c.storage_path` («sin escaneo»). Con la firma
+  // digital, un contrato puede estar firmado y vigente SIN escaneo — medido
+  // así, ese contrato ya firmado se seguía contando como "borrador" y esta
+  // pantalla ofrecía editarlo o lo trataba como duplicado de un tipo que en
+  // realidad ya estaba cerrado. El criterio real de "sigue siendo un
+  // borrador" siempre fue `fecha_firma is null`, el mismo que ya usa el
+  // servidor (`fn_contrato_firmado_vigente_de`, 0312).
+  const borradoresVivos = vivosDeLaPersona.filter((c) => !c.fecha_firma);
   const borradorMismoTipo = borradoresVivos.find((c) => c.tipo === tipoEfectivo) ?? null;
   // El solape mira TAMBIÉN los firmados: dos papeles que cubren los mismos días
   // son el problema, esté uno firmado o no. El adendum queda fuera por los dos
@@ -935,9 +942,9 @@ export default function ContratosPage() {
   // sin poder arreglarse. La trampa se cerraría justo sobre los datos que esto
   // viene a rescatar, y se descubrió mirándolo en el navegador con los dos
   // convenios delante. `fn_contrato_editar` mide contra los FIRMADOS y nada
-  // más; aquí, lo mismo.
+  // más; aquí, lo mismo — y "firmado" (0430) es `fecha_firma`, no `storage_path`.
   const candidatosASolape = vivosDeLaPersona.filter(
-    (c) => c.tipo !== "adendum" && (!editando || c.storage_path !== null),
+    (c) => c.tipo !== "adendum" && (!editando || c.fecha_firma !== null),
   );
   const solapado =
     persona && !esAdendum && fechaInicio && (fechaFin || esIndefinido)
@@ -1034,7 +1041,7 @@ export default function ContratosPage() {
   }
   if (persona && solapado) {
     bloqueos.push(
-      `Estas fechas se pisan con un documento que sigue vigente: ${describir(solapado)}${solapado.storage_path ? ", ya firmado" : ", sin firmar"}. Cambia las fechas, o anúlalo si ya no vale.`,
+      `Estas fechas se pisan con un documento que sigue vigente: ${describir(solapado)}${solapado.fecha_firma ? ", ya firmado" : ", sin firmar"}. Cambia las fechas, o anúlalo si ya no vale.`,
     );
   }
   // Estos cuatro son los que dejan `datosParaGenerar` en null: sin ellos el
@@ -1401,6 +1408,10 @@ export default function ContratosPage() {
 
   async function guardarFirma() {
     if (!subiendoPara) return;
+    // Se lee ANTES de llamar al servidor: después de `cargar()` el contrato
+    // ya viene con el escaneo puesto, y el mensaje de abajo necesita saber
+    // cómo estaba ANTES de esta acción.
+    const yaFirmado = contratos.find((c) => c.id === subiendoPara)?.fecha_firma != null;
     if (!archivo) {
       avisar("error", "Falta el escaneo firmado.");
       return;
@@ -1437,7 +1448,12 @@ export default function ContratosPage() {
     }
     setSubiendoPara(null);
     await cargar();
-    avisar("ok", "Contrato firmado registrado. La fecha de vencimiento de la persona se actualizó.");
+    avisar(
+      "ok",
+      yaFirmado
+        ? "Escaneo de respaldo guardado. La fecha de firma sigue siendo la de la firma digital."
+        : "Contrato firmado registrado. La fecha de vencimiento de la persona se actualizó.",
+    );
   }
 
   async function anular() {
@@ -2473,15 +2489,14 @@ export default function ContratosPage() {
                           {c.fecha_fin ? formatearFecha(c.fecha_fin) : "indeterminado"}
                         </span>
                         <span className="text-xs text-taupe">{TIPO_CONTRATO[c.tipo] ?? c.tipo}</span>
-                        <span className={c.storage_path ? "text-xs text-verde" : "text-xs text-taupe"}>
-                          {c.storage_path ? `firmado el ${formatearFecha(c.fecha_firma!)}` : "pendiente de firma"}
+                        {/* CAMBIO (0430): "firmado" es `fecha_firma`, no
+                            `storage_path` — un contrato puede estar firmado
+                            por autoservicio digital sin ningún escaneo. */}
+                        <span className={c.fecha_firma ? "text-xs text-verde" : "text-xs text-taupe"}>
+                          {c.fecha_firma ? `firmado el ${formatearFecha(c.fecha_firma)}` : "pendiente de firma"}
                         </span>
-                        {/* Confirmación DIGITAL del colaborador (0402) — no reemplaza
-                            lo de arriba, que sigue siendo el escaneado físico. Un
-                            contrato puede estar "pendiente de firma" (legal) y con
-                            la firma digital ya confirmada al mismo tiempo. */}
                         {c.firma_persona_confirmada_at && (
-                          <span className="text-xs text-verde">
+                          <span className="text-xs text-taupe">
                             firma digital confirmada el {formatearFecha(c.firma_persona_confirmada_at.slice(0, 10))}
                           </span>
                         )}
@@ -2506,18 +2521,23 @@ export default function ContratosPage() {
                         <Boton variante="enlace" onClick={() => abrirGenerado(c.id)}>
                           Ver / imprimir
                         </Boton>
-                        {/* Editar solo mientras sea un borrador. Con el escaneo
-                            firmado adentro manda el papel: se corrige con un
-                            adendum o se anula, nunca reescribiendo por detrás lo
-                            que dos partes ya firmaron. */}
-                        {!c.storage_path && (
+                        {/* Editar solo mientras sea un borrador. Una vez
+                            firmado —con escaneo o por autoservicio digital
+                            (0430)— manda lo que se firmó: se corrige con un
+                            adendum o se anula, nunca reescribiendo por detrás
+                            lo que ya se firmó. */}
+                        {!c.fecha_firma && (
                           <Boton variante="enlace" onClick={() => empezarEdicion(c)}>
                             Editar
                           </Boton>
                         )}
+                        {/* "Subir escaneo" sigue disponible aunque ya esté
+                            firmado por autoservicio digital: DO puede seguir
+                            adjuntando uno de respaldo (0430) — solo deja de
+                            ofrecerse cuando YA hay un escaneo guardado. */}
                         {!c.storage_path && (
                           <Boton variante="enlace" onClick={() => abrirSubida(c.id)}>
-                            Subir contrato firmado
+                            {c.fecha_firma ? "Adjuntar escaneo de respaldo" : "Subir contrato firmado"}
                           </Boton>
                         )}
                         {c.storage_path && (
@@ -2590,12 +2610,30 @@ export default function ContratosPage() {
           abierto={subiendoPara !== null}
           onCerrar={() => setSubiendoPara(null)}
           bloqueado={guardandoFirma}
-          titulo="Subir contrato firmado"
+          titulo={
+            contratos.find((c) => c.id === subiendoPara)?.fecha_firma
+              ? "Adjuntar escaneo de respaldo"
+              : "Subir contrato firmado"
+          }
           ancho="lg"
         >
-          <p className="mb-4 text-sm text-taupe">
-            El PDF o la foto del contrato ya firmado por las dos partes. Hasta 50 MB.
-          </p>
+          {/* CAMBIO (0430): este contrato puede llegar aquí ya firmado por
+              autoservicio digital. La fecha que se pida abajo no va a mover
+              nada en ese caso —el servidor protege la fecha legal de firma,
+              nunca la pisa un escaneo que llega después—, así que se avisa
+              en vez de dejar que quien sube el archivo crea que está fijando
+              la fecha de firma. */}
+          {contratos.find((c) => c.id === subiendoPara)?.fecha_firma ? (
+            <p className="mb-4 text-sm text-taupe">
+              Este contrato ya está firmado —por autoservicio digital, el{" "}
+              {formatearFecha(contratos.find((c) => c.id === subiendoPara)!.fecha_firma!)}—. Esto solo guarda un
+              escaneo de respaldo; la fecha de firma no cambia.
+            </p>
+          ) : (
+            <p className="mb-4 text-sm text-taupe">
+              El PDF o la foto del contrato ya firmado por las dos partes. Hasta 50 MB.
+            </p>
+          )}
           <div className="mb-4 grid gap-3 sm:grid-cols-2">
             <label className="flex flex-col gap-1 text-sm">
               Archivo escaneado
@@ -2679,7 +2717,8 @@ export default function ContratosPage() {
               // lo dice en el `title` de la fila.
               const insignia: { texto: string; variante: "informativo" | "alerta" | "advertencia" | "positivo" } = c.anulado_at
                 ? { texto: "Anulado", variante: "informativo" }
-                : !c.storage_path
+                // CAMBIO (0430): "firmado" es `fecha_firma`, no `storage_path`.
+                : !c.fecha_firma
                   ? { texto: "Pendiente de firma", variante: "informativo" }
                   : c.fecha_fin && c.fecha_fin < hoyLima()
                     ? { texto: "Vencido", variante: "alerta" }
@@ -2700,10 +2739,19 @@ export default function ContratosPage() {
                   texto: `Borrador corregido antes de firmarse${c.editado_por ? ` · ${c.editado_por}` : ""}`,
                 });
               }
-              if (c.fecha_firma) hitos.push({ fecha: c.fecha_firma, texto: "Escaneado subido, contrato activado" });
-              // Distinta de la de arriba: es una confirmación digital de la
-              // colaboradora, no el trámite legal del escaneado físico.
-              if (c.firma_persona_confirmada_at) {
+              // CAMBIO (0430): "Escaneado subido" solo si de verdad hay un
+              // escaneo — un contrato puede firmarse sin ninguno.
+              if (c.fecha_firma) {
+                hitos.push({
+                  fecha: c.fecha_firma,
+                  texto: c.storage_path ? "Escaneado subido, contrato activado" : "Contrato firmado digitalmente",
+                });
+              }
+              // Distinta de la de arriba cuando SÍ hay escaneo: es la
+              // confirmación digital de la colaboradora, no el trámite del
+              // escaneado físico. Cuando NO hay escaneo, la de arriba ya lo
+              // dice — se omite acá para no repetir la misma fecha dos veces.
+              if (c.firma_persona_confirmada_at && c.storage_path) {
                 hitos.push({
                   fecha: c.firma_persona_confirmada_at.slice(0, 10),
                   texto: "Colaboradora confirmó su firma digital en el contrato",
@@ -2739,11 +2787,17 @@ export default function ContratosPage() {
 
                   <div className="mb-4 grid gap-4 sm:grid-cols-[minmax(0,11rem)_minmax(0,1fr)]">
                     <div className="rounded-2xl bg-hueso p-4 text-center">
+                      {/* CAMBIO (0430): el título dice si está FIRMADO
+                          (fecha_firma) — "Sin escaneado" ya no significa "sin
+                          firmar", puede estar firmado por autoservicio
+                          digital y no tener ningún escaneo. */}
                       <p className="font-serif text-base">
-                        {c.storage_path ? "Escaneado firmado" : "Sin escaneado"}
+                        {c.fecha_firma ? "Firmado" : "Sin firmar"}
                       </p>
                       <p className="mb-3 text-xs text-taupe">
-                        {c.fecha_firma ? formatearFecha(c.fecha_firma) : "todavía sin firmar"}
+                        {c.fecha_firma
+                          ? formatearFecha(c.fecha_firma) + (c.storage_path ? "" : " · sin escaneo")
+                          : "todavía sin firmar"}
                       </p>
                       {c.storage_path && (
                         <Boton variante="secundario" tamano="sm" className="mb-1.5 w-full bg-papel" onClick={() => verDocumento(c.storage_path!)}>
@@ -2801,7 +2855,9 @@ export default function ContratosPage() {
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2 border-t border-sand pt-3">
-                    {vive && !c.storage_path && (
+                    {/* CAMBIO (0430): "editable" es "sin firmar" (fecha_firma),
+                        no "sin escaneo". */}
+                    {vive && !c.fecha_firma && (
                       <Boton
                         variante="primario"
                         onClick={() => {
@@ -2820,7 +2876,7 @@ export default function ContratosPage() {
                           abrirSubida(c.id);
                         }}
                       >
-                        Subir firmado
+                        {c.fecha_firma ? "Adjuntar escaneo de respaldo" : "Subir firmado"}
                       </Boton>
                     )}
                     {vive && c.fecha_firma && !c.copia_entregada_at && (
