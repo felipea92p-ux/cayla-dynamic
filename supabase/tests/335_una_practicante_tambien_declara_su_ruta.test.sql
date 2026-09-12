@@ -81,7 +81,7 @@ select throws_ok(
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000335011', true);
 
 select throws_ok(
-  $$ select fn_confirmar_mi_declaracion_ruta('Los Olivos','Lima',1,1,false) $$,
+  $$ select fn_confirmar_mi_declaracion_ruta('Los Olivos','Lima',1,1) $$,
   null, null,
   'RECHAZADO · todavía sin firma configurada, aunque ya le corresponda el trámite');
 
@@ -89,8 +89,8 @@ insert into firmas_escaneadas (persona_id, imagen, tipo)
 values ('00000000-0000-0000-0000-000000335001', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUg==', 'imagen');
 
 select lives_ok(
-  $$ select fn_confirmar_mi_declaracion_ruta('Los Olivos','Lima',1,1,false) $$,
-  'OK · con firma configurada, la practicante firma su propia declaración de ruta (sin costo propio, 0425)');
+  $$ select fn_confirmar_mi_declaracion_ruta('Los Olivos','Lima',1,1) $$,
+  'OK · con firma configurada, la practicante firma su propia declaración de ruta (sin costo propio, 0425/0426)');
 
 -- ── 4 · Aparece donde tiene que aparecer ───────────────────────────────────
 select is(
