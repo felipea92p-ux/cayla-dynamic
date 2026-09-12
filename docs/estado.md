@@ -88,6 +88,32 @@ como se hizo hoy con Cuentas.
 
 ---
 
+## 2026-09-11 — La 0376 (candado de `fn_vacaciones_saldo` / `fn_marca_apartada_resolver`) YA estaba pegada · la entrada del 09-05 mentía · CERRADO
+
+La entrada de abajo, del 2026-09-05, decía «🔴 Falta pegarla en producción».
+Ya no es cierto — alguien la pegó entre esa fecha y hoy sin dejarlo escrito
+acá, y esta entrada quedó mintiendo seis días.
+
+Se descubrió pidiendo el md5 a producción, tal como la entrada vieja mandaba
+hacer antes de pegar: el resultado no coincidió con el «md5 de partida» que
+la 0376 declara en su cabecera, y por un momento pareció que producción tenía
+otra versión. **No la tenía** — el «md5 de partida» es el de las funciones
+ANTES del arreglo (0357/0304), así que nunca iba a coincidir con nada una vez
+aplicada la 0376; lo que había que comparar era contra el md5 de LLEGADA. Se
+midió contra el Postgres local con la 0376 aplicada (`migraciones_aplicadas`
+confirma el 376) y coincidió exacto en las dos funciones, `tal_cual` y
+`sin_comentarios` los dos:
+
+| función | md5 (tal_cual) |
+|---|---|
+| `fn_vacaciones_saldo` | `50c82625a587650afce9c40e12ec8386` |
+| `fn_marca_apartada_resolver` | `dd8400ac81f001c27f87718ee1b2f384` |
+
+Nada quedó a medias: el candado que cierra el agujero de la persona cesada
+con sesión viva (ver la 0376 para el detalle) está activo en producción hoy.
+
+---
+
 ## 2026-09-10 — Se pegó la 0403→0409, y el registro de migraciones resultó estar mintiendo dos veces
 
 Empezó como «a una integrante nueva de Trujillo no le sale el apartado Mi DNI».
@@ -949,7 +975,7 @@ verde.
 
 ---
 
-## 2026-09-05 — El guard de `fn_vacaciones_saldo` / `fn_marca_apartada_resolver` ya tiene su migración (0376) · FUSIONADA A MAIN, CI VERDE — FALTA PEGAR
+## 2026-09-05 — El guard de `fn_vacaciones_saldo` / `fn_marca_apartada_resolver` ya tiene su migración (0376) · ✅ PEGADA — ver la entrada del 2026-09-11 arriba
 
 Cierra el crítico nuevo de la segunda auditoría (28 agentes, ver más abajo):
 la 0374 dejó `fn_rol_actual()` devolviendo `NULL` para cualquier persona
