@@ -291,6 +291,7 @@ with repo(numero, nombre, nunca) as (values
     (424, 'una_practicante_tambien_declara_su_ruta', false),
     (425, 'la_declaracion_de_ruta_queda_fija_al_firmarla', false),
     (426, 'la_declaracion_de_ruta_ya_no_pregunta_por_el_taxi', false),
+    (428, 'practicantes_visibles_en_provisiones', false),
     (429, 'la_declaracion_de_ruta_guarda_sus_datos_por_separado', false)
 ),
 diff as (
