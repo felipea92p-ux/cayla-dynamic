@@ -1426,6 +1426,10 @@ export type Database = {
           created_at: string
           es_negativa: boolean
           fecha_firma: string
+          firma_persona: string | null
+          firma_persona_confirmada_at: string | null
+          firma_persona_ip: string | null
+          firma_persona_user_agent: string | null
           id: string
           monto_declarado: number | null
           nota: string | null
@@ -1444,6 +1448,10 @@ export type Database = {
           created_at?: string
           es_negativa?: boolean
           fecha_firma: string
+          firma_persona?: string | null
+          firma_persona_confirmada_at?: string | null
+          firma_persona_ip?: string | null
+          firma_persona_user_agent?: string | null
           id?: string
           monto_declarado?: number | null
           nota?: string | null
@@ -1462,6 +1470,10 @@ export type Database = {
           created_at?: string
           es_negativa?: boolean
           fecha_firma?: string
+          firma_persona?: string | null
+          firma_persona_confirmada_at?: string | null
+          firma_persona_ip?: string | null
+          firma_persona_user_agent?: string | null
           id?: string
           monto_declarado?: number | null
           nota?: string | null
@@ -4744,7 +4756,9 @@ export type Database = {
       }
       fn_borrar_dni_de: {
         Args: { p_motivo: string | null; p_persona_id: string | null }
-        Returns: { ruta: string }[]
+        Returns: {
+          ruta: string
+        }[]
       }
       fn_cambiar_regimen_pension: {
         Args: {
@@ -4803,6 +4817,19 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      fn_confirmar_mi_declaracion_ruta: {
+        Args: {
+          p_costo_pasaje: number | null
+          p_costo_taxi?: number | null
+          p_distrito: string | null
+          p_frecuencia_taxi?: number | null
+          p_medios_ida: number | null
+          p_medios_vuelta: number | null
+          p_provincia: string | null
+          p_usa_taxi?: boolean | null
+        }
+        Returns: string
       }
       fn_confirmar_mi_firma_contrato: {
         Args: { p_contrato_id: string | null }
@@ -5133,6 +5160,7 @@ export type Database = {
           anulado_motivo: string
           es_negativa: boolean
           fecha_firma: string
+          firma_persona: string
           id: string
           monto_declarado: number
           nota: string
@@ -5146,7 +5174,7 @@ export type Database = {
         }[]
       }
       fn_documentos_tablero: {
-        Args: never
+        Args: { p_solo_mi_fila?: boolean | null }
         Returns: {
           bono_anio: number
           bono_estado: string
@@ -5158,10 +5186,12 @@ export type Database = {
           persona: string
           persona_id: string
           ruta_desfasada: boolean
+          ruta_firma_persona_confirmada_at: string
           ruta_firmada_el: string
           ruta_id: string
           ruta_monto: number
           ruta_negativa: boolean
+          ruta_tarifa_vigente: number
           sede: string
         }[]
       }
@@ -5899,6 +5929,7 @@ export type Database = {
         Args: { p_persona_id: string | null }
         Returns: boolean
       }
+      fn_persona_liquidada: { Args: { p_persona_id: string | null }; Returns: boolean }
       fn_persona_marca_en_sede: {
         Args: { p_persona_id: string | null; p_sede_id: string | null }
         Returns: boolean
@@ -6619,7 +6650,6 @@ export type Database = {
         Args: { p_persona_objetivo: string | null }
         Returns: string
       }
-      tmp_side_effect2: { Args: never; Returns: number[] }
     }
     Enums: {
       estado_jornada:

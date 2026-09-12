@@ -286,7 +286,8 @@ with repo(numero, nombre, nunca) as (values
     (418, 'las_ausencias_dejan_de_pagarse_tras_el_cese_y_el_sobretiempo_no_pierde_el_ciclo_del_borde', false),
     (419, 'los_feriados_de_la_pantalla_usan_el_periodo_no_el_mes_calendario', false),
     (421, 'quien_se_liquida_deja_de_estorbar', false),
-    (422, 'las_colas_de_correcciones_dejan_de_ver_a_quien_ya_se_liquido', false)
+    (422, 'las_colas_de_correcciones_dejan_de_ver_a_quien_ya_se_liquido', false),
+    (423, 'la_declaracion_de_ruta_ya_no_necesita_escaneo', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte

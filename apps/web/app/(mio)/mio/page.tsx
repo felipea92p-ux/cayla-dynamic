@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  CalendarClock, CalendarDays, FileSignature, History, IdCard, Inbox, LayoutDashboard, ScrollText,
+  CalendarClock, CalendarDays, Car, FileSignature, History, IdCard, Inbox, LayoutDashboard, ScrollText,
   Target, TreePalm,
 } from "lucide-react";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
@@ -209,7 +209,8 @@ interface SolicitudDni {
 
 /** Las nueve secciones de la pantalla. Ver el comentario de `tab`. */
 type Tab =
-  | "resumen" | "dias" | "turnos" | "dni" | "ausencias" | "contrato" | "firma" | "objetivos" | "historial";
+  | "resumen" | "dias" | "turnos" | "dni" | "ausencias" | "contrato" | "movilidad" | "firma" | "objetivos"
+  | "historial";
 
 /**
  * Las mismas nueve, con su icono y en el orden en que se leen.
@@ -217,8 +218,10 @@ type Tab =
  * Los iconos NO se eligieron sueltos: cada uno es el que el menú del panel
  * (`admin/nav-items.ts`) ya usa para esa misma idea — Turnos, Datos personales,
  * Ausencias, Contratos, Documentación, Objetivos —, así quien ve las dos
- * superficies reconoce la sección sin leer la etiqueta. Los dos que el panel no
- * tiene son «Mis días» y «Historial», que no existen allá como pantalla.
+ * superficies reconoce la sección sin leer la etiqueta. Las tres que el panel no
+ * tiene así: «Mis días» y «Historial», que no existen allá como pantalla, y
+ * «Movilidad» (0423), que allá es una sub-vista de Documentación —junto con la
+ * política y el bono— y no una pantalla propia con su propio ícono.
  */
 const SECCIONES: readonly SeccionDetalle<Tab>[] = [
   { valor: "resumen", label: "Resumen", Icon: LayoutDashboard },
@@ -227,6 +230,7 @@ const SECCIONES: readonly SeccionDetalle<Tab>[] = [
   { valor: "dni", label: "Mi DNI", Icon: IdCard },
   { valor: "ausencias", label: "Vacaciones y permisos", Icon: TreePalm },
   { valor: "contrato", label: "Contrato", Icon: ScrollText },
+  { valor: "movilidad", label: "Movilidad", Icon: Car },
   { valor: "firma", label: "Firma", Icon: FileSignature },
   { valor: "objetivos", label: "Objetivos", Icon: Target },
   { valor: "historial", label: "Historial", Icon: History },
@@ -1037,6 +1041,28 @@ export default function MioPage() {
         setContrato((data as MiContrato | null) ?? null);
         setContratoCargado(true);
       });
+    return () => { vivo = false; };
+  }, [supabase, yo?.id]);
+
+  // Su propia declaración de ruta (0423). Aparte del bloque grande por la
+  // misma razón que `contrato`: depende solo de quién es. `p_solo_mi_fila =>
+  // true` es obligatorio acá, no cosmético — sin él, como esta persona podría
+  // ser admin o líder mirando SU PROPIA pantalla, `fn_documentos_tablero`
+  // le devolvería la fila de cualquier compañera, no la suya (ver el
+  // comentario CAMBIO 0423 en la migración).
+  const [miMovilidad, setMiMovilidad] = useState<{
+    estado: "sin_ruta" | "se_nego" | "ok"; ruta_firmada_el: string | null; ruta_desfasada: boolean;
+  } | null>(null);
+  const [miMovilidadCargada, setMiMovilidadCargada] = useState(false);
+  useEffect(() => {
+    if (!yo?.id) return;
+    let vivo = true;
+    void supabase.rpc("fn_documentos_tablero", { p_solo_mi_fila: true }).then(({ data }) => {
+      if (!vivo) return;
+      type Fila = { estado: "sin_ruta" | "se_nego" | "ok"; ruta_firmada_el: string | null; ruta_desfasada: boolean };
+      setMiMovilidad(((data as Fila[] | null) ?? [])[0] ?? null);
+      setMiMovilidadCargada(true);
+    });
     return () => { vivo = false; };
   }, [supabase, yo?.id]);
 
@@ -2418,6 +2444,39 @@ export default function MioPage() {
                 className="mt-3 inline-block text-tinta underline underline-offset-2 hover:text-rojo-profundo"
               >
                 Ver mi contrato →
+              </Link>
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* ── MOVILIDAD ────────────────────────────────────────────────────────
+          Solo dice si le falta o si quedó desactualizada, y lleva a firmarla.
+          El formulario en sí vive en /mio/movilidad, mismo criterio que el
+          contrato de arriba. */}
+      {tab === "movilidad" && (
+        <section className="rounded-2xl border border-sand p-5 text-sm">
+          <h2 className="mb-1 font-serif text-lg">Tu declaración de ruta</h2>
+          {!miMovilidadCargada ? (
+            <p className="text-taupe">Cargando…</p>
+          ) : !miMovilidad ? (
+            <p className="text-taupe">Esto no te corresponde por ahora.</p>
+          ) : (
+            <div>
+              <p className={miMovilidad.estado === "ok" && !miMovilidad.ruta_desfasada ? "text-verde" : "text-rojo"}>
+                {miMovilidad.estado === "ok" && !miMovilidad.ruta_desfasada
+                  ? `Firmada el ${diaYMes(miMovilidad.ruta_firmada_el!)}.`
+                  : miMovilidad.estado === "ok"
+                    ? "Firmada, pero con una tarifa que ya no es la vigente."
+                    : miMovilidad.estado === "se_nego"
+                      ? "Quedó registrado que no la firmaste."
+                      : "Todavía te falta firmarla."}
+              </p>
+              <Link
+                href="/mio/movilidad"
+                className="mt-3 inline-block text-tinta underline underline-offset-2 hover:text-rojo-profundo"
+              >
+                Ir a mi declaración de ruta →
               </Link>
             </div>
           )}
