@@ -16,7 +16,7 @@
 -- el encabezado de la 0425 sobre por qué no se inventa un mecanismo nuevo).
 -- ============================================================================
 begin;
-select plan(11);
+select plan(12);
 
 insert into sedes (id, codigo, nombre, activa)
 values ('00000000-0000-0000-0000-000000336000', 'ZZ336', 'Sede de laboratorio', true)
