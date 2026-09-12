@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0429 — El contrato se firma completo de forma digital
+-- 0430 — El contrato se firma completo de forma digital
 -- ============================================================================
 --
 -- QUÉ PROMETE
@@ -104,7 +104,7 @@ alter table contratos_generados add constraint contrato_firma_coherente check (
 
 
 -- ── B · fn_confirmar_mi_firma_contrato: confirmar ES firmar, la primera vez ──
--- Cuerpo vigente: 0406, copiado literal salvo lo marcado CAMBIO 0429. Misma
+-- Cuerpo vigente: 0406, copiado literal salvo lo marcado CAMBIO 0430. Misma
 -- firma (un parámetro): `create or replace` basta.
 create or replace function fn_confirmar_mi_firma_contrato(p_contrato_id uuid)
 returns void language plpgsql security definer set search_path = public as $$
@@ -113,7 +113,7 @@ declare
   v_imagen        text;
   v_dueno         uuid;
   v_anulado       timestamptz;
-  -- ⇩⇩⇩ CAMBIO 0429 ⇩⇩⇩
+  -- ⇩⇩⇩ CAMBIO 0430 ⇩⇩⇩
   v_fecha_previa  date;
   v_tipo          text;
   v_nota          text := '';
@@ -121,7 +121,7 @@ begin
   v_yo := fn_persona_actual_id();
   if v_yo is null then raise exception 'No se encontró tu persona.'; end if;
 
-  -- ⇩⇩⇩ CAMBIO 0429 ⇩⇩⇩ se trae también `fecha_firma` y `tipo`: hace falta
+  -- ⇩⇩⇩ CAMBIO 0430 ⇩⇩⇩ se trae también `fecha_firma` y `tipo`: hace falta
   -- saber si esta confirmación es la PRIMERA (la que va a fechar el contrato)
   -- y qué tipo es (para decidir si corresponde recalcular su vencimiento).
   select persona_id, anulado_at, fecha_firma, tipo
@@ -141,7 +141,7 @@ begin
   insert into confirmaciones_firma_contrato (contrato_id, persona_id, imagen)
   values (p_contrato_id, v_yo, v_imagen);
 
-  -- ⇩⇩⇩ CAMBIO 0429 ⇩⇩⇩ La primera confirmación digital fecha el contrato.
+  -- ⇩⇩⇩ CAMBIO 0430 ⇩⇩⇩ La primera confirmación digital fecha el contrato.
   -- `coalesce` protege una `fecha_firma` que ya exista —de una confirmación
   -- digital anterior, o de un escaneo que subió DO—: reconfirmar (0406) sigue
   -- sirviendo para corregir la IMAGEN de tu firma, nunca para volver a fechar
@@ -153,7 +153,7 @@ begin
          registrado_por = coalesce(registrado_por, v_yo)
    where id = p_contrato_id;
 
-  -- ⇩⇩⇩ CAMBIO 0429 ⇩⇩⇩ Solo la PRIMERA vez (v_fecha_previa era null): esto
+  -- ⇩⇩⇩ CAMBIO 0430 ⇩⇩⇩ Solo la PRIMERA vez (v_fecha_previa era null): esto
   -- es justo lo que hasta ahora solo disparaba subir un escaneo
   -- (`fn_contrato_registrar`) — recalcular hasta cuándo vale el vencimiento
   -- de esta persona (0287/0312/0333/0347) y dejar constancia en su historial.
@@ -179,7 +179,7 @@ $$;
 
 
 -- ── C · fn_contrato_registrar: el candado y el escaneo miran fecha_firma ────
--- Cuerpo vigente: 0388, copiado literal salvo lo marcado CAMBIO 0429. Misma
+-- Cuerpo vigente: 0388, copiado literal salvo lo marcado CAMBIO 0430. Misma
 -- firma (13 parámetros): `create or replace` basta.
 create or replace function fn_contrato_registrar(
   p_persona_id            uuid    default null,
@@ -229,8 +229,8 @@ begin
       raise exception 'La ruta del escaneo no corresponde a este contrato.';
     end if;
 
-    -- ⇩⇩⇩ CAMBIO 0429 ⇩⇩⇩ `coalesce`, no un `update` a ciegas: este contrato
-    -- puede llegar aquí YA firmado por autoservicio digital (0429), y adjuntar
+    -- ⇩⇩⇩ CAMBIO 0430 ⇩⇩⇩ `coalesce`, no un `update` a ciegas: este contrato
+    -- puede llegar aquí YA firmado por autoservicio digital (0430), y adjuntar
     -- un escaneo después es un archivo de respaldo, no una nueva firma. Sin
     -- el `coalesce`, subir el escaneo habría corrido la fecha legal de firma
     -- hacia adelante en silencio.
@@ -247,7 +247,7 @@ begin
                   r.persona_id, 'Contrato firmado — generador de contratos');
     end if;
 
-    -- ⇩⇩⇩ CAMBIO 0429 ⇩⇩⇩ El mensaje distingue «esto lo firma» de «esto solo
+    -- ⇩⇩⇩ CAMBIO 0430 ⇩⇩⇩ El mensaje distingue «esto lo firma» de «esto solo
     -- archiva un escaneo de respaldo de algo que ya estaba firmado».
     insert into correcciones_auditoria
       (persona_id, campo_modificado, valor_anterior, valor_nuevo, corregido_por, motivo)
@@ -300,9 +300,9 @@ begin
     raise exception 'Falta el texto del contrato.';
   end if;
 
-  -- ⇩⇩⇩ CAMBIO 0429 ⇩⇩⇩ CANDADO 1 · un solo documento SIN FIRMAR por tipo.
+  -- ⇩⇩⇩ CAMBIO 0430 ⇩⇩⇩ CANDADO 1 · un solo documento SIN FIRMAR por tipo.
   -- Antes medía `storage_path is null» («sin escaneo»). Con la firma digital
-  -- (0429), un contrato puede estar firmado y vigente SIN escaneo — medido
+  -- (0430), un contrato puede estar firmado y vigente SIN escaneo — medido
   -- así, ese contrato ya firmado se seguía contando como «borrador sin
   -- firmar» y bloqueaba generar uno nuevo del mismo tipo (p. ej. una
   -- renovación) aunque el anterior ya estuviera firmado. El criterio real de
@@ -353,7 +353,7 @@ $$;
 
 
 -- ── D · fn_contrato_editar: la línea que no se cruza mira fecha_firma ───────
--- Cuerpo vigente: 0388, copiado literal salvo lo marcado CAMBIO 0429. Misma
+-- Cuerpo vigente: 0388, copiado literal salvo lo marcado CAMBIO 0430. Misma
 -- firma (8 parámetros): `create or replace` basta.
 create or replace function fn_contrato_editar(
   p_id                    uuid    default null,
@@ -388,8 +388,8 @@ begin
   if r.anulado_at is not null then
     raise exception 'Ese contrato está anulado: ya no se corrige, se genera uno nuevo.';
   end if;
-  -- ⇩⇩⇩ CAMBIO 0429 ⇩⇩⇩ LA LÍNEA QUE NO SE CRUZA, medida contra `fecha_firma`
-  -- y no contra `storage_path`: con la firma digital (0429), un contrato
+  -- ⇩⇩⇩ CAMBIO 0430 ⇩⇩⇩ LA LÍNEA QUE NO SE CRUZA, medida contra `fecha_firma`
+  -- y no contra `storage_path`: con la firma digital (0430), un contrato
   -- firmado sin escaneo pasaba antes esta guarda y se podía seguir editando
   -- por detrás — exactamente lo que esta línea existe para impedir.
   if r.fecha_firma is not null then
@@ -421,7 +421,7 @@ begin
     raise exception 'Falta el texto del contrato.';
   end if;
 
-  -- ⇩⇩⇩ CAMBIO 0429 ⇩⇩⇩ CANDADO 2, versión indulgente: solo contra lo YA
+  -- ⇩⇩⇩ CAMBIO 0430 ⇩⇩⇩ CANDADO 2, versión indulgente: solo contra lo YA
   -- FIRMADO, medido con `fecha_firma` en vez de `storage_path` — mismo motivo
   -- que arriba.
   if p_tipo <> 'adendum' and exists (
@@ -536,7 +536,7 @@ end;
 $$;
 comment on function fn_set_fin_contrato_nucleo(uuid, date, text) is
   'El mecanismo de fn_set_fin_contrato, sin el permiso — lo cierra quien la '
-  'llama. NUNCA concedida a authenticated (0429): solo fn_set_fin_contrato '
+  'llama. NUNCA concedida a authenticated (0430): solo fn_set_fin_contrato '
   '(tras exigir admin/lider) y fn_contrato_refrescar_vencimiento (cuyo '
   'p_fecha siempre sale de fn_contrato_firmado_vigente_de, nunca de quien '
   'pregunta) la invocan.';
@@ -565,7 +565,7 @@ begin
 end;
 $$;
 
--- Cuerpo vigente: 0347, con un solo cambio marcado CAMBIO 0429: las dos
+-- Cuerpo vigente: 0347, con un solo cambio marcado CAMBIO 0430: las dos
 -- llamadas a `fn_set_fin_contrato` pasan a `fn_set_fin_contrato_nucleo` — el
 -- permiso ya no aplica acá (nunca debió bloquear a quien firma su propio
 -- contrato), y el valor que se escribe sigue siendo el mismo de siempre:
@@ -592,7 +592,7 @@ begin
   v_r := fn_contrato_firmado_vigente_de(p_persona_id);
 
   if v_r.id is not null then
-    -- ⇩⇩⇩ CAMBIO 0429 ⇩⇩⇩
+    -- ⇩⇩⇩ CAMBIO 0430 ⇩⇩⇩
     perform fn_set_fin_contrato_nucleo(p_persona_id, v_r.fecha_fin, p_motivo);
     if v_r.fecha_fin is not null then
       return ' · su vencimiento queda en ' || to_char(v_r.fecha_fin, 'DD/MM/YYYY')
@@ -601,7 +601,7 @@ begin
       return ' · queda sin fecha de vencimiento: su contrato firmado más reciente es indefinido';
     end if;
   elsif p_puede_borrar is true then
-    -- ⇩⇩⇩ CAMBIO 0429 ⇩⇩⇩
+    -- ⇩⇩⇩ CAMBIO 0430 ⇩⇩⇩
     perform fn_set_fin_contrato_nucleo(p_persona_id, null, p_motivo);
     return ' · no queda ningún contrato firmado: su vencimiento queda sin fijar';
   else
@@ -633,13 +633,13 @@ begin
        and fecha_firma is null;
 
     perform fn_contrato_refrescar_vencimiento(
-      v_persona, 'Backfill 0429 — la firma digital ya confirmada pasa a contar como firma del contrato');
+      v_persona, 'Backfill 0430 — la firma digital ya confirmada pasa a contar como firma del contrato');
   end loop;
 end $$;
 
 
 insert into migraciones_aplicadas (numero, nombre)
-values (429, 'el_contrato_se_firma_completo_de_forma_digital')
+values (430, 'el_contrato_se_firma_completo_de_forma_digital')
 on conflict (numero) do update set nombre = excluded.nombre, aplicada_at = now();
 
 notify pgrst, 'reload schema';
@@ -647,18 +647,18 @@ notify pgrst, 'reload schema';
 
 -- ── Comprobación de que la pegada llegó entera ──────────────────────────────
 select
-  (select prosrc like '%CAMBIO 0429%' from pg_proc
+  (select prosrc like '%CAMBIO 0430%' from pg_proc
     where proname = 'fn_confirmar_mi_firma_contrato' and pronargs = 1)
     as confirmar_al_dia,
-  (select prosrc like '%CAMBIO 0429%' from pg_proc
+  (select prosrc like '%CAMBIO 0430%' from pg_proc
     where proname = 'fn_contrato_registrar' and pronargs = 13)
     as registrar_al_dia,
-  (select prosrc like '%CAMBIO 0429%' from pg_proc
+  (select prosrc like '%CAMBIO 0430%' from pg_proc
     where proname = 'fn_contrato_editar' and pronargs = 8)
     as editar_al_dia,
   (select count(*) from pg_proc where proname = 'fn_set_fin_contrato_nucleo') = 1
     as nucleo_puesto,
-  (select prosrc like '%CAMBIO 0429%' from pg_proc
+  (select prosrc like '%CAMBIO 0430%' from pg_proc
     where proname = 'fn_contrato_refrescar_vencimiento' and pronargs = 3)
     as refrescar_al_dia,
   (select count(*) from contratos_generados

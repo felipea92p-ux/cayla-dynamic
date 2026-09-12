@@ -3,7 +3,7 @@
 --   npx supabase test db
 -- Lo que sí se pega vive en supabase/migrations/.
 -- ============================================================================
--- 339_el_contrato_se_firma_completo_de_forma_digital.test.sql — 0429
+-- 339_el_contrato_se_firma_completo_de_forma_digital.test.sql — 0430
 -- ============================================================================
 -- Defiende el ciclo completo de la firma digital del contrato: confirmar la
 -- primera vez fecha el contrato, reconfirmar no vuelve a fecharlo, el candado

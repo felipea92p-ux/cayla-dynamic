@@ -164,7 +164,7 @@ function MiContratoContenido() {
   // contrato, visible para admin/líder tanto en la lista de contratos como al
   // abrir este documento (ver admin/contratos).
   //
-  // Y DESDE LA 0429, ESTO FIRMA EL CONTRATO — la primera vez. Antes solo
+  // Y DESDE LA 0430, ESTO FIRMA EL CONTRATO — la primera vez. Antes solo
   // tocaba `firma_persona_confirmada_at`, una columna aparte que nada leía
   // para decidir «¿está firmado?»; ahora el servidor también pone
   // `fecha_firma` (si todavía no la tenía), que es la columna que el resto
@@ -274,7 +274,7 @@ function MiContratoContenido() {
         </div>
       </div>
 
-      {/* Desde la 0429, confirmar tu firma abajo YA firma el contrato — no
+      {/* Desde la 0430, confirmar tu firma abajo YA firma el contrato — no
           hace falta imprimir ni escanear nada. Este aviso solo sale mientras
           de verdad no hay ninguna firma puesta (ni digital ni la vía de
           escaneo que Desarrollo Organizacional conserva como respaldo). */}
@@ -285,7 +285,7 @@ function MiContratoContenido() {
       )}
 
       {/* Confirmar acá firma el contrato — no hace falta imprimir, firmar a
-          mano ni subir ningún escaneo (0429, mismo criterio que Movilidad).
+          mano ni subir ningún escaneo (0430, mismo criterio que Movilidad).
           Desarrollo Organizacional conserva la vía del escaneo como
           respaldo para quien no pueda autoservirse desde aquí. */}
       <div className="mb-4 rounded-lg border border-sand bg-papel p-4 print:hidden">
@@ -307,7 +307,7 @@ function MiContratoContenido() {
         {/* Aparte de "Guardar firma" de arriba a propósito: guardar la firma
             solo configura la imagen (reusable en cualquier documento futuro);
             esto confirma que ESA imagen va en ESTE contrato puntual —y, la
-            primera vez, lo firma (0429)—, y lo dice en admin/contratos, en
+            primera vez, lo firma (0430)—, y lo dice en admin/contratos, en
             la lista y al abrir el documento. */}
         <div className="mt-3 border-t border-sand pt-3">
           {contrato.firma_persona_confirmada_at ? (
