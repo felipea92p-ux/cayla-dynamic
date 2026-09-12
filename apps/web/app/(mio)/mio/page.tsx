@@ -39,6 +39,7 @@ import { loQueNoSePudo } from "@/lib/admin/lo-que-no-se-pudo";
 import { cicloVigente, type DiaTrabajado } from "@/lib/admin/ciclo-sobretiempo";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { esMemoPorFirmar, traerBandeja } from "@/lib/bandeja-mia";
+import { useRecorridoGuiado, type PasoRecorrido } from "@/lib/use-recorrido-guiado";
 
 /**
  * «Lo mío» — lo que cada persona ve de sí misma.
@@ -229,6 +230,33 @@ const SECCIONES: readonly SeccionDetalle<Tab>[] = [
   { valor: "firma", label: "Firma", Icon: FileSignature },
   { valor: "objetivos", label: "Objetivos", Icon: Target },
   { valor: "historial", label: "Historial", Icon: History },
+];
+
+/**
+ * El recorrido de primera vez de «Resumen» — Fase 1 (ver CLAUDE.md). Solo esta
+ * pestaña: las otras ocho quedan para cuando se sepa si el patrón funciona.
+ *
+ * En el mismo orden en que las tarjetas aparecen en pantalla. Tres de los
+ * siete pasos (`mio-resumen-pago`, `-semana`, `-vacaciones`) apuntan a
+ * tarjetas que no siempre existen —piden sus propios datos, o dependen de que
+ * haya vacaciones pendientes—: `useRecorridoGuiado` los salta solos si no
+ * aparecen a tiempo, no hace falta condicionarlos acá.
+ */
+const PASOS_TOUR_RESUMEN: readonly PasoRecorrido[] = [
+  { selector: '[data-tour="mio-resumen-header"]', titulo: "Tu información",
+    texto: "Tu nombre, tu cargo y tu sede. Si algo está mal, corrígelo desde «Editar datos»." },
+  { selector: '[data-tour="mio-resumen-periodo"]', titulo: "Tu periodo de pago",
+    texto: "Cuándo cierra tu periodo actual y si te falta algún día por revisar." },
+  { selector: '[data-tour="mio-resumen-pago"]', titulo: "Cómo va tu pago",
+    texto: "Un estimado en vivo, con lo marcado hasta hoy. No es tu boleta final hasta que cierre el periodo." },
+  { selector: '[data-tour="mio-resumen-semana"]', titulo: "Tu semana",
+    texto: "Cuántas horas llevas trabajadas en tu semana actual." },
+  { selector: '[data-tour="mio-resumen-vacaciones"]', titulo: "Tus vacaciones",
+    texto: "Tus días pendientes, y si alguno está por vencer." },
+  { selector: '[data-tour="mio-resumen-turno"]', titulo: "Tu próximo turno",
+    texto: "Tu horario y el próximo feriado que le toca a tu sede." },
+  { selector: '[data-tour="mio-resumen-objetivos"]', titulo: "Tus objetivos",
+    texto: "Los conversa contigo tu encargada. Aquí solo ves el avance." },
 ];
 
 /**
@@ -1230,6 +1258,12 @@ export default function MioPage() {
     [hayCampoDni],
   );
 
+  // Recorrido guiado de "Resumen", primera vez. `Boolean(yo)` y no solo `yo`:
+  // el hook solo necesita saber SI ya hay una persona cargada, no memorizar el
+  // objeto entero — comparado por referencia, `yo` cambia en cada refetch
+  // aunque los datos sean los mismos, y reiniciaría el efecto sin motivo.
+  useRecorridoGuiado("mio-resumen", PASOS_TOUR_RESUMEN, tab === "resumen" && Boolean(yo));
+
   /** Desde un aviso de arriba hasta el día concreto del que habla. */
   function abrirDia(fecha: string) {
     setTab("dias");
@@ -1503,7 +1537,7 @@ export default function MioPage() {
           La antigüedad va acá y no escondida: es lo que decide cuántos días de
           vacaciones le tocan, y hasta hoy solo la sabía quien abría su ficha
           en el panel — o sea, todo el mundo menos ella. */}
-      <header className="mb-6 overflow-hidden rounded-2xl border border-sand bg-papel">
+      <header data-tour="mio-resumen-header" className="mb-6 overflow-hidden rounded-2xl border border-sand bg-papel">
         <div className="flex flex-wrap items-start justify-between gap-4 p-5 sm:p-6">
           <div className="flex items-center gap-4">
             {yo ? (
@@ -1693,6 +1727,7 @@ export default function MioPage() {
               las quince secciones de arriba con él. */}
           {periodo && estadoDelPeriodo ? (
             <TarjetaClave
+              dataTour="mio-resumen-periodo"
               titulo="Tu periodo de pago"
               valor={estadoDelPeriodo.cierra > 0
                 ? `Cierra en ${estadoDelPeriodo.cierra} día${estadoDelPeriodo.cierra === 1 ? "" : "s"}`
@@ -1707,7 +1742,7 @@ export default function MioPage() {
               accion={<Link href="/mio/boleta" className="text-tinta underline underline-offset-2 hover:text-rojo-profundo">Ver mi boleta →</Link>}
             />
           ) : (
-            <TarjetaClave titulo="Tu periodo de pago" valor="—" pie="No hay un periodo de pago abierto para hoy." />
+            <TarjetaClave dataTour="mio-resumen-periodo" titulo="Tu periodo de pago" valor="—" pie="No hay un periodo de pago abierto para hoy." />
           )}
 
           {yo && <AdelantoDePago personaId={yo.id} />}
@@ -1716,6 +1751,7 @@ export default function MioPage() {
           {/* Nadie pide vacaciones que no sabe que tiene. */}
           {vacas && (
             <TarjetaClave
+              dataTour="mio-resumen-vacaciones"
               titulo="Tus vacaciones"
               valor={`${vacas.dias_pendientes} días`}
               pie={vacas.vence_el
@@ -1736,6 +1772,7 @@ export default function MioPage() {
           {/* «¿Cuándo me toca?» es la pregunta que más veces abre esta pantalla, y
               hasta hoy se respondía por WhatsApp. */}
           <TarjetaClave
+            dataTour="mio-resumen-turno"
             titulo="Tu próximo turno"
             valor={proximos.length > 0
               ? `${proximos[0].esperado.entrada}${proximos[0].esperado.salida ? `–${proximos[0].esperado.salida}` : ""}`
@@ -1753,6 +1790,7 @@ export default function MioPage() {
 
           {/* Sin lenguaje de premio: desde la 0171 los objetivos NO pagan. */}
           <TarjetaClave
+            dataTour="mio-resumen-objetivos"
             titulo={`Tus objetivos de ${mesLabel}`}
             valor={objetivos.length > 0 ? `${objCumplidos} de ${objetivos.length}` : "—"}
             pie={objetivos.length > 0
@@ -2671,7 +2709,7 @@ function HorasDeLaSemana({ personaId }: { personaId: string }) {
   if (!ciclo) return null;
 
   return (
-    <TarjetaClave titulo="Tu semana" valor={comoReloj(ciclo.horas)}
+    <TarjetaClave dataTour="mio-resumen-semana" titulo="Tu semana" valor={comoReloj(ciclo.horas)}
       pie={`Trabajadas desde el ${diaYMes(ciclo.desde)}.`} />
   );
 }
@@ -2710,6 +2748,7 @@ function AdelantoDePago({ personaId }: { personaId: string }) {
 
   return (
     <TarjetaClave
+      dataTour="mio-resumen-pago"
       titulo="Cómo va tu pago"
       valor={`S/ ${fila.total.toFixed(2)}`}
       pie={`Horas trabajadas: ${comoReloj(fila.horas_mes)}. En vivo, con lo marcado hasta hoy — todavía puede cambiar antes de que cierre el periodo.`}
@@ -2869,16 +2908,19 @@ function Tarjeta({ titulo, valor, pie }: { titulo: string; valor: string; pie?: 
  * de vencer—, que son las dos que le pueden costar algo a ella.
  */
 function TarjetaClave({
-  titulo, valor, pie, accion, alerta = false,
+  titulo, valor, pie, accion, alerta = false, dataTour,
 }: {
   titulo: string;
   valor: string;
   pie?: string;
   accion?: React.ReactNode;
   alerta?: boolean;
+  /** Ancla del recorrido guiado (ver use-recorrido-guiado.ts). Opcional: la
+   *  inmensa mayoría de los usos de esta tarjeta no son parte de ningún tour. */
+  dataTour?: string;
 }) {
   return (
-    <div className={`flex flex-col rounded-2xl border p-4 ${
+    <div data-tour={dataTour} className={`flex flex-col rounded-2xl border p-4 ${
       alerta ? "border-ambar/40 bg-ambar/[0.07]" : "border-sand bg-papel"}`}>
       <div className="etiqueta text-taupe">{titulo}</div>
       <div className="mt-1 font-serif text-2xl leading-tight">{valor}</div>
