@@ -294,13 +294,26 @@ interface EstadoPolitica {
  */
 interface DocArchivado {
   id: string;
+  persona_id: string | null;
   tipo: string;
   fecha_firma: string | null;
+  ruta_declarada: string | null;
   storage_path: string | null;
+  firma_persona: string | null;
   nota: string | null;
   registrado_por: string | null;
   anulado_at: string | null;
   anulado_motivo: string | null;
+  /** Es la fila que hoy cuenta para su tipo y su persona — mismo desempate
+   *  que ya usa el candado de la 0425 (fecha_firma desc, created_at desc, id
+   *  desc), calculado una sola vez por `fn_documentos_listar`. */
+  vigente: boolean;
+  /** Solo tipo=ruta, y solo desde la 0429 — null en todo lo firmado antes:
+   *  esa fecha vivía únicamente adentro de `ruta_declarada`. */
+  ruta_distrito: string | null;
+  ruta_provincia: string | null;
+  ruta_medios_ida: number | null;
+  ruta_medios_vuelta: number | null;
 }
 
 const MAX_BYTES_DOC = 50 * 1024 * 1024;
@@ -363,8 +376,11 @@ export default function DocumentacionPage() {
    * los pagos de movilidad ya hechos si alguien pregunta qué documento regía.
    */
   const [documentos, setDocumentos] = useState<DocArchivado[]>([]);
-  /** Anulación en curso: qué fila y con qué motivo. Null = nadie está anulando. */
-  const [anulando, setAnulando] = useState<{ id: string; motivo: string } | null>(null);
+  /** Anulación en curso: qué fila y con qué motivo. Null = nadie está anulando.
+   *  `etiqueta` nombra de QUIÉN es el documento en la pregunta de confirmación
+   *  — la política no tiene una (es de la empresa, no de una persona), una
+   *  ruta o un bono sí. */
+  const [anulando, setAnulando] = useState<{ id: string; motivo: string; etiqueta?: string } | null>(null);
   // Qué se está subiendo. `que` decide todo lo demás: la política no lleva
   // persona, el bono no lleva monto y solo la ruta admite negativa. Antes esto
   // era un `{personaId, negativa}` y el tipo iba fijo en «ruta» dentro del
@@ -384,6 +400,25 @@ export default function DocumentacionPage() {
   const [progresoDoc, setProgresoDoc] = useState<number | null>(null);
   const [guardandoDoc, setGuardandoDoc] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
+
+  // «Ver» de una firma digital: no hay archivo que abrir —el texto y la firma
+  // viven en columnas, no en storage— así que se arma el mismo documento con
+  // membrete que ya se ve al imprimir, pero con los datos reales en vez de
+  // rayas en blanco. Pedido de Felipe: que se vea «tal cual el documento
+  // firmado», igual que el visor de contratos.
+  const [verFirma, setVerFirma] = useState<{
+    persona: string; documento: string | null; funcion: string | null; sedeNombre: string;
+    texto: string | null; firma: string | null; fecha: string | null; tarifa: number | null;
+    // Las piezas por separado (0429) — cuando existen, se arma la MISMA lista
+    // numerada que ya usa /mio/movilidad al firmar. En lo firmado antes de la
+    // 0429 no existen, y ahí se cae al párrafo de `texto` tal cual: es el
+    // texto real que esa persona firmó, y no hay forma honesta de partirlo en
+    // columnas que no existían ese día.
+    distrito: string | null; provincia: string | null; mediosIda: number | null; mediosVuelta: number | null;
+  } | null>(null);
+  // La firma de la empresa para ese visor — ver el comentario junto a
+  // `fn_firma_empresa` en `cargar()`.
+  const [firmaEmpresaGlobal, setFirmaEmpresaGlobal] = useState<string | null>(null);
   // Las hojas que se imprimen de una vez. `null` = modo normal, una sola hoja:
   // la de la persona elegida arriba. Se llena, se imprime y se vacía; no es un
   // modo en el que la pantalla se quede.
@@ -539,6 +574,20 @@ export default function DocumentacionPage() {
     [documentos],
   );
 
+  /** persona_id → su ruta VIGENTE, cuando fue firma digital (0423) y no un
+   *  escaneo. Eso es lo que le falta al «Ver» de esta tabla: para un escaneo
+   *  ya existe (abre el archivo subido); para una firma digital no había
+   *  archivo que abrir, así que no había «Ver» — el botón «Eliminar» de acá
+   *  abajo usa el mismo mapa, pero sin filtrar por firma_persona. */
+  const rutaVigentePorPersona = useMemo(
+    () => new Map(
+      documentos
+        .filter((d) => d.tipo === "ruta" && d.vigente && d.persona_id)
+        .map((d) => [d.persona_id as string, d]),
+    ),
+    [documentos],
+  );
+
   /**
    * Las políticas ya reemplazadas, de la más reciente a la más antigua.
    *
@@ -580,6 +629,32 @@ export default function DocumentacionPage() {
   async function verDocumento(path: string) {
     const fallo = await abrirArchivoFirmado(supabase, "documentos", path);
     if (fallo) avisar("error", fallo);
+  }
+
+  /** «Ver» para una firma digital: no hay archivo en storage que abrir —el
+   *  texto y la imagen de la firma viven en columnas de documentos_firmados,
+   *  no en un bucket—, así que se arma el mismo documento con membrete que ya
+   *  usa `hoja()` para imprimir, con los datos reales de esta persona y de su
+   *  declaración ya firmada. */
+  function abrirVerFirma(f: FilaTablero) {
+    const doc = rutaVigentePorPersona.get(f.persona_id);
+    const quien = personas.find((p) => p.id === f.persona_id);
+    setVerFirma({
+      persona: f.persona,
+      documento: quien?.documento ?? null,
+      funcion: quien?.funcion ?? null,
+      sedeNombre: quien ? (sedes.get(quien.sede_base_id) ?? f.sede) : f.sede,
+      texto: doc?.ruta_declarada ?? null,
+      firma: doc?.firma_persona ?? null,
+      fecha: f.ruta_firmada_el,
+      // El monto QUE FIRMÓ, no el vigente hoy — si quedó desfasada, el papel
+      // tiene que seguir diciendo lo que de verdad se firmó ese día.
+      tarifa: f.ruta_monto,
+      distrito: doc?.ruta_distrito ?? null,
+      provincia: doc?.ruta_provincia ?? null,
+      mediosIda: doc?.ruta_medios_ida ?? null,
+      mediosVuelta: doc?.ruta_medios_vuelta ?? null,
+    });
   }
 
   async function guardarDocumento() {
@@ -870,6 +945,14 @@ export default function DocumentacionPage() {
     // sale con la línea en blanco para firmar a mano, como hasta ahora.
     const { data: fu } = await supabase.rpc("fn_mi_firma");
     setFirmaUrl(typeof fu === "string" && fu.startsWith("data:image") ? fu : null);
+
+    // La firma de la empresa, para el «Ver» de una firma digital — a
+    // diferencia de `firmaUrl` (la de quien imprime, condicionada a que SEA
+    // el firmante), esta se muestra siempre: el documento ya está firmado, y
+    // quien lo mira no es quien lo firmó por CAYLA. Mismo criterio que ya usa
+    // /mio/contrato y /mio/movilidad.
+    const { data: fe } = await supabase.rpc("fn_firma_empresa");
+    setFirmaEmpresaGlobal((fe as string | null) ?? null);
 
     // ⇩ Desde la 0130 la tarifa es POR SEDE, porque el pasaje no cuesta lo mismo
     // en las tres ciudades. La política tiene que decir las tres: un documento
@@ -1478,25 +1561,159 @@ export default function DocumentacionPage() {
 
           {/* El motivo es obligatorio y no es burocracia: sin él, el historial se
               convierte en una lista de papeles retirados sin decir por qué, que no
-              sirve para lo único que tiene que servir. */}
+              sirve para lo único que tiene que servir.
+              Modal de verdad (no un panel dentro de la página): a pedido de Felipe,
+              para que anular pida una confirmación aparte y no un clic más en medio
+              de una tabla larga. Mismo patrón que ya usa admin/contratos. */}
           {anulando && (
-            <div className="mb-4 rounded-control border border-rojo/40 bg-rojo/[0.04] p-3 text-sm">
-              <div className="font-medium text-rojo">Anular este documento</div>
-              <p className="mt-1 text-xs text-taupe">
-                No se borra: queda guardado en el historial con tu nombre, la hora y este motivo.
-              </p>
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                <div className="min-w-64 flex-1">
+            <div
+              className="fixed inset-0 z-30 flex items-center justify-center bg-black/40 p-4"
+              onClick={() => setAnulando(null)}
+            >
+              <div
+                role="dialog"
+                aria-modal="true"
+                aria-label="Anular documento"
+                className="w-full max-w-md rounded-flotante border border-rojo/40 bg-papel p-4 text-sm"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="font-medium text-rojo">
+                  {anulando.etiqueta
+                    ? `¿Seguro que quieres anular la firma de ${anulando.etiqueta}?`
+                    : "¿Seguro que quieres anular este documento?"}
+                </div>
+                <p className="mt-1 text-xs text-taupe">
+                  No se borra: queda guardado en el historial con tu nombre, la hora y este motivo.
+                </p>
+                <div className="mt-3">
                   <Campo value={anulando.motivo}
                     onChange={(e) => setAnulando({ ...anulando, motivo: e.target.value })}
                     placeholder="ej. se subió el escaneo equivocado" />
                 </div>
-                <Boton variante="peligro" tamano="sm"
-                  onClick={() => void anularDocumento(anulando.id, anulando.motivo.trim())}
-                  disabled={anulando.motivo.trim().length < 4}>
-                  Anular
-                </Boton>
-                <Boton variante="enlace" onClick={() => setAnulando(null)}>Cancelar</Boton>
+                <div className="mt-3 flex items-center gap-2">
+                  <Boton variante="peligro" tamano="sm"
+                    onClick={() => void anularDocumento(anulando.id, anulando.motivo.trim())}
+                    disabled={anulando.motivo.trim().length < 4}>
+                    Sí, anular
+                  </Boton>
+                  <Boton variante="enlace" onClick={() => setAnulando(null)}>Cancelar</Boton>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* «Ver» de una firma digital — el documento tal cual quedó
+              firmado, con el mismo membrete que ya usa `hoja()` al imprimir
+              y el mismo patrón de modal que ya usa admin/contratos (título +
+              Imprimir, y el papel adentro). A diferencia de `hoja()`, acá NO
+              hay rayas en blanco: todo son los datos reales de ESTA
+              declaración ya firmada. */}
+          {verFirma && (
+            <div
+              className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4 print:static print:block print:bg-transparent print:p-0"
+              onClick={() => setVerFirma(null)}
+            >
+              <div
+                role="dialog"
+                aria-modal="true"
+                aria-label={`Declaración de ruta de ${verFirma.persona}`}
+                className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-flotante border border-sand bg-crema print:max-h-none print:w-auto print:max-w-none print:overflow-visible print:rounded-none print:border-0"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center gap-3 border-b border-sand bg-sand/30 px-4 py-2 print:hidden">
+                  <Boton variante="primario" onClick={() => window.print()}>
+                    Imprimir / Guardar como PDF
+                  </Boton>
+                  <Boton variante="enlace" onClick={() => setVerFirma(null)}>Cerrar</Boton>
+                </div>
+
+                <div className="overflow-y-auto p-5 print:overflow-visible print:p-0">
+                  <div className="hoja rounded-lg border border-sand p-8 text-sm leading-relaxed print:rounded-none print:border-0 print:p-0">
+                    <div className="mb-6 flex items-start justify-between border-b border-sand pb-4">
+                      <Marca tono="tinta" isotipo="rojo" />
+                      <div className="text-right text-xs text-taupe">
+                        <p>{EMPRESA.nombre}</p>
+                        <p>RUC {EMPRESA.ruc}</p>
+                      </div>
+                    </div>
+
+                    <h2 className="mb-6 text-center font-serif text-xl">
+                      Declaración de ruta y gasto de transporte
+                    </h2>
+
+                    <p className="mb-4">
+                      Yo, <strong>{verFirma.persona}</strong>, con documento de identidad N.º{" "}
+                      <strong>{verFirma.documento ?? "—"}</strong>, que desempeño el cargo de{" "}
+                      <strong>{verFirma.funcion ?? "—"}</strong> en la sede{" "}
+                      <strong>{verFirma.sedeNombre}</strong> de {EMPRESA.nombre}, declaro lo siguiente respecto de
+                      mi traslado diario entre mi domicilio y mi centro de labores:
+                    </p>
+
+                    {verFirma.distrito ? (
+                      // Lista numerada (0429): las piezas se guardaron aparte
+                      // al firmar, así que se arma la MISMA estructura que ya
+                      // ve la persona al firmar en /mio/movilidad — nunca un
+                      // segundo intento de decir lo mismo con otra forma.
+                      <>
+                        <ol className="mb-6 list-decimal space-y-2 pl-6">
+                          <li>
+                            Reside en el distrito de <strong>{verFirma.distrito}</strong>, provincia de{" "}
+                            <strong>{verFirma.provincia}</strong>.
+                          </li>
+                          <li>
+                            Para llegar a su centro de labores utiliza <strong>{verFirma.mediosIda}</strong>{" "}
+                            medio(s) de transporte por tramo, y de regreso{" "}
+                            <strong>{verFirma.mediosVuelta}</strong>.
+                          </li>
+                          <li>
+                            Declara que la información consignada es veraz, y se compromete a informar a{" "}
+                            {EMPRESA.nombre} si cambia de domicilio o de ruta habitual.
+                          </li>
+                        </ol>
+                        <p className="mb-6">
+                          Toma conocimiento de que {EMPRESA.nombre} le otorga una asignación por movilidad de{" "}
+                          <strong>
+                            S/ {verFirma.tarifa !== null ? verFirma.tarifa.toFixed(2) : "—"} por día
+                            efectivamente asistido
+                          </strong>
+                          , destinada a cubrir dicho traslado; que se abona únicamente por los días en que
+                          asiste a laborar, no correspondiendo en caso de inasistencia, licencia o descanso; y
+                          que este concepto <strong>no tiene carácter remunerativo</strong>, conforme al
+                          artículo 19 inciso e) del Decreto Supremo N.º 001-97-TR.
+                        </p>
+                      </>
+                    ) : verFirma.texto ? (
+                      // Firmada antes de la 0429: esas cuatro columnas no
+                      // existían ese día, así que se muestra el texto real
+                      // que se firmó, tal cual — no se inventa una lista con
+                      // datos que no se guardaron por separado.
+                      <p className="mb-6">{verFirma.texto}</p>
+                    ) : (
+                      <p className="mb-6 text-taupe">No se guardó el texto de esta declaración.</p>
+                    )}
+
+                    <p className="mb-10 text-xs text-taupe">
+                      Suscrito en {verFirma.sedeNombre}
+                      {verFirma.fecha && <>, el {fechaLarga(verFirma.fecha)}</>}.
+                    </p>
+
+                    <div className="grid grid-cols-2 gap-10 pt-6">
+                      <BloqueFirma
+                        imagen={verFirma.firma}
+                        nombre={verFirma.persona}
+                        pie={`DNI ${verFirma.documento ?? "—————"} · el/la declarante`}
+                      />
+                      <BloqueFirma
+                        imagen={firmaEmpresaGlobal}
+                        nombre={firmanteNombre}
+                        pie={`${firmanteCargo} · ${EMPRESA.nombre}`}
+                      />
+                    </div>
+                    <p className="mt-6 text-center text-xs text-taupe">
+                      Firma digital, confirmada desde el sistema{verFirma.fecha && <> el {fechaLarga(verFirma.fecha)}</>}.
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -1741,15 +1958,20 @@ export default function DocumentacionPage() {
                           </td>
                           <td className="px-4 py-2">
                             <div className="flex flex-wrap items-center justify-end gap-3">
-                              {/* «Ver» va PRIMERO y solo si hay archivo: comprobar lo
-                                  que subiste es lo que se hace justo después de
-                                  subirlo, y el error de subir el papel equivocado no
-                                  se nota de ninguna otra forma hasta que lo pide un
-                                  inspector. Si la fila no tiene archivo, no hay botón
-                                  —mejor que uno que abre una pestaña en blanco—. */}
-                              {f.ruta_id && rutasDeArchivo.has(f.ruta_id) && (
+                              {/* «Ver» va PRIMERO y solo si hay algo que ver:
+                                  comprobar lo que se firmó o se subió es lo que se
+                                  hace justo después, y el error de subir el papel
+                                  equivocado no se nota de ninguna otra forma hasta
+                                  que lo pide un inspector. Dos vías, nunca las dos
+                                  a la vez para la misma fila: un escaneo abre su
+                                  archivo (`rutasDeArchivo`); una firma digital no
+                                  tiene archivo — su texto y su firma viven en
+                                  columnas, así que abren el recuadro propio. */}
+                              {f.ruta_id && rutasDeArchivo.has(f.ruta_id) ? (
                                 <Boton variante="enlace" onClick={() => void verDocumento(rutasDeArchivo.get(f.ruta_id!)!)}>Ver</Boton>
-                              )}
+                              ) : rutaVigentePorPersona.get(f.persona_id)?.firma_persona ? (
+                                <Boton variante="enlace" onClick={() => abrirVerFirma(f)}>Ver</Boton>
+                              ) : null}
                               <Boton variante="enlace" onClick={() => imprimirFila(f.persona_id, "ruta")}>Imprimir</Boton>
                               <Boton variante="secundario" tamano="sm" onClick={() => abrirSubida("ruta", f.persona_id)}>
                                 {f.estado === "ok" ? "Subir otra" : "Subir firmada"}
@@ -1759,6 +1981,17 @@ export default function DocumentacionPage() {
                                 // ser tan fácil como registrar una firma.
                                 <Boton variante="enlace" className="text-taupe" onClick={() => abrirSubida("ruta", f.persona_id, true)}>
                                   se negó
+                                </Boton>
+                              )}
+                              {/* Eliminar (0428, a pedido de Felipe): por si quedó
+                                  mal firmada — mismo `anulando` que ya usa la
+                                  política de arriba, con el nombre de la persona en
+                                  la pregunta de confirmación. Solo tiene sentido si
+                                  hay algo que anular. */}
+                              {f.ruta_id && (
+                                <Boton variante="enlace" className="text-rojo"
+                                  onClick={() => setAnulando({ id: f.ruta_id!, motivo: "", etiqueta: f.persona })}>
+                                  Eliminar
                                 </Boton>
                               )}
                             </div>

@@ -3,7 +3,7 @@
 --   npx supabase test db
 -- Lo que sí se pega vive en supabase/migrations/.
 -- ============================================================================
--- 334_la_declaracion_de_ruta_se_firma_sin_escaneo.test.sql — 0423/0425
+-- 334_la_declaracion_de_ruta_se_firma_sin_escaneo.test.sql — 0423/0425/0426
 -- ============================================================================
 -- Actualizado por la 0425: `fn_confirmar_mi_declaracion_ruta` perdió el costo
 -- de pasaje y el costo/frecuencia de taxi (ahora el monto es SIEMPRE la
@@ -12,6 +12,11 @@
 -- firmar sola. La prueba 335 cubre el candado a fondo (con revisión incluida);
 -- acá solo se agrega un `throws_ok` mínimo para que este archivo seguir
 -- probando la firma completa no lo deje pasar por alto sin darse cuenta.
+--
+-- Actualizado otra vez por la 0426: la función pierde el parámetro del taxi
+-- (de 5 a 4). Distrito, provincia y medios de transporte se SIGUEN
+-- declarando —eso no cambió—, así que el texto se sigue comprobando contra
+-- el distrito que la persona escribe.
 --
 -- Tres cosas se defienden acá, y las tres importan más que "la función
 -- inserta una fila":
@@ -34,7 +39,7 @@
 --      vez firmada y al día, la única puerta que queda es pedir revisión.
 -- ============================================================================
 begin;
-select plan(14);
+select plan(15);
 
 insert into sedes (id, codigo, nombre, activa)
 values ('00000000-0000-0000-0000-000000334000', 'ZZ334', 'Sede de laboratorio', true)
@@ -62,14 +67,14 @@ set session_replication_role = origin;
 -- ── 1 · La misma puerta que ya exigía fn_documento_registrar ───────────────
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000334013', true);
 select throws_ok(
-  $$ select fn_confirmar_mi_declaracion_ruta('Los Olivos','Lima',2,2,false) $$,
+  $$ select fn_confirmar_mi_declaracion_ruta('Los Olivos','Lima',2,2) $$,
   null, null,
   'RECHAZADO · fuera de planilla no tiene declaración que firmar, igual que en fn_documento_registrar');
 
 -- ── 2 · Sin firma guardada, tampoco hay firma que confirmar ────────────────
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000334011', true);
 select throws_ok(
-  $$ select fn_confirmar_mi_declaracion_ruta('Los Olivos','Lima',2,2,false) $$,
+  $$ select fn_confirmar_mi_declaracion_ruta('Los Olivos','Lima',2,2) $$,
   null, null,
   'RECHAZADO · todavía no configuró su firma en firmas_escaneadas');
 
@@ -78,7 +83,7 @@ values ('00000000-0000-0000-0000-000000334001', 'data:image/png;base64,iVBORw0KG
 
 -- ── 3 · Firma su declaración, con todo en regla ─────────────────────────────
 select lives_ok(
-  $$ select fn_confirmar_mi_declaracion_ruta('Los Olivos','Lima',2,2,true) $$,
+  $$ select fn_confirmar_mi_declaracion_ruta('Los Olivos','Lima',2,2) $$,
   'OK · en planilla, activa, con firma guardada: la declaración se registra');
 
 select is(
@@ -104,6 +109,13 @@ select is(
   true,
   'TEXTO · compone el mismo tipo de declaración que hoy se escribe a mano en el papel');
 
+select is(
+  (select ruta_distrito || '/' || ruta_provincia || '/' || ruta_medios_ida || '/' || ruta_medios_vuelta
+    from documentos_firmados
+   where persona_id = '00000000-0000-0000-0000-000000334001' and tipo = 'ruta'),
+  'Los Olivos/Lima/2/2',
+  'COLUMNAS (0429) · las mismas piezas quedan guardadas aparte del párrafo, para que el «Ver» de admin arme la misma lista sin tener que parsear el texto');
+
 -- ── 4 · Su propio estado, vía fn_documentos_tablero(p_solo_mi_fila => true) ─
 select is(
   (select estado from fn_documentos_tablero(true)),
@@ -115,8 +127,10 @@ select ok(
   'AUTOCONSULTA · el tablero distingue que fue firma digital, no escaneo');
 
 -- ── 5 · El candado (0425): vigente y al día, no se puede volver a firmar ───
+-- Con OTRO distrito a propósito: el candado no mira qué escribiste, mira si
+-- el monto sigue siendo el vigente.
 select throws_ok(
-  $$ select fn_confirmar_mi_declaracion_ruta('San Juan de Lurigancho','Lima',1,1,false) $$,
+  $$ select fn_confirmar_mi_declaracion_ruta('San Juan de Lurigancho','Lima',1,1) $$,
   null, null,
   'CANDADO · con una declaración vigente y al día, no se puede volver a firmar sola (0425)');
 

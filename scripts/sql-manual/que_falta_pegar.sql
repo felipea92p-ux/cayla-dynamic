@@ -289,7 +289,9 @@ with repo(numero, nombre, nunca) as (values
     (422, 'las_colas_de_correcciones_dejan_de_ver_a_quien_ya_se_liquido', false),
     (423, 'la_declaracion_de_ruta_ya_no_necesita_escaneo', false),
     (424, 'una_practicante_tambien_declara_su_ruta', false),
-    (425, 'la_declaracion_de_ruta_queda_fija_al_firmarla', false)
+    (425, 'la_declaracion_de_ruta_queda_fija_al_firmarla', false),
+    (426, 'la_declaracion_de_ruta_ya_no_pregunta_por_el_taxi', false),
+    (429, 'la_declaracion_de_ruta_guarda_sus_datos_por_separado', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
