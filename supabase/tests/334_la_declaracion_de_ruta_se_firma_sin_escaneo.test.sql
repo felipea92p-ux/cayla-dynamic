@@ -39,7 +39,7 @@
 --      vez firmada y al día, la única puerta que queda es pedir revisión.
 -- ============================================================================
 begin;
-select plan(14);
+select plan(15);
 
 insert into sedes (id, codigo, nombre, activa)
 values ('00000000-0000-0000-0000-000000334000', 'ZZ334', 'Sede de laboratorio', true)
@@ -108,6 +108,13 @@ select is(
     where persona_id = '00000000-0000-0000-0000-000000334001' and tipo = 'ruta'),
   true,
   'TEXTO · compone el mismo tipo de declaración que hoy se escribe a mano en el papel');
+
+select is(
+  (select ruta_distrito || '/' || ruta_provincia || '/' || ruta_medios_ida || '/' || ruta_medios_vuelta
+    from documentos_firmados
+   where persona_id = '00000000-0000-0000-0000-000000334001' and tipo = 'ruta'),
+  'Los Olivos/Lima/2/2',
+  'COLUMNAS (0429) · las mismas piezas quedan guardadas aparte del párrafo, para que el «Ver» de admin arme la misma lista sin tener que parsear el texto');
 
 -- ── 4 · Su propio estado, vía fn_documentos_tablero(p_solo_mi_fila => true) ─
 select is(
