@@ -241,6 +241,20 @@ const SECCIONES: readonly SeccionDetalle<Tab>[] = [
  * tarjetas que no siempre existen —piden sus propios datos, o dependen de que
  * haya vacaciones pendientes—: `useRecorridoGuiado` los salta solos si no
  * aparecen a tiempo, no hace falta condicionarlos acá.
+ *
+ * Dos cosas decididas a propósito el 2026-09-12, después de verlo saltar del
+ * paso 3 al 6 en una cuenta con menos de un mes (sin ciclo de semana cerrado
+ * ni vacaciones que le apliquen todavía) — para que una sesión futura no lo
+ * lea como un bug y lo "arregle":
+ * - El contador "Paso X de Y" no se recalcula para ocultar el salto. Hacerlo
+ *   bien exigiría esperar a que las tarjetas lentas carguen ANTES de arrancar
+ *   el recorrido, retrasando el inicio para todo el mundo, no solo para quien
+ *   tiene menos tarjetas. El salto es cosmético, no un error.
+ * - "Tu semana" y "Tus vacaciones" no se sacan del recorrido ni se explican
+ *   por adelantado con una tarjeta que no existe: no le sirven a quien
+ *   todavía no las tiene, y explicarlas antes de tiempo confunde más de lo
+ *   que ayuda. Si la persona no marca "no volver a mostrar", el recorrido se
+ *   las muestra solo el día que le aparezcan de verdad.
  */
 const PASOS_TOUR_RESUMEN: readonly PasoRecorrido[] = [
   { selector: '[data-tour="mio-resumen-header"]', titulo: "Tu información",
