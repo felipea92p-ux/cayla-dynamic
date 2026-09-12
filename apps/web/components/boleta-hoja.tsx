@@ -730,8 +730,40 @@ export function BoletaHoja({ f, proy, baseLegal, documento, fechaIngreso }: Bole
                       ? "se remite a la ONP — no se queda en CAYLA"
                       : "se remite a tu AFP — no se queda en CAYLA. Incluye tu aporte al fondo, la comisión y la prima del seguro"}
                   </span>
+                  {/* CAMBIO — `tasa_es_del_regimen` (0114) distingue la tasa REAL de
+                      tu régimen de la tasa de RESPALDO que usa el sistema cuando a
+                      alguien todavía no se le asignó ninguno (`configuracion.tasa_afp`).
+                      Sin este aviso, un descuento calculado con el respaldo se ve
+                      idéntico a uno correcto — y hoy mismo ese respaldo puede valer
+                      0 %, así que el número de arriba no sería el que corresponde. */}
+                  {f.tasa_es_del_regimen === false && (
+                    <span className="block text-xs text-rojo">
+                      ⚠ Con la tasa de respaldo — todavía no tienes un régimen de pensión asignado. Avísale a
+                      Desarrollo Organizacional.
+                    </span>
+                  )}
                 </td>
                 <td className="py-2 text-right align-top text-rojo">−{formatSoles(pension)}</td>
+              </tr>
+            )}
+            {/* EL TERCER CASO, el que la nota de abajo describe como ambiguo:
+                no jubilada, no aporta nada, y `pension > 0` de arriba no
+                dispara porque el respaldo de hoy (`configuracion.tasa_afp`)
+                vale 0 %. Sin esta línea la boleta calla del todo — el mismo
+                silencio que ya se cerró para «jubilada», reabierto por el otro
+                lado. Excluye a quien no le corresponde régimen por su vínculo
+                (locador, practicante): a ellos la ausencia de tasa no es un
+                dato que falte, es la regla. */}
+            {pension === 0 && !esLocador && !esPracticante && f.tasa_es_del_regimen === false && (
+              <tr className="border-t border-sand">
+                <td className="py-2 text-rojo">
+                  Pensión — falta tu régimen
+                  <span className="block text-xs text-rojo">
+                    Todavía no tienes un régimen de pensión asignado, así que este mes no se te descontó nada — y
+                    tampoco se aportó. Avísale a Desarrollo Organizacional.
+                  </span>
+                </td>
+                <td className="py-2 text-right align-top text-rojo">{formatSoles(0)}</td>
               </tr>
             )}
             {/* Y EL CASO CONTRARIO: quien ya se jubiló no aporta, así que su
