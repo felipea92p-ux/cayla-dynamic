@@ -37,7 +37,8 @@ import { usePersonaActual } from "@/lib/admin/use-rol";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { BUCKET_SOLICITUDES_PERFIL } from "@/lib/foto-dni";
 import {
-  fechaLima, puedeOperarEquipo, puedeVerIdentidad, puedeVerPlanilla, puedeVerSaludDeAlertas,
+  fechaLima, puedeGestionarCatalogos, puedeOperarEquipo, puedeVerIdentidad, puedeVerPlanilla,
+  puedeVerSaludDeAlertas,
 } from "@cayla-dynamic/shared";
 
 interface ItemEducacion {
@@ -81,6 +82,17 @@ interface ItemRevision {
   sede: string;
   fecha: string;
   comentario: string;
+}
+
+/** Un pedido de revisión de una declaración de ruta (0425). Mismo molde que
+ *  ItemRevision, sobre movilidad_revisiones_pedidas en vez de revisiones_pedidas —
+ *  no lleva `fecha` porque no hay "el día que se revisa", solo un motivo. */
+interface ItemRevisionMovilidad {
+  id: string;
+  persona_id: string;
+  nombre: string;
+  sede: string;
+  motivo: string;
 }
 
 interface ItemSolicitudVacacion {
@@ -194,6 +206,11 @@ export default function BandejaPage() {
   // decide si se le muestra la sección. Ver la "Corrección tras implementar
   // (2026-09-08)" al final del ADR.
   const puedeResolverPerfil = puedeOperarEquipo(rol);
+  // Mismo alcance que `fn_movilidad_revisiones_pedidas` (0425): admin/líder,
+  // sin la encargada de sede — a diferencia de las revisiones de marcaje, que
+  // sí le llegan a ella. La declaración de ruta es papeleo legal/tributario,
+  // no operación del día a día de una sede.
+  const puedeMovilidad = puedeGestionarCatalogos(rol);
 
   const [cargando, setCargando] = useState(true);
   const [resumenAlertas, setResumenAlertas] = useState<ResumenAlertas | null>(null);
@@ -201,12 +218,15 @@ export default function BandejaPage() {
   const [vacaciones, setVacaciones] = useState<ItemVacacion[]>([]);
   const [sinHorario, setSinHorario] = useState<ItemSinHorario[]>([]);
   const [revisiones, setRevisiones] = useState<ItemRevision[]>([]);
+  const [revisionesMovilidad, setRevisionesMovilidad] = useState<ItemRevisionMovilidad[]>([]);
   const [solicitudesVacaciones, setSolicitudesVacaciones] = useState<ItemSolicitudVacacion[]>([]);
   const [solicitudesPerfil, setSolicitudesPerfil] = useState<ItemSolicitudPerfil[]>([]);
   const [respuestas, setRespuestas] = useState<Record<string, string>>({});
+  const [respuestasMovilidad, setRespuestasMovilidad] = useState<Record<string, string>>({});
   const [motivosRechazo, setMotivosRechazo] = useState<Record<string, string>>({});
   const [motivosPerfil, setMotivosPerfil] = useState<Record<string, string>>({});
   const [atendiendo, setAtendiendo] = useState<string | null>(null);
+  const [atendiendoMovilidad, setAtendiendoMovilidad] = useState<string | null>(null);
   const [resolviendo, setResolviendo] = useState<string | null>(null);
   const [resolviendoPerfil, setResolviendoPerfil] = useState<string | null>(null);
 
@@ -260,6 +280,17 @@ export default function BandejaPage() {
       setSinHorario([]);
     }
 
+    if (puedeMovilidad) {
+      tareas.push(
+        supabase.rpc("fn_movilidad_revisiones_pedidas", { p_solo_pendientes: true }).then(({ data, error }) => {
+          if (error) { avisar("error", mensajeDeError(error, "cargar revisiones de movilidad pedidas")); return; }
+          setRevisionesMovilidad((data as unknown as ItemRevisionMovilidad[]) ?? []);
+        }),
+      );
+    } else {
+      setRevisionesMovilidad([]);
+    }
+
     if (puedeResolverVacaciones) {
       tareas.push(
         supabase.rpc("fn_solicitudes_vacaciones", { p_solo_pendientes: true }).then(({ data, error }) => {
@@ -299,7 +330,8 @@ export default function BandejaPage() {
 
     await Promise.all(tareas);
     setCargando(false);
-  }, [router, puedeEducacion, puedeEquipo, puedeResolverVacaciones, puedeResolverPerfil, puedeSaludAlertas, avisar]);
+  }, [router, puedeEducacion, puedeEquipo, puedeMovilidad, puedeResolverVacaciones, puedeResolverPerfil,
+      puedeSaludAlertas, avisar]);
 
   // Cargar al montar es el mismo patrón que usa cada pantalla del panel que
   // trae datos de la base (Equipo, Ausencias, Disciplina...); el aviso de acá
@@ -317,6 +349,18 @@ export default function BandejaPage() {
     if (error) { avisar("error", mensajeDeError(error, "marcar la revisión como atendida")); return; }
     setRevisiones((r) => r.filter((x) => x.id !== id));
     avisar("ok", "Revisión marcada como atendida.");
+  }
+
+  async function marcarAtendidaMovilidad(id: string) {
+    setAtendiendoMovilidad(id);
+    const supabase = createAdminSupabaseClient();
+    const { error } = await supabase.rpc("fn_atender_revision_movilidad", {
+      p_id: id, p_respuesta: (respuestasMovilidad[id] ?? "").trim() || null,
+    });
+    setAtendiendoMovilidad(null);
+    if (error) { avisar("error", mensajeDeError(error, "marcar la revisión de movilidad como atendida")); return; }
+    setRevisionesMovilidad((r) => r.filter((x) => x.id !== id));
+    avisar("ok", "Revisión de movilidad marcada como atendida.");
   }
 
   async function resolverSolicitud(id: string, aprobar: boolean) {
@@ -358,8 +402,8 @@ export default function BandejaPage() {
     ? resumenAlertas.atascadas + resumenAlertas.fallidas_definitivas + resumenAlertas.caducadas
     : 0;
 
-  const total = educacion.length + vacaciones.length + revisiones.length + solicitudesVacaciones.length
-    + solicitudesPerfil.length + alertasConProblema + sinHorario.length;
+  const total = educacion.length + vacaciones.length + revisiones.length + revisionesMovilidad.length
+    + solicitudesVacaciones.length + solicitudesPerfil.length + alertasConProblema + sinHorario.length;
 
   return (
     <div className="flex flex-1 flex-col">
@@ -468,6 +512,53 @@ export default function BandejaPage() {
                           variante="primario"
                           onClick={() => void marcarAtendida(r.id)}
                           cargando={atendiendo === r.id}
+                        >
+                          Marcar atendida
+                        </Boton>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            {/* Pedidos de revisión de una declaración de ruta ya firmada (0425).
+                No hay un "Abrir en Correcciones" análogo: si el pedido amerita
+                una declaración nueva, se registra desde admin/documentacion,
+                con el flujo de "Subir firmada" de siempre. Acá solo se cierra
+                la conversación con una respuesta. */}
+            {revisionesMovilidad.length > 0 && (
+              <section>
+                <h2 className="mb-1 font-serif text-lg">
+                  {revisionesMovilidad.length === 1
+                    ? "Pidieron revisar una declaración de ruta"
+                    : `Pidieron revisar ${revisionesMovilidad.length} declaraciones de ruta`}
+                </h2>
+                <p className="mb-3 text-sm text-taupe">
+                  Lo escribieron desde «Movilidad», en Lo mío. Si hace falta una declaración nueva, regístrala
+                  en Documentación y cierra acá diciendo en qué quedó.
+                </p>
+                <ul className="space-y-3">
+                  {revisionesMovilidad.map((r) => (
+                    <li key={r.id} className="rounded-xl border border-sand p-3 text-sm">
+                      <div className="flex flex-wrap items-baseline justify-between gap-2">
+                        <span><strong>{r.nombre}</strong> <span className="text-taupe">· {r.sede}</span></span>
+                        <Link href={`/admin/documentacion?persona=${r.persona_id}`}
+                          className="text-rojo hover:underline">Abrir en Documentación →</Link>
+                      </div>
+                      <p className="mt-1.5">«{r.motivo}»</p>
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <div className="min-w-56 flex-1">
+                          <Campo
+                            value={respuestasMovilidad[r.id] ?? ""}
+                            onChange={(e) => setRespuestasMovilidad((x) => ({ ...x, [r.id]: e.target.value }))}
+                            placeholder="En qué quedó (lo va a leer la persona)"
+                          />
+                        </div>
+                        <Boton
+                          variante="primario"
+                          onClick={() => void marcarAtendidaMovilidad(r.id)}
+                          cargando={atendiendoMovilidad === r.id}
                         >
                           Marcar atendida
                         </Boton>

@@ -3,10 +3,18 @@
 --   npx supabase test db
 -- Lo que sí se pega vive en supabase/migrations/.
 -- ============================================================================
--- 334_la_declaracion_de_ruta_se_firma_sin_escaneo.test.sql — 0423
+-- 334_la_declaracion_de_ruta_se_firma_sin_escaneo.test.sql — 0423/0425
 -- ============================================================================
--- Dos cosas se defienden acá, y las dos importan más que "la función inserta
--- una fila":
+-- Actualizado por la 0425: `fn_confirmar_mi_declaracion_ruta` perdió el costo
+-- de pasaje y el costo/frecuencia de taxi (ahora el monto es SIEMPRE la
+-- tarifa oficial, nunca una cuenta propia — ver el encabezado de la 0425), y
+-- ganó un candado: con una declaración vigente y al día, no se puede volver a
+-- firmar sola. La prueba 335 cubre el candado a fondo (con revisión incluida);
+-- acá solo se agrega un `throws_ok` mínimo para que este archivo seguir
+-- probando la firma completa no lo deje pasar por alto sin darse cuenta.
+--
+-- Tres cosas se defienden acá, y las tres importan más que "la función
+-- inserta una fila":
 --
 --   1. QUE SIGA SIENDO EL MISMO PORTERO. `fn_confirmar_mi_declaracion_ruta`
 --      exige lo mismo que ya exigía `fn_documento_registrar` (0211) para una
@@ -21,6 +29,9 @@
 --      abriendo /mio/movilidad vería el estado de una compañera, o —peor— un
 --      admin abriendo SU PROPIA pantalla seguiría viendo a todo el equipo en
 --      vez de solo la suya.
+--
+--   3. QUE UNA DECLARACIÓN VIGENTE NO SE PUEDA REEMPLAZAR SOLA (0425). Una
+--      vez firmada y al día, la única puerta que queda es pedir revisión.
 -- ============================================================================
 begin;
 select plan(14);
@@ -51,36 +62,30 @@ set session_replication_role = origin;
 -- ── 1 · La misma puerta que ya exigía fn_documento_registrar ───────────────
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000334013', true);
 select throws_ok(
-  $$ select fn_confirmar_mi_declaracion_ruta('Los Olivos','Lima',2,2,2.50,false,null,null) $$,
+  $$ select fn_confirmar_mi_declaracion_ruta('Los Olivos','Lima',2,2,false) $$,
   null, null,
   'RECHAZADO · fuera de planilla no tiene declaración que firmar, igual que en fn_documento_registrar');
 
 -- ── 2 · Sin firma guardada, tampoco hay firma que confirmar ────────────────
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000334011', true);
 select throws_ok(
-  $$ select fn_confirmar_mi_declaracion_ruta('Los Olivos','Lima',2,2,2.50,false,null,null) $$,
+  $$ select fn_confirmar_mi_declaracion_ruta('Los Olivos','Lima',2,2,false) $$,
   null, null,
   'RECHAZADO · todavía no configuró su firma en firmas_escaneadas');
 
 insert into firmas_escaneadas (persona_id, imagen, tipo)
 values ('00000000-0000-0000-0000-000000334001', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUg==', 'imagen');
 
--- ── 3 · Dice que usa taxi pero no dice cuánto le cuesta ────────────────────
-select throws_ok(
-  $$ select fn_confirmar_mi_declaracion_ruta('Los Olivos','Lima',2,2,2.50,true,null,null) $$,
-  null, null,
-  'RECHAZADO · usa_taxi en true exige su costo y su frecuencia');
-
--- ── 4 · Firma su declaración, con todo en regla ─────────────────────────────
+-- ── 3 · Firma su declaración, con todo en regla ─────────────────────────────
 select lives_ok(
-  $$ select fn_confirmar_mi_declaracion_ruta('Los Olivos','Lima',2,2,2.50,true,8.00,3) $$,
+  $$ select fn_confirmar_mi_declaracion_ruta('Los Olivos','Lima',2,2,true) $$,
   'OK · en planilla, activa, con firma guardada: la declaración se registra');
 
 select is(
   (select monto_declarado from documentos_firmados
     where persona_id = '00000000-0000-0000-0000-000000334001' and tipo = 'ruta'),
   10.00::numeric,
-  'MONTO · lo calcula el servidor con la tarifa de TRU (0142), nunca lo que mande quien firma');
+  'MONTO · lo calcula el servidor con la tarifa de TRU (0142), nunca un costo que declare quien firma (0425)');
 
 select is(
   (select fecha_firma from documentos_firmados
@@ -99,7 +104,7 @@ select is(
   true,
   'TEXTO · compone el mismo tipo de declaración que hoy se escribe a mano en el papel');
 
--- ── 5 · Su propio estado, vía fn_documentos_tablero(p_solo_mi_fila => true) ─
+-- ── 4 · Su propio estado, vía fn_documentos_tablero(p_solo_mi_fila => true) ─
 select is(
   (select estado from fn_documentos_tablero(true)),
   'ok',
@@ -109,7 +114,13 @@ select ok(
   (select ruta_firma_persona_confirmada_at is not null from fn_documentos_tablero(true)),
   'AUTOCONSULTA · el tablero distingue que fue firma digital, no escaneo');
 
--- ── 6 · El aislamiento — la parte más delicada de esta migración ──────────
+-- ── 5 · El candado (0425): vigente y al día, no se puede volver a firmar ───
+select throws_ok(
+  $$ select fn_confirmar_mi_declaracion_ruta('San Juan de Lurigancho','Lima',1,1,false) $$,
+  null, null,
+  'CANDADO · con una declaración vigente y al día, no se puede volver a firmar sola (0425)');
+
+-- ── 6 · El aislamiento — la parte más delicada de la 0423 ──────────────────
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000334012', true);
 select is(
   (select count(*)::int from fn_documentos_tablero(true)),

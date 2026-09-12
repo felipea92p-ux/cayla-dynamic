@@ -91,7 +91,7 @@ export const DIAS_NOVEDAD = 14;
 
 export type OrigenBandeja =
   // Lo que pediste y te contestaron.
-  | "perfil" | "vacaciones" | "revision"
+  | "perfil" | "vacaciones" | "revision" | "revision-movilidad"
   // Lo que depende de ti. No caduca.
   | "contrato" | "memo" | "acuse" | "marcaje" | "ruta";
 
@@ -154,6 +154,15 @@ export interface FilaVacacion {
 export interface FilaRevision {
   id: string;
   fecha: string;
+  pedida_at: string;
+  atendida_at: string | null;
+  respuesta: string | null;
+}
+
+/** Un pedido de revisión de la declaración de ruta, de `movilidad_revisiones_pedidas` (0425). */
+export interface FilaRevisionMovilidad {
+  id: string;
+  motivo: string;
   pedida_at: string;
   atendida_at: string | null;
   respuesta: string | null;
@@ -222,6 +231,8 @@ export interface FuentesBandeja {
   periodo: PeriodoAbierto | null;
   /** Su declaración de ruta. Ver `FilaMovilidad`. */
   movilidad: FilaMovilidad | null;
+  /** Sus pedidos de revisión de esa declaración (0425). */
+  revisionesMovilidad: FilaRevisionMovilidad[];
 }
 
 export interface Bandeja {
@@ -572,6 +583,41 @@ export function armarBandeja(fuentes: FuentesBandeja, hoy: string = hoyLima()): 
     });
   }
 
+  // Pedidos de revisión de la declaración de ruta (0425) — mismo molde que
+  // `revisiones` de arriba, sobre una tabla distinta: no hay "fecha del día
+  // que se revisa", solo el motivo que escribió y cuándo lo pidió.
+  for (const f of fuentes.revisionesMovilidad) {
+    const clave = `revision-movilidad:${f.id}`;
+    if (!f.atendida_at) {
+      const fecha = fechaLima(f.pedida_at);
+      esperando.push({
+        instante: Date.parse(f.pedida_at),
+        m: {
+          clave, origen: "revision-movilidad", estado: "pendiente", fecha,
+          titulo: "Pediste una revisión de tu declaración de ruta",
+          respuesta: null,
+          detalle: `Lo pediste ${haceCuanto(fecha, hoy)}: «${f.motivo}». Todavía no lo revisan.`,
+          nuevo: false,
+          ir: "/mio/movilidad",
+        },
+      });
+      continue;
+    }
+
+    const fecha = fechaLima(f.atendida_at);
+    respuestas.push({
+      instante: Date.parse(f.atendida_at),
+      m: {
+        clave, origen: "revision-movilidad", estado: "atendido", fecha,
+        titulo: "Revisamos tu declaración de ruta",
+        respuesta: f.respuesta?.trim() || null,
+        detalle: f.respuesta?.trim() ? null : "Se revisó, sin nota escrita.",
+        nuevo: esNueva(fecha),
+        ir: "/mio/movilidad",
+      },
+    });
+  }
+
   // EL DESEMPATE. `clave` es un ancla, no un criterio: son uuid y no significan
   // nada. Va DESPUÉS del único criterio real (cuándo te respondieron), así que
   // solo puede disparar en un empate exacto — y ese empate SÍ ocurre acá:
@@ -640,7 +686,8 @@ export async function traerBandeja(
   personaId: string,
   hoy: string = hoyLima(),
 ): Promise<{ bandeja: Bandeja; noSePudo: string[] }> {
-  const [perfil, catalogo, vacaciones, revisiones, contrato, memos, acuses, periodo, movilidad] = await Promise.all([
+  const [perfil, catalogo, vacaciones, revisiones, contrato, memos, acuses, periodo, movilidad, revisionesMovilidad] =
+    await Promise.all([
     supabase.from("solicitudes_cambio_perfil")
       .select("id, campo, estado, creada_at, resuelta_at, motivo")
       .eq("persona_id", personaId)
@@ -679,6 +726,10 @@ export async function traerBandeja(
     // alguien con rol admin o líder que abra su PROPIA bandeja vería la fila
     // de cualquier compañera (la primera que devuelva el orden), no la suya.
     supabase.rpc("fn_documentos_tablero", { p_solo_mi_fila: true }),
+    // Sus propios pedidos de revisión de esa declaración (0425). Sin admin de
+    // por medio, esta misma RPC ya devuelve solo lo suyo — mismo criterio que
+    // fn_documentos_tablero con p_solo_mi_fila.
+    supabase.rpc("fn_movilidad_revisiones_pedidas", { p_solo_pendientes: false }),
   ]);
 
   // Las jornadas del periodo, solo si hay periodo abierto. Va en su propia
@@ -710,6 +761,7 @@ export async function traerBandeja(
     marcajes: ((marcajes?.data ?? []) as unknown as FilaMarcaje[]),
     periodo: per,
     movilidad: ((movilidad.data ?? []) as FilaMovilidad[])[0] ?? null,
+    revisionesMovilidad: (revisionesMovilidad.data ?? []) as unknown as FilaRevisionMovilidad[],
   }, hoy);
 
   return {
@@ -731,6 +783,7 @@ export async function traerBandeja(
       { error: memos.error, que: "tus documentos por firmar" },
       { error: marcajes?.error ?? null, que: "tus días del periodo" },
       { error: movilidad.error, que: "tu declaración de ruta" },
+      { error: revisionesMovilidad.error, que: "tus pedidos de revisión de esa declaración" },
     ]),
   };
 }
