@@ -2703,6 +2703,65 @@ export type Database = {
         }
         Relationships: []
       }
+      movilidad_revisiones_pedidas: {
+        Row: {
+          atendida_at: string | null
+          atendida_por: string | null
+          id: string
+          motivo: string
+          pedida_at: string
+          persona_id: string
+          respuesta: string | null
+        }
+        Insert: {
+          atendida_at?: string | null
+          atendida_por?: string | null
+          id?: string
+          motivo: string
+          pedida_at?: string
+          persona_id: string
+          respuesta?: string | null
+        }
+        Update: {
+          atendida_at?: string | null
+          atendida_por?: string | null
+          id?: string
+          motivo?: string
+          pedida_at?: string
+          persona_id?: string
+          respuesta?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "movilidad_revisiones_pedidas_atendida_por_fkey"
+            columns: ["atendida_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "movilidad_revisiones_pedidas_atendida_por_fkey"
+            columns: ["atendida_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "movilidad_revisiones_pedidas_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "movilidad_revisiones_pedidas_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       movimientos_planilla: {
         Row: {
           categoria: string | null
@@ -4670,6 +4729,10 @@ export type Database = {
         Args: { p_id: string | null; p_respuesta: string | null }
         Returns: undefined
       }
+      fn_atender_revision_movilidad: {
+        Args: { p_id: string | null; p_respuesta: string | null }
+        Returns: undefined
+      }
       fn_ausencia_adjuntar_certificado: {
         Args: { p_ausencia_id: string | null; p_storage_path: string | null }
         Returns: undefined
@@ -4820,10 +4883,7 @@ export type Database = {
       }
       fn_confirmar_mi_declaracion_ruta: {
         Args: {
-          p_costo_pasaje: number | null
-          p_costo_taxi?: number | null
           p_distrito: string | null
-          p_frecuencia_taxi?: number | null
           p_medios_ida: number | null
           p_medios_vuelta: number | null
           p_provincia: string | null
@@ -5841,6 +5901,10 @@ export type Database = {
           valor_propuesto: Json
         }[]
       }
+      fn_movilidad_revisiones_pedidas: {
+        Args: { p_solo_pendientes?: boolean | null }
+        Returns: Json
+      }
       fn_objetivo_agregar: {
         Args: {
           p_anio: number | null
@@ -5905,6 +5969,10 @@ export type Database = {
         Args: { p_comentario: string | null; p_fecha: string | null }
         Returns: undefined
       }
+      fn_pedir_revision_movilidad: {
+        Args: { p_motivo: string | null }
+        Returns: undefined
+      }
       fn_periodo_grupos_estado: {
         Args: { p_periodo_id: string | null }
         Returns: {
@@ -5926,6 +5994,10 @@ export type Database = {
       }
       fn_persona_actual_id: { Args: never; Returns: string }
       fn_persona_en_roster_terminal: {
+        Args: { p_persona_id: string | null }
+        Returns: boolean
+      }
+      fn_persona_le_corresponde_movilidad: {
         Args: { p_persona_id: string | null }
         Returns: boolean
       }
