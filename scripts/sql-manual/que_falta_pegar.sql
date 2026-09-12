@@ -294,7 +294,8 @@ with repo(numero, nombre, nunca) as (values
     (427, 'pedir_revision_de_contrato', false),
     (428, 'practicantes_visibles_en_provisiones', false),
     (429, 'la_declaracion_de_ruta_guarda_sus_datos_por_separado', false),
-    (430, 'el_contrato_se_firma_completo_de_forma_digital', false)
+    (430, 'el_contrato_se_firma_completo_de_forma_digital', false),
+    (431, 'aprobar_una_ausencia_tambien_respeta_el_periodo_pagado', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
