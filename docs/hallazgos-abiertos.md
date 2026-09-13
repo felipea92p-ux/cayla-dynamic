@@ -146,8 +146,12 @@ se confirmó el mecanismo razonando sobre el SQL vigente.
 - **La suspensión por faltas se fija en `fn_hoy_lima() + 1`** sin comprobar que
   sea día laborable, y deja `suspension_fechas` en NULL. La rama de tardanzas sí
   lo hace bien desde la 0235.
-- **El umbral mensual de tardanzas se borra el 1 de cada mes** y no hay forma de
-  emitir el documento después.
+- ~~**El umbral mensual de tardanzas se borra el 1 de cada mes** y no hay forma de
+  emitir el documento después.~~ ✅ **SUPERADO, verificado el 2026-09-13**
+  ([`auditoria-disciplina-2026-09-13.md`](auditoria-disciplina-2026-09-13.md)):
+  el selector de mes de Disciplina (`mesesRecientesLima()`) ya ofrece hasta 12
+  meses hacia atrás, con avisos explícitos del numeral 19.4 y el riesgo de
+  condonación por demora. Ya no aplica tal como está escrito.
 - **`fn_cargo_de_rol` imprime «Líder de Equipo» para el rol `lider_do`.**
 - **REGRESIÓN de la 0238:** `fn_otorgar_descanso_sustitutorio` volvió a exigir
   horas marcadas para el estado PENDIENTE, perdiendo el arreglo que la 0072 hizo
@@ -167,6 +171,40 @@ se confirmó el mecanismo razonando sobre el SQL vigente.
   [`suspensiones_fuera_del_tope.sql`](../scripts/sql-manual/suspensiones_fuera_del_tope.sql),
   que audita esto para cualquier persona y se puede volver a correr cuando se
   quiera.
+
+**Cuatro hallazgos nuevos de la auditoría del 2026-09-13**
+([`auditoria-disciplina-2026-09-13.md`](auditoria-disciplina-2026-09-13.md),
+detalle completo con escenario y artículo en cada uno):
+
+- **`fn_expediente_generar_falta` (vigente: 0390) escala a `'imputacion'` con
+  solo una falta nueva tras una suspensión vigente, sin comprobar ninguna
+  causal del art. 21.5** (4 consecutivas, 6 en 30 días, 16 en 180). El propio
+  RIT dice que iniciar la imputación fuera de esas causales «expondría a la
+  Empresa a un despido sin causa justa» (21.2 c). Es la misma escalera
+  descrita en el bullet de arriba ("La escalera de inasistencias salta..."),
+  reconfirmada línea por línea contra la versión vigente hoy.
+- **El memo de amonestación (`memo/[id]/page.tsx:320,331`) cita artículos del
+  RIT anteriores a la renumeración de 2026-08-15** — «artículo 7» (hoy:
+  Periodo de Prueba) en vez de «numeral 19.2 b)» para tardanzas, y «artículo
+  8.3-b» (hoy: registro de contratos ante el MTPE) en vez de «numeral 21.2 b)»
+  para faltas. La sección de suspensión del mismo archivo ya usa la
+  numeración correcta — solo las dos amonestaciones quedaron sin corregir.
+- **`fn_expediente_firmar` no revalida, al firmar, lo que el borrador ya
+  advierte en rojo en pantalla**: ni que `suspension_dias` esté dentro del
+  rango del art. 19.2/54.5, ni que las fechas de la suspensión no hayan
+  pasado, ni que exista `fecha_cese` en un despido (art. 32 LPCL). No hay
+  constraint de tabla para `fecha_cese` (a diferencia de `chk_susp_completa`,
+  que sí existe para suspensión).
+- **La consulta `previas` de `memo/[id]/page.tsx:241`** (la lista de
+  sanciones previas citada en una imputación) **mide la vigencia de 12 meses
+  del art. 56.1 contra `firmado_at`, no contra `entregado_at`** — que es la
+  fecha que el propio RIT usa. Una sanción firmada hace más de 12 meses pero
+  entregada hace menos queda excluida de la lista aunque siga vigente.
+- **`fn_expediente_valorar_descargo` no exige que `descargo_vence_at` ya haya
+  vencido** antes de permitir valorar el descargo (incluso como
+  `'sin_descargo'`) — se puede cerrar la valoración antes de que corran los
+  dos días hábiles del art. 55.2/19.3, sin forma de revisarla si el descargo
+  llega después, dentro de plazo.
 
 ### Latentes confirmados · hoy no cuestan nada
 
@@ -304,7 +342,7 @@ y un aviso de los que siguen sin decidir antes de cerrar el periodo.
 | ~~**A5**~~ | ✅ **cerrado el 2026-08-10.** La 0075 **sí** estaba en producción —medido, este documento decía lo contrario— y la pantalla ya la llama (0200) | `fn_dias_suspension`, `fn_expediente_set_suspension` y la columna: las tres presentes en prod |
 | **A20** | ✅ **cerrado el 2026-08-10** por la 0200 — el semáforo pedía 3 tardanzas a quien por escala ya le tocaba 1 | la escala vive en `fn_tardanza_escalon`; prueba [`155`](../supabase/tests/155_el_semaforo_conoce_el_escalon.test.sql) |
 | ~~**A21**~~ | ❌ **REFUTADO el 2026-08-10, y era mío.** El sistema ya es coherente: a quien cobra fijo no se le arma memo por ningún camino | `fn_expediente_crear_borrador` —un nivel por debajo del generador— lleva `or v_p.sueldo_fijo = true then` y aborta. Miré el generador y no bajé un nivel más |
-| **A11** | 🟡 el borrador ya dice «BORRADOR», pero sigue firmado por Gerencia General | ver su entrada |
+| ~~**A11**~~ | ✅ **CERRADO, verificado el 2026-09-13** (auditoría de Disciplina, [`auditoria-disciplina-2026-09-13.md`](auditoria-disciplina-2026-09-13.md)). Las dos partes ya están resueltas en el código vigente | `memo/[id]/page.tsx`: `firmante` arranca en `null` (no en `EMPRESA.firmante`/`REPRESENTANTE_LEGAL`) con comentario explícito explicando por qué; el aviso «BORRADOR — sin numerar y sin firmar» **no** lleva `print:hidden` (comentario: «SIN print:hidden, y es deliberado») |
 
 ### Los cuatro registros en rojo del Taller LIM (28/07/2026) — revisado y CERRADO
 
@@ -1111,8 +1149,7 @@ No pasaron por el refutador: son de gravedad media o baja y se dejaron para revi
   El factor de ritmo de trabajo divide las horas marcadas entre `base_horas = 45 × (días desde el último aniversario − días de vacaciones) / 7`. El día exacto del aniversario esa resta vale 0, `base_horas` es 0, el `case` cae en el `else 0` y el factor pasa a 0 — con él, el monto estimado de TODO el saldo acumulado. Los …
 - **«Quitar» unas vacaciones no pide confirmación y convierte esos días en faltas** — `frontend-admin` · media · minutos  
   El botón «Quitar» de cada periodo llama a `quitar(v)` directo, sin `window.confirm`. `fn_quitar_vacaciones` hace `delete from vacaciones where id = p_id` — no hay borrado lógico ni tabla de auditoría, así que no queda rastro de quién lo quitó ni forma de deshacerlo desde la app. Las consecuencias las describe la propia…
-- **En Disciplina la fecha etiquetada «Firmado» es en realidad la de creación del borrador** — `frontend-admin` · media · minutos  
-  La lista «Firmados — por entregar» imprime `Firmado {selloLima(d.creado_at)}`. `creado_at` es cuándo el sistema generó el borrador; la fecha real de la firma vive en `firmado_at`, una columna que el select de la línea 86 ni siquiera pide y que la interfaz `Doc` no declara. Entre generar el borrador y firmarlo pueden pa…
+- ~~**En Disciplina la fecha etiquetada «Firmado» es en realidad la de creación del borrador**~~ — ✅ **CERRADO, verificado el 2026-09-13** (auditoría de Disciplina, [`auditoria-disciplina-2026-09-13.md`](auditoria-disciplina-2026-09-13.md)). El código vigente imprime `Firmado {selloLima(d.firmado_at ?? d.creado_at)}` — usa `firmado_at` con prioridad y solo cae a `creado_at` si aquella fuera nula.
 - **Una respuesta vacía pero exitosa BORRA la caché offline del roster y deja la sede sin poder marcar** — `terminal-offline` · media · minutos  
   cargarRoster solo cae a la caché cuando hay error. Si la consulta responde bien pero con cero filas, entra al camino feliz y llama guardarRoster([]), que empieza con tx.store.clear(): se borra el roster guardado. Y eso pasa sin ningún error de por medio cuando la política personas_select_terminal_roster deja de aplicar…
 - **acta_ref no tiene llave foránea: un descanso OTORGADO puede citar un acta que no existe** — `esquema-integridad` · media · horas  
@@ -1127,8 +1164,7 @@ No pasaron por el refutador: son de gravedad media o baja y se dejaron para revi
   La 0081 decidió el 26/07 que una marca se anula y no se borra, y su propio encabezado dice que fn_eliminar_marcaje «se mantiene por compatibilidad pero la pantalla deja de usarla». Nadie la llama desde el panel, pero sigue concedida a `authenticated` y por tanto expuesta como RPC. Además arrastra todo lo que se arregló…
 - **El registro de migraciones —el mecanismo creado para saber qué hay en producción— dice tres cosas falsas, y el script que lo repara le dice a Felipe que no hace falta** — `consistencia-deuda` · media · horas  
   La 0077 existe para que «un SELECT diga la verdad de prod». Hoy no la dice: (a) las 74 y 75 no están registradas —el bloque semilla salta de la 73 a la 76 y ninguna de las dos se auto-registra, porque son anteriores a la 0077—; (b) el número 85 está ocupado por 'grati_en_periodos_que_cruzan_el_ano', que en el repo es l…
-- **La lista de documentos firmados muestra la fecha de creación rotulada como 'Firmado'** — `disciplina-legal` · baja · minutos  
-  En el bloque 'Firmados — por entregar' se imprime creado_at con la etiqueta 'Firmado'. La consulta ni siquiera pide firmado_at. Entre que se genera el borrador y se firma pueden pasar días: de la fecha de firma cuelgan los 12 meses de vigencia del antecedente (RIT art. 14.4) y el orden de la cadena, y es el dato que la…
+- ~~**La lista de documentos firmados muestra la fecha de creación rotulada como 'Firmado'**~~ — ✅ **CERRADO, verificado el 2026-09-13** (mismo hallazgo que la entrada de `frontend-admin` de arriba; ver [`auditoria-disciplina-2026-09-13.md`](auditoria-disciplina-2026-09-13.md)). **Pero ojo:** esa auditoría encontró un defecto DISTINTO y todavía abierto sobre la misma preocupación (la vigencia de 12 meses del art. 56.1) en otro archivo — la consulta `previas` de `memo/[id]/page.tsx` mide la ventana de 12 meses contra `firmado_at` en vez de `entregado_at`. Ver el hallazgo 4 de esa auditoría.
 - **fn_set_vacaciones y fn_quitar_vacaciones usan el guard prohibido 'if not', no 'if ... is not true'** — `vacaciones-feriados` · baja · minutos  
   Las dos únicas funciones de escritura de vacaciones son las últimas que quedan con la forma que el proyecto prohíbe explícitamente: `if not fn_es_admin_o_lider() then raise`. Hoy no es explotable porque desde la 0078 fn_es_admin_o_lider devuelve `coalesce(..., false)` y nunca es null, así que el hallazgo es latente, no…
 - **Cuentas muestra una tabla vacía cuando la llamada al servidor falla** — `frontend-admin` · baja · minutos  
