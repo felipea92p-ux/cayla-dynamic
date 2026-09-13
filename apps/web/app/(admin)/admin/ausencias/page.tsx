@@ -156,7 +156,17 @@ export default function AusenciasPage() {
   const { avisar } = useToast();
   const [guardando, setGuardando] = useState(false);
   const [filtroEstado, setFiltroEstado] = useState<FiltroEstado>("todas");
-  const [filtroPersona, setFiltroPersona] = useFiltroGuardado<FiltroPersonaEstado>("ausencias.persona_estado", "solo_activos");
+  // La clave lleva sufijo "_v2" a propósito. `useFiltroGuardado` respeta lo
+  // guardado en localStorage por encima de `inicial` (es su diseño: recordar
+  // la última elección) — y la clave vieja "ausencias.persona_estado" ya
+  // tenía "activos" o "todos" guardados en el navegador de quien hubiera
+  // visitado esta pantalla antes de hoy (2026-09-12), de cuando el único
+  // default era "activos". Sin cambiar la clave, "solo_activos" nunca llegaba
+  // a aplicarse para esos navegadores: seguían viendo "Todas" para siempre,
+  // que es exactamente lo que le pasó a Felipe el mismo día que se escribió
+  // este comentario — el commit que introdujo el nuevo default no alcanzó a
+  // cambiar lo que ya estaba guardado.
+  const [filtroPersona, setFiltroPersona] = useFiltroGuardado<FiltroPersonaEstado>("ausencias.persona_estado_v2", "solo_activos");
   const [personaFacts, setPersonaFacts] = useState<Map<string, PersonaFacts>>(new Map());
 
   // Formulario
@@ -836,7 +846,7 @@ export default function AusenciasPage() {
             onChange={(e) => setFiltroPersona(e.target.value as FiltroPersonaEstado)}
           >
             <option value="solo_activos">Solo activos (nunca cesados)</option>
-            <option value="activos">Sin quien ya se liquidó</option>
+            <option value="activos">Todos menos los ya liquidados</option>
             <option value="inactivos">Solo quienes ya cesaron</option>
             <option value="todos">Todas</option>
           </CampoSelect>
