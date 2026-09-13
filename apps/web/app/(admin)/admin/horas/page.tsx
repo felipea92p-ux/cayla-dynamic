@@ -52,7 +52,7 @@ import { EsqueletoTabla } from "@/components/cargando";
 import { useToast } from "@/components/toast";
 import { traerTodo } from "@/lib/admin/traer-todo";
 import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
-import { hoyLima, TZ_LIMA } from "@cayla-dynamic/shared";
+import { hoyLima, TZ_LIMA, formatoMinutos } from "@cayla-dynamic/shared";
 import { type Area, AREAS_FALLBACK, parseAreas, areaCorto, areaNombre } from "@/lib/areas";
 import { MESES, lecturaObjetivos, type ObjetivoItem } from "@/lib/objetivos";
 import { GraficoHoras, type DiaGrafico } from "@/components/grafico-horas";
@@ -134,10 +134,6 @@ function fmtHoras(h: number): string {
   const hh = Math.floor(h);
   const mm = Math.round((h - hh) * 60);
   return `${hh}h ${String(mm).padStart(2, "0")}m`;
-}
-function fmtMinutos(m: number): string {
-  if (m < 60) return `${m} min`;
-  return `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, "0")}m`;
 }
 // "2023-06-15" medido al "2026-08-31" → "3 a. 2 m.". Aritmética de string, no
 // de Date: mismo motivo que el resto del archivo — un año-mes-día no tiene
@@ -277,9 +273,9 @@ function explicarDia(d: Dia, nombre: string): string {
   if (d.salidaTs) partes.push(`salió ${horaLima(d.salidaTs)}`);
   if (d.horas !== null) partes.push(`${fmtHoras(d.horas)} trabajadas`);
   if ((d.minutosTarde ?? 0) > 0) {
-    partes.push(d.levantada ? `${fmtMinutos(d.minutosTarde!)} tarde (justificada)` : `${fmtMinutos(d.minutosTarde!)} TARDE`);
+    partes.push(d.levantada ? `${formatoMinutos(d.minutosTarde!)} tarde (justificada)` : `${formatoMinutos(d.minutosTarde!)} TARDE`);
   }
-  if ((d.minutosSalidaTemprana ?? 0) > 0) partes.push(`salió ${fmtMinutos(d.minutosSalidaTemprana!)} antes`);
+  if ((d.minutosSalidaTemprana ?? 0) > 0) partes.push(`salió ${formatoMinutos(d.minutosSalidaTemprana!)} antes`);
   if (d.estado === "falta") partes.push("FALTA");
   if (d.estado === "justificada") partes.push(`no marcó — ${MOTIVO_NO_FALTA[d.faltaMotivo ?? ""] ?? etiqueta(MOTIVOS_FALTA, d.faltaMotivo) ?? "justificada"}`);
   if (d.estado === "revisar") partes.push(d.jornadaEstado === "auto_cerrada_pendiente" ? "cerrada automáticamente" : "sin salida marcada");
@@ -554,13 +550,13 @@ function DetallePersona({ f, meta, anio, mes, sel, onDia }: {
                 <td className="px-4 py-2">
                   {(d.minutosTarde ?? 0) > 0
                     ? d.levantada
-                      ? <span className="text-taupe"><s>{fmtMinutos(d.minutosTarde!)}</s> · levantada</span>
-                      : <span className="text-rojo">{fmtMinutos(d.minutosTarde!)}</span>
+                      ? <span className="text-taupe"><s>{formatoMinutos(d.minutosTarde!)}</s> · levantada</span>
+                      : <span className="text-rojo">{formatoMinutos(d.minutosTarde!)}</span>
                     : <span className="text-taupe/50">—</span>}
                 </td>
                 <td className="px-4 py-2">
                   {(d.minutosSalidaTemprana ?? 0) > 0
-                    ? <span className="text-ambar">{fmtMinutos(d.minutosSalidaTemprana!)}</span>
+                    ? <span className="text-ambar">{formatoMinutos(d.minutosSalidaTemprana!)}</span>
                     : <span className="text-taupe/50">—</span>}
                 </td>
                 <td className="px-4 py-2">{d.horasExtra > 0 ? <span className="text-verde">{fmtHoras(d.horasExtra)}</span> : <span className="text-taupe/50">—</span>}</td>
@@ -1052,7 +1048,7 @@ function DesempenoContenido() {
             } />
           <Tile label="Faltas" valor={String(totales.faltas)} tono="alerta" pie="le tocaba y no marcó" />
           <Tile label="Tardanzas" valor={String(totales.tardanzas)} tono="alerta"
-            pie={totales.peor > 0 ? `la peor, ${fmtMinutos(totales.peor)}` : undefined} />
+            pie={totales.peor > 0 ? `la peor, ${formatoMinutos(totales.peor)}` : undefined} />
           <Tile label="Por revisar" valor={String(totales.porRevisar)} tono="alerta" pie="marcajes sin cerrar" />
           <Tile label="Ausencias" valor={`${totales.ausenciasDias} d`}
             pie={totales.conAusencia > 0 ? `${totales.conAusencia} persona${totales.conAusencia === 1 ? "" : "s"}` : "nadie en el periodo"} />
@@ -1149,7 +1145,7 @@ function DesempenoContenido() {
                         {f.tardanzas === 0
                           ? <span className="text-taupe/50">—</span>
                           : <span className={f.peorTardanza >= TARDANZA_SERIA_MIN ? "text-rojo" : "text-ambar"}>
-                              {f.tardanzas}<span className="text-taupe/60"> · peor {fmtMinutos(f.peorTardanza)}</span>
+                              {f.tardanzas}<span className="text-taupe/60"> · peor {formatoMinutos(f.peorTardanza)}</span>
                             </span>}
                       </td>
                       <td className="px-3 py-1.5 text-right">
@@ -1295,14 +1291,14 @@ function DesempenoContenido() {
                     <div className="flex justify-between gap-4">
                       <dt className="text-taupe">Tardanza</dt>
                       <dd className={diaSel.levantada ? "text-taupe line-through" : "font-medium text-rojo"}>
-                        {fmtMinutos(diaSel.minutosTarde!)}
+                        {formatoMinutos(diaSel.minutosTarde!)}
                       </dd>
                     </div>
                   )}
                   {(diaSel.minutosSalidaTemprana ?? 0) > 0 && (
                     <div className="flex justify-between gap-4">
                       <dt className="text-taupe">Salida anticipada</dt>
-                      <dd className="text-ambar">{fmtMinutos(diaSel.minutosSalidaTemprana!)}</dd>
+                      <dd className="text-ambar">{formatoMinutos(diaSel.minutosSalidaTemprana!)}</dd>
                     </div>
                   )}
                 </dl>

@@ -9,10 +9,19 @@ import { Cargando } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
 import { Insignia } from "@/components/ui/insignia";
 import { Fila, Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
-import { NIVEL_DISCIPLINARIO_CORTO, TZ_LIMA, esRolEncargada, hoyLima } from "@cayla-dynamic/shared";
+import {
+  NIVEL_DISCIPLINARIO_CORTO, TZ_LIMA, esRolEncargada, hoyLima, formatoMinutos, puedeVerTodasLasSedes,
+} from "@cayla-dynamic/shared";
 import { esperadoDelDia, horarioVigente, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
+import { usePersonaActual } from "@/lib/admin/use-rol";
 
 const REFRESCO_MS = 30_000;
+// Mismo Sheet de siempre si la variable de entorno todavía no está puesta en
+// Vercel — así este cambio no puede romper el enlace en producción el día que
+// se despliegue antes de cargar la variable.
+const URL_SHEET_ASISTENCIA =
+  process.env.NEXT_PUBLIC_SHEET_ASISTENCIA_URL ??
+  "https://docs.google.com/spreadsheets/d/19jhc5IN0LpbyG00jEwqt4ZB420Ob_rVcGRAdXR88riA/edit";
 // Corte mañana/tarde de la meta de cobertura — mismo valor fijo que Turnos (14:15).
 const CORTE_TARDE = 14.25;
 // Margen antes de avisar que una sede entera no marcó nada. No es la tolerancia
@@ -188,6 +197,8 @@ interface ContratoRow { persona_id: string; nombre: string; sede: string; fecha_
 
 export default function DashboardPage() {
   const router = useRouter();
+  const yo = usePersonaActual();
+  const esAdmin = puedeVerTodasLasSedes(yo?.rol ?? null);
   const [filas, setFilas] = useState<FilaPersona[]>([]);
   // Fuente de verdad de qué sedes existen: la tabla `sedes`, igual que las
   // demás 14 pantallas del panel — nunca derivada de quién pasó el filtro de
@@ -202,6 +213,20 @@ export default function DashboardPage() {
   const [discTard, setDiscTard] = useState<TardRow[]>([]);
   const [discFaltas, setDiscFaltas] = useState<FaltaRow[]>([]);
   const [contratos, setContratos] = useState<ContratoRow[]>([]);
+  // El semáforo de "Contratos a plazo fijo" no contestó. Igual que
+  // `discNoRespondio` de Disciplina: el artículo 77 convierte un contrato en
+  // indefinido con solo que la persona siga trabajando después de la fecha, y
+  // ese plazo corre igual aunque esta franja no haya podido mirar.
+  const [contratosNoRespondio, setContratosNoRespondio] = useState(false);
+  // `turnos`/`horarios_asignados` no contestaron: no se pudo calcular a quién
+  // le tocaba entrar hoy, así que la alerta roja de "sede sin marcar" —la
+  // única de esta pantalla fuera de Disciplina— no puede dispararse aunque
+  // corresponda. Sin esta bandera esa alerta se apaga en silencio.
+  const [horarioEsperadoNoRespondio, setHorarioEsperadoNoRespondio] = useState(false);
+  // `ausencias` no contestó: alguien de vacaciones puede verse idéntico a un
+  // "sin marcar" real mientras esto no se pueda comprobar (mismo riesgo de
+  // falso positivo que ya resuelve `ausenciaHoy` cuando la consulta sí responde).
+  const [ausenciasNoRespondieron, setAusenciasNoRespondieron] = useState(false);
   const [sinCargo, setSinCargo] = useState(0);
   // El par de consultas de abajo no respondió. Sin esta distinción, si
   // `expediente_adjuntos` falla, `conPapel` queda vacío y TODOS los memos
@@ -278,10 +303,13 @@ export default function DashboardPage() {
   // anota en Equipo; sin este aviso, anotarla solo sirve si alguien se acuerda de
   // ir a mirarla, y el día del vencimiento no lo recuerda nadie.
   //
-  // Aparte del refresco de asistencia porque no cambia cada 30 segundos, y con
-  // falla silenciosa a propósito: la RPC ya devuelve vacío para quien no es admin
-  // ni líder, y si la 0144 no está aplicada devuelve null. En los dos casos la
-  // franja no aparece y el dashboard sigue funcionando igual que hoy.
+  // Aparte del refresco de asistencia porque no cambia cada 30 segundos. La RPC
+  // ya devuelve vacío (sin error) para quien no es admin ni líder, así que ese
+  // caso sigue sin mostrar nada, como corresponde. Pero si la consulta FALLA de
+  // verdad (red, RPC caída), esta franja ya no lo calla: el artículo 77
+  // convierte un contrato en indefinido con solo que la persona siga
+  // trabajando después de la fecha, y ese plazo corre igual aunque la pantalla
+  // no haya podido mirar — mismo criterio que `discNoRespondio` en Disciplina.
   useEffect(() => {
     const sb = createAdminSupabaseClient();
     void (async () => {
@@ -293,7 +321,8 @@ export default function DashboardPage() {
       // Y el que se pasa no se pasa a medias: el artículo 77 del D.S. 003-97-TR
       // convierte el contrato en indefinido SOLO, sin que nadie lo decida, por
       // el hecho de que la persona siga trabajando después de la fecha.
-      const { data } = await sb.rpc("fn_contratos_por_vencer", { p_dias: 90 });
+      const { data, error } = await sb.rpc("fn_contratos_por_vencer", { p_dias: 90 });
+      setContratosNoRespondio(Boolean(error));
       setContratos(Array.isArray(data) ? (data as ContratoRow[]) : []);
     })();
   }, []);
@@ -318,10 +347,16 @@ export default function DashboardPage() {
       { data: funciones }, // función + es_encargada_piso (RPC: el schema cache no expone la columna)
       { data: areasRaw, error: errAreas }, // catálogo de áreas (para saber cuáles son operativas)
       { data: metasRaw }, // metas de cobertura de hoy por sede (falla suave: sin meta = neutro)
-      { data: ausenciasHoy }, // vacaciones/descanso médico/etc. que cubren HOY (falla suave: sin dato, sin badge)
+      // Ausencias SÍ lleva su error: si falla, alguien de vacaciones se vería
+      // idéntico a un "sin marcar" real, y eso merece un aviso discreto (ver abajo).
+      { data: ausenciasHoy, error: errAusencias },
       { data: tiposAusencia }, // catálogo (nombre + si exige aprobación), para no repetirlo a mano acá
-      { data: turnosHoy }, // turno puntual de hoy, si alguien lo registró (falla suave: sin alerta de sede)
-      { data: horariosVigentes }, // tramos de horario vigentes hoy, para la cascada de jornada-esperada.ts
+      // Turnos y horarios SÍ llevan su error: de los dos sale `entradaEsperadaHoy`,
+      // que alimenta la única alerta roja de esta pantalla fuera de Disciplina
+      // ("sede sin marcar"). Si cualquiera de las dos falla, esa alerta no puede
+      // dispararse aunque corresponda — y sin la bandera, se apagaría sin aviso.
+      { data: turnosHoy, error: errTurnos },
+      { data: horariosVigentes, error: errHorarios },
     ] = await Promise.all([
       // Misma consulta que /admin/reporte-sede: la lista de sedes a mostrar
       // nunca se deriva de quién aparece en otra tabla.
@@ -367,6 +402,8 @@ export default function DashboardPage() {
     }
     setError(null);
     setSedesActivas(sedesData ?? []);
+    setAusenciasNoRespondieron(Boolean(errAusencias));
+    setHorarioEsperadoNoRespondio(Boolean(errTurnos || errHorarios));
 
     // Función/área/encargada: si la RPC falla, degradamos a "todos operativos"
     // (misma política que Turnos) — la cobertura puede marcar de más pero la
@@ -462,11 +499,40 @@ export default function DashboardPage() {
     };
   }, [cargar]);
 
+  // Cuánta gente está "abierta"/"en_pausa" por sede AHORA — mismo criterio de
+  // `activos` que cada sección calcula más abajo, hecho una vez acá para poder
+  // ordenar las sedes por él antes de recorrerlas.
+  const conteoActivosPorSede = new Map<string, number>();
+  for (const f of filas) {
+    if (f.estado === "abierta" || f.estado === "en_pausa") {
+      conteoActivosPorSede.set(f.sedeId, (conteoActivosPorSede.get(f.sedeId) ?? 0) + 1);
+    }
+  }
   // sedeId (no código) porque es como se cruza con metas_cobertura más abajo.
   // Viene de sedesActivas (tabla `sedes`), no de `filas`: así una sede sigue
   // apareciendo — con "0 trabajando de 0" — aunque hoy nadie de su plantilla
   // cumpla el filtro activo+en_planilla+no_sueldo_fijo.
-  const sedes = sedesActivas.map((s) => ({ sedeId: s.id, codigo: s.codigo }));
+  //
+  // Orden: primero la sede con más gente trabajando ahora; empate (incluido
+  // "nadie trabajando en ninguna") se resuelve alfabético, así el caso "solo
+  // una sede activa" queda cubierto sin una regla aparte.
+  //
+  // `sedes` (la tabla) es visible para cualquier autenticado — es un catálogo
+  // de 4 filas que otras ~14 pantallas necesitan completo para todos los
+  // roles — pero RLS ya restringe personas/jornadas/turnos/horarios a la
+  // sede propia de una encargada (`supervisor_sede`). Sin este filtro, ella
+  // vería las otras tres sedes en "0 trabajando de 0": no una fuga de datos
+  // (RLS igual le oculta a las personas), pero sí una afirmación falsa —
+  // "no hay nadie" en vez de "no tienes permiso para verlo" — que de buena fe
+  // se lee como que esa sede no abrió hoy. Se filtra recién cuando `yo` ya
+  // cargó, para no mostrarle una pantalla vacía a un admin por un instante.
+  const sedes = sedesActivas
+    .map((s) => ({ sedeId: s.id, codigo: s.codigo }))
+    .filter((s) => !yo || esAdmin || s.sedeId === yo.sedeBaseId)
+    .sort((a, b) =>
+      (conteoActivosPorSede.get(b.sedeId) ?? 0) - (conteoActivosPorSede.get(a.sedeId) ?? 0)
+      || a.codigo.localeCompare(b.codigo),
+    );
   const tramoTarde = horaDecimalLimaAhora() >= CORTE_TARDE;
   const tramoLabel = tramoTarde ? "tarde" : "mañana";
   const hoy = hoyLima();
@@ -492,9 +558,17 @@ export default function DashboardPage() {
                 </>
               )}
             </p>
+            {/* Aviso discreto, no un banner: alguien de vacaciones podría verse como
+                "sin marcar" mientras esta consulta no responda. Menos grave que
+                Contratos o la alerta de sede — por eso no interrumpe la pantalla. */}
+            {ausenciasNoRespondieron && (
+              <p className="mt-1 text-xs text-ambar" title="Alguien de vacaciones podría verse como 'Sin marcar' mientras esto no se pueda comprobar.">
+                ⚠ no se pudo comprobar las ausencias de hoy
+              </p>
+            )}
           </div>
           <a
-            href="https://docs.google.com/spreadsheets/d/19jhc5IN0LpbyG00jEwqt4ZB420Ob_rVcGRAdXR88riA/edit"
+            href={URL_SHEET_ASISTENCIA}
             target="_blank"
             rel="noopener noreferrer"
             className="rounded-xl border border-sand bg-papel px-4 py-2 text-sm font-medium text-tinta transition-all hover:-translate-y-0.5 hover:border-taupe"
@@ -625,6 +699,21 @@ export default function DashboardPage() {
             Documentación. Sin esta franja, la fecha anotada en Equipo solo sirve
             si alguien se acuerda de ir a buscarla. */}
         {(() => {
+          // Igual que Disciplina: si la RPC no contestó, la franja NO se
+          // calla — dice que no pudo mirar, en vez de parecer un mes tranquilo.
+          if (contratosNoRespondio) {
+            return (
+              <section className="mb-10 rounded-2xl border border-ambar/30 bg-ambar/[0.06] p-5">
+                <div className="etiqueta text-ambar">Contratos a plazo fijo · no se pudo consultar</div>
+                <p className="mt-2 text-sm text-tinta">
+                  No se pudo revisar qué contratos vencen o ya vencieron. El plazo del{" "}
+                  <strong>artículo 77</strong> corre igual aunque esta franja no haya podido mirar.
+                  Vuelve a cargar, y si sigue igual revisa{" "}
+                  <Link href="/admin/equipo" className="underline">Equipo</Link>.
+                </p>
+              </section>
+            );
+          }
           const vencidos = contratos.filter((c) => c.ya_vencio);
           const porVencer = contratos.filter((c) => !c.ya_vencio);
           if (!vencidos.length && !porVencer.length) return null;
@@ -722,6 +811,15 @@ export default function DashboardPage() {
                   Sin marcajes desde las {horaAmPmDe(alertaSinEntrada)} — nadie de esta sede ha marcado entrada todavía.
                 </div>
               )}
+              {/* Sin esto, si `turnos`/`horarios_asignados` fallan, la alerta de arriba
+                  simplemente no se dispara nunca — sin decir que no pudo revisar. Sería
+                  la única señal de "sede sin nadie" apagada en silencio. */}
+              {!alertaSinEntrada && horarioEsperadoNoRespondio && (
+                <div className="mb-5 flex items-center gap-2 rounded-2xl border border-ambar/30 bg-ambar/[0.06] px-5 py-3 text-sm text-ambar">
+                  <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-ambar text-[10px] font-bold text-crema">!</span>
+                  No se pudo comprobar si a esta sede ya le tocaba tener gente marcada — la alerta de sin marcajes no está disponible ahora mismo.
+                </div>
+              )}
 
               {/* Trabajando ahora — para que la encargada verifique contra quién está físicamente */}
               <div className="mb-5 rounded-2xl border border-verde/20 bg-verde/[0.06] px-5 py-4">
@@ -778,7 +876,7 @@ export default function DashboardPage() {
                           {horaLima(f.salidaFinal)}
                           {f.salidaTemprana ? (
                             <Link href={linkCorregir(f.personaId)} className="ml-2 transition-opacity hover:opacity-80">
-                              <Insignia variante="advertencia" tamano="sm">anticip. {f.salidaTemprana}m</Insignia>
+                              <Insignia variante="advertencia" tamano="sm">anticip. {formatoMinutos(f.salidaTemprana)}</Insignia>
                             </Link>
                           ) : null}
                         </td>
@@ -816,7 +914,7 @@ export default function DashboardPage() {
                         {horaLima(f.salidaFinal)}
                         {f.salidaTemprana ? (
                           <Link href={linkCorregir(f.personaId)} className="ml-1 inline-block">
-                            <Insignia variante="advertencia" tamano="sm">+{f.salidaTemprana}m</Insignia>
+                            <Insignia variante="advertencia" tamano="sm">+{formatoMinutos(f.salidaTemprana)}</Insignia>
                           </Link>
                         ) : null}
                       </span>
