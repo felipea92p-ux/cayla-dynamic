@@ -791,7 +791,7 @@ export default function EducacionPage() {
                     onChange={(e) => setFiltroPersona(e.target.value as FiltroPersonaEstado)}
                     className="w-56"
                   >
-                    <option value="activos">Sin quien ya se liquidó</option>
+                    <option value="activos">Todos menos los ya liquidados</option>
                     <option value="inactivos">Solo quienes ya cesaron</option>
                     <option value="todos">Todas</option>
                   </CampoSelect>
