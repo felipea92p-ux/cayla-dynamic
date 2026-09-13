@@ -106,8 +106,13 @@ function contextoPagoBase(f: Fila): string[] {
     // persona a la que el sistema le contaba 10 laborables y trabajó 21.
     partes.push(`${trabajados} días trabajados`);
   }
+  // «X de vacaciones» a secas se leía como un descuento pendiente de explicar
+  // —sobre todo cuando vacaciones supera a los días laborables del tramo, que
+  // pasa siempre que alguien toma un descanso que incluye sus días de por sí
+  // libres—. La frase tiene que decir POR SU CUENTA que esos días pagan igual;
+  // no puede depender de que quien lo lee ya conozca la regla de negocio.
   if (vacaciones !== null && vacaciones > 0) {
-    partes.push(`${vacaciones} de vacaciones`);
+    partes.push(`${vacaciones} de vacaciones, que pagan igual que un día trabajado`);
   }
   if (sinSalario !== null && sinSalario > 0) {
     partes.push(`${fmtHoras(sinSalario)} sin tarifa asignada, que no se pudieron pagar`);
