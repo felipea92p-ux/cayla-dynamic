@@ -6,6 +6,74 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-09-12 — Siete migraciones fusionadas y nunca pegadas: Ausencias seguía mostrando cesados
+
+Felipe reportó que en `/admin/ausencias` seguían apareciendo personas ya
+cesadas con el filtro "Persona" en su valor por defecto. El código para
+ocultarlas —commit `2b11d321`, 2026-09-11, "Quien cesa deja de estorbar en
+pantalla, pero no antes de liquidarse"— ya estaba fusionado a `main` desde el
+día anterior. El bug no era de diseño: eran **siete migraciones fusionadas y
+nunca pegadas en producción**, siete días después de fusionarse en el peor de
+los casos (0414-0419) — y ninguna había dejado rastro en este archivo, algo
+atípico aquí.
+
+Corriendo `./scripts/que-falta-pegar.sh` contra producción: **414, 415, 417,
+418, 419, 421 y 422 faltaban** (mientras que 423-426, de otra rama, ya
+llevaban un día pegadas — el orden de pegado entre sesiones no es
+secuencial). Se pegaron las siete, en ese orden, verificando con
+`donde-vive.sh` antes de cada una que era la única versión vigente y sin
+conflicto entre sí — salvo 417/418, que las dos reescriben
+`fn_planilla_calcular_nucleo` y van pegadas una justo detrás de la otra.
+
+**Un falso positivo en el camino, que vale la pena dejar escrito:** al pedir
+el md5 de producción de `fn_planilla_calcular_nucleo` después de pegar
+417+418, no coincidía con "el md5 de la base local" que había dado
+`donde-vive.sh` (ni tal cual ni sin comentarios). Antes de sospechar de
+producción, se corrió el archivo `0418` literal en una transacción de prueba
+(`BEGIN…ROLLBACK` contra el Postgres local) — y ese resultado sí coincidió
+con producción, byte por byte. La base local COMPARTIDA (los ~10 worktrees)
+estaba desactualizada respecto al archivo real del repo; el md5 "de
+referencia" que dio la herramienta era el que estaba mal, no producción. La
+lección: cuando el md5 de producción no coincide con el de la base local
+compartida, antes de declarar una divergencia real hay que probar el archivo
+del repo en una transacción aislada — la base local puede estar tan
+desincronizada como la propia producción.
+
+**Verificado tras pegar:** `migraciones_aplicadas` tiene las 7 filas con
+fecha de hoy. Pendiente que Felipe confirme en pantalla que Ausencias ya
+filtra bien.
+
+**Al terminar apareció deuda nueva, de otra sesión, sin relación con lo de
+arriba: 427, 428 y 430 fusionadas a `main` y sin pegar.** Se pegó la 427
+("pedir revisión de contrato") sin problema. La **428** ("practicantes
+visibles en provisiones") da un error que no se pudo explicar en la sesión:
+
+```
+ERROR: 42P01: relation "v_prov" does not exist
+```
+
+`v_prov` es solo una variable `jsonb` interna de `fn_provisiones` — no es una
+tabla en ningún lado del archivo. Reproducido el archivo COMPLETO, byte por
+byte, en Postgres local (`BEGIN…ROLLBACK`): **funciona sin error.** Solo falla
+en producción, y la versión de Postgres es idéntica en los dos lados (17.6).
+Se acotó por partes, probando fragmentos crecientes de la función directo en
+producción (con funciones de prueba que se autodestruyen): todo lo que NO es
+el bloque `WITH base_cruda … SELECT … INTO v_out` funciona bien —incluida la
+parte que ya usa `v_prov` dos veces—; el bloque pesado (el cálculo por persona
+con sus `lateral` y `union all`) quedó sin probar aislado antes de decidir
+parar. La 430 tampoco se pegó — se llegó a verificar con `donde-vive.sh` que
+no choca con nada (reescribe `fn_confirmar_mi_firma_contrato`,
+`fn_contrato_registrar`, `fn_contrato_editar`, `fn_set_fin_contrato_nucleo`,
+`fn_set_fin_contrato`, `fn_contrato_refrescar_vencimiento`, todas como única
+versión vigente), pero no se pegó por quedar detrás de la 428 en la cola.
+
+**Pendiente para la próxima sesión:** diagnosticar la 428 (probablemente algo
+del bloque `WITH` pesado, o un límite/bug de PL/pgSQL con sentencias muy
+largas — no una tabla llamada `v_prov`, esa hipótesis ya se descartó), y pegar
+428 y 430 una vez resuelto. Ninguna de las dos es urgente ni bloquea nada hoy.
+
+---
+
 ## 2026-09-11 — Revisión de pendientes de diseño/UX: casi todo ya estaba fusionado; tres bugs reales cerrados
 
 Se pidió trabajar "todos los pendientes de diseño e interfaz". Antes de tocar
