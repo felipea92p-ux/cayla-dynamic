@@ -427,6 +427,15 @@ function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso
     setProcesando(clave); setAviso(null);
     const tramos = tramosRef.current.get(d.personaId);
     const tramo = horarioVigente(tramos ?? [], d.fecha);
+    // Mismo hueco que en `guardarDesdeAqui`: sin tramo vigente esa fecha,
+    // `horarioSemanalDesdeTramo` devuelve {} y el guardado de abajo dejaría a
+    // la persona con un solo día de horario base. El chequeo de "0 días" de
+    // más abajo no lo cazaba, porque acá sí queda 1 día (el de `d.tE`).
+    if (!tramo) {
+      setProcesando(null);
+      setAviso(`${d.persona} no tiene horario base vigente en esta fecha — asígnale uno completo en Horarios antes de aplicar este cambio.`);
+      return;
+    }
     const semanal = horarioSemanalDesdeTramo(tramo);
     const dow = String(diaSemana(d.fecha));
     if (d.tE) {
@@ -793,6 +802,16 @@ export default function TurnosPage() {
     if (!edit) return;
     if (!entrada || !salida) { avisar("error", "Para cambiar el horario base necesito entrada y salida."); return; }
     const tr = horarioVigente(horarios.get(edit.personaId) ?? [], edit.fecha);
+    // Sin tramo vigente esa fecha, `horarioSemanalDesdeTramo` arranca de un
+    // objeto vacío: guardar seguiría adelante con un horario de UN SOLO día
+    // (el que se está editando) en vez de conservar la semana completa, que
+    // es justo lo que este botón promete. Pasó de verdad: un hueco entre
+    // tramos (el mismo patrón que encontró la 0385 en 16 personas) dejó a
+    // alguien con "solo lunes" como horario base durante más de un mes.
+    if (!tr) {
+      avisar("error", "Esta persona no tiene horario base vigente en esta fecha — asígnale uno completo en Horarios antes de hacer un cambio puntual.");
+      return;
+    }
     const semanal = horarioSemanalDesdeTramo(tr);
     const dow = String(diaSemana(edit.fecha));
     const previo = tr?.horario_por_dia?.[dow];
