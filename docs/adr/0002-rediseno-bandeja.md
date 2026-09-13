@@ -1,8 +1,8 @@
 # ADR 0002 — Rediseño de Bandeja (inbox operativo del panel)
 
 Fecha: 2026-09-13. Estado: **implementado** — migración
-`supabase/migrations/0435_la_bandeja_recuerda_lo_que_ya_viste.sql`, prueba
-`supabase/tests/344_la_bandeja_recuerda_lo_que_ya_viste.test.sql` (8/8 en
+`supabase/migrations/0436_la_bandeja_recuerda_lo_que_ya_viste.sql`, prueba
+`supabase/tests/345_la_bandeja_recuerda_lo_que_ya_viste.test.sql` (8/8 en
 verde contra Postgres local, dentro de `BEGIN…ROLLBACK`), y
 `apps/web/app/(admin)/admin/bandeja/page.tsx` reescrito con las 8 decisiones
 de abajo. `tsc --noEmit` y `eslint` limpios en todo el monorepo.
@@ -210,7 +210,7 @@ humanas — ahí sí se cruza el umbral donde una pantalla propia se justifica.
 
 ## Próximos pasos
 
-1. **Pegar `0435_la_bandeja_recuerda_lo_que_ya_viste.sql` en producción** —
+1. **Pegar `0436_la_bandeja_recuerda_lo_que_ya_viste.sql` en producción** —
    Felipe, a mano, por `scripts/dame-el-sql.sh 435`. No toca ningún cálculo
    de planilla ni dato existente: solo agrega una tabla y una función nuevas.
 2. Confirmar visualmente en el navegador que la pantalla rediseñada carga

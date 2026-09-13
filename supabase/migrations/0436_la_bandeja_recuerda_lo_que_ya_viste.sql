@@ -91,7 +91,7 @@ grant execute on function fn_bandeja_marcar_visto(text, uuid) to authenticated;
 revoke execute on function fn_bandeja_marcar_visto(text, uuid) from public, anon;
 
 insert into migraciones_aplicadas (numero, nombre)
-values (435, 'la_bandeja_recuerda_lo_que_ya_viste')
+values (436, 'la_bandeja_recuerda_lo_que_ya_viste')
 on conflict (numero) do update set nombre = excluded.nombre, aplicada_at = now();
 
 notify pgrst, 'reload schema';

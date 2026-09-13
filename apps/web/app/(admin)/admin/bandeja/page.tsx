@@ -31,7 +31,7 @@
 // de las dos: es salud del cron, no una tarea de una persona, así que lleva
 // su propia franja con los tokens de "informativo" del sistema de diseño.
 //
-// "Nuevo desde tu última visita" (bandeja_vistos, migración 0435) solo cubre
+// "Nuevo desde tu última visita" (bandeja_vistos, migración 0436) solo cubre
 // la zona "Por aprobar": es la única zona que se resuelve acá, así que es la
 // única donde "ya lo vi" cambia algo. Simplificación a propósito: se marca
 // visto TODO lo que la RPC trajo, no solo lo que el filtro de sede deja ver
@@ -371,7 +371,7 @@ export default function BandejaPage() {
         }),
       );
       tareas.push(
-        // bandeja_vistos (0435): qué ítems de "Por aprobar" ya vio ESTA
+        // bandeja_vistos (0436): qué ítems de "Por aprobar" ya vio ESTA
         // persona. Falla suave — sin ella, todo se ve simplemente sin
         // insignia de "Nuevo", nunca al revés.
         supabase.from("bandeja_vistos").select("tipo_item,item_id").then(({ data }) => {
