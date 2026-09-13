@@ -464,9 +464,9 @@ export default function BandejaPage() {
         ) : total === 0 ? (
           <SinDatos texto="No hay nada pendiente." pista="Cuando algo necesite atención, va a aparecer aquí." />
         ) : (
-          <div className="flex max-w-3xl flex-col gap-8">
+          <div className="grid items-start gap-6 xl:grid-cols-2">
             {resumenAlertas && alertasConProblema > 0 && (
-              <section>
+              <section className="rounded-2xl border border-sand bg-papel p-5">
                 <h2 className="mb-1 font-serif text-lg">Avisos por correo</h2>
                 <p className="mb-3 text-sm text-taupe">
                   El despacho diario de avisos (auto-cierres, contratos y vacaciones por vencer) dejó
@@ -525,7 +525,7 @@ export default function BandejaPage() {
             )}
 
             {revisiones.length > 0 && (
-              <section>
+              <section className="rounded-2xl border border-sand bg-papel p-5">
                 <h2 className="mb-1 font-serif text-lg">
                   Tu equipo pidió revisar {revisiones.length} día{revisiones.length === 1 ? "" : "s"}
                 </h2>
@@ -570,7 +570,7 @@ export default function BandejaPage() {
                 con el flujo de "Subir firmada" de siempre. Acá solo se cierra
                 la conversación con una respuesta. */}
             {revisionesMovilidad.length > 0 && (
-              <section>
+              <section className="rounded-2xl border border-sand bg-papel p-5">
                 <h2 className="mb-1 font-serif text-lg">
                   {revisionesMovilidad.length === 1
                     ? "Pidieron revisar una declaración de ruta"
@@ -616,7 +616,7 @@ export default function BandejaPage() {
                 en Contratos" que filtre por persona (admin/contratos no lee
                 query params), así que enlaza a la pantalla a secas. */}
             {revisionesContrato.length > 0 && (
-              <section>
+              <section className="rounded-2xl border border-sand bg-papel p-5">
                 <h2 className="mb-1 font-serif text-lg">
                   {revisionesContrato.length === 1
                     ? "Pidieron revisar un contrato"
@@ -657,7 +657,7 @@ export default function BandejaPage() {
             )}
 
             {solicitudesVacaciones.length > 0 && (
-              <section>
+              <section className="rounded-2xl border border-sand bg-papel p-5">
                 <h2 className="mb-1 font-serif text-lg">
                   {solicitudesVacaciones.length} solicitud{solicitudesVacaciones.length === 1 ? "" : "es"} de vacaciones por resolver
                 </h2>
@@ -701,7 +701,7 @@ export default function BandejaPage() {
             )}
 
             {solicitudesPerfil.length > 0 && (
-              <section>
+              <section className="rounded-2xl border border-sand bg-papel p-5">
                 <h2 className="mb-1 font-serif text-lg">
                   {solicitudesPerfil.length} solicitud{solicitudesPerfil.length === 1 ? "" : "es"} de cambio de perfil
                 </h2>
@@ -773,7 +773,7 @@ export default function BandejaPage() {
             )}
 
             {sinHorario.length > 0 && (
-              <section>
+              <section className="rounded-2xl border border-sand bg-papel p-5">
                 <h2 className="mb-1 font-serif text-lg">
                   {sinHorario.length} persona{sinHorario.length === 1 ? "" : "s"} trabajó sin horario vigente
                 </h2>
@@ -802,7 +802,7 @@ export default function BandejaPage() {
             )}
 
             {vacaciones.length > 0 && (
-              <section>
+              <section className="rounded-2xl border border-sand bg-papel p-5">
                 <h2 className="mb-3 font-serif text-lg">
                   {vacaciones.length} récord{vacaciones.length === 1 ? "" : "s"} de vacaciones vencen pronto
                 </h2>
@@ -823,7 +823,7 @@ export default function BandejaPage() {
             )}
 
             {educacion.length > 0 && (
-              <section>
+              <section className="rounded-2xl border border-sand bg-papel p-5">
                 <h2 className="mb-3 font-serif text-lg">
                   {educacion.length} asignación{educacion.length === 1 ? "" : "es"} de educación por atender
                 </h2>

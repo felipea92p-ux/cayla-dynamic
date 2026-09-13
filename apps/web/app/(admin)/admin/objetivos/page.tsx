@@ -322,6 +322,7 @@ function ObjetivosContenido() {
   return (
     <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
+        <div className="mx-auto w-full max-w-4xl">
         <h1 className="mb-1 font-serif text-2xl">Objetivos del mes</h1>
         <p className="mb-5 text-sm text-taupe">
           Checklist de objetivos por persona. <strong>No pagan nada</strong>: son el historial
@@ -365,7 +366,7 @@ function ObjetivosContenido() {
         ) : cargando && !cargado ? (
           <Cargando />
         ) : cargado ? (
-          <div className="max-w-3xl">
+          <div>
             {/* Barra de progreso + nivel del plus */}
             <TarjetaInfo className="mb-4">
               <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
@@ -595,6 +596,7 @@ function ObjetivosContenido() {
             </p>
           </div>
         ) : null}
+        </div>
       </main>
     </div>
   );

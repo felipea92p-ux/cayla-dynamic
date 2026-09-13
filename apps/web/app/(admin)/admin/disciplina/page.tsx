@@ -1068,8 +1068,9 @@ function fechasDe(h: Hecho[]): string {
           tú lo revisas y firmas. Tardanza y falta van <strong>separadas</strong>: pesan distinto en la escala.
         </p>
 
+        <div className="grid items-start gap-6 xl:grid-cols-2">
         {/* Semáforo de tardanzas */}
-        <div className="mb-6 max-w-3xl overflow-hidden rounded-2xl border border-sand bg-papel">
+        <div className="mb-6 overflow-hidden rounded-2xl border border-sand bg-papel">
           <div className="border-b bg-sand/50 px-4 py-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-sm font-medium">
@@ -1194,7 +1195,7 @@ function fechasDe(h: Hecho[]): string {
         </div>
 
         {/* Semáforo de faltas */}
-        <div className="mb-6 max-w-3xl overflow-hidden rounded-2xl border border-sand bg-papel">
+        <div className="mb-6 overflow-hidden rounded-2xl border border-sand bg-papel">
           <div className="border-b bg-sand/50 px-4 py-2">
             <h2 className="text-sm font-medium">Faltas — últimos 180 días{!cargando && faltas.length > 0 && <span className="font-normal text-taupe"> · {faltas.length}</span>}</h2>
             <p className="mt-0.5 text-xs text-taupe">Umbrales art. 25-h: 4 consecutivas · 6 en 30 días · 16 en 180 días.</p>
@@ -1232,7 +1233,7 @@ function fechasDe(h: Hecho[]): string {
         </div>
 
         {/* Borradores pendientes de firma */}
-        <div ref={borradoresRef} className="mb-6 max-w-3xl scroll-mt-4 overflow-hidden rounded-2xl border border-sand bg-papel">
+        <div ref={borradoresRef} className="mb-6 scroll-mt-4 overflow-hidden rounded-2xl border border-sand bg-papel">
           <h2 className="border-b bg-sand/50 px-4 py-2 text-sm font-medium">
             Borradores pendientes {borradores.length > 0 && <span className="font-normal text-taupe">· {borradores.length}</span>}
           </h2>
@@ -1504,7 +1505,7 @@ function fechasDe(h: Hecho[]): string {
 
         {/* Firmados — pendientes de entrega */}
         {firmados.length > 0 && (
-          <div className="max-w-3xl overflow-hidden rounded-2xl border border-sand bg-papel">
+          <div className="overflow-hidden rounded-2xl border border-sand bg-papel">
             <h2 className="border-b bg-sand/50 px-4 py-2 text-sm font-medium">Firmados — por entregar · {firmados.length}</h2>
             <ul className="divide-y">
               {firmados.map((d) => (
@@ -1582,7 +1583,7 @@ function fechasDe(h: Hecho[]): string {
             dos meses no había ningún sitio. Plegado por defecto para que la
             pantalla siga enfocada en lo que falta hacer. */}
         {entregados.length > 0 && (
-          <div id="entregados" className="mt-4 max-w-3xl scroll-mt-4 overflow-hidden rounded-2xl border border-sand bg-papel">
+          <div id="entregados" className="mt-4 scroll-mt-4 overflow-hidden rounded-2xl border border-sand bg-papel">
             <button onClick={() => setVerCerrados((v) => !v)}
               className="flex w-full items-center justify-between border-b bg-sand/50 px-4 py-2 text-left text-sm font-medium">
               <span>Entregados · {entregados.length}</span>
@@ -1687,6 +1688,7 @@ function fechasDe(h: Hecho[]): string {
             )}
           </div>
         )}
+        </div>
 
         {/* ── Diálogos migrados de window.confirm/window.prompt ──────────
             Felipe aprobó migrar los ocho de esta pantalla (ver CLAUDE.md,
