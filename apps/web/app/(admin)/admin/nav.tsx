@@ -18,8 +18,8 @@
 // por lo que existe `RUTAS_SIN_MARCO`: ese layout envuelve también al login y a
 // «nueva clave», donde todavía no hay sesión a la que preguntarle nada.
 //
-// Lo que NO cambió: los tres contadores siguen consultándose igual, con las
-// mismas RPC y las mismas dependencias `[rol, pathname]` — refrescarse en cada
+// Lo que NO cambió: los contadores siguen consultándose igual, con las mismas
+// RPC y las mismas dependencias `[rol, pathname]` — refrescarse en cada
 // navegación es su único mecanismo de actualización, y un contador de
 // Incidencias en frío es un reclamo sin leer con el periodo cerrándose.
 
@@ -29,6 +29,7 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { useClavePorCambiar } from "@/lib/admin/use-clave-por-cambiar";
 import { traerBandeja } from "@/lib/bandeja-mia";
+import { contarBandejaEquipoPendiente } from "@/lib/admin/bandeja-equipo";
 import { useGruposCerrados, useNavColapsado } from "@/lib/use-nav-colapsado";
 import { Marca } from "@/components/marca";
 import { AcusesPendientes } from "@/components/acuses-pendientes";
@@ -93,10 +94,23 @@ function MarcoConChrome({ pathname, children }: { pathname: string; children: Re
   // los tres de arriba hablan del EQUIPO —lo que a esta persona le toca
   // atender— y aquel habla de ELLA: su contrato sin firmar, su constancia de
   // ley pendiente. Quien pasa el día en el panel no tenía forma de enterarse.
+  //
+  // El de «Bandeja» (2026-09-12) tampoco compite con estos tres, por una razón
+  // distinta a la de «Info»: no es un CUARTO criterio, es la UNIÓN de todos.
+  // `/admin/bandeja` junta hoy nueve secciones (ver lib/admin/bandeja-equipo.ts)
+  // y solo tres —las de arriba— tenían aviso en algún renglón del menú. Las
+  // otras seis (sin horario vigente, revisión de ruta, revisión de contrato,
+  // solicitudes de vacaciones, solicitudes de cambio de perfil, salud del
+  // despacho de avisos) no encendían nada en ningún lado: pasaban la MISMA
+  // vara de arriba —cuestan plata o un plazo legal si nadie las mira a
+  // tiempo— y aun así eran invisibles fuera de esa pantalla. El bolito de
+  // Bandeja es la única señal de esas seis; que también sume las tres de
+  // arriba no es una copia, es que la Bandeja de verdad las contiene.
   const [educacionPorAtender, setEducacionPorAtender] = useState(0);
   const [vacacionesPorAtender, setVacacionesPorAtender] = useState(0);
   const [revisionesPendientes, setRevisionesPendientes] = useState(0);
   const [misAvisos, setMisAvisos] = useState(0);
+  const [bandejaPendiente, setBandejaPendiente] = useState(0);
   const [buscadorAbierto, setBuscadorAbierto] = useState(false);
   const [ayudaAbierta, setAyudaAbierta] = useState(false);
 
@@ -175,6 +189,20 @@ function MarcoConChrome({ pathname, children }: { pathname: string; children: Re
     return () => { vivo = false; };
   }, [veEquipo, pathname]);
 
+  // El total de la Bandeja del equipo (ver lib/admin/bandeja-equipo.ts): la
+  // unión de las nueve secciones que esa pantalla junta, no solo las tres de
+  // arriba. Se gatea con `veEquipo` porque es la misma condición con la que el
+  // propio ítem «Bandeja» decide si se pinta (`roles: SEDE` en nav-items.ts);
+  // dentro de la función cada sección vuelve a preguntar su propio permiso,
+  // así que una encargada sin acceso a Educación no la cuenta dos veces.
+  useEffect(() => {
+    if (!veEquipo) return;
+    let vivo = true;
+    void contarBandejaEquipoPendiente(createAdminSupabaseClient(), rol)
+      .then((n) => { if (vivo) setBandejaPendiente(n); });
+    return () => { vivo = false; };
+  }, [veEquipo, rol, pathname]);
+
   // Lo suyo. Sale de `traerBandeja`, la MISMA función que pinta el número del
   // botón «Bandeja» de /mio: el menú del panel y esa pantalla no pueden decir
   // dos números distintos de lo mismo.
@@ -209,6 +237,7 @@ function MarcoConChrome({ pathname, children }: { pathname: string; children: Re
   const educacion = veEducacion ? educacionPorAtender : 0;
   const vacaciones = veEquipo ? vacacionesPorAtender : 0;
   const revisiones = veEquipo ? revisionesPendientes : 0;
+  const bandeja = veEquipo ? bandejaPendiente : 0;
 
   const contadores: Contadores = {
     educacion: {
@@ -222,6 +251,10 @@ function MarcoConChrome({ pathname, children }: { pathname: string; children: Re
     revisiones: {
       n: revisiones,
       titulo: `${revisiones} persona(s) pidieron que se revise un día suyo`,
+    },
+    bandeja: {
+      n: bandeja,
+      titulo: `${bandeja} cosa(s) pendiente(s) en la Bandeja del equipo`,
     },
     mio: {
       n: misAvisos,
