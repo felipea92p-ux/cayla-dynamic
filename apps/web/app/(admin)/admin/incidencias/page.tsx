@@ -261,6 +261,11 @@ function IncidenciasContenido() {
     const desdePatron = haceDias(VENTANA_PATRON_DIAS - 1); // hoy inclusive = 30 días
     const lunesActual = lunesDeLaSemana(HOY);
     const domingoActual = addDias(lunesActual, 6);
+    // Hallazgo: el déficit de encargadas era reactivo (solo la semana actual,
+    // avisando a mitad de semana cuando el turno del lunes ya pasó). Con el
+    // horario de la semana SIGUIENTE ya asignado, el aviso puede llegar con
+    // anticipación — mientras todavía se puede reprogramar.
+    const domingoSiguiente = addDias(lunesActual, 13);
 
     const [
       { data, error: errData },
@@ -309,13 +314,14 @@ function IncidenciasContenido() {
           .order("persona_id")
           .range(ini, fin),
       ),
-      // Déficit de encargadas: mira la semana actual (lunes–domingo), no el filtro
-      // Desde/Hasta — es sobre la cobertura planeada de AHORA, no un rango histórico.
+      // Déficit de encargadas: mira la semana actual Y la siguiente (lunes–domingo),
+      // no el filtro Desde/Hasta — es sobre la cobertura planeada de AHORA en
+      // adelante, no un rango histórico.
       supabase.from("sedes").select("id, codigo"),
       supabase.from("personas").select("id, sede_base_id").eq("rol", "supervisor_sede").eq("estado", "activo"),
       supabase.from("metas_cobertura").select("sede_id, dia_semana, meta_encargadas").gt("meta_encargadas", 0),
-      supabase.from("horarios_asignados").select("persona_id, hora_entrada, hora_salida, dias_laborables, horario_por_dia, almuerzo_min_minutos, vigente_desde, vigente_hasta").lte("vigente_desde", domingoActual).or(`vigente_hasta.is.null,vigente_hasta.gte.${lunesActual}`),
-      supabase.from("turnos").select("persona_id, fecha, hora_entrada, hora_salida, es_descanso").gte("fecha", lunesActual).lte("fecha", domingoActual),
+      supabase.from("horarios_asignados").select("persona_id, hora_entrada, hora_salida, dias_laborables, horario_por_dia, almuerzo_min_minutos, vigente_desde, vigente_hasta").lte("vigente_desde", domingoSiguiente).or(`vigente_hasta.is.null,vigente_hasta.gte.${lunesActual}`),
+      supabase.from("turnos").select("persona_id, fecha, hora_entrada, hora_salida, es_descanso").gte("fecha", lunesActual).lte("fecha", domingoSiguiente),
       // Incidencias ya aceptadas (visto bueno): para no volver a mostrarlas.
       // Se pide desde el filtro O desde la ventana fija más profunda, lo que sea
       // más atrás: los avisos de racha y de exceso NO respetan Desde/Hasta —se
@@ -684,9 +690,16 @@ function IncidenciasContenido() {
       });
     }
 
-    // Déficit de encargadas: para cada sede/día de la semana actual con meta
-    // definida, ¿cuántas supervisor_sede están programadas? Misma cascada
-    // turno del día → horario_por_dia → legacy que usa admin/turnos.
+    // Déficit de encargadas: para cada sede/día de esta semana Y LA SIGUIENTE
+    // con meta definida, ¿cuántas supervisor_sede están programadas? Misma
+    // cascada turno del día → horario_por_dia → legacy que usa admin/turnos.
+    //
+    // Hallazgo (auditoría 2026-09-13): antes solo miraba la semana actual, así
+    // que el aviso llegaba a mitad de semana — cuando el turno del lunes ya
+    // pasó y no se puede mover. El horario de la semana siguiente ya está
+    // asignado en `horarios_asignados`/`turnos` cuando esta pantalla se abre
+    // un viernes o un fin de semana, así que el mismo cálculo, corrido 7 días
+    // más, avisa con tiempo real de reprogramar.
     const codigoPorSede = new Map(((sedesData as { id: string; codigo: string }[] | null) ?? []).map((s) => [s.id, s.codigo]));
     setCodigoPorSedeId(codigoPorSede);
     const sedePorEncargada = new Map(((encargadasData as { id: string; sede_base_id: string }[] | null) ?? []).map((p) => [p.id, p.sede_base_id]));
@@ -705,8 +718,9 @@ function IncidenciasContenido() {
       const horario = horarioVigente(horariosPorPersona.get(personaId) ?? [], fecha);
       return esperadoDelDia(fecha, turno, horario).trabaja;
     }
-    const diasSemanaActual = Array.from({ length: 7 }, (_, i) => addDias(lunesActual, i));
-    for (const dia of diasSemanaActual) {
+    const diasCobertura = Array.from({ length: 14 }, (_, i) => addDias(lunesActual, i));
+    for (const [i, dia] of diasCobertura.entries()) {
+      const esSemanaSiguiente = i >= 7;
       const dow = diaSemanaNum(dia);
       for (const m of (metasData as { sede_id: string; dia_semana: number; meta_encargadas: number }[] | null) ?? []) {
         if (m.dia_semana !== dow) continue;
@@ -718,7 +732,8 @@ function IncidenciasContenido() {
           nombre: `Sede ${codigoPorSede.get(m.sede_id) ?? "?"}`,
           sede: codigoPorSede.get(m.sede_id) ?? "?",
           fecha: dia,
-          tipo: `Déficit de encargadas (${cubiertas}/${m.meta_encargadas})`,
+          tipo: `Déficit de encargadas (${cubiertas}/${m.meta_encargadas})`
+            + (esSemanaSiguiente ? " · próxima semana, todavía se puede reprogramar" : ""),
           entrada: null,
           salida: null,
           severidad: "media",
@@ -952,7 +967,7 @@ function IncidenciasContenido() {
             (y sus acciones) es siempre la misma, completa, en los dos modos —
             resumirla escondería justo lo que exige revisión. */}
         {vistaModo === "detalle" ? (
-          <p className="mb-5 text-sm text-taupe">Días que necesitan tu revisión: auto-cerrados, sin salida final, sin retorno de pausa, o con salida anticipada (más de 15 min antes de su hora). Toca cualquiera para corregirlo. También avisa cuando alguien acumula {UMBRAL_PATRON_TARDANZAS}+ tardanzas en los últimos {VENTANA_PATRON_DIAS} <strong>días corridos</strong> — Dynamic solo avisa, la decisión (conversar, amonestar) es tuya. Ese conteo <strong>no es el que arma un memo</strong>: el umbral del RIT se cuenta por <strong>mes calendario</strong> y sale en Disciplina, así que acá el número puede ser mayor cuando queda una tardanza del mes pasado dentro de la ventana. Y si una sede no llega a su mínimo de encargadas programadas esta semana (configurable en Turnos), también sale acá. Avisa además cuando alguien pasa de {MAXIMO_LEGAL_SEMANAL} h en <strong>cualquier ventana de siete días seguidos</strong> — no por semana de calendario, porque así doce días corridos de 8 h darían 48 y 48 sin que nada saltara. Ese es el <strong>máximo legal</strong>, no un objetivo. Ese aviso viene en dos tonos: si la ventana termina esta semana todavía se puede mover un turno, y si dice <strong>«ya ocurrió»</strong> es un exceso de hasta {VENTANA_EXCESO_DIAS} días atrás que ya no se evita — se saca con <strong>Revisado</strong>, que deja constancia de quién lo miró. Y cuando alguien lleva {MAXIMO_DIAS_SIN_DESCANSO} días seguidos trabajando, porque el siguiente le toca descansar — el descanso semanal se cuenta en <strong>ciclos de 7 días</strong>, no por semana de calendario (Informe 027-2021-MTPE/14), así que con turnos rotativos se puede cumplir «uno por semana» y encadenar doce días igual. Ese aviso <strong>se va solo en cuanto descansa</strong>: si su último día trabajado ya quedó atrás, el descanso ocurrió y no hay nada que pedir. El de <strong>{MAXIMO_DIAS_SIN_DESCANSO + 1}+ días</strong> no se va solo —esa infracción ya ocurrió— y se saca con <strong>Revisado</strong>, que deja constancia de quién la miró. Ninguno de los dos límites —las {MAXIMO_LEGAL_SEMANAL} h ni el descanso— <strong>se arregla pagando después</strong>: el recargo del sobretiempo se paga aparte y no levanta el tope. Las <strong>faltas</strong> (le tocaba y no marcó) salen en rojo; usa <strong>Justificar</strong> para registrar el motivo (permiso, descanso médico, etc.) y sacarlas del conteo.</p>
+          <p className="mb-5 text-sm text-taupe">Días que necesitan tu revisión: auto-cerrados, sin salida final, sin retorno de pausa, o con salida anticipada (más de 15 min antes de su hora). Toca cualquiera para corregirlo. También avisa cuando alguien acumula {UMBRAL_PATRON_TARDANZAS}+ tardanzas en los últimos {VENTANA_PATRON_DIAS} <strong>días corridos</strong> — Dynamic solo avisa, la decisión (conversar, amonestar) es tuya. Ese conteo <strong>no es el que arma un memo</strong>: el umbral del RIT se cuenta por <strong>mes calendario</strong> y sale en Disciplina, así que acá el número puede ser mayor cuando queda una tardanza del mes pasado dentro de la ventana. Y si una sede no llega a su mínimo de encargadas programadas —esta semana o la siguiente (configurable en Turnos)— también sale acá; el de la próxima semana lo dice explícitamente, para que se distinga del que ya es urgente ahora. Avisa además cuando alguien pasa de {MAXIMO_LEGAL_SEMANAL} h en <strong>cualquier ventana de siete días seguidos</strong> — no por semana de calendario, porque así doce días corridos de 8 h darían 48 y 48 sin que nada saltara. Ese es el <strong>máximo legal</strong>, no un objetivo. Ese aviso viene en dos tonos: si la ventana termina esta semana todavía se puede mover un turno, y si dice <strong>«ya ocurrió»</strong> es un exceso de hasta {VENTANA_EXCESO_DIAS} días atrás que ya no se evita — se saca con <strong>Revisado</strong>, que deja constancia de quién lo miró. Y cuando alguien lleva {MAXIMO_DIAS_SIN_DESCANSO} días seguidos trabajando, porque el siguiente le toca descansar — el descanso semanal se cuenta en <strong>ciclos de 7 días</strong>, no por semana de calendario (Informe 027-2021-MTPE/14), así que con turnos rotativos se puede cumplir «uno por semana» y encadenar doce días igual. Ese aviso <strong>se va solo en cuanto descansa</strong>: si su último día trabajado ya quedó atrás, el descanso ocurrió y no hay nada que pedir. El de <strong>{MAXIMO_DIAS_SIN_DESCANSO + 1}+ días</strong> no se va solo —esa infracción ya ocurrió— y se saca con <strong>Revisado</strong>, que deja constancia de quién la miró. Ninguno de los dos límites —las {MAXIMO_LEGAL_SEMANAL} h ni el descanso— <strong>se arregla pagando después</strong>: el recargo del sobretiempo se paga aparte y no levanta el tope. Las <strong>faltas</strong> (le tocaba y no marcó) salen en rojo; usa <strong>Justificar</strong> para registrar el motivo (permiso, descanso médico, etc.) y sacarlas del conteo.</p>
         ) : (
           <p className="mb-5 text-sm text-taupe">
             Días que necesitan tu revisión: cierres mal hechos (auto-cierre, sin salida, sin retorno de almuerzo,
