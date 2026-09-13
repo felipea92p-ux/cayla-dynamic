@@ -21,11 +21,11 @@ import { ROLES_CON_PANEL, ROLES_DO, ROLES_EXPORTAN_ASISTENCIA } from "@cayla-dyn
 const DO = ROLES_DO;
 const SEDE = ROLES_CON_PANEL;
 
-// Los tres contadores del menú, por nombre. Antes la condición estaba escrita a
+// Los contadores del menú, por nombre. Antes la condición estaba escrita a
 // mano contra el `href` y repetida SEIS veces (tres en la barra de escritorio y
 // tres en el cajón); si alguien cambiaba una ruta, cinco copias se quedaban
 // atrás en silencio. Ahora el ítem dice cuál le toca y el panel lo pinta una vez.
-export type Contador = "educacion" | "vacaciones" | "revisiones" | "mio";
+export type Contador = "educacion" | "vacaciones" | "revisiones" | "mio" | "bandeja";
 
 export type Item = {
   href: string;
@@ -90,12 +90,23 @@ export const GRUPOS: Grupo[] = [
     // propia RLS le devuelve casi vacío. No era una fuga; era una pantalla que no
     // es suya y que se lee como que el sistema no tiene datos.
     { href: "/admin/dashboard", label: "Dashboard", Icon: LayoutDashboard, roles: SEDE },
-    // Junta en una sola vista los tres contadores de abajo (educación,
-    // ausencias, incidencias) — mismas RPC, mismo criterio de "por atender"
-    // que cada una ya usa por su cuenta. No lleva contador propio: sería un
-    // cuarto número compitiendo con los tres que ya explica, y el criterio de
-    // esta casa es que un aviso que aparece en todos lados deja de ser aviso.
-    { href: "/admin/bandeja", label: "Bandeja", Icon: Inbox, roles: SEDE },
+    // Junta en una sola vista las nueve secciones de abajo (educación,
+    // ausencias, incidencias, y seis más que fueron llegando después: sin
+    // horario vigente, revisión de ruta, revisión de contrato, solicitudes de
+    // vacaciones, solicitudes de cambio de perfil, salud del despacho de
+    // avisos) — mismas RPC, mismo criterio de "pendiente" que cada una ya usa
+    // por su cuenta.
+    //
+    // SÍ lleva contador propio desde el 2026-09-12 (`lib/admin/bandeja-equipo.ts`),
+    // y es la excepción a la regla que este comentario tenía escrita: «un aviso
+    // que aparece en todos lados deja de ser aviso». Esa regla seguía siendo
+    // cierta para las TRES secciones originales, que ya avisaban cada una en su
+    // propio renglón — pero de las nueve de hoy, solo esas tres avisaban en
+    // algún lado. Las otras seis no encendían nada: alguien podía tener una
+    // solicitud de vacaciones o una declaración de ruta esperando y no
+    // enterarse sin entrar a mirar. El bolito de acá es la ÚNICA señal de esas
+    // seis, no una cuarta copia de las tres que ya tienen la suya.
+    { href: "/admin/bandeja", label: "Bandeja", Icon: Inbox, roles: SEDE, contador: "bandeja" },
   ] },
   { label: "Asistencia", items: [
     { href: "/admin/incidencias", label: "Incidencias", Icon: TriangleAlert, roles: SEDE, contador: "revisiones" },

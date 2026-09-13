@@ -86,8 +86,15 @@ describe("los contadores", () => {
   // atender— y aquel habla de ELLA, de su contrato sin firmar y su constancia de
   // ley pendiente. La prueba conserva la vara separando las dos familias, en vez
   // de subir el número y perder lo que vigilaba.
+  //
+  // El de «Bandeja» (2026-09-12) tampoco entra acá, y por una tercera razón:
+  // no es una pantalla más que pasa la vara con su propio criterio de
+  // «pendiente» — es la UNIÓN de las nueve secciones de Bandeja, tres de las
+  // cuales son justamente estas tres. Tiene su propia prueba abajo, separada
+  // por la misma razón que ya separaba a «Mi perfil»: sumarlo acá perdería la
+  // cuenta de "tres, y ninguna más" que esta prueba existe para vigilar.
   it("los del equipo son exactamente tres, en las pantallas que los saben atender", () => {
-    const deEquipo = TODOS.filter((i) => i.contador && i.href.startsWith("/admin/"));
+    const deEquipo = TODOS.filter((i) => i.contador && i.href.startsWith("/admin/") && i.href !== "/admin/bandeja");
     expect(deEquipo.map((i) => [i.href, i.contador])).toEqual([
       ["/admin/incidencias", "revisiones"],
       ["/admin/ausencias", "vacaciones"],
@@ -98,6 +105,16 @@ describe("los contadores", () => {
   it("el único contador que habla de quien mira el menú es el de «Mi perfil»", () => {
     const propios = TODOS.filter((i) => i.contador && !i.href.startsWith("/admin/"));
     expect(propios.map((i) => [i.href, i.contador])).toEqual([["/mio", "mio"]]);
+  });
+
+  // Ver lib/admin/bandeja-equipo.ts: la Bandeja junta hoy nueve secciones y
+  // solo tres tenían aviso en algún otro renglón del menú. Esta prueba solo
+  // vigila que el renglón siga llevando el contador y que sea el suyo propio
+  // —no uno de los tres de arriba reetiquetado—; la cuenta de qué suma vive en
+  // bandeja-equipo.ts, no en la estructura del menú.
+  it("«Bandeja» lleva su propio contador, distinto de los tres que ya suma", () => {
+    const item = TODOS.find((i) => i.href === "/admin/bandeja");
+    expect(item?.contador).toBe("bandeja");
   });
 
   it("ninguna pantalla lleva dos contadores ni repite el de otra", () => {
