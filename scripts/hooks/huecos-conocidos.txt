@@ -21,6 +21,7 @@
 0108  Existió en la rama movilidad-supeditada-a-asistencia (commit 1b54c02, del 2026-07-29), BORRADA el 2026-08-05 después de revisarla. Nunca se aplicó en producción. Su contenido está superado: la jurisprudencia (Res. 239-2020-SUNAFIL, Exp. 1038-2019) vive en la 0111, 0117, 0118, 0122, 0142 y 0150; los pasajes por ciudad están en la 0142 y más actualizados; y el sustento firmado de cada ruta es el pendiente de los convenios en docs/estado.md. Lo ÚNICO exclusivo era su fn_planilla_calcular del 29/07, con tarifa S/6 única: fusionarla habría revertido ocho migraciones de planilla. Se recupera con `git checkout 1b54c02 -- supabase/migrations/0108_movilidad_supeditada_a_asistencia.sql`.
 0133  Número saltado al numerar. Comprobado contra producción el 2026-08-05: no figura en migraciones_aplicadas, así que nunca se aplicó. No hay nada que recuperar.
 0139  Número saltado al numerar, mismo caso que la 0133 y comprobado el mismo día.
+0420  Número saltado al numerar entre 0419 y 0421 (dos sesiones tomando números a la vez). Comprobado el 2026-09-12 contra producción con que-falta-pegar.sh: no figura en migraciones_aplicadas ni como "SOBRA LA FILA". No hay nada que recuperar.
 
 # ── 0258 y 0259 · NÚMEROS ABANDONADOS A PROPÓSITO (2026-08-15) ──────────────
 #
