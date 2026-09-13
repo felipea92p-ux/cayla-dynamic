@@ -6,6 +6,55 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-09-13 — Turnos borraba la semana entera al editar un día sin horario vigente
+
+Revisando la boleta de Melany Enrriquez (TRU) apareció "0 de 4 días que te
+tocaba trabajar" — un número implausible para alguien de TRU, que trabaja 6
+días/semana. La causa: su `horarios_asignados` tenía `dias_laborables=[1]`
+(solo lunes) desde el 2026-08-09, cuando antes tenía un horario normal de 6
+días. **No mueve pago** (el campo es solo informativo — confirmado en el
+comentario de la 0418 junto al subselect `lab`), pero si el horario real
+seguía siendo de 6 días, cualquier tardanza/falta/sobretiempo calculado
+fuera del lunes pudo estar usando el horario equivocado desde hace más de
+un mes.
+
+**Causa encontrada en el código** (no fue un error de captura): en
+`apps/web/app/(admin)/admin/turnos/page.tsx`, los botones "De aquí en
+adelante" (`guardarDesdeAqui`, antes línea 792) y "Hacer permanente"
+(`hacerPermanente`, antes línea 426) arman el horario de la semana partiendo
+del tramo vigente para no perder los demás días al tocar uno solo. Si
+`horarioVigente()` no encuentra ningún tramo cubriendo esa fecha —un hueco
+entre horarios, el mismo patrón que la 0385 (06-sep) encontró en 16
+personas—, la función de partida (`horarioSemanalDesdeTramo`) devuelve un
+objeto vacío, y el guardado termina con el horario de UN SOLO DÍA (el que se
+estaba editando) sin ningún aviso. **Corregido**: las dos funciones ahora
+abortan con un mensaje explícito si no hay horario vigente esa fecha, en vez
+de continuar en silencio (commit `c33ba81a`, sin desplegar todavía).
+
+**Buscando a otras posibles afectadas** (consulta contra `horarios_asignados`
+vigente hoy, personas activas, excluyendo rxh/personal_direccion, con ≤2 días
+marcados) apareció una segunda: **Keyla Ramos** (TRU) — 8 semanas seguidas de
+lunes a viernes 16:00-20:15 sin cambios, y el 2026-09-06 a las 20:46:45 UTC
+quedó con "solo viernes". El `created_at` de la fila rota de Melany es
+20:47:16 UTC del MISMO día — 31 segundos después: alguien editó a las dos
+casi seguidas esa noche (probablemente la encargada de TRU armando la semana)
+y el bug las golpeó a las dos.
+
+**Pendiente:**
+- Felipe corrige a mano en `/admin/horarios` (NO en Turnos, que sigue con el
+  código viejo hasta desplegar) el horario de Keyla: L-V, 16:00-20:15, desde
+  el 07-sep — confirmado, es su horario real.
+- Melany queda pendiente de confirmar con la encargada de TRU cuál es su
+  horario real hoy (el de antes del 09-ago era de 6 días con horas variables
+  por día; no se asume que siga siendo el mismo un mes después).
+- Correr la consulta de detección una vez más después de que Felipe la revise,
+  por si hay una tercera persona que la primera pasada no cachó (el filtro
+  ≤2 días es conservador: alguien con 3 días colapsados de un horario de 6
+  no habría salido).
+- Desplegar el fix de `turnos/page.tsx` una vez que Felipe lo apruebe.
+
+---
+
 ## 2026-09-12 — Siete migraciones fusionadas y nunca pegadas: Ausencias seguía mostrando cesados
 
 Felipe reportó que en `/admin/ausencias` seguían apareciendo personas ya
