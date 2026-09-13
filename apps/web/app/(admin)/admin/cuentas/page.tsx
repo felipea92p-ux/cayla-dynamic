@@ -7,6 +7,7 @@ import { usePersonaActual } from "@/lib/admin/use-rol";
 import { CargandoFila, SinDatos } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
 import { Campo } from "@/components/ui/campo";
+import { CampoClave } from "@/components/ui/campo-clave";
 import { Tabla } from "@/components/ui/tabla";
 import { useToast } from "@/components/toast";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
@@ -582,8 +583,8 @@ function SeccionMiClave({
     <div className="max-w-md rounded-superficie border border-sand bg-sand/25 p-5">
       <h2 className="mb-3 font-serif text-lg">Cambiar mi contraseña</h2>
       <div className="flex flex-col gap-3">
-        <Campo type="password" placeholder="Nueva contraseña" value={nueva} onChange={(e) => setNueva(e.target.value)} />
-        <Campo type="password" placeholder="Repite la nueva contraseña" value={confirma} onChange={(e) => setConfirma(e.target.value)} />
+        <CampoClave placeholder="Nueva contraseña" value={nueva} onChange={(e) => setNueva(e.target.value)} />
+        <CampoClave placeholder="Repite la nueva contraseña" value={confirma} onChange={(e) => setConfirma(e.target.value)} />
         {/* Los requisitos antes de escribir, no después de fallar. */}
         <ul className="flex flex-col gap-0.5 text-xs text-taupe">
           {REQUISITOS_CLAVE.map((r) => <li key={r}>· {r}</li>)}

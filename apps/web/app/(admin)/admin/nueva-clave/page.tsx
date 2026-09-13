@@ -6,7 +6,7 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { REQUISITOS_CLAVE, ROLES_CON_PANEL, problemasDeClave } from "@cayla-dynamic/shared";
 import { guardarMiClave } from "@/lib/admin/mi-clave";
 import { Colibri } from "@/components/marca";
-import { Campo } from "@/components/ui/campo";
+import { CampoClave } from "@/components/ui/campo-clave";
 import { Boton } from "@/components/ui/boton";
 
 type Estado = "cargando" | "listo" | "invalido" | "guardado";
@@ -136,15 +136,13 @@ function NuevaClaveContenido() {
 
       {estado === "listo" && (
         <form onSubmit={guardar} className="flex w-full max-w-xs flex-col gap-3">
-          <Campo
-            type="password"
+          <CampoClave
             placeholder="Nueva contraseña"
             value={nueva}
             onChange={(e) => setNueva(e.target.value)}
             required
           />
-          <Campo
-            type="password"
+          <CampoClave
             placeholder="Repite la nueva contraseña"
             value={confirma}
             onChange={(e) => setConfirma(e.target.value)}
