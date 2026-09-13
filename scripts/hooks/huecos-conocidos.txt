@@ -130,3 +130,18 @@
 # Medido el 2026-09-08 contra producción: la función existe con tres argumentos,
 # y no hay ninguna de un argumento.
 0393  Pegada el 07/09 desde una rama sin fusionar, pero su contenido quedó superado por la 0395 y la 0398, que sí están en main y en producción. NO se recupera el archivo: crearía una sobrecarga de fn_set_mi_firma y rompería la pantalla con «function is not unique». El PR de esa rama se cierra sin fusionar.
+
+# ── 0420 · RENUMERACIÓN LIMPIA (2026-09-11) ─────────────────────────────────
+#
+# El propio commit que lo resuelve lo dice en el título:
+# `accf7de9 Renumera 0419/0420 a 0421/0422: otra rama ya se llevó esos números`.
+# Nació en 2b11d321 ("Quien cesa deja de estorbar en pantalla, pero no antes
+# de liquidarse") como 0419 (fn_persona_liquidada) y 0420 (las dos colas
+# automáticas de Correcciones); otra rama fusionó primero y tomó esos dos
+# números, así que antes de fusionar esta se renumeraron a 0421 y 0422 —los
+# nombres que tienen hoy. `git log --all --diff-filter=A` no encuentra ningún
+# archivo `0420_*` en ninguna rama viva: solo existió en el commit intermedio
+# 2b11d321, ya reescrito por accf7de9 en la misma rama antes de fusionar.
+# Nunca se aplicó en producción con ese número.
+
+0420  Renumerada dentro de la misma rama (commit accf7de9, 2026-09-11) a 0422, junto con la 0419→0421: otra rama ya había tomado esos dos números al fusionar primero. Nunca se aplicó en producción como 0420.
