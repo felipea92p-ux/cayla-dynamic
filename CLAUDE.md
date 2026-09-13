@@ -103,6 +103,36 @@ marcadores dentro del `prosrc`, `octet_length` contra `length`, un `substring`
 del principio— en vez de proponer explicaciones. Ese día se probaron tres
 hipótesis falsas antes de que el primer `substring` lo resolviera de un vistazo.
 
+**Y hay una tercera causa benigna, además de los comentarios: pegar desde
+Windows mete un `\r` por línea.** Pasó con la 0401 el 2026-09-08, la primera
+que se pegó desde esa máquina. Las tres funciones que reescribía quedaron en
+producción **más largas que el repositorio, cada una por exactamente su número
+de saltos de línea** —+42, +68 y +119—, porque el camino entre el archivo y el
+SQL Editor convirtió cada `\n` en `\r\n`.
+
+La firma es inconfundible y se comprueba en una consulta:
+
+```sql
+select proname, length(prosrc) - length(replace(prosrc, chr(13), '')) as retornos
+  from pg_proc where proname = 'fn_lo_que_sea';
+```
+
+Si eso da el número de líneas del cuerpo, es esto y **no hay nada roto**: un
+`\r` antes de un salto de línea es espacio en blanco para PL/pgSQL, así que la
+función se comporta igual. Se comprobó midiendo: el archivo y el Postgres local
+coincidían byte por byte entre sí, y solo producción difería.
+
+Lo que sí queda roto es hacia adelante: **el md5 de esas tres no va a volver a
+coincidir nunca con el del repositorio.** Se decidió dejarlo (repegar desde el
+mismo Windows probablemente reproduce el `\r`, y no arregla nada que esté mal)
+y anotarlo acá, que es lo que evita que la próxima sesión pare en seco o —peor—
+aprenda a ignorar un aviso de md5.
+
+Distinguir esta causa de la grave importa: si la diferencia **no** cuadra con el
+número de líneas ni con los comentarios, entonces sí es otra versión y hay que
+parar. Ver también `docs/estado.md`, que documenta el CRLF en disco — es el
+mismo origen, por otra vía.
+
 **Y que no coincidan es LO NORMAL, no la excepción.** Medido el 2026-08-18 en el
 SQL Editor: **119 de las 243 funciones de producción —el 49 %— no tienen ni una
 línea de comentario**. Se pegaron sin ellos. Así que su md5 nunca va a ser el del
@@ -133,6 +163,32 @@ entrega un cálculo de planilla, provisiones, bonos o CTS "revisado a ojo".
 npx vercel --prod --yes    # solo con OK explícito de Felipe
 ```
 Vista previa sin permiso: `npx vercel --yes`.
+
+⚠️ **PERO OJO: `main` se publica SOLA. Fusionar un PR ES desplegar a
+producción.** Medido el 2026-09-10 y decidido por Felipe ese día: se queda así.
+La integración de Git de Vercel tiene `main` como rama de producción, así que
+**cualquier push a `main` publica** — se comprobó con un commit que solo cambia
+un `.md` y aun así redesplegó en menos de un minuto.
+
+Lo que eso significa, y hay que tenerlo presente al pedir permiso:
+
+- **`desplegar.sh prod` vigila un camino por el que producción ya no pasa.**
+  Sus comprobaciones (árbol limpio, GitHub al día, CI verde incluidas las
+  pgTAP, escribir `publicar`) siguen siendo correctas y **no se aplican** a los
+  despliegues que salen de un `git push`. Misma forma que el agujero de la 0177
+  y la 0243 con `dame-el-sql.sh`: el freno está bien, el camino cómodo no pasa
+  por él.
+- **No hay garantía de «CI verde antes de publicar».** El 2026-09-10 producción
+  sirvió el código de tres merges durante ~20 minutos mientras `db-tests`
+  todavía corría.
+- **Y de aquí sale el orden que importa: la migración se pega ANTES de fusionar
+  el PR que la usa.** Después de fusionar, el frontend ya está en el aire. Ese
+  día falló dos veces —la 0404 dejó el envío del DNI rompiéndose *después* de
+  subir las dos fotos, y el PR de la 0407 iba a publicar un botón que llamaba a
+  una función inexistente— y a las dos las cazó alguien mirando, no un freno.
+
+Así que pedir permiso para fusionar y pedirlo para publicar son la misma
+petición. Dilo así cuando lo pidas.
 
 **Ojo con el entorno.** El panel apunta al Supabase **local** (127.0.0.1), no a
 producción. Para diagnosticar prod, Felipe corre SELECTs en el SQL Editor. Nunca
@@ -248,9 +304,13 @@ el día que la necesite el terminal, se muda. Hubo dos copias más viejas y
 parciales: en `admin/correcciones/page.tsx` (`calcularEsperado`), solo la hora
 de entrada y con un bug real —su rama legacy no comprobaba `dias_laborables`—,
 y en `admin/incidencias/page.tsx` (`trabajaEseDia`), solo booleano. Las dos se
-unificaron el 2026-08-25. **Queda una sin unificar** —`admin/turnos/page.tsx`
-(`horasDeTramo`, `celda`)— **y mientras tanto no se escribe una quinta.** Esa
-regla decide si a alguien se le cuenta una falta.
+unificaron el 2026-08-25. La cuarta copia —`admin/turnos/page.tsx`
+(`horasDeTramo`, `celda`)— se unificó el 2026-09-03: tenía una divergencia
+silenciosa (rellenaba `dias_laborables` con `[1,2,3,4,5]` cuando venía vacío,
+un default que la cascada canónica nunca aplica) que nunca disparó porque esa
+columna es NOT NULL en `horarios_asignados`, pero habría mostrado lunes a
+viernes donde el resto del sistema mostraba descanso. **No se escribe una
+quinta.** Esa regla decide si a alguien se le cuenta una falta.
 
 Y una quinta, del 2026-08-26: **un campo de fecha cuyo vacío BLOQUEA el envío
 no puede arrancar en `""`.** Nace con el valor más probable —hoy, o la fecha de
@@ -275,13 +335,23 @@ Quedan tres campos así de antes —`contratos` y `documentacion` ya arreglados,
 paga en su lote y no a costa de que el freno mienta.
 
 Y una sexta, del 2026-08-31: **nunca un color de Tailwind por defecto
-—`bg-white`, `amber-100`, `bg-black`, `text-slate-900`— fuera de los nueve
-`--color-*` de `globals.css`.** Toda la pantalla se pinta con esos nueve
+—`bg-white`, `amber-100`, `bg-black`, `text-slate-900`— fuera de los once
+`--color-*` de `globals.css`.** Toda la pantalla se pinta con esos once
 nombres (`bg-crema`, `text-tinta`, `bg-papel`…) precisamente para que el modo
 oscuro pudiera llegar redefiniéndolos, sin tocar un componente. Un color de
 Tailwind por defecto no sigue esa redefinición: se queda con su valor fijo,
 así que al construir el modo oscuro esos sitios se quedaban como un parche
 claro pegado en medio de una pantalla ya oscura.
+
+Eran nueve hasta el 2026-09-06, cuando se sumaron `--color-hueso` (una
+superficie "hundida" — hasta entonces solo había una elevada, `papel`, y
+ninguna por debajo de `crema`; se usa en inputs y en la zebra de tablas) y
+`--color-pizarra` (el estado "informativo/en proceso" — programado, en
+revisión, pendiente de firma — que no encajaba en positivo/advertencia/alerta
+y por eso se apilaba sin distinguirse sobre `sand`). Los dos se midieron
+contra la fórmula de contraste WCAG antes de aceptarse (≥4.5:1 en los pares
+que los usan) — el mismo criterio que ya exige este archivo para planilla:
+medir, no asumir.
 
 Se midió al escribirlo: ~20 usos sueltos en 11 archivos, casi todos insignias
 de aviso (`amber-100`/`amber-800` para "sin ficha", "valor antiguo", "fuera de
@@ -308,16 +378,24 @@ distintas, no una:
   correcta: nadie necesita ver un contrato en modo oscuro mientras lo revisa
   en pantalla, pero el papel que sale de la impresora sí tiene que ser
   siempre el mismo, para siempre.
-- Política salarial (y la vista previa "así se verá en el memo" de una firma)
-  usan `bg-white`/`slate-*` fijos A PROPÓSITO, en pantalla y en papel, sin
-  pasar por `.hoja` ni por los tokens. Ahí sí es deliberado que ni siquiera la
-  pantalla cambie: es un documento legal que se muestra tal cual a quien lo
-  firma, y esa pantalla no tiene por qué mirarse distinto según quién la abra.
+- La vista previa "Así se verá sobre la línea del memo" de la firma, en
+  `admin/personas/[id]/page.tsx`, usa `bg-white` fijo A PROPÓSITO, sin pasar
+  por `.hoja` ni por los tokens: es un rectángulo que simula el papel del memo
+  impreso, y ese papel no cambia con el tema de quien lo mira.
 
-La lección de las dos: nunca asumir cuál aplica sin mirar si el contenedor
-lleva `.hoja` o un color fijo — la resolvió al construir el memo, que hasta
-entonces caía en la segunda categoría sin que hubiera una razón para eso, solo
-porque nunca se había actualizado.
+**Política salarial ya NO es esta excepción.** Hasta el 2026-09-05 usaba
+`bg-white`/`slate-*` fijos igual que la firma, pero el commit `ea6286f`
+("La política salarial deja de ignorar el modo oscuro") la migró entera a
+los tokens — hoy sigue el tema como cualquier otra pantalla del panel. Si una
+sesión futura la encuentra con un color fijo, no es la excepción histórica
+reapareciendo: es una regresión real. (Pendiente sin resolver aquí: la lista
+de verificación del Día 2 en `docs/plan-apariencia-2026-09-06.md` todavía
+repite la suposición vieja de que política salarial se queda fija.)
+
+La lección de las dos que quedan: nunca asumir cuál aplica sin mirar si el
+contenedor lleva `.hoja` o un color fijo — la resolvió al construir el memo,
+que hasta entonces caía en la segunda categoría sin que hubiera una razón
+para eso, solo porque nunca se había actualizado.
 
 ```bash
 npx pnpm install
@@ -389,6 +467,26 @@ en silencio toda la lógica de marcas anuladas. Lo cazaron dos pruebas por azar.
   su historial sostiene los reportes de periodos pasados.
 - **Numeración sin huecos.** Un hueco significa que algo se aplicó en producción
   sin quedar en el repo. Si tienes que saltarte un número, documenta por qué.
+- **El registro va con `do update`, no con `do nothing`.** La línea del final de
+  cada migración se escribe así:
+
+  ```sql
+  insert into migraciones_aplicadas (numero, nombre) values (NNN, 'descripcion')
+  on conflict (numero) do update set nombre = excluded.nombre, aplicada_at = now();
+  ```
+
+  Con `do nothing` —como estaba hasta el 2026-09-10— repegar sigue sin fallar,
+  pero **una colisión de número se vuelve invisible**: el DDL se aplica y el
+  registro se queda con la fila de OTRA migración, sin que nada avise. Ese día
+  pasó dos veces en la misma tarde: se tragó el registro de la **0405** (el
+  número lo tenía ocupado la migración de la AFP con su numeración vieja) y el
+  de la **0409** (lo tenía la del memo, renumerada después a 0412). Con
+  `do update` repegar sigue siendo seguro y el número robado **se ve**: la fila
+  cambia de nombre delante de quien pega.
+
+  Y la comprobación que va con esto: **al verificar un registro se piden
+  `numero` Y `nombre`.** Un `array_agg(numero)` no distingue «está la mía» de
+  «está otra con mi número» — ese fue justamente el paso que dejó pasar las dos.
 
 ---
 
@@ -423,6 +521,29 @@ nunca `if not fn_es_admin_o_lider()` — un `null` no debe pasar como autorizado
 Desde la 0078 los booleanos de permiso ya no devuelven `null`, pero la forma
 `is not true` sigue siendo la obligatoria: cualquier condición que compare un
 UUID contra `fn_persona_actual_id()` vuelve a producir `null` por su cuenta.
+
+**Un campo sensible se cambia por una función guardián, nunca por `UPDATE`
+directo — y la función se cierra con un trigger, no con la confianza.**
+El molde es siempre el mismo: una función `SECURITY DEFINER` que valida
+(rol, estado de la fila, reglas de negocio) y escribe con
+`insert into correcciones_auditoria`, más un trigger `before update` que
+rechaza cualquier cambio a esa columna que no venga de esa función —
+comparando `current_user <> 'postgres'`, que es como Postgres distingue "lo
+hizo una función interna" de "lo hizo un cliente por PostgREST", ya que el
+rol de conexión es el mismo (`authenticated`) en los dos casos. Son ya tres
+instancias, cada una escrita por separado sin generalizar:
+`fn_cambiar_regimen_pension` (0261), `fn_set_rol` + `fn_bloquear_rol_directo`
+(0295/0296) y `fn_set_sede_base` + `fn_bloquear_sede_directa` (0342).
+
+Se nombra acá porque nunca se había escrito como regla, solo se había
+repetido — y una comparación de arquitectura contra otros ERP (Workday,
+Oracle, BambooHR, Odoo; ver
+[`docs/comparacion-workday-oracle-dynamic-2026-09-02.md`](docs/comparacion-workday-oracle-dynamic-2026-09-02.md))
+la señaló como el mismo primitivo que esos sistemas resuelven una sola vez
+en el núcleo, mientras que acá se venía reinventando cada vez que un campo
+nuevo resultaba tocar plata o una obligación legal. La próxima columna
+sensible sigue este molde por regla, no porque alguien se acuerde de las
+tres anteriores.
 
 **El terminal marca SIN PIN, y es a propósito** (decisión de Felipe, jul-2026).
 Se prioriza que marcar sea instantáneo; el control real es que la Mac mini está
@@ -605,6 +726,27 @@ ese día». Da 28 aciertos y casi todos son pantallas que leen esa columna con
 todo el derecho. Un guardián con ese ruido se desactiva a la semana, así que esa
 regla sigue dependiendo de que alguien la recuerde.
 
+**Y desde el 2026-09-10, una pantalla que imprime sin fijar el nombre del PDF**
+(`scripts/hooks/descarga-sin-nombre.sh`). El nombre con el que el navegador
+sugiere guardar un PDF es `document.title` al momento de imprimir; sin fijarlo
+queda en «Dynamic — CAYLA» para cualquier persona y cualquier papel. Ya existía
+`useTituloDocumento()` (`apps/web/lib/admin/use-titulo-documento.ts`, decidido
+con Felipe el 2026-07-28 tras el mismo problema con las boletas) y las otras 12
+pantallas imprimibles lo usaban — Liquidaciones lo tenía sin usar en sus tres
+papeles (liquidación, certificado de trabajo, constancia de cese), justo los
+que se entregan a alguien que ya se fue de la empresa.
+
+Distinto de los de arriba en una cosa: no mira **líneas** agregadas por el push,
+mira **archivos** que el push toca, enteros, en la versión que se empuja
+(`git show HEAD:archivo`, nunca el disco). Lo que hay que comprobar —¿este
+archivo llama a `window.print()` sin tener `useTituloDocumento()` en algún
+lado?— es una propiedad del archivo completo, no de una línea: el hook puede
+vivir a cientos de líneas de la llamada a imprimir, y mirar solo el diff de
+líneas se lo perdería si alguien le agrega un botón nuevo a una pantalla ya
+existente. Mismo criterio en lo demás: solo los archivos que el push toca
+—hoy no queda ninguno con este defecto, así que no hay deuda vieja que
+pagar—, y bloquea, no avisa.
+
 **Y hay una cosa que ese hook arregla solo, en vez de pedírtela.** La consulta
 `scripts/sql-manual/que_falta_pegar.sql` lleva dentro la lista de migraciones del
 repo, así que cada migración nueva la deja corta. Si la encuentra vieja, **la
@@ -738,20 +880,142 @@ pruebas de GitHub de ese commit hayan pasado —**incluidas las de base de datos
 (pgTAP)**— y recién ahí publica. Para producción pide escribir `publicar` como
 confirmación.
 
-**Las pgTAP también corren en esta Mac**, y conviene correrlas antes de subir:
-```bash
-npx supabase db start    # levanta Postgres y aplica todas las migraciones
-npx supabase test db     # 34 archivos, 302 pruebas, ~3 segundos
-```
+**La señal fiable de las pgTAP es `db-tests` de GitHub Actions, no esta Mac.**
+`.github/workflows/tests.yml` corre `supabase db start` + `supabase test db` en
+CADA pull request y en cada push a `main`, sobre una base construida desde cero.
+Eso es lo que hay que mirar antes de dar una migración por buena, y es lo que
+`desplegar.sh` ya exige. Hoy son **214 archivos y ~2 188 aserciones**, no las
+«34 archivos, 302 pruebas» que decía este párrafo.
+
+**Y ojo con correrlas en esta Mac, porque el Postgres local es UNO SOLO para los
+~10 worktrees.** `npx supabase test db` mide una base que otras sesiones mueven
+por debajo, y `npx supabase db reset` **le destruye el estado a todo el mundo**.
+El 2026-09-04, en una sola sesión, otra ventana la reinició tres veces mientras
+se verificaba un PR: `max(numero)` de `migraciones_aplicadas` fue 363 → 357 →
+348 → servidor caído → 372.
+
+Eso produjo DOS falsos rojos, y los dos se leen como deuda vieja del repositorio:
+
+- `274` fallaba porque a la base compartida le faltaban migraciones que el
+  worktree sí tenía. En CI estaba verde.
+- `194` ni siquiera fallaba: el contador casero hacía `grep` de «error» y casaba
+  con el texto de una aserción — «(por error: el dinero nunca salió del banco)».
+
+Se fue media hora en perseguir dos defectos que no existían. Así que si hace
+falta medir en local antes de subir, hay dos reglas:
+
+1. **Aísla la deriva.** Aplica dentro de `begin … rollback` las migraciones que
+   le falten a la base (compara `migraciones_aplicadas` contra
+   `ls supabase/migrations`), y corre ahí tu prueba. Nunca `db reset`.
+2. **Corre siempre el control**: la misma prueba SIN tus cambios. Sin él no se
+   puede distinguir «lo rompí yo» de «ya venía así», que es exactamente el error
+   que se cometió.
+
+Lo que sí sigue siendo cierto, y es la mitad útil de correrlas acá: `db start`
+aplica el esquema entero desde cero, así que un error de sintaxis o una
+dependencia rota de una migración nueva salta ahí y no en producción. (Este
+archivo llegó a decir que las pgTAP «no corren en esta Mac porque necesitan
+Docker», y eso era falso; comprobado el 2026-08-04 con Docker Desktop 29.6.2 y
+Supabase CLI 2.109.1.)
+
 Ojo con el resumen: `Bad plan. You planned N tests but ran M` **no** es un error de
 conteo, es un archivo que abortó a media ejecución — las pruebas que faltaron nunca
 verificaron nada. Se lee igual de discreto que un descuido y no lo es.
 
-Comprobado el 2026-08-04 con Docker Desktop 29.6.2 y Supabase CLI 2.109.1. El
-`db start` es además la mejor verificación de una migración nueva: aplica el
-esquema entero desde cero, así que un error de sintaxis o una dependencia rota
-salta ahí y no en producción. (Este archivo decía lo contrario —«no corren en
-esta Mac porque necesitan Docker»— y era falso.)
+**Y hay un tercer falso rojo que NO es deriva de la base, aunque se le parece:
+una prueba que va y viene sin que nadie toque nada.** Ahí lo que falla no es el
+entorno, es un empate sin desempatar dentro de la propia prueba.
+
+El molde es siempre el mismo: una columna `default now()`, y `now()` dentro de
+una transacción vale LO MISMO para todas las filas. Como toda prueba pgTAP corre
+entera dentro de `begin … rollback`, dos filas creadas ahí empatan al
+microsegundo — y si la consulta las ordena solo por esa columna, cuál gana lo
+decide el orden físico de la tabla, que cambia con lo que dejaron las
+transacciones revertidas de las pruebas anteriores. Por eso la misma prueba pasa
+en la suite completa y falla corriéndola sola, sin reconstruir nada.
+
+Ya pasó tres veces: la 0312 lo cazó en `fn_contrato_firmado_vigente_de`
+(ago-2026); el 2026-09-06 la prueba **274** volvió a hacerlo en
+`fn_contratos_tablero` — con `db-tests` verde en `main` al mismo tiempo, porque
+verde ahí es dónde cayó la moneda esa vez, no una prueba de que el caso esté
+bien—, y lo arregló la **0386** con los mismos tres desempates de la 0312; y al
+buscar la misma forma en el resto del esquema apareció en `fn_documentos_tablero`
+(**0387**), donde pesaba más: la fila que gana ahí decide si el tablero dice
+«firmó el pacto de movilidad» o «se negó a firmarlo», y sin pacto firmado ese
+monto no es no remunerativo (RTF 05449-4-2007). Dos personas con el MISMO
+expediente contestaban al revés una de la otra según el orden en que se
+guardaron sus papeles.
+
+Y una cuarta, la **0388**, que enseña que esta familia tiene DOS especies y
+conviene no confundirlas. `fn_expediente_generar_falta` ordenaba por
+`entregado_at desc limit 1`, y ahí el empate **no necesita una transacción**:
+`entregado_at` no es `now()`, es un parámetro, y la pantalla manda el MEDIODÍA
+DE LIMA cuando se marca una entrega con fecha pasada (`instanteEntrega`). Dos
+documentos entregados el mismo día pasado empatan al microsegundo **en
+producción**. De esa fila salen el escalón anterior, el corte de non bis in idem
+y el antecedente citado — así que dos personas con el mismo expediente recibían
+peldaños distintos de la escalera disciplinaria según el orden en que se
+guardaron sus papeles.
+
+**La distinción que hay que hacer siempre, y decide cuánto cuidado hace falta:**
+si el empate solo ocurre dentro de una transacción, el desempate es inerte en
+producción y se puede agregar sin más. Si la columna admite un valor elegido por
+quien usa la pantalla —una fecha pasada, un mediodía fijo—, el empate es real y
+el desempate **cambia comportamiento**: hay que medir a quién afecta antes de
+pegarlo, no después.
+
+Y ahí el criterio tampoco se inventa. La 0388 no eligió uno: copió el que
+`fn_tardanza_escalon_al` (0311) ya usaba para la misma pregunta en el motor de
+TARDANZAS. Las dos mitades del sistema disciplinario respondiendo distinto es lo
+que la 0237 ya había venido a cerrar una vez — conviene mirar la función hermana
+antes de decidir nada.
+
+Las cuatro que quedaban —`fn_contratos_listar`, `fn_documentos_estado_politica`,
+`fn_documentos_listar` y `fn_educacion_espejo_comprobante`— se cerraron juntas en
+la **0389**, todas del tipo inerte. **La familia está completa: hoy no queda
+ninguna.** Se comprueba de un tirón preguntándole al catálogo por un `order by`
+que termine en una columna de fecha dentro de una consulta con `distinct on` o
+`limit 1`:
+
+```sql
+select p.proname, m[1]
+  from pg_proc p join pg_namespace n on n.oid = p.pronamespace,
+  lateral regexp_matches(p.prosrc, 'order by[^;]{0,120}', 'gi') m
+ where n.nspname = 'public'
+   and (p.prosrc ~* 'distinct on' or p.prosrc ~* 'limit[[:space:]]+1')
+   and m[1] ~* '_at[[:space:]]+desc[[:space:]]*(limit|\)|$)';
+```
+
+Y el desempate nunca se inventa: se le pregunta primero a la función hermana —la
+que responde esa misma pregunta en la otra pantalla o en la otra mitad del
+sistema— y se copia el suyo. Las cuatro de la 0389 recibieron el de su hermana
+(`fn_contratos_tablero`, `fn_documentos_tablero`), no uno nuevo. Que dos
+funciones de la MISMA pantalla puedan contestar distinto a «cuál es el vigente»
+es el defecto de fondo; los empates solo son cómo se manifiesta.
+
+Un aviso sobre cómo se prueban estas: **el orden de inserción no siempre alcanza
+para hacer fallar el control.** El caso de `educacion_comprobantes` acertaba sin
+la migración porque el plan salía `Index Scan Backward` y devolvía el empate en
+el orden que casualmente convenía. Lo que sí prueba de verdad es forzar el otro
+plan —`set local enable_indexscan = off`, que dura solo la transacción—, porque
+lo que está en juego es exactamente eso: que la respuesta no dependa de CÓMO
+Postgres decida leer la tabla.
+
+Y el criterio que se agrega es un **ancla**, no una regla: `id desc` es un uuid,
+no significa nada. Va siempre DESPUÉS del último criterio real, así que solo
+puede disparar en un empate que producción no sabe producir — por eso es seguro.
+Inventar ahí un criterio de negocio («entre una firma y una negativa del mismo
+día manda la negativa») sería meter política laboral en un `order by`, y esa
+decisión no es de una migración.
+
+Cómo se reconoce en dos minutos, antes de sospechar del entorno: si el valor que
+sale es el de OTRA fila plausible —no un valor absurdo—, mira el `order by` de la
+consulta que lo eligió. Si termina en una columna `now()`, es esto.
+
+**Y la regla que deja atrás: un `distinct on` o un `limit 1` ordenado por una
+columna `now()` necesita desempate explícito, aunque en producción nunca empate.**
+En producción no empata porque cada escritura entra en su propia transacción; en
+una prueba siempre empata. Un orden que depende del orden físico no es un orden.
 
 En una urgencia real ambos se saltan: `git push --no-verify` y `npx vercel --prod`.
 Que se pueda saltar a propósito es parte del diseño; que se salte sin querer, no.

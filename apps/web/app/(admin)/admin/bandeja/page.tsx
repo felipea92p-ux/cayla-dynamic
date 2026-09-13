@@ -29,12 +29,17 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
-import { AdminNav } from "../nav";
 import { Cargando, SinDatos } from "@/components/cargando";
+import { Boton } from "@/components/ui/boton";
+import { Campo } from "@/components/ui/campo";
 import { useToast } from "@/components/toast";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
-import { puedeOperarEquipo, puedeVerPlanilla } from "@cayla-dynamic/shared";
+import { BUCKET_SOLICITUDES_PERFIL } from "@/lib/foto-dni";
+import {
+  fechaLima, puedeGestionarCatalogos, puedeGestionarContratos, puedeOperarEquipo, puedeVerIdentidad,
+  puedeVerPlanilla, puedeVerSaludDeAlertas,
+} from "@cayla-dynamic/shared";
 
 interface ItemEducacion {
   id: string;
@@ -44,6 +49,21 @@ interface ItemEducacion {
   dias_para_vencer: number;
   meses_sin_papel: number;
   semaforo: "sin_comprobante" | "vencida" | "por_vencer" | "vigente";
+}
+
+/** Alguien que trabajó días que su horario no cubre (mig. 0385). La función ya
+ *  excluye a quien no le toca llevar horario (RxH y personal de dirección), así
+ *  que todo lo que llega aquí es un hueco de verdad. */
+interface ItemSinHorario {
+  persona_id: string; nombre: string; sede: string;
+  dias: number; primer_dia: string; ultimo_dia: string;
+  nunca_tuvo_horario: boolean;
+}
+function detalleSinHorario(h: ItemSinHorario): string {
+  const dias = `${h.dias} día${h.dias === 1 ? "" : "s"}`;
+  return h.nunca_tuvo_horario
+    ? `${dias} · nunca se le cargó un horario`
+    : `${dias} sin cubrir · ${h.primer_dia} a ${h.ultimo_dia}`;
 }
 
 interface ItemVacacion {
@@ -64,6 +84,27 @@ interface ItemRevision {
   comentario: string;
 }
 
+/** Un pedido de revisión de una declaración de ruta (0425). Mismo molde que
+ *  ItemRevision, sobre movilidad_revisiones_pedidas en vez de revisiones_pedidas —
+ *  no lleva `fecha` porque no hay "el día que se revisa", solo un motivo. */
+interface ItemRevisionMovilidad {
+  id: string;
+  persona_id: string;
+  nombre: string;
+  sede: string;
+  motivo: string;
+}
+
+/** Un pedido de revisión de un contrato ya generado (0427). Mismo molde que
+ *  ItemRevisionMovilidad, sobre contrato_revisiones_pedidas. */
+interface ItemRevisionContrato {
+  id: string;
+  persona_id: string;
+  nombre: string;
+  sede: string;
+  motivo: string;
+}
+
 interface ItemSolicitudVacacion {
   id: string;
   persona_id: string;
@@ -75,11 +116,67 @@ interface ItemSolicitudVacacion {
   comentario: string | null;
 }
 
+/** Una propuesta de cambio de perfil por resolver (migración 0399). */
+interface ItemSolicitudPerfil {
+  id: string;
+  persona_id: string;
+  nombre: string;
+  sede: string;
+  campo: string;
+  etiqueta: string;
+  valor_anterior: Record<string, unknown>;
+  valor_propuesto: Record<string, unknown>;
+  rutas_adjuntas: string[];
+  creada_at: string;
+  /** Este campo solo lo aprueba DO, aunque la encargada vea la solicitud (0405).
+   *  Lo dice el catálogo, no esta pantalla: `catalogo_campos_perfil.solo_do`. */
+  solo_do: boolean;
+}
+
+/** «celular: 987654321, direccion: Av. Uno 123» — genérico a propósito: son
+ *  campos con formas distintas, y esto solo es para que quien aprueba vea
+ *  de un vistazo qué cambia, no para imprimir un documento.
+ *
+ *  Con una excepción, desde la 0401: cuando el valor ES un archivo (la foto del
+ *  DNI), su valor es una ruta del almacén —`solicitud/<uuid>/dni-anverso-….jpg`,
+ *  sesenta caracteres que no dicen nada y empujan el resto de la fila fuera de
+ *  la pantalla—. Ahí se anuncia la cara y ya está: lo que hay que mirar es la
+ *  imagen, y para eso están los botones de adjuntos de abajo. */
+function resumenValorPerfil(v: Record<string, unknown>): string {
+  const entradas = Object.entries(v).filter(([, val]) => val !== null && val !== undefined && val !== "");
+  if (entradas.length === 0) return "—";
+  return entradas.map(([k, val]) => {
+    if (typeof val === "string" && val.startsWith("solicitud/")) {
+      return `${k.replace(/^foto_dni_|_ruta$/g, "")}: imagen adjunta`;
+    }
+    return `${k}: ${typeof val === "boolean" ? (val ? "Sí" : "No") : String(val)}`;
+  }).join(" · ");
+}
+
+// Lo que devuelve fn_alertas_despacho_resumen (0362): lo que el despacho
+// diario de avisos por correo NO va a resolver solo.
+interface ResumenAlertas {
+  despachables: number;
+  atascadas: number;
+  fallidas_definitivas: number;
+  caducadas: number;
+  ultimo_envio_at: string | null;
+  /** Notas distintas del último fallo de las definitivas: el POR QUÉ, que no siempre está en Sentry. */
+  motivos_definitivos: string[];
+}
+
 // "2026-07-13" → "13/07/2026" — la misma aritmética de string que ya usa el
 // resto del panel, sin pasar por Date ni arriesgar un desfase de zona horaria.
 function fmtFecha(iso: string): string {
   const [y, m, d] = iso.split("-");
   return `${d}/${m}/${y}`;
+}
+
+// Un timestamptz de la base ("2026-09-03T12:00:14.1+00:00") → "03/09/2026", en
+// el día de Lima. Solo hace falta el día: la hora exacta del último correo no
+// le dice nada a quien mira la tarjeta; que sea de hace una semana, sí.
+function fmtDiaLima(ts: string): string {
+  return fmtFecha(fechaLima(ts));
 }
 
 function detalleEducacion(f: ItemEducacion): string {
@@ -111,16 +208,45 @@ export default function BandejaPage() {
   // que fn_resolver_solicitud_vacaciones ya exige en el servidor, y la misma
   // que ya usa fn_aprobar_ausencia — es DO, nunca la encargada de la sede.
   const puedeResolverVacaciones = puedeVerPlanilla(rol);
+  const puedeSaludAlertas = puedeVerSaludDeAlertas(rol);
+  // CAMBIO 0403 — Antes era DO en exclusiva (ADR 0001, DECIDÍ #9). Se revirtió
+  // al día siguiente de confirmarse, al construir /mio/editar: la encargada de
+  // sede también resuelve, pero solo lo de su propio equipo — el guard vive en
+  // fn_resolver_solicitud_perfil/fn_solicitudes_perfil_pendientes, esto solo
+  // decide si se le muestra la sección. Ver la "Corrección tras implementar
+  // (2026-09-08)" al final del ADR.
+  const puedeResolverPerfil = puedeOperarEquipo(rol);
+  // Mismo alcance que `fn_movilidad_revisiones_pedidas` (0425): admin/líder,
+  // sin la encargada de sede — a diferencia de las revisiones de marcaje, que
+  // sí le llegan a ella. La declaración de ruta es papeleo legal/tributario,
+  // no operación del día a día de una sede.
+  const puedeMovilidad = puedeGestionarCatalogos(rol);
+  // El contrato es papeleo legal/laboral igual que la declaración de ruta,
+  // pero con su propio permiso (`puedeGestionarContratos`) porque es el que
+  // ya usa admin/contratos para decidir quién entra ahí — no se inventa un
+  // criterio nuevo solo para la Bandeja.
+  const puedeContratos = puedeGestionarContratos(rol);
 
   const [cargando, setCargando] = useState(true);
+  const [resumenAlertas, setResumenAlertas] = useState<ResumenAlertas | null>(null);
   const [educacion, setEducacion] = useState<ItemEducacion[]>([]);
   const [vacaciones, setVacaciones] = useState<ItemVacacion[]>([]);
+  const [sinHorario, setSinHorario] = useState<ItemSinHorario[]>([]);
   const [revisiones, setRevisiones] = useState<ItemRevision[]>([]);
+  const [revisionesMovilidad, setRevisionesMovilidad] = useState<ItemRevisionMovilidad[]>([]);
+  const [revisionesContrato, setRevisionesContrato] = useState<ItemRevisionContrato[]>([]);
   const [solicitudesVacaciones, setSolicitudesVacaciones] = useState<ItemSolicitudVacacion[]>([]);
+  const [solicitudesPerfil, setSolicitudesPerfil] = useState<ItemSolicitudPerfil[]>([]);
   const [respuestas, setRespuestas] = useState<Record<string, string>>({});
+  const [respuestasMovilidad, setRespuestasMovilidad] = useState<Record<string, string>>({});
+  const [respuestasContrato, setRespuestasContrato] = useState<Record<string, string>>({});
   const [motivosRechazo, setMotivosRechazo] = useState<Record<string, string>>({});
+  const [motivosPerfil, setMotivosPerfil] = useState<Record<string, string>>({});
   const [atendiendo, setAtendiendo] = useState<string | null>(null);
+  const [atendiendoMovilidad, setAtendiendoMovilidad] = useState<string | null>(null);
+  const [atendiendoContrato, setAtendiendoContrato] = useState<string | null>(null);
   const [resolviendo, setResolviendo] = useState<string | null>(null);
+  const [resolviendoPerfil, setResolviendoPerfil] = useState<string | null>(null);
 
   const cargar = useCallback(async () => {
     const supabase = createAdminSupabaseClient();
@@ -154,6 +280,13 @@ export default function BandejaPage() {
         }),
       );
       tareas.push(
+        // Falla suave a propósito: si la base todavía no tiene la 0385, la
+        // bandeja sigue funcionando igual, solo sin esta sección.
+        supabase.rpc("fn_personas_sin_horario_vigente", { p_dias: 60 }).then(({ data }) => {
+          setSinHorario((data as unknown as ItemSinHorario[]) ?? []);
+        }),
+      );
+      tareas.push(
         supabase.rpc("fn_revisiones_pedidas", { p_solo_pendientes: true }).then(({ data, error }) => {
           if (error) { avisar("error", mensajeDeError(error, "cargar revisiones pedidas")); return; }
           setRevisiones((data as unknown as ItemRevision[]) ?? []);
@@ -162,6 +295,29 @@ export default function BandejaPage() {
     } else {
       setVacaciones([]);
       setRevisiones([]);
+      setSinHorario([]);
+    }
+
+    if (puedeMovilidad) {
+      tareas.push(
+        supabase.rpc("fn_movilidad_revisiones_pedidas", { p_solo_pendientes: true }).then(({ data, error }) => {
+          if (error) { avisar("error", mensajeDeError(error, "cargar revisiones de movilidad pedidas")); return; }
+          setRevisionesMovilidad((data as unknown as ItemRevisionMovilidad[]) ?? []);
+        }),
+      );
+    } else {
+      setRevisionesMovilidad([]);
+    }
+
+    if (puedeContratos) {
+      tareas.push(
+        supabase.rpc("fn_contrato_revisiones_pedidas", { p_solo_pendientes: true }).then(({ data, error }) => {
+          if (error) { avisar("error", mensajeDeError(error, "cargar revisiones de contrato pedidas")); return; }
+          setRevisionesContrato((data as unknown as ItemRevisionContrato[]) ?? []);
+        }),
+      );
+    } else {
+      setRevisionesContrato([]);
     }
 
     if (puedeResolverVacaciones) {
@@ -175,9 +331,36 @@ export default function BandejaPage() {
       setSolicitudesVacaciones([]);
     }
 
+    if (puedeResolverPerfil) {
+      tareas.push(
+        supabase.rpc("fn_solicitudes_perfil_pendientes").then(({ data, error }) => {
+          if (error) { avisar("error", mensajeDeError(error, "cargar solicitudes de perfil")); return; }
+          setSolicitudesPerfil((data as unknown as ItemSolicitudPerfil[]) ?? []);
+        }),
+      );
+    } else {
+      setSolicitudesPerfil([]);
+    }
+
+    if (puedeSaludAlertas) {
+      tareas.push(
+        supabase.rpc("fn_alertas_despacho_resumen").then(({ data, error }) => {
+          // Un fallo acá se ignora a propósito, sin toast: esta tarjeta es un
+          // chequeo de salud, no una tarea pendiente, y entre fusionar este
+          // cambio y pegar la 0362 en producción la RPC no existe todavía —
+          // un aviso rojo en cada visita a la Bandeja por eso sería ruido.
+          if (error || !data) { setResumenAlertas(null); return; }
+          setResumenAlertas(data as unknown as ResumenAlertas);
+        }),
+      );
+    } else {
+      setResumenAlertas(null);
+    }
+
     await Promise.all(tareas);
     setCargando(false);
-  }, [router, puedeEducacion, puedeEquipo, puedeResolverVacaciones, avisar]);
+  }, [router, puedeEducacion, puedeEquipo, puedeMovilidad, puedeContratos, puedeResolverVacaciones,
+      puedeResolverPerfil, puedeSaludAlertas, avisar]);
 
   // Cargar al montar es el mismo patrón que usa cada pantalla del panel que
   // trae datos de la base (Equipo, Ausencias, Disciplina...); el aviso de acá
@@ -197,6 +380,30 @@ export default function BandejaPage() {
     avisar("ok", "Revisión marcada como atendida.");
   }
 
+  async function marcarAtendidaMovilidad(id: string) {
+    setAtendiendoMovilidad(id);
+    const supabase = createAdminSupabaseClient();
+    const { error } = await supabase.rpc("fn_atender_revision_movilidad", {
+      p_id: id, p_respuesta: (respuestasMovilidad[id] ?? "").trim() || null,
+    });
+    setAtendiendoMovilidad(null);
+    if (error) { avisar("error", mensajeDeError(error, "marcar la revisión de movilidad como atendida")); return; }
+    setRevisionesMovilidad((r) => r.filter((x) => x.id !== id));
+    avisar("ok", "Revisión de movilidad marcada como atendida.");
+  }
+
+  async function marcarAtendidaContrato(id: string) {
+    setAtendiendoContrato(id);
+    const supabase = createAdminSupabaseClient();
+    const { error } = await supabase.rpc("fn_atender_revision_contrato", {
+      p_id: id, p_respuesta: (respuestasContrato[id] ?? "").trim() || null,
+    });
+    setAtendiendoContrato(null);
+    if (error) { avisar("error", mensajeDeError(error, "marcar la revisión de contrato como atendida")); return; }
+    setRevisionesContrato((r) => r.filter((x) => x.id !== id));
+    avisar("ok", "Revisión de contrato marcada como atendida.");
+  }
+
   async function resolverSolicitud(id: string, aprobar: boolean) {
     setResolviendo(id);
     const supabase = createAdminSupabaseClient();
@@ -209,11 +416,39 @@ export default function BandejaPage() {
     avisar("ok", aprobar ? "Vacaciones aprobadas." : "Solicitud rechazada.");
   }
 
-  const total = educacion.length + vacaciones.length + revisiones.length + solicitudesVacaciones.length;
+  async function resolverSolicitudPerfil(id: string, aprobar: boolean) {
+    setResolviendoPerfil(id);
+    const supabase = createAdminSupabaseClient();
+    const { error } = await supabase.rpc("fn_resolver_solicitud_perfil", {
+      p_id: id, p_aprobar: aprobar, p_motivo: (motivosPerfil[id] ?? "").trim() || undefined,
+    });
+    setResolviendoPerfil(null);
+    if (error) { avisar("error", mensajeDeError(error, aprobar ? "aprobar la solicitud" : "rechazar la solicitud")); return; }
+    setSolicitudesPerfil((s) => s.filter((x) => x.id !== id));
+    avisar("ok", aprobar ? "Cambio aprobado." : "Solicitud rechazada.");
+  }
+
+  /** El bucket es privado: cada documento se abre con una URL firmada, pedida
+   *  al momento de mirar — nunca se firman todos de golpe. */
+  async function verDocumentoPerfil(ruta: string) {
+    const supabase = createAdminSupabaseClient();
+    const { data, error } = await supabase.storage.from(BUCKET_SOLICITUDES_PERFIL).createSignedUrl(ruta, 300);
+    if (error || !data) { avisar("error", "No se pudo abrir el documento."); return; }
+    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+  }
+
+  // La tarjeta de avisos por correo solo aparece cuando hay algo que una
+  // persona tiene que mirar: lo que se va a reintentar solo no se muestra.
+  const alertasConProblema = resumenAlertas
+    ? resumenAlertas.atascadas + resumenAlertas.fallidas_definitivas + resumenAlertas.caducadas
+    : 0;
+
+  const total = educacion.length + vacaciones.length + revisiones.length + revisionesMovilidad.length
+    + revisionesContrato.length + solicitudesVacaciones.length + solicitudesPerfil.length
+    + alertasConProblema + sinHorario.length;
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <AdminNav />
+    <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
         <h1 className="mb-1 font-serif text-2xl">Bandeja</h1>
         <p className="mb-6 max-w-2xl text-sm text-taupe">
@@ -230,6 +465,65 @@ export default function BandejaPage() {
           <SinDatos texto="No hay nada pendiente." pista="Cuando algo necesite atención, va a aparecer aquí." />
         ) : (
           <div className="flex max-w-3xl flex-col gap-8">
+            {resumenAlertas && alertasConProblema > 0 && (
+              <section>
+                <h2 className="mb-1 font-serif text-lg">Avisos por correo</h2>
+                <p className="mb-3 text-sm text-taupe">
+                  El despacho diario de avisos (auto-cierres, contratos y vacaciones por vencer) dejó
+                  {" "}{alertasConProblema} aviso{alertasConProblema === 1 ? "" : "s"} que no va{alertasConProblema === 1 ? "" : "n"} a salir solo{alertasConProblema === 1 ? "" : "s"}.
+                </p>
+                <ul className="space-y-2 text-sm">
+                  {resumenAlertas.fallidas_definitivas > 0 && (
+                    <li className="rounded-xl border border-rojo p-3">
+                      <strong className="text-rojo">
+                        {resumenAlertas.fallidas_definitivas} fall{resumenAlertas.fallidas_definitivas === 1 ? "ó" : "aron"} tres veces
+                      </strong>
+                      <span className="text-taupe"> — ya no se reintentan. </span>
+                      {resumenAlertas.motivos_definitivos.length > 0 ? (
+                        <>
+                          Motivo del último intento:
+                          <ul className="mt-1 list-disc pl-5 text-taupe">
+                            {resumenAlertas.motivos_definitivos.map((m) => <li key={m}>{m}</li>)}
+                          </ul>
+                          <span className="mt-1 block">
+                            Si dice «sin encargada con correo», se arregla en Equipo dándole correo a la encargada de esa sede;
+                            si es de Resend, revisa la clave <code>RESEND_API_KEY</code> y el dominio verificado.
+                          </span>
+                        </>
+                      ) : (
+                        <>Sin nota del motivo: revisa en Sentry el último despacho y la cuenta de Resend (clave <code>RESEND_API_KEY</code> y dominio verificado).</>
+                      )}
+                    </li>
+                  )}
+                  {resumenAlertas.atascadas > 0 && (
+                    <li className="rounded-xl border border-sand p-3">
+                      <strong className="text-ambar">
+                        {resumenAlertas.atascadas} qued{resumenAlertas.atascadas === 1 ? "ó" : "aron"} a medio despachar
+                      </strong>
+                      <span className="text-taupe"> hace más de una hora — la ejecución se cortó. </span>
+                      Se reintentan solos en el próximo despacho (hasta tres veces); si vuelve a pasar, revisa en Sentry por qué se corta.
+                    </li>
+                  )}
+                  {resumenAlertas.caducadas > 0 && (
+                    <li className="rounded-xl border border-sand p-3">
+                      <strong className="text-ambar">
+                        {resumenAlertas.caducadas} caduc{resumenAlertas.caducadas === 1 ? "ó" : "aron"} sin salir
+                      </strong>
+                      <span className="text-taupe"> — más de siete días sin despacho. </span>
+                      Ya no se van a mandar: si el aviso todavía importa, hay que darlo a mano.
+                    </li>
+                  )}
+                </ul>
+                <p className="mt-2 text-sm text-taupe">
+                  {resumenAlertas.despachables} esperando el próximo despacho ·{" "}
+                  {resumenAlertas.ultimo_envio_at
+                    ? `último correo enviado el ${fmtDiaLima(resumenAlertas.ultimo_envio_at)}`
+                    : "todavía no salió ningún correo"}
+                  {" "}— si esa fecha se aleja, el cron dejó de correr.
+                </p>
+              </section>
+            )}
+
             {revisiones.length > 0 && (
               <section>
                 <h2 className="mb-1 font-serif text-lg">
@@ -249,16 +543,112 @@ export default function BandejaPage() {
                       </div>
                       <p className="mt-1.5">«{r.comentario}»</p>
                       <div className="mt-2 flex flex-wrap items-center gap-2">
-                        <input
-                          value={respuestas[r.id] ?? ""}
-                          onChange={(e) => setRespuestas((x) => ({ ...x, [r.id]: e.target.value }))}
-                          placeholder="En qué quedó (lo va a leer la persona)"
-                          className="min-w-56 flex-1 rounded-lg border border-sand bg-crema px-3 py-1.5"
-                        />
-                        <button onClick={() => void marcarAtendida(r.id)} disabled={atendiendo === r.id}
-                          className="rounded-lg bg-tinta px-4 py-1.5 font-medium text-crema disabled:opacity-50">
-                          {atendiendo === r.id ? "Guardando…" : "Marcar atendida"}
-                        </button>
+                        <div className="min-w-56 flex-1">
+                          <Campo
+                            value={respuestas[r.id] ?? ""}
+                            onChange={(e) => setRespuestas((x) => ({ ...x, [r.id]: e.target.value }))}
+                            placeholder="En qué quedó (lo va a leer la persona)"
+                          />
+                        </div>
+                        <Boton
+                          variante="primario"
+                          onClick={() => void marcarAtendida(r.id)}
+                          cargando={atendiendo === r.id}
+                        >
+                          Marcar atendida
+                        </Boton>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            {/* Pedidos de revisión de una declaración de ruta ya firmada (0425).
+                No hay un "Abrir en Correcciones" análogo: si el pedido amerita
+                una declaración nueva, se registra desde admin/documentacion,
+                con el flujo de "Subir firmada" de siempre. Acá solo se cierra
+                la conversación con una respuesta. */}
+            {revisionesMovilidad.length > 0 && (
+              <section>
+                <h2 className="mb-1 font-serif text-lg">
+                  {revisionesMovilidad.length === 1
+                    ? "Pidieron revisar una declaración de ruta"
+                    : `Pidieron revisar ${revisionesMovilidad.length} declaraciones de ruta`}
+                </h2>
+                <p className="mb-3 text-sm text-taupe">
+                  Lo escribieron desde «Movilidad», en Lo mío. Si hace falta una declaración nueva, regístrala
+                  en Documentación y cierra acá diciendo en qué quedó.
+                </p>
+                <ul className="space-y-3">
+                  {revisionesMovilidad.map((r) => (
+                    <li key={r.id} className="rounded-xl border border-sand p-3 text-sm">
+                      <div className="flex flex-wrap items-baseline justify-between gap-2">
+                        <span><strong>{r.nombre}</strong> <span className="text-taupe">· {r.sede}</span></span>
+                        <Link href={`/admin/documentacion?persona=${r.persona_id}`}
+                          className="text-rojo hover:underline">Abrir en Documentación →</Link>
+                      </div>
+                      <p className="mt-1.5">«{r.motivo}»</p>
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <div className="min-w-56 flex-1">
+                          <Campo
+                            value={respuestasMovilidad[r.id] ?? ""}
+                            onChange={(e) => setRespuestasMovilidad((x) => ({ ...x, [r.id]: e.target.value }))}
+                            placeholder="En qué quedó (lo va a leer la persona)"
+                          />
+                        </div>
+                        <Boton
+                          variante="primario"
+                          onClick={() => void marcarAtendidaMovilidad(r.id)}
+                          cargando={atendiendoMovilidad === r.id}
+                        >
+                          Marcar atendida
+                        </Boton>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            {/* Pedidos de revisión de un contrato ya generado (0427). Mismo
+                molde que la sección de movilidad de arriba: no hay un "Abrir
+                en Contratos" que filtre por persona (admin/contratos no lee
+                query params), así que enlaza a la pantalla a secas. */}
+            {revisionesContrato.length > 0 && (
+              <section>
+                <h2 className="mb-1 font-serif text-lg">
+                  {revisionesContrato.length === 1
+                    ? "Pidieron revisar un contrato"
+                    : `Pidieron revisar ${revisionesContrato.length} contratos`}
+                </h2>
+                <p className="mb-3 text-sm text-taupe">
+                  Lo escribieron desde «Contrato», en Lo mío. Si hace falta corregirlo, hazlo en Contratos y
+                  cierra acá diciendo en qué quedó.
+                </p>
+                <ul className="space-y-3">
+                  {revisionesContrato.map((r) => (
+                    <li key={r.id} className="rounded-xl border border-sand p-3 text-sm">
+                      <div className="flex flex-wrap items-baseline justify-between gap-2">
+                        <span><strong>{r.nombre}</strong> <span className="text-taupe">· {r.sede}</span></span>
+                        <Link href="/admin/contratos" className="text-rojo hover:underline">Abrir en Contratos →</Link>
+                      </div>
+                      <p className="mt-1.5">«{r.motivo}»</p>
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <div className="min-w-56 flex-1">
+                          <Campo
+                            value={respuestasContrato[r.id] ?? ""}
+                            onChange={(e) => setRespuestasContrato((x) => ({ ...x, [r.id]: e.target.value }))}
+                            placeholder="En qué quedó (lo va a leer la persona)"
+                          />
+                        </div>
+                        <Boton
+                          variante="primario"
+                          onClick={() => void marcarAtendidaContrato(r.id)}
+                          cargando={atendiendoContrato === r.id}
+                        >
+                          Marcar atendida
+                        </Boton>
                       </div>
                     </li>
                   ))}
@@ -282,24 +672,132 @@ export default function BandejaPage() {
                       </div>
                       {s.comentario && <p className="mt-1.5">«{s.comentario}»</p>}
                       <div className="mt-2 flex flex-wrap items-center gap-2">
-                        <input
-                          value={motivosRechazo[s.id] ?? ""}
-                          onChange={(e) => setMotivosRechazo((x) => ({ ...x, [s.id]: e.target.value }))}
-                          placeholder="Motivo si rechazas (obligatorio solo para rechazar)"
-                          className="min-w-64 flex-1 rounded-lg border border-sand bg-crema px-3 py-1.5"
-                        />
-                        <button onClick={() => void resolverSolicitud(s.id, true)} disabled={resolviendo === s.id}
-                          className="rounded-lg bg-tinta px-4 py-1.5 font-medium text-crema disabled:opacity-50">
-                          {resolviendo === s.id ? "Guardando…" : "Aprobar"}
-                        </button>
-                        <button onClick={() => void resolverSolicitud(s.id, false)} disabled={resolviendo === s.id}
-                          className="rounded-lg border border-rojo px-4 py-1.5 font-medium text-rojo disabled:opacity-50">
+                        <div className="min-w-64 flex-1">
+                          <Campo
+                            value={motivosRechazo[s.id] ?? ""}
+                            onChange={(e) => setMotivosRechazo((x) => ({ ...x, [s.id]: e.target.value }))}
+                            placeholder="Motivo si rechazas (obligatorio solo para rechazar)"
+                          />
+                        </div>
+                        <Boton
+                          variante="primario"
+                          onClick={() => void resolverSolicitud(s.id, true)}
+                          cargando={resolviendo === s.id}
+                        >
+                          Aprobar
+                        </Boton>
+                        <Boton
+                          variante="peligro"
+                          onClick={() => void resolverSolicitud(s.id, false)}
+                          disabled={resolviendo === s.id}
+                        >
                           Rechazar
-                        </button>
+                        </Boton>
                       </div>
                     </li>
                   ))}
                 </ul>
+              </section>
+            )}
+
+            {solicitudesPerfil.length > 0 && (
+              <section>
+                <h2 className="mb-1 font-serif text-lg">
+                  {solicitudesPerfil.length} solicitud{solicitudesPerfil.length === 1 ? "" : "es"} de cambio de perfil
+                </h2>
+                <p className="mb-3 text-sm text-taupe">
+                  Lo pidieron desde «Lo mío». Aprobar aplica el cambio real de una vez; rechazar exige decir por qué —esa respuesta la va a leer la persona.
+                </p>
+                <ul className="space-y-3">
+                  {solicitudesPerfil.map((s) => (
+                    <li key={s.id} className="rounded-xl border border-sand p-3 text-sm">
+                      <div className="flex flex-wrap items-baseline justify-between gap-2">
+                        <span><strong>{s.nombre}</strong> <span className="text-taupe">· {s.sede} · {s.etiqueta}</span></span>
+                      </div>
+                      <p className="mt-1.5 text-xs text-taupe">
+                        de: {resumenValorPerfil(s.valor_anterior)}
+                      </p>
+                      <p className="text-xs">
+                        a: {resumenValorPerfil(s.valor_propuesto)}
+                      </p>
+                      {s.rutas_adjuntas.length > 0 && (
+                        <div className="mt-1.5 flex flex-wrap gap-2">
+                          {s.rutas_adjuntas.map((ruta, i) => (
+                            <button key={ruta} onClick={() => void verDocumentoPerfil(ruta)}
+                              className="text-xs text-rojo hover:underline">
+                              Ver documento {s.rutas_adjuntas.length > 1 ? i + 1 : ""} →
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      {/* La solicitud se muestra igual a la encargada —si no,
+                          su equipo estaría esperando algo que ella no ve— pero
+                          sin los botones cuando el campo es de DO (0405). Antes
+                          los botones estaban y reventaban al pulsarlos, con un
+                          mensaje que hablaba de un permiso que la pantalla
+                          acababa de decirle que tenía. */}
+                      {s.solo_do && !puedeVerIdentidad(rol) ? (
+                        <p className="mt-2 rounded-lg border border-pizarra/30 bg-pizarra/10 px-3 py-2 text-xs text-pizarra">
+                          Esta solicitud cambia el número de documento: la resuelve Desarrollo Organizacional.
+                          Avísales para que la revisen.
+                        </p>
+                      ) : (
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <div className="min-w-64 flex-1">
+                          <Campo
+                            value={motivosPerfil[s.id] ?? ""}
+                            onChange={(e) => setMotivosPerfil((x) => ({ ...x, [s.id]: e.target.value }))}
+                            placeholder="Motivo si rechazas (obligatorio solo para rechazar)"
+                          />
+                        </div>
+                        <Boton
+                          variante="primario"
+                          onClick={() => void resolverSolicitudPerfil(s.id, true)}
+                          cargando={resolviendoPerfil === s.id}
+                        >
+                          Aprobar
+                        </Boton>
+                        <Boton
+                          variante="peligro"
+                          onClick={() => void resolverSolicitudPerfil(s.id, false)}
+                          disabled={resolviendoPerfil === s.id}
+                        >
+                          Rechazar
+                        </Boton>
+                      </div>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            {sinHorario.length > 0 && (
+              <section>
+                <h2 className="mb-1 font-serif text-lg">
+                  {sinHorario.length} persona{sinHorario.length === 1 ? "" : "s"} trabajó sin horario vigente
+                </h2>
+                <p className="mb-3 max-w-2xl text-xs leading-relaxed text-taupe">
+                  Marcaron días que ningún horario suyo cubre. Esos días no miden tardanza, ni
+                  salida anticipada, ni tiempo adicional — y si a alguien le cae un descanso médico
+                  o una licencia dentro del hueco, se le paga en cero, sin que nada falle. Suele
+                  ocurrir cuando se cambia el horario de una tienda y el tramo nuevo empieza unos
+                  días después de que terminó el anterior. Quien no lleva horario por su vínculo no
+                  aparece acá.
+                </p>
+                <ul className="space-y-2">
+                  {sinHorario.map((h) => (
+                    <li key={h.persona_id} className="rounded-xl border border-sand p-3 text-sm">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span><strong>{h.nombre}</strong> <span className="text-taupe">· {h.sede}</span></span>
+                        <span className={h.nunca_tuvo_horario ? "text-rojo" : "text-ambar"}>{detalleSinHorario(h)}</span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+                <Link href="/admin/horarios" className="mt-2 inline-block text-sm text-taupe hover:text-rojo">
+                  Ir a Horarios →
+                </Link>
               </section>
             )}
 

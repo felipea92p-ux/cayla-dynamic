@@ -3,8 +3,8 @@
   "configurations": [
     {
       "name": "web-dev",
-      "runtimeExecutable": "/bin/zsh",
-      "runtimeArgs": ["-lc", "for d in \"$HOME\"/.nvm/versions/node/*/bin(N); do PATH=\"$d:$PATH\"; done; exec pnpm --filter @cayla-dynamic/web dev"],
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["pnpm", "--filter", "@cayla-dynamic/web", "dev"],
       "port": 3000,
       "autoPort": true
     }

@@ -23,8 +23,35 @@ export function fechaLimaHoy(): string {
   return hoyLima();
 }
 
-export async function cargarMarcajesHoyPorPersona(): Promise<Map<string, MarcajeDelDia[]>> {
+/**
+ * El resultado de cargar el estado del día: el mapa, y si de verdad se pudo
+ * CONFIRMAR contra el servidor o es solo lo que hay en la cola local.
+ *
+ * `confiable` existe porque un mapa vacío significaba DOS cosas y el terminal
+ * las trataba como una sola: «confirmé que esta persona no tiene marcas hoy» y
+ * «no pude preguntarle al servidor, no sé nada de ella». La primera es el 99 %
+ * de los casos (alguien que recién llega) y `siguienteAccionPara` acierta
+ * ofreciéndole «Entrada». La segunda pasaba, sobre todo, justo después de que
+ * esta pestaña se recargara —un teléfono que estuvo en segundo plano, una Mac
+ * mini que se reinició— en el instante exacto en que el refresco periódico
+ * coincidía con un corte de red: el mapa quedaba vacío para TODOS, y a quien
+ * ya llevaba horas adentro el terminal volvía a ofrecerle «Entrada». El
+ * servidor la rechazaba bien (ver fn_registrar_marcaje), pero la marca se
+ * apartaba sin que nadie se enterara hasta que alguien la reconstruía a mano
+ * horas después (casos reales: Raquel Ticona y Joselyn Gavilan, 2026-09-09).
+ *
+ * Quien llama decide con esto qué hacer: si `confiable` es `false`, no hay
+ * que confiar en que el mapa está completo — hay que preguntar de nuevo antes
+ * de ofrecer ninguna acción.
+ */
+export interface EstadoDelDia {
+  mapa: Map<string, MarcajeDelDia[]>;
+  confiable: boolean;
+}
+
+export async function cargarMarcajesHoyPorPersona(): Promise<EstadoDelDia> {
   const mapa = new Map<string, MarcajeDelDia[]>();
+  let confiable = false;
 
   if (typeof navigator !== "undefined" && navigator.onLine) {
     const supabase = createTerminalSupabaseClient();
@@ -71,7 +98,14 @@ export async function cargarMarcajesHoyPorPersona(): Promise<Map<string, Marcaje
         .is("anulada_at", null)
         .gte("timestamp_marca", inicioAyer)
         .lte("timestamp_marca", finDia);
-      data = res.data as unknown as FilaMarcaje[];
+      // `confiable` solo si el servidor de verdad contestó — postgrest puede
+      // devolver `{data: null, error}` SIN lanzar, y eso es tan "no sé" como
+      // un corte de red. Un array vacío SIN error sí es una respuesta real
+      // (nadie marcó nada en el rango) y cuenta como confiable.
+      if (!res.error) {
+        data = res.data as unknown as FilaMarcaje[];
+        confiable = true;
+      }
     } catch {
       data = null;
     }
@@ -80,7 +114,10 @@ export async function cargarMarcajesHoyPorPersona(): Promise<Map<string, Marcaje
     // navegador: el corte del día es el de Lima, y esa respuesta tiene un solo
     // sitio (fecha-lima.ts).
     const hoyStr = fechaLimaHoy();
-    for (const [personaId, enCurso] of jornadaEnCursoPorPersona(data ?? [], hoyStr, fechaLima)) {
+    // `Date.now()` se lee ACÁ y se pasa hacia adentro: `jornadaEnCursoPorPersona`
+    // aplica con él el mismo tope de 16 h que `fn_registrar_marcaje`, y una
+    // función que consulta el reloj por su cuenta no se puede probar.
+    for (const [personaId, enCurso] of jornadaEnCursoPorPersona(data ?? [], hoyStr, fechaLima, Date.now())) {
       mapa.set(personaId, enCurso);
     }
   }
@@ -92,12 +129,76 @@ export async function cargarMarcajesHoyPorPersona(): Promise<Map<string, Marcaje
   const pendientes = await obtenerPendientes();
   for (const p of pendientes) {
     if (fechaLima(p.timestampCliente) !== hoy) continue;
+    // El servidor YA contestó que no a esta marca (rechazo real, no un corte
+    // de red) — sigue en la cola por si un reintento la resuelve, pero no
+    // debe seguir contando como "de hoy" mientras tanto: antes de esto, el
+    // terminal podía ofrecer una acción (p. ej. "¿volviste a entrar?") sobre
+    // una salida que el servidor nunca aceptó, hasta que sync.ts acumulara
+    // seis fallos confirmados (minuto y medio) y recién ahí la apartara.
+    if (p.rechazadaPorServidor) continue;
     const lista = mapa.get(p.personaId) ?? [];
     lista.push({ tipo: p.tipo, timestamp: p.timestampCliente });
     mapa.set(p.personaId, lista);
   }
 
-  return mapa;
+  return { mapa, confiable };
+}
+
+/**
+ * Pregunta al servidor por UNA sola persona, con un tope corto — para el
+ * único momento en que de verdad hace falta esperar una respuesta antes de
+ * seguir: cuando se tocó un nombre y esta pestaña todavía no ha podido
+ * confirmar el estado de NADIE desde que arrancó (ver `confiable` arriba).
+ *
+ * No es una versión reducida de `cargarMarcajesHoyPorPersona`: es más
+ * angosta a propósito (un solo `eq`, 3 s en vez de 8) porque acá alguien está
+ * de pie esperando, mientras que el refresco periódico corre solo, de fondo,
+ * sin que nadie lo mire.
+ *
+ * Devuelve `null` si no se pudo confirmar (offline, error, o venció el tope)
+ * — nunca un array vacío por defecto. Quien llama decide qué hacer con ese
+ * `null`: nunca asumir "Entrada".
+ */
+export async function confirmarEstadoPuntual(personaId: string): Promise<MarcajeDelDia[] | null> {
+  if (typeof navigator !== "undefined" && !navigator.onLine) return null;
+
+  const { inicio: inicioDia, fin: finDia } = rangoDelDiaLima();
+  const inicioAyer = new Date(new Date(inicioDia).getTime() - 24 * 60 * 60 * 1000).toISOString();
+  const hoyStr = fechaLimaHoy();
+
+  let filas: { persona_id: string; tipo: MarcajeDelDia["tipo"]; timestamp_marca: string; fecha_jornada: string | null }[] = [];
+  try {
+    const supabase = createTerminalSupabaseClient();
+    const res = await supabase
+      .from("marcajes")
+      .select("persona_id, tipo, timestamp_marca, fecha_jornada")
+      .eq("persona_id", personaId)
+      .is("anulada_at", null)
+      .gte("timestamp_marca", inicioAyer)
+      .lte("timestamp_marca", finDia)
+      .abortSignal(topeDeRed(3));
+    if (res.error) return null;
+    filas = (res.data ?? []) as unknown as typeof filas;
+  } catch {
+    return null;
+  }
+
+  const porPersona = jornadaEnCursoPorPersona(filas, hoyStr, fechaLima, Date.now());
+  const marcasDeHoy = porPersona.get(personaId) ?? [];
+
+  // Superpone lo local pendiente de esta persona, igual que el refresco
+  // periódico — un marcaje optimista recién hecho no debe desaparecer solo
+  // porque esta confirmación puntual llegó primero que la sincronización.
+  const hoy = hoyStr;
+  const pendientes = await obtenerPendientes();
+  for (const p of pendientes) {
+    if (p.personaId !== personaId) continue;
+    if (fechaLima(p.timestampCliente) !== hoy) continue;
+    if (p.rechazadaPorServidor) continue;
+    marcasDeHoy.push({ tipo: p.tipo, timestamp: p.timestampCliente });
+  }
+
+  return marcasDeHoy;
 }
 
 export function siguienteAccionPara(marcajesHoy: MarcajeDelDia[]): SiguienteAccion {

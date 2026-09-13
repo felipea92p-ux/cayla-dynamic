@@ -1,7 +1,11 @@
 // Traduce el error de la base a algo que una persona pueda leer y accionar.
 //
-// EL PROBLEMA. Hoy 43 lugares del panel hacen `texto: error.message` y pintan
-// en pantalla lo que devuelva Postgres. A veces está bien y a veces sale esto:
+// EL PROBLEMA. Todavía quedan 35 lugares del panel —repartidos en nueve
+// pantallas que hoy no importan este traductor: mio/page.tsx (5),
+// mio/boleta/page.tsx, incidencias (5), planilla/page.tsx (4), ausencias (4),
+// exportar (3), horas (2), costos, provisiones y planilla/boleta— que hacen
+// `texto: error.message` y pintan en pantalla lo que devuelva Postgres. A
+// veces está bien y a veces sale esto:
 //
 //   new row for relation "personas" violates check constraint
 //   "personas_cese_coherente"
@@ -64,6 +68,14 @@ const POR_CONSTRAINT: Record<string, string> = {
     "Para dar de baja a alguien hace falta su último día trabajado, y para reactivarla hay que borrarlo. Usa «Registrar salida» y «Reactivar» en Equipo.",
   personas_motivo_cese_valido:
     "Ese motivo de salida no es uno de los válidos. Elígelo de la lista.",
+  // El candado de la 0309: una persona no puede tener dos tramos de horario
+  // vigentes el mismo día. Desde la 0360 `fn_set_horario_semanal` recorta sola
+  // el tramo que pisa, así que por esa puerta ya no debería salir — se traduce
+  // igual para cualquier otra escritura, y para el tiempo entre fusionar la
+  // 0360 y pegarla en producción. Sin esto, lo que veía la encargada era
+  // «conflicting key value violates exclusion constraint».
+  horarios_sin_solape:
+    "Ese rango de fechas ya tiene otro horario asignado. Elige una fecha de vigencia posterior, o corrige primero el tramo que ya existe.",
 };
 
 /**

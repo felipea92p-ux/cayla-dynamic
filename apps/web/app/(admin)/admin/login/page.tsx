@@ -4,7 +4,11 @@ import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Colibri } from "@/components/marca";
-import { ROLES_CON_PANEL } from "@cayla-dynamic/shared";
+import { ROLES_CON_PANEL, claveSirve } from "@cayla-dynamic/shared";
+import { clavePorCambiar, marcarMiClavePorCambiar } from "@/lib/admin/mi-clave";
+import { esFallaDeRed } from "@/lib/admin/mensaje-error";
+import { Campo } from "@/components/ui/campo";
+import { Boton } from "@/components/ui/boton";
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -21,7 +25,21 @@ export default function AdminLoginPage() {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
       setCargando(false);
-      setError("Correo o contraseña incorrectos.");
+      // No todo error acá es "la clave está mal". Un fallo de red o de Supabase
+      // caído (frecuente en sede, con wifi de tienda) devuelve el mismo `error`
+      // genérico que una clave incorrecta, y decirle a la encargada que su clave
+      // está mal cuando el problema es la conexión la manda a escribirla de
+      // nuevo, a pedir un enlace de recuperación que tampoco va a llegar, y
+      // recién ahí a llamar con un diagnóstico equivocado.
+      if (error.status === 400) {
+        setError("Correo o contraseña incorrectos.");
+      } else if (error.status === 429) {
+        setError("Demasiados intentos seguidos. Espera unos minutos antes de volver a intentar.");
+      } else if (esFallaDeRed(error)) {
+        setError("No es tu clave: no hay conexión con el sistema. Intenta de nuevo en un momento.");
+      } else {
+        setError("No se pudo entrar. Vuelve a intentarlo; si sigue igual, avisa a Felipe.");
+      }
       return;
     }
 
@@ -41,6 +59,32 @@ export default function AdminLoginPage() {
       .select("rol")
       .eq("auth_user_id", data.user?.id ?? "")
       .maybeSingle();
+
+    // ── ¿HAY QUE CAMBIAR ESTA CLAVE ANTES DE SEGUIR? ────────────────────────
+    //
+    // Éste es el ÚNICO momento en que el sistema ve una clave en claro: lo que
+    // Supabase guarda es un hash, y de un hash no se puede juzgar si la clave
+    // era «111111». Así que es el único sitio donde se puede atrapar a las que
+    // YA EXISTÍAN cuando se subió la política — subir el mínimo no caduca
+    // ninguna clave vieja, solo impide poner una nueva floja.
+    //
+    // Dos motivos llevan a la misma pantalla, y por eso comparten marca:
+    //   · `debil`    — la clave con la que acaba de entrar no cumple la política.
+    //   · `temporal` — se la dictaron al crear o resetear su cuenta, y nunca la
+    //                  cambió. Si se pasó por WhatsApp, como sugiere la propia
+    //                  pantalla de Cuentas, la conoce quien la envió.
+    //
+    // Se ANOTA en la cuenta además de redirigir: una redirección se esquiva
+    // escribiendo otra dirección en la barra, y esta cuenta ve los sueldos de
+    // todo el equipo. Con la marca puesta, el panel entero la devuelve acá.
+    const debil = !claveSirve(password, email);
+    if (debil) await marcarMiClavePorCambiar(data.session?.access_token ?? "");
+    if (debil || clavePorCambiar(data.user)) {
+      setCargando(false);
+      router.replace(`/admin/nueva-clave?motivo=${debil ? "debil" : "temporal"}`);
+      return;
+    }
+
     setCargando(false);
     const rol = (yo as { rol?: string } | null)?.rol;
     router.replace(rol && ROLES_CON_PANEL.includes(rol as never) ? "/admin/dashboard" : "/mio");
@@ -56,30 +100,24 @@ export default function AdminLoginPage() {
         </div>
       </div>
       <form onSubmit={entrar} className="flex w-full max-w-xs flex-col gap-3">
-        <input
+        <Campo
           type="email"
           placeholder="correo"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="rounded-lg border border-sand bg-crema px-4 py-3 outline-none placeholder:text-taupe/60 focus:border-taupe"
           required
         />
-        <input
+        <Campo
           type="password"
           placeholder="contraseña"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="rounded-lg border border-sand bg-crema px-4 py-3 outline-none placeholder:text-taupe/60 focus:border-taupe"
           required
         />
         {error && <p className="text-sm text-rojo">{error}</p>}
-        <button
-          type="submit"
-          disabled={cargando}
-          className="rounded-lg bg-tinta px-4 py-3 font-medium text-crema transition-colors hover:bg-rojo-profundo disabled:opacity-50"
-        >
+        <Boton type="submit" variante="primario" disabled={cargando} cargando={cargando}>
           {cargando ? "Entrando…" : "Entrar"}
-        </button>
+        </Boton>
         <a href="/admin/olvide-clave" className="text-center text-sm text-taupe underline-offset-2 hover:underline">
           ¿Olvidaste tu clave?
         </a>

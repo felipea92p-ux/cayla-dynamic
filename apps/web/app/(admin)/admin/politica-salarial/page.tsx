@@ -5,9 +5,11 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { ROLES_DO, TZ_LIMA } from "@cayla-dynamic/shared";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
-import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
+import { Boton } from "@/components/ui/boton";
+import { Campo } from "@/components/ui/campo";
+import { TablaEncabezado, Th, Fila } from "@/components/ui/tabla";
 import {
   categoriasFueraDeOrden,
   construirDocumento,
@@ -91,19 +93,19 @@ function fechaHora(iso: string): string {
 // — y el que vale como prueba es el publicado.
 function DocumentoVista({ doc, firmaUrl }: { doc: Documento; firmaUrl: string | null }) {
   return (
-    <article className="rounded border border-slate-300 bg-white p-6 print:rounded-none print:border-0 print:p-0">
-      <header className="mb-6 border-b border-slate-300 pb-4">
-        <h2 className="text-lg font-semibold text-slate-900">{doc.titulo}</h2>
-        <p className="text-sm text-slate-600">
+    <article className="rounded border border-sand bg-papel p-6 print:rounded-none print:border-0 print:p-0">
+      <header className="mb-6 border-b border-sand pb-4">
+        <h2 className="text-lg font-semibold text-tinta">{doc.titulo}</h2>
+        <p className="text-sm text-taupe">
           {doc.empresa.nombre} — RUC {doc.empresa.ruc}
         </p>
-        <p className="text-sm text-slate-600">{doc.fecha}</p>
+        <p className="text-sm text-taupe">{doc.fecha}</p>
       </header>
       {doc.secciones.map((sec, i) => (
         <section key={i} className="mb-6">
           {/* Un título que se queda solo al pie de una hoja manda a la siguiente
               página el texto que anuncia; en papel eso se lee como si faltara. */}
-          <h3 className="mb-3 text-base font-semibold text-slate-900 print:break-after-avoid">
+          <h3 className="mb-3 text-base font-semibold text-tinta print:break-after-avoid">
             {sec.titulo}
           </h3>
           {sec.bloques.map((b, j) => (
@@ -113,13 +115,13 @@ function DocumentoVista({ doc, firmaUrl }: { doc: Documento; firmaUrl: string | 
       ))}
       {/* La firma no se separa nunca del nombre y el cargo que la sostienen: una
           rúbrica suelta en la última hoja no acredita a quién pertenece. */}
-      <footer className="mt-10 border-t border-slate-300 pt-6 print:break-inside-avoid">
+      <footer className="mt-10 border-t border-sand pt-6 print:break-inside-avoid">
         {firmaUrl !== null && (
           /* eslint-disable-next-line @next/next/no-img-element */
           <img src={firmaUrl} alt="" className="mb-1 h-16 object-contain" />
         )}
-        <p className="text-sm font-medium text-slate-900">{doc.empresa.firmante}</p>
-        <p className="text-sm text-slate-600">
+        <p className="text-sm font-medium text-tinta">{doc.empresa.firmante}</p>
+        <p className="text-sm text-taupe">
           {doc.empresa.cargo} — {doc.empresa.nombre}
         </p>
       </footer>
@@ -129,24 +131,29 @@ function DocumentoVista({ doc, firmaUrl }: { doc: Documento; firmaUrl: string | 
 
 function BloqueVista({ b }: { b: Bloque }) {
   if (b.tipo === "parrafo") {
-    return <p className="mb-3 text-sm leading-relaxed text-slate-700">{b.texto}</p>;
+    return <p className="mb-3 text-sm leading-relaxed text-tinta">{b.texto}</p>;
   }
   if (b.tipo === "destacado") {
     return (
-      <p className="mb-4 border-l-4 border-slate-800 bg-slate-50 px-4 py-3 text-sm font-medium leading-relaxed text-slate-900">
+      <p className="mb-4 border-l-4 border-tinta bg-sand/20 px-4 py-3 text-sm font-medium leading-relaxed text-tinta">
         {b.texto}
       </p>
     );
   }
   if (b.tipo === "lista") {
     return (
-      <ul className="mb-4 list-disc space-y-1 pl-6 text-sm leading-relaxed text-slate-700">
+      <ul className="mb-4 list-disc space-y-1 pl-6 text-sm leading-relaxed text-tinta">
         {b.items.map((it, i) => (
           <li key={i}>{it}</li>
         ))}
       </ul>
     );
   }
+  // Tabla nativa a propósito, no <Tabla>/<Th>: esto es contenido del documento
+  // que se publica y se imprime (el cuadro de categorías dentro del propio
+  // papel), no una tabla de la interfaz — lleva borde en cada celda a
+  // propósito, como una tabla de un documento formal, y <Th>/<Tabla> no traen
+  // esa cuadrícula.
   return (
     <div className="mb-4 overflow-x-auto">
       <table className="w-full border-collapse text-left text-sm">
@@ -155,7 +162,7 @@ function BloqueVista({ b }: { b: Bloque }) {
             {b.cabeceras.map((c, i) => (
               <th
                 key={i}
-                className="border border-slate-300 bg-slate-100 px-3 py-2 font-semibold text-slate-900"
+                className="border border-sand bg-sand/70 px-3 py-2 font-semibold text-tinta"
               >
                 {c}
               </th>
@@ -168,7 +175,7 @@ function BloqueVista({ b }: { b: Bloque }) {
               {fila.map((celda, j) => (
                 <td
                   key={j}
-                  className="border border-slate-300 px-3 py-2 align-top text-slate-700"
+                  className="border border-sand px-3 py-2 align-top text-tinta"
                 >
                   {celda}
                 </td>
@@ -327,7 +334,6 @@ export default function PoliticaSalarialPage() {
   if (cargando) {
     return (
       <>
-        <AdminNav />
         <Cargando />
       </>
     );
@@ -338,40 +344,33 @@ export default function PoliticaSalarialPage() {
 
   return (
     <>
-      <div className="print:hidden">
-        <AdminNav />
-      </div>
       <main className="mx-auto max-w-4xl px-4 py-8 print:max-w-none print:p-0">
         {/* En papel esta cabecera sobra: el documento trae la suya con el título,
             el RUC y la fecha, que es la que vale como ejemplar entregado. */}
         <div className="print:hidden">
           <div className="mb-1 flex flex-wrap items-start justify-between gap-3">
-            <h1 className="text-2xl font-semibold text-slate-900">
+            <h1 className="text-2xl font-semibold text-tinta">
               Cuadro de categorías y política salarial
             </h1>
             {/* La Ley 30709 pide ENTREGAR este documento a cada integrante, así
                 que llevarse una copia no es cosa de la Gerencia: el botón lo ve
                 cualquiera que pueda leer la pantalla. */}
-            <button
-              type="button"
-              onClick={() => window.print()}
-              className="rounded border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50"
-            >
+            <Boton variante="secundario" tamano="sm" onClick={() => window.print()}>
               Imprimir / Guardar como PDF
-            </button>
+            </Boton>
           </div>
-          <p className="mb-6 text-sm text-slate-600">
+          <p className="mb-6 text-sm text-taupe">
             Cómo se organiza el trabajo en CAYLA y cómo se determina lo que gana cada persona.
           </p>
         </div>
 
         {error !== null && (
-          <p className="mb-4 rounded border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800 print:hidden">
+          <p className="mb-4 rounded border border-rojo/30 bg-rojo/10 px-4 py-3 text-sm text-rojo print:hidden">
             {error}
           </p>
         )}
         {aviso !== null && (
-          <p className="mb-4 rounded border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 print:hidden">
+          <p className="mb-4 rounded border border-verde/25 bg-verde/10 px-4 py-3 text-sm text-verde print:hidden">
             {aviso}
           </p>
         )}
@@ -380,11 +379,11 @@ export default function PoliticaSalarialPage() {
             Solo lo ve quien puede publicar, y NO entra al documento: un papel
             que se contradice a sí mismo es peor prueba que uno sin publicar. */}
         {esDO && fueraDeOrden.length > 0 && (
-          <section className="mb-6 rounded border border-amber-400 bg-amber-50 px-4 py-3 print:hidden">
-            <p className="text-sm font-medium text-amber-900">
+          <section className="mb-6 rounded border border-ambar/40 bg-ambar/10 px-4 py-3 print:hidden">
+            <p className="text-sm font-medium text-ambar">
               La escala no sube con la categoría.
             </p>
-            <p className="mt-1 text-sm text-amber-900">
+            <p className="mt-1 text-sm text-ambar">
               {fueraDeOrden.length === 1
                 ? `${fueraDeOrden[0]} tiene una remuneración declarada igual o menor que la de la categoría anterior.`
                 : `Estas categorías tienen una remuneración declarada igual o menor que la de la categoría anterior: ${fueraDeOrden.join(", ")}.`}{" "}
@@ -397,49 +396,49 @@ export default function PoliticaSalarialPage() {
 
         {/* ── Barra de estado, solo para quien puede publicar ── */}
         {esDO && vigente !== null && (
-          <section className="mb-8 rounded border border-slate-300 bg-white p-4 print:hidden">
+          <section className="mb-8 rounded border border-sand bg-papel p-4 print:hidden">
             {!vigente.publicada ? (
               <>
-                <p className="mb-3 text-sm text-slate-800">
+                <p className="mb-3 text-sm text-tinta">
                   Todavía no se ha publicado ninguna versión. Hasta publicarla y recoger las
                   constancias, CAYLA sigue incursa en el numeral 25.23 del RLGIT.
                 </p>
-                <button
-                  type="button"
+                <Boton
+                  variante="primario"
                   onClick={() => void publicar()}
                   disabled={guardando}
-                  className="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+                  cargando={guardando}
                 >
                   Publicar esta versión
-                </button>
+                </Boton>
               </>
             ) : (
               <>
-                <p className="mb-2 text-sm text-slate-800">
+                <p className="mb-2 text-sm text-tinta">
                   Versión <strong>{vigente.version}</strong>, publicada el{" "}
                   {vigente.publicada_at !== undefined ? fechaLarga(vigente.publicada_at) : "—"}.{" "}
                   Constancias: <strong>{vigente.total_acuses ?? 0}</strong> de{" "}
                   {vigente.total_personas ?? 0}.{" "}
                   <a href="/admin/politica-salarial/constancias" target="_blank" rel="noopener"
-                    className="underline underline-offset-2 hover:text-slate-950">
+                    className="underline underline-offset-2 hover:text-tinta">
                     hoja de constancias
                   </a>
                 </p>
                 {desactualizada && (
-                  <p className="mb-3 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                  <p className="mb-3 rounded border border-ambar/30 bg-ambar/10 px-3 py-2 text-sm text-ambar">
                     El cuadro cambió después de publicar: alguna categoría, remuneración o tarifa
                     ya no coincide con el documento que el equipo recibió. Publica una versión
                     nueva — las constancias volverán a pedirse.
                   </p>
                 )}
-                <button
-                  type="button"
+                <Boton
+                  variante="primario"
                   onClick={() => void publicar()}
                   disabled={guardando}
-                  className="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+                  cargando={guardando}
                 >
                   {desactualizada ? "Publicar versión nueva" : "Volver a publicar"}
-                </button>
+                </Boton>
               </>
             )}
           </section>
@@ -460,8 +459,8 @@ export default function PoliticaSalarialPage() {
           publicadoDoc !== null ? (
             <DocumentoVista doc={publicadoDoc} firmaUrl={esFirmante ? firmaUrl : null} />
           ) : (
-            <article className="rounded border border-slate-300 bg-white p-6 print:rounded-none print:border-0 print:p-0">
-              <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed text-slate-800">
+            <article className="rounded border border-sand bg-papel p-6 print:rounded-none print:border-0 print:p-0">
+              <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed text-tinta">
                 {vigente.documento}
               </pre>
             </article>
@@ -474,39 +473,39 @@ export default function PoliticaSalarialPage() {
 
         {/* ── La constancia ── */}
         {vigente !== null && vigente.publicada && (
-          <section className="mt-8 rounded border border-slate-300 bg-white p-5 print:hidden">
-            <h2 className="mb-2 text-base font-semibold text-slate-900">
+          <section className="mt-8 rounded border border-sand bg-papel p-5 print:hidden">
+            <h2 className="mb-2 text-base font-semibold text-tinta">
               Constancia de haber recibido este documento
             </h2>
             {vigente.mi_acuse !== null ? (
-              <p className="text-sm text-slate-700">
+              <p className="text-sm text-tinta">
                 Dejaste constancia el {fechaHora(vigente.mi_acuse.acusado_at)} como{" "}
                 <strong>{vigente.mi_acuse.nombre}</strong>. No hace falta hacer nada más hasta que
                 se publique una versión nueva.
               </p>
             ) : (
               <>
-                <p className="mb-3 text-sm text-slate-700">
+                <p className="mb-3 text-sm text-tinta">
                   Escribe tu nombre para dejar constancia de que recibiste y leíste este documento.
                   Dejar constancia no significa estar de acuerdo con su contenido: si tienes una
                   discrepancia, puedes plantearla a la Gerencia y recibirás respuesta por escrito.
                 </p>
                 <div className="flex flex-wrap items-center gap-3">
-                  <input
+                  <Campo
                     type="text"
                     value={nombreAcuse}
                     onChange={(e) => setNombreAcuse(e.target.value)}
                     placeholder="Tu nombre completo"
-                    className="min-w-64 flex-1 rounded border border-slate-300 px-3 py-2 text-sm"
+                    className="min-w-64 flex-1"
                   />
-                  <button
-                    type="button"
+                  <Boton
+                    variante="primario"
                     onClick={() => void acusar()}
                     disabled={guardando || nombreAcuse.trim() === ""}
-                    className="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+                    cargando={guardando}
                   >
                     Dejar constancia
-                  </button>
+                  </Boton>
                 </div>
               </>
             )}
@@ -515,16 +514,16 @@ export default function PoliticaSalarialPage() {
 
         {/* ── Quién falta ── */}
         {esDO && acuses.length > 0 && (
-          <section className="mt-8 rounded border border-slate-300 bg-white p-5 print:hidden">
-            <h2 className="mb-3 text-base font-semibold text-slate-900">
+          <section className="mt-8 rounded border border-sand bg-papel p-5 print:hidden">
+            <h2 className="mb-3 text-base font-semibold text-tinta">
               Quién dejó constancia
             </h2>
             {pendientes.length > 0 && (
               <>
-                <p className="mb-2 text-sm font-medium text-amber-900">
+                <p className="mb-2 text-sm font-medium text-ambar">
                   Falta {pendientes.length === 1 ? "1 persona" : `${pendientes.length} personas`}:
                 </p>
-                <ul className="mb-4 list-disc space-y-1 pl-6 text-sm text-slate-700">
+                <ul className="mb-4 list-disc space-y-1 pl-6 text-sm text-tinta">
                   {pendientes.map((a) => (
                     <li key={a.persona_id}>{a.nombre}</li>
                   ))}
@@ -532,25 +531,25 @@ export default function PoliticaSalarialPage() {
               </>
             )}
             {yaAcusaron.length > 0 && (
-              <table className="w-full border-collapse text-left text-sm">
-                <thead>
-                  <tr>
-                    <th className="border-b border-slate-300 py-2 font-semibold text-slate-900">
-                      Persona
-                    </th>
-                    <th className="border-b border-slate-300 py-2 font-semibold text-slate-900">
-                      Dejó constancia
-                    </th>
-                  </tr>
-                </thead>
+              // Sin el envoltorio <Tabla> a propósito: esta tabla ya vive
+              // dentro de la tarjeta con borde de la sección que la contiene,
+              // y el borde+esquinas propios de <Tabla> le quedarían doble
+              // aro. Sí toma TablaEncabezado/Th/Fila, que es lo que unifica
+              // el tipo de letra del encabezado y la zebra de las filas con
+              // el resto del panel.
+              <table className="w-full text-sm">
+                <TablaEncabezado>
+                  <Th>Persona</Th>
+                  <Th>Dejó constancia</Th>
+                </TablaEncabezado>
                 <tbody>
                   {yaAcusaron.map((a) => (
-                    <tr key={a.persona_id}>
-                      <td className="border-b border-slate-200 py-2 text-slate-700">{a.nombre}</td>
-                      <td className="border-b border-slate-200 py-2 text-slate-700">
+                    <Fila key={a.persona_id}>
+                      <td className="px-4 py-2 text-tinta">{a.nombre}</td>
+                      <td className="px-4 py-2 text-tinta">
                         {a.acusado_at !== null ? fechaHora(a.acusado_at) : "—"}
                       </td>
-                    </tr>
+                    </Fila>
                   ))}
                 </tbody>
               </table>

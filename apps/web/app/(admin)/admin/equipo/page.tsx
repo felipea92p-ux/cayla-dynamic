@@ -4,14 +4,19 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import bcrypt from "bcryptjs";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
-import { AdminNav } from "../nav";
 import { EsqueletoTabla } from "@/components/cargando";
 import { useToast } from "@/components/toast";
+import { Boton } from "@/components/ui/boton";
+import { Campo, CampoSelect } from "@/components/ui/campo";
+import { Insignia } from "@/components/ui/insignia";
+import { Modal } from "@/components/ui/modal";
+import { Fila, Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
 import { RANGOS, RANGO_LABEL, baseDeclaradaDe, formatSoles } from "@/lib/rangos";
 import { type Area, AREA_DEFAULT, AREAS_FALLBACK, parseAreas, areaCorto, esOperativaEn } from "@/lib/areas";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
+import { montoAsignacionFamiliar, type MontoAsignacionFamiliar } from "@/lib/admin/asignacion-familiar-monto";
 import {
   hoyLima, primeroDeMesLima, rangoDelMesLima, puedeVerPlanilla,
   MOTIVOS_CESE, MOTIVO_CESE_LABELS, etiquetaDeCatalogo, type MotivoCese, type Rol,
@@ -61,6 +66,39 @@ function generarPin(): string {
   return pin;
 }
 
+/**
+ * Copiar sin depender de que `navigator.clipboard` exista.
+ *
+ * La API moderna no está fuera de HTTPS (o localhost) y puede rechazar sin
+ * permiso; el respaldo es el `textarea` de toda la vida. Devuelve si se copió
+ * de verdad, porque un botón que dice «Copiado» sin haber copiado es peor que
+ * uno que falla: quien lo lee cierra el panel y pierde el PIN.
+ */
+async function copiarAlPortapapeles(texto: string): Promise<boolean> {
+  try {
+    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(texto);
+      return true;
+    }
+  } catch {
+    // sigue al respaldo
+  }
+  try {
+    const campo = document.createElement("textarea");
+    campo.value = texto;
+    campo.setAttribute("readonly", "");
+    campo.style.position = "fixed";
+    campo.style.opacity = "0";
+    document.body.appendChild(campo);
+    campo.select();
+    const ok = document.execCommand("copy");
+    document.body.removeChild(campo);
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
 interface Sede {
   id: string;
   codigo: string;
@@ -108,7 +146,10 @@ interface FormPersona {
   rol: Rol;
   funcion: string; // código de área (ver lib/areas)
   email: string;
-  conHijos: boolean; // asignación familiar (S/ 113 fijos por periodo) — se escribe por RPC fn_set_con_hijos
+  // Asignación familiar. El MONTO no se escribe acá ni en ningún sitio de la
+  // pantalla: vive versionado en `parametros_laborales` (0122) y se lee con
+  // `montoAsignacionFamiliar` para pintar la etiqueta. Se escribe por RPC fn_set_con_hijos.
+  conHijos: boolean;
   tipoVinculo: string; // planilla | prueba | rxh | no_trabajador | practicante — se escribe por RPC fn_set_tipo_vinculo
   practicanteModalidad: string; // "" | preprofesional | profesional — solo si tipoVinculo=practicante; se escribe por RPC fn_set_practicante_modalidad
   cargo: string;      // 0182 — cómo se la nombra en pantalla. Vacío = se muestra el rol
@@ -153,6 +194,11 @@ export default function EquipoPage() {
   const [retenciones4ta, setRetenciones4ta] = useState<Map<string, { modo: string; hasta: string }>>(new Map());
   const [retencionesOk, setRetencionesOk] = useState(false);
   const [cargando, setCargando] = useState(true);
+  // ¿La última carga de personas falló? Distinto de "personas vacío": lo
+  // primero es un error que hay que poder reintentar, lo segundo es "nadie
+  // coincide con el filtro" — confundirlos hace parecer que no hay nadie en
+  // el equipo cuando en realidad la consulta no respondió.
+  const [falloPersonas, setFalloPersonas] = useState(false);
   const { avisar } = useToast();
 
   // Filtros. Con ~30 personas y sin ninguno, encontrar a alguien era leer la
@@ -182,9 +228,25 @@ export default function EquipoPage() {
   // hasta el panel. `scroll-mt-4` deja un respiro arriba para que no quede
   // pegado al borde.
   const panelRef = useRef<HTMLDivElement | null>(null);
+  // EL PIN NO VA POR UN TOAST, y esto no es una preferencia de forma.
+  //
+  // Un aviso «ok» se apaga solo a los 4,5 segundos (DURACION_OK_MS, en
+  // components/toast.tsx), y ahí dentro iba el único ejemplar de cuatro dígitos
+  // que el sistema muestra en su vida, con un texto que decía «anótalo ahora, no
+  // se vuelve a mostrar». No alcanza para leerlo, entenderlo y escribirlo, y si
+  // se pierde hay que regenerarlo — lo que invalida el PIN que esa persona ya
+  // tenía. Así que vive en un panel que NO se cierra solo: se cierra cuando
+  // alguien dice que ya lo tiene.
+  //
+  // El temporizador del toast no se toca: gobierna todos los avisos del panel.
+  const [pinNuevo, setPinNuevo] = useState<{ nombre: string; pin: string } | null>(null);
+  const [pinCopiado, setPinCopiado] = useState(false);
   const [ceseId, setCeseId] = useState<string | null>(null);
   const [ceseForm, setCeseForm] = useState<{ fecha: string; motivo: MotivoCese | "" }>({ fecha: "", motivo: "" });
   const [guardandoCese, setGuardandoCese] = useState(false);
+  // Confirmación de "Reactivar" (antes window.confirm): la persona en espera
+  // de que se confirme en el Modal de abajo, no si hay alguna.
+  const [reactivarPendiente, setReactivarPendiente] = useState<Persona | null>(null);
 
   // Salarios (dato sensible: solo admin/lider_do). Se leen/escriben por RPC.
   // OJO: mientras no estén CARGADOS ("ok") no se permite asignar/editar — si se
@@ -246,6 +308,11 @@ export default function EquipoPage() {
           .map((r) => [r.persona_id, { fecha_ingreso: r.fecha_ingreso, primera_entrada: r.primera_entrada }] as const),
       ),
     );
+    // Se guarda aparte del toast: el toast se apaga solo a los pocos segundos,
+    // y sin este estado la tabla vacía se leía como "nadie coincide con el
+    // filtro" en vez de "la consulta falló" (hallazgo de la auditoría de
+    // apariencia, 2026-09-06/07).
+    setFalloPersonas(!!personasError);
     if (personasError || sedesError) {
       avisar("error", mensajeDeError((personasError ?? sedesError)!, "cargar el equipo"));
     }
@@ -302,9 +369,35 @@ export default function EquipoPage() {
     void cargar();
   }, [cargar]);
 
+  // El monto vigente de la asignación familiar, para la etiqueta de la casilla.
+  // `null` mientras no haya dato — y entonces la etiqueta manda a Configuración
+  // en vez de inventar una cifra (hallazgo 24; tercera regla de la casa).
+  const [asigFamiliar, setAsigFamiliar] = useState<MontoAsignacionFamiliar | null>(null);
+  useEffect(() => {
+    let vigente = true;
+    void montoAsignacionFamiliar(createAdminSupabaseClient()).then((m) => {
+      if (vigente) setAsigFamiliar(m);
+    });
+    return () => { vigente = false; };
+  }, []);
+
   // Cuál está abierto, no si hay alguno: así también se desplaza al pasar de un
   // panel a otro (de «Editar» de una persona a «Registrar salida» de otra).
-  const panelAbierto = mostrandoAlta ? "alta" : editandoId ?? salEditId ?? histId ?? ceseId ?? null;
+  // El PIN manda sobre todo lo demás: es lo único de esta pantalla que se pierde
+  // si nadie lo mira. La clave lleva el PIN dentro para que regenerarlo dos veces
+  // seguidas vuelva a desplazar hasta el panel.
+  //
+  // Y la clave se COMPONE, no se cortocircuita: con el ternario, mientras el
+  // panel del PIN estaba abierto el valor quedaba congelado en su clave, así que
+  // abrir «Editar» de alguien del final de la tabla ya no desplazaba — el
+  // formulario se abría arriba, fuera de la vista, y parecía que el botón no
+  // había hecho nada. El PIN sigue mandando en el orden visual (se pinta
+  // primero); lo que cambia es que cualquier otro panel vuelve a mover la
+  // pantalla aunque el PIN siga puesto.
+  const otroPanel = mostrandoAlta ? "alta" : editandoId ?? salEditId ?? histId ?? ceseId ?? null;
+  const panelAbierto = pinNuevo
+    ? `pin:${pinNuevo.nombre}:${pinNuevo.pin}|${otroPanel ?? ""}`
+    : otroPanel;
   useEffect(() => {
     if (panelAbierto) panelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, [panelAbierto]);
@@ -388,9 +481,12 @@ export default function EquipoPage() {
       avisar("error", mensajeDeError(error, "crear"));
       return;
     }
-    // El PIN se muestra UNA sola vez: aunque la asignación familiar falle, el aviso
-    // con el PIN no se pierde — solo se le agrega la advertencia.
-    let texto = `${form.nombres} ${form.apellidos} agregado(a). Su PIN es ${pin} — anótalo ahora, no se vuelve a mostrar.`;
+    // El PIN se muestra UNA sola vez, y por eso NO viaja en este aviso: va al
+    // panel de abajo, que no se apaga solo. Lo que quede acá es lo que sí puede
+    // desaparecer a los pocos segundos sin que se pierda nada — el «agregada» y,
+    // si toca, la advertencia de la asignación familiar.
+    const nombreCompleto = `${form.nombres.trim()} ${form.apellidos.trim()}`;
+    let texto = `${nombreCompleto} agregado(a).`;
     let tipoAviso: "ok" | "error" = "ok";
     if (form.conHijos) {
       const nuevaId = (creada as { id: string } | null)?.id;
@@ -398,8 +494,8 @@ export default function EquipoPage() {
         ? await supabase.rpc("fn_set_con_hijos", { p_persona_id: nuevaId, p_con_hijos: true })
         : { error: { message: "no se recibió el id de la persona" } };
       if (errorHijos) {
-        // Aviso en ROJO para que la falla no pase desapercibida, pero SIEMPRE con
-        // el PIN dentro del mismo mensaje (es la única vez que se muestra).
+        // Aviso en ROJO para que la falla no pase desapercibida. El PIN ya no
+        // depende de este mensaje: está en su panel, se muestre este aviso o no.
         tipoAviso = "error";
         texto += ` OJO: la asignación familiar no se pudo activar (${errorHijos.message}) — márcala editando a la persona.`;
       }
@@ -407,8 +503,25 @@ export default function EquipoPage() {
     setGuardando(false);
     setMostrandoAlta(false);
     setForm(FORM_VACIO);
+    // Antes de `cargar()`: el PIN tiene que estar en pantalla ya, no cuando
+    // termine de releerse el equipo entero.
+    mostrarPin(nombreCompleto, pin);
     await cargar();
     avisar(tipoAviso, texto);
+  }
+
+  function mostrarPin(nombre: string, pin: string) {
+    setPinCopiado(false);
+    setPinNuevo({ nombre, pin });
+  }
+
+  async function copiarPin() {
+    if (!pinNuevo) return;
+    if (await copiarAlPortapapeles(pinNuevo.pin)) {
+      setPinCopiado(true);
+      return;
+    }
+    avisar("error", "No se pudo copiar al portapapeles. Anótalo a mano: el PIN sigue en pantalla hasta que cierres el panel.");
   }
 
   async function guardarEdicion() {
@@ -426,17 +539,29 @@ export default function EquipoPage() {
     }
     setGuardando(true);
     const supabase = createAdminSupabaseClient();
-    const { error } = await supabase
+    // .select('id').maybeSingle() ADEMÁS de mirar `error`: la única policy de
+    // UPDATE sobre personas exige admin/líder DO (0003_rls.sql), y Postgres NO
+    // lanza error cuando una fila no cumple la policy — simplemente actualiza
+    // 0 filas. Sin esto, una encargada de sede veía "Cambios guardados" aunque
+    // RLS hubiera descartado su escritura en silencio.
+    const { data: filaActualizada, error } = await supabase
       .from("personas")
       .update({
         nombres: form.nombres.trim(),
         apellidos: form.apellidos.trim(),
         email: form.email.trim() || null,
       })
-      .eq("id", editandoId);
+      .eq("id", editandoId)
+      .select("id")
+      .maybeSingle();
     if (error) {
       setGuardando(false);
       avisar("error", mensajeDeError(error, "guardar"));
+      return;
+    }
+    if (!filaActualizada) {
+      setGuardando(false);
+      avisar("error", "No se guardó: no tienes permiso para editar esta ficha.");
       return;
     }
     // Sede base: mismo patrón dirty-check que rol, y por la misma razón — un
@@ -707,10 +832,10 @@ export default function EquipoPage() {
     avisar("ok", `${p?.nombres} ${p?.apellidos} figura como inactiva desde el ${fmtFechaDMA(ceseForm.fecha)}. Su historial se conserva.`);
   }
 
+  // La confirmación pasa de window.confirm a un Modal (Sí/Cancelar) — ver
+  // confirmarReactivar y el <Modal> al final de la pantalla. Mismo
+  // fn_reactivar_persona de siempre: lo único que cambia es cómo se pregunta.
   async function reactivar(p: Persona) {
-    if (!window.confirm(
-      `¿Reactivar a ${p.nombres} ${p.apellidos}? Se borra su fecha de salida y vuelve a aparecer en el terminal. Ojo: si ya se le pagó una liquidación, volvería a devengar desde su fecha de ingreso original.`
-    )) return;
     const supabase = createAdminSupabaseClient();
     const { error } = await supabase.rpc("fn_reactivar_persona", { p_persona_id: p.id });
     if (error) {
@@ -721,16 +846,26 @@ export default function EquipoPage() {
     avisar("ok", `${p.nombres} ${p.apellidos} está activa otra vez. Revísale el salario y el horario: al cesar se cerraron sus tramos.`);
   }
 
+  async function confirmarReactivar() {
+    if (!reactivarPendiente) return;
+    const p = reactivarPendiente;
+    setReactivarPendiente(null);
+    await reactivar(p);
+  }
+
+  // El PIN nace en el servidor (0364): `fn_regenerar_pin` genera los cuatro
+  // dígitos, los hashea con bcrypt en Postgres y devuelve el PIN en claro UNA
+  // sola vez. Antes se hasheaba acá y se escribía `pin_hash` por REST directo,
+  // con la RLS como único freno; hoy un update directo a esa columna lo corta
+  // un trigger, así que este es el único camino.
   async function regenerarPin(p: Persona) {
-    const pin = generarPin();
-    const pinHash = await bcrypt.hash(pin, 10);
     const supabase = createAdminSupabaseClient();
-    const { error } = await supabase.from("personas").update({ pin_hash: pinHash }).eq("id", p.id);
-    if (error) {
-      avisar("error", mensajeDeError(error, "regenerar el PIN"));
+    const { data: pin, error } = await supabase.rpc("fn_regenerar_pin", { p_persona_id: p.id });
+    if (error || !pin) {
+      avisar("error", error ? mensajeDeError(error, "regenerar el PIN") : "No se recibió el PIN nuevo. Vuelve a intentarlo.");
       return;
     }
-    avisar("ok", `Nuevo PIN de ${p.nombres} ${p.apellidos}: ${pin} — anótalo ahora, no se vuelve a mostrar.`);
+    mostrarPin(`${p.nombres} ${p.apellidos}`, pin);
   }
 
   function empezarEdicion(p: Persona) {
@@ -1066,7 +1201,9 @@ export default function EquipoPage() {
             disabled={modo === "edicion" && !funcionesOk}
             className="h-4 w-4 accent-tinta disabled:opacity-50"
           />
-          Asignación familiar (tiene hijos) — S/ 113 fijos por periodo
+          {asigFamiliar
+            ? `Asignación familiar (tiene hijos) — ${formatSoles(asigFamiliar.monto)} al mes, según el monto vigente`
+            : "Asignación familiar (tiene hijos) — según el monto vigente en Configuración"}
         </label>
       )}
       {puedeSalarios && (
@@ -1200,19 +1337,20 @@ export default function EquipoPage() {
         </label>
       )}
       <div className="flex gap-3 sm:col-span-2">
-        <button
+        <Boton
+          variante="primario"
           onClick={modo === "alta" ? crearPersona : guardarEdicion}
           disabled={guardando}
-          className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50"
+          cargando={guardando}
         >
-          {guardando ? "Guardando…" : modo === "alta" ? "Agregar (genera PIN)" : "Guardar cambios"}
-        </button>
-        <button
+          {modo === "alta" ? "Agregar (genera PIN)" : "Guardar cambios"}
+        </Boton>
+        <Boton
+          variante="secundario"
           onClick={() => { setMostrandoAlta(false); setEditandoId(null); setForm(FORM_VACIO); }}
-          className="rounded-lg border px-4 py-2 text-sm"
         >
           Cancelar
-        </button>
+        </Boton>
       </div>
     </div>
   );
@@ -1278,10 +1416,10 @@ export default function EquipoPage() {
           Cambiar el salario cierra el tramo anterior el día previo a la vigencia y abre uno nuevo — los meses ya pagados no se alteran.
         </p>
         <div className="flex gap-3 sm:col-span-2">
-          <button onClick={guardarSalario} disabled={guardandoSal} className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50">
-            {guardandoSal ? "Guardando…" : "Guardar salario"}
-          </button>
-          <button onClick={() => setSalEditId(null)} className="rounded-lg border px-4 py-2 text-sm">Cancelar</button>
+          <Boton variante="primario" onClick={guardarSalario} disabled={guardandoSal} cargando={guardandoSal}>
+            Guardar salario
+          </Boton>
+          <Boton variante="secundario" onClick={() => setSalEditId(null)}>Cancelar</Boton>
         </div>
       </div>
     );
@@ -1341,11 +1479,43 @@ export default function EquipoPage() {
           real —ni el de hoy por comodidad, ni el de su carta.
         </p>
         <div className="flex gap-3 sm:col-span-2">
-          <button onClick={guardarCese} disabled={guardandoCese} className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50">
-            {guardandoCese ? "Guardando…" : "Registrar salida"}
-          </button>
-          <button onClick={() => setCeseId(null)} className="rounded-lg border px-4 py-2 text-sm">Cancelar</button>
+          <Boton variante="primario" onClick={guardarCese} disabled={guardandoCese} cargando={guardandoCese}>
+            Registrar salida
+          </Boton>
+          <Boton variante="secundario" onClick={() => setCeseId(null)}>Cancelar</Boton>
         </div>
+      </div>
+    );
+  };
+
+  // El PIN recién generado. Mismo molde que los otros cinco paneles de esta
+  // pantalla (tarjeta de papel, arriba de la tabla, se desplaza sola hasta él),
+  // con dos diferencias que son todo el arreglo: no tiene temporizador y el PIN
+  // se puede copiar sin transcribirlo.
+  const panelPin = () => {
+    if (!pinNuevo) return null;
+    // `role="status"` porque este panel reemplazó a un aviso que sí se
+    // anunciaba: sin él, quien navega con lector de pantalla oye desaparecer
+    // «X agregado(a)» y nada le dice que el PIN quedó en un panel más arriba —
+    // en el único panel de la pantalla cuyo motivo entero es que no se pierda
+    // de vista.
+    return (
+      <div role="status" aria-live="polite" className="mb-6 max-w-2xl rounded-2xl border border-rojo/30 bg-papel p-5">
+        <p className="text-sm font-medium">PIN de {pinNuevo.nombre}</p>
+        <p className="mt-3 font-serif text-6xl tracking-[0.25em] tabular-nums text-tinta">{pinNuevo.pin}</p>
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <Boton variante="primario" onClick={() => void copiarPin()}>
+            {pinCopiado ? "Copiado" : "Copiar"}
+          </Boton>
+          <Boton variante="secundario" onClick={() => setPinNuevo(null)}>
+            Ya lo tengo — cerrar
+          </Boton>
+        </div>
+        <p className="mt-3 text-xs text-taupe">
+          Este panel no se cierra solo, así que tómate el tiempo de anotarlo y entrégalo en privado. Es la
+          única vez que el sistema muestra estos cuatro dígitos: si se pierden hay que generar otros, y el
+          PIN anterior de esta persona deja de servir.
+        </p>
       </div>
     );
   };
@@ -1362,47 +1532,55 @@ export default function EquipoPage() {
         {hist.length === 0 ? (
           <p className="text-sm text-taupe">Sin registros todavía.</p>
         ) : (
-          <table className="w-full text-sm">
-            <thead className="text-left text-taupe">
-              <tr>
-                <th className="py-1 font-normal">Rango</th>
-                <th className="py-1 font-normal">Salario</th>
-                <th className="py-1 font-normal">Desde</th>
-                <th className="py-1 font-normal">Hasta</th>
-                <th className="py-1 font-normal">Asignado por</th>
-              </tr>
-            </thead>
-            <tbody>
-              {hist.map((h, i) => (
-                <tr key={i} className="border-t">
-                  <td className="py-1">{RANGO_LABEL[h.rango] ?? h.rango}</td>
-                  <td className="py-1">{formatSoles(Number(h.salario_mensual_soles))}</td>
-                  <td className="py-1">{h.vigente_desde}</td>
-                  <td className="py-1">{h.vigente_hasta ?? <span className="text-rojo">vigente</span>}</td>
-                  <td className="py-1 text-taupe">{h.asignado_por ?? "—"}</td>
+          // overflow-x-auto: sin este envoltorio, una fila angosta más las dos
+          // fechas ISO desbordaba en un teléfono y arrastraba a TODA la página
+          // (título, nav y demás secciones) en horizontal (hallazgo de la
+          // auditoría de apariencia, 2026-09-06/07) — acá no hace falta el
+          // primitivo <Tabla> completo porque este panel no es de página, es
+          // una tarjeta angosta con su propio molde (border-sand, no bg-sand/70
+          // en el encabezado).
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="text-left text-taupe">
+                <tr>
+                  <th className="py-1 font-normal">Rango</th>
+                  <th className="py-1 font-normal">Salario</th>
+                  <th className="py-1 font-normal">Desde</th>
+                  <th className="py-1 font-normal">Hasta</th>
+                  <th className="py-1 font-normal">Asignado por</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {hist.map((h, i) => (
+                  <tr key={i} className="border-t">
+                    <td className="py-1">{RANGO_LABEL[h.rango] ?? h.rango}</td>
+                    <td className="py-1">{formatSoles(Number(h.salario_mensual_soles))}</td>
+                    <td className="py-1">{h.vigente_desde}</td>
+                    <td className="py-1">{h.vigente_hasta ?? <span className="text-rojo">vigente</span>}</td>
+                    <td className="py-1 text-taupe">{h.asignado_por ?? "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     );
   };
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <AdminNav />
+    <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
         <div className="mb-4 flex items-center justify-between">
           <h1 className="font-serif text-2xl">Equipo</h1>
           {!mostrandoAlta && !editandoId && (
             <div className="flex flex-wrap gap-2">
-              <button
+              <Boton
+                variante="primario"
                 onClick={() => { setMostrandoAlta(true); setForm(FORM_VACIO); setSalEditId(null); setHistId(null); setCeseId(null); }}
-                className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema"
               >
                 + Agregar persona
-              </button>
+              </Boton>
             </div>
           )}
         </div>
@@ -1411,13 +1589,14 @@ export default function EquipoPage() {
           <div className="mb-4 max-w-3xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
             No se pudieron cargar los salarios, así que su edición está deshabilitada (para no pisar
             un salario real con el valor por defecto).{" "}
-            <button onClick={() => void cargarSalarios()} className="font-medium underline">
+            <Boton variante="enlace" className="font-medium" onClick={() => void cargarSalarios()}>
               Reintentar
-            </button>
+            </Boton>
           </div>
         )}
 
         <div ref={panelRef} className="scroll-mt-4">
+          {panelPin()}
           {mostrandoAlta && formulario("alta")}
           {editandoId && formulario("edicion")}
           {ceseId && editorCese()}
@@ -1429,47 +1608,37 @@ export default function EquipoPage() {
             cargado: son ~30 personas, no hay nada que pedirle a la base. */}
         {!cargando && (
           <div className="mb-3 flex flex-wrap items-end gap-3">
-            <label className="flex flex-col gap-1 text-xs text-taupe">
-              Buscar
-              <input
-                value={busca}
-                onChange={(e) => setBusca(e.target.value)}
-                placeholder="nombre o apellido"
-                className="w-52 rounded-lg border px-3 py-1.5 text-sm text-tinta"
-              />
-            </label>
-            <label className="flex flex-col gap-1 text-xs text-taupe">
-              Sede
-              <select value={fSede} onChange={(e) => setFSede(e.target.value)} className="rounded-lg border bg-crema px-3 py-1.5 text-sm text-tinta">
-                <option value="todas">Todas</option>
-                {sedes.map((s) => (<option key={s.id} value={s.id}>{s.nombre}</option>))}
-              </select>
-            </label>
-            <label className="flex flex-col gap-1 text-xs text-taupe">
-              Área
-              <select value={fArea} onChange={(e) => setFArea(e.target.value)} className="rounded-lg border bg-crema px-3 py-1.5 text-sm text-tinta">
-                <option value="todas">Todas</option>
-                {areas.filter((a) => a.activa).map((a) => (<option key={a.codigo} value={a.codigo}>{a.nombre}</option>))}
-              </select>
-            </label>
-            <label className="flex flex-col gap-1 text-xs text-taupe">
-              Mostrar
-              <select value={fEstado} onChange={(e) => setFEstado(e.target.value as FiltroEstado)} className="rounded-lg border bg-crema px-3 py-1.5 text-sm text-tinta">
-                <option value="activos">Solo el equipo actual</option>
-                <option value="inactivos">Solo quienes ya no están</option>
-                {/* Solo para quien ve el dato: a quien no lo ve, esta opción le
-                    devolvería una lista vacía sin poder explicarle por qué. */}
-                {puedeSalarios && <option value="fin_contrato">Con fin de contrato anotado</option>}
-                <option value="todos">Todos</option>
-              </select>
-            </label>
+            <Campo
+              etiqueta="Buscar"
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              placeholder="nombre o apellido"
+              className="w-52"
+            />
+            <CampoSelect etiqueta="Sede" value={fSede} onChange={(e) => setFSede(e.target.value)}>
+              <option value="todas">Todas</option>
+              {sedes.map((s) => (<option key={s.id} value={s.id}>{s.nombre}</option>))}
+            </CampoSelect>
+            <CampoSelect etiqueta="Área" value={fArea} onChange={(e) => setFArea(e.target.value)}>
+              <option value="todas">Todas</option>
+              {areas.filter((a) => a.activa).map((a) => (<option key={a.codigo} value={a.codigo}>{a.nombre}</option>))}
+            </CampoSelect>
+            <CampoSelect etiqueta="Mostrar" value={fEstado} onChange={(e) => setFEstado(e.target.value as FiltroEstado)}>
+              <option value="activos">Solo el equipo actual</option>
+              <option value="inactivos">Solo quienes ya no están</option>
+              {/* Solo para quien ve el dato: a quien no lo ve, esta opción le
+                  devolvería una lista vacía sin poder explicarle por qué. */}
+              {puedeSalarios && <option value="fin_contrato">Con fin de contrato anotado</option>}
+              <option value="todos">Todos</option>
+            </CampoSelect>
             {ocultas > 0 && (
-              <button
+              <Boton
+                variante="enlace"
+                className="pb-2 text-xs text-taupe"
                 onClick={() => { setBusca(""); setFSede("todas"); setFArea("todas"); setFEstado("todos"); }}
-                className="pb-1.5 text-xs text-taupe underline hover:text-tinta"
               >
                 {ocultas === 1 ? "1 persona oculta" : `${ocultas} personas ocultas`} — quitar filtros
-              </button>
+              </Boton>
             )}
           </div>
         )}
@@ -1478,153 +1647,204 @@ export default function EquipoPage() {
           <EsqueletoTabla
             anchos={["w-36", "w-16", "w-20", "w-24", ...(puedeSalarios ? ["w-20"] : []), "w-40", "w-16", "w-24"]}
           />
+        ) : falloPersonas ? (
+          // Distinto del "ninguna persona coincide" de abajo: acá la consulta
+          // FALLÓ, no es que no haya nadie. Antes de esto, un fallo de la
+          // consulta principal se veía igual que un filtro sin resultados —
+          // el peor falso negativo que puede dar esta pantalla (hallazgo de
+          // la auditoría de apariencia, 2026-09-06/07).
+          <div className="max-w-2xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo-profundo">
+            <p>No se pudo cargar el equipo — esto no quiere decir que no haya nadie.</p>
+            <Boton variante="secundario" tamano="sm" className="mt-2" onClick={() => void cargar()}>
+              Reintentar
+            </Boton>
+          </div>
         ) : visibles.length === 0 ? (
           <div className="max-w-2xl rounded-lg bg-sand/40 px-4 py-3 text-sm text-taupe">
             Ninguna persona coincide con lo que buscas.{" "}
-            <button
+            <Boton
+              variante="enlace"
+              className="font-medium"
               onClick={() => { setBusca(""); setFSede("todas"); setFArea("todas"); setFEstado("todos"); }}
-              className="font-medium underline"
             >
               Quitar filtros
-            </button>
+            </Boton>
           </div>
         ) : (
-          <div className="overflow-x-auto rounded-2xl border border-sand">
-            <table className="w-full text-sm">
-              <thead className="bg-sand/70 text-left text-taupe">
-                <tr>
-                  <th className="px-4 py-2 font-normal">Nombre</th>
-                  <th className="px-4 py-2 font-normal">Sede</th>
-                  <th className="px-4 py-2 font-normal">Rol</th>
-                  <th className="px-4 py-2 font-normal">Área</th>
-                  {puedeSalarios && <th className="px-4 py-2 font-normal">Salario</th>}
-                  <th className="px-4 py-2 font-normal">Correo</th>
-                  <th className="px-4 py-2 font-normal">Estado</th>
-                  <th className="px-4 py-2 font-normal">Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {visibles.map((p) => (
-                  <tr key={p.id} className={`border-t bg-papel transition-colors hover:bg-crema ${p.estado === "inactivo" ? "text-taupe" : ""}`}>
-                    <td className="px-4 py-2">
-                      <button onClick={() => router.push(`/admin/personas/${p.id}`)} className="text-left font-medium text-tinta hover:underline" title="Ver perfil completo">{p.nombres} {p.apellidos}</button>
-                      {p.con_hijos && (
-                        <span title="Asignación familiar activa" className="ml-1.5 cursor-default text-xs">👶</span>
-                      )}
-                      {puedeSalarios && ingresos.get(p.id)?.fecha_ingreso && (
-                        <div className="text-xs text-taupe">Ingresó: {fmtFechaDMA(ingresos.get(p.id)!.fecha_ingreso!)}</div>
-                      )}
-                      {/* En ámbar cuando su contrato vence este mes o antes: es el
-                          momento en que sale del tablero de Documentación y, si es
-                          que no se renueva, cuando hay que registrar su cese. */}
-                      {puedeSalarios && finesContrato.has(p.id) && (
-                        <div className={`text-xs ${p.estado === "activo" && saleDelTablero(finesContrato.get(p.id)) ? "text-ambar" : "text-taupe"}`}>
-                          Contrato hasta: {fmtFechaDMA(finesContrato.get(p.id)!)}
-                        </div>
-                      )}
-                      {/* Cuándo y por qué se fue (0179). Va acá y no en columnas
-                          propias para no ensanchar una tabla que ya tiene ocho, y
-                          porque solo aplica a quien está inactivo: al equipo activo
-                          no le agrega una celda vacía en cada fila. Cierra la
-                          secuencia que ya cuentan las dos líneas de arriba:
-                          entró · hasta cuándo tenía contrato · cuándo se fue.
-                          El motivo llega null si quien mira no es admin ni líder DO
-                          —la RPC no se lo entrega— y entonces solo se ve la fecha. */}
-                      {p.estado === "inactivo" && p.fecha_cese && (
-                        <div className="text-xs text-taupe">
-                          Se fue: {fmtFechaDMA(p.fecha_cese)}
-                          {p.motivo_cese && (
-                            // El texto sale del catálogo también cuando es
-                            // `por_revisar`: el desplegable de cese ya lo nombra
-                            // así, y dos formas de decir lo mismo en la misma
-                            // pantalla se contradicen a la primera. Lo único que
-                            // cambia es el ámbar, que dice «esto falta».
-                            <> · {p.motivo_cese === "por_revisar"
-                              ? <span className="text-ambar" title="Nadie registró por qué se fue. Edita su ficha y elige el motivo real.">
-                                  {etiquetaDeCatalogo(p.motivo_cese, MOTIVO_CESE_LABELS)}
-                                </span>
-                              : etiquetaDeCatalogo(p.motivo_cese, MOTIVO_CESE_LABELS)}</>
-                          )}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-4 py-2">{codigoSede(p.sede_base_id)}</td>
-                    {/* El CARGO manda sobre la etiqueta del rol (0182). El rol
-                        es un permiso —qué pantallas abre— y usarlo como título
-                        hacía que tres locadores figuraran como «Líder de equipo
-                        (encargada)» y «Admin». Cargo de mando, área, sede, rango
-                        y monto fijo son los indicios que desnaturalizan una
-                        locación de servicios, y el expediente lo armaba esta
-                        misma celda. Sin cargo escrito, se muestra el rol como
-                        siempre. */}
-                    <td className="px-4 py-2">
-                      {p.cargo !== null && p.cargo !== ""
-                        ? <span className="whitespace-nowrap">{p.cargo}</span>
-                        : (ROLES_OPCIONES.find((r) => r.valor === p.rol)?.label ?? p.rol)}
-                    </td>
-                    <td className="px-4 py-2">
-                      {esOperativaEn(areas, p.funcion)
-                        ? <span className="text-taupe">{areaCorto(areas, p.funcion)}</span>
-                        : <span className="whitespace-nowrap rounded-full bg-ambar/15 px-2 py-0.5 text-xs text-ambar">{areaCorto(areas, p.funcion)}</span>}
-                    </td>
-                    {puedeSalarios && (() => {
-                      if (salariosEstado !== "ok") {
-                        // sin datos confiables no se ofrece Asignar/Editar (evita pisar salarios reales)
-                        return (
-                          <td className="px-4 py-2 text-xs text-taupe/60">
-                            {salariosEstado === "cargando" ? "Cargando…" : "No disponible"}
-                          </td>
-                        );
-                      }
-                      const sal = salarios[p.id];
-                      return (
-                        <td className="px-4 py-2">
-                          {sal ? (
-                            <span className="whitespace-nowrap">{RANGO_LABEL[sal.rango] ?? sal.rango} · {formatSoles(sal.salario)}</span>
-                          ) : (
-                            <span className="text-taupe/60">Sin asignar</span>
-                          )}
-                          <div className="mt-1 flex gap-3 text-xs">
-                            <button onClick={() => empezarSalario(p)} className="text-rojo hover:underline">{sal ? "Editar" : "Asignar"}</button>
-                            <button onClick={() => verHistorial(p)} className="text-taupe hover:underline">Historial</button>
-                          </div>
-                        </td>
-                      );
-                    })()}
-                    <td className="px-4 py-2">{p.email ?? <span className="text-taupe/50">—</span>}</td>
-                    <td className="px-4 py-2">
-                      <span className={`rounded-full px-2 py-0.5 text-xs ${p.estado === "activo" ? "bg-sand text-tinta" : "bg-sand text-taupe"}`}>
-                        {p.estado}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2">
-                      <div className="flex flex-wrap gap-2 text-xs">
-                        <button onClick={() => empezarEdicion(p)} className="rounded border px-2 py-1 hover:bg-sand/50">Editar</button>
-                        <button onClick={() => regenerarPin(p)} className="rounded border px-2 py-1 hover:bg-sand/50">Nuevo PIN</button>
-                        {p.estado === "activo" ? (
-                          // «Registrar salida» y no «Desactivar»: lo que se hace
-                          // es anotar un hecho con su fecha y su motivo, no
-                          // apagar un interruptor.
-                          <button onClick={() => empezarCese(p)} className="rounded border border-rojo/30 px-2 py-1 text-rojo hover:bg-rojo/10">Registrar salida</button>
-                        ) : (
-                          <button onClick={() => reactivar(p)} className="rounded border px-2 py-1 hover:bg-sand/50">Reactivar</button>
+          <Tabla alturaMaxima="70vh">
+            <TablaEncabezado>
+              <Th>Nombre</Th>
+              <Th>Sede</Th>
+              <Th>Rol</Th>
+              <Th>Área</Th>
+              {puedeSalarios && <Th>Salario</Th>}
+              <Th>Correo</Th>
+              <Th>Estado</Th>
+              <Th>Acciones</Th>
+            </TablaEncabezado>
+            <tbody>
+              {visibles.map((p) => (
+                <Fila key={p.id} className={p.estado === "inactivo" ? "text-taupe" : ""}>
+                  <td className="px-4 py-2">
+                    <button onClick={() => router.push(`/admin/personas/${p.id}`)} className="text-left font-medium text-tinta hover:underline" title="Ver perfil completo">{p.nombres} {p.apellidos}</button>
+                    {p.con_hijos && (
+                      <span title="Asignación familiar activa" className="ml-1.5 cursor-default text-xs">👶</span>
+                    )}
+                    {puedeSalarios && ingresos.get(p.id)?.fecha_ingreso && (
+                      <div className="text-xs text-taupe">Ingresó: {fmtFechaDMA(ingresos.get(p.id)!.fecha_ingreso!)}</div>
+                    )}
+                    {/* En ámbar cuando su contrato vence este mes o antes: es el
+                        momento en que sale del tablero de Documentación y, si es
+                        que no se renueva, cuando hay que registrar su cese. */}
+                    {puedeSalarios && finesContrato.has(p.id) && (
+                      <div className={`text-xs ${p.estado === "activo" && saleDelTablero(finesContrato.get(p.id)) ? "text-ambar" : "text-taupe"}`}>
+                        Contrato hasta: {fmtFechaDMA(finesContrato.get(p.id)!)}
+                      </div>
+                    )}
+                    {/* Cuándo y por qué se fue (0179). Va acá y no en columnas
+                        propias para no ensanchar una tabla que ya tiene ocho, y
+                        porque solo aplica a quien está inactivo: al equipo activo
+                        no le agrega una celda vacía en cada fila. Cierra la
+                        secuencia que ya cuentan las dos líneas de arriba:
+                        entró · hasta cuándo tenía contrato · cuándo se fue.
+                        El motivo llega null si quien mira no es admin ni líder DO
+                        —la RPC no se lo entrega— y entonces solo se ve la fecha. */}
+                    {p.estado === "inactivo" && p.fecha_cese && (
+                      <div className="text-xs text-taupe">
+                        Se fue: {fmtFechaDMA(p.fecha_cese)}
+                        {p.motivo_cese && (
+                          // El texto sale del catálogo también cuando es
+                          // `por_revisar`: el desplegable de cese ya lo nombra
+                          // así, y dos formas de decir lo mismo en la misma
+                          // pantalla se contradicen a la primera. Lo único que
+                          // cambia es el ámbar, que dice «esto falta».
+                          <> · {p.motivo_cese === "por_revisar"
+                            ? <span className="text-ambar" title="Nadie registró por qué se fue. Edita su ficha y elige el motivo real.">
+                                {etiquetaDeCatalogo(p.motivo_cese, MOTIVO_CESE_LABELS)}
+                              </span>
+                            : etiquetaDeCatalogo(p.motivo_cese, MOTIVO_CESE_LABELS)}</>
                         )}
                       </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                    )}
+                  </td>
+                  <td className="px-4 py-2">{codigoSede(p.sede_base_id)}</td>
+                  {/* El CARGO manda sobre la etiqueta del rol (0182). El rol
+                      es un permiso —qué pantallas abre— y usarlo como título
+                      hacía que tres locadores figuraran como «Líder de equipo
+                      (encargada)» y «Admin». Cargo de mando, área, sede, rango
+                      y monto fijo son los indicios que desnaturalizan una
+                      locación de servicios, y el expediente lo armaba esta
+                      misma celda. Sin cargo escrito, se muestra el rol como
+                      siempre. */}
+                  <td className="px-4 py-2">
+                    {p.cargo !== null && p.cargo !== ""
+                      ? <span className="whitespace-nowrap">{p.cargo}</span>
+                      : (ROLES_OPCIONES.find((r) => r.valor === p.rol)?.label ?? p.rol)}
+                  </td>
+                  <td className="px-4 py-2">
+                    {esOperativaEn(areas, p.funcion)
+                      ? <span className="text-taupe">{areaCorto(areas, p.funcion)}</span>
+                      : (
+                        // "informativo" (pizarra) y no "advertencia" (ámbar):
+                        // no cuenta para la cobertura de tienda es un hecho
+                        // neutro de Central (administración/DO), no un aviso
+                        // de que algo está mal en la ficha de esa persona —
+                        // el ámbar aquí pintaba de "hay que revisar esto" a
+                        // gente cuya ficha está perfecta (hallazgo de la
+                        // auditoría de apariencia, 2026-09-06/07).
+                        <Insignia variante="informativo">{areaCorto(areas, p.funcion)}</Insignia>
+                      )}
+                  </td>
+                  {puedeSalarios && (() => {
+                    if (salariosEstado !== "ok") {
+                      // sin datos confiables no se ofrece Asignar/Editar (evita pisar salarios reales)
+                      return (
+                        <td className="px-4 py-2 text-xs text-taupe">
+                          {salariosEstado === "cargando" ? "Cargando…" : "No disponible"}
+                        </td>
+                      );
+                    }
+                    const sal = salarios[p.id];
+                    return (
+                      <td className="px-4 py-2">
+                        {sal ? (
+                          <span className="whitespace-nowrap">{RANGO_LABEL[sal.rango] ?? sal.rango} · {formatSoles(sal.salario)}</span>
+                        ) : (
+                          // text-taupe a plena opacidad (no /60): esta celda es
+                          // el dato por el que se abre la columna Salario — que
+                          // no tenga uno asignado es justo lo que hay que poder
+                          // leer, y menos de 4.5:1 no lo garantiza (auditoría
+                          // 2026-09-06/07).
+                          <span className="text-taupe">Sin asignar</span>
+                        )}
+                        <div className="mt-1 flex gap-3 text-xs">
+                          <button onClick={() => empezarSalario(p)} className="text-rojo hover:underline">{sal ? "Editar" : "Asignar"}</button>
+                          <button onClick={() => verHistorial(p)} className="text-taupe hover:underline">Historial</button>
+                        </div>
+                      </td>
+                    );
+                  })()}
+                  <td className="px-4 py-2">{p.email ?? <span className="text-taupe">—</span>}</td>
+                  <td className="px-4 py-2">
+                    <Insignia atenuada={p.estado !== "activo"}>{p.estado}</Insignia>
+                  </td>
+                  <td className="px-4 py-2">
+                    <div className="flex flex-wrap gap-2">
+                      <Boton variante="secundario" tamano="sm" onClick={() => empezarEdicion(p)}>Editar</Boton>
+                      {/* Solo a quien está activa: desde la 0364 el servidor
+                          rechaza regenerar el PIN de una persona inactiva, y
+                          no se ofrece un botón que solo puede terminar en un
+                          error. Si vuelve al equipo, «Reactivar» primero. */}
+                      {p.estado === "activo" && (
+                        <Boton variante="secundario" tamano="sm" onClick={() => regenerarPin(p)}>Nuevo PIN</Boton>
+                      )}
+                      {p.estado === "activo" ? (
+                        // «Registrar salida» y no «Desactivar»: lo que se hace
+                        // es anotar un hecho con su fecha y su motivo, no
+                        // apagar un interruptor.
+                        <Boton variante="peligro" tamano="sm" onClick={() => empezarCese(p)}>Registrar salida</Boton>
+                      ) : (
+                        <Boton variante="secundario" tamano="sm" onClick={() => setReactivarPendiente(p)}>Reactivar</Boton>
+                      )}
+                    </div>
+                  </td>
+                </Fila>
+              ))}
+            </tbody>
+          </Tabla>
         )}
 
         <p className="mt-4 max-w-2xl text-xs text-taupe">
-          Al agregar una persona o regenerar un PIN, el PIN aparece una sola vez en el aviso verde —
-          anótalo y entrégalo en privado. “Registrar salida” no borra nada: la persona deja de aparecer
+          Al agregar una persona o regenerar un PIN, el PIN aparece una sola vez en un panel arriba de
+          esta tabla: no se cierra solo, se copia con un botón y lo cierras tú cuando ya lo tengas
+          anotado. Entrégalo en privado. “Registrar salida” no borra nada: la persona deja de aparecer
           en el terminal pero su historial se conserva, y de la fecha que anotes salen su gratificación,
           su CTS y sus vacaciones truncas. Anotar el fin de contrato es otra cosa y no da de baja a
           nadie: es la fecha prevista de término, y está para avisar antes de que llegue.
         </p>
+
+        {/* Modal: reactivar (reemplaza window.confirm). Mismo
+            fn_reactivar_persona de siempre — ver confirmarReactivar. */}
+        <Modal
+          abierto={reactivarPendiente !== null}
+          onCerrar={() => setReactivarPendiente(null)}
+          titulo="Reactivar"
+          ancho="sm"
+        >
+          {reactivarPendiente && (
+            <>
+              <p className="mb-4 text-sm text-taupe">
+                ¿Reactivar a {reactivarPendiente.nombres} {reactivarPendiente.apellidos}? Se borra su fecha
+                de salida y vuelve a aparecer en el terminal. Ojo: si ya se le pagó una liquidación,
+                volvería a devengar desde su fecha de ingreso original.
+              </p>
+              <div className="flex justify-end gap-2">
+                <Boton variante="secundario" onClick={() => setReactivarPendiente(null)}>Cancelar</Boton>
+                <Boton variante="primario" onClick={() => void confirmarReactivar()}>Sí, reactivar</Boton>
+              </div>
+            </>
+          )}
+        </Modal>
       </main>
     </div>
   );

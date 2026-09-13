@@ -1,108 +1,75 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
+// El marco del panel: sidebar a la izquierda, barra superior arriba, y la
+// pantalla adentro.
+//
+// Hasta el 2026-09-07 esto era una BARRA HORIZONTAL que cada una de las ~30
+// pantallas renderizaba a mano (`<AdminNav/>`, a veces dos y tres veces por
+// archivo, una por cada rama de retorno temprano). Con treinta renglones, esa
+// barra envolvía en tres o cuatro filas y se comía ~145px de alto en todas las
+// pantallas; por debajo de 1280px desaparecía entera dentro de una hamburguesa,
+// que es un ancho de portátil normal. Ya se había intentado arreglar con scroll
+// horizontal (688e8e5) y se revirtió el mismo día (21591a7) porque escondía
+// ítems.
+//
+// Ahora vive UNA vez, en `(admin)/layout.tsx`. Eso es lo que permite que el
+// sidebar no se remonte al navegar — si se remontara perdería el plegado y
+// volvería a leer localStorage, o sea un parpadeo por pantalla. Y es también
+// por lo que existe `RUTAS_SIN_MARCO`: ese layout envuelve también al login y a
+// «nueva clave», donde todavía no hay sesión a la que preguntarle nada.
+//
+// Lo que NO cambió: los contadores siguen consultándose igual, con las mismas
+// RPC y las mismas dependencias `[rol, pathname]` — refrescarse en cada
+// navegación es su único mecanismo de actualización, y un contador de
+// Incidencias en frío es un reclamo sin leer con el periodo cerrándose.
+
+import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
+import { useClavePorCambiar } from "@/lib/admin/use-clave-por-cambiar";
+import { traerBandeja } from "@/lib/bandeja-mia";
+import { contarBandejaEquipoPendiente } from "@/lib/admin/bandeja-equipo";
+import { useGruposCerrados, useNavColapsado } from "@/lib/use-nav-colapsado";
 import { Marca } from "@/components/marca";
 import { AcusesPendientes } from "@/components/acuses-pendientes";
 import { BuscadorGlobal } from "@/components/buscador-global";
 import { AtajosTeclado } from "@/components/atajos-teclado";
 import { SelectorTema } from "@/components/selector-tema";
-import {
-  LayoutDashboard, Inbox, TriangleAlert, PencilLine, CalendarClock, Clock, Gauge,
-  Users, IdCard, TreePalm, Gavel, ReceiptText, PiggyBank, Target, LayoutGrid, KeyRound,
-  Building2, FileDown, FileText, FileSignature, CalendarCheck, Coins, Scale, GraduationCap, HandCoins,
-  BookText, UserRound, ScrollText, Keyboard,
-  LogOut, Menu, Search, X, type LucideIcon,
-} from "lucide-react";
-import { ROLES_CON_PANEL, ROLES_DO, puedeOperarEquipo } from "@cayla-dynamic/shared";
+import { SidebarAdmin } from "@/components/nav/sidebar-admin";
+import { CajonAdmin } from "@/components/nav/cajon-admin";
+import type { Contadores } from "@/components/nav/panel-navegacion";
+import { GRUPOS, RUTAS_SIN_MARCO, type Item } from "./nav-items";
+import { ROLES_DO, puedeOperarEquipo } from "@cayla-dynamic/shared";
+import { Keyboard, LogOut, Menu, Search } from "lucide-react";
 
-// Qué renglones del menú ve cada quien. Las listas vienen de `permisos.ts` — el
-// menú no vuelve a decidir quién es DO, solo lo consulta.
-const DO = ROLES_DO;
-const SEDE = ROLES_CON_PANEL;
-
-export type Item = { href: string; label: string; Icon: LucideIcon; roles?: readonly string[] };
-
-const GRUPOS: Array<{ label?: string; items: Item[] }> = [
-  { items: [
-    // «Lo mío» va sin `roles` y va PRIMERO: es lo único de este menú que habla de
-    // quien lo está mirando. Para una integrante es su pantalla —sus días, sus
-    // horas, sus tardanzas— y para DO es la suya, que también la tiene.
-    { href: "/mio", label: "Lo mío", Icon: UserRound },
-    // Con `roles` desde hoy. Antes iba sin filtro, así que una integrante con
-    // cuenta —las hay: se les invita para que acusen la política salarial (Ley
-    // 30709)— aterrizaba aquí y veía un tablero de encargada que su propia RLS
-    // le devuelve casi vacío. No era una fuga; era una pantalla que no es suya y
-    // que se lee como que el sistema no tiene datos.
-    { href: "/admin/dashboard", label: "Dashboard", Icon: LayoutDashboard, roles: SEDE },
-    // Junta en una sola vista los tres contadores de abajo (educación,
-    // ausencias, incidencias) — mismas RPC, mismo criterio de "por atender"
-    // que cada una ya usa por su cuenta. No lleva contador propio: sería un
-    // cuarto número compitiendo con los tres que ya explica, y el criterio de
-    // esta casa es que un aviso que aparece en todos lados deja de ser aviso.
-    { href: "/admin/bandeja", label: "Bandeja", Icon: Inbox, roles: SEDE },
-  ] },
-  { label: "Asistencia", items: [
-    { href: "/admin/incidencias", label: "Incidencias", Icon: TriangleAlert, roles: SEDE },
-    { href: "/admin/correcciones", label: "Correcciones", Icon: PencilLine, roles: SEDE },
-    { href: "/admin/turnos", label: "Turnos", Icon: CalendarClock, roles: SEDE },
-    { href: "/admin/horarios", label: "Horarios", Icon: Clock, roles: SEDE },
-    // La ruta sigue siendo /admin/horas —hay enlaces vivos— pero el nombre no
-    // decía lo que hay ahí: el desempeño de TODO el equipo, sin entrar a nadie.
-    // Con «Horas» el camino que se usaba era Equipo → persona → ficha → pestaña.
-    { href: "/admin/horas", label: "Desempeño", Icon: Gauge, roles: SEDE },
-  ] },
-  { label: "Personas", items: [
-    { href: "/admin/equipo", label: "Equipo", Icon: Users, roles: SEDE },
-    { href: "/admin/datos-personales", label: "Datos personales", Icon: IdCard, roles: SEDE },
-    { href: "/admin/objetivos", label: "Objetivos", Icon: Target, roles: SEDE },
-    { href: "/admin/disciplina", label: "Disciplina", Icon: Gavel, roles: SEDE },
-    { href: "/admin/documentacion", label: "Documentación", Icon: FileSignature, roles: DO },
-    { href: "/admin/contratos", label: "Contratos", Icon: ScrollText, roles: DO },
-    // Sin `roles` a propósito: la Ley 30709 obliga a INFORMAR la política salarial
-    // a todo el equipo, y un menú que solo ve la gerencia no informa a nadie.
-    { href: "/admin/politica-salarial", label: "Política salarial", Icon: Scale },
-    // Por lo mismo, y con más razón: el Reglamento Interno hay que entregarlo a
-    // todo el mundo y poder probarlo. Un menú que solo ve DO no entrega nada.
-    { href: "/admin/normas", label: "Normas", Icon: BookText },
-  ] },
-  { label: "Nómina", items: [
-    { href: "/admin/planilla", label: "Planilla", Icon: ReceiptText, roles: DO },
-    { href: "/admin/provisiones", label: "Provisiones", Icon: PiggyBank, roles: DO },
-    { href: "/admin/costos", label: "Costos", Icon: Coins, roles: DO },
-    { href: "/admin/liquidaciones", label: "Liquidaciones", Icon: HandCoins, roles: DO },
-    { href: "/admin/educacion", label: "Educación", Icon: GraduationCap, roles: DO },
-    { href: "/admin/ausencias", label: "Ausencias", Icon: TreePalm, roles: SEDE },
-    { href: "/admin/feriados", label: "Feriados", Icon: CalendarCheck, roles: DO },
-  ] },
-  { label: "Gestión", items: [
-    { href: "/admin/areas", label: "Áreas", Icon: LayoutGrid, roles: DO },
-    { href: "/admin/sedes", label: "Sedes", Icon: Building2, roles: DO },
-    { href: "/admin/reporte-sede", label: "Hoja de sede", Icon: FileText, roles: SEDE },
-    { href: "/admin/cuentas", label: "Cuentas", Icon: KeyRound },
-    { href: "/admin/exportar", label: "Exportar CSV", Icon: FileDown },
-  ] },
-];
-
-// El perfil de una persona (/admin/personas/[id]) se entra desde Equipo, así que
-// mientras estás en él, resaltamos "Equipo" para no dejar la ubicación huérfana.
-function esActivo(pathname: string, href: string): boolean {
-  if (pathname === href) return true;
-  if (href === "/admin/equipo" && pathname.startsWith("/admin/personas")) return true;
-  // Vacaciones se absorbió en Ausencias (0101); el enlace viejo sigue llevando allí.
-  if (href === "/admin/ausencias" && pathname === "/admin/vacaciones") return true;
-  return false;
+/**
+ * El marco del panel. Lo monta `(admin)/layout.tsx` una sola vez.
+ *
+ * Se parte en dos porque los ganchos no pueden ser condicionales: en las rutas
+ * sin sesión no queremos que corra el guardia de clave ni las tres consultas de
+ * contadores, y la única forma limpia de no correrlos es no montar el
+ * componente que los tiene.
+ */
+export function MarcoAdmin({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname() ?? "";
+  if (RUTAS_SIN_MARCO.includes(pathname)) return <>{children}</>;
+  return <MarcoConChrome pathname={pathname}>{children}</MarcoConChrome>;
 }
 
-export function AdminNav() {
-  const pathname = usePathname();
+function MarcoConChrome({ pathname, children }: { pathname: string; children: React.ReactNode }) {
   const router = useRouter();
+  // Antes que cualquier otra cosa: si esta cuenta entró con una clave que le
+  // dictaron o con una que ya no cumple la política, de acá no se pasa.
+  useClavePorCambiar();
   const persona = usePersonaActual();
   const rol = persona?.rol ?? null;
-  const [abierto, setAbierto] = useState(false);
+
+  const { modo, expandido, alternar } = useNavColapsado();
+  const { cerrados, alternarGrupo } = useGruposCerrados();
+  const [cajonAbierto, setCajonAbierto] = useState(false);
+  const hamburguesa = useRef<HTMLButtonElement>(null);
+
   // TRES contadores, y ninguno más. El comentario original decía «el único, y a
   // propósito: un aviso que aparece en todos lados deja de ser un aviso». Esa
   // regla sigue en pie; lo que pasó es que aparecieron dos cosas más que cumplen
@@ -120,15 +87,44 @@ export function AdminNav() {
   //                 periodo cierra con el reclamo sin leer, ya es plata mal
   //                 pagada y hay que reabrir el mes para arreglarlo.
   //
-  // Antes de agregar un cuarto: la pregunta no es «¿es importante?», es «¿tiene
-  // fecha límite y cuesta plata pasarla?». Casi nada la pasa.
+  // Antes de agregar un cuarto DE EQUIPO: la pregunta no es «¿es importante?»,
+  // es «¿tiene fecha límite y cuesta plata pasarla?». Casi nada la pasa.
+  //
+  // El de «Info» (2026-09-08) no compite con estos tres y por eso entra:
+  // los tres de arriba hablan del EQUIPO —lo que a esta persona le toca
+  // atender— y aquel habla de ELLA: su contrato sin firmar, su constancia de
+  // ley pendiente. Quien pasa el día en el panel no tenía forma de enterarse.
+  //
+  // El de «Bandeja» (2026-09-12) tampoco compite con estos tres, por una razón
+  // distinta a la de «Info»: no es un CUARTO criterio, es la UNIÓN de todos.
+  // `/admin/bandeja` junta hoy nueve secciones (ver lib/admin/bandeja-equipo.ts)
+  // y solo tres —las de arriba— tenían aviso en algún renglón del menú. Las
+  // otras seis (sin horario vigente, revisión de ruta, revisión de contrato,
+  // solicitudes de vacaciones, solicitudes de cambio de perfil, salud del
+  // despacho de avisos) no encendían nada en ningún lado: pasaban la MISMA
+  // vara de arriba —cuestan plata o un plazo legal si nadie las mira a
+  // tiempo— y aun así eran invisibles fuera de esa pantalla. El bolito de
+  // Bandeja es la única señal de esas seis; que también sume las tres de
+  // arriba no es una copia, es que la Bandeja de verdad las contiene.
   const [educacionPorAtender, setEducacionPorAtender] = useState(0);
   const [vacacionesPorAtender, setVacacionesPorAtender] = useState(0);
   const [revisionesPendientes, setRevisionesPendientes] = useState(0);
+  const [misAvisos, setMisAvisos] = useState(0);
+  const [bandejaPendiente, setBandejaPendiente] = useState(0);
   const [buscadorAbierto, setBuscadorAbierto] = useState(false);
   const [ayudaAbierta, setAyudaAbierta] = useState(false);
 
-  useEffect(() => { setAbierto(false); }, [pathname]);
+  // Al navegar, el cajón se cierra. Se ajusta durante el render y no en un
+  // efecto —el patrón que React documenta para esto y que `buscador-global.tsx`
+  // ya usa con `abiertoAntes`— porque acá no hay nada que sincronizar con el
+  // exterior: solo un valor que depende de si el pathname acaba de cambiar.
+  // Tocar un renglón ya lo cierra por su cuenta (`onNavegar`); esto cubre lo
+  // demás, como volver con el botón atrás del navegador.
+  const [pathnameAnterior, setPathnameAnterior] = useState(pathname);
+  if (pathname !== pathnameAnterior) {
+    setPathnameAnterior(pathname);
+    setCajonAbierto(false);
+  }
 
   // ⌘K / Ctrl+K abre el buscador desde cualquier pantalla del panel, escribiendo
   // o no. No se guarda "cerrado antes" en ningún lado: cada apertura arranca
@@ -144,26 +140,34 @@ export function AdminNav() {
     return () => window.removeEventListener("keydown", alPresionar);
   }, []);
 
+  // Quién tiene derecho a cada contador. Se calcula acá arriba, una vez, y no
+  // dentro de cada efecto poniendo el número en cero: reponer el cero era un
+  // `setState` síncrono dentro del efecto (tres veces), y además dejaba pasar
+  // un fotograma con el número viejo de la sesión anterior antes de borrarlo.
+  // Derivado, el número simplemente no existe para quien no lo puede ver.
+  const veEducacion = ROLES_DO.includes(rol ?? "");
+  // La de vacaciones la ve también la encargada: es quien arma el calendario de
+  // su tienda. La función ya devuelve solo lo que a cada rol le toca, así que
+  // acá no se vuelve a decidir quién ve qué.
+  const veEquipo = puedeOperarEquipo(rol);
+
   useEffect(() => {
-    if (!ROLES_DO.includes(rol ?? "")) { setEducacionPorAtender(0); return; }
+    if (!veEducacion) return;
     let vivo = true;
     void createAdminSupabaseClient()
       .rpc("fn_educacion_por_atender")
       .then(({ data }) => { if (vivo) setEducacionPorAtender(Number(data) || 0); });
     return () => { vivo = false; };
-  }, [rol, pathname]);
+  }, [veEducacion, pathname]);
 
-  // La de vacaciones la ve también la encargada: es quien arma el calendario de
-  // su tienda. La función ya devuelve solo lo que a cada rol le toca, así que
-  // acá no se vuelve a decidir quién ve qué.
   useEffect(() => {
-    if (!puedeOperarEquipo(rol)) { setVacacionesPorAtender(0); return; }
+    if (!veEquipo) return;
     let vivo = true;
     void createAdminSupabaseClient()
       .rpc("fn_vacaciones_por_atender")
       .then(({ data }) => { if (vivo) setVacacionesPorAtender(Number(data) || 0); });
     return () => { vivo = false; };
-  }, [rol, pathname]);
+  }, [veEquipo, pathname]);
 
   // Las revisiones pedidas las ve quien puede atenderlas: encargada de sede y
   // DO, o sea los mismos roles que ven Incidencias. No lleva función de conteo
@@ -175,7 +179,7 @@ export function AdminNav() {
     // son el mismo conjunto (DO_Y_ENCARGADA, permisos.ts:89,132). Se pregunta por
     // la función y no por la lista, que es lo que manda la primera regla de
     // packages/shared — y de paso se evita el cast.
-    if (!puedeOperarEquipo(rol)) { setRevisionesPendientes(0); return; }
+    if (!veEquipo) return;
     let vivo = true;
     void createAdminSupabaseClient()
       .rpc("fn_revisiones_pedidas", { p_solo_pendientes: true })
@@ -183,7 +187,37 @@ export function AdminNav() {
         if (vivo) setRevisionesPendientes(Array.isArray(data) ? data.length : 0);
       });
     return () => { vivo = false; };
-  }, [rol, pathname]);
+  }, [veEquipo, pathname]);
+
+  // El total de la Bandeja del equipo (ver lib/admin/bandeja-equipo.ts): la
+  // unión de las nueve secciones que esa pantalla junta, no solo las tres de
+  // arriba. Se gatea con `veEquipo` porque es la misma condición con la que el
+  // propio ítem «Bandeja» decide si se pinta (`roles: SEDE` en nav-items.ts);
+  // dentro de la función cada sección vuelve a preguntar su propio permiso,
+  // así que una encargada sin acceso a Educación no la cuenta dos veces.
+  useEffect(() => {
+    if (!veEquipo) return;
+    let vivo = true;
+    void contarBandejaEquipoPendiente(createAdminSupabaseClient(), rol)
+      .then((n) => { if (vivo) setBandejaPendiente(n); });
+    return () => { vivo = false; };
+  }, [veEquipo, rol, pathname]);
+
+  // Lo suyo. Sale de `traerBandeja`, la MISMA función que pinta el número del
+  // botón «Bandeja» de /mio: el menú del panel y esa pantalla no pueden decir
+  // dos números distintos de lo mismo.
+  //
+  // Sin `roles`, como el propio ítem «Info»: todo el mundo tiene un
+  // contrato y una constancia que dejar, incluida DO. Y falla en silencio —si
+  // no se pudo contar, el renglón sale sin número—, igual que en /mio.
+  useEffect(() => {
+    const id = persona?.id;
+    if (!id) return;
+    let vivo = true;
+    void traerBandeja(createAdminSupabaseClient(), id)
+      .then(({ bandeja }) => { if (vivo) setMisAvisos(bandeja.avisos); });
+    return () => { vivo = false; };
+  }, [persona?.id, pathname]);
 
   async function cerrarSesion() {
     const supabase = createAdminSupabaseClient();
@@ -196,136 +230,136 @@ export function AdminNav() {
     .map((g) => ({ ...g, items: g.items.filter(visible) }))
     .filter((g) => g.items.length > 0);
 
-  return (
-    <header className="border-b border-sand">
-      <div className="flex items-center justify-between px-4 py-3 sm:px-6">
-        <div className="flex min-w-0 items-center gap-6 xl:gap-8">
-          <Marca tono="tinta" isotipo="rojo" />
-          {/* Barra horizontal — desktop. Grupos separados por un divisor sutil. */}
-          <nav className="hidden flex-wrap items-center gap-x-2 gap-y-1 text-sm xl:flex">
-            {grupos.map((g, gi) => (
-              <div key={gi} className="flex items-center gap-x-0.5">
-                {gi > 0 && <span aria-hidden className="mx-1.5 h-3.5 w-px bg-sand" />}
-                {g.items.map((it) => (
-                  <Link key={it.href} href={it.href}
-                    className={`flex items-center gap-1.5 rounded-md px-2 py-1 transition active:scale-[0.97] ${
-                      esActivo(pathname, it.href) ? "bg-sand/60 font-medium text-tinta" : "text-taupe hover:bg-sand/40 hover:text-rojo active:bg-sand/60 active:text-rojo-profundo"}`}>
-                    <it.Icon size={15} strokeWidth={1.8} aria-hidden />
-                    {it.label}
-                    {it.href === "/admin/educacion" && educacionPorAtender > 0 && (
-                      <span
-                        className="ml-0.5 rounded-full bg-rojo px-1.5 text-[10px] font-medium leading-4 text-crema"
-                        title={`${educacionPorAtender} asignación(es) sin comprobante o por vencer`}
-                      >
-                        {educacionPorAtender}
-                      </span>
-                    )}
-                    {it.href === "/admin/ausencias" && vacacionesPorAtender > 0 && (
-                      <span
-                        className="ml-0.5 rounded-full bg-rojo px-1.5 text-[10px] font-medium leading-4 text-crema"
-                        title={`${vacacionesPorAtender} récord(s) de vacaciones que vencen dentro de 60 días`}
-                      >
-                        {vacacionesPorAtender}
-                      </span>
-                    )}
-                    {it.href === "/admin/incidencias" && revisionesPendientes > 0 && (
-                      <span
-                        className="ml-0.5 rounded-full bg-rojo px-1.5 text-[10px] font-medium leading-4 text-crema"
-                        title={`${revisionesPendientes} persona(s) pidieron que se revise un día suyo`}
-                      >
-                        {revisionesPendientes}
-                      </span>
-                    )}
-                  </Link>
-                ))}
-              </div>
-            ))}
-          </nav>
-        </div>
+  // Los textos son los mismos `title` que llevaban los badges de la barra vieja.
+  // El `? … : 0` es lo que reemplaza al viejo «reponer el cero» de cada efecto:
+  // quien no tiene el permiso no ve el número, aunque lo tuviera en memoria de
+  // una sesión anterior en esta misma pestaña.
+  const educacion = veEducacion ? educacionPorAtender : 0;
+  const vacaciones = veEquipo ? vacacionesPorAtender : 0;
+  const revisiones = veEquipo ? revisionesPendientes : 0;
+  const bandeja = veEquipo ? bandejaPendiente : 0;
 
-        <div className="flex items-center gap-3">
-          {persona && (
-            <span className="hidden text-sm text-taupe xl:inline" title="Sesión activa">
-              {persona.nombreCompleto}
-            </span>
-          )}
-          <button onClick={cerrarSesion}
-            className="hidden items-center gap-1.5 text-sm text-taupe transition hover:text-rojo active:scale-[0.97] active:text-rojo-profundo xl:flex">
-            <LogOut size={15} strokeWidth={1.8} aria-hidden /> Cerrar sesión
+  const contadores: Contadores = {
+    educacion: {
+      n: educacion,
+      titulo: `${educacion} asignación(es) sin comprobante o por vencer`,
+    },
+    vacaciones: {
+      n: vacaciones,
+      titulo: `${vacaciones} récord(s) de vacaciones que vencen dentro de 60 días`,
+    },
+    revisiones: {
+      n: revisiones,
+      titulo: `${revisiones} persona(s) pidieron que se revise un día suyo`,
+    },
+    bandeja: {
+      n: bandeja,
+      titulo: `${bandeja} cosa(s) pendiente(s) en la Bandeja del equipo`,
+    },
+    mio: {
+      n: misAvisos,
+      titulo: `${misAvisos} cosa(s) tuyas: lo que te falta hacer y lo que te respondieron`,
+    },
+  };
+
+  return (
+    <div className="flex w-full flex-1">
+      {/* Con treinta enlaces por delante del contenido en el DOM, tabular desde
+          el inicio pasaba por los treinta antes de llegar a la página. */}
+      <a
+        href="#contenido"
+        className="sr-only rounded-control bg-tinta px-4 py-2 text-sm text-crema focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[70]"
+      >
+        Saltar al contenido
+      </a>
+
+      <SidebarAdmin
+        grupos={grupos}
+        pathname={pathname}
+        contadores={contadores}
+        modo={modo}
+        expandido={expandido}
+        onAlternar={alternar}
+        cerrados={cerrados}
+        onAlternarGrupo={alternarGrupo}
+      />
+
+      <CajonAdmin
+        abierto={cajonAbierto}
+        onCerrar={() => setCajonAbierto(false)}
+        grupos={grupos}
+        pathname={pathname}
+        contadores={contadores}
+        nombre={persona?.nombreCompleto}
+        onCerrarSesion={cerrarSesion}
+        volverElFocoA={hamburguesa}
+        cerrados={cerrados}
+        onAlternarGrupo={alternarGrupo}
+      />
+
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center gap-3 border-b border-sand bg-crema px-4 sm:px-6 print:hidden">
+          {/* Un cuadrado RELLENO en tinta, no uno con borde `sand`, desde el
+              2026-09-11: el borde sand da 1.16:1 sobre crema y a la vista era
+              un icono flotando — se probó con gente en el menú de «Lo mío»,
+              que es la misma receta, y no lo encontraban. Se cambian los dos a
+              la vez porque son la misma pieza vista desde dos superficies. */}
+          <button
+            ref={hamburguesa}
+            onClick={() => setCajonAbierto(true)}
+            aria-label="Abrir menú"
+            aria-expanded={cajonAbierto}
+            className="rounded-control bg-tinta p-2 text-crema transition-colors duration-150 hover:bg-rojo active:scale-[0.97] md:hidden"
+          >
+            <Menu size={20} strokeWidth={1.8} aria-hidden />
           </button>
-          <button onClick={() => setBuscadorAbierto(true)} aria-label="Buscar"
-            className="flex items-center gap-1.5 rounded-md border border-sand px-2.5 py-1.5 text-sm text-taupe transition hover:border-taupe/40 hover:bg-sand/30 hover:text-rojo active:scale-[0.97] active:text-rojo-profundo">
-            <Search size={15} strokeWidth={1.8} aria-hidden />
-            <span className="hidden xl:inline">Buscar</span>
-            <kbd className="hidden rounded border border-sand bg-sand/50 px-1 font-sans text-[10px] text-taupe xl:inline">⌘K</kbd>
-          </button>
-          <button onClick={() => setAyudaAbierta(true)} aria-label="Atajos de teclado" title="Atajos de teclado (?)"
-            className="hidden rounded-md border border-sand p-1.5 text-taupe transition hover:border-taupe/40 hover:bg-sand/30 hover:text-rojo active:scale-[0.97] active:text-rojo-profundo xl:flex">
-            <Keyboard size={15} strokeWidth={1.8} aria-hidden />
-          </button>
-          <SelectorTema />
-          <button onClick={() => setAbierto((a) => !a)}
-            aria-label={abierto ? "Cerrar menú" : "Abrir menú"} aria-expanded={abierto}
-            className="rounded-lg border border-sand p-2 text-tinta transition hover:border-taupe/40 hover:bg-sand/40 active:scale-[0.97] active:bg-sand/60 xl:hidden">
-            {abierto ? <X size={20} strokeWidth={1.8} /> : <Menu size={20} strokeWidth={1.8} />}
-          </button>
+
+          {/* De 768px para arriba la marca vive en la cabecera del sidebar; acá
+              solo aparece cuando ese sidebar no está. */}
+          <Marca tono="tinta" isotipo="rojo" className="md:hidden" />
+
+          <div className="ml-auto flex shrink-0 items-center gap-3">
+            {persona && (
+              <span className="hidden text-sm text-taupe md:inline" title="Sesión activa">
+                {persona.nombreCompleto}
+              </span>
+            )}
+            <button
+              onClick={cerrarSesion}
+              className="hidden items-center gap-1.5 text-sm text-taupe transition-colors duration-150 hover:text-rojo active:scale-[0.97] active:text-rojo-profundo md:flex"
+            >
+              <LogOut size={15} strokeWidth={1.8} aria-hidden /> Cerrar sesión
+            </button>
+            <button
+              onClick={() => setBuscadorAbierto(true)}
+              aria-label="Buscar"
+              className="flex items-center gap-1.5 rounded-control border border-sand px-2.5 py-1.5 text-sm text-taupe transition-colors duration-150 hover:border-taupe/40 hover:bg-sand/30 hover:text-rojo active:scale-[0.97] active:text-rojo-profundo"
+            >
+              <Search size={15} strokeWidth={1.8} aria-hidden />
+              <span className="hidden sm:inline">Buscar</span>
+              <kbd className="hidden rounded border border-sand bg-sand/50 px-1 font-sans text-[10px] text-taupe sm:inline">⌘K</kbd>
+            </button>
+            <button
+              onClick={() => setAyudaAbierta(true)}
+              aria-label="Atajos de teclado"
+              title="Atajos de teclado (?)"
+              className="hidden rounded-control border border-sand p-1.5 text-taupe transition-colors duration-150 hover:border-taupe/40 hover:bg-sand/30 hover:text-rojo active:scale-[0.97] active:text-rojo-profundo md:flex"
+            >
+              <Keyboard size={15} strokeWidth={1.8} aria-hidden />
+            </button>
+            <SelectorTema />
+          </div>
+        </header>
+
+        <AcusesPendientes />
+
+        <div id="contenido" tabIndex={-1} className="flex min-w-0 flex-1 flex-col outline-none">
+          {children}
         </div>
       </div>
 
-      {/* Menú desplegable móvil — vertical, con títulos de grupo e íconos. */}
-      {abierto && (
-        <nav className="border-t border-sand px-4 pb-4 pt-1 sm:px-6 xl:hidden">
-          {grupos.map((g, gi) => (
-            <div key={gi}>
-              {g.label && (
-                <p className="px-3 pb-1 pt-3 text-[11px] uppercase tracking-wider text-taupe">{g.label}</p>
-              )}
-              <div className="grid gap-0.5">
-                {g.items.map((it) => (
-                  <Link key={it.href} href={it.href}
-                    className={`flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm transition active:scale-[0.97] ${
-                      esActivo(pathname, it.href)
-                        ? "bg-sand/60 font-medium text-tinta"
-                        : "text-taupe hover:bg-sand/40 hover:text-rojo active:bg-sand/60 active:text-rojo-profundo"}`}>
-                    <it.Icon size={17} strokeWidth={1.8} aria-hidden />
-                    {it.label}
-                    {it.href === "/admin/educacion" && educacionPorAtender > 0 && (
-                      <span className="ml-auto rounded-full bg-rojo px-2 text-xs font-medium leading-5 text-crema">
-                        {educacionPorAtender}
-                      </span>
-                    )}
-                    {it.href === "/admin/ausencias" && vacacionesPorAtender > 0 && (
-                      <span className="ml-auto rounded-full bg-rojo px-2 text-xs font-medium leading-5 text-crema">
-                        {vacacionesPorAtender}
-                      </span>
-                    )}
-                    {it.href === "/admin/incidencias" && revisionesPendientes > 0 && (
-                      <span className="ml-auto rounded-full bg-rojo px-2 text-xs font-medium leading-5 text-crema">
-                        {revisionesPendientes}
-                      </span>
-                    )}
-                  </Link>
-                ))}
-              </div>
-            </div>
-          ))}
-          {persona && (
-            <p className="mt-3 px-3 text-xs text-taupe" title="Sesión activa">
-              Sesión: {persona.nombreCompleto}
-            </p>
-          )}
-          <button onClick={cerrarSesion}
-            className="mt-2 flex w-full items-center gap-2.5 rounded-lg border border-sand px-3 py-2.5 text-left text-sm text-taupe transition hover:border-rojo/30 hover:text-rojo active:scale-[0.97] active:text-rojo-profundo">
-            <LogOut size={17} strokeWidth={1.8} aria-hidden /> Cerrar sesión
-          </button>
-        </nav>
-      )}
-      {/* Va aquí y no en el layout porque el layout envuelve también el login y
-          «nueva clave», donde todavía no hay sesión a la que preguntarle nada.
-          Este menú, en cambio, solo lo pinta una pantalla real del panel. */}
-      <AcusesPendientes />
       <BuscadorGlobal grupos={grupos} abierto={buscadorAbierto} onCerrar={() => setBuscadorAbierto(false)} />
       <AtajosTeclado grupos={grupos} abierto={ayudaAbierta} setAbierto={setAyudaAbierta} />
-    </header>
+    </div>
   );
 }

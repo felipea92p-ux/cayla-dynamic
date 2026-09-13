@@ -4,9 +4,11 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { parseAreas, esOperativaEn, AREA_DEFAULT, type Area } from "@/lib/areas";
-import { AdminNav } from "../nav";
 import { Marca } from "@/components/marca";
 import { Cargando } from "@/components/cargando";
+import { Boton } from "@/components/ui/boton";
+import { Campo, CampoSelect } from "@/components/ui/campo";
+import { Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { traerTodo } from "@/lib/admin/traer-todo";
 import { loQueNoSePudo, sePuedeEntregar } from "@/lib/admin/lo-que-no-se-pudo";
@@ -84,6 +86,18 @@ function ReporteSedeContenido() {
    * falta se NOTE en vez de rellenarse.
    */
   const [noSePudo, setNoSePudo] = useState<string[]>([]);
+  /**
+   * Por qué no se pudo elegir ninguna sede, cuando la consulta SÍ contestó.
+   *
+   * Dos caminos distintos y los dos terminaban igual de mudos (hallazgo 31 de
+   * la auditoría del 2026-09-03/04): llegar con un `?sede=CODIGO` que no está
+   * entre las activas —Sedes ofrecía «Hoja» también en las filas inactivas— o
+   * que no haya ninguna sede activa. En los dos casos nunca se fijaba `sedeId`,
+   * `cargar()` salía por su primera línea y la pantalla se quedaba en blanco:
+   * ni datos ni error. `codigo` es el que venía en la dirección, o null cuando
+   * el problema es que la lista está vacía.
+   */
+  const [sedeNoElegible, setSedeNoElegible] = useState<{ codigo: string | null } | null>(null);
 
   // Cargar sedes (para el selector). Pre-selecciona la del ?sede=CODIGO si viene.
   useEffect(() => {
@@ -100,9 +114,24 @@ function ReporteSedeContenido() {
       }
       const lista = (data as Sede[]) ?? [];
       setSedes(lista);
-      const cod = searchParams.get("sede")?.toUpperCase();
+      const cod = searchParams.get("sede")?.toUpperCase() ?? null;
       const pre = cod ? lista.find((s) => s.codigo === cod) : lista[0];
-      if (pre) setSedeId(pre.id);
+      if (pre) { setSedeId(pre.id); setSedeNoElegible(null); return; }
+      // Y si no hay a quién preseleccionar, se dice — nunca se cae al primero
+      // de la lista: la dirección pedía una sede concreta, y contestar con otra
+      // sería peor que no contestar. El papel lleva el nombre de la sede.
+      //
+      // Se apaga además lo que hubiera cargado antes. Este efecto depende de
+      // `searchParams`, así que vuelve a correr sin recargar la página (una
+      // dirección escrita a mano, un marcador viejo, atrás/adelante): si la hoja
+      // de OTRA sede seguía montada, quedaba entera debajo del aviso, con
+      // «Descargar PDF» habilitado — un papel con el nombre de una sede y un
+      // aviso que nombra otra. Con `sedeId` vacío no se recarga nada, la hoja no
+      // se pinta, el botón queda deshabilitado y el desplegable cae en «Elegir
+      // sede…».
+      setSedeId("");
+      setCargado(false);
+      setSedeNoElegible({ codigo: cod });
     })();
   }, [supabase, router, searchParams]);
 
@@ -123,8 +152,14 @@ function ReporteSedeContenido() {
       { data: tardResumen, error: errTard },
       { data: faltasResumen, error: errFaltas },
     ] = await Promise.all([
+      // Mismo criterio del dashboard (7afe8e5): un practicante trabaja en la
+      // sede y tiene que salir en su hoja, aunque el escalafón disciplinario
+      // (fn_tardanzas_resumen/fn_faltas_resumen, más abajo) lo siga
+      // excluyendo — esta hoja solo lo muestra, no lo sanciona.
       supabase.from("personas").select("id, nombres, apellidos, rol, sede_base_id")
-        .eq("estado", "activo").eq("en_planilla", true).eq("sueldo_fijo", false).eq("sede_base_id", sedeId).order("nombres"),
+        .eq("estado", "activo")
+        .or("en_planilla.eq.true,tipo_vinculo.eq.practicante")
+        .eq("sueldo_fijo", false).eq("sede_base_id", sedeId).order("nombres"),
       // Por lotes: sin esto PostgREST cortaba en 1000 filas en silencio y la
       // hoja de sede salía con horas y tardanzas de menos.
       traerTodo<{ persona_id: string; fecha: string; estado: string; minutos_tarde: number | null; horas_trabajadas: number | null }>(
@@ -240,10 +275,7 @@ function ReporteSedeContenido() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <div className="print:hidden">
-        <AdminNav />
-      </div>
+    <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6 sm:p-8 print:p-0">
         {/* Controles — no salen en el PDF */}
         <div className="mb-6 flex flex-wrap items-end justify-between gap-4 print:hidden">
@@ -252,26 +284,39 @@ function ReporteSedeContenido() {
             <p className="mt-1 text-sm text-taupe">El estado de una sede en una página: hoy, el periodo elegido y lo que necesita atención.</p>
           </div>
           <div className="flex flex-wrap items-end gap-3">
-            <label className="flex flex-col gap-1 text-sm">Sede
-              <select value={sedeId} onChange={(e) => { setSedeId(e.target.value); setCargado(false); }} className="min-w-40 rounded-xl border border-sand bg-crema px-3 py-2">
-                {sedes.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
-              </select>
-            </label>
-            <label className="flex flex-col gap-1 text-sm">Desde
-              <input type="date" value={desde} max={hasta}
-                onChange={(e) => { const v = e.target.value; setDesde(v); if (v > hasta) setHasta(v); setCargado(false); }}
-                className="rounded-xl border border-sand bg-crema px-3 py-2" />
-            </label>
-            <label className="flex flex-col gap-1 text-sm">Hasta
-              <input type="date" value={hasta} min={desde} max={hoy}
-                onChange={(e) => { const v = e.target.value; setHasta(v); if (v < desde) setDesde(v); setCargado(false); }}
-                className="rounded-xl border border-sand bg-crema px-3 py-2" />
-            </label>
+            <CampoSelect
+              etiqueta="Sede"
+              value={sedeId}
+              onChange={(e) => { setSedeId(e.target.value); setSedeNoElegible(null); setCargado(false); }}
+              className="min-w-40"
+            >
+              {/* Sin sede elegida el desplegable mostraría la primera de la lista
+                  mientras `sedeId` sigue vacío: se vería una sede que no es la que
+                  se está mirando. Esta opción hace visible que no hay ninguna. */}
+              {!sedeId && <option value="" disabled>Elegir sede…</option>}
+              {sedes.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+            </CampoSelect>
+            <Campo
+              etiqueta="Desde"
+              type="date"
+              value={desde}
+              max={hasta}
+              onChange={(e) => { const v = e.target.value; setDesde(v); if (v > hasta) setHasta(v); setCargado(false); }}
+            />
+            <Campo
+              etiqueta="Hasta"
+              type="date"
+              value={hasta}
+              min={desde}
+              max={hoy}
+              onChange={(e) => { const v = e.target.value; setHasta(v); if (v < desde) setDesde(v); setCargado(false); }}
+            />
             {/* Sin todos los datos NO se imprime. El papel se firma y se lleva a
                 la sede: un cero que en realidad es «no se pudo consultar» dice por
                 escrito que esa persona no trabajó. */}
-            <button onClick={() => window.print()} disabled={!sePuedeEntregar(cargado, noSePudo)}
-              className="rounded-xl bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50">Descargar PDF</button>
+            <Boton variante="primario" onClick={() => window.print()} disabled={!sePuedeEntregar(cargado, noSePudo)}>
+              Descargar PDF
+            </Boton>
           </div>
         </div>
 
@@ -285,6 +330,31 @@ function ReporteSedeContenido() {
             <p className="mt-1 text-tinta">
               No se pudo traer {noSePudo.join(", ")}. Lo que falta aparece abajo como cero o como raya, y
               eso <strong>no significa que no ocurriera</strong>. Vuelve a cargar; si sigue igual, avisa.
+            </p>
+          </div>
+        )}
+
+        {/* La sede que pedía la dirección no está entre las activas — o no hay
+            ninguna. Se dice con todas las letras: antes esto era una pantalla en
+            blanco, que se lee como «esta sede no tiene nada» y no como «esta sede
+            no está». Se imprime igual que el aviso de arriba, por si alguien fuerza
+            ⌘P: el papel tiene que decir por qué salió vacío. */}
+        {sedeNoElegible && (
+          <div className="mb-6 max-w-3xl rounded-2xl border border-ambar/40 bg-ambar/[0.06] p-4 text-sm">
+            {/* El título no dice «no está activa»: la consulta trae SOLO las
+                activas, así que la pantalla no puede distinguir «desactivada» de
+                «ese código no existe». Afirmar la primera manda a buscar en
+                Sedes una sede que quizá nunca existió. El cuerpo nombra las dos
+                causas, que es todo lo que se sabe de verdad. */}
+            <div className="font-medium text-tinta">
+              {sedeNoElegible.codigo
+                ? `No se puede armar la hoja de ${sedeNoElegible.codigo}`
+                : "No hay ninguna sede activa"}
+            </div>
+            <p className="mt-1 text-taupe">
+              {sedeNoElegible.codigo
+                ? "Esta hoja solo se arma para sedes activas, y ese código no existe o está desactivado. Elígela en el selector de esta pantalla si aparece, o revísala en Sedes."
+                : "Esta hoja se arma sobre una sede activa y ahora mismo no hay ninguna. Se activa una en Sedes."}
             </p>
           </div>
         )}
@@ -328,34 +398,30 @@ function ReporteSedeContenido() {
             {/* EL PERIODO */}
             <section className="mb-6 print:break-inside-avoid">
               <h3 className="mb-2 font-serif text-lg">El periodo · {rango}</h3>
-              <div className="overflow-x-auto rounded-2xl border border-sand bg-papel">
-                <table className="w-full text-sm [font-variant-numeric:tabular-nums]">
-                  <thead className="bg-sand/70 text-left text-taupe">
-                    <tr>
-                      <th className="px-4 py-2.5 font-medium">Nombre</th>
-                      <th className="px-4 py-2.5 font-medium">Días</th>
-                      <th className="px-4 py-2.5 font-medium">Horas</th>
-                      <th className="px-4 py-2.5 font-medium">Tardanzas</th>
-                      <th className="px-4 py-2.5 font-medium">Min. tarde</th>
-                      <th className="px-4 py-2.5 font-medium">Sal. antic.</th>
+              <Tabla className="[font-variant-numeric:tabular-nums]">
+                <TablaEncabezado>
+                  <Th>Nombre</Th>
+                  <Th>Días</Th>
+                  <Th>Horas</Th>
+                  <Th>Tardanzas</Th>
+                  <Th>Min. tarde</Th>
+                  <Th>Sal. antic.</Th>
+                </TablaEncabezado>
+                <tbody>
+                  {filas.length === 0 ? (
+                    <tr><td colSpan={6} className="px-4 py-6 text-center text-taupe">Sin gente asignada a esta sede.</td></tr>
+                  ) : filas.slice().sort((a, b) => b.horas - a.horas).map((f) => (
+                    <tr key={f.personaId} className="border-t border-sand">
+                      <td className="px-4 py-2.5">{f.nombre}</td>
+                      <td className="px-4 py-2.5">{f.dias}</td>
+                      <td className="px-4 py-2.5 font-medium">{fmtHoras(f.horas)}</td>
+                      <td className="px-4 py-2.5">{f.tardanzas > 0 ? <span className="text-rojo">{f.tardanzas}</span> : <span className="text-taupe/40">—</span>}</td>
+                      <td className="px-4 py-2.5">{f.minTarde > 0 ? `${f.minTarde} min` : <span className="text-taupe/40">—</span>}</td>
+                      <td className="px-4 py-2.5">{f.salidasTemp > 0 ? f.salidasTemp : <span className="text-taupe/40">—</span>}</td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {filas.length === 0 ? (
-                      <tr><td colSpan={6} className="px-4 py-6 text-center text-taupe">Sin gente asignada a esta sede.</td></tr>
-                    ) : filas.slice().sort((a, b) => b.horas - a.horas).map((f) => (
-                      <tr key={f.personaId} className="border-t border-sand">
-                        <td className="px-4 py-2.5">{f.nombre}</td>
-                        <td className="px-4 py-2.5">{f.dias}</td>
-                        <td className="px-4 py-2.5 font-medium">{fmtHoras(f.horas)}</td>
-                        <td className="px-4 py-2.5">{f.tardanzas > 0 ? <span className="text-rojo">{f.tardanzas}</span> : <span className="text-taupe/40">—</span>}</td>
-                        <td className="px-4 py-2.5">{f.minTarde > 0 ? `${f.minTarde} min` : <span className="text-taupe/40">—</span>}</td>
-                        <td className="px-4 py-2.5">{f.salidasTemp > 0 ? f.salidasTemp : <span className="text-taupe/40">—</span>}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                  ))}
+                </tbody>
+              </Tabla>
             </section>
 
             {/* ATENCIÓN */}

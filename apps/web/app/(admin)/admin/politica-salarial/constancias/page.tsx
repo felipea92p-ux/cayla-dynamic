@@ -4,8 +4,10 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Cargando } from "@/components/cargando";
+import { Boton } from "@/components/ui/boton";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
+import { loQueNoSePudo, sePuedeEntregar } from "@/lib/admin/lo-que-no-se-pudo";
 import { EMPRESA, TZ_LIMA, hoyLima } from "@cayla-dynamic/shared";
 
 // La hoja de constancias del cuadro de categorías y la política salarial.
@@ -82,6 +84,13 @@ export default function ConstanciasPoliticaSalarialPage() {
   const [filas, setFilas] = useState<Fila[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [cargando, setCargando] = useState(true);
+  // Si `personas`, `sedes` o `politica_salarial` fallan, la fila se sigue
+  // llenando con lo que quedó —DNI y sede en blanco, fecha de publicación en
+  // blanco, motivo del pendiente perdido— y eso se lee igual que "no tiene
+  // dato" en vez de "no se pudo traer". Este papel es la prueba del numeral
+  // 25.23 del RLGIT, no un reporte de cortesía: mientras falte algo no se
+  // imprime. Mismo par que usa la Hoja de sede (lib/admin/lo-que-no-se-pudo.ts).
+  const [noSePudo, setNoSePudo] = useState<string[]>([]);
 
   useTituloDocumento("Constancias · Política salarial");
 
@@ -101,24 +110,37 @@ export default function ConstanciasPoliticaSalarialPage() {
       return;
     }
 
-    const { data: pol } = await supabase
+    const { data: pol, error: errPol } = await supabase
       .from("politica_salarial").select("publicada_at").eq("version", v).maybeSingle();
 
     const base = acuses?.personas ?? [];
     const ids = base.map((b) => b.persona_id);
-    const { data: pers } = ids.length
+    const { data: pers, error: errPers } = ids.length
       ? await supabase.from("personas")
           .select("id, nombres, apellidos, documento, sede_base_id, fecha_fin_contrato, fecha_cese")
           .in("id", ids)
-      : { data: [] as never[] };
+      : { data: [] as never[], error: null };
 
     const sedeIds = Array.from(
       new Set((pers ?? []).map((p: Record<string, unknown>) => p.sede_base_id as string).filter(Boolean))
     );
-    const { data: sedes } = sedeIds.length
+    const { data: sedes, error: errSedes } = sedeIds.length
       ? await supabase.from("sedes").select("id, codigo").in("id", sedeIds)
-      : { data: [] as never[] };
+      : { data: [] as never[], error: null };
     const codigoPorSede = new Map((sedes ?? []).map((s: Record<string, unknown>) => [s.id as string, s.codigo as string]));
+
+    // El DNI, la sede y el motivo de un pendiente (cese, fin de contrato)
+    // salen de `personas`; el código legible de sede, de `sedes`; la fecha de
+    // publicación, de `politica_salarial`. Si cualquiera falla, esa columna
+    // sale en "—" para las treinta filas y nada en pantalla lo distingue de
+    // "no tiene dato".
+    setNoSePudo(
+      loQueNoSePudo([
+        { error: errPol, que: "la fecha de publicación" },
+        { error: errPers, que: "el DNI, la sede y el motivo de los pendientes" },
+        { error: errSedes, que: "el código de sede" },
+      ]),
+    );
 
     const porId = new Map((pers ?? []).map((p: Record<string, unknown>) => [p.id as string, p]));
 
@@ -159,13 +181,12 @@ export default function ConstanciasPoliticaSalarialPage() {
   if (error || version === null) {
     return (
       <main className="mx-auto max-w-2xl p-6">
-        <p className="rounded-2xl border border-sand bg-papel px-4 py-6 text-sm text-taupe">
+        <p className="rounded-superficie border border-sand bg-papel px-4 py-6 text-sm text-taupe">
           {error ?? "No se pudo abrir la política salarial."}
         </p>
-        <button onClick={() => router.push("/admin/politica-salarial")}
-          className="mt-3 rounded-lg border border-tinta/30 px-3 py-1.5 text-xs text-tinta">
+        <Boton variante="secundario" tamano="sm" className="mt-3" onClick={() => router.push("/admin/politica-salarial")}>
           Volver a Política salarial
-        </button>
+        </Boton>
       </main>
     );
   }
@@ -175,20 +196,33 @@ export default function ConstanciasPoliticaSalarialPage() {
   const total = filas.length;
 
   return (
-    <main className="mx-auto max-w-4xl p-6 print:max-w-none print:p-0">
+    <main className="hoja mx-auto max-w-4xl p-6 print:max-w-none print:p-0">
       <div className="mb-5 flex flex-wrap items-center gap-2 print:hidden">
-        <button onClick={() => window.print()}
-          className="rounded-lg bg-tinta px-3 py-1.5 text-xs font-medium text-crema">
+        {/* Sin todos los datos NO se imprime: el papel es la prueba del
+            numeral 25.23 del RLGIT, y un DNI o una sede en blanco por una
+            consulta caída se leería como un dato que nunca se tuvo. */}
+        <Boton variante="primario" tamano="sm" onClick={() => window.print()}
+          disabled={!sePuedeEntregar(!cargando, noSePudo)}
+          title={noSePudo.length > 0 ? `No se pudo traer ${noSePudo.join(", ")}.` : undefined}>
           Imprimir
-        </button>
-        <button onClick={() => router.push("/admin/politica-salarial")}
-          className="rounded-lg border border-tinta/30 px-3 py-1.5 text-xs text-tinta">
+        </Boton>
+        <Boton variante="secundario" tamano="sm" onClick={() => router.push("/admin/politica-salarial")}>
           Volver
-        </button>
+        </Boton>
         <p className="text-xs text-taupe">
           Para guardarlo como PDF, elige «Guardar como PDF» en el destino de impresión.
         </p>
       </div>
+
+      {/* El aviso SÍ se imprime —no lleva print:hidden— por si alguien fuerza
+          ⌘P saltándose el botón deshabilitado: el papel tiene que decir por
+          escrito que está incompleto, no salir en blanco y silencio. */}
+      {noSePudo.length > 0 && (
+        <p className="mb-5 rounded-control border border-rojo/40 bg-rojo/10 px-4 py-3 text-xs text-rojo">
+          No se pudo traer {noSePudo.join(", ")}. Esta hoja no prueba nada mientras falte ese
+          dato: recarga la página, y si sigue igual avisa a Felipe.
+        </p>
+      )}
 
       <header className="mb-5 border-b border-sand pb-4">
         <p className="font-serif text-[11px] uppercase tracking-[0.2em] text-taupe">
@@ -200,7 +234,7 @@ export default function ConstanciasPoliticaSalarialPage() {
         <p className="mt-1 text-sm text-tinta">Cuadro de categorías y política salarial</p>
       </header>
 
-      <section className="mb-5 rounded-xl border border-sand bg-crema/40 px-4 py-3 text-xs text-tinta print:rounded-none print:bg-transparent">
+      <section className="mb-5 rounded-superficie border border-sand bg-crema/40 px-4 py-3 text-xs text-tinta print:rounded-none print:bg-transparent">
         <dl className="grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-2">
           <div><dt className="inline text-taupe">Documento: </dt><dd className="inline">Cuadro de categorías y política salarial</dd></div>
           <div><dt className="inline text-taupe">Versión: </dt><dd className="inline">{version}</dd></div>
@@ -209,7 +243,7 @@ export default function ConstanciasPoliticaSalarialPage() {
         <p className="mt-2 border-t border-sand pt-2 text-taupe">{BASE_LEGAL}</p>
       </section>
 
-      <section className="mb-5 rounded-xl border border-tinta/20 px-4 py-3 text-sm text-tinta print:rounded-none">
+      <section className="mb-5 rounded-superficie border border-tinta/20 px-4 py-3 text-sm text-tinta print:rounded-none">
         <p>
           Al <strong>{fechaLarga(hoyLima())}</strong>, de <strong>{total}</strong>{" "}
           {total === 1 ? "integrante comprendida" : "integrantes comprendidas"} —personal activo y en
@@ -225,7 +259,9 @@ export default function ConstanciasPoliticaSalarialPage() {
         )}
       </section>
 
-      <table className="w-full border-collapse text-xs">
+      {/* Tabla nativa a propósito: contenido de un documento que se imprime
+          como prueba legal. */}
+      <table className="w-full border-collapse text-xs [font-variant-numeric:tabular-nums]">
         <thead>
           <tr className="border-y border-tinta/30 text-left text-taupe">
             <th className="py-1.5 pr-2 font-normal">N.°</th>
@@ -261,7 +297,7 @@ export default function ConstanciasPoliticaSalarialPage() {
       </p>
 
       {pendientes.length > 0 && (
-        <section className="mt-5 break-inside-avoid rounded-xl border border-sand px-4 py-3 text-xs print:rounded-none">
+        <section className="mt-5 break-inside-avoid rounded-superficie border border-sand px-4 py-3 text-xs print:rounded-none">
           <h2 className="mb-1 font-medium text-tinta">
             Pendientes a la fecha de corte · {pendientes.length}
           </h2>

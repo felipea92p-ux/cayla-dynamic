@@ -18,11 +18,13 @@
 // clics que esta pantalla vino a matar. Tres cosas se decidieron a partir de ahí:
 //
 // · EL DÍA ES LA UNIDAD, no la persona. Cada fila termina en una franja de
-//   cuadritos, uno por día del rango, con su color. La tardanza grave es un
-//   cuadro oscuro que salta sin buscarlo, y los patrones —siempre los lunes,
-//   siempre después de un descanso— aparecen solos porque están alineados en
-//   columnas. Tocar un cuadrito abre ese día con lo que le tocaba, lo que marcó
-//   y qué se puede hacer al respecto.
+//   cuadritos, uno por día del rango, con su color. La tardanza grave lleva
+//   un anillo que salta sin buscarlo —no un oscurecido: eso invertía la
+//   lectura en modo oscuro, donde --color-ambar se vuelve más CLARO, no más
+//   oscuro— y los patrones —siempre los lunes, siempre después de un
+//   descanso— aparecen solos porque están alineados en columnas. Tocar un
+//   cuadrito abre ese día con lo que le tocaba, lo que marcó y qué se puede
+//   hacer al respecto.
 //
 // · TODO NÚMERO LLEVA SU DENOMINADOR. «50 h» no es bueno ni malo; «50 de 72 h»
 //   sí dice algo. Lo que le tocaba sale de su horario y sus turnos
@@ -46,7 +48,6 @@ import { Fragment, Suspense, useCallback, useEffect, useMemo, useRef, useState }
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
-import { AdminNav } from "../nav";
 import { EsqueletoTabla } from "@/components/cargando";
 import { useToast } from "@/components/toast";
 import { traerTodo } from "@/lib/admin/traer-todo";
@@ -59,6 +60,10 @@ import {
   esperadoDelDia, horarioVigente, fechasDelRango, dowDe, estadoDelDia,
   type Esperado, type EstadoDia, type HorarioTramo, type TurnoDia,
 } from "@/lib/admin/jornada-esperada";
+import { Insignia } from "@/components/ui/insignia";
+import { Campo, CampoSelect, CampoCasilla } from "@/components/ui/campo";
+import { Boton } from "@/components/ui/boton";
+import { Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
 import { X, Search } from "lucide-react";
 
 // Por encima de esto la cuadrícula deja de ayudar y empieza a colgar el
@@ -94,9 +99,30 @@ const MOTIVO_NO_FALTA: Record<string, string> = {
 };
 
 function primerDiaDelMes(iso = hoyLima()): string { return iso.slice(0, 8) + "01"; }
-function rango(preset: "mes" | "mesPasado" | "anio"): { desde: string; hasta: string } {
+// Lunes de la semana que contiene `iso`, mismo criterio que Incidencias
+// (admin/incidencias/page.tsx: lunesDeLaSemana). Aritmética de Date en UTC,
+// no de string como `antiguedad` más abajo, porque acá sí hace falta cruzar
+// límites de mes.
+function addDiasISO(iso: string, n: number): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() + n);
+  return dt.toISOString().slice(0, 10);
+}
+function lunesDeLaSemana(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay(); // 0=domingo…6=sábado
+  return addDiasISO(iso, dow === 0 ? -6 : 1 - dow);
+}
+function rango(preset: "semana" | "mes" | "mesPasado" | "anio"): { desde: string; hasta: string } {
   const hoy = hoyLima();
   const [y, m] = hoy.split("-").map(Number);
+  if (preset === "semana") {
+    // Lunes a DOMINGO, no a sábado: en Trujillo se trabaja domingo, y cortar
+    // el sábado dejaría fuera justo el día más reciente para esa sede.
+    const lunes = lunesDeLaSemana(hoy);
+    return { desde: lunes, hasta: addDiasISO(lunes, 6) };
+  }
   if (preset === "mes") return { desde: primerDiaDelMes(hoy), hasta: hoy };
   if (preset === "anio") return { desde: `${y}-01-01`, hasta: hoy };
   const mp = m === 1 ? 12 : m - 1;
@@ -217,7 +243,13 @@ function colorDia(d: Dia): string {
     case "revisar": return "border border-dashed border-taupe bg-papel";
     case "tarde": {
       const m = d.minutosTarde ?? 0;
-      if (m >= TARDANZA_GRAVE_MIN) return "bg-ambar brightness-75";
+      // Antes: "bg-ambar brightness-75" para la grave. Un filtro que siempre
+      // oscurece funciona sobre --color-ambar en claro (#74501a, ya oscuro) y
+      // se INVIERTE en oscuro (#c99a4a, un dorado claro): ahí "más oscuro" se
+      // acerca al fondo en vez de saltar, y la de veinte minutos brilla más
+      // que la de dos horas. El anillo no depende de qué tan claro sea el
+      // token en cada tema, así que apunta igual en los dos.
+      if (m >= TARDANZA_GRAVE_MIN) return "bg-ambar ring-2 ring-inset ring-rojo-profundo";
       if (m >= TARDANZA_SERIA_MIN) return "bg-ambar";
       return "bg-ambar/45";
     }
@@ -294,14 +326,30 @@ function comparar(a: Fila, b: Fila, col: Columna, asc: boolean): number {
   }
 }
 
-function Th({ col, orden, setOrden, num = false, children, title }: {
+// Th propio de esta pantalla, no el de components/ui/tabla.tsx: además de
+// pintar la celda gestiona el orden de la columna, cosa que el compartido no
+// hace. Nombre distinto a propósito, para que un grep de "Th" no confunda
+// los dos componentes.
+function ThOrdenable({ col, orden, setOrden, num = false, sticky = false, children, title }: {
   col: Columna; orden: Orden; setOrden: (o: Orden) => void; num?: boolean;
+  /**
+   * Ancla la celda al borde izquierdo cuando la tabla se desplaza en
+   * horizontal — la usa solo "Nombre": sin esto, quien arrastra hacia la
+   * derecha en un teléfono para leer "Faltas" o "Revisar" pierde de vista de
+   * quién es la fila. Fondo opaco (bg-sand, no el bg-sand/70 del thead):
+   * sticky pinta su propia capa, y una capa semitransparente no tapa lo que
+   * pasa por debajo al desplazarse.
+   */
+  sticky?: boolean;
   children: React.ReactNode; title?: string;
 }) {
   const activa = orden.col === col;
   const texto = col === "nombre" || col === "sede";
   return (
-    <th className={`px-3 py-2 font-normal ${num ? "text-right" : "text-left"}`} title={title}>
+    <th
+      className={`px-3 py-2 font-normal ${num ? "text-right" : "text-left"} ${sticky ? "sticky left-0 z-20 bg-sand" : ""}`}
+      title={title}
+    >
       <button
         onClick={() => setOrden(activa ? { col, asc: !orden.asc } : { col, asc: texto })}
         className={`inline-flex items-center gap-1 rounded px-1 py-0.5 hover:text-tinta ${activa ? "font-medium text-tinta" : ""}`}
@@ -438,7 +486,7 @@ function DetallePersona({ f, meta, anio, mes, sel, onDia }: {
             <span className="flex items-center gap-2 text-sm">
               <span className="text-taupe">{f.objCumplidos}/{f.objTotal} cumplidos</span>
               {/* Sin color que premie: desde la 0171 los objetivos no pagan. */}
-              <span className="rounded-full bg-sand px-3 py-0.5 text-taupe">{nivel.etiqueta}</span>
+              <Insignia atenuada punto={false}>{nivel.etiqueta}</Insignia>
             </span>
           )}
         </div>
@@ -471,66 +519,67 @@ function DetallePersona({ f, meta, anio, mes, sel, onDia }: {
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-2xl border border-sand bg-papel">
-        <table className="w-full text-sm [font-variant-numeric:tabular-nums]">
-          <thead className="bg-sand/70 text-left text-taupe">
-            <tr>
-              <th className="px-4 py-2 font-normal">Fecha</th>
-              <th className="px-4 py-2 font-normal">Entrada</th>
-              <th className="px-4 py-2 font-normal">Salida</th>
-              <th className="px-4 py-2 font-normal">Horas</th>
-              <th className="px-4 py-2 font-normal">Tardanza</th>
-              <th className="px-4 py-2 font-normal">Sal. antic.</th>
-              <th className="px-4 py-2 font-normal">T. adicional</th>
-              <th className="px-4 py-2 font-normal">Medido contra</th>
-              <th className="px-4 py-2 font-normal">Incidencia</th>
-            </tr>
-          </thead>
-          <tbody>
-            {conMarcaje.length === 0 ? (
-              <tr><td colSpan={9} className="px-4 py-6 text-center text-taupe">Sin jornadas en el periodo.</td></tr>
-            ) : conMarcaje.map((d) => {
-              const mc = medidoContra(d);
-              const activa = sel?.personaId === f.personaId && sel?.fecha === d.fecha;
-              return (
-                <tr key={d.fecha}
-                  onClick={() => onDia(f.personaId, d.fecha)}
-                  className={`cursor-pointer border-t border-sand transition-colors hover:bg-crema ${activa ? "bg-crema" : ""}`}
-                  title="Abrir este día">
-                  <td className="px-4 py-2 capitalize">{fechaLarga(d.fecha)}</td>
-                  <td className="px-4 py-2">{horaLima(d.entradaTs)}</td>
-                  <td className="px-4 py-2">{d.salidaTs ? horaLima(d.salidaTs) : <span className="text-ambar">—</span>}</td>
-                  <td className="px-4 py-2">{d.horas !== null ? fmtHoras(d.horas) : "—"}</td>
-                  <td className="px-4 py-2">
-                    {(d.minutosTarde ?? 0) > 0
-                      ? d.levantada
-                        ? <span className="text-taupe"><s>{fmtMinutos(d.minutosTarde!)}</s> · levantada</span>
-                        : <span className="text-rojo">{fmtMinutos(d.minutosTarde!)}</span>
-                      : <span className="text-taupe/50">—</span>}
-                  </td>
-                  <td className="px-4 py-2">
-                    {(d.minutosSalidaTemprana ?? 0) > 0
-                      ? <span className="text-ambar">{fmtMinutos(d.minutosSalidaTemprana!)}</span>
-                      : <span className="text-taupe/50">—</span>}
-                  </td>
-                  <td className="px-4 py-2">{d.horasExtra > 0 ? <span className="text-verde">{fmtHoras(d.horasExtra)}</span> : <span className="text-taupe/50">—</span>}</td>
-                  <td className={`px-4 py-2 text-xs ${mc.sospechoso ? "text-ambar" : "text-taupe"}`}>
-                    {mc.texto}
-                    {d.esperado.trabaja && <span className="text-taupe/60"> · {d.esperado.entrada}{d.esperado.salida ? `–${d.esperado.salida}` : ""}</span>}
-                    {mc.sospechoso && <span title="Este día no tenía turno cargado: la tardanza o la salida anticipada se midió contra el horario base."> ⚠</span>}
-                  </td>
-                  <td className="px-4 py-2 text-xs">
-                    {d.estado === "revisar" && <span className="rounded-full bg-ambar/15 px-2 py-0.5 text-ambar">
-                      {d.jornadaEstado === "auto_cerrada_pendiente" ? "auto-cerrada" : "sin salida"}</span>}
-                    {d.estado === "extra" && <span className="rounded-full bg-verde/15 px-2 py-0.5 text-verde">en su descanso</span>}
-                    {d.agregado && <span className="rounded-full bg-taupe/15 px-2 py-0.5 text-taupe">histórico 2025</span>}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+      <Tabla className="[font-variant-numeric:tabular-nums]">
+        <TablaEncabezado>
+          <Th>Fecha</Th>
+          <Th>Entrada</Th>
+          <Th>Salida</Th>
+          <Th>Horas</Th>
+          <Th>Tardanza</Th>
+          <Th>Sal. antic.</Th>
+          <Th>T. adicional</Th>
+          <Th>Medido contra</Th>
+          <Th>Incidencia</Th>
+        </TablaEncabezado>
+        <tbody>
+          {conMarcaje.length === 0 ? (
+            <tr><td colSpan={9} className="px-4 py-6 text-center text-taupe">Sin jornadas en el periodo.</td></tr>
+          ) : conMarcaje.map((d) => {
+            const mc = medidoContra(d);
+            const activa = sel?.personaId === f.personaId && sel?.fecha === d.fecha;
+            return (
+              // <tr> nativo y no <Fila>: <Fila> trae su propia zebra
+              // (even:bg-hueso/50), y esa pseudoclase pesa más que un
+              // "bg-crema" suelto — en una fila par, la marca de "día
+              // abierto" quedaría tapada por la zebra. Mismo criterio que
+              // reporte-sede/page.tsx, que por eso tampoco usa <Fila> acá.
+              <tr key={d.fecha}
+                onClick={() => onDia(f.personaId, d.fecha)}
+                className={`cursor-pointer border-t border-sand transition-colors hover:bg-crema ${activa ? "bg-crema" : ""}`}
+                title="Abrir este día">
+                <td className="px-4 py-2 capitalize">{fechaLarga(d.fecha)}</td>
+                <td className="px-4 py-2">{horaLima(d.entradaTs)}</td>
+                <td className="px-4 py-2">{d.salidaTs ? horaLima(d.salidaTs) : <span className="text-ambar">—</span>}</td>
+                <td className="px-4 py-2">{d.horas !== null ? fmtHoras(d.horas) : "—"}</td>
+                <td className="px-4 py-2">
+                  {(d.minutosTarde ?? 0) > 0
+                    ? d.levantada
+                      ? <span className="text-taupe"><s>{fmtMinutos(d.minutosTarde!)}</s> · levantada</span>
+                      : <span className="text-rojo">{fmtMinutos(d.minutosTarde!)}</span>
+                    : <span className="text-taupe/50">—</span>}
+                </td>
+                <td className="px-4 py-2">
+                  {(d.minutosSalidaTemprana ?? 0) > 0
+                    ? <span className="text-ambar">{fmtMinutos(d.minutosSalidaTemprana!)}</span>
+                    : <span className="text-taupe/50">—</span>}
+                </td>
+                <td className="px-4 py-2">{d.horasExtra > 0 ? <span className="text-verde">{fmtHoras(d.horasExtra)}</span> : <span className="text-taupe/50">—</span>}</td>
+                <td className={`px-4 py-2 text-xs ${mc.sospechoso ? "text-ambar" : "text-taupe"}`}>
+                  {mc.texto}
+                  {d.esperado.trabaja && <span className="text-taupe/60"> · {d.esperado.entrada}{d.esperado.salida ? `–${d.esperado.salida}` : ""}</span>}
+                  {mc.sospechoso && <span title="Este día no tenía turno cargado: la tardanza o la salida anticipada se midió contra el horario base."> ⚠</span>}
+                </td>
+                <td className="px-4 py-2 text-xs">
+                  {d.estado === "revisar" && <Insignia variante="advertencia" punto={false}>
+                    {d.jornadaEstado === "auto_cerrada_pendiente" ? "auto-cerrada" : "sin salida"}</Insignia>}
+                  {d.estado === "extra" && <Insignia variante="positivo" punto={false}>en su descanso</Insignia>}
+                  {d.agregado && <Insignia atenuada punto={false}>histórico 2025</Insignia>}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </Tabla>
       <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
         <p className="text-taupe">Toca cualquier día para abrirlo, justificarlo o mandarlo a Correcciones.</p>
         <div className="flex gap-4">
@@ -597,14 +646,14 @@ function DesempenoContenido() {
     const [
       { data: personas, error: errPersonas },
       { data: jornadas, error: errJornadas },
-      { data: extraData },
-      { data: faltasData },
-      { data: objetivosData },
-      { data: levData },
-      { data: horariosData },
-      { data: turnosData },
+      { data: extraData, error: errExtra },
+      { data: faltasData, error: errFaltas },
+      { data: objetivosData, error: errObjetivos },
+      { data: levData, error: errLev },
+      { data: horariosData, error: errHorarios },
+      { data: turnosData, error: errTurnos },
       { data: areasData, error: areasError },
-      { data: ausenciasResumenData },
+      { data: ausenciasResumenData, error: errAusencias },
     ] = await Promise.all([
       supabase.from("personas")
         .select("id, nombres, apellidos, estado, funcion, fecha_ingreso, sedes:sede_base_id(codigo)")
@@ -634,8 +683,16 @@ function DesempenoContenido() {
       supabase.rpc("fn_ausencias_resumen", { p_desde: desde, p_hasta: hasta }),
     ]);
 
-    if (errPersonas || errJornadas) {
-      setError((errPersonas ?? errJornadas)!.message);
+    // Cualquiera de estas siete puede fallar sin que Supabase lance una
+    // excepción: `data` llega null y, sin este chequeo, cada `?? []` de abajo
+    // lo leía como "cero" — cero faltas, cero tardanzas levantadas, cero
+    // ausencias. Eso no es "no hay nada": es que la consulta no respondió, y
+    // se leía como un periodo perfecto en vez de un error. `areasError` queda
+    // afuera a propósito: ya tiene su propio degradado (parseAreas cae a
+    // AREAS_FALLBACK) y es solo un catálogo de etiquetas, no un conteo.
+    const errAux = errExtra ?? errFaltas ?? errObjetivos ?? errLev ?? errHorarios ?? errTurnos ?? errAusencias;
+    if (errPersonas || errJornadas || errAux) {
+      setError((errPersonas ?? errJornadas ?? errAux)!.message);
       setCargando(false);
       return; // no pisa `filas` con datos parciales
     }
@@ -880,7 +937,7 @@ function DesempenoContenido() {
     return () => window.removeEventListener("keydown", alPulsar);
   }, [sel, cerrarDia]);
 
-  const aplicarPreset = (p: "mes" | "mesPasado" | "anio") => { const r = rango(p); setDesde(r.desde); setHasta(r.hasta); };
+  const aplicarPreset = (p: "semana" | "mes" | "mesPasado" | "anio") => { const r = rango(p); setDesde(r.desde); setHasta(r.hasta); };
   const hayFiltro = Boolean(fSede || fArea || fBusca.trim() || verInactivas);
 
   // ── Las dos únicas escrituras, por las mismas RPC que Incidencias ─────────
@@ -916,8 +973,7 @@ function DesempenoContenido() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <AdminNav />
+    <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
         <div className="mb-4 flex flex-wrap items-end justify-between gap-4">
           <div>
@@ -926,6 +982,14 @@ function DesempenoContenido() {
           </div>
           <div className="flex flex-wrap items-end gap-3">
             <div className="flex gap-1 rounded-lg border p-1 text-sm">
+              {/* La más usada primero: es lo que una encargada mira el lunes
+                  por la mañana, y antes había que armarla a mano con los dos
+                  calendarios.
+                  Nativos a propósito: esto es un control segmentado (varias
+                  opciones dentro de un mismo marco), no un botón suelto —
+                  <Boton> siempre trae su propio padding/tamaño y forzarlo acá
+                  rompería el marco compartido "rounded-lg border p-1". */}
+              <button onClick={() => aplicarPreset("semana")} className="rounded-md px-2.5 py-1 hover:bg-sand/60">Esta semana</button>
               <button onClick={() => aplicarPreset("mes")} className="rounded-md px-2.5 py-1 hover:bg-sand/60">Este mes</button>
               <button onClick={() => aplicarPreset("mesPasado")} className="rounded-md px-2.5 py-1 hover:bg-sand/60">Mes pasado</button>
               {periodo && (
@@ -937,44 +1001,42 @@ function DesempenoContenido() {
               )}
               <button onClick={() => aplicarPreset("anio")} className="rounded-md px-2.5 py-1 hover:bg-sand/60">Todo el año</button>
             </div>
-            <label className="flex flex-col gap-1 text-sm">Desde
-              <input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} className="rounded-lg border px-3 py-2" /></label>
-            <label className="flex flex-col gap-1 text-sm">Hasta
-              <input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} className="rounded-lg border px-3 py-2" /></label>
+            <Campo etiqueta="Desde" type="date" value={desde} onChange={(e) => setDesde(e.target.value)} />
+            <Campo etiqueta="Hasta" type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} />
           </div>
         </div>
 
         <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-sand bg-papel px-4 py-3 text-sm">
           <div className="relative">
             <Search size={15} strokeWidth={1.8} aria-hidden className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-taupe" />
-            <input value={fBusca} onChange={(e) => setFBusca(e.target.value)} placeholder="Buscar por nombre…"
-              aria-label="Buscar por nombre" className="w-52 rounded-lg border py-1.5 pl-8 pr-3" />
+            <Campo value={fBusca} onChange={(e) => setFBusca(e.target.value)} placeholder="Buscar por nombre…"
+              aria-label="Buscar por nombre" className="w-52 pl-8" />
           </div>
-          <label className="flex items-center gap-2">Sede
-            <select value={fSede} onChange={(e) => setFSede(e.target.value)} className="rounded-lg border px-2.5 py-1.5">
-              <option value="">Todas</option>
-              {sedes.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </label>
-          <label className="flex items-center gap-2">Área
-            <select value={fArea} onChange={(e) => setFArea(e.target.value)} className="rounded-lg border px-2.5 py-1.5">
-              <option value="">Todas</option>
-              {areasPresentes.map((a) => <option key={a} value={a}>{areaNombre(areas, a)}</option>)}
-            </select>
-          </label>
-          <label className="flex items-center gap-2" title="Su historial sostiene los reportes de periodos pasados.">
-            <input type="checkbox" checked={verInactivas} onChange={(e) => setVerInactivas(e.target.checked)} className="size-4" />
-            Incluir inactivas
-          </label>
+          <CampoSelect etiqueta="Sede" value={fSede} onChange={(e) => setFSede(e.target.value)}>
+            <option value="">Todas</option>
+            {sedes.map((s) => <option key={s} value={s}>{s}</option>)}
+          </CampoSelect>
+          <CampoSelect etiqueta="Área" value={fArea} onChange={(e) => setFArea(e.target.value)}>
+            <option value="">Todas</option>
+            {areasPresentes.map((a) => <option key={a} value={a}>{areaNombre(areas, a)}</option>)}
+          </CampoSelect>
+          <CampoCasilla
+            etiqueta="Incluir inactivas"
+            checked={verInactivas}
+            onChange={(e) => setVerInactivas(e.target.checked)}
+            title="Su historial sostiene los reportes de periodos pasados."
+          />
           <div className="ml-auto flex items-center gap-4">
             {orden.col !== "atencion" && (
-              <button onClick={() => setOrden({ col: "atencion", asc: true })} className="text-taupe underline hover:text-tinta">
+              <Boton variante="enlace" className="text-taupe hover:text-tinta" onClick={() => setOrden({ col: "atencion", asc: true })}>
                 Volver al orden por atención
-              </button>
+              </Boton>
             )}
             {hayFiltro && (
-              <button onClick={() => { setFSede(""); setFArea(""); setFBusca(""); setVerInactivas(false); }}
-                className="text-taupe underline hover:text-tinta">Quitar filtros</button>
+              <Boton variante="enlace" className="text-taupe hover:text-tinta"
+                onClick={() => { setFSede(""); setFArea(""); setFBusca(""); setVerInactivas(false); }}>
+                Quitar filtros
+              </Boton>
             )}
           </div>
         </div>
@@ -1000,7 +1062,7 @@ function DesempenoContenido() {
         {error && (
           <div className="mb-4 rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
             No se pudo cargar el desempeño: {error}{" "}
-            <button onClick={() => void cargar()} className="font-medium underline">Reintentar</button>
+            <Boton variante="enlace" onClick={() => void cargar()}>Reintentar</Boton>
           </div>
         )}
         {desde > hasta && <p className="mb-4 text-sm text-rojo">El «desde» es posterior al «hasta».</p>}
@@ -1017,47 +1079,56 @@ function DesempenoContenido() {
 
         {vista.length > 0 && (
           <>
-            <div className="overflow-x-auto rounded-2xl border border-sand bg-papel">
-              <table className="w-full text-sm [font-variant-numeric:tabular-nums]">
-                <thead className="bg-sand/70 text-taupe">
-                  <tr>
-                    <Th col="nombre" orden={orden} setOrden={setOrden}>Nombre</Th>
-                    <Th col="sede" orden={orden} setOrden={setOrden}>Sede</Th>
-                    <Th col="asistencia" orden={orden} setOrden={setOrden} num title="Días trabajados de los que le tocaban">Días</Th>
-                    <Th col="horas" orden={orden} setOrden={setOrden} num title="Horas trabajadas de las que le tocaban">Horas</Th>
-                    <Th col="tardanzas" orden={orden} setOrden={setOrden} num title="Cuántas, y la peor del periodo">Tardanzas</Th>
-                    <Th col="faltas" orden={orden} setOrden={setOrden} num>Faltas</Th>
-                    <Th col="revisar" orden={orden} setOrden={setOrden} num>Revisar</Th>
-                    {hayAusencias && <Th col="ausencias" orden={orden} setOrden={setOrden} num title="Días de ausencia en el periodo (vacaciones, descanso médico, permisos…)">Ausencias</Th>}
-                    {hayObjetivos && <Th col="objetivos" orden={orden} setOrden={setOrden} num>Objetivos</Th>}
-                    {hayCuadricula && (
-                      <th className="px-3 py-1 text-left font-normal">
-                        <div className="flex">
-                          {fechas.map((f) => {
-                            const dw = dowDe(f);
-                            return (
-                              <div key={f} className={`w-[18px] shrink-0 text-center text-[9px] leading-tight ${dw === 0 ? "text-rojo/60" : ""}`}>
-                                <div>{LETRA_DIA[dw]}</div>
-                                <div className="text-taupe">{Number(f.slice(8, 10))}</div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </th>
-                    )}
-                  </tr>
-                </thead>
-                <tbody>
-                  {vista.map((f) => (
+            {/* <Tabla> solo por el envoltorio: el encabezado usa ThOrdenable
+                (ordena columnas, no es <Th>) y las filas llevan su propia
+                columna "Nombre" pegada al borde para el arrastre horizontal
+                — nada de eso es lo que <TablaEncabezado>/<Fila> resuelven. */}
+            <Tabla className="[font-variant-numeric:tabular-nums]">
+              <thead className="bg-sand/70 text-taupe">
+                <tr>
+                  <ThOrdenable col="nombre" orden={orden} setOrden={setOrden} sticky>Nombre</ThOrdenable>
+                  <ThOrdenable col="sede" orden={orden} setOrden={setOrden}>Sede</ThOrdenable>
+                  <ThOrdenable col="asistencia" orden={orden} setOrden={setOrden} num title="Días trabajados de los que le tocaban">Días</ThOrdenable>
+                  <ThOrdenable col="horas" orden={orden} setOrden={setOrden} num title="Horas trabajadas de las que le tocaban">Horas</ThOrdenable>
+                  <ThOrdenable col="tardanzas" orden={orden} setOrden={setOrden} num title="Cuántas, y la peor del periodo">Tardanzas</ThOrdenable>
+                  <ThOrdenable col="faltas" orden={orden} setOrden={setOrden} num>Faltas</ThOrdenable>
+                  <ThOrdenable col="revisar" orden={orden} setOrden={setOrden} num>Revisar</ThOrdenable>
+                  {hayAusencias && <ThOrdenable col="ausencias" orden={orden} setOrden={setOrden} num title="Días de ausencia en el periodo (vacaciones, descanso médico, permisos…)">Ausencias</ThOrdenable>}
+                  {hayObjetivos && <ThOrdenable col="objetivos" orden={orden} setOrden={setOrden} num>Objetivos</ThOrdenable>}
+                  {hayCuadricula && (
+                    <th className="px-3 py-1 text-left font-normal">
+                      <div className="flex">
+                        {fechas.map((f) => {
+                          const dw = dowDe(f);
+                          return (
+                            <div key={f} className={`w-[18px] shrink-0 text-center text-[9px] leading-tight ${dw === 0 ? "text-rojo/60" : ""}`}>
+                              <div>{LETRA_DIA[dw]}</div>
+                              <div className="text-taupe">{Number(f.slice(8, 10))}</div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </th>
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {vista.map((f) => (
                     <Fragment key={f.personaId}>
                     <tr
                       onClick={() => setAbierta((a) => (a === f.personaId ? null : f.personaId))}
-                      className={`cursor-pointer border-t align-middle hover:bg-crema/60 ${abierta === f.personaId ? "bg-crema" : ""}`}
+                      className={`group cursor-pointer border-t align-middle hover:bg-crema/60 ${abierta === f.personaId ? "bg-crema" : ""}`}
                       title={abierta === f.personaId ? "Cerrar su desempeño" : "Ver su desempeño"}>
-                      <td className="px-3 py-1.5">
+                      {/* Ancla de la fila: sticky para que arrastrar en horizontal —el
+                          caso normal en un teléfono, con hasta ~62 columnas de
+                          cuadrícula— no pierda de vista de quién es. Fondo propio
+                          (papel o crema, el mismo que ya traía la fila): una celda
+                          sticky pinta su propia capa, y sin esto se transparenta al
+                          pasar por debajo de las columnas que siguen desplazándose. */}
+                      <td className={`sticky left-0 z-[1] px-3 py-1.5 ${abierta === f.personaId ? "bg-crema" : "bg-papel group-hover:bg-crema/60"}`}>
                         <span aria-hidden className="mr-1.5 inline-block w-2 text-taupe">{abierta === f.personaId ? "▾" : "▸"}</span>
                         {f.nombre}
-                        {!f.activa && <span className="ml-2 rounded-full bg-taupe/15 px-2 py-0.5 text-[10px] text-taupe">inactiva</span>}
+                        {!f.activa && <Insignia atenuada tamano="sm" punto={false} className="ml-2">inactiva</Insignia>}
                         <div className="text-[11px] text-taupe">
                           {f.area ? areaCorto(areas, f.area) : "sin área"}
                           {f.fechaIngreso && <> · {antiguedad(f.fechaIngreso, hasta)}</>}
@@ -1132,14 +1203,13 @@ function DesempenoContenido() {
                     )}
                     </Fragment>
                   ))}
-                </tbody>
-              </table>
-            </div>
+              </tbody>
+            </Tabla>
 
             <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-taupe">
               <span className="font-medium text-tinta">Cada cuadrito, un día:</span>
               <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] bg-verde" /> trabajó</span>
-              <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] bg-ambar/45" /><i className="inline-block size-3 rounded-[3px] bg-ambar" /><i className="inline-block size-3 rounded-[3px] bg-ambar brightness-75" /> tardanza (más oscuro, más tarde)</span>
+              <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] bg-ambar/45" /><i className="inline-block size-3 rounded-[3px] bg-ambar" /><i className="inline-block size-3 rounded-[3px] bg-ambar ring-2 ring-inset ring-rojo-profundo" /> tardanza (más marcado, más tarde)</span>
               <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] bg-rojo" /> falta</span>
               <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] bg-rojo/20" /> no marcó, con motivo</span>
               <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] border border-dashed border-taupe bg-papel" /> marcaje por revisar</span>
@@ -1277,21 +1347,22 @@ function DesempenoContenido() {
                     const sel2 = motivo || lista[0].valor;
                     return (
                       <>
-                        <label className="mb-2 flex flex-col gap-1">Motivo
-                          <select value={sel2} onChange={(e) => setMotivo(e.target.value)} className="rounded-lg border px-3 py-2">
+                        <div className="mb-2">
+                          <CampoSelect etiqueta="Motivo" value={sel2} onChange={(e) => setMotivo(e.target.value)}>
                             {lista.map((m) => <option key={m.valor} value={m.valor}>{m.label}</option>)}
-                          </select>
-                        </label>
-                        <label className="mb-3 flex flex-col gap-1">
-                          Observación {sel2 === "otro" && <span className="text-rojo">(obligatoria para «Otro»)</span>}
-                          <input value={obs} onChange={(e) => setObs(e.target.value)} className="rounded-lg border px-3 py-2" />
-                        </label>
-                        <button
-                          onClick={() => void justificar(esFalta ? "falta" : "tardanza")}
-                          disabled={guardando}
-                          className="rounded-lg bg-tinta px-4 py-2 font-medium text-crema disabled:opacity-50">
-                          {guardando ? "Guardando…" : "Justificar"}
-                        </button>
+                          </CampoSelect>
+                        </div>
+                        <div className="mb-3">
+                          <Campo
+                            etiqueta="Observación"
+                            value={obs}
+                            onChange={(e) => setObs(e.target.value)}
+                            error={sel2 === "otro" ? "Obligatoria para «Otro»." : undefined}
+                          />
+                        </div>
+                        <Boton variante="primario" cargando={guardando} onClick={() => void justificar(esFalta ? "falta" : "tardanza")}>
+                          Justificar
+                        </Boton>
                       </>
                     );
                   })()}
@@ -1299,10 +1370,11 @@ function DesempenoContenido() {
               ) : null}
 
               {diaSel.estado === "justificada" && !MOTIVO_NO_FALTA[diaSel.faltaMotivo ?? ""] && (
-                <button onClick={() => void quitarJustificacionFalta()} disabled={guardando}
-                  className="text-rojo underline hover:no-underline disabled:opacity-50">
+                <Boton variante="enlace" cargando={guardando}
+                  className="text-rojo hover:text-rojo hover:no-underline"
+                  onClick={() => void quitarJustificacionFalta()}>
                   Quitar la justificación — vuelve a contar como falta
-                </button>
+                </Boton>
               )}
 
               <div className="flex flex-col gap-2 border-t border-sand pt-4">

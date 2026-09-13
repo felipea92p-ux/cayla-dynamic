@@ -1,7 +1,7 @@
 # Configurar el terminal de marcaje en la Mac mini de cada sede
 
-Guía para dejar la Mac mini de TRU, LIM o AQP funcionando como terminal de
-marcaje. Se hace **una sola vez por sede** y toma ~5 minutos.
+Guía para dejar la Mac mini de Central, TRU, LIM o AQP funcionando como
+terminal de marcaje. Se hace **una sola vez por sede** y toma ~5 minutos.
 
 > Reemplaza `URL_DE_LA_APP` por la dirección real (ej. `https://cayla-dynamic.vercel.app`)
 > en todos los pasos. Esa dirección se define al desplegar en Vercel.
@@ -11,7 +11,8 @@ marcaje. Se hace **una sola vez por sede** y toma ~5 minutos.
 1. Abre **Safari** (o Chrome) en la Mac mini.
 2. Entra a `URL_DE_LA_APP/terminal`.
 3. Aparecerá "Vincular este dispositivo". Ingresa las credenciales del
-   terminal de **esa sede** (las tiene Felipe; una por sede: TRU, LIM, AQP).
+   terminal de **esa sede** (las tiene Felipe; una por sede: Central, TRU,
+   LIM, AQP).
 4. Al vincular, verás la pantalla de marcaje con los nombres del equipo de la
    sede. La vinculación queda guardada — no se vuelve a pedir salvo que se
    borren los datos del navegador.
@@ -43,14 +44,19 @@ Recomendado además:
 ## 4. Uso diario (para el equipo)
 
 1. Toca tu **nombre** en la pantalla.
-2. Ingresa tu **PIN de 4 dígitos** (es personal — no lo compartas).
-3. La app decide sola si corresponde Entrada, Salida o Regreso. Si estás
+2. La app decide sola si corresponde Entrada, Salida o Regreso. Si estás
    saliendo, elige el motivo (salida final, almuerzo, asunto personal,
    trámite, salud u otro).
-4. Confirma (o espera 3 segundos y se confirma solo). Listo.
+3. Confirma (o espera 3 segundos y se confirma solo). Listo.
+
+**No hay PIN, y es a propósito.** Marcar tiene que tomar dos segundos, y el
+control real no es una clave: es que la Mac mini está a la vista de todo el
+equipo. La contrapartida está escrita y hay que conocerla — una marca por sí
+sola no prueba quién la hizo, así que **no se usa como prueba individual en un
+procedimiento disciplinario sin otro respaldo**.
 
 **¿Te equivocaste?** Presiona **Cancelar** dentro de los 3 segundos. Si ya se
-confirmó, avisa a tu supervisora para que lo corrija desde el panel.
+confirmó, avisa a tu encargada para que lo corrija desde el panel.
 
 **¿Se fue el internet?** Marca igual — el terminal guarda el marcaje y lo
 envía solo cuando vuelva la conexión. No marques dos veces.
@@ -61,5 +67,5 @@ envía solo cuando vuelva la conexión. No marques dos veces.
 |---|---|
 | "Vincular este dispositivo" aparece de nuevo | Se borraron los datos del navegador. Re-vincular con las credenciales de la sede. |
 | No aparece un nombre en la lista | La persona no está registrada como activa en esa sede — avisar a Felipe/Carlos. |
-| "PIN incorrecto" 5 veces | Espera unos segundos y reintenta. Si se olvidó el PIN, Felipe/Carlos genera uno nuevo. |
+| La app pide un PIN | No debería: el terminal no lleva PIN desde la migración 0375. Si aparece, esa Mac tiene una versión vieja del panel — avisar a Felipe/Carlos. |
 | La pantalla quedó en otra página | Volver a `URL_DE_LA_APP/terminal`. |

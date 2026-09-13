@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Cargando } from "@/components/cargando";
+import { Boton } from "@/components/ui/boton";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { EMPRESA, TZ_LIMA, hoyLima } from "@cayla-dynamic/shared";
@@ -119,6 +120,13 @@ export default function ConstanciasDocumentoPage() {
   const [doc, setDoc] = useState<Doc | null>(null);
   const [filas, setFilas] = useState<Fila[]>([]);
   const [error, setError] = useState<string | null>(null);
+  // Distinta de `error`: el documento SÍ se abrió y la hoja SÍ se puede ver,
+  // pero a algunas filas les falta un dato que la hoja necesita para probar
+  // algo (el DNI o el nombre declarado). Mostrarla en blanco como "—" sería
+  // un falso negativo silencioso — se vería igual que "esta persona no puso
+  // su DNI" en vez de "el sistema no pudo traerlo". Mientras esté puesta, se
+  // apaga «Imprimir».
+  const [advertencia, setAdvertencia] = useState<string | null>(null);
   const [cargando, setCargando] = useState(true);
 
   useTituloDocumento(doc ? `Constancias · ${doc.titulo}` : "Constancias");
@@ -155,16 +163,34 @@ export default function ConstanciasDocumentoPage() {
     // identifica personas el documento de identidad no es adorno: es lo que
     // distingue a dos apellidos iguales.
     const ids = base.map((b) => b.persona_id);
-    const { data: pers } = ids.length
+    const { data: pers, error: e3 } = ids.length
       ? await supabase.from("personas")
           .select("id, nombres, apellidos, documento, fecha_fin_contrato, fecha_cese").in("id", ids)
-      : { data: [] as never[] };
+      : { data: [] as never[], error: null };
 
     // El nombre que cada quien escribió al dejar constancia. Es lo más cercano a
     // una firma que tiene la vía del sistema, y es lo que convierte el clic en
     // un acto deliberado — por eso va en la hoja.
-    const { data: decl } = await supabase
+    const { data: decl, error: e4 } = await supabase
       .from("documentos_acuses").select("persona_id, nombre_declarado").eq("documento_id", id);
+
+    // Si cualquiera de las dos falló, el DNI o el nombre declarado saldrían en
+    // blanco en TODAS las filas — indistinguible de "no lo dejó" cuando en
+    // realidad es "no se pudo traer". Se avisa y se apaga Imprimir en vez de
+    // dejar que la hoja mienta.
+    if (e3 && e4) {
+      setAdvertencia(
+        "No se pudo traer el DNI, la fecha de salida ni el nombre declarado. Esta hoja no prueba nada mientras falte ese dato: recarga la página, y si sigue igual avisa a Felipe.",
+      );
+    } else if (e3) {
+      setAdvertencia(
+        "No se pudo traer el DNI ni la fecha de salida de las personas. Esta hoja no prueba nada mientras falte ese dato: recarga la página, y si sigue igual avisa a Felipe.",
+      );
+    } else if (e4) {
+      setAdvertencia(
+        "No se pudo traer el nombre declarado de las constancias. Esta hoja no prueba nada mientras falte ese dato: recarga la página, y si sigue igual avisa a Felipe.",
+      );
+    }
 
     const porId = new Map((pers ?? []).map((p: Record<string, unknown>) => [p.id as string, p]));
     const porPersona = new Map((decl ?? []).map((a: Record<string, unknown>) => [a.persona_id as string, a.nombre_declarado as string | null]));
@@ -211,13 +237,12 @@ export default function ConstanciasDocumentoPage() {
   if (error || !doc) {
     return (
       <main className="mx-auto max-w-2xl p-6">
-        <p className="rounded-2xl border border-sand bg-papel px-4 py-6 text-sm text-taupe">
+        <p className="rounded-superficie border border-sand bg-papel px-4 py-6 text-sm text-taupe">
           {error ?? "No se pudo abrir el documento."}
         </p>
-        <button onClick={() => router.push("/admin/normas")}
-          className="mt-3 rounded-lg border border-tinta/30 px-3 py-1.5 text-xs text-tinta">
+        <Boton variante="secundario" tamano="sm" className="mt-3" onClick={() => router.push("/admin/normas")}>
           Volver a Normas
-        </button>
+        </Boton>
       </main>
     );
   }
@@ -231,24 +256,29 @@ export default function ConstanciasDocumentoPage() {
     : `${doc.version}.ª publicación en el sistema`;
 
   return (
-    <main className="mx-auto max-w-4xl p-6 print:max-w-none print:p-0">
+    <main className="hoja mx-auto max-w-4xl p-6 print:max-w-none print:p-0">
       <div className="mb-5 flex flex-wrap items-center gap-2 print:hidden">
-        <button onClick={() => window.print()}
-          className="rounded-lg bg-tinta px-3 py-1.5 text-xs font-medium text-crema">
+        <Boton variante="primario" tamano="sm" onClick={() => window.print()} disabled={!!advertencia}
+          title={advertencia ?? undefined}>
           Imprimir
-        </button>
+        </Boton>
         <a href={`/admin/normas/${doc.id}/imprimir`} target="_blank" rel="noopener"
-          className="rounded-lg border border-tinta/30 px-3 py-1.5 text-xs text-tinta">
+          className="rounded-control border border-tinta/30 px-3 py-1.5 text-xs text-tinta">
           Hoja del documento
         </a>
-        <button onClick={() => router.push("/admin/normas")}
-          className="rounded-lg border border-tinta/30 px-3 py-1.5 text-xs text-tinta">
+        <Boton variante="secundario" tamano="sm" onClick={() => router.push("/admin/normas")}>
           Volver
-        </button>
+        </Boton>
         <p className="text-xs text-taupe">
           Para guardarlo como PDF, elige «Guardar como PDF» en el destino de impresión.
         </p>
       </div>
+
+      {advertencia && (
+        <p className="mb-5 rounded-control border border-rojo/40 bg-rojo/10 px-4 py-3 text-xs text-rojo">
+          {advertencia}
+        </p>
+      )}
 
       <header className="mb-5 border-b border-sand pb-4">
         <p className="font-serif text-[11px] uppercase tracking-[0.2em] text-taupe">
@@ -260,7 +290,7 @@ export default function ConstanciasDocumentoPage() {
         <p className="mt-1 text-sm text-tinta">{doc.tipo_nombre}</p>
       </header>
 
-      <section className="mb-5 rounded-xl border border-sand bg-crema/40 px-4 py-3 text-xs text-tinta print:rounded-none print:bg-transparent">
+      <section className="mb-5 rounded-superficie border border-sand bg-crema/40 px-4 py-3 text-xs text-tinta print:rounded-none print:bg-transparent">
         <dl className="grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-2">
           <div><dt className="inline text-taupe">Documento: </dt><dd className="inline">{doc.titulo}</dd></div>
           <div><dt className="inline text-taupe">Versión: </dt><dd className="inline">{version}</dd></div>
@@ -273,7 +303,7 @@ export default function ConstanciasDocumentoPage() {
       {/* El resumen va ANTES de la tabla y con la fecha de corte pegada al
           número. Un «19 de 19» sin fecha no dice nada: la plantilla cambia, y lo
           que se acredita es el estado en un día concreto. */}
-      <section className="mb-5 rounded-xl border border-tinta/20 px-4 py-3 text-sm text-tinta print:rounded-none">
+      <section className="mb-5 rounded-superficie border border-tinta/20 px-4 py-3 text-sm text-tinta print:rounded-none">
         <p>
           Al <strong>{fechaLarga(hoyLima())}</strong>, de <strong>{total}</strong>{" "}
           {total === 1 ? "integrante comprendida" : "integrantes comprendidas"} —personal activo y en
@@ -289,7 +319,9 @@ export default function ConstanciasDocumentoPage() {
         )}
       </section>
 
-      <table className="w-full border-collapse text-xs">
+      {/* Tabla nativa a propósito: contenido de un documento que se imprime
+          como prueba legal. */}
+      <table className="w-full border-collapse text-xs [font-variant-numeric:tabular-nums]">
         <thead>
           <tr className="border-y border-tinta/30 text-left text-taupe">
             <th className="py-1.5 pr-2 font-normal">N.°</th>
@@ -328,7 +360,7 @@ export default function ConstanciasDocumentoPage() {
       </p>
 
       {pendientes.length > 0 && (
-        <section className="mt-5 break-inside-avoid rounded-xl border border-sand px-4 py-3 text-xs print:rounded-none">
+        <section className="mt-5 break-inside-avoid rounded-superficie border border-sand px-4 py-3 text-xs print:rounded-none">
           <h2 className="mb-1 font-medium text-tinta">
             Pendientes a la fecha de corte · {pendientes.length}
           </h2>

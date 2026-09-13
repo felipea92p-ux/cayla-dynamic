@@ -21,7 +21,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { X } from "lucide-react";
-import type { Item } from "@/app/(admin)/admin/nav";
+import type { Item } from "@/app/(admin)/admin/nav-items";
 
 const ATAJOS: { tecla: string; href: string }[] = [
   { tecla: "d", href: "/admin/dashboard" },
@@ -104,6 +104,10 @@ export function AtajosTeclado({
         className="fixed left-1/2 top-24 z-50 w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 overflow-hidden rounded-xl border border-sand bg-papel shadow-xl">
         <div className="flex items-center justify-between border-b border-sand px-4 py-3">
           <h2 className="font-serif text-lg">Atajos de teclado</h2>
+          {/* Nativo a propósito, y el panel entero sin <Modal>: no está
+              centrado (top-24, junto al buscador) y necesita título + botón
+              de cerrar en la misma fila — el <Modal> compartido solo dibuja
+              un <h2> a todo el ancho, sin ese layout ni esa posición. */}
           <button onClick={() => setAbierto(false)} aria-label="Cerrar"
             className="rounded-md p-1 text-taupe transition hover:bg-sand/40 hover:text-tinta">
             <X size={16} strokeWidth={1.8} aria-hidden />

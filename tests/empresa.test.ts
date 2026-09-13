@@ -76,6 +76,7 @@ const DATOS_CONTRATO: DatosContrato = {
   direccion: null,
   cargo: "Asesora de tienda",
   email: null,
+  genero: null,
   sedeNombre: "Trujillo",
   sedeCodigo: "TRU",
   ciudad: "Trujillo",
@@ -97,8 +98,19 @@ const DATOS_CONTRATO: DatosContrato = {
   firmanteDni: "11111111",
   firmanteCargo: "Gerencia General",
   practicanteModalidad: null,
-  institucionEducativa: null,
   planCapacitacionTexto: "",
+  centroFormacionNombre: null,
+  centroFormacionRuc: null,
+  centroFormacionDomicilio: null,
+  centroFormacionRepresentante: null,
+  carreraEspecialidad: null,
+  cicloAcademico: null,
+  gradoTituloTexto: null,
+  areaProyecto: "",
+  objetivoFormativoGeneral: "",
+  supervisorAsignado: "",
+  hitoMes3: "",
+  hitoMes6: "",
 };
 
 describe("el contrato de trabajo", () => {

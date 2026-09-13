@@ -1,5 +1,6 @@
 import { RANGO_LABEL, formatSoles } from "@/lib/rangos";
 import { Marca } from "@/components/marca";
+import { Insignia } from "@/components/ui/insignia";
 import {
   MESES_LARGO,
   fechaCorta,
@@ -105,8 +106,13 @@ function contextoPagoBase(f: Fila): string[] {
     // persona a la que el sistema le contaba 10 laborables y trabajó 21.
     partes.push(`${trabajados} días trabajados`);
   }
+  // «X de vacaciones» a secas se leía como un descuento pendiente de explicar
+  // —sobre todo cuando vacaciones supera a los días laborables del tramo, que
+  // pasa siempre que alguien toma un descanso que incluye sus días de por sí
+  // libres—. La frase tiene que decir POR SU CUENTA que esos días pagan igual;
+  // no puede depender de que quien lo lee ya conozca la regla de negocio.
   if (vacaciones !== null && vacaciones > 0) {
-    partes.push(`${vacaciones} de vacaciones`);
+    partes.push(`${vacaciones} de vacaciones, que pagan igual que un día trabajado`);
   }
   if (sinSalario !== null && sinSalario > 0) {
     partes.push(`${fmtHoras(sinSalario)} sin tarifa asignada, que no se pudieron pagar`);
@@ -116,7 +122,7 @@ function contextoPagoBase(f: Fila): string[] {
 
 export interface BoletaHojaProps {
   f: Fila;
-  proy: Pick<Proyeccion, "estado" | "pagado_at" | "simulacion" | "fecha_ini" | "fecha_fin" | "anio_etiqueta" | "mes_etiqueta">;
+  proy: Pick<Proyeccion, "estado" | "pagado_at" | "simulacion" | "fecha_ini" | "fecha_fin" | "anio_etiqueta" | "mes_etiqueta" | "base_horas">;
   baseLegal: number | null;
   documento: string | null;
   fechaIngreso: string | null;
@@ -235,6 +241,31 @@ export function BoletaHoja({ f, proy, baseLegal, documento, fechaIngreso }: Bole
   // base sin la 0250 pegada se comporte exactamente como antes — etiquetando por
   // horas, que es lo que hacía — en vez de afirmar un monto fijo que no sabe.
   const sueldoFijo = f.sueldo_fijo ?? false;
+
+  // ── LA TARIFA POR HORA DE UN LOCADOR SIN MONTO FIJO ─────────────────────────
+  // Reintroducido: este bloque existió un rato el 2026-08-08 y se perdió al
+  // extraer esta hoja a su propio componente desde una copia que todavía no lo
+  // tenía. Sin él, la cabecera de arriba imprimía «Honorarios pactados (mes
+  // completo) — S/ X» a un locador que cobra por hora — un monto mensual fijo,
+  // que es justo el indicio de laboralidad que el resto de la hoja evita. Y la
+  // hoja se contradecía a sí misma: la fila de detalle, más abajo, ya decía bien
+  // «Honorarios por las horas prestadas».
+  //
+  // SALE DE `f.salario_ref`, NO DE `baseLegal` (que es `sueldo_base_legal`). Los
+  // dos suelen coincidir por diseño (ver `lib/rangos.ts`), pero el pago lo
+  // calcula `fn_planilla_calcular` con `salario_ref`. Si algún día difieren,
+  // usar el otro daría una tarifa que no reproduce el total de la propia hoja.
+  //
+  // CUATRO DECIMALES, y no dos: a S/ 8.93 la hora, 27 h 30 min dan S/ 245.58 y
+  // la hoja remata en S/ 245.66. Ocho céntimos bastan para que alguien piense
+  // que le descontaron algo; con S/ 8.9330 la multiplicación cierra.
+  //
+  // Solo aplica sin `sueldoFijo`: quien tiene un monto fijo pactado (0250) SÍ
+  // tiene un «mes completo» real que mostrar, y esa frase se queda igual.
+  const tarifaHora =
+    esLocador && !sueldoFijo && f.salario_ref !== null && proy.base_horas > 0
+      ? f.salario_ref / proy.base_horas
+      : null;
   // ⇩ CAMBIO 0254 ⇩ Los días de descanso médico que asume CAYLA van DENTRO de
   // `pago_base` —igual que los de vacaciones desde la 0177— porque sacarlos a un
   // concepto propio obligaría a tocar la tabla congelada y `chk_foto_cuadra`.
@@ -308,7 +339,7 @@ export function BoletaHoja({ f, proy, baseLegal, documento, fechaIngreso }: Bole
       : null;
 
   return (
-      <div className="hoja rounded-lg border border-sand p-8 print:rounded-none print:border-0 print:p-0">
+      <div className="hoja rounded-lg border border-sand p-4 sm:p-8 print:rounded-none print:border-0 print:p-0">
         <div className="mb-6 flex items-start justify-between border-b border-sand pb-4 print:mb-4 print:pb-3">
           {/* ── QUIÉN EMITE ESTE PAPEL (auditoría del 2026-08-19) ──────────────
               La cabecera imprimía el lockup de producto «Dynamic / CAYLA» y
@@ -330,13 +361,12 @@ export function BoletaHoja({ f, proy, baseLegal, documento, fechaIngreso }: Bole
               {MESES_LARGO[proy.mes_etiqueta - 1]} {proy.anio_etiqueta}
             </p>
             {sello && (
-              <p
-                className={`mt-1 inline-block rounded px-2 py-0.5 text-xs font-medium ${
-                  sello.alerta ? "bg-rojo/10 text-rojo" : "bg-verde/10 text-verde"
-                }`}
+              <Insignia
+                variante={sello.alerta ? "alerta" : "positivo"}
+                className="mt-1 font-medium"
               >
                 {sello.texto}
-              </p>
+              </Insignia>
             )}
             <p className="text-xs text-taupe">
               {fechaCorta(proy.fecha_ini)} → {fechaCorta(proy.fecha_fin)}
@@ -389,28 +419,40 @@ export function BoletaHoja({ f, proy, baseLegal, documento, fechaIngreso }: Bole
               (el plus por metas es 21% ENCIMA del rango) y el desmentido que
               había que poner en el pie para explicarla.
               El potencial sigue existiendo en Planilla, para gestión interna. */}
-          {baseLegal !== null && (
+          {/* A UN LOCADOR SIN MONTO FIJO SE LE DICE SU TARIFA, NO UN SUELDO
+              MENSUAL. Ver el cálculo y el porqué de los cuatro decimales donde
+              se define `tarifaHora`, más arriba. */}
+          {tarifaHora !== null ? (
             <dl className="mt-3 space-y-1 text-sm">
-              {/* «(mes completo)» no es decoración: sin eso, esta cifra y la fila
-                  del desglose se llamaban IGUAL y mostraban montos distintos
-                  (1,130.00 aquí y 947.41 abajo). Quien lo leyera rápido pensaba
-                  que había un error. Ahora una dice «mes completo» y la otra
-                  «proporcional», y se entienden sin explicación. */}
               <div className="flex justify-between gap-4">
-                <dt className="font-medium">
-                  {/* CAMBIO 0322: ni "honorarios" (locador) ni "remuneración"
-                      (trabajador) — un practicante cobra una SUBVENCIÓN
-                      económica (art. 45, Ley 28518), que es su propio término
-                      legal y no un sinónimo de los otros dos. */}
-                  {esPracticante
-                    ? "Subvención pactada (mes completo)"
-                    : esLocador
-                      ? "Honorarios pactados (mes completo)"
-                      : "Remuneración Básica Legal (mes completo)"}
-                </dt>
-                <dd className="font-medium">{formatSoles(baseLegal)}</dd>
+                <dt className="font-medium">Tarifa por hora</dt>
+                <dd className="font-medium">S/ {tarifaHora.toFixed(4)}</dd>
               </div>
             </dl>
+          ) : (
+            baseLegal !== null && (
+              <dl className="mt-3 space-y-1 text-sm">
+                {/* «(mes completo)» no es decoración: sin eso, esta cifra y la fila
+                    del desglose se llamaban IGUAL y mostraban montos distintos
+                    (1,130.00 aquí y 947.41 abajo). Quien lo leyera rápido pensaba
+                    que había un error. Ahora una dice «mes completo» y la otra
+                    «proporcional», y se entienden sin explicación. */}
+                <div className="flex justify-between gap-4">
+                  <dt className="font-medium">
+                    {/* CAMBIO 0322: ni "honorarios" (locador) ni "remuneración"
+                        (trabajador) — un practicante cobra una SUBVENCIÓN
+                        económica (art. 45, Ley 28518), que es su propio término
+                        legal y no un sinónimo de los otros dos. */}
+                    {esPracticante
+                      ? "Subvención pactada (mes completo)"
+                      : esLocador
+                        ? "Honorarios pactados (mes completo)"
+                        : "Remuneración Básica Legal (mes completo)"}
+                  </dt>
+                  <dd className="font-medium">{formatSoles(baseLegal)}</dd>
+                </div>
+              </dl>
+            )
           )}
         </div>
 
@@ -688,13 +730,45 @@ export function BoletaHoja({ f, proy, baseLegal, documento, fechaIngreso }: Bole
                       el que la persona calcula lo que tendrá al jubilarse.
                       En ONP no hay cuenta individual —es un fondo común—, así
                       que la frase tampoco valía ahí. */}
-                  <span className="block text-xs text-rojo/70">
+                  <span className="block text-xs text-rojo">
                     {f.regimen_pension === "onp"
                       ? "se remite a la ONP — no se queda en CAYLA"
                       : "se remite a tu AFP — no se queda en CAYLA. Incluye tu aporte al fondo, la comisión y la prima del seguro"}
                   </span>
+                  {/* CAMBIO — `tasa_es_del_regimen` (0114) distingue la tasa REAL de
+                      tu régimen de la tasa de RESPALDO que usa el sistema cuando a
+                      alguien todavía no se le asignó ninguno (`configuracion.tasa_afp`).
+                      Sin este aviso, un descuento calculado con el respaldo se ve
+                      idéntico a uno correcto — y hoy mismo ese respaldo puede valer
+                      0 %, así que el número de arriba no sería el que corresponde. */}
+                  {f.tasa_es_del_regimen === false && (
+                    <span className="block text-xs text-rojo">
+                      ⚠ Con la tasa de respaldo — todavía no tienes un régimen de pensión asignado. Avísale a
+                      Desarrollo Organizacional.
+                    </span>
+                  )}
                 </td>
                 <td className="py-2 text-right align-top text-rojo">−{formatSoles(pension)}</td>
+              </tr>
+            )}
+            {/* EL TERCER CASO, el que la nota de abajo describe como ambiguo:
+                no jubilada, no aporta nada, y `pension > 0` de arriba no
+                dispara porque el respaldo de hoy (`configuracion.tasa_afp`)
+                vale 0 %. Sin esta línea la boleta calla del todo — el mismo
+                silencio que ya se cerró para «jubilada», reabierto por el otro
+                lado. Excluye a quien no le corresponde régimen por su vínculo
+                (locador, practicante): a ellos la ausencia de tasa no es un
+                dato que falte, es la regla. */}
+            {pension === 0 && !esLocador && !esPracticante && f.tasa_es_del_regimen === false && (
+              <tr className="border-t border-sand">
+                <td className="py-2 text-rojo">
+                  Pensión — falta tu régimen
+                  <span className="block text-xs text-rojo">
+                    Todavía no tienes un régimen de pensión asignado, así que este mes no se te descontó nada — y
+                    tampoco se aportó. Avísale a Desarrollo Organizacional.
+                  </span>
+                </td>
+                <td className="py-2 text-right align-top text-rojo">{formatSoles(0)}</td>
               </tr>
             )}
             {/* Y EL CASO CONTRARIO: quien ya se jubiló no aporta, así que su
@@ -721,7 +795,7 @@ export function BoletaHoja({ f, proy, baseLegal, documento, fechaIngreso }: Bole
               <tr className="border-t border-sand">
                 <td className="py-2">
                   Pensión — no se te descuenta
-                  <span className="block text-xs text-tinta/60">
+                  <span className="block text-xs text-taupe">
                     ya te jubilaste, así que no aportas al sistema de pensiones
                   </span>
                 </td>
@@ -747,7 +821,7 @@ export function BoletaHoja({ f, proy, baseLegal, documento, fechaIngreso }: Bole
               <tr className="border-t border-sand">
                 <td className="py-2 text-rojo">
                   Retención — Impuesto a la Renta de 4ta categoría
-                  <span className="block text-xs text-rojo/70">
+                  <span className="block text-xs text-rojo">
                     8 % de {formatSoles(importeDelRecibo)} — CAYLA lo paga a SUNAT a tu nombre,
                     no se queda acá
                   </span>
@@ -823,7 +897,7 @@ export function BoletaHoja({ f, proy, baseLegal, documento, fechaIngreso }: Bole
             gratificación» — que es, en una palabra, la definición de trabajador.
             La regla se dice por lo que la persona ES, no por lo que le salió. */}
         {!esLocador && (aporteEssalud > 0 || f.provision_total > 0) && (
-          <div className="mb-6 rounded-lg bg-arena/60 p-4 print:mb-4">
+          <div className="mb-6 rounded-lg bg-sand/40 p-4 print:mb-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-tinta">
               Además, CAYLA paga por ti
             </p>

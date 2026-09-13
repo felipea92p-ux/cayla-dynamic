@@ -4,6 +4,561 @@
 copias con fecha. Lo ya cerrado vive en [`historico.md`](historico.md). Cómo se
 trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
+---
+
+## 2026-09-11 — Revisión de pendientes de diseño/UX: casi todo ya estaba fusionado; tres bugs reales cerrados
+
+Se pidió trabajar "todos los pendientes de diseño e interfaz". Antes de tocar
+nada se verificó el estado real contra el código, no contra
+`plan-apariencia-2026-09-06.md` ni `plan-diseno-2026-07-27.md`: los dos días
+del plan, los 25 hallazgos de la Radiografía (PR #232) y los cuatro lotes de
+migración de pantallas (PR #273/#276/#278/#280, "lote4 (final)") **ya estaban
+fusionados a `main` entre el 2026-09-05 y el 2026-09-08** — este worktree ya
+estaba al día (`HEAD` = `origin/main`; el `main` local solo estaba atrasado,
+el síntoma habitual de trabajar en varias Mac sin `git fetch`). De la lista
+"Pendiente para después" de
+`plan-apariencia-2026-09-06.md`, dos ítems resultaron ya resueltos al
+verificarlos (el bloque `@media print` ya lleva los once tokens; `/mio` ya
+tiene marco desde PR #312/#313) y uno quedó sin evidencia clara de seguir roto
+(las "dos gramáticas" de tarjeta KPI en costos/provisiones — costos ya usa
+`SeccionTabla`/`bg-papel`/`rounded-superficie` compartidos; no se confirmó una
+segunda gramática real, así que no se tocó sin evidencia).
+
+**Tres quedaban abiertos, verificados contra el código vigente, y se
+cerraron** (rama `claude/design-interface-pending-75ac4d`):
+
+1. 🔴→✅ **Ninguna integrante de sede podía llegar a cambiar su propia
+   contraseña.** `nav-items.ts` gateaba "Cuentas" a `roles: DO` desde el
+   2026-09-04, con un comentario que decía que la pantalla "se degrada
+   sola... el renglón solo llevaba a una puerta cerrada" para quien no
+   gestiona catálogos. Era falso: `admin/cuentas/page.tsx` tiene la rama "Mi
+   cuenta" (solo cambiar la propia clave) desde que se creó, el 2026-07-12
+   (`4d71fd8`). El comentario de septiembre asumió sin volver a leer el
+   código de julio, y dejó a toda encargada de sede sin ningún camino en la
+   interfaz —ni menú, ni ⌘K, ni atajos— para cambiar su clave; solo por URL
+   directa. Cambiado a `roles: SEDE`; la pantalla ya sabía distinguir DO de
+   SEDE, no hizo falta tocar su lógica.
+2. ✅ **`esActivo()` no resaltaba 6 sub-rutas** (`planilla/boleta`,
+   `disciplina/memo/[id]`, `normas/[id]/imprimir`, `normas/[id]/constancias`,
+   `politica-salarial/constancias`, `mio/boleta`) — hallazgo ya escrito en la
+   entrada del 2026-09-07 sobre el sidebar nuevo, sin cerrar. En vez de
+   enumerar las seis a mano, una sola regla general
+   (`pathname.startsWith(href + "/")`) las cubre todas y cualquier sub-ruta
+   futura — se verificó que ningún href actual es prefijo de otro, así que no
+   hay riesgo de colisión.
+3. ✅ **`admin/liquidaciones`, `Hoja()`/`FirmaEmpresa` usaban `border-black`**
+   (4 sitios) en vez de un token de la casa — el único hallazgo de la
+   auditoría de colores sin excepción documentada. Cambiado a `border-tinta`:
+   en impresión es visualmente idéntico (tinta se fuerza a `#1a1a18` en
+   `@media print`, el mismo valor que tenía `black`), y en la vista previa en
+   pantalla ya sigue el tema en vez de una línea negra fija.
+
+**Verificado:** `pnpm typecheck` limpio, `pnpm test` 534/534 en verde,
+`eslint` sobre los dos archivos tocados sin errores nuevos (el único error
+que marca —`react-hooks/set-state-in-effect` en
+`liquidaciones/page.tsx:200`— es deuda vieja, ninguna línea tocada hoy queda
+cerca). **No verificado en el navegador:** el Postgres local compartido tenía
+solo el contenedor de base de datos arriba (18 h), sin API/Auth/Kong —
+`supabase start` no los levantó y se decidió no forzarlo sin saber si otra de
+las ~10 sesiones activas depende de que quede así ahora mismo. Falta mirar a
+ojo: el sidebar con una cuenta de encargada de sede, y la vista previa de una
+liquidación en modo oscuro.
+
+⚠️→✅ **Los otros 11 ítems `roles: DO` de `nav-items.ts`, revisados uno por
+uno el mismo día: ninguno tenía el error de Cuentas.** Se leyó qué hace de
+verdad cada pantalla con un rol que no es DO, no solo el nombre del ítem:
+`contratos`, `documentacion`, `planilla`, `provisiones`, `costos`,
+`liquidaciones`, `educacion`, `areas`, `sedes` y `apariencia` **todas**
+declaran su propio `if (!puede) { return <mensaje> }` con un texto explícito
+de rechazo ("Solo administradores y líderes pueden...", "Esta pantalla es de
+Desarrollo Organizacional") — ninguna ofrece una vista reducida de verdad,
+como sí hacía `admin/cuentas`. `feriados` tiene el mismo patrón
+("No tienes permiso para gestionar feriados."). En los once, el gate del
+menú coincide exactamente con lo que la pantalla ya hace: no hay nada que
+cerrar.
+
+**Por qué Cuentas era distinto, y vale la pena que quede escrito:** de los
+doce ítems `roles: DO` que existían, es el ÚNICO cuya rama para "no admin" es
+una función real (cambiar la propia clave) en vez de un mensaje de rechazo.
+El patrón correcto de la casa, confirmado en los once, es: **pantalla
+DO-only → mensaje de rechazo explícito para quien no lo es.** Si una pantalla
+nueva alguna vez ofrece algo real para SEDE además de la gestión completa
+para DO, ese es el caso especial que hay que recordar destrabar en el menú —
+como se hizo hoy con Cuentas.
+
+---
+
+## 2026-09-11 — La 0376 (candado de `fn_vacaciones_saldo` / `fn_marca_apartada_resolver`) YA estaba pegada · la entrada del 09-05 mentía · CERRADO
+
+La entrada de abajo, del 2026-09-05, decía «🔴 Falta pegarla en producción».
+Ya no es cierto — alguien la pegó entre esa fecha y hoy sin dejarlo escrito
+acá, y esta entrada quedó mintiendo seis días.
+
+Se descubrió pidiendo el md5 a producción, tal como la entrada vieja mandaba
+hacer antes de pegar: el resultado no coincidió con el «md5 de partida» que
+la 0376 declara en su cabecera, y por un momento pareció que producción tenía
+otra versión. **No la tenía** — el «md5 de partida» es el de las funciones
+ANTES del arreglo (0357/0304), así que nunca iba a coincidir con nada una vez
+aplicada la 0376; lo que había que comparar era contra el md5 de LLEGADA. Se
+midió contra el Postgres local con la 0376 aplicada (`migraciones_aplicadas`
+confirma el 376) y coincidió exacto en las dos funciones, `tal_cual` y
+`sin_comentarios` los dos:
+
+| función | md5 (tal_cual) |
+|---|---|
+| `fn_vacaciones_saldo` | `50c82625a587650afce9c40e12ec8386` |
+| `fn_marca_apartada_resolver` | `dd8400ac81f001c27f87718ee1b2f384` |
+
+Nada quedó a medias: el candado que cierra el agujero de la persona cesada
+con sesión viva (ver la 0376 para el detalle) está activo en producción hoy.
+
+---
+
+## 2026-09-10 — Se pegó la 0403→0409, y el registro de migraciones resultó estar mintiendo dos veces
+
+Empezó como «a una integrante nueva de Trujillo no le sale el apartado Mi DNI».
+Terminó pegando siete migraciones, fusionando tres PR y arreglando a mano dos
+filas de `migraciones_aplicadas`. Lo que hay que recordar no son las
+migraciones: son las tres cosas de abajo.
+
+### 1 · `on conflict (numero) do nothing` falla EN SILENCIO, y hoy falló dos veces
+
+Todas las migraciones de este repo cierran con
+
+```sql
+insert into migraciones_aplicadas (numero, nombre) values (NNN, '…')
+on conflict (numero) do nothing;
+```
+
+Está ahí para que repegar una migración no reviente. El precio es que **una
+colisión de número no se ve**: el DDL se aplica, el registro se queda con la
+fila de otra migración, y nada avisa. Hoy pasó dos veces:
+
+- **La 0405** (`la_correccion_de_dni_se_queda_en_do`). A las 20:00:19 ya existía
+  una fila 405 con nombre `0405_la_tasa_de_pension_de_respaldo_se_valida_al_escribir`
+  — la migración de la AFP con su numeración vieja, que en su rama ya era la
+  0411 y que además estaba registrada ahí. Cuando se pegó la 0405 de verdad
+  (entre las 20:23:26 y las 20:30:19), su registro no se escribió.
+- **La 0409** (`el_terminal_por_fin_puede_leer_horario_y_turno`). Su contenido
+  estaba aplicado en producción —las dos policies ya usaban
+  `fn_persona_en_roster_terminal(persona_id)`, la corrección que trae esa
+  migración— y no tenía fila, porque el número 409 lo ocupaba la migración del
+  memo (ver punto 4).
+
+**Cómo se cazaron, y es la lección de método:** consultando el registro por
+NOMBRE y no solo por número. La comprobación que se hizo primero fue
+`array_agg(numero)` y devolvió `[403,404,405]`, que se leyó como «las tres
+entraron». Un array de números no distingue «está la mía» de «está otra con mi
+número». **Cuando se comprueba un registro de migraciones, se piden `numero` y
+`nombre`.**
+
+**Lo que se propone y NO se hizo todavía:** cambiar la convención de aquí en
+adelante a `on conflict (numero) do update set nombre = excluded.nombre,
+aplicada_at = now()`. Repegar sigue sin fallar, pero un número ocupado por otra
+cosa se ve — la fila cambia de nombre delante de quien pega, en vez de quedarse
+mintiendo. No arregla las migraciones ya escritas.
+
+**Ojo con la 0405:** su `aplicada_at` es `2026-09-10 21:09:01`, la hora de la
+corrección. La real está acotada entre las **20:23:26** y las **20:30:19** de
+ese día, por las filas vecinas.
+
+### 2 · El `\r` de Windows: medido, y el culpable NO es el portapapeles
+
+El `CLAUDE.md` documenta desde el 2026-09-08 que pegar desde Windows mete un
+`\r` por línea. Hoy se midió de dónde sale exactamente, y el resultado corrige
+la suposición:
+
+- **El portapapeles sale limpio.** `Get-Content -Raw -Encoding utf8 <archivo> |
+  Set-Clipboard` deja el portapapeles **byte por byte idéntico** al archivo:
+  medido en las seis migraciones de hoy, `CR=0` y los caracteres no-ASCII
+  intactos (159 en la 0404, 194 en la 0405, 222 en la 0408).
+- **El archivo en disco también.** 0 retornos de carro, `core.autocrlf = false`,
+  sin `.gitattributes`. El `\r` no viene de git.
+- **Lo mete el editor del SQL Editor de Supabase**, que normaliza los finales de
+  línea a la convención del sistema de quien pega. La prueba es el contraste:
+  las tres migraciones pegadas el 2026-09-08 a las 20:00 y 21:10 —desde la
+  Mac— tienen `cr = 0` en producción, y **todo lo pegado hoy desde Windows
+  tiene `cr` = su número de saltos de línea**, exacto.
+- **Y no se perdió nada más.** Se calculó el md5 del cuerpo del repositorio
+  convertido a CRLF y **coincidió con el de producción en las nueve funciones**.
+  Un solo carácter mal —un acento roto, el accidente de la 0185— habría
+  cambiado el hash. Así que el `\r` es lo único que pasó.
+
+**Cómo comprobarlo en un vistazo:**
+
+```sql
+select proname,
+       md5(prosrc)                                           as md5,
+       length(prosrc)                                        as length,
+       octet_length(prosrc)                                  as octet,
+       length(prosrc) - length(replace(prosrc, chr(13), '')) as cr
+  from pg_proc where proname = 'fn_lo_que_sea';
+```
+
+Si `cr` sale igual al número de saltos del cuerpo y `octet_length` es el del
+repositorio más ese mismo número, es esto y no hay nada roto. Si no cuadra
+ninguna de las dos, es otra versión y hay que parar.
+
+**Y `dame-el-sql.sh` no protege de esto en Windows.** Su comprobación byte por
+byte usa `pbcopy`/`pbpaste`, que son de macOS; en Windows cae al `else` y solo
+dice «ábrelo y cópialo». Verifica git y GitHub, **no** lo que llega al
+portapapeles. El equivalente que sí verifica, y que se usó hoy:
+
+```powershell
+$repo = Get-Content -Raw -Encoding utf8 <archivo>; Set-Clipboard -Value $repo
+$clip = Get-Clipboard -Raw
+"identico : " + ($clip -eq $repo)
+```
+
+### 3 · Los md5 de las funciones tocadas hoy, para que nadie pare en seco
+
+Estas nueve quedaron con `\r` y **su md5 no volverá a coincidir con el del
+repositorio**. Estos son los de producción, verificados uno por uno:
+
+| función | migración | md5 | length / octet / cr |
+|---|---|---|---|
+| `fn_resolver_solicitud_perfil` | 0405 | `e915954d8af0f81509a3e5d0b1d3429e` | 2572 / 2586 / 55 |
+| `fn_solicitudes_perfil_pendientes` | 0405 | `193cf79613372cd568b8bd9b83ede410` | 575 / 575 / 12 |
+| `fn_confirmar_mi_firma_contrato` | 0406 | `9fd167ef12e77545b4bd2ad6581cfbdf` | 1215 / 1224 / 30 |
+| `fn_borrar_dni_de` | 0407 | `2b47112565e76c77f20cf1fee5934d55` | 2333 / 2355 / 54 |
+| `fn_mis_memos` | 0408 | `0f02ee97f3187656e085eec4186f1dd7` | 338 / 338 / 7 |
+| `fn_firmar_memo_como_sancionado` | 0408 | `35c1a7558746e927ceab66347f6a8448` | 1195 / 1205 / 31 |
+| `fn_rechazar_firma_memo` | 0408 | `b03654032d2483ccc9b3593a2fc0a738` | 903 / 907 / 25 |
+| `fn_memos_recientes_respuesta_sancionado` | 0408 | `083da5faf9fb8413725eaaddc515bf58` | 718 / 718 / 12 |
+
+`fn_registrar_mi_consentimiento` (0404) se comprobó contra los dos candidatos y
+pasó, pero no se anotó cuál: el limpio es
+`0b9cf2e88249f965df93a63a65b7b98c` (710/721) y el de CRLF
+`4205deaca5788d7b21bba227a445716c` (729/740). `fn_solicitud_perfil_puede_leer`
+(0403) no se midió.
+
+Y las tres que **sí** coinciden con el repositorio, porque se pegaron desde la
+Mac — sirven de contraste:
+
+| función | md5 | length / octet / cr |
+|---|---|---|
+| `fn_bloquear_regimen_pension_directo` | `3c35b443adeb571b4c857c8479789dbd` | 247 / 249 / 0 |
+| `fn_valida_tasa_afp_respaldo` | `f0bb914b10f147a49eefdcd417feb5a2` | 787 / 800 / 0 |
+| `fn_expediente_cerrar_sin_entrega` | `e1940eb0ec92ca397e0ca7ee3dcbaecb` | 1369 / 1377 / 0 |
+
+### 4 · Las cuatro filas huérfanas (409/410/411/412), explicadas y cerradas
+
+Producción tenía cuatro filas que no cuadraban con el repositorio. Ninguna era
+el caso de la 0393 —contenido superado, no fusionar—: las tres funciones que
+creaban existían **solo** en ramas sin fusionar, así que era el caso (a),
+aplicado y sin guardar. Se comprobó midiendo el md5 de cada una contra la rama:
+las tres coincidieron byte por byte.
+
+- **410 y 411** venían de [PR #301](https://github.com/felipea92p-ux/cayla-dynamic/pull/301)
+  (`auditoria-afp-a1970d`). Habían sido 0404/0405 y se renumeraron bien para no
+  chocar con `main`; sus filas coinciden exactamente con lo que declaran los
+  archivos, prefijo `0410_`/`0411_` incluido.
+- **409** era en realidad la **0412** (`el_memo_firmado_se_cierra_sin_entrega_si_la_persona_cesa`,
+  [PR #299](https://github.com/felipea92p-ux/cayla-dynamic/pull/299)): se pegó
+  cuando era la 0409 y se renumeró después. Se corrigió la fila con
+  `update migraciones_aplicadas set numero = 412 where numero = 409 and nombre = …`
+  — con el `and nombre` para que no pudiera tocar otra.
+- Al liberar el 409, la **0409 de `main`** pudo por fin registrarse.
+
+Los tres PR (#288, #299, #301) se fusionaron. **`main` tiene ahora la 0399 a la
+0412 sin un solo hueco** y `numeracion.sh` dice «sin novedad».
+
+**Hallazgo de la revisión del #301:** no tenía **ni una** corrida de CI. Dos
+migraciones vivían en producción sin que ninguna prueba pgTAP las hubiera visto.
+Se resolvió empujando a la rama en vez de fusionar directo a `main`, para que
+`db-tests` corriera — pasó en 3m56s. Por eso los conflictos se resuelven en la
+rama y no en `main`: es lo único que consigue la señal.
+
+### 5 · Y la pregunta con la que empezó todo: «Mi DNI» no aparecía
+
+**No era la base, ni el consentimiento, ni el contrato.** La pestaña se enciende
+con una sola condición (`hayCampoDni`, que lee `catalogo_campos_perfil` buscando
+`foto_dni`), esa lectura no filtra por persona y su política es
+`using (true) to authenticated`. Se verificó contra producción: la fila existe,
+el esquema es `public`, la política está, el permiso está, y **leyéndola como
+`authenticated` devuelve la fila**. Así que no podía ser de esa integrante: si
+no la veía ella, no la veía nadie.
+
+La respuesta fue la más aburrida: **estaba fuera de la vista.** Las ocho
+secciones de `/mio` vivían en una tira horizontal con `overflow-x-auto` y la
+barra de scroll escondida, y en cualquier pantalla que no fuera ancha había
+secciones enteras sin nada que anunciara que seguían a la derecha. Otra sesión
+llegó al mismo diagnóstico ese mismo día y lo cambió por el menú lateral
+(`components/nav/menu-detalle.tsx`), con el antecedente escrito ahí: ya se había
+intentado con scroll horizontal (`688e8e5`) y se revirtió el mismo día
+(`21591a7`) por esconder ítems.
+
+**Dos propiedades del código que conviene tener escritas, porque las dos hacen
+que un problema global parezca una función que falta:**
+
+1. **Esa lectura falla cerrada y a propósito** (comentario en `mio/page.tsx`):
+   cualquier error de la consulta se trata como «el campo no existe», sin
+   mensaje en pantalla. Es la decisión correcta —vale más que la sección no
+   esté que que falle con las dos fotos ya subidas— pero significa que un 404
+   de PostgREST, un permiso o una fila ausente se ven **idénticos**.
+2. **`/mio` no tiene corte de render para `!yo`**, solo para `!sesion`. Si la
+   fila de `personas` no se puede leer, la pantalla se dibuja **completa** y
+   `cargarDni` sale por su `if (!yo?.id)`, así que desaparece **solo** la
+   sección condicional. Se investigó como causa y se descartó (no hay ningún
+   `auth_user_id` repartido en dos fichas), pero la propiedad es real: un
+   problema de identidad se manifiesta como una sección que falta.
+
+### 6 · 🔴 Vercel publica producción sola en cada push a `main`. Fusionar un PR ES publicar
+
+Medido hoy, y no admite otra lectura. El commit `482d2c30` **solo cambia
+`docs/estado.md`** —ni una línea de código— y el despliegue de producción pasó
+de `dpl_EaBg4eug…` a `dpl_9TUUtjVPJ8jtCRHUchmwztyuinsE` **en menos de un
+minuto**, sin que nadie corriera `desplegar.sh`. Antes, en la misma sesión,
+había pasado de `dpl_HVp7Wfmx…` a `dpl_EaBg4eug…` al fusionar los tres PR.
+
+La integración de Git de Vercel está conectada a `main` como rama de
+producción. Consecuencias, y las tres importan:
+
+- **`./scripts/desplegar.sh prod` vigila un camino por el que producción ya no
+  pasa.** Comprueba que no haya cambios sin guardar, que GitHub esté al día y
+  que la CI de ese commit esté verde —incluidas las pgTAP— y pide escribir
+  `publicar`. Todo eso sigue siendo correcto y **no se aplica a los despliegues
+  reales**, que salen de un `git push`. Es la misma forma del agujero que ya
+  costó la 0177 y la 0243 con `dame-el-sql.sh`: *el agujero no estaba en el
+  script, estaba en que el camino cómodo no pasa por él*.
+- **La garantía de «CI verde antes de publicar» hoy NO existe.** Se observó
+  directamente: producción ya servía el código de los tres merges mientras
+  `db-tests` sobre `c426fe69` seguía corriendo. Estuvo unos veinte minutos
+  sirviendo código que ninguna prueba de base de datos había validado todavía.
+  No falló nada, y eso es lo peligroso.
+- **Y «desplegar a producción se pregunta SIEMPRE» está saltado por la
+  configuración, no por descuido de nadie.** Hoy se pidió permiso para
+  *fusionar* tres PR; lo que ocurrió fue *publicar*. Quien aprueba un merge en
+  este repo está aprobando un despliegue, y hasta hoy eso no estaba escrito en
+  ninguna parte.
+
+**Qué hay que decidir** (no se tocó nada): o se acepta y se escribe así en
+`CLAUDE.md` —fusionar es publicar, y por tanto un merge se pide con el mismo
+cuidado que un despliegue—, o se apaga el despliegue automático de producción
+en Vercel para que el único camino sea `desplegar.sh`, o se mueve la puerta a
+GitHub exigiendo que `db-tests` pase antes de poder fusionar. Las tres son
+defendibles; lo que no lo es es que el repositorio documente una regla y la
+configuración haga otra cosa.
+
+### 7 · El molde del trigger NO hace falta siempre: depende de si la tabla tiene política de escritura
+
+Durante esta sesión se dio por hallazgo que a `foto_dni_anverso_ruta` /
+`foto_dni_reverso_ruta` les faltaba el trigger del molde
+`fn_set_rol`/`fn_bloquear_rol_directo` (0295/0296) y
+`fn_set_sede_base`/`fn_bloquear_sede_directa` (0342): que `fn_borrar_dni_de`
+(0407) auditaba la cancelación pero un admin podía vaciar las columnas con un
+`update` directo por PostgREST. **Es falso, y se descartó midiendo:**
+
+| tabla | RLS | políticas en producción |
+|---|---|---|
+| `personas` | activa | `select` ×3 + **`personas_update_admin_lider [w]`** + `personas_insert_admin_lider [a]` |
+| `datos_personales` | activa | **solo `select` ×3** — ni update, ni insert, ni delete |
+
+Con RLS activa, **una operación sin política se deniega**, y los `grant` de
+tabla no cambian nada (`authenticated` los tiene todos por el
+`alter default privileges` de Supabase, y da igual). Así que a
+`datos_personales` no se le puede escribir por PostgREST: sus únicos escritores
+son funciones `security definer` —`fn_aplicar_cambio_perfil` (0399/0401), que
+las pone al aprobar, y `fn_borrar_dni_de` (0407), que las vacía—. La puerta ya
+está cerrada.
+
+**La regla que queda, y que el `CLAUDE.md` no dice:** el molde del trigger es
+obligatorio cuando la tabla **tiene** política de escritura que alcanza al
+campo. En `personas` la tiene (`personas_update_admin_lider`), y por eso `rol` y
+`sede_base_id` sí necesitaban su trigger — no era ceremonia. En una tabla sin
+políticas de escritura, el trigger es un guarda contra algo que no puede pasar.
+
+**Y el error de método, que es lo que hay que recordar:** se dedujo «no hay
+trigger → se puede escribir» sin comprobar si había política de escritura.
+Preguntarlo cuesta una consulta:
+
+```sql
+select relrowsecurity as rls,
+       (select array_agg(polname || ' [' || polcmd::text || ']' order by polcmd::text)
+          from pg_policy where polrelid = c.oid) as policies
+  from pg_class c where c.oid = 'public.la_tabla'::regclass;
+```
+
+### Qué queda abierto de esta sesión
+- 🟡 **`on conflict … do nothing`** → `do update set nombre = excluded.nombre`
+  en la convención de migraciones (punto 1).
+- ✅ **El despliegue automático se queda** (punto 6). Decisión de Felipe,
+  2026-09-10, sabiendo lo que implica: **fusionar un PR a `main` publica a
+  producción**, y `desplegar.sh` con todas sus comprobaciones NO se aplica a
+  ese camino. Se descartó apagarlo y se descartó poner la puerta en GitHub. Lo
+  que queda a cambio es el cuidado de quien fusiona, y sobre todo el orden:
+  **la migración se pega ANTES de fusionar el PR que la usa**, porque después
+  de fusionar el frontend ya está en el aire. Hoy eso falló dos veces —la 0404
+  y la 0407— y las dos se cazaron a mano.
+- 🟢 **El linter del hook no revisó uno de los push de hoy** y lo dijo en voz
+  alta («no devolvió nada analizable»). La causa es la que el `CLAUDE.md` ya
+  documenta: el commit tocaba `packages/`, y colar una ruta de ahí hace que
+  eslint aborte. Se linteó a mano el único archivo de app afectado: 1 error, y
+  es deuda vieja —la misma línea existía antes, corrida de la 277 a la 323—.
+
+## 2026-09-08 — Auditoría dedicada a AFP/ONP: dos huecos de permisos cerrados (0410/0411)
+
+10 agentes en paralelo, solo lectura, auditaron el descuento de AFP/ONP de
+punta a punta — cálculo, exclusiones por tipo de vínculo, vigencia del
+régimen, permisos, pruebas y consistencia contra este mismo documento y
+`hallazgos-abiertos.md`. La aritmética central resultó sana: 5 casos
+numéricos trazados a mano sobre `fn_planilla_calcular_nucleo` (0397) dieron
+los 5 el resultado correcto.
+
+El hallazgo grave no fue de cálculo, fue de permisos, y lo confirmaron dos
+agentes por caminos separados: `personas.regimen_pension` **no** tenía el
+mismo candado que `rol` (0296) y `sede_base_id` (0342) — contradiciendo
+directamente el cierre de arriba, el del 2026-09-03 ("el patrón función
+guardián... las tres funciones ya funcionan bien"). No era cierto para la
+tercera: cualquier sesión admin/líder podía pisar el régimen de pensión con
+un `UPDATE` directo, saltándose `fn_cambiar_regimen_pension` (0332) entero.
+
+**Cerrado hoy, aplicado y verificado en producción (commit `dcef5a3`):**
+- **[0410](../supabase/migrations/0410_el_regimen_de_pension_tambien_se_cambia_por_una_puerta.sql)**
+  — trigger que bloquea el `UPDATE` directo de `regimen_pension`, mismo
+  molde que 0296/0342.
+- **[0411](../supabase/migrations/0411_la_tasa_de_pension_de_respaldo_se_valida_al_escribir.sql)**
+  — exige que `configuracion.tasa_afp` (el respaldo global que usa la
+  planilla cuando falta el régimen de alguien) sea un número entre 0 % y
+  20 % al escribirse; no toca el valor ya sembrado.
+
+**Medido en producción de paso:** `configuracion.tasa_afp` sigue exacto en
+`{"tasa": 0}`, y hay al menos una persona activa, en planilla, sin ningún
+régimen de pensión asignado hoy — aportando S/0 de pensión cada mes hasta
+que se le asigne desde `/admin/datos-personales`.
+
+**Quedan abiertos** ~9 hallazgos 🟡: la boleta y `/admin/planilla` quedan
+mudos cuando a alguien le falta el régimen (no solo cuando está "jubilada"),
+el mismo hueco de "sin régimen → aporte cero" también vive en
+`fn_vacaciones_truncas` (liquidación al cesar), `tipo_vinculo` no está
+versionado por fecha a diferencia de `regimen_pension`, no existe función
+para corregir una liquidación ya pagada con AFP/ONP mal calculado, y tres
+huecos de cobertura en las pruebas pgTAP de AFP. Detalle completo, con
+evidencia archivo:línea, en [`hallazgos-abiertos.md`](hallazgos-abiertos.md).
+
+## 2026-09-08 — La 0393 no es una huérfana: es un fantasma. Los cuatro huecos, explicados · CERRADO
+
+Medido contra producción el 2026-09-08: `migraciones_aplicadas` llega a la
+**400**, y todo lo que `main` tiene desde la 386 está pegado. **No hay atraso de
+pegado.** En la otra dirección apareció una fila que sobra, y lo que enseñó vale
+más que el hallazgo.
+
+**La 0393 (`cualquiera_guarda_su_propia_firma`) se pegó el 2026-09-07 a las
+15:06 desde una rama que nunca se fusionó.** La primera lectura fue «hay que
+fusionar ese PR». **Es exactamente al revés**, y comprobarlo costó tres consultas:
+
+- el archivo de esa rama crea `fn_set_mi_firma(p_dataurl text)` — UN argumento;
+- producción tiene `fn_set_mi_firma(p_dataurl, p_tipo, p_estilo)` — TRES, creada
+  por la **0395** y ajustada por la **0398**, las dos en `main` y las dos pegadas.
+
+O sea: el contenido de la 0393 quedó superado por migraciones posteriores que sí
+están guardadas. **No falta nada por rescatar.** Y fusionar aquel PR crearía una
+sobrecarga —los tres argumentos tienen valor por defecto, así que una llamada de
+uno encajaría en las dos firmas— y repetiría el **«function is not unique»** de
+la 0297/0299: el accidente que no falla al pegar la migración, sino al abrir la
+pantalla. Ese PR se cierra sin fusionar.
+
+**LA LECCIÓN, que es lo que hay que recordar de esta entrada.** El detector nuevo
+(PR #250) marcó la fila correctamente, pero su texto decía «commitéala HOY» — la
+instrucción contraria a la correcta. Un detector encuentra la discrepancia; **no
+puede decidir qué significa**, porque hay dos casos que se ven idénticos:
+
+  a) la migración existe y no se guardó → commitearla (0177, 0243, 0381);
+  b) el número se anotó y su contenido quedó superado → NO commitear nada.
+
+Distinguirlos exige mirar si lo que esa migración creaba sigue vigente en
+producción **con la misma firma**. El aviso pasó a decir «revísala», con los dos
+caminos escritos al lado.
+
+**Y el estado ya tenía nombre.** `huecos-conocidos.txt` manda desde su primera
+versión buscar «SOBRA LA FILA» antes de silenciar un hueco, y ese texto **no
+existía en ninguna parte del repo**: el archivo llevaba meses mandando a buscar
+una comprobación que nadie había construido. Ahora el estado se llama así.
+
+**Los cuatro huecos quedan documentados**, con razón verificada uno por uno:
+0383, 0389 y 0394 son renumeraciones limpias que NUNCA llegaron a producción
+(comprobado: no tienen fila en `migraciones_aplicadas`); la 0393 lleva la
+explicación larga de arriba. `numeracion.sh` ya dice «sin novedad».
+
+## 2026-09-07 — El freno SQL→producción deja de mirar el disco (la «mitad cara» del 🔴#0) · SIN FUSIONAR
+
+[PR #250](https://github.com/felipea92p-ux/cayla-dynamic/pull/250). El
+`estado.md` lo pedía desde el 2026-08-14 y era el único freno del repo que
+preguntaba en la dirección fácil.
+
+**El agujero era una línea.** `listar()` hacía `ls supabase/migrations/*.sql`
+—el DIRECTORIO DE TRABAJO—. Si una migración se aplicaba en producción desde un
+archivo que nunca se commiteó, y ese archivo seguía en el disco de esa Mac, `ls`
+lo veía, entraba a la lista `repo` y la consulta la marcaba «✓ aplicada». El
+hueco quedaba invisible **justo en la máquina donde había que verlo**.
+
+Pasó tres veces —la 0177 (2026-08-07), la 0243 (2026-08-14) y la 0381
+(2026-09-05, un día entera sin que nada avisara)— y a ninguna la cazó una
+herramienta: a las tres las encontró alguien mirando a mano.
+
+**Qué cambia.** La lista sale de la UNIÓN de `origin/main` y `HEAD`: lo que está
+en GitHub más lo commiteado en esta rama, que son las dos cosas que sobreviven a
+que ese disco falle. El directorio de trabajo queda fuera a propósito —un archivo
+sin commitear no es un ejemplar, es un borrador, y de eso ya avisa
+`migracion-sin-guardar.sh`—. Es la unión y no solo `origin/main` porque si no,
+cualquier rama de trabajo vería como huérfanas todas las migraciones de main.
+
+**Y la pregunta que la consulta nunca hacía.** Todo lo que respondía era «¿qué le
+falta a producción?». Ahora responde también **«¿qué tiene producción que no está
+guardado en ninguna parte?»**: la lista `huerfanas` sale ANTES del resumen y
+manda sobre él. Que falte pegar algo es atraso normal; que algo esté pegado y sin
+guardar es lo que costó tres sustos.
+
+**Probado en las dos direcciones, contra producción real** —y la segunda importa
+tanto como la primera, porque un guardián que chilla siempre se desactiva a la
+semana:
+
+| Caso | Resultado |
+|---|---|
+| Con la 0393 fuera de git (su estado real) | la cazó sola, con fecha y hora |
+| Con la 0393 dentro de la lista | «sin huérfanas» — no chilla |
+| Un archivo suelto en el directorio de trabajo | ya NO entra a la lista |
+| `--check` | estable: el hook no entra en el bucle de pedir un segundo push |
+| Sin red | genera igual, contra la última foto de `origin/main` |
+
+## 2026-09-07 — 25 hallazgos de diseño de la auditoría del 2026-09-06/07, cerrados
+
+Rama `claude/stoic-chandrasekhar-5a16c4`, 4 commits. De los 27 hallazgos de
+categoría "diseño" con severidad alta o media que dejó la Radiografía Dynamic
+(ver la auditoría en el worktree `kaila-dynamic-retail-audit-7d5733`), 25
+quedaron resueltos aquí; los otros 2 eran el mismo bug del mapa de calor de
+Turnos citado dos veces por lectores distintos.
+
+**Lo tocado:** `globals.css` (paleta de impresión desfasada, radio duplicado,
+regla de hover que le ganaba a Boton y alcanzaba al terminal, pizarra/verde
+oscuro medidos mal), `Campo`/`CampoSelect` (etiqueta en mayúsculas → caja
+normal tras comparar a ojo, zoom de iOS, flecha del select con color cocido),
+`Modal` (ancho fijo, título que no se dibujaba), `Insignia` (variante alerta
+bajo 4.5:1, variante `contador` nueva), el mapa de calor de Turnos (colores
+que ignoraban el tema — commit aparte, el primero de la rama), y ocho
+hallazgos sueltos en contratos, equipo, login, correcciones, horarios y el
+terminal de marcaje (borde invisible de las casillas de nombre, grilla
+dimensionada para teléfono, aviso de marcas apartadas ilegible).
+
+Cada número de contraste se midió tal como el componente lo pinta de verdad
+(pill compuesto a su opacidad real, en los dos temas), no contra el color
+plano — siguiendo el mismo método que ya usa `globals.css` para verde/ámbar,
+que varios de estos hallazgos señalaron que no se había aplicado a pizarra,
+rojo ni al verde oscuro. Typecheck atrapó un JSX comment mal ubicado que
+rompía la sintaxis en dos archivos antes de llegar a comitear.
+
+✅ **`personas/[id]/page.tsx:645` — resuelto, era una falsa alarma.** El plan
+de apariencia lo marcaba como "decisión abierta, no resolverla sin preguntar",
+pero esa nota ya estaba vieja: `CLAUDE.md` (commit `06afd11`, 2026-09-05, un
+día antes del plan) ya documenta el `bg-white` fijo de esa tarjeta como parte
+de la excepción de política salarial. Corregida la nota obsoleta del plan.
+
+**Sin tocar hoy, a propósito:** los 3 hallazgos de esfuerzo "día" y el de
+"semana" (el envoltorio de tabla copiado 15 veces, el botón primario copiado
+82 veces en 38 archivos, los 36 diálogos del navegador de Planilla) — se
+solapan con el "Día 2" ya escrito en `plan-apariencia-2026-09-06.md`, y
+migrarlos aquí habría sido reinventar esa secuencia a medio camino.
+
 ## Qué va acá y qué no
 
 Este archivo guarda **solo lo que ninguna herramienta puede responder sola**:
@@ -13,7 +568,7 @@ y lo que se descartó para no volver a investigarlo.
 | Pregunta | Quién la responde de verdad |
 |---|---|
 | ¿Cuántas migraciones hay, hasta cuál? | `ls supabase/migrations \| tail -1` |
-| ¿Cuántas pruebas, y pasan? | `npx supabase db reset && npx supabase test db` · `npx pnpm typecheck && npx pnpm test` |
+| ¿Cuántas pruebas, y pasan? | el job `db-tests` del PR (`gh pr checks`) · `npx pnpm typecheck && npx pnpm test`. **No `supabase db reset`**: el Postgres local lo comparten los ~10 worktrees y reiniciarlo le destruye el estado a las demás sesiones — además de dar rojos falsos. Ver CLAUDE.md |
 | ¿Producción dice lo mismo que el repositorio? | `scripts/sql-manual/huella_del_esquema.sql` — una fila, dos segundos. Si difieren las funciones con el mismo conteo, `que_funcion_cambio.sql` dice cuál |
 | ¿Falta pegar alguna migración? | `./scripts/que-falta-pegar.sh` genera la consulta; `migraciones_aplicadas` guarda el registro |
 | ¿Falta anotar alguna migración? | la prueba `122_toda_migracion_deja_su_rastro`, en CI, en cada push |
@@ -34,6 +589,1373 @@ calculan en el mismo minuto o no se calculan.
 **Regla para quien edite este archivo:** si lo que vas a agregar es un número que
 un comando puede calcular, no va acá — va el comando. Y si es una lista de
 nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
+
+---
+
+## 2026-09-07 — Radiografía Dynamic: primer lote de críticos de seguridad/plata, PEGADO Y VERIFICADO EN PRODUCCIÓN
+
+Sale de la Radiografía Dynamic (92 agentes lectores, 731 hallazgos confirmados,
+38 críticos — [artifact](https://claude.ai/code/artifact/1bd904f7-cff2-4a01-830b-475badb31ab5)).
+Se decidió atender el resto de los críticos de plata/ley/seguridad por lotes
+chicos, cada uno verificado empíricamente antes de escribir el siguiente, en
+vez de una migración gigante de una sola vez.
+
+✅ **Primer lote (2 "minutos" + 5 de Retail, consolidados en 3 causas raíz)
+PEGADO Y VERIFICADO EN PRODUCCIÓN el 2026-09-07.** [PR #238](https://github.com/felipea92p-ux/cayla-dynamic/pull/238),
+fusionado a `main`:
+
+- `fn_cuentas` (`app/api/admin/cuentas/route.ts`): una admin/líder **cesada**
+  conservaba acceso completo a gestión de cuentas — la ruta usa el cliente
+  `service-role`, que se salta RLS y `fn_rol_actual()`. Ahora valida
+  `rol` + `estado === 'activo'` con el cliente normal antes de autorizar.
+- `admin/documentacion`: el desplegable de "a quién imprimir" ofrecía
+  locadores para documentos (movilidad, bonos) que solo debería recibir
+  personal en planilla — riesgo de desnaturalización del contrato. Filtrado
+  a `en_planilla`.
+- **`supabase/migrations/0392`** — `retail.es_lider()`, `retail.es_supervisor()`
+  y `retail.puede_operar_sede()` sin `coalesce` devolvían `NULL` (no `FALSE`)
+  para una persona cesada; como `if not NULL` nunca se dispara en PL/pgSQL,
+  una excolaboradora con sesión de Auth todavía viva podía seguir abriendo
+  caja y vendiendo en **cualquier** sede. `abrir_caja`/`cerrar_caja`/
+  `registrar_venta` ni siquiera llamaban al guardián. `recalcular_stock()`
+  no tenía candado y su `truncate`+`rebuild` borraba `stock_minimo`/
+  `contenedor_id` en silencio. Prueba `311` (11 aserciones pgTAP) en verde
+  en `db-tests`. Verificado contra producción DESPUÉS de pegar: los siete
+  `md5(prosrc)` coinciden exactos con el Postgres local tras el arreglo, y
+  `migraciones_aplicadas` registra `numero=392` a las 2026-09-07 22:14:24 UTC.
+  **Alcance deliberado, no cerrado:** ~8 sitios más de retail con
+  `if not retail.es_lider()` quedan seguros por el `coalesce` sin tocarse
+  (mejora de consistencia aparte), y `fn_sede_actual_persona()` —que no
+  filtra por estado— queda como riesgo residual anotado, no como algo que
+  esta migración debía resolver.
+
+Quedan por atender el resto de los críticos del catálogo priorizado, en
+lotes sucesivos con el mismo protocolo.
+
+⚠️ **[PR #232](https://github.com/felipea92p-ux/cayla-dynamic/pull/232) (los
+25 hallazgos de diseño, del mapa de calor de Turnos a Modal/Insignia) sigue
+ABIERTO, sin fusionar** — pendiente de revisión.
+
+---
+
+## 2026-09-07 — Un practicante puede cobrar movilidad y educación (0397) · PEGADA Y VERIFICADA
+
+Motivado por un caso real: Geison Alcantára —de prácticas, ingresó el 3 de
+septiembre— estaba mal registrado como planilla normal y su boleta le
+descontaba AFP y le acumulaba gratificación/CTS que no le correspondían.
+Se corrigió su `tipo_vinculo` a `practicante` desde `/admin/equipo` (dato, no
+código), y de ahí salió la pregunta: ¿puede CAYLA ofrecerle también movilidad
+y educación? Legalmente sí (Ley 28518 no lo prohíbe) — pero el sistema no se
+las pagaba, porque las dos seguían condicionadas solo a `en_planilla`, que
+para un practicante es `false` por definición.
+
+**La 0397** amplía la condición a `pe.en_planilla or pe.tipo_vinculo =
+'practicante'` en los 7 sitios exactos de `fn_planilla_calcular_nucleo` donde
+se leía `en_planilla` para estos dos conceptos — el mismo patrón quirúrgico
+que la 0322 usó para EsSalud. AFP, CTS, gratificación, bonificación
+extraordinaria y asignación familiar **no se tocan** y siguen en cero para un
+practicante. Sigue siendo una opción: sin tarifa de movilidad cargada para su
+sede o sin una asignación de educación con comprobante, un practicante sigue
+cobrando S/0 de los dos, igual que hoy.
+
+Auditado contra Postgres local dentro de `BEGIN…ROLLBACK` antes de escribir
+([PR #254](https://github.com/felipea92p-ux/cayla-dynamic/pull/254)): monto
+correcto, `total` cuadra con `chk_foto_cuadra`, el periodo cierra por el grupo
+`practicante` (0323), y las pruebas 115/193 (educación/movilidad existentes)
+sin regresión. `db-tests` en verde (3m57s). **Confirmado en producción el
+2026-09-07**: la consulta de comprobación del final de la migración devolvió
+exactamente lo esperado — las dos funciones núcleo creadas, en la lista negra,
+y NO ejecutables directamente por `authenticated`.
+
+**Pendiente que no se arregla solo:** para que esto mueva un sol de verdad hay
+que cargarle a la persona una tarifa de movilidad vigente para su sede (si no
+la tiene) y/o una asignación de educación con comprobante desde
+`/admin/educacion`. Sin eso, nada cambia para nadie.
+
+---
+
+## 2026-09-07 — El mega menú pasa a sidebar lateral colapsable, y los grupos de 5 a 7 · SIN MIGRACIONES, SIN DESPLEGAR
+
+Ejecuta la decisión que [`plan-apariencia-2026-09-06.md`](plan-apariencia-2026-09-06.md)
+dejó aplazada por escrito («la decisión de navegación de libertad total —sidebar
+colapsable— si el ajuste evolutivo del Día 2 no alcanza»), saltándose el paso
+evolutivo. **El Día 2 paso 1 de ese plan —bajar el corte a `lg` y mostrar las
+etiquetas de grupo en la barra horizontal— queda sin efecto: ya no hay barra
+horizontal que ajustar.** El resto de ese plan sigue en pie.
+
+**Por qué ahora y no otro parche.** Es el tercer intento sobre el mismo
+problema. El 5 de septiembre se probó scroll horizontal (`688e8e5`) y se
+revirtió el mismo día (`21591a7`) con el criterio «nunca esconde ítems con
+scroll». Con treinta renglones la barra envolvía en tres o cuatro filas y se
+comía ~145px de alto en las 24 pantallas; por debajo de 1280px —un portátil con
+la ventana sin maximizar— desaparecía entera en la hamburguesa. Ahora el
+encabezado son 64px fijos.
+
+**Los tres anchos:** ≥1280px sidebar de 256px con títulos de grupo · 768–1279px
+rail de 64px solo con iconos · <768px cajón sobre velo. El botón de plegar gana
+sobre el ancho y se recuerda en localStorage, como el tema.
+
+**Y cada grupo se contrae desde su título**, con su chevron, también recordado.
+Hacía falta: desplegado y con los siete grupos abiertos el menú mide 1303px
+contra los ~790 que se ven en un portátil, o sea que Configuración quedaba
+debajo del pliegue. Contrayendo cuatro grupos baja a 801px y cabe entero.
+**En rail NO se contraen, a propósito:** ahí no hay títulos, así que no habría
+dónde volver a pulsar y quien hubiera contraído «Nómina» se quedaría sin
+Planilla hasta ensanchar la ventana. Y si la pantalla en la que estás vive en un
+grupo contraído, su título se pinta en tinta en vez de taupe — sin eso, cerrar
+el grupo en el que estás borra la única señal de dónde estás.
+
+**La reagrupación, que es la parte que hay que discutir si algo se discute:**
+
+- **«Ausencias» sale de Nómina y entra a Asistencia.** Era el único renglón de
+  rol SEDE dentro de un grupo entero de rol DO: para una encargada, «Nómina»
+  tenía exactamente un ítem.
+- **«Publicaciones» es un grupo nuevo** con política salarial, normas y
+  anuncios — las tres únicas entradas sin filtro de rol, y no por casualidad
+  (Ley 30709 y entrega del RIT). Estaban en tres grupos distintos, así que una
+  integrante veía cuatro renglones sueltos sin lógica visible.
+- **«Apariencia» baja a Configuración**, con Áreas, Sedes y Cuentas: mismo
+  permiso y misma frecuencia.
+- **«Feriados» se queda en Nómina** aunque sea discutible: registra el
+  compensatorio que quita la sobretasa del feriado trabajado, o sea que existe
+  por el pago. Si al usarlo se siente de Asistencia, es un cambio de una línea.
+
+Ninguna URL, ningún permiso y ningún nombre de pantalla cambian.
+
+**Lo que ya no depende de que alguien lo recuerde.** `tests/nav-items.test.ts`
+(21 aserciones) vigila que esas tres pantallas de obligación legal sigan sin
+`roles`, que no haya rutas repetidas y que los contadores sean tres. Es la
+primera prueba del repo sobre la navegación: hasta hoy solo la miraba el
+typecheck, y el typecheck no sabe que «Normas» la tiene que ver todo el equipo.
+
+**Deuda que este cambio NO pagó, y que salió al explorar:**
+
+1. 🔴 **Una integrante no puede llegar a cambiar su propia clave.** `Cuentas`
+   está restringida a DO en el menú, pero la pantalla sí muestra «Mi cuenta» a
+   cualquiera. El renglón que lleva ahí no existe para quien lo necesita.
+2. **Seis sub-rutas dejan el menú sin nada resaltado** — `/planilla/boleta`,
+   `/disciplina/memo/[id]`, `/normas/[id]/imprimir`, `/normas/[id]/constancias`,
+   `/politica-salarial/constancias` y `/mio/boleta`. `esActivo` cubre tres
+   casos. No empeoró con este cambio: ya estaba así.
+3. **`/mio` no lleva marco** — tiene su propio encabezado a mano y queda fuera
+   del sidebar, siendo el destino del primer renglón del menú.
+4. **El bloque `@media print` de `globals.css` redefine nueve tokens, no once**
+   — le faltan `hueso` y `pizarra`, y usa los valores de `verde` y `ámbar`
+   previos al retuneo del 6 de septiembre.
+
+**Tres cosas del entorno, para quien trabaje en Windows** (esta sesión fue la
+primera):
+
+1. **Los archivos del árbol están en CRLF en disco y en LF en git.** Editar
+   cualquiera y guardarlo tal cual reescribe el archivo ENTERO: `globals.css`
+   pasó de un cambio de 49 líneas a uno de 444/395, y los 36 archivos del
+   sidebar llegaron a dar 28.000 líneas de diff antes de normalizarlos. No
+   rompe nada y por eso es peligroso — se ve como un cambio enorme y se revisa
+   como tal. **Convertir a LF antes de commitear** y comprobar con
+   `git diff --numstat` que el número cuadra con lo que se tocó de verdad.
+2. `npx pnpm install` **falla en silencio y sale con código 0** (npx no
+   encuentra el binario), así que hay que llamar a `pnpm` directo.
+3. `.claude/launch.json` arranca el servidor con `/bin/zsh`, que en Windows no
+   existe — se puede levantar con `pnpm --filter @cayla-dynamic/web dev`, pero
+   el panel del navegador necesitaría una entrada propia en ese archivo.
+
+Y una cuarta que no es de Windows: **el hook de pre-push llama a `python3`**
+(`fecha-que-bloquea.sh` y `lint-de-lo-nuevo.sh`, los dos con `|| exit 1`), así
+que sin Python instalado no se puede empujar desde esa máquina.
+
+## 2026-09-05 — Foto junto al nombre en el terminal, subida por cada quien desde «Lo mío» (0381) · PEGADA Y VERIFICADA EN PRODUCCIÓN
+
+Salió de la comparación contra BambooHR/Rippling/UKG del 2026-09-03 («Las Tres
+Referencias de CAYLA»,
+[PR #176](https://github.com/felipea92p-ux/cayla-dynamic/pull/176)): «Selector
+por nombre + foto en el terminal» era el ítem 02 del bloque BambooHR, y de esa
+misma comparación solo se había construido el tablón de anuncios (0351). Quedó
+sin hacer hasta hoy, a pedido de Felipe.
+
+**El mecanismo:** cada quien sube su foto desde `/mio` (comprimida a JPEG en
+el propio navegador, 480px de lado mayor, antes de subir), enlazada a
+`personas.foto_url` por una única función guardián
+(`fn_actualizar_foto_perfil`) que exige ser la propia persona o admin/DO. El
+terminal la recibe en `terminal_roster` (misma vista de la 0285/0375, una
+columna más) y la pinta junto al nombre en la grilla; quien no ha subido
+ninguna sigue viendo sus iniciales, nunca un hueco.
+
+**Por qué el bucket `fotos-perfil` es público, a diferencia de `comprobantes`
+o `expedientes`.** El terminal tiene que pintar todas las fotos de su sede sin
+depender de la red — puede pasar días marcando solo con lo que ya tiene en
+IndexedDB — y una URL firmada vence. El dato que protegería esa firma (un
+rostro) ya es visible a simple vista en la propia tienda, sin login, en la
+misma Mac mini: la misma razón por la que `terminal_roster` expone nombre y
+apellido sin sesión individual. Ya había precedente de esta forma en el
+repositorio: el buzón `fotos-productos` (0225, importado de cayla-retail)
+también es público.
+
+Auditada contra Postgres local dentro de `BEGIN … ROLLBACK` (11 aserciones:
+subir, reemplazar, el borde de que nadie sube a la carpeta de otra persona,
+que admin/DO sí puede hacerlo por quien nunca entra a «Lo mío», enlazar,
+quitar la foto, la defensa en profundidad contra una ruta de otro bucket, y
+que el terminal recibe lo enlazado) — prueba 301. Probada además de punta a
+punta en el navegador contra el Postgres local: Ana sube su foto desde `/mio`
+y aparece junto a su nombre en `/terminal/marcar`; Beto, que no subió
+ninguna, sigue mostrando sus iniciales. `npx pnpm typecheck` y `npx pnpm test`
+(468 pruebas) en verde.
+
+**Pegada y verificada en producción el 2026-09-05.** La consulta de
+comprobación del final de la 0381 devolvió las cinco piezas en `true`: la
+columna `personas.foto_url`, el bucket `fotos-perfil` público, las cuatro
+políticas de `storage.objects`, la columna nueva en `terminal_roster` y que
+esa vista sigue sin exponer nada sensible. Falta el commit/push de este
+código de pantalla (la migración ya vive en el repo desde que se escribió;
+lo pegado a mano fue solo el SQL).
+
+⚠️ **Repitió el accidente que la propia 0382 documenta — 0370/0375, tercera
+vez, y esta vez en las dos direcciones.** El `drop view` + `create view` de
+la 0381 partió del cuerpo de la 0375 sin saber que, en paralelo, la 0382 ya
+había fusionado a `main` la delegación de la regla de sede a
+`fn_persona_marca_en_sede`. Al pegarse la 0381 en producción DESPUÉS, se
+llevó esa delegación por delante en silencio — confirmado contra producción
+el 2026-09-05: `delega_en_0382 = false`, con las seis columnas (incluida
+`foto_url`) presentes.
+
+Y al revés también: la 0382, tal como estaba escrita, declaraba las CINCO
+columnas de la 0375 en un `create or replace view` — que no deja quitar ni
+reordenar columnas. En cualquier reconstrucción del esquema desde cero (CI,
+`supabase db reset`, restaurar un backup) habría fallado en seco al llegarle
+el turno, porque `foto_url` ya estaría puesta por la 0381. No era un
+problema de producción: era el pipeline de todo el equipo.
+
+**Resuelto corrigiendo el cuerpo de la 0382 antes de que llegara a pegarse
+nunca** (decisión de Felipe, 2026-09-05): ahora declara las seis columnas y
+conserva la delegación, con el relato completo en su cabecera. Se eligió eso
+en vez de una migración de parche encima porque el estado real de producción
+—seis columnas, sin delegación— es incompatible con que la 0382 haya corrido
+allí alguna vez, así que no hay estado persistente que dependa de su forma
+anterior. Auditado en local aplicando la secuencia 0377→0382 sobre el mismo
+estado que tiene producción: las pruebas 301 (11), 302 (9, con su aserción
+de columnas actualizada), 303 (4, nueva: la foto y el aislamiento de sede
+conviven) y 293 (17, el candado de sede completo) en verde.
+
+🔴 **Falta pegar la 0382 en producción** — es lo que repone la delegación.
+Antes de pegarla, confirmar que sigue dando `delega_en_0382 = false`: si
+otra sesión ya la pegó mientras tanto, su propia guardia lo dice sin daño.
+
+---
+
+## 2026-09-05 — Reverificada la deuda de planilla del 2026-08-19: 1 refutado, 6 confirmados abiertos · SOLO LECTURA, SIN MIGRACIONES
+
+La tabla "mueve plata en el pago mensual" de [`hallazgos-abiertos.md`](hallazgos-abiertos.md#confirmado-y-pendiente--mueve-plata-en-el-pago-mensual)
+tenía 8 filas del 2026-08-19, sin revisar contra las +30 migraciones que
+tocaron `fn_planilla_calcular` desde entonces (una de ellas, el descanso
+semanal, ya estaba cerrada por la 0280 sin que nadie la tachara — corregido
+antes en esta misma sesión). Workflow dedicado de 13 agentes (verificar +
+refutar adversarialmente, solo lectura, sin tocar ninguna base de datos):
+
+- **Refutado:** "feriado dentro de vacaciones se paga dos veces" — es
+  decisión de diseño ya verificada con datos reales en la 0293 y reafirmada
+  textualmente en 7 migraciones posteriores. El hallazgo de 2026-08-19 partía
+  de una premisa falsa (que el feriado paga "el día completo").
+- **Confirmados abiertos, los 6 restantes**, cada uno con el mecanismo
+  citado línea por línea contra el código vigente (0349) y sin ninguna
+  migración posterior que lo neutralice: ausencias posteriores al cese,
+  sueldo fijo sin prorratear (afecta también a `fn_liquidacion`), quien cesa
+  sin marcas desaparece de la planilla, sin régimen de pensión el aporte da
+  cero (matiz: sí hay aviso, pero en otra pantalla y desde antes del propio
+  hallazgo), el sobretiempo pierde el exceso de un ciclo que cruza el borde
+  del periodo, y Feriados/Planilla dividen por bases de tiempo distintas.
+
+**Nada de esto se escribió como migración todavía.** Cada hallazgo trae su
+recomendación técnica y, donde aplica, qué medir en Postgres local antes de
+escribir el SQL — varios de los montos originales (S/193.55, S/1,509.64,
+S/14-19) no se remidieron contra datos reales de hoy, solo se confirmó que el
+mecanismo sigue existiendo. Antes de tocar cualquiera: `donde-vive.sh` de la
+función (por si otra rama ya la tomó) y auditar en `BEGIN … ROLLBACK`, como
+manda la casa para todo lo que toca plata.
+
+---
+
+## 2026-09-05 — Crítico 10 («Alertas de Resend sin llegar a nadie») CERRADO — el correo sí llega, y el backlog de julio queda anotado (0377) · PEGADA Y VERIFICADA
+
+Cierra lo que la rama `claude/12-criticos-estado-c33e88` había dejado como
+"falta correr en producción" (ver la entrada del 2026-09-05 de esa rama, más
+arriba en este archivo).
+
+**Se corrió [`las_alertas_de_resend_llegan.sql`](../scripts/sql-manual/las_alertas_de_resend_llegan.sql)
+en producción.** Resultado: `nunca_se_envio_ningun_email = false` — pero la
+fórmula solo se activa si hay al menos una fila `canal='email'`, y había
+cero (`filas_canal_email = 0`): el sistema nuevo de vencimientos
+(contrato/vacaciones por vencer, 0356/0357) todavía no tuvo ningún caso real
+que avisar — 20 de los 21 contratos vencen recién en diciembre —, no que esté
+roto.
+
+**Se midió el canal que sí tiene tráfico real: `auto_cierre` (dispatch
+desde la 0354, que ignora `canal` a propósito y manda por correo cualquier
+`pendiente`).** En los últimos 14 días: **12 enviados con éxito**, el más
+reciente el mismo 2026-09-05. **El correo funciona.** El crítico 10, tal como
+lo temía la auditoría —"nadie recibe nada, en silencio"— no se confirma.
+
+**Lo que sí apareció: 75 alertas de `auto_cierre` en `pendiente` desde el
+2026-06-28, con `intentos = 0` — el despacho nunca las tocó.** No es un bug:
+es la deuda que la propia 0354 dejó escrita a propósito en su encabezado —
+"si esta función devolviera TODAS [las pendientes acumuladas], el primer
+despacho mandaría un correo por cada auto-cierre de los últimos meses... Si
+de verdad importa saldarlas, es una decisión aparte". `fn_alerta_despachable`
+(0362) exige `created_at` de los últimos 7 días, así que estas 75 nunca
+vuelven a ser candidatas — quedaron congeladas desde que se prendió el
+despacho el 2026-09-03.
+
+**Arreglo (0377):** anota un `nota_fallo` explicativo en esas 75 filas, sin
+tocar `estado`. **A propósito no se marcan `'fallido'`** —que es lo que
+sugería, sin saberlo, el propio comentario de la 0354—: `fn_alertas_despacho_resumen`
+(0362) cuenta como `fallidas_definitivas` cualquier fila `fallido`/`procesando`
+con `intentos >= 3`, **sin filtro de fecha**. Marcarlas así habría encendido
+en la Bandeja de DO una alarma de "75 fallidas" el mismo día — el mismo falso
+positivo permanente que la 0362 ya nombra en su encabezado como "el peor
+error de esta casa". Dejarlas `pendiente` las mantiene exactamente tan
+invisibles para la Bandeja como hoy (no caen en ninguna de las cuatro
+categorías que devuelve esa función), con el porqué ya escrito en la fila
+para quien las vuelva a encontrar.
+
+✅ **Aplicada y verificada en producción el 2026-09-05**, con las dos
+comprobaciones en verde: `filas_anotadas = 75`, `bandeja_fallidas_no_debe_subir = 0`.
+Probada antes en local dentro de `BEGIN … ROLLBACK` (0 filas, esperable — la
+base local no tiene el historial real).
+
+⚠️ **Quedó aplicada en producción antes de commitear el archivo** — la
+urgencia de cerrar el diagnóstico en vivo llevó a pasar el SQL directo en el
+chat, igual que la 0367 (arriba). Commiteada apenas se detectó, siguiendo la
+misma regla.
+
+---
+
+## 2026-09-05 — Contratos: la fecha de fin ya no admite ser anterior a la de inicio
+
+Sale de la auditoría del 2026-09-03/04 (importante 40). Elegir un fin anterior
+al inicio —fácil, son dos inputs de fecha adyacentes— dejaba "Generar borrador"
+habilitado igual, y el error del servidor no decía cuál de las dos fechas
+estaba mal.
+
+**Arreglo, en dos capas** (la misma idea que ya usa el resto de la pantalla:
+el `min`/`max` del input es una ayuda del navegador, no el candado real):
+`min={fechaInicio}` en el `<input type="date">` de fecha de fin, y una entrada
+en `bloqueos` (`fechaFin < fechaInicio`, comparación de string ISO) para el
+caso en que la fecha de fin ya estaba cargada ANTES de mover la de inicio —el
+`min` del input no la borra sola.
+
+Verificado: `pnpm typecheck` limpio, `eslint` sobre el archivo con los mismos
+4 errores preexistentes de antes del cambio (deuda vieja de
+`react-hooks/set-state-in-effect`, líneas 429/448/460/517 — lejos de esta
+edición) y ninguno nuevo. **No verificado en el navegador**: pedía una sesión
+de admin y una persona cargada, y sembrar esos datos en el Postgres local
+—compartido por todos los worktrees— no pareció justificado para una
+comparación de dos strings de fecha.
+
+---
+
+## 2026-09-05 — Despliegue de la 0375 bloqueado por el tope diario de Vercel · SIN RESOLVER
+
+Al intentar `./scripts/desplegar.sh prod` para publicar la 0375 (retiro del
+PIN del terminal) con `main` ya en verde, Vercel devolvió: `Resource is
+limited - try again in 24 hours (more than 100, code:
+"api-deployments-free-per-day")`. No es un freno del repo ni de las pruebas
+— el enlace del proyecto (`cayla/cayla-dynamic`) y las variables de entorno
+están correctos, verificado con `vercel env ls` antes de intentarlo.
+
+**Por qué hoy:** con ~15 worktrees activos en paralelo, cada PR abre su
+propio preview de Vercel además de cualquier `vercel --prod` manual, y el
+plan gratuito tope 100 despliegues/día entre TODO eso junto. Un día de
+actividad alta como el de hoy (más de 20 PRs fusionados) puede agotarlo antes
+de que alguien intente desplegar a producción.
+
+**Qué hacer:** esperar a que el cupo se libere (ventana rolling de 24 h desde
+el primer despliegue que lo agotó — no hay una hora exacta de reset
+publicada) o que Felipe suba el plan de Vercel. Mientras tanto, la 0375 ya
+está fusionada a `main` y no hace falta rehacer nada — el próximo intento de
+`desplegar.sh prod` debería pasar sin cambios de código, si `main` sigue
+verde.
+
+---
+
+## 2026-09-05 — El guard de `fn_vacaciones_saldo` / `fn_marca_apartada_resolver` ya tiene su migración (0376) · ✅ PEGADA — ver la entrada del 2026-09-11 arriba
+
+Cierra el crítico nuevo de la segunda auditoría (28 agentes, ver más abajo):
+la 0374 dejó `fn_rol_actual()` devolviendo `NULL` para cualquier persona
+cesada, y dos funciones `SECURITY DEFINER` armaban su guard con un
+`and not(...)` suelto en vez de envolver el OR completo en un único
+`is not true` — la misma trampa de tres valores que la 0078 y la 0126 ya
+corrigieron dos veces. Efecto: una persona cesada con sesión de Auth viva
+podía leer el saldo de vacaciones de un excolega activo de su antigua sede
+(`fn_vacaciones_saldo`) y resolver su marca apartada, escribiendo un marcaje
+real (`fn_marca_apartada_resolver`).
+
+**Esta nota existe porque casi se duplica el arreglo.** La entrada de la
+auditoría (más abajo, "Crítico — 1, nacido de un arreglo de ayer") decía
+"falta una migración nueva... es lo primero que hay que escribir mañana" —
+pero cuando llegó "mañana", la 0376 ya existía en `main`, escrita por otra
+sesión, con prueba 298 y CI en verde. `hallazgos-abiertos.md` quedó
+corregido con un aviso para no repetir la búsqueda.
+
+🔴 **Falta pegarla en producción.** Antes de pegar, pedir a producción el
+md5 de las dos funciones (`donde-vive.sh fn_vacaciones_saldo` y
+`donde-vive.sh fn_marca_apartada_resolver` imprimen la consulta lista) —
+la propia 0376 declara sus md5 de partida locales
+(`fn_vacaciones_saldo` `d466d0d9…`, `fn_marca_apartada_resolver`
+`98cc555d…`) pero, como manda la casa, eso no reemplaza pedirlo de nuevo en
+el momento de entregar el SQL.
+
+---
+
+## 2026-09-05 — Crítico 7 («El piso legal de grati/CTS no corrige una ventana ya pagada») · CORRIDO EN PRODUCCIÓN — 0 FILAS, LATENTE
+
+Hallazgo de `Auditoria-CAYLA-2026-09-04.pdf` (no vive en el repo), «sobrevivió
+2/3» refutadores, con un matiz importante que el propio refutador señaló: no
+es un bug inventado, es un efecto colateral de una decisión ya tomada y
+probada (0158, «se toma la mayor, nunca la suma», prueba 124).
+
+**El mecanismo, visto en 0338** (lateral `cobrado`, líneas 860-866 de
+[`0338_grati_cts_usan_el_sueldo_vigente_al_cierre.sql`](../supabase/migrations/0338_grati_cts_usan_el_sueldo_vigente_al_cierre.sql)):
+`pag.g1` solo dice SI existe un movimiento de planilla en la ventana — no
+CUÁNTO se pagó. Cuando `pag.g1` es verdadero, `cobrado.g1` se define como el
+`devengado.g1` de esa MISMA llamada (día a día o piso, según cuál de las dos
+invocaciones sea), así que `devengado - cobrado` da cero apenas existe el
+movimiento — el piso nunca llega a compararse contra nada para una ventana ya
+cerrada por planilla. Antes de la 0338 (antes del 2026-09-01) ninguna ventana
+tuvo la oportunidad de pasar por el piso al pagarse; hoy ya no se puede
+recuperar esa comparación desde la función, porque no puede verse a sí misma.
+
+**Por qué no se tocó `fn_provisiones` ni se escribió el arreglo todavía.**
+Reimplementar el cálculo día-a-día completo fuera de la función para poder
+auditarla es la misma duplicación de ~300 líneas que la propia cabecera de la
+0338 rechazó. Antes de correr ese riesgo hace falta la población — la misma
+regla de `a_quien_le_pega.sql`: un hallazgo sin población es una hipótesis.
+
+Consulta que la busca:
+[`scripts/sql-manual/a_quien_le_pega_el_piso_grati_cts.sql`](../scripts/sql-manual/a_quien_le_pega_el_piso_grati_cts.sql).
+Para cada ventana de grati/CTS pagada antes del 2026-09-01 y ya cerrada
+(con movimiento en `movimientos_planilla`), busca a quien tuvo un cambio de
+`asignaciones_salario` DENTRO de esa ventana — no en el borde—, que es la
+única situación en que el día a día puede quedar corto frente al piso.
+
+✅ **Corrida por Felipe en el SQL Editor el 2026-09-05: 0 filas.** Nadie en
+CAYLA tuvo un cambio de `asignaciones_salario` DENTRO de una ventana de
+grati/CTS ya cerrada antes del 2026-09-01. El mecanismo que el código tiene
+—`cobrado` colapsando a `devengado` de la misma llamada— sigue siendo real,
+pero hoy no le pega a nadie: no hay nada que ajustar con
+`fn_registrar_desembolso` ni motivo para tocar `fn_provisiones`. Queda
+anotado como latente en [`hallazgos-abiertos.md`](hallazgos-abiertos.md) para
+que, si algún día alguien cesa o se le sube el sueldo a mitad de un semestre
+YA CERRADO por planilla, se vuelva a correr
+[`a_quien_le_pega_el_piso_grati_cts.sql`](../scripts/sql-manual/a_quien_le_pega_el_piso_grati_cts.sql)
+antes de asumir que sigue en cero.
+
+---
+
+## 2026-09-05 — Crítico 10 («Alertas de Resend sin llegar a nadie») · VERIFICADO EN PRODUCCIÓN — SÍ LLEGAN, A GENTE REAL DE TRES SEDES DISTINTAS
+
+Era «sin verificar» porque nadie había mirado producción. El código de
+`/api/alertas-encargadas` y la cola con reserva/reintento (0362) ya estaban
+—ver la entrada de la auditoría 0360-0366 más abajo—, así que lo que faltaba
+no era arreglar nada: era mirar si de verdad está saliendo algún correo.
+
+**Corrido en producción el 2026-09-05:**
+[`scripts/sql-manual/las_alertas_de_resend_llegan.sql`](../scripts/sql-manual/las_alertas_de_resend_llegan.sql)
+trajo una sorpresa que casi lleva a una falsa alarma: `filas_canal_email = 0`,
+porque los avisos de `auto_cierre` (el 100 % de las 87 filas de hoy) se
+insertan con `canal = 'push'` desde la 0007 —una columna vieja que la ruta
+ignora a propósito— y la consulta filtraba por `canal = 'email'`. **Corregido
+antes de sacar conclusiones**: mirando `estado = 'enviado'` sin filtrar por
+canal, **8 alertas se enviaron con éxito el mismo día**, y el reintento de la
+0362 sí está funcionando: alertas creadas desde el 2026-08-30 que llevaban
+días en `'pendiente'` salieron todas juntas en un lote.
+
+**La pregunta que faltaba —¿a la casilla de quién?— la resolvió**
+[`scripts/sql-manual/a_quien_le_llegaron_esos_8_correos.sql`](../scripts/sql-manual/a_quien_le_llegaron_esos_8_correos.sql),
+reconstruyendo los destinatarios reales de esas 8 filas con el criterio VIGENTE
+de `fn_alertas_email_pendientes` (0354 + 0359 + 0362): **los correos van a
+personas reales y distintas de TRES sedes** —
+`25.chiara.flores@gmail.com`, `gutierrezdanitza07@gmail.com`,
+`melanyenrriquez29@gmail.com`, `revillaoyolaj@gmail.com` (TRU, las cuatro con
+`es_encargada_piso`), `sandramelisaar@gmail.com` (AQP), y el correo propio de
+Carlos Espejo y Felipe Alvarez para sus propios auto-cierres en CCO. Eso
+**contradice de raíz** la sospecha del hallazgo: si `RESEND_FROM` siguiera en
+el dominio sandbox (`onboarding@resend.dev`), Resend habría rechazado —no
+aceptado— cualquier envío a un destinatario que no fuera el dueño de la
+cuenta. Que acepte seis direcciones reales distintas en tres sedes es la
+prueba end-to-end que pedía la acción de la auditoría, sin necesitar
+`npx vercel env ls` ni el panel de Resend.
+
+**Lo único que destapó esto, y no es el hallazgo 10 sino uno adyacente:**
+para CCO —que no es tienda, no tiene «encargada de piso»— el único
+destinatario de un auto-cierre es la propia persona (0359, «el aviso también
+avisa al propio integrante»). Es el comportamiento correcto y a propósito, no
+un defecto: se anota acá por si alguna vez alguien lee «destinatarios vacíos
+para CCO» en una consulta vieja y lo confunde con una falla.
+
+✅ **No hace falta tocar `RESEND_FROM` ni ningún código.** El crítico 10 queda
+cerrado: el mecanismo de envío funciona y entrega a personas reales.
+
+---
+
+## 2026-09-05 — Crítico 12 puede estar construido dos veces sin saberlo
+
+Al revisar el estado de los 12 críticos se encontró que el hallazgo 12
+(«practicante sin tope de horas en Incidencias») **ya está resuelto y
+commiteado** en la rama `claude/audit-12-critical-issues-7da199`
+(`dc64b47`, 2026-09-04: `admin/incidencias/page.tsx` ahora usa
+`maximoSemanalPracticante()` en vez de comparar siempre contra 48h) — esa
+rama no tiene PR abierto todavía. Y, por separado, hay una sesión en la Mac
+con el worktree `dos-tareas-importantes-f65950` con el mismo arreglo hecho y
+**sin commitear**.
+
+No se tocó ninguna de las dos ramas desde acá — es exactamente el escenario
+que `CLAUDE.md` pide comprobar con `git log --all` antes de empezar algo
+("dos sesiones construyeron la misma función el mismo día", 2026-08-25).
+**Antes de abrir un PR para el 12, comprobar si `dc64b47` ya es el arreglo
+bueno y solo hace falta subirlo**, en vez de que la sesión de
+`dos-tareas-importantes-f65950` lo reconstruya por su cuenta.
+
+⚠️ **Actualización posterior el mismo 2026-09-05:** el crítico 12 (y el 11) se
+resolvieron por otro camino — ver la entrada de la segunda auditoría, abajo,
+sobre los 8 PR que atacaron los mismos hallazgos sin verse entre sí. PR
+[#196](https://github.com/felipea92p-ux/cayla-dynamic/pull/196) ya está
+fusionado a `main` y cierra los hallazgos 11 y 12 juntos.
+
+---
+
+## 2026-09-05 (noche) — Segunda auditoría (28 agentes): un crítico nuevo, y 8 PRs chocando entre sí · PDF entregado a Felipe
+
+Pedido explícito de Felipe: repetir la auditoría del 2026-09-03/04 con más
+profundidad —código nuevo desde entonces, vistazo general al resto,
+benchmark contra Gusto/Rippling/BambooHR/Workday/Odoo/Oracle— y entregar un
+PDF mejor explicado para la mañana. Detalle completo, con ejemplos y el
+benchmark entero: el PDF (no vive en el repo, igual que el de ayer). Catálogo
+accionable: [`docs/hallazgos-abiertos.md`](hallazgos-abiertos.md#auditoría-del-2026-09-05--código-nuevo-desde-el-2026-09-04-vistazo-general-benchmark-contra-6-erps--28-agentes).
+
+🔴 **Hallazgo nuevo, crítico, confirmado por 3 refutadores independientes: la
+0374 abrió un hueco al cerrar otro.** Reescribió `fn_rol_actual()` para que
+una persona cesada no cuente como si tuviera rol — correcto en sí — pero dos
+funciones `SECURITY DEFINER` (`fn_vacaciones_saldo` en 0357,
+`fn_marca_apartada_resolver` en 0304) arman su guard con un `and not(...)`
+suelto en vez de envolver todo el OR en un solo `is not true` (el patrón
+correcto, ya usado en la 0126). Efecto: una persona cesada con sesión de Auth
+viva puede leer el saldo de vacaciones de un excolega de su misma sede, y
+resolver una marca apartada — si fue admin/líder/encargada, eso **escribe un
+marcaje real** que alimenta jornada y pago de otra persona. **Falta una
+migración nueva** que reescriba ambos guards al patrón de la 0126 — no
+existe todavía, es lo primero que hay que escribir mañana.
+
+⚠️ **Y esto no esperó al PDF: se le avisó a Felipe apenas se detectó, antes
+de terminar el informe.** Mientras esta auditoría corría, 8 sesiones de
+Claude Code abrieron 8 PRs en menos de una hora, todas atacando los mismos
+hallazgos críticos de ayer (7, 10, 11, 12), sin verse entre sí — el mismo
+patrón que ya costó la duplicación de `fn_vacaciones_por_vencer` (0297/0299).
+Dos son duplicados byte a byte (#199/#197, hallazgo 11); dos resuelven la
+misma regla con dos funciones distintas (#196/#194, hallazgo 12). Ninguno
+fusionado a esta fecha. La comparación completa y qué PR conviene fusionar
+en cada caso vive en `docs/hallazgos-abiertos.md`, sección de esta auditoría.
+
+**Lo que ya se cerró desde ayer, verificado leyendo el código vigente (no
+solo el mensaje de commit):** hallazgos 8, 13, 14, 15, 16, 17, 18, 21, 23, 25
+y 33 resueltos por las migraciones 0360-0372; el 22 parcial (regenerar PIN
+resuelto, alta de persona sigue hasheando en el navegador, impacto ya bajo).
+El PIN del terminal (hallazgo 1) sigue como se documentó abajo: fusionado a
+`main`, sin evidencia de despliegue ni de SQL pegado.
+
+**Nuevo en el repo, para que la próxima auditoría no reinvente el HTML→PDF:**
+[`scripts/auditoria-a-pdf.mjs`](../scripts/auditoria-a-pdf.mjs) — misma
+técnica sin dependencias que `reglamento-a-pdf.mjs`, generalizada para un
+documento que no vive en `docs/`.
+
+31 agentes → 28 agentes esta vez (11 código nuevo, 8 vistazo general, 6
+benchmark, 3 verificación adversarial), 0 errores, 4.31M tokens, ~30 minutos.
+
+---
+
+## 2026-09-05 — `db-tests` se ponía roja según la hora de Lima a la que corriera CI (293) · CORREGIDO
+
+No es una migración rota: es la prueba
+`supabase/tests/293_un_terminal_no_marca_por_otra_sede.test.sql`. Su aserción
+PUERTA 2 fijaba la ENTRADA de Fabi a las 09:00 de Lima a mano. El candado que
+defiende (`fn_marcaje_sede_permitida`, 0370) exige `corregido_at >=
+timestamp_marca` para dejarla entrar, y `corregido_at` es el `now()` real de
+cuando corre el test — así que la aserción solo pasaba si CI arrancaba
+DESPUÉS de las 09:00 Lima. Confirmado con el push que fusionó el PR #161 (00:07
+Lima, 2026-09-05): `db-tests` se puso roja en `main` sin que ese PR tocara
+nada de marcaje, y arrastró consigo a cualquier rama nueva —incluidos los PR
+[#197](https://github.com/felipea92p-ux/cayla-dynamic/pull/197),
+[#205](https://github.com/felipea92p-ux/cayla-dynamic/pull/205) y este mismo
+[#198](https://github.com/felipea92p-ux/cayla-dynamic/pull/198), cuyo
+`db-tests` salió rojo por la misma razón — confirmado que **no** es un
+defecto de la 0370 en sí, solo de la prueba.
+
+**El mismo defecto lo encontraron y lo arreglaron, el mismo día, cuatro
+sesiones distintas** (PR [#195](https://github.com/felipea92p-ux/cayla-dynamic/pull/195),
+[#202](https://github.com/felipea92p-ux/cayla-dynamic/pull/202),
+[#203](https://github.com/felipea92p-ux/cayla-dynamic/pull/203) y
+[#205](https://github.com/felipea92p-ux/cayla-dynamic/pull/205)) — cada una sin
+ver a las otras. El #203 fijó `corregido_at` a un instante concreto de «hoy»
+(`fn_hoy_lima() + 09:01`); el #205 dejó la ENTRADA en `now() - interval '30
+minutes'`. Las dos por separado son correctas. **Fusionadas juntas —el #203
+primero, el #205 encima, sin conflicto textual porque tocan líneas
+distintas— volvieron a hacer la prueba sensible a la hora real**: pasaba entre
+las 00:00 y las 09:31 Lima y volvía a fallar después de esa hora, porque
+`now() - 30min` termina cruzando las 09:01 fijas. Se cazó a los pocos minutos
+porque el run de `main` en curso (10:22 Lima) iba directo a ese rango. Arreglo
+final: las dos puntas de la comparación quedan FIJAS al mismo «hoy» —entrada a
+las 09:00, `corregido_at` a las 09:01— sin ningún `now()` de por medio. Los
+PR #195 y #202, redundantes, se cerraron sin fusionar.
+
+**La lección, aparte del arreglo:** «GitHub dice CLEAN» solo significa que no
+hay conflicto de texto — dos parches que tocan líneas distintas del mismo
+predicado pueden combinarse en algo roto sin que git proteste. Antes de
+fusionar dos PR que tocan el mismo archivo el mismo día, vale la pena leer el
+resultado combinado, no solo cada diff por separado.
+
+---
+
+---
+
+## 2026-09-05 — El PIN del terminal se retira (0375, [PR #188](https://github.com/felipea92p-ux/cayla-dynamic/pull/188)) · CERRADO — PEGADA Y VERIFICADA
+
+Sale de la auditoría del 2026-09-03/04 (crítico 1 — el hash de PIN de toda la
+sede viajaba al navegador del kiosco, `bcrypt.compare` corría en el cliente, y
+`fn_registrar_marcaje` nunca recibía ningún PIN en sus argumentos). Es el mismo
+hallazgo que `docs/revision-2026-07-15/E-seguridad.md` ya tenía anotado desde
+julio, sin marcar como resuelto.
+
+**Felipe, 2026-09-04: «el pin no me interesa, quiero agilidad».** Es la misma
+decisión que `CLAUDE.md` lleva escrita desde julio —que marcar sea instantáneo
+y que el control real sea la Mac mini a la vista del equipo, no una clave—. Lo
+que había hasta hoy era esa decisión **apagada**, no retirada:
+`terminales.requiere_pin` nació `not null default TRUE` (0012) y los terminales
+se dan de alta a mano sin mencionar esa columna, así que caían en `true`; el
+respaldo del navegador hacía lo mismo (`data.requiere_pin ?? true`). La próxima
+Mac mini vinculada le habría pedido PIN sin que nadie lo hubiera pedido.
+
+**Qué se retira:** la pantalla del teclado de PIN, `lib/terminal/pin.ts`, el
+bloqueo a los 5 intentos, el campo `pinHash` del roster y la bandera
+`requierePin`. En SQL (0375): el default pasa a `false`, las filas existentes a
+`false`, y `terminal_roster` se recrea **sin `pin_hash`** — el kiosco deja de
+descargarle a cada Mac mini el hash de toda su sede.
+
+**Lo que NO toca, a propósito:** `personas.pin_hash` (sigue `not null`,
+`fn_crear_persona` la exige) ni `fn_regenerar_pin`/su trigger de la 0364. Queda
+anotada una deuda cosmética: `/admin/equipo` sigue ofreciendo «Nuevo PIN» por
+persona aunque ya ningún terminal lo pida.
+
+**Verificación:** prueba 297 corrida primero SIN la migración (falla 3/8, las
+que afirman el cambio) y con ella 8/8. Suite completa 2188 aserciones, typecheck
+limpio, 458 vitest.
+
+⚠️ **El conflicto de fusión al traer `main`** (54+ commits de por medio, entre
+ellos la 0372) fue solo en `scripts/sql-manual/que_falta_pegar.sql` —el generado
+automático—, resuelto regenerándolo con `./scripts/que-falta-pegar.sh`, no a
+mano. CI en verde (`db-tests`, `ui-tests`) tras el merge de `main`, y **recién
+ahí se fusionó a main**, con el visto bueno de Felipe.
+
+✅ **Paso 1 confirmado el 2026-09-05, sin que nadie lo hubiera anotado.**
+Verificado con el CLI de Vercel (`npx vercel env ls` confirmó primero el
+proyecto correcto, `cayla/cayla-dynamic`): la producción actual
+(`cayla-dynamic.vercel.app`) corre el deploy `dpl_FDKGbke4xrR19WDAnbiieo1LWgzv`,
+construido desde el commit `6f24bd7` — que trae tanto esta PR (#188) como la
+#185 (items 2-6). El panel sin PIN ya está publicado; esta nota decía
+«falta desplegar» y ya no es cierto.
+
+✅ **Los tres pasos, completos el 2026-09-05:**
+
+1. ~~Desplegar `apps/web` (Vercel)~~ — hecho.
+2. ~~Comprobar en las cuatro Mac mini que la lista de nombres carga~~ —
+   confirmado por Felipe.
+3. ~~Pegar la 0375~~ — pegada y verificada. Los seis campos de la comprobación
+   final salieron en el valor esperado: `cinco_columnas`, `sin_pin_hash`,
+   `es_del_dueno`, `la_puede_leer` y `anon_no_puede` en `true`, y
+   `el_default_ahora` en `false` (texto, no booleano — es el valor por defecto
+   de la columna, correcto).
+
+**Crítico 1 cerrado.** El terminal ya no pide PIN, y `terminal_roster` ya no
+descarga el hash de toda la sede al navegador del kiosco.
+
+---
+
+## 2026-09-05 — Críticos 2-6 ([PR #185](https://github.com/felipea92p-ux/cayla-dynamic/pull/185)) · PANEL DESPLEGADO, 0370 Y 0371 PEGADAS Y VERIFICADAS
+
+Esta PR nunca tuvo su entrada en `estado.md` — se fusionó a `main` sin dejar
+nota. Los siete hallazgos que cierra están en el cuerpo de la propia PR:
+terminal marcando a otra sede (0370), la mitad de «personas cesadas» ya estaba
+cerrada (nada que hacer ahí), un aviso de vencimiento que se saltaba a quien
+llegó después (0371), el borde de 16 h entre terminal y navegador, el error de
+«Descanso médico» invisible detrás del modal, «Marcar como pagada» sin
+confirmación ni reversión, y las contraseñas de 6 caracteres sin complejidad.
+
+✅ **El panel ya está desplegado** — mismo commit `6f24bd7` que la 0375 de
+arriba, confirmado con el CLI de Vercel el 2026-09-05.
+
+✅ **0371 pegada y verificada el 2026-09-05.** Sus prerrequisitos (0356, 0357)
+ya estaban aplicados desde el 04/09, así que su guardia la dejó pasar sin
+avisos. Comprobación final: `firma_intacta=1, arreglo_puesto=2,
+canal_en_la_clave=2, cron_programado=1` — los cuatro exactos.
+
+✅ **0370 pegada y verificada el 2026-09-05.** Antes de pegarla se corrió la
+consulta «⚠ CÓRRELA ANTES DE PEGAR» de su propio archivo (marcas de terminal
+de los últimos 30 días que el candado nuevo rechazaría): **0 filas**, nadie
+se queda bloqueado. La comprobación final devolvió los seis `true` esperados
+(`existe_la_regla_de_sede`, `existe_el_candado`, `el_candado_del_cese_sigue`,
+`el_roster_usa_la_regla`, `la_lectura_usa_la_regla`,
+`la_policy_de_lectura_sigue_puesta`).
+
+Con esto, los críticos 2-6 quedan **completos**: código en producción desde
+antes, y las dos migraciones que faltaban ya están pegadas.
+
+---
+
+## 2026-09-05 — El 9% de la Ley 30334 dejaba de pedirse solo (0372) · PEGADA Y VERIFICADA — SIN IMPACTO EN LO YA PAGADO
+
+Sale de la auditoría del 2026-09-03/04 (hallazgo 8).
+
+**El defecto.** Desde la 0346 la gratificación y el 9% son dos movimientos
+separados —lo pidió el contador—, pero `fn_provisiones` seguía decidiendo si el
+9% estaba pagado mirando ÚNICAMENTE si existía un movimiento de gratificación en
+esa ventana. El 9% no tenía cuenta propia: se calculaba como el 9 % de la
+gratificación PENDIENTE, así que heredaba su resta entera y caía a cero con ella.
+
+Quien registraba solo «Gratificación» —el camino manual, que sigue existiendo
+porque el desplegable no obliga a nada— dejaba de ver el 9 % como pendiente, y
+ninguna pantalla volvía a mencionarlo. Medido en local, en `BEGIN … ROLLBACK`:
+con S/585.51 de gratificación devengada, el 9 % pendiente pasaba de **S/52.70 a
+S/0.00** al registrar la gratificación sola.
+
+Antes de la 0346 esa regla era correcta por convención —el 9 % viajaba DENTRO
+del monto de «Gratificación», así que gratificación pagada ⇒ 9 % pagado—. La
+0346 rompió la convención a propósito y nadie actualizó esta función.
+
+**El arreglo.** El 9 % obtiene devengado propio y cobrado propio. Se da por
+saldado si existe su movimiento, **o** si la gratificación de esa ventana se
+registró antes del 2026-09-03, cuando el 9 % todavía viajaba dentro y no había
+otra forma de pagarlo. Esa segunda condición es la decisión ya tomada al pegar la
+0346 —«no se corrige lo ya pagado»—: sin ella, esta migración le habría inventado
+al sistema una deuda del 9 % sobre TODO el historial de gratificaciones.
+
+La propiedad que conserva, y que la prueba 295 fija: donde el 9 % ya está
+saldado, el número nuevo es EXACTAMENTE el mismo que daba la fórmula anterior.
+Solo cambia el caso que nadie miraba.
+
+✅ **Pegada en producción el 2026-09-05, con las ocho comprobaciones en verde**,
+incluidas las dos que importaban: `conserva_la_0365` (no revirtió el aviso de
+tramo de salario) y `la_pantalla_puede` (no perdió el `grant` que la 0363 había
+tenido que reponer). **El `md5_llegada` de producción —`6f33984ae7ce841d9dcbb…`—
+coincidió exacto con el medido en local**, así que las dos bases quedaron byte
+por byte iguales. Y `la_0346_se_aplico_el` devolvió `2026-09-03`, confirmando que
+la constante de corte mira el día correcto.
+
+✅ **Medido antes de pegar: a nadie le apareció una deuda nueva.** La consulta
+[`a_quien_le_aparece_el_9_por_ciento.sql`](../scripts/sql-manual/a_quien_le_aparece_el_9_por_ciento.sql)
+devolvió **cero filas**: la gratificación de julio se registró antes del corte
+—con el 9 % dentro, como correspondía— y desde que existe la opción separada
+nadie ha registrado una sin su 9 %. El arreglo llega antes del momento en que
+importa, que es el depósito del **15 de diciembre**.
+
+⚠️ **EL CASI-ACCIDENTE, que es lo que conviene leer de esta entrada.** Se
+escribió primero como **0362, sobre el cuerpo de la 0338**. En las horas que
+tardó en verificarse, otras sesiones fusionaron **54 commits**: alguien tomó el
+número 0362 y la prueba 288, y —lo grave— `fn_provisiones` se reescribió DOS
+veces (la 0363 le devolvió el `grant execute … to authenticated` que la 0338
+nunca concedió; la 0365 le agregó el aviso de tramo de salario en cinco sitios).
+
+Pegar aquella versión habría revertido las dos en silencio, y la pantalla de
+Provisiones habría dejado de responderle a `authenticated`. **Lo cazó volver a
+correr `donde-vive.sh` en el mensaje en que se entregaba el SQL, no en el que se
+empezó a escribirlo.** Es la regla que el CLAUDE.md ya tenía escrita desde la
+avería del 2026-08-25, y este es el caso que la justifica por segunda vez.
+
+**Lo que NO hace, a propósito:** no le abre ventana propia al 9 % en el libro de
+desembolsos (`desembolsos_beneficios.ventana` solo admite las cinco de siempre),
+así que quien pague el 9 % POR FUERA del sistema sigue sin poder anotarlo; y no
+toca `fn_grati_trunca_bruta`, que calcula el 9 % al cesar con la tasa CLAVADA en
+`0.09` (0343:303) en vez de leerla versionada. Ese es un defecto distinto, de
+otro camino, y mezclarlos habría hecho esta migración imposible de auditar de una
+pasada.
+
+**Y una deuda de pantalla que queda anotada:** `/admin/provisiones` ahora dice la
+verdad, pero nada avisa en el momento del pago. Quien registre «Gratificación»
+sin el 9 % no ve ninguna advertencia ahí mismo — se entera al abrir Provisiones
+después. El botón «Agregar todo» de la 0355 lo resuelve por el camino feliz; el
+manual sigue abierto.
+
+---
+
+## 2026-09-04 — `que-falta-pegar.sh` acusaba en falso a `fn_planilla_calcular` de estar atrasada · PR #190 FUSIONADO
+
+Al pedir las migraciones 0358 y 0359 para pegar, la consulta de qué falta pegar
+las marcó "FALTA PEGAR" — pero el cuerpo real de `fn_alertas_email_pendientes`
+en producción ya era el de la 0362 (confirmado con `pg_get_functiondef` corrido
+en vivo contra producción), varias versiones más adelante. El registro
+(`migraciones_aplicadas`) tenía un hueco, no el código: se cerró con un
+`insert` puntual para 358 y 359 —y luego para la 353, mismo caso—, sin tocar
+ninguna función ni tabla.
+
+Al volver a correr `que-falta-pegar.sh` completo apareció algo más serio: la
+fila PLANILLA decía que `fn_planilla_calcular` "se quedó en la 0339 — falta
+pegar lo posterior". Era un falso positivo del propio generador, no un atraso
+real: desde que la 0339 partió la función en núcleo + envoltorio, el
+envoltorio no volvió a cambiar de texto, así que su md5 en la 0339 y en la
+0349 (la última que la redefine) es idéntico. El script emitía dos `WHEN` con
+ese mismo md5 —uno mal etiquetado antes que el correcto—, y un `CASE` de SQL
+se queda con el primero que coincide. Producción nunca estuvo atrasada.
+
+**Arreglado en `scripts/que-falta-pegar.sh`:** el `WHEN` del md5 vigente se
+imprime siempre primero, sin importar cuántas migraciones viejas compartan el
+mismo texto.
+
+**De paso, se investigó y documentó el hueco de numeración de la 0352**
+(`scripts/hooks/huecos-conocidos.txt`): dos sesiones construyeron el mismo día
+la misma idea —el aviso de auto-cierre por correo—, una como 0352 y otra como
+0354; al fusionar (commit `7809713`) se descartó la 0352 a propósito porque la
+0354 resuelve lo mismo sin tocar `fn_auto_cierre`. Nunca se aplicó en
+producción.
+
+[PR #190](https://github.com/felipea92p-ux/cayla-dynamic/pull/190), fusionado por Felipe el 2026-09-04.
+
+---
+
+## 2026-09-04 — `fn_registrar_marcaje` quedó con dos sobrecargas en producción (0367) · PEGADA Y VERIFICADA
+
+Felipe reportó en vivo que el terminal (marcando `retorno_almuerzo` y
+`salida_almuerzo`) y el botón "Registrarla con su hora" de Correcciones
+—sobre una marca apartada— fallaban con «Could not choose the best candidate
+function» / «function fn_registrar_marcaje(...) is not unique». Es el mismo
+accidente que ya le pasó a `fn_vacaciones_por_vencer` el 2026-08-25.
+
+**Qué pasó.** La 0353 agregó `p_confirmo_sin_refrigerio` a
+`fn_registrar_marcaje` (de 8 a 9 argumentos) y, precisamente para evitar este
+accidente, su propio texto ya traía el `drop function if exists` de la
+sobrecarga vieja antes del `create or replace`. Ese `drop` no llegó a tomar
+efecto en producción — el porqué exacto no se pudo determinar sin acceso de
+servicio, y no hizo falta para diagnosticarlo: el error en pantalla lista los
+dos candidatos completos (8 y 9 argumentos), así que confirma sin ambigüedad
+que las dos sobrecargas conviven ahí. Localmente, aplicando la 0353 completa
+con `supabase db reset`, el `drop` sí funciona y deja una sola versión — el
+problema es específico de cómo quedó producción, no del contenido de la 0353.
+
+Bloqueaba las dos cosas a la vez: marcar normal Y repararlo (`fn_registrar_marcaje`
+es la única puerta de escritura de marcajes — ver CLAUDE.md).
+
+**Arreglo (0367):** repite el mismo `drop function if exists` de la 0353, más
+`notify pgrst, 'reload schema'` (para que PostgREST no siga sirviendo desde su
+caché). No toca la versión de 9 argumentos ni su cuerpo. Auditado local:
+`supabase db reset` completo (aplica las 0001–0367 en orden) y `supabase test
+db` — 205 archivos, 2036 pruebas, todas en verde.
+
+**SQL entregado a Felipe con `dame-el-sql.sh` una vez fusionado a `main`**
+—la urgencia (producción bloqueada en vivo) llevó primero a pasarlo directo
+en el chat, y ese mismo mensaje llevó a fusionar el PR ([#181](https://github.com/felipea92p-ux/cayla-dynamic/pull/181))
+antes de entregar nada, para que el script pudiera verificarlo contra
+GitHub. **Confirmado en producción el 2026-09-04**: el `select` final devolvió
+una sola fila —
+`fn_registrar_marcaje(uuid,tipo_marca,timestamp with time zone,uuid,origen_marca,uuid,uuid,text,boolean)`,
+`pronargs = 9`—, así que la sobrecarga vieja quedó retirada.
+
+---
+
+## 2026-09-04 — A la 0353 le faltaba su columna en producción (0373) · PEGADA Y VERIFICADA
+
+Segunda mitad del mismo accidente que la 0367 (arriba), encontrada en una
+sesión distinta que investigaba en paralelo. La 0353 trae TRES partes en un
+solo archivo —el `alter table` que agrega `marcajes.confirmo_sin_refrigerio`,
+el `drop function` de la sobrecarga vieja, y el `create or replace` de la
+función nueva de 9 argumentos— y en producción solo había llegado a aplicarse
+la tercera. Con la 0367 ya pegada y la ambigüedad de firmas resuelta, la
+función de 9 argumentos empezó a correr sola y chocó más adentro: siempre
+escribe en `confirmo_sin_refrigerio` (está en el `insert` y en el `update` de
+reconciliación de `salida_final`), y esa columna no existía en la tabla.
+
+**Confirmado en el panel de Incidencias**, con marcas reales rechazadas el
+mismo día: Daniel Ruiz (OTRU) y Felipe Alvarez (CCO), `salida_almuerzo` y
+`retorno_almuerzo`, con el error tal cual —
+`column "confirmo_sin_refrigerio" of relation "marcajes" does not exist`—.
+El `retorno_almuerzo` de cada uno fallaba en cadena por la misma causa: al no
+insertarse la `salida_almuerzo`, `fn_siguiente_tipo_esperado` ya no
+reconocía el tramo y rechazaba el siguiente toque.
+
+**Arreglo (0373):** `alter table marcajes add column if not exists
+confirmo_sin_refrigerio boolean` — aditivo, idempotente, no toca ninguna
+función. Auditado local: `supabase db reset` completo (0001–0373, incluida la
+0367 y la 0366 sobre la misma función) y `supabase test db` — 212 archivos,
+2155 pruebas, todas en verde. **Confirmado en producción el 2026-09-04**: la
+consulta a `information_schema.columns` devolvió la columna, y la consulta de
+`fn_registrar_marcaje` volvió a devolver una sola fila (9 argumentos) después
+de pegar ambas migraciones.
+
+**Pendiente que no se arregla solo:** las marcas de Daniel Ruiz y Felipe
+Alvarez que rebotaron durante la ventana rota ya agotaron sus 6 reintentos y
+quedaron **apartadas** (0304) — hay que resolverlas a mano una por una desde
+Correcciones ("Registrarla con su hora"), ahora que la columna ya existe.
+
+---
+
+## 2026-09-04 — Auditoría del 2026-09-04: los importantes 25 a 34 (0368) · PEGADA Y VERIFICADA
+
+Segunda tanda de diez, pedida por Felipe justo después de la primera. Nueve son
+solo panel; una lleva SQL.
+
+| Hallazgo | Qué se hizo |
+|---|---|
+| 25 El terminal decía «Nadie en esta sede todavía» mientras cargaba | Tres estados con tres textos, y botón de reintentar en el fallo |
+| 26 «Exportar CSV» lo veía cualquier cuenta | Permiso nuevo en `permisos.ts` con su prueba, filtro en el menú y guardia en la propia pantalla |
+| 27 La ficha decía «Sin antecedentes disciplinarios. Buena señal.» si fallaba la consulta | Se captura el error de cada consulta por separado |
+| 28 El PIN nuevo duraba 4,5 s en un aviso que se autodestruía | Panel fijo con botón de copiar y cierre explícito |
+| 29 Cuentas se veía vacía en vez de mostrar el error | Se revisa `res.ok`/`data.error` como el resto de la pantalla |
+| 30 El historial de correcciones no decía de qué día era el marcaje | `describirCambio` deja de tirar la fecha |
+| 31 El reporte por sede salía en blanco desde una sede inactiva | No se ofrece «Hoja» para inactivas, y se dice por qué si el código no está |
+| 32 Cambiar la clave mandaba siempre al dashboard | Misma resolución de rol que ya hacía login |
+| 33 Dos sesiones se pisaban un código de sede en silencio | **Migración 0368** + prueba 292: el alta con código repetido lanza |
+| 34 La fecha de Disciplina congelaba la fila | Input de fecha que nace con hoy, con `try/catch` |
+
+Verificado el 2026-09-04: `supabase db reset` limpio, `supabase test db` 212
+archivos y 2155 pruebas, typecheck 3/3, vitest 439/439, y cero errores de linter
+en líneas nuevas (los 35 que salen son deuda vieja, comprobado cruzando con las
+líneas que el push agrega).
+
+**Cuatro hallazgos que bloqueaban, cazados por las revisoras adversariales:**
+
+- El estado de error del terminal era **inalcanzable**: `roster.ts` se tragaba
+  cualquier fallo de red y devolvía la caché, así que una Mac mini recién
+  reiniciada y sin caché seguía leyendo «Nadie en esta sede todavía» — justo el
+  caso del hallazgo. Hubo que sumar `roster.ts` al alcance.
+- El arreglo del 30 cubría `marcaje_eliminado`, que **hoy no lo escribe nadie**, y
+  dejaba fuera `marcaje_anulado`, `marcaje_reactivado` y
+  `auto_cierre_reemplazado`, que son los que produce el propio botón de esa
+  pantalla. Se enumeró qué escribe cada función en `correcciones_auditoria` en
+  vez de deducirlo por el nombre.
+- El «se revierte» de la 0368 afirmaba algo falso sobre PostgREST, y lo afirmaba
+  en el procedimiento que alguien lee cuando ya hay algo roto en producción. La
+  revisora lo midió acuñando un JWT y lo corrigió.
+- El menú filtraba por un permiso que no existía todavía en `permisos.ts`.
+
+**Nació como 0367 y se renumeró a 0368**: `claude/mensajes-molestos-5950e5` tomó
+ese número el mismo día para retirar la sobrecarga vieja de
+`fn_registrar_marcaje`. Importa más que de costumbre porque
+`migraciones_aplicadas` tiene el número como clave: con las dos en 0367, la
+segunda que se pegara habría quedado SIN registrar, en silencio, por el
+`on conflict (numero) do nothing`.
+
+**Al pegar la 0368** se encontró y corrigió, antes de entregarla, un descuido
+propio: la consulta de comprobación del final había quedado preguntando por la
+migración 367 (rastro de cuando esta migración nació con ese número), así que
+`anotada` habría dado `true` sin importar si el 368 se registraba. Arreglado en
+el repo antes de pegar.
+
+**Confirmado en producción el 2026-09-04**, con el md5 de `fn_guardar_sede`
+coincidiendo `tal_cual` contra producción antes de pegar, y la comprobación del
+final devolviendo todo en verde: una sola versión con la firma nueva de cinco
+argumentos, anotada en `migraciones_aplicadas`, `authenticated` puede llamarla
+y `anon` no, y el candado único de `codigo` sigue ahí.
+
+**Queda abierto y anotado:** `fn_crear_persona` sigue recibiendo el hash del PIN
+desde el navegador — es la otra mitad del hallazgo 22, que la 0364 solo cerró
+para `fn_regenerar_pin`. Y el hallazgo 19 (contraseñas temporales que no obligan
+a cambiarse) no entró en ninguna de las dos tandas.
+
+---
+
+## 2026-09-04 — Auditoría del 2026-09-04: los importantes 14 a 24 (0360-0366) · PEGADAS EN PRODUCCIÓN
+
+> Felipe las pegó todas el mismo día. La duda que dejó abierta esta nota —si
+> `fn_registrar_marcaje` quedó con una sola versión tras la 0366— ya se
+> resolvió, pero por otro camino: sí quedaron dos sobrecargas (8 y 9
+> parámetros), lo cazó la 0367 de `claude/mensajes-molestos-5950e5` y quedó
+> confirmado en producción (ver esa entrada, arriba).
+
+Felipe pidió arreglar «las 10 primeras» de la tabla de importantes de la
+auditoría adversarial del 2026-09-03/04 (el PDF `Auditoria-CAYLA-2026-09-04.pdf`,
+57 hallazgos; no vive en el repo): 14, 15, 16, 17, 18, 20, 21, 22, 23 y 24.
+Rama `claude/primeras-10-correcciones-08ce78`. Los críticos 1-12 (PIN del
+terminal, sede del terminal, contraseñas, liquidaciones…) siguen abiertos.
+
+| Hallazgo | Qué se hizo | Migración · prueba |
+|---|---|---|
+| 14 Horarios: corregir un tramo retroactivo reventaba con `horarios_sin_solape` en inglés | `fn_set_horario_semanal` recorta cualquier tramo que pise la fecha, no solo el abierto; `mensaje-error.ts` traduce el candado | 0360 · 286 |
+| 15 Objetivos: «Copiar del mes anterior» duplicaba con doble clic | candado de transacción por persona antes de preguntar si el mes está vacío + `not exists` en el insert; pestillo en la pantalla | 0361 · 287 |
+| 16-18 Alertas por correo: doble envío, corte a los 10 s, fallo perdido para siempre | reserva compare-and-set antes de enviar (`fn_alertas_reservar`), `maxDuration = 60`, reintento hasta 3, ventana de 7 días, Sentry por cada fallo, `fn_alertas_despacho_resumen` + tarjeta en la Bandeja para DO | 0362 · 288 (y la 281 ajustada) |
+| 20 Cuatro funciones de turnos sin revoke de PUBLIC/anon | **Refutado con medición**: ya las cierra la 0076 (bucle + `alter default privileges`), `anon = false` en las cuatro; anotado en `hallazgos-abiertos.md` con la consulta para producción | — |
+| 21 Doble toque en el terminal dejaba dos entradas (y dos salidas finales) | `fn_registrar_marcaje` toma un candado por persona y, solo para el terminal, devuelve la marca del mismo tipo a ±2 min sin otra en medio | 0366 · 289 |
+| 22 «Nuevo PIN» hasheaba en el navegador y escribía `pin_hash` por REST | `fn_regenerar_pin` genera y hashea en Postgres (bcrypt `$2a$10$`, comprobado contra la bcryptjs del terminal); trigger que cierra la columna a `authenticated`/`anon` | 0364 · 290 |
+| 23 Provisiones: sin tramo de salario salía S/ 0.00 igual que «no le toca» | `fn_provisiones` gana `sin_salario_vigente`, `dias_sin_salario` y `personas_sin_salario`; insignia, aviso y CSV. **El número no cambia** (medido fila por fila) | 0365 · 291 |
+| 24 La casilla decía «S/ 113 fijos por periodo» | `montoAsignacionFamiliar` lee `parametros_laborales` (respaldo `configuracion`); la etiqueta muestra el monto real o manda a Configuración | — (solo panel) |
+
+Verificado en esta Mac el 2026-09-04: `supabase db reset` limpio con las seis
+migraciones, `supabase test db` 211 archivos / 2139 pruebas, typecheck 3/3,
+vitest 434/434, eslint sin errores en líneas nuevas. Cada paquete pasó por dos
+revisoras adversariales (corrección/plata y reglas de la casa); las dos cosas
+que bloqueaban se corrigieron antes de commitear: el resumen de alertas contaba
+como «caducado» el backlog de julio que la 0354 dejó fuera a propósito, y la
+0365 tenía que conceder el `execute` que la 0338 olvidó (ver abajo).
+
+**Qué pegar, en este orden, y qué pedir ANTES de cada una** (el md5 de
+partida local está en cada encabezado; `donde-vive.sh` imprime la consulta):
+
+1. 0360 — pedir md5 de `fn_set_horario_semanal` (esperado: el de la 0327).
+2. 0361 — `fn_objetivos_copiar_mes_anterior` (esperado: el de la 0348).
+3. 0362 — `fn_alertas_email_pendientes` (esperado: el de la 0359) y
+   `fn_marcar_alerta_resultado` (0354). **Pegarla ANTES de desplegar el panel**:
+   la ruta nueva llama a `fn_alertas_reservar` y sin ella el cron responde 500.
+4. 0364 — funciones nuevas: confirmar que `fn_regenerar_pin` no existe todavía.
+   También antes de desplegar el panel: «Nuevo PIN» la llama.
+5. 0365 — `fn_provisiones` (esperado: el de la 0338) **y su `proacl`**.
+6. 0366 — `fn_registrar_marcaje` (esperado: el de la 0353). Nació como 0363 y se
+   renumeró: `claude/error-investigation-17ac66` había tomado el 0363 veintisiete
+   segundos antes —para el grant de `fn_provisiones`, la misma línea que trae la
+   0365— y el hook de numeración no alcanzó a verlo en ese push.
+
+⚠️ **Provisiones puede llevar rota en producción desde la 0338 (2026-09-01).**
+La 0338 hizo `drop function fn_provisiones(date)` y creó la firma `(date, date)`
+sin `grant execute … to authenticated`; con la revocación por defecto de la
+0076, en un Postgres construido desde las migraciones `authenticated` recibe
+«permission denied» al llamarla — y `/admin/provisiones` la llama así. La 0365
+deja el grant escrito. Para saber si producción lo tiene hoy:
+`select has_function_privilege('authenticated', 'fn_provisiones(date, date)', 'execute');`
+— si dice `false`, la pantalla de Provisiones no abre desde el 1 de septiembre y
+la 0365 lo arregla al pegarla. La rama `claude/error-investigation-17ac66` llegó
+a lo mismo por otro camino y trae el grant solo, como su 0363: si se pega esa
+primero, la línea de la 0365 queda redundante e inofensiva.
+
+**Visto de paso, sin tocar (para su propio lote):**
+
+- La prueba **274** (`el_generador_hace_indefinidos`) se pone en rojo según el
+  plan de consulta: registra dos contratos en la misma transacción, los dos
+  quedan con el mismo `generado_at`, y el lateral `u` de `fn_contratos_tablero`
+  (0347) ordena solo por `generado_at desc` — el empate lo decide Postgres.
+  Pasó en la primera corrida de la suite y falló en la segunda y a solas. El
+  arreglo es un desempate en la función (`generado_at desc, id desc` o similar)
+  y una prueba que no dependa del empate.
+- La política `alertas_marcar_leida_propia` (0003) más `grant update on alertas
+  to authenticated` dejan que una integrante edite CUALQUIER columna de sus
+  propias alertas (estado, intentos…). Preexistente; la 0362 lo amplía un poco.
+- `fn_crear_persona` sigue recibiendo el hash del PIN desde el navegador, y el
+  terminal sigue comparándolo con bcryptjs en el cliente: es el crítico 1.
+- `fn_planilla_calcular` conserva `coalesce(…, 113.00)` como respaldo escrito
+  a mano de la asignación familiar (0339): el mismo defecto del 24, en el
+  sitio que paga.
+- `fn_feriado_devengado`: un feriado que cae dentro de un bloque 29→28 con el
+  tramo de salario cerrado a mitad valora horas de días sin tramo (S/ 7,69
+  medidos en la 291). No es de la 0365; queda documentado en esa prueba.
+
+---
+
+## 2026-09-04 — `fn_provisiones` se quedó sin permiso de ejecución desde la 0338 (0363) · PEGADA Y VERIFICADA
+
+La 0338 le agregó un parámetro a `fn_provisiones` (de `fn_provisiones(date)` a
+`fn_provisiones(date, date)`); como Postgres no reemplaza en el sitio cuando
+cambia la firma, esa migración hizo `DROP FUNCTION` + `CREATE OR REPLACE`, y
+el nuevo objeto nació sin el `GRANT EXECUTE` para `authenticated` — desde la
+0076 esta base no regala EXECUTE por defecto. Cualquier llamada a
+`fn_provisiones` desde el panel devolvía «permission denied for function»
+antes de que el cuerpo llegara a correr; no era un bug de la pantalla de
+Provisiones, la función nunca llegaba a ejecutarse.
+
+**Arreglo (0363):** un `grant execute` de una sola línea, sin tocar el
+cuerpo ni el md5 de la función. Llegó a `main` vía [PR #180](https://github.com/felipea92p-ux/cayla-dynamic/pull/180)
+desde otra sesión (`claude/error-investigation-17ac66`) mientras esta rama
+fusionaba la 0344/0345 — se cruzaron sin chocar en la numeración.
+
+**Confirmado en producción el 2026-09-04**, corriendo la comprobación que
+la propia migración deja al final:
+`has_function_privilege('authenticated', 'fn_provisiones(date,date)', 'EXECUTE')` → `true`.
+
+---
+
+## 2026-09-03 — El patrón «función guardián» queda escrito como convención (CLAUDE.md) · CERRADO
+
+Hallazgo #2 de la comparación Workday/Oracle, y uno de los 16 de la auditoría
+de arquitectura del mismo día: el molde que ya usan `fn_cambiar_regimen_pension`
+(0261), la puerta de rol (0295/0296) y `fn_set_sede_base` (0342) —guard +
+`update` auditado + trigger que rechaza el `UPDATE` directo comparando
+`current_user <> 'postgres'`— se había reinventado tres veces sin declararse
+nunca como regla. No había ningún código que arreglar: las tres funciones ya
+funcionan bien. Lo que faltaba era que dejara de transmitirse por comentarios
+cruzados entre migraciones y quedara escrito una vez.
+
+**Arreglo:** un principio nuevo en [`CLAUDE.md`](../CLAUDE.md), sección
+"Principios del sistema", junto a los otros principios de guardas
+(`SECURITY DEFINER null-safe`, `fn_registrar_marcaje` como única puerta).
+Nombra el mecanismo exacto y las tres instancias, para que la próxima columna
+sensible lo siga por regla y no por memoria. Marcado como cerrado en
+[`hallazgos-abiertos.md`](hallazgos-abiertos.md).
+
+---
+
+## 2026-09-03 — La misma alerta de auto-cierre, construida dos veces sin saberlo (0354 y la 0352 descartada)
+
+Al abrir el PR de esta rama (severidad en Incidencias, reporte de inspección
+en Exportar, confirmación de refrigerio al marcar salida, aviso de
+auto-cierre por correo), `main` ya traía **dos** de esas cuatro cosas,
+construidas por otra sesión el mismo día: el reporte de inspección en
+Exportar (marcajes crudos + auditoría de correcciones — commit `241fd96`) y
+el aviso de auto-cierre por correo (`fn_alertas_email_pendientes` +
+`/api/alertas-encargadas`, migración 0354). Ninguna de las dos sesiones vio a
+la otra: la regla de CLAUDE.md de mirar `git log --all` antes de empezar no
+se siguió al comenzar el aviso de correo.
+
+**Se descartó la versión de esta rama en ambos casos**, no por estar mal
+sino porque la de `main` llegó primero y, en el caso del correo, es más
+segura: la 0354 deliberadamente NO toca `fn_auto_cierre` (7 reescrituras de
+historia, cambiarla exige el protocolo de md5 completo) — lee "quién es la
+encargada" al momento de despachar, no al escribir. La versión descartada de
+esta rama sí reescribía `fn_auto_cierre` para eso. Se prefirió la opción que
+no tocaba la función con más historia.
+
+**Lo único que faltaba de verdad en la 0354** era el pedido explícito de
+Felipe: que el correo llegue también a la propia persona, no solo a su
+encargada. Eso se agregó como una extensión pequeña de
+`fn_alertas_email_pendientes` — migración **0359**, prueba 285 — en vez de
+reconstruir el sistema. Y la confirmación de refrigerio al marcar salida
+(0353) sí era trabajo nuevo sin duplicar — esa se mantiene tal cual.
+
+**RECONCILIADO:** mientras se escribía la 0359, `claude/cola-alertas-vencimiento`
+fusionó a `main` su propia 0358 (reenruta `contrato_por_vencer` y
+`vacaciones_por_vencer` a DO, y deja `auto_cierre` explícitamente sin
+tocar). El primer push de la 0359 lo cazó el hook (`main tiene 3 migración(es)
+que esta rama no tiene... TOCÁIS LAS MISMAS FUNCIONES`) antes de que se
+pegara nada. La 0359 se reescribió por completo sobre el cuerpo real de la
+0358 (el `with combinado as (... union all ...)`, confirmado con
+`git show origin/main:...0358...sql`, no el viejo de la 0354) — extiende
+solo la Rama 1 (auto_cierre y afines) para agregar a la propia persona; la
+Rama 2 (0356/0357, ya directa a `al.persona_id`) queda intacta. Verificado
+localmente aplicando 0356→0359 en orden: las cuatro pruebas relacionadas
+(282, 283, 284, 285) pasan las 30 aserciones juntas, sin que ninguna
+interfiera con la otra.
+
+**La lección de método, otra vez:** `git log --all --oneline -20` antes de
+empezar algo cuesta diez segundos. Esta vez costó descartar una migración
+completa, un endpoint entero y una dependencia (`nodemailer`, después
+cambiada a `resend`) que nunca llegaron a pegarse en producción — caro en
+tiempo de sesión, no en riesgo real, porque ninguna de las dos versiones
+descartadas se había pegado.
+
+---
+
+## 2026-09-03 — Un clic agrega la gratificación, la bonificación 9% y la CTS pendientes de todo el periodo (0355) · PEGADA Y VERIFICADA
+
+Lo pidió Felipe justo después de probar la 0346 en pantalla: quiere el mismo pedido para Gratificación y CTS, que llevan meses siendo 100% manual (una persona, un clic, repetido para todo el equipo).
+
+**Se descartó la escritura automática al llegar la fecha.** La razón salió de la propia prueba en pantalla: al probar con una integrante real, su bonificación propuesta dio S/0.00 — correcto, porque su gratificación de ese semestre ya estaba pagada — pero un proceso que escribe solo no distingue «correctamente cero» de «algo salió mal»; las dos se ven idénticas. Con una persona confirmando antes de que el número se vuelva plata, ese distingo lo sigue haciendo alguien.
+
+**Lo que sí se construyó:** `fn_grati_cts_agregar_pendientes(periodo_id)` — reutiliza `fn_grati_cts_periodo` para el monto (cero cálculo nuevo) y `fn_agregar_movimiento` (la única puerta de escritura) para cada intento. Cada persona/categoría es su propio `begin … exception` (un SAVEPOINT implícito): si una falla —por ejemplo, su sede sigue con el periodo bloqueado— las demás igual se registran, y la que falló queda listada con el motivo exacto. En Planilla hay un banner nuevo con el total pendiente y un botón «Agregar todo», con confirmación antes de escribir y un resumen de éxitos/fallos después.
+
+Auditado local (`supabase db reset` + 1990 pruebas en verde) y a mano contra Postgres, `BEGIN … ROLLBACK`, cuatro casos: normal (dos personas, S/25.00 grati + S/2.25 bonificación cada una, 9% exacto), «ya pagada» (se salta sin intentarlo, no aparece en agregados ni en fallidos), correr la función DOS VECES seguidas (la segunda no agrega nada) y «periodo bloqueado» (el intento de esa persona falla solo, sin tumbar a las demás).
+
+Fusionada a `main` el 2026-09-03 ([PR #171](https://github.com/felipea92p-ux/cayla-dynamic/pull/171), CI en verde) y **pegada en producción el mismo día**: confirmado con `select count(*) from pg_proc where proname = 'fn_grati_cts_agregar_pendientes'` → `1`. La 0346 (el mismo pedido, solo para la bonificación 9%) también quedó confirmada contra producción el mismo día — ver su propia entrada más abajo. Con las dos pegadas, el flujo completo (Gratificación + Bonificación 9% + CTS, con «Agregar todo») ya está disponible en el panel real.
+
+---
+
+## 2026-09-03 — Anuncios: el tablón de Desarrollo Organizacional (0351) · PEGADA Y VERIFICADA
+
+Salió de comparar CAYLA contra seis sistemas de RRHH de talla mundial
+(Workday, SAP SuccessFactors, ADP, UKG/Kronos, Rippling, BambooHR): de
+BambooHR se adoptó la idea de un tablón de comunicados dentro del sistema,
+en vez de que "cierra la planilla el 28" o "el lunes es feriado" solo exista
+en un chat de WhatsApp. [PR #166](https://github.com/felipea92p-ux/cayla-dynamic/pull/166).
+
+Publicar y anular quedan solo para DO (`puedeGestionarAnuncios`, nuevo en
+`permisos.ts`), con lectura filtrada por sede vía RLS — no solo por la
+función. Deliberadamente NO reusa `documentos_institucionales` (Normas):
+"leído" es un marcador liviano, no un acuse legal, así que no le pide a
+nadie el trámite de una firma por cada aviso operativo. Pantalla en
+`/admin/anuncios`, sin contador en el menú (un anuncio no tiene fecha límite
+que cueste plata pasarla — misma vara que ya usa `nav.tsx`), y una tarjeta
+en "Lo mío" que solo aparece si hay algo sin leer.
+
+Auditada con `npx supabase test db` (prueba 278, 18 casos: solo DO
+publica/anula, filtro por sede a nivel RLS y no solo de RPC, lectura
+idempotente) y probada en el navegador contra el panel real antes de
+fusionar. Verificada en producción el 2026-09-03: la consulta de
+comprobación del final de la 0351 devolvió las seis piezas en 1 (tabla
+`anuncios`, tabla `anuncios_leidos`, `fn_publicar_anuncio`, `fn_anular_anuncio`,
+`fn_anuncios_vigentes`, `fn_marcar_anuncio_leido`).
+
+---
+
+## 2026-09-03 — Aviso cruzado: `main` va dos migraciones atrás de producción (0344/0345) · RESUELTO (2026-09-04)
+
+Comprobado contra producción a pedido de Felipe (`select numero, nombre, aplicada_at from migraciones_aplicadas where numero in (344, 345)`): la **0345** (corrige el comentario de `topes_educacion_rango`, no toca datos) llegó a `main` el 2026-09-03. Por separado, la rama `claude/error-new-request-f3a806` traía la **0344** (`fn_set_documento` ya no exige motivo de cambio al cargar el DNI por primera vez), aplicada en producción el mismo día 16:41 UTC pero sin fusionar todavía. El hueco de numeración que eso dejaba ya se había investigado y no era una migración perdida: estaba pusheada a origin, solo en tránsito.
+
+**Fusionada el 2026-09-04.** `main` ya trae las dos y vuelve a coincidir con lo que producción corre.
+
+---
+
+## 2026-09-03 — Auditoría de arquitectura: 16 hallazgos nuevos siguiendo la comparación con otros ERP
+
+23 agentes (6 de investigación + 1 escéptico por cada candidato) sobre la
+comparación Workday/Oracle del día anterior: primitivos de BambooHR/Gusto/
+Rippling, de Odoo HR/Payroll, y cuatro frentes del código real (campos
+mutables sin historia, patrones duplicados, huecos de auditoría, integración
+ausencias↔planilla). 17 candidatos evaluados, **16 sobrevivieron al
+escéptico, 1 refutado**. El catálogo completo, con evidencia y severidad, está
+en
+[`hallazgos-abiertos.md`](hallazgos-abiertos.md#auditoría-de-arquitectura-del-2026-09-03--comparación-contra-otros-erp-23-agentes).
+
+**Los 7 de severidad alta, en una frase cada uno:**
+`fn_aprobar_ausencia` (la única puerta que "convierte días en plata") es la
+única sin el candado de periodo pagado · `fn_cesar_persona` no deja rastro en
+`correcciones_auditoria` · `con_hijos` decide S/113+provisiones sin auditoría
+ni vigencia · cambiar la cuenta bancaria de alguien no deja rastro ·
+`configuracion` deja escribir cualquier clave (incluida `tasa_afp`) sin
+guardia · la policy de `personas` es por fila, no por columna
+(`estado`/`fecha_cese`/`motivo_cese`/`tipo_vinculo` sin puerta) ·
+`devenga_grati/cts/vacaciones` sin fecha de corte, con un bypass real vía
+`PATCH` directo a la tabla.
+
+**El patrón que se repite:** 6 de los 16 son la misma familia de defecto que
+ya costó el régimen de pensión (→0261), el rol (→0295/0296) y la sede
+(→0342) — un campo que mueve plata o una obligación legal, mutable sin
+auditoría. Ninguno de los 16 se arregló todavía; quedan en
+`hallazgos-abiertos.md` para decidir orden de trabajo.
+
+---
+
+## 2026-09-03 — El comentario de `topes_educacion_rango` mentía sobre una copia que ya no existe (0345) · PEGADA Y VERIFICADA
+
+Encontrado siguiendo el hallazgo #7 de la comparación Workday/Oracle
+([`docs/comparacion-workday-oracle-dynamic-2026-09-02.md`](comparacion-workday-oracle-dynamic-2026-09-02.md)):
+el informe reportó que el tope de educación por rango "vive en la tabla Y en
+un archivo TypeScript hardcodeado a la vez", citando el comentario de la
+tabla `topes_educacion_rango` (0132), que dice ser "espejo de
+`RANGOS.topeEducacion` en `apps/web/lib/rangos.ts`".
+
+**Es un falso positivo, no una duplicación real.** Ese campo se borró el
+2026-08-06 (la 0178, por el mismo motivo de fondo: había quedado
+desactualizado y le pagó de más a `caylo` — S/545.25 en vez de S/180). El
+comentario de la 0132 nunca se actualizó cuando el campo se borró, así que
+siguió describiendo una duplicación que ya no existe — y esa frase desactualizada
+fue justamente lo que indujo al agente que hizo la comparación a reportar un
+hallazgo que no existe en el código actual.
+
+**Arreglo (0345):** reemplaza solo el `comment on table topes_educacion_rango`
+por uno que dice la verdad de hoy — que la tabla es la única fuente y que
+`rangos.ts` no declara tope de educación a propósito desde la 0178. No toca
+ninguna columna, fila, función ni cálculo — no hay pago que auditar.
+
+**Verificado:** `npx supabase db reset` limpio con las 345 migraciones en
+orden; `npx supabase test db` — 1938/1938 en verde; `typecheck` limpio.
+Confirmado en producción el mismo día 18:42 UTC (ver la nota de "Aviso
+cruzado" más arriba) y fusionada a `main` el 2026-09-04.
+
+---
+
+## 2026-09-03 — Objetivos: «copiar del mes anterior» (0348) y gráfico de historial (0350) · PEGADAS Y VERIFICADAS
+
+Pedido pendiente desde el 2026-08-14 (lista de "Valioso pronto"). En
+`/admin/objetivos`, cuando el mes elegido no tiene checklist todavía, aparece
+un botón que duplica hacia ese mes la descripción, las indicaciones y el orden
+de los objetivos del mes calendario anterior de esa misma persona — todos SIN
+marcar, porque es un objetivo nuevo que empieza desde cero, no un historial que
+se arrastra.
+
+`fn_objetivos_copiar_mes_anterior` (0348) reusa los mismos candados que el
+resto de la 0032: `fn_puede_gestionar_objetivos` (admin/líder a cualquiera,
+encargada solo a su sede) y `fn_mes_planilla_pagado`. Y agrega dos propios: se
+niega si el mes destino ya tiene algún objetivo (mezclar una copia con lo que
+ya exista es ambiguo y nadie lo pidió resuelto), y se niega si el mes anterior
+no tiene nada que copiar. Auditada con `npx supabase test db` (prueba 276, 9
+casos: copia, contenido, candado de mes no vacío, candado de mes sin origen,
+candado de mes pagado, permiso por sede en los dos sentidos) — no toca dinero,
+así que no hizo falta la auditoría empírica de planilla.
+
+**Y en la misma entrega, un gráfico de tendencia:** la pantalla ahora dibuja
+los últimos 12 meses de cumplidos/total de la persona elegida (SVG propio, sin
+librería, mismo estilo que `grafico-horas.tsx`). `fn_objetivos_historial`
+(0350) solo lee `objetivos_mensuales` —el resumen que ya sincroniza
+`fn_objetivos_sync_mes`, no se calcula nada nuevo— y rellena con
+`generate_series` los meses sin checklist para que no desaparezcan de la
+serie. La distinción que importaba: un mes **sin checklist** (total=0) no es
+lo mismo que un mes con **0% cumplido** (total>0, cumplidos=0) — el primero se
+dibuja como una marca gris al piso, "sin dato"; el segundo como una barra roja
+de altura mínima, un dato real de bajo desempeño. Se encontró y corrigió
+verificando en el navegador: la primera versión dibujaba los dos casos
+idénticos, porque una barra de 0% de altura real es invisible — nada distinto
+del hueco. Prueba 277 (6 casos: ventana sin saltar meses, hueco con total=0,
+dato real, tope de `p_meses` a 24, permiso concedido y denegado).
+
+(La 0349 se renumeró a 0350 al fusionar `main`: otra rama fusionada mientras
+esta se escribía ya había tomado el 0349 —y el 274 y el 275 de pruebas— para
+otra cosa. `siguiente-numero.sh` lo detectó antes de empujar.)
+
+PR [#160](https://github.com/felipea92p-ux/cayla-dynamic/pull/160) fusionado,
+0348 y 0350 pegadas en producción por Felipe y confirmadas funcionando (el
+gráfico ya mostró datos reales de septiembre en pantalla).
+
+**Encima, el mismo día:** el rango de 12 meses fijo pasó a elegirse (1/2/3/6/
+12/24 meses) con un `<select>` "Rango" junto al título del gráfico —
+consistente con Persona/Mes/Año, que ya eran `<select>` en la misma pantalla;
+un primer intento con tres botones pastilla se descartó porque desentonaba
+con el resto de los filtros de la página. `fn_objetivos_historial` ya
+aceptaba `p_meses` desde el principio, esto solo lo expuso en pantalla, sin
+migración nueva.
+
+El refresco del rango se separó del `cargar()` que trae la lista de
+objetivos —dos efectos en vez de uno— para que cambiar de rango no reinicie
+toda la pantalla a "Cargando…", solo el gráfico. El estado de "desactualizado"
+se DERIVA comparando la selección actual contra la clave del último historial
+que llegó (guardada en estado, no en un ref: leer un ref durante el render es
+otro lint prohibido, `react-hooks/refs`) en vez de un `setState` al ENTRAR al
+efecto — eso dispara `react-hooks/set-state-in-effect`, que el push bloquea.
+
+**Y, a pedido explícito de Felipe ("usa las skills para el diseño"), un
+rediseño con la skill `dataviz`:** el gráfico pasó de barras planas sin
+interacción a una pieza con tope redondeado (4px, base cuadrada contra el
+eje — no un `rx` de las cuatro esquinas, un `<path>` propio), tooltip por
+barra (posición en foco de teclado igual que en hover, y se voltea a
+DEBAJO de la barra cuando arriba no cabe, en vez de montarse sobre el título
+de la tarjeta), leyenda con ícono + etiqueta para los tres estados
+(verde/ámbar/rojo NO son categóricos aquí: son una escala de estado —
+cumplido/parcial/bajo desempeño, los mismos tres colores que ya usaba la
+barra de progreso— y una escala de estado siempre va con ícono+etiqueta,
+nunca el color solo), etiqueta directa selectiva en el último mes (el que se
+está editando arriba, no un número en cada barra), y el refetch mantiene el
+dibujo anterior atenuado en vez de un flash al cambiar de rango. Los tres
+colores de estado se validaron por contraste contra la superficie de la
+tarjeta (`bg-papel`) en los dos temas — los tres pasan 3:1 largamente (4.28 a
+6.17) — y no por el validador categórico de 8 colores, que la skill dice
+explícitamente que no le aplica a una escala de estado.
+
+**Y dos arreglos más, del mismo 2026-09-03, YA EN PRODUCCIÓN (el gráfico de
+historial se fusionó y desplegó en el PR anterior):**
+
+1. **El gráfico no se acomodaba con pocos meses.** Con 1-3 meses el SVG medía
+   poco (ancho fijo de barra, `<=24px` por la especificación de marca) pero
+   llevaba `min-w-full`: sin `viewBox`, estirar la CAJA de un SVG por CSS no
+   escala el DIBUJO, solo agranda el lienzo — la barra quedaba pegada a la
+   izquierda con un hueco vacío enorme a la derecha, dentro de una tarjeta
+   ancha. Felipe lo vio en una captura y lo describió bien: "no se acomoda".
+   Se sacó `min-w-full` y el SVG (+ el tooltip, que comparte su mismo origen
+   de coordenadas) pasó a vivir en un envoltorio `w-fit mx-auto`: los
+   márgenes automáticos centran cuando el dibujo es más angosto que la
+   tarjeta, y se colapsan a 0 sin romper el scroll cuando desborda (24
+   meses) — a diferencia de centrar por flex/grid, que sí rompe el scroll.
+   Verificado en vivo para 1/3/12/24 meses, claro y oscuro.
+
+2. **Un crash real, encontrado en esa misma verificación en vivo, no en el
+   ancho.** Enfocar o pasar el mouse por una barra en una ventana larga
+   (24 meses) y después achicar el rango (a 1 mes, por ejemplo) dejaba
+   `activo` — el índice de la barra con el tooltip abierto — apuntando a una
+   posición que ya no existe en el arreglo `historial`, más corto. Nada en el
+   componente escuchaba el cambio de la prop para resetearlo. El resultado:
+   `historial[activo].total` sobre `undefined`, y toda la pantalla de
+   Objetivos caía al `ErrorBoundaryHandler` con "Algo salió mal". **Esto
+   viajó a producción sin que nadie lo notara** en el PR del rediseño del
+   gráfico — ninguna de las verificaciones de ese momento (typecheck, lint,
+   vitest, ni una revisión adversarial de tres agentes sobre el diff del
+   ancho) lo encontró; lo cazó recién una sesión de navegador real probando
+   la secuencia exacta. Se arregló acotando `activo` contra
+   `historial.length` antes de indexar, y por si acaso, con un `key` en
+   `<GraficoObjetivos>` (la clave del historial cargado) para que la
+   selección de hover/foco se reinicie sola cuando cambian los datos, en vez
+   de arrastrarse entre renders.
+
+Ambos arreglos: `npx pnpm typecheck`, ESLint y `npx pnpm test` (427, sin
+cambios) en verde. La reverificación en vivo del segundo arreglo quedó
+pendiente porque Docker Desktop dejó de responder en esta Mac a media
+sesión (`request returned 500 Internal Server Error`, ajeno al código) —
+se envía igual por la severidad (un crash ya en producción) y la sencillez
+del guard; se reverifica en cuanto Docker vuelva.
 
 ---
 
@@ -81,6 +2003,8 @@ próxima planilla que se congele. Boletas de periodos ya pagados antes de
 esta migración no lo muestran — no es un error, es lo mismo que le pasa a
 cualquier campo agregado después de que un periodo se cerró.
 
+---
+
 ## 2026-09-03 — El 9% de la Ley 30334 sale aparte al pagar la gratificación real (0346) · PEGADA Y VERIFICADA
 
 Lo pidió el contador de CAYLA: que el 9% no viaje mezclado a mano dentro del
@@ -121,6 +2045,8 @@ con el 9% sumado a mano dentro de «Gratificación», esa fila sigue tal cual.
 **Decidido con Felipe el 2026-09-03: no se corrige lo ya pagado — lo que le
 importa es que quede separado de acá en adelante.** No hace falta revisar
 julio 2026 ni ninguna migración retroactiva.
+
+---
 
 ## 2026-09-03 — Un adelanto de beneficio se calculaba dos veces al cesar (0343) · PEGADA Y VERIFICADA
 
@@ -3279,6 +5205,55 @@ pasaba exactamente eso hasta que se agregó a `additional_redirect_urls` en
 
 ---
 
+## 2026-08-11 — esta base tiene dos sistemas adentro, y el historial ya lo dice
+
+### El ERP de tiendas vive acá, en el schema `retail` ([`0216`](../supabase/migrations/0216_el_tipo_de_cada_sede_que_retail_necesita.sql)–[`0227`](../supabase/migrations/0227_las_once_de_retail_entran_al_registro.sql))
+
+El 2026-07-23 el ERP de tiendas (repositorio `cayla-retail`,
+`cayla-retail.vercel.app`) se mudó a **esta** base, en su propio schema, para
+dejar de tener las sedes y las personas duplicadas en dos proyectos de Supabase.
+La mudanza funcionó y está en uso. Lo que no se hizo fue registrarla acá: los
+once scripts vivían solo en el otro repositorio, y este historial —que es el que
+describe esta base— no sabía que el cajón existía.
+
+Eso se cerró hoy. Los once archivos entraron como 0216-0226 con su procedencia en
+la cabecera, y la 0227 los anota, con el mismo criterio de la
+[`0146`](../supabase/migrations/0146_las_tres_migraciones_que_no_se_anotaron.sql):
+a una migración ya aplicada no se le cambia el cuerpo. Verificado contra el
+Postgres local, dentro de `begin … rollback`: las doce corren en orden sobre una
+base que solo tiene dynamic y levantan el schema `retail` entero desde cero, y
+las dos consultas de la prueba `122_toda_migracion_deja_su_rastro` devuelven cero
+filas.
+
+**Por qué importaba:** hasta hoy, reconstruir esta base desde
+`supabase/migrations` daba asistencia y planilla completas y **ningún ERP de
+tiendas**. Sin error y sin alarma.
+
+### Lo que dynamic no puede cambiar sin romper el ERP de tiendas
+
+Retail no copia la identidad: la lee de acá. Sus vistas y sus candados cuelgan de
+**cuatro cosas de `public`**, y hoy nada avisa si alguna se mueve:
+
+| Lo que retail usa | Dónde lo usa |
+|---|---|
+| `public.fn_rol_actual()` | los 4 candados de `retail` — toda su RLS cuelga de ahí |
+| `public.fn_sede_actual_persona()` | `retail.mi_sede()`, `retail.puede_operar_sede()` |
+| `public.sedes` (`id`, `codigo`, `nombre`, `activa`) | la vista `retail.sedes` |
+| `public.personas` (`auth_user_id`, `nombres`, `apellidos`, `sede_base_id`, `rol`, `email`) | la vista `retail.personas` |
+
+Renombrar cualquiera de ellas, o cambiarle una columna, deja el ERP de tiendas
+respondiendo errores de permisos **en todas sus pantallas a la vez**, y el
+síntoma no dice por qué. No es hipotético: es el precio declarado de la
+unificación, y está anotado como pendiente en el backlog de `cayla-retail` (una
+prueba de humo que mida el contrato). Mientras no exista, esta tabla es la única
+defensa.
+
+También: el schema `retail` tiene que estar en **Settings → API → Exposed
+schemas**. Es configuración del proyecto, no SQL — ninguna migración de este
+historial puede restaurarla.
+
+---
+
 ## 2026-08-10 — un terminal sin dueño, y un diseño de plata que se cayó al medirlo
 
 ### El terminal ya no puede quedarse sin dueño ([`0202`](../supabase/migrations/0202_un_terminal_activo_sin_dueno_deja_de_poder_existir.sql))
@@ -3529,6 +5504,25 @@ convertiría a **todo el mundo** en locador de golpe: treinta personas recibirí
 un papel que les niega gratificación, CTS y vacaciones, y saldría bonito. Las
 cuatro pruebas de `tests/vinculo.test.ts` existen para eso.
 
+### Se dice la tarifa por hora, no un sueldo mensual
+
+Durante unos minutos la hoja de Carlos imprimió **«Honorarios pactados (mes
+completo) — S/ 1,800.00»**, y era la única frase que contradecía a las otras
+cinco: ellas afirman que no hay contrato de trabajo, y esa afirmaba un monto
+mensual fijo. Carlos y Claudia **cobran por hora**. Ahora dice **«Tarifa por
+hora — S/ 8.9330»**, que es lo que de verdad se pactó y además afirma lo
+contrario de un sueldo.
+
+Dos cosas de esa línea que no son cosmética:
+
+- **Sale de `salario_ref`, no de `sueldo_base_legal`.** Es el dato con el que
+  `fn_planilla_calcular` calcula el pago, así que `tarifa × horas` reproduce el
+  total de la propia hoja. Un documento que no cuadra consigo mismo es peor que
+  uno que no dice nada.
+- **Cuatro decimales, y no dos.** A S/ 8.93 la hora, 27 h 30 min dan S/ 245.58 y
+  la hoja remata en S/ 245.66. Ocho céntimos bastan para que alguien piense que
+  le descontaron algo.
+
 ### Lo que solo se vio mirando la hoja renderizada
 
 La boleta le imprimía **«Colibrí»** — un peldaño de la escala de trabajadores.
@@ -3537,13 +5531,14 @@ una categoría de la escala es parte de lo que desnaturaliza una locación. Pero
 aplicó solo en la tabla de Planilla. En el código las dos pantallas no se parecen
 en nada y ningún `grep` las conecta; se cazó abriendo el documento.
 
+Y la primera tarifa por hora salió **S/ 0.2882**: `proy.base_horas` ya son las
+horas de todo el periodo (`6.5 × días`), y la fórmula las volvía a multiplicar
+por los días. El typecheck no podía verlo —los dos campos son `number` y las dos
+fórmulas compilan igual— y ninguna prueba de interfaz lo habría cazado. **La
+lección de método: un documento que se imprime se revisa imprimiéndolo.**
+
 ### Lo que queda de este hilo
 
-- **«Honorarios pactados (mes completo) · S/ 1,130.00»** sigue impreso, y el
-  número sale de `personas.sueldo_base_legal`. Carlos y Claudia **cobran por
-  hora**: un importe mensual fijo impreso cada mes es, él solo, un indicio de
-  laboralidad. Quitar esa línea para locadores es un `if` de una línea, y está
-  pendiente de que Felipe decida.
 - **Faltan las otras ocho pantallas** con el mismo problema: Planilla (135
   conceptos laborales), Provisiones, Liquidaciones, Feriados, Vacaciones, Costos,
   Ausencias y Disciplina.
@@ -4983,11 +6978,13 @@ al tope.
    día). Cinco casos probados, incluido el que cazó un `git add` con las rutas
    pegadas sin espacio — justo la línea que existe para copiarse.
 
-   **Queda la mitad cara, y es la que de verdad cierra el agujero:** que
-   `que_falta_pegar.sql` compare lo que `migraciones_aplicadas` dice **en
-   producción** contra lo que hay **en GitHub** —no en el disco—, de modo que una
-   migración aplicada y no subida salga como hallazgo desde el lado autoritativo.
-   El aviso del hook depende de que alguien empuje; esto no dependería de nada.
+   **La mitad cara ESTÁ CONSTRUIDA y espera fusión** — [PR #250](https://github.com/felipea92p-ux/cayla-dynamic/pull/250),
+   2026-09-07. `que-falta-pegar.sh` dejó de leer el directorio de trabajo: la
+   lista sale ahora de la unión de `origin/main` y `HEAD`, y la consulta hace
+   además la pregunta al revés —qué tiene producción que no está guardado en
+   ninguna parte—. Ver la entrada del 2026-09-07 más arriba para las cinco
+   comprobaciones. **Este bloque se tacha el día que ese PR se fusione**, no
+   antes.
 
 1. **Julio: nadie tuvo descuento de pensión.** Medido el 2026-08-08 sobre el
    periodo 28-jun → 28-jul: `pension_descontada` = **S/0.00 para las 23
@@ -5051,20 +7048,15 @@ al tope.
    Cualquier migración que hubiera copiado del repositorio los habría borrado en
    silencio — lo mismo que la 0180 tuvo que reponer el mismo día.
 
-   ⚠️ **EL INTERRUPTOR DE BENEFICIOS POR PERSONA NO ESTÁ CONECTADO.** Medido en
-   producción, no deducido: `funciones_que_lo_leen: 0`.
-   `fn_devenga_beneficios(p_tipo)` tiene como cuerpo entero
-   `select p_tipo = 'planilla'` — mira el **tipo de vínculo**, no la columna — y
-   sus cuatro consumidores la llaman con el tipo. La pantalla de Equipo dice que
-   el interruptor funciona y **no hace nada**. Quien lo haya apagado para alguien
-   verá a esa persona seguir acumulando CTS, gratificación y vacaciones.
-   Compruébalo con
-   [`quien_uso_el_interruptor.sql`](../scripts/sql-manual/quien_uso_el_interruptor.sql).
-
-   **Conectarlo es decisión de Felipe: es dinero.** Y antes hay un problema de
-   forma: `devenga_beneficios` es **un solo booleano** para los tres beneficios a
-   la vez, y la decisión sobre Carlos Espejo —«grati y CTS sí, vacaciones no»— no
-   cabe ahí. O se parte en tres banderas, o va por otro camino.
+   ~~⚠️ **EL INTERRUPTOR DE BENEFICIOS POR PERSONA NO ESTÁ CONECTADO.**~~ ✅
+   **CERRADO por la [`0196`](../supabase/migrations/0196_tres_puertas_en_vez_de_una_para_los_beneficios.sql)**,
+   el mismo día en que se midió arriba. Partió el booleano único en tres
+   banderas (`fn_persona_devenga_beneficio(persona_id, tipo_beneficio)` con
+   respaldo a `fn_devenga_beneficios(tipo_vinculo)` cuando no hay excepción
+   cargada) — resolviendo también el problema de forma que este párrafo
+   señalaba. Reconfirmado por la auditoría adversarial del 2026-09-04: los
+   cinco consumidores reales (provisiones, planilla, las tres truncas de
+   liquidación) ya leen la excepción por persona.
 
 5. **Seguridad pendiente** (de `revision-2026-07-15/`):
    - Contraseña mínima 6 sin complejidad, sin cambio forzado en primer login —
@@ -5162,9 +7154,18 @@ se deja constancia y ya. **Es una decisión de negocio, no técnica.**
   primero el impacto con
   [`consulta_impacto_regularidad_feriados.sql`](../scripts/sql-manual/consulta_impacto_regularidad_feriados.sql).
 - **Colibrí en cargas**: ~22 pantallas y ~49 estados vacíos sin marca.
-- **Integración Dynamic ↔ retail**: Fase 0 (reconciliación, solo lectura) lista
-  para arrancar — `docs/integracion-retail/`.
-- **Objetivos: botón «copiar del mes anterior»**.
+- **Integración Dynamic ↔ retail**: el puente de identidad **ya está hecho y
+  en uso** desde el 2026-07-23 (`retail.personas`/`retail.sedes`, vistas
+  `security_invoker` sobre `public.personas`/`public.sedes`, más
+  `retail.ventas.usuario_id` con FK directa a `public.personas`) — no por el
+  camino que `docs/integracion-retail/00-plan.md` proponía (API de solo
+  lectura entre dos proyectos, amarrada por DNI), sino porque retail se mudó
+  al mismo Postgres. Ese documento se reescribió el 2026-09-04 para decir
+  esto. **Lo único abierto de verdad:** si los DATOS históricos (ventas,
+  stock, activos, proveedores) viajaron en la mudanza — hay una señal
+  concreta de que no, en LIM (`finanzas/activos` no muestra nada). Diagnóstico
+  listo para pegar en `docs/integracion-retail/03-donde-quedaron-los-activos.sql`,
+  solo lectura; falta que Felipe lo corra y pegue la salida.
 - **Espejo a Google Sheets legible** (encabezados fijos, una fila por persona).
 
 ## 🟢 Dependen de Felipe / redondeo

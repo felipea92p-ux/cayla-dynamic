@@ -143,15 +143,55 @@ done
 
 # ── ¿Sigue existiendo? ──────────────────────────────────────────────────────
 # Si después de la última migración que la define hay otra que solo la borra,
-# la función ya no está. Ofrecer su cuerpo para copiar sería resucitar algo que
-# alguien decidió eliminar.
+# el TEXTO sugiere que la función ya no está. Pero este script clasifica por
+# NOMBRE, no por argumentos (línea 84: «distinguirlo de verdad exigiría
+# comparar las firmas argumento por argumento»), así que un `drop function`
+# que retira una sobrecarga VIEJA se ve idéntico a un borrado real.
+#
+# Pasó de verdad con fn_registrar_marcaje: la 0353 dejó dos firmas vivas en
+# producción por error (8 y 9 argumentos, "function ... is not unique"), y la
+# 0367 —un archivo que SOLO tiene el `drop` de la firma vieja de 8, para
+# retirarla— hacía que este script declarara muerta una función que la 0366
+# había creado con 9 argumentos y que seguía (y sigue) perfectamente viva.
+# Ver docs/estado.md, 2026-09-04.
+#
+# Por eso, antes de darla por muerta, se comprueba contra el Postgres local
+# —la fuente de verdad que sí sabe si la función existe, sin necesidad de
+# parsear firmas—. Si no hay Postgres local para preguntar, se mantiene el
+# veredicto de siempre, pero diciendo que no se pudo confirmar.
 if [ "$ARCHIVO_FINAL" != "$ULTIMA" ]; then
-  echo ""
-  rojo "✗ «${FN}» YA NO EXISTE: la borró $(basename "$ARCHIVO_FINAL")."
-  gris "  Su última definición fue $(basename "$ULTIMA"), pero se eliminó después."
-  gris "  Volver a crearla es una decisión de negocio, no un copiar y pegar."
-  echo ""
-  exit 0
+  CONT_MUERTE=$(docker ps --format '{{.Names}}' 2>/dev/null | grep -m1 'supabase_db_' || true)
+  VIVE_EN_LOCAL=""
+  if [ -n "$CONT_MUERTE" ]; then
+    VIVE_EN_LOCAL=$(docker exec "$CONT_MUERTE" psql -U postgres -d postgres -tAc "
+      select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+       where n.nspname = 'public' and p.proname = '$FN' limit 1
+    " 2>/dev/null | tr -d ' ' || true)
+  fi
+
+  if [ "$VIVE_EN_LOCAL" = "1" ]; then
+    echo ""
+    ambar "⚠ El texto sugiere que $(basename "$ARCHIVO_FINAL") borró «${FN}», pero SIGUE"
+    ambar "  VIVA en el Postgres local. Este script compara nombres, no argumentos:"
+    ambar "  lo más probable es que ese archivo solo haya retirado una sobrecarga"
+    ambar "  vieja (el caso de fn_registrar_marcaje y la 0367 — ver docs/estado.md,"
+    ambar "  2026-09-04), no la función entera."
+    gris "  Sigue abajo: se compara igual contra $(basename "$ULTIMA")."
+    echo ""
+  else
+    echo ""
+    rojo "✗ «${FN}» YA NO EXISTE: la borró $(basename "$ARCHIVO_FINAL")."
+    gris "  Su última definición fue $(basename "$ULTIMA"), pero se eliminó después."
+    gris "  Volver a crearla es una decisión de negocio, no un copiar y pegar."
+    if [ -z "$CONT_MUERTE" ]; then
+      gris ""
+      gris "  (No se pudo confirmar contra el Postgres local — no está levantado."
+      gris "   npx supabase db start lo confirma con certeza antes de asumir que"
+      gris "   de verdad no existe.)"
+    fi
+    echo ""
+    exit 0
+  fi
 fi
 
 if [ "$CUANTAS" -gt 1 ]; then

@@ -45,17 +45,42 @@ mismo que plata perdida.
 
 ### Confirmado y pendiente · mueve plata en el pago mensual
 
+⚠️ **Esta tabla es del 2026-08-19.** Desde entonces `fn_planilla_calcular`
+recibió más de 30 migraciones (0280-0349 y sus renumeraciones), y al menos una
+fila de esta tabla (la del descanso semanal, de abajo) llevaba tres semanas
+cerrada sin que nadie lo marcara aquí — se encontró el 2026-09-05 leyendo el
+código vigente, no reproduciendo el hallazgo original. **No asumir que las
+filas sin tachar siguen abiertas tal cual se describen**: antes de tocar
+cualquiera, releer `fn_planilla_calcular_nucleo` vigente (`donde-vive.sh
+fn_planilla_calcular`) y, si el código parece seguir teniendo el defecto,
+recién ahí medirlo contra Postgres local en `BEGIN … ROLLBACK` con un caso
+real — no alcanza con no encontrar la palabra clave esperada, como casi pasó
+aquí mismo con `ot_dias` (sigue leyendo `p_ini - 7` tal cual describía el
+hallazgo original, pero eso no prueba por sí solo que el defecto sobreviva:
+otras dieciséis migraciones tocaron el bloque de sobretiempo desde entonces
+sin que se haya revisado si alguna ya lo neutralizó por otro lado).
+
 | Qué | Cuánto | Dónde |
 |---|---|---|
-| **No existe la sobretasa del 100 % por trabajar el día de descanso semanal** (art. 3 D. Leg. 713) | S/44–58 por episodio | `fn_planilla_calcular` no lee `turnos` ni una vez |
-| Un **feriado dentro de unas vacaciones se paga dos veces** | S/51.99 por feriado | `vacd` no lo excluye y `fer` sí lo paga |
+| ~~**No existe la sobretasa del 100 % por trabajar el día de descanso semanal**~~ ✅ **CERRADO por la 0280** (2026-08-20, ver `CAMBIO 0280` en `fn_planilla_calcular_nucleo`, vigente en la 0349): agrega el lateral `dsw` que paga el recargo del descanso semanal trabajado, excluyendo RxH y sueldo fijo, incluyendo personal de dirección por decisión de Felipe. Verificado leyendo el código vigente, no solo el mensaje de commit | ~~S/44–58 por episodio~~ · cerrado | ~~`fn_planilla_calcular` no lee `turnos` ni una vez~~ |
+| ~~**Un feriado dentro de unas vacaciones se paga dos veces**~~ ✅ **REFUTADO el 2026-09-05** (auditoría dedicada, verificación + refutación adversarial independiente): `fer` no paga "el día completo" del feriado, calcula un PRORRATEO del periodo completo — el mismo patrón que la 0293 ya midió para descanso médico y concluyó explícitamente "no había doble pago que evitar". Esa conclusión se reafirma, textual, en al menos 7 migraciones posteriores (0276, 0302, 0308, 0310, 0338, 0365, 0372): "`vacd` no lo excluye: el feriado se cuenta como día de vacaciones. Simétrico, no se toca." Es decisión de diseño verificada con datos reales, no un descuido | ~~S/51.99 por feriado~~ · refutado | ~~`vacd` no lo excluye y `fer` sí lo paga~~ |
 | ~~**La remuneración vacacional no entra a la base de EsSalud ni de pensión**~~ ✅ **CERRADO el 2026-08-26 por la [0317](../supabase/migrations/0317_la_remuneracion_vacacional_tambien_se_declara.sql)**, y con ella la familia entera: los TRES conceptos que la planilla paga sin marcaje —descanso médico (0263), licencia con goce y duelo directo (0316), vacaciones (0317)— ya se declaran igual. Medido antes de cerrar: quien pasaba el periodo entero de vacaciones cobraba S/3.000 y se le declaraba S/1.130 con básica legal en CERO; ahora declara S/3.223 y su aporte de pensión pasa de S/29 a S/419. Y la simetría que lo confirma: dos personas que faltan los mismos días y cobran lo mismo, una de vacaciones y otra de descanso médico, ahora dan **la misma base exacta**. No le costó un sol a nadie: cero personas con vacaciones en el periodo abierto y cero periodos ya pagados afectados | ~~S/94 + S/43 por persona~~ · cerrado | ~~va a `pago_base` pero no a `pb.basica`~~ |
-| Se pagan **ausencias posteriores al cese** | S/193.55 medidos | `vacd`, `dmd` y `mat` no miran `fecha_cese` |
-| **Sueldo fijo cobra el mes íntegro** aunque entre o cese a mitad | S/1,306.45 medidos | la rama `sf` no prorratea |
-| **Quien cesa sin marcas desaparece** de la planilla y cobra S/0 del mes | S/1,509.64 medidos | |
-| **Sin régimen de pensión → aporte cero**, y ninguna pantalla de Planilla lo dice | ~S/208/mes por persona | `coalesce(tpen.tasa, …)` |
-| El **sobretiempo pierde el exceso** del ciclo que cruza el día 29 | S/14–19 | `ot_dias` lee desde `p_ini - 7` |
-| La **pantalla de Feriados y la planilla dividen por bases distintas** | 3.33 % de cada sobretasa | mes calendario vs periodo 29→28 |
+| 🔴 Se pagan **ausencias posteriores al cese** — CONFIRMADO ABIERTO 2026-09-05 | S/193.55 medidos | `fn_planilla_calcular_nucleo` (0349): `vacd`/`dmd`/`lic`/`mat` no miran `fecha_cese`; `fn_cesar_persona` (0327) cierra `asignaciones_salario`/`horarios_asignados` al cesar pero NO revisa `ausencias` con fecha posterior — la misma asimetría que deja el hueco |
+| 🔴 **Sueldo fijo cobra el mes íntegro** aunque entre o cese a mitad — CONFIRMADO ABIERTO 2026-09-05 | S/1,306.45 medidos | `fn_planilla_calcular_nucleo` (0349) línea ~1131: `sf.salario` ignora `p_ini`/`p_fin` por completo. Golpea incluso a `fn_liquidacion` (0244), que SÍ pasa `p_fin = fecha_cese` con el comentario "ni un día más" — la rama `sueldo_fijo` lo viola en silencio |
+| 🔴 **Quien cesa sin marcas desaparece** de la planilla y cobra S/0 del mes — CONFIRMADO ABIERTO 2026-09-05 | S/1,509.64 medidos | `fn_planilla_calcular_nucleo` (0349), CTE `pers`: excluye a quien cesó sin ninguna `jornada` ni `movimientos_planilla` ese `periodo_id`. Ya hay un parche en el REPORTE de variación (`fn_que_cambio_respecto_al_mes_pasado`, prueba 255) pero el cálculo real de planilla sigue sin la persona |
+| 🟡 **Sin régimen de pensión → aporte cero** — CONFIRMADO ABIERTO Y MEDIDO EN PRODUCCIÓN 2026-09-08: `configuracion.tasa_afp` sigue exacto en `{"tasa": 0}` (consulta directa en el SQL Editor), y hay **al menos una persona activa, en planilla, sin régimen asignado hoy mismo** — aportando S/0 de pensión cada mes hasta que se le asigne desde `/admin/datos-personales`. Ya no es hipotético | ~S/160-208/mes esa persona, mientras no se le asigne régimen | `coalesce(tpen.tasa, v_tasa_afp)` en `fn_planilla_calcular_nucleo` (vigente: 0397). El dato para avisar en Planilla (`tasa_es_del_regimen`) ya lo calcula la función desde la 0114; sigue faltando la UI en `/admin/planilla` (confirmado sin cambios el 2026-09-08) y también falta en la boleta y en `fn_vacaciones_truncas` — ver la auditoría del 2026-09-08 más abajo. La escritura de un valor imposible en `configuracion.tasa_afp` ya no es posible desde la 0411 (2026-09-08), pero el valor actual (0) no se tocó. |
+| 🔴 El **sobretiempo pierde el exceso** del ciclo que cruza el borde del periodo — CONFIRMADO ABIERTO 2026-09-05, mecanismo verificado con ejemplo de fechas | S/14–19 (no remedido hoy) | `ot_dias`/`ot_islas`/`ot_ciclos` en `fn_planilla_calcular_nucleo` (0349) siguen leyendo `p_ini - 7`: una racha real de 8+ días que cruza ese borde pierde el exceso del ciclo que cae del lado equivocado. Sin ninguna prueba pgTAP que cubra una racha cruzando el borde |
+| 🔴 La **pantalla de Feriados y la planilla dividen por bases distintas** — CONFIRMADO ABIERTO 2026-09-05 | 3.33–10.7 % de cada sobretasa según el par de meses | `fn_feriados_laborados` (0238, pantalla) sigue usando mes calendario; `fn_feriado_devengado_nucleo` (0349, el que realmente paga) usa el periodo 29→28 desde hace ~15 migraciones. Nunca se reconciliaron |
+
+**Método de esta reverificación (2026-09-05):** workflow dedicado de 13 agentes —
+uno lee el código vigente por hallazgo, otro intenta refutarlo de forma
+independiente sin ver más que el veredicto y el propio repo. Ninguna
+migración se escribió: es solo lectura, siguiendo la regla de la casa de
+auditar antes de tocar plata. **Antes de escribir cualquiera de estas
+migraciones:** `donde-vive.sh` de la función correspondiente (por si otra
+rama ya la tocó) y medir en Postgres local dentro de `BEGIN … ROLLBACK` con
+un caso real — ninguno de los seis se remidió contra datos reales hoy, solo
+se confirmó el mecanismo razonando sobre el SQL vigente.
 
 ### Confirmado y pendiente · muerde el día que alguien cese
 
@@ -168,6 +193,18 @@ no haya que descubrirlos otra vez.
 - **El certificado de trabajo y la constancia de cese no existen** en ninguna
   parte del sistema. La constancia es la llave con la que la persona retira su
   CTS del banco.
+- **El piso legal de gratificación/CTS (0338) no corrige una ventana ya
+  pagada.** En `fn_provisiones`, el lateral `cobrado` colapsa a `devengado` de
+  la MISMA llamada en cuanto existe un movimiento de planilla para esa
+  ventana (`pag.gX` solo sabe que se pagó, no cuánto), así que
+  `devengado - cobrado` da cero y el piso nunca se compara contra nada para
+  una ventana ya cerrada. Solo puede pasar en ventanas cerradas ANTES del
+  2026-09-01 (después, `fn_grati_cts_periodo` ya compara bien al momento de
+  proponer el pago). Corrido
+  [`a_quien_le_pega_el_piso_grati_cts.sql`](../scripts/sql-manual/a_quien_le_pega_el_piso_grati_cts.sql)
+  en producción el 2026-09-05: **0 filas** — nadie tuvo un cambio de sueldo
+  dentro de una ventana ya cerrada antes de esa fecha. Volver a correrla si
+  algún cese o ajuste retroactivo de sueldo toca un semestre YA pagado.
 
 ---
 
@@ -202,7 +239,7 @@ antes que las migraciones que los protegen.
 
 | # | Qué | La prueba de que sigue |
 |---|---|---|
-| **V1** | 🔴 **La trunca de vacaciones cobra dos veces los mismos días** — quien gozó en este récord las vacaciones que ganó en el ANTERIOR se queda en S/0.00. **Tres personas hoy, S/905.38.** Ver su entrada completa abajo | medido en producción el 2026-08-14: Janis 9.2 días en pantalla → 0 al liquidar · Sandra 8.1 → 0 · Melany 6.3 → 0 |
+| ~~**V1**~~ | ✅ **CERRADO el 2026-08-22** por la [0283](../supabase/migrations/0283_las_vacaciones_no_gozadas_se_pagan_al_cesar.sql), que cambió el criterio de conteo (ya no cuenta lo gozado por fecha desde el aniversario; paga todo lo devengado y no gozado, en cualquier récord). Confirmado por la auditoría del 2026-09-04: sigue cerrada 8 migraciones después | ver su entrada completa abajo, dejada como registro histórico |
 | **C12 · A16** | 🟡 `fn_registrar_marcaje` — **medido el 2026-08-10: NO cambia el pago**, el candado de la 0138 aguanta. Lo que hacía era entrar muda; lo sella la 0207 | reproducido con `BEGIN … ROLLBACK`: horas 8.00 antes y 8.00 después |
 | **A16-b** | 🔴 `fn_auto_cierre` sigue sin el candado — es la otra puerta que corre sin nadie delante | la 0207 no la toca a propósito: su arreglo es saltarse la candidata y alertar, no sellar |
 | ~~**A3**~~ | 🟡 el cron de auto-cierre — **medido el 2026-08-10: NO reescribe lo pagado.** Es cierto que no nombra `periodos_planilla`, pero solo escribe en `marcajes` y en `alertas`, nunca en `jornadas` directo: pasa por el mismo trigger que el candado de la 0138 detiene. Misma forma y mismo desenlace que C12·A16 | `insert into` en su cuerpo vigente: `marcajes` y `alertas`, y nada más. Lo que sí hacía —entrar mudo— lo sella la 0207 |
@@ -407,7 +444,16 @@ guardián vigila solo no necesita estar escrito en dos sitios.
 
 ---
 
-## V1 · La trunca de vacaciones cobra dos veces los mismos días
+## ~~V1 · La trunca de vacaciones cobra dos veces los mismos días~~
+
+> ✅ **CERRADO el 2026-08-22** por la
+> [`0283`](../supabase/migrations/0283_las_vacaciones_no_gozadas_se_pagan_al_cesar.sql),
+> ocho migraciones antes de esta nota. Cambió el criterio: ya no cuenta lo
+> gozado por fecha desde el aniversario del récord en curso, sino que paga
+> todo lo devengado y no gozado sin importar en qué récord se tomó. Reconfirmado
+> por la auditoría adversarial del 2026-09-04 (31 agentes) — sigue cerrada.
+> Queda el resto de esta ficha como registro histórico del defecto y de por qué
+> no era un arreglo de una línea.
 
 `liquidacion` · 💰 dinero · arreglo de **días** (necesita un dato que no existe)
 
@@ -1092,7 +1138,7 @@ No pasaron por el refutador: son de gravedad media o baja y se dejaron para revi
 
 ---
 
-## Refutados — 9
+## Refutados — 10
 
 Parecían defectos y no lo son. Anotados para no volver a investigarlos.
 
@@ -1136,6 +1182,7 @@ Parecían defectos y no lo son. Anotados para no volver a investigarlos.
 - **El terminal lee marcas ANULADAS como si estuvieran vivas: ofrece la acción equivocada y la marca real se pierde en silencio** — El hallazgo describe un bug REAL pero YA CORREGIDO: es una lectura de código anterior al commit b7d624b ("El terminal, el espejo y reabrir-dia tampoco cuentan las marcas anuladas"), que está en HEAD. La premisa central — "estado-dia.ts:16-25 (select sin filtro de anulada_at)" — es falsa contra el código actual. Esas líneas exactas SON el filtro: `/Users/ArchiCaylo/Developer/cayla-dynamic/apps/web/…
 - **/api/reabrir-dia hace dos escrituras sin transacción: si la segunda no corre, un día cerrado de 10 h queda con horas = NULL** — El MECANISMO es cierto (dos escrituras HTTP separadas vía PostgREST, sin transacción, y el trigger `trg_marcajes_recalcular_jornada` recalcula ya en el UPDATE), y el estado intermedio se reproduce tal cual: horas NULL / en_pausa. Pero las dos afirmaciones que convierten eso en daño son FALSAS, y sin ellas no queda ni un número equivocado ni un flujo bloqueado. (1) "Desde el terminal el día ya no e…
 - **/api/reabrir-dia parte la operación en tres transacciones y puede dejar la jornada con horas NULL** — El mecanismo intermedio se reproduce, pero las dos afirmaciones que le dan peso al hallazgo son falsas: (1) el escenario que dispara el estado roto es imposible tal como se describe, y (2) el estado roto no persiste ni llega a planilla — se cura solo por dos caminos independientes. 1) "La Mac mini pierde red justo ahí, que es exactamente el escenario de la cola offline" — FALSO. Los tres pasos (up…
+- **4 funciones de turnos (`fn_set_turno`, `fn_set_descanso`, `fn_quitar_turno`, `fn_set_horario_semanal`) sin revoke de PUBLIC/anon** (hallazgo 20 de la auditoría del 2026-09-04) — Deducido del default de Postgres («EXECUTE a PUBLIC por defecto»), no medido. Medido el 2026-09-04 contra el Postgres local con `has_function_privilege('anon', oid, 'EXECUTE')`: las cuatro dan `false`, y su ACL es `{postgres, authenticated, service_role}` — sin PUBLIC. Las cierra la 0076 por dos vías: el bucle que revocó PUBLIC a todas las funciones que existían ese día, y `alter default privileges revoke execute on functions from public`, que hace nacer cerrada toda función que cree `postgres` desde entonces (las cuatro se recrearon después con `create or replace`, que conserva la ACL). Lo vigila además la prueba 250 sobre las 258 `fn_*`, cuyo encabezado registra que producción se comprobó el 2026-08-26. Para volver a confirmarlo en producción, pegar en el SQL Editor: `select proname, has_function_privilege('anon', oid, 'EXECUTE') as anon, has_function_privilege('authenticated', oid, 'EXECUTE') as autenticado from pg_proc where proname in ('fn_set_turno','fn_set_descanso','fn_quitar_turno','fn_set_horario_semanal');` — las cuatro deben dar `anon = false` y `autenticado = true`. No se escribe migración: un `revoke` de algo ya revocado sería una migración que no promete nada.
 
 ---
 
@@ -1548,3 +1595,530 @@ la falta. Era FALSO: se leyó una versión de la función que no era la viva. La
 medición lo desmintió en dos minutos. Leer el `prosrc` con `limit 1` cuando hay
 varias versiones devuelve cualquiera — se mide llamando a la función, no
 leyéndola.
+
+---
+
+## Auditoría de arquitectura del 2026-09-03 · comparación contra otros ERP, 23 agentes
+
+Salió de seguir la comparación de arquitectura contra Workday/Oracle
+([`docs/comparacion-workday-oracle-dynamic-2026-09-02.md`](comparacion-workday-oracle-dynamic-2026-09-02.md)):
+6 agentes investigaron primitivos de BambooHR/Gusto/Rippling, de Odoo HR/Payroll
+y cuatro frentes del código real (campos mutables sin historia, patrones
+duplicados, huecos de auditoría, integración ausencias↔planilla), más los 2
+candidatos que esa comparación ya había dejado pendientes (secciones 2 y 6).
+Cada hallazgo pasó por un agente escéptico independiente con instrucción
+explícita de refutarlo contra el código de HOY — el mismo método que esta
+auditoría ya usa arriba, después de que el propio informe base produjera un
+falso positivo (el hallazgo #7, sobre `topes_educacion_rango`, resultó ser un
+comentario desactualizado citando un campo que ya no existe; cerrado con la
+[0345](../supabase/migrations/0345_el_comentario_del_techo_de_educacion_deja_de_mentir.sql)
+antes de arrancar esta ronda).
+
+**17 candidatos evaluados → 16 sobrevivieron, 1 refutado.** A diferencia de la
+auditoría del 2026-08-19, esta no busca defectos de cálculo de planilla —busca
+primitivos de arquitectura (vigencia, auditoría, procesos) que otros sistemas
+ya resuelven y que Dynamic redescubre campo por campo, a veces después de un
+bug real (como ya pasó con régimen de pensión → 0261, rol → 0295/0296, sede →
+0342). El patrón se repite: de los 16 confirmados, **6 son la misma familia de
+defecto** que esos tres ya cerrados —un campo que decide plata o una obligación
+legal, mutable sin auditoría ni vigencia— aplicada a columnas y funciones
+distintas.
+
+### Alta — 7
+
+**`fn_aprobar_ausencia` es la única puerta que "convierte días en plata", y la
+única sin el candado de periodo pagado.** `fn_registrar_ausencia` (0327) y
+`fn_anular_ausencia` (0101) sí bloquean contra un periodo ya pagado;
+`fn_aprobar_ausencia` (0101:397-416, sin cambios desde entonces) no lo hace.
+Como `fn_planilla_calcular` solo paga descanso médico/maternidad/licencia con
+goce cuando `aprobada_at is not null` (regla de la 0306), el escenario real es:
+se registra a mitad de periodo, el periodo se congela antes de que DO apruebe,
+DO aprueba después sin ningún aviso ni bloqueo, y la persona queda cobrando
+S/0.00 por un beneficio de ley (Ley 26790, D. Leg. 713 art. 14) hasta que
+alguien note la discrepancia a mano y corra `fn_repagar_periodo`. La propia
+pantalla (`admin/ausencias/page.tsx:758-762`) promete el candado para
+registrar/anular pero no lo menciona para aprobar.
+
+**`fn_cesar_persona` — el evento de mayor consecuencia financiera del ciclo de
+vida de una persona no deja ni una fila en `correcciones_auditoria`.**
+Vigente en `0327:2164-2238`: cierra tramos de salario/horario y actualiza
+`estado`, `fecha_cese`, `motivo_cese` — sin un solo `insert into
+correcciones_auditoria`, pese a recibir `p_motivo` como parámetro explícito. Su
+hermana en el mismo archivo, `fn_reactivar_persona`, sí audita cada efecto que
+produce y hasta razona en su comentario que "callarse sería apagar la
+sospecha". Si un cese se registra con el motivo equivocado (p. ej. "renuncia"
+en vez de "despido justificado", que cambia lo que debe pagar la liquidación),
+corregirlo exige reactivar y volver a cesar, y ninguna de las dos deja rastro
+de qué cambió ni por qué.
+
+**`con_hijos` decide S/113 + provisiones de grati/CTS/vacaciones, y su única
+puerta de escritura no audita ni tiene vigencia.** `fn_set_con_hijos` vigente
+(`0181:117-131`) es solo `fn_es_admin_o_lider()` + `update` — sin
+`correcciones_auditoria` y sin fecha de corte. Se lee en `fn_planilla_calcular`
+no solo para el pago mensual sino en `base_provision` de gratificación, CTS y
+vacaciones (`0339:716-741`), y existe un camino real de recálculo de un periodo
+YA PAGADO (`fn_repagar_periodo` → `fn_planilla_congelar` →
+`fn_planilla_calcular`) que relee el valor de HOY, no el vigente cuando corrió
+ese periodo — la misma familia de defecto que ya costó la 0261 y la 0342, sin
+haber recibido ni el primer paso.
+
+**Cambiar la cuenta bancaria de una persona no deja rastro; corregir un
+marcaje sí.** `fn_set_datos_personales` (0198) sobrescribe
+`entidad_bancaria`/`numero_cuenta` con un `insert ... on conflict do update`
+que no guarda el valor anterior ni exige motivo — mientras que
+`correcciones_auditoria` exige motivo (`check length(trim(motivo)) >= 3`) y
+conserva `valor_anterior`/`valor_nuevo` para siempre. La 0298 llama a esa tabla
+"el libro transversal" y lista a quiénes ya obliga (marcajes, salarios, régimen
+de pensión desde la 0277) — la cuenta bancaria, el dato que decide a dónde
+llega el sueldo, quedó fuera de esa lista.
+
+**`configuracion` deja escribir cualquier clave desde el navegador; solo
+`firmante_empresa` tiene validación.** La policy `configuracion_write_admin_lider`
+(0007) es `for all` para cualquier admin/líder, y el único trigger
+(`fn_valida_firmante_empresa`, 0147) arranca con `if new.clave <>
+'firmante_empresa' then return new` — deja pasar sin control cualquier otra
+clave. Entre ellas, `tasa_afp` (que `fn_planilla_calcular` lee en vivo como
+respaldo de la tasa de pensión) y `disciplina_descargo_previo` (que decide si
+un expediente cumple el art. 55.2 antes de firmarse). Nadie lo usa hoy desde
+una pantalla — pero la puerta del navegador sigue abierta para cualquier sesión
+admin/líder, sin auditoría ni validación de rango.
+
+**La policy de `UPDATE` de `personas` filtra filas, no columnas —
+`estado`/`fecha_cese`/`motivo_cese`/`tipo_vinculo` no tienen el mismo trigger
+que ya protege a `rol` y `sede_base_id`.** Solo 3 triggers `before update on
+personas` existen en todo el repo: timestamp (0001), rol (0296) y sede_base_id
+(0342). `fn_cesar_persona` valida periodo pagado y cierra tramos abiertos antes
+de cesar — un `UPDATE` directo sobre esas cuatro columnas se salta todo eso, y
+alcanza también a `tipo_vinculo`, que decide si alguien devenga CTS/gratificación/
+vacaciones (`fn_devenga_beneficios`, 0129).
+
+**`devenga_grati`/`cts`/`vacaciones` no tienen fecha de corte, y el bypass real
+es un `PATCH` directo a la tabla, no la RPC.** `fn_devenga` (0196) es el gate
+real dentro de `fn_planilla_calcular` y no conoce `devenga_hasta` (0194, creada
+para esto y hoy huérfana — solo la escribe una función ya obsoleta). A
+diferencia de `rol` y `sede_base_id`, no existe ningún
+`trg_personas_devenga_solo_por_rpc`: el `grant update on all tables to
+authenticated` (0004) más la policy por fila de `personas` permiten un `PATCH`
+directo a `/rest/v1/personas` sobre estas tres columnas sin pasar por
+`fn_set_devenga_beneficio` — sin fecha de corte y sin dejar rastro en
+`correcciones_auditoria`. Apagar `devenga_cts` hoy y recalcular un periodo
+pasado borraría su CTS retroactivamente, sin ninguna fecha que lo acote.
+
+### Media — 8
+
+- **`sede_fisica_id` decide la tarifa de movilidad (S/10-12/día) y quedó fuera
+  del candado que la 0342 sí le puso a su hermana `sede_base_id`** —
+  `fn_bloquear_sede_directa` (0342) solo compara `sede_base_id`; no existe
+  ningún `fn_set_sede_fisica` ni trigger que proteja la columna, pese a que
+  `fn_planilla_calcular` la usa para decidir la tarifa (`0339:451,952`). El
+  propio encabezado de la 0342 nombra el riesgo sin cerrarlo.
+- **`AREAS_DOC` en `politica-salarial.ts:119-126` es una lista de 6 áreas
+  escrita a mano** que se imprime tal cual en el documento publicado de la
+  Ley 30709, mientras que `fn_cuadro_categorias()` —la única fuente real que
+  recibe ese documento— nunca devuelve áreas. Si mañana se renombra o
+  desactiva un área desde `/admin/areas`, el documento seguirá imprimiendo los
+  seis nombres de hoy y el detector de "hay que publicar de nuevo"
+  (`documentoTieneCambios`) no lo notará, porque la constante nunca cambia.
+- **No existe una entidad "contrato" que agregue sueldo, jornada, puesto y
+  vigencia en un solo lugar** (el primitivo `hr.contract` de Odoo): son cinco
+  tablas de vigencia independientes (`asignaciones_salario`,
+  `asignaciones_educacion`, `asignaciones_regimen_pension`,
+  `horarios_asignados`, `tarifas_hora`) sin relación declarada entre sus
+  rangos de fecha, y la única tabla llamada `contratos_generados` es
+  explícitamente un PDF congelado que ni el cálculo ni ninguna pantalla vuelve
+  a leer una vez firmado (0272: "lo firmado es lo firmado, aunque el sueldo o
+  el cargo cambien más tarde").
+- **`fn_planilla_calcular` sigue siendo un único bloque PL/pgSQL de ~1800
+  líneas**, no una tabla de reglas versionables por concepto (el primitivo
+  `hr.salary.rule` de Odoo). 114 migraciones distintas la han tocado; la 0339
+  la partió en núcleo+envoltorio pero el corte fue de permisos, no de negocio.
+  Agregar o corregir cualquier concepto sigue obligando a copiar el cuerpo
+  entero de la versión vigente — el riesgo que ya causó los incidentes
+  0276/0269 y 0261/0254 documentados en `CLAUDE.md`.
+- **El permiso de autoedición de datos personales existe en la base desde la
+  0198 y ninguna pantalla lo usa.** El guard de `fn_set_datos_personales`
+  incluye `p_persona_id = fn_persona_actual_id()`, pero la única pantalla que
+  la llama (`admin/datos-personales/page.tsx`) está dentro del grupo de rutas
+  de administración y se autobloquea para quien no tiene rol de gestión; `/mio`
+  no ofrece ningún formulario para que alguien corrija su propio celular,
+  dirección o cuenta bancaria.
+- **El rango de suspensión de Disciplina mide "12 meses" con 365 días fijos en
+  la pantalla y con meses de calendario en la base** — `admin/disciplina/page.tsx:901`
+  usa `365 * 24 * 60 * 60 * 1000`, mientras que `fn_expediente_set_suspension`
+  (0311) usa `interval '12 months'`. Difieren en años bisiestos: para un cierre
+  en marzo de 2028, la ventana SQL retrocede 366 días y la de la pantalla solo
+  365 — el letrero puede ofrecer una sanción más leve que la que el candado
+  real exige, obligando a rehacer un memo disciplinario ya en curso.
+- **Los avisos de vencimiento (contratos, vacaciones por vencer) son de
+  consulta, no de notificación empujada.** `fn_contratos_por_vencer` y
+  `fn_vacaciones_por_vencer` solo se invocan al abrir tres pantallas
+  puntuales; las tablas `alertas` y `push_tokens` existen desde la 0001 pero
+  nunca se despachan (cero código de envío de push/email en todo el repo). El
+  único cron del sistema es `auto-cierre-jornadas` (0007).
+- ~~**El patrón "cambio sensible pasa por una función guardián" nunca se
+  declaró como convención escrita.**~~ ✅ **CERRADO el 2026-09-03** — escrito
+  en `CLAUDE.md`, sección "Principios del sistema" ("Un campo sensible se
+  cambia por una función guardián..."), con las tres instancias
+  (`fn_cambiar_regimen_pension` 0261, rol 0295/0296, `fn_set_sede_base` 0342)
+  y el mecanismo exacto (`SECURITY DEFINER` + trigger `current_user <>
+  'postgres'`) nombrados como una sola regla. No había código que arreglar —
+  el patrón ya funcionaba en las tres; solo faltaba que dejara de transmitirse
+  por comentarios cruzados entre migraciones y quedara escrito una vez.
+
+### Baja — 1
+
+- **No hay auditoría de campo genérica** (el patrón `tracking=True` de Odoo):
+  al menos 5 funciones (`fn_set_rol`, `fn_set_sede_base`, `fn_set_cargo`,
+  `fn_set_retencion_4ta`, `fn_set_fin_contrato`) repiten a mano el mismo bloque
+  final de `insert into correcciones_auditoria`, más un dirty-check
+  equivalente en React por cada una (`admin/equipo/page.tsx`, 10 comentarios
+  literales "mismo patrón dirty-check"). Severidad baja porque el único
+  incidente real que este patrón causó (`sede_base_id` sin auditar) ya se
+  cerró con la 0342, y construir un framework genérico podría chocar con la
+  preferencia ya documentada de este repo por funciones explícitas y
+  autodocumentadas.
+
+### Refutados — 1
+
+- **~~Falta una tabla explícita "verbo × proceso × rol"~~ — no es un defecto,
+  es una preferencia de estilo.** `fn_set_sede_base`, `fn_cambiar_regimen_pension`
+  y las políticas de `expediente_disciplinario` no codifican el permiso "cada
+  una por su cuenta": las tres llaman al mismo `fn_es_admin_o_lider()`
+  (226 apariciones en el repo), y la 0078 documenta por qué se corrige "en la
+  raíz y no guard por guard". No hay ningún caso real de dos guardas
+  divergentes para el mismo verbo — el riesgo que alegaba el hallazgo no
+  existe hoy, y el propio diseño lo previene.
+
+---
+
+## Auditoría del 2026-09-05 · código nuevo desde el 2026-09-04, vistazo general, benchmark contra 6 ERPs — 28 agentes
+
+Salió de repetir y ampliar la auditoría del 2026-09-03/04 (57 hallazgos, PDF
+entregado fuera del repo): 11 agentes auditaron a fondo cada migración nueva
+(0360-0375) y cada PR abierto no fusionado que dice resolver un hallazgo de
+esa auditoría, cruzando el código real contra lo pedido; 8 agentes dieron un
+vistazo general —sin lista previa— a dominios que la ronda de ayer no cubrió
+en detalle; 6 agentes investigaron con búsqueda web cómo Gusto, Rippling,
+BambooHR, Workday, Odoo y Oracle resuelven primitivos equivalentes. El único
+hallazgo nuevo de severidad crítica pasó por 3 refutadores independientes,
+cada uno con instrucción de tumbarlo leyendo el código real — los tres lo
+confirmaron, incluida una prueba empírica contra el motor de Postgres local.
+Informe completo, con el benchmark detallado y ejemplos: PDF entregado a
+Felipe el 2026-09-05 (no vive en el repo, igual que el de ayer).
+
+### Crítico — 1, nacido de un arreglo de ayer
+
+> ✅ **CERRADO por la [`0376`](../supabase/migrations/0376_una_persona_cesada_deja_de_colarse_por_el_or_suelto.sql),
+> prueba 298 — fusionada a `main`, CI en verde.** Esta sección quedó
+> desactualizada: se escribió pidiendo "una migración nueva" y esa migración
+> ya existía cuando se escribió, sin que esta nota se enterara — el mismo
+> riesgo de duplicado que ya costó `fn_vacaciones_por_vencer` (0297/0299),
+> por el otro lado (casi se reescribe algo que ya estaba hecho). **Falta
+> pegarla en producción** — ver `estado.md` para el protocolo de md5.
+
+- **La 0374 ("el rol deja de contar si la persona no está activa") reescribió
+  `fn_rol_actual()` para devolver `NULL` en un cesado, pero no tocó dos
+  funciones `SECURITY DEFINER` cuyo guard mezcla un `is not true` aislado con
+  un `and not(...)` suelto — la misma trampa de tres valores que la 0078 y la
+  0126 ya corrigieron dos veces.** Antes de la 0374, el rol de un cesado
+  seguía siendo el real (`FALSE` en la comparación, guard bloqueaba). Desde la
+  0374, ese término da `NULL` para cualquier inactivo, y como `fn_cesar_persona`
+  (0327) nunca borra `sede_base_id`, la condición compuesta completa da `NULL`
+  — un `if NULL then raise exception` en PL/pgSQL no dispara. Efecto verificado:
+  una persona cesada con sesión de Auth viva puede (1) leer el saldo/fechas de
+  vacaciones de cualquier persona activa de su antigua sede vía
+  `fn_vacaciones_saldo` (`0357:144-150`), y (2) resolver como `improcedente` o
+  `repuesta` una marca apartada de un excolega vía `fn_marca_apartada_resolver`
+  (`0304:265-271`) — si fue admin/líder/encargada, esto último **escribe un
+  marcaje real** vía `fn_registrar_marcaje` que alimenta jornada y pago de otra
+  persona. Ninguna prueba pgTAP existente (237/283/294/231) cubre el caso
+  "persona cesada". **Acción:** reescribir ambos guards al patrón de la 0126 —
+  envolver el OR completo en un único `is not true`, no un término suelto —
+  en una migración nueva, con caso real de prueba (cesada + misma sede que un
+  colega activo).
+
+### En disputa — 4 hallazgos de ayer, 8 PRs abiertos sin fusionar (madrugada del 2026-09-05)
+
+Ocho sesiones abrieron ocho PRs en menos de una hora atacando los mismos
+cuatro hallazgos, sin verse entre sí — el mismo patrón que ya costó la
+duplicación de `fn_vacaciones_por_vencer` (0297/0299). Ninguno de los ocho
+está fusionado a esta fecha.
+
+- **Hallazgo 11 (Anexo I del convenio de prácticas).** PRs #199
+  (`claude/convenio-anexo-i-completar`), #197 (`claude/convenio-anexo1-campos-vacios`)
+  y la parte de contratos de #196 (`claude/audit-12-critical-issues-7da199`)
+  tienen un parche **idéntico byte a byte** — misma migración, escrita tres
+  veces. Cubre correctamente todos los campos del Anexo I que ayer se
+  listaron, condicionados a modalidad preprofesional. **Encontrado además:**
+  el correo de la practicante en el Anexo III (`contrato-texto.ts:1298`)
+  también puede imprimirse como `[completar]` y ningún PR lo cubre.
+  **Recomendación: fusionar #199 o #197 (son la misma), cerrar la otra sin
+  fusionar; no fusionar #196 tal cual** — separar antes su commit de
+  Incidencias (no relacionado con este hallazgo).
+- **Hallazgo 12 (tope de horas de practicante en Incidencias).** PRs #196 y
+  #194 (`claude/practicante-tope-en-incidencias`) resuelven la misma regla
+  legal (art. 44, Ley 28518) con **dos funciones distintas**
+  (`maximoSemanalPracticante` vs. `topeSemanalDe`/`tieneTopePropio`) sobre la
+  misma función base ya existente en `main`. #194 es superior en cobertura de
+  pruebas (90 líneas nuevas en `tests/vinculo.test.ts`, cero en #196), en
+  explicar en pantalla por qué dos filas muestran distinto "máx.", y en
+  trazabilidad del aviso. **Recomendación: fusionar #194 (rebase mecánico
+  simple — los 9 commits de atraso no tocan los archivos de este hallazgo),
+  cerrar #196 sin fusionar su parte de Incidencias.**
+- **Hallazgos 7 y 10 (piso legal grati/CTS, alertas de Resend).** PR #198
+  (`claude/12-criticos-estado-c33e88`) solo diagnostica: el script del
+  hallazgo 7 mide población (0 filas hoy, LATENTE, no auditoría día-a-día
+  como pedía la acción de ayer); el script del hallazgo 10 **no se corrió
+  todavía en producción** y tiene un error real — `caducadas_totales` no
+  reproduce el corte por fecha de despliegue (`v_desde_despacho`) que sí usa
+  `fn_alertas_despacho_resumen` (0362), así que puede sobrecontar. **Recomendación:
+  fusionar tras corregir esa columna, y correr efectivamente el script de
+  Resend contra producción.**
+
+### Alta — 16
+
+- **`fn_set_meta_cobertura` volvió a tener el guard `NOT IN` inseguro que la
+  0039 ya había corregido** — la 0195 ("las cuatro funciones que el
+  repositorio no conocía") reescribió la función copiando el cuerpo VIEJO.
+  Vigente hoy (confirmado con `donde-vive.sh`): `0195:149-166`. Falla abierto
+  para identidades sin fila en `personas` — el mismo mecanismo del crítico de
+  arriba, aquí producido al escribir una migración copiando de una versión
+  vieja, no al editar a mano.
+- **`fn_set_horario_semanal` sigue sin candado** — la 0360 arregló el recorte
+  de tramos retroactivos pero no agregó el `pg_advisory_xact_lock` que la
+  0361 sí usó para Objetivos. Un doble clic o dos pestañas chocan contra
+  `horarios_sin_solape` con un mensaje que sugiere un conflicto con OTRO
+  horario, cuando en realidad el primer clic de la misma persona ya guardó lo
+  pedido.
+- **`fn_marcar_alerta_resultado` se llama sin comprobar su `error`** en las
+  tres invocaciones de `alertas-encargadas/route.ts` (188-190, 202-204) — a
+  diferencia de `fn_alertas_reservar` (línea 173), que sí lo hace. Un fallo
+  transitorio deja una fila "procesando" tras un envío ya exitoso, y el
+  despacho de la hora siguiente la reenvía de verdad, duplicando el correo,
+  sin que Sentry se entere.
+- **`horarios/page.tsx` reimplementa el cálculo de horas del día sin el
+  manejo de medianoche** que `jornada-esperada.ts` ya resuelve (`horasEntre`)
+  — a diferencia de `turnos/page.tsx`, que sí lo reusa. Un horario nocturno
+  (salida ≤ entrada) da 0 horas en vez de las reales, escondiendo el aviso de
+  exceso legal de una practicante.
+- **Agregar un bono o descuento en Planilla no pide confirmación**
+  (`planilla/page.tsx:1689-1721`) — las otras seis acciones de dinero de la
+  misma pantalla sí confirman antes de escribir.
+- **El diálogo de "marcar como pagada" en Liquidaciones puede nombrar un
+  monto distinto al que se congela** — usa `f.total` (cargado una sola vez al
+  montar) en vez de `detalle.total` (el que el Desglose muestra en pantalla
+  en ese momento). Más grave para "volver a marcar ya pagada": ahí `f.total`
+  es el histórico congelado, mientras el texto promete "el cálculo de HOY".
+- **El espejo a Google Sheets borra del resumen mensual a quien cesó**, aunque
+  haya trabajado ese mes — filtra por el estado *actual*, no por si estuvo
+  activa durante el periodo reportado. Justo la persona con más motivo de
+  revisión (liquidación de cese a mitad de mes) desaparece de "Resumen".
+- **Una marca rechazada por el servidor sigue contando como "de hoy" hasta
+  ~90 segundos** — el intento inmediato en `marcar/page.tsx` nunca llama a
+  `registrarIntentoFallido`; el reloj del descarte no arranca hasta el
+  próximo tick de `sync.ts` (cada 15s, 6 fallos). El terminal puede ofrecer
+  "¿volviste a entrar?" sobre una salida que el servidor nunca aceptó.
+- **Un convenio preprofesional puede firmarse con la identidad del centro de
+  formación en blanco, incluso en el bloque de firmas** — `centroFormacion*`
+  no tiene ninguna entrada en `bloqueos` (`contratos/page.tsx`), aunque
+  `contrato-texto.ts:1115-1119` los imprime en el bloque de firmas tripartito
+  si llegan vacíos.
+- **El Anexo IV (confirmación de activos) se salta para convenios**, aunque
+  el documento SÍ lo incluye con fallback silencioso a "no tiene activos
+  adicionales" — `contratos/page.tsx:718` excluye `esConvenio` de la
+  validación que sí exige a un contrato normal.
+- **En /admin/equipo, una encargada de sede recibe "Cambios guardados" aunque
+  RLS descartó su UPDATE en silencio** — la única policy de UPDATE sobre
+  `personas` exige admin/líder DO; Postgres no lanza error si la fila no
+  cumple, solo actualiza 0 filas, y el código solo mira `error` (que llega
+  `null`).
+- **Objetivos no avisa que el mes ya tiene planilla pagada antes de dejar
+  editar** — el guardián existe en el servidor; el cliente nunca pide el
+  dato para avisar antes, a diferencia de `correcciones/page.tsx`.
+- **El checkbox de un objetivo puede quedar marcado visualmente aunque el
+  guardado se rechace** — la rama de error de `marcar()` no revierte
+  `items`, y el `ToastProvider` separado no fuerza un re-render de la
+  pantalla.
+- **Feriados: `NO_OTORGADO` se ve igual que `PENDIENTE`**, aunque el primero
+  revierte la justificación de una falta (vuelve a contar como injustificada
+  y la planilla vuelve a cobrar la sobretasa). Mismo gris, sin distinción.
+- **Ausencias: vacaciones ya vencidas y por vencer comparten el mismo rojo**
+  — Bandeja, consultando la misma función, sí las distingue (rojo/ámbar).
+- **Dos campos de fecha bloqueante "arreglados" el 2026-08-30 (datos-personales,
+  educación) en realidad no lo están** — el commit aplicó la combinación de
+  técnicas que CLAUDE.md documenta como ya probadas sin éxito (onChange +
+  onBlur + ref), no la solución real. Y `scripts/hooks/fecha-que-bloquea.sh`
+  no los puede ver: su regex no reconoce `useState({..., campo: ""})`, solo
+  identificadores simples.
+- **`las_alertas_de_resend_llegan.sql` (PR #198) no reproduce el criterio
+  real de `fn_alertas_despacho_resumen`** — ver «En disputa» arriba.
+
+### Baja — 2
+
+- El encabezado de la 0361 cita un `statement_timeout=8s` del rol
+  `authenticated` sin fuente verificable en el repositorio — no cambia el
+  comportamiento, pero conviene confirmarlo contra producción antes de
+  citarlo de nuevo.
+- `docs/revision-2026-07-15/D-terminal-api.md` sigue listando como abierto
+  (checkboxes sin marcar) el PIN del terminal que la 0375 ya retiró por
+  completo.
+
+### Cerrado desde la auditoría del 2026-09-04
+
+- ~~Hallazgos 13, 14, 15, 16, 17, 18, 21, 23, 25 y 33~~ — resueltos por las
+  migraciones 0360-0372. Verificado leyendo el cuerpo vigente de cada función,
+  no solo el mensaje de commit.
+- ~~Hallazgo 8 (el 9% de la Ley 30334)~~ — confirmado pegado y verificado en
+  producción el 2026-09-05 (0372); md5 de llegada coincidió exacto.
+- **Hallazgo 22 (regenerar PIN hasheaba en el navegador) — parcial.** Cerrado
+  para "Nuevo PIN" (regenerar, vía `fn_regenerar_pin` desde la 0364). Sigue
+  abierto para el alta de una persona: `fn_crear_persona` todavía recibe el
+  hash calculado en el navegador (`admin/equipo/page.tsx:449-460`) — de
+  impacto bajo porque el PIN de terminal ya no cumple ninguna función.
+- **Hallazgo 1 (PIN del terminal) — parcial.** Retirado por completo en
+  `main` (0375) — mejor que el arreglo pedido. Sin evidencia de que ya se
+  haya desplegado a Vercel ni pegado el SQL en producción: hasta que eso
+  pase, producción sigue con el código viejo.
+- **Hallazgo 2 (terminal marca en cualquier sede) — parcial, funcionalmente
+  cerrado.** La mitad de sede se cerró con la 0370 (trigger dedicado). La
+  mitad de "persona cesada" no se cerró por el camino pedido, pero ya estaba
+  cubierta desde antes por `fn_marcaje_no_posterior_al_cese` (0086, por fecha
+  de cese en vez de por estado).
+
+---
+
+## Auditoría del 2026-09-08 · 10 agentes sobre AFP/ONP
+
+Auditoría dedicada, de solo lectura, al descuento de AFP/ONP: 10 agentes en
+paralelo, cada uno con un recorte propio — núcleo del cálculo, comisión mixta
+vs. flujo, cambio de régimen y vigencia, liquidación y vacaciones truncas,
+exclusiones por tipo de vínculo (RxH/sueldo fijo/dirección/practicante),
+pantallas del panel, cobertura de pruebas pgTAP, consistencia contra este
+mismo documento y `estado.md`, un recálculo numérico a mano de 5 casos
+sintéticos trazando `fn_planilla_calcular_nucleo` línea por línea, y permisos
+RLS. Ninguno tocó el Postgres local compartido ni ejecutó SQL contra
+producción — todo por lectura de migraciones y razonamiento, con
+`donde-vive.sh` para confirmar la versión vigente de cada función antes de
+opinar sobre ella.
+
+La aritmética central está sana: los 5 casos numéricos (AFP normal, con
+feriado + sobretiempo, ONP, RxH, sin régimen) dieron los 5 el resultado
+correcto. El hallazgo grave no fue de cálculo — fue que dos agentes,
+trabajando por caminos separados, llegaron **de forma independiente** a la
+misma falla de permisos, que además contradice un cierre que este mismo
+documento y `CLAUDE.md` daban por hecho.
+
+### Cerrado el mismo día
+
+- ✅ **`personas.regimen_pension` no tenía el candado que `rol` (0296) y
+  `sede_base_id` (0342) sí tienen.** Cualquier sesión admin/líder podía
+  pisarla con un `UPDATE`/`PATCH` directo, saltándose `fn_cambiar_regimen_
+  pension` (0332) entero — sin el freno de "no reescribas un mes ya pagado",
+  sin fila en `correcciones_auditoria`. Contradecía el cierre del
+  2026-09-03 (ver más abajo, "El régimen de pensión no tiene historia"), que
+  daba las tres puertas —rol, sede, régimen de pensión— por igualmente
+  protegidas. **Cerrado por la
+  [0410](../supabase/migrations/0410_el_regimen_de_pension_tambien_se_cambia_por_una_puerta.sql)**,
+  mismo molde que 0296/0342. Confirmado con el trigger vivo en producción el
+  2026-09-08 (commit `dcef5a3`).
+- ✅ **`configuracion.tasa_afp` —el respaldo global que usa `fn_planilla_
+  calcular_nucleo` cuando alguien no tiene régimen asignado— aceptaba
+  cualquier valor sin validar,** con blast radius sobre la planilla COMPLETA
+  del mes (se lee una sola vez para todos, no por persona). Un valor no
+  numérico revienta el cálculo entero; un valor mal escrito (`12.92` en vez
+  de `0.1292`) descuenta mal a todo el mes en silencio. El lote de arreglos
+  críticos del 2026-09-07 no lo había tocado. **Cerrado por la
+  [0411](../supabase/migrations/0411_la_tasa_de_pension_de_respaldo_se_valida_al_escribir.sql)**
+  — exige un número entre 0 % y 20 %, nunca cero, sin tocar el valor ya
+  sembrado. Confirmado con el trigger vivo en producción el 2026-09-08
+  (commit `dcef5a3`).
+
+### Confirmado y pendiente
+
+- 🟡 **El hueco "sin régimen → aporte cero" también vive en
+  `fn_vacaciones_truncas`** (liquidación al cesar), no solo en la planilla
+  mensual — mismo `coalesce(..., configuracion.tasa_afp)` (0341:219-238). Sin
+  medir en producción cuántas liquidaciones ya cayeron ahí.
+- 🟡 **`fn_vacaciones_truncas` no copia la bandera `tasa_es_del_regimen`**
+  que sí expone el núcleo desde la 0114 — ni la pantalla de Liquidaciones ni
+  la Hoja que la persona firma al cesar pueden distinguir "está exento de
+  verdad" de "le falta el dato". El componente `Linea`
+  (`admin/liquidaciones/page.tsx:664-701, 854-880`) solo pinta la línea de
+  descuento si es distinto de cero — con régimen `NULL` desaparece sin
+  ninguna nota.
+- 🟡 **La boleta (`boleta-hoja.tsx`) queda muda cuando falta el régimen**,
+  confirmado por tres agentes independientes. Solo existe la rama que explica
+  el descuento en cero para `regimen_pension = 'jubilada'` (líneas 705, 757,
+  1138); para alguien sin régimen asignado, ninguna condición se cumple y no
+  se imprime nada — ni el descuento, ni una explicación. Afecta también el
+  autoservicio `/mio/boleta`: la propia persona ve su boleta sin ninguna
+  pista de que algo falta.
+- 🟡 **`/admin/planilla` sigue sin ningún indicador de régimen faltante**,
+  confirmado hoy 2026-09-08 (la fila 71 original de este documento seguía sin
+  medir en producción; ya se midió: hay al menos una persona activa, en
+  planilla, con este hueco hoy mismo). `tasa_es_del_regimen` está declarado
+  en el tipo `Fila` (`planilla/page.tsx:277`) pero nunca se lee en el resto
+  del archivo — ni en la tabla, ni en la boleta individual.
+- 🟡 **No existe ninguna función para corregir una liquidación ya pagada con
+  AFP/ONP mal calculado.** El criterio correcto —con AFP se recupera el
+  bruto porque queda en la cuenta individual, con ONP solo el neto porque el
+  resto se perdió en el reparto (caso real: Pillaca/Gavilan/Ticona, más abajo
+  en este documento)— vive solo en la documentación, no en código. El único
+  camino de función (`fn_liquidacion_pagar`, re-versiona y sí audita) solo
+  recalcula desde cero; no ejecuta el ajuste monetario de la diferencia.
+- 🟡 **`tipo_vinculo` no está versionado por fecha**, a diferencia de
+  `regimen_pension` (fijo desde la 0261). Un cambio de categoría a mitad de
+  un periodo abierto (RxH→planilla, practicante→planilla — el patrón exacto
+  del caso real de Geison Alcántara) recalcula el periodo ENTERO con la
+  clasificación actual: `fn_set_tipo_vinculo` (0324) no llama a `fn_fecha_en_
+  periodo_pagado` como sí hace `fn_cambiar_regimen_pension` desde la 0332.
+  Sin plata mal pagada confirmada hoy — el mecanismo está sin candado, no se
+  ha disparado.
+- 🟡 **El lookup de `tasas_pension` (`order by vigente_desde desc limit 1`)
+  no tiene el desempate `id desc`** que sí llevan las 6 funciones ya
+  corregidas por la familia 0386-0389. No es el mismo defecto exacto (esas
+  ordenan por `_at`/`now()` dentro de una transacción; acá es una fecha de
+  negocio con constraint de no-solape, así que hoy no hay empate posible) —
+  pero es la misma FORMA de riesgo, y es barato de cerrar agregando el
+  ancla.
+- 🟡 **Tres huecos de cobertura en las pruebas pgTAP de AFP:** ningún test
+  ejercita un cambio de régimen a mitad de un periodo abierto con marcajes
+  en ambos lados de la fecha del cambio; `fn_vacaciones_truncas` no tiene
+  ninguna prueba para alguien con `sueldo_fijo=true`, pese a que el resto
+  del sistema excluye a ese grupo de la base de AFP; los candados de
+  "periodo ya pagado" en las pruebas `202` y `214` usan
+  `throws_ok(sql,null,null)`, que acepta CUALQUIER excepción, no solo la
+  esperada — extiende (sin estar contado ahí) la debilidad ya documentada
+  más abajo sobre `throws_ok` genérico en candados de dinero.
+- 🟡 **El CSV al contador sigue sin la columna `descuento_afp`** — ya
+  documentado más arriba en este archivo ("El CSV que se le pasa al
+  contador..."), confirmado sin cambios el 2026-09-08
+  (`planilla/page.tsx:2173-2230`).
+- ⚪ **Los porcentajes de AFP en el selector de Datos Personales están
+  "congelados" como texto estático** en `packages/shared/src/labels.ts`, no
+  leen `tasas_pension` en vivo. Si la SBS ajusta una comisión, el texto del
+  desplegable puede quedar desactualizado sin aviso — el cálculo real sí usa
+  la tasa vigente, así que no mueve plata, solo puede confundir al elegir.
+- ⚪ **Color fuera de tokens en Liquidaciones** — `border-black` en vez de
+  `border-tinta` dentro de contenedores `.hoja`
+  (`admin/liquidaciones/page.tsx:880,894,899,935`). En modo oscuro, en
+  pantalla, la línea de firma queda casi invisible (no afecta al PDF
+  impreso).
+
+### Confirmado sin objeción (no reabrir sin caso nuevo)
+
+Verificado a fondo y sin defecto: las tasas sembradas en `tasas_pension`
+(ONP 13,00 %; AFP flujo 12,84 %-13,06 %; AFP mixta 11,37 %) · el tope de
+comisión mixta no aplica hoy (ningún sueldo de CAYLA se acerca al techo de
+la prima de seguro, ya razonado en la 0114) · la migración 0331 es
+idempotente y su criterio de selección es correcto · el catálogo de AFP en
+`enums.ts`/`labels.ts` no tiene huecos frente a `tasas_pension` · la base
+imponible de `fn_planilla_calcular_nucleo` (0397) incluye/excluye los 7
+conceptos legales correctamente · la guarda que impide retenerle AFP a un
+locador (0242) sigue intacta · `personal_direccion` solo se excluye de
+sobretiempo, nunca de AFP · `practicante` sigue en cero para AFP en todos
+los caminos revisados · la boleta es consistente entre el nombre del
+régimen y el monto (mismo origen de datos) · el formulario de asignación en
+Datos Personales no reproduce el patrón de "campo que arranca vacío y
+bloquea en silencio" · las ~15-18 pruebas centrales de AFP afirman montos
+exactos, no solo "no falla".

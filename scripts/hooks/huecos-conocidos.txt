@@ -22,41 +22,6 @@
 0133  Número saltado al numerar. Comprobado contra producción el 2026-08-05: no figura en migraciones_aplicadas, así que nunca se aplicó. No hay nada que recuperar.
 0139  Número saltado al numerar, mismo caso que la 0133 y comprobado el mismo día.
 
-# ── 0216 a 0227 · la integración con retail ────────────────────────────────
-#
-# No faltan: están ESCRITAS y viven en la rama `claude/retail-al-historial`,
-# que también está en origin. Por eso la comprobación 2 de numeracion.sh las
-# protege —el número ya está reclamado— mientras `main` las ve como un hueco.
-#
-# COMPROBADO EL 2026-08-13 CONTRA PRODUCCIÓN, que es lo que este archivo exige
-# antes de silenciar nada: la consulta de que-falta-pegar.sh devolvió «0 faltan
-# · 76 aplicadas · 77 en el repo» y NINGUNA fila entre la 0215 y la 0228. O sea
-# que producción no las tiene y no las espera. No son migraciones perdidas.
-#
-# Y FUSIONARLAS TARDE NO REVIERTE NADA, que es el riesgo real de un bloque de
-# números por debajo de lo ya aplicado: cuando entren, se pegarán después de la
-# 0238 aunque numeren antes. Se revisaron las doce y ninguna toca una función
-# de `public`: todo vive en el esquema `retail` (retail.abrir_caja,
-# retail.registrar_produccion, retail.es_lider…), y lo único que aterriza en
-# public es la tabla nueva `retail_sede_meta` de la 0216, idempotente y que a
-# `sedes` solo la lee. Ninguna pisa fn_planilla_calcular ni sus vecinas.
-#
-# El día que la rama se fusione, estas doce líneas sobran y numeracion.sh lo
-# va a decir solo: avisa de los conocidos que ya no son huecos.
-
-0216  Integración retail: el tipo de cada sede (tabla nueva retail_sede_meta). Rama claude/retail-al-historial.
-0217  Integración retail: el esquema `retail` y sus permisos. Rama claude/retail-al-historial.
-0218  Integración retail: retail lee la identidad de Dynamic. Rama claude/retail-al-historial.
-0219  Integración retail: el catálogo de tiendas. Rama claude/retail-al-historial.
-0220  Integración retail: la operación de tiendas. Rama claude/retail-al-historial.
-0221  Integración retail: contabilidad y producción. Rama claude/retail-al-historial.
-0222  Integración retail: funciones de stock, caja y ventas. Rama claude/retail-al-historial.
-0223  Integración retail: funciones de finanzas. Rama claude/retail-al-historial.
-0224  Integración retail: funciones de producción del taller. Rama claude/retail-al-historial.
-0225  Integración retail: el buzón de fotos de producto. Rama claude/retail-al-historial.
-0226  Integración retail: el material del modelo y las seis etapas. Rama claude/retail-al-historial.
-0227  Integración retail: las once de retail entran al registro. Rama claude/retail-al-historial.
-
 # ── 0258 y 0259 · NÚMEROS ABANDONADOS A PROPÓSITO (2026-08-15) ──────────────
 #
 # No son algo aplicado en producción que no llegó al repo: son dos números que
@@ -109,3 +74,59 @@
 # número, antes de la 0338 y con la misma trampa esperando.
 
 0337  Abandonado. Fue "fn_planilla_calcular se parte en núcleo y envoltorio"; se movió a 0339 para ir después de la 0338, que reescribe una función que comparten (fn_feriado_devengado).
+
+# ── 0352 · DESCARTADO EN UN MERGE, A PROPÓSITO (2026-09-03) ─────────────────
+#
+# No es una migración perdida: dos sesiones construyeron la misma idea el
+# mismo día —que el aviso de auto-cierre por fin salga por correo— cada una
+# por su cuenta. Una la escribió como 0352 (commit 583560b: cambia
+# fn_auto_cierre de canal='push' a 'email', más /api/enviar-alertas). La otra
+# la construyó como 0354 (fn_alertas_email_pendientes + /api/alertas-encargadas),
+# sin tocar fn_auto_cierre.
+#
+# Al fusionar (commit 7809713, "resuelve dos duplicados con la 0359"), se
+# descartó la 0352 a favor de la 0354 explícitamente: la de main llegó primero
+# y es más segura porque no toca fn_auto_cierre. Nunca se aplicó en
+# producción. Lo único que le faltaba a la 0354 —avisar también al propio
+# integrante, no solo a la encargada— se agregó después como extensión
+# aditiva: la 0359.
+#
+# NO se reutiliza: el commit 583560b sigue vivo en varias ramas (nunca se
+# borró el archivo, solo se descartó al fusionar), así que retomar el número
+# 0352 chocaría con ese contenido abandonado.
+
+0352  Abandonado en el merge 7809713 (2026-09-03) a favor de la 0354, que resuelve lo mismo (aviso de auto-cierre por correo) sin tocar fn_auto_cierre. Nunca se aplicó en producción.
+
+# ── Los cuatro de septiembre (documentados el 2026-09-08) ────────────────────
+#
+# Los tres primeros son renumeraciones limpias: el número se tomó, el trabajo
+# salió con otro, y NINGUNO llegó a producción — comprobado contra
+# `migraciones_aplicadas`, que no tiene fila para 383, 389 ni 394.
+#
+# La 0393 es de otra clase y por eso lleva la explicación larga: su fila SÍ está
+# en producción. Es el primer caso medido del estado «SOBRA LA FILA», y la
+# instrucción correcta resultó ser la contraria a la que sugiere el aviso.
+
+0383  Renumerada dentro del mismo PR (#225, foto en el terminal). Nació en ad4120d como «la foto del roster entra al repositorio» y su contenido salió como 0382, que conserva foto_url en la misma vista. Nunca se aplicó en producción.
+0389  Renumerada a 0390/0391 en 9e08cd9, tras dos commits que la retiraron del push a propósito («la 0389 no viaja en este push»). Nunca se aplicó en producción.
+0394  Absorbida por la 0395 dentro del PR #251 (firma con tres métodos). Nació en ee97a97 como «la firma generada tiene que ser tu nombre» y esa regla vive hoy dentro de la 0395. Nunca se aplicó en producción.
+
+# 0393 — SU FILA SÍ ESTÁ EN PRODUCCIÓN, y aun así el número NO se recupera.
+#
+# Se pegó el 2026-09-07 a las 15:06 desde la rama claude/signature-generator-
+# function-bd2127, cuyo PR nunca se fusionó. Ese archivo crea
+# `fn_set_mi_firma(p_dataurl text)` — UN argumento.
+#
+# Producción tiene hoy `fn_set_mi_firma(p_dataurl, p_tipo, p_estilo)`, de TRES,
+# creada por la 0395 y ajustada por la 0398, las dos en main y las dos pegadas.
+# O sea: el contenido de la 0393 quedó superado por migraciones posteriores que
+# sí están guardadas. No falta nada por rescatar.
+#
+# Y fusionar aquel PR ahora sería un error: los tres argumentos de la versión
+# vigente tienen valor por defecto, así que una llamada con uno solo encajaría
+# en las dos firmas y Postgres se negaría a elegir — «function is not unique»,
+# el accidente de la 0297/0299, que no falla al pegar sino al abrir la pantalla.
+#
+# Medido el 2026-09-08 contra producción: la función existe con tres argumentos,
+# y no hay ninguna de un argumento.
+0393  Pegada el 07/09 desde una rama sin fusionar, pero su contenido quedó superado por la 0395 y la 0398, que sí están en main y en producción. NO se recupera el archivo: crearía una sobrecarga de fn_set_mi_firma y rompería la pantalla con «function is not unique». El PR de esa rama se cierra sin fusionar.

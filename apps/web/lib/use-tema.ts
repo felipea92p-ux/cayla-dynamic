@@ -16,16 +16,52 @@
 // `app/layout.tsx`, que pone `data-tema` en el <html> antes de que React
 // pinte nada. Este hook solo mantiene el botón del selector en sintonía con
 // lo que ya se ve en pantalla.
+//
+// Desde 2026-09-06 hay una CUARTA fuente, por debajo de las dos de arriba:
+// la fila `apariencia_tema` de la tabla `configuracion`, editable desde
+// /admin/apariencia (ver ese archivo). Es el tema que se aplica cuando
+// *nadie* eligió uno a mano en este navegador — así el panel Y el terminal
+// de cada sede pueden dejarse en oscuro (o claro) desde un solo lugar, sin
+// tocar cada Mac mini. Prioridad completa: elegido a mano > configuración
+// global > prefers-color-scheme del sistema > claro por defecto. Pasar el
+// cliente de Supabase de la superficie que llama (admin o terminal, cada una
+// tiene su propia sesión — ver createAdminSupabaseClient/
+// createTerminalSupabaseClient) es lo que activa esta cuarta fuente; sin
+// cliente, el hook se comporta exactamente como antes.
 
 import { useCallback, useEffect, useState } from "react";
+import type { ClienteCayla } from "@cayla-dynamic/database";
 
 const CLAVE = "cayla-tema";
+// Última configuración global conocida, cacheada para que el script
+// anti-parpadeo de app/layout.tsx la pueda leer en la próxima carga sin
+// esperar la respuesta de red — no es una preferencia personal, se sobra
+// escribir en cuanto llega una más nueva.
+const CLAVE_CACHE_GLOBAL = "cayla-tema-global";
 
 export type Tema = "claro" | "oscuro" | "sistema";
+type TemaGlobal = "claro" | "oscuro" | "automatico";
 
-function aplicar(tema: Tema) {
+function aplicarAtributo(tema: Tema) {
   if (tema === "sistema") document.documentElement.removeAttribute("data-tema");
   else document.documentElement.setAttribute("data-tema", tema);
+}
+
+// Qué se ve realmente en pantalla con este tema — "sistema" no es un color,
+// resuelve al que diga `prefers-color-scheme` del navegador. Sirve para que
+// el selector rápido sepa cuándo un clic no va a cambiar nada visible (ver
+// SIGUIENTE en selector-tema.tsx): si acabas de elegir "oscuro" a mano y tu
+// sistema operativo también prefiere oscuro, pasar a "sistema" deja la
+// pantalla exactamente igual — el clic sí corrió, pero parece que no hizo
+// nada. Solo llamar en el navegador: matchMedia no existe en el render de
+// servidor.
+export function apariencia(tema: Tema): "claro" | "oscuro" {
+  if (tema !== "sistema") return tema;
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "oscuro" : "claro";
+}
+
+function aplicar(tema: Tema) {
+  aplicarAtributo(tema);
   try {
     if (tema === "sistema") localStorage.removeItem(CLAVE);
     else localStorage.setItem(CLAVE, tema);
@@ -35,18 +71,55 @@ function aplicar(tema: Tema) {
   }
 }
 
-export function useTema(): [Tema, (tema: Tema) => void] {
+export function useTema(cliente?: ClienteCayla): [Tema, (tema: Tema) => void] {
   const [tema, setTemaState] = useState<Tema>("sistema");
 
   useEffect(() => {
+    let guardado: string | null = null;
     try {
-      const guardado = localStorage.getItem(CLAVE);
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      if (guardado === "claro" || guardado === "oscuro") setTemaState(guardado);
+      guardado = localStorage.getItem(CLAVE);
     } catch {
-      // sin localStorage no hay nada guardado que leer — se queda en "sistema".
+      // sin localStorage no hay nada guardado que leer.
     }
-  }, []);
+
+    if (guardado === "claro" || guardado === "oscuro") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setTemaState(guardado);
+      return; // preferencia personal: no hace falta preguntarle a la base.
+    }
+
+    if (!cliente) return;
+    (async () => {
+      try {
+        // `getSession()` es local (localStorage/IndexedDB, sin red): evita
+        // una consulta que saldría 401 en el terminal sin vincular todavía o
+        // en el panel antes de iniciar sesión — casos normales, no errores.
+        const { data: sesion } = await cliente.auth.getSession();
+        if (!sesion.session) return;
+
+        const { data } = await cliente
+          .from("configuracion")
+          .select("valor")
+          .eq("clave", "apariencia_tema")
+          .maybeSingle();
+        const global = data?.valor as TemaGlobal | undefined;
+        if (global === "claro" || global === "oscuro") {
+          aplicarAtributo(global);
+          setTemaState(global);
+          try {
+            localStorage.setItem(CLAVE_CACHE_GLOBAL, global);
+          } catch {
+            // solo afecta qué tan rápido se ve el tema correcto la próxima vez.
+          }
+        }
+        // "automatico" (o sin fila todavía) deja el tema en "sistema": ya es
+        // el comportamiento por defecto, no hace falta tocar nada.
+      } catch {
+        // sin red no hay forma de saber la configuración global — se queda en
+        // "sistema", igual que siempre se comportó este hook.
+      }
+    })();
+  }, [cliente]);
 
   const setTema = useCallback((t: Tema) => {
     aplicar(t);

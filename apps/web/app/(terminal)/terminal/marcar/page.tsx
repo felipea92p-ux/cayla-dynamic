@@ -2,21 +2,30 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { TIPO_MARCA_LABELS, TZ_LIMA, sugerirSalidaPrincipal, type MarcajeDelDia, type TipoMarca } from "@cayla-dynamic/shared";
+import {
+  TIPO_MARCA_LABELS,
+  TZ_LIMA,
+  sugerirSalidaPrincipal,
+  type EstadisticasSugerencia,
+  type MarcajeDelDia,
+  type TipoMarca,
+} from "@cayla-dynamic/shared";
 import { createTerminalSupabaseClient } from "@cayla-dynamic/database";
 import {
   type RosterEntry,
   encolarMarcaje,
   eliminarDeOutbox,
+  marcarComoDescartada,
+  marcarComoRechazadaPorServidor,
   obtenerDescartadas,
   obtenerPendientes,
 } from "@/lib/terminal/offline-db";
 import { sincronizarApartadas } from "@/lib/terminal/apartadas";
-import { enviarMarcaje } from "@/lib/terminal/enviar-marcaje";
+import { enviarMarcaje, esRechazoDeEstado } from "@/lib/terminal/enviar-marcaje";
 import { conTope, topeDeRed } from "@/lib/terminal/tope-de-red";
 import { cargarRoster } from "@/lib/terminal/roster";
-import { cargarMarcajesHoyPorPersona, siguienteAccionPara } from "@/lib/terminal/estado-dia";
-import { verificarPin } from "@/lib/terminal/pin";
+import { cargarMarcajesHoyPorPersona, confirmarEstadoPuntual, siguienteAccionPara } from "@/lib/terminal/estado-dia";
+import { cargarEstadisticasSugerenciaPorPersona } from "@/lib/terminal/sugerencias";
 import { veredictoDeSesion } from "@/lib/terminal/sesion";
 import { leerInfoTerminalCacheada, refrescarInfoTerminal, type TerminalInfo } from "@/lib/terminal/terminal-info";
 import { iniciarSincronizacionPeriodica } from "@/lib/terminal/sync";
@@ -26,8 +35,11 @@ import {
 } from "@/lib/terminal/reloj-servidor";
 import { Marca } from "@/components/marca";
 import { RelojCentral } from "@/components/reloj";
+import { Insignia } from "@/components/ui/insignia";
+import { Cargando } from "@/components/cargando";
 import {
   ConfirmacionToast,
+  ConfirmarRefrigerio,
   FormularioMotivoOtro,
   MotivoReentrada,
   NombreGrid,
@@ -35,27 +47,74 @@ import {
   PantallaMensaje,
   SelectorSalida,
   SelectorSede,
-  TecladoPin,
+  type EstadoRoster,
 } from "./components";
 
 type Pantalla =
   | "lista"
-  | "pin"
   | "elegir_salida"
   | "motivo_otro"
+  | "confirmar_refrigerio"
   | "confirmando"
   | "mensaje"
   | "cerrado"
-  | "motivo_reentrada";
+  | "motivo_reentrada"
+  // Se muestra SOLO cuando esta pestaña todavía no confirmó el estado de
+  // nadie desde que arrancó (ver `marcajesConfiablesRef`) y alguien tocó un
+  // nombre: en vez de adivinar, pregunta puntualmente por esa persona antes
+  // de decidir qué ofrecerle. Dura ~1-3 s y desaparece sola.
+  | "confirmando_estado";
 
 type OpcionSalida = { tipo: TipoMarca; motivoRequerido: boolean; label: string };
-type SalidaConfig = { principal: OpcionSalida; secundaria: OpcionSalida | null; otras: OpcionSalida[] };
+type SalidaConfig = {
+  principal: OpcionSalida;
+  secundaria: OpcionSalida | null;
+  otras: OpcionSalida[];
+  // Ni refrigerio ni salida final aplican ahora (ej. entró hace 1h): "otras"
+  // (personal/trámite/médico/otro) pasa a ser lo prominente y principal/secundaria
+  // bajan a enlaces chicos. Nunca se ocultan, solo pierden protagonismo.
+  neutra: boolean;
+  /** Ver `SelectorSalida` → `aviso`. Ausente en el menú de salida normal. */
+  aviso?: string;
+};
+
+function mk(tipo: TipoMarca, motivoRequerido: boolean, label?: string): OpcionSalida {
+  return { tipo, motivoRequerido, label: label ?? TIPO_MARCA_LABELS[tipo] };
+}
 
 // Etiquetas amables para las dos acciones principales del menú de salida.
 const LABEL_PRINCIPAL: Partial<Record<TipoMarca, string>> = {
   salida_almuerzo: "Salgo a refrigerio",
   salida_final: "Me voy — salida final",
 };
+
+// El respaldo cuando NO se pudo confirmar el estado de nadie (ver
+// `marcajesConfiablesRef`) ni tampoco la confirmación puntual de esta
+// persona en particular (ver `confirmarEstadoPuntual`). En vez de adivinar
+// —que es exactamente el bug de Raquel Ticona y Joselyn Gavilan (2026-09-09:
+// el terminal ofreció "Entrada" a quien llevaba horas adentro)— se le
+// muestran TODAS las opciones y elige la persona misma. El servidor sigue
+// validando igual: si se equivoca, no pasa nada grave, solo vuelve a
+// preguntar — pero ya no es el terminal el que apostó por ella.
+const AVISO_ESTADO_INCIERTO =
+  "No pudimos confirmar tu estado con el servidor. Elige qué corresponde — si te equivocas, el sistema no lo va a aceptar y no se registra nada malo.";
+
+function configDeAccionIncierta(): SalidaConfig {
+  return {
+    principal: mk("entrada", false, "Entrada"),
+    secundaria: null,
+    otras: [
+      mk("salida_final", false, LABEL_PRINCIPAL.salida_final),
+      mk("salida_almuerzo", false, LABEL_PRINCIPAL.salida_almuerzo),
+      mk("salida_personal", false),
+      mk("salida_tramite", false),
+      mk("salida_medico", false),
+      mk("salida_otro", true),
+    ],
+    neutra: false,
+    aviso: AVISO_ESTADO_INCIERTO,
+  };
+}
 
 const SEGUNDOS_CONFIRMACION = 3;
 const SEGUNDOS_MENSAJE = 2.5;
@@ -79,22 +138,63 @@ function historialDelDia(marks: MarcajeDelDia[]): Array<{ label: string; hora: s
     .map((m) => ({ label: TIPO_MARCA_LABELS[m.tipo], hora: horaCorta(m.timestamp) }));
 }
 
+// ¿Llega a "salida final" sin haber marcado NUNCA una salida a refrigerio hoy?
+// (0353). No es "salió a almorzar y no volvió" —ese caso el propio candado de
+// esta función ya lo bloquea antes: tras un salida_almuerzo sin retorno,
+// fn_siguiente_tipo_esperado exige retorno_almuerzo, y salida_final ni
+// siquiera llega a ofrecerse. Lo único que SÍ es alcanzable desde acá es que
+// nunca haya salido: entrada → (todo el turno) → salida_final derecho.
+// Solo mira los marcajes de HOY que el terminal ya tiene cargados — no hace
+// ninguna llamada nueva al servidor.
+function nuncaMarcoRefrigerio(marcajesHoy: MarcajeDelDia[]): boolean {
+  return !marcajesHoy.some((m) => m.tipo === "salida_almuerzo");
+}
+
 export default function MarcarPage() {
   const router = useRouter();
   const [terminal, setTerminal] = useState<TerminalInfo | null>(null);
   const [roster, setRoster] = useState<RosterEntry[]>([]);
+  // Un roster vacío no dice por qué está vacío, y la grilla lo contaba siempre
+  // como «Nadie en esta sede todavía» — también durante el arranque, que es
+  // justo cuando alguien lo lee (tras reiniciar la Mac mini o un corte de red)
+  // y entiende que se borró el equipo. Esta bandera separa los tres casos.
+  const [estadoRoster, setEstadoRoster] = useState<EstadoRoster>("cargando");
   const [sedeSeleccionada, setSedeSeleccionada] = useState<string | null>(null);
   const marcajesHoyRef = useRef<Map<string, MarcajeDelDia[]>>(new Map());
+  // ¿Se pudo confirmar el estado de HOY contra el servidor al menos una vez
+  // desde que esta pestaña arrancó? Mientras sea `false`, `marcajesHoyRef` no
+  // es de fiar como "esta persona no tiene marcas hoy" — solo dice "todavía no
+  // lo sé", y `continuarConPersona` tiene que preguntar antes de ofrecer nada.
+  // Una vez en `true`, un refresco periódico que falle después YA NO borra lo
+  // que había: se ignora ese refresco y se sigue confiando en el último bueno
+  // (ver `cargarTodo`). Antes de esto, cualquier corte de red en el instante
+  // exacto del refresco de 2 min dejaba a TODO el mundo sin marcas en memoria,
+  // y el terminal volvía a ofrecer "Entrada" a quien llevaba horas adentro —
+  // el bug real detrás de los casos de Raquel Ticona y Joselyn Gavilan
+  // (2026-09-09): el servidor rechazó las dos marcas correctamente, pero nadie
+  // se enteró hasta horas después.
+  const marcajesConfiablesRef = useRef(false);
+  // El ritmo de cada persona (media de refrigerio, hora de salida esperada),
+  // para afinar sugerirSalidaPrincipal — ver lib/terminal/sugerencias.ts. En
+  // un ref y no en state por lo mismo que marcajesHoyRef: continuarConPersona
+  // lo lee al tocar un nombre, y eso tiene que ser instantáneo, sin re-render.
+  const estadisticasSugerenciaRef = useRef<Map<string, EstadisticasSugerencia>>(new Map());
 
   const [pantalla, setPantalla] = useState<Pantalla>("lista");
   const [personaActual, setPersonaActual] = useState<RosterEntry | null>(null);
-  const [errorPin, setErrorPin] = useState<string | null>(null);
-  const [intentosPin, setIntentosPin] = useState(0);
+  // Espejo de `personaActual` en un ref, solo para `continuarConPersona`: tras
+  // el `await` de una confirmación puntual (~1-3 s), la persona pudo cancelar
+  // o tocar otro nombre. Un `useState` leído dentro de esa función async
+  // seguiría viendo el valor de cuando se llamó, no el de ahora — un ref sí
+  // se lee al vuelo, sin esperar a un re-render.
+  const personaActualRef = useRef<RosterEntry | null>(null);
   const [salidaConfig, setSalidaConfig] = useState<SalidaConfig | null>(null);
   const [historialCerrado, setHistorialCerrado] = useState<Array<{ label: string; hora: string }>>([]);
   const [pendientesSinEnviar, setPendientesSinEnviar] = useState(0);
   const [marcasApartadas, setMarcasApartadas] = useState(0);
-  const [accionPendiente, setAccionPendiente] = useState<{ tipo: TipoMarca; motivoOtro?: string; clientUuid?: string } | null>(null);
+  const [accionPendiente, setAccionPendiente] = useState<{
+    tipo: TipoMarca; motivoOtro?: string; clientUuid?: string; confirmoSinRefrigerio?: boolean;
+  } | null>(null);
   const [mensaje, setMensaje] = useState("");
   const [tonoMensaje, setTonoMensaje] = useState<"ok" | "alerta">("ok");
   // El reloj de ESTA Mac contra el del servidor. Arranca con la última medida
@@ -105,12 +205,56 @@ export default function MarcarPage() {
   const confirmandoRef = useRef(false); // evita doble-envío del mismo marcaje
 
   const cargarTodo = useCallback(async () => {
-    const [rosterData, marcajes] = await Promise.all([cargarRoster(), cargarMarcajesHoyPorPersona()]);
-    setRoster(rosterData);
-    marcajesHoyRef.current = marcajes;
+    try {
+      const [rosterCargado, marcajes, estadisticas] = await Promise.all([
+        cargarRoster(),
+        cargarMarcajesHoyPorPersona(),
+        // No depende del roster —RLS ya acota a la sede del terminal—, así que
+        // corre en paralelo y no le suma espera al arranque. Si falla, nunca
+        // lanza (misma receta que las otras dos): sugerirSalidaPrincipal cae
+        // sola a la regla fija de siempre, y nadie se queda sin poder marcar.
+        cargarEstadisticasSugerenciaPorPersona(),
+      ]);
+      setRoster(rosterCargado.entradas);
+      // Nunca se borra un mapa BUENO con uno que no se pudo confirmar. Si ya
+      // habíamos confirmado el estado de hoy al menos una vez, un refresco
+      // que falla (offline un instante, tiempo agotado) simplemente se
+      // ignora — se sigue con el último bueno más lo que ya se marcó en esta
+      // sesión, en vez de vaciar la memoria de todo el mundo por un corte de
+      // red que no tiene nada que ver con si alguien ya entró hoy.
+      if (marcajes.confiable || !marcajesConfiablesRef.current) {
+        marcajesHoyRef.current = marcajes.mapa;
+      }
+      if (marcajes.confiable) marcajesConfiablesRef.current = true;
+      estadisticasSugerenciaRef.current = estadisticas;
+      // EL ERROR LO DECLARA LA FUENTE, NO EL `catch`, y esa es la mitad que
+      // faltaba: `cargarRoster` no lanza NUNCA por red ni por un 500 —devuelve
+      // la copia guardada en las cinco salidas de fallo—, así que una Mac recién
+      // reiniciada, sin caché y sin router, resolvía con `[]` y esta pantalla lo
+      // declaraba "listo": «Nadie en esta sede todavía», justo la mentira que
+      // este estado existe para quitar. Solo `fuente === "ninguna"` significa
+      // que no contestó ni el servidor ni la copia local.
+      setEstadoRoster(rosterCargado.fuente === "ninguna" ? "error" : "listo");
+    } catch {
+      // El `catch` queda para lo que sí lanza: IndexedDB (navegación privada,
+      // almacenamiento bloqueado). Un refresco que falla con la lista YA en
+      // pantalla no la borra ni asusta a nadie: se sigue marcando con lo que
+      // hay. Solo se declara error cuando no hemos llegado a tener nada.
+      setEstadoRoster((previo) => (previo === "listo" ? "listo" : "error"));
+    }
   }, []);
 
-  useEffect(() => {
+  // El arranque entero, extraído del efecto para que «Volver a intentar» pueda
+  // repetirlo. Antes el botón solo llamaba a `cargarTodo`, y el error también
+  // puede nacer acá arriba —la sesión, la ficha del terminal—: reintentar sin
+  // rehacer esa parte volvía a la lista vacía sin haber arreglado lo que falló.
+  //
+  // Devuelve la promesa en vez de ser `async`/`await` a propósito: con `await`,
+  // el linter de la casa lee la llamada del efecto de abajo como un setState
+  // síncrono dentro de un efecto y la marca. Encadenando `.then`, que es la
+  // forma que este arranque ya tenía, no hay setState hasta que la red conteste
+  // — y era verdad en las dos versiones.
+  const arrancar = useCallback(() => {
     const supabase = createTerminalSupabaseClient();
     // getSession() ES LA PRIMERA LLAMADA DE RED DEL ARRANQUE, aunque no lo parezca:
     // cuando el token guardado está vencido, auth-js sale a renovarlo, y no acepta
@@ -128,7 +272,7 @@ export default function MarcarPage() {
     // «no está vinculado». Las credenciales seguían en el disco. Por eso el
     // veredicto mira el error y no solo la sesión (`lib/terminal/sesion.ts`).
     const SIN_RESPUESTA = Symbol("sin respuesta");
-    void conTope(supabase.auth.getSession(), SIN_RESPUESTA).then(async (respuesta) => {
+    return conTope(supabase.auth.getSession(), SIN_RESPUESTA).then(async (respuesta) => {
       const veredicto =
         respuesta === SIN_RESPUESTA
           ? "no_se_pudo_saber"
@@ -137,13 +281,15 @@ export default function MarcarPage() {
         router.replace("/terminal/vincular");
         return;
       }
-      // La config fresca del servidor manda. Si no se puede refrescar (sin conexión o
-      // error puntual), usamos la caché pero SIN forzar PIN: nunca pedimos PIN con datos
-      // no confiables (todas las sedes están configuradas sin PIN).
+      // La config fresca del servidor manda; sin conexión se usa la caché tal cual.
+      // Antes esta línea tenía que neutralizar a mano el `requierePin` de la caché,
+      // porque el respaldo del cliente caía en `true` y una red intermitente podía
+      // hacer aparecer un teclado de PIN. Desde que el PIN se retiró del terminal
+      // (0375) no hay nada que neutralizar: la ficha ya no trae esa bandera.
       const fresca =
         typeof navigator !== "undefined" && navigator.onLine ? await refrescarInfoTerminal() : null;
       const cache = leerInfoTerminalCacheada();
-      const info = fresca ?? (cache ? { ...cache, requierePin: false } : null);
+      const info = fresca ?? cache;
       setTerminal(info);
       // Sede por defecto: la del terminal; un ?sede=CODIGO en la URL la sobreescribe.
       const paramSede =
@@ -152,11 +298,19 @@ export default function MarcarPage() {
           : null;
       setSedeSeleccionada((actual) => actual ?? paramSede ?? info?.sedeCodigo ?? null);
       await cargarTodo();
-    });
+    })
+    // Si el arranque se cae ANTES de llegar a `cargarTodo` —la ficha del
+    // terminal, la sesión— la grilla se quedaba en «cargando» para siempre, que
+    // es la misma mentira de antes con otra cara: una pantalla que promete que
+    // ya viene. Se declara el error, y el botón de reintentar es la salida.
+    .catch(() => setEstadoRoster((previo) => (previo === "listo" ? "listo" : "error")));
+  }, [router, cargarTodo]);
 
+  useEffect(() => {
+    void arrancar();
     const detener = iniciarSincronizacionPeriodica();
     return detener;
-  }, [router, cargarTodo]);
+  }, [arrancar]);
 
   // El desfase del reloj: la última medida guardada primero —para que el aviso
   // esté en pantalla desde el primer segundo— y una medición nueva enseguida.
@@ -230,47 +384,42 @@ export default function MarcarPage() {
     confirmandoRef.current = false;
     setPantalla("lista");
     setPersonaActual(null);
-    setErrorPin(null);
-    setIntentosPin(0);
+    personaActualRef.current = null;
     setSalidaConfig(null);
     setAccionPendiente(null);
     void cargarTodo();
   }
 
+  // Mensaje + tono + cuánto dura en pantalla, SIEMPRE los tres juntos. Antes se
+  // escribían por separado en cada camino, y así fue como el rechazo del
+  // servidor se pintó igual que un "Listo" hasta el 2026-08-10 (`tono` se
+  // quedaba con lo que hubiera dejado el mensaje anterior) — y como, hasta hoy,
+  // volvió a pasar en los dos caminos de mala noticia que nadie había tocado
+  // desde entonces: la ficha del terminal sin configurar y el reabrir-día que
+  // falla. Los dos ponían texto de alerta con el tono y los 2,5 s de un
+  // "Listo". Que esta función sea el único lugar donde se arma la pantalla de
+  // mensaje es lo que evita que se vuelva a desarmar un tercer camino.
+  function mostrarMensaje(texto: string, tono: "ok" | "alerta") {
+    setMensaje(texto);
+    setTonoMensaje(tono);
+    setPantalla("mensaje");
+    setTimeout(volverALista, (tono === "alerta" ? SEGUNDOS_MENSAJE_ALERTA : SEGUNDOS_MENSAJE) * 1000);
+  }
+
+  // Tocar un nombre marca. Sin paso intermedio, y es una decisión, no un descuido:
+  // el control real es que la Mac mini está a la vista de todo el equipo, y lo que
+  // se prioriza es que marcar sea instantáneo (Felipe, jul-2026 y 2026-09-04).
   function seleccionarPersona(persona: RosterEntry) {
     setPersonaActual(persona);
-    setErrorPin(null);
-    // Solo se pide PIN si el terminal lo exige EXPLÍCITAMENTE (requiere_pin=true fresco).
-    // Ante cualquier duda (sin PIN configurado, o dato incierto) se marca directo, para
-    // no bloquear el marcaje. Hoy las 3 sedes están sin PIN.
-    if (!terminal || terminal.requierePin !== true) {
-      continuarConPersona(persona);
-      return;
-    }
-    setPantalla("pin");
+    personaActualRef.current = persona;
+    void continuarConPersona(persona);
   }
 
-  async function onPinCompletado(pin: string) {
-    if (!personaActual) return;
-    const ok = await verificarPin(pin, personaActual.pinHash);
-    if (!ok) {
-      const intentos = intentosPin + 1;
-      setIntentosPin(intentos);
-      if (intentos >= 5) {
-        setMensaje("Demasiados intentos. Vuelve a intentar en un momento.");
-        setPantalla("mensaje");
-        setTimeout(volverALista, 4000);
-        return;
-      }
-      setErrorPin("PIN incorrecto, intenta de nuevo.");
-      return;
-    }
-    continuarConPersona(personaActual);
-  }
-
-  // Determina y presenta la siguiente acción de la persona (tras autenticar, o directo si el terminal no pide PIN).
-  function continuarConPersona(persona: RosterEntry) {
-    const marcajesHoy = marcajesHoyRef.current.get(persona.id) ?? [];
+  // Determina y presenta la siguiente acción de la persona, a partir de SU
+  // historial de hoy ya conocido (de caché confiable o de una confirmación
+  // puntual recién hecha). Nunca decide con datos que no se confían — eso lo
+  // filtra `continuarConPersona` antes de llegar aquí.
+  function decidirYMostrarAccion(persona: RosterEntry, marcajesHoy: MarcajeDelDia[]) {
     const accion = siguienteAccionPara(marcajesHoy);
 
     if (accion.modo === "cerrado") {
@@ -287,15 +436,18 @@ export default function MarcarPage() {
 
     // Menú de salida simplificado: 1 acción sugerida (según hora + si ya almorzó hoy),
     // la otra principal como secundaria, y el resto de motivos bajo "otra salida".
-    const mk = (tipo: TipoMarca, motivoRequerido: boolean, label?: string): OpcionSalida => ({
-      tipo,
-      motivoRequerido,
-      label: label ?? TIPO_MARCA_LABELS[tipo],
-    });
     const yaAlmorzo = marcajesHoy.some((m) => m.tipo === "salida_almuerzo");
-    const sugerida = sugerirSalidaPrincipal(marcajesHoy, new Date());
+    const sugerida = sugerirSalidaPrincipal(
+      marcajesHoy,
+      new Date(),
+      estadisticasSugerenciaRef.current.get(persona.id),
+    );
     const almuerzo = mk("salida_almuerzo", false, LABEL_PRINCIPAL.salida_almuerzo);
     const final = mk("salida_final", false, LABEL_PRINCIPAL.salida_final);
+    // "neutra" (ni refrigerio ni salida final tienen sentido ahora) no cambia
+    // qué va en cada slot — sigue siendo la misma repartición almuerzo/final
+    // de siempre—, solo activa la bandera que hace que components.tsx los
+    // muestre degradados y promueva "otra salida" arriba.
     const principal = sugerida === "salida_almuerzo" ? almuerzo : final;
     const secundaria = yaAlmorzo ? null : sugerida === "salida_almuerzo" ? final : almuerzo;
     const otras: OpcionSalida[] = [
@@ -305,7 +457,43 @@ export default function MarcarPage() {
       mk("salida_otro", true),
       ...(yaAlmorzo ? [almuerzo] : []),
     ];
-    setSalidaConfig({ principal, secundaria, otras });
+    setSalidaConfig({ principal, secundaria, otras, neutra: sugerida === "neutra" });
+    setPantalla("elegir_salida");
+  }
+
+  // Punto de entrada al tocar un nombre. Antes de decidir nada, comprueba si
+  // esta pestaña YA confirmó el estado de hoy alguna vez contra el servidor
+  // (ver `marcajesConfiablesRef`). Si nunca lo confirmó, no hay caché de la
+  // que fiarse — ni para esta persona ni para nadie — y hay que preguntar
+  // puntualmente antes de ofrecer una acción. Es la corrección directa del
+  // caso real: el 2026-09-09 el terminal, sin esta comprobación, ofreció
+  // "Entrada" a Raquel Ticona y a Joselyn Gavilan cuando las dos llevaban
+  // horas trabajando — el servidor rechazó las dos marcas bien, pero nadie se
+  // enteró hasta que alguien las reconstruyó a mano esa noche.
+  async function continuarConPersona(persona: RosterEntry) {
+    if (marcajesConfiablesRef.current) {
+      decidirYMostrarAccion(persona, marcajesHoyRef.current.get(persona.id) ?? []);
+      return;
+    }
+
+    setPantalla("confirmando_estado");
+    const marcasConfirmadas = await confirmarEstadoPuntual(persona.id);
+
+    // Mientras esperábamos la respuesta, la persona pudo cancelar (volver a
+    // la lista) o tocar otro nombre: no seguir si esta respuesta ya no es
+    // para lo que hay en pantalla.
+    if (personaActualRef.current?.id !== persona.id) return;
+
+    if (marcasConfirmadas !== null) {
+      marcajesHoyRef.current.set(persona.id, marcasConfirmadas);
+      decidirYMostrarAccion(persona, marcasConfirmadas);
+      return;
+    }
+
+    // Tampoco se pudo confirmar puntualmente (sigue offline, o el servidor no
+    // contestó a tiempo): nunca se adivina "Entrada". Se le pregunta a la
+    // persona misma, con las opciones completas.
+    setSalidaConfig(configDeAccionIncierta());
     setPantalla("elegir_salida");
   }
 
@@ -315,12 +503,26 @@ export default function MarcarPage() {
       setPantalla("motivo_otro");
       return;
     }
+    if (
+      tipo === "salida_final" &&
+      personaActual &&
+      nuncaMarcoRefrigerio(marcajesHoyRef.current.get(personaActual.id) ?? [])
+    ) {
+      setAccionPendiente({ tipo });
+      setPantalla("confirmar_refrigerio");
+      return;
+    }
     prepararConfirmacion({ tipo });
   }
 
   function confirmarMotivoOtro(motivo: string) {
     if (!accionPendiente) return;
     prepararConfirmacion({ tipo: accionPendiente.tipo, motivoOtro: motivo });
+  }
+
+  function confirmarRefrigerio(trabajoCorrido: boolean) {
+    if (!accionPendiente) return;
+    prepararConfirmacion({ tipo: accionPendiente.tipo, confirmoSinRefrigerio: trabajoCorrido });
   }
 
   // Reabre el día (tras salida final) vía la ruta segura del servidor.
@@ -352,16 +554,15 @@ export default function MarcarPage() {
     } catch {
       ok = false;
     }
-    setMensaje(
+    mostrarMensaje(
       ok
         ? `Listo, ${personaActual.nombres} — tu día está abierto de nuevo.`
         : "No se pudo reabrir. Intenta otra vez o avisa a tu encargada.",
+      ok ? "ok" : "alerta",
     );
-    setPantalla("mensaje");
-    setTimeout(volverALista, SEGUNDOS_MENSAJE * 1000);
   }
 
-  function prepararConfirmacion(accion: { tipo: TipoMarca; motivoOtro?: string }) {
+  function prepararConfirmacion(accion: { tipo: TipoMarca; motivoOtro?: string; confirmoSinRefrigerio?: boolean }) {
     // el client_uuid se fija AL PREPARAR: si por algo se envía dos veces, el
     // servidor lo reconoce como el mismo marcaje (idempotencia) y no duplica.
     setAccionPendiente({ ...accion, clientUuid: crypto.randomUUID() });
@@ -388,12 +589,11 @@ export default function MarcarPage() {
     // marcó se va tranquilo y el hueco aparece a fin de mes, cuando ya nadie
     // recuerda ese día.
     if (!terminal) {
-      setMensaje(
+      mostrarMensaje(
         `${personaActual.nombres}: este equipo no terminó de configurarse y tu marca NO quedó ` +
           `registrada. Avisa a tu encargada ahora — no te vayas creyendo que marcaste.`,
+        "alerta",
       );
-      setPantalla("mensaje");
-      setTimeout(volverALista, SEGUNDOS_MENSAJE * 1000);
       return;
     }
 
@@ -408,6 +608,7 @@ export default function MarcarPage() {
       motivoOtro: accionPendiente.motivoOtro,
       timestampCliente: new Date().toISOString(),
       intentos: 0,
+      confirmoSinRefrigerio: accionPendiente.confirmoSinRefrigerio,
     };
 
     // Optimista: refleja el marcaje localmente ya mismo para que el siguiente
@@ -447,9 +648,38 @@ export default function MarcarPage() {
     // le cierra solo y cobra las horas que le invente el auto-cierre.
     let rechazadaPorElServidor = false;
     if (navigator.onLine) {
-      const { ok, llego } = await enviarMarcaje(createTerminalSupabaseClient(), entry);
+      const { ok, error, llego } = await enviarMarcaje(createTerminalSupabaseClient(), entry);
       sincronizadoAhora = ok;
       rechazadaPorElServidor = !ok && llego;
+      // Marcarlo YA, no esperar a que sync.ts acumule 6 fallos confirmados
+      // (minuto y medio) para enterarse de algo que este intento ya sabe.
+      // Sigue en la cola y se sigue reintentando; lo único que cambia de
+      // inmediato es que deja de contar como "de hoy" (ver offline-db.ts).
+      if (rechazadaPorElServidor && encolada) {
+        try {
+          if (esRechazoDeEstado(error)) {
+            // No es "todavía no se pudo enviar": el servidor YA contestó que
+            // este tipo no corresponde, y reintentarlo igual no cambia esa
+            // respuesta. Se aparta de una vez — no en 90 s — para que quien
+            // revisa Correcciones se entere antes.
+            await marcarComoDescartada(entry.clientUuid, error ?? "sin detalle");
+          } else {
+            await marcarComoRechazadaPorServidor(entry.clientUuid, error ?? "sin detalle");
+          }
+        } catch {
+          // Sin almacén local no hay bandera que poner; el mensaje en pantalla
+          // ya avisó del rechazo de todos modos.
+        }
+        // El rechazo prueba que lo que este terminal creía saber de esta
+        // persona ya no vale — algo distinto a lo que se guardó pasó de
+        // verdad. Se pregunta de nuevo EN SEGUNDO PLANO, sin bloquear el
+        // cartel que la persona ya está leyendo: cuando conteste, deja el
+        // próximo toque de esta persona (o el de quien venga después) listo
+        // para acertar en vez de repetir la misma suposición equivocada.
+        void confirmarEstadoPuntual(entry.personaId).then((marcas) => {
+          if (marcas !== null) marcajesHoyRef.current.set(entry.personaId, marcas);
+        });
+      }
     }
 
     // De la cola sale solo lo que el servidor confirmó.
@@ -465,17 +695,15 @@ export default function MarcarPage() {
     // El texto NO empieza por «Listo» cuando no lo está. Es lo único que la
     // persona lee antes de darse la vuelta, y en una pantalla que se limpia a
     // los pocos segundos no hay una segunda oportunidad de decírselo.
-    setMensaje(
+    mostrarMensaje(
       rechazadaPorElServidor
         ? `No quedó registrada — el sistema no aceptó esta marca de ${personaActual.nombres}. `
           + "Avisa a tu encargada ANTES de irte: no se va a arreglar sola."
         : `Listo — ${TIPO_MARCA_LABELS[entry.tipo]} de ${personaActual.nombres}${
             sincronizadoAhora ? "" : " (se sincronizará cuando vuelva la conexión)"
           }`,
+      rechazadaPorElServidor ? "alerta" : "ok",
     );
-    setTonoMensaje(rechazadaPorElServidor ? "alerta" : "ok");
-    setPantalla("mensaje");
-    setTimeout(volverALista, (rechazadaPorElServidor ? SEGUNDOS_MENSAJE_ALERTA : SEGUNDOS_MENSAJE) * 1000);
   }
 
   // Sedes presentes en el roster (para el selector) y roster filtrado a la sede activa.
@@ -506,43 +734,65 @@ export default function MarcarPage() {
         <Marca tono="tinta" isotipo="rojo" />
         <div className="flex items-center gap-3">
           {pendientesSinEnviar > 0 && (
-            <span className="rounded-full bg-ambar/15 px-3 py-1 text-xs font-medium text-ambar">
+            <Insignia variante="advertencia" punto={false}>
               ⟳ {pendientesSinEnviar} sin enviar
-            </span>
-          )}
-          {/* Las apartadas ya NO se reintentan solas: si nadie las ve, no vuelven.
-              Por eso van en rojo y con instrucción, no en ámbar como las de arriba
-              —que se van a enviar solas en cuanto haya red— y por eso el texto
-              nombra a la encargada: es la única acción que resuelve esto. */}
-          {marcasApartadas > 0 && (
-            <span className="rounded-full bg-rojo/15 px-3 py-1 text-xs font-medium text-rojo">
-              ⚠ {marcasApartadas} sin registrar — avisa a tu encargada
-            </span>
-          )}
-          {/* El reloj corrido va DESPUÉS de los avisos de la cola y antes del
-              nombre de la sede: no es urgente como una marca sin registrar
-              —nadie tiene que hacer nada ahora mismo— pero sí permanente, y
-              quien mira el terminal es quien puede avisar de que hay que
-              corregirlo. Nunca bloquea: se sigue marcando igual. */}
-          {desfase && Math.abs(desfase.segundos) >= DESFASE_AVISO_SEG && (
-            <span
-              className={`rounded-full px-3 py-1 text-xs font-medium ${
-                Math.abs(desfase.segundos) >= DESFASE_GRAVE_SEG
-                  ? "bg-rojo/15 text-rojo"
-                  : "bg-ambar/15 text-ambar"
-              }`}
-              title={
-                Math.abs(desfase.segundos) >= DESFASE_GRAVE_SEG
-                  ? "Con este desfase una marca puede caer en el día equivocado y pagarse en otra jornada. Avisa para que corrijan la fecha y hora de esta Mac."
-                  : "Las tardanzas se miden por minuto, así que este desfase puede inventar o borrar una. Avisa para que corrijan la hora de esta Mac."
-              }
-            >
-              🕐 {textoDesfase(desfase.segundos)} — avisa a tu encargada
-            </span>
+            </Insignia>
           )}
           <span className="etiqueta text-taupe">{sedeActivaNombre}</span>
         </div>
       </header>
+
+      {/* Las apartadas ya NO se reintentan solas: si nadie las ve, no vuelven, y
+          es lo más grave que este terminal puede decir —que una marca no llegó
+          y no va a llegar sola—. Por eso ya no vive metida en la fila de
+          píldoras de 12 px junto al reloj: es una banda de ancho completo,
+          texto grande y rojo puro sobre el fondo de la página (4,83:1), con el
+          rojo diluido solo de refuerzo alrededor del ícono, nunca detrás del
+          texto. El texto nombra a la encargada: es la única acción que
+          resuelve esto. */}
+      {marcasApartadas > 0 && (
+        <div
+          className="flex items-center justify-center gap-3 border-b border-sand px-6 py-3 text-center"
+          role="alert"
+        >
+          <span
+            aria-hidden
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-rojo/15 text-lg text-rojo"
+          >
+            ⚠
+          </span>
+          <p className="text-lg font-medium text-rojo sm:text-xl">
+            {marcasApartadas} {marcasApartadas === 1 ? "marca" : "marcas"} sin registrar — avisa a tu
+            encargada
+          </p>
+        </div>
+      )}
+
+      {/* El reloj corrido va DESPUÉS del aviso de marcas sin registrar: no es
+          urgente como esas —nadie tiene que hacer nada ahora mismo— pero sí
+          permanente, y quien mira el terminal es quien puede avisar de que hay
+          que corregirlo. Nunca bloquea: se sigue marcando igual.
+          Por qué importa vivía solo en un `title=`, y en una pantalla táctil
+          nadie puede detenerse encima para leerlo: nunca aparecía. Ahora es el
+          segundo renglón, siempre visible, sin depender de un puntero que este
+          terminal no tiene. */}
+      {desfase && Math.abs(desfase.segundos) >= DESFASE_AVISO_SEG && (
+        <div className="flex flex-col items-center gap-1 border-b border-sand px-6 py-2.5 text-center">
+          <p
+            className={`text-base font-medium sm:text-lg ${
+              Math.abs(desfase.segundos) >= DESFASE_GRAVE_SEG ? "text-rojo" : "text-ambar"
+            }`}
+          >
+            🕐 {textoDesfase(desfase.segundos)}
+          </p>
+          <p className="text-sm text-taupe sm:text-base">
+            {Math.abs(desfase.segundos) >= DESFASE_GRAVE_SEG
+              ? "Con este desfase una marca puede caer en el día equivocado y pagarse en otra jornada."
+              : "Las tardanzas se miden por minuto: este desfase puede inventar o borrar una."}{" "}
+            Avisa a tu encargada para que corrijan la hora de esta Mac.
+          </p>
+        </div>
+      )}
 
       <main className="flex flex-1 flex-col items-center justify-center p-6">
         {pantalla === "lista" && (
@@ -553,17 +803,17 @@ export default function MarcarPage() {
               activa={sedeSeleccionada}
               onCambiar={setSedeSeleccionada}
             />
-            <NombreGrid roster={rosterFiltrado} onSeleccionar={seleccionarPersona} />
+            <NombreGrid
+              roster={rosterFiltrado}
+              estado={estadoRoster}
+              onSeleccionar={seleccionarPersona}
+              onReintentar={() => { setEstadoRoster("cargando"); void arrancar(); }}
+            />
           </div>
         )}
 
-        {pantalla === "pin" && personaActual && (
-          <TecladoPin
-            nombre={`${personaActual.nombres} ${personaActual.apellidos}`}
-            onCompletar={onPinCompletado}
-            onCancelar={volverALista}
-            error={errorPin}
-          />
+        {pantalla === "confirmando_estado" && personaActual && (
+          <Cargando texto={`Confirmando el estado de ${personaActual.nombres}…`} clase="font-serif text-2xl" />
         )}
 
         {pantalla === "elegir_salida" && personaActual && salidaConfig && (
@@ -572,6 +822,8 @@ export default function MarcarPage() {
             principal={salidaConfig.principal}
             secundaria={salidaConfig.secundaria}
             otras={salidaConfig.otras}
+            neutra={salidaConfig.neutra}
+            aviso={salidaConfig.aviso}
             onElegir={elegirTipoSalida}
             onCancelar={volverALista}
           />
@@ -592,6 +844,14 @@ export default function MarcarPage() {
 
         {pantalla === "motivo_otro" && (
           <FormularioMotivoOtro onConfirmar={confirmarMotivoOtro} onCancelar={volverALista} />
+        )}
+
+        {pantalla === "confirmar_refrigerio" && personaActual && (
+          <ConfirmarRefrigerio
+            nombre={`${personaActual.nombres} ${personaActual.apellidos}`}
+            onElegir={confirmarRefrigerio}
+            onCancelar={volverALista}
+          />
         )}
 
         {pantalla === "confirmando" && personaActual && accionPendiente && (

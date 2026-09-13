@@ -23,10 +23,17 @@
 // así que un día de descanso guardado como `{}` en vez de ausente habría contado
 // como trabajado. Las dos se unificaron el 2026-08-25.
 //
-// QUEDA UNA COPIA SIN UNIFICAR, y CLAUDE.md ya prohíbe una quinta:
-// `admin/turnos/page.tsx` (`horasDeTramo` y `celda`, para dibujar la grilla de
-// turnos). Antes de escribir una función nueva que responda «¿le tocaba
-// trabajar ese día?», usar ésta.
+// La cuarta copia (`admin/turnos/page.tsx`: `horasDeTramo` y la cascada dentro
+// de `celda`, para dibujar la grilla de turnos) se unificó el 2026-09-03. No
+// tenía un bug propio, pero sí una divergencia silenciosa: al cargar el tramo
+// de horario rellenaba `dias_laborables` con `[1,2,3,4,5]` cuando venía vacío,
+// un default que esta cascada nunca aplica. La columna es NOT NULL en
+// `horarios_asignados`, así que nunca disparaba — pero el día que alguien
+// insertara un tramo a mano sin esa columna, Turnos habría mostrado lunes a
+// viernes mientras el resto del sistema mostraba descanso todos los días.
+//
+// ANTES DE ESCRIBIR UNA QUINTA COPIA que responda «¿le tocaba trabajar ese
+// día?», usar ésta.
 
 export interface TurnoDia {
   hora_entrada: string | null;

@@ -89,10 +89,14 @@ export type Database = {
           enviado_at: string | null
           estado: string
           id: string
+          intentos: number
           leido_at: string | null
+          nota_fallo: string | null
           payload: Json
           persona_id: string | null
+          procesando_desde: string | null
           tipo: string
+          ultimo_intento_at: string | null
         }
         Insert: {
           canal: string
@@ -100,10 +104,14 @@ export type Database = {
           enviado_at?: string | null
           estado?: string
           id?: string
+          intentos?: number
           leido_at?: string | null
+          nota_fallo?: string | null
           payload?: Json
           persona_id?: string | null
+          procesando_desde?: string | null
           tipo: string
+          ultimo_intento_at?: string | null
         }
         Update: {
           canal?: string
@@ -111,10 +119,14 @@ export type Database = {
           enviado_at?: string | null
           estado?: string
           id?: string
+          intentos?: number
           leido_at?: string | null
+          nota_fallo?: string | null
           payload?: Json
           persona_id?: string | null
+          procesando_desde?: string | null
           tipo?: string
+          ultimo_intento_at?: string | null
         }
         Relationships: [
           {
@@ -126,6 +138,115 @@ export type Database = {
           },
           {
             foreignKeyName: "alertas_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      anuncios: {
+        Row: {
+          anulado_at: string | null
+          anulado_por: string | null
+          cuerpo: string
+          id: string
+          publicado_at: string
+          publicado_por: string
+          sede_id: string | null
+          titulo: string
+        }
+        Insert: {
+          anulado_at?: string | null
+          anulado_por?: string | null
+          cuerpo: string
+          id?: string
+          publicado_at?: string
+          publicado_por: string
+          sede_id?: string | null
+          titulo: string
+        }
+        Update: {
+          anulado_at?: string | null
+          anulado_por?: string | null
+          cuerpo?: string
+          id?: string
+          publicado_at?: string
+          publicado_por?: string
+          sede_id?: string | null
+          titulo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "anuncios_anulado_por_fkey"
+            columns: ["anulado_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "anuncios_anulado_por_fkey"
+            columns: ["anulado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "anuncios_publicado_por_fkey"
+            columns: ["publicado_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "anuncios_publicado_por_fkey"
+            columns: ["publicado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "anuncios_sede_id_fkey"
+            columns: ["sede_id"]
+            isOneToOne: false
+            referencedRelation: "sedes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      anuncios_leidos: {
+        Row: {
+          anuncio_id: string
+          leido_at: string
+          persona_id: string
+        }
+        Insert: {
+          anuncio_id: string
+          leido_at?: string
+          persona_id: string
+        }
+        Update: {
+          anuncio_id?: string
+          leido_at?: string
+          persona_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "anuncios_leidos_anuncio_id_fkey"
+            columns: ["anuncio_id"]
+            isOneToOne: false
+            referencedRelation: "anuncios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "anuncios_leidos_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "anuncios_leidos_persona_id_fkey"
             columns: ["persona_id"]
             isOneToOne: false
             referencedRelation: "terminal_roster"
@@ -556,6 +677,33 @@ export type Database = {
           },
         ]
       }
+      catalogo_campos_perfil: {
+        Row: {
+          campo: string
+          columnas: string[]
+          documento_sugerido: string | null
+          etiqueta: string
+          requiere_documento: boolean
+          solo_do: boolean
+        }
+        Insert: {
+          campo: string
+          columnas: string[]
+          documento_sugerido?: string | null
+          etiqueta: string
+          requiere_documento?: boolean
+          solo_do?: boolean
+        }
+        Update: {
+          campo?: string
+          columnas?: string[]
+          documento_sugerido?: string | null
+          etiqueta?: string
+          requiere_documento?: boolean
+          solo_do?: boolean
+        }
+        Relationships: []
+      }
       categorias_laborales: {
         Row: {
           actualizado_at: string
@@ -625,6 +773,150 @@ export type Database = {
         }
         Relationships: []
       }
+      confirmaciones_firma_contrato: {
+        Row: {
+          confirmada_at: string
+          contrato_id: string
+          id: string
+          imagen: string
+          persona_id: string
+        }
+        Insert: {
+          confirmada_at?: string
+          contrato_id: string
+          id?: string
+          imagen: string
+          persona_id: string
+        }
+        Update: {
+          confirmada_at?: string
+          contrato_id?: string
+          id?: string
+          imagen?: string
+          persona_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "confirmaciones_firma_contrato_contrato_id_fkey"
+            columns: ["contrato_id"]
+            isOneToOne: false
+            referencedRelation: "contratos_generados"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "confirmaciones_firma_contrato_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "confirmaciones_firma_contrato_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      consentimientos_datos_personales: {
+        Row: {
+          aceptado_at: string
+          finalidad: string
+          id: string
+          persona_id: string
+          texto: string
+        }
+        Insert: {
+          aceptado_at?: string
+          finalidad: string
+          id?: string
+          persona_id: string
+          texto: string
+        }
+        Update: {
+          aceptado_at?: string
+          finalidad?: string
+          id?: string
+          persona_id?: string
+          texto?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "consentimientos_datos_personales_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "consentimientos_datos_personales_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contrato_revisiones_pedidas: {
+        Row: {
+          atendida_at: string | null
+          atendida_por: string | null
+          id: string
+          motivo: string
+          pedida_at: string
+          persona_id: string
+          respuesta: string | null
+        }
+        Insert: {
+          atendida_at?: string | null
+          atendida_por?: string | null
+          id?: string
+          motivo: string
+          pedida_at?: string
+          persona_id: string
+          respuesta?: string | null
+        }
+        Update: {
+          atendida_at?: string | null
+          atendida_por?: string | null
+          id?: string
+          motivo?: string
+          pedida_at?: string
+          persona_id?: string
+          respuesta?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contrato_revisiones_pedidas_atendida_por_fkey"
+            columns: ["atendida_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contrato_revisiones_pedidas_atendida_por_fkey"
+            columns: ["atendida_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contrato_revisiones_pedidas_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contrato_revisiones_pedidas_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contratos_generados: {
         Row: {
           anulado_at: string | null
@@ -633,10 +925,15 @@ export type Database = {
           cargo: string
           comunicado_mtpe_at: string | null
           copia_entregada_at: string | null
+          datos_formulario: Json | null
           documento_html: string
+          editado_at: string | null
+          editado_por: string | null
           fecha_fin: string | null
           fecha_firma: string | null
           fecha_inicio: string
+          firma_persona: string | null
+          firma_persona_confirmada_at: string | null
           generado_at: string
           generado_por: string
           horas_semanales: number | null
@@ -655,10 +952,15 @@ export type Database = {
           cargo: string
           comunicado_mtpe_at?: string | null
           copia_entregada_at?: string | null
+          datos_formulario?: Json | null
           documento_html: string
+          editado_at?: string | null
+          editado_por?: string | null
           fecha_fin?: string | null
           fecha_firma?: string | null
           fecha_inicio: string
+          firma_persona?: string | null
+          firma_persona_confirmada_at?: string | null
           generado_at?: string
           generado_por: string
           horas_semanales?: number | null
@@ -677,10 +979,15 @@ export type Database = {
           cargo?: string
           comunicado_mtpe_at?: string | null
           copia_entregada_at?: string | null
+          datos_formulario?: Json | null
           documento_html?: string
+          editado_at?: string | null
+          editado_por?: string | null
           fecha_fin?: string | null
           fecha_firma?: string | null
           fecha_inicio?: string
+          firma_persona?: string | null
+          firma_persona_confirmada_at?: string | null
           generado_at?: string
           generado_por?: string
           horas_semanales?: number | null
@@ -703,6 +1010,20 @@ export type Database = {
           {
             foreignKeyName: "contratos_generados_anulado_por_fkey"
             columns: ["anulado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contratos_generados_editado_por_fkey"
+            columns: ["editado_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contratos_generados_editado_por_fkey"
+            columns: ["editado_por"]
             isOneToOne: false
             referencedRelation: "terminal_roster"
             referencedColumns: ["id"]
@@ -845,9 +1166,12 @@ export type Database = {
           entidad_bancaria: string | null
           estado_civil: string | null
           fecha_nacimiento: string | null
+          foto_dni_anverso_ruta: string | null
+          foto_dni_reverso_ruta: string | null
           foto_dni_url: string | null
           foto_personal_url: string | null
           foto_profesional_url: string | null
+          genero: string | null
           grado_instruccion: string | null
           hijos_menores: boolean | null
           nombre_dni: string | null
@@ -868,9 +1192,12 @@ export type Database = {
           entidad_bancaria?: string | null
           estado_civil?: string | null
           fecha_nacimiento?: string | null
+          foto_dni_anverso_ruta?: string | null
+          foto_dni_reverso_ruta?: string | null
           foto_dni_url?: string | null
           foto_personal_url?: string | null
           foto_profesional_url?: string | null
+          genero?: string | null
           grado_instruccion?: string | null
           hijos_menores?: boolean | null
           nombre_dni?: string | null
@@ -891,9 +1218,12 @@ export type Database = {
           entidad_bancaria?: string | null
           estado_civil?: string | null
           fecha_nacimiento?: string | null
+          foto_dni_anverso_ruta?: string | null
+          foto_dni_reverso_ruta?: string | null
           foto_dni_url?: string | null
           foto_personal_url?: string | null
           foto_profesional_url?: string | null
+          genero?: string | null
           grado_instruccion?: string | null
           hijos_menores?: boolean | null
           nombre_dni?: string | null
@@ -1155,12 +1485,20 @@ export type Database = {
           created_at: string
           es_negativa: boolean
           fecha_firma: string
+          firma_persona: string | null
+          firma_persona_confirmada_at: string | null
+          firma_persona_ip: string | null
+          firma_persona_user_agent: string | null
           id: string
           monto_declarado: number | null
           nota: string | null
           persona_id: string | null
           registrado_por: string
           ruta_declarada: string | null
+          ruta_distrito: string | null
+          ruta_medios_ida: number | null
+          ruta_medios_vuelta: number | null
+          ruta_provincia: string | null
           storage_path: string | null
           tipo: string
         }
@@ -1173,12 +1511,20 @@ export type Database = {
           created_at?: string
           es_negativa?: boolean
           fecha_firma: string
+          firma_persona?: string | null
+          firma_persona_confirmada_at?: string | null
+          firma_persona_ip?: string | null
+          firma_persona_user_agent?: string | null
           id?: string
           monto_declarado?: number | null
           nota?: string | null
           persona_id?: string | null
           registrado_por: string
           ruta_declarada?: string | null
+          ruta_distrito?: string | null
+          ruta_medios_ida?: number | null
+          ruta_medios_vuelta?: number | null
+          ruta_provincia?: string | null
           storage_path?: string | null
           tipo: string
         }
@@ -1191,12 +1537,20 @@ export type Database = {
           created_at?: string
           es_negativa?: boolean
           fecha_firma?: string
+          firma_persona?: string | null
+          firma_persona_confirmada_at?: string | null
+          firma_persona_ip?: string | null
+          firma_persona_user_agent?: string | null
           id?: string
           monto_declarado?: number | null
           nota?: string | null
           persona_id?: string | null
           registrado_por?: string
           ruta_declarada?: string | null
+          ruta_distrito?: string | null
+          ruta_medios_ida?: number | null
+          ruta_medios_vuelta?: number | null
+          ruta_provincia?: string | null
           storage_path?: string | null
           tipo?: string
         }
@@ -1495,6 +1849,8 @@ export type Database = {
           entregado_por: string | null
           estado: string
           fecha_cese: string | null
+          firma_sancionado: string | null
+          firma_sancionado_confirmada_at: string | null
           firmado_at: string | null
           firmante_id: string | null
           hechos: Json
@@ -1509,6 +1865,7 @@ export type Database = {
           resuelto_motivo: string | null
           resuelto_por: string | null
           resuelto_resultado: string | null
+          sancionado_rechazo_firma_at: string | null
           suspension_desde: string | null
           suspension_dias: number | null
           suspension_fechas: string[] | null
@@ -1530,6 +1887,8 @@ export type Database = {
           entregado_por?: string | null
           estado?: string
           fecha_cese?: string | null
+          firma_sancionado?: string | null
+          firma_sancionado_confirmada_at?: string | null
           firmado_at?: string | null
           firmante_id?: string | null
           hechos?: Json
@@ -1544,6 +1903,7 @@ export type Database = {
           resuelto_motivo?: string | null
           resuelto_por?: string | null
           resuelto_resultado?: string | null
+          sancionado_rechazo_firma_at?: string | null
           suspension_desde?: string | null
           suspension_dias?: number | null
           suspension_fechas?: string[] | null
@@ -1565,6 +1925,8 @@ export type Database = {
           entregado_por?: string | null
           estado?: string
           fecha_cese?: string | null
+          firma_sancionado?: string | null
+          firma_sancionado_confirmada_at?: string | null
           firmado_at?: string | null
           firmante_id?: string | null
           hechos?: Json
@@ -1579,6 +1941,7 @@ export type Database = {
           resuelto_motivo?: string | null
           resuelto_por?: string | null
           resuelto_resultado?: string | null
+          sancionado_rechazo_firma_at?: string | null
           suspension_desde?: string | null
           suspension_dias?: number | null
           suspension_fechas?: string[] | null
@@ -1801,18 +2164,24 @@ export type Database = {
       firmas_escaneadas: {
         Row: {
           actualizado_at: string
+          estilo: string | null
           imagen: string
           persona_id: string
+          tipo: string
         }
         Insert: {
           actualizado_at?: string
+          estilo?: string | null
           imagen: string
           persona_id: string
+          tipo?: string
         }
         Update: {
           actualizado_at?: string
+          estilo?: string | null
           imagen?: string
           persona_id?: string
+          tipo?: string
         }
         Relationships: [
           {
@@ -2181,6 +2550,7 @@ export type Database = {
           anulada_motivo: string | null
           anulada_por: string | null
           client_uuid: string
+          confirmo_sin_refrigerio: boolean | null
           estado_revision: Database["public"]["Enums"]["estado_revision"]
           fecha_jornada: string | null
           id: string
@@ -2198,6 +2568,7 @@ export type Database = {
           anulada_motivo?: string | null
           anulada_por?: string | null
           client_uuid: string
+          confirmo_sin_refrigerio?: boolean | null
           estado_revision?: Database["public"]["Enums"]["estado_revision"]
           fecha_jornada?: string | null
           id?: string
@@ -2215,6 +2586,7 @@ export type Database = {
           anulada_motivo?: string | null
           anulada_por?: string | null
           client_uuid?: string
+          confirmo_sin_refrigerio?: boolean | null
           estado_revision?: Database["public"]["Enums"]["estado_revision"]
           fecha_jornada?: string | null
           id?: string
@@ -2401,6 +2773,65 @@ export type Database = {
           numero?: number
         }
         Relationships: []
+      }
+      movilidad_revisiones_pedidas: {
+        Row: {
+          atendida_at: string | null
+          atendida_por: string | null
+          id: string
+          motivo: string
+          pedida_at: string
+          persona_id: string
+          respuesta: string | null
+        }
+        Insert: {
+          atendida_at?: string | null
+          atendida_por?: string | null
+          id?: string
+          motivo: string
+          pedida_at?: string
+          persona_id: string
+          respuesta?: string | null
+        }
+        Update: {
+          atendida_at?: string | null
+          atendida_por?: string | null
+          id?: string
+          motivo?: string
+          pedida_at?: string
+          persona_id?: string
+          respuesta?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "movilidad_revisiones_pedidas_atendida_por_fkey"
+            columns: ["atendida_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "movilidad_revisiones_pedidas_atendida_por_fkey"
+            columns: ["atendida_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "movilidad_revisiones_pedidas_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "movilidad_revisiones_pedidas_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       movimientos_planilla: {
         Row: {
@@ -2727,6 +3158,7 @@ export type Database = {
           fecha_estado_cambio: string | null
           fecha_fin_contrato: string | null
           fecha_ingreso: string
+          foto_url: string | null
           funcion: string
           id: string
           motivo_cese: string | null
@@ -2768,6 +3200,7 @@ export type Database = {
           fecha_estado_cambio?: string | null
           fecha_fin_contrato?: string | null
           fecha_ingreso?: string
+          foto_url?: string | null
           funcion?: string
           id?: string
           motivo_cese?: string | null
@@ -2809,6 +3242,7 @@ export type Database = {
           fecha_estado_cambio?: string | null
           fecha_fin_contrato?: string | null
           fecha_ingreso?: string
+          foto_url?: string | null
           funcion?: string
           id?: string
           motivo_cese?: string | null
@@ -3345,6 +3779,159 @@ export type Database = {
         }
         Relationships: []
       }
+      seguimiento_planilla_por_solicitud: {
+        Row: {
+          campo: string
+          creada_at: string
+          descripcion: string
+          estado: string
+          id: string
+          nota: string | null
+          persona_id: string
+          resuelta_at: string | null
+          resuelta_por: string | null
+          solicitud_id: string
+        }
+        Insert: {
+          campo: string
+          creada_at?: string
+          descripcion: string
+          estado?: string
+          id?: string
+          nota?: string | null
+          persona_id: string
+          resuelta_at?: string | null
+          resuelta_por?: string | null
+          solicitud_id: string
+        }
+        Update: {
+          campo?: string
+          creada_at?: string
+          descripcion?: string
+          estado?: string
+          id?: string
+          nota?: string | null
+          persona_id?: string
+          resuelta_at?: string | null
+          resuelta_por?: string | null
+          solicitud_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "seguimiento_planilla_por_solicitud_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "seguimiento_planilla_por_solicitud_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "seguimiento_planilla_por_solicitud_resuelta_por_fkey"
+            columns: ["resuelta_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "seguimiento_planilla_por_solicitud_resuelta_por_fkey"
+            columns: ["resuelta_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "seguimiento_planilla_por_solicitud_solicitud_id_fkey"
+            columns: ["solicitud_id"]
+            isOneToOne: true
+            referencedRelation: "solicitudes_cambio_perfil"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      solicitudes_cambio_perfil: {
+        Row: {
+          campo: string
+          creada_at: string
+          estado: string
+          id: string
+          motivo: string | null
+          persona_id: string
+          resuelta_at: string | null
+          resuelta_por: string | null
+          rutas_adjuntas: string[]
+          valor_anterior: Json
+          valor_propuesto: Json
+        }
+        Insert: {
+          campo: string
+          creada_at?: string
+          estado?: string
+          id?: string
+          motivo?: string | null
+          persona_id: string
+          resuelta_at?: string | null
+          resuelta_por?: string | null
+          rutas_adjuntas?: string[]
+          valor_anterior: Json
+          valor_propuesto: Json
+        }
+        Update: {
+          campo?: string
+          creada_at?: string
+          estado?: string
+          id?: string
+          motivo?: string | null
+          persona_id?: string
+          resuelta_at?: string | null
+          resuelta_por?: string | null
+          rutas_adjuntas?: string[]
+          valor_anterior?: Json
+          valor_propuesto?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "solicitudes_cambio_perfil_campo_fkey"
+            columns: ["campo"]
+            isOneToOne: false
+            referencedRelation: "catalogo_campos_perfil"
+            referencedColumns: ["campo"]
+          },
+          {
+            foreignKeyName: "solicitudes_cambio_perfil_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "solicitudes_cambio_perfil_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "solicitudes_cambio_perfil_resuelta_por_fkey"
+            columns: ["resuelta_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "solicitudes_cambio_perfil_resuelta_por_fkey"
+            columns: ["resuelta_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       solicitudes_vacaciones: {
         Row: {
           ausencia_id: string | null
@@ -3813,9 +4400,9 @@ export type Database = {
       terminal_roster: {
         Row: {
           apellidos: string | null
+          foto_url: string | null
           id: string | null
           nombres: string | null
-          pin_hash: string | null
           sede_codigo: string | null
           sede_nombre: string | null
         }
@@ -4060,6 +4647,10 @@ export type Database = {
           tiene_archivo: boolean
         }[]
       }
+      fn_actualizar_foto_perfil: {
+        Args: { p_foto_url: string | null; p_persona_id: string | null }
+        Returns: undefined
+      }
       fn_acusar_documento: {
         Args: { p_documento_id: string | null; p_nombre_declarado: string | null }
         Returns: undefined
@@ -4090,6 +4681,7 @@ export type Database = {
           anulada_motivo: string | null
           anulada_por: string | null
           client_uuid: string
+          confirmo_sin_refrigerio: boolean | null
           estado_revision: Database["public"]["Enums"]["estado_revision"]
           fecha_jornada: string | null
           id: string
@@ -4122,6 +4714,32 @@ export type Database = {
         Returns: undefined
       }
       fn_ahora_servidor: { Args: never; Returns: string }
+      fn_alerta_despachable: {
+        Args: {
+          p_created_at: string | null
+          p_estado: string | null
+          p_intentos: number | null
+          p_procesando_desde: string | null
+        }
+        Returns: boolean
+      }
+      fn_alertas_despacho_resumen: { Args: never; Returns: Json }
+      fn_alertas_email_pendientes: {
+        Args: never
+        Returns: {
+          alerta_id: string
+          destinatarios: string[]
+          destinatarios_nombres: string[]
+          estado_previo: string
+          intentos: number
+          payload: Json
+          persona_nombre: string
+          sede_codigo: string
+          tipo: string
+        }[]
+      }
+      fn_alertas_reservar: { Args: { p_id: string | null }; Returns: boolean }
+      fn_anular_anuncio: { Args: { p_id: string | null }; Returns: undefined }
       fn_anular_ausencia: {
         Args: { p_id: string | null; p_motivo: string | null }
         Returns: undefined
@@ -4133,6 +4751,7 @@ export type Database = {
           anulada_motivo: string | null
           anulada_por: string | null
           client_uuid: string
+          confirmo_sin_refrigerio: boolean | null
           estado_revision: Database["public"]["Enums"]["estado_revision"]
           fecha_jornada: string | null
           id: string
@@ -4152,6 +4771,25 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      fn_anuncios_vigentes: {
+        Args: { p_incluir_anulados?: boolean | null }
+        Returns: {
+          anulado_at: string
+          cuerpo: string
+          id: string
+          mi_leido_at: string
+          publicado_at: string
+          publicado_por_nombre: string
+          sede_codigo: string
+          sede_id: string
+          titulo: string
+          total_lectores: number
+        }[]
+      }
+      fn_aplicar_cambio_perfil: {
+        Args: { p_solicitud_id: string | null }
+        Returns: undefined
+      }
       fn_aprobar_ausencia: { Args: { p_id: string | null }; Returns: undefined }
       fn_area_activa: {
         Args: { p_activa: boolean | null; p_codigo: string | null }
@@ -4159,6 +4797,14 @@ export type Database = {
       }
       fn_areas: { Args: never; Returns: Json }
       fn_atender_revision: {
+        Args: { p_id: string | null; p_respuesta: string | null }
+        Returns: undefined
+      }
+      fn_atender_revision_contrato: {
+        Args: { p_id: string | null; p_respuesta: string | null }
+        Returns: undefined
+      }
+      fn_atender_revision_movilidad: {
         Args: { p_id: string | null; p_respuesta: string | null }
         Returns: undefined
       }
@@ -4246,6 +4892,12 @@ export type Database = {
         Args: { p_anio: number | null; p_persona_id: string | null; p_ventana: string | null }
         Returns: number
       }
+      fn_borrar_dni_de: {
+        Args: { p_motivo: string | null; p_persona_id: string | null }
+        Returns: {
+          ruta: string
+        }[]
+      }
       fn_cambiar_regimen_pension: {
         Args: {
           p_desde: string | null
@@ -4284,6 +4936,7 @@ export type Database = {
           anulada_motivo: string | null
           anulada_por: string | null
           client_uuid: string
+          confirmo_sin_refrigerio: boolean | null
           estado_revision: Database["public"]["Enums"]["estado_revision"]
           fecha_jornada: string | null
           id: string
@@ -4303,9 +4956,35 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      fn_confirmar_mi_declaracion_ruta: {
+        Args: {
+          p_distrito: string | null
+          p_medios_ida: number | null
+          p_medios_vuelta: number | null
+          p_provincia: string | null
+        }
+        Returns: string
+      }
+      fn_confirmar_mi_firma_contrato: {
+        Args: { p_contrato_id: string | null }
+        Returns: undefined
+      }
       fn_contrato_anular: {
         Args: { p_id: string | null; p_motivo: string | null }
         Returns: undefined
+      }
+      fn_contrato_editar: {
+        Args: {
+          p_cargo?: string | null
+          p_datos_formulario?: Json | null
+          p_documento_html?: string | null
+          p_fecha_fin?: string | null
+          p_fecha_inicio?: string | null
+          p_id?: string | null
+          p_remuneracion_mensual?: number | null
+          p_tipo?: string | null
+        }
+        Returns: string
       }
       fn_contrato_firmado_vigente_de: {
         Args: { p_persona_id: string | null }
@@ -4316,10 +4995,15 @@ export type Database = {
           cargo: string
           comunicado_mtpe_at: string | null
           copia_entregada_at: string | null
+          datos_formulario: Json | null
           documento_html: string
+          editado_at: string | null
+          editado_por: string | null
           fecha_fin: string | null
           fecha_firma: string | null
           fecha_inicio: string
+          firma_persona: string | null
+          firma_persona_confirmada_at: string | null
           generado_at: string
           generado_por: string
           horas_semanales: number | null
@@ -4354,6 +5038,7 @@ export type Database = {
       fn_contrato_registrar: {
         Args: {
           p_cargo?: string | null
+          p_datos_formulario?: Json | null
           p_documento_html?: string | null
           p_fecha_fin?: string | null
           p_fecha_firma?: string | null
@@ -4367,6 +5052,10 @@ export type Database = {
           p_tipo?: string | null
         }
         Returns: string
+      }
+      fn_contrato_revisiones_pedidas: {
+        Args: { p_solo_pendientes?: boolean | null }
+        Returns: Json
       }
       fn_contratos_desnaturalizados: {
         Args: never
@@ -4388,9 +5077,12 @@ export type Database = {
           cargo: string
           comunicado_mtpe_at: string
           copia_entregada_at: string
+          editado_at: string
+          editado_por: string
           fecha_fin: string
           fecha_firma: string
           fecha_inicio: string
+          firma_persona_confirmada_at: string
           generado_at: string
           generado_por: string
           horas_semanales: number
@@ -4446,6 +5138,7 @@ export type Database = {
           anulada_motivo: string | null
           anulada_por: string | null
           client_uuid: string
+          confirmo_sin_refrigerio: boolean | null
           estado_revision: Database["public"]["Enums"]["estado_revision"]
           fecha_jornada: string | null
           id: string
@@ -4472,6 +5165,7 @@ export type Database = {
           anulada_motivo: string | null
           anulada_por: string | null
           client_uuid: string
+          confirmo_sin_refrigerio: boolean | null
           estado_revision: Database["public"]["Enums"]["estado_revision"]
           fecha_jornada: string | null
           id: string
@@ -4511,6 +5205,14 @@ export type Database = {
         }
         Returns: Json
       }
+      fn_crear_solicitud_perfil: {
+        Args: {
+          p_campo: string | null
+          p_rutas_adjuntas?: string[] | null
+          p_valor_propuesto: Json | null
+        }
+        Returns: string
+      }
       fn_cts_trunca: {
         Args: { p_fecha_cese: string | null; p_persona_id: string | null }
         Returns: Json
@@ -4543,6 +5245,7 @@ export type Database = {
         Returns: {
           fecha: string
           marcas: number
+          motivo: string
           nombre: string
           periodo_pagado: boolean
           persona_id: string
@@ -4595,6 +5298,7 @@ export type Database = {
           anulado_motivo: string
           es_negativa: boolean
           fecha_firma: string
+          firma_persona: string
           id: string
           monto_declarado: number
           nota: string
@@ -4602,13 +5306,17 @@ export type Database = {
           persona_id: string
           registrado_por: string
           ruta_declarada: string
+          ruta_distrito: string
+          ruta_medios_ida: number
+          ruta_medios_vuelta: number
+          ruta_provincia: string
           storage_path: string
           tipo: string
           vigente: boolean
         }[]
       }
       fn_documentos_tablero: {
-        Args: never
+        Args: { p_solo_mi_fila?: boolean | null }
         Returns: {
           bono_anio: number
           bono_estado: string
@@ -4620,10 +5328,12 @@ export type Database = {
           persona: string
           persona_id: string
           ruta_desfasada: boolean
+          ruta_firma_persona_confirmada_at: string
           ruta_firmada_el: string
           ruta_id: string
           ruta_monto: number
           ruta_negativa: boolean
+          ruta_tarifa_vigente: number
           sede: string
         }[]
       }
@@ -4806,6 +5516,10 @@ export type Database = {
         Args: { p_id: string | null; p_motivo: string | null }
         Returns: undefined
       }
+      fn_expediente_cerrar_sin_entrega: {
+        Args: { p_id: string | null; p_motivo?: string | null }
+        Returns: undefined
+      }
       fn_expediente_comunicar_cargos: {
         Args: { p_dias?: number | null; p_id: string | null; p_nota?: string | null }
         Returns: string
@@ -4961,6 +5675,10 @@ export type Database = {
         Args: { p_fecha: string | null; p_persona_id: string | null }
         Returns: boolean
       }
+      fn_fecha_limite_asistencia: {
+        Args: { p_persona_id: string | null }
+        Returns: string
+      }
       fn_feriado_devengado: {
         Args: {
           p_desde: string | null
@@ -5023,6 +5741,7 @@ export type Database = {
         }[]
       }
       fn_firma_de_memo: { Args: { p_doc_id: string | null }; Returns: string }
+      fn_firma_empresa: { Args: never; Returns: string }
       fn_firma_persona: { Args: { p_persona_id: string | null }; Returns: string }
       fn_firmantes_disponibles: {
         Args: never
@@ -5030,6 +5749,19 @@ export type Database = {
           id: string
           nombre: string
         }[]
+      }
+      fn_firmar_memo_como_sancionado: {
+        Args: { p_id: string | null }
+        Returns: undefined
+      }
+      fn_foto_perfil_puede_escribir: {
+        Args: { p_path: string | null }
+        Returns: boolean
+      }
+      fn_generar_alertas_vencimiento: { Args: never; Returns: number }
+      fn_grati_cts_agregar_pendientes: {
+        Args: { p_periodo_id: string | null }
+        Returns: Json
       }
       fn_grati_cts_periodo: { Args: { p_periodo_id: string | null }; Returns: Json }
       fn_grati_trunca: {
@@ -5050,7 +5782,13 @@ export type Database = {
         Returns: undefined
       }
       fn_guardar_sede: {
-        Args: { p_codigo: string | null; p_nombre: string | null; p_tipo?: string | null }
+        Args: {
+          p_codigo: string | null
+          p_es_alta?: boolean | null
+          p_id?: string | null
+          p_nombre: string | null
+          p_tipo?: string | null
+        }
         Returns: undefined
       }
       fn_historial_salario: {
@@ -5162,6 +5900,11 @@ export type Database = {
         Args: { p_id: string | null; p_motivo: string | null; p_resolucion: string | null }
         Returns: Json
       }
+      fn_marcar_alerta_resultado: {
+        Args: { p_exito: boolean | null; p_id: string | null; p_nota?: string | null }
+        Returns: undefined
+      }
+      fn_marcar_anuncio_leido: { Args: { p_id: string | null }; Returns: undefined }
       fn_marcas_apartadas: {
         Args: never
         Returns: {
@@ -5181,6 +5924,18 @@ export type Database = {
         Args: { p_client_uuids: string[] | null }
         Returns: string[]
       }
+      fn_memos_recientes_respuesta_sancionado: {
+        Args: { p_dias?: number | null }
+        Returns: {
+          correlativo: string
+          firmado_at: string
+          id: string
+          nivel: string
+          persona: string
+          rechazado_at: string
+          tipo_causal: string
+        }[]
+      }
       fn_mes_planilla_pagado: {
         Args: { p_anio: number | null; p_mes: number | null }
         Returns: boolean
@@ -5193,6 +5948,45 @@ export type Database = {
         }[]
       }
       fn_mi_firma: { Args: never; Returns: string }
+      fn_mi_firma_config: {
+        Args: never
+        Returns: {
+          estilo: string
+          imagen: string
+          tipo: string
+        }[]
+      }
+      fn_mis_memos: {
+        Args: never
+        Returns: {
+          correlativo: string
+          entregado_at: string
+          firma_sancionado_confirmada_at: string
+          id: string
+          medio_entrega: string
+          nivel: string
+          sancionado_rechazo_firma_at: string
+          tipo_causal: string
+        }[]
+      }
+      fn_mis_solicitudes_perfil: {
+        Args: never
+        Returns: {
+          campo: string
+          creada_at: string
+          estado: string
+          etiqueta: string
+          id: string
+          motivo: string
+          resuelta_at: string
+          valor_anterior: Json
+          valor_propuesto: Json
+        }[]
+      }
+      fn_movilidad_revisiones_pedidas: {
+        Args: { p_solo_pendientes?: boolean | null }
+        Returns: Json
+      }
       fn_objetivo_agregar: {
         Args: {
           p_anio: number | null
@@ -5220,6 +6014,19 @@ export type Database = {
         Args: { p_anio: number | null; p_mes: number | null; p_persona_id?: string | null }
         Returns: Json
       }
+      fn_objetivos_copiar_mes_anterior: {
+        Args: { p_anio: number | null; p_mes: number | null; p_persona_id: string | null }
+        Returns: Json
+      }
+      fn_objetivos_historial: {
+        Args: {
+          p_anio: number | null
+          p_mes: number | null
+          p_meses?: number | null
+          p_persona_id: string | null
+        }
+        Returns: Json
+      }
       fn_objetivos_resumen: {
         Args: { p_anio: number | null; p_mes: number | null }
         Returns: Json
@@ -5239,8 +6046,17 @@ export type Database = {
         }
         Returns: string
       }
+      fn_papeles_cese: { Args: { p_persona_id: string | null }; Returns: Json }
       fn_pedir_revision: {
         Args: { p_comentario: string | null; p_fecha: string | null }
+        Returns: undefined
+      }
+      fn_pedir_revision_contrato: {
+        Args: { p_motivo: string | null }
+        Returns: undefined
+      }
+      fn_pedir_revision_movilidad: {
+        Args: { p_motivo: string | null }
         Returns: undefined
       }
       fn_periodo_grupos_estado: {
@@ -5267,7 +6083,28 @@ export type Database = {
         Args: { p_persona_id: string | null }
         Returns: boolean
       }
+      fn_persona_le_corresponde_movilidad: {
+        Args: { p_persona_id: string | null }
+        Returns: boolean
+      }
+      fn_persona_liquidada: { Args: { p_persona_id: string | null }; Returns: boolean }
+      fn_persona_marca_en_sede: {
+        Args: { p_persona_id: string | null; p_sede_id: string | null }
+        Returns: boolean
+      }
       fn_personas_funciones: { Args: never; Returns: Json }
+      fn_personas_sin_horario_vigente: {
+        Args: { p_dias?: number | null }
+        Returns: {
+          dias: number
+          nombre: string
+          nunca_tuvo_horario: boolean
+          persona_id: string
+          primer_dia: string
+          sede: string
+          ultimo_dia: string
+        }[]
+      }
       fn_planilla_calcular: {
         Args: { p_fin: string | null; p_ini: string | null; p_periodo_id?: string | null }
         Returns: Json
@@ -5314,6 +6151,10 @@ export type Database = {
       fn_proyeccion_planilla: {
         Args: { p_anio: number | null; p_mes: number | null }
         Returns: Json
+      }
+      fn_publicar_anuncio: {
+        Args: { p_cuerpo: string | null; p_sede_id?: string | null; p_titulo: string | null }
+        Returns: string
       }
       fn_publicar_documento: {
         Args: {
@@ -5376,6 +6217,7 @@ export type Database = {
           anulada_motivo: string | null
           anulada_por: string | null
           client_uuid: string
+          confirmo_sin_refrigerio: boolean | null
           estado_revision: Database["public"]["Enums"]["estado_revision"]
           fecha_jornada: string | null
           id: string
@@ -5403,6 +6245,8 @@ export type Database = {
         Args: { p_fecha: string | null; p_persona_id: string | null }
         Returns: undefined
       }
+      fn_rechazar_firma_memo: { Args: { p_id: string | null }; Returns: undefined }
+      fn_regenerar_pin: { Args: { p_persona_id: string | null }; Returns: string }
       fn_regimen_pension_divergentes: {
         Args: never
         Returns: {
@@ -5456,6 +6300,7 @@ export type Database = {
       fn_registrar_marcaje: {
         Args: {
           p_client_uuid: string | null
+          p_confirmo_sin_refrigerio?: boolean | null
           p_motivo_otro?: string | null
           p_origen?: Database["public"]["Enums"]["origen_marca"] | null
           p_persona_id: string | null
@@ -5469,6 +6314,7 @@ export type Database = {
           anulada_motivo: string | null
           anulada_por: string | null
           client_uuid: string
+          confirmo_sin_refrigerio: boolean | null
           estado_revision: Database["public"]["Enums"]["estado_revision"]
           fecha_jornada: string | null
           id: string
@@ -5488,6 +6334,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      fn_registrar_mi_consentimiento: {
+        Args: { p_finalidad: string | null; p_texto: string | null }
+        Returns: undefined
+      }
       fn_reglamento_no_acusado: {
         Args: { p_fecha: string | null; p_persona_id: string | null }
         Returns: string
@@ -5506,6 +6356,14 @@ export type Database = {
       }
       fn_resellar_dia: {
         Args: { p_fecha: string | null; p_persona_id: string | null }
+        Returns: undefined
+      }
+      fn_resolver_seguimiento_planilla: {
+        Args: { p_id: string | null; p_nota?: string | null }
+        Returns: undefined
+      }
+      fn_resolver_solicitud_perfil: {
+        Args: { p_aprobar: boolean | null; p_id: string | null; p_motivo?: string | null }
         Returns: undefined
       }
       fn_resolver_solicitud_vacaciones: {
@@ -5557,54 +6415,31 @@ export type Database = {
         Args: { p_con_hijos: boolean | null; p_persona_id: string | null }
         Returns: undefined
       }
-      fn_set_datos_personales:
-        | {
-            Args: {
-              p_celular?: string | null
-              p_direccion?: string | null
-              p_discapacidad?: boolean | null
-              p_discapacidad_conadis?: string | null
-              p_emergencia_nombre?: string | null
-              p_emergencia_telefono?: string | null
-              p_emergencia_vinculo?: string | null
-              p_entidad_bancaria?: string | null
-              p_estado_civil?: string | null
-              p_fecha_nacimiento?: string | null
-              p_foto_dni_url?: string | null
-              p_foto_personal_url?: string | null
-              p_foto_profesional_url?: string | null
-              p_grado_instruccion?: string | null
-              p_hijos_menores?: boolean | null
-              p_nombre_dni?: string | null
-              p_numero_cuenta?: string | null
-              p_persona_id: string | null
-            }
-            Returns: undefined
-          }
-        | {
-            Args: {
-              p_celular?: string | null
-              p_cuspp?: string | null
-              p_direccion?: string | null
-              p_discapacidad?: boolean | null
-              p_discapacidad_conadis?: string | null
-              p_emergencia_nombre?: string | null
-              p_emergencia_telefono?: string | null
-              p_emergencia_vinculo?: string | null
-              p_entidad_bancaria?: string | null
-              p_estado_civil?: string | null
-              p_fecha_nacimiento?: string | null
-              p_foto_dni_url?: string | null
-              p_foto_personal_url?: string | null
-              p_foto_profesional_url?: string | null
-              p_grado_instruccion?: string | null
-              p_hijos_menores?: boolean | null
-              p_nombre_dni?: string | null
-              p_numero_cuenta?: string | null
-              p_persona_id: string | null
-            }
-            Returns: undefined
-          }
+      fn_set_datos_personales: {
+        Args: {
+          p_celular?: string | null
+          p_cuspp?: string | null
+          p_direccion?: string | null
+          p_discapacidad?: boolean | null
+          p_discapacidad_conadis?: string | null
+          p_emergencia_nombre?: string | null
+          p_emergencia_telefono?: string | null
+          p_emergencia_vinculo?: string | null
+          p_entidad_bancaria?: string | null
+          p_estado_civil?: string | null
+          p_fecha_nacimiento?: string | null
+          p_foto_dni_url?: string | null
+          p_foto_personal_url?: string | null
+          p_foto_profesional_url?: string | null
+          p_genero?: string | null
+          p_grado_instruccion?: string | null
+          p_hijos_menores?: boolean | null
+          p_nombre_dni?: string | null
+          p_numero_cuenta?: string | null
+          p_persona_id: string | null
+        }
+        Returns: undefined
+      }
       fn_set_derechohabiente: {
         Args: {
           p_apellidos: string | null
@@ -5656,6 +6491,10 @@ export type Database = {
         Args: { p_fecha: string | null; p_motivo?: string | null; p_persona_id: string | null }
         Returns: undefined
       }
+      fn_set_fin_contrato_nucleo: {
+        Args: { p_fecha: string | null; p_motivo: string | null; p_persona_id: string | null }
+        Returns: undefined
+      }
       fn_set_funcion: {
         Args: { p_funcion: string | null; p_persona_id: string | null }
         Returns: undefined
@@ -5691,7 +6530,10 @@ export type Database = {
         Args: { p_dia_semana: number | null; p_meta: number | null; p_sede_id: string | null }
         Returns: undefined
       }
-      fn_set_mi_firma: { Args: { p_dataurl: string | null }; Returns: undefined }
+      fn_set_mi_firma: {
+        Args: { p_dataurl: string | null; p_estilo?: string | null; p_tipo?: string | null }
+        Returns: undefined
+      }
       fn_set_objetivos: {
         Args: {
           p_anio: number | null
@@ -5794,6 +6636,10 @@ export type Database = {
           persona_id: string
         }[]
       }
+      fn_snapshot_valor_actual: {
+        Args: { p_campo: string | null; p_persona_id: string | null }
+        Returns: Json
+      }
       fn_solicitar_vacaciones: {
         Args: {
           p_comentario?: string | null
@@ -5801,6 +6647,34 @@ export type Database = {
           p_fecha_inicio: string | null
         }
         Returns: string
+      }
+      fn_solicitud_perfil_puede_escribir: {
+        Args: { p_path: string | null }
+        Returns: boolean
+      }
+      fn_solicitud_perfil_puede_leer: {
+        Args: { p_path: string | null }
+        Returns: boolean
+      }
+      fn_solicitud_perfil_ruta_congelada: {
+        Args: { p_path: string | null }
+        Returns: boolean
+      }
+      fn_solicitudes_perfil_pendientes: {
+        Args: never
+        Returns: {
+          campo: string
+          creada_at: string
+          etiqueta: string
+          id: string
+          nombre: string
+          persona_id: string
+          rutas_adjuntas: string[]
+          sede: string
+          solo_do: boolean
+          valor_anterior: Json
+          valor_propuesto: Json
+        }[]
       }
       fn_solicitudes_vacaciones: {
         Args: { p_solo_pendientes?: boolean | null }
@@ -5914,9 +6788,17 @@ export type Database = {
         Args: { p_as_of?: string | null; p_persona_id: string | null }
         Returns: Json
       }
+      fn_vacaciones_saldo_interno: {
+        Args: { p_as_of?: string | null; p_persona_id: string | null }
+        Returns: Json
+      }
       fn_vacaciones_truncas: {
         Args: { p_fecha_cese: string | null; p_persona_id: string | null }
         Returns: Json
+      }
+      fn_validar_valor_propuesto: {
+        Args: { p_campo: string | null; p_valor: Json | null }
+        Returns: undefined
       }
       fn_ventanas_de_regularidad: {
         Args: { p_fecha: string | null }

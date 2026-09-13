@@ -5,12 +5,17 @@ import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { AREA_DEFAULT, AREAS_FALLBACK, parseAreas, areaCorto, esOperativaEn, type Area } from "@/lib/areas";
-import { AdminNav } from "../nav";
 import { Cargando, SinDatos } from "@/components/cargando";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
 import { useToast } from "@/components/toast";
+import { Boton } from "@/components/ui/boton";
+import { Campo, CampoSelect } from "@/components/ui/campo";
+import { Insignia } from "@/components/ui/insignia";
+import { Modal } from "@/components/ui/modal";
 import { hoyLima, puedeOperarEquipo, puedeVerTodasLasSedes } from "@cayla-dynamic/shared";
+import { esperadoDelDia, horarioVigente, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
+import { cicloVigente, type DiaTrabajado } from "@/lib/admin/ciclo-sobretiempo";
 
 // ── Fechas (todo en ISO yyyy-mm-dd, semana de lunes a domingo) ──────────────
 function parseISO(iso: string): Date {
@@ -42,15 +47,12 @@ function etiquetaDia(iso: string): { abr: string; num: string } {
 }
 
 interface Persona { id: string; nombres: string; apellidos: string; rol: string; funcion: string; esEncargadaPiso: boolean; }
-interface Horario { hora_entrada: string; hora_salida: string; dias_laborables: number[]; horario_por_dia: Record<string, { e: string; s: string; r?: number }> | null; vigente_desde: string; vigente_hasta: string | null; }
-// De los tramos de una persona, el vigente en `fecha` (mismo criterio que fn_recalcular_jornada).
-function tramoVigente(lista: Horario[] | undefined, fecha: string): Horario | undefined {
-  if (!lista) return undefined;
-  return lista
-    .filter((h) => h.vigente_desde <= fecha && (h.vigente_hasta == null || h.vigente_hasta >= fecha))
-    .sort((a, b) => (a.vigente_desde < b.vigente_desde ? 1 : -1))[0];
-}
-interface Turno { es_descanso: boolean; hora_entrada: string | null; hora_salida: string | null; }
+// El tramo de horario y "quién le tocaba trabajar ese día" viven en
+// jornada-esperada.ts — es la misma cascada que usa el backend
+// (fn_recalcular_jornada) y que ya adoptaron incidencias/horas/correcciones.
+// Escribir una copia acá sería exactamente la quinta que CLAUDE.md prohíbe.
+type Horario = HorarioTramo;
+type Turno = TurnoDia;
 interface Sede { id: string; codigo: string; nombre: string }
 
 type Celda =
@@ -88,17 +90,28 @@ const inicioFranja = (i: number) => HORA_INICIO_SEMANA + i * 0.5;
 function pctEnRango(horaDec: number): number {
   return Math.min(100, Math.max(0, ((horaDec - HORA_INICIO) / (HORA_FIN - HORA_INICIO)) * 100));
 }
-// Rojo (#b8412d) → Verde (#5f7a52) según qué tan cerca está de la meta; a partir
-// de la meta queda verde sólido (el excedente ya no necesita más degradado).
-// Sin meta no hay contra qué medir: taupe neutro, no rojo (el rojo sin
-// significado solo mete ruido de alarma).
-const ROJO_RGB: [number, number, number] = [184, 65, 45];
-const VERDE_RGB: [number, number, number] = [95, 122, 82];
+// Rojo → Verde según qué tan cerca está de la meta; a partir de la meta queda
+// verde sólido (el excedente ya no necesita más degradado). Sin meta no hay
+// contra qué medir: taupe neutro, no rojo (el rojo sin significado solo mete
+// ruido de alarma).
+//
+// `color-mix()` en vez de interpolar RGB a mano: antes esto devolvía un
+// `rgb(...)` fijo que JS calculaba una sola vez y que NUNCA cambiaba con el
+// tema, mientras que el texto de encima sí seguía `var(--color-crema)` —así
+// que en oscuro el texto se volvía casi negro sobre un fondo que seguía
+// siendo el rojo/verde de tema claro: 3.17:1 en el extremo rojo y 3.63:1 en
+// el verde, los dos por debajo del 4.5:1 que exige WCAG AA para texto de
+// 10-11px (medido 2026-09-07). Con `var(--color-rojo)`/`var(--color-verde)`
+// el navegador resuelve el color con los valores del tema activo en cada
+// pintado: en oscuro esos tokens son más claros a propósito, y el texto
+// crema-oscuro (casi negro) vuelve a leerse — 4.70:1 a 6.26:1 medido contra
+// el degradado completo. De paso, el verde fijo de antes (#5f7a52) ya no
+// coincidía con NINGÚN token vigente (#48603f claro / #85a476 oscuro): era
+// una copia que se quedó atrás cuando el token se retonó.
 function colorCobertura(n: number, meta: number): string {
-  if (meta <= 0) return "rgb(164, 120, 101)"; // taupe
-  const ratio = Math.min(n / meta, 1);
-  const [r, g, b] = ROJO_RGB.map((c0, i) => Math.round(c0 + (VERDE_RGB[i] - c0) * ratio));
-  return `rgb(${r}, ${g}, ${b})`;
+  if (meta <= 0) return "var(--color-taupe)";
+  const ratioPct = Math.round(Math.min(n / meta, 1) * 100);
+  return `color-mix(in oklab, var(--color-verde) ${ratioPct}%, var(--color-rojo))`;
 }
 // La meta cambia a media tarde: hasta 14:15 es la meta de la MAÑANA, después la
 // de la TARDE (fijo por ahora, ambas sedes — decisión de Felipe).
@@ -215,7 +228,7 @@ const rangoTxt = (e: string | null, s: string | null) => (e ? `${e}${s ? `–${s
 // fn_set_horario_semanal ({"1":{e,s,r}, …}). Sirve para cambiar UN día sin
 // perder el resto de la semana. Un tramo legacy (sin jsonb) se reconstruye
 // desde dias_laborables + hora_entrada/salida.
-function horarioSemanalDesdeTramo(tr: Horario | undefined): Record<string, { e: string; s: string; r?: number }> {
+function horarioSemanalDesdeTramo(tr: Horario | null): Record<string, { e: string; s: string; r?: number }> {
   const out: Record<string, { e: string; s: string; r?: number }> = {};
   if (tr?.horario_por_dia) {
     for (const [k, v] of Object.entries(tr.horario_por_dia)) {
@@ -226,14 +239,105 @@ function horarioSemanalDesdeTramo(tr: Horario | undefined): Record<string, { e: 
   }
   return out;
 }
-// Horas que ESE tramo de horario define para un día de la semana ({e:null} = descansa).
-function horasDeTramo(tr: Horario, dow: string): { e: string | null; s: string | null } {
-  if (tr.horario_por_dia) {
-    const d = tr.horario_por_dia[dow];
-    return d ? { e: hhmm(d.e), s: hhmm(d.s) } : { e: null, s: null };
+// A partir de acá se avisa. 48 es el tope legal del ciclo (no de la semana
+// calendario); avisar recién al llegar sería llegar tarde para reorganizar el
+// turno — el sentido de esto es avisar ANTES, no contar el exceso ya pagado.
+const UMBRAL_AVISO_SOBRETIEMPO = 40;
+
+// Quién está cerca (o ya pasó) el tope de 48h de SU ciclo de 7 días vigente
+// hoy — el mismo ciclo que calcula fn_planilla_calcular_nucleo, portado a
+// TypeScript en ciclo-sobretiempo.ts para poder avisar antes de que la
+// planilla lo cuente. Solo lee `jornadas`; no decide ni adelanta cuánto se
+// va a pagar, eso lo sigue diciendo la planilla.
+function AlertaSobretiempo({ sedeSel }: { sedeSel: string }) {
+  const supabase = useMemo(() => createAdminSupabaseClient(), []);
+  const [filas, setFilas] = useState<{ personaId: string; nombre: string; ciclo: NonNullable<ReturnType<typeof cicloVigente>> }[] | null>(null);
+  const [error, setError] = useState(false);
+  const [abierto, setAbierto] = useState(true);
+
+  useEffect(() => {
+    if (!sedeSel) return;
+    let vivo = true;
+    void (async () => {
+      setFilas(null);
+      setError(false);
+      const hoy = hoyLima();
+      // 28 días de margen: de sobra para cubrir cualquier racha real sin
+      // descanso (la ley exige uno semanal) y encontrar el inicio verdadero
+      // del ciclo vigente, no solo su cola.
+      const desde = addDays(hoy, -28);
+      // `tipo_vinculo = 'practicante'`, no simplemente `not en_planilla`:
+      // así un RxH no entra por accidente. Mismo criterio que ya usa el
+      // dashboard (7afe8e5): un practicante sí marca y sí acumula horas de
+      // su ciclo, y este aviso solo lee `jornadas` — no dispara disciplina.
+      const { data: personas, error: eP } = await supabase.from("personas")
+        .select("id, nombres, apellidos")
+        .eq("sede_base_id", sedeSel).eq("estado", "activo")
+        .or("en_planilla.eq.true,tipo_vinculo.eq.practicante")
+        .eq("sueldo_fijo", false);
+      if (eP) { if (vivo) setError(true); return; }
+      const ids = (personas ?? []).map((p) => p.id);
+      if (ids.length === 0) { if (vivo) setFilas([]); return; }
+      const { data: jornadas, error: eJ } = await supabase.from("jornadas")
+        .select("persona_id, fecha, horas_trabajadas")
+        .in("persona_id", ids).gte("fecha", desde).lte("fecha", hoy);
+      if (eJ) { if (vivo) setError(true); return; }
+      const nombre = new Map((personas ?? []).map((p) => [p.id, `${p.nombres} ${p.apellidos}`]));
+      const diasPorPersona = new Map<string, DiaTrabajado[]>();
+      for (const j of (jornadas as { persona_id: string; fecha: string; horas_trabajadas: number | null }[]) ?? []) {
+        const arr = diasPorPersona.get(j.persona_id) ?? [];
+        arr.push({ fecha: j.fecha, horas: j.horas_trabajadas ?? 0 });
+        diasPorPersona.set(j.persona_id, arr);
+      }
+      const res = ids
+        .map((id) => ({ personaId: id, nombre: nombre.get(id) ?? "?", ciclo: cicloVigente(diasPorPersona.get(id) ?? [], hoy) }))
+        .filter((f): f is { personaId: string; nombre: string; ciclo: NonNullable<ReturnType<typeof cicloVigente>> } =>
+          f.ciclo !== null && f.ciclo.horas >= UMBRAL_AVISO_SOBRETIEMPO)
+        .sort((a, b) => b.ciclo.horas - a.ciclo.horas);
+      if (vivo) setFilas(res);
+    })();
+    return () => { vivo = false; };
+  }, [sedeSel, supabase]);
+
+  if (error) {
+    return <div className="mb-4 max-w-2xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">No se pudo calcular el sobretiempo del ciclo vigente.</div>;
   }
-  if ((tr.dias_laborables ?? []).includes(Number(dow))) return { e: hhmm(tr.hora_entrada), s: hhmm(tr.hora_salida) };
-  return { e: null, s: null };
+  if (filas === null) return null; // cargando en silencio
+  if (filas.length === 0) {
+    return (
+      <div className="mb-4 flex max-w-2xl items-center gap-2 rounded-lg border border-verde/25 bg-verde/[0.06] px-4 py-2.5 text-sm text-verde">
+        <span>✓</span> Nadie está cerca del tope de 48 h de su ciclo vigente.
+      </div>
+    );
+  }
+  const algunoEnExceso = filas.some((f) => f.ciclo.horas >= 48);
+  return (
+    <div className={`mb-4 max-w-2xl overflow-hidden rounded-2xl border ${algunoEnExceso ? "border-rojo/40 bg-rojo/[0.06]" : "border-ambar/40 bg-ambar/[0.06]"}`}>
+      <button onClick={() => setAbierto((a) => !a)} className="flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left text-sm">
+        <span className={`font-medium ${algunoEnExceso ? "text-rojo" : "text-ambar"}`}>
+          {filas.length} persona{filas.length === 1 ? "" : "s"} cerca o sobre las 48 h de su ciclo vigente
+        </span>
+        <span className="shrink-0 text-xs text-taupe">{abierto ? "ocultar" : "ver"}</span>
+      </button>
+      {abierto && (
+        <>
+          <ul className={`divide-y border-t ${algunoEnExceso ? "divide-rojo/15 border-rojo/20" : "divide-ambar/15 border-ambar/20"}`}>
+            {filas.map((f) => (
+              <li key={f.personaId} className="flex items-center justify-between gap-3 px-4 py-2 text-sm">
+                <span>{f.nombre}</span>
+                <span className={`tabular-nums font-medium ${f.ciclo.horas >= 48 ? "text-rojo" : "text-ambar"}`}>
+                  {f.ciclo.horas.toFixed(1)}/48 h · día {f.ciclo.dia} de 7
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className={`border-t px-4 py-2 text-xs text-taupe ${algunoEnExceso ? "border-rojo/20" : "border-ambar/20"}`}>
+            Ciclo de 7 días desde que empezó su racha sin descanso — no es la semana calendario. Reorganiza el turno de quien esté más arriba antes de que siga sumando.
+          </p>
+        </>
+      )}
+    </div>
+  );
 }
 
 function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso: string) => void }) {
@@ -251,30 +355,33 @@ function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso
     if (!sedeSel) return;
     setDivs(null); setError(false);
     const hoy = hoyLima();
+    // Mismo criterio del dashboard (7afe8e5): un practicante también tiene
+    // turno y horario asignados, y esta pantalla solo compara uno contra otro.
     const { data: personas, error: eP } = await supabase.from("personas")
-      .select("id, nombres, apellidos").eq("sede_base_id", sedeSel).eq("estado", "activo").eq("en_planilla", true).eq("sueldo_fijo", false);
+      .select("id, nombres, apellidos").eq("sede_base_id", sedeSel).eq("estado", "activo")
+      .or("en_planilla.eq.true,tipo_vinculo.eq.practicante")
+      .eq("sueldo_fijo", false);
     if (eP) { setError(true); return; }
     const ids = (personas ?? []).map((p) => p.id);
     const nombre = new Map((personas ?? []).map((p: any) => [p.id, `${p.nombres} ${p.apellidos}`]));
     if (ids.length === 0) { setDivs([]); return; }
     const [{ data: turnos, error: eT }, { data: horarios, error: eH }] = await Promise.all([
       supabase.from("turnos").select("persona_id, fecha, hora_entrada, hora_salida, es_descanso").in("persona_id", ids).gte("fecha", hoy).order("fecha"),
-      supabase.from("horarios_asignados").select("persona_id, hora_entrada, hora_salida, dias_laborables, horario_por_dia, vigente_desde, vigente_hasta").in("persona_id", ids),
+      supabase.from("horarios_asignados").select("persona_id, hora_entrada, hora_salida, dias_laborables, horario_por_dia, almuerzo_min_minutos, vigente_desde, vigente_hasta").in("persona_id", ids),
     ]);
     if (eT || eH) { setError(true); return; }
     const hMap = new Map<string, Horario[]>();
-    for (const h of (horarios as any[]) ?? []) {
+    for (const h of (horarios as HorarioTramo[]) ?? []) {
       const arr = hMap.get(h.persona_id) ?? [];
-      arr.push({ hora_entrada: h.hora_entrada, hora_salida: h.hora_salida, dias_laborables: h.dias_laborables ?? [1, 2, 3, 4, 5], horario_por_dia: h.horario_por_dia ?? null, vigente_desde: h.vigente_desde, vigente_hasta: h.vigente_hasta ?? null });
+      arr.push(h);
       hMap.set(h.persona_id, arr);
     }
     tramosRef.current = hMap;
     const res: Divergencia[] = [];
     for (const t of (turnos as any[]) ?? []) {
       const tramos = hMap.get(t.persona_id);
-      const tramo = tramoVigente(tramos, t.fecha);
-      const dow = String(diaSemana(t.fecha));
-      const base = tramo ? horasDeTramo(tramo, dow) : null;
+      const tramo = horarioVigente(tramos ?? [], t.fecha);
+      const base = tramo ? esperadoDelDia(t.fecha, null, tramo) : null;
       const tE = t.es_descanso ? null : hhmm(t.hora_entrada);
       const tS = t.es_descanso ? null : hhmm(t.hora_salida);
       // ¿Coincide con algún horario ANTERIOR (ya reemplazado) de esa persona? Entonces
@@ -283,18 +390,18 @@ function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso
       // a propósito (excepción real) — por eso NO se limpian en automático.
       const espejo = (tramos ?? []).some((x) => {
         if (x === tramo) return false;
-        const h = horasDeTramo(x, dow);
-        return tE === null ? h.e === null : h.e === tE && h.s === tS;
+        const h = esperadoDelDia(t.fecha, null, x);
+        return tE === null ? h.entrada === null : h.entrada === tE && h.salida === tS;
       });
       const fila = { fecha: t.fecha, personaId: t.persona_id, persona: nombre.get(t.persona_id) ?? "?", espejo, tE, tS };
       if (!base) {
         res.push({ ...fila, turnoTxt: rangoTxt(tE, tS), baseTxt: "sin horario base ese día" });
       } else if (tE === null) {
-        if (base.e) res.push({ ...fila, turnoTxt: "descanso", baseTxt: rangoTxt(base.e, base.s) });
-      } else if (!base.e) {
+        if (base.entrada) res.push({ ...fila, turnoTxt: "descanso", baseTxt: rangoTxt(base.entrada, base.salida) });
+      } else if (!base.entrada) {
         res.push({ ...fila, turnoTxt: rangoTxt(tE, tS), baseTxt: "descanso" });
-      } else if (tE !== base.e || (tS && base.s && tS !== base.s)) {
-        res.push({ ...fila, turnoTxt: rangoTxt(tE, tS), baseTxt: rangoTxt(base.e, base.s) });
+      } else if (tE !== base.entrada || (tS && base.salida && tS !== base.salida)) {
+        res.push({ ...fila, turnoTxt: rangoTxt(tE, tS), baseTxt: rangoTxt(base.entrada, base.salida) });
       }
     }
     setDivs(res);
@@ -319,12 +426,12 @@ function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso
   async function hacerPermanente(d: Divergencia, clave: string) {
     setProcesando(clave); setAviso(null);
     const tramos = tramosRef.current.get(d.personaId);
-    const tramo = tramoVigente(tramos, d.fecha);
+    const tramo = horarioVigente(tramos ?? [], d.fecha);
     const semanal = horarioSemanalDesdeTramo(tramo);
     const dow = String(diaSemana(d.fecha));
     if (d.tE) {
       const previo = tramo?.horario_por_dia?.[dow];
-      const baseS = tramo ? horasDeTramo(tramo, dow).s : null;
+      const baseS = tramo ? esperadoDelDia(d.fecha, null, tramo).salida : null;
       semanal[dow] = { e: d.tE, s: d.tS ?? baseS ?? d.tE, ...(previo?.r != null ? { r: previo.r } : {}) };
     } else {
       delete semanal[dow]; // el turno era descanso ⇒ ese día sale de su horario
@@ -400,15 +507,14 @@ function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso
               {confirmarBulk ? (
                 <div className="flex flex-wrap items-center gap-2 text-xs">
                   <span className="text-rojo">Se quitarán {espejos.length} turnos y se recalcularán esas jornadas. ¿Confirmas?</span>
-                  <button onClick={() => limpiarEspejos(espejos)} className="rounded bg-tinta px-2.5 py-1 font-medium text-crema">Sí, quitar {espejos.length}</button>
-                  <button onClick={() => setConfirmarBulk(false)} className="rounded border px-2.5 py-1">Cancelar</button>
+                  <Boton variante="primario" tamano="sm" onClick={() => limpiarEspejos(espejos)}>Sí, quitar {espejos.length}</Boton>
+                  <Boton variante="secundario" tamano="sm" onClick={() => setConfirmarBulk(false)}>Cancelar</Boton>
                 </div>
               ) : (
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                  <button onClick={() => setConfirmarBulk(true)} disabled={procesando !== null}
-                    className="rounded border border-rojo/30 px-3 py-1 text-xs text-rojo hover:bg-rojo/10 disabled:opacity-40">
-                    {procesando === "bulk" ? "Quitando…" : `Quitar los ${espejos.length} espejos viejos`}
-                  </button>
+                  <Boton variante="peligro" tamano="sm" disabled={procesando !== null} cargando={procesando === "bulk"} onClick={() => setConfirmarBulk(true)}>
+                    Quitar los {espejos.length} espejos viejos
+                  </Boton>
                   <span className="text-[11px] text-taupe">
                     Esto <strong>descarta</strong> esas horas. Si a esa gente le cambiaron el horario de verdad, usa <strong>Hacer permanente</strong> fila por fila.
                   </span>
@@ -435,8 +541,8 @@ function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso
                   </div>
                   <div className="mt-1 flex flex-wrap items-center gap-2">
                     {d.espejo
-                      ? <span className="rounded-full bg-rojo/10 px-2 py-0.5 text-[10px] text-rojo">probable espejo viejo</span>
-                      : <span className="rounded-full bg-taupe/15 px-2 py-0.5 text-[10px] text-taupe">excepción a propósito</span>}
+                      ? <Insignia variante="alerta" tamano="sm">probable espejo viejo</Insignia>
+                      : <Insignia variante="neutral" atenuada tamano="sm">excepción a propósito</Insignia>}
                     <button onClick={() => hacerPermanente(d, clave)} disabled={procesando !== null}
                       className="rounded border border-tinta/30 bg-tinta/5 px-2 py-0.5 text-[11px] font-medium hover:bg-tinta/10 disabled:opacity-40">
                       {procesando === clave ? "Aplicando…" : "Hacer permanente"}
@@ -529,7 +635,11 @@ export default function TurnosPage() {
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data }) => {
       if (!data.session) { router.replace("/admin/login"); return; }
-      const { data: s } = await supabase.from("sedes").select("id, codigo, nombre").order("codigo");
+      const { data: s, error: eS } = await supabase.from("sedes").select("id, codigo, nombre").order("codigo");
+      // Sin esto, si la consulta fallaba `sedes` se quedaba en [] en silencio:
+      // el selector de sede salía vacío y la pantalla no decía por qué —
+      // se leía como "no hay sedes", no como el error que de verdad era.
+      if (eS) { avisar("error", mensajeDeError(eS, "cargar las sedes")); return; }
       const lista = (s as Sede[]) ?? [];
       setSedes(lista);
       // La encargada queda FIJA en su sede (su selector está oculto): forzamos su sede
@@ -538,7 +648,7 @@ export default function TurnosPage() {
       if (esAdmin) setSedeSel((prev) => prev || (lista[0]?.id ?? ""));
       else if (yo) setSedeSel(yo.sedeBaseId);
     });
-  }, [supabase, router, yo, esAdmin]);
+  }, [supabase, router, yo, esAdmin, avisar]);
 
   const cargar = useCallback(async () => {
     if (!sedeSel) return;
@@ -553,8 +663,16 @@ export default function TurnosPage() {
       { data: f, error: fErr },
       { data: ar, error: arErr },
     ] = await Promise.all([
-      supabase.from("personas").select("id, nombres, apellidos, rol").eq("sede_base_id", sedeSel).eq("estado", "activo").eq("en_planilla", true).eq("sueldo_fijo", false).order("nombres"),
-      supabase.from("horarios_asignados").select("persona_id, hora_entrada, hora_salida, dias_laborables, horario_por_dia, vigente_desde, vigente_hasta").lte("vigente_desde", domingo).or(`vigente_hasta.is.null,vigente_hasta.gte.${lunes}`),
+      // Mismo criterio del dashboard (7afe8e5): un practicante cubre piso
+      // igual que cualquiera y cuenta para la meta de cobertura de la sede —
+      // decisión de Felipe (2026-09-12) — así que entra a la grilla con el
+      // mismo `OR` puntual, sin tocar `en_planilla` ni el escalafón
+      // disciplinario, que siguen igual para las demás pantallas.
+      supabase.from("personas").select("id, nombres, apellidos, rol")
+        .eq("sede_base_id", sedeSel).eq("estado", "activo")
+        .or("en_planilla.eq.true,tipo_vinculo.eq.practicante")
+        .eq("sueldo_fijo", false).order("nombres"),
+      supabase.from("horarios_asignados").select("persona_id, hora_entrada, hora_salida, dias_laborables, horario_por_dia, almuerzo_min_minutos, vigente_desde, vigente_hasta").lte("vigente_desde", domingo).or(`vigente_hasta.is.null,vigente_hasta.gte.${lunes}`),
       supabase.from("turnos").select("persona_id, fecha, hora_entrada, hora_salida, es_descanso").gte("fecha", lunes).lte("fecha", domingo),
       supabase.from("metas_cobertura").select("dia_semana, meta, meta_tarde, meta_encargadas").eq("sede_id", sedeSel),
       supabase.rpc("fn_personas_funciones"), // "funcion" vía RPC: el schema cache de PostgREST no expone la columna
@@ -573,9 +691,9 @@ export default function TurnosPage() {
     const mapF = new Map(((f as { persona_id: string; funcion: string; es_encargada_piso?: boolean }[] | null) ?? []).map((x) => [x.persona_id, { funcion: x.funcion, esEncargadaPiso: Boolean(x.es_encargada_piso) }]));
     setPersonas((((p as Omit<Persona, "funcion" | "esEncargadaPiso">[]) ?? []).map((x) => ({ ...x, funcion: mapF.get(x.id)?.funcion ?? AREA_DEFAULT, esEncargadaPiso: mapF.get(x.id)?.esEncargadaPiso ?? false }))));
     const mapH = new Map<string, Horario[]>();
-    for (const x of (h as any[]) ?? []) {
+    for (const x of (h as HorarioTramo[]) ?? []) {
       const arr = mapH.get(x.persona_id) ?? [];
-      arr.push({ hora_entrada: x.hora_entrada, hora_salida: x.hora_salida, dias_laborables: x.dias_laborables ?? [1, 2, 3, 4, 5], horario_por_dia: x.horario_por_dia ?? null, vigente_desde: x.vigente_desde, vigente_hasta: x.vigente_hasta ?? null });
+      arr.push(x);
       mapH.set(x.persona_id, arr);
     }
     setHorarios(mapH);
@@ -589,23 +707,21 @@ export default function TurnosPage() {
   useEffect(() => { void cargar(); }, [cargar]);
 
   const celda = useCallback((personaId: string, fecha: string): Celda => {
-    const t = turnos.get(`${personaId}|${fecha}`);
-    if (t) return t.es_descanso ? { tipo: "descanso" } : { tipo: "turno", entrada: hhmm(t.hora_entrada), salida: hhmm(t.hora_salida) };
-    const h = tramoVigente(horarios.get(personaId), fecha);
-    if (h) {
-      const dow = String(diaSemana(fecha));
-      if (h.horario_por_dia) {
-        const d = h.horario_por_dia[dow];
-        // el refrigerio (r, en minutos) solo se conoce para el horario base con
-        // jsonb — un turno puntual (arriba) no guarda esa hora, así que su barra
-        // queda sin hueco (dato que no tenemos, mejor no inventarlo).
-        if (d) return { tipo: "default", entrada: hhmm(d.e), salida: hhmm(d.s), refrigerio: d.r };
-        return { tipo: "libre" }; // ese día no está en el horario base = descanso
-      }
-      // legacy sin jsonb: hora única + dias_laborables
-      if ((h.dias_laborables ?? []).includes(diaSemana(fecha))) return { tipo: "default", entrada: hhmm(h.hora_entrada), salida: hhmm(h.hora_salida) };
+    const turno = turnos.get(`${personaId}|${fecha}`) ?? null;
+    const tramo = horarioVigente(horarios.get(personaId) ?? [], fecha);
+    const esp = esperadoDelDia(fecha, turno, tramo);
+    if (esp.origen === "turno") {
+      // El turno del día manda: si vino de acá, gana sobre el horario base sin
+      // mirarlo. esp.entrada nunca es null cuando esp.trabaja es true — lo
+      // garantiza el contrato de Esperado en jornada-esperada.ts.
+      return esp.trabaja ? { tipo: "turno", entrada: esp.entrada!, salida: esp.salida } : { tipo: "descanso" };
     }
-    return { tipo: "libre" };
+    if (!esp.trabaja) return { tipo: "libre" }; // sin turno y el horario base descansa (o no hay horario)
+    // el refrigerio (r, en minutos) solo se conoce para el horario base con
+    // jsonb explícito por día — el legacy (dias_laborables) no lo guarda, así
+    // que su barra queda sin hueco (dato que no tenemos, mejor no inventarlo).
+    const dow = String(diaSemana(fecha));
+    return { tipo: "default", entrada: esp.entrada!, salida: esp.salida, refrigerio: tramo?.horario_por_dia?.[dow]?.r };
   }, [turnos, horarios]);
 
   // Cuántas personas (según `filtro`) cubren cada franja del día — reusada para
@@ -676,7 +792,7 @@ export default function TurnosPage() {
   const guardarDesdeAqui = async () => {
     if (!edit) return;
     if (!entrada || !salida) { avisar("error", "Para cambiar el horario base necesito entrada y salida."); return; }
-    const tr = tramoVigente(horarios.get(edit.personaId), edit.fecha);
+    const tr = horarioVigente(horarios.get(edit.personaId) ?? [], edit.fecha);
     const semanal = horarioSemanalDesdeTramo(tr);
     const dow = String(diaSemana(edit.fecha));
     const previo = tr?.horario_por_dia?.[dow];
@@ -733,15 +849,14 @@ export default function TurnosPage() {
 
   if (rol !== null && !puedeVer) {
     return (
-      <div className="flex min-h-screen flex-col"><AdminNav />
+      <div className="flex flex-1 flex-col">
         <main className="flex flex-1 items-center justify-center p-6"><p className="max-w-md text-center text-taupe">No tienes permiso para ver los turnos.</p></main>
       </div>
     );
   }
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <AdminNav />
+    <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -769,9 +884,9 @@ export default function TurnosPage() {
               </select>
             )}
             <div className="flex items-center gap-1">
-              <button onClick={() => setLunes(addDays(lunes, -7))} disabled={cargando} className="rounded-lg border border-sand px-3 py-2 text-sm hover:bg-sand/40 disabled:opacity-50">←</button>
-              <button onClick={() => setLunes(lunesDeLaSemana(hoyLima()))} disabled={cargando} className="rounded-lg border border-sand px-3 py-2 text-sm hover:bg-sand/40 disabled:opacity-50">Hoy</button>
-              <button onClick={() => setLunes(addDays(lunes, 7))} disabled={cargando} className="rounded-lg border border-sand px-3 py-2 text-sm hover:bg-sand/40 disabled:opacity-50">→</button>
+              <Boton variante="secundario" disabled={cargando} onClick={() => setLunes(addDays(lunes, -7))}>←</Boton>
+              <Boton variante="secundario" disabled={cargando} onClick={() => setLunes(lunesDeLaSemana(hoyLima()))}>Hoy</Boton>
+              <Boton variante="secundario" disabled={cargando} onClick={() => setLunes(addDays(lunes, 7))}>→</Boton>
             </div>
           </div>
         </div>
@@ -779,10 +894,11 @@ export default function TurnosPage() {
         {funcionesFallo && !cargando && (
           <div className="mb-4 max-w-2xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
             No se pudo cargar el área del personal: la cobertura está contando a <strong>todos</strong> como
-            operativos y puede marcar de más. <button onClick={() => void cargar()} className="font-medium underline">Reintentar</button>
+            operativos y puede marcar de más. <Boton variante="enlace" onClick={() => void cargar()}>Reintentar</Boton>
           </div>
         )}
 
+        {sedeSel && <AlertaSobretiempo sedeSel={sedeSel} />}
         {sedeSel && <RevisionTurnos sedeSel={sedeSel} onIrADia={irARevisar} />}
 
         {cargando ? <Cargando /> : vista === "semana" ? (
@@ -851,9 +967,12 @@ export default function TurnosPage() {
                               {nadieProgramado ? (
                                 <span className="font-medium text-rojo">¡nadie programado!</span>
                               ) : r.sinMeta ? (
-                                <span className="text-[11px] text-taupe/60">sin meta</span>
+                                // Medido: text-taupe/60 sobre crema da 2.4:1 (falla
+                                // 4.5:1 AA) — el token sin diluir da 5.2:1 claro y
+                                // 5.8:1 oscuro.
+                                <span className="text-[11px] text-taupe">sin meta</span>
                               ) : !r.hayTurnos ? (
-                                <span className="text-[11px] text-taupe/60">sin turnos</span>
+                                <span className="text-[11px] text-taupe">sin turnos</span>
                               ) : (
                                 <span className="font-medium" style={{ color: colorPct(r.pct) }}>cubierto {r.pct}%</span>
                               )}
@@ -865,7 +984,7 @@ export default function TurnosPage() {
                               ) : r.sug ? (
                                 <span className="text-[10px] text-rojo">+ falta personal</span>
                               ) : r.supHoras > 0 ? (
-                                <span className="text-[10px] text-taupe/60">sobra {r.supHoras}h</span>
+                                <span className="text-[10px] text-taupe">sobra {r.supHoras}h</span>
                               ) : null}
                             </div>
                           </button>
@@ -955,10 +1074,10 @@ export default function TurnosPage() {
                               const bg = nOp > 0
                                 ? colorCobertura(nOp, metaOp)
                                 : nEnc > 0
-                                ? "rgba(164, 120, 101, 0.12)" // solo encargada esa hora
+                                ? "color-mix(in srgb, var(--color-taupe) 12%, transparent)" // solo encargada esa hora
                                 : metaOp > 0
-                                ? "rgba(184, 65, 45, 0.10)" // meta puesta pero nadie: falta suave
-                                : "rgba(232, 224, 208, 0.35)"; // sin meta: sand tenue
+                                ? "color-mix(in srgb, var(--color-rojo) 10%, transparent)" // meta puesta pero nadie: falta suave
+                                : "color-mix(in srgb, var(--color-sand) 35%, transparent)"; // sin meta: sand tenue
                               const claro = nOp > 0;
                               return (
                                 <button key={iso} onClick={() => setPanel({ fecha: iso, franjaIdx: fi })}
@@ -1028,7 +1147,7 @@ export default function TurnosPage() {
                               <input type="number" min={0} value={metaMan} title="meta de la mañana (hasta 14:15)"
                                 onChange={(e) => editarMeta(dia, "manana", e.target.value)} onBlur={() => comprometerMeta(dia)}
                                 className="w-11 rounded border border-sand bg-crema px-1 py-0.5 text-center" />
-                              <span className="text-taupe/60">/</span>
+                              <span className="text-taupe">/</span>
                               <input type="number" min={0} value={metaTar} title="meta de la tarde (desde 14:15)"
                                 onChange={(e) => editarMeta(dia, "tarde", e.target.value)} onBlur={() => comprometerMeta(dia)}
                                 className="w-11 rounded border border-sand bg-crema px-1 py-0.5 text-center" />
@@ -1036,7 +1155,7 @@ export default function TurnosPage() {
                           ) : (
                             <span>{metaMan}/{metaTar}</span>
                           )}
-                          <span className="text-taupe/60">mañ/tar</span>
+                          <span className="text-taupe">mañ/tar</span>
                         </label>
                         <span className="font-medium" style={{ color: !r.hayTurnos && Math.max(metaMan, metaTar) > 0 ? "var(--color-rojo)" : r.sinMeta || !r.hayTurnos ? "var(--color-taupe)" : colorDePct(r.pct) }}>
                           {!r.hayTurnos && Math.max(metaMan, metaTar) > 0 ? "¡nadie programado!" : r.sinMeta ? "sin meta" : !r.hayTurnos ? "sin turnos" : `cubierto ${r.pct}%`}
@@ -1082,7 +1201,7 @@ export default function TurnosPage() {
                           <span className="w-[176px] shrink-0 truncate px-3 py-2 text-xs">
                             {p.nombres} {p.apellidos}
                             {!operativa && (
-                              <span className="ml-1.5 whitespace-nowrap rounded-full bg-ambar/15 px-1.5 py-0.5 text-[10px] text-ambar">{areaCorto(areas, p.funcion)}</span>
+                              <Insignia variante="advertencia" tamano="sm" className="ml-1.5">{areaCorto(areas, p.funcion)}</Insignia>
                             )}
                           </span>
                           <span className="relative h-7 flex-1">
@@ -1118,7 +1237,7 @@ export default function TurnosPage() {
                               );
                             })()}
                             {c.tipo === "descanso" && <span className="absolute left-2 top-1.5 rounded bg-sand px-1.5 py-0.5 text-[10px] text-taupe">descanso</span>}
-                            {c.tipo === "libre" && <span className="absolute left-2 top-1.5 text-[10px] text-taupe/40">+</span>}
+                            {c.tipo === "libre" && <span className="absolute left-2 top-1.5 text-[10px] text-taupe">+</span>}
                           </span>
                         </button>
                       );
@@ -1177,61 +1296,55 @@ export default function TurnosPage() {
           // de una persona, no de "la hora" — la sábana es solo la puerta de entrada.
           const abrirDesdePanel = (id: string) => { setPanel(null); abrir(id, panel.fecha); };
           return (
-            <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/40 p-4" onClick={() => setPanel(null)}>
-              <div className="w-full max-w-sm rounded-xl border border-sand bg-crema p-6" onClick={(e) => e.stopPropagation()}>
-                <div className="mb-4 flex items-baseline justify-between gap-3">
-                  <h3 className="font-serif text-lg">{abr} <span className="text-taupe">{num}</span></h3>
-                  <span className="text-sm tabular-nums text-taupe">{desde}–{hasta}</span>
-                </div>
-
-                <div className="mb-4">
-                  <div className="etiqueta mb-2 text-taupe">Operativas · {ops.length}{metaOp > 0 ? ` / meta ${metaOp}` : ""}</div>
-                  {ops.length === 0 ? (
-                    <p className="text-sm text-taupe/60">Nadie esta media hora.</p>
-                  ) : (
-                    <div className="flex flex-wrap gap-1.5">
-                      {ops.map((p) => (
-                        <button key={p.id} onClick={() => abrirDesdePanel(p.id)}
-                          className="rounded-full border border-sand bg-crema px-3 py-1 text-sm transition-colors hover:bg-sand/40">
-                          {p.nombres} {p.apellidos}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <div className="mb-4">
-                  <div className="etiqueta mb-2 text-taupe">Encargadas · {encs.length}{metaEnc > 0 ? ` / meta ${metaEnc}` : ""}</div>
-                  {encs.length === 0 ? (
-                    <p className="text-sm text-taupe/60">Ninguna esta media hora.</p>
-                  ) : (
-                    <div className="flex flex-wrap gap-1.5">
-                      {encs.map((p) => (
-                        <button key={p.id} onClick={() => abrirDesdePanel(p.id)}
-                          className="rounded-full border border-taupe/30 bg-taupe/10 px-3 py-1 text-sm text-taupe transition-colors hover:bg-taupe/20">
-                          {p.nombres} {p.apellidos}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {resto.length > 0 && (
-                  <label className="flex flex-col gap-1.5">
-                    <span className="etiqueta text-taupe">Agregar a este día</span>
-                    <select value="" onChange={(e) => e.target.value && abrirDesdePanel(e.target.value)}
-                      className="rounded-lg border border-sand bg-crema px-3 py-2 text-sm">
-                      <option value="">Elegir persona…</option>
-                      {resto.map((p) => <option key={p.id} value={p.id}>{p.nombres} {p.apellidos}</option>)}
-                    </select>
-                  </label>
-                )}
-
-                <div className="mt-5 flex justify-end">
-                  <button onClick={() => setPanel(null)} className="rounded-lg border border-sand px-3 py-2 text-sm hover:bg-sand/40">Cerrar</button>
-                </div>
+            <Modal abierto onCerrar={() => setPanel(null)} ancho="sm">
+              <div className="mb-4 flex items-baseline justify-between gap-3">
+                <h3 className="font-serif text-lg">{abr} <span className="text-taupe">{num}</span></h3>
+                <span className="text-sm tabular-nums text-taupe">{desde}–{hasta}</span>
               </div>
-            </div>
+
+              <div className="mb-4">
+                <div className="etiqueta mb-2 text-taupe">Operativas · {ops.length}{metaOp > 0 ? ` / meta ${metaOp}` : ""}</div>
+                {ops.length === 0 ? (
+                  <p className="text-sm text-taupe">Nadie esta media hora.</p>
+                ) : (
+                  <div className="flex flex-wrap gap-1.5">
+                    {ops.map((p) => (
+                      <button key={p.id} onClick={() => abrirDesdePanel(p.id)}
+                        className="rounded-full border border-sand bg-crema px-3 py-1 text-sm transition-colors hover:bg-sand/40">
+                        {p.nombres} {p.apellidos}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="mb-4">
+                <div className="etiqueta mb-2 text-taupe">Encargadas · {encs.length}{metaEnc > 0 ? ` / meta ${metaEnc}` : ""}</div>
+                {encs.length === 0 ? (
+                  <p className="text-sm text-taupe">Ninguna esta media hora.</p>
+                ) : (
+                  <div className="flex flex-wrap gap-1.5">
+                    {encs.map((p) => (
+                      <button key={p.id} onClick={() => abrirDesdePanel(p.id)}
+                        className="rounded-full border border-taupe/30 bg-taupe/10 px-3 py-1 text-sm text-taupe transition-colors hover:bg-taupe/20">
+                        {p.nombres} {p.apellidos}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {resto.length > 0 && (
+                <CampoSelect etiqueta="Agregar a este día" value="" onChange={(e) => e.target.value && abrirDesdePanel(e.target.value)}>
+                  <option value="">Elegir persona…</option>
+                  {resto.map((p) => <option key={p.id} value={p.id}>{p.nombres} {p.apellidos}</option>)}
+                </CampoSelect>
+              )}
+
+              <div className="mt-5 flex justify-end">
+                <Boton variante="secundario" onClick={() => setPanel(null)}>Cerrar</Boton>
+              </div>
+            </Modal>
           );
         })()}
 
@@ -1240,50 +1353,46 @@ export default function TurnosPage() {
           const { abr, num } = etiquetaDia(edit.fecha);
           const propio = yo && edit.personaId === yo.id && !esAdmin;
           return (
-            <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/40 p-4" onClick={() => !guardando && setEdit(null)}>
-              <div className="w-full max-w-sm rounded-xl border border-sand bg-crema p-6" onClick={(e) => e.stopPropagation()}>
-                <h3 className="mb-1 font-serif text-lg">{p?.nombres} {p?.apellidos}</h3>
-                <p className="mb-4 text-sm text-taupe">{abr} {num}</p>
-                {propio ? (
-                  <p className="mb-2 rounded-lg bg-rojo/10 px-3 py-2 text-sm text-rojo">
-                    No puedes fijar tu propio turno (la hora de entrada define tu tardanza). Pídeselo a un administrador.
-                  </p>
-                ) : (
-                  <>
-                    <div className="grid grid-cols-2 gap-3">
-                      <label className="flex flex-col gap-1 text-sm">Entrada
-                        <input type="time" value={entrada} onChange={(e) => setEntrada(e.target.value)} className="rounded-lg border border-sand bg-crema px-3 py-2" /></label>
-                      <label className="flex flex-col gap-1 text-sm">Salida
-                        <input type="time" value={salida} onChange={(e) => setSalida(e.target.value)} className="rounded-lg border border-sand bg-crema px-3 py-2" /></label>
+            <Modal abierto onCerrar={() => setEdit(null)} bloqueado={guardando} ancho="sm">
+              <h3 className="mb-1 font-serif text-lg">{p?.nombres} {p?.apellidos}</h3>
+              <p className="mb-4 text-sm text-taupe">{abr} {num}</p>
+              {propio ? (
+                <p className="mb-2 rounded-lg bg-rojo/10 px-3 py-2 text-sm text-rojo">
+                  No puedes fijar tu propio turno (la hora de entrada define tu tardanza). Pídeselo a un administrador.
+                </p>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Campo etiqueta="Entrada" type="time" value={entrada} onChange={(e) => setEntrada(e.target.value)} />
+                    <Campo etiqueta="Salida" type="time" value={salida} onChange={(e) => setSalida(e.target.value)} />
+                  </div>
+                  {/* La pregunta que evita que una excepción se coma la regla:
+                      ¿es solo por hoy, o de ahora en adelante? Lo decide quien sabe. */}
+                  <div className="mt-5 rounded-lg border border-sand p-3">
+                    <p className="mb-2 text-xs text-taupe">¿Este cambio es solo por este día, o de ahora en adelante?</p>
+                    <div className="flex flex-wrap gap-2">
+                      <Boton variante="primario" disabled={guardando} onClick={guardarTurno}>
+                        {guardando ? "…" : "Solo este día"}
+                      </Boton>
+                      <Boton variante="secundario" disabled={guardando} onClick={guardarDesdeAqui}>
+                        De aquí en adelante
+                      </Boton>
                     </div>
-                    {/* La pregunta que evita que una excepción se coma la regla:
-                        ¿es solo por hoy, o de ahora en adelante? Lo decide quien sabe. */}
-                    <div className="mt-5 rounded-lg border border-sand p-3">
-                      <p className="mb-2 text-xs text-taupe">¿Este cambio es solo por este día, o de ahora en adelante?</p>
-                      <div className="flex flex-wrap gap-2">
-                        <button onClick={guardarTurno} disabled={guardando} className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50">
-                          {guardando ? "…" : "Solo este día"}
-                        </button>
-                        <button onClick={guardarDesdeAqui} disabled={guardando} className="rounded-lg border border-sand px-4 py-2 text-sm hover:bg-sand/40 disabled:opacity-50">
-                          De aquí en adelante
-                        </button>
-                      </div>
-                      <p className="mt-2 text-[11px] leading-relaxed text-taupe">
-                        <strong>Solo este día</strong> deja un turno puntual (no toca su horario).{" "}
-                        <strong>De aquí en adelante</strong> cambia su horario base de los {DIAS_PLURAL[diaSemana(edit.fecha)]} desde esta fecha y no deja turno puntual.
-                      </p>
+                    <p className="mt-2 text-[11px] leading-relaxed text-taupe">
+                      <strong>Solo este día</strong> deja un turno puntual (no toca su horario).{" "}
+                      <strong>De aquí en adelante</strong> cambia su horario base de los {DIAS_PLURAL[diaSemana(edit.fecha)]} desde esta fecha y no deja turno puntual.
+                    </p>
+                  </div>
+                  <div className="mt-3 flex flex-wrap justify-between gap-2">
+                    <div className="flex gap-2">
+                      <Boton variante="secundario" disabled={guardando} onClick={marcarDescanso}>Descanso</Boton>
+                      <Boton variante="sutil" disabled={guardando} onClick={quitar}>Quitar</Boton>
                     </div>
-                    <div className="mt-3 flex flex-wrap justify-between gap-2">
-                      <div className="flex gap-2">
-                        <button onClick={marcarDescanso} disabled={guardando} className="rounded-lg border border-sand px-3 py-2 text-sm hover:bg-sand/40">Descanso</button>
-                        <button onClick={quitar} disabled={guardando} className="rounded-lg border border-sand px-3 py-2 text-sm text-taupe hover:bg-sand/40">Quitar</button>
-                      </div>
-                      <button onClick={() => setEdit(null)} disabled={guardando} className="rounded-lg border border-sand px-3 py-2 text-sm">Cancelar</button>
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
+                    <Boton variante="secundario" disabled={guardando} onClick={() => setEdit(null)}>Cancelar</Boton>
+                  </div>
+                </>
+              )}
+            </Modal>
           );
         })()}
       </main>

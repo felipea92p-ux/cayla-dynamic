@@ -5,13 +5,18 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
-import { AdminNav } from "../nav";
-import { Cargando, EsqueletoSecciones } from "@/components/cargando";
+import { Cargando, EsqueletoSecciones, SinDatos } from "@/components/cargando";
+import { Boton } from "@/components/ui/boton";
+import { Campo, CampoSelect } from "@/components/ui/campo";
+import { AreaTexto } from "@/components/ui/area-texto";
+import { Modal } from "@/components/ui/modal";
+import { Fila as FilaTabla, Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
 import { traerTodo } from "@/lib/admin/traer-todo";
 import { esperadoDelDia, horarioVigente, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
 import {
   TZ_LIMA, hoyLima, MAXIMO_LEGAL_SEMANAL,
   MAXIMO_DIAS_SIN_DESCANSO, avisoDeRacha, ventanaMasCargada,
+  maximoSemanalPracticante,
 } from "@cayla-dynamic/shared";
 
 function haceDias(n: number): string {
@@ -50,11 +55,35 @@ interface Fila {
   entrada: string | null;
   salida: string | null;
   aceptable?: string; // clave de tipo (p. ej. 'salida_anticipada') si se puede "Aceptar"
-  corregible?: boolean; // incidencia de marcaje: se resuelve registrando las marcas reales
   esFalta?: boolean;
   justificada?: boolean;
   motivoFalta?: string | null;
+  severidad: "alta" | "media" | "baja";
 }
+
+// Triage visual: mismo criterio de color que ya usa esta pantalla para el
+// desfase del reloj (rojo = grave, ámbar = aviso menor) — no un esquema nuevo.
+// "Alta" es lo que exige acción sobre una persona puntual (falta, sin salida,
+// patrón de tardanzas, exceso de jornada vigente, racha ya consumada). "Media"
+// es lo que pide una confirmación de un hecho puntual del día (auto-cierre,
+// almuerzo sin marcar, salida anticipada) o es operativo y no de una persona
+// (déficit de encargadas). "Baja" es lo que ya quedó resuelto o es solo un
+// aviso preventivo que todavía no es infracción.
+const COLOR_SEVERIDAD: Record<Fila["severidad"], string> = {
+  alta: "text-rojo",
+  media: "text-ambar",
+  baja: "text-taupe",
+};
+
+// Tipos "aceptable" que son un simple acuse de "lo vi" (no afirman un hecho
+// nuevo sobre el día de una persona) — los únicos que se pueden revisar en
+// lote. `sin_retorno_almuerzo` afirma "trabajó de corrido" y `salida_anticipada`
+// afirma "está bien que se fuera antes": dos hechos que solo puede confirmar
+// quien revisó CADA día, y agruparlos en un botón de "aprobar todo" haría que
+// la pantalla firmara por Felipe algo que no vio. Racha y exceso "ya ocurrido"
+// son distintos: la infracción ya pasó y no se puede deshacer, así que
+// "Revisado" no afirma nada — solo dice que no se le escapó a nadie.
+const LOTEABLES = new Set(["racha_sin_descanso", "jornada_excedida"]);
 
 // Motivos del desplegable de justificación (mismo enum que fn_set_justificacion).
 const MOTIVOS: { valor: string; label: string }[] = [
@@ -67,6 +96,13 @@ const MOTIVOS: { valor: string; label: string }[] = [
 interface RevisionPedida {
   id: string; persona_id: string; nombre: string; sede: string;
   fecha: string; comentario: string; pedida_at: string;
+}
+
+// Fila de fn_contratos_tablero (0336) que interesa acá: una practicante cuyo
+// convenio ya superó, o está por superar, el tope legal de 12 meses.
+interface PracticanteSobreTope {
+  persona_id: string; persona: string; sede: string;
+  estado: string; dias_restantes: number | null;
 }
 
 const MOTIVO_LABEL = (m: string | null | undefined) => MOTIVOS.find((x) => x.valor === m)?.label ?? m ?? "";
@@ -148,10 +184,29 @@ function IncidenciasContenido() {
   const rol = yo?.rol ?? null;
   const [desde, setDesde] = useState(haceDias(30));
   const [hasta, setHasta] = useState(HOY);
+  // Resumen | Detalle: qué tan literal se muestra la lista de abajo. Arranca en
+  // Resumen a propósito — la primera pregunta al abrir esta pantalla es "¿cómo
+  // estamos?", no "dame cada fila"; el detalle completo (idéntico al de antes
+  // de este toggle) sigue a un clic.
+  const [vistaModo, setVistaModo] = useState<"resumen" | "detalle">("resumen");
   const [filas, setFilas] = useState<Fila[]>([]);
   const [codigoPorSedeId, setCodigoPorSedeId] = useState<Map<string, string>>(new Map());
   const [cargando, setCargando] = useState(true);
+  // DOS estados de error, y la distinción no es cosmética. Antes había uno solo,
+  // y el banner que lo pintaba decía «No se pudieron cargar las incidencias»
+  // pasara lo que pasara — así que un rechazo del servidor al GUARDAR salía con
+  // el texto de un fallo de carga, y encima detrás del modal, que es `fixed
+  // inset-0`. Quien pulsaba «Justificar» con motivo «Descanso médico» no veía
+  // nada: el servidor lo rechaza a propósito, con un mensaje escrito para
+  // enseñar («regístralo en Ausencias con documento»), y ese mensaje no llegaba
+  // a nadie. El error de una acción se muestra DONDE se hizo la acción.
   const [error, setError] = useState<string | null>(null);
+  const [errorAccion, setErrorAccion] = useState<string | null>(null);
+  // Aviso parcial: la consulta de tardanzas levantadas falló. Sin ella no se
+  // puede distinguir una tardanza perdonada de una real, así que "patrón de
+  // tardanzas" se apaga entero mientras dure — y se dice, para que no se lea
+  // como "todo en orden" cuando en realidad no se pudo comprobar.
+  const [avisoLevantadas, setAvisoLevantadas] = useState<string | null>(null);
 
   // Lo que la gente pidió revisar desde «Lo mío» (0257). Va PRIMERO en esta
   // pantalla y no al final: es la única lista de acá que no la generó el
@@ -159,6 +214,7 @@ function IncidenciasContenido() {
   const [revisiones, setRevisiones] = useState<RevisionPedida[]>([]);
   const [respuestas, setRespuestas] = useState<Record<string, string>>({});
   const [atendiendo, setAtendiendo] = useState<string | null>(null);
+  const [practicantesSobreTope, setPracticantesSobreTope] = useState<PracticanteSobreTope[]>([]);
 
   const cargar = useCallback(async () => {
     const supabase = createAdminSupabaseClient();
@@ -182,9 +238,10 @@ function IncidenciasContenido() {
       { data: aceptadasData },
       { data: faltasData },
       { data: revisionesData },
-      { data: levTardData },
+      { data: levTardData, error: errLevTard },
       { data: horasSemanaData },
       { data: diasRachaData },
+      { data: contratosData },
     ] = await Promise.all([
       // Las dos consultas a jornadas van por lotes: PostgREST cortaba en 1000
       // filas sin avisar, así que incidencias reales dejaban de listarse — y la
@@ -203,7 +260,12 @@ function IncidenciasContenido() {
       traerTodo<any>((ini, fin) =>
         supabase
           .from("jornadas")
-          .select("persona_id, fecha, entrada_ts, personas:persona_id(nombres, apellidos, sedes:sede_base_id(codigo))")
+          // `en_planilla` viaja para filtrar el patrón automático más abajo (0413):
+          // desde que un practicante también acumula minutos_tarde (informativo,
+          // para Desempeño), este "patrón" —que sí convierte el número en un aviso
+          // de "incidencia alta" sin que nadie lo pida— se queda exclusivo de quien
+          // está en_planilla. Un RxH nunca llega hasta acá: sigue sin minutos_tarde.
+          .select("persona_id, fecha, entrada_ts, personas:persona_id(nombres, apellidos, en_planilla, sedes:sede_base_id(codigo))")
           .gte("fecha", desdePatron).lte("fecha", HOY)
           .gt("minutos_tarde", 0)
           .order("fecha", { ascending: false })
@@ -238,6 +300,11 @@ function IncidenciasContenido() {
       // simplemente no aparece. El resto de Incidencias no se entera.
       supabase.rpc("fn_revisiones_pedidas", { p_solo_pendientes: true }),
       // Tardanzas levantadas (perdonadas): no cuentan para el patrón. Ventana del patrón.
+      // Falla DURA para el aviso que depende de ella (no para el resto de la
+      // pantalla): si esta consulta no llega, no hay forma de saber qué
+      // tardanza ya fue perdonada, y mostrar "patrón" igual reabriría un caso
+      // ya resuelto — el falso positivo que este repositorio nombra como su
+      // peor error. Se apaga solo ESE aviso más abajo; ver `errLevTard`.
       supabase.from("tardanzas_justificadas").select("persona_id, fecha").gte("fecha", desdePatron).lte("fecha", HOY),
       // Horas para el tope de jornada. NO se piden por semana de calendario: el
       // tope de 48 h se mide sobre CUALQUIER ventana de siete días consecutivos
@@ -253,7 +320,12 @@ function IncidenciasContenido() {
           .from("jornadas")
           // CAMBIO 0284 — `estado` viaja para poder decir cuándo el exceso se
           // apoya en una hora que puso el sistema y nadie confirmó.
-          .select("persona_id, fecha, horas_trabajadas, estado, personas:persona_id(nombres, apellidos, sedes:sede_base_id(codigo))")
+          // `tipo_vinculo, practicante_modalidad` viajan para el tope de una
+          // practicante (art. 44 Ley 28518: 30 h preprofesional, 48 h
+          // profesional) — antes esta pantalla medía a TODO el mundo contra
+          // las 48 h del art. 25, así que una preprofesional podía llegar a
+          // 47 h sin que nada avisara, seis por encima de su propio máximo.
+          .select("persona_id, fecha, horas_trabajadas, estado, personas:persona_id(nombres, apellidos, tipo_vinculo, practicante_modalidad, sedes:sede_base_id(codigo))")
           .gte("fecha", haceDias(VENTANA_EXCESO_DIAS + 5)).lte("fecha", HOY)
           .gt("horas_trabajadas", 0)
           .order("persona_id")
@@ -273,6 +345,11 @@ function IncidenciasContenido() {
           .order("persona_id")
           .range(ini, fin),
       ),
+      // Tope de 12 meses del convenio de una practicante (Ley 28518 art. 30,
+      // 0336). No es un dato nuevo: `fn_contratos_tablero` ya lo calcula para
+      // el tablero de Contratos — acá solo se filtra a las filas que importan
+      // en ESTA pantalla. Falla suave: si no llega, no se muestra el aviso.
+      supabase.rpc("fn_contratos_tablero"),
     ]);
 
     if (errData || errTardias || errSedes || errEnc || errMetas || errHorarios || errTurnos) {
@@ -281,6 +358,12 @@ function IncidenciasContenido() {
       return; // no pisa `filas` con datos parciales/vacíos
     }
     setError(null);
+    setAvisoLevantadas(
+      errLevTard
+        ? `No se pudo comprobar qué tardanzas ya fueron levantadas (${errLevTard.message}). ` +
+          `El aviso de «patrón de tardanzas» se ocultó mientras tanto, para no volver a acusar una tardanza ya perdonada.`
+        : null,
+    );
     // Set de claves aceptadas: `persona|fecha|tipo`. Falla suave (si no llega, no oculta nada).
     const aceptadas = new Set(
       (aceptadasData as { persona_id: string; fecha: string; tipo: string }[] | null ?? [])
@@ -300,18 +383,18 @@ function IncidenciasContenido() {
       // auto-cerrado en el que ADEMÁS falta la marca de retorno del almuerzo.
       // Antes esto era una cadena de `else if` y solo se veía la primera, así que
       // los demás avisos de ese día se perdían sin que nadie los llegara a ver.
-      const delDia: { tipo: string; aceptable?: string }[] = [];
-      if (j.estado === "auto_cerrada_pendiente") delDia.push({ tipo: "Auto-cerrada (revisar)" });
-      if (j.fecha < HOY && j.estado === "abierta") delDia.push({ tipo: "Sin salida final" });
+      const delDia: { tipo: string; aceptable?: string; severidad: Fila["severidad"] }[] = [];
+      if (j.estado === "auto_cerrada_pendiente") delDia.push({ tipo: "Auto-cerrada (revisar)", severidad: "media" });
+      if (j.fecha < HOY && j.estado === "abierta") delDia.push({ tipo: "Sin salida final", severidad: "alta" });
       if (j.fecha < HOY && j.tiene_salida_no_retornada) {
         // Se nombra el HECHO observable —falta una marca— y no una interpretación:
         // el sistema no puede saber si la persona se fue, si volvió sin marcar, o si
         // no tomó refrigerio y siguió trabajando. Las tres cosas pasan. Decide quien
         // revisa: registrando las marcas reales (y la jornada se recalcula sola), o
         // aceptando el día tal como está si de verdad trabajó de corrido.
-        delDia.push({ tipo: "Sin marca de retorno del almuerzo", aceptable: "sin_retorno_almuerzo" });
+        delDia.push({ tipo: "Sin marca de retorno del almuerzo", aceptable: "sin_retorno_almuerzo", severidad: "media" });
       }
-      if (minutosTemprana > 0) delDia.push({ tipo: `Salida anticipada (${minutosTemprana} min)`, aceptable: "salida_anticipada" });
+      if (minutosTemprana > 0) delDia.push({ tipo: `Salida anticipada (${minutosTemprana} min)`, aceptable: "salida_anticipada", severidad: "media" });
 
       for (const inc of delDia) {
         // Si ya la aceptaste (visto bueno), no la muestres.
@@ -325,7 +408,7 @@ function IncidenciasContenido() {
           entrada: j.entrada_ts,
           salida: j.salida_final_ts,
           aceptable: inc.aceptable,
-          corregible: true, // todas estas se arreglan registrando las marcas que faltan
+          severidad: inc.severidad,
         });
       }
     }
@@ -333,6 +416,13 @@ function IncidenciasContenido() {
     // Patrón de tardanzas: 3+ en los últimos 30 días. Viene ordenado por fecha
     // descendente, así que la primera vez que aparece cada persona ya es su
     // tardanza más reciente.
+    //
+    // Todo el bloque se salta si `errLevTard` está presente: sin la lista de
+    // tardanzas LEVANTADAS no hay forma de saber cuáles ya fueron perdonadas,
+    // y contarlas igual reabriría como "patrón" algo que una encargada ya
+    // resolvió — el falso positivo que este repositorio nombra como su peor
+    // error. `avisoLevantadas`, seteado arriba, es lo que se lee en pantalla.
+    if (!errLevTard) {
     // Días con tardanza LEVANTADA: no cuentan para el patrón.
     const levantadas = new Set(
       ((levTardData as { persona_id: string; fecha: string }[] | null) ?? []).map((t) => `${t.persona_id}|${t.fecha}`),
@@ -340,6 +430,11 @@ function IncidenciasContenido() {
     const porPersonaTardias = new Map<string, { count: number; ultima: any }>();
     for (const j of (tardias as any[]) ?? []) {
       if (levantadas.has(`${j.persona_id}|${j.fecha}`)) continue; // tardanza perdonada
+      // 0413: el aviso automático de "patrón" es fiscalización activa del
+      // sistema, no solo un número mostrado — se queda para quien está
+      // en_planilla. Un practicante sigue viendo su tardanza en Desempeño;
+      // acá no genera ninguna incidencia.
+      if (j.personas?.en_planilla !== true) continue;
       const prev = porPersonaTardias.get(j.persona_id);
       if (prev) prev.count++;
       else porPersonaTardias.set(j.persona_id, { count: 1, ultima: j });
@@ -365,8 +460,10 @@ function IncidenciasContenido() {
         tipo: `Patrón de tardanzas (${count} en ${VENTANA_PATRON_DIAS} días corridos)`,
         entrada: j.entrada_ts,
         salida: null,
+        severidad: "alta",
       });
     }
+    } // fin if (!errLevTard)
 
     // ── Exceso de jornada ─────────────────────────────────────────────────
     // Las 48 h son el MÁXIMO LEGAL (Const. art. 25), no un objetivo: pasarse es
@@ -428,20 +525,26 @@ function IncidenciasContenido() {
         entrada: null,
         salida: null,
       };
+      // Una practicante tiene su propio tope (art. 44 Ley 28518), más bajo que
+      // el máximo legal general — 30 h preprofesional, 48 h profesional. `null`
+      // (no practicante, o practicante sin modalidad fijada) cae al de siempre.
+      const maxLegal = maximoSemanalPracticante(j.personas?.tipo_vinculo, j.personas?.practicante_modalidad)
+        ?? MAXIMO_LEGAL_SEMANAL;
       // Dos preguntas distintas, y por eso dos ventanas.
       //
       // La primera: ¿se está pasando AHORA? Ventana que termina en los últimos
       // siete días — todavía se puede mover un turno y frenarlo.
       const v = ventanaMasCargada(dias, haceDias(EXCESO_AUN_EVITABLE_DIAS), HOY);
-      const hayExcesoVivo = v !== null && v.horas > MAXIMO_LEGAL_SEMANAL;
+      const hayExcesoVivo = v !== null && v.horas > maxLegal;
       if (hayExcesoVivo) {
         out.push({
           ...quien,
           fecha: v!.fin,
-          tipo: `Jornada excedida: ${v!.horas.toFixed(1)} h en 7 días (máx. ${MAXIMO_LEGAL_SEMANAL})`
+          tipo: `Jornada excedida: ${v!.horas.toFixed(1)} h en 7 días (máx. ${maxLegal})`
             + (apoyadoEnHoraInventada(sinConfirmar, v!.fin)
                  ? " · incluye días cuya salida puso el sistema y falta confirmar"
                  : ""),
+          severidad: "alta",
         });
       }
       // La segunda: ¿se pasó ANTES y nadie lo vio? Ya no se puede evitar, pero
@@ -457,13 +560,14 @@ function IncidenciasContenido() {
         haceDias(VENTANA_EXCESO_DIAS - 1),
         haceDias(EXCESO_AUN_EVITABLE_DIAS + 1),
       );
-      if (vieja === null || vieja.horas <= MAXIMO_LEGAL_SEMANAL) continue;
+      if (vieja === null || vieja.horas <= maxLegal) continue;
       if (aceptadas.has(`${j.persona_id}|${vieja.fin}|jornada_excedida`)) continue;
       out.push({
         ...quien,
         fecha: vieja.fin,
-        tipo: `Jornada excedida (ya ocurrió): ${vieja.horas.toFixed(1)} h en 7 días (máx. ${MAXIMO_LEGAL_SEMANAL})`,
+        tipo: `Jornada excedida (ya ocurrió): ${vieja.horas.toFixed(1)} h en 7 días (máx. ${maxLegal})`,
         aceptable: "jornada_excedida",
+        severidad: "media",
       });
     }
 
@@ -508,6 +612,9 @@ function IncidenciasContenido() {
         entrada: null,
         salida: null,
         aceptable,
+        // Excedida = infracción ya consumada (alta). Preventiva = todavía no es
+        // infracción, solo un aviso de que mañana toca descansar (baja).
+        severidad: aviso.excedida ? "alta" : "baja",
       });
     }
 
@@ -548,6 +655,7 @@ function IncidenciasContenido() {
           tipo: `Déficit de encargadas (${cubiertas}/${m.meta_encargadas})`,
           entrada: null,
           salida: null,
+          severidad: "media",
         });
       }
     }
@@ -568,8 +676,22 @@ function IncidenciasContenido() {
         esFalta: true,
         justificada: f.justificada,
         motivoFalta: f.motivo,
+        severidad: f.justificada ? "baja" : "alta",
       });
     }
+
+    // Practicantes sobre (o cerca de) el tope de 12 meses de su convenio.
+    // `fn_contratos_tablero` ya distingue esto con `tipo = 'convenio_practicas'`
+    // y un `estado` que, para una practicante, viene calculado contra el tope
+    // legal — no contra la fecha que tenga escrita el convenio (0336). No es
+    // un conteo de incidencias: es un aviso aparte, porque el riesgo de
+    // desnaturalización existe aunque la practicante venga marcando todos
+    // los días con normalidad.
+    setPracticantesSobreTope(
+      ((contratosData as { persona_id: string; persona: string; sede: string; tipo: string; estado: string; dias_restantes: number | null }[] | null) ?? [])
+        .filter((c) => c.tipo === "convenio_practicas" && (c.estado === "vencido" || c.estado === "por_vencer"))
+        .map((c) => ({ persona_id: c.persona_id, persona: c.persona, sede: c.sede, estado: c.estado, dias_restantes: c.dias_restantes })),
+    );
 
     setFilas(out);
     setCargando(false);
@@ -595,8 +717,29 @@ function IncidenciasContenido() {
       p_persona_id: f.personaId, p_fecha: f.fecha, p_tipo: f.aceptable,
     });
     setAceptando(null);
-    if (e) { setError(`No se pudo aceptar: ${e.message}`); return; }
+    if (e) { setErrorAccion(`No se pudo aceptar: ${e.message}`); return; }
     setFilas((prev) => prev.filter((x) => !(x.personaId === f.personaId && x.fecha === f.fecha && x.aceptable === f.aceptable)));
+  }
+
+  const [loteando, setLoteando] = useState<string | null>(null); // sede en curso
+  // Revisar en lote: SOLO para racha/exceso "ya ocurrido" (ver LOTEABLES arriba
+  // — son acuse de "lo vi", no una afirmación sobre el día de nadie). Nunca
+  // incluye salida anticipada ni almuerzo sin marcar: esas dos sí afirman un
+  // hecho puntual y solo las puede dar por buenas quien revisó ESE día.
+  async function aprobarLote(sede: string, filasSede: Fila[]) {
+    const objetivo = filasSede.filter((f) => f.personaId && f.aceptable && LOTEABLES.has(f.aceptable));
+    if (objetivo.length === 0) return;
+    setLoteando(sede);
+    const supabase = createAdminSupabaseClient();
+    for (const f of objetivo) {
+      if (!f.personaId || !f.aceptable) continue; // ya filtrado arriba; TS no lo sabe
+      const { error: e } = await supabase.rpc("fn_aceptar_incidencia", {
+        p_persona_id: f.personaId, p_fecha: f.fecha, p_tipo: f.aceptable,
+      });
+      if (e) { setError(`Se detuvo la revisión en lote: ${e.message}`); break; }
+    }
+    setLoteando(null);
+    await cargar();
   }
 
   /** Cerrar una revisión pedida desde «Lo mío». La respuesta es opcional pero
@@ -608,8 +751,8 @@ function IncidenciasContenido() {
       p_id: id, p_respuesta: (respuestas[id] ?? "").trim() || null,
     });
     setAtendiendo(null);
-    if (e) { setError(e.message); return; }
-    setError(null);
+    if (e) { setErrorAccion(e.message); return; }
+    setErrorAccion(null);
     setRespuestas((r) => ({ ...r, [id]: "" }));
     await cargar();
   }
@@ -617,13 +760,20 @@ function IncidenciasContenido() {
   // ── Justificar una falta ─────────────────────────────────────────────────
   const [justif, setJustif] = useState<{ personaId: string; fecha: string; nombre: string } | null>(null);
   const [motivoSel, setMotivoSel] = useState("permiso_concedido");
+  // El error de ESTE diálogo, dentro de ESTE diálogo. El servidor rechaza
+  // «Descanso médico» acá a propósito (0124): ese motivo PAGA y exige documento,
+  // y degradarlo en silencio a uno que no paga sería quitarle el día a quien
+  // entregó su certificado. El rechazo trae la instrucción de qué hacer en su
+  // lugar, así que tiene que leerse — y el único sitio donde se lee es acá.
+  const [errorJustif, setErrorJustif] = useState<string | null>(null);
 
   const [observ, setObserv] = useState("");
   const [guardandoJustif, setGuardandoJustif] = useState(false);
 
   async function guardarJustificacion() {
     if (!justif) return;
-    if (motivoSel === "otro" && observ.trim().length < 3) { setError("Para 'Otro' la observación es obligatoria."); return; }
+    if (motivoSel === "otro" && observ.trim().length < 3) { setErrorJustif("Para 'Otro' la observación es obligatoria."); return; }
+    setErrorJustif(null);
     setGuardandoJustif(true);
     const supabase = createAdminSupabaseClient();
     const { error: e } = await supabase.rpc("fn_set_justificacion", {
@@ -631,8 +781,8 @@ function IncidenciasContenido() {
       p_observacion: observ.trim() || null,
     });
     setGuardandoJustif(false);
-    if (e) { setError(`No se pudo justificar: ${e.message}`); return; }
-    setJustif(null); setObserv(""); setMotivoSel("permiso_concedido");
+    if (e) { setErrorJustif(e.message); return; }
+    setJustif(null); setObserv(""); setMotivoSel("permiso_concedido"); setErrorJustif(null);
     await cargar();
   }
 
@@ -640,7 +790,7 @@ function IncidenciasContenido() {
     if (!f.personaId) return;
     const supabase = createAdminSupabaseClient();
     const { error: e } = await supabase.rpc("fn_quitar_justificacion", { p_persona_id: f.personaId, p_fecha: f.fecha });
-    if (e) { setError(`No se pudo quitar la justificación: ${e.message}`); return; }
+    if (e) { setErrorAccion(`No se pudo quitar la justificación: ${e.message}`); return; }
     await cargar();
   }
 
@@ -663,22 +813,58 @@ function IncidenciasContenido() {
   const porSede = [...new Set(vista.map((f) => f.sede))].sort();
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <AdminNav />
+    <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
-        <div className="mb-1 flex items-end justify-between">
-          <h1 className="font-serif text-2xl">Incidencias</h1>
+        <div className="mb-1 flex flex-wrap items-end justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <h1 className="font-serif text-2xl">Incidencias</h1>
+            <div role="tablist" aria-label="Modo de vista" className="flex rounded-full border border-sand p-0.5">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={vistaModo === "resumen"}
+                onClick={() => setVistaModo("resumen")}
+                className={`etiqueta rounded-full px-3 py-1 transition-colors ${
+                  vistaModo === "resumen" ? "bg-tinta text-crema" : "text-taupe hover:bg-sand/40"
+                }`}
+              >
+                Resumen
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={vistaModo === "detalle"}
+                onClick={() => setVistaModo("detalle")}
+                className={`etiqueta rounded-full px-3 py-1 transition-colors ${
+                  vistaModo === "detalle" ? "bg-tinta text-crema" : "text-taupe hover:bg-sand/40"
+                }`}
+              >
+                Detalle
+              </button>
+            </div>
+          </div>
           <span className="text-xs text-taupe">{cargando ? "Cargando…" : `${vista.length} por revisar`}</span>
         </div>
-        <p className="mb-5 text-sm text-taupe">Días que necesitan tu revisión: auto-cerrados, sin salida final, sin retorno de pausa, o con salida anticipada (más de 15 min antes de su hora). Toca cualquiera para corregirlo. También avisa cuando alguien acumula {UMBRAL_PATRON_TARDANZAS}+ tardanzas en los últimos {VENTANA_PATRON_DIAS} <strong>días corridos</strong> — Dynamic solo avisa, la decisión (conversar, amonestar) es tuya. Ese conteo <strong>no es el que arma un memo</strong>: el umbral del RIT se cuenta por <strong>mes calendario</strong> y sale en Disciplina, así que acá el número puede ser mayor cuando queda una tardanza del mes pasado dentro de la ventana. Y si una sede no llega a su mínimo de encargadas programadas esta semana (configurable en Turnos), también sale acá. Avisa además cuando alguien pasa de {MAXIMO_LEGAL_SEMANAL} h en <strong>cualquier ventana de siete días seguidos</strong> — no por semana de calendario, porque así doce días corridos de 8 h darían 48 y 48 sin que nada saltara. Ese es el <strong>máximo legal</strong>, no un objetivo. Ese aviso viene en dos tonos: si la ventana termina esta semana todavía se puede mover un turno, y si dice <strong>«ya ocurrió»</strong> es un exceso de hasta {VENTANA_EXCESO_DIAS} días atrás que ya no se evita — se saca con <strong>Revisado</strong>, que deja constancia de quién lo miró. Y cuando alguien lleva {MAXIMO_DIAS_SIN_DESCANSO} días seguidos trabajando, porque el siguiente le toca descansar — el descanso semanal se cuenta en <strong>ciclos de 7 días</strong>, no por semana de calendario (Informe 027-2021-MTPE/14), así que con turnos rotativos se puede cumplir «uno por semana» y encadenar doce días igual. Ese aviso <strong>se va solo en cuanto descansa</strong>: si su último día trabajado ya quedó atrás, el descanso ocurrió y no hay nada que pedir. El de <strong>{MAXIMO_DIAS_SIN_DESCANSO + 1}+ días</strong> no se va solo —esa infracción ya ocurrió— y se saca con <strong>Revisado</strong>, que deja constancia de quién la miró. Ninguno de los dos límites —las {MAXIMO_LEGAL_SEMANAL} h ni el descanso— <strong>se arregla pagando después</strong>: el recargo del sobretiempo se paga aparte y no levanta el tope. Las <strong>faltas</strong> (le tocaba y no marcó) salen en rojo; usa <strong>Justificar</strong> para registrar el motivo (permiso, descanso médico, etc.) y sacarlas del conteo.</p>
+        {/* El toggle Resumen/Detalle vive ACÁ, no en la tabla de abajo: lo único
+            que cambia de tamaño es esta explicación. La tabla de incidencias
+            (y sus acciones) es siempre la misma, completa, en los dos modos —
+            resumirla escondería justo lo que exige revisión. */}
+        {vistaModo === "detalle" ? (
+          <p className="mb-5 text-sm text-taupe">Días que necesitan tu revisión: auto-cerrados, sin salida final, sin retorno de pausa, o con salida anticipada (más de 15 min antes de su hora). Toca cualquiera para corregirlo. También avisa cuando alguien acumula {UMBRAL_PATRON_TARDANZAS}+ tardanzas en los últimos {VENTANA_PATRON_DIAS} <strong>días corridos</strong> — Dynamic solo avisa, la decisión (conversar, amonestar) es tuya. Ese conteo <strong>no es el que arma un memo</strong>: el umbral del RIT se cuenta por <strong>mes calendario</strong> y sale en Disciplina, así que acá el número puede ser mayor cuando queda una tardanza del mes pasado dentro de la ventana. Y si una sede no llega a su mínimo de encargadas programadas esta semana (configurable en Turnos), también sale acá. Avisa además cuando alguien pasa de {MAXIMO_LEGAL_SEMANAL} h en <strong>cualquier ventana de siete días seguidos</strong> — no por semana de calendario, porque así doce días corridos de 8 h darían 48 y 48 sin que nada saltara. Ese es el <strong>máximo legal</strong>, no un objetivo. Ese aviso viene en dos tonos: si la ventana termina esta semana todavía se puede mover un turno, y si dice <strong>«ya ocurrió»</strong> es un exceso de hasta {VENTANA_EXCESO_DIAS} días atrás que ya no se evita — se saca con <strong>Revisado</strong>, que deja constancia de quién lo miró. Y cuando alguien lleva {MAXIMO_DIAS_SIN_DESCANSO} días seguidos trabajando, porque el siguiente le toca descansar — el descanso semanal se cuenta en <strong>ciclos de 7 días</strong>, no por semana de calendario (Informe 027-2021-MTPE/14), así que con turnos rotativos se puede cumplir «uno por semana» y encadenar doce días igual. Ese aviso <strong>se va solo en cuanto descansa</strong>: si su último día trabajado ya quedó atrás, el descanso ocurrió y no hay nada que pedir. El de <strong>{MAXIMO_DIAS_SIN_DESCANSO + 1}+ días</strong> no se va solo —esa infracción ya ocurrió— y se saca con <strong>Revisado</strong>, que deja constancia de quién la miró. Ninguno de los dos límites —las {MAXIMO_LEGAL_SEMANAL} h ni el descanso— <strong>se arregla pagando después</strong>: el recargo del sobretiempo se paga aparte y no levanta el tope. Las <strong>faltas</strong> (le tocaba y no marcó) salen en rojo; usa <strong>Justificar</strong> para registrar el motivo (permiso, descanso médico, etc.) y sacarlas del conteo.</p>
+        ) : (
+          <p className="mb-5 text-sm text-taupe">
+            Días que necesitan tu revisión: cierres mal hechos (auto-cierre, sin salida, sin retorno de almuerzo,
+            salida anticipada), patrones de tardanza, exceso de las {MAXIMO_LEGAL_SEMANAL} h legales en 7 días
+            seguidos, {MAXIMO_DIAS_SIN_DESCANSO}+ días sin descanso, sedes por debajo de su mínimo de encargadas, y
+            faltas sin justificar. <strong>Dynamic solo avisa</strong> — conversar, amonestar o justificar es
+            decisión tuya. Toca cualquier fila para corregirla; pasa a <strong>Detalle</strong> para las reglas
+            completas de cada aviso (qué cuenta, qué no, y por qué).
+          </p>
+        )}
 
         <div className="mb-6 flex flex-wrap items-end gap-4">
-          <label className="flex flex-col gap-1 text-sm">Desde
-            <input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} className="rounded-lg border border-sand bg-crema px-3 py-2" />
-          </label>
-          <label className="flex flex-col gap-1 text-sm">Hasta
-            <input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} className="rounded-lg border border-sand bg-crema px-3 py-2" />
-          </label>
+          <Campo etiqueta="Desde" type="date" value={desde} onChange={(e) => setDesde(e.target.value)} />
+          <Campo etiqueta="Hasta" type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} />
         </div>
 
         {/* ── Lo que tu equipo pidió revisar ──────────────────────────────────
@@ -703,17 +889,56 @@ function IncidenciasContenido() {
                   </div>
                   <p className="mt-1.5">«{r.comentario}»</p>
                   <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <input
-                      value={respuestas[r.id] ?? ""}
-                      onChange={(e) => setRespuestas((x) => ({ ...x, [r.id]: e.target.value }))}
-                      placeholder="En qué quedó (lo va a leer la persona)"
-                      className="min-w-56 flex-1 rounded-lg border border-sand bg-crema px-3 py-1.5"
-                    />
-                    <button onClick={() => void atenderRevision(r.id)} disabled={atendiendo === r.id}
-                      className="rounded-lg bg-tinta px-4 py-1.5 font-medium text-crema disabled:opacity-50">
-                      {atendiendo === r.id ? "Guardando…" : "Marcar atendida"}
-                    </button>
+                    <div className="min-w-56 flex-1">
+                      <Campo
+                        value={respuestas[r.id] ?? ""}
+                        onChange={(e) => setRespuestas((x) => ({ ...x, [r.id]: e.target.value }))}
+                        placeholder="En qué quedó (lo va a leer la persona)"
+                      />
+                    </div>
+                    <Boton variante="primario" onClick={() => void atenderRevision(r.id)} cargando={atendiendo === r.id}>
+                      Marcar atendida
+                    </Boton>
                   </div>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {/* Tope de 12 meses del convenio (0336) — aviso, no conteo. Una
+            practicante puede venir marcando con normalidad todos los días y
+            aun así estar en riesgo de que su convenio se considere
+            desnaturalizado (Ley 28518, art. 30); eso no se ve en ninguna
+            falta ni tardanza, así que necesita su propio aviso acá, donde DO
+            ya está mirando la asistencia de esa persona. La acción vive en
+            Contratos, no acá: renovar o cerrar un convenio no es cosa de
+            Incidencias. */}
+        {practicantesSobreTope.length > 0 && (
+          <section className="mb-6 rounded-2xl border border-ambar/40 bg-ambar/5 p-5">
+            <h2 className="mb-1 font-serif text-lg">
+              {practicantesSobreTope.length} convenio{practicantesSobreTope.length === 1 ? "" : "s"} de prácticas en el tope de 12 meses
+            </h2>
+            <p className="mb-3 text-sm text-taupe">
+              Ley 28518, art. 30: pasado el tope, la relación arriesga considerarse desnaturalizada —
+              aunque siga viniendo con normalidad. Se revisa en Contratos, no acá.
+            </p>
+            <ul className="space-y-1.5 text-sm">
+              {practicantesSobreTope.map((p) => (
+                <li key={p.persona_id} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                  <span>
+                    <strong>{p.persona}</strong> <span className="text-taupe">· {p.sede}</span>
+                    {" — "}
+                    {p.estado === "vencido"
+                      ? "superó el tope de 12 meses"
+                      : `se acerca al tope de 12 meses${p.dias_restantes !== null ? ` · ${p.dias_restantes} días` : ""}`}
+                  </span>
+                  {/* admin/contratos no lee ningún parámetro de la URL para
+                      preseleccionar a alguien — un enlace con "?persona=" ahí
+                      prometería un salto que no existe. */}
+                  <Link href="/admin/contratos" className="shrink-0 text-taupe underline underline-offset-2 hover:text-tinta">
+                    Ver en Contratos →
+                  </Link>
                 </li>
               ))}
             </ul>
@@ -727,23 +952,40 @@ function IncidenciasContenido() {
                 ? <>Mostrando solo las incidencias de <strong>{nombreFiltro}</strong> en este periodo.</>
                 : "La persona seleccionada no tiene incidencias por revisar en este periodo."}
             </span>
-            <button onClick={() => router.push("/admin/incidencias")} className="shrink-0 font-medium text-rojo hover:underline">Ver todas →</button>
+            <Boton variante="enlace" className="shrink-0 text-rojo" onClick={() => router.push("/admin/incidencias")}>Ver todas →</Boton>
           </div>
         )}
 
         {error && (
           <div className="mb-6 rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
             No se pudieron cargar las incidencias: {error}{" "}
-            <button onClick={() => void cargar()} className="font-medium underline">
-              Reintentar
-            </button>
+            <Boton variante="enlace" onClick={() => void cargar()}>Reintentar</Boton>
+          </div>
+        )}
+
+        {/* Aviso parcial, distinto del error de arriba: el resto de la
+            pantalla sí cargó, pero el aviso de "patrón de tardanzas" se apagó
+            porque no se pudo comprobar cuáles ya fueron perdonadas. */}
+        {avisoLevantadas && (
+          <div className="mb-6 rounded-lg border border-ambar/30 bg-ambar/10 px-4 py-3 text-sm">
+            {avisoLevantadas}{" "}
+            <Boton variante="enlace" onClick={() => void cargar()}>Reintentar</Boton>
+          </div>
+        )}
+
+        {/* Lo que falló al ACTUAR, dicho como lo que es. Antes compartía estado
+            con el de arriba, así que un rechazo al guardar salía anunciado como
+            un fallo de carga y con un botón «Reintentar» que recargaba la
+            pantalla en vez de repetir la acción — dos mentiras seguidas. */}
+        {errorAccion && (
+          <div className="mb-6 flex items-start gap-3 rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
+            <span className="flex-1">{errorAccion}</span>
+            <Boton variante="enlace" className="shrink-0" onClick={() => setErrorAccion(null)}>Entendido</Boton>
           </div>
         )}
 
         {!cargando && !error && vista.length === 0 && !personaFiltro && (
-          <div className="rounded-lg border border-sand bg-sand/30 px-4 py-8 text-center text-taupe">
-            🎉 Sin incidencias en el periodo. Todo en orden.
-          </div>
+          <SinDatos texto="Sin incidencias por revisar en el periodo." />
         )}
 
         {/* Antes esta lista no tenía ningún estado de carga: mientras `cargando`
@@ -754,116 +996,163 @@ function IncidenciasContenido() {
         {porSede.map((sede) => {
           const deSede = vista.filter((f) => f.sede === sede);
           if (deSede.length === 0) return null;
+          const loteables = deSede.filter((f) => f.personaId && f.aceptable && LOTEABLES.has(f.aceptable));
           return (
             <section key={sede} className="mb-8">
-              <h2 className="mb-3 font-serif text-lg">{sede} <span className="text-base text-taupe">· {deSede.length}</span></h2>
-              <div className="overflow-x-auto rounded-2xl border border-sand bg-papel">
-                <table className="w-full text-sm">
-                  <thead className="bg-sand/70 text-left">
-                    <tr className="etiqueta text-taupe">
-                      <th className="px-4 py-2.5 font-medium">Persona</th>
-                      <th className="px-4 py-2.5 font-medium">Fecha</th>
-                      <th className="px-4 py-2.5 font-medium">Incidencia</th>
-                      <th className="px-4 py-2.5 font-medium">Entrada</th>
-                      <th className="px-4 py-2.5 font-medium">Salida</th>
-                      <th className="px-4 py-2.5 font-medium"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {deSede.map((f, i) => (
-                      <tr key={`${f.personaId}-${f.fecha}-${i}`} className="border-t border-sand">
-                        <td className="px-4 py-2.5">{f.nombre}</td>
-                        <td className="px-4 py-2.5 capitalize">{fechaLarga(f.fecha)}</td>
-                        <td className="px-4 py-2.5">
-                          <span className={`font-medium ${f.justificada ? "text-taupe" : "text-rojo"}`}>{f.tipo}</span>
-                        </td>
-                        <td className="px-4 py-2.5">{horaLima(f.entrada)}</td>
-                        <td className="px-4 py-2.5">{horaLima(f.salida)}</td>
-                        <td className="px-4 py-2.5 text-right">
-                          <div className="flex items-center justify-end gap-3">
-                            {f.aceptable && f.personaId && (
-                              <button
-                                onClick={() => void aceptar(f)}
-                                disabled={aceptando === `${f.personaId}|${f.fecha}|${f.aceptable}`}
-                                title={ACEPTAR_AYUDA(f.aceptable)}
-                                className="rounded-lg border border-sand px-2.5 py-1 text-xs text-taupe hover:bg-sand/40 disabled:opacity-50"
-                              >
-                                {aceptando === `${f.personaId}|${f.fecha}|${f.aceptable}` ? "…" : ACEPTAR_BOTON(f.aceptable)}
-                              </button>
-                            )}
-                            {f.corregible && f.personaId && (
-                              <Link
-                                href={`/admin/correcciones?persona=${f.personaId}&fecha=${f.fecha}`}
-                                title="Abrir este día en Correcciones para registrar las marcas que faltan"
-                                className="rounded-lg border border-sand px-2.5 py-1 text-xs text-taupe hover:bg-sand/40"
-                              >
-                                Corregir
-                              </Link>
-                            )}
-                            {f.esFalta && f.personaId && !f.justificada && (
-                              <button
-                                onClick={() => { setJustif({ personaId: f.personaId!, fecha: f.fecha, nombre: f.nombre }); setMotivoSel("permiso_concedido"); setObserv(""); }}
-                                title="Registrar el motivo de esta falta (permiso, descanso médico, etc.)"
-                                className="rounded-lg border border-sand px-2.5 py-1 text-xs text-taupe hover:bg-sand/40"
-                              >
-                                Justificar
-                              </button>
-                            )}
-                            {f.esFalta && f.personaId && f.justificada && (
-                              <button
-                                onClick={() => void quitarJustificacion(f)}
-                                title="Quitar la justificación (vuelve a contar como falta)"
-                                className="text-xs text-taupe underline hover:text-tinta"
-                              >
-                                quitar justif.
-                              </button>
-                            )}
-                            {f.personaId ? (
-                              <Link href={`/admin/correcciones?persona=${f.personaId}&fecha=${f.fecha}`} className="font-medium text-rojo underline decoration-rojo/30 underline-offset-2 hover:decoration-rojo">
-                                Corregir ›
-                              </Link>
-                            ) : (
-                              <Link href={`/admin/turnos?fecha=${f.fecha}`} className="font-medium text-rojo underline decoration-rojo/30 underline-offset-2 hover:decoration-rojo">
-                                Ver turnos ›
-                              </Link>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+                <h2 className="font-serif text-lg">{sede} <span className="text-base text-taupe">· {deSede.length}</span></h2>
+                {loteables.length >= 2 && (
+                  <Boton
+                    variante="sutil"
+                    tamano="sm"
+                    onClick={() => void aprobarLote(sede, deSede)}
+                    disabled={loteando === sede}
+                    title="Marca como revisadas todas las rachas y excesos de jornada de esta sede que ya solo necesitan constancia de que se vieron. No toca faltas, salidas anticipadas ni almuerzos sin marcar — esas afirman un hecho del día y se revisan una por una."
+                  >
+                    {loteando === sede ? "Revisando…" : `Marcar ${loteables.length} como revisadas`}
+                  </Boton>
+                )}
               </div>
+              <Tabla>
+                <TablaEncabezado>
+                  <Th>Persona</Th>
+                  <Th>Fecha</Th>
+                  <Th>Incidencia</Th>
+                  <Th>Entrada</Th>
+                  <Th>Salida</Th>
+                  <Th></Th>
+                </TablaEncabezado>
+                <tbody>
+                  {deSede.map((f, i) => (
+                    <FilaTabla key={`${f.personaId}-${f.fecha}-${i}`}>
+                      <td className="px-4 py-2.5">{f.nombre}</td>
+                      <td className="px-4 py-2.5 capitalize">{fechaLarga(f.fecha)}</td>
+                      <td className="px-4 py-2.5">
+                        <span className={`font-medium ${COLOR_SEVERIDAD[f.severidad]}`}>{f.tipo}</span>
+                      </td>
+                      <td className="px-4 py-2.5">{horaLima(f.entrada)}</td>
+                      <td className="px-4 py-2.5">{horaLima(f.salida)}</td>
+                      <td className="px-4 py-2.5 text-right">
+                        <div className="flex items-center justify-end gap-3">
+                          {f.aceptable && f.personaId && (
+                            <Boton
+                              variante="sutil"
+                              tamano="sm"
+                              onClick={() => void aceptar(f)}
+                              disabled={aceptando === `${f.personaId}|${f.fecha}|${f.aceptable}`}
+                              title={ACEPTAR_AYUDA(f.aceptable)}
+                            >
+                              {aceptando === `${f.personaId}|${f.fecha}|${f.aceptable}` ? "…" : ACEPTAR_BOTON(f.aceptable)}
+                            </Boton>
+                          )}
+                          {f.esFalta && f.personaId && !f.justificada && (
+                            <Boton
+                              variante="sutil"
+                              tamano="sm"
+                              onClick={() => { setJustif({ personaId: f.personaId!, fecha: f.fecha, nombre: f.nombre }); setMotivoSel("permiso_concedido"); setObserv(""); setErrorJustif(null); }}
+                              title="Registrar el motivo de esta falta (permiso, descanso médico, etc.)"
+                            >
+                              Justificar
+                            </Boton>
+                          )}
+                          {f.esFalta && f.personaId && f.justificada && (
+                            <Boton
+                              variante="enlace"
+                              className="text-xs text-taupe hover:text-tinta"
+                              onClick={() => void quitarJustificacion(f)}
+                              title="Quitar la justificación (vuelve a contar como falta)"
+                            >
+                              quitar justif.
+                            </Boton>
+                          )}
+                          {/* Un solo enlace a "resolver este día": antes había
+                              además un botón "Corregir" corto acá al lado,
+                              con el mismo href — dos controles iguales que
+                              solo se distinguían probando cuál era cuál. */}
+                          {f.personaId ? (
+                            <Link href={`/admin/correcciones?persona=${f.personaId}&fecha=${f.fecha}`} className="font-medium text-rojo underline decoration-rojo/30 underline-offset-2 hover:decoration-rojo">
+                              Corregir ›
+                            </Link>
+                          ) : (
+                            <Link href={`/admin/turnos?fecha=${f.fecha}`} className="font-medium text-rojo underline decoration-rojo/30 underline-offset-2 hover:decoration-rojo">
+                              Ver turnos ›
+                            </Link>
+                          )}
+                        </div>
+                      </td>
+                    </FilaTabla>
+                  ))}
+                </tbody>
+              </Tabla>
             </section>
           );
         })}
 
-        {/* Modal: justificar una falta */}
-        {justif && (
-          <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/40 p-4" onClick={() => !guardandoJustif && setJustif(null)}>
-            <div className="w-full max-w-sm rounded-xl border border-sand bg-crema p-6" onClick={(e) => e.stopPropagation()}>
-              <h3 className="mb-1 font-serif text-lg">Justificar falta</h3>
+        {/* Modal: justificar una falta. Antes era una reimplementación a mano
+            (z-20, uno de los pisos distintos que convivían en el panel), sin
+            role="dialog", sin cierre con Escape y sin foco al abrir — ahora
+            usa <Modal>, que fija un solo piso (z-40) para todos los diálogos
+            del sistema y cubre eso. */}
+        <Modal
+          abierto={!!justif}
+          onCerrar={() => { setJustif(null); setErrorJustif(null); }}
+          bloqueado={guardandoJustif}
+          titulo="Justificar falta"
+          ancho="sm"
+        >
+          {justif && (
+            <>
               <p className="mb-4 text-sm text-taupe">{justif.nombre} · {fechaLarga(justif.fecha)}</p>
-              <label className="mb-3 flex flex-col gap-1 text-sm">
-                Motivo
-                <select value={motivoSel} onChange={(e) => setMotivoSel(e.target.value)} className="rounded-lg border border-sand bg-crema px-3 py-2">
+              <div className="mb-3">
+                <CampoSelect etiqueta="Motivo" value={motivoSel} onChange={(e) => setMotivoSel(e.target.value)}>
                   {MOTIVOS.map((m) => <option key={m.valor} value={m.valor}>{m.label}</option>)}
-                </select>
-              </label>
+                </CampoSelect>
+              </div>
+              {/* El aviso ANTES del choque, no después. El servidor rechaza este
+                  motivo siempre (0124) y con razón —paga, y exige el documento
+                  que este diálogo no pide—, pero ofrecerlo en la lista y
+                  rechazarlo al pulsar es un callejón: la persona eligió bien lo
+                  que le pasó a su compañera, y la pantalla la deja sin salida.
+                  Acá se dice antes, y se dice a dónde ir. */}
+              {motivoSel === "descanso_medico" && (
+                <p className="mb-4 rounded-lg bg-sand/60 px-3 py-2 text-sm text-tinta">
+                  El descanso médico <strong>se paga</strong>, así que necesita su documento
+                  (profesional o institución, colegiatura y fecha) y se registra en{" "}
+                  <a href="/admin/ausencias" className="font-medium underline">Ausencias</a>.
+                  Si no hay documento, ahí mismo está «Descanso por salud»: no cuenta como falta,
+                  pero no paga.
+                </p>
+              )}
               <label className="mb-4 flex flex-col gap-1 text-sm">
                 Observación {motivoSel === "otro" ? <span className="text-rojo">(obligatoria)</span> : <span className="text-taupe">(opcional)</span>}
-                <textarea value={observ} onChange={(e) => setObserv(e.target.value)} rows={2}
-                  className="rounded-lg border border-sand bg-crema px-3 py-2" placeholder="ej. permiso por trámite" />
+                <AreaTexto value={observ} onChange={(e) => setObserv(e.target.value)} rows={2} placeholder="ej. permiso por trámite" />
               </label>
+              {/* Acá, y no en el banner de la página: este diálogo tapa la
+                  pantalla entera mientras está abierto. Un rechazo pintado
+                  detrás no lo ve nadie — quien pulsaba «Justificar» con
+                  «Descanso médico» se quedaba mirando el mismo formulario, sin
+                  saber si había funcionado. `whitespace-pre-line` porque el
+                  mensaje del servidor explica qué hacer en su lugar y merece
+                  leerse entero. */}
+              {errorJustif && (
+                <p className="mb-3 whitespace-pre-line rounded-lg bg-rojo/10 px-3 py-2 text-sm text-rojo">
+                  {errorJustif}
+                </p>
+              )}
               <div className="flex justify-end gap-2">
-                <button onClick={() => setJustif(null)} disabled={guardandoJustif} className="rounded-lg border border-sand px-3 py-2 text-sm">Cancelar</button>
-                <button onClick={() => void guardarJustificacion()} disabled={guardandoJustif} className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50">
-                  {guardandoJustif ? "Guardando…" : "Justificar"}
-                </button>
+                <Boton onClick={() => { setJustif(null); setErrorJustif(null); }} disabled={guardandoJustif}>Cancelar</Boton>
+                <Boton
+                  variante="primario"
+                  onClick={() => void guardarJustificacion()}
+                  disabled={motivoSel === "descanso_medico"}
+                  cargando={guardandoJustif}
+                >
+                  Justificar
+                </Boton>
               </div>
-            </div>
-          </div>
-        )}
+            </>
+          )}
+        </Modal>
       </main>
     </div>
   );

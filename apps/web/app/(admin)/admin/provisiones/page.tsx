@@ -3,12 +3,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
-import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { formatSoles } from "@/lib/rangos";
 import { descargarCsv, generarCsv } from "@/lib/admin/csv";
 import { puedeVerPlanilla } from "@cayla-dynamic/shared";
+import { Boton } from "@/components/ui/boton";
+import { CampoSelect } from "@/components/ui/campo";
+import { Tabla, Fila } from "@/components/ui/tabla";
 
 // ── Fechas (por string: NUNCA new Date(), para no correr un día por zona) ────
 // "2027-03-12" → "12/03/2027"
@@ -91,6 +93,13 @@ interface ProvPersona {
   nombre: string;
   sede: string;
   fecha_ingreso: string;
+  // ⇩ 0428 ⇩ Un practicante no devenga gratificación, CTS ni vacaciones por
+  // ley (Ley 28518) y ahora SÍ ocupa una fila —antes no aparecía en
+  // absoluto—. Sin este dato, su fila en S/ 0.00 se leería igual que la de
+  // alguien recién ingresado a planilla que "aún no devengó", que es
+  // exactamente la ambigüedad que la 0274 vino a cerrar. Opcional: sin la
+  // 0428 pegada llega `undefined` y la fila no muestra ninguna insignia.
+  tipo_vinculo?: string;
   grati_s1: number;
   grati_s2: number;
   grati_total: number;
@@ -129,6 +138,14 @@ interface ProvPersona {
   vac_dias: number;
   proximo_aniversario: string;
   gran_total: number;
+  // ⇩ 0365 ⇩ Dos ceros que se veían iguales. Quien devenga y NO tiene tramo
+  // en `asignaciones_salario` salía con S/ 0.00 en todo, igual que quien entró
+  // esta semana: los días sin tramo no aportan a la base y la fila sale igual
+  // (0274). `sin_salario_vigente` lo dice, y `dias_sin_salario` cuenta los
+  // días de calendario que lleva así. Opcionales por la misma razón que las de
+  // arriba: sin la 0365 pegada llegan `undefined` y la fila se ve como antes.
+  sin_salario_vigente?: boolean;
+  dias_sin_salario?: number;
 }
 interface ProvData {
   as_of: string;
@@ -143,6 +160,9 @@ interface ProvData {
   cts_may_periodo: string;
   cts_nov_periodo: string;
   personas: ProvPersona[];
+  // ⇩ 0365 ⇩ Cuántas filas llevan `sin_salario_vigente`. Opcional: sin la
+  // 0365 pegada no viaja, y la línea de aviso simplemente no se pinta.
+  personas_sin_salario?: number;
 }
 
 const COLS = 14; // 2 + 3 grati + bonif + 3 cts + 3 vac + gran total + próximo pago
@@ -238,6 +258,14 @@ export default function ProvisionesPage() {
     [visibles],
   );
 
+  // CAMBIO 0365 — quienes hoy SÍ tienen tramo pero tuvieron un hueco dentro
+  // del año que reserva. `personas_sin_salario` (de la base) no los cuenta:
+  // la bandera mira solo la fecha de corte. Se cuenta sobre lo visible.
+  const conHueco = useMemo(
+    () => visibles.filter((p) => !p.sin_salario_vigente && (p.dias_sin_salario ?? 0) > 0).length,
+    [visibles],
+  );
+
   // Monto del próximo pago de una persona = la fila cuya clave es data.proximo.ref
   const proximoRef = data?.proximo?.ref ?? null;
   function montoProximo(p: ProvPersona): number | null {
@@ -265,6 +293,10 @@ export default function ProvisionesPage() {
       gran_total: p.gran_total,
       proximo_pago_monto: montoProximo(p) ?? "",
       proximo_pago_fecha: data.proximo?.fecha ?? "",
+      // CAMBIO 0365 — el contador trabaja con este archivo, no con la
+      // pantalla: el cero corto tiene que ir marcado también acá.
+      sin_tramo_salario: p.sin_salario_vigente ? "sí" : "",
+      dias_sin_salario: (p.dias_sin_salario ?? 0) > 0 ? p.dias_sin_salario : "",
     }));
     const csv = generarCsv(filas, [
       "nombre",
@@ -283,6 +315,8 @@ export default function ProvisionesPage() {
       "gran_total",
       "proximo_pago_monto",
       "proximo_pago_fecha",
+      "sin_tramo_salario",
+      "dias_sin_salario",
     ]);
     descargarCsv(`provisiones-${data.as_of}.csv`, csv);
   }
@@ -290,11 +324,10 @@ export default function ProvisionesPage() {
   // ── Gating ──────────────────────────────────────────────────────────────────
   if (rol === null) {
     return (
-      <div className="flex min-h-screen flex-col">
-        <AdminNav />
+      <div className="flex flex-1 flex-col">
         <main className="flex-1 p-6">
           {rolDemorado ? (
-            <p className="max-w-md rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
+            <p className="max-w-md rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo">
               No se pudo identificar tu usuario — cierra sesión y vuelve a entrar.
             </p>
           ) : (
@@ -306,10 +339,9 @@ export default function ProvisionesPage() {
   }
   if (!puedeVer) {
     return (
-      <div className="flex min-h-screen flex-col">
-        <AdminNav />
+      <div className="flex flex-1 flex-col">
         <main className="flex-1 p-6">
-          <p className="max-w-md rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
+          <p className="max-w-md rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo">
             Solo administradores y líderes pueden ver las provisiones.
           </p>
         </main>
@@ -318,8 +350,7 @@ export default function ProvisionesPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <AdminNav />
+    <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
         {/* Cabecera */}
         <h1 className="mb-3 font-serif text-2xl">
@@ -329,11 +360,11 @@ export default function ProvisionesPage() {
         {/* Banda destacada: próximo desembolso */}
         {data &&
           (data.proximo?.fecha && data.proximo?.tipo ? (
-            <div className="mb-3 max-w-3xl rounded-lg bg-ambar/15 px-4 py-3 text-sm font-medium text-ambar">
+            <div className="mb-3 max-w-3xl rounded-control bg-ambar/15 px-4 py-3 text-sm font-medium text-ambar">
               Próximo desembolso: {tipoLabel(data.proximo.tipo)} el {fechaLarga(data.proximo.fecha)}
             </div>
           ) : (
-            <div className="mb-3 max-w-3xl rounded-lg bg-sand/40 px-4 py-3 text-sm text-taupe">
+            <div className="mb-3 max-w-3xl rounded-control bg-sand/40 px-4 py-3 text-sm text-taupe">
               No quedan desembolsos programados en lo que resta del año.
             </div>
           ))}
@@ -357,18 +388,50 @@ export default function ProvisionesPage() {
             entró esta semana—, porque ese cero significa «aún no». */}
         {data && (
           <p className="mb-4 max-w-3xl text-xs text-taupe">
-            Aparece quien devenga beneficios. Quien no devenga ninguno —recibo por honorarios, días de
-            prueba— no ocupa una fila: no hay nada que reservarle.
+            Aparece quien devenga beneficios, y también quien está en modalidad de prácticas (aunque su
+            fila salga en S/ 0.00, por ley no genera gratificación, CTS ni vacaciones). Quien no devenga
+            ninguno y no es practicante —recibo por honorarios, días de prueba— no ocupa una fila: no hay
+            nada que reservarle.
           </p>
+        )}
+
+        {/* SIN TRAMO DE SALARIO (CAMBIO 0365). Una fila en cero puede significar
+            «aún no devengó» o «nadie le cargó el tramo de salario», y hasta la
+            0365 las dos se veían igual. La base lo cuenta una vez arriba para
+            que quien reserva no tenga que recorrer la tabla buscando el cero
+            que miente. */}
+        {data && ((data.personas_sin_salario ?? 0) > 0 || conHueco > 0) && (
+          <div className="mb-4 max-w-3xl rounded-control border border-rojo bg-rojo/10 px-4 py-3 text-sm text-rojo">
+            {(data.personas_sin_salario ?? 0) > 0 && (
+              <>
+                <strong className="font-medium">
+                  {data.personas_sin_salario}{" "}
+                  {data.personas_sin_salario === 1 ? "persona" : "personas"} sin tramo de salario
+                  vigente:
+                </strong>{" "}
+                sus reservas salen cortas o en cero, no porque no les toque. Asígnale el salario en
+                Equipo para que la reserva se calcule.{" "}
+              </>
+            )}
+            {conHueco > 0 && (
+              <span>
+                {(data.personas_sin_salario ?? 0) > 0 ? "Y " : ""}
+                {conHueco === 1 ? "una persona" : `${conHueco} personas`}
+                {(data.personas_sin_salario ?? 0) > 0 ? " más " : " "}
+                {conHueco === 1 ? "tiene" : "tienen"} días sin tramo dentro del año que reserva: esos
+                días no cuentan.
+              </span>
+            )}
+          </div>
         )}
 
         {/* Error de carga */}
         {error && (
-          <div className="mb-4 max-w-3xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
+          <div className="mb-4 max-w-3xl rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo">
             No se pudieron cargar las provisiones: {error}{" "}
-            <button onClick={() => void cargar()} className="font-medium underline">
+            <Boton variante="enlace" className="font-medium" onClick={() => void cargar()}>
               Reintentar
-            </button>
+            </Boton>
           </div>
         )}
 
@@ -379,33 +442,31 @@ export default function ProvisionesPage() {
           <>
             {/* Filtro de sede + CSV */}
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-              <label className="flex items-center gap-2 text-sm">
-                Sede
-                <select
-                  value={sedeFiltro}
-                  onChange={(e) => setSedeFiltro(e.target.value)}
-                  className="rounded-lg border bg-crema px-3 py-1.5"
-                >
-                  <option value="todas">Todas</option>
-                  {sedes.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <button
+              <CampoSelect etiqueta="Sede" value={sedeFiltro} onChange={(e) => setSedeFiltro(e.target.value)}>
+                <option value="todas">Todas</option>
+                {sedes.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </CampoSelect>
+              <Boton
+                variante="primario"
                 onClick={descargarCsvProvisiones}
                 disabled={cargando || error !== null || visibles.length === 0}
-                className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50"
               >
                 Descargar CSV
-              </button>
+              </Boton>
             </div>
 
             {/* Tabla anual */}
-            <div className="overflow-x-auto rounded-2xl border border-sand bg-papel">
-              <table className="w-full text-sm">
+            {/* <Tabla> reemplaza el envoltorio a mano (mismo
+                overflow-x-auto/rounded-superficie/border/bg-papel), pero el
+                encabezado se queda nativo: son DOS filas —la de grupo
+                (Gratificación, CTS, Vacaciones, con colSpan) y la de
+                columna—, y <TablaEncabezado>/<Th> solo dan una fila y no
+                aceptan colSpan. */}
+            <Tabla className="[font-variant-numeric:tabular-nums]">
                 <thead className="bg-sand/70 text-left text-taupe">
                   {/* Encabezados de grupo (fechas de pago del payload) */}
                   <tr>
@@ -472,8 +533,51 @@ export default function ProvisionesPage() {
                   {visibles.map((p) => {
                     const mp = montoProximo(p);
                     return (
-                      <tr key={p.persona_id} className="border-t">
-                        <td className="px-4 py-2">{p.nombre}</td>
+                      <Fila key={p.persona_id}>
+                        <td className="px-4 py-2">
+                          {p.nombre}
+                          {/* CAMBIO 0428 — el cero de un practicante es «nunca», no
+                              «aún no»: por ley no devenga estos tres beneficios. Sin
+                              esta insignia se leería igual que el cero de alguien
+                              recién ingresado a planilla. */}
+                          {p.tipo_vinculo === "practicante" && (
+                            <span className="mt-1 flex flex-wrap items-center gap-2">
+                              <span
+                                className="inline-block rounded-pildora border border-taupe bg-sand/60 px-2 py-0.5 text-xs font-medium text-taupe"
+                                title="Practicante: por ley no genera gratificación, CTS ni vacaciones. Su fila sale en S/ 0.00 a propósito, no porque falte cargar algo."
+                              >
+                                Practicante · no devenga estos beneficios
+                              </span>
+                            </span>
+                          )}
+                          {/* CAMBIO 0365 — el cero de esta fila no es «aún no»:
+                              es que no hay tramo de salario que lo valore. */}
+                          {/* La insignia solo cuando falta el tramo A LA FECHA DE CORTE; los
+                              días, siempre que haya alguno: quien hoy tiene tramo pero tuvo
+                              un hueco en el año también reservó de menos, y sin este texto
+                              ese hueco no se ve en ningún sitio. */}
+                          {(p.sin_salario_vigente || (p.dias_sin_salario ?? 0) > 0) && (
+                            <span className="mt-1 flex flex-wrap items-center gap-2">
+                              {p.sin_salario_vigente && (
+                                <span
+                                  className="inline-block rounded-pildora border border-rojo bg-rojo/10 px-2 py-0.5 text-xs font-medium text-rojo"
+                                  title="No tiene ningún salario vigente a la fecha de corte (se asigna en Equipo). Sus reservas salen cortas o en cero, no porque no le toque."
+                                >
+                                  Sin tramo de salario vigente
+                                </span>
+                              )}
+                              {(p.dias_sin_salario ?? 0) > 0 && (
+                                <span
+                                  className="text-xs text-rojo"
+                                  title="Días de calendario del año que reserva sin ningún tramo de salario vigente: esos días no aportan a la reserva."
+                                >
+                                  {p.dias_sin_salario} {p.dias_sin_salario === 1 ? "día" : "días"} sin
+                                  salario cargado
+                                </span>
+                              )}
+                            </span>
+                          )}
+                        </td>
                         <td className="px-4 py-2">{p.sede}</td>
                         {/* Gratificación */}
                         <td className="border-l px-4 py-2 text-right">
@@ -483,7 +587,10 @@ export default function ProvisionesPage() {
                           {celdaVentana(p.grati_s2, p.grati_s2_pagada, p.grati_s2_monto_pagado, data.grati_s2_pago)}
                         </td>
                         <td className="px-4 py-2 text-right font-bold">{formatSoles(p.grati_total)}</td>
-                        {/* Bonificación extraordinaria (Ley 30334) — sale de la grati */}
+                        {/* Bonificación extraordinaria (Ley 30334). Desde la 0372 lleva
+                            su propia cuenta: ya no es «lo que quede de la grati». Si la
+                            gratificación se registró sin su 9% aparte, esta celda lo
+                            sigue mostrando pendiente, que es de lo que se trata. */}
                         <td className="border-l px-4 py-2 text-right">{formatSoles(p.be_total)}</td>
                         {/* CTS */}
                         <td className="border-l px-4 py-2 text-right">
@@ -529,7 +636,7 @@ export default function ProvisionesPage() {
                             <span className="text-taupe/50">—</span>
                           )}
                         </td>
-                      </tr>
+                      </Fila>
                     );
                   })}
                 </tbody>
@@ -563,8 +670,7 @@ export default function ProvisionesPage() {
                     </tr>
                   </tfoot>
                 )}
-              </table>
-            </div>
+            </Tabla>
 
             {/* Nota al pie */}
             <p className="mt-4 max-w-3xl text-xs text-taupe">
