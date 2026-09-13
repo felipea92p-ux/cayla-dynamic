@@ -621,6 +621,42 @@ export type Database = {
           },
         ]
       }
+      bandeja_vistos: {
+        Row: {
+          item_id: string
+          persona_id: string
+          tipo_item: string
+          visto_at: string
+        }
+        Insert: {
+          item_id: string
+          persona_id: string
+          tipo_item: string
+          visto_at?: string
+        }
+        Update: {
+          item_id?: string
+          persona_id?: string
+          tipo_item?: string
+          visto_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bandeja_vistos_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bandeja_vistos_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bonos_umbral_permitido: {
         Row: {
           autorizado_por: string | null
@@ -2717,6 +2753,78 @@ export type Database = {
             columns: ["resuelta_por"]
             isOneToOne: false
             referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mensajes_encargada: {
+        Row: {
+          creada_at: string
+          estado: string
+          id: string
+          mensaje: string
+          persona_id: string
+          respondida_at: string | null
+          respondida_por: string | null
+          respuesta: string | null
+          sede_id: string
+        }
+        Insert: {
+          creada_at?: string
+          estado?: string
+          id?: string
+          mensaje: string
+          persona_id: string
+          respondida_at?: string | null
+          respondida_por?: string | null
+          respuesta?: string | null
+          sede_id: string
+        }
+        Update: {
+          creada_at?: string
+          estado?: string
+          id?: string
+          mensaje?: string
+          persona_id?: string
+          respondida_at?: string | null
+          respondida_por?: string | null
+          respuesta?: string | null
+          sede_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mensajes_encargada_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mensajes_encargada_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mensajes_encargada_respondida_por_fkey"
+            columns: ["respondida_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mensajes_encargada_respondida_por_fkey"
+            columns: ["respondida_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mensajes_encargada_sede_id_fkey"
+            columns: ["sede_id"]
+            isOneToOne: false
+            referencedRelation: "sedes"
             referencedColumns: ["id"]
           },
         ]
@@ -4888,6 +4996,10 @@ export type Database = {
           ya_devenga: boolean
         }[]
       }
+      fn_bandeja_marcar_visto: {
+        Args: { p_item_id: string | null; p_tipo_item: string | null }
+        Returns: undefined
+      }
       fn_beneficio_ya_depositado: {
         Args: { p_anio: number | null; p_persona_id: string | null; p_ventana: string | null }
         Returns: number
@@ -5495,6 +5607,10 @@ export type Database = {
       fn_eliminar_periodo: {
         Args: { p_periodo_id: string | null }
         Returns: undefined
+      }
+      fn_enviar_mensaje_encargada: {
+        Args: { p_mensaje: string | null }
+        Returns: string
       }
       fn_es_admin_o_lider: { Args: never; Returns: boolean }
       fn_es_dia_laborable: {
@@ -6368,6 +6484,10 @@ export type Database = {
       }
       fn_resolver_solicitud_vacaciones: {
         Args: { p_aprobar: boolean | null; p_id: string | null; p_respuesta?: string | null }
+        Returns: undefined
+      }
+      fn_responder_mensaje_encargada: {
+        Args: { p_id: string | null; p_respuesta: string | null }
         Returns: undefined
       }
       fn_revertir_pago: {
