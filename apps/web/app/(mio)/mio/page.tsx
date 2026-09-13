@@ -30,7 +30,7 @@ import {
   urlFirmadaSolicitudPerfil, type CaraDni,
 } from "@/lib/foto-dni";
 import {
-  EMPRESA, ROLES_CON_PANEL, TZ_LIMA, hoyLima, NIVEL_DISCIPLINARIO_LABELS,
+  EMPRESA, ROLES_CON_PANEL, TZ_LIMA, hoyLima, NIVEL_DISCIPLINARIO_LABELS, formatoMinutos,
   ESTADO_CIVIL_LABELS, GENERO_LABELS, GRADO_INSTRUCCION_LABELS, VINCULO_DERECHOHABIENTE_LABELS,
   TIPO_VINCULO_LABEL,
 } from "@cayla-dynamic/shared";
@@ -393,11 +393,6 @@ function comoReloj(horas: number): string {
   return `${Math.floor(total / 60)}h ${String(total % 60).padStart(2, "0")}m`;
 }
 
-function comoMinutos(min: number): string {
-  if (min < 60) return `${min} min`;
-  return `${Math.floor(min / 60)}h ${String(min % 60).padStart(2, "0")}m`;
-}
-
 /** La hora de un marcaje, en Lima. Nunca `toLocaleTimeString` a secas: el huso
  *  del navegador no es el que decide a qué día pertenece una marca. */
 function hora(iso: string | null): string {
@@ -582,7 +577,7 @@ function explicaDia(d: Dia): string {
   if (d.jornada?.entrada_ts) p.push(`entraste ${hora(d.jornada.entrada_ts)}`);
   if (d.jornada?.horas_trabajadas != null) p.push(comoReloj(d.jornada.horas_trabajadas));
   if ((d.jornada?.minutos_tarde ?? 0) > 0) {
-    p.push(d.perdonada ? "tardanza levantada" : `${comoMinutos(d.jornada!.minutos_tarde!)} tarde`);
+    p.push(d.perdonada ? "tardanza levantada" : `${formatoMinutos(d.jornada!.minutos_tarde!)} tarde`);
   }
   if (d.estado === "falta") p.push("no hay marcaje");
   if (d.estado === "revisar") {
@@ -2107,7 +2102,7 @@ export default function MioPage() {
                             <div className="flex justify-between gap-4">
                               <dt className="text-taupe">Llegaste tarde</dt>
                               <dd className={d.perdonada ? "text-taupe" : "text-ambar"}>
-                                {comoMinutos(d.jornada!.minutos_tarde!)}{d.perdonada && " · justificada"}
+                                {formatoMinutos(d.jornada!.minutos_tarde!)}{d.perdonada && " · justificada"}
                               </dd>
                             </div>
                           )}
