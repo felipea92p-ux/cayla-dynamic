@@ -64,14 +64,18 @@ select is(
 -- ── 2 · Puerta admin: fn_documento_registrar ───────────────────────────────
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000335013', true);
 
+-- fn_hoy_lima(), no current_date: el servidor de CI corre en UTC, y entre
+-- las 19:00 y la medianoche de Lima current_date ya vale "mañana" — la misma
+-- trampa que el test 92 vigila en las funciones de public, pero que no
+-- alcanza a un archivo de prueba. Ver 92_nadie_usa_current_date.test.sql.
 select lives_ok(
-  $$ select fn_documento_registrar('ruta', current_date,
+  $$ select fn_documento_registrar('ruta', fn_hoy_lima(),
        '00000000-0000-0000-0000-000000335005', 'ruta de prueba', 10.00,
        null, false, null, 'documentos/prueba-335.jpg', null) $$,
   'REGISTRAR · admin sí puede registrar la ruta escaneada de una practicante');
 
 select throws_ok(
-  $$ select fn_documento_registrar('bono', current_date,
+  $$ select fn_documento_registrar('bono', fn_hoy_lima(),
        '00000000-0000-0000-0000-000000335005', null, null,
        2026, false, null, 'documentos/prueba-335-bono.jpg', null) $$,
   null, null,
