@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Search, ChevronRight, Calendar, ArrowUpRight } from "lucide-react";
 import { ROLES_DO, TIPOS_MARCA, TIPO_MARCA_LABELS, TZ_LIMA, anioLima, fechaLima, hoyLima, rangoDelDiaLima, puedeOperarEquipo, type TipoMarca } from "@cayla-dynamic/shared";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
@@ -125,6 +126,7 @@ function leTocaHorario(p: Persona | undefined): boolean {
   if (!p) return true;
   return p.tipo_vinculo !== "rxh" && p.tipo_vinculo !== "no_trabajador" && !p.personal_direccion;
 }
+interface Sede { id: string; nombre: string }
 interface Marcaje {
   id: string; tipo: TipoMarca; motivo_otro: string | null; timestamp_marca: string;
   origen: string; estado_revision: string;
@@ -183,6 +185,17 @@ interface Auditoria {
   motivo: string;
   corregido_por: string; // id de quien hizo el cambio
 }
+// Los únicos campos que esta pantalla sabe describir en detalle porque los
+// escriben SUS propias RPC (fn_corregir_marca, fn_anular_marcaje, etc.). Todo
+// lo demás que cae en correcciones_auditoria —hoy, cambios de turno desde
+// Turnos— es real y auditable igual, pero responde una pregunta distinta
+// ("qué le tocaba trabajar", no "qué marcó") y se distingue con su propia
+// insignia en vez de mezclarse en silencio.
+const CAMPOS_DE_MARCAJE = new Set([
+  "timestamp_marca", "auto_cierre_reemplazado", "marcaje_agregado",
+  "marcaje_anulado", "marcaje_reactivado", "marcaje_eliminado", "marca_apartada",
+]);
+
 // Traduce una fila de auditoría a lenguaje llano: qué acción fue, DE QUÉ DÍA y
 // su detalle. El tipo de marcaje ya viene embebido en el valor de
 // agregado/eliminado ("entrada @ ts"); para una hora corregida solo cambian las
@@ -307,17 +320,37 @@ type Accion =
   | { modo: "confirmar"; marcaje: Marcaje }
   | { modo: "agregar"; tipo: TipoMarca; hora: string; motivoOtro: string };
 
+/** Tarjeta de resumen del día (Estado, Horas, Tardanza, Entrada esperada). Un
+ *  solo componente para las cuatro en vez de repetir el marco: así, si un día
+ *  hace falta una quinta, no hay que copiar la envoltura otra vez. */
+function TarjetaResumen({ etiqueta, children }: { etiqueta: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded-superficie border border-sand bg-papel p-4">
+      <p className="etiqueta mb-1.5 text-taupe">{etiqueta}</p>
+      {/* break-words: jornada.estado llega crudo de la base ("auto_cerrada_pendiente",
+          sin espacios) y desbordaba el ancho fijo de la tarjeta en vez de
+          envolver — un `<strong>` suelto en el layout de antes no tenía este
+          problema porque fluía en un párrafo, no en una tarjeta angosta. */}
+      <div className="break-words text-base font-medium text-tinta">{children}</div>
+    </div>
+  );
+}
+
 export default function CorreccionesPage() {
   const router = useRouter();
   const yo = usePersonaActual();
   const rol = yo?.rol ?? null;
   const [personas, setPersonas] = useState<Persona[]>([]);
+  const [sedes, setSedes] = useState<Sede[]>([]);
   // Quién ya se liquidó (0421) — solo esas desaparecen del selector. Mientras
   // esté cesada y sin liquidar, sigue disponible: puede tener un marcaje real
   // por corregir antes de calcularle esa liquidación.
   const [personaLiquidada, setPersonaLiquidada] = useState<Set<string>>(new Set());
   const [personaId, setPersonaId] = useState("");
   const [fecha, setFecha] = useState(hoyLima());
+  // Filtro de la lista de la izquierda — no de qué persona está abierta.
+  const [sedeFiltro, setSedeFiltro] = useState("");
+  const [busqueda, setBusqueda] = useState("");
   const [marcajes, setMarcajes] = useState<Marcaje[]>([]);
   const [jornada, setJornada] = useState<Jornada | null>(null);
   const [auditoria, setAuditoria] = useState<Auditoria[]>([]); // últimas correcciones de esta persona
@@ -334,7 +367,6 @@ export default function CorreccionesPage() {
   const [levGuardando, setLevGuardando] = useState(false);
   const [cargado, setCargado] = useState(false);
   const [cargando, setCargando] = useState(false);
-  const [autoCargar, setAutoCargar] = useState(false); // deep-link: cargar solo al llegar con ?persona=&fecha=
   const { avisar } = useToast();
   // Días sellados por el sistema (secuencia imposible). Sin esta lista el sello
   // sería inútil: nadie va a revisar persona por persona adivinando cuál quedó mal.
@@ -379,13 +411,15 @@ export default function CorreccionesPage() {
       // filtro real (activa, o cesada pero sin liquidar) se aplica abajo con
       // `personasCorregibles` — hay que poder corregir el marcaje de alguien
       // que acaba de cesar ANTES de que se le calcule su liquidación (0421).
-      const [{ data: p }, { data: pf }] = await Promise.all([
+      const [{ data: p }, { data: pf }, { data: s }] = await Promise.all([
         supabase
           .from("personas").select("id, nombres, apellidos, rol, sede_base_id, tipo_vinculo, personal_direccion, estado")
           .order("nombres"),
         supabase.rpc("fn_personas_funciones"),
+        supabase.from("sedes").select("id, nombre").order("nombre"),
       ]);
       setPersonas((p as Persona[]) ?? []);
+      setSedes((s as Sede[]) ?? []);
       setPersonaLiquidada(new Set(
         (((pf as { persona_id: string; liquidada: boolean }[] | null) ?? []))
           .filter((f) => f.liquidada).map((f) => f.persona_id),
@@ -506,25 +540,25 @@ export default function CorreccionesPage() {
   }, [personaId, fecha, avisar]);
 
   // Deep-link: al llegar con ?persona=<id>&fecha=<YYYY-MM-DD> (desde un incidente del
-  // dashboard), precarga esa persona y fecha y abre el día listo para corregir.
+  // dashboard), precarga esa persona y fecha.
   useEffect(() => {
     if (personas.length === 0) return;
     const sp = new URLSearchParams(window.location.search);
     const pid = sp.get("persona");
     const f = sp.get("fecha");
     if (pid) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- leer la URL al montar, mismo patrón aceptado en admin/bandeja/page.tsx.
       setPersonaId(pid);
       if (f) setFecha(f);
-      setAutoCargar(true);
     }
   }, [personas]);
 
+  // La lista de la izquierda ya no necesita un botón "Ver el día": elegir a
+  // alguien (o cambiar la fecha del panel de la derecha) carga el día solo.
+  // `cargarDia` ya vuelve de inmediato si no hay persona elegida.
   useEffect(() => {
-    if (autoCargar && personaId) {
-      void cargarDia();
-      setAutoCargar(false);
-    }
-  }, [autoCargar, personaId, cargarDia]);
+    void cargarDia();
+  }, [cargarDia]);
 
   const MOTIVOS_TARD = [
     { valor: "fuerza_mayor", label: "Fuerza mayor" },
@@ -628,6 +662,7 @@ export default function CorreccionesPage() {
   // Nombre de quién hizo cada corrección, resuelto desde la lista ya cargada
   // (evita depender de un embed de PostgREST que el schema cache puede no exponer).
   const nombrePorId = useMemo(() => new Map(personas.map((p) => [p.id, `${p.nombres} ${p.apellidos}`])), [personas]);
+  const sedeNombrePorId = useMemo(() => new Map(sedes.map((s) => [s.id, s.nombre])), [sedes]);
   const puedeCorregir = puedeOperarEquipo(rol);
   const esSupervisor = rol === "supervisor_sede";
 
@@ -641,6 +676,30 @@ export default function CorreccionesPage() {
     if (!esSupervisor || !yo) return disponibles;
     return disponibles.filter((p) => p.id !== yo.id && !ROLES_DO.includes(p.rol));
   }, [personas, personaLiquidada, esSupervisor, yo]);
+
+  // Cuántos días por revisar tiene cada persona, en TODO el equipo — no solo el
+  // día que está abierto ahora mismo. Es lo que deja elegir a quién atender sin
+  // tener que probar persona por persona; reusa fn_dias_por_revisar, que ya se
+  // pedía para las tres bandas de arriba, en vez de una consulta nueva.
+  const pendientesPorPersona = useMemo(() => {
+    const mapa = new Map<string, number>();
+    for (const d of porRevisar) {
+      if (d.periodo_pagado) continue; // sin acción posible: no cuenta como pendiente
+      mapa.set(d.persona_id, (mapa.get(d.persona_id) ?? 0) + 1);
+    }
+    return mapa;
+  }, [porRevisar]);
+
+  // La lista de la izquierda: sede + texto, sobre las mismas personas que ya
+  // puede corregir quien mira la pantalla.
+  const personasListadas = useMemo(() => {
+    const texto = busqueda.trim().toLowerCase();
+    return personasCorregibles.filter((p) => {
+      if (sedeFiltro && p.sede_base_id !== sedeFiltro) return false;
+      if (!texto) return true;
+      return `${p.nombres} ${p.apellidos}`.toLowerCase().includes(texto);
+    });
+  }, [personasCorregibles, sedeFiltro, busqueda]);
 
   if (rol !== null && !puedeCorregir) {
     return (
@@ -656,13 +715,15 @@ export default function CorreccionesPage() {
 
   return (
     <div className="flex flex-1 flex-col">
-      <main className="flex-1 p-6">
-        <h1 className="mb-1 font-serif text-2xl">Corregir marcajes</h1>
-        <p className="mb-5 max-w-2xl text-sm text-taupe">
+      <div className="border-b border-sand px-6 py-5">
+        <h1 className="font-serif text-2xl">Corregir marcajes</h1>
+        <p className="mt-1 max-w-2xl text-sm text-taupe">
           Ajusta la hora de entrada/salida, agrega un marcaje olvidado o elimina un duplicado.
           Cada cambio pide un motivo y queda registrado (quién, qué y cuándo).
         </p>
+      </div>
 
+      <div className="px-6 pt-5">
         {/* Va ARRIBA de los días por revisar: aquellos son días que existen y
             están desordenados; estas son marcas que NO existen todavía. Si nadie
             las repone, ese día se paga como si la persona no hubiera venido. */}
@@ -736,18 +797,16 @@ export default function CorreccionesPage() {
           // fn_dias_por_revisar por si algún día hace falta un historial.
           const accionables = porRevisar.filter((d) => !d.periodo_pagado);
           // `motivo` null = base sin la 0384 todavía. Se trata como el caso
-          // grave: de los tres, es el único que no se puede dejar de avisar.
+          // grave, que es el único que no se puede dejar de avisar.
           const rotos    = accionables.filter((d) => d.motivo === "secuencia_imposible" || d.motivo == null);
           const cerrados = accionables.filter((d) => d.motivo === "auto_cierre_sin_confirmar");
           const sellados = accionables.filter((d) => d.motivo === "sello_sin_levantar");
 
-          // Abre el día de verdad. Antes solo rellenaba los dos campos y había
-          // que pulsar además "Ver el día", mientras el texto prometía cargarlo.
+          // Abre el día de verdad. El efecto de arriba se encarga de cargarlo.
           const abrir = (d: DiaPorRevisar) => {
             setPersonaId(d.persona_id);
             setFecha(d.fecha);
             setCargado(false);
-            setAutoCargar(true);
           };
           const lista = (dias: DiaPorRevisar[], hover: string) => (
             <ul className="flex flex-col">
@@ -821,441 +880,531 @@ export default function CorreccionesPage() {
             </>
           );
         })()}
+      </div>
 
-        <div className="mb-6 flex flex-wrap items-end gap-4">
-          <CampoSelect
-            etiqueta="Persona"
-            value={personaId}
-            onChange={(e) => { setPersonaId(e.target.value); setCargado(false); }}
-            className="min-w-56"
-          >
-            <option value="">Elegir…</option>
-            {personasCorregibles.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.nombres} {p.apellidos}{p.estado !== "activo" ? " (cesó)" : ""}
-              </option>
-            ))}
-          </CampoSelect>
-          <Campo
-            etiqueta="Fecha"
-            type="date"
-            value={fecha}
-            onChange={(e) => { setFecha(e.target.value); setCargado(false); }}
-          />
-          <Boton variante="primario" tamano="lg" onClick={cargarDia} disabled={!personaId} cargando={cargando}>
-            Ver el día
-          </Boton>
-        </div>
-
-        {cargado && personaSel && (
-          <div className="max-w-3xl">
-            {/* Dos avisos distintos, no uno.
-                Antes había uno solo, que se mostraba cuando CUALQUIER marca del día
-                seguía en 'pendiente_revision'. Eso daba dos fallos: (a) un día ya
-                arreglado seguía en rojo, porque el sello es un estado guardado de
-                cuando estuvo roto y no una pregunta sobre si sigue roto — y las
-                marcas anuladas también contaban; (b) el texto hablaba siempre de
-                "secuencia imposible" aunque el motivo real fuera un auto-cierre,
-                que es otra cosa. Ahora se pregunta en vivo y cada caso dice lo suyo. */}
-            {diaIncoherente && (
-              <div className="mb-4 rounded-lg border border-ambar/40 bg-ambar/5 px-4 py-3 text-sm leading-relaxed">
-                <strong className="text-tinta">La secuencia de marcas de este día no es posible.</strong>{" "}
-                <span className="text-taupe">
-                  Por ejemplo, dos salidas seguidas sin retorno entre medio. Suele pasar cuando una
-                  marca llega tarde tras un corte de señal. Corrige el tipo o la hora de lo que esté
-                  mal, o anula lo que sobre — el aviso desaparece solo en cuanto el día cuadre.
-                </span>
-              </div>
-            )}
-            {marcajes.some((m) => m.anulada_at === null && m.origen === "auto_cierre" && m.estado_revision === "pendiente_revision") && (
-              <div className="mb-4 rounded-lg border border-ambar/40 bg-ambar/5 px-4 py-3 text-sm leading-relaxed">
-                <strong className="text-tinta">Este día lo cerró el sistema.</strong>{" "}
-                <span className="text-taupe">
-                  Nadie marcó la salida, así que el auto-cierre nocturno puso una hora. Mientras
-                  siga sin revisar, ese día no mide salida anticipada ni tiempo adicional. Pulsa
-                  <em> Confirmar</em> si esa hora es la buena, o corrígela.
-                </span>
-              </div>
-            )}
-            {jornada && (
-              <div className="mb-4 flex flex-wrap gap-x-6 gap-y-1 rounded-lg border bg-sand/50 px-4 py-3 text-sm">
-                <span>Estado: <strong>{jornada.estado}</strong></span>
-                <span>Horas: <strong>{jornada.horas_trabajadas ?? "—"}</strong></span>
-                <span className="flex items-center gap-2">
-                  Tardanza:{" "}
-                  {!jornada.minutos_tarde ? (
-                    <strong>—</strong>
-                  ) : levTardanza ? (
-                    <>
-                      <s className="text-taupe">{jornada.minutos_tarde} min</s>
-                      <Insignia variante="positivo">levantada · {motivoTardLabel(levTardanza.motivo)}</Insignia>
-                      <Boton variante="enlace" className="text-xs" onClick={() => void quitarLevantamiento()}>quitar</Boton>
-                    </>
-                  ) : (
-                    <>
-                      <strong className="text-rojo">{jornada.minutos_tarde} min</strong>
-                      <Boton variante="sutil" tamano="sm"
-                        onClick={() => { setLevModal(true); setLevMotivo("fuerza_mayor"); setLevObs(""); }}>
-                        Levantar
-                      </Boton>
-                    </>
-                  )}
-                </span>
-              </div>
-            )}
-
-            {/* De dónde sale la tardanza: la hora esperada de ese día y su origen.
-                Si viene de un turno puntual (pisa el horario base), se resalta. */}
-            {esperado && (
-              <div className={`mb-4 rounded-lg border px-4 py-2.5 text-sm ${
-                esperado.origen === "sin_horario" && leTocaHorario(personaSel)
-                  ? "border-ambar/40 bg-ambar/5" : ""}`}>
-                {esperado.entrada ? (
-                  <>
-                    Entrada esperada ese día: <strong>{esperado.entrada}</strong>
-                    <Insignia
-                      variante={esperado.origen === "turno" ? "advertencia" : "neutral"}
-                      atenuada={esperado.origen !== "turno"}
-                      className="ml-2"
-                    >
-                      {textoOrigen(esperado)}
-                    </Insignia>
-                    {esperado.origen === "turno" && (
-                      <span className="ml-2 text-xs text-taupe">— este día tiene un turno propio que manda sobre el horario base. Se cambia en Turnos.</span>
-                    )}
-                  </>
-                ) : esperado.origen === "sin_horario" && !leTocaHorario(personaSel) ? (
-                  // A esta persona no le toca horario, y eso es correcto. Decirlo
-                  // en gris y sin alarma es la diferencia entre informar y acusar:
-                  // el aviso de abajo le saldría TODOS los días por algo que está
-                  // bien, y a la semana nadie lee ninguno de los dos.
-                  <span className="text-taupe">
-                    Ese día no mide tardanza: {personaSel?.personal_direccion
-                      ? "es personal de dirección, excluido de la jornada máxima"
-                      : "su vínculo no lleva jornada"}.
-                  </span>
-                ) : esperado.origen === "sin_horario" ? (
-                  // Aquí sí es un hueco. Sin horario vigente ese día no se mide
-                  // tardanza NI salida anticipada NI tiempo adicional — en
-                  // silencio, y con horas marcadas de verdad.
-                  <span className="text-taupe">
-                    <strong className="text-tinta">Esta persona no tiene horario vigente para esa fecha.</strong>{" "}
-                    Sin horario no hay contra qué medir: ese día no cuenta tardanza, ni salida
-                    anticipada, ni tiempo adicional, aunque tenga horas marcadas. Se carga en
-                    Horarios.
-                  </span>
-                ) : (
-                  <span className="text-taupe">Ese día no mide tardanza: {textoOrigen(esperado)}.</span>
-                )}
-              </div>
-            )}
-
-            {marcajes.length === 0 ? (
-              <p className="mb-4 text-sm text-taupe">No hay marcajes ese día. Puedes agregar uno abajo.</p>
-            ) : (
-              <Tabla className="mb-4">
-                <TablaEncabezado>
-                  <Th>Tipo</Th>
-                  <Th>Hora</Th>
-                  <Th>Origen</Th>
-                  <Th>Acciones</Th>
-                </TablaEncabezado>
-                <tbody>
-                  {marcajes.map((m) => {
-                    const anulada = m.anulada_at !== null;
-                    const horaLocal = horasEditadas[m.id] ?? horaInput(m.timestamp_marca);
-                    const tipoLocal = tiposEditados[m.id] ?? m.tipo;
-                    const cambiada = horaLocal !== horaInput(m.timestamp_marca) || tipoLocal !== m.tipo;
-                    const esAutoCierrePendiente = m.origen === "auto_cierre" && m.estado_revision === "pendiente_revision";
-                    const opciones = TIPOS_DE_LA_FAMILIA(m.tipo);
-                    return (
-                      <Fila key={m.id} className={anulada ? "opacity-55" : undefined}>
-                        <td className="px-4 py-2">
-                          {anulada || opciones.length === 1 ? (
-                            <span className={anulada ? "line-through" : undefined}>{TIPO_MARCA_LABELS[m.tipo]}</span>
-                          ) : (
-                            // Solo tipos de su misma familia: una entrada no puede volverse salida.
-                            // Select compacto DENTRO de la tabla: se deja a mano a propósito —
-                            // CampoSelect fuerza w-full y un padding pensado para un formulario
-                            // suelto (px-3 py-2 + flecha), no para una celda angosta; usarlo acá
-                            // habría ensanchado cada fila de esta tabla, la más usada del panel.
-                            <select value={tipoLocal}
-                              onChange={(e) => setTiposEditados({ ...tiposEditados, [m.id]: e.target.value as TipoMarca })}
-                              className="rounded-control border border-sand bg-hueso px-2 py-1 text-sm text-tinta">
-                              {opciones.map((t) => <option key={t} value={t}>{TIPO_MARCA_LABELS[t]}</option>)}
-                            </select>
-                          )}
-                          {m.origen === "auto_cierre" && <Insignia variante="alerta" className="ml-2">auto-cierre</Insignia>}
-                          {m.origen === "admin_correccion" && <Insignia variante="neutral" atenuada className="ml-2">manual</Insignia>}
-                          {m.origen === "auto_cierre" && m.estado_revision === "revisada" && !anulada && (
-                            <Insignia variante="positivo" className="ml-2">confirmada</Insignia>
-                          )}
-                          {anulada && (
-                            <p className="mt-1 text-xs text-taupe">Anulada · {m.anulada_motivo}</p>
-                          )}
-                        </td>
-                        <td className="px-4 py-2">
-                          {anulada ? (
-                            <span className="line-through text-taupe">{horaTextoLima(m.timestamp_marca)}</span>
-                          ) : (
-                            // Mismo motivo que el select de arriba: se deja como input a mano.
-                            <input type="time" value={horaLocal}
-                              onChange={(e) => setHorasEditadas({ ...horasEditadas, [m.id]: e.target.value })}
-                              className="rounded-control border border-sand bg-hueso px-2 py-1 text-sm text-tinta" />
-                          )}
-                        </td>
-                        <td className="px-4 py-2 text-taupe">{m.origen}</td>
-                        <td className="px-4 py-2">
-                          <div className="flex flex-wrap gap-2">
-                            {anulada ? (
-                              <Boton
-                                variante="secundario" tamano="sm"
-                                onClick={() => { setAccion({ modo: "reactivar", marcaje: m }); setMotivo(""); }}
-                                title="Devolver esta marca al cálculo del día">
-                                Reactivar
-                              </Boton>
-                            ) : (
-                              <>
-                                <Boton
-                                  variante="secundario" tamano="sm"
-                                  disabled={!cambiada}
-                                  onClick={() => {
-                                    const nuevoTs = construirTs(fecha, horaLocal);
-                                    const posteriores = tipoLocal === "salida_final"
-                                      ? marcajes.filter((x) => x.id !== m.id && x.anulada_at === null
-                                          && new Date(x.timestamp_marca) > new Date(nuevoTs))
-                                      : [];
-                                    setAccion({ modo: "editar", marcaje: m, nuevaHora: horaLocal, nuevoTipo: tipoLocal, posteriores });
-                                    setAnularPosteriores(Object.fromEntries(posteriores.map((x) => [x.id, true])));
-                                    setMotivo("");
-                                  }}>
-                                  Guardar
-                                </Boton>
-                                {esAutoCierrePendiente && (
-                                  <Boton
-                                    variante="secundario" tamano="sm"
-                                    onClick={() => { setAccion({ modo: "confirmar", marcaje: m }); setMotivo(""); }}
-                                    title="Esa es su salida final: el día deja de estar pendiente y pasa a medirse entero">
-                                    Confirmar
-                                  </Boton>
-                                )}
-                                <Boton
-                                  variante="peligro" tamano="sm"
-                                  onClick={() => { setAccion({ modo: "anular", marcaje: m }); setMotivo(""); }}
-                                  title="La marca deja de contar, pero se queda en el historial con su motivo">
-                                  Anular
-                                </Boton>
-                              </>
-                            )}
-                          </div>
-                        </td>
-                      </Fila>
-                    );
-                  })}
-                </tbody>
-              </Tabla>
-            )}
-
-            {/* Agregar marcaje faltante */}
-            <div className="rounded-lg border bg-sand/50 p-4">
-              <h2 className="mb-3 text-sm font-medium">Agregar un marcaje faltante</h2>
-              <div className="flex flex-wrap items-end gap-3">
-                <CampoSelect etiqueta="Tipo" value={agregarTipo} onChange={(e) => setAgregarTipo(e.target.value as TipoMarca)}>
-                  {TIPOS_AGREGABLES.map((t) => <option key={t} value={t}>{TIPO_MARCA_LABELS[t]}</option>)}
-                </CampoSelect>
-                <Campo etiqueta="Hora" type="time" value={agregarHora} onChange={(e) => setAgregarHora(e.target.value)} />
-                {agregarTipo === "salida_otro" && (
-                  <Campo
-                    etiqueta="Motivo de la salida"
-                    value={agregarMotivoOtro}
-                    onChange={(e) => setAgregarMotivoOtro(e.target.value)}
-                    placeholder="ej. trámite banco"
-                  />
-                )}
-                <Boton
-                  variante="primario"
-                  onClick={() => { setAccion({ modo: "agregar", tipo: agregarTipo, hora: agregarHora, motivoOtro: agregarMotivoOtro }); setMotivo(""); }}>
-                  Agregar
-                </Boton>
-              </div>
-            </div>
-
-            {/* Historial de correcciones: el motivo de cada cambio, quién y cuándo.
-                Es donde se LEE la auditoría que cada corrección va guardando. */}
-            <div className="mt-4 overflow-hidden rounded-2xl border border-sand bg-papel">
-              <h2 className="border-b bg-sand/50 px-4 py-2 text-sm font-medium">
-                Historial de correcciones · {personaSel.nombres} {personaSel.apellidos}
-              </h2>
-              {auditoriaError ? (
-                <p className="px-4 py-4 text-sm text-rojo">
-                  No se pudo cargar el historial de correcciones. <Boton variante="enlace" className="font-medium" onClick={cargarDia}>Reintentar</Boton>
-                </p>
-              ) : auditoria.length === 0 ? (
-                <p className="px-4 py-4 text-sm text-taupe">Esta persona no tiene correcciones registradas.</p>
-              ) : (
-                <ul className="divide-y">
-                  {auditoria.map((row) => {
-                    const { accion, cuando, detalle } = describirCambio(row);
-                    return (
-                      <li key={row.id} className="px-4 py-3 text-sm">
-                        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
-                          {/* Izquierda: el día del MARCAJE que se tocó. Derecha: cuándo se
-                              hizo la corrección — de ahí el «corregido», que antes faltaba y
-                              dejaba las dos fechas pareciendo la misma. */}
-                          <span className="font-medium">
-                            {accion}
-                            {cuando && <span className="font-normal text-taupe"> · del {cuando}</span>}
-                            <span className="font-normal text-taupe"> · {detalle}</span>
-                          </span>
-                          <span className="text-xs text-taupe">
-                            corregido {selloLima(row.corregido_at)} · por {nombrePorId.get(row.corregido_por) ?? "otra persona"}
-                          </span>
-                        </div>
-                        <p className="mt-1 text-taupe">“{row.motivo}”</p>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Modal: levantar tardanza (no cambia la hora). Antes era una
-            reimplementación a mano (z-20, propia entre los 4 pisos distintos
-            del panel) — ahora usa <Modal>, que fija un solo piso (z-40) y un
-            solo velo para todos los diálogos del sistema. */}
-        <Modal abierto={levModal} onCerrar={() => setLevModal(false)} bloqueado={levGuardando} titulo="Levantar tardanza" ancho="sm">
-          <p className="mb-4 text-sm text-taupe">
-            Se perdona la tardanza: deja de contar para la escalera disciplinaria y para el umbral del mes.
-            <strong> La hora real no se toca</strong> — queda tachada con su motivo.
-          </p>
-          <div className="mb-3">
-            <CampoSelect etiqueta="Motivo" value={levMotivo} onChange={(e) => setLevMotivo(e.target.value)}>
-              {MOTIVOS_TARD.map((m) => <option key={m.valor} value={m.valor}>{m.label}</option>)}
+      {/* Split view: filtro + lista de personas a la izquierda, el día abierto a
+          la derecha. Reemplaza el selector único de arriba — con ~30 personas
+          en 4 sedes, elegir a alguien pedía abrir un <select> larguísimo; acá
+          se filtra por sede y se busca por nombre, y el número junto a cada
+          fila dice de entrada quién tiene algo por revisar. */}
+      <div className="flex min-h-0 flex-1">
+        <aside className="flex w-full max-w-[300px] shrink-0 flex-col border-r border-sand bg-papel">
+          <div className="space-y-3 border-b border-sand p-4">
+            <CampoSelect
+              etiqueta="Sede"
+              value={sedeFiltro}
+              onChange={(e) => setSedeFiltro(e.target.value)}
+            >
+              <option value="">Todas las sedes</option>
+              {sedes.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
             </CampoSelect>
+            <label className="relative block">
+              <span className="sr-only">Buscar por nombre</span>
+              <Search size={14} strokeWidth={1.8} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-taupe" aria-hidden />
+              <input
+                type="text"
+                placeholder="Buscar por nombre…"
+                value={busqueda}
+                onChange={(e) => setBusqueda(e.target.value)}
+                className="w-full rounded-control border border-borde-control bg-hueso py-1.5 pl-8 pr-3 text-sm text-tinta placeholder:text-taupe focus:outline-none focus-visible:outline-2 focus-visible:outline-rojo"
+              />
+            </label>
           </div>
-          <label className="mb-4 flex flex-col gap-1 text-sm">
-            Observación {levMotivo === "otro" ? <span className="text-rojo">(obligatoria)</span> : <span className="text-taupe">(opcional)</span>}
-            <AreaTexto value={levObs} onChange={(e) => setLevObs(e.target.value)} rows={2} placeholder="ej. paro de transporte" />
-          </label>
-          <div className="flex justify-end gap-2">
-            <Boton onClick={() => setLevModal(false)} disabled={levGuardando}>Cancelar</Boton>
-            <Boton variante="primario" onClick={() => void levantarTardanza()} cargando={levGuardando}>Levantar</Boton>
-          </div>
-        </Modal>
 
-        {/* Modal: motivo de la corrección. Era el otro piso suelto (z-10, el
-            más bajo del sistema) para la acción que decide si un marcaje se
-            edita o se anula — ahora también hereda z-40 + max-h-[90vh] del
-            primitivo, así que la lista de marcas posteriores nunca se corta
-            arriba y abajo a la vez en una pantalla chica. */}
-        <Modal
-          abierto={accion !== null}
-          onCerrar={() => setAccion(null)}
-          bloqueado={procesando}
-          titulo={accion ? (
-            accion.modo === "editar" ? "Confirmar la corrección"
-              : accion.modo === "anular" ? "Anular esta marca"
-              : accion.modo === "reactivar" ? "Devolver esta marca al día"
-              : accion.modo === "confirmar" ? "Confirmar la salida del auto-cierre"
-              : "Agregar marcaje"
-          ) : undefined}
-        >
-          {accion && (
-            <>
-              <p className="mb-4 text-sm text-taupe">
-                {accion.modo === "editar" && [
-                  accion.nuevoTipo !== accion.marcaje.tipo
-                    ? `${TIPO_MARCA_LABELS[accion.marcaje.tipo]} → ${TIPO_MARCA_LABELS[accion.nuevoTipo]}`
-                    : TIPO_MARCA_LABELS[accion.marcaje.tipo],
-                  accion.nuevaHora !== horaInput(accion.marcaje.timestamp_marca)
-                    ? `hora: ${horaInput(accion.marcaje.timestamp_marca)} → ${accion.nuevaHora}`
-                    : null,
-                ].filter(Boolean).join(" · ")}
-                {accion.modo === "anular" && `${TIPO_MARCA_LABELS[accion.marcaje.tipo]} de las ${horaInput(accion.marcaje.timestamp_marca)}. Dejará de contar para el día, pero se queda en el historial y puedes deshacerlo.`}
-                {accion.modo === "reactivar" && `${TIPO_MARCA_LABELS[accion.marcaje.tipo]} de las ${horaInput(accion.marcaje.timestamp_marca)}. Volverá a contar para el cálculo del día.`}
-                {accion.modo === "confirmar" && `Das por buena la salida de las ${horaInput(accion.marcaje.timestamp_marca)} que puso el sistema. El día deja de estar pendiente y pasa a medirse entero, incluida la salida anticipada y el tiempo adicional.`}
-                {accion.modo === "agregar" && `${TIPO_MARCA_LABELS[accion.tipo]} a las ${accion.hora}, para ${personaSel?.nombres} ${personaSel?.apellidos}.`}
-              </p>
-              {accion.modo === "editar" && accion.posteriores.length > 0 && (
-                <div className="mb-4 rounded-lg border border-ambar/40 bg-ambar/5 px-3 py-3 text-sm">
-                  <p className="mb-2 text-taupe">
-                    Después de esa salida final quedan {accion.posteriores.length}{" "}
-                    {accion.posteriores.length === 1 ? "marca" : "marcas"}. Se anularán con el mismo
-                    motivo; desmarca la que quieras conservar.
-                  </p>
-                  {/* Casilla suelta: no hay CampoCasilla todavía en components/ui/campo.tsx
-                      (Fase A no la agregó pese a lo anunciado) — se deja con las clases que
-                      ese primitivo va a necesitar (accent-tinta, size-4) para que migrar sea
-                      trivial en cuanto exista. Ver 'pendientes'. */}
-                  {accion.posteriores.map((post) => (
-                    <label key={post.id} className="flex items-center gap-2 py-0.5">
-                      <input type="checkbox"
-                        checked={anularPosteriores[post.id] ?? false}
-                        onChange={(e) => setAnularPosteriores({ ...anularPosteriores, [post.id]: e.target.checked })}
-                        className="size-4 rounded border-sand accent-tinta" />
-                      <span>
-                        {TIPO_MARCA_LABELS[post.tipo]} de las {horaInput(post.timestamp_marca)}
-                        {post.origen === "auto_cierre" && " (auto-cierre)"}
+          <div className="flex-1 overflow-y-auto p-2">
+            <p className="etiqueta px-2 py-1.5 text-taupe">
+              {personasListadas.length} {personasListadas.length === 1 ? "colaborador" : "colaboradores"}
+            </p>
+            {personasListadas.length === 0 ? (
+              <p className="px-2 py-6 text-center text-sm text-taupe">Nadie coincide con este filtro.</p>
+            ) : (
+              <ul className="flex flex-col gap-1">
+                {personasListadas.map((p) => {
+                  const seleccionada = p.id === personaId;
+                  const pendientes = pendientesPorPersona.get(p.id) ?? 0;
+                  const iniciales = `${p.nombres[0] ?? ""}${p.apellidos[0] ?? ""}`.toUpperCase();
+                  return (
+                    <li key={p.id}>
+                      <button
+                        onClick={() => { setPersonaId(p.id); setCargado(false); }}
+                        className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors ${
+                          seleccionada ? "bg-crema ring-1 ring-inset ring-rojo/30" : "hover:bg-crema/70"
+                        }`}
+                      >
+                        <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-rojo/10 font-serif text-sm text-rojo">
+                          {iniciales}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className={`block truncate text-sm font-medium ${seleccionada ? "text-rojo" : "text-tinta"}`}>
+                            {p.nombres} {p.apellidos}{p.estado !== "activo" ? " (cesó)" : ""}
+                          </span>
+                          <span className="block truncate text-xs text-taupe">
+                            {sedeNombrePorId.get(p.sede_base_id) ?? "—"}
+                          </span>
+                        </span>
+                        {pendientes > 0 && (
+                          <span title={`${pendientes} ${pendientes === 1 ? "día" : "días"} por revisar`}>
+                            <Insignia variante="contador" tamano="sm">{pendientes}</Insignia>
+                          </span>
+                        )}
+                        <ChevronRight size={16} strokeWidth={1.8} className={seleccionada ? "text-rojo" : "text-taupe/60"} aria-hidden />
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        </aside>
+
+        <div className="min-w-0 flex-1 overflow-y-auto p-6">
+          {!personaId || !personaSel ? (
+            <div className="flex h-full flex-col items-center justify-center px-6 text-center">
+              <p className="text-sm text-taupe">Elige a alguien de la lista para ver y corregir sus marcajes.</p>
+            </div>
+          ) : (
+            <div className="max-w-3xl">
+              <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+                <h2 className="font-serif text-xl text-tinta">
+                  {personaSel.nombres} {personaSel.apellidos}
+                </h2>
+                <label className="flex items-center gap-2 rounded-control border border-borde-control bg-papel px-3 py-1.5">
+                  <Calendar size={15} strokeWidth={1.8} className="text-rojo" aria-hidden />
+                  <input
+                    type="date"
+                    value={fecha}
+                    onChange={(e) => { setFecha(e.target.value); setCargado(false); }}
+                    className="bg-transparent text-sm font-medium text-tinta focus:outline-none"
+                  />
+                </label>
+              </div>
+
+              {!cargado ? (
+                <p className="text-sm text-taupe">{cargando ? "Cargando…" : "—"}</p>
+              ) : (
+                <>
+                  {/* Dos avisos distintos, no uno.
+                      Antes había uno solo, que se mostraba cuando CUALQUIER marca del día
+                      seguía en 'pendiente_revision'. Eso daba dos fallos: (a) un día ya
+                      arreglado seguía en rojo, porque el sello es un estado guardado de
+                      cuando estuvo roto y no una pregunta sobre si sigue roto — y las
+                      marcas anuladas también contaban; (b) el texto hablaba siempre de
+                      "secuencia imposible" aunque el motivo real fuera un auto-cierre,
+                      que es otra cosa. Ahora se pregunta en vivo y cada caso dice lo suyo. */}
+                  {diaIncoherente && (
+                    <div className="mb-4 rounded-lg border border-ambar/40 bg-ambar/5 px-4 py-3 text-sm leading-relaxed">
+                      <strong className="text-tinta">La secuencia de marcas de este día no es posible.</strong>{" "}
+                      <span className="text-taupe">
+                        Por ejemplo, dos salidas seguidas sin retorno entre medio. Suele pasar cuando una
+                        marca llega tarde tras un corte de señal. Corrige el tipo o la hora de lo que esté
+                        mal, o anula lo que sobre — el aviso desaparece solo en cuanto el día cuadre.
                       </span>
-                    </label>
-                  ))}
-                </div>
-              )}
-              <label className="mb-4 flex flex-col gap-1 text-sm">
-                Motivo (obligatorio)
-                <AreaTexto value={motivo} onChange={(e) => setMotivo(e.target.value)} rows={2} autoFocus placeholder="ej. el reloj del terminal estaba adelantado" />
-              </label>
-              <div className="flex justify-end gap-3">
-                <Boton onClick={() => setAccion(null)} disabled={procesando}>Cancelar</Boton>
-                <Boton variante="primario" onClick={ejecutar} cargando={procesando}>Confirmar</Boton>
-              </div>
-            </>
-          )}
-        </Modal>
+                    </div>
+                  )}
+                  {marcajes.some((m) => m.anulada_at === null && m.origen === "auto_cierre" && m.estado_revision === "pendiente_revision") && (
+                    <div className="mb-4 rounded-lg border border-ambar/40 bg-ambar/5 px-4 py-3 text-sm leading-relaxed">
+                      <strong className="text-tinta">Este día lo cerró el sistema.</strong>{" "}
+                      <span className="text-taupe">
+                        Nadie marcó la salida, así que el auto-cierre nocturno puso una hora. Mientras
+                        siga sin revisar, ese día no mide salida anticipada ni tiempo adicional. Pulsa
+                        <em> Confirmar</em> si esa hora es la buena, o corrígela.
+                      </span>
+                    </div>
+                  )}
 
-        {/* Modal: motivo para resolver una marca apartada. Reemplaza el
-            window.prompt() que pedía este mismo motivo en un diálogo nativo
-            del navegador — Felipe aprobó migrar todos los diálogos nativos
-            del panel a este primitivo (ver CLAUDE.md). */}
-        <Modal
-          abierto={apartadaAccion !== null}
-          onCerrar={() => setApartadaAccion(null)}
-          bloqueado={resolviendo !== null}
-          titulo={apartadaAccion?.resolucion === "repuesta" ? "Registrar la marca con su hora" : "Declarar improcedente"}
-          ancho="sm"
-        >
-          {apartadaAccion && (
-            <>
-              <p className="mb-4 text-sm text-taupe">
-                {apartadaAccion.resolucion === "repuesta" ? (
-                  <>Vas a registrar la marca de <strong className="text-tinta">{apartadaAccion.marca.persona}</strong>{" "}
-                    con su hora original: {horaTextoLima(apartadaAccion.marca.timestamp_cliente)} del {apartadaAccion.marca.fecha}.</>
-                ) : (
-                  <>Vas a declarar <strong className="text-rojo">IMPROCEDENTE</strong> la marca de{" "}
-                    {apartadaAccion.marca.persona} del {apartadaAccion.marca.fecha} a las{" "}
-                    {horaTextoLima(apartadaAccion.marca.timestamp_cliente)}. No se va a registrar ningún marcaje.</>
-                )}
-              </p>
-              <label className="mb-4 flex flex-col gap-1 text-sm">
-                Motivo (obligatorio, queda en el historial)
-                <AreaTexto value={apartadaMotivo} onChange={(e) => setApartadaMotivo(e.target.value)} rows={2} autoFocus placeholder="ej. el terminal se quedó sin señal" />
-              </label>
-              <div className="flex justify-end gap-3">
-                <Boton onClick={() => setApartadaAccion(null)} disabled={resolviendo !== null}>Cancelar</Boton>
-                <Boton
-                  variante={apartadaAccion.resolucion === "repuesta" ? "primario" : "peligro"}
-                  onClick={() => void resolverApartada()}
-                  cargando={resolviendo !== null}
-                >
-                  {apartadaAccion.resolucion === "repuesta" ? "Registrar" : "Declarar improcedente"}
-                </Boton>
-              </div>
-            </>
+                  {/* Cuatro tarjetas de resumen — Estado, Horas, Tardanza (con su
+                      levantar/quitar intacto) y Entrada esperada (con su enlace a
+                      Turnos, aprobado en la auditoría del 2026-09-14). */}
+                  <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+                    <TarjetaResumen etiqueta="Estado">
+                      {jornada?.estado ?? "—"}
+                    </TarjetaResumen>
+                    <TarjetaResumen etiqueta="Horas">
+                      {jornada?.horas_trabajadas ?? "—"}
+                    </TarjetaResumen>
+                    <TarjetaResumen etiqueta="Tardanza">
+                      {!jornada?.minutos_tarde ? (
+                        "—"
+                      ) : levTardanza ? (
+                        <span className="flex flex-wrap items-center gap-1.5 text-sm">
+                          <s className="text-taupe">{jornada.minutos_tarde} min</s>
+                          <Insignia variante="positivo" tamano="sm">levantada · {motivoTardLabel(levTardanza.motivo)}</Insignia>
+                          <Boton variante="enlace" className="text-xs" onClick={() => void quitarLevantamiento()}>quitar</Boton>
+                        </span>
+                      ) : (
+                        <span className="flex flex-wrap items-center gap-1.5">
+                          <span className="text-rojo">{jornada.minutos_tarde} min</span>
+                          <Boton variante="sutil" tamano="sm"
+                            onClick={() => { setLevModal(true); setLevMotivo("fuerza_mayor"); setLevObs(""); }}>
+                            Levantar
+                          </Boton>
+                        </span>
+                      )}
+                    </TarjetaResumen>
+                    <TarjetaResumen etiqueta="Entrada esperada">
+                      {esperado?.entrada ? (
+                        <span className="flex flex-col gap-1">
+                          <span className="flex flex-wrap items-center gap-1.5">
+                            <span>{esperado.entrada}</span>
+                            <Insignia
+                              variante={esperado.origen === "turno" ? "advertencia" : "neutral"}
+                              atenuada={esperado.origen !== "turno"}
+                              tamano="sm"
+                            >
+                              {textoOrigen(esperado)}
+                            </Insignia>
+                          </span>
+                          {esperado.origen === "turno" && (
+                            <a
+                              href={`/admin/turnos?fecha=${fecha}`}
+                              className="inline-flex w-fit items-center gap-1 text-xs text-rojo underline decoration-rojo/40 underline-offset-2 hover:decoration-rojo"
+                            >
+                              Ver en Turnos <ArrowUpRight size={12} strokeWidth={2} aria-hidden />
+                            </a>
+                          )}
+                        </span>
+                      ) : esperado?.origen === "sin_horario" && !leTocaHorario(personaSel) ? (
+                        // A esta persona no le toca horario, y eso es correcto.
+                        <span className="text-sm font-normal text-taupe">
+                          {personaSel.personal_direccion ? "personal de dirección" : "sin jornada por su vínculo"}
+                        </span>
+                      ) : esperado?.origen === "sin_horario" ? (
+                        <span className="text-sm font-normal text-rojo">sin horario vigente</span>
+                      ) : (
+                        "—"
+                      )}
+                    </TarjetaResumen>
+                  </div>
+                  {/* El texto largo del hueco real (sin horario vigente, y a esta
+                      persona SÍ le toca tener uno) se mantiene aparte: es la única
+                      de las cuatro tarjetas que necesita una explicación completa,
+                      y meterla dentro de la tarjeta la habría desbordado. */}
+                  {esperado?.origen === "sin_horario" && leTocaHorario(personaSel) && (
+                    <div className="mb-5 rounded-lg border border-ambar/40 bg-ambar/5 px-4 py-2.5 text-sm text-taupe">
+                      <strong className="text-tinta">Esta persona no tiene horario vigente para esa fecha.</strong>{" "}
+                      Sin horario no hay contra qué medir: ese día no cuenta tardanza, ni salida
+                      anticipada, ni tiempo adicional, aunque tenga horas marcadas. Se carga en Horarios.
+                    </div>
+                  )}
+
+                  <div className="overflow-hidden rounded-superficie border border-sand bg-papel">
+                    <h3 className="border-b border-sand px-4 py-2.5 text-sm font-medium">Marcajes del día</h3>
+                    {marcajes.length === 0 ? (
+                      <p className="px-4 py-4 text-sm text-taupe">No hay marcajes ese día. Puedes agregar uno abajo.</p>
+                    ) : (
+                      <Tabla className="rounded-none border-none">
+                        <TablaEncabezado>
+                          <Th>Tipo</Th>
+                          <Th>Hora</Th>
+                          <Th>Origen</Th>
+                          <Th>Acciones</Th>
+                        </TablaEncabezado>
+                        <tbody>
+                          {marcajes.map((m) => {
+                            const anulada = m.anulada_at !== null;
+                            const horaLocal = horasEditadas[m.id] ?? horaInput(m.timestamp_marca);
+                            const tipoLocal = tiposEditados[m.id] ?? m.tipo;
+                            const cambiada = horaLocal !== horaInput(m.timestamp_marca) || tipoLocal !== m.tipo;
+                            const esAutoCierrePendiente = m.origen === "auto_cierre" && m.estado_revision === "pendiente_revision";
+                            const opciones = TIPOS_DE_LA_FAMILIA(m.tipo);
+                            return (
+                              <Fila key={m.id} className={anulada ? "opacity-55" : undefined}>
+                                <td className="px-4 py-2">
+                                  {anulada || opciones.length === 1 ? (
+                                    <span className={anulada ? "line-through" : undefined}>{TIPO_MARCA_LABELS[m.tipo]}</span>
+                                  ) : (
+                                    // Solo tipos de su misma familia: una entrada no puede volverse salida.
+                                    // Select compacto DENTRO de la tabla: se deja a mano a propósito —
+                                    // CampoSelect fuerza w-full y un padding pensado para un formulario
+                                    // suelto (px-3 py-2 + flecha), no para una celda angosta; usarlo acá
+                                    // habría ensanchado cada fila de esta tabla, la más usada del panel.
+                                    <select value={tipoLocal}
+                                      onChange={(e) => setTiposEditados({ ...tiposEditados, [m.id]: e.target.value as TipoMarca })}
+                                      className="rounded-control border border-sand bg-hueso px-2 py-1 text-sm text-tinta">
+                                      {opciones.map((t) => <option key={t} value={t}>{TIPO_MARCA_LABELS[t]}</option>)}
+                                    </select>
+                                  )}
+                                  {m.origen === "auto_cierre" && <Insignia variante="alerta" tamano="sm" className="ml-2">auto-cierre</Insignia>}
+                                  {m.origen === "admin_correccion" && <Insignia variante="neutral" atenuada tamano="sm" className="ml-2">manual</Insignia>}
+                                  {m.origen === "auto_cierre" && m.estado_revision === "revisada" && !anulada && (
+                                    <Insignia variante="positivo" tamano="sm" className="ml-2">confirmada</Insignia>
+                                  )}
+                                  {anulada && (
+                                    <p className="mt-1 text-xs text-taupe">Anulada · {m.anulada_motivo}</p>
+                                  )}
+                                </td>
+                                <td className="px-4 py-2">
+                                  {anulada ? (
+                                    <span className="line-through text-taupe">{horaTextoLima(m.timestamp_marca)}</span>
+                                  ) : (
+                                    // Mismo motivo que el select de arriba: se deja como input a mano.
+                                    <input type="time" value={horaLocal}
+                                      onChange={(e) => setHorasEditadas({ ...horasEditadas, [m.id]: e.target.value })}
+                                      className="rounded-control border border-sand bg-hueso px-2 py-1 text-sm text-tinta" />
+                                  )}
+                                </td>
+                                <td className="px-4 py-2 text-taupe">{m.origen}</td>
+                                <td className="px-4 py-2">
+                                  <div className="flex flex-wrap gap-2">
+                                    {anulada ? (
+                                      <Boton
+                                        variante="secundario" tamano="sm"
+                                        onClick={() => { setAccion({ modo: "reactivar", marcaje: m }); setMotivo(""); }}
+                                        title="Devolver esta marca al cálculo del día">
+                                        Reactivar
+                                      </Boton>
+                                    ) : (
+                                      <>
+                                        <Boton
+                                          variante="secundario" tamano="sm"
+                                          disabled={!cambiada}
+                                          onClick={() => {
+                                            const nuevoTs = construirTs(fecha, horaLocal);
+                                            const posteriores = tipoLocal === "salida_final"
+                                              ? marcajes.filter((x) => x.id !== m.id && x.anulada_at === null
+                                                  && new Date(x.timestamp_marca) > new Date(nuevoTs))
+                                              : [];
+                                            setAccion({ modo: "editar", marcaje: m, nuevaHora: horaLocal, nuevoTipo: tipoLocal, posteriores });
+                                            setAnularPosteriores(Object.fromEntries(posteriores.map((x) => [x.id, true])));
+                                            setMotivo("");
+                                          }}>
+                                          Guardar
+                                        </Boton>
+                                        {esAutoCierrePendiente && (
+                                          <Boton
+                                            variante="secundario" tamano="sm"
+                                            onClick={() => { setAccion({ modo: "confirmar", marcaje: m }); setMotivo(""); }}
+                                            title="Esa es su salida final: el día deja de estar pendiente y pasa a medirse entero">
+                                            Confirmar
+                                          </Boton>
+                                        )}
+                                        <Boton
+                                          variante="peligro" tamano="sm"
+                                          onClick={() => { setAccion({ modo: "anular", marcaje: m }); setMotivo(""); }}
+                                          title="La marca deja de contar, pero se queda en el historial con su motivo">
+                                          Anular
+                                        </Boton>
+                                      </>
+                                    )}
+                                  </div>
+                                </td>
+                              </Fila>
+                            );
+                          })}
+                        </tbody>
+                      </Tabla>
+                    )}
+                  </div>
+
+                  {/* Agregar marcaje faltante */}
+                  <div className="mt-4 rounded-superficie border border-sand bg-papel p-4">
+                    <h3 className="mb-3 text-sm font-medium">Agregar un marcaje faltante</h3>
+                    <div className="flex flex-wrap items-end gap-3">
+                      <CampoSelect etiqueta="Tipo" value={agregarTipo} onChange={(e) => setAgregarTipo(e.target.value as TipoMarca)}>
+                        {TIPOS_AGREGABLES.map((t) => <option key={t} value={t}>{TIPO_MARCA_LABELS[t]}</option>)}
+                      </CampoSelect>
+                      <Campo etiqueta="Hora" type="time" value={agregarHora} onChange={(e) => setAgregarHora(e.target.value)} />
+                      {agregarTipo === "salida_otro" && (
+                        <Campo
+                          etiqueta="Motivo de la salida"
+                          value={agregarMotivoOtro}
+                          onChange={(e) => setAgregarMotivoOtro(e.target.value)}
+                          placeholder="ej. trámite banco"
+                        />
+                      )}
+                      <Boton
+                        variante="primario"
+                        onClick={() => { setAccion({ modo: "agregar", tipo: agregarTipo, hora: agregarHora, motivoOtro: agregarMotivoOtro }); setMotivo(""); }}>
+                        Agregar
+                      </Boton>
+                    </div>
+                  </div>
+
+                  {/* Historial de correcciones: el motivo de cada cambio, quién y cuándo.
+                      Es donde se LEE la auditoría que cada corrección va guardando.
+                      Lo que NO viene de una RPC de esta pantalla (hoy, cambios de
+                      turno hechos desde Turnos) lleva su propia insignia "otro
+                      sistema": responde "qué le tocaba trabajar", no "qué marcó" —
+                      aprobado en la segunda ronda de la auditoría, 2026-09-14. */}
+                  <div className="mt-4 overflow-hidden rounded-superficie border border-sand bg-papel">
+                    <h3 className="border-b border-sand px-4 py-2.5 text-sm font-medium">
+                      Historial de correcciones · {personaSel.nombres} {personaSel.apellidos}
+                    </h3>
+                    {auditoriaError ? (
+                      <p className="px-4 py-4 text-sm text-rojo">
+                        No se pudo cargar el historial de correcciones. <Boton variante="enlace" className="font-medium" onClick={cargarDia}>Reintentar</Boton>
+                      </p>
+                    ) : auditoria.length === 0 ? (
+                      <p className="px-4 py-4 text-sm text-taupe">Esta persona no tiene correcciones registradas.</p>
+                    ) : (
+                      <ul className="divide-y divide-sand">
+                        {auditoria.map((row) => {
+                          const { accion, cuando, detalle } = describirCambio(row);
+                          const esDeMarcaje = CAMPOS_DE_MARCAJE.has(row.campo_modificado);
+                          return (
+                            <li key={row.id} className="px-4 py-3 text-sm">
+                              <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+                                {/* Izquierda: el día del MARCAJE que se tocó. Derecha: cuándo se
+                                    hizo la corrección — de ahí el «corregido», que antes faltaba y
+                                    dejaba las dos fechas pareciendo la misma. */}
+                                <span className="font-medium">
+                                  {!esDeMarcaje && <Insignia variante="informativo" tamano="sm" className="mr-1.5">otro sistema</Insignia>}
+                                  {accion}
+                                  {cuando && <span className="font-normal text-taupe"> · del {cuando}</span>}
+                                  <span className="font-normal text-taupe"> · {detalle}</span>
+                                </span>
+                                <span className="text-xs text-taupe">
+                                  corregido {selloLima(row.corregido_at)} · por {nombrePorId.get(row.corregido_por) ?? "otra persona"}
+                                </span>
+                              </div>
+                              <p className="mt-1 text-taupe">“{row.motivo}”</p>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
           )}
-        </Modal>
-      </main>
+        </div>
+      </div>
+
+      {/* Modal: levantar tardanza (no cambia la hora). Antes era una
+          reimplementación a mano (z-20, propia entre los 4 pisos distintos
+          del panel) — ahora usa <Modal>, que fija un solo piso (z-40) y un
+          solo velo para todos los diálogos del sistema. */}
+      <Modal abierto={levModal} onCerrar={() => setLevModal(false)} bloqueado={levGuardando} titulo="Levantar tardanza" ancho="sm">
+        <p className="mb-4 text-sm text-taupe">
+          Se perdona la tardanza: deja de contar para la escalera disciplinaria y para el umbral del mes.
+          <strong> La hora real no se toca</strong> — queda tachada con su motivo.
+        </p>
+        <div className="mb-3">
+          <CampoSelect etiqueta="Motivo" value={levMotivo} onChange={(e) => setLevMotivo(e.target.value)}>
+            {MOTIVOS_TARD.map((m) => <option key={m.valor} value={m.valor}>{m.label}</option>)}
+          </CampoSelect>
+        </div>
+        <label className="mb-4 flex flex-col gap-1 text-sm">
+          Observación {levMotivo === "otro" ? <span className="text-rojo">(obligatoria)</span> : <span className="text-taupe">(opcional)</span>}
+          <AreaTexto value={levObs} onChange={(e) => setLevObs(e.target.value)} rows={2} placeholder="ej. paro de transporte" />
+        </label>
+        <div className="flex justify-end gap-2">
+          <Boton onClick={() => setLevModal(false)} disabled={levGuardando}>Cancelar</Boton>
+          <Boton variante="primario" onClick={() => void levantarTardanza()} cargando={levGuardando}>Levantar</Boton>
+        </div>
+      </Modal>
+
+      {/* Modal: motivo de la corrección. Era el otro piso suelto (z-10, el
+          más bajo del sistema) para la acción que decide si un marcaje se
+          edita o se anula — ahora también hereda z-40 + max-h-[90vh] del
+          primitivo, así que la lista de marcas posteriores nunca se corta
+          arriba y abajo a la vez en una pantalla chica. */}
+      <Modal
+        abierto={accion !== null}
+        onCerrar={() => setAccion(null)}
+        bloqueado={procesando}
+        titulo={accion ? (
+          accion.modo === "editar" ? "Confirmar la corrección"
+            : accion.modo === "anular" ? "Anular esta marca"
+            : accion.modo === "reactivar" ? "Devolver esta marca al día"
+            : accion.modo === "confirmar" ? "Confirmar la salida del auto-cierre"
+            : "Agregar marcaje"
+        ) : undefined}
+      >
+        {accion && (
+          <>
+            <p className="mb-4 text-sm text-taupe">
+              {accion.modo === "editar" && [
+                accion.nuevoTipo !== accion.marcaje.tipo
+                  ? `${TIPO_MARCA_LABELS[accion.marcaje.tipo]} → ${TIPO_MARCA_LABELS[accion.nuevoTipo]}`
+                  : TIPO_MARCA_LABELS[accion.marcaje.tipo],
+                accion.nuevaHora !== horaInput(accion.marcaje.timestamp_marca)
+                  ? `hora: ${horaInput(accion.marcaje.timestamp_marca)} → ${accion.nuevaHora}`
+                  : null,
+              ].filter(Boolean).join(" · ")}
+              {accion.modo === "anular" && `${TIPO_MARCA_LABELS[accion.marcaje.tipo]} de las ${horaInput(accion.marcaje.timestamp_marca)}. Dejará de contar para el día, pero se queda en el historial y puedes deshacerlo.`}
+              {accion.modo === "reactivar" && `${TIPO_MARCA_LABELS[accion.marcaje.tipo]} de las ${horaInput(accion.marcaje.timestamp_marca)}. Volverá a contar para el cálculo del día.`}
+              {accion.modo === "confirmar" && `Das por buena la salida de las ${horaInput(accion.marcaje.timestamp_marca)} que puso el sistema. El día deja de estar pendiente y pasa a medirse entero, incluida la salida anticipada y el tiempo adicional.`}
+              {accion.modo === "agregar" && `${TIPO_MARCA_LABELS[accion.tipo]} a las ${accion.hora}, para ${personaSel?.nombres} ${personaSel?.apellidos}.`}
+            </p>
+            {accion.modo === "editar" && accion.posteriores.length > 0 && (
+              <div className="mb-4 rounded-lg border border-ambar/40 bg-ambar/5 px-3 py-3 text-sm">
+                <p className="mb-2 text-taupe">
+                  Después de esa salida final quedan {accion.posteriores.length}{" "}
+                  {accion.posteriores.length === 1 ? "marca" : "marcas"}. Se anularán con el mismo
+                  motivo; desmarca la que quieras conservar.
+                </p>
+                {/* Casilla suelta: no hay CampoCasilla todavía en components/ui/campo.tsx
+                    (Fase A no la agregó pese a lo anunciado) — se deja con las clases que
+                    ese primitivo va a necesitar (accent-tinta, size-4) para que migrar sea
+                    trivial en cuanto exista. Ver 'pendientes'. */}
+                {accion.posteriores.map((post) => (
+                  <label key={post.id} className="flex items-center gap-2 py-0.5">
+                    <input type="checkbox"
+                      checked={anularPosteriores[post.id] ?? false}
+                      onChange={(e) => setAnularPosteriores({ ...anularPosteriores, [post.id]: e.target.checked })}
+                      className="size-4 rounded border-sand accent-tinta" />
+                    <span>
+                      {TIPO_MARCA_LABELS[post.tipo]} de las {horaInput(post.timestamp_marca)}
+                      {post.origen === "auto_cierre" && " (auto-cierre)"}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            )}
+            <label className="mb-4 flex flex-col gap-1 text-sm">
+              Motivo (obligatorio)
+              <AreaTexto value={motivo} onChange={(e) => setMotivo(e.target.value)} rows={2} autoFocus placeholder="ej. el reloj del terminal estaba adelantado" />
+            </label>
+            <div className="flex justify-end gap-3">
+              <Boton onClick={() => setAccion(null)} disabled={procesando}>Cancelar</Boton>
+              <Boton variante="primario" onClick={ejecutar} cargando={procesando}>Confirmar</Boton>
+            </div>
+          </>
+        )}
+      </Modal>
+
+      {/* Modal: motivo para resolver una marca apartada. Reemplaza el
+          window.prompt() que pedía este mismo motivo en un diálogo nativo
+          del navegador — Felipe aprobó migrar todos los diálogos nativos
+          del panel a este primitivo (ver CLAUDE.md). */}
+      <Modal
+        abierto={apartadaAccion !== null}
+        onCerrar={() => setApartadaAccion(null)}
+        bloqueado={resolviendo !== null}
+        titulo={apartadaAccion?.resolucion === "repuesta" ? "Registrar la marca con su hora" : "Declarar improcedente"}
+        ancho="sm"
+      >
+        {apartadaAccion && (
+          <>
+            <p className="mb-4 text-sm text-taupe">
+              {apartadaAccion.resolucion === "repuesta" ? (
+                <>Vas a registrar la marca de <strong className="text-tinta">{apartadaAccion.marca.persona}</strong>{" "}
+                  con su hora original: {horaTextoLima(apartadaAccion.marca.timestamp_cliente)} del {apartadaAccion.marca.fecha}.</>
+              ) : (
+                <>Vas a declarar <strong className="text-rojo">IMPROCEDENTE</strong> la marca de{" "}
+                  {apartadaAccion.marca.persona} del {apartadaAccion.marca.fecha} a las{" "}
+                  {horaTextoLima(apartadaAccion.marca.timestamp_cliente)}. No se va a registrar ningún marcaje.</>
+              )}
+            </p>
+            <label className="mb-4 flex flex-col gap-1 text-sm">
+              Motivo (obligatorio, queda en el historial)
+              <AreaTexto value={apartadaMotivo} onChange={(e) => setApartadaMotivo(e.target.value)} rows={2} autoFocus placeholder="ej. el terminal se quedó sin señal" />
+            </label>
+            <div className="flex justify-end gap-3">
+              <Boton onClick={() => setApartadaAccion(null)} disabled={resolviendo !== null}>Cancelar</Boton>
+              <Boton
+                variante={apartadaAccion.resolucion === "repuesta" ? "primario" : "peligro"}
+                onClick={() => void resolverApartada()}
+                cargando={resolviendo !== null}
+              >
+                {apartadaAccion.resolucion === "repuesta" ? "Registrar" : "Declarar improcedente"}
+              </Boton>
+            </div>
+          </>
+        )}
+      </Modal>
     </div>
   );
 }
