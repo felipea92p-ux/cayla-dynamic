@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import bcrypt from "bcryptjs";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { EsqueletoTabla } from "@/components/cargando";
@@ -18,7 +19,7 @@ import { type Area, AREA_DEFAULT, AREAS_FALLBACK, parseAreas, areaCorto, esOpera
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { montoAsignacionFamiliar, type MontoAsignacionFamiliar } from "@/lib/admin/asignacion-familiar-monto";
 import {
-  hoyLima, primeroDeMesLima, rangoDelMesLima, puedeVerPlanilla,
+  hoyLima, primeroDeMesLima, rangoDelMesLima, puedeAdministrarEquipo, puedeOperarEquipo, puedeVerPlanilla,
   MOTIVOS_CESE, MOTIVO_CESE_LABELS, etiquetaDeCatalogo, type MotivoCese, type Rol,
 } from "@cayla-dynamic/shared";
 
@@ -42,14 +43,6 @@ function fmtFechaDMA(iso: string): string {
 interface SalarioVigente {
   rango: string;
   salario: number;
-}
-interface TramoSalario {
-  rango: string;
-  salario_mensual_soles: number;
-  vigente_desde: string;
-  vigente_hasta: string | null;
-  asignado_por: string | null;
-  nota: string | null;
 }
 
 const PIN_TRIVIALES = new Set([
@@ -105,10 +98,11 @@ interface Sede {
   nombre: string;
 }
 
-// Qué se muestra en la tabla. "fin_contrato" no es un estado de la persona sino
-// una pregunta de trabajo —«¿a quién tengo que renovar o no renovar?»— y vive en
-// el mismo desplegable porque es donde se la va a buscar.
-type FiltroEstado = "activos" | "inactivos" | "fin_contrato" | "todos";
+// Qué se muestra en la tabla. "fin_contrato" y "sin_salario" no son un estado
+// de la persona sino preguntas de trabajo —«¿a quién tengo que renovar o no
+// renovar?», «¿a quién le falta asignar sueldo?»— y viven en el mismo
+// desplegable porque es donde se las va a buscar.
+type FiltroEstado = "activos" | "inactivos" | "fin_contrato" | "sin_salario" | "todos";
 
 interface Persona {
   id: string;
@@ -255,6 +249,12 @@ export default function EquipoPage() {
   // era la misma trampa que este comentario advertía, viva en otro lugar.
   const rol = useRolActual();
   const puedeSalarios = puedeVerPlanilla(rol);
+  // Alta, edición completa, PIN, salida y reactivación: las cinco escrituras
+  // de esta pantalla exigen admin o líder DO en la RLS y en cada RPC (ver
+  // `puedeAdministrarEquipo`). Una encargada de sede SÍ abre esta pantalla
+  // (`puedeOperarEquipo` en nav.tsx) para ver a su gente, pero ninguno de
+  // esos cinco botones le funciona — así que no se dibujan para ella.
+  const puedeEscribir = puedeAdministrarEquipo(rol);
   const [salariosEstado, setSalariosEstado] = useState<"cargando" | "ok" | "error">("cargando");
   const [salarios, setSalarios] = useState<Record<string, SalarioVigente>>({});
   const [salEditId, setSalEditId] = useState<string | null>(null);
@@ -278,12 +278,18 @@ export default function EquipoPage() {
     salForm.salario.trim() !== "" &&
     Number(salForm.salario) !== baseDelRango;
   const [guardandoSal, setGuardandoSal] = useState(false);
-  const [histId, setHistId] = useState<string | null>(null);
-  const [hist, setHist] = useState<TramoSalario[]>([]);
 
   // El área ("funcion" en la base) viaja por RPC; si esa carga falló, lo mostrado es
   // el área default y NO debe re-escribirse al guardar una edición (pisaría el área real).
   const [funcionesOk, setFuncionesOk] = useState(false);
+
+  // Qué tiene pendiente cada persona (vacaciones por vencer, sin horario
+  // vigente, revisión de ruta pedida, cambio de perfil por resolver). Mismas
+  // cuatro RPC y el mismo permiso (`puedeOperarEquipo`) que ya usa el bolito
+  // de "Bandeja" del menú (`lib/admin/bandeja-equipo.ts`) — nunca un criterio
+  // nuevo. No reemplaza a Bandeja: el detalle de qué hacer con cada pendiente
+  // se sigue resolviendo ahí. Acá solo se avisa que existe, por persona.
+  const [pendientes, setPendientes] = useState<Map<string, string[]>>(new Map());
 
   const cargar = useCallback(async () => {
     const supabase = createAdminSupabaseClient();
@@ -394,7 +400,7 @@ export default function EquipoPage() {
   // había hecho nada. El PIN sigue mandando en el orden visual (se pinta
   // primero); lo que cambia es que cualquier otro panel vuelve a mover la
   // pantalla aunque el PIN siga puesto.
-  const otroPanel = mostrandoAlta ? "alta" : editandoId ?? salEditId ?? histId ?? ceseId ?? null;
+  const otroPanel = mostrandoAlta ? "alta" : editandoId ?? salEditId ?? ceseId ?? null;
   const panelAbierto = pinNuevo
     ? `pin:${pinNuevo.nombre}:${pinNuevo.pin}|${otroPanel ?? ""}`
     : otroPanel;
@@ -422,6 +428,39 @@ export default function EquipoPage() {
     if (puedeSalarios) void cargarSalarios();
   }, [puedeSalarios, cargarSalarios]);
 
+  // Pendientes por persona. Falla suave por sección, como el contador de
+  // Bandeja del que copia el criterio: si una RPC todavía no existe en esta
+  // base o responde error, esa sección no suma nada — nunca tumba a las otras
+  // ni al resto de la pantalla.
+  const puedeVerPendientes = puedeOperarEquipo(rol);
+  useEffect(() => {
+    // El estado ya arranca en un Map vacío; si no hay permiso, no hay nada
+    // que pedir y no hace falta escribir sobre lo que ya está vacío.
+    if (!puedeVerPendientes) return;
+    let vigente = true;
+    const supabase = createAdminSupabaseClient();
+    void (async () => {
+      const mapa = new Map<string, string[]>();
+      const agregar = (personaId: string, etiqueta: string) => {
+        const lista = mapa.get(personaId) ?? [];
+        lista.push(etiqueta);
+        mapa.set(personaId, lista);
+      };
+      const [vacaciones, sinHorario, revisiones, solicitudesPerfil] = await Promise.all([
+        supabase.rpc("fn_vacaciones_por_vencer", { p_dias: 60, p_as_of: null }),
+        supabase.rpc("fn_personas_sin_horario_vigente", { p_dias: 60 }),
+        supabase.rpc("fn_revisiones_pedidas", { p_solo_pendientes: true }),
+        supabase.rpc("fn_solicitudes_perfil_pendientes"),
+      ]);
+      for (const f of (vacaciones.data as { persona_id: string }[] | null) ?? []) agregar(f.persona_id, "vacaciones por vencer");
+      for (const f of (sinHorario.data as { persona_id: string }[] | null) ?? []) agregar(f.persona_id, "sin horario vigente");
+      for (const f of (revisiones.data as { persona_id: string }[] | null) ?? []) agregar(f.persona_id, "revisión de ruta pedida");
+      for (const f of (solicitudesPerfil.data as { persona_id: string }[] | null) ?? []) agregar(f.persona_id, "cambio de perfil por resolver");
+      if (vigente) setPendientes(mapa);
+    })();
+    return () => { vigente = false; };
+  }, [puedeVerPendientes]);
+
   // Se compara sin tildes ni mayúsculas: buscar "nunez" tiene que encontrar a
   // "Núñez". Escribir el apellido con la tilde exacta no puede ser un requisito.
   const sinTildes = (t: string) =>
@@ -440,6 +479,9 @@ export default function EquipoPage() {
     // Quien tiene fecha de término anotada y sigue trabajando. A quien ya cesó no
     // se le pregunta si se renueva: su contrato ya terminó de hecho.
     if (fEstado === "fin_contrato" && (p.estado !== "activo" || !finesContrato.has(p.id))) return false;
+    // Mientras `salarios` todavía está cargando, nadie se excluye (fail-open):
+    // recortar antes de tiempo mostraría un "sin asignar" que no es cierto.
+    if (fEstado === "sin_salario" && (p.estado !== "activo" || (salariosEstado === "ok" && !!salarios[p.id]))) return false;
     if (fSede !== "todas" && p.sede_base_id !== fSede) return false;
     if (fArea !== "todas" && p.funcion !== fArea) return false;
     const q = sinTildes(busca.trim());
@@ -791,7 +833,6 @@ export default function EquipoPage() {
     setCeseId(p.id);
     setEditandoId(null);
     setSalEditId(null);
-    setHistId(null);
     setMostrandoAlta(false);
     // Si su contrato ya venció, se proponen ESA fecha y ESE motivo: es el caso
     // que el panel viene avisando, y volver a escribirlo a mano invita a
@@ -872,7 +913,6 @@ export default function EquipoPage() {
     setEditandoId(p.id);
     setMostrandoAlta(false);
     setSalEditId(null);
-    setHistId(null);
     setCeseId(null);
     setForm({
       nombres: p.nombres,
@@ -899,7 +939,6 @@ export default function EquipoPage() {
     const actual = salarios[p.id];
     const rangoInicial = actual?.rango ?? "colibri";
     setSalEditId(p.id);
-    setHistId(null);
     setMostrandoAlta(false);
     setEditandoId(null);
     setCeseId(null);
@@ -975,22 +1014,6 @@ export default function EquipoPage() {
     setSalEditId(null);
     await cargarSalarios();
     avisar("ok", "Salario asignado.");
-  }
-
-  async function verHistorial(p: Persona) {
-    setSalEditId(null);
-    setEditandoId(null);
-    setMostrandoAlta(false);
-    setCeseId(null);
-    const supabase = createAdminSupabaseClient();
-    const { data, error } = await supabase.rpc("fn_historial_salario", { p_persona_id: p.id });
-    if (error) {
-      // no abrir el panel con datos falsos ("Sin registros") cuando en realidad falló
-      avisar("error", mensajeDeError(error, "cargar el historial"));
-      return;
-    }
-    setHist((data as TramoSalario[]) ?? []);
-    setHistId(p.id);
   }
 
   const formulario = (modo: "alta" | "edicion") => (
@@ -1520,50 +1543,58 @@ export default function EquipoPage() {
     );
   };
 
-  const panelHistorial = () => {
-    const p = personas.find((x) => x.id === histId);
-    if (!p) return null;
+  // Insignia junto al nombre cuando esa persona tiene algo pendiente en
+  // Bandeja (vacaciones por vencer, sin horario vigente, revisión pedida,
+  // cambio de perfil por resolver). No repite el detalle acá —eso lo sigue
+  // resolviendo Bandeja— solo avisa que existe y cuántos, con el motivo en el
+  // título para quien pasa el cursor.
+  function badgePendientes(p: Persona) {
+    const items = pendientes.get(p.id);
+    if (!items || items.length === 0) return null;
     return (
-      <div className="mb-6 max-w-2xl rounded-2xl border border-sand bg-papel p-5">
-        <div className="mb-2 flex items-center justify-between">
-          <p className="text-sm font-medium">Historial de salario — {p.nombres} {p.apellidos}</p>
-          <button onClick={() => setHistId(null)} className="text-xs text-taupe hover:underline">Cerrar</button>
-        </div>
-        {hist.length === 0 ? (
-          <p className="text-sm text-taupe">Sin registros todavía.</p>
-        ) : (
-          // overflow-x-auto: sin este envoltorio, una fila angosta más las dos
-          // fechas ISO desbordaba en un teléfono y arrastraba a TODA la página
-          // (título, nav y demás secciones) en horizontal (hallazgo de la
-          // auditoría de apariencia, 2026-09-06/07) — acá no hace falta el
-          // primitivo <Tabla> completo porque este panel no es de página, es
-          // una tarjeta angosta con su propio molde (border-sand, no bg-sand/70
-          // en el encabezado).
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="text-left text-taupe">
-                <tr>
-                  <th className="py-1 font-normal">Rango</th>
-                  <th className="py-1 font-normal">Salario</th>
-                  <th className="py-1 font-normal">Desde</th>
-                  <th className="py-1 font-normal">Hasta</th>
-                  <th className="py-1 font-normal">Asignado por</th>
-                </tr>
-              </thead>
-              <tbody>
-                {hist.map((h, i) => (
-                  <tr key={i} className="border-t">
-                    <td className="py-1">{RANGO_LABEL[h.rango] ?? h.rango}</td>
-                    <td className="py-1">{formatSoles(Number(h.salario_mensual_soles))}</td>
-                    <td className="py-1">{h.vigente_desde}</td>
-                    <td className="py-1">{h.vigente_hasta ?? <span className="text-rojo">vigente</span>}</td>
-                    <td className="py-1 text-taupe">{h.asignado_por ?? "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+      <Link
+        href="/admin/bandeja"
+        title={`${items.length === 1 ? "1 pendiente" : `${items.length} pendientes`}: ${items.join(", ")}`}
+        className="ml-1.5 inline-flex items-center rounded-full bg-ambar/15 px-1.5 align-middle text-[10px] font-medium text-ambar hover:bg-ambar/25"
+      >
+        {items.length}
+      </Link>
+    );
+  }
+
+  // Tarjetas de resumen arriba de la tabla. Cuentan sobre `personas` (ya
+  // cargado, sin filtrar por busca/sede/área) y no piden nada nuevo a la
+  // base. Cada una es un atajo al mismo desplegable "Mostrar" de más abajo —
+  // no un criterio nuevo — así que tocarla dice lo mismo que elegirlo a mano.
+  // Si la consulta de personas falló, `personas` llega vacío y no hay nada
+  // que resumir: por eso no se dibujan encima de un "0" que mentiría.
+  const metricas = () => {
+    if (personas.length === 0) return null;
+    const activas = personas.filter((p) => p.estado === "activo").length;
+    const inactivas = personas.length - activas;
+    const porVencer = puedeSalarios
+      ? personas.filter((p) => p.estado === "activo" && saleDelTablero(finesContrato.get(p.id))).length
+      : 0;
+    const sinSalario = puedeSalarios && salariosEstado === "ok"
+      ? personas.filter((p) => p.estado === "activo" && !salarios[p.id]).length
+      : null;
+    const tile = (valor: number, etiqueta: string, onClick: () => void, avisa = false) => (
+      <button
+        onClick={onClick}
+        className={`min-w-[8.5rem] flex-1 rounded-xl border px-4 py-2.5 text-left transition-colors ${
+          avisa ? "border-ambar/40 bg-ambar/10 hover:bg-ambar/15" : "border-sand bg-papel hover:bg-crema/60"
+        }`}
+      >
+        <div className="font-serif text-2xl tabular-nums leading-none">{valor}</div>
+        <div className="mt-1 text-xs text-taupe">{etiqueta}</div>
+      </button>
+    );
+    return (
+      <div className="mb-4 flex flex-wrap gap-2">
+        {tile(activas, "en el equipo actual", () => setFEstado("activos"))}
+        {tile(inactivas, "ya no están", () => setFEstado("inactivos"))}
+        {puedeSalarios && tile(porVencer, "contrato por vencer este mes", () => setFEstado("fin_contrato"), porVencer > 0)}
+        {puedeSalarios && sinSalario !== null && tile(sinSalario, "sin salario asignado", () => setFEstado("sin_salario"), sinSalario > 0)}
       </div>
     );
   };
@@ -1573,17 +1604,19 @@ export default function EquipoPage() {
       <main className="flex-1 p-6">
         <div className="mb-4 flex items-center justify-between">
           <h1 className="font-serif text-2xl">Equipo</h1>
-          {!mostrandoAlta && !editandoId && (
+          {puedeEscribir && !mostrandoAlta && !editandoId && (
             <div className="flex flex-wrap gap-2">
               <Boton
                 variante="primario"
-                onClick={() => { setMostrandoAlta(true); setForm(FORM_VACIO); setSalEditId(null); setHistId(null); setCeseId(null); }}
+                onClick={() => { setMostrandoAlta(true); setForm(FORM_VACIO); setSalEditId(null); setCeseId(null); }}
               >
                 + Agregar persona
               </Boton>
             </div>
           )}
         </div>
+
+        {!cargando && metricas()}
 
         {puedeSalarios && salariosEstado === "error" && (
           <div className="mb-4 max-w-3xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
@@ -1601,7 +1634,6 @@ export default function EquipoPage() {
           {editandoId && formulario("edicion")}
           {ceseId && editorCese()}
           {puedeSalarios && salEditId && editorSalario()}
-          {puedeSalarios && histId && panelHistorial()}
         </div>
 
         {/* Filtros. Todo el filtrado ocurre en el navegador sobre lo que ya está
@@ -1629,6 +1661,7 @@ export default function EquipoPage() {
               {/* Solo para quien ve el dato: a quien no lo ve, esta opción le
                   devolvería una lista vacía sin poder explicarle por qué. */}
               {puedeSalarios && <option value="fin_contrato">Con fin de contrato anotado</option>}
+              {puedeSalarios && <option value="sin_salario">Sin salario asignado</option>}
               <option value="todos">Todos</option>
             </CampoSelect>
             {ocultas > 0 && (
@@ -1671,6 +1704,13 @@ export default function EquipoPage() {
             </Boton>
           </div>
         ) : (
+          <>
+          {/* Escritorio: la tabla completa. En celular, ocho columnas más
+              celdas de varias líneas obligan a scroll horizontal, así que de
+              sm hacia abajo se arma la versión en tarjetas de más abajo —
+              mismo criterio y misma forma que ya resuelve esto en
+              admin/contratos (`filasCalculadas` → tabla + tarjetas). */}
+          <div className="hidden sm:block">
           <Tabla alturaMaxima="70vh">
             <TablaEncabezado>
               <Th>Nombre</Th>
@@ -1680,7 +1720,7 @@ export default function EquipoPage() {
               {puedeSalarios && <Th>Salario</Th>}
               <Th>Correo</Th>
               <Th>Estado</Th>
-              <Th>Acciones</Th>
+              {puedeEscribir && <Th>Acciones</Th>}
             </TablaEncabezado>
             <tbody>
               {visibles.map((p) => (
@@ -1690,6 +1730,7 @@ export default function EquipoPage() {
                     {p.con_hijos && (
                       <span title="Asignación familiar activa" className="ml-1.5 cursor-default text-xs">👶</span>
                     )}
+                    {badgePendientes(p)}
                     {puedeSalarios && ingresos.get(p.id)?.fecha_ingreso && (
                       <div className="text-xs text-taupe">Ingresó: {fmtFechaDMA(ingresos.get(p.id)!.fecha_ingreso!)}</div>
                     )}
@@ -1779,7 +1820,11 @@ export default function EquipoPage() {
                         )}
                         <div className="mt-1 flex gap-3 text-xs">
                           <button onClick={() => empezarSalario(p)} className="text-rojo hover:underline">{sal ? "Editar" : "Asignar"}</button>
-                          <button onClick={() => verHistorial(p)} className="text-taupe hover:underline">Historial</button>
+                          {/* El historial completo —con quién lo asignó y por
+                              qué— ya vive en la pestaña Historial del perfil
+                              (0428); este enlace manda ahí en vez de armar de
+                              nuevo el mismo timeline con menos datos. */}
+                          <Link href={`/admin/personas/${p.id}?tab=historial`} className="text-taupe hover:underline">Historial</Link>
                         </div>
                       </td>
                     );
@@ -1788,30 +1833,111 @@ export default function EquipoPage() {
                   <td className="px-4 py-2">
                     <Insignia atenuada={p.estado !== "activo"}>{p.estado}</Insignia>
                   </td>
-                  <td className="px-4 py-2">
-                    <div className="flex flex-wrap gap-2">
-                      <Boton variante="secundario" tamano="sm" onClick={() => empezarEdicion(p)}>Editar</Boton>
-                      {/* Solo a quien está activa: desde la 0364 el servidor
-                          rechaza regenerar el PIN de una persona inactiva, y
-                          no se ofrece un botón que solo puede terminar en un
-                          error. Si vuelve al equipo, «Reactivar» primero. */}
-                      {p.estado === "activo" && (
-                        <Boton variante="secundario" tamano="sm" onClick={() => regenerarPin(p)}>Nuevo PIN</Boton>
-                      )}
-                      {p.estado === "activo" ? (
-                        // «Registrar salida» y no «Desactivar»: lo que se hace
-                        // es anotar un hecho con su fecha y su motivo, no
-                        // apagar un interruptor.
-                        <Boton variante="peligro" tamano="sm" onClick={() => empezarCese(p)}>Registrar salida</Boton>
-                      ) : (
-                        <Boton variante="secundario" tamano="sm" onClick={() => setReactivarPendiente(p)}>Reactivar</Boton>
-                      )}
-                    </div>
-                  </td>
+                  {/* Alta, edición, PIN, salida y reactivación son las cinco
+                      escrituras de `puedeAdministrarEquipo` — solo DO. A la
+                      encargada de sede no se le ofrece un botón que la RLS y
+                      cada RPC le van a rechazar siempre; ella sigue viendo el
+                      resto de la fila para consultar a su gente. */}
+                  {puedeEscribir && (
+                    <td className="px-4 py-2">
+                      <div className="flex flex-wrap gap-2">
+                        <Boton variante="secundario" tamano="sm" onClick={() => empezarEdicion(p)}>Editar</Boton>
+                        {/* Solo a quien está activa: desde la 0364 el servidor
+                            rechaza regenerar el PIN de una persona inactiva, y
+                            no se ofrece un botón que solo puede terminar en un
+                            error. Si vuelve al equipo, «Reactivar» primero. */}
+                        {p.estado === "activo" && (
+                          <Boton variante="secundario" tamano="sm" onClick={() => regenerarPin(p)}>Nuevo PIN</Boton>
+                        )}
+                        {p.estado === "activo" ? (
+                          // «Registrar salida» y no «Desactivar»: lo que se hace
+                          // es anotar un hecho con su fecha y su motivo, no
+                          // apagar un interruptor.
+                          <Boton variante="peligro" tamano="sm" onClick={() => empezarCese(p)}>Registrar salida</Boton>
+                        ) : (
+                          <Boton variante="secundario" tamano="sm" onClick={() => setReactivarPendiente(p)}>Reactivar</Boton>
+                        )}
+                      </div>
+                    </td>
+                  )}
                 </Fila>
               ))}
             </tbody>
           </Tabla>
+          </div>
+
+          {/* Celular: la misma información apilada, una tarjeta por persona. */}
+          <div className="flex flex-col divide-y divide-sand rounded-superficie border border-sand bg-papel sm:hidden">
+            {visibles.map((p) => (
+              <div key={p.id} className={`p-4 ${p.estado === "inactivo" ? "text-taupe" : ""}`}>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <button onClick={() => router.push(`/admin/personas/${p.id}`)} className="text-left font-medium text-tinta hover:underline">
+                      {p.nombres} {p.apellidos}
+                    </button>
+                    {p.con_hijos && <span title="Asignación familiar activa" className="ml-1.5 cursor-default text-xs">👶</span>}
+                    {badgePendientes(p)}
+                  </div>
+                  <Insignia atenuada={p.estado !== "activo"} className="shrink-0">{p.estado}</Insignia>
+                </div>
+                <div className="mt-1 text-sm text-taupe">
+                  {codigoSede(p.sede_base_id)} · {p.cargo || (ROLES_OPCIONES.find((r) => r.valor === p.rol)?.label ?? p.rol)}
+                </div>
+                <div className="mt-0.5 text-sm">
+                  {esOperativaEn(areas, p.funcion)
+                    ? <span className="text-taupe">{areaCorto(areas, p.funcion)}</span>
+                    : <Insignia variante="informativo">{areaCorto(areas, p.funcion)}</Insignia>}
+                </div>
+                {puedeSalarios && ingresos.get(p.id)?.fecha_ingreso && (
+                  <div className="mt-0.5 text-xs text-taupe">Ingresó: {fmtFechaDMA(ingresos.get(p.id)!.fecha_ingreso!)}</div>
+                )}
+                {puedeSalarios && finesContrato.has(p.id) && (
+                  <div className={`mt-0.5 text-xs ${p.estado === "activo" && saleDelTablero(finesContrato.get(p.id)) ? "text-ambar" : "text-taupe"}`}>
+                    Contrato hasta: {fmtFechaDMA(finesContrato.get(p.id)!)}
+                  </div>
+                )}
+                {p.estado === "inactivo" && p.fecha_cese && (
+                  <div className="mt-0.5 text-xs text-taupe">
+                    Se fue: {fmtFechaDMA(p.fecha_cese)}
+                    {p.motivo_cese && <> · {etiquetaDeCatalogo(p.motivo_cese, MOTIVO_CESE_LABELS)}</>}
+                  </div>
+                )}
+                {puedeSalarios && (
+                  <div className="mt-1.5 text-sm">
+                    {salariosEstado !== "ok" ? (
+                      <span className="text-xs text-taupe">{salariosEstado === "cargando" ? "Salario: cargando…" : "Salario: no disponible"}</span>
+                    ) : salarios[p.id] ? (
+                      <span>{RANGO_LABEL[salarios[p.id].rango] ?? salarios[p.id].rango} · {formatSoles(salarios[p.id].salario)}</span>
+                    ) : (
+                      <span className="text-taupe">Sin salario asignado</span>
+                    )}
+                    {salariosEstado === "ok" && (
+                      <span className="ml-2 text-xs">
+                        <button onClick={() => empezarSalario(p)} className="text-rojo hover:underline">{salarios[p.id] ? "Editar" : "Asignar"}</button>
+                        {" · "}
+                        <Link href={`/admin/personas/${p.id}?tab=historial`} className="text-taupe hover:underline">Historial</Link>
+                      </span>
+                    )}
+                  </div>
+                )}
+                {p.email && <div className="mt-0.5 text-xs text-taupe">{p.email}</div>}
+                {puedeEscribir && (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <Boton variante="secundario" tamano="sm" onClick={() => empezarEdicion(p)}>Editar</Boton>
+                    {p.estado === "activo" && (
+                      <Boton variante="secundario" tamano="sm" onClick={() => regenerarPin(p)}>Nuevo PIN</Boton>
+                    )}
+                    {p.estado === "activo" ? (
+                      <Boton variante="peligro" tamano="sm" onClick={() => empezarCese(p)}>Registrar salida</Boton>
+                    ) : (
+                      <Boton variante="secundario" tamano="sm" onClick={() => setReactivarPendiente(p)}>Reactivar</Boton>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+          </>
         )}
 
         <p className="mt-4 max-w-2xl text-xs text-taupe">

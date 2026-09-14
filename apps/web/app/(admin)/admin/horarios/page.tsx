@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
@@ -9,10 +9,16 @@ import { Cargando } from "@/components/cargando";
 import { useToast } from "@/components/toast";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { Boton } from "@/components/ui/boton";
-import { Campo, CampoSelect } from "@/components/ui/campo";
+import { Campo, CampoSelect, CampoCasilla } from "@/components/ui/campo";
 import { AreaTexto } from "@/components/ui/area-texto";
 import { Tabla, TablaEncabezado, Th, Fila } from "@/components/ui/tabla";
 import { Insignia } from "@/components/ui/insignia";
+import { Drawer } from "@/components/ui/drawer";
+// Drawer y Modal son hermanos, no uno el reemplazo del otro (lo dice la
+// cabecera de modal.tsx). El drawer de 460px es el sitio correcto para editar
+// UN horario; la corrección retroactiva enseña antes una tabla comparativa de
+// cinco columnas por jornada, y esa no se lee en una columna estrecha con
+// scroll horizontal — va en Modal ancho="lg".
 import { Modal } from "@/components/ui/modal";
 import { ROLES_DO, hoyLima, puedeOperarEquipo, maximoSemanalPracticante } from "@cayla-dynamic/shared";
 // horasDia() reimplementaba (salida − entrada) − refrigerio a mano, sin el
@@ -24,13 +30,52 @@ import { ROLES_DO, hoyLima, puedeOperarEquipo, maximoSemanalPracticante } from "
 import { horasEntre as horasDia, esTurnoEspejoViejo, type HorarioTramo } from "@/lib/admin/jornada-esperada";
 
 const META_SEMANA = 45; // horas objetivo por semana (7.5h × 6 días)
+// Pedido por Felipe el 2026-09-14: un motivo de verdad, no una frase de
+// trámite — 250 caracteres empuja a explicar el contexto real del cambio
+// (quién lo pidió, por qué, qué operativa lo justifica), no a escribir
+// "cambio de horario" y seguir. El mínimo vive en el cliente; el guardián de
+// la base (fn_set_horario_semanal, 0440) sigue exigiendo solo 3 como piso de
+// seguridad — subirlo ahí es una migración nueva y aparte, no este cambio.
+const MOTIVO_MIN = 250;
+
+function ContadorMotivo({ texto }: { texto: string }) {
+  const n = texto.trim().length;
+  const falta = MOTIVO_MIN - n;
+  return (
+    <p className={`mt-1 text-xs ${falta > 0 ? "text-taupe" : "text-verde"}`}>
+      {falta > 0 ? `Faltan ${falta} caracteres (mínimo ${MOTIVO_MIN}).` : `${n} caracteres — motivo completo.`}
+    </p>
+  );
+}
+
 // Más allá de esto, corregir el pasado deja de ser "hace unos días" y empieza
 // a oler a fecha mal puesta: el candado de verdad es el motivo obligatorio y
 // el preview, pero un rango de años recorrería un día a la vez sin necesidad.
 const MAX_DIAS_RETROACTIVO = 120;
 
+// Qué se está mirando exactamente en la vista previa: el horario y la fecha.
+// Si cualquiera de los dos cambia, la previa deja de valer.
+function huellaRetro(horario: Record<string, Dia>, desde: string): string {
+  return JSON.stringify({ desde, horario });
+}
+
 function fmtH(h: number): string {
   return `${Math.round(h * 100) / 100} h`;
+}
+
+// "14 set. 2026", nunca "2026-09-14" — no cambia cómo se guarda, solo cómo se
+// lee. Mismo molde que ya usan feriados/page.tsx (fechaCorta) y
+// reporte-sede/page.tsx: parsear el ISO a mano y formatear con timeZone UTC,
+// porque la cadena YA es una fecha resuelta — reaplicarle una zona horaria la
+// correría un día (mismo motivo que nombreDelMesLima en fecha-lima.ts). El
+// mes corto con punto ("set.", no "sep") es el que ya da Intl con es-PE — se
+// deja tal cual, no "sep" sin punto: esa es la abreviatura real del Perú, y
+// cambiarla habría dejado esta pantalla diciendo el mes distinto que
+// feriados/page.tsx dos rutas más abajo.
+function fechaCorta(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Intl.DateTimeFormat("es-PE", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" })
+    .format(new Date(Date.UTC(y, m - 1, d)));
 }
 
 /** El día de ayer en Lima, como `2026-09-13` — el valor más probable al abrir
@@ -64,10 +109,12 @@ interface Horario {
   almuerzo_min_minutos: number; almuerzo_max_minutos: number; dias_laborables: number[];
   horario_por_dia: Record<string, { e: string; s: string; r?: number }> | null;
 }
-// Para el historial de tramos del modal — igual que Horario, con el cierre.
+// Para el historial de tramos del drawer — igual que Horario, con el cierre.
 interface Tramo extends Horario {
   vigente_hasta: string | null;
 }
+// Una fila de fn_horario_retroactivo_preview (0447): el antes y el después de
+// una jornada ya calculada, para poder mirar qué cambiaría ANTES de tocarla.
 interface FilaPreview {
   fecha: string;
   minutos_tarde_actual: number | null; minutos_tarde_nuevo: number | null;
@@ -127,6 +174,181 @@ function analizar(h?: Horario): { porDia: PorDia; dias: number[]; uniforme: bool
   return { porDia: pd, dias, uniforme, e: first.e, s: first.s, r: first.r };
 }
 
+// ────────────────────────────────────────────────────────────────────────
+// Estado de un horario semanal — vive aparte porque el rediseño 2026-09-14
+// lo necesita DOS veces (editar una persona y asignar a varias a la vez), y
+// las dos copias tienen que comportarse idéntico o divergen con el tiempo
+// como cualquier lógica pegada dos veces a mano.
+// ────────────────────────────────────────────────────────────────────────
+function useFormularioHorario() {
+  const [modoPorDia, setModoPorDia] = useState(false);
+  const [entrada, setEntrada] = useState("08:00");
+  const [salida, setSalida] = useState("18:00");
+  const [refri, setRefri] = useState(60);
+  const [dias, setDias] = useState<number[]>([1, 2, 3, 4, 5, 6]);
+  const [porDia, setPorDia] = useState<PorDia>({});
+
+  function aplicarAnalisis(a: ReturnType<typeof analizar>) {
+    setPorDia(a.porDia);
+    setDias(a.dias.length ? a.dias : [1, 2, 3, 4, 5, 6]);
+    setEntrada(a.e);
+    setSalida(a.s);
+    setRefri(a.r);
+    setModoPorDia(!a.uniforme);
+  }
+  function toggleDia(v: number) {
+    setDias((prev) => (prev.includes(v) ? prev.filter((d) => d !== v) : [...prev, v]));
+  }
+  function toggleDiaPorDia(d: number) {
+    setPorDia((prev) => {
+      const next = { ...prev };
+      if (next[d]) delete next[d];
+      else next[d] = { e: entrada || "08:00", s: salida || "18:00", r: refri || 60 };
+      return next;
+    });
+  }
+  function setCampoPorDia(d: number, campo: "e" | "s", val: string) {
+    setPorDia((prev) => ({ ...prev, [d]: { ...prev[d], [campo]: val } }));
+  }
+  function setRefriPorDia(d: number, val: string) {
+    const r = Math.max(0, Math.round(Number(val) || 0));
+    setPorDia((prev) => ({ ...prev, [d]: { ...prev[d], r } }));
+  }
+  function cambiarModo(porDiaOn: boolean) {
+    if (porDiaOn) {
+      const pd: PorDia = {};
+      for (const d of dias) pd[d] = { e: entrada, s: salida, r: refri };
+      setPorDia(pd);
+    } else {
+      const ds = Object.keys(porDia).map(Number).sort((a, b) => a - b);
+      setDias(ds.length ? ds : [1, 2, 3, 4, 5, 6]);
+      const first = ds.length ? porDia[ds[0]] : { e: entrada, s: salida, r: refri };
+      setEntrada(first.e); setSalida(first.s); setRefri(first.r);
+    }
+    setModoPorDia(porDiaOn);
+  }
+  function construirHorario(): Record<string, Dia> {
+    const out: Record<string, Dia> = {};
+    if (modoPorDia) {
+      for (const [d, v] of Object.entries(porDia)) out[d] = { e: v.e, s: v.s || v.e, r: v.r ?? 0 };
+    } else {
+      for (const d of dias) out[String(d)] = { e: entrada, s: salida || entrada, r: refri };
+    }
+    return out;
+  }
+  const totalSemana = modoPorDia
+    ? Object.values(porDia).reduce((acc, v) => acc + horasDia(v.e, v.s, v.r), 0)
+    : horasDia(entrada, salida, refri) * dias.length;
+
+  return {
+    modoPorDia, entrada, salida, refri, dias, porDia, totalSemana,
+    setEntrada, setSalida, setRefri,
+    aplicarAnalisis, toggleDia, toggleDiaPorDia, setCampoPorDia, setRefriPorDia, cambiarModo, construirHorario,
+  };
+}
+type FormularioHorario = ReturnType<typeof useFormularioHorario>;
+
+// La grilla de días — toggle "misma hora todos los días" + modo rápido o por
+// día. Vive fuera del componente porque las dos instancias del formulario
+// (editar una persona, asignar a varias) la dibujan idéntica; solo cambia el
+// estado que le pasan.
+function GrillaHorario({ f }: { f: FormularioHorario }) {
+  return (
+    <>
+      <CampoCasilla
+        etiqueta="Misma hora todos los días"
+        checked={!f.modoPorDia}
+        onChange={(e) => f.cambiarModo(!e.target.checked)}
+        className="mt-4"
+      />
+      {!f.modoPorDia ? (
+        <>
+          {/* grid-cols-1 en el teléfono: con grid-cols-3 fijo, a 375px cada
+              columna quedaba en ~85px y el input[type=time] nativo (que
+              necesita dibujar "--:--" y, en iOS, el indicador am/pm) se
+              recortaba — justo en el campo que fija la hora de entrada,
+              la que decide si a alguien se le cuenta una tardanza. */}
+          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <Campo etiqueta="Entrada" type="time" value={f.entrada} onChange={(e) => f.setEntrada(e.target.value)} />
+            <Campo etiqueta="Salida" type="time" value={f.salida} onChange={(e) => f.setSalida(e.target.value)} />
+            <CampoSelect etiqueta="Refrigerio" value={f.refri} onChange={(e) => f.setRefri(Number(e.target.value))}>
+              {opcionesRefrigerio(f.refri).map((m) => <option key={m} value={m}>{m} min</option>)}
+            </CampoSelect>
+          </div>
+          <p className="mt-2 text-xs text-taupe">Cada día: <span className="text-tinta">{fmtH(horasDia(f.entrada, f.salida, f.refri))}</span></p>
+          <div className="mt-3">
+            <p className="mb-1.5 text-sm">Días de trabajo <span className="text-taupe">(los que no marcas son descanso)</span></p>
+            <div className="flex gap-1.5">
+              {DIAS.map((d) => {
+                const on = f.dias.includes(d.v);
+                return (
+                  <button key={d.v} type="button" onClick={() => f.toggleDia(d.v)}
+                    className={`h-9 w-9 rounded-control border text-sm ${on ? "border-tinta bg-tinta text-crema" : "border-sand text-taupe hover:bg-sand/40"}`}>
+                    {d.l}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-1.5 text-xs text-taupe">Descanso: {textoDescanso(f.dias)}</p>
+          </div>
+        </>
+      ) : (
+        <div className="mt-3">
+          <p className="mb-2 text-sm">Horario por día <span className="text-taupe">(apaga el día para descanso)</span></p>
+          <div className="flex flex-col gap-1.5">
+            {DIAS.map((d) => {
+              const dd = f.porDia[d.v];
+              const activo = dd !== undefined;
+              return (
+                <div key={d.v} className="flex flex-wrap items-center gap-1.5">
+                  <button type="button" onClick={() => f.toggleDiaPorDia(d.v)}
+                    className={`h-8 w-14 shrink-0 rounded-control border text-xs capitalize ${activo ? "border-tinta bg-tinta text-crema" : "border-sand text-taupe hover:bg-sand/40"}`}>
+                    {NOMBRE_DIA[d.v].slice(0, 3)}
+                  </button>
+                  {activo ? (
+                    <>
+                      <input type="time" value={dd.e} onChange={(e) => f.setCampoPorDia(d.v, "e", e.target.value)} className="w-[90px] rounded-control border px-1.5 py-1 text-sm" />
+                      <span className="text-taupe">–</span>
+                      <input type="time" value={dd.s} onChange={(e) => f.setCampoPorDia(d.v, "s", e.target.value)} className="w-[90px] rounded-control border px-1.5 py-1 text-sm" />
+                      <select value={dd.r} onChange={(e) => f.setRefriPorDia(d.v, e.target.value)} title="refrigerio (min)" className="w-16 rounded-control border border-sand bg-hueso px-1 py-1 text-sm">
+                        {opcionesRefrigerio(dd.r).map((m) => <option key={m} value={m}>{m}</option>)}
+                      </select>
+                      <span className="w-14 text-right text-xs text-tinta">{fmtH(horasDia(dd.e, dd.s, dd.r))}</span>
+                    </>
+                  ) : <span className="text-sm text-taupe">descanso</span>}
+                </div>
+              );
+            })}
+          </div>
+          <p className="mt-1.5 text-xs text-taupe">La columna angosta es el refrigerio en minutos.</p>
+        </div>
+      )}
+    </>
+  );
+}
+
+// La semana visual de "Ver semana →" — un horario que varía por día no dice
+// nada con solo la etiqueta; esto es a lo que expande, en la tabla (fila
+// nueva) o en la ficha de teléfono (dentro de la misma tarjeta).
+function SemanaMini({ a }: { a: ReturnType<typeof analizar> }) {
+  return (
+    <div className="grid grid-cols-4 gap-2 rounded-control bg-hueso p-3 text-xs sm:grid-cols-7">
+      {DIAS.map((d) => {
+        const dd = a.porDia[d.v];
+        return (
+          <div key={d.v} className="flex flex-col items-center gap-1 rounded px-1 py-1.5 text-center">
+            <span className="font-medium uppercase tracking-wide text-taupe">{NOMBRE_DIA[d.v].slice(0, 3)}</span>
+            {dd ? <span className="tabular-nums text-tinta">{dd.e}–{dd.s}</span> : <span className="text-taupe">Desc.</span>}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+const TILE_CLASE = (activo: boolean) =>
+  `rounded-2xl border p-3 text-left transition-colors ${activo ? "border-taupe bg-hueso" : "border-sand bg-papel hover:bg-hueso"}`;
+
 export default function HorariosPage() {
   const router = useRouter();
   const { avisar } = useToast();
@@ -134,24 +356,30 @@ export default function HorariosPage() {
   const rol = yo?.rol ?? null;
   const [personas, setPersonas] = useState<Persona[]>([]);
   const [horarios, setHorarios] = useState<Map<string, Horario>>(new Map());
-  // Cuando el tramo abierto de `horarios` empieza a futuro (badge "Programado"),
-  // este mapa trae el tramo que SÍ rige hoy — para no mostrar como vigente algo
-  // que todavía no entró en efecto. Solo se completa para esas personas, no
-  // para las ~30 en cada carga.
+  // Cuando el tramo abierto de `horarios` empieza a futuro, este mapa trae el
+  // tramo que SÍ rige hoy — para no mostrar como vigente algo que todavía no
+  // entró en efecto. Solo se completa para esas personas, no para las ~30 en
+  // cada carga.
   const [vigentesHoy, setVigentesHoy] = useState<Map<string, Horario>>(new Map());
   const [sedes, setSedes] = useState<Record<string, string>>({});
   const [cargando, setCargando] = useState(true);
+
+  // ── Buscador y filtros ──
   const [busca, setBusca] = useState("");
   const [filtroSede, setFiltroSede] = useState("");
-  const [filtroTipo, setFiltroTipo] = useState<"" | "sin_horario" | "fijo" | "varia">("");
+  const [filtroEstado, setFiltroEstado] = useState<"" | "con_horario" | "sin_horario">("");
+  const [filtroTipoHorario, setFiltroTipoHorario] = useState<"" | "fijo" | "varia">("");
+  const [soloProgramados, setSoloProgramados] = useState(false);
 
+  // ── Selección múltiple (asignación masiva) ──
+  const [seleccionados, setSeleccionados] = useState<Set<string>>(new Set());
+
+  // ── Fila con "Ver semana →" expandida (una sola a la vez) ──
+  const [semanaExpandida, setSemanaExpandida] = useState<string | null>(null);
+
+  // ── Drawer de una persona ──
   const [editando, setEditando] = useState<Persona | null>(null);
-  const [modoPorDia, setModoPorDia] = useState(false);
-  const [entrada, setEntrada] = useState("08:00");   // modo rápido
-  const [salida, setSalida] = useState("18:00");     // modo rápido
-  const [refri, setRefri] = useState(60);            // modo rápido (min)
-  const [dias, setDias] = useState<number[]>([1, 2, 3, 4, 5, 6]);
-  const [porDia, setPorDia] = useState<PorDia>({});  // modo por día
+  const form = useFormularioHorario();
   const [desde, setDesde] = useState(hoyLima());
   const [motivo, setMotivo] = useState("");
   const [guardando, setGuardando] = useState(false);
@@ -159,22 +387,33 @@ export default function HorariosPage() {
   // Tramos anteriores de la persona en edición, solo lectura (0389: el
   // historial ya vive en `horarios_asignados`, esto solo lo expone).
   const [historial, setHistorial] = useState<Tramo[]>([]);
+  const focoAlAbrir = useRef<HTMLElement | null>(null);
+
+  // ── Drawer de asignación masiva ──
+  const [masivoAbierto, setMasivoAbierto] = useState(false);
+  const formMasivo = useFormularioHorario();
+  const [masivoDesde, setMasivoDesde] = useState(hoyLima());
+  const [masivoMotivo, setMasivoMotivo] = useState("");
+  const [guardandoMasivo, setGuardandoMasivo] = useState(false);
+  const focoAlAbrirMasivo = useRef<HTMLElement | null>(null);
 
   // ── Corrección retroactiva (0447): aparte del cambio normal a propósito —
-  // ver CLAUDE.md, "un horario normal no puede pisar el pasado" (0444). Estado
-  // propio, en el mismo estilo plano que el modal normal de arriba, para no
-  // arriesgar ese flujo ya construido con un refactor a un hook compartido.
+  // ver CLAUDE.md y la 0444, "un horario normal no puede pisar el pasado". El
+  // formulario en sí es el MISMO que el del drawer normal, así que usa el
+  // mismo hook en vez de una segunda copia de las mismas seis funciones: esa
+  // duplicación es justo lo que useFormularioHorario vino a cerrar.
+  const formRetro = useFormularioHorario();
   const [retro, setRetro] = useState<Persona | null>(null);
-  const [retroModoPorDia, setRetroModoPorDia] = useState(false);
-  const [retroEntrada, setRetroEntrada] = useState("08:00");
-  const [retroSalida, setRetroSalida] = useState("18:00");
-  const [retroRefri, setRetroRefri] = useState(60);
-  const [retroDias, setRetroDias] = useState<number[]>([1, 2, 3, 4, 5, 6]);
-  const [retroPorDia, setRetroPorDia] = useState<PorDia>({});
   const [retroDesde, setRetroDesde] = useState(ayerLima());
   const [retroMotivo, setRetroMotivo] = useState("");
   const [retroPreview, setRetroPreview] = useState<FilaPreview[] | null>(null);
   const [retroPreviewCargando, setRetroPreviewCargando] = useState(false);
+  // De QUÉ horario y fecha es la vista previa que está en pantalla. Sin esto,
+  // editar la grilla DESPUÉS de mirar el preview dejaba el botón de confirmar
+  // activo con una previa que ya no corresponde — y confirmaba otra cosa
+  // distinta de la que se enseñó. El preview es la única garantía que tiene
+  // quien aprueba; tiene que ser del horario que se va a aplicar.
+  const [retroPreviewDe, setRetroPreviewDe] = useState<string | null>(null);
   const [retroConfirmando, setRetroConfirmando] = useState(false);
 
   const cargar = useCallback(async () => {
@@ -254,6 +493,17 @@ export default function HorariosPage() {
     if (!abierto) return undefined;
     return abierto.vigente_desde > hoy ? vigentesHoy.get(p.id) : abierto;
   }
+  // analizar(undefined) NO significa "sin horario": rellena una semana
+  // completa 08:00-18:00 de L a S para que el formulario de "Asignar"
+  // arranque con algo editable. Este guard es el que hace que "con/sin
+  // horario" (filtro, resumen, alerta) signifiquen lo mismo en toda la
+  // pantalla — antes de esto el filtro "sin horario" no encontraba a nadie.
+  function estadoDeHoy(p: Persona): { con: boolean; tipo: "fijo" | "varia" | null } {
+    const h = horarioDeHoy(p);
+    const a = h ? analizar(h) : null;
+    if (!a || a.dias.length === 0) return { con: false, tipo: null };
+    return { con: true, tipo: a.uniforme ? "fijo" : "varia" };
+  }
 
   // Hook: tiene que llamarse siempre, incluso en el render donde más abajo
   // se corta con "no tienes permiso" — por eso vive antes de ese return.
@@ -262,37 +512,29 @@ export default function HorariosPage() {
     return editables.filter((p) => {
       if (filtroSede && (sedes[p.sede_base_id] ?? "?") !== filtroSede) return false;
       if (q && !sinTildes(`${p.nombres} ${p.apellidos}`).includes(q)) return false;
-      if (filtroTipo) {
-        // analizar(undefined) NO significa "sin horario": rellena una semana
-        // completa 08:00-18:00 de L a S para que el formulario de "Asignar"
-        // arranque con algo editable. Sin este guard (el mismo que ya usa la
-        // fila de la tabla), este filtro nunca encontraba a nadie.
-        const h = horarioDeHoy(p);
-        const a = h ? analizar(h) : null;
-        const tipo = !a || a.dias.length === 0 ? "sin_horario" : a.uniforme ? "fijo" : "varia";
-        if (tipo !== filtroTipo) return false;
+      if (filtroEstado || filtroTipoHorario) {
+        const estado = estadoDeHoy(p);
+        if (filtroEstado === "con_horario" && !estado.con) return false;
+        if (filtroEstado === "sin_horario" && estado.con) return false;
+        if (filtroTipoHorario && estado.tipo !== filtroTipoHorario) return false;
+      }
+      if (soloProgramados) {
+        const abierto = horarios.get(p.id);
+        if (!abierto || abierto.vigente_desde <= hoy) return false;
       }
       return true;
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- horarioDeHoy lee horarios/vigentesHoy/hoy, ya listados
-  }, [editables, busca, filtroSede, filtroTipo, sedes, horarios, vigentesHoy, hoy]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- estadoDeHoy/horarioDeHoy leen horarios/vigentesHoy/hoy, ya listados
+  }, [editables, busca, filtroSede, filtroEstado, filtroTipoHorario, soloProgramados, sedes, horarios, vigentesHoy, hoy]);
 
-  function aplicarAnalisis(a: ReturnType<typeof analizar>) {
-    setPorDia(a.porDia);
-    setDias(a.dias.length ? a.dias : [1, 2, 3, 4, 5, 6]);
-    setEntrada(a.e);
-    setSalida(a.s);
-    setRefri(a.r);
-    setModoPorDia(!a.uniforme);
-  }
-
-  function abrirEdicion(p: Persona) {
-    aplicarAnalisis(analizar(horarios.get(p.id)));
+  function abrirEdicion(p: Persona, boton?: HTMLElement | null) {
+    form.aplicarAnalisis(analizar(horarios.get(p.id)));
     setEditando(p);
     setDesde(hoyLima());
     setMotivo("");
     setCopiarDeId("");
     setHistorial([]);
+    focoAlAbrir.current = boton ?? null;
     void cargarHistorial(p.id);
   }
 
@@ -314,49 +556,23 @@ export default function HorariosPage() {
     if (!personaId) return;
     const h = horarios.get(personaId);
     if (!h) return;
-    aplicarAnalisis(analizar(h));
+    form.aplicarAnalisis(analizar(h));
   }
 
-  function toggleDia(v: number) {
-    setDias((prev) => (prev.includes(v) ? prev.filter((d) => d !== v) : [...prev, v]));
-  }
-  function toggleDiaPorDia(d: number) {
-    setPorDia((prev) => {
-      const next = { ...prev };
-      if (next[d]) delete next[d];
-      else next[d] = { e: entrada || "08:00", s: salida || "18:00", r: refri || 60 };
+  function toggleSeleccion(id: string) {
+    setSeleccionados((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
   }
-  function setCampoPorDia(d: number, campo: "e" | "s", val: string) {
-    setPorDia((prev) => ({ ...prev, [d]: { ...prev[d], [campo]: val } }));
-  }
-  function setRefriPorDia(d: number, val: string) {
-    const r = Math.max(0, Math.round(Number(val) || 0));
-    setPorDia((prev) => ({ ...prev, [d]: { ...prev[d], r } }));
-  }
-  function cambiarModo(porDiaOn: boolean) {
-    if (porDiaOn) {
-      const pd: PorDia = {};
-      for (const d of dias) pd[d] = { e: entrada, s: salida, r: refri };
-      setPorDia(pd);
-    } else {
-      const ds = Object.keys(porDia).map(Number).sort((a, b) => a - b);
-      setDias(ds.length ? ds : [1, 2, 3, 4, 5, 6]);
-      const first = ds.length ? porDia[ds[0]] : { e: entrada, s: salida, r: refri };
-      setEntrada(first.e); setSalida(first.s); setRefri(first.r);
-    }
-    setModoPorDia(porDiaOn);
-  }
 
-  function construirHorario(): Record<string, Dia> {
-    const out: Record<string, Dia> = {};
-    if (modoPorDia) {
-      for (const [d, v] of Object.entries(porDia)) out[d] = { e: v.e, s: v.s || v.e, r: v.r ?? 0 };
-    } else {
-      for (const d of dias) out[String(d)] = { e: entrada, s: salida || entrada, r: refri };
-    }
-    return out;
+  function abrirMasivo(boton?: HTMLElement | null) {
+    formMasivo.aplicarAnalisis(analizar(undefined));
+    setMasivoDesde(hoyLima());
+    setMasivoMotivo("");
+    focoAlAbrirMasivo.current = boton ?? null;
+    setMasivoAbierto(true);
   }
 
   // Cambiar el horario base no toca la tabla `turnos` (fn_set_horario_semanal
@@ -391,14 +607,14 @@ export default function HorariosPage() {
 
   async function guardar() {
     if (!editando) return;
-    const horario = construirHorario();
+    const horario = form.construirHorario();
     const keys = Object.keys(horario);
     if (keys.length === 0) { avisar("error", "Marca al menos un día de trabajo."); return; }
-    const faltaEntrada = modoPorDia ? Object.values(porDia).some((v) => !v.e) : !entrada;
-    const faltaSalida = modoPorDia ? Object.values(porDia).some((v) => !v.s) : !salida;
+    const faltaEntrada = form.modoPorDia ? Object.values(form.porDia).some((v) => !v.e) : !form.entrada;
+    const faltaSalida = form.modoPorDia ? Object.values(form.porDia).some((v) => !v.s) : !form.salida;
     if (faltaEntrada) { avisar("error", "Falta la hora de entrada de algún día."); return; }
     if (faltaSalida) { avisar("error", "Falta la hora de salida de algún día."); return; }
-    if (motivo.trim().length < 3) { avisar("error", "Escribe el motivo del cambio (mínimo 3 caracteres)."); return; }
+    if (motivo.trim().length < MOTIVO_MIN) { avisar("error", `Escribe el motivo del cambio (mínimo ${MOTIVO_MIN} caracteres).`); return; }
     const personaId = editando.id;
     setGuardando(true);
     const supabase = createAdminSupabaseClient();
@@ -424,75 +640,71 @@ export default function HorariosPage() {
     avisar("ok", mensaje);
   }
 
-  // ── Corrección retroactiva: los mismos helpers de arriba, en su propio
-  // estado (retro*) — ver el comentario junto a los useState de más arriba.
+  // Asignación masiva: el mismo RPC de siempre, una vez por persona
+  // seleccionada, desde el cliente — mismo patrón que ya usan "Hacer
+  // permanente en lote" de Turnos y "Aprobar lote" de Incidencias. Cero
+  // cambios de lógica o de esquema.
+  async function guardarMasivo() {
+    const ids = [...seleccionados];
+    if (ids.length === 0) return;
+    const horario = formMasivo.construirHorario();
+    const keys = Object.keys(horario);
+    if (keys.length === 0) { avisar("error", "Marca al menos un día de trabajo."); return; }
+    const faltaEntrada = formMasivo.modoPorDia ? Object.values(formMasivo.porDia).some((v) => !v.e) : !formMasivo.entrada;
+    const faltaSalida = formMasivo.modoPorDia ? Object.values(formMasivo.porDia).some((v) => !v.s) : !formMasivo.salida;
+    if (faltaEntrada) { avisar("error", "Falta la hora de entrada de algún día."); return; }
+    if (faltaSalida) { avisar("error", "Falta la hora de salida de algún día."); return; }
+    if (masivoMotivo.trim().length < MOTIVO_MIN) { avisar("error", `Escribe el motivo del cambio (mínimo ${MOTIVO_MIN} caracteres).`); return; }
+    setGuardandoMasivo(true);
+    const supabase = createAdminSupabaseClient();
+    const fallidos: string[] = [];
+    for (const id of ids) {
+      const { error } = await supabase.rpc("fn_set_horario_semanal", {
+        p_persona_id: id, p_vigente_desde: masivoDesde, p_horario: horario, p_motivo: masivoMotivo.trim(),
+      });
+      if (error) {
+        const persona = editables.find((x) => x.id === id);
+        fallidos.push(persona ? `${persona.nombres} ${persona.apellidos}` : id);
+      }
+    }
+    setGuardandoMasivo(false);
+    setMasivoAbierto(false);
+    setSeleccionados(new Set());
+    await cargar();
+    if (fallidos.length === 0) {
+      avisar("ok", `Horario asignado a ${ids.length} persona${ids.length === 1 ? "" : "s"}.`);
+    } else {
+      avisar("error", `No se pudo asignar a: ${fallidos.join(", ")}. El resto sí se guardó.`);
+    }
+  }
+
+  // ── Corrección retroactiva (0447) ────────────────────────────────────────
+  // Siembra el formulario con el tramo abierto, igual que abrirEdicion: se
+  // corrige "hacia lo que de verdad regía", y lo que casi siempre se quiere
+  // escribir es el horario que ya está puesto hoy, con la fecha movida atrás.
   function abrirRetro(p: Persona) {
-    const a = analizar(horarios.get(p.id));
-    setRetroPorDia(a.porDia);
-    setRetroDias(a.dias.length ? a.dias : [1, 2, 3, 4, 5, 6]);
-    setRetroEntrada(a.e);
-    setRetroSalida(a.s);
-    setRetroRefri(a.r);
-    setRetroModoPorDia(!a.uniforme);
+    formRetro.aplicarAnalisis(analizar(horarios.get(p.id)));
     setRetro(p);
     setRetroDesde(ayerLima());
     setRetroMotivo("");
     setRetroPreview(null);
+    setRetroPreviewDe(null);
   }
   function cerrarRetro() {
     setRetro(null);
     setRetroPreview(null);
+    setRetroPreviewDe(null);
     setRetroMotivo("");
   }
-  function retroToggleDia(v: number) {
-    setRetroDias((prev) => (prev.includes(v) ? prev.filter((d) => d !== v) : [...prev, v]));
-  }
-  function retroToggleDiaPorDia(d: number) {
-    setRetroPorDia((prev) => {
-      const next = { ...prev };
-      if (next[d]) delete next[d];
-      else next[d] = { e: retroEntrada || "08:00", s: retroSalida || "18:00", r: retroRefri || 60 };
-      return next;
-    });
-  }
-  function retroSetCampoPorDia(d: number, campo: "e" | "s", val: string) {
-    setRetroPorDia((prev) => ({ ...prev, [d]: { ...prev[d], [campo]: val } }));
-  }
-  function retroSetRefriPorDia(d: number, val: string) {
-    const r = Math.max(0, Math.round(Number(val) || 0));
-    setRetroPorDia((prev) => ({ ...prev, [d]: { ...prev[d], r } }));
-  }
-  function retroCambiarModo(porDiaOn: boolean) {
-    if (porDiaOn) {
-      const pd: PorDia = {};
-      for (const d of retroDias) pd[d] = { e: retroEntrada, s: retroSalida, r: retroRefri };
-      setRetroPorDia(pd);
-    } else {
-      const ds = Object.keys(retroPorDia).map(Number).sort((a, b) => a - b);
-      setRetroDias(ds.length ? ds : [1, 2, 3, 4, 5, 6]);
-      const first = ds.length ? retroPorDia[ds[0]] : { e: retroEntrada, s: retroSalida, r: retroRefri };
-      setRetroEntrada(first.e); setRetroSalida(first.s); setRetroRefri(first.r);
-    }
-    setRetroModoPorDia(porDiaOn);
-  }
-  function retroConstruirHorario(): Record<string, Dia> {
-    const out: Record<string, Dia> = {};
-    if (retroModoPorDia) {
-      for (const [d, v] of Object.entries(retroPorDia)) out[d] = { e: v.e, s: v.s || v.e, r: v.r ?? 0 };
-    } else {
-      for (const d of retroDias) out[String(d)] = { e: retroEntrada, s: retroSalida || retroEntrada, r: retroRefri };
-    }
-    return out;
-  }
-  const retroFaltaEntrada = retroModoPorDia ? Object.values(retroPorDia).some((v) => !v.e) : !retroEntrada;
-  const retroTotalSemana = retroModoPorDia
-    ? Object.values(retroPorDia).reduce((acc, v) => acc + horasDia(v.e, v.s, v.r), 0)
-    : horasDia(retroEntrada, retroSalida, retroRefri) * retroDias.length;
-  const rangoRetroDemasiadoLargo = diasEntreLima(retroDesde, hoyLima()) > MAX_DIAS_RETROACTIVO;
+
+  const retroFaltaEntrada = formRetro.modoPorDia
+    ? Object.values(formRetro.porDia).some((v) => !v.e)
+    : !formRetro.entrada;
+  const rangoRetroDemasiadoLargo = diasEntreLima(retroDesde, hoy) > MAX_DIAS_RETROACTIVO;
 
   async function verQueCambiaria() {
     if (!retro) return;
-    const horario = retroConstruirHorario();
+    const horario = formRetro.construirHorario();
     if (Object.keys(horario).length === 0) { avisar("error", "Marca al menos un día de trabajo."); return; }
     if (retroFaltaEntrada) { avisar("error", "Falta la hora de entrada de algún día."); return; }
     if (rangoRetroDemasiadoLargo) { avisar("error", `Elige una fecha dentro de los últimos ${MAX_DIAS_RETROACTIVO} días — revisa que sea la correcta.`); return; }
@@ -505,12 +717,17 @@ export default function HorariosPage() {
     setRetroPreviewCargando(false);
     if (error) { avisar("error", mensajeDeError(error)); return; }
     setRetroPreview((data as FilaPreview[]) ?? []);
+    setRetroPreviewDe(huellaRetro(horario, retroDesde));
   }
 
   async function confirmarRetro() {
     if (!retro) return;
-    if (!retroMotivo || retroMotivo.trim().length < 3) { avisar("error", "El motivo es obligatorio (mínimo 3 caracteres)."); return; }
-    const horario = retroConstruirHorario();
+    // El mismo listón que el camino normal (MOTIVO_MIN, 2026-09-14). Sería
+    // incoherente que el camino que REESCRIBE días ya juzgados pidiera menos
+    // explicación que el que solo mira hacia adelante. El piso de la base
+    // (0447) sigue en 3, igual que el de fn_set_horario_semanal.
+    if (retroMotivo.trim().length < MOTIVO_MIN) { avisar("error", `Escribe el motivo de la corrección (mínimo ${MOTIVO_MIN} caracteres).`); return; }
+    const horario = formRetro.construirHorario();
     setRetroConfirmando(true);
     const supabase = createAdminSupabaseClient();
     const { error } = await supabase.rpc("fn_corregir_horario_retroactivo", {
@@ -534,15 +751,34 @@ export default function HorariosPage() {
   }
 
   const todasLasSedes = [...new Set(editables.map((p) => sedes[p.sede_base_id] ?? "?"))].sort();
-  const sinHorario = filtrados.filter((p) => !horarios.has(p.id));
+  const sinHorarioLista = filtrados.filter((p) => !estadoDeHoy(p).con);
   const porSede = [...new Set(filtrados.map((p) => sedes[p.sede_base_id] ?? "?"))].sort();
 
-  // total semanal del formulario abierto
-  const totalSemana = modoPorDia
-    ? Object.values(porDia).reduce((acc, v) => acc + horasDia(v.e, v.s, v.r), 0)
-    : horasDia(entrada, salida, refri) * dias.length;
+  // Resumen superior: sobre `editables` (todo lo que puedes ver), no sobre
+  // `filtrados` — si no, los números cambiarían con el filtro que ellos
+  // mismos activan, y dejarían de servir como ancla.
+  const totalPersonas = editables.length;
+  const conHorarioHoy = editables.filter((p) => estadoDeHoy(p).con).length;
+  const sinHorarioHoy = totalPersonas - conHorarioHoy;
+  const programadosCount = editables.filter((p) => {
+    const abierto = horarios.get(p.id);
+    return !!abierto && abierto.vigente_desde > hoy;
+  }).length;
+  const sinFiltrosDeEstado = !filtroEstado && !filtroTipoHorario && !soloProgramados;
+  const hayFiltrosActivos = !!busca || !!filtroSede || !sinFiltrosDeEstado;
 
+  function limpiarFiltros() {
+    setBusca(""); setFiltroSede(""); setFiltroEstado(""); setFiltroTipoHorario(""); setSoloProgramados(false);
+  }
+  function toggleEstado(v: "con_horario" | "sin_horario") {
+    setFiltroEstado((prev) => (prev === v ? "" : v));
+  }
+
+  // Un solo día con expediente firmado basta para bloquear todo el rango: la
+  // 0447 lo rechaza en la base, esto solo lo dice antes y con la fecha exacta.
   const bloqueadoPorExpediente = (retroPreview ?? []).find((f) => f.tiene_expediente_formal);
+  const retroPreviewAlDia =
+    retroPreview !== null && retroPreviewDe === huellaRetro(formRetro.construirHorario(), retroDesde);
   const filasConCambio = (retroPreview ?? []).filter(
     (f) => f.minutos_tarde_actual !== f.minutos_tarde_nuevo
       || f.minutos_salida_temprana_actual !== f.minutos_salida_temprana_nuevo
@@ -553,58 +789,109 @@ export default function HorariosPage() {
     <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
         <h1 className="mb-1 font-serif text-2xl">Horarios base</h1>
-        <p className="mb-5 max-w-2xl text-sm text-taupe">
-          El horario de cada persona puede tener una hora distinta por día (martes 8:00, miércoles 14:00…),
-          con su refrigerio, y se repite cada semana. La hora de entrada define la tardanza. Al cambiar un
-          horario, elige la fecha desde la que aplica — el anterior se conserva y no altera tardanzas pasadas.
-        </p>
+        <div className="mb-5 flex max-w-2xl items-start gap-1.5">
+          <p className="text-sm text-taupe">
+            Define la jornada semanal y descansos de cada colaborador. Los cambios conservan el historial y pueden
+            aplicarse desde una fecha determinada.
+          </p>
+          <button
+            type="button"
+            title="El horario de cada persona puede tener una hora distinta por día (martes 8:00, miércoles 14:00…), con su refrigerio, y se repite cada semana. La hora de entrada define la tardanza."
+            aria-label="Más información sobre cómo funciona el horario"
+            className="mt-0.5 shrink-0 text-taupe hover:text-tinta"
+          >
+            ⓘ
+          </button>
+        </div>
 
         {!cargando && personas.length > 0 && (
-          <div className="mb-5 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto_auto]">
-            <div className="relative">
-              <Search size={15} strokeWidth={1.8} aria-hidden className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-taupe" />
-              <input
-                value={busca}
-                onChange={(e) => setBusca(e.target.value)}
-                placeholder="Buscar por nombre…"
-                aria-label="Buscar por nombre"
-                className="w-full rounded-lg border border-sand bg-hueso py-2 pl-9 pr-9 text-sm placeholder:text-taupe/60"
-              />
-              {busca && (
-                <button onClick={() => setBusca("")} aria-label="Limpiar búsqueda" className="absolute right-2 top-1/2 -translate-y-1/2 px-1 leading-none text-taupe hover:text-tinta">
-                  ×
-                </button>
+          <>
+            {/* ── Resumen: sirve para actuar, cada tile es también un filtro ── */}
+            <div className="mb-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <button type="button" onClick={limpiarFiltros} className={TILE_CLASE(sinFiltrosDeEstado)}>
+                <span className="block text-xs text-taupe">Total</span>
+                <span className="block font-serif text-2xl tabular-nums text-tinta">{totalPersonas}</span>
+              </button>
+              <button type="button" onClick={() => toggleEstado("con_horario")} className={TILE_CLASE(filtroEstado === "con_horario")}>
+                <span className="block text-xs text-taupe">Con horario</span>
+                <span className="block font-serif text-2xl tabular-nums text-verde">{conHorarioHoy}</span>
+              </button>
+              <button type="button" onClick={() => toggleEstado("sin_horario")} className={TILE_CLASE(filtroEstado === "sin_horario")}>
+                <span className="block text-xs text-taupe">Sin horario</span>
+                <span className="block font-serif text-2xl tabular-nums text-rojo">{sinHorarioHoy}</span>
+              </button>
+              <button type="button" onClick={() => setSoloProgramados((v) => !v)} className={TILE_CLASE(soloProgramados)}>
+                <span className="block text-xs text-taupe">Programados</span>
+                <span className="block font-serif text-2xl tabular-nums text-pizarra">{programadosCount}</span>
+              </button>
+            </div>
+
+            {/* ── Buscador y filtros ── */}
+            <div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto_auto_auto_auto] sm:items-center">
+              <div className="relative">
+                <Search size={15} strokeWidth={1.8} aria-hidden className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-taupe" />
+                <input
+                  value={busca}
+                  onChange={(e) => setBusca(e.target.value)}
+                  placeholder="Buscar persona…"
+                  aria-label="Buscar persona"
+                  className="w-full rounded-lg border border-sand bg-hueso py-2 pl-9 pr-9 text-sm placeholder:text-taupe/60"
+                />
+                {busca && (
+                  <button onClick={() => setBusca("")} aria-label="Limpiar búsqueda" className="absolute right-2 top-1/2 -translate-y-1/2 px-1 leading-none text-taupe hover:text-tinta">
+                    ×
+                  </button>
+                )}
+              </div>
+              <CampoSelect value={filtroSede} onChange={(e) => setFiltroSede(e.target.value)} aria-label="Filtrar por sede">
+                <option value="">Todas las sedes</option>
+                {todasLasSedes.map((sd) => <option key={sd} value={sd}>{sd}</option>)}
+              </CampoSelect>
+              <CampoSelect value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value as typeof filtroEstado)} aria-label="Filtrar por estado">
+                <option value="">Cualquier estado</option>
+                <option value="con_horario">Con horario</option>
+                <option value="sin_horario">Sin horario</option>
+              </CampoSelect>
+              <CampoSelect value={filtroTipoHorario} onChange={(e) => setFiltroTipoHorario(e.target.value as typeof filtroTipoHorario)} aria-label="Filtrar por tipo de horario">
+                <option value="">Cualquier tipo</option>
+                <option value="fijo">Rango fijo</option>
+                <option value="varia">Varía por día</option>
+              </CampoSelect>
+              {hayFiltrosActivos && (
+                <Boton variante="secundario" tamano="sm" onClick={limpiarFiltros}>Limpiar filtros</Boton>
               )}
             </div>
-            <CampoSelect value={filtroSede} onChange={(e) => setFiltroSede(e.target.value)} aria-label="Filtrar por sede">
-              <option value="">Todas las sedes</option>
-              {todasLasSedes.map((sd) => <option key={sd} value={sd}>{sd}</option>)}
-            </CampoSelect>
-            <CampoSelect value={filtroTipo} onChange={(e) => setFiltroTipo(e.target.value as typeof filtroTipo)} aria-label="Filtrar por tipo de horario">
-              <option value="">Cualquier tipo</option>
-              <option value="sin_horario">Sin horario hoy</option>
-              <option value="fijo">Rango fijo</option>
-              <option value="varia">Varía por día</option>
-            </CampoSelect>
+          </>
+        )}
+
+        {/* ── Selección múltiple: solo aparece cuando hay algo elegido ── */}
+        {seleccionados.size > 0 && (
+          <div className="mb-4 flex flex-wrap items-center gap-3 rounded-control border border-taupe/30 bg-hueso px-4 py-2.5 text-sm">
+            <span className="font-medium text-tinta">{seleccionados.size} seleccionada{seleccionados.size === 1 ? "" : "s"}</span>
+            <Boton variante="primario" tamano="sm" onClick={(e) => abrirMasivo(e.currentTarget)}>Asignar horario →</Boton>
+            <Boton variante="secundario" tamano="sm" onClick={() => setSeleccionados(new Set())}>Cancelar selección</Boton>
           </div>
         )}
 
         {/* Cruza las 4 sedes: sin esto, alguien "sin horario" se pierde bajando
             entre AQP/CCO/LIM/TRU y puede marcar días sin que ninguna tardanza
-            se calcule (auditoría 2026-09-14). */}
-        {!cargando && sinHorario.length > 0 && (
+            se calcule (auditoría 2026-09-14). Compacta: nombres clicables en
+            vez de un botón "Asignar" por persona. */}
+        {!cargando && sinHorarioLista.length > 0 && (
           <div className="mb-6 rounded-control border border-rojo/30 bg-rojo/10 px-4 py-3">
-            <p className="mb-2 text-sm font-medium text-rojo-profundo">
-              Sin horario asignado ({sinHorario.length})
+            <p className="mb-1.5 text-sm font-medium text-rojo-profundo">
+              ⚠ {sinHorarioLista.length} persona{sinHorarioLista.length === 1 ? "" : "s"} necesita{sinHorarioLista.length === 1 ? "" : "n"} horario
             </p>
-            <ul className="flex flex-wrap gap-x-4 gap-y-1.5">
-              {sinHorario.map((p) => (
-                <li key={p.id} className="flex items-center gap-2 text-sm text-tinta">
-                  {p.nombres} {p.apellidos}
-                  <Boton variante="secundario" tamano="sm" onClick={() => abrirEdicion(p)}>Asignar</Boton>
-                </li>
+            <div className="flex flex-wrap gap-x-1 gap-y-1 text-sm">
+              {sinHorarioLista.map((p, i) => (
+                <span key={p.id}>
+                  <button type="button" onClick={(e) => abrirEdicion(p, e.currentTarget)} className="text-tinta underline decoration-rojo/40 underline-offset-2 hover:text-rojo-profundo">
+                    {p.nombres} {p.apellidos}
+                  </button>
+                  {i < sinHorarioLista.length - 1 && <span className="text-taupe">, </span>}
+                </span>
               ))}
-            </ul>
+            </div>
           </div>
         )}
 
@@ -615,89 +902,205 @@ export default function HorariosPage() {
           return (
             <section key={sede} className="mb-8">
               <h2 className="mb-2 font-serif text-lg">{sede}</h2>
-              <Tabla className="[font-variant-numeric:tabular-nums]">
-                <TablaEncabezado>
-                  <Th>Nombre</Th>
-                  <Th>Horario</Th>
-                  <Th>Semana</Th>
-                  <Th>Descanso</Th>
-                  <Th>Vigente desde</Th>
-                  <Th>{null}</Th>
-                </TablaEncabezado>
-                <tbody>
-                  {deSede.map((p) => {
-                    const abierto = horarios.get(p.id);
-                    const programado = !!abierto && abierto.vigente_desde > hoy;
-                    const h = horarioDeHoy(p);
-                    const a = h ? analizar(h) : null;
-                    const semana = a ? a.dias.reduce((acc, d) => acc + horasDia(a.porDia[d].e, a.porDia[d].s, a.porDia[d].r), 0) : 0;
-                    // Máximo legal de una practicante (0324, art. 44 Ley 28518). `null`
-                    // para cualquiera que no sea practicante, o que lo sea pero sin
-                    // modalidad fijada todavía — en los dos casos no hay contra qué avisar.
-                    const maxLegal = maximoSemanalPracticante(p.tipo_vinculo, p.practicante_modalidad);
-                    const seExcede = maxLegal !== null && a && a.dias.length > 0 && semana > maxLegal + 0.01;
-                    return (
-                      <Fila key={p.id}>
-                        <td className="px-4 py-2">{p.nombres} {p.apellidos}</td>
-                        <td className="px-4 py-2">
-                          {!a || a.dias.length === 0 ? <span className="text-taupe">sin horario{programado ? " hoy" : ""}</span>
-                            : a.uniforme ? `${a.e}–${a.s}` : <span className="text-taupe">varía por día</span>}
-                        </td>
-                        <td className="px-4 py-2 text-taupe">
-                          {a && a.dias.length ? fmtH(semana) : "—"}
-                          {seExcede && (
-                            // El título con la cita legal se conserva envolviendo la
-                            // Insignia: el primitivo no reenvía props sueltas como
-                            // `title` (ver components/ui/insignia.tsx).
-                            <span title={`Supera el máximo legal de ${maxLegal} h/semana de una practicante ${p.practicante_modalidad} (art. 44, Ley 28518)`}>
-                              <Insignia variante="alerta" className="ml-1.5">supera {maxLegal} h legales</Insignia>
-                            </span>
+
+              {/* Escritorio y tablet: tabla. Cabecera fija dentro de su propia
+                  sede si crece lo suficiente (alturaMaxima es lo que activa
+                  el sticky de TablaEncabezado — ver components/ui/tabla.tsx).
+                  Con ~30 personas en 4 sedes esto casi nunca llega a hacer
+                  scroll propio; cuando una sede sí crezca, ya está listo. */}
+              <div className="hidden sm:block">
+                <Tabla className="[font-variant-numeric:tabular-nums]" alturaMaxima="60vh">
+                  <TablaEncabezado>
+                    <Th className="w-9">{null}</Th>
+                    <Th>Nombre</Th>
+                    <Th>Horario</Th>
+                    <Th>Horas semanales</Th>
+                    <Th>Descanso</Th>
+                    <Th>Vigente desde</Th>
+                    <Th>{null}</Th>
+                  </TablaEncabezado>
+                  <tbody>
+                    {deSede.map((p) => {
+                      const abierto = horarios.get(p.id);
+                      const programado = !!abierto && abierto.vigente_desde > hoy;
+                      const h = horarioDeHoy(p);
+                      const a = h ? analizar(h) : null;
+                      const semana = a ? a.dias.reduce((acc, d) => acc + horasDia(a.porDia[d].e, a.porDia[d].s, a.porDia[d].r), 0) : 0;
+                      // Máximo legal de una practicante (0324, art. 44 Ley 28518). `null`
+                      // para cualquiera que no sea practicante, o que lo sea pero sin
+                      // modalidad fijada todavía — en los dos casos no hay contra qué avisar.
+                      const maxLegal = maximoSemanalPracticante(p.tipo_vinculo, p.practicante_modalidad);
+                      const seExcede = maxLegal !== null && a && a.dias.length > 0 && semana > maxLegal + 0.01;
+                      const aFuturo = programado ? analizar(abierto) : null;
+                      const resumenFuturo = aFuturo
+                        ? (aFuturo.dias.length === 0 ? "sin días" : aFuturo.uniforme ? `${aFuturo.e}–${aFuturo.s}` : "varía por día")
+                        : "";
+                      const expandida = semanaExpandida === p.id;
+                      return (
+                        <Fragment key={p.id}>
+                          <Fila>
+                            <td className="px-2 py-2">
+                              <input
+                                type="checkbox"
+                                checked={seleccionados.has(p.id)}
+                                onChange={() => toggleSeleccion(p.id)}
+                                className="size-4 accent-tinta"
+                                aria-label={`Seleccionar a ${p.nombres} ${p.apellidos}`}
+                              />
+                            </td>
+                            <td className="px-4 py-2">{p.nombres} {p.apellidos}</td>
+                            <td className="px-4 py-2">
+                              {!a || a.dias.length === 0 ? (
+                                <span className="text-taupe">sin horario{programado ? " hoy" : ""}</span>
+                              ) : a.uniforme ? (
+                                `${a.e}–${a.s}`
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => setSemanaExpandida((x) => (x === p.id ? null : p.id))}
+                                  className="text-pizarra hover:text-tinta"
+                                >
+                                  varía por día · {expandida ? "Ocultar" : "Ver semana →"}
+                                </button>
+                              )}
+                              {programado && (
+                                <p className="mt-1 flex items-center gap-1.5 text-xs text-taupe">
+                                  <Insignia variante="informativo" tamano="sm">Programado</Insignia>
+                                  <span>desde {fechaCorta(abierto!.vigente_desde)} → {resumenFuturo}</span>
+                                </p>
+                              )}
+                            </td>
+                            <td className="px-4 py-2 text-taupe">
+                              {a && a.dias.length ? fmtH(semana) : "—"}
+                              {seExcede && (
+                                // El título con la cita legal se conserva envolviendo la
+                                // Insignia: el primitivo no reenvía props sueltas como
+                                // `title` (ver components/ui/insignia.tsx).
+                                <span title={`Supera el máximo legal de ${maxLegal} h/semana de una practicante ${p.practicante_modalidad} (art. 44, Ley 28518)`}>
+                                  <Insignia variante="alerta" className="ml-1.5">supera {maxLegal} h legales</Insignia>
+                                </span>
+                              )}
+                              {maxLegal === null && p.tipo_vinculo === "practicante" && !p.practicante_modalidad && (
+                                <span title="Sin modalidad fijada en Equipo, no se puede avisar de su máximo legal">
+                                  <Insignia variante="advertencia" className="ml-1.5">falta su modalidad</Insignia>
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-4 py-2 text-taupe">{a ? textoDescanso(a.dias) : "—"}</td>
+                            <td className="px-4 py-2 text-taupe">{h ? fechaCorta(h.vigente_desde) : "—"}</td>
+                            <td className="px-4 py-2">
+                              <div className="flex items-center justify-end gap-3">
+                                {h && (
+                                  <Boton variante="enlace" tamano="sm" onClick={() => abrirRetro(p)}>
+                                    corregir pasado
+                                  </Boton>
+                                )}
+                                <Boton variante="secundario" tamano="sm" onClick={(e) => abrirEdicion(p, e.currentTarget)}>
+                                  {abierto ? "Cambiar" : "Asignar"}
+                                </Boton>
+                              </div>
+                            </td>
+                          </Fila>
+                          {expandida && a && (
+                            <tr className="border-t border-sand bg-hueso/50">
+                              <td colSpan={7} className="px-4 py-3">
+                                <SemanaMini a={a} />
+                              </td>
+                            </tr>
                           )}
-                          {maxLegal === null && p.tipo_vinculo === "practicante" && !p.practicante_modalidad && (
-                            <span title="Sin modalidad fijada en Equipo, no se puede avisar de su máximo legal">
-                              <Insignia variante="advertencia" className="ml-1.5">falta su modalidad</Insignia>
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-4 py-2 text-taupe">{a ? textoDescanso(a.dias) : "—"}</td>
-                        <td className="px-4 py-2 text-taupe">
-                          {abierto ? abierto.vigente_desde : "—"}
-                          {programado && (
-                            <span title={`Este horario recién rige desde el ${abierto!.vigente_desde}. Hasta entonces sigue aplicando el de arriba.`}>
-                              <Insignia variante="informativo" className="ml-1.5">Programado</Insignia>
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-4 py-2">
-                          <div className="flex items-center justify-end gap-3">
-                            <Boton variante="secundario" tamano="sm" onClick={() => abrirEdicion(p)}>
-                              {abierto ? "Cambiar" : "Asignar"}
-                            </Boton>
-                            <Boton variante="enlace" tamano="sm" onClick={() => abrirRetro(p)} title="El cambio ya ocurrió hace unos días y recién se registra hoy">
-                              corregir pasado
-                            </Boton>
-                          </div>
-                        </td>
-                      </Fila>
-                    );
-                  })}
-                </tbody>
-              </Tabla>
+                        </Fragment>
+                      );
+                    })}
+                  </tbody>
+                </Tabla>
+              </div>
+
+              {/* Teléfono: cada persona como ficha, no una tabla comprimida —
+                  mismo criterio que ya usan Contratos y Dashboard. */}
+              <div className="flex flex-col divide-y divide-sand border-t border-sand sm:hidden">
+                {deSede.map((p) => {
+                  const abierto = horarios.get(p.id);
+                  const programado = !!abierto && abierto.vigente_desde > hoy;
+                  const h = horarioDeHoy(p);
+                  const a = h ? analizar(h) : null;
+                  const semana = a ? a.dias.reduce((acc, d) => acc + horasDia(a.porDia[d].e, a.porDia[d].s, a.porDia[d].r), 0) : 0;
+                  const aFuturo = programado ? analizar(abierto) : null;
+                  const resumenFuturo = aFuturo
+                    ? (aFuturo.dias.length === 0 ? "sin días" : aFuturo.uniforme ? `${aFuturo.e}–${aFuturo.s}` : "varía por día")
+                    : "";
+                  const expandida = semanaExpandida === p.id;
+                  return (
+                    <div key={p.id} className="flex flex-col gap-2 p-4">
+                      <div className="flex items-start justify-between gap-2">
+                        <label className="flex items-start gap-2">
+                          <input
+                            type="checkbox"
+                            checked={seleccionados.has(p.id)}
+                            onChange={() => toggleSeleccion(p.id)}
+                            className="mt-0.5 size-4 accent-tinta"
+                            aria-label={`Seleccionar a ${p.nombres} ${p.apellidos}`}
+                          />
+                          <span>
+                            <span className="block text-sm font-medium text-tinta">{p.nombres} {p.apellidos}</span>
+                            <span className="block text-xs text-taupe">{sede}</span>
+                          </span>
+                        </label>
+                        <Boton variante="secundario" tamano="sm" onClick={(e) => abrirEdicion(p, e.currentTarget)}>
+                          {abierto ? "Cambiar" : "Asignar"}
+                        </Boton>
+                      </div>
+                      <p className="text-sm">
+                        {!a || a.dias.length === 0 ? (
+                          <span className="text-taupe">sin horario{programado ? " hoy" : ""}</span>
+                        ) : a.uniforme ? (
+                          `${a.e}–${a.s}`
+                        ) : (
+                          <button type="button" onClick={() => setSemanaExpandida((x) => (x === p.id ? null : p.id))} className="text-pizarra">
+                            varía por día · {expandida ? "Ocultar" : "Ver semana →"}
+                          </button>
+                        )}
+                      </p>
+                      <p className="text-xs text-taupe">
+                        {a && a.dias.length ? fmtH(semana) : "—"} · Descanso {a ? textoDescanso(a.dias) : "—"}
+                      </p>
+                      <p className="text-xs text-taupe">
+                        Vigente desde {h ? fechaCorta(h.vigente_desde) : "—"}
+                        {h && (
+                          <Boton variante="enlace" tamano="sm" className="ml-2" onClick={() => abrirRetro(p)}>
+                            corregir pasado
+                          </Boton>
+                        )}
+                      </p>
+                      {programado && (
+                        <p className="flex items-center gap-1.5 text-xs text-taupe">
+                          <Insignia variante="informativo" tamano="sm">Programado</Insignia>
+                          <span>desde {fechaCorta(abierto!.vigente_desde)} → {resumenFuturo}</span>
+                        </p>
+                      )}
+                      {expandida && a && <SemanaMini a={a} />}
+                    </div>
+                  );
+                })}
+              </div>
             </section>
           );
         })}
 
-        {/* ── Cambio normal: siempre hacia adelante (0444) ──────────────────── */}
-        <Modal
+        {/* ── Drawer: editar / asignar una persona ── */}
+        <Drawer
           abierto={editando !== null}
           onCerrar={() => setEditando(null)}
           bloqueado={guardando}
           titulo={editando ? `Horario de ${editando.nombres} ${editando.apellidos}` : undefined}
+          volverElFocoA={focoAlAbrir}
         >
-          <p className="mb-4 text-sm text-taupe">El nuevo horario aplica desde la fecha que elijas en adelante.</p>
+          <p className="mb-4 text-sm text-taupe">
+            Este horario será válido desde la fecha que elijas. El horario anterior se conserva para fechas
+            anteriores.
+          </p>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Campo etiqueta="Vigente desde" type="date" min={hoyLima()} value={desde} onChange={(e) => setDesde(e.target.value)} />
+          <div className="grid grid-cols-1 gap-3">
+            <Campo etiqueta="Vigente desde" type="date" min={hoy} value={desde} onChange={(e) => setDesde(e.target.value)} />
             <CampoSelect etiqueta="Copiar horario de →" value={copiarDeId} onChange={(e) => copiarDe(e.target.value)}>
               <option value="">(elegir a alguien)</option>
               {editables
@@ -707,25 +1110,36 @@ export default function HorariosPage() {
                 ))}
             </CampoSelect>
           </div>
-          <p className="mt-1 text-xs text-taupe">
-            ¿El cambio ya ocurrió hace días? Esto ya no acepta una fecha pasada — cierra este modal y usa
-            «corregir pasado» junto al nombre.
+
+          <p className="mt-2 text-xs text-taupe">
+            Un horario nuevo rige desde hoy en adelante. No se puede fechar
+            hacia atrás: eso recalcularía tardanzas de días ya juzgados con el
+            horario que de verdad regía entonces. Si el cambio ocurrió de
+            verdad hace unos días y recién se registra, cierra esto y usa
+            <span className="text-tinta"> corregir pasado</span> — enseña antes
+            qué jornadas cambiarían.
           </p>
 
           {historial.length > 1 && (
             <details className="mt-3 rounded-control bg-hueso px-3 py-2 text-sm">
-              {/* El primer tramo de `historial` (orden desc por vigente_desde) es
-                  siempre el vigente — ya está a la vista en el formulario de
-                  arriba, por eso la lista arranca en el segundo. */}
-              <summary className="cursor-pointer text-taupe">Ver horarios anteriores ({historial.length - 1})</summary>
+              <summary className="cursor-pointer text-taupe">Historial de horario ({historial.length})</summary>
               <ul className="mt-2 flex flex-col gap-1.5">
-                {historial.slice(1).map((t) => {
+                {historial.map((t, i) => {
                   const at = analizar(t);
                   const resumen = at.dias.length === 0 ? "sin días"
                     : at.uniforme ? `${at.e}–${at.s}, ${textoDescanso(at.dias)}` : "varía por día";
+                  const esActual = i === 0;
                   return (
-                    <li key={`${t.vigente_desde}-${t.vigente_hasta ?? "abierto"}`} className="text-xs text-taupe">
-                      <span className="text-tinta">{t.vigente_desde}</span> – {t.vigente_hasta ?? "hoy"} · {resumen}
+                    <li key={`${t.vigente_desde}-${t.vigente_hasta ?? "abierto"}`} className="flex items-center justify-between gap-2 text-xs text-taupe">
+                      <span>
+                        <span className="text-tinta">{fechaCorta(t.vigente_desde)}</span>
+                        {" — "}{esActual ? "actual" : (t.vigente_hasta ? fechaCorta(t.vigente_hasta) : "hoy")} · {resumen}
+                      </span>
+                      {!esActual && (
+                        <button type="button" onClick={() => form.aplicarAnalisis(at)} className="shrink-0 text-pizarra underline hover:text-tinta">
+                          Volver a usar este
+                        </button>
+                      )}
                     </li>
                   );
                 })}
@@ -733,78 +1147,7 @@ export default function HorariosPage() {
             </details>
           )}
 
-          <label className="mt-4 flex items-center gap-2 text-sm">
-            {/* Casilla suelta: todavía no existe <CampoCasilla> en
-                components/ui/campo.tsx (Fase A no la agregó pese a lo
-                anunciado) — se deja con las clases que ese primitivo va a
-                necesitar (accent-tinta, size-4) para que migrar sea trivial
-                en cuanto exista. */}
-            <input type="checkbox" checked={!modoPorDia} onChange={(e) => cambiarModo(!e.target.checked)} className="size-4 rounded border-sand accent-tinta" />
-            Misma hora todos los días
-          </label>
-
-          {!modoPorDia ? (
-            <>
-              {/* grid-cols-1 en el teléfono: con grid-cols-3 fijo, a 375px cada
-                  columna quedaba en ~85px y el input[type=time] nativo (que
-                  necesita dibujar "--:--" y, en iOS, el indicador am/pm) se
-                  recortaba — justo en el campo que fija la hora de entrada,
-                  la que decide si a alguien se le cuenta una tardanza. */}
-              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
-                <Campo etiqueta="Entrada" type="time" value={entrada} onChange={(e) => setEntrada(e.target.value)} />
-                <Campo etiqueta="Salida" type="time" value={salida} onChange={(e) => setSalida(e.target.value)} />
-                <CampoSelect etiqueta="Refrigerio" value={refri} onChange={(e) => setRefri(Number(e.target.value))}>
-                  {opcionesRefrigerio(refri).map((m) => <option key={m} value={m}>{m} min</option>)}
-                </CampoSelect>
-              </div>
-              <p className="mt-2 text-xs text-taupe">Cada día: <span className="text-tinta">{fmtH(horasDia(entrada, salida, refri))}</span></p>
-              <div className="mt-3">
-                <p className="mb-1.5 text-sm">Días de trabajo <span className="text-taupe">(los que no marcas son descanso)</span></p>
-                <div className="flex gap-1.5">
-                  {DIAS.map((d) => {
-                    const on = dias.includes(d.v);
-                    return (
-                      <button key={d.v} type="button" onClick={() => toggleDia(d.v)}
-                        className={`h-9 w-9 rounded-control border text-sm ${on ? "border-tinta bg-tinta text-crema" : "border-sand text-taupe hover:bg-sand/40"}`}>
-                        {d.l}
-                      </button>
-                    );
-                  })}
-                </div>
-                <p className="mt-1.5 text-xs text-taupe">Descanso: {textoDescanso(dias)}</p>
-              </div>
-            </>
-          ) : (
-            <div className="mt-3">
-              <p className="mb-2 text-sm">Horario por día <span className="text-taupe">(apaga el día para descanso)</span></p>
-              <div className="flex flex-col gap-1.5">
-                {DIAS.map((d) => {
-                  const dd = porDia[d.v];
-                  const activo = dd !== undefined;
-                  return (
-                    <div key={d.v} className="flex flex-wrap items-center gap-1.5">
-                      <button type="button" onClick={() => toggleDiaPorDia(d.v)}
-                        className={`h-8 w-14 shrink-0 rounded-control border text-xs capitalize ${activo ? "border-tinta bg-tinta text-crema" : "border-sand text-taupe hover:bg-sand/40"}`}>
-                        {NOMBRE_DIA[d.v].slice(0, 3)}
-                      </button>
-                      {activo ? (
-                        <>
-                          <input type="time" value={dd.e} onChange={(e) => setCampoPorDia(d.v, "e", e.target.value)} className="w-[90px] rounded-control border px-1.5 py-1 text-sm" />
-                          <span className="text-taupe">–</span>
-                          <input type="time" value={dd.s} onChange={(e) => setCampoPorDia(d.v, "s", e.target.value)} className="w-[90px] rounded-control border px-1.5 py-1 text-sm" />
-                          <select value={dd.r} onChange={(e) => setRefriPorDia(d.v, e.target.value)} title="refrigerio (min)" className="w-16 rounded-control border border-sand bg-hueso px-1 py-1 text-sm">
-                            {opcionesRefrigerio(dd.r).map((m) => <option key={m} value={m}>{m}</option>)}
-                          </select>
-                          <span className="w-14 text-right text-xs text-tinta">{fmtH(horasDia(dd.e, dd.s, dd.r))}</span>
-                        </>
-                      ) : <span className="text-sm text-taupe">descanso</span>}
-                    </div>
-                  );
-                })}
-              </div>
-              <p className="mt-1.5 text-xs text-taupe">La columna angosta es el refrigerio en minutos.</p>
-            </div>
-          )}
+          <GrillaHorario f={form} />
 
           {(() => {
             // Para una practicante, "meta 45h" no significa nada: lo que
@@ -815,13 +1158,13 @@ export default function HorariosPage() {
             // corresponde por ley.
             const maxLegal = editando ? maximoSemanalPracticante(editando.tipo_vinculo, editando.practicante_modalidad) : null;
             if (maxLegal !== null) {
-              const seExcede = totalSemana > maxLegal + 0.01;
+              const seExcede = form.totalSemana > maxLegal + 0.01;
               return (
                 <div className={`mt-4 rounded-control px-3 py-2 text-sm ${seExcede ? "bg-rojo/10" : "bg-sand/30"}`}>
-                  Total semana: <span className="font-medium text-tinta">{fmtH(totalSemana)}</span>
+                  Total semana: <span className="font-medium text-tinta">{fmtH(form.totalSemana)}</span>
                   <span className="text-taupe"> · máximo legal {maxLegal} h ({editando?.practicante_modalidad})</span>
                   {seExcede && (
-                    <span className="text-rojo"> — supera el máximo del art. 44, Ley 28518, por {fmtH(totalSemana - maxLegal)}</span>
+                    <span className="text-rojo"> — supera el máximo del art. 44, Ley 28518, por {fmtH(form.totalSemana - maxLegal)}</span>
                   )}
                 </div>
               );
@@ -829,17 +1172,17 @@ export default function HorariosPage() {
             if (editando?.tipo_vinculo === "practicante") {
               return (
                 <div className="mt-4 rounded-control bg-ambar/10 px-3 py-2 text-sm text-ambar">
-                  Total semana: {fmtH(totalSemana)} — falta fijarle la modalidad en Equipo (preprofesional o
+                  Total semana: {fmtH(form.totalSemana)} — falta fijarle la modalidad en Equipo (preprofesional o
                   profesional) para poder avisar si esto supera su máximo legal.
                 </div>
               );
             }
             return (
               <div className="mt-4 rounded-control bg-sand/30 px-3 py-2 text-sm">
-                Total semana: <span className="font-medium text-tinta">{fmtH(totalSemana)}</span>
+                Total semana: <span className="font-medium text-tinta">{fmtH(form.totalSemana)}</span>
                 <span className="text-taupe"> · meta {META_SEMANA} h</span>
-                {totalSemana > META_SEMANA + 0.01 && <span className="text-ambar"> (te pasas {fmtH(totalSemana - META_SEMANA)})</span>}
-                {totalSemana < META_SEMANA - 0.01 && <span className="text-taupe"> (faltan {fmtH(META_SEMANA - totalSemana)})</span>}
+                {form.totalSemana > META_SEMANA + 0.01 && <span className="text-ambar"> (te pasas {fmtH(form.totalSemana - META_SEMANA)})</span>}
+                {form.totalSemana < META_SEMANA - 0.01 && <span className="text-taupe"> (faltan {fmtH(META_SEMANA - form.totalSemana)})</span>}
               </div>
             );
           })()}
@@ -849,17 +1192,79 @@ export default function HorariosPage() {
               etiqueta="Motivo del cambio"
               value={motivo}
               onChange={(e) => setMotivo(e.target.value)}
-              placeholder="Por qué cambia — ej. lo pidió para estudiar, ajuste operativo de la sede…"
+              placeholder="Por qué cambia — quién lo pidió, para qué, qué operativa lo justifica…"
+              rows={4}
             />
+            <ContadorMotivo texto={motivo} />
           </div>
 
           <div className="mt-5 flex justify-end gap-3">
             <Boton variante="secundario" onClick={() => setEditando(null)} disabled={guardando}>Cancelar</Boton>
             <Boton variante="primario" onClick={guardar} cargando={guardando}>Guardar horario</Boton>
           </div>
-        </Modal>
+        </Drawer>
 
-        {/* ── Corrección retroactiva (0447): aparte, con motivo y vista previa ── */}
+        {/* ── Drawer: asignación masiva ── */}
+        <Drawer
+          abierto={masivoAbierto}
+          onCerrar={() => setMasivoAbierto(false)}
+          bloqueado={guardandoMasivo}
+          titulo={`Asignar horario a ${seleccionados.size} persona${seleccionados.size === 1 ? "" : "s"}`}
+          volverElFocoA={focoAlAbrirMasivo}
+        >
+          <p className="mb-4 text-sm text-taupe">
+            Este horario será válido desde la fecha que elijas, para cada una de las personas seleccionadas. El
+            horario anterior de cada una se conserva para fechas anteriores.
+          </p>
+
+          <Campo etiqueta="Vigente desde" type="date" min={hoy} value={masivoDesde} onChange={(e) => setMasivoDesde(e.target.value)} />
+
+          <GrillaHorario f={formMasivo} />
+
+          {(() => {
+            const practicantes = [...seleccionados]
+              .map((id) => editables.find((p) => p.id === id))
+              .filter((p): p is Persona => !!p && p.tipo_vinculo === "practicante");
+            if (practicantes.length === 0) return null;
+            const excedidas = practicantes.filter((p) => {
+              const max = maximoSemanalPracticante(p.tipo_vinculo, p.practicante_modalidad);
+              return max !== null && formMasivo.totalSemana > max + 0.01;
+            });
+            return (
+              <div className={`mt-4 rounded-control px-3 py-2 text-sm ${excedidas.length ? "bg-rojo/10 text-rojo" : "bg-ambar/10 text-ambar"}`}>
+                {excedidas.length > 0
+                  ? `Supera el máximo legal de ${excedidas.length} practicante${excedidas.length === 1 ? "" : "s"} seleccionada${excedidas.length === 1 ? "" : "s"}: ${excedidas.map((p) => `${p.nombres} ${p.apellidos}`).join(", ")}.`
+                  : `${practicantes.length} de las seleccionadas ${practicantes.length === 1 ? "es practicante" : "son practicantes"} — verifica su máximo legal por separado.`}
+              </div>
+            );
+          })()}
+
+          <div className="mt-4 rounded-control bg-sand/30 px-3 py-2 text-sm">
+            Total semana: <span className="font-medium text-tinta">{fmtH(formMasivo.totalSemana)}</span>
+          </div>
+
+          <div className="mt-4">
+            <AreaTexto
+              etiqueta="Motivo del cambio"
+              value={masivoMotivo}
+              onChange={(e) => setMasivoMotivo(e.target.value)}
+              placeholder="Por qué cambia — qué operativa lo justifica, por qué a este grupo…"
+              rows={4}
+            />
+            <ContadorMotivo texto={masivoMotivo} />
+          </div>
+
+          <div className="mt-5 flex justify-end gap-3">
+            <Boton variante="secundario" onClick={() => setMasivoAbierto(false)} disabled={guardandoMasivo}>Cancelar</Boton>
+            <Boton variante="primario" onClick={guardarMasivo} cargando={guardandoMasivo}>Guardar para {seleccionados.size}</Boton>
+          </div>
+        </Drawer>
+
+        {/* ── Corregir un horario pasado (0447): aparte del cambio normal ──
+            Va en Modal y no en Drawer a propósito: la tabla comparativa de
+            abajo tiene cinco columnas por jornada, y esa es la única garantía
+            que tiene quien aprueba de qué está a punto de reescribir. En una
+            columna de 460 px se leería con scroll horizontal. */}
         <Modal
           abierto={retro !== null}
           onCerrar={cerrarRetro}
@@ -888,71 +1293,12 @@ export default function HorariosPage() {
             </p>
           )}
 
-          <label className="mt-4 flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={!retroModoPorDia} onChange={(e) => retroCambiarModo(!e.target.checked)} className="size-4 rounded border-sand accent-tinta" />
-            Misma hora todos los días
-          </label>
-
-          {!retroModoPorDia ? (
-            <>
-              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
-                <Campo etiqueta="Entrada" type="time" value={retroEntrada} onChange={(e) => setRetroEntrada(e.target.value)} />
-                <Campo etiqueta="Salida" type="time" value={retroSalida} onChange={(e) => setRetroSalida(e.target.value)} />
-                <CampoSelect etiqueta="Refrigerio" value={retroRefri} onChange={(e) => setRetroRefri(Number(e.target.value))}>
-                  {opcionesRefrigerio(retroRefri).map((m) => <option key={m} value={m}>{m} min</option>)}
-                </CampoSelect>
-              </div>
-              <p className="mt-2 text-xs text-taupe">Cada día: <span className="text-tinta">{fmtH(horasDia(retroEntrada, retroSalida, retroRefri))}</span></p>
-              <div className="mt-3">
-                <p className="mb-1.5 text-sm">Días de trabajo <span className="text-taupe">(los que no marcas son descanso)</span></p>
-                <div className="flex gap-1.5">
-                  {DIAS.map((d) => {
-                    const on = retroDias.includes(d.v);
-                    return (
-                      <button key={d.v} type="button" onClick={() => retroToggleDia(d.v)}
-                        className={`h-9 w-9 rounded-control border text-sm ${on ? "border-tinta bg-tinta text-crema" : "border-sand text-taupe hover:bg-sand/40"}`}>
-                        {d.l}
-                      </button>
-                    );
-                  })}
-                </div>
-                <p className="mt-1.5 text-xs text-taupe">Descanso: {textoDescanso(retroDias)}</p>
-              </div>
-            </>
-          ) : (
-            <div className="mt-3">
-              <p className="mb-2 text-sm">Horario por día <span className="text-taupe">(apaga el día para descanso)</span></p>
-              <div className="flex flex-col gap-1.5">
-                {DIAS.map((d) => {
-                  const dd = retroPorDia[d.v];
-                  const activo = dd !== undefined;
-                  return (
-                    <div key={d.v} className="flex flex-wrap items-center gap-1.5">
-                      <button type="button" onClick={() => retroToggleDiaPorDia(d.v)}
-                        className={`h-8 w-14 shrink-0 rounded-control border text-xs capitalize ${activo ? "border-tinta bg-tinta text-crema" : "border-sand text-taupe hover:bg-sand/40"}`}>
-                        {NOMBRE_DIA[d.v].slice(0, 3)}
-                      </button>
-                      {activo ? (
-                        <>
-                          <input type="time" value={dd.e} onChange={(e) => retroSetCampoPorDia(d.v, "e", e.target.value)} className="w-[90px] rounded-control border px-1.5 py-1 text-sm" />
-                          <span className="text-taupe">–</span>
-                          <input type="time" value={dd.s} onChange={(e) => retroSetCampoPorDia(d.v, "s", e.target.value)} className="w-[90px] rounded-control border px-1.5 py-1 text-sm" />
-                          <select value={dd.r} onChange={(e) => retroSetRefriPorDia(d.v, e.target.value)} title="refrigerio (min)" className="w-16 rounded-control border border-sand bg-hueso px-1 py-1 text-sm">
-                            {opcionesRefrigerio(dd.r).map((m) => <option key={m} value={m}>{m}</option>)}
-                          </select>
-                          <span className="w-14 text-right text-xs text-tinta">{fmtH(horasDia(dd.e, dd.s, dd.r))}</span>
-                        </>
-                      ) : <span className="text-sm text-taupe">descanso</span>}
-                    </div>
-                  );
-                })}
-              </div>
-              <p className="mt-1.5 text-xs text-taupe">La columna angosta es el refrigerio en minutos.</p>
-            </div>
-          )}
+          <div className="mt-4">
+            <GrillaHorario f={formRetro} />
+          </div>
 
           <div className="mt-4 rounded-control bg-sand/30 px-3 py-2 text-sm">
-            Total semana: <span className="font-medium text-tinta">{fmtH(retroTotalSemana)}</span>
+            Total semana: <span className="font-medium text-tinta">{fmtH(formRetro.totalSemana)}</span>
             <span className="text-taupe"> · meta {META_SEMANA} h</span>
           </div>
 
@@ -963,6 +1309,7 @@ export default function HorariosPage() {
               onChange={(e) => { setRetroMotivo(e.target.value); }}
               placeholder="Por qué se corrige con vigencia pasada — por ejemplo: el horario cambió el lunes en la sede, recién se registra hoy."
             />
+            <ContadorMotivo texto={retroMotivo} />
           </div>
 
           <div className="mt-4 flex justify-end">
@@ -983,38 +1330,47 @@ export default function HorariosPage() {
                   </p>
                   {bloqueadoPorExpediente && (
                     <div className="mb-3 rounded-control bg-rojo/10 px-3 py-2 text-sm text-rojo">
-                      El {bloqueadoPorExpediente.fecha} ya tiene un expediente disciplinario firmado o entregado.
-                      No se puede confirmar esta corrección mientras ese expediente siga así — resuélvelo o
-                      anúlalo en Disciplina primero.
+                      El {fechaCorta(bloqueadoPorExpediente.fecha)} ya tiene un expediente disciplinario firmado o
+                      entregado. No se puede confirmar esta corrección mientras ese expediente siga así — resuélvelo
+                      o anúlalo en Disciplina primero.
                     </div>
                   )}
                   {filasConCambio.length > 0 && (
-                    <Tabla className="mb-3 [font-variant-numeric:tabular-nums]">
-                      <TablaEncabezado>
-                        <Th>Fecha</Th>
-                        <Th>Tardanza</Th>
-                        <Th>Salida antic.</Th>
-                        <Th>Tiempo extra</Th>
-                        <Th>{null}</Th>
-                      </TablaEncabezado>
-                      <tbody>
-                        {filasConCambio.map((f) => (
-                          <Fila key={f.fecha}>
-                            <td className="px-4 py-2">{f.fecha}</td>
-                            <td className="px-4 py-2">{f.minutos_tarde_actual ?? 0} → <span className="text-tinta">{f.minutos_tarde_nuevo ?? 0} min</span></td>
-                            <td className="px-4 py-2">{f.minutos_salida_temprana_actual ?? 0} → <span className="text-tinta">{f.minutos_salida_temprana_nuevo ?? 0} min</span></td>
-                            <td className="px-4 py-2">{f.horas_extra_actual ?? 0} → <span className="text-tinta">{f.horas_extra_nuevo ?? 0} h</span></td>
-                            <td className="px-4 py-2">
-                              {f.tiene_expediente_formal && <Insignia variante="alerta">expediente formal</Insignia>}
-                            </td>
-                          </Fila>
-                        ))}
-                      </tbody>
-                    </Tabla>
+                    <div className="mb-3 overflow-x-auto">
+                      <Tabla className="[font-variant-numeric:tabular-nums]">
+                        <TablaEncabezado>
+                          <Th>Fecha</Th>
+                          <Th>Tardanza</Th>
+                          <Th>Salida antic.</Th>
+                          <Th>Tiempo extra</Th>
+                          <Th>{null}</Th>
+                        </TablaEncabezado>
+                        <tbody>
+                          {filasConCambio.map((f) => (
+                            <Fila key={f.fecha}>
+                              <td className="px-4 py-2">{fechaCorta(f.fecha)}</td>
+                              <td className="px-4 py-2">{f.minutos_tarde_actual ?? 0} → <span className="text-tinta">{f.minutos_tarde_nuevo ?? 0} min</span></td>
+                              <td className="px-4 py-2">{f.minutos_salida_temprana_actual ?? 0} → <span className="text-tinta">{f.minutos_salida_temprana_nuevo ?? 0} min</span></td>
+                              <td className="px-4 py-2">{f.horas_extra_actual ?? 0} → <span className="text-tinta">{f.horas_extra_nuevo ?? 0} h</span></td>
+                              <td className="px-4 py-2">
+                                {f.tiene_expediente_formal && <Insignia variante="alerta">expediente formal</Insignia>}
+                              </td>
+                            </Fila>
+                          ))}
+                        </tbody>
+                      </Tabla>
+                    </div>
                   )}
                 </>
               )}
             </div>
+          )}
+
+          {retroPreview !== null && !retroPreviewAlDia && (
+            <p className="mt-3 text-xs text-ambar">
+              Cambiaste el horario o la fecha después de mirar la vista previa, así que lo de arriba ya no es lo
+              que se aplicaría. Vuelve a pulsar «Ver qué cambiaría».
+            </p>
           )}
 
           <div className="mt-5 flex justify-end gap-3">
@@ -1023,7 +1379,7 @@ export default function HorariosPage() {
               variante="primario"
               onClick={confirmarRetro}
               cargando={retroConfirmando}
-              disabled={!retroPreview || !!bloqueadoPorExpediente || retroMotivo.trim().length < 3}
+              disabled={!retroPreviewAlDia || !!bloqueadoPorExpediente || retroMotivo.trim().length < MOTIVO_MIN}
             >
               Confirmar corrección
             </Boton>
