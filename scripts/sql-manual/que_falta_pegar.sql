@@ -307,7 +307,8 @@ with repo(numero, nombre, nunca) as (values
     (440, 'el_horario_tambien_se_cambia_por_una_puerta', false),
     (441, 'ausencia_avisa_dias_con_jornada', false),
     (442, 'anular_lo_aprobado_exige_desarrollo_organizacional', false),
-    (443, 'ausentismo_separa_pagado_y_excluye_pendiente', false)
+    (443, 'ausentismo_separa_pagado_y_excluye_pendiente', false),
+    (448, 'la_negativa_pide_motivo_y_el_reemplazo_queda_auditado', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
