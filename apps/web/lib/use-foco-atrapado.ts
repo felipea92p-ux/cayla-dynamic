@@ -17,7 +17,7 @@
 // nada fallaría a la vista; simplemente habría una pantalla en la que el
 // teclado se escapa.
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 const FOCUSABLES =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -44,6 +44,22 @@ export function useFocoAtrapado<C extends HTMLElement, D extends HTMLElement>({
   /** Lo que lo abrió, para devolverle el foco al cerrar. */
   volverElFocoA: React.RefObject<D | null>;
 }): void {
+  // `onCerrar` casi siempre llega como una función nueva en cada render de
+  // quien usa el hook (acá mismo, Drawer la envuelve en `() => { if
+  // (!bloqueado) onCerrar(); }`, y esa clausura cambia de identidad cada vez
+  // que Drawer se re-renderiza — cosa que pasa en CADA tecla que se escribe
+  // en un campo de adentro, porque el estado del campo vive en quien llama).
+  // Si `onCerrar` estuviera en las dependencias del efecto de abajo, el
+  // efecto se desmontaría y volvería a montar en cada tecla — y su cleanup
+  // le devuelve el foco a `volverElFocoA`, así que cada tecla te sacaba del
+  // campo. Guardarla en un ref rompe ese lazo: el efecto se monta una sola
+  // vez por apertura, y el handler de Escape siempre lee la versión más
+  // reciente sin volver a suscribirse.
+  const onCerrarRef = useRef(onCerrar);
+  useEffect(() => {
+    onCerrarRef.current = onCerrar;
+  }, [onCerrar]);
+
   useEffect(() => {
     if (!abierto) return;
 
@@ -56,7 +72,7 @@ export function useFocoAtrapado<C extends HTMLElement, D extends HTMLElement>({
     function alPresionar(e: KeyboardEvent) {
       if (e.key === "Escape") {
         e.preventDefault();
-        onCerrar();
+        onCerrarRef.current();
         return;
       }
       if (e.key !== "Tab" || !caja.current) return;
@@ -85,5 +101,6 @@ export function useFocoAtrapado<C extends HTMLElement, D extends HTMLElement>({
       // <body> y la siguiente tabulación arranca desde el principio de todo.
       disparador?.focus();
     };
-  }, [abierto, onCerrar, caja, volverElFocoA]);
+    // onCerrar NO va acá a propósito — ver el comentario de onCerrarRef arriba.
+  }, [abierto, caja, volverElFocoA]);
 }
