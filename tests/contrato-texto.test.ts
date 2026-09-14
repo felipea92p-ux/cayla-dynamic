@@ -91,6 +91,8 @@ function datos(cambios: Partial<DatosContrato> = {}): DatosContrato {
     supervisorAsignado: "",
     hitoMes3: "",
     hitoMes6: "",
+    horasSemanalesPactadas: null,
+    rmvVigente: null,
     ...cambios,
   };
 }
@@ -270,6 +272,41 @@ describe("documentoConvenio", () => {
   it("sin modalidad asignada, avisa en el propio documento en vez de inventar una jornada", () => {
     const texto = construirContrato(datosConvenio({ practicanteModalidad: null }));
     expect(texto).toContain("FALTA ASIGNAR LA MODALIDAD");
+  });
+
+  // Auditoría 2026-09-14 (hallazgo #1): el artículo 45 de la Ley 28518 compara
+  // contra el tope de CADA modalidad (30h para preprofesional), no contra 48h
+  // a secas. Quien cumple las 30h de su modalidad ya está en su jornada
+  // máxima y le corresponde una RMV completa — sin prorratear.
+  it("preprofesional a las 30h completas: RMV completa, sin prorratear", () => {
+    const texto = construirContrato(
+      datosConvenio({ horasSemanalesPactadas: 30, rmvVigente: 1130 }),
+    );
+    expect(texto).toContain("no menor a la Remuneración Mínima Vital vigente");
+    // "proporcional" a secas no sirve de negativo: la cláusula de DURACIÓN de
+    // un preprofesional ya dice "por un periodo proporcional a la duración de
+    // la formación", sin relación con la subvención. Lo que hay que negar es
+    // el prorrateo DE LA SUBVENCIÓN específicamente.
+    expect(texto).not.toContain("monto proporcional");
+  });
+
+  it("preprofesional con menos de 30h: prorratea la RMV y lo dice en soles", () => {
+    // 20 de 30 horas → 2/3 de la RMV de 1,130: S/ 753.33.
+    const texto = construirContrato(
+      datosConvenio({ horasSemanalesPactadas: 20, rmvVigente: 1130 }),
+    );
+    expect(texto).toContain("20 horas semanales pactadas");
+    expect(texto).toContain("S/ 753.33");
+    expect(texto).toContain("es de 20 horas semanales");
+  });
+
+  it("profesional nunca prorratea, aunque llegara horasSemanalesPactadas", () => {
+    const texto = construirContrato(
+      datosConvenio({ practicanteModalidad: "profesional", horasSemanalesPactadas: 20, rmvVigente: 1130 }),
+    );
+    expect(texto).toContain("no menor a la Remuneración Mínima Vital vigente para una jornada completa");
+    expect(texto).not.toContain("monto proporcional");
+    expect(texto).toContain("cuarenta y ocho (48) horas semanales");
   });
 
   it("firma como LA PRACTICANTE en el cuerpo y en cada anexo — nunca LA COLABORADORA", () => {

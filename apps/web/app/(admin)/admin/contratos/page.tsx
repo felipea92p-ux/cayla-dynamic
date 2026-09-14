@@ -89,6 +89,21 @@ function finDePlazo(inicioIso: string, meses: number): string {
   return new Date(Date.UTC(y, m - 1 + meses, d - 1)).toISOString().slice(0, 10);
 }
 
+/**
+ * El mismo tope que ya calcula `fn_contratos_tablero` (0336) para una
+ * practicante: `fecha_ingreso + 12 meses` exactos — NO "el día antes del
+ * aniversario" (esa cuenta es `finDePlazo`, para el plazo de un contrato, otra
+ * pregunta). Se repite acá, con la misma fórmula, para que el aviso que ve
+ * quien está eligiendo la fecha de fin diga lo mismo que el tablero va a decir
+ * después: medido desde el ingreso real, no desde el inicio de ESTE convenio
+ * (0336 decidió con Felipe no sumar convenios anteriores: la practicante es
+ * continua desde que ingresó, no entra y sale del estatus).
+ */
+function topeConvenioDoceMeses(fechaIngresoIso: string): string {
+  const [y, m, d] = fechaIngresoIso.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1 + 12, d)).toISOString().slice(0, 10);
+}
+
 // ── ¿Se pisan dos periodos? ─────────────────────────────────────────────────
 // Un documento sin fecha de fin —el indefinido— no termina nunca, así que se
 // compara contra un tope imposible. Las fechas ISO se ordenan igual como texto
@@ -130,6 +145,11 @@ type DatosFormulario = {
   sinActivosAdicionales: boolean;
   adendum: string;
   modalidadManual: string;
+  // Solo preprofesional (auditoría 2026-09-14, hallazgo #1): cuántas horas
+  // semanales se pactaron, cuando son MENOS que el tope de 30h de su
+  // modalidad. "" = a la jornada completa de su modalidad (30h) — el mismo
+  // comportamiento que tenía el sistema antes de que este campo existiera.
+  horasSemanalesConvenio: string;
   planCapacitacion: string;
   centroFormacionNombre: string;
   centroFormacionRuc: string;
@@ -416,6 +436,7 @@ function camposIniciales(p: Persona, sedeNombre: string, sedeCiudad: string | nu
     sinActivosAdicionales: false,
     adendum: "",
     modalidadManual: "",
+    horasSemanalesConvenio: "",
     planCapacitacion: "",
     centroFormacionNombre: "",
     centroFormacionRuc: "",
@@ -502,6 +523,12 @@ export default function ContratosPage() {
   // primero en Equipo). Sin esto, `persona.practicante_modalidad` sale
   // siempre null para esa persona y no hay de dónde sacar 30h/48h.
   const [modalidadManualEditada, setModalidadManualEditada] = useState<"preprofesional" | "profesional" | "">("");
+  // Solo preprofesional (auditoría 2026-09-14, hallazgo #1): cuántas horas
+  // semanales se pactaron de verdad, cuando son MENOS que el tope de 30h de
+  // su modalidad. Texto libre y no number: así puede arrancar vacío (= "a las
+  // 30h completas de su modalidad", el comportamiento de siempre) en vez de
+  // forzar un 0 o un 30 que nadie tecleó.
+  const [horasConvenioEditadas, setHorasConvenioEditadas] = useState("");
   // Identifica a la persona como practicante DESDE QUE SE GENERA el convenio,
   // no desde que se firma — a diferencia de un contrato de trabajo, que sí
   // necesita el papel firmado para ser real, la decisión de traer a alguien
@@ -608,6 +635,12 @@ export default function ContratosPage() {
   // modal pequeño"). Cerrarla NUNCA borra lo tecleado: solo dejar de verlo.
   const [generadorAbierto, setGeneradorAbierto] = useState(false);
 
+  // DE DÓNDE SE TRAJERON LOS CAMPOS DE ABAJO, si se trajeron de un documento
+  // anterior de la misma persona (ver el efecto que llama a
+  // `traerDelAnteriorSiHay`). Solo para mostrar el aviso — no participa en
+  // ninguna validación.
+  const [prellenoAnterior, setPrellenoAnterior] = useState<{ tipo: string; generado_at: string } | null>(null);
+
   const { avisar } = useToast();
 
   /** Vuelca al formulario los veinte campos editables, de una sola vez. */
@@ -622,6 +655,10 @@ export default function ContratosPage() {
     setModalidadManualEditada(
       d.modalidadManual === "preprofesional" || d.modalidadManual === "profesional" ? d.modalidadManual : "",
     );
+    // `?? ""`: un borrador de antes de este campo no lo tiene en su
+    // `datos_formulario` guardado — mismo caso que ya vive en `edicionSinFoto`,
+    // a nivel de un campo en vez del objeto entero.
+    setHorasConvenioEditadas(d.horasSemanalesConvenio ?? "");
     setPlanCapacitacionEditado(d.planCapacitacion);
     setCentroFormacionNombreEditado(d.centroFormacionNombre);
     setCentroFormacionRucEditado(d.centroFormacionRuc);
@@ -652,6 +689,7 @@ export default function ContratosPage() {
       sinActivosAdicionales,
       adendum: adendumEditado,
       modalidadManual: modalidadManualEditada,
+      horasSemanalesConvenio: horasConvenioEditadas,
       planCapacitacion: planCapacitacionEditado,
       centroFormacionNombre: centroFormacionNombreEditado,
       centroFormacionRuc: centroFormacionRucEditado,
@@ -665,6 +703,49 @@ export default function ContratosPage() {
       objetivoFormativoGeneral: objetivoFormativoGeneralEditado,
       supervisorAsignado: supervisorAsignadoEditado,
     };
+  }
+
+  /**
+   * Trae el Anexo I / plan formativo del documento anterior VIVO de esta
+   * persona, de la misma familia (contrato de trabajo o convenio), para no
+   * obligar a re-escribirlo desde cero en cada renovación.
+   *
+   * Hallazgo de la auditoría 2026-09-14: `datos_formulario` guarda esto desde
+   * la 0388, pero solo se leía al EDITAR un borrador propio (`empezarEdicion`)
+   * — nunca al generar uno nuevo, aunque `FUNCIONES_PLACEHOLDER` le pide
+   * explícitamente a quien usa la pantalla ir a buscarlo a mano ("usar como
+   * referencia el Anexo I del contrato anterior de esta persona, si existe").
+   *
+   * Un adendum no tiene familia de la que traer nada (su `datos_formulario`
+   * solo guarda `adendum`) y no participa. La causa objetiva NO se trae: es
+   * la decisión legal más sensible del documento (ver el encabezado de
+   * `contrato-texto.ts`) y una anterior puede haber quedado desactualizada;
+   * se prefiere que arranque siempre en el texto de partida a revisar, nunca
+   * en un texto viejo que parezca ya revisado.
+   */
+  async function traerDelAnteriorSiHay(
+    personaIdBuscada: string,
+    tipoBuscado: "nuevo" | "renovacion" | "adendum" | "convenio_practicas" | "indefinido",
+  ) {
+    const familia: string[] =
+      tipoBuscado === "convenio_practicas"
+        ? ["convenio_practicas"]
+        : tipoBuscado === "adendum"
+          ? []
+          : ["nuevo", "renovacion", "indefinido"];
+    if (familia.length === 0) return null;
+
+    const { data, error } = await supabase
+      .from("contratos_generados")
+      .select("tipo, generado_at, datos_formulario")
+      .eq("persona_id", personaIdBuscada)
+      .is("anulado_at", null)
+      .in("tipo", familia)
+      .order("generado_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error || !data) return null;
+    return data as { tipo: string; generado_at: string; datos_formulario: DatosFormulario | null };
   }
 
   const sedeCodigo = useMemo(() => new Map(sedes.map((s) => [s.id, s.codigo])), [sedes]);
@@ -865,6 +946,7 @@ export default function ContratosPage() {
     // adelante, seguir ahí mostraría el paso 3 de un documento que recién
     // empieza.
     setPaso("persona");
+    setPrellenoAnterior(null);
     // Acá NO se cierra el visor, y hace falta decir por qué: hasta el
     // 2026-09-08 sí lo hacía, por precaución. Era precaución muerta —mientras
     // el visor está abierto, su scrim tapa el desplegable de persona, así que
@@ -896,10 +978,67 @@ export default function ContratosPage() {
     // un contrato modal— y se cambia en un clic.
     const esConvenioDeEstaPersona = p.tipo_vinculo === "practicante" || tipo === "convenio_practicas";
     setFechaFin(finDePlazo(inicio, esConvenioDeEstaPersona ? 3 : 12));
-    // Deliberadamente NO depende de `personas`/`sedeNombreMap`: generar un
-    // borrador llama a `cargar()`, que trae esos dos arreglos de nuevo con una
-    // referencia distinta aunque el contenido sea el mismo. Si estuvieran acá,
-    // cada "Generar borrador" borraba el formulario que se acababa de llenar.
+
+    // TRAER EL ANEXO I / PLAN FORMATIVO DEL DOCUMENTO ANTERIOR, SI HAY (hallazgo
+    // de la auditoría 2026-09-14, ver `traerDelAnteriorSiHay`). Async y con
+    // bandera de cancelación: si la persona o el tipo cambian de nuevo antes de
+    // que responda, esta respuesta ya no es de nadie y no debe escribir sobre
+    // el formulario que se está mostrando ahora. Cada `set...` usa la forma
+    // funcional y solo pisa el valor si sigue siendo el de partida (nadie
+    // tecleó nada todavía) — así una respuesta lenta nunca borra lo que quien
+    // usa la pantalla ya empezó a escribir.
+    let cancelado = false;
+    const tipoParaBuscar = p.tipo_vinculo === "practicante" ? "convenio_practicas" : tipo;
+    void traerDelAnteriorSiHay(p.id, tipoParaBuscar).then((anterior) => {
+      if (cancelado || !anterior?.datos_formulario) return;
+      const d = anterior.datos_formulario;
+      if (tipoParaBuscar === "convenio_practicas") {
+        // La modalidad decide la jornada y el piso de la subvención (art. 44/45
+        // Ley 28518) — sin traerla, el resto de campos se prellenaba pero el
+        // convenio seguía sin poder calcular ninguna de las dos. Si la ficha
+        // (Equipo) YA dice `practicante_modalidad`, `modalidadEfectiva` la usa
+        // primero (ver su cálculo más arriba) y esto queda sin efecto visible.
+        if (d.modalidadManual === "preprofesional" || d.modalidadManual === "profesional") {
+          const modalidadAnterior = d.modalidadManual;
+          setModalidadManualEditada((prev) => (prev === "" ? modalidadAnterior : prev));
+        }
+        // `?.trim()` y no un acceso directo: un `datos_formulario` de antes de
+        // este campo (auditoría 2026-09-14) simplemente no lo tiene.
+        if (d.horasSemanalesConvenio?.trim())
+          setHorasConvenioEditadas((prev) => (prev === "" ? d.horasSemanalesConvenio : prev));
+        if (d.planCapacitacion?.trim()) setPlanCapacitacionEditado((prev) => (prev === "" ? d.planCapacitacion : prev));
+        if (d.centroFormacionNombre?.trim())
+          setCentroFormacionNombreEditado((prev) => (prev === "" ? d.centroFormacionNombre : prev));
+        if (d.centroFormacionRuc?.trim()) setCentroFormacionRucEditado((prev) => (prev === "" ? d.centroFormacionRuc : prev));
+        if (d.centroFormacionDomicilio?.trim())
+          setCentroFormacionDomicilioEditado((prev) => (prev === "" ? d.centroFormacionDomicilio : prev));
+        if (d.centroFormacionRepresentanteNombre?.trim())
+          setCentroFormacionRepresentanteNombreEditado((prev) => (prev === "" ? d.centroFormacionRepresentanteNombre : prev));
+        if (d.centroFormacionRepresentanteCargo?.trim())
+          setCentroFormacionRepresentanteCargoEditado((prev) => (prev === "" ? d.centroFormacionRepresentanteCargo : prev));
+        if (d.carreraEspecialidad?.trim()) setCarreraEspecialidadEditada((prev) => (prev === "" ? d.carreraEspecialidad : prev));
+        if (d.cicloAcademico?.trim()) setCicloAcademicoEditado((prev) => (prev === "" ? d.cicloAcademico : prev));
+        if (d.areaProyecto?.trim()) setAreaProyectoEditado((prev) => (prev === "" ? d.areaProyecto : prev));
+        if (d.objetivoFormativoGeneral?.trim())
+          setObjetivoFormativoGeneralEditado((prev) => (prev === "" ? d.objetivoFormativoGeneral : prev));
+        if (d.supervisorAsignado?.trim()) setSupervisorAsignadoEditado((prev) => (prev === "" ? d.supervisorAsignado : prev));
+      } else if (d.funciones?.trim() && d.funciones !== FUNCIONES_PLACEHOLDER) {
+        setFuncionesEditadas((prev) => (prev === FUNCIONES_PLACEHOLDER ? d.funciones : prev));
+      }
+      if (d.activosLibre?.trim()) setActivosLibre((prev) => (prev === "" ? d.activosLibre : prev));
+      setPrellenoAnterior({ tipo: anterior.tipo, generado_at: anterior.generado_at });
+    });
+
+    // Deliberadamente NO depende de `personas`/`sedeNombreMap`/`sedeCiudadMap`
+    // (generar un borrador llama a `cargar()`, que trae esos tres arreglos de
+    // nuevo con otra referencia, y repoblaría el formulario a medio llenar) ni
+    // de `editando` (ya se lee arriba con un `return` temprano; no hace falta
+    // volver a correr este efecto solo porque cambie) ni de
+    // `traerDelAnteriorSiHay` (estable entre renders salvo por `contratos`,
+    // que tampoco debe reiniciar el formulario en cada `cargar()`).
+    return () => {
+      cancelado = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [personaId, tipo]);
 
@@ -952,6 +1091,14 @@ export default function ContratosPage() {
     persona?.practicante_modalidad === "preprofesional" || persona?.practicante_modalidad === "profesional"
       ? persona.practicante_modalidad
       : modalidadManualEditada || null;
+  // Solo tiene sentido para preprofesional — el profesional siempre se asume
+  // a su jornada completa de 48h (ver contrato-texto.ts). `null` = a las 30h
+  // completas de su modalidad, el mismo comportamiento que tenía el sistema
+  // antes de este campo (auditoría 2026-09-14, hallazgo #1).
+  const horasConvenioNumero =
+    modalidadEfectiva === "preprofesional" && horasConvenioEditadas.trim() !== ""
+      ? Number(horasConvenioEditadas)
+      : null;
   const datoPersonal = persona ? (datosPersonales.find((d) => d.persona_id === persona.id) ?? null) : null;
   const salarioVigente = persona
     ? (salarios.find((s) => s.persona_id === persona.id)?.salario_mensual_soles ?? null)
@@ -1188,6 +1335,8 @@ export default function ContratosPage() {
           firmanteDni: firmante.dni,
           firmanteCargo: firmante.cargo,
           practicanteModalidad: modalidadEfectiva,
+          horasSemanalesPactadas: horasConvenioNumero,
+          rmvVigente,
           planCapacitacionTexto: planCapacitacionEditado,
           centroFormacionNombre: centroFormacionNombreEditado.trim() || null,
           centroFormacionRuc: centroFormacionRucEditado.trim() || null,
@@ -1341,8 +1490,32 @@ export default function ContratosPage() {
         : "Elige la modalidad (preprofesional o profesional) — decide su jornada máxima (30h/48h).",
     );
   }
-  if (persona && esConvenio && salarioVigente !== null && rmvVigente !== null && salarioVigente < rmvVigente) {
-    bloqueos.push(`La subvención (S/ ${salarioVigente.toFixed(2)}) está por debajo de la RMV vigente (S/ ${rmvVigente.toFixed(2)}) — Ley 28518, art. 45: no puede ser menor a jornada completa.`);
+  // CAMBIO (auditoría 2026-09-14, hallazgo #1): antes exigía SIEMPRE una RMV
+  // completa, para cualquier modalidad. El artículo 45 de la Ley 28518 compara
+  // contra "la jornada máxima prevista para CADA modalidad formativa" — 30h
+  // para preprofesional (art. 44), no 48h — y solo prorratea a quien trabaja
+  // MENOS que el tope de SU propia modalidad. Mismo cálculo que hace el texto
+  // del convenio (`documentoConvenio`, contrato-texto.ts) para no poder
+  // decirse a sí mismo dos cosas distintas.
+  if (
+    persona &&
+    esConvenio &&
+    modalidadEfectiva === "preprofesional" &&
+    horasConvenioEditadas.trim() !== "" &&
+    !(Number(horasConvenioEditadas) > 0 && Number(horasConvenioEditadas) <= 30)
+  ) {
+    bloqueos.push("Las horas semanales pactadas deben ser un número mayor que 0 y hasta 30 — el tope de la modalidad preprofesional (art. 44, Ley 28518).");
+  }
+  const pisoSubvencion =
+    modalidadEfectiva === "preprofesional" && horasConvenioNumero !== null && rmvVigente !== null
+      ? (rmvVigente * horasConvenioNumero) / 30
+      : rmvVigente;
+  if (persona && esConvenio && salarioVigente !== null && pisoSubvencion !== null && salarioVigente < pisoSubvencion) {
+    bloqueos.push(
+      horasConvenioNumero !== null && horasConvenioNumero < 30
+        ? `La subvención (S/ ${salarioVigente.toFixed(2)}) está por debajo del piso proporcional a sus ${horasConvenioNumero} horas semanales pactadas (S/ ${pisoSubvencion.toFixed(2)} de la RMV vigente) — Ley 28518, art. 45.`
+        : `La subvención (S/ ${salarioVigente.toFixed(2)}) está por debajo de la RMV vigente (S/ ${pisoSubvencion.toFixed(2)}) — Ley 28518, art. 45: le corresponde completa a quien cumple la jornada máxima de su modalidad.`,
+    );
   }
   // Estos campos no tenían bloqueo (hallazgo #11, auditoría 2026-09-03/04):
   // vacíos, `contrato-texto.ts` los imprime tal cual como «[completar]» dentro
@@ -1411,10 +1584,18 @@ export default function ContratosPage() {
   // extensión mayor— que este sistema no puede verificar solo. Avisa, no
   // bloquea: mismo criterio que ya eligió la 0324 para la jornada 30h/48h
   // ("Dynamic avisa, nunca sanciona solo").
-  if (persona && esConvenio && fechaInicio && fechaFin) {
-    const meses = (new Date(`${fechaFin}T00:00:00`).getTime() - new Date(`${fechaInicio}T00:00:00`).getTime()) / 2_629_800_000;
-    if (meses > 12) {
-      avisos.push(`Este convenio duraría ${meses.toFixed(1)} meses, sobre el tope de DOCE meses continuos (Ley 28518, art. 30). Solo es válido si el centro de formación sustenta por escrito una extensión mayor — de lo contrario, arriesga desnaturalización.`);
+  //
+  // CAMBIO (auditoría 2026-09-14): antes medía solo la duración de ESTE
+  // tramo (`fechaFin - fechaInicio`), así que una renovación corta después de
+  // convenios anteriores largos salía "dentro del tope" aunque lo acumulado
+  // ya lo hubiera pasado — el mismo defecto que el tablero (0336) ya había
+  // cerrado, pero sin que este aviso lo heredara. Ahora usa la misma fórmula
+  // que `fn_contratos_tablero`: el tope se mide desde `fecha_ingreso`, no
+  // desde el inicio de este convenio puntual.
+  if (persona && esConvenio && fechaFin) {
+    const tope = topeConvenioDoceMeses(persona.fecha_ingreso);
+    if (fechaFin > tope) {
+      avisos.push(`La fecha de fin (${formatearFecha(fechaFin)}) supera el tope legal de doce meses continuos desde su ingreso (${formatearFecha(persona.fecha_ingreso)} → tope ${formatearFecha(tope)}), el mismo cálculo que usa el tablero. Solo es válido si el centro de formación sustenta por escrito una extensión mayor (Ley 28518, art. 30) — de lo contrario, arriesga desnaturalización.`);
     }
   }
 
@@ -1442,9 +1623,13 @@ export default function ContratosPage() {
       // Un indefinido nunca lleva fecha de fin (0347) — fn_contrato_registrar
       // la rechaza si no es null para ese tipo.
       p_fecha_fin: esIndefinido ? null : fechaFin,
-      // La jornada del contrato es siempre 48h (ver contrato-texto.ts); no hay
-      // un número calculado del horario que guardar acá.
-      p_horas_semanales: null,
+      // La jornada de un contrato de trabajo es siempre 48h (ver
+      // contrato-texto.ts); no hay un número calculado del horario que
+      // guardar acá. Solo el convenio preprofesional declara algo distinto de
+      // su tope de modalidad (auditoría 2026-09-14, hallazgo #1) — y solo
+      // cuando de verdad se pactó menos: `null` sigue significando "a su
+      // jornada completa", igual que antes de este campo.
+      p_horas_semanales: esConvenio ? horasConvenioNumero : null,
       p_documento_html: html,
       // La foto de lo tecleado, para poder reabrir este borrador y corregirlo
       // (0388) en vez de generar otro al lado.
@@ -1560,6 +1745,14 @@ export default function ContratosPage() {
     }
     setGuardandoEdicion(true);
     const html = construirContrato(datosParaGenerar);
+    // `fn_contrato_editar` (0388) no recibe `p_horas_semanales` — cambiarle la
+    // firma es una migración, fuera del alcance acordado para el hallazgo #1
+    // (auditoría 2026-09-14). El texto que se reimprime SÍ queda correcto
+    // (`html` ya usa las horas de `datosParaGenerar`) y `datos_formulario` SÍ
+    // guarda el número tecleado para la próxima vez que se reabra o se reuse
+    // — lo único que no se actualiza es la columna `contratos_generados.
+    // horas_semanales`, que hoy no lee nadie más. Si el día de mañana algo
+    // más empieza a leerla, esto necesita su propia migración.
     const { error } = await supabase.rpc("fn_contrato_editar", {
       p_id: editando.id,
       p_tipo: datosParaGenerar.tipo,
@@ -1614,6 +1807,27 @@ export default function ContratosPage() {
     }
     if (!fechaFirma) {
       avisar("error", "Indica en qué fecha se firmó.");
+      return;
+    }
+    // Nada comparaba `fechaFirma` contra la vigencia del propio documento
+    // (hallazgo de la auditoría 2026-09-14): un tipeo de año quedaba
+    // guardado tal cual, sin ninguna señal. Un mes de margen antes del
+    // inicio cubre el caso normal —firmar unos días antes de empezar—; después
+    // del fin, ninguno: firmar un documento después de su propio término no
+    // tiene un caso legítimo que este sistema conozca.
+    const contratoASubir = contratos.find((c) => c.id === subiendoPara);
+    if (contratoASubir && fechaFirma < sumarDias(contratoASubir.fecha_inicio, -30)) {
+      avisar(
+        "error",
+        `La fecha de firma (${formatearFecha(fechaFirma)}) es más de un mes anterior al inicio del documento (${formatearFecha(contratoASubir.fecha_inicio)}). Revisa que sea la fecha correcta.`,
+      );
+      return;
+    }
+    if (contratoASubir?.fecha_fin && fechaFirma > contratoASubir.fecha_fin) {
+      avisar(
+        "error",
+        `La fecha de firma (${formatearFecha(fechaFirma)}) es posterior al término del documento (${formatearFecha(contratoASubir.fecha_fin)}). Revisa que sea la fecha correcta.`,
+      );
       return;
     }
 
@@ -2273,6 +2487,21 @@ export default function ContratosPage() {
                       </div>
                     )}
 
+                    {/* SE TRAJO DEL DOCUMENTO ANTERIOR (hallazgo de la
+                        auditoría 2026-09-14): el Anexo I / plan formativo no
+                        arrancó en blanco ni en el relleno — se trajo del
+                        último documento vivo de esta persona. Aviso, no
+                        silencio: es justo lo que evita que un dato viejo se
+                        cuele como si ya estuviera revisado hoy. */}
+                    {!editando && prellenoAnterior && (
+                      <div className="rounded-lg border border-sand bg-hueso px-3 py-2 text-sm text-taupe">
+                        Se trajeron algunos campos del{" "}
+                        {(TIPO_CONTRATO[prellenoAnterior.tipo] ?? prellenoAnterior.tipo).toLowerCase()} anterior de{" "}
+                        {persona?.nombres}, generado el {formatearFecha(prellenoAnterior.generado_at.slice(0, 10))}.{" "}
+                        <strong className="text-tinta">Revísalos antes de generar.</strong>
+                      </div>
+                    )}
+
                     {/* LO QUE YA TIENE SIN FIRMAR, CON LAS DOS SALIDAS AL LADO.
                         Decirlo solo en Revisión obliga a llegar hasta el final
                         para enterarse. Acá se corrige o se anula desde donde
@@ -2435,6 +2664,26 @@ export default function ContratosPage() {
                           </label>
                         )}
                       </>
+                    )}
+                    {/* SOLO PREPROFESIONAL (auditoría 2026-09-14, hallazgo
+                        #1): el profesional siempre se asume a su jornada
+                        completa de 48h (contrato-texto.ts). Vacío = a las 30h
+                        completas de su modalidad — el mismo comportamiento
+                        que tenía el sistema antes de este campo. El artículo
+                        45 de la Ley 28518 solo prorratea el piso de la RMV
+                        contra estas horas cuando son MENOS que el tope de la
+                        modalidad (30h), nunca contra 48h. */}
+                    {modalidadEfectiva === "preprofesional" && (
+                      <Campo
+                        etiqueta="Horas semanales pactadas — vacío si son las 30 completas (art. 44)"
+                        type="number"
+                        min={1}
+                        max={30}
+                        step={1}
+                        placeholder="30"
+                        value={horasConvenioEditadas}
+                        onChange={(e) => setHorasConvenioEditadas(e.target.value)}
+                      />
                     )}
                     {modalidadEfectiva === "preprofesional" ? (
                       <>
@@ -2647,6 +2896,10 @@ export default function ContratosPage() {
                                 <div>
                                   <dt className="text-xs text-taupe">Ciclo</dt>
                                   <dd>{cicloAcademicoEditado || "—"}</dd>
+                                </div>
+                                <div>
+                                  <dt className="text-xs text-taupe">Horas semanales pactadas</dt>
+                                  <dd>{horasConvenioEditadas ? `${horasConvenioEditadas}h` : "30h (completas)"}</dd>
                                 </div>
                               </dl>
                             ) : (
