@@ -9,10 +9,12 @@ import { useToast } from "@/components/toast";
 import { Boton } from "@/components/ui/boton";
 import { Campo, CampoSelect } from "@/components/ui/campo";
 import { Insignia } from "@/components/ui/insignia";
+import { Menu, MenuItem } from "@/components/ui/menu";
 import { Modal } from "@/components/ui/modal";
 import { Fila, Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
+import { MESES } from "@/lib/objetivos";
 import { RANGOS, RANGO_LABEL, baseDeclaradaDe, formatSoles } from "@/lib/rangos";
 import { type Area, AREA_DEFAULT, AREAS_FALLBACK, parseAreas, areaCorto, esOperativaEn } from "@/lib/areas";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
@@ -452,6 +454,23 @@ export default function EquipoPage() {
     visibles.sort((a, b) => (finesContrato.get(a.id) ?? "").localeCompare(finesContrato.get(b.id) ?? ""));
   }
   const ocultas = personas.length - visibles.length;
+
+  // Métricas de cabecera (0428). Las tres se calculan sobre datos que esta
+  // pantalla YA tiene en memoria —nada de una consulta nueva— y con los
+  // mismos cortes que ya usa el resto de la tabla: `finDeMes` es el mismo que
+  // colorea "Contrato hasta" en ámbar, `ingresos` es el mismo mapa que
+  // alimenta la línea "Ingresó:" de cada fila. Si `ingresos` llegó vacío
+  // (rol sin permiso — fn_ingresos se lo niega en el servidor), "Ingresos
+  // este mes" da 0 en vez de fallar: es lo que ESE rol puede ver, no un dato
+  // mal calculado.
+  const inicioDeMes = rangoDelMesLima().inicio;
+  const totalColaboradores = personas.filter((p) => p.estado === "activo").length;
+  const ingresosEsteMes = personas.filter((p) => {
+    const f = ingresos.get(p.id)?.fecha_ingreso;
+    return f != null && f >= inicioDeMes && f <= finDeMes;
+  }).length;
+  const contratosPorVencer = personas.filter((p) => p.estado === "activo" && saleDelTablero(finesContrato.get(p.id))).length;
+  const mesActualLabel = `${MESES[Number(inicioDeMes.slice(5, 7)) - 1]} ${inicioDeMes.slice(0, 4)}`;
 
   function codigoSede(id: string) {
     return sedes.find((s) => s.id === id)?.codigo ?? "?";
@@ -1585,6 +1604,30 @@ export default function EquipoPage() {
           )}
         </div>
 
+        {/* Métricas: tres números que ya se podían leer contando filas, pero
+            que hoy exigen filtrar y contar a mano. Solo aparecen con la
+            tabla ya cargada, para no mostrar tres ceros mientras se espera
+            la respuesta. */}
+        {!cargando && (
+          <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="rounded-2xl border border-sand bg-papel p-5">
+              <div className="text-sm text-taupe">Total colaboradores</div>
+              <div className="mt-1 font-serif text-3xl">{totalColaboradores}</div>
+              <div className="mt-1 text-xs text-taupe">En toda la organización</div>
+            </div>
+            <div className="rounded-2xl border border-sand bg-papel p-5">
+              <div className="text-sm text-taupe">Ingresos este mes</div>
+              <div className="mt-1 font-serif text-3xl">{ingresosEsteMes}</div>
+              <div className="mt-1 text-xs text-taupe">{mesActualLabel}</div>
+            </div>
+            <div className="rounded-2xl border border-sand bg-papel p-5">
+              <div className="text-sm text-taupe">Contratos por vencer</div>
+              <div className={`mt-1 font-serif text-3xl ${contratosPorVencer > 0 ? "text-ambar" : ""}`}>{contratosPorVencer}</div>
+              <div className="mt-1 text-xs text-taupe">Este mes o antes</div>
+            </div>
+          </div>
+        )}
+
         {puedeSalarios && salariosEstado === "error" && (
           <div className="mb-4 max-w-3xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
             No se pudieron cargar los salarios, así que su edición está deshabilitada (para no pisar
@@ -1699,54 +1742,66 @@ export default function EquipoPage() {
                 return (
                 <Fila key={p.id} className={`group ${p.estado === "inactivo" ? "text-taupe" : ""}`}>
                   <td className="px-4 py-1.5">
-                    <button onClick={() => router.push(`/admin/personas/${p.id}`)} className="text-left font-medium text-tinta hover:underline" title="Ver perfil completo">{p.nombres} {p.apellidos}</button>
-                    {p.con_hijos && (
-                      <span title="Asignación familiar activa" className="ml-1.5 cursor-default text-xs">👶</span>
-                    )}
-                    {/* Ingreso, contrato y salida solo se leen al pasar el
-                        mouse (o al llegar con teclado, group-focus-within):
-                        con ~30 personas activas, tenerlas siempre visibles
-                        era la altura de fila que sobraba. El dato sigue ahí
-                        —un clic en el nombre lo muestra igual en el perfil—,
-                        así que nadie lo pierde, solo deja de ocupar espacio
-                        por defecto. */}
-                    <div className="hidden group-hover:block group-focus-within:block">
-                      {puedeSalarios && ingresos.get(p.id)?.fecha_ingreso && (
-                        <div className="text-xs text-taupe">Ingresó: {fmtFechaDMA(ingresos.get(p.id)!.fecha_ingreso!)}</div>
-                      )}
-                      {/* En ámbar cuando su contrato vence este mes o antes: es el
-                          momento en que sale del tablero de Documentación y, si es
-                          que no se renueva, cuando hay que registrar su cese. */}
-                      {puedeSalarios && finesContrato.has(p.id) && (
-                        <div className={`text-xs ${p.estado === "activo" && saleDelTablero(finesContrato.get(p.id)) ? "text-ambar" : "text-taupe"}`}>
-                          Contrato hasta: {fmtFechaDMA(finesContrato.get(p.id)!)}
-                        </div>
-                      )}
-                      {/* Cuándo y por qué se fue (0179). Va acá y no en columnas
-                          propias para no ensanchar una tabla que ya tiene ocho, y
-                          porque solo aplica a quien está inactivo: al equipo activo
-                          no le agrega una celda vacía en cada fila. Cierra la
-                          secuencia que ya cuentan las dos líneas de arriba:
-                          entró · hasta cuándo tenía contrato · cuándo se fue.
-                          El motivo llega null si quien mira no es admin ni líder DO
-                          —la RPC no se lo entrega— y entonces solo se ve la fecha. */}
-                      {p.estado === "inactivo" && p.fecha_cese && (
-                        <div className="text-xs text-taupe">
-                          Se fue: {fmtFechaDMA(p.fecha_cese)}
-                          {p.motivo_cese && (
-                            // El texto sale del catálogo también cuando es
-                            // `por_revisar`: el desplegable de cese ya lo nombra
-                            // así, y dos formas de decir lo mismo en la misma
-                            // pantalla se contradicen a la primera. Lo único que
-                            // cambia es el ámbar, que dice «esto falta».
-                            <> · {p.motivo_cese === "por_revisar"
-                              ? <span className="text-ambar" title="Nadie registró por qué se fue. Edita su ficha y elige el motivo real.">
-                                  {etiquetaDeCatalogo(p.motivo_cese, MOTIVO_CESE_LABELS)}
-                                </span>
-                              : etiquetaDeCatalogo(p.motivo_cese, MOTIVO_CESE_LABELS)}</>
+                    {/* Mismo círculo con iniciales que la cabecera del perfil
+                        (personas/[id]/page.tsx) — bg-rojo/10 + text-rojo — y
+                        no uno nuevo por persona: es la marca de identidad que
+                        ya usa esta app en el único otro sitio donde hay un
+                        avatar, no un color al azar por fila. */}
+                    <div className="flex items-center gap-3">
+                      <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-rojo/10 font-serif text-sm text-rojo" aria-hidden>
+                        {p.nombres[0]?.toUpperCase()}{p.apellidos[0]?.toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <button onClick={() => router.push(`/admin/personas/${p.id}`)} className="text-left font-medium text-tinta hover:underline" title="Ver perfil completo">{p.nombres} {p.apellidos}</button>
+                        {p.con_hijos && (
+                          <span title="Asignación familiar activa" className="ml-1.5 cursor-default text-xs">👶</span>
+                        )}
+                        {/* Ingreso, contrato y salida solo se leen al pasar el
+                            mouse (o al llegar con teclado, group-focus-within):
+                            con ~30 personas activas, tenerlas siempre visibles
+                            era la altura de fila que sobraba. El dato sigue ahí
+                            —un clic en el nombre lo muestra igual en el perfil—,
+                            así que nadie lo pierde, solo deja de ocupar espacio
+                            por defecto. */}
+                        <div className="hidden group-hover:block group-focus-within:block">
+                          {puedeSalarios && ingresos.get(p.id)?.fecha_ingreso && (
+                            <div className="text-xs text-taupe">Ingresó: {fmtFechaDMA(ingresos.get(p.id)!.fecha_ingreso!)}</div>
+                          )}
+                          {/* En ámbar cuando su contrato vence este mes o antes: es el
+                              momento en que sale del tablero de Documentación y, si es
+                              que no se renueva, cuando hay que registrar su cese. */}
+                          {puedeSalarios && finesContrato.has(p.id) && (
+                            <div className={`text-xs ${p.estado === "activo" && saleDelTablero(finesContrato.get(p.id)) ? "text-ambar" : "text-taupe"}`}>
+                              Contrato hasta: {fmtFechaDMA(finesContrato.get(p.id)!)}
+                            </div>
+                          )}
+                          {/* Cuándo y por qué se fue (0179). Va acá y no en columnas
+                              propias para no ensanchar una tabla que ya tiene ocho, y
+                              porque solo aplica a quien está inactivo: al equipo activo
+                              no le agrega una celda vacía en cada fila. Cierra la
+                              secuencia que ya cuentan las dos líneas de arriba:
+                              entró · hasta cuándo tenía contrato · cuándo se fue.
+                              El motivo llega null si quien mira no es admin ni líder DO
+                              —la RPC no se lo entrega— y entonces solo se ve la fecha. */}
+                          {p.estado === "inactivo" && p.fecha_cese && (
+                            <div className="text-xs text-taupe">
+                              Se fue: {fmtFechaDMA(p.fecha_cese)}
+                              {p.motivo_cese && (
+                                // El texto sale del catálogo también cuando es
+                                // `por_revisar`: el desplegable de cese ya lo nombra
+                                // así, y dos formas de decir lo mismo en la misma
+                                // pantalla se contradicen a la primera. Lo único que
+                                // cambia es el ámbar, que dice «esto falta».
+                                <> · {p.motivo_cese === "por_revisar"
+                                  ? <span className="text-ambar" title="Nadie registró por qué se fue. Edita su ficha y elige el motivo real.">
+                                      {etiquetaDeCatalogo(p.motivo_cese, MOTIVO_CESE_LABELS)}
+                                    </span>
+                                  : etiquetaDeCatalogo(p.motivo_cese, MOTIVO_CESE_LABELS)}</>
+                              )}
+                            </div>
                           )}
                         </div>
-                      )}
+                      </div>
                     </div>
                   </td>
                   <td className="px-4 py-1.5">{codigoSede(p.sede_base_id)}</td>
@@ -1818,24 +1873,46 @@ export default function EquipoPage() {
                     <Insignia atenuada={p.estado !== "activo"}>{p.estado}</Insignia>
                   </td>
                   <td className={`sticky right-0 z-[5] ${fondoCebra} px-4 py-1.5 shadow-[-6px_0_8px_-6px_rgba(0,0,0,0.12)] group-hover:bg-crema/60`}>
-                    <div className="flex flex-wrap gap-2">
-                      <Boton variante="secundario" tamano="sm" onClick={() => empezarEdicion(p)}>Editar</Boton>
+                    {/* Un solo "···" en vez de tres botones en línea: son las
+                        mismas acciones, solo que ahora piden un clic más para
+                        llegar a ellas. Ojo con esto en tablas largas: el menú
+                        se dibuja dentro del contenedor con scroll de <Tabla>
+                        (alturaMaxima="70vh"), así que en una fila muy cerca
+                        del borde inferior visible puede recortarse — no
+                        vuela por encima del scroll (no usa portal). Con la
+                        fila activada por group-hover, aparecer/desaparecer al
+                        pasar el mouse compensa parte de eso, pero si en la
+                        práctica molesta, la solución es un menú con portal,
+                        no este. */}
+                    <Menu alinear="derecha" trigger={({ alternar, abierto }) => (
+                      <Boton
+                        variante="sutil"
+                        tamano="sm"
+                        onClick={alternar}
+                        aria-haspopup="menu"
+                        aria-expanded={abierto}
+                        aria-label={`Acciones para ${p.nombres} ${p.apellidos}`}
+                      >
+                        •••
+                      </Boton>
+                    )}>
+                      <MenuItem onClick={() => empezarEdicion(p)}>Editar</MenuItem>
                       {/* Solo a quien está activa: desde la 0364 el servidor
                           rechaza regenerar el PIN de una persona inactiva, y
-                          no se ofrece un botón que solo puede terminar en un
+                          no se ofrece una acción que solo puede terminar en un
                           error. Si vuelve al equipo, «Reactivar» primero. */}
                       {p.estado === "activo" && (
-                        <Boton variante="secundario" tamano="sm" onClick={() => regenerarPin(p)}>Nuevo PIN</Boton>
+                        <MenuItem onClick={() => regenerarPin(p)}>Nuevo PIN</MenuItem>
                       )}
                       {p.estado === "activo" ? (
                         // «Registrar salida» y no «Desactivar»: lo que se hace
                         // es anotar un hecho con su fecha y su motivo, no
                         // apagar un interruptor.
-                        <Boton variante="peligro" tamano="sm" onClick={() => empezarCese(p)}>Registrar salida</Boton>
+                        <MenuItem variante="peligro" onClick={() => empezarCese(p)}>Registrar salida</MenuItem>
                       ) : (
-                        <Boton variante="secundario" tamano="sm" onClick={() => setReactivarPendiente(p)}>Reactivar</Boton>
+                        <MenuItem onClick={() => setReactivarPendiente(p)}>Reactivar</MenuItem>
                       )}
-                    </div>
+                    </Menu>
                   </td>
                 </Fila>
               );})}
