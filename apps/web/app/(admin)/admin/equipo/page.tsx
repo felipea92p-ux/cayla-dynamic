@@ -1,14 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import bcrypt from "bcryptjs";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { EsqueletoTabla } from "@/components/cargando";
 import { useToast } from "@/components/toast";
 import { Boton } from "@/components/ui/boton";
 import { Campo, CampoSelect } from "@/components/ui/campo";
+import { Drawer } from "@/components/ui/drawer";
 import { Insignia } from "@/components/ui/insignia";
+import { Menu, MenuItem } from "@/components/ui/menu";
 import { Modal } from "@/components/ui/modal";
 import { Fila, Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
 import { useRolActual } from "@/lib/admin/use-rol";
@@ -17,6 +20,7 @@ import { RANGOS, RANGO_LABEL, baseDeclaradaDe, formatSoles } from "@/lib/rangos"
 import { type Area, AREA_DEFAULT, AREAS_FALLBACK, parseAreas, areaCorto, esOperativaEn } from "@/lib/areas";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { montoAsignacionFamiliar, type MontoAsignacionFamiliar } from "@/lib/admin/asignacion-familiar-monto";
+import { listarPendientesPorPersona } from "@/lib/admin/bandeja-equipo";
 import {
   hoyLima, primeroDeMesLima, rangoDelMesLima, puedeVerPlanilla,
   MOTIVOS_CESE, MOTIVO_CESE_LABELS, etiquetaDeCatalogo, type MotivoCese, type Rol,
@@ -211,6 +215,13 @@ export default function EquipoPage() {
   const [fSede, setFSede] = useFiltroGuardado("equipo.sede", "todas");
   const [fArea, setFArea] = useFiltroGuardado("equipo.area", "todas");
   const [fEstado, setFEstado] = useFiltroGuardado<FiltroEstado>("equipo.estado", "activos");
+  // Atajo de la tarjeta "Sin salario asignado": no es un valor más de
+  // `fEstado` porque es otra dimensión (alguien activo puede tener o no
+  // salario asignado) — mezclarlas en un solo enum haría que "sin salario y
+  // además inactivo" no se pudiera expresar. No se guarda entre visitas
+  // (a diferencia de sede/área/estado): es un atajo de esta consulta, no una
+  // forma de mirar la pantalla.
+  const [soloSinSalario, setSoloSinSalario] = useState(false);
 
   const [mostrandoAlta, setMostrandoAlta] = useState(false);
   const [form, setForm] = useState<FormPersona>(FORM_VACIO);
@@ -218,16 +229,10 @@ export default function EquipoPage() {
   const [guardando, setGuardando] = useState(false);
   // Registrar la salida de alguien. Es un panel y no un window.confirm porque un
   // cese son dos datos —el último día y el porqué—, no un sí/no.
-  // Los cinco paneles de esta pantalla —alta, edición, salario, historial y
-  // salida— se abren ARRIBA, encima de la tabla. Con ~30 filas, quien pulsa un
-  // botón desde media lista no ve que abrió nada: la pantalla no cambia donde
-  // está mirando, así que vuelve a pulsar creyendo que el botón no responde.
-  //
-  // No es una peculiaridad que haya que aprender: es un error de diseño, y el
-  // que lo comete es quien hizo la pantalla, no quien la usa. Se desplaza sola
-  // hasta el panel. `scroll-mt-4` deja un respiro arriba para que no quede
-  // pegado al borde.
-  const panelRef = useRef<HTMLDivElement | null>(null);
+  // Los seis paneles de esta pantalla —alta, edición, salario, historial, PIN
+  // y salida— viven en el mismo <Drawer> lateral (0428): flota encima de la
+  // tabla en vez de empujarla hacia abajo, así que no hace falta desplazar la
+  // pantalla hasta él como sí hacía falta cuando se abrían arriba, en línea.
   // EL PIN NO VA POR UN TOAST, y esto no es una preferencia de forma.
   //
   // Un aviso «ok» se apaga solo a los 4,5 segundos (DURACION_OK_MS, en
@@ -381,27 +386,6 @@ export default function EquipoPage() {
     return () => { vigente = false; };
   }, []);
 
-  // Cuál está abierto, no si hay alguno: así también se desplaza al pasar de un
-  // panel a otro (de «Editar» de una persona a «Registrar salida» de otra).
-  // El PIN manda sobre todo lo demás: es lo único de esta pantalla que se pierde
-  // si nadie lo mira. La clave lleva el PIN dentro para que regenerarlo dos veces
-  // seguidas vuelva a desplazar hasta el panel.
-  //
-  // Y la clave se COMPONE, no se cortocircuita: con el ternario, mientras el
-  // panel del PIN estaba abierto el valor quedaba congelado en su clave, así que
-  // abrir «Editar» de alguien del final de la tabla ya no desplazaba — el
-  // formulario se abría arriba, fuera de la vista, y parecía que el botón no
-  // había hecho nada. El PIN sigue mandando en el orden visual (se pinta
-  // primero); lo que cambia es que cualquier otro panel vuelve a mover la
-  // pantalla aunque el PIN siga puesto.
-  const otroPanel = mostrandoAlta ? "alta" : editandoId ?? salEditId ?? histId ?? ceseId ?? null;
-  const panelAbierto = pinNuevo
-    ? `pin:${pinNuevo.nombre}:${pinNuevo.pin}|${otroPanel ?? ""}`
-    : otroPanel;
-  useEffect(() => {
-    if (panelAbierto) panelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, [panelAbierto]);
-
   const cargarSalarios = useCallback(async () => {
     setSalariosEstado("cargando");
     const supabase = createAdminSupabaseClient();
@@ -422,6 +406,21 @@ export default function EquipoPage() {
     if (puedeSalarios) void cargarSalarios();
   }, [puedeSalarios, cargarSalarios]);
 
+  // Pendientes por persona (0428): mismas RPC y mismos permisos que ya usa
+  // `/admin/bandeja` y el bolito del menú, solo que agrupadas por persona en
+  // vez de un total. Se pide una vez, no por fila — nunca 30 llamadas.
+  // Falla silencioso, igual que el resto de esta pantalla: sin esto, la fila
+  // simplemente no muestra el aviso, no se cae la tabla.
+  const [pendientes, setPendientes] = useState<Map<string, string[]>>(new Map());
+  useEffect(() => {
+    if (rol === null) return;
+    let vigente = true;
+    void listarPendientesPorPersona(createAdminSupabaseClient(), rol).then((mapa) => {
+      if (vigente) setPendientes(mapa);
+    });
+    return () => { vigente = false; };
+  }, [rol]);
+
   // Se compara sin tildes ni mayúsculas: buscar "nunez" tiene que encontrar a
   // "Núñez". Escribir el apellido con la tilde exacta no puede ser un requisito.
   const sinTildes = (t: string) =>
@@ -440,6 +439,10 @@ export default function EquipoPage() {
     // Quien tiene fecha de término anotada y sigue trabajando. A quien ya cesó no
     // se le pregunta si se renueva: su contrato ya terminó de hecho.
     if (fEstado === "fin_contrato" && (p.estado !== "activo" || !finesContrato.has(p.id))) return false;
+    // Atajo de la tarjeta "Sin salario asignado". Solo tiene sentido con
+    // datos de salario ya cargados: si `fn_salarios_vigentes` falló, no hay
+    // forma de distinguir "sin asignar" de "no se pudo leer".
+    if (soloSinSalario && (salariosEstado !== "ok" || p.estado !== "activo" || salarios[p.id])) return false;
     if (fSede !== "todas" && p.sede_base_id !== fSede) return false;
     if (fArea !== "todas" && p.funcion !== fArea) return false;
     const q = sinTildes(busca.trim());
@@ -453,8 +456,142 @@ export default function EquipoPage() {
   }
   const ocultas = personas.length - visibles.length;
 
+  // Las tarjetas de arriba de la tabla, mismo patrón que ya usan Contratos y
+  // Documentación (un número que es su propio filtro). Se calculan sobre
+  // `personas` completo —nunca sobre `visibles`— porque si no, filtrar por
+  // sede haría que las tarjetas cambiaran de significado a media consulta.
+  const nActivos = personas.filter((p) => p.estado === "activo").length;
+  const nInactivos = personas.length - nActivos;
+  const nFinContrato = personas.filter((p) => p.estado === "activo" && finesContrato.has(p.id)).length;
+  const nSinSalario = salariosEstado === "ok"
+    ? personas.filter((p) => p.estado === "activo" && !salarios[p.id]).length
+    : 0;
+  const contadores: { clave: string; etiqueta: string; n: number; activo: boolean; onClick: () => void }[] = [
+    {
+      clave: "activos", etiqueta: "Activos", n: nActivos, activo: fEstado === "activos" && !soloSinSalario,
+      onClick: () => { setFEstado("activos"); setSoloSinSalario(false); },
+    },
+    ...(puedeSalarios ? [{
+      clave: "fin_contrato", etiqueta: "Fin de contrato próximo", n: nFinContrato, activo: fEstado === "fin_contrato",
+      onClick: () => { setFEstado(fEstado === "fin_contrato" ? "activos" : "fin_contrato"); setSoloSinSalario(false); },
+    }] : []),
+    ...(puedeSalarios ? [{
+      clave: "sin_salario", etiqueta: "Sin salario asignado", n: nSinSalario, activo: soloSinSalario,
+      onClick: () => { setSoloSinSalario((v) => !v); if (fEstado !== "activos") setFEstado("activos"); },
+    }] : []),
+    {
+      clave: "inactivos", etiqueta: "Inactivos", n: nInactivos, activo: fEstado === "inactivos",
+      onClick: () => { setFEstado(fEstado === "inactivos" ? "activos" : "inactivos"); setSoloSinSalario(false); },
+    },
+  ];
+
   function codigoSede(id: string) {
     return sedes.find((s) => s.id === id)?.codigo ?? "?";
+  }
+
+  // Nombre + los avisos de abajo (ingreso, fin de contrato, cese, pendientes).
+  // Función que devuelve JSX, no un componente aparte: se usa igual en la fila
+  // de escritorio y en la tarjeta de mobile, y así no hay dos copias del texto
+  // legal de cada aviso divergiendo con el tiempo.
+  function bloqueNombre(p: Persona) {
+    const pend = pendientes.get(p.id) ?? [];
+    return (
+      <>
+        <button onClick={() => router.push(`/admin/personas/${p.id}`)} className="text-left font-medium text-tinta hover:underline" title="Ver perfil completo">{p.nombres} {p.apellidos}</button>
+        {p.con_hijos && (
+          <span title="Asignación familiar activa" className="ml-1.5 cursor-default text-xs">👶</span>
+        )}
+        {puedeSalarios && ingresos.get(p.id)?.fecha_ingreso && (
+          <div className="text-xs text-taupe">Ingresó: {fmtFechaDMA(ingresos.get(p.id)!.fecha_ingreso!)}</div>
+        )}
+        {/* En ámbar cuando su contrato vence este mes o antes: es el
+            momento en que sale del tablero de Documentación y, si es
+            que no se renueva, cuando hay que registrar su cese. */}
+        {puedeSalarios && finesContrato.has(p.id) && (
+          <div className={`text-xs ${p.estado === "activo" && saleDelTablero(finesContrato.get(p.id)) ? "text-ambar" : "text-taupe"}`}>
+            Contrato hasta: {fmtFechaDMA(finesContrato.get(p.id)!)}
+          </div>
+        )}
+        {/* Cuándo y por qué se fue (0179). Solo aplica a quien está inactivo:
+            al equipo activo no le agrega una celda vacía en cada fila. Cierra
+            la secuencia que ya cuentan las dos líneas de arriba:
+            entró · hasta cuándo tenía contrato · cuándo se fue.
+            El motivo llega null si quien mira no es admin ni líder DO
+            —la RPC no se lo entrega— y entonces solo se ve la fecha. */}
+        {p.estado === "inactivo" && p.fecha_cese && (
+          <div className="text-xs text-taupe">
+            Se fue: {fmtFechaDMA(p.fecha_cese)}
+            {p.motivo_cese && (
+              // El texto sale del catálogo también cuando es `por_revisar`:
+              // el desplegable de cese ya lo nombra así, y dos formas de decir
+              // lo mismo en la misma pantalla se contradicen a la primera. Lo
+              // único que cambia es el ámbar, que dice «esto falta».
+              <> · {p.motivo_cese === "por_revisar"
+                ? <span className="text-ambar" title="Nadie registró por qué se fue. Edita su ficha y elige el motivo real.">
+                    {etiquetaDeCatalogo(p.motivo_cese, MOTIVO_CESE_LABELS)}
+                  </span>
+                : etiquetaDeCatalogo(p.motivo_cese, MOTIVO_CESE_LABELS)}</>
+            )}
+          </div>
+        )}
+        {/* Pendientes (0428): mismas RPC que ya agrega `/admin/bandeja` por
+            tipo, acá agrupadas por persona. El link manda a Bandeja en
+            general —no hay hoy una forma de filtrarla por persona— y el
+            detalle de cuáles son queda en el `title`, que sí se puede leer
+            sin tener que entrar. */}
+        {pend.length > 0 && (
+          <Link href="/admin/bandeja" title={pend.join(" · ")} className="mt-0.5 inline-block">
+            <Insignia variante="advertencia" tamano="sm" punto={false}>
+              {pend.length} pendiente{pend.length === 1 ? "" : "s"}
+            </Insignia>
+          </Link>
+        )}
+      </>
+    );
+  }
+
+  // La celda de salario, sin sus acciones (que desde ahora viven en el menú
+  // ••• de la fila — ver `menuAcciones`). Reusada por la tabla y la tarjeta.
+  function celdaSalario(p: Persona) {
+    if (salariosEstado !== "ok") {
+      return <span className="text-xs text-taupe">{salariosEstado === "cargando" ? "Cargando…" : "No disponible"}</span>;
+    }
+    const sal = salarios[p.id];
+    return sal
+      ? <span className="whitespace-nowrap">{RANGO_LABEL[sal.rango] ?? sal.rango} · {formatSoles(sal.salario)}</span>
+      // text-taupe a plena opacidad (no /60): esta es la respuesta por la que
+      // se abre la columna Salario — que no tenga uno asignado es justo lo
+      // que hay que poder leer, y menos de 4.5:1 no lo garantiza (auditoría
+      // 2026-09-06/07).
+      : <span className="text-taupe">Sin asignar</span>;
+  }
+
+  // Las acciones de bajo uso de la fila, detrás de un menú "•••" (el mismo
+  // componente que ya usa la cabecera del perfil individual): con la fila más
+  // angosta y "Editar" siempre visible al lado, cinco botones sueltos no
+  // cabían sin romper a dos líneas en pantallas medianas.
+  function menuAcciones(p: Persona) {
+    const sal = salarios[p.id];
+    return (
+      <Menu trigger={({ alternar, abierto }) => (
+        <Boton variante="secundario" tamano="sm" onClick={alternar} aria-haspopup="menu" aria-expanded={abierto}>•••</Boton>
+      )}>
+        {puedeSalarios && salariosEstado === "ok" && (
+          <MenuItem onClick={() => empezarSalario(p)}>{sal ? "Editar salario" : "Asignar salario"}</MenuItem>
+        )}
+        {puedeSalarios && <MenuItem onClick={() => void verHistorial(p)}>Historial de salario</MenuItem>}
+        {/* Solo a quien está activa: desde la 0364 el servidor rechaza
+            regenerar el PIN de una persona inactiva. */}
+        {p.estado === "activo" && <MenuItem onClick={() => void regenerarPin(p)}>Nuevo PIN</MenuItem>}
+        {p.estado === "activo" ? (
+          // «Registrar salida» y no «Desactivar»: lo que se hace es anotar
+          // un hecho con su fecha y su motivo, no apagar un interruptor.
+          <MenuItem variante="peligro" onClick={() => empezarCese(p)}>Registrar salida</MenuItem>
+        ) : (
+          <MenuItem onClick={() => setReactivarPendiente(p)}>Reactivar</MenuItem>
+        )}
+      </Menu>
+    );
   }
 
   async function crearPersona() {
@@ -993,8 +1130,36 @@ export default function EquipoPage() {
     setHistId(p.id);
   }
 
+  // Compartida entre el botón "Cancelar" de adentro del formulario y el propio
+  // cierre del <Drawer> (Escape, clic en el velo, la × del encabezado) — un
+  // solo lugar que decide qué es "no hay nada abierto" para este panel.
+  function cerrarFormulario() {
+    setMostrandoAlta(false);
+    setEditandoId(null);
+    setForm(FORM_VACIO);
+  }
+
+  // Una sola columna, sin `sm:grid-cols-2`: ese breakpoint mira el ANCHO DE LA
+  // VENTANA, no el del panel que lo contiene. Adentro del Drawer (max-w-lg,
+  // ~460px de contenido) dos columnas habrían quedado igual de apretadas en
+  // una pantalla de 1440px que en una de 700px — la propia razón por la que
+  // este formulario vivía a `max-w-3xl` cuando empujaba la tabla hacia abajo.
+  // `sm:col-span-2` en los campos de abajo no molesta: en una sola columna un
+  // span de 2 es idéntico a uno de 1.
+  //
+  // Y `grid-cols-1`, no `grid` a secas: sin una columna EXPLÍCITA, la pista
+  // implícita se dimensiona por el contenido más ancho que caiga en ella —
+  // acá, el <select> de Área ("Calidad & servicio al cliente — operativa de
+  // sede", una sola línea que no se parte) — y esa pista fuerza a TODAS las
+  // filas a ese mismo ancho, aunque el resto del panel sí quepa. `grid-cols-1`
+  // define la pista como `minmax(0, 1fr)`, el mismo `minmax` que ya usa
+  // `sm:grid-cols-2` en los otros paneles de esta pantalla (por eso a ELLOS
+  // nunca les pasó esto): con un mínimo de 0, el <select> se angosta con su
+  // fila en vez de estirarla a todas. Se vio en el celular: el panel entero
+  // desbordaba 388px en una pantalla de 375, cortando "Cargo (…No cambia
+  // ningún permiso)" contra el borde.
   const formulario = (modo: "alta" | "edicion") => (
-    <div className="mb-6 grid max-w-3xl gap-4 rounded-2xl border border-sand bg-papel p-5 sm:grid-cols-2">
+    <div className="grid grid-cols-1 gap-4">
       <label className="flex flex-col gap-1 text-sm">
         Nombres
         <input value={form.nombres} onChange={(e) => setForm({ ...form, nombres: e.target.value })} className="rounded-lg border px-3 py-2" />
@@ -1025,7 +1190,7 @@ export default function EquipoPage() {
       {/* CARGO (0182) — va justo debajo del rol a propósito: son la pareja que
           hasta hoy estaba mezclada. El rol de arriba decide qué abre; esto
           decide cómo se la nombra. */}
-      <label className="flex flex-col gap-1 text-sm sm:col-span-2">
+      <label className="flex flex-col gap-1 text-sm">
         Cargo{" "}
         <span className="text-taupe">
           (cómo se la nombra en pantalla: «Socia», «Asesor». Vacío = se muestra el rol.
@@ -1040,7 +1205,7 @@ export default function EquipoPage() {
           className="rounded-lg border bg-crema px-3 py-2"
         />
       </label>
-      <label className="flex flex-col gap-1 text-sm sm:col-span-2">
+      <label className="flex flex-col gap-1 text-sm">
         Área{" "}
         <span className="text-taupe">
           {modo === "edicion" && !funcionesOk
@@ -1073,14 +1238,14 @@ export default function EquipoPage() {
           })()}
         </select>
       </label>
-      <label className="flex flex-col gap-1 text-sm sm:col-span-2">
+      <label className="flex flex-col gap-1 text-sm">
         Correo (opcional)
         <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="rounded-lg border px-3 py-2" />
       </label>
       {modo === "edicion" && puedeSalarios && (
         // La fecha de ingreso decide qué feriados le corresponden: un feriado anterior al ingreso
         // no se paga. Se sugiere la primera entrada marcada, pero es editable a mano.
-        <label className="flex flex-col gap-1 text-sm sm:col-span-2">
+        <label className="flex flex-col gap-1 text-sm">
           Fecha de ingreso <span className="text-taupe">(decide qué feriados le corresponden)</span>
           <input
             type="date"
@@ -1122,7 +1287,7 @@ export default function EquipoPage() {
         const antesDelIngreso =
           form.finContrato !== "" && form.fechaIngreso !== "" && form.finContrato < form.fechaIngreso;
         return (
-          <div className="flex flex-col gap-1 text-sm sm:col-span-2">
+          <div className="flex flex-col gap-1 text-sm">
             {/* Misma columna para una practicante (0333): fragmentar "cuándo
                 termina esto" en dos campos habría sido peor que reusar uno
                 con la etiqueta equivocada. Solo cambia el texto — el candado
@@ -1193,7 +1358,7 @@ export default function EquipoPage() {
       {puedeSalarios && (
         // con_hijos llega por la misma RPC que el área: si esa carga falló, en edición
         // se deshabilita para no pisar el valor real con el default (false).
-        <label className="flex items-center gap-2 text-sm sm:col-span-2">
+        <label className="flex items-center gap-2 text-sm">
           <input
             type="checkbox"
             checked={form.conHijos}
@@ -1213,7 +1378,7 @@ export default function EquipoPage() {
         // debajo del selector, y no en un tooltip, porque quien cambia esto tiene
         // que leerla: pasar a alguien a 'rxh' le apaga la acumulación de sus
         // beneficios y eso no se nota en ninguna otra parte de la pantalla.
-        <label className="flex flex-col gap-1 text-sm sm:col-span-2">
+        <label className="flex flex-col gap-1 text-sm">
           <span>Tipo de vínculo</span>
           <select
             value={form.tipoVinculo}
@@ -1248,7 +1413,7 @@ export default function EquipoPage() {
           la de al lado: no hay una modalidad por defecto razonable, y elegir
           una por la persona sería inventar un dato legal. */}
       {puedeSalarios && form.tipoVinculo === "practicante" && (
-        <label className="flex flex-col gap-1 text-sm sm:col-span-2">
+        <label className="flex flex-col gap-1 text-sm">
           <span>Modalidad</span>
           <select
             value={form.practicanteModalidad}
@@ -1322,7 +1487,7 @@ export default function EquipoPage() {
       {modo === "edicion" && puedeSalarios && (
         // Bandera para gente que rota entre locales: aparece en el terminal de CUALQUIER
         // sede, no solo en el de su sede base. Llega/viaja por RPC (schema cache).
-        <label className="flex items-start gap-2 text-sm sm:col-span-2">
+        <label className="flex items-start gap-2 text-sm">
           <input
             type="checkbox"
             checked={form.visibleTodasSedes}
@@ -1336,7 +1501,7 @@ export default function EquipoPage() {
           </span>
         </label>
       )}
-      <div className="flex gap-3 sm:col-span-2">
+      <div className="flex gap-3">
         <Boton
           variante="primario"
           onClick={modo === "alta" ? crearPersona : guardarEdicion}
@@ -1345,93 +1510,89 @@ export default function EquipoPage() {
         >
           {modo === "alta" ? "Agregar (genera PIN)" : "Guardar cambios"}
         </Boton>
-        <Boton
-          variante="secundario"
-          onClick={() => { setMostrandoAlta(false); setEditandoId(null); setForm(FORM_VACIO); }}
-        >
+        <Boton variante="secundario" onClick={cerrarFormulario}>
           Cancelar
         </Boton>
       </div>
     </div>
   );
 
-  const editorSalario = () => {
-    const p = personas.find((x) => x.id === salEditId);
-    if (!p) return null;
-    return (
-      <div className="mb-6 grid max-w-2xl gap-4 rounded-2xl border border-rojo/30 bg-papel p-5 sm:grid-cols-2">
-        <p className="text-sm font-medium sm:col-span-2">Salario de {p.nombres} {p.apellidos}</p>
-        <label className="flex flex-col gap-1 text-sm">
-          Rango
-          <select
-            value={salForm.rango}
-            // Elegir el rango propone SU base declarada. Se puede pisar, y si el
-            // monto queda distinto la nota de abajo lo dice — así una excepción
-            // pactada se distingue de un dato mal puesto.
-            onChange={(e) => setSalForm({
-              ...salForm,
-              rango: e.target.value,
-              salario: String(baseDeclaradaDe(e.target.value) ?? salForm.salario),
-            })}
-            className="rounded-lg border bg-crema px-3 py-2"
-          >
-            {RANGOS.map((r) => (
-              <option key={r.codigo} value={r.codigo}>{r.label} · {formatSoles(r.baseDeclarada)}</option>
-            ))}
-          </select>
-        </label>
-        <label className="flex flex-col gap-1 text-sm">
-          Base declarada (S/)
-          <input type="number" min="0" step="10" value={salForm.salario}
-            onChange={(e) => setSalForm({ ...salForm, salario: e.target.value })}
-            className={`rounded-lg border px-3 py-2 ${fueraDeLaBase ? "border-ambar" : ""}`} />
-          {/* Lo que va al PLAME y lo que el sistema paga. Se puede pisar cuando se
-              acordó otra cosa; el aviso deja constancia de que fue deliberado. */}
-          {fueraDeLaBase && (
-            <span className="text-[11px] text-ambar">
-              Fuera de la base del rango: {RANGO_LABEL[salForm.rango] ?? salForm.rango} declara{" "}
-              {formatSoles(baseDeclaradaDe(salForm.rango) ?? 0)}. Convendría escribir el motivo abajo.
-            </span>
-          )}
-          {salAnterior != null && Number(salForm.salario) !== salAnterior && (
-            <span className="text-[11px] text-taupe">
-              Tenía {formatSoles(salAnterior)} → queda {formatSoles(Number(salForm.salario) || 0)}
-              {Number(salForm.salario) < salAnterior && " · le baja"}
-            </span>
-          )}
-          <span className="text-[11px] text-taupe">
-            Es lo que se declara y lo que se paga. Lo que recibe de más va por movilidad,
-            educación y bono.
+  // Una sola columna, mismo motivo que `formulario()`: adentro del Drawer,
+  // `sm:grid-cols-2` mira el ancho de la VENTANA, no el del panel — a dos
+  // columnas los campos de salario habrían quedado apretados en cualquier
+  // pantalla ≥640px, angosta o no. Ya no lleva su propio título ni su tarjeta
+  // (border-rojo/30, max-w-2xl): eso lo pinta el <Drawer> que lo envuelve, con
+  // el nombre de la persona en el título en vez de repetirlo adentro.
+  const editorSalario = () => (
+    <div className="grid grid-cols-1 gap-4">
+      <label className="flex flex-col gap-1 text-sm">
+        Rango
+        <select
+          value={salForm.rango}
+          // Elegir el rango propone SU base declarada. Se puede pisar, y si el
+          // monto queda distinto la nota de abajo lo dice — así una excepción
+          // pactada se distingue de un dato mal puesto.
+          onChange={(e) => setSalForm({
+            ...salForm,
+            rango: e.target.value,
+            salario: String(baseDeclaradaDe(e.target.value) ?? salForm.salario),
+          })}
+          className="rounded-lg border bg-crema px-3 py-2"
+        >
+          {RANGOS.map((r) => (
+            <option key={r.codigo} value={r.codigo}>{r.label} · {formatSoles(r.baseDeclarada)}</option>
+          ))}
+        </select>
+      </label>
+      <label className="flex flex-col gap-1 text-sm">
+        Base declarada (S/)
+        <input type="number" min="0" step="10" value={salForm.salario}
+          onChange={(e) => setSalForm({ ...salForm, salario: e.target.value })}
+          className={`rounded-lg border px-3 py-2 ${fueraDeLaBase ? "border-ambar" : ""}`} />
+        {/* Lo que va al PLAME y lo que el sistema paga. Se puede pisar cuando se
+            acordó otra cosa; el aviso deja constancia de que fue deliberado. */}
+        {fueraDeLaBase && (
+          <span className="text-[11px] text-ambar">
+            Fuera de la base del rango: {RANGO_LABEL[salForm.rango] ?? salForm.rango} declara{" "}
+            {formatSoles(baseDeclaradaDe(salForm.rango) ?? 0)}. Convendría escribir el motivo abajo.
           </span>
-        </label>
-        <label className="flex flex-col gap-1 text-sm">
-          Vigente desde
-          <input type="date" value={salForm.vigenteDesde} onChange={(e) => setSalForm({ ...salForm, vigenteDesde: e.target.value })} className="rounded-lg border px-3 py-2" />
-        </label>
-        <label className="flex flex-col gap-1 text-sm">
-          Nota (opcional)
-          <input value={salForm.nota} onChange={(e) => setSalForm({ ...salForm, nota: e.target.value })} placeholder="ej. ascenso, ajuste anual" className="rounded-lg border px-3 py-2" />
-        </label>
-        <p className="text-xs text-taupe sm:col-span-2">
-          Cambiar el salario cierra el tramo anterior el día previo a la vigencia y abre uno nuevo — los meses ya pagados no se alteran.
-        </p>
-        <div className="flex gap-3 sm:col-span-2">
-          <Boton variante="primario" onClick={guardarSalario} disabled={guardandoSal} cargando={guardandoSal}>
-            Guardar salario
-          </Boton>
-          <Boton variante="secundario" onClick={() => setSalEditId(null)}>Cancelar</Boton>
-        </div>
+        )}
+        {salAnterior != null && Number(salForm.salario) !== salAnterior && (
+          <span className="text-[11px] text-taupe">
+            Tenía {formatSoles(salAnterior)} → queda {formatSoles(Number(salForm.salario) || 0)}
+            {Number(salForm.salario) < salAnterior && " · le baja"}
+          </span>
+        )}
+        <span className="text-[11px] text-taupe">
+          Es lo que se declara y lo que se paga. Lo que recibe de más va por movilidad,
+          educación y bono.
+        </span>
+      </label>
+      <label className="flex flex-col gap-1 text-sm">
+        Vigente desde
+        <input type="date" value={salForm.vigenteDesde} onChange={(e) => setSalForm({ ...salForm, vigenteDesde: e.target.value })} className="rounded-lg border px-3 py-2" />
+      </label>
+      <label className="flex flex-col gap-1 text-sm">
+        Nota (opcional)
+        <input value={salForm.nota} onChange={(e) => setSalForm({ ...salForm, nota: e.target.value })} placeholder="ej. ascenso, ajuste anual" className="rounded-lg border px-3 py-2" />
+      </label>
+      <p className="text-xs text-taupe">
+        Cambiar el salario cierra el tramo anterior el día previo a la vigencia y abre uno nuevo — los meses ya pagados no se alteran.
+      </p>
+      <div className="flex gap-3">
+        <Boton variante="primario" onClick={guardarSalario} disabled={guardandoSal} cargando={guardandoSal}>
+          Guardar salario
+        </Boton>
+        <Boton variante="secundario" onClick={cerrarPanelLateral}>Cancelar</Boton>
       </div>
-    );
-  };
+    </div>
+  );
 
   const editorCese = () => {
     const p = personas.find((x) => x.id === ceseId);
-    if (!p) return null;
-    const fin = finesContrato.get(p.id);
+    const fin = p ? finesContrato.get(p.id) : undefined;
     return (
-      <div className="mb-6 grid max-w-2xl gap-4 rounded-2xl border border-rojo/30 bg-papel p-5 sm:grid-cols-2">
-        <p className="text-sm font-medium sm:col-span-2">Registrar la salida de {p.nombres} {p.apellidos}</p>
+      <div className="grid grid-cols-1 gap-4">
         <label className="flex flex-col gap-1 text-sm">
           Último día trabajado
           <input
@@ -1472,101 +1633,112 @@ export default function EquipoPage() {
             </span>
           )}
         </label>
-        <p className="text-xs text-taupe sm:col-span-2">
+        <p className="text-xs text-taupe">
           Esto cierra sus tramos de salario y de horario ese día, y deja de aparecer en el terminal.
           No se borra nada: su historial sostiene los reportes de los periodos que ya pasaron. De esta
           fecha salen su gratificación, su CTS y sus vacaciones truncas, así que tiene que ser el día
           real —ni el de hoy por comodidad, ni el de su carta.
         </p>
-        <div className="flex gap-3 sm:col-span-2">
+        <div className="flex gap-3">
           <Boton variante="primario" onClick={guardarCese} disabled={guardandoCese} cargando={guardandoCese}>
             Registrar salida
           </Boton>
-          <Boton variante="secundario" onClick={() => setCeseId(null)}>Cancelar</Boton>
+          <Boton variante="secundario" onClick={cerrarPanelLateral}>Cancelar</Boton>
         </div>
       </div>
     );
   };
 
-  // El PIN recién generado. Mismo molde que los otros cinco paneles de esta
-  // pantalla (tarjeta de papel, arriba de la tabla, se desplaza sola hasta él),
-  // con dos diferencias que son todo el arreglo: no tiene temporizador y el PIN
-  // se puede copiar sin transcribirlo.
-  const panelPin = () => {
-    if (!pinNuevo) return null;
+  // El PIN recién generado. Vive en el mismo Drawer que los demás paneles de
+  // esta pantalla, pero con una diferencia que NO se negocia: `bloqueado` va
+  // siempre en `true` mientras haya un PIN puesto, sin importar si algo más se
+  // está guardando. Es el único panel de la pantalla cuyo motivo entero es que
+  // no se pierda de vista — un Escape sin querer, o un clic afuera por error,
+  // no pueden cerrarlo. Solo lo cierra el botón «Ya lo tengo».
+  const panelPin = () => (
     // `role="status"` porque este panel reemplazó a un aviso que sí se
     // anunciaba: sin él, quien navega con lector de pantalla oye desaparecer
-    // «X agregado(a)» y nada le dice que el PIN quedó en un panel más arriba —
-    // en el único panel de la pantalla cuyo motivo entero es que no se pierda
-    // de vista.
-    return (
-      <div role="status" aria-live="polite" className="mb-6 max-w-2xl rounded-2xl border border-rojo/30 bg-papel p-5">
-        <p className="text-sm font-medium">PIN de {pinNuevo.nombre}</p>
-        <p className="mt-3 font-serif text-6xl tracking-[0.25em] tabular-nums text-tinta">{pinNuevo.pin}</p>
-        <div className="mt-4 flex flex-wrap items-center gap-3">
-          <Boton variante="primario" onClick={() => void copiarPin()}>
-            {pinCopiado ? "Copiado" : "Copiar"}
-          </Boton>
-          <Boton variante="secundario" onClick={() => setPinNuevo(null)}>
-            Ya lo tengo — cerrar
-          </Boton>
-        </div>
-        <p className="mt-3 text-xs text-taupe">
-          Este panel no se cierra solo, así que tómate el tiempo de anotarlo y entrégalo en privado. Es la
-          única vez que el sistema muestra estos cuatro dígitos: si se pierden hay que generar otros, y el
-          PIN anterior de esta persona deja de servir.
-        </p>
+    // «X agregado(a)» y nada le dice que el PIN quedó en un panel — el único
+    // de la pantalla cuyo motivo entero es que no se pierda de vista.
+    <div role="status" aria-live="polite">
+      <p className="font-serif text-6xl tracking-[0.25em] tabular-nums text-tinta">{pinNuevo?.pin}</p>
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        <Boton variante="primario" onClick={() => void copiarPin()}>
+          {pinCopiado ? "Copiado" : "Copiar"}
+        </Boton>
+        <Boton variante="secundario" onClick={() => setPinNuevo(null)}>
+          Ya lo tengo — cerrar
+        </Boton>
       </div>
-    );
-  };
+      <p className="mt-3 text-xs text-taupe">
+        Este panel no se cierra solo, así que tómate el tiempo de anotarlo y entrégalo en privado. Es la
+        única vez que el sistema muestra estos cuatro dígitos: si se pierden hay que generar otros, y el
+        PIN anterior de esta persona deja de servir.
+      </p>
+    </div>
+  );
 
-  const panelHistorial = () => {
-    const p = personas.find((x) => x.id === histId);
-    if (!p) return null;
-    return (
-      <div className="mb-6 max-w-2xl rounded-2xl border border-sand bg-papel p-5">
-        <div className="mb-2 flex items-center justify-between">
-          <p className="text-sm font-medium">Historial de salario — {p.nombres} {p.apellidos}</p>
-          <button onClick={() => setHistId(null)} className="text-xs text-taupe hover:underline">Cerrar</button>
-        </div>
-        {hist.length === 0 ? (
-          <p className="text-sm text-taupe">Sin registros todavía.</p>
-        ) : (
-          // overflow-x-auto: sin este envoltorio, una fila angosta más las dos
-          // fechas ISO desbordaba en un teléfono y arrastraba a TODA la página
-          // (título, nav y demás secciones) en horizontal (hallazgo de la
-          // auditoría de apariencia, 2026-09-06/07) — acá no hace falta el
-          // primitivo <Tabla> completo porque este panel no es de página, es
-          // una tarjeta angosta con su propio molde (border-sand, no bg-sand/70
-          // en el encabezado).
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="text-left text-taupe">
-                <tr>
-                  <th className="py-1 font-normal">Rango</th>
-                  <th className="py-1 font-normal">Salario</th>
-                  <th className="py-1 font-normal">Desde</th>
-                  <th className="py-1 font-normal">Hasta</th>
-                  <th className="py-1 font-normal">Asignado por</th>
-                </tr>
-              </thead>
-              <tbody>
-                {hist.map((h, i) => (
-                  <tr key={i} className="border-t">
-                    <td className="py-1">{RANGO_LABEL[h.rango] ?? h.rango}</td>
-                    <td className="py-1">{formatSoles(Number(h.salario_mensual_soles))}</td>
-                    <td className="py-1">{h.vigente_desde}</td>
-                    <td className="py-1">{h.vigente_hasta ?? <span className="text-rojo">vigente</span>}</td>
-                    <td className="py-1 text-taupe">{h.asignado_por ?? "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+  const panelHistorial = () => (
+    hist.length === 0 ? (
+      <p className="text-sm text-taupe">Sin registros todavía.</p>
+    ) : (
+      // overflow-x-auto: sin este envoltorio, una fila angosta más las dos
+      // fechas ISO desbordaba en un teléfono y arrastraba a TODO el panel en
+      // horizontal (hallazgo de la auditoría de apariencia, 2026-09-06/07).
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="text-left text-taupe">
+            <tr>
+              <th className="py-1 font-normal">Rango</th>
+              <th className="py-1 font-normal">Salario</th>
+              <th className="py-1 font-normal">Desde</th>
+              <th className="py-1 font-normal">Hasta</th>
+              <th className="py-1 font-normal">Asignado por</th>
+            </tr>
+          </thead>
+          <tbody>
+            {hist.map((h, i) => (
+              <tr key={i} className="border-t">
+                <td className="py-1">{RANGO_LABEL[h.rango] ?? h.rango}</td>
+                <td className="py-1">{formatSoles(Number(h.salario_mensual_soles))}</td>
+                <td className="py-1">{h.vigente_desde}</td>
+                <td className="py-1">{h.vigente_hasta ?? <span className="text-rojo">vigente</span>}</td>
+                <td className="py-1 text-taupe">{h.asignado_por ?? "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
-    );
-  };
+    )
+  );
+
+  // Cuál de los seis paneles de esta pantalla ocupa el Drawer, y cómo se
+  // cierra cada uno. El PIN manda sobre todo lo demás (ver panelPin): si está
+  // puesto, cerrar significa "ya lo tengo" y nada más — nunca un Escape o un
+  // clic afuera sin querer.
+  function cerrarPanelLateral() {
+    if (pinNuevo) { setPinNuevo(null); return; }
+    cerrarFormulario();
+    setSalEditId(null);
+    setHistId(null);
+    setCeseId(null);
+  }
+  const drawerAbierto =
+    pinNuevo !== null || mostrandoAlta || editandoId !== null ||
+    (puedeSalarios && salEditId !== null) || (puedeSalarios && histId !== null) || ceseId !== null;
+  const tituloDrawer = (() => {
+    if (pinNuevo) return `PIN de ${pinNuevo.nombre}`;
+    if (mostrandoAlta) return "Agregar persona";
+    const nombreDe = (id: string | null) => {
+      const p = personas.find((x) => x.id === id);
+      return p ? `${p.nombres} ${p.apellidos}` : null;
+    };
+    if (editandoId) return nombreDe(editandoId) ? `Editar a ${nombreDe(editandoId)}` : "Editar";
+    if (puedeSalarios && salEditId) return nombreDe(salEditId) ? `Salario de ${nombreDe(salEditId)}` : "Salario";
+    if (puedeSalarios && histId) return nombreDe(histId) ? `Historial de salario — ${nombreDe(histId)}` : "Historial de salario";
+    if (ceseId) return nombreDe(ceseId) ? `Registrar la salida de ${nombreDe(ceseId)}` : "Registrar salida";
+    return undefined;
+  })();
 
   return (
     <div className="flex flex-1 flex-col">
@@ -1595,14 +1767,56 @@ export default function EquipoPage() {
           </div>
         )}
 
-        <div ref={panelRef} className="scroll-mt-4">
-          {panelPin()}
-          {mostrandoAlta && formulario("alta")}
-          {editandoId && formulario("edicion")}
-          {ceseId && editorCese()}
-          {puedeSalarios && salEditId && editorSalario()}
-          {puedeSalarios && histId && panelHistorial()}
-        </div>
+        {/* Los seis paneles de esta pantalla —alta, edición, salario,
+            historial, PIN y cese— viven en el mismo panel lateral (0428), no
+            empujando la tabla hacia abajo. Antes hacía falta desplazar la
+            pantalla hasta un panel que podía abrirse fuera de la vista; un
+            panel que flota encima no tiene ese problema, esté donde esté el
+            scroll de la tabla. `bloqueado` mientras se guarda algo, y SIEMPRE
+            mientras haya un PIN puesto (ver panelPin) — ese no se cierra con
+            un Escape ni un clic afuera por accidente. */}
+        <Drawer
+          abierto={drawerAbierto}
+          onCerrar={cerrarPanelLateral}
+          bloqueado={pinNuevo !== null || guardando || guardandoSal || guardandoCese}
+          ancho="lg"
+          titulo={tituloDrawer}
+        >
+          {pinNuevo
+            ? panelPin()
+            : mostrandoAlta
+              ? formulario("alta")
+              : editandoId
+                ? formulario("edicion")
+                : puedeSalarios && salEditId
+                  ? editorSalario()
+                  : puedeSalarios && histId
+                    ? panelHistorial()
+                    : ceseId
+                      ? editorCese()
+                      : null}
+        </Drawer>
+
+        {/* Las tarjetas, y cada una es un filtro (mismo patrón que ya usan
+            Contratos y Documentación): un número que no se puede abrir obliga
+            a adivinar qué filtro lo reproduce. */}
+        {!cargando && (
+          <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {contadores.map((c) => (
+              <button
+                key={c.clave}
+                onClick={c.onClick}
+                aria-pressed={c.activo}
+                className={`rounded-2xl border p-3 text-left transition-colors ${
+                  c.activo ? "border-taupe bg-hueso" : "border-sand bg-papel hover:bg-hueso"
+                }`}
+              >
+                <span className="block text-xs text-taupe">{c.etiqueta}</span>
+                <span className="block font-serif text-2xl tabular-nums text-tinta">{c.n}</span>
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Filtros. Todo el filtrado ocurre en el navegador sobre lo que ya está
             cargado: son ~30 personas, no hay nada que pedirle a la base. */}
@@ -1635,7 +1849,7 @@ export default function EquipoPage() {
               <Boton
                 variante="enlace"
                 className="pb-2 text-xs text-taupe"
-                onClick={() => { setBusca(""); setFSede("todas"); setFArea("todas"); setFEstado("todos"); }}
+                onClick={() => { setBusca(""); setFSede("todas"); setFArea("todas"); setFEstado("todos"); setSoloSinSalario(false); }}
               >
                 {ocultas === 1 ? "1 persona oculta" : `${ocultas} personas ocultas`} — quitar filtros
               </Boton>
@@ -1665,153 +1879,138 @@ export default function EquipoPage() {
             <Boton
               variante="enlace"
               className="font-medium"
-              onClick={() => { setBusca(""); setFSede("todas"); setFArea("todas"); setFEstado("todos"); }}
+              onClick={() => { setBusca(""); setFSede("todas"); setFArea("todas"); setFEstado("todos"); setSoloSinSalario(false); }}
             >
               Quitar filtros
             </Boton>
           </div>
         ) : (
-          <Tabla alturaMaxima="70vh">
-            <TablaEncabezado>
-              <Th>Nombre</Th>
-              <Th>Sede</Th>
-              <Th>Rol</Th>
-              <Th>Área</Th>
-              {puedeSalarios && <Th>Salario</Th>}
-              <Th>Correo</Th>
-              <Th>Estado</Th>
-              <Th>Acciones</Th>
-            </TablaEncabezado>
-            <tbody>
-              {visibles.map((p) => (
-                <Fila key={p.id} className={p.estado === "inactivo" ? "text-taupe" : ""}>
-                  <td className="px-4 py-2">
-                    <button onClick={() => router.push(`/admin/personas/${p.id}`)} className="text-left font-medium text-tinta hover:underline" title="Ver perfil completo">{p.nombres} {p.apellidos}</button>
-                    {p.con_hijos && (
-                      <span title="Asignación familiar activa" className="ml-1.5 cursor-default text-xs">👶</span>
-                    )}
-                    {puedeSalarios && ingresos.get(p.id)?.fecha_ingreso && (
-                      <div className="text-xs text-taupe">Ingresó: {fmtFechaDMA(ingresos.get(p.id)!.fecha_ingreso!)}</div>
-                    )}
-                    {/* En ámbar cuando su contrato vence este mes o antes: es el
-                        momento en que sale del tablero de Documentación y, si es
-                        que no se renueva, cuando hay que registrar su cese. */}
-                    {puedeSalarios && finesContrato.has(p.id) && (
-                      <div className={`text-xs ${p.estado === "activo" && saleDelTablero(finesContrato.get(p.id)) ? "text-ambar" : "text-taupe"}`}>
-                        Contrato hasta: {fmtFechaDMA(finesContrato.get(p.id)!)}
-                      </div>
-                    )}
-                    {/* Cuándo y por qué se fue (0179). Va acá y no en columnas
-                        propias para no ensanchar una tabla que ya tiene ocho, y
-                        porque solo aplica a quien está inactivo: al equipo activo
-                        no le agrega una celda vacía en cada fila. Cierra la
-                        secuencia que ya cuentan las dos líneas de arriba:
-                        entró · hasta cuándo tenía contrato · cuándo se fue.
-                        El motivo llega null si quien mira no es admin ni líder DO
-                        —la RPC no se lo entrega— y entonces solo se ve la fecha. */}
-                    {p.estado === "inactivo" && p.fecha_cese && (
-                      <div className="text-xs text-taupe">
-                        Se fue: {fmtFechaDMA(p.fecha_cese)}
-                        {p.motivo_cese && (
-                          // El texto sale del catálogo también cuando es
-                          // `por_revisar`: el desplegable de cese ya lo nombra
-                          // así, y dos formas de decir lo mismo en la misma
-                          // pantalla se contradicen a la primera. Lo único que
-                          // cambia es el ámbar, que dice «esto falta».
-                          <> · {p.motivo_cese === "por_revisar"
-                            ? <span className="text-ambar" title="Nadie registró por qué se fue. Edita su ficha y elige el motivo real.">
-                                {etiquetaDeCatalogo(p.motivo_cese, MOTIVO_CESE_LABELS)}
-                              </span>
-                            : etiquetaDeCatalogo(p.motivo_cese, MOTIVO_CESE_LABELS)}</>
-                        )}
-                      </div>
-                    )}
-                  </td>
-                  <td className="px-4 py-2">{codigoSede(p.sede_base_id)}</td>
-                  {/* El CARGO manda sobre la etiqueta del rol (0182). El rol
-                      es un permiso —qué pantallas abre— y usarlo como título
-                      hacía que tres locadores figuraran como «Líder de equipo
-                      (encargada)» y «Admin». Cargo de mando, área, sede, rango
-                      y monto fijo son los indicios que desnaturalizan una
-                      locación de servicios, y el expediente lo armaba esta
-                      misma celda. Sin cargo escrito, se muestra el rol como
-                      siempre. */}
-                  <td className="px-4 py-2">
-                    {p.cargo !== null && p.cargo !== ""
-                      ? <span className="whitespace-nowrap">{p.cargo}</span>
-                      : (ROLES_OPCIONES.find((r) => r.valor === p.rol)?.label ?? p.rol)}
-                  </td>
-                  <td className="px-4 py-2">
-                    {esOperativaEn(areas, p.funcion)
-                      ? <span className="text-taupe">{areaCorto(areas, p.funcion)}</span>
-                      : (
-                        // "informativo" (pizarra) y no "advertencia" (ámbar):
-                        // no cuenta para la cobertura de tienda es un hecho
-                        // neutro de Central (administración/DO), no un aviso
-                        // de que algo está mal en la ficha de esa persona —
-                        // el ámbar aquí pintaba de "hay que revisar esto" a
-                        // gente cuya ficha está perfecta (hallazgo de la
-                        // auditoría de apariencia, 2026-09-06/07).
-                        <Insignia variante="informativo">{areaCorto(areas, p.funcion)}</Insignia>
-                      )}
-                  </td>
-                  {puedeSalarios && (() => {
-                    if (salariosEstado !== "ok") {
-                      // sin datos confiables no se ofrece Asignar/Editar (evita pisar salarios reales)
-                      return (
-                        <td className="px-4 py-2 text-xs text-taupe">
-                          {salariosEstado === "cargando" ? "Cargando…" : "No disponible"}
-                        </td>
-                      );
-                    }
-                    const sal = salarios[p.id];
-                    return (
+          <>
+            {/* Escritorio: la tabla de siempre. Debajo de `md` se esconde
+                entera a favor de la lista de tarjetas — arrastrar una tabla
+                de ocho columnas en horizontal ya se documentó como mal
+                diseño en esta misma pantalla (el panel de Historial,
+                auditoría de apariencia 2026-09-06/07); no tiene sentido
+                arreglarlo en un panel angosto y dejarlo en la tabla grande. */}
+            <div className="hidden md:block">
+              <Tabla alturaMaxima="70vh">
+                <TablaEncabezado>
+                  <Th>Nombre</Th>
+                  <Th>Sede</Th>
+                  <Th>Rol</Th>
+                  <Th>Área</Th>
+                  {puedeSalarios && <Th>Salario</Th>}
+                  <Th>Correo</Th>
+                  <Th>Estado</Th>
+                  <Th>Acciones</Th>
+                </TablaEncabezado>
+                <tbody>
+                  {visibles.map((p) => (
+                    <Fila key={p.id} className={p.estado === "inactivo" ? "text-taupe" : ""}>
+                      <td className="px-4 py-2">{bloqueNombre(p)}</td>
+                      <td className="px-4 py-2">{codigoSede(p.sede_base_id)}</td>
+                      {/* El CARGO manda sobre la etiqueta del rol (0182). El rol
+                          es un permiso —qué pantallas abre— y usarlo como título
+                          hacía que tres locadores figuraran como «Líder de equipo
+                          (encargada)» y «Admin». Cargo de mando, área, sede, rango
+                          y monto fijo son los indicios que desnaturalizan una
+                          locación de servicios, y el expediente lo armaba esta
+                          misma celda. Sin cargo escrito, se muestra el rol como
+                          siempre. */}
                       <td className="px-4 py-2">
-                        {sal ? (
-                          <span className="whitespace-nowrap">{RANGO_LABEL[sal.rango] ?? sal.rango} · {formatSoles(sal.salario)}</span>
-                        ) : (
-                          // text-taupe a plena opacidad (no /60): esta celda es
-                          // el dato por el que se abre la columna Salario — que
-                          // no tenga uno asignado es justo lo que hay que poder
-                          // leer, y menos de 4.5:1 no lo garantiza (auditoría
-                          // 2026-09-06/07).
-                          <span className="text-taupe">Sin asignar</span>
-                        )}
-                        <div className="mt-1 flex gap-3 text-xs">
-                          <button onClick={() => empezarSalario(p)} className="text-rojo hover:underline">{sal ? "Editar" : "Asignar"}</button>
-                          <button onClick={() => verHistorial(p)} className="text-taupe hover:underline">Historial</button>
+                        {p.cargo !== null && p.cargo !== ""
+                          ? <span className="whitespace-nowrap">{p.cargo}</span>
+                          : (ROLES_OPCIONES.find((r) => r.valor === p.rol)?.label ?? p.rol)}
+                      </td>
+                      <td className="px-4 py-2">
+                        {esOperativaEn(areas, p.funcion)
+                          ? <span className="text-taupe">{areaCorto(areas, p.funcion)}</span>
+                          : (
+                            // "informativo" (pizarra) y no "advertencia" (ámbar):
+                            // no cuenta para la cobertura de tienda es un hecho
+                            // neutro de Central (administración/DO), no un aviso
+                            // de que algo está mal en la ficha de esa persona —
+                            // el ámbar aquí pintaba de "hay que revisar esto" a
+                            // gente cuya ficha está perfecta (hallazgo de la
+                            // auditoría de apariencia, 2026-09-06/07).
+                            <Insignia variante="informativo">{areaCorto(areas, p.funcion)}</Insignia>
+                          )}
+                      </td>
+                      {puedeSalarios && <td className="px-4 py-2">{celdaSalario(p)}</td>}
+                      <td className="px-4 py-2">{p.email ?? <span className="text-taupe">—</span>}</td>
+                      <td className="px-4 py-2">
+                        <Insignia atenuada={p.estado !== "activo"}>{p.estado}</Insignia>
+                      </td>
+                      <td className="px-4 py-2">
+                        <div className="flex flex-wrap gap-2">
+                          <Boton variante="secundario" tamano="sm" onClick={() => empezarEdicion(p)}>Editar</Boton>
+                          {menuAcciones(p)}
                         </div>
                       </td>
-                    );
-                  })()}
-                  <td className="px-4 py-2">{p.email ?? <span className="text-taupe">—</span>}</td>
-                  <td className="px-4 py-2">
-                    <Insignia atenuada={p.estado !== "activo"}>{p.estado}</Insignia>
-                  </td>
-                  <td className="px-4 py-2">
-                    <div className="flex flex-wrap gap-2">
-                      <Boton variante="secundario" tamano="sm" onClick={() => empezarEdicion(p)}>Editar</Boton>
-                      {/* Solo a quien está activa: desde la 0364 el servidor
-                          rechaza regenerar el PIN de una persona inactiva, y
-                          no se ofrece un botón que solo puede terminar en un
-                          error. Si vuelve al equipo, «Reactivar» primero. */}
-                      {p.estado === "activo" && (
-                        <Boton variante="secundario" tamano="sm" onClick={() => regenerarPin(p)}>Nuevo PIN</Boton>
-                      )}
-                      {p.estado === "activo" ? (
-                        // «Registrar salida» y no «Desactivar»: lo que se hace
-                        // es anotar un hecho con su fecha y su motivo, no
-                        // apagar un interruptor.
-                        <Boton variante="peligro" tamano="sm" onClick={() => empezarCese(p)}>Registrar salida</Boton>
-                      ) : (
-                        <Boton variante="secundario" tamano="sm" onClick={() => setReactivarPendiente(p)}>Reactivar</Boton>
-                      )}
+                    </Fila>
+                  ))}
+                </tbody>
+              </Tabla>
+            </div>
+
+            {/* Mobile: una tarjeta por persona en vez de la tabla — mismo
+                criterio que ya se construyó esta semana en Datos personales
+                para la pantalla hermana más parecida a esta. */}
+            <div className="space-y-3 md:hidden">
+              {visibles.map((p) => (
+                <div key={p.id} className={`rounded-2xl border border-sand bg-papel p-4 ${p.estado === "inactivo" ? "text-taupe" : ""}`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">{bloqueNombre(p)}</div>
+                    <Insignia atenuada={p.estado !== "activo"} className="shrink-0">{p.estado}</Insignia>
+                  </div>
+                  <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1.5 text-sm">
+                    <div>
+                      <dt className="text-xs text-taupe">Sede</dt>
+                      <dd>{codigoSede(p.sede_base_id)}</dd>
                     </div>
-                  </td>
-                </Fila>
+                    <div>
+                      <dt className="text-xs text-taupe">Rol</dt>
+                      <dd>
+                        {p.cargo !== null && p.cargo !== ""
+                          ? p.cargo
+                          : (ROLES_OPCIONES.find((r) => r.valor === p.rol)?.label ?? p.rol)}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs text-taupe">Área</dt>
+                      <dd>
+                        {esOperativaEn(areas, p.funcion)
+                          ? areaCorto(areas, p.funcion)
+                          : <Insignia variante="informativo" tamano="sm">{areaCorto(areas, p.funcion)}</Insignia>}
+                      </dd>
+                    </div>
+                    {puedeSalarios && (
+                      <div>
+                        <dt className="text-xs text-taupe">Salario</dt>
+                        <dd>{celdaSalario(p)}</dd>
+                      </div>
+                    )}
+                    <div className="col-span-2">
+                      <dt className="text-xs text-taupe">Correo</dt>
+                      <dd className="truncate">{p.email ?? <span className="text-taupe">—</span>}</dd>
+                    </div>
+                  </dl>
+                  {/* `justify-between`, no solo `gap-2`: el menú "•••" se
+                      alinea a la derecha DE SU DISPARADOR (`right-0` en
+                      components/ui/menu.tsx), así que si el botón queda a
+                      media tarjeta —como con `gap-2` a secas, pegado a
+                      "Editar"— el desplegable se abre hacia la izquierda y se
+                      corta contra el borde de un celular angosto. Empujarlo
+                      al borde derecho de la tarjeta le da los ~340px que
+                      necesita para abrir sin cortarse. */}
+                  <div className="mt-3 flex items-center justify-between gap-2">
+                    <Boton variante="secundario" tamano="sm" onClick={() => empezarEdicion(p)}>Editar</Boton>
+                    {menuAcciones(p)}
+                  </div>
+                </div>
               ))}
-            </tbody>
-          </Tabla>
+            </div>
+          </>
         )}
 
         <p className="mt-4 max-w-2xl text-xs text-taupe">
