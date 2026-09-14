@@ -1083,9 +1083,22 @@ export default function AusenciasPage() {
                               Aprobar
                             </Boton>
                           )}
-                          <Boton variante="peligro" tamano="sm" onClick={() => pedirAnular(a)} disabled={guardando}>
-                            Anular
-                          </Boton>
+                          {/* Anular lo que YA aprobó DO (0442) pide el mismo
+                              permiso que aprobarlo — la encargada de sede deja
+                              de tener un botón que solo le iba a devolver un
+                              error del servidor; en su lugar, a quién
+                              pedírselo. Vacaciones no entra acá: paga, pero
+                              nunca pasa por una aprobación real de DO
+                              (requiere_aprobacion = false). */}
+                          {a.requiere_aprobacion && a.aprobada && !esDO ? (
+                            <span className="self-center text-xs text-taupe">
+                              Ya la aprobó DO — pídesela a Desarrollo Organizacional para anularla.
+                            </span>
+                          ) : (
+                            <Boton variante="peligro" tamano="sm" onClick={() => pedirAnular(a)} disabled={guardando}>
+                              Anular
+                            </Boton>
+                          )}
                         </div>
                       )}
                     </td>
