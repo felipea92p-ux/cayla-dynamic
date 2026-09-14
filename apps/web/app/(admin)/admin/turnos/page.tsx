@@ -243,6 +243,11 @@ function horarioSemanalDesdeTramo(tr: Horario | null): Record<string, { e: strin
 // calendario); avisar recién al llegar sería llegar tarde para reorganizar el
 // turno — el sentido de esto es avisar ANTES, no contar el exceso ya pagado.
 const UMBRAL_AVISO_SOBRETIEMPO = 40;
+// Descanso mínimo entre el fin de una jornada y el inicio de la siguiente. No
+// bloquea guardar — la encargada en piso sigue decidiendo, igual que con el
+// aviso de 48h — solo avisa dentro del modal, antes de que el turno quede
+// guardado, en vez de enterarse después en Incidencias.
+const DESCANSO_MINIMO_HORAS = 12;
 
 // Quién está cerca (o ya pasó) el tope de 48h de SU ciclo de 7 días vigente
 // hoy — el mismo ciclo que calcula fn_planilla_calcular_nucleo, portado a
@@ -612,12 +617,23 @@ export default function TurnosPage() {
   const [metasTarde, setMetasTarde] = useState<Map<number, number>>(new Map()); // meta operativas TARDE
   const [metasEncargadas, setMetasEncargadas] = useState<Map<number, number>>(new Map());
   const [cargando, setCargando] = useState(true);
+  // Cuántos turnos puntuales tiene la semana anterior, para el botón "Copiar
+  // semana anterior" — null mientras no se sabe, 0 = no hay nada que copiar
+  // (el botón ni se muestra). Copiar de verdad pasa por fn_copiar_semana_anterior;
+  // esto es solo la cuenta para el texto del botón, antes de aplicar nada.
+  const [copiarDisponibles, setCopiarDisponibles] = useState<number | null>(null);
+  const [confirmarCopiar, setConfirmarCopiar] = useState(false);
+  const [copiando, setCopiando] = useState(false);
 
   // edición de celda
   const [edit, setEdit] = useState<{ personaId: string; fecha: string } | null>(null);
   const [entrada, setEntrada] = useState("");
   const [salida, setSalida] = useState("");
   const [guardando, setGuardando] = useState(false);
+  // Ciclo de 48h de la persona que se está editando — mismo cálculo que
+  // AlertaSobretiempo (cicloVigente sobre sus jornadas reales), pero acá solo
+  // para esta persona, para poder avisar DENTRO del modal antes de guardar.
+  const [cicloEdit, setCicloEdit] = useState<ReturnType<typeof cicloVigente>>(null);
 
   const dias = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(lunes, i)), [lunes]);
   const supabase = useMemo(() => createAdminSupabaseClient(), []);
@@ -706,6 +722,48 @@ export default function TurnosPage() {
 
   useEffect(() => { void cargar(); }, [cargar]);
 
+  // Cuenta rápida de la semana anterior, solo para el botón — no filtra por
+  // "ya tiene turno en el destino" ni por persona activa (eso lo decide
+  // fn_copiar_semana_anterior de verdad al aplicar), así que el número del
+  // botón es un techo ("hasta N"), no una promesa exacta.
+  useEffect(() => {
+    if (!sedeSel) return;
+    let vivo = true;
+    void (async () => {
+      setCopiarDisponibles(null);
+      const domingoAnterior = addDays(lunes, -1);
+      const lunesAnterior = addDays(lunes, -7);
+      // `personas!turnos_persona_id_fkey`, no `personas!inner` a secas: turnos
+      // tiene DOS llaves foráneas hacia personas (persona_id y creado_por), y
+      // sin nombrar cuál, PostgREST responde 300 Multiple Choices en vez de
+      // filtrar — un silencio distinto al de "no hay nada que copiar".
+      const { count, error } = await supabase.from("turnos")
+        .select("persona_id, personas!turnos_persona_id_fkey!inner(sede_base_id, estado)", { count: "exact", head: true })
+        .eq("personas.sede_base_id", sedeSel).eq("personas.estado", "activo")
+        .gte("fecha", lunesAnterior).lte("fecha", domingoAnterior);
+      if (!vivo) return;
+      setCopiarDisponibles(error ? 0 : (count ?? 0));
+    })();
+    return () => { vivo = false; };
+  }, [sedeSel, lunes, supabase]);
+
+  async function copiarSemanaAnterior() {
+    setCopiando(true);
+    setConfirmarCopiar(false);
+    const { data, error } = await supabase.rpc("fn_copiar_semana_anterior", { p_sede_id: sedeSel, p_lunes_destino: lunes });
+    setCopiando(false);
+    if (error) { avisar("error", mensajeDeError(error, "copiar la semana anterior")); return; }
+    const filas = (data as { resultado: string }[]) ?? [];
+    const copiados = filas.filter((f) => f.resultado === "copiado").length;
+    const saltados = filas.filter((f) => f.resultado.startsWith("saltado")).length;
+    const fallidos = filas.length - copiados - saltados;
+    avisar("ok",
+      `Se copiaron ${copiados} turno${copiados === 1 ? "" : "s"} de la semana pasada.`
+      + (saltados > 0 ? ` ${saltados} ya tenía${saltados === 1 ? "" : "n"} turno propio esta semana y no se tocaron.` : "")
+      + (fallidos > 0 ? ` ${fallidos} no se pudieron copiar (revísalos en Correcciones).` : ""));
+    await cargar();
+  }
+
   const celda = useCallback((personaId: string, fecha: string): Celda => {
     const turno = turnos.get(`${personaId}|${fecha}`) ?? null;
     const tramo = horarioVigente(horarios.get(personaId) ?? [], fecha);
@@ -771,6 +829,31 @@ export default function TurnosPage() {
     setEntrada(c.tipo === "turno" || c.tipo === "default" ? c.entrada : "");
     setSalida((c.tipo === "turno" || c.tipo === "default") && c.salida ? c.salida : "");
   }
+
+  // Al abrir el modal de una persona, trae su ciclo vigente (últimos 28 días
+  // de jornadas reales) para poder avisar si ya está cerca de las 48h antes de
+  // guardarle otro turno. Es el estado ACTUAL de hoy, no una proyección de "si
+  // guardo esto, cuánto sumaría" — cicloVigente ya es una copia de lectura de
+  // fn_planilla_calcular_nucleo y simular un total futuro sobre esa copia
+  // arriesgaría desincronizarse del cálculo real (mismo riesgo que ya
+  // documentó CLAUDE.md para otras reglas duplicadas).
+  useEffect(() => {
+    if (!edit) return;
+    let vivo = true;
+    void (async () => {
+      setCicloEdit(null);
+      const hoy = hoyLima();
+      const desde = addDays(hoy, -28);
+      const { data, error } = await supabase.from("jornadas")
+        .select("fecha, horas_trabajadas")
+        .eq("persona_id", edit.personaId).gte("fecha", desde).lte("fecha", hoy);
+      if (error || !vivo) return;
+      const dias: DiaTrabajado[] = ((data as { fecha: string; horas_trabajadas: number | null }[]) ?? [])
+        .map((j) => ({ fecha: j.fecha, horas: j.horas_trabajadas ?? 0 }));
+      if (vivo) setCicloEdit(cicloVigente(dias, hoy));
+    })();
+    return () => { vivo = false; };
+  }, [edit, supabase]);
 
   async function ejecutar(fn: () => PromiseLike<{ error: any }>) {
     setGuardando(true);
@@ -888,6 +971,24 @@ export default function TurnosPage() {
               <Boton variante="secundario" disabled={cargando} onClick={() => setLunes(lunesDeLaSemana(hoyLima()))}>Hoy</Boton>
               <Boton variante="secundario" disabled={cargando} onClick={() => setLunes(addDays(lunes, 7))}>→</Boton>
             </div>
+            {/* Solo aparece si de verdad hay algo que copiar — un botón que
+                nunca hace nada enseña a ignorarlo. El número es un techo
+                ("hasta N"): fn_copiar_semana_anterior salta los días que esta
+                semana ya tiene editados a mano, así que lo que se aplique de
+                verdad puede ser menos. */}
+            {puedeVer && !cargando && Boolean(copiarDisponibles) && (
+              confirmarCopiar ? (
+                <div className="flex items-center gap-2 rounded-lg border border-ambar/40 bg-ambar/[0.06] px-2.5 py-1.5 text-xs">
+                  <span className="text-ambar">¿Copiar hasta {copiarDisponibles} turno{copiarDisponibles === 1 ? "" : "s"} de la semana pasada?</span>
+                  <Boton variante="primario" tamano="sm" disabled={copiando} cargando={copiando} onClick={() => void copiarSemanaAnterior()}>Sí, copiar</Boton>
+                  <Boton variante="secundario" tamano="sm" disabled={copiando} onClick={() => setConfirmarCopiar(false)}>Cancelar</Boton>
+                </div>
+              ) : (
+                <Boton variante="secundario" onClick={() => setConfirmarCopiar(true)}>
+                  Copiar semana anterior
+                </Boton>
+              )
+            )}
           </div>
         </div>
 
@@ -1020,6 +1121,9 @@ export default function TurnosPage() {
                   Toda la semana, hora por hora. El <strong>número</strong> es cuántas operativas cubren esa media
                   hora; el <strong>color</strong> va de rojo (falta) a verde (llega a la meta de su tramo). Los{" "}
                   <span className="inline-block h-1.5 w-1.5 translate-y-[1px] rounded-full bg-taupe" /> son encargadas.
+                  Un borde{" "}
+                  <span className="inline-block h-2.5 w-2.5 translate-y-[2px] rounded-[2px]" style={{ outline: "1.5px dashed var(--color-ambar)", outlineOffset: "-1.5px" }} />{" "}
+                  ámbar punteado marca una franja bien cubierta pero sin ninguna encargada, donde sí se esperaba una.
                   Toca una celda para ver quién cubre y editar sus turnos.
                 </p>
                 {!hayGente ? (
@@ -1079,11 +1183,25 @@ export default function TurnosPage() {
                                 ? "color-mix(in srgb, var(--color-rojo) 10%, transparent)" // meta puesta pero nadie: falta suave
                                 : "color-mix(in srgb, var(--color-sand) 35%, transparent)"; // sin meta: sand tenue
                               const claro = nOp > 0;
+                              // Cuando SÍ hay encargadas, el déficit contra la meta ya se ve en
+                              // la opacidad de sus puntos. Pero si no hay NINGUNA (nEnc === 0),
+                              // no hay puntos que atenuar — la franja quedaba en el mismo verde
+                              // que una bien liderada, y el déficit de liderazgo se volvía
+                              // invisible. Solo se marca cuando la sede SÍ puso una meta de
+                              // encargadas para ese día (metaEnc > 0): sin meta, cero encargadas
+                              // es una franja normal, no un déficit.
+                              const sinEncargadaAlguna = encFalta && nEnc === 0;
                               return (
                                 <button key={iso} onClick={() => setPanel({ fecha: iso, franjaIdx: fi })}
-                                  title={`${t}–${decimalAHHMM(inicioFranja(fi) + 0.5)} · ${nOp} operativa${nOp === 1 ? "" : "s"}${metaOp > 0 ? ` (meta ${metaOp})` : ""}${nEnc > 0 ? ` · ${nEnc} encargada${nEnc === 1 ? "" : "s"}` : ""}`}
+                                  title={`${t}–${decimalAHHMM(inicioFranja(fi) + 0.5)} · ${nOp} operativa${nOp === 1 ? "" : "s"}${metaOp > 0 ? ` (meta ${metaOp})` : ""}${nEnc > 0 ? ` · ${nEnc} encargada${nEnc === 1 ? "" : "s"}` : sinEncargadaAlguna ? ` · sin encargada (meta ${metaEnc})` : ""}`}
                                   className="relative m-[1.5px] flex h-6 items-center justify-center rounded-[3px] text-[11px] font-medium tabular-nums transition-all hover:z-10 hover:ring-2 hover:ring-tinta/25"
-                                  style={{ background: bg, color: claro ? "var(--color-crema)" : "var(--color-taupe)", textShadow: claro ? "0 1px 2px rgba(0,0,0,0.30)" : "none" }}>
+                                  style={{
+                                    background: bg,
+                                    color: claro ? "var(--color-crema)" : "var(--color-taupe)",
+                                    textShadow: claro ? "0 1px 2px rgba(0,0,0,0.30)" : "none",
+                                    outline: sinEncargadaAlguna ? "1.5px dashed var(--color-ambar)" : "none",
+                                    outlineOffset: sinEncargadaAlguna ? "-1.5px" : undefined,
+                                  }}>
                                   {nOp > 0 ? nOp : ""}
                                   {nEnc > 0 && (
                                     <span className="pointer-events-none absolute right-[3px] top-[3px] flex gap-[2px]">
@@ -1352,6 +1470,24 @@ export default function TurnosPage() {
           const p = personas.find((x) => x.id === edit.personaId);
           const { abr, num } = etiquetaDia(edit.fecha);
           const propio = yo && edit.personaId === yo.id && !esAdmin;
+
+          // Aviso no bloqueante: descanso mínimo entre jornadas (con los días
+          // vecinos que ya están en pantalla, sin fetch nuevo) y ciclo de 48h
+          // (cicloEdit, traído al abrir el modal). Nunca deshabilita Guardar —
+          // la decisión sigue siendo de quien conoce a la persona y el día.
+          const cAntes = celda(edit.personaId, addDays(edit.fecha, -1));
+          const cDespues = celda(edit.personaId, addDays(edit.fecha, 1));
+          const entradaDec = entrada ? horaADecimal(entrada) : null;
+          const salidaDec = salida ? horaADecimal(salida) : null;
+          const salidaAntes = (cAntes.tipo === "turno" || cAntes.tipo === "default") && cAntes.salida ? horaADecimal(cAntes.salida) : null;
+          const entradaDespues = cDespues.tipo === "turno" || cDespues.tipo === "default" ? horaADecimal(cDespues.entrada) : null;
+          const descansoAntes = salidaAntes !== null && entradaDec !== null ? (24 - salidaAntes) + entradaDec : null;
+          const descansoDespues = salidaDec !== null && entradaDespues !== null ? (24 - salidaDec) + entradaDespues : null;
+          const avisoDescansoAntes = descansoAntes !== null && descansoAntes < DESCANSO_MINIMO_HORAS;
+          const avisoDescansoDespues = descansoDespues !== null && descansoDespues < DESCANSO_MINIMO_HORAS;
+          const avisoCiclo = cicloEdit !== null && cicloEdit.horas >= UMBRAL_AVISO_SOBRETIEMPO;
+          const hayAviso = avisoDescansoAntes || avisoDescansoDespues || avisoCiclo;
+
           return (
             <Modal abierto onCerrar={() => setEdit(null)} bloqueado={guardando} ancho="sm">
               <h3 className="mb-1 font-serif text-lg">{p?.nombres} {p?.apellidos}</h3>
@@ -1366,6 +1502,19 @@ export default function TurnosPage() {
                     <Campo etiqueta="Entrada" type="time" value={entrada} onChange={(e) => setEntrada(e.target.value)} />
                     <Campo etiqueta="Salida" type="time" value={salida} onChange={(e) => setSalida(e.target.value)} />
                   </div>
+                  {hayAviso && (
+                    <div className="mt-3 space-y-1 rounded-lg border border-ambar/40 bg-ambar/[0.06] px-3 py-2 text-xs text-ambar">
+                      {avisoDescansoAntes && (
+                        <p>Deja solo {descansoAntes!.toFixed(1)} h de descanso desde la salida del día anterior (mínimo recomendado: {DESCANSO_MINIMO_HORAS} h).</p>
+                      )}
+                      {avisoDescansoDespues && (
+                        <p>Deja solo {descansoDespues!.toFixed(1)} h de descanso hasta la entrada del día siguiente (mínimo recomendado: {DESCANSO_MINIMO_HORAS} h).</p>
+                      )}
+                      {avisoCiclo && (
+                        <p>Esta persona ya lleva {cicloEdit!.horas.toFixed(1)}/48 h en su ciclo de 7 días vigente hoy (día {cicloEdit!.dia} de 7) — antes de guardar, revisa si le conviene más descanso.</p>
+                      )}
+                    </div>
+                  )}
                   {/* La pregunta que evita que una excepción se coma la regla:
                       ¿es solo por hoy, o de ahora en adelante? Lo decide quien sabe. */}
                   <div className="mt-5 rounded-lg border border-sand p-3">

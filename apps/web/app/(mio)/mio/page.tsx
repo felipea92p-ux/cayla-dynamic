@@ -955,6 +955,18 @@ export default function MioPage() {
     void supabase.auth.getSession().then(({ data }) => setSesion(Boolean(data.session)));
   }, [supabase]);
 
+  // Deep-link: al llegar con ?tab=<sección> (ej. desde la Bandeja, al avisar
+  // de un cambio de turno) abre directo esa sección en vez de Resumen. Mismo
+  // patrón que ?fecha= en Turnos — se valida contra SECCIONES para no dejar
+  // `tab` en un valor que no exista si el enlace viene mal escrito.
+  useEffect(() => {
+    void (() => {
+      const sp = new URLSearchParams(window.location.search);
+      const t = sp.get("tab");
+      if (t && SECCIONES.some((s) => s.valor === t)) setTab(t as Tab);
+    })();
+  }, []);
+
   async function entrar(e: FormEvent) {
     e.preventDefault();
     setEntrando(true);
