@@ -302,7 +302,12 @@ with repo(numero, nombre, nunca) as (values
     (435, 'una_persona_le_escribe_a_su_encargada', false),
     (436, 'la_bandeja_recuerda_lo_que_ya_viste', false),
     (437, 'una_correccion_no_pisa_un_expediente_ya_formal', false),
-    (438, 'levantar_una_tardanza_no_pisa_un_expediente_ya_formal', false)
+    (438, 'levantar_una_tardanza_no_pisa_un_expediente_ya_formal', false),
+    (439, 'copiar_semana_anterior_por_sede', false),
+    (440, 'el_horario_tambien_se_cambia_por_una_puerta', false),
+    (441, 'ausencia_avisa_dias_con_jornada', false),
+    (442, 'anular_lo_aprobado_exige_desarrollo_organizacional', false),
+    (443, 'ausentismo_separa_pagado_y_excluye_pendiente', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
