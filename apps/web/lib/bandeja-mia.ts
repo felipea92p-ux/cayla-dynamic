@@ -93,7 +93,11 @@ export type OrigenBandeja =
   // Lo que pediste y te contestaron.
   | "perfil" | "vacaciones" | "revision" | "revision-movilidad"
   // Lo que depende de ti. No caduca.
-  | "contrato" | "memo" | "acuse" | "marcaje" | "ruta";
+  | "contrato" | "memo" | "acuse" | "marcaje" | "ruta"
+  // Te lo hicieron a ti — no lo pediste, así que no hay nada "esperando" para
+  // este origen — pero caduca igual que una respuesta: un turno ya guardado
+  // no es algo que quede pendiente de hacer.
+  | "turno";
 
 /**
  * `atendido` es de las revisiones y no es lo mismo que `aprobado`: a un pedido
@@ -157,6 +161,26 @@ export interface FilaRevision {
   pedida_at: string;
   atendida_at: string | null;
   respuesta: string | null;
+}
+
+/**
+ * Un cambio de turno que le hicieron, de `correcciones_auditoria` (0298) —
+ * filtrado a `campo_modificado = 'turnos.horario'`. Préstamo de
+ * infraestructura, no su propósito original: esa tabla es el libro de
+ * auditoría de correcciones, y acá se reusa su RLS de lectura propia
+ * (`auditoria_select_propia`) en vez de escribir una tabla de avisos nueva.
+ * No guarda la fecha del turno como columna propia — solo cuándo se guardó el
+ * cambio (`corregido_at`) — así que `motivo` (una frase ya armada por
+ * `fn_set_turno`/`fn_set_descanso`/`fn_quitar_turno`) es la única fuente del
+ * día exacto que cambió; se resume igual, sin parsearlo, porque ya dice todo
+ * lo que hay que decir.
+ */
+export interface FilaTurno {
+  id: string;
+  valor_anterior: string;
+  valor_nuevo: string;
+  corregido_at: string;
+  motivo: string;
 }
 
 /** Un pedido de revisión de la declaración de ruta, de `movilidad_revisiones_pedidas` (0425). */
@@ -233,6 +257,8 @@ export interface FuentesBandeja {
   movilidad: FilaMovilidad | null;
   /** Sus pedidos de revisión de esa declaración (0425). */
   revisionesMovilidad: FilaRevisionMovilidad[];
+  /** Cambios de turno que le hicieron. Ver `FilaTurno`. */
+  turnos: FilaTurno[];
 }
 
 export interface Bandeja {
@@ -618,6 +644,24 @@ export function armarBandeja(fuentes: FuentesBandeja, hoy: string = hoyLima()): 
     });
   }
 
+  // Cambios de turno que le hicieron (0298). No los pidió — alguien con
+  // permiso le cambió el horario — así que no hay nada "esperando": entran
+  // directo como respuesta, y caducan igual que las demás a los DIAS_NOVEDAD.
+  for (const f of fuentes.turnos) {
+    const fecha = fechaLima(f.corregido_at);
+    respuestas.push({
+      instante: Date.parse(f.corregido_at),
+      m: {
+        clave: `turno:${f.id}`, origen: "turno", estado: "atendido", fecha,
+        titulo: `Tu turno cambió: ${f.valor_anterior} → ${f.valor_nuevo}`,
+        respuesta: null,
+        detalle: f.motivo,
+        nuevo: esNueva(fecha),
+        ir: "/mio?tab=turnos",
+      },
+    });
+  }
+
   // EL DESEMPATE. `clave` es un ancla, no un criterio: son uuid y no significan
   // nada. Va DESPUÉS del único criterio real (cuándo te respondieron), así que
   // solo puede disparar en un empate exacto — y ese empate SÍ ocurre acá:
@@ -686,7 +730,7 @@ export async function traerBandeja(
   personaId: string,
   hoy: string = hoyLima(),
 ): Promise<{ bandeja: Bandeja; noSePudo: string[] }> {
-  const [perfil, catalogo, vacaciones, revisiones, contrato, memos, acuses, periodo, movilidad, revisionesMovilidad] =
+  const [perfil, catalogo, vacaciones, revisiones, contrato, memos, acuses, periodo, movilidad, revisionesMovilidad, turnos] =
     await Promise.all([
     supabase.from("solicitudes_cambio_perfil")
       .select("id, campo, estado, creada_at, resuelta_at, motivo")
@@ -730,6 +774,17 @@ export async function traerBandeja(
     // por medio, esta misma RPC ya devuelve solo lo suyo — mismo criterio que
     // fn_documentos_tablero con p_solo_mi_fila.
     supabase.rpc("fn_movilidad_revisiones_pedidas", { p_solo_pendientes: false }),
+    // Cambios de turno que le hicieron (0298). El `.eq("persona_id", …)` de
+    // acá es el mismo freno que ya explica el encabezado de esta función:
+    // `auditoria_select_supervisor` le abre a una encargada toda su sede, así
+    // que sin este filtro su propia Bandeja podría mostrarle el turno de otra
+    // persona como si fuera el suyo.
+    supabase.from("correcciones_auditoria")
+      .select("id, valor_anterior, valor_nuevo, corregido_at, motivo")
+      .eq("persona_id", personaId)
+      .eq("campo_modificado", "turnos.horario")
+      .order("corregido_at", { ascending: false })
+      .limit(LIMITE),
   ]);
 
   // Las jornadas del periodo, solo si hay periodo abierto. Va en su propia
@@ -762,6 +817,7 @@ export async function traerBandeja(
     periodo: per,
     movilidad: ((movilidad.data ?? []) as FilaMovilidad[])[0] ?? null,
     revisionesMovilidad: (revisionesMovilidad.data ?? []) as unknown as FilaRevisionMovilidad[],
+    turnos: (turnos.data ?? []) as unknown as FilaTurno[],
   }, hoy);
 
   return {
@@ -784,6 +840,7 @@ export async function traerBandeja(
       { error: marcajes?.error ?? null, que: "tus días del periodo" },
       { error: movilidad.error, que: "tu declaración de ruta" },
       { error: revisionesMovilidad.error, que: "tus pedidos de revisión de esa declaración" },
+      { error: turnos.error, que: "tus cambios de turno" },
     ]),
   };
 }

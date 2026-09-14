@@ -21,7 +21,7 @@ import { ROLES_DO, hoyLima, puedeOperarEquipo, maximoSemanalPracticante } from "
 // reusa). Sin eso, un horario nocturno (p. ej. 21:00–05:00) daba 0 horas en
 // vez de las ocho reales, escondiendo el aviso de exceso legal semanal de
 // una practicante.
-import { horasEntre as horasDia } from "@/lib/admin/jornada-esperada";
+import { horasEntre as horasDia, esTurnoEspejoViejo, type HorarioTramo } from "@/lib/admin/jornada-esperada";
 
 const META_SEMANA = 45; // horas objetivo por semana (7.5h × 6 días)
 
@@ -315,6 +315,36 @@ export default function HorariosPage() {
     return out;
   }
 
+  // Cambiar el horario base no toca la tabla `turnos` (fn_set_horario_semanal
+  // es limpio en eso), pero puede dejar turnos puntuales VIEJOS apuntando a un
+  // tramo que esta persona ya no tiene vigente — el caso de Diana (set-2026):
+  // el turno del día MANDA sobre el horario base, así que un "espejo" así
+  // sigue generando tardanzas falsas en silencio. Esto solo avisa; el único
+  // camino para corregir sigue siendo la pantalla de Turnos, fila por fila.
+  async function turnosDesactualizadosPor(supabase: ReturnType<typeof createAdminSupabaseClient>, personaId: string): Promise<string[]> {
+    const { data: periodo } = await supabase.from("periodos_planilla")
+      .select("fecha_ini").eq("estado", "abierto")
+      .order("fecha_ini", { ascending: true }).limit(1).maybeSingle();
+    // Sin periodo abierto (caso raro/borde) el piso es hoy, igual que el
+    // comportamiento de siempre: no hay planilla corriendo a la que avisarle.
+    const piso = periodo?.fecha_ini ?? hoyLima();
+    const [{ data: turnosPersona }, { data: tramosHistoricos }] = await Promise.all([
+      supabase.from("turnos").select("fecha, hora_entrada, hora_salida, es_descanso")
+        .eq("persona_id", personaId).gte("fecha", piso).order("fecha"),
+      // Sin filtrar vigente_hasta: hace falta el historial completo para que
+      // esTurnoEspejoViejo pueda distinguir "coincide con el vigente" (nada
+      // que avisar) de "coincide con uno que ya no lo es" (probable espejo).
+      supabase.from("horarios_asignados")
+        .select("persona_id, hora_entrada, hora_salida, dias_laborables, horario_por_dia, almuerzo_min_minutos, vigente_desde, vigente_hasta")
+        .eq("persona_id", personaId),
+    ]);
+    const tramos = (tramosHistoricos as HorarioTramo[] | null) ?? [];
+    const turnosTyped = (turnosPersona as { fecha: string; hora_entrada: string | null; hora_salida: string | null; es_descanso: boolean }[] | null) ?? [];
+    return turnosTyped
+      .filter((t) => esTurnoEspejoViejo(t.fecha, { hora_entrada: t.hora_entrada, hora_salida: t.hora_salida, es_descanso: t.es_descanso }, tramos))
+      .map((t) => t.fecha);
+  }
+
   async function guardar() {
     if (!editando) return;
     const horario = construirHorario();
@@ -325,16 +355,29 @@ export default function HorariosPage() {
     if (faltaEntrada) { avisar("error", "Falta la hora de entrada de algún día."); return; }
     if (faltaSalida) { avisar("error", "Falta la hora de salida de algún día."); return; }
     if (motivo.trim().length < 3) { avisar("error", "Escribe el motivo del cambio (mínimo 3 caracteres)."); return; }
+    const personaId = editando.id;
     setGuardando(true);
     const supabase = createAdminSupabaseClient();
     const { error } = await supabase.rpc("fn_set_horario_semanal", {
-      p_persona_id: editando.id, p_vigente_desde: desde, p_horario: horario, p_motivo: motivo.trim(),
+      p_persona_id: personaId, p_vigente_desde: desde, p_horario: horario, p_motivo: motivo.trim(),
     });
     setGuardando(false);
     if (error) { avisar("error", mensajeDeError(error)); return; }
     setEditando(null);
     await cargar();
-    avisar("ok", "Horario guardado. Las tardanzas desde esa fecha se recalcularon.");
+    let mensaje = "Horario guardado. Las tardanzas desde esa fecha se recalcularon.";
+    try {
+      const fechas = await turnosDesactualizadosPor(supabase, personaId);
+      if (fechas.length > 0) {
+        const esUno = fechas.length === 1;
+        const turno = esUno ? "turno puntual" : "turnos puntuales";
+        const coincide = esUno ? "coincide" : "coinciden";
+        mensaje = `Horario guardado. Ojo: ${fechas.length} ${turno} de esta persona ya no ${coincide} con este horario (fechas: ${fechas.join(", ")}) — revísalos en la pantalla de Turnos.`;
+      }
+    } catch {
+      // El horario ya se guardó bien; solo no se pudo avisar del cruce con turnos.
+    }
+    avisar("ok", mensaje);
   }
 
   if (rol !== null && !puedeEditar) {
