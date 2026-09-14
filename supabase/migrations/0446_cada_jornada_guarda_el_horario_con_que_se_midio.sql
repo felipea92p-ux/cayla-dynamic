@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0441 — Cada jornada guarda el horario con que se midió
+-- 0446 — Cada jornada guarda el horario con que se midió
 -- ----------------------------------------------------------------------------
 -- QUÉ PROMETE: `jornadas` gana una columna, `horario_aplicado jsonb`, que
 -- fn_recalcular_jornada llena CADA VEZ que corre, con el horario que de
@@ -10,7 +10,7 @@
 -- haber cambiado de forma desde entonces (un tramo se recorta o se reemplaza
 -- con cada cambio de horario posterior).
 --
--- QUÉ ASUME: que `horarios_asignados` puede reescribirse hacia atrás (0442,
+-- QUÉ ASUME: que `horarios_asignados` puede reescribirse hacia atrás (0447,
 -- corrección retroactiva) o simplemente seguir acumulando tramos nuevos, y que
 -- ninguna de las dos cosas debe poder borrar la respuesta a "¿con qué horario
 -- se juzgó ESTE día, en el momento en que se juzgó?". Guardar la referencia
@@ -20,7 +20,7 @@
 --
 -- POR QUÉ SE ELIGIÓ ASÍ: aditivo puro. No cambia ningún número que ya se
 -- calculaba (minutos_tarde, horas_trabajadas, etc. — todo sigue exactamente
--- igual, ver 0440); solo agrega un dato nuevo, opcional, que no participa en
+-- igual, ver 0445); solo agrega un dato nuevo, opcional, que no participa en
 -- ningún cálculo aguas abajo (planilla, disciplina, provisiones). Una columna
 -- jsonb nullable sobre una tabla existente no requiere backfill para que el
 -- sistema siga funcionando — las jornadas viejas se quedan con
@@ -37,19 +37,19 @@
 -- MD5 DE PARTIDA — NO SE PUDO MEDIR EN ESTA SESIÓN. Docker Desktop no
 -- respondía en esta Mac al escribir esto (2026-09-14), así que no hay ni
 -- Postgres local para consultar. Este archivo parte del cuerpo que deja la
--- 0440 en este mismo commit (no de producción, todavía sin desplegar): antes
--- de pegar 0440 y 0441 en producción, correr la consulta de md5 estándar de
--- fn_recalcular_jornada contra PRODUCCIÓN inmediatamente antes de pegar 0440
+-- 0445 en este mismo commit (no de producción, todavía sin desplegar): antes
+-- de pegar 0445 y 0446 en producción, correr la consulta de md5 estándar de
+-- fn_recalcular_jornada contra PRODUCCIÓN inmediatamente antes de pegar 0445
 -- (no antes), y de nuevo antes de pegar esta.
 --
 -- CÓMO SE REVIERTE: `alter table jornadas drop column horario_aplicado;` y
--- volver fn_recalcular_jornada al cuerpo tal cual de la 0440.
+-- volver fn_recalcular_jornada al cuerpo tal cual de la 0445.
 -- ============================================================================
 
 alter table jornadas add column if not exists horario_aplicado jsonb;
 
 comment on column jornadas.horario_aplicado is
-  '0441 — foto del horario con que fn_recalcular_jornada calculó ESTA jornada: {"fuente": "turnos"|"horarios_asignados", "horario_id": uuid|null, "entrada": time|null, "salida": time|null, "refrigerio_min": int, "es_descanso": bool}. null en jornadas calculadas antes de esta migración, hasta su próximo recálculo. No participa en ningún cálculo — es solo para auditar "¿con qué se midió esto?" sin reconstruir el historial de horarios_asignados a mano.';
+  '0446 — foto del horario con que fn_recalcular_jornada calculó ESTA jornada: {"fuente": "turnos"|"horarios_asignados", "horario_id": uuid|null, "entrada": time|null, "salida": time|null, "refrigerio_min": int, "es_descanso": bool}. null en jornadas calculadas antes de esta migración, hasta su próximo recálculo. No participa en ningún cálculo — es solo para auditar "¿con qué se midió esto?" sin reconstruir el historial de horarios_asignados a mano.';
 
 CREATE OR REPLACE FUNCTION public.fn_recalcular_jornada(p_persona_id uuid, p_fecha date)
  RETURNS void
@@ -81,8 +81,8 @@ declare
   v_horas_trabajadas numeric(6,2);
   v_estado estado_jornada;
   v_n_marcajes int;
-  v_fuente_horario text;        -- CAMBIO 0441: de dónde salió el horario de este día
-  v_horario_id uuid;             -- CAMBIO 0441: id del tramo de horarios_asignados, si aplica
+  v_fuente_horario text;        -- CAMBIO 0446: de dónde salió el horario de este día
+  v_horario_id uuid;             -- CAMBIO 0446: id del tramo de horarios_asignados, si aplica
 begin
   -- ── CANDADO DE PERIODO PAGADO ──────────────────────────────────────────────
   -- Un día que cae dentro de un periodo con estado 'pagado' NO se vuelve a
@@ -167,7 +167,7 @@ begin
   select hora_entrada, hora_salida, es_descanso
     into v_hora_entrada_prog, v_hora_salida_prog, v_es_descanso
   from turnos where persona_id = p_persona_id and fecha = p_fecha;
-  -- ⇩⇩⇩ CAMBIO 0441 ⇩⇩⇩ mismo `if/else` de siempre, reescrito de `if not
+  -- ⇩⇩⇩ CAMBIO 0446 ⇩⇩⇩ mismo `if/else` de siempre, reescrito de `if not
   -- found / elsif v_es_descanso` a `if found / else` para poder anotar
   -- v_fuente_horario en los dos subcasos de turno (con y sin descanso) sin
   -- repetir la asignación. El comportamiento no cambia: un turno con
@@ -198,7 +198,7 @@ begin
       end if;
     end if;
   end if;
-  -- ⇧⇧⇧ CAMBIO 0441 ⇧⇧⇧
+  -- ⇧⇧⇧ CAMBIO 0446 ⇧⇧⇧
 
   v_horas_trabajadas := null;
   if v_entrada_ts is not null and v_salida_final_ts is not null then
@@ -229,7 +229,7 @@ begin
     end if;
   end if;
 
-  -- tardanza, salida anticipada y tiempo adicional: fn_calcular_metricas_jornada (0440).
+  -- tardanza, salida anticipada y tiempo adicional: fn_calcular_metricas_jornada (0445).
   select m.minutos_tarde, m.minutos_salida_temprana, m.horas_extra_detectadas
     into v_minutos_tarde, v_minutos_temprano, v_horas_extra
   from fn_calcular_metricas_jornada(
@@ -260,7 +260,7 @@ begin
     p_persona_id, p_fecha, v_sede_id, v_entrada_ts, v_salida_final_ts,
     v_minutos_tarde, v_minutos_temprano, v_horas_trabajadas, v_horas_extra,
     v_estado, v_abierta_temporal,
-    -- CAMBIO 0441 — null si ni turno ni horario base cubrían este día (nada
+    -- CAMBIO 0446 — null si ni turno ni horario base cubrían este día (nada
     -- que fotografiar); si no, la foto de lo que de verdad se usó.
     case when v_fuente_horario is null then null else
       jsonb_build_object(
@@ -309,14 +309,14 @@ end;
 $function$;
 
 insert into migraciones_aplicadas (numero, nombre)
-values (441, 'cada_jornada_guarda_el_horario_con_que_se_midio')
+values (446, 'cada_jornada_guarda_el_horario_con_que_se_midio')
 on conflict (numero) do update set nombre = excluded.nombre, aplicada_at = now();
 
 notify pgrst, 'reload schema';
 
 -- ── Comprobación ─────────────────────────────────────────────────────────
 select
-  position('CAMBIO 0441' in pg_get_functiondef('fn_recalcular_jornada'::regproc)) > 0 as tiene_el_snapshot,
+  position('CAMBIO 0446' in pg_get_functiondef('fn_recalcular_jornada'::regproc)) > 0 as tiene_el_snapshot,
   exists (
     select 1 from information_schema.columns
     where table_name = 'jornadas' and column_name = 'horario_aplicado'

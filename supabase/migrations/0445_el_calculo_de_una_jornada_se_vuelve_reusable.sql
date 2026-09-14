@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0440 — El cálculo de una jornada se vuelve reusable
+-- 0445 — El cálculo de una jornada se vuelve reusable
 -- ----------------------------------------------------------------------------
 -- QUÉ PROMETE: extrae de fn_recalcular_jornada, tal cual, la parte que decide
 -- tardanza / salida anticipada / tiempo adicional a partir de un horario
@@ -8,7 +8,7 @@
 -- de tener la fórmula inline. NINGÚN NÚMERO CAMBIA: es exactamente el mismo
 -- cálculo, en dos sitios en vez de uno.
 --
--- PARA QUÉ: la corrección retroactiva de horario (0442,
+-- PARA QUÉ: la corrección retroactiva de horario (0447,
 -- fn_horario_retroactivo_preview) necesita simular "¿qué tardanza daría este
 -- día con OTRO horario, sin guardar nada?" — y este repositorio ya sabe lo que
 -- cuesta escribir la misma pregunta dos veces en dos sitios: la "cuarta regla"
@@ -72,8 +72,8 @@
 -- transacción revertida): una jornada con 20 min de tardanza bajo el horario
 -- sembrado se recalculó igual tras este refactor (fn_recalcular_jornada es
 -- idempotente: recalcular dos veces da el mismo número), y el
--- horario_aplicado (0441) quedó con la entrada correcta. Ver también la
--- cabecera de la 0442, que corre en la misma transacción de prueba la
+-- horario_aplicado (0446) quedó con la entrada correcta. Ver también la
+-- cabecera de la 0447, que corre en la misma transacción de prueba la
 -- equivalencia preview-vs-real. Docker estuvo caído al empezar esta sesión y
 -- se recuperó antes de terminarla — quedó auditado, no pendiente.
 --
@@ -150,7 +150,7 @@ end;
 $function$;
 
 comment on function fn_calcular_metricas_jornada(boolean, timestamptz, timestamptz, origen_marca, estado_revision, numeric, date, time, time, int) is
-  '0440 — minutos_tarde / minutos_salida_temprana / horas_extra_detectadas de UN día, dados sus hechos de marcaje ya resueltos y un horario programado candidato. Pura, sin leer ninguna tabla — la usan fn_recalcular_jornada (el horario REAL de ese día) y fn_horario_retroactivo_preview (0442, un horario candidato, para simular sin guardar). No cambia horas_trabajadas: ese número no depende del horario.';
+  '0445 — minutos_tarde / minutos_salida_temprana / horas_extra_detectadas de UN día, dados sus hechos de marcaje ya resueltos y un horario programado candidato. Pura, sin leer ninguna tabla — la usan fn_recalcular_jornada (el horario REAL de ese día) y fn_horario_retroactivo_preview (0447, un horario candidato, para simular sin guardar). No cambia horas_trabajadas: ese número no depende del horario.';
 
 -- ── fn_recalcular_jornada, ahora llamando a la fórmula de arriba ───────────
 CREATE OR REPLACE FUNCTION public.fn_recalcular_jornada(p_persona_id uuid, p_fecha date)
@@ -318,7 +318,7 @@ begin
     end if;
   end if;
 
-  -- ⇩⇩⇩ CAMBIO 0440 ⇩⇩⇩ tardanza, salida anticipada y tiempo adicional pasan a
+  -- ⇩⇩⇩ CAMBIO 0445 ⇩⇩⇩ tardanza, salida anticipada y tiempo adicional pasan a
   -- fn_calcular_metricas_jornada — misma fórmula, ahora reusable (ver cabecera
   -- de esta migración). Ni una tolerancia ni un redondeo cambia.
   select m.minutos_tarde, m.minutos_salida_temprana, m.horas_extra_detectadas
@@ -328,7 +328,7 @@ begin
     v_salida_final_origen, v_salida_final_revision, v_horas_trabajadas,
     p_fecha, v_hora_entrada_prog, v_hora_salida_prog, v_refri_prog
   ) m;
-  -- ⇧⇧⇧ CAMBIO 0440 ⇧⇧⇧
+  -- ⇧⇧⇧ CAMBIO 0445 ⇧⇧⇧
 
   if v_salida_final_ts is not null then
     if v_salida_final_origen = 'auto_cierre' and v_salida_final_revision = 'pendiente_revision' then
@@ -390,12 +390,12 @@ end;
 $function$;
 
 insert into migraciones_aplicadas (numero, nombre)
-values (440, 'el_calculo_de_una_jornada_se_vuelve_reusable')
+values (445, 'el_calculo_de_una_jornada_se_vuelve_reusable')
 on conflict (numero) do update set nombre = excluded.nombre, aplicada_at = now();
 
 notify pgrst, 'reload schema';
 
 -- ── Comprobación ─────────────────────────────────────────────────────────
 select
-  position('CAMBIO 0440' in pg_get_functiondef('fn_recalcular_jornada'::regproc)) > 0 as fn_recalcular_jornada_usa_la_nueva,
+  position('CAMBIO 0445' in pg_get_functiondef('fn_recalcular_jornada'::regproc)) > 0 as fn_recalcular_jornada_usa_la_nueva,
   (select count(*) from pg_proc where proname = 'fn_calcular_metricas_jornada') as una_sola_version_de_la_nueva;

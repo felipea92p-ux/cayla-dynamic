@@ -1,14 +1,14 @@
 -- ============================================================================
--- 0442 — Corregir un horario pasado es un camino aparte
+-- 0447 — Corregir un horario pasado es un camino aparte
 -- ----------------------------------------------------------------------------
 -- QUÉ PROMETE: dos funciones nuevas para cuando el cambio de horario de
--- verdad ocurrió hace días y recién se registra hoy — el caso que la 0439
+-- verdad ocurrió hace días y recién se registra hoy — el caso que la 0444
 -- deja de aceptar por el camino normal:
 --
 --   · fn_horario_retroactivo_preview — de solo lectura. Dado un horario
 --     candidato y una fecha de inicio pasada, dice EXACTAMENTE qué cambiaría,
 --     día por día, entre el cálculo actual y el que resultaría — sin guardar
---     nada. Usa fn_calcular_metricas_jornada (0440), la misma fórmula que usa
+--     nada. Usa fn_calcular_metricas_jornada (0445), la misma fórmula que usa
 --     el cálculo real, para no reimplementarla una segunda vez.
 --   · fn_corregir_horario_retroactivo — la que sí guarda. Exige motivo,
 --     aplica el mismo candado de periodo pagado que fn_set_horario_semanal
@@ -32,12 +32,12 @@
 --     con `left join jornadas`, no `from jornadas`.
 --   · Que horas_trabajadas NUNCA cambia entre "antes" y "después": no
 --     depende del horario (sale solo de entrada/salida real menos ausencias,
---     ver 0440), así que el preview la muestra igual en las dos columnas a
+--     ver 0445), así que el preview la muestra igual en las dos columnas a
 --     propósito — no es un error de la vista previa, es que de verdad no hay
 --     nada que simular ahí.
 --   · Que el origen/estado_revisión de la salida final de un día (para saber
 --     si el auto-cierre sigue "pendiente de revisión", que excluye salida
---     anticipada y tiempo adicional — ver 0440) se lee de `marcajes` con la
+--     anticipada y tiempo adicional — ver 0445) se lee de `marcajes` con la
 --     MISMA selección que usa el bucle de fn_recalcular_jornada: el último
 --     `salida_final` no anulado de ese día. Si ese criterio de selección
 --     cambia alguna vez en el bucle, este query tiene que cambiar con él —
@@ -45,7 +45,7 @@
 --     extraer el bucle entero de marcajes era un refactor mucho más grande
 --     que lo que esta migración necesita.
 --
--- POR QUÉ SE ELIGIÓ ASÍ: separar "cambiar el horario hacia adelante" (0439,
+-- POR QUÉ SE ELIGIÓ ASÍ: separar "cambiar el horario hacia adelante" (0444,
 -- nunca toca el pasado) de "corregir el pasado" (acá, aparte, auditada, con
 -- preview) es el mismo criterio que ya usa este repo para un campo sensible:
 -- una función guardián que valida y dice qué pasó, no un `UPDATE` directo con
@@ -54,10 +54,10 @@
 -- bastado: cuando el cambio de horario ocurrió DE VERDAD hace unos días,
 -- juzgar esos días con el horario viejo genera la misma clase de tardanza
 -- falsa, solo que al revés — por eso esta migración abre la puerta que la
--- 0439 cerró, pero por un pasillo con vista previa, motivo y auditoría.
+-- 0444 cerró, pero por un pasillo con vista previa, motivo y auditoría.
 --
--- QUÉ NO CAMBIA: fn_set_horario_semanal (0439), fn_recalcular_jornada (0441),
--- fn_calcular_metricas_jornada (0440) y fn_dia_con_expediente_formal (0437)
+-- QUÉ NO CAMBIA: fn_set_horario_semanal (0444), fn_recalcular_jornada (0446),
+-- fn_calcular_metricas_jornada (0445) y fn_dia_con_expediente_formal (0437)
 -- se usan tal cual, sin tocarlas.
 --
 -- CÓMO SE REVIERTE: `drop function fn_horario_retroactivo_preview(...)` y
@@ -77,7 +77,7 @@
 --   (c) una corrección legítima de punta a punta: una jornada con 20 min de
 --       tardanza bajo el horario viejo quedó en 0 tras corregir con un
 --       horario candidato que la habría hecho puntual, con
---       correcciones_auditoria +1 y horario_aplicado (0441) reflejando la
+--       correcciones_auditoria +1 y horario_aplicado (0446) reflejando la
 --       entrada nueva;
 --   (d) el preview, para el MISMO horario candidato y el mismo rango, dio
 --       EXACTAMENTE los mismos números (20 → 0) que la corrección real
@@ -141,7 +141,7 @@ begin
     raise exception 'Debe trabajar al menos un día a la semana.';
   end if;
 
-  -- Mismo candado de periodo pagado que fn_set_horario_semanal (0380/0439) y
+  -- Mismo candado de periodo pagado que fn_set_horario_semanal (0380/0444) y
   -- fn_corregir_horario_retroactivo (más abajo) — que el preview lo muestre
   -- ANTES de que alguien arme todo el formulario para nada.
   if exists (
@@ -171,7 +171,7 @@ begin
     d.dia::date,
     j.minutos_tarde, met.minutos_tarde,
     j.minutos_salida_temprana, met.minutos_salida_temprana,
-    j.horas_trabajadas, j.horas_trabajadas, -- invariante: no depende del horario (0440)
+    j.horas_trabajadas, j.horas_trabajadas, -- invariante: no depende del horario (0445)
     -- coalesce a 0: un día SIN jornada no tiene fila, así que j.horas_extra_detectadas
     -- sale null del left join — pero fn_calcular_metricas_jornada nunca devuelve
     -- null para este campo (siempre 0 cuando no hay nada que medir). Sin este
@@ -207,7 +207,7 @@ end;
 $function$;
 
 comment on function fn_horario_retroactivo_preview(uuid, jsonb, date) is
-  '0442 — simula, sin guardar nada, qué cambiaría para cada jornada entre p_vigente_desde y ayer si se aplicara p_horario. Antes de fn_corregir_horario_retroactivo.';
+  '0447 — simula, sin guardar nada, qué cambiaría para cada jornada entre p_vigente_desde y ayer si se aplicara p_horario. Antes de fn_corregir_horario_retroactivo.';
 
 -- Sin este grant, la base nace SIN ejecución para nadie más que postgres/
 -- service_role (0076: `alter default privileges revoke execute on functions
@@ -259,7 +259,7 @@ begin
       to_char(v_dia_bloqueado, 'DD/MM/YYYY');
   end if;
 
-  -- Mismo candado de periodo pagado que fn_set_horario_semanal (0380/0439).
+  -- Mismo candado de periodo pagado que fn_set_horario_semanal (0380/0444).
   if exists (
     select 1 from periodos_planilla pp
     where pp.fecha_fin >= p_vigente_desde
@@ -324,9 +324,12 @@ begin
     v_refri_min, v_refri_max, v_dias, p_horario
   );
 
+  -- 'horarios_asignados' — mismo campo_modificado que usa fn_set_horario_semanal
+  -- desde la 0440, para que las dos puertas queden bajo la misma etiqueta en
+  -- el historial de correcciones (Correcciones ya sabe describir ese valor).
   insert into correcciones_auditoria (persona_id, campo_modificado, valor_anterior, valor_nuevo, corregido_por, motivo)
   values (
-    p_persona_id, 'horarios_asignados.horario_por_dia',
+    p_persona_id, 'horarios_asignados',
     coalesce(v_horario_anterior::text, '(sin horario previo en ese rango)'),
     p_horario::text, v_editor, trim(p_motivo)
   );
@@ -340,14 +343,14 @@ end;
 $function$;
 
 comment on function fn_corregir_horario_retroactivo(uuid, jsonb, date, text) is
-  '0442 — corrige el horario de una persona con vigencia en el PASADO, cuando el cambio real ocurrió hace días y recién se registra hoy. A diferencia de fn_set_horario_semanal (0439, que ya no acepta fechas pasadas), exige motivo, bloquea si algún día del rango tiene un expediente disciplinario firmado/entregado, y deja rastro en correcciones_auditoria.';
+  '0447 — corrige el horario de una persona con vigencia en el PASADO, cuando el cambio real ocurrió hace días y recién se registra hoy. A diferencia de fn_set_horario_semanal (0444, que ya no acepta fechas pasadas), exige motivo, bloquea si algún día del rango tiene un expediente disciplinario firmado/entregado, y deja rastro en correcciones_auditoria.';
 
 -- Mismo motivo que el grant de arriba: esta función la llama el navegador
 -- por RPC directo.
 grant execute on function fn_corregir_horario_retroactivo(uuid, jsonb, date, text) to authenticated;
 
 insert into migraciones_aplicadas (numero, nombre)
-values (442, 'corregir_un_horario_pasado_es_un_camino_aparte')
+values (447, 'corregir_un_horario_pasado_es_un_camino_aparte')
 on conflict (numero) do update set nombre = excluded.nombre, aplicada_at = now();
 
 notify pgrst, 'reload schema';

@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0439 — Un horario normal no puede pisar el pasado
+-- 0444 — Un horario normal no puede pisar el pasado
 -- ----------------------------------------------------------------------------
 -- QUÉ PROMETE: fn_set_horario_semanal (el camino normal de /admin/horarios,
 -- botón "Cambiar") deja de aceptar un `vigente_desde` anterior a HOY. Cambiar
@@ -17,11 +17,24 @@
 -- El campo de fecha en la pantalla (admin/horarios/page.tsx) tampoco tenía un
 -- `min`: cualquier fecha pasada era seleccionable.
 --
+-- CHOCA CON OTRA MIGRACIÓN QUE SE FUSIONÓ A MAIN MIENTRAS ESTA SE ESCRIBÍA —
+-- la 0440 ("El horario también se cambia por una puerta", 2026-09-14, otra
+-- sesión) le agregó a ESTA MISMA función un cuarto parámetro (`p_motivo`,
+-- obligatorio), rastro en `correcciones_auditoria`, y un trigger
+-- (`trg_horarios_solo_por_rpc`) que bloquea escribir `horarios_asignados`
+-- por fuera de esta función. Este archivo YA NO parte del cuerpo de la 0380
+-- (3 argumentos): parte del cuerpo que deja la 0440 (4 argumentos), copiado
+-- tal cual de ese archivo — confirmado que es la única versión con
+-- `./scripts/donde-vive.sh fn_set_horario_semanal` tras fusionar `main`. Un
+-- `create or replace` con la firma vieja de 3 argumentos aquí habría creado
+-- una SEGUNDA función sobrecargada sin motivo y sin auditoría — el mismo
+-- accidente de la 0297/0299 que este repo ya sufrió una vez.
+--
 -- QUÉ ASUME:
 --   · Que corregir el pasado de verdad —cuando el cambio de horario ocurrió
 --     hace días y recién se registra hoy— sigue siendo necesario, y por eso
 --     esta migración NO cierra esa puerta: la abre aparte, en
---     fn_corregir_horario_retroactivo (0442), auditada, con vista previa
+--     fn_corregir_horario_retroactivo (0447), auditada, con vista previa
 --     exacta y bloqueada si el día ya tiene un expediente disciplinario
 --     firmado — bloquear sin más habría movido el problema, no cerrado el
 --     agujero (decisión tomada con Felipe el 2026-09-14).
@@ -33,25 +46,24 @@
 -- mismo criterio que ya usa este repo en todos lados: la pantalla puede
 -- dibujar mal o quedarse desactualizada, la base no debe confiar en eso.
 --
--- QUÉ NO CAMBIA: ni un carácter del resto del cuerpo — el candado de periodo
--- pagado, el advisory lock de la 0380, la validación del jsonb, el recorte del
--- tramo anterior, el insert del tramo nuevo y el bucle de recálculo siguen
--- exactamente iguales. El único bloque nuevo es el marcado «CAMBIO 0439»,
--- insertado justo después de validar el permiso y antes del advisory lock —no
--- necesita el lock: es una comparación de fechas, no toca ninguna tabla.
+-- QUÉ NO CAMBIA: el motivo obligatorio, el advisory lock (0380), el rastro en
+-- correcciones_auditoria, el candado de periodo pagado, la validación del
+-- jsonb, el recorte del tramo anterior, el insert del tramo nuevo, el bucle
+-- de recálculo, y el trigger `trg_horarios_solo_por_rpc` — todo eso es de la
+-- 0440 y sigue exactamente igual. El único bloque nuevo es el marcado
+-- «CAMBIO 0444», insertado justo después de validar el motivo y antes del
+-- advisory lock — no necesita el lock: es una comparación de fechas, no toca
+-- ninguna tabla.
 --
 -- MD5 DE PARTIDA — NO SE PUDO MEDIR EN ESTA SESIÓN. El Postgres local de esta
--- Mac no está disponible (Docker Desktop no respondía al escribir esto,
--- 2026-09-14), así que no hay ni siquiera un md5 local que declarar. El cuerpo
--- se copió tal cual del archivo `0380_fn_set_horario_semanal_gana_el_mismo_
--- candado_que_objetivos.sql`, confirmado como la única versión vigente con
--- `./scripts/donde-vive.sh fn_set_horario_semanal` el 2026-09-14.
---
--- COMO MANDA CLAUDE.md: antes de pegar esto, correr contra PRODUCCIÓN (no
+-- Mac no llegaba a la 0440 al escribir esto. El cuerpo se copió tal cual del
+-- archivo `0440_el_horario_tambien_se_cambia_por_una_puerta.sql` de `main`.
+-- Como manda CLAUDE.md: antes de pegar esto, correr contra PRODUCCIÓN (no
 -- contra esta Mac) la consulta de md5 de `fn_set_horario_semanal` — tal cual
 -- como abajo — y confirmar que el resultado coincide con lo que declare
 -- `donde-vive.sh` en el momento de pegar, no en el momento en que esto se
--- escribió:
+-- escribió. Con la 0440 recién fusionada, el md5 de PARTIDA que corresponde
+-- pedir es el que deja ESA migración en producción, no el de la 0380:
 --
 --   select md5(p.prosrc) as tal_cual,
 --          md5(array_to_string(array(
@@ -62,12 +74,14 @@
 --     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
 --    where n.nspname = 'public' and p.proname = 'fn_set_horario_semanal';
 --
--- CÓMO SE REVIERTE: quitar el bloque «CAMBIO 0439» y volver al cuerpo tal
--- cual de la 0380 — pero no se debería: eso reabre el agujero que costó la
+-- CÓMO SE REVIERTE: quitar el bloque «CAMBIO 0444» y volver al cuerpo tal
+-- cual de la 0440 — pero no se debería: eso reabre el agujero que costó la
 -- tardanza falsa del 2026-09-13.
 -- ============================================================================
 
-CREATE OR REPLACE FUNCTION public.fn_set_horario_semanal(p_persona_id uuid, p_vigente_desde date, p_horario jsonb)
+CREATE OR REPLACE FUNCTION public.fn_set_horario_semanal(
+  p_persona_id uuid, p_vigente_desde date, p_horario jsonb, p_motivo text
+)
  RETURNS void
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -78,23 +92,26 @@ declare
   k text; v jsonb;
   v_dias int[]; v_min_entrada time; v_max_salida time;
   v_refri_min int; v_refri_max int;
+  v_anterior record;
+  v_valor_anterior text; v_valor_nuevo text;
 begin
-  v_editor := fn_verificar_corrector(p_persona_id); -- valida permiso o lanza excepción
+  v_editor := fn_verificar_corrector(p_persona_id); -- valida permiso o lanza excepción; v_editor = quien edita
 
-  -- ⇩⇩⇩ CAMBIO 0439 ⇩⇩⇩ UN HORARIO NORMAL NUNCA PISA EL PASADO.
+  if p_motivo is null or length(btrim(p_motivo)) < 3 then
+    raise exception 'Escribe el motivo del cambio de horario (mínimo 3 caracteres).';
+  end if;
+
+  -- ⇩⇩⇩ CAMBIO 0444 ⇩⇩⇩ UN HORARIO NORMAL NUNCA PISA EL PASADO.
   -- El 2026-09-13 esto no existía: una fecha pasada aquí recalculaba tardanzas
   -- de días ya correctamente juzgados con el horario que de verdad regía
   -- entonces. Corregir el pasado de verdad sigue siendo posible —
-  -- fn_corregir_horario_retroactivo (0442), aparte, auditada, con preview.
+  -- fn_corregir_horario_retroactivo (0447), aparte, auditada, con preview.
   if p_vigente_desde < fn_hoy_lima() then
     raise exception 'No se puede aplicar un horario nuevo a una fecha que ya pasó (%): eso recalcularía tardanzas de días que ya deberían estar juzgados con el horario que de verdad regía entonces. Si el cambio de horario ocurrió de verdad hace unos días y recién se registra hoy, usa la corrección retroactiva de horario — muestra antes qué jornadas cambiarían y deja el motivo anotado.',
       to_char(p_vigente_desde, 'DD/MM/YYYY');
   end if;
-  -- ⇧⇧⇧ CAMBIO 0439 ⇧⇧⇧
+  -- ⇧⇧⇧ CAMBIO 0444 ⇧⇧⇧
 
-  -- CAMBIO 0380 — mismo candado que la 0361 le dio a Objetivos: serializa
-  -- dos llamadas casi simultáneas para la MISMA persona, en vez de dejarlas
-  -- chocar contra horarios_sin_solape con un mensaje que confunde.
   perform pg_advisory_xact_lock(hashtext('horario_semanal:' || p_persona_id::text));
 
   if exists (
@@ -142,6 +159,21 @@ begin
     into v_dias, v_min_entrada, v_max_salida, v_refri_min, v_refri_max
   from jsonb_each(p_horario) as t(k, v);
 
+  -- Estado anterior, para el rastro — capturado ANTES de tocar la tabla (0440).
+  select vigente_desde, horario_por_dia, dias_laborables, hora_entrada, hora_salida
+    into v_anterior
+    from horarios_asignados
+   where persona_id = p_persona_id and vigente_hasta is null;
+
+  v_valor_anterior := case
+    when v_anterior is null then 'sin horario previo'
+    else 'vigente desde ' || v_anterior.vigente_desde::text || ': ' ||
+         coalesce(v_anterior.horario_por_dia::text,
+                   'días ' || v_anterior.dias_laborables::text || ' ' ||
+                   v_anterior.hora_entrada::text || '–' || v_anterior.hora_salida::text)
+  end;
+  v_valor_nuevo := 'vigente desde ' || p_vigente_desde::text || ': ' || p_horario::text;
+
   -- reemplazar tramos que empiezan en/después de la fecha, cerrar el anterior
   delete from horarios_asignados where persona_id = p_persona_id and vigente_desde >= p_vigente_desde;
 
@@ -165,15 +197,33 @@ begin
   for r in select fecha from jornadas where persona_id = p_persona_id and fecha >= p_vigente_desde loop
     perform fn_recalcular_jornada(p_persona_id, r.fecha);
   end loop;
+
+  -- Rastro obligatorio (0440): quién, cuándo, qué regía, qué rige y por qué.
+  insert into correcciones_auditoria
+    (persona_id, campo_modificado, valor_anterior, valor_nuevo, motivo, corregido_por)
+  values (p_persona_id, 'horarios_asignados', v_valor_anterior, v_valor_nuevo, btrim(p_motivo), v_editor);
 end;
 $function$;
 
+comment on function fn_set_horario_semanal(uuid, date, jsonb, text) is
+  'Única puerta de escritura de horarios_asignados desde la 0184. Exige motivo '
+  '(mínimo 3 caracteres) y deja rastro en correcciones_auditoria — quién, cuándo, '
+  'qué regía y qué rige ahora (0440). Desde la 0444, rechaza una fecha pasada — '
+  'para eso está fn_corregir_horario_retroactivo (0447).';
+
+-- Los grants no cambian: la firma (uuid, date, jsonb, text) es la misma que
+-- dejó la 0440, así que sus `revoke`/`grant` para esta función siguen en pie.
+
 insert into migraciones_aplicadas (numero, nombre)
-values (439, 'un_horario_normal_no_puede_pisar_el_pasado')
+values (444, 'un_horario_normal_no_puede_pisar_el_pasado')
 on conflict (numero) do update set nombre = excluded.nombre, aplicada_at = now();
 
 notify pgrst, 'reload schema';
 
 -- ── Comprobación ─────────────────────────────────────────────────────────
 select
-  position('CAMBIO 0439' in pg_get_functiondef('fn_set_horario_semanal'::regproc)) > 0 as tiene_el_candado;
+  position('CAMBIO 0444' in pg_get_functiondef('fn_set_horario_semanal'::regproc)) > 0 as tiene_el_candado,
+  (select count(*) from pg_proc where proname = 'fn_set_horario_semanal') as una_sola_version,
+  pg_get_function_identity_arguments(
+    (select oid from pg_proc where proname = 'fn_set_horario_semanal')
+  ) as firma_vigente;
