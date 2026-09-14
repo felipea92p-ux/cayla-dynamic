@@ -1673,61 +1673,83 @@ export default function EquipoPage() {
         ) : (
           <Tabla alturaMaxima="70vh">
             <TablaEncabezado>
-              <Th>Nombre</Th>
-              <Th>Sede</Th>
-              <Th>Rol</Th>
-              <Th>Área</Th>
-              {puedeSalarios && <Th>Salario</Th>}
-              <Th>Correo</Th>
-              <Th>Estado</Th>
-              <Th>Acciones</Th>
+              <Th className="py-1.5">Nombre</Th>
+              <Th className="py-1.5">Sede</Th>
+              <Th className="py-1.5">Rol</Th>
+              <Th className="py-1.5">Área</Th>
+              {puedeSalarios && <Th className="py-1.5">Salario</Th>}
+              <Th className="py-1.5">Correo</Th>
+              <Th className="py-1.5">Estado</Th>
+              {/* Sticky a la derecha: con ocho columnas la tabla desborda en
+                  laptop antes de llegar a "Acciones", y sin fijarla el botón
+                  de "Registrar salida" quedaba a un scroll horizontal de
+                  distancia. bg-sand (sólido, no /70) para que lo que pasa por
+                  debajo al hacer scroll no se transparente encima. */}
+              <Th className="sticky right-0 z-[6] bg-sand py-1.5 shadow-[-6px_0_8px_-6px_rgba(0,0,0,0.12)]">Acciones</Th>
             </TablaEncabezado>
             <tbody>
-              {visibles.map((p) => (
-                <Fila key={p.id} className={p.estado === "inactivo" ? "text-taupe" : ""}>
-                  <td className="px-4 py-2">
+              {visibles.map((p, i) => {
+                // Mismo criterio de cebra que ya aplica <Fila> por CSS
+                // (even:bg-hueso/50), pero calculado a mano: la celda de
+                // Acciones es "sticky" y necesita SU PROPIO fondo opaco —uno
+                // transparente dejaría ver las celdas de atrás deslizándose
+                // por debajo al hacer scroll horizontal— así que no puede
+                // heredar el fondo de la fila como hacen las demás celdas.
+                const fondoCebra = i % 2 === 1 ? "bg-hueso/50" : "bg-papel";
+                return (
+                <Fila key={p.id} className={`group ${p.estado === "inactivo" ? "text-taupe" : ""}`}>
+                  <td className="px-4 py-1.5">
                     <button onClick={() => router.push(`/admin/personas/${p.id}`)} className="text-left font-medium text-tinta hover:underline" title="Ver perfil completo">{p.nombres} {p.apellidos}</button>
                     {p.con_hijos && (
                       <span title="Asignación familiar activa" className="ml-1.5 cursor-default text-xs">👶</span>
                     )}
-                    {puedeSalarios && ingresos.get(p.id)?.fecha_ingreso && (
-                      <div className="text-xs text-taupe">Ingresó: {fmtFechaDMA(ingresos.get(p.id)!.fecha_ingreso!)}</div>
-                    )}
-                    {/* En ámbar cuando su contrato vence este mes o antes: es el
-                        momento en que sale del tablero de Documentación y, si es
-                        que no se renueva, cuando hay que registrar su cese. */}
-                    {puedeSalarios && finesContrato.has(p.id) && (
-                      <div className={`text-xs ${p.estado === "activo" && saleDelTablero(finesContrato.get(p.id)) ? "text-ambar" : "text-taupe"}`}>
-                        Contrato hasta: {fmtFechaDMA(finesContrato.get(p.id)!)}
-                      </div>
-                    )}
-                    {/* Cuándo y por qué se fue (0179). Va acá y no en columnas
-                        propias para no ensanchar una tabla que ya tiene ocho, y
-                        porque solo aplica a quien está inactivo: al equipo activo
-                        no le agrega una celda vacía en cada fila. Cierra la
-                        secuencia que ya cuentan las dos líneas de arriba:
-                        entró · hasta cuándo tenía contrato · cuándo se fue.
-                        El motivo llega null si quien mira no es admin ni líder DO
-                        —la RPC no se lo entrega— y entonces solo se ve la fecha. */}
-                    {p.estado === "inactivo" && p.fecha_cese && (
-                      <div className="text-xs text-taupe">
-                        Se fue: {fmtFechaDMA(p.fecha_cese)}
-                        {p.motivo_cese && (
-                          // El texto sale del catálogo también cuando es
-                          // `por_revisar`: el desplegable de cese ya lo nombra
-                          // así, y dos formas de decir lo mismo en la misma
-                          // pantalla se contradicen a la primera. Lo único que
-                          // cambia es el ámbar, que dice «esto falta».
-                          <> · {p.motivo_cese === "por_revisar"
-                            ? <span className="text-ambar" title="Nadie registró por qué se fue. Edita su ficha y elige el motivo real.">
-                                {etiquetaDeCatalogo(p.motivo_cese, MOTIVO_CESE_LABELS)}
-                              </span>
-                            : etiquetaDeCatalogo(p.motivo_cese, MOTIVO_CESE_LABELS)}</>
-                        )}
-                      </div>
-                    )}
+                    {/* Ingreso, contrato y salida solo se leen al pasar el
+                        mouse (o al llegar con teclado, group-focus-within):
+                        con ~30 personas activas, tenerlas siempre visibles
+                        era la altura de fila que sobraba. El dato sigue ahí
+                        —un clic en el nombre lo muestra igual en el perfil—,
+                        así que nadie lo pierde, solo deja de ocupar espacio
+                        por defecto. */}
+                    <div className="hidden group-hover:block group-focus-within:block">
+                      {puedeSalarios && ingresos.get(p.id)?.fecha_ingreso && (
+                        <div className="text-xs text-taupe">Ingresó: {fmtFechaDMA(ingresos.get(p.id)!.fecha_ingreso!)}</div>
+                      )}
+                      {/* En ámbar cuando su contrato vence este mes o antes: es el
+                          momento en que sale del tablero de Documentación y, si es
+                          que no se renueva, cuando hay que registrar su cese. */}
+                      {puedeSalarios && finesContrato.has(p.id) && (
+                        <div className={`text-xs ${p.estado === "activo" && saleDelTablero(finesContrato.get(p.id)) ? "text-ambar" : "text-taupe"}`}>
+                          Contrato hasta: {fmtFechaDMA(finesContrato.get(p.id)!)}
+                        </div>
+                      )}
+                      {/* Cuándo y por qué se fue (0179). Va acá y no en columnas
+                          propias para no ensanchar una tabla que ya tiene ocho, y
+                          porque solo aplica a quien está inactivo: al equipo activo
+                          no le agrega una celda vacía en cada fila. Cierra la
+                          secuencia que ya cuentan las dos líneas de arriba:
+                          entró · hasta cuándo tenía contrato · cuándo se fue.
+                          El motivo llega null si quien mira no es admin ni líder DO
+                          —la RPC no se lo entrega— y entonces solo se ve la fecha. */}
+                      {p.estado === "inactivo" && p.fecha_cese && (
+                        <div className="text-xs text-taupe">
+                          Se fue: {fmtFechaDMA(p.fecha_cese)}
+                          {p.motivo_cese && (
+                            // El texto sale del catálogo también cuando es
+                            // `por_revisar`: el desplegable de cese ya lo nombra
+                            // así, y dos formas de decir lo mismo en la misma
+                            // pantalla se contradicen a la primera. Lo único que
+                            // cambia es el ámbar, que dice «esto falta».
+                            <> · {p.motivo_cese === "por_revisar"
+                              ? <span className="text-ambar" title="Nadie registró por qué se fue. Edita su ficha y elige el motivo real.">
+                                  {etiquetaDeCatalogo(p.motivo_cese, MOTIVO_CESE_LABELS)}
+                                </span>
+                              : etiquetaDeCatalogo(p.motivo_cese, MOTIVO_CESE_LABELS)}</>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </td>
-                  <td className="px-4 py-2">{codigoSede(p.sede_base_id)}</td>
+                  <td className="px-4 py-1.5">{codigoSede(p.sede_base_id)}</td>
                   {/* El CARGO manda sobre la etiqueta del rol (0182). El rol
                       es un permiso —qué pantallas abre— y usarlo como título
                       hacía que tres locadores figuraran como «Líder de equipo
@@ -1736,12 +1758,12 @@ export default function EquipoPage() {
                       locación de servicios, y el expediente lo armaba esta
                       misma celda. Sin cargo escrito, se muestra el rol como
                       siempre. */}
-                  <td className="px-4 py-2">
+                  <td className="px-4 py-1.5">
                     {p.cargo !== null && p.cargo !== ""
                       ? <span className="whitespace-nowrap">{p.cargo}</span>
                       : (ROLES_OPCIONES.find((r) => r.valor === p.rol)?.label ?? p.rol)}
                   </td>
-                  <td className="px-4 py-2">
+                  <td className="px-4 py-1.5">
                     {esOperativaEn(areas, p.funcion)
                       ? <span className="text-taupe">{areaCorto(areas, p.funcion)}</span>
                       : (
@@ -1759,16 +1781,23 @@ export default function EquipoPage() {
                     if (salariosEstado !== "ok") {
                       // sin datos confiables no se ofrece Asignar/Editar (evita pisar salarios reales)
                       return (
-                        <td className="px-4 py-2 text-xs text-taupe">
+                        <td className="px-4 py-1.5 text-xs text-taupe">
                           {salariosEstado === "cargando" ? "Cargando…" : "No disponible"}
                         </td>
                       );
                     }
                     const sal = salarios[p.id];
                     return (
-                      <td className="px-4 py-2">
+                      <td className="px-4 py-1.5">
                         {sal ? (
-                          <span className="whitespace-nowrap">{RANGO_LABEL[sal.rango] ?? sal.rango} · {formatSoles(sal.salario)}</span>
+                          // Monto en negrita, rango en texto secundario — antes
+                          // los dos pesaban igual ("Colibrí · S/ 1,130.00") y el
+                          // dato que de verdad se busca en esta columna (cuánto
+                          // gana) no destacaba sobre el que solo da contexto.
+                          <div className="whitespace-nowrap">
+                            <span className="font-medium text-tinta">{formatSoles(sal.salario)}</span>
+                            <span className="ml-1.5 text-xs text-taupe">{RANGO_LABEL[sal.rango] ?? sal.rango}</span>
+                          </div>
                         ) : (
                           // text-taupe a plena opacidad (no /60): esta celda es
                           // el dato por el que se abre la columna Salario — que
@@ -1784,11 +1813,11 @@ export default function EquipoPage() {
                       </td>
                     );
                   })()}
-                  <td className="px-4 py-2">{p.email ?? <span className="text-taupe">—</span>}</td>
-                  <td className="px-4 py-2">
+                  <td className="px-4 py-1.5">{p.email ?? <span className="text-taupe">—</span>}</td>
+                  <td className="px-4 py-1.5">
                     <Insignia atenuada={p.estado !== "activo"}>{p.estado}</Insignia>
                   </td>
-                  <td className="px-4 py-2">
+                  <td className={`sticky right-0 z-[5] ${fondoCebra} px-4 py-1.5 shadow-[-6px_0_8px_-6px_rgba(0,0,0,0.12)] group-hover:bg-crema/60`}>
                     <div className="flex flex-wrap gap-2">
                       <Boton variante="secundario" tamano="sm" onClick={() => empezarEdicion(p)}>Editar</Boton>
                       {/* Solo a quien está activa: desde la 0364 el servidor
@@ -1809,7 +1838,7 @@ export default function EquipoPage() {
                     </div>
                   </td>
                 </Fila>
-              ))}
+              );})}
             </tbody>
           </Tabla>
         )}
