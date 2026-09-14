@@ -14,7 +14,7 @@ import { Campo, CampoSelect } from "@/components/ui/campo";
 import { Insignia } from "@/components/ui/insignia";
 import { Modal } from "@/components/ui/modal";
 import { hoyLima, puedeOperarEquipo, puedeVerTodasLasSedes } from "@cayla-dynamic/shared";
-import { esperadoDelDia, horarioVigente, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
+import { esperadoDelDia, esTurnoEspejoViejo, horarioVigente, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
 import { cicloVigente, type DiaTrabajado } from "@/lib/admin/ciclo-sobretiempo";
 
 // ── Fechas (todo en ISO yyyy-mm-dd, semana de lunes a domingo) ──────────────
@@ -217,8 +217,9 @@ const colorDePct = (pct: number) => (pct >= 90 ? "var(--color-verde)" : pct >= 6
 // Un turno del día PISA el horario base (para tardanza y cobertura). Si un turno
 // quedó desactualizado respecto al horario (ej. era copia de un horario viejo y
 // el horario cambió), sigue mandando en silencio. Este panel los saca a la luz
-// —de hoy en adelante— para que la encargada los revise: los que sean excepción
-// real, se dejan; los que sean "espejos viejos", se ajustan en la Vista Día.
+// —desde que empezó el periodo de planilla abierto— para que la encargada los
+// revise: los que sean excepción real, se dejan; los que sean "espejos viejos",
+// se ajustan en la Vista Día.
 // Solo lectura: no toca nada.
 // tE/tS = las horas REALES del turno (null = ese turno es descanso). Se guardan
 // para poder promover el turno a horario base ("Hacer permanente") sin re-consultar.
@@ -354,7 +355,17 @@ function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso
   const cargar = useCallback(async () => {
     if (!sedeSel) return;
     setDivs(null); setError(false);
+    // El caso de Diana (set-2026): un espejo viejo con fecha PASADA nunca lo
+    // veía este panel porque el piso era "hoy". El piso correcto es el inicio
+    // del periodo de planilla abierto — es informativo, no un candado, así
+    // que no hace falta mirar el grupo de pago (0327/0380), solo el periodo
+    // entero. Si no hay ninguno abierto (caso raro/borde), se cae a "hoy"
+    // igual que antes, para no dejar la pantalla sin piso.
     const hoy = hoyLima();
+    const { data: periodo } = await supabase.from("periodos_planilla")
+      .select("fecha_ini, fecha_fin").eq("estado", "abierto")
+      .order("fecha_ini", { ascending: true }).limit(1).maybeSingle();
+    const desde = periodo?.fecha_ini ?? hoy;
     // Mismo criterio del dashboard (7afe8e5): un practicante también tiene
     // turno y horario asignados, y esta pantalla solo compara uno contra otro.
     const { data: personas, error: eP } = await supabase.from("personas")
@@ -366,7 +377,7 @@ function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso
     const nombre = new Map((personas ?? []).map((p: any) => [p.id, `${p.nombres} ${p.apellidos}`]));
     if (ids.length === 0) { setDivs([]); return; }
     const [{ data: turnos, error: eT }, { data: horarios, error: eH }] = await Promise.all([
-      supabase.from("turnos").select("persona_id, fecha, hora_entrada, hora_salida, es_descanso").in("persona_id", ids).gte("fecha", hoy).order("fecha"),
+      supabase.from("turnos").select("persona_id, fecha, hora_entrada, hora_salida, es_descanso").in("persona_id", ids).gte("fecha", desde).order("fecha"),
       supabase.from("horarios_asignados").select("persona_id, hora_entrada, hora_salida, dias_laborables, horario_por_dia, almuerzo_min_minutos, vigente_desde, vigente_hasta").in("persona_id", ids),
     ]);
     if (eT || eH) { setError(true); return; }
@@ -388,11 +399,11 @@ function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso
       // casi seguro es un "espejo viejo": era copia del horario de su momento y quedó
       // atrás cuando el horario cambió. Si no coincide con ninguno, alguien lo escribió
       // a propósito (excepción real) — por eso NO se limpian en automático.
-      const espejo = (tramos ?? []).some((x) => {
-        if (x === tramo) return false;
-        const h = esperadoDelDia(t.fecha, null, x);
-        return tE === null ? h.entrada === null : h.entrada === tE && h.salida === tS;
-      });
+      const espejo = esTurnoEspejoViejo(
+        t.fecha,
+        { hora_entrada: t.hora_entrada, hora_salida: t.hora_salida, es_descanso: t.es_descanso },
+        tramos ?? []
+      );
       const fila = { fecha: t.fecha, personaId: t.persona_id, persona: nombre.get(t.persona_id) ?? "?", espejo, tE, tS };
       if (!base) {
         res.push({ ...fila, turnoTxt: rangoTxt(tE, tS), baseTxt: "sin horario base ese día" });
@@ -479,7 +490,7 @@ function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso
   if (divs.length === 0) {
     return (
       <div className="mb-4 flex max-w-2xl items-center gap-2 rounded-lg border border-verde/25 bg-verde/[0.06] px-4 py-2.5 text-sm text-verde">
-        <span>✓</span> Todos los turnos de hoy en adelante coinciden con el horario base.
+        <span>✓</span> Todos los turnos desde que empezó el periodo de planilla abierto coinciden con el horario base.
       </div>
     );
   }

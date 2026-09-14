@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { ROLES_DO, TIPOS_MARCA, TIPO_MARCA_LABELS, TZ_LIMA, anioLima, fechaLima, hoyLima, rangoDelDiaLima, puedeOperarEquipo, type TipoMarca } from "@cayla-dynamic/shared";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
-import { esperadoDelDia, type Esperado, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
+import { esperadoDelDia, esTurnoEspejoViejo, type Esperado, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { useToast } from "@/components/toast";
 import { Boton } from "@/components/ui/boton";
@@ -325,6 +325,17 @@ export default function CorreccionesPage() {
   // Contra qué hora se mide la tardanza ese día y de dónde sale (turno del día vs
   // horario base) — para que "N min tarde" nunca sea un número sin contexto.
   const [esperado, setEsperado] = useState<Esperado | null>(null);
+  // TODOS los tramos de horario de la persona (no solo el vigente) — para
+  // detectar un turno "espejo viejo" (caso Diana, set-2026): un turno puntual
+  // que coincide con un horario que esta persona ya no tiene, y que por eso
+  // sigue mandando en silencio sobre una tardanza real. Se pide solo al
+  // cambiar de persona, no en cada fecha: no cambia mientras se navega el
+  // calendario de la misma persona.
+  const [tramosHistoricos, setTramosHistoricos] = useState<HorarioTramo[]>([]);
+  // El turno puntual crudo del día (no solo lo que `esperadoDelDia` ya
+  // resolvió) — `esTurnoEspejoViejo` necesita compararlo tramo por tramo, no
+  // el resultado final.
+  const [turnoDelDia, setTurnoDelDia] = useState<TurnoDia | null>(null);
   // Levantamiento de tardanza de ese día (perdón por fuerza mayor): si existe, la
   // tardanza se muestra tachada y no cuenta. La hora real NO se toca.
   const [levTardanza, setLevTardanza] = useState<{ motivo: string; observacion: string | null } | null>(null);
@@ -493,6 +504,7 @@ export default function CorreccionesPage() {
     // Falla suave: si la consulta no llega, no se inventa un sello que no sabemos si existe.
     setDiaIncoherente(incoh === true);
     setJornada((jor as Jornada) ?? null);
+    setTurnoDelDia((turno as TurnoDia) ?? null);
     setEsperado(esperadoDelDia(fecha, (turno as TurnoDia) ?? null, (horario as HorarioTramo) ?? null));
     setLevTardanza((levT as { motivo: string; observacion: string | null } | null) ?? null);
     // Falla suave: si no llega, se deja la lista que ya había en vez de vaciarla
@@ -504,6 +516,27 @@ export default function CorreccionesPage() {
     setCargado(true);
     setCargando(false);
   }, [personaId, fecha, avisar]);
+
+  // Historial completo de horarios de la persona seleccionada, SIN filtrar por
+  // `vigente_hasta` — a diferencia de la consulta de `cargarDia`, que solo trae
+  // el tramo vigente de esa fecha. Solo depende de `personaId`: cambiar de
+  // fecha no debe repetir esta consulta.
+  useEffect(() => {
+    // El estado se pone SIEMPRE desde un `.then` (nunca en el cuerpo del
+    // efecto): sin persona seleccionada no hay consulta que hacer, pero el
+    // reset a `[]` tiene que llegar por la misma vía asíncrona que el dato
+    // real, o el lint de la casa lo marca como setState síncrono en un efecto.
+    const supabase = createAdminSupabaseClient();
+    const tramos: Promise<HorarioTramo[]> = personaId
+      ? Promise.resolve(
+          supabase.from("horarios_asignados")
+            .select("persona_id, vigente_desde, vigente_hasta, hora_entrada, hora_salida, dias_laborables, horario_por_dia, almuerzo_min_minutos")
+            .eq("persona_id", personaId)
+            .then(({ data }) => (data as HorarioTramo[]) ?? [])
+        )
+      : Promise.resolve([]);
+    tramos.then(setTramosHistoricos);
+  }, [personaId]);
 
   // Deep-link: al llegar con ?persona=<id>&fecha=<YYYY-MM-DD> (desde un incidente del
   // dashboard), precarga esa persona y fecha y abre el día listo para corregir.
@@ -625,6 +658,14 @@ export default function CorreccionesPage() {
   }
 
   const personaSel = useMemo(() => personas.find((p) => p.id === personaId), [personas, personaId]);
+  // ¿El turno puntual de este día es un espejo de un horario que esta persona
+  // YA NO TIENE vigente? (caso Diana, set-2026). Solo tiene sentido preguntarlo
+  // cuando el turno es lo que de verdad manda ese día (`esperado.origen ===
+  // "turno"`) — si no hay turno puntual, no hay nada que comparar.
+  const esEspejoViejo = useMemo(() => {
+    if (esperado?.origen !== "turno" || !turnoDelDia) return false;
+    return esTurnoEspejoViejo(fecha, turnoDelDia, tramosHistoricos);
+  }, [esperado, turnoDelDia, tramosHistoricos, fecha]);
   // Nombre de quién hizo cada corrección, resuelto desde la lista ya cargada
   // (evita depender de un embed de PostgREST que el schema cache puede no exponer).
   const nombrePorId = useMemo(() => new Map(personas.map((p) => [p.id, `${p.nombres} ${p.apellidos}`])), [personas]);
@@ -947,6 +988,22 @@ export default function CorreccionesPage() {
                 ) : (
                   <span className="text-taupe">Ese día no mide tardanza: {textoOrigen(esperado)}.</span>
                 )}
+              </div>
+            )}
+
+            {/* Caso Diana (set-2026): el turno del día manda sobre el horario
+                base, así que un turno puntual viejo que quedó como "espejo" de
+                un horario ya reemplazado sigue mandando en silencio sobre una
+                tardanza real. No reemplaza el aviso de arriba, se suma —
+                aquel dice DE DÓNDE sale la hora esperada, este dice que esa
+                fuente puede estar desactualizada. Solo señala: la corrección
+                sigue siendo manual, en Turnos. */}
+            {esperado?.origen === "turno" && esEspejoViejo && (
+              <div className="mb-4 rounded-lg border border-ambar/40 bg-ambar/5 px-4 py-3 text-sm leading-relaxed">
+                <strong className="text-tinta">Ojo: este turno coincide con un horario que esta persona ya no tiene.</strong>{" "}
+                <span className="text-taupe">
+                  Puede ser un espejo viejo que quedó desactualizado cuando cambió su horario base. Revísalo en Turnos.
+                </span>
               </div>
             )}
 
