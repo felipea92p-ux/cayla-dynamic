@@ -5251,6 +5251,14 @@ export type Database = {
           tipo: string
         }[]
       }
+      fn_copiar_semana_anterior: {
+        Args: { p_lunes_destino: string | null; p_sede_id: string | null }
+        Returns: {
+          fecha: string
+          persona_id: string
+          resultado: string
+        }[]
+      }
       fn_corregir_marca: {
         Args: {
           p_marcaje_id: string | null
@@ -6633,7 +6641,12 @@ export type Database = {
         Returns: undefined
       }
       fn_set_horario_semanal: {
-        Args: { p_horario: Json | null; p_persona_id: string | null; p_vigente_desde: string | null }
+        Args: {
+          p_horario: Json | null
+          p_motivo: string | null
+          p_persona_id: string | null
+          p_vigente_desde: string | null
+        }
         Returns: undefined
       }
       fn_set_justificacion: {

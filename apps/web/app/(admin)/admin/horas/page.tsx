@@ -51,6 +51,7 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { EsqueletoTabla } from "@/components/cargando";
 import { useToast } from "@/components/toast";
 import { traerTodo } from "@/lib/admin/traer-todo";
+import { descargarCsv, generarCsv } from "@/lib/admin/csv";
 import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
 import { hoyLima, TZ_LIMA, formatoMinutos } from "@cayla-dynamic/shared";
 import { type Area, AREAS_FALLBACK, parseAreas, areaCorto, areaNombre } from "@/lib/areas";
@@ -211,6 +212,10 @@ interface Fila {
   // Días medidos contra el HORARIO BASE por no haber turno cargado. No es un
   // dato sobre la persona: es un dato sobre lo que el sistema sabe de ese día.
   diasSinTurno: number;
+  // De esos días sin turno, cuántos además tuvieron una tardanza o salida
+  // anticipada real — el número que importa para el KPI: no todo día sin
+  // turno cargado produce una anomalía, solo estos la vuelven sospechosa.
+  tardanzasSospechosas: number;
   horasTotales: number;
   horasReales: number;
   horasAgregadas: number;
@@ -253,12 +258,20 @@ function colorDia(d: Dia): string {
       // token en cada tema, así que apunta igual en los dos.
       if (m >= TARDANZA_GRAVE_MIN) return "bg-ambar ring-2 ring-inset ring-rojo-profundo";
       if (m >= TARDANZA_SERIA_MIN) return "bg-ambar";
-      return "bg-ambar/45";
+      // Era /45: medía 2.09:1 en claro y 2.34:1 en oscuro contra bg-papel,
+      // por debajo del piso de 3:1 para contraste no-textual (WCAG 1.4.11).
+      // /65 llega a ~3.0:1 en los dos temas sin acercarse a "tardanza seria".
+      return "bg-ambar/65";
     }
-    case "justificada": return "bg-rojo/20";
+    // Era /20: 1.34:1 en claro, 1.29:1 en oscuro. /75 llega a ~3:1 en oscuro
+    // (el más exigente de los dos) sin cambiar el resto de la escala.
+    case "justificada": return "bg-rojo/75";
     case "ok": return "bg-verde";
     case "extra": return "bg-verde/45 ring-1 ring-inset ring-verde";
-    case "sin_marca": return "bg-taupe/25";
+    // Era /25: 1.42:1 en claro, 1.51:1 en oscuro. /70 llega a ~3:1 en claro
+    // (el más exigente) — auditoría UX/UI del 2026-09-14, medida contra los
+    // hex reales de globals.css con la fórmula de luminancia WCAG 2.x.
+    case "sin_marca": return "bg-taupe/70";
     case "descanso": return "bg-sand";
     case "sin_horario": return "bg-sand/40";
     case "futuro": return "border border-sand";
@@ -766,7 +779,7 @@ function DesempenoContenido() {
         ausenciasRegistros: ausRes?.registros ?? 0,
         ausenciasPorTipo: ausRes?.porTipo ?? {},
         dias: [], diasEsperados: 0, diasTrabajados: 0, diasConMotivo: 0,
-        horasEsperadas: 0, horasConMotivo: 0, diasSinTurno: 0,
+        horasEsperadas: 0, horasConMotivo: 0, diasSinTurno: 0, tardanzasSospechosas: 0,
         horasTotales: 0, horasReales: 0, horasAgregadas: 0, agregados: 0,
         tardanzas: 0, tardanzasLevantadas: 0, minutosTarde: 0, peorTardanza: 0,
         salidasTempranas: 0, horasExtra: 0,
@@ -820,6 +833,13 @@ function DesempenoContenido() {
           if (falta?.justificada) { f.diasConMotivo++; f.horasConMotivo += esperado.horas; }
           else { f.diasEsperados++; f.horasEsperadas += esperado.horas; }
           if (esperado.origen !== "turno") f.diasSinTurno++;
+        }
+        // Mismo criterio que medidoContra() en DetallePersona: solo "horario"
+        // o "legacy" pueden ser sospechosos — "turno" es la referencia correcta
+        // y "sin_horario" no tiene con qué medir una tardanza.
+        if ((esperado.origen === "horario" || esperado.origen === "legacy") &&
+            ((j?.minutos_tarde ?? 0) > 0 || (extraPor.get(clave) ?? 0) > 0)) {
+          f.tardanzasSospechosas++;
         }
         if (esperado.origen !== "sin_horario") f.tieneHorario = true;
         if (horas !== null) {
@@ -916,6 +936,7 @@ function DesempenoContenido() {
     sinHorario: vista.filter((f) => !f.tieneHorario).length,
     tardanzas: vista.reduce((s, f) => s + f.tardanzas, 0),
     peor: vista.reduce((m, f) => Math.max(m, f.peorTardanza), 0),
+    sospechosas: vista.reduce((s, f) => s + f.tardanzasSospechosas, 0),
     faltas: vista.reduce((s, f) => s + f.faltas, 0),
     porRevisar: vista.reduce((s, f) => s + porRevisar(f), 0),
     ausenciasDias: vista.reduce((s, f) => s + f.ausenciasDias, 0),
@@ -942,14 +963,61 @@ function DesempenoContenido() {
   }, []);
 
   useEffect(() => {
-    if (!sel) return;
-    const alPulsar = (e: KeyboardEvent) => { if (e.key === "Escape") cerrarDia(); };
+    if (!sel || !filaSel) return;
+    const alPulsar = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { cerrarDia(); return; }
+      // ←/→ mueven al día anterior/siguiente de la MISMA persona sin cerrar
+      // el panel — útil al revisar varias tardanzas seguidas de una fila.
+      // Izquierda es un día antes porque los cuadritos del grid van en ese
+      // mismo sentido: fecha más antigua a la izquierda.
+      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+      const idx = filaSel.dias.findIndex((d) => d.fecha === sel.fecha);
+      if (idx === -1) return;
+      const dia = filaSel.dias[e.key === "ArrowLeft" ? idx - 1 : idx + 1];
+      if (dia) abrirDia(filaSel.personaId, dia.fecha);
+    };
     window.addEventListener("keydown", alPulsar);
     return () => window.removeEventListener("keydown", alPulsar);
-  }, [sel, cerrarDia]);
+  }, [sel, filaSel, cerrarDia, abrirDia]);
 
   const aplicarPreset = (p: "semana" | "mes" | "mesPasado" | "anio") => { const r = rango(p); setDesde(r.desde); setHasta(r.hasta); };
   const hayFiltro = Boolean(fSede || fArea || fBusca.trim() || verInactivas);
+
+  // La tabla ya calculada (denominador incluido), no los marcajes crudos que
+  // exporta /admin/exportar — para llevar esta vista, tal como quedó filtrada
+  // y ordenada, a una reunión de sede o a contabilidad sin copiarla a mano.
+  function exportarVista() {
+    const filas = vista.map((f) => ({
+      nombre: f.nombre,
+      sede: f.sede,
+      area: f.area,
+      activa: f.activa ? "sí" : "no",
+      dias_trabajados: f.diasTrabajados,
+      dias_esperados: f.tieneHorario ? f.diasEsperados : "",
+      horas_reales: f.horasReales.toFixed(1),
+      horas_esperadas: f.tieneHorario ? f.horasEsperadas.toFixed(1) : "",
+      tardanzas: f.tardanzas,
+      peor_tardanza_min: f.tardanzas > 0 ? f.peorTardanza : "",
+      faltas: f.faltas,
+      por_revisar: porRevisar(f),
+      ausencias_dias: f.ausenciasDias,
+      // Mismo split que el Tile de arriba (0443): quien lleva esto a
+      // contabilidad necesita distinguir lo que paga de lo que no, no solo el
+      // total — es justo lo que el total mezclaba antes.
+      ausencias_dias_pagados: f.ausenciasDiasPagados,
+      ausencias_dias_no_pagados: f.ausenciasDiasNoPagados,
+      objetivos_cumplidos: f.objTotal > 0 ? f.objCumplidos : "",
+      objetivos_total: f.objTotal > 0 ? f.objTotal : "",
+    }));
+    const csv = generarCsv(filas, [
+      "nombre", "sede", "area", "activa",
+      "dias_trabajados", "dias_esperados", "horas_reales", "horas_esperadas",
+      "tardanzas", "peor_tardanza_min", "faltas", "por_revisar",
+      "ausencias_dias", "ausencias_dias_pagados", "ausencias_dias_no_pagados",
+      "objetivos_cumplidos", "objetivos_total",
+    ]);
+    descargarCsv(`dynamic-desempeno-${desde}_a_${hasta}.csv`, csv);
+  }
 
   // ── Las dos únicas escrituras, por las mismas RPC que Incidencias ─────────
   async function justificar(tipo: "tardanza" | "falta") {
@@ -1038,6 +1106,11 @@ function DesempenoContenido() {
             title="Su historial sostiene los reportes de periodos pasados."
           />
           <div className="ml-auto flex items-center gap-4">
+            {vista.length > 0 && (
+              <Boton variante="enlace" className="text-taupe hover:text-tinta" onClick={exportarVista}>
+                Exportar CSV
+              </Boton>
+            )}
             {orden.col !== "atencion" && (
               <Boton variante="enlace" className="text-taupe hover:text-tinta" onClick={() => setOrden({ col: "atencion", asc: true })}>
                 Volver al orden por atención
@@ -1052,7 +1125,7 @@ function DesempenoContenido() {
           </div>
         </div>
 
-        <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+        <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-7">
           <Tile label="Horas del periodo" valor={`${totales.horas.toFixed(0)} h`}
             pie={
               totales.esperadas === 0
@@ -1064,6 +1137,8 @@ function DesempenoContenido() {
           <Tile label="Faltas" valor={String(totales.faltas)} tono="alerta" pie="le tocaba y no marcó" />
           <Tile label="Tardanzas" valor={String(totales.tardanzas)} tono="alerta"
             pie={totales.peor > 0 ? `la peor, ${formatoMinutos(totales.peor)}` : undefined} />
+          <Tile label="Turnos sin cargar" valor={String(totales.sospechosas)} tono="alerta"
+            pie="tardanzas medidas contra el horario base, no el turno" />
           <Tile label="Por revisar" valor={String(totales.porRevisar)} tono="alerta" pie="marcajes sin cerrar" />
           {/* El total se abre en dos cifras con el mismo peso visual
               (0443/auditoría de Ausencias): "pagados" mezcla descanso médico
@@ -1100,13 +1175,14 @@ function DesempenoContenido() {
 
         {vista.length > 0 && (
           <>
-            {/* <Tabla> solo por el envoltorio: el encabezado usa ThOrdenable
-                (ordena columnas, no es <Th>) y las filas llevan su propia
-                columna "Nombre" pegada al borde para el arrastre horizontal
-                — nada de eso es lo que <TablaEncabezado>/<Fila> resuelven. */}
-            <Tabla className="[font-variant-numeric:tabular-nums]">
-              <thead className="bg-sand/70 text-taupe">
-                <tr>
+            {/* alturaMaxima: sin esto <TablaEncabezado> no ancla a nada — ver
+                su propio comentario en components/ui/tabla.tsx — y con listas
+                largas se pierde de vista qué columna es cuál al bajar. Las
+                filas siguen escritas a mano y no con <Fila>: llevan su propia
+                columna "Nombre" pegada al borde para el arrastre horizontal,
+                que <Fila> no resuelve. */}
+            <Tabla className="[font-variant-numeric:tabular-nums]" alturaMaxima="70vh">
+              <TablaEncabezado>
                   <ThOrdenable col="nombre" orden={orden} setOrden={setOrden} sticky>Nombre</ThOrdenable>
                   <ThOrdenable col="sede" orden={orden} setOrden={setOrden}>Sede</ThOrdenable>
                   <ThOrdenable col="asistencia" orden={orden} setOrden={setOrden} num title="Días trabajados de los que le tocaban">Días</ThOrdenable>
@@ -1131,8 +1207,7 @@ function DesempenoContenido() {
                       </div>
                     </th>
                   )}
-                </tr>
-              </thead>
+              </TablaEncabezado>
               <tbody>
                 {vista.map((f) => (
                     <Fragment key={f.personaId}>
@@ -1160,7 +1235,11 @@ function DesempenoContenido() {
                         {f.diasTrabajados}
                         {f.tieneHorario
                           ? <span className="text-taupe/60"> / {f.diasEsperados}</span>
-                          : <span className="text-ambar" title="No tiene horario ni turnos cargados: no hay contra qué medirla."> · sin horario</span>}
+                          : <Link href="/admin/horarios" onClick={(e) => e.stopPropagation()}
+                              className="text-ambar hover:underline"
+                              title="No tiene horario ni turnos cargados: no hay contra qué medirla. Ir a Horarios →">
+                              {" "}· sin horario
+                            </Link>}
                       </td>
                       <td className="px-3 py-1.5 text-right">
                         <span className="font-medium">{f.horasReales.toFixed(1)}</span>
@@ -1230,13 +1309,13 @@ function DesempenoContenido() {
             <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-taupe">
               <span className="font-medium text-tinta">Cada cuadrito, un día:</span>
               <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] bg-verde" /> trabajó</span>
-              <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] bg-ambar/45" /><i className="inline-block size-3 rounded-[3px] bg-ambar" /><i className="inline-block size-3 rounded-[3px] bg-ambar ring-2 ring-inset ring-rojo-profundo" /> tardanza (más marcado, más tarde)</span>
+              <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] bg-ambar/65" /><i className="inline-block size-3 rounded-[3px] bg-ambar" /><i className="inline-block size-3 rounded-[3px] bg-ambar ring-2 ring-inset ring-rojo-profundo" /> tardanza (más marcado, más tarde)</span>
               <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] bg-rojo" /> falta</span>
-              <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] bg-rojo/20" /> no marcó, con motivo</span>
+              <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] bg-rojo/75" /> no marcó, con motivo</span>
               <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] border border-dashed border-taupe bg-papel" /> marcaje por revisar</span>
               <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] bg-verde/45 ring-1 ring-inset ring-verde" /> trabajó en su descanso</span>
               <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] bg-sand" /> descanso</span>
-              <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] bg-taupe/25" /> le tocaba, sin marcaje y sin motivo</span>
+              <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] bg-taupe/70" /> le tocaba, sin marcaje y sin motivo</span>
             </div>
           </>
         )}
@@ -1398,13 +1477,26 @@ function DesempenoContenido() {
                 </Boton>
               )}
 
-              <div className="flex flex-col gap-2 border-t border-sand pt-4">
-                <Link href={`/admin/correcciones?persona=${filaSel.personaId}&fecha=${diaSel.fecha}`}
-                  className="text-rojo hover:underline">Abrir este día en Correcciones →</Link>
-                <Link href={`/admin/incidencias?persona=${filaSel.personaId}`}
-                  className="text-rojo hover:underline">Ver sus incidencias →</Link>
-                <Link href={`/admin/personas/${filaSel.personaId}`}
-                  className="text-rojo hover:underline">Abrir su ficha →</Link>
+              <div className="flex flex-col gap-3 border-t border-sand pt-4">
+                {/* Botón, no enlace, solo cuando "revisar" es la única acción
+                    pendiente real del día — los otros dos enlaces de abajo son
+                    exploración, no algo que haga falta resolver. */}
+                {diaSel.estado === "revisar" && (
+                  <Boton variante="primario"
+                    onClick={() => router.push(`/admin/correcciones?persona=${filaSel.personaId}&fecha=${diaSel.fecha}`)}>
+                    Abrir este día en Correcciones →
+                  </Boton>
+                )}
+                <div className="flex flex-col gap-2">
+                  {diaSel.estado !== "revisar" && (
+                    <Link href={`/admin/correcciones?persona=${filaSel.personaId}&fecha=${diaSel.fecha}`}
+                      className="text-rojo hover:underline">Abrir este día en Correcciones →</Link>
+                  )}
+                  <Link href={`/admin/incidencias?persona=${filaSel.personaId}`}
+                    className="text-rojo hover:underline">Ver sus incidencias →</Link>
+                  <Link href={`/admin/personas/${filaSel.personaId}`}
+                    className="text-rojo hover:underline">Abrir su ficha →</Link>
+                </div>
               </div>
             </div>
           </aside>
