@@ -53,7 +53,8 @@ select lives_ok(
        '00000000-0000-0000-0000-000000028601', '2026-08-05',
        '{"1":{"e":"09:30","s":"16:00","r":0},"2":{"e":"09:30","s":"16:00","r":0},
          "3":{"e":"09:30","s":"16:00","r":0},"4":{"e":"09:30","s":"16:00","r":0},
-         "5":{"e":"09:30","s":"16:00","r":0},"6":{"e":"09:30","s":"16:00","r":0}}'::jsonb) $$,
+         "5":{"e":"09:30","s":"16:00","r":0},"6":{"e":"09:30","s":"16:00","r":0}}'::jsonb,
+       'Prueba pgTAP.') $$,
   'Corregir desde el 5 de agosto, dentro de un tramo ya cerrado, ya no revienta con horarios_sin_solape');
 
 -- ── 2 · A quedó recortado hasta la víspera ──────────────────────────────────
@@ -106,7 +107,7 @@ select is(
 select lives_ok(
   $$ select fn_set_horario_semanal(
        '00000000-0000-0000-0000-000000028601', '2026-09-01',
-       '{"1":{"e":"11:00","s":"19:00","r":45}}'::jsonb) $$,
+       '{"1":{"e":"11:00","s":"19:00","r":45}}'::jsonb, 'Prueba pgTAP.') $$,
   'Un horario desde una fecha posterior al tramo abierto sigue entrando sin problema');
 
 select is(
