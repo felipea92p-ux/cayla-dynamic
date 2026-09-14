@@ -18,6 +18,27 @@ export interface ObjetivoItem {
   indicaciones: string | null;
   cumplido: boolean;
   orden: number;
+  /** Autoría (0449) — quién lo creó y quién lo tocó por última vez (crear
+   * cuenta como la primera edición, así que al nacer los dos coinciden). */
+  creado_por: string | null;
+  creado_at: string;
+  actualizado_por: string | null;
+  actualizado_at: string;
+}
+
+/** Un solo lugar para el texto del estado + la variante de <Insignia> que le
+ * corresponde, para no repetir la escalera verde/ámbar/rojo/neutral en cada
+ * pantalla que dibuja el estado de una persona (bandeja de equipo, tarjeta
+ * individual, ficha). */
+export function estadoObjetivos(
+  cumplidos: number,
+  total: number,
+): { texto: string; variante: "positivo" | "advertencia" | "alerta" | "neutral" } {
+  if (total <= 0) return { texto: "Sin objetivos", variante: "neutral" };
+  const nivel = nivelColorObjetivos(cumplidos, total);
+  if (nivel === "verde") return { texto: "Cumplido", variante: "positivo" };
+  if (nivel === "ambar") return { texto: "Parcial", variante: "advertencia" };
+  return { texto: "Observación", variante: "alerta" };
 }
 
 /**
