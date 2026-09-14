@@ -194,6 +194,12 @@ interface Fila {
   activa: boolean;
   fechaIngreso: string | null;
   ausenciasDias: number;
+  // Mismo total de arriba, partido en dos (fn_ausencias_resumen, 0443): lo
+  // que CAYLA paga —por ley o por decisión propia— y lo que no. No es
+  // "grave" contra "leve": descanso médico y maternidad están adentro de
+  // ausenciasDiasPagados, protegidos por ley — ver el Tile de abajo.
+  ausenciasDiasPagados: number;
+  ausenciasDiasNoPagados: number;
   ausenciasRegistros: number;
   ausenciasPorTipo: Record<string, number>;
   dias: Dia[];
@@ -728,9 +734,15 @@ function DesempenoContenido() {
       if (o.cumplido) a.cumplidos++;
       objPor.set(o.persona_id, a);
     }
-    const ausenciasPor = new Map<string, { dias: number; registros: number; porTipo: Record<string, number> }>();
-    for (const a of ((ausenciasResumenData as unknown as { persona_id: string; dias_total: number; registros: number; por_tipo: Record<string, number> }[] | null) ?? [])) {
-      ausenciasPor.set(a.persona_id, { dias: a.dias_total, registros: a.registros, porTipo: a.por_tipo ?? {} });
+    const ausenciasPor = new Map<string, { dias: number; diasPagados: number; diasNoPagados: number; registros: number; porTipo: Record<string, number> }>();
+    for (const a of ((ausenciasResumenData as unknown as {
+      persona_id: string; dias_total: number; dias_pagados: number; dias_no_pagados: number;
+      registros: number; por_tipo: Record<string, number>;
+    }[] | null) ?? [])) {
+      ausenciasPor.set(a.persona_id, {
+        dias: a.dias_total, diasPagados: a.dias_pagados, diasNoPagados: a.dias_no_pagados,
+        registros: a.registros, porTipo: a.por_tipo ?? {},
+      });
     }
 
     const hoy = hoyLima();
@@ -749,6 +761,8 @@ function DesempenoContenido() {
         activa: (p as unknown as { estado: string }).estado === "activo",
         fechaIngreso: (p as unknown as { fecha_ingreso: string | null }).fecha_ingreso ?? null,
         ausenciasDias: ausRes?.dias ?? 0,
+        ausenciasDiasPagados: ausRes?.diasPagados ?? 0,
+        ausenciasDiasNoPagados: ausRes?.diasNoPagados ?? 0,
         ausenciasRegistros: ausRes?.registros ?? 0,
         ausenciasPorTipo: ausRes?.porTipo ?? {},
         dias: [], diasEsperados: 0, diasTrabajados: 0, diasConMotivo: 0,
@@ -905,7 +919,8 @@ function DesempenoContenido() {
     faltas: vista.reduce((s, f) => s + f.faltas, 0),
     porRevisar: vista.reduce((s, f) => s + porRevisar(f), 0),
     ausenciasDias: vista.reduce((s, f) => s + f.ausenciasDias, 0),
-    conAusencia: vista.filter((f) => f.ausenciasDias > 0).length,
+    ausenciasDiasPagados: vista.reduce((s, f) => s + f.ausenciasDiasPagados, 0),
+    ausenciasDiasNoPagados: vista.reduce((s, f) => s + f.ausenciasDiasNoPagados, 0),
   }), [vista]);
 
   const filaSel = useMemo(() => (sel ? filas.find((f) => f.personaId === sel.personaId) ?? null : null), [filas, sel]);
@@ -1050,8 +1065,18 @@ function DesempenoContenido() {
           <Tile label="Tardanzas" valor={String(totales.tardanzas)} tono="alerta"
             pie={totales.peor > 0 ? `la peor, ${formatoMinutos(totales.peor)}` : undefined} />
           <Tile label="Por revisar" valor={String(totales.porRevisar)} tono="alerta" pie="marcajes sin cerrar" />
+          {/* El total se abre en dos cifras con el mismo peso visual
+              (0443/auditoría de Ausencias): "pagados" mezcla descanso médico
+              y maternidad —protegidos por ley— con licencias que CAYLA
+              concedió a propósito; no es un número de alarma, es
+              información. "No pagados" es el que puede alimentar el aviso de
+              patrón en Ausencias ("para mirar, no para sancionar"). */}
           <Tile label="Ausencias" valor={`${totales.ausenciasDias} d`}
-            pie={totales.conAusencia > 0 ? `${totales.conAusencia} persona${totales.conAusencia === 1 ? "" : "s"}` : "nadie en el periodo"} />
+            pie={
+              totales.ausenciasDias === 0
+                ? "nadie en el periodo"
+                : `${totales.ausenciasDiasNoPagados} no pagados · ${totales.ausenciasDiasPagados} pagados`
+            } />
           <Tile label="Personas" valor={String(vista.length)} pie={`de ${filas.length} con actividad`} />
         </div>
 

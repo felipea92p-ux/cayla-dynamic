@@ -4972,6 +4972,8 @@ export type Database = {
       fn_ausencias_resumen: {
         Args: { p_desde: string | null; p_hasta: string | null }
         Returns: {
+          dias_no_pagados: number
+          dias_pagados: number
           dias_total: number
           persona_id: string
           por_tipo: Json
