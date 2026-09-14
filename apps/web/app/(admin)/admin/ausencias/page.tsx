@@ -174,6 +174,13 @@ export default function AusenciasPage() {
   const [tipoCod, setTipoCod] = useState("");
   const [inicio, setInicio] = useState(hoyLima());
   const [fin, setFin] = useState(hoyLima());
+  // Cruce con marcajes reales (fn_ausencia_dias_con_jornada). Se pide al
+  // cambiar persona o fechas — no en un efecto reactivo, sino desde el mismo
+  // gesto que las cambia — y NUNCA bloquea: solo avisa. El criterio que decide
+  // qué es "día trabajado" es el mismo que ya usa `dias_solapados` en la
+  // boleta (0286); esto solo lo adelanta al momento de registrar en vez de
+  // enterarse un mes después.
+  const [diasConJornada, setDiasConJornada] = useState<{ fecha: string; horas: number }[]>([]);
   const [motivo, setMotivo] = useState("");
   const [docProf, setDocProf] = useState("");
   const [docColeg, setDocColeg] = useState("");
@@ -431,6 +438,26 @@ export default function AusenciasPage() {
     if (error) { avisar("error", `El archivo subió, pero no se pudo enlazar (${mensajeDeError(error)}).`); return; }
     await cargar();
     avisar("ok", `Certificado adjuntado a la ausencia de ${a.nombre}.`);
+  }
+
+  /**
+   * Consulta si la persona ya tiene jornada trabajada dentro del rango
+   * elegido. Se llama desde los propios onChange de persona/fechas — pasando
+   * los valores nuevos a mano, porque el estado de React todavía no se
+   * actualizó cuando este gesto dispara. Un fallo de red aquí no es un error
+   * de registro: se apaga el aviso y ya, en vez de molestar por algo que no
+   * es la validación real (esa la sigue haciendo el servidor al guardar).
+   */
+  async function revisarCruceMarcaje(pid: string, ini: string, finRango: string) {
+    if (!pid || !ini || !finRango || finRango < ini) { setDiasConJornada([]); return; }
+    const { data, error } = await supabase.rpc("fn_ausencia_dias_con_jornada", {
+      p_persona_id: pid, p_fecha_inicio: ini, p_fecha_fin: finRango,
+    });
+    if (error) { setDiasConJornada([]); return; }
+    setDiasConJornada(
+      ((data as { fecha: string; horas_trabajadas: number }[] | null) ?? [])
+        .map((d) => ({ fecha: d.fecha, horas: d.horas_trabajadas })),
+    );
   }
 
   async function registrar() {
@@ -726,7 +753,11 @@ export default function AusenciasPage() {
 
         {/* Registrar */}
         <div className="mb-6 grid max-w-4xl gap-3 rounded-superficie border border-sand bg-papel p-5 sm:grid-cols-2">
-          <CampoSelect etiqueta="Persona" value={personaId} onChange={(e) => setPersonaId(e.target.value)}>
+          <CampoSelect
+            etiqueta="Persona"
+            value={personaId}
+            onChange={(e) => { setPersonaId(e.target.value); void revisarCruceMarcaje(e.target.value, inicio, fin); }}
+          >
             <option value="">Elegir…</option>
             {personas.map((p) => (<option key={p.id} value={p.id}>{p.nombres} {p.apellidos}</option>))}
           </CampoSelect>
@@ -746,9 +777,36 @@ export default function AusenciasPage() {
             etiqueta="Desde"
             type="date"
             value={inicio}
-            onChange={(e) => { setInicio(e.target.value); if (fin < e.target.value) setFin(e.target.value); }}
+            onChange={(e) => {
+              const nuevoInicio = e.target.value;
+              const nuevoFin = fin < nuevoInicio ? nuevoInicio : fin;
+              setInicio(nuevoInicio);
+              if (fin < nuevoInicio) setFin(nuevoInicio);
+              void revisarCruceMarcaje(personaId, nuevoInicio, nuevoFin);
+            }}
           />
-          <Campo etiqueta="Hasta" type="date" value={fin} onChange={(e) => setFin(e.target.value)} />
+          <Campo
+            etiqueta="Hasta"
+            type="date"
+            value={fin}
+            onChange={(e) => { setFin(e.target.value); void revisarCruceMarcaje(personaId, inicio, e.target.value); }}
+          />
+          {/* Aviso de cruce con marcajes reales (fn_ausencia_dias_con_jornada,
+              0441) — NUNCA bloquea, solo informa antes de guardar. El mismo
+              criterio que ya paga ese día como trabajado en la boleta
+              (`dias_solapados`, 0286): quien registra decide si es un rango
+              mal escrito o si la persona de verdad vino a trabajar ese día. */}
+          {diasConJornada.length > 0 && (
+            <p className="sm:col-span-2 flex items-start gap-2 rounded-control bg-ambar/15 px-3 py-2 text-xs text-ambar">
+              <span aria-hidden="true">⚠</span>
+              <span>
+                Ojo: ya hay jornada trabajada {diasConJornada.length === 1 ? "el" : "los días"}{" "}
+                {diasConJornada.map((d) => fmt(d.fecha)).join(", ")} dentro de este rango. No impide registrar
+                — si de verdad vino a trabajar ese día, se sigue pagando como trabajado; si el rango está mal,
+                corrígelo antes de guardar.
+              </span>
+            </p>
+          )}
           <div className="sm:col-span-2">
             <Campo
               etiqueta="Motivo (lo que se conversó; queda en su historial)"

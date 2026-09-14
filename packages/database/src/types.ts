@@ -4920,6 +4920,17 @@ export type Database = {
         Args: { p_ausencia_id: string | null; p_storage_path: string | null }
         Returns: undefined
       }
+      fn_ausencia_dias_con_jornada: {
+        Args: {
+          p_fecha_fin: string | null
+          p_fecha_inicio: string | null
+          p_persona_id: string | null
+        }
+        Returns: {
+          fecha: string
+          horas_trabajadas: number
+        }[]
+      }
       fn_ausencias: {
         Args: { p_desde: string | null; p_hasta: string | null; p_persona_id?: string | null }
         Returns: {
