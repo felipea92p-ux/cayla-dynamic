@@ -298,7 +298,11 @@ with repo(numero, nombre, nunca) as (values
     (431, 'aprobar_una_ausencia_tambien_respeta_el_periodo_pagado', false),
     (432, 'el_cese_tambien_se_cambia_por_una_puerta', false),
     (433, 'cambiar_la_cuenta_bancaria_deja_rastro', false),
-    (434, 'con_hijos_tambien_deja_rastro', false)
+    (434, 'con_hijos_tambien_deja_rastro', false),
+    (435, 'una_persona_le_escribe_a_su_encargada', false),
+    (436, 'la_bandeja_recuerda_lo_que_ya_viste', false),
+    (437, 'una_correccion_no_pisa_un_expediente_ya_formal', false),
+    (438, 'levantar_una_tardanza_no_pisa_un_expediente_ya_formal', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
