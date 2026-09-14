@@ -214,6 +214,18 @@ export default function AusenciasPage() {
   const [anulando, setAnulando] = useState<Ausencia | null>(null);
   const [motivoAnular, setMotivoAnular] = useState("");
   const [aprobando, setAprobando] = useState<Ausencia | null>(null);
+  // Confirmación antes de registrar un tipo que SE PAGA — la única decisión de
+  // este formulario que mueve plata (el resto no llega a planilla). Antes el
+  // clic en "Registrar ausencia" guardaba directo sea cual sea el tipo; ahora
+  // se detiene una vez, solo para el ~20% de los tipos con `paga = true`, con
+  // el mismo texto que ya vive junto al botón ("se paga · lo aprueba DO").
+  const [confirmandoPago, setConfirmandoPago] = useState(false);
+
+  // Página visible de la tabla histórica. Con un rango de doce meses y varias
+  // sedes, la lista puede crecer bastante — se corta en tandas de 50 filas en
+  // vez de traer siempre todo el DOM a la vez.
+  const [pagina, setPagina] = useState(0);
+  const POR_PAGINA = 50;
 
   const tipoSel = tipos.find((t) => t.codigo === tipoCod) ?? null;
 
@@ -253,6 +265,13 @@ export default function AusenciasPage() {
   const listaOrdenada = useMemo(
     () => [...porPersona].sort((x, y) => Number(esPendiente(y)) - Number(esPendiente(x))),
     [porPersona],
+  );
+
+  const totalPaginas = Math.max(1, Math.ceil(listaOrdenada.length / POR_PAGINA));
+  const paginaActual = Math.min(pagina, totalPaginas - 1);
+  const listaPagina = useMemo(
+    () => listaOrdenada.slice(paginaActual * POR_PAGINA, paginaActual * POR_PAGINA + POR_PAGINA),
+    [listaOrdenada, paginaActual],
   );
 
   // LA FECHA DE EMISIÓN NACE PUESTA, y no es comodidad.
@@ -541,6 +560,20 @@ export default function AusenciasPage() {
     setAprobando(a);
   }
 
+  // Punto de decisión del botón "Registrar ausencia": si el tipo elegido paga,
+  // se detiene en una confirmación antes de llamar a fn_registrar_ausencia. Si
+  // no paga, registra directo — el mismo camino de siempre para el ~80% de los
+  // registros que nunca llegan a planilla.
+  function intentarRegistrar() {
+    if (tipoSel?.paga) { setConfirmandoPago(true); return; }
+    void registrar();
+  }
+
+  async function confirmarRegistrarPagado() {
+    setConfirmandoPago(false);
+    await registrar();
+  }
+
   // Mismo fn_aprobar_ausencia de siempre — la confirmación pasa de
   // window.confirm a un Modal con dos botones (Sí/Cancelar).
   async function confirmarAprobar() {
@@ -809,7 +842,7 @@ export default function AusenciasPage() {
           )}
 
           <div className="flex items-end gap-3 sm:col-span-2">
-            <Boton variante="primario" cargando={guardando} onClick={registrar}>
+            <Boton variante="primario" cargando={guardando} onClick={intentarRegistrar}>
               Registrar ausencia
             </Boton>
             {tipoSel && (
@@ -828,12 +861,16 @@ export default function AusenciasPage() {
             por defecto (doce meses) quedaba enterrada entre cientos de filas
             ya resueltas. Aun en "Todas", esas filas se ordenan arriba. */}
         <div className="mb-3 flex flex-wrap items-end gap-3">
-          <Campo etiqueta="Desde" type="date" value={desde} onChange={(e) => setDesde(e.target.value)} />
-          <Campo etiqueta="Hasta" type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} />
+          {/* Cada filtro reinicia la página a la vez que cambia — quedarse en
+              la página 4 de una lista que un filtro nuevo dejó con 1 sería
+              mostrar una tabla vacía sin que nada lo explique. Se resetea acá,
+              junto al gesto que lo causa, y no en un efecto aparte. */}
+          <Campo etiqueta="Desde" type="date" value={desde} onChange={(e) => { setPagina(0); setDesde(e.target.value); }} />
+          <Campo etiqueta="Hasta" type="date" value={hasta} onChange={(e) => { setPagina(0); setHasta(e.target.value); }} />
           <CampoSelect
             etiqueta="Estado"
             value={filtroEstado}
-            onChange={(e) => setFiltroEstado(e.target.value as FiltroEstado)}
+            onChange={(e) => { setPagina(0); setFiltroEstado(e.target.value as FiltroEstado); }}
           >
             <option value="todas">Todas</option>
             <option value="pendientes">Pendientes de aprobar</option>
@@ -843,7 +880,7 @@ export default function AusenciasPage() {
           <CampoSelect
             etiqueta="Persona"
             value={filtroPersona}
-            onChange={(e) => setFiltroPersona(e.target.value as FiltroPersonaEstado)}
+            onChange={(e) => { setPagina(0); setFiltroPersona(e.target.value as FiltroPersonaEstado); }}
           >
             <option value="solo_activos">Solo activos (nunca cesados)</option>
             <option value="activos">Todos menos los ya liquidados</option>
@@ -854,7 +891,7 @@ export default function AusenciasPage() {
             <Boton
               variante="enlace"
               className="pb-2 text-xs text-taupe"
-              onClick={() => setFiltroPersona("todos")}
+              onClick={() => { setPagina(0); setFiltroPersona("todos"); }}
             >
               {ocultasPorPersona === 1 ? "1 oculta" : `${ocultasPorPersona} ocultas`}
               {" "}{filtroPersona === "activos" ? "por liquidada" : "por cesada"}{ocultasPorPersona === 1 ? "" : "s"} — ver todas
@@ -893,7 +930,7 @@ export default function AusenciasPage() {
               <Th>Acciones</Th>
             </TablaEncabezado>
             <tbody>
-                {listaOrdenada.map((a) => (
+                {listaPagina.map((a) => (
                   <Fila key={a.id} className={a.anulada ? "text-taupe/60" : ""}>
                     <td className="px-4 py-2">
                       <span className={a.anulada ? "line-through" : ""}>{a.nombre}</span>
@@ -1000,6 +1037,30 @@ export default function AusenciasPage() {
           </Tabla>
         )}
 
+        {!cargando && !errorCarga && totalPaginas > 1 && (
+          <div className="mt-3 flex items-center gap-3 text-xs text-taupe">
+            <Boton
+              variante="secundario"
+              tamano="sm"
+              disabled={paginaActual === 0}
+              onClick={() => setPagina((p) => Math.max(0, p - 1))}
+            >
+              ← Anterior
+            </Boton>
+            <span>
+              Página {paginaActual + 1} de {totalPaginas} — {listaOrdenada.length} ausencias en total
+            </span>
+            <Boton
+              variante="secundario"
+              tamano="sm"
+              disabled={paginaActual >= totalPaginas - 1}
+              onClick={() => setPagina((p) => Math.min(totalPaginas - 1, p + 1))}
+            >
+              Siguiente →
+            </Boton>
+          </div>
+        )}
+
         <p className="mt-4 max-w-3xl text-xs text-taupe">
           Una ausencia no se borra: se anula con motivo y queda en el historial. Y no se puede registrar ni
           anular nada dentro de un periodo de planilla ya pagado — para eso hay que reabrirlo primero, igual
@@ -1067,6 +1128,33 @@ export default function AusenciasPage() {
               </div>
             </>
           )}
+        </Modal>
+
+        {/* Modal: confirmar el registro de un tipo que SE PAGA. Se abre desde
+            intentarRegistrar() antes de llamar a fn_registrar_ausencia — el
+            registro en sí no cambia, solo se detiene una vez antes de
+            ejecutarlo cuando la ausencia va a mover plata. */}
+        <Modal
+          abierto={confirmandoPago}
+          onCerrar={() => setConfirmandoPago(false)}
+          titulo="Vas a registrar un tipo que se paga"
+          ancho="sm"
+          bloqueado={guardando}
+        >
+          <p className="mb-4 text-sm text-taupe">
+            <strong className="font-medium text-tinta">{tipoSel?.nombre}</strong> de {inicio === fin ? "1 día" : `${fmt(inicio)} a ${fmt(fin)}`}.
+            Se paga: al registrarla queda{" "}
+            <strong className="font-medium text-tinta">pendiente de aprobación de Desarrollo Organizacional</strong>{" "}
+            antes de entrar en planilla.
+          </p>
+          <div className="flex justify-end gap-2">
+            <Boton variante="secundario" onClick={() => setConfirmandoPago(false)} disabled={guardando}>
+              Cancelar
+            </Boton>
+            <Boton variante="primario" cargando={guardando} onClick={() => void confirmarRegistrarPagado()}>
+              Confirmar registro
+            </Boton>
+          </div>
         </Modal>
       </main>
     </div>
