@@ -69,10 +69,14 @@ select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000c609
 -- pagada, y este archivo se habría quedado defendiendo cinco puertas de las
 -- seis sin que nada avisara. Un periodo pagado en el FUTURO es la única forma
 -- que queda de ejercitar de verdad el candado de pagado en esta función.
+--
+-- Dura 30 días (hoy+10 → hoy+39) y no menos porque `periodos_planilla` exige
+-- entre 20 y 46 días de largo (0025). Un periodo de diez días revienta contra
+-- ese check antes de llegar a probar nada.
 insert into periodos_planilla (id, fecha_ini, fecha_fin, estado) values
   ('00000000-0000-0000-0000-00000000c6aa', '2026-06-01', '2026-06-30', 'pagado'),
   ('00000000-0000-0000-0000-00000000c6bb', '2026-08-01', '2026-08-31', 'abierto'),
-  ('00000000-0000-0000-0000-00000000c6cc', fn_hoy_lima() + 10, fn_hoy_lima() + 20, 'pagado');
+  ('00000000-0000-0000-0000-00000000c6cc', fn_hoy_lima() + 10, fn_hoy_lima() + 39, 'pagado');
 
 -- ── 1 · Las seis puertas, cerradas sobre lo ya pagado ──────────────────────
 -- El feriado se crea primero en agosto y se mueve la fecha a mano, porque
@@ -155,13 +159,13 @@ select lives_ok(
   'ABIERTO · sí se puede marcar descanso en agosto');
 
 -- La otra mitad del par de arriba, y por eso la fecha no es cualquiera: tiene
--- que caer DESPUÉS del periodo pagado futuro (que termina a los veinte días)
+-- que caer DESPUÉS del periodo pagado futuro (que termina a los 39 días)
 -- para que el candado de pagado no tenga nada que decir, y a la vez no ser pasada,
 -- para que el de la 0444 tampoco. La fecha fija original (2026-09-01) ya no
 -- sirve para ninguna de las dos cosas: quedó en el pasado real.
 select lives_ok(
   $$ select fn_set_horario_semanal('00000000-0000-0000-0000-00000000c602'::uuid,
-       fn_hoy_lima() + 25, '{"1":{"e":"09:00","s":"18:00","r":60}}'::jsonb, 'Prueba pgTAP.') $$,
+       fn_hoy_lima() + 45, '{"1":{"e":"09:00","s":"18:00","r":60}}'::jsonb, 'Prueba pgTAP.') $$,
   'ABIERTO · sí se puede hacer regir un horario que empieza después de lo pagado');
 
 select * from finish();
