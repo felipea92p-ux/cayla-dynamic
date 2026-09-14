@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import bcrypt from "bcryptjs";
@@ -22,7 +22,7 @@ import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { montoAsignacionFamiliar, type MontoAsignacionFamiliar } from "@/lib/admin/asignacion-familiar-monto";
 import { listarPendientesPorPersona } from "@/lib/admin/bandeja-equipo";
 import {
-  hoyLima, primeroDeMesLima, rangoDelMesLima, puedeVerPlanilla,
+  hoyLima, primeroDeMesLima, rangoDelMesLima, puedeAdministrarEquipo, puedeVerPlanilla,
   MOTIVOS_CESE, MOTIVO_CESE_LABELS, etiquetaDeCatalogo, type MotivoCese, type Rol,
 } from "@cayla-dynamic/shared";
 
@@ -227,6 +227,13 @@ export default function EquipoPage() {
   const [form, setForm] = useState<FormPersona>(FORM_VACIO);
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
+  // A quién devolverle el foco cuando se cierra el panel lateral — el botón o
+  // el ítem de menú que lo abrió. Un solo ref para los seis paneles porque
+  // solo uno puede estar abierto a la vez (ver `useFocoAtrapado`). Para el
+  // menú "•••" alcanza con guardarlo al abrir EL MENÚ (`alternar`), antes de
+  // elegir el ítem: para cuando se hace clic en un ítem, ya apunta al botón
+  // correcto.
+  const focoAlAbrir = useRef<HTMLElement | null>(null);
   // Registrar la salida de alguien. Es un panel y no un window.confirm porque un
   // cese son dos datos —el último día y el porqué—, no un sí/no.
   // Los seis paneles de esta pantalla —alta, edición, salario, historial, PIN
@@ -260,6 +267,15 @@ export default function EquipoPage() {
   // era la misma trampa que este comentario advertía, viva en otro lugar.
   const rol = useRolActual();
   const puedeSalarios = puedeVerPlanilla(rol);
+  // Alta, edición, PIN, salida y reactivación: las cinco escrituras de esta
+  // pantalla exigen admin o líder DO en la RLS y en cada RPC
+  // (`fn_crear_persona`, `fn_regenerar_pin`, `fn_cesar_persona`,
+  // `fn_reactivar_persona`, y el `update` directo de nombre/correo/sede que
+  // cae bajo `personas_update_admin_lider`). Una encargada de sede SÍ abre
+  // esta pantalla (`puedeOperarEquipo` en nav.tsx) para consultar a su
+  // gente, pero ninguno de esos cinco botones le funciona — mostrárselos
+  // sería ofrecerle un error garantizado, no una acción.
+  const puedeEscribir = puedeAdministrarEquipo(rol);
   const [salariosEstado, setSalariosEstado] = useState<"cargando" | "ok" | "error">("cargando");
   const [salarios, setSalarios] = useState<Record<string, SalarioVigente>>({});
   const [salEditId, setSalEditId] = useState<string | null>(null);
@@ -570,11 +586,26 @@ export default function EquipoPage() {
   // componente que ya usa la cabecera del perfil individual): con la fila más
   // angosta y "Editar" siempre visible al lado, cinco botones sueltos no
   // cabían sin romper a dos líneas en pantallas medianas.
+  //
+  // Nuevo PIN / Registrar salida / Reactivar exigen `puedeEscribir` (admin o
+  // líder DO) — a una encargada de sede esas RPC la rechazan siempre. Si
+  // ninguna de las dos familias de permiso aplica, el menú entero no tiene
+  // nada que ofrecer y no se dibuja: un "•••" que abre a un menú vacío es
+  // peor que no tener botón.
   function menuAcciones(p: Persona) {
+    if (!puedeSalarios && !puedeEscribir) return null;
     const sal = salarios[p.id];
     return (
       <Menu trigger={({ alternar, abierto }) => (
-        <Boton variante="secundario" tamano="sm" onClick={alternar} aria-haspopup="menu" aria-expanded={abierto}>•••</Boton>
+        <Boton
+          variante="secundario"
+          tamano="sm"
+          onClick={(e) => { alternar(); focoAlAbrir.current = e.currentTarget; }}
+          aria-haspopup="menu"
+          aria-expanded={abierto}
+        >
+          •••
+        </Boton>
       )}>
         {puedeSalarios && salariosEstado === "ok" && (
           <MenuItem onClick={() => empezarSalario(p)}>{sal ? "Editar salario" : "Asignar salario"}</MenuItem>
@@ -582,14 +613,14 @@ export default function EquipoPage() {
         {puedeSalarios && <MenuItem onClick={() => void verHistorial(p)}>Historial de salario</MenuItem>}
         {/* Solo a quien está activa: desde la 0364 el servidor rechaza
             regenerar el PIN de una persona inactiva. */}
-        {p.estado === "activo" && <MenuItem onClick={() => void regenerarPin(p)}>Nuevo PIN</MenuItem>}
-        {p.estado === "activo" ? (
+        {puedeEscribir && p.estado === "activo" && <MenuItem onClick={() => void regenerarPin(p)}>Nuevo PIN</MenuItem>}
+        {puedeEscribir && (p.estado === "activo" ? (
           // «Registrar salida» y no «Desactivar»: lo que se hace es anotar
           // un hecho con su fecha y su motivo, no apagar un interruptor.
           <MenuItem variante="peligro" onClick={() => empezarCese(p)}>Registrar salida</MenuItem>
         ) : (
           <MenuItem onClick={() => setReactivarPendiente(p)}>Reactivar</MenuItem>
-        )}
+        ))}
       </Menu>
     );
   }
@@ -1005,12 +1036,13 @@ export default function EquipoPage() {
     mostrarPin(`${p.nombres} ${p.apellidos}`, pin);
   }
 
-  function empezarEdicion(p: Persona) {
+  function empezarEdicion(p: Persona, boton?: HTMLElement | null) {
     setEditandoId(p.id);
     setMostrandoAlta(false);
     setSalEditId(null);
     setHistId(null);
     setCeseId(null);
+    focoAlAbrir.current = boton ?? null;
     setForm({
       nombres: p.nombres,
       apellidos: p.apellidos,
@@ -1501,7 +1533,10 @@ export default function EquipoPage() {
           </span>
         </label>
       )}
-      <div className="flex gap-3">
+      <div className="flex justify-end gap-3">
+        <Boton variante="secundario" onClick={cerrarFormulario} disabled={guardando}>
+          Cancelar
+        </Boton>
         <Boton
           variante="primario"
           onClick={modo === "alta" ? crearPersona : guardarEdicion}
@@ -1509,9 +1544,6 @@ export default function EquipoPage() {
           cargando={guardando}
         >
           {modo === "alta" ? "Agregar (genera PIN)" : "Guardar cambios"}
-        </Boton>
-        <Boton variante="secundario" onClick={cerrarFormulario}>
-          Cancelar
         </Boton>
       </div>
     </div>
@@ -1579,11 +1611,11 @@ export default function EquipoPage() {
       <p className="text-xs text-taupe">
         Cambiar el salario cierra el tramo anterior el día previo a la vigencia y abre uno nuevo — los meses ya pagados no se alteran.
       </p>
-      <div className="flex gap-3">
+      <div className="flex justify-end gap-3">
+        <Boton variante="secundario" onClick={cerrarPanelLateral} disabled={guardandoSal}>Cancelar</Boton>
         <Boton variante="primario" onClick={guardarSalario} disabled={guardandoSal} cargando={guardandoSal}>
           Guardar salario
         </Boton>
-        <Boton variante="secundario" onClick={cerrarPanelLateral}>Cancelar</Boton>
       </div>
     </div>
   );
@@ -1639,11 +1671,11 @@ export default function EquipoPage() {
           fecha salen su gratificación, su CTS y sus vacaciones truncas, así que tiene que ser el día
           real —ni el de hoy por comodidad, ni el de su carta.
         </p>
-        <div className="flex gap-3">
+        <div className="flex justify-end gap-3">
+          <Boton variante="secundario" onClick={cerrarPanelLateral} disabled={guardandoCese}>Cancelar</Boton>
           <Boton variante="primario" onClick={guardarCese} disabled={guardandoCese} cargando={guardandoCese}>
             Registrar salida
           </Boton>
-          <Boton variante="secundario" onClick={cerrarPanelLateral}>Cancelar</Boton>
         </div>
       </div>
     );
@@ -1679,37 +1711,46 @@ export default function EquipoPage() {
   );
 
   const panelHistorial = () => (
-    hist.length === 0 ? (
-      <p className="text-sm text-taupe">Sin registros todavía.</p>
-    ) : (
-      // overflow-x-auto: sin este envoltorio, una fila angosta más las dos
-      // fechas ISO desbordaba en un teléfono y arrastraba a TODO el panel en
-      // horizontal (hallazgo de la auditoría de apariencia, 2026-09-06/07).
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="text-left text-taupe">
-            <tr>
-              <th className="py-1 font-normal">Rango</th>
-              <th className="py-1 font-normal">Salario</th>
-              <th className="py-1 font-normal">Desde</th>
-              <th className="py-1 font-normal">Hasta</th>
-              <th className="py-1 font-normal">Asignado por</th>
-            </tr>
-          </thead>
-          <tbody>
-            {hist.map((h, i) => (
-              <tr key={i} className="border-t">
-                <td className="py-1">{RANGO_LABEL[h.rango] ?? h.rango}</td>
-                <td className="py-1">{formatSoles(Number(h.salario_mensual_soles))}</td>
-                <td className="py-1">{h.vigente_desde}</td>
-                <td className="py-1">{h.vigente_hasta ?? <span className="text-rojo">vigente</span>}</td>
-                <td className="py-1 text-taupe">{h.asignado_por ?? "—"}</td>
+    <div className="flex flex-col gap-4">
+      {hist.length === 0 ? (
+        <p className="text-sm text-taupe">Sin registros todavía.</p>
+      ) : (
+        // overflow-x-auto: sin este envoltorio, una fila angosta más las dos
+        // fechas ISO desbordaba en un teléfono y arrastraba a TODO el panel en
+        // horizontal (hallazgo de la auditoría de apariencia, 2026-09-06/07).
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="text-left text-taupe">
+              <tr>
+                <th className="py-1 font-normal">Rango</th>
+                <th className="py-1 font-normal">Salario</th>
+                <th className="py-1 font-normal">Desde</th>
+                <th className="py-1 font-normal">Hasta</th>
+                <th className="py-1 font-normal">Asignado por</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {hist.map((h, i) => (
+                <tr key={i} className="border-t">
+                  <td className="py-1">{RANGO_LABEL[h.rango] ?? h.rango}</td>
+                  <td className="py-1">{formatSoles(Number(h.salario_mensual_soles))}</td>
+                  <td className="py-1">{h.vigente_desde}</td>
+                  <td className="py-1">{h.vigente_hasta ?? <span className="text-rojo">vigente</span>}</td>
+                  <td className="py-1 text-taupe">{h.asignado_por ?? "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {/* El Drawer canónico (0428, rediseño de Horarios) ya no dibuja una ×
+          en el encabezado — cada panel trae su propio cierre. Este es de
+          solo lectura, así que no hace falta un "Guardar": un "Cerrar" solo
+          basta, alineado igual que el resto (`justify-end`). */}
+      <div className="flex justify-end">
+        <Boton variante="secundario" onClick={cerrarPanelLateral}>Cerrar</Boton>
       </div>
-    )
+    </div>
   );
 
   // Cuál de los seis paneles de esta pantalla ocupa el Drawer, y cómo se
@@ -1745,11 +1786,17 @@ export default function EquipoPage() {
       <main className="flex-1 p-6">
         <div className="mb-4 flex items-center justify-between">
           <h1 className="font-serif text-2xl">Equipo</h1>
-          {!mostrandoAlta && !editandoId && (
+          {/* Solo quien puede escribir: para una encargada de sede, dar de
+              alta es una de las cinco acciones que `fn_crear_persona` le
+              rechaza siempre (ver `puedeEscribir` más arriba). */}
+          {puedeEscribir && !mostrandoAlta && !editandoId && (
             <div className="flex flex-wrap gap-2">
               <Boton
                 variante="primario"
-                onClick={() => { setMostrandoAlta(true); setForm(FORM_VACIO); setSalEditId(null); setHistId(null); setCeseId(null); }}
+                onClick={(e) => {
+                  setMostrandoAlta(true); setForm(FORM_VACIO); setSalEditId(null); setHistId(null); setCeseId(null);
+                  focoAlAbrir.current = e.currentTarget;
+                }}
               >
                 + Agregar persona
               </Boton>
@@ -1779,8 +1826,8 @@ export default function EquipoPage() {
           abierto={drawerAbierto}
           onCerrar={cerrarPanelLateral}
           bloqueado={pinNuevo !== null || guardando || guardandoSal || guardandoCese}
-          ancho="lg"
           titulo={tituloDrawer}
+          volverElFocoA={focoAlAbrir}
         >
           {pinNuevo
             ? panelPin()
@@ -1892,7 +1939,7 @@ export default function EquipoPage() {
                 diseño en esta misma pantalla (el panel de Historial,
                 auditoría de apariencia 2026-09-06/07); no tiene sentido
                 arreglarlo en un panel angosto y dejarlo en la tabla grande. */}
-            <div className="hidden md:block">
+            <div className="hidden sm:block">
               <Tabla alturaMaxima="70vh">
                 <TablaEncabezado>
                   <Th>Nombre</Th>
@@ -1902,7 +1949,9 @@ export default function EquipoPage() {
                   {puedeSalarios && <Th>Salario</Th>}
                   <Th>Correo</Th>
                   <Th>Estado</Th>
-                  <Th>Acciones</Th>
+                  {/* Ninguna acción de esta columna le funciona a quien no es
+                      admin ni líder DO — ver `puedeEscribir`. */}
+                  {(puedeEscribir || puedeSalarios) && <Th>Acciones</Th>}
                 </TablaEncabezado>
                 <tbody>
                   {visibles.map((p) => (
@@ -1941,12 +1990,16 @@ export default function EquipoPage() {
                       <td className="px-4 py-2">
                         <Insignia atenuada={p.estado !== "activo"}>{p.estado}</Insignia>
                       </td>
-                      <td className="px-4 py-2">
-                        <div className="flex flex-wrap gap-2">
-                          <Boton variante="secundario" tamano="sm" onClick={() => empezarEdicion(p)}>Editar</Boton>
-                          {menuAcciones(p)}
-                        </div>
-                      </td>
+                      {(puedeEscribir || puedeSalarios) && (
+                        <td className="px-4 py-2">
+                          <div className="flex flex-wrap gap-2">
+                            {puedeEscribir && (
+                              <Boton variante="secundario" tamano="sm" onClick={(e) => empezarEdicion(p, e.currentTarget)}>Editar</Boton>
+                            )}
+                            {menuAcciones(p)}
+                          </div>
+                        </td>
+                      )}
                     </Fila>
                   ))}
                 </tbody>
@@ -1956,7 +2009,7 @@ export default function EquipoPage() {
             {/* Mobile: una tarjeta por persona en vez de la tabla — mismo
                 criterio que ya se construyó esta semana en Datos personales
                 para la pantalla hermana más parecida a esta. */}
-            <div className="space-y-3 md:hidden">
+            <div className="space-y-3 sm:hidden">
               {visibles.map((p) => (
                 <div key={p.id} className={`rounded-2xl border border-sand bg-papel p-4 ${p.estado === "inactivo" ? "text-taupe" : ""}`}>
                   <div className="flex items-start justify-between gap-3">
@@ -2003,10 +2056,14 @@ export default function EquipoPage() {
                       corta contra el borde de un celular angosto. Empujarlo
                       al borde derecho de la tarjeta le da los ~340px que
                       necesita para abrir sin cortarse. */}
-                  <div className="mt-3 flex items-center justify-between gap-2">
-                    <Boton variante="secundario" tamano="sm" onClick={() => empezarEdicion(p)}>Editar</Boton>
-                    {menuAcciones(p)}
-                  </div>
+                  {(puedeEscribir || puedeSalarios) && (
+                    <div className="mt-3 flex items-center justify-between gap-2">
+                      {puedeEscribir && (
+                        <Boton variante="secundario" tamano="sm" onClick={(e) => empezarEdicion(p, e.currentTarget)}>Editar</Boton>
+                      )}
+                      {menuAcciones(p)}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

@@ -64,6 +64,29 @@ export function puedeGestionarCatalogos(rol: RolPosible): boolean {
 }
 
 /**
+ * Dar de alta, editar la ficha completa, regenerar el PIN, registrar una
+ * salida o reactivar a alguien — las cinco escrituras de `/admin/equipo`.
+ *
+ * Hoy la lista es la misma que `puedeVerPlanilla`, pero se nombra aparte por
+ * la misma razón que `puedeGestionarContratos`: esto no es "ver plata", es
+ * "administrar personas", y son preguntas distintas aunque hoy las conteste
+ * el mismo rol. Espeja la RLS real de esa pantalla — `personas_update_admin_lider`
+ * (0003) y el guard `fn_es_admin_o_lider()` que repiten `fn_crear_persona`
+ * (0300), `fn_regenerar_pin` (0364), `fn_cesar_persona` (0415) y
+ * `fn_reactivar_persona` (0327) — no una preferencia de pantalla.
+ *
+ * La encargada de sede SÍ puede ABRIR `/admin/equipo` (`puedeOperarEquipo`):
+ * ve el padrón de su gente, su sede, su área, su correo. Lo que no puede es
+ * escribir nada ahí — ninguna de las cinco RPC la deja pasar — así que
+ * mostrarle esos cinco botones no es ofrecerle una acción, es ofrecerle un
+ * error garantizado. El error es del diseño, no de ella: la pantalla no debe
+ * dibujar lo que sabe de antemano que va a fallar.
+ */
+export function puedeAdministrarEquipo(rol: RolPosible): boolean {
+  return tiene(DO, rol);
+}
+
+/**
  * Generar y ver los contratos de trabajo: junta identidad (DNI, dirección) y
  * plata (sueldo) en un solo documento, así que no es ni `puedeVerIdentidad`
  * ni `puedeVerPlanilla` por separado ni `puedeGestionarCatalogos` (esa es

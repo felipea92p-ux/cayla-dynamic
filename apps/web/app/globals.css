@@ -365,6 +365,22 @@
 .velo-entra { animation: velo-entra 200ms ease-out backwards; }
 .velo-sale { animation: velo-sale 200ms ease-in forwards; }
 
+/* El mismo cajón, entrando por la derecha — para el Drawer (rediseño de
+   Horarios base, 2026-09-14). Misma duración y misma curva que el de arriba
+   a propósito: dos curvas distintas en la misma pantalla se sienten como dos
+   productos. Solo cambia el signo del translateX, porque este cajón entra
+   desde el borde opuesto. */
+@keyframes cajon-derecha-entra {
+  from { transform: translateX(100%); }
+  to { transform: none; }
+}
+@keyframes cajon-derecha-sale {
+  from { transform: none; }
+  to { transform: translateX(100%); }
+}
+.cajon-derecha-entra { animation: cajon-derecha-entra 260ms var(--ease-salida) backwards; }
+.cajon-derecha-sale { animation: cajon-derecha-sale 200ms ease-in forwards; }
+
 @keyframes entra-fila {
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: none; }

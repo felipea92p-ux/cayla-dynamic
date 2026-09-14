@@ -65,7 +65,16 @@ export function Menu({
             "absolute top-full z-30 mt-1 min-w-48 overflow-hidden rounded-control border border-sand bg-papel py-1 shadow-lg",
             alinear === "derecha" ? "right-0" : "left-0",
           )}
-          onClick={() => setAbierto(false)}
+          // `stopPropagation` y no solo cerrar: sin esto, elegir una opción
+          // del menú también dispara el `onClick` de lo que lo contenga —en
+          // Contratos, la fila entera abre el visor de detalle al mismo
+          // tiempo que "Editar" o "Anular" hacían lo suyo. El menú ya se
+          // trata a sí mismo como el destino final del clic (por eso cierra
+          // acá); detenerlo es la otra mitad de esa misma idea.
+          onClick={(e) => {
+            e.stopPropagation();
+            setAbierto(false);
+          }}
         >
           {children}
         </div>

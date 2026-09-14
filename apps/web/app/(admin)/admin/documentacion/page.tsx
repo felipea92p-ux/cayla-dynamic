@@ -1,17 +1,24 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
+import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
 import { Cargando } from "@/components/cargando";
 import { Marca } from "@/components/marca";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { useToast } from "@/components/toast";
 import { Boton } from "@/components/ui/boton";
 import { Campo, CampoSelect } from "@/components/ui/campo";
-import { TablaEncabezado, Th, Fila } from "@/components/ui/tabla";
+import { Tabla, TablaEncabezado, Th, Fila } from "@/components/ui/tabla";
+import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
+import { TarjetaInfo } from "@/components/ui/tarjeta-info";
+import { BannerAviso } from "@/components/ui/banner-aviso";
+import { Insignia } from "@/components/ui/insignia";
+import { Menu, MenuItem } from "@/components/ui/menu";
+import { Modal } from "@/components/ui/modal";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 import { abrirArchivoFirmado } from "@/lib/abrir-archivo-firmado";
 import { EMPRESA, hoyLima, rangoDelMesLima, puedeGestionarCatalogos } from "@cayla-dynamic/shared";
@@ -428,6 +435,18 @@ export default function DocumentacionPage() {
   // Estefany figura en Central y trabaja dentro de la tienda de Arequipa, así que
   // su declaración va en el sobre de Arequipa y no en uno aparte.
   const [sedeDeReparto, setSedeDeReparto] = useState<Map<string, string>>(new Map());
+
+  // ── Rediseño 2026-09-14: bandeja de gestión documental ─────────────────
+  // Mismo patrón que ya usa Equipo (`equipo.sede`): un select persistido por
+  // navegador, nunca por búsqueda de texto ni por estado (ver el comentario
+  // del propio hook). El estado y la búsqueda arrancan siempre en "todos" —
+  // quien entra a la pantalla ve el panorama completo antes de filtrar.
+  const [filtroSede, setFiltroSede] = useFiltroGuardado("documentacion.sede", "todas");
+  const [filtroEstado, setFiltroEstado] = useState<"todos" | "pendientes" | "firmados" | "negativas">("todos");
+  const [busca, setBusca] = useState("");
+  const [generarAbierto, setGenerarAbierto] = useState(false);
+  const bonoRef = useRef<HTMLDivElement>(null);
+  const previewRef = useRef<HTMLDivElement>(null);
 
   // LA TARIFA QUE LE TOCA A UNA PERSONA. Primero la fila de SU sede; si su sede
   // no tiene fila propia, la general. Es el MISMO orden de preferencia que usan
@@ -1055,7 +1074,6 @@ export default function DocumentacionPage() {
   // usa en el resumen y en el aviso: dos conteos del mismo hecho es la forma
   // más barata de que la pantalla se contradiga a sí misma.
   const bonoPendientes = tablero.filter((f) => BONO_PENDIENTE.has(f.bono_estado ?? ""));
-  const bonoEsteMes = bonoPendientes.filter((f) => f.bono_estado === "este_mes");
   // Quién sale en el apartado del bono: quien tiene algo pendiente y quien ya
   // firmó este año. Los demás —cumple en octubre, entró después, sin fecha
   // cargada— no aparecen: son 'nada que hacer' y llenaban la tabla de filas que
@@ -1080,6 +1098,132 @@ export default function DocumentacionPage() {
     return (nombrePorPersonaId.get(a.persona_id) ?? "")
       .localeCompare(nombrePorPersonaId.get(b.persona_id) ?? "");
   });
+
+  // ── Indicadores + filtros de la bandeja ─────────────────────────────────
+  // Los conteos son siempre del TOTAL (nunca del ya filtrado): un indicador
+  // que cambia de número según su propio filtro activo se contradice a sí
+  // mismo. Clic en un indicador activa su filtro; clic de nuevo lo apaga —
+  // no hace falta un botón "Todos" aparte.
+  const totalPendientes = tablero.filter((f) => f.estado === "sin_ruta").length;
+  const totalFirmados = tablero.filter((f) => f.estado === "ok").length;
+  const totalNegativas = tablero.filter((f) => f.estado === "se_nego").length;
+
+  const sedesEnTablero = [...new Set(tablero.map((f) => f.sede))].sort((a, b) => a.localeCompare(b));
+
+  function coincideBusqueda(nombrePersona: string) {
+    const q = busca.trim().toLowerCase();
+    return q === "" || nombrePersona.toLowerCase().includes(q);
+  }
+
+  const rutaFiltrada = tableroPorSede.filter((f) => {
+    if (filtroSede !== "todas" && f.sede !== filtroSede) return false;
+    if (!coincideBusqueda(f.persona)) return false;
+    if (filtroEstado === "pendientes") return f.estado === "sin_ruta";
+    if (filtroEstado === "firmados") return f.estado === "ok";
+    if (filtroEstado === "negativas") return f.estado === "se_nego";
+    return true;
+  });
+
+  const bonoFiltrado = bonoRelevantes.filter((f) => {
+    if (filtroSede !== "todas" && f.sede !== filtroSede) return false;
+    return coincideBusqueda(f.persona);
+  });
+
+  function alternarFiltroEstado(v: "pendientes" | "firmados" | "negativas") {
+    setFiltroEstado((prev) => (prev === v ? "todos" : v));
+  }
+
+  function irAPendientesEspeciales() {
+    bonoRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  // Una sola pareja de componentes decide qué botón va de primario y cuáles
+  // van al menú "···" — así la fila nunca vuelve a mostrar cuatro acciones
+  // sueltas, ni acá ni el día que se agregue una quinta. Cada `onClick` se
+  // escribe directo en su prop de JSX (no como dato armado antes, en un
+  // objeto intermedio): moverlo a un objeto `{etiqueta, onClick}` calculado
+  // antes del render rompía el análisis de "esto es un manejador de evento,
+  // no una lectura durante el render" que exige `panelRef` en `abrirSubida`.
+  function FilaAccionesRuta({ f }: { f: FilaTablero }) {
+    const ver = f.ruta_id && rutasDeArchivo.has(f.ruta_id)
+      ? () => void verDocumento(rutasDeArchivo.get(f.ruta_id!)!)
+      : rutaVigentePorPersona.get(f.persona_id)?.firma_persona
+        ? () => abrirVerFirma(f)
+        : null;
+    const subirEtiqueta = f.estado === "ok" ? "Subir otra" : "Subir firmada";
+    return (
+      <div className="flex items-center justify-end gap-1.5">
+        <Boton variante={ver ? "secundario" : "primario"} tamano="sm"
+          onClick={ver ?? (() => abrirSubida("ruta", f.persona_id))}>
+          {ver ? "Ver" : subirEtiqueta}
+        </Boton>
+        <Menu alinear="derecha" trigger={({ abierto, alternar }) => (
+          <Boton variante="sutil" tamano="sm" onClick={alternar}
+            aria-haspopup="menu" aria-expanded={abierto} aria-label={`Más acciones para ${f.persona}`}>
+            •••
+          </Boton>
+        )}>
+          {ver && <MenuItem onClick={() => abrirSubida("ruta", f.persona_id)}>{subirEtiqueta}</MenuItem>}
+          <MenuItem onClick={() => imprimirFila(f.persona_id, "ruta")}>Imprimir</MenuItem>
+          {/* Discreta a propósito dentro del menú, no en la fila: registrar
+              una negativa no debería ser tan fácil como registrar una firma. */}
+          {f.estado === "sin_ruta" && (
+            <MenuItem onClick={() => abrirSubida("ruta", f.persona_id, true)}>Registrar negativa</MenuItem>
+          )}
+          {f.ruta_id && (
+            <MenuItem variante="peligro" onClick={() => setAnulando({ id: f.ruta_id!, motivo: "", etiqueta: f.persona })}>
+              Anular
+            </MenuItem>
+          )}
+        </Menu>
+      </div>
+    );
+  }
+
+  function FilaAccionesBono({ f }: { f: FilaTablero }) {
+    const ver = f.bono_id && rutasDeArchivo.has(f.bono_id)
+      ? () => void verDocumento(rutasDeArchivo.get(f.bono_id!)!)
+      : null;
+    const subirEtiqueta = f.bono_estado === "ok" ? "Subir otro" : "Subir cargo";
+    return (
+      <div className="flex items-center justify-end gap-1.5">
+        <Boton variante={ver ? "secundario" : "primario"} tamano="sm"
+          onClick={ver ?? (() => abrirSubida("bono", f.persona_id))}>
+          {ver ? "Ver" : subirEtiqueta}
+        </Boton>
+        <Menu alinear="derecha" trigger={({ abierto, alternar }) => (
+          <Boton variante="sutil" tamano="sm" onClick={alternar}
+            aria-haspopup="menu" aria-expanded={abierto} aria-label={`Más acciones para ${f.persona}`}>
+            •••
+          </Boton>
+        )}>
+          {ver && <MenuItem onClick={() => abrirSubida("bono", f.persona_id)}>{subirEtiqueta}</MenuItem>}
+          <MenuItem onClick={() => imprimirFila(f.persona_id, "bono")}>Imprimir</MenuItem>
+          {/* Antes no existía ninguna forma de anular un cargo de cumpleaños
+              ya archivado (hallazgo de la auditoría 2026-09-14) — ahora usa
+              el mismo camino que ruta y política: nunca se borra, se anula
+              con motivo. */}
+          {f.bono_id && (
+            <MenuItem variante="peligro" onClick={() => setAnulando({ id: f.bono_id!, motivo: "", etiqueta: f.persona })}>
+              Anular
+            </MenuItem>
+          )}
+        </Menu>
+      </div>
+    );
+  }
+
+  function BadgeEstadoRuta({ f }: { f: FilaTablero }) {
+    if (f.estado === "sin_ruta") return <Insignia variante="alerta">Pendiente</Insignia>;
+    if (f.estado === "se_nego") return <Insignia variante="alerta">Se negó</Insignia>;
+    return <Insignia variante="positivo">Firmado</Insignia>;
+  }
+
+  function TipoDeFirmaRuta({ f }: { f: FilaTablero }) {
+    if (f.estado !== "ok") return <span className="text-taupe">—</span>;
+    if (f.ruta_firma_persona_confirmada_at) return <span>Firma digital</span>;
+    return <span>Documento cargado</span>;
+  }
 
   // ── La hoja de un documento ─────────────────────────────────────────────
   // Esto vivía escrito directamente en el `return`, atado a la ÚNICA persona
@@ -1482,14 +1626,41 @@ export default function DocumentacionPage() {
   return (
     <>
 
-      <main className="mx-auto max-w-3xl p-6 print:max-w-none print:p-0">
+      <main className="p-6 print:max-w-none print:p-0">
         {/* Controles — no se imprimen */}
         <div className="mb-6 print:hidden">
-          <h1 className="mb-1 font-serif text-2xl">Documentación</h1>
-          <p className="mb-4 text-sm text-taupe">
-            Imprime la declaración de cada integrante, recoge la firma y súbela acá. El papel
-            firmado es lo que sostiene que la movilidad no sea remuneración.
-          </p>
+          <CabeceraPagina
+            titulo="Documentación"
+            descripcion="Gestiona documentos, firmas y pendientes de cada colaborador."
+            accion={<Boton variante="primario" onClick={() => setGenerarAbierto(true)}>+ Generar documento</Boton>}
+          />
+
+          {/* ── Indicadores, que funcionan como filtro de la tabla de abajo ──
+              Clic en un número filtra la misma tabla en vez de abrir una
+              bandeja aparte: la misma persona no aparece nunca en dos listas
+              distintas de esta pantalla. */}
+          <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <button type="button" onClick={() => alternarFiltroEstado("pendientes")}
+              className={`rounded-control border p-3 text-left transition-colors duration-150 ${filtroEstado === "pendientes" ? "border-rojo bg-rojo/5" : "border-sand hover:bg-sand/30"}`}>
+              <div className="text-2xl font-medium text-tinta">{totalPendientes}</div>
+              <div className="text-xs text-taupe">Pendientes de firma</div>
+            </button>
+            <button type="button" onClick={() => alternarFiltroEstado("firmados")}
+              className={`rounded-control border p-3 text-left transition-colors duration-150 ${filtroEstado === "firmados" ? "border-verde bg-verde/5" : "border-sand hover:bg-sand/30"}`}>
+              <div className="text-2xl font-medium text-tinta">{totalFirmados}</div>
+              <div className="text-xs text-taupe">Firmados</div>
+            </button>
+            <button type="button" onClick={() => alternarFiltroEstado("negativas")}
+              className={`rounded-control border p-3 text-left transition-colors duration-150 ${filtroEstado === "negativas" ? "border-rojo bg-rojo/5" : "border-sand hover:bg-sand/30"}`}>
+              <div className="text-2xl font-medium text-tinta">{totalNegativas}</div>
+              <div className="text-xs text-taupe">Negativas</div>
+            </button>
+            <button type="button" onClick={irAPendientesEspeciales}
+              className="rounded-control border border-sand p-3 text-left transition-colors duration-150 hover:bg-sand/30">
+              <div className="text-2xl font-medium text-tinta">{bonoPendientes.length}</div>
+              <div className="text-xs text-taupe">Pendientes especiales</div>
+            </button>
+          </div>
 
           {/* ── La política de empresa ──────────────────────────────────────
               Va arriba y en rojo porque su ausencia afecta a las 22 personas a
@@ -1498,10 +1669,10 @@ export default function DocumentacionPage() {
               un documento fechado en septiembre no justifica los pagos de agosto,
               y encima lo deja por escrito. */}
           {politica && (!politica.cargada || politica.llego_tarde) && (
-            <div className="mb-4 rounded-control border border-rojo bg-rojo/5 p-3 text-sm">
+            <BannerAviso variante="alerta" titulo="Política de movilidad" className="mb-6">
               {!politica.cargada ? (
                 <>
-                  <strong className="text-rojo">Falta la política de movilidad de CAYLA.</strong>{" "}
+                  <strong className="text-rojo-profundo">Falta la política de movilidad de CAYLA.</strong>{" "}
                   Es un solo documento, lo firmas tú, y sostiene a todo el equipo.{" "}
                   {politica.primer_pago && (
                     // Decía «anterior al 29 de julio» y el cálculo acepta el 29:
@@ -1515,7 +1686,7 @@ export default function DocumentacionPage() {
                 </>
               ) : (
                 <>
-                  <strong className="text-rojo">La política está firmada después del primer pago.</strong>{" "}
+                  <strong className="text-rojo-profundo">La política está firmada después del primer pago.</strong>{" "}
                   Se firmó el {fechaLarga(politica.fecha_firma!)} y la movilidad se paga desde el{" "}
                   {fechaLarga(politica.primer_pago!)}. Un documento posterior a los pagos que
                   justifica no los justifica — y queda por escrito.
@@ -1523,7 +1694,7 @@ export default function DocumentacionPage() {
               )}
               {/* Sin este botón el aviso se podía leer pero no cerrar: decía qué
                   falta y no dejaba resolverlo en la misma pantalla. */}
-              <div className="mt-2 flex flex-wrap items-center gap-3">
+              <div className="mt-3 flex flex-wrap items-center gap-3">
                 <Boton variante="enlace" onClick={() => { setTipo("politica"); setTimeout(() => window.print(), 60); }}>
                   Imprimir
                 </Boton>
@@ -1531,32 +1702,56 @@ export default function DocumentacionPage() {
                   {politica.cargada ? "Subir otra" : "Subir la política firmada"}
                 </Boton>
               </div>
-            </div>
+            </BannerAviso>
           )}
 
           {/* Cuando está bien no grita, pero sigue estando a la mano: si no se
               puede abrir lo archivado, nadie descubre que subió el papel
               equivocado hasta que lo pide un inspector. */}
           {politica?.cargada && !politica.llego_tarde && (
-            <div className="mb-4 flex flex-wrap items-center gap-3 rounded-control border border-sand px-3 py-2 text-sm text-taupe">
-              <span>
-                Política de movilidad firmada el{" "}
-                <strong className="text-tinta">{fechaLarga(politica.fecha_firma!)}</strong>.
-              </span>
-              {politica.storage_path && (
-                <Boton variante="enlace" onClick={() => void verDocumento(politica.storage_path!)}>Ver</Boton>
-              )}
-              <Boton variante="enlace" onClick={() => abrirSubida("politica", null)}>Reemplazar</Boton>
-              {/* Anular, no borrar. Solo hace falta cuando se quiere retirar la
-                  política SIN subir otra —reemplazarla ya anula la anterior sola—,
-                  y deja a CAYLA pagando movilidad sin papel que la sostenga: por
-                  eso el aviso rojo de arriba vuelve a aparecer en cuanto se hace. */}
-              {politica.id && (
-                <Boton variante="enlace" className="text-taupe" onClick={() => setAnulando({ id: politica.id!, motivo: "" })}>
-                  Anular
-                </Boton>
-              )}
-            </div>
+            <TarjetaInfo
+              titulo="Política de movilidad"
+              className="mb-6"
+              accion={
+                <div className="flex items-center gap-1.5">
+                  {politica.storage_path && (
+                    <Boton variante="secundario" tamano="sm" onClick={() => void verDocumento(politica.storage_path!)}>Ver documento</Boton>
+                  )}
+                  <Menu alinear="derecha" trigger={({ abierto, alternar }) => (
+                    <Boton variante="sutil" tamano="sm" onClick={alternar}
+                      aria-haspopup="menu" aria-expanded={abierto} aria-label="Más acciones para la política de movilidad">
+                      •••
+                    </Boton>
+                  )}>
+                    <MenuItem onClick={() => abrirSubida("politica", null)}>Reemplazar</MenuItem>
+                    {/* Anular, no borrar. Solo hace falta cuando se quiere retirar la
+                        política SIN subir otra —reemplazarla ya anula la anterior sola—,
+                        y deja a CAYLA pagando movilidad sin papel que la sostenga: por
+                        eso el aviso rojo de arriba vuelve a aparecer en cuanto se hace. */}
+                    {politica.id && (
+                      <MenuItem variante="peligro" onClick={() => setAnulando({ id: politica.id!, motivo: "" })}>
+                        Anular
+                      </MenuItem>
+                    )}
+                  </Menu>
+                </div>
+              }
+            >
+              <dl className="grid grid-cols-3 gap-4 text-sm">
+                <div>
+                  <dt className="text-xs text-taupe">Estado</dt>
+                  <dd className="mt-0.5"><Insignia variante="positivo">Firmada</Insignia></dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-taupe">Vigente desde</dt>
+                  <dd className="mt-0.5 text-tinta">{fechaLarga(politica.fecha_firma!)}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-taupe">Versión</dt>
+                  <dd className="mt-0.5 text-tinta">Actual</dd>
+                </div>
+              </dl>
+            </TarjetaInfo>
           )}
 
           {/* El motivo es obligatorio y no es burocracia: sin él, el historial se
@@ -1724,7 +1919,7 @@ export default function DocumentacionPage() {
               importa el día que alguien discuta un pago de movilidad — qué papel
               regía entonces, quién lo registró y por qué dejó de regir. */}
           {politicasAnteriores.length > 0 && (
-            <details className="mb-4 rounded-control border border-sand px-3 py-2 text-sm">
+            <details className="mb-6 rounded-control border border-sand px-3 py-2 text-sm">
               <summary className="cursor-pointer text-xs text-taupe">
                 Versiones anteriores de la política ({politicasAnteriores.length})
               </summary>
@@ -1745,41 +1940,35 @@ export default function DocumentacionPage() {
             </details>
           )}
 
-          {/* ── El bono del mes ─────────────────────────────────────────────
+          {/* ── Pendientes especiales (el bono del mes) ─────────────────────
               El cargo del onomástico se olvida por calendario, no por descuido:
               se entrega una vez al año y en diciembre nadie recuerda si alguien
-              firmó en agosto. Por eso el aviso es del MES, no de la persona. */}
+              firmó en agosto. Por eso el aviso es del MES, no de la persona —
+              y cada nombre es una tarea con su acción lista, no un párrafo. */}
           {bonoPendientes.length > 0 && (
-            <div className="mb-4 rounded-control border border-sand bg-sand/20 p-3 text-sm">
-              {bonoEsteMes.length > 0 && (
-                <div>
-                  <strong className="text-tinta">
-                    {bonoEsteMes.length === 1 ? "Cumple años este mes" : `Cumplen años este mes: ${bonoEsteMes.length}`}
-                  </strong>{" "}
-                  — {bonoEsteMes.map((f) => f.persona).join(" · ")}.{" "}
-                  {/* Sin monto en la base, el aviso deja de decir cuánto entregar
-                      y pasa a decir qué falta. Nombrar una cifra acá y otra en el
-                      papel es la contradicción que este archivo existe para
-                      evitar. */}
-                  {bonoMonto === null ? (
-                    <>Falta fijar el monto del bono en parámetros laborales
-                    (<code>bono_onomastico</code>): hasta entonces la constancia no se
-                    puede emitir.</>
-                  ) : (
-                    <>Imprime su constancia, entrega los S/ {bonoMonto.toFixed(2)} y
-                    sube el cargo firmado.</>
-                  )}
-                </div>
+            <TarjetaInfo titulo="Pendientes especiales" className="mb-6">
+              {bonoMonto === null && (
+                <p className="mb-3 rounded-control bg-rojo/[0.06] px-3 py-2 text-xs text-rojo-profundo">
+                  Falta fijar el monto del bono en parámetros laborales (<code>bono_onomastico</code>):
+                  hasta entonces ninguna constancia se puede emitir.
+                </p>
               )}
-              {bonoPendientes.length > bonoEsteMes.length && (
-                <div className={bonoEsteMes.length > 0 ? "mt-2" : ""}>
-                  <strong className="text-rojo">
-                    {bonoPendientes.length - bonoEsteMes.length} sin cargo de un mes que ya pasó.
-                  </strong>{" "}
-                  Un pago sin el papel que dice por qué se hizo es un pago sin causa acreditada.
-                </div>
-              )}
-            </div>
+              <ul className="divide-y divide-sand">
+                {bonoPendientes.map((f) => (
+                  <li key={f.persona_id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
+                    <div>
+                      <span className="text-tinta">{f.persona}</span>{" "}
+                      <span className="text-taupe">
+                        {f.bono_estado === "este_mes"
+                          ? "· cargo de cumpleaños pendiente"
+                          : `· cumplió en ${MES_LARGO[(f.bono_mes ?? 1) - 1]} y no hay cargo`}
+                      </span>
+                    </div>
+                    <Boton variante="enlace" onClick={() => abrirSubida("bono", f.persona_id)}>Resolver →</Boton>
+                  </li>
+                ))}
+              </ul>
+            </TarjetaInfo>
           )}
 
           {/* ── El panel de subida ──────────────────────────────────────────
@@ -1848,371 +2037,350 @@ export default function DocumentacionPage() {
             </div>
           )}
 
-          {/* ── Los dos apartados ──────────────────────────────────────────
-              Antes era UNA tabla con las dos cosas, y cada fila llevaba cinco
-              controles: veinte filas por cinco son cien botones en pantalla.
-              Peor, los dos «Imprimir» eran idénticos —mismo texto, mismo
-              tamaño— y solo el orden decía cuál sacaba la declaración de ruta y
-              cuál la constancia del onomástico. Si hay que adivinar cuál es
-              cuál, el diseño falló.
-
-              Ahora cada papel tiene su apartado, y se abre el que se está
-              trabajando. `<details>` nativo y no un desplegable propio: se abre
-              con teclado, lo lee un lector de pantalla y al imprimir el
-              navegador ya sabe qué hacer con él. */}
+          {/* ── Declaraciones de ruta — la sección central ───────────────── */}
           {tablero.length > 0 && (
-            <div className="mb-6 space-y-3">
+            <div className="mb-8">
+              <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+                <h2 className="font-serif text-lg">Declaraciones de ruta</h2>
+                <span className="text-sm text-taupe">
+                  <strong className="text-tinta">{totalFirmados}</strong> / {tablero.length} firmadas
+                </span>
+              </div>
 
-              {/* ── Declaraciones de ruta ────────────────────────────────── */}
-              <details open={rutasPendientes.length > 0} className="rounded-control border border-sand">
-                <summary className="flex cursor-pointer flex-wrap items-baseline justify-between gap-2 px-4 py-3">
-                  <span className="font-medium">Declaraciones de ruta</span>
-                  <span className="text-sm text-taupe">
-                    <strong className="text-tinta">{tablero.filter((f) => f.estado === "ok").length}</strong>
-                    {" de "}{tablero.length} firmadas
-                    {tablero.some((f) => f.estado === "se_nego") && (
-                      <> · <strong className="text-rojo">{tablero.filter((f) => f.estado === "se_nego").length} se negaron</strong></>
-                    )}
-                  </span>
-                </summary>
-
-                {/* El botón del lote va DENTRO del apartado y no en la cabecera:
-                    un `<summary>` con un botón adentro traga el clic —abre y
-                    cierra el desplegable en vez de imprimir— y con teclado es
-                    peor todavía. */}
+              <div className="mb-3 flex flex-wrap items-end gap-3">
+                <Campo etiqueta="Buscar colaborador…" value={busca} onChange={(e) => setBusca(e.target.value)} className="w-56" />
+                <CampoSelect etiqueta="Sede" value={filtroSede} onChange={(e) => setFiltroSede(e.target.value)} className="w-40">
+                  <option value="todas">Todas</option>
+                  {sedesEnTablero.map((s) => <option key={s} value={s}>{s}</option>)}
+                </CampoSelect>
+                {(filtroSede !== "todas" || busca.trim() !== "" || filtroEstado !== "todos") && (
+                  <Boton variante="enlace" onClick={() => { setFiltroSede("todas"); setBusca(""); setFiltroEstado("todos"); }}>
+                    Limpiar filtros
+                  </Boton>
+                )}
                 {rutasPendientes.length > 0 && (
-                  <div className="flex flex-wrap items-center gap-3 border-t border-sand px-4 py-2">
-                    <Boton variante="primario" tamano="sm" onClick={() => imprimirLote("ruta", rutasPendientes)}>
-                      Imprimir las {rutasPendientes.length} que faltan
-                    </Boton>
-                    <span className="text-xs text-taupe">
-                      Sale una hoja por persona, cada una en su página.
-                    </span>
-                  </div>
+                  <Boton variante="secundario" tamano="sm" className="ml-auto" onClick={() => imprimirLote("ruta", rutasPendientes)}>
+                    Imprimir pendientes · {rutasPendientes.length}
+                  </Boton>
                 )}
+              </div>
 
-                {/* Sin el envoltorio <Tabla> a propósito: esta tabla ya vive
-                    dentro de la tarjeta con borde del <details> que la
-                    contiene, y el borde+esquinas propios de <Tabla> le
-                    quedarían doble aro. Sí toma TablaEncabezado/Th/Fila, que
-                    es lo que unifica el tipo de letra del encabezado y la
-                    zebra de las filas con el resto del panel. */}
-                <div className="overflow-x-auto border-t border-sand">
-                  <table className="w-full text-sm">
-                    <TablaEncabezado>
-                      <Th>Integrante</Th>
-                      <Th>Sede</Th>
-                      <Th>Su declaración</Th>
-                      <Th>{""}</Th>
-                    </TablaEncabezado>
-                    <tbody>
-                      {tableroPorSede.map((f, i) => {
-                        // El subtítulo sale la primera vez que aparece esta
-                        // sede DENTRO de su grupo (sin firmar / firmadas) —
-                        // por eso compara también el grupo, no solo la sede:
-                        // sin esto, la primera sede del segundo grupo no
-                        // repetiría su propio subtítulo si por casualidad es
-                        // la misma sede con la que terminó el primer grupo.
-                        const anterior = tableroPorSede[i - 1];
-                        const grupoDe = (x: FilaTablero) => (x.ruta_id !== null ? 1 : 0);
-                        const cambioDeSede =
-                          i === 0 || anterior.sede !== f.sede || grupoDe(anterior) !== grupoDe(f);
-                        return (
-                          <Fragment key={f.persona_id}>
-                            {cambioDeSede && (
-                              <tr>
-                                <td
-                                  colSpan={4}
-                                  className="border-t border-sand bg-sand/30 px-4 py-1 text-[11px] font-medium uppercase tracking-wide text-taupe"
-                                >
-                                  {f.sede}
-                                </td>
-                              </tr>
-                            )}
-                            <Fila>
-                          <td className="px-4 py-2">{f.persona}</td>
-                          <td className="px-4 py-2 text-xs text-taupe">{f.sede}</td>
-                          <td className="px-4 py-2">
-                            {f.estado === "sin_ruta" ? (
-                              <span className="font-medium text-rojo">falta firmar</span>
-                            ) : f.estado === "se_nego" ? (
-                              <span className="font-medium text-rojo">
-                                se negó a firmar · no cobra movilidad
-                              </span>
-                            ) : (
-                              <>
-                                <span className="text-tinta">
-                                  firmada el {fechaLarga(f.ruta_firmada_el!)}
-                                  {f.ruta_firma_persona_confirmada_at && (
-                                    <span className="text-taupe"> · firma digital, desde el sistema</span>
-                                  )}
+              {rutaFiltrada.length === 0 ? (
+                <p className="rounded-control border border-sand bg-sand/20 px-4 py-6 text-center text-sm text-taupe">
+                  {tablero.length === 0
+                    ? "No hay declaraciones de ruta que gestionar."
+                    : filtroEstado === "pendientes"
+                      ? "No hay documentos pendientes de firma."
+                      : "Esta vista no tiene registros con los filtros seleccionados."}
+                </p>
+              ) : (
+                <>
+                  {/* Desktop/tablet: tabla compacta con encabezado fijo. */}
+                  <div className="hidden sm:block">
+                    <Tabla alturaMaxima="60vh">
+                      <TablaEncabezado>
+                        <Th>Persona</Th>
+                        <Th>Sede</Th>
+                        <Th>Estado</Th>
+                        <Th>Fecha</Th>
+                        <Th>Tipo de firma</Th>
+                        <Th>{""}</Th>
+                      </TablaEncabezado>
+                      <tbody>
+                        {rutaFiltrada.map((f) => (
+                          <Fila key={f.persona_id}>
+                            <td className="px-4 py-2">{f.persona}</td>
+                            <td className="px-4 py-2 text-xs text-taupe">{f.sede}</td>
+                            <td className="px-4 py-2">
+                              <BadgeEstadoRuta f={f} />
+                              {f.ruta_desfasada && (
+                                <span className="mt-1 block text-xs text-rojo">
+                                  tarifa desfasada
                                 </span>
-                                {f.ruta_desfasada && (
-                                  <span className="block text-xs text-rojo">
-                                    declara S/ {Number(f.ruta_monto).toFixed(2)} y hoy se paga otra tarifa —
-                                    conviene volver a firmarla
-                                  </span>
-                                )}
-                              </>
-                            )}
-                          </td>
-                          <td className="px-4 py-2">
-                            <div className="flex flex-wrap items-center justify-end gap-3">
-                              {/* «Ver» va PRIMERO y solo si hay algo que ver:
-                                  comprobar lo que se firmó o se subió es lo que se
-                                  hace justo después, y el error de subir el papel
-                                  equivocado no se nota de ninguna otra forma hasta
-                                  que lo pide un inspector. Dos vías, nunca las dos
-                                  a la vez para la misma fila: un escaneo abre su
-                                  archivo (`rutasDeArchivo`); una firma digital no
-                                  tiene archivo — su texto y su firma viven en
-                                  columnas, así que abren el recuadro propio. */}
-                              {f.ruta_id && rutasDeArchivo.has(f.ruta_id) ? (
-                                <Boton variante="enlace" onClick={() => void verDocumento(rutasDeArchivo.get(f.ruta_id!)!)}>Ver</Boton>
-                              ) : rutaVigentePorPersona.get(f.persona_id)?.firma_persona ? (
-                                <Boton variante="enlace" onClick={() => abrirVerFirma(f)}>Ver</Boton>
-                              ) : null}
-                              <Boton variante="enlace" onClick={() => imprimirFila(f.persona_id, "ruta")}>Imprimir</Boton>
-                              <Boton variante="secundario" tamano="sm" onClick={() => abrirSubida("ruta", f.persona_id)}>
-                                {f.estado === "ok" ? "Subir otra" : "Subir firmada"}
-                              </Boton>
-                              {f.estado === "sin_ruta" && (
-                                // Discreto a propósito: registrar una negativa no debería
-                                // ser tan fácil como registrar una firma.
-                                <Boton variante="enlace" className="text-taupe" onClick={() => abrirSubida("ruta", f.persona_id, true)}>
-                                  se negó
-                                </Boton>
                               )}
-                              {/* Eliminar (0428, a pedido de Felipe): por si quedó
-                                  mal firmada — mismo `anulando` que ya usa la
-                                  política de arriba, con el nombre de la persona en
-                                  la pregunta de confirmación. Solo tiene sentido si
-                                  hay algo que anular. */}
-                              {f.ruta_id && (
-                                <Boton variante="enlace" className="text-rojo"
-                                  onClick={() => setAnulando({ id: f.ruta_id!, motivo: "", etiqueta: f.persona })}>
-                                  Eliminar
-                                </Boton>
-                              )}
-                            </div>
-                          </td>
-                            </Fila>
-                          </Fragment>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </details>
-
-              {/* ── Cargos de cumpleaños ─────────────────────────────────────
-                  Solo lista a quien tiene algo que hacer. Las veinte filas
-                  completas con «cumple en octubre» repetido no informaban: el
-                  90% del año la respuesta es «nada que hacer», y una lista que
-                  casi siempre dice eso deja de leerse. */}
-              <details open={bonoPendientes.length > 0} className="rounded-control border border-sand">
-                <summary className="flex cursor-pointer flex-wrap items-baseline justify-between gap-2 px-4 py-3">
-                  <span className="font-medium">Cargos de cumpleaños</span>
-                  <span className="text-sm text-taupe">
-                    {bonoPendientes.length === 0
-                      ? "nada pendiente"
-                      : <><strong className="text-rojo">{bonoPendientes.length}</strong> por entregar o firmar</>}
-                  </span>
-                </summary>
-
-                {bonoPendientes.length > 0 && (
-                  <div className="flex flex-wrap items-center gap-3 border-t border-sand px-4 py-2">
-                    <Boton variante="primario" tamano="sm" onClick={() => imprimirLote("bono", bonoPendientes)}>
-                      Imprimir las {bonoPendientes.length} que faltan
-                    </Boton>
-                    <span className="text-xs text-taupe">
-                      Solo de quien ya cumplió o cumple este mes.
-                    </span>
+                            </td>
+                            <td className="px-4 py-2 text-taupe">
+                              {f.estado === "ok" ? fechaLarga(f.ruta_firmada_el!) : "—"}
+                            </td>
+                            <td className="px-4 py-2 text-taupe"><TipoDeFirmaRuta f={f} /></td>
+                            <td className="px-4 py-2"><FilaAccionesRuta f={f} /></td>
+                          </Fila>
+                        ))}
+                      </tbody>
+                    </Tabla>
                   </div>
-                )}
 
-                {/* Mismo criterio que la tabla de rutas de arriba: sin
-                    <Tabla> a propósito, porque ya vive dentro de la tarjeta
-                    con borde del <details>. */}
-                <div className="overflow-x-auto border-t border-sand">
-                  <table className="w-full text-sm">
+                  {/* Mobile: una card por persona, nunca la tabla comprimida. */}
+                  <div className="space-y-2 sm:hidden">
+                    {rutaFiltrada.map((f) => (
+                      <div key={f.persona_id} className="rounded-control border border-sand bg-papel p-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <div className="font-medium text-tinta">{f.persona}</div>
+                            <div className="text-xs text-taupe">{f.sede}</div>
+                          </div>
+                          <BadgeEstadoRuta f={f} />
+                        </div>
+                        <div className="mt-1 text-xs text-taupe">
+                          {f.estado === "ok" ? (
+                            <>{fechaLarga(f.ruta_firmada_el!)} · <TipoDeFirmaRuta f={f} /></>
+                          ) : "—"}
+                          {f.ruta_desfasada && <span className="ml-1 text-rojo">· tarifa desfasada</span>}
+                        </div>
+                        <div className="mt-2 flex justify-end">
+                          <FilaAccionesRuta f={f} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* ── Cargos de cumpleaños ─────────────────────────────────────────
+              Solo lista a quien tiene algo que hacer. Las veinte filas
+              completas con «cumple en octubre» repetido no informaban: el
+              90% del año la respuesta es «nada que hacer», y una lista que
+              casi siempre dice eso deja de leerse. */}
+          {tablero.length > 0 && (
+            <div ref={bonoRef} className="mb-8">
+              <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+                <h2 className="font-serif text-lg">Cargos de cumpleaños</h2>
+                {bonoPendientes.length > 0 && (
+                  <Boton variante="secundario" tamano="sm" onClick={() => imprimirLote("bono", bonoPendientes)}>
+                    Imprimir pendientes · {bonoPendientes.length}
+                  </Boton>
+                )}
+              </div>
+
+              {bonoFiltrado.length === 0 ? (
+                <p className="rounded-control border border-sand bg-sand/20 px-4 py-6 text-center text-sm text-taupe">
+                  {bonoRelevantes.length === 0
+                    ? "Nadie tiene el cargo pendiente. Aquí van apareciendo en el mes de su onomástico."
+                    : "Esta sede no tiene registros con los filtros seleccionados."}
+                </p>
+              ) : (
+                <div className="hidden sm:block">
+                  <Tabla alturaMaxima="40vh">
                     <TablaEncabezado>
-                      <Th>Integrante</Th>
+                      <Th>Persona</Th>
                       <Th>Sede</Th>
-                      <Th>Su cargo</Th>
+                      <Th>Estado</Th>
+                      <Th>Fecha</Th>
                       <Th>{""}</Th>
                     </TablaEncabezado>
                     <tbody>
-                      {bonoRelevantes.map((f) => (
+                      {bonoFiltrado.map((f) => (
                         <Fila key={f.persona_id}>
                           <td className="px-4 py-2">{f.persona}</td>
                           <td className="px-4 py-2 text-xs text-taupe">{f.sede}</td>
                           <td className="px-4 py-2">
                             {f.bono_estado === "ok" ? (
-                              <span className="text-tinta">firmado el {fechaLarga(f.bono_firmada_el!)}</span>
+                              <Insignia variante="positivo">Firmado</Insignia>
                             ) : f.bono_estado === "este_mes" ? (
-                              <span className="font-medium text-tinta">cumple este mes — entregar y firmar</span>
+                              <Insignia variante="advertencia">Cumple este mes</Insignia>
                             ) : (
-                              <span className="font-medium text-rojo">
-                                cumplió en {MES_LARGO[(f.bono_mes ?? 1) - 1]} y no hay cargo
-                              </span>
+                              <Insignia variante="alerta">Sin cargo</Insignia>
                             )}
                           </td>
-                          <td className="px-4 py-2">
-                            <div className="flex flex-wrap items-center justify-end gap-3">
-                              {f.bono_id && rutasDeArchivo.has(f.bono_id) && (
-                                <Boton variante="enlace" onClick={() => void verDocumento(rutasDeArchivo.get(f.bono_id!)!)}>Ver</Boton>
-                              )}
-                              <Boton variante="enlace" onClick={() => imprimirFila(f.persona_id, "bono")}>Imprimir</Boton>
-                              <Boton variante="secundario" tamano="sm" onClick={() => abrirSubida("bono", f.persona_id)}>
-                                {f.bono_estado === "ok" ? "Subir otro" : "Subir cargo"}
-                              </Boton>
-                            </div>
+                          <td className="px-4 py-2 text-taupe">
+                            {f.bono_estado === "ok" ? fechaLarga(f.bono_firmada_el!) : "—"}
                           </td>
+                          <td className="px-4 py-2"><FilaAccionesBono f={f} /></td>
                         </Fila>
                       ))}
-                      {bonoRelevantes.length === 0 && (
-                        <Fila>
-                          <td colSpan={4} className="px-4 py-3 text-sm text-taupe">
-                            Nadie tiene el cargo pendiente. Aquí van apareciendo en el mes de su
-                            onomástico.
-                          </td>
-                        </Fila>
-                      )}
                     </tbody>
-                  </table>
+                  </Tabla>
                 </div>
-              </details>
+              )}
 
+              {bonoFiltrado.length > 0 && (
+                <div className="space-y-2 sm:hidden">
+                  {bonoFiltrado.map((f) => (
+                    <div key={f.persona_id} className="rounded-control border border-sand bg-papel p-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <div className="font-medium text-tinta">{f.persona}</div>
+                          <div className="text-xs text-taupe">{f.sede}</div>
+                        </div>
+                        {f.bono_estado === "ok" ? (
+                          <Insignia variante="positivo">Firmado</Insignia>
+                        ) : f.bono_estado === "este_mes" ? (
+                          <Insignia variante="advertencia">Cumple este mes</Insignia>
+                        ) : (
+                          <Insignia variante="alerta">Sin cargo</Insignia>
+                        )}
+                      </div>
+                      <div className="mt-2 flex justify-end">
+                        <FilaAccionesBono f={f} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
-          <div className="mb-4 grid gap-3 sm:grid-cols-2">
-            <CampoSelect
-              etiqueta="Documento"
-              value={tipo}
-              onChange={(e) => setTipo(e.target.value as TipoDoc)}
-            >
-              {DOCS.map((d) => <option key={d.id} value={d.id}>{d.titulo}</option>)}
-            </CampoSelect>
-
-            {doc.necesitaPersona && (
+          {/* ── + Generar documento ──────────────────────────────────────────
+              El flujo real es de dos pasos (documento, persona) y no de
+              cuatro: el modal es una sola pantalla, no un wizard. Sale de la
+              bandeja para no competir con los pendientes — generar uno nuevo
+              es una tarea aparte y deliberada. */}
+          <Modal abierto={generarAbierto} onCerrar={() => setGenerarAbierto(false)} titulo="Generar documento" ancho="lg">
+            <div className="grid gap-3 sm:grid-cols-2">
               <CampoSelect
-                etiqueta="Persona"
-                value={personaId}
-                onChange={(e) => setPersonaId(e.target.value)}
+                etiqueta="Documento"
+                value={tipo}
+                onChange={(e) => setTipo(e.target.value as TipoDoc)}
               >
-                <option value="">Elige a quién…</option>
-                {/* Solo en_planilla: "ruta" y "bono" son papeles que declaran una
-                    asignación por asistencia y una política de movilidad — que
-                    un locador los firme es, en palabras del propio comentario
-                    de esta pantalla, un indicio de subordinación en un vínculo
-                    que por definición no la tiene, y esa es la prueba que se
-                    usa para desnaturalizar un contrato civil. El tablero de
-                    arriba ya excluye a quien no está en planilla; este
-                    desplegable se había quedado sin ese mismo filtro.
-
-                    CAMBIO 0424: para "ruta" (y solo para "ruta") también entra
-                    quien es practicante — mismo criterio que ya usan el tablero
-                    y `fn_documento_registrar` (`fn_persona_le_corresponde_movilidad`).
-                    El bono se queda exactamente como estaba: abrirlo también
-                    sería otra decisión de negocio, que nadie pidió. */}
-                {personas
-                  .filter((p) => p.en_planilla || (tipo === "ruta" && p.tipo_vinculo === "practicante"))
-                  .map((p) => (
-                  <option key={p.id} value={p.id}>{p.apellidos}, {p.nombres}</option>
-                ))}
+                {DOCS.map((d) => <option key={d.id} value={d.id}>{d.titulo}</option>)}
               </CampoSelect>
+
+              {doc.necesitaPersona && (
+                <CampoSelect
+                  etiqueta="Persona"
+                  value={personaId}
+                  onChange={(e) => setPersonaId(e.target.value)}
+                >
+                  <option value="">Elige a quién…</option>
+                  {/* Solo en_planilla: "ruta" y "bono" son papeles que declaran una
+                      asignación por asistencia y una política de movilidad — que
+                      un locador los firme es, en palabras del propio comentario
+                      de esta pantalla, un indicio de subordinación en un vínculo
+                      que por definición no la tiene, y esa es la prueba que se
+                      usa para desnaturalizar un contrato civil. El tablero de
+                      arriba ya excluye a quien no está en planilla; este
+                      desplegable se había quedado sin ese mismo filtro.
+
+                      CAMBIO 0424: para "ruta" (y solo para "ruta") también entra
+                      quien es practicante — mismo criterio que ya usan el tablero
+                      y `fn_documento_registrar` (`fn_persona_le_corresponde_movilidad`).
+                      El bono se queda exactamente como estaba: abrirlo también
+                      sería otra decisión de negocio, que nadie pidió. */}
+                  {personas
+                    .filter((p) => p.en_planilla || (tipo === "ruta" && p.tipo_vinculo === "practicante"))
+                    .map((p) => (
+                    <option key={p.id} value={p.id}>{p.apellidos}, {p.nombres}</option>
+                  ))}
+                </CampoSelect>
+              )}
+            </div>
+
+            {/* Quién firma el cargo. Se muestra solo en la política, que es el
+                documento que recibe todo el equipo a la vez.
+
+                POR QUÉ SIGUE HABIENDO LISTA. El 2026-08-02 se decidió no filtrar
+                automáticamente porque los dos casos a excluir —un locador, y
+                alguien que se va a fin de mes— no se podían deducir del sistema.
+                Hoy sí se pueden: `en_planilla` (0085) cubre al locador y
+                `fecha_fin_contrato` (0144) cubre a quien se va. Así que el sistema
+                ya PROPONE bien y vienen desmarcados. La lista se queda porque la
+                decisión final sigue siendo humana y porque un desmarcado que no se
+                puede volver a marcar es una decisión escondida, no una ayuda. */}
+            {!doc.necesitaPersona && personas.length > 0 && (
+              <details className="mt-3 rounded-control border border-sand p-3">
+                <summary className="cursor-pointer text-sm">
+                  Quiénes reciben el documento —{" "}
+                  <strong>{reciben.length} de {personas.length}</strong>
+                </summary>
+                <p className="mt-2 text-xs text-taupe">
+                  Vienen desmarcados quien firma —no declara haber recibido lo que emite—,
+                  quien no está en planilla, porque no cobra movilidad ni bono de cumpleaños,
+                  y quien termina contrato este mes. A quien termina más adelante SÍ se le
+                  entrega: hasta ese día cobra movilidad, así que hasta ese día necesita el
+                  papel. Revisa la lista igual: la decisión final es tuya.
+                </p>
+                <div className="mt-3 grid gap-1 sm:grid-cols-2">
+                  {personas.map((p) => (
+                    <label key={p.id} className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={!excluidos.has(p.id)}
+                        onChange={() =>
+                          setExcluidos((prev) => {
+                            const s = new Set(prev);
+                            if (s.has(p.id)) s.delete(p.id);
+                            else s.add(p.id);
+                            return s;
+                          })
+                        }
+                        className="size-4 accent-tinta"
+                      />
+                      <span>
+                        {p.apellidos}, {p.nombres}
+                        {ETIQUETA_VINCULO[p.tipo_vinculo] && (
+                          <em className="ml-1 not-italic text-taupe">
+                            — {ETIQUETA_VINCULO[p.tipo_vinculo]}
+                          </em>
+                        )}
+                        {finContrato.has(p.id) && (
+                          <em className="ml-1 not-italic text-taupe">
+                            — su contrato termina el{" "}
+                            {finContrato.get(p.id)!.split("-").reverse().join("/")}
+                          </em>
+                        )}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </details>
             )}
-          </div>
 
-          {/* Quién firma el cargo. Se muestra solo en la política, que es el
-              documento que recibe todo el equipo a la vez.
+            <p className="mt-3 rounded-control bg-sand/40 px-4 py-3 text-sm text-taupe">{doc.para}</p>
 
-              POR QUÉ SIGUE HABIENDO LISTA. El 2026-08-02 se decidió no filtrar
-              automáticamente porque los dos casos a excluir —un locador, y
-              alguien que se va a fin de mes— no se podían deducir del sistema.
-              Hoy sí se pueden: `en_planilla` (0085) cubre al locador y
-              `fecha_fin_contrato` (0144) cubre a quien se va. Así que el sistema
-              ya PROPONE bien y vienen desmarcados. La lista se queda porque la
-              decisión final sigue siendo humana y porque un desmarcado que no se
-              puede volver a marcar es una decisión escondida, no una ayuda. */}
-          {!doc.necesitaPersona && personas.length > 0 && (
-            <details className="mb-4 rounded-control border border-sand p-3">
-              <summary className="cursor-pointer text-sm">
-                Quiénes reciben el documento —{" "}
-                <strong>{reciben.length} de {personas.length}</strong>
-              </summary>
-              <p className="mt-2 text-xs text-taupe">
-                Vienen desmarcados quien firma —no declara haber recibido lo que emite—,
-                quien no está en planilla, porque no cobra movilidad ni bono de cumpleaños,
-                y quien termina contrato este mes. A quien termina más adelante SÍ se le
-                entrega: hasta ese día cobra movilidad, así que hasta ese día necesita el
-                papel. Revisa la lista igual: la decisión final es tuya.
+            {/* QUÉ VA A SALIR EN LA LÍNEA DE FIRMA, antes de gastar papel.
+                Sin este aviso el estampado falla en silencio: quien imprime ve la
+                raya en blanco y no tiene forma de saber si es porque no cargó su
+                firma, porque no es la persona que el documento nombra, o porque la
+                pantalla está rota. Las tres se ven idénticas en el papel. */}
+            {!cargando && (
+              <p className="mt-3 text-xs text-taupe">
+                {firmaEstampada
+                  ? `Tu firma escaneada saldrá impresa en la línea de ${firmanteCargo}.`
+                  : esFirmante
+                    ? "No tienes una firma escaneada cargada: el documento sale con la línea en blanco para firmar a mano."
+                    : `La línea de firma dice ${firmanteNombre}, y esa no es tu cuenta: el documento sale con la raya en blanco. La firma de una persona no se estampa bajo el nombre de otra.`}
               </p>
-              <div className="mt-3 grid gap-1 sm:grid-cols-2">
-                {personas.map((p) => (
-                  <label key={p.id} className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={!excluidos.has(p.id)}
-                      onChange={() =>
-                        setExcluidos((prev) => {
-                          const s = new Set(prev);
-                          if (s.has(p.id)) s.delete(p.id);
-                          else s.add(p.id);
-                          return s;
-                        })
-                      }
-                      className="size-4 accent-tinta"
-                    />
-                    <span>
-                      {p.apellidos}, {p.nombres}
-                      {ETIQUETA_VINCULO[p.tipo_vinculo] && (
-                        <em className="ml-1 not-italic text-taupe">
-                          — {ETIQUETA_VINCULO[p.tipo_vinculo]}
-                        </em>
-                      )}
-                      {finContrato.has(p.id) && (
-                        <em className="ml-1 not-italic text-taupe">
-                          — su contrato termina el{" "}
-                          {finContrato.get(p.id)!.split("-").reverse().join("/")}
-                        </em>
-                      )}
-                    </span>
-                  </label>
-                ))}
+            )}
+
+            <div className="mt-4 flex items-center gap-3">
+              <Boton
+                variante="primario"
+                disabled={doc.necesitaPersona && !persona}
+                onClick={() => {
+                  setGenerarAbierto(false);
+                  setTimeout(() => previewRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+                }}
+              >
+                Revisar y continuar
+              </Boton>
+              <Boton variante="enlace" onClick={() => setGenerarAbierto(false)}>Cancelar</Boton>
+            </div>
+          </Modal>
+
+          {/* ── Vista previa del documento elegido ───────────────────────────
+              Se queda siempre visible (no solo dentro del modal) porque es el
+              mismo nodo del DOM que `window.print()` va a imprimir — moverlo
+              adentro y afuera del modal según esté abierto arriesgaría
+              imprimir a medio render. */}
+          {(doc.necesitaPersona ? Boolean(persona) : true) && (
+            <div ref={previewRef} className="mb-4 rounded-control border border-sand bg-papel p-4">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                <div className="text-sm">
+                  <span className="text-taupe">Vista previa · </span>
+                  <span className="font-medium text-tinta">{doc.titulo}</span>
+                  {persona && <span className="text-taupe"> — {nombre}</span>}
+                </div>
+                <Boton variante="primario" onClick={() => window.print()} disabled={doc.necesitaPersona && !persona}>
+                  Imprimir / Guardar como PDF
+                </Boton>
               </div>
-            </details>
+              <p className="text-xs text-taupe">
+                Al imprimir, desmarca «Encabezados y pies de página».
+              </p>
+            </div>
           )}
-
-          <p className="mb-4 rounded-control bg-sand/40 px-4 py-3 text-sm text-taupe">{doc.para}</p>
-
-          {/* QUÉ VA A SALIR EN LA LÍNEA DE FIRMA, antes de gastar papel.
-              Sin este aviso el estampado falla en silencio: quien imprime ve la
-              raya en blanco y no tiene forma de saber si es porque no cargó su
-              firma, porque no es la persona que el documento nombra, o porque la
-              pantalla está rota. Las tres se ven idénticas en el papel. */}
-          {!cargando && (
-            <p className="mb-4 text-xs text-taupe">
-              {firmaEstampada
-                ? `Tu firma escaneada saldrá impresa en la línea de ${firmanteCargo}.`
-                : esFirmante
-                  ? "No tienes una firma escaneada cargada: el documento sale con la línea en blanco para firmar a mano."
-                  : `La línea de firma dice ${firmanteNombre}, y esa no es tu cuenta: el documento sale con la raya en blanco. La firma de una persona no se estampa bajo el nombre de otra.`}
-            </p>
-          )}
-
-          <Boton
-            variante="primario"
-            onClick={() => window.print()}
-            disabled={doc.necesitaPersona && !persona}
-          >
-            Imprimir / Guardar como PDF
-          </Boton>
-          <span className="ml-3 text-xs text-taupe">
-            Al imprimir, desmarca «Encabezados y pies de página».
-          </span>
         </div>
 
         {/* ── El documento ──

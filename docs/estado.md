@@ -6,6 +6,50 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-09-14 — Horarios caído en producción: la 0440 se fusionó a `main` sin pegarse — mismo patrón que 0404/0407, otra vez
+
+Felipe reportó: al cambiar el horario de cualquier persona, el modal
+respondía *"El sistema no encontró esta función. Avisa a Felipe: falta
+aplicar una migración."* — el mensaje que el propio sistema arma para
+`PGRST202`.
+
+**No era un bug de código.** El PR [#356](https://github.com/felipea92p-ux/cayla-dynamic/pull/356)
+("Horarios base: buscador, sección sin horario, badge Programado y motivo
+obligatorio") ya estaba fusionado a `main` desde las 18:03 de hoy. Como
+`main` se publica sola, el frontend que llama a `fn_set_horario_semanal` con
+4 argumentos (`..., p_motivo`) ya estaba en producción — pero la migración
+[0440](../supabase/migrations/0440_el_horario_tambien_se_cambia_por_una_puerta.sql),
+que crea esa función de 4 argumentos, nunca se pegó en el SQL Editor.
+Producción se había quedado con la firma vieja de 3 argumentos, y
+PostgREST no encuentra ninguna función que coincida con la llamada nueva.
+
+Verificado en producción, solo lectura, antes de tocar nada:
+`fn_set_horario_semanal` con la firma vieja, `migraciones_aplicadas` en
+439 (no 440), el trigger `trg_horarios_solo_por_rpc` de la 0440 sin existir.
+Contra el Postgres local (que sí tenía la 0440) se probó el flujo completo
+— cambiar horario existente, asignar a alguien sin horario, horario que
+varía por día, y que un `UPDATE` directo a `horarios_asignados` sin pasar
+por la función sea rechazado por el trigger nuevo — todo en verde, y el PR
+ya había pasado pgTAP en CI. Con eso alcanzaba: no hacía falta escribir
+código ni migración nueva, solo dársela a Felipe. Se pegó la 0440 y se
+confirmó de nuevo contra producción: 1 sola versión de la función, firma de
+4 argumentos, trigger instalado, `migraciones_aplicadas` en 440 con el
+nombre correcto.
+
+**Es exactamente el patrón que `CLAUDE.md` ya documenta con 0404/0407: "la
+migración se pega ANTES de fusionar el PR que la usa".** Esta vez el orden
+volvió a invertirse y el síntoma fue peor que las dos veces anteriores —no
+fue un botón roto o un envío a medias, fue el módulo entero inoperable
+mientras nadie miraba. El freno que falta acá no es de código: es que
+fusionar sin haber pegado la SQL sigue siendo posible, y lo seguirá siendo
+mientras `main` publique sola.
+
+🔴 **Pendiente:** producción sigue sin las migraciones 441, 442 y 443 —
+sin relación con este bug, pero la brecha entre `main` y lo pegado sigue
+creciendo.
+
+---
+
 ## 2026-09-11 — Revisión de pendientes de diseño/UX: casi todo ya estaba fusionado; tres bugs reales cerrados
 
 Se pidió trabajar "todos los pendientes de diseño e interfaz". Antes de tocar
