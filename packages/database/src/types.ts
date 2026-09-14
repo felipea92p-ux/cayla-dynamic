@@ -6620,7 +6620,12 @@ export type Database = {
         Returns: undefined
       }
       fn_set_horario_semanal: {
-        Args: { p_horario: Json | null; p_persona_id: string | null; p_vigente_desde: string | null }
+        Args: {
+          p_horario: Json | null
+          p_motivo: string | null
+          p_persona_id: string | null
+          p_vigente_desde: string | null
+        }
         Returns: undefined
       }
       fn_set_justificacion: {

@@ -443,6 +443,11 @@ function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso
     }
     const { error: e1 } = await supabase.rpc("fn_set_horario_semanal", {
       p_persona_id: d.personaId, p_vigente_desde: d.fecha, p_horario: semanal,
+      // Motivo fijo, no libre: esto es un clic de "hacer permanente" un turno
+      // puntual ya escrito, no una persona explicando por qué cambia un
+      // horario — mismo criterio que ya usan fn_set_rol/fn_set_sede_base
+      // para su único llamador (ver 0440).
+      p_motivo: `Turno puntual del ${d.fecha} promovido a horario base desde Revisión de Turnos.`,
     });
     if (e1) { setProcesando(null); setAviso(`No se pudo cambiar el horario de ${d.persona}: ${e1.message}`); return; }
     // Su `error` se comprueba igual que en `usarHorarioBase`, diez líneas más
@@ -800,6 +805,10 @@ export default function TurnosPage() {
     setGuardando(true);
     const { error } = await supabase.rpc("fn_set_horario_semanal", {
       p_persona_id: edit.personaId, p_vigente_desde: edit.fecha, p_horario: semanal,
+      // Motivo fijo: mismo criterio que "Hacer permanente" en Revisión de
+      // Turnos (ver 0440) — es un clic desde la Vista Día, no un formulario
+      // donde alguien redacta por qué.
+      p_motivo: `Horario de los ${DIAS_PLURAL[Number(dow)]} cambiado desde la Vista Día, vigente desde el ${edit.fecha}.`,
     });
     // El `error` de esta segunda mitad NO se miraba, y la pantalla terminaba
     // diciendo «Horario base actualizado» con el turno puntual todavía puesto.
