@@ -2,13 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Search } from "lucide-react";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { Cargando } from "@/components/cargando";
 import { useToast } from "@/components/toast";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { Boton } from "@/components/ui/boton";
-import { Campo } from "@/components/ui/campo";
+import { Campo, CampoSelect } from "@/components/ui/campo";
+import { AreaTexto } from "@/components/ui/area-texto";
 import { Tabla, TablaEncabezado, Th, Fila } from "@/components/ui/tabla";
 import { Insignia } from "@/components/ui/insignia";
 import { Modal } from "@/components/ui/modal";
@@ -42,8 +44,33 @@ interface Horario {
   almuerzo_min_minutos: number; almuerzo_max_minutos: number; dias_laborables: number[];
   horario_por_dia: Record<string, { e: string; s: string; r?: number }> | null;
 }
+// Para el historial de tramos del modal — igual que Horario, con el cierre.
+interface Tramo extends Horario {
+  vigente_hasta: string | null;
+}
 const DIAS = [{ v: 1, l: "L" }, { v: 2, l: "M" }, { v: 3, l: "X" }, { v: 4, l: "J" }, { v: 5, l: "V" }, { v: 6, l: "S" }, { v: 0, l: "D" }];
 const NOMBRE_DIA: Record<number, string> = { 0: "domingo", 1: "lunes", 2: "martes", 3: "miércoles", 4: "jueves", 5: "viernes", 6: "sábado" };
+
+// El refrigerio real de CAYLA es 60 o 75 minutos, nunca otro número — un campo
+// libre dejaba pasar un "6" en vez de un "60" sin que nada lo detectara, y eso
+// se cuela directo al cálculo de jornada. Auditoría 2026-09-14.
+const REFRIGERIOS_MIN = [60, 75];
+
+// Datos viejos pueden traer un refrigerio fuera de {60, 75} (el schema
+// permite 45-75, el legacy por defecto era 45). En vez de esconderlo -el
+// selector no puede mostrar "seleccionado" un valor que no está en sus
+// opciones sin que el estado real quede desincronizado de lo que se ve- se
+// agrega como una tercera opción visible, para no pisarlo sin que quien
+// edita lo note.
+function opcionesRefrigerio(actual: number): number[] {
+  return REFRIGERIOS_MIN.includes(actual) ? REFRIGERIOS_MIN : [...REFRIGERIOS_MIN, actual].sort((a, b) => a - b);
+}
+
+// Buscar «Ramirez» tiene que encontrar a «Ramírez». Mismo normalizador que
+// /admin/contratos, /admin/horas y el buscador global.
+function sinTildes(t: string): string {
+  return t.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+}
 
 function textoDescanso(dias: number[]): string {
   const libres = [1, 2, 3, 4, 5, 6, 0].filter((d) => !dias.includes(d));
@@ -80,8 +107,16 @@ export default function HorariosPage() {
   const rol = yo?.rol ?? null;
   const [personas, setPersonas] = useState<Persona[]>([]);
   const [horarios, setHorarios] = useState<Map<string, Horario>>(new Map());
+  // Cuando el tramo abierto de `horarios` empieza a futuro (badge "Programado"),
+  // este mapa trae el tramo que SÍ rige hoy — para no mostrar como vigente algo
+  // que todavía no entró en efecto. Solo se completa para esas personas, no
+  // para las ~30 en cada carga.
+  const [vigentesHoy, setVigentesHoy] = useState<Map<string, Horario>>(new Map());
   const [sedes, setSedes] = useState<Record<string, string>>({});
   const [cargando, setCargando] = useState(true);
+  const [busca, setBusca] = useState("");
+  const [filtroSede, setFiltroSede] = useState("");
+  const [filtroTipo, setFiltroTipo] = useState<"" | "sin_horario" | "fijo" | "varia">("");
 
   const [editando, setEditando] = useState<Persona | null>(null);
   const [modoPorDia, setModoPorDia] = useState(false);
@@ -91,7 +126,12 @@ export default function HorariosPage() {
   const [dias, setDias] = useState<number[]>([1, 2, 3, 4, 5, 6]);
   const [porDia, setPorDia] = useState<PorDia>({});  // modo por día
   const [desde, setDesde] = useState(hoyLima());
+  const [motivo, setMotivo] = useState("");
   const [guardando, setGuardando] = useState(false);
+  const [copiarDeId, setCopiarDeId] = useState("");
+  // Tramos anteriores de la persona en edición, solo lectura (0389: el
+  // historial ya vive en `horarios_asignados`, esto solo lo expone).
+  const [historial, setHistorial] = useState<Tramo[]>([]);
 
   const cargar = useCallback(async () => {
     const supabase = createAdminSupabaseClient();
@@ -128,8 +168,27 @@ export default function HorariosPage() {
         return { ...x, tipo_vinculo: v?.tipo_vinculo ?? "planilla", practicante_modalidad: v?.practicante_modalidad ?? null };
       }),
     );
-    setHorarios(new Map(((h as Horario[]) ?? []).map((x) => [x.persona_id, x])));
+    const abiertos = (h as Horario[]) ?? [];
+    setHorarios(new Map(abiertos.map((x) => [x.persona_id, x])));
     setSedes(Object.fromEntries(((s as any[]) ?? []).map((x) => [x.id, x.codigo])));
+
+    // El tramo abierto puede empezar a futuro (alguien programó un cambio de
+    // horario). Para esas personas nada más, trae el tramo que cubre HOY —
+    // si no se hace esto, la pantalla muestra un horario que todavía no rige
+    // como si ya rigiera (auditoría 2026-09-14).
+    const hoy = hoyLima();
+    const idsFuturos = abiertos.filter((x) => x.vigente_desde > hoy).map((x) => x.persona_id);
+    if (idsFuturos.length > 0) {
+      const { data: vh } = await supabase
+        .from("horarios_asignados")
+        .select("persona_id, hora_entrada, hora_salida, vigente_desde, almuerzo_min_minutos, almuerzo_max_minutos, dias_laborables, horario_por_dia")
+        .in("persona_id", idsFuturos)
+        .lte("vigente_desde", hoy)
+        .or(`vigente_hasta.is.null,vigente_hasta.gte.${hoy}`);
+      setVigentesHoy(new Map(((vh as Horario[]) ?? []).map((x) => [x.persona_id, x])));
+    } else {
+      setVigentesHoy(new Map());
+    }
     setCargando(false);
   }, [router, avisar]);
 
@@ -142,16 +201,76 @@ export default function HorariosPage() {
     return personas.filter((p) => p.id !== yo.id && !ROLES_DO.includes(p.rol));
   }, [personas, esSupervisor, yo]);
 
-  function abrirEdicion(p: Persona) {
-    const a = analizar(horarios.get(p.id));
-    setEditando(p);
+  const hoy = hoyLima();
+  // Lo que rige HOY para una persona: el tramo abierto, salvo que ese tramo
+  // empiece a futuro — ahí rige lo que trajo `vigentesHoy` (o nada, si su
+  // primer horario todavía no llegó).
+  function horarioDeHoy(p: Persona): Horario | undefined {
+    const abierto = horarios.get(p.id);
+    if (!abierto) return undefined;
+    return abierto.vigente_desde > hoy ? vigentesHoy.get(p.id) : abierto;
+  }
+
+  // Hook: tiene que llamarse siempre, incluso en el render donde más abajo
+  // se corta con "no tienes permiso" — por eso vive antes de ese return.
+  const filtrados = useMemo(() => {
+    const q = sinTildes(busca.trim());
+    return editables.filter((p) => {
+      if (filtroSede && (sedes[p.sede_base_id] ?? "?") !== filtroSede) return false;
+      if (q && !sinTildes(`${p.nombres} ${p.apellidos}`).includes(q)) return false;
+      if (filtroTipo) {
+        // analizar(undefined) NO significa "sin horario": rellena una semana
+        // completa 08:00-18:00 de L a S para que el formulario de "Asignar"
+        // arranque con algo editable. Sin este guard (el mismo que ya usa la
+        // fila de la tabla), este filtro nunca encontraba a nadie.
+        const h = horarioDeHoy(p);
+        const a = h ? analizar(h) : null;
+        const tipo = !a || a.dias.length === 0 ? "sin_horario" : a.uniforme ? "fijo" : "varia";
+        if (tipo !== filtroTipo) return false;
+      }
+      return true;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- horarioDeHoy lee horarios/vigentesHoy/hoy, ya listados
+  }, [editables, busca, filtroSede, filtroTipo, sedes, horarios, vigentesHoy, hoy]);
+
+  function aplicarAnalisis(a: ReturnType<typeof analizar>) {
     setPorDia(a.porDia);
     setDias(a.dias.length ? a.dias : [1, 2, 3, 4, 5, 6]);
     setEntrada(a.e);
     setSalida(a.s);
     setRefri(a.r);
     setModoPorDia(!a.uniforme);
+  }
+
+  function abrirEdicion(p: Persona) {
+    aplicarAnalisis(analizar(horarios.get(p.id)));
+    setEditando(p);
     setDesde(hoyLima());
+    setMotivo("");
+    setCopiarDeId("");
+    setHistorial([]);
+    void cargarHistorial(p.id);
+  }
+
+  async function cargarHistorial(personaId: string) {
+    const supabase = createAdminSupabaseClient();
+    const { data } = await supabase
+      .from("horarios_asignados")
+      .select("persona_id, hora_entrada, hora_salida, vigente_desde, vigente_hasta, almuerzo_min_minutos, almuerzo_max_minutos, dias_laborables, horario_por_dia")
+      .eq("persona_id", personaId)
+      .order("vigente_desde", { ascending: false });
+    setHistorial((data as Tramo[]) ?? []);
+  }
+
+  // "Copiar horario de →": precarga el formulario con el horario vigente de
+  // otra persona. Sigue llamando a fn_set_horario_semanal solo para quien se
+  // está editando — no toca a la persona de la que se copia.
+  function copiarDe(personaId: string) {
+    setCopiarDeId(personaId);
+    if (!personaId) return;
+    const h = horarios.get(personaId);
+    if (!h) return;
+    aplicarAnalisis(analizar(h));
   }
 
   function toggleDia(v: number) {
@@ -235,11 +354,12 @@ export default function HorariosPage() {
     const faltaSalida = modoPorDia ? Object.values(porDia).some((v) => !v.s) : !salida;
     if (faltaEntrada) { avisar("error", "Falta la hora de entrada de algún día."); return; }
     if (faltaSalida) { avisar("error", "Falta la hora de salida de algún día."); return; }
+    if (motivo.trim().length < 3) { avisar("error", "Escribe el motivo del cambio (mínimo 3 caracteres)."); return; }
     const personaId = editando.id;
     setGuardando(true);
     const supabase = createAdminSupabaseClient();
     const { error } = await supabase.rpc("fn_set_horario_semanal", {
-      p_persona_id: personaId, p_vigente_desde: desde, p_horario: horario,
+      p_persona_id: personaId, p_vigente_desde: desde, p_horario: horario, p_motivo: motivo.trim(),
     });
     setGuardando(false);
     if (error) { avisar("error", mensajeDeError(error)); return; }
@@ -270,7 +390,9 @@ export default function HorariosPage() {
     );
   }
 
-  const porSede = [...new Set(editables.map((p) => sedes[p.sede_base_id] ?? "?"))].sort();
+  const todasLasSedes = [...new Set(editables.map((p) => sedes[p.sede_base_id] ?? "?"))].sort();
+  const sinHorario = filtrados.filter((p) => !horarios.has(p.id));
+  const porSede = [...new Set(filtrados.map((p) => sedes[p.sede_base_id] ?? "?"))].sort();
 
   // total semanal del formulario abierto
   const totalSemana = modoPorDia
@@ -287,8 +409,59 @@ export default function HorariosPage() {
           horario, elige la fecha desde la que aplica — el anterior se conserva y no altera tardanzas pasadas.
         </p>
 
-        {cargando ? <Cargando /> : porSede.map((sede) => {
-          const deSede = editables.filter((p) => (sedes[p.sede_base_id] ?? "?") === sede);
+        {!cargando && personas.length > 0 && (
+          <div className="mb-5 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto_auto]">
+            <div className="relative">
+              <Search size={15} strokeWidth={1.8} aria-hidden className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-taupe" />
+              <input
+                value={busca}
+                onChange={(e) => setBusca(e.target.value)}
+                placeholder="Buscar por nombre…"
+                aria-label="Buscar por nombre"
+                className="w-full rounded-lg border border-sand bg-hueso py-2 pl-9 pr-9 text-sm placeholder:text-taupe/60"
+              />
+              {busca && (
+                <button onClick={() => setBusca("")} aria-label="Limpiar búsqueda" className="absolute right-2 top-1/2 -translate-y-1/2 px-1 leading-none text-taupe hover:text-tinta">
+                  ×
+                </button>
+              )}
+            </div>
+            <CampoSelect value={filtroSede} onChange={(e) => setFiltroSede(e.target.value)} aria-label="Filtrar por sede">
+              <option value="">Todas las sedes</option>
+              {todasLasSedes.map((sd) => <option key={sd} value={sd}>{sd}</option>)}
+            </CampoSelect>
+            <CampoSelect value={filtroTipo} onChange={(e) => setFiltroTipo(e.target.value as typeof filtroTipo)} aria-label="Filtrar por tipo de horario">
+              <option value="">Cualquier tipo</option>
+              <option value="sin_horario">Sin horario hoy</option>
+              <option value="fijo">Rango fijo</option>
+              <option value="varia">Varía por día</option>
+            </CampoSelect>
+          </div>
+        )}
+
+        {/* Cruza las 4 sedes: sin esto, alguien "sin horario" se pierde bajando
+            entre AQP/CCO/LIM/TRU y puede marcar días sin que ninguna tardanza
+            se calcule (auditoría 2026-09-14). */}
+        {!cargando && sinHorario.length > 0 && (
+          <div className="mb-6 rounded-control border border-rojo/30 bg-rojo/10 px-4 py-3">
+            <p className="mb-2 text-sm font-medium text-rojo-profundo">
+              Sin horario asignado ({sinHorario.length})
+            </p>
+            <ul className="flex flex-wrap gap-x-4 gap-y-1.5">
+              {sinHorario.map((p) => (
+                <li key={p.id} className="flex items-center gap-2 text-sm text-tinta">
+                  {p.nombres} {p.apellidos}
+                  <Boton variante="secundario" tamano="sm" onClick={() => abrirEdicion(p)}>Asignar</Boton>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {cargando ? <Cargando /> : porSede.length === 0 ? (
+          <p className="text-sm text-taupe">Ninguna persona coincide con la búsqueda o los filtros.</p>
+        ) : porSede.map((sede) => {
+          const deSede = filtrados.filter((p) => (sedes[p.sede_base_id] ?? "?") === sede);
           return (
             <section key={sede} className="mb-8">
               <h2 className="mb-2 font-serif text-lg">{sede}</h2>
@@ -303,7 +476,9 @@ export default function HorariosPage() {
                 </TablaEncabezado>
                 <tbody>
                   {deSede.map((p) => {
-                    const h = horarios.get(p.id);
+                    const abierto = horarios.get(p.id);
+                    const programado = !!abierto && abierto.vigente_desde > hoy;
+                    const h = horarioDeHoy(p);
                     const a = h ? analizar(h) : null;
                     const semana = a ? a.dias.reduce((acc, d) => acc + horasDia(a.porDia[d].e, a.porDia[d].s, a.porDia[d].r), 0) : 0;
                     // Máximo legal de una practicante (0324, art. 44 Ley 28518). `null`
@@ -315,7 +490,7 @@ export default function HorariosPage() {
                       <Fila key={p.id}>
                         <td className="px-4 py-2">{p.nombres} {p.apellidos}</td>
                         <td className="px-4 py-2">
-                          {!a || a.dias.length === 0 ? <span className="text-taupe">sin horario</span>
+                          {!a || a.dias.length === 0 ? <span className="text-taupe">sin horario{programado ? " hoy" : ""}</span>
                             : a.uniforme ? `${a.e}–${a.s}` : <span className="text-taupe">varía por día</span>}
                         </td>
                         <td className="px-4 py-2 text-taupe">
@@ -335,10 +510,17 @@ export default function HorariosPage() {
                           )}
                         </td>
                         <td className="px-4 py-2 text-taupe">{a ? textoDescanso(a.dias) : "—"}</td>
-                        <td className="px-4 py-2 text-taupe">{h ? h.vigente_desde : "—"}</td>
+                        <td className="px-4 py-2 text-taupe">
+                          {abierto ? abierto.vigente_desde : "—"}
+                          {programado && (
+                            <span title={`Este horario recién rige desde el ${abierto!.vigente_desde}. Hasta entonces sigue aplicando el de arriba.`}>
+                              <Insignia variante="informativo" className="ml-1.5">Programado</Insignia>
+                            </span>
+                          )}
+                        </td>
                         <td className="px-4 py-2">
                           <Boton variante="secundario" tamano="sm" onClick={() => abrirEdicion(p)}>
-                            {h ? "Cambiar" : "Asignar"}
+                            {abierto ? "Cambiar" : "Asignar"}
                           </Boton>
                         </td>
                       </Fila>
@@ -358,7 +540,38 @@ export default function HorariosPage() {
         >
           <p className="mb-4 text-sm text-taupe">El nuevo horario aplica desde la fecha que elijas en adelante.</p>
 
-          <Campo etiqueta="Vigente desde" type="date" value={desde} onChange={(e) => setDesde(e.target.value)} />
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Campo etiqueta="Vigente desde" type="date" value={desde} onChange={(e) => setDesde(e.target.value)} />
+            <CampoSelect etiqueta="Copiar horario de →" value={copiarDeId} onChange={(e) => copiarDe(e.target.value)}>
+              <option value="">(elegir a alguien)</option>
+              {editables
+                .filter((x) => x.id !== editando?.id && horarios.has(x.id))
+                .map((x) => (
+                  <option key={x.id} value={x.id}>{x.nombres} {x.apellidos}</option>
+                ))}
+            </CampoSelect>
+          </div>
+
+          {historial.length > 1 && (
+            <details className="mt-3 rounded-control bg-hueso px-3 py-2 text-sm">
+              {/* El primer tramo de `historial` (orden desc por vigente_desde) es
+                  siempre el vigente — ya está a la vista en el formulario de
+                  arriba, por eso la lista arranca en el segundo. */}
+              <summary className="cursor-pointer text-taupe">Ver horarios anteriores ({historial.length - 1})</summary>
+              <ul className="mt-2 flex flex-col gap-1.5">
+                {historial.slice(1).map((t) => {
+                  const at = analizar(t);
+                  const resumen = at.dias.length === 0 ? "sin días"
+                    : at.uniforme ? `${at.e}–${at.s}, ${textoDescanso(at.dias)}` : "varía por día";
+                  return (
+                    <li key={`${t.vigente_desde}-${t.vigente_hasta ?? "abierto"}`} className="text-xs text-taupe">
+                      <span className="text-tinta">{t.vigente_desde}</span> – {t.vigente_hasta ?? "hoy"} · {resumen}
+                    </li>
+                  );
+                })}
+              </ul>
+            </details>
+          )}
 
           <label className="mt-4 flex items-center gap-2 text-sm">
             {/* Casilla suelta: todavía no existe <CampoCasilla> en
@@ -380,7 +593,9 @@ export default function HorariosPage() {
               <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <Campo etiqueta="Entrada" type="time" value={entrada} onChange={(e) => setEntrada(e.target.value)} />
                 <Campo etiqueta="Salida" type="time" value={salida} onChange={(e) => setSalida(e.target.value)} />
-                <Campo etiqueta="Refrig. (min)" type="number" min={0} value={refri} onChange={(e) => setRefri(Math.max(0, Math.round(Number(e.target.value) || 0)))} />
+                <CampoSelect etiqueta="Refrigerio" value={refri} onChange={(e) => setRefri(Number(e.target.value))}>
+                  {opcionesRefrigerio(refri).map((m) => <option key={m} value={m}>{m} min</option>)}
+                </CampoSelect>
               </div>
               <p className="mt-2 text-xs text-taupe">Cada día: <span className="text-tinta">{fmtH(horasDia(entrada, salida, refri))}</span></p>
               <div className="mt-3">
@@ -417,7 +632,9 @@ export default function HorariosPage() {
                           <input type="time" value={dd.e} onChange={(e) => setCampoPorDia(d.v, "e", e.target.value)} className="w-[90px] rounded-control border px-1.5 py-1 text-sm" />
                           <span className="text-taupe">–</span>
                           <input type="time" value={dd.s} onChange={(e) => setCampoPorDia(d.v, "s", e.target.value)} className="w-[90px] rounded-control border px-1.5 py-1 text-sm" />
-                          <input type="number" min={0} value={dd.r} onChange={(e) => setRefriPorDia(d.v, e.target.value)} title="refrigerio (min)" className="w-12 rounded-control border px-1 py-1 text-sm" />
+                          <select value={dd.r} onChange={(e) => setRefriPorDia(d.v, e.target.value)} title="refrigerio (min)" className="w-16 rounded-control border border-sand bg-hueso px-1 py-1 text-sm">
+                            {opcionesRefrigerio(dd.r).map((m) => <option key={m} value={m}>{m}</option>)}
+                          </select>
                           <span className="w-14 text-right text-xs text-tinta">{fmtH(horasDia(dd.e, dd.s, dd.r))}</span>
                         </>
                       ) : <span className="text-sm text-taupe">descanso</span>}
@@ -466,6 +683,15 @@ export default function HorariosPage() {
               </div>
             );
           })()}
+
+          <div className="mt-4">
+            <AreaTexto
+              etiqueta="Motivo del cambio"
+              value={motivo}
+              onChange={(e) => setMotivo(e.target.value)}
+              placeholder="Por qué cambia — ej. lo pidió para estudiar, ajuste operativo de la sede…"
+            />
+          </div>
 
           <div className="mt-5 flex justify-end gap-3">
             <Boton variante="secundario" onClick={() => setEditando(null)} disabled={guardando}>Cancelar</Boton>
