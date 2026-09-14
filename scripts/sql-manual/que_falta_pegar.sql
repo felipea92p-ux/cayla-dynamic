@@ -300,7 +300,8 @@ with repo(numero, nombre, nunca) as (values
     (433, 'cambiar_la_cuenta_bancaria_deja_rastro', false),
     (434, 'con_hijos_tambien_deja_rastro', false),
     (436, 'la_bandeja_recuerda_lo_que_ya_viste', false),
-    (437, 'una_correccion_no_pisa_un_expediente_ya_formal', false)
+    (437, 'una_correccion_no_pisa_un_expediente_ya_formal', false),
+    (438, 'levantar_una_tardanza_no_pisa_un_expediente_ya_formal', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
