@@ -35,20 +35,23 @@ select ok(
 );
 
 -- ── El caso normal sigue funcionando: una llamada guarda el horario ─────
+-- '2026-09-07' era una fecha fija que ya cayó en el pasado real — la 0444
+-- exige que fn_set_horario_semanal nunca sea retroactivo. Esta prueba no es
+-- sobre qué día, es sobre que una sola llamada guarda bien: se vuelve hoy.
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000009712', true);
 select lives_ok(
-  $$ select fn_set_horario_semanal(
+  format($$ select fn_set_horario_semanal(
        '00000000-0000-0000-0000-000000009703',
-       '2026-09-07',
+       %L,
        '{"1": {"e": "09:00", "s": "18:00"}, "3": {"e": "09:00", "s": "18:00"}}'::jsonb,
-       'Prueba pgTAP.') $$,
+       'Prueba pgTAP.') $$, fn_hoy_lima()),
   'NORMAL · el caso de una sola llamada sigue guardando el horario sin error'
 );
 
 select is(
   (select count(*)::int from horarios_asignados
     where persona_id = '00000000-0000-0000-0000-000000009703'
-      and vigente_desde = '2026-09-07'),
+      and vigente_desde = fn_hoy_lima()),
   1,
   'NORMAL · el tramo quedó guardado exactamente una vez'
 );

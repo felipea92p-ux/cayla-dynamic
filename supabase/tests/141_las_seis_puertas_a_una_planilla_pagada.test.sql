@@ -135,9 +135,13 @@ select lives_ok(
   $$ select fn_set_descanso('00000000-0000-0000-0000-00000000c602'::uuid, '2026-08-14'::date) $$,
   'ABIERTO · sí se puede marcar descanso en agosto');
 
+-- greatest(...): 0444 exige que un horario normal nunca sea retroactivo — la
+-- fecha fija original (2026-09-01) ya quedó en el pasado real. La prueba no es
+-- sobre "qué día exacto", es sobre "después de junio pagado", así que se toma
+-- la mayor entre esa fecha y hoy, sin perder el caso que sí importa.
 select lives_ok(
   $$ select fn_set_horario_semanal('00000000-0000-0000-0000-00000000c602'::uuid,
-       '2026-09-01'::date, '{"1":{"e":"09:00","s":"18:00","r":60}}'::jsonb, 'Prueba pgTAP.') $$,
+       greatest('2026-09-01'::date, fn_hoy_lima()), '{"1":{"e":"09:00","s":"18:00","r":60}}'::jsonb, 'Prueba pgTAP.') $$,
   'ABIERTO · sí se puede hacer regir un horario que empieza después de lo pagado');
 
 select * from finish();

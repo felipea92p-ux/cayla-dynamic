@@ -269,20 +269,29 @@ insert into personas (id, nombres, apellidos, sede_base_id, pin_hash, fecha_ingr
 values ('00000000-0000-0000-0000-000000024303', 'HorTercera', 'Lab',
         '00000000-0000-0000-0000-000000024300', 'x', '2024-01-01');
 
+-- Las tres fechas eran fijas (2026-09-01/15/20) y ya cayeron en el pasado real
+-- — la 0444 exige que fn_set_horario_semanal nunca sea retroactivo. La prueba
+-- no es sobre qué día exacto, es sobre que tres asignaciones seguidas, cada una
+-- 14 y 5 días después de la anterior, no se pisen — así que las tres se vuelven
+-- relativas a hoy, guardando esa misma separación.
 select lives_ok(
-  $$ select fn_set_horario_semanal('00000000-0000-0000-0000-000000024303', '2026-09-01',
+  format($$ select fn_set_horario_semanal('00000000-0000-0000-0000-000000024303', %L,
               '{"1":{"e":"09:00","s":"17:00","r":0}}'::jsonb, 'Prueba pgTAP.'),
-            fn_set_horario_semanal('00000000-0000-0000-0000-000000024303', '2026-09-15',
+            fn_set_horario_semanal('00000000-0000-0000-0000-000000024303', %L,
               '{"1":{"e":"10:00","s":"18:00","r":0}}'::jsonb, 'Prueba pgTAP.'),
-            fn_set_horario_semanal('00000000-0000-0000-0000-000000024303', '2026-09-20',
+            fn_set_horario_semanal('00000000-0000-0000-0000-000000024303', %L,
               '{"1":{"e":"08:00","s":"16:00","r":0}}'::jsonb, 'Prueba pgTAP.') $$,
+    fn_hoy_lima(), fn_hoy_lima() + 14, fn_hoy_lima() + 19),
   'PANTALLA · asignar horario tres veces seguidas sigue funcionando con el candado puesto');
 
 select is(
   (select string_agg(vigente_desde::text || '→' || coalesce(vigente_hasta::text, 'abierto'),
                      ' · ' order by vigente_desde)
      from horarios_asignados where persona_id = '00000000-0000-0000-0000-000000024303'),
-  '2026-09-01→2026-09-14 · 2026-09-15→2026-09-19 · 2026-09-20→abierto',
+  (select format('%s→%s · %s→%s · %s→abierto',
+     fn_hoy_lima(), fn_hoy_lima() + 13,
+     fn_hoy_lima() + 14, fn_hoy_lima() + 18,
+     fn_hoy_lima() + 19)),
   'Y los tramos quedan pegados sin pisarse: cada uno cierra la VÍSPERA del siguiente');
 
 
