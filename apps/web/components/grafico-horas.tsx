@@ -25,7 +25,7 @@ export function GraficoHoras({ dias, meta = 7.5 }: { dias: DiaGrafico[]; meta?: 
   const hayMeta = meta > 0;
   const maxDato = Math.max(hayMeta ? meta : 0, ...dias.map((d) => d.horas));
   const maxY = Math.ceil(maxDato / 2) * 2 || 2; // redondea a par superior
-  const H = 240;
+  const H = 190; // 240 antes de la 0428 — compactado junto con el resto del perfil
   const PAD_TOP = 12;
   const PAD_BOTTOM = 46;
   const PAD_LEFT = 34;

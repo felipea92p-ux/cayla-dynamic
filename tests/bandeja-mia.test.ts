@@ -45,7 +45,7 @@ function enLima(fecha: string, hora = "10:00"): string {
 const VACIO = {
   perfil: [], vacaciones: [], revisiones: [],
   contrato: null, memos: [], acuses: [], marcajes: [], periodo: null,
-  movilidad: null, revisionesMovilidad: [],
+  movilidad: null, revisionesMovilidad: [], turnos: [],
 };
 
 describe("armarBandeja", () => {
@@ -392,6 +392,42 @@ describe("armarBandeja", () => {
 
     expect(b.pendientes.map((m) => m.origen)).toEqual(["memo", "contrato", "acuse", "marcaje"]);
     expect(b.avisos).toBe(4);
+  });
+
+  it("un cambio de turno entra directo como respuesta — no lo pidió, así que nunca espera", () => {
+    const b = armarBandeja({
+      ...VACIO,
+      turnos: [{
+        id: "t1", valor_anterior: "08:00–17:00", valor_nuevo: "09:00–18:00",
+        corregido_at: enLima("2026-09-06"),
+        motivo: "Turno del 16/09/2026 cambiado desde la pantalla de Turnos.",
+      }],
+    }, HOY);
+
+    expect(b.esperando).toEqual([]);
+    expect(b.respuestas).toHaveLength(1);
+    expect(b.respuestas[0].origen).toBe("turno");
+    expect(b.respuestas[0].titulo).toBe("Tu turno cambió: 08:00–17:00 → 09:00–18:00");
+    expect(b.respuestas[0].detalle).toBe("Turno del 16/09/2026 cambiado desde la pantalla de Turnos.");
+  });
+
+  it("un cambio de turno caduca igual que cualquier otra respuesta", () => {
+    const alBorde = "2026-08-25"; // 14 días antes de HOY
+    const pasado = "2026-08-24"; // 15 — ya no
+
+    const dentro = armarBandeja({
+      ...VACIO,
+      turnos: [{ id: "t1", valor_anterior: "(sin turno)", valor_nuevo: "09:00–18:00", corregido_at: enLima(alBorde), motivo: "…" }],
+    }, HOY);
+    const fuera = armarBandeja({
+      ...VACIO,
+      turnos: [{ id: "t1", valor_anterior: "(sin turno)", valor_nuevo: "09:00–18:00", corregido_at: enLima(pasado), motivo: "…" }],
+    }, HOY);
+
+    expect(dentro.respuestas[0].nuevo).toBe(true);
+    expect(dentro.avisos).toBe(1);
+    expect(fuera.respuestas[0].nuevo).toBe(false);
+    expect(fuera.avisos).toBe(0);
   });
 
   it("el número suma las dos cosas: lo que falta hacer y lo que respondieron estos días", () => {

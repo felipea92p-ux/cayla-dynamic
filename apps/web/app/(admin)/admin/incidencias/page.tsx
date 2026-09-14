@@ -45,6 +45,11 @@ function horaLima(ts: string | null): string {
   if (!ts) return "—";
   return new Intl.DateTimeFormat("es-PE", { timeZone: TZ_LIMA, hour: "2-digit", minute: "2-digit", hour12: true }).format(new Date(ts));
 }
+function fechaHoraLima(ts: string): string {
+  return new Intl.DateTimeFormat("es-PE", {
+    timeZone: TZ_LIMA, day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hour12: true,
+  }).format(new Date(ts));
+}
 
 interface Fila {
   personaId: string | null; // null = incidencia de sede (no de una persona puntual)
@@ -146,6 +151,30 @@ const ACEPTAR_BOTON = (t: string | undefined) => (t && ACEPTAR_UI[t]?.boton) || 
 const ACEPTAR_AYUDA = (t: string | undefined) =>
   (t && ACEPTAR_UI[t]?.ayuda) || "Dar por buena esta incidencia y quitarla de la lista.";
 
+// Etiqueta legible de cada tipo aceptable, para el historial (distinta del
+// texto del botón: el botón dice qué vas a afirmar, esto describe qué fue).
+const TIPO_LABEL: Record<string, string> = {
+  salida_anticipada: "Salida anticipada",
+  sin_retorno_almuerzo: "Sin retorno de almuerzo (trabajó de corrido)",
+  racha_sin_descanso: "Racha sin descanso",
+  jornada_excedida: "Jornada excedida (ya ocurrió)",
+};
+
+// Una incidencia aceptada, con su rastro completo. `incidencias_aceptadas` ya
+// guarda quién y cuándo desde que existe (0052) — lo que faltaba era una
+// pantalla que lo mostrara. Sin esto, saber "quién aceptó esto y por qué"
+// exigía entrar a Supabase a mano.
+interface HistorialItem {
+  personaId: string;
+  nombre: string;
+  sede: string;
+  fecha: string;
+  tipo: string;
+  nota: string | null;
+  aceptadoPor: string;
+  aceptadoAt: string;
+}
+
 const HOY = hoyLima();
 // Patrón de tardanzas: ventana fija de 30 días desde hoy (independiente del
 // filtro Desde/Hasta que el admin puede mover) — es sobre el estado disciplinario
@@ -216,6 +245,13 @@ function IncidenciasContenido() {
   const [atendiendo, setAtendiendo] = useState<string | null>(null);
   const [practicantesSobreTope, setPracticantesSobreTope] = useState<PracticanteSobreTope[]>([]);
 
+  // Historial de incidencias ya aceptadas (hallazgo: el rastro ya existía en
+  // la base desde la 0052 — quién, cuándo, con qué nota — y esta pantalla
+  // nunca lo mostraba. Colapsado por defecto: no compite con lo urgente.
+  const [historial, setHistorial] = useState<HistorialItem[]>([]);
+  const [mostrarHistorial, setMostrarHistorial] = useState(false);
+  const [quitando, setQuitando] = useState<string | null>(null);
+
   const cargar = useCallback(async () => {
     const supabase = createAdminSupabaseClient();
     const { data: sesion } = await supabase.auth.getSession();
@@ -225,6 +261,11 @@ function IncidenciasContenido() {
     const desdePatron = haceDias(VENTANA_PATRON_DIAS - 1); // hoy inclusive = 30 días
     const lunesActual = lunesDeLaSemana(HOY);
     const domingoActual = addDias(lunesActual, 6);
+    // Hallazgo: el déficit de encargadas era reactivo (solo la semana actual,
+    // avisando a mitad de semana cuando el turno del lunes ya pasó). Con el
+    // horario de la semana SIGUIENTE ya asignado, el aviso puede llegar con
+    // anticipación — mientras todavía se puede reprogramar.
+    const domingoSiguiente = addDias(lunesActual, 13);
 
     const [
       { data, error: errData },
@@ -236,6 +277,7 @@ function IncidenciasContenido() {
       { data: horariosData, error: errHorarios },
       { data: turnosData, error: errTurnos },
       { data: aceptadasData },
+      { data: personasData },
       { data: faltasData },
       { data: revisionesData },
       { data: levTardData, error: errLevTard },
@@ -272,13 +314,14 @@ function IncidenciasContenido() {
           .order("persona_id")
           .range(ini, fin),
       ),
-      // Déficit de encargadas: mira la semana actual (lunes–domingo), no el filtro
-      // Desde/Hasta — es sobre la cobertura planeada de AHORA, no un rango histórico.
+      // Déficit de encargadas: mira la semana actual Y la siguiente (lunes–domingo),
+      // no el filtro Desde/Hasta — es sobre la cobertura planeada de AHORA en
+      // adelante, no un rango histórico.
       supabase.from("sedes").select("id, codigo"),
       supabase.from("personas").select("id, sede_base_id").eq("rol", "supervisor_sede").eq("estado", "activo"),
       supabase.from("metas_cobertura").select("sede_id, dia_semana, meta_encargadas").gt("meta_encargadas", 0),
-      supabase.from("horarios_asignados").select("persona_id, hora_entrada, hora_salida, dias_laborables, horario_por_dia, almuerzo_min_minutos, vigente_desde, vigente_hasta").lte("vigente_desde", domingoActual).or(`vigente_hasta.is.null,vigente_hasta.gte.${lunesActual}`),
-      supabase.from("turnos").select("persona_id, fecha, hora_entrada, hora_salida, es_descanso").gte("fecha", lunesActual).lte("fecha", domingoActual),
+      supabase.from("horarios_asignados").select("persona_id, hora_entrada, hora_salida, dias_laborables, horario_por_dia, almuerzo_min_minutos, vigente_desde, vigente_hasta").lte("vigente_desde", domingoSiguiente).or(`vigente_hasta.is.null,vigente_hasta.gte.${lunesActual}`),
+      supabase.from("turnos").select("persona_id, fecha, hora_entrada, hora_salida, es_descanso").gte("fecha", lunesActual).lte("fecha", domingoSiguiente),
       // Incidencias ya aceptadas (visto bueno): para no volver a mostrarlas.
       // Se pide desde el filtro O desde la ventana fija más profunda, lo que sea
       // más atrás: los avisos de racha y de exceso NO respetan Desde/Hasta —se
@@ -289,10 +332,19 @@ function IncidenciasContenido() {
       // El `min` de las tres es a propósito y no un adorno: cuando la 0185 trajo
       // el exceso «ya ocurrió» con 30 días de ventana, esta línea seguía mirando
       // los 20 de la racha y un exceso revisado hace tres semanas reaparecía.
-      supabase.from("incidencias_aceptadas").select("persona_id, fecha, tipo")
+      // Columnas ampliadas (nota, aceptado_por, aceptado_at) para el historial:
+      // el rastro ya se escribía desde la 0052, esta pantalla solo no lo leía.
+      supabase.from("incidencias_aceptadas")
+        .select("persona_id, fecha, tipo, nota, aceptado_por, aceptado_at, personas:persona_id(nombres, apellidos, sedes:sede_base_id(codigo))")
         .gte("fecha", [desde, haceDias(VENTANA_RACHA_DIAS), haceDias(VENTANA_EXCESO_DIAS)]
           .reduce((a, b) => (a < b ? a : b)))
-        .lte("fecha", hasta > HOY ? hasta : HOY),
+        .lte("fecha", hasta > HOY ? hasta : HOY)
+        .order("aceptado_at", { ascending: false }),
+      // Nombres para resolver "aceptado por" en el historial de arriba. Mismo
+      // patrón que ya usa admin/correcciones (`nombrePorId`): una lista chica
+      // de personas, resuelta en el cliente, en vez de un segundo embed de
+      // `personas` sobre la misma tabla en la misma consulta.
+      supabase.from("personas").select("id, nombres, apellidos"),
       // Faltas del rango (le tocaba y no marcó). Falla suave: si no llega, no se muestran.
       supabase.rpc("fn_faltas", { p_desde: desde, p_hasta: hasta }),
       // Pendientes de la 0257. Falla suave: mientras la migración no esté
@@ -364,10 +416,30 @@ function IncidenciasContenido() {
           `El aviso de «patrón de tardanzas» se ocultó mientras tanto, para no volver a acusar una tardanza ya perdonada.`
         : null,
     );
+    interface AceptadaRow {
+      persona_id: string; fecha: string; tipo: string;
+      nota: string | null; aceptado_por: string; aceptado_at: string;
+      personas: { nombres: string; apellidos: string; sedes: { codigo: string } | null } | null;
+    }
+    const aceptadasRows = (aceptadasData as AceptadaRow[] | null) ?? [];
     // Set de claves aceptadas: `persona|fecha|tipo`. Falla suave (si no llega, no oculta nada).
-    const aceptadas = new Set(
-      (aceptadasData as { persona_id: string; fecha: string; tipo: string }[] | null ?? [])
-        .map((a) => `${a.persona_id}|${a.fecha}|${a.tipo}`),
+    const aceptadas = new Set(aceptadasRows.map((a) => `${a.persona_id}|${a.fecha}|${a.tipo}`));
+
+    const nombrePorId = new Map(
+      ((personasData as { id: string; nombres: string; apellidos: string }[] | null) ?? [])
+        .map((p) => [p.id, `${p.nombres} ${p.apellidos}`.trim()]),
+    );
+    setHistorial(
+      aceptadasRows.map((a) => ({
+        personaId: a.persona_id,
+        nombre: `${a.personas?.nombres ?? ""} ${a.personas?.apellidos ?? ""}`.trim(),
+        sede: a.personas?.sedes?.codigo ?? "?",
+        fecha: a.fecha,
+        tipo: a.tipo,
+        nota: a.nota,
+        aceptadoPor: nombrePorId.get(a.aceptado_por) ?? "otra persona",
+        aceptadoAt: a.aceptado_at,
+      })),
     );
 
     // Mapa persona_id|fecha → minutos de salida temprana (vía RPC, esquivando el schema cache).
@@ -618,9 +690,16 @@ function IncidenciasContenido() {
       });
     }
 
-    // Déficit de encargadas: para cada sede/día de la semana actual con meta
-    // definida, ¿cuántas supervisor_sede están programadas? Misma cascada
-    // turno del día → horario_por_dia → legacy que usa admin/turnos.
+    // Déficit de encargadas: para cada sede/día de esta semana Y LA SIGUIENTE
+    // con meta definida, ¿cuántas supervisor_sede están programadas? Misma
+    // cascada turno del día → horario_por_dia → legacy que usa admin/turnos.
+    //
+    // Hallazgo (auditoría 2026-09-13): antes solo miraba la semana actual, así
+    // que el aviso llegaba a mitad de semana — cuando el turno del lunes ya
+    // pasó y no se puede mover. El horario de la semana siguiente ya está
+    // asignado en `horarios_asignados`/`turnos` cuando esta pantalla se abre
+    // un viernes o un fin de semana, así que el mismo cálculo, corrido 7 días
+    // más, avisa con tiempo real de reprogramar.
     const codigoPorSede = new Map(((sedesData as { id: string; codigo: string }[] | null) ?? []).map((s) => [s.id, s.codigo]));
     setCodigoPorSedeId(codigoPorSede);
     const sedePorEncargada = new Map(((encargadasData as { id: string; sede_base_id: string }[] | null) ?? []).map((p) => [p.id, p.sede_base_id]));
@@ -639,8 +718,9 @@ function IncidenciasContenido() {
       const horario = horarioVigente(horariosPorPersona.get(personaId) ?? [], fecha);
       return esperadoDelDia(fecha, turno, horario).trabaja;
     }
-    const diasSemanaActual = Array.from({ length: 7 }, (_, i) => addDias(lunesActual, i));
-    for (const dia of diasSemanaActual) {
+    const diasCobertura = Array.from({ length: 14 }, (_, i) => addDias(lunesActual, i));
+    for (const [i, dia] of diasCobertura.entries()) {
+      const esSemanaSiguiente = i >= 7;
       const dow = diaSemanaNum(dia);
       for (const m of (metasData as { sede_id: string; dia_semana: number; meta_encargadas: number }[] | null) ?? []) {
         if (m.dia_semana !== dow) continue;
@@ -652,7 +732,8 @@ function IncidenciasContenido() {
           nombre: `Sede ${codigoPorSede.get(m.sede_id) ?? "?"}`,
           sede: codigoPorSede.get(m.sede_id) ?? "?",
           fecha: dia,
-          tipo: `Déficit de encargadas (${cubiertas}/${m.meta_encargadas})`,
+          tipo: `Déficit de encargadas (${cubiertas}/${m.meta_encargadas})`
+            + (esSemanaSiguiente ? " · próxima semana, todavía se puede reprogramar" : ""),
           entrada: null,
           salida: null,
           severidad: "media",
@@ -708,17 +789,53 @@ function IncidenciasContenido() {
   //   sin_retorno_almuerzo → "trabajó de corrido, no tomó refrigerio": el día se paga
   //     tal como está calculado. Si NO trabajó de corrido, esto no se acepta: se
   //     registran las marcas reales en Correcciones y la jornada se recalcula sola.
-  async function aceptar(f: Fila) {
+  //
+  // Pasa por un modal chico (en vez de escribir directo al pulsar) para poder
+  // pedir una nota opcional — el campo ya existía en incidencias_aceptadas desde
+  // la 0052 y nunca se llenaba porque nada en pantalla lo pedía. El lote
+  // (aprobarLote, abajo) NO pasa por acá a propósito: es un acuse masivo de "lo
+  // vi", no una afirmación puntual que amerite explicación caso por caso.
+  const [aceptarModal, setAceptarModal] = useState<{ personaId: string; fecha: string; tipo: string; nombre: string } | null>(null);
+  const [notaAceptar, setNotaAceptar] = useState("");
+  const [guardandoAceptar, setGuardandoAceptar] = useState(false);
+  const [errorAceptarModal, setErrorAceptarModal] = useState<string | null>(null);
+
+  function abrirAceptar(f: Fila) {
     if (!f.personaId || !f.aceptable) return;
-    const clave = `${f.personaId}|${f.fecha}|${f.aceptable}`;
+    setAceptarModal({ personaId: f.personaId, fecha: f.fecha, tipo: f.aceptable, nombre: f.nombre });
+    setNotaAceptar("");
+    setErrorAceptarModal(null);
+  }
+
+  async function confirmarAceptar() {
+    if (!aceptarModal) return;
+    const clave = `${aceptarModal.personaId}|${aceptarModal.fecha}|${aceptarModal.tipo}`;
+    setGuardandoAceptar(true);
     setAceptando(clave);
     const supabase = createAdminSupabaseClient();
     const { error: e } = await supabase.rpc("fn_aceptar_incidencia", {
-      p_persona_id: f.personaId, p_fecha: f.fecha, p_tipo: f.aceptable,
+      p_persona_id: aceptarModal.personaId, p_fecha: aceptarModal.fecha, p_tipo: aceptarModal.tipo,
+      p_nota: notaAceptar.trim() || null,
     });
+    setGuardandoAceptar(false);
     setAceptando(null);
-    if (e) { setErrorAccion(`No se pudo aceptar: ${e.message}`); return; }
-    setFilas((prev) => prev.filter((x) => !(x.personaId === f.personaId && x.fecha === f.fecha && x.aceptable === f.aceptable)));
+    if (e) { setErrorAceptarModal(e.message); return; }
+    setAceptarModal(null);
+    setNotaAceptar("");
+    await cargar(); // refresca la lista Y el historial (misma consulta trae ambos)
+  }
+
+  /** Deshacer una aceptación desde el historial — por si se aceptó por error. */
+  async function quitarAceptacion(h: HistorialItem) {
+    const clave = `${h.personaId}|${h.fecha}|${h.tipo}`;
+    setQuitando(clave);
+    const supabase = createAdminSupabaseClient();
+    const { error: e } = await supabase.rpc("fn_quitar_aceptacion", {
+      p_persona_id: h.personaId, p_fecha: h.fecha, p_tipo: h.tipo,
+    });
+    setQuitando(null);
+    if (e) { setErrorAccion(`No se pudo deshacer: ${e.message}`); return; }
+    await cargar();
   }
 
   const [loteando, setLoteando] = useState<string | null>(null); // sede en curso
@@ -850,7 +967,7 @@ function IncidenciasContenido() {
             (y sus acciones) es siempre la misma, completa, en los dos modos —
             resumirla escondería justo lo que exige revisión. */}
         {vistaModo === "detalle" ? (
-          <p className="mb-5 text-sm text-taupe">Días que necesitan tu revisión: auto-cerrados, sin salida final, sin retorno de pausa, o con salida anticipada (más de 15 min antes de su hora). Toca cualquiera para corregirlo. También avisa cuando alguien acumula {UMBRAL_PATRON_TARDANZAS}+ tardanzas en los últimos {VENTANA_PATRON_DIAS} <strong>días corridos</strong> — Dynamic solo avisa, la decisión (conversar, amonestar) es tuya. Ese conteo <strong>no es el que arma un memo</strong>: el umbral del RIT se cuenta por <strong>mes calendario</strong> y sale en Disciplina, así que acá el número puede ser mayor cuando queda una tardanza del mes pasado dentro de la ventana. Y si una sede no llega a su mínimo de encargadas programadas esta semana (configurable en Turnos), también sale acá. Avisa además cuando alguien pasa de {MAXIMO_LEGAL_SEMANAL} h en <strong>cualquier ventana de siete días seguidos</strong> — no por semana de calendario, porque así doce días corridos de 8 h darían 48 y 48 sin que nada saltara. Ese es el <strong>máximo legal</strong>, no un objetivo. Ese aviso viene en dos tonos: si la ventana termina esta semana todavía se puede mover un turno, y si dice <strong>«ya ocurrió»</strong> es un exceso de hasta {VENTANA_EXCESO_DIAS} días atrás que ya no se evita — se saca con <strong>Revisado</strong>, que deja constancia de quién lo miró. Y cuando alguien lleva {MAXIMO_DIAS_SIN_DESCANSO} días seguidos trabajando, porque el siguiente le toca descansar — el descanso semanal se cuenta en <strong>ciclos de 7 días</strong>, no por semana de calendario (Informe 027-2021-MTPE/14), así que con turnos rotativos se puede cumplir «uno por semana» y encadenar doce días igual. Ese aviso <strong>se va solo en cuanto descansa</strong>: si su último día trabajado ya quedó atrás, el descanso ocurrió y no hay nada que pedir. El de <strong>{MAXIMO_DIAS_SIN_DESCANSO + 1}+ días</strong> no se va solo —esa infracción ya ocurrió— y se saca con <strong>Revisado</strong>, que deja constancia de quién la miró. Ninguno de los dos límites —las {MAXIMO_LEGAL_SEMANAL} h ni el descanso— <strong>se arregla pagando después</strong>: el recargo del sobretiempo se paga aparte y no levanta el tope. Las <strong>faltas</strong> (le tocaba y no marcó) salen en rojo; usa <strong>Justificar</strong> para registrar el motivo (permiso, descanso médico, etc.) y sacarlas del conteo.</p>
+          <p className="mb-5 text-sm text-taupe">Días que necesitan tu revisión: auto-cerrados, sin salida final, sin retorno de pausa, o con salida anticipada (más de 15 min antes de su hora). Toca cualquiera para corregirlo. También avisa cuando alguien acumula {UMBRAL_PATRON_TARDANZAS}+ tardanzas en los últimos {VENTANA_PATRON_DIAS} <strong>días corridos</strong> — Dynamic solo avisa, la decisión (conversar, amonestar) es tuya. Ese conteo <strong>no es el que arma un memo</strong>: el umbral del RIT se cuenta por <strong>mes calendario</strong> y sale en Disciplina, así que acá el número puede ser mayor cuando queda una tardanza del mes pasado dentro de la ventana. Y si una sede no llega a su mínimo de encargadas programadas —esta semana o la siguiente (configurable en Turnos)— también sale acá; el de la próxima semana lo dice explícitamente, para que se distinga del que ya es urgente ahora. Avisa además cuando alguien pasa de {MAXIMO_LEGAL_SEMANAL} h en <strong>cualquier ventana de siete días seguidos</strong> — no por semana de calendario, porque así doce días corridos de 8 h darían 48 y 48 sin que nada saltara. Ese es el <strong>máximo legal</strong>, no un objetivo. Ese aviso viene en dos tonos: si la ventana termina esta semana todavía se puede mover un turno, y si dice <strong>«ya ocurrió»</strong> es un exceso de hasta {VENTANA_EXCESO_DIAS} días atrás que ya no se evita — se saca con <strong>Revisado</strong>, que deja constancia de quién lo miró. Y cuando alguien lleva {MAXIMO_DIAS_SIN_DESCANSO} días seguidos trabajando, porque el siguiente le toca descansar — el descanso semanal se cuenta en <strong>ciclos de 7 días</strong>, no por semana de calendario (Informe 027-2021-MTPE/14), así que con turnos rotativos se puede cumplir «uno por semana» y encadenar doce días igual. Ese aviso <strong>se va solo en cuanto descansa</strong>: si su último día trabajado ya quedó atrás, el descanso ocurrió y no hay nada que pedir. El de <strong>{MAXIMO_DIAS_SIN_DESCANSO + 1}+ días</strong> no se va solo —esa infracción ya ocurrió— y se saca con <strong>Revisado</strong>, que deja constancia de quién la miró. Ninguno de los dos límites —las {MAXIMO_LEGAL_SEMANAL} h ni el descanso— <strong>se arregla pagando después</strong>: el recargo del sobretiempo se paga aparte y no levanta el tope. Las <strong>faltas</strong> (le tocaba y no marcó) salen en rojo; usa <strong>Justificar</strong> para registrar el motivo (permiso, descanso médico, etc.) y sacarlas del conteo.</p>
         ) : (
           <p className="mb-5 text-sm text-taupe">
             Días que necesitan tu revisión: cierres mal hechos (auto-cierre, sin salida, sin retorno de almuerzo,
@@ -1038,7 +1155,7 @@ function IncidenciasContenido() {
                             <Boton
                               variante="sutil"
                               tamano="sm"
-                              onClick={() => void aceptar(f)}
+                              onClick={() => abrirAceptar(f)}
                               disabled={aceptando === `${f.personaId}|${f.fecha}|${f.aceptable}`}
                               title={ACEPTAR_AYUDA(f.aceptable)}
                             >
@@ -1087,6 +1204,58 @@ function IncidenciasContenido() {
             </section>
           );
         })}
+
+        {/* Historial de lo ya aceptado — colapsado por defecto, para no competir
+            con lo urgente. El dato (quién, cuándo, con qué nota) existe desde
+            la 0052; lo único nuevo acá es mostrarlo. */}
+        {historial.length > 0 && (
+          <section className="mb-8">
+            <button
+              type="button"
+              onClick={() => setMostrarHistorial((v) => !v)}
+              className="etiqueta text-taupe underline underline-offset-2 hover:text-tinta"
+            >
+              {mostrarHistorial ? "Ocultar historial" : `Ver historial de incidencias aceptadas (${historial.length})`}
+            </button>
+            {mostrarHistorial && (
+              <Tabla className="mt-3">
+                <TablaEncabezado>
+                  <Th>Persona</Th>
+                  <Th>Fecha</Th>
+                  <Th>Incidencia</Th>
+                  <Th>Aceptado por</Th>
+                  <Th>Nota</Th>
+                  <Th></Th>
+                </TablaEncabezado>
+                <tbody>
+                  {historial.map((h, i) => {
+                    const clave = `${h.personaId}|${h.fecha}|${h.tipo}`;
+                    return (
+                      <FilaTabla key={`${clave}-${i}`}>
+                        <td className="px-4 py-2.5">{h.nombre} <span className="text-taupe">· {h.sede}</span></td>
+                        <td className="px-4 py-2.5 capitalize">{fechaLarga(h.fecha)}</td>
+                        <td className="px-4 py-2.5">{TIPO_LABEL[h.tipo] ?? h.tipo}</td>
+                        <td className="px-4 py-2.5 text-taupe">{h.aceptadoPor} · {fechaHoraLima(h.aceptadoAt)}</td>
+                        <td className="px-4 py-2.5 text-taupe">{h.nota ?? "—"}</td>
+                        <td className="px-4 py-2.5 text-right">
+                          <Boton
+                            variante="enlace"
+                            className="text-xs text-taupe hover:text-rojo"
+                            onClick={() => void quitarAceptacion(h)}
+                            disabled={quitando === clave}
+                            title="Deshacer esta aceptación (vuelve a aparecer en la lista de arriba si sigue vigente)."
+                          >
+                            {quitando === clave ? "…" : "Deshacer"}
+                          </Boton>
+                        </td>
+                      </FilaTabla>
+                    );
+                  })}
+                </tbody>
+              </Tabla>
+            )}
+          </section>
+        )}
 
         {/* Modal: justificar una falta. Antes era una reimplementación a mano
             (z-20, uno de los pisos distintos que convivían en el panel), sin
@@ -1148,6 +1317,44 @@ function IncidenciasContenido() {
                   cargando={guardandoJustif}
                 >
                   Justificar
+                </Boton>
+              </div>
+            </>
+          )}
+        </Modal>
+
+        {/* Modal: aceptar una incidencia, con nota opcional. La nota queda en el
+            historial de arriba — sirve para que quien revise después entienda
+            por qué se dio por buena, sin tener que recordarlo. */}
+        <Modal
+          abierto={!!aceptarModal}
+          onCerrar={() => { setAceptarModal(null); setErrorAceptarModal(null); }}
+          bloqueado={guardandoAceptar}
+          titulo={aceptarModal ? ACEPTAR_BOTON(aceptarModal.tipo) : "Aceptar"}
+          ancho="sm"
+        >
+          {aceptarModal && (
+            <>
+              <p className="mb-3 text-sm text-taupe">{aceptarModal.nombre} · {fechaLarga(aceptarModal.fecha)}</p>
+              <p className="mb-4 text-sm">{ACEPTAR_AYUDA(aceptarModal.tipo)}</p>
+              <label className="mb-4 flex flex-col gap-1 text-sm">
+                Nota <span className="text-taupe">(opcional — queda en el historial)</span>
+                <AreaTexto
+                  value={notaAceptar}
+                  onChange={(e) => setNotaAceptar(e.target.value)}
+                  rows={2}
+                  placeholder="ej. avisó por WhatsApp que salía antes por cita médica"
+                />
+              </label>
+              {errorAceptarModal && (
+                <p className="mb-3 whitespace-pre-line rounded-lg bg-rojo/10 px-3 py-2 text-sm text-rojo">
+                  {errorAceptarModal}
+                </p>
+              )}
+              <div className="flex justify-end gap-2">
+                <Boton onClick={() => { setAceptarModal(null); setErrorAceptarModal(null); }} disabled={guardandoAceptar}>Cancelar</Boton>
+                <Boton variante="primario" onClick={() => void confirmarAceptar()} cargando={guardandoAceptar}>
+                  {ACEPTAR_BOTON(aceptarModal.tipo)}
                 </Boton>
               </div>
             </>

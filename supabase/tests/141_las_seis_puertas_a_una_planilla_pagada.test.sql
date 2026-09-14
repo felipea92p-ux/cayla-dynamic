@@ -100,7 +100,7 @@ select throws_ok(
 -- empieza en mayo recalcula junio, que ya se pagó.
 select throws_ok(
   $$ select fn_set_horario_semanal('00000000-0000-0000-0000-00000000c602'::uuid,
-       '2026-05-01'::date, '{"1":{"e":"09:00","s":"18:00","r":60}}'::jsonb) $$,
+       '2026-05-01'::date, '{"1":{"e":"09:00","s":"18:00","r":60}}'::jsonb, 'Prueba pgTAP.') $$,
   'P0001', null,
   'HORARIO · no se puede hacer regir un horario que alcanza a junio pagado');
 
@@ -137,7 +137,7 @@ select lives_ok(
 
 select lives_ok(
   $$ select fn_set_horario_semanal('00000000-0000-0000-0000-00000000c602'::uuid,
-       '2026-09-01'::date, '{"1":{"e":"09:00","s":"18:00","r":60}}'::jsonb) $$,
+       '2026-09-01'::date, '{"1":{"e":"09:00","s":"18:00","r":60}}'::jsonb, 'Prueba pgTAP.') $$,
   'ABIERTO · sí se puede hacer regir un horario que empieza después de lo pagado');
 
 select * from finish();
