@@ -5238,6 +5238,14 @@ export type Database = {
           tipo: string
         }[]
       }
+      fn_copiar_semana_anterior: {
+        Args: { p_lunes_destino: string | null; p_sede_id: string | null }
+        Returns: {
+          fecha: string
+          persona_id: string
+          resultado: string
+        }[]
+      }
       fn_corregir_marca: {
         Args: {
           p_marcaje_id: string | null
