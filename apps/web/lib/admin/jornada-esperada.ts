@@ -143,6 +143,35 @@ export function esperadoDelDia(fecha: string, turno: TurnoDia | null, horario: H
   return NADA;
 }
 
+/**
+ * ¿Este turno puntual es un "espejo viejo"? — coincide con un tramo de
+ * horario que la persona YA NO TIENE VIGENTE, y probablemente solo sigue ahí
+ * porque nadie lo retiró cuando el horario cambió. El turno del día manda
+ * sobre el horario base (arriba, `esperadoDelDia`), así que un espejo viejo
+ * sigue mandando en silencio sobre una tardanza o un tiempo adicional real,
+ * aunque el horario de esa persona haya cambiado hace tiempo.
+ *
+ * Es "probable", no seguro — coincidir con un tramo viejo por casualidad es
+ * posible — así que esto no borra ni corrige nada, solo señala.
+ *
+ * Nació como lógica interna de RevisionTurnos en admin/turnos/page.tsx
+ * (commit d409cc42, "caso Janis": turno 07:45 vs horario base 08:15), pero
+ * esa pantalla solo mira turnos de hoy en adelante y solo la abre quien va a
+ * Turnos. El caso de Diana (set-2026) mostró que hace falta verlo también
+ * donde se nota el síntoma (la tardanza, en Correcciones) y donde se origina
+ * el cambio (Horarios) — de ahí que viva acá y no solo en esa pantalla.
+ */
+export function esTurnoEspejoViejo(fecha: string, turno: TurnoDia, todosLosTramos: HorarioTramo[]): boolean {
+  const vigente = horarioVigente(todosLosTramos, fecha);
+  const tE = turno.es_descanso ? null : (turno.hora_entrada?.slice(0, 5) ?? null);
+  const tS = turno.es_descanso ? null : (turno.hora_salida?.slice(0, 5) ?? null);
+  return todosLosTramos.some((x) => {
+    if (x === vigente) return false;
+    const h = esperadoDelDia(fecha, null, x);
+    return tE === null ? h.entrada === null : h.entrada === tE && h.salida === tS;
+  });
+}
+
 export interface HorasSemanales {
   /** Horas semanales pactadas, o null si no se pudo determinar desde el horario. */
   horas: number | null;
