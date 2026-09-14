@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
-  dowDe, horarioVigente, esperadoDelDia, fechasDelRango, estadoDelDia,
-  type HorarioTramo, type Esperado,
+  dowDe, horarioVigente, esperadoDelDia, fechasDelRango, estadoDelDia, esTurnoEspejoViejo,
+  type HorarioTramo, type Esperado, type TurnoDia,
 } from "@/lib/admin/jornada-esperada";
 
 // Un horario de tienda AQP: cinco días de 09:00 a 19:00 con una hora de
@@ -127,6 +127,79 @@ describe("horarioVigente", () => {
 
   it("devuelve null antes de que exista cualquier tramo", () => {
     expect(horarioVigente([viejo, nuevo], "2025-12-31")).toBeNull();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// El caso Diana (set-2026): un turno puntual viejo que quedó de un horario ya
+// reemplazado sigue mandando sobre el horario base y genera una tardanza falsa.
+// Dos tramos —el que Diana tenía hasta agosto y el que tiene desde setiembre—,
+// y turnos puntuales fechados YA en setiembre (cuando el vigente es el nuevo).
+// ─────────────────────────────────────────────────────────────────────────────
+const DIANA_VIEJO: HorarioTramo = {
+  persona_id: "diana",
+  vigente_desde: "2026-01-01",
+  vigente_hasta: "2026-08-31",
+  hora_entrada: "07:45",
+  hora_salida: "16:45",
+  dias_laborables: [1, 2, 3, 4, 5],
+  horario_por_dia: {
+    "1": { e: "07:45", s: "16:45", r: 45 },
+    "2": { e: "07:45", s: "16:45", r: 45 },
+    "3": { e: "07:45", s: "16:45", r: 45 },
+    "4": { e: "07:45", s: "16:45", r: 45 },
+    "5": { e: "07:45", s: "16:45", r: 45 },
+  },
+  almuerzo_min_minutos: 45,
+};
+
+const DIANA_VIGENTE: HorarioTramo = {
+  ...DIANA_VIEJO,
+  vigente_desde: "2026-09-01",
+  vigente_hasta: null,
+  hora_entrada: "09:00",
+  hora_salida: "18:00",
+  horario_por_dia: {
+    "1": { e: "09:00", s: "18:00", r: 60 },
+    "2": { e: "09:00", s: "18:00", r: 60 },
+    "3": { e: "09:00", s: "18:00", r: 60 },
+    "4": { e: "09:00", s: "18:00", r: 60 },
+    "5": { e: "09:00", s: "18:00", r: 60 },
+  },
+  almuerzo_min_minutos: 60,
+};
+
+const TRAMOS_DIANA = [DIANA_VIEJO, DIANA_VIGENTE];
+
+describe("esTurnoEspejoViejo — el caso Diana", () => {
+  it("coincide con el tramo YA SUPERADO → probable espejo viejo, avisar", () => {
+    const turno: TurnoDia = { hora_entrada: "07:45", hora_salida: "16:45", es_descanso: false };
+    // 2026-09-09 es miércoles: para esa fecha el vigente ya es DIANA_VIGENTE,
+    // y el turno trae las horas del tramo que dejó de correr en agosto.
+    expect(esTurnoEspejoViejo("2026-09-09", turno, TRAMOS_DIANA)).toBe(true);
+  });
+
+  it("coincide con el tramo VIGENTE → no hay discrepancia real, no avisar", () => {
+    const turno: TurnoDia = { hora_entrada: "09:00", hora_salida: "18:00", es_descanso: false };
+    expect(esTurnoEspejoViejo("2026-09-09", turno, TRAMOS_DIANA)).toBe(false);
+  });
+
+  it("no coincide con ningún tramo histórico → excepción a propósito, no ruido", () => {
+    const turno: TurnoDia = { hora_entrada: "14:00", hora_salida: "21:00", es_descanso: false };
+    expect(esTurnoEspejoViejo("2026-09-09", turno, TRAMOS_DIANA)).toBe(false);
+  });
+
+  it("un descanso que coincide con el descanso del tramo viejo ese día → avisar", () => {
+    const turno: TurnoDia = { hora_entrada: null, hora_salida: null, es_descanso: true };
+    // 2026-09-13 es domingo, día ausente de horario_por_dia en los dos tramos,
+    // pero lo que importa es que el tramo viejo (no vigente) también descansaba.
+    expect(esTurnoEspejoViejo("2026-09-13", turno, TRAMOS_DIANA)).toBe(true);
+  });
+
+  it("un descanso que ningún tramo histórico tuvo como descanso ese día → no avisar", () => {
+    const turno: TurnoDia = { hora_entrada: null, hora_salida: null, es_descanso: true };
+    // 2026-09-09 es miércoles, laborable en el tramo viejo: no hay espejo de descanso.
+    expect(esTurnoEspejoViejo("2026-09-09", turno, TRAMOS_DIANA)).toBe(false);
   });
 });
 
