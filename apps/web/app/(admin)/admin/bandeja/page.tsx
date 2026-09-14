@@ -635,9 +635,9 @@ export default function BandejaPage() {
             pista="Hay pendientes en otras sedes — quita el filtro de arriba para verlos."
           />
         ) : (
-          <div className="flex max-w-3xl flex-col gap-10">
+          <div className="grid items-start gap-6 xl:grid-cols-2">
             {resumenAlertas && alertasConProblema > 0 && (
-              <section>
+              <section className="rounded-2xl border border-sand bg-papel p-5">
                 <h2 className="mb-1 flex items-center gap-2 font-serif text-lg text-pizarra">
                   <span className="rounded bg-pizarra/15 px-2 py-0.5 text-xs font-medium uppercase tracking-wide">
                     Sistema
@@ -702,7 +702,7 @@ export default function BandejaPage() {
             )}
 
             {totalPorAprobar > 0 && (
-              <div className="flex flex-col gap-8">
+              <div className="flex flex-col gap-8 rounded-2xl border border-sand bg-papel p-5">
                 <h2 className="-mb-2 text-xs font-semibold uppercase tracking-wide text-taupe">
                   Por aprobar · {totalPorAprobar}
                 </h2>
@@ -989,7 +989,7 @@ export default function BandejaPage() {
             )}
 
             {totalParaSaber > 0 && (
-              <div className="flex flex-col gap-8">
+              <div className="flex flex-col gap-8 rounded-2xl border border-sand bg-papel p-5">
                 <h2 className="-mb-2 text-xs font-semibold uppercase tracking-wide text-taupe">
                   Para saber · {totalParaSaber}
                 </h2>

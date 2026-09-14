@@ -8,6 +8,7 @@ import { ROLES_CON_PANEL, claveSirve } from "@cayla-dynamic/shared";
 import { clavePorCambiar, marcarMiClavePorCambiar } from "@/lib/admin/mi-clave";
 import { esFallaDeRed } from "@/lib/admin/mensaje-error";
 import { Campo } from "@/components/ui/campo";
+import { CampoClave } from "@/components/ui/campo-clave";
 import { Boton } from "@/components/ui/boton";
 
 export default function AdminLoginPage() {
@@ -107,8 +108,7 @@ export default function AdminLoginPage() {
           onChange={(e) => setEmail(e.target.value)}
           required
         />
-        <Campo
-          type="password"
+        <CampoClave
           placeholder="contraseña"
           value={password}
           onChange={(e) => setPassword(e.target.value)}

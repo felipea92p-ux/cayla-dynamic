@@ -138,83 +138,91 @@ export default function AnunciosPage() {
           encontrar, a diferencia de un chat.
         </p>
 
-        {puedePublicar && (
-          <div className="mb-6 max-w-2xl rounded-2xl border border-sand bg-papel p-5">
-            <h2 className="mb-3 text-sm font-medium">Publicar un anuncio</h2>
-            <div className="flex flex-col gap-3">
-              <Campo etiqueta="Título" value={titulo} onChange={(e) => setTitulo(e.target.value)}
-                maxLength={200} placeholder="ej. La planilla cierra el 28" />
-              <AreaTexto etiqueta="Cuerpo" value={cuerpo} onChange={(e) => setCuerpo(e.target.value)}
-                rows={4} placeholder="El detalle del comunicado…" />
-              <CampoSelect etiqueta="A quién" value={sedeId} onChange={(e) => setSedeId(e.target.value)}
-                className="max-w-xs">
-                <option value="">Todas las sedes</option>
-                {sedes.map((s) => <option key={s.id} value={s.id}>Solo {s.nombre}</option>)}
-              </CampoSelect>
-              <div>
-                <Boton variante="primario" onClick={publicar} disabled={publicando}>
-                  {publicando ? "Publicando…" : "Publicar"}
-                </Boton>
+        {/* Con permiso para publicar, el formulario va fijo a un lado y la
+            lista ocupa el resto del ancho — como un compositor de correo, no
+            como un formulario apilado encima de la lista que lee todo el
+            mundo. Sin ese permiso no hay nada que poner ahí, así que la
+            lista sola queda centrada en una columna de lectura. */}
+        <div className={puedePublicar ? "grid items-start gap-6 lg:grid-cols-[360px_1fr]" : "mx-auto w-full max-w-2xl"}>
+          {puedePublicar && (
+            <div className="rounded-2xl border border-sand bg-papel p-5 lg:sticky lg:top-6">
+              <h2 className="mb-3 text-sm font-medium">Publicar un anuncio</h2>
+              <div className="flex flex-col gap-3">
+                <Campo etiqueta="Título" value={titulo} onChange={(e) => setTitulo(e.target.value)}
+                  maxLength={200} placeholder="ej. La planilla cierra el 28" />
+                <AreaTexto etiqueta="Cuerpo" value={cuerpo} onChange={(e) => setCuerpo(e.target.value)}
+                  rows={4} placeholder="El detalle del comunicado…" />
+                <CampoSelect etiqueta="A quién" value={sedeId} onChange={(e) => setSedeId(e.target.value)}>
+                  <option value="">Todas las sedes</option>
+                  {sedes.map((s) => <option key={s.id} value={s.id}>Solo {s.nombre}</option>)}
+                </CampoSelect>
+                <div>
+                  <Boton variante="primario" onClick={publicar} disabled={publicando}>
+                    {publicando ? "Publicando…" : "Publicar"}
+                  </Boton>
+                </div>
               </div>
             </div>
+          )}
+
+          <div>
+            {cargando ? (
+              <Cargando />
+            ) : vigentes.length === 0 ? (
+              <SinDatos texto="No hay anuncios vigentes." pista={puedePublicar ? "Publica el primero al lado." : undefined} />
+            ) : (
+              <ul className="space-y-3">
+                {vigentes.map((a) => (
+                  <li key={a.id} className="rounded-2xl border border-sand bg-papel p-4">
+                    <div className="flex flex-wrap items-baseline justify-between gap-2">
+                      <h3 className="font-serif text-lg text-tinta">{a.titulo}</h3>
+                      <span className="text-xs text-taupe">
+                        {a.sede_codigo ? `Solo ${a.sede_codigo}` : "Todas las sedes"}
+                      </span>
+                    </div>
+                    <p className="mt-2 whitespace-pre-wrap text-sm text-tinta">{a.cuerpo}</p>
+                    <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-sand/70 pt-3 text-xs text-taupe">
+                      <span>
+                        {a.publicado_por_nombre} · {fechaHora(a.publicado_at)} · {a.total_lectores} lectura{a.total_lectores === 1 ? "" : "s"}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        {a.mi_leido_at ? (
+                          <span>Leíste esto</span>
+                        ) : (
+                          <Boton variante="sutil" tamano="sm" onClick={() => marcarLeido(a.id)}>
+                            Marcar como leído
+                          </Boton>
+                        )}
+                        {puedePublicar && (
+                          <Boton variante="peligro" tamano="sm" onClick={() => anular(a.id)}>
+                            Anular
+                          </Boton>
+                        )}
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {puedePublicar && anulados.length > 0 && (
+              <details className="mt-6">
+                <summary className="cursor-pointer text-sm text-taupe">
+                  Anulados ({anulados.length})
+                </summary>
+                <ul className="mt-3 space-y-2">
+                  {anulados.map((a) => (
+                    <li key={a.id} className="rounded-xl border border-sand/60 bg-papel/50 p-3 text-sm text-taupe">
+                      <span className="line-through">{a.titulo}</span>
+                      {" — "}
+                      {a.publicado_por_nombre} · {fechaHora(a.publicado_at)}
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
           </div>
-        )}
-
-        {cargando ? (
-          <Cargando />
-        ) : vigentes.length === 0 ? (
-          <SinDatos texto="No hay anuncios vigentes." pista={puedePublicar ? "Publica el primero arriba." : undefined} />
-        ) : (
-          <ul className="max-w-2xl space-y-3">
-            {vigentes.map((a) => (
-              <li key={a.id} className="rounded-2xl border border-sand bg-papel p-4">
-                <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <h3 className="font-serif text-lg text-tinta">{a.titulo}</h3>
-                  <span className="text-xs text-taupe">
-                    {a.sede_codigo ? `Solo ${a.sede_codigo}` : "Todas las sedes"}
-                  </span>
-                </div>
-                <p className="mt-2 whitespace-pre-wrap text-sm text-tinta">{a.cuerpo}</p>
-                <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-sand/70 pt-3 text-xs text-taupe">
-                  <span>
-                    {a.publicado_por_nombre} · {fechaHora(a.publicado_at)} · {a.total_lectores} lectura{a.total_lectores === 1 ? "" : "s"}
-                  </span>
-                  <div className="flex items-center gap-2">
-                    {a.mi_leido_at ? (
-                      <span>Leíste esto</span>
-                    ) : (
-                      <Boton variante="sutil" tamano="sm" onClick={() => marcarLeido(a.id)}>
-                        Marcar como leído
-                      </Boton>
-                    )}
-                    {puedePublicar && (
-                      <Boton variante="peligro" tamano="sm" onClick={() => anular(a.id)}>
-                        Anular
-                      </Boton>
-                    )}
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-
-        {puedePublicar && anulados.length > 0 && (
-          <details className="mt-6 max-w-2xl">
-            <summary className="cursor-pointer text-sm text-taupe">
-              Anulados ({anulados.length})
-            </summary>
-            <ul className="mt-3 space-y-2">
-              {anulados.map((a) => (
-                <li key={a.id} className="rounded-xl border border-sand/60 bg-papel/50 p-3 text-sm text-taupe">
-                  <span className="line-through">{a.titulo}</span>
-                  {" — "}
-                  {a.publicado_por_nombre} · {fechaHora(a.publicado_at)}
-                </li>
-              ))}
-            </ul>
-          </details>
-        )}
+        </div>
       </main>
     </div>
   );
