@@ -2426,7 +2426,6 @@ export type Database = {
           entrada_ts: string | null
           estado: Database["public"]["Enums"]["estado_jornada"]
           fecha: string
-          horario_aplicado: Json | null
           horas_extra_detectadas: number
           horas_trabajadas: number | null
           id: string
@@ -2442,7 +2441,6 @@ export type Database = {
           entrada_ts?: string | null
           estado?: Database["public"]["Enums"]["estado_jornada"]
           fecha: string
-          horario_aplicado?: Json | null
           horas_extra_detectadas?: number
           horas_trabajadas?: number | null
           id?: string
@@ -2458,7 +2456,6 @@ export type Database = {
           entrada_ts?: string | null
           estado?: Database["public"]["Enums"]["estado_jornada"]
           fecha?: string
-          horario_aplicado?: Json | null
           horas_extra_detectadas?: number
           horas_trabajadas?: number | null
           id?: string
@@ -2756,6 +2753,78 @@ export type Database = {
             columns: ["resuelta_por"]
             isOneToOne: false
             referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mensajes_encargada: {
+        Row: {
+          creada_at: string
+          estado: string
+          id: string
+          mensaje: string
+          persona_id: string
+          respondida_at: string | null
+          respondida_por: string | null
+          respuesta: string | null
+          sede_id: string
+        }
+        Insert: {
+          creada_at?: string
+          estado?: string
+          id?: string
+          mensaje: string
+          persona_id: string
+          respondida_at?: string | null
+          respondida_por?: string | null
+          respuesta?: string | null
+          sede_id: string
+        }
+        Update: {
+          creada_at?: string
+          estado?: string
+          id?: string
+          mensaje?: string
+          persona_id?: string
+          respondida_at?: string | null
+          respondida_por?: string | null
+          respuesta?: string | null
+          sede_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mensajes_encargada_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mensajes_encargada_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mensajes_encargada_respondida_por_fkey"
+            columns: ["respondida_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mensajes_encargada_respondida_por_fkey"
+            columns: ["respondida_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mensajes_encargada_sede_id_fkey"
+            columns: ["sede_id"]
+            isOneToOne: false
+            referencedRelation: "sedes"
             referencedColumns: ["id"]
           },
         ]
@@ -4851,6 +4920,17 @@ export type Database = {
         Args: { p_ausencia_id: string | null; p_storage_path: string | null }
         Returns: undefined
       }
+      fn_ausencia_dias_con_jornada: {
+        Args: {
+          p_fecha_fin: string | null
+          p_fecha_inicio: string | null
+          p_persona_id: string | null
+        }
+        Returns: {
+          fecha: string
+          horas_trabajadas: number
+        }[]
+      }
       fn_ausencias: {
         Args: { p_desde: string | null; p_hasta: string | null; p_persona_id?: string | null }
         Returns: {
@@ -4892,6 +4972,8 @@ export type Database = {
       fn_ausencias_resumen: {
         Args: { p_desde: string | null; p_hasta: string | null }
         Returns: {
+          dias_no_pagados: number
+          dias_pagados: number
           dias_total: number
           persona_id: string
           por_tipo: Json
@@ -4939,25 +5021,6 @@ export type Database = {
         Args: { p_motivo: string | null; p_persona_id: string | null }
         Returns: {
           ruta: string
-        }[]
-      }
-      fn_calcular_metricas_jornada: {
-        Args: {
-          p_entrada_ts: string | null
-          p_fecha: string | null
-          p_hora_entrada_prog: string | null
-          p_hora_salida_prog: string | null
-          p_horas_trabajadas: number | null
-          p_refri_prog: number | null
-          p_salida_final_origen: Database["public"]["Enums"]["origen_marca"] | null
-          p_salida_final_revision: Database["public"]["Enums"]["estado_revision"] | null
-          p_salida_final_ts: string | null
-          p_sujeta_a_horario: boolean | null
-        }
-        Returns: {
-          horas_extra_detectadas: number
-          minutos_salida_temprana: number
-          minutos_tarde: number
         }[]
       }
       fn_cambiar_regimen_pension: {
@@ -5188,14 +5251,13 @@ export type Database = {
           tipo: string
         }[]
       }
-      fn_corregir_horario_retroactivo: {
-        Args: {
-          p_horario: Json | null
-          p_motivo: string | null
-          p_persona_id: string | null
-          p_vigente_desde: string | null
-        }
-        Returns: undefined
+      fn_copiar_semana_anterior: {
+        Args: { p_lunes_destino: string | null; p_sede_id: string | null }
+        Returns: {
+          fecha: string
+          persona_id: string
+          resultado: string
+        }[]
       }
       fn_corregir_marca: {
         Args: {
@@ -5303,10 +5365,6 @@ export type Database = {
       }
       fn_devenga_algo: { Args: { p_persona_id: string | null }; Returns: boolean }
       fn_devenga_beneficios: { Args: { p_tipo: string | null }; Returns: boolean }
-      fn_dia_con_expediente_formal: {
-        Args: { p_fecha: string | null; p_persona_id: string | null }
-        Returns: boolean
-      }
       fn_dia_incoherente: {
         Args: { p_fecha: string | null; p_persona_id: string | null }
         Returns: boolean
@@ -5570,6 +5628,10 @@ export type Database = {
       fn_eliminar_periodo: {
         Args: { p_periodo_id: string | null }
         Returns: undefined
+      }
+      fn_enviar_mensaje_encargada: {
+        Args: { p_mensaje: string | null }
+        Returns: string
       }
       fn_es_admin_o_lider: { Args: never; Returns: boolean }
       fn_es_dia_laborable: {
@@ -5876,21 +5938,6 @@ export type Database = {
           salario_mensual_soles: number
           vigente_desde: string
           vigente_hasta: string
-        }[]
-      }
-      fn_horario_retroactivo_preview: {
-        Args: { p_horario: Json | null; p_persona_id: string | null; p_vigente_desde: string | null }
-        Returns: {
-          fecha: string
-          horas_extra_actual: number
-          horas_extra_nuevo: number
-          horas_trabajadas_actual: number
-          horas_trabajadas_nuevo: number
-          minutos_salida_temprana_actual: number
-          minutos_salida_temprana_nuevo: number
-          minutos_tarde_actual: number
-          minutos_tarde_nuevo: number
-          tiene_expediente_formal: boolean
         }[]
       }
       fn_hoy_lima: { Args: never; Returns: string }
@@ -6460,6 +6507,10 @@ export type Database = {
         Args: { p_aprobar: boolean | null; p_id: string | null; p_respuesta?: string | null }
         Returns: undefined
       }
+      fn_responder_mensaje_encargada: {
+        Args: { p_id: string | null; p_respuesta: string | null }
+        Returns: undefined
+      }
       fn_revertir_pago: {
         Args: { p_grupo?: string | null; p_motivo: string | null; p_periodo_id: string | null }
         Returns: undefined
@@ -6590,7 +6641,12 @@ export type Database = {
         Returns: undefined
       }
       fn_set_horario_semanal: {
-        Args: { p_horario: Json | null; p_persona_id: string | null; p_vigente_desde: string | null }
+        Args: {
+          p_horario: Json | null
+          p_motivo: string | null
+          p_persona_id: string | null
+          p_vigente_desde: string | null
+        }
         Returns: undefined
       }
       fn_set_justificacion: {

@@ -304,7 +304,7 @@ with repo(numero, nombre, nunca) as (values
     (437, 'una_correccion_no_pisa_un_expediente_ya_formal', false),
     (438, 'levantar_una_tardanza_no_pisa_un_expediente_ya_formal', false),
     (439, 'copiar_semana_anterior_por_sede', false),
-    (440, 'el_calculo_de_una_jornada_se_vuelve_reusable', false),
+    (440, 'el_horario_tambien_se_cambia_por_una_puerta', false),
     (441, 'ausencia_avisa_dias_con_jornada', false),
     (442, 'anular_lo_aprobado_exige_desarrollo_organizacional', false),
     (443, 'ausentismo_separa_pagado_y_excluye_pendiente', false)

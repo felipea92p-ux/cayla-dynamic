@@ -40,7 +40,8 @@ select lives_ok(
   $$ select fn_set_horario_semanal(
        '00000000-0000-0000-0000-000000009703',
        '2026-09-07',
-       '{"1": {"e": "09:00", "s": "18:00"}, "3": {"e": "09:00", "s": "18:00"}}'::jsonb) $$,
+       '{"1": {"e": "09:00", "s": "18:00"}, "3": {"e": "09:00", "s": "18:00"}}'::jsonb,
+       'Prueba pgTAP.') $$,
   'NORMAL · el caso de una sola llamada sigue guardando el horario sin error'
 );
 

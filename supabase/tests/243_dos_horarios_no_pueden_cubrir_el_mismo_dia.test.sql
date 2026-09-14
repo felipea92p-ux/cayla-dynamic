@@ -271,11 +271,11 @@ values ('00000000-0000-0000-0000-000000024303', 'HorTercera', 'Lab',
 
 select lives_ok(
   $$ select fn_set_horario_semanal('00000000-0000-0000-0000-000000024303', '2026-09-01',
-              '{"1":{"e":"09:00","s":"17:00","r":0}}'::jsonb),
+              '{"1":{"e":"09:00","s":"17:00","r":0}}'::jsonb, 'Prueba pgTAP.'),
             fn_set_horario_semanal('00000000-0000-0000-0000-000000024303', '2026-09-15',
-              '{"1":{"e":"10:00","s":"18:00","r":0}}'::jsonb),
+              '{"1":{"e":"10:00","s":"18:00","r":0}}'::jsonb, 'Prueba pgTAP.'),
             fn_set_horario_semanal('00000000-0000-0000-0000-000000024303', '2026-09-20',
-              '{"1":{"e":"08:00","s":"16:00","r":0}}'::jsonb) $$,
+              '{"1":{"e":"08:00","s":"16:00","r":0}}'::jsonb, 'Prueba pgTAP.') $$,
   'PANTALLA · asignar horario tres veces seguidas sigue funcionando con el candado puesto');
 
 select is(

@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { TriangleAlert } from "lucide-react";
+import { ChevronLeft, Lock, TriangleAlert } from "lucide-react";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { desacuerdoAsignacionFamiliar, esPrestadorDeServicios, hoyLima, leCorrespondeCuspp, ESTADO_CIVIL_LABELS, ESTADOS_CIVILES, GENERO_LABELS, GENEROS, GRADO_INSTRUCCION_LABELS, GRADOS_INSTRUCCION, puedeExportarPadron, puedeOperarEquipo, puedeVerIdentidad, REGIMEN_PENSION_LABELS, REGIMENES_PENSION, siNoSinDato, VINCULO_DERECHOHABIENTE_LABELS, VINCULOS_DERECHOHABIENTE } from "@cayla-dynamic/shared";
 import { usePersonaActual } from "@/lib/admin/use-rol";
@@ -10,7 +11,6 @@ import { Cargando } from "@/components/cargando";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { descargarCsv, generarCsv } from "@/lib/admin/csv";
 import { useToast } from "@/components/toast";
-import { BannerAviso } from "@/components/ui/banner-aviso";
 import { Boton } from "@/components/ui/boton";
 import { Campo, CampoSelect } from "@/components/ui/campo";
 import { Insignia } from "@/components/ui/insignia";
@@ -84,6 +84,97 @@ function crearDhVacio() {
   };
 }
 
+/** Ícono "ⓘ" con explicación al pasar el mouse o enfocar — el mismo patrón
+ * `title=` que ya usa el resto del panel (equipo, personas/[id]), no un
+ * componente de tooltip nuevo: no hace falta inventar uno para una pantalla. */
+function Ayuda({ texto }: { texto: string }) {
+  return (
+    <span
+      tabIndex={0}
+      title={texto}
+      aria-label={texto}
+      className="ml-1 cursor-help align-text-top text-[11px] text-taupe/70 outline-none hover:text-taupe focus-visible:text-taupe"
+    >
+      ⓘ
+    </span>
+  );
+}
+
+/** Encabezado de sección uniforme — mismo tamaño, mismo espaciado, misma
+ * línea divisoria arriba — para que las secciones de la ficha se vean como si
+ * las hubiera diseñado una sola mano, en vez de copiadas a mano una por una
+ * con pequeñas diferencias entre sí. */
+function Seccion({
+  titulo,
+  subtitulo,
+  ayuda,
+  extra,
+  children,
+}: {
+  titulo: string;
+  subtitulo?: ReactNode;
+  ayuda?: string;
+  extra?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <section className="border-t border-sand/70 pt-5 first:border-t-0 first:pt-0">
+      <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <p className="text-[11px] uppercase tracking-wider text-taupe">
+          {titulo}
+          {subtitulo}
+          {ayuda && <Ayuda texto={ayuda} />}
+        </p>
+        {extra}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+/** Marco propio para DNI, banco y discapacidad: el mismo dato de siempre, con
+ * el mismo permiso de siempre, agrupado con una señal visual de que ahí hay
+ * algo delicado — sin ocultarlo ni pedir un clic de más para verlo. */
+function Sensible({ children }: { children: ReactNode }) {
+  return (
+    // `bg-crema` (el fondo dominante de la página) a propósito, no otro tono
+    // "elevado": dentro del panel `papel` de la ficha, se lee como una
+    // bandeja que se hunde un nivel — la misma lógica de profundidad que ya
+    // usan `papel`/`hueso` para el resto de la interfaz, aplicada a "esto es
+    // distinto" en vez de a "esto es un input".
+    <div className="rounded-control border border-taupe/25 bg-crema p-3">
+      <p className="mb-2 flex items-center gap-1 text-[10px] uppercase tracking-wider text-taupe/80">
+        <Lock size={11} strokeWidth={1.8} aria-hidden /> Dato sensible
+      </p>
+      {children}
+    </div>
+  );
+}
+
+// ── Qué le falta a cada ficha ────────────────────────────────────────────────
+//
+// La lista son los campos que el contador necesita para el T-Registro, y por
+// eso `foto_personal_url` no está: falta una foto y no pasa nada; falta el
+// número de cuenta y esa persona no cobra.
+//
+// Se calcula en el cliente y no en la base a propósito: los datos ya están
+// cargados en esta pantalla, y una consulta más para contar nulos sería una
+// segunda verdad sobre qué es «estar completa». A nivel de módulo, no dentro
+// del componente: es una constante fija, no depende de ninguna prop ni estado.
+const FALTANTES: readonly { clave: string; etiqueta: string }[] = [
+  { clave: "documento", etiqueta: "DNI" },
+  { clave: "nombre_dni", etiqueta: "nombre según DNI" },
+  { clave: "fecha_nacimiento", etiqueta: "nacimiento" },
+  { clave: "estado_civil", etiqueta: "estado civil" },
+  { clave: "genero", etiqueta: "género" },
+  { clave: "grado_instruccion", etiqueta: "instrucción" },
+  { clave: "celular", etiqueta: "celular" },
+  { clave: "email", etiqueta: "correo" },
+  { clave: "direccion", etiqueta: "dirección" },
+  { clave: "numero_cuenta", etiqueta: "cuenta" },
+  { clave: "regimen_pension", etiqueta: "régimen de pensión" },
+];
+
 export default function DatosPersonalesPage() {
   const router = useRouter();
   const yo = usePersonaActual();
@@ -104,6 +195,12 @@ export default function DatosPersonalesPage() {
   const [derechos, setDerechos] = useState<Derechohabiente[]>([]);
   const [sel, setSel] = useState<string>("");
   const [form, setForm] = useState<Form>(VACIO);
+  // Foto de `form` tal como quedó la última vez que se cargó o se guardó con
+  // éxito. Comparado contra `form` es lo único que dice si hay algo sin
+  // guardar en la ficha — antes no existía ningún seguimiento de esto, y
+  // cambiar de colaborador con la mitad de un dato escrito lo perdía en
+  // silencio (ver `intentarSeleccionar`).
+  const [formInicial, setFormInicial] = useState<Form>(VACIO);
   // Identidad: viven en `personas`, no en la ficha, y se guardan con su propia
   // función porque cada una deja su rastro de auditoría por separado.
   const [dni, setDni] = useState("");
@@ -146,6 +243,16 @@ export default function DatosPersonalesPage() {
   const [guardando, setGuardando] = useState(false);
   const [q, setQ] = useState("");
   const [soloSinFicha, setSoloSinFicha] = useState(false);
+  // A qué colaborador se quiso ir mientras había cambios sin guardar en el
+  // actual. `null` = no hay ningún cambio de persona pendiente de confirmar.
+  const [cambioPendiente, setCambioPendiente] = useState<{ id: string; forzarScroll: boolean; resaltar?: string } | null>(null);
+  // Qué campo destacar un momento tras pulsar "Revisar" desde Pendientes.
+  // Guarda la CLAVE del campo (coincide con `FALTANTES[].clave` y con el
+  // `id="campo-<clave>"` que cada campo se pone a sí mismo — ver `anclado`).
+  const [campoResaltado, setCampoResaltado] = useState<string | null>(null);
+  // Por debajo de md (768px) no se muestran lista y ficha a la vez: esto
+  // decide cuál de las dos ocupa la pantalla. Sin efecto en md hacia arriba.
+  const [vistaMobile, setVistaMobile] = useState<"lista" | "ficha">("lista");
   const fichaRef = useRef<HTMLDivElement>(null);
 
   const cargar = useCallback(async () => {
@@ -224,15 +331,32 @@ export default function DatosPersonalesPage() {
   // la ficha se abría con el correo y el DNI en blanco, y guardar intentó
   // borrarle el correo a alguien que sí lo tenía. Lo frenó el candado de la
   // 0198 —que solo cuida el correo—; el resto de la ficha ya se había escrito.
-  function seleccionar(id: string, forzarScroll = false) {
+  /**
+   * `resaltar`: clave de un campo (ver `FALTANTES`) para traerlo a la vista y
+   * destacarlo un momento — lo usa "Revisar →" desde Pendientes. No es una
+   * puerta de entrada distinta: sigue siendo esta la única función que toca
+   * `sel`, así que el resaltado hereda gratis el mismo candado contra perder
+   * cambios (ver `intentarSeleccionar`).
+   */
+  function seleccionar(id: string, forzarScroll = false, resaltar?: string) {
     setSel(id); setMotivoDni(""); setDhAbierto(false); setDhNuevo(crearDhVacio()); setDhEditando(null);
-    // En móvil la ficha queda debajo de la lista: la traemos a la vista
-    // (respetando la preferencia de "reducir movimiento" del sistema).
-    // `forzarScroll` es para quien entra desde el bloque de arriba, donde la
-    // ficha queda fuera de vista también en pantalla grande.
-    if (typeof window !== "undefined" && (forzarScroll || window.innerWidth < 768)) {
-      const suave = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    setCampoResaltado(null);
+    setVistaMobile("ficha");
+    const suave = typeof window !== "undefined" ? !window.matchMedia("(prefers-reduced-motion: reduce)").matches : true;
+    // En móvil la ficha reemplaza a la lista (ver `vistaMobile`); en pantalla
+    // grande, `forzarScroll` es para quien entra desde el bloque de arriba,
+    // donde la ficha queda fuera de vista.
+    const traerFicha = typeof window !== "undefined" && (forzarScroll || window.innerWidth < 768);
+    if (traerFicha) {
       setTimeout(() => fichaRef.current?.scrollIntoView({ behavior: suave ? "smooth" : "auto", block: "start" }), 60);
+    }
+    if (resaltar) {
+      const espera = traerFicha ? 400 : 60;
+      setTimeout(() => {
+        document.getElementById(`campo-${resaltar}`)?.scrollIntoView({ behavior: suave ? "smooth" : "auto", block: "center" });
+        setCampoResaltado(resaltar);
+      }, espera);
+      setTimeout(() => setCampoResaltado(null), espera + 2200);
     }
     const persona = personas.find((x) => x.id === id) ?? null;
     setDni(persona?.documento ?? "");
@@ -240,7 +364,7 @@ export default function DatosPersonalesPage() {
     setRegimenDesde(periodoAbiertoIni ?? "");
     setEmail(persona?.email ?? "");
     const f = fichas.get(id);
-    setForm(f ? {
+    const formCargado: Form = f ? {
       nombre_dni: f.nombre_dni ?? "", fecha_nacimiento: f.fecha_nacimiento ?? "", estado_civil: f.estado_civil ?? "",
       genero: f.genero ?? "",
       direccion: f.direccion ?? "", celular: f.celular ?? "", entidad_bancaria: f.entidad_bancaria ?? "",
@@ -251,7 +375,23 @@ export default function DatosPersonalesPage() {
       discapacidad: f.discapacidad === true ? "si" : f.discapacidad === false ? "no" : "",
       discapacidad_conadis: f.discapacidad_conadis ?? "",
       cuspp: f.cuspp ?? "",
-    } : { ...VACIO });
+    } : { ...VACIO };
+    setForm(formCargado);
+    setFormInicial(formCargado);
+  }
+
+  /**
+   * Única puerta de entrada a `seleccionar` desde la interfaz. Si la ficha
+   * abierta tiene cambios sin guardar, no cambia de persona todavía: guarda
+   * a quién se quería ir y deja que el modal de confirmación decida. Sin
+   * esto, tocar a otro colaborador con algo a medio escribir lo perdía sin
+   * avisar — pasó de verdad, y es justo lo que la ficha de esta pantalla
+   * existe para no dejar pasar con la plata de alguien.
+   */
+  function intentarSeleccionar(id: string, forzarScroll = false, resaltar?: string) {
+    if (id === sel) { if (resaltar) seleccionar(id, forzarScroll, resaltar); return; }
+    if (hayCambiosSinGuardar) { setCambioPendiente({ id, forzarScroll, resaltar }); return; }
+    seleccionar(id, forzarScroll, resaltar);
   }
 
   const personaSel = personas.find((p) => p.id === sel) ?? null;
@@ -271,6 +411,12 @@ export default function DatosPersonalesPage() {
   // Se compara como compara la base: `lower(trim())` contra `lower(trim())`.
   const emailCambio =
     !!personaSel && email.trim().toLowerCase() !== (personaSel.email ?? "").trim().toLowerCase();
+  // Los campos de la ficha (contacto, familia, banco...) no tenían ningún
+  // seguimiento de cambio — a diferencia de DNI/régimen/correo, que sí lo
+  // comparan contra `personaSel`. `formInicial` es esa misma comparación para
+  // el resto: la foto de `form` tal como se cargó o se guardó por última vez.
+  const formCambio = !!personaSel && JSON.stringify(form) !== JSON.stringify(formInicial);
+  const hayCambiosSinGuardar = formCambio || dniCambio || regimenCambio || emailCambio;
   // Tiene acceso creado: su correo es su login y la 0198 rechaza cambiarlo acá.
   const tieneCuenta = personaSel?.auth_user_id != null;
   // El CUSPP solo existe en el sistema PRIVADO de pensiones. ONP no tiene cuenta
@@ -290,23 +436,27 @@ export default function DatosPersonalesPage() {
     && regimen !== "" && regimen !== "onp" && regimen !== "jubilada";
   const mostrarCuspp = esAfp || form.cuspp.trim() !== "";
 
-  async function guardar() {
-    if (!sel) return;
+  /** `true` solo si las cuatro escrituras (ficha, DNI, régimen, correo) que
+   * hicieran falta terminaron bien. Lo usa `guardarYSiguiente` para saber si
+   * de verdad puede avanzar — un `false` deja la ficha tal como estaba,
+   * cambios sin guardar incluidos, para que la barra sticky siga viéndose. */
+  async function guardar(): Promise<boolean> {
+    if (!sel) return false;
     if (cargaFallida) {
       avisar("error", "No se guarda: las fichas no llegaron a cargar y guardar ahora borraría los datos que ya existen. Recarga la página.");
-      return;
+      return false;
     }
     // El motivo del DNI se exige aquí y no solo en la base, para que el aviso
     // llegue antes de intentar guardar y no como un error del servidor.
     if (dniEsCorreccion && !motivoDni.trim()) {
       avisar("error", "Escribe el motivo del cambio de DNI: ese número se imprime en memos y contratos.");
-      return;
+      return false;
     }
     // Por lo mismo, y con más razón: sin fecha el régimen no se puede guardar, y
     // llegar hasta el servidor significaría guardar la ficha y fallar después.
     if (regimenCambio && !regimenDesde) {
       avisar("error", "Escribe desde cuándo rige el régimen de pensión nuevo: esa fecha decide a qué periodo se le aplica el descuento.");
-      return;
+      return false;
     }
     setGuardando(true);
 
@@ -344,7 +494,7 @@ export default function DatosPersonalesPage() {
       p_discapacidad_conadis: form.discapacidad_conadis.trim() || null,
       p_cuspp: form.cuspp.trim() || null,   // CAMBIO 0198
     });
-    if (error) { setGuardando(false); avisar("error", mensajeDeError(error)); return; }
+    if (error) { setGuardando(false); avisar("error", mensajeDeError(error)); return false; }
 
     // Identidad: solo si de verdad cambió, para no ensuciar la auditoría con
     // guardados que no cambian nada.
@@ -352,7 +502,7 @@ export default function DatosPersonalesPage() {
       const { error: eDni } = await supabase.rpc("fn_set_documento", {
         p_persona_id: sel, p_documento: dni.trim(), p_motivo: motivoDni.trim(),
       });
-      if (eDni) { setGuardando(false); avisar("error", `La ficha se guardó, pero el DNI no: ${mensajeDeError(eDni)}`); return; }
+      if (eDni) { setGuardando(false); avisar("error", `La ficha se guardó, pero el DNI no: ${mensajeDeError(eDni)}`); return false; }
     }
     if (regimenCambio) {
       // CAMBIO 0277 — Antes esto llamaba a `fn_set_regimen_pension`, que escribía
@@ -365,7 +515,7 @@ export default function DatosPersonalesPage() {
         p_persona_id: sel, p_regimen: regimen || null,
         p_desde: regimenDesde, p_nota: null,
       });
-      if (eReg) { setGuardando(false); avisar("error", `La ficha se guardó, pero el régimen de pensión no: ${mensajeDeError(eReg)}`); return; }
+      if (eReg) { setGuardando(false); avisar("error", `La ficha se guardó, pero el régimen de pensión no: ${mensajeDeError(eReg)}`); return false; }
     }
     // El correo va por su propia función (0198): con cuenta creada la base lo
     // rechaza, porque cambiarlo acá no cambiaría el acceso.
@@ -373,13 +523,35 @@ export default function DatosPersonalesPage() {
       const { error: eMail } = await supabase.rpc("fn_set_email", {
         p_persona_id: sel, p_email: email.trim() || null,
       });
-      if (eMail) { setGuardando(false); avisar("error", `La ficha se guardó, pero el correo no: ${mensajeDeError(eMail)}`); return; }
+      if (eMail) { setGuardando(false); avisar("error", `La ficha se guardó, pero el correo no: ${mensajeDeError(eMail)}`); return false; }
     }
 
     setGuardando(false);
     await cargar();
     setMotivoDni("");
+    // Las cuatro escrituras que hacía falta hacer terminaron bien: `form` que
+    // se acaba de mandar pasa a ser el nuevo punto de comparación de
+    // `formCambio`. Sin esto, la barra de "cambios sin guardar" se quedaría
+    // encendida después de guardar con éxito.
+    setFormInicial(form);
     avisar("ok", regimenCambio ? `Ficha guardada. El régimen nuevo rige desde el ${regimenDesde} y ya cambia lo que se le descuenta.` : "Ficha guardada.");
+    return true;
+  }
+
+  /**
+   * Guarda y, si quedan otras fichas pendientes, salta directo a la próxima
+   * de la lista de Pendientes — cierra el ciclo "completar → guardar →
+   * siguiente" sin volver a tocar la lista de la izquierda. Usa `incompletas`
+   * calculada ANTES de guardar: guardar a `sel` no puede cambiar si otra
+   * persona está completa o no, así que no hace falta esperar a que la
+   * recarga de `guardar()` termine para saber a quién ir.
+   */
+  async function guardarYSiguiente() {
+    const siguiente = incompletas.find((x) => x.p.id !== sel);
+    const ok = await guardar();
+    if (!ok) return;
+    if (siguiente) seleccionar(siguiente.p.id, true);
+    else avisar("ok", "No quedan más fichas pendientes.");
   }
 
   async function agregarDerechohabiente() {
@@ -436,29 +608,6 @@ export default function DatosPersonalesPage() {
   const sinFicha = personas.filter((p) => !fichas.has(p.id)).length;
   const misDerechos = derechos.filter((d) => d.persona_id === sel);
 
-  // ── Qué le falta a cada ficha ──────────────────────────────────────────────
-  //
-  // La lista son los campos que el contador necesita para el T-Registro, y por
-  // eso `foto_personal_url` no está: falta una foto y no pasa nada; falta el
-  // número de cuenta y esa persona no cobra.
-  //
-  // Se calcula acá y no en la base a propósito: los datos ya están cargados en
-  // esta pantalla, y una consulta más para contar nulos sería una segunda verdad
-  // sobre qué es «estar completa».
-  const FALTANTES: readonly { clave: string; etiqueta: string }[] = [
-    { clave: "documento", etiqueta: "DNI" },
-    { clave: "nombre_dni", etiqueta: "nombre según DNI" },
-    { clave: "fecha_nacimiento", etiqueta: "nacimiento" },
-    { clave: "estado_civil", etiqueta: "estado civil" },
-    { clave: "genero", etiqueta: "género" },
-    { clave: "grado_instruccion", etiqueta: "instrucción" },
-    { clave: "celular", etiqueta: "celular" },
-    { clave: "email", etiqueta: "correo" },
-    { clave: "direccion", etiqueta: "dirección" },
-    { clave: "numero_cuenta", etiqueta: "cuenta" },
-    { clave: "regimen_pension", etiqueta: "régimen de pensión" },
-  ];
-
   // Se devuelven DOS listas separadas y no una sola, porque son dos cosas
   // distintas y mezclarlas no se entendía:
   //
@@ -470,12 +619,22 @@ export default function DatosPersonalesPage() {
   // familiar sin familiar registrado», que Felipe leyó y no entendió — con
   // razón: ahí no falta un campo llamado «asignación familiar», sobra una
   // contradicción. El error es del diseño, no de quien lo lee.
-  const incompletas = useMemo(() => {
+  // Estado de CADA ficha, completas incluidas — no solo las pendientes.
+  // `incompletas` (abajo) es un recorte de este mismo mapa; el mapa completo
+  // hace falta para el indicador por fila de la lista y el "Ficha X%
+  // completa" del encabezado, que también tienen que decir algo de quien ya
+  // no tiene nada pendiente.
+  const { estadoFichas, incompletas } = useMemo(() => {
     const hoy = new Date().toISOString().slice(0, 10);
-    return personas
+    const estado = personas
       .map((p) => {
         const f = fichas.get(p.id);
         const valor: Record<string, unknown> = { ...(f ?? {}), documento: p.documento, email: p.email, regimen_pension: p.regimen_pension };
+        // Cada entrada guarda su `clave` además de la `etiqueta`: la etiqueta
+        // es lo que se lee ("falta DNI · celular"), la clave es el ancla
+        // `id="campo-<clave>"` que "Revisar →" usa para centrar ese campo
+        // exacto en la ficha (ver `anclado` más abajo).
+        const regimenExcluido = esPrestadorDeServicios(p.en_planilla);
         const faltan = FALTANTES.filter((c) => {
           const v = valor[c.clave];
           if (v !== null && v !== undefined && String(v).trim() !== "") return false;
@@ -483,9 +642,9 @@ export default function DatosPersonalesPage() {
           // retiene aporte previsional (0242): si ella aporta, lo hace como
           // independiente y por su cuenta, y ese dato no es de la empresa.
           // Pedirlo era un «falta» que nadie podía completar con sentido.
-          if (c.clave === "regimen_pension" && esPrestadorDeServicios(p.en_planilla)) return false;
+          if (c.clave === "regimen_pension" && regimenExcluido) return false;
           return true;
-        }).map((c) => c.etiqueta);
+        });
 
         // El CUSPP no es un campo más: solo se le pide a quien está en una
         // AFP. En ONP no hay cuenta individual y quien se jubiló no aporta, así
@@ -498,8 +657,14 @@ export default function DatosPersonalesPage() {
         // está en el T-Registro. Medido el 2026-08-13: eran dos personas con un
         // «falta CUSPP» permanente que nadie podía completar nunca — el tipo de
         // aviso que enseña a ignorar los avisos.
-        if (leCorrespondeCuspp(p.en_planilla, p.regimen_pension)
-            && !(f?.cuspp ?? "").trim()) faltan.push("CUSPP");
+        const aplicaCuspp = leCorrespondeCuspp(p.en_planilla, p.regimen_pension);
+        if (aplicaCuspp && !(f?.cuspp ?? "").trim()) faltan.push({ clave: "cuspp", etiqueta: "CUSPP" });
+        // Cuántos campos son de verdad exigibles a ESTA persona — la base del
+        // "Ficha X% completa" del encabezado. Ni más ni menos que los mismos
+        // que ya decide `faltan`: si un campo no se le pide (el régimen a una
+        // locadora), tampoco cuenta para el total, así que no le resta ni le
+        // suma puntos un requisito que no es suyo.
+        const totalCampos = FALTANTES.length - (regimenExcluido ? 1 : 0) + (aplicaCuspp ? 1 : 0);
 
         const avisos: string[] = [];
         // Un dato imposible se ve igual de bien que uno correcto hasta que el
@@ -542,13 +707,29 @@ export default function DatosPersonalesPage() {
             avisos.push("se le paga la asignación familiar y esta ficha no lo declara — el padrón saldrá con «SIN DATO» en esa columna");
             break;
         }
-        return { p, faltan, avisos, sinFicha: f === undefined };
-      })
+        return { p, faltan, avisos, sinFicha: f === undefined, totalCampos };
+      });
+    const mapa = new Map(estado.map((x) => [x.p.id, x]));
+    // `incompletas` es un recorte de `estado`, no una segunda pasada: mismo
+    // criterio de siempre, solo filtrado y ordenado. Vive en este MISMO
+    // useMemo (en vez de uno propio encadenado con `[estadoFichas]` de
+    // dependencia) porque encadenar dos memos acá es justo lo que el
+    // compilador de React no podía seguir garantizando — medido: probarlo
+    // así hacía que dejara de optimizar el componente entero.
+    const pendientes = estado
       .filter((x) => x.faltan.length > 0 || x.avisos.length > 0)
       // Las contradicciones primero: un campo vacío se llena cuando se pueda,
       // pero un dato que se contradice ya está moviendo plata hoy.
       .sort((a, b) => b.avisos.length - a.avisos.length || b.faltan.length - a.faltan.length);
+    return { estadoFichas: mapa, incompletas: pendientes };
   }, [personas, fichas, derechos, conHijos]);
+
+  /** "86% completa", o `null` si la persona no aplica ningún campo (no debería pasar). */
+  function completitudDe(id: string): number | null {
+    const e = estadoFichas.get(id);
+    if (!e || e.totalCampos <= 0) return null;
+    return Math.round(((e.totalCampos - e.faltan.length) / e.totalCampos) * 100);
+  }
 
   // El valor que llega de la base es texto libre: puede traer un código que
   // estas etiquetas todavía no conocen. Se devuelve el crudo en vez de dejar
@@ -592,7 +773,7 @@ export default function DatosPersonalesPage() {
         // vacía y no omitida — una columna que falta se pasa por alto, una
         // vacía se ve y se llena.
         Sexo: etiqueta(GENERO_LABELS, f?.genero ?? null), Nacionalidad: "",
-        REVISAR: incompletas.find((x) => x.p.id === p.id)?.faltan.join(" · ") ?? "",
+        REVISAR: incompletas.find((x) => x.p.id === p.id)?.faltan.map((c) => c.etiqueta).join(" · ") ?? "",
       };
     });
     // Primero quien necesita corrección: el archivo abre mostrando qué hacer.
@@ -615,14 +796,33 @@ export default function DatosPersonalesPage() {
     );
   }
 
-  function campo(label: string, key: keyof Form, tipo: "text" | "date" = "text") {
+  /**
+   * Envuelve un campo con su ancla (`id="campo-<clave>"`) y, si es el que
+   * "Revisar →" acaba de traer a la vista, un aro temporal alrededor. La
+   * clave siempre es segura de usar como ancla aunque el campo no esté en
+   * `FALTANTES` (emergencia, discapacidad_conadis…): sencillamente nadie va
+   * a apuntar `campoResaltado` a esa clave, así que el aro nunca se enciende.
+   */
+  function anclado(clave: string, contenido: ReactNode) {
+    const activo = campoResaltado === clave;
     return (
+      <div
+        id={`campo-${clave}`}
+        className={`rounded-control transition-shadow duration-700 ${activo ? "ring-2 ring-taupe ring-offset-2 ring-offset-papel" : ""}`}
+      >
+        {contenido}
+      </div>
+    );
+  }
+  function campo(label: string, key: keyof Form, tipo: "text" | "date" = "text") {
+    return anclado(
+      key,
       <Campo
         etiqueta={label}
         type={tipo}
         value={form[key]}
         onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
-      />
+      />,
     );
   }
   /**
@@ -647,7 +847,8 @@ export default function DatosPersonalesPage() {
   function campoLista(label: string, key: keyof Form, opciones: readonly string[], etiquetas: Record<string, string>) {
     const actual = form[key] as string;
     const esAntiguo = actual !== "" && !opciones.includes(actual);
-    return (
+    return anclado(
+      key,
       <label className="flex flex-col gap-1">
         <span className="text-sm text-taupe">
           {label}
@@ -661,7 +862,7 @@ export default function DatosPersonalesPage() {
             <option key={o} value={o}>{etiquetas[o] ?? o}</option>
           ))}
         </select>
-      </label>
+      </label>,
     );
   }
   function campoSiNo(label: string, key: "hijos_menores" | "discapacidad") {
@@ -685,10 +886,11 @@ export default function DatosPersonalesPage() {
           <h1 className="font-serif text-2xl">Datos personales</h1>
           {/* Solo dirección: un CSV sale del sistema y ya nadie sabe dónde queda.
               Ver `puedeExportarPadron` para por qué esto es más estrecho que ver
-              las mismas fichas en pantalla. */}
+              las mismas fichas en pantalla. Variante "sutil" a propósito: es una
+              acción de baja frecuencia y no debe competir con el título. */}
           {puedeExportarPadron(rol) && personas.length > 0 && (
             <Boton
-              variante="secundario"
+              variante="sutil"
               tamano="sm"
               onClick={exportarPadron}
               className="no-print"
@@ -699,67 +901,67 @@ export default function DatosPersonalesPage() {
           )}
         </div>
         <p className="mb-5 max-w-2xl text-sm text-taupe">
-          Ficha personal de cada integrante: DNI, pensión, contacto y familia.
-          Datos sensibles — visibles solo para Desarrollo Organizacional, la encargada de tu sede y cada persona sobre sí misma.
+          Mantén actualizada la información personal necesaria para gestión y planilla.
+          <Ayuda texto="Datos sensibles — visibles solo para Desarrollo Organizacional, la encargada de tu sede y cada persona sobre sí misma." />
         </p>
 
-        {/* ── Qué falta, arriba de todo ─────────────────────────────────────
+        {/* ── Pendientes, arriba de todo ────────────────────────────────────
             Solo se listan las fichas incompletas. Cuando estén todas al día
             este bloque desaparece, y esa ausencia ES la señal de que está
             cerrado — un contador «21 de 21» ocuparía sitio para no decir nada.
-            Cada nombre lleva al formulario de esa persona: quien ve el hueco lo
-            corrige sin cambiar de pantalla. */}
+            "Revisar →" selecciona a esa persona, trae su ficha a la vista y
+            destaca el primer campo que le falta (ver `intentarSeleccionar`). */}
         {!cargando && incompletas.length > 0 && (
-          <BannerAviso
-            variante="advertencia"
-            className="mb-5 max-w-3xl"
-            titulo={
-              incompletas.length === 1
-                ? "Una ficha está incompleta"
-                : `${incompletas.length} fichas están incompletas`
-            }
-          >
-            <p className="mb-3 text-xs text-taupe">
-              Son los datos que el contador necesita para el T-Registro. Sin ellos no se puede
-              declarar a esa persona ni pagarle por transferencia.
-            </p>
-            <ul className="space-y-1.5 text-sm">
+          <div className="mb-5 max-w-3xl rounded-superficie border border-sand bg-papel px-4 py-3">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+              <h2 className="font-serif text-base">
+                Pendientes
+                <Ayuda texto="Son los datos que el contador necesita para el T-Registro. Sin ellos no se puede declarar a esa persona ni pagarle por transferencia." />
+              </h2>
+              <span className="text-xs text-taupe">
+                {incompletas.length === 1 ? "1 ficha requiere información" : `${incompletas.length} fichas requieren información`}
+              </span>
+            </div>
+            <ul className={`mt-2 divide-y divide-sand/70 ${incompletas.length > 4 ? "max-h-56 overflow-y-auto" : ""}`}>
               {incompletas.map(({ p, faltan, avisos, sinFicha: nueva }) => (
-                <li key={p.id}>
-                  <div className="flex flex-wrap items-baseline gap-x-2">
-                    <button
-                      onClick={() => seleccionar(p.id, true)}
-                      className="font-medium underline decoration-dotted underline-offset-2"
-                    >
-                      {p.apellidos}, {p.nombres}
-                    </button>
+                <li key={p.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 py-2 text-sm">
+                  <div className="min-w-0">
+                    <span className="font-medium">{p.nombres} {p.apellidos}</span>
                     {/* Los campos vacíos, en cadena. Si no hay ninguno no se
                         escribe «falta» a secas, que se lee como error. */}
                     {(nueva || faltan.length > 0) && (
-                      <span className="text-xs text-taupe">
-                        {nueva ? "sin ficha — falta todo" : `falta ${faltan.join(" · ")}`}
+                      <span className="ml-2 text-xs text-taupe">
+                        {nueva ? "sin ficha — falta todo" : faltan.map((c) => c.etiqueta).join(" · ")}
                       </span>
                     )}
+                    {/* Las contradicciones no son un campo vacío más: no
+                        entran en la cadena de arriba, van en su propia línea
+                        con la frase completa. Solo la primera, para no
+                        engordar la fila — el resto se lee dentro de la ficha. */}
+                    {avisos.length > 0 && (
+                      <p className="mt-0.5 flex items-start gap-1 text-xs text-ambar">
+                        <TriangleAlert size={13} strokeWidth={1.8} className="mt-0.5 shrink-0" aria-hidden />
+                        {avisos[0]}{avisos.length > 1 ? ` (+${avisos.length - 1} más)` : ""}
+                      </p>
+                    )}
                   </div>
-                  {/* Las contradicciones van en su propia línea y con frase
-                      completa: no son un campo vacío más, y la diferencia entre
-                      «falta X» y «esto no cuadra» tiene que verse. */}
-                  {avisos.map((a) => (
-                    <p key={a} className="ml-0.5 mt-0.5 flex items-start gap-1 text-xs text-ambar">
-                      <TriangleAlert size={14} strokeWidth={1.8} className="mt-0.5 shrink-0" aria-hidden />
-                      {a}
-                    </p>
-                  ))}
+                  <button
+                    onClick={() => intentarSeleccionar(p.id, true, faltan[0]?.clave)}
+                    className="shrink-0 text-xs underline decoration-dotted underline-offset-2 hover:text-tinta"
+                  >
+                    Revisar →
+                  </button>
                 </li>
               ))}
             </ul>
-          </BannerAviso>
+          </div>
         )}
 
-        <div className="grid gap-6 md:grid-cols-[260px_1fr]">
-          {/* Lista de personas */}
-          <div className="overflow-hidden rounded-superficie border border-sand bg-papel">
-            <div className="border-b bg-sand/50 px-3 py-2">
+        <div className="grid items-start gap-6 md:grid-cols-[220px_1fr] lg:grid-cols-[260px_1fr]">
+          {/* Lista de personas. Oculta en móvil mientras se ve una ficha
+              (`vistaMobile`) — en md hacia arriba siempre visible. */}
+          <div className={`overflow-hidden rounded-superficie border border-sand bg-papel ${vistaMobile === "ficha" ? "hidden md:block" : "block"}`}>
+            <div className="border-b border-sand bg-sand/50 px-3 py-2">
               <div className="flex items-baseline justify-between">
                 <h2 className="text-sm font-medium">Equipo {personas.length > 0 && <span className="font-normal text-taupe">· {personas.length}</span>}</h2>
                 {sinFicha > 0 && (
@@ -784,50 +986,82 @@ export default function DatosPersonalesPage() {
               <p className="px-3 py-4 text-sm text-taupe">Nadie coincide con “{q}”.</p>
             ) : (
               <ul className="max-h-[70vh] divide-y overflow-y-auto">
-                {lista.map((p) => (
-                  <li key={p.id}>
-                    <button onClick={() => seleccionar(p.id)}
-                      className={`flex w-full items-center justify-between px-3 py-2 text-left text-sm ${sel === p.id ? "bg-sand/60 font-medium text-tinta" : "hover:bg-sand/30"}`}>
-                      <span>{p.nombres} {p.apellidos}</span>
-                      <span className="flex items-center gap-1 text-xs text-taupe">
-                        {sedes.get(p.sede_base_id)}
-                        {!fichas.has(p.id) && <Insignia variante="advertencia" tamano="sm">sin ficha</Insignia>}
-                      </span>
-                    </button>
-                  </li>
-                ))}
+                {lista.map((p) => {
+                  const estado = estadoFichas.get(p.id);
+                  const pendientes = (estado?.faltan.length ?? 0) + (estado?.avisos.length ?? 0);
+                  const activa = sel === p.id;
+                  return (
+                    <li key={p.id}>
+                      <button onClick={() => intentarSeleccionar(p.id)}
+                        className={`flex w-full items-center justify-between gap-2 border-l-2 px-3 py-2 text-left text-sm transition-colors ${activa ? "border-tinta bg-sand font-medium text-tinta" : "border-transparent hover:bg-sand/30"}`}>
+                        <span className="truncate">{p.nombres} {p.apellidos}</span>
+                        <span className="flex shrink-0 items-center gap-1.5 text-xs text-taupe">
+                          {sedes.get(p.sede_base_id)}
+                          {!fichas.has(p.id) ? (
+                            <Insignia variante="advertencia" tamano="sm">sin ficha</Insignia>
+                          ) : pendientes > 0 ? (
+                            <span>{pendientes} pendiente{pendientes > 1 ? "s" : ""}</span>
+                          ) : (
+                            <span className="text-verde" title="Ficha completa" aria-label="Ficha completa">✓</span>
+                          )}
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </div>
 
-          {/* Ficha */}
-          <div ref={fichaRef} className="scroll-mt-4 rounded-superficie border border-sand bg-papel p-5">
+          {/* Ficha. Oculta en móvil mientras se ve la lista (`vistaMobile`). */}
+          <div
+            ref={fichaRef}
+            className={`scroll-mt-20 overflow-hidden rounded-superficie border border-sand bg-papel ${vistaMobile === "lista" ? "hidden md:block" : "block"}`}
+          >
             {!personaSel ? (
-              <p className="text-sm text-taupe">Elige a alguien de la lista para ver o editar su ficha.</p>
+              <p className="p-5 text-sm text-taupe">Elige a alguien de la lista para ver o editar su ficha.</p>
             ) : (
               <>
-                <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-3">
-                  <h2 className="font-serif text-lg">{personaSel.nombres} {personaSel.apellidos}</h2>
-                  <div className="flex items-center gap-3 text-xs">
-                    <span className="text-taupe">{sedes.get(personaSel.sede_base_id)}</span>
-                    <Boton variante="enlace" className="text-tinta" onClick={() => router.push(`/admin/personas/${personaSel.id}`)}>Ver perfil →</Boton>
+                {/* Encabezado pegajoso: nombre, sede, % de completitud y "Ver
+                    perfil" siguen a la vista al bajar por una ficha larga.
+                    `top-16` la deja justo debajo de la barra superior del
+                    panel (h-16 fijo, ver admin/nav.tsx), para que no se tapen. */}
+                <div className="sticky top-16 z-10 border-b border-sand bg-papel px-5 py-3">
+                  <button
+                    onClick={() => setVistaMobile("lista")}
+                    className="mb-1 flex items-center gap-0.5 text-xs text-taupe hover:text-tinta md:hidden"
+                  >
+                    <ChevronLeft size={14} strokeWidth={2} aria-hidden /> Volver al listado
+                  </button>
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                    <div className="min-w-0">
+                      <h2 className="truncate font-serif text-lg leading-tight">{personaSel.nombres} {personaSel.apellidos}</h2>
+                      <p className="text-xs text-taupe">
+                        {sedes.get(personaSel.sede_base_id)}
+                        {completitudDe(personaSel.id) !== null && <> · Ficha {completitudDe(personaSel.id)}% completa</>}
+                      </p>
+                    </div>
+                    <Boton variante="enlace" className="shrink-0 text-tinta" onClick={() => router.push(`/admin/personas/${personaSel.id}`)}>Ver perfil →</Boton>
                   </div>
                 </div>
-                <div className="space-y-4">
-                  <section>
-                    <p className="mb-2 text-[11px] uppercase tracking-wider text-taupe">Identidad</p>
-                    <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-5 p-5 pb-24">
+                  <Seccion titulo="Identidad">
+                    <div className="grid gap-3 lg:grid-cols-2">
                       {/* El DNI vive en `personas` y se guarda con su propia función,
                           porque se imprime en papeles legales y su cambio va a auditoría. */}
-                      <label className="flex flex-col gap-1">
-                        <span className="text-sm text-taupe">
-                          Número de DNI
-                          {!puedeIdentidad && <span className="ml-1 text-[11px]">· solo Desarrollo Organizacional</span>}
-                        </span>
-                        <input value={dni} disabled={!puedeIdentidad}
-                          onChange={(e) => setDni(e.target.value)}
-                          className={`rounded-control border ${dniCambio ? "border-ambar" : "border-sand"} bg-hueso px-3 py-2 text-base text-tinta transition-colors duration-150 disabled:bg-sand/30 disabled:text-taupe sm:text-sm`} />
-                      </label>
+                      {anclado("documento", (
+                        <Sensible>
+                          <label className="flex flex-col gap-1">
+                            <span className="text-sm text-taupe">
+                              Número de DNI
+                              {!puedeIdentidad && <span className="ml-1 text-[11px]">· solo Desarrollo Organizacional</span>}
+                            </span>
+                            <input value={dni} disabled={!puedeIdentidad}
+                              onChange={(e) => setDni(e.target.value)}
+                              className={`rounded-control border ${dniCambio ? "border-ambar" : "border-sand"} bg-hueso px-3 py-2 text-base text-tinta transition-colors duration-150 disabled:bg-sand/30 disabled:text-taupe sm:text-sm`} />
+                          </label>
+                        </Sensible>
+                      ))}
                       {campo("Nombre completo (como en el DNI)", "nombre_dni")}
                       {dniEsCorreccion && (
                         <label className="flex flex-col gap-1 text-sm sm:col-span-2">
@@ -848,26 +1082,27 @@ export default function DatosPersonalesPage() {
                       {campoLista("Grado de instrucción", "grado_instruccion", GRADOS_INSTRUCCION, GRADO_INSTRUCCION_LABELS)}
                       {campoSiNo("¿Hijos menores a cargo?", "hijos_menores")}
                     </div>
-                  </section>
+                  </Seccion>
 
                   {/* CAMBIO 0125 — El régimen decide la tasa que se le descuenta. */}
-                  <section>
-                    <p className="mb-2 text-[11px] uppercase tracking-wider text-taupe">Pensión</p>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <label className="flex flex-col gap-1">
-                        <span className="text-sm text-taupe">
-                          Sistema de pensiones
-                          {!puedeIdentidad && <span className="ml-1 text-[11px]">· solo Desarrollo Organizacional</span>}
-                        </span>
-                        <select value={regimen} disabled={!puedeIdentidad}
-                          onChange={(e) => setRegimen(e.target.value)}
-                          className={`rounded-control border ${regimenCambio ? "border-ambar" : "border-sand"} bg-hueso px-3 py-2 text-base text-tinta transition-colors duration-150 disabled:bg-sand/30 disabled:text-taupe sm:text-sm`}>
-                          <option value="">— todavía no se sabe</option>
-                          {REGIMENES_PENSION.map((r) => (
-                            <option key={r} value={r}>{REGIMEN_PENSION_LABELS[r]}</option>
-                          ))}
-                        </select>
-                      </label>
+                  <Seccion titulo="Pensión">
+                    <div className="grid gap-3 lg:grid-cols-2">
+                      {anclado("regimen_pension", (
+                        <label className="flex flex-col gap-1">
+                          <span className="text-sm text-taupe">
+                            Sistema de pensiones
+                            {!puedeIdentidad && <span className="ml-1 text-[11px]">· solo Desarrollo Organizacional</span>}
+                          </span>
+                          <select value={regimen} disabled={!puedeIdentidad}
+                            onChange={(e) => setRegimen(e.target.value)}
+                            className={`rounded-control border ${regimenCambio ? "border-ambar" : "border-sand"} bg-hueso px-3 py-2 text-base text-tinta transition-colors duration-150 disabled:bg-sand/30 disabled:text-taupe sm:text-sm`}>
+                            <option value="">— todavía no se sabe</option>
+                            {REGIMENES_PENSION.map((r) => (
+                              <option key={r} value={r}>{REGIMEN_PENSION_LABELS[r]}</option>
+                            ))}
+                          </select>
+                        </label>
+                      ))}
                       {/* CAMBIO 0328 — Dos correcciones en tres líneas de texto.
                           La primera: decía que sin régimen «se le descuenta la
                           tasa genérica del 13 %», y no es cierto desde la 0115.
@@ -919,7 +1154,7 @@ export default function DatosPersonalesPage() {
                           individual, y quien ya se jubiló no aporta. Pedírselo
                           a Raquel sería pedirle un código que no existe — y un
                           campo que no aplica enseña a ignorar los que sí. */}
-                      {mostrarCuspp && (
+                      {mostrarCuspp && anclado("cuspp", (
                         <div className="flex flex-col gap-1 sm:col-span-2">
                           <Campo
                             etiqueta="CUSPP · código de su cuenta en la AFP"
@@ -934,20 +1169,19 @@ export default function DatosPersonalesPage() {
                               : "Esta persona no está en planilla, así que CAYLA no declara su aporte. El código queda visible para poder corregirlo o borrarlo."}
                           </span>
                         </div>
-                      )}
+                      ))}
                     </div>
-                  </section>
+                  </Seccion>
 
-                  <section>
-                    <p className="mb-2 text-[11px] uppercase tracking-wider text-taupe">Contacto</p>
-                    <div className="grid gap-3 sm:grid-cols-2">
+                  <Seccion titulo="Contacto">
+                    <div className="grid gap-3 lg:grid-cols-2">
                       {campo("Celular", "celular")}
                       {/* El correo vive en `personas`, no en la ficha, porque es
                           el USUARIO con el que se entra al sistema. Con cuenta
                           creada queda de solo lectura: la 0198 rechaza el cambio
                           en la base, y una caja que acepta texto para después
                           fallar al guardar es peor que una que no deja escribir. */}
-                      <div className="flex flex-col gap-1">
+                      {anclado("email", <div className="flex flex-col gap-1">
                         <span id="campo-correo-label" className="text-sm text-taupe">
                           Correo
                           {tieneCuenta && <span className="ml-1 text-[11px]">· es su usuario para entrar</span>}
@@ -976,34 +1210,33 @@ export default function DatosPersonalesPage() {
                             Todavía no tiene cuenta. Con el correo cargado se le puede invitar desde Cuentas.
                           </span>
                         ) : null}
-                      </div>
-                      <div className="sm:col-span-2">
-                        <Campo etiqueta="Dirección" value={form.direccion}
-                          onChange={(e) => setForm((f) => ({ ...f, direccion: e.target.value }))} />
+                      </div>)}
+                      <div className="lg:col-span-2">
+                        {anclado("direccion", <Campo etiqueta="Dirección" value={form.direccion}
+                          onChange={(e) => setForm((f) => ({ ...f, direccion: e.target.value }))} />)}
                       </div>
                     </div>
-                  </section>
+                  </Seccion>
 
                   {/* CAMBIO 0125 — A quién llamar si pasa algo. */}
-                  <section>
-                    <p className="mb-2 text-[11px] uppercase tracking-wider text-taupe">Contacto de emergencia</p>
-                    <div className="grid gap-3 sm:grid-cols-3">
+                  <Seccion titulo="Contacto de emergencia">
+                    <div className="grid gap-3 lg:grid-cols-3">
                       {campo("Nombre", "emergencia_nombre")}
                       {campo("Vínculo", "emergencia_vinculo")}
                       {campo("Teléfono", "emergencia_telefono")}
                     </div>
-                  </section>
+                  </Seccion>
 
                   {/* CAMBIO 0125 — Familiares: EsSalud y Seguro de Vida Ley. */}
-                  <section>
-                    <div className="mb-2 flex items-baseline justify-between">
-                      <p className="text-[11px] uppercase tracking-wider text-taupe">
-                        Familiares {misDerechos.length > 0 && <span className="normal-case">· {misDerechos.filter((d) => !d.vigente_hasta).length} vigentes</span>}
-                      </p>
-                      {/* Siempre abre EN BLANCO. Sin el reset, pulsarlo después de
-                          haber estado editando a alguien dejaba sus datos cargados y
-                          el próximo «Guardar» pisaba a esa persona en vez de crear
-                          un familiar nuevo. */}
+                  <Seccion
+                    titulo="Familiares"
+                    subtitulo={misDerechos.length > 0 ? <span className="normal-case"> · {misDerechos.filter((d) => !d.vigente_hasta).length} vigentes</span> : null}
+                    ayuda="Dos cosas distintas: EsSalud es quien está inscrito ante SUNAT y puede atenderse; Vida Ley es a quién le paga la aseguradora si la persona fallece. Sin esa declaración el pago va a un juzgado."
+                    extra={
+                      // Siempre abre EN BLANCO. Sin el reset, pulsarlo después de
+                      // haber estado editando a alguien dejaba sus datos cargados y
+                      // el próximo «Guardar» pisaba a esa persona en vez de crear
+                      // un familiar nuevo.
                       <Boton
                         variante="enlace"
                         className="text-xs text-tinta"
@@ -1014,12 +1247,8 @@ export default function DatosPersonalesPage() {
                       >
                         {dhAbierto ? "Cancelar" : "+ Agregar familiar"}
                       </Boton>
-                    </div>
-                    <p className="mb-2 text-[11px] text-taupe">
-                      Dos cosas distintas: <strong>EsSalud</strong> es quien está inscrito ante SUNAT y puede atenderse;
-                      <strong> Vida Ley</strong> es a quién le paga la aseguradora si la persona fallece. Sin esa declaración el pago va a un juzgado.
-                    </p>
-
+                    }
+                  >
                     {misDerechos.length === 0 ? (
                       <p className="text-sm text-taupe">Sin familiares registrados.</p>
                     ) : (
@@ -1060,7 +1289,7 @@ export default function DatosPersonalesPage() {
 
                     {dhAbierto && (
                       <div className="mt-3 rounded-control border border-sand bg-crema/50 p-3">
-                        <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="grid gap-3 lg:grid-cols-2">
                           <Campo etiqueta="Nombres" value={dhNuevo.nombres}
                             onChange={(e) => setDhNuevo((d) => ({ ...d, nombres: e.target.value }))} />
                           <Campo etiqueta="Apellidos" value={dhNuevo.apellidos}
@@ -1113,36 +1342,53 @@ export default function DatosPersonalesPage() {
                         </div>
                       </div>
                     )}
-                  </section>
+                  </Seccion>
 
-                  <section>
-                    <p className="mb-2 text-[11px] uppercase tracking-wider text-taupe">Banco</p>
-                    <div className="grid gap-3 sm:grid-cols-2">
+                  <Seccion titulo="Banco">
+                    <Sensible>
+                    <div className="grid gap-3 lg:grid-cols-2">
                       {campo("Entidad bancaria", "entidad_bancaria")}
                       {campo("N.° de cuenta", "numero_cuenta")}
                     </div>
-                  </section>
+                    </Sensible>
+                  </Seccion>
 
                   {/* CAMBIO 0125 — El T-Registro lo pregunta, y la deducción de la
                       Ley 29973 exige el certificado del CONADIS, no la declaración. */}
-                  <section>
-                    <p className="mb-2 text-[11px] uppercase tracking-wider text-taupe">Discapacidad</p>
-                    <div className="grid gap-3 sm:grid-cols-2">
+                  <Seccion titulo="Discapacidad">
+                    <Sensible>
+                    <div className="grid gap-3 lg:grid-cols-2">
                       {campoSiNo("¿Persona con discapacidad?", "discapacidad")}
                       {form.discapacidad === "si" && campo("N.° de certificado CONADIS", "discapacidad_conadis")}
                     </div>
-                  </section>
+                    </Sensible>
+                  </Seccion>
                 </div>
-                <Boton
-                  variante="primario"
-                  tamano="lg"
-                  cargando={guardando}
-                  disabled={cargaFallida}
-                  onClick={guardar}
-                  className="mt-4"
-                >
-                  Guardar ficha
-                </Boton>
+                {/* Barra de guardado: solo existe mientras hay algo que
+                    guardar. Con la ficha al día no hay nada que mostrar acá —
+                    "Guardar ficha" seguía visible incluso sin cambios, invitando
+                    a pulsarlo sin necesidad. Ver `hayCambiosSinGuardar`. */}
+                {hayCambiosSinGuardar && (
+                  <div className="sticky bottom-0 z-10 flex flex-wrap items-center justify-between gap-3 border-t border-sand bg-papel/95 px-5 py-3 backdrop-blur-sm">
+                    <span className="text-sm text-taupe">Cambios sin guardar</span>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Boton variante="secundario" tamano="sm" disabled={guardando} onClick={() => seleccionar(sel, false)}>
+                        Descartar
+                      </Boton>
+                      {/* Solo si hay OTRA ficha pendiente además de esta: cierra
+                          el ciclo completar → guardar → siguiente sin volver a
+                          tocar la lista de la izquierda. */}
+                      {incompletas.some((x) => x.p.id !== sel) && (
+                        <Boton variante="secundario" tamano="sm" cargando={guardando} onClick={() => void guardarYSiguiente()}>
+                          Guardar y siguiente pendiente
+                        </Boton>
+                      )}
+                      <Boton variante="primario" tamano="sm" cargando={guardando} disabled={cargaFallida} onClick={() => void guardar()}>
+                        Guardar cambios
+                      </Boton>
+                    </div>
+                  </div>
+                )}
               </>
             )}
           </div>
@@ -1174,6 +1420,35 @@ export default function DatosPersonalesPage() {
               onClick={() => confirmarCierre && void cerrarDerechohabiente(confirmarCierre.id, confirmarCierre.nombre)}
             >
               Sí, cerrar
+            </Boton>
+          </div>
+        </Modal>
+
+        {/* Se quiso cambiar de colaborador con la ficha actual sin guardar.
+            `intentarSeleccionar` es la única puerta que llega hasta acá — ver
+            esa función para por qué nunca se pierde un cambio en silencio. */}
+        <Modal
+          abierto={cambioPendiente !== null}
+          onCerrar={() => setCambioPendiente(null)}
+          titulo="Cambios sin guardar"
+          ancho="sm"
+        >
+          <p className="mb-4 text-sm text-taupe">
+            ¿Descartar los cambios de {personaSel ? `${personaSel.nombres} ${personaSel.apellidos}` : "esta ficha"}? No se guardaron.
+          </p>
+          <div className="flex justify-end gap-2">
+            <Boton variante="secundario" tamano="sm" onClick={() => setCambioPendiente(null)}>
+              Cancelar
+            </Boton>
+            <Boton
+              variante="peligro"
+              tamano="sm"
+              onClick={() => {
+                if (cambioPendiente) seleccionar(cambioPendiente.id, cambioPendiente.forzarScroll, cambioPendiente.resaltar);
+                setCambioPendiente(null);
+              }}
+            >
+              Descartar y continuar
             </Boton>
           </div>
         </Modal>
