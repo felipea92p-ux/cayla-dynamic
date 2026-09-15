@@ -43,9 +43,15 @@
 --     camino oficial.
 --   · Las seis filas objetivo se verifican UNA POR UNA antes de borrar nada
 --     (ver el bloque de comprobación abajo): mismo `persona_id`, mismo
---     `periodo_id`, misma `version`, y las tres con `total = 0.00`. Si algo
---     no calza —otra sesión ya las tocó, o los datos no son los auditados—,
---     la migración se detiene sin borrar una sola fila.
+--     `periodo_id`, misma `version`, y las tres con `total = 0.00`. Hay TRES
+--     desenlaces, no dos —0 encontradas (ya se aplicó antes, o esta base
+--     nunca tuvo el problema: no hace falta nada), 6 encontradas (se borran)
+--     o cualquier otro número (algo cambió: PARA)—, y no dos, porque con solo
+--     «6 o para» esta migración rompía `supabase db reset`/CI: una base
+--     construida desde cero nunca tiene estas seis filas de producción, así
+--     que el candado disparaba su excepción sobre una base sana. Se cazó
+--     exactamente así: `db-tests` en rojo al fusionar el PR, con «Iniciar
+--     base local (aplica las migraciones)» fallando en esta.
 --   · No hace falta `correcciones_auditoria`: su `corregido_por` es
 --     `not null` contra `personas(id)` y no hay una fila de esa tabla que
 --     represente «quien pegó este SQL en el editor» de forma fiable. Mismo
@@ -95,18 +101,36 @@ begin
 
   -- ── El candado, antes de borrar nada ──────────────────────────────────────
   -- Verifica, una por una, que las seis filas objetivo existan, que tengan
-  -- `grupo = 'planilla'` y que las seis valgan S/0.00. Si Postgres devuelve
-  -- otro conteo o cualquiera de ellas dejó de ser cero, PARA: alguien más
-  -- tocó estos datos entre que se auditó esto y que se pegó, y borrar a
-  -- ciegas sobre una foto ya pagada es justo lo que esta migración existe
-  -- para no hacer.
-  if (select count(*) from planilla_pagada_detalle d, jsonb_array_elements(v_filas) f
-       where d.periodo_id = (f->>'periodo_id')::uuid
-         and d.persona_id = (f->>'persona_id')::uuid
-         and d.version = (f->>'version')::int
-         and d.grupo = 'planilla'
-         and d.total = 0.00) <> 6 then
-    raise exception '0467 · PARA. No se encontraron las seis filas fantasma esperadas, tal como se auditaron el 2026-09-15 (persona, periodo, version, total = 0.00 exacto). No se borró nada.';
+  -- `grupo = 'planilla'` y que las seis valgan S/0.00.
+  --
+  -- TRES DESENLACES, no dos — es lo que hace falta para que esto sea
+  -- IDEMPOTENTE (se pega a mano, una mano se equivoca) y para que
+  -- `supabase db reset`/CI puedan construir el esquema desde cero sin las
+  -- seis filas de producción (que en una base nueva, obviamente, no existen):
+  --   · 0 encontradas → ya se aplicó antes, o esta base nunca tuvo la
+  --     contaminación (CI, un clon nuevo, un reset local). No hay nada que
+  --     borrar: se avisa y se sigue, sin excepción.
+  --   · 6 encontradas → el caso esperado en producción antes de pegar esto
+  --     por primera vez. Se borran.
+  --   · Cualquier otro número (1-5, o 6 pero alguna ya no vale S/0.00) → algo
+  --     cambió entre la auditoría del 2026-09-15 y este pegado. PARA: borrar
+  --     a ciegas sobre una foto ya pagada es justo lo que esto existe para
+  --     no hacer.
+  select count(*) into v_n
+    from planilla_pagada_detalle d, jsonb_array_elements(v_filas) f
+   where d.periodo_id = (f->>'periodo_id')::uuid
+     and d.persona_id = (f->>'persona_id')::uuid
+     and d.version = (f->>'version')::int
+     and d.grupo = 'planilla'
+     and d.total = 0.00;
+
+  if v_n = 0 then
+    raise notice '0467 · ninguna de las seis filas fantasma existe ya (aplicado antes, o esta base nunca las tuvo). Nada que hacer.';
+    return;
+  end if;
+
+  if v_n <> 6 then
+    raise exception '0467 · PARA. Se esperaban las seis filas auditadas el 2026-09-15 (persona, periodo, version, total = 0.00 exacto) y se encontraron %. Algo cambió desde la auditoría. No se borró nada.', v_n;
   end if;
 
   raise notice '0467 · las seis filas verificadas, procediendo a borrarlas: %', v_filas;
