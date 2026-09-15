@@ -10,11 +10,19 @@
 // Lo que esta pantalla evita, y es la razón de que exista: hasta la migración
 // 0101, un día de permiso concedido se registraba como falta injustificada,
 // entraba en el semáforo disciplinario y podía terminar en una carta de
-// preaviso de despido por días que la propia empresa concedió.
+// preaviso de despido por días que la propia empresa concedió. Desde la 0455,
+// además, un borrador de expediente ya generado deja de poder firmarse si una
+// ausencia registrada después ya justificó alguno de los días que cita.
 //
 // La regla del pago no la decide esta pantalla: viene del catálogo
-// `tipos_ausencia`. Descanso médico y maternidad pagan porque lo manda la ley
-// peruana; el resto no paga porque así lo decidió CAYLA.
+// `tipos_ausencia`. Cuál de los tipos que pagan lo hace por ley y cuál por
+// decisión propia de CAYLA tampoco vive en ninguna columna (0443) — se
+// declara una sola vez más abajo, en TIPOS_PAGA_LEY / TIPOS_PAGA_POLITICA.
+//
+// Rediseño de setiembre de 2026 (auditoría de Ausencias): el formulario pasa
+// de tarjeta fija a modal, el personal cesado pasa a su propia pestaña, y los
+// tres avisos que antes vivían sueltos (vacaciones por vencer, cupo de
+// EsSalud, patrón de ausencias) se consolidan en un panel por colaborador.
 // ============================================================================
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -50,6 +58,48 @@ import { mensajeDeError } from "@/lib/admin/mensaje-error";
 //
 // Escritas con su nombre literal, las tres las comprueba el compilador.
 
+// Qué tipos de ausencia que SÍ pagan lo hacen por mandato legal y cuál es
+// decisión propia de CAYLA. No vive en ninguna columna — la 0443 ya lo dejó
+// escrito: inventar una columna "es_mandato_legal" solo para esta pantalla
+// sería resolver un problema que nadie pidió. Se declara una sola vez acá, con
+// su sustento, para que la insignia de la tabla y del formulario nunca
+// discrepen entre sí.
+//
+//   · descanso_medico / maternidad — D.S. 001-97-TR / Ley 26644-30367.
+//   · vacaciones — la remuneración vacacional la exige el D. Leg. 713; no es
+//     un beneficio que CAYLA conceda, es lo que distingue "vacaciones" de un
+//     permiso sin goce.
+//   · duelo_familiar_directo — Ley 31602: 5 días con goce de haber para
+//     cónyuge, padres, hijos o hermanos (verificado el 2026-09-15 — el
+//     comentario de la 0443 lo llama, por error, "decisión propia"; no lo es).
+//
+// Si el catálogo gana mañana un tipo `paga = true` que no está en ninguna de
+// las dos listas, la insignia cae a "se paga" a secas en vez de inventarle una
+// clasificación legal que nadie verificó.
+const TIPOS_PAGA_LEY = new Set(["descanso_medico", "maternidad", "vacaciones", "duelo_familiar_directo"]);
+/** La única de hoy que paga porque CAYLA lo decidió, no porque la ley lo mande. */
+const TIPOS_PAGA_POLITICA = new Set(["licencia_con_goce"]);
+
+function insigniaPago(tipo: string, paga: boolean): string | null {
+  if (!paga) return null;
+  if (TIPOS_PAGA_LEY.has(tipo)) return "se paga · ley";
+  if (TIPOS_PAGA_POLITICA.has(tipo)) return "se paga · política CAYLA";
+  return "se paga";
+}
+
+// Etiquetas rápidas para "de qué se trata" — la lista no pretende agotar cada
+// motivo posible (para eso está el detalle libre de abajo, opcional): existe
+// para que un reporte futuro pueda contar "cuántos permisos por trámite en
+// Trujillo este trimestre" sin tener que leer un año de texto libre a mano.
+const MOTIVO_ETIQUETAS = [
+  "Cita o trámite médico propio",
+  "Cuidado de un familiar",
+  "Trámite personal (banco, notaría, etc.)",
+  "Estudios",
+  "Fallecimiento de un familiar",
+  "Otro (detallar abajo)",
+] as const;
+
 function fmt(iso: string | null | undefined): string {
   if (!iso) return "—";
   const [y, m, d] = iso.split("-");
@@ -62,18 +112,12 @@ function haceMeses(n: number): string {
 }
 
 type FiltroEstado = "todas" | "pendientes" | "vigentes" | "anuladas";
-// "activos" sigue el mismo criterio que Equipo y Planilla, y con la misma
-// etiqueta: no es el estado literal de la persona — incluye también a quien
-// cesó pero todavía no se le liquida, porque esa persona puede tener una
-// ausencia por registrar o revisar antes de calcular su liquidación
-// (0421/0422).
-//
-// "solo_activos" es distinto A PROPÓSITO, y es el default desde el 2026-09-12
-// a pedido de Felipe: acá lo que se quiere ver día a día es quién está
-// trabajando hoy, así que oculta a TODO cesado, se haya liquidado o no. Quien
-// necesite auditar una ausencia antes de liquidar sigue teniendo "Sin quien
-// ya se liquidó" a un clic.
-type FiltroPersonaEstado = "solo_activos" | "activos" | "inactivos" | "todos";
+/** Dos pestañas, no cuatro: "cesados" incluye a cualquiera que dejó de estar
+ * activo, se haya liquidado o no — quien necesite auditar una ausencia antes
+ * de calcular esa liquidación (0421/0422) la sigue encontrando ahí, a un
+ * clic de pestaña en vez de a un clic de filtro. Es la simplificación que
+ * decidió Felipe al elegir "pestaña aparte" en el rediseño de 2026-09-15. */
+type FiltroPersonaEstado = "activos" | "cesados";
 interface PersonaFacts { fechaCese: string | null; liquidada: boolean }
 
 interface Persona { id: string; nombres: string; apellidos: string }
@@ -129,6 +173,17 @@ interface VacacionPorVencer {
   dias_para_vencer: number;
 }
 
+/** Una fila del panel consolidado — el mismo impacto de siempre (legal,
+ *  financiero, patrón), agrupado por persona en vez de por tipo de aviso. */
+interface ImpactoPersona {
+  persona_id: string;
+  nombre: string;
+  sede: string | null;
+  legal: VacacionPorVencer | null;
+  financiero: Subsidio | null;
+  patron: Alerta[];
+}
+
 export default function AusenciasPage() {
   const router = useRouter();
   const rol = useRolActual();
@@ -156,20 +211,16 @@ export default function AusenciasPage() {
   const { avisar } = useToast();
   const [guardando, setGuardando] = useState(false);
   const [filtroEstado, setFiltroEstado] = useState<FiltroEstado>("todas");
-  // La clave lleva sufijo "_v2" a propósito. `useFiltroGuardado` respeta lo
-  // guardado en localStorage por encima de `inicial` (es su diseño: recordar
-  // la última elección) — y la clave vieja "ausencias.persona_estado" ya
-  // tenía "activos" o "todos" guardados en el navegador de quien hubiera
-  // visitado esta pantalla antes de hoy (2026-09-12), de cuando el único
-  // default era "activos". Sin cambiar la clave, "solo_activos" nunca llegaba
-  // a aplicarse para esos navegadores: seguían viendo "Todas" para siempre,
-  // que es exactamente lo que le pasó a Felipe el mismo día que se escribió
-  // este comentario — el commit que introdujo el nuevo default no alcanzó a
-  // cambiar lo que ya estaba guardado.
-  const [filtroPersona, setFiltroPersona] = useFiltroGuardado<FiltroPersonaEstado>("ausencias.persona_estado_v2", "solo_activos");
+  // Clave "_v3": las dos pestañas de hoy (activos/cesados) no son ninguno de
+  // los valores que "_v2" guardaba (solo_activos/activos/inactivos/todos). Sin
+  // una clave nueva, un navegador con "todos" guardado del filtro viejo
+  // llegaría a un valor que esta pantalla ya no reconoce — el mismo accidente
+  // que el propio "_v2" existe para evitar, documentado el 2026-09-12.
+  const [filtroPersona, setFiltroPersona] = useFiltroGuardado<FiltroPersonaEstado>("ausencias.persona_estado_v3", "activos");
   const [personaFacts, setPersonaFacts] = useState<Map<string, PersonaFacts>>(new Map());
 
-  // Formulario
+  // Formulario (vive en el modal — ver `registrando` más abajo)
+  const [registrando, setRegistrando] = useState(false);
   const [personaId, setPersonaId] = useState("");
   const [tipoCod, setTipoCod] = useState("");
   const [inicio, setInicio] = useState(hoyLima());
@@ -181,7 +232,11 @@ export default function AusenciasPage() {
   // boleta (0286); esto solo lo adelanta al momento de registrar en vez de
   // enterarse un mes después.
   const [diasConJornada, setDiasConJornada] = useState<{ fecha: string; horas: number }[]>([]);
-  const [motivo, setMotivo] = useState("");
+  // Motivo: etiqueta rápida obligatoria + detalle libre opcional (rediseño
+  // 2026-09-15). La etiqueta es lo que un reporte futuro puede contar; el
+  // detalle sigue siendo el espacio para "lo que se conversó".
+  const [motivoEtiqueta, setMotivoEtiqueta] = useState<string>("");
+  const [motivoDetalle, setMotivoDetalle] = useState("");
   const [docProf, setDocProf] = useState("");
   const [docColeg, setDocColeg] = useState("");
   const [docFecha, setDocFecha] = useState("");
@@ -226,6 +281,11 @@ export default function AusenciasPage() {
   // clic en "Registrar ausencia" guardaba directo sea cual sea el tipo; ahora
   // se detiene una vez, solo para el ~20% de los tipos con `paga = true`, con
   // el mismo texto que ya vive junto al botón ("se paga · lo aprueba DO").
+  //
+  // El formulario vive en un modal (ver `registrando`): al pedir esta
+  // confirmación se cierra el de registrar para no apilar dos diálogos, y si
+  // se cancela, se reabre — nada del formulario se pierde entre medias, sigue
+  // en el estado del componente.
   const [confirmandoPago, setConfirmandoPago] = useState(false);
 
   // Página visible de la tabla histórica. Con un rango de doce meses y varias
@@ -249,25 +309,24 @@ export default function AusenciasPage() {
     return true;
   }), [lista, filtroEstado]);
 
-  // "activos" no es el estado literal de la persona: incluye también a quien
-  // cesó pero todavía no se le liquida, porque esa ausencia puede seguir
-  // sirviendo para auditar o corregir antes de calcular esa liquidación
-  // (0421/0422). Solo desaparece cuando la persona ya se liquidó.
-  // "solo_activos" (el default) no hace esa distinción: cesó o no cesó, fuera.
-  const porPersona = useMemo(() => porFiltroEstadoYRango.filter((a) => {
-    const f = personaFacts.get(a.persona_id);
-    const cesada = !!f?.fechaCese;
-    if (filtroPersona === "solo_activos") return !cesada;
-    if (filtroPersona === "activos") return !cesada || !f?.liquidada;
-    if (filtroPersona === "inactivos") return cesada;
-    return true; // "todos"
-  }), [porFiltroEstadoYRango, personaFacts, filtroPersona]);
+  const esCesada = useCallback(
+    (personaIdFila: string) => !!personaFacts.get(personaIdFila)?.fechaCese,
+    [personaFacts],
+  );
 
-  // Cuántas quedaron afuera del filtro de persona, para el aviso "N ocultas"
-  // bajo el selector. El motivo del aviso cambia con el filtro activo: bajo
-  // "solo_activos" se oculta por haber cesado (liquidado o no); bajo "activos"
-  // (mismo criterio que Equipo y Planilla) solo se oculta por ya liquidado.
-  const ocultasPorPersona = porFiltroEstadoYRango.length - porPersona.length;
+  const activosCount = useMemo(
+    () => porFiltroEstadoYRango.filter((a) => !esCesada(a.persona_id)).length,
+    [porFiltroEstadoYRango, esCesada],
+  );
+  const cesadosCount = useMemo(
+    () => porFiltroEstadoYRango.filter((a) => esCesada(a.persona_id)).length,
+    [porFiltroEstadoYRango, esCesada],
+  );
+
+  const porPersona = useMemo(
+    () => porFiltroEstadoYRango.filter((a) => esCesada(a.persona_id) === (filtroPersona === "cesados")),
+    [porFiltroEstadoYRango, esCesada, filtroPersona],
+  );
 
   const listaOrdenada = useMemo(
     () => [...porPersona].sort((x, y) => Number(esPendiente(y)) - Number(esPendiente(x))),
@@ -280,6 +339,25 @@ export default function AusenciasPage() {
     () => listaOrdenada.slice(paginaActual * POR_PAGINA, paginaActual * POR_PAGINA + POR_PAGINA),
     [listaOrdenada, paginaActual],
   );
+
+  // El panel consolidado: los mismos tres avisos de siempre (vencimiento
+  // legal, reembolso de EsSalud, patrón de ausencias), agrupados por persona
+  // en vez de por tipo de aviso — antes había que leer los tres bloques
+  // buscando el mismo nombre en cada uno para saber el impacto de UNA
+  // persona; ahora es una fila.
+  const impactoPorPersona = useMemo(() => {
+    const mapa = new Map<string, ImpactoPersona>();
+    const fila = (id: string, nombre: string, sede: string | null) => {
+      let f = mapa.get(id);
+      if (!f) { f = { persona_id: id, nombre, sede, legal: null, financiero: null, patron: [] }; mapa.set(id, f); }
+      if (sede && !f.sede) f.sede = sede;
+      return f;
+    };
+    for (const v of porVencer) fila(v.persona_id, v.persona, v.sede).legal = v;
+    for (const s of subsidio.filter((x) => x.hay_que_avisar)) fila(s.persona_id, s.nombre, null).financiero = s;
+    for (const a of alertas) fila(a.persona_id, a.nombre, null).patron.push(a);
+    return Array.from(mapa.values()).sort((a, b) => a.nombre.localeCompare(b.nombre));
+  }, [porVencer, subsidio, alertas]);
 
   // LA FECHA DE EMISIÓN NACE PUESTA, y no es comodidad.
   //
@@ -310,9 +388,10 @@ export default function AusenciasPage() {
       supabase.rpc("fn_vacaciones_por_vencer", { p_dias: 60, p_as_of: null }),
       supabase.rpc("fn_personas_funciones"),
     ]);
-    // Quién ya se liquidó, para el filtro "activos" de la tabla de abajo
-    // (0421/0422). Si esto falla, la tabla sigue mostrando a todos —
-    // degradar a "no ocultar a nadie" es más seguro que ocultar de más.
+    // Quién ya se liquidó, para distinguir cesados de activos en la pestaña
+    // de abajo (0421/0422). Si esto falla, la tabla sigue mostrando a todos en
+    // "Activos" — degradar a "no ocultar a nadie" es más seguro que ocultar
+    // de más.
     setPersonaFacts(new Map(
       (((pf as { persona_id: string; fecha_cese: string | null; liquidada: boolean }[] | null) ?? []))
         .map((f) => [f.persona_id, { fechaCese: f.fecha_cese, liquidada: f.liquidada }] as const),
@@ -460,10 +539,20 @@ export default function AusenciasPage() {
     );
   }
 
+  function abrirRegistro() {
+    setPersonaId(""); setTipoCod("");
+    setInicio(hoyLima()); setFin(hoyLima());
+    setDiasConJornada([]);
+    setMotivoEtiqueta(""); setMotivoDetalle("");
+    setDocProf(""); setDocColeg(""); setDocFecha(""); setArchivo(null);
+    setRegistrando(true);
+  }
+
   async function registrar() {
     if (!personaId) { avisar("error", "Elige a la persona."); return; }
     if (!tipoCod) { avisar("error", "Elige el tipo de ausencia."); return; }
     if (fin < inicio) { avisar("error", "La fecha de fin no puede ser anterior a la de inicio."); return; }
+    if (!motivoEtiqueta) { avisar("error", "Elige de qué se trata (el motivo)."); return; }
 
     // Los mismos tres datos que exige `fn_registrar_ausencia` (0101), pero
     // comprobados acá y DICIENDO CUÁL falta. El aviso del servidor los enumera
@@ -493,13 +582,19 @@ export default function AusenciasPage() {
       }
     }
 
+    // Etiqueta obligatoria + detalle libre opcional: lo que se guarda es la
+    // etiqueta sola, o la etiqueta con el detalle a continuación si se
+    // escribió algo — así "queda en su historial" sigue siendo texto legible,
+    // no dos columnas que alguien tiene que unir a mano para leer un caso.
+    const motivoFinal = motivoDetalle.trim() ? `${motivoEtiqueta} — ${motivoDetalle.trim()}` : motivoEtiqueta;
+
     setGuardando(true);
     const { data: nuevoId, error } = await supabase.rpc("fn_registrar_ausencia", {
       p_persona_id: personaId,
       p_tipo: tipoCod,
       p_fecha_inicio: inicio,
       p_fecha_fin: fin,
-      p_motivo: motivo.trim() || null,
+      p_motivo: motivoFinal,
       p_doc_profesional: vProf || null,
       p_doc_colegiatura: vColeg || null,
       p_doc_fecha: vFecha || null,
@@ -537,6 +632,7 @@ export default function AusenciasPage() {
       if (errorSubida) {
         setGuardando(false);
         avisar("error", `La ausencia SÍ quedó registrada, pero el certificado no subió (${errorSubida} · pesaba ${pesoLegible(paraSubir.size)}). Esos días ya no cuentan como falta; el papel puedes adjuntarlo después.`);
+        setRegistrando(false);
         await cargar();
         return;
       }
@@ -546,13 +642,15 @@ export default function AusenciasPage() {
       if (eAdj) {
         setGuardando(false);
         avisar("error", `La ausencia quedó registrada y el archivo subió, pero no se pudo enlazar (${mensajeDeError(eAdj)}).`);
+        setRegistrando(false);
         await cargar();
         return;
       }
     }
 
     setGuardando(false);
-    setMotivo(""); setDocProf(""); setDocColeg(""); setDocFecha(""); setArchivo(null);
+    setRegistrando(false);
+    setMotivoEtiqueta(""); setMotivoDetalle(""); setDocProf(""); setDocColeg(""); setDocFecha(""); setArchivo(null);
     await cargar();
     avisar(
       "ok",
@@ -588,12 +686,20 @@ export default function AusenciasPage() {
   }
 
   // Punto de decisión del botón "Registrar ausencia": si el tipo elegido paga,
-  // se detiene en una confirmación antes de llamar a fn_registrar_ausencia. Si
-  // no paga, registra directo — el mismo camino de siempre para el ~80% de los
-  // registros que nunca llegan a planilla.
+  // se cierra el modal de registrar y se abre la confirmación de pago — dos
+  // diálogos apilados serían confusos, y todo lo escrito sigue en el estado
+  // del componente, así que "Cancelar" en la confirmación puede reabrir el
+  // formulario tal como estaba. Si no paga, registra directo — el mismo
+  // camino de siempre para el ~80% de los registros que nunca llegan a
+  // planilla.
   function intentarRegistrar() {
-    if (tipoSel?.paga) { setConfirmandoPago(true); return; }
+    if (tipoSel?.paga) { setRegistrando(false); setConfirmandoPago(true); return; }
     void registrar();
+  }
+
+  function cancelarConfirmarPago() {
+    setConfirmandoPago(false);
+    setRegistrando(true);
   }
 
   async function confirmarRegistrarPagado() {
@@ -624,300 +730,270 @@ export default function AusenciasPage() {
     );
   }
 
+  // Contenido del formulario — el mismo dentro del modal de registrar que
+  // dentro de la confirmación de pago (esa no repite el formulario, solo lo
+  // resume; ver más abajo). Separado en función para no duplicar el JSX entre
+  // el modal normal y cualquier reapertura tras cancelar la confirmación.
+  const formularioContenido = (
+    <div className="grid gap-3 sm:grid-cols-2">
+      <CampoSelect
+        etiqueta="Persona"
+        value={personaId}
+        onChange={(e) => { setPersonaId(e.target.value); void revisarCruceMarcaje(e.target.value, inicio, fin); }}
+      >
+        <option value="">Elegir…</option>
+        {personas.map((p) => (<option key={p.id} value={p.id}>{p.nombres} {p.apellidos}</option>))}
+      </CampoSelect>
+      {/* Tipo NACE VACÍO a propósito. Antes se rellenaba solo con el primer
+          tipo del catálogo ("Vacaciones") y la comprobación de más abajo
+          nunca podía avisar — el motivo real de este "Elegir…" está en
+          `registrar()`, donde se exige `tipoCod`. */}
+      <CampoSelect etiqueta="Tipo" value={tipoCod} onChange={(e) => setTipoCod(e.target.value)}>
+        <option value="">Elegir…</option>
+        {tipos.map((t) => {
+          const etiquetaPago = insigniaPago(t.codigo, t.paga);
+          return (
+            <option key={t.codigo} value={t.codigo}>
+              {t.nombre}{etiquetaPago ? ` · ${etiquetaPago}` : ""}
+            </option>
+          );
+        })}
+      </CampoSelect>
+      <Campo
+        etiqueta="Desde"
+        type="date"
+        value={inicio}
+        onChange={(e) => {
+          const nuevoInicio = e.target.value;
+          const nuevoFin = fin < nuevoInicio ? nuevoInicio : fin;
+          setInicio(nuevoInicio);
+          if (fin < nuevoInicio) setFin(nuevoInicio);
+          void revisarCruceMarcaje(personaId, nuevoInicio, nuevoFin);
+        }}
+      />
+      <Campo
+        etiqueta="Hasta"
+        type="date"
+        value={fin}
+        onChange={(e) => { setFin(e.target.value); void revisarCruceMarcaje(personaId, inicio, e.target.value); }}
+      />
+      {/* Aviso de cruce con marcajes reales (fn_ausencia_dias_con_jornada,
+          0441) — NUNCA bloquea, solo informa antes de guardar. El mismo
+          criterio que ya paga ese día como trabajado en la boleta
+          (`dias_solapados`, 0286): quien registra decide si es un rango
+          mal escrito o si la persona de verdad vino a trabajar ese día. */}
+      {diasConJornada.length > 0 && (
+        <p className="sm:col-span-2 flex items-start gap-2 rounded-control bg-ambar/15 px-3 py-2 text-xs text-ambar">
+          <span aria-hidden="true">⚠</span>
+          <span>
+            Ojo: ya hay jornada trabajada {diasConJornada.length === 1 ? "el" : "los días"}{" "}
+            {diasConJornada.map((d) => fmt(d.fecha)).join(", ")} dentro de este rango. No impide registrar
+            — si de verdad vino a trabajar ese día, se sigue pagando como trabajado; si el rango está mal,
+            corrígelo antes de guardar.
+          </span>
+        </p>
+      )}
+
+      <CampoSelect
+        etiqueta="Motivo — de qué se trata"
+        value={motivoEtiqueta}
+        onChange={(e) => setMotivoEtiqueta(e.target.value)}
+      >
+        <option value="">Elegir…</option>
+        {MOTIVO_ETIQUETAS.map((m) => (<option key={m} value={m}>{m}</option>))}
+      </CampoSelect>
+      <div className="sm:col-span-2">
+        <AreaTexto
+          etiqueta="Detalle (opcional — lo que se conversó; queda en su historial)"
+          value={motivoDetalle}
+          onChange={(e) => setMotivoDetalle(e.target.value)}
+          rows={2}
+          placeholder="ej. viaja a Lima por el fallecimiento de su padre"
+        />
+      </div>
+
+      {tipoSel?.requiere_documento && (
+        <>
+          {/* EMPIEZA POR LA RESPUESTA, y no es un detalle de estilo.
+              Este párrafo decía «Este tipo se paga, así que exige documento»
+              y sólo después, a media frase y en gris, «no se guarda el
+              papel». El 2026-08-08 Felipe leyó la primera mitad y se pasó un
+              rato buscando dónde subirlo. El texto estaba arriba de los
+              campos —eso no era el problema— pero abría mandando a buscar un
+              botón. Quien llega con el certificado en la mano necesita saber
+              QUÉ HACER en la primera línea, no el fundamento. */}
+          <p className="text-xs text-taupe sm:col-span-2">
+            <strong className="font-medium text-tinta">Lo obligatorio son los tres datos de abajo</strong>{" "}
+            — quién firmó, su colegiatura y la fecha. Eso es lo verificable: un número de CMP se comprueba
+            contra el registro del Colegio Médico. Subir el certificado es <strong className="font-medium">opcional</strong>,
+            y conviene hacerlo si el descanso se alarga: a partir del día 21 del año EsSalud reembolsa, y
+            ese reclamo se sustenta con el CITT. Si no tienes ningún documento, regístralo como{" "}
+            <strong className="font-medium">Descanso por salud</strong> — no paga, pero tampoco cuenta como falta.
+          </p>
+          {/* Los tres quedan como <input> a mano (no <Campo>, que no es
+              forwardRef): `registrar()` lee `refDocProf/Coleg/Fecha.current`
+              como respaldo cuando Safari pone el valor sin disparar el
+              evento (ver el comentario grande sobre los refs, más arriba).
+              Pasarle un ref a Campo no llegaría al <input> real y ese
+              respaldo dejaría de funcionar en silencio. Comparten la misma
+              cadena base que Campo para no desentonar. */}
+          <label className="flex flex-col gap-1 text-sm">
+            Profesional o institución
+            <input
+              ref={refDocProf}
+              value={docProf}
+              onChange={(e) => setDocProf(e.target.value)}
+              onBlur={(e) => setDocProf(e.currentTarget.value)}
+              placeholder="ej. Dra. Rojas / Clínica San Pablo"
+              className="rounded-control border border-sand bg-hueso px-3 py-2 text-base sm:text-sm text-tinta placeholder:text-taupe/60"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            N.º de colegiatura (CMP) o de CITT
+            <input
+              ref={refDocColeg}
+              value={docColeg}
+              onChange={(e) => setDocColeg(e.target.value)}
+              onBlur={(e) => setDocColeg(e.currentTarget.value)}
+              placeholder="ej. CMP 12345"
+              className="rounded-control border border-sand bg-hueso px-3 py-2 text-base sm:text-sm text-tinta placeholder:text-taupe/60"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            Fecha de emisión
+            <input
+              ref={refDocFecha}
+              type="date"
+              value={fechaDoc}
+              onChange={(e) => setDocFecha(e.target.value)}
+              onBlur={(e) => setDocFecha(e.currentTarget.value)}
+              className="rounded-control border border-sand bg-hueso px-3 py-2 text-base sm:text-sm text-tinta"
+            />
+          </label>
+          {/* El certificado, OPCIONAL. Va en un almacén propio que solo abren
+              admin y líder de DO: un certificado dice el diagnóstico de una
+              persona, y la encargada de sede necesita saber que no vino y que
+              está justificado, no de qué está enferma (0197).
+
+              Se queda como <input> a mano (no <Campo>): un selector de
+              archivo lleva el botón "Elegir archivo" del navegador dentro
+              del campo (file:*), algo que Campo no contempla — pero
+              comparte su misma cadena base (borde, radio, fondo) para no
+              desentonar al lado del resto del formulario. */}
+          <label className="flex flex-col gap-1 text-sm sm:col-span-2">
+            Certificado o CITT <span className="text-taupe">(opcional — solo lo ven Administración y DO)</span>
+            <input
+              type="file"
+              accept=".pdf,.jpg,.jpeg,.png,.heic,.heif,.webp"
+              onChange={(e) => setArchivo(e.target.files?.[0] ?? null)}
+              className="rounded-control border border-sand bg-hueso px-3 py-2 text-sm text-tinta file:mr-3 file:rounded file:border-0 file:bg-sand file:px-3 file:py-1 file:text-sm"
+            />
+            {progreso !== null && (
+              <span className="text-xs text-taupe">Subiendo… {progreso}%</span>
+            )}
+          </label>
+        </>
+      )}
+    </div>
+  );
+
   return (
     <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
-        <h1 className="mb-1 font-serif text-2xl">Ausencias</h1>
-        <p className="mb-4 max-w-3xl text-xs text-taupe">
-          Todos los días que alguien no vino, y por qué — vacaciones incluidas. Un día registrado aquí{" "}
-          <strong className="font-medium">deja de contar como falta injustificada</strong> y no alimenta el
-          expediente disciplinario. En CAYLA ningún permiso se paga, salvo los dos que la ley obliga a pagar:
-          descanso médico con documento y maternidad.
-        </p>
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+          <div className="max-w-3xl">
+            <h1 className="mb-1 font-serif text-2xl">Ausencias</h1>
+            <p className="text-xs text-taupe">
+              Todos los días que alguien no vino, y por qué — vacaciones incluidas. Un día registrado aquí{" "}
+              <strong className="font-medium">deja de contar como falta injustificada</strong> y no alimenta el
+              expediente disciplinario. En CAYLA solo se paga lo que la ley obliga —descanso médico con
+              documento, maternidad, vacaciones y el duelo de un familiar directo— o lo que la empresa decide
+              conceder aparte (licencia con goce).
+            </p>
+          </div>
+          <Boton variante="primario" onClick={abrirRegistro}>+ Registrar ausencia</Boton>
+        </div>
 
-        {/* ── RÉCORDS DE VACACIONES POR VENCER (0299) ──────────────────────
-            VA EN ROJO Y VA PRIMERA, y las dos cosas a propósito.
-
-            El resto de avisos de esta pantalla son «para mirar»: cuentan algo y
-            alguien decide. Éste no: tiene FECHA. Pasada esa fecha, el art. 23
-            del D. Leg. 713 manda una indemnización de una remuneración entera,
-            y ya no hay nada que decidir — solo pagarla.
-
-            Por eso existe: hasta la 0283, esto solo aparecía en la hoja de
-            liquidación, o sea el día en que la persona ya se fue y el récord ya
-            había vencido. Avisar ahí llega tarde por definición. */}
+        {/* ── Panel consolidado: impacto por colaborador ────────────────────
+            Reemplaza los tres avisos sueltos de antes (vacaciones por vencer,
+            EsSalud, patrón de ausencias) por una fila por persona — decisión
+            del rediseño de 2026-09-15. Cada error de carga conserva SU propio
+            banner: son tres fuentes distintas y una puede fallar sin que
+            fallen las otras dos. */}
         {errorPorVencer && (
-          <div className="mb-4 max-w-3xl rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo-profundo">
+          <div className="mb-3 max-w-3xl rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo-profundo">
             {errorPorVencer} — esto no quiere decir que nadie tenga vacaciones por vencer, solo que
             el aviso no se pudo calcular. Es el único de esta pantalla con fecha límite legal (art. 23,
             D. Leg. 713): conviene revisar a mano mientras no cargue.{" "}
             <Boton variante="enlace" onClick={() => void cargar()}>Reintentar</Boton>
           </div>
         )}
-        {!errorPorVencer && porVencer.length > 0 && (
-          <div className="mb-4 max-w-3xl rounded-control border border-sand bg-papel px-4 py-3 text-sm">
-            <p className="font-medium text-tinta">Vacaciones que vencen: hay que programarlas.</p>
-            {/* Mismo condicional de color que ya usa Bandeja para esta misma
-                lista: rojo si el récord YA venció (obliga a indemnizar), ámbar
-                si todavía hay margen para programar el descanso — antes las
-                dos se pintaban igual, en rojo, y no se distinguía cuál ya
-                costaba dinero de cuál todavía se podía evitar gratis. */}
-            <ul className="mt-1 space-y-0.5 text-xs">
-              {porVencer.map((v) => (
-                <li key={v.persona_id} className={v.records_vencidos > 0 ? "text-rojo" : "text-ambar"}>
-                  <strong className="font-medium">{v.persona}</strong> ({v.sede}){" "}
-                  {v.records_vencidos > 0 ? (
-                    <>tiene {v.records_vencidos === 1 ? "un récord" : `${v.records_vencidos} récords`}{" "}
-                      <strong className="font-medium">ya vencidos</strong> — {v.dias_pendientes} días sin gozar.</>
-                  ) : (
-                    <>tiene {v.dias_pendientes} días sin gozar y su récord vence
-                      el {fmt(v.vence_el)}, en {v.dias_para_vencer} días.</>
-                  )}
-                </li>
-              ))}
-            </ul>
-            <p className="mt-1.5 text-xs text-taupe">
-              Un récord que vence sin gozarse obliga a pagar una indemnización de una remuneración
-              (art. 23, D. Leg. 713). Programar el descanso cuesta cero.
-            </p>
-          </div>
-        )}
-
         {errorAlertas && (
-          <div className="mb-4 max-w-3xl rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo-profundo">
+          <div className="mb-3 max-w-3xl rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo-profundo">
             {errorAlertas} — esto no quiere decir que nadie tenga un patrón de ausencias, solo que
             el aviso no se pudo calcular.{" "}
             <Boton variante="enlace" onClick={() => void cargar()}>Reintentar</Boton>
           </div>
         )}
-        {!errorAlertas && alertas.length > 0 && (
-          <div className="mb-4 max-w-3xl rounded-control bg-ambar/15 px-4 py-3 text-sm text-ambar">
-            <p className="font-medium">Para mirar, no para sancionar:</p>
-            <ul className="mt-1 space-y-0.5 text-xs">
-              {alertas.map((a) => (
-                <li key={`${a.persona_id}-${a.tipo_nombre}`}>
-                  <strong className="font-medium">{a.nombre}</strong> lleva {a.veces} veces «{a.tipo_nombre}»
-                  en los últimos {a.ventana_dias} días (el aviso salta a partir de {a.umbral}).
-                </li>
-              ))}
-            </ul>
-            <p className="mt-1.5 text-xs opacity-80">
-              El sistema cuenta y lo dice. Conversar o no es decisión de una persona, siempre.
-            </p>
-          </div>
-        )}
-
-        {/* EL CUPO DE ESSALUD. No es disciplinario y por eso no va en ámbar con
-            el aviso de arriba: esto es plata que la empresa puede recuperar, no
-            una conducta que mirar. Los primeros 20 días de incapacidad del año
-            los paga CAYLA; desde el 21 los subsidia EsSalud, y el reclamo se
-            sustenta con el CITT (0197).
-
-            Salta a los 15 y no a los 20 a propósito: un aviso en el día 21 llega
-            cuando el gasto ya ocurrió. */}
         {errorSubsidio && (
-          <div className="mb-4 max-w-3xl rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo-profundo">
+          <div className="mb-3 max-w-3xl rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo-profundo">
             {errorSubsidio} — esto no quiere decir que nadie tenga descanso médico pendiente de reembolso,
             solo que el aviso no se pudo calcular.{" "}
             <Boton variante="enlace" onClick={() => void cargar()}>Reintentar</Boton>
           </div>
         )}
-        {!errorSubsidio && subsidio.some((s) => s.hay_que_avisar) && (
-          <div className="mb-4 max-w-3xl rounded-control bg-tinta/5 px-4 py-3 text-sm">
-            <p className="font-medium">EsSalud puede reembolsar parte de esto:</p>
-            <ul className="mt-1 space-y-0.5 text-xs">
-              {subsidio.filter((s) => s.hay_que_avisar).map((s) => (
-                <li key={s.persona_id}>
-                  <strong className="font-medium">{s.nombre}</strong> lleva{" "}
-                  <strong className="font-medium">{s.dias_calendario} días</strong> de descanso médico este año
-                  {s.dias_para_el_umbral > 0
-                    ? ` — faltan ${s.dias_para_el_umbral} para los ${s.umbral} que paga CAYLA.`
-                    : ` — ya pasó los ${s.umbral}: desde el día ${s.umbral + 1} el subsidio es de EsSalud.`}
-                  {s.sin_certificado > 0 && (
-                    <span className="block text-taupe">
-                      {s.sin_certificado === 1
-                        ? "Uno de sus descansos no tiene el certificado adjunto"
-                        : `${s.sin_certificado} de sus descansos no tienen el certificado adjunto`}{" "}
-                      — sin el CITT no se puede reclamar.
-                    </span>
-                  )}
-                </li>
-              ))}
-            </ul>
-            <p className="mt-1.5 text-xs text-taupe">
-              Se cuentan días corridos, domingos incluidos: es como los emite el CITT y como los lleva EsSalud.
-              La maternidad no entra — tiene su propio subsidio desde el primer día.
-            </p>
-          </div>
-        )}
 
-        {/* Registrar */}
-        <div className="mb-6 grid max-w-4xl gap-3 rounded-superficie border border-sand bg-papel p-5 sm:grid-cols-2">
-          <CampoSelect
-            etiqueta="Persona"
-            value={personaId}
-            onChange={(e) => { setPersonaId(e.target.value); void revisarCruceMarcaje(e.target.value, inicio, fin); }}
-          >
-            <option value="">Elegir…</option>
-            {personas.map((p) => (<option key={p.id} value={p.id}>{p.nombres} {p.apellidos}</option>))}
-          </CampoSelect>
-          {/* Tipo NACE VACÍO a propósito. Antes se rellenaba solo con el primer
-              tipo del catálogo ("Vacaciones") y la comprobación de más abajo
-              nunca podía avisar — el motivo real de este "Elegir…" está en
-              `registrar()`, donde se exige `tipoCod`. */}
-          <CampoSelect etiqueta="Tipo" value={tipoCod} onChange={(e) => setTipoCod(e.target.value)}>
-            <option value="">Elegir…</option>
-            {tipos.map((t) => (
-              <option key={t.codigo} value={t.codigo}>
-                {t.nombre}{t.paga ? " · se paga" : ""}
-              </option>
-            ))}
-          </CampoSelect>
-          <Campo
-            etiqueta="Desde"
-            type="date"
-            value={inicio}
-            onChange={(e) => {
-              const nuevoInicio = e.target.value;
-              const nuevoFin = fin < nuevoInicio ? nuevoInicio : fin;
-              setInicio(nuevoInicio);
-              if (fin < nuevoInicio) setFin(nuevoInicio);
-              void revisarCruceMarcaje(personaId, nuevoInicio, nuevoFin);
-            }}
-          />
-          <Campo
-            etiqueta="Hasta"
-            type="date"
-            value={fin}
-            onChange={(e) => { setFin(e.target.value); void revisarCruceMarcaje(personaId, inicio, e.target.value); }}
-          />
-          {/* Aviso de cruce con marcajes reales (fn_ausencia_dias_con_jornada,
-              0441) — NUNCA bloquea, solo informa antes de guardar. El mismo
-              criterio que ya paga ese día como trabajado en la boleta
-              (`dias_solapados`, 0286): quien registra decide si es un rango
-              mal escrito o si la persona de verdad vino a trabajar ese día. */}
-          {diasConJornada.length > 0 && (
-            <p className="sm:col-span-2 flex items-start gap-2 rounded-control bg-ambar/15 px-3 py-2 text-xs text-ambar">
-              <span aria-hidden="true">⚠</span>
-              <span>
-                Ojo: ya hay jornada trabajada {diasConJornada.length === 1 ? "el" : "los días"}{" "}
-                {diasConJornada.map((d) => fmt(d.fecha)).join(", ")} dentro de este rango. No impide registrar
-                — si de verdad vino a trabajar ese día, se sigue pagando como trabajado; si el rango está mal,
-                corrígelo antes de guardar.
-              </span>
-            </p>
-          )}
-          <div className="sm:col-span-2">
-            <Campo
-              etiqueta="Motivo (lo que se conversó; queda en su historial)"
-              value={motivo}
-              onChange={(e) => setMotivo(e.target.value)}
-              placeholder="ej. fallecimiento de familiar directo"
-            />
-          </div>
-
-          {tipoSel?.requiere_documento && (
+        <div className="mb-6 max-w-3xl rounded-superficie border border-sand bg-papel p-5">
+          <h2 className="mb-1 font-serif text-lg">Impacto por colaborador</h2>
+          {impactoPorPersona.length === 0 ? (
+            <p className="text-sm text-taupe">Sin alertas activas hoy — vacaciones al día, dentro del cupo de EsSalud y sin patrón de ausencias que revisar.</p>
+          ) : (
             <>
-              {/* EMPIEZA POR LA RESPUESTA, y no es un detalle de estilo.
-                  Este párrafo decía «Este tipo se paga, así que exige documento»
-                  y sólo después, a media frase y en gris, «no se guarda el
-                  papel». El 2026-08-08 Felipe leyó la primera mitad y se pasó un
-                  rato buscando dónde subirlo. El texto estaba arriba de los
-                  campos —eso no era el problema— pero abría mandando a buscar un
-                  botón. Quien llega con el certificado en la mano necesita saber
-                  QUÉ HACER en la primera línea, no el fundamento. */}
-              <p className="text-xs text-taupe sm:col-span-2">
-                <strong className="font-medium text-tinta">Lo obligatorio son los tres datos de abajo</strong>{" "}
-                — quién firmó, su colegiatura y la fecha. Eso es lo verificable: un número de CMP se comprueba
-                contra el registro del Colegio Médico. Subir el certificado es <strong className="font-medium">opcional</strong>,
-                y conviene hacerlo si el descanso se alarga: a partir del día 21 del año EsSalud reembolsa, y
-                ese reclamo se sustenta con el CITT. Si no tienes ningún documento, regístralo como{" "}
-                <strong className="font-medium">Descanso por salud</strong> — no paga, pero tampoco cuenta como falta.
+              <ul className="mt-2 divide-y divide-sand text-sm">
+                {impactoPorPersona.map((f) => (
+                  <li key={f.persona_id} className="flex flex-wrap items-baseline gap-x-4 gap-y-1 py-2 first:pt-0 last:pb-0">
+                    <span className="w-44 shrink-0 font-medium text-tinta">
+                      {f.nombre}
+                      {f.sede && <span className="block text-xs font-normal text-taupe">{f.sede}</span>}
+                    </span>
+                    <span className="flex flex-1 flex-wrap gap-1.5">
+                      {f.legal && (
+                        <Insignia variante={f.legal.records_vencidos > 0 ? "alerta" : "advertencia"} punto={false}>
+                          {f.legal.records_vencidos > 0
+                            ? `${f.legal.records_vencidos === 1 ? "récord vencido" : `${f.legal.records_vencidos} récords vencidos`} · ${f.legal.dias_pendientes}d`
+                            : `vence en ${f.legal.dias_para_vencer}d · ${f.legal.dias_pendientes}d sin gozar`}
+                        </Insignia>
+                      )}
+                      {f.financiero && (
+                        <Insignia punto={false}>
+                          EsSalud: {f.financiero.dias_calendario}/{f.financiero.umbral}d
+                          {f.financiero.sin_certificado > 0 ? " · sin certificado" : ""}
+                        </Insignia>
+                      )}
+                      {f.patron.map((p) => (
+                        <Insignia key={p.tipo_nombre} variante="advertencia" punto={false}>
+                          {p.veces}× «{p.tipo_nombre}» en {p.ventana_dias}d
+                        </Insignia>
+                      ))}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-3 text-xs text-taupe">
+                Un récord de vacaciones vencido obliga a indemnizar (art. 23, D. Leg. 713). El cupo de EsSalud
+                se cuenta en días corridos y no incluye maternidad. El patrón de ausencias es para conversar,
+                nunca para sancionar solo con este dato.
               </p>
-              {/* Los tres quedan como <input> a mano (no <Campo>, que no es
-                  forwardRef): `registrar()` lee `refDocProf/Coleg/Fecha.current`
-                  como respaldo cuando Safari pone el valor sin disparar el
-                  evento (ver el comentario grande sobre los refs, más arriba).
-                  Pasarle un ref a Campo no llegaría al <input> real y ese
-                  respaldo dejaría de funcionar en silencio. Comparten la misma
-                  cadena base que Campo para no desentonar. */}
-              <label className="flex flex-col gap-1 text-sm">
-                Profesional o institución
-                <input
-                  ref={refDocProf}
-                  value={docProf}
-                  onChange={(e) => setDocProf(e.target.value)}
-                  onBlur={(e) => setDocProf(e.currentTarget.value)}
-                  placeholder="ej. Dra. Rojas / Clínica San Pablo"
-                  className="rounded-control border border-sand bg-hueso px-3 py-2 text-base sm:text-sm text-tinta placeholder:text-taupe/60"
-                />
-              </label>
-              <label className="flex flex-col gap-1 text-sm">
-                N.º de colegiatura (CMP) o de CITT
-                <input
-                  ref={refDocColeg}
-                  value={docColeg}
-                  onChange={(e) => setDocColeg(e.target.value)}
-                  onBlur={(e) => setDocColeg(e.currentTarget.value)}
-                  placeholder="ej. CMP 12345"
-                  className="rounded-control border border-sand bg-hueso px-3 py-2 text-base sm:text-sm text-tinta placeholder:text-taupe/60"
-                />
-              </label>
-              <label className="flex flex-col gap-1 text-sm">
-                Fecha de emisión
-                <input
-                  ref={refDocFecha}
-                  type="date"
-                  value={fechaDoc}
-                  onChange={(e) => setDocFecha(e.target.value)}
-                  onBlur={(e) => setDocFecha(e.currentTarget.value)}
-                  className="rounded-control border border-sand bg-hueso px-3 py-2 text-base sm:text-sm text-tinta"
-                />
-              </label>
-              {/* El certificado, OPCIONAL. Va en un almacén propio que solo abren
-                  admin y líder de DO: un certificado dice el diagnóstico de una
-                  persona, y la encargada de sede necesita saber que no vino y que
-                  está justificado, no de qué está enferma (0197).
-
-                  Se queda como <input> a mano (no <Campo>): un selector de
-                  archivo lleva el botón "Elegir archivo" del navegador dentro
-                  del campo (file:*), algo que Campo no contempla — pero
-                  comparte su misma cadena base (borde, radio, fondo) para no
-                  desentonar al lado del resto del formulario. */}
-              <label className="flex flex-col gap-1 text-sm sm:col-span-2">
-                Certificado o CITT <span className="text-taupe">(opcional — solo lo ven Administración y DO)</span>
-                <input
-                  type="file"
-                  accept=".pdf,.jpg,.jpeg,.png,.heic,.heif,.webp"
-                  onChange={(e) => setArchivo(e.target.files?.[0] ?? null)}
-                  className="rounded-control border border-sand bg-hueso px-3 py-2 text-sm text-tinta file:mr-3 file:rounded file:border-0 file:bg-sand file:px-3 file:py-1 file:text-sm"
-                />
-                {progreso !== null && (
-                  <span className="text-xs text-taupe">Subiendo… {progreso}%</span>
-                )}
-              </label>
             </>
           )}
-
-          <div className="flex items-end gap-3 sm:col-span-2">
-            <Boton variante="primario" cargando={guardando} onClick={intentarRegistrar}>
-              Registrar ausencia
-            </Boton>
-            {tipoSel && (
-              <span className="text-xs text-taupe">
-                {tipoSel.paga
-                  ? "Se paga · lo aprueba Desarrollo Organizacional antes de entrar en planilla."
-                  : "No se paga · esos días no se cobran, pero tampoco son falta."}
-              </span>
-            )}
-          </div>
         </div>
 
-        {/* Rango y estado a mostrar. El filtro de estado existe porque la
-            única fila que pide una acción en esta pantalla —pendiente de
-            aprobar— no tenía ni contador ni forma de aislarla: con el rango
-            por defecto (doce meses) quedaba enterrada entre cientos de filas
-            ya resueltas. Aun en "Todas", esas filas se ordenan arriba. */}
+        {/* Rango, estado y pestaña de persona. El filtro de estado existe
+            porque la única fila que pide una acción en esta pantalla —
+            pendiente de aprobar— no tenía ni contador ni forma de aislarla:
+            con el rango por defecto (doce meses) quedaba enterrada entre
+            cientos de filas ya resueltas. Aun en "Todas", esas filas se
+            ordenan arriba. */}
         <div className="mb-3 flex flex-wrap items-end gap-3">
           {/* Cada filtro reinicia la página a la vez que cambia — quedarse en
               la página 4 de una lista que un filtro nuevo dejó con 1 sería
@@ -935,32 +1011,38 @@ export default function AusenciasPage() {
             <option value="vigentes">Vigentes</option>
             <option value="anuladas">Anuladas</option>
           </CampoSelect>
-          <CampoSelect
-            etiqueta="Persona"
-            value={filtroPersona}
-            onChange={(e) => { setPagina(0); setFiltroPersona(e.target.value as FiltroPersonaEstado); }}
-          >
-            <option value="solo_activos">Solo activos (nunca cesados)</option>
-            <option value="activos">Todos menos los ya liquidados</option>
-            <option value="inactivos">Solo quienes ya cesaron</option>
-            <option value="todos">Todas</option>
-          </CampoSelect>
-          {ocultasPorPersona > 0 && (
-            <Boton
-              variante="enlace"
-              className="pb-2 text-xs text-taupe"
-              onClick={() => { setPagina(0); setFiltroPersona("todos"); }}
-            >
-              {ocultasPorPersona === 1 ? "1 oculta" : `${ocultasPorPersona} ocultas`}
-              {" "}{filtroPersona === "activos" ? "por liquidada" : "por cesada"}{ocultasPorPersona === 1 ? "" : "s"} — ver todas
-            </Boton>
-          )}
           {pendientesCount > 0 && (
             <span className="flex items-center gap-1.5 pb-2 text-xs text-taupe">
               <Insignia variante="contador" tamano="sm">{pendientesCount}</Insignia>
               {pendientesCount === 1 ? "pendiente de aprobar" : "pendientes de aprobar"}
             </span>
           )}
+        </div>
+
+        {/* Personal cesado en su propia pestaña (rediseño 2026-09-15): antes
+            era un cuarto valor de un desplegable de cuatro; ahora son dos
+            pestañas, y "Cesados" incluye a cualquiera que dejó de estar
+            activo — liquidado o no — para seguir sirviendo de auditoría antes
+            de una liquidación (0421/0422) sin abrir una pantalla aparte. */}
+        <div className="mb-3 flex gap-1 border-b border-sand" role="tablist" aria-label="Personal">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={filtroPersona === "activos"}
+            className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${filtroPersona === "activos" ? "border-rojo text-tinta" : "border-transparent text-taupe hover:text-tinta"}`}
+            onClick={() => { setPagina(0); setFiltroPersona("activos"); }}
+          >
+            Activos ({activosCount})
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={filtroPersona === "cesados"}
+            className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${filtroPersona === "cesados" ? "border-rojo text-tinta" : "border-transparent text-taupe hover:text-tinta"}`}
+            onClick={() => { setPagina(0); setFiltroPersona("cesados"); }}
+          >
+            Cesados ({cesadosCount})
+          </button>
         </div>
 
         {cargando ? (
@@ -975,6 +1057,8 @@ export default function AusenciasPage() {
           <div className="max-w-2xl rounded-control bg-sand/40 px-4 py-3 text-sm text-taupe">
             {lista.length === 0
               ? "No hay ausencias registradas en ese rango de fechas."
+              : filtroPersona === "cesados"
+              ? "No hay ausencias de personal cesado con ese estado en el rango elegido."
               : "No hay ausencias con ese estado en el rango elegido."}
           </div>
         ) : (
@@ -988,7 +1072,9 @@ export default function AusenciasPage() {
               <Th>Acciones</Th>
             </TablaEncabezado>
             <tbody>
-                {listaPagina.map((a) => (
+                {listaPagina.map((a) => {
+                  const etiquetaPago = insigniaPago(a.tipo, a.paga);
+                  return (
                   <Fila key={a.id} className={a.anulada ? "text-taupe/60" : ""}>
                     <td className="px-4 py-2">
                       <span className={a.anulada ? "line-through" : ""}>{a.nombre}</span>
@@ -998,8 +1084,9 @@ export default function AusenciasPage() {
                       {a.tipo_nombre}
                       {/* punto=false: "se paga" es una etiqueta descriptiva, no
                           un estado del semáforo — el mismo caso que el propio
-                          comentario de Insignia pone de ejemplo. */}
-                      {a.paga && <Insignia className="ml-1.5" punto={false}>se paga</Insignia>}
+                          comentario de Insignia pone de ejemplo. Distingue ley
+                          de política CAYLA (ver TIPOS_PAGA_LEY arriba). */}
+                      {etiquetaPago && <Insignia className="ml-1.5" punto={false}>{etiquetaPago}</Insignia>}
                       {a.motivo && <div className="text-xs text-taupe">{a.motivo}</div>}
                       {a.doc_colegiatura && (
                         <div className="text-xs text-taupe">
@@ -1103,7 +1190,8 @@ export default function AusenciasPage() {
                       )}
                     </td>
                   </Fila>
-                ))}
+                  );
+                })}
               </tbody>
           </Tabla>
         )}
@@ -1137,6 +1225,35 @@ export default function AusenciasPage() {
           anular nada dentro de un periodo de planilla ya pagado — para eso hay que reabrirlo primero, igual
           que con todo lo demás que toca plata.
         </p>
+
+        {/* Modal: registrar. Antes era una tarjeta siempre abierta arriba de
+            la tabla; desde el rediseño de 2026-09-15 vive acá, para que la
+            pantalla abra mostrando lo que de verdad es un centro de control
+            (el panel de impacto y la tabla), no un formulario. */}
+        <Modal
+          abierto={registrando}
+          onCerrar={() => setRegistrando(false)}
+          titulo="Registrar ausencia"
+          ancho="lg"
+          bloqueado={guardando}
+        >
+          {formularioContenido}
+          <div className="mt-4 flex items-center justify-end gap-3">
+            {tipoSel && (
+              <span className="mr-auto text-xs text-taupe">
+                {tipoSel.paga
+                  ? "Se paga · lo aprueba Desarrollo Organizacional antes de entrar en planilla."
+                  : "No se paga · esos días no se cobran, pero tampoco son falta."}
+              </span>
+            )}
+            <Boton variante="secundario" onClick={() => setRegistrando(false)} disabled={guardando}>
+              Cancelar
+            </Boton>
+            <Boton variante="primario" cargando={guardando} onClick={intentarRegistrar}>
+              Registrar ausencia
+            </Boton>
+          </div>
+        </Modal>
 
         {/* Modal: anular (reemplaza window.prompt). Mismo fn_anular_ausencia
             de siempre — ver confirmarAnular. */}
@@ -1204,10 +1321,11 @@ export default function AusenciasPage() {
         {/* Modal: confirmar el registro de un tipo que SE PAGA. Se abre desde
             intentarRegistrar() antes de llamar a fn_registrar_ausencia — el
             registro en sí no cambia, solo se detiene una vez antes de
-            ejecutarlo cuando la ausencia va a mover plata. */}
+            ejecutarlo cuando la ausencia va a mover plata. Cancelar reabre el
+            modal de registrar (cancelarConfirmarPago), no lo descarta. */}
         <Modal
           abierto={confirmandoPago}
-          onCerrar={() => setConfirmandoPago(false)}
+          onCerrar={cancelarConfirmarPago}
           titulo="Vas a registrar un tipo que se paga"
           ancho="sm"
           bloqueado={guardando}
@@ -1219,7 +1337,7 @@ export default function AusenciasPage() {
             antes de entrar en planilla.
           </p>
           <div className="flex justify-end gap-2">
-            <Boton variante="secundario" onClick={() => setConfirmandoPago(false)} disabled={guardando}>
+            <Boton variante="secundario" onClick={cancelarConfirmarPago} disabled={guardando}>
               Cancelar
             </Boton>
             <Boton variante="primario" cargando={guardando} onClick={() => void confirmarRegistrarPagado()}>

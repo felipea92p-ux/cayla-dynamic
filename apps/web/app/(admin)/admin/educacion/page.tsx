@@ -18,6 +18,7 @@ import {
 import {
   BUCKET_COMPROBANTES, elegido, fechaCorta, subirArchivosDeEntrega, urlDeConstancia, type ArchivoElegido,
 } from "@/lib/educacion";
+import { enDias } from "@/lib/admin/bandeja-urgencia";
 import { Boton } from "@/components/ui/boton";
 import { Campo, CampoSelect } from "@/components/ui/campo";
 import { AreaTexto } from "@/components/ui/area-texto";
@@ -160,7 +161,7 @@ function fechaHora(ts: string | null): string {
   return `${p("day")}/${p("month")}/${p("year")} · ${p("hour")}:${p("minute")}`;
 }
 
-type Tarjeta = "pendientes" | "por_vencer" | "vencidas" | "pagos";
+type Tarjeta = "pendientes" | "por_vencer" | "vencidas" | "rechazadas" | "pagos";
 
 function EducacionContenido() {
   const router = useRouter();
@@ -196,6 +197,7 @@ function EducacionContenido() {
   const [abierta, setAbierta] = useState<string | null>(null);
   const [entregaFoco, setEntregaFoco] = useState<string | null>(null);
   const botonQueAbrio = useRef<HTMLElement | null>(null);
+  const botonRegistrar = useRef<HTMLElement | null>(null);
 
   // Formulario de alta/corrección
   const [mostrandoForm, setMostrandoForm] = useState(false);
@@ -275,6 +277,7 @@ function EducacionContenido() {
     pendientes: pendientes.length,
     por_vencer: situaciones.filter((s) => s.estado_constancia === "por_vencer").length,
     vencidas: situaciones.filter((s) => s.estado_constancia === "vencida").length,
+    rechazadas: situaciones.filter((s) => s.estado_constancia === "rechazada").length,
     pagos: situaciones.filter((s) => s.pago_proximo).length,
     sinCalendario: situaciones.filter((s) => s.estado_constancia === "sin_calendario" && s.vigencia !== "terminada").length,
   };
@@ -294,6 +297,7 @@ function EducacionContenido() {
     if (tarjeta === "pendientes" && !familiasConPendiente.has(s.familia_id)) return false;
     if (tarjeta === "por_vencer" && s.estado_constancia !== "por_vencer") return false;
     if (tarjeta === "vencidas" && s.estado_constancia !== "vencida") return false;
+    if (tarjeta === "rechazadas" && s.estado_constancia !== "rechazada") return false;
     if (tarjeta === "pagos" && !s.pago_proximo) return false;
     if (buscar.trim() && !s.persona.toLowerCase().includes(buscar.trim().toLowerCase())) return false;
     if (sede && s.sede !== sede) return false;
@@ -347,6 +351,9 @@ function EducacionContenido() {
     const s = situaciones.find((x) => x.asignacion_id === asignacionId);
     if (!a) { avisar("error", "No se encontró la asignación para editarla. Recarga la pantalla."); return; }
     setAbierta(null);
+    // Se abre desde el otro cajón (que ya se está cerrando): no hay un botón
+    // visible al que devolverle el foco, así que no se hereda el de "+ Registrar".
+    botonRegistrar.current = null;
     setEditandoId(a.id); setArchivo(null); setMostrandoForm(true);
     setForm({
       personaId: a.persona_id, institucion: a.institucion, costoDeclarado: String(a.costo_declarado),
@@ -413,9 +420,8 @@ function EducacionContenido() {
     avisar("ok", editandoId ? "Cambios guardados." : "Asignación registrada. Entra en el próximo cálculo de planilla si tiene su comprobante.");
   }
 
-  const formulario = mostrandoForm && (
-    <div className="mb-6 grid max-w-3xl gap-3 rounded-2xl border border-sand bg-papel p-5 sm:grid-cols-2">
-      <h2 className="font-serif text-lg sm:col-span-2">{editandoId ? "Corregir asignación" : "Registrar asignación"}</h2>
+  const formulario = (
+    <div className="grid gap-3 sm:grid-cols-2">
       <div className="sm:col-span-2">
         <CampoSelect etiqueta="¿De quién es?" value={form.personaId} disabled={editandoId !== null}
           onChange={(e) => setForm({ ...form, personaId: e.target.value })}>
@@ -500,8 +506,11 @@ function EducacionContenido() {
       <main className="flex-1 p-4 sm:p-6">
         <CabeceraPagina
           titulo="Educación"
-          accion={puedeGestionar && !mostrandoForm ? (
-            <Boton variante="primario" onClick={empezarAlta}>+ Registrar asignación</Boton>
+          accion={puedeGestionar ? (
+            <Boton variante="primario"
+              onClick={(e) => { botonRegistrar.current = e.currentTarget; empezarAlta(); }}>
+              + Registrar asignación
+            </Boton>
           ) : undefined}
         />
 
@@ -522,8 +531,6 @@ function EducacionContenido() {
               </div>
             )}
 
-            {formulario}
-
             {cargando ? <Cargando /> : (
               <>
                 {personaPedida && (
@@ -537,11 +544,12 @@ function EducacionContenido() {
                 )}
 
                 {/* ── RESUMEN: solo lo accionable, y cada tarjeta filtra ────────── */}
-                <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+                <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-5">
                   {([
                     ["pendientes", "Pendientes de revisión", conteo.pendientes, "informativo"],
                     ["vencidas", "Constancias vencidas", conteo.vencidas, "alerta"],
                     ["por_vencer", "Por vencer", conteo.por_vencer, "advertencia"],
+                    ["rechazadas", "Rechazadas", conteo.rechazadas, "alerta"],
                     ["pagos", `Pagos en ${config.avisoDo} días`, conteo.pagos, "neutral"],
                   ] as const).map(([clave, etiqueta, n, tono]) => (
                     <button key={clave} type="button" aria-pressed={tarjeta === clave}
@@ -661,10 +669,12 @@ function EducacionContenido() {
                                 </td>
                                 <td className="border-l border-sand px-4 py-3 text-xs">
                                   {s.fecha_pago_constancia ? fechaCorta(s.fecha_pago_constancia) : "—"}
-                                  {s.plazo && s.estado_constancia !== "al_dia" && s.estado_constancia !== "pendiente_revision" && (
-                                    <span className="block text-taupe">plazo {fechaCorta(s.plazo)}</span>
+                                  {s.plazo && s.dias_para_plazo !== null && s.estado_constancia !== "al_dia" && s.estado_constancia !== "pendiente_revision" && (
+                                    <span className="block text-taupe">{enDias(s.dias_para_plazo, { futuro: "vence", pasado: "venció" })}</span>
                                   )}
-                                  {s.pago_proximo && <span className="block text-taupe">paga en {s.dias_para_pago} día{s.dias_para_pago === 1 ? "" : "s"}</span>}
+                                  {s.pago_proximo && s.dias_para_pago !== null && (
+                                    <span className="block text-taupe">{enDias(s.dias_para_pago, { futuro: "Paga", pasado: "Pagó" })}</span>
+                                  )}
                                 </td>
                                 <td className="hidden px-4 py-3 text-xs lg:table-cell">
                                   {pend.length > 0
@@ -735,6 +745,12 @@ function EducacionContenido() {
               onError={(texto) => avisar("error", texto)}
             />
           )}
+        </Drawer>
+
+        <Drawer abierto={mostrandoForm} onCerrar={cancelarForm} bloqueado={guardando}
+          titulo={editandoId ? "Corregir asignación" : "Registrar asignación"}
+          volverElFocoA={botonRegistrar} ancho="amplio">
+          {formulario}
         </Drawer>
 
         <ConfigConstancias abierto={configAbierta} config={config} onCerrar={() => setConfigAbierta(false)}

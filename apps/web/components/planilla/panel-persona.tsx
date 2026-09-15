@@ -15,7 +15,10 @@
 import { useState, type ReactNode, type RefObject } from "react";
 import Link from "next/link";
 import type { createAdminSupabaseClient } from "@cayla-dynamic/database";
-import { TIPO_VINCULO_LABEL, hoyLima, parsearMontoSoles } from "@cayla-dynamic/shared";
+import {
+  TIPO_VINCULO_LABEL, hoyLima, nombreDelPeriodo, parsearMontoSoles, periodoAnterior, periodoQueContiene,
+  type BeneficioDesembolso, type PeriodoDeBeneficio,
+} from "@cayla-dynamic/shared";
 import { formatSoles, RANGO_LABEL } from "@/lib/rangos";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { useToast } from "@/components/toast";
@@ -76,6 +79,40 @@ function CajaConfirmar({ c, ocupado, onCancelar, onConfirmar }: {
   );
 }
 
+// ── Adelanto de beneficio: a qué ventana del libro va ─────────────────────
+// La ventana y el año salen de `periodoQueContiene` (packages/shared), que hace
+// la misma cuenta que fn_cts_trunca y fn_grati_trunca. Hasta el 2026-09-15 este
+// formulario decidía la CTS con la regla de la gratificación (mes <= 6), y una
+// CTS adelantada en junio quedaba restando de la ventana ya depositada en mayo.
+//
+// `periodo` existe para lo que la fecha sola no resuelve: una CTS pagada el
+// 10/05 puede ser del periodo que empieza o el depósito atrasado del que
+// terminó. Por defecto, el periodo que contiene la fecha —lo mismo que haría la
+// liquidación con esa fecha de cese—, y el anterior a un clic.
+type AdelantoForm = {
+  beneficio: BeneficioDesembolso;
+  monto: string;
+  fecha: string;
+  nota: string;
+  periodo: "actual" | "anterior";
+};
+
+const adelantoVacio = (): AdelantoForm => ({
+  beneficio: "gratificacion", monto: "", fecha: hoyLima(), nota: "", periodo: "actual",
+});
+
+function periodosDelAdelanto(a: AdelantoForm): { actual: PeriodoDeBeneficio; anterior: PeriodoDeBeneficio } | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(a.fecha)) return null;
+  const actual = periodoQueContiene(a.beneficio, a.fecha);
+  return { actual, anterior: periodoAnterior(actual) };
+}
+
+function periodoDelAdelanto(a: AdelantoForm): PeriodoDeBeneficio | null {
+  const p = periodosDelAdelanto(a);
+  if (!p) return null;
+  return a.periodo === "anterior" && a.beneficio !== "vacaciones" ? p.anterior : p.actual;
+}
+
 function Contenido({
   fila: f, periodoId, pagado, liquidada, cese, hallazgos, gc, origenes, supabase, onCambio,
 }: {
@@ -100,9 +137,8 @@ function Contenido({
   const sugeridoYaPagado = Math.max(0, Math.round(liqPorCubrir * 100) / 100);
   const [yaPagado, setYaPagado] = useState({ monto: String(sugeridoYaPagado), fecha: hoyLima() });
   const [mostrandoAdelanto, setMostrandoAdelanto] = useState(false);
-  const [adelanto, setAdelanto] = useState<{ beneficio: "gratificacion" | "cts" | "vacaciones"; monto: string; fecha: string; nota: string }>(
-    { beneficio: "gratificacion", monto: "", fecha: hoyLima(), nota: "" },
-  );
+  const [adelanto, setAdelanto] = useState<AdelantoForm>(adelantoVacio);
+  const periodoAdelanto = periodoDelAdelanto(adelanto);
   const [basica, setBasica] = useState(f.sueldo_base_legal != null ? String(f.sueldo_base_legal) : "");
 
   const desglose = desgloseDe(f);
@@ -224,24 +260,22 @@ function Contenido({
     const leido = parsearMontoSoles(adelanto.monto);
     if (!leido.ok) { avisar("error", leido.motivo); return; }
     if (leido.monto <= 0) { avisar("error", "El monto tiene que ser mayor a 0."); return; }
-    if (!adelanto.fecha) { avisar("error", "Pon el día en que se le paga."); return; }
-    const [aaaa, mm] = adelanto.fecha.split("-");
-    const mesNum = Number(mm);
-    // Gratificación y CTS se parten por semestre calendario; vacaciones no (check de 0155).
-    const ventana = adelanto.beneficio === "vacaciones" ? "vacaciones"
-      : adelanto.beneficio === "gratificacion" ? (mesNum <= 6 ? "grati_s1" : "grati_s2")
-      : (mesNum <= 6 ? "cts_may" : "cts_nov");
+    // Ventana y año salen del periodo elegido, no del mes suelto: ver `periodoDelAdelanto`.
+    const periodo = periodoAdelanto;
+    if (!periodo) { avisar("error", "Pon el día en que se le paga."); return; }
     const monto = leido.monto;
     setConfirmacion({
       donde: "adelanto",
       c: {
-        texto: `¿Registrar un adelanto de ${CLASE_LABEL[adelanto.beneficio]} de ${formatSoles(monto)} para ${f.nombre}, pagado el ${isoADiaMesAnio(adelanto.fecha)}?`,
+        texto:
+          `¿Registrar un adelanto de ${CLASE_LABEL[adelanto.beneficio]} de ${formatSoles(monto)} para ${f.nombre}, pagado el ${isoADiaMesAnio(adelanto.fecha)}?\n` +
+          `Se anota como ${nombreDelPeriodo(periodo)}: la liquidación lo va a restar de esa misma ventana.`,
         textoBoton: "Registrar adelanto",
         accion: async () => {
           const { error } = await supabase.rpc("fn_registrar_desembolso", {
             p_persona_id: f.persona_id,
-            p_ventana: ventana,
-            p_anio: Number(aaaa),
+            p_ventana: periodo.ventana,
+            p_anio: periodo.anio,
             p_monto: monto,
             p_fecha_pago: adelanto.fecha,
             p_origen: "transferencia",
@@ -250,7 +284,7 @@ function Contenido({
           if (error) { avisar("error", mensajeDeError(error, "registrar el adelanto")); return; }
           avisar("ok", `Adelanto de ${formatSoles(monto)} registrado. La liquidación lo va a restar sola cuando corresponda.`);
           setMostrandoAdelanto(false);
-          setAdelanto({ beneficio: "gratificacion", monto: "", fecha: hoyLima(), nota: "" });
+          setAdelanto(adelantoVacio());
         },
       },
     });
@@ -524,7 +558,25 @@ function Contenido({
               </CampoSelect>
               <Campo etiqueta="Monto (S/)" value={adelanto.monto} onChange={(e) => setAdelanto({ ...adelanto, monto: e.target.value })} className="w-32" />
               <Campo etiqueta="Fecha de pago" type="date" value={adelanto.fecha} onChange={(e) => setAdelanto({ ...adelanto, fecha: e.target.value })} />
+              {adelanto.beneficio !== "vacaciones" && periodosDelAdelanto(adelanto) && (
+                <CampoSelect
+                  etiqueta="Periodo que se paga" value={adelanto.periodo}
+                  onChange={(e) => setAdelanto({ ...adelanto, periodo: e.target.value as AdelantoForm["periodo"] })}
+                >
+                  <option value="actual">{nombreDelPeriodo(periodosDelAdelanto(adelanto)!.actual)}</option>
+                  <option value="anterior">{nombreDelPeriodo(periodosDelAdelanto(adelanto)!.anterior)}</option>
+                </CampoSelect>
+              )}
             </div>
+            {/* Lo que va a pasar, dicho antes de confirmar: la ventana es lo que
+                decide de dónde lo resta la liquidación, y hasta el 2026-09-15 se
+                equivocaba en silencio. */}
+            {periodoAdelanto && (
+              <p className="mt-2 text-sm text-taupe">
+                Se anota como <strong className="font-medium text-tinta">{nombreDelPeriodo(periodoAdelanto)}</strong>
+                {adelanto.beneficio === "vacaciones" ? "." : ": la liquidación lo va a restar de esa misma ventana."}
+              </p>
+            )}
             <label className="mt-2 flex flex-col gap-1 text-sm">
               <span className="text-taupe">Nota (opcional)</span>
               <AreaTexto value={adelanto.nota} onChange={(e) => setAdelanto({ ...adelanto, nota: e.target.value })} rows={2} placeholder="ej. el motivo del adelanto" />

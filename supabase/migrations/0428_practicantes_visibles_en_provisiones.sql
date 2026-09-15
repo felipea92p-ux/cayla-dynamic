@@ -78,12 +78,13 @@
 --   escribir (proyecto vovjyyiafkxteijimpuy):
 --     select md5(p.prosrc), length(p.prosrc) from pg_proc p
 --       join pg_namespace n on n.oid = p.pronamespace
---      where n.nspname='public' and p.proname='fn_provisiones';
+--      where n.nspname='public' and p.proname='fn_provisiones' (sin punto y
+--      coma al final a propósito: ver la nota de blindaje al pie del archivo)
 --   → 6f33984ae7ce841d9dcbb7935324be6b   (49 192 caracteres)
 --   Coincide con el cuerpo de la 0372 (la vigente según el repositorio):
 --   comparado carácter por carácter contra el prosrc real de producción, la
---   única diferencia son dos saltos de línea en los bordes del bloque
---   `$function$` que no forman parte del cuerpo. Es la fuente de la que
+--   única diferencia son dos saltos de línea en los bordes del delimitador
+--   dollar-quote que no forman parte del cuerpo. Es la fuente de la que
 --   copia esta migración.
 --
 -- CÓMO SE REVIERTE
@@ -91,6 +92,38 @@
 --   de la 0372 tal cual. No hay cambios de esquema, de datos ni de permisos:
 --   esta migración solo reescribe el cuerpo de una función de lectura y
 --   agrega una clave a un jsonb que ya viajaba.
+--
+-- BLINDAJE CONTRA UN LECTOR DE SQL QUE NO DISTINGA COMENTARIOS `--`.
+--   El 2026-09-15 esto falló con `42P01: relation "v_prov" does not exist` al
+--   correrlo por una vía que no era un cliente real de Postgres (ni el SQL
+--   Editor de Supabase, ni `psql -f`, ni `apply_migration`): algo trocea el
+--   texto por su cuenta antes de mandarlo, y no sabe que una línea que empieza
+--   con `--` es inerte de principio a fin — comillas, punto y coma y hasta el
+--   propio delimitador dollar-quote incluidos. `v_prov` SIGUE siendo una
+--   variable declarada en el `declare` de abajo — el error nunca fue de esta
+--   función, era de cómo la mandaron.
+--
+--   ESTE ARCHIVO LE OFRECÍA DOS GATILLOS DISTINTOS a un lector así de simple:
+--
+--   1) El comentario de la sección MD5 DE PARTIDA nombraba el delimitador
+--      dollar-quote de esta función por su nombre literal, fuera de cualquier
+--      apertura real. Un contador de ocurrencias que no sepa que eso vive
+--      dentro de un comentario ve TRES marcas de ese delimitador en vez de
+--      dos, y por paridad impar/par confunde cuál tramo es el cuerpo real de
+--      la función y cuál es texto suelto — precisamente donde `v_prov`, leído
+--      fuera de su `declare`, deja de significar algo. Se reescribió sin
+--      nombrar el delimitador de forma literal.
+--   2) Dos comentarios traían un ejemplo de SQL con una comilla cerrada justo
+--      antes de un `;` — la forma exacta de un fin de sentencia real —
+--      partido además en varias líneas `--`. Se les quitó el punto y coma
+--      final: siguen siendo el mismo ejemplo, legible igual, y ya no tienen
+--      esa forma.
+--
+--   Esto NO arregla la causa real si la causa es la herramienta con la que se
+--   pegó — arréglese pegando el archivo entero, de una sola vez, por el SQL
+--   Editor del navegador o `psql -f`. Lo que sí hace: quita los dos gatillos
+--   que este archivo podía ofrecerle a un lector ingenuo, sin tocar una sola
+--   línea de lógica de negocio.
 -- ============================================================================
 
 CREATE OR REPLACE FUNCTION public.fn_provisiones(p_as_of date DEFAULT NULL::date, p_salario_asof date DEFAULT NULL::date)
@@ -159,7 +192,8 @@ begin
   --
   --   update configuracion
   --      set valor = valor || '{"sexto_cts": 0.083333}'::jsonb
-  --    where clave = 'planilla_provisiones';
+  --    where clave = 'planilla_provisiones' (sin punto y coma al final a
+  --    propósito: ver la nota de blindaje al pie del archivo)
   --
   -- POR QUÉ ES UN MULTIPLICADOR Y NO UN FACTOR NUEVO. Subir el factor de la CTS
   -- de 4.167% a 4.514% daría el mismo número HOY, pero se rompería en cuanto la

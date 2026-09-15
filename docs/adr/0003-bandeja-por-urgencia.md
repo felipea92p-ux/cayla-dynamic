@@ -121,6 +121,56 @@ institución de los próximos días (avisan, pero todavía no piden nada): esa e
 `esEducacionParaSaber` (`lib/admin/bandeja-equipo.ts`) y la prueba 355 compara el
 contador contra las listas.
 
+## Rediseño 2 (mismo día): categorías por módulo y cinco fuentes nuevas
+
+Con los datos de producción del 2026-09-15 la Bandeja solo mostraba Educación
+(medido en el SQL Editor: 10 de 12 fuentes en cero). No estaba rota: juntaba
+pocas fuentes y no decía qué revisaba, así que «Contratos está al día» y
+«Contratos no se mira aquí» se veían igual. Felipe eligió sobre una maqueta.
+
+### 9. Una tarjeta por módulo, también en cero
+
+**DECIDÍ:** arriba, una tarjeta por cada módulo que la persona puede ver (el
+permiso de la pantalla de ese módulo), con su conteo; en cero dice «Al día».
+Un clic filtra. Si una consulta del módulo falló, la tarjeta dice «No se pudo
+cargar» y no «Al día». Se quitan las pestañas de la decisión 1: cada fila dice
+«se resuelve aquí».
+
+**DESCARTÉ:** lista agrupada por módulo — lo urgente de un módulo quedaba
+debajo de lo que no urge de otro.
+
+**SE ROMPE SI:** una fuente nueva se agrega a la lista sin su entrada en
+`MODULOS_BANDEJA`: sus filas se pintan, pero no tiene tarjeta ni «Al día».
+
+### 10. Una sola lista para la pantalla, el menú y Equipo
+
+**DECIDÍ:** `lib/admin/bandeja-fuentes.ts` (`traerFuentesBandeja` +
+`armarPendientes`). El número del menú y el de Equipo cuentan esa lista.
+
+**DESCARTÉ:** mantener tres copias — ya se habían separado dos veces: el menú
+no sumaba liquidaciones vencidas y Equipo contaba Educación con la consulta de
+antes de la 0450.
+
+**SE ROMPE SI:** alguien vuelve a pedir una RPC de la Bandeja directo desde una
+pantalla o desde `nav.tsx`, en vez de agregarla a `traerFuentesBandeja`.
+
+### 11. Fuentes nuevas y su criterio
+
+Cada una usa el criterio de SU pantalla, con tres excepciones escritas:
+
+| Fuente | Entra | Plazo | Queda fuera, y por qué |
+|---|---|---|---|
+| Contratos (`fn_contratos_tablero`) | desnaturalizado, vencido, por vencer, sin contrato, sin firmar, trámite pendiente | fin del contrato; copia (inicio + 5) y MTPE (firma + 15) | `sin_vencimiento`: la pantalla lo cuenta como pendiente y como vigente a la vez |
+| Correcciones (`fn_dias_por_revisar`, `fn_marcas_apartadas`) | días con marcas por revisar, marcas apartadas | cierre del periodo que lo paga (`periodos_planilla`) | — (se pide con tope 1000: la RPC corta antes de devolver) |
+| Documentación (`fn_documentos_tablero`) | ruta sin firmar o desfasada; bono de este mes o ya pasado | bono: fin de mes | `se_nego` (ya resuelta); bono `sin_fecha` (la pantalla lo deja en «nada que hacer») |
+| Feriados (`fn_feriados_laborados`, 120 días atrás) | descanso acordado sin otorgar; descanso que no compensa | feriado + 30 días | feriado trabajado sin descanso registrado: por ley se paga la sobretasa y no pide nada |
+| Disciplina (`expediente_disciplinario`) | lo que `etapaDelBorrador` y `pendientesDeEntregado` dicen que falta | descargo: su vencimiento; lo demás, lo que lleva esperando | anulado y cerrado sin entrega |
+
+**SE ROMPE SI:** Disciplina tiene documentos entregados hace años sin cargo
+subido: todos entran, porque su propia pantalla también los tiene en «Entregar».
+Si eso inunda la Bandeja, la respuesta es subir o anular esos cargos, no
+esconderlos aquí.
+
 ## Evaluado y descartado sin pregunta
 
 - **Acciones masivas:** ningún caso real; aprobar o rechazar exige motivo por persona.

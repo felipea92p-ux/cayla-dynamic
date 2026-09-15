@@ -4,16 +4,18 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
-import { parseAreas, esOperativaEn, AREA_DEFAULT, AREAS_FALLBACK, type Area } from "@/lib/areas";
+import { parseAreas, esOperativaEn, AREA_DEFAULT, type Area } from "@/lib/areas";
 import { Cargando } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
 import { Insignia } from "@/components/ui/insignia";
+import { Campo, CampoCasilla, CampoSelect } from "@/components/ui/campo";
 import { Fila, Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
 import {
-  NIVEL_DISCIPLINARIO_CORTO, TZ_LIMA, esRolEncargada, hoyLima, formatoMinutos, puedeVerTodasLasSedes,
+  TZ_LIMA, esRolEncargada, hoyLima, formatoMinutos, puedeVerTodasLasSedes,
 } from "@cayla-dynamic/shared";
 import { esperadoDelDia, horarioVigente, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
 import { usePersonaActual } from "@/lib/admin/use-rol";
+import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
 
 const REFRESCO_MS = 30_000;
 // Mismo Sheet de siempre si la variable de entorno todavía no está puesta en
@@ -27,7 +29,9 @@ const CORTE_TARDE = 14.25;
 // Margen antes de avisar que una sede entera no marcó nada. No es la tolerancia
 // de tardanza (esa es cero: SIN tolerancia, por minuto, según fn_recalcular_jornada) —
 // esta es una franja solo de aviso operativo, y avisar al minuto uno generaría
-// más ruido que señal con cualquier desfase normal de la mañana.
+// más ruido que señal con cualquier desfase normal de la mañana. Se reutiliza
+// también para decidir, fila por fila, si alguien "sin marcar" ya debía haber
+// llegado o si todavía es pronto — mismo criterio, mismo margen.
 const MARGEN_ALERTA_SEDE_MIN = 30;
 
 
@@ -44,30 +48,6 @@ function horaDecimalLimaAhora(): number {
   const h = Number(p.find((x) => x.type === "hour")?.value ?? 0) % 24;
   const m = Number(p.find((x) => x.type === "minute")?.value ?? 0);
   return h + m / 60;
-}
-
-interface MetaSede { man: number; tar: number; enc: number; }
-
-// Una señal de cobertura en vivo: cuánta gente hay EN PISO ahora vs la meta del
-// tramo. Sin meta = taupe neutro (no hay contra qué medir, no es alarma).
-function LineaCobertura({ label, n, meta, tramo }: { label: string; n: number; meta: number; tramo?: string }) {
-  const sinMeta = meta <= 0;
-  const ok = !sinMeta && n >= meta;
-  const color = sinMeta ? "var(--color-taupe)" : ok ? "var(--color-verde)" : "var(--color-rojo)";
-  return (
-    <span className="flex items-center gap-1.5">
-      <span className="text-taupe">{label}</span>
-      <span className="font-semibold tabular-nums" style={{ color }}>
-        {n}
-        {!sinMeta && <span className="font-normal text-taupe"> / meta {tramo ? tramo + " " : ""}{meta}</span>}
-      </span>
-      {sinMeta ? (
-        <span className="text-xs text-taupe/60">sin meta</span>
-      ) : (
-        <span className="text-xs font-medium" style={{ color }}>{ok ? "· completo" : `· faltan ${meta - n}`}</span>
-      )}
-    </span>
-  );
 }
 
 function horaLima(ts: string | null): string {
@@ -102,16 +82,19 @@ interface FilaPersona {
   // "08:00" si el horario/turno de hoy dice que le tocaba trabajar; null si le
   // tocaba descanso o no se pudo determinar (misma cascada de jornada-esperada.ts).
   entradaEsperadaHoy: string | null;
+  // De dónde salió esa respuesta (turno puntual / horario_por_dia / legacy /
+  // sin_horario) — solo importa cuando entradaEsperadaHoy es null, para
+  // distinguir "hoy descansa" (una respuesta real) de "no hay con qué medirlo"
+  // (no es una respuesta). Ver jornada-esperada.ts:estadoDelDia, que ya hace
+  // esta misma distinción para Correcciones/Incidencias.
+  origenEsperadoHoy: "turno" | "horario" | "legacy" | "sin_horario";
 }
 
 // Estados: verde/ámbar cálidos para lo operativo (van por <Insignia>), Rojo
 // lleno para la alerta crítica. "auto_cerrada_pendiente" se queda con su
 // propio relleno sólido: es la única variante que necesita el rojo lleno
 // (Insignia no tiene una "alerta crítica", solo la translúcida) para pesar
-// más que las demás en la fila. "sin_marcar" tampoco pasa por Insignia: es
-// texto apagado sin pastilla a propósito, y `text-taupe/50` es el mismo tono
-// que usan más de diez pantallas para "sin dato" — cambiarlo aquí solo
-// desentonaría con el resto, no lo arregla.
+// más que las demás en la fila.
 const ESTILO_ESTADO: Record<
   string,
   { label: string; variante?: "positivo" | "advertencia"; atenuada?: boolean; clase?: string }
@@ -121,37 +104,7 @@ const ESTILO_ESTADO: Record<
   cerrada: { label: "Salió", atenuada: true },
   auto_cerrada_pendiente: { label: "Auto-cerrada ⚠", clase: "bg-rojo text-crema" },
   revisada: { label: "Salió (revisada)", atenuada: true },
-  sin_marcar: { label: "Sin marcar", clase: "text-taupe/50" },
 };
-
-// La misma celda de estado, compartida entre la tabla de escritorio y las
-// tarjetas de celular — para no mantener dos copias del mismo if/else.
-function EstadoCelda({ f, linkCorregir }: { f: FilaPersona; linkCorregir: (personaId: string) => string }) {
-  const estilo = ESTILO_ESTADO[f.estado] ?? ESTILO_ESTADO.sin_marcar;
-  // "Sin marcar" es ambiguo a propósito: puede ser un no-show real o alguien de
-  // vacaciones. Sin esto los dos se veían idénticos en la única pantalla que se
-  // mira de un vistazo — mismo riesgo de falso positivo que la 0101 ya cerró
-  // para el semáforo disciplinario.
-  const ausencia = f.estado === "sin_marcar" ? f.ausenciaHoy : null;
-  if (ausencia) {
-    return (
-      <span title={ausencia.pendiente ? "Registrada, todavía sin aprobar" : "Ausencia aprobada que cubre hoy"}>
-        <Insignia variante={ausencia.pendiente ? "advertencia" : "neutral"} atenuada={!ausencia.pendiente}>
-          {ausencia.nombre}{ausencia.pendiente ? " · por confirmar" : ""}
-        </Insignia>
-      </span>
-    );
-  }
-  if (f.estado === "auto_cerrada_pendiente") {
-    return (
-      <Link href={linkCorregir(f.personaId)} className={`rounded-full px-2 py-0.5 text-xs ${estilo.clase} transition-opacity hover:opacity-80`}>
-        {estilo.label} ›
-      </Link>
-    );
-  }
-  if (estilo.clase) return <span className={`rounded-full px-2 py-0.5 text-xs ${estilo.clase}`}>{estilo.label}</span>;
-  return <Insignia variante={estilo.variante} atenuada={estilo.atenuada}>{estilo.label}</Insignia>;
-}
 
 // "08:00" → 8.0, para comparar contra horaDecimalLimaAhora().
 function horaDecimalDe(hhmm: string): number {
@@ -165,18 +118,73 @@ function horaAmPmDe(hhmm: string): string {
     new Date(Date.UTC(2000, 0, 1, h, m)),
   );
 }
-// Suma N días hábiles (salta sáb/dom) a una fecha ISO — para el plazo de inmediatez.
-function masDiasHabiles(iso: string, n: number): string {
-  const [y, m, d] = iso.split("-").map(Number);
-  let dt = new Date(Date.UTC(y, m - 1, d));
-  let sumados = 0;
-  while (sumados < n) {
-    dt = new Date(dt.getTime() + 86_400_000);
-    const dow = dt.getUTCDay();
-    if (dow !== 0 && dow !== 6) sumados++;
+
+// El hallazgo central de la auditoría de sep-2026: "Sin marcar" cubría tres
+// situaciones que no tienen nada que ver entre sí — alguien que entra a las
+// 4pm siendo la 1pm se veía IGUAL que alguien que debía entrar a las 8am y no
+// llegó. El dato para distinguirlas ya existía (entradaEsperadaHoy, calculado
+// arriba con la misma cascada que usa el backend); lo que faltaba era usarlo
+// acá. "sin_horario" se deja aparte a propósito: ahí no sabemos si le tocaba
+// o no, así que no se afirma "descansa hoy" — sería una falsa tranquilidad
+// tan peligrosa como el falso positivo que esto viene a arreglar.
+type SubEstadoSinMarcar = "aun_no_inicia" | "falta_real" | "descansa" | "desconocido";
+function subEstadoSinMarcar(f: FilaPersona, ahoraDecimal: number): SubEstadoSinMarcar {
+  if (f.entradaEsperadaHoy) {
+    const yaDebiaHaberLlegado = ahoraDecimal >= horaDecimalDe(f.entradaEsperadaHoy) + MARGEN_ALERTA_SEDE_MIN / 60;
+    return yaDebiaHaberLlegado ? "falta_real" : "aun_no_inicia";
   }
-  return dt.toISOString().slice(0, 10);
+  return f.origenEsperadoHoy === "sin_horario" ? "desconocido" : "descansa";
 }
+
+// La misma celda de estado, compartida entre la tabla de escritorio y las
+// tarjetas de celular — para no mantener dos copias del mismo if/else.
+function EstadoCelda({ f, linkCorregir, ahoraDecimal }: { f: FilaPersona; linkCorregir: (personaId: string) => string; ahoraDecimal: number }) {
+  // "Sin marcar" es ambiguo a propósito en casos límite: puede ser un no-show
+  // real o alguien de vacaciones. Sin esto los dos se veían idénticos en la
+  // única pantalla que se mira de un vistazo — mismo riesgo de falso positivo
+  // que la 0101 ya cerró para el semáforo disciplinario.
+  const ausencia = f.estado === "sin_marcar" ? f.ausenciaHoy : null;
+  if (ausencia) {
+    return (
+      <span title={ausencia.pendiente ? "Registrada, todavía sin aprobar" : "Ausencia aprobada que cubre hoy"}>
+        <Insignia variante={ausencia.pendiente ? "advertencia" : "neutral"} atenuada={!ausencia.pendiente}>
+          {ausencia.nombre}{ausencia.pendiente ? " · por confirmar" : ""}
+        </Insignia>
+      </span>
+    );
+  }
+  if (f.estado === "sin_marcar") {
+    const sub = subEstadoSinMarcar(f, ahoraDecimal);
+    if (sub === "aun_no_inicia") {
+      return <Insignia variante="informativo">Aún no inicia · entra {horaAmPmDe(f.entradaEsperadaHoy!)}</Insignia>;
+    }
+    if (sub === "descansa") {
+      return <Insignia variante="neutral" atenuada>Descansa hoy</Insignia>;
+    }
+    if (sub === "falta_real") {
+      return (
+        <Link href={linkCorregir(f.personaId)} className="transition-opacity hover:opacity-80">
+          <Insignia variante="alerta">Sin marcar · le tocaba {horaAmPmDe(f.entradaEsperadaHoy!)}</Insignia>
+        </Link>
+      );
+    }
+    // "desconocido": no hay horario contra qué medir. Mismo texto apagado sin
+    // pastilla de siempre — es honesto sobre lo que no se sabe, no inventa una
+    // tranquilidad que no se puede probar.
+    return <span className="text-xs text-taupe/50">Sin marcar</span>;
+  }
+  const estilo = ESTILO_ESTADO[f.estado] ?? ESTILO_ESTADO.cerrada;
+  if (f.estado === "auto_cerrada_pendiente") {
+    return (
+      <Link href={linkCorregir(f.personaId)} className={`rounded-full px-2 py-0.5 text-xs ${estilo.clase} transition-opacity hover:opacity-80`}>
+        {estilo.label} ›
+      </Link>
+    );
+  }
+  if (estilo.clase) return <span className={`rounded-full px-2 py-0.5 text-xs ${estilo.clase}`}>{estilo.label}</span>;
+  return <Insignia variante={estilo.variante} atenuada={estilo.atenuada}>{estilo.label}</Insignia>;
+}
+
 function fechaBonita(iso: string): string {
   const [y, m, d] = iso.split("-").map(Number);
   return new Intl.DateTimeFormat("es-PE", { day: "2-digit", month: "long", timeZone: "UTC" }).format(new Date(Date.UTC(y, m - 1, d)));
@@ -194,6 +202,95 @@ interface RespuestaMemoRow {
 // Contratos a plazo fijo con fecha de término anotada (0144). `dias_restantes` es
 // negativo cuando la fecha ya pasó, y ese es el grupo que duele.
 interface ContratoRow { persona_id: string; nombre: string; sede: string; fecha_fin_contrato: string; dias_restantes: number; ya_vencio: boolean }
+
+interface MetaSede { man: number; tar: number; enc: number; }
+
+// Cobertura de una sede en este momento: cuánta gente hay EN PISO ahora vs la
+// meta del tramo. Se calcula una sola vez por sede y se reutiliza para
+// ordenar, para el resumen global y para la tarjeta — antes esta cuenta vivía
+// solo dentro del .map() de render y no se podía usar para decidir el orden.
+interface CoberturaSede {
+  activos: FilaPersona[];
+  opPiso: number;
+  encPiso: number;
+  metaOp: number;
+  metaEnc: number;
+  sinMetaOp: boolean;
+  sinMetaEnc: boolean;
+  faltanOp: boolean;
+  faltanEnc: boolean;
+  problema: boolean;
+  sinMarcarReal: number;
+  programadosHoy: number;
+  alertaSinEntrada: string | null;
+}
+function calcularCoberturaSede(deSede: FilaPersona[], meta: MetaSede, tramoTarde: boolean, ahoraDecimal: number): CoberturaSede {
+  const activos = deSede.filter((f) => f.estado === "abierta" || f.estado === "en_pausa");
+  const metaOp = tramoTarde ? meta.tar : meta.man;
+  // Cobertura EN VIVO: "en piso" = solo Presente (abierta). Quien está en
+  // pausa/refrigerio no cuenta — no está físicamente cubriendo ahora.
+  const opPiso = deSede.filter((f) => f.esOperativa && f.estado === "abierta").length;
+  const encPiso = deSede.filter((f) => f.esEncargada && f.estado === "abierta").length;
+  const sinMetaOp = metaOp <= 0;
+  const sinMetaEnc = meta.enc <= 0;
+  const faltanOp = !sinMetaOp && opPiso < metaOp;
+  const faltanEnc = !sinMetaEnc && encPiso < meta.enc;
+  const sinMarcarReal = deSede.filter(
+    (f) => f.estado === "sin_marcar" && !f.ausenciaHoy && subEstadoSinMarcar(f, ahoraDecimal) === "falta_real",
+  ).length;
+  // Cuántas de las personas asignadas a esta sede tenían HOY un horario/turno
+  // real que decía que trabajaban — el denominador que faltaba: "de Y" antes
+  // mezclaba a todo el equipo (vacaciones, descansos, quien ya salió) con
+  // quien de verdad tenía que estar. Ver hallazgo de la auditoría, Fase 4.
+  const programadosHoy = deSede.filter((f) => f.entradaEsperadaHoy !== null && !f.ausenciaHoy).length;
+
+  // Alerta de sede sin actividad: a alguien ya le tocaba entrar (según su
+  // horario u horario), con margen, y todavía nadie de la sede marcó nada.
+  // Se excluye a quien tiene una ausencia hoy — mandar de vacaciones a todo
+  // el equipo de una sede no es "nadie llegó", es que nadie tenía que llegar.
+  const entradasEsperadasHoy = deSede
+    .filter((f) => !f.ausenciaHoy && f.entradaEsperadaHoy)
+    .map((f) => f.entradaEsperadaHoy!)
+    .sort();
+  const nadieMarcoTodavia = deSede.every((f) => f.entrada === null);
+  let alertaSinEntrada: string | null = null;
+  if (entradasEsperadasHoy.length > 0 && nadieMarcoTodavia) {
+    const primeraEntrada = entradasEsperadasHoy[0];
+    const minutosPasados = (ahoraDecimal - horaDecimalDe(primeraEntrada)) * 60;
+    if (minutosPasados >= MARGEN_ALERTA_SEDE_MIN) alertaSinEntrada = primeraEntrada;
+  }
+
+  return {
+    activos, opPiso, encPiso, metaOp, metaEnc: meta.enc, sinMetaOp, sinMetaEnc,
+    faltanOp, faltanEnc, problema: faltanOp || faltanEnc, sinMarcarReal, programadosHoy, alertaSinEntrada,
+  };
+}
+
+// "Faltan 3" / "Falta 1" — concordancia real, no un texto fijo por métrica.
+function faltanTexto(n: number): string {
+  return n === 1 ? "Falta 1" : `Faltan ${n}`;
+}
+
+// Un tile de cobertura (Operativas / Encargadas), protagonista a propósito:
+// es la pregunta que de verdad decide si hay que actuar, no un dato al pie.
+function TileCobertura({ label, n, meta, sinMeta, tramo }: { label: string; n: number; meta: number; sinMeta: boolean; tramo?: string }) {
+  const ok = !sinMeta && n >= meta;
+  const color = sinMeta ? "var(--color-taupe)" : ok ? "var(--color-verde)" : "var(--color-rojo)";
+  return (
+    <div className="rounded-superficie border border-sand bg-papel px-4 py-3">
+      <div className="flex items-baseline gap-1.5">
+        <span className="font-serif text-3xl tabular-nums" style={{ color }}>{n}</span>
+        {!sinMeta && <span className="text-base text-taupe">/ {meta}</span>}
+      </div>
+      <div className="mt-0.5 text-xs text-taupe">
+        {label}{sinMeta ? " · sin meta" : tramo ? ` · meta ${tramo}` : ""}
+      </div>
+      {!sinMeta && (
+        <div className="mt-1 text-xs font-medium" style={{ color }}>{ok ? "Completo" : faltanTexto(meta - n)}</div>
+      )}
+    </div>
+  );
+}
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -245,6 +342,17 @@ export default function DashboardPage() {
    */
   const [discNoRespondio, setDiscNoRespondio] = useState(false);
   const [respuestasMemo, setRespuestasMemo] = useState<RespuestaMemoRow[]>([]);
+
+  // Filtros de la pantalla. La búsqueda es de esta visita (nunca se guarda,
+  // por la propia regla de useFiltroGuardado); sede/estado/solo-alertas son
+  // preferencias de vista y sí se recuerdan entre sesiones, por navegador.
+  const [busqueda, setBusqueda] = useState("");
+  const [sedeFiltro, setSedeFiltro] = useFiltroGuardado<string>("dashboard.sede", "todas");
+  const [estadoFiltro, setEstadoFiltro] = useFiltroGuardado<string>("dashboard.estado", "todos");
+  const [soloAlertas, setSoloAlertas] = useFiltroGuardado<boolean>("dashboard.solo_alertas", false);
+  // Qué sedes tienen su tabla de personas abierta manualmente (más allá de lo
+  // que fuercen los filtros). Por sede, no global: cada una se expande aparte.
+  const [detalleAbierto, setDetalleAbierto] = useState<Record<string, boolean>>({});
 
   // Semáforo disciplinario para la franja (aparte del refresco de asistencia).
   useEffect(() => {
@@ -469,6 +577,7 @@ export default function DashboardPage() {
         estado: j?.estado ?? "sin_marcar",
         entrada: j?.entrada_ts ?? null,
         entradaEsperadaHoy: esperado.trabaja ? esperado.entrada : null,
+        origenEsperadoHoy: esperado.origen,
         salidaFinal: j?.salida_final_ts ?? null,
         minutosTarde: j?.minutos_tarde ?? null,
         salidaTemprana: salidaTempranaPorPersona.get(p.id) ?? null,
@@ -499,50 +608,132 @@ export default function DashboardPage() {
     };
   }, [cargar]);
 
-  // Cuánta gente está "abierta"/"en_pausa" por sede AHORA — mismo criterio de
-  // `activos` que cada sección calcula más abajo, hecho una vez acá para poder
-  // ordenar las sedes por él antes de recorrerlas.
-  const conteoActivosPorSede = new Map<string, number>();
-  for (const f of filas) {
-    if (f.estado === "abierta" || f.estado === "en_pausa") {
-      conteoActivosPorSede.set(f.sedeId, (conteoActivosPorSede.get(f.sedeId) ?? 0) + 1);
-    }
-  }
-  // sedeId (no código) porque es como se cruza con metas_cobertura más abajo.
-  // Viene de sedesActivas (tabla `sedes`), no de `filas`: así una sede sigue
-  // apareciendo — con "0 trabajando de 0" — aunque hoy nadie de su plantilla
-  // cumpla el filtro activo+en_planilla+no_sueldo_fijo.
-  //
-  // Orden: primero la sede con más gente trabajando ahora; empate (incluido
-  // "nadie trabajando en ninguna") se resuelve alfabético, así el caso "solo
-  // una sede activa" queda cubierto sin una regla aparte.
-  //
+  const ahoraDecimal = horaDecimalLimaAhora();
+  const tramoTarde = ahoraDecimal >= CORTE_TARDE;
+  const tramoLabel = tramoTarde ? "tarde" : "mañana";
+  const hoy = hoyLima();
+  // Un incidente (tardanza, auto-cierre) enlaza directo a Corregir de esa persona/fecha.
+  const linkCorregir = (personaId: string) => `/admin/correcciones?persona=${personaId}&fecha=${hoy}`;
+
+  // Alcance por permiso: qué sedes puede ver quien mira la pantalla ahora.
   // `sedes` (la tabla) es visible para cualquier autenticado — es un catálogo
   // de 4 filas que otras ~14 pantallas necesitan completo para todos los
   // roles — pero RLS ya restringe personas/jornadas/turnos/horarios a la
   // sede propia de una encargada (`supervisor_sede`). Sin este filtro, ella
   // vería las otras tres sedes en "0 trabajando de 0": no una fuga de datos
   // (RLS igual le oculta a las personas), pero sí una afirmación falsa —
-  // "no hay nadie" en vez de "no tienes permiso para verlo" — que de buena fe
-  // se lee como que esa sede no abrió hoy. Se filtra recién cuando `yo` ya
-  // cargó, para no mostrarle una pantalla vacía a un admin por un instante.
-  const sedes = sedesActivas
+  // "no hay nadie" en vez de "no tienes permiso para verlo". Se filtra recién
+  // cuando `yo` ya cargó, para no mostrarle una pantalla vacía a un admin por
+  // un instante.
+  const sedesDeAlcance = sedesActivas
     .map((s) => ({ sedeId: s.id, codigo: s.codigo }))
-    .filter((s) => !yo || esAdmin || s.sedeId === yo.sedeBaseId)
-    .sort((a, b) =>
-      (conteoActivosPorSede.get(b.sedeId) ?? 0) - (conteoActivosPorSede.get(a.sedeId) ?? 0)
-      || a.codigo.localeCompare(b.codigo),
-    );
-  const tramoTarde = horaDecimalLimaAhora() >= CORTE_TARDE;
-  const tramoLabel = tramoTarde ? "tarde" : "mañana";
-  const hoy = hoyLima();
-  // Un incidente (tardanza, auto-cierre) enlaza directo a Corregir de esa persona/fecha.
-  const linkCorregir = (personaId: string) => `/admin/correcciones?persona=${personaId}&fecha=${hoy}`;
+    .filter((s) => !yo || esAdmin || s.sedeId === yo.sedeBaseId);
+
+  // Cobertura de cada sede, calculada una sola vez y reutilizada para ordenar,
+  // para el resumen global y para cada tarjeta.
+  const coberturaPorSede = new Map<string, CoberturaSede>();
+  for (const s of sedesDeAlcance) {
+    const deSede = filas.filter((f) => f.sedeId === s.sedeId);
+    const meta = metasPorSede.get(s.sedeId) ?? { man: 0, tar: 0, enc: 0 };
+    coberturaPorSede.set(s.sedeId, calcularCoberturaSede(deSede, meta, tramoTarde, ahoraDecimal));
+  }
+
+  // Orden: primero la sede con cobertura insuficiente (decisión de la
+  // auditoría de sep-2026 — antes solo importaba quién tenía más gente
+  // trabajando). Empate se resuelve igual que antes: más gente activa ahora,
+  // y si sigue empatado, alfabético.
+  const sedes = [...sedesDeAlcance].sort((a, b) => {
+    const ca = coberturaPorSede.get(a.sedeId)!;
+    const cb = coberturaPorSede.get(b.sedeId)!;
+    if (ca.problema !== cb.problema) return ca.problema ? -1 : 1;
+    return cb.activos.length - ca.activos.length || a.codigo.localeCompare(b.codigo);
+  });
+
+  // ---------- Resumen global ----------
+  const trabajandoAhoraTotal = filas.filter((f) => f.estado === "abierta" || f.estado === "en_pausa").length;
+  const tardanzasHoyTotal = filas.filter((f) => (f.minutosTarde ?? 0) > 0).length;
+  const sinMarcarRealTotal = filas.filter(
+    (f) => f.estado === "sin_marcar" && !f.ausenciaHoy && subEstadoSinMarcar(f, ahoraDecimal) === "falta_real",
+  ).length;
+  const sedesBajoMinimo = sedes.filter((s) => coberturaPorSede.get(s.sedeId)!.problema).length;
+
+  // ---------- Disciplina, ya cargada arriba — hoisted para el resumen y el panel único ----------
+  // Cualquier escalón alcanzado va en rojo, no solo la amonestación. Comparar
+  // contra "amonestacion" dejaba fuera del aviso a quien ya estaba en
+  // suspensión o imputación — los casos más urgentes.
+  const rojosT = discTard.filter((t) => t.umbral !== "aviso");
+  const rojosF = discFaltas.filter((f) => f.nivel === "rojo");
+  const casosDisciplina = rojosT.length + rojosF.length + (sinCargo > 0 ? 1 : 0);
+
+  // ---------- Filtros ----------
+  function filaCoincideFiltros(f: FilaPersona): boolean {
+    if (busqueda && !f.nombre.toLowerCase().includes(busqueda.trim().toLowerCase())) return false;
+    if (estadoFiltro !== "todos" && f.estado !== estadoFiltro) return false;
+    if (soloAlertas) {
+      const esAlerta =
+        f.estado === "auto_cerrada_pendiente" ||
+        (f.minutosTarde ?? 0) > 0 ||
+        (f.estado === "sin_marcar" && !f.ausenciaHoy && subEstadoSinMarcar(f, ahoraDecimal) === "falta_real");
+      if (!esAlerta) return false;
+    }
+    return true;
+  }
+  const hayFiltrosDeContenido = busqueda !== "" || estadoFiltro !== "todos" || soloAlertas;
+  const hayFiltrosActivos = hayFiltrosDeContenido || sedeFiltro !== "todas";
+  function limpiarFiltros() {
+    setBusqueda("");
+    setEstadoFiltro("todos");
+    setSoloAlertas(false);
+    setSedeFiltro("todas");
+  }
+  const sedesMostradas = sedeFiltro === "todas" ? sedes : sedes.filter((s) => s.codigo === sedeFiltro);
+
+  // ---------- Requiere atención (cobertura + Disciplina, en un solo panel) ----------
+  interface ItemAtencion { key: string; sede: string; texto: string; href?: string; tono: "critico" | "advertencia" }
+  const itemsAtencion: ItemAtencion[] = [];
+  for (const s of sedes) {
+    const cob = coberturaPorSede.get(s.sedeId)!;
+    if (cob.alertaSinEntrada) {
+      itemsAtencion.push({
+        key: `sin-entrada-${s.sedeId}`, sede: s.codigo, tono: "critico",
+        texto: `sin marcajes desde las ${horaAmPmDe(cob.alertaSinEntrada)} — nadie ha marcado entrada todavía`,
+      });
+    }
+    if (cob.faltanOp || cob.faltanEnc) {
+      const partes: string[] = [];
+      if (cob.faltanOp) partes.push(`${cob.metaOp - cob.opPiso} operativa${cob.metaOp - cob.opPiso === 1 ? "" : "s"}`);
+      if (cob.faltanEnc) partes.push(`${cob.metaEnc - cob.encPiso} encargada${cob.metaEnc - cob.encPiso === 1 ? "" : "s"}`);
+      itemsAtencion.push({ key: `cobertura-${s.sedeId}`, sede: s.codigo, tono: "advertencia", texto: `faltan ${partes.join(" y ")}` });
+    }
+    if (cob.sinMarcarReal > 0) {
+      itemsAtencion.push({
+        key: `sinmarcar-${s.sedeId}`, sede: s.codigo, tono: "advertencia",
+        texto: `${cob.sinMarcarReal} sin marcar y ya le tocaba`,
+      });
+    }
+  }
+  if (discNoRespondio) {
+    itemsAtencion.push({
+      key: "disc", sede: "Disciplina", href: "/admin/disciplina", tono: "advertencia",
+      texto: "el semáforo no respondió — no es que no haya nadie, es que no pudo mirar",
+    });
+  } else if (casosDisciplina > 0) {
+    itemsAtencion.push({
+      key: "disc", sede: "Disciplina", href: "/admin/disciplina", tono: "critico",
+      texto: `${casosDisciplina} caso${casosDisciplina === 1 ? "" : "s"} requiere${casosDisciplina === 1 ? "" : "n"} revisión`
+        + (sinCargoNoRespondio ? " (no se pudo comprobar memos sin cargo)" : ""),
+    });
+  } else if (sinCargoNoRespondio) {
+    itemsAtencion.push({
+      key: "disc", sede: "Disciplina", href: "/admin/disciplina", tono: "advertencia",
+      texto: "no se pudo comprobar si hay memos entregados sin el cargo firmado",
+    });
+  }
 
   return (
     <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6 sm:p-8">
-        <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
+        <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
           <div>
             <h1 className="font-serif text-3xl leading-tight">Asistencia de hoy</h1>
             <p className="mt-1.5 flex items-center gap-2 text-xs text-taupe">
@@ -558,6 +749,11 @@ export default function DashboardPage() {
                 </>
               )}
             </p>
+            {/* Honesto sobre el alcance real de "en vivo": Disciplina y Contratos
+                no van en el mismo refresco de 30s (cambian una vez al día, no
+                cada medio minuto) — decirlo evita la promesa que el título de
+                arriba no cumple para esas dos franjas. */}
+            <p className="mt-0.5 text-xs text-taupe/70">Disciplina y Contratos se cargan al abrir la pantalla — recarga para verlos al día.</p>
             {/* Aviso discreto, no un banner: alguien de vacaciones podría verse como
                 "sin marcar" mientras esta consulta no responda. Menos grave que
                 Contratos o la alerta de sede — por eso no interrumpe la pantalla. */}
@@ -590,341 +786,373 @@ export default function DashboardPage() {
           <Cargando texto="Cargando la asistencia de hoy…" />
         ) : (
           <>
-        {(() => {
-          // Cualquier escalón alcanzado va en rojo, no solo la amonestación.
-          // Comparar contra "amonestacion" dejaba fuera del aviso a quien ya
-          // estaba en suspensión o imputación — los casos más urgentes.
-          const rojosT = discTard.filter((t) => t.umbral !== "aviso");
-          const avisoT = discTard.filter((t) => t.umbral === "aviso").length;
-          const rojosF = discFaltas.filter((f) => f.nivel === "rojo");
-          const ambarF = discFaltas.filter((f) => f.nivel === "ambar").length;
-          // Si el semáforo no contestó, la franja NO se borra: se queda diciendo
-          // que no pudo mirar. «No hay nadie sancionable» y «no lo sé» se ven
-          // igual de tranquilos en una portada, y solo uno de los dos es cierto.
-          if (discNoRespondio) {
-            return (
-              <section className="mb-6 rounded-2xl border border-ambar/30 bg-ambar/[0.06] p-5">
-                <div className="etiqueta text-ambar">Disciplina · no se pudo consultar</div>
-                <p className="mt-2 text-sm text-tinta">
-                  El semáforo de tardanzas y faltas no respondió, así que esta franja{" "}
-                  <strong>no está diciendo que no haya nadie</strong>: está diciendo que no pudo mirar.
-                  Vuelve a cargar, y si sigue igual ábrelo en{" "}
-                  <a href="/admin/disciplina" className="underline">Disciplina</a>.
-                </p>
-              </section>
-            );
-          }
-          if (!rojosT.length && !avisoT && !rojosF.length && !ambarF && !sinCargo && !sinCargoNoRespondio) return null;
-          return (
-            <div className="mb-10 rounded-2xl border border-sand bg-rojo/[0.04] p-5">
-              <div className="mb-2 flex items-center justify-between">
-                <span className="font-serif text-lg text-tinta">Disciplina — necesita tu atención</span>
-                <Link href="/admin/disciplina" className="text-xs font-medium text-rojo hover:underline">Ver disciplina →</Link>
+            {/* FILTROS */}
+            <div className="mb-6 flex flex-wrap items-end gap-3 rounded-2xl border border-sand bg-papel p-4">
+              <div className="min-w-48 flex-1">
+                <Campo
+                  etiqueta="Buscar persona"
+                  placeholder="Nombre…"
+                  value={busqueda}
+                  onChange={(e) => setBusqueda(e.target.value)}
+                />
               </div>
-              {rojosT.map((t) => (
-                <Link key={t.persona_id} href={`/admin/disciplina#tard-${t.persona_id}`}
-                  className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-sand/60 py-2 text-sm transition-colors hover:bg-rojo/[0.06]">
-                  <span><strong>{t.nombre}</strong> <span className="text-taupe">· {t.sede}</span>
-                    <Insignia variante="alerta" className="ml-2">
-                      {t.umbral === "bloqueado"
-                        ? "imputación de cargos vigente — decide Gerencia"
-                        : `corresponde ${NIVEL_DISCIPLINARIO_CORTO[t.umbral as keyof typeof NIVEL_DISCIPLINARIO_CORTO] ?? t.umbral} por tardanzas`}
-                    </Insignia></span>
-                  {t.ultima_fecha && <span className="text-xs font-medium text-rojo">actúa antes del {fechaBonita(masDiasHabiles(t.ultima_fecha, 10))} →</span>}
-                </Link>
-              ))}
-              {rojosF.map((f) => (
-                <Link key={f.persona_id} href={`/admin/disciplina#falta-${f.persona_id}`}
-                  className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-sand/60 py-2 text-sm transition-colors hover:bg-rojo/[0.06]">
-                  <span><strong>{f.nombre}</strong> <span className="text-taupe">· {f.sede}</span>
-                    <Insignia variante="alerta" className="ml-2">causal por faltas (art. 25-h)</Insignia></span>
-                  <span className="text-xs font-medium text-rojo">acción inmediata →</span>
-                </Link>
-              ))}
-              {sinCargoNoRespondio ? (
-                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-sand/60 py-2 text-sm">
-                  <span className="text-taupe">
-                    No se pudo comprobar si hay memos entregados sin el cargo firmado archivado.
-                  </span>
-                  <span className="text-xs font-medium text-ambar">no se pudo mirar</span>
-                </div>
-              ) : sinCargo > 0 && (
-                <Link href="/admin/disciplina#entregados"
-                  className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-sand/60 py-2 text-sm transition-colors hover:bg-rojo/[0.06]">
-                  <span>
-                    <strong>{sinCargo} {sinCargo === 1 ? "memo entregado" : "memos entregados"}</strong>{" "}
-                    <span className="text-taupe">sin el cargo firmado archivado</span>
-                    <Insignia variante="alerta" className="ml-2">no se puede probar la entrega</Insignia>
-                  </span>
-                  <span className="text-xs font-medium text-rojo">sube el papel →</span>
-                </Link>
+              {sedes.length > 1 && (
+                <CampoSelect etiqueta="Sede" value={sedeFiltro} onChange={(e) => setSedeFiltro(e.target.value)} className="min-w-32">
+                  <option value="todas">Todas</option>
+                  {sedes.map((s) => <option key={s.sedeId} value={s.codigo}>{s.codigo}</option>)}
+                </CampoSelect>
               )}
-              <div className="border-t border-sand/60 pt-2.5 text-xs text-taupe">
-                {avisoT > 0 && <Insignia variante="advertencia">{avisoT} en aviso (tardanzas)</Insignia>}
-                {avisoT > 0 ? " · " : ""}Faltas: {rojosF.length + ambarF > 0 ? `${rojosF.length + ambarF} en alerta` : "sin alertas"}
+              <CampoSelect etiqueta="Estado" value={estadoFiltro} onChange={(e) => setEstadoFiltro(e.target.value)} className="min-w-36">
+                <option value="todos">Todos</option>
+                <option value="abierta">Presente</option>
+                <option value="en_pausa">En pausa</option>
+                <option value="cerrada">Salió</option>
+                <option value="sin_marcar">Sin marcar</option>
+                <option value="auto_cerrada_pendiente">Auto-cerrada</option>
+              </CampoSelect>
+              <div className="pb-2">
+                <CampoCasilla etiqueta="Solo alertas" checked={soloAlertas} onChange={(e) => setSoloAlertas(e.target.checked)} />
+              </div>
+              {hayFiltrosActivos && (
+                <Boton variante="enlace" tamano="sm" className="pb-2.5" onClick={limpiarFiltros}>
+                  Limpiar filtros
+                </Boton>
+              )}
+            </div>
+
+            {/* RESUMEN GLOBAL */}
+            <div className="mb-6 grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-sand bg-sand sm:grid-cols-4">
+              <div className="bg-papel px-5 py-4">
+                <div className="font-serif text-3xl tabular-nums">{trabajandoAhoraTotal}</div>
+                <div className="text-xs text-taupe">Trabajando ahora</div>
+              </div>
+              <div className="bg-papel px-5 py-4">
+                <div className="font-serif text-3xl tabular-nums" style={{ color: tardanzasHoyTotal > 0 ? "var(--color-rojo)" : undefined }}>{tardanzasHoyTotal}</div>
+                <div className="text-xs text-taupe">Tardanzas hoy</div>
+              </div>
+              <div className="bg-papel px-5 py-4">
+                <div className="font-serif text-3xl tabular-nums" style={{ color: sinMarcarRealTotal > 0 ? "var(--color-rojo)" : "var(--color-verde)" }}>{sinMarcarRealTotal}</div>
+                <div className="text-xs text-taupe">Sin marcar cuando ya debían</div>
+              </div>
+              <div className="bg-papel px-5 py-4">
+                <div className="font-serif text-3xl tabular-nums" style={{ color: sedesBajoMinimo > 0 ? "var(--color-rojo)" : "var(--color-verde)" }}>{sedesBajoMinimo}</div>
+                <div className="text-xs text-taupe">Sedes bajo mínimo</div>
               </div>
             </div>
-          );
-        })()}
 
-        {/* QUIÉN RESPONDIÓ SU MEMO (0404). Aparte del panel de arriba porque
-            no es un plazo legal corriendo — es informativo: alguien ya vio su
-            documento y dejó una constancia digital, firmando o prefiriendo no
-            hacerlo. Ninguna de las dos reemplaza el trámite físico. */}
-        {respuestasMemo.length > 0 && (
-          <div className="mb-10 rounded-2xl border border-sand bg-verde/[0.04] p-5">
-            <div className="mb-2 flex items-center justify-between">
-              <span className="font-serif text-lg text-tinta">Colaboradores respondieron su memo</span>
-              <Link href="/admin/disciplina" className="text-xs font-medium text-taupe hover:underline">Ver disciplina →</Link>
-            </div>
-            {respuestasMemo.map((r) => (
-              <Link key={r.id} href={`/admin/disciplina/memo/${r.id}`}
-                className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-sand/60 py-2 text-sm transition-colors hover:bg-verde/[0.06]">
-                <span>
-                  <strong>{r.persona}</strong> <span className="text-taupe">· {NIVEL_DISCIPLINARIO_CORTO[r.nivel as keyof typeof NIVEL_DISCIPLINARIO_CORTO] ?? r.nivel}</span>
-                  <Insignia variante={r.firmado_at ? "positivo" : "neutral"} className="ml-2">
-                    {r.firmado_at ? "firmó digitalmente" : "prefirió no firmar"}
-                  </Insignia>
-                </span>
-                <span className="text-xs text-taupe">{fechaBonita((r.firmado_at ?? r.rechazado_at)!.slice(0, 10))}</span>
-              </Link>
-            ))}
-          </div>
-        )}
-
-        {/* CONTRATOS A PLAZO FIJO. Dos grupos, y el importante es el primero:
-            quien ya venció y sigue figurando activo. Ese caso no se nota en
-            ninguna otra pantalla —la persona aparece normal en asistencia, en
-            planilla y en provisiones— y desde la 0162 tampoco en el tablero de
-            Documentación. Sin esta franja, la fecha anotada en Equipo solo sirve
-            si alguien se acuerda de ir a buscarla. */}
-        {(() => {
-          // Igual que Disciplina: si la RPC no contestó, la franja NO se
-          // calla — dice que no pudo mirar, en vez de parecer un mes tranquilo.
-          if (contratosNoRespondio) {
-            return (
-              <section className="mb-10 rounded-2xl border border-ambar/30 bg-ambar/[0.06] p-5">
-                <div className="etiqueta text-ambar">Contratos a plazo fijo · no se pudo consultar</div>
-                <p className="mt-2 text-sm text-tinta">
-                  No se pudo revisar qué contratos vencen o ya vencieron. El plazo del{" "}
-                  <strong>artículo 77</strong> corre igual aunque esta franja no haya podido mirar.
-                  Vuelve a cargar, y si sigue igual revisa{" "}
-                  <Link href="/admin/equipo" className="underline">Equipo</Link>.
-                </p>
-              </section>
-            );
-          }
-          const vencidos = contratos.filter((c) => c.ya_vencio);
-          const porVencer = contratos.filter((c) => !c.ya_vencio);
-          if (!vencidos.length && !porVencer.length) return null;
-          const enCuantos = (dias: number) =>
-            dias <= 0 ? "vence hoy" : dias === 1 ? "vence mañana" : `vence en ${dias} días`;
-          // ¿Muchos caen el MISMO día? Veinte líneas seguidas con la misma fecha
-          // se leen como veinte avisos sueltos, y el problema no son veinte
-          // renovaciones repartidas: es que hay que hacerlas todas esa semana.
-          // Se dice de una vez, arriba, antes de la lista.
-          const porFecha = new Map<string, number>();
-          for (const c of porVencer) porFecha.set(c.fecha_fin_contrato, (porFecha.get(c.fecha_fin_contrato) ?? 0) + 1);
-          const [fechaRacimo, cuantos] = [...porFecha.entries()]
-            .sort((a, b) => b[1] - a[1])[0] ?? ["", 0];
-          const hayRacimo = cuantos >= 3;
-          return (
-            <div className="mb-10 rounded-2xl border border-sand bg-ambar/[0.05] p-5">
-              <div className="mb-2 flex items-center justify-between">
-                <span className="font-serif text-lg text-tinta">Contratos a plazo fijo</span>
-                <Link href="/admin/equipo" className="text-xs font-medium text-rojo hover:underline">Ver equipo →</Link>
+            {/* REQUIERE ATENCIÓN — cobertura de sedes + Disciplina, un solo lugar */}
+            {itemsAtencion.length === 0 ? (
+              <div className="mb-8 rounded-2xl border border-sand bg-papel p-5">
+                <div className="etiqueta text-verde">Requiere atención</div>
+                <p className="mt-2 text-sm text-taupe">Nada pendiente ahora mismo.</p>
               </div>
-              {hayRacimo && (
-                <p className="mb-2 rounded-lg bg-rojo/10 px-3 py-2 text-sm text-rojo">
-                  <strong>{cuantos} contratos vencen el mismo día</strong> ({fechaBonita(fechaRacimo)}).
-                  No son {cuantos} trámites repartidos: son {cuantos} decisiones, {cuantos} redacciones
-                  y {cuantos} firmas en la misma semana. Al que se pase de fecha con la persona
-                  todavía trabajando, el <strong>art. 77</strong> lo vuelve indefinido solo.
-                </p>
-              )}
-              {vencidos.map((c) => (
-                <div key={c.persona_id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-sand/60 py-2 text-sm">
-                  <span>
-                    <strong>{c.nombre}</strong> <span className="text-taupe">· {c.sede}</span>
-                    <Insignia variante="alerta" className="ml-2">
-                      terminó el {fechaBonita(c.fecha_fin_contrato)} y sigue activa
-                    </Insignia>
-                  </span>
-                  <span className="text-xs font-medium text-rojo">renovar o registrar su salida →</span>
-                </div>
-              ))}
-              {porVencer.map((c) => (
-                <div key={c.persona_id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-sand/60 py-2 text-sm">
-                  <span>
-                    <strong>{c.nombre}</strong> <span className="text-taupe">· {c.sede}</span>
-                    <Insignia variante="advertencia" className="ml-2">
-                      {enCuantos(c.dias_restantes)} · {fechaBonita(c.fecha_fin_contrato)}
-                    </Insignia>
-                  </span>
-                </div>
-              ))}
-              <p className="border-t border-sand/60 pt-2.5 text-xs text-taupe">
-                {vencidos.length > 0
-                  ? "Mientras siga figurando activa sigue marcando, sigue cobrando y sigue acumulando gratificación, CTS y vacaciones. Anotar la fecha no da de baja a nadie: eso se decide y se registra a mano."
-                  : "La fecha es lo previsto, no un hecho. Un contrato puede renovarse: esto solo avisa antes de que llegue el día."}
-              </p>
-            </div>
-          );
-        })()}
-
-        {sedes.map(({ sedeId, codigo }) => {
-          const deSede = filas.filter((f) => f.sedeId === sedeId);
-          const activos = deSede.filter((f) => f.estado === "abierta" || f.estado === "en_pausa");
-          // Cobertura EN VIVO: "en piso" = solo Presente (abierta). Quien está en
-          // pausa/refrigerio no cuenta — no está físicamente cubriendo ahora.
-          const meta = metasPorSede.get(sedeId) ?? { man: 0, tar: 0, enc: 0 };
-          const opPiso = deSede.filter((f) => f.esOperativa && f.estado === "abierta").length;
-          const encPiso = deSede.filter((f) => f.esEncargada && f.estado === "abierta").length;
-
-          // Alerta de sede sin actividad: a alguien ya le tocaba entrar (según su
-          // horario u horario), con margen, y todavía nadie de la sede marcó nada.
-          // Se excluye a quien tiene una ausencia hoy — mandar de vacaciones a todo
-          // el equipo de una sede no es "nadie llegó", es que nadie tenía que llegar.
-          const entradasEsperadasHoy = deSede
-            .filter((f) => !f.ausenciaHoy && f.entradaEsperadaHoy)
-            .map((f) => f.entradaEsperadaHoy!)
-            .sort();
-          const nadieMarcoTodavia = deSede.every((f) => f.entrada === null);
-          let alertaSinEntrada: string | null = null;
-          if (entradasEsperadasHoy.length > 0 && nadieMarcoTodavia) {
-            const primeraEntrada = entradasEsperadasHoy[0];
-            const minutosPasados = (horaDecimalLimaAhora() - horaDecimalDe(primeraEntrada)) * 60;
-            if (minutosPasados >= MARGEN_ALERTA_SEDE_MIN) alertaSinEntrada = primeraEntrada;
-          }
-
-          return (
-            <section key={sedeId} className="mb-12">
-              <h2 className="mb-4 font-serif text-xl">
-                {codigo} <span className="text-base font-normal text-taupe">— {activos.length} trabajando de {deSede.length}</span>
-              </h2>
-
-              {/* La única alerta que se permite el rojo sagrado en esta pantalla: una
-                  sede entera sin un solo marcaje, con el horario ya empezado. */}
-              {alertaSinEntrada && (
-                <div className="mb-5 flex items-center gap-2 rounded-2xl border border-rojo bg-rojo/[0.06] px-5 py-3 text-sm font-semibold text-rojo">
-                  <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-rojo text-[10px] font-bold text-crema">!</span>
-                  Sin marcajes desde las {horaAmPmDe(alertaSinEntrada)} — nadie de esta sede ha marcado entrada todavía.
-                </div>
-              )}
-              {/* Sin esto, si `turnos`/`horarios_asignados` fallan, la alerta de arriba
-                  simplemente no se dispara nunca — sin decir que no pudo revisar. Sería
-                  la única señal de "sede sin nadie" apagada en silencio. */}
-              {!alertaSinEntrada && horarioEsperadoNoRespondio && (
-                <div className="mb-5 flex items-center gap-2 rounded-2xl border border-ambar/30 bg-ambar/[0.06] px-5 py-3 text-sm text-ambar">
-                  <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-ambar text-[10px] font-bold text-crema">!</span>
-                  No se pudo comprobar si a esta sede ya le tocaba tener gente marcada — la alerta de sin marcajes no está disponible ahora mismo.
-                </div>
-              )}
-
-              {/* Trabajando ahora — para que la encargada verifique contra quién está físicamente */}
-              <div className="mb-5 rounded-2xl border border-verde/20 bg-verde/[0.06] px-5 py-4">
-                <div className="etiqueta text-verde">Trabajando ahora · {activos.length}</div>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {activos.length === 0 ? (
-                    <span className="text-sm text-taupe">Nadie marcado todavía.</span>
-                  ) : (
-                    activos.map((f) => (
-                      <span key={f.personaId} className="rounded-full border border-sand bg-papel px-3 py-1 text-sm transition-colors hover:border-taupe">
-                        {f.nombre}
-                        {f.estado === "en_pausa" && <span className="ml-1 text-ambar">· en pausa</span>}
+            ) : (
+              <div className="mb-8 rounded-2xl border border-sand bg-rojo/[0.04] p-5">
+                <div className="etiqueta text-rojo">Requiere atención</div>
+                <ul className="mt-1 flex flex-col">
+                  {itemsAtencion.map((it) => {
+                    const contenido = (
+                      <span className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 py-2 text-sm">
+                        <span><strong>{it.sede}</strong> <span className="text-taupe">{it.texto}</span></span>
+                        {it.href && <span className={`text-xs font-medium ${it.tono === "critico" ? "text-rojo" : "text-ambar"}`}>Ver →</span>}
                       </span>
-                    ))
-                  )}
-                </div>
-                {/* Cobertura del momento: cuánta gente en piso ahora vs la meta del tramo vigente */}
-                <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-1 border-t border-verde/15 pt-3 text-sm">
-                  <LineaCobertura label="Operativas en piso" n={opPiso} meta={tramoTarde ? meta.tar : meta.man} tramo={tramoLabel} />
-                  <LineaCobertura label="Encargadas" n={encPiso} meta={meta.enc} />
-                </div>
+                    );
+                    return (
+                      <li key={it.key} className="border-t border-sand/60 first:border-t-0">
+                        {it.href ? (
+                          <Link href={it.href} className="-mx-1 block rounded px-1 transition-colors hover:bg-rojo/[0.06]">{contenido}</Link>
+                        ) : contenido}
+                      </li>
+                    );
+                  })}
+                </ul>
               </div>
+            )}
 
-              {/* Escritorio: tabla completa. En celular una tabla de 5 columnas no cabe sin
-                  scroll horizontal incómodo, así que de sm hacia abajo se arma la
-                  versión en tarjetas de más abajo — mismos datos, sin recortar nada. */}
-              <div className="hidden sm:block">
-                <Tabla>
-                  <TablaEncabezado>
-                    <Th>Nombre</Th>
-                    <Th>Estado</Th>
-                    <Th>Entrada</Th>
-                    <Th>Tardanza</Th>
-                    <Th>Salida final</Th>
-                  </TablaEncabezado>
-                  <tbody>
-                    {deSede.map((f) => (
-                      <Fila key={f.personaId}>
-                        <td className="px-4 py-2.5">{f.nombre}</td>
-                        <td className="px-4 py-2.5">
-                          <EstadoCelda f={f} linkCorregir={linkCorregir} />
-                        </td>
-                        <td className="px-4 py-2.5">{horaLima(f.entrada)}</td>
-                        <td className="px-4 py-2.5">
-                          {f.minutosTarde === null || f.minutosTarde === 0 ? (
-                            <span className="text-taupe/40">—</span>
-                          ) : (
-                            <Link href={linkCorregir(f.personaId)} className="font-semibold text-rojo underline decoration-rojo/30 underline-offset-2 transition-colors hover:decoration-rojo">
-                              {f.minutosTarde} min
-                            </Link>
-                          )}
-                        </td>
-                        <td className="px-4 py-2.5">
-                          {horaLima(f.salidaFinal)}
-                          {f.salidaTemprana ? (
-                            <Link href={linkCorregir(f.personaId)} className="ml-2 transition-opacity hover:opacity-80">
-                              <Insignia variante="advertencia" tamano="sm">anticip. {formatoMinutos(f.salidaTemprana)}</Insignia>
-                            </Link>
-                          ) : null}
-                        </td>
-                      </Fila>
-                    ))}
-                  </tbody>
-                </Tabla>
-              </div>
-
-              {/* Celular: la misma información en tarjetas apiladas, una por persona. */}
-              <div className="flex flex-col gap-2 sm:hidden">
-                {deSede.map((f) => (
-                  <div key={f.personaId} className="rounded-superficie border border-sand bg-papel p-4">
-                    <div className="mb-2 flex items-center justify-between gap-2">
-                      <span className="font-medium">{f.nombre}</span>
-                      <span className="shrink-0">
-                        <EstadoCelda f={f} linkCorregir={linkCorregir} />
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-3 gap-x-2 gap-y-1 border-t border-sand pt-2 text-xs">
-                      <span className="text-taupe">Entrada</span>
-                      <span className="text-taupe">Tardanza</span>
-                      <span className="text-taupe">Salida final</span>
-                      <span>{horaLima(f.entrada)}</span>
-                      <span>
-                        {f.minutosTarde === null || f.minutosTarde === 0 ? (
-                          <span className="text-taupe/40">—</span>
-                        ) : (
-                          <Link href={linkCorregir(f.personaId)} className="font-semibold text-rojo underline decoration-rojo/30 underline-offset-2">
-                            {f.minutosTarde} min
-                          </Link>
-                        )}
-                      </span>
-                      <span>
-                        {horaLima(f.salidaFinal)}
-                        {f.salidaTemprana ? (
-                          <Link href={linkCorregir(f.personaId)} className="ml-1 inline-block">
-                            <Insignia variante="advertencia" tamano="sm">+{formatoMinutos(f.salidaTemprana)}</Insignia>
-                          </Link>
-                        ) : null}
-                      </span>
-                    </div>
-                  </div>
+            {/* QUIÉN RESPONDIÓ SU MEMO (0404). Aparte del panel de arriba porque
+                no es un plazo legal corriendo — es informativo: alguien ya vio su
+                documento y dejó una constancia digital, firmando o prefiriendo no
+                hacerlo. Ninguna de las dos reemplaza el trámite físico. */}
+            {respuestasMemo.length > 0 && (
+              <div className="mb-8 rounded-2xl border border-sand bg-verde/[0.04] p-5">
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="font-serif text-lg text-tinta">Colaboradores respondieron su memo</span>
+                  <Link href="/admin/disciplina" className="text-xs font-medium text-taupe hover:underline">Ver disciplina →</Link>
+                </div>
+                {respuestasMemo.map((r) => (
+                  <Link key={r.id} href={`/admin/disciplina/memo/${r.id}`}
+                    className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-sand/60 py-2 text-sm transition-colors hover:bg-verde/[0.06]">
+                    <span>
+                      <strong>{r.persona}</strong>
+                      <Insignia variante={r.firmado_at ? "positivo" : "neutral"} className="ml-2">
+                        {r.firmado_at ? "firmó digitalmente" : "prefirió no firmar"}
+                      </Insignia>
+                    </span>
+                    <span className="text-xs text-taupe">{fechaBonita((r.firmado_at ?? r.rechazado_at)!.slice(0, 10))}</span>
+                  </Link>
                 ))}
               </div>
-            </section>
-          );
-        })}
+            )}
+
+            {/* CONTRATOS A PLAZO FIJO. Dos grupos, y el importante es el primero:
+                quien ya venció y sigue figurando activo. Ese caso no se nota en
+                ninguna otra pantalla —la persona aparece normal en asistencia, en
+                planilla y en provisiones— y desde la 0162 tampoco en el tablero de
+                Documentación. Sin esta franja, la fecha anotada en Equipo solo sirve
+                si alguien se acuerda de ir a buscarla. */}
+            {(() => {
+              // Igual que Disciplina: si la RPC no contestó, la franja NO se
+              // calla — dice que no pudo mirar, en vez de parecer un mes tranquilo.
+              if (contratosNoRespondio) {
+                return (
+                  <section className="mb-8 rounded-2xl border border-ambar/30 bg-ambar/[0.06] p-5">
+                    <div className="etiqueta text-ambar">Contratos a plazo fijo · no se pudo consultar</div>
+                    <p className="mt-2 text-sm text-tinta">
+                      No se pudo revisar qué contratos vencen o ya vencieron. El plazo del{" "}
+                      <strong>artículo 77</strong> corre igual aunque esta franja no haya podido mirar.
+                      Vuelve a cargar, y si sigue igual revisa{" "}
+                      <Link href="/admin/equipo" className="underline">Equipo</Link>.
+                    </p>
+                  </section>
+                );
+              }
+              const vencidos = contratos.filter((c) => c.ya_vencio);
+              const porVencer = contratos.filter((c) => !c.ya_vencio);
+              if (!vencidos.length && !porVencer.length) return null;
+              const enCuantos = (dias: number) =>
+                dias <= 0 ? "vence hoy" : dias === 1 ? "vence mañana" : `vence en ${dias} días`;
+              // ¿Muchos caen el MISMO día? Veinte líneas seguidas con la misma fecha
+              // se leen como veinte avisos sueltos, y el problema no son veinte
+              // renovaciones repartidas: es que hay que hacerlas todas esa semana.
+              // Se dice de una vez, arriba, antes de la lista.
+              const porFecha = new Map<string, number>();
+              for (const c of porVencer) porFecha.set(c.fecha_fin_contrato, (porFecha.get(c.fecha_fin_contrato) ?? 0) + 1);
+              const [fechaRacimo, cuantos] = [...porFecha.entries()]
+                .sort((a, b) => b[1] - a[1])[0] ?? ["", 0];
+              const hayRacimo = cuantos >= 3;
+              return (
+                <div className="mb-8 rounded-2xl border border-sand bg-ambar/[0.05] p-5">
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="font-serif text-lg text-tinta">Contratos a plazo fijo</span>
+                    <Link href="/admin/equipo" className="text-xs font-medium text-rojo hover:underline">Ver equipo →</Link>
+                  </div>
+                  {hayRacimo && (
+                    <p className="mb-2 rounded-lg bg-rojo/10 px-3 py-2 text-sm text-rojo">
+                      <strong>{cuantos} contratos vencen el mismo día</strong> ({fechaBonita(fechaRacimo)}).
+                      No son {cuantos} trámites repartidos: son {cuantos} decisiones, {cuantos} redacciones
+                      y {cuantos} firmas en la misma semana. Al que se pase de fecha con la persona
+                      todavía trabajando, el <strong>art. 77</strong> lo vuelve indefinido solo.
+                    </p>
+                  )}
+                  {vencidos.map((c) => (
+                    <div key={c.persona_id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-sand/60 py-2 text-sm">
+                      <span>
+                        <strong>{c.nombre}</strong> <span className="text-taupe">· {c.sede}</span>
+                        <Insignia variante="alerta" className="ml-2">
+                          terminó el {fechaBonita(c.fecha_fin_contrato)} y sigue activa
+                        </Insignia>
+                      </span>
+                      <span className="text-xs font-medium text-rojo">renovar o registrar su salida →</span>
+                    </div>
+                  ))}
+                  {porVencer.map((c) => (
+                    <div key={c.persona_id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-sand/60 py-2 text-sm">
+                      <span>
+                        <strong>{c.nombre}</strong> <span className="text-taupe">· {c.sede}</span>
+                        <Insignia variante="advertencia" className="ml-2">
+                          {enCuantos(c.dias_restantes)} · {fechaBonita(c.fecha_fin_contrato)}
+                        </Insignia>
+                      </span>
+                    </div>
+                  ))}
+                  <p className="border-t border-sand/60 pt-2.5 text-xs text-taupe">
+                    {vencidos.length > 0
+                      ? "Mientras siga figurando activa sigue marcando, sigue cobrando y sigue acumulando gratificación, CTS y vacaciones. Anotar la fecha no da de baja a nadie: eso se decide y se registra a mano."
+                      : "La fecha es lo previsto, no un hecho. Un contrato puede renovarse: esto solo avisa antes de que llegue el día."}
+                  </p>
+                </div>
+              );
+            })()}
+
+            {/* !alertaSinEntrada && horarioEsperadoNoRespondio, a nivel global:
+                si turnos/horarios fallaron, ninguna sede puede calcular su alerta
+                de "sin marcajes" ni su denominador de programados hoy. */}
+            {horarioEsperadoNoRespondio && (
+              <div className="mb-6 flex items-center gap-2 rounded-2xl border border-ambar/30 bg-ambar/[0.06] px-5 py-3 text-sm text-ambar">
+                <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-ambar text-[10px] font-bold text-crema">!</span>
+                No se pudo comprobar a quién le tocaba entrar hoy — la alerta de sedes sin marcajes y el conteo de &quot;programadas hoy&quot; no están disponibles ahora mismo.
+              </div>
+            )}
+
+            {sedesMostradas.length === 0 && (
+              <p className="rounded-2xl border border-sand bg-papel p-6 text-center text-sm text-taupe">
+                No encontramos personas con estos filtros.
+              </p>
+            )}
+
+            {sedesMostradas.map(({ sedeId, codigo }) => {
+              const deSedeCompleta = filas.filter((f) => f.sedeId === sedeId);
+              const deSedeMostrada = deSedeCompleta.filter(filaCoincideFiltros);
+              const cob = coberturaPorSede.get(sedeId)!;
+              const chipClase = cob.problema
+                ? "border-rojo/30 bg-rojo/[0.06] text-rojo-profundo"
+                : cob.sinMetaOp && cob.sinMetaEnc
+                  ? "border-sand bg-sand text-taupe"
+                  : "border-verde/30 bg-verde/[0.06] text-verde";
+              const chipTexto = cob.problema ? "Cobertura insuficiente" : (cob.sinMetaOp && cob.sinMetaEnc) ? "Sin meta configurada" : "Cobertura correcta";
+
+              const tablaVisible = hayFiltrosDeContenido || (detalleAbierto[sedeId] ?? false);
+
+              return (
+                <section key={sedeId} className="mb-8 rounded-2xl border border-sand bg-papel p-5 sm:p-6">
+                  <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
+                    <h2 className="font-serif text-xl">
+                      {codigo}{" "}
+                      <span className="text-base font-normal text-taupe">
+                        — {cob.activos.length} trabajando de {cob.programadosHoy} programadas hoy
+                      </span>
+                    </h2>
+                    <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${chipClase}`}>{chipTexto}</span>
+                  </div>
+                  <p className="mb-4 text-xs text-taupe">
+                    {deSedeCompleta.length} en el equipo de la sede — no todas tenían turno hoy.
+                  </p>
+
+                  {/* La única alerta que se permite el rojo sagrado en esta pantalla,
+                      además de la que ya vive arriba en "Requiere atención": la
+                      repetimos acá, junto a la sede, para quien llegó directo a esta
+                      tarjeta sin pasar por el resumen. */}
+                  {cob.alertaSinEntrada && (
+                    <div className="mb-4 flex items-center gap-2 rounded-2xl border border-rojo bg-rojo/[0.06] px-5 py-3 text-sm font-semibold text-rojo">
+                      <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-rojo text-[10px] font-bold text-crema">!</span>
+                      Sin marcajes desde las {horaAmPmDe(cob.alertaSinEntrada)} — nadie de esta sede ha marcado entrada todavía.
+                    </div>
+                  )}
+
+                  {/* Cobertura protagonista: es la pregunta que decide si hay que
+                      actuar, así que va primero y grande — no al pie como texto. */}
+                  <div className="mb-4 grid grid-cols-2 gap-3 sm:max-w-md">
+                    <TileCobertura label="Operativas en piso" n={cob.opPiso} meta={cob.metaOp} sinMeta={cob.sinMetaOp} tramo={tramoLabel} />
+                    <TileCobertura label="Encargadas" n={cob.encPiso} meta={cob.metaEnc} sinMeta={cob.sinMetaEnc} />
+                  </div>
+
+                  <div className="mb-4">
+                    <div className="text-xs text-taupe">Trabajando ahora · {cob.activos.length}</div>
+                    <div className="mt-1.5 flex flex-wrap gap-2">
+                      {cob.activos.length === 0 ? (
+                        <span className="text-sm text-taupe">Nadie está trabajando actualmente.</span>
+                      ) : (
+                        cob.activos.map((f) => (
+                          <span key={f.personaId} className="rounded-full border border-sand bg-papel px-3 py-1 text-sm transition-colors hover:border-taupe">
+                            {f.nombre}
+                            {f.estado === "en_pausa" && <span className="ml-1 text-ambar">· en pausa</span>}
+                          </span>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  {tablaVisible ? (
+                    <>
+                      {deSedeMostrada.length === 0 ? (
+                        <p className="text-sm text-taupe">No encontramos personas con estos filtros en esta sede.</p>
+                      ) : (
+                        <>
+                          {/* Escritorio: tabla completa. En celular una tabla de 5 columnas no
+                              cabe sin scroll horizontal incómodo, así que de sm hacia abajo se
+                              arma la versión en tarjetas de más abajo — mismos datos. */}
+                          <div className="hidden sm:block">
+                            <Tabla>
+                              <TablaEncabezado>
+                                <Th>Nombre</Th>
+                                <Th>Estado</Th>
+                                <Th>Entrada</Th>
+                                <Th>Tardanza</Th>
+                                <Th>Salida final</Th>
+                              </TablaEncabezado>
+                              <tbody>
+                                {deSedeMostrada.map((f) => (
+                                  <Fila key={f.personaId}>
+                                    <td className="px-4 py-2.5">{f.nombre}</td>
+                                    <td className="px-4 py-2.5">
+                                      <EstadoCelda f={f} linkCorregir={linkCorregir} ahoraDecimal={ahoraDecimal} />
+                                    </td>
+                                    <td className="px-4 py-2.5">{horaLima(f.entrada)}</td>
+                                    <td className="px-4 py-2.5">
+                                      {f.minutosTarde === null || f.minutosTarde === 0 ? (
+                                        <span className="text-taupe/40">—</span>
+                                      ) : (
+                                        <Link href={linkCorregir(f.personaId)} className="font-semibold text-rojo underline decoration-rojo/30 underline-offset-2 transition-colors hover:decoration-rojo">
+                                          {f.minutosTarde} min tarde
+                                        </Link>
+                                      )}
+                                    </td>
+                                    <td className="px-4 py-2.5">
+                                      {horaLima(f.salidaFinal)}
+                                      {f.salidaTemprana ? (
+                                        <Link href={linkCorregir(f.personaId)} className="ml-2 transition-opacity hover:opacity-80">
+                                          <Insignia variante="advertencia" tamano="sm">anticip. {formatoMinutos(f.salidaTemprana)}</Insignia>
+                                        </Link>
+                                      ) : null}
+                                    </td>
+                                  </Fila>
+                                ))}
+                              </tbody>
+                            </Tabla>
+                          </div>
+
+                          {/* Celular: la misma información en tarjetas apiladas, una por persona. */}
+                          <div className="flex flex-col gap-2 sm:hidden">
+                            {deSedeMostrada.map((f) => (
+                              <div key={f.personaId} className="rounded-superficie border border-sand bg-hueso p-4">
+                                <div className="mb-2 flex items-center justify-between gap-2">
+                                  <span className="font-medium">{f.nombre}</span>
+                                  <span className="shrink-0">
+                                    <EstadoCelda f={f} linkCorregir={linkCorregir} ahoraDecimal={ahoraDecimal} />
+                                  </span>
+                                </div>
+                                <div className="grid grid-cols-3 gap-x-2 gap-y-1 border-t border-sand pt-2 text-xs">
+                                  <span className="text-taupe">Entrada</span>
+                                  <span className="text-taupe">Tardanza</span>
+                                  <span className="text-taupe">Salida final</span>
+                                  <span>{horaLima(f.entrada)}</span>
+                                  <span>
+                                    {f.minutosTarde === null || f.minutosTarde === 0 ? (
+                                      <span className="text-taupe/40">—</span>
+                                    ) : (
+                                      <Link href={linkCorregir(f.personaId)} className="font-semibold text-rojo underline decoration-rojo/30 underline-offset-2">
+                                        {f.minutosTarde} min
+                                      </Link>
+                                    )}
+                                  </span>
+                                  <span>
+                                    {horaLima(f.salidaFinal)}
+                                    {f.salidaTemprana ? (
+                                      <Link href={linkCorregir(f.personaId)} className="ml-1 inline-block">
+                                        <Insignia variante="advertencia" tamano="sm">+{formatoMinutos(f.salidaTemprana)}</Insignia>
+                                      </Link>
+                                    ) : null}
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </>
+                      )}
+                      {!hayFiltrosDeContenido && (
+                        <Boton variante="enlace" tamano="sm" className="mt-3" onClick={() => setDetalleAbierto((s) => ({ ...s, [sedeId]: false }))}>
+                          Ocultar detalle ↑
+                        </Boton>
+                      )}
+                    </>
+                  ) : (
+                    <Boton variante="enlace" tamano="sm" onClick={() => setDetalleAbierto((s) => ({ ...s, [sedeId]: true }))}>
+                      Ver detalle ↓ ({deSedeCompleta.length} persona{deSedeCompleta.length === 1 ? "" : "s"})
+                    </Boton>
+                  )}
+                </section>
+              );
+            })}
           </>
         )}
       </main>
