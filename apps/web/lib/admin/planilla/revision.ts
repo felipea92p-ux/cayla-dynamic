@@ -31,6 +31,24 @@ export function grupoDe(f: Pick<Fila, "tipo_vinculo">): TipoVinculo {
   return TIPOS_VINCULO.includes(f.tipo_vinculo as TipoVinculo) ? (f.tipo_vinculo as TipoVinculo) : "planilla";
 }
 
+/**
+ * La llave de UNA fila, no de una persona. Alguien que cambió de grupo a mitad
+ * del periodo (cesó de RxH y quedó en planilla, o al revés) aparece con DOS
+ * filas en el mismo periodo — misma persona, distinto tipo_vinculo, distintos
+ * total/descuentos. Un mapa indexado solo por persona_id no puede guardar las
+ * dos: la segunda pisa a la primera, y da igual desde cuál de las dos filas
+ * se pregunte, siempre se recibe la que quedó guardada al final.
+ *
+ * Caso real (jul-2026, RxH): así fue como un "Ya le pagué aparte" registrado
+ * correctamente en la fila de RxH de una persona no destrababa su pago — el
+ * diálogo de cierre seguía leyendo el hallazgo de su OTRA fila (Planilla), que
+ * nunca se tocó. Toda estructura que junte hallazgos por persona tiene que
+ * usar esta llave, no `persona_id` a secas.
+ */
+export function claveFila(f: Pick<Fila, "persona_id" | "tipo_vinculo">): string {
+  return `${f.persona_id}:${grupoDe(f)}`;
+}
+
 /** Siempre las cinco claves, aunque un grupo no tenga a nadie. */
 export function agruparPorGrupo(filas: Fila[]): Map<TipoVinculo, Fila[]> {
   const m = new Map<TipoVinculo, Fila[]>(TIPOS_VINCULO.map((g) => [g, [] as Fila[]]));
@@ -321,7 +339,9 @@ export const ORDEN_SEVERIDAD: Record<Severidad, number> = { bloquea: 0, revisar:
 export interface HallazgoAgrupado {
   codigo: CodigoHallazgo;
   severidad: Severidad;
-  personas: { persona_id: string; nombre: string; texto: string }[];
+  // `grupo` es de ESTA fila, no "el grupo de esta persona" — alguien con dos
+  // filas en el periodo puede aparecer aquí dos veces, una por cada una.
+  personas: { persona_id: string; nombre: string; texto: string; grupo: TipoVinculo }[];
   resolverEn?: { etiqueta: string; href: string };
 }
 
@@ -330,7 +350,7 @@ export function agruparHallazgos(porPersona: { fila: Fila; hallazgos: Hallazgo[]
   for (const { fila, hallazgos } of porPersona) {
     for (const x of hallazgos) {
       const g = m.get(x.codigo) ?? { codigo: x.codigo, severidad: x.severidad, personas: [], resolverEn: x.resolverEn };
-      g.personas.push({ persona_id: fila.persona_id, nombre: fila.nombre, texto: x.texto });
+      g.personas.push({ persona_id: fila.persona_id, nombre: fila.nombre, texto: x.texto, grupo: grupoDe(fila) });
       m.set(x.codigo, g);
     }
   }

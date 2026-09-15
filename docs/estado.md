@@ -79,6 +79,40 @@ el mismo commit.
 
 ---
 
+## 2026-09-15 — Quien ingresa después ya no se cuela en un periodo anterior (0463) · SIN PEGAR · SIN FUSIONAR
+
+Felipe reportó, mirando `/admin/planilla`: cinco practicantes que ingresaron
+en septiembre aparecían con fila propia en los periodos de julio y agosto —
+«Sin salario», 0 horas — como si ya hubieran estado en la empresa esos
+meses. `fn_planilla_calcular_nucleo` metía a cualquier persona `activo` en
+CUALQUIER periodo que se recalculara, sin comprobar `fecha_ingreso` contra
+el fin de ese periodo — la 0416 le puso ese freno al CESE (`fecha_cese
+between p_ini and p_fin`); nunca hubo uno simétrico para el INGRESO.
+
+Pasa solo cuando el grupo de esa persona nunca se congeló en ese periodo:
+`fn_proyeccion_periodo` reemplaza por la foto congelada a quien sí tiene
+grupo pagado, pero para «practicante» en julio/agosto no hay foto —la
+categoría no existía todavía (0322, 2026-08-07)— así que sigue pidiendo el
+cálculo en vivo. No movía plata (salario y horas ya salían en 0), pero
+ensuciaba la cuenta de personas de un periodo que se daba por cerrado.
+
+Migración [0463](../supabase/migrations/0463_quien_ingresa_despues_no_se_cuela_en_un_periodo_anterior.sql):
+un AND más sobre la rama `p.estado = 'activo'` del CTE `pers`
+(`p.fecha_ingreso <= p_fin`). Auditada contra Postgres local —arrancó vacío
+en esta Mac (0 tablas), así que `supabase migration up --local` la puso al
+día sin destruir estado de nadie— reproduciendo el caso exacto: una
+practicante con `fecha_ingreso` en septiembre no trae fila en julio, sigue
+trayéndola con normalidad en septiembre, y un control (persona activa desde
+2020) no se mueve un milímetro. Prueba pgTAP 367 (4/4); suite completa 279
+archivos / 2818 aserciones en verde.
+
+**Antes de pegar:** volver a pedir en el SQL Editor el md5 de
+`fn_planilla_calcular_nucleo` (`donde-vive.sh`) contra la 0418 vigente —
+esta migración se auditó contra el repositorio local, nunca contra
+producción, porque la clave de servicio está rotada a propósito.
+
+---
+
 ## 2026-09-15 — Educación: la 0450 ya está pegada; nace la 0461 (colaborador pide su apoyo) · SIN PEGAR · PR #390
 
 **La 0450 quedó PEGADA Y VERIFICADA este mismo día** (esta entrada reemplaza el
