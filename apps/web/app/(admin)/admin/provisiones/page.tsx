@@ -74,7 +74,7 @@ export default function ProvisionesPage() {
   const cargando = !data && !error;
   // undefined = leyendo · null = no se pudo leer · arreglo = leído
   const [libro, setLibro] = useState<DesembolsoLibro[] | null | undefined>(undefined);
-  // CAMBIO 0466 — lo que devenga una practicante vive en otra función; misma
+  // CAMBIO 0467 — lo que devenga una practicante vive en otra función; misma
   // convención de tres estados que el libro.
   const [subvenciones, setSubvenciones] = useState<Subvenciones>(undefined);
   const [filtros, setFiltros] = useState<FiltrosProvisiones>(FILTROS_VACIOS);
@@ -125,13 +125,13 @@ export default function ProvisionesPage() {
       .eq("anio", Number(d.as_of.slice(0, 4)));
     setLibro(errorLibro ? null : (filas ?? []).map((f) => ({ ...f, monto: Number(f.monto) })));
 
-    // CAMBIO 0466 · LO QUE DEVENGA UNA PRACTICANTE, DE SU PROPIA FUNCIÓN.
+    // CAMBIO 0467 · LO QUE DEVENGA UNA PRACTICANTE, DE SU PROPIA FUNCIÓN.
     // Media subvención por cada 6 meses y el descanso de 15 días al cumplir el
     // año (Ley 28518, art. 42). No está en fn_provisiones a propósito: esa
     // función alimenta el pago real de grati y CTS, y estos conceptos no son
     // ninguno de los dos. Si esta lectura falla, la pantalla se sigue viendo y
     // el panel de la persona lo dice, igual que con el libro.
-    // `as never` en el nombre: la función nace con la 0466 y los tipos
+    // `as never` en el nombre: la función nace con la 0467 y los tipos
     // generados de Supabase no la conocen hasta que la migración esté pegada y
     // se regeneren. Mismo recurso que usa `lib/terminal/reloj-servidor.ts` con
     // `fn_ahora_servidor`; se puede quitar cuando `types.ts` la incluya.
@@ -151,7 +151,7 @@ export default function ProvisionesPage() {
     [data],
   );
   const filtradas = useMemo(() => (data ? filtrar(data.personas, data, filtros) : []), [data, filtros]);
-  // CAMBIO 0466 — las practicantes están en la tabla como cualquiera, así que
+  // CAMBIO 0467 — las practicantes están en la tabla como cualquiera, así que
   // `filtradas` va entera. `conDerecho` sigue existiendo para el resumen y el
   // calendario: ésos son de gratificación, CTS y vacaciones, y meter ahí a
   // quien no devenga ninguno de los tres inflaría el conteo con ceros.

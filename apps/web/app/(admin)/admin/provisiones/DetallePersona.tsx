@@ -61,7 +61,7 @@ export function DetallePersona({
   data: ProvData;
   persona: ProvPersona;
   libro: Libro;
-  /** Lo que devenga una practicante (0466). Viene de otra función. */
+  /** Lo que devenga una practicante (0467). Viene de otra función. */
   subvenciones: Subvenciones;
 }) {
   const anio = Number(data.as_of.slice(0, 4));
@@ -362,10 +362,10 @@ function Pagos({
   anio: number;
   libro: Libro;
   /** Lo cobrado, cuando no viaja en el jsonb de fn_provisiones: las dos
-   *  ventanas de modalidad formativa lo traen de su propia función (0466). */
+   *  ventanas de modalidad formativa lo traen de su propia función (0467). */
   monto?: number;
 }) {
-  // Las dos ventanas de modalidad formativa (0466) no viven en el jsonb de
+  // Las dos ventanas de modalidad formativa (0467) no viven en el jsonb de
   // fn_provisiones: su cobrado llega en `monto`, desde la otra función.
   const esDeModalidadFormativa = ventana === "subvencion_semestral" || ventana === "descanso_practicante";
   const total =
