@@ -1,0 +1,804 @@
+<title>Feriados laborados</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap">
+<style>
+  :root{
+    --color-crema:#f5f0e8; --color-papel:#fbf8f2; --color-tinta:#1a1a18;
+    --color-rojo:#b8412d; --color-rojo-profundo:#8b2a1f; --color-sand:#e8e0d0;
+    --color-taupe:#805c4c; --color-hueso:#eae1d2; --color-pizarra:#4c5d6e;
+    --color-verde:#48603f; --color-ambar:#74501a;
+    --font-sans:'DM Sans', ui-sans-serif, system-ui, sans-serif;
+    --font-serif:'EB Garamond', ui-serif, Georgia, "Times New Roman", serif;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --color-crema:#1c1a16; --color-papel:#26221d; --color-tinta:#ede7db;
+      --color-rojo:#d4634a; --color-rojo-profundo:#e8836b; --color-sand:#332e27;
+      --color-taupe:#ab9080; --color-hueso:#15110d; --color-pizarra:#9db0c2;
+      --color-verde:#8fae80; --color-ambar:#c99a4a;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"]{
+    --color-crema:#1c1a16; --color-papel:#26221d; --color-tinta:#ede7db;
+    --color-rojo:#d4634a; --color-rojo-profundo:#e8836b; --color-sand:#332e27;
+    --color-taupe:#ab9080; --color-hueso:#15110d; --color-pizarra:#9db0c2;
+    --color-verde:#8fae80; --color-ambar:#c99a4a;
+    color-scheme: dark;
+  }
+  *{ box-sizing:border-box; }
+  body{
+    background:var(--color-crema); color:var(--color-tinta);
+    font-family:var(--font-sans); font-size:14.5px; line-height:1.5;
+    padding-inline:20px; padding-block:32px 64px;
+  }
+  .page{ max-width:1120px; margin-inline:auto; display:flex; flex-direction:column; gap:22px; }
+  h1,h2,h3{ font-family:var(--font-serif); font-weight:600; text-wrap:balance; margin:0; }
+  a{ color:inherit; }
+  button{ font-family:inherit; }
+
+  /* ── masthead ─────────────────────────────────────────────── */
+  .masthead{ display:flex; flex-wrap:wrap; align-items:flex-start; justify-content:space-between; gap:16px; }
+  .masthead .titulo-wrap{ max-width:640px; }
+  .masthead h1{ font-size:1.9rem; margin-bottom:6px; }
+  .masthead p{ color:var(--color-taupe); font-size:0.92rem; max-width:58ch; }
+  .badge-demo{
+    display:inline-flex; align-items:center; gap:6px; font-size:0.72rem; font-weight:600;
+    letter-spacing:.04em; text-transform:uppercase; color:var(--color-pizarra);
+    background:color-mix(in oklab, var(--color-pizarra) 14%, var(--color-papel));
+    border:1px solid color-mix(in oklab, var(--color-pizarra) 35%, transparent);
+    padding:5px 10px; border-radius:100px; white-space:nowrap;
+  }
+  .badge-demo::before{ content:"●"; font-size:.55rem; }
+
+  /* ── resumen cards ────────────────────────────────────────── */
+  .resumen{ display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
+  @media (max-width:820px){ .resumen{ grid-template-columns:repeat(2,1fr); } }
+  .card-resumen{
+    background:var(--color-papel); border:1px solid var(--color-sand); border-radius:14px;
+    padding:16px 16px 14px; text-align:left; cursor:pointer; transition:transform .15s ease, border-color .15s ease;
+    display:flex; flex-direction:column; gap:6px;
+  }
+  .card-resumen:hover{ transform:translateY(-2px); border-color:var(--color-taupe); }
+  .card-resumen:focus-visible{ outline:2px solid var(--color-rojo); outline-offset:2px; }
+  .card-resumen .num{ font-family:var(--font-serif); font-size:1.9rem; font-variant-numeric:tabular-nums; line-height:1; }
+  .card-resumen .lbl{ font-size:.82rem; color:var(--color-tinta); font-weight:600; }
+  .card-resumen .hint{ font-size:.74rem; color:var(--color-taupe); }
+  .card-resumen.acc-rojo .num{ color:var(--color-rojo); }
+  .card-resumen.acc-ambar .num{ color:var(--color-ambar); }
+  .card-resumen.acc-pizarra .num{ color:var(--color-pizarra); }
+  .card-resumen.acc-verde .num{ color:var(--color-verde); }
+
+  /* ── tabs ─────────────────────────────────────────────────── */
+  .tabs{ display:flex; gap:4px; border-bottom:1px solid var(--color-sand); overflow-x:auto; }
+  .tab-btn{
+    background:none; border:none; padding:10px 16px; font-size:.88rem; font-weight:600;
+    color:var(--color-taupe); cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px;
+    white-space:nowrap; display:flex; align-items:center; gap:7px;
+  }
+  .tab-btn[aria-selected="true"]{ color:var(--color-tinta); border-bottom-color:var(--color-rojo); }
+  .tab-btn .cnt{
+    font-size:.68rem; font-weight:700; background:var(--color-sand); color:var(--color-taupe);
+    border-radius:100px; padding:1px 6px; font-variant-numeric:tabular-nums;
+  }
+  .tab-btn[aria-selected="true"] .cnt{ background:var(--color-rojo); color:var(--color-papel); }
+
+  .tabpanel{ display:flex; flex-direction:column; gap:18px; }
+  .tabpanel[hidden]{ display:none; }
+
+  /* ── generic panel/section ───────────────────────────────── */
+  .panel{ background:var(--color-papel); border:1px solid var(--color-sand); border-radius:14px; padding:18px 18px 20px; }
+  .panel-head{ display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; gap:10px; margin-bottom:4px; }
+  .panel-head h2{ font-size:1.08rem; }
+  .panel-sub{ font-size:.8rem; color:var(--color-taupe); margin-bottom:14px; max-width:70ch; }
+  .panel + .panel{ margin-top:0; }
+
+  /* step markers inside Registrar */
+  .paso{ display:flex; align-items:center; gap:8px; margin-bottom:10px; }
+  .paso .n{
+    width:20px; height:20px; border-radius:50%; background:var(--color-sand); color:var(--color-taupe);
+    font-size:.72rem; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0;
+  }
+  .paso .t{ font-size:.86rem; font-weight:600; }
+
+  /* buttons */
+  .btn{
+    font-size:.82rem; font-weight:600; border-radius:9px; padding:8px 14px; border:1px solid transparent;
+    cursor:pointer; display:inline-flex; align-items:center; gap:6px; white-space:nowrap;
+  }
+  .btn:focus-visible{ outline:2px solid var(--color-rojo); outline-offset:2px; }
+  .btn-primario{ background:var(--color-rojo); color:var(--color-papel); }
+  .btn-primario:hover{ background:var(--color-rojo-profundo); }
+  .btn-primario:disabled{ background:var(--color-sand); color:var(--color-taupe); cursor:not-allowed; }
+  .btn-sutil{ background:var(--color-hueso); color:var(--color-tinta); border-color:var(--color-sand); }
+  .btn-sutil:hover{ border-color:var(--color-taupe); }
+  .btn-peligro{ background:transparent; color:var(--color-rojo); border-color:color-mix(in oklab, var(--color-rojo) 45%, transparent); }
+  .btn-peligro:hover{ background:color-mix(in oklab, var(--color-rojo) 10%, transparent); }
+  .btn-texto{ background:none; color:var(--color-pizarra); padding:4px 2px; text-decoration:underline; text-underline-offset:2px; }
+  .btn-sm{ padding:5px 10px; font-size:.75rem; border-radius:7px; }
+
+  /* form controls */
+  input[type=text], input[type=date], input[type=search], select, textarea{
+    font-family:inherit; font-size:.85rem; background:var(--color-crema); color:var(--color-tinta);
+    border:1px solid var(--color-sand); border-radius:8px; padding:7px 10px;
+  }
+  input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible{ outline:2px solid var(--color-rojo); outline-offset:1px; }
+  label.campo{ display:flex; flex-direction:column; gap:4px; font-size:.78rem; color:var(--color-taupe); font-weight:600; }
+
+  /* checklist de personas */
+  .personas-toolbar{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:8px; }
+  .personas-toolbar input[type=search]{ min-width:200px; flex:1; }
+  .checklist{
+    display:grid; grid-template-columns:repeat(3,1fr); gap:2px; max-height:220px; overflow-y:auto;
+    background:var(--color-crema); border:1px solid var(--color-sand); border-radius:10px; padding:8px;
+  }
+  @media (max-width:760px){ .checklist{ grid-template-columns:repeat(2,1fr); } }
+  @media (max-width:480px){ .checklist{ grid-template-columns:1fr; } }
+  .checklist label{
+    display:flex; align-items:center; gap:8px; padding:5px 8px; border-radius:7px; font-size:.84rem; cursor:pointer;
+  }
+  .checklist label:hover{ background:color-mix(in oklab, var(--color-sand) 60%, transparent); }
+  .checklist input{ accent-color:var(--color-rojo); width:15px; height:15px; }
+  .chip-count{ font-size:.75rem; color:var(--color-taupe); }
+
+  /* pairs (parejas) */
+  .pareja-row{ display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:6px 0; }
+  .flecha{ color:var(--color-taupe); }
+
+  /* pills / badges */
+  .pill{
+    display:inline-flex; align-items:center; gap:5px; font-size:.72rem; font-weight:700;
+    padding:3px 9px; border-radius:100px; white-space:nowrap; line-height:1.4;
+  }
+  .pill::before{ content:""; width:6px; height:6px; border-radius:50%; background:currentColor; }
+  .pill-verde{ color:var(--color-verde); background:color-mix(in oklab, var(--color-verde) 16%, var(--color-papel)); }
+  .pill-rojo{ color:var(--color-rojo); background:color-mix(in oklab, var(--color-rojo) 14%, var(--color-papel)); }
+  .pill-ambar{ color:var(--color-ambar); background:color-mix(in oklab, var(--color-ambar) 16%, var(--color-papel)); }
+  .pill-pizarra{ color:var(--color-pizarra); background:color-mix(in oklab, var(--color-pizarra) 16%, var(--color-papel)); }
+  .pill-taupe{ color:var(--color-taupe); background:color-mix(in oklab, var(--color-taupe) 14%, var(--color-papel)); }
+
+  /* tables */
+  .tabla-wrap{ overflow-x:auto; border:1px solid var(--color-sand); border-radius:12px; }
+  table{ width:100%; border-collapse:collapse; font-size:.83rem; min-width:640px; }
+  thead th{
+    text-align:left; background:var(--color-sand); color:var(--color-taupe); font-weight:700;
+    font-size:.7rem; letter-spacing:.03em; text-transform:uppercase; padding:9px 12px; white-space:nowrap;
+  }
+  tbody td{ padding:10px 12px; border-top:1px solid var(--color-sand); vertical-align:top; }
+  tbody tr:hover{ background:color-mix(in oklab, var(--color-sand) 35%, transparent); }
+  .num-col{ text-align:right; font-variant-numeric:tabular-nums; }
+  .fila-sec{ color:var(--color-taupe); font-size:.76rem; }
+  .fila-nombre{ font-weight:600; }
+
+  /* cards de historial en mobile */
+  .historial-cards{ display:none; flex-direction:column; gap:10px; }
+  @media (max-width:700px){
+    .tabla-wrap.responsive{ display:none; }
+    .historial-cards{ display:flex; }
+  }
+  .hcard{ background:var(--color-crema); border:1px solid var(--color-sand); border-radius:12px; padding:12px 14px; display:flex; flex-direction:column; gap:6px; }
+  .hcard .top{ display:flex; justify-content:space-between; gap:8px; align-items:flex-start; }
+  .hcard .meta{ font-size:.76rem; color:var(--color-taupe); }
+
+  /* filtros historial */
+  .filtros{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
+
+  /* mensajes inline (validación en vivo) */
+  .aviso-inline{
+    display:flex; gap:8px; align-items:flex-start; font-size:.78rem; border-radius:9px; padding:8px 10px;
+    border:1px solid color-mix(in oklab, var(--color-rojo) 35%, transparent);
+    background:color-mix(in oklab, var(--color-rojo) 7%, transparent); color:var(--color-rojo);
+  }
+  .aviso-ok{
+    border-color:color-mix(in oklab, var(--color-verde) 40%, transparent);
+    background:color-mix(in oklab, var(--color-verde) 8%, transparent); color:var(--color-verde);
+  }
+
+  /* resumen del paso 4 */
+  .resumen-confirm{ background:var(--color-crema); border:1px solid var(--color-sand); border-radius:10px; padding:12px 14px; display:flex; flex-direction:column; gap:6px; font-size:.84rem; }
+  .resumen-confirm .fila{ display:flex; justify-content:space-between; gap:10px; }
+  .resumen-confirm .fila.total{ font-weight:700; border-top:1px dashed var(--color-sand); padding-top:6px; }
+
+  /* acordeón acta */
+  .acta-item{ border:1px solid var(--color-sand); border-radius:12px; background:var(--color-crema); }
+  .acta-head{ display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:8px; padding:11px 14px; cursor:pointer; }
+  .acta-head .info{ display:flex; flex-direction:column; gap:2px; }
+  .acta-head .ref{ font-weight:700; }
+  .acta-head .meta{ font-size:.75rem; color:var(--color-taupe); }
+  .acta-body{ padding:0 14px 14px; border-top:1px solid var(--color-sand); }
+  .acta-body[hidden]{ display:none; }
+  .chips-cubre{ display:flex; flex-wrap:wrap; gap:6px; margin:10px 0; }
+  .chip-cubre{ font-size:.74rem; background:var(--color-papel); border:1px solid var(--color-sand); border-radius:100px; padding:4px 10px; }
+  .acta-acciones{ display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+  .caret{ transition:transform .15s ease; color:var(--color-taupe); }
+  .acta-item.abierta .caret{ transform:rotate(90deg); }
+
+  /* preview de bandeja */
+  .bandeja-preview{ border:1px dashed var(--color-taupe); border-radius:12px; padding:14px; background:color-mix(in oklab, var(--color-pizarra) 6%, var(--color-crema)); }
+  .bandeja-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 0; border-top:1px solid var(--color-sand); }
+  .bandeja-row:first-of-type{ border-top:none; }
+  .bandeja-row .txt{ display:flex; flex-direction:column; gap:2px; }
+  .bandeja-row .txt b{ font-size:.85rem; }
+  .bandeja-row .txt span{ font-size:.75rem; color:var(--color-taupe); }
+
+  /* modal */
+  .modal-scrim{ position:fixed; inset:0; background:color-mix(in oklab, black 55%, transparent); display:flex; align-items:center; justify-content:center; padding:20px; z-index:50; }
+  .modal-scrim[hidden]{ display:none; }
+  .modal-box{ background:var(--color-papel); border:1px solid var(--color-sand); border-radius:16px; max-width:480px; width:100%; padding:22px; display:flex; flex-direction:column; gap:14px; }
+  .modal-box h3{ font-size:1.1rem; }
+  .opcion-quitar{ border:1px solid var(--color-sand); border-radius:12px; padding:12px 14px; display:flex; flex-direction:column; gap:6px; cursor:pointer; text-align:left; background:var(--color-crema); }
+  .opcion-quitar:hover{ border-color:var(--color-taupe); }
+  .opcion-quitar b{ font-size:.87rem; }
+  .opcion-quitar span{ font-size:.78rem; color:var(--color-taupe); }
+  .opcion-quitar.peligro b{ color:var(--color-rojo); }
+  #motivo-elim[hidden]{ display:none; }
+
+  /* toast */
+  .toast{
+    position:fixed; bottom:22px; left:50%; transform:translateX(-50%); background:var(--color-tinta); color:var(--color-crema);
+    padding:10px 18px; border-radius:100px; font-size:.83rem; z-index:60; box-shadow:0 8px 24px color-mix(in oklab, black 30%, transparent);
+  }
+  .toast[hidden]{ display:none; }
+
+  .nota-decision{ font-size:.76rem; color:var(--color-taupe); border-left:2px solid var(--color-sand); padding-left:10px; margin-top:12px; }
+  .visually-hidden{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); }
+  ::selection{ background:color-mix(in oklab, var(--color-rojo) 30%, transparent); }
+</style>
+
+<div class="page">
+
+  <!-- ── MASTHEAD ─────────────────────────────────────────────────────── -->
+  <header class="masthead">
+    <div class="titulo-wrap">
+      <h1>Feriados laborados</h1>
+      <p>Quien trabaja un feriado cobra <strong>triple</strong>, salvo que se le dé un <strong>día libre a cambio</strong>. Registrar el descanso quita la sobretasa de la planilla del periodo y evita que ese día salga como falta injustificada.</p>
+    </div>
+    <span class="badge-demo">Prototipo · datos de ejemplo</span>
+  </header>
+
+  <!-- ── RESUMEN ──────────────────────────────────────────────────────── -->
+  <section class="resumen" aria-label="Resumen del periodo">
+    <button class="card-resumen acc-rojo" data-goto="registrar">
+      <span class="num">4</span>
+      <span class="lbl">Trabajaron feriado sin compensación</span>
+      <span class="hint">S/ 418 en sobretasa · este periodo</span>
+    </button>
+    <button class="card-resumen acc-pizarra" data-goto="pendientes">
+      <span class="num">3</span>
+      <span class="lbl">Descansos pendientes</span>
+      <span class="hint">acordados, sin confirmar</span>
+    </button>
+    <button class="card-resumen acc-ambar" data-goto="pendientes">
+      <span class="num">2</span>
+      <span class="lbl">Sin acta</span>
+      <span class="hint">no pueden pasar a Otorgado</span>
+    </button>
+    <button class="card-resumen acc-verde" data-goto="historial">
+      <span class="num">6</span>
+      <span class="lbl">Firmados este mes</span>
+      <span class="hint">otorgados con acta</span>
+    </button>
+  </section>
+
+  <!-- ── TABS ─────────────────────────────────────────────────────────── -->
+  <nav class="tabs" role="tablist" aria-label="Secciones de Feriados laborados">
+    <button class="tab-btn" role="tab" data-tab="registrar" aria-selected="true">Registrar <span class="cnt">4</span></button>
+    <button class="tab-btn" role="tab" data-tab="pendientes" aria-selected="false">Pendientes <span class="cnt">3</span></button>
+    <button class="tab-btn" role="tab" data-tab="actas" aria-selected="false">Actas</button>
+    <button class="tab-btn" role="tab" data-tab="historial" aria-selected="false">Historial</button>
+  </nav>
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       TAB 1 — REGISTRAR
+  ══════════════════════════════════════════════════════════════════ -->
+  <section class="tabpanel" id="panel-registrar" role="tabpanel">
+
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Quién trabajó este feriado</h2>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <input type="date" value="2026-09-01" aria-label="Desde"><span class="flecha">→</span><input type="date" value="2026-09-30" aria-label="Hasta">
+        </div>
+      </div>
+      <p class="panel-sub">Calculado desde los marcajes reales de cada persona — no es una lista que se llene a mano. Elegir «Registrar» en una fila abre el formulario de abajo con esa persona y ese feriado ya puestos.</p>
+
+      <div class="tabla-wrap">
+        <table>
+          <thead><tr>
+            <th>Persona</th><th>Feriado</th><th class="num-col">Horas</th><th class="num-col">Sobretasa</th><th>Compensación</th><th></th>
+          </tr></thead>
+          <tbody id="lista-quien-trabajo"><!-- JS --></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel" id="form-registrar">
+      <div class="panel-head">
+        <h2>Registrar días libres a cambio</h2>
+      </div>
+      <p class="panel-sub">Sirve para dos casos: confirmar la fila de arriba, o cerrar un acuerdo <em>antes</em> del feriado (cuando todavía no hay horas marcadas que detectar).</p>
+
+      <!-- Paso 1 -->
+      <div class="paso"><span class="n">1</span><span class="t">Personas</span></div>
+      <div class="personas-toolbar">
+        <input type="search" id="buscar-persona" placeholder="Buscar por nombre…" aria-label="Buscar persona">
+        <select id="filtro-sede" aria-label="Filtrar por sede">
+          <option value="">Todas las sedes</option>
+          <option>CCO</option><option>LIM</option><option>AQP</option><option>TRU</option>
+        </select>
+        <button class="btn btn-sutil btn-sm" id="btn-todas">Marcar todas las visibles</button>
+        <span class="chip-count" id="contador-elegidas">0 elegidas</span>
+      </div>
+      <div class="checklist" id="checklist-personas"><!-- JS --></div>
+
+      <!-- Paso 2 -->
+      <div class="paso" style="margin-top:18px;"><span class="n">2</span><span class="t">Compensación</span></div>
+      <div id="lista-parejas"><!-- JS --></div>
+      <button class="btn btn-sutil btn-sm" id="btn-agregar-pareja" style="margin-top:4px;">+ Agregar otro día</button>
+      <div id="aviso-validacion" style="margin-top:10px;"></div>
+
+      <!-- Paso 3 -->
+      <div class="paso" style="margin-top:18px;"><span class="n">3</span><span class="t">Sustento</span></div>
+      <div style="display:flex; flex-wrap:wrap; gap:14px; align-items:flex-end;">
+        <label class="campo">Estado inicial
+          <select id="select-estado">
+            <option value="PENDIENTE" selected>Pendiente — acordado, sin confirmar</option>
+            <option value="OTORGADO">Otorgado — ya ocurrió, con acta</option>
+            <option value="NO_OTORGADO">No otorgado — no se dio</option>
+          </select>
+        </label>
+        <label class="campo" style="min-width:240px; flex:1;">Acta que respalda el acuerdo
+          <select id="select-acta">
+            <option value="">Elegir un acta existente…</option>
+            <option>Acta 2026-08-28 Taller LIM</option>
+            <option>Acta 2026-09-10 Tienda AQP</option>
+            <option value="__nueva__">+ Crear una referencia nueva</option>
+          </select>
+        </label>
+        <label class="campo">Observaciones
+          <input type="text" placeholder="Opcional" style="min-width:180px;">
+        </label>
+      </div>
+      <div id="preview-acta" class="aviso-inline aviso-ok" style="display:none; margin-top:10px;"></div>
+
+      <!-- Paso 4 -->
+      <div class="paso" style="margin-top:18px;"><span class="n">4</span><span class="t">Confirmar</span></div>
+      <div class="resumen-confirm">
+        <div class="fila"><span>Personas seleccionadas</span><strong id="rc-personas">0</strong></div>
+        <div class="fila"><span>Parejas feriado → día libre</span><strong id="rc-parejas">0</strong></div>
+        <div class="fila"><span>Registros que se van a crear</span><strong id="rc-total">0</strong></div>
+        <div class="fila total"><span>Sobretasa que dejaría de pagarse (si Otorgado)</span><strong id="rc-impacto">S/ 0.00</strong></div>
+      </div>
+      <div style="margin-top:12px; display:flex; align-items:center; gap:12px;">
+        <button class="btn btn-primario" id="btn-registrar-lote">Registrar</button>
+        <span class="chip-count" id="rc-texto">Elige personas y al menos una pareja de días.</span>
+      </div>
+    </div>
+
+    <p class="nota-decision">Nota de diseño: el registro sigue siendo un formulario de una sola pantalla, no un wizard con «Siguiente/Atrás» — el caso real que motivó las actas (un acuerdo que cubre 4 personas × 2 feriados de una sola vez) se resuelve más rápido así. Lo que cambia es que ahora hay dos puertas de entrada: la fila de «Quién trabajó» y el formulario manual, en vez de solo el formulario.</p>
+
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       TAB 2 — PENDIENTES
+  ══════════════════════════════════════════════════════════════════ -->
+  <section class="tabpanel" id="panel-pendientes" role="tabpanel" hidden>
+    <div class="panel">
+      <div class="panel-head"><h2>Acuerdos que faltan cerrar</h2></div>
+      <p class="panel-sub">Los tres estados reales de la base son Pendiente / Otorgado / No otorgado — lo de abajo son dos LECTURAS distintas de «Pendiente» (según tenga acta o no), no estados nuevos en la base.</p>
+      <div class="tabla-wrap">
+        <table>
+          <thead><tr><th>Persona</th><th>Sede</th><th>Feriado</th><th>Día libre</th><th>Estado</th><th>Acta</th><th></th></tr></thead>
+          <tbody id="lista-pendientes"><!-- JS --></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="bandeja-preview">
+      <h3 style="font-size:.95rem; margin-bottom:2px;">Así se vería en Bandeja</h3>
+      <p class="panel-sub" style="margin-bottom:6px;">Propuesta: aparece en la pestaña «En otra pantalla» — como Educación o Ausencias — con enlace directo a esta pestaña. No se resuelve dentro de Bandeja porque un acuerdo con varias personas no encaja en «una RPC con un texto opcional», el molde que hoy usan los 5 tipos que sí se resuelven ahí.</p>
+      <div class="bandeja-row">
+        <div class="txt"><b>Grecia Salas · Taller LIM</b><span>Descanso del 30/09 sin acta — feriado del 28/09</span></div>
+        <a class="btn btn-sutil btn-sm" href="#" data-goto="pendientes">Ir a Feriados →</a>
+      </div>
+      <div class="bandeja-row">
+        <div class="txt"><b>Ronald Ipanaqué · Tienda AQP</b><span>Acordado para el feriado del 08/10 — falta confirmar</span></div>
+        <a class="btn btn-sutil btn-sm" href="#" data-goto="pendientes">Ir a Feriados →</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       TAB 3 — ACTAS
+  ══════════════════════════════════════════════════════════════════ -->
+  <section class="tabpanel" id="panel-actas" role="tabpanel" hidden>
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Actas firmadas</h2>
+        <button class="btn btn-sutil btn-sm" id="btn-crear-acta">+ Crear acta sin vincular todavía</button>
+      </div>
+      <p class="panel-sub">El acuerdo se registra en «Registrar»; acá vive el papel firmado que lo respalda. Una acta cubre a todas las personas de ese acuerdo. Cada referencia solo se puede elegir de una lista — ya no se tipea libre — para que no queden actas huérfanas por una letra distinta.</p>
+
+      <div style="display:flex; flex-direction:column; gap:10px;" id="lista-actas"><!-- JS --></div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       TAB 4 — HISTORIAL
+  ══════════════════════════════════════════════════════════════════ -->
+  <section class="tabpanel" id="panel-historial" role="tabpanel" hidden>
+    <div class="panel">
+      <div class="panel-head"><h2>Historial completo</h2></div>
+      <div class="filtros">
+        <input type="search" id="hist-buscar" placeholder="Buscar persona…">
+        <select id="hist-sede"><option value="">Todas las sedes</option><option>CCO</option><option>LIM</option><option>AQP</option><option>TRU</option></select>
+        <select id="hist-estado"><option value="">Todos los estados</option><option>PENDIENTE</option><option>OTORGADO</option><option>NO_OTORGADO</option></select>
+      </div>
+
+      <div class="tabla-wrap responsive">
+        <table>
+          <thead><tr>
+            <th>Persona</th><th>Sede</th><th>Feriado</th><th>Día libre</th><th>Estado</th><th>Acta</th><th>Registrado por</th><th>Registrado</th><th></th>
+          </tr></thead>
+          <tbody id="lista-historial"><!-- JS --></tbody>
+        </table>
+      </div>
+      <div class="historial-cards" id="lista-historial-cards"><!-- JS --></div>
+    </div>
+    <p class="nota-decision">En pantallas angostas (menos de 700px) esta tabla se convierte en tarjetas — prueba achicar la ventana. En escritorio se queda como tabla con las nueve columnas.</p>
+  </section>
+
+  <!-- ── MODAL QUITAR ─────────────────────────────────────────────────── -->
+  <div class="modal-scrim" id="modal-quitar" hidden>
+    <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="modal-titulo">
+      <h3 id="modal-titulo">¿Qué quieres hacer con este registro?</h3>
+      <p style="font-size:.83rem; color:var(--color-taupe); margin:0;" id="modal-detalle"></p>
+
+      <button class="opcion-quitar" id="opcion-revertir">
+        <b>Marcar como No otorgado (recomendado)</b>
+        <span>Devuelve la sobretasa a la planilla del periodo y deja de justificar la falta — pero el registro queda, con quién lo cambió y cuándo. Es lo correcto cuando el acuerdo se canceló o no se cumplió.</span>
+      </button>
+      <button class="opcion-quitar peligro" id="opcion-eliminar">
+        <b>Eliminar definitivamente</b>
+        <span>Borra el registro sin dejar rastro. Úsalo solo si fue un error de tipeo (persona o fecha equivocada) — nunca para un acuerdo que sí ocurrió y luego se canceló.</span>
+      </button>
+
+      <div id="motivo-elim" hidden style="display:flex; flex-direction:column; gap:8px;">
+        <label class="campo">Motivo de la eliminación (obligatorio)
+          <input type="text" id="motivo-texto" placeholder="ej. Se registró a la persona equivocada">
+        </label>
+        <div style="display:flex; gap:8px; justify-content:flex-end;">
+          <button class="btn btn-sutil btn-sm" id="cancelar-elim">Cancelar</button>
+          <button class="btn btn-peligro btn-sm" id="confirmar-elim" disabled>Eliminar sin poder deshacer</button>
+        </div>
+      </div>
+
+      <button class="btn-texto" id="cerrar-modal" style="align-self:center;">Cancelar</button>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" hidden></div>
+
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ── datos de ejemplo (ficticios, para el prototipo) ───────────────────
+  var PERSONAS = [
+    {id:"p1", nombre:"Grecia Salas", sede:"LIM"},
+    {id:"p2", nombre:"Ronald Ipanaqué", sede:"AQP"},
+    {id:"p3", nombre:"Katia Mendoza", sede:"TRU"},
+    {id:"p4", nombre:"Brenda Ochoa", sede:"CCO"},
+    {id:"p5", nombre:"Elmer Quiroz", sede:"LIM"},
+    {id:"p6", nombre:"Yasmin Pardo", sede:"AQP"},
+    {id:"p7", nombre:"Gianela Rojas", sede:"TRU"},
+    {id:"p8", nombre:"Wilder Cabrera", sede:"LIM"}
+  ];
+  var FERIADOS = [
+    {fecha:"2026-09-28", nombre:"Combate de Angamos"},
+    {fecha:"2026-08-30", nombre:"Santa Rosa de Lima"}
+  ];
+  var QUIEN_TRABAJO = [
+    {persona:"Grecia Salas", sede:"LIM", feriado:"28/09 — Combate de Angamos", horas:8, sobretasa:104.20, estado:null},
+    {persona:"Katia Mendoza", sede:"TRU", feriado:"28/09 — Combate de Angamos", horas:9, sobretasa:117.30, estado:null},
+    {persona:"Brenda Ochoa", sede:"CCO", feriado:"30/08 — Santa Rosa de Lima", horas:8, sobretasa:98.50, estado:"OTORGADO", libre:"01/09"},
+    {persona:"Elmer Quiroz", sede:"LIM", feriado:"28/09 — Combate de Angamos", horas:6, sobretasa:78.10, estado:null},
+    {persona:"Yasmin Pardo", sede:"AQP", feriado:"28/09 — Combate de Angamos", horas:8, sobretasa:97.60, estado:null},
+    {persona:"Wilder Cabrera", sede:"LIM", feriado:"30/08 — Santa Rosa de Lima", horas:8, sobretasa:101.00, estado:"NO_OTORGADO"}
+  ];
+  var PENDIENTES = [
+    {persona:"Grecia Salas", sede:"LIM", feriado:"28/09", libre:"30/09", acta:null},
+    {persona:"Ronald Ipanaqué", sede:"AQP", feriado:"08/10", libre:"10/10", acta:"Acta 2026-09-10 Tienda AQP"},
+    {persona:"Gianela Rojas", sede:"TRU", feriado:"28/09", libre:null, acta:null}
+  ];
+  var ACTAS = [
+    {ref:"Acta 2026-08-28 Taller LIM", sede:"LIM", fecha:"28/08/2026", archivo:"CAYLA_LIM_Acta_Descanso.pdf", cubre:[
+      {p:"Grecia Salas", f:"30/08 → 01/09"}, {p:"Elmer Quiroz", f:"30/08 → 02/09"}, {p:"Wilder Cabrera", f:"30/08 → 03/09"}
+    ]},
+    {ref:"Acta 2026-09-10 Tienda AQP", sede:"AQP", fecha:"10/09/2026", archivo:"CAYLA_AQP_Acta_Descanso.pdf", cubre:[
+      {p:"Ronald Ipanaqué", f:"08/10 → 10/10"}, {p:"Yasmin Pardo", f:"28/09 → 05/10"}
+    ]},
+    {ref:"Acta 2026-07-29 Tienda TRU", sede:"TRU", fecha:"29/07/2026", archivo:null, cubre:[
+      {p:"Katia Mendoza", f:"28/07 → 31/07"}
+    ]}
+  ];
+  var HISTORIAL = [
+    {persona:"Brenda Ochoa", sede:"CCO", feriado:"30/08", libre:"01/09", estado:"OTORGADO", acta:"Acta 2026-08-28 Taller LIM", por:"D. Aliaga (DO)", registrado:"31/08/2026", modif:"—"},
+    {persona:"Wilder Cabrera", sede:"LIM", feriado:"30/08", libre:"03/09", estado:"NO_OTORGADO", acta:"—", por:"D. Aliaga (DO)", registrado:"31/08/2026", modif:"12/09/2026"},
+    {persona:"Katia Mendoza", sede:"TRU", feriado:"28/07", libre:"31/07", estado:"OTORGADO", acta:"Acta 2026-07-29 Tienda TRU", por:"F. Alvarez (DO)", registrado:"29/07/2026", modif:"—"},
+    {persona:"Grecia Salas", sede:"LIM", feriado:"28/09", libre:"30/09", estado:"PENDIENTE", acta:"—", por:"F. Alvarez (DO)", registrado:"20/09/2026", modif:"—"},
+    {persona:"Ronald Ipanaqué", sede:"AQP", feriado:"08/10", libre:"10/10", estado:"PENDIENTE", acta:"Acta 2026-09-10 Tienda AQP", por:"F. Alvarez (DO)", registrado:"18/09/2026", modif:"—"}
+  ];
+
+  var elegidas = new Set();
+  var parejas = [{feriado:"", descanso:""}];
+
+  // ── tabs ────────────────────────────────────────────────────────────
+  var tabBtns = Array.prototype.slice.call(document.querySelectorAll(".tab-btn"));
+  var panels = { registrar: byId("panel-registrar"), pendientes: byId("panel-pendientes"), actas: byId("panel-actas"), historial: byId("panel-historial") };
+  function byId(id){ return document.getElementById(id); }
+  function irA(tab){
+    tabBtns.forEach(function(b){ b.setAttribute("aria-selected", String(b.dataset.tab === tab)); });
+    Object.keys(panels).forEach(function(k){ panels[k].hidden = (k !== tab); });
+  }
+  tabBtns.forEach(function(b){ b.addEventListener("click", function(){ irA(b.dataset.tab); }); });
+  Array.prototype.slice.call(document.querySelectorAll("[data-goto]")).forEach(function(el){
+    el.addEventListener("click", function(e){ e.preventDefault(); irA(el.dataset.goto); });
+  });
+
+  // ── toast ───────────────────────────────────────────────────────────
+  var toastTimer;
+  function toast(msg){
+    var t = byId("toast"); t.textContent = msg; t.hidden = false;
+    clearTimeout(toastTimer); toastTimer = setTimeout(function(){ t.hidden = true; }, 2600);
+  }
+
+  // ── Quién trabajó feriados ──────────────────────────────────────────
+  function pintarQuienTrabajo(){
+    var tbody = byId("lista-quien-trabajo"); tbody.innerHTML = "";
+    QUIEN_TRABAJO.forEach(function(r){
+      var tr = document.createElement("tr");
+      var comp = r.estado === "OTORGADO" ? '<span class="pill pill-verde">Otorgado</span><div class="fila-sec">libre el '+r.libre+'</div>'
+        : r.estado === "NO_OTORGADO" ? '<span class="pill pill-rojo">No otorgado</span>'
+        : '<span class="fila-sec">— paga sobretasa</span>';
+      tr.innerHTML =
+        '<td><span class="fila-nombre">'+r.persona+'</span><div class="fila-sec">'+r.sede+'</div></td>'+
+        '<td>'+r.feriado+'</td>'+
+        '<td class="num-col">'+r.horas+'</td>'+
+        '<td class="num-col">'+(r.estado==="OTORGADO" ? '<span style="text-decoration:line-through;color:var(--color-taupe)">S/ '+r.sobretasa.toFixed(2)+'</span>' : 'S/ '+r.sobretasa.toFixed(2))+'</td>'+
+        '<td>'+comp+'</td>'+
+        '<td>'+(r.estado === null ? '<button class="btn btn-sutil btn-sm" data-prefill="'+r.persona+'|'+r.feriado+'">Registrar</button>' : '')+'</td>';
+      tbody.appendChild(tr);
+    });
+    Array.prototype.slice.call(tbody.querySelectorAll("[data-prefill]")).forEach(function(btn){
+      btn.addEventListener("click", function(){
+        var partes = btn.dataset.prefill.split("|");
+        toast("Formulario prellenado con " + partes[0] + " · " + partes[1].split(" — ")[0]);
+        var per = PERSONAS.find(function(p){ return p.nombre === partes[0]; });
+        if(per){ elegidas.clear(); elegidas.add(per.id); pintarChecklist(); actualizarResumen(); }
+        byId("form-registrar").scrollIntoView({behavior:"smooth", block:"start"});
+      });
+    });
+  }
+
+  // ── checklist de personas ───────────────────────────────────────────
+  function pintarChecklist(){
+    var cont = byId("checklist-personas");
+    var q = byId("buscar-persona").value.trim().toLowerCase();
+    var sede = byId("filtro-sede").value;
+    cont.innerHTML = "";
+    PERSONAS.filter(function(p){
+      return (!sede || p.sede === sede) && (!q || p.nombre.toLowerCase().indexOf(q) > -1);
+    }).forEach(function(p){
+      var lab = document.createElement("label");
+      lab.innerHTML = '<input type="checkbox" data-id="'+p.id+'" '+(elegidas.has(p.id)?"checked":"")+'> '+p.nombre+' <span class="fila-sec">· '+p.sede+'</span>';
+      cont.appendChild(lab);
+    });
+    Array.prototype.slice.call(cont.querySelectorAll("input[type=checkbox]")).forEach(function(cb){
+      cb.addEventListener("change", function(){
+        if(cb.checked) elegidas.add(cb.dataset.id); else elegidas.delete(cb.dataset.id);
+        actualizarResumen();
+      });
+    });
+  }
+  byId("buscar-persona").addEventListener("input", pintarChecklist);
+  byId("filtro-sede").addEventListener("change", pintarChecklist);
+  byId("btn-todas").addEventListener("click", function(){
+    var sede = byId("filtro-sede").value;
+    var visibles = PERSONAS.filter(function(p){ return !sede || p.sede === sede; });
+    var faltan = visibles.some(function(p){ return !elegidas.has(p.id); });
+    visibles.forEach(function(p){ if(faltan) elegidas.add(p.id); else elegidas.delete(p.id); });
+    pintarChecklist(); actualizarResumen();
+  });
+
+  // ── parejas feriado→descanso ────────────────────────────────────────
+  function pintarParejas(){
+    var cont = byId("lista-parejas"); cont.innerHTML = "";
+    parejas.forEach(function(par, i){
+      var row = document.createElement("div"); row.className = "pareja-row";
+      var opciones = FERIADOS.map(function(f){ return '<option value="'+f.fecha+'" '+(par.feriado===f.fecha?"selected":"")+'>'+f.fecha.split("-").reverse().join("/")+' — '+f.nombre+'</option>'; }).join("");
+      row.innerHTML =
+        '<select data-i="'+i+'" data-campo="feriado"><option value="">Feriado trabajado…</option>'+opciones+'</select>'+
+        '<span class="flecha">→</span>'+
+        '<input type="date" data-i="'+i+'" data-campo="descanso" value="'+par.descanso+'">'+
+        (parejas.length > 1 ? '<button class="btn btn-peligro btn-sm" data-quitar-pareja="'+i+'">Quitar</button>' : "");
+      cont.appendChild(row);
+    });
+    Array.prototype.slice.call(cont.querySelectorAll("[data-campo]")).forEach(function(el){
+      el.addEventListener("change", function(){
+        parejas[+el.dataset.i][el.dataset.campo] = el.value;
+        validarEnVivo(); actualizarResumen();
+      });
+    });
+    Array.prototype.slice.call(cont.querySelectorAll("[data-quitar-pareja]")).forEach(function(btn){
+      btn.addEventListener("click", function(){ parejas.splice(+btn.dataset.quitarPareja, 1); pintarParejas(); actualizarResumen(); });
+    });
+  }
+  byId("btn-agregar-pareja").addEventListener("click", function(){ parejas.push({feriado:"", descanso:""}); pintarParejas(); });
+
+  // validación en vivo — replica fn_dcs_por_que_no_compensa en el cliente, solo para la demo
+  function validarEnVivo(){
+    var aviso = byId("aviso-validacion"); aviso.innerHTML = "";
+    parejas.forEach(function(par){
+      if(!par.feriado || !par.descanso) return;
+      var motivo = null;
+      if(par.descanso <= par.feriado) motivo = "el día libre es anterior al feriado que dice compensar";
+      else if(FERIADOS.some(function(f){ return f.fecha === par.descanso; })) motivo = "ese día ya era feriado: no compensa nada";
+      else if(par.descanso === "2026-09-06") motivo = "ese día cae en su descanso semanal";
+      if(motivo){
+        var div = document.createElement("div"); div.className = "aviso-inline";
+        div.innerHTML = "<span>⚠</span><span>Este día no compensa: " + motivo + ". Elige otra fecha antes de guardar — hoy esto solo se sabe después de enviar.</span>";
+        aviso.appendChild(div);
+      }
+    });
+  }
+
+  // ── acta / preview ──────────────────────────────────────────────────
+  byId("select-acta").addEventListener("change", function(){
+    var prev = byId("preview-acta");
+    var acta = ACTAS.find(function(a){ return a.ref === this.value; }, this);
+    if(this.value === "__nueva__"){
+      prev.style.display = "flex"; prev.className = "aviso-inline";
+      prev.innerHTML = "<span>＋</span><span>Se creará una referencia nueva. Recuerda subir el archivo en la pestaña Actas — sin él, este acuerdo no podrá pasar a Otorgado.</span>";
+    } else if(acta){
+      prev.style.display = "flex"; prev.className = "aviso-inline aviso-ok";
+      prev.innerHTML = "<span>✓</span><span>Esta acta ya cubre: " + acta.cubre.map(function(c){ return c.p; }).join(", ") + ". Vas a agregar este acuerdo a la misma acta.</span>";
+    } else { prev.style.display = "none"; }
+  });
+
+  // ── resumen paso 4 ───────────────────────────────────────────────────
+  function actualizarResumen(){
+    var parejasCompletas = parejas.filter(function(p){ return p.feriado && p.descanso; });
+    var total = elegidas.size * parejasCompletas.length;
+    byId("rc-personas").textContent = elegidas.size;
+    byId("rc-parejas").textContent = parejasCompletas.length;
+    byId("rc-total").textContent = total;
+    byId("contador-elegidas").textContent = elegidas.size + " elegida" + (elegidas.size===1?"":"s");
+    var impactoPromedio = 102; // S/ estimado por registro, solo para la demo
+    byId("rc-impacto").textContent = "S/ " + (total * impactoPromedio).toFixed(2);
+    var btn = byId("btn-registrar-lote"); btn.disabled = total === 0;
+    byId("rc-texto").textContent = total === 0 ? "Elige personas y al menos una pareja de días." : total + " registro" + (total===1?"":"s") + " por guardar.";
+  }
+  byId("btn-registrar-lote").addEventListener("click", function(){
+    toast("Prototipo: aquí se llamaría a fn_otorgar_descanso_sustitutorio por cada fila.");
+  });
+
+  // ── Pendientes ───────────────────────────────────────────────────────
+  function pintarPendientes(){
+    var tbody = byId("lista-pendientes"); tbody.innerHTML = "";
+    PENDIENTES.forEach(function(r, idx){
+      var estadoPill = !r.acta
+        ? '<span class="pill pill-ambar">Pendiente · sin acta</span>'
+        : '<span class="pill pill-pizarra">Pendiente · con acta, sin confirmar</span>';
+      var tr = document.createElement("tr");
+      tr.innerHTML =
+        '<td class="fila-nombre">'+r.persona+'</td><td>'+r.sede+'</td><td>'+r.feriado+'</td><td>'+(r.libre||'—')+'</td>'+
+        '<td>'+estadoPill+'</td><td>'+(r.acta || '<span class="fila-sec">sin acta</span>')+'</td>'+
+        '<td style="display:flex; gap:6px; flex-wrap:wrap;">'+
+          (!r.acta ? '<button class="btn btn-sutil btn-sm" data-vincular="'+idx+'">Vincular acta</button>' : '<button class="btn btn-primario btn-sm" data-confirmar="'+idx+'">Confirmar</button>')+
+          '<button class="btn btn-peligro btn-sm" data-quitar-pend="'+idx+'">Quitar</button>'+
+        '</td>';
+      tbody.appendChild(tr);
+    });
+    Array.prototype.slice.call(tbody.querySelectorAll("[data-vincular]")).forEach(function(b){ b.addEventListener("click", function(){ irA("actas"); toast("Elige la acta que cubre a " + PENDIENTES[+b.dataset.vincular].persona); }); });
+    Array.prototype.slice.call(tbody.querySelectorAll("[data-confirmar]")).forEach(function(b){ b.addEventListener("click", function(){ toast("Prototipo: pasaría a estado OTORGADO."); }); });
+    Array.prototype.slice.call(tbody.querySelectorAll("[data-quitar-pend]")).forEach(function(b){
+      b.addEventListener("click", function(){ var r = PENDIENTES[+b.dataset.quitarPend]; abrirModalQuitar(r.persona + " · feriado del " + r.feriado); });
+    });
+  }
+
+  // ── Actas ────────────────────────────────────────────────────────────
+  function pintarActas(){
+    var cont = byId("lista-actas"); cont.innerHTML = "";
+    ACTAS.forEach(function(a, i){
+      var item = document.createElement("div"); item.className = "acta-item";
+      item.innerHTML =
+        '<div class="acta-head" data-toggle="'+i+'">'+
+          '<div class="info"><span class="ref">'+a.ref+'</span><span class="meta">'+a.sede+' · '+a.cubre.length+' registro'+(a.cubre.length===1?'':'s')+(a.archivo ? ' · '+a.archivo : ' · sin archivo')+'</span></div>'+
+          '<span class="caret">▸</span>'+
+        '</div>'+
+        '<div class="acta-body" hidden>'+
+          '<p class="panel-sub" style="margin:10px 0 0;">Cubre:</p>'+
+          '<div class="chips-cubre">'+a.cubre.map(function(c){ return '<span class="chip-cubre">'+c.p+' · '+c.f+'</span>'; }).join("")+'</div>'+
+          '<div class="acta-acciones">'+
+            (a.archivo ? '<button class="btn btn-sutil btn-sm">Ver acta</button>' : '<span class="pill pill-rojo">sin archivo</span>')+
+            '<button class="btn btn-sutil btn-sm">Reemplazar archivo</button>'+
+            '<button class="btn btn-sutil btn-sm" data-vincular-mas="'+i+'">Vincular más registros</button>'+
+          '</div>'+
+        '</div>';
+      cont.appendChild(item);
+    });
+    Array.prototype.slice.call(cont.querySelectorAll("[data-toggle]")).forEach(function(head){
+      head.addEventListener("click", function(){
+        var item = head.parentElement, body = item.querySelector(".acta-body");
+        body.hidden = !body.hidden; item.classList.toggle("abierta", !body.hidden);
+      });
+    });
+    Array.prototype.slice.call(cont.querySelectorAll("[data-vincular-mas]")).forEach(function(b){
+      b.addEventListener("click", function(e){ e.stopPropagation(); irA("registrar"); toast("Elige personas y usa esta acta en el paso 3."); });
+    });
+  }
+  byId("btn-crear-acta").addEventListener("click", function(){ toast("Prototipo: abre subir un archivo con una referencia nueva, sin vincularla todavía a ningún registro."); });
+
+  // ── Historial ────────────────────────────────────────────────────────
+  function estadoPillHistorial(e){
+    if(e==="OTORGADO") return '<span class="pill pill-verde">Otorgado</span>';
+    if(e==="NO_OTORGADO") return '<span class="pill pill-rojo">No otorgado</span>';
+    return '<span class="pill pill-taupe">Pendiente</span>';
+  }
+  function pintarHistorial(){
+    var q = byId("hist-buscar").value.trim().toLowerCase();
+    var sede = byId("hist-sede").value;
+    var est = byId("hist-estado").value;
+    var filas = HISTORIAL.filter(function(r){
+      return (!q || r.persona.toLowerCase().indexOf(q) > -1) && (!sede || r.sede === sede) && (!est || r.estado === est);
+    });
+    var tbody = byId("lista-historial"); tbody.innerHTML = "";
+    var cards = byId("lista-historial-cards"); cards.innerHTML = "";
+    filas.forEach(function(r){
+      var tr = document.createElement("tr");
+      tr.innerHTML =
+        '<td class="fila-nombre">'+r.persona+'</td><td>'+r.sede+'</td><td>'+r.feriado+'</td><td>'+r.libre+'</td>'+
+        '<td>'+estadoPillHistorial(r.estado)+'</td><td>'+r.acta+'</td><td>'+r.por+'</td><td>'+r.registrado+'</td>'+
+        '<td><button class="btn btn-peligro btn-sm" data-quitar-hist="'+r.persona+'|'+r.feriado+'">Quitar</button></td>';
+      tbody.appendChild(tr);
+
+      var card = document.createElement("div"); card.className = "hcard";
+      card.innerHTML =
+        '<div class="top"><b>'+r.persona+'</b>'+estadoPillHistorial(r.estado)+'</div>'+
+        '<div class="meta">'+r.sede+' · trabajó '+r.feriado+' · libre '+r.libre+'</div>'+
+        '<div class="meta">Acta: '+r.acta+' · registrado '+r.registrado+' por '+r.por+'</div>'+
+        '<button class="btn btn-peligro btn-sm" style="align-self:flex-start;" data-quitar-hist="'+r.persona+'|'+r.feriado+'">Quitar</button>';
+      cards.appendChild(card);
+    });
+    Array.prototype.slice.call(document.querySelectorAll("[data-quitar-hist]")).forEach(function(b){
+      b.addEventListener("click", function(){ abrirModalQuitar(b.dataset.quitarHist.replace("|", " · feriado del ")); });
+    });
+  }
+  byId("hist-buscar").addEventListener("input", pintarHistorial);
+  byId("hist-sede").addEventListener("change", pintarHistorial);
+  byId("hist-estado").addEventListener("change", pintarHistorial);
+
+  // ── modal Quitar ─────────────────────────────────────────────────────
+  var modal = byId("modal-quitar");
+  function abrirModalQuitar(detalle){
+    byId("modal-detalle").textContent = detalle;
+    byId("motivo-elim").hidden = true; byId("motivo-texto").value = "";
+    byId("confirmar-elim").disabled = true;
+    modal.hidden = false;
+  }
+  function cerrarModal(){ modal.hidden = true; }
+  byId("cerrar-modal").addEventListener("click", cerrarModal);
+  modal.addEventListener("click", function(e){ if(e.target === modal) cerrarModal(); });
+  byId("opcion-revertir").addEventListener("click", function(){ cerrarModal(); toast("Marcado como No otorgado. La sobretasa vuelve a la planilla del periodo."); });
+  byId("opcion-eliminar").addEventListener("click", function(){ byId("motivo-elim").hidden = false; });
+  byId("cancelar-elim").addEventListener("click", cerrarModal);
+  byId("motivo-texto").addEventListener("input", function(){ byId("confirmar-elim").disabled = this.value.trim().length < 3; });
+  byId("confirmar-elim").addEventListener("click", function(){ cerrarModal(); toast("Registro eliminado. Motivo guardado en la auditoría."); });
+
+  // ── init ─────────────────────────────────────────────────────────────
+  pintarQuienTrabajo(); pintarChecklist(); pintarParejas(); pintarPendientes(); pintarActas(); pintarHistorial(); actualizarResumen();
+})();
+</script>
