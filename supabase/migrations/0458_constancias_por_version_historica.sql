@@ -27,15 +27,26 @@
 --
 -- POR QUÉ EL FILTRO DE POBLACIÓN SIGUE SIENDO EL ACTUAL, NO EL DE ENTONCES
 --
---   La función sigue contando "personas activas y en planilla HOY", igual
---   para una versión histórica que para la vigente. Es una simplificación
---   deliberada, no un descuido: registrar quién estaba obligado EN CADA
---   FECHA pasada exigiría una tabla de historial de población que hoy no
---   existe en ningún lugar de Dynamic. Lo que esta consulta responde es "de
---   quienes hoy siguen obligados, quién había acusado la versión N" — útil
---   para una auditoría, pero no equivalente a "quién estaba obligado el día
---   que se publicó la versión N". Alguien que ya cesó no aparece en ninguna
---   hoja histórica por este motivo, igual que hoy no aparece en la vigente.
+--   La función sigue contando `fn_poblacion_obligada()` (0270) — quien hoy
+--   está en días de selección pagados no cuenta, ni en la vigente ni en una
+--   histórica — igual para una versión histórica que para la vigente. Es una
+--   simplificación deliberada, no un descuido: registrar quién estaba
+--   obligado EN CADA FECHA pasada exigiría una tabla de historial de
+--   población que hoy no existe en ningún lugar de Dynamic. Lo que esta
+--   consulta responde es "de quienes hoy siguen obligados, quién había
+--   acusado la versión N" — útil para una auditoría, pero no equivalente a
+--   "quién estaba obligado el día que se publicó la versión N". Alguien que
+--   ya cesó no aparece en ninguna hoja histórica por este motivo, igual que
+--   hoy no aparece en la vigente.
+--
+--   OJO AL COPIAR ESTA MIGRACIÓN COMO EJEMPLO: la primera versión de este
+--   archivo copió el `where` de la 0141 (`p.estado = 'activo' and
+--   p.en_planilla is true`) en vez de correr `donde-vive.sh` antes de
+--   escribir. `en_planilla` SÍ incluye a quien está en días de selección
+--   (columna generada, pensada para movilidad y EsSalud) — la 0270 ya había
+--   cambiado el filtro a `fn_poblacion_obligada()` precisamente para que la
+--   hoja de esta política no los contara. Copiar la 0141 revertía esa
+--   corrección en silencio; lo cazó la prueba 208 en CI.
 --
 -- QUÉ NO CAMBIA
 --
@@ -91,7 +102,7 @@ begin
          on a.persona_id = p.id and a.version = v_version
   left join asignaciones_salario s
          on s.persona_id = p.id and s.vigente_hasta is null
-  where p.estado = 'activo' and p.en_planilla is true;
+  where p.id in (select fn_poblacion_obligada());
 
   return v_out;
 end;
