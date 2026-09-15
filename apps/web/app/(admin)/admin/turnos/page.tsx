@@ -457,13 +457,29 @@ function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso
       setAviso(`No puedo dejar a ${d.persona} sin ningún día de trabajo. Ajusta su horario en la pantalla Horarios.`);
       return;
     }
+    // La 0444 no deja que un horario NORMAL rija desde una fecha pasada:
+    // hacerlo recalcularía jornadas ya juzgadas con el horario que de verdad
+    // regía entonces, que es justo la tardanza falsa que esa migración vino a
+    // cerrar. Y este panel enseña sobre todo filas pasadas —su piso es el
+    // inicio del periodo abierto, no hoy—, así que sin este tope el botón
+    // quedaba muerto exactamente en el caso para el que existe.
+    //
+    // "Hacer permanente" mira hacia adelante por definición: lo que se pide es
+    // "que esto sea la norma", no "reescribe lo que ya pasó". El día de origen
+    // no queda desatendido — lo cubrió su propio turno puntual, que fue lo que
+    // de verdad rigió ese día.
+    const desdeHoy = hoyLima();
+    const desde = d.fecha > desdeHoy ? d.fecha : desdeHoy;
+    const esPasado = desde !== d.fecha;
     const { error: e1 } = await supabase.rpc("fn_set_horario_semanal", {
-      p_persona_id: d.personaId, p_vigente_desde: d.fecha, p_horario: semanal,
+      p_persona_id: d.personaId, p_vigente_desde: desde, p_horario: semanal,
       // Motivo fijo, no libre: esto es un clic de "hacer permanente" un turno
       // puntual ya escrito, no una persona explicando por qué cambia un
       // horario — mismo criterio que ya usan fn_set_rol/fn_set_sede_base
       // para su único llamador (ver 0440).
-      p_motivo: `Turno puntual del ${d.fecha} promovido a horario base desde Revisión de Turnos.`,
+      p_motivo: esPasado
+        ? `Turno puntual del ${d.fecha} promovido a horario base desde Revisión de Turnos, vigente desde el ${desde}: el día de origen ya pasó y un horario nuevo no reescribe días ya juzgados.`
+        : `Turno puntual del ${d.fecha} promovido a horario base desde Revisión de Turnos.`,
     });
     if (e1) { setProcesando(null); setAviso(`No se pudo cambiar el horario de ${d.persona}: ${e1.message}`); return; }
     // Su `error` se comprueba igual que en `usarHorarioBase`, diez líneas más
@@ -471,8 +487,19 @@ function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso
     // horario base quedaba cambiado y el turno puntual seguía ahí — y en la
     // cascada de `jornada-esperada.ts` el turno del día le gana al horario, así
     // que ese día seguía esperando la hora vieja sin que nadie lo dijera.
-    const { error: eQuitar } = await supabase.rpc("fn_quitar_turno", { p_persona_id: d.personaId, p_fecha: d.fecha });
+    // Si el día ya pasó, su turno se queda donde está. Quitarlo dejaría ese
+    // día colgando del horario base ANTERIOR (el nuevo rige desde hoy), y esa
+    // jornada se recalcularía contra un horario que no fue el que rigió —
+    // otra vez la tardanza falsa, por la puerta de al lado.
+    const { error: eQuitar } = esPasado
+      ? { error: null }
+      : await supabase.rpc("fn_quitar_turno", { p_persona_id: d.personaId, p_fecha: d.fecha });
     setProcesando(null);
+    if (esPasado) {
+      setAviso(`El horario base de ${d.persona} rige desde hoy (${desde}), no desde el ${d.fecha}: un horario nuevo no reescribe días que ya pasaron. El ${d.fecha} se queda como estaba, con su turno puntual. Si lo que necesitas es corregir el pasado de verdad, usa "corregir pasado" en Horarios.`);
+      await cargar();
+      return;
+    }
     if (eQuitar) {
       setAviso(`El horario base de ${d.persona} sí cambió, pero el turno puntual de ese día no se pudo retirar: ${eQuitar.message}. Mientras siga ahí, ese día manda el turno y no el horario base.`);
       await cargar();
@@ -896,20 +923,33 @@ export default function TurnosPage() {
     const dow = String(diaSemana(edit.fecha));
     const previo = tr?.horario_por_dia?.[dow];
     semanal[dow] = { e: entrada, s: salida, ...(previo?.r != null ? { r: previo.r } : {}) };
+    // Mismo tope que "Hacer permanente" en Revisión de Turnos, y por la misma
+    // razón (0444): un horario normal no rige desde una fecha pasada. "De aquí
+    // en adelante" es, literalmente, hacia adelante; si el día que se está
+    // editando ya pasó, "adelante" empieza hoy. El día editado conserva su
+    // turno puntual, que es lo que de verdad rigió.
+    const hoyIso = hoyLima();
+    const desde = edit.fecha > hoyIso ? edit.fecha : hoyIso;
+    const esPasado = desde !== edit.fecha;
     setGuardando(true);
     const { error } = await supabase.rpc("fn_set_horario_semanal", {
-      p_persona_id: edit.personaId, p_vigente_desde: edit.fecha, p_horario: semanal,
+      p_persona_id: edit.personaId, p_vigente_desde: desde, p_horario: semanal,
       // Motivo fijo: mismo criterio que "Hacer permanente" en Revisión de
       // Turnos (ver 0440) — es un clic desde la Vista Día, no un formulario
       // donde alguien redacta por qué.
-      p_motivo: `Horario de los ${DIAS_PLURAL[Number(dow)]} cambiado desde la Vista Día, vigente desde el ${edit.fecha}.`,
+      p_motivo: esPasado
+        ? `Horario de los ${DIAS_PLURAL[Number(dow)]} cambiado desde la Vista Día, vigente desde el ${desde}: el día editado (${edit.fecha}) ya pasó y un horario nuevo no reescribe días ya juzgados.`
+        : `Horario de los ${DIAS_PLURAL[Number(dow)]} cambiado desde la Vista Día, vigente desde el ${edit.fecha}.`,
     });
     // El `error` de esta segunda mitad NO se miraba, y la pantalla terminaba
     // diciendo «Horario base actualizado» con el turno puntual todavía puesto.
     // En la cascada de `jornada-esperada.ts` el turno del día le gana al
     // horario, así que ese día seguía esperando la hora vieja — y de esa hora
     // esperada salen las tardanzas y las faltas de esa persona.
-    const celdaHoy = error ? null : celda(edit.personaId, edit.fecha);
+    // Si el día editado ya pasó, su turno NO se retira: el horario nuevo rige
+    // desde hoy, así que quitarlo dejaría esa jornada midiéndose contra el
+    // horario base anterior — uno que no fue el que rigió ese día.
+    const celdaHoy = error || esPasado ? null : celda(edit.personaId, edit.fecha);
     const eQuitar = celdaHoy && (celdaHoy.tipo === "turno" || celdaHoy.tipo === "descanso")
       ? (await supabase.rpc("fn_quitar_turno", { p_persona_id: edit.personaId, p_fecha: edit.fecha })).error
       : null;
@@ -919,6 +959,10 @@ export default function TurnosPage() {
     await cargar();
     if (eQuitar) {
       avisar("error", `El horario base de los ${DIAS_PLURAL[Number(dow)]} sí cambió, pero el turno puntual de ese día no se pudo retirar: ${mensajeDeError(eQuitar)} Mientras siga ahí, ese día manda el turno y no el horario base.`);
+      return;
+    }
+    if (esPasado) {
+      avisar("ok", `Horario base actualizado: los ${DIAS_PLURAL[Number(dow)]} desde hoy (${desde}). El ${edit.fecha} ya pasó, así que se queda como estaba — un horario nuevo no reescribe días ya juzgados. Para corregir el pasado de verdad, usa "corregir pasado" en Horarios.`);
       return;
     }
     avisar("ok", `Horario base actualizado: los ${DIAS_PLURAL[Number(dow)]} desde esa fecha.`);

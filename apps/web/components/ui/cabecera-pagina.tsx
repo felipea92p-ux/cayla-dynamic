@@ -3,6 +3,13 @@
 // a mano, con márgenes inconsistentes (mb-1 en la mayoría, sin margen en
 // otras, text-3xl suelto en Dashboard). Un solo tamaño fijo de acá en
 // adelante.
+//
+// `flex-wrap` (2026-09-14): con `accion`, en una pantalla angosta el título
+// y el botón no cabían en una fila y el botón se cortaba fuera del viewport
+// — se vio con "+ Generar documento" en Documentación, pero ya le pasaba
+// también a "+ Registrar asignación" en Educación. Envolver a una segunda
+// línea es estrictamente mejor que recortar la acción principal de la
+// pantalla; en desktop nunca hay tan poco ancho como para que dispare.
 
 import type { ReactNode } from "react";
 
@@ -16,7 +23,7 @@ export function CabeceraPagina({
   accion?: ReactNode;
 }) {
   return (
-    <div className="mb-8 flex items-start justify-between gap-4">
+    <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
       <div>
         <h1 className="font-serif text-[1.75rem] font-medium leading-tight tracking-[-0.01em] text-tinta">
           {titulo}

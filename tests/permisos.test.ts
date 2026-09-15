@@ -10,9 +10,22 @@ import { describe, it, expect } from "vitest";
 import {
   puedeVerPlanilla, puedeVerIdentidad, puedeGestionarCatalogos,
   puedeOperarEquipo, puedeVerTodasLasSedes, puedeExportarPadron,
-  puedeVerSaludDeAlertas, puedeExportarAsistencia,
+  puedeVerSaludDeAlertas, puedeExportarAsistencia, puedeAnularDocumentoDisciplinario,
   ROLES, ROLES_CON_PANEL, ROLES_DO, ROLES_EXPORTAN_ASISTENCIA,
 } from "@cayla-dynamic/shared";
+
+describe("anular un documento disciplinario es de DO, aunque la encargada lo tramite", () => {
+  it("la encargada no anula: fn_expediente_anular se lo rechaza (0058)", () => {
+    expect(puedeAnularDocumentoDisciplinario("supervisor_sede")).toBe(false);
+  });
+  it("gerencia y la líder de DO sí", () => {
+    expect(puedeAnularDocumentoDisciplinario("admin")).toBe(true);
+    expect(puedeAnularDocumentoDisciplinario("lider_do")).toBe(true);
+  });
+  it("sin rol cargado, no", () => {
+    expect(puedeAnularDocumentoDisciplinario(null)).toBe(false);
+  });
+});
 
 describe("la encargada de sede opera a su equipo, pero no ve la plata", () => {
   it("no ve planilla, ni provisiones, ni costos", () => {

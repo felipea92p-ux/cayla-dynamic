@@ -44,10 +44,17 @@ export function Tabla({
 // nunca hace scroll, y "sticky" no tiene ningún efecto visible — quien use
 // TablaEncabezado en una tabla larga y quiera la cabecera fija tiene que
 // pasarle `alturaMaxima` a su <Tabla>.
+//
+// El fondo va en DOS capas a propósito (2026-09-15): `bg-papel` opaco en el
+// <thead> y el `bg-sand/70` de siempre en el <tr>. Con solo `bg-sand/70`
+// —translúcido— la cabecera fija dejaba ver las filas que pasaban por debajo
+// al hacer scroll: en Equipo, «Daniel Ruiz» y su correo se leían encima de
+// «Nombre» y «Correo». Las dos capas dan exactamente el mismo color que antes
+// (sand al 70 % sobre papel, que es el fondo de la tabla) y además tapan.
 export function TablaEncabezado({ children }: { children: ReactNode }) {
   return (
-    <thead className="sticky top-0 z-10 bg-sand/70 text-left text-taupe">
-      <tr>{children}</tr>
+    <thead className="sticky top-0 z-10 bg-papel text-left text-taupe">
+      <tr className="bg-sand/70">{children}</tr>
     </thead>
   );
 }

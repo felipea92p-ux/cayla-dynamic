@@ -99,3 +99,95 @@ export async function contarBandejaEquipoPendiente(
   const conteos = await Promise.all(tareas);
   return conteos.reduce((a, b) => a + b, 0);
 }
+
+/**
+ * Lo mismo que `contarBandejaEquipoPendiente`, pero agrupado POR PERSONA en
+ * vez de un solo número — para el badge de "N pendientes" de `/admin/equipo`
+ * (0428). Mismas RPC, mismos permisos, mismo criterio de "pendiente": no se
+ * inventa un tercer criterio para una tercera pantalla.
+ *
+ * Queda afuera `fn_alertas_despacho_resumen`: es salud del cron de avisos por
+ * correo, no la tarea de una persona — no tiene `persona_id` que agrupar.
+ *
+ * Tolerante por sección, igual que el contador: si una RPC falla o no existe
+ * todavía en esta base, esa sección no aporta nada al mapa en vez de tumbar
+ * las demás.
+ */
+export async function listarPendientesPorPersona(
+  supabase: ClienteCayla,
+  rol: string | null | undefined,
+): Promise<Map<string, string[]>> {
+  const mapa = new Map<string, string[]>();
+  const agregar = (id: string | null | undefined, etiqueta: string) => {
+    if (!id) return;
+    const lista = mapa.get(id) ?? [];
+    lista.push(etiqueta);
+    mapa.set(id, lista);
+  };
+
+  const tareas: PromiseLike<void>[] = [];
+
+  if (puedeVerPlanilla(rol)) {
+    tareas.push(
+      supabase.rpc("fn_educacion_listar").then(({ data }) => {
+        ((data as unknown as { persona_id: string; semaforo: string; meses_sin_papel: number }[] | null) ?? [])
+          .filter((f) => f.semaforo === "sin_comprobante" || f.semaforo === "por_vencer" || f.meses_sin_papel > 0)
+          .forEach((f) => agregar(f.persona_id, "Educación: comprobante pendiente"));
+      }),
+    );
+    tareas.push(
+      supabase.rpc("fn_solicitudes_vacaciones", { p_solo_pendientes: true }).then(({ data }) => {
+        (Array.isArray(data) ? (data as { persona_id: string }[]) : [])
+          .forEach((r) => agregar(r.persona_id, "Solicitud de vacaciones"));
+      }),
+    );
+  }
+
+  if (puedeOperarEquipo(rol)) {
+    tareas.push(
+      supabase.rpc("fn_vacaciones_por_vencer", { p_dias: 60, p_as_of: null }).then(({ data }) => {
+        (Array.isArray(data) ? (data as { persona_id: string }[]) : [])
+          .forEach((r) => agregar(r.persona_id, "Vacaciones por vencer"));
+      }),
+    );
+    tareas.push(
+      supabase.rpc("fn_personas_sin_horario_vigente", { p_dias: 60 }).then(({ data }) => {
+        (Array.isArray(data) ? (data as { persona_id: string }[]) : [])
+          .forEach((r) => agregar(r.persona_id, "Sin horario vigente"));
+      }),
+    );
+    tareas.push(
+      supabase.rpc("fn_revisiones_pedidas", { p_solo_pendientes: true }).then(({ data }) => {
+        (Array.isArray(data) ? (data as { persona_id: string }[]) : [])
+          .forEach((r) => agregar(r.persona_id, "Revisión de marcaje pedida"));
+      }),
+    );
+    tareas.push(
+      supabase.rpc("fn_solicitudes_perfil_pendientes").then(({ data }) => {
+        (Array.isArray(data) ? (data as { persona_id: string }[]) : [])
+          .forEach((r) => agregar(r.persona_id, "Cambio de perfil pendiente"));
+      }),
+    );
+  }
+
+  if (puedeGestionarCatalogos(rol)) {
+    tareas.push(
+      supabase.rpc("fn_movilidad_revisiones_pedidas", { p_solo_pendientes: true }).then(({ data }) => {
+        (Array.isArray(data) ? (data as { persona_id: string }[]) : [])
+          .forEach((r) => agregar(r.persona_id, "Revisión de ruta pedida"));
+      }),
+    );
+  }
+
+  if (puedeGestionarContratos(rol)) {
+    tareas.push(
+      supabase.rpc("fn_contrato_revisiones_pedidas", { p_solo_pendientes: true }).then(({ data }) => {
+        (Array.isArray(data) ? (data as { persona_id: string }[]) : [])
+          .forEach((r) => agregar(r.persona_id, "Revisión de contrato pedida"));
+      }),
+    );
+  }
+
+  await Promise.all(tareas);
+  return mapa;
+}

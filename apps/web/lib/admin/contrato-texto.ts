@@ -83,6 +83,36 @@ export interface DatosContrato {
   planCapacitacionTexto: string;
 
   /**
+   * SOLO PREPROFESIONAL (auditoría 2026-09-14) — cuántas horas semanales se
+   * pactaron de verdad, cuando son MENOS que el tope de 30h de su modalidad
+   * (art. 44, Ley 28518). `null` en cualquier otro caso (profesional siempre
+   * trabaja su jornada completa de 48h; no hay nada que declarar aparte).
+   *
+   * Decide dos cosas a la vez, y las decide junta para que no puedan
+   * desalinearse: el texto de la cláusula QUINTA (JORNADA) y el piso de la
+   * subvención de la cláusula SEXTA (SUBVENCIÓN ECONÓMICA). El artículo 45 de
+   * la Ley 28518 dice literalmente: la subvención no puede ser inferior a una
+   * RMV "cuando la persona en formación cumpla la jornada máxima prevista
+   * para cada modalidad formativa" — 30h para preprofesional, no 48h — "para
+   * el caso de jornadas... de duración inferior, el pago... es proporcional".
+   * Antes de esto, el sistema no tenía dónde guardar "menos de 30h" y por eso
+   * exigía siempre una RMV completa, o dejaba el texto diciendo "proporcional"
+   * sin decir a qué proporción — las dos cosas a la vez, según qué parte del
+   * código se mirara.
+   */
+  horasSemanalesPactadas: number | null;
+
+  /**
+   * La RMV vigente al momento de generar (0333 ya la lee para la pantalla;
+   * antes no viajaba hasta acá). Solo se usa para declarar el PISO EXACTO de
+   * la subvención cuando `horasSemanalesPactadas` es menor al tope de la
+   * modalidad — sin ella, el texto solo puede describir la proporción en
+   * palabras, no en soles. `null` cuando no está publicada en el sistema: el
+   * texto lo dice, no inventa un monto.
+   */
+  rmvVigente: number | null;
+
+  /**
    * SOLO PREPROFESIONAL (0348) — el convenio es TRIPARTITO: CAYLA, el centro
    * de formación profesional y la practicante firman los tres (art. 12 y ss.,
    * Ley 28518). El profesional es bipartito (CAYLA + practicante); el centro
@@ -957,13 +987,33 @@ function documentoConvenio(d: DatosContrato): string {
   const modalidadTexto = d.practicanteModalidad === "profesional" ? "PROFESIONALES" : "PREPROFESIONALES";
   const numPartes = esPreprofesional ? "tres (3)" : "dos (2)";
 
+  // ── CUÁNTAS HORAS DE VERDAD, Y QUÉ LE TOCA DE RMV POR ESO (auditoría 2026-09-14) ──
+  //
+  // El artículo 45 de la Ley 28518 no compara contra 48h a secas: compara
+  // contra "la jornada máxima prevista para CADA modalidad formativa" — 30h
+  // para preprofesional (art. 44), no 48h. Una preprofesional que cumple sus
+  // 30h YA está en el tope de SU modalidad, así que le toca una RMV completa,
+  // sin prorratear; el prorrateo del artículo 45 solo aplica a quien trabaja
+  // MENOS que el tope de su propia modalidad. Solo el preprofesional admite
+  // esto: el profesional siempre se asume a su jornada completa (48h), no hay
+  // un caso real hoy de un profesional a tiempo parcial.
+  const horasPactadas = esPreprofesional ? (d.horasSemanalesPactadas ?? horasMax) : horasMax;
+  const jornadaReducida = esPreprofesional && horasMax !== null && horasPactadas !== null && horasPactadas < horasMax;
+  const pisoSubvencion =
+    jornadaReducida && d.rmvVigente !== null && horasMax !== null && horasPactadas !== null
+      ? (d.rmvVigente * horasPactadas) / horasMax
+      : null;
+
   const horasTexto =
-    horasMax !== null
-      ? `no excederá de ${
-          horasMax === 30 ? "seis (6) horas diarias ni treinta (30) horas semanales" : "ocho (8) horas diarias ni cuarenta y ocho (48) horas semanales"
-        }, conforme al artículo 44 de la Ley N.° 28518`
-      : `<strong>[FALTA ASIGNAR LA MODALIDAD DE ${etiquetaPracticante} EN EQUIPO — preprofesional (30h) o profesional
-        (48h), art. 44 Ley N.° 28518, antes de imprimir este convenio]</strong>`;
+    horasMax === null
+      ? `<strong>[FALTA ASIGNAR LA MODALIDAD DE ${etiquetaPracticante} EN EQUIPO — preprofesional (30h) o profesional
+        (48h), art. 44 Ley N.° 28518, antes de imprimir este convenio]</strong>`
+      : jornadaReducida
+        ? `es de ${horasPactadas} horas semanales, dentro del máximo de seis (6) horas diarias y treinta (30) horas
+        semanales previsto en el artículo 44 de la Ley N.° 28518 para la modalidad preprofesional`
+        : `no excederá de ${
+            horasMax === 30 ? "seis (6) horas diarias ni treinta (30) horas semanales" : "ocho (8) horas diarias ni cuarenta y ocho (48) horas semanales"
+          }, conforme al artículo 44 de la Ley N.° 28518`;
 
   const representanteCentroTexto = d.centroFormacionRepresentanteNombre
     ? `${d.centroFormacionRepresentanteNombre}${
@@ -1019,8 +1069,16 @@ function documentoConvenio(d: DatosContrato): string {
 
     `<h3>{{N}}. SUBVENCIÓN ECONÓMICA</h3>
     <p>LA EMPRESA otorga a ${etiquetaPracticante} una subvención económica mensual de S/ ${soles(d.remuneracionMensual)}
-    (${numeroALetras(d.remuneracionMensual)} soles), no menor a la Remuneración Mínima Vital vigente${
-      esPreprofesional ? ", proporcional a la jornada pactada" : " para una jornada completa"
+    (${numeroALetras(d.remuneracionMensual)} soles)${
+      jornadaReducida
+        ? pisoSubvencion !== null
+          ? `, no menor a S/ ${soles(pisoSubvencion)} — monto proporcional de la Remuneración Mínima Vital vigente
+             (S/ ${soles(d.rmvVigente as number)}) según las ${horasPactadas} horas semanales pactadas frente al
+             máximo de treinta (30) horas de su modalidad`
+          : `, no menor al monto proporcional de la Remuneración Mínima Vital vigente según las ${horasPactadas}
+             horas semanales pactadas frente al máximo de treinta (30) horas de su modalidad —
+             <strong>[FALTA PUBLICAR LA RMV VIGENTE EN EL SISTEMA]</strong>`
+        : `, no menor a la Remuneración Mínima Vital vigente${esPreprofesional ? "" : " para una jornada completa"}`
     } (Ley N.° 28518, artículo 45). La subvención económica <strong>no constituye remuneración</strong>, no está
     sujeta a descuentos, aportes ni retención del impuesto a la renta de cuarta ni de quinta categoría. El pago se
     realiza mediante depósito bancario dentro de los primeros cinco (05) días hábiles del mes siguiente al período

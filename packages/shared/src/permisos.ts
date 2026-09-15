@@ -64,6 +64,29 @@ export function puedeGestionarCatalogos(rol: RolPosible): boolean {
 }
 
 /**
+ * Dar de alta, editar la ficha completa, regenerar el PIN, registrar una
+ * salida o reactivar a alguien — las cinco escrituras de `/admin/equipo`.
+ *
+ * Hoy la lista es la misma que `puedeVerPlanilla`, pero se nombra aparte por
+ * la misma razón que `puedeGestionarContratos`: esto no es "ver plata", es
+ * "administrar personas", y son preguntas distintas aunque hoy las conteste
+ * el mismo rol. Espeja la RLS real de esa pantalla — `personas_update_admin_lider`
+ * (0003) y el guard `fn_es_admin_o_lider()` que repiten `fn_crear_persona`
+ * (0300), `fn_regenerar_pin` (0364), `fn_cesar_persona` (0415) y
+ * `fn_reactivar_persona` (0327) — no una preferencia de pantalla.
+ *
+ * La encargada de sede SÍ puede ABRIR `/admin/equipo` (`puedeOperarEquipo`):
+ * ve el padrón de su gente, su sede, su área, su correo. Lo que no puede es
+ * escribir nada ahí — ninguna de las cinco RPC la deja pasar — así que
+ * mostrarle esos cinco botones no es ofrecerle una acción, es ofrecerle un
+ * error garantizado. El error es del diseño, no de ella: la pantalla no debe
+ * dibujar lo que sabe de antemano que va a fallar.
+ */
+export function puedeAdministrarEquipo(rol: RolPosible): boolean {
+  return tiene(DO, rol);
+}
+
+/**
  * Generar y ver los contratos de trabajo: junta identidad (DNI, dirección) y
  * plata (sueldo) en un solo documento, así que no es ni `puedeVerIdentidad`
  * ni `puedeVerPlanilla` por separado ni `puedeGestionarCatalogos` (esa es
@@ -115,6 +138,21 @@ export function puedeOperarEquipo(rol: RolPosible): boolean {
   return tiene(DO_Y_ENCARGADA, rol);
 }
 
+/**
+ * Anular un documento disciplinario: dejar sin efecto un memo por un defecto
+ * propio, incluso uno ya entregado.
+ *
+ * Es más estrecho que `puedeOperarEquipo`, que es el permiso de la pantalla:
+ * la encargada tramita amonestaciones de su sede, pero `fn_expediente_anular`
+ * (0058) solo deja anular a DO. Hasta el rediseño del 2026-09-15 el botón
+ * «Anular» se le dibujaba igual a la encargada, y pulsarlo solo podía dar
+ * error. Se nombra aparte y no con `puedeAdministrarEquipo` porque la pregunta
+ * es otra: quién retira una sanción, no quién da de alta a una persona.
+ */
+export function puedeAnularDocumentoDisciplinario(rol: RolPosible): boolean {
+  return tiene(DO, rol);
+}
+
 /** Solo la encargada de sede — no DO. Ver `esRolEncargada` más abajo. */
 const SOLO_ENCARGADA: readonly Rol[] = ["supervisor_sede"];
 
@@ -125,6 +163,15 @@ const SOLO_ENCARGADA: readonly Rol[] = ["supervisor_sede"];
  */
 export function esRolEncargada(rol: RolPosible): boolean {
   return tiene(SOLO_ENCARGADA, rol);
+}
+
+/** Solo integrante — ni DO ni encargada. Objetivos la usa para decidir a
+ * quién puede gestionar una encargada de sede: a sus integrantes, nunca a
+ * otra encargada (esos los gestiona DO). */
+const SOLO_INTEGRANTE: readonly Rol[] = ["integrante"];
+
+export function esRolIntegrante(rol: RolPosible): boolean {
+  return tiene(SOLO_INTEGRANTE, rol);
 }
 
 /**

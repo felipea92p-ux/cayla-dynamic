@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { ESTADO_CIVIL_LABELS, GENERO_LABELS, GRADO_INSTRUCCION_LABELS, TZ_LIMA, TIPO_VINCULO_LABEL, etiquetaDeCatalogo, hoyLima, puedeOperarEquipo, puedeVerIdentidad, puedeVerPlanilla } from "@cayla-dynamic/shared";
@@ -107,6 +107,7 @@ interface HistorialEvento { id: string; fechaOrden: string; fechaMostrar: string
 // "Desempeño" queda para lo que YA existe de eso (el checklist de objetivos
 // del mes, `fn_objetivos_checklist`), no para una pantalla inventada.
 type Tab = "resumen" | "asistencia" | "desempeno" | "compensacion" | "documentos" | "historial";
+const TABS_VALIDAS: readonly Tab[] = ["resumen", "asistencia", "desempeno", "compensacion", "documentos", "historial"];
 
 // UNA CONSULTA QUE FALLA NO SE PINTA COMO UNA QUE RESPONDIÓ VACÍA.
 //
@@ -158,6 +159,7 @@ export default function PerfilPersonaPage() {
   const params = useParams();
   const id = (params?.id as string) ?? "";
   const router = useRouter();
+  const searchParams = useSearchParams();
   const yo = usePersonaActual();
   const rol = yo?.rol ?? null;
   const puede = puedeOperarEquipo(rol);
@@ -170,7 +172,13 @@ export default function PerfilPersonaPage() {
   const supabase = useMemo(() => createAdminSupabaseClient(), []);
   const { avisar } = useToast();
 
-  const [tab, setTab] = useState<Tab>("resumen");
+  // Equipo enlaza directo a "?tab=historial" en vez de repetir el timeline
+  // acá dentro (ver el comentario del botón "Historial" en equipo/page.tsx).
+  // Solo se lee al montar: cambiar de pestaña después no reescribe la URL.
+  const [tab, setTab] = useState<Tab>(() => {
+    const t = searchParams.get("tab");
+    return (TABS_VALIDAS as readonly string[]).includes(t ?? "") ? (t as Tab) : "resumen";
+  });
 
   // ── Datos base (se cargan siempre) ────────────────────────────────────────
   const [persona, setPersona] = useState<Persona | null>(null);
