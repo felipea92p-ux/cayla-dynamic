@@ -3,7 +3,7 @@
 // diez tablas de admin. <tr> y <td> se quedan afuera a propósito: ahí sí varía
 // cada pantalla (colores condicionales, colSpan, celdas especiales).
 
-import type { CSSProperties, ReactNode } from "react";
+import type { CSSProperties, HTMLAttributes, ReactNode } from "react";
 import { cx } from "./cx";
 
 export function Tabla({
@@ -66,13 +66,22 @@ export function Th({ children, className }: { children?: ReactNode; className?: 
 // Fila con zebra sobre --color-hueso (la superficie "hundida" agregada el
 // 2026-09-06) — no reemplaza los <tr> ya escritos a mano en cada pantalla,
 // da un patrón listo para adoptar pantalla por pantalla.
-export function Fila({ children, className }: { children: ReactNode; className?: string }) {
+//
+// Acepta los atributos de un <tr> (2026-09-15, Provisiones): una fila que abre
+// un detalle necesita su `onClick`, y sin esto la pantalla tenía que volver a
+// escribir el <tr> a mano con la zebra copiada. Quien no los pasa no nota nada.
+export function Fila({
+  children,
+  className,
+  ...props
+}: { children: ReactNode; className?: string } & Omit<HTMLAttributes<HTMLTableRowElement>, "children" | "className">) {
   return (
     <tr
       className={cx(
         "border-t border-sand transition-colors duration-150 even:bg-hueso/50 hover:bg-crema/60",
         className,
       )}
+      {...props}
     >
       {children}
     </tr>

@@ -5,9 +5,11 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import {
-  ARCHIVOS_POR_ENTREGA, ESTADO_CONSTANCIA, ESTADO_ENTREGA, FRECUENCIA_PAGO_LABELS, MOTIVO_RECHAZO_LABELS,
-  TIPOS_CONSTANCIA, TIPO_CONSTANCIA_LABELS, TZ_LIMA, hoyLima, problemaDeArchivo, sugerirProximaFecha,
-  type EstadoConstancia, type EstadoEntrega, type FrecuenciaPago, type MotivoRechazo, type TipoConstancia,
+  ARCHIVOS_POR_ENTREGA, ESTADO_CONSTANCIA, ESTADO_ENTREGA, ESTADO_SOLICITUD, FRECUENCIA_PAGO_LABELS,
+  MOTIVO_RECHAZO_LABELS, TIPOS_CONSTANCIA, TIPO_CONSTANCIA_LABELS, TZ_LIMA, hoyLima, problemaDeArchivo,
+  sugerirProximaFecha,
+  type EstadoConstancia, type EstadoEntrega, type EstadoSolicitud, type FrecuenciaPago, type MotivoRechazo,
+  type TipoConstancia,
 } from "@cayla-dynamic/shared";
 import { Cargando } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
@@ -18,6 +20,7 @@ import { Modal } from "@/components/ui/modal";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { enDias } from "@/lib/admin/bandeja-urgencia";
 import { abrirArchivoFirmado } from "@/lib/abrir-archivo-firmado";
+import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 import {
   BUCKET_COMPROBANTES, elegido, fechaCorta, subirArchivosDeEntrega, type ArchivoElegido,
 } from "@/lib/educacion";
@@ -65,6 +68,21 @@ interface Situacion {
   motivo_categoria: MotivoRechazo | null;
   motivo_comentario: string | null;
   aviso_fin_id: string | null;
+}
+
+interface Solicitud {
+  id: string;
+  institucion: string;
+  costo_declarado: number;
+  beneficiario: "trabajador" | "hijo";
+  beneficiario_nombre: string | null;
+  vigente_desde: string;
+  vigente_hasta: string;
+  comprobante_url: string | null;
+  nota: string | null;
+  estado: EstadoSolicitud;
+  enviada_at: string;
+  motivo_rechazo: string | null;
 }
 
 interface Entrega {
@@ -135,6 +153,7 @@ function EducacionContenido() {
   const [personaId, setPersonaId] = useState<string | null>(null);
   const [situaciones, setSituaciones] = useState<Situacion[]>([]);
   const [historial, setHistorial] = useState<Record<string, Entrega[]>>({});
+  const [solicitud, setSolicitud] = useState<Solicitud | null>(null);
   const [textoValido, setTextoValido] = useState<string>("");
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -173,6 +192,13 @@ function EducacionContenido() {
       mias.map((s) => supabase.rpc("fn_educacion_entregas", { p_familia_id: s.familia_id })),
     );
     setHistorial(Object.fromEntries(mias.map((s, i) => [s.familia_id, (historias[i].data ?? []) as unknown as Entrega[]])));
+
+    // Su propia solicitud más reciente (0461) — solo importa cuando no tiene
+    // ningún apoyo activo/futuro todavía. RLS ya la limita a la suya.
+    const { data: sol } = await supabase.from("educacion_solicitudes").select("*")
+      .eq("persona_id", yo).order("enviada_at", { ascending: false }).limit(1).maybeSingle();
+    setSolicitud((sol ?? null) as unknown as Solicitud | null);
+
     setCargando(false);
   }, [supabase, router]);
 
@@ -217,13 +243,13 @@ function EducacionContenido() {
       )}
 
       {situaciones.length === 0 ? (
-        <section className="rounded-2xl border border-sand bg-papel p-5 text-sm">
-          <h2 className="mb-1 font-serif text-lg">No tienes una asignación educativa activa</h2>
-          <p className="text-taupe">
-            Si CAYLA aprueba un apoyo para tus estudios o los de tu hijo o hija, aparecerá aquí y desde aquí
-            subirás sus constancias.
-          </p>
-        </section>
+        <SolicitudApoyo
+          solicitud={solicitud}
+          personaId={personaId!}
+          hoy={hoy}
+          onCambio={async (texto) => { setAviso({ tipo: "ok", texto }); await cargar(); }}
+          onError={(texto) => setAviso({ tipo: "error", texto })}
+        />
       ) : (
         <div className="flex flex-col gap-6">
           {activas.map((s) => (
@@ -239,9 +265,13 @@ function EducacionContenido() {
             />
           ))}
           {activas.length === 0 && (
-            <section className="rounded-2xl border border-sand bg-papel p-5 text-sm text-taupe">
-              No tienes una asignación educativa activa. Tus estudios anteriores están abajo.
-            </section>
+            <SolicitudApoyo
+              solicitud={solicitud}
+              personaId={personaId!}
+              hoy={hoy}
+              onCambio={async (texto) => { setAviso({ tipo: "ok", texto }); await cargar(); }}
+              onError={(texto) => setAviso({ tipo: "error", texto })}
+            />
           )}
           {anteriores.length > 0 && (
             <details className="rounded-2xl border border-sand p-5 text-sm">
@@ -723,6 +753,244 @@ function AvisoFin({
         <Boton variante="primario" cargando={guardando} onClick={() => void avisar()}>Enviar aviso</Boton>
       </div>
     </Modal>
+  );
+}
+
+/**
+ * Quien todavía no tiene un apoyo educativo lo pide acá (0461): el mismo
+ * formulario que usa DO para dar de alta, sin el monto — eso lo sigue
+ * calculando el sistema al aprobar. Mientras está pendiente puede verla y
+ * retirarla; si la rechazan, ve el motivo y puede corregir y reenviar.
+ */
+function SolicitudApoyo({
+  solicitud, personaId, hoy, onCambio, onError,
+}: {
+  solicitud: Solicitud | null;
+  personaId: string;
+  hoy: string;
+  onCambio: (texto: string) => Promise<void>;
+  onError: (texto: string) => void;
+}) {
+  const supabase = useMemo(() => createAdminSupabaseClient(), []);
+  const [formulario, setFormulario] = useState(false);
+  const [retirando, setRetirando] = useState(false);
+  const [confirmarRetiro, setConfirmarRetiro] = useState(false);
+
+  async function retirar() {
+    if (!solicitud) return;
+    setRetirando(true);
+    const { error } = await supabase.rpc("fn_educacion_retirar_solicitud", { p_id: solicitud.id });
+    setRetirando(false);
+    setConfirmarRetiro(false);
+    if (error) { onError(mensajeDeError(error, "retirar la solicitud")); return; }
+    await onCambio("Retiraste tu solicitud. Puedes enviarla de nuevo cuando quieras.");
+  }
+
+  // Sin solicitud viva (nunca pidió, o la retiró): la tarjeta vacía, o el
+  // formulario si ya lo abrió.
+  if (!solicitud || solicitud.estado === "retirada") {
+    if (formulario) {
+      return (
+        <FormularioSolicitud
+          personaId={personaId}
+          hoy={hoy}
+          onCancelar={() => setFormulario(false)}
+          onEnviada={async () => {
+            setFormulario(false);
+            await onCambio("Solicitud enviada. Desarrollo Organizacional la va a revisar y te avisamos en tu Bandeja.");
+          }}
+        />
+      );
+    }
+    return (
+      <section className="rounded-2xl border border-sand bg-papel p-5 text-sm">
+        <h2 className="mb-1 font-serif text-lg">No tienes una asignación educativa activa</h2>
+        <p className="mb-4 text-taupe">
+          Si estudias tú o tu hijo o hija y CAYLA cubre parte del costo, pide aquí tu apoyo educativo.
+        </p>
+        <Boton variante="primario" onClick={() => setFormulario(true)}>Solicitar apoyo educativo</Boton>
+      </section>
+    );
+  }
+
+  const estado = ESTADO_SOLICITUD[solicitud.estado];
+
+  return (
+    <section className="rounded-2xl border border-sand bg-papel p-5 text-sm">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="font-serif text-lg">{solicitud.institucion}</h2>
+        <Insignia variante={estado.tono}>{estado.etiqueta}</Insignia>
+      </div>
+      <p className="text-taupe">
+        Pediste este apoyo el {fechaCorta(solicitud.enviada_at)} · costo declarado {soles(solicitud.costo_declarado)}
+      </p>
+
+      {solicitud.comprobante_url && (
+        <Boton variante="enlace" className="mt-2 text-xs" onClick={async () => {
+          const error = await abrirArchivoFirmado(supabase, BUCKET_COMPROBANTES, solicitud.comprobante_url!);
+          if (error) onError(error);
+        }}>
+          Ver comprobante que adjuntaste
+        </Boton>
+      )}
+
+      {solicitud.estado === "pendiente" && !formulario && (
+        <>
+          <p className="mt-3 text-xs text-taupe">
+            Desarrollo Organizacional la está revisando. Te avisamos en tu Bandeja cuando termine.
+          </p>
+          <Boton variante="sutil" className="mt-4" onClick={() => setConfirmarRetiro(true)}>Retirar solicitud</Boton>
+        </>
+      )}
+
+      {solicitud.estado === "rechazada" && !formulario && (
+        <>
+          <div className="mt-3 rounded-xl border border-rojo/30 bg-rojo/5 p-3 text-sm">
+            <p className="font-medium text-rojo-profundo">Motivo: {solicitud.motivo_rechazo}</p>
+          </div>
+          <Boton variante="primario" className="mt-4" onClick={() => setFormulario(true)}>Corregir y volver a enviar</Boton>
+        </>
+      )}
+
+      {formulario && (
+        <FormularioSolicitud
+          personaId={personaId}
+          hoy={hoy}
+          valoresIniciales={solicitud}
+          onCancelar={() => setFormulario(false)}
+          onEnviada={async () => {
+            setFormulario(false);
+            await onCambio("Solicitud enviada. Desarrollo Organizacional la va a revisar y te avisamos en tu Bandeja.");
+          }}
+        />
+      )}
+
+      <Modal abierto={confirmarRetiro} onCerrar={() => setConfirmarRetiro(false)} bloqueado={retirando}
+        titulo="¿Retirar esta solicitud?" ancho="sm">
+        <p className="mb-4 text-sm text-taupe">
+          Desarrollo Organizacional ya no la va a revisar. Puedes enviarla de nuevo cuando quieras.
+        </p>
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <Boton onClick={() => setConfirmarRetiro(false)} disabled={retirando}>Cancelar</Boton>
+          <Boton variante="peligro" cargando={retirando} onClick={() => void retirar()}>Retirar solicitud</Boton>
+        </div>
+      </Modal>
+    </section>
+  );
+}
+
+function FormularioSolicitud({
+  personaId, hoy, valoresIniciales, onCancelar, onEnviada,
+}: {
+  personaId: string;
+  hoy: string;
+  valoresIniciales?: Solicitud;
+  onCancelar: () => void;
+  onEnviada: () => Promise<void>;
+}) {
+  const supabase = useMemo(() => createAdminSupabaseClient(), []);
+  // El id del envío nace con el formulario, para la carpeta del comprobante.
+  const [solicitudId] = useState(() => crypto.randomUUID());
+  const [institucion, setInstitucion] = useState(valoresIniciales?.institucion ?? "");
+  const [beneficiario, setBeneficiario] = useState<"trabajador" | "hijo">(valoresIniciales?.beneficiario ?? "trabajador");
+  const [beneficiarioNombre, setBeneficiarioNombre] = useState(valoresIniciales?.beneficiario_nombre ?? "");
+  const [costo, setCosto] = useState(valoresIniciales ? String(valoresIniciales.costo_declarado) : "");
+  // Fecha que nace con valor, nunca vacía (CLAUDE.md, 2026-08-26).
+  const [desde, setDesde] = useState(valoresIniciales?.vigente_desde ?? hoy);
+  const [hasta, setHasta] = useState(valoresIniciales?.vigente_hasta ?? hoy);
+  const [nota, setNota] = useState(valoresIniciales?.nota ?? "");
+  const [archivo, setArchivo] = useState<File | null>(null);
+  const [progreso, setProgreso] = useState<number | null>(null);
+  const [enviando, setEnviando] = useState(false);
+  const [fallo, setFallo] = useState<string | null>(null);
+
+  async function enviar() {
+    setFallo(null);
+    if (institucion.trim().length < 3) { setFallo("Escribe qué institución emite el comprobante."); return; }
+    const costoNum = Number(costo);
+    if (!costoNum || costoNum <= 0) { setFallo("El costo que dice el comprobante tiene que ser mayor que cero."); return; }
+    if (beneficiario === "hijo" && beneficiarioNombre.trim().length < 3) {
+      setFallo("Escribe a nombre de quién está el comprobante."); return;
+    }
+    if (!desde || !hasta) { setFallo("Indica desde y hasta cuándo vale."); return; }
+    if (hasta < desde) { setFallo("La fecha de fin es anterior a la de inicio."); return; }
+
+    setEnviando(true);
+
+    let comprobanteUrl: string | null = null;
+    if (archivo) {
+      const ext = archivo.name.split(".").pop()?.toLowerCase() ?? "bin";
+      const ruta = `educacion/${personaId}/solicitudes/${solicitudId}/comprobante.${ext}`;
+      const errorSubida = await subirArchivoConProgreso(supabase, BUCKET_COMPROBANTES, ruta, archivo, setProgreso);
+      if (errorSubida) {
+        setEnviando(false);
+        setFallo(`El comprobante no subió: ${errorSubida}. Puedes enviar la solicitud sin él y adjuntarlo después.`);
+        return;
+      }
+      comprobanteUrl = ruta;
+    }
+
+    const { error } = await supabase.rpc("fn_educacion_solicitar", {
+      p_institucion: institucion.trim(),
+      p_costo_declarado: costoNum,
+      p_beneficiario: beneficiario,
+      p_beneficiario_nombre: beneficiario === "hijo" ? beneficiarioNombre.trim() : null,
+      p_vigente_desde: desde,
+      p_vigente_hasta: hasta,
+      p_comprobante_url: comprobanteUrl,
+      p_nota: nota.trim() || null,
+    });
+    setEnviando(false);
+    if (error) { setFallo(mensajeDeError(error, "enviar la solicitud")); return; }
+    await onEnviada();
+  }
+
+  return (
+    <div className="mt-4 rounded-2xl border border-sand bg-hueso p-4 sm:p-5">
+      <h4 className="font-serif text-lg">
+        {valoresIniciales ? "Corregir y volver a enviar" : "Solicitar apoyo educativo"}
+      </h4>
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <Campo etiqueta="Institución" value={institucion} placeholder="ej. Instituto San Ignacio"
+          onChange={(e) => setInstitucion(e.target.value)} disabled={enviando} />
+        <CampoSelect etiqueta="¿De quién es el estudio?" value={beneficiario}
+          onChange={(e) => setBeneficiario(e.target.value as "trabajador" | "hijo")} disabled={enviando}>
+          <option value="trabajador">De la persona misma</option>
+          <option value="hijo">De su hijo o hija</option>
+        </CampoSelect>
+        {beneficiario === "hijo" && (
+          <Campo etiqueta="¿A nombre de quién está el comprobante?" value={beneficiarioNombre}
+            onChange={(e) => setBeneficiarioNombre(e.target.value)} disabled={enviando} />
+        )}
+        <Campo etiqueta="Costo que dice el comprobante" type="number" min="0" step="0.01" inputMode="decimal"
+          value={costo} onChange={(e) => setCosto(e.target.value)} disabled={enviando} />
+        <Campo etiqueta="Se paga desde" type="date" value={desde}
+          onChange={(e) => setDesde(e.target.value)} disabled={enviando} />
+        <Campo etiqueta="Hasta cuándo vale" type="date" value={hasta}
+          onChange={(e) => setHasta(e.target.value)} disabled={enviando} />
+        <div className="flex flex-col gap-1 sm:col-span-2">
+          <Campo etiqueta="Comprobante (opcional)" type="file" accept="application/pdf,image/jpeg,image/png"
+            onChange={(e) => setArchivo(e.target.files?.[0] ?? null)} disabled={enviando} />
+          <span className="text-xs text-taupe">
+            Puedes enviarlo después. El monto no lo escribes tú: lo calcula Desarrollo Organizacional al aprobar,
+            según tu rango.
+          </span>
+          {progreso !== null && <span className="text-xs text-taupe">Subiendo… {progreso}%</span>}
+        </div>
+        <div className="sm:col-span-2">
+          <AreaTexto rows={2} value={nota} onChange={(e) => setNota(e.target.value)} disabled={enviando}
+            placeholder="Nota para Desarrollo Organizacional (opcional)" aria-label="Nota opcional" />
+        </div>
+      </div>
+
+      {fallo && <p role="alert" className="mt-3 rounded-xl bg-rojo/10 px-3 py-2 text-sm text-rojo-profundo">{fallo}</p>}
+
+      <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+        <Boton onClick={onCancelar} disabled={enviando}>Cancelar</Boton>
+        <Boton variante="primario" cargando={enviando} onClick={() => void enviar()}>Enviar para revisión</Boton>
+      </div>
+    </div>
   );
 }
 

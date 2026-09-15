@@ -1,0 +1,766 @@
+<title>Centro de Comunicaciones CAYLA</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+  /* ============================================================
+     Paleta y tokens: copiados de apps/web/app/globals.css, no
+     inventados. Esto es un demo de UNA pantalla de esa misma app,
+     así que usa exactamente su sistema — nunca uno propio.
+     ============================================================ */
+  :root{
+    --color-crema:#f5f0e8; --color-papel:#fbf8f2; --color-tinta:#1a1a18;
+    --color-rojo:#b8412d; --color-rojo-profundo:#8b2a1f;
+    --color-sand:#e8e0d0; --color-taupe:#805c4c;
+    --color-verde:#48603f; --color-ambar:#74501a;
+    --color-hueso:#eae1d2; --color-pizarra:#4c5d6e;
+    --radius-control:.5rem; --radius-superficie:1rem; --radius-flotante:1.25rem; --radius-pildora:999px;
+    --font-sans:'DM Sans',ui-sans-serif,system-ui,sans-serif;
+    --font-serif:'EB Garamond',ui-serif,Georgia,'Times New Roman',serif;
+    --ease-salida:cubic-bezier(.22,1,.36,1);
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --color-crema:#1c1a16; --color-papel:#26221d; --color-tinta:#ede7db;
+      --color-rojo:#d4634a; --color-rojo-profundo:#e8836b;
+      --color-sand:#332e27; --color-taupe:#ab9080;
+      --color-verde:#8fae80; --color-ambar:#c99a4a;
+      --color-hueso:#15110d; --color-pizarra:#9db0c2;
+      color-scheme:dark;
+    }
+  }
+  :root[data-theme="dark"]{
+    --color-crema:#1c1a16; --color-papel:#26221d; --color-tinta:#ede7db;
+    --color-rojo:#d4634a; --color-rojo-profundo:#e8836b;
+    --color-sand:#332e27; --color-taupe:#ab9080;
+    --color-verde:#8fae80; --color-ambar:#c99a4a;
+    --color-hueso:#15110d; --color-pizarra:#9db0c2;
+    color-scheme:dark;
+  }
+  *,*::before,*::after{box-sizing:border-box}
+  body{
+    background:var(--color-crema); color:var(--color-tinta);
+    font-family:var(--font-sans); margin:0; padding-block:20px;
+    padding-inline:16px;
+  }
+  h1,h2,h3{font-family:var(--font-serif); font-weight:600; margin:0; text-wrap:balance}
+  p{margin:0}
+  button{font-family:inherit; cursor:pointer}
+  input,select,textarea{font-family:inherit}
+  .wrap{max-width:1180px; margin:0 auto}
+
+  /* ── Cabecera del demo, deliberadamente distinta del producto:
+     tono pizarra (el token "informativo/en proceso" de la casa),
+     para que nunca se confunda con la pantalla real. ───────────── */
+  .demo-cab{
+    background:var(--color-pizarra); color:var(--color-papel);
+    border-radius:var(--radius-superficie); padding:16px 20px;
+    margin-bottom:14px;
+  }
+  .demo-cab .etiqueta{
+    text-transform:uppercase; letter-spacing:.14em; font-size:.68rem; font-weight:600;
+    opacity:.85; margin-bottom:4px;
+  }
+  .demo-cab h1{font-size:1.3rem; color:var(--color-papel)}
+  .demo-cab p{font-size:.83rem; opacity:.92; margin-top:5px; max-width:62ch; line-height:1.5}
+
+  /* ── Panel de controles: la parte que NO es la pantalla real ─── */
+  .panel-controles{
+    background:color-mix(in oklab, var(--color-pizarra) 8%, var(--color-papel));
+    border:1px solid var(--color-sand);
+    border-radius:var(--radius-superficie);
+    padding:14px 18px; margin-bottom:18px;
+    display:flex; flex-direction:column; gap:12px;
+  }
+  .fila-control{display:flex; flex-wrap:wrap; align-items:center; gap:10px 18px}
+  .grupo-control{display:flex; flex-direction:column; gap:6px; min-width:0}
+  .grupo-control .rotulo{
+    font-size:.66rem; text-transform:uppercase; letter-spacing:.1em; font-weight:600;
+    color:var(--color-taupe);
+  }
+  .segmentado{display:inline-flex; border:1px solid var(--color-sand); border-radius:var(--radius-control); overflow:hidden}
+  .segmentado button{
+    background:var(--color-papel); color:var(--color-tinta); border:none;
+    padding:6px 12px; font-size:.78rem; font-weight:500; border-right:1px solid var(--color-sand);
+    transition:background .12s;
+  }
+  .segmentado button:last-child{border-right:none}
+  .segmentado button:hover{background:var(--color-hueso)}
+  .segmentado button[aria-pressed="true"]{background:var(--color-pizarra); color:var(--color-papel)}
+  .chip-toggle{
+    display:inline-flex; align-items:center; gap:6px; border:1px solid var(--color-sand);
+    background:var(--color-papel); border-radius:var(--radius-pildora); padding:5px 12px 5px 8px;
+    font-size:.78rem; cursor:pointer; user-select:none; color:var(--color-tinta);
+  }
+  .chip-toggle input{accent-color:var(--color-pizarra); margin:0}
+  .chip-toggle.on{background:color-mix(in oklab, var(--color-pizarra) 14%, var(--color-papel)); border-color:var(--color-pizarra)}
+  .resumen-estado{font-size:.76rem; color:var(--color-taupe); line-height:1.5; padding-top:2px; border-top:1px solid var(--color-sand)}
+  .resumen-estado strong{color:var(--color-tinta); font-weight:600}
+
+  /* ── El "lienzo": la pantalla real, enmarcada ─────────────────── */
+  .migaja{
+    font-size:.72rem; color:var(--color-taupe); font-family:ui-monospace,'SF Mono',Menlo,monospace;
+    margin-bottom:8px; letter-spacing:.01em;
+  }
+  .lienzo{
+    border:1px solid var(--color-sand); border-radius:var(--radius-superficie);
+    background:var(--color-crema); overflow:hidden;
+  }
+  .lienzo-interior{padding:22px 22px 30px}
+  @media (max-width:640px){ .lienzo-interior{padding:16px 14px 24px} }
+
+  .cab-app h2{font-size:1.5rem; color:var(--color-tinta)}
+  .cab-app .sub{font-size:.85rem; color:var(--color-taupe); margin-top:4px; max-width:56ch; line-height:1.5}
+  .cab-app-fila{display:flex; flex-wrap:wrap; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:16px}
+
+  .btn{
+    display:inline-flex; align-items:center; gap:6px; border-radius:var(--radius-control);
+    font-size:.83rem; font-weight:500; padding:8px 14px; border:1px solid transparent;
+    transition:background .12s;
+  }
+  .btn-primario{background:var(--color-rojo); color:var(--color-papel)}
+  .btn-primario:hover{background:var(--color-rojo-profundo)}
+  .btn-secundario{background:var(--color-papel); color:var(--color-tinta); border-color:var(--color-taupe)}
+  .btn-secundario:hover{background:var(--color-hueso)}
+  .btn-sutil{background:transparent; color:var(--color-taupe); padding:6px 10px}
+  .btn-sutil:hover{color:var(--color-tinta); background:var(--color-hueso)}
+  .btn-peligro{background:transparent; color:var(--color-rojo-profundo); border-color:var(--color-rojo-profundo)}
+  .btn-peligro:hover{background:color-mix(in oklab, var(--color-rojo) 10%, transparent)}
+  .btn-sm{padding:5px 10px; font-size:.75rem}
+  .btn:disabled{opacity:.5; cursor:default}
+
+  /* Resumen (KPI) */
+  .kpis{display:flex; flex-wrap:wrap; gap:10px; margin-bottom:16px}
+  .kpi{
+    background:var(--color-papel); border:1px solid var(--color-sand); border-radius:var(--radius-control);
+    padding:8px 14px; min-width:106px;
+  }
+  .kpi .n{font-family:var(--font-serif); font-size:1.35rem; font-variant-numeric:tabular-nums; line-height:1}
+  .kpi .l{font-size:.68rem; color:var(--color-taupe); text-transform:uppercase; letter-spacing:.08em; margin-top:3px}
+
+  /* Filtros */
+  .filtros{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px}
+  .filtros select, .filtros input[type=search]{
+    background:var(--color-hueso); border:1px solid var(--color-sand); border-radius:var(--radius-control);
+    padding:7px 10px; font-size:.8rem; color:var(--color-tinta);
+  }
+  .filtros input[type=search]{min-width:180px; flex:1}
+
+  /* Tarjetas de anuncio */
+  .lista-anuncios{display:flex; flex-direction:column; gap:11px}
+  .tarjeta{
+    background:var(--color-papel); border:1px solid var(--color-sand); border-radius:var(--radius-superficie);
+    padding:15px 17px;
+  }
+  .tarjeta.es-borrador{border-style:dashed}
+  .tarjeta.es-archivado{opacity:.72}
+  .t-fila1{display:flex; flex-wrap:wrap; justify-content:space-between; align-items:baseline; gap:8px}
+  .t-titulo{font-family:var(--font-serif); font-size:1.08rem; color:var(--color-tinta)}
+  .t-resumen{font-size:.85rem; color:var(--color-tinta); margin-top:5px; line-height:1.5}
+  .t-meta{display:flex; flex-wrap:wrap; gap:7px; margin-top:10px; align-items:center}
+  .t-pie{display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:10px;
+    margin-top:11px; padding-top:11px; border-top:1px solid color-mix(in oklab, var(--color-sand) 70%, transparent);
+    font-size:.76rem; color:var(--color-taupe);}
+  .t-acciones{display:flex; gap:6px; align-items:center}
+
+  /* Insignias / pills, mismos 4 tonos + variantes de prioridad */
+  .pill{
+    display:inline-flex; align-items:center; gap:4px; border-radius:var(--radius-pildora);
+    padding:3px 9px; font-size:.7rem; font-weight:600; white-space:nowrap;
+  }
+  .pill-positivo{background:color-mix(in oklab, var(--color-verde) 15%, transparent); color:var(--color-verde)}
+  .pill-alerta{background:color-mix(in oklab, var(--color-rojo) 15%, transparent); color:var(--color-rojo-profundo)}
+  .pill-informativo{background:color-mix(in oklab, var(--color-pizarra) 15%, transparent); color:var(--color-pizarra)}
+  .pill-advertencia{background:color-mix(in oklab, var(--color-ambar) 15%, transparent); color:var(--color-ambar)}
+  .pill-neutro{background:var(--color-hueso); color:var(--color-taupe)}
+  .pill svg{width:11px; height:11px; flex:none}
+
+  .prioridad-normal{background:var(--color-hueso); color:var(--color-taupe)}
+  .prioridad-importante{background:color-mix(in oklab, var(--color-ambar) 16%, transparent); color:var(--color-ambar)}
+  .prioridad-urgente{background:color-mix(in oklab, var(--color-rojo) 16%, transparent); color:var(--color-rojo-profundo)}
+
+  .icono{width:13px; height:13px; stroke:currentColor; stroke-width:1.8; fill:none; stroke-linecap:round; stroke-linejoin:round; flex:none; vertical-align:-2px}
+
+  /* Formulario */
+  .form-anuncio{display:flex; flex-direction:column; gap:14px}
+  .campo{display:flex; flex-direction:column; gap:5px}
+  .campo label{font-size:.74rem; font-weight:600; color:var(--color-taupe)}
+  .campo input[type=text], .campo input[type=date], .campo input[type=time], .campo select, .campo textarea{
+    background:var(--color-hueso); border:1px solid var(--color-sand); border-radius:var(--radius-control);
+    padding:8px 10px; font-size:.85rem; color:var(--color-tinta); width:100%;
+  }
+  .campo textarea{resize:vertical; min-height:72px; font-family:inherit}
+  .campo-fila{display:flex; gap:10px; flex-wrap:wrap}
+  .campo-fila > *{flex:1; min-width:130px}
+  .radios{display:flex; flex-direction:column; gap:7px}
+  .radio-op{display:flex; align-items:flex-start; gap:8px; font-size:.82rem; cursor:pointer}
+  .radio-op input{margin-top:3px; accent-color:var(--color-pizarra)}
+  .radio-op .tit{font-weight:600}
+  .radio-op .ayuda{color:var(--color-taupe); font-size:.75rem; display:block; margin-top:1px}
+  .adjunto-zona{
+    border:1.5px dashed var(--color-sand); border-radius:var(--radius-control); padding:14px;
+    text-align:center; font-size:.78rem; color:var(--color-taupe);
+  }
+  .chip-archivo{
+    display:inline-flex; align-items:center; gap:6px; background:var(--color-hueso);
+    border:1px solid var(--color-sand); border-radius:var(--radius-pildora); padding:4px 10px 4px 8px; font-size:.75rem;
+    margin-top:8px;
+  }
+  .publicar-fila{display:flex; gap:8px; justify-content:flex-end; padding-top:4px; border-top:1px solid var(--color-sand)}
+  fieldset{border:none; margin:0; padding:0; display:flex; flex-direction:column; gap:7px}
+  legend{font-size:.74rem; font-weight:600; color:var(--color-taupe); padding:0; margin-bottom:1px}
+
+  /* Layout A: form fijo + lista */
+  .shell-a{display:grid; gap:20px; grid-template-columns:340px 1fr; align-items:start}
+  .shell-a .panel-form{background:var(--color-papel); border:1px solid var(--color-sand); border-radius:var(--radius-superficie); padding:17px; position:sticky; top:14px}
+  @media (max-width:820px){ .shell-a{grid-template-columns:1fr} .shell-a .panel-form{position:static} }
+
+  /* Layout B: lista + botón, cajón lateral */
+  .cajon-fondo{
+    position:fixed; inset:0; background:color-mix(in oklab, var(--color-tinta) 45%, transparent);
+    display:none; z-index:40;
+  }
+  .cajon-fondo.abierto{display:block}
+  .cajon{
+    position:fixed; top:0; right:0; bottom:0; width:min(420px,92vw);
+    background:var(--color-papel); border-left:1px solid var(--color-sand);
+    box-shadow:-8px 0 28px rgba(0,0,0,.18);
+    z-index:41; padding:20px 20px 24px; overflow-y:auto;
+    transform:translateX(100%); transition:transform .26s var(--ease-salida);
+  }
+  .cajon.abierto{transform:none}
+  .cajon-cab{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:14px}
+  .cajon-cerrar{background:none; border:none; color:var(--color-taupe); font-size:.8rem}
+  .cajon-cerrar:hover{color:var(--color-tinta)}
+
+  /* Layout C: tabs */
+  .tabs{display:flex; gap:4px; border-bottom:1px solid var(--color-sand); margin-bottom:18px}
+  .tabs button{
+    background:none; border:none; padding:9px 4px; margin-right:18px; font-size:.88rem; font-weight:500;
+    color:var(--color-taupe); border-bottom:2px solid transparent; margin-bottom:-1px;
+  }
+  .tabs button[aria-selected="true"]{color:var(--color-tinta); border-color:var(--color-rojo)}
+  .tabs button:hover{color:var(--color-tinta)}
+
+  /* Vista Portal (colaboradora) */
+  .portal-frame{max-width:420px; margin:0 auto}
+  .portal-card{background:var(--color-papel); border:1px solid var(--color-sand); border-radius:var(--radius-superficie); padding:16px; margin-bottom:14px}
+  .portal-card h3{font-size:.92rem}
+  .portal-item{background:var(--color-crema); border:1px solid var(--color-sand); border-radius:var(--radius-control); padding:10px 12px; margin-top:9px}
+  .portal-bandeja{border-color:color-mix(in oklab, var(--color-ambar) 45%, var(--color-sand)); background:color-mix(in oklab, var(--color-ambar) 6%, var(--color-papel))}
+  .nota-portal{font-size:.72rem; color:var(--color-taupe); line-height:1.5; margin-top:8px}
+
+  .lectores-mini{
+    display:inline-flex; align-items:center; gap:5px; background:none; border:none; padding:0;
+    color:var(--color-taupe); font-size:.76rem; cursor:pointer; text-decoration:underline; text-decoration-color:color-mix(in oklab, var(--color-taupe) 40%, transparent); text-underline-offset:2px;
+  }
+  .lectores-mini:hover{color:var(--color-tinta)}
+  .popover-lectores{
+    position:absolute; background:var(--color-papel); border:1px solid var(--color-sand); border-radius:var(--radius-control);
+    padding:9px 12px; font-size:.75rem; box-shadow:0 8px 22px rgba(0,0,0,.14); z-index:30; max-width:220px;
+  }
+  .popover-lectores .fila{display:flex; justify-content:space-between; gap:10px; padding:2px 0}
+
+  .vacio{
+    text-align:center; padding:34px 20px; color:var(--color-taupe); font-size:.85rem;
+    border:1px dashed var(--color-sand); border-radius:var(--radius-superficie);
+  }
+
+  [hidden]{display:none!important}
+  a{color:inherit}
+
+  @media (prefers-reduced-motion:reduce){ .cajon{transition:none} }
+</style>
+
+<div class="wrap">
+
+  <div class="demo-cab">
+    <div class="etiqueta">Demo de comparación — no conectado a datos reales</div>
+    <h1>Cómo podría verse Anuncios</h1>
+    <p>Cambia los controles de abajo para comparar arquitectura, audiencia, estados y vista. Los anuncios de ejemplo son ficticios, pero muestran combinaciones reales: prioridad, confirmación explícita vs. solo lectura, adjuntos, edición con historial y cómo se vería en tu Bandeja.</p>
+  </div>
+
+  <div class="panel-controles">
+    <div class="fila-control">
+      <div class="grupo-control">
+        <span class="rotulo">Arquitectura</span>
+        <div class="segmentado" id="ctl-arq" role="group" aria-label="Arquitectura"></div>
+      </div>
+      <div class="grupo-control">
+        <span class="rotulo">Vista</span>
+        <div class="segmentado" id="ctl-vista" role="group" aria-label="Vista"></div>
+      </div>
+      <div class="grupo-control">
+        <span class="rotulo">Audiencia</span>
+        <div class="segmentado" id="ctl-aud" role="group" aria-label="Nivel de audiencia"></div>
+      </div>
+      <div class="grupo-control">
+        <span class="rotulo">Estados a incluir</span>
+        <div class="fila-control" id="ctl-estados" style="gap:8px"></div>
+      </div>
+    </div>
+    <div class="resumen-estado" id="resumen-estado"></div>
+  </div>
+
+  <div class="migaja" id="migaja">cayla-dynamic.vercel.app › admin › anuncios</div>
+  <div class="lienzo"><div class="lienzo-interior" id="lienzo"></div></div>
+</div>
+
+<div class="cajon-fondo" id="cajon-fondo"></div>
+<aside class="cajon" id="cajon" aria-hidden="true">
+  <div class="cajon-cab">
+    <h2 style="font-size:1.15rem">Nuevo anuncio</h2>
+    <button class="cajon-cerrar" id="cajon-cerrar-btn">Cerrar ✕</button>
+  </div>
+  <div id="cajon-form"></div>
+</aside>
+
+<script>
+(function(){
+  "use strict";
+
+  // ============================================================
+  // ICONOS — SVG mínimos, trazo único, heredan color del texto.
+  // ============================================================
+  const ICO = {
+    clip:'<svg class="icono" viewBox="0 0 24 24"><path d="M8 12.5l6.5-6.5a3.5 3.5 0 0 1 5 5L11 19.5a5.5 5.5 0 0 1-7.8-7.8L12 3"/></svg>',
+    reloj:'<svg class="icono" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>',
+    check:'<svg class="icono" viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 6"/></svg>',
+    usuarios:'<svg class="icono" viewBox="0 0 24 24"><circle cx="8.5" cy="8" r="3"/><circle cx="17" cy="9.5" r="2.4"/><path d="M2.5 19c.5-3.2 2.9-5 6-5s5.5 1.8 6 5"/><path d="M14.5 14.3c2.4.3 4 1.8 4.3 4.7"/></svg>',
+    sede:'<svg class="icono" viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="12"/><path d="M4 8l8-5 8 5"/><path d="M10 20v-5h4v5"/></svg>',
+    capas:'<svg class="icono" viewBox="0 0 24 24"><path d="M12 3.5L21 8l-9 4.5L3 8z"/><path d="M3 13l9 4.5L21 13"/><path d="M3 17.5l9 4.5 9-4.5"/></svg>',
+    archivo:'<svg class="icono" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="4.5" rx="1"/><path d="M4.5 9v9a1.5 1.5 0 0 0 1.5 1.5h12A1.5 1.5 0 0 0 19.5 18V9"/><path d="M10 13h4"/></svg>',
+    historial:'<svg class="icono" viewBox="0 0 24 24"><path d="M3.5 12a8.5 8.5 0 1 1 2.7 6.2"/><path d="M3.5 18v-4.5H8"/><path d="M12 8v4.3l3 2"/></svg>',
+    campana:'<svg class="icono" viewBox="0 0 24 24"><path d="M6 10a6 6 0 0 1 12 0c0 4 1.5 5.5 2 6H4c.5-.5 2-2 2-6Z"/><path d="M9.5 19a2.5 2.5 0 0 0 5 0"/></svg>',
+    ojo:'<svg class="icono" viewBox="0 0 24 24"><path d="M2.5 12s3.5-6.5 9.5-6.5 9.5 6.5 9.5 6.5-3.5 6.5-9.5 6.5S2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="2.6"/></svg>',
+  };
+
+  // ============================================================
+  // DATOS de ejemplo — nombres, sedes y áreas reales de CAYLA.
+  // ============================================================
+  const SEDES = [
+    {cod:'CCO', nom:'Central'}, {cod:'LIM', nom:'Taller Lima'},
+    {cod:'AQP', nom:'Tienda Arequipa'}, {cod:'TRU', nom:'Tienda Trujillo'},
+  ];
+  const AREAS = [
+    {cod:'calidad_servicio', nom:'Calidad y servicio'},
+    {cod:'taller_produccion', nom:'Taller y producción'},
+    {cod:'estrategia_comercial', nom:'Estrategia comercial'},
+    {cod:'desarrollo_organizacional', nom:'Desarrollo organizacional'},
+    {cod:'experiencia_marca', nom:'Experiencia y marca'},
+    {cod:'crecimiento_expansion', nom:'Crecimiento y expansión'},
+  ];
+
+  const ANUNCIOS = [
+    { id:1, titulo:'Cierre de planilla de septiembre',
+      resumen:'La planilla del mes cierra el 28. Registra cualquier corrección de marcaje antes de esa fecha.',
+      autor:'Felipe Álvarez', autorRol:'Desarrollo Organizacional', fecha:'Publicado hoy, 9:14 a. m.',
+      estado:'vigente', prioridad:'importante', audiencia:{tipo:'todas'},
+      lectura:{modo:'confirmacion', hechas:18, total:24}, adjunto:null, editado:false },
+
+    { id:2, titulo:'Corte de agua programado en Trujillo',
+      resumen:'Sedapal anunció corte de agua el sábado de 8 a. m. a 2 p. m. en la zona de la tienda.',
+      autor:'Danitza Reyes', autorRol:'Encargada TRU', fecha:'Publicado ayer, 4:02 p. m.',
+      estado:'vigente', prioridad:'urgente', audiencia:{tipo:'sede', sede:'TRU'},
+      lectura:{modo:'quien', total:4, nombres:['Rosa M.','Jorge Q.','Ana P.','Luis F.']}, adjunto:null, editado:false },
+
+    { id:3, titulo:'Mantenimiento del sistema el sábado',
+      resumen:'El panel y el terminal estarán caídos de 11 p. m. a 1 a. m. Marca a mano si tu turno coincide.',
+      autor:'Felipe Álvarez', autorRol:'Desarrollo Organizacional', fecha:'Programado para el 20 sep, 8:00 a. m.',
+      estado:'programado', prioridad:'urgente', audiencia:{tipo:'todas'},
+      lectura:{modo:'ninguno'}, adjunto:null, editado:false },
+
+    { id:4, titulo:'Nuevo protocolo de manejo de máquinas',
+      resumen:'Aplica a todo el equipo de Taller y producción, en las cuatro sedes. Revisa el documento antes del lunes.',
+      autor:'Felipe Álvarez', autorRol:'Desarrollo Organizacional', fecha:'Publicado 12 sep, 11:30 a. m.',
+      estado:'vigente', prioridad:'importante', audiencia:{tipo:'area', area:'taller_produccion'},
+      lectura:{modo:'confirmacion', hechas:9, total:14}, adjunto:'protocolo-maquinas.pdf', editado:true },
+
+    { id:5, titulo:'Conversemos sobre tu avance de objetivos',
+      resumen:'Agenda 15 minutos esta semana para revisar el trimestre juntas.',
+      autor:'Felipe Álvarez', autorRol:'Desarrollo Organizacional', fecha:'Publicado hoy, 8:05 a. m.',
+      estado:'vigente', prioridad:'normal', audiencia:{tipo:'personas', nombres:['Danitza Reyes','Jorge Quispe']},
+      lectura:{modo:'quien', total:1, nombres:['Danitza Reyes']}, adjunto:null, editado:false },
+
+    { id:6, titulo:'Recordatorio: tallas del uniforme nuevo',
+      resumen:'Falta confirmar tallas del equipo de Arequipa antes de pedir el lote a confección.',
+      autor:'Felipe Álvarez', autorRol:'Desarrollo Organizacional', fecha:'Sin publicar — borrador',
+      estado:'borrador', prioridad:'normal', audiencia:{tipo:'sede', sede:'AQP'},
+      lectura:{modo:'ninguno'}, adjunto:null, editado:false },
+
+    { id:7, titulo:'Feriado 8 de octubre — Combate de Angamos',
+      resumen:'Recuerden que el jueves no hay atención en ninguna sede.',
+      autor:'Felipe Álvarez', autorRol:'Desarrollo Organizacional', fecha:'Publicado 2 sep · venció el 8 oct',
+      estado:'archivado', prioridad:'normal', audiencia:{tipo:'todas'},
+      lectura:{modo:'quien', total:22, nombres:['Todo el equipo con cuenta']}, adjunto:null, editado:false },
+  ];
+
+  // ============================================================
+  // ESTADO del demo
+  // ============================================================
+  const state = {
+    arq:'B', vista:'panel', aud:'sede_area',
+    estados:{ programado:true, borrador:true, archivado:true },
+  };
+
+  const ETQ_ARQ = {A:'A · Formulario fijo', B:'B · Lista + botón', C:'C · Tabs'};
+  const ETQ_VISTA = {panel:'Panel (DO)', portal:'Portal (colaboradora)'};
+  const ETQ_AUD = {sede:'Solo sedes', sede_area:'Sedes + áreas', sede_area_persona:'+ personas'};
+
+  function sedeNombre(cod){ return (SEDES.find(s=>s.cod===cod)||{}).nom || cod; }
+  function areaNombre(cod){ return (AREAS.find(a=>a.cod===cod)||{}).nom || cod; }
+
+  function audienciaTexto(a){
+    if (a.tipo==='todas') return 'Todas las sedes';
+    if (a.tipo==='sede') return sedeNombre(a.sede);
+    if (a.tipo==='area') return areaNombre(a.area) + ' · 4 sedes';
+    if (a.tipo==='personas') return a.nombres.length + ' personas';
+    return '';
+  }
+  function audienciaIcono(a){
+    if (a.tipo==='personas') return ICO.usuarios;
+    if (a.tipo==='area') return ICO.capas;
+    return ICO.sede;
+  }
+
+  function anunciosVisibles(){
+    return ANUNCIOS.filter(a=>{
+      if (a.estado==='vigente') return true;
+      if (a.estado==='programado') return state.estados.programado;
+      if (a.estado==='borrador') return state.estados.borrador;
+      if (a.estado==='archivado') return state.estados.archivado;
+      return true;
+    }).filter(a=>{
+      // El nivel de audiencia elegido decide qué se PUEDE construir hoy:
+      // sin áreas ni personas conectadas, esos anuncios no tendrían dónde ir.
+      if (a.audiencia.tipo==='area' && state.aud==='sede') return false;
+      if (a.audiencia.tipo==='personas' && state.aud!=='sede_area_persona') return false;
+      return true;
+    });
+  }
+
+  // ============================================================
+  // Controles de arriba
+  // ============================================================
+  function segmentado(cont, etiquetas, valorActual, onPick){
+    cont.innerHTML = '';
+    Object.entries(etiquetas).forEach(([val, texto])=>{
+      const b = document.createElement('button');
+      b.type='button'; b.textContent = texto;
+      b.setAttribute('aria-pressed', String(val===valorActual));
+      b.addEventListener('click', ()=> onPick(val));
+      cont.appendChild(b);
+    });
+  }
+
+  function pintarControles(){
+    segmentado(document.getElementById('ctl-arq'), ETQ_ARQ, state.arq, v=>{ state.arq=v; render(); });
+    segmentado(document.getElementById('ctl-vista'), ETQ_VISTA, state.vista, v=>{ state.vista=v; render(); });
+    segmentado(document.getElementById('ctl-aud'), ETQ_AUD, state.aud, v=>{ state.aud=v; render(); });
+
+    const contEstados = document.getElementById('ctl-estados');
+    contEstados.innerHTML='';
+    [['programado','+ Programados'],['borrador','+ Borradores'],['archivado','+ Archivados']].forEach(([key,texto])=>{
+      const label = document.createElement('label');
+      label.className = 'chip-toggle' + (state.estados[key] ? ' on' : '');
+      const inp = document.createElement('input');
+      inp.type='checkbox'; inp.checked = state.estados[key];
+      inp.addEventListener('change', ()=>{ state.estados[key]=inp.checked; render(); });
+      label.appendChild(inp);
+      label.appendChild(document.createTextNode(texto));
+      contEstados.appendChild(label);
+    });
+
+    document.getElementById('resumen-estado').innerHTML =
+      'Viendo: <strong>' + ETQ_ARQ[state.arq] + '</strong> · <strong>' + ETQ_VISTA[state.vista] + '</strong> · '
+      + 'audiencia <strong>' + ETQ_AUD[state.aud].toLowerCase() + '</strong> · '
+      + (['programado','borrador','archivado'].filter(k=>state.estados[k]).map(k=>({programado:'programados',borrador:'borradores',archivado:'archivados'}[k])).join(', ') || 'solo vigentes');
+
+    document.getElementById('migaja').textContent =
+      state.vista==='portal' ? 'cayla-dynamic.vercel.app › mio' : 'cayla-dynamic.vercel.app › admin › anuncios';
+  }
+
+  // ============================================================
+  // Pieza: pill de prioridad
+  // ============================================================
+  function pillPrioridad(p){
+    const etq = {normal:'Normal', importante:'Importante', urgente:'Urgente'}[p];
+    return '<span class="pill prioridad-'+p+'">'+etq+'</span>';
+  }
+  function pillEstado(e){
+    const map = {
+      vigente:['positivo','Vigente'], programado:['informativo','Programado'],
+      borrador:['neutro','Borrador'], archivado:['neutro','Archivado'],
+    };
+    const [tono,texto] = map[e];
+    return '<span class="pill pill-'+tono+'">'+texto+'</span>';
+  }
+
+  function lecturaHtml(a){
+    if (a.lectura.modo==='ninguno') return '<span style="color:var(--color-taupe)">Sin seguimiento de lectura</span>';
+    if (a.lectura.modo==='confirmacion'){
+      const completo = a.lectura.hechas===a.lectura.total;
+      return '<span class="pill '+(completo?'pill-positivo':'pill-advertencia')+'">'+ICO.check+' '
+        + a.lectura.hechas+' / '+a.lectura.total+' confirmaciones</span>';
+    }
+    // 'quien'
+    return '<button class="lectores-mini" data-lectores="'+a.id+'">'+ICO.ojo+' '+a.lectura.total+' '+(a.lectura.total===1?'lectura':'lecturas')+'</button>';
+  }
+
+  function tarjetaHtml(a){
+    const meta = [];
+    meta.push('<span class="pill pill-neutro">'+audienciaIcono(a.audiencia)+' '+audienciaTexto(a.audiencia)+'</span>');
+    meta.push(pillPrioridad(a.prioridad));
+    if (state.estados.programado || state.estados.borrador || state.estados.archivado) meta.push(pillEstado(a.estado));
+    if (a.adjunto) meta.push('<span class="pill pill-neutro">'+ICO.clip+' '+a.adjunto+'</span>');
+    if (a.editado) meta.push('<span class="pill pill-neutro">'+ICO.historial+' Editado — ver versión anterior</span>');
+    if (a.estado==='programado') meta.push('<span class="pill pill-informativo">'+ICO.reloj+' No visible aún para el equipo</span>');
+
+    return (
+      '<li class="tarjeta '+(a.estado==='borrador'?'es-borrador':'')+' '+(a.estado==='archivado'?'es-archivado':'')+'" data-id="'+a.id+'">'
+      + '<div class="t-fila1"><h3 class="t-titulo">'+a.titulo+'</h3></div>'
+      + '<p class="t-resumen">'+a.resumen+'</p>'
+      + '<div class="t-meta">'+meta.join('')+'</div>'
+      + '<div class="t-pie">'
+      +   '<span>'+a.autor+' · '+a.autorRol+' · '+a.fecha+'</span>'
+      +   '<div class="t-acciones">'
+      +     lecturaHtml(a)
+      +     (state.vista==='panel'
+             ? '<button class="btn btn-sutil btn-sm">Ver detalle →</button>'
+               + (a.estado!=='archivado' ? '<button class="btn btn-peligro btn-sm">Archivar</button>' : '')
+             : (a.lectura.modo==='confirmacion' && a.lectura.hechas<a.lectura.total
+                ? '<button class="btn btn-primario btn-sm">Confirmar</button>'
+                : '<button class="btn btn-secundario btn-sm">Marcar leído</button>'))
+      +   '</div>'
+      + '</div>'
+      + '</li>'
+    );
+  }
+
+  // ============================================================
+  // Formulario "Nuevo anuncio" — su contenido depende del nivel
+  // de audiencia elegido arriba.
+  // ============================================================
+  function campoAudiencia(){
+    if (state.aud==='sede'){
+      return '<div class="campo"><label>A quién</label><select><option>Todas las sedes</option>'
+        + SEDES.map(s=>'<option>Solo '+s.nom+'</option>').join('') + '</select></div>';
+    }
+    if (state.aud==='sede_area'){
+      return '<div class="campo-fila">'
+        + '<div class="campo"><label>Sede</label><select><option>Todas las sedes</option>'
+        + SEDES.map(s=>'<option>'+s.nom+'</option>').join('') + '</select></div>'
+        + '<div class="campo"><label>Área (opcional)</label><select><option>Todas las áreas</option>'
+        + AREAS.map(a=>'<option>'+a.nom+'</option>').join('') + '</select></div>'
+        + '</div>';
+    }
+    return '<div class="campo-fila">'
+      + '<div class="campo"><label>Sede</label><select><option>Todas las sedes</option>'
+      + SEDES.map(s=>'<option>'+s.nom+'</option>').join('') + '</select></div>'
+      + '<div class="campo"><label>Área (opcional)</label><select><option>Todas las áreas</option>'
+      + AREAS.map(a=>'<option>'+a.nom+'</option>').join('') + '</select></div>'
+      + '</div>'
+      + '<div class="campo"><label>O elige personas específicas</label>'
+      + '<input type="text" placeholder="Buscar por nombre…">'
+      + '<div style="margin-top:6px; display:flex; gap:6px; flex-wrap:wrap">'
+      + '<span class="chip-archivo">Danitza Reyes ✕</span><span class="chip-archivo">Jorge Quispe ✕</span>'
+      + '</div></div>';
+  }
+
+  function formularioHtml(){
+    return (
+      '<form class="form-anuncio" onsubmit="return false">'
+      + '<div class="campo"><label>Título</label><input type="text" value="Corte de agua programado en Trujillo" maxlength="200"></div>'
+      + '<div class="campo"><label>Resumen (se ve en la lista)</label><input type="text" value="Sedapal anunció corte de agua el sábado de 8 a. m. a 2 p. m."></div>'
+      + '<div class="campo"><label>Cuerpo completo (se ve al abrir el detalle)</label><textarea>Sedapal anunció corte de agua el sábado de 8 a. m. a 2 p. m. en la zona de la tienda. Si tienes tareas que dependen del agua, adelántalas el viernes.</textarea></div>'
+      + '<fieldset><legend>Prioridad</legend><div class="segmentado" style="width:fit-content">'
+      +   '<button type="button" aria-pressed="false">Normal</button>'
+      +   '<button type="button" aria-pressed="true">Importante</button>'
+      +   '<button type="button" aria-pressed="false">Urgente</button>'
+      + '</div></fieldset>'
+      + '<fieldset><legend>A quién</legend>' + campoAudiencia() + '</fieldset>'
+      + '<fieldset><legend>Vigencia</legend>'
+      +   '<div class="campo-fila">'
+      +     '<div class="campo"><label>Publicar</label><select><option>Ahora mismo</option><option>Programar fecha y hora</option></select></div>'
+      +     '<div class="campo"><label>Expira (opcional)</label><input type="date"></div>'
+      +   '</div>'
+      + '</fieldset>'
+      + '<fieldset><legend>Adjunto (opcional)</legend>'
+      +   '<div class="adjunto-zona">'+ICO.clip+' Arrastra un PDF o una imagen, o haz clic para elegir</div>'
+      + '</fieldset>'
+      + '<fieldset><legend>Seguimiento de lectura</legend><div class="radios">'
+      +   '<label class="radio-op"><input type="radio" name="segdemo"><span><span class="tit">Ninguno</span><span class="ayuda">No se registra quién lo vio.</span></span></label>'
+      +   '<label class="radio-op"><input type="radio" name="segdemo"><span><span class="tit">Solo ver quién abrió</span><span class="ayuda">Marca automática al abrirlo — nadie tiene que hacer nada.</span></span></label>'
+      +   '<label class="radio-op"><input type="radio" name="segdemo" checked><span><span class="tit">Pedir confirmación explícita</span><span class="ayuda">Además de abrirlo, tiene que tocar «Confirmar». Úsalo solo cuando de verdad haga falta saber que alguien se comprometió a leerlo.</span></span></label>'
+      + '</div></fieldset>'
+      + '<div class="publicar-fila">'
+      +   '<button type="button" class="btn btn-secundario">Guardar borrador</button>'
+      +   '<button type="button" class="btn btn-primario">Publicar</button>'
+      + '</div>'
+      + '</form>'
+    );
+  }
+
+  // ============================================================
+  // Vista PORTAL — cómo lo vería la colaboradora en /mio
+  // ============================================================
+  function vistaPortal(){
+    const visibles = anunciosVisibles().filter(a=>a.estado!=='borrador' && a.estado!=='archivado');
+    const urgentesOConfirm = visibles.filter(a=> a.prioridad==='urgente' || (a.lectura.modo==='confirmacion' && a.lectura.hechas<a.lectura.total));
+    return (
+      '<div class="portal-frame">'
+      + (urgentesOConfirm.length ? (
+          '<div class="portal-card portal-bandeja">'
+          + '<h3>Necesita que hagas algo</h3>'
+          + '<p class="nota-portal">Así se verían en tu Bandeja: solo lo urgente, o lo que pide confirmación — nunca el aviso informativo completo.</p>'
+          + urgentesOConfirm.map(a=>(
+              '<div class="portal-item"><strong style="font-size:.85rem">'+a.titulo+'</strong>'
+              + '<div style="margin-top:5px">'+pillPrioridad(a.prioridad)+' '+(a.lectura.modo==='confirmacion'?('<span class="pill pill-advertencia">'+ICO.check+' Falta tu confirmación</span>'):'')+'</div></div>'
+            )).join('')
+          + '</div>'
+        ) : '')
+      + '<div class="portal-card">'
+      + '<h3>' + (visibles.length===1 ? 'Un anuncio para ti' : visibles.length + ' anuncios para ti') + '</h3>'
+      + visibles.map(a=>(
+          '<div class="portal-item">'
+          + '<div style="display:flex; justify-content:space-between; gap:8px"><strong style="font-size:.85rem">'+a.titulo+'</strong>'+audienciaIcono(a.audiencia) + '</div>'
+          + '<p style="font-size:.78rem; color:var(--color-taupe); margin-top:3px">'+a.resumen+'</p>'
+          + '<div style="margin-top:7px; display:flex; gap:6px; flex-wrap:wrap; align-items:center">'
+          +   pillPrioridad(a.prioridad)
+          +   (a.lectura.modo==='confirmacion'
+                ? '<button class="btn btn-primario btn-sm">Confirmar</button>'
+                : '<button class="btn btn-secundario btn-sm">Marcar leído</button>')
+          + '</div></div>'
+        )).join('')
+      + '<p class="nota-portal">Al marcarlo, desaparece de acá — sigue disponible en la sección Anuncios.</p>'
+      + '</div>'
+      + '</div>'
+    );
+  }
+
+  // ============================================================
+  // Vista PANEL — arquitecturas A / B / C
+  // ============================================================
+  function resumenKpis(){
+    const vis = anunciosVisibles();
+    const cuentas = {
+      vigente: vis.filter(a=>a.estado==='vigente').length,
+      programado: vis.filter(a=>a.estado==='programado').length,
+      borrador: vis.filter(a=>a.estado==='borrador').length,
+      archivado: vis.filter(a=>a.estado==='archivado').length,
+      confirmacion: vis.filter(a=>a.lectura.modo==='confirmacion' && a.lectura.hechas<a.lectura.total).length,
+    };
+    const items = [['vigente','Vigentes']];
+    if (state.estados.programado) items.push(['programado','Programados']);
+    if (state.estados.borrador) items.push(['borrador','Borradores']);
+    if (state.estados.archivado) items.push(['archivado','Archivados']);
+    items.push(['confirmacion','Por confirmar']);
+    return '<div class="kpis">' + items.map(([k,l])=>(
+      '<div class="kpi"><div class="n">'+cuentas[k]+'</div><div class="l">'+l+'</div></div>'
+    )).join('') + '</div>';
+  }
+
+  function filtrosHtml(){
+    return (
+      '<div class="filtros">'
+      + '<input type="search" placeholder="Buscar anuncio…">'
+      + '<select><option>Sede ▾</option>'+SEDES.map(s=>'<option>'+s.nom+'</option>').join('')+'</select>'
+      + '<select><option>Audiencia ▾</option><option>Todas las sedes</option><option>Por área</option>'+(state.aud==='sede_area_persona'?'<option>Personas</option>':'')+'</select>'
+      + '<select><option>Prioridad ▾</option><option>Urgente</option><option>Importante</option><option>Normal</option></select>'
+      + (state.estados.programado||state.estados.borrador||state.estados.archivado ? '<select><option>Estado ▾</option><option>Vigente</option>'+(state.estados.programado?'<option>Programado</option>':'')+(state.estados.borrador?'<option>Borrador</option>':'')+(state.estados.archivado?'<option>Archivado</option>':'')+'</select>' : '')
+      + '<button type="button" class="btn btn-sutil btn-sm">Limpiar filtros</button>'
+      + '</div>'
+    );
+  }
+
+  function listaHtml(){
+    const vis = anunciosVisibles();
+    if (!vis.length) return '<div class="vacio">No hay anuncios con estos filtros.</div>';
+    return '<ul class="lista-anuncios" style="list-style:none; padding:0; margin:0">' + vis.map(tarjetaHtml).join('') + '</ul>';
+  }
+
+  function vistaPanel(){
+    const cab =
+      '<div class="cab-app">'
+      + '<div class="cab-app-fila">'
+      +   '<div><h2>Anuncios</h2><p class="sub">Comunica información importante al equipo y conserva su historial.</p></div>'
+      +   (state.arq!=='A' ? '<button class="btn btn-primario" id="btn-nuevo">+ Nuevo anuncio</button>' : '')
+      + '</div></div>';
+
+    if (state.arq==='A'){
+      return cab + resumenKpis() + '<div class="shell-a">'
+        + '<div class="panel-form"><h3 style="font-size:.95rem; margin-bottom:10px">Publicar un anuncio</h3>' + formularioHtml() + '</div>'
+        + '<div>' + filtrosHtml() + listaHtml() + '</div>'
+        + '</div>';
+    }
+    if (state.arq==='C'){
+      return cab + resumenKpis()
+        + '<div class="tabs" role="tablist">'
+        +   '<button role="tab" aria-selected="'+(vistaC.tab==='lista')+'" id="tab-lista">Anuncios</button>'
+        +   '<button role="tab" aria-selected="'+(vistaC.tab==='crear')+'" id="tab-crear">Publicar</button>'
+        + '</div>'
+        + (vistaC.tab==='lista' ? (filtrosHtml() + listaHtml()) : ('<div style="max-width:520px">'+formularioHtml()+'</div>'));
+    }
+    // B
+    return cab + resumenKpis() + filtrosHtml() + listaHtml();
+  }
+
+  const vistaC = { tab:'lista' };
+
+  // ============================================================
+  // Cajón (layout B)
+  // ============================================================
+  function abrirCajon(){
+    document.getElementById('cajon-form').innerHTML = formularioHtml();
+    document.getElementById('cajon').classList.add('abierto');
+    document.getElementById('cajon-fondo').classList.add('abierto');
+  }
+  function cerrarCajon(){
+    document.getElementById('cajon').classList.remove('abierto');
+    document.getElementById('cajon-fondo').classList.remove('abierto');
+  }
+  document.getElementById('cajon-cerrar-btn').addEventListener('click', cerrarCajon);
+  document.getElementById('cajon-fondo').addEventListener('click', cerrarCajon);
+
+  // ============================================================
+  // Popover de "quién leyó"
+  // ============================================================
+  let popoverAbierto = null;
+  function cerrarPopover(){ if (popoverAbierto){ popoverAbierto.remove(); popoverAbierto=null; } }
+  document.addEventListener('click', (e)=>{
+    const btn = e.target.closest('[data-lectores]');
+    if (!btn){ if (!e.target.closest('.popover-lectores')) cerrarPopover(); return; }
+    cerrarPopover();
+    const a = ANUNCIOS.find(x=>x.id===Number(btn.dataset.lectores));
+    if (!a) return;
+    const pop = document.createElement('div');
+    pop.className='popover-lectores';
+    pop.innerHTML = '<div style="font-weight:600; margin-bottom:4px">Quién lo abrió</div>'
+      + a.lectura.nombres.map(n=>'<div class="fila"><span>'+n+'</span></div>').join('');
+    document.body.appendChild(pop);
+    const r = btn.getBoundingClientRect();
+    pop.style.left = Math.min(r.left, window.innerWidth-240) + 'px';
+    pop.style.top = (r.bottom + window.scrollY + 6) + 'px';
+    popoverAbierto = pop;
+    e.stopPropagation();
+  });
+
+  // ============================================================
+  // Render principal
+  // ============================================================
+  function render(){
+    pintarControles();
+    const lienzo = document.getElementById('lienzo');
+    lienzo.innerHTML = state.vista==='portal' ? vistaPortal() : vistaPanel();
+
+    const btnNuevo = document.getElementById('btn-nuevo');
+    if (btnNuevo) btnNuevo.addEventListener('click', abrirCajon);
+    const tabLista = document.getElementById('tab-lista');
+    const tabCrear = document.getElementById('tab-crear');
+    if (tabLista) tabLista.addEventListener('click', ()=>{ vistaC.tab='lista'; render(); });
+    if (tabCrear) tabCrear.addEventListener('click', ()=>{ vistaC.tab='crear'; render(); });
+  }
+
+  render();
+})();
+</script>

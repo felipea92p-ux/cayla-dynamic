@@ -6,52 +6,148 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-09-15 — Constancias de estudios: la integrante sube, DO revisa (0450) · SIN PEGAR · SIN PUSH
+## 2026-09-15 — Quien ingresa después ya no se cuela en un periodo anterior (0463) · SIN PEGAR · SIN FUSIONAR
 
-Rama `claude/education-flow-audit-3ff1d7`, con `main` ya fusionado. Decisiones de
-producto tomadas con Felipe ese día (12 preguntas): **solo alerta** —aprobar o
-rechazar no cambia lo que se paga—; calendario por institución (frecuencia +
-próxima fecha); la constancia vence 5 días antes del cierre del periodo en que
-cae el pago; aviso a DO 7 días antes del pago y a la integrante 7 antes del
-plazo; aprueba solo DO; retirar/reemplazar mientras está pendiente; rechazo con
-categoría + comentario ≥ 3; lo que carga DO queda aprobado.
+Felipe reportó, mirando `/admin/planilla`: cinco practicantes que ingresaron
+en septiembre aparecían con fila propia en los periodos de julio y agosto —
+«Sin salario», 0 horas — como si ya hubieran estado en la empresa esos
+meses. `fn_planilla_calcular_nucleo` metía a cualquier persona `activo` en
+CUALQUIER periodo que se recalculara, sin comprobar `fecha_ingreso` contra
+el fin de ese periodo — la 0416 le puso ese freno al CESE (`fecha_cese
+between p_ini and p_fin`); nunca hubo uno simétrico para el INGRESO.
 
-**Qué hay:** migración
-[0450](../supabase/migrations/0450_la_constancia_de_estudios_se_entrega_y_se_revisa.sql)
-(entregas, archivos, avisos de fin, `familia_id`, espejo solo desde aprobadas,
-almacén con carpeta propia para la integrante y archivos revisados congelados);
-prueba 355 (66/66) y la 226 reescrita donde su promesa cambió (27/27), contra el
-Postgres local dentro de `BEGIN … ROLLBACK`; `/mio/educacion`; `/admin/educacion`
-rediseñada; Bandeja de DO y de la integrante; vitest 617/617.
+Pasa solo cuando el grupo de esa persona nunca se congeló en ese periodo:
+`fn_proyeccion_periodo` reemplaza por la foto congelada a quien sí tiene
+grupo pagado, pero para «practicante» en julio/agosto no hay foto —la
+categoría no existía todavía (0322, 2026-08-07)— así que sigue pidiendo el
+cálculo en vivo. No movía plata (salario y horas ya salían en 0), pero
+ensuciaba la cuenta de personas de un periodo que se daba por cerrado.
 
-**Orden para producción — no se fusiona antes del paso 4:**
-1. Volver a pedir en el SQL Editor el md5 de `fn_educacion_registrar`,
-   `fn_educacion_por_atender`, `fn_educacion_quitar_comprobante`,
-   `fn_educacion_espejo_comprobante` y `fn_bandeja_marcar_visto`. Tienen que dar
-   los del encabezado de la 0450 (medidos el 2026-09-15). Si no, parar.
-2. Push de la rama (sin eso `dame-el-sql.sh 450` se niega) y pegar la 0450.
-3. La 0450 aborta sola si una sola asignación cambiara entre «paga» y «no paga».
-   Si terminó, confirmar: `select numero, nombre from migraciones_aplicadas where numero = 450;`
-   y la línea PLANILLA de `que_falta_pegar.sql` (la 0450 no toca la planilla).
-4. Recién ahí fusionar el PR (fusionar = publicar).
+Migración [0463](../supabase/migrations/0463_quien_ingresa_despues_no_se_cuela_en_un_periodo_anterior.sql):
+un AND más sobre la rama `p.estado = 'activo'` del CTE `pers`
+(`p.fecha_ingreso <= p_fin`). Auditada contra Postgres local —arrancó vacío
+en esta Mac (0 tablas), así que `supabase migration up --local` la puso al
+día sin destruir estado de nadie— reproduciendo el caso exacto: una
+practicante con `fecha_ingreso` en septiembre no trae fila en julio, sigue
+trayéndola con normalidad en septiembre, y un control (persona activa desde
+2020) no se mueve un milímetro. Prueba pgTAP 367 (4/4); suite completa 279
+archivos / 2818 aserciones en verde.
+
+**Antes de pegar:** volver a pedir en el SQL Editor el md5 de
+`fn_planilla_calcular_nucleo` (`donde-vive.sh`) contra la 0418 vigente —
+esta migración se auditó contra el repositorio local, nunca contra
+producción, porque la clave de servicio está rotada a propósito.
+
+---
+
+## 2026-09-15 — Educación: la 0450 ya está pegada; nace la 0461 (colaborador pide su apoyo) · SIN PEGAR · PR #390
+
+**La 0450 quedó PEGADA Y VERIFICADA este mismo día** (esta entrada reemplaza el
+aviso «SIN PEGAR · SIN PUSH» de más arriba, que quedó desactualizado apenas se
+fusionó a `main`): `select numero, aplicada_at from migraciones_aplicadas where
+numero = 450` da fila con `2026-09-15 19:34:41 UTC`, y `fn_educacion_situacion`
+y `educacion_entregas` existen en producción. `/admin/educacion` y
+`/mio/educacion` funcionan con normalidad.
+
+**Lo que se agregó encima, en `claude/educacion-audit-redesign-2708b4` (PR
+[#390](https://github.com/felipea92p-ux/cayla-dynamic/pull/390)):**
+
+1. **"Registrar asignación" pasa a panel lateral** (el mismo `Drawer` de
+   "Revisar constancia"), se agregó la tarjeta "Rechazadas" que faltaba en el
+   resumen, y el plazo de pago/constancia deja de decir "paga en 0 días" —usa
+   `enDias()` de `bandeja-urgencia.ts`, en admin y en el portal. Sin SQL.
+2. **Migración nueva:
+   [0461](../supabase/migrations/0461_el_colaborador_pide_su_apoyo_educativo.sql)
+   — cualquier colaborador pide su propio apoyo educativo.** Hasta ahora solo DO
+   podía dar de alta una asignación; con la 0461 la integrante llena el mismo
+   formulario (institución, de quién es el estudio, costo, fechas, comprobante
+   inicial opcional — **nunca el monto**, eso lo sigue calculando el sistema al
+   aprobar) y queda «pendiente». DO la aprueba —nace la asignación real
+   llamando a `fn_educacion_registrar`, el mismo cálculo de siempre, sin
+   fórmula duplicada— o la rechaza con motivo (≥ 3 caracteres), que la
+   integrante lee y puede corregir. Una sola solicitud pendiente por persona;
+   mientras está pendiente la puede ver, ver su comprobante y retirarla.
+   Cuenta en el mismo "Pendientes de revisión" del contador y de la Bandeja
+   (`fn_educacion_por_atender`, `fn_educacion_solicitudes_pendientes`), con su
+   propio ítem `solicitud_educacion` en Bandeja (`?solicitud=<id>` abre el
+   panel directo, no `?familia=` — todavía no hay ninguna asignación a la que
+   colgarlo).
+
+**Qué se probó, y cómo** (la base local compartida sigue en la 449 — nunca se
+tocó; todo esto corrió en transacciones que terminan en `ROLLBACK`, o en una
+base `temp_edu_0461` aislada creada y borrada en el mismo Postgres del
+contenedor, nunca en la compartida):
+- pgTAP 365 (34/34, archivo nuevo) — solicitar, única pendiente por persona,
+  validaciones, RLS (una integrante no ve ni retira la de otra), retirar y
+  volver a pedir, nadie aprueba lo propio, permiso (una integrante no revisa),
+  aprobar (verifica que el monto sale del mismo `fn_educacion_monto`, 200 · 75 %
+  = 150), rechazar exige motivo, inmutabilidad (trigger, con `reset role` para
+  probarlo de verdad y no solo el `GRANT`), contador y Bandeja ven la misma
+  pendiente, el almacén congela la ruta al enviar.
+- 226 (27/27), 355 (66/66) y 358 (7/7, actualizada: el marcador de canario que
+  usa para «versión vigente» pasa de `CAMBIO 0450` a `CAMBIO 0461`, y ahora
+  prueba los TRES tipos de ítem de educación en Bandeja, no dos) — cada una
+  aislada, sin efecto de la 0461.
+- Tipos de TypeScript regenerados desde esa base temporal (mismo método que
+  usó la sesión de la 0450: solo entran los bloques de educación, nada de la
+  deriva de otras ramas). `typecheck`, `eslint` (los archivos tocados) y
+  `vitest` (663/663) en verde.
+
+**Orden para producción — no se fusiona antes del paso 4 (igual que la 0450):**
+1. Pedir en el SQL Editor el md5 de `fn_educacion_por_atender` y
+   `fn_bandeja_marcar_visto`. Tienen que dar los del encabezado de la 0461
+   (medidos contra 0450+0451+0452+0453 aplicadas, no contra producción — la
+   base local compartida no llegaba a la 0450 para medirlo ahí). Si no, parar.
+2. Push de la rama y pegar la 0461.
+3. Confirmar: `select numero, aplicada_at from migraciones_aplicadas where numero = 461;`
+   y la línea PLANILLA de `que_falta_pegar.sql` (la 0461 no la toca).
+4. Recién ahí fusionar el PR #390 (fusionar = publicar).
 
 **Pendiente, y hay que saberlo antes de pegar:**
-- **El día que se pega, todos los estudios existentes quedan «sin calendario de
-  pagos»** y el contador de Educación sube por cada uno. No es un error: nadie
-  registró todavía cuándo paga cada integrante. DO tiene que fijar frecuencia y
-  próxima fecha de cada estudio desde su panel.
-- **Sin verificación visual.** `apps/web/.env.local` no existe y la base local
-  compartida no tiene la 0450 (aplicarla le cambiaría el estado a otras sesiones).
-  Probar en la vista previa de Vercel tras pegar: subir desde un celular (tomar
-  foto, varias páginas, un PDF), retirar, rechazar, corregir, aprobar, y el
-  enlace «Revisar →» de la Bandeja.
-- HEIC: se convierte a JPG en el navegador; fuera de Safari puede no poder
-  leerse y la pantalla pide compartirla como JPG.
-- `fn_educacion_listar` y la tabla `educacion_comprobantes` quedan vivas solo por
-  compatibilidad (la tabla refleja cada papel como entrega aprobada); retirarlas
-  es una migración aparte cuando nada las lea.
-- El ADR 0003 anota que sus decisiones 5 y 8 las cerró la 0450: **no escribir otra
-  migración del contador de Educación.**
+- **Sin verificación visual todavía.** Mismo motivo que la 0450:
+  `apps/web/.env.local` no existe. Probar en la vista previa de Vercel tras
+  pegar: pedir un apoyo sin comprobante y con comprobante, aprobar, rechazar,
+  corregir y reenviar, retirar, y el enlace "Revisar →" de la Bandeja.
+- **La Bandeja PROPIA de la integrante (`lib/bandeja-mia.ts`) todavía no avisa
+  cuando su solicitud se aprueba o se rechaza** — sí lo ve entrando a
+  `/mio/educacion`, pero no le llega como notificación aparte, a diferencia de
+  lo que ya hace con sus constancias. Se dejó fuera a propósito: ese archivo
+  tiene su propia lógica de deduplicado (`PESO_PENDIENTE`, `esNueva`,
+  `rechazoReciente`) y tocarla sin entenderla a fondo es como se cuelan los
+  empates que este mismo repositorio ya documentó varias veces. Migración
+  aparte, más chica y con su propia auditoría.
+- `fn_educacion_solicitudes_pendientes` devuelve `comprobante_url` (la ruta
+  real), no un booleano — si algo la vuelve a tocar, que no regrese a un
+  `tiene_comprobante` sin la ruta, porque el panel de DO la necesita para abrir
+  el archivo.
+
+---
+
+## 2026-09-15 — Contrato de Fernanda Espinoza: la 0430 se pegó y quedó verificada
+
+Felipe reportó con capturas: Fernanda confirmó su firma en `/mio/contrato`, y
+tanto `/mio` como `admin/contratos` seguían diciendo "Pendiente de firma" /
+"Sin firmar". No hacía falta escribir nada — la corrección exacta de este
+caso (su propio encabezado cita a Fernanda Espinoza y el 2026-09-12) ya vivía
+en la migración [0430](../supabase/migrations/0430_el_contrato_se_firma_completo_de_forma_digital.sql),
+fusionada a `main` antes de este reporte y listada como "sin pegar" en la
+entrada de más abajo.
+
+Antes de pegar se re-pidió en el SQL Editor el md5 de las cinco funciones que
+la 0430 reescribe (`fn_confirmar_mi_firma_contrato`, `fn_contrato_registrar`,
+`fn_contrato_editar`, `fn_set_fin_contrato`, `fn_contrato_refrescar_vencimiento`):
+las cinco coincidieron con los prefijos que el propio encabezado de la 0430
+ya había dejado anotados esa misma mañana — nada se había movido en el medio,
+segura de pegar.
+
+Se pegó completa. Su `select` final de comprobación devolvió las 6 columnas en
+`true`, incluida `backfill_completo`: las 7 personas que ya habían confirmado
+su firma antes de esta migración (Fernanda entre ellas) quedaron con
+`fecha_firma` puesta sin tener que volver a firmar nada — exactamente el
+criterio que pedía Felipe (a quien ya firmó no se le hace repetir; a quien no
+ha firmado, se le sigue pidiendo igual que antes).
+
+**La 0430 sale de la lista de "sin pegar" de la entrada de abajo.**
 
 ---
 
@@ -144,10 +240,11 @@ porque solo la llaman otras funciones por dentro), el trigger
 Con la 0437 y la 0438 juntas, el candado de «no pisar un expediente ya formal»
 vuelve a cubrir las ocho puertas para las que se diseñó, no seis.
 
-🔴 **Siguen sin pegar, y sin explicación: 0428, 0430, 0431, 0432, 0433, 0434,
-0435 y 0436.** (El 0420 también falta, pero ese sí está explicado: es una
-renumeración limpia, ver `huecos-conocidos.txt`.) Las ocho necesitan cada una
-su comprobación de si revierten algo antes de pegarlas — son de otras ramas y
+🔴 **Siguen sin pegar, y sin explicación: 0428, 0431, 0432, 0433, 0434, 0435 y
+0436.** (El 0420 también falta, pero ese sí está explicado: es una
+renumeración limpia, ver `huecos-conocidos.txt`. La 0430 se pegó y se verificó
+el 2026-09-15 — ver la entrada de arriba.) Las siete necesitan cada una su
+comprobación de si revierten algo antes de pegarlas — son de otras ramas y
 algunas reescriben funciones compartidas. La comprobación es siempre la misma y
 cuesta un minuto: `./scripts/donde-vive.sh <función>` para cada función que la
 migración define, y confirmar que la migración pendiente ES la vigente; si lo

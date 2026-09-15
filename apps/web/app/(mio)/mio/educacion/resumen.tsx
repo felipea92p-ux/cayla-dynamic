@@ -56,7 +56,13 @@ export function ResumenEducacionMia() {
       ) : error ? (
         <p className="text-taupe">No se pudo leer tu apoyo educativo. Vuelve a intentarlo en un momento.</p>
       ) : filas.length === 0 ? (
-        <p className="text-taupe">No tienes una asignación educativa activa.</p>
+        <>
+          <p className="text-taupe">No tienes una asignación educativa activa.</p>
+          <Link href="/mio/educacion"
+            className="mt-3 inline-block text-tinta underline underline-offset-2 hover:text-rojo-profundo">
+            Solicitar apoyo educativo →
+          </Link>
+        </>
       ) : (
         <>
           <ul className="mt-2 flex flex-col gap-2">
