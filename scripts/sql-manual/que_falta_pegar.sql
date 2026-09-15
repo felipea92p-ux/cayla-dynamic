@@ -329,7 +329,7 @@ with repo(numero, nombre, nunca) as (values
     (462, 'quien_firma_digital_ya_tiene_su_copia', false),
     (463, 'quien_ingresa_despues_no_se_cuela_en_un_periodo_anterior', false),
     (464, 'la_planilla_deja_de_contar_a_quien_todavia_no_existia', false),
-    (467, 'seis_filas_fantasma_salen_de_una_foto_ya_pagada', false)
+    (467, 'la_practicante_devenga_su_media_subvencion', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
