@@ -700,6 +700,9 @@ export default function HorariosPage() {
   const retroFaltaEntrada = formRetro.modoPorDia
     ? Object.values(formRetro.porDia).some((v) => !v.e)
     : !formRetro.entrada;
+  const retroFaltaSalida = formRetro.modoPorDia
+    ? Object.values(formRetro.porDia).some((v) => !v.s)
+    : !formRetro.salida;
   const rangoRetroDemasiadoLargo = diasEntreLima(retroDesde, hoy) > MAX_DIAS_RETROACTIVO;
 
   async function verQueCambiaria() {
@@ -707,6 +710,7 @@ export default function HorariosPage() {
     const horario = formRetro.construirHorario();
     if (Object.keys(horario).length === 0) { avisar("error", "Marca al menos un día de trabajo."); return; }
     if (retroFaltaEntrada) { avisar("error", "Falta la hora de entrada de algún día."); return; }
+    if (retroFaltaSalida) { avisar("error", "Falta la hora de salida de algún día."); return; }
     if (rangoRetroDemasiadoLargo) { avisar("error", `Elige una fecha dentro de los últimos ${MAX_DIAS_RETROACTIVO} días — revisa que sea la correcta.`); return; }
     setRetroPreviewCargando(true);
     setRetroPreview(null);

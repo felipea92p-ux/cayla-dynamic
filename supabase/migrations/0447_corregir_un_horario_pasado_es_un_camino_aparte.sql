@@ -30,6 +30,20 @@
 --     bloquear y aparecer en el preview igual que uno con tardanza. Por eso
 --     las dos funciones recorren `generate_series(p_vigente_desde, hoy-1)`
 --     con `left join jornadas`, no `from jornadas`.
+--   · Que un día con TURNO PUNTUAL no cambia por corregir el horario base:
+--     el turno manda sobre el horario base en fn_recalcular_jornada, así que
+--     el preview lee `turnos` primero y solo cae al horario candidato cuando
+--     ese día no tiene turno. Es la misma cascada, escrita en dos sitios: si
+--     el primer escalón cambia alguna vez en fn_recalcular_jornada, este
+--     query tiene que cambiar con él. Se encontró en revisión, DESPUÉS de que
+--     las pgTAP estuvieran en verde — la 353 no sembraba ni un turno, así que
+--     nada lo destapaba. La forma correcta de cerrarlo para siempre es sacar
+--     la cascada entera a una función compartida (lo que la 0445 hizo con la
+--     FÓRMULA pero no con la RESOLUCIÓN del horario); no se hizo aquí porque
+--     eso obliga a reescribir fn_recalcular_jornada por tercera vez en esta
+--     misma tanda, y el Postgres local de esta Mac está caído: un cambio así
+--     en la función que decide las tardanzas de todo el mundo no se entrega
+--     sin poder auditarlo contra una base.
 --   · Que horas_trabajadas NUNCA cambia entre "antes" y "después": no
 --     depende del horario (sale solo de entrada/salida real menos ausencias,
 --     ver 0445), así que el preview la muestra igual en las dos columnas a
@@ -181,6 +195,18 @@ begin
     fn_dia_con_expediente_formal(p_persona_id, d.dia::date)
   from generate_series(p_vigente_desde::timestamp, (fn_hoy_lima() - 1)::timestamp, interval '1 day') as d(dia)
   left join jornadas j on j.persona_id = p_persona_id and j.fecha = d.dia::date
+  -- EL TURNO PUNTUAL MANDA SOBRE EL HORARIO BASE, y el preview tiene que
+  -- saberlo o miente. fn_recalcular_jornada resuelve el horario de un día en
+  -- cascada — `turnos` primero, y solo si no hay turno baja a
+  -- horarios_asignados. Sin este join, el preview aplicaba el horario
+  -- candidato a TODOS los días, incluidos los que tienen turno; esos días la
+  -- corrección real no los cambia (el turno sigue mandando), así que el
+  -- preview prometía cambios que nunca se escribían y, al revés, inflaba
+  -- tardanzas falsas en los turnos de tarde. Rompía la promesa central de
+  -- esta migración: que lo que se enseña es EXACTAMENTE lo que se aplica.
+  -- `turnos` es unique (persona_id, fecha), así que este left join no puede
+  -- multiplicar filas del rango.
+  left join turnos t on t.persona_id = p_persona_id and t.fecha = d.dia::date
   -- El último `salida_final` no anulado de ese día — misma selección que usa
   -- el bucle de fn_recalcular_jornada (ver "QUÉ ASUME" arriba).
   left join lateral (
@@ -198,9 +224,20 @@ begin
     j.entrada_ts, j.salida_final_ts, sf.origen, sf.estado_revision,
     j.horas_trabajadas,
     d.dia::date,
-    (p_horario -> extract(dow from d.dia::date)::int::text ->> 'e')::time,
-    (p_horario -> extract(dow from d.dia::date)::int::text ->> 's')::time,
-    coalesce((p_horario -> extract(dow from d.dia::date)::int::text ->> 'r')::int, 0)
+    -- Espeja rama por rama el `if found then … else …` de fn_recalcular_jornada:
+    -- con turno, el turno (y su descanso anula entrada y salida); sin turno,
+    -- el horario candidato del día de la semana. El refrigerio del turno es 0
+    -- porque `turnos` no tiene columna de refrigerio y allá v_refri_prog se
+    -- queda en su valor inicial, que es 0.
+    case when t.fecha is not null
+         then case when t.es_descanso then null else t.hora_entrada end
+         else (p_horario -> extract(dow from d.dia::date)::int::text ->> 'e')::time end,
+    case when t.fecha is not null
+         then case when t.es_descanso then null else t.hora_salida end
+         else (p_horario -> extract(dow from d.dia::date)::int::text ->> 's')::time end,
+    case when t.fecha is not null
+         then 0
+         else coalesce((p_horario -> extract(dow from d.dia::date)::int::text ->> 'r')::int, 0) end
   ) met
   order by d.dia;
 end;

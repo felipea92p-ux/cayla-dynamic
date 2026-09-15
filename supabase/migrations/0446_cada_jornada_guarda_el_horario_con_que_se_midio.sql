@@ -196,6 +196,18 @@ begin
         v_hora_entrada_prog := v_hora_entrada_legacy;
         v_hora_salida_prog  := v_hora_salida_legacy;
       end if;
+      -- `select ... into` deja los destinos en NULL cuando no encuentra fila,
+      -- así que el SELECT a `turnos` de arriba ya pisó el `:= false` con que
+      -- nace v_es_descanso. Sin esta línea, horario_aplicado.es_descanso salía
+      -- NULL en todos los días resueltos por el horario base, y la pantalla de
+      -- Correcciones —que pregunta primero por es_descanso y luego por la hora
+      -- de entrada— acababa diciendo «sin horario» en un día que es DESCANSO.
+      -- Un día del horario base sin hora de entrada es exactamente eso.
+      v_es_descanso := v_hora_entrada_prog is null;
+    else
+      -- Ni turno ni horario: no es descanso, es que no hay horario. La
+      -- distinción importa porque la pantalla las dice distinto.
+      v_es_descanso := false;
     end if;
   end if;
   -- ⇧⇧⇧ CAMBIO 0446 ⇧⇧⇧
