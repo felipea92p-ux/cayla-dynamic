@@ -8,7 +8,8 @@ import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { Cargando } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
 import { BoletaHoja } from "@/components/boleta-hoja";
-import { MESES_LARGO, type Fila, type Proyeccion } from "@/app/(admin)/admin/planilla/page";
+import { MESES_LARGO } from "@/lib/admin/planilla/formato";
+import type { Fila, Proyeccion } from "@/lib/admin/planilla/tipos";
 import { hoyLima } from "@cayla-dynamic/shared";
 
 // Tu boleta, en autoservicio (0339) — SOLO el periodo actual, nunca uno pasado.

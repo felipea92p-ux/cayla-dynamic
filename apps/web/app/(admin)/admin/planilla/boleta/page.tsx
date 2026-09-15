@@ -9,11 +9,8 @@ import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { Cargando } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
 import { BoletaHoja } from "@/components/boleta-hoja";
-import {
-  MESES_LARGO,
-  type Fila,
-  type Proyeccion,
-} from "../page";
+import { MESES_LARGO } from "@/lib/admin/planilla/formato";
+import type { Fila, Proyeccion } from "@/lib/admin/planilla/tipos";
 import { puedeVerPlanilla } from "@cayla-dynamic/shared";
 
 // Boleta INTERNA de CAYLA: resumen para que la persona vea cómo se calculó su

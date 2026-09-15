@@ -1,13 +1,8 @@
 import { RANGO_LABEL, formatSoles } from "@/lib/rangos";
 import { Marca } from "@/components/marca";
 import { Insignia } from "@/components/ui/insignia";
-import {
-  MESES_LARGO,
-  fechaCorta,
-  fmtHoras,
-  type Fila,
-  type Proyeccion,
-} from "@/app/(admin)/admin/planilla/page";
+import { MESES_LARGO, fechaCorta, fmtHoras } from "@/lib/admin/planilla/formato";
+import type { Fila, Proyeccion } from "@/lib/admin/planilla/tipos";
 import {
   EMPRESA,
   TZ_LIMA,
