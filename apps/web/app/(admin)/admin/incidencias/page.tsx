@@ -12,31 +12,13 @@ import { AreaTexto } from "@/components/ui/area-texto";
 import { Modal } from "@/components/ui/modal";
 import { Fila as FilaTabla, Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
 import { traerTodo } from "@/lib/admin/traer-todo";
-import { esperadoDelDia, horarioVigente, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
+import type { HorarioTramo } from "@/lib/admin/jornada-esperada";
 import {
-  TZ_LIMA, hoyLima, MAXIMO_LEGAL_SEMANAL,
-  MAXIMO_DIAS_SIN_DESCANSO, avisoDeRacha, ventanaMasCargada,
-  maximoSemanalPracticante,
-} from "@cayla-dynamic/shared";
+  detectarIncidencias, ventanasDeConsulta, addDias, type DatosDeteccion,
+  VENTANA_PATRON_DIAS, UMBRAL_PATRON_TARDANZAS, VENTANA_EXCESO_DIAS,
+} from "@/lib/admin/incidencias";
+import { TZ_LIMA, hoyLima, MAXIMO_LEGAL_SEMANAL, MAXIMO_DIAS_SIN_DESCANSO } from "@cayla-dynamic/shared";
 
-function haceDias(n: number): string {
-  const d = new Date(); d.setDate(d.getDate() - n);
-  return new Intl.DateTimeFormat("en-CA", { timeZone: TZ_LIMA }).format(d);
-}
-// ── Semana actual (lunes–domingo), mismo criterio que admin/turnos ──────────
-function parseISO(iso: string): Date {
-  const [y, m, d] = iso.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, d));
-}
-function toISO(dt: Date): string { return dt.toISOString().slice(0, 10); }
-function addDias(iso: string, n: number): string {
-  const d = parseISO(iso); d.setUTCDate(d.getUTCDate() + n); return toISO(d);
-}
-function diaSemanaNum(iso: string): number { return parseISO(iso).getUTCDay(); } // 0=domingo…6=sábado
-function lunesDeLaSemana(iso: string): string {
-  const dow = diaSemanaNum(iso);
-  return addDias(iso, dow === 0 ? -6 : 1 - dow);
-}
 function fechaLarga(f: string): string {
   const [y, m, d] = f.split("-").map(Number);
   return new Intl.DateTimeFormat("es-PE", { timeZone: TZ_LIMA, weekday: "short", day: "2-digit", month: "short" }).format(new Date(Date.UTC(y, m - 1, d, 12)));
@@ -176,34 +158,6 @@ interface HistorialItem {
 }
 
 const HOY = hoyLima();
-// Patrón de tardanzas: ventana fija de 30 días desde hoy (independiente del
-// filtro Desde/Hasta que el admin puede mover) — es sobre el estado disciplinario
-// ACTUAL de la persona, no sobre lo que el admin esté mirando en un momento dado.
-// El número no sale de una ley (el marco peruano no fija una cifra: exige
-// reiteración + sanciones progresivas documentadas antes de poder despedir por
-// esto — D.S. 003-97-TR art. 25 + jurisprudencia de la Corte Suprema), es el
-// umbral que Felipe eligió para que Dynamic avise y arranque ese proceso.
-const VENTANA_PATRON_DIAS = 30;
-const UMBRAL_PATRON_TARDANZAS = 3;
-// Exceso de jornada: cuántos días hacia atrás se buscan ventanas de 7 días que
-// pasen de 48 h. Antes eran 7 —solo ventanas que TERMINABAN en la última
-// semana— y eso hacía desaparecer excesos reales sin que nadie los viera nunca.
-// El caso que lo destapó: 58.96 h en 7 días seguidos (31 jul → 6 ago 2026), el
-// exceso más grande del periodo, invisible en esta pantalla desde el 13 de
-// agosto porque su ventana había terminado hacía más de 7 días.
-//
-// 30 días es la misma ventana que ya usa el patrón de tardanzas, y cubre de
-// sobra el periodo de planilla (29 → 28) que es donde se cierra la cuenta.
-const VENTANA_EXCESO_DIAS = 30;
-// A partir de cuántos días atrás el exceso deja de ser evitable y pasa a ser
-// solo documentable. Siete: mientras la ventana toque la semana en curso,
-// todavía se puede mover un turno y que no siga creciendo.
-const EXCESO_AUN_EVITABLE_DIAS = 6;
-// Cuántos días de marcaje se traen para medir la racha en curso. Tres semanas
-// alcanzan: la racha más larga medida en CAYLA fue de 20 días. Tiene nombre
-// porque lo usan DOS consultas —los días marcados y los vistos buenos ya
-// dados— y si se separan, un aviso que diste por revisado reaparece.
-const VENTANA_RACHA_DIAS = 20;
 
 function IncidenciasContenido() {
   const router = useRouter();
@@ -211,7 +165,7 @@ function IncidenciasContenido() {
   const personaFiltro = searchParams.get("persona");
   const yo = usePersonaActual();
   const rol = yo?.rol ?? null;
-  const [desde, setDesde] = useState(haceDias(30));
+  const [desde, setDesde] = useState(addDias(HOY, -30));
   const [hasta, setHasta] = useState(HOY);
   // Resumen | Detalle: qué tan literal se muestra la lista de abajo. Arranca en
   // Resumen a propósito — la primera pregunta al abrir esta pantalla es "¿cómo
@@ -258,14 +212,9 @@ function IncidenciasContenido() {
     if (!sesion.session) { router.replace("/admin/login"); return; }
     setCargando(true);
 
-    const desdePatron = haceDias(VENTANA_PATRON_DIAS - 1); // hoy inclusive = 30 días
-    const lunesActual = lunesDeLaSemana(HOY);
-    const domingoActual = addDias(lunesActual, 6);
-    // Hallazgo: el déficit de encargadas era reactivo (solo la semana actual,
-    // avisando a mitad de semana cuando el turno del lunes ya pasó). Con el
-    // horario de la semana SIGUIENTE ya asignado, el aviso puede llegar con
-    // anticipación — mientras todavía se puede reprogramar.
-    const domingoSiguiente = addDias(lunesActual, 13);
+    // Qué rango pide cada consulta: vive junto a la detección
+    // (lib/admin/incidencias.ts) para que no se puedan separar.
+    const v = ventanasDeConsulta(HOY, desde, hasta);
 
     const [
       { data, error: errData },
@@ -285,11 +234,9 @@ function IncidenciasContenido() {
       { data: diasRachaData },
       { data: contratosData },
     ] = await Promise.all([
-      // Las dos consultas a jornadas van por lotes: PostgREST cortaba en 1000
-      // filas sin avisar, así que incidencias reales dejaban de listarse — y la
-      // del patrón de tardanzas barre desde `desdePatron` hasta hoy, que es el
-      // rango más ancho de esta pantalla.
-      traerTodo<any>((ini, fin) =>
+      // Las consultas a jornadas van por lotes: PostgREST cortaba en 1000 filas
+      // sin avisar, y dejaban de listarse incidencias reales.
+      traerTodo<unknown>((ini, fin) =>
         supabase
           .from("jornadas")
           .select("persona_id, fecha, estado, entrada_ts, salida_final_ts, tiene_salida_no_retornada, personas:persona_id(nombres, apellidos, sedes:sede_base_id(codigo))")
@@ -299,108 +246,60 @@ function IncidenciasContenido() {
           .range(ini, fin),
       ),
       supabase.rpc("fn_jornadas_extra", { p_desde: desde, p_hasta: hasta }),
-      traerTodo<any>((ini, fin) =>
+      traerTodo<unknown>((ini, fin) =>
         supabase
           .from("jornadas")
-          // `en_planilla` viaja para filtrar el patrón automático más abajo (0413):
-          // desde que un practicante también acumula minutos_tarde (informativo,
-          // para Desempeño), este "patrón" —que sí convierte el número en un aviso
-          // de "incidencia alta" sin que nadie lo pida— se queda exclusivo de quien
-          // está en_planilla. Un RxH nunca llega hasta acá: sigue sin minutos_tarde.
+          // `en_planilla` viaja para que el patrón automático se quede exclusivo
+          // de quien está en planilla (0413).
           .select("persona_id, fecha, entrada_ts, personas:persona_id(nombres, apellidos, en_planilla, sedes:sede_base_id(codigo))")
-          .gte("fecha", desdePatron).lte("fecha", HOY)
+          .gte("fecha", v.desdePatron).lte("fecha", HOY)
           .gt("minutos_tarde", 0)
           .order("fecha", { ascending: false })
           .order("persona_id")
           .range(ini, fin),
       ),
-      // Déficit de encargadas: mira la semana actual Y la siguiente (lunes–domingo),
-      // no el filtro Desde/Hasta — es sobre la cobertura planeada de AHORA en
-      // adelante, no un rango histórico.
       supabase.from("sedes").select("id, codigo"),
       supabase.from("personas").select("id, sede_base_id").eq("rol", "supervisor_sede").eq("estado", "activo"),
       supabase.from("metas_cobertura").select("sede_id, dia_semana, meta_encargadas").gt("meta_encargadas", 0),
-      supabase.from("horarios_asignados").select("persona_id, hora_entrada, hora_salida, dias_laborables, horario_por_dia, almuerzo_min_minutos, vigente_desde, vigente_hasta").lte("vigente_desde", domingoSiguiente).or(`vigente_hasta.is.null,vigente_hasta.gte.${lunesActual}`),
-      supabase.from("turnos").select("persona_id, fecha, hora_entrada, hora_salida, es_descanso").gte("fecha", lunesActual).lte("fecha", domingoSiguiente),
-      // Incidencias ya aceptadas (visto bueno): para no volver a mostrarlas.
-      // Se pide desde el filtro O desde la ventana fija más profunda, lo que sea
-      // más atrás: los avisos de racha y de exceso NO respetan Desde/Hasta —se
-      // miden sobre ventanas fijas—, así que con el filtro estrecho su aceptación
-      // no se cargaría y el aviso que ya diste por revisado volvería a aparecer
-      // solo por haber movido una fecha.
-      //
-      // El `min` de las tres es a propósito y no un adorno: cuando la 0185 trajo
-      // el exceso «ya ocurrió» con 30 días de ventana, esta línea seguía mirando
-      // los 20 de la racha y un exceso revisado hace tres semanas reaparecía.
-      // Columnas ampliadas (nota, aceptado_por, aceptado_at) para el historial:
-      // el rastro ya se escribía desde la 0052, esta pantalla solo no lo leía.
+      supabase.from("horarios_asignados").select("persona_id, hora_entrada, hora_salida, dias_laborables, horario_por_dia, almuerzo_min_minutos, vigente_desde, vigente_hasta").lte("vigente_desde", v.domingoSiguiente).or(`vigente_hasta.is.null,vigente_hasta.gte.${v.lunesActual}`),
+      supabase.from("turnos").select("persona_id, fecha, hora_entrada, hora_salida, es_descanso").gte("fecha", v.lunesActual).lte("fecha", v.domingoSiguiente),
+      // Aceptaciones: desde lo más atrás entre el filtro y las ventanas fijas
+      // (ver ventanasDeConsulta), o un aviso revisado reaparece al mover una fecha.
       supabase.from("incidencias_aceptadas")
         .select("persona_id, fecha, tipo, nota, aceptado_por, aceptado_at, personas:persona_id(nombres, apellidos, sedes:sede_base_id(codigo))")
-        .gte("fecha", [desde, haceDias(VENTANA_RACHA_DIAS), haceDias(VENTANA_EXCESO_DIAS)]
-          .reduce((a, b) => (a < b ? a : b)))
-        .lte("fecha", hasta > HOY ? hasta : HOY)
+        .gte("fecha", v.desdeAceptadas)
+        .lte("fecha", v.hastaAceptadas)
         .order("aceptado_at", { ascending: false }),
-      // Nombres para resolver "aceptado por" en el historial de arriba. Mismo
-      // patrón que ya usa admin/correcciones (`nombrePorId`): una lista chica
-      // de personas, resuelta en el cliente, en vez de un segundo embed de
-      // `personas` sobre la misma tabla en la misma consulta.
+      // Nombres para resolver "aceptado por" en el historial.
       supabase.from("personas").select("id, nombres, apellidos"),
-      // Faltas del rango (le tocaba y no marcó). Falla suave: si no llega, no se muestran.
+      // Faltas del rango (le tocaba y no marcó). Falla suave.
       supabase.rpc("fn_faltas", { p_desde: desde, p_hasta: hasta }),
-      // Pendientes de la 0257. Falla suave: mientras la migración no esté
-      // pegada, PostgREST devuelve error, `data` viene null y la sección
-      // simplemente no aparece. El resto de Incidencias no se entera.
+      // Pendientes de la 0257. Falla suave.
       supabase.rpc("fn_revisiones_pedidas", { p_solo_pendientes: true }),
-      // Tardanzas levantadas (perdonadas): no cuentan para el patrón. Ventana del patrón.
-      // Falla DURA para el aviso que depende de ella (no para el resto de la
-      // pantalla): si esta consulta no llega, no hay forma de saber qué
-      // tardanza ya fue perdonada, y mostrar "patrón" igual reabriría un caso
-      // ya resuelto — el falso positivo que este repositorio nombra como su
-      // peor error. Se apaga solo ESE aviso más abajo; ver `errLevTard`.
-      supabase.from("tardanzas_justificadas").select("persona_id, fecha").gte("fecha", desdePatron).lte("fecha", HOY),
-      // Horas para el tope de jornada. NO se piden por semana de calendario: el
-      // tope de 48 h se mide sobre CUALQUIER ventana de siete días consecutivos
-      // (Informe 027-2021-MTPE/14), y para evaluar una ventana que termina hoy
-      // hacen falta los seis días anteriores.
-      //
-      // El rango cubre la ventana de aviso (VENTANA_EXCESO_DIAS) MÁS seis días
-      // de arrastre, porque la ventana más vieja que se evalúa también necesita
-      // sus seis días previos. Antes se pedían 20 días y se evaluaban 7: los
-      // otros 13 se descargaban para nada.
-      traerTodo<any>((ini, fin) =>
+      // Tardanzas levantadas: falla DURA para el patrón (se apaga entero), suave
+      // para el resto de la pantalla.
+      supabase.from("tardanzas_justificadas").select("persona_id, fecha").gte("fecha", v.desdePatron).lte("fecha", HOY),
+      // Horas para el tope de jornada, sobre ventanas de siete días consecutivos.
+      traerTodo<unknown>((ini, fin) =>
         supabase
           .from("jornadas")
-          // CAMBIO 0284 — `estado` viaja para poder decir cuándo el exceso se
-          // apoya en una hora que puso el sistema y nadie confirmó.
-          // `tipo_vinculo, practicante_modalidad` viajan para el tope de una
-          // practicante (art. 44 Ley 28518: 30 h preprofesional, 48 h
-          // profesional) — antes esta pantalla medía a TODO el mundo contra
-          // las 48 h del art. 25, así que una preprofesional podía llegar a
-          // 47 h sin que nada avisara, seis por encima de su propio máximo.
           .select("persona_id, fecha, horas_trabajadas, estado, personas:persona_id(nombres, apellidos, tipo_vinculo, practicante_modalidad, sedes:sede_base_id(codigo))")
-          .gte("fecha", haceDias(VENTANA_EXCESO_DIAS + 5)).lte("fecha", HOY)
+          .gte("fecha", v.desdeHoras).lte("fecha", HOY)
           .gt("horas_trabajadas", 0)
           .order("persona_id")
           .range(ini, fin),
       ),
-      // Días CON marcaje de las últimas 3 semanas, para medir la racha en curso.
-      // Tres semanas alcanzan: la racha más larga medida en CAYLA fue de 20 días
-      // y con 21 se ve entera. Si alguna llegara más lejos, el aviso igual salta
-      // — solo diría «21+» en vez del número exacto, y a esa altura el número
-      // exacto ya no cambia nada.
-      traerTodo<any>((ini, fin) =>
+      // Días con marcaje, para medir la racha en curso.
+      traerTodo<unknown>((ini, fin) =>
         supabase
           .from("jornadas")
           .select("persona_id, fecha, personas:persona_id(nombres, apellidos, sedes:sede_base_id(codigo))")
-          .gte("fecha", haceDias(VENTANA_RACHA_DIAS)).lte("fecha", HOY)
+          .gte("fecha", v.desdeRacha).lte("fecha", HOY)
           .gt("horas_trabajadas", 0)
           .order("persona_id")
           .range(ini, fin),
       ),
-      // Tope de 12 meses del convenio de una practicante (Ley 28518 art. 30,
-      // 0336). No es un dato nuevo: `fn_contratos_tablero` ya lo calcula para
-      // el tablero de Contratos — acá solo se filtra a las filas que importan
-      // en ESTA pantalla. Falla suave: si no llega, no se muestra el aviso.
+      // Tope de 12 meses del convenio de una practicante (0336). Falla suave.
       supabase.rpc("fn_contratos_tablero"),
     ]);
 
@@ -422,9 +321,6 @@ function IncidenciasContenido() {
       personas: { nombres: string; apellidos: string; sedes: { codigo: string } | null } | null;
     }
     const aceptadasRows = (aceptadasData as AceptadaRow[] | null) ?? [];
-    // Set de claves aceptadas: `persona|fecha|tipo`. Falla suave (si no llega, no oculta nada).
-    const aceptadas = new Set(aceptadasRows.map((a) => `${a.persona_id}|${a.fecha}|${a.tipo}`));
-
     const nombrePorId = new Map(
       ((personasData as { id: string; nombres: string; apellidos: string }[] | null) ?? [])
         .map((p) => [p.id, `${p.nombres} ${p.apellidos}`.trim()]),
@@ -442,339 +338,56 @@ function IncidenciasContenido() {
       })),
     );
 
-    // Mapa persona_id|fecha → minutos de salida temprana (vía RPC, esquivando el schema cache).
-    const minutosPorClave = new Map<string, number>();
-    for (const e of (extraData as { persona_id: string; fecha: string; minutos_salida_temprana: number }[] | null) ?? []) {
-      minutosPorClave.set(`${e.persona_id}|${e.fecha}`, e.minutos_salida_temprana ?? 0);
-    }
+    const sedes = (sedesData as { id: string; codigo: string }[] | null) ?? [];
+    setCodigoPorSedeId(new Map(sedes.map((s) => [s.id, s.codigo])));
 
-    const out: Fila[] = [];
-    for (const j of (data as any[]) ?? []) {
-      const minutosTemprana = minutosPorClave.get(`${j.persona_id}|${j.fecha}`) ?? 0;
-      // Un mismo día puede tener VARIAS incidencias a la vez: por ejemplo un día
-      // auto-cerrado en el que ADEMÁS falta la marca de retorno del almuerzo.
-      // Antes esto era una cadena de `else if` y solo se veía la primera, así que
-      // los demás avisos de ese día se perdían sin que nadie los llegara a ver.
-      const delDia: { tipo: string; aceptable?: string; severidad: Fila["severidad"] }[] = [];
-      if (j.estado === "auto_cerrada_pendiente") delDia.push({ tipo: "Auto-cerrada (revisar)", severidad: "media" });
-      if (j.fecha < HOY && j.estado === "abierta") delDia.push({ tipo: "Sin salida final", severidad: "alta" });
-      if (j.fecha < HOY && j.tiene_salida_no_retornada) {
-        // Se nombra el HECHO observable —falta una marca— y no una interpretación:
-        // el sistema no puede saber si la persona se fue, si volvió sin marcar, o si
-        // no tomó refrigerio y siguió trabajando. Las tres cosas pasan. Decide quien
-        // revisa: registrando las marcas reales (y la jornada se recalcula sola), o
-        // aceptando el día tal como está si de verdad trabajó de corrido.
-        delDia.push({ tipo: "Sin marca de retorno del almuerzo", aceptable: "sin_retorno_almuerzo", severidad: "media" });
-      }
-      if (minutosTemprana > 0) delDia.push({ tipo: `Salida anticipada (${minutosTemprana} min)`, aceptable: "salida_anticipada", severidad: "media" });
+    const detectadas = detectarIncidencias({
+      hoy: HOY,
+      jornadasRango: (data as DatosDeteccion["jornadasRango"] | null) ?? [],
+      salidaTemprana: (extraData as unknown as DatosDeteccion["salidaTemprana"] | null) ?? [],
+      tardanzas: (tardias as DatosDeteccion["tardanzas"] | null) ?? [],
+      tardanzasLevantadas: errLevTard ? null : ((levTardData as { persona_id: string; fecha: string }[] | null) ?? []),
+      horasVentana: (horasSemanaData as DatosDeteccion["horasVentana"] | null) ?? [],
+      diasRacha: (diasRachaData as DatosDeteccion["diasRacha"] | null) ?? [],
+      aceptadas: aceptadasRows,
+      sedes,
+      encargadas: (encargadasData as { id: string; sede_base_id: string }[] | null) ?? [],
+      metas: (metasData as { sede_id: string; dia_semana: number; meta_encargadas: number }[] | null) ?? [],
+      horarios: (horariosData as HorarioTramo[] | null) ?? [],
+      turnos: (turnosData as DatosDeteccion["turnos"] | null) ?? [],
+      faltas: (faltasData as unknown as DatosDeteccion["faltas"] | null) ?? [],
+      etiquetaMotivo: MOTIVO_LABEL,
+    });
 
-      for (const inc of delDia) {
-        // Si ya la aceptaste (visto bueno), no la muestres.
-        if (inc.aceptable && aceptadas.has(`${j.persona_id}|${j.fecha}|${inc.aceptable}`)) continue;
-        out.push({
-          personaId: j.persona_id,
-          nombre: `${j.personas?.nombres ?? ""} ${j.personas?.apellidos ?? ""}`.trim(),
-          sede: j.personas?.sedes?.codigo ?? "?",
-          fecha: j.fecha,
-          tipo: inc.tipo,
-          entrada: j.entrada_ts,
-          salida: j.salida_final_ts,
-          aceptable: inc.aceptable,
-          severidad: inc.severidad,
-        });
-      }
-    }
-
-    // Patrón de tardanzas: 3+ en los últimos 30 días. Viene ordenado por fecha
-    // descendente, así que la primera vez que aparece cada persona ya es su
-    // tardanza más reciente.
-    //
-    // Todo el bloque se salta si `errLevTard` está presente: sin la lista de
-    // tardanzas LEVANTADAS no hay forma de saber cuáles ya fueron perdonadas,
-    // y contarlas igual reabriría como "patrón" algo que una encargada ya
-    // resolvió — el falso positivo que este repositorio nombra como su peor
-    // error. `avisoLevantadas`, seteado arriba, es lo que se lee en pantalla.
-    if (!errLevTard) {
-    // Días con tardanza LEVANTADA: no cuentan para el patrón.
-    const levantadas = new Set(
-      ((levTardData as { persona_id: string; fecha: string }[] | null) ?? []).map((t) => `${t.persona_id}|${t.fecha}`),
-    );
-    const porPersonaTardias = new Map<string, { count: number; ultima: any }>();
-    for (const j of (tardias as any[]) ?? []) {
-      if (levantadas.has(`${j.persona_id}|${j.fecha}`)) continue; // tardanza perdonada
-      // 0413: el aviso automático de "patrón" es fiscalización activa del
-      // sistema, no solo un número mostrado — se queda para quien está
-      // en_planilla. Un practicante sigue viendo su tardanza en Desempeño;
-      // acá no genera ninguna incidencia.
-      if (j.personas?.en_planilla !== true) continue;
-      const prev = porPersonaTardias.get(j.persona_id);
-      if (prev) prev.count++;
-      else porPersonaTardias.set(j.persona_id, { count: 1, ultima: j });
-    }
-    for (const { count, ultima: j } of porPersonaTardias.values()) {
-      if (count < UMBRAL_PATRON_TARDANZAS) continue;
-      out.push({
-        personaId: j.persona_id,
-        nombre: `${j.personas?.nombres ?? ""} ${j.personas?.apellidos ?? ""}`.trim(),
-        sede: j.personas?.sedes?.codigo ?? "?",
-        fecha: j.fecha,
-        // «días corridos» y no «días» a secas: el umbral que arma el memo se
-        // cuenta por MES CALENDARIO (art. 19.2-b del RIT) y vive en Disciplina.
-        // Los dos números difieren cuando hay una tardanza del mes pasado
-        // todavía dentro de la ventana, y sin nombrar el periodo esa diferencia
-        // se lee como que una de las dos pantallas está rota.
-        //
-        // Acá NO se pone además el conteo del mes. Esta pantalla no conoce el
-        // corte del expediente (non bis in idem) ni descarta las tardanzas de
-        // más de tres horas, así que el número que calculara podría salir más
-        // alto que el de Disciplina — y sería el falso positivo de siempre,
-        // ahora con dos cifras propias en vez de una prestada.
-        tipo: `Patrón de tardanzas (${count} en ${VENTANA_PATRON_DIAS} días corridos)`,
-        entrada: j.entrada_ts,
-        salida: null,
-        severidad: "alta",
-      });
-    }
-    } // fin if (!errLevTard)
-
-    // ── Exceso de jornada ─────────────────────────────────────────────────
-    // Las 48 h son el MÁXIMO LEGAL (Const. art. 25), no un objetivo: pasarse es
-    // infracción y no se arregla pagando después.
-    //
-    // Se mide sobre la ventana de SIETE DÍAS CONSECUTIVOS más cargada de la
-    // última semana, no sobre la semana de calendario. Antes se sumaba de lunes
-    // a domingo, y así doce días seguidos de 8 h daban 48 y 48 —ninguna semana
-    // se pasaba— cuando cualquier ventana de siete días de esa racha suma 56.
-    // El Informe 027-2021-MTPE/14 es explícito: la semana, para determinar el
-    // tiempo de trabajo, es un ciclo de siete días y no el del calendario.
-    //
-    // Y se mide contra 48, NO contra las 45 que CAYLA programa: 45 es el horario,
-    // 48 la jornada ordinaria pactada. Avisar a las 45 llenaría la pantalla de
-    // gente que está dentro de su contrato, y un aviso que salta siempre se
-    // ignora a la semana.
-    // CAMBIO 0284 — `sinConfirmar` guarda los días cuya salida la puso el
-    // sistema y nadie confirmó todavía. NO se excluyen del cálculo a propósito:
-    // el objetivo de este aviso es no perderse ningún tramo cargado, y sacar el
-    // día podría esconder una sobrecarga real. Lo que se corrige es la
-    // AFIRMACIÓN: el aviso deja de dar por hecho un exceso que puede descansar
-    // en una hora que nadie marcó, y lo dice. Antes esta pantalla podía decir a
-    // la vez «Auto-cerrada (revisar)» y «pasó el máximo legal» sobre el mismo
-    // día — un falso positivo, que es el peor error según CLAUDE.md.
-    const porPersonaHoras = new Map<
-      string,
-      { dias: { fecha: string; horas: number }[]; sinConfirmar: Set<string>; fila: any }
-    >();
-    for (const j of (horasSemanaData as any[]) ?? []) {
-      const prev = porPersonaHoras.get(j.persona_id);
-      const dia = { fecha: j.fecha as string, horas: Number(j.horas_trabajadas) || 0 };
-      const pendiente = j.estado === "auto_cerrada_pendiente";
-      if (prev) {
-        prev.dias.push(dia);
-        if (pendiente) prev.sinConfirmar.add(dia.fecha);
-      } else {
-        porPersonaHoras.set(j.persona_id, {
-          dias: [dia],
-          sinConfirmar: new Set(pendiente ? [dia.fecha] : []),
-          fila: j,
-        });
-      }
-    }
-    // ¿La ventana de siete días que termina en `fin` contiene algún día así?
-    const apoyadoEnHoraInventada = (sinConfirmar: Set<string>, fin: string) => {
-      if (sinConfirmar.size === 0) return false;
-      const cursor = new Date(`${fin}T00:00:00Z`);
-      for (let i = 0; i < 7; i++) {
-        if (sinConfirmar.has(cursor.toISOString().slice(0, 10))) return true;
-        cursor.setUTCDate(cursor.getUTCDate() - 1);
-      }
-      return false;
-    };
-    for (const { dias, sinConfirmar, fila: j } of porPersonaHoras.values()) {
-      const quien = {
-        personaId: j.persona_id,
-        nombre: `${j.personas?.nombres ?? ""} ${j.personas?.apellidos ?? ""}`.trim(),
-        sede: j.personas?.sedes?.codigo ?? "?",
-        entrada: null,
-        salida: null,
-      };
-      // Una practicante tiene su propio tope (art. 44 Ley 28518), más bajo que
-      // el máximo legal general — 30 h preprofesional, 48 h profesional. `null`
-      // (no practicante, o practicante sin modalidad fijada) cae al de siempre.
-      const maxLegal = maximoSemanalPracticante(j.personas?.tipo_vinculo, j.personas?.practicante_modalidad)
-        ?? MAXIMO_LEGAL_SEMANAL;
-      // Dos preguntas distintas, y por eso dos ventanas.
-      //
-      // La primera: ¿se está pasando AHORA? Ventana que termina en los últimos
-      // siete días — todavía se puede mover un turno y frenarlo.
-      const v = ventanaMasCargada(dias, haceDias(EXCESO_AUN_EVITABLE_DIAS), HOY);
-      const hayExcesoVivo = v !== null && v.horas > maxLegal;
-      if (hayExcesoVivo) {
-        out.push({
-          ...quien,
-          fecha: v!.fin,
-          tipo: `Jornada excedida: ${v!.horas.toFixed(1)} h en 7 días (máx. ${maxLegal})`
-            + (apoyadoEnHoraInventada(sinConfirmar, v!.fin)
-                 ? " · incluye días cuya salida puso el sistema y falta confirmar"
-                 : ""),
-          severidad: "alta",
-        });
-      }
-      // La segunda: ¿se pasó ANTES y nadie lo vio? Ya no se puede evitar, pero
-      // sigue siendo infracción del art. 25 y tiene que quedar registro — y si
-      // generó sobretiempo, la boleta ya lo está pagando. Que el aviso caducara
-      // no borra el hecho.
-      //
-      // Solo si no hay uno vivo: con los dos, quien tiene una racha larga vería
-      // dos filas que dicen lo mismo y la de arriba ya pide la acción.
-      if (hayExcesoVivo) continue;
-      const vieja = ventanaMasCargada(
-        dias,
-        haceDias(VENTANA_EXCESO_DIAS - 1),
-        haceDias(EXCESO_AUN_EVITABLE_DIAS + 1),
-      );
-      if (vieja === null || vieja.horas <= maxLegal) continue;
-      if (aceptadas.has(`${j.persona_id}|${vieja.fin}|jornada_excedida`)) continue;
-      out.push({
-        ...quien,
-        fecha: vieja.fin,
-        tipo: `Jornada excedida (ya ocurrió): ${vieja.horas.toFixed(1)} h en 7 días (máx. ${maxLegal})`,
-        aceptable: "jornada_excedida",
-        severidad: "media",
-      });
-    }
-
-    // ── Días seguidos sin descansar ───────────────────────────────────────
-    // El D. Leg. 713 art. 1 da 24 h de descanso «en cada semana», y el Informe
-    // 027-2021-MTPE/14 —vinculante— define semana como CICLO DE 7 DÍAS, no como
-    // semana calendario. Por eso se cuentan días consecutivos y no se mira el
-    // lunes: con descanso rotativo se puede cumplir «uno por semana calendario»
-    // y encadenar doce días igual.
-    //
-    // Dos niveles a propósito. Al sexto día todavía se puede mover el turno del
-    // día siguiente; al séptimo la infracción ya ocurrió y el aviso solo sirve
-    // para no repetirla. El que evita el problema es el primero.
-    const porPersonaDias = new Map<string, { fechas: string[]; fila: any }>();
-    for (const j of (diasRachaData as any[]) ?? []) {
-      const prev = porPersonaDias.get(j.persona_id);
-      if (prev) prev.fechas.push(j.fecha);
-      else porPersonaDias.set(j.persona_id, { fechas: [j.fecha], fila: j });
-    }
-    for (const { fechas, fila: j } of porPersonaDias.values()) {
-      // Cuándo se avisa y cuándo el aviso ya caducó vive en `avisoDeRacha`, con
-      // sus pruebas: la regla decide si esta pantalla dice una verdad o una
-      // mentira, y el 2026-08-15 dijo una mentira por no tener dónde probarse.
-      const aviso = avisoDeRacha(fechas, HOY);
-      if (aviso === null) continue;
-
-      // El aviso de 7+ se saca con visto bueno, no por antigüedad: la infracción
-      // ya ocurrió y desaparecer sola sería borrarla sin que nadie la mirara. Si
-      // la racha sigue creciendo, `ultimo` cambia y vuelve a salir — aceptar el
-      // día 7 no tapa el día 8, que es justo lo que se quiere.
-      const aceptable = aviso.excedida ? "racha_sin_descanso" : undefined;
-      if (aceptable && aceptadas.has(`${j.persona_id}|${aviso.ultimo}|${aceptable}`)) continue;
-
-      out.push({
-        personaId: j.persona_id,
-        nombre: `${j.personas?.nombres ?? ""} ${j.personas?.apellidos ?? ""}`.trim(),
-        sede: j.personas?.sedes?.codigo ?? "?",
-        fecha: aviso.ultimo,
-        tipo: aviso.excedida
-          ? `${aviso.seguidos} días seguidos sin descanso semanal`
-          : `Lleva ${aviso.seguidos} días seguidos — el próximo le toca descansar`,
-        entrada: null,
-        salida: null,
-        aceptable,
-        // Excedida = infracción ya consumada (alta). Preventiva = todavía no es
-        // infracción, solo un aviso de que mañana toca descansar (baja).
-        severidad: aviso.excedida ? "alta" : "baja",
-      });
-    }
-
-    // Déficit de encargadas: para cada sede/día de esta semana Y LA SIGUIENTE
-    // con meta definida, ¿cuántas supervisor_sede están programadas? Misma
-    // cascada turno del día → horario_por_dia → legacy que usa admin/turnos.
-    //
-    // Hallazgo (auditoría 2026-09-13): antes solo miraba la semana actual, así
-    // que el aviso llegaba a mitad de semana — cuando el turno del lunes ya
-    // pasó y no se puede mover. El horario de la semana siguiente ya está
-    // asignado en `horarios_asignados`/`turnos` cuando esta pantalla se abre
-    // un viernes o un fin de semana, así que el mismo cálculo, corrido 7 días
-    // más, avisa con tiempo real de reprogramar.
-    const codigoPorSede = new Map(((sedesData as { id: string; codigo: string }[] | null) ?? []).map((s) => [s.id, s.codigo]));
-    setCodigoPorSedeId(codigoPorSede);
-    const sedePorEncargada = new Map(((encargadasData as { id: string; sede_base_id: string }[] | null) ?? []).map((p) => [p.id, p.sede_base_id]));
-    const turnoPorClave = new Map(
-      ((turnosData as { persona_id: string; fecha: string; hora_entrada: string | null; hora_salida: string | null; es_descanso: boolean }[] | null) ?? [])
-        .map((t) => [`${t.persona_id}|${t.fecha}`, t as TurnoDia]),
-    );
-    const horariosPorPersona = new Map<string, HorarioTramo[]>();
-    for (const h of (horariosData as HorarioTramo[] | null) ?? []) {
-      const arr = horariosPorPersona.get(h.persona_id) ?? [];
-      arr.push(h);
-      horariosPorPersona.set(h.persona_id, arr);
-    }
-    function trabajaEseDia(personaId: string, fecha: string): boolean {
-      const turno = turnoPorClave.get(`${personaId}|${fecha}`) ?? null;
-      const horario = horarioVigente(horariosPorPersona.get(personaId) ?? [], fecha);
-      return esperadoDelDia(fecha, turno, horario).trabaja;
-    }
-    const diasCobertura = Array.from({ length: 14 }, (_, i) => addDias(lunesActual, i));
-    for (const [i, dia] of diasCobertura.entries()) {
-      const esSemanaSiguiente = i >= 7;
-      const dow = diaSemanaNum(dia);
-      for (const m of (metasData as { sede_id: string; dia_semana: number; meta_encargadas: number }[] | null) ?? []) {
-        if (m.dia_semana !== dow) continue;
-        const encargadas = [...sedePorEncargada.entries()].filter(([, sedeId]) => sedeId === m.sede_id).map(([id]) => id);
-        const cubiertas = encargadas.filter((id) => trabajaEseDia(id, dia)).length;
-        if (cubiertas >= m.meta_encargadas) continue;
-        out.push({
-          personaId: null,
-          nombre: `Sede ${codigoPorSede.get(m.sede_id) ?? "?"}`,
-          sede: codigoPorSede.get(m.sede_id) ?? "?",
-          fecha: dia,
-          tipo: `Déficit de encargadas (${cubiertas}/${m.meta_encargadas})`
-            + (esSemanaSiguiente ? " · próxima semana, todavía se puede reprogramar" : ""),
-          entrada: null,
-          salida: null,
-          severidad: "media",
-        });
-      }
-    }
-
-    // Faltas: le tocaba y no marcó. Injustificadas en rojo (cuentan), justificadas
-    // atenuadas (no cuentan, con su motivo). Vienen de fn_faltas (ya scopeada por rol).
     setRevisiones(((revisionesData as unknown as RevisionPedida[] | null) ?? []));
 
-    for (const f of (faltasData as { persona_id: string; nombre: string; sede: string; fecha: string; justificada: boolean; motivo: string | null }[] | null) ?? []) {
-      out.push({
-        personaId: f.persona_id,
-        nombre: f.nombre,
-        sede: f.sede,
-        fecha: f.fecha,
-        tipo: f.justificada ? `Falta justificada · ${MOTIVO_LABEL(f.motivo)}` : "Falta injustificada",
-        entrada: null,
-        salida: null,
-        esFalta: true,
-        justificada: f.justificada,
-        motivoFalta: f.motivo,
-        severidad: f.justificada ? "baja" : "alta",
-      });
-    }
-
-    // Practicantes sobre (o cerca de) el tope de 12 meses de su convenio.
-    // `fn_contratos_tablero` ya distingue esto con `tipo = 'convenio_practicas'`
-    // y un `estado` que, para una practicante, viene calculado contra el tope
-    // legal — no contra la fecha que tenga escrita el convenio (0336). No es
-    // un conteo de incidencias: es un aviso aparte, porque el riesgo de
-    // desnaturalización existe aunque la practicante venga marcando todos
-    // los días con normalidad.
+    // Practicantes sobre (o cerca de) el tope de 12 meses de su convenio: un
+    // aviso aparte, porque el riesgo existe aunque venga marcando con normalidad.
     setPracticantesSobreTope(
       ((contratosData as { persona_id: string; persona: string; sede: string; tipo: string; estado: string; dias_restantes: number | null }[] | null) ?? [])
         .filter((c) => c.tipo === "convenio_practicas" && (c.estado === "vencido" || c.estado === "por_vencer"))
         .map((c) => ({ persona_id: c.persona_id, persona: c.persona, sede: c.sede, estado: c.estado, dias_restantes: c.dias_restantes })),
     );
 
-    setFilas(out);
+    // Lo ya aceptado no se vuelve a mostrar en la lista activa: vive en el historial.
+    setFilas(
+      detectadas
+        .filter((i) => !i.aceptacion)
+        .map((i) => ({
+          personaId: i.personaId,
+          nombre: i.nombre,
+          sede: i.sede,
+          fecha: i.fecha,
+          tipo: i.texto,
+          entrada: i.entrada,
+          salida: i.salida,
+          aceptable: i.aceptable,
+          esFalta: i.categoria === "faltas" ? true : undefined,
+          justificada: i.justificada,
+          motivoFalta: i.motivoFalta,
+          severidad: i.severidad,
+        })),
+    );
     setCargando(false);
   }, [router, desde, hasta]);
 
