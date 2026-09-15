@@ -32,8 +32,13 @@ export function Drawer({
   titulo,
   bloqueado = false,
   volverElFocoA,
+  ancho = "normal",
   children,
 }: {
+  /** "amplio" (2026-09-15, Disciplina): el panel de un caso lleva una tabla de
+   * evidencia de cinco columnas que en 460px se parte en dos líneas por celda.
+   * Dos anchos y no un número libre, por lo mismo que Modal. */
+  ancho?: "normal" | "amplio";
   abierto: boolean;
   onCerrar: () => void;
   titulo?: string;
@@ -74,7 +79,7 @@ export function Drawer({
         aria-labelledby={titulo ? tituloId : undefined}
         aria-label={titulo ? undefined : "Panel"}
         tabIndex={-1}
-        className={`absolute inset-y-0 right-0 flex w-full max-w-[460px] flex-col border-l border-taupe/35 bg-papel outline-none ${saliendo ? "cajon-derecha-sale" : "cajon-derecha-entra"}`}
+        className={`absolute inset-y-0 right-0 flex w-full ${ancho === "amplio" ? "max-w-[640px]" : "max-w-[460px]"} flex-col border-l border-taupe/35 bg-papel outline-none ${saliendo ? "cajon-derecha-sale" : "cajon-derecha-entra"}`}
         onClick={(e) => e.stopPropagation()}
       >
         {titulo && (
