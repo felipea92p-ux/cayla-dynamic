@@ -11,6 +11,8 @@ import {
   CreditCard,
   HeartHandshake,
   Lock,
+  PanelLeftClose,
+  PanelLeftOpen,
   PencilLine,
   Phone,
   ShieldCheck,
@@ -20,6 +22,7 @@ import {
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { desacuerdoAsignacionFamiliar, esPrestadorDeServicios, hoyLima, leCorrespondeCuspp, ESTADO_CIVIL_LABELS, ESTADOS_CIVILES, GENERO_LABELS, GENEROS, GRADO_INSTRUCCION_LABELS, GRADOS_INSTRUCCION, puedeExportarPadron, puedeOperarEquipo, puedeVerIdentidad, REGIMEN_PENSION_LABELS, REGIMENES_PENSION, siNoSinDato, VINCULO_DERECHOHABIENTE_LABELS, VINCULOS_DERECHOHABIENTE } from "@cayla-dynamic/shared";
 import { usePersonaActual } from "@/lib/admin/use-rol";
+import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
 import { Cargando } from "@/components/cargando";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { descargarCsv, generarCsv } from "@/lib/admin/csv";
@@ -279,6 +282,11 @@ export default function DatosPersonalesPage() {
   // volvió falso cuando abrió Central): se derivan de `sedes`, el mismo mapa
   // que ya llega de la tabla `sedes` (ver `sedesDisponibles` más abajo).
   const [filtroSede, setFiltroSede] = useState<string>("Todas");
+  // Si el panel de "Equipo" está oculto para darle todo el ancho a la ficha.
+  // Es una preferencia de vista (como el filtro de sede), no un dato de la
+  // persona seleccionada, así que usa el mismo hook que ya se acuerda de eso
+  // por navegador — no un `useState` suelto que se olvida al recargar.
+  const [equipoColapsado, setEquipoColapsado] = useFiltroGuardado("datos-personales.equipo-colapsado", false);
   // Si la ficha se ve o se edita. Arranca en solo-lectura: es el candado que
   // reemplaza al que perdía cambios en silencio (ver `alternarEdicion`) y el
   // motivo por el que ya no hace falta un `window.confirm` para "¿seguro que
@@ -1035,13 +1043,31 @@ export default function DatosPersonalesPage() {
           </div>
         )}
 
-        <div className="grid items-start gap-6 md:grid-cols-[220px_1fr] lg:grid-cols-[260px_1fr]">
+        {/* Sin columna fija para "Equipo" cuando está colapsado: si el
+            grid-template-columns siguiera reservando 220/260px, ocultar el
+            panel con `hidden` no le devolvería ese ancho a la ficha — el
+            carril quedaría vacío. Colapsado, el grid cae a una sola columna
+            implícita y la ficha (único hijo visible) ocupa todo el ancho. */}
+        <div className={`grid items-start gap-6 ${equipoColapsado ? "" : "md:grid-cols-[220px_1fr] lg:grid-cols-[260px_1fr]"}`}>
           {/* Lista de personas. Oculta en móvil mientras se ve una ficha
-              (`vistaMobile`) — en md hacia arriba siempre visible. */}
-          <div className={`overflow-hidden rounded-superficie border border-sand bg-papel ${vistaMobile === "ficha" ? "hidden md:block" : "block"}`}>
+              (`vistaMobile`) — en md hacia arriba, oculta solo si se colapsó
+              a mano (`equipoColapsado`). Las dos reglas nunca compiten: cada
+              una vive en su propio breakpoint (sin prefijo vs. `md:`), igual
+              que ya hacía este mismo div antes de que existiera el colapso. */}
+          <div className={`overflow-hidden rounded-superficie border border-sand bg-papel ${vistaMobile === "ficha" ? "hidden" : "block"} ${equipoColapsado ? "md:hidden" : "md:block"}`}>
             <div className="border-b border-sand bg-sand/50 px-3 py-2">
-              <div className="flex items-baseline justify-between">
-                <h2 className="text-sm font-medium">Equipo {personas.length > 0 && <span className="font-normal text-taupe">· {personas.length}</span>}</h2>
+              <div className="flex items-center justify-between gap-2">
+                <span className="flex items-center gap-1.5">
+                  <h2 className="text-sm font-medium">Equipo {personas.length > 0 && <span className="font-normal text-taupe">· {personas.length}</span>}</h2>
+                  <button
+                    onClick={() => setEquipoColapsado(true)}
+                    className="hidden shrink-0 rounded-control p-1 text-taupe transition-colors hover:bg-sand hover:text-tinta md:block"
+                    title="Ocultar el equipo y darle todo el ancho a la ficha"
+                    aria-label="Ocultar el equipo"
+                  >
+                    <PanelLeftClose size={15} strokeWidth={1.8} aria-hidden />
+                  </button>
+                </span>
                 {sinFicha > 0 && (
                   <button onClick={() => setSoloSinFicha((v) => !v)} aria-pressed={soloSinFicha}
                     className={`rounded-pildora px-2 py-0.5 text-xs transition-colors ${soloSinFicha ? "bg-ambar/25 text-ambar" : "text-ambar hover:bg-ambar/15"}`}>
@@ -1126,9 +1152,24 @@ export default function DatosPersonalesPage() {
             )}
           </div>
 
-          {/* Ficha. Oculta en móvil mientras se ve la lista (`vistaMobile`). */}
-          <div
-            ref={fichaRef}
+          {/* Columna de la ficha. El botón para volver a traer el equipo vive
+              AFUERA de `fichaRef` a propósito: ese div ya tiene su propio
+              encabezado `sticky` (ver el comentario de su className), y
+              meterle un hermano más arriba con su propia idea de posición
+              es exactamente el tipo de vecino que ya rompió el sticky una
+              vez — mejor no tentarlo. */}
+          <div className="min-w-0">
+            {equipoColapsado && (
+              <button
+                onClick={() => setEquipoColapsado(false)}
+                className="mb-3 inline-flex items-center gap-1.5 rounded-pildora bg-tinta px-3 py-1.5 text-xs font-medium text-crema transition-colors hover:bg-rojo-profundo"
+              >
+                <PanelLeftOpen size={14} strokeWidth={1.8} aria-hidden /> Equipo · {personas.length}
+              </button>
+            )}
+            {/* Ficha. Oculta en móvil mientras se ve la lista (`vistaMobile`). */}
+            <div
+              ref={fichaRef}
             // Sin `overflow-hidden` a propósito: el encabezado de acá abajo es
             // `position: sticky`, y un ancestro con `overflow` distinto de
             // `visible` se vuelve su contenedor de referencia — como este div
@@ -1548,6 +1589,7 @@ export default function DatosPersonalesPage() {
                 )}
               </>
             )}
+            </div>
           </div>
         </div>
 

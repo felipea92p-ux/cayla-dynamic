@@ -312,7 +312,10 @@ with repo(numero, nombre, nunca) as (values
     (445, 'el_calculo_de_una_jornada_se_vuelve_reusable', false),
     (446, 'cada_jornada_guarda_el_horario_con_que_se_midio', false),
     (447, 'corregir_un_horario_pasado_es_un_camino_aparte', false),
-    (448, 'la_negativa_pide_motivo_y_el_reemplazo_queda_auditado', false)
+    (448, 'la_negativa_pide_motivo_y_el_reemplazo_queda_auditado', false),
+    (449, 'objetivos_recuerdan_quien_los_toco', false),
+    (450, 'la_constancia_de_estudios_se_entrega_y_se_revisa', false),
+    (451, 'un_visto_bueno_recuerda_lo_que_acepto', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte

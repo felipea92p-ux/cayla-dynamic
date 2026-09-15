@@ -33,7 +33,9 @@
 //    justo cuando lleva tres meses sin resolverse.
 // ============================================================================
 import { describe, expect, it } from "vitest";
-import { armarBandeja, DIAS_NOVEDAD } from "@/lib/bandeja-mia";
+import {
+  armarBandeja, DIAS_NOVEDAD, type FilaEducacionEntrega, type FilaEducacionSituacion,
+} from "@/lib/bandeja-mia";
 
 const HOY = "2026-09-08";
 
@@ -47,6 +49,87 @@ const VACIO = {
   contrato: null, memos: [], acuses: [], marcajes: [], periodo: null,
   movilidad: null, revisionesMovilidad: [], turnos: [],
 };
+
+// ── Las constancias de estudios (0450) ─────────────────────────────────────
+// Lo que importa acá no es que aparezcan: es que un mismo rechazo NO avise dos
+// veces (como respuesta y como pendiente), y que lo que carga DO a su nombre no
+// se le anuncie como si ella hubiera pedido algo.
+describe("armarBandeja · constancias de estudios", () => {
+  const entrega = (x: Partial<FilaEducacionEntrega>): FilaEducacionEntrega => ({
+    id: "e1", familia_id: "f1", institucion: "UPN", fecha_pago: "2026-09-05",
+    estado: "aprobada", origen: "colaboradora",
+    enviada_at: enLima("2026-09-05"), revisada_at: enLima("2026-09-07"),
+    motivo_categoria: null, motivo_comentario: null, ...x,
+  });
+  const estudio = (x: Partial<FilaEducacionSituacion>): FilaEducacionSituacion => ({
+    familia_id: "f1", persona_id: "yo", institucion: "UPN",
+    estado_constancia: "al_dia", fecha_pago_constancia: null, plazo: null, ...x,
+  });
+
+  it("una aprobada reciente es una respuesta que lleva a ese estudio", () => {
+    const b = armarBandeja({ ...VACIO, educacionEntregas: [entrega({})] }, HOY);
+    expect(b.respuestas).toHaveLength(1);
+    expect(b.respuestas[0].estado).toBe("aprobado");
+    expect(b.respuestas[0].ir).toBe("/mio/educacion?familia=f1");
+    expect(b.avisos).toBe(1);
+  });
+
+  it("un rechazo reciente avisa UNA vez, con categoría y comentario como respuesta", () => {
+    const b = armarBandeja({
+      ...VACIO,
+      educacionEntregas: [entrega({ estado: "rechazada", motivo_categoria: "ilegible", motivo_comentario: "No se ve el monto" })],
+      educacionSituacion: [estudio({ estado_constancia: "rechazada", fecha_pago_constancia: "2026-09-05" })],
+    }, HOY);
+    expect(b.respuestas).toHaveLength(1);
+    expect(b.respuestas[0].respuesta).toBe("No se lee: No se ve el monto");
+    expect(b.pendientes).toHaveLength(0);
+    expect(b.avisos).toBe(1);
+  });
+
+  it("un rechazo viejo ya no es novedad, pero la corrección sigue pendiente", () => {
+    const b = armarBandeja({
+      ...VACIO,
+      educacionEntregas: [entrega({ estado: "rechazada", revisada_at: enLima("2026-07-01"), motivo_categoria: "otro", motivo_comentario: "Falta el sello" })],
+      educacionSituacion: [estudio({ estado_constancia: "rechazada", fecha_pago_constancia: "2026-06-30" })],
+    }, HOY);
+    expect(b.respuestas[0].nuevo).toBe(false);
+    expect(b.pendientes).toHaveLength(1);
+    expect(b.pendientes[0].origen).toBe("educacion");
+    expect(b.avisos).toBe(1);
+  });
+
+  it("una constancia por subir depende de ella y no caduca", () => {
+    const b = armarBandeja({
+      ...VACIO,
+      educacionSituacion: [estudio({ estado_constancia: "vencida", fecha_pago_constancia: "2026-05-05", plazo: "2026-05-22" })],
+    }, HOY);
+    expect(b.pendientes).toHaveLength(1);
+    expect(b.pendientes[0].estado).toBe("por_arreglar");
+    expect(b.pendientes[0].nuevo).toBe(true);
+  });
+
+  it("al día o pendiente de revisión no le piden nada", () => {
+    const b = armarBandeja({
+      ...VACIO,
+      educacionSituacion: [estudio({ estado_constancia: "al_dia" }), estudio({ familia_id: "f2", estado_constancia: "pendiente_revision" })],
+    }, HOY);
+    expect(b.pendientes).toHaveLength(0);
+  });
+
+  it("lo que carga DO a su nombre no se le anuncia", () => {
+    const b = armarBandeja({ ...VACIO, educacionEntregas: [entrega({ origen: "do" })] }, HOY);
+    expect(b.respuestas).toHaveLength(0);
+    expect(b.avisos).toBe(0);
+  });
+
+  it("la que envió y espera revisión no suma al contador", () => {
+    const b = armarBandeja({
+      ...VACIO, educacionEntregas: [entrega({ estado: "pendiente", revisada_at: null })],
+    }, HOY);
+    expect(b.esperando).toHaveLength(1);
+    expect(b.avisos).toBe(0);
+  });
+});
 
 describe("armarBandeja", () => {
   it("sin nada que decir, no dice nada — y el contador es cero", () => {

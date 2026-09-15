@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { useRolActual } from "@/lib/admin/use-rol";
@@ -598,6 +598,11 @@ export default function ContratosPage() {
   // archivo?», se pregunta «¿qué pasa con Danitza?». Con ~30 personas activas y
   // varios contratos por cabeza, eso se respondía recorriendo la pantalla.
   const [busca, setBusca] = useState("");
+  // ?persona=<id> — llega desde la Bandeja (una revisión de contrato pedida).
+  // Se aplica UNA vez: escribe su nombre en el buscador y abre «todos», porque
+  // su contrato puede estar «al día» y el filtro de pendientes lo escondería.
+  // El ref evita que cada `cargar()` posterior pise lo que se escribió.
+  const personaUrlAplicada = useRef(false);
   // Los dos filtros de la tabla. `filtroEstado` arranca en «pendientes» y no en
   // «todos» a propósito: una tabla donde casi todas las filas dicen «al día»
   // enseña a ignorarla, que es el mismo criterio con el que el tablero viejo
@@ -899,6 +904,12 @@ export default function ContratosPage() {
 
     setContratos((ctr.data as ContratoFila[]) ?? []);
     setTablero((tab.data as FilaTablero[]) ?? []);
+    if (!personaUrlAplicada.current) {
+      personaUrlAplicada.current = true;
+      const pid = new URLSearchParams(window.location.search).get("persona");
+      const fila = pid ? ((tab.data as FilaTablero[]) ?? []).find((f) => f.persona_id === pid) : undefined;
+      if (fila) { setBusca(fila.persona); setFiltroEstado("todos"); }
+    }
     setCargando(false);
   }, [supabase, router]);
 

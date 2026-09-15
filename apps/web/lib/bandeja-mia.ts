@@ -1,5 +1,8 @@
 import type { ClienteCayla } from "@cayla-dynamic/database";
-import { fechaLima, hoyLima } from "@cayla-dynamic/shared";
+import {
+  MOTIVO_RECHAZO_LABELS, constanciaPideAlgoALaIntegrante, fechaLima, hoyLima,
+  type EstadoConstancia, type MotivoRechazo,
+} from "@cayla-dynamic/shared";
 import { loQueNoSePudo } from "./admin/lo-que-no-se-pudo";
 import { traerAcusesPendientes, type AcusePendiente } from "./acuses-pendientes";
 import { ordenarContratoVigente } from "./mi-contrato";
@@ -92,6 +95,9 @@ export const DIAS_NOVEDAD = 14;
 export type OrigenBandeja =
   // Lo que pediste y te contestaron.
   | "perfil" | "vacaciones" | "revision" | "revision-movilidad"
+  // La constancia de tus estudios (0450): es las dos cosas — te contestan si
+  // se aprobó, y depende de ti subirla cuando pagas.
+  | "educacion"
   // Lo que depende de ti. No caduca.
   | "contrato" | "memo" | "acuse" | "marcaje" | "ruta"
   // Te lo hicieron a ti — no lo pediste, así que no hay nada "esperando" para
@@ -240,6 +246,30 @@ export interface FilaMovilidad {
   ruta_desfasada: boolean;
 }
 
+/** Una constancia de estudios suya (0450), de `educacion_entregas`, con su estudio. */
+export interface FilaEducacionEntrega {
+  id: string;
+  familia_id: string;
+  institucion: string;
+  fecha_pago: string;
+  estado: "pendiente" | "aprobada" | "rechazada" | "retirada";
+  origen: "colaboradora" | "do" | "migrada";
+  enviada_at: string;
+  revisada_at: string | null;
+  motivo_categoria: MotivoRechazo | null;
+  motivo_comentario: string | null;
+}
+
+/** Un estudio suyo y en qué está su constancia, tal como lo contesta `fn_educacion_situacion` (0450). */
+export interface FilaEducacionSituacion {
+  familia_id: string;
+  persona_id: string;
+  institucion: string;
+  estado_constancia: EstadoConstancia;
+  fecha_pago_constancia: string | null;
+  plazo: string | null;
+}
+
 export interface FuentesBandeja {
   perfil: FilaPerfil[];
   vacaciones: FilaVacacion[];
@@ -259,6 +289,10 @@ export interface FuentesBandeja {
   revisionesMovilidad: FilaRevisionMovilidad[];
   /** Cambios de turno que le hicieron. Ver `FilaTurno`. */
   turnos: FilaTurno[];
+  /** Sus constancias de estudios (0450). Opcional: quien no estudia no trae nada. */
+  educacionEntregas?: FilaEducacionEntrega[];
+  /** Sus estudios y en qué está cada constancia (0450). */
+  educacionSituacion?: FilaEducacionSituacion[];
 }
 
 export interface Bandeja {
@@ -318,7 +352,7 @@ function rangoDeFechas(ini: string, fin: string): string {
  * restando dos `new Date(iso)`: eso mete el huso del navegador en una cuenta
  * que ya está resuelta en fecha de Lima, y se corre un día.
  */
-function diasEntre(desde: string, hasta: string): number {
+export function diasEntre(desde: string, hasta: string): number {
   const [ay, am, ad] = desde.split("-").map(Number);
   const [by, bm, bd] = hasta.split("-").map(Number);
   return Math.round((Date.UTC(by, bm - 1, bd) - Date.UTC(ay, am - 1, ad)) / 86_400_000);
@@ -363,7 +397,10 @@ function instanteDe(resuelta: string | null, pedida: string): number {
  *   marcaje  · se arregla mientras el periodo siga abierto, y hasta entonces
  *              no hay nada perdido.
  */
-const PESO_PENDIENTE: Record<string, number> = { memo: 0, contrato: 1, ruta: 2, acuse: 3, marcaje: 4 };
+//   educacion · la constancia de su apoyo educativo (0450). Como la ruta, es
+//              plata suya de por medio, pero no le cambia el pago de este mes
+//              (decisión «solo alerta»): va justo después.
+const PESO_PENDIENTE: Record<string, number> = { memo: 0, contrato: 1, ruta: 2, educacion: 2.5, acuse: 3, marcaje: 4 };
 
 export function armarBandeja(fuentes: FuentesBandeja, hoy: string = hoyLima()): Bandeja {
   const respuestas: { m: MensajeBandeja; instante: number }[] = [];
@@ -662,6 +699,81 @@ export function armarBandeja(fuentes: FuentesBandeja, hoy: string = hoyLima()): 
     });
   }
 
+  // ── LAS CONSTANCIAS DE ESTUDIOS (0450) ─────────────────────────────────
+  // Lo que envió y espera, lo que le contestaron, y lo que depende de ella.
+  // Solo lo que envió ELLA: lo que carga DO a su nombre no contesta nada que
+  // haya pedido, y anunciarlo sería ruido.
+  const rechazoReciente = new Set<string>();
+  for (const f of fuentes.educacionEntregas ?? []) {
+    if (f.origen !== "colaboradora") continue;
+    const clave = `educacion:${f.id}`;
+    const ir = `/mio/educacion?familia=${f.familia_id}`;
+    if (f.estado === "pendiente") {
+      const fecha = fechaLima(f.enviada_at);
+      esperando.push({
+        instante: Date.parse(f.enviada_at),
+        m: {
+          clave, origen: "educacion", estado: "pendiente", fecha,
+          titulo: `Enviaste la constancia de tu pago a ${f.institucion}`,
+          respuesta: null,
+          detalle: `La enviaste ${haceCuanto(fecha, hoy)}. Desarrollo Organizacional todavía no la revisa.`,
+          nuevo: false,
+          ir,
+        },
+      });
+      continue;
+    }
+    // «retirada» se salta: la retiraste tú. No es una respuesta.
+    if ((f.estado !== "aprobada" && f.estado !== "rechazada") || !f.revisada_at) continue;
+
+    const fecha = fechaLima(f.revisada_at);
+    const aprobada = f.estado === "aprobada";
+    if (!aprobada && esNueva(fecha)) rechazoReciente.add(f.familia_id);
+    respuestas.push({
+      instante: Date.parse(f.revisada_at),
+      m: {
+        clave, origen: "educacion", estado: aprobada ? "aprobado" : "rechazado", fecha,
+        titulo: `Tu constancia del pago del ${diaYMes(f.fecha_pago)} fue ${aprobada ? "aprobada" : "rechazada"}`,
+        // En un rechazo la categoría y el comentario son obligatorios (0450):
+        // son lo único que le dice qué corregir.
+        respuesta: aprobada ? null : [
+          f.motivo_categoria ? MOTIVO_RECHAZO_LABELS[f.motivo_categoria] : null,
+          f.motivo_comentario?.trim() || null,
+        ].filter(Boolean).join(": ") || null,
+        detalle: aprobada
+          ? `${f.institucion}. No tienes que hacer nada más con este pago.`
+          : "Corrígela y vuelve a enviarla desde Educación. Lo que cobras este mes no cambia.",
+        nuevo: esNueva(fecha),
+        ir,
+      },
+    });
+  }
+
+  for (const s of fuentes.educacionSituacion ?? []) {
+    if (!constanciaPideAlgoALaIntegrante(s.estado_constancia)) continue;
+    // Un rechazo reciente ya está arriba como respuesta, con su motivo y su
+    // enlace: contarlo también como pendiente sería avisar dos veces de lo mismo.
+    if (s.estado_constancia === "rechazada" && rechazoReciente.has(s.familia_id)) continue;
+    const pago = s.fecha_pago_constancia ? `Pago del ${diaYMes(s.fecha_pago_constancia)}. ` : "";
+    const plazo = s.plazo ? `Tienes hasta el ${diaYMes(s.plazo)}. ` : "";
+    pendientes.push({
+      instante: s.plazo ? Date.parse(`${s.plazo}T00:00:00Z`) : 0,
+      m: {
+        clave: `educacion-constancia:${s.familia_id}`, origen: "educacion", estado: "por_arreglar",
+        fecha: s.fecha_pago_constancia ?? hoy,
+        titulo: s.estado_constancia === "rechazada"
+          ? `Corrige la constancia de ${s.institucion}`
+          : s.estado_constancia === "vencida"
+            ? `Pasó el plazo de tu constancia de ${s.institucion}`
+            : `Sube la constancia de tu pago a ${s.institucion}`,
+        respuesta: null,
+        detalle: `${pago}${plazo}Es el respaldo de tu apoyo educativo; subirla no cambia lo que cobras.`,
+        nuevo: true,
+        ir: `/mio/educacion?familia=${s.familia_id}`,
+      },
+    });
+  }
+
   // EL DESEMPATE. `clave` es un ancla, no un criterio: son uuid y no significan
   // nada. Va DESPUÉS del único criterio real (cuándo te respondieron), así que
   // solo puede disparar en un empate exacto — y ese empate SÍ ocurre acá:
@@ -730,7 +842,8 @@ export async function traerBandeja(
   personaId: string,
   hoy: string = hoyLima(),
 ): Promise<{ bandeja: Bandeja; noSePudo: string[] }> {
-  const [perfil, catalogo, vacaciones, revisiones, contrato, memos, acuses, periodo, movilidad, revisionesMovilidad, turnos] =
+  const [perfil, catalogo, vacaciones, revisiones, contrato, memos, acuses, periodo, movilidad, revisionesMovilidad, turnos,
+    educacionEntregas, educacionSituacion] =
     await Promise.all([
     supabase.from("solicitudes_cambio_perfil")
       .select("id, campo, estado, creada_at, resuelta_at, motivo")
@@ -785,6 +898,17 @@ export async function traerBandeja(
       .eq("campo_modificado", "turnos.horario")
       .order("corregido_at", { ascending: false })
       .limit(LIMITE),
+    // Sus constancias de estudios (0450). El `.eq` sobre la persona de la
+    // asignación es el mismo freno de arriba: si quien abre /mio es de DO, la
+    // RLS de educacion_entregas le abre las de todo el equipo.
+    supabase.from("educacion_entregas")
+      .select("id, fecha_pago, estado, origen, enviada_at, revisada_at, motivo_categoria, motivo_comentario, asignaciones_educacion!inner(persona_id, institucion, familia_id)")
+      .eq("asignaciones_educacion.persona_id", personaId)
+      .order("enviada_at", { ascending: false })
+      .limit(LIMITE),
+    // En qué está cada estudio suyo: la misma función que lee el panel de DO,
+    // filtrada abajo por persona por la misma razón.
+    supabase.rpc("fn_educacion_situacion"),
   ]);
 
   // Las jornadas del periodo, solo si hay periodo abierto. Va en su propia
@@ -818,6 +942,11 @@ export async function traerBandeja(
     movilidad: ((movilidad.data ?? []) as FilaMovilidad[])[0] ?? null,
     revisionesMovilidad: (revisionesMovilidad.data ?? []) as unknown as FilaRevisionMovilidad[],
     turnos: (turnos.data ?? []) as unknown as FilaTurno[],
+    educacionEntregas: ((educacionEntregas.data ?? []) as unknown as (Omit<FilaEducacionEntrega, "familia_id" | "institucion"> & {
+      asignaciones_educacion: { familia_id: string; institucion: string };
+    })[]).map(({ asignaciones_educacion: a, ...e }) => ({ ...e, familia_id: a.familia_id, institucion: a.institucion })),
+    educacionSituacion: ((educacionSituacion.data ?? []) as unknown as FilaEducacionSituacion[])
+      .filter((s) => s.persona_id === personaId),
   }, hoy);
 
   return {
@@ -841,6 +970,8 @@ export async function traerBandeja(
       { error: movilidad.error, que: "tu declaración de ruta" },
       { error: revisionesMovilidad.error, que: "tus pedidos de revisión de esa declaración" },
       { error: turnos.error, que: "tus cambios de turno" },
+      { error: educacionEntregas.error, que: "tus constancias de estudios" },
+      { error: educacionSituacion.error, que: "tu apoyo educativo" },
     ]),
   };
 }
