@@ -48,7 +48,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import {
-  Clock, FileSignature, GraduationCap, IdCard, PencilLine, ScrollText, Search, TreePalm, type LucideIcon,
+  Clock, FileSignature, GraduationCap, HandCoins, IdCard, PencilLine, ScrollText, Search, TreePalm, type LucideIcon,
 } from "lucide-react";
 import { Cargando, SinDatos } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
@@ -61,9 +61,10 @@ import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { BUCKET_SOLICITUDES_PERFIL } from "@/lib/foto-dni";
 import { diaYMes } from "@/lib/bandeja-mia";
 import { sinTildes } from "@/lib/sin-tildes";
+import { formatSoles } from "@/lib/rangos";
 import {
   avisarCambioEnBandeja, compararPendientes, conCese, documentoEducacion, GRUPOS_URGENCIA, urgenciaEducacion,
-  urgenciaEspera, urgenciaInicio, urgenciaRecordVacaciones, urgenciaSinHorario,
+  urgenciaEspera, urgenciaInicio, urgenciaLiquidacionVencida, urgenciaRecordVacaciones, urgenciaSinHorario,
   type GrupoUrgencia, type Urgencia,
 } from "@/lib/admin/bandeja-urgencia";
 import {
@@ -113,6 +114,19 @@ interface ItemVacacion {
   records_vencidos: number;
   vence_el: string;
   dias_para_vencer: number;
+}
+
+/** Una liquidación de cese pasada de plazo (`fn_liquidaciones_pendientes`, 0454).
+ *  Solo esta señal cruza a la Bandeja — decidido con Felipe el 2026-09-15,
+ *  ver `urgenciaLiquidacionVencida`. */
+interface ItemLiquidacionVencida {
+  persona_id: string;
+  persona: string;
+  sede: string;
+  fecha_cese: string;
+  vence_el: string;
+  dias_restantes: number;
+  total: number;
 }
 
 interface ItemRevision {
@@ -166,13 +180,14 @@ interface ResumenAlertas {
 
 interface Sede { codigo: string; nombre: string; activa: boolean }
 
-type TipoPendiente = TipoItemBandeja | "educacion" | "vacaciones_por_vencer" | "sin_horario";
+type TipoPendiente = TipoItemBandeja | "educacion" | "vacaciones_por_vencer" | "sin_horario" | "liquidacion_vencida";
 
 /** De qué módulo viene cada pendiente. El ícono es el MISMO del menú (nav-items.ts). */
-type Modulo = "educacion" | "ausencias" | "correcciones" | "horarios" | "datos_personales" | "contratos" | "documentacion";
+type Modulo = "educacion" | "ausencias" | "correcciones" | "horarios" | "datos_personales" | "contratos" | "documentacion" | "liquidaciones";
 const MODULOS: Record<Modulo, { etiqueta: string; Icon: LucideIcon }> = {
   educacion: { etiqueta: "Educación", Icon: GraduationCap },
   ausencias: { etiqueta: "Ausencias", Icon: TreePalm },
+  liquidaciones: { etiqueta: "Liquidaciones", Icon: HandCoins },
   correcciones: { etiqueta: "Correcciones", Icon: PencilLine },
   horarios: { etiqueta: "Horarios", Icon: Clock },
   datos_personales: { etiqueta: "Datos personales", Icon: IdCard },
@@ -286,6 +301,10 @@ export default function BandejaPage() {
   // que fn_resolver_solicitud_vacaciones ya exige en el servidor — es DO,
   // nunca la encargada de la sede.
   const puedeResolverVacaciones = puedeVerPlanilla(rol);
+  // Mismo permiso que exige `fn_liquidaciones_pendientes` en el servidor —
+  // `fn_es_admin_o_lider()`, que es lo que `puedeVerPlanilla` refleja en el
+  // cliente. Nombrado aparte para no pedir algo que igual volvería vacío.
+  const puedeLiquidaciones = puedeVerPlanilla(rol);
   const puedeSaludAlertas = puedeVerSaludDeAlertas(rol);
   // CAMBIO 0403 — la encargada también resuelve perfiles, pero solo de su
   // equipo: el guard vive en fn_resolver_solicitud_perfil.
@@ -304,6 +323,7 @@ export default function BandejaPage() {
   const [avisosFinEducacion, setAvisosFinEducacion] = useState<ItemAvisoFinEducacion[]>([]);
   const [vacaciones, setVacaciones] = useState<ItemVacacion[]>([]);
   const [sinHorario, setSinHorario] = useState<ItemSinHorario[]>([]);
+  const [liquidacionesVencidas, setLiquidacionesVencidas] = useState<ItemLiquidacionVencida[]>([]);
   const [revisiones, setRevisiones] = useState<ItemRevision[]>([]);
   const [revisionesMovilidad, setRevisionesMovilidad] = useState<ItemRevisionMovilidad[]>([]);
   const [revisionesContrato, setRevisionesContrato] = useState<ItemRevisionContrato[]>([]);
@@ -422,6 +442,22 @@ export default function BandejaPage() {
       setSinHorario([]);
     }
 
+    if (puedeLiquidaciones) {
+      tareas.push(
+        // fn_liquidaciones_pendientes trae TODO (en plazo, vencidas, pagadas,
+        // sin monto): acá solo interesa la vencida con dinero real en juego —
+        // las otras tres ya las muestra Liquidaciones sin que la Bandeja
+        // necesite repetirlas (ver urgenciaLiquidacionVencida).
+        supabase.rpc("fn_liquidaciones_pendientes").then(({ data, error }) => {
+          if (error) { avisar("error", mensajeDeError(error, "cargar liquidaciones vencidas")); return; }
+          const filas = (data as unknown as (ItemLiquidacionVencida & { pagada: boolean; vencido: boolean })[]) ?? [];
+          setLiquidacionesVencidas(filas.filter((f) => !f.pagada && f.vencido && f.total > 0));
+        }),
+      );
+    } else {
+      setLiquidacionesVencidas([]);
+    }
+
     if (puedeTodasLasSedes) {
       tareas.push(
         // Las opciones del filtro salen de la tabla (regla #3 de este repo),
@@ -490,7 +526,7 @@ export default function BandejaPage() {
 
     await Promise.all(tareas);
     setCargando(false);
-  }, [router, puedeEducacion, puedeEquipo, puedeMovilidad, puedeContratos, puedeResolverVacaciones,
+  }, [router, puedeEducacion, puedeEquipo, puedeLiquidaciones, puedeMovilidad, puedeContratos, puedeResolverVacaciones,
       puedeResolverPerfil, puedeSaludAlertas, puedeTodasLasSedes, avisar]);
 
   // eslint-disable-next-line react-hooks/set-state-in-effect -- cargar al montar, mismo patrón que el resto del panel.
@@ -638,9 +674,19 @@ export default function BandejaPage() {
         ir: { texto: "Asignar horario", href: "/admin/horarios" }, contexto: null, nuevo: false,
       });
     }
+    for (const l of liquidacionesVencidas) {
+      agregar({
+        clave: `liquidacion_vencida:${l.persona_id}`, tipo: "liquidacion_vencida", itemId: l.persona_id,
+        personaId: l.persona_id, persona: l.persona, sede: l.sede, modulo: "liquidaciones",
+        titulo: "Liquidación pasada de plazo",
+        detalle: `Cesó el ${diaYMes(l.fecha_cese)} · ${formatSoles(l.total)} por pagar`,
+        urgencia: urgenciaLiquidacionVencida(l), resolucion: "afuera",
+        ir: { texto: "Revisar", href: `/admin/liquidaciones?persona=${l.persona_id}` }, contexto: null, nuevo: false,
+      });
+    }
     return lista.sort(compararPendientes);
   }, [revisiones, revisionesMovilidad, revisionesContrato, solicitudesVacaciones, solicitudesPerfil, educacion,
-      entregasEducacion, avisosFinEducacion, vacaciones, sinHorario, ceses, vistosIniciales, hoy]);
+      entregasEducacion, avisosFinEducacion, vacaciones, sinHorario, liquidacionesVencidas, ceses, vistosIniciales, hoy]);
 
   // ── Filtros ───────────────────────────────────────────────────────────────
   // El filtro guardado de sede no aplica a quien solo ve la suya.
