@@ -333,8 +333,22 @@ grant execute on function fn_liquidacion_diferencias(uuid) to authenticated;
 
 
 -- ── 4 · La lista de pendientes distingue una alarma real de una esperada ───
--- Cuerpo de la 0251 —su única definición vigente— con una columna más al
--- final. DROP obligatorio: cambia el número de columnas del retorno.
+-- Cuerpo de la 0251 con una columna más al final. DROP obligatorio: cambia
+-- el número de columnas del retorno.
+--
+-- CAMBIO 0454, corregido el mismo día tras verlo reventar en producción con
+-- «canceling statement due to statement timeout» desde la Bandeja: la primera
+-- versión de este cambio llamaba a `fn_liquidacion_diferencias(p.id)` DOS
+-- VECES por cada persona ya pagada —una para `descuadra`, otra para
+-- `descuadra_real`— y esa función recalcula la liquidación ENTERA
+-- (`fn_liquidacion`, que a su vez corre `fn_planilla_calcular` sobre el
+-- equipo). Duplicar esa llamada duplicaba el costo de una función que ya
+-- era cara antes de esta migración, justo cuando la Bandeja —que se abre
+-- muchísimo más seguido que Liquidaciones— empezó a llamarla también.
+--
+-- La corrección: UN solo `left join lateral` calcula las diferencias una vez
+-- por persona pagada, y las dos columnas se leen de ahí. El costo vuelve a
+-- ser el de la 0251 (una llamada por persona pagada), ni una más.
 drop function if exists fn_liquidaciones_pendientes();
 
 create or replace function fn_liquidaciones_pendientes()
@@ -368,16 +382,22 @@ as $fn$
     (fn_hoy_lima() > p.fecha_cese + 2 and f.persona_id is null),
     round(coalesce(f.total, (fn_liquidacion(p.id, p.fecha_cese)->>'total')::numeric, 0), 2),
     (f.persona_id is not null),
-    (f.persona_id is not null
-      and exists (select 1 from fn_liquidacion_diferencias(p.id))),
-    (f.persona_id is not null                                                    -- CAMBIO 0454
-      and exists (select 1 from fn_liquidacion_diferencias(p.id) d where d.origen = 'real'))
+    (f.persona_id is not null and coalesce(d.n_total, 0) > 0),
+    (f.persona_id is not null and coalesce(d.n_real, 0) > 0)   -- CAMBIO 0454
   from personas p
   left join sedes s on s.id = p.sede_base_id
   left join lateral (
     select lp.* from liquidacion_pagada lp
     where lp.persona_id = p.id order by lp.version desc limit 1
   ) f on f.anulada is not true
+  -- CAMBIO 0454 · una sola llamada a fn_liquidacion_diferencias por persona
+  -- pagada, no dos. `on f.persona_id is not null` es lo que evita llamarla
+  -- también para quien todavía no tiene ninguna foto —la propia función ya
+  -- vuelve vacía en ese caso, pero ni siquiera vale la pena invocarla.
+  left join lateral (
+    select count(*) as n_total, count(*) filter (where dif.origen = 'real') as n_real
+    from fn_liquidacion_diferencias(p.id) dif
+  ) d on f.persona_id is not null
   where p.estado = 'inactivo'
     and p.fecha_cese is not null
     and fn_es_admin_o_lider() is true

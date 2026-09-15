@@ -448,9 +448,14 @@ export default function BandejaPage() {
         // sin monto): acá solo interesa la vencida con dinero real en juego —
         // las otras tres ya las muestra Liquidaciones sin que la Bandeja
         // necesite repetirlas (ver urgenciaLiquidacionVencida).
-        supabase.rpc("fn_liquidaciones_pendientes").then(({ data, error }) => {
-          if (error) { avisar("error", mensajeDeError(error, "cargar liquidaciones vencidas")); return; }
-          const filas = (data as unknown as (ItemLiquidacionVencida & { pagada: boolean; vencido: boolean })[]) ?? [];
+        // Falla suave a propósito, mismo criterio que `sinHorario`: esta RPC
+        // recalcula toda liquidación sin foto propia (fn_liquidacion corre
+        // fn_planilla_calcular sobre el equipo) y puede tardar. Si un día
+        // sale lenta o falla, la Bandeja se queda sin esta señal en vez de
+        // llenarse de un aviso rojo cada vez que se abre — Liquidaciones
+        // sigue siendo la fuente autorizada y no depende de esto.
+        supabase.rpc("fn_liquidaciones_pendientes").then(({ data }) => {
+          const filas = (data as unknown as (ItemLiquidacionVencida & { pagada: boolean; vencido: boolean })[] | null) ?? [];
           setLiquidacionesVencidas(filas.filter((f) => !f.pagada && f.vencido && f.total > 0));
         }),
       );
