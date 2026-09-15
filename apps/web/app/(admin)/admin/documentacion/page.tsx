@@ -1001,7 +1001,7 @@ export default function DocumentacionPage() {
     // exactamente lo que la fila que se está aplicando dice.
     if (general?.sustento) setSustento(general.sustento);
     setCargando(false);
-  }, [supabase, router]);
+  }, [supabase, router, setFiltroSede]);
 
   useEffect(() => { void cargar(); }, [cargar]);
 
