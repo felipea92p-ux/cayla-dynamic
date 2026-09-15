@@ -11,3 +11,4 @@ export * from "./asignacion-familiar";
 export * from "./empresa";
 export * from "./clave";
 export * from "./duracion";
+export * from "./educacion";

@@ -29,37 +29,49 @@ describe("enDias", () => {
   });
 });
 
+// ⇩ CAMBIO 0450 ⇩ Educación se mide contra su CONSTANCIA, no contra el fin de la
+// asignación: «vence en 0 días» era casi siempre una renovación normal.
 describe("urgenciaEducacion", () => {
-  const base = { semaforo: "vigente", meses_sin_papel: 0, vigente_hasta: "2026-09-15" };
+  const hoy = "2026-09-15";
+  const base = {
+    estado_constancia: "al_dia", vigencia: "vigente", plazo: null, fecha_pago_constancia: null,
+    pago_proximo: false, dias_para_pago: null, proxima_fecha_pago: null,
+  };
 
-  it("0 días es Hoy, no Vencido", () => {
-    const u = urgenciaEducacion({ ...base, semaforo: "por_vencer", dias_para_vencer: 0 });
-    expect(u.grupo).toBe("hoy");
-    expect(u.plazo).toBe("Vence hoy");
-  });
-
-  it("una vencida dice hace cuánto", () => {
-    const u = urgenciaEducacion({ ...base, semaforo: "vencida", meses_sin_papel: 2, dias_para_vencer: -6, vigente_hasta: "2026-09-09" });
+  it("una constancia vencida es Vencido, y dice hace cuánto venció su plazo", () => {
+    const u = urgenciaEducacion({ ...base, estado_constancia: "vencida", plazo: "2026-09-09", fecha_pago_constancia: "2026-09-05" }, hoy);
     expect(u.grupo).toBe("vencido");
     expect(u.plazo).toBe("Venció hace 6 días");
+    expect(u.nota).toBe("pago del 5 de setiembre");
   });
 
-  it("dentro de 30 días es Próximo; más lejos, con papel faltante, es Sin plazo", () => {
-    expect(urgenciaEducacion({ ...base, semaforo: "por_vencer", dias_para_vencer: 30 }).grupo).toBe("proximo");
-    const lejos = urgenciaEducacion({ ...base, meses_sin_papel: 1, dias_para_vencer: 64 });
-    expect(lejos.grupo).toBe("sin_plazo");
-    expect(lejos.plazo).toBe("Documento pendiente");
+  it("un pago a la institución que es hoy es Hoy; más adelante, Próximos", () => {
+    expect(urgenciaEducacion({ ...base, pago_proximo: true, dias_para_pago: 0, proxima_fecha_pago: hoy }, hoy))
+      .toMatchObject({ grupo: "hoy", plazo: "Paga hoy" });
+    expect(urgenciaEducacion({ ...base, pago_proximo: true, dias_para_pago: 5, proxima_fecha_pago: "2026-09-20" }, hoy))
+      .toMatchObject({ grupo: "proximo", plazo: "Paga en 5 días" });
+  });
+
+  it("un estudio sin calendario no tiene contra qué medirse: Sin plazo", () => {
+    expect(urgenciaEducacion({ ...base, estado_constancia: "sin_calendario" }, hoy).grupo).toBe("sin_plazo");
+  });
+
+  it("vencida manda sobre un pago cercano: lo que falta pesa más que lo que viene", () => {
+    const u = urgenciaEducacion({ ...base, estado_constancia: "vencida", plazo: "2026-09-10", pago_proximo: true, dias_para_pago: 2 }, hoy);
+    expect(u.grupo).toBe("vencido");
   });
 });
 
 describe("documentoEducacion", () => {
-  const base = { dias_para_vencer: 10, vigente_hasta: "2026-09-25" };
-  it("separa el papel faltante del plazo", () => {
-    expect(documentoEducacion({ ...base, semaforo: "sin_comprobante", meses_sin_papel: 0 }))
-      .toEqual({ detalle: "Sin comprobante: no se paga hasta subirlo", faltaPapel: true });
-    expect(documentoEducacion({ ...base, semaforo: "vencida", meses_sin_papel: 2 }).detalle)
-      .toBe("Falta el papel de 2 meses ya pagados");
-    expect(documentoEducacion({ ...base, semaforo: "por_vencer", meses_sin_papel: 0 }).faltaPapel).toBe(false);
+  const base = {
+    estado_constancia: "al_dia", vigencia: "vigente", plazo: null, fecha_pago_constancia: null,
+    pago_proximo: false, dias_para_pago: null, proxima_fecha_pago: null,
+  };
+  it("dice qué falta y a qué lleva el botón", () => {
+    expect(documentoEducacion({ ...base, estado_constancia: "vencida" }))
+      .toEqual({ titulo: "Constancia de estudios vencida", accion: "Pedir constancia" });
+    expect(documentoEducacion({ ...base, pago_proximo: true }).accion).toBe("Ver estudio");
+    expect(documentoEducacion({ ...base, estado_constancia: "sin_calendario" }).accion).toBe("Fijar calendario");
   });
 });
 

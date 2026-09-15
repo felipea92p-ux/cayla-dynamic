@@ -254,7 +254,7 @@ function MarcoConChrome({ pathname, children }: { pathname: string; children: Re
   const contadores: Contadores = {
     educacion: {
       n: educacion,
-      titulo: `${educacion} asignación(es) sin comprobante o por vencer`,
+      titulo: `${educacion} en Educación: constancias por revisar o vencidas, estudios sin calendario y avisos de fin`,
     },
     vacaciones: {
       n: vacaciones,
