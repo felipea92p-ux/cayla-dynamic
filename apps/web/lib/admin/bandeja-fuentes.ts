@@ -1,36 +1,75 @@
 import type { ClienteCayla } from "@cayla-dynamic/database";
 import {
-  fechaLima, hoyLima, puedeGestionarCatalogos, puedeGestionarContratos, puedeOperarEquipo, puedeVerPlanilla,
-  puedeVerSaludDeAlertas,
+  fechaLima, hoyLima, NIVEL_DISCIPLINARIO_LABELS, puedeGestionarCatalogos, puedeGestionarContratos,
+  puedeOperarEquipo, puedeVerPlanilla, puedeVerSaludDeAlertas,
 } from "@cayla-dynamic/shared";
 import { diaYMes } from "../bandeja-mia";
 import { formatSoles } from "../rangos";
 import {
-  compararPendientes, conCese, documentoEducacion, urgenciaEducacion, urgenciaEspera, urgenciaInicio,
-  urgenciaLiquidacionVencida, urgenciaRecordVacaciones, urgenciaSinHorario, type Urgencia,
+  etapaDelBorrador, pendientesDeEntregado, type Adjunto, type DocDisciplina,
+} from "./disciplina";
+import {
+  compararPendientes, conCese, documentoEducacion, ESTADOS_CONTRATO_PENDIENTE, esFeriadoParaBandeja, sumarDias,
+  urgenciaBono, urgenciaContrato, urgenciaDescargo, urgenciaDiaPorRevisar, urgenciaEducacion, urgenciaEspera,
+  urgenciaFeriado, urgenciaInicio, urgenciaLiquidacionVencida, urgenciaRecordVacaciones, urgenciaSinHorario,
+  type FilaContrato, type FilaFeriado, type PeriodoDePago, type Urgencia,
 } from "./bandeja-urgencia";
 
 /**
  * DE DÓNDE SALE CADA PENDIENTE DE LA BANDEJA — una sola vez para todo el panel.
  *
  * QUÉ PROMETE. `traerFuentesBandeja` pide, según el permiso de quien mira, las
- * mismas RPC de siempre; `armarPendientes` las convierte en UNA lista con la
- * forma que se pinta. La pantalla (`/admin/bandeja`), el número del menú
- * (`contarBandejaEquipoPendiente`) y el de cada persona en Equipo
+ * mismas RPC que ya usa cada módulo; `armarPendientes` las convierte en UNA
+ * lista con la forma que se pinta. La pantalla (`/admin/bandeja`), el número
+ * del menú (`contarBandejaEquipoPendiente`) y el de cada persona en Equipo
  * (`listarPendientesPorPersona`) leen de aquí.
  *
- * POR QUÉ EXISTE (2026-09-15). Hasta hoy eran TRES copias de la misma lista de
- * RPC: la pantalla, el contador y el mapa por persona. Se separaron dos veces
- * en una semana — el contador del menú nunca sumó las liquidaciones vencidas
- * que la pantalla sí mostraba, y Equipo siguió contando Educación con la
- * consulta de antes de la 0450. Con una sola lista, una fuente nueva entra a
- * los tres lugares o a ninguno.
+ * POR QUÉ EXISTE (2026-09-15). Eran TRES copias de la misma lista de RPC y se
+ * separaron dos veces en una semana: el menú nunca sumó las liquidaciones
+ * vencidas, y Equipo siguió contando Educación con la consulta anterior a la
+ * 0450. Con una sola lista, una fuente nueva entra a los tres lugares o a ninguno.
+ *
+ * QUÉ NO HACE. No inventa qué es un pendiente: cada fuente usa el criterio de
+ * SU pantalla (Contratos, Correcciones, Documentación, Feriados, Disciplina…).
+ * Donde esa pantalla se contradice o traería casos que no piden nada, está
+ * escrito junto a la función de urgencia en `bandeja-urgencia.ts`.
  *
  * QUÉ ASUME. La base decide quién ve qué (RLS y guards). Los `puede*` de acá
- * solo evitan pedir lo que igual volvería vacío.
+ * solo evitan pedir lo que igual volvería vacío — y deciden qué categorías se
+ * muestran, para no pintar «Al día» un módulo que esta persona no puede ver.
  */
 
-// ── Lo que devuelve cada RPC ────────────────────────────────────────────────
+// ── Módulos ─────────────────────────────────────────────────────────────────
+
+/** De qué módulo viene cada pendiente. */
+export type ModuloBandeja =
+  | "contratos" | "correcciones" | "disciplina" | "documentacion" | "feriados"
+  | "educacion" | "ausencias" | "horarios" | "datos_personales" | "liquidaciones";
+
+/**
+ * Los módulos que la Bandeja revisa, en el orden de sus tarjetas, y quién puede
+ * ver cada uno. El permiso es el MISMO que usa la pantalla de ese módulo.
+ */
+export const MODULOS_BANDEJA: readonly { clave: ModuloBandeja; etiqueta: string; puedeVer: (rol: string | null | undefined) => boolean }[] = [
+  { clave: "contratos", etiqueta: "Contratos", puedeVer: puedeGestionarContratos },
+  { clave: "correcciones", etiqueta: "Correcciones", puedeVer: puedeOperarEquipo },
+  { clave: "disciplina", etiqueta: "Disciplina", puedeVer: puedeOperarEquipo },
+  { clave: "documentacion", etiqueta: "Documentación", puedeVer: puedeGestionarCatalogos },
+  { clave: "feriados", etiqueta: "Feriados", puedeVer: puedeGestionarCatalogos },
+  { clave: "educacion", etiqueta: "Educación", puedeVer: puedeVerPlanilla },
+  { clave: "ausencias", etiqueta: "Ausencias", puedeVer: puedeOperarEquipo },
+  { clave: "horarios", etiqueta: "Horarios", puedeVer: puedeOperarEquipo },
+  { clave: "datos_personales", etiqueta: "Datos personales", puedeVer: puedeOperarEquipo },
+  { clave: "liquidaciones", etiqueta: "Liquidaciones", puedeVer: puedeVerPlanilla },
+];
+
+export const ETIQUETA_MODULO = Object.fromEntries(MODULOS_BANDEJA.map((m) => [m.clave, m.etiqueta])) as Record<ModuloBandeja, string>;
+
+export function modulosDeLaBandeja(rol: string | null | undefined): ModuloBandeja[] {
+  return MODULOS_BANDEJA.filter((m) => m.puedeVer(rol)).map((m) => m.clave);
+}
+
+// ── Lo que devuelve cada fuente ─────────────────────────────────────────────
 
 /** Un estudio tal como lo trae `fn_educacion_situacion` (0450), con lo que la Bandeja necesita. */
 export interface FilaEducacionBandeja {
@@ -51,8 +90,7 @@ export interface FilaEducacionBandeja {
 /**
  * ¿Este estudio entra a la Bandeja? Constancia vencida, estudio vigente sin
  * calendario —el criterio de `fn_educacion_por_atender`— más los pagos a la
- * institución de los próximos días: el aviso que DO pidió para tener el apoyo
- * listo (ADR 0003, decisión 8).
+ * institución de los próximos días (ADR 0003, decisión 8).
  */
 export function esEducacionParaSaber(f: FilaEducacionBandeja): boolean {
   return f.estado_constancia === "vencida"
@@ -91,11 +129,7 @@ export interface ItemLiquidacion {
   pagada: boolean; vencido: boolean;
 }
 
-/**
- * De todo lo que trae Liquidaciones, solo la vencida con dinero real en juego
- * cruza a la Bandeja — decidido con Felipe el 2026-09-15 (ver
- * `urgenciaLiquidacionVencida`). Las demás ya las muestra su pantalla.
- */
+/** Solo la liquidación vencida con dinero real en juego cruza a la Bandeja (decidido con Felipe, 2026-09-15). */
 export function esLiquidacionParaBandeja(l: ItemLiquidacion): boolean {
   return !l.pagada && l.vencido && l.total > 0;
 }
@@ -131,8 +165,70 @@ export interface ItemSolicitudPerfil {
   valor_propuesto: Record<string, unknown>;
   rutas_adjuntas: string[];
   creada_at: string;
-  /** Solo lo aprueba DO aunque la encargada lo vea (0405). Lo dice `catalogo_campos_perfil.solo_do`. */
+  /** Solo lo aprueba DO aunque la encargada lo vea (0405). */
   solo_do: boolean;
+}
+
+/** Una fila de `fn_contratos_tablero` (0386). Sale una por persona activa: solo entran las que piden algo. */
+export interface ItemContrato extends FilaContrato {
+  persona_id: string; persona: string; sede: string | null; tipo: string | null;
+}
+
+/** Un día con marcas por revisar (`fn_dias_por_revisar`, 0422). */
+export interface ItemDiaPorRevisar {
+  persona_id: string; nombre: string; sede: string; fecha: string;
+  marcas: number; periodo_pagado: boolean; motivo: string | null;
+}
+
+/** Una marca que el terminal no pudo registrar y quedó apartada (`fn_marcas_apartadas`, 0422). */
+export interface ItemMarcaApartada {
+  id: string; persona_id: string; persona: string; sede: string; tipo: string;
+  timestamp_cliente: string; fecha: string; ultimo_error: string | null; reportada_at: string;
+}
+
+/** Una fila de `fn_documentos_tablero` (0424), con lo que la Bandeja mira. */
+export interface ItemDocumento {
+  persona_id: string; persona: string; sede: string;
+  estado: string; ruta_desfasada: boolean; bono_estado: string;
+}
+
+/** Qué pide una fila de Documentación: la ruta sin firmar o desfasada, y el bono del mes o ya pasado. */
+export function pendientesDeDocumento(d: ItemDocumento): { ruta: "sin_ruta" | "desfasada" | null; bono: boolean } {
+  return {
+    ruta: d.estado === "sin_ruta" ? "sin_ruta" : d.estado === "ok" && d.ruta_desfasada ? "desfasada" : null,
+    // `sin_fecha` no: la propia pantalla de Documentación lo deja en «nada que hacer» (BONO_PENDIENTE).
+    bono: d.bono_estado === "este_mes" || d.bono_estado === "vencido",
+  };
+}
+
+/** Un feriado trabajado (`fn_feriados_laborados`, 0419). */
+export interface ItemFeriado extends FilaFeriado {
+  persona_id: string; nombre: string; sede: string; feriado_nombre: string; fecha_descanso: string | null;
+}
+
+/** Qué le toca a un documento disciplinario, con la regla de `lib/admin/disciplina.ts`. */
+export type PasoDisciplina = "comunicar" | "esperando" | "valorar" | "firmar" | "entregar" | "cargo" | "resolver" | "cargo_y_resolver";
+
+export interface ItemDisciplina {
+  id: string; persona_id: string; persona: string; sede: string; nivel: string;
+  creado_at: string; firmado_at: string | null; entregado_at: string | null; descargo_vence_at: string | null;
+  paso: PasoDisciplina;
+}
+
+/**
+ * El paso que le toca a un documento disciplinario, o null si no pide nada.
+ * No es una regla nueva: son `etapaDelBorrador` y `pendientesDeEntregado`, las
+ * mismas que ordenan las pestañas de la pantalla de Disciplina.
+ */
+export function pasoDisciplina(d: DocDisciplina, adjuntos: readonly Adjunto[], exigeDescargo: boolean, ahora: Date = new Date()): PasoDisciplina | null {
+  if (d.estado === "borrador") return etapaDelBorrador(d, exigeDescargo, ahora);
+  if (d.estado === "firmado") return "entregar";
+  if (d.estado === "entregado") {
+    const p = pendientesDeEntregado(d, adjuntos);
+    if (p.includes("cargo") && p.includes("resolver")) return "cargo_y_resolver";
+    return p[0] ?? null;
+  }
+  return null;
 }
 
 /** Lo que devuelve `fn_alertas_despacho_resumen` (0362): lo que el despacho de correos NO va a resolver solo. */
@@ -157,13 +253,28 @@ export interface FuentesBandeja {
   revisionesContrato: ItemRevisionContrato[];
   solicitudesVacaciones: ItemSolicitudVacacion[];
   solicitudesPerfil: ItemSolicitudPerfil[];
+  contratos: ItemContrato[];
+  diasPorRevisar: ItemDiaPorRevisar[];
+  marcasApartadas: ItemMarcaApartada[];
+  /** El periodo de pago abierto hoy, para medir los días por revisar contra su cierre. */
+  periodo: PeriodoDePago | null;
+  documentos: ItemDocumento[];
+  feriados: ItemFeriado[];
+  disciplina: ItemDisciplina[];
   resumenAlertas: ResumenAlertas | null;
+  /**
+   * Módulos con al menos una consulta que falló. La pantalla NO los pinta
+   * «Al día»: una lista vacía por un error dice «no hay nada», que es una
+   * afirmación y no un hueco.
+   */
+  fallidas: ModuloBandeja[];
 }
 
 export const FUENTES_VACIAS: FuentesBandeja = {
   educacion: [], entregasEducacion: [], avisosFinEducacion: [], vacaciones: [], sinHorario: [],
   liquidacionesVencidas: [], revisiones: [], revisionesMovilidad: [], revisionesContrato: [],
-  solicitudesVacaciones: [], solicitudesPerfil: [], resumenAlertas: null,
+  solicitudesVacaciones: [], solicitudesPerfil: [], contratos: [], diasPorRevisar: [], marcasApartadas: [],
+  periodo: null, documentos: [], feriados: [], disciplina: [], resumenAlertas: null, fallidas: [],
 };
 
 /** Cuántos avisos por correo necesitan a una persona. Lo que se reintenta solo no cuenta. */
@@ -174,50 +285,86 @@ export function alertasConProblema(r: ResumenAlertas | null): number {
 // ── Cargar ──────────────────────────────────────────────────────────────────
 
 /**
+ * Hasta cuántos días por revisar se piden. `fn_dias_por_revisar` corta en su
+ * límite ANTES de devolver (0422), y la pantalla de Correcciones pide 50: con
+ * ese tope, la Bandeja contaría de menos justo en un mes malo.
+ */
+const LIMITE_DIAS_POR_REVISAR = 1000;
+
+/** Hacia atrás cuánto se buscan feriados trabajados: el plazo del descanso (30 días) con margen para lo que ya se pasó. */
+const DIAS_ATRAS_FERIADOS = 120;
+
+/**
  * Pide todas las fuentes que este rol puede ver, en paralelo.
  *
- * Falla por sección, nunca entera: una RPC que falla o que todavía no existe en
- * esta base deja su lista vacía y avisa por `alFallar` (la pantalla lo muestra;
- * el menú lo calla, como el resto de sus contadores). `fn_personas_sin_horario_vigente`
- * y `fn_alertas_despacho_resumen` fallan en silencio incluso para la pantalla,
- * como ya hacían: una es un chequeo de datos, la otra de salud del cron.
+ * Falla por sección, nunca entera: una consulta que falla deja su lista vacía,
+ * anota el módulo en `fallidas` y avisa por `alFallar` (la pantalla lo muestra;
+ * el menú lo calla, como el resto de sus contadores). Sin horario y la salud de
+ * los correos siguen fallando en silencio incluso para la pantalla, como ya hacían.
  */
 export async function traerFuentesBandeja(
   supabase: ClienteCayla,
   rol: string | null | undefined,
   alFallar: (que: string, error: unknown) => void = () => {},
+  hoy: string = hoyLima(),
 ): Promise<FuentesBandeja> {
-  const f: FuentesBandeja = { ...FUENTES_VACIAS };
+  const f: FuentesBandeja = { ...FUENTES_VACIAS, fallidas: [] };
   const tareas: PromiseLike<void>[] = [];
-  const lista = <T,>(data: unknown): T[] => (Array.isArray(data) ? (data as T[]) : []);
-  const pedir = <T,>(llamada: PromiseLike<{ data: unknown; error: unknown }>, que: string, guardar: (xs: T[]) => void, callado = false) => {
+  const fallo = (modulo: ModuloBandeja, que: string, error: unknown, callado = false) => {
+    if (!f.fallidas.includes(modulo)) f.fallidas.push(modulo);
+    if (!callado) alFallar(que, error);
+  };
+  const pedir = <T,>(
+    llamada: PromiseLike<{ data: unknown; error: unknown }>, modulo: ModuloBandeja, que: string,
+    guardar: (xs: T[]) => void, callado = false,
+  ) => {
     tareas.push(llamada.then(({ data, error }) => {
-      if (error) { if (!callado) alFallar(que, error); return; }
-      guardar(lista<T>(data));
+      if (error) { fallo(modulo, que, error, callado); return; }
+      guardar(Array.isArray(data) ? (data as T[]) : []);
     }));
   };
 
   if (puedeVerPlanilla(rol)) {
-    pedir<ItemEntregaEducacion>(supabase.rpc("fn_educacion_entregas_pendientes"), "las constancias de educación", (xs) => { f.entregasEducacion = xs; });
-    pedir<ItemAvisoFinEducacion>(supabase.rpc("fn_educacion_avisos_fin_pendientes"), "los avisos de educación", (xs) => { f.avisosFinEducacion = xs; });
-    pedir<FilaEducacionBandeja>(supabase.rpc("fn_educacion_situacion"), "educación", (xs) => { f.educacion = xs.filter(esEducacionParaSaber); });
-    pedir<ItemSolicitudVacacion>(supabase.rpc("fn_solicitudes_vacaciones", { p_solo_pendientes: true }), "solicitudes de vacaciones", (xs) => { f.solicitudesVacaciones = xs; });
-    pedir<ItemLiquidacion>(supabase.rpc("fn_liquidaciones_pendientes"), "liquidaciones vencidas", (xs) => { f.liquidacionesVencidas = xs.filter(esLiquidacionParaBandeja); });
+    pedir<ItemEntregaEducacion>(supabase.rpc("fn_educacion_entregas_pendientes"), "educacion", "las constancias de educación", (xs) => { f.entregasEducacion = xs; });
+    pedir<ItemAvisoFinEducacion>(supabase.rpc("fn_educacion_avisos_fin_pendientes"), "educacion", "los avisos de educación", (xs) => { f.avisosFinEducacion = xs; });
+    pedir<FilaEducacionBandeja>(supabase.rpc("fn_educacion_situacion"), "educacion", "educación", (xs) => { f.educacion = xs.filter(esEducacionParaSaber); });
+    pedir<ItemSolicitudVacacion>(supabase.rpc("fn_solicitudes_vacaciones", { p_solo_pendientes: true }), "ausencias", "solicitudes de vacaciones", (xs) => { f.solicitudesVacaciones = xs; });
+    pedir<ItemLiquidacion>(supabase.rpc("fn_liquidaciones_pendientes"), "liquidaciones", "liquidaciones vencidas", (xs) => { f.liquidacionesVencidas = xs.filter(esLiquidacionParaBandeja); });
   }
 
   if (puedeOperarEquipo(rol)) {
-    pedir<ItemVacacion>(supabase.rpc("fn_vacaciones_por_vencer", { p_dias: 60, p_as_of: null }), "vacaciones por vencer", (xs) => { f.vacaciones = xs; });
-    pedir<ItemSinHorario>(supabase.rpc("fn_personas_sin_horario_vigente", { p_dias: 60 }), "personas sin horario", (xs) => { f.sinHorario = xs; }, true);
-    pedir<ItemRevision>(supabase.rpc("fn_revisiones_pedidas", { p_solo_pendientes: true }), "revisiones pedidas", (xs) => { f.revisiones = xs; });
-    pedir<ItemSolicitudPerfil>(supabase.rpc("fn_solicitudes_perfil_pendientes"), "solicitudes de perfil", (xs) => { f.solicitudesPerfil = xs; });
+    pedir<ItemVacacion>(supabase.rpc("fn_vacaciones_por_vencer", { p_dias: 60, p_as_of: null }), "ausencias", "vacaciones por vencer", (xs) => { f.vacaciones = xs; });
+    pedir<ItemSinHorario>(supabase.rpc("fn_personas_sin_horario_vigente", { p_dias: 60 }), "horarios", "personas sin horario", (xs) => { f.sinHorario = xs; }, true);
+    pedir<ItemRevision>(supabase.rpc("fn_revisiones_pedidas", { p_solo_pendientes: true }), "correcciones", "revisiones pedidas", (xs) => { f.revisiones = xs; });
+    pedir<ItemSolicitudPerfil>(supabase.rpc("fn_solicitudes_perfil_pendientes"), "datos_personales", "solicitudes de perfil", (xs) => { f.solicitudesPerfil = xs; });
+    pedir<ItemDiaPorRevisar>(supabase.rpc("fn_dias_por_revisar", { p_limite: LIMITE_DIAS_POR_REVISAR }), "correcciones", "días por revisar", (xs) => { f.diasPorRevisar = xs; });
+    pedir<ItemMarcaApartada>(supabase.rpc("fn_marcas_apartadas"), "correcciones", "marcas apartadas", (xs) => { f.marcasApartadas = xs; });
+    // El periodo que se va a pagar. LEÍDO, nunca calculado: va del 29 al 28 y
+    // eso vive en la tabla. Sin él, los días por revisar quedan «Sin plazo».
+    tareas.push(
+      supabase.from("periodos_planilla").select("fecha_ini, fecha_fin")
+        .lte("fecha_ini", hoy).gte("fecha_fin", hoy).maybeSingle()
+        .then(({ data }) => { f.periodo = (data as PeriodoDePago | null) ?? null; }),
+    );
+    tareas.push(traerDisciplina(supabase, fallo).then((xs) => { f.disciplina = xs; }));
   }
 
   if (puedeGestionarCatalogos(rol)) {
-    pedir<ItemRevisionMovilidad>(supabase.rpc("fn_movilidad_revisiones_pedidas", { p_solo_pendientes: true }), "revisiones de movilidad pedidas", (xs) => { f.revisionesMovilidad = xs; });
+    pedir<ItemRevisionMovilidad>(supabase.rpc("fn_movilidad_revisiones_pedidas", { p_solo_pendientes: true }), "documentacion", "revisiones de movilidad pedidas", (xs) => { f.revisionesMovilidad = xs; });
+    pedir<ItemDocumento>(supabase.rpc("fn_documentos_tablero"), "documentacion", "la documentación", (xs) => {
+      f.documentos = xs.filter((d) => { const p = pendientesDeDocumento(d); return p.ruta !== null || p.bono; });
+    });
+    pedir<ItemFeriado>(
+      supabase.rpc("fn_feriados_laborados", { p_desde: sumarDias(hoy, -DIAS_ATRAS_FERIADOS), p_hasta: hoy }),
+      "feriados", "los feriados trabajados", (xs) => { f.feriados = xs.filter(esFeriadoParaBandeja); },
+    );
   }
 
   if (puedeGestionarContratos(rol)) {
-    pedir<ItemRevisionContrato>(supabase.rpc("fn_contrato_revisiones_pedidas", { p_solo_pendientes: true }), "revisiones de contrato pedidas", (xs) => { f.revisionesContrato = xs; });
+    pedir<ItemRevisionContrato>(supabase.rpc("fn_contrato_revisiones_pedidas", { p_solo_pendientes: true }), "contratos", "revisiones de contrato pedidas", (xs) => { f.revisionesContrato = xs; });
+    pedir<ItemContrato>(supabase.rpc("fn_contratos_tablero"), "contratos", "los contratos", (xs) => {
+      f.contratos = xs.filter((c) => ESTADOS_CONTRATO_PENDIENTE.has(c.estado));
+    });
   }
 
   if (puedeVerSaludDeAlertas(rol)) {
@@ -230,6 +377,61 @@ export async function traerFuentesBandeja(
   return f;
 }
 
+/**
+ * Los documentos disciplinarios que piden algo. No hay RPC que los liste con
+ * su sede: la pantalla de Disciplina lee la tabla y cruza la sede por su lado,
+ * y esto hace lo mismo. La RLS de la tabla ya le da a la encargada solo su sede.
+ */
+async function traerDisciplina(
+  supabase: ClienteCayla,
+  fallo: (modulo: ModuloBandeja, que: string, error: unknown) => void,
+): Promise<ItemDisciplina[]> {
+  const [docs, cfg] = await Promise.all([
+    supabase.from("expediente_disciplinario")
+      .select("id, persona_id, nivel, estado, creado_at, firmado_at, entregado_at, cargos_comunicados_at, descargo_vence_at, descargo_acogido, resuelto_at")
+      .in("estado", ["borrador", "firmado", "entregado"]),
+    supabase.from("configuracion").select("valor").eq("clave", "disciplina_descargo_previo").maybeSingle(),
+  ]);
+  if (docs.error) { fallo("disciplina", "los documentos disciplinarios", docs.error); return []; }
+  const filas = (docs.data ?? []) as unknown as DocDisciplina[];
+  if (filas.length === 0) return [];
+  // Mismo criterio que la pantalla: solo un `false` explícito apaga el descargo previo.
+  const exigeDescargo = (cfg.data?.valor as unknown) !== false;
+
+  const entregados = filas.filter((d) => d.estado === "entregado").map((d) => d.id);
+  const personaIds = Array.from(new Set(filas.map((d) => d.persona_id)));
+  const [adj, per, sed] = await Promise.all([
+    entregados.length > 0
+      ? supabase.from("expediente_adjuntos").select("documento_id, tipo").in("documento_id", entregados)
+      : Promise.resolve({ data: [], error: null }),
+    supabase.from("personas").select("id, nombres, apellidos, sede_base_id").in("id", personaIds),
+    supabase.from("sedes").select("id, codigo"),
+  ]);
+  if (adj.error || per.error) { fallo("disciplina", "los documentos disciplinarios", adj.error ?? per.error); return []; }
+
+  const adjuntosDe = new Map<string, Adjunto[]>();
+  for (const a of (adj.data ?? []) as unknown as Adjunto[]) {
+    adjuntosDe.set(a.documento_id, [...(adjuntosDe.get(a.documento_id) ?? []), a]);
+  }
+  const codigoSede = new Map(((sed.data ?? []) as { id: string; codigo: string }[]).map((s) => [s.id, s.codigo] as const));
+  const personas = new Map(((per.data ?? []) as { id: string; nombres: string; apellidos: string; sede_base_id: string | null }[])
+    .map((p) => [p.id, { nombre: `${p.nombres} ${p.apellidos}`, sede: (p.sede_base_id && codigoSede.get(p.sede_base_id)) || "—" }] as const));
+
+  const ahora = new Date();
+  const items: ItemDisciplina[] = [];
+  for (const d of filas) {
+    const paso = pasoDisciplina(d, adjuntosDe.get(d.id) ?? [], exigeDescargo, ahora);
+    const p = personas.get(d.persona_id);
+    if (!paso || !p) continue;
+    items.push({
+      id: d.id, persona_id: d.persona_id, persona: p.nombre, sede: p.sede, nivel: d.nivel,
+      creado_at: d.creado_at, firmado_at: d.firmado_at, entregado_at: d.entregado_at, descargo_vence_at: d.descargo_vence_at,
+      paso,
+    });
+  }
+  return items;
+}
+
 // ── Armar ───────────────────────────────────────────────────────────────────
 
 /** Los tipos que llevan «Nuevo desde tu última visita» (bandeja_vistos, 0436/0450). */
@@ -238,23 +440,9 @@ export type TipoItemVisto =
   | "solicitud_vacacion" | "solicitud_perfil"
   | "entrega_educacion" | "aviso_fin_educacion";
 
-export type TipoPendiente = TipoItemVisto | "educacion" | "vacaciones_por_vencer" | "sin_horario" | "liquidacion_vencida";
-
-/** De qué módulo viene cada pendiente. */
-export type ModuloBandeja =
-  | "educacion" | "ausencias" | "correcciones" | "horarios" | "datos_personales"
-  | "contratos" | "documentacion" | "liquidaciones";
-
-export const ETIQUETA_MODULO: Record<ModuloBandeja, string> = {
-  contratos: "Contratos",
-  correcciones: "Correcciones",
-  documentacion: "Documentación",
-  educacion: "Educación",
-  ausencias: "Ausencias",
-  horarios: "Horarios",
-  datos_personales: "Datos personales",
-  liquidaciones: "Liquidaciones",
-};
+export type TipoPendiente =
+  | TipoItemVisto | "educacion" | "vacaciones_por_vencer" | "sin_horario" | "liquidacion_vencida"
+  | "contrato" | "dia_por_revisar" | "marca_apartada" | "documento_ruta" | "documento_bono" | "feriado" | "disciplina";
 
 /**
  * Un pendiente, sea del tipo que sea. Quién, qué, dónde, de qué módulo, cuándo
@@ -304,6 +492,42 @@ function rangoVacaciones(s: ItemSolicitudVacacion): string {
     ? `el ${diaYMes(s.fecha_inicio)}`
     : `del ${diaYMes(s.fecha_inicio)} al ${diaYMes(s.fecha_fin)}`;
   return `Vacaciones ${rango} · ${s.dias} día${s.dias === 1 ? "" : "s"}`;
+}
+
+function textoContrato(c: ItemContrato): { titulo: string; detalle: string | null; accion: string } {
+  switch (c.estado) {
+    case "desnaturalizado": return { titulo: "Marcó después del fin de su contrato", detalle: "Riesgo de desnaturalización (art. 77): puede considerarse indefinido", accion: "Ver contrato" };
+    case "vencido": return { titulo: "Contrato vencido", detalle: null, accion: "Renovar contrato" };
+    case "por_vencer": return { titulo: "Contrato por vencer", detalle: null, accion: "Preparar renovación" };
+    case "sin_firmar": return { titulo: "Contrato pendiente de firma", detalle: null, accion: "Registrar firma" };
+    case "tramite_pendiente":
+      return c.copia_entregada_at === null
+        ? { titulo: "Falta entregar la copia del contrato", detalle: null, accion: "Registrar entrega" }
+        : { titulo: "Falta comunicar el contrato al MTPE", detalle: null, accion: "Registrar comunicación" };
+    default: return { titulo: "Sin contrato registrado", detalle: null, accion: "Registrar contrato" };
+  }
+}
+
+/** Por qué Correcciones apartó un día (`motivo` de `fn_dias_por_revisar`, 0384). */
+const MOTIVO_DIA: Record<string, string> = {
+  secuencia_imposible: "Marcas en un orden imposible",
+  auto_cierre_sin_confirmar: "Cierre automático sin confirmar",
+  sello_sin_levantar: "Día marcado para revisar",
+};
+
+function textoDisciplina(d: ItemDisciplina, hoy: string): { titulo: string; accion: string; urgencia: Urgencia; href: string } {
+  const nivel = (NIVEL_DISCIPLINARIO_LABELS as Record<string, string>)[d.nivel] ?? d.nivel;
+  const entregar = "/admin/disciplina#entregados";
+  switch (d.paso) {
+    case "comunicar": return { titulo: `${nivel}: falta comunicar los cargos`, accion: "Comunicar cargos", urgencia: urgenciaEspera(d.creado_at, hoy), href: "/admin/disciplina" };
+    case "esperando": return { titulo: `${nivel}: esperando el descargo`, accion: "Ver expediente", urgencia: d.descargo_vence_at ? urgenciaDescargo(d.descargo_vence_at, hoy) : urgenciaEspera(d.creado_at, hoy), href: "/admin/disciplina" };
+    case "valorar": return { titulo: `${nivel}: descargo por valorar`, accion: "Valorar descargo", urgencia: urgenciaEspera(d.descargo_vence_at ?? d.creado_at, hoy), href: "/admin/disciplina" };
+    case "firmar": return { titulo: `${nivel} lista para firmar`, accion: "Firmar", urgencia: urgenciaEspera(d.creado_at, hoy), href: "/admin/disciplina" };
+    case "entregar": return { titulo: `${nivel} firmada, sin entregar`, accion: "Registrar entrega", urgencia: urgenciaEspera(d.firmado_at ?? d.creado_at, hoy), href: entregar };
+    case "cargo": return { titulo: `${nivel} entregada, sin cargo firmado`, accion: "Subir cargo", urgencia: urgenciaEspera(d.entregado_at ?? d.creado_at, hoy), href: entregar };
+    case "resolver": return { titulo: `${nivel}: falta resolver`, accion: "Resolver", urgencia: urgenciaEspera(d.entregado_at ?? d.creado_at, hoy), href: entregar };
+    default: return { titulo: `${nivel}: falta el cargo y resolver`, accion: "Completar", urgencia: urgenciaEspera(d.entregado_at ?? d.creado_at, hoy), href: entregar };
+  }
 }
 
 /**
@@ -436,6 +660,82 @@ export function armarPendientes(
       detalle: `Cesó el ${diaYMes(l.fecha_cese)} · ${formatSoles(l.total)} por pagar`,
       urgencia: urgenciaLiquidacionVencida(l), resolucion: "afuera",
       ir: { texto: "Revisar", href: `/admin/liquidaciones?persona=${l.persona_id}` }, contexto: null,
+    });
+  }
+  for (const c of f.contratos) {
+    const t = textoContrato(c);
+    agregar({
+      clave: `contrato:${c.persona_id}`, tipo: "contrato", itemId: c.persona_id, personaId: c.persona_id,
+      persona: c.persona, sede: c.sede ?? "—", modulo: "contratos",
+      titulo: t.titulo, detalle: t.detalle,
+      urgencia: urgenciaContrato(c, hoy), resolucion: "afuera",
+      ir: { texto: t.accion, href: `/admin/contratos?persona=${c.persona_id}` }, contexto: null,
+    });
+  }
+  for (const d of f.diasPorRevisar) {
+    const n = d.marcas;
+    agregar({
+      clave: `dia_por_revisar:${d.persona_id}:${d.fecha}`, tipo: "dia_por_revisar", itemId: `${d.persona_id}:${d.fecha}`,
+      personaId: d.persona_id, persona: d.nombre, sede: d.sede, modulo: "correcciones",
+      titulo: `${(d.motivo && MOTIVO_DIA[d.motivo]) || "Día por revisar"}: ${diaYMes(d.fecha)}`,
+      detalle: `${n} marca${n === 1 ? "" : "s"} por revisar`,
+      urgencia: urgenciaDiaPorRevisar(d.fecha, d.periodo_pagado, f.periodo, hoy), resolucion: "afuera",
+      ir: { texto: "Revisar día", href: `/admin/correcciones?persona=${d.persona_id}&fecha=${d.fecha}` }, contexto: null,
+    });
+  }
+  for (const m of f.marcasApartadas) {
+    agregar({
+      clave: `marca_apartada:${m.id}`, tipo: "marca_apartada", itemId: m.id, personaId: m.persona_id,
+      persona: m.persona, sede: m.sede, modulo: "correcciones",
+      titulo: `Marca apartada del ${diaYMes(m.fecha)}`,
+      detalle: m.ultimo_error ? `El terminal no pudo registrarla: ${m.ultimo_error}` : "El terminal no pudo registrarla",
+      urgencia: urgenciaDiaPorRevisar(m.fecha, false, f.periodo, hoy), resolucion: "afuera",
+      ir: { texto: "Revisar marca", href: `/admin/correcciones?persona=${m.persona_id}&fecha=${m.fecha}` }, contexto: null,
+    });
+  }
+  for (const d of f.documentos) {
+    const p = pendientesDeDocumento(d);
+    if (p.ruta) {
+      agregar({
+        clave: `documento_ruta:${d.persona_id}`, tipo: "documento_ruta", itemId: d.persona_id, personaId: d.persona_id,
+        persona: d.persona, sede: d.sede, modulo: "documentacion",
+        titulo: p.ruta === "sin_ruta" ? "Declaración de ruta sin firmar" : "Declaración de ruta con tarifa desfasada",
+        detalle: p.ruta === "sin_ruta" ? "Sin ella, la movilidad paga impuestos y descuentos" : "Se firmó con otro monto: hay que volver a firmarla",
+        urgencia: { grupo: "sin_plazo", plazo: p.ruta === "sin_ruta" ? "Sin firmar" : "Desfasada", nota: null, orden: 0 },
+        resolucion: "afuera",
+        ir: { texto: "Pedir firma", href: `/admin/documentacion?persona=${d.persona_id}` }, contexto: null,
+      });
+    }
+    if (p.bono) {
+      agregar({
+        clave: `documento_bono:${d.persona_id}`, tipo: "documento_bono", itemId: d.persona_id, personaId: d.persona_id,
+        persona: d.persona, sede: d.sede, modulo: "documentacion",
+        titulo: "Bono de cumpleaños sin constancia firmada", detalle: null,
+        urgencia: urgenciaBono(d.bono_estado, hoy), resolucion: "afuera",
+        ir: { texto: "Registrar constancia", href: `/admin/documentacion?persona=${d.persona_id}` }, contexto: null,
+      });
+    }
+  }
+  for (const x of f.feriados) {
+    agregar({
+      clave: `feriado:${x.persona_id}:${x.fecha_feriado}`, tipo: "feriado", itemId: `${x.persona_id}:${x.fecha_feriado}`,
+      personaId: x.persona_id, persona: x.nombre, sede: x.sede, modulo: "feriados",
+      titulo: `Trabajó el feriado del ${diaYMes(x.fecha_feriado)}`,
+      detalle: x.no_compensa_porque
+        ? `El descanso registrado no compensa: ${x.no_compensa_porque}`
+        : `Descanso sustitutorio acordado${x.fecha_descanso ? ` para el ${diaYMes(x.fecha_descanso)}` : ""}, sin otorgar`,
+      urgencia: urgenciaFeriado(x, hoy), resolucion: "afuera",
+      ir: { texto: "Revisar descanso", href: "/admin/feriados" }, contexto: null,
+    });
+  }
+  for (const d of f.disciplina) {
+    const t = textoDisciplina(d, hoy);
+    agregar({
+      clave: `disciplina:${d.id}`, tipo: "disciplina", itemId: d.id, personaId: d.persona_id,
+      persona: d.persona, sede: d.sede, modulo: "disciplina",
+      titulo: t.titulo, detalle: null,
+      urgencia: t.urgencia, resolucion: "afuera",
+      ir: { texto: t.accion, href: t.href }, contexto: null,
     });
   }
   return lista.sort(compararPendientes);
