@@ -10,10 +10,11 @@ import { useToast } from "@/components/toast";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 import { abrirArchivoFirmado } from "@/lib/abrir-archivo-firmado";
 import {
-  ESTADO_CONSTANCIA, ESTADO_ENTREGA, FRECUENCIAS_PAGO, FRECUENCIA_PAGO_LABELS, MOTIVOS_RECHAZO,
+  ESTADO_CONSTANCIA, ESTADO_ENTREGA, ESTADO_SOLICITUD, FRECUENCIAS_PAGO, FRECUENCIA_PAGO_LABELS, MOTIVOS_RECHAZO,
   MOTIVO_RECHAZO_LABELS, TIPOS_CONSTANCIA, TIPO_CONSTANCIA_LABELS, TZ_LIMA, hoyLima, problemaDeArchivo,
   puedeVerPlanilla, sugerirProximaFecha,
-  type EstadoConstancia, type EstadoEntrega, type FrecuenciaPago, type MotivoRechazo, type TipoConstancia,
+  type EstadoConstancia, type EstadoEntrega, type EstadoSolicitud, type FrecuenciaPago, type MotivoRechazo,
+  type TipoConstancia,
 } from "@cayla-dynamic/shared";
 import {
   BUCKET_COMPROBANTES, elegido, fechaCorta, subirArchivosDeEntrega, urlDeConstancia, type ArchivoElegido,
@@ -97,6 +98,23 @@ interface SolicitudPendiente {
   vigente_hasta: string;
   enviada_at: string;
   comprobante_url: string | null;
+}
+
+/**
+ * Una solicitud YA RESUELTA (aprobada o rechazada). Aparte de la pendiente:
+ * si se rechaza a alguien sin ninguna asignación, esa persona no vuelve a
+ * aparecer en ningún lado — sin este historial, DO no tiene forma de
+ * consultar qué pasó con ella.
+ */
+interface SolicitudHistorial {
+  id: string;
+  persona: string;
+  institucion: string;
+  costo_declarado: number;
+  estado: EstadoSolicitud;
+  enviada_at: string;
+  revisada_at: string | null;
+  motivo_rechazo: string | null;
 }
 
 interface Entrega {
@@ -189,6 +207,8 @@ function EducacionContenido() {
   const [situaciones, setSituaciones] = useState<Situacion[]>([]);
   const [pendientes, setPendientes] = useState<Pendiente[]>([]);
   const [solicitudesPendientes, setSolicitudesPendientes] = useState<SolicitudPendiente[]>([]);
+  const [historialSolicitudes, setHistorialSolicitudes] = useState<SolicitudHistorial[] | null>(null);
+  const [cargandoHistorialSol, setCargandoHistorialSol] = useState(false);
   const [asignaciones, setAsignaciones] = useState<Map<string, Asignacion>>(new Map());
   const [liquidadas, setLiquidadas] = useState<Set<string>>(new Set());
   const [candidatos, setCandidatos] = useState<Candidato[]>([]);
@@ -265,6 +285,35 @@ function EducacionContenido() {
 
   // eslint-disable-next-line react-hooks/set-state-in-effect -- cargar al montar, mismo patrón que el resto del panel.
   useEffect(() => { void cargar(); }, [cargar]);
+
+  // El historial de TODAS las solicitudes (aprobadas y rechazadas), a pedido:
+  // una rechazada de alguien sin ninguna asignación no vuelve a aparecer en
+  // ningún otro lado de esta pantalla. RLS ya deja a DO leer la tabla entera;
+  // los nombres se piden aparte (no hay ambigüedad de qué FK usar al incrustar,
+  // porque persona_id y revisada_por apuntan los dos a personas).
+  async function cargarHistorialSolicitudes() {
+    if (historialSolicitudes !== null || cargandoHistorialSol) return;
+    setCargandoHistorialSol(true);
+    const { data: sols, error } = await supabase
+      .from("educacion_solicitudes")
+      .select("id, persona_id, institucion, costo_declarado, estado, enviada_at, revisada_at, motivo_rechazo")
+      .in("estado", ["aprobada", "rechazada"])
+      .order("enviada_at", { ascending: false })
+      .limit(200);
+    if (error) {
+      setCargandoHistorialSol(false);
+      avisar("error", mensajeDeError(error, "cargar el historial de solicitudes"));
+      return;
+    }
+    const filas = (sols ?? []) as unknown as (Omit<SolicitudHistorial, "persona"> & { persona_id: string })[];
+    const ids = Array.from(new Set(filas.map((f) => f.persona_id)));
+    const { data: personasData } = ids.length > 0
+      ? await supabase.from("personas").select("id, nombres, apellidos").in("id", ids)
+      : { data: [] as { id: string; nombres: string; apellidos: string }[] };
+    const nombres = new Map((personasData ?? []).map((p) => [p.id, `${p.nombres} ${p.apellidos}`]));
+    setHistorialSolicitudes(filas.map((f) => ({ ...f, persona: nombres.get(f.persona_id) ?? "—" })));
+    setCargandoHistorialSol(false);
+  }
 
   // El enlace de la Bandeja: ?entrega=<id> abre el panel de esa entrega; ?familia=<id>, el del estudio.
   const entregaPedida = params.get("entrega");
@@ -626,6 +675,39 @@ function EducacionContenido() {
                   </div>
                 )}
 
+                {/* ── HISTORIAL DE SOLICITUDES (0461): aprobadas y rechazadas ──── */}
+                <details className="mb-5 rounded-2xl border border-sand p-4"
+                  onToggle={(e) => { if (e.currentTarget.open) void cargarHistorialSolicitudes(); }}>
+                  <summary className="cursor-pointer font-serif text-base">Historial de solicitudes</summary>
+                  <div className="mt-3">
+                    {cargandoHistorialSol ? (
+                      <Cargando />
+                    ) : historialSolicitudes === null ? null : historialSolicitudes.length === 0 ? (
+                      <p className="text-sm text-taupe">Todavía no se resolvió ninguna solicitud.</p>
+                    ) : (
+                      <ul className="flex flex-col divide-y divide-sand text-sm">
+                        {historialSolicitudes.map((h) => {
+                          const est = ESTADO_SOLICITUD[h.estado];
+                          return (
+                            <li key={h.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                              <span>
+                                <span className="font-medium">{h.persona}</span>
+                                <span className="text-taupe"> · {h.institucion} · costo declarado {soles(h.costo_declarado)}</span>
+                                <span className="block text-xs text-taupe">
+                                  Pedida el {fechaCorta(h.enviada_at)}
+                                  {h.revisada_at && ` · revisada el ${fechaCorta(h.revisada_at)}`}
+                                  {h.estado === "rechazada" && h.motivo_rechazo && ` · «${h.motivo_rechazo}»`}
+                                </span>
+                              </span>
+                              <Insignia variante={est.tono}>{est.etiqueta}</Insignia>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </div>
+                </details>
+
                 {/* ── FILTROS ─────────────────────────────────────────────────── */}
                 <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
                   <div className="sm:col-span-2 lg:col-span-2">
@@ -810,7 +892,9 @@ function EducacionContenido() {
             <PanelSolicitud
               id={solicitudAbierta}
               solicitud={solicitudesPendientes.find((s) => s.id === solicitudAbierta) ?? null}
-              onCambio={async (texto) => { setSolicitudAbierta(null); avisar("ok", texto); await cargar(); }}
+              onCambio={async (texto) => {
+                setSolicitudAbierta(null); setHistorialSolicitudes(null); avisar("ok", texto); await cargar();
+              }}
               onError={(texto) => avisar("error", texto)}
             />
           )}
@@ -847,6 +931,7 @@ function PanelEstudio({
   const [cargandoAlNombre, setCargandoAlNombre] = useState(false);
   const [cerrando, setCerrando] = useState(false);
   const [hastaCierre, setHastaCierre] = useState(hoyLima());
+  const [anulando, setAnulando] = useState(false);
 
   const traer = useCallback(async () => {
     const { data, error } = await supabase.rpc("fn_educacion_entregas", { p_familia_id: s.familia_id });
@@ -917,6 +1002,25 @@ function PanelEstudio({
     await onCambio(`Cerrada al ${fechaCorta(hastaCierre)}. Deja de pagarse en los periodos posteriores.`);
   }
 
+  // Anular: lo mismo que cerrar (fn_educacion_cerrar, sin SQL nuevo — no hay
+  // dos puertas para la misma cuenta), pero sin pedir fecha ni motivo. Hoy, o
+  // el propio inicio si la asignación todavía no empezaba (una de prueba
+  // registrada a futuro no puede cerrarse "desde hoy": `fn_educacion_cerrar`
+  // exige `p_hasta >= vigente_desde`).
+  async function anularAsignacion() {
+    setTrabajando(true);
+    const hoy = hoyLima();
+    const hasta = s.vigente_desde > hoy ? s.vigente_desde : hoy;
+    const { error } = await supabase.rpc("fn_educacion_cerrar", {
+      p_id: s.asignacion_id, p_hasta: hasta, p_motivo: "Anulada",
+    });
+    setTrabajando(false);
+    if (error) { onError(mensajeDeError(error)); return; }
+    setAnulando(false);
+    if (s.aviso_fin_id) await supabase.rpc("fn_educacion_atender_aviso_fin", { p_id: s.aviso_fin_id, p_respuesta: "Anulada" });
+    await onCambio("Asignación anulada.");
+  }
+
   return (
     <div className="flex flex-col gap-6 text-sm">
       {/* ── BENEFICIO ── */}
@@ -939,7 +1043,12 @@ function PanelEstudio({
           <Boton tamano="sm" cargando={trabajando} onClick={() => void guardarCalendario()}
             disabled={frecuencia === (s.frecuencia_pago ?? "") && proxima === (s.proxima_fecha_pago ?? "")}>Guardar calendario</Boton>
           <Boton tamano="sm" variante="sutil" onClick={onEditar}>Editar asignación</Boton>
-          {s.vigencia !== "terminada" && <Boton tamano="sm" variante="peligro" onClick={() => setCerrando(true)}>Cerrar asignación</Boton>}
+          {s.vigencia !== "terminada" && (
+            <>
+              <Boton tamano="sm" variante="peligro" onClick={() => setCerrando(true)}>Cerrar asignación</Boton>
+              <Boton tamano="sm" variante="peligro" onClick={() => setAnulando(true)}>Anular</Boton>
+            </>
+          )}
         </div>
       </section>
 
@@ -949,6 +1058,7 @@ function PanelEstudio({
           <p className="mt-1">«{s.aviso_fin_motivo}»</p>
           <div className="mt-2 flex flex-wrap gap-2">
             <Boton tamano="sm" variante="peligro" onClick={() => setCerrando(true)}>Cerrar asignación</Boton>
+            <Boton tamano="sm" variante="peligro" onClick={() => setAnulando(true)}>Anular</Boton>
             <Boton tamano="sm" cargando={trabajando} onClick={() => void atenderAviso()}>Marcar atendido sin cerrar</Boton>
           </div>
         </section>
@@ -1078,6 +1188,17 @@ function PanelEstudio({
         <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <Boton onClick={() => setCerrando(false)} disabled={trabajando}>Cancelar</Boton>
           <Boton variante="peligro" cargando={trabajando} onClick={() => void cerrarAsignacion()} disabled={!hastaCierre}>Cerrar</Boton>
+        </div>
+      </Modal>
+
+      <Modal abierto={anulando} onCerrar={() => setAnulando(false)} bloqueado={trabajando} titulo="¿Anular esta asignación?" ancho="sm">
+        <p className="mb-4 text-sm text-taupe">
+          El apoyo de {s.persona} deja de pagarse desde hoy. La asignación no se borra: queda en su historial como
+          anulada, y lo ya pagado antes no se toca.
+        </p>
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <Boton onClick={() => setAnulando(false)} disabled={trabajando}>Cancelar</Boton>
+          <Boton variante="peligro" cargando={trabajando} onClick={() => void anularAsignacion()}>Anular</Boton>
         </div>
       </Modal>
     </div>
