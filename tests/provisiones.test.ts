@@ -132,6 +132,10 @@ describe("estadosFila", () => {
     expect(estadosFila(alDia, d)).toEqual(["al_dia"]);
     expect(estadosFila(practicante, d)).toEqual(["no_aplica"]);
   });
+  it("quien hoy tiene tramo pero tuvo días sin salario en el año no sale «Al día»", () => {
+    const conHueco = persona({ persona_id: "j", nombre: "Z", grati_s2: 55.21, be_s2: 4.97, cts_nov: 27.61, vac: 27.61, dias_sin_salario: 240 });
+    expect(estadosFila(conHueco, d)).toEqual(["sin_tramo"]);
+  });
   it("vacaciones pagadas de más también marcan la fila", () => {
     const vac = persona({ persona_id: "h", nombre: "Diego Torres", vac: -396.24, vac_monto_pagado: 700 });
     expect(estadosFila(vac, d)).toContain("pagado_de_mas");

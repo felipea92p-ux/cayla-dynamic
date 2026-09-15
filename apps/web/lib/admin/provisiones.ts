@@ -245,20 +245,29 @@ export function estadoVacaciones(p: ProvPersona): EstadoVentana {
 export type EstadoFila = "sin_tramo" | "vencido" | "pagado_de_mas" | "al_dia" | "no_aplica";
 
 export const ETIQUETA_ESTADO_FILA: Record<EstadoFila, string> = {
-  sin_tramo: "Sin tramo de salario",
+  sin_tramo: "Salario sin cargar",
   vencido: "Vencido sin pago completo",
   pagado_de_mas: "Pagado de más",
   al_dia: "Al día",
   no_aplica: "No aplica",
 };
 
-/** Lo que requiere mirar a esta persona, del más grave al menos. */
+/**
+ * Lo que requiere mirar a esta persona, del más grave al menos.
+ *
+ * «Salario sin cargar» cubre los dos avisos de la 0365: no tener tramo a la
+ * fecha de corte, y haber tenido días sin tramo dentro del año que reserva.
+ * Con solo el primero, quien tuvo un hueco salía «Al día» al lado de un panel
+ * que decía «240 días sin salario cargado» — medido en el laboratorio el
+ * 2026-09-15. Un «Al día» que no lo es es el falso positivo más caro de esta
+ * pantalla: es el que hace que nadie mire.
+ */
 export function estadosFila(p: ProvPersona, d: ProvData): EstadoFila[] {
   if (esPracticante(p)) return ["no_aplica"];
   const ventanas = ventanasDe(d);
   const estados = ventanas.map((v) => estadoVentana(p, v, d.as_of));
   const out: EstadoFila[] = [];
-  if (p.sin_salario_vigente) out.push("sin_tramo");
+  if (p.sin_salario_vigente || (p.dias_sin_salario ?? 0) > 0) out.push("sin_tramo");
   if (estados.some((e) => e === "vencido" || e === "pago_parcial")) out.push("vencido");
   if (estados.includes("pagado_de_mas") || estadoVacaciones(p) === "pagado_de_mas") out.push("pagado_de_mas");
   return out.length ? out : ["al_dia"];
