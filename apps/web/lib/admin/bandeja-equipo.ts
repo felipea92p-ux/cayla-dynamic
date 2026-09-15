@@ -71,17 +71,19 @@ export async function contarBandejaEquipoPendiente(
   const tareas: PromiseLike<number>[] = [];
 
   if (puedeVerPlanilla(rol)) {
-    // ⇩ CAMBIO 0450 ⇩ Las tres secciones de educación que pinta la Bandeja:
-    // constancias por revisar y avisos de «ya no voy a pagar» (Por aprobar), y
-    // los estudios para tener presentes (Para saber). Una entrega cuenta UNO,
-    // tenga los archivos que tenga.
+    // ⇩ CAMBIO 0450/0461 ⇩ Las cuatro secciones de educación que pinta la
+    // Bandeja: constancias y solicitudes de apoyo por revisar, y avisos de «ya
+    // no voy a pagar» (Por aprobar), más los estudios para tener presentes
+    // (Para saber). Una entrega o una solicitud cuenta UNO cada una.
     tareas.push(
       Promise.all([
         supabase.rpc("fn_educacion_entregas_pendientes"),
+        supabase.rpc("fn_educacion_solicitudes_pendientes"),
         supabase.rpc("fn_educacion_avisos_fin_pendientes"),
         supabase.rpc("fn_educacion_situacion"),
-      ]).then(([entregas, avisos, situacion]) =>
+      ]).then(([entregas, solicitudes, avisos, situacion]) =>
         (Array.isArray(entregas.data) ? entregas.data.length : 0)
+        + (Array.isArray(solicitudes.data) ? solicitudes.data.length : 0)
         + (Array.isArray(avisos.data) ? avisos.data.length : 0)
         + ((situacion.data as unknown as FilaEducacionBandeja[] | null) ?? []).filter(esEducacionParaSaber).length),
     );
@@ -171,6 +173,12 @@ export async function listarPendientesPorPersona(
         ((data as unknown as { persona_id: string; semaforo: string; meses_sin_papel: number }[] | null) ?? [])
           .filter((f) => f.semaforo === "sin_comprobante" || f.semaforo === "por_vencer" || f.meses_sin_papel > 0)
           .forEach((f) => agregar(f.persona_id, "Educación: comprobante pendiente"));
+      }),
+    );
+    tareas.push(
+      supabase.rpc("fn_educacion_solicitudes_pendientes").then(({ data }) => {
+        (Array.isArray(data) ? (data as { persona_id: string }[]) : [])
+          .forEach((r) => agregar(r.persona_id, "Educación: solicitud de apoyo pendiente"));
       }),
     );
     tareas.push(

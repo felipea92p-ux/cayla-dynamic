@@ -78,7 +78,7 @@ import { esEducacionParaSaber, type FilaEducacionBandeja } from "@/lib/admin/ban
 type TipoItemBandeja =
   | "revision" | "revision_movilidad" | "revision_contrato"
   | "solicitud_vacacion" | "solicitud_perfil"
-  | "entrega_educacion" | "aviso_fin_educacion";
+  | "entrega_educacion" | "aviso_fin_educacion" | "solicitud_educacion";
 
 const CLAVE_SEDE_FILTRO = "bandeja_sede_filtro";
 
@@ -95,6 +95,12 @@ interface ItemEntregaEducacion {
 interface ItemAvisoFinEducacion {
   id: string; familia_id: string; persona_id: string; persona: string; sede: string;
   institucion: string; motivo: string; creado_at: string;
+}
+
+/** Alguien pidió su propio apoyo educativo, sin tener todavía una asignación (0461). */
+interface ItemSolicitudEducacion {
+  id: string; persona_id: string; persona: string; sede: string;
+  institucion: string; costo_declarado: number; enviada_at: string;
 }
 
 /** Alguien que trabajó días que su horario no cubre (mig. 0385). La función ya
@@ -302,6 +308,7 @@ export default function BandejaPage() {
   const [educacion, setEducacion] = useState<ItemEducacion[]>([]);
   const [entregasEducacion, setEntregasEducacion] = useState<ItemEntregaEducacion[]>([]);
   const [avisosFinEducacion, setAvisosFinEducacion] = useState<ItemAvisoFinEducacion[]>([]);
+  const [solicitudesEducacion, setSolicitudesEducacion] = useState<ItemSolicitudEducacion[]>([]);
   const [vacaciones, setVacaciones] = useState<ItemVacacion[]>([]);
   const [sinHorario, setSinHorario] = useState<ItemSinHorario[]>([]);
   const [revisiones, setRevisiones] = useState<ItemRevision[]>([]);
@@ -367,6 +374,12 @@ export default function BandejaPage() {
         supabase.rpc("fn_educacion_avisos_fin_pendientes").then(({ data, error }) => {
           if (error) { avisar("error", mensajeDeError(error, "cargar los avisos de educación")); return; }
           setAvisosFinEducacion((data as unknown as ItemAvisoFinEducacion[]) ?? []);
+        }),
+      );
+      tareas.push(
+        supabase.rpc("fn_educacion_solicitudes_pendientes").then(({ data, error }) => {
+          if (error) { avisar("error", mensajeDeError(error, "cargar las solicitudes de apoyo educativo")); return; }
+          setSolicitudesEducacion((data as unknown as ItemSolicitudEducacion[]) ?? []);
         }),
       );
       tareas.push(
@@ -509,6 +522,7 @@ export default function BandejaPage() {
       ...solicitudesPerfil.map((s): [TipoItemBandeja, string] => ["solicitud_perfil", s.id]),
       ...entregasEducacion.map((e): [TipoItemBandeja, string] => ["entrega_educacion", e.id]),
       ...avisosFinEducacion.map((a): [TipoItemBandeja, string] => ["aviso_fin_educacion", a.id]),
+      ...solicitudesEducacion.map((s): [TipoItemBandeja, string] => ["solicitud_educacion", s.id]),
     ];
     for (const [tipo, id] of items) {
       if (!vistosIniciales.has(`${tipo}:${id}`)) {
@@ -606,6 +620,20 @@ export default function BandejaPage() {
         contexto: null, nuevo: !vistosIniciales.has(`aviso_fin_educacion:${a.id}`),
       });
     }
+    // ⇩ CAMBIO 0461 ⇩ Pidió su propio apoyo educativo: todavía no hay ninguna
+    // asignación ni familia a la que colgar el enlace, así que abre la
+    // solicitud directo (no /admin/educacion?familia=...).
+    for (const s of solicitudesEducacion) {
+      agregar({
+        clave: `solicitud_educacion:${s.id}`, tipo: "solicitud_educacion", itemId: s.id, personaId: s.persona_id,
+        persona: s.persona, sede: s.sede, modulo: "educacion",
+        titulo: "Solicitud de apoyo educativo pendiente de revisión",
+        detalle: `${s.institucion} · costo declarado S/ ${s.costo_declarado.toFixed(2)}`,
+        urgencia: urgenciaEspera(s.enviada_at, hoy), resolucion: "afuera",
+        ir: { texto: "Revisar", href: `/admin/educacion?solicitud=${s.id}` },
+        contexto: null, nuevo: !vistosIniciales.has(`solicitud_educacion:${s.id}`),
+      });
+    }
     for (const f of educacion) {
       const doc = documentoEducacion(f);
       agregar({
@@ -640,7 +668,7 @@ export default function BandejaPage() {
     }
     return lista.sort(compararPendientes);
   }, [revisiones, revisionesMovilidad, revisionesContrato, solicitudesVacaciones, solicitudesPerfil, educacion,
-      entregasEducacion, avisosFinEducacion, vacaciones, sinHorario, ceses, vistosIniciales, hoy]);
+      entregasEducacion, avisosFinEducacion, solicitudesEducacion, vacaciones, sinHorario, ceses, vistosIniciales, hoy]);
 
   // ── Filtros ───────────────────────────────────────────────────────────────
   // El filtro guardado de sede no aplica a quien solo ve la suya.
