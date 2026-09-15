@@ -1,6 +1,33 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+// ─────────────────────────────────────────────────────────────────────────────
+// DISCIPLINA — rediseño del 2026-09-15 (lote 1: solo pantalla)
+//
+// Qué cambió y por qué, en una línea cada cosa (auditoría y decisiones del
+// 2026-09-15):
+//   · Pestañas por etapa real —Requieren revisión · Borradores · Por entregar ·
+//     Historial— en vez de cuatro cajas que competían y dejaban contenedores
+//     vacíos.
+//   · Revisar primero: «Generar borrador» vive dentro del caso, al lado de la
+//     evidencia. Antes estaba en la fila y se ofrecía también a quien le
+//     faltaba una tardanza, donde la base lo rechazaba siempre.
+//   · «Cerca del umbral» se separa de «Requieren revisión»: se sigue, no se
+//     documenta.
+//   · Entregado no es cerrado: lo que aún pide el cargo o una decisión se
+//     queda en «Por entregar».
+//   · Una acción principal por fila y el resto en «⋯», según el estado.
+//   · Persona cesada: solo lo que todavía tiene sentido (cerrar sin entrega, o
+//     registrar una entrega anterior al cese).
+//   · Borrador desactualizado: si la asistencia cambió después de generarlo,
+//     se dice y se bloquean «Comunicar cargos» y «Firmar».
+//
+// Lo que NO cambió: ninguna regla. Umbrales, escalones, generación, firma y
+// entrega siguen decidiéndose en la base; ninguna llamada a una RPC cambió de
+// forma. Los frenos de la base (desfase, persona cesada, motivos) y el
+// historial con autor son los lotes 2 y 3.
+// ─────────────────────────────────────────────────────────────────────────────
+
+import { useCallback, useEffect, useMemo, useState, type MouseEvent, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
@@ -15,324 +42,216 @@ import { Insignia } from "@/components/ui/insignia";
 import { Modal } from "@/components/ui/modal";
 import { AreaTexto } from "@/components/ui/area-texto";
 import { Campo } from "@/components/ui/campo";
+import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
+import { Menu, MenuItem } from "@/components/ui/menu";
+import { cx } from "@/components/ui/cx";
+import { FormularioCargo, MAX_BYTES_CARGO, TITULO_PAPEL } from "@/components/disciplina/formulario-cargo";
+import { Celda, FilaCaso, ListaCasos, type Encabezado } from "@/components/disciplina/lista-casos";
 import {
-  NIVEL_DISCIPLINARIO_CORTO, NIVEL_DISCIPLINARIO_LABELS, TZ_LIMA, hoyLima, puedeOperarEquipo,
-  rangoDelDiaLima, rangoDelMesLima, mesesRecientesLima, nombreDelMesLima, nombreDelMesLimaTitulo,
-  primeroDeMesLima,
+  CAUSAL_LABEL, ESTADO_DOCUMENTO, ETIQUETA_PAPEL, MEDIO_ENTREGA, PanelCaso,
+  type CasoAbierto, type PersonaInfo,
+} from "@/components/disciplina/panel-caso";
+import { addDias, fechaCorta, selloLima } from "@/components/disciplina/formato";
+import { evidenciaDeDocumento, type Evidencia } from "@/lib/admin/disciplina-evidencia";
+import {
+  ETAPAS, ETAPA_LABEL, admiteEntregaAnteriorAlCese, esGradual, etapaDelBorrador, eventosDeObservacion,
+  normalizarBusqueda, pendientesDeEntregado, pestanaDelDocumento, situacionFalta, situacionTardanza, ultimoDiaDeEntrega,
+  type Adjunto, type DocDisciplina, type FaltaRow, type Pestana, type SituacionDeteccion, type TardanzaRow, type TipoPapel,
+} from "@/lib/admin/disciplina";
+import {
+  NIVEL_DISCIPLINARIO_CORTO, NIVEL_DISCIPLINARIO_LABELS, fechaLima, hoyLima, mesesRecientesLima, nombreDelMesLima,
+  nombreDelMesLimaTitulo, primeroDeMesLima, puedeAnularDocumentoDisciplinario, puedeOperarEquipo,
+  puedeVerTodasLasSedes, rangoDelDiaLima, rangoDelMesLima,
 } from "@cayla-dynamic/shared";
 
-
-// Fechas planas: se formatean en UTC para que no se corran un día por zona horaria.
-function fechaCorta(iso: string): string {
-  const [y, m, d] = iso.split("-").map(Number);
-  return new Intl.DateTimeFormat("es-PE", { day: "2-digit", month: "short", timeZone: "UTC" })
-    .format(new Date(Date.UTC(y, m - 1, d)));
-}
-function addDias(iso: string, n: number): string {
-  const [y, m, d] = iso.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
-}
-function selloLima(iso: string): string {
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return iso;
-  return new Intl.DateTimeFormat("es-PE", { timeZone: TZ_LIMA, day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hour12: true }).format(d);
-}
-
-// El mes de este semáforo dejó de ser una constante: se elige.
-//
-// Era `date_trunc('month', fn_hoy_lima())` escrito en la pantalla, y decía la
-// verdad mientras el sistema solo supo contar el mes en curso. El numeral 19.4
-// dice que el cierre del mes no impide emitir un documento por hechos de un mes
-// ya concluido, así que ahora el mes viaja como estado y se nombra con
-// `nombreDelMesLima`, que vive en `fecha-lima.ts` con el resto del calendario
-// de Lima.
-
-// Las etiquetas de la escala viven en packages/shared desde la 0200: las
-// necesitan también el Dashboard y el Reporte por sede.
-/** Los niveles que pasan por el descargo previo del art. 55.2 del RIT. La
- *  imputación y el despido NO: siguen el procedimiento del art. 57, con el
- *  plazo del art. 31 de la LPCL, que es otro y más largo. */
-const esGradual = (nivel: string) => nivel === "amonestacion" || nivel === "suspension";
-
-const ETIQUETA_DESCARGO: Record<string, string> = {
-  sin_descargo: "no presentó descargo",
-  total: "acogido",
-  parcial: "acogido en parte",
-  no: "no acogido",
-};
+// ── Constantes ───────────────────────────────────────────────────────────────
 
 const NIVEL_LABEL: Record<string, string> = NIVEL_DISCIPLINARIO_LABELS;
-const CAUSAL_LABEL: Record<string, string> = { tardanza: "Tardanzas", falta: "Faltas", conducta: "Conducta" };
+const nivelCorto = (n: string) => NIVEL_DISCIPLINARIO_CORTO[n as keyof typeof NIVEL_DISCIPLINARIO_CORTO] ?? n;
 
-// `sin_medir` son los días cuya tardanza pasa de tres horas. No suman al umbral
-// legal —con una medición dudosa no se sanciona— pero hasta la 0189 no existían
-// para nadie: se guardaban como NULL y las tres consultas los leían como «no
-// hubo tardanza». Quien llegaba tres horas tarde desaparecía de esta pantalla.
-//
-// `umbral` (desde la 0200) ya no es «amonestacion o aviso»: nombra el escalón
-// ALCANZADO — amonestacion · suspension · imputacion · bloqueado · aviso. Y
-// `minimo` es cuántas tardanzas exige el escalón de ESA persona, que depende de
-// su historial: 3 sin antecedente, 2 tras una amonestación, 1 tras una
-// suspensión. Antes la pantalla pedía 3 a todo el mundo y no mostraba a quien
-// ya había cruzado el suyo.
-interface TardanzaRow {
-  persona_id: string; nombre: string; sede: string; tardanzas_mes: number;
-  umbral: string; sin_medir: number; minimo: number | null; nivel_siguiente: string;
-}
-interface FaltaRow { persona_id: string; nombre: string; sede: string; consecutivas: number; en_30: number; en_180: number; nivel: string; }
-interface Hecho { fecha: string; minutos?: number; }
-/** Quién puede suscribir un documento concreto (fn_expediente_firmantes, mig. 0074). */
-interface Firmante { persona_id: string; nombre: string; cargo: string; tiene_firma: boolean; }
-interface Adjunto {
-  id: string;
-  documento_id: string;
-  storage_path: string;
-  tipo: TipoPapel;
-  nota: string | null;
-  subido_at: string;
-}
-
-const MAX_BYTES_CARGO = 50 * 1024 * 1024;
-const TIPOS_CARGO = "image/jpeg,image/png,image/heic,image/webp,application/pdf";
-
-/** Los tres papeles que pueden colgar de un documento (mig. 0206). */
-type TipoPapel = "cargo_firmado" | "acta_negativa" | "descargo";
-
-/** Cómo se dice en pantalla cada medio de entrega. */
-const MEDIO_ENTREGA: Record<string, string> = {
-  fisico: "en mano",
-  correo: "por correo",
-  notarial: "por conducto notarial",
-  acta_negativa: "acta de negativa a firmar",
+/** Las cuatro salidas de la valoración: las mismas que acepta fn_expediente_valorar_descargo. */
+const ETIQUETA_DESCARGO: Record<string, string> = {
+  sin_descargo: "No presentó descargo",
+  total: "Se acoge",
+  parcial: "Se acoge en parte",
+  no: "No se acoge",
 };
 
-const NOMBRE_ARCHIVO: Record<TipoPapel, string> = {
-  cargo_firmado: "cargo", acta_negativa: "acta", descargo: "descargo",
-};
+const NOMBRE_ARCHIVO: Record<TipoPapel, string> = { cargo_firmado: "cargo", acta_negativa: "acta", descargo: "descargo" };
 const FALTA_PAPEL: Record<TipoPapel, string> = {
   cargo_firmado: "Falta el cargo firmado.",
   acta_negativa: "Falta el acta de la negativa. Sin el papel con el testigo no queda constancia de que se ofreció.",
   descargo: "Falta el descargo. Es el papel que prueba que la persona pudo defenderse dentro del plazo del art. 31.",
 };
-const ETIQUETA_PAPEL: Record<TipoPapel, string> = {
-  cargo_firmado: "Ver cargo", acta_negativa: "Ver acta de negativa", descargo: "Ver descargo",
-};
 
-interface Doc {
-  id: string; persona_id: string; tipo_causal: string; nivel: string; estado: string;
-  periodo_desde: string | null; periodo_hasta: string | null; hechos: Hecho[];
-  suspension_dias: number | null; suspension_desde: string | null; suspension_hasta: string | null;
-  suspension_fechas: string[] | null;
-  /** Fecha de cese declarada en la carta de despido (art. 32 LPCL, mig. 0205). */
-  fecha_cese: string | null;
-  // Cómo terminó el procedimiento del art. 31 (mig. 0206). Mientras esto sea
-  // null, una imputación entregada sigue pidiendo una decisión — y el semáforo
-  // sigue diciendo «decide Gerencia».
-  resuelto_at: string | null; resuelto_resultado: string | null; resuelto_motivo: string | null;
-  // El descargo previo del art. 55.2 del RIT (mig. 0210). Mientras
-  // `cargos_comunicados_at` sea null, el borrador no se puede firmar: la
-  // omisión del descargo INVALIDA la sanción, y una sanción inválida no se
-  // nota al firmarla — se nota el día que alguien la discute.
-  cargos_comunicados_at: string | null; descargo_vence_at: string | null;
-  descargo_acogido: string | null; descargo_valoracion: string | null;
-  correlativo: string | null; creado_at: string; firmado_at: string | null;
-  entregado_at: string | null; medio_entrega: string | null; entrega_testigo_nombre: string | null;
-  /** El rastro del trámite: cuándo se comunicaron los cargos y —si se
-   *  declararon después (mig. 0266)— quién lo declaró y cómo consta. Se lee en
-   *  la fila del borrador porque es lo que hay que mirar ANTES de firmar. */
-  observacion: string | null;
+const COLUMNAS_DOC = "id, persona_id, tipo_causal, nivel, estado, periodo_desde, periodo_hasta, hechos, suspension_dias, suspension_desde, suspension_hasta, suspension_fechas, fecha_cese, resuelto_at, resuelto_por, resuelto_resultado, resuelto_motivo, correlativo, creado_at, creado_por, firmante_id, firmado_at, entregado_at, entregado_por, medio_entrega, entrega_testigo_nombre, cargos_comunicados_at, descargo_vence_at, descargo_acogido, descargo_valoracion, observacion";
+
+// Seis columnas, la segunda (sede) secundaria: en tablet se esconde y la
+// plantilla de `md` tiene cinco. Literal a propósito (ver lista-casos.tsx).
+const PLANTILLA = "md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.3fr)_auto] lg:grid-cols-[minmax(0,1.4fr)_3.5rem_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.3fr)_auto]";
+
+const TXT_DESFASE = "La asistencia cambió después de generar el borrador: algún día ya no se sostiene. Ábrelo para ver cuál.";
+
+/** Quién puede suscribir un documento concreto (fn_expediente_firmantes, mig. 0074). */
+interface Firmante { persona_id: string; nombre: string; cargo: string; tiene_firma: boolean }
+
+interface Accion {
+  etiqueta: string;
+  alPulsar: (e?: MouseEvent<HTMLElement>) => void;
+  variante?: "primario" | "secundario" | "peligro";
+  disabled?: boolean;
+  title?: string;
+}
+interface Acciones { principal: Accion | null; estado: string | null; menu: Array<Accion | "separador"> }
+
+interface FilaDeteccion {
+  clave: string; tipo: "tardanza" | "falta"; personaId: string; nombre: string; sede: string;
+  situacion: SituacionDeteccion; progreso: ReactNode; motivo: string;
 }
 
-/**
- * El formulario para archivar el papel de una entrega.
- *
- * Vive acá y no dentro de cada sección porque el mismo trámite aparece en dos
- * momentos: cuando el memo está firmado y aún no se entrega, y cuando ya se
- * entregó por otra vía y falta archivar el cargo. Estaba escrito solo en el
- * primero, así que en "Entregados" el botón abría un aviso sin selector de
- * archivo — parecía que el sistema no dejaba subirlo.
- *
- * `pideFecha` es la única diferencia real entre los dos casos: en un documento
- * ya entregado la fecha buena es la registrada y la base no la pisa.
- */
-function FormularioCargo({
-  tipo, pideFecha, entregadoEl, fecha, progreso, ocupado,
-  alElegirArchivo, alCambiarFecha, alCambiarNota, nota, testigo, alCambiarTestigo, alGuardar, alCancelar,
-}: {
-  tipo: TipoPapel; pideFecha: boolean; entregadoEl: string | null;
-  fecha: string; nota: string; testigo: string; progreso: number | null; ocupado: boolean;
-  alElegirArchivo: (f: File | null) => void;
-  alCambiarFecha: (v: string) => void;
-  alCambiarNota: (v: string) => void;
-  alCambiarTestigo: (v: string) => void;
-  alGuardar: () => void; alCancelar: () => void;
-}) {
+// ── Piezas chicas de la vista ────────────────────────────────────────────────
+
+function Progreso({ n, de, alcanzado }: { n: number; de: number; alcanzado: boolean }) {
+  const casillas = Math.min(Math.max(de, n), 6);
   return (
-    <div className="mt-3 rounded-lg border border-sand bg-sand/20 p-3">
-      <p className="mb-2 text-xs text-taupe">
-        {tipo === "acta_negativa"
-          ? pideFecha
-            ? "El acta suscrita por quien entrega y por un testigo produce los mismos efectos que el cargo firmado (num. 55.4 del RIT). Al subirla el documento queda ENTREGADO con esta fecha, y desde ahí corren los plazos."
-            : "Sube el acta para archivarla en el legajo. La entrega ya registrada no cambia."
-          : tipo === "descargo"
-            ? "Sube el descargo que presentó por escrito. Se archiva en el legajo junto al memo que lo provocó; no cambia el estado del documento."
-          : pideFecha
-            ? "Al subir el cargo, el documento queda entregado con esta fecha. Desde ahí corren los plazos de descargo (art. 31)."
-            : `Sube el cargo para archivarlo en el legajo. No cambia la entrega ya registrada${entregadoEl ? ` (${entregadoEl})` : ""}.`}
-      </p>
-      <div className="grid gap-2 sm:grid-cols-2">
-        <label className="flex flex-col gap-1 text-xs">
-          {tipo === "acta_negativa" ? "Acta de la negativa" : tipo === "descargo" ? "Descargo presentado" : "Cargo firmado"}
-          <input type="file" accept={TIPOS_CARGO}
-            onChange={(e) => alElegirArchivo(e.target.files?.[0] ?? null)}
-            className="rounded border bg-crema px-2 py-1 text-xs file:mr-2 file:rounded file:border-0 file:bg-sand file:px-2 file:py-0.5 file:text-xs" />
-        </label>
-        {pideFecha && (
-          <Campo etiqueta="Fecha de entrega" type="date" value={fecha} max={hoyLima()}
-            onChange={(e) => alCambiarFecha(e.target.value)}
-            className="text-xs" />
-        )}
-        {tipo === "acta_negativa" && (
-          <div className="flex flex-col gap-1 sm:col-span-2">
-            <Campo etiqueta="Testigo del acta — nombre y apellido" value={testigo}
-              onChange={(e) => alCambiarTestigo(e.target.value)}
-              placeholder="ej. Rosa Quispe Ramírez"
-              className="text-xs" />
-            <span className="text-xs text-taupe">
-              Quien presenció la negativa y firma el acta junto a quien entrega. Puede ser
-              cualquier persona presente, esté o no en el sistema.
-            </span>
-          </div>
-        )}
-        <div className="sm:col-span-2">
-          <Campo etiqueta="Nota (opcional)" value={nota} onChange={(e) => alCambiarNota(e.target.value)}
-            placeholder={tipo === "acta_negativa" ? "ej. se le leyó en voz alta y se negó también a recibir la copia" : tipo === "descargo" ? "ej. entregado en mesa de partes el 14/08" : "ej. recibido en la tienda"}
-            className="text-xs" />
-        </div>
-      </div>
-      {progreso !== null && (
-        <div className="mt-2">
-          <div className="h-1.5 w-full overflow-hidden rounded-full bg-sand">
-            <div className="h-full bg-tinta transition-[width] duration-200"
-              style={{ width: `${progreso}%` }}
-              role="progressbar" aria-valuenow={progreso} aria-valuemin={0} aria-valuemax={100}
-              aria-label="Subiendo el cargo" />
-          </div>
-          <span className="text-xs text-taupe">Subiendo — {progreso}%</span>
-        </div>
-      )}
-      <div className="mt-2 flex items-center gap-2">
-        <Boton variante="primario" tamano="sm" onClick={alGuardar} disabled={ocupado}>
-          {progreso !== null ? `Subiendo… ${progreso}%` : "Guardar"}
-        </Boton>
-        <Boton variante="secundario" tamano="sm" onClick={alCancelar}>Cancelar</Boton>
-      </div>
-    </div>
+    <span className="inline-flex items-center gap-2 tabular-nums">
+      <span className="inline-flex gap-0.5" aria-hidden>
+        {Array.from({ length: casillas }, (_, i) => (
+          <span key={i} className={cx("size-2 rounded-[2px]", i < n ? (alcanzado ? "bg-rojo" : "bg-tinta") : "bg-sand")} />
+        ))}
+      </span>
+      {n} / {de}
+    </span>
   );
 }
+
+function PasosBorrador({ etapa }: { etapa: (typeof ETAPAS)[number] }) {
+  const actual = ETAPAS.indexOf(etapa);
+  return (
+    <span className="inline-flex flex-wrap items-center gap-2">
+      <span className="inline-flex gap-0.5" aria-hidden>
+        {ETAPAS.map((e, i) => (
+          <span key={e} className={cx("h-1 w-4 rounded-full", i < actual ? "bg-verde" : i === actual ? "bg-pizarra" : "bg-sand")} />
+        ))}
+      </span>
+      <span className="text-xs">{ETAPA_LABEL[etapa]}</span>
+    </span>
+  );
+}
+
+function TabBtn({ valor, tab, setTab, cuenta, urgente, children }: {
+  valor: Pestana; tab: Pestana; setTab: (t: Pestana) => void; cuenta: number; urgente?: boolean; children: ReactNode;
+}) {
+  return (
+    <button type="button" role="tab" id={`tab-${valor}`} aria-selected={tab === valor} aria-controls={`panel-${valor}`}
+      onClick={() => setTab(valor)}
+      className={cx("-mb-px inline-flex items-center gap-2 whitespace-nowrap border-b-2 px-3 py-2 text-sm transition-colors",
+        tab === valor ? "border-rojo font-medium text-tinta" : "border-transparent text-taupe hover:text-tinta")}>
+      {children}
+      <Insignia variante={urgente && cuenta > 0 ? "contador" : "neutral"} tamano="sm" punto={false} className="tabular-nums">{cuenta}</Insignia>
+    </button>
+  );
+}
+
+function Grupo({ titulo, detalle, children }: { titulo: string; detalle?: string; children: ReactNode }) {
+  return (
+    <section className="mb-7">
+      <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5">
+        <h2 className="text-xs font-medium uppercase tracking-[0.08em] text-tinta">{titulo}</h2>
+        {detalle && <span className="text-xs text-taupe">{detalle}</span>}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function Vacio({ children }: { children: ReactNode }) {
+  return <p className="border-t border-dashed border-sand py-2 text-sm text-taupe">{children}</p>;
+}
+
+function FalloLectura({ que }: { que: string }) {
+  return (
+    <p className="mb-3 rounded-control bg-rojo/10 px-3 py-2 text-sm text-rojo-profundo">
+      No se pudo leer {que}. <strong>Esto NO significa que no haya nadie</strong> — significa que no se pudo mirar.
+      Vuelve a cargar la página; si sigue igual, avisa antes de dar el periodo por revisado.
+    </p>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 export default function DisciplinaPage() {
   const router = useRouter();
   const yo = usePersonaActual();
   const rol = yo?.rol ?? null;
   const puede = puedeOperarEquipo(rol);
+  const puedeAnular = puedeAnularDocumentoDisciplinario(rol);
   const { avisar } = useToast();
+  const supabase = useMemo(() => createAdminSupabaseClient(), []);
 
+  // ── Datos ──────────────────────────────────────────────────────────────
   const [tardanzas, setTardanzas] = useState<TardanzaRow[]>([]);
   const [faltas, setFaltas] = useState<FaltaRow[]>([]);
-  // «No hay nadie» y «no pude mirar» son cosas distintas y hasta hoy se
-  // imprimían con la misma frase. En esta pantalla esa confusión es la peor
-  // que puede haber: da por revisado lo que no se revisó.
+  // «No hay nadie» y «no pude mirar» son cosas distintas. En esta pantalla esa
+  // confusión es la peor que puede haber: da por revisado lo que no se revisó.
   const [falloTard, setFalloTard] = useState(false);
   const [falloFaltas, setFalloFaltas] = useState(false);
-  // El tercer panel de esta pantalla —Borradores pendientes— tenía la misma
-  // trampa que ya se corrigió arriba: si `expediente_disciplinario` no se
-  // pudo leer, `docs` queda vacío y el panel decía «No hay borradores por
-  // firmar», que es lo mismo que dice cuando de verdad no hay ninguno.
   const [falloDocs, setFalloDocs] = useState(false);
-  const [docs, setDocs] = useState<Doc[]>([]);
-  const [nombres, setNombres] = useState<Map<string, string>>(new Map());
-  // `personas.estado` de cada quien: solo se lee para saber si ya cesó, y así
-  // ofrecer «Cerrar sin entrega» únicamente cuando de verdad aplica.
-  const [personaEstado, setPersonaEstado] = useState<Map<string, string>>(new Map());
-  const [cargando, setCargando] = useState(true);
-  const [resaltado, setResaltado] = useState<string | null>(null);
-  const [ocupado, setOcupado] = useState<string | null>(null);
-  const [medio, setMedio] = useState<Record<string, string>>({});
-
-  // ── El cargo firmado ────────────────────────────────────────────────────
+  const [docs, setDocs] = useState<DocDisciplina[]>([]);
+  const [personas, setPersonas] = useState<Map<string, PersonaInfo>>(new Map());
+  const [sedes, setSedes] = useState<string[]>([]);
+  const [nombresAusencia, setNombresAusencia] = useState<Map<string, string>>(new Map());
   const [adjuntos, setAdjuntos] = useState<Map<string, Adjunto[]>>(new Map());
-  // Tres papeles distintos cuelgan del mismo documento y hasta la 0206 esto era
-  // un booleano `negativa`. Con el descargo del art. 31 ya son tres, y un
-  // booleano con tres valores posibles es cómo se cuela el tercero en la rama
-  // del segundo.
-  const [subiendoCargo, setSubiendoCargo] = useState<{ id: string; tipo: TipoPapel } | null>(null);
+  // Quién puede suscribir CADA borrador: depende del nivel y de la sede (0074).
+  // Desde la 0214 sale vacía a propósito para una carta de despido vista por DO.
+  const [firmantes, setFirmantes] = useState<Record<string, Firmante[]>>({});
+  // Quién no tiene constancia del Reglamento vigente (numeral 60.5, mig. 0228).
+  const [sinConstancia, setSinConstancia] = useState<Map<string, string>>(new Map());
+  /** Si la empresa exige el descargo previo (0268). Arranca en `true`: una lectura
+   *  fallida no puede hacer aparecer un «Firmar» que la base va a rechazar. */
+  const [exigeDescargo, setExigeDescargo] = useState(true);
+  /** Lo que dice hoy la asistencia de los días que cita cada borrador y firmado. */
+  const [evidencias, setEvidencias] = useState<Map<string, Evidencia>>(new Map());
+  const [cargando, setCargando] = useState(true);
+
+  // ── Vista ──────────────────────────────────────────────────────────────
+  const [tab, setTab] = useState<Pestana>("revision");
+  /** El mes de tardanzas, como `2026-08-01`. Se elige porque el numeral 19.4
+   *  permite documentar un mes ya concluido. */
+  const [mesTard, setMesTard] = useState<string>(primeroDeMesLima());
+  const [busqueda, setBusqueda] = useState("");
+  const [sedeFiltro, setSedeFiltro] = useState("");
+  const [caso, setCaso] = useState<CasoAbierto | null>(null);
+  // A quién devolverle el foco al cerrar el caso. En estado y no en un
+  // `useRef`: el botón que abre vive dentro de las filas, y React Compiler no
+  // deja tocar una ref desde funciones que se arman durante el render. El
+  // Drawer solo necesita algo con forma de ref, y lo lee en su efecto.
+  const [disparadorEl, setDisparadorEl] = useState<HTMLElement | null>(null);
+  const disparador = useMemo(() => ({ current: disparadorEl }), [disparadorEl]);
+  const [resaltado, setResaltado] = useState<string | null>(null);
+  const [verReglas, setVerReglas] = useState(false);
+  const [ocupado, setOcupado] = useState<string | null>(null);
+
+  // ── Trámites: cada uno abre un Modal; la RPC vive en su «confirmar…» ────
+  const [subiendoCargo, setSubiendoCargo] = useState<{ id: string; tipo: TipoPapel; fechaMax?: string } | null>(null);
   const [archivoCargo, setArchivoCargo] = useState<File | null>(null);
-  const [fechaEntrega, setFechaEntrega] = useState("");
+  const [fechaEntrega, setFechaEntrega] = useState(hoyLima());
   const [notaCargo, setNotaCargo] = useState("");
   const [testigoCargo, setTestigoCargo] = useState("");
   const [progresoCargo, setProgresoCargo] = useState<number | null>(null);
-  // ── «Ya se lo comuniqué»: qué día ────────────────────────────────────────
-  // Qué borrador tiene abierto el panel para declarar una comunicación pasada,
-  // y el día elegido. `fechaCargos` NACE EN HOY y no en "": un campo de fecha
-  // cuyo vacío bloquea el envío no puede arrancar vacío (la quinta regla de
-  // CLAUDE.md, la que costó cinco despliegues el 2026-08-26). Y es el mismo
-  // valor que pinta el campo y que viaja al servidor — no se lee del DOM,
-  // porque Safari puede poner el valor sin disparar el evento que React
-  // escucha.
-  const [declarando, setDeclarando] = useState<string | null>(null);
+  const [entregandoSinPapel, setEntregandoSinPapel] = useState<DocDisciplina | null>(null);
+  const [medio, setMedio] = useState("fisico");
+  const [confirmandoCargos, setConfirmandoCargos] = useState<DocDisciplina | null>(null);
+  // `fechaCargos` NACE EN HOY y no en "": un campo de fecha cuyo vacío bloquea
+  // el envío no puede arrancar vacío (quinta regla de CLAUDE.md).
+  const [declarando, setDeclarando] = useState<DocDisciplina | null>(null);
   const [fechaCargos, setFechaCargos] = useState(hoyLima());
-  const [verCerrados, setVerCerrados] = useState(false);
-  // Quién puede suscribir CADA documento. Se pregunta por documento y no una
-  // vez para todos porque la respuesta depende del nivel y de la sede: una
-  // encargada puede firmar una amonestación verbal o escrita de SU tienda,
-  // pero no una suspensión ni la de otra sede (fn_expediente_firmantes, 0074).
-  // Antes se usaba fn_firmantes_disponibles, que solo listaba admin y líder DO:
-  // la delegación existía en la base pero la pantalla no la ofrecía.
-  //
-  // Desde la 0214 la lista aplica el art. 54.4 del RIT entero, y por eso hay un
-  // caso en que sale VACÍA a propósito: la carta de despido solo la suscribe la
-  // Gerencia General, y en persona. Si quien mira es Desarrollo Organizacional,
-  // no hay firmante que ofrecerle — puede instruir el expediente y preparar el
-  // borrador, pero no firmarlo ni delegar esa firma.
-  const [firmantes, setFirmantes] = useState<Record<string, Firmante[]>>({});
-  // Quién no tiene constancia del Reglamento vigente (numeral 60.5, mig. 0228).
-  // Se avisa ANTES de empezar el procedimiento: citar a alguien a descargo y
-  // después no poder firmar es hacerle pasar el mal rato para nada.
-  const [sinConstancia, setSinConstancia] = useState<Map<string, string>>(new Map());
-  /** Si la empresa exige el descargo previo del art. 55.2 antes de firmar
-   *  (mig. 0268). Arranca en `true` y solo baja a `false` si la configuración
-   *  lo dice: una lectura fallida no puede hacer aparecer un botón de firmar
-   *  que la base va a rechazar. */
-  const [exigeDescargo, setExigeDescargo] = useState(true);
-  const [firmanteElegido, setFirmanteElegido] = useState<Record<string, string>>({});
-  /**
-   * El mes sobre el que se mira y se documenta la impuntualidad, como
-   * `2026-08-01`. Por defecto el mes en curso, que es lo único que existía
-   * hasta hoy.
-   *
-   * Deja de ser una constante porque el numeral 19.4 dice que el cierre del mes
-   * no impide emitir el documento por hechos de un mes ya concluido, y hasta
-   * hoy el sistema lo impedía: el día 1 el contador de todos volvía a cero y el
-   * mes anterior se volvía indocumentable para siempre. Doce veces al año.
-   */
-  const [mesTard, setMesTard] = useState<string>(primeroDeMesLima());
-  const borradoresRef = useRef<HTMLDivElement>(null);
-
-  // ── Diálogos que antes eran window.confirm/window.prompt ────────────────
-  // Felipe aprobó migrar los ocho de esta pantalla al Modal compartido: un
-  // diálogo nativo no se puede ni leer con calma ni volver a abrir si el
-  // texto no convenció a la primera, y en varios de estos el texto es la
-  // única explicación de un artículo del RIT antes de un acto que no se
-  // deshace. Cada estado de abajo abre un paso; la llamada de verdad vive en
-  // su "confirmar…" correspondiente, para que "abrir" nunca dispare la RPC.
-  const [confirmandoCargos, setConfirmandoCargos] = useState<Doc | null>(null);
-  const [pidiendoConstancia, setPidiendoConstancia] = useState<Doc | null>(null);
   const [constanciaTexto, setConstanciaTexto] = useState("");
-  const [valorando, setValorando] = useState<{ d: Doc; acogido: string } | null>(null);
+  const [valorando, setValorando] = useState<{ d: DocDisciplina; acogido: string } | null>(null);
   const [valoracionTexto, setValoracionTexto] = useState("");
   const [firmando, setFirmando] = useState<string | null>(null);
-  const [resolviendo, setResolviendo] = useState<{ d: Doc; resultado: "archivado" | "despido" } | null>(null);
+  const [firmanteElegido, setFirmanteElegido] = useState<Record<string, string>>({});
+  const [resolviendo, setResolviendo] = useState<{ d: DocDisciplina; resultado: "" | "archivado" | "despido" } | null>(null);
   const [motivoResolucion, setMotivoResolucion] = useState("");
   const [reabriendo, setReabriendo] = useState<string | null>(null);
   const [anulando, setAnulando] = useState<{ id: string; entregado: boolean } | null>(null);
@@ -340,39 +259,32 @@ export default function DisciplinaPage() {
   const [cerrandoSinEntrega, setCerrandoSinEntrega] = useState<string | null>(null);
   const [motivoCierre, setMotivoCierre] = useState("");
 
-  const supabase = useMemo(() => createAdminSupabaseClient(), []);
+  const modalAbierto = verReglas || subiendoCargo !== null || entregandoSinPapel !== null || confirmandoCargos !== null
+    || declarando !== null || valorando !== null || firmando !== null || resolviendo !== null || reabriendo !== null
+    || anulando !== null || cerrandoSinEntrega !== null;
 
-  const cargar = useCallback(async () => {
+  // ── Carga ──────────────────────────────────────────────────────────────
+  const cargar = useCallback(async (): Promise<DocDisciplina[]> => {
     setCargando(true);
     const { data: sesion } = await supabase.auth.getSession();
-    if (!sesion.session) { router.replace("/admin/login"); return; }
-    const [{ data: t, error: eT }, { data: f, error: eF }, { data: d, error: eD }, { data: p }] = await Promise.all([
-      // Para el mes en curso, sin argumentos: es el camino de siempre. Para uno
-      // cerrado, `p_as_of` en su último día, que es como esta función sabe
-      // mirar hacia atrás desde la 0067.
+    if (!sesion.session) { router.replace("/admin/login"); return []; }
+    const [
+      { data: t, error: eT }, { data: f, error: eF }, { data: d, error: eD },
+      { data: p }, { data: s }, { data: ta },
+    ] = await Promise.all([
+      // Mes en curso: sin argumentos. Uno cerrado: `p_as_of` en su último día (0067).
       supabase.rpc("fn_tardanzas_resumen",
         mesTard === primeroDeMesLima() ? {} : { p_as_of: rangoDelMesLima(mesTard).fin }),
       supabase.rpc("fn_faltas_resumen", {}),
-      supabase.from("expediente_disciplinario")
-        .select("id, persona_id, tipo_causal, nivel, estado, periodo_desde, periodo_hasta, hechos, suspension_dias, suspension_desde, suspension_hasta, suspension_fechas, fecha_cese, resuelto_at, resuelto_resultado, resuelto_motivo, correlativo, creado_at, firmado_at, entregado_at, medio_entrega, entrega_testigo_nombre, cargos_comunicados_at, descargo_vence_at, descargo_acogido, descargo_valoracion, observacion")
-        // ⇩ Entra "entregado": antes desaparecía al entregarse, así que subías el
-        //   cargo y no veías que hubiera quedado. Y no había dónde consultar el
-        //   papel de una entrega de hace dos meses.
-        .in("estado", ["borrador", "firmado", "entregado"])
-        .order("creado_at", { ascending: false }),
-      supabase.from("personas").select("id, nombres, apellidos, estado"),
+      // Todos los estados: anulados y cerrados sin entrega desaparecían de la
+      // pantalla y no había dónde consultarlos.
+      supabase.from("expediente_disciplinario").select(COLUMNAS_DOC).order("creado_at", { ascending: false }),
+      supabase.from("personas").select("id, nombres, apellidos, estado, sede_base_id, fecha_cese"),
+      supabase.from("sedes").select("id, codigo").order("codigo"),
+      supabase.from("tipos_ausencia").select("codigo, nombre"),
     ]);
-    // Los TRES errores, no solo el del legajo.
-    //
-    // Hasta hoy solo se miraba `eD`. Si fn_tardanzas_resumen fallaba, `t` venía
-    // undefined, la lista quedaba vacía y la pantalla imprimía «Nadie con
-    // tardanzas relevantes este mes» — que es lo mismo que dice cuando de
-    // verdad no hay nadie. Un falso negativo MUDO, en la pantalla cuyo único
-    // trabajo es no dejar pasar a nadie. Es la misma forma del hallazgo A12:
-    // la Hoja de sede imprimiéndose en ceros cuando una consulta falla.
-    //
-    // El aviso nombra la sección para que se sepa QUÉ no se pudo mirar: un
-    // «error al cargar» genérico deja igual de ciego que el silencio.
+    // Los TRES errores, cada uno nombrando su sección: un «error al cargar»
+    // genérico deja igual de ciego que el silencio.
     const fallos = [
       eT ? mensajeDeError(eT, "cargar el semáforo de tardanzas") : null,
       eF ? mensajeDeError(eF, "cargar el semáforo de faltas") : null,
@@ -382,163 +294,128 @@ export default function DisciplinaPage() {
     setFalloTard(!!eT);
     setFalloFaltas(!!eF);
     setFalloDocs(!!eD);
-    // El doble casteo no es pereza: `packages/database/src/types.ts` es un
-    // archivo GENERADO y todavía describe la firma anterior de
-    // fn_tardanzas_resumen, sin `sin_medir`. Regenerarlo con el CLI de hoy
-    // reordena las 4.400 líneas del archivo entero, así que se dejó para cuando
-    // toque actualizarlo (anotado en la 0184). Es la misma forma que ya usan
-    // memo/[id], provisiones, politica-salarial y feriados por lo mismo.
-    setTardanzas(Array.isArray(t) ? (t as unknown as TardanzaRow[]) : []);
-    setFaltas(Array.isArray(f) ? (f as FaltaRow[]) : []);
-    const lista = Array.isArray(d) ? (d as unknown as Doc[]) : [];
-    setDocs(lista);
-    const personasList = (p as Array<{ id: string; nombres: string; apellidos: string; estado: string }>) ?? [];
-    setNombres(new Map(personasList.map((x) => [x.id, `${x.nombres} ${x.apellidos}`])));
-    setPersonaEstado(new Map(personasList.map((x) => [x.id, x.estado])));
 
-    // Los firmantes posibles de cada borrador. Solo para borradores: un
-    // documento ya firmado no cambia de firmante. Si alguna consulta falla, esa
-    // fila se queda sin desplegable y se firma con la sesión actual — el mismo
-    // comportamiento de antes, nunca un error en pantalla.
-    // Los cargos ya archivados, para poder consultarlos sin salir del sistema.
-    // Consulta aparte y tolerante: si la tabla no fuera legible, la pantalla
-    // sigue funcionando sin los adjuntos en vez de quedarse en blanco.
+    // Doble casteo: `types.ts` es generado y no describe `sin_medir` (ver 0184).
+    setTardanzas(Array.isArray(t) ? (t as unknown as TardanzaRow[]) : []);
+    setFaltas(Array.isArray(f) ? (f as unknown as FaltaRow[]) : []);
+    const lista = Array.isArray(d) ? (d as unknown as DocDisciplina[]) : [];
+    setDocs(lista);
+
+    const codigoDeSede = new Map(((s ?? []) as { id: string; codigo: string }[]).map((x) => [x.id, x.codigo]));
+    setSedes([...new Set(codigoDeSede.values())]);
+    const personasList = (p ?? []) as Array<{ id: string; nombres: string; apellidos: string; estado: string; sede_base_id: string | null; fecha_cese: string | null }>;
+    setPersonas(new Map(personasList.map((x) => [x.id, {
+      nombre: `${x.nombres} ${x.apellidos}`,
+      sede: (x.sede_base_id && codigoDeSede.get(x.sede_base_id)) || "",
+      estado: x.estado,
+      fechaCese: x.fecha_cese,
+    }])));
+    const tipos = new Map(((ta ?? []) as { codigo: string; nombre: string }[]).map((x) => [x.codigo, x.nombre]));
+    setNombresAusencia(tipos);
+
+    // Consulta aparte y tolerante: sin adjuntos la pantalla sigue funcionando.
     const { data: adj } = await supabase
       .from("expediente_adjuntos")
       .select("id, documento_id, storage_path, tipo, nota, subido_at")
       .order("subido_at", { ascending: false });
     const porDoc = new Map<string, Adjunto[]>();
-    for (const a of (adj as Adjunto[]) ?? []) {
-      porDoc.set(a.documento_id, [...(porDoc.get(a.documento_id) ?? []), a]);
-    }
+    for (const a of (adj as Adjunto[]) ?? []) porDoc.set(a.documento_id, [...(porDoc.get(a.documento_id) ?? []), a]);
     setAdjuntos(porDoc);
 
     const borradores = lista.filter((x) => x.estado === "borrador");
-    const pares = await Promise.all(
-      borradores.map(async (x) => {
+    const [pares, evs, { data: cfg }, { data: sc }] = await Promise.all([
+      Promise.all(borradores.map(async (x) => {
         const { data: fs } = await supabase.rpc("fn_expediente_firmantes", { p_id: x.id });
         return [x.id, Array.isArray(fs) ? (fs as Firmante[]) : []] as const;
-      }),
-    );
+      })),
+      // Borradores y firmados: es donde un día que dejó de valer todavía se
+      // puede frenar. Los demás se leen al abrir el caso.
+      Promise.all(lista.filter((x) => x.estado === "borrador" || x.estado === "firmado").map(async (x) =>
+        [x.id, await evidenciaDeDocumento(supabase, x, lista, tipos)] as const)),
+      supabase.from("configuracion").select("valor").eq("clave", "disciplina_descargo_previo").maybeSingle(),
+      supabase.rpc("fn_sin_constancia_del_reglamento"),
+    ]);
     setFirmantes(Object.fromEntries(pares));
-
-    // La política del descargo previo (mig. 0268). Misma forma que la base:
-    // solo `false` exacto releva del trámite; ausente o raro, se exige.
-    const { data: cfg } = await supabase
-      .from("configuracion").select("valor").eq("clave", "disciplina_descargo_previo").maybeSingle();
+    setEvidencias(new Map(evs));
+    // Misma forma que la base: solo `false` exacto releva del trámite.
     setExigeDescargo((cfg as { valor: unknown } | null)?.valor !== false);
-
-    // Consulta aparte y tolerante: si fallara, la pantalla sigue funcionando
-    // sin el aviso — la base frena igual, que es donde tiene que frenar.
-    const { data: sc } = await supabase.rpc("fn_sin_constancia_del_reglamento");
-    setSinConstancia(new Map(
-      ((sc as { persona_id: string; motivo: string }[]) ?? []).map((x) => [x.persona_id, x.motivo]),
-    ));
+    setSinConstancia(new Map(((sc as { persona_id: string; motivo: string }[]) ?? []).map((x) => [x.persona_id, x.motivo])));
     setCargando(false);
+    return lista;
   }, [supabase, router, mesTard, avisar]);
 
+  // La carga al entrar, con la misma forma que el resto del panel (mio/,
+  // boleta, editar): `cargar` marca «cargando» antes de su primera espera.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void cargar(); }, [cargar]);
 
-  // Atajo desde la alerta del Dashboard: si el hash apunta a una persona
-  // (#tard-ID o #falta-ID), baja hasta su fila en el semáforo y la resalta.
+  // Atajos desde el Dashboard: `#tard-ID` y `#falta-ID` bajan hasta la fila en
+  // «Requieren revisión»; `#entregados` («N memos sin el cargo archivado»)
+  // abre «Por entregar», que es donde viven ahora. Aterrizar y no ver nada es
+  // igual a no haber avisado.
   useEffect(() => {
     if (cargando) return;
     const hash = typeof window !== "undefined" ? window.location.hash.slice(1) : "";
     if (!hash) return;
-    // El aviso del Dashboard («N memos sin el cargo archivado») apunta acá. Los
-    // entregados están plegados por defecto: aterrizar y no ver nada es igual a
-    // no haber avisado.
-    if (hash === "entregados") setVerCerrados(true);
-    const el = document.getElementById(hash);
-    if (!el) return;
-    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-    el.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "center" });
-    setResaltado(hash);
-    const t = setTimeout(() => setResaltado(null), 2800);
-    return () => clearTimeout(t);
+    const t0 = setTimeout(() => {
+      if (hash === "entregados") { setTab("entregar"); return; }
+      if (!hash.startsWith("tard-") && !hash.startsWith("falta-")) return;
+      setTab("revision");
+      setResaltado(hash);
+      requestAnimationFrame(() => {
+        const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+        document.getElementById(hash)?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "center" });
+      });
+    }, 0);
+    const t1 = setTimeout(() => setResaltado(null), 2800);
+    return () => { clearTimeout(t0); clearTimeout(t1); };
   }, [cargando]);
 
+  function abrirCaso(c: CasoAbierto, e?: MouseEvent<HTMLElement>) {
+    if (e) setDisparadorEl(e.currentTarget);
+    setCaso(c);
+  }
+
+  // ── Generar ────────────────────────────────────────────────────────────
   async function generar(tipo: "tardanza" | "falta", personaId: string) {
     setOcupado(personaId);
-    // Las dos RPC dejaron de tener la misma forma: el generador de tardanzas
-    // recibe el mes que se documenta y el de faltas no, porque la escala de
-    // faltas no se cuenta por mes calendario.
+    // El generador de tardanzas recibe el mes; el de faltas no, porque su
+    // escala no se cuenta por mes calendario.
     const { error } = tipo === "tardanza"
-      ? await supabase.rpc("fn_expediente_generar_tardanza",
-          { p_persona_id: personaId, p_mes: mesTard })
+      ? await supabase.rpc("fn_expediente_generar_tardanza", { p_persona_id: personaId, p_mes: mesTard })
       : await supabase.rpc("fn_expediente_generar_falta", { p_persona_id: personaId });
     setOcupado(null);
     if (error) { avisar("error", mensajeDeError(error)); return; }
-    await cargar();
-    avisar("ok", "Borrador generado. Revísalo abajo y fírmalo cuando esté listo.");
-    const suave = typeof window !== "undefined" && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    setTimeout(() => borradoresRef.current?.scrollIntoView({ behavior: suave ? "smooth" : "auto", block: "start" }), 80);
+    const lista = await cargar();
+    const nuevo = lista.find((x) => x.estado === "borrador" && x.persona_id === personaId && x.tipo_causal === tipo);
+    setTab("borradores");
+    setCaso(nuevo ? { tipo: "documento", id: nuevo.id } : null);
+    avisar("ok", "Borrador generado. Revisa la evidencia y sigue el paso que indica.");
   }
 
-  /**
-   * Comunicar los cargos: el acto que abre el plazo de descargo del art. 55.2
-   * del RIT. Hasta que no ocurre, el borrador no se puede firmar.
-   *
-   * Va con confirmación porque el plazo NO se reabre: una vez comunicado,
-   * comunicado. Si se hace por error hay que anular el borrador y generar otro.
-   * `abrirComunicarCargos` solo abre el Modal; la RPC vive en
-   * `confirmarComunicarCargos`, para que abrir el aviso nunca la dispare.
-   */
-  function abrirComunicarCargos(d: Doc) {
-    setConfirmandoCargos(d);
-  }
-
-  async function confirmarComunicarCargos(d: Doc) {
-    setConfirmandoCargos(null);
+  // ── Comunicar cargos (art. 55.2): abre el plazo, que NO se reabre ───────
+  async function confirmarComunicarCargos(d: DocDisciplina) {
     setOcupado(d.id);
-    const { data, error } = await supabase.rpc("fn_expediente_comunicar_cargos", {
-      p_id: d.id, p_dias: 2, p_nota: null,
-    });
+    const { data, error } = await supabase.rpc("fn_expediente_comunicar_cargos", { p_id: d.id, p_dias: 2, p_nota: null });
     setOcupado(null);
     if (error) { avisar("error", mensajeDeError(error)); return; }
+    setConfirmandoCargos(null);
     await cargar();
-    // Sin punto final: `selloLima` ya termina en «p. m.» y el punto detrás se
-    // lee «p. m..».
     avisar("ok", `Cargos comunicados · su plazo de descargo vence el ${selloLima(String(data))}`);
   }
 
   /**
-   * Registrar una comunicación de cargos que YA OCURRIÓ, con su fecha real
-   * (mig. 0266).
-   *
-   * Existe por los borradores que quedaron atrapados mientras esta pantalla no
-   * tuvo el botón de arriba: sus cargos se comunicaron de verdad, pero el
-   * sistema no tenía dónde anotarlo. Volver a comunicarlos daría dos días de
-   * plazo para un descargo que la persona ya tuvo ocasión de dar.
-   *
-   * No adelanta nada: la base sigue exigiendo que el plazo de ESA fecha haya
-   * vencido y que el descargo esté valorado. Lo único que cambia es de dónde
-   * sale la fecha — del reloj, o de alguien que declara y firma con su nombre.
-   *
-   * EL DÍA SE ELIGE EN UN CALENDARIO, NO SE TECLEA (hallazgo 34 de la
-   * auditoría del 2026-09-03/04). Se pedía con `window.prompt` diciendo
-   * «AAAA-MM-DD», y quien escribía 04/09/2026 —el formato normal en Perú— o se
-   * equivocaba en un dígito no veía ningún error: `instanteEntrega` arma un
-   * `Date` inválido y su `toISOString()` revienta DENTRO de los argumentos del
-   * RPC, o sea después de `setOcupado(d.id)` y fuera de todo `catch`. La fila
-   * se quedaba con los botones apagados hasta recargar la página, sin decir
-   * por qué. Es la misma forma del bug de fecha más caro del repositorio.
-   *
-   * Por eso, además del campo, la llamada va envuelta en try/catch/finally:
-   * pase lo que pase, la fila vuelve a su estado normal con un mensaje.
-   *
-   * La constancia —qué dice cómo consta esa comunicación— tampoco se pide
-   * con `window.prompt` (Felipe aprobó migrarlo, como el resto de esta
-   * pantalla): es el segundo paso, en un Modal con `AreaTexto`, y solo se
-   * abre si el día ya pasó las dos validaciones de arriba.
+   * Registrar una comunicación de cargos que YA OCURRIÓ, con su fecha (0266).
+   * No adelanta nada: la base sigue exigiendo que el plazo de ESA fecha venza.
+   * El día se elige en un calendario, no se teclea (hallazgo 34, 2026-09-03).
    */
-  function abrirDeclaracion(d: Doc) {
-    setDeclarando(d.id);
+  function abrirDeclaracion(d: DocDisciplina) {
     setFechaCargos(hoyLima());
+    setConstanciaTexto("");
+    setDeclarando(d);
   }
 
-  function continuarDeclaracion(d: Doc) {
-    // El día sale del estado que pinta el campo, no del DOM ni de un prompt.
+  async function confirmarDeclararCargos(d: DocDisciplina) {
     const dia = fechaCargos;
     if (!/^\d{4}-\d{2}-\d{2}$/.test(dia)) {
       avisar("error", "Elige en el calendario el día en que se le comunicaron los cargos.");
@@ -548,35 +425,18 @@ export default function DisciplinaPage() {
       avisar("error", "Ese día todavía no llega: los cargos no pudieron comunicarse en el futuro.");
       return;
     }
-    setConstanciaTexto("");
-    setPidiendoConstancia(d);
-  }
-
-  async function confirmarDeclararCargos(d: Doc) {
-    const dia = fechaCargos;
-    const constancia = constanciaTexto;
-    if (!constancia || constancia.trim().length < 15) {
+    const constancia = constanciaTexto.trim();
+    if (constancia.length < 15) {
       avisar("error", "Falta decir cómo consta, y con detalle: va a ser la única prueba de que esa comunicación existió.");
       return;
     }
     setOcupado(d.id);
-    // El `finally` es lo que impide que la fila quede congelada: cualquier
-    // fallo entre acá y el final —incluido uno al construir los argumentos—
-    // devuelve los botones a su sitio con un mensaje, en vez de dejarlos
-    // apagados sin explicación hasta recargar.
-    //
-    // Y dentro del `try` va SOLO la llamada. Lo que pasa después —refrescar la
-    // lista, avisar— ya ocurre con la comunicación escrita, así que un fallo
-    // ahí no puede decir «no se pudo registrar»: mandaría a repetirlo, o sea a
-    // teclear la constancia entera otra vez para que la base la rechace por
-    // estar ya comunicada.
+    // Dentro del `try` va SOLO la llamada: un fallo al refrescar no puede decir
+    // «no se pudo registrar» si ya se registró.
     let vence: string;
     try {
-      // `instanteEntrega` fija el mediodía de Lima para un día pasado y nunca
-      // devuelve un instante futuro — el mismo problema que ya resolvía al
-      // archivar un cargo.
       const { data, error } = await supabase.rpc("fn_expediente_declarar_cargos_comunicados", {
-        p_id: d.id, p_fecha: instanteEntrega(dia, null), p_constancia: constancia.trim(), p_dias: 2,
+        p_id: d.id, p_fecha: instanteEntrega(dia, null), p_constancia: constancia, p_dias: 2,
       });
       if (error) { avisar("error", mensajeDeError(error, "registrar la comunicación")); return; }
       vence = String(data);
@@ -586,9 +446,7 @@ export default function DisciplinaPage() {
     } finally {
       setOcupado(null);
     }
-    // Desde acá ya está escrito. Si refrescar falla, se dice eso y no otra cosa.
     setDeclarando(null);
-    setPidiendoConstancia(null);
     const plazo = `Comunicación registrada · su plazo de descargo venció o vence el ${selloLima(vence)}`;
     try {
       await cargar();
@@ -598,30 +456,19 @@ export default function DisciplinaPage() {
     }
   }
 
-  /**
-   * La valoración escrita del descargo, que el art. 19.3 exige que diga si se
-   * acogió y —cuando no— por qué. Sin ella no se puede firmar, aunque no se
-   * haya presentado ningún descargo: que no lo haya también hay que hacerlo
-   * constar.
-   *
-   * "sin_descargo" y "total" no piden nada por escrito y se guardan directo;
-   * "parcial" y "no" sí, y ese texto se pide en un Modal —ya no en
-   * `window.prompt`— porque es el que se lee si alguien discute la sanción.
-   */
-  function elegirValoracion(d: Doc, acogido: string) {
-    if (!acogido) return;
-    if (acogido === "parcial" || acogido === "no") {
-      setValoracionTexto("");
-      setValorando({ d, acogido });
+  // ── Valorar el descargo (19.3): se deja por escrito aunque no haya ─────
+  async function confirmarValorarDescargo() {
+    if (!valorando) return;
+    const { d, acogido } = valorando;
+    if (!acogido) { avisar("error", "Elige cómo se valora el descargo."); return; }
+    const pideTexto = acogido === "parcial" || acogido === "no";
+    if (pideTexto && valoracionTexto.trim().length < 10) {
+      avisar("error", "Hace falta el motivo, y con algo de detalle: es lo que se lee si alguien discute la sanción.");
       return;
     }
-    void confirmarValorarDescargo(d, acogido, null);
-  }
-
-  async function confirmarValorarDescargo(d: Doc, acogido: string, valoracion: string | null) {
     setOcupado(d.id);
     const { error } = await supabase.rpc("fn_expediente_valorar_descargo", {
-      p_id: d.id, p_acogido: acogido, p_valoracion: valoracion,
+      p_id: d.id, p_acogido: acogido, p_valoracion: pideTexto ? valoracionTexto.trim() : null,
     });
     setOcupado(null);
     if (error) { avisar("error", mensajeDeError(error)); return; }
@@ -632,45 +479,43 @@ export default function DisciplinaPage() {
       : "Valoración guardada. Ya se puede firmar.");
   }
 
-  function abrirFirmar(id: string) {
-    setFirmando(id);
+  // ── Firmar ─────────────────────────────────────────────────────────────
+  /** El firmante que MUESTRA el desplegable es el que viaja: antes se mostraba
+   *  el primero de la lista y, si nadie lo tocaba, se mandaba null. */
+  function firmanteDe(id: string): string {
+    const lista = firmantes[id] ?? [];
+    return firmanteElegido[id] ?? lista.find((f) => f.persona_id === yo?.id)?.persona_id ?? lista[0]?.persona_id ?? "";
   }
 
   async function confirmarFirmar(id: string) {
-    const elegido = firmanteElegido[id];
-    setFirmando(null);
+    const elegido = firmanteDe(id);
     setOcupado(id);
-    const { data, error } = await supabase.rpc("fn_expediente_firmar", { p_id: id, p_firmante_id: elegido ?? null });
+    const { data, error } = await supabase.rpc("fn_expediente_firmar", { p_id: id, p_firmante_id: elegido || null });
     setOcupado(null);
     if (error) { avisar("error", mensajeDeError(error)); return; }
+    setFirmando(null);
     await cargar();
+    setTab("entregar");
     avisar("ok", `Firmado — documento ${data ?? ""}. Ya puedes entregarlo.`);
   }
 
-  async function abrirCargo(id: string, tipo: TipoPapel) {
-    setSubiendoCargo({ id, tipo });
+  // ── Papeles: cargo, acta de negativa, descargo ─────────────────────────
+  function abrirCargo(id: string, tipo: TipoPapel, fechaMax?: string) {
     setArchivoCargo(null);
-    setFechaEntrega(hoyLima());
+    setFechaEntrega(fechaMax ?? hoyLima());
     setNotaCargo("");
     setTestigoCargo("");
+    setSubiendoCargo({ id, tipo, fechaMax });
   }
 
   async function guardarCargo() {
     if (!subiendoCargo) return;
-    // La fecha solo se pide cuando esta subida es la que marca la entrega: en un
-    // documento ya entregado la fecha buena es la registrada, y en un acta de
-    // negativa no hay entrega que fechar.
     const doc = docs.find((x) => x.id === subiendoCargo.id) ?? null;
-    // El acta de negativa ENTREGA (num. 55.4: «produce los mismos efectos que
-    // el cargo firmado»). Hasta hoy solo se archivaba y el documento se quedaba
-    // en "firmado" — o sea sin efectos, sin plazos y sin contar para el
-    // escalón siguiente. La negativa a firmar salía gratis.
+    // El acta de negativa ENTREGA (num. 55.4): produce los mismos efectos que
+    // el cargo firmado. Hasta la 0303 solo se archivaba y la negativa salía gratis.
     const actaEntrega = subiendoCargo.tipo === "acta_negativa" && doc?.estado === "firmado";
     const pideFecha = (subiendoCargo.tipo === "cargo_firmado" && doc?.estado === "firmado") || actaEntrega;
-    if (!archivoCargo) {
-      avisar("error", FALTA_PAPEL[subiendoCargo.tipo]);
-      return;
-    }
+    if (!archivoCargo) { avisar("error", FALTA_PAPEL[subiendoCargo.tipo]); return; }
     if (archivoCargo.size > MAX_BYTES_CARGO) {
       avisar("error", `“${archivoCargo.name}” pesa ${(archivoCargo.size / 1048576).toFixed(1)} MB y el máximo es 50 MB.`);
       return;
@@ -679,20 +524,26 @@ export default function DisciplinaPage() {
       avisar("error", "Indica la fecha de entrega: desde ahí corren los plazos de descargo.");
       return;
     }
-    // La base lo rechaza igual, pero enterarse después de subir el archivo es
-    // una vuelta entera para escribir un nombre.
+    if (subiendoCargo.fechaMax && fechaEntrega > subiendoCargo.fechaMax) {
+      avisar("error", `La entrega tiene que ser de un día en que la persona todavía trabajaba: hasta el ${fechaCorta(subiendoCargo.fechaMax)}.`);
+      return;
+    }
     if (actaEntrega && !testigoCargo.trim()) {
       avisar("error", "Escribe el nombre del testigo: el acta la suscriben quien entrega y un testigo (num. 55.4 del RIT). Sin testigo no hay acta, y sin acta no hay entrega.");
       return;
     }
+    // Decisión del 2026-09-15: la negativa pide qué pasó. Viaja en la nota del
+    // adjunto, que es donde la base ya la guarda.
+    if (subiendoCargo.tipo === "acta_negativa" && notaCargo.trim().length < 10) {
+      avisar("error", "Cuenta qué pasó, con algo de detalle: es lo que sostiene la negativa si alguien la discute.");
+      return;
+    }
 
     setOcupado(subiendoCargo.id);
-    // El archivo va a "<id del documento>/…": es lo que valida
-    // fn_expediente_puede_adjuntar, así que no hay forma de colgarlo del memo
-    // equivocado.
+    // "<id del documento>/…" es lo que valida fn_expediente_puede_adjuntar: no
+    // hay forma de colgar el archivo del memo equivocado.
     const ext = archivoCargo.name.split(".").pop()?.toLowerCase() ?? "bin";
     const ruta = `${subiendoCargo.id}/${NOMBRE_ARCHIVO[subiendoCargo.tipo]}-${Date.now()}.${ext}`;
-
     setProgresoCargo(0);
     const fallo = await subirArchivoConProgreso(supabase, "expedientes", ruta, archivoCargo, setProgresoCargo);
     setProgresoCargo(null);
@@ -701,31 +552,19 @@ export default function DisciplinaPage() {
       avisar("error", `El archivo no subió (${fallo}). Vuelve a intentarlo.`);
       return;
     }
-
-    // La fecha de entrega solo viaja si esta subida es la que marca la entrega.
-    // La función la ignoraría igual en un documento ya entregado, pero mandarla
-    // la somete a validaciones que no vienen al caso y podrían rechazar el
-    // archivado de un papel perfectamente válido.
     const { error } = await supabase.rpc("fn_expediente_adjuntar", {
       p_documento_id: subiendoCargo.id,
       p_path: ruta,
       p_tipo: subiendoCargo.tipo,
-      // Solo el cargo firmado entrega por esta vía: fn_expediente_adjuntar
-      // marca 'fisico', que es lo que un papel firmado significa. El acta se
-      // entrega abajo, con su medio propio y su testigo.
+      // Solo el cargo firmado entrega por esta vía (marca 'fisico'). El acta se
+      // entrega abajo, con su medio y su testigo.
       p_fecha_entrega: pideFecha && !actaEntrega ? instanteEntrega(fechaEntrega, doc?.firmado_at ?? null) : null,
       p_nota: notaCargo.trim() || null,
     });
-    if (error) {
-      setOcupado(null);
-      avisar("error", mensajeDeError(error));
-      return;
-    }
+    if (error) { setOcupado(null); avisar("error", mensajeDeError(error)); return; }
 
-    // Segundo paso, y en este orden a propósito: si esto falla, el acta ya está
-    // archivada y el documento sigue en "firmado" — el estado de siempre, del
-    // que se sale reintentando. Al revés dejaría un documento entregado cuyo
-    // acta no está en ninguna parte.
+    // En este orden a propósito: si esto falla, el acta ya está archivada y el
+    // documento sigue «firmado», del que se sale reintentando.
     if (actaEntrega) {
       const { error: falloEntrega } = await supabase.rpc("fn_expediente_entregar", {
         p_id: subiendoCargo.id,
@@ -735,55 +574,57 @@ export default function DisciplinaPage() {
       });
       if (falloEntrega) {
         setOcupado(null);
+        setSubiendoCargo(null);
         await cargar();
-        avisar("error", `El acta quedó archivada, pero el documento NO se marcó entregado (${mensajeDeError(falloEntrega)}). Vuelve a intentarlo desde «entregar sin papel».`);
+        avisar("error", `El acta quedó archivada, pero el documento NO se marcó entregado (${mensajeDeError(falloEntrega)}). Vuelve a intentarlo desde «Entregar sin papel».`);
         return;
       }
     }
     setOcupado(null);
-
+    const tipo = subiendoCargo.tipo;
     setSubiendoCargo(null);
     await cargar();
-    avisar("ok", subiendoCargo.tipo === "acta_negativa"
-        ? actaEntrega
-          ? "Acta archivada y documento ENTREGADO. La negativa a firmar produce los mismos efectos que la firma (num. 55.4), así que desde hoy corren los plazos y cuenta para el escalón siguiente."
-          : "Acta de negativa archivada contra el documento."
-        : subiendoCargo.tipo === "descargo"
-          ? "Descargo archivado en el legajo. Es la pieza que prueba que se respetó el plazo del art. 31."
-          : pideFecha
-            ? "Cargo archivado y documento marcado como entregado. Ya no hace falta guardarlo en ninguna carpeta."
-            : "Cargo archivado contra el documento. La fecha de entrega registrada no cambió.");
+    avisar("ok", tipo === "acta_negativa"
+      ? actaEntrega
+        ? "Acta archivada y documento ENTREGADO. La negativa produce los mismos efectos que la firma (num. 55.4): desde hoy corren los plazos."
+        : "Acta de negativa archivada contra el documento."
+      : tipo === "descargo"
+        ? "Descargo archivado en el legajo. Es la pieza que prueba que se respetó el plazo del art. 31."
+        : pideFecha
+          ? "Cargo archivado y documento marcado como entregado."
+          : "Cargo archivado contra el documento. La fecha de entrega registrada no cambió.");
   }
 
-  /**
-   * Cerrar el procedimiento del art. 31 diciendo qué se resolvió (mig. 0206).
-   *
-   * NO es anular. Anular borra un documento que sí se entregó y sí produjo
-   * efectos; resolver lo deja donde está y solo anota la decisión. Mientras no
-   * se resuelva, el semáforo seguirá pidiendo esa decisión durante doce meses.
-   */
-  function abrirResolver(d: Doc, resultado: "archivado" | "despido") {
-    setMotivoResolucion("");
-    setResolviendo({ d, resultado });
+  async function verAdjunto(path: string) {
+    // URL firmada de vida corta: el bucket es privado.
+    const fallo = await abrirArchivoFirmado(supabase, "expedientes", path);
+    if (fallo) avisar("error", fallo);
   }
 
+  // ── Entregar sin papel: una entrega por correo certificado es válida y su
+  //    cargo llega días después. Sigue existiendo, pero no es el atajo. ────
+  async function confirmarEntregar() {
+    if (!entregandoSinPapel) return;
+    const id = entregandoSinPapel.id;
+    setOcupado(id);
+    const { error } = await supabase.rpc("fn_expediente_entregar", { p_id: id, p_medio: medio });
+    setOcupado(null);
+    if (error) { avisar("error", mensajeDeError(error)); return; }
+    setEntregandoSinPapel(null);
+    await cargar();
+    avisar("ok", "Marcado como entregado. Sube el cargo firmado cuando llegue.");
+  }
+
+  // ── Resolver una imputación (art. 31): NO es anular ─────────────────────
   async function confirmarResolver() {
     if (!resolviendo) return;
     const { d, resultado } = resolviendo;
-    if (!motivoResolucion || motivoResolucion.trim().length < 10) {
+    if (!resultado) { avisar("error", "Elige qué se resolvió."); return; }
+    if (motivoResolucion.trim().length < 10) {
       avisar("error", "Explica la decisión con al menos 10 caracteres: es lo que sostiene el expediente si alguien lo revisa.");
       return;
     }
     setOcupado(d.id);
-    // ⚠️ ESTE COMENTARIO YA NO ERA VERDAD, y se corrige el 2026-08-14. Decía que
-    // `packages/database/src/types.ts` no conocía `fn_expediente_resolver` y que
-    // regenerarlo rompía Ausencias, Correcciones y Datos personales. Lo primero
-    // es falso desde que alguien regeneró: está en `types.ts:3531`, con la
-    // convención correcta. Lo segundo pudo ser cierto entonces y hoy no se puede
-    // comprobar sin volver a medirlo.
-    //
-    // Importa porque este comentario es el manual que va a leer quien choque con
-    // el siguiente error de tipos, y le estaba diciendo que no regenerara.
     const { error } = await supabase.rpc("fn_expediente_resolver", {
       p_id: d.id, p_resultado: resultado, p_motivo: motivoResolucion.trim(),
     });
@@ -796,82 +637,31 @@ export default function DisciplinaPage() {
       : "Anotado que se resolvió con despido. La carta se emite aparte.");
   }
 
-  async function verAdjunto(path: string) {
-    // URL firmada de vida corta: el bucket es privado y estos papeles son los
-    // más delicados del sistema.
-    const fallo = await abrirArchivoFirmado(supabase, "expedientes", path);
-    if (fallo) avisar("error", fallo);
-  }
-
-  async function entregar(id: string) {
-    const m = medio[id] ?? "fisico";
-    setOcupado(id);
-    const { error } = await supabase.rpc("fn_expediente_entregar", { p_id: id, p_medio: m });
-    setOcupado(null);
-    if (error) { avisar("error", mensajeDeError(error)); return; }
-    await cargar();
-    avisar("ok", "Marcado como entregado. Guarda el cargo firmado en el legajo.");
-  }
-
   /**
-   * Fijar los días de una suspensión.
-   *
-   * Los días de suspensión son días LABORABLES DE ESA PERSONA (mig. 0075). Tres
-   * días desde un jueves, trabajando de lunes a viernes, son jueves, viernes y
-   * lunes: se salta el descanso, no se lo regala. Una suspensión sin goce que
-   * cae en el día libre no es una sanción — la persona no deja de trabajar nada
-   * ni deja de cobrar nada.
-   *
-   * Esta función sumaba días de CALENDARIO. El 25/07/2026 eso convirtió una
-   * suspensión de tres días en una de uno, porque cayó en sábado, y el memo
-   * impreso declaró tres. El cálculo vive ahora en la base y no acá: decide
-   * cuánto deja de cobrar una persona y no puede depender de qué pantalla lo
-   * pida.
-   *
-   * El camino viejo se conserva SOLO como red: si `fn_expediente_set_suspension`
-   * no existe en esta base —la 0075 se aplicó a mano y su estado en producción
-   * no está confirmado— la pantalla seguiría pudiendo fijar los días, pero
-   * diciendo en voz alta que el rango puede incluir descansos. Sin esa red, una
-   * base sin la 0075 dejaría la suspensión sin poder editarse.
+   * Fijar los días de una suspensión. Son días LABORABLES DE ESA PERSONA (0075):
+   * el 25/07/2026 contar días de calendario convirtió una suspensión de tres
+   * días en una de uno. El cálculo vive en la base. El camino viejo queda solo
+   * como red por si esta base no tiene `fn_expediente_set_suspension`.
    */
-  async function guardarDias(d: Doc, dias: number, desdeElegido?: string) {
+  async function guardarDias(d: DocDisciplina, dias: number, desdeElegido?: string) {
     if (dias < 1) return;
-    // La fecha la puede fijar quien tramita. Antes solo se podía cambiar el
-    // NÚMERO de días: el día de inicio quedaba como lo dejó el generador del
-    // borrador, y si la firma se retrasaba, la suspensión caía en días ya
-    // trabajados. Es el defecto que obligó a anular la T-02/0001 en julio.
     const desde = desdeElegido ?? d.suspension_desde ?? addDias(hoyLima(), 1);
     setOcupado(d.id);
-
-    const { data, error } = await supabase.rpc("fn_expediente_set_suspension", {
-      p_id: d.id, p_dias: dias, p_desde: desde,
-    });
-
-    // PGRST202 = PostgREST no encuentra la función. Cualquier otro error es un
-    // error de verdad y se muestra tal cual.
-    if (error && error.code !== "PGRST202") {
-      setOcupado(null);
-      avisar("error", mensajeDeError(error));
-      return;
-    }
-
+    const { data, error } = await supabase.rpc("fn_expediente_set_suspension", { p_id: d.id, p_dias: dias, p_desde: desde });
+    // PGRST202 = PostgREST no encuentra la función.
+    if (error && error.code !== "PGRST202") { setOcupado(null); avisar("error", mensajeDeError(error)); return; }
     if (!error) {
       setOcupado(null);
       const fechas = (data as Array<{ fecha: string }> | null)?.map((x) => x.fecha) ?? [];
-      const salta = fechas.length > 1
-        && addDias(fechas[0], fechas.length - 1) !== fechas[fechas.length - 1];
+      const salta = fechas.length > 1 && addDias(fechas[0], fechas.length - 1) !== fechas[fechas.length - 1];
       await cargar();
       if (fechas.length) {
         avisar("ok", salta
           ? `Suspensión fijada en ${fechas.map(fechaCorta).join(", ")} — se saltan sus días de descanso, que no cuentan como sanción.`
-          // Sin punto final: `fechaCorta` ya termina en punto («18-ago.») y el
-          // segundo se lee como una errata.
           : `Suspensión fijada en ${fechas.map(fechaCorta).join(", ")}`);
       }
       return;
     }
-
-    // Red: esta base no tiene la 0075.
     const { error: eViejo } = await supabase.rpc("fn_expediente_editar_borrador", {
       p_id: d.id, p_suspension_dias: dias, p_suspension_desde: desde, p_suspension_hasta: addDias(desde, dias - 1),
     });
@@ -882,55 +672,35 @@ export default function DisciplinaPage() {
       + "Comprueba a mano que ninguno caiga en su día de descanso — si cae, la suspensión no se cumple ese día y el memo diría algo falso.");
   }
 
-  /** La fecha de cese que declarará la carta de despido (art. 32 LPCL, mig. 0205). */
-  async function guardarFechaCese(d: Doc, fecha: string) {
+  /** La fecha de cese que declarará la carta de despido (art. 32 LPCL, 0205). */
+  async function guardarFechaCese(d: DocDisciplina, fecha: string) {
     if (!fecha || fecha === d.fecha_cese) return;
     setOcupado(d.id);
-    const { error } = await supabase.rpc("fn_expediente_editar_borrador", {
-      p_id: d.id, p_fecha_cese: fecha,
-    });
+    const { error } = await supabase.rpc("fn_expediente_editar_borrador", { p_id: d.id, p_fecha_cese: fecha });
     setOcupado(null);
     if (error) { avisar("error", mensajeDeError(error)); return; }
     await cargar();
     avisar("ok", `Fecha de cese fijada en ${fechaCorta(fecha)}. Es la que imprimirá la carta.`);
   }
 
-  // Volver un memo firmado a borrador para cambiar quién lo suscribe (mig. 0131).
-  // Solo mientras no se haya entregado: una vez entregado se anula, no se reabre.
-  function abrirReabrir(id: string) {
-    setReabriendo(id);
-  }
-
+  // ── Cambiar firmante: vuelve a borrador (0131). Solo mientras no se entregue.
   async function confirmarReabrir(id: string) {
-    setReabriendo(null);
     setOcupado(id);
     const { error } = await supabase.rpc("fn_expediente_reabrir", { p_id: id });
     setOcupado(null);
     if (error) { avisar("error", mensajeDeError(error)); return; }
+    setReabriendo(null);
     await cargar();
-    avisar("ok", "Vuelto a borrador. Arriba, en Borradores, elige el firmante correcto y fírmalo de nuevo.");
+    setTab("borradores");
+    avisar("ok", "Vuelto a borrador. Elige el firmante correcto y fírmalo de nuevo.");
   }
 
   /**
-   * Anular un documento.
-   *
-   * `entregado` decide el aviso, y la diferencia es real: anular un BORRADOR no
-   * lo ha visto nadie; anular algo ENTREGADO retira un papel que una persona ya
-   * tiene en la mano, y hay que decírselo. El sistema no puede hacer esa parte.
-   * El Modal muestra esa advertencia solo cuando `entregado` es cierto, y el
-   * motivo lo pide siempre — las dos cosas que antes eran un `window.confirm`
-   * seguido de un `window.prompt` se piden ahora en un solo paso.
-   *
-   * Se ofrece también en «Entregados» y no solo en «Borradores» porque a veces
-   * el defecto se descubre después. Pasó el 2026-08-13: una imputación de cargos
-   * emitida saltándose el escalón d) del art. 19.2 del RIT, entregada tres días
-   * antes de que nadie lo viera. La base siempre lo permitió —
-   * `fn_expediente_anular` no mira el estado— pero la pantalla no lo ofrecía, así
-   * que el único camino visible era «archivar sin sancionar», que NO es lo mismo:
-   * archivar deja el escalón en «imputación» y perpetúa el salto; anular lo
-   * devuelve al peldaño que de verdad tocaba.
+   * Anular. Distinto de archivar: anular devuelve el escalón al peldaño que
+   * tocaba; archivar lo deja donde está. Anular algo ENTREGADO retira un papel
+   * que la persona ya tiene, y hay que decírselo por escrito.
    */
-  function abrirAnular(id: string, entregado = false) {
+  function abrirAnular(id: string, entregado: boolean) {
     setMotivoAnular("");
     setAnulando({ id, entregado });
   }
@@ -938,7 +708,7 @@ export default function DisciplinaPage() {
   async function confirmarAnular() {
     if (!anulando) return;
     const { id, entregado } = anulando;
-    if (!motivoAnular || motivoAnular.trim().length < 3) {
+    if (motivoAnular.trim().length < 3) {
       avisar("error", "Escribe el motivo de la anulación: queda registrado en el documento.");
       return;
     }
@@ -954,82 +724,40 @@ export default function DisciplinaPage() {
   }
 
   /**
-   * Cerrar sin entrega: la persona cesó antes de que se le pudiera entregar
-   * el documento firmado.
-   *
-   * No es lo mismo que anular: el documento sí era válido, solo que ya no
-   * tiene a quién notificarse. `fn_expediente_cerrar_sin_entrega` exige que la
-   * persona ya esté cesada — mientras siga activa, el camino sigue siendo
-   * entregarle el documento (mig. 0412).
+   * Cerrar sin entrega (0412): la persona cesó antes de que se le pudiera
+   * entregar. No es anular: el documento sí era válido. Desde el 2026-09-15 el
+   * motivo es obligatorio en la pantalla; la base lo guarda en `observacion`.
    */
-  function abrirCerrarSinEntrega(id: string) {
-    setMotivoCierre("");
-    setCerrandoSinEntrega(id);
-  }
-
   async function confirmarCerrarSinEntrega() {
     if (!cerrandoSinEntrega) return;
     const id = cerrandoSinEntrega;
+    if (motivoCierre.trim().length < 10) {
+      avisar("error", "Explica por qué no se le entregó, con algo de detalle: es lo único que queda de este documento.");
+      return;
+    }
     setOcupado(id);
-    const { error } = await supabase.rpc("fn_expediente_cerrar_sin_entrega", {
-      p_id: id, p_motivo: motivoCierre.trim() || null,
-    });
+    const { error } = await supabase.rpc("fn_expediente_cerrar_sin_entrega", { p_id: id, p_motivo: motivoCierre.trim() });
     setOcupado(null);
     if (error) { avisar("error", mensajeDeError(error)); return; }
     setCerrandoSinEntrega(null);
     await cargar();
-    avisar("ok", "Cerrado sin entrega. Queda el rastro en el legajo.");
+    avisar("ok", "Cerrado sin entrega. Queda en el historial con tu motivo.");
   }
 
-  const borradores = docs.filter((d) => d.estado === "borrador");
-  const entregados = docs.filter((d) => d.estado === "entregado");
-  const firmados = docs.filter((d) => d.estado === "firmado");
-  // Con qué causal ya tiene un borrador esperando firma. El generador de la
-  // base ya lo rechaza (`fn_expediente_generar_tardanza`/`_falta`: "Ya hay un
-  // borrador... pendiente"), pero el botón de acá seguía ofreciéndose igual —
-  // pulsarlo solo podía terminar en ese error. Mismo principio que ya se
-  // aplica a `bloqueado` más abajo: no se ofrece un botón que solo puede dar
-  // error.
-  const pendientePorCausal = new Set(borradores.map((d) => `${d.persona_id}:${d.tipo_causal}`));
-
   /**
-   * El rango de días que el Reglamento admite para ESTE documento.
-   *
-   * El numeral 54.5 topa toda suspensión en tres días. Sobre ese techo, la
-   * escala de impuntualidad gradúa: la primera es de uno a dos (19.2 c) y la
-   * segunda tiene que ser MAYOR que la primera (19.2 d). La escala de faltas no
-   * gradúa —tiene un solo peldaño de suspensión— así que ahí solo rige el techo.
-   *
-   * Es la misma cuenta que hace `fn_expediente_set_suspension` (mig. 0294), y se
-   * repite acá con un fin distinto: que el campo OFREZCA lo que se puede pedir,
-   * en vez de dejar teclear un número que vuelve rechazado. Un `max` de HTML no
-   * impide nada por sí solo —no hay formulario que validar, hay un `onBlur` que
-   * llama a la RPC— así que esto es el letrero, y la base es el candado.
+   * El rango de días que el Reglamento admite para ESTA suspensión: techo de
+   * tres (54.5); la primera por tardanzas de uno a dos (19.2 c), la segunda
+   * mayor que la primera (19.2 d). La misma cuenta que hace la base (0294),
+   * para que el campo OFREZCA lo que se puede pedir. La referencia es el cierre
+   * del periodo que el documento cubre (19.1 c), no «hoy».
    */
-  function rangoSuspension(d: Doc): { min: number; max: number; previa: number | null } {
-    // La referencia es el CIERRE DEL PERIODO QUE ESTE DOCUMENTO CUBRE, no «hoy».
-    //
-    // El numeral 19.1 c) dice que el antecedente agrava si fue notificado dentro
-    // de los doce meses anteriores AL HECHO QUE SE EVALÚA. Documentando un mes
-    // ya cerrado —que desde el art. 19.4 se puede— una suspensión entregada
-    // DESPUÉS de ese mes no puede graduar unos hechos que, cuando ocurrieron, no
-    // la tenían encima. Medirlo contra `Date.now()` le sumaba un día sin goce a
-    // alguien por un atraso de la empresa en entregar el documento anterior.
-    //
-    // El instante sale de `rangoDelDiaLima`: el desfase de Lima no se escribe
-    // a mano en ningún sitio fuera de `fecha-lima.ts`.
-    // Sin periodo declarado —un borrador que aún no lo tiene— la referencia es
-    // el cierre de HOY en Lima, no `Date.now()`: el instante del navegador no
-    // es el corte del día de este sistema, y además `Date.now()` en render es
-    // impuro y el linter lo rechaza con razón.
+  function rangoSuspension(d: DocDisciplina): { min: number; max: number; previa: number | null } {
     const ref = Date.parse(rangoDelDiaLima(d.periodo_hasta ?? hoyLima()).fin);
     const doceMeses = ref - 365 * 24 * 60 * 60 * 1000;
     const dias = docs
       .filter((x) => x.persona_id === d.persona_id && x.tipo_causal === d.tipo_causal
         && x.nivel === "suspension" && x.estado === "entregado" && x.id !== d.id
-        && x.entregado_at !== null
-        && Date.parse(x.entregado_at) >= doceMeses
-        && Date.parse(x.entregado_at) <= ref)
+        && x.entregado_at !== null && Date.parse(x.entregado_at) >= doceMeses && Date.parse(x.entregado_at) <= ref)
       .map((x) => x.suspension_dias ?? 0);
     const previa = dias.length ? Math.max(...dias) : null;
     if (d.tipo_causal !== "tardanza") return { min: 1, max: 3, previa };
@@ -1047,670 +775,605 @@ export default function DisciplinaPage() {
     );
   }
 
-  /** Si el plazo de descargo sigue corriendo. Se mira contra el reloj del
- *  navegador solo para PINTAR: quien decide es la base, que rechaza la firma
- *  mientras el plazo no haya vencido. Si los dos discreparan por unos minutos,
- *  el peor caso es un botón que aparece y da error, no una sanción inválida. */
-const plazoAbierto = (d: Doc) =>
-  d.descargo_vence_at !== null && new Date(d.descargo_vence_at) > new Date();
+  // ── Qué se ve ──────────────────────────────────────────────────────────
+  const q = normalizarBusqueda(busqueda);
+  const pasa = (nombre: string, sede: string) =>
+    (!q || normalizarBusqueda(nombre).includes(q)) && (!sedeFiltro || sede === sedeFiltro);
+  const infoDe = (id: string) => personas.get(id);
+  const nombreDe = (id: string) => infoDe(id)?.nombre ?? "—";
+  const nombreMes = nombreDelMesLima(mesTard);
+  const pendientePorCausal = new Set(docs.filter((d) => d.estado === "borrador").map((d) => `${d.persona_id}:${d.tipo_causal}`));
 
-function fechasDe(h: Hecho[]): string {
-    if (!Array.isArray(h) || h.length === 0) return "—";
-    return h.map((x) => fechaCorta(x.fecha) + (x.minutos != null ? ` (${x.minutos}′)` : "")).join(" · ");
+  const detecciones: FilaDeteccion[] = [
+    ...tardanzas.filter((t) => pasa(t.nombre, t.sede)).map((t): FilaDeteccion => {
+      const s = situacionTardanza(t, nombreMes, pendientePorCausal.has(`${t.persona_id}:tardanza`));
+      return {
+        clave: `tard-${t.persona_id}`, tipo: "tardanza", personaId: t.persona_id, nombre: t.nombre, sede: t.sede, situacion: s,
+        motivo: `Tardanzas · ${nombreMes}`,
+        progreso: t.minimo !== null
+          ? <Progreso n={t.tardanzas_mes} de={t.minimo} alcanzado={s.grupo === "alcanzo"} />
+          : <span className="tabular-nums">{t.tardanzas_mes}</span>,
+      };
+    }),
+    ...faltas.filter((f) => pasa(f.nombre, f.sede)).map((f): FilaDeteccion => ({
+      clave: `falta-${f.persona_id}`, tipo: "falta", personaId: f.persona_id, nombre: f.nombre, sede: f.sede,
+      situacion: situacionFalta(f, pendientePorCausal.has(`${f.persona_id}:falta`)),
+      motivo: "Faltas · 180 días",
+      progreso: <span className="tabular-nums text-xs">{f.consecutivas} seguidas · {f.en_30} en 30 d · {f.en_180} en 180 d</span>,
+    })),
+  ];
+  const alcanzaron = detecciones.filter((x) => x.situacion.grupo === "alcanzo");
+  const seguimiento = detecciones.filter((x) => x.situacion.grupo === "seguimiento");
+
+  const docsVisibles = docs.filter((d) => pasa(nombreDe(d.persona_id), infoDe(d.persona_id)?.sede ?? ""));
+  const porPestana = (p: Pestana) => docsVisibles.filter((d) => pestanaDelDocumento(d, adjuntos.get(d.id) ?? []) === p);
+  const borradores = porPestana("borradores");
+  const porEntregar = porPestana("entregar");
+  const firmados = porEntregar.filter((d) => d.estado === "firmado");
+  const entregadosPendientes = porEntregar.filter((d) => d.estado === "entregado");
+  const historial = porPestana("historial").sort((a, b) =>
+    Date.parse(b.entregado_at ?? b.firmado_at ?? b.creado_at) - Date.parse(a.entregado_at ?? a.firmado_at ?? a.creado_at));
+  const hayFiltro = q !== "" || sedeFiltro !== "";
+
+  // ── Acciones de cada documento, según su estado ────────────────────────
+  // Las mismas en la fila y en el panel: dos listas para el mismo documento
+  // terminan ofreciendo cosas distintas.
+  function accionesDeDocumento(d: DocDisciplina): Acciones {
+    const papeles = adjuntos.get(d.id) ?? [];
+    const info = infoDe(d.persona_id);
+    const ocup = ocupado === d.id;
+    const memo: Accion = { etiqueta: "Ver memo", alPulsar: () => router.push(`/admin/disciplina/memo/${d.id}`) };
+    const verPapeles: Accion[] = papeles.map((a) => ({ etiqueta: ETIQUETA_PAPEL[a.tipo] ?? "Ver papel", alPulsar: () => void verAdjunto(a.storage_path) }));
+    const anular: Accion[] = puedeAnular
+      ? [{ etiqueta: d.estado === "borrador" ? "Anular borrador" : "Anular documento", alPulsar: () => abrirAnular(d.id, d.estado === "entregado"), variante: "peligro", disabled: ocup }]
+      : [];
+
+    if (d.estado === "borrador") {
+      const etapa = etapaDelBorrador(d, exigeDescargo);
+      const desfase = (evidencias.get(d.id)?.noCuentan ?? 0) > 0;
+      const menu: Acciones["menu"] = [memo];
+      let principal: Accion | null = null;
+      let estado: string | null = null;
+      if (etapa === "comunicar") {
+        principal = { etiqueta: "Comunicar cargos", alPulsar: () => setConfirmandoCargos(d), variante: "primario", disabled: ocup || desfase, title: desfase ? TXT_DESFASE : undefined };
+        // Para lo que ya ocurrió: el camino normal es comunicar hoy.
+        menu.push({ etiqueta: "Ya se lo comuniqué", alPulsar: () => abrirDeclaracion(d), disabled: ocup || desfase });
+      } else if (etapa === "esperando") {
+        estado = `Descargo hasta ${d.descargo_vence_at ? selloLima(d.descargo_vence_at) : "—"}`;
+      } else if (etapa === "valorar") {
+        principal = { etiqueta: "Valorar descargo", alPulsar: () => { setValoracionTexto(""); setValorando({ d, acogido: "" }); }, variante: "primario", disabled: ocup };
+      } else {
+        // `=== 0` y no `?? []`: la clave ausente es «todavía no se preguntó», y
+        // ahí se deja pasar para que decida la base (art. 54.4 c).
+        const sinFirmante = firmantes[d.id]?.length === 0;
+        principal = {
+          etiqueta: "Firmar", alPulsar: () => setFirmando(d.id), variante: "primario", disabled: ocup || sinFirmante || desfase,
+          title: desfase ? TXT_DESFASE : sinFirmante ? `Un documento de nivel ${(NIVEL_LABEL[d.nivel] ?? d.nivel).toLowerCase()} no lo puedes suscribir tú (art. 54.4 del Reglamento).` : undefined,
+        };
+      }
+      if (anular.length) menu.push("separador", ...anular);
+      return { principal, estado, menu };
+    }
+
+    if (d.estado === "firmado") {
+      // Persona cesada: lo que asume que sigue ahí para recibirlo no se ofrece.
+      if (info?.estado === "inactivo") {
+        const menu: Acciones["menu"] = [memo];
+        if (admiteEntregaAnteriorAlCese(d, info.fechaCese)) {
+          menu.push({ etiqueta: "Registrar entrega anterior al cese", alPulsar: () => abrirCargo(d.id, "cargo_firmado", ultimoDiaDeEntrega(info.fechaCese!)), disabled: ocup });
+        }
+        return {
+          principal: { etiqueta: "Cerrar sin entrega", alPulsar: () => { setMotivoCierre(""); setCerrandoSinEntrega(d.id); }, variante: "primario", disabled: ocup },
+          estado: null, menu,
+        };
+      }
+      return {
+        principal: { etiqueta: "Subir cargo firmado", alPulsar: () => abrirCargo(d.id, "cargo_firmado"), variante: "primario", disabled: ocup },
+        estado: null,
+        menu: [
+          memo,
+          { etiqueta: "Registrar negativa a firmar", alPulsar: () => abrirCargo(d.id, "acta_negativa"), disabled: ocup },
+          { etiqueta: "Entregar sin papel", alPulsar: () => { setMedio("fisico"); setEntregandoSinPapel(d); }, disabled: ocup },
+          "separador",
+          { etiqueta: "Cambiar firmante", alPulsar: () => setReabriendo(d.id), disabled: ocup },
+        ],
+      };
+    }
+
+    if (d.estado === "entregado") {
+      const pend = pendientesDeEntregado(d, papeles);
+      const menu: Acciones["menu"] = [...verPapeles];
+      let principal: Accion | null = null;
+      if (pend.includes("cargo")) principal = { etiqueta: "Subir cargo", alPulsar: () => abrirCargo(d.id, "cargo_firmado"), variante: "primario", disabled: ocup };
+      // Solo la imputación abre un plazo de descargo, así que solo ella lo pide.
+      if (d.nivel === "imputacion" && !papeles.some((a) => a.tipo === "descargo")) {
+        menu.push({ etiqueta: "Subir su descargo", alPulsar: () => abrirCargo(d.id, "descargo"), disabled: ocup });
+      }
+      if (pend.includes("resolver")) {
+        const resolver: Accion = { etiqueta: "Registrar la decisión", alPulsar: () => { setMotivoResolucion(""); setResolviendo({ d, resultado: "" }); }, disabled: ocup };
+        if (principal) menu.push(resolver); else principal = { ...resolver, variante: "primario" };
+      }
+      if (principal) menu.unshift(memo); else principal = { ...memo, variante: "secundario" };
+      if (anular.length) menu.push("separador", ...anular);
+      return { principal, estado: null, menu };
+    }
+
+    // Anulado o cerrado sin entrega: solo consulta.
+    return { principal: { ...memo, variante: "secundario" }, estado: null, menu: [] };
   }
 
+  function pintarAcciones(a: Acciones, verCaso?: () => void): ReactNode {
+    const menu = a.menu.filter((m) => m === "separador" || !m.disabled);
+    // Sin separadores sueltos al principio o al final.
+    while (menu[0] === "separador") menu.shift();
+    while (menu[menu.length - 1] === "separador") menu.pop();
+    return (
+      <>
+        {a.estado && <span className="text-xs text-taupe">{a.estado}</span>}
+        {a.principal && (
+          <Boton variante={a.principal.variante ?? "secundario"} tamano="sm" onClick={(e) => a.principal!.alPulsar(e)}
+            disabled={a.principal.disabled} title={a.principal.title}>
+            {a.principal.etiqueta}
+          </Boton>
+        )}
+        {(menu.length > 0 || verCaso) && (
+          <Menu trigger={({ abierto, alternar }) => (
+            <Boton variante="sutil" tamano="sm" aria-label="Más acciones" aria-haspopup="menu" aria-expanded={abierto} onClick={alternar}>
+              <span aria-hidden>⋯</span>
+            </Boton>
+          )}>
+            {verCaso && <MenuItem onClick={verCaso}>Ver el caso completo</MenuItem>}
+            {menu.map((m, i) => m === "separador"
+              ? <div key={i} role="separator" className="my-1 border-t border-sand" />
+              : <MenuItem key={i} onClick={() => m.alPulsar()} variante={m.variante === "peligro" ? "peligro" : "normal"}>{m.etiqueta}</MenuItem>)}
+          </Menu>
+        )}
+      </>
+    );
+  }
+
+  const encabezados = (a: string, b: string, c: string, d: string): Encabezado[] => [
+    { texto: "Persona" }, { texto: "Sede", secundaria: true }, { texto: a }, { texto: b }, { texto: c }, { texto: d, derecha: true },
+  ];
+
+  // Una función que devuelve celdas, no un componente: un componente definido
+  // dentro de la página se volvería a montar entero en cada render.
+  function celdaPersona(id: string, nombre: string, sede: string, alAbrir: (e: MouseEvent<HTMLElement>) => void, cesada = false) {
+    return (
+      <>
+        <Celda>
+          <button type="button" onClick={alAbrir} data-persona={id}
+            className="text-left font-medium text-tinta underline decoration-sand decoration-2 underline-offset-4 hover:decoration-taupe">
+            {nombre}
+          </button>
+          {cesada && <Insignia variante="advertencia" tamano="sm" className="ml-2">cesó</Insignia>}
+          {sede && <span className="text-xs text-taupe lg:hidden"> · {sede}</span>}
+        </Celda>
+        <Celda secundaria><span className="hidden text-taupe lg:inline">{sede || "—"}</span></Celda>
+      </>
+    );
+  }
+
+  // ── El caso abierto ────────────────────────────────────────────────────
+  const docAbierto = caso?.tipo === "documento" ? docs.find((d) => d.id === caso.id) ?? null : null;
+  const tardAbierta = caso?.tipo === "tardanza" ? tardanzas.find((t) => t.persona_id === caso.personaId) ?? null : null;
+  const faltaAbierta = caso?.tipo === "falta" ? faltas.find((f) => f.persona_id === caso.personaId) ?? null : null;
+  const deteccionAbierta = caso && caso.tipo !== "documento" ? detecciones.find((x) => x.clave === `${caso.tipo === "tardanza" ? "tard" : "falta"}-${caso.personaId}`) ?? null : null;
+  const personaAbierta = docAbierto?.persona_id ?? (caso && caso.tipo !== "documento" ? caso.personaId : null);
+
+  let accionesPanel: ReactNode = null;
+  if (docAbierto) {
+    accionesPanel = <div className="flex flex-wrap items-center gap-2">{pintarAcciones(accionesDeDocumento(docAbierto))}</div>;
+  } else if (caso && caso.tipo !== "documento") {
+    const s = deteccionAbierta?.situacion;
+    const tipo = caso.tipo;
+    const pid = caso.personaId;
+    accionesPanel = (
+      <div className="flex flex-wrap items-center gap-3">
+        <Boton variante="primario" onClick={() => void generar(tipo, pid)} disabled={!s?.generable} cargando={ocupado === pid}>
+          Generar borrador
+        </Boton>
+        <p className="min-w-0 flex-1 basis-60 text-xs text-taupe">
+          {s?.generable
+            ? "Crea un borrador sin número con estas pruebas. No comunica ni firma nada todavía."
+            : s?.porQueNo ?? "Esta persona ya no aparece en el semáforo."}
+        </p>
+      </div>
+    );
+  }
+
+  let editoresPanel: ReactNode = null;
+  if (docAbierto?.estado === "borrador" && docAbierto.nivel === "despido") {
+    const d = docAbierto;
+    editoresPanel = (
+      // El art. 32 de la LPCL exige que la carta diga la causa Y la fecha de
+      // cese. Se fija en el borrador: después de firmar ya no se edita.
+      <label className="flex flex-wrap items-center gap-2 text-taupe">
+        Fecha de cese (art. 32):
+        <input key={`cese-${d.id}-${d.fecha_cese}`} type="date" defaultValue={d.fecha_cese ?? ""}
+          onBlur={(e) => void guardarFechaCese(d, e.target.value)}
+          className="rounded-control border border-sand bg-hueso px-2 py-1 text-tinta" />
+        {!d.fecha_cese && <span className="text-rojo-profundo">sin fecha, la carta saldría incompleta</span>}
+      </label>
+    );
+  } else if (docAbierto?.estado === "borrador" && docAbierto.nivel === "suspension") {
+    const d = docAbierto;
+    const r = rangoSuspension(d);
+    const fuera = d.suspension_dias !== null && (d.suspension_dias < r.min || d.suspension_dias > r.max);
+    editoresPanel = (
+      <div className="grid gap-2 rounded-control border border-sand p-3 text-taupe">
+        <label className="flex flex-wrap items-center gap-2">
+          Días de suspensión:
+          {/* Un `max` de HTML no impide nada: el candado está en la base (0294).
+              `onWheel` con blur porque la rueda del mouse cambia el número al
+              hacer scroll — una forma de mover días de sueldo sin querer. */}
+          <input key={`dias-${d.id}-${d.suspension_dias}`} type="number" min={r.min} max={r.max} defaultValue={d.suspension_dias ?? r.min}
+            onWheel={(e) => e.currentTarget.blur()}
+            onBlur={(e) => void guardarDias(d, Number(e.target.value))}
+            className={cx("w-16 rounded-control border bg-hueso px-2 py-1 text-tinta", fuera ? "border-rojo text-rojo-profundo" : "border-sand")} />
+          <span className={fuera ? "text-rojo-profundo" : undefined}>
+            {r.min === r.max ? `solo ${r.min}` : `de ${r.min} a ${r.max}`}
+            {r.previa !== null
+              ? ` · su anterior fue de ${r.previa}, y el numeral 19.2 d) pide que esta sea mayor`
+              : d.tipo_causal === "tardanza" ? " · es la primera, y el numeral 19.2 c) la topa en dos" : " · numeral 54.5"}
+          </span>
+        </label>
+        {fuera && <span className="text-rojo-profundo">Los {d.suspension_dias} de ahora quedan fuera de ese rango: corrígelo antes de firmar.</span>}
+        <label className="flex flex-wrap items-center gap-2">
+          Desde:
+          <input key={`desde-${d.id}-${d.suspension_desde}`} type="date" defaultValue={d.suspension_desde ?? ""} min={hoyLima()}
+            onBlur={(e) => e.target.value && e.target.value !== d.suspension_desde && void guardarDias(d, d.suspension_dias ?? 1, e.target.value)}
+            className="rounded-control border border-sand bg-hueso px-2 py-1 text-tinta" />
+          {/* Las fechas una por una cuando se saltan un descanso. */}
+          {d.suspension_fechas?.length
+            ? <span className="tabular-nums">{d.suspension_fechas.map(fechaCorta).join(", ")}</span>
+            : d.suspension_desde && <span>del {fechaCorta(d.suspension_desde)}{d.suspension_hasta ? ` al ${fechaCorta(d.suspension_hasta)}` : ""}</span>}
+        </label>
+        {(d.suspension_fechas?.[0] ?? d.suspension_desde ?? "9999-12-31") <= hoyLima() && (
+          <span className="text-rojo-profundo">Esos días ya empezaron: si firmas hoy, la sanción no tendría efecto real.</span>
+        )}
+      </div>
+    );
+  }
+
+  const conteo = {
+    revision: alcanzaron.length,
+    borradores: borradores.length,
+    entregar: porEntregar.length,
+    historial: historial.length,
+  };
+
+  // ── Render ─────────────────────────────────────────────────────────────
   return (
     <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
-        <h1 className="mb-1 font-serif text-2xl">Disciplina</h1>
-        <p className="mb-5 max-w-2xl text-sm text-taupe">
-          El sistema detecta quién cruzó un umbral y <strong>arma el borrador del memo</strong> con las pruebas puestas;
-          tú lo revisas y firmas. Tardanza y falta van <strong>separadas</strong>: pesan distinto en la escala.
-        </p>
-
-        <div className="grid items-start gap-6 xl:grid-cols-2">
-        {/* Semáforo de tardanzas */}
-        <div className="mb-6 overflow-hidden rounded-2xl border border-sand bg-papel">
-          <div className="border-b bg-sand/50 px-4 py-2">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h2 className="text-sm font-medium">
-                Tardanzas — {nombreDelMesLimaTitulo(mesTard)} {mesTard.slice(0, 4)}
-                {!cargando && tardanzas.length > 0 && <span className="font-normal text-taupe"> · {tardanzas.length}</span>}
-              </h2>
-              {/* Sin este selector el arreglo del generador no se alcanza desde
-                  ningún sitio: el botón de abajo está deshabilitado cuando el
-                  contador del mes es 0, y el día 1 —el caso que se arregla— es
-                  0 para todo el mundo. */}
-              {/* Filtro de barra de herramientas, no un campo de formulario: se
-                  queda con el <select> a mano y el rótulo AL LADO —
-                  CampoSelect apila el rótulo encima (pensado para formularios
-                  verticales) y aquí desalinearía esta cabecera con la de
-                  Faltas, que no tiene selector. */}
-              <label className="flex items-center gap-1 text-xs text-taupe">
-                Mes
-                <select value={mesTard} onChange={(e) => setMesTard(e.target.value)}
-                  className="rounded border bg-crema px-2 py-1 text-xs text-tinta">
-                  {mesesRecientesLima().map((m) => (
-                    <option key={m} value={m}>
-                      {nombreDelMesLimaTitulo(m)} {m.slice(0, 4)}{m === primeroDeMesLima() ? " · en curso" : ""}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-            {/* El umbral NO es el mismo para todas: depende del escalón en el
-                que esté cada quien (RIT art. 7 b/c/d). Decir «3» aquí, como
-                decía hasta la 0200, era falso para quien arrastra un
-                antecedente vigente — y esa es justamente la gente por la que
-                hay que actuar antes. */}
-            {/* «El mes» tenía que decir MES CALENDARIO. Incidencias cuenta el
-                patrón de tardanzas sobre 30 días corridos, así que las dos
-                pantallas dan números distintos para la misma persona el mismo
-                día —una tardanza del mes pasado entra en una y no en la otra— y
-                el que gobierna el papel es este: el art. 19.2-b del RIT dice
-                «en un mismo mes calendario» y la carta cita ese texto. Sin
-                nombrar el periodo, la diferencia se lee como que una de las dos
-                está rota. */}
-            <p className="mt-0.5 text-xs text-taupe">
-              Umbral RIT art. 19.2: <strong>3</strong> en el <strong>mes calendario</strong> sin
-              antecedente · <strong>2</strong> tras una amonestación · <strong>1</strong> tras una
-              suspensión. Cada fila dice el suyo.
-              {" "}Cada mes se cuenta por separado; Incidencias avisa sobre los últimos 30 días
-              corridos, así que ahí el número puede ser mayor que acá.
-            </p>
-            {/* Documentar hacia atrás es un derecho del numeral 19.4 y a la vez
-                la única forma NUEVA de hacer daño que abre este cambio: hasta
-                hoy era imposible. Las dos advertencias que lo acotan no las
-                puede decidir el código, así que se dicen acá. */}
-            {mesTard !== primeroDeMesLima() && (
-              <p className="mt-2 rounded-lg bg-ambar/10 px-3 py-2 text-xs text-ambar">
-                Estás mirando un <strong>mes ya cerrado</strong>. El numeral 19.4 permite emitir el
-                documento por hechos de un mes concluido, pero el art. 52 dice que una demora
-                injustificada equivale a condonación — y un hecho condonado no sustenta sanción ni
-                se valora como antecedente. Si no hay motivo para el retraso, no lo emitas.
-                {" "}Y por el numeral 56.6: <strong>emite del mes más viejo al más nuevo</strong>.
-                Entregado un documento, los meses anteriores ya no se pueden documentar.
-              </p>
-            )}
-          </div>
-          {cargando ? (
-            <Cargando />
-          ) : falloTard ? (
-            <p className="px-4 py-6 text-sm text-rojo">
-              No se pudo leer el semáforo de tardanzas. <strong>Esto NO significa que no haya nadie</strong> —
-              significa que no se pudo mirar. Vuelve a cargar la página; si sigue igual, avisa antes de dar el mes por revisado.
-            </p>
-          ) : tardanzas.length === 0 ? (
-            <p className="px-4 py-6 text-sm text-taupe">Nadie con tardanzas relevantes en {nombreDelMesLima(mesTard)}.</p>
-          ) : (
-            <ul className="divide-y">
-              {tardanzas.map((t) => (
-                <li key={t.persona_id} id={`tard-${t.persona_id}`} className={`flex flex-wrap items-center justify-between gap-3 scroll-mt-24 px-4 py-3 text-sm transition-colors ${resaltado === `tard-${t.persona_id}` ? "bg-rojo/10" : ""}`}>
-                  <span>
-                    <strong>{t.nombre}</strong> <span className="text-taupe">· {t.sede}</span>
-                    {t.tardanzas_mes > 0 && (
-                      <Insignia variante={t.umbral === "aviso" ? "advertencia" : "alerta"} className="ml-2">
-                        {t.tardanzas_mes}
-                        {t.umbral === "aviso"
-                          ? ` de ${t.minimo} en ${nombreDelMesLima(mesTard)} · aviso`
-                          : t.umbral === "bloqueado"
-                            ? " · imputación vigente, decide Gerencia"
-                            : ` · corresponde ${NIVEL_DISCIPLINARIO_CORTO[t.umbral as keyof typeof NIVEL_DISCIPLINARIO_CORTO] ?? t.umbral}`}
-                      </Insignia>
-                    )}
-                    {t.sin_medir > 0 && (
-                      <span
-                        title="Entró más de tres horas después de su hora. Casi siempre significa que ese día tenía otro turno y el sistema comparó contra el equivocado. No cuenta para el umbral legal: míralo tú."
-                      >
-                        <Insignia variante="neutral" atenuada punto={false} className="ml-2">
-                          {t.sin_medir} sin medir
-                        </Insignia>
-                      </span>
-                    )}
-                  </span>
-                  {/* Desde la 0189 esta lista incluye a quien tiene SOLO días sin medir.
-                      Sobre esa persona no hay nada que imputar —el expediente se arma
-                      únicamente con tardanzas medibles— así que ofrecerle el botón sería
-                      prometer un documento que saldría vacío. */}
-                  {/* Con una imputación vigente el generador se niega siempre
-                      («decide Gerencia»). Ofrecer un botón que solo puede dar
-                      error enseña a ignorar los errores de esta pantalla. */}
-                  <Boton variante="secundario" tamano="sm" onClick={() => generar("tardanza", t.persona_id)}
-                    disabled={ocupado === t.persona_id || t.tardanzas_mes === 0 || t.umbral === "bloqueado" || pendientePorCausal.has(`${t.persona_id}:tardanza`)}
-                    title={pendientePorCausal.has(`${t.persona_id}:tardanza`)
-                      ? "Ya hay un borrador de tardanza pendiente para esta persona. Revísalo en «Borradores pendientes» antes de generar otro."
-                      : t.tardanzas_mes === 0
-                      ? "Sus únicos días son de más de tres horas: no se puede imputar sobre una medición dudosa. Revisa su turno de esos días."
-                      : t.umbral === "bloqueado"
-                        ? "Ya tiene una imputación de cargos vigente. El siguiente paso es evaluar sus descargos (art. 31) y lo decide Gerencia, no el sistema."
-                        : t.umbral === "aviso"
-                          ? `Aún no llega a su umbral: lleva ${t.tardanzas_mes} en ${nombreDelMesLima(mesTard)} y su escalón exige ${t.minimo}.`
-                          : undefined}>
-                    {ocupado === t.persona_id ? "Generando…" : "Generar borrador"}
-                  </Boton>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-
-        {/* Semáforo de faltas */}
-        <div className="mb-6 overflow-hidden rounded-2xl border border-sand bg-papel">
-          <div className="border-b bg-sand/50 px-4 py-2">
-            <h2 className="text-sm font-medium">Faltas — últimos 180 días{!cargando && faltas.length > 0 && <span className="font-normal text-taupe"> · {faltas.length}</span>}</h2>
-            <p className="mt-0.5 text-xs text-taupe">Umbrales art. 25-h: 4 consecutivas · 6 en 30 días · 16 en 180 días.</p>
-          </div>
-          {cargando ? (
-            <Cargando />
-          ) : falloFaltas ? (
-            <p className="px-4 py-6 text-sm text-rojo">
-              No se pudo leer el semáforo de faltas. <strong>Esto NO significa que no haya nadie.</strong>{" "}
-              Vuelve a cargar la página; si sigue igual, avisa antes de dar el periodo por revisado.
-            </p>
-          ) : faltas.length === 0 ? (
-            <p className="px-4 py-6 text-sm text-taupe">Nadie en umbral de faltas. Buena señal.</p>
-          ) : (
-            <ul className="divide-y">
-              {faltas.map((f) => (
-                <li key={f.persona_id} id={`falta-${f.persona_id}`} className={`flex flex-wrap items-center justify-between gap-3 scroll-mt-24 px-4 py-3 text-sm transition-colors ${resaltado === `falta-${f.persona_id}` ? "bg-rojo/10" : ""}`}>
-                  <span>
-                    <strong>{f.nombre}</strong> <span className="text-taupe">· {f.sede}</span>
-                    <Insignia variante={f.nivel === "rojo" ? "alerta" : "advertencia"} className="ml-2">
-                      {f.consecutivas} consec · {f.en_30} en 30d · {f.en_180} en 180d
-                    </Insignia>
-                  </span>
-                  <Boton variante="secundario" tamano="sm" onClick={() => generar("falta", f.persona_id)}
-                    disabled={ocupado === f.persona_id || pendientePorCausal.has(`${f.persona_id}:falta`)}
-                    title={pendientePorCausal.has(`${f.persona_id}:falta`)
-                      ? "Ya hay un borrador de falta pendiente para esta persona. Revísalo en «Borradores pendientes» antes de generar otro."
-                      : undefined}>
-                    {ocupado === f.persona_id ? "Generando…" : "Generar borrador"}
-                  </Boton>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-
-        {/* Borradores pendientes de firma */}
-        <div ref={borradoresRef} className="mb-6 scroll-mt-4 overflow-hidden rounded-2xl border border-sand bg-papel">
-          <h2 className="border-b bg-sand/50 px-4 py-2 text-sm font-medium">
-            Borradores pendientes {borradores.length > 0 && <span className="font-normal text-taupe">· {borradores.length}</span>}
-          </h2>
-          {falloDocs ? (
-            <p className="px-4 py-6 text-sm text-rojo">
-              No se pudo leer el legajo. <strong>Esto NO significa que no haya borradores.</strong>{" "}
-              Vuelve a cargar la página; si sigue igual, avisa antes de dar el mes por revisado.
-            </p>
-          ) : borradores.length === 0 ? (
-            <p className="px-4 py-6 text-sm text-taupe">No hay borradores por firmar.</p>
-          ) : (
-            <ul className="divide-y">
-              {borradores.map((d) => (
-                <li key={d.id} className="px-4 py-3 text-sm">
-                  <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-                    <span><strong>{nombres.get(d.persona_id) ?? "—"}</strong> <span className="text-taupe">· {CAUSAL_LABEL[d.tipo_causal]} · {NIVEL_LABEL[d.nivel]}</span></span>
-                    <div className="flex items-center gap-2">
-                      {(firmantes[d.id] ?? []).length > 0 && (
-                        <select
-                          value={firmanteElegido[d.id]
-                            ?? (firmantes[d.id] ?? []).find((f) => f.persona_id === yo?.id)?.persona_id
-                            ?? (firmantes[d.id] ?? [])[0]?.persona_id
-                            ?? ""}
-                          onChange={(e) => setFirmanteElegido((m) => ({ ...m, [d.id]: e.target.value }))}
-                          className="rounded-lg border border-sand bg-papel px-2 py-1 text-xs text-tinta"
-                          title="Quién firma este documento">
-                          {(firmantes[d.id] ?? []).map((f) => (
-                            <option key={f.persona_id} value={f.persona_id}>
-                              {f.nombre} · {f.cargo}{f.tiene_firma ? "" : " (sin firma escaneada)"}
-                            </option>
-                          ))}
-                        </select>
-                      )}
-                      <Boton variante="secundario" tamano="sm" onClick={() => router.push(`/admin/disciplina/memo/${d.id}`)}>Ver memo</Boton>
-                      {/* El botón que sale es el del paso que toca, y en una
-                          amonestación o una suspensión los tres primeros NO son
-                          Firmar: comunicar los cargos, esperar el plazo y
-                          valorar el descargo (arts. 55.2 y 19.3 del RIT).
-
-                          Esto faltaba. La base lo exige desde la 0212 y las dos
-                          funciones de pantalla se escribieron entonces, pero el
-                          JSX no: «Firmar» salía siempre y la base lo rechazaba
-                          con un error que no tenía cómo cumplirse desde acá.
-
-                          La imputación y el despido no pasan por esta cascada —
-                          siguen el procedimiento del art. 57, con el plazo del
-                          art. 31 de la LPCL, que es otro y más largo. */}
-                      {exigeDescargo && esGradual(d.nivel) && d.cargos_comunicados_at === null ? (
-                        <>
-                          <Boton variante="primario" tamano="sm" onClick={() => abrirComunicarCargos(d)} disabled={ocupado === d.id}
-                            title="Art. 55.2 del RIT: antes de una amonestación o una suspensión hay que comunicarle los cargos y darle su plazo de descargo.">
-                            {ocupado === d.id ? "Comunicando…" : "Comunicar cargos"}
-                          </Boton>
-                          {/* Para lo que ya ocurrió. En texto pequeño y al lado,
-                              no como botón: el camino normal es comunicar hoy;
-                              este es la excepción de quien ya lo hizo y no tuvo
-                              dónde anotarlo. */}
-                          <Boton variante="enlace" className="text-xs text-taupe" onClick={() => abrirDeclaracion(d)} disabled={ocupado === d.id}
-                            title="Registrar una comunicación que ya ocurrió, con la fecha en que ocurrió. El plazo se cuenta desde esa fecha, no desde hoy.">ya se lo comuniqué</Boton>
-                        </>
-                      ) : exigeDescargo && esGradual(d.nivel) && plazoAbierto(d) ? (
-                        <span className="text-xs text-taupe">Esperando su descargo</span>
-                      ) : exigeDescargo && esGradual(d.nivel) && d.descargo_acogido === null ? (
-                        /* Las cuatro salidas salen de ETIQUETA_DESCARGO y no de
-                           una lista escrita acá: son las mismas que acepta
-                           fn_expediente_valorar_descargo. */
-                        <select value="" disabled={ocupado === d.id}
-                          onChange={(e) => { if (e.target.value) elegirValoracion(d, e.target.value); }}
-                          title="Art. 19.3 del RIT: hay que dejar por escrito si el descargo se acoge, aunque no se haya presentado ninguno."
-                          className="rounded-lg border border-tinta/30 bg-papel px-2 py-1 text-xs text-tinta disabled:opacity-50">
-                          <option value="">Valorar el descargo…</option>
-                          {Object.entries(ETIQUETA_DESCARGO).map(([valor, etiqueta]) => (
-                            <option key={valor} value={valor}>{etiqueta}</option>
-                          ))}
-                        </select>
-                      ) : (
-                        /* Sin nadie a quien ofrecer, firmar solo produciría un
-                           error de la base. Es el caso del art. 54.4 c): DO ve
-                           el borrador del despido porque lo instruye, pero la
-                           carta la suscribe la Gerencia General en persona.
-                           Se compara con `=== 0` y no con `?? []` a propósito:
-                           la clave ausente es «todavía no se preguntó», y ahí el
-                           botón se deja pasar para que decida la base. */
-                        <Boton variante="primario" tamano="sm" onClick={() => abrirFirmar(d.id)}
-                          disabled={ocupado === d.id || firmantes[d.id]?.length === 0}
-                          title={firmantes[d.id]?.length === 0
-                            ? `Un documento de nivel ${NIVEL_LABEL[d.nivel].toLowerCase()} no lo puedes suscribir tú (art. 54.4 del Reglamento).`
-                            : "Firmar este documento"}>Firmar</Boton>
-                      )}
-                      {/* El descargo previo también se archiva, y contra el
-                          borrador: la 0212 abrió esa puerta en
-                          fn_expediente_puede_recibir_descargo y hasta ahora solo
-                          la imputación entregada tenía dónde subirlo. */}
-                      {esGradual(d.nivel) && d.cargos_comunicados_at !== null
-                        && !(adjuntos.get(d.id) ?? []).some((a) => a.tipo === "descargo") && (
-                        <Boton variante="enlace" className="text-xs text-taupe" onClick={() => void abrirCargo(d.id, "descargo")} disabled={ocupado === d.id}>subir su descargo</Boton>
-                      )}
-                      {(adjuntos.get(d.id) ?? []).filter((a) => a.tipo === "descargo").map((a) => (
-                        <Boton key={a.id} variante="enlace" className="text-xs font-medium" onClick={() => void verAdjunto(a.storage_path)}>Ver descargo</Boton>
-                      ))}
-                      <Boton variante="peligro" tamano="sm" onClick={() => abrirAnular(d.id)} disabled={ocupado === d.id}>Anular</Boton>
-                    </div>
-                  </div>
-                  <p className="mt-1 text-xs text-taupe">Hechos: {fechasDe(d.hechos)}</p>
-                  {/* En qué punto del art. 55.2 está este borrador, escrito en
-                      la fila. Sin esta línea, uno que hoy no se puede firmar se
-                      ve igual que uno que sí, y el porqué solo aparecía al
-                      pulsar Firmar — cuando ya no había nada que hacer. */}
-                  {exigeDescargo && esGradual(d.nivel) && (
-                    <p className={`mt-1 text-xs ${d.descargo_acogido === null ? "text-rojo" : "text-taupe"}`}>
-                      {d.cargos_comunicados_at === null
-                        ? "Falta comunicarle los cargos por escrito —los hechos con sus fechas, la norma que se le imputa y el detalle de la medición— y darle dos días hábiles para su descargo (art. 55.2 del RIT). Hasta entonces no se puede firmar."
-                        /* Los sellos nunca cierran la frase: `selloLima`
-                           termina en «p. m.» y un punto detrás se lee «p. m..». */
-                        : plazoAbierto(d)
-                          ? `Cargos comunicados el ${selloLima(d.cargos_comunicados_at)} · su plazo de descargo vence el ${d.descargo_vence_at ? selloLima(d.descargo_vence_at) : "—"} — firmar antes invalidaría la sanción.`
-                          : d.descargo_acogido === null
-                            ? `El plazo venció el ${d.descargo_vence_at ? selloLima(d.descargo_vence_at) : "—"} · falta dejar por escrito si su descargo se acoge, y hacerlo constar también si no presentó ninguno (art. 19.3 del RIT).`
-                            /* «descargo» no se antepone a `sin_descargo`: su
-                               etiqueta ya es una frase entera y saldría
-                               «descargo no presentó descargo». */
-                            : `Cargos comunicados el ${selloLima(d.cargos_comunicados_at)} · ${d.descargo_acogido === "sin_descargo" ? "" : "descargo "}${ETIQUETA_DESCARGO[d.descargo_acogido] ?? d.descargo_acogido}${d.descargo_valoracion ? `: ${d.descargo_valoracion}` : ""}`}
-                    </p>
-                  )}
-                  {/* Lo que se declaró, a la vista de quien va a firmar. Una
-                      comunicación declarada dice de quién es la palabra que la
-                      sostiene, y eso hay que poder leerlo ANTES de la firma, no
-                      encontrarlo en la base el día que alguien la discuta. */}
-                  {d.observacion && (
-                    <p className="mt-1 whitespace-pre-line text-xs text-taupe">{d.observacion}</p>
-                  )}
-                  {/* Numeral 60.5: sin constancia del Reglamento no se puede
-                      fundar una amonestación ni una suspensión. Se avisa acá,
-                      en el borrador, y no al pulsar Firmar: lo que no se puede
-                      deshacer es haberla citado a descargo para nada.
-                      La imputación y el despido no lo llevan — se fundan en el
-                      art. 25 de la LPCL, que rige por ley y no por entrega. */}
-                  {sinConstancia.has(d.persona_id) && d.nivel !== "imputacion" && d.nivel !== "despido" && (
-                    <p className="mt-1 rounded border border-rojo/30 bg-rojo/5 px-2 py-1 text-xs text-rojo">
-                      Sin constancia del Reglamento. Este documento no se va a poder firmar hasta
-                      que se le entregue y quede registrada en Normas — también vale en papel.
-                    </p>
-                  )}
-                  {/* El art. 32 de la LPCL exige que la carta de despido diga
-                      la causa Y la fecha de cese. Se fija acá, en el borrador,
-                      porque después de firmar el documento ya no se edita. */}
-                  {d.nivel === "despido" && (
-                    <label className="mt-1 flex flex-wrap items-center gap-2 text-xs text-taupe">
-                      Fecha de cese (art. 32):
-                      <input type="date" defaultValue={d.fecha_cese ?? ""}
-                        onBlur={(e) => guardarFechaCese(d, e.target.value)}
-                        className="rounded border px-2 py-1" />
-                      {!d.fecha_cese && (
-                        <span className="text-rojo">sin fecha, la carta saldría incompleta</span>
-                      )}
-                    </label>
-                  )}
-                  {d.nivel === "suspension" && (() => {
-                    const r = rangoSuspension(d);
-                    const fuera = d.suspension_dias !== null
-                      && (d.suspension_dias < r.min || d.suspension_dias > r.max);
-                    return (
-                    <label className="mt-1 flex flex-wrap items-center gap-2 text-xs text-taupe">
-                      Días de suspensión:
-                      {/* El campo ofrece SOLO lo que el Reglamento admite para
-                          este documento, que no es siempre 1-3: la primera por
-                          tardanzas es de 1 a 2 (19.2 c) y la segunda tiene que
-                          ser mayor que la primera (19.2 d). El candado de verdad
-                          está en la base (mig. 0294) — un `max` de HTML no
-                          impide escribir ni enviar, porque acá no hay formulario
-                          que validar sino un `onBlur` que llama a la RPC.
-                          `onWheel` con blur porque un `<input type="number">`
-                          cambia de valor con la rueda del mouse cuando el cursor
-                          pasa por encima al hacer scroll: no es como llegó el 10
-                          de agosto —ese se tecleó a propósito, probando— pero
-                          sigue siendo una forma de mover días de sueldo sin
-                          querer. */}
-                      <input type="number" min={r.min} max={r.max} defaultValue={d.suspension_dias ?? r.min}
-                        onWheel={(e) => e.currentTarget.blur()}
-                        onBlur={(e) => guardarDias(d, Number(e.target.value))}
-                        className={`w-16 rounded border px-2 py-1 ${fuera ? "border-rojo text-rojo" : ""}`} />
-                      <span className={fuera ? "text-rojo" : undefined}>
-                        {r.min === r.max ? `solo ${r.min}` : `de ${r.min} a ${r.max}`}
-                        {r.previa !== null
-                          ? ` · su anterior fue de ${r.previa}, y el numeral 19.2 d) pide que ésta sea mayor`
-                          : d.tipo_causal === "tardanza"
-                            ? " · es la primera, y el numeral 19.2 c) la topa en dos"
-                            : " · numeral 54.5"}
-                      </span>
-                      {fuera && (
-                        <span className="text-rojo">
-                          Los {d.suspension_dias} de ahora quedan fuera de ese rango: corrígelo antes de firmar.
-                        </span>
-                      )}
-                      {/* Desde cuándo. El sistema propone, pero la fecha la
-                          decide quien tramita: entre generar el borrador y
-                          firmarlo pueden pasar días, y una suspensión fijada
-                          para una fecha ya trabajada no sanciona nada. */}
-                      desde:
-                      <input type="date" defaultValue={d.suspension_desde ?? ""} min={hoyLima()}
-                        onBlur={(e) => e.target.value && e.target.value !== d.suspension_desde
-                          && guardarDias(d, d.suspension_dias ?? 1, e.target.value)}
-                        className="rounded border px-2 py-1" />
-                      {/* Las fechas una por una cuando se saltan un descanso:
-                          «del 23 al 27» sobre días no contiguos mete en la
-                          sanción dos días que la persona sí tenía libres. */}
-                      {d.suspension_fechas?.length
-                        ? <span>{d.suspension_fechas.map(fechaCorta).join(", ")}</span>
-                        : d.suspension_desde && <span>del {fechaCorta(d.suspension_desde)}{d.suspension_hasta ? ` al ${fechaCorta(d.suspension_hasta)}` : ""}</span>}
-                      {/* La suspensión que ya pasó no suspende. Se avisa en el
-                          borrador porque después de firmar el documento ya no
-                          se edita, y corregirlo cuesta una anulación. */}
-                      {(d.suspension_fechas?.[0] ?? d.suspension_desde ?? "9999-12-31") <= hoyLima() && (
-                        <span className="text-rojo">
-                          esos días ya empezaron: si firmas hoy, la sanción no tendría efecto real
-                        </span>
-                      )}
-                    </label>
-                    );
-                  })()}
-                  {/* El día de una comunicación que YA ocurrió. Panel en la
-                      fila, con el mismo aire que el de subir un papel: el día
-                      se elige en un calendario en vez de teclearse en un
-                      `prompt`, que es lo que dejaba la fila congelada cuando
-                      alguien escribía 04/09/2026. Nace en hoy, se corrige en
-                      un clic, y no admite un día futuro. */}
-                  {declarando === d.id && (
-                    <div className="mt-3 rounded-lg border border-sand bg-sand/20 p-3">
-                      <p className="mb-2 text-xs text-taupe">
-                        ¿Qué día se le comunicaron los cargos a {nombres.get(d.persona_id) ?? "esta persona"}?
-                        Desde ese día corren los dos días hábiles de descargo; si todavía no han pasado,
-                        el documento seguirá sin poder firmarse. Al continuar se te pedirá cómo consta esa
-                        comunicación.
-                      </p>
-                      <div className="w-44">
-                        <Campo etiqueta="Día de la comunicación" type="date" value={fechaCargos} max={hoyLima()}
-                          onChange={(e) => setFechaCargos(e.target.value)}
-                          className="text-xs" />
-                      </div>
-                      <div className="mt-2 flex items-center gap-2">
-                        <Boton variante="primario" tamano="sm" onClick={() => continuarDeclaracion(d)} disabled={ocupado === d.id}>
-                          Continuar
-                        </Boton>
-                        <Boton variante="secundario" tamano="sm" onClick={() => setDeclarando(null)}>Cancelar</Boton>
-                      </div>
-                    </div>
-                  )}
-                  {subiendoCargo?.id === d.id && (
-                    <FormularioCargo
-                      tipo={subiendoCargo.tipo}
-                      /* Un borrador no tiene entrega que fechar: lo que se
-                         archiva acá es el descargo previo, no el cargo. */
-                      pideFecha={false}
-                      entregadoEl={null}
-                      fecha={fechaEntrega} nota={notaCargo} testigo={testigoCargo}
-                      progreso={progresoCargo} ocupado={ocupado === d.id}
-                      alElegirArchivo={setArchivoCargo}
-                      alCambiarFecha={setFechaEntrega}
-                      alCambiarNota={setNotaCargo} alCambiarTestigo={setTestigoCargo}
-                      alGuardar={() => void guardarCargo()}
-                      alCancelar={() => setSubiendoCargo(null)}
-                    />
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-
-        {/* Firmados — pendientes de entrega */}
-        {firmados.length > 0 && (
-          <div className="overflow-hidden rounded-2xl border border-sand bg-papel">
-            <h2 className="border-b bg-sand/50 px-4 py-2 text-sm font-medium">Firmados — por entregar · {firmados.length}</h2>
-            <ul className="divide-y">
-              {firmados.map((d) => (
-                <li key={d.id} className="px-4 py-3 text-sm">
-                  <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-                    <span>
-                      <strong>{nombres.get(d.persona_id) ?? "—"}</strong>{" "}
-                      <span className="text-taupe">· {CAUSAL_LABEL[d.tipo_causal]} · {NIVEL_LABEL[d.nivel]} · {d.correlativo}</span>
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <Boton variante="secundario" tamano="sm" onClick={() => router.push(`/admin/disciplina/memo/${d.id}`)}>Ver memo</Boton>
-                      {/* El camino que deja evidencia es el fácil. Marcar
-                          entregado sin papel sigue siendo posible —una entrega
-                          por correo certificado es válida y su cargo llega
-                          días después— pero deja de ser el atajo. */}
-                      <Boton variante="primario" tamano="sm" onClick={() => void abrirCargo(d.id, "cargo_firmado")} disabled={ocupado === d.id}>
-                        Subir cargo firmado
-                      </Boton>
-                      <Boton variante="enlace" className="text-xs text-taupe" onClick={() => void abrirCargo(d.id, "acta_negativa")} disabled={ocupado === d.id}>se negó a firmar</Boton>
-                      <details className="text-xs text-taupe">
-                        <summary className="cursor-pointer">entregar sin papel</summary>
-                        <div className="mt-2 flex items-center gap-2">
-                          <select value={medio[d.id] ?? "fisico"} onChange={(e) => setMedio((m) => ({ ...m, [d.id]: e.target.value }))}
-                            className="rounded border bg-crema px-2 py-1 text-xs">
-                            <option value="fisico">Físico</option>
-                            <option value="correo">Correo</option>
-                            <option value="notarial">Notarial</option>
-                          </select>
-                          <Boton variante="secundario" tamano="sm" onClick={() => entregar(d.id)} disabled={ocupado === d.id}>Marcar entregado</Boton>
-                        </div>
-                        <p className="mt-1 max-w-xs">
-                          El cargo se puede subir después: no pisa la fecha de entrega que quede acá.
-                        </p>
-                      </details>
-                      <Boton variante="sutil" tamano="sm" onClick={() => abrirReabrir(d.id)} disabled={ocupado === d.id}>Cambiar firmante</Boton>
-                      {/* Solo si ya cesó: mientras siga activa, el camino
-                          sigue siendo entregarle el documento, no cerrarlo. */}
-                      {personaEstado.get(d.persona_id) === "inactivo" && (
-                        <Boton variante="secundario" tamano="sm" onClick={() => abrirCerrarSinEntrega(d.id)} disabled={ocupado === d.id}>
-                          Cerrar sin entrega
-                        </Boton>
-                      )}
-                    </div>
-                  </div>
-                  {/* La firma, no la creación del borrador: de la firma cuelgan
-                      los plazos, y entre una y otra pueden pasar días. */}
-                  <p className="mt-1 text-xs text-taupe">Firmado {selloLima(d.firmado_at ?? d.creado_at)}</p>
-                  {personaEstado.get(d.persona_id) === "inactivo" && (
-                    <p className="mt-1 text-xs text-ambar">Esta persona ya cesó — no se le puede entregar este documento.</p>
-                  )}
-
-                  {subiendoCargo?.id === d.id && (
-                    <FormularioCargo
-                      tipo={subiendoCargo.tipo}
-                      pideFecha={subiendoCargo.tipo === "cargo_firmado" || subiendoCargo.tipo === "acta_negativa"}
-                      entregadoEl={null}
-                      fecha={fechaEntrega} nota={notaCargo} testigo={testigoCargo}
-                      progreso={progresoCargo} ocupado={ocupado === d.id}
-                      alElegirArchivo={setArchivoCargo}
-                      alCambiarFecha={setFechaEntrega}
-                      alCambiarNota={setNotaCargo} alCambiarTestigo={setTestigoCargo}
-                      alGuardar={() => void guardarCargo()}
-                      alCancelar={() => setSubiendoCargo(null)}
-                    />
-                  )}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {/* ── Entregados ──────────────────────────────────────────────────
-            Antes desaparecían al entregarse: subías el cargo y no veías que
-            hubiera quedado, y para consultar el papel de una entrega de hace
-            dos meses no había ningún sitio. Plegado por defecto para que la
-            pantalla siga enfocada en lo que falta hacer. */}
-        {entregados.length > 0 && (
-          <div id="entregados" className="mt-4 scroll-mt-4 overflow-hidden rounded-2xl border border-sand bg-papel">
-            <button onClick={() => setVerCerrados((v) => !v)}
-              className="flex w-full items-center justify-between border-b bg-sand/50 px-4 py-2 text-left text-sm font-medium">
-              <span>Entregados · {entregados.length}</span>
-              <span className="text-xs font-normal text-taupe">
-                {entregados.filter((d) => (adjuntos.get(d.id) ?? []).length === 0).length > 0 && (
-                  <span className="text-rojo">
-                    {entregados.filter((d) => (adjuntos.get(d.id) ?? []).length === 0).length} sin cargo archivado ·{" "}
-                  </span>
-                )}
-                {verCerrados ? "ocultar" : "ver"}
+        <CabeceraPagina
+          titulo="Disciplina"
+          descripcion={
+            <>
+              Revisa incidencias que alcanzan umbrales y gestiona su trazabilidad.
+              <span className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
+                <span><span aria-hidden>ⓘ </span>El sistema detecta condiciones y prepara borradores; la decisión la toma una persona.</span>
+                <Boton variante="enlace" className="text-sm text-tinta" onClick={() => setVerReglas(true)}>Ver reglas y umbrales</Boton>
               </span>
-            </button>
-            {verCerrados && (
-              <ul className="divide-y">
-                {entregados.map((d) => {
-                  const papeles = adjuntos.get(d.id) ?? [];
-                  return (
-                    <li key={d.id} className="px-4 py-3 text-sm">
-                      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-                        <span>
-                          <strong>{nombres.get(d.persona_id) ?? "—"}</strong>{" "}
-                          <span className="text-taupe">· {CAUSAL_LABEL[d.tipo_causal]} · {NIVEL_LABEL[d.nivel]} · {d.correlativo}</span>
-                        </span>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <Boton variante="secundario" tamano="sm" onClick={() => router.push(`/admin/disciplina/memo/${d.id}`)}>Ver memo</Boton>
-                          {papeles.map((a) => (
-                            <Boton key={a.id} variante="enlace" className="text-xs font-medium" onClick={() => void verAdjunto(a.storage_path)}>
-                              {ETIQUETA_PAPEL[a.tipo as TipoPapel] ?? "Ver papel"}
-                            </Boton>
-                          ))}
-                          {!papeles.some((a) => a.tipo === "cargo_firmado" || a.tipo === "acta_negativa") && (
-                            <Boton variante="peligro" tamano="sm" onClick={() => void abrirCargo(d.id, "cargo_firmado")}>Subir cargo</Boton>
-                          )}
-                          {/* Solo la imputación abre un plazo de descargo, así que
-                              solo ella lo pide. La base rechaza lo demás igual. */}
-                          {d.nivel === "imputacion" && !papeles.some((a) => a.tipo === "descargo") && (
-                            <Boton variante="secundario" tamano="sm" onClick={() => void abrirCargo(d.id, "descargo")}>
-                              Subir su descargo
-                            </Boton>
-                          )}
-                          {/* Cerrar el procedimiento. Sin esto el semáforo pide la
-                              misma decisión durante doce meses. */}
-                          {d.nivel === "imputacion" && !d.resuelto_at && (
-                            <>
-                              <Boton variante="secundario" tamano="sm" onClick={() => abrirResolver(d, "archivado")} disabled={ocupado === d.id}>
-                                Archivar sin sancionar
-                              </Boton>
-                              <Boton variante="peligro" tamano="sm" onClick={() => abrirResolver(d, "despido")} disabled={ocupado === d.id}>
-                                Se resolvió con despido
-                              </Boton>
-                            </>
-                          )}
-                          {/* Anular NO es lo mismo que archivar, y por eso está
-                              aparte y en texto pequeño: archivar cierra un
-                              procedimiento que se siguió bien; anular retira un
-                              documento que no debió emitirse. */}
-                          <Boton variante="enlace" className="text-xs text-taupe" onClick={() => abrirAnular(d.id, true)} disabled={ocupado === d.id}
-                            title="Retira el documento por un defecto propio. Distinto de archivar: anular devuelve el escalón al peldaño anterior.">
-                            anular
-                          </Boton>
-                        </div>
-                      </div>
-                      <p className="mt-1 text-xs text-taupe">
-                        Entregado {d.entregado_at ? selloLima(d.entregado_at) : "—"}
-                        {d.medio_entrega && ` · ${MEDIO_ENTREGA[d.medio_entrega] ?? d.medio_entrega}`}
-                        {d.entrega_testigo_nombre && ` · testigo: ${d.entrega_testigo_nombre}`}
-                        {!papeles.some((a) => a.tipo === "cargo_firmado" || a.tipo === "acta_negativa") && (
-                          <span className="text-rojo"> · sin el papel archivado</span>
-                        )}
-                      </p>
-                      {d.nivel === "imputacion" && (
-                        d.resuelto_at ? (
-                          <p className="mt-1 text-xs text-taupe">
-                            <strong>{d.resuelto_resultado === "despido" ? "Resuelto con despido" : "Archivado sin sancionar"}</strong>
-                            {" "}el {selloLima(d.resuelto_at)} — {d.resuelto_motivo}
-                          </p>
-                        ) : (
-                          <p className="mt-1 text-xs text-rojo">
-                            Procedimiento abierto. Tras evaluar sus descargos, ciérralo con uno de los dos botones —
-                            si no, el semáforo seguirá pidiendo esta decisión durante doce meses.
-                          </p>
-                        )
-                      )}
-                      {subiendoCargo?.id === d.id && (
-                        <FormularioCargo
-                          tipo={subiendoCargo.tipo}
-                          pideFecha={false}
-                          entregadoEl={d.entregado_at ? selloLima(d.entregado_at) : null}
-                          fecha={fechaEntrega} nota={notaCargo} testigo={testigoCargo}
-                          progreso={progresoCargo} ocupado={ocupado === d.id}
-                          alElegirArchivo={setArchivoCargo}
-                          alCambiarFecha={setFechaEntrega}
-                          alCambiarNota={setNotaCargo} alCambiarTestigo={setTestigoCargo}
-                          alGuardar={() => void guardarCargo()}
-                          alCancelar={() => setSubiendoCargo(null)}
-                        />
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
+            </>
+          }
+        />
+
+        {/* Filtros */}
+        <div className="-mt-4 mb-5 flex flex-wrap items-end gap-3">
+          <label htmlFor="f-mes" className="grid gap-1 text-xs text-taupe">
+            Mes de tardanzas
+            <select id="f-mes" value={mesTard} onChange={(e) => setMesTard(e.target.value)}
+              className="rounded-control border border-sand bg-hueso px-2.5 py-1.5 text-sm text-tinta">
+              {mesesRecientesLima().map((m) => (
+                <option key={m} value={m}>
+                  {nombreDelMesLimaTitulo(m)} {m.slice(0, 4)}{m === primeroDeMesLima() ? " · en curso" : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label htmlFor="f-persona" className="grid min-w-0 flex-1 basis-56 gap-1 text-xs text-taupe">
+            Persona
+            <input id="f-persona" type="search" value={busqueda} onChange={(e) => setBusqueda(e.target.value)}
+              placeholder="Buscar por nombre"
+              className="rounded-control border border-sand bg-hueso px-2.5 py-1.5 text-sm text-tinta placeholder:text-taupe" />
+          </label>
+          {puedeVerTodasLasSedes(rol) && sedes.length > 1 && (
+            <label htmlFor="f-sede" className="grid gap-1 text-xs text-taupe">
+              Sede
+              <select id="f-sede" value={sedeFiltro} onChange={(e) => setSedeFiltro(e.target.value)}
+                className="rounded-control border border-sand bg-hueso px-2.5 py-1.5 text-sm text-tinta">
+                <option value="">Todas</option>
+                {sedes.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </label>
+          )}
+        </div>
+
+        {/* Pestañas */}
+        {/* En el celular las cuatro van en 2 × 2 y no en una franja que se
+            desliza: «Por entregar» y «Historial» quedaban fuera de la pantalla,
+            y una pestaña con contador que no se ve es un aviso que no llega. */}
+        <div role="tablist" aria-label="Etapas de Disciplina" className="mb-5 grid grid-cols-2 gap-x-1 border-b border-sand sm:flex sm:gap-1">
+          <TabBtn valor="revision" tab={tab} setTab={setTab} cuenta={conteo.revision} urgente>Requieren revisión</TabBtn>
+          <TabBtn valor="borradores" tab={tab} setTab={setTab} cuenta={conteo.borradores}>Borradores</TabBtn>
+          <TabBtn valor="entregar" tab={tab} setTab={setTab} cuenta={conteo.entregar} urgente>Por entregar</TabBtn>
+          <TabBtn valor="historial" tab={tab} setTab={setTab} cuenta={conteo.historial}>Historial</TabBtn>
+        </div>
+
+        {cargando && docs.length === 0 && tardanzas.length === 0 ? (
+          <Cargando />
+        ) : (
+          <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
+            {/* ── Requieren revisión ─────────────────────────────────── */}
+            {tab === "revision" && (
+              <>
+                {falloTard && <FalloLectura que="el semáforo de tardanzas" />}
+                {falloFaltas && <FalloLectura que="el semáforo de faltas" />}
+                <Grupo titulo="Alcanzaron un umbral" detalle="Revisar el caso no genera nada: el borrador se prepara desde ahí.">
+                  {alcanzaron.length === 0 ? (
+                    <Vacio>
+                      {hayFiltro
+                        ? "Nadie con estos filtros."
+                        : `Nadie alcanza su umbral de tardanzas en ${nombreMes} ni está en el semáforo de faltas.`}
+                    </Vacio>
+                  ) : (
+                    <ListaCasos etiqueta="Alcanzaron un umbral" plantilla={PLANTILLA} encabezados={encabezados("Motivo", "Progreso", "Situación", "")}>
+                      {alcanzaron.map((x) => {
+                        const abrir = (e?: MouseEvent<HTMLElement>) => abrirCaso({ tipo: x.tipo, personaId: x.personaId }, e);
+                        return (
+                          <FilaCaso key={x.clave} id={x.clave} plantilla={PLANTILLA} resaltada={resaltado === x.clave}>
+                            {celdaPersona(x.personaId, x.nombre, x.sede, abrir)}
+                            <Celda etiqueta="Motivo">{x.motivo}</Celda>
+                            <Celda etiqueta="Progreso">{x.progreso}</Celda>
+                            <Celda etiqueta="Situación"><Insignia variante={x.situacion.variante}>{x.situacion.etiqueta}</Insignia></Celda>
+                            <Celda acciones>
+                              <Boton variante={x.situacion.generable ? "primario" : "secundario"} tamano="sm" onClick={abrir}>Revisar caso</Boton>
+                            </Celda>
+                          </FilaCaso>
+                        );
+                      })}
+                    </ListaCasos>
+                  )}
+                </Grupo>
+                {(seguimiento.length > 0 || !hayFiltro) && (
+                  <Grupo titulo="En seguimiento" detalle="Cerca del umbral o a la espera de otra decisión. No admiten documento.">
+                    {seguimiento.length === 0 ? (
+                      <Vacio>Nadie cerca de su umbral en {nombreMes}.</Vacio>
+                    ) : (
+                      <ListaCasos etiqueta="En seguimiento" plantilla={PLANTILLA} encabezados={encabezados("Motivo", "Progreso", "Situación", "")}>
+                        {seguimiento.map((x) => {
+                          const abrir = (e?: MouseEvent<HTMLElement>) => abrirCaso({ tipo: x.tipo, personaId: x.personaId }, e);
+                          return (
+                            <FilaCaso key={x.clave} id={x.clave} plantilla={PLANTILLA} resaltada={resaltado === x.clave} atenuada>
+                              {celdaPersona(x.personaId, x.nombre, x.sede, abrir)}
+                              <Celda etiqueta="Motivo">{x.motivo}</Celda>
+                              <Celda etiqueta="Progreso">{x.progreso}</Celda>
+                              <Celda etiqueta="Situación"><Insignia variante={x.situacion.variante}>{x.situacion.etiqueta}</Insignia></Celda>
+                              <Celda acciones><Boton variante="sutil" tamano="sm" onClick={abrir}>Ver detalle</Boton></Celda>
+                            </FilaCaso>
+                          );
+                        })}
+                      </ListaCasos>
+                    )}
+                  </Grupo>
+                )}
+              </>
+            )}
+
+            {/* ── Borradores ─────────────────────────────────────────── */}
+            {tab === "borradores" && (
+              <>
+                {falloDocs && <FalloLectura que="el legajo" />}
+                {borradores.length === 0 ? (
+                  <Vacio>{hayFiltro ? "No hay borradores con estos filtros." : "No hay borradores pendientes."}</Vacio>
+                ) : (
+                  <ListaCasos etiqueta="Borradores" plantilla={PLANTILLA} encabezados={encabezados("Documento", "Paso", "Situación", "")}>
+                    {borradores.map((d) => {
+                      const info = infoDe(d.persona_id);
+                      const etapa = etapaDelBorrador(d, exigeDescargo);
+                      const ev = evidencias.get(d.id);
+                      const abrir = (e?: MouseEvent<HTMLElement>) => abrirCaso({ tipo: "documento", id: d.id }, e);
+                      return (
+                        <FilaCaso key={d.id} plantilla={PLANTILLA}>
+                          {celdaPersona(d.persona_id, nombreDe(d.persona_id), info?.sede ?? "", abrir, info?.estado === "inactivo")}
+                          <Celda etiqueta="Documento">{CAUSAL_LABEL[d.tipo_causal] ?? d.tipo_causal} · {nivelCorto(d.nivel)}</Celda>
+                          <Celda etiqueta="Paso">
+                            {exigeDescargo && esGradual(d.nivel) ? <PasosBorrador etapa={etapa} /> : <span className="text-xs">{ETAPA_LABEL.firmar}</span>}
+                          </Celda>
+                          <Celda etiqueta="Situación">
+                            {ev && ev.noCuentan > 0
+                              ? <Insignia variante="alerta">{ev.noCuentan} día{ev.noCuentan === 1 ? "" : "s"} ya no cuenta{ev.noCuentan === 1 ? "" : "n"}</Insignia>
+                              : sinConstancia.has(d.persona_id) && d.nivel !== "imputacion" && d.nivel !== "despido"
+                                ? <Insignia variante="alerta">Sin constancia del RIT</Insignia>
+                                : <span className="text-xs text-taupe">Generado el {fechaCorta(fechaLima(d.creado_at))}</span>}
+                          </Celda>
+                          <Celda acciones>{pintarAcciones(accionesDeDocumento(d), () => abrirCaso({ tipo: "documento", id: d.id }))}</Celda>
+                        </FilaCaso>
+                      );
+                    })}
+                  </ListaCasos>
+                )}
+              </>
+            )}
+
+            {/* ── Por entregar ───────────────────────────────────────── */}
+            {tab === "entregar" && (
+              <>
+                {falloDocs && <FalloLectura que="el legajo" />}
+                <Grupo titulo="Firmados sin entregar" detalle="Un documento firmado y no entregado todavía no produce efecto (56.2).">
+                  {firmados.length === 0 ? (
+                    <Vacio>{hayFiltro ? "Ninguno con estos filtros." : "No hay documentos firmados pendientes de entrega."}</Vacio>
+                  ) : (
+                    <ListaCasos etiqueta="Firmados sin entregar" plantilla={PLANTILLA} encabezados={encabezados("Documento", "Firmado", "Situación", "")}>
+                      {firmados.map((d) => {
+                        const info = infoDe(d.persona_id);
+                        const cesada = info?.estado === "inactivo";
+                        const ev = evidencias.get(d.id);
+                        const abrir = (e?: MouseEvent<HTMLElement>) => abrirCaso({ tipo: "documento", id: d.id }, e);
+                        return (
+                          <FilaCaso key={d.id} plantilla={PLANTILLA}>
+                            {celdaPersona(d.persona_id, nombreDe(d.persona_id), info?.sede ?? "", abrir)}
+                            <Celda etiqueta="Documento"><span className="tabular-nums">{d.correlativo}</span> · {nivelCorto(d.nivel)}</Celda>
+                            <Celda etiqueta="Firmado"><span className="text-xs tabular-nums">{d.firmado_at ? selloLima(d.firmado_at) : "—"}</span></Celda>
+                            <Celda etiqueta="Situación">
+                              {cesada
+                                ? <Insignia variante="advertencia">Cesó{info?.fechaCese ? ` el ${fechaCorta(info.fechaCese)}` : ""}</Insignia>
+                                : ev && ev.noCuentan > 0
+                                  ? <Insignia variante="alerta">Cita días que ya no cuentan</Insignia>
+                                  : <Insignia variante="informativo">Por entregar</Insignia>}
+                            </Celda>
+                            <Celda acciones>{pintarAcciones(accionesDeDocumento(d), () => abrirCaso({ tipo: "documento", id: d.id }))}</Celda>
+                          </FilaCaso>
+                        );
+                      })}
+                    </ListaCasos>
+                  )}
+                </Grupo>
+                {entregadosPendientes.length > 0 && (
+                  <Grupo titulo="Entregados que aún piden algo" detalle="Pasan al historial cuando tengan el cargo archivado y, si es imputación, la decisión.">
+                    <ListaCasos etiqueta="Entregados que aún piden algo" plantilla={PLANTILLA} encabezados={encabezados("Documento", "Entregado", "Falta", "")}>
+                      {entregadosPendientes.map((d) => {
+                        const info = infoDe(d.persona_id);
+                        const pend = pendientesDeEntregado(d, adjuntos.get(d.id) ?? []);
+                        const abrir = (e?: MouseEvent<HTMLElement>) => abrirCaso({ tipo: "documento", id: d.id }, e);
+                        return (
+                          <FilaCaso key={d.id} plantilla={PLANTILLA}>
+                            {celdaPersona(d.persona_id, nombreDe(d.persona_id), info?.sede ?? "", abrir, info?.estado === "inactivo")}
+                            <Celda etiqueta="Documento"><span className="tabular-nums">{d.correlativo}</span> · {nivelCorto(d.nivel)}</Celda>
+                            <Celda etiqueta="Entregado">
+                              <span className="text-xs tabular-nums">
+                                {d.entregado_at ? selloLima(d.entregado_at) : "—"}
+                                {d.medio_entrega && ` · ${MEDIO_ENTREGA[d.medio_entrega] ?? d.medio_entrega}`}
+                              </span>
+                            </Celda>
+                            <Celda etiqueta="Falta">
+                              <span className="inline-flex flex-wrap gap-1.5">
+                                {pend.includes("cargo") && <Insignia variante="advertencia">El cargo firmado</Insignia>}
+                                {pend.includes("resolver") && <Insignia variante="alerta">Registrar la decisión</Insignia>}
+                              </span>
+                            </Celda>
+                            <Celda acciones>{pintarAcciones(accionesDeDocumento(d), () => abrirCaso({ tipo: "documento", id: d.id }))}</Celda>
+                          </FilaCaso>
+                        );
+                      })}
+                    </ListaCasos>
+                  </Grupo>
+                )}
+              </>
+            )}
+
+            {/* ── Historial ──────────────────────────────────────────── */}
+            {tab === "historial" && (
+              <>
+                {falloDocs && <FalloLectura que="el legajo" />}
+                {historial.length === 0 ? (
+                  <Vacio>{hayFiltro ? "Nada en el historial con estos filtros." : "Todavía no hay documentos cerrados."}</Vacio>
+                ) : (
+                  <ListaCasos etiqueta="Historial" plantilla={PLANTILLA} encabezados={encabezados("Documento", "Desenlace", "Estado", "")}>
+                    {historial.map((d) => {
+                      const info = infoDe(d.persona_id);
+                      const cierre = eventosDeObservacion(d.observacion).filter((e) => e.tipo === "anulado" || e.tipo === "cerrado_sin_entrega").pop();
+                      const abrir = (e?: MouseEvent<HTMLElement>) => abrirCaso({ tipo: "documento", id: d.id }, e);
+                      return (
+                        <FilaCaso key={d.id} plantilla={PLANTILLA}>
+                          {celdaPersona(d.persona_id, nombreDe(d.persona_id), info?.sede ?? "", abrir)}
+                          <Celda etiqueta="Documento">
+                            <span className="tabular-nums">{d.correlativo ?? "sin número"}</span> · {CAUSAL_LABEL[d.tipo_causal] ?? d.tipo_causal} · {nivelCorto(d.nivel)}
+                          </Celda>
+                          <Celda etiqueta="Desenlace">
+                            <span className="text-xs text-taupe">
+                              {d.estado === "entregado"
+                                ? `Entregado ${d.entregado_at ? fechaCorta(fechaLima(d.entregado_at)) : ""}${d.resuelto_at ? ` · ${d.resuelto_resultado === "despido" ? "resuelto con despido" : "archivado sin sancionar"}` : ""}`
+                                : cierre
+                                  ? `${cierre.fecha ? fechaCorta(cierre.fecha) : ""} · ${cierre.texto}`
+                                  : "—"}
+                            </span>
+                          </Celda>
+                          <Celda etiqueta="Estado">
+                            <Insignia variante={ESTADO_DOCUMENTO[d.estado]?.variante ?? "neutral"} atenuada={d.estado !== "entregado"}>
+                              {ESTADO_DOCUMENTO[d.estado]?.texto ?? d.estado}
+                            </Insignia>
+                          </Celda>
+                          <Celda acciones>{pintarAcciones(accionesDeDocumento(d), () => abrirCaso({ tipo: "documento", id: d.id }))}</Celda>
+                        </FilaCaso>
+                      );
+                    })}
+                  </ListaCasos>
+                )}
+              </>
             )}
           </div>
         )}
-        </div>
 
-        {/* ── Diálogos migrados de window.confirm/window.prompt ──────────
-            Felipe aprobó migrar los ocho de esta pantalla (ver CLAUDE.md,
-            Modal compartido). Cada uno solo pide confirmación o un texto
-            obligatorio; la llamada de verdad vive en su "confirmar…", nunca
-            en el botón que abre el Modal. */}
+        <PanelCaso
+          caso={caso}
+          onCerrar={() => setCaso(null)}
+          volverElFocoA={disparador}
+          bloqueado={modalAbierto}
+          supabase={supabase}
+          docs={docs}
+          adjuntos={adjuntos}
+          personas={personas}
+          tardanza={tardAbierta}
+          falta={faltaAbierta}
+          situacion={deteccionAbierta?.situacion ?? null}
+          mesTard={mesTard}
+          nombresAusencia={nombresAusencia}
+          evidenciaPrevia={docAbierto ? evidencias.get(docAbierto.id) : undefined}
+          sinConstancia={personaAbierta ? sinConstancia.get(personaAbierta) ?? null : null}
+          exigeDescargo={exigeDescargo}
+          puedeAnular={puedeAnular}
+          acciones={accionesPanel}
+          editores={editoresPanel}
+          onVerPapel={(path) => void verAdjunto(path)}
+        />
+
+        {/* ── Diálogos ───────────────────────────────────────────────────
+            Cada uno solo pide confirmación o un texto; la llamada de verdad
+            vive en su «confirmar…», nunca en el botón que abre el Modal. */}
+
+        <Modal abierto={verReglas} onCerrar={() => setVerReglas(false)} titulo="Reglas y umbrales" ancho="lg">
+          <div className="grid gap-4 text-sm">
+            <p className="text-taupe">Lo que el sistema mira para detectar. Detectar no es sancionar: cada documento lo revisa y firma una persona.</p>
+            <dl className="grid gap-3">
+              {[
+                ["Tardanzas", "En un mismo mes calendario: 3 sin antecedente vigente · 2 tras una amonestación · 1 tras una suspensión. Cada fila dice el suyo.", "RIT 19.2"],
+                ["Sin medir", "Más de tres horas tarde no suma: casi siempre es un turno mal asignado. Se revisa a mano.", "Mig. 0189"],
+                ["Mes cerrado", "Se puede documentar un mes concluido, pero una demora injustificada equivale a condonación. Del mes más viejo al más nuevo.", "RIT 19.4 · 52 · 56.6"],
+                ["Faltas", "Día programado sin marca ni justificación. Umbral grave: 4 seguidas · 6 en 30 días · 16 en 180 días.", "LPCL 25 h)"],
+                ["Antecedente", "Solo cuenta lo entregado en los doce meses previos. Firmado y no entregado no agrava.", "RIT 56.1 · 56.2"],
+                ["Antes de firmar", "Amonestación y suspensión: comunicar los cargos por escrito y esperar dos días hábiles de descargo; después, valorarlo.", "RIT 55.2 · 19.3"],
+                ["Suspensión", "Tope de tres días laborables; la primera por tardanzas, de uno a dos; la siguiente, mayor que la anterior.", "RIT 54.5 · 19.2 c) d)"],
+                ["Incidencias", "Cuenta tardanzas sobre 30 días corridos, así que puede mostrar un número mayor que acá. El que gobierna el documento es el del mes calendario.", ""],
+              ].map(([t, x, ref]) => (
+                <div key={t} className="grid gap-0.5 border-t border-sand pt-2 sm:grid-cols-[8rem_1fr] sm:gap-4">
+                  <dt className="font-medium text-tinta">{t}</dt>
+                  <dd className="text-taupe">{x}{ref && <span className="block text-xs">{ref}</span>}</dd>
+                </div>
+              ))}
+            </dl>
+            <div className="flex justify-end">
+              <Boton variante="primario" onClick={() => setVerReglas(false)}>Entendido</Boton>
+            </div>
+          </div>
+        </Modal>
 
         <Modal abierto={confirmandoCargos !== null} onCerrar={() => setConfirmandoCargos(null)}
           titulo="Comunicar los cargos" bloqueado={ocupado === confirmandoCargos?.id}>
           {confirmandoCargos && (
             <>
               <p className="mb-2 text-sm text-taupe">
-                ¿Comunicar los cargos a <strong>{nombres.get(confirmandoCargos.persona_id) ?? "esta persona"}</strong>?
+                ¿Comunicar los cargos a <strong className="text-tinta">{nombreDe(confirmandoCargos.persona_id)}</strong>?
               </p>
               <p className="mb-2 text-sm text-taupe">
-                Se abre el plazo de dos días hábiles para que presente su descargo, y hasta que venza
-                no se podrá firmar. <strong>El plazo no se reabre.</strong>
+                Se abre el plazo de dos días hábiles para su descargo, y hasta que venza no se podrá firmar.{" "}
+                <strong className="text-tinta">El plazo no se reabre.</strong>
               </p>
               <p className="mb-4 text-sm text-taupe">
-                Antes de continuar: entrégale por escrito los hechos con sus fechas, la norma que se le
-                imputa y el detalle de la medición. El sistema guarda la fecha; el documento lo
-                entregas tú.
+                Antes de continuar: entrégale por escrito los hechos con sus fechas, la norma que se le imputa y el
+                detalle de la medición. El sistema guarda la fecha; el documento lo entregas tú.
               </p>
               <div className="flex justify-end gap-3">
                 <Boton variante="secundario" onClick={() => setConfirmandoCargos(null)} disabled={ocupado === confirmandoCargos.id}>Cancelar</Boton>
@@ -1722,164 +1385,250 @@ function fechasDe(h: Hecho[]): string {
           )}
         </Modal>
 
-        <Modal abierto={pidiendoConstancia !== null} onCerrar={() => setPidiendoConstancia(null)}
-          titulo="¿Cómo consta esa comunicación?" bloqueado={ocupado === pidiendoConstancia?.id}>
-          {pidiendoConstancia && (
-            <>
-              <p className="mb-3 text-sm text-taupe">
-                Quién se la hizo, dónde y quién más estaba delante. Queda escrito en el expediente con
-                tu nombre y la fecha de hoy. Si fue verbal, dilo: es más débil que un cargo firmado y
-                el expediente tiene que decirlo así.
+        <Modal abierto={declarando !== null} onCerrar={() => setDeclarando(null)}
+          titulo="Registrar una comunicación que ya ocurrió" bloqueado={ocupado === declarando?.id}>
+          {declarando && (
+            <div className="grid gap-3">
+              <p className="text-sm text-taupe">
+                Desde ese día corren los dos días hábiles de descargo; si todavía no han pasado, el documento seguirá sin
+                poder firmarse. Queda escrito con tu nombre y la fecha de hoy.
               </p>
-              <AreaTexto value={constanciaTexto} onChange={(e) => setConstanciaTexto(e.target.value)}
-                rows={3} autoFocus
-                placeholder="ej. se lo comuniqué en persona en la oficina de la sede, delante de la encargada" />
-              <div className="mt-4 flex justify-end gap-3">
-                <Boton variante="secundario" onClick={() => setPidiendoConstancia(null)} disabled={ocupado === pidiendoConstancia.id}>Cancelar</Boton>
-                <Boton variante="primario" onClick={() => void confirmarDeclararCargos(pidiendoConstancia)} cargando={ocupado === pidiendoConstancia.id}>
-                  Registrar
-                </Boton>
+              <div className="w-44">
+                <Campo etiqueta="Día de la comunicación" type="date" value={fechaCargos} max={hoyLima()}
+                  onChange={(e) => setFechaCargos(e.target.value)} />
               </div>
-            </>
+              <label htmlFor="constancia" className="grid gap-1 text-sm">
+                Cómo consta (obligatorio)
+                <AreaTexto id="constancia" value={constanciaTexto} onChange={(e) => setConstanciaTexto(e.target.value)} rows={3}
+                  placeholder="ej. se lo comuniqué en persona en la oficina de la sede, delante de la encargada" />
+              </label>
+              <p className="text-xs text-taupe">Quién se la hizo, dónde y quién más estaba. Si fue verbal, dilo: es más débil que un cargo firmado.</p>
+              <div className="flex justify-end gap-3">
+                <Boton variante="secundario" onClick={() => setDeclarando(null)} disabled={ocupado === declarando.id}>Cancelar</Boton>
+                <Boton variante="primario" onClick={() => void confirmarDeclararCargos(declarando)} cargando={ocupado === declarando.id}>Registrar</Boton>
+              </div>
+            </div>
           )}
         </Modal>
 
-        <Modal abierto={valorando !== null} onCerrar={() => setValorando(null)}
-          titulo={valorando?.acogido === "no" ? "¿Por qué no se acoge el descargo?" : "¿Qué parte se acoge y qué parte no?"}
-          bloqueado={ocupado === valorando?.d.id}>
+        <Modal abierto={valorando !== null} onCerrar={() => setValorando(null)} titulo="Valorar el descargo" bloqueado={ocupado === valorando?.d.id}>
           {valorando && (
-            <>
-              <p className="mb-3 text-sm text-taupe">Queda escrito en el documento (art. 19.3 del RIT).</p>
-              <AreaTexto value={valoracionTexto} onChange={(e) => setValoracionTexto(e.target.value)} rows={3} autoFocus />
-              <div className="mt-4 flex justify-end gap-3">
+            <div className="grid gap-3">
+              <p className="text-sm text-taupe">Queda escrito en el documento (art. 19.3 del RIT), también si no presentó ninguno.</p>
+              <fieldset className="grid gap-1.5">
+                <legend className="sr-only">Cómo se valora</legend>
+                {Object.entries(ETIQUETA_DESCARGO).map(([valor, etiqueta]) => (
+                  <label key={valor} htmlFor={`valora-${valor}`} className="flex items-center gap-2 text-sm">
+                    <input id={`valora-${valor}`} type="radio" name="valoracion" value={valor} checked={valorando.acogido === valor}
+                      onChange={() => setValorando({ ...valorando, acogido: valor })} />
+                    {etiqueta}
+                  </label>
+                ))}
+              </fieldset>
+              {(valorando.acogido === "parcial" || valorando.acogido === "no") && (
+                <label htmlFor="valoracion-texto" className="grid gap-1 text-sm">
+                  {valorando.acogido === "no" ? "Por qué no se acoge (obligatorio)" : "Qué parte se acoge y qué parte no (obligatorio)"}
+                  <AreaTexto id="valoracion-texto" value={valoracionTexto} onChange={(e) => setValoracionTexto(e.target.value)} rows={3} />
+                </label>
+              )}
+              {valorando.acogido === "total" && (
+                <p className="text-xs text-taupe">Si se acoge por completo, lo normal es que ya no corresponda sancionar: después, anula el borrador.</p>
+              )}
+              <div className="flex justify-end gap-3">
                 <Boton variante="secundario" onClick={() => setValorando(null)} disabled={ocupado === valorando.d.id}>Cancelar</Boton>
-                <Boton variante="primario" cargando={ocupado === valorando.d.id}
-                  onClick={() => {
-                    if (!valoracionTexto || valoracionTexto.trim().length < 10) {
-                      avisar("error", "Hace falta el motivo, y con algo de detalle: es lo que se lee si alguien discute la sanción.");
-                      return;
-                    }
-                    void confirmarValorarDescargo(valorando.d, valorando.acogido, valoracionTexto.trim());
-                  }}>
-                  Guardar valoración
-                </Boton>
+                <Boton variante="primario" onClick={() => void confirmarValorarDescargo()} cargando={ocupado === valorando.d.id}>Guardar valoración</Boton>
               </div>
-            </>
+            </div>
           )}
         </Modal>
 
-        <Modal abierto={firmando !== null} onCerrar={() => setFirmando(null)}
-          titulo="Firmar este documento" bloqueado={ocupado === firmando}>
+        <Modal abierto={firmando !== null} onCerrar={() => setFirmando(null)} titulo="Firmar este documento" bloqueado={ocupado === firmando}>
           {firmando && (() => {
-            const elegido = firmanteElegido[firmando];
-            const f = elegido ? (firmantes[firmando] ?? []).find((x) => x.persona_id === elegido) : null;
+            const lista = firmantes[firmando] ?? [];
+            const elegido = lista.find((x) => x.persona_id === firmanteDe(firmando)) ?? null;
             return (
-              <>
-                {/* El cargo va en el aviso a propósito: es lo que se va a
-                    imprimir en el documento, y quien firma tiene que verlo
-                    antes de que sea definitivo. */}
-                <p className="mb-4 text-sm text-taupe">
-                  {f ? (
-                    <>¿Firmar este documento como <strong>{f.nombre}</strong> ({f.cargo})? Le asigna su
-                      número oficial y deja de ser un borrador. Después podrás entregarlo o, si hizo
-                      falta, anularlo.</>
-                  ) : (
-                    "Le asigna su número oficial y deja de ser un borrador. Después podrás entregarlo o, si hizo falta, anularlo."
-                  )}
+              <div className="grid gap-3">
+                {lista.length > 0 && (
+                  <label htmlFor="firmante" className="grid gap-1 text-sm">
+                    Quién firma
+                    <select id="firmante" value={firmanteDe(firmando)}
+                      onChange={(e) => setFirmanteElegido((m) => ({ ...m, [firmando]: e.target.value }))}
+                      className="rounded-control border border-sand bg-hueso px-2.5 py-1.5 text-sm text-tinta">
+                      {lista.map((f) => (
+                        <option key={f.persona_id} value={f.persona_id}>
+                          {f.nombre} · {f.cargo}{f.tiene_firma ? "" : " (sin firma escaneada)"}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+                {/* El cargo va en el aviso: es lo que se imprime en el documento. */}
+                <p className="text-sm text-taupe">
+                  {elegido
+                    ? <>Se firmará como <strong className="text-tinta">{elegido.nombre}</strong> ({elegido.cargo}). </>
+                    : null}
+                  Le asigna su número oficial y deja de ser un borrador. Después podrás entregarlo o, si hizo falta, anularlo.
                 </p>
                 <div className="flex justify-end gap-3">
                   <Boton variante="secundario" onClick={() => setFirmando(null)} disabled={ocupado === firmando}>Cancelar</Boton>
                   <Boton variante="primario" onClick={() => void confirmarFirmar(firmando)} cargando={ocupado === firmando}>Firmar</Boton>
                 </div>
-              </>
+              </div>
             );
           })()}
         </Modal>
 
-        <Modal abierto={resolviendo !== null} onCerrar={() => setResolviendo(null)}
-          titulo={resolviendo?.resultado === "archivado" ? "Archivar el procedimiento sin sancionar" : "Se resolvió con despido"}
-          bloqueado={ocupado === resolviendo?.d.id}>
-          {resolviendo && (
-            <>
-              <p className="mb-3 text-sm text-taupe">
-                Explica la decisión (mínimo 10 caracteres). Es lo que sostiene el expediente si alguien
-                lo revisa.
-              </p>
-              <p className="mb-3 text-xs text-taupe">
-                {resolviendo.resultado === "despido"
-                  ? "Ojo: esto solo ANOTA la decisión. La carta de despido se redacta, se firma y se entrega aparte."
-                  : "El documento sigue entregado y sigue contando como antecedente doce meses."}
-              </p>
-              <AreaTexto value={motivoResolucion} onChange={(e) => setMotivoResolucion(e.target.value)} rows={3} autoFocus />
-              <div className="mt-4 flex justify-end gap-3">
-                <Boton variante="secundario" onClick={() => setResolviendo(null)} disabled={ocupado === resolviendo.d.id}>Cancelar</Boton>
-                <Boton variante={resolviendo.resultado === "despido" ? "peligro" : "primario"}
-                  onClick={() => void confirmarResolver()} cargando={ocupado === resolviendo.d.id}>
-                  {resolviendo.resultado === "archivado" ? "Archivar" : "Confirmar"}
-                </Boton>
+        <Modal abierto={subiendoCargo !== null} onCerrar={() => setSubiendoCargo(null)}
+          titulo={subiendoCargo ? (subiendoCargo.fechaMax ? "Registrar una entrega anterior al cese" : TITULO_PAPEL[subiendoCargo.tipo]) : ""}
+          bloqueado={ocupado === subiendoCargo?.id}>
+          {subiendoCargo && (() => {
+            const doc = docs.find((x) => x.id === subiendoCargo.id);
+            const pideFecha = doc?.estado === "firmado" && (subiendoCargo.tipo === "cargo_firmado" || subiendoCargo.tipo === "acta_negativa");
+            return (
+              <div className="grid gap-4">
+                {subiendoCargo.fechaMax && (
+                  <p className="rounded-control bg-ambar/15 px-3 py-2 text-sm text-ambar">
+                    Solo si se le entregó antes de que cesara. Con esta fecha el documento cuenta como antecedente si la persona vuelve.
+                  </p>
+                )}
+                <FormularioCargo
+                  tipo={subiendoCargo.tipo}
+                  pideFecha={pideFecha}
+                  entregadoEl={doc?.entregado_at ? selloLima(doc.entregado_at) : null}
+                  fecha={fechaEntrega} fechaMax={subiendoCargo.fechaMax}
+                  nota={notaCargo} testigo={testigoCargo} progreso={progresoCargo}
+                  alElegirArchivo={setArchivoCargo} alCambiarFecha={setFechaEntrega}
+                  alCambiarNota={setNotaCargo} alCambiarTestigo={setTestigoCargo}
+                />
+                <div className="flex justify-end gap-3">
+                  <Boton variante="secundario" onClick={() => setSubiendoCargo(null)} disabled={ocupado === subiendoCargo.id}>Cancelar</Boton>
+                  <Boton variante="primario" onClick={() => void guardarCargo()} cargando={ocupado === subiendoCargo.id}>
+                    {progresoCargo !== null ? `Subiendo… ${progresoCargo}%` : "Guardar"}
+                  </Boton>
+                </div>
               </div>
-            </>
+            );
+          })()}
+        </Modal>
+
+        <Modal abierto={entregandoSinPapel !== null} onCerrar={() => setEntregandoSinPapel(null)}
+          titulo="Entregar sin papel" bloqueado={ocupado === entregandoSinPapel?.id}>
+          {entregandoSinPapel && (
+            <div className="grid gap-3">
+              <p className="text-sm text-taupe">
+                Para una entrega por correo certificado o notarial cuyo cargo llega después. El documento queda entregado
+                con la fecha de hoy y desde ahí corren los plazos. El cargo se sube después y no pisa esta fecha.
+              </p>
+              <label htmlFor="medio-entrega" className="grid gap-1 text-sm">
+                Medio
+                <select id="medio-entrega" value={medio} onChange={(e) => setMedio(e.target.value)}
+                  className="rounded-control border border-sand bg-hueso px-2.5 py-1.5 text-sm text-tinta">
+                  <option value="fisico">En mano</option>
+                  {/* Nivel 4 no admite correo (0303): no se ofrece. */}
+                  {entregandoSinPapel.nivel !== "imputacion" && entregandoSinPapel.nivel !== "despido" && <option value="correo">Por correo</option>}
+                  <option value="notarial">Notarial</option>
+                </select>
+              </label>
+              <div className="flex justify-end gap-3">
+                <Boton variante="secundario" onClick={() => setEntregandoSinPapel(null)} disabled={ocupado === entregandoSinPapel.id}>Cancelar</Boton>
+                <Boton variante="primario" onClick={() => void confirmarEntregar()} cargando={ocupado === entregandoSinPapel.id}>Marcar entregado</Boton>
+              </div>
+            </div>
           )}
         </Modal>
 
-        <Modal abierto={reabriendo !== null} onCerrar={() => setReabriendo(null)}
-          titulo="Volver este memo a borrador" bloqueado={ocupado === reabriendo}>
+        <Modal abierto={resolviendo !== null} onCerrar={() => setResolviendo(null)} titulo="Registrar la decisión" bloqueado={ocupado === resolviendo?.d.id}>
+          {resolviendo && (
+            <div className="grid gap-3">
+              <p className="text-sm text-taupe">Tras evaluar sus descargos. Esto solo ANOTA la decisión: no es anular.</p>
+              <fieldset className="grid gap-1.5">
+                <legend className="sr-only">Qué se resolvió</legend>
+                {([["archivado", "Archivar sin sancionar"], ["despido", "Se resolvió con despido"]] as const).map(([v, t]) => (
+                  <label key={v} htmlFor={`resuelve-${v}`} className="flex items-center gap-2 text-sm">
+                    <input id={`resuelve-${v}`} type="radio" name="resolucion" value={v} checked={resolviendo.resultado === v}
+                      onChange={() => setResolviendo({ ...resolviendo, resultado: v })} />
+                    {t}
+                  </label>
+                ))}
+              </fieldset>
+              {resolviendo.resultado && (
+                <p className="rounded-control bg-hueso px-3 py-2 text-sm text-taupe">
+                  {resolviendo.resultado === "despido"
+                    ? "La carta de despido se redacta, se firma y se entrega aparte."
+                    : "El documento sigue entregado y sigue contando como antecedente doce meses."}
+                </p>
+              )}
+              <label htmlFor="motivo-resolucion" className="grid gap-1 text-sm">
+                Por qué (obligatorio)
+                <AreaTexto id="motivo-resolucion" value={motivoResolucion} onChange={(e) => setMotivoResolucion(e.target.value)} rows={3} />
+              </label>
+              <div className="flex justify-end gap-3">
+                <Boton variante="secundario" onClick={() => setResolviendo(null)} disabled={ocupado === resolviendo.d.id}>Cancelar</Boton>
+                <Boton variante={resolviendo.resultado === "despido" ? "peligro" : "primario"} onClick={() => void confirmarResolver()} cargando={ocupado === resolviendo.d.id}>
+                  Guardar decisión
+                </Boton>
+              </div>
+            </div>
+          )}
+        </Modal>
+
+        <Modal abierto={reabriendo !== null} onCerrar={() => setReabriendo(null)} titulo="Cambiar firmante" bloqueado={ocupado === reabriendo}>
           {reabriendo && (
             <>
               <p className="mb-4 text-sm text-taupe">
-                Pierde su número oficial actual; al volver a firmarlo se le asigna uno nuevo. Solo se
-                puede mientras no se haya entregado.
+                El documento vuelve a borrador y <strong className="text-tinta">pierde su número oficial</strong>; al firmarlo
+                de nuevo recibe uno nuevo. Solo se puede mientras no se haya entregado.
               </p>
               <div className="flex justify-end gap-3">
                 <Boton variante="secundario" onClick={() => setReabriendo(null)} disabled={ocupado === reabriendo}>Cancelar</Boton>
-                <Boton variante="primario" onClick={() => void confirmarReabrir(reabriendo)} cargando={ocupado === reabriendo}>
-                  Volver a borrador
-                </Boton>
+                <Boton variante="primario" onClick={() => void confirmarReabrir(reabriendo)} cargando={ocupado === reabriendo}>Volver a borrador</Boton>
               </div>
             </>
           )}
         </Modal>
 
-        <Modal abierto={anulando !== null} onCerrar={() => setAnulando(null)}
-          titulo="Anular este documento" bloqueado={ocupado === anulando?.id}>
+        <Modal abierto={anulando !== null} onCerrar={() => setAnulando(null)} titulo="Anular este documento" bloqueado={ocupado === anulando?.id}>
           {anulando && (
-            <>
+            <div className="grid gap-3">
               {anulando.entregado && (
-                <p className="mb-3 rounded-lg border border-rojo/30 bg-rojo/5 px-3 py-2 text-sm text-rojo-profundo">
-                  Este documento YA SE ENTREGÓ y la persona lo tiene. Anularlo lo deja sin efecto y
-                  queda el rastro con tu motivo, pero el sistema no puede avisarle: tendrás que
-                  comunicárselo tú por escrito.
+                <p className="rounded-control border border-rojo/30 bg-rojo/[0.06] px-3 py-2 text-sm text-rojo-profundo">
+                  Este documento YA SE ENTREGÓ y la persona lo tiene. Anularlo lo deja sin efecto y queda el rastro con tu
+                  motivo, pero el sistema no puede avisarle: tendrás que comunicárselo tú por escrito.
                 </p>
               )}
-              <p className="mb-2 text-sm text-taupe">
+              <label htmlFor="motivo-anular" className="grid gap-1 text-sm">
                 {anulando.entregado
-                  ? "Explica POR QUÉ se anula — si fue un defecto del documento o una decisión de la empresa, porque de eso depende que los antecedentes anteriores sigan contando."
-                  : "Motivo de la anulación (queda registrado en el documento)."}
-              </p>
-              <AreaTexto value={motivoAnular} onChange={(e) => setMotivoAnular(e.target.value)} rows={3} autoFocus />
-              <div className="mt-4 flex justify-end gap-3">
+                  ? "Por qué se anula — si fue un defecto del documento o una decisión de la empresa (obligatorio)"
+                  : "Motivo de la anulación (obligatorio)"}
+                <AreaTexto id="motivo-anular" value={motivoAnular} onChange={(e) => setMotivoAnular(e.target.value)} rows={3} />
+              </label>
+              <p className="text-xs text-taupe">Anular no es archivar: devuelve el escalón al peldaño que de verdad tocaba.</p>
+              <div className="flex justify-end gap-3">
                 <Boton variante="secundario" onClick={() => setAnulando(null)} disabled={ocupado === anulando.id}>Cancelar</Boton>
                 <Boton variante="peligro" onClick={() => void confirmarAnular()} cargando={ocupado === anulando.id}>Anular</Boton>
               </div>
-            </>
+            </div>
           )}
         </Modal>
 
-        <Modal abierto={cerrandoSinEntrega !== null} onCerrar={() => setCerrandoSinEntrega(null)}
-          titulo="Cerrar sin entrega" bloqueado={ocupado === cerrandoSinEntrega}>
+        <Modal abierto={cerrandoSinEntrega !== null} onCerrar={() => setCerrandoSinEntrega(null)} titulo="Cerrar sin entrega" bloqueado={ocupado === cerrandoSinEntrega}>
           {cerrandoSinEntrega && (
-            <>
-              <p className="mb-2 text-sm text-taupe">
-                La persona ya cesó y este documento nunca se le pudo entregar. Se cierra el caso
-                dejando constancia en el legajo — no es lo mismo que anular: el documento sí era
-                válido, solo que ya no tiene a quién notificarse. Puedes agregar una nota (opcional).
+            <div className="grid gap-3">
+              <p className="rounded-control bg-hueso px-3 py-2 text-sm text-taupe">
+                El documento pasa al historial como <strong className="text-tinta">cerrado sin entrega</strong>. No es anular:
+                el documento sí era válido, solo que ya no tiene a quién notificarse. No cuenta como antecedente y ya no
+                se podrá entregar.
               </p>
-              <AreaTexto value={motivoCierre} onChange={(e) => setMotivoCierre(e.target.value)} rows={3} autoFocus />
-              <div className="mt-4 flex justify-end gap-3">
+              <label htmlFor="motivo-cierre" className="grid gap-1 text-sm">
+                Por qué no se le entregó (obligatorio)
+                <AreaTexto id="motivo-cierre" value={motivoCierre} onChange={(e) => setMotivoCierre(e.target.value)} rows={3}
+                  placeholder="ej. cesó antes de poder citarla; no se le entregó en su último día" />
+              </label>
+              <div className="flex justify-end gap-3">
                 <Boton variante="secundario" onClick={() => setCerrandoSinEntrega(null)} disabled={ocupado === cerrandoSinEntrega}>Cancelar</Boton>
-                <Boton variante="secundario" onClick={() => void confirmarCerrarSinEntrega()} cargando={ocupado === cerrandoSinEntrega}>Cerrar sin entrega</Boton>
+                <Boton variante="primario" onClick={() => void confirmarCerrarSinEntrega()} cargando={ocupado === cerrandoSinEntrega}>Cerrar sin entrega</Boton>
               </div>
-            </>
+            </div>
           )}
         </Modal>
       </main>

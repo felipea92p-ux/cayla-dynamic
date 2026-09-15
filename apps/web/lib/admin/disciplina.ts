@@ -187,9 +187,12 @@ export function situacionTardanza(t: TardanzaRow, nombreMes: string, tieneBorrad
     };
   }
   const nivel = NIVEL_DISCIPLINARIO_CORTO[t.umbral as keyof typeof NIVEL_DISCIPLINARIO_CORTO] ?? t.umbral;
+  // Con un borrador en curso el caso ya se está tramitando en Borradores:
+  // contarlo también como «requiere revisión» inflaba el contador rojo y
+  // mandaba a revisar dos veces lo mismo (visto con datos el 2026-09-15).
   if (tieneBorrador) {
     return {
-      grupo: "alcanzo", etiqueta: "Ya tiene borrador", variante: "informativo", generable: false,
+      grupo: "seguimiento", etiqueta: "Ya tiene borrador", variante: "informativo", generable: false,
       porQueNo: "Ya hay un borrador de tardanza pendiente para esta persona. Revísalo en Borradores antes de generar otro.",
     };
   }
@@ -212,7 +215,7 @@ export const UMBRAL_FALTAS = { consecutivas: 4, en_30: 6, en_180: 16 } as const;
 export function situacionFalta(f: FaltaRow, tieneBorrador: boolean): SituacionDeteccion {
   if (tieneBorrador) {
     return {
-      grupo: "alcanzo", etiqueta: "Ya tiene borrador", variante: "informativo", generable: false,
+      grupo: "seguimiento", etiqueta: "Ya tiene borrador", variante: "informativo", generable: false,
       porQueNo: "Ya hay un borrador de faltas pendiente para esta persona. Revísalo en Borradores antes de generar otro.",
     };
   }

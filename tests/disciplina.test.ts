@@ -99,8 +99,8 @@ describe("el semáforo no ofrece un borrador que la base va a rechazar", () => {
     const s = situacionTardanza(tard({}), "setiembre", false);
     expect(s).toMatchObject({ grupo: "alcanzo", generable: true });
   });
-  it("si ya hay un borrador de esa causal, no se ofrece otro", () => {
-    expect(situacionTardanza(tard({}), "setiembre", true).generable).toBe(false);
+  it("si ya hay un borrador de esa causal, no se ofrece otro y deja de pedir revisión: ya se tramita", () => {
+    expect(situacionTardanza(tard({}), "setiembre", true)).toMatchObject({ generable: false, grupo: "seguimiento" });
     const f: FaltaRow = { persona_id: "p1", nombre: "X", sede: "LIM", consecutivas: 1, en_30: 1, en_180: 1, nivel: "ambar" };
     expect(situacionFalta(f, true).generable).toBe(false);
     expect(situacionFalta(f, false).generable).toBe(true);
