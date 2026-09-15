@@ -208,6 +208,11 @@ export default function PerfilPersonaPage() {
   // si alguien vuelve a abrirlo para otra persona.
   const [mostrandoCancelarDni, setMostrandoCancelarDni] = useState(false);
   const [motivoBorrarDni, setMotivoBorrarDni] = useState("");
+  // Mínimo 3 (pedido por Felipe, 2026-09-15): que «x» o «.» no pasen como el
+  // porqué de borrar un documento de identidad. Sin máximo. La base
+  // (fn_borrar_dni_de, 0407) solo exige que no esté vacío.
+  const MIN_MOTIVO_DNI = 3;
+  const motivoSuficienteDni = motivoBorrarDni.trim().length >= MIN_MOTIVO_DNI;
   const [borrandoDni, setBorrandoDni] = useState(false);
   function cerrarCancelarDni() {
     if (borrandoDni) return; // mismo candado que Modal.bloqueado: no perder el motivo a medio escribir
@@ -235,7 +240,7 @@ export default function PerfilPersonaPage() {
    * apuntando a archivos que ya no están y nadie se enteraría.
    */
   async function cancelarDni() {
-    if (!ficha || motivoBorrarDni.trim() === "") return;
+    if (!ficha || !motivoSuficienteDni) return;
     setBorrandoDni(true);
     try {
       const { data, error } = await supabase.rpc("fn_borrar_dni_de", {
@@ -577,23 +582,23 @@ export default function PerfilPersonaPage() {
             <div className="flex items-center justify-between gap-3">
               <Dato label="Fotos del DNI" valor={tieneFotosDni ? "Cargadas y aprobadas" : "—"} />
               {conAcciones && tieneFotosDni && (
-                <div className="flex flex-wrap items-center justify-end gap-2">
-                  {/* Ver va a la vista y cancelar queda dentro del «•••»: lo
-                      cotidiano es mirar el documento, lo excepcional es borrarlo. */}
+                // Todo dentro del «•••», decidido con Felipe el 2026-09-15: a la
+                // vista, dos botones sueltos se partían en dos filas en la columna
+                // angosta. Ver va primero; cancelar, al final y en rojo, y además
+                // pide confirmación con motivo en el Modal de abajo.
+                <Menu trigger={({ alternar, abierto }) => (
+                  <Boton variante="sutil" tamano="sm" onClick={alternar} aria-haspopup="menu" aria-expanded={abierto} aria-label="Acciones del DNI">•••</Boton>
+                )}>
                   {CARAS_DNI.map((cara) => {
                     const ruta = rutaCaraDni(cara.clave);
                     return ruta ? (
-                      <Boton key={cara.clave} variante="secundario" tamano="sm" onClick={() => void verCaraDni(ruta)}>
+                      <MenuItem key={cara.clave} onClick={() => void verCaraDni(ruta)}>
                         Ver {cara.etiqueta.toLowerCase()}
-                      </Boton>
+                      </MenuItem>
                     ) : null;
                   })}
-                  <Menu trigger={({ alternar, abierto }) => (
-                    <Boton variante="sutil" tamano="sm" onClick={alternar} aria-haspopup="menu" aria-expanded={abierto} aria-label="Más acciones del DNI">•••</Boton>
-                  )}>
-                    <MenuItem variante="peligro" onClick={() => setMostrandoCancelarDni(true)}>Cancelar documento</MenuItem>
-                  </Menu>
-                </div>
+                  <MenuItem variante="peligro" onClick={() => setMostrandoCancelarDni(true)}>Cancelar documento</MenuItem>
+                </Menu>
               )}
             </div>
           </div>
@@ -1164,10 +1169,13 @@ export default function PerfilPersonaPage() {
       <Modal
         abierto={mostrandoCancelarDni}
         onCerrar={cerrarCancelarDni}
-        titulo="Cancelar el DNI"
+        titulo="¿Seguro que quieres cancelar el DNI?"
         bloqueado={borrandoDni}
       >
-        <p className="text-sm text-taupe">
+        <p className="text-sm font-medium text-rojo">
+          Las dos fotos se borran y no se pueden recuperar. Para volver a tenerlas, la persona tendrá que subirlas de nuevo.
+        </p>
+        <p className="mt-2 text-sm text-taupe">
           Retira las fotos de la ficha y las borra del almacén, dejando constancia de quién y por qué. Es el derecho
           de cancelación que la Ley N.° 29733 le promete a la persona en el texto que aceptó al subirlas. Antes de
           hacerlo, comprueba que no haya obligación de conservarlo —el vínculo vigente y su plazo posterior—: eso lo
@@ -1175,21 +1183,30 @@ export default function PerfilPersonaPage() {
         </p>
         <div className="mt-3">
           <Campo
-            etiqueta="Motivo (obligatorio)"
+            etiqueta="¿Por qué se borra? (obligatorio)"
             value={motivoBorrarDni}
             onChange={(e) => setMotivoBorrarDni(e.target.value)}
             placeholder="a petición de quién y bajo qué criterio"
           />
+          {/* Se dice cuánto falta en vez de solo apagar el botón: un botón gris
+              sin explicación parece un fallo de la pantalla. */}
+          {!motivoSuficienteDni && (
+            <p className="mt-1 text-xs text-taupe">
+              Escribe al menos {MIN_MOTIVO_DNI} caracteres ({motivoBorrarDni.trim().length}/{MIN_MOTIVO_DNI}).
+            </p>
+          )}
         </div>
         <div className="mt-4 flex justify-end gap-2">
-          <Boton variante="secundario" onClick={cerrarCancelarDni} disabled={borrandoDni}>Cancelar</Boton>
+          {/* «Volver» y no «Cancelar»: al lado de «Cancelar el DNI», un botón
+              llamado «Cancelar» no deja claro cuál de los dos borra. */}
+          <Boton variante="secundario" onClick={cerrarCancelarDni} disabled={borrandoDni}>Volver</Boton>
           <Boton
             variante="peligro"
             onClick={() => void cancelarDni()}
             cargando={borrandoDni}
-            disabled={motivoBorrarDni.trim() === ""}
+            disabled={!motivoSuficienteDni}
           >
-            Cancelar el DNI
+            Sí, borrar el DNI
           </Boton>
         </div>
       </Modal>
