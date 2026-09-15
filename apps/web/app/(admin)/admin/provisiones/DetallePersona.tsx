@@ -17,11 +17,13 @@ import {
   pagadoVentana,
   pagosDe,
   proximoDesembolso,
+  subvencionDe,
   ventanasDe,
   type DesembolsoLibro,
   type EstadoVentana,
   type ProvData,
   type ProvPersona,
+  type Subvenciones,
   type Ventana,
   type VentanaClave,
   type VentanaLibro,
@@ -50,7 +52,18 @@ const VARIANTE: Record<EstadoVentana, "advertencia" | "informativo" | "positivo"
 
 const pct = (x: number) => `${(x * 100).toLocaleString("es-PE", { maximumFractionDigits: 2 })} %`;
 
-export function DetallePersona({ data, persona: p, libro }: { data: ProvData; persona: ProvPersona; libro: Libro }) {
+export function DetallePersona({
+  data,
+  persona: p,
+  libro,
+  subvenciones,
+}: {
+  data: ProvData;
+  persona: ProvPersona;
+  libro: Libro;
+  /** Lo que devenga una practicante (0465). Viene de otra función. */
+  subvenciones: Subvenciones;
+}) {
   const anio = Number(data.as_of.slice(0, 4));
   const vinculo = esPracticante(p) ? "Practicante" : "Planilla";
 
@@ -76,13 +89,110 @@ export function DetallePersona({ data, persona: p, libro }: { data: ProvData; pe
   );
 
   if (esPracticante(p)) {
+    const s = subvencionDe(subvenciones, p);
     return (
-      <div className="grid gap-4">
+      <div className="grid gap-6 [font-variant-numeric:tabular-nums]">
         {cabecera}
         <p className="text-sm">
           Por la Ley 28518, una modalidad formativa <strong className="font-medium">no genera</strong>{" "}
-          gratificación, CTS ni vacaciones. No tiene nada que reservar, y no es porque falte cargar algo.
+          gratificación, CTS ni vacaciones de trabajador (art. 47). Sí genera estos dos pagos (art. 42), y por
+          eso ocupa una fila como cualquier otra persona.
         </p>
+
+        {s === null ? (
+          <p className="text-sm text-rojo-profundo">
+            No se pudieron leer sus subvenciones. Los montos de esta persona no se están mostrando; vuelve a
+            cargar la pantalla.
+          </p>
+        ) : (
+          <>
+            {s.sin_subvencion && (
+              <p className="text-sm text-rojo-profundo">
+                Sin subvención mensual cargada: sus dos conceptos salen en cero, no porque no le toquen. Se
+                asigna en Equipo, igual que un salario.
+              </p>
+            )}
+
+            <Seccion
+              titulo="Media subvención"
+              total={s.media_sub_saldo}
+              nota="Media subvención mensual por cada 6 meses continuos de convenio (Ley 28518, art. 42)."
+            >
+              <div className="grid gap-3 rounded-control border border-sand p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h4 className="font-medium">
+                    Semestre en curso{" "}
+                    <span className="font-normal text-taupe">
+                      · {fechaCorta(s.semestre_desde)} → {fechaCorta(s.semestre_hasta)}
+                    </span>
+                  </h4>
+                  <Insignia variante="neutral" atenuada>
+                    {s.semestres_cumplidos === 0
+                      ? "primer semestre"
+                      : `${s.semestres_cumplidos} ${s.semestres_cumplidos === 1 ? "hito cumplido" : "hitos cumplidos"}`}
+                  </Insignia>
+                </div>
+                <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-3">
+                  <Dato etiqueta="Subvención mensual">
+                    {s.subvencion_mensual === null ? "—" : formatSoles(s.subvencion_mensual)}
+                  </Dato>
+                  <Dato etiqueta="Devengado">{formatSoles(s.media_sub_devengado)}</Dato>
+                  <Dato etiqueta="Pagado">
+                    <Pagos p={p} ventana="subvencion_semestral" anio={anio} libro={libro} monto={s.media_sub_pagado ?? 0} />
+                  </Dato>
+                  <Dato etiqueta="Saldo" className={cx("font-semibold", s.media_sub_saldo < 0 && "text-pizarra")}>
+                    {formatSoles(s.media_sub_saldo)}
+                  </Dato>
+                  <Dato etiqueta="Próximo hito">{fechaCorta(s.proximo_hito)}</Dato>
+                </dl>
+              </div>
+            </Seccion>
+
+            <Seccion
+              titulo="Descanso de 15 días"
+              total={s.descanso_saldo}
+              nota="15 días subvencionados al cumplir 12 meses continuos. Se pagan aunque el convenio termine sin gozarlos."
+            >
+              <div className="grid gap-3 rounded-control border border-sand p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h4 className="font-medium">
+                    Cumple el año el{" "}
+                    <span className="font-normal text-taupe">{fechaCorta(s.descanso_cumple)}</span>
+                  </h4>
+                  <Insignia variante={s.descanso_ganado ? "positivo" : "neutral"} atenuada={!s.descanso_ganado}>
+                    {s.descanso_ganado ? "Ganado" : "Acumulando"}
+                  </Insignia>
+                </div>
+                <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-3">
+                  <Dato etiqueta="Devengado">{formatSoles(s.descanso_devengado)}</Dato>
+                  <Dato etiqueta="Pagado">
+                    <Pagos p={p} ventana="descanso_practicante" anio={anio} libro={libro} monto={s.descanso_pagado ?? 0} />
+                  </Dato>
+                  <Dato etiqueta="Saldo" className={cx("font-semibold", s.descanso_saldo < 0 && "text-pizarra")}>
+                    {formatSoles(s.descanso_saldo)}
+                  </Dato>
+                </dl>
+                {!s.descanso_ganado && (
+                  <p className="text-xs text-taupe">
+                    Se reserva mes a mes para que el día 365 el dinero ya esté guardado. Si el convenio termina
+                    antes de los 12 meses, este saldo no se paga.
+                  </p>
+                )}
+              </div>
+            </Seccion>
+
+            <section className="grid gap-2 border-t border-sand pt-4">
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="font-medium">Saldo total</span>
+                <span className="font-serif text-2xl">{formatSoles(s.total_saldo)}</span>
+              </div>
+              <p className="text-sm text-taupe">
+                No entra en el «Saldo total» de gratificación, CTS y vacaciones del resto del equipo: son
+                conceptos distintos, de otra ley y con otra fecha de pago.
+              </p>
+            </section>
+          </>
+        )}
       </div>
     );
   }
@@ -240,11 +350,30 @@ function BloqueVacaciones({ p, libro, anio }: { p: ProvPersona; libro: Libro; an
   );
 }
 
-function Pagos({ p, ventana, anio, libro }: { p: ProvPersona; ventana: VentanaLibro; anio: number; libro: Libro }) {
-  const total = ventana === "vacaciones" ? (p.vac_monto_pagado ?? 0) : pagadoVentana(p, ventana);
+function Pagos({
+  p,
+  ventana,
+  anio,
+  libro,
+  monto,
+}: {
+  p: ProvPersona;
+  ventana: VentanaLibro;
+  anio: number;
+  libro: Libro;
+  /** Lo cobrado, cuando no viaja en el jsonb de fn_provisiones: las dos
+   *  ventanas de modalidad formativa lo traen de su propia función (0465). */
+  monto?: number;
+}) {
+  // Las dos ventanas de modalidad formativa (0465) no viven en el jsonb de
+  // fn_provisiones: su cobrado llega en `monto`, desde la otra función.
+  const esDeModalidadFormativa = ventana === "subvencion_semestral" || ventana === "descanso_practicante";
+  const total =
+    monto ??
+    (esDeModalidadFormativa ? 0 : ventana === "vacaciones" ? (p.vac_monto_pagado ?? 0) : pagadoVentana(p, ventana));
   if (total <= 0) return <>—</>;
   if (!libro) return <>{formatSoles(total)}</>;
-  const pagos = pagosDe(p, ventana, anio, libro);
+  const pagos = pagosDe(p, ventana, anio, libro, total);
   return (
     <>
       {formatSoles(pagos.total)}

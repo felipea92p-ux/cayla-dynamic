@@ -50,9 +50,11 @@ import {
   type FiltrosProvisiones,
   type ProvData,
   type ProvPersona,
+  type SubvData,
+  type Subvenciones,
 } from "@/lib/admin/provisiones";
 import { CalendarioPagos, ResumenProvisiones } from "./ResumenYCalendario";
-import { Practicantes, TablaProvisiones } from "./TablaProvisiones";
+import { TablaProvisiones } from "./TablaProvisiones";
 import { DetallePersona } from "./DetallePersona";
 
 type Vista = "personas" | "calendario";
@@ -72,6 +74,9 @@ export default function ProvisionesPage() {
   const cargando = !data && !error;
   // undefined = leyendo · null = no se pudo leer · arreglo = leído
   const [libro, setLibro] = useState<DesembolsoLibro[] | null | undefined>(undefined);
+  // CAMBIO 0465 — lo que devenga una practicante vive en otra función; misma
+  // convención de tres estados que el libro.
+  const [subvenciones, setSubvenciones] = useState<Subvenciones>(undefined);
   const [filtros, setFiltros] = useState<FiltrosProvisiones>(FILTROS_VACIOS);
   const [vista, setVista] = useState<Vista>("personas");
   const [comoAbierto, setComoAbierto] = useState(false);
@@ -113,11 +118,25 @@ export default function ProvisionesPage() {
     // escribe «no disponible» en esas columnas en vez de dejarlas vacías.
     // Mismo año que usa la base para descontar (`v_y`): el de la fecha de corte.
     setLibro(undefined);
+    setSubvenciones(undefined);
     const { data: filas, error: errorLibro } = await supabase
       .from("desembolsos_beneficios")
       .select("persona_id, ventana, anio, monto, fecha_pago, origen, nota, created_at")
       .eq("anio", Number(d.as_of.slice(0, 4)));
     setLibro(errorLibro ? null : (filas ?? []).map((f) => ({ ...f, monto: Number(f.monto) })));
+
+    // CAMBIO 0465 · LO QUE DEVENGA UNA PRACTICANTE, DE SU PROPIA FUNCIÓN.
+    // Media subvención por cada 6 meses y el descanso de 15 días al cumplir el
+    // año (Ley 28518, art. 42). No está en fn_provisiones a propósito: esa
+    // función alimenta el pago real de grati y CTS, y estos conceptos no son
+    // ninguno de los dos. Si esta lectura falla, la pantalla se sigue viendo y
+    // el panel de la persona lo dice, igual que con el libro.
+    // `as never` en el nombre: la función nace con la 0465 y los tipos
+    // generados de Supabase no la conocen hasta que la migración esté pegada y
+    // se regeneren. Mismo recurso que usa `lib/terminal/reloj-servidor.ts` con
+    // `fn_ahora_servidor`; se puede quitar cuando `types.ts` la incluya.
+    const { data: subv, error: errorSubv } = await supabase.rpc("fn_subvenciones_practicante" as never);
+    setSubvenciones(errorSubv ? null : (subv as unknown as SubvData));
   }, [supabase, puedeVer]);
 
   useEffect(() => {
@@ -132,8 +151,11 @@ export default function ProvisionesPage() {
     [data],
   );
   const filtradas = useMemo(() => (data ? filtrar(data.personas, data, filtros) : []), [data, filtros]);
+  // CAMBIO 0465 — las practicantes están en la tabla como cualquiera, así que
+  // `filtradas` va entera. `conDerecho` sigue existiendo para el resumen y el
+  // calendario: ésos son de gratificación, CTS y vacaciones, y meter ahí a
+  // quien no devenga ninguno de los tres inflaría el conteo con ceros.
   const conDerecho = useMemo(() => filtradas.filter((p) => !esPracticante(p)), [filtradas]);
-  const practicantes = useMemo(() => filtradas.filter(esPracticante), [filtradas]);
   const filtrado = hayFiltros(filtros);
 
   // CAMBIO 0365 — quienes hoy SÍ tienen tramo pero tuvieron un hueco dentro del
@@ -375,11 +397,18 @@ export default function ProvisionesPage() {
             </div>
 
             {vista === "personas" ? (
-              <>
-                <TablaProvisiones data={data} personas={conDerecho} onAbrir={abrir} vacio={vacio} />
-                <Practicantes personas={practicantes} onAbrir={abrir} />
-              </>
+              <TablaProvisiones
+                data={data}
+                personas={filtradas}
+                subvenciones={subvenciones}
+                onAbrir={abrir}
+                vacio={vacio}
+              />
             ) : (
+              /* El calendario es de gratificación, CTS y vacaciones: sus fechas
+                 son fijas y comunes. Los hitos de una practicante caen en el
+                 aniversario de su convenio, uno distinto por persona, y viven
+                 en su fila y en su panel. */
               <CalendarioPagos data={data} personas={conDerecho} />
             )}
 
@@ -390,7 +419,9 @@ export default function ProvisionesPage() {
               ancho="amplio"
               volverElFocoA={focoAlAbrir}
             >
-              {persona && <DetallePersona data={data} persona={persona} libro={libro} />}
+              {persona && (
+                <DetallePersona data={data} persona={persona} libro={libro} subvenciones={subvenciones} />
+              )}
             </Drawer>
           </>
         )}
@@ -429,9 +460,17 @@ function ComoSeCalculan({ data }: { data: ProvData }) {
       </li>
       <li>
         <strong className="font-medium">Quién aparece:</strong> quien devenga algún beneficio, aunque hoy sume cero
-        (por ejemplo, quien entró esta semana). Las practicantes van en su propia sección: por la Ley 28518 no
-        generan estos beneficios. Quien cobra por recibo por honorarios o está en días de prueba no ocupa fila: no
-        hay nada que reservarle.
+        (por ejemplo, quien entró esta semana). Quien cobra por recibo por honorarios o está en días de prueba no
+        ocupa fila: no hay nada que reservarle.
+      </li>
+      <li>
+        <strong className="font-medium">Practicantes:</strong> por la Ley 28518 no generan gratificación, CTS ni
+        vacaciones de trabajador (art. 47) —por eso esas columnas dicen «No aplica» y no S/ 0.00—, pero sí{" "}
+        <strong className="font-medium">media subvención por cada 6 meses continuos</strong> y{" "}
+        <strong className="font-medium">15 días de descanso subvencionado al cumplir 12 meses</strong> (art. 42),
+        que se pagan aunque el convenio termine sin gozarlos. Esos dos se acumulan mes a mes en su fila y salen de
+        un cálculo aparte, con su propia fecha: el aniversario del convenio de cada persona, no el 15 de un mes
+        fijo. Por eso no entran en el «Saldo total» del resto del equipo ni en el calendario.
       </li>
       <li>
         <strong className="font-medium">Límites que conviene saber:</strong> solo se muestran las ventanas del año
