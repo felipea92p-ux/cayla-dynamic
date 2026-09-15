@@ -98,6 +98,36 @@ export function leCorrespondeCuspp(
 }
 
 /**
+ * ¿A esta persona le corresponde llevar horario?
+ *
+ * Dos exclusiones, las mismas de `fn_personas_sin_horario_vigente` (0385):
+ *
+ *   · `rxh` y `no_trabajador` → un locador de servicios no tiene jornada que
+ *     cumplir; ese es justamente el rasgo del vínculo.
+ *   · `personal_direccion` → la Gerencia General y quien más tenga esa marca:
+ *     art. 5 del D.S. 007-2002-TR, excluido de la jornada máxima. Se mira la
+ *     columna (0187) y NO el rol ni el cargo escrito: darle admin a alguien
+ *     para otra cosa no puede quitarle su jornada.
+ *
+ * Un practicante SÍ lleva horario aunque no esté en planilla: tiene convenio y
+ * tope de horas. Por eso no se apoya en `en_planilla`.
+ *
+ * Vive aquí porque son tres las que preguntan lo mismo —Bandeja (en SQL),
+ * Correcciones y Horarios base— y Horarios base no la tenía: el 2026-09-15
+ * pedía horario para la Gerencia General y para quien factura por RxH.
+ *
+ * El defecto seguro es `true`: un dato que no llegó sigue pidiendo horario, no
+ * deja de pedírselo en silencio a quien sí lo necesita.
+ */
+export function leCorrespondeHorario(
+  tipoVinculo: string | null | undefined,
+  personalDireccion: boolean | null | undefined,
+): boolean {
+  if (tipoVinculo === "rxh" || tipoVinculo === "no_trabajador") return false;
+  return personalDireccion !== true;
+}
+
+/**
  * Los 5 valores válidos de `personas.tipo_vinculo` (CHECK de la 0322), en el
  * orden en que se pintan sus pestañas en Planilla — planilla primero porque
  * es donde está casi todo el equipo, no_trabajador al final porque casi

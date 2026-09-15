@@ -317,6 +317,7 @@ with repo(numero, nombre, nunca) as (values
     (450, 'la_constancia_de_estudios_se_entrega_y_se_revisa', false),
     (451, 'un_visto_bueno_recuerda_lo_que_acepto', false),
     (452, 'eliminar_un_periodo_deja_rastro', false),
+    (453, 'la_bandeja_vuelve_a_reconocer_educacion', false),
     (454, 'liquidaciones_fecha_de_pago_y_diferencia_por_cierre', false)
 ),
 diff as (
