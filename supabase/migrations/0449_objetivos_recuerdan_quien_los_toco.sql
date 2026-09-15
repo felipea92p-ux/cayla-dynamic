@@ -339,9 +339,11 @@ begin
     raise exception 'La planilla de ese mes ya está PAGADA: reabre el periodo para corregir.';
   end if;
 
-  -- Candado de la 0361: sin tocar. Sigue siendo la primera acción tras
-  -- validar permiso/persona/mes y ANTES de preguntar si el mes está vacío.
+  -- ⇩⇩⇩ CAMBIO 0361 ⇩⇩⇩ candado por persona: sin tocar. Sigue siendo la
+  -- primera acción tras validar permiso/persona/mes y ANTES de preguntar si
+  -- el mes está vacío — la prueba 287 verifica este marcador literal.
   perform pg_advisory_xact_lock(hashtext('objetivos:' || p_persona_id::text));
+  -- ⇧⇧⇧ CAMBIO 0361 ⇧⇧⇧
 
   -- ⇩⇩⇩ CAMBIO 0449 ⇩⇩⇩ "vacío" ignora lo eliminado — un mes que solo tiene
   -- ítems con borrado blando se trata igual que uno que nunca tuvo ítems.
