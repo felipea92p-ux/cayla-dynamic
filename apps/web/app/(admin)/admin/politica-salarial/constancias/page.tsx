@@ -1,24 +1,29 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Cargando } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { loQueNoSePudo, sePuedeEntregar } from "@/lib/admin/lo-que-no-se-pudo";
-import { EMPRESA, TZ_LIMA, hoyLima } from "@cayla-dynamic/shared";
+import { EMPRESA, ROLES_DO, TZ_LIMA, hoyLima } from "@cayla-dynamic/shared";
+import { usePersonaActual } from "@/lib/admin/use-rol";
+import { SubnavPoliticaSalarial } from "../_subnav";
 
 // La hoja de constancias del cuadro de categorías y la política salarial.
 //
 // Es la misma idea que `/admin/normas/[id]/constancias`, y por qué es una
 // pantalla aparte y no la misma con un parámetro: la política salarial no vive
 // en `documentos_institucionales` —vive en su propia tabla desde la 0141, con
-// clave entera y no uuid, sin vía «papel» porque nunca se ofreció esa vía— y no
-// tiene historial navegable: la pantalla que la publica solo conoce la versión
-// VIGENTE. Forzar las dos por el mismo camino habría dejado un `id` opcional
-// mintiendo sobre qué significa.
+// clave entera y no uuid, sin vía «papel» porque nunca se ofreció esa vía—.
+//
+// Desde la 0458 SÍ tiene historial navegable: `?version=N` en la URL (o el
+// selector de abajo) pide esa versión puntual con
+// `fn_acuses_politica_salarial(p_version)`; sin el parámetro, sigue trayendo
+// la vigente — mismo comportamiento que antes de la 0458 para quien entra
+// directo a esta ruta.
 //
 // El criterio de a quién obliga es el mismo (activo y en planilla) porque lo
 // dice la misma función en `fn_acuses_politica_salarial`: activas y en
@@ -77,9 +82,13 @@ function motivoPendiente(f: Fila): string | null {
   return null;
 }
 
-export default function ConstanciasPoliticaSalarialPage() {
+function ConstanciasPoliticaSalarialContenido() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const persona = usePersonaActual();
+  const versionPedida = searchParams.get("version");
   const [version, setVersion] = useState<number | null>(null);
+  const [versionesDisponibles, setVersionesDisponibles] = useState<number[]>([]);
   const [publicadaAt, setPublicadaAt] = useState<string | null>(null);
   const [filas, setFilas] = useState<Fila[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -94,12 +103,24 @@ export default function ConstanciasPoliticaSalarialPage() {
 
   useTituloDocumento("Constancias · Política salarial");
 
-  const cargar = useCallback(async () => {
+  // Escrita ENTERA dentro del efecto de montaje, no en una función aparte:
+  // llamar desde un efecto a cualquier función que termine llamando a un
+  // setState —así no sea useCallback— dispara el lint
+  // react-hooks/set-state-in-effect (mismo motivo documentado en
+  // admin/objetivos/page.tsx). Solo se libra escribiéndolo inline.
+  useEffect(() => {
+    const cancelado = { actual: false };
+    (async () => {
     const supabase = createAdminSupabaseClient();
     const { data: sesion } = await supabase.auth.getSession();
     if (!sesion.session) { router.replace("/admin/login"); return; }
 
-    const { data: acusesData, error: e1 } = await supabase.rpc("fn_acuses_politica_salarial");
+    const [{ data: lista }, { data: acusesData, error: e1 }] = await Promise.all([
+      supabase.from("politica_salarial").select("version").order("version", { ascending: false }),
+      supabase.rpc("fn_acuses_politica_salarial", versionPedida ? { p_version: Number(versionPedida) } : {}),
+    ]);
+    if (cancelado.actual) return;
+    setVersionesDisponibles((lista ?? []).map((f) => f.version as number));
     if (e1) { setCargando(false); setError(mensajeDeError(e1, "leer las constancias")); return; }
 
     const acuses = acusesData as { version: number | null; personas: FilaCruda[] } | null;
@@ -168,13 +189,14 @@ export default function ConstanciasPoliticaSalarialPage() {
       return a.nombre.localeCompare(b.nombre, "es");
     });
 
+    if (cancelado.actual) return;
     setVersion(v);
     setPublicadaAt((pol?.publicada_at as string | undefined) ?? null);
     setFilas(armadas);
     setCargando(false);
-  }, [router]);
-
-  useEffect(() => { void cargar(); }, [cargar]);
+    })();
+    return () => { cancelado.actual = true; };
+  }, [router, versionPedida]);
 
   if (cargando) return <Cargando texto="Reuniendo las constancias…" />;
 
@@ -194,9 +216,34 @@ export default function ConstanciasPoliticaSalarialPage() {
   const constan = filas.filter((f) => f.acusado_at !== null);
   const pendientes = filas.filter((f) => f.acusado_at === null);
   const total = filas.length;
+  const esDO = persona !== null && ROLES_DO.includes(persona.rol);
+  const esVigente = versionesDisponibles.length === 0 || version === versionesDisponibles[0];
 
   return (
     <main className="hoja mx-auto max-w-4xl p-6 print:max-w-none print:p-0">
+      <div className="print:hidden">
+        {esDO && <SubnavPoliticaSalarial />}
+        {versionesDisponibles.length > 1 && (
+          <div className="mb-4 flex items-center gap-2 text-sm">
+            <label htmlFor="version-constancias" className="text-taupe">Versión:</label>
+            <select
+              id="version-constancias"
+              value={version ?? ""}
+              onChange={(e) => {
+                const v = Number(e.target.value);
+                const esUltima = v === versionesDisponibles[0];
+                router.push(esUltima ? "/admin/politica-salarial/constancias" : `/admin/politica-salarial/constancias?version=${v}`);
+              }}
+              className="rounded-control border border-sand bg-hueso px-2 py-1 text-tinta"
+            >
+              {versionesDisponibles.map((v, i) => (
+                <option key={v} value={v}>v{v}{i === 0 ? " (vigente)" : ""}</option>
+              ))}
+            </select>
+            {!esVigente && <span className="text-xs text-taupe">Estás viendo una versión histórica.</span>}
+          </div>
+        )}
+      </div>
       <div className="mb-5 flex flex-wrap items-center gap-2 print:hidden">
         {/* Sin todos los datos NO se imprime: el papel es la prueba del
             numeral 25.23 del RLGIT, y un DNI o una sede en blanco por una
@@ -321,5 +368,13 @@ export default function ConstanciasPoliticaSalarialPage() {
         </div>
       </section>
     </main>
+  );
+}
+
+export default function ConstanciasPoliticaSalarialPage() {
+  return (
+    <Suspense fallback={<main className="p-6"><p className="text-sm text-taupe">Cargando…</p></main>}>
+      <ConstanciasPoliticaSalarialContenido />
+    </Suspense>
   );
 }
