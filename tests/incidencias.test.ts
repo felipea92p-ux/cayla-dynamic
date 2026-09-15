@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  detectarIncidencias, ventanasDeConsulta, lunesDeLaSemana, addDias,
+  detectarIncidencias, ventanasDeConsulta, lunesDeLaSemana, addDias, estadoDe, compararIncidencias,
   type DatosDeteccion,
 } from "@/lib/admin/incidencias";
 
@@ -220,5 +220,38 @@ describe("déficit de encargadas", () => {
     ]);
     expect(r[0].personaId).toBeNull();
     expect(r[0].clave).not.toBe(r[1].clave);
+  });
+});
+
+describe("estado y orden de la bandeja", () => {
+  const casos = detectarIncidencias(datos({
+    jornadasRango: [{
+      persona_id: "p1", fecha: "2026-09-12", estado: "cerrada", entrada_ts: "x", salida_final_ts: "y",
+      tiene_salida_no_retornada: false, personas: persona("Diego"),
+    }],
+    salidaTemprana: [{ persona_id: "p1", fecha: "2026-09-12", minutos_salida_temprana: 40 }],
+    diasRacha: Array.from({ length: 6 }, (_, i) => ({ persona_id: "p2", fecha: addDias("2026-09-14", -i), personas: persona("Paola", "TRU") })),
+    faltas: [
+      { persona_id: "p3", nombre: "Rosa Q", sede: "AQP", fecha: "2026-09-02", justificada: false, motivo: null },
+      { persona_id: "p3", nombre: "Rosa Q", sede: "AQP", fecha: "2026-09-10", justificada: false, motivo: null },
+      { persona_id: "p3", nombre: "Rosa Q", sede: "AQP", fecha: "2026-08-26", justificada: true, motivo: "estudios" },
+    ],
+  }));
+
+  it("una falta justificada está resuelta; 6 días seguidos es preventivo; lo demás, pendiente", () => {
+    const por = Object.fromEntries(casos.map((c) => [`${c.tipo}|${c.fecha}`, estadoDe(c)]));
+    expect(por["falta_justificada|2026-08-26"]).toBe("resuelta");
+    expect(por["racha_preventiva|2026-09-14"]).toBe("preventivo");
+    expect(por["falta_injustificada|2026-09-02"]).toBe("pendiente");
+    expect(por["salida_anticipada|2026-09-12"]).toBe("pendiente");
+  });
+
+  it("ordena por severidad y, dentro de cada una, lo más reciente primero", () => {
+    const orden = [...casos].sort(compararIncidencias).map((c) => `${c.severidad} ${c.fecha}`);
+    expect(orden).toEqual([
+      "alta 2026-09-10", "alta 2026-09-02",
+      "media 2026-09-12",
+      "baja 2026-09-14", "baja 2026-08-26",
+    ]);
   });
 });

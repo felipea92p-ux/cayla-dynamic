@@ -442,3 +442,45 @@ export function detectarIncidencias(d: DatosDeteccion): Incidencia[] {
 
   return out;
 }
+
+// ── Estado y orden (lo que la pantalla necesita para ser una bandeja) ──────
+
+/**
+ * En qué punto está una incidencia. No hay una columna de estado en la base, y
+ * no se agrega a propósito: la detección corre en vivo, así que una incidencia
+ * cuya causa se corrigió simplemente deja de existir. El estado se DEDUCE de
+ * lo que sí se guardó — una justificación o un visto bueno.
+ *
+ * - resuelta: ya tiene una decisión (falta justificada, o visto bueno vigente).
+ * - preventivo: todavía no es infracción (lleva 6 días seguidos).
+ * - pendiente: todo lo demás.
+ *
+ * El contador «por revisar» suma pendientes y preventivos (decisión de Felipe,
+ * 2026-09-15): un preventivo también pide una acción, mover un turno.
+ */
+export type EstadoIncidencia = "pendiente" | "preventivo" | "resuelta";
+
+export function estadoDe(i: Incidencia): EstadoIncidencia {
+  if (i.tipo === "falta_justificada" || i.aceptacion) return "resuelta";
+  if (i.tipo === "racha_preventiva") return "preventivo";
+  return "pendiente";
+}
+
+const RANGO_SEVERIDAD: Record<Severidad, number> = { alta: 0, media: 1, baja: 2 };
+
+/**
+ * Severidad → fecha más reciente → persona → clave (decisión de Felipe,
+ * 2026-09-15). Usa la severidad que ya existía; no inventa un puntaje de
+ * gravedad. La clave cierra como ancla: dos cargas dan siempre el mismo orden.
+ */
+export function compararIncidencias(a: Incidencia, b: Incidencia): number {
+  return RANGO_SEVERIDAD[a.severidad] - RANGO_SEVERIDAD[b.severidad]
+    || (a.fecha < b.fecha ? 1 : a.fecha > b.fecha ? -1 : 0)
+    || a.nombre.localeCompare(b.nombre, "es")
+    || (a.clave < b.clave ? -1 : a.clave > b.clave ? 1 : 0);
+}
+
+/** Los tipos que se pueden marcar revisados en lote: solo afirman «lo vi», nada
+ * sobre el día de nadie. Salida anticipada y almuerzo afirman un hecho puntual
+ * y se revisan uno por uno. */
+export const TIPOS_EN_LOTE: ReadonlySet<TipoAceptable> = new Set(["racha_sin_descanso", "jornada_excedida"]);
