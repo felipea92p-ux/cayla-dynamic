@@ -327,7 +327,8 @@ with repo(numero, nombre, nunca) as (values
     (460, 'restaurar_una_version_anterior', false),
     (461, 'el_colaborador_pide_su_apoyo_educativo', false),
     (462, 'quien_firma_digital_ya_tiene_su_copia', false),
-    (463, 'quien_ingresa_despues_no_se_cuela_en_un_periodo_anterior', false)
+    (463, 'quien_ingresa_despues_no_se_cuela_en_un_periodo_anterior', false),
+    (464, 'la_planilla_deja_de_contar_a_quien_todavia_no_existia', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
