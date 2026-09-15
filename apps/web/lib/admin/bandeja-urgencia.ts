@@ -178,6 +178,30 @@ export function urgenciaSinHorario(h: HuecoDeHorario): Urgencia {
   };
 }
 
+export interface LiquidacionVencida {
+  dias_restantes: number;
+  vence_el: string;
+  total: number;
+}
+
+/**
+ * Una liquidación pasada de plazo (`fn_liquidaciones_pendientes`, 0454). Igual
+ * que `urgenciaSinHorario`: el riesgo ya ocurrió, así que no hay «hoy» ni
+ * «próximo» posible — solo vencido. Decidido con Felipe el 2026-09-15: de las
+ * cuatro señales que Liquidaciones podía mandar a la Bandeja (nueva pendiente,
+ * próxima a vencer, vencida, cálculo cambió), solo esta cruza — las otras tres
+ * duplican lo que la propia pantalla ya muestra sin agregar nada accionable.
+ */
+export function urgenciaLiquidacionVencida(l: LiquidacionVencida): Urgencia {
+  const dias = -l.dias_restantes;
+  return {
+    grupo: "vencido",
+    plazo: `Venció hace ${dias} día${dias === 1 ? "" : "s"}`,
+    nota: `el ${diaYMes(l.vence_el)}`,
+    orden: l.dias_restantes,
+  };
+}
+
 /**
  * Alguien que ya cesó (decisión de Felipe, 2026-09-15): su pendiente no se
  * esconde —un papel que falta sigue faltando— pero deja de competir con lo
