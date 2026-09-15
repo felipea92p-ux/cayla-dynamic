@@ -2426,6 +2426,7 @@ export type Database = {
           entrada_ts: string | null
           estado: Database["public"]["Enums"]["estado_jornada"]
           fecha: string
+          horario_aplicado: Json | null
           horas_extra_detectadas: number
           horas_trabajadas: number | null
           id: string
@@ -2441,6 +2442,7 @@ export type Database = {
           entrada_ts?: string | null
           estado?: Database["public"]["Enums"]["estado_jornada"]
           fecha: string
+          horario_aplicado?: Json | null
           horas_extra_detectadas?: number
           horas_trabajadas?: number | null
           id?: string
@@ -2456,6 +2458,7 @@ export type Database = {
           entrada_ts?: string | null
           estado?: Database["public"]["Enums"]["estado_jornada"]
           fecha?: string
+          horario_aplicado?: Json | null
           horas_extra_detectadas?: number
           horas_trabajadas?: number | null
           id?: string
@@ -5023,6 +5026,25 @@ export type Database = {
           ruta: string
         }[]
       }
+      fn_calcular_metricas_jornada: {
+        Args: {
+          p_entrada_ts: string | null
+          p_fecha: string | null
+          p_hora_entrada_prog: string | null
+          p_hora_salida_prog: string | null
+          p_horas_trabajadas: number | null
+          p_refri_prog: number | null
+          p_salida_final_origen: Database["public"]["Enums"]["origen_marca"] | null
+          p_salida_final_revision: Database["public"]["Enums"]["estado_revision"] | null
+          p_salida_final_ts: string | null
+          p_sujeta_a_horario: boolean | null
+        }
+        Returns: {
+          horas_extra_detectadas: number
+          minutos_salida_temprana: number
+          minutos_tarde: number
+        }[]
+      }
       fn_cambiar_regimen_pension: {
         Args: {
           p_desde: string | null
@@ -5258,6 +5280,15 @@ export type Database = {
           persona_id: string
           resultado: string
         }[]
+      }
+      fn_corregir_horario_retroactivo: {
+        Args: {
+          p_horario: Json | null
+          p_motivo: string | null
+          p_persona_id: string | null
+          p_vigente_desde: string | null
+        }
+        Returns: undefined
       }
       fn_corregir_marca: {
         Args: {
@@ -5938,6 +5969,21 @@ export type Database = {
           salario_mensual_soles: number
           vigente_desde: string
           vigente_hasta: string
+        }[]
+      }
+      fn_horario_retroactivo_preview: {
+        Args: { p_horario: Json | null; p_persona_id: string | null; p_vigente_desde: string | null }
+        Returns: {
+          fecha: string
+          horas_extra_actual: number
+          horas_extra_nuevo: number
+          horas_trabajadas_actual: number
+          horas_trabajadas_nuevo: number
+          minutos_salida_temprana_actual: number
+          minutos_salida_temprana_nuevo: number
+          minutos_tarde_actual: number
+          minutos_tarde_nuevo: number
+          tiene_expediente_formal: boolean
         }[]
       }
       fn_hoy_lima: { Args: never; Returns: string }

@@ -14,6 +14,12 @@ import { AreaTexto } from "@/components/ui/area-texto";
 import { Tabla, TablaEncabezado, Th, Fila } from "@/components/ui/tabla";
 import { Insignia } from "@/components/ui/insignia";
 import { Drawer } from "@/components/ui/drawer";
+// Drawer y Modal son hermanos, no uno el reemplazo del otro (lo dice la
+// cabecera de modal.tsx). El drawer de 460px es el sitio correcto para editar
+// UN horario; la corrección retroactiva enseña antes una tabla comparativa de
+// cinco columnas por jornada, y esa no se lee en una columna estrecha con
+// scroll horizontal — va en Modal ancho="lg".
+import { Modal } from "@/components/ui/modal";
 import { ROLES_DO, hoyLima, puedeOperarEquipo, maximoSemanalPracticante } from "@cayla-dynamic/shared";
 // horasDia() reimplementaba (salida − entrada) − refrigerio a mano, sin el
 // ajuste "si la salida no es posterior a la entrada, el turno cruza
@@ -42,6 +48,17 @@ function ContadorMotivo({ texto }: { texto: string }) {
   );
 }
 
+// Más allá de esto, corregir el pasado deja de ser "hace unos días" y empieza
+// a oler a fecha mal puesta: el candado de verdad es el motivo obligatorio y
+// el preview, pero un rango de años recorrería un día a la vez sin necesidad.
+const MAX_DIAS_RETROACTIVO = 120;
+
+// Qué se está mirando exactamente en la vista previa: el horario y la fecha.
+// Si cualquiera de los dos cambia, la previa deja de valer.
+function huellaRetro(horario: Record<string, Dia>, desde: string): string {
+  return JSON.stringify({ desde, horario });
+}
+
 function fmtH(h: number): string {
   return `${Math.round(h * 100) / 100} h`;
 }
@@ -59,6 +76,22 @@ function fechaCorta(iso: string): string {
   const [y, m, d] = iso.split("-").map(Number);
   return new Intl.DateTimeFormat("es-PE", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" })
     .format(new Date(Date.UTC(y, m - 1, d)));
+}
+
+/** El día de ayer en Lima, como `2026-09-13` — el valor más probable al abrir
+ * la corrección retroactiva: casi siempre el cambio real fue "hace poco". */
+function ayerLima(): string {
+  const [y, m, d] = hoyLima().split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() - 1);
+  return dt.toISOString().slice(0, 10);
+}
+
+/** Días de calendario entre dos fechas ISO de Lima (positivo si `hasta` es posterior). */
+function diasEntreLima(desde: string, hasta: string): number {
+  const [y1, m1, d1] = desde.split("-").map(Number);
+  const [y2, m2, d2] = hasta.split("-").map(Number);
+  return Math.round((Date.UTC(y2, m2 - 1, d2) - Date.UTC(y1, m1 - 1, d1)) / 86_400_000);
 }
 
 type Dia = { e: string; s: string; r: number };
@@ -79,6 +112,15 @@ interface Horario {
 // Para el historial de tramos del drawer — igual que Horario, con el cierre.
 interface Tramo extends Horario {
   vigente_hasta: string | null;
+}
+// Una fila de fn_horario_retroactivo_preview (0447): el antes y el después de
+// una jornada ya calculada, para poder mirar qué cambiaría ANTES de tocarla.
+interface FilaPreview {
+  fecha: string;
+  minutos_tarde_actual: number | null; minutos_tarde_nuevo: number | null;
+  minutos_salida_temprana_actual: number | null; minutos_salida_temprana_nuevo: number | null;
+  horas_extra_actual: number | null; horas_extra_nuevo: number | null;
+  tiene_expediente_formal: boolean;
 }
 const DIAS = [{ v: 1, l: "L" }, { v: 2, l: "M" }, { v: 3, l: "X" }, { v: 4, l: "J" }, { v: 5, l: "V" }, { v: 6, l: "S" }, { v: 0, l: "D" }];
 const NOMBRE_DIA: Record<number, string> = { 0: "domingo", 1: "lunes", 2: "martes", 3: "miércoles", 4: "jueves", 5: "viernes", 6: "sábado" };
@@ -355,6 +397,25 @@ export default function HorariosPage() {
   const [guardandoMasivo, setGuardandoMasivo] = useState(false);
   const focoAlAbrirMasivo = useRef<HTMLElement | null>(null);
 
+  // ── Corrección retroactiva (0447): aparte del cambio normal a propósito —
+  // ver CLAUDE.md y la 0444, "un horario normal no puede pisar el pasado". El
+  // formulario en sí es el MISMO que el del drawer normal, así que usa el
+  // mismo hook en vez de una segunda copia de las mismas seis funciones: esa
+  // duplicación es justo lo que useFormularioHorario vino a cerrar.
+  const formRetro = useFormularioHorario();
+  const [retro, setRetro] = useState<Persona | null>(null);
+  const [retroDesde, setRetroDesde] = useState(ayerLima());
+  const [retroMotivo, setRetroMotivo] = useState("");
+  const [retroPreview, setRetroPreview] = useState<FilaPreview[] | null>(null);
+  const [retroPreviewCargando, setRetroPreviewCargando] = useState(false);
+  // De QUÉ horario y fecha es la vista previa que está en pantalla. Sin esto,
+  // editar la grilla DESPUÉS de mirar el preview dejaba el botón de confirmar
+  // activo con una previa que ya no corresponde — y confirmaba otra cosa
+  // distinta de la que se enseñó. El preview es la única garantía que tiene
+  // quien aprueba; tiene que ser del horario que se va a aplicar.
+  const [retroPreviewDe, setRetroPreviewDe] = useState<string | null>(null);
+  const [retroConfirmando, setRetroConfirmando] = useState(false);
+
   const cargar = useCallback(async () => {
     const supabase = createAdminSupabaseClient();
     const { data: sesion } = await supabase.auth.getSession();
@@ -617,6 +678,72 @@ export default function HorariosPage() {
     }
   }
 
+  // ── Corrección retroactiva (0447) ────────────────────────────────────────
+  // Siembra el formulario con el tramo abierto, igual que abrirEdicion: se
+  // corrige "hacia lo que de verdad regía", y lo que casi siempre se quiere
+  // escribir es el horario que ya está puesto hoy, con la fecha movida atrás.
+  function abrirRetro(p: Persona) {
+    formRetro.aplicarAnalisis(analizar(horarios.get(p.id)));
+    setRetro(p);
+    setRetroDesde(ayerLima());
+    setRetroMotivo("");
+    setRetroPreview(null);
+    setRetroPreviewDe(null);
+  }
+  function cerrarRetro() {
+    setRetro(null);
+    setRetroPreview(null);
+    setRetroPreviewDe(null);
+    setRetroMotivo("");
+  }
+
+  const retroFaltaEntrada = formRetro.modoPorDia
+    ? Object.values(formRetro.porDia).some((v) => !v.e)
+    : !formRetro.entrada;
+  const retroFaltaSalida = formRetro.modoPorDia
+    ? Object.values(formRetro.porDia).some((v) => !v.s)
+    : !formRetro.salida;
+  const rangoRetroDemasiadoLargo = diasEntreLima(retroDesde, hoy) > MAX_DIAS_RETROACTIVO;
+
+  async function verQueCambiaria() {
+    if (!retro) return;
+    const horario = formRetro.construirHorario();
+    if (Object.keys(horario).length === 0) { avisar("error", "Marca al menos un día de trabajo."); return; }
+    if (retroFaltaEntrada) { avisar("error", "Falta la hora de entrada de algún día."); return; }
+    if (retroFaltaSalida) { avisar("error", "Falta la hora de salida de algún día."); return; }
+    if (rangoRetroDemasiadoLargo) { avisar("error", `Elige una fecha dentro de los últimos ${MAX_DIAS_RETROACTIVO} días — revisa que sea la correcta.`); return; }
+    setRetroPreviewCargando(true);
+    setRetroPreview(null);
+    const supabase = createAdminSupabaseClient();
+    const { data, error } = await supabase.rpc("fn_horario_retroactivo_preview", {
+      p_persona_id: retro.id, p_horario: horario, p_vigente_desde: retroDesde,
+    });
+    setRetroPreviewCargando(false);
+    if (error) { avisar("error", mensajeDeError(error)); return; }
+    setRetroPreview((data as FilaPreview[]) ?? []);
+    setRetroPreviewDe(huellaRetro(horario, retroDesde));
+  }
+
+  async function confirmarRetro() {
+    if (!retro) return;
+    // El mismo listón que el camino normal (MOTIVO_MIN, 2026-09-14). Sería
+    // incoherente que el camino que REESCRIBE días ya juzgados pidiera menos
+    // explicación que el que solo mira hacia adelante. El piso de la base
+    // (0447) sigue en 3, igual que el de fn_set_horario_semanal.
+    if (retroMotivo.trim().length < MOTIVO_MIN) { avisar("error", `Escribe el motivo de la corrección (mínimo ${MOTIVO_MIN} caracteres).`); return; }
+    const horario = formRetro.construirHorario();
+    setRetroConfirmando(true);
+    const supabase = createAdminSupabaseClient();
+    const { error } = await supabase.rpc("fn_corregir_horario_retroactivo", {
+      p_persona_id: retro.id, p_horario: horario, p_vigente_desde: retroDesde, p_motivo: retroMotivo.trim(),
+    });
+    setRetroConfirmando(false);
+    if (error) { avisar("error", mensajeDeError(error)); return; }
+    cerrarRetro();
+    await cargar();
+    avisar("ok", "Corrección retroactiva aplicada. Las jornadas del rango quedaron recalculadas y la corrección quedó auditada.");
+  }
+
   if (rol !== null && !puedeEditar) {
     return (
       <div className="flex flex-1 flex-col">
@@ -650,6 +777,17 @@ export default function HorariosPage() {
   function toggleEstado(v: "con_horario" | "sin_horario") {
     setFiltroEstado((prev) => (prev === v ? "" : v));
   }
+
+  // Un solo día con expediente firmado basta para bloquear todo el rango: la
+  // 0447 lo rechaza en la base, esto solo lo dice antes y con la fecha exacta.
+  const bloqueadoPorExpediente = (retroPreview ?? []).find((f) => f.tiene_expediente_formal);
+  const retroPreviewAlDia =
+    retroPreview !== null && retroPreviewDe === huellaRetro(formRetro.construirHorario(), retroDesde);
+  const filasConCambio = (retroPreview ?? []).filter(
+    (f) => f.minutos_tarde_actual !== f.minutos_tarde_nuevo
+      || f.minutos_salida_temprana_actual !== f.minutos_salida_temprana_nuevo
+      || f.horas_extra_actual !== f.horas_extra_nuevo,
+  );
 
   return (
     <div className="flex flex-1 flex-col">
@@ -855,9 +993,16 @@ export default function HorariosPage() {
                             <td className="px-4 py-2 text-taupe">{a ? textoDescanso(a.dias) : "—"}</td>
                             <td className="px-4 py-2 text-taupe">{h ? fechaCorta(h.vigente_desde) : "—"}</td>
                             <td className="px-4 py-2">
-                              <Boton variante="secundario" tamano="sm" onClick={(e) => abrirEdicion(p, e.currentTarget)}>
-                                {abierto ? "Cambiar" : "Asignar"}
-                              </Boton>
+                              <div className="flex items-center justify-end gap-3">
+                                {h && (
+                                  <Boton variante="enlace" tamano="sm" onClick={() => abrirRetro(p)}>
+                                    corregir pasado
+                                  </Boton>
+                                )}
+                                <Boton variante="secundario" tamano="sm" onClick={(e) => abrirEdicion(p, e.currentTarget)}>
+                                  {abierto ? "Cambiar" : "Asignar"}
+                                </Boton>
+                              </div>
                             </td>
                           </Fila>
                           {expandida && a && (
@@ -922,7 +1067,14 @@ export default function HorariosPage() {
                       <p className="text-xs text-taupe">
                         {a && a.dias.length ? fmtH(semana) : "—"} · Descanso {a ? textoDescanso(a.dias) : "—"}
                       </p>
-                      <p className="text-xs text-taupe">Vigente desde {h ? fechaCorta(h.vigente_desde) : "—"}</p>
+                      <p className="text-xs text-taupe">
+                        Vigente desde {h ? fechaCorta(h.vigente_desde) : "—"}
+                        {h && (
+                          <Boton variante="enlace" tamano="sm" className="ml-2" onClick={() => abrirRetro(p)}>
+                            corregir pasado
+                          </Boton>
+                        )}
+                      </p>
                       {programado && (
                         <p className="flex items-center gap-1.5 text-xs text-taupe">
                           <Insignia variante="informativo" tamano="sm">Programado</Insignia>
@@ -952,7 +1104,7 @@ export default function HorariosPage() {
           </p>
 
           <div className="grid grid-cols-1 gap-3">
-            <Campo etiqueta="Vigente desde" type="date" value={desde} onChange={(e) => setDesde(e.target.value)} />
+            <Campo etiqueta="Vigente desde" type="date" min={hoy} value={desde} onChange={(e) => setDesde(e.target.value)} />
             <CampoSelect etiqueta="Copiar horario de →" value={copiarDeId} onChange={(e) => copiarDe(e.target.value)}>
               <option value="">(elegir a alguien)</option>
               {editables
@@ -962,6 +1114,15 @@ export default function HorariosPage() {
                 ))}
             </CampoSelect>
           </div>
+
+          <p className="mt-2 text-xs text-taupe">
+            Un horario nuevo rige desde hoy en adelante. No se puede fechar
+            hacia atrás: eso recalcularía tardanzas de días ya juzgados con el
+            horario que de verdad regía entonces. Si el cambio ocurrió de
+            verdad hace unos días y recién se registra, cierra esto y usa
+            <span className="text-tinta"> corregir pasado</span> — enseña antes
+            qué jornadas cambiarían.
+          </p>
 
           {historial.length > 1 && (
             <details className="mt-3 rounded-control bg-hueso px-3 py-2 text-sm">
@@ -1060,7 +1221,7 @@ export default function HorariosPage() {
             horario anterior de cada una se conserva para fechas anteriores.
           </p>
 
-          <Campo etiqueta="Vigente desde" type="date" value={masivoDesde} onChange={(e) => setMasivoDesde(e.target.value)} />
+          <Campo etiqueta="Vigente desde" type="date" min={hoy} value={masivoDesde} onChange={(e) => setMasivoDesde(e.target.value)} />
 
           <GrillaHorario f={formMasivo} />
 
@@ -1102,6 +1263,132 @@ export default function HorariosPage() {
             <Boton variante="primario" onClick={guardarMasivo} cargando={guardandoMasivo}>Guardar para {seleccionados.size}</Boton>
           </div>
         </Drawer>
+
+        {/* ── Corregir un horario pasado (0447): aparte del cambio normal ──
+            Va en Modal y no en Drawer a propósito: la tabla comparativa de
+            abajo tiene cinco columnas por jornada, y esa es la única garantía
+            que tiene quien aprueba de qué está a punto de reescribir. En una
+            columna de 460 px se leería con scroll horizontal. */}
+        <Modal
+          abierto={retro !== null}
+          onCerrar={cerrarRetro}
+          bloqueado={retroPreviewCargando || retroConfirmando}
+          ancho="lg"
+          titulo={retro ? `Corregir el horario pasado de ${retro.nombres} ${retro.apellidos}` : undefined}
+        >
+          <p className="mb-4 text-sm text-taupe">
+            Para cuando el cambio de horario <strong className="text-tinta">de verdad ocurrió hace días</strong> y
+            recién se registra hoy. Antes de guardar, revisa qué jornadas cambiarían — esto queda auditado con tu
+            motivo.
+          </p>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Campo
+              etiqueta="Vigente desde (una fecha pasada)"
+              type="date"
+              max={ayerLima()}
+              value={retroDesde}
+              onChange={(e) => { setRetroDesde(e.target.value); setRetroPreview(null); }}
+            />
+          </div>
+          {rangoRetroDemasiadoLargo && (
+            <p className="mt-1.5 text-xs text-rojo">
+              Eso es más de {MAX_DIAS_RETROACTIVO} días atrás — revisa que la fecha sea la correcta.
+            </p>
+          )}
+
+          <div className="mt-4">
+            <GrillaHorario f={formRetro} />
+          </div>
+
+          <div className="mt-4 rounded-control bg-sand/30 px-3 py-2 text-sm">
+            Total semana: <span className="font-medium text-tinta">{fmtH(formRetro.totalSemana)}</span>
+            <span className="text-taupe"> · meta {META_SEMANA} h</span>
+          </div>
+
+          <div className="mt-4">
+            <AreaTexto
+              etiqueta="Motivo (obligatorio)"
+              value={retroMotivo}
+              onChange={(e) => { setRetroMotivo(e.target.value); }}
+              placeholder="Por qué se corrige con vigencia pasada — por ejemplo: el horario cambió el lunes en la sede, recién se registra hoy."
+            />
+            <ContadorMotivo texto={retroMotivo} />
+          </div>
+
+          <div className="mt-4 flex justify-end">
+            <Boton variante="secundario" onClick={verQueCambiaria} cargando={retroPreviewCargando} disabled={rangoRetroDemasiadoLargo}>
+              Ver qué cambiaría
+            </Boton>
+          </div>
+
+          {retroPreview && (
+            <div className="mt-4 border-t border-sand pt-4">
+              {retroPreview.length === 0 ? (
+                <p className="text-sm text-taupe">No hay ninguna jornada en ese rango — no hay nada que recalcular.</p>
+              ) : (
+                <>
+                  <p className="mb-2 text-sm">
+                    <span className="font-medium text-tinta">{filasConCambio.length}</span> de {retroPreview.length}
+                    {" "}día(s) del rango cambiarían.
+                  </p>
+                  {bloqueadoPorExpediente && (
+                    <div className="mb-3 rounded-control bg-rojo/10 px-3 py-2 text-sm text-rojo">
+                      El {fechaCorta(bloqueadoPorExpediente.fecha)} ya tiene un expediente disciplinario firmado o
+                      entregado. No se puede confirmar esta corrección mientras ese expediente siga así — resuélvelo
+                      o anúlalo en Disciplina primero.
+                    </div>
+                  )}
+                  {filasConCambio.length > 0 && (
+                    <div className="mb-3 overflow-x-auto">
+                      <Tabla className="[font-variant-numeric:tabular-nums]">
+                        <TablaEncabezado>
+                          <Th>Fecha</Th>
+                          <Th>Tardanza</Th>
+                          <Th>Salida antic.</Th>
+                          <Th>Tiempo extra</Th>
+                          <Th>{null}</Th>
+                        </TablaEncabezado>
+                        <tbody>
+                          {filasConCambio.map((f) => (
+                            <Fila key={f.fecha}>
+                              <td className="px-4 py-2">{fechaCorta(f.fecha)}</td>
+                              <td className="px-4 py-2">{f.minutos_tarde_actual ?? 0} → <span className="text-tinta">{f.minutos_tarde_nuevo ?? 0} min</span></td>
+                              <td className="px-4 py-2">{f.minutos_salida_temprana_actual ?? 0} → <span className="text-tinta">{f.minutos_salida_temprana_nuevo ?? 0} min</span></td>
+                              <td className="px-4 py-2">{f.horas_extra_actual ?? 0} → <span className="text-tinta">{f.horas_extra_nuevo ?? 0} h</span></td>
+                              <td className="px-4 py-2">
+                                {f.tiene_expediente_formal && <Insignia variante="alerta">expediente formal</Insignia>}
+                              </td>
+                            </Fila>
+                          ))}
+                        </tbody>
+                      </Tabla>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
+          {retroPreview !== null && !retroPreviewAlDia && (
+            <p className="mt-3 text-xs text-ambar">
+              Cambiaste el horario o la fecha después de mirar la vista previa, así que lo de arriba ya no es lo
+              que se aplicaría. Vuelve a pulsar «Ver qué cambiaría».
+            </p>
+          )}
+
+          <div className="mt-5 flex justify-end gap-3">
+            <Boton variante="secundario" onClick={cerrarRetro} disabled={retroConfirmando}>Cancelar</Boton>
+            <Boton
+              variante="primario"
+              onClick={confirmarRetro}
+              cargando={retroConfirmando}
+              disabled={!retroPreviewAlDia || !!bloqueadoPorExpediente || retroMotivo.trim().length < MOTIVO_MIN}
+            >
+              Confirmar corrección
+            </Boton>
+          </div>
+        </Modal>
       </main>
     </div>
   );

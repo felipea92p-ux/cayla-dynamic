@@ -56,14 +56,29 @@ values ('00000000-0000-0000-0000-00000000c602', 'SeisPersona', 'Laboratorio',
 
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000c609', true);
 
--- ── El escenario: junio pagado, agosto abierto ──────────────────────────────
+-- ── El escenario: junio pagado, agosto abierto, y un pagado en el futuro ────
 -- Dos periodos y no uno, porque la mitad que se olvida es la de abajo: que
 -- fuera de lo pagado todo siga funcionando.
+--
+-- EL TERCERO LO OBLIGA LA 0444, y la razón es justo la que enseña el
+-- encabezado de este archivo. Desde la 0444 `fn_set_horario_semanal` rechaza
+-- toda fecha anterior a hoy, y lo hace ANTES de mirar si hay un periodo
+-- pagado. Con el escenario de solo dos periodos —los dos ya en el pasado
+-- real— la prueba del horario seguía en verde, pero pasaba por el motivo
+-- equivocado: lo que saltaba era el candado de fecha, no el de planilla
+-- pagada, y este archivo se habría quedado defendiendo cinco puertas de las
+-- seis sin que nada avisara. Un periodo pagado en el FUTURO es la única forma
+-- que queda de ejercitar de verdad el candado de pagado en esta función.
+--
+-- Dura 30 días (hoy+10 → hoy+39) y no menos porque `periodos_planilla` exige
+-- entre 20 y 46 días de largo (0025). Un periodo de diez días revienta contra
+-- ese check antes de llegar a probar nada.
 insert into periodos_planilla (id, fecha_ini, fecha_fin, estado) values
   ('00000000-0000-0000-0000-00000000c6aa', '2026-06-01', '2026-06-30', 'pagado'),
-  ('00000000-0000-0000-0000-00000000c6bb', '2026-08-01', '2026-08-31', 'abierto');
+  ('00000000-0000-0000-0000-00000000c6bb', '2026-08-01', '2026-08-31', 'abierto'),
+  ('00000000-0000-0000-0000-00000000c6cc', fn_hoy_lima() + 10, fn_hoy_lima() + 39, 'pagado');
 
--- ── 1 · Las seis puertas, cerradas sobre junio ──────────────────────────────
+-- ── 1 · Las seis puertas, cerradas sobre lo ya pagado ──────────────────────
 -- El feriado se crea primero en agosto y se mueve la fecha a mano, porque
 -- fn_quitar_feriado sobre una fecha sin feriado fallaría por «no hay feriado»
 -- y la prueba pasaría por el motivo equivocado — el error diría lo que
@@ -97,12 +112,20 @@ select throws_ok(
   'DESCANSO · no se puede marcar descanso dentro de junio pagado');
 
 -- El horario no mira una fecha suelta: mira hacia adelante. Un horario que
--- empieza en mayo recalcula junio, que ya se pagó.
+-- empieza dentro de cinco días alcanza el periodo pagado que empieza en diez.
+--
+-- SE EXIGE EL MENSAJE, no solo 'P0001'. Con la fecha en el pasado —como
+-- estaba— este mismo throws_ok pasaba con el error de la 0444 («ya pasó») sin
+-- que el candado de pagado existiera siquiera. Es exactamente la trampa que
+-- el comentario del feriado, veinte líneas más arriba, ya describe: «el error
+-- diría lo que queremos oír sin que el candado exista». Nombrar el mensaje es
+-- lo que hace imposible volver a caer en ella.
 select throws_ok(
   $$ select fn_set_horario_semanal('00000000-0000-0000-0000-00000000c602'::uuid,
-       '2026-05-01'::date, '{"1":{"e":"09:00","s":"18:00","r":60}}'::jsonb, 'Prueba pgTAP.') $$,
-  'P0001', null,
-  'HORARIO · no se puede hacer regir un horario que alcanza a junio pagado');
+       fn_hoy_lima() + 5, '{"1":{"e":"09:00","s":"18:00","r":60}}'::jsonb, 'Prueba pgTAP.') $$,
+  'P0001',
+  'Ese horario tocaría un periodo ya PAGADO (recalcula las jornadas desde esa fecha en adelante). Reabre el periodo primero.',
+  'HORARIO · no se puede hacer regir un horario que alcanza un periodo pagado');
 
 -- ── 2 · El feriado de junio sigue intacto ───────────────────────────────────
 -- No basta con que la función se queje: tiene que no haber tocado nada. Una
@@ -135,9 +158,14 @@ select lives_ok(
   $$ select fn_set_descanso('00000000-0000-0000-0000-00000000c602'::uuid, '2026-08-14'::date) $$,
   'ABIERTO · sí se puede marcar descanso en agosto');
 
+-- La otra mitad del par de arriba, y por eso la fecha no es cualquiera: tiene
+-- que caer DESPUÉS del periodo pagado futuro (que termina a los 39 días)
+-- para que el candado de pagado no tenga nada que decir, y a la vez no ser pasada,
+-- para que el de la 0444 tampoco. La fecha fija original (2026-09-01) ya no
+-- sirve para ninguna de las dos cosas: quedó en el pasado real.
 select lives_ok(
   $$ select fn_set_horario_semanal('00000000-0000-0000-0000-00000000c602'::uuid,
-       '2026-09-01'::date, '{"1":{"e":"09:00","s":"18:00","r":60}}'::jsonb, 'Prueba pgTAP.') $$,
+       fn_hoy_lima() + 45, '{"1":{"e":"09:00","s":"18:00","r":60}}'::jsonb, 'Prueba pgTAP.') $$,
   'ABIERTO · sí se puede hacer regir un horario que empieza después de lo pagado');
 
 select * from finish();
