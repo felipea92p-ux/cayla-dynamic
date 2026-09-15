@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0451 — ELIMINAR UN PERIODO DEJA RASTRO
+-- 0452 — ELIMINAR UN PERIODO DEJA RASTRO
 -- ----------------------------------------------------------------------------
 -- QUÉ PROMETE: cuando un administrador o líder elimina un periodo de planilla,
 -- antes del borrado queda una fila en `periodos_eliminados` con quién lo borró,
@@ -117,7 +117,7 @@ create table if not exists periodos_eliminados (
 );
 
 comment on table periodos_eliminados is
-  'Rastro de cada periodo de planilla eliminado con fn_eliminar_periodo (0451): quién, cuándo, qué periodo y la foto de los movimientos y reversas que el borrado se llevó en cascada. Append-only.';
+  'Rastro de cada periodo de planilla eliminado con fn_eliminar_periodo (0452): quién, cuándo, qué periodo y la foto de los movimientos y reversas que el borrado se llevó en cascada. Append-only.';
 
 create index if not exists idx_periodos_eliminados_at on periodos_eliminados (eliminado_at desc);
 
@@ -149,7 +149,7 @@ create trigger trg_periodos_eliminados_inmutable
   for each row execute function fn_trg_periodos_eliminados_inmutable();
 
 -- ── 2 · fn_eliminar_periodo toma la foto antes de borrar ────────────────────
--- Cuerpo de la 0327. Único cambio: el bloque marcado CAMBIO 0451, entre el
+-- Cuerpo de la 0327. Único cambio: el bloque marcado CAMBIO 0452, entre el
 -- último candado y el delete. v_ini se agrega al select existente para la foto.
 CREATE OR REPLACE FUNCTION public.fn_eliminar_periodo(p_periodo_id uuid)
  RETURNS void
@@ -159,13 +159,13 @@ CREATE OR REPLACE FUNCTION public.fn_eliminar_periodo(p_periodo_id uuid)
 AS $function$
 declare
   v_fin date; v_estado text; v_max date;
-  v_ini date; -- CAMBIO 0451
+  v_ini date; -- CAMBIO 0452
 begin
   if fn_es_admin_o_lider() is not true then
     raise exception 'Solo un administrador o líder puede eliminar periodos.';
   end if;
   perform pg_advisory_xact_lock(hashtext('periodos_planilla'));
-  select fecha_fin, estado, fecha_ini into v_fin, v_estado, v_ini from periodos_planilla where id = p_periodo_id; -- CAMBIO 0451: + fecha_ini
+  select fecha_fin, estado, fecha_ini into v_fin, v_estado, v_ini from periodos_planilla where id = p_periodo_id; -- CAMBIO 0452: + fecha_ini
   if not found then raise exception 'Periodo inexistente.'; end if;
   select max(fecha_fin) into v_max from periodos_planilla;
   if v_fin <> v_max then
@@ -181,7 +181,7 @@ begin
     raise exception 'Un periodo pagado no se elimina; reábrelo primero si de verdad hace falta.';
   end if;
 
-  -- CAMBIO 0451: antes de borrar, la foto de lo que la cascada se va a llevar.
+  -- CAMBIO 0452: antes de borrar, la foto de lo que la cascada se va a llevar.
   -- Va en la misma transacción que el delete: si el delete falla, la foto se
   -- deshace con él y no queda un rastro de un borrado que no ocurrió.
   insert into periodos_eliminados
@@ -217,19 +217,19 @@ begin
        where r.periodo_id = p_periodo_id
     ), '[]'::jsonb)
   );
-  -- FIN CAMBIO 0451
+  -- FIN CAMBIO 0452
 
   delete from periodos_planilla where id = p_periodo_id;
 end;
 $function$;
 
 -- ── Registro ────────────────────────────────────────────────────────────────
-insert into migraciones_aplicadas (numero, nombre) values (451, 'eliminar_un_periodo_deja_rastro')
+insert into migraciones_aplicadas (numero, nombre) values (452, 'eliminar_un_periodo_deja_rastro')
 on conflict (numero) do update set nombre = excluded.nombre, aplicada_at = now();
 
 -- ── Verificación (solo lee; pegar después) ──────────────────────────────────
 -- select
 --   to_regclass('public.periodos_eliminados') is not null                           as tiene_tabla,
---   position('CAMBIO 0451' in pg_get_functiondef('fn_eliminar_periodo'::regproc)) > 0 as deja_rastro,
+--   position('CAMBIO 0452' in pg_get_functiondef('fn_eliminar_periodo'::regproc)) > 0 as deja_rastro,
 --   (select count(*) from pg_proc where proname = 'fn_eliminar_periodo') = 1           as una_sola_version,
---   (select numero || ' ' || nombre from migraciones_aplicadas where numero = 451)     as registro;
+--   (select numero || ' ' || nombre from migraciones_aplicadas where numero = 452)     as registro;
