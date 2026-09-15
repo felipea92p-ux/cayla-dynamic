@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0465_la_practicante_devenga_su_media_subvencion.sql
+-- 0466_la_practicante_devenga_su_media_subvencion.sql
 -- ============================================================================
 --
 -- QUÉ PROMETE
@@ -104,7 +104,7 @@ alter table desembolsos_beneficios
   add constraint desembolsos_beneficios_ventana_check
   check (ventana = any (array[
     'grati_s1', 'grati_s2', 'cts_may', 'cts_nov', 'vacaciones',
-    -- CAMBIO 0465 · los dos pagos de una modalidad formativa (Ley 28518,
+    -- CAMBIO 0466 · los dos pagos de una modalidad formativa (Ley 28518,
     -- art. 42). Su fecha no es el 15 de un mes fijo: cae en el aniversario
     -- del convenio de cada persona, y por eso necesitan ventana propia en
     -- vez de colarse en 'vacaciones', que un practicante no devenga.
@@ -113,7 +113,7 @@ alter table desembolsos_beneficios
 
 comment on table desembolsos_beneficios is
   'Libro de beneficios desembolsados: las cinco ventanas del año laboral (dos gratificaciones, '
-  'dos CTS, vacaciones) mas las dos de modalidad formativa que agrego la 0465 '
+  'dos CTS, vacaciones) mas las dos de modalidad formativa que agrego la 0466 '
   '(subvencion_semestral, descanso_practicante). De que ano, cuanto, cuando y por donde salio. '
   'Solo lectura para admin o lider de DO; se escribe por fn_registrar_desembolso (0343).';
 
@@ -252,13 +252,13 @@ comment on function fn_subvenciones_practicante(date) is
   'Lo que una practicante lleva devengado por los dos pagos de la Ley 28518 art. 42: '
   'media subvencion por cada 6 meses continuos y 15 dias de descanso al cumplir 12 meses '
   '(se paga aunque no se goce). Solo lectura. NO toca fn_provisiones: un practicante sigue '
-  'sin devengar gratificacion, CTS ni vacaciones (art. 47). 0465.';
+  'sin devengar gratificacion, CTS ni vacaciones (art. 47). 0466.';
 
 grant execute on function fn_subvenciones_practicante(date) to authenticated;
 revoke execute on function fn_subvenciones_practicante(date) from public, anon;
 
 insert into migraciones_aplicadas (numero, nombre)
-values (465, 'la_practicante_devenga_su_media_subvencion')
+values (466, 'la_practicante_devenga_su_media_subvencion')
 on conflict (numero) do update set nombre = excluded.nombre, aplicada_at = now();
 
 notify pgrst, 'reload schema';
@@ -268,7 +268,7 @@ notify pgrst, 'reload schema';
 --   ventanas_del_libro  · debe listar las SIETE
 --   la_funcion_existe   · una sola, con firma (date)
 --   la_pantalla_puede   · `authenticated` puede ejecutarla
---   el_registro         · numero 465 con ESTE nombre (no el de otra migración)
+--   el_registro         · numero 466 con ESTE nombre (no el de otra migración)
 select
   (select pg_get_constraintdef(c.oid)
      from pg_constraint c join pg_class t on t.oid = c.conrelid
@@ -278,7 +278,7 @@ select
                                                                     as la_funcion_existe,
   (select has_function_privilege('authenticated', p.oid, 'execute')
      from pg_proc p where p.proname = 'fn_subvenciones_practicante') as la_pantalla_puede,
-  (select numero || ' · ' || nombre from migraciones_aplicadas where numero = 465)
+  (select numero || ' · ' || nombre from migraciones_aplicadas where numero = 466)
                                                                     as el_registro;
 
 -- NO se llama acá a fn_subvenciones_practicante: exige fn_es_admin_o_lider(),

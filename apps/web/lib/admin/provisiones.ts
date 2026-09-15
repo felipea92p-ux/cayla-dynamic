@@ -124,7 +124,7 @@ const anioDe = (iso: string) => iso.slice(0, 4);
 
 export const esPracticante = (p: ProvPersona) => p.tipo_vinculo === "practicante";
 
-// ── Lo que devenga una practicante (0465) ────────────────────────────────────
+// ── Lo que devenga una practicante (0466) ────────────────────────────────────
 //
 // Viene de `fn_subvenciones_practicante`, una función APARTE de fn_provisiones.
 // Son los dos pagos de la Ley 28518 art. 42 —media subvención por cada 6 meses
@@ -527,7 +527,7 @@ export const hayFiltros = (f: FiltrosProvisiones) => Boolean(f.texto.trim() || f
 // ── Pagos del libro, por ventana ─────────────────────────────────────────────
 
 // Las siete ventanas que admite el libro: las cinco de siempre y las dos que
-// agregó la 0465 para modalidad formativa.
+// agregó la 0466 para modalidad formativa.
 export type VentanaLibro =
   | VentanaClave
   | "vacaciones"
@@ -548,7 +548,7 @@ export interface PagosDeVentana {
 
 /**
  * `totalConocido` lo pasan las ventanas que NO viven en el jsonb de
- * fn_provisiones —las dos de modalidad formativa (0465)—, cuyo monto cobrado
+ * fn_provisiones —las dos de modalidad formativa (0466)—, cuyo monto cobrado
  * viene de `fn_subvenciones_practicante`. Para las otras cinco se deduce aquí.
  */
 export function pagosDe(
@@ -611,7 +611,7 @@ export const COLUMNAS_CSV_ANTERIORES = [
 
 /**
  * El CSV cubre las cinco ventanas que calcula `fn_provisiones`, no las siete
- * del libro: las dos de modalidad formativa (0465) salen de otra función y no
+ * del libro: las dos de modalidad formativa (0466) salen de otra función y no
  * tienen columna aquí. Tipo propio para que agregar una ventana al libro no
  * obligue a inventarle una columna al archivo del contador.
  */

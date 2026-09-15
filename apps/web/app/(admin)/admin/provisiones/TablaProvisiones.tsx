@@ -101,7 +101,7 @@ const soloDiaMes = (iso: string) => fechaCorta(iso).replace(/ \d{4}$/, "");
 // Vacaciones sea exactamente el «Saldo total» que manda la base (la regla del
 // 2026-08-19: un total que no cuadra con lo que se ve enseña a desconfiar).
 //
-// CAMBIO 0465 — las practicantes dejaron la sección plegada y entran a la
+// CAMBIO 0466 — las practicantes dejaron la sección plegada y entran a la
 // tabla, con lo que la ley SÍ les da: media subvención por cada 6 meses y el
 // descanso de 15 días al cumplir el año (Ley 28518 art. 42), y «No aplica» —no
 // un cero— en gratificación y CTS (art. 47). Su saldo sale de otra función,

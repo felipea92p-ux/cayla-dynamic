@@ -98,7 +98,7 @@ type AdelantoForm = {
   periodo: "actual" | "anterior";
 };
 
-// CAMBIO 0465 — arranca en el beneficio que esa persona sí puede recibir. Con
+// CAMBIO 0466 — arranca en el beneficio que esa persona sí puede recibir. Con
 // un valor fijo, el formulario de una practicante abría en «gratificación»,
 // que ya no es una opción de su desplegable: el select salía en blanco y el
 // primer clic registraba lo que el navegador eligiera por su cuenta.
@@ -564,7 +564,7 @@ function Contenido({
               Fuera del ciclo normal (típicamente a quien cesa a mitad de semestre). No toca este periodo: la liquidación lo resta sola.
             </p>
             <div className="flex flex-wrap items-end gap-2">
-              {/* CAMBIO 0465 — a una practicante no le tocan gratificación, CTS
+              {/* CAMBIO 0466 — a una practicante no le tocan gratificación, CTS
                   ni vacaciones (Ley 28518 art. 47), y sí sus dos pagos propios
                   (art. 42). Cada vínculo ve solo lo suyo: ofrecer los cinco a
                   todo el mundo es invitar a archivar un pago donde no va, que

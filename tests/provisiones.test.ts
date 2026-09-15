@@ -255,7 +255,7 @@ describe("CSV", () => {
   });
 });
 
-describe("subvenciones de modalidad formativa (0465)", () => {
+describe("subvenciones de modalidad formativa (0466)", () => {
   // Lo que devuelve fn_subvenciones_practicante para la practicante del equipo.
   const subv: SubvData = {
     as_of: "2026-09-15",

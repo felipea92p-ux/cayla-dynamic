@@ -16,7 +16,7 @@
 -- Las ventanas no son una lista arbitraria: son los momentos en que la ley
 -- peruana obliga a entregar algo. Cambiarlas es cambiar el negocio.
 --
--- Eran cinco hasta la 0465, que sumó las dos de modalidad formativa
+-- Eran cinco hasta la 0466, que sumó las dos de modalidad formativa
 -- (subvencion_semestral, descanso_practicante): los dos pagos de la Ley 28518
 -- art. 42, que caen en el aniversario del convenio y no el 15 de un mes fijo.
 -- ============================================================================

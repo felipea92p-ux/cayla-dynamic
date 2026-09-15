@@ -62,7 +62,7 @@ describe("vacaciones — una sola ventana, con el año del pago", () => {
   });
 });
 
-describe("modalidad formativa (0465) — hitos del convenio, no semestres calendario", () => {
+describe("modalidad formativa (0466) — hitos del convenio, no semestres calendario", () => {
   it("cada concepto va a su propia ventana, con el año del pago", () => {
     expect(periodoQueContiene("subvencion_semestral", "2026-06-20")).toEqual({
       beneficio: "subvencion_semestral", ventana: "subvencion_semestral", anio: 2026,

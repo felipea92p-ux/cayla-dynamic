@@ -33,7 +33,7 @@ export type BeneficioDesembolso =
   | "gratificacion"
   | "cts"
   | "vacaciones"
-  // Los dos de modalidad formativa (Ley 28518 art. 42), que agregó la 0465.
+  // Los dos de modalidad formativa (Ley 28518 art. 42), que agregó la 0466.
   | "subvencion_semestral"
   | "descanso_practicante";
 
@@ -86,7 +86,7 @@ export function periodoQueContiene(beneficio: BeneficioDesembolso, fechaISO: str
 
   // MODALIDAD FORMATIVA · no son semestres calendario: sus hitos caen en el
   // aniversario del convenio de cada persona, que esta función no conoce. El
-  // año es el del pago, y con eso basta: `fn_subvenciones_practicante` (0465)
+  // año es el del pago, y con eso basta: `fn_subvenciones_practicante` (0466)
   // resta lo anotado sumando TODOS los años, justamente para que el año con
   // que se archive no pueda esconder un pago ya hecho.
   if (beneficio === "subvencion_semestral" || beneficio === "descanso_practicante") {
