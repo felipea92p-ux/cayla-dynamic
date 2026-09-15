@@ -20,7 +20,7 @@ import { Drawer } from "@/components/ui/drawer";
 // cinco columnas por jornada, y esa no se lee en una columna estrecha con
 // scroll horizontal — va en Modal ancho="lg".
 import { Modal } from "@/components/ui/modal";
-import { ROLES_DO, hoyLima, puedeOperarEquipo, maximoSemanalPracticante } from "@cayla-dynamic/shared";
+import { ROLES_DO, hoyLima, puedeOperarEquipo, maximoSemanalPracticante, leCorrespondeHorario } from "@cayla-dynamic/shared";
 // horasDia() reimplementaba (salida − entrada) − refrigerio a mano, sin el
 // ajuste "si la salida no es posterior a la entrada, el turno cruza
 // medianoche" que horasEntre() ya resuelve (turnos/page.tsx también la
@@ -103,6 +103,9 @@ interface Persona {
   // schema cache de PostgREST no expone estas columnas.
   tipo_vinculo: string;
   practicante_modalidad: string | null;
+  // Con tipo_vinculo, decide si le corresponde horario (leCorrespondeHorario).
+  // Viaja en el select directo, igual que en Correcciones.
+  personal_direccion: boolean;
 }
 interface Horario {
   persona_id: string; hora_entrada: string; hora_salida: string; vigente_desde: string;
@@ -427,7 +430,7 @@ export default function HorariosPage() {
       { data: s, error: errS },
       { data: f, error: errF },
     ] = await Promise.all([
-      supabase.from("personas").select("id, nombres, apellidos, rol, sede_base_id").eq("estado", "activo").order("nombres"),
+      supabase.from("personas").select("id, nombres, apellidos, rol, sede_base_id, personal_direccion").eq("estado", "activo").order("nombres"),
       supabase.from("horarios_asignados").select("persona_id, hora_entrada, hora_salida, vigente_desde, almuerzo_min_minutos, almuerzo_max_minutos, dias_laborables, horario_por_dia").is("vigente_hasta", null),
       supabase.from("sedes").select("id, codigo"),
       // tipo_vinculo y practicante_modalidad no viajan en el select de arriba
@@ -515,7 +518,7 @@ export default function HorariosPage() {
       if (filtroEstado || filtroTipoHorario) {
         const estado = estadoDeHoy(p);
         if (filtroEstado === "con_horario" && !estado.con) return false;
-        if (filtroEstado === "sin_horario" && estado.con) return false;
+        if (filtroEstado === "sin_horario" && (estado.con || !leCorrespondeHorario(p.tipo_vinculo, p.personal_direccion))) return false;
         if (filtroTipoHorario && estado.tipo !== filtroTipoHorario) return false;
       }
       if (soloProgramados) {
@@ -755,7 +758,10 @@ export default function HorariosPage() {
   }
 
   const todasLasSedes = [...new Set(editables.map((p) => sedes[p.sede_base_id] ?? "?"))].sort();
-  const sinHorarioLista = filtrados.filter((p) => !estadoDeHoy(p).con);
+  // RxH y dirección (Gerencia General) no llevan horario: no tenerlo es lo
+  // correcto, así que ni cuentan como "sin horario" ni entran al aviso.
+  const leCorresponde = (p: Persona) => leCorrespondeHorario(p.tipo_vinculo, p.personal_direccion);
+  const sinHorarioLista = filtrados.filter((p) => !estadoDeHoy(p).con && leCorresponde(p));
   const porSede = [...new Set(filtrados.map((p) => sedes[p.sede_base_id] ?? "?"))].sort();
 
   // Resumen superior: sobre `editables` (todo lo que puedes ver), no sobre
@@ -763,7 +769,8 @@ export default function HorariosPage() {
   // mismos activan, y dejarían de servir como ancla.
   const totalPersonas = editables.length;
   const conHorarioHoy = editables.filter((p) => estadoDeHoy(p).con).length;
-  const sinHorarioHoy = totalPersonas - conHorarioHoy;
+  const sinHorarioHoy = editables.filter((p) => !estadoDeHoy(p).con && leCorresponde(p)).length;
+  const noRequierenHorario = totalPersonas - conHorarioHoy - sinHorarioHoy;
   const programadosCount = editables.filter((p) => {
     const abierto = horarios.get(p.id);
     return !!abierto && abierto.vigente_desde > hoy;
@@ -823,6 +830,9 @@ export default function HorariosPage() {
               <button type="button" onClick={() => toggleEstado("sin_horario")} className={TILE_CLASE(filtroEstado === "sin_horario")}>
                 <span className="block text-xs text-taupe">Sin horario</span>
                 <span className="block font-serif text-2xl tabular-nums text-rojo">{sinHorarioHoy}</span>
+                {noRequierenHorario > 0 && (
+                  <span className="block text-xs text-taupe">{noRequierenHorario} no lo requiere{noRequierenHorario === 1 ? "" : "n"}</span>
+                )}
               </button>
               <button type="button" onClick={() => setSoloProgramados((v) => !v)} className={TILE_CLASE(soloProgramados)}>
                 <span className="block text-xs text-taupe">Programados</span>
@@ -954,7 +964,9 @@ export default function HorariosPage() {
                             </td>
                             <td className="px-4 py-2">{p.nombres} {p.apellidos}</td>
                             <td className="px-4 py-2">
-                              {!a || a.dias.length === 0 ? (
+                              {(!a || a.dias.length === 0) && !leCorresponde(p) ? (
+                                <span className="text-taupe" title="RxH o personal de dirección: no le corresponde horario">no requiere horario</span>
+                              ) : !a || a.dias.length === 0 ? (
                                 <span className="text-taupe">sin horario{programado ? " hoy" : ""}</span>
                               ) : a.uniforme ? (
                                 `${a.e}–${a.s}`
@@ -1058,7 +1070,9 @@ export default function HorariosPage() {
                         </Boton>
                       </div>
                       <p className="text-sm">
-                        {!a || a.dias.length === 0 ? (
+                        {(!a || a.dias.length === 0) && !leCorresponde(p) ? (
+                          <span className="text-taupe">no requiere horario</span>
+                        ) : !a || a.dias.length === 0 ? (
                           <span className="text-taupe">sin horario{programado ? " hoy" : ""}</span>
                         ) : a.uniforme ? (
                           `${a.e}–${a.s}`

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search, ChevronRight, Calendar, ArrowUpRight, PanelLeftClose, PanelLeftOpen } from "lucide-react";
-import { ROLES_DO, TIPOS_MARCA, TIPO_MARCA_LABELS, TZ_LIMA, anioLima, fechaLima, hoyLima, rangoDelDiaLima, puedeOperarEquipo, type TipoMarca } from "@cayla-dynamic/shared";
+import { ROLES_DO, TIPOS_MARCA, TIPO_MARCA_LABELS, TZ_LIMA, anioLima, fechaLima, hoyLima, rangoDelDiaLima, puedeOperarEquipo, leCorrespondeHorario, type TipoMarca } from "@cayla-dynamic/shared";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { esperadoDelDia, esTurnoEspejoViejo, type Esperado, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
@@ -117,15 +117,12 @@ interface Persona {
   tipo_vinculo: string; personal_direccion: boolean;
   estado: string;
 }
-/** ¿A esta persona le toca tener horario? Un locador de servicios no tiene
- *  jornada que cumplir, y el personal de dirección está excluido de la jornada
- *  máxima por el art. 5 del D.S. 007-2002-TR. En los dos casos, no tener
- *  horario es lo correcto, no un descuido. Se mira `personal_direccion` y NO el
- *  rol del sistema: darle admin a alguien para otra cosa no puede quitarle su
- *  jornada. */
+/** ¿A esta persona le toca tener horario? La regla vive en
+ *  `leCorrespondeHorario` (packages/shared/vinculo.ts), compartida con
+ *  Horarios base. */
 function leTocaHorario(p: Persona | undefined): boolean {
   if (!p) return true;
-  return p.tipo_vinculo !== "rxh" && p.tipo_vinculo !== "no_trabajador" && !p.personal_direccion;
+  return leCorrespondeHorario(p.tipo_vinculo, p.personal_direccion);
 }
 interface Sede { id: string; nombre: string }
 interface Marcaje {
