@@ -1994,6 +1994,102 @@ export type Database = {
           },
         ]
       }
+      educacion_solicitudes: {
+        Row: {
+          asignacion_id: string | null
+          beneficiario: string
+          beneficiario_nombre: string | null
+          comprobante_url: string | null
+          costo_declarado: number
+          enviada_at: string
+          estado: string
+          id: string
+          institucion: string
+          motivo_rechazo: string | null
+          nota: string | null
+          persona_id: string
+          retirada_at: string | null
+          revisada_at: string | null
+          revisada_por: string | null
+          vigente_desde: string
+          vigente_hasta: string
+        }
+        Insert: {
+          asignacion_id?: string | null
+          beneficiario: string
+          beneficiario_nombre?: string | null
+          comprobante_url?: string | null
+          costo_declarado: number
+          enviada_at?: string
+          estado?: string
+          id?: string
+          institucion: string
+          motivo_rechazo?: string | null
+          nota?: string | null
+          persona_id: string
+          retirada_at?: string | null
+          revisada_at?: string | null
+          revisada_por?: string | null
+          vigente_desde: string
+          vigente_hasta: string
+        }
+        Update: {
+          asignacion_id?: string | null
+          beneficiario?: string
+          beneficiario_nombre?: string | null
+          comprobante_url?: string | null
+          costo_declarado?: number
+          enviada_at?: string
+          estado?: string
+          id?: string
+          institucion?: string
+          motivo_rechazo?: string | null
+          nota?: string | null
+          persona_id?: string
+          retirada_at?: string | null
+          revisada_at?: string | null
+          revisada_por?: string | null
+          vigente_desde?: string
+          vigente_hasta?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "educacion_solicitudes_asignacion_id_fkey"
+            columns: ["asignacion_id"]
+            isOneToOne: false
+            referencedRelation: "asignaciones_educacion"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "educacion_solicitudes_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "educacion_solicitudes_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "educacion_solicitudes_revisada_por_fkey"
+            columns: ["revisada_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "educacion_solicitudes_revisada_por_fkey"
+            columns: ["revisada_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       etiquetas_complemento: {
         Row: {
           activa: boolean
@@ -5963,6 +6059,10 @@ export type Database = {
         Args: { p_path: string | null }
         Returns: boolean
       }
+      fn_educacion_puede_subir_solicitud: {
+        Args: { p_path: string | null }
+        Returns: boolean
+      }
       fn_educacion_puede_ver: { Args: { p_path: string | null }; Returns: boolean }
       fn_educacion_quitar_comprobante: {
         Args: { p_id: string | null; p_motivo: string | null }
@@ -6001,7 +6101,15 @@ export type Database = {
         }
         Returns: undefined
       }
+      fn_educacion_resolver_solicitud: {
+        Args: { p_aprobar: boolean | null; p_id: string | null; p_motivo?: string | null }
+        Returns: string
+      }
       fn_educacion_retirar_entrega: {
+        Args: { p_id: string | null }
+        Returns: undefined
+      }
+      fn_educacion_retirar_solicitud: {
         Args: { p_id: string | null }
         Returns: undefined
       }
@@ -6050,6 +6158,34 @@ export type Database = {
           rango: string
           sede: string
           vigencia: string
+          vigente_desde: string
+          vigente_hasta: string
+        }[]
+      }
+      fn_educacion_solicitar: {
+        Args: {
+          p_beneficiario: string | null
+          p_beneficiario_nombre?: string | null
+          p_comprobante_url?: string | null
+          p_costo_declarado: number | null
+          p_institucion: string | null
+          p_nota?: string | null
+          p_vigente_desde?: string | null
+          p_vigente_hasta?: string | null
+        }
+        Returns: string
+      }
+      fn_educacion_solicitudes_pendientes: {
+        Args: never
+        Returns: {
+          comprobante_url: string | null
+          costo_declarado: number
+          enviada_at: string
+          id: string
+          institucion: string
+          persona: string
+          persona_id: string
+          sede: string
           vigente_desde: string
           vigente_hasta: string
         }[]

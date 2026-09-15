@@ -110,6 +110,12 @@ export interface ItemAvisoFinEducacion {
   institucion: string; motivo: string; creado_at: string;
 }
 
+/** Alguien pidió su propio apoyo educativo, sin tener todavía una asignación (0461). */
+export interface ItemSolicitudEducacion {
+  id: string; persona_id: string; persona: string; sede: string;
+  institucion: string; costo_declarado: number; enviada_at: string;
+}
+
 /** Alguien que trabajó días que su horario no cubre (0385). */
 export interface ItemSinHorario {
   persona_id: string; nombre: string; sede: string;
@@ -245,6 +251,7 @@ export interface FuentesBandeja {
   educacion: FilaEducacionBandeja[];
   entregasEducacion: ItemEntregaEducacion[];
   avisosFinEducacion: ItemAvisoFinEducacion[];
+  solicitudesEducacion: ItemSolicitudEducacion[];
   vacaciones: ItemVacacion[];
   sinHorario: ItemSinHorario[];
   liquidacionesVencidas: ItemLiquidacion[];
@@ -271,7 +278,7 @@ export interface FuentesBandeja {
 }
 
 export const FUENTES_VACIAS: FuentesBandeja = {
-  educacion: [], entregasEducacion: [], avisosFinEducacion: [], vacaciones: [], sinHorario: [],
+  educacion: [], entregasEducacion: [], avisosFinEducacion: [], solicitudesEducacion: [], vacaciones: [], sinHorario: [],
   liquidacionesVencidas: [], revisiones: [], revisionesMovilidad: [], revisionesContrato: [],
   solicitudesVacaciones: [], solicitudesPerfil: [], contratos: [], diasPorRevisar: [], marcasApartadas: [],
   periodo: null, documentos: [], feriados: [], disciplina: [], resumenAlertas: null, fallidas: [],
@@ -327,6 +334,7 @@ export async function traerFuentesBandeja(
   if (puedeVerPlanilla(rol)) {
     pedir<ItemEntregaEducacion>(supabase.rpc("fn_educacion_entregas_pendientes"), "educacion", "las constancias de educación", (xs) => { f.entregasEducacion = xs; });
     pedir<ItemAvisoFinEducacion>(supabase.rpc("fn_educacion_avisos_fin_pendientes"), "educacion", "los avisos de educación", (xs) => { f.avisosFinEducacion = xs; });
+    pedir<ItemSolicitudEducacion>(supabase.rpc("fn_educacion_solicitudes_pendientes"), "educacion", "las solicitudes de apoyo educativo", (xs) => { f.solicitudesEducacion = xs; });
     pedir<FilaEducacionBandeja>(supabase.rpc("fn_educacion_situacion"), "educacion", "educación", (xs) => { f.educacion = xs.filter(esEducacionParaSaber); });
     pedir<ItemSolicitudVacacion>(supabase.rpc("fn_solicitudes_vacaciones", { p_solo_pendientes: true }), "ausencias", "solicitudes de vacaciones", (xs) => { f.solicitudesVacaciones = xs; });
     pedir<ItemLiquidacion>(supabase.rpc("fn_liquidaciones_pendientes"), "liquidaciones", "liquidaciones vencidas", (xs) => { f.liquidacionesVencidas = xs.filter(esLiquidacionParaBandeja); });
@@ -438,7 +446,7 @@ async function traerDisciplina(
 export type TipoItemVisto =
   | "revision" | "revision_movilidad" | "revision_contrato"
   | "solicitud_vacacion" | "solicitud_perfil"
-  | "entrega_educacion" | "aviso_fin_educacion";
+  | "entrega_educacion" | "aviso_fin_educacion" | "solicitud_educacion";
 
 export type TipoPendiente =
   | TipoItemVisto | "educacion" | "vacaciones_por_vencer" | "sin_horario" | "liquidacion_vencida"
@@ -620,6 +628,18 @@ export function armarPendientes(
       urgencia: urgenciaEspera(a.creado_at, hoy), resolucion: "afuera",
       ir: { texto: "Decidir el cierre", href: `/admin/educacion?familia=${a.familia_id}` }, contexto: null,
     }, "aviso_fin_educacion");
+  }
+  // ⇩ 0461 ⇩ Pidió su propio apoyo: todavía no hay ninguna asignación ni
+  // familia a la que colgar el enlace, así que abre la solicitud directo.
+  for (const s of f.solicitudesEducacion) {
+    agregar({
+      clave: `solicitud_educacion:${s.id}`, tipo: "solicitud_educacion", itemId: s.id, personaId: s.persona_id,
+      persona: s.persona, sede: s.sede, modulo: "educacion",
+      titulo: "Solicitud de apoyo educativo pendiente de revisión",
+      detalle: `${s.institucion} · costo declarado ${formatSoles(s.costo_declarado)}`,
+      urgencia: urgenciaEspera(s.enviada_at, hoy), resolucion: "afuera",
+      ir: { texto: "Revisar", href: `/admin/educacion?solicitud=${s.id}` }, contexto: null,
+    }, "solicitud_educacion");
   }
   for (const e of f.educacion) {
     const doc = documentoEducacion(e);
