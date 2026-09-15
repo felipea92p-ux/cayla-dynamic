@@ -444,6 +444,11 @@ export default function DocumentacionPage() {
   const [filtroSede, setFiltroSede] = useFiltroGuardado("documentacion.sede", "todas");
   const [filtroEstado, setFiltroEstado] = useState<"todos" | "pendientes" | "firmados" | "negativas">("todos");
   const [busca, setBusca] = useState("");
+  // ?persona=<id> — llega desde la Bandeja (una revisión de ruta pedida). Se
+  // aplica UNA vez, escribiendo su nombre en el buscador: queda a la vista y
+  // se borra con «Limpiar filtros», en vez de un filtro escondido. El ref evita
+  // que cada recarga tras subir un papel vuelva a pisar lo que se escribió.
+  const personaUrlAplicada = useRef(false);
   const [generarAbierto, setGenerarAbierto] = useState(false);
   const bonoRef = useRef<HTMLDivElement>(null);
   const previewRef = useRef<HTMLDivElement>(null);
@@ -820,6 +825,12 @@ export default function DocumentacionPage() {
       supabase.rpc("fn_documentos_estado_politica"),
     ]);
     setTablero((tab.data as FilaTablero[]) ?? []);
+    if (!personaUrlAplicada.current) {
+      personaUrlAplicada.current = true;
+      const pid = new URLSearchParams(window.location.search).get("persona");
+      const fila = pid ? ((tab.data as FilaTablero[]) ?? []).find((f) => f.persona_id === pid) : undefined;
+      if (fila) { setBusca(fila.persona); setFiltroSede("todas"); }
+    }
     setPolitica(((pol.data as EstadoPolitica[]) ?? [])[0] ?? null);
 
     // DÓNDE VIVE CADA ARCHIVO YA SUBIDO.
