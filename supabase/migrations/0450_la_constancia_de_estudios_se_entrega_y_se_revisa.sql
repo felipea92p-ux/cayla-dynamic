@@ -575,8 +575,11 @@ select a.id, a.comprobante_url, fn_educacion_mes_del_periodo(a.vigente_desde),
  where a.comprobante_url is not null
    and not exists (select 1 from educacion_entregas e where e.asignacion_id = a.id and e.estado = 'aprobada');
 
-select fn_educacion_refrescar_espejo(f.familia_id)
-  from (select distinct familia_id from asignaciones_educacion) f;
+do $refrescar$
+begin
+  perform fn_educacion_refrescar_espejo(f.familia_id)
+     from (select distinct familia_id from asignaciones_educacion) f;
+end $refrescar$;
 
 
 -- ── H · Funciones de la integrante ──────────────────────────────────────────
