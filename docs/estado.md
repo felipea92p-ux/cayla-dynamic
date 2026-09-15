@@ -6,6 +6,106 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-09-15 — Producción llevaba DIEZ migraciones sin pegar y ningún freno lo veía
+
+Al verificar el despliegue del historial de horarios (PR #361) se midió, de
+paso, el registro entero de `migraciones_aplicadas` contra el repositorio. El
+resultado no era el esperado: a producción le faltaban **23 números**, y solo
+13 de ellos estaban explicados en `scripts/hooks/huecos-conocidos.txt` o en
+`no-se-pegan.txt`. Los otros diez —**0428 y 0430 a 0438**— eran migraciones
+reales, commiteadas, fusionadas a `main` desde hacía días, y sencillamente
+nunca pegadas.
+
+No es una anécdota de orden. Una de ellas tenía consecuencia inmediata: la
+**0437** crea `fn_dia_con_expediente_formal`, la función que impide corregir
+un día que ya tiene un expediente disciplinario firmado. Sin ella en la base,
+las dos funciones de la 0447 que acababan de pegarse —la vista previa y la
+corrección retroactiva de horario— llamaban a algo inexistente.
+
+**Y no falló al pegar la 0447.** PL/pgSQL no resuelve las llamadas internas
+hasta que se ejecutan, así que el `create or replace` pasó sin una queja y el
+botón «corregir pasado» habría reventado la primera vez que alguien lo usara.
+Es el mismo modo de fallo del botón de la 0407 y de la pantalla de la 0297/0299:
+**no falla al aplicar la migración, falla al abrir la pantalla.**
+
+### Cómo se encontró, y por qué conviene repetirlo
+
+Con una sola consulta de lectura contra producción, que recorre el cuerpo de
+todas las funciones plpgsql y busca llamadas a funciones que no existen:
+
+```sql
+with cuerpos as (
+  select p.proname as quien, regexp_replace(p.prosrc, '--[^\n]*', '', 'g') as src
+    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public'
+     and p.prolang = (select oid from pg_language where lanname = 'plpgsql')
+), refs as (
+  select distinct m[1] as llamada, c.quien
+    from cuerpos c, lateral regexp_matches(c.src, '\m(fn_[a-z0-9_]+)\s*\(', 'g') m
+)
+select r.llamada as no_existe, string_agg(distinct r.quien, ', ') as la_llaman
+  from refs r
+ where not exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+                    where n.nspname = 'public' and p.proname = r.llamada)
+ group by r.llamada;
+```
+
+Devolvió exactamente una fila, y era la buena. Vale la pena correrla después de
+cada tanda que se pegue: es barata, no escribe nada, y contesta la pregunta que
+ninguna prueba contesta — *¿lo que hay en la base se sostiene entre sí?*
+
+### Por qué ningún freno lo vio
+
+Los frenos de este repo vigilan **el camino de salida**: `numeracion.sh` mira
+que no haya números repetidos ni huecos en `supabase/migrations`, el hook de
+`que_falta_pegar.sql` mantiene la consulta al día, `dame-el-sql.sh` protege al
+que pide el SQL, y `desplegar.sh` exige CI en verde. Ninguno mira **el estado de
+producción**, porque ninguno puede: no hay credenciales contra producción por
+diseño, y eso no va a cambiar.
+
+O sea que «una migración fusionada que nunca se pegó» no tiene guardián posible
+del lado del repositorio. Lo único que la detecta es mirar producción, y eso
+solo lo puede hacer una persona con el SQL Editor. `que_falta_pegar.sql` existe
+justo para eso — pero es de consulta voluntaria, y entre el 0428 y el 0438 se
+acumularon diez sin que nadie la corriera.
+
+### Y pasó otra vez lo de fusionar antes de pegar
+
+El PR #361 se fusionó a `main` con las 0444-0447 sin pegar. Como `main` publica
+sola, durante unos minutos producción sirvió un `/admin/correcciones` que pedía
+`jornadas.horario_aplicado` —columna de la 0446, inexistente entonces— y esa
+pantalla no abría ningún día: la consulta fallaba y cortaba la carga completa.
+
+Es la **tercera vez en dos días** (0404, 0407, 0440, y ahora esta) y la segunda
+documentada en este archivo. La conclusión de la entrada de ayer sigue siendo
+la correcta y conviene subrayarla: *el freno que falta no es de código — es que
+fusionar sin haber pegado la SQL sigue siendo posible, y lo seguirá siendo
+mientras `main` publique sola.*
+
+### Estado al cerrar
+
+Pegadas y verificadas el mismo día: **0437**, **0438** y **0441 a 0447**. Cero
+dependencias rotas en toda la base, una sola versión de cada función tocada,
+permisos correctos (`authenticated` puede ejecutar las dos RPC nuevas de la
+0447 y no puede ejecutar `fn_calcular_metricas_jornada`, que es lo que toca
+porque solo la llaman otras funciones por dentro), el trigger
+`trg_horarios_solo_por_rpc` de la 0440 intacto, y
+`fn_dia_con_expediente_formal` presente con su firma `(uuid, date)`.
+
+Con la 0437 y la 0438 juntas, el candado de «no pisar un expediente ya formal»
+vuelve a cubrir las ocho puertas para las que se diseñó, no seis.
+
+🔴 **Siguen sin pegar, y sin explicación: 0428, 0430, 0431, 0432, 0433, 0434,
+0435 y 0436.** (El 0420 también falta, pero ese sí está explicado: es una
+renumeración limpia, ver `huecos-conocidos.txt`.) Las ocho necesitan cada una
+su comprobación de si revierten algo antes de pegarlas — son de otras ramas y
+algunas reescriben funciones compartidas. La comprobación es siempre la misma y
+cuesta un minuto: `./scripts/donde-vive.sh <función>` para cada función que la
+migración define, y confirmar que la migración pendiente ES la vigente; si lo
+es, pegarla no puede revertir nada posterior.
+
+---
+
 ## 2026-09-14 — Horarios caído en producción: la 0440 se fusionó a `main` sin pegarse — mismo patrón que 0404/0407, otra vez
 
 Felipe reportó: al cambiar el horario de cualquier persona, el modal
