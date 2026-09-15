@@ -496,7 +496,7 @@ function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso
       : await supabase.rpc("fn_quitar_turno", { p_persona_id: d.personaId, p_fecha: d.fecha });
     setProcesando(null);
     if (esPasado) {
-      setAviso(`El horario base de ${d.persona} rige desde hoy (${desde}), no desde el ${d.fecha}: un horario nuevo no reescribe días que ya pasaron. El ${d.fecha} se queda como estaba, con su turno puntual. Si lo que necesitas es corregir el pasado de verdad, usa "corregir pasado" en Horarios.`);
+      setAviso(`El horario base de ${d.persona} rige desde hoy (${desde}), no desde el ${d.fecha}: un horario nuevo no reescribe días que ya pasaron. El ${d.fecha} se queda como estaba, con su turno puntual. Si lo que necesitas es corregir días que ya pasaron, usa "Corregir días ya trabajados" en Horarios.`);
       await cargar();
       return;
     }
@@ -962,7 +962,7 @@ export default function TurnosPage() {
       return;
     }
     if (esPasado) {
-      avisar("ok", `Horario base actualizado: los ${DIAS_PLURAL[Number(dow)]} desde hoy (${desde}). El ${edit.fecha} ya pasó, así que se queda como estaba — un horario nuevo no reescribe días ya juzgados. Para corregir el pasado de verdad, usa "corregir pasado" en Horarios.`);
+      avisar("ok", `Horario base actualizado: los ${DIAS_PLURAL[Number(dow)]} desde hoy (${desde}). El ${edit.fecha} ya pasó, así que se queda como estaba — un horario nuevo no reescribe días ya juzgados. Para corregir días que ya pasaron, usa "Corregir días ya trabajados" en Horarios.`);
       return;
     }
     avisar("ok", `Horario base actualizado: los ${DIAS_PLURAL[Number(dow)]} desde esa fecha.`);
