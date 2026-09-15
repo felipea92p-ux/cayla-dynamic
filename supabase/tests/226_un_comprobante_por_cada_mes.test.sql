@@ -147,9 +147,17 @@ select is(
 -- EL CONTADOR DEL MENÚ contra la lista que abre esa misma pantalla. Es la
 -- comprobación que de verdad importa de las cuatro.
 select is(
+  -- ⇩ CAMBIO 0450 ⇩ El contador del menú dejó de contar meses sin papel: cuenta
+  -- lo que le toca a DO (constancias por revisar, plazos vencidos, estudios sin
+  -- calendario, avisos de fin). Se compara contra las listas que abre, igual que
+  -- antes; la 355 lo prueba con casos de cada tipo.
   fn_educacion_por_atender(),
-  (select count(*)::int from fn_educacion_listar() where meses_sin_papel > 0),
-  'EL CONTADOR · fn_educacion_por_atender dice lo mismo que la lista que abre');
+  (select count(*)::int from fn_educacion_entregas_pendientes())
+  + (select count(*)::int from fn_educacion_situacion()
+      where estado_constancia = 'vencida'
+         or (estado_constancia = 'sin_calendario' and vigencia in ('vigente', 'por_terminar')))
+  + (select count(*)::int from fn_educacion_avisos_fin_pendientes()),
+  'EL CONTADOR · fn_educacion_por_atender dice lo mismo que las listas que abre');
 
 select throws_like($$
   select fn_educacion_adjuntar_comprobante(
@@ -159,47 +167,52 @@ select throws_like($$
   'ADJUNTAR · un recibo de un mes que esa vigencia no cobra se rechaza: no sostiene nada');
 
 
--- ── 4 · Quitar exige motivo, y el espejo se entera ─────────────────────────
+-- ── 4 · ⇩ CAMBIO 0450 ⇩ Un papel aprobado ya no se quita ──────────────────
+-- Hasta la 0450 quitar borraba la fila y el espejo retrocedía. Desde entonces
+-- cada papel de esta tabla es una entrega APROBADA (mismo id) y lo aprobado es
+-- el sustento de lo que ya se pagó: no se borra. Quitar se niega, y lo dice.
 select throws_like($$
   select fn_educacion_quitar_comprobante(
     (select c.id from educacion_comprobantes c
        join asignaciones_educacion a on a.id = c.asignacion_id
       where a.persona_id = '00000000-0000-0000-0000-0000000000c2'
         and c.mes_cubierto = (select bucket_1 from _fechas)),
-    null) $$,
-  '%por qué se quita%',
-  'QUITAR · sin motivo no se quita: esa fila deja de tener con qué defenderse');
-
-select lives_ok($$
-  select fn_educacion_quitar_comprobante(
-    (select c.id from educacion_comprobantes c
-       join asignaciones_educacion a on a.id = c.asignacion_id
-      where a.persona_id = '00000000-0000-0000-0000-0000000000c2'
-        and c.mes_cubierto = (select bucket_1 from _fechas)),
     'se subió el recibo equivocado') $$,
-  'QUITAR · con motivo sí');
+  '%no se quita%',
+  'QUITAR · un comprobante aprobado no se quita, aunque venga con motivo');
 
 select is(
   (select comprobante_url from asignaciones_educacion
     where persona_id = '00000000-0000-0000-0000-0000000000c2'),
-  'educacion/c2/junio.pdf',
-  'ESPEJO · al quitar el más reciente, la columna vuelve sola al que queda');
+  'educacion/c2/julio.pdf',
+  'ESPEJO · la columna sigue apuntando al papel más reciente');
+
+select is(
+  (select count(*)::int from educacion_entregas e
+     join educacion_comprobantes c on c.id = e.id
+     join asignaciones_educacion a on a.id = c.asignacion_id
+    where a.persona_id = '00000000-0000-0000-0000-0000000000c2'
+      and e.estado = 'aprobada'),
+  2,
+  'PUERTA · cada papel de esta tabla es una entrega aprobada, con el mismo id');
 
 
--- ── 5 · Y sin ningún papel, no devenga: la regla de siempre sigue viva ─────
-select lives_ok($$
+-- ── 5 · Quitar ya no apaga el pago ─────────────────────────────────────────
+select throws_like($$
   select fn_educacion_quitar_comprobante(
     (select c.id from educacion_comprobantes c
        join asignaciones_educacion a on a.id = c.asignacion_id
-      where a.persona_id = '00000000-0000-0000-0000-0000000000c2'),
-    'prueba de que la columna se vacía sola') $$,
-  'ESPEJO · se quita el último papel');
+      where a.persona_id = '00000000-0000-0000-0000-0000000000c2'
+        and c.mes_cubierto = (select bucket_2 from _fechas)),
+    'prueba de que la columna no se vacía') $$,
+  '%no se quita%',
+  'QUITAR · tampoco el último');
 
 select is(
   (select paga from fn_educacion_listar()
     where persona_id = '00000000-0000-0000-0000-0000000000c2'),
-  false,
-  'DEVENGO · sin ningún comprobante la asignación deja de pagar, como antes de la 0290');
+  true,
+  'DEVENGO · con sus papeles aprobados intactos, la asignación sigue pagando');
 
 -- ── 6 · Corregir no puede llevarse los papeles por delante ────────────────
 -- Es el caso que la 0290 tuvo que resolver a mano: la tabla cuelga de la
@@ -214,9 +227,8 @@ select is(
 -- extendió hasta `fin_bucket_0` —el último día del periodo de hoy—: si
 -- terminara antes de hoy, como pasaba con el 28 de agosto fijo, la corrección
 -- no tendría ningún periodo abierto donde aterrizar.
-select fn_educacion_adjuntar_comprobante(
-  (select id from asignaciones_educacion where persona_id = '00000000-0000-0000-0000-0000000000c2'),
-  'educacion/c2/junio.pdf', (select bucket_2 from _fechas), null);
+-- ⇩ CAMBIO 0450 ⇩ junio y julio siguen puestos (quitar ya no borra): solo falta
+-- agosto.
 select fn_educacion_adjuntar_comprobante(
   (select id from asignaciones_educacion where persona_id = '00000000-0000-0000-0000-0000000000c2'),
   'educacion/c2/agosto.pdf', (select bucket_0 from _fechas), null);
@@ -236,13 +248,15 @@ select is(
   2,
   'CORREGIR · quedan dos vigencias: la cerrada y la que rige');
 
+-- ⇩ CAMBIO 0450 ⇩ Los papeles ya no se COPIAN a la vigencia nueva: las dos
+-- vigencias son la misma familia y la comparten. Copiar ahora duplicaría
+-- entregas aprobadas en el historial.
 select is(
-  (select count(*)::int from educacion_comprobantes c
-     join asignaciones_educacion a on a.id = c.asignacion_id
-    where a.persona_id = '00000000-0000-0000-0000-0000000000c2'
-      and a.vigente_desde > (select bucket_2 from _fechas)),
-  1,
-  'CORREGIR · la vigencia nueva se quedó con el papel del mes que sí paga, y solo ese');
+  (select count(*)::int from educacion_entregas e
+     join asignaciones_educacion a on a.id = e.asignacion_id
+    where a.persona_id = '00000000-0000-0000-0000-0000000000c2'),
+  3,
+  'CORREGIR · la familia conserva sus tres constancias, sin duplicarlas');
 
 select isnt(
   (select comprobante_url from asignaciones_educacion

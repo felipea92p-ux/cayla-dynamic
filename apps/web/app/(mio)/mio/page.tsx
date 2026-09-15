@@ -4,9 +4,10 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  CalendarClock, CalendarDays, Car, FileSignature, History, IdCard, Inbox, LayoutDashboard, ScrollText,
-  Target, TreePalm, UserRound,
+  CalendarClock, CalendarDays, Car, FileSignature, GraduationCap, History, IdCard, Inbox, LayoutDashboard,
+  ScrollText, Target, TreePalm, UserRound,
 } from "lucide-react";
+import { ResumenEducacionMia } from "./educacion/resumen";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Colibri } from "@/components/marca";
 import { AcusesPendientes } from "@/components/acuses-pendientes";
@@ -253,8 +254,8 @@ interface Derechohabiente {
 
 /** Las diez secciones de la pantalla. Ver el comentario de `tab`. */
 type Tab =
-  | "resumen" | "dias" | "turnos" | "dni" | "datos" | "ausencias" | "contrato" | "movilidad" | "firma"
-  | "objetivos" | "historial";
+  | "resumen" | "dias" | "turnos" | "dni" | "datos" | "ausencias" | "contrato" | "movilidad" | "educacion"
+  | "firma" | "objetivos" | "historial";
 
 /**
  * Las mismas diez, con su icono y en el orden en que se leen.
@@ -279,6 +280,8 @@ const SECCIONES: readonly SeccionDetalle<Tab>[] = [
   { valor: "ausencias", label: "Vacaciones y permisos", Icon: TreePalm },
   { valor: "contrato", label: "Contrato", Icon: ScrollText },
   { valor: "movilidad", label: "Movilidad", Icon: Car },
+  // Mismo ícono que «Educación» en el menú del panel (nav-items.ts).
+  { valor: "educacion", label: "Educación", Icon: GraduationCap },
   { valor: "firma", label: "Firma", Icon: FileSignature },
   { valor: "objetivos", label: "Objetivos", Icon: Target },
   { valor: "historial", label: "Historial", Icon: History },
@@ -2766,6 +2769,11 @@ export default function MioPage() {
           )}
         </section>
       )}
+
+      {/* ── EDUCACIÓN (0450) ─────────────────────────────────────────────────
+          Solo dice en qué está su constancia y lleva a subirla. El flujo en
+          sí vive en /mio/educacion, mismo criterio que contrato y movilidad. */}
+      {tab === "educacion" && <ResumenEducacionMia />}
 
       {/* ── FIRMA ────────────────────────────────────────────────────────────
           Mismo componente que usa Felipe en su ficha de Equipo (FirmaEditor:

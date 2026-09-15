@@ -30,20 +30,20 @@ import { ROLES_DO, hoyLima, puedeOperarEquipo, maximoSemanalPracticante, leCorre
 import { horasEntre as horasDia, esTurnoEspejoViejo, type HorarioTramo } from "@/lib/admin/jornada-esperada";
 
 const META_SEMANA = 45; // horas objetivo por semana (7.5h × 6 días)
-// Pedido por Felipe el 2026-09-14: un motivo de verdad, no una frase de
-// trámite — 250 caracteres empuja a explicar el contexto real del cambio
-// (quién lo pidió, por qué, qué operativa lo justifica), no a escribir
-// "cambio de horario" y seguir. El mínimo vive en el cliente; el guardián de
-// la base (fn_set_horario_semanal, 0440) sigue exigiendo solo 3 como piso de
-// seguridad — subirlo ahí es una migración nueva y aparte, no este cambio.
-const MOTIVO_MIN = 250;
+// El 2026-09-14 se pidió un mínimo de 250 caracteres para forzar un motivo
+// de verdad; el 2026-09-15 Felipe lo invirtió: 250 es el TOPE y el mínimo es
+// 3. El mínimo coincide ahora con el guardián de la base (fn_set_horario_semanal 0440/0444 y el
+// camino retroactivo 0447, los tres en 3), así que pantalla y base dicen lo
+// mismo. El tope vive solo en el cliente: la base no lo exige.
+const MOTIVO_MIN = 3;
+const MOTIVO_MAX = 250;
 
 function ContadorMotivo({ texto }: { texto: string }) {
   const n = texto.trim().length;
   const falta = MOTIVO_MIN - n;
   return (
     <p className={`mt-1 text-xs ${falta > 0 ? "text-taupe" : "text-verde"}`}>
-      {falta > 0 ? `Faltan ${falta} caracteres (mínimo ${MOTIVO_MIN}).` : `${n} caracteres — motivo completo.`}
+      {falta > 0 ? `Mínimo ${MOTIVO_MIN} caracteres · ${n}/${MOTIVO_MAX}` : `${n}/${MOTIVO_MAX} caracteres`}
     </p>
   );
 }
@@ -729,10 +729,10 @@ export default function HorariosPage() {
 
   async function confirmarRetro() {
     if (!retro) return;
-    // El mismo listón que el camino normal (MOTIVO_MIN, 2026-09-14). Sería
+    // El mismo listón que el camino normal (MOTIVO_MIN/MOTIVO_MAX). Sería
     // incoherente que el camino que REESCRIBE días ya juzgados pidiera menos
     // explicación que el que solo mira hacia adelante. El piso de la base
-    // (0447) sigue en 3, igual que el de fn_set_horario_semanal.
+    // (0447) es 3, igual que el de fn_set_horario_semanal.
     if (retroMotivo.trim().length < MOTIVO_MIN) { avisar("error", `Escribe el motivo de la corrección (mínimo ${MOTIVO_MIN} caracteres).`); return; }
     const horario = formRetro.construirHorario();
     setRetroConfirmando(true);
@@ -744,7 +744,7 @@ export default function HorariosPage() {
     if (error) { avisar("error", mensajeDeError(error)); return; }
     cerrarRetro();
     await cargar();
-    avisar("ok", "Corrección retroactiva aplicada. Las jornadas del rango quedaron recalculadas y la corrección quedó auditada.");
+    avisar("ok", "Días ya trabajados corregidos. Las jornadas del rango se volvieron a calcular y el cambio quedó auditado.");
   }
 
   if (rol !== null && !puedeEditar) {
@@ -1006,9 +1006,13 @@ export default function HorariosPage() {
                             <td className="px-4 py-2 text-taupe">{h ? fechaCorta(h.vigente_desde) : "—"}</td>
                             <td className="px-4 py-2">
                               <div className="flex items-center justify-end gap-3">
+                                {/* «corregir pasado» hasta el 2026-09-15: no decía que
+                                    vuelve a medir días ya pagados. Al lado de «Cambiar»
+                                    (de hoy en adelante), el nombre tiene que marcar la
+                                    diferencia sin que nadie la explique. */}
                                 {h && (
                                   <Boton variante="enlace" tamano="sm" onClick={() => abrirRetro(p)}>
-                                    corregir pasado
+                                    Corregir días ya trabajados
                                   </Boton>
                                 )}
                                 <Boton variante="secundario" tamano="sm" onClick={(e) => abrirEdicion(p, e.currentTarget)}>
@@ -1085,7 +1089,7 @@ export default function HorariosPage() {
                         Vigente desde {h ? fechaCorta(h.vigente_desde) : "—"}
                         {h && (
                           <Boton variante="enlace" tamano="sm" className="ml-2" onClick={() => abrirRetro(p)}>
-                            corregir pasado
+                            Corregir días ya trabajados
                           </Boton>
                         )}
                       </p>
@@ -1134,7 +1138,7 @@ export default function HorariosPage() {
             hacia atrás: eso recalcularía tardanzas de días ya juzgados con el
             horario que de verdad regía entonces. Si el cambio ocurrió de
             verdad hace unos días y recién se registra, cierra esto y usa
-            <span className="text-tinta"> corregir pasado</span> — enseña antes
+            <span className="text-tinta"> Corregir días ya trabajados</span> — enseña antes
             qué jornadas cambiarían.
           </p>
 
@@ -1212,6 +1216,7 @@ export default function HorariosPage() {
               onChange={(e) => setMotivo(e.target.value)}
               placeholder="Por qué cambia — quién lo pidió, para qué, qué operativa lo justifica…"
               rows={4}
+              maxLength={MOTIVO_MAX}
             />
             <ContadorMotivo texto={motivo} />
           </div>
@@ -1268,6 +1273,7 @@ export default function HorariosPage() {
               onChange={(e) => setMasivoMotivo(e.target.value)}
               placeholder="Por qué cambia — qué operativa lo justifica, por qué a este grupo…"
               rows={4}
+              maxLength={MOTIVO_MAX}
             />
             <ContadorMotivo texto={masivoMotivo} />
           </div>
@@ -1288,7 +1294,7 @@ export default function HorariosPage() {
           onCerrar={cerrarRetro}
           bloqueado={retroPreviewCargando || retroConfirmando}
           ancho="lg"
-          titulo={retro ? `Corregir el horario pasado de ${retro.nombres} ${retro.apellidos}` : undefined}
+          titulo={retro ? `Corregir días ya trabajados de ${retro.nombres} ${retro.apellidos}` : undefined}
         >
           <p className="mb-4 text-sm text-taupe">
             Para cuando el cambio de horario <strong className="text-tinta">de verdad ocurrió hace días</strong> y
@@ -1326,6 +1332,7 @@ export default function HorariosPage() {
               value={retroMotivo}
               onChange={(e) => { setRetroMotivo(e.target.value); }}
               placeholder="Por qué se corrige con vigencia pasada — por ejemplo: el horario cambió el lunes en la sede, recién se registra hoy."
+              maxLength={MOTIVO_MAX}
             />
             <ContadorMotivo texto={retroMotivo} />
           </div>

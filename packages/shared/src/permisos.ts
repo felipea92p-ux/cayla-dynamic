@@ -138,6 +138,21 @@ export function puedeOperarEquipo(rol: RolPosible): boolean {
   return tiene(DO_Y_ENCARGADA, rol);
 }
 
+/**
+ * Anular un documento disciplinario: dejar sin efecto un memo por un defecto
+ * propio, incluso uno ya entregado.
+ *
+ * Es más estrecho que `puedeOperarEquipo`, que es el permiso de la pantalla:
+ * la encargada tramita amonestaciones de su sede, pero `fn_expediente_anular`
+ * (0058) solo deja anular a DO. Hasta el rediseño del 2026-09-15 el botón
+ * «Anular» se le dibujaba igual a la encargada, y pulsarlo solo podía dar
+ * error. Se nombra aparte y no con `puedeAdministrarEquipo` porque la pregunta
+ * es otra: quién retira una sanción, no quién da de alta a una persona.
+ */
+export function puedeAnularDocumentoDisciplinario(rol: RolPosible): boolean {
+  return tiene(DO, rol);
+}
+
 /** Solo la encargada de sede — no DO. Ver `esRolEncargada` más abajo. */
 const SOLO_ENCARGADA: readonly Rol[] = ["supervisor_sede"];
 
@@ -148,6 +163,15 @@ const SOLO_ENCARGADA: readonly Rol[] = ["supervisor_sede"];
  */
 export function esRolEncargada(rol: RolPosible): boolean {
   return tiene(SOLO_ENCARGADA, rol);
+}
+
+/** Solo integrante — ni DO ni encargada. Objetivos la usa para decidir a
+ * quién puede gestionar una encargada de sede: a sus integrantes, nunca a
+ * otra encargada (esos los gestiona DO). */
+const SOLO_INTEGRANTE: readonly Rol[] = ["integrante"];
+
+export function esRolIntegrante(rol: RolPosible): boolean {
+  return tiene(SOLO_INTEGRANTE, rol);
 }
 
 /**

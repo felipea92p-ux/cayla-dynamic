@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, ChevronRight, Calendar, ArrowUpRight } from "lucide-react";
+import { Search, ChevronRight, Calendar, ArrowUpRight, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { ROLES_DO, TIPOS_MARCA, TIPO_MARCA_LABELS, TZ_LIMA, anioLima, fechaLima, hoyLima, rangoDelDiaLima, puedeOperarEquipo, leCorrespondeHorario, type TipoMarca } from "@cayla-dynamic/shared";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { esperadoDelDia, esTurnoEspejoViejo, type Esperado, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
+import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
 import { useToast } from "@/components/toast";
 import { Boton } from "@/components/ui/boton";
 import { Campo, CampoSelect } from "@/components/ui/campo";
@@ -357,6 +358,10 @@ export default function CorreccionesPage() {
   // Filtro de la lista de la izquierda — no de qué persona está abierta.
   const [sedeFiltro, setSedeFiltro] = useState("");
   const [busqueda, setBusqueda] = useState("");
+  // Si el panel de colaboradores está oculto para darle todo el ancho al día
+  // abierto. Misma preferencia de vista, mismo hook, que en Datos personales
+  // — se acuerda por navegador y no depende de qué persona esté abierta.
+  const [equipoColapsado, setEquipoColapsado] = useFiltroGuardado("correcciones.equipo-colapsado", false);
   const [marcajes, setMarcajes] = useState<Marcaje[]>([]);
   const [jornada, setJornada] = useState<Jornada | null>(null);
   const [auditoria, setAuditoria] = useState<Auditoria[]>([]); // últimas correcciones de esta persona
@@ -935,8 +940,24 @@ export default function CorreccionesPage() {
           se filtra por sede y se busca por nombre, y el número junto a cada
           fila dice de entrada quién tiene algo por revisar. */}
       <div className="flex min-h-0 flex-1">
+        {/* Igual que en Datos personales: se oculta del todo (no solo
+            visualmente) para que el día abierto —a la derecha, `flex-1`—
+            recupere el ancho de verdad. Acá no hace falta tocar ninguna
+            columna de grid: al ser `flex`, con el `<aside>` fuera del árbol
+            el hermano `flex-1` ya ocupa lo que queda. */}
+        {!equipoColapsado && (
         <aside className="flex w-full max-w-[300px] shrink-0 flex-col border-r border-sand bg-papel">
           <div className="space-y-3 border-b border-sand p-4">
+            <div className="flex items-center justify-end">
+              <button
+                onClick={() => setEquipoColapsado(true)}
+                className="rounded-control p-1 text-taupe transition-colors hover:bg-sand hover:text-tinta"
+                title="Ocultar el equipo y darle todo el ancho al día"
+                aria-label="Ocultar el equipo"
+              >
+                <PanelLeftClose size={15} strokeWidth={1.8} aria-hidden />
+              </button>
+            </div>
             <CampoSelect
               etiqueta="Sede"
               value={sedeFiltro}
@@ -1003,8 +1024,17 @@ export default function CorreccionesPage() {
             )}
           </div>
         </aside>
+        )}
 
         <div className="min-w-0 flex-1 overflow-y-auto p-6">
+          {equipoColapsado && (
+            <button
+              onClick={() => setEquipoColapsado(false)}
+              className="mb-4 inline-flex items-center gap-1.5 rounded-pildora bg-tinta px-3 py-1.5 text-xs font-medium text-crema transition-colors hover:bg-rojo-profundo"
+            >
+              <PanelLeftOpen size={14} strokeWidth={1.8} aria-hidden /> Equipo · {personasListadas.length}
+            </button>
+          )}
           {!personaId || !personaSel ? (
             <div className="flex h-full flex-col items-center justify-center px-6 text-center">
               <p className="text-sm text-taupe">Elige a alguien de la lista para ver y corregir sus marcajes.</p>

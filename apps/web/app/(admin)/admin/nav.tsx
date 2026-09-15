@@ -30,6 +30,7 @@ import { usePersonaActual } from "@/lib/admin/use-rol";
 import { useClavePorCambiar } from "@/lib/admin/use-clave-por-cambiar";
 import { traerBandeja } from "@/lib/bandeja-mia";
 import { contarBandejaEquipoPendiente } from "@/lib/admin/bandeja-equipo";
+import { EVENTO_CAMBIO_BANDEJA } from "@/lib/admin/bandeja-urgencia";
 import { useGruposCerrados, useNavColapsado } from "@/lib/use-nav-colapsado";
 import { Marca } from "@/components/marca";
 import { AcusesPendientes } from "@/components/acuses-pendientes";
@@ -113,6 +114,17 @@ function MarcoConChrome({ pathname, children }: { pathname: string; children: Re
   const [bandejaPendiente, setBandejaPendiente] = useState(0);
   const [buscadorAbierto, setBuscadorAbierto] = useState(false);
   const [ayudaAbierta, setAyudaAbierta] = useState(false);
+  // Resolver algo DENTRO de la Bandeja no cambia el pathname, así que los dos
+  // contadores que dependen de lo que ahí se resuelve (Bandeja e Incidencias)
+  // se quedaban con el número viejo hasta navegar. La Bandeja avisa con un
+  // evento y esto solo vuelve a disparar las MISMAS consultas — no cambia qué
+  // se cuenta.
+  const [cambiosEnBandeja, setCambiosEnBandeja] = useState(0);
+  useEffect(() => {
+    const alCambiar = () => setCambiosEnBandeja((n) => n + 1);
+    window.addEventListener(EVENTO_CAMBIO_BANDEJA, alCambiar);
+    return () => window.removeEventListener(EVENTO_CAMBIO_BANDEJA, alCambiar);
+  }, []);
 
   // Al navegar, el cajón se cierra. Se ajusta durante el render y no en un
   // efecto —el patrón que React documenta para esto y que `buscador-global.tsx`
@@ -187,7 +199,7 @@ function MarcoConChrome({ pathname, children }: { pathname: string; children: Re
         if (vivo) setRevisionesPendientes(Array.isArray(data) ? data.length : 0);
       });
     return () => { vivo = false; };
-  }, [veEquipo, pathname]);
+  }, [veEquipo, pathname, cambiosEnBandeja]);
 
   // El total de la Bandeja del equipo (ver lib/admin/bandeja-equipo.ts): la
   // unión de las nueve secciones que esa pantalla junta, no solo las tres de
@@ -201,7 +213,7 @@ function MarcoConChrome({ pathname, children }: { pathname: string; children: Re
     void contarBandejaEquipoPendiente(createAdminSupabaseClient(), rol)
       .then((n) => { if (vivo) setBandejaPendiente(n); });
     return () => { vivo = false; };
-  }, [veEquipo, rol, pathname]);
+  }, [veEquipo, rol, pathname, cambiosEnBandeja]);
 
   // Lo suyo. Sale de `traerBandeja`, la MISMA función que pinta el número del
   // botón «Bandeja» de /mio: el menú del panel y esa pantalla no pueden decir
@@ -242,7 +254,7 @@ function MarcoConChrome({ pathname, children }: { pathname: string; children: Re
   const contadores: Contadores = {
     educacion: {
       n: educacion,
-      titulo: `${educacion} asignación(es) sin comprobante o por vencer`,
+      titulo: `${educacion} en Educación: constancias por revisar o vencidas, estudios sin calendario y avisos de fin`,
     },
     vacaciones: {
       n: vacaciones,
