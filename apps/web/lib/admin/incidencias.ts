@@ -116,6 +116,8 @@ export interface Aceptacion {
   nota: string | null;
   aceptadoPor: string;
   aceptadoAt: string;
+  /** El número que se dio por bueno; null en los vistos buenos anteriores a la 0451. */
+  valor: number | null;
 }
 
 export interface Incidencia {
@@ -142,8 +144,11 @@ export interface Incidencia {
   motivoFalta?: string | null;
   severidad: Severidad;
   categoria: Categoria;
-  /** Si ya tiene visto bueno. La lista activa las oculta; el historial las muestra. */
+  /** Si ya tiene visto bueno vigente. La lista activa las oculta; el historial las muestra. */
   aceptacion?: Aceptacion;
+  /** Hubo un visto bueno, pero sobre OTRO número (0451): una corrección cambió el
+   * hecho después de aceptarlo. El aviso vuelve a la lista y esto dice qué se había aceptado. */
+  aceptacionCaducada?: Aceptacion;
 }
 
 // ── Qué recibe (las filas tal como las devuelve la base) ───────────────────
@@ -177,6 +182,8 @@ export interface DatosDeteccion {
   aceptadas: {
     persona_id: string; fecha: string; tipo: string;
     nota: string | null; aceptado_por: string; aceptado_at: string;
+    /** numeric llega como número o como texto según el cliente. */
+    valor?: number | string | null;
   }[];
   sedes: { id: string; codigo: string }[];
   encargadas: { id: string; sede_base_id: string }[];
@@ -204,17 +211,25 @@ export function detectarIncidencias(d: DatosDeteccion): Incidencia[] {
   const aceptacionPorClave = new Map(
     d.aceptadas.map((a) => [
       `${a.persona_id}|${a.fecha}|${a.tipo}`,
-      { nota: a.nota, aceptadoPor: a.aceptado_por, aceptadoAt: a.aceptado_at } satisfies Aceptacion,
+      {
+        nota: a.nota, aceptadoPor: a.aceptado_por, aceptadoAt: a.aceptado_at,
+        valor: a.valor === null || a.valor === undefined ? null : Number(a.valor),
+      } satisfies Aceptacion,
     ]),
   );
-  const conAceptacion = (i: Omit<Incidencia, "clave" | "aceptacion">): Incidencia => {
-    const aceptacion = i.aceptable && i.personaId
+  // Un visto bueno vale para el número que se aceptó (0451). Los anteriores a
+  // esa migración no guardaron número y valen para cualquiera: reabrirlos
+  // pediría revisar otra vez lo que alguien ya miró.
+  const conAceptacion = (i: Omit<Incidencia, "clave" | "aceptacion" | "aceptacionCaducada">): Incidencia => {
+    const a = i.aceptable && i.personaId
       ? aceptacionPorClave.get(`${i.personaId}|${i.fecha}|${i.aceptable}`)
       : undefined;
+    const vigente = a !== undefined && (a.valor === null || i.valor === null || a.valor === i.valor);
     return {
       ...i,
       clave: `${i.tipo}|${i.personaId ?? i.sede}|${i.fecha}`,
-      ...(aceptacion ? { aceptacion } : {}),
+      ...(a && vigente ? { aceptacion: a } : {}),
+      ...(a && !vigente ? { aceptacionCaducada: a } : {}),
     };
   };
 

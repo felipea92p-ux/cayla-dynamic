@@ -77,6 +77,34 @@ describe("cierres del día", () => {
     expect(r).toHaveLength(1);
     expect(r[0].aceptacion?.nota).toBe("cita médica");
   });
+
+  // 0451: el caso que abrió la auditoría. Se aceptaron 20 minutos; una
+  // corrección los llevó a 142. Nadie vio esos 142, así que el aviso vuelve.
+  const salida142 = {
+    jornadasRango: [{
+      persona_id: "p1", fecha: "2026-09-04", estado: "cerrada", entrada_ts: "x", salida_final_ts: "y",
+      tiene_salida_no_retornada: false, personas: persona("Diego"),
+    }],
+    salidaTemprana: [{ persona_id: "p1", fecha: "2026-09-04", minutos_salida_temprana: 142 }],
+  };
+
+  it("un visto bueno sobre OTRO número caduca: el aviso vuelve y dice qué se había aceptado", () => {
+    const [r] = detectarIncidencias(datos({
+      ...salida142,
+      aceptadas: [{ persona_id: "p1", fecha: "2026-09-04", tipo: "salida_anticipada", nota: null, aceptado_por: "f", aceptado_at: "t", valor: "20" }],
+    }));
+    expect(r.aceptacion).toBeUndefined();
+    expect(r.aceptacionCaducada?.valor).toBe(20);
+  });
+
+  it("un visto bueno anterior a la 0451 (sin número) sigue valiendo", () => {
+    const [r] = detectarIncidencias(datos({
+      ...salida142,
+      aceptadas: [{ persona_id: "p1", fecha: "2026-09-04", tipo: "salida_anticipada", nota: null, aceptado_por: "f", aceptado_at: "t", valor: null }],
+    }));
+    expect(r.aceptacion).toBeDefined();
+    expect(r.aceptacionCaducada).toBeUndefined();
+  });
 });
 
 describe("patrón de tardanzas", () => {
