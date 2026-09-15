@@ -1,0 +1,298 @@
+"use client";
+
+// La tabla de un grupo del periodo. Solo LEE: toda escritura sobre una persona
+// —bonos, descuentos, «Ya le pagué aparte», básica legal— vive en su panel
+// (panel-persona.tsx), que se abre al tocar la fila.
+//
+// Por qué salió de la fila lo que se editaba ahí (2026-09-15): la básica legal
+// se guardaba sola al salir del campo, así que pasar con Tab por la tabla de
+// revisión podía reescribir un dato de contrato; y tres botones y cinco avisos
+// dentro de la celda del nombre hacían ilegible justo la columna que se lee
+// primero. Ninguna columna se quitó: se quitó lo que no era lectura.
+//
+// Dos presentaciones del MISMO dato: tabla desde md, tarjetas por persona en
+// celular. Una tabla de once columnas a 375 px no se lee, se adivina.
+
+import { useMemo, type MouseEvent } from "react";
+import { ChevronRight } from "lucide-react";
+import { formatSoles, RANGO_LABEL } from "@/lib/rangos";
+import { Insignia } from "@/components/ui/insignia";
+import { Tabla, TablaEncabezado, Th, Fila as FilaTabla } from "@/components/ui/tabla";
+import { fechaCorta, fechaDiaMes, fmtHoras } from "@/lib/admin/planilla/formato";
+import { sumarFilas, textoCese, type Cese, type Hallazgo } from "@/lib/admin/planilla/revision";
+import type { Fila } from "@/lib/admin/planilla/tipos";
+
+// Contadas: Persona · Sede · Rango y salario · Horas · Pago base · Feriados ·
+// Asig. familiar · Básica legal · Bonos · Descuentos · Total · (abrir).
+const COLS = 12;
+
+function rangoYSalario(f: Fila) {
+  if (f.salario_ref === null) return <span className="text-rojo-profundo">Sin salario</span>;
+  const etiqueta = f.tipo_vinculo === "practicante"
+    ? "Subvención"
+    : f.en_planilla === false
+      ? "Honorarios"
+      : ((f.rango && (RANGO_LABEL[f.rango] ?? f.rango)) ?? "—");
+  return <span className="whitespace-nowrap">{etiqueta} · {formatSoles(f.salario_ref)}</span>;
+}
+
+/** La insignia que resume a la persona: lo que frena primero, lo que pide revisión después. */
+function InsigniasPersona({ hallazgos, cese }: { hallazgos: Hallazgo[]; cese: Cese }) {
+  const frena = hallazgos.filter((h) => h.severidad === "bloquea").length;
+  const revisar = hallazgos.filter((h) => h.severidad === "revisar").length;
+  const textoDelCese = textoCese(cese);
+  if (!frena && !revisar && !textoDelCese) return null;
+  return (
+    <span className="mt-1 flex flex-wrap gap-1">
+      {textoDelCese && <Insignia variante="neutral" tamano="sm">{textoDelCese}</Insignia>}
+      {frena > 0 && <Insignia variante="alerta" tamano="sm">Frena el pago</Insignia>}
+      {revisar > 0 && (
+        <Insignia variante="advertencia" tamano="sm">
+          {revisar} por revisar
+        </Insignia>
+      )}
+    </span>
+  );
+}
+
+function Guion() {
+  return <span className="text-taupe/50">—</span>;
+}
+
+export function TablaPlanilla({
+  filas,
+  totalDelGrupo,
+  etiquetaGrupo,
+  filtrado,
+  simulacion = false,
+  hallazgos,
+  ceses,
+  onAbrir,
+}: {
+  /** Las filas que se ven (ya filtradas). */
+  filas: Fila[];
+  /** Cuántas personas tiene el grupo SIN filtro: para decir «X de Y». */
+  totalDelGrupo: number;
+  etiquetaGrupo: string;
+  /** Si hay algún filtro puesto: el pie deja de llamarse «Total» y pasa a «Subtotal visible». */
+  filtrado: boolean;
+  simulacion?: boolean;
+  hallazgos?: Map<string, Hallazgo[]>;
+  ceses?: Map<string, Cese>;
+  onAbrir?: (f: Fila, disparador: HTMLElement) => void;
+}) {
+  const t = useMemo(() => sumarFilas(filas), [filas]);
+  const etiquetaPie = filtrado
+    ? `Subtotal visible · ${filas.length} de ${totalDelGrupo} ${totalDelGrupo === 1 ? "persona" : "personas"}`
+    : `Total «${etiquetaGrupo}» · ${filas.length} ${filas.length === 1 ? "persona" : "personas"}`;
+  const abrir = (f: Fila) => (e: MouseEvent<HTMLElement>) => onAbrir?.(f, e.currentTarget);
+  const vacio = simulacion
+    ? "No hay personas de este grupo en el rango simulado."
+    : filtrado
+      ? "Nadie de este grupo coincide con el filtro."
+      : "No hay personas de este grupo en el periodo.";
+
+  return (
+    <>
+      {/* ── Desde md: la tabla completa ─────────────────────────────────── */}
+      <div className="hidden md:block">
+        <Tabla>
+          <TablaEncabezado>
+            <Th>Persona</Th>
+            <Th>Sede</Th>
+            <Th>Rango y salario</Th>
+            <Th className="text-right">Horas</Th>
+            <Th className="text-right">Pago base</Th>
+            <Th className="text-right">Feriados</Th>
+            <Th className="text-right">Asig. familiar</Th>
+            <Th className="text-right">
+              <span title="Remuneración básica legal mensual: la que se declara en PLAME. Es un dato de la persona, no un monto de este periodo.">
+                Básica legal
+              </span>
+            </Th>
+            <Th className="text-right">Bonos</Th>
+            <Th className="text-right">Descuentos</Th>
+            <Th className="text-right">Total</Th>
+            <Th><span className="sr-only">Abrir</span></Th>
+          </TablaEncabezado>
+          <tbody>
+            {filas.length === 0 && (
+              <tr>
+                <td colSpan={COLS} className="px-4 py-6 text-center text-taupe">{vacio}</td>
+              </tr>
+            )}
+            {filas.map((f) => {
+              const hs = hallazgos?.get(f.persona_id) ?? [];
+              const cese = ceses?.get(f.persona_id) ?? null;
+              const frena = hs.some((h) => h.severidad === "bloquea");
+              return (
+                <FilaTabla
+                  key={f.persona_id}
+                  className={`align-top ${onAbrir ? "cursor-pointer" : ""} ${frena ? "bg-rojo/[0.04]" : ""}`}
+                >
+                  <td className="px-4 py-2" onClick={onAbrir ? abrir(f) : undefined}>
+                    {onAbrir ? (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); onAbrir(f, e.currentTarget); }}
+                        className="text-left font-medium text-tinta underline decoration-taupe/0 underline-offset-2 hover:decoration-taupe/60"
+                      >
+                        {f.nombre}
+                      </button>
+                    ) : (
+                      <span className="font-medium">{f.nombre}</span>
+                    )}
+                    <InsigniasPersona hallazgos={hs} cese={cese} />
+                  </td>
+                  <td className="px-4 py-2" onClick={onAbrir ? abrir(f) : undefined}>{f.sede}</td>
+                  <td className="px-4 py-2" onClick={onAbrir ? abrir(f) : undefined}>{rangoYSalario(f)}</td>
+                  <td className="px-4 py-2 text-right tabular-nums" onClick={onAbrir ? abrir(f) : undefined}>
+                    <span className="whitespace-nowrap">{fmtHoras(f.horas_mes)}</span>
+                    {f.dias_pendientes > 0 && (
+                      <span className="mt-1 block">
+                        <Insignia variante="advertencia" tamano="sm">{f.dias_pendientes} pend.</Insignia>
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-4 py-2 text-right tabular-nums" onClick={onAbrir ? abrir(f) : undefined}>
+                    {formatSoles(f.pago_base)}
+                  </td>
+                  <td
+                    className="px-4 py-2 text-right tabular-nums"
+                    onClick={onAbrir ? abrir(f) : undefined}
+                    title={f.feriados_detalle.length > 0
+                      ? f.feriados_detalle.map((d) => d.antes_ingreso
+                          ? `${fechaCorta(d.fecha)}: no corresponde (anterior al ingreso)`
+                          : `${fechaCorta(d.fecha)}: ${d.horas_trabajadas} h trabajadas + ${d.proporcional_horas} h proporcionales`).join("\n")
+                      : undefined}
+                  >
+                    {f.monto_feriados > 0 ? formatSoles(f.monto_feriados) : <Guion />}
+                    {/* Una línea corta; el porqué completo va en el título de la celda y en el panel de la persona. */}
+                    {f.feriados_no_corresponde > 0 && (
+                      <span className="mt-1 block whitespace-nowrap text-xs text-taupe" title={`Ingresó el ${fechaDiaMes(f.fecha_ingreso)}: el feriado es anterior a su ingreso`}>
+                        {f.feriados_no_corresponde} no aplica{f.feriados_no_corresponde === 1 ? "" : "n"}
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-4 py-2 text-right tabular-nums" onClick={onAbrir ? abrir(f) : undefined}>
+                    {f.asignacion_familiar > 0 ? formatSoles(f.asignacion_familiar) : <Guion />}
+                  </td>
+                  <td className="px-4 py-2 text-right tabular-nums text-taupe" onClick={onAbrir ? abrir(f) : undefined}>
+                    {f.sueldo_base_legal != null ? formatSoles(f.sueldo_base_legal) : <Guion />}
+                  </td>
+                  <td className="px-4 py-2 text-right tabular-nums" onClick={onAbrir ? abrir(f) : undefined}>
+                    {f.bonos > 0 ? <span className="whitespace-nowrap">+{formatSoles(f.bonos)}</span> : <Guion />}
+                  </td>
+                  <td className="px-4 py-2 text-right tabular-nums" onClick={onAbrir ? abrir(f) : undefined}>
+                    {f.descuentos > 0 ? <span className="whitespace-nowrap">−{formatSoles(f.descuentos)}</span> : <Guion />}
+                    {(f.retencion_4ta ?? 0) > 0 && (
+                      <span className="mt-1 block">
+                        <Insignia variante="neutral" tamano="sm" punto={false}>4ta −{formatSoles(f.retencion_4ta ?? 0)}</Insignia>
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-4 py-2 text-right font-semibold tabular-nums" onClick={onAbrir ? abrir(f) : undefined}>
+                    {formatSoles(f.total)}
+                  </td>
+                  <td className="py-2 pr-3 text-taupe" onClick={onAbrir ? abrir(f) : undefined}>
+                    {onAbrir && <ChevronRight size={16} aria-hidden />}
+                  </td>
+                </FilaTabla>
+              );
+            })}
+          </tbody>
+          {filas.length > 0 && (
+            <tfoot>
+              <tr className="border-t border-sand bg-sand/50">
+                <td className="px-4 py-2 font-medium" colSpan={4}>{etiquetaPie}</td>
+                <td className="px-4 py-2 text-right font-medium tabular-nums">{formatSoles(t.pago_base)}</td>
+                <td className="px-4 py-2 text-right font-medium tabular-nums">{formatSoles(t.feriados)}</td>
+                <td className="px-4 py-2 text-right font-medium tabular-nums">{formatSoles(t.asignacion)}</td>
+                {/* Básica legal no se suma: es un dato por persona, no un concepto que se pague acá. */}
+                <td className="px-4 py-2" />
+                <td className="px-4 py-2 text-right font-medium tabular-nums">{t.bonos > 0 ? `+${formatSoles(t.bonos)}` : <Guion />}</td>
+                <td className="px-4 py-2 text-right font-medium tabular-nums">{t.descuentos > 0 ? `−${formatSoles(t.descuentos)}` : <Guion />}</td>
+                <td className="px-4 py-2 text-right font-bold tabular-nums">{formatSoles(t.total)}</td>
+                <td />
+              </tr>
+              {/* Dos preguntas distintas: arriba, cuánto le llega a la gente; acá,
+                  cuánto sale de la cuenta. Solo aparece si hay algo que agregar. */}
+              {t.sale_del_banco > t.total + 0.004 && (
+                <tr className="border-t border-sand bg-sand/30">
+                  <td className="px-4 py-2 text-taupe" colSpan={COLS - 2}>
+                    Sale de la cuenta de CAYLA
+                    <span className="block text-xs">
+                      el total + {formatSoles(t.pension)} de pensión + {formatSoles(t.essalud)} de EsSalud
+                      {t.retencion_4ta > 0 && <> + {formatSoles(t.retencion_4ta)} de retención de 4ta</>}
+                      {" "}· no incluye provisiones, que se pagan después
+                    </span>
+                  </td>
+                  <td className="px-4 py-2 text-right font-bold tabular-nums">{formatSoles(t.sale_del_banco)}</td>
+                  <td />
+                </tr>
+              )}
+            </tfoot>
+          )}
+        </Tabla>
+      </div>
+
+      {/* ── Celular: una tarjeta por persona ────────────────────────────── */}
+      <div className="md:hidden">
+        {filas.length === 0 ? (
+          <p className="rounded-superficie border border-sand bg-papel px-4 py-6 text-center text-sm text-taupe">{vacio}</p>
+        ) : (
+          <ul className="space-y-2">
+            {filas.map((f) => {
+              const hs = hallazgos?.get(f.persona_id) ?? [];
+              const cese = ceses?.get(f.persona_id) ?? null;
+              const contenido = (
+                <>
+                  <span className="flex items-start justify-between gap-3">
+                    <span className="min-w-0">
+                      <span className="block font-medium text-tinta">{f.nombre}</span>
+                      <span className="block text-xs text-taupe">
+                        {f.sede} · {fmtHoras(f.horas_mes)}
+                        {f.dias_pendientes > 0 && ` · ${f.dias_pendientes} pend.`}
+                      </span>
+                    </span>
+                    <span className="shrink-0 text-right font-semibold tabular-nums">{formatSoles(f.total)}</span>
+                  </span>
+                  <InsigniasPersona hallazgos={hs} cese={cese} />
+                </>
+              );
+              return (
+                <li key={f.persona_id}>
+                  {onAbrir ? (
+                    <button
+                      type="button"
+                      onClick={(e) => onAbrir(f, e.currentTarget)}
+                      className="block w-full rounded-superficie border border-sand bg-papel p-4 text-left text-sm"
+                    >
+                      {contenido}
+                    </button>
+                  ) : (
+                    <div className="rounded-superficie border border-sand bg-papel p-4 text-sm">{contenido}</div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        {filas.length > 0 && (
+          <div className="mt-2 rounded-superficie bg-sand/50 px-4 py-3 text-sm">
+            <p className="flex justify-between gap-3 font-medium">
+              <span>{etiquetaPie}</span>
+              <span className="tabular-nums">{formatSoles(t.total)}</span>
+            </p>
+            {t.sale_del_banco > t.total + 0.004 && (
+              <p className="mt-1 flex justify-between gap-3 text-xs text-taupe">
+                <span>Sale de la cuenta (con pensión, EsSalud y 4ta)</span>
+                <span className="tabular-nums">{formatSoles(t.sale_del_banco)}</span>
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
