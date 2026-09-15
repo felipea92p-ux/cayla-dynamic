@@ -154,6 +154,15 @@ export function esperadoDelDia(fecha: string, turno: TurnoDia | null, horario: H
  * Es "probable", no seguro — coincidir con un tramo viejo por casualidad es
  * posible — así que esto no borra ni corrige nada, solo señala.
  *
+ * "Viejo" quiere decir ANTERIOR al vigente, no "cualquiera que no sea el
+ * vigente". El caso TRU (set-2026): los horarios de la sede rigen desde el
+ * 2026-07-12 y el periodo abierto arranca el 2026-06-28. Los turnos de esas
+ * dos semanas eran la única referencia de esos días, el horario de julio se
+ * armó copiándolos, y la versión anterior de esta función los marcaba como
+ * espejos viejos de un horario que TODAVÍA NO EMPEZABA — 76 de ellos, con un
+ * botón al lado para quitarlos todos juntos. Por eso: sin horario vigente ese
+ * día no hay nada de lo que el turno pueda haberse quedado atrás.
+ *
  * Nació como lógica interna de RevisionTurnos en admin/turnos/page.tsx
  * (commit d409cc42, "caso Janis": turno 07:45 vs horario base 08:15), pero
  * esa pantalla solo mira turnos de hoy en adelante y solo la abre quien va a
@@ -163,10 +172,13 @@ export function esperadoDelDia(fecha: string, turno: TurnoDia | null, horario: H
  */
 export function esTurnoEspejoViejo(fecha: string, turno: TurnoDia, todosLosTramos: HorarioTramo[]): boolean {
   const vigente = horarioVigente(todosLosTramos, fecha);
+  if (!vigente) return false;
   const tE = turno.es_descanso ? null : (turno.hora_entrada?.slice(0, 5) ?? null);
   const tS = turno.es_descanso ? null : (turno.hora_salida?.slice(0, 5) ?? null);
   return todosLosTramos.some((x) => {
-    if (x === vigente) return false;
+    // Solo los que empezaron antes que el vigente: el vigente mismo no, y uno
+    // posterior tampoco — de un horario que aún no rige no se queda atrás nadie.
+    if (x.vigente_desde >= vigente.vigente_desde) return false;
     const h = esperadoDelDia(fecha, null, x);
     return tE === null ? h.entrada === null : h.entrada === tE && h.salida === tS;
   });
