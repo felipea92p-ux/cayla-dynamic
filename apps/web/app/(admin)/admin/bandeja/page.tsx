@@ -71,7 +71,7 @@ import {
   fechaLima, hoyLima, puedeGestionarCatalogos, puedeGestionarContratos, puedeOperarEquipo, puedeVerIdentidad,
   puedeVerPlanilla, puedeVerSaludDeAlertas, puedeVerTodasLasSedes,
 } from "@cayla-dynamic/shared";
-import { esEducacionParaSaber, type FilaEducacionBandeja } from "@/lib/admin/bandeja-equipo";
+import { esEducacionParaSaber, type FilaEducacionBandeja } from "@/lib/admin/bandeja-fuentes";
 
 // Los dos de educación (0450) no se resuelven aquí —la constancia se mira con sus
 // archivos, en Educación—, pero llevan «Nuevo» igual: son una cola de revisión, y
