@@ -1,5 +1,8 @@
 # ADR 0002 — Rediseño de Bandeja (inbox operativo del panel)
 
+> ⚠️ **Las decisiones 3 (zonas) y 7 (filtro de sede) fueron reemplazadas el
+> 2026-09-15 por el [ADR 0003](0003-bandeja-por-urgencia.md).** Las demás siguen.
+
 Fecha: 2026-09-13. Estado: **implementado** — migración
 `supabase/migrations/0436_la_bandeja_recuerda_lo_que_ya_viste.sql`, prueba
 `supabase/tests/345_la_bandeja_recuerda_lo_que_ya_viste.test.sql` (8/8 en
