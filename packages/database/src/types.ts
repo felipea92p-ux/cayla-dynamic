@@ -2833,6 +2833,7 @@ export type Database = {
           detalle: Json
           fecha_cese: string
           fecha_ingreso: string | null
+          fecha_pago: string | null
           monto_cts: number
           monto_grati: number
           monto_periodo: number
@@ -2852,6 +2853,7 @@ export type Database = {
           detalle: Json
           fecha_cese: string
           fecha_ingreso?: string | null
+          fecha_pago?: string | null
           monto_cts?: number
           monto_grati?: number
           monto_periodo?: number
@@ -2871,6 +2873,7 @@ export type Database = {
           detalle?: Json
           fecha_cese?: string
           fecha_ingreso?: string | null
+          fecha_pago?: string | null
           monto_cts?: number
           monto_grati?: number
           monto_periodo?: number
@@ -6576,11 +6579,16 @@ export type Database = {
           ahora: number
           concepto: string
           diferencia: number
+          origen: string
           pagado: number
         }[]
       }
       fn_liquidacion_pagar: {
-        Args: { p_nota?: string | null; p_persona_id: string | null }
+        Args: {
+          p_fecha_pago?: string | null
+          p_nota?: string | null
+          p_persona_id: string | null
+        }
         Returns: Json
       }
       fn_liquidaciones_del_periodo: {
@@ -6591,6 +6599,7 @@ export type Database = {
         Args: never
         Returns: {
           descuadra: boolean
+          descuadra_real: boolean
           dias_restantes: number
           fecha_cese: string
           fecha_ingreso: string

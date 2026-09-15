@@ -1,35 +1,51 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Fragment, useCallback, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Cargando } from "@/components/cargando";
 import { useToast } from "@/components/toast";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
+import { generarCsv, descargarCsv } from "@/lib/admin/csv";
 import { formatSoles } from "@/lib/rangos";
 import { EMPRESA, hoyLima, puedeVerPlanilla } from "@cayla-dynamic/shared";
 import { Boton } from "@/components/ui/boton";
 import { Campo } from "@/components/ui/campo";
+import { CampoSelect } from "@/components/ui/campo";
 import { AreaTexto } from "@/components/ui/area-texto";
 import { Modal } from "@/components/ui/modal";
 import { Insignia } from "@/components/ui/insignia";
+import { BannerAviso } from "@/components/ui/banner-aviso";
+import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
+import { Tabla, TablaEncabezado, Th, Fila } from "@/components/ui/tabla";
 
 // Liquidación por cese. La ley da 48 HORAS desde el cese para pagar (art. 4 del
 // D.S. 001-97-TR), así que esta pantalla existe para que ese plazo no dependa de
 // que alguien arme la cuenta a mano un viernes por la tarde.
 //
-// QUÉ MUESTRA Y QUÉ NO. Todas las cesadas con liquidación por resolver, sin
-// filtrar por vínculo ni por importe: `fn_liquidaciones_pendientes` no mira
-// `tipo_vinculo` ni descarta los totales en cero — comprobado contra `pg_proc`
-// el 2026-08-14. Una locadora o alguien de un día de prueba aparece igual, con
-// su cero, y eso es correcto: el plazo de 48 horas corre para todas.
+// REDISEÑADO 2026-09-15, tras una auditoría funcional/legal/financiera/UX
+// completa (ver docs/estado.md). Las tres decisiones de arquitectura, sin
+// reabrir ninguna fórmula, ningún plazo legal ni el congelamiento:
 //
-// ⚠️ Este comentario decía lo contrario —que solo salía quien tiene algo que
-// pagar, y que había un contador de «cesadas sin nada que pagar»—. Ninguna de
-// las dos cosas existe en el código. Se corrige porque es el mapa que lee quien
-// venga a tocar esta pantalla, y un mapa equivocado cuesta más que ninguno.
+//   1. TABS POR ESTADO + RESUMEN. Pendientes/Vencidas/Pagadas con conteos
+//      reales arriba, y cuatro cifras accionables encima de las tabs.
+//   2. VENCIDAS SOLO EN SU TAB. Sin franja permanente: su propio conteo en
+//      rojo en la pestaña es la señal.
+//   3. DIFERENCIA ESPERADA vs REAL, CON FILTRO. `fn_liquidacion_diferencias`
+//      (0454) dice si una diferencia la explica el descuento que el cierre de
+//      Planilla obliga a registrar (0244) — el estado normal de casi toda
+//      cesada, no una avería — o si es una diferencia de verdad. Solo la real
+//      enciende el badge de la fila y el filtro «Con diferencias»; la
+//      esperada se explica, en tono neutro, dentro del desglose.
+//
+// QUÉ MUESTRA Y QUÉ NO. Todas las cesadas con liquidación por resolver, sin
+// filtrar por vínculo. `fn_liquidaciones_pendientes` no descarta los totales
+// en cero: una locadora o alguien de un día de prueba aparece igual, porque el
+// plazo de 48 horas corre para todas — pero quedan fuera de lo urgente (ver
+// «Sin nada que cobrar» al pie de Pendientes), a propósito: no compiten
+// visualmente con quien sí tiene dinero real en juego.
 
 // Por string, nunca `new Date()`: construir una fecha desde el navegador puede
 // correrla un día por zona horaria, y acá una fecha decide un plazo legal.
@@ -38,6 +54,15 @@ function fechaLarga(iso: string | null | undefined): string {
   const [y, m, d] = iso.split("-");
   if (!y || !m || !d) return iso;
   return `${d}/${m}/${y}`;
+}
+
+function fechaCorta(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const [, m, d] = iso.split("-");
+  const MES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+  const idx = Number(m) - 1;
+  if (!d || Number.isNaN(idx) || !MES[idx]) return iso;
+  return `${d} ${MES[idx]}`;
 }
 
 interface Pendiente {
@@ -52,6 +77,7 @@ interface Pendiente {
   total: number;
   pagada: boolean;
   descuadra: boolean;
+  descuadra_real: boolean;
 }
 
 interface AvisoVinculo {
@@ -71,6 +97,13 @@ interface Diferencia {
   pagado: number;
   ahora: number;
   diferencia: number;
+  origen: "esperada_por_cierre" | "real";
+}
+
+interface Sede {
+  id: string;
+  codigo: string;
+  nombre: string;
 }
 
 // El desglose que devuelve fn_liquidacion. Se tipa flojo a propósito: es el
@@ -132,16 +165,28 @@ interface FirmanteEmpresa { nombre: string; dni: string | null; cargo: string; p
 const n = (v: unknown): number => (typeof v === "number" ? v : Number(v ?? 0) || 0);
 const s = (v: unknown): string | null => (typeof v === "string" ? v : null);
 
+type Tab = "pendientes" | "vencidas" | "pagadas";
+
 export default function LiquidacionesPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { avisar } = useToast();
   const rol = useRolActual();
   const supabase = createAdminSupabaseClient();
 
   const [pendientes, setPendientes] = useState<Pendiente[]>([]);
   const [avisos, setAvisos] = useState<AvisoVinculo[]>([]);
+  const [sedes, setSedes] = useState<Sede[]>([]);
   const [cargando, setCargando] = useState(true);
   const [cargaError, setCargaError] = useState<string | null>(null);
+
+  // ── Tabs, búsqueda y filtros (Decisión I: tabs por estado + resumen) ──────
+  const [tab, setTab] = useState<Tab>("pendientes");
+  const [busqueda, setBusqueda] = useState("");
+  const [filtroSede, setFiltroSede] = useState("");
+  // Solo tiene sentido en Pagadas: aísla las que de verdad hay que revisar
+  // (Decisión III — separar esperada de real, con filtro).
+  const [soloConDiferencias, setSoloConDiferencias] = useState(false);
 
   const [abierta, setAbierta] = useState<string | null>(null);
   const [detalle, setDetalle] = useState<Detalle | null>(null);
@@ -159,8 +204,11 @@ export default function LiquidacionesPage() {
   // el mensaje — no el objeto Pendiente entero, que puede quedar desfasado
   // mientras el modal sigue abierto.
   const [pagoAccion, setPagoAccion] = useState<
-    { personaId: string; nombre: string; total: number; yaPagada: boolean } | null
+    { personaId: string; nombre: string; total: number; yaPagada: boolean; fechaCese: string; venceEl: string } | null
   >(null);
+  // La fecha real de pago (0454): nace en HOY, nunca vacía — la regla de la
+  // casa sobre campos de fecha que bloquean el envío (CLAUDE.md, 2026-08-26).
+  const [fechaPago, setFechaPago] = useState(hoyLima());
   const [anularAccion, setAnularAccion] = useState<{ personaId: string; nombre: string } | null>(null);
   const [motivoAnular, setMotivoAnular] = useState("");
 
@@ -183,12 +231,14 @@ export default function LiquidacionesPage() {
     const { data: sesion } = await supabase.auth.getSession();
     if (!sesion.session) { router.replace("/admin/login"); return; }
 
-    const [lista, av] = await Promise.all([
+    const [lista, av, sedesRes] = await Promise.all([
       supabase.rpc("fn_liquidaciones_pendientes"),
       supabase.rpc("fn_avisos_vinculo"),
+      supabase.from("sedes").select("id, codigo, nombre").order("codigo"),
     ]);
     setPendientes((lista.data as Pendiente[]) ?? []);
     setAvisos((av.data as AvisoVinculo[]) ?? []);
+    setSedes((sedesRes.data as Sede[]) ?? []);
     // Los dos RPC pueden fallar por separado, y los dos alimentan avisos que
     // importan: si `av` falla en silencio, el aviso de vínculo «prueba» —el
     // que habla de beneficios que se están por devengar— desaparece sin que
@@ -275,6 +325,22 @@ export default function LiquidacionesPage() {
     await cargarDetalle(personaId);
   }
 
+  // Deep link desde la Bandeja (?persona=<id>): abre directo la fila de esa
+  // persona, en la tab que le corresponde según su estado actual. Se dispara
+  // una sola vez, cuando la lista ya cargó — antes de eso no hay en qué tab
+  // buscarla.
+  useEffect(() => {
+    void (async () => {
+      const personaId = searchParams.get("persona");
+      if (!personaId || cargando || pendientes.length === 0) return;
+      const fila = pendientes.find((p) => p.persona_id === personaId);
+      if (!fila) return;
+      setTab(fila.pagada ? "pagadas" : fila.vencido ? "vencidas" : "pendientes");
+      await abrir(personaId);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cargando, pendientes]);
+
   // Abre la vista previa; no imprime todavía. Antes esto llamaba a
   // `window.print()` a ciegas — inconsistente con Contratos, la boleta,
   // Política salarial y Documentación, que sí dejan revisar el papel primero
@@ -292,11 +358,12 @@ export default function LiquidacionesPage() {
   // Se nombra la persona y el importe EN LA PREGUNTA a propósito: el error que
   // esto previene no es «no quería congelar», es «congelé la de otra persona» o
   // «congelé antes de mirar el desglose». Un «¿seguro?» a secas no lo evita.
-  //
-  // Antes era window.confirm(): ahora abre el Modal compartido con los mismos
-  // dos botones (Sí/Cancelar) — el texto es el mismo, solo cambia el diálogo.
-  function abrirPagar(personaId: string, nombre: string, total: number, yaPagada: boolean) {
-    setPagoAccion({ personaId, nombre, total, yaPagada });
+  function abrirPagar(personaId: string, nombre: string, total: number, yaPagada: boolean, fechaCese: string, venceEl: string) {
+    setPagoAccion({ personaId, nombre, total, yaPagada, fechaCese, venceEl });
+    // Nace en HOY, editable: la fecha real de pago casi siempre ES hoy, y
+    // quien registra un pago de otro día la corrige en un clic — nunca
+    // arranca vacía (regla de la casa sobre fechas que bloquean el envío).
+    setFechaPago(hoyLima());
   }
 
   async function confirmarPago() {
@@ -306,6 +373,7 @@ export default function LiquidacionesPage() {
     const { data, error } = await supabase.rpc("fn_liquidacion_pagar", {
       p_persona_id: personaId,
       p_nota: nota.trim() || null,
+      p_fecha_pago: fechaPago,
     });
     setOcupado(false);
     if (error) { avisar("error", mensajeDeError(error)); return; }
@@ -315,7 +383,7 @@ export default function LiquidacionesPage() {
     await cargarDetalle(personaId);
     const v = (data as { version?: number } | null)?.version;
     avisar("ok",
-      `Liquidación congelada${v && v > 1 ? ` (versión ${v})` : ""}. La cifra pagada ya no cambia sola: si un recálculo posterior difiere, se avisa.`);
+      `Liquidación congelada${v && v > 1 ? ` (versión ${v})` : ""}, pagada el ${fechaLarga(fechaPago)}. La cifra ya no cambia sola: si un recálculo posterior difiere de verdad, se avisa.`);
   }
 
   // ── Deshacer ────────────────────────────────────────────────────────────
@@ -331,8 +399,9 @@ export default function LiquidacionesPage() {
   // obligatorio en la base (mínimo 3 caracteres) y acá se pide antes de llamar,
   // para que el rechazo no llegue como un error crudo de Postgres.
   //
-  // Antes era window.prompt(): ahora el motivo se escribe en un <AreaTexto>
-  // dentro del Modal compartido, con el mismo mínimo de 3 caracteres.
+  // Decisión IV (fila de solo lectura): esta acción ya no vive en la fila de
+  // la tabla — se movió al pie del desglose, para que la tabla de Pagadas no
+  // invite a tocar algo ya cerrado con un clic de más.
   function abrirAnular(personaId: string, nombre: string) {
     setAnularAccion({ personaId, nombre });
     setMotivoAnular("");
@@ -372,6 +441,59 @@ export default function LiquidacionesPage() {
           : null,
   );
 
+  // ── Grupos, filtros y resumen (Decisión I y XII) ───────────────────────────
+  //
+  // «Sin nada que cobrar» (total = 0, sin pagar) queda FUERA de Pendientes y
+  // Vencidas: no compite visualmente con quien sí tiene dinero real en juego,
+  // pero no desaparece — el plazo de 48h corre igual para esas personas.
+  const enPlazo = pendientes.filter((p) => !p.pagada && !p.vencido && p.total > 0);
+  const vencidas = pendientes.filter((p) => !p.pagada && p.vencido && p.total > 0);
+  const pagadas  = pendientes.filter((p) => p.pagada);
+  const sinMonto = pendientes.filter((p) => !p.pagada && p.total === 0);
+  const avisoUrgente = avisos.filter((a) => a.ya_devenga);
+  const conDiferenciasReales = pagadas.filter((p) => p.descuadra_real).length;
+
+  const coincideBusqueda = (p: Pendiente) =>
+    busqueda.trim() === "" || p.persona.toLowerCase().includes(busqueda.trim().toLowerCase());
+  const coincideSede = (p: Pendiente) => filtroSede === "" || p.sede === filtroSede;
+
+  // Sin useMemo a propósito: son unas 30 personas en todo CAYLA y ~20 ceses al
+  // año — filtrar en cada render no mide nada, y complicar esto con
+  // dependencias de un helper redefinido cada vez no compra nada a cambio.
+  const filaFiltrada = (lista: Pendiente[], soloDif: boolean) =>
+    lista.filter((p) => coincideBusqueda(p) && coincideSede(p) && (!soloDif || p.descuadra_real));
+
+  const visibleEnPlazo = filaFiltrada(enPlazo, false);
+  const visibleVencidas = filaFiltrada(vencidas, false);
+  const visiblePagadas = filaFiltrada(pagadas, soloConDiferencias);
+
+  const hayFiltrosActivos = busqueda.trim() !== "" || filtroSede !== "" || soloConDiferencias;
+  function limpiarFiltros() {
+    setBusqueda(""); setFiltroSede(""); setSoloConDiferencias(false);
+  }
+
+  function exportarCsv() {
+    const filas = tab === "pendientes" ? visibleEnPlazo : tab === "vencidas" ? visibleVencidas : visiblePagadas;
+    const columnas = tab === "pagadas"
+      ? ["Persona", "Sede", "Cesó", "Vence el", "Total", "Pagada", "Cálculo cambió"]
+      : ["Persona", "Sede", "Cesó", "Vence el", "Días", "Total"];
+    const contenido = generarCsv(
+      filas.map((p) => (
+        tab === "pagadas"
+          ? {
+              Persona: p.persona, Sede: p.sede, "Cesó": p.fecha_cese, "Vence el": p.vence_el,
+              Total: p.total, Pagada: "sí", "Cálculo cambió": p.descuadra_real ? "sí" : "no",
+            }
+          : {
+              Persona: p.persona, Sede: p.sede, "Cesó": p.fecha_cese, "Vence el": p.vence_el,
+              "Días": p.dias_restantes, Total: p.total,
+            }
+      )),
+      columnas,
+    );
+    descargarCsv(`liquidaciones-${tab}-${hoyLima()}.csv`, contenido);
+  }
+
   if (cargando) return <Cargando />;
 
   if (!puede) {
@@ -384,24 +506,37 @@ export default function LiquidacionesPage() {
     );
   }
 
-  // Quien está dentro del plazo y aún no se pagó: es lo único urgente de acá.
-  const enPlazo = pendientes.filter((p) => !p.pagada && !p.vencido);
-  const vencidas = pendientes.filter((p) => !p.pagada && p.vencido);
-  const pagadas  = pendientes.filter((p) => p.pagada);
-  const avisoUrgente = avisos.filter((a) => a.ya_devenga);
+  const listaActiva = tab === "pendientes" ? visibleEnPlazo : tab === "vencidas" ? visibleVencidas : visiblePagadas;
 
   return (
     <div className="flex flex-1 flex-col">
 
       <main className="flex-1 p-6 print:p-0">
         <div className="print:hidden">
-          <h1 className="mb-1 font-serif text-2xl">Liquidaciones</h1>
-          <p className="mb-4 max-w-3xl text-sm text-taupe">
-            La ley da <strong>48 horas</strong> desde el cese para pagar (art. 4 del D.S. 001-97-TR).
-            Acá aparece sola quien tiene algo que pagar, con lo que le queda de plazo. Al marcarla
-            como pagada, la cifra se congela: si después el cálculo cambia, el sistema lo dice y no
-            mueve el número.
-          </p>
+          <CabeceraPagina
+            titulo="Liquidaciones"
+            descripcion={
+              <>
+                Controla pagos de cese, plazos y diferencias posteriores.{" "}
+                <details className="mt-1 inline-block align-top text-xs">
+                  <summary className="inline cursor-pointer text-rojo underline decoration-dotted">
+                    ⓘ Cómo se calcula el plazo
+                  </summary>
+                  <p className="mt-2 max-w-xl text-taupe">
+                    La ley da <strong>48 horas</strong> desde el cese para pagar (art. 4 del D.S. 001-97-TR):
+                    el último día trabajado más dos días de calendario, sin excepción por fin de semana o
+                    feriado. Al marcar una liquidación como pagada, la cifra se congela: si después el
+                    cálculo cambia, el sistema lo dice y no mueve el número.
+                  </p>
+                </details>
+              </>
+            }
+            accion={
+              <Boton variante="secundario" tamano="sm" onClick={exportarCsv} disabled={listaActiva.length === 0}>
+                Exportar CSV
+              </Boton>
+            }
+          />
 
           {cargaError && (
             <p className="mb-4 rounded-control border border-rojo bg-rojo/5 p-3 text-sm text-rojo">
@@ -420,37 +555,147 @@ export default function LiquidacionesPage() {
             </div>
           ))}
 
-          {/* ── Lo urgente ─────────────────────────────────────────────────── */}
-          <Bloque
-            titulo="Dentro del plazo"
-            vacio="Nadie con liquidación pendiente. El plazo de 48 horas corre desde el cese, así que esto se llena solo el día que alguien cese."
-            filas={enPlazo} abierta={abierta} onAbrir={abrir}
-            detalle={detalle} diferencias={diferencias} diferenciasError={diferenciasError} nota={nota} setNota={setNota}
-            ocupado={ocupado} onPagar={abrirPagar} onAnular={abrirAnular} miFirma={miFirma} urgente
-            papelesCese={papelesCese} apreciacion={apreciacion} setApreciacion={setApreciacion}
-            onImprimir={imprimir}
-          />
+          {/* ── Resumen (Decisión I) ───────────────────────────────────────── */}
+          <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <ResumenCifra etiqueta="Pendientes" valor={enPlazo.length} />
+            <ResumenCifra
+              etiqueta="Vencidas"
+              valor={vencidas.length}
+              sub={vencidas.length > 0 ? formatSoles(vencidas.reduce((a, p) => a + p.total, 0)) : undefined}
+              tono={vencidas.length > 0 ? "rojo" : undefined}
+            />
+            <ResumenCifra etiqueta="Pagadas" valor={pagadas.length} />
+            <ResumenCifra
+              etiqueta="Con diferencias"
+              valor={conDiferenciasReales}
+              tono={conDiferenciasReales > 0 ? "ambar" : undefined}
+            />
+          </div>
 
-          {vencidas.length > 0 && (
-            <Bloque
-              titulo={`Pasadas de plazo · ${vencidas.length}`}
-              vacio="" filas={vencidas} abierta={abierta} onAbrir={abrir}
-              detalle={detalle} diferencias={diferencias} diferenciasError={diferenciasError} nota={nota} setNota={setNota}
-              ocupado={ocupado} onPagar={abrirPagar} onAnular={abrirAnular} miFirma={miFirma} urgente
+          {/* ── Búsqueda y filtros ────────────────────────────────────────── */}
+          <div className="mb-4 flex flex-wrap items-end gap-3">
+            <Campo
+              etiqueta="Buscar persona"
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              placeholder="nombre o apellido"
+              className="w-56"
+            />
+            <CampoSelect etiqueta="Sede" value={filtroSede} onChange={(e) => setFiltroSede(e.target.value)} className="w-40">
+              <option value="">Todas</option>
+              {sedes.map((sd) => <option key={sd.id} value={sd.codigo}>{sd.codigo} — {sd.nombre}</option>)}
+            </CampoSelect>
+            {tab === "pagadas" && (
+              <label className="flex items-center gap-2 pb-2 text-sm">
+                <input
+                  type="checkbox"
+                  className="size-4 accent-tinta"
+                  checked={soloConDiferencias}
+                  onChange={(e) => setSoloConDiferencias(e.target.checked)}
+                />
+                Con diferencias reales
+              </label>
+            )}
+            {hayFiltrosActivos && (
+              <button className="pb-2 text-sm text-taupe underline" onClick={limpiarFiltros}>
+                Limpiar filtros
+              </button>
+            )}
+          </div>
+
+          {/* ── Tabs por estado (Decisión I y II: vencidas solo en su tab) ──── */}
+          <div className="mb-4 flex gap-1 border-b border-sand">
+            <PestanaTab activa={tab === "pendientes"} onClick={() => setTab("pendientes")}>
+              Pendientes <Insignia tamano="sm" variante="neutral">{enPlazo.length}</Insignia>
+            </PestanaTab>
+            <PestanaTab activa={tab === "vencidas"} onClick={() => setTab("vencidas")}>
+              Vencidas <Insignia tamano="sm" variante={vencidas.length > 0 ? "alerta" : "neutral"}>{vencidas.length}</Insignia>
+            </PestanaTab>
+            <PestanaTab activa={tab === "pagadas"} onClick={() => setTab("pagadas")}>
+              Pagadas <Insignia tamano="sm" variante="neutral">{pagadas.length}</Insignia>
+            </PestanaTab>
+          </div>
+
+          {tab === "pendientes" && (
+            <SeccionTabla
+              vacio={
+                pendientes.length === 0
+                  ? { titulo: "Todo al día", texto: "No hay liquidaciones pendientes dentro del plazo." }
+                  : hayFiltrosActivos
+                    ? { titulo: "Nada con estos filtros", texto: "Prueba a limpiarlos." }
+                    : { titulo: "Todo al día", texto: "No hay liquidaciones pendientes dentro del plazo." }
+              }
+              filas={visibleEnPlazo}
+              modo="pendiente"
+              abierta={abierta} onAbrir={abrir}
+              detalle={detalle} diferencias={diferencias} diferenciasError={diferenciasError}
+              nota={nota} setNota={setNota} ocupado={ocupado}
+              onPagar={abrirPagar} onAnular={abrirAnular} miFirma={miFirma}
               papelesCese={papelesCese} apreciacion={apreciacion} setApreciacion={setApreciacion}
               onImprimir={imprimir}
             />
           )}
 
-          {pagadas.length > 0 && (
-            <Bloque
-              titulo={`Pagadas · ${pagadas.length}`}
-              vacio="" filas={pagadas} abierta={abierta} onAbrir={abrir}
-              detalle={detalle} diferencias={diferencias} diferenciasError={diferenciasError} nota={nota} setNota={setNota}
-              ocupado={ocupado} onPagar={abrirPagar} onAnular={abrirAnular} miFirma={miFirma}
+          {tab === "vencidas" && (
+            <SeccionTabla
+              vacio={{ titulo: "Sin vencidas", texto: "Nadie pasó los 48 horas sin que se le pagara." }}
+              filas={visibleVencidas}
+              modo="vencida"
+              abierta={abierta} onAbrir={abrir}
+              detalle={detalle} diferencias={diferencias} diferenciasError={diferenciasError}
+              nota={nota} setNota={setNota} ocupado={ocupado}
+              onPagar={abrirPagar} onAnular={abrirAnular} miFirma={miFirma}
               papelesCese={papelesCese} apreciacion={apreciacion} setApreciacion={setApreciacion}
               onImprimir={imprimir}
             />
+          )}
+
+          {tab === "pagadas" && (
+            <SeccionTabla
+              vacio={{ titulo: "Sin pagadas todavía", texto: "Acá va quedando el historial." }}
+              filas={visiblePagadas}
+              modo="pagada"
+              abierta={abierta} onAbrir={abrir}
+              detalle={detalle} diferencias={diferencias} diferenciasError={diferenciasError}
+              nota={nota} setNota={setNota} ocupado={ocupado}
+              onPagar={abrirPagar} onAnular={abrirAnular} miFirma={miFirma}
+              papelesCese={papelesCese} apreciacion={apreciacion} setApreciacion={setApreciacion}
+              onImprimir={imprimir}
+            />
+          )}
+
+          {/* ── Sin nada que cobrar (Decisión XII) ───────────────────────────
+              Fuera de lo urgente a propósito: el plazo de 48h corre igual para
+              ellas, pero un total en S/0.00 no debe competir visualmente con
+              quien sí tiene dinero real en juego. Colapsado por defecto. */}
+          {tab === "pendientes" && sinMonto.length > 0 && (
+            <details className="mt-4 rounded-control border border-sand bg-sand/10 text-sm">
+              <summary className="cursor-pointer px-4 py-2 text-taupe">
+                {sinMonto.length} sin nada que cobrar — el plazo de 48h corre igual
+              </summary>
+              <Tabla className="rounded-t-none border-t">
+                <TablaEncabezado>
+                  <Th>Persona</Th><Th>Sede</Th><Th>Cesó</Th><Th className="text-right">Acción</Th>
+                </TablaEncabezado>
+                <tbody>
+                  {sinMonto.map((p) => (
+                    <Fila key={p.persona_id}>
+                      <td className="px-4 py-2">{p.persona}</td>
+                      <td className="px-4 py-2 text-taupe">{p.sede}</td>
+                      <td className="px-4 py-2 text-taupe">{fechaCorta(p.fecha_cese)}</td>
+                      <td className="px-4 py-2 text-right">
+                        <button
+                          className="text-rojo underline"
+                          onClick={() => abrirPagar(p.persona_id, p.persona, 0, false, p.fecha_cese, p.vence_el)}
+                        >
+                          Marcar como pagada
+                        </button>
+                      </td>
+                    </Fila>
+                  ))}
+                </tbody>
+              </Tabla>
+            </details>
           )}
         </div>
 
@@ -505,11 +750,7 @@ export default function LiquidacionesPage() {
         )}
       </main>
 
-      {/* Modal: congelar (o volver a congelar) la liquidación. Reemplaza el
-          window.confirm() que hacía esta misma pregunta en un diálogo nativo
-          del navegador — Felipe aprobó migrar todos los diálogos nativos del
-          panel a este primitivo (ver CLAUDE.md). Mismo texto, mismos dos
-          caminos (Sí/Cancelar), solo cambia el diálogo. */}
+      {/* Modal: congelar (o volver a congelar) la liquidación. */}
       <Modal
         abierto={pagoAccion !== null}
         onCerrar={() => setPagoAccion(null)}
@@ -519,7 +760,7 @@ export default function LiquidacionesPage() {
       >
         {pagoAccion && (
           <>
-            <p className="mb-4 text-sm text-taupe">
+            <p className="mb-3 text-sm text-taupe">
               {pagoAccion.yaPagada ? (
                 <>
                   Vas a volver a marcar como pagada la liquidación de{" "}
@@ -534,14 +775,22 @@ export default function LiquidacionesPage() {
                   Vas a congelar la liquidación de <strong className="text-tinta">{pagoAccion.nombre}</strong>{" "}
                   en {formatSoles(pagoAccion.total)}.
                   <br /><br />
-                  Ese es el número que queda para contabilidad: si después el cálculo cambia, el
-                  sistema lo dice pero NO mueve la cifra.
+                  Cesó el {fechaLarga(pagoAccion.fechaCese)} · plazo legal hasta el {fechaLarga(pagoAccion.venceEl)}.
                   <br /><br />
-                  Si te equivocas, se arregla desde acá mismo: «Anular» deja constancia y la saca
-                  de la cuenta, sin borrar nada.
+                  El monto quedará congelado como referencia histórica: si después el cálculo cambia,
+                  el sistema lo dice pero NO mueve la cifra. Si te equivocas, «Anular» deja constancia
+                  y la saca de la cuenta, sin borrar nada.
                 </>
               )}
             </p>
+            <Campo
+              etiqueta="Fecha real de pago"
+              type="date"
+              value={fechaPago}
+              max={hoyLima()}
+              onChange={(e) => setFechaPago(e.target.value)}
+              className="mb-4 w-44"
+            />
             <div className="flex justify-end gap-2">
               <Boton onClick={() => setPagoAccion(null)} disabled={ocupado}>Cancelar</Boton>
               <Boton variante="primario" onClick={() => void confirmarPago()} cargando={ocupado}>
@@ -552,10 +801,7 @@ export default function LiquidacionesPage() {
         )}
       </Modal>
 
-      {/* Modal: anular una liquidación pagada. Reemplaza el window.prompt()
-          que pedía este mismo motivo en un diálogo nativo del navegador —
-          misma validación de mínimo 3 caracteres, ahora en un <AreaTexto>
-          dentro del Modal compartido (mismo patrón que en correcciones). */}
+      {/* Modal: anular una liquidación pagada. */}
       <Modal
         abierto={anularAccion !== null}
         onCerrar={() => setAnularAccion(null)}
@@ -595,85 +841,132 @@ export default function LiquidacionesPage() {
   );
 }
 
-function Bloque({
-  titulo, vacio, filas, abierta, onAbrir, detalle, diferencias, diferenciasError, nota, setNota, ocupado, onPagar, onAnular, miFirma, urgente,
-  papelesCese, apreciacion, setApreciacion, onImprimir,
+function ResumenCifra({
+  etiqueta, valor, sub, tono,
+}: { etiqueta: string; valor: number; sub?: string; tono?: "rojo" | "ambar" }) {
+  return (
+    <div className="rounded-control bg-hueso px-4 py-3">
+      <p className={
+        tono === "rojo" ? "font-serif text-2xl text-rojo" : tono === "ambar" ? "font-serif text-2xl text-ambar" : "font-serif text-2xl text-tinta"
+      }>
+        {valor}
+      </p>
+      <p className="text-xs tracking-wide text-taupe uppercase">{etiqueta}</p>
+      {sub && <p className={tono === "rojo" ? "text-xs text-rojo" : "text-xs text-taupe"}>{sub}</p>}
+    </div>
+  );
+}
+
+function PestanaTab({ activa, onClick, children }: { activa: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      className={
+        "flex items-center gap-2 border-b-2 px-3 py-2 text-sm font-medium " +
+        (activa ? "border-rojo text-tinta" : "border-transparent text-taupe hover:text-tinta")
+      }
+    >
+      {children}
+    </button>
+  );
+}
+
+function SeccionTabla({
+  vacio, filas, modo, abierta, onAbrir, detalle, diferencias, diferenciasError, nota, setNota, ocupado,
+  onPagar, onAnular, miFirma, papelesCese, apreciacion, setApreciacion, onImprimir,
 }: {
-  titulo: string; vacio: string; filas: Pendiente[];
+  vacio: { titulo: string; texto: string };
+  filas: Pendiente[];
+  modo: "pendiente" | "vencida" | "pagada";
   abierta: string | null; onAbrir: (id: string) => void;
   detalle: Detalle | null; diferencias: Diferencia[]; diferenciasError: string | null;
   nota: string; setNota: (v: string) => void;
   ocupado: boolean;
-  onPagar: (id: string, nombre: string, total: number, yaPagada: boolean) => void;
+  onPagar: (id: string, nombre: string, total: number, yaPagada: boolean, fechaCese: string, venceEl: string) => void;
   onAnular: (id: string, nombre: string) => void;
-  miFirma: string | null; urgente?: boolean;
+  miFirma: string | null;
   papelesCese: PapelesCese | null; apreciacion: string; setApreciacion: (v: string) => void;
   onImprimir: (doc: "liquidacion" | "certificado" | "constancia") => void;
 }) {
-  return (
-    <div className="mb-4 overflow-hidden rounded-superficie border border-sand bg-papel">
-      <h2 className="border-b bg-sand/50 px-4 py-2 text-sm font-medium">{titulo}</h2>
-      {filas.length === 0 ? (
-        <p className="px-4 py-4 text-sm text-taupe">{vacio}</p>
-      ) : (
-        <ul className="divide-y">
-          {filas.map((f) => (
-            <li key={f.persona_id} className="px-4 py-3 text-sm">
-              <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-                <span>
-                  <strong>{f.persona}</strong>{" "}
-                  <span className="text-taupe">· {f.sede} · cesó el {fechaLarga(f.fecha_cese)}</span>
-                  {f.descuadra && (
-                    <Insignia variante="alerta" className="ml-2">
-                      el cálculo ya no coincide
-                    </Insignia>
-                  )}
-                </span>
-                <div className="flex items-center gap-3">
-                  <strong className="tabular-nums">{formatSoles(f.total)}</strong>
-                  <Boton variante="secundario" tamano="sm" onClick={() => onAbrir(f.persona_id)}>
-                    {abierta === f.persona_id ? "Cerrar" : "Ver desglose"}
-                  </Boton>
-                </div>
-              </div>
+  if (filas.length === 0) {
+    return (
+      <div className="rounded-superficie border border-dashed border-sand px-4 py-8 text-center text-sm">
+        <p className="mb-0.5 font-medium text-verde">✓ {vacio.titulo}</p>
+        <p className="text-taupe">{vacio.texto}</p>
+      </div>
+    );
+  }
 
-              {/* El reloj. Se dice en días y con su fecha: «vence el 17/06» se
-                  entiende sin hacer una resta mental. */}
-              <p className="mt-1 text-xs">
-                {f.pagada ? (
-                  <span className="text-taupe">pagada · plazo vencía el {fechaLarga(f.vence_el)}</span>
-                ) : f.vencido ? (
-                  <span className="font-medium text-rojo">
-                    pasada de plazo · vencía el {fechaLarga(f.vence_el)}
+  return (
+    <Tabla>
+      <TablaEncabezado>
+        <Th>Persona</Th>
+        <Th>Sede</Th>
+        <Th>Cesó</Th>
+        <Th>{modo === "pagada" ? "Plazo" : "Vence"}</Th>
+        <Th className="text-right">Monto</Th>
+        <Th className="text-right">Acción</Th>
+      </TablaEncabezado>
+      <tbody>
+        {filas.map((f) => (
+          <Fragment key={f.persona_id}>
+            <Fila>
+              <td className="px-4 py-2.5">
+                <strong>{f.persona}</strong>
+                {/* Decisión III: solo la diferencia REAL enciende el badge de la
+                    fila — la esperada por el cierre de Planilla es el curso
+                    normal de una cesada y se explica, en tono neutro, dentro
+                    del desglose, no acá. */}
+                {f.descuadra_real && (
+                  <Insignia variante="alerta" className="ml-2">⚠ Cálculo cambió</Insignia>
+                )}
+              </td>
+              <td className="px-4 py-2.5 text-taupe">{f.sede}</td>
+              <td className="px-4 py-2.5 text-taupe">{fechaCorta(f.fecha_cese)}</td>
+              <td className="px-4 py-2.5">
+                {modo === "pagada" ? (
+                  <span className="text-xs text-taupe">plazo vencía el {fechaCorta(f.vence_el)}</span>
+                ) : modo === "vencida" ? (
+                  <span className="text-xs font-medium text-rojo">
+                    {-f.dias_restantes} día{-f.dias_restantes === 1 ? "" : "s"} de atraso
                   </span>
                 ) : (
-                  <span className={urgente ? "font-medium text-rojo" : "text-taupe"}>
-                    quedan {f.dias_restantes} día{f.dias_restantes === 1 ? "" : "s"} · vence el {fechaLarga(f.vence_el)}
+                  <span className="text-xs text-taupe">
+                    {f.dias_restantes === 0 ? "vence hoy" : `quedan ${f.dias_restantes} día${f.dias_restantes === 1 ? "" : "s"}`}
+                    {" · "}{fechaCorta(f.vence_el)}
                   </span>
                 )}
-              </p>
-
-              {abierta === f.persona_id && detalle && (
-                <Desglose
-                  d={detalle} diferencias={diferencias} diferenciasError={diferenciasError} pagada={f.pagada}
-                  nota={nota} setNota={setNota} ocupado={ocupado} miFirma={miFirma}
-                  // `detalle.total` — no `f.total` — porque es el número que la
-                  // persona acaba de leer en el Desglose de abajo, recién
-                  // calculado. `f.total` es el que trajo la lista al montar la
-                  // pantalla, y para "volver a marcar pagada" es literalmente el
-                  // monto histórico congelado: el diálogo prometía "el cálculo de
-                  // HOY" mostrando un número de otra frescura.
-                  onPagar={() => onPagar(f.persona_id, f.persona, n(detalle.total), f.pagada)}
-                  onAnular={() => onAnular(f.persona_id, f.persona)}
-                  papelesCese={papelesCese} apreciacion={apreciacion} setApreciacion={setApreciacion}
-                  onImprimir={onImprimir}
-                />
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
+              </td>
+              <td className="px-4 py-2.5 text-right font-medium tabular-nums">{formatSoles(f.total)}</td>
+              <td className="px-4 py-2.5 text-right">
+                <button className="text-sm font-medium text-rojo underline" onClick={() => onAbrir(f.persona_id)}>
+                  {abierta === f.persona_id ? "Cerrar" : modo === "pagada" ? "Revisar" : "Revisar →"}
+                </button>
+              </td>
+            </Fila>
+            {abierta === f.persona_id && detalle && (
+              <tr key={`${f.persona_id}-desglose`}>
+                <td colSpan={6} className="bg-crema/50 px-4 py-3">
+                  <Desglose
+                    d={detalle} diferencias={diferencias} diferenciasError={diferenciasError} pagada={f.pagada}
+                    nota={nota} setNota={setNota} ocupado={ocupado} miFirma={miFirma}
+                    // `detalle.total` — no `f.total` — porque es el número que la
+                    // persona acaba de leer en el Desglose de abajo, recién
+                    // calculado. `f.total` es el que trajo la lista al montar la
+                    // pantalla, y para "volver a marcar pagada" es literalmente el
+                    // monto histórico congelado.
+                    onPagar={() => onPagar(f.persona_id, f.persona, n(detalle.total), f.pagada, f.fecha_cese, f.vence_el)}
+                    onAnular={() => onAnular(f.persona_id, f.persona)}
+                    papelesCese={papelesCese} apreciacion={apreciacion} setApreciacion={setApreciacion}
+                    onImprimir={onImprimir}
+                  />
+                </td>
+              </tr>
+            )}
+          </Fragment>
+        ))}
+      </tbody>
+    </Tabla>
   );
 }
 
@@ -733,10 +1026,13 @@ function Desglose({
   papelesCese: PapelesCese | null; apreciacion: string; setApreciacion: (v: string) => void;
   onImprimir: (doc: "liquidacion" | "certificado" | "constancia") => void;
 }) {
+  const esperadas = diferencias.filter((x) => x.origen === "esperada_por_cierre");
+  const reales = diferencias.filter((x) => x.origen === "real");
+
   return (
-    <div className="mt-3 rounded-control border border-sand bg-sand/20 p-3">
+    <div className="rounded-control border border-sand bg-papel p-3">
       {d.aviso_periodo && (
-        <p className="mb-2 rounded border border-rojo/40 bg-rojo/5 p-2 text-xs text-rojo">
+        <p className="mb-2 rounded border border-sand bg-hueso p-2 text-xs text-taupe">
           {d.aviso_periodo}
         </p>
       )}
@@ -774,24 +1070,43 @@ function Desglose({
             No se pudo comprobar si el cálculo de hoy coincide con lo que se pagó: {diferenciasError}
           </p>
         </div>
-      ) : diferencias.length > 0 && (
-        <div className="mt-3 rounded border border-rojo/40 bg-rojo/5 p-2">
-          <p className="text-xs font-medium text-rojo">
-            El cálculo de hoy ya no coincide con lo que se pagó. La cifra pagada NO se cambia:
-          </p>
-          <ul className="mt-1 text-xs text-rojo">
-            {diferencias.map((x) => (
-              <li key={x.concepto}>
-                {x.concepto}: se pagó {formatSoles(x.pagado)}, hoy daría {formatSoles(x.ahora)}{" "}
-                ({x.diferencia > 0 ? "+" : ""}{formatSoles(x.diferencia)})
-              </li>
-            ))}
-          </ul>
-          <p className="mt-1 text-xs text-taupe">
-            Qué hacer con la diferencia —pagarla, compensarla o dejar constancia— es una decisión
-            tuya: el sistema la nombra, no la resuelve.
-          </p>
-        </div>
+      ) : (
+        <>
+          {/* Decisión III — esperada: tono neutro (pizarra), sin alarmar. Es
+              el curso normal de casi toda cesada desde que el cierre de mes
+              la alcanza. */}
+          {esperadas.length > 0 && (
+            <BannerAviso variante="informativo" titulo="Esto es normal, no hace falta revisar" className="mt-3 p-3">
+              <p>El sueldo del periodo bajó porque Planilla ya lo descontó al cerrar el mes. El resto del
+                cálculo sigue igual. No hay nada que decidir acá.</p>
+            </BannerAviso>
+          )}
+          {/* Decisión III — real: alarma roja, con el concepto que de verdad
+              cambió. El sistema la nombra; qué hacer con ella —pagarla,
+              compensarla o dejar constancia— sigue siendo una decisión
+              humana: nunca se ajusta sola (Decisión XI). */}
+          {reales.length > 0 && (
+            <BannerAviso variante="alerta" titulo="Revisar — esto no lo explica el cierre del mes" className="mt-3 p-3">
+              <table className="w-full">
+                <tbody>
+                  {reales.map((x) => (
+                    <tr key={x.concepto}>
+                      <td className="py-0.5 pr-2 text-taupe">{x.concepto}</td>
+                      <td className="py-0.5 text-right tabular-nums">
+                        se pagó {formatSoles(x.pagado)}, hoy daría {formatSoles(x.ahora)}{" "}
+                        ({x.diferencia > 0 ? "+" : ""}{formatSoles(x.diferencia)})
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="mt-2 text-xs text-taupe">
+                Qué hacer con la diferencia —pagarla, compensarla o dejar constancia— es una decisión
+                tuya: el sistema la nombra, no la resuelve.
+              </p>
+            </BannerAviso>
+          )}
+        </>
       )}
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -819,9 +1134,7 @@ function Desglose({
           mueven dinero, estos entregan un documento. El Reglamento Interno
           (num. 59.6) los junta con la liquidación en el mismo plazo legal —
           por eso viven en esta pantalla y no en otra — pero son una acción de
-          naturaleza distinta y mezclarlos en una sola fila de botones repite
-          el mismo error de sobrecarga visual que ya se corrigió hoy en
-          Contratos. */}
+          naturaleza distinta. */}
       <div className="mt-3 border-t border-sand pt-3">
         <p className="mb-2 text-xs font-medium text-taupe">Papeles de salida</p>
         <div className="flex flex-wrap items-center gap-2">
@@ -841,15 +1154,11 @@ function Desglose({
         </div>
       </div>
 
-      {/* La nota y el botón de congelar sirven en los DOS estados. Antes solo
-          se dibujaban con `!pagada`, así que el texto de abajo prometía un
-          botón para «volver a marcarla» que no existía: la única frase de la
-          pantalla que decía cómo deshacer algo apuntaba a un sitio vacío. */}
+      {/* Decisión IV: «Anular» vive acá, no en la fila de la tabla — la tabla
+          de Pagadas es de solo lectura, y anular es una acción de alta
+          confianza que merece el mismo peso que «Marcar como pagada». */}
       {pagada && (
         <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-sand pt-3">
-          {/* Deshacer. La base sabe hacerlo desde la 0251 y ninguna pantalla se
-              lo pedía. Va en rojo y separado del de congelar porque son cosas
-              distintas: uno recalcula, el otro retira la cifra de la cuenta. */}
           <Boton variante="peligro" tamano="sm" onClick={onAnular} disabled={ocupado}>
             Anular — se marcó por error
           </Boton>
