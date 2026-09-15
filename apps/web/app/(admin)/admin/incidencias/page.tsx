@@ -18,7 +18,7 @@
 //   · «Detalle» deja de ser pestaña: las reglas viven en «Cómo se detectan» y
 //     en el panel de cada caso, con las mismas palabras (presentacion.tsx).
 //   · Un visto bueno guarda el número que aceptó y deshacerlo anula con motivo
-//     en vez de borrar (0451).
+//     en vez de borrar (0452).
 //   · Lote solo para lo que únicamente pide constancia, y por selección.
 //   · «Por revisar» suma todo menos lo ya resuelto.
 //
@@ -206,7 +206,7 @@ function IncidenciasContenido() {
       supabase.from("horarios_asignados").select("persona_id, hora_entrada, hora_salida, dias_laborables, horario_por_dia, almuerzo_min_minutos, vigente_desde, vigente_hasta").lte("vigente_desde", v.domingoSiguiente).or(`vigente_hasta.is.null,vigente_hasta.gte.${v.lunesActual}`),
       supabase.from("turnos").select("persona_id, fecha, hora_entrada, hora_salida, es_descanso").gte("fecha", v.lunesActual).lte("fecha", v.domingoSiguiente),
       // Vistos buenos, también los deshechos: la detección usa los vigentes y el
-      // historial muestra todos (0451). Desde lo más atrás que haga falta.
+      // historial muestra todos (0452). Desde lo más atrás que haga falta.
       supabase.from("incidencias_aceptadas")
         .select("persona_id, fecha, tipo, nota, aceptado_por, aceptado_at, valor, anulada_at, anulada_por, anulada_motivo, personas:persona_id(nombres, apellidos, sedes:sede_base_id(codigo))")
         .gte("fecha", v.desdeAceptadas)

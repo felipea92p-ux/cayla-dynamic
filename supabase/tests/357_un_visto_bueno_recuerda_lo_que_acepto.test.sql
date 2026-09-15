@@ -4,7 +4,7 @@
 -- Se corre así, en esta Mac:   npx supabase test db
 -- Lo que sí se pega vive en supabase/migrations/ y scripts/sql-manual/.
 -- ============================================================================
--- 356_un_visto_bueno_recuerda_lo_que_acepto.test.sql — la 0451
+-- 357_un_visto_bueno_recuerda_lo_que_acepto.test.sql — la 0452
 -- ============================================================================
 -- Un visto bueno de Incidencias guarda el número que se aceptó, y deshacerlo
 -- lo anula con motivo en vez de borrarlo. Lo que se prueba es la trazabilidad:

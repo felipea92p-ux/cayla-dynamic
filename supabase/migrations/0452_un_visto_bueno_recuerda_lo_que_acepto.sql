@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0451_un_visto_bueno_recuerda_lo_que_acepto.sql
+-- 0452_un_visto_bueno_recuerda_lo_que_acepto.sql
 -- ============================================================================
 -- QUÉ PROMETE
 --
@@ -84,13 +84,13 @@ alter table incidencias_aceptadas
   add column if not exists anulada_motivo text;
 
 comment on column incidencias_aceptadas.valor is
-  'El número que se dio por bueno (minutos, horas o días). null en las filas anteriores a la 0451: valen para cualquier valor.';
+  'El número que se dio por bueno (minutos, horas o días). null en las filas anteriores a la 0452: valen para cualquier valor.';
 
 alter table incidencias_aceptadas drop constraint if exists chk_inc_acept_anulacion_completa;
 -- `anulada_motivo is not null` va escrito aunque parezca redundante con el
 -- length: con motivo null, `length(trim(null)) >= 4` da NULL, y un CHECK que da
 -- NULL PASA. Sin esa línea, «anulada sin motivo» era posible — lo cazó la
--- prueba 356 al escribir la tabla a mano.
+-- prueba 357 al escribir la tabla a mano.
 alter table incidencias_aceptadas add constraint chk_inc_acept_anulacion_completa check (
   (anulada_at is null and anulada_por is null and anulada_motivo is null)
   or (anulada_at is not null and anulada_por is not null
@@ -140,7 +140,7 @@ end;
 $$;
 
 comment on function fn_aceptar_incidencia(uuid, date, text, text, numeric) is
-  'Visto bueno de una incidencia, con el valor que se dio por bueno. Reemplaza al vigente anulándolo, nunca lo pisa. Desde la 0451.';
+  'Visto bueno de una incidencia, con el valor que se dio por bueno. Reemplaza al vigente anulándolo, nunca lo pisa. Desde la 0452.';
 
 -- ── Deshacer el visto bueno ─────────────────────────────────────────────────
 drop function if exists fn_quitar_aceptacion(uuid, date, text);
@@ -169,14 +169,14 @@ end;
 $$;
 
 comment on function fn_quitar_aceptacion(uuid, date, text, text) is
-  'Anula (no borra) el visto bueno vigente de una incidencia, con motivo obligatorio. Desde la 0451.';
+  'Anula (no borra) el visto bueno vigente de una incidencia, con motivo obligatorio. Desde la 0452.';
 
 grant execute on function fn_aceptar_incidencia(uuid, date, text, text, numeric) to authenticated;
 revoke execute on function fn_aceptar_incidencia(uuid, date, text, text, numeric) from public, anon;
 grant execute on function fn_quitar_aceptacion(uuid, date, text, text) to authenticated;
 revoke execute on function fn_quitar_aceptacion(uuid, date, text, text) from public, anon;
 
-insert into migraciones_aplicadas (numero, nombre) values (451, 'un_visto_bueno_recuerda_lo_que_acepto')
+insert into migraciones_aplicadas (numero, nombre) values (452, 'un_visto_bueno_recuerda_lo_que_acepto')
 on conflict (numero) do update set nombre = excluded.nombre, aplicada_at = now();
 
 notify pgrst, 'reload schema';
