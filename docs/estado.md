@@ -6,7 +6,7 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-09-15 — El practicante ya devenga su descanso de 15 días y su subvención semestral (0465) · SIN PEGAR
+## 2026-09-15 — El practicante ya devenga su descanso de 15 días y su subvención semestral (0465) · PEGADA Y VERIFICADA
 
 Cierra un pendiente que la 0322 (2026-08-29) dejó escrito a propósito: la Ley
 28518 le da a un practicante DOS beneficios propios —un descanso de 15 días,
@@ -70,12 +70,17 @@ queda como trabajo aparte. Tampoco entra en `gran_total` ni en los totales de
 columna de la tabla principal: vive solo en la fila plegada de Practicantes y
 en su panel de detalle.
 
-**Falta:** commitear y subir esta rama, y pegar la 0465 en producción (Felipe,
-a mano, por el SQL Editor — pedir el md5 de `fn_provisiones` a producción
-justo antes de pegar, no ahora, y el CHECK admite los siete valores). El
-frontend (`provisiones.ts`, `TablaProvisiones.tsx`, `DetallePersona.tsx`) ya
-está escrito con `typecheck`/`eslint`/`vitest` (735/735) en verde, listo para
-el mismo commit.
+**Pegada y verificada en producción el 2026-09-15**, PR
+[#409](https://github.com/felipea92p-ux/cayla-dynamic/pull/409). El md5 de
+`fn_provisiones` contra producción dio el segundo desenlace —`sin_comentarios`
+coincide (`a89483d1f63933d7064550b9ccb441e9`), producción perdió los
+comentarios al pegarse, mismo código— y quedó declarado en la cabecera de la
+migración. La consulta final del archivo, corrida en el SQL Editor, mostró los
+cinco practicantes reales de la sede TRU (Benjamín Cueva, Daniel Ruiz, Diego
+Narro, Fernanda Espinoza, Milagritos Zarate) con `dias_convenio` correcto —
+entre 0 y 11 días, ninguno cerca todavía de los 12 meses, así que sus
+descansos/subvenciones hoy son montos chicos, como corresponde. Falta
+fusionar el PR para publicar el frontend que muestra estos montos.
 
 ---
 

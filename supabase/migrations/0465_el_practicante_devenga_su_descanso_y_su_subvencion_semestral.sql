@@ -117,11 +117,15 @@
 --     tal cual:        d7ff7cb8ef8c159ece656caacc8aed90
 --     sin comentarios:  a89483d1f63933d7064550b9ccb441e9
 --   Copia el cuerpo de la 0428, que `donde-vive.sh` marcó como LA VIGENTE.
---   Felipe: vuelve a pedir esto mismo contra PRODUCCIÓN justo antes de pegar
---   — no cuando empezaste a leer esto — porque entre hoy y el momento de
---   pegar puede haberse fusionado otra migración que también toque
---   `fn_provisiones`. Si ninguno de los dos coincide, PARA: alguien cambió
---   esta función después de la 0428 y copiar de acá la revertiría.
+--
+--   PEDIDO A PRODUCCIÓN justo antes de pegar (2026-09-15, proyecto
+--   vovjyyiafkxteijimpuy): `tal_cual` dio 51b69875b258b8c7d6812a8d64019f7b
+--   (no coincide) pero `sin_comentarios` dio a89483d1f63933d7064550b9ccb441e9
+--   — coincide exacto con el de esta Mac, y 50 256 caracteres contra los
+--   49 192 de acá es la diferencia de comentarios, no de código. Es el
+--   segundo desenlace, no el tercero: producción tiene el MISMO cuerpo de la
+--   0428, solo perdió los comentarios al pegarse (le pasa a casi la mitad de
+--   las funciones de este repo). Sigue siendo seguro copiar de acá.
 --
 -- CÓMO SE REVIERTE
 --   Volviendo a pegar el bloque `CREATE OR REPLACE FUNCTION fn_provisiones`
