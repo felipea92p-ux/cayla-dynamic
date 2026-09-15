@@ -5013,7 +5013,10 @@ export type Database = {
           via: string
         }[]
       }
-      fn_acuses_politica_salarial: { Args: never; Returns: Json }
+      fn_acuses_politica_salarial: {
+        Args: { p_version?: number | null }
+        Returns: Json
+      }
       fn_agregar_marcaje: {
         Args: {
           p_motivo: string | null
@@ -6539,6 +6542,7 @@ export type Database = {
           tipo: string
         }[]
       }
+      fn_mi_rango_actual: { Args: never; Returns: string }
       fn_mis_memos: {
         Args: never
         Returns: {
@@ -6752,7 +6756,7 @@ export type Database = {
       }
       fn_publicar_politica_salarial: {
         Args: { p_documento: string | null; p_notas?: string | null }
-        Returns: number
+        Returns: Json
       }
       fn_puede_gestionar_objetivos: {
         Args: { p_persona_id: string | null }
@@ -7000,6 +7004,7 @@ export type Database = {
           p_proposito: string | null
           p_rango: string | null
           p_requisitos: string | null
+          p_salario_declarado: number | null
         }
         Returns: undefined
       }

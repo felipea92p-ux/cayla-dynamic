@@ -1015,6 +1015,76 @@ export function documentoTieneCambios(actual: Documento, publicado: Documento): 
   return sinFecha(actual) !== sinFecha(publicado);
 }
 
+export type Desalineacion = "por_debajo" | "por_encima" | null;
+
+/**
+ * ¿El sueldo real de alguien en esta categoría no coincide con lo declarado?
+ *
+ * `salario_declarado` es lo que se publica (0145); `salario_min`/`salario_max`
+ * es lo que hoy cobra quien está en la categoría, y viven en tablas distintas
+ * a propósito (ver el comentario de `remuneracion()` arriba) — nada los
+ * mantiene sincronizados. Esto es el aviso que faltaba: si alguien quedó por
+ * fuera de lo declarado, se ve en pantalla antes de publicar, no se descubre
+ * en una inspección.
+ */
+export function categoriaSueldoDesalineado(c: CategoriaCuadro): Desalineacion {
+  const declarado = num(c.salario_declarado);
+  if (declarado === null || c.personas === 0) return null;
+  const min = num(c.salario_min);
+  const max = num(c.salario_max);
+  if (min !== null && min < declarado) return "por_debajo";
+  if (max !== null && max > declarado) return "por_encima";
+  return null;
+}
+
+/**
+ * Qué secciones cambiaron entre dos documentos, comparando cada una por su
+ * título. No es un diff palabra por palabra —tu instrucción original pide no
+ * construir uno si no aporta a esta escala—: solo dice "esta sección es
+ * igual" o "esta sección cambió", que alcanza para "qué cambió respecto a la
+ * versión anterior".
+ */
+export function seccionesCambiadas(actual: Documento, anterior: Documento): Set<string> {
+  const porTitulo = new Map(anterior.secciones.map((s) => [s.titulo, s] as const));
+  const cambiadas = new Set<string>();
+  for (const sec of actual.secciones) {
+    const previa = porTitulo.get(sec.titulo);
+    if (!previa || JSON.stringify(previa.bloques) !== JSON.stringify(sec.bloques)) {
+      cambiadas.add(sec.titulo);
+    }
+    porTitulo.delete(sec.titulo);
+  }
+  // Lo que queda en el mapa son secciones que existían en la versión anterior
+  // y ya no están en la actual.
+  for (const tituloEliminado of porTitulo.keys()) cambiadas.add(tituloEliminado);
+  return cambiadas;
+}
+
+function textoDeBloque(b: Bloque): string {
+  if (b.tipo === "parrafo" || b.tipo === "destacado") return b.texto;
+  if (b.tipo === "lista") return b.items.join(" ");
+  return [b.cabeceras.join(" "), ...b.filas.map((f) => f.join(" "))].join(" ");
+}
+
+/** Títulos de las secciones cuyo título o contenido incluye la búsqueda. */
+export function buscarSecciones(doc: Documento, consulta: string): string[] {
+  const q = consulta.trim().toLowerCase();
+  if (q === "") return [];
+  return doc.secciones
+    .filter((s) => s.titulo.toLowerCase().includes(q) || s.bloques.some((b) => textoDeBloque(b).toLowerCase().includes(q)))
+    .map((s) => s.titulo);
+}
+
+/** El ancla con la que una sección vive en la URL y en el índice sticky. */
+export function seccionSlug(titulo: string): string {
+  return titulo
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
+}
+
 export function documentoATexto(doc: Documento): string {
   const out: string[] = [];
   out.push(doc.titulo.toUpperCase());
