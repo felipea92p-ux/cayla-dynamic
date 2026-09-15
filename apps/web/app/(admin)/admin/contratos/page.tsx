@@ -2170,7 +2170,20 @@ export default function ContratosPage() {
                   : // Un indefinido nunca debe comunicación al MTPE (0347).
                     f.tipo === "indefinido" && f.estado === "tramite_pendiente"
                     ? "Falta la copia"
-                    : (ETIQUETA_CORTA[f.estado] ?? e.texto);
+                    : // BUG cerrado: `ETIQUETA_CORTA.sin_contrato` ("Sin
+                      // registrar") tapaba la distinción que `estadoSinContrato`
+                      // ya calculaba en `e.texto` — alguien con un contrato
+                      // firmado EN PAPEL antes de que este generador existiera
+                      // (`fecha_fin_contrato` puesto a mano, sin fila en
+                      // `contratos_generados`) se veía IDÉNTICO a alguien sin
+                      // ningún contrato. La fila no tiene nada que mostrar
+                      // igual —no hay escaneo que ver: nunca se subió ninguno,
+                      // por eso "Generar" sigue siendo la única acción—, pero
+                      // el badge no puede mentir diciendo "Sin registrar" de
+                      // dos personas en situaciones distintas.
+                      f.estado === "sin_contrato" && f.fecha_fin_contrato !== null
+                      ? "En papel"
+                      : (ETIQUETA_CORTA[f.estado] ?? e.texto);
           const tipoFila = esPracticanteFila
             ? "convenio_practicas"
             : tipoQueCorresponde(personaFila?.fecha_ingreso, hoyLima());
@@ -2198,7 +2211,9 @@ export default function ContratosPage() {
             documento: f.tipo ? (TIPO_CONTRATO[f.tipo] ?? f.tipo) : "—",
             vigencia: contrato
               ? `${formatearFecha(contrato.fecha_inicio)} – ${contrato.fecha_fin ? formatearFecha(contrato.fecha_fin) : "indeterminado"}`
-              : "—",
+              : f.fecha_fin_contrato
+                ? `hasta ${formatearFecha(f.fecha_fin_contrato)}`
+                : "—",
             sede: f.sede,
             estadoLabel,
             estadoVariante: variantePorEstado(f.estado),
@@ -3314,22 +3329,27 @@ export default function ContratosPage() {
                 generados)— en una sola fila por persona/documento, con las
                 acciones detrás de "•••" en vez de enlaces sueltos. Quien
                 todavía no tiene contrato sigue viéndose acá (columna Estado
-                dice "sin contrato registrado" y la acción es "Generar"): esa
-                visibilidad es la razón de ser de esta pantalla y no se pierde
-                al comprimir la tabla. */}
+                dice "Sin registrar", o "En papel" si ya tiene uno firmado
+                antes de este generador — ver `estadoLabel` — y la acción es
+                "Generar"): esa visibilidad es la razón de ser de esta
+                pantalla y no se pierde al comprimir la tabla. */}
             {tablero.length > 0 && (
               <div className="rounded-2xl border border-sand bg-papel">
                 {/* Escritorio: tabla completa. En celular, tarjetas apiladas
-                    más abajo — mismos datos, sin scroll horizontal. */}
+                    más abajo — mismos datos, sin scroll horizontal.
+                    La columna de Acciones subió de 7% a 14%: con "Generar"
+                    puesto (el texto más largo que le toca, con su padding de
+                    <Boton tamano="sm">) el 7% se quedaba corto y el botón
+                    salía cortado contra el borde de la tarjeta. */}
                 <div className="hidden sm:block">
                   <table className="w-full table-fixed text-sm">
                     <TablaEncabezado>
-                      <Th className="w-[28%] text-xs">Persona</Th>
-                      <Th className="w-[20%] text-xs">Documento</Th>
-                      <Th className="w-[20%] text-xs">Vigencia</Th>
-                      <Th className="w-[12%] text-xs">Sede</Th>
+                      <Th className="w-[26%] text-xs">Persona</Th>
+                      <Th className="w-[18%] text-xs">Documento</Th>
+                      <Th className="w-[19%] text-xs">Vigencia</Th>
+                      <Th className="w-[10%] text-xs">Sede</Th>
                       <Th className="w-[13%] text-xs">Estado</Th>
-                      <Th className="w-[7%] text-xs" />
+                      <Th className="w-[14%] text-xs" />
                     </TablaEncabezado>
                     <tbody>
                       {filasVista.map((v) => (
@@ -3348,7 +3368,7 @@ export default function ContratosPage() {
                               {v.estadoLabel}
                             </Insignia>
                           </td>
-                          <td className="px-2 py-2.5 text-right">{v.acciones}</td>
+                          <td className="whitespace-nowrap px-2 py-2.5 text-right">{v.acciones}</td>
                         </tr>
                       ))}
                     </tbody>

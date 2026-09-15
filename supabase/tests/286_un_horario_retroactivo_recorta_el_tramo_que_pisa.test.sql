@@ -48,13 +48,17 @@ values
   ('00000000-0000-0000-0000-000000028601', '2026-08-15', null,         '10:00', '18:00', 0, 0, array[1,2,3,4,5,6], 39);
 
 -- ── 1 · El caso que reventaba: una fecha DENTRO del tramo cerrado A ─────────
+-- 0444/0447: fn_set_horario_semanal ya no acepta una fecha pasada — el mismo
+-- recorte del tramo que pisa se mudó a fn_corregir_horario_retroactivo (0447),
+-- que reusa exactamente este mecanismo. El orden de argumentos cambia:
+-- (persona, horario, vigente_desde, motivo), no (persona, vigente_desde, horario, motivo).
 select lives_ok(
-  $$ select fn_set_horario_semanal(
-       '00000000-0000-0000-0000-000000028601', '2026-08-05',
+  $$ select fn_corregir_horario_retroactivo(
+       '00000000-0000-0000-0000-000000028601',
        '{"1":{"e":"09:30","s":"16:00","r":0},"2":{"e":"09:30","s":"16:00","r":0},
          "3":{"e":"09:30","s":"16:00","r":0},"4":{"e":"09:30","s":"16:00","r":0},
          "5":{"e":"09:30","s":"16:00","r":0},"6":{"e":"09:30","s":"16:00","r":0}}'::jsonb,
-       'Prueba pgTAP.') $$,
+       '2026-08-05', 'Prueba pgTAP.') $$,
   'Corregir desde el 5 de agosto, dentro de un tramo ya cerrado, ya no revienta con horarios_sin_solape');
 
 -- ── 2 · A quedó recortado hasta la víspera ──────────────────────────────────
@@ -104,16 +108,19 @@ select is(
   'Después de la corrección no hay ningún par de tramos que se pise');
 
 -- ── 7 · Lo de siempre sigue igual: cerrar el tramo abierto ──────────────────
+-- '2026-09-01' era una fecha fija que ya cayó en el pasado real. Este tramo sí
+-- es hacia ADELANTE (el caso de siempre de fn_set_horario_semanal, 0444 no lo
+-- toca), así que se vuelve HOY — que ya es posterior al tramo del 5 de agosto.
 select lives_ok(
-  $$ select fn_set_horario_semanal(
-       '00000000-0000-0000-0000-000000028601', '2026-09-01',
-       '{"1":{"e":"11:00","s":"19:00","r":45}}'::jsonb, 'Prueba pgTAP.') $$,
+  format($$ select fn_set_horario_semanal(
+       '00000000-0000-0000-0000-000000028601', %L,
+       '{"1":{"e":"11:00","s":"19:00","r":45}}'::jsonb, 'Prueba pgTAP.') $$, fn_hoy_lima()),
   'Un horario desde una fecha posterior al tramo abierto sigue entrando sin problema');
 
 select is(
   (select vigente_hasta from horarios_asignados
     where persona_id = '00000000-0000-0000-0000-000000028601' and vigente_desde = '2026-08-05'),
-  '2026-08-31'::date,
+  (fn_hoy_lima() - 1),
   'y el tramo que estaba abierto se cierra la víspera, como antes de la 0360');
 
 select * from finish();

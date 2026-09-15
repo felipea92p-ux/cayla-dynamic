@@ -171,7 +171,16 @@ interface MarcaApartada {
   ultimo_error: string | null;
   reportada_at: string;
 }
-interface Jornada { estado: string; horas_trabajadas: number | null; minutos_tarde: number | null; }
+interface HorarioAplicado {
+  fuente: "turnos" | "horarios_asignados"; horario_id: string | null;
+  entrada: string | null; salida: string | null; refrigerio_min: number; es_descanso: boolean;
+}
+interface Jornada {
+  estado: string; horas_trabajadas: number | null; minutos_tarde: number | null;
+  // 0446 — la foto de con qué horario se calculó ESTA jornada. `null` en
+  // jornadas de antes de esa migración, hasta su próximo recálculo.
+  horario_aplicado: HorarioAplicado | null;
+}
 // Fila de correcciones_auditoria (el registro de quién cambió qué, cuándo y por qué).
 // Sin embeds de PostgREST a propósito: en este repo el schema cache está trabado
 // para varias relaciones, así que el nombre de quién corrigió se resuelve aparte
@@ -500,7 +509,7 @@ export default function CorreccionesPage() {
         .eq("persona_id", personaId).gte("timestamp_marca", inicio).lte("timestamp_marca", fin)
         .order("timestamp_marca"),
       supabase.from("jornadas")
-        .select("estado, horas_trabajadas, minutos_tarde")
+        .select("estado, horas_trabajadas, minutos_tarde, horario_aplicado")
         .eq("persona_id", personaId).eq("fecha", fecha).maybeSingle(),
       // Historial de correcciones de la persona. Columnas planas (sin embeds: el
       // schema cache está trabado). Falla suave: si no llega, no bloquea el día,
@@ -1132,6 +1141,39 @@ export default function CorreccionesPage() {
                       )}
                     </TarjetaResumen>
                   </div>
+
+                  {/* 0446 — con qué horario se calculó ESTA jornada, tal cual quedó
+                      guardado en su momento. Distinto de `esperado` (arriba), que
+                      relee `horarios_asignados` EN VIVO para esta fecha: si alguien
+                      corrigió el horario retroactivamente después de que esta
+                      jornada se calculó, los dos pueden decir cosas distintas — y
+                      eso es justo lo que hay que poder ver acá, no adivinar. */}
+                  {jornada?.horario_aplicado && (
+                    <div className="mb-5 rounded-lg border border-sand bg-hueso px-4 py-2 text-xs text-taupe">
+                      Calculado con{" "}
+                      {jornada.horario_aplicado.es_descanso ? (
+                        <strong className="text-tinta">descanso ese día</strong>
+                      ) : jornada.horario_aplicado.entrada ? (
+                        <strong className="text-tinta">
+                          entrada {jornada.horario_aplicado.entrada.slice(0, 5)}
+                          {jornada.horario_aplicado.salida ? `–${jornada.horario_aplicado.salida.slice(0, 5)}` : ""}
+                        </strong>
+                      ) : (
+                        <strong className="text-tinta">sin horario</strong>
+                      )}
+                      {" "}({jornada.horario_aplicado.fuente === "turnos" ? "turno de ese día" : "horario base"})
+                      {/* .slice(0,5): horario_aplicado sale de Postgres con segundos
+                          ("08:30:00"), esperado.entrada ya viene truncado a "08:30"
+                          — comparar sin normalizar los dos formatos siempre daba
+                          "distinto" aunque la hora fuera la misma. */}
+                      {esperado && (jornada.horario_aplicado.entrada?.slice(0, 5) ?? null) !== esperado.entrada && (
+                        <span className="ml-1.5 text-ambar">
+                          — hoy, para esta fecha, {esperado.entrada ? `horarios_asignados dice ${esperado.entrada}` : "ya no hay horario"}: alguien lo cambió después de que esta jornada se calculara.
+                        </span>
+                      )}
+                    </div>
+                  )}
+
                   {/* El texto largo del hueco real (sin horario vigente, y a esta
                       persona SÍ le toca tener uno) se mantiene aparte: es la única
                       de las cuatro tarjetas que necesita una explicación completa,

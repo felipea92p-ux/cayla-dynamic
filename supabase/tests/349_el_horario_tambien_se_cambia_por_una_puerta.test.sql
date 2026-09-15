@@ -18,6 +18,13 @@
 -- fixture con `= replica` y no devolverlo a `origin` ANTES de simular el
 -- ataque apaga en silencio todos los triggers de la sesión, incluido el que
 -- esta prueba defiende.
+--
+-- ACTUALIZADA POR LA 0444 (historial de horarios): la fecha fija original
+-- ('2026-09-01') ya cayó en el pasado real, y fn_set_horario_semanal desde la
+-- 0444 ya no acepta una fecha pasada. Nada de lo que esta prueba defiende es
+-- sobre QUÉ día se usa, así que las siete ocurrencias se volvieron
+-- fn_hoy_lima() — el caso normal de "asignar hacia adelante" que 0444 nunca
+-- tocó.
 -- ============================================================================
 begin;
 select plan(10);
@@ -39,26 +46,26 @@ set session_replication_role = origin;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000349aa', true);
 set role authenticated;
 select throws_ok(
-  $$ select fn_set_horario_semanal('00000000-0000-0000-0000-000000034912', '2026-09-01',
+  $$ select fn_set_horario_semanal('00000000-0000-0000-0000-000000034912', fn_hoy_lima(),
        '{"1":{"e":"08:00","s":"18:00","r":60}}'::jsonb, 'hi') $$,
   'Escribe el motivo del cambio de horario (mínimo 3 caracteres).',
   'BLOQUEADO · un motivo de menos de 3 caracteres no pasa');
 
 select throws_ok(
-  $$ select fn_set_horario_semanal('00000000-0000-0000-0000-000000034912', '2026-09-01',
+  $$ select fn_set_horario_semanal('00000000-0000-0000-0000-000000034912', fn_hoy_lima(),
        '{"1":{"e":"08:00","s":"18:00","r":60}}'::jsonb, null) $$,
   'Escribe el motivo del cambio de horario (mínimo 3 caracteres).',
   'BLOQUEADO · un motivo nulo tampoco pasa');
 
 -- ── 3-6 · Con motivo real, funciona y deja rastro completo ──────────────────
 select lives_ok(
-  $$ select fn_set_horario_semanal('00000000-0000-0000-0000-000000034912', '2026-09-01',
+  $$ select fn_set_horario_semanal('00000000-0000-0000-0000-000000034912', fn_hoy_lima(),
        '{"1":{"e":"08:00","s":"18:00","r":60}}'::jsonb, 'Asignación inicial de horario.') $$,
   'PERMITIDO · con un motivo real, un admin sí puede asignar el horario');
 
 select is(
   (select hora_entrada from horarios_asignados
-    where persona_id = '00000000-0000-0000-0000-000000034912' and vigente_desde = '2026-09-01'),
+    where persona_id = '00000000-0000-0000-0000-000000034912' and vigente_desde = fn_hoy_lima()),
   '08:00'::time,
   'Y EL HORARIO SE ESCRIBIÓ · no se quedó en una excepción que nadie ve');
 
@@ -80,7 +87,7 @@ select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000349aa
 set role authenticated;
 select throws_ok(
   $$ update horarios_asignados set hora_entrada = '07:00'
-      where persona_id = '00000000-0000-0000-0000-000000034912' and vigente_desde = '2026-09-01' $$,
+      where persona_id = '00000000-0000-0000-0000-000000034912' and vigente_desde = fn_hoy_lima() $$,
   'Los horarios se cambian con fn_set_horario_semanal, no con un insert/update/delete directo.',
   'BLOQUEADO · el update directo a horarios_asignados ya no funciona, aunque lo pida un admin');
 
@@ -92,7 +99,7 @@ select throws_ok(
 
 select throws_ok(
   $$ delete from horarios_asignados
-      where persona_id = '00000000-0000-0000-0000-000000034912' and vigente_desde = '2026-09-01' $$,
+      where persona_id = '00000000-0000-0000-0000-000000034912' and vigente_desde = fn_hoy_lima() $$,
   'Los horarios se cambian con fn_set_horario_semanal, no con un insert/update/delete directo.',
   'BLOQUEADO · el delete directo a horarios_asignados tampoco funciona');
 reset role;
@@ -100,7 +107,7 @@ reset role;
 -- ── 10 · Y a pesar de los intentos de arriba, el tramo real sigue intacto ───
 select is(
   (select hora_entrada from horarios_asignados
-    where persona_id = '00000000-0000-0000-0000-000000034912' and vigente_desde = '2026-09-01'),
+    where persona_id = '00000000-0000-0000-0000-000000034912' and vigente_desde = fn_hoy_lima()),
   '08:00'::time,
   'INTACTO · ninguno de los ataques directos alcanzó a tocar el tramo real');
 
