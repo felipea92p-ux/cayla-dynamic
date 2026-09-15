@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0462 · quien ingresa después no se cuela en un periodo anterior
+-- 0463 · quien ingresa después no se cuela en un periodo anterior
 -- ============================================================================
 -- QUÉ PROMETE
 --
@@ -33,7 +33,7 @@
 --   · `fn_planilla_calcular_nucleo`, tal como quedó en la 0418 (confirmado
 --     con `donde-vive.sh` antes de escribir esta migración: es la vigente
 --     en el repositorio). El cuerpo que sigue es la 0418 completa sin
---     retipear, con el único diff marcado «CAMBIO 0462» dentro del CTE
+--     retipear, con el único diff marcado «CAMBIO 0463» dentro del CTE
 --     `pers`. Si otra migración la tocó entre medias, esta queda mal desde
 --     el día uno.
 --   · `personas.fecha_ingreso` es `date not null` (0001): no hace falta un
@@ -73,7 +73,7 @@
 --   · una persona activa de años atrás sigue apareciendo en un periodo
 --     viejo igual que siempre (control de no-regresión).
 --
---   Ver prueba pgTAP 366.
+--   Ver prueba pgTAP 367.
 --
 -- CÓMO SE REVIERTE
 --   Pegar de nuevo el cuerpo completo de la 0418 sobre
@@ -394,7 +394,7 @@ begin
     from personas p
     join sedes s on s.id = p.sede_base_id
     left join sedes sf on sf.id = p.sede_fisica_id
-    -- ⇩ CAMBIO 0462 ⇩ Activa NO basta: si ingresó DESPUÉS de que este
+    -- ⇩ CAMBIO 0463 ⇩ Activa NO basta: si ingresó DESPUÉS de que este
     -- periodo terminó, todavía no existía para la empresa en esas fechas.
     -- Sin este freno, cualquier persona activa hoy se cuela como fila en
     -- CUALQUIER periodo histórico que se recalcule en vivo — y eso pasa cada
@@ -2086,5 +2086,5 @@ insert into funciones_nunca_para_authenticated (funcion, motivo) values
 on conflict (funcion) do nothing;
 
 insert into migraciones_aplicadas (numero, nombre) values
-  (462, '0462_quien_ingresa_despues_no_se_cuela_en_un_periodo_anterior')
+  (463, '0463_quien_ingresa_despues_no_se_cuela_en_un_periodo_anterior')
 on conflict (numero) do update set nombre = excluded.nombre, aplicada_at = now();
