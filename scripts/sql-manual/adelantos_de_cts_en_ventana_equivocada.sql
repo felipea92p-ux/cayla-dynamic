@@ -65,7 +65,10 @@ from esperado e
 join personas p on p.id = e.persona_id
 left join personas quien on quien.id = e.registrado_por
 where (e.ventana, e.anio) is distinct from (e.ventana_segun_fecha, e.anio_segun_fecha)
-order by veredicto desc, e.fecha_pago;
+-- Primero lo que no cuadra; lo dudoso (posible depósito atrasado) al final.
+-- «no cuadra» < «puede ser…» en orden alfabético; Postgres no deja usar el
+-- alias dentro de una expresión, solo el alias suelto.
+order by veredicto, e.fecha_pago;
 
 -- Y el total de la población, para saber de qué tamaño es la decisión:
 select e.origen,
