@@ -128,7 +128,7 @@ function BandejaEquipo({
 }) {
   const [filtroTexto, setFiltroTexto] = useState("");
   const [filtroSede, setFiltroSede] = useState("");
-  const [mostrarTodos, setMostrarTodos] = useState(false);
+  const [filtroObjetivos, setFiltroObjetivos] = useState<"todos" | "con" | "sin">("todos");
 
   const sedes = useMemo(() => {
     const vistas = new Map<string, string>();
@@ -152,16 +152,15 @@ function BandejaEquipo({
     const texto = filtroTexto.trim().toLowerCase();
     return filas
       .filter((f) => !filtroSede || f.persona.sede_base_id === filtroSede)
+      .filter((f) => filtroObjetivos === "todos" || (filtroObjetivos === "con" ? f.total > 0 : f.total === 0))
       .filter((f) => !texto || `${f.persona.nombres} ${f.persona.apellidos}`.toLowerCase().includes(texto))
-      .filter((f) => mostrarTodos || f.estado.variante !== "positivo")
       .sort((a, b) => a.prioridad - b.prioridad || a.persona.nombres.localeCompare(b.persona.nombres));
-  }, [filas, filtroTexto, filtroSede, mostrarTodos]);
+  }, [filas, filtroTexto, filtroSede, filtroObjetivos]);
 
   const totalPersonas = filas.length;
   const conObjetivos = filas.filter((f) => f.total > 0).length;
   const sinObjetivos = totalPersonas - conObjetivos;
   const enObservacion = filas.filter((f) => f.estado.variante === "alerta").length;
-  const cumplidosOcultos = !mostrarTodos ? filas.filter((f) => f.estado.variante === "positivo").length : 0;
 
   return (
     <div>
@@ -207,6 +206,15 @@ function BandejaEquipo({
             ))}
           </CampoSelect>
         )}
+        <CampoSelect
+          etiqueta="Objetivos"
+          value={filtroObjetivos}
+          onChange={(e) => setFiltroObjetivos(e.target.value as "todos" | "con" | "sin")}
+        >
+          <option value="todos">Todos</option>
+          <option value="con">Con objetivos</option>
+          <option value="sin">Sin objetivos</option>
+        </CampoSelect>
       </div>
 
       <Tabla>
@@ -221,11 +229,7 @@ function BandejaEquipo({
           {filasVisibles.length === 0 ? (
             <tr>
               <td colSpan={verTodasLasSedes ? 5 : 4} className="px-4 py-6 text-center text-sm text-taupe">
-                {filas.length === 0
-                  ? "No hay personas activas."
-                  : mostrarTodos
-                    ? "Ningún nombre coincide con la búsqueda."
-                    : "Nadie necesita atención con este filtro — prueba «Ver a todos» para revisar el resto."}
+                {filas.length === 0 ? "No hay personas activas." : "Nadie coincide con estos filtros."}
               </td>
             </tr>
           ) : (
@@ -256,15 +260,6 @@ function BandejaEquipo({
           )}
         </tbody>
       </Tabla>
-
-      {!mostrarTodos && cumplidosOcultos > 0 && (
-        <button
-          onClick={() => setMostrarTodos(true)}
-          className="mt-2 text-xs text-taupe underline underline-offset-2 hover:text-tinta"
-        >
-          Ver también a quienes ya cumplieron ({cumplidosOcultos})
-        </button>
-      )}
     </div>
   );
 }
