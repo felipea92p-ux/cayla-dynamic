@@ -16,7 +16,7 @@
 // ============================================================================
 import { describe, expect, it } from "vitest";
 import {
-  agruparPorGrupo, agruparHallazgos, avanceDelPeriodo, ceseRespectoDelPeriodo, desgloseDe, grupoDe,
+  agruparPorGrupo, agruparHallazgos, avanceDelPeriodo, ceseRespectoDelPeriodo, claveFila, desgloseDe, grupoDe,
   hallazgosDePersona, lecturaDelEstado, liquidacionResuelta, periodoInicialSugerido,
   periodosAnterioresSinPagar, periodosVencidosSinPagar, sumarFilas,
 } from "../apps/web/lib/admin/planilla/revision";
@@ -135,6 +135,39 @@ describe("frenos y avisos", () => {
     ]);
     expect(g[0].codigo).toBe("dias_sin_confirmar");
     expect(g[0].personas[0].nombre).toBe("Bea");
+  });
+
+  // Caso Ruben Dulce (jul-2026): cesó de RxH a mitad de julio, y el periodo lo
+  // cuenta con DOS filas — misma persona_id, tipo_vinculo distinto ("planilla"
+  // y "rxh"), cada una con su propio total/descuentos. Un mapa indexado solo
+  // por persona_id no puede guardar las dos: la segunda que se procese pisa a
+  // la primera, y da igual desde cuál fila se pregunte, siempre se recibe la
+  // que quedó guardada al final. Así fue como un "Ya le pagué aparte" puesto
+  // correctamente en la fila de RxH no destrababa su pago — el diálogo de
+  // cierre seguía leyendo el hallazgo de su fila de Planilla, nunca tocada.
+  it("dos filas de la MISMA persona (cambió de grupo a mitad de periodo) no se pisan", () => {
+    const planilla = fila({ persona_id: "ruben", nombre: "Ruben Dulce", tipo_vinculo: "planilla", total: 218.99, descuentos: 0 });
+    const rxh = fila({ persona_id: "ruben", nombre: "Ruben Dulce", tipo_vinculo: "rxh", total: -112.10, descuentos: 315.92 });
+    expect(claveFila(planilla)).not.toBe(claveFila(rxh));
+
+    const liq = { cobro_del_periodo: 315.92, total_liquidacion: 315.92, pagada_el: "2026-08-06", fecha_cese: "2026-07-17" };
+    // Un mapa por claveFila SÍ guarda las dos: la de Planilla sigue bloqueada
+    // (nunca se le puso el descuento), la de RxH ya quedó resuelta.
+    const m = new Map<string, ReturnType<typeof hallazgosDePersona>>();
+    for (const f of [planilla, rxh]) m.set(claveFila(f), hallazgosDePersona(f, { liquidada: liq }));
+    expect(m.get(claveFila(planilla))!.some((h) => h.codigo === "liquidacion_sin_descuento")).toBe(true);
+    expect(m.get(claveFila(rxh))!.some((h) => h.codigo === "liquidacion_sin_descuento")).toBe(false);
+
+    // agruparHallazgos ya traía una entrada por fila (no colapsaba); lo que
+    // faltaba es que cada una supiera de qué grupo es, sin volver a adivinarlo
+    // con un mapa aparte indexado por persona_id (el mismo problema, dos veces).
+    const g = agruparHallazgos([
+      { fila: planilla, hallazgos: m.get(claveFila(planilla))! },
+      { fila: rxh, hallazgos: m.get(claveFila(rxh))! },
+    ]);
+    const bloqueo = g.find((x) => x.codigo === "liquidacion_sin_descuento")!;
+    expect(bloqueo.personas).toHaveLength(1);
+    expect(bloqueo.personas[0]).toMatchObject({ persona_id: "ruben", grupo: "planilla" });
   });
 });
 

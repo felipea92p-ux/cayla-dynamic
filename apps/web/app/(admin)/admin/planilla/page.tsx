@@ -50,7 +50,7 @@ import { QueCambio } from "@/components/planilla/que-cambio";
 import { PanelFeriados } from "@/components/planilla/panel-feriados";
 import { MESES_LARGO, fechaCorta, fechaLargaLima, fmtHoras, sumarDias } from "@/lib/admin/planilla/formato";
 import {
-  agruparHallazgos, agruparPorGrupo, avanceDelPeriodo, ceseRespectoDelPeriodo, grupoDe, hallazgosDePersona,
+  agruparHallazgos, agruparPorGrupo, avanceDelPeriodo, ceseRespectoDelPeriodo, claveFila, grupoDe, hallazgosDePersona,
   lecturaDelEstado, periodoInicialSugerido, periodosAnterioresSinPagar, periodosVencidosSinPagar, sumarFilas,
   type Cese, type Hallazgo, type LecturaEstado,
 } from "@/lib/admin/planilla/revision";
@@ -165,7 +165,10 @@ export default function PlanillaPage() {
   const [nombreFiltro, setNombreFiltro] = useState("");
   const [soloRevisar, setSoloRevisar] = useState(false);
   const [tablaTab, setTablaTab] = useState<TipoVinculo>("planilla");
-  const [personaAbierta, setPersonaAbierta] = useState<string | null>(null);
+  // Qué FILA está abierta en el panel — no qué persona. `claveFila` (persona_id
+  // + grupo) porque alguien que cambió de tipo_vinculo a mitad de periodo
+  // tiene dos filas, y persona_id solo no alcanza para saber cuál de las dos.
+  const [filaAbiertaClave, setFilaAbiertaClave] = useState<string | null>(null);
   const disparadorPersona = useRef<HTMLElement | null>(null);
   const [mostrandoHistorial, setMostrandoHistorial] = useState(false);
   const [mostrandoProvisiones, setMostrandoProvisiones] = useState(false);
@@ -330,7 +333,7 @@ export default function PlanillaPage() {
 
   function elegirPeriodo(id: string | null) {
     // Cambiar de periodo cierra lo abierto y despinta la proyección vieja: no puede quedar visible ni editable.
-    setPersonaAbierta(null);
+    setFilaAbiertaClave(null);
     setProy(null);
     setPeriodoSel(id);
   }
@@ -381,15 +384,19 @@ export default function PlanillaPage() {
     for (const f of filasTodas) m.set(f.persona_id, ceseRespectoDelPeriodo(f.estado, fechasCese[f.persona_id], proy.fecha_ini, proy.fecha_fin));
     return m;
   }, [filasTodas, fechasCese, proy]);
+  // Llave por FILA (claveFila), no por persona: alguien con dos filas en el
+  // periodo (cambió de tipo_vinculo a mitad de mes) necesita sus dos listas de
+  // hallazgos por separado — con `persona_id` a secas, la segunda fila procesada
+  // pisaba a la primera y las dos terminaban leyendo el hallazgo de una sola.
   const hallazgos = useMemo(() => {
     const m = new Map<string, Hallazgo[]>();
     for (const f of filasTodas) {
-      m.set(f.persona_id, hallazgosDePersona(f, { liquidada: liquidadas[f.persona_id] ?? null, cese: ceses.get(f.persona_id) ?? null }));
+      m.set(claveFila(f), hallazgosDePersona(f, { liquidada: liquidadas[f.persona_id] ?? null, cese: ceses.get(f.persona_id) ?? null }));
     }
     return m;
   }, [filasTodas, liquidadas, ceses]);
   const hallazgosAgrupados = useMemo(
-    () => agruparHallazgos(filasTodas.map((f) => ({ fila: f, hallazgos: hallazgos.get(f.persona_id) ?? [] }))),
+    () => agruparHallazgos(filasTodas.map((f) => ({ fila: f, hallazgos: hallazgos.get(claveFila(f)) ?? [] }))),
     [filasTodas, hallazgos],
   );
   const totalesPeriodo = useMemo(() => sumarFilas(filasTodas), [filasTodas]);
@@ -413,7 +420,7 @@ export default function PlanillaPage() {
     () => filasGrupo.filter((f) =>
       (sedeFiltro === "todas" || f.sede === sedeFiltro)
       && (!nombreBuscado || f.nombre.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().includes(nombreBuscado))
-      && (!soloRevisar || (hallazgos.get(f.persona_id) ?? []).some((h) => h.severidad !== "informa"))),
+      && (!soloRevisar || (hallazgos.get(claveFila(f)) ?? []).some((h) => h.severidad !== "informa"))),
     [filasGrupo, sedeFiltro, nombreBuscado, soloRevisar, hallazgos],
   );
   const limpiarFiltros = () => { setSedeFiltro("todas"); setNombreFiltro(""); setSoloRevisar(false); };
@@ -480,15 +487,18 @@ export default function PlanillaPage() {
     return personas > 0 ? { personas, movimientos, total } : null;
   }, [gc]);
 
-  const filaAbierta = personaAbierta ? filasTodas.find((f) => f.persona_id === personaAbierta) ?? null : null;
+  const filaAbierta = filaAbiertaClave ? filasTodas.find((f) => claveFila(f) === filaAbiertaClave) ?? null : null;
   const cesaron = (filas: Fila[]) =>
     filas.filter((f) => { const c = ceses.get(f.persona_id); return c != null && c.tipo !== "despues"; }).length;
 
-  function abrirPersonaPorId(personaId: string) {
-    const g = grupoDePersona.get(personaId);
-    if (g) setTablaTab(g);
+  // `grupo` viene de quien llama (cada hallazgo ya sabe de qué fila es, ver
+  // HallazgoAgrupado.personas) — no se vuelve a adivinar con grupoDePersona,
+  // que tiene el mismo problema de "la última fila pisa a la anterior" que
+  // tenía `hallazgos` antes de esta migración de llave.
+  function abrirPersonaPorId(personaId: string, grupo: TipoVinculo) {
+    setTablaTab(grupo);
     disparadorPersona.current = document.activeElement as HTMLElement | null;
-    setPersonaAbierta(personaId);
+    setFilaAbiertaClave(`${personaId}:${grupo}`);
   }
 
   async function recargarTodo() {
@@ -865,7 +875,6 @@ export default function PlanillaPage() {
               <div className="grid gap-4 xl:grid-cols-[3fr_2fr]">
                 <RequiereAtencion
                   hallazgos={hallazgosAgrupados}
-                  grupoDe={grupoDePersona}
                   grupoActivo={tab}
                   onAbrirPersona={abrirPersonaPorId}
                   extra={pendientesGratiCts ? (
@@ -1024,7 +1033,7 @@ export default function PlanillaPage() {
                 filtrado={filtrado}
                 hallazgos={hallazgos}
                 ceses={ceses}
-                onAbrir={(f, el) => { disparadorPersona.current = el; setPersonaAbierta(f.persona_id); }}
+                onAbrir={(f, el) => { disparadorPersona.current = el; setFilaAbiertaClave(claveFila(f)); }}
               />
 
               {/* ── Provisiones (secundario) ──────────────────────────────── */}
@@ -1124,13 +1133,13 @@ export default function PlanillaPage() {
       {proy?.periodo_id && (
         <PanelPersona
           fila={filaAbierta}
-          onCerrar={() => setPersonaAbierta(null)}
+          onCerrar={() => setFilaAbiertaClave(null)}
           volverElFocoA={disparadorPersona}
           periodoId={proy.periodo_id}
           pagado={filaAbierta ? grupos?.find((g) => g.grupo === grupoDe(filaAbierta))?.estado === "pagado" : false}
           liquidada={filaAbierta ? liquidadas[filaAbierta.persona_id] ?? null : null}
           cese={filaAbierta ? ceses.get(filaAbierta.persona_id) ?? null : null}
-          hallazgos={filaAbierta ? hallazgos.get(filaAbierta.persona_id) ?? [] : []}
+          hallazgos={filaAbierta ? hallazgos.get(claveFila(filaAbierta)) ?? [] : []}
           gc={gc}
           origenes={origenes}
           supabase={supabase}
@@ -1153,7 +1162,7 @@ export default function PlanillaPage() {
           periodo={periodoActual}
           totales={sumarFilas(filasRevisando)}
           cesaron={cesaron(filasRevisando)}
-          hallazgos={agruparHallazgos(filasRevisando.map((f) => ({ fila: f, hallazgos: hallazgos.get(f.persona_id) ?? [] })))}
+          hallazgos={agruparHallazgos(filasRevisando.map((f) => ({ fila: f, hallazgos: hallazgos.get(claveFila(f)) ?? [] })))}
           anteriores={anterioresParaCierre}
           guardando={guardandoPeriodo}
           onCerrar={() => setRevisandoGrupo(null)}
