@@ -19,7 +19,7 @@ import { formatSoles, RANGO_LABEL } from "@/lib/rangos";
 import { Insignia } from "@/components/ui/insignia";
 import { Tabla, TablaEncabezado, Th, Fila as FilaTabla } from "@/components/ui/tabla";
 import { fechaCorta, fechaDiaMes, fmtHoras } from "@/lib/admin/planilla/formato";
-import { sumarFilas, textoCese, type Cese, type Hallazgo } from "@/lib/admin/planilla/revision";
+import { claveFila, sumarFilas, textoCese, type Cese, type Hallazgo } from "@/lib/admin/planilla/revision";
 import type { Fila } from "@/lib/admin/planilla/tipos";
 
 // Contadas: Persona · Sede · Rango y salario · Horas · Pago base · Feriados ·
@@ -122,7 +122,7 @@ export function TablaPlanilla({
               </tr>
             )}
             {filas.map((f) => {
-              const hs = hallazgos?.get(f.persona_id) ?? [];
+              const hs = hallazgos?.get(claveFila(f)) ?? [];
               const cese = ceses?.get(f.persona_id) ?? null;
               const frena = hs.some((h) => h.severidad === "bloquea");
               return (
@@ -243,7 +243,7 @@ export function TablaPlanilla({
         ) : (
           <ul className="space-y-2">
             {filas.map((f) => {
-              const hs = hallazgos?.get(f.persona_id) ?? [];
+              const hs = hallazgos?.get(claveFila(f)) ?? [];
               const cese = ceses?.get(f.persona_id) ?? null;
               const contenido = (
                 <>

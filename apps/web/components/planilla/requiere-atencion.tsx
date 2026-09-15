@@ -39,11 +39,10 @@ const SEVERIDAD: Record<Severidad, { etiqueta: string; variante: "alerta" | "adv
   informa: { etiqueta: "Para saber", variante: "neutral" },
 };
 
-function Item({ h, grupoDe, grupoActivo, onAbrirPersona }: {
+function Item({ h, grupoActivo, onAbrirPersona }: {
   h: HallazgoAgrupado;
-  grupoDe: Map<string, TipoVinculo>;
   grupoActivo: TipoVinculo;
-  onAbrirPersona: (personaId: string) => void;
+  onAbrirPersona: (personaId: string, grupo: TipoVinculo) => void;
 }) {
   const [abierto, setAbierto] = useState(h.severidad === "bloquea");
   const s = SEVERIDAD[h.severidad];
@@ -63,22 +62,22 @@ function Item({ h, grupoDe, grupoActivo, onAbrirPersona }: {
       </button>
       {abierto && (
         <ul className="mt-2 space-y-1 pl-1 text-sm">
-          {h.personas.map((p) => {
-            const g = grupoDe.get(p.persona_id);
-            return (
-              <li key={p.persona_id} className="flex flex-wrap items-baseline gap-x-2">
-                <button
-                  type="button"
-                  onClick={() => onAbrirPersona(p.persona_id)}
-                  className="font-medium text-tinta underline decoration-taupe/30 underline-offset-2 hover:decoration-tinta"
-                >
-                  {p.nombre}
-                </button>
-                {g && g !== grupoActivo && <span className="text-xs text-taupe">({TIPO_VINCULO_LABEL[g]})</span>}
-                <span className="text-taupe">{p.texto}</span>
-              </li>
-            );
-          })}
+          {h.personas.map((p) => (
+            // Llave por persona+grupo: quien cambió de tipo_vinculo a mitad de
+            // periodo puede aparecer aquí dos veces (una fila por grupo), y
+            // `persona_id` a secas chocaría — silenciando la segunda fila.
+            <li key={`${p.persona_id}:${p.grupo}`} className="flex flex-wrap items-baseline gap-x-2">
+              <button
+                type="button"
+                onClick={() => onAbrirPersona(p.persona_id, p.grupo)}
+                className="font-medium text-tinta underline decoration-taupe/30 underline-offset-2 hover:decoration-tinta"
+              >
+                {p.nombre}
+              </button>
+              {p.grupo !== grupoActivo && <span className="text-xs text-taupe">({TIPO_VINCULO_LABEL[p.grupo]})</span>}
+              <span className="text-taupe">{p.texto}</span>
+            </li>
+          ))}
           {h.resolverEn && (
             <li>
               <Link href={h.resolverEn.href} className="text-xs text-taupe underline underline-offset-2 hover:text-tinta">
@@ -92,11 +91,10 @@ function Item({ h, grupoDe, grupoActivo, onAbrirPersona }: {
   );
 }
 
-export function RequiereAtencion({ hallazgos, grupoDe, grupoActivo, onAbrirPersona, extra }: {
+export function RequiereAtencion({ hallazgos, grupoActivo, onAbrirPersona, extra }: {
   hallazgos: HallazgoAgrupado[];
-  grupoDe: Map<string, TipoVinculo>;
   grupoActivo: TipoVinculo;
-  onAbrirPersona: (personaId: string) => void;
+  onAbrirPersona: (personaId: string, grupo: TipoVinculo) => void;
   /** Avisos del periodo que no son de una persona (grati/CTS pendiente…). */
   extra?: ReactNode;
 }) {
@@ -130,7 +128,7 @@ export function RequiereAtencion({ hallazgos, grupoDe, grupoActivo, onAbrirPerso
       {hallazgos.length > 0 && (
         <ul>
           {hallazgos.map((h) => (
-            <Item key={h.codigo} h={h} grupoDe={grupoDe} grupoActivo={grupoActivo} onAbrirPersona={onAbrirPersona} />
+            <Item key={h.codigo} h={h} grupoActivo={grupoActivo} onAbrirPersona={onAbrirPersona} />
           ))}
         </ul>
       )}
