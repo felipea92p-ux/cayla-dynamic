@@ -86,6 +86,19 @@ interface Pendiente {
   es_reenvio: boolean;
 }
 
+interface SolicitudPendiente {
+  id: string;
+  persona_id: string;
+  persona: string;
+  sede: string;
+  institucion: string;
+  costo_declarado: number;
+  vigente_desde: string;
+  vigente_hasta: string;
+  enviada_at: string;
+  comprobante_url: string | null;
+}
+
 interface Entrega {
   id: string;
   asignacion_id: string;
@@ -175,6 +188,7 @@ function EducacionContenido() {
 
   const [situaciones, setSituaciones] = useState<Situacion[]>([]);
   const [pendientes, setPendientes] = useState<Pendiente[]>([]);
+  const [solicitudesPendientes, setSolicitudesPendientes] = useState<SolicitudPendiente[]>([]);
   const [asignaciones, setAsignaciones] = useState<Map<string, Asignacion>>(new Map());
   const [liquidadas, setLiquidadas] = useState<Set<string>>(new Set());
   const [candidatos, setCandidatos] = useState<Candidato[]>([]);
@@ -199,6 +213,11 @@ function EducacionContenido() {
   const botonQueAbrio = useRef<HTMLElement | null>(null);
   const botonRegistrar = useRef<HTMLElement | null>(null);
 
+  // Panel de una solicitud de apoyo (0461): vive aparte del de arriba porque
+  // todavía no hay ninguna asignación/familia a la que colgarlo.
+  const [solicitudAbierta, setSolicitudAbierta] = useState<string | null>(null);
+  const botonSolicitud = useRef<HTMLElement | null>(null);
+
   // Formulario de alta/corrección
   const [mostrandoForm, setMostrandoForm] = useState(false);
   const [editandoId, setEditandoId] = useState<string | null>(null);
@@ -213,9 +232,10 @@ function EducacionContenido() {
     const { data: sesion } = await supabase.auth.getSession();
     if (!sesion.session) { router.replace("/admin/login"); return; }
 
-    const [sit, pend, lista, cands, lim, pf, cfg] = await Promise.all([
+    const [sit, pend, solPend, lista, cands, lim, pf, cfg] = await Promise.all([
       supabase.rpc("fn_educacion_situacion"),
       supabase.rpc("fn_educacion_entregas_pendientes"),
+      supabase.rpc("fn_educacion_solicitudes_pendientes"),
       supabase.rpc("fn_educacion_listar"),
       supabase.rpc("fn_educacion_candidatos"),
       supabase.rpc("fn_educacion_limite_comprobante"),
@@ -224,6 +244,7 @@ function EducacionContenido() {
     ]);
     setSituaciones((sit.data ?? []) as unknown as Situacion[]);
     setPendientes((pend.data ?? []) as unknown as Pendiente[]);
+    setSolicitudesPendientes((solPend.data ?? []) as unknown as SolicitudPendiente[]);
     setAsignaciones(new Map(((lista.data ?? []) as unknown as Asignacion[]).map((a) => [a.id, a])));
     setCandidatos((cands.data ?? []) as unknown as Candidato[]);
     // Quién ya se liquidó (0421/0422): se ocultan por defecto. Si falla, no se oculta a nadie.
@@ -271,6 +292,13 @@ function EducacionContenido() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cargando, entregaPedida, familiaPedida]);
+
+  const solicitudPedida = params.get("solicitud");
+  useEffect(() => {
+    if (cargando || !solicitudPedida) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- abrir el panel que pide la URL, una vez cargados los datos.
+    setSolicitudAbierta(solicitudPedida);
+  }, [cargando, solicitudPedida]);
 
   // ── Resumen accionable y filtros ─────────────────────────────────────────
   const conteo = {
@@ -575,6 +603,29 @@ function EducacionContenido() {
                   <Boton variante="enlace" className="text-xs" onClick={() => setConfigAbierta(true)}>Texto y plazos de las constancias</Boton>
                 </p>
 
+                {/* ── SOLICITUDES DE APOYO (0461): quien todavía no tiene asignación ── */}
+                {solicitudesPendientes.length > 0 && (
+                  <div className="mb-5 rounded-2xl border border-sand bg-hueso p-4">
+                    <h2 className="mb-2 font-serif text-base">
+                      Solicitudes de apoyo por revisar ({solicitudesPendientes.length})
+                    </h2>
+                    <ul className="flex flex-col divide-y divide-sand">
+                      {solicitudesPendientes.map((s) => (
+                        <li key={s.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
+                          <span>
+                            <span className="font-medium">{s.persona}</span>
+                            <span className="text-taupe"> · {s.sede} · {s.institucion} · costo declarado {soles(s.costo_declarado)}</span>
+                          </span>
+                          <Boton tamano="sm" variante="primario"
+                            onClick={(e) => { botonSolicitud.current = e.currentTarget; setSolicitudAbierta(s.id); }}>
+                            Revisar →
+                          </Boton>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
                 {/* ── FILTROS ─────────────────────────────────────────────────── */}
                 <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
                   <div className="sm:col-span-2 lg:col-span-2">
@@ -751,6 +802,18 @@ function EducacionContenido() {
           titulo={editandoId ? "Corregir asignación" : "Registrar asignación"}
           volverElFocoA={botonRegistrar} ancho="amplio">
           {formulario}
+        </Drawer>
+
+        <Drawer abierto={solicitudAbierta !== null} onCerrar={() => setSolicitudAbierta(null)}
+          titulo="Solicitud de apoyo educativo" volverElFocoA={botonSolicitud}>
+          {solicitudAbierta && (
+            <PanelSolicitud
+              id={solicitudAbierta}
+              solicitud={solicitudesPendientes.find((s) => s.id === solicitudAbierta) ?? null}
+              onCambio={async (texto) => { setSolicitudAbierta(null); avisar("ok", texto); await cargar(); }}
+              onError={(texto) => avisar("error", texto)}
+            />
+          )}
         </Drawer>
 
         <ConfigConstancias abierto={configAbierta} config={config} onCerrar={() => setConfigAbierta(false)}
@@ -1131,6 +1194,94 @@ function CargaAlNombre({ s, onCancelar, onListo, onError }: {
         <Boton variante="primario" tamano="sm" cargando={enviando} onClick={() => void enviar()}>Cargar y aprobar</Boton>
         <Boton tamano="sm" onClick={onCancelar} disabled={enviando}>Cancelar</Boton>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Revisar una solicitud de apoyo educativo (0461): aprobar nace la asignación
+ * con el mismo cálculo de siempre (fn_educacion_registrar, por dentro de
+ * fn_educacion_resolver_solicitud); rechazar exige motivo, que la integrante
+ * lee y puede corregir.
+ */
+function PanelSolicitud({
+  id, solicitud, onCambio, onError,
+}: {
+  id: string;
+  solicitud: SolicitudPendiente | null;
+  onCambio: (texto: string) => Promise<void>;
+  onError: (texto: string) => void;
+}) {
+  const supabase = useMemo(() => createAdminSupabaseClient(), []);
+  const [rechazando, setRechazando] = useState(false);
+  const [motivo, setMotivo] = useState("");
+  const [enviando, setEnviando] = useState(false);
+
+  async function aprobar() {
+    setEnviando(true);
+    const { error } = await supabase.rpc("fn_educacion_resolver_solicitud", { p_id: id, p_aprobar: true });
+    setEnviando(false);
+    if (error) { onError(mensajeDeError(error, "aprobar la solicitud")); return; }
+    await onCambio(`Solicitud de ${solicitud?.persona ?? "la integrante"} aprobada. La asignación ya está activa.`);
+  }
+
+  async function rechazar() {
+    if (motivo.trim().length < 3) { onError("Escribe qué corregir: la integrante lo va a leer."); return; }
+    setEnviando(true);
+    const { error } = await supabase.rpc("fn_educacion_resolver_solicitud", {
+      p_id: id, p_aprobar: false, p_motivo: motivo.trim(),
+    });
+    setEnviando(false);
+    if (error) { onError(mensajeDeError(error, "rechazar la solicitud")); return; }
+    await onCambio(`Solicitud de ${solicitud?.persona ?? "la integrante"} rechazada.`);
+  }
+
+  if (!solicitud) {
+    return <p className="text-sm text-taupe">Ya no está pendiente: alguien más la revisó recién.</p>;
+  }
+
+  return (
+    <div className="flex flex-col gap-4 text-sm">
+      <div>
+        <p className="font-medium">{solicitud.persona}</p>
+        <p className="text-taupe">{solicitud.sede} · {solicitud.institucion}</p>
+      </div>
+      <dl className="grid grid-cols-2 gap-3">
+        <div><dt className="text-xs text-taupe">Costo declarado</dt><dd className="tabular-nums">{soles(solicitud.costo_declarado)}</dd></div>
+        <div><dt className="text-xs text-taupe">Pedida el</dt><dd>{fechaCorta(solicitud.enviada_at)}</dd></div>
+        <div><dt className="text-xs text-taupe">Desde</dt><dd>{fechaCorta(solicitud.vigente_desde)}</dd></div>
+        <div><dt className="text-xs text-taupe">Hasta</dt><dd>{fechaCorta(solicitud.vigente_hasta)}</dd></div>
+      </dl>
+      <p className="rounded-xl bg-hueso p-3 text-xs text-taupe">
+        El apoyo mensual se calcula al aprobar (75 % del costo, sin pasar el techo del rango) — el mismo cálculo
+        de siempre. No lo declara la integrante.
+      </p>
+      {solicitud.comprobante_url ? (
+        <Boton variante="enlace" className="w-fit text-xs" onClick={async () => {
+          const error = await abrirArchivoFirmado(supabase, BUCKET_COMPROBANTES, solicitud.comprobante_url!);
+          if (error) onError(error);
+        }}>
+          Ver comprobante adjunto
+        </Boton>
+      ) : (
+        <p className="text-xs text-taupe">No adjuntó comprobante todavía.</p>
+      )}
+
+      {!rechazando ? (
+        <div className="flex gap-2">
+          <Boton variante="primario" cargando={enviando} onClick={() => void aprobar()}>Aprobar</Boton>
+          <Boton variante="peligro" onClick={() => setRechazando(true)} disabled={enviando}>Rechazar</Boton>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2">
+          <AreaTexto rows={3} value={motivo} onChange={(e) => setMotivo(e.target.value)} autoFocus
+            placeholder="Qué tiene que corregir la integrante" aria-label="Motivo del rechazo" />
+          <div className="flex gap-2">
+            <Boton variante="peligro" cargando={enviando} onClick={() => void rechazar()}>Confirmar rechazo</Boton>
+            <Boton onClick={() => { setRechazando(false); setMotivo(""); }} disabled={enviando}>Cancelar</Boton>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

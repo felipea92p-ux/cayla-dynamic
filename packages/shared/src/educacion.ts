@@ -92,6 +92,21 @@ export function constanciaPideAlgoALaIntegrante(estado: EstadoConstancia): boole
   return estado === "rechazada" || estado === "vencida" || estado === "por_vencer" || estado === "falta_enviar";
 }
 
+/**
+ * Lo que pide una integrante que todavía no tiene un apoyo educativo (0461):
+ * el mismo formulario que usa DO para dar de alta, pero sin el monto —eso lo
+ * sigue calculando el sistema al aprobar—. Espejo de
+ * `educacion_solicitud_estado_valido`.
+ */
+export type EstadoSolicitud = "pendiente" | "aprobada" | "rechazada" | "retirada";
+
+export const ESTADO_SOLICITUD: Record<EstadoSolicitud, { etiqueta: string; tono: TonoEstado }> = {
+  pendiente: { etiqueta: "Pendiente de revisión", tono: "informativo" },
+  aprobada: { etiqueta: "Aprobada", tono: "positivo" },
+  rechazada: { etiqueta: "Rechazada", tono: "alerta" },
+  retirada: { etiqueta: "Retirada", tono: "neutral" },
+};
+
 // Espejo de los límites que valida `fn_educacion_enviar_entrega` contra el
 // almacén. Acá solo sirven para avisar ANTES de subir; si discrepan, manda la base.
 export const ARCHIVOS_POR_ENTREGA = 10;
