@@ -12,3 +12,4 @@ export * from "./empresa";
 export * from "./clave";
 export * from "./duracion";
 export * from "./educacion";
+export * from "./ventanas-beneficio";
