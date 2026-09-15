@@ -21,6 +21,7 @@ import {
   periodosAnterioresSinPagar, periodosVencidosSinPagar, sumarFilas,
 } from "../apps/web/lib/admin/planilla/revision";
 import type { Fila, GrupoPago, PeriodoInfo } from "../apps/web/lib/admin/planilla/tipos";
+import { COLUMNAS_QUE_RESTAN, COLUMNAS_QUE_SUMAN, filasCsvPlanilla } from "../apps/web/lib/admin/planilla/csv-planilla";
 
 function fila(p: Partial<Fila> = {}): Fila {
   return {
@@ -187,5 +188,32 @@ describe("periodos", () => {
     expect(lecturaDelEstado(ago, grupos, "2026-09-15")).toBe("pagado_en_parte");
     expect(lecturaDelEstado(ago, grupos.map((g) => ({ ...g, estado: "abierto" as const })), "2026-09-15")).toBe("vencido");
     expect(lecturaDelEstado(sep, null, "2026-09-15")).toBe("abierto");
+  });
+});
+
+describe("CSV para el contador", () => {
+  const filas = [
+    fila({ persona_id: "p", nombre: "Pia", tipo_vinculo: "practicante", en_planilla: false, pago_base: 500, monto_movilidad: 60, total: 560 }),
+    fila({
+      persona_id: "a", nombre: "Ana", pago_base: 1200, monto_feriados: 40, asignacion_familiar: 113, monto_educacion: 100,
+      bonos: 50, monto_sobretiempo: 12.5, monto_descanso_semanal: 30, descuento_afp: 156, descuentos: 20,
+      total: 1200 + 40 + 113 + 100 + 50 + 12.5 + 30 - 156 - 20,
+    }),
+    fila({ persona_id: "c", nombre: "Cesia", estado: "inactivo", pago_base: 234.39, total: 234.39 }),
+  ];
+  const csv = filasCsvPlanilla(filas, (id) => (id === "c" ? { tipo: "durante", fecha: "2026-09-10" } : null));
+
+  it("la columna total se reconstruye con sus propias columnas, fila por fila", () => {
+    for (const r of csv) {
+      const suma = COLUMNAS_QUE_SUMAN.reduce((a, k) => a + Number(r[k]), 0)
+        - COLUMNAS_QUE_RESTAN.reduce((a, k) => a + Number(r[k]), 0);
+      expect(suma).toBeCloseTo(r.total, 2);
+    }
+  });
+
+  it("sale completo, con grupo y con quien cesó, ordenado por grupo", () => {
+    expect(csv.map((r) => r.nombre)).toEqual(["Ana", "Cesia", "Pia"]);
+    expect(csv.map((r) => r.grupo)).toEqual(["Planilla", "Planilla", "Practicantes"]);
+    expect(csv[1].situacion_en_periodo).toBe("Cesó el 10 sep");
   });
 });
