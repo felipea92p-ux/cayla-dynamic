@@ -319,7 +319,8 @@ with repo(numero, nombre, nunca) as (values
     (452, 'eliminar_un_periodo_deja_rastro', false),
     (453, 'la_bandeja_vuelve_a_reconocer_educacion', false),
     (454, 'liquidaciones_fecha_de_pago_y_diferencia_por_cierre', false),
-    (455, 'una_ausencia_registrada_despues_frena_la_firma_de_una_falta', false)
+    (455, 'una_ausencia_registrada_despues_frena_la_firma_de_una_falta', false),
+    (461, 'el_colaborador_pide_su_apoyo_educativo', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
