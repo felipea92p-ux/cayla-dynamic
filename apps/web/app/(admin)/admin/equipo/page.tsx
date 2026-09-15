@@ -1212,7 +1212,8 @@ export default function EquipoPage() {
         </select>
       </label>
       <label className="flex flex-col gap-1 text-sm">
-        Rol
+        Rol{" "}
+        <span className="text-taupe">(qué pantallas puede abrir en Dynamic — no es su cargo)</span>
         <select value={form.rol} onChange={(e) => setForm({ ...form, rol: e.target.value as Rol })} className="rounded-lg border bg-crema px-3 py-2">
           {ROLES_OPCIONES.map((r) => (
             <option key={r.valor} value={r.valor}>{r.label}</option>
@@ -1225,14 +1226,13 @@ export default function EquipoPage() {
       <label className="flex flex-col gap-1 text-sm">
         Cargo{" "}
         <span className="text-taupe">
-          (cómo se la nombra en pantalla: «Socia», «Asesor». Vacío = se muestra el rol.
-          No cambia ningún permiso)
+          (cómo se la nombra en la columna Cargo y en su contrato. No cambia ningún permiso)
         </span>
         <input
           type="text"
           value={form.cargo}
           onChange={(e) => setForm({ ...form, cargo: e.target.value })}
-          placeholder="—"
+          placeholder="Ej.: Practicante de Derecho, Socia, Asesor"
           maxLength={60}
           className="rounded-lg border bg-crema px-3 py-2"
         />
@@ -1944,7 +1944,7 @@ export default function EquipoPage() {
                 <TablaEncabezado>
                   <Th>Nombre</Th>
                   <Th>Sede</Th>
-                  <Th>Rol</Th>
+                  <Th>Cargo</Th>
                   <Th>Área</Th>
                   {puedeSalarios && <Th>Salario</Th>}
                   <Th>Correo</Th>
@@ -1964,12 +1964,20 @@ export default function EquipoPage() {
                           (encargada)» y «Admin». Cargo de mando, área, sede, rango
                           y monto fijo son los indicios que desnaturalizan una
                           locación de servicios, y el expediente lo armaba esta
-                          misma celda. Sin cargo escrito, se muestra el rol como
-                          siempre. */}
+                          misma celda.
+
+                          Desde el 2026-09-15 la columna se llama «Cargo» —como el
+                          campo de Editar— y sin cargo escrito dice «Sin cargo» en
+                          vez de caer al rol. Antes se titulaba «Rol» y mostraba el
+                          cargo: quien la leía buscaba en Editar el campo «Rol»,
+                          encontraba integrante/líder, y no entendía de dónde salía
+                          «Practicante de Ingeniería». Una columna «Cargo» que
+                          muestra «Integrante» repetiría esa misma confusión: el
+                          rol se ve y se cambia en Editar. */}
                       <td className="px-4 py-2">
                         {p.cargo !== null && p.cargo !== ""
                           ? <span className="whitespace-nowrap">{p.cargo}</span>
-                          : (ROLES_OPCIONES.find((r) => r.valor === p.rol)?.label ?? p.rol)}
+                          : <span className="text-taupe">Sin cargo</span>}
                       </td>
                       <td className="px-4 py-2">
                         {esOperativaEn(areas, p.funcion)
@@ -2022,11 +2030,11 @@ export default function EquipoPage() {
                       <dd>{codigoSede(p.sede_base_id)}</dd>
                     </div>
                     <div>
-                      <dt className="text-xs text-taupe">Rol</dt>
+                      <dt className="text-xs text-taupe">Cargo</dt>
                       <dd>
                         {p.cargo !== null && p.cargo !== ""
                           ? p.cargo
-                          : (ROLES_OPCIONES.find((r) => r.valor === p.rol)?.label ?? p.rol)}
+                          : <span className="text-taupe">Sin cargo</span>}
                       </dd>
                     </div>
                     <div>
