@@ -37,7 +37,8 @@ select
   (fn_hoy_lima() - 150) as julio_ini, (fn_hoy_lima() - 121) as julio_fin,
   (fn_hoy_lima() - 90)  as agosto_ini, (fn_hoy_lima() - 61) as agosto_fin,
   (fn_hoy_lima() - 150) as vieja_ingreso,  -- ya existía en los dos periodos
-  (fn_hoy_lima() - 30)  as fantasma_ingreso;  -- ingresó después de los dos
+  (fn_hoy_lima() - 30)  as fantasma_ingreso,  -- ingresó después de los dos
+  (fn_hoy_lima() - 100) as rxhreal_cese;  -- entre julio y agosto — dentro de ninguno
 
 -- Vieja: grupo 'planilla', con salario, en las dos ventanas.
 insert into personas (id, nombres, apellidos, sede_base_id, estado, pin_hash, fecha_ingreso, tipo_vinculo, sueldo_fijo)
@@ -51,12 +52,14 @@ values ('cccccccc-0464-0000-0000-000000000002', 'colibri', 1950, '2020-01-01');
 -- 'inactivo'` a propósito: si estuviera activa, la propia rama "está activo y
 -- ya existía" (la que la 0463 deja intacta) la haría aparecer TAMBIÉN en
 -- agosto con una fila en cero — el mismo comportamiento correcto que ya
--- documenta la 0274 para provisiones, no un defecto. Inactiva, solo la
--- rescata la rama de "tiene una jornada real en el rango": aparece en julio
--- (donde sí marcó) y en agosto no aparece en absoluto.
-insert into personas (id, nombres, apellidos, sede_base_id, estado, pin_hash, fecha_ingreso, tipo_vinculo, sueldo_fijo)
+-- documenta la 0274 para provisiones, no un defecto. Inactiva y con el cese
+-- ENTRE los dos periodos —no dentro de ninguno—, solo la rescata la rama de
+-- "tiene una jornada real en el rango" (0416 no aplica: su cese no cae en
+-- ninguno de los dos): aparece en julio, donde sí marcó, y en agosto no
+-- aparece. `personas_cese_coherente` (0086) exige la fecha si es inactiva.
+insert into personas (id, nombres, apellidos, sede_base_id, estado, pin_hash, fecha_ingreso, fecha_cese, tipo_vinculo, sueldo_fijo)
 select 'cccccccc-0464-0000-0000-000000000003', 'RxhReal', 'DeJulio',
-       'aaaaaaaa-0464-0000-0000-000000000001', 'inactivo', 'x', d.vieja_ingreso, 'rxh', false
+       'aaaaaaaa-0464-0000-0000-000000000001', 'inactivo', 'x', d.vieja_ingreso, d.rxhreal_cese, 'rxh', false
   from _datos d;
 insert into asignaciones_salario (persona_id, rango, salario_mensual_soles, vigente_desde)
 values ('cccccccc-0464-0000-0000-000000000003', 'colibri', 1950, '2020-01-01');
