@@ -55,9 +55,6 @@ export interface Urgencia {
 /** Desde qué día de espera una respuesta pendiente cuenta como atrasada. */
 export const DIAS_ESPERA_ATRASADA = 8;
 
-/** Hasta cuántos días antes de vencer una asignación de Educación es «próxima» — el mismo 30 de `semaforo = 'por_vencer'` (0290). */
-const DIAS_POR_VENCER_EDUCACION = 30;
-
 /** «Vence hoy», «Vence mañana», «Vence en 12 días», «Venció hace 3 días». */
 export function enDias(dias: number, verbo: { futuro: string; pasado: string }): string {
   if (dias < 0) {
@@ -72,40 +69,58 @@ export function enDias(dias: number, verbo: { futuro: string; pasado: string }):
 const VENCE = { futuro: "Vence", pasado: "Venció" };
 const EMPIEZAN = { futuro: "Empiezan", pasado: "Empezaron" };
 
-export interface AsignacionEducacion {
-  dias_para_vencer: number;
-  semaforo: string;
-  meses_sin_papel: number;
-  vigente_hasta: string;
+/**
+ * Un estudio que la Bandeja tiene que tener presente, tal como lo contesta
+ * `fn_educacion_situacion` (0450). Quién entra lo decide `esEducacionParaSaber`
+ * (lib/admin/bandeja-equipo.ts); acá solo se ordena.
+ */
+export interface EstudioEducacion {
+  estado_constancia: string;
+  vigencia: string;
+  plazo: string | null;
+  fecha_pago_constancia: string | null;
+  pago_proximo: boolean;
+  dias_para_pago: number | null;
+  proxima_fecha_pago: string | null;
 }
 
 /**
- * El PLAZO de una asignación. Separado a propósito del estado de sus papeles
- * (`documentoEducacion`): antes una sola etiqueta decía «vencida» y escondía
- * que lo que había que hacer era subir el papel de un mes ya pagado.
+ * ⇩ CAMBIO 0450 ⇩ El plazo de un estudio se mide contra su CONSTANCIA, no contra
+ * el fin de la asignación. Hasta la 0450 «vence en 0 días» era la vigencia del
+ * beneficio —casi siempre una renovación normal— pintada con la misma urgencia
+ * que un papel que falta. Ahora:
+ *   · constancia vencida      → Vencido, desde el día de su plazo;
+ *   · pago a la institución   → Hoy / Próximos, por la fecha del pago (el aviso
+ *                               que DO pidió para tener el apoyo listo);
+ *   · estudio sin calendario  → Sin plazo: no hay fecha contra la que medir.
  */
-export function urgenciaEducacion(f: AsignacionEducacion): Urgencia {
-  const d = f.dias_para_vencer;
-  if (d < 0) return { grupo: "vencido", plazo: enDias(d, VENCE), nota: `el ${diaYMes(f.vigente_hasta)}`, orden: d };
-  // `dias_para_vencer = 0` es el ÚLTIMO día de vigencia: todavía paga hoy.
-  if (d === 0) return { grupo: "hoy", plazo: "Vence hoy", nota: "último día con pago", orden: 0 };
-  if (d <= DIAS_POR_VENCER_EDUCACION) {
-    return { grupo: "proximo", plazo: enDias(d, VENCE), nota: `el ${diaYMes(f.vigente_hasta)}`, orden: d };
+export function urgenciaEducacion(f: EstudioEducacion, hoy: string = hoyLima()): Urgencia {
+  if (f.estado_constancia === "vencida") {
+    const d = f.plazo ? diasEntre(hoy, f.plazo) : -1;
+    return {
+      grupo: "vencido",
+      plazo: f.plazo ? enDias(d, VENCE) : "Constancia vencida",
+      nota: f.fecha_pago_constancia ? `pago del ${diaYMes(f.fecha_pago_constancia)}` : null,
+      orden: d,
+    };
   }
-  // Lejos de vencer: si está en la Bandeja es por un papel, y un papel no tiene plazo.
-  return { grupo: "sin_plazo", plazo: "Documento pendiente", nota: `vigente hasta el ${diaYMes(f.vigente_hasta)}`, orden: d };
+  if (f.pago_proximo && f.dias_para_pago !== null) {
+    const d = f.dias_para_pago;
+    return {
+      grupo: d === 0 ? "hoy" : "proximo",
+      plazo: enDias(d, { futuro: "Paga", pasado: "Pagó" }),
+      nota: f.proxima_fecha_pago ? `a su institución, el ${diaYMes(f.proxima_fecha_pago)}` : null,
+      orden: d,
+    };
+  }
+  return { grupo: "sin_plazo", plazo: "Sin calendario", nota: "falta saber cuándo paga", orden: 0 };
 }
 
-/** Lo que falta en PAPELES, y si la acción es subirlo o solo revisar. */
-export function documentoEducacion(f: AsignacionEducacion): { detalle: string; faltaPapel: boolean } {
-  if (f.semaforo === "sin_comprobante") {
-    return { detalle: "Sin comprobante: no se paga hasta subirlo", faltaPapel: true };
-  }
-  if (f.meses_sin_papel > 0) {
-    const n = f.meses_sin_papel;
-    return { detalle: `Falta el papel de ${n} mes${n === 1 ? "" : "es"} ya pagado${n === 1 ? "" : "s"}`, faltaPapel: true };
-  }
-  return { detalle: "Papeles al día", faltaPapel: false };
+/** Qué se le dice a DO de ese estudio, y a qué lo lleva el botón. */
+export function documentoEducacion(f: EstudioEducacion): { titulo: string; accion: string } {
+  if (f.estado_constancia === "vencida") return { titulo: "Constancia de estudios vencida", accion: "Pedir constancia" };
+  if (f.pago_proximo) return { titulo: "Pago de estudios en camino", accion: "Ver estudio" };
+  return { titulo: "Estudio sin calendario de pagos", accion: "Fijar calendario" };
 }
 
 /** Una solicitud de vacaciones, por su fecha de inicio (ver el encabezado). */

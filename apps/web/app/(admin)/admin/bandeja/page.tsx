@@ -70,22 +70,31 @@ import {
   fechaLima, hoyLima, puedeGestionarCatalogos, puedeGestionarContratos, puedeOperarEquipo, puedeVerIdentidad,
   puedeVerPlanilla, puedeVerSaludDeAlertas, puedeVerTodasLasSedes,
 } from "@cayla-dynamic/shared";
+import { esEducacionParaSaber, type FilaEducacionBandeja } from "@/lib/admin/bandeja-equipo";
 
+// Los dos de educación (0450) no se resuelven aquí —la constancia se mira con sus
+// archivos, en Educación—, pero llevan «Nuevo» igual: son una cola de revisión, y
+// una constancia que acaba de llegar es justo lo que hay que distinguir.
 type TipoItemBandeja =
   | "revision" | "revision_movilidad" | "revision_contrato"
-  | "solicitud_vacacion" | "solicitud_perfil";
+  | "solicitud_vacacion" | "solicitud_perfil"
+  | "entrega_educacion" | "aviso_fin_educacion";
 
 const CLAVE_SEDE_FILTRO = "bandeja_sede_filtro";
 
-interface ItemEducacion {
-  id: string;
-  persona_id: string;
-  persona: string;
-  sede: string;
-  dias_para_vencer: number;
-  meses_sin_papel: number;
-  vigente_hasta: string;
-  semaforo: "sin_comprobante" | "vencida" | "por_vencer" | "vigente";
+/** Un estudio para tener presente (0450): constancia vencida, sin calendario, o pago cercano. */
+type ItemEducacion = FilaEducacionBandeja;
+
+/** Una constancia de estudios esperando revisión (0450). UNA entrega = UN pendiente, tenga las páginas que tenga. */
+interface ItemEntregaEducacion {
+  id: string; familia_id: string; persona_id: string; persona: string; sede: string;
+  institucion: string; fecha_pago: string; enviada_at: string; archivos: number; es_reenvio: boolean;
+}
+
+/** Una integrante avisó que ya no va a pagar su estudio (0450). */
+interface ItemAvisoFinEducacion {
+  id: string; familia_id: string; persona_id: string; persona: string; sede: string;
+  institucion: string; motivo: string; creado_at: string;
 }
 
 /** Alguien que trabajó días que su horario no cubre (mig. 0385). La función ya
@@ -291,6 +300,8 @@ export default function BandejaPage() {
   const [cargando, setCargando] = useState(true);
   const [resumenAlertas, setResumenAlertas] = useState<ResumenAlertas | null>(null);
   const [educacion, setEducacion] = useState<ItemEducacion[]>([]);
+  const [entregasEducacion, setEntregasEducacion] = useState<ItemEntregaEducacion[]>([]);
+  const [avisosFinEducacion, setAvisosFinEducacion] = useState<ItemAvisoFinEducacion[]>([]);
   const [vacaciones, setVacaciones] = useState<ItemVacacion[]>([]);
   const [sinHorario, setSinHorario] = useState<ItemSinHorario[]>([]);
   const [revisiones, setRevisiones] = useState<ItemRevision[]>([]);
@@ -340,21 +351,34 @@ export default function BandejaPage() {
     const tareas: PromiseLike<void>[] = [];
 
     if (puedeEducacion) {
+      // ⇩ CAMBIO 0450 ⇩ Tres fuentes, el mismo criterio que cuenta el menú
+      // (lib/admin/bandeja-equipo.ts): cada constancia por revisar, cada aviso de
+      // «ya no voy a pagar», y los estudios para tener presentes. El contador de
+      // Educación (fn_educacion_por_atender) cuenta lo mismo salvo los pagos
+      // cercanos, que avisan pero no piden nada todavía — la decisión 8 del
+      // ADR 0003 quedó cerrada por la 0450.
       tareas.push(
-        supabase.rpc("fn_educacion_listar").then(({ data, error }) => {
+        supabase.rpc("fn_educacion_entregas_pendientes").then(({ data, error }) => {
+          if (error) { avisar("error", mensajeDeError(error, "cargar las constancias de educación")); return; }
+          setEntregasEducacion((data as unknown as ItemEntregaEducacion[]) ?? []);
+        }),
+      );
+      tareas.push(
+        supabase.rpc("fn_educacion_avisos_fin_pendientes").then(({ data, error }) => {
+          if (error) { avisar("error", mensajeDeError(error, "cargar los avisos de educación")); return; }
+          setAvisosFinEducacion((data as unknown as ItemAvisoFinEducacion[]) ?? []);
+        }),
+      );
+      tareas.push(
+        supabase.rpc("fn_educacion_situacion").then(({ data, error }) => {
           if (error) { avisar("error", mensajeDeError(error, "cargar educación")); return; }
-          // Mismo criterio que lib/admin/bandeja-equipo.ts (el número del menú).
-          // No es el de fn_educacion_por_atender: esa función además cuenta
-          // asignaciones vencidas con los papeles completos (hallazgo del
-          // 2026-09-15, se corrige en su propia migración).
-          const filas = ((data as unknown as ItemEducacion[]) ?? []).filter(
-            (f) => f.semaforo === "sin_comprobante" || f.semaforo === "por_vencer" || f.meses_sin_papel > 0,
-          );
-          setEducacion(filas);
+          setEducacion(((data as unknown as ItemEducacion[]) ?? []).filter(esEducacionParaSaber));
         }),
       );
     } else {
       setEducacion([]);
+      setEntregasEducacion([]);
+      setAvisosFinEducacion([]);
     }
 
     if (puedeEquipo) {
@@ -483,6 +507,8 @@ export default function BandejaPage() {
       ...revisionesContrato.map((r): [TipoItemBandeja, string] => ["revision_contrato", r.id]),
       ...solicitudesVacaciones.map((s): [TipoItemBandeja, string] => ["solicitud_vacacion", s.id]),
       ...solicitudesPerfil.map((s): [TipoItemBandeja, string] => ["solicitud_perfil", s.id]),
+      ...entregasEducacion.map((e): [TipoItemBandeja, string] => ["entrega_educacion", e.id]),
+      ...avisosFinEducacion.map((a): [TipoItemBandeja, string] => ["aviso_fin_educacion", a.id]),
     ];
     for (const [tipo, id] of items) {
       if (!vistosIniciales.has(`${tipo}:${id}`)) {
@@ -556,14 +582,38 @@ export default function BandejaPage() {
         nuevo: !vistosIniciales.has(`solicitud_perfil:${s.id}`),
       });
     }
+    // ⇩ CAMBIO 0450 ⇩ UNA entrega = UN pendiente, tenga los archivos que tenga, y
+    // su botón abre ESA entrega, no la portada de Educación. Se mide por lo que
+    // lleva esperando, igual que las demás respuestas pendientes.
+    for (const e of entregasEducacion) {
+      agregar({
+        clave: `entrega_educacion:${e.id}`, tipo: "entrega_educacion", itemId: e.id, personaId: e.persona_id,
+        persona: e.persona, sede: e.sede, modulo: "educacion",
+        titulo: e.es_reenvio ? "Constancia educativa corregida, pendiente de revisión" : "Constancia educativa pendiente de revisión",
+        detalle: `${e.institucion} · pago del ${diaYMes(e.fecha_pago)} · ${e.archivos} archivo${e.archivos === 1 ? "" : "s"} · enviada el ${diaLima(e.enviada_at)}`,
+        urgencia: urgenciaEspera(e.enviada_at, hoy), resolucion: "afuera",
+        ir: { texto: "Revisar", href: `/admin/educacion?entrega=${e.id}` },
+        contexto: null, nuevo: !vistosIniciales.has(`entrega_educacion:${e.id}`),
+      });
+    }
+    for (const a of avisosFinEducacion) {
+      agregar({
+        clave: `aviso_fin_educacion:${a.id}`, tipo: "aviso_fin_educacion", itemId: a.id, personaId: a.persona_id,
+        persona: a.persona, sede: a.sede, modulo: "educacion",
+        titulo: "Avisó que ya no va a pagar su estudio", detalle: `${a.institucion} · «${a.motivo}»`,
+        urgencia: urgenciaEspera(a.creado_at, hoy), resolucion: "afuera",
+        ir: { texto: "Decidir el cierre", href: `/admin/educacion?familia=${a.familia_id}` },
+        contexto: null, nuevo: !vistosIniciales.has(`aviso_fin_educacion:${a.id}`),
+      });
+    }
     for (const f of educacion) {
       const doc = documentoEducacion(f);
       agregar({
-        clave: `educacion:${f.id}`, tipo: "educacion", itemId: f.id, personaId: f.persona_id,
+        clave: `educacion:${f.familia_id}`, tipo: "educacion", itemId: f.familia_id, personaId: f.persona_id,
         persona: f.persona, sede: f.sede, modulo: "educacion",
-        titulo: "Asignación de estudios", detalle: doc.detalle,
-        urgencia: urgenciaEducacion(f), resolucion: "afuera",
-        ir: { texto: doc.faltaPapel ? "Subir papel" : "Revisar asignación", href: `/admin/educacion?persona=${f.persona_id}` },
+        titulo: doc.titulo, detalle: f.institucion,
+        urgencia: urgenciaEducacion(f, hoy), resolucion: "afuera",
+        ir: { texto: doc.accion, href: `/admin/educacion?familia=${f.familia_id}` },
         contexto: null, nuevo: false,
       });
     }
@@ -590,7 +640,7 @@ export default function BandejaPage() {
     }
     return lista.sort(compararPendientes);
   }, [revisiones, revisionesMovilidad, revisionesContrato, solicitudesVacaciones, solicitudesPerfil, educacion,
-      vacaciones, sinHorario, ceses, vistosIniciales, hoy]);
+      entregasEducacion, avisosFinEducacion, vacaciones, sinHorario, ceses, vistosIniciales, hoy]);
 
   // ── Filtros ───────────────────────────────────────────────────────────────
   // El filtro guardado de sede no aplica a quien solo ve la suya.

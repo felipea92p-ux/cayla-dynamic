@@ -30,6 +30,37 @@ import {
  * error o una RPC que todavía no existe en esta base (`fn_personas_sin_horario_vigente`,
  * 0385) restan esa sección del total en vez de tumbar el badge entero.
  */
+/** Un estudio tal como lo trae `fn_educacion_situacion` (0450), con lo que la Bandeja necesita. */
+export interface FilaEducacionBandeja {
+  familia_id: string;
+  persona_id: string;
+  persona: string;
+  sede: string;
+  institucion: string;
+  vigencia: string;
+  estado_constancia: string;
+  fecha_pago_constancia: string | null;
+  plazo: string | null;
+  pago_proximo: boolean;
+  proxima_fecha_pago: string | null;
+  dias_para_pago: number | null;
+}
+
+/**
+ * ¿Este estudio va en «Para saber»? Lo que le pide acción a DO sin ser una
+ * entrega —constancia vencida, estudio vigente sin calendario, el mismo criterio
+ * que `fn_educacion_por_atender`— más los pagos a la institución que llegan en
+ * los próximos días: el aviso que DO pidió para tener el apoyo listo.
+ *
+ * Una sola definición para la pantalla y para este contador: dos copias de
+ * «qué cuenta» es cómo el número deja de corresponder a la lista.
+ */
+export function esEducacionParaSaber(f: FilaEducacionBandeja): boolean {
+  return f.estado_constancia === "vencida"
+    || (f.estado_constancia === "sin_calendario" && (f.vigencia === "vigente" || f.vigencia === "por_terminar"))
+    || f.pago_proximo;
+}
+
 export async function contarBandejaEquipoPendiente(
   supabase: ClienteCayla,
   rol: string | null | undefined,
@@ -40,12 +71,19 @@ export async function contarBandejaEquipoPendiente(
   const tareas: PromiseLike<number>[] = [];
 
   if (puedeVerPlanilla(rol)) {
+    // ⇩ CAMBIO 0450 ⇩ Las tres secciones de educación que pinta la Bandeja:
+    // constancias por revisar y avisos de «ya no voy a pagar» (Por aprobar), y
+    // los estudios para tener presentes (Para saber). Una entrega cuenta UNO,
+    // tenga los archivos que tenga.
     tareas.push(
-      supabase.rpc("fn_educacion_listar").then(({ data }) =>
-        ((data as unknown as { semaforo: string; meses_sin_papel: number }[] | null) ?? [])
-          .filter((f) => f.semaforo === "sin_comprobante" || f.semaforo === "por_vencer" || f.meses_sin_papel > 0)
-          .length,
-      ),
+      Promise.all([
+        supabase.rpc("fn_educacion_entregas_pendientes"),
+        supabase.rpc("fn_educacion_avisos_fin_pendientes"),
+        supabase.rpc("fn_educacion_situacion"),
+      ]).then(([entregas, avisos, situacion]) =>
+        (Array.isArray(entregas.data) ? entregas.data.length : 0)
+        + (Array.isArray(avisos.data) ? avisos.data.length : 0)
+        + ((situacion.data as unknown as FilaEducacionBandeja[] | null) ?? []).filter(esEducacionParaSaber).length),
     );
     tareas.push(
       supabase.rpc("fn_solicitudes_vacaciones", { p_solo_pendientes: true })
