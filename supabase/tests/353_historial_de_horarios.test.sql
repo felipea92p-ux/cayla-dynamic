@@ -20,13 +20,16 @@
 -- § 6 · 0447 bloquea si el rango toca un periodo ya pagado.
 -- § 7 · Ni el preview ni la corrección aceptan una fecha de hoy o futura —
 --   para eso está el camino normal (0444), no este.
--- § 8 · Un día con TURNO PUNTUAL no lo toca la corrección del horario base,
---   y el preview tiene que decir eso mismo. Se agregó DESPUÉS de que todo
---   esto estuviera en verde: una revisión encontró que el preview aplicaba
---   el horario candidato a todos los días sin mirar `turnos`, mientras que
---   fn_recalcular_jornada pregunta a `turnos` PRIMERO. Esta prueba no
---   existía, y por eso el defecto pasó. Sin la corrección de la 0447 falla:
---   el preview prometía 0 min donde la corrección real deja 20.
+-- EL DÍA CON TURNO PUNTUAL se comprueba dentro de § 2, § 3 y § 4, no en una
+--   sección propia: sus aserciones tienen que correr antes de que § 6 cree el
+--   periodo pagado, porque el preview también tiene candado de pagado y
+--   lanzaría excepción en vez de contestar. Se agregó DESPUÉS de que todo
+--   esto estuviera en verde: una revisión encontró que el preview aplicaba el
+--   horario candidato a TODOS los días sin mirar `turnos`, mientras que
+--   fn_recalcular_jornada pregunta a `turnos` PRIMERO. No había ninguna
+--   prueba con un turno sembrado, y por eso el defecto pasó. Sin la
+--   corrección de la 0447, el preview promete 0 min donde la corrección real
+--   deja 20.
 --
 -- Todas las fechas de negocio (tardanza, horario, periodo) se calculan
 -- relativas a fn_hoy_lima() en vez de fechas fijas: fn_corregir_horario_
@@ -139,6 +142,21 @@ select is(
   '08:00'::time,
   '0446: horario_aplicado.entrada guarda la hora con la que de verdad se midió');
 
+-- El día con TURNO PUNTUAL: el turno manda sobre el horario base, así que
+-- llegar 13:20 contra un turno de 13:00 son 20 minutos tarde, y la foto tiene
+-- que decir que el número salió de `turnos`.
+select is(
+  (select j.minutos_tarde from jornadas j, _datos d
+    where j.persona_id = 'cccccccc-0447-0000-0000-00000000000b' and j.fecha = d.turno_dia),
+  20,
+  '0446: el turno puntual manda — 20 min tarde medidos contra las 13:00 del turno');
+
+select is(
+  (select j.horario_aplicado->>'fuente' from jornadas j, _datos d
+    where j.persona_id = 'cccccccc-0447-0000-0000-00000000000b' and j.fecha = d.turno_dia),
+  'turnos',
+  '0446: y la foto de esa jornada dice que el horario salió del turno');
+
 -- ── § 3 · 0447, la vista previa: mismo número que va a confirmar § 4 ──────
 select is(
   (select p.minutos_tarde_actual
@@ -160,6 +178,17 @@ select is(
     where p.fecha = d.prueba),
   false,
   '0447: el preview dice que todavía no hay ningún expediente formal sobre ese día');
+
+-- La que destapa el defecto que encontró la revisión. El horario candidato no
+-- tiene ninguna entrada para el día de la semana del turno, así que un preview
+-- que se saltara `turnos` mediría ese día contra "sin horario" y anunciaría 0
+-- min. La corrección real nunca escribiría eso: el turno seguiría mandando.
+select is(
+  (select p.minutos_tarde_nuevo
+     from _datos d, fn_horario_retroactivo_preview('cccccccc-0447-0000-0000-00000000000b', d.horario_nuevo, d.retro_desde) p
+    where p.fecha = d.turno_dia),
+  20,
+  '0447: el preview respeta el turno puntual — dice 20, no 0, porque ese día no lo cambia el horario base');
 
 -- ── § 4 · 0447, confirmar: la corrección real da EXACTAMENTE lo que el preview prometió ──
 -- El control es 1, no 0: fn_set_horario_semanal (0440) también audita, y § 1
@@ -189,6 +218,13 @@ select is(
   (select (j.horario_aplicado->>'entrada')::time from jornadas j, _datos d where j.persona_id = 'cccccccc-0447-0000-0000-00000000000b' and j.fecha = d.prueba),
   '08:30'::time,
   '0446: horario_aplicado también se actualiza con la corrección retroactiva');
+
+-- Y la promesa de punta a punta: el día con turno quedó como el preview dijo.
+select is(
+  (select j.minutos_tarde from jornadas j, _datos d
+    where j.persona_id = 'cccccccc-0447-0000-0000-00000000000b' and j.fecha = d.turno_dia),
+  20,
+  '0447: tras la corrección retroactiva el día con turno quedó igual — exactamente lo que el preview prometió');
 
 -- ── § 5 · Bloquea si el día ya tiene un expediente disciplinario formal ────
 insert into expediente_disciplinario (persona_id, tipo_causal, nivel, estado, hechos, correlativo, firmante_id, firmado_at, creado_por)
@@ -235,41 +271,6 @@ select throws_ok(
          (select horario_viejo from _datos), fn_hoy_lima()),
   null,
   '0447: la corrección retroactiva rechaza vigente_desde = hoy');
-
--- ── § 8 · El turno puntual manda, y el preview lo sabe ────────────────────
--- Las dos primeras son sobre la jornada REAL: el turno de las 13:00 ganó
--- sobre el horario base, así que llegar 13:20 son 20 minutos tarde y la foto
--- dice que el número salió de `turnos`, no del horario.
-select is(
-  (select j.minutos_tarde from jornadas j, _datos d
-    where j.persona_id = 'cccccccc-0447-0000-0000-00000000000b' and j.fecha = d.turno_dia),
-  20,
-  '0446: el turno puntual manda — 20 min tarde medidos contra las 13:00 del turno');
-
-select is(
-  (select j.horario_aplicado->>'fuente' from jornadas j, _datos d
-    where j.persona_id = 'cccccccc-0447-0000-0000-00000000000b' and j.fecha = d.turno_dia),
-  'turnos',
-  '0446: y la foto de esa jornada dice que el horario salió del turno');
-
--- Y esta es la que destapa el defecto. El horario candidato no tiene ninguna
--- entrada para el día de la semana del turno, así que un preview que se
--- saltara `turnos` mediría ese día contra "sin horario" y anunciaría 0 min.
--- La corrección real nunca escribiría eso: el turno seguiría mandando.
-select is(
-  (select p.minutos_tarde_nuevo
-     from _datos d, fn_horario_retroactivo_preview('cccccccc-0447-0000-0000-00000000000b', d.horario_nuevo, d.retro_desde) p
-    where p.fecha = d.turno_dia),
-  20,
-  '0447: el preview respeta el turno puntual — dice 20, no 0, porque ese día no lo cambia el horario base');
-
--- Y la comprobación de que la promesa se cumple de punta a punta: después de
--- confirmar (§ 4 ya lo hizo), ese día sigue exactamente como el preview dijo.
-select is(
-  (select j.minutos_tarde from jornadas j, _datos d
-    where j.persona_id = 'cccccccc-0447-0000-0000-00000000000b' and j.fecha = d.turno_dia),
-  20,
-  '0447: tras la corrección retroactiva el día con turno quedó igual — exactamente lo que el preview prometió');
 
 select * from finish();
 rollback;
