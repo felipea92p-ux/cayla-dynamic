@@ -741,7 +741,7 @@ export default function HorariosPage() {
     if (error) { avisar("error", mensajeDeError(error)); return; }
     cerrarRetro();
     await cargar();
-    avisar("ok", "Corrección retroactiva aplicada. Las jornadas del rango quedaron recalculadas y la corrección quedó auditada.");
+    avisar("ok", "Días ya trabajados corregidos. Las jornadas del rango se volvieron a calcular y el cambio quedó auditado.");
   }
 
   if (rol !== null && !puedeEditar) {
@@ -994,9 +994,13 @@ export default function HorariosPage() {
                             <td className="px-4 py-2 text-taupe">{h ? fechaCorta(h.vigente_desde) : "—"}</td>
                             <td className="px-4 py-2">
                               <div className="flex items-center justify-end gap-3">
+                                {/* «corregir pasado» hasta el 2026-09-15: no decía que
+                                    vuelve a medir días ya pagados. Al lado de «Cambiar»
+                                    (de hoy en adelante), el nombre tiene que marcar la
+                                    diferencia sin que nadie la explique. */}
                                 {h && (
                                   <Boton variante="enlace" tamano="sm" onClick={() => abrirRetro(p)}>
-                                    corregir pasado
+                                    Corregir días ya trabajados
                                   </Boton>
                                 )}
                                 <Boton variante="secundario" tamano="sm" onClick={(e) => abrirEdicion(p, e.currentTarget)}>
@@ -1071,7 +1075,7 @@ export default function HorariosPage() {
                         Vigente desde {h ? fechaCorta(h.vigente_desde) : "—"}
                         {h && (
                           <Boton variante="enlace" tamano="sm" className="ml-2" onClick={() => abrirRetro(p)}>
-                            corregir pasado
+                            Corregir días ya trabajados
                           </Boton>
                         )}
                       </p>
@@ -1120,7 +1124,7 @@ export default function HorariosPage() {
             hacia atrás: eso recalcularía tardanzas de días ya juzgados con el
             horario que de verdad regía entonces. Si el cambio ocurrió de
             verdad hace unos días y recién se registra, cierra esto y usa
-            <span className="text-tinta"> corregir pasado</span> — enseña antes
+            <span className="text-tinta"> Corregir días ya trabajados</span> — enseña antes
             qué jornadas cambiarían.
           </p>
 
@@ -1276,7 +1280,7 @@ export default function HorariosPage() {
           onCerrar={cerrarRetro}
           bloqueado={retroPreviewCargando || retroConfirmando}
           ancho="lg"
-          titulo={retro ? `Corregir el horario pasado de ${retro.nombres} ${retro.apellidos}` : undefined}
+          titulo={retro ? `Corregir días ya trabajados de ${retro.nombres} ${retro.apellidos}` : undefined}
         >
           <p className="mb-4 text-sm text-taupe">
             Para cuando el cambio de horario <strong className="text-tinta">de verdad ocurrió hace días</strong> y
