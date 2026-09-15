@@ -324,7 +324,8 @@ with repo(numero, nombre, nunca) as (values
     (457, 'editar_categoria_incluye_el_salario_declarado', false),
     (458, 'constancias_por_version_historica', false),
     (459, 'mi_rango_actual_para_el_portal', false),
-    (461, 'el_colaborador_pide_su_apoyo_educativo', false)
+    (461, 'el_colaborador_pide_su_apoyo_educativo', false),
+    (462, 'quien_firma_digital_ya_tiene_su_copia', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
