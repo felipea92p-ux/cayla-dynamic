@@ -6,6 +6,79 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-09-15 — El practicante ya devenga su descanso de 15 días y su subvención semestral (0465) · SIN PEGAR
+
+Cierra un pendiente que la 0322 (2026-08-29) dejó escrito a propósito: la Ley
+28518 le da a un practicante DOS beneficios propios —un descanso de 15 días,
+una sola vez, al superar los 12 meses continuos de convenio (art. 20), y una
+subvención adicional cada 6 meses continuos que sí se repite (art. 42.7)—, y
+hasta hoy ninguno de los dos se calculaba en ningún lado del sistema. Distinto
+de gratificación/CTS/vacaciones de 30 días, que un practicante sigue sin
+generar: eso no cambia.
+
+**Lo que lo disparó:** el rediseño de Provisiones de hoy (0428, PR #395) le
+puso a la pantalla una nota que dice "la ley no les da estos tres beneficios.
+No es que falte cargar algo" — cierta para esos tres, pero leída junto a
+"practicante" sonaba a que la ley no le da nada parecido a vacaciones, y sí le
+da el descanso. Felipe lo notó después de preguntar por los beneficios reales
+de un practicante en Perú.
+
+**Cómo se calcula** (`fn_provisiones`, siete claves nuevas en el jsonb de cada
+persona, en 0/false para quien no es practicante): devengado ACUMULADO desde
+`fecha_ingreso`, sin ventanas de calendario fijas como grati/CTS —el descanso
+topa a los 365 días y se queda ahí para siempre ("una sola vez"), la
+subvención semestral no tiene tope y sigue creciendo mientras la persona siga
+activa—, menos lo que ya diga el libro de desembolsos. La séptima clave,
+`ley28518_subvencion_mensual`, expone la tarifa real usada en los dos
+cálculos, para que nadie tenga que adivinarla ni ir a Equipo a comprobarla.
+`desembolsos_beneficios` gana dos ventanas nuevas (`descanso_practicante`,
+`subvencion_practicante`) y una función hermana de `fn_beneficio_ya_depositado`
+que suma SIN filtrar por año, porque estos dos beneficios no son de un año
+calendario.
+
+**Verificado dos veces en el Postgres local**, dentro de `BEGIN…ROLLBACK`
+(nunca se tocó la base compartida, solo se leyó): a mano, con seis
+practicantes de laboratorio a 0, 91, 365 y 400 días de convenio, uno sin
+tarifa cargada y uno con un pago ya registrado — confirmando que el descanso
+topa exactamente en S/565.00 (medio sueldo de S/1,130) a los 365 días y no
+crece más a los 400, que la subvención semestral SÍ sigue creciendo
+(S/1,130.00 → S/1,238.36), que el pago registrado se resta exacto, y que una
+persona en planilla normal no se mueve un céntimo. Y con una prueba pgTAP
+independiente ([`369`](../supabase/tests/369_el_practicante_devenga_su_descanso_y_subvencion.test.sql),
+escrita por una sesión separada a partir del mismo contrato, sin ver el SQL ya
+implementado): **34/34 en verde**, incluidos los tres casos que la auditoría a
+mano no cubrió — el CHECK de `desembolsos_beneficios` sigue rechazando una
+ventana inventada, `fn_practicante_ya_depositado` no mezcla las dos ventanas
+nuevas entre sí, y un rxh sigue sin aparecer en la pantalla (0274/0428, sin
+abrirle una puerta nueva).
+
+**Colisión de numeración, cazada antes de empujar.** Se escribió primero como
+0464/368; a mitad de la sesión, `siguiente-numero.sh` reveló que la rama
+`claude/planilla-no-cuenta-a-quien-aun-no-existia` ya había tomado esos mismos
+dos números (con contenido completamente distinto) mientras esta sesión
+trabajaba. Se renumeró a **0465/369** antes de commitear nada — el caso de
+manual que el propio script existe para evitar.
+
+**Qué NO hace:** no paga nada por planilla ni genera un movimiento automático
+— "Dynamic avisa, nunca paga solo" para un concepto que recién empieza a
+medirse. Y, a propósito, todavía no hay un botón para registrar el pago: el
+panel "🎁 Adelanto de beneficio" de `panel-persona.tsx` solo conoce
+gratificación/CTS/vacaciones (ventanas de calendario fijas); estos dos
+beneficios no tienen una, así que por ahora un pago se anota con un `insert`
+directo a `desembolsos_beneficios` desde el SQL Editor — la pantalla dedicada
+queda como trabajo aparte. Tampoco entra en `gran_total` ni en los totales de
+columna de la tabla principal: vive solo en la fila plegada de Practicantes y
+en su panel de detalle.
+
+**Falta:** commitear y subir esta rama, y pegar la 0465 en producción (Felipe,
+a mano, por el SQL Editor — pedir el md5 de `fn_provisiones` a producción
+justo antes de pegar, no ahora, y el CHECK admite los siete valores). El
+frontend (`provisiones.ts`, `TablaProvisiones.tsx`, `DetallePersona.tsx`) ya
+está escrito con `typecheck`/`eslint`/`vitest` (735/735) en verde, listo para
+el mismo commit.
+
+---
+
 ## 2026-09-15 — Educación: la 0450 ya está pegada; nace la 0461 (colaborador pide su apoyo) · SIN PEGAR · PR #390
 
 **La 0450 quedó PEGADA Y VERIFICADA este mismo día** (esta entrada reemplaza el

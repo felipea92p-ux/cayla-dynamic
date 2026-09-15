@@ -3,6 +3,7 @@ import { formatSoles } from "@/lib/rangos";
 import { Tabla, TablaEncabezado, Th, Fila } from "@/components/ui/tabla";
 import { Insignia } from "@/components/ui/insignia";
 import {
+  descansoPracticanteEstado,
   ETIQUETA_ESTADO_FILA,
   estadosFila,
   fechaCorta,
@@ -228,6 +229,37 @@ function Dato({ etiqueta, valor }: { etiqueta: string; valor: string }) {
   );
 }
 
+// Lo que la lista plegada dice de cada practicante sobre los dos beneficios
+// propios de la Ley 28518 (0464). Prioriza el aviso de tarifa: sin ella los
+// otros dos números salen en 0 sin que sea "no le toca".
+function IndicadorLey28518({ p }: { p: ProvPersona }) {
+  if (p.ley28518_sin_tarifa) {
+    return (
+      <span className="block text-xs text-rojo-profundo">
+        sin tarifa cargada: el descanso y la subvención no se calculan
+      </span>
+    );
+  }
+  const subvencion = p.ley28518_subvencion_devengada ?? 0;
+  const subvencionTxt = (
+    <span className={subvencion < 0 ? "text-pizarra" : undefined}>subvención {formatSoles(subvencion)}</span>
+  );
+  if (descansoPracticanteEstado(p) === "completo") {
+    const descanso = p.ley28518_descanso_devengado ?? 0;
+    return (
+      <span className="block text-xs text-pizarra">
+        superó los 12 meses: descanso {formatSoles(descanso)} · {subvencionTxt}
+      </span>
+    );
+  }
+  const dias = p.ley28518_descanso_dias ?? 0;
+  return (
+    <span className="block text-xs text-taupe">
+      {dias.toFixed(1)} de 15 días de descanso · {subvencionTxt}
+    </span>
+  );
+}
+
 // Las practicantes siguen a la vista (lo pidió la 0428), pero fuera de la tabla
 // de reservas: su «nada que reservar» es para siempre, no «aún no», y dentro
 // de la tabla ese cero volvía a parecerse al de quien entró esta semana.
@@ -247,7 +279,10 @@ export function Practicantes({ personas, onAbrir }: { personas: ProvPersona[]; o
               onClick={(e) => onAbrir(p, e.currentTarget)}
               className="grid w-full grid-cols-[minmax(0,1fr)_auto] gap-x-4 px-4 py-2 text-left text-sm transition-colors hover:bg-crema/60 sm:grid-cols-[minmax(0,1fr)_4rem_9rem]"
             >
-              <span className="font-medium">{p.nombre}</span>
+              <span className="min-w-0">
+                <span className="font-medium">{p.nombre}</span>
+                <IndicadorLey28518 p={p} />
+              </span>
               <span className="text-taupe">{p.sede}</span>
               <span className="hidden text-taupe sm:block">desde {fechaCorta(p.fecha_ingreso)}</span>
             </button>
@@ -255,7 +290,9 @@ export function Practicantes({ personas, onAbrir }: { personas: ProvPersona[]; o
         ))}
       </ul>
       <p className="border-t border-sand px-4 py-2 text-xs text-taupe">
-        Modalidad formativa (Ley 28518): la ley no les da estos tres beneficios. No es que falte cargar algo.
+        Modalidad formativa (Ley 28518): no les da gratificación, CTS ni las vacaciones de 30 días — eso no
+        cambia, no es que falte cargar algo. Sí les da un descanso de 15 días al superar los 12 meses de convenio
+        y una subvención semestral que se repite mientras sigan activos; ninguno de los dos entra al saldo total.
       </p>
     </details>
   );

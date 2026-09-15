@@ -3,6 +3,7 @@ import {
   COLUMNAS_CSV,
   COLUMNAS_CSV_ANTERIORES,
   calendario,
+  descansoPracticanteEstado,
   estadoVentana,
   estadosFila,
   fechaCorta,
@@ -248,6 +249,16 @@ describe("CSV", () => {
   it("si el libro no se pudo leer, dice «no disponible» en vez de dejar vacío", () => {
     const [f] = filasCsv(d, [parcial], null);
     expect(f).toMatchObject({ cts_mayo_fecha_pago: "no disponible", cts_mayo_via: "no disponible" });
+  });
+});
+
+describe("descansoPracticanteEstado — Ley 28518 (0464)", () => {
+  it("sin la bandera de la base, sigue acumulando (nunca antes de los 12 meses)", () => {
+    expect(descansoPracticanteEstado(practicante)).toBe("acumulando");
+  });
+  it("con la bandera en true, ya es completo: no vuelve a compararse dias_convenio acá", () => {
+    const p = persona({ persona_id: "k", nombre: "W", tipo_vinculo: "practicante", ley28518_descanso_completo: true });
+    expect(descansoPracticanteEstado(p)).toBe("completo");
   });
 });
 

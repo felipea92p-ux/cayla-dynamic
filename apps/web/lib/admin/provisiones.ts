@@ -69,6 +69,30 @@ export interface ProvPersona {
   // reservas cortas o en cero. Esto lo dice; no cambia ningún monto.
   sin_salario_vigente?: boolean;
   dias_sin_salario?: number;
+  // ⇩ 0464 ⇩ Ley 28518: un practicante no genera gratificación, CTS ni
+  // vacaciones (eso no cambia), pero SÍ genera estos dos, propios de la
+  // modalidad formativa. Viven aparte de `gran_total` y de los totales de
+  // columna: son informativos, no reservas de trabajador dependiente.
+  ley28518_dias_convenio?: number;
+  // Descanso de 15 días, una sola vez, al superar los 12 meses de convenio.
+  // Ya es devengado − pagado, igual que el resto del sistema: puede salir
+  // negativo si se pagó de más, y no se esconde.
+  ley28518_descanso_devengado?: number;
+  ley28518_descanso_dias?: number;
+  // true desde los 365 días de convenio: a partir de ahí el descanso ya no
+  // crece más, es "una sola vez".
+  ley28518_descanso_completo?: boolean;
+  // Subvención semestral: se repite cada 6 meses mientras siga activo. Es un
+  // acumulado DE POR VIDA (nunca se reinicia por semestre), menos lo pagado.
+  ley28518_subvencion_devengada?: number;
+  // Misma familia que `sin_salario_vigente`: sin tramo de `asignaciones_salario`
+  // vigente a la fecha de corte, los dos montos de arriba salen en 0 sin que
+  // sea "no le toca" — falta cargar la tarifa.
+  ley28518_sin_tarifa?: boolean;
+  // La tarifa misma (de `asignaciones_salario`), para que la pantalla pueda
+  // mostrar de dónde salen los dos montos de arriba sin que nadie tenga que
+  // ir a Equipo a comprobarlo.
+  ley28518_subvencion_mensual?: number;
 }
 
 export interface ProvData {
@@ -123,6 +147,18 @@ export function fechaCorta(iso: string | null | undefined): string {
 const anioDe = (iso: string) => iso.slice(0, 4);
 
 export const esPracticante = (p: ProvPersona) => p.tipo_vinculo === "practicante";
+
+export type EstadoDescansoPracticante = "acumulando" | "completo";
+
+/**
+ * El descanso de 15 días (Ley 28518, art. 20) es "una sola vez": a partir de
+ * los 12 meses de convenio ya no crece más. Se lee el booleano de la base
+ * (no se vuelve a comparar `dias_convenio` acá) para que la UI y la base
+ * nunca puedan discrepar sobre dónde cae el corte.
+ */
+export function descansoPracticanteEstado(p: ProvPersona): EstadoDescansoPracticante {
+  return p.ley28518_descanso_completo ? "completo" : "acumulando";
+}
 
 // ── Las cuatro ventanas del año que la base calcula ──────────────────────────
 

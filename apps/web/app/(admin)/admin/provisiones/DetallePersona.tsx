@@ -4,6 +4,7 @@ import { cx } from "@/components/ui/cx";
 import { Insignia } from "@/components/ui/insignia";
 import { Estados } from "./TablaProvisiones";
 import {
+  descansoPracticanteEstado,
   ETIQUETA_ESTADO_VENTANA,
   ETIQUETA_ORIGEN,
   bonificacionDe,
@@ -76,12 +77,51 @@ export function DetallePersona({ data, persona: p, libro }: { data: ProvData; pe
   );
 
   if (esPracticante(p)) {
+    const estadoDescanso = descansoPracticanteEstado(p);
     return (
-      <div className="grid gap-4">
+      <div className="grid gap-7 [font-variant-numeric:tabular-nums]">
         {cabecera}
         <p className="text-sm">
           Por la Ley 28518, una modalidad formativa <strong className="font-medium">no genera</strong>{" "}
-          gratificación, CTS ni vacaciones. No tiene nada que reservar, y no es porque falte cargar algo.
+          gratificación, CTS ni las vacaciones de 30 días. Eso no cambia.
+        </p>
+
+        {p.ley28518_sin_tarifa && (
+          <p className="text-sm text-rojo-profundo">
+            Sin tramo de salario vigente: el descanso y la subvención de abajo salen en S/ 0.00, no porque no le
+            correspondan. El salario se asigna en Equipo.
+          </p>
+        )}
+
+        <Seccion
+          titulo="Descanso subvencionado"
+          total={p.ley28518_descanso_devengado ?? 0}
+          nota="15 días, una sola vez, al superar los 12 meses continuos de convenio (art. 20)."
+        >
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-3">
+            <Dato etiqueta="Convenio desde">{fechaCorta(p.fecha_ingreso)}</Dato>
+            <Dato etiqueta="Días de convenio">{p.ley28518_dias_convenio ?? 0}</Dato>
+            <Dato etiqueta="Días de descanso acumulados">{(p.ley28518_descanso_dias ?? 0).toFixed(1)} de 15</Dato>
+            <Dato etiqueta="Estado">
+              <Insignia variante={estadoDescanso === "completo" ? "informativo" : "neutral"} atenuada={estadoDescanso === "acumulando"}>
+                {estadoDescanso === "completo" ? "Completo · le corresponde" : "Acumulando"}
+              </Insignia>
+            </Dato>
+            <Dato etiqueta="Subvención mensual usada en el cálculo">{formatSoles(p.ley28518_subvencion_mensual ?? 0)}</Dato>
+          </dl>
+        </Seccion>
+
+        <Seccion
+          titulo="Subvención semestral"
+          total={p.ley28518_subvencion_devengada ?? 0}
+          nota="Media subvención adicional cada 6 meses continuos de convenio (art. 42.7); se repite mientras siga activo."
+        >
+          <p className="text-sm text-taupe">Acumulado de por vida, no por semestre: nunca se reinicia a cero.</p>
+        </Seccion>
+
+        <p className="text-xs text-taupe">
+          Informativo: ninguno de los dos entra en el saldo total ni tiene todavía un pago automático. Felipe
+          decide cuándo pagarlo.
         </p>
       </div>
     );
