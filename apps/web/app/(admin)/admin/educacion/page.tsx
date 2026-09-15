@@ -153,6 +153,16 @@ export default function EducacionPage() {
   const [verSoloVigentes, setVerSoloVigentes] = useState(true);
   const [filtroPersona, setFiltroPersona] = useFiltroGuardado<FiltroPersonaEstado>("educacion.persona_estado", "activos");
   const [personaFacts, setPersonaFacts] = useState<Map<string, PersonaFacts>>(new Map());
+  // ?persona=<id> — llega desde la Bandeja, que enlaza a la persona y no a la
+  // portada. Mientras esté puesto manda sobre los otros dos filtros: si su
+  // asignación ya venció o ya se liquidó, «Solo las vigentes» la escondería
+  // justo cuando alguien vino a verla.
+  const [personaUrl, setPersonaUrl] = useState<string | null>(null);
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search).get("persona");
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- leer la URL al montar, mismo patrón aceptado en admin/correcciones.
+    if (p) setPersonaUrl(p);
+  }, []);
   // El detalle de papeles de UNA fila, abierto bajo ella. null = ninguna abierta.
   const [papelesDe, setPapelesDe] = useState<{ fila: Fila; papeles: Papel[]; faltan: string[] } | null>(null);
   const [adjuntando, setAdjuntando] = useState<string | null>(null);
@@ -476,10 +486,13 @@ export default function EducacionPage() {
 
   // Antes "vigente" era `vigente_hasta === null`. Desde la 0149 toda asignación
   // tiene fecha de fin, así que quien decide es el semáforo que calcula la base.
-  const porVigencia = verSoloVigentes ? filas.filter((f) => f.semaforo !== "vencida") : filas;
+  const porVigencia = personaUrl
+    ? filas.filter((f) => f.persona_id === personaUrl)
+    : verSoloVigentes ? filas.filter((f) => f.semaforo !== "vencida") : filas;
+  const nombrePersonaUrl = personaUrl ? filas.find((f) => f.persona_id === personaUrl)?.persona ?? "esta persona" : null;
   // "activos": oculta solo a quien ya se liquidó. Mientras esté cesada y sin
   // liquidar, sigue visible — puede tener un comprobante pendiente de revisar.
-  const visibles = porVigencia.filter((f) => {
+  const visibles = personaUrl ? porVigencia : porVigencia.filter((f) => {
     const pf = personaFacts.get(f.persona_id);
     const cesada = !!pf?.fechaCese;
     if (filtroPersona === "activos") return !cesada || !pf?.liquidada;
@@ -770,6 +783,17 @@ export default function EducacionPage() {
               </div>
             ) : (
               <>
+                {nombrePersonaUrl && (
+                  <div className="mb-3 flex flex-wrap items-center gap-2 rounded-control border border-sand bg-papel px-3 py-2 text-sm">
+                    <span>Mostrando solo las asignaciones de <strong>{nombrePersonaUrl}</strong>, vigentes o no.</span>
+                    <Boton
+                      variante="enlace"
+                      onClick={() => { setPersonaUrl(null); window.history.replaceState(null, "", "/admin/educacion"); }}
+                    >
+                      Ver todas
+                    </Boton>
+                  </div>
+                )}
                 <div className="mb-3 flex flex-wrap items-center gap-4 text-sm">
                   <label className="flex items-center gap-2">
                     {/* Casilla suelta: no hay CampoCasilla todavía en
