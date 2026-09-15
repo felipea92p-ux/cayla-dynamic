@@ -16,6 +16,7 @@ import { Campo, CampoSelect } from "@/components/ui/campo";
 import { AreaTexto } from "@/components/ui/area-texto";
 import { Modal } from "@/components/ui/modal";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
+import { enDias } from "@/lib/admin/bandeja-urgencia";
 import { abrirArchivoFirmado } from "@/lib/abrir-archivo-firmado";
 import {
   BUCKET_COMPROBANTES, elegido, fechaCorta, subirArchivosDeEntrega, type ArchivoElegido,
@@ -103,7 +104,9 @@ function tipoPorDefecto(frecuencia: FrecuenciaPago | null): TipoConstancia {
 
 /** Lo que se le dice a ella sobre su constancia. Una sola frase, con la fecha que importa. */
 function fraseDeConstancia(s: Situacion, hoy: string): string {
-  const plazo = s.plazo ? ` Tienes hasta el ${fechaCorta(s.plazo)}.` : "";
+  const plazo = s.plazo && s.dias_para_plazo !== null
+    ? ` ${enDias(s.dias_para_plazo, { futuro: "Vence", pasado: "Venció" })}.`
+    : "";
   switch (s.estado_constancia) {
     case "pendiente_revision":
       return "Desarrollo Organizacional la está revisando. Te avisamos en tu Bandeja cuando termine.";
