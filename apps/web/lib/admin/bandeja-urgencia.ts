@@ -185,7 +185,7 @@ export interface LiquidacionVencida {
 }
 
 /**
- * Una liquidación pasada de plazo (`fn_liquidaciones_pendientes`, 0453). Igual
+ * Una liquidación pasada de plazo (`fn_liquidaciones_pendientes`, 0454). Igual
  * que `urgenciaSinHorario`: el riesgo ya ocurrió, así que no hay «hoy» ni
  * «próximo» posible — solo vencido. Decidido con Felipe el 2026-09-15: de las
  * cuatro señales que Liquidaciones podía mandar a la Bandeja (nueva pendiente,

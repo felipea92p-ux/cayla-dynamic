@@ -116,7 +116,7 @@ interface ItemVacacion {
   dias_para_vencer: number;
 }
 
-/** Una liquidación de cese pasada de plazo (`fn_liquidaciones_pendientes`, 0453).
+/** Una liquidación de cese pasada de plazo (`fn_liquidaciones_pendientes`, 0454).
  *  Solo esta señal cruza a la Bandeja — decidido con Felipe el 2026-09-15,
  *  ver `urgenciaLiquidacionVencida`. */
 interface ItemLiquidacionVencida {
