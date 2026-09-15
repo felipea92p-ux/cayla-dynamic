@@ -78,7 +78,7 @@ describe("cierres del día", () => {
     expect(r[0].aceptacion?.nota).toBe("cita médica");
   });
 
-  // 0452: el caso que abrió la auditoría. Se aceptaron 20 minutos; una
+  // 0451: el caso que abrió la auditoría. Se aceptaron 20 minutos; una
   // corrección los llevó a 142. Nadie vio esos 142, así que el aviso vuelve.
   const salida142 = {
     jornadasRango: [{
@@ -97,7 +97,7 @@ describe("cierres del día", () => {
     expect(r.aceptacionCaducada?.valor).toBe(20);
   });
 
-  it("un visto bueno anterior a la 0452 (sin número) sigue valiendo", () => {
+  it("un visto bueno anterior a la 0451 (sin número) sigue valiendo", () => {
     const [r] = detectarIncidencias(datos({
       ...salida142,
       aceptadas: [{ persona_id: "p1", fecha: "2026-09-04", tipo: "salida_anticipada", nota: null, aceptado_por: "f", aceptado_at: "t", valor: null }],

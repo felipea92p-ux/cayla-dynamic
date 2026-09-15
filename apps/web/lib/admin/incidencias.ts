@@ -116,7 +116,7 @@ export interface Aceptacion {
   nota: string | null;
   aceptadoPor: string;
   aceptadoAt: string;
-  /** El número que se dio por bueno; null en los vistos buenos anteriores a la 0452. */
+  /** El número que se dio por bueno; null en los vistos buenos anteriores a la 0451. */
   valor: number | null;
 }
 
@@ -146,7 +146,7 @@ export interface Incidencia {
   categoria: Categoria;
   /** Si ya tiene visto bueno vigente. La lista activa las oculta; el historial las muestra. */
   aceptacion?: Aceptacion;
-  /** Hubo un visto bueno, pero sobre OTRO número (0452): una corrección cambió el
+  /** Hubo un visto bueno, pero sobre OTRO número (0451): una corrección cambió el
    * hecho después de aceptarlo. El aviso vuelve a la lista y esto dice qué se había aceptado. */
   aceptacionCaducada?: Aceptacion;
 }
@@ -217,7 +217,7 @@ export function detectarIncidencias(d: DatosDeteccion): Incidencia[] {
       } satisfies Aceptacion,
     ]),
   );
-  // Un visto bueno vale para el número que se aceptó (0452). Los anteriores a
+  // Un visto bueno vale para el número que se aceptó (0451). Los anteriores a
   // esa migración no guardaron número y valen para cualquiera: reabrirlos
   // pediría revisar otra vez lo que alguien ya miró.
   const conAceptacion = (i: Omit<Incidencia, "clave" | "aceptacion" | "aceptacionCaducada">): Incidencia => {
