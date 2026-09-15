@@ -316,7 +316,8 @@ with repo(numero, nombre, nunca) as (values
     (449, 'objetivos_recuerdan_quien_los_toco', false),
     (450, 'la_constancia_de_estudios_se_entrega_y_se_revisa', false),
     (451, 'un_visto_bueno_recuerda_lo_que_acepto', false),
-    (452, 'eliminar_un_periodo_deja_rastro', false)
+    (452, 'eliminar_un_periodo_deja_rastro', false),
+    (453, 'la_bandeja_vuelve_a_reconocer_educacion', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
