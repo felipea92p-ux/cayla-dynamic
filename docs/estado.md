@@ -6,6 +6,34 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-09-15 — Contrato de Fernanda Espinoza: la 0430 se pegó y quedó verificada
+
+Felipe reportó con capturas: Fernanda confirmó su firma en `/mio/contrato`, y
+tanto `/mio` como `admin/contratos` seguían diciendo "Pendiente de firma" /
+"Sin firmar". No hacía falta escribir nada — la corrección exacta de este
+caso (su propio encabezado cita a Fernanda Espinoza y el 2026-09-12) ya vivía
+en la migración [0430](../supabase/migrations/0430_el_contrato_se_firma_completo_de_forma_digital.sql),
+fusionada a `main` antes de este reporte y listada como "sin pegar" en la
+entrada de más abajo.
+
+Antes de pegar se re-pidió en el SQL Editor el md5 de las cinco funciones que
+la 0430 reescribe (`fn_confirmar_mi_firma_contrato`, `fn_contrato_registrar`,
+`fn_contrato_editar`, `fn_set_fin_contrato`, `fn_contrato_refrescar_vencimiento`):
+las cinco coincidieron con los prefijos que el propio encabezado de la 0430
+ya había dejado anotados esa misma mañana — nada se había movido en el medio,
+segura de pegar.
+
+Se pegó completa. Su `select` final de comprobación devolvió las 6 columnas en
+`true`, incluida `backfill_completo`: las 7 personas que ya habían confirmado
+su firma antes de esta migración (Fernanda entre ellas) quedaron con
+`fecha_firma` puesta sin tener que volver a firmar nada — exactamente el
+criterio que pedía Felipe (a quien ya firmó no se le hace repetir; a quien no
+ha firmado, se le sigue pidiendo igual que antes).
+
+**La 0430 sale de la lista de "sin pegar" de la entrada de abajo.**
+
+---
+
 ## 2026-09-15 — Constancias de estudios: la integrante sube, DO revisa (0450) · SIN PEGAR · SIN PUSH
 
 Rama `claude/education-flow-audit-3ff1d7`, con `main` ya fusionado. Decisiones de
@@ -144,10 +172,11 @@ porque solo la llaman otras funciones por dentro), el trigger
 Con la 0437 y la 0438 juntas, el candado de «no pisar un expediente ya formal»
 vuelve a cubrir las ocho puertas para las que se diseñó, no seis.
 
-🔴 **Siguen sin pegar, y sin explicación: 0428, 0430, 0431, 0432, 0433, 0434,
-0435 y 0436.** (El 0420 también falta, pero ese sí está explicado: es una
-renumeración limpia, ver `huecos-conocidos.txt`.) Las ocho necesitan cada una
-su comprobación de si revierten algo antes de pegarlas — son de otras ramas y
+🔴 **Siguen sin pegar, y sin explicación: 0428, 0431, 0432, 0433, 0434, 0435 y
+0436.** (El 0420 también falta, pero ese sí está explicado: es una
+renumeración limpia, ver `huecos-conocidos.txt`. La 0430 se pegó y se verificó
+el 2026-09-15 — ver la entrada de arriba.) Las siete necesitan cada una su
+comprobación de si revierten algo antes de pegarlas — son de otras ramas y
 algunas reescriben funciones compartidas. La comprobación es siempre la misma y
 cuesta un minuto: `./scripts/donde-vive.sh <función>` para cada función que la
 migración define, y confirmar que la migración pendiente ES la vigente; si lo
