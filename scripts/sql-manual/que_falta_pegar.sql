@@ -307,7 +307,12 @@ with repo(numero, nombre, nunca) as (values
     (440, 'el_horario_tambien_se_cambia_por_una_puerta', false),
     (441, 'ausencia_avisa_dias_con_jornada', false),
     (442, 'anular_lo_aprobado_exige_desarrollo_organizacional', false),
-    (443, 'ausentismo_separa_pagado_y_excluye_pendiente', false)
+    (443, 'ausentismo_separa_pagado_y_excluye_pendiente', false),
+    (444, 'un_horario_normal_no_puede_pisar_el_pasado', false),
+    (445, 'el_calculo_de_una_jornada_se_vuelve_reusable', false),
+    (446, 'cada_jornada_guarda_el_horario_con_que_se_midio', false),
+    (447, 'corregir_un_horario_pasado_es_un_camino_aparte', false),
+    (448, 'la_negativa_pide_motivo_y_el_reemplazo_queda_auditado', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
