@@ -52,24 +52,45 @@ import { usePersonaActual } from "@/lib/admin/use-rol";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { BUCKET_SOLICITUDES_PERFIL } from "@/lib/foto-dni";
 import {
-  fechaLima, puedeGestionarCatalogos, puedeGestionarContratos, puedeOperarEquipo, puedeVerIdentidad,
-  puedeVerPlanilla, puedeVerSaludDeAlertas,
+  TIPO_CONSTANCIA_LABELS, fechaLima, puedeGestionarCatalogos, puedeGestionarContratos, puedeOperarEquipo,
+  puedeVerIdentidad, puedeVerPlanilla, puedeVerSaludDeAlertas, type TipoConstancia,
 } from "@cayla-dynamic/shared";
+import { esEducacionParaSaber, type FilaEducacionBandeja } from "@/lib/admin/bandeja-equipo";
 
 type TipoItemBandeja =
   | "revision" | "revision_movilidad" | "revision_contrato"
-  | "solicitud_vacacion" | "solicitud_perfil";
+  | "solicitud_vacacion" | "solicitud_perfil"
+  | "entrega_educacion" | "aviso_fin_educacion";
 
 const CLAVE_SEDE_FILTRO = "bandeja_sede_filtro";
 
-interface ItemEducacion {
+/** Un estudio para tener presente (0450): constancia vencida, sin calendario, o pago cercano. */
+type ItemEducacion = FilaEducacionBandeja;
+
+/** Una constancia de estudios esperando revisión (0450). UNA entrega = UN pendiente, tenga las páginas que tenga. */
+interface ItemEntregaEducacion {
   id: string;
+  familia_id: string;
+  persona_id: string;
   persona: string;
   sede: string;
-  rango: string;
-  dias_para_vencer: number;
-  meses_sin_papel: number;
-  semaforo: "sin_comprobante" | "vencida" | "por_vencer" | "vigente";
+  institucion: string;
+  fecha_pago: string;
+  tipo: TipoConstancia;
+  enviada_at: string;
+  archivos: number;
+  es_reenvio: boolean;
+}
+
+/** Una integrante avisó que ya no va a pagar su estudio (0450). */
+interface ItemAvisoFinEducacion {
+  id: string;
+  familia_id: string;
+  persona: string;
+  sede: string;
+  institucion: string;
+  motivo: string;
+  creado_at: string;
 }
 
 /** Alguien que trabajó días que su horario no cubre (mig. 0385). La función ya
@@ -219,11 +240,19 @@ function antiguedad(iso: string): { texto: string; alarma: boolean } {
   return { texto, alarma: dias >= 8 };
 }
 
-function detalleEducacion(f: ItemEducacion): string {
-  if (f.semaforo === "sin_comprobante") return "sin comprobante";
-  if (f.semaforo === "vencida") return "vencida";
-  if (f.semaforo === "por_vencer") return `vence en ${f.dias_para_vencer} día${f.dias_para_vencer === 1 ? "" : "s"}`;
-  return `${f.meses_sin_papel} mes${f.meses_sin_papel === 1 ? "" : "es"} sin papel`;
+// Rojo solo para lo vencido: un pago que se acerca no es un error de nadie.
+function detalleEducacion(f: ItemEducacion): { texto: string; clase: string } {
+  if (f.estado_constancia === "vencida") {
+    return { texto: `constancia vencida · pago del ${f.fecha_pago_constancia ? fmtFecha(f.fecha_pago_constancia) : "—"}`, clase: "text-rojo" };
+  }
+  if (f.estado_constancia === "sin_calendario" && (f.vigencia === "vigente" || f.vigencia === "por_terminar")) {
+    return { texto: "sin calendario de pagos", clase: "text-ambar" };
+  }
+  const dias = f.dias_para_pago ?? 0;
+  return {
+    texto: `paga a la institución el ${f.proxima_fecha_pago ? fmtFecha(f.proxima_fecha_pago) : "—"} · ${dias === 0 ? "hoy" : `en ${dias} día${dias === 1 ? "" : "s"}`}`,
+    clase: "text-tinta",
+  };
 }
 
 function detalleVacacion(v: ItemVacacion): string {
@@ -290,6 +319,8 @@ export default function BandejaPage() {
   const [cargando, setCargando] = useState(true);
   const [resumenAlertas, setResumenAlertas] = useState<ResumenAlertas | null>(null);
   const [educacion, setEducacion] = useState<ItemEducacion[]>([]);
+  const [entregasEducacion, setEntregasEducacion] = useState<ItemEntregaEducacion[]>([]);
+  const [avisosFinEducacion, setAvisosFinEducacion] = useState<ItemAvisoFinEducacion[]>([]);
   const [vacaciones, setVacaciones] = useState<ItemVacacion[]>([]);
   const [sinHorario, setSinHorario] = useState<ItemSinHorario[]>([]);
   const [revisiones, setRevisiones] = useState<ItemRevision[]>([]);
@@ -334,20 +365,32 @@ export default function BandejaPage() {
     const tareas: PromiseLike<void>[] = [];
 
     if (puedeEducacion) {
+      // ⇩ CAMBIO 0450 ⇩ Tres fuentes: las constancias por revisar y los avisos de
+      // fin van a «Por aprobar»; los estudios para tener presentes, a «Para
+      // saber». El criterio de estos últimos vive en bandeja-equipo.ts, que es
+      // también quien cuenta el bolito del menú.
       tareas.push(
-        supabase.rpc("fn_educacion_listar").then(({ data, error }) => {
+        supabase.rpc("fn_educacion_entregas_pendientes").then(({ data, error }) => {
+          if (error) { avisar("error", mensajeDeError(error, "cargar las constancias de educación")); return; }
+          setEntregasEducacion((data as unknown as ItemEntregaEducacion[]) ?? []);
+        }),
+      );
+      tareas.push(
+        supabase.rpc("fn_educacion_avisos_fin_pendientes").then(({ data, error }) => {
+          if (error) { avisar("error", mensajeDeError(error, "cargar los avisos de educación")); return; }
+          setAvisosFinEducacion((data as unknown as ItemAvisoFinEducacion[]) ?? []);
+        }),
+      );
+      tareas.push(
+        supabase.rpc("fn_educacion_situacion").then(({ data, error }) => {
           if (error) { avisar("error", mensajeDeError(error, "cargar educación")); return; }
-          // Mismo criterio que fn_educacion_por_atender (0290): el comentario
-          // de la propia pantalla de Educación explica por qué — ver ahí antes
-          // de tocar esto, para no separar los dos criterios.
-          const filas = ((data as unknown as ItemEducacion[]) ?? []).filter(
-            (f) => f.semaforo === "sin_comprobante" || f.semaforo === "por_vencer" || f.meses_sin_papel > 0,
-          );
-          setEducacion(filas);
+          setEducacion(((data as unknown as ItemEducacion[]) ?? []).filter(esEducacionParaSaber));
         }),
       );
     } else {
       setEducacion([]);
+      setEntregasEducacion([]);
+      setAvisosFinEducacion([]);
     }
 
     if (puedeEquipo) {
@@ -470,6 +513,8 @@ export default function BandejaPage() {
       ...revisionesContrato.map((r): [TipoItemBandeja, string] => ["revision_contrato", r.id]),
       ...solicitudesVacaciones.map((s): [TipoItemBandeja, string] => ["solicitud_vacacion", s.id]),
       ...solicitudesPerfil.map((s): [TipoItemBandeja, string] => ["solicitud_perfil", s.id]),
+      ...entregasEducacion.map((e): [TipoItemBandeja, string] => ["entrega_educacion", e.id]),
+      ...avisosFinEducacion.map((a): [TipoItemBandeja, string] => ["aviso_fin_educacion", a.id]),
     ];
     for (const [tipo, id] of items) {
       if (!vistosIniciales.has(`${tipo}:${id}`)) {
@@ -558,7 +603,7 @@ export default function BandejaPage() {
 
   const total = educacion.length + vacaciones.length + revisiones.length + revisionesMovilidad.length
     + revisionesContrato.length + solicitudesVacaciones.length + solicitudesPerfil.length
-    + alertasConProblema + sinHorario.length;
+    + alertasConProblema + sinHorario.length + entregasEducacion.length + avisosFinEducacion.length;
 
   // Nunca una lista escrita a mano de sedes (regla #3 de este repo): las
   // opciones del filtro salen de lo que de verdad trajeron las RPC hoy, no
@@ -567,10 +612,11 @@ export default function BandejaPage() {
     const todas = [
       ...educacion, ...vacaciones, ...sinHorario, ...revisiones, ...revisionesMovilidad,
       ...revisionesContrato, ...solicitudesVacaciones, ...solicitudesPerfil,
+      ...entregasEducacion, ...avisosFinEducacion,
     ].map((x) => x.sede);
     return Array.from(new Set(todas)).sort();
   }, [educacion, vacaciones, sinHorario, revisiones, revisionesMovilidad, revisionesContrato,
-      solicitudesVacaciones, solicitudesPerfil]);
+      solicitudesVacaciones, solicitudesPerfil, entregasEducacion, avisosFinEducacion]);
 
   function filtradas<T extends { sede: string }>(items: T[]): T[] {
     return sedeFiltro ? items.filter((x) => x.sede === sedeFiltro) : items;
@@ -584,9 +630,12 @@ export default function BandejaPage() {
   const sinHorarioF = filtradas(sinHorario);
   const vacacionesF = filtradas(vacaciones);
   const educacionF = filtradas(educacion);
+  const entregasEducacionF = filtradas(entregasEducacion);
+  const avisosFinEducacionF = filtradas(avisosFinEducacion);
 
   const totalPorAprobar = revisionesF.length + revisionesMovilidadF.length + revisionesContratoF.length
-    + solicitudesVacacionesF.length + solicitudesPerfilF.length;
+    + solicitudesVacacionesF.length + solicitudesPerfilF.length
+    + entregasEducacionF.length + avisosFinEducacionF.length;
   const totalParaSaber = sinHorarioF.length + vacacionesF.length + educacionF.length;
 
   return (
@@ -854,6 +903,77 @@ export default function BandejaPage() {
                   </section>
                 )}
 
+                {/* Constancias de estudios (0450). UNA entrega = UN pendiente, tenga
+                    las páginas que tenga. Se revisan en Educación, con los archivos a
+                    la vista: aprobar desde una lista sería aprobar un papel que nadie
+                    miró. El enlace abre esa entrega, no el inicio del módulo. */}
+                {entregasEducacionF.length > 0 && (
+                  <section>
+                    <h3 className="mb-1 font-serif text-lg">
+                      {entregasEducacionF.length === 1
+                        ? "Una constancia educativa por revisar"
+                        : `${entregasEducacionF.length} constancias educativas por revisar`}
+                    </h3>
+                    <p className="mb-3 text-sm text-taupe">
+                      La subieron desde «Educación», en Lo mío. Ábrela para ver los archivos y aprobar o rechazar con motivo.
+                    </p>
+                    <ul className="space-y-3">
+                      {entregasEducacionF.map((e) => (
+                        <li key={e.id} className="rounded-xl border border-sand p-3 text-sm">
+                          <div className="flex flex-wrap items-baseline justify-between gap-2">
+                            <span className="flex flex-wrap items-baseline gap-2">
+                              {!vistosIniciales.has(`entrega_educacion:${e.id}`) && <InsigniaNuevo />}
+                              <strong>{e.persona}</strong>
+                              <span className="text-taupe">· {e.sede}</span>
+                            </span>
+                            <Link href={`/admin/educacion?entrega=${e.id}`} className="text-rojo hover:underline">
+                              Revisar →
+                            </Link>
+                          </div>
+                          <p className="mt-1.5">
+                            Constancia educativa pendiente de revisión{e.es_reenvio ? " · corrige una rechazada" : ""}
+                          </p>
+                          <p className="text-xs text-taupe">
+                            {e.institucion} · pago del {fmtFecha(e.fecha_pago)} · {TIPO_CONSTANCIA_LABELS[e.tipo] ?? e.tipo}
+                            {" · "}{e.archivos} archivo{e.archivos === 1 ? "" : "s"} · enviada el {fmtDiaLima(e.enviada_at)}
+                            {" · "}<Antiguedad pedidaAt={e.enviada_at} />
+                          </p>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                )}
+
+                {avisosFinEducacionF.length > 0 && (
+                  <section>
+                    <h3 className="mb-1 font-serif text-lg">
+                      {avisosFinEducacionF.length === 1
+                        ? "Una integrante dejó de pagar su estudio"
+                        : `${avisosFinEducacionF.length} integrantes dejaron de pagar su estudio`}
+                    </h3>
+                    <p className="mb-3 text-sm text-taupe">
+                      Lo avisaron desde «Educación». Cerrar la asignación mueve lo que se paga, así que decides tú desde qué fecha.
+                    </p>
+                    <ul className="space-y-3">
+                      {avisosFinEducacionF.map((a) => (
+                        <li key={a.id} className="rounded-xl border border-sand p-3 text-sm">
+                          <div className="flex flex-wrap items-baseline justify-between gap-2">
+                            <span className="flex flex-wrap items-baseline gap-2">
+                              {!vistosIniciales.has(`aviso_fin_educacion:${a.id}`) && <InsigniaNuevo />}
+                              <strong>{a.persona}</strong>
+                              <span className="text-taupe">· {a.sede} · {a.institucion} · <Antiguedad pedidaAt={a.creado_at} /></span>
+                            </span>
+                            <Link href={`/admin/educacion?familia=${a.familia_id}`} className="text-rojo hover:underline">
+                              Abrir en Educación →
+                            </Link>
+                          </div>
+                          <p className="mt-1.5">«{a.motivo}»</p>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                )}
+
                 {solicitudesVacacionesF.length > 0 && (
                   <section>
                     <h3 className="mb-1 font-serif text-lg">
@@ -1046,24 +1166,29 @@ export default function BandejaPage() {
 
                 {educacionF.length > 0 && (
                   <section>
-                    <h3 className="mb-3 font-serif text-lg">
-                      {educacionF.length} asignación{educacionF.length === 1 ? "" : "es"} de educación por atender
+                    <h3 className="mb-1 font-serif text-lg">
+                      Educación: {educacionF.length} estudio{educacionF.length === 1 ? "" : "s"} para tener presente{educacionF.length === 1 ? "" : "s"}
                     </h3>
+                    <p className="mb-3 max-w-2xl text-xs leading-relaxed text-taupe">
+                      Constancias cuyo plazo venció, estudios sin calendario de pagos, y pagos a la institución que llegan en
+                      los próximos días —para que el apoyo esté listo a tiempo.
+                    </p>
                     <ul className="space-y-2">
-                      {educacionF.map((f) => (
-                        <li key={f.id} className="rounded-xl border border-sand p-3 text-sm">
-                          <div className="flex flex-wrap items-center justify-between gap-2">
-                            <span><strong>{f.persona}</strong> <span className="text-taupe">· {f.sede} · {f.rango}</span></span>
-                            <span className={f.semaforo === "vencida" || f.semaforo === "sin_comprobante" ? "text-rojo" : "text-ambar"}>
-                              {detalleEducacion(f)}
-                            </span>
-                          </div>
-                        </li>
-                      ))}
+                      {educacionF.map((f) => {
+                        const d = detalleEducacion(f);
+                        return (
+                          <li key={f.familia_id} className="rounded-xl border border-sand p-3 text-sm">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <span><strong>{f.persona}</strong> <span className="text-taupe">· {f.sede} · {f.institucion}</span></span>
+                              <span className="flex flex-wrap items-center gap-3">
+                                <span className={d.clase}>{d.texto}</span>
+                                <Link href={`/admin/educacion?familia=${f.familia_id}`} className="text-rojo hover:underline">Ver →</Link>
+                              </span>
+                            </div>
+                          </li>
+                        );
+                      })}
                     </ul>
-                    <Link href="/admin/educacion" className="mt-2 inline-block text-sm text-taupe hover:text-rojo">
-                      Ir a Educación →
-                    </Link>
                   </section>
                 )}
               </div>

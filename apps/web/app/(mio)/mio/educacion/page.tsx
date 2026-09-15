@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import {
   ARCHIVOS_POR_ENTREGA, ESTADO_CONSTANCIA, ESTADO_ENTREGA, FRECUENCIA_PAGO_LABELS, MOTIVO_RECHAZO_LABELS,
-  TIPOS_CONSTANCIA, TIPO_CONSTANCIA_LABELS, hoyLima, problemaDeArchivo, sugerirProximaFecha,
+  TIPOS_CONSTANCIA, TIPO_CONSTANCIA_LABELS, TZ_LIMA, hoyLima, problemaDeArchivo, sugerirProximaFecha,
   type EstadoConstancia, type EstadoEntrega, type FrecuenciaPago, type MotivoRechazo, type TipoConstancia,
 } from "@cayla-dynamic/shared";
 import { Cargando } from "@/components/cargando";
@@ -89,7 +89,7 @@ const soles = (n: number) =>
 function fechaHora(ts: string | null): string {
   if (!ts) return "—";
   const f = new Intl.DateTimeFormat("es-PE", {
-    timeZone: "America/Lima", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false,
+    timeZone: TZ_LIMA, day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false,
   }).formatToParts(new Date(ts));
   const p = (t: string) => f.find((x) => x.type === t)?.value ?? "";
   return `${p("day")}/${p("month")}/${p("year")} · ${p("hour")}:${p("minute")}`;
