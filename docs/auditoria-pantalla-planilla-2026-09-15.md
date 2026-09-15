@@ -230,6 +230,33 @@ El filtro de sede guardado hace que la pantalla abra así (captura del 15/09:
 - **B4** · El rojo se usa para alarmas, descuentos y avisos por igual.
 - **B5** · «Base full-time: 195 h» sin explicar qué es ni por qué cambia.
 
+---
+
+## 7 · Decisiones (Felipe, 2026-09-15) y lo implementado
+
+| Tema | Decisión | Dónde quedó |
+|---|---|---|
+| Cierre | Bloqueo solo de los dos frenos de la base; el resto se marca «revisé estos avisos» | `components/planilla/revision-cierre.tsx` |
+| Cesados | Siempre en la tabla, insignia relativa al periodo; el filtro «Mostrar» desaparece | `revision.ts · ceseRespectoDelPeriodo`, `tabla-planilla.tsx` |
+| Filtros | Solo la vista; «Subtotal visible · X de Y»; la sede ya no se guarda | `page.tsx` |
+| Periodo anterior impago | Aviso de TODOS los terminados sin pagar (con qué grupo falta) + casilla al pagar uno más nuevo | `page.tsx`, `revision-cierre.tsx` |
+| Estados | Por grupo, sin estado nuevo; «pagado en parte» es una lectura | `revision.ts · lecturaDelEstado` |
+| Comparación | Solo con el periodo terminado; en curso, solo quién entró y salió | `que-cambio.tsx` |
+| Grupos | Se mantienen las pestañas, con conteos del periodo completo | `page.tsx` |
+| Eliminar | Menú «⋯», detalle de lo que se pierde, confirmación escrita + migración de rastro | `page.tsx`, **0451** (sin pegar) |
+| Pagar | Una operación: «Revisar cierre → Confirmar pago y congelar» | `revision-cierre.tsx` |
+| Requiere atención | Frenos de la base, datos por persona, periodos y grupos (no los chequeos SQL) | `requiere-atencion.tsx` |
+| CSV | Para el contador: completo, con grupo y todas las partidas (probado que `total` cuadra) | `csv-planilla.ts` |
+| Reapertura | Consecuencias + historial visible (`reversas_pago`) | `page.tsx` |
+
+Resueltos por el rediseño: **C2**, A1, A2 (CSV), A3, A4, A5 (pantalla), A6 (confirmación y
+menú; el rastro llega con la 0451), A7, M1, M2, M3, M4, M7, B1, B2, B3, B4, B5.
+
+Sigue abierto: **C1** (cambio de vínculo entre pagos de grupo — es de base de datos y no se
+decidió), M5 y M6 (SQL), M8 (documento desactualizado), y un hallazgo nuevo de la 0451: un
+periodo que alguna vez se pagó y se reabrió no se puede borrar (clave foránea), aunque el
+mensaje de la base diga «reábrelo primero».
+
 ### Fuera del alcance de la pantalla (fórmulas — no se tocan sin decisión)
 
 La asignación familiar no se prorratea con ingreso o cese a mitad de periodo. El
