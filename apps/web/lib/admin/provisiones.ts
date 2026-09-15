@@ -124,6 +124,87 @@ const anioDe = (iso: string) => iso.slice(0, 4);
 
 export const esPracticante = (p: ProvPersona) => p.tipo_vinculo === "practicante";
 
+// ── Lo que devenga una practicante (0467) ────────────────────────────────────
+//
+// Viene de `fn_subvenciones_practicante`, una función APARTE de fn_provisiones.
+// Son los dos pagos de la Ley 28518 art. 42 —media subvención por cada 6 meses
+// continuos, y 15 días de descanso al cumplir 12— que no son gratificación, CTS
+// ni vacaciones (art. 47) y que por eso no viven en el mismo cálculo.
+//
+// Por lo mismo, el `gran_total` que manda fn_provisiones para una practicante
+// es CERO y sigue siendo correcto. El saldo que muestra la pantalla para ella
+// es `total_saldo` de aquí: dos funciones, dos números, y la pantalla dice cuál
+// está mirando.
+
+export interface SubvPersona {
+  persona_id: string;
+  nombre: string;
+  sede: string;
+  fecha_ingreso: string;
+  /** La subvención mensual vigente al corte. null = no hay tramo cargado. */
+  subvencion_mensual: number | null;
+  sin_subvencion: boolean;
+  semestres_cumplidos: number;
+  semestre_desde: string;
+  semestre_hasta: string;
+  /** Cuándo cae el próximo hito de 6 meses. */
+  proximo_hito: string;
+  media_sub_devengado: number;
+  media_sub_pagado: number | null;
+  media_sub_saldo: number;
+  /** El día en que cumple 12 meses y el descanso queda ganado. */
+  descanso_cumple: string;
+  descanso_ganado: boolean;
+  descanso_devengado: number;
+  descanso_pagado: number | null;
+  descanso_saldo: number;
+  total_saldo: number;
+}
+
+export interface SubvData {
+  as_of: string;
+  factor_media_subvencion: number;
+  factor_descanso: number;
+  personas: SubvPersona[];
+}
+
+/** undefined = leyendo · null = no se pudo leer · objeto = leído */
+export type Subvenciones = SubvData | null | undefined;
+
+export function subvencionDe(s: Subvenciones, p: ProvPersona): SubvPersona | null {
+  if (!s) return null;
+  return s.personas.find((x) => x.persona_id === p.persona_id) ?? null;
+}
+
+/**
+ * El saldo de una fila. Para una practicante son sus dos conceptos; para el
+ * resto, el `gran_total` que calcula la base. Nunca se mezclan en una suma:
+ * son dos cuentas distintas, de dos funciones distintas.
+ */
+export function saldoDeFila(p: ProvPersona, s: Subvenciones): number {
+  if (esPracticante(p)) return subvencionDe(s, p)?.total_saldo ?? 0;
+  return p.gran_total;
+}
+
+export interface TotalesSubvenciones {
+  media: number;
+  descanso: number;
+  total: number;
+  personas: number;
+}
+
+/** Suma de las practicantes visibles; devuelve null si no hay ninguna. */
+export function totalesSubvenciones(personas: ProvPersona[], s: Subvenciones): TotalesSubvenciones | null {
+  const filas = personas.map((p) => subvencionDe(s, p)).filter((x): x is SubvPersona => x !== null);
+  if (!filas.length) return null;
+  return {
+    media: redondear(filas.reduce((a, x) => a + x.media_sub_saldo, 0)),
+    descanso: redondear(filas.reduce((a, x) => a + x.descanso_saldo, 0)),
+    total: redondear(filas.reduce((a, x) => a + x.total_saldo, 0)),
+    personas: filas.length,
+  };
+}
+
 // ── Las cuatro ventanas del año que la base calcula ──────────────────────────
 
 export interface Ventana {
@@ -445,7 +526,13 @@ export const hayFiltros = (f: FiltrosProvisiones) => Boolean(f.texto.trim() || f
 
 // ── Pagos del libro, por ventana ─────────────────────────────────────────────
 
-export type VentanaLibro = VentanaClave | "vacaciones";
+// Las siete ventanas que admite el libro: las cinco de siempre y las dos que
+// agregó la 0467 para modalidad formativa.
+export type VentanaLibro =
+  | VentanaClave
+  | "vacaciones"
+  | "subvencion_semestral"
+  | "descanso_practicante";
 
 export interface PagosDeVentana {
   /** Lo que la base da por cobrado. */
@@ -459,13 +546,25 @@ export interface PagosDeVentana {
   porPlanilla: number;
 }
 
+/**
+ * `totalConocido` lo pasan las ventanas que NO viven en el jsonb de
+ * fn_provisiones —las dos de modalidad formativa (0467)—, cuyo monto cobrado
+ * viene de `fn_subvenciones_practicante`. Para las otras cinco se deduce aquí.
+ */
 export function pagosDe(
   p: ProvPersona,
   ventana: VentanaLibro,
   anio: number,
   libro: DesembolsoLibro[],
+  totalConocido?: number,
 ): PagosDeVentana {
-  const total = ventana === "vacaciones" ? (p.vac_monto_pagado ?? 0) : pagadoVentana(p, ventana);
+  const total =
+    totalConocido ??
+    (ventana === "vacaciones"
+      ? (p.vac_monto_pagado ?? 0)
+      : ventana === "subvencion_semestral" || ventana === "descanso_practicante"
+        ? 0
+        : pagadoVentana(p, ventana));
   const filas = libro
     .filter((l) => l.persona_id === p.persona_id && l.ventana === ventana && l.anio === anio)
     .sort((a, b) => (a.fecha_pago < b.fecha_pago ? -1 : 1));
@@ -510,14 +609,22 @@ export const COLUMNAS_CSV_ANTERIORES = [
   "dias_sin_salario",
 ] as const;
 
-const PREFIJO_CSV: Record<VentanaLibro, string> = {
+/**
+ * El CSV cubre las cinco ventanas que calcula `fn_provisiones`, no las siete
+ * del libro: las dos de modalidad formativa (0467) salen de otra función y no
+ * tienen columna aquí. Tipo propio para que agregar una ventana al libro no
+ * obligue a inventarle una columna al archivo del contador.
+ */
+type VentanaCsv = VentanaClave | "vacaciones";
+
+const PREFIJO_CSV: Record<VentanaCsv, string> = {
   grati_s1: "grati_julio",
   grati_s2: "grati_diciembre",
   cts_may: "cts_mayo",
   cts_nov: "cts_noviembre",
   vacaciones: "vacaciones",
 };
-const VENTANAS_LIBRO: VentanaLibro[] = ["grati_s1", "grati_s2", "cts_may", "cts_nov", "vacaciones"];
+const VENTANAS_LIBRO: VentanaCsv[] = ["grati_s1", "grati_s2", "cts_may", "cts_nov", "vacaciones"];
 
 /** Las columnas nuevas, siempre DESPUÉS de las anteriores. */
 export const COLUMNAS_CSV_NUEVAS = [

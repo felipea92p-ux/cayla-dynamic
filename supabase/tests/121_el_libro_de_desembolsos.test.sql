@@ -13,8 +13,12 @@
 --      lista de ventanas o afloja el rango de años, el laboratorio deja de
 --      parecerse a producción y el comparador empieza a mentir.
 --
--- Las cinco ventanas no son una lista arbitraria: son los momentos en que la
--- ley peruana obliga a entregar algo. Cambiarlas es cambiar el negocio.
+-- Las ventanas no son una lista arbitraria: son los momentos en que la ley
+-- peruana obliga a entregar algo. Cambiarlas es cambiar el negocio.
+--
+-- Eran cinco hasta la 0467, que sumó las dos de modalidad formativa
+-- (subvencion_semestral, descanso_practicante): los dos pagos de la Ley 28518
+-- art. 42, que caen en el aniversario del convenio y no el 15 de un mes fijo.
 -- ============================================================================
 begin;
 select plan(9);
@@ -74,7 +78,7 @@ select throws_ok(
      values ('00000000-0000-0000-0000-00000000de02', 'aguinaldo', 2026, 500,
              '2026-05-15', 'transferencia') $$,
   null, null,
-  'REGLAS · una ventana inventada se rechaza: son cinco y las fija la ley');
+  'REGLAS · una ventana inventada se rechaza: son siete y las fija la ley');
 
 select throws_ok(
   $$ insert into desembolsos_beneficios
