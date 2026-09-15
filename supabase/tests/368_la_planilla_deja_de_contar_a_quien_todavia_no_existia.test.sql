@@ -47,11 +47,16 @@ select 'cccccccc-0464-0000-0000-000000000002', 'Vieja', 'DeAntes',
 insert into asignaciones_salario (persona_id, rango, salario_mensual_soles, vigente_desde)
 values ('cccccccc-0464-0000-0000-000000000002', 'colibri', 1950, '2020-01-01');
 
--- RxhReal: grupo 'rxh', con jornada marcada SOLO en julio — su pago sigue
--- pendiente de verdad en julio; en agosto no tiene ninguna fila.
+-- RxhReal: grupo 'rxh', con jornada marcada SOLO en julio. `estado =
+-- 'inactivo'` a propósito: si estuviera activa, la propia rama "está activo y
+-- ya existía" (la que la 0463 deja intacta) la haría aparecer TAMBIÉN en
+-- agosto con una fila en cero — el mismo comportamiento correcto que ya
+-- documenta la 0274 para provisiones, no un defecto. Inactiva, solo la
+-- rescata la rama de "tiene una jornada real en el rango": aparece en julio
+-- (donde sí marcó) y en agosto no aparece en absoluto.
 insert into personas (id, nombres, apellidos, sede_base_id, estado, pin_hash, fecha_ingreso, tipo_vinculo, sueldo_fijo)
 select 'cccccccc-0464-0000-0000-000000000003', 'RxhReal', 'DeJulio',
-       'aaaaaaaa-0464-0000-0000-000000000001', 'activo', 'x', d.vieja_ingreso, 'rxh', false
+       'aaaaaaaa-0464-0000-0000-000000000001', 'inactivo', 'x', d.vieja_ingreso, 'rxh', false
   from _datos d;
 insert into asignaciones_salario (persona_id, rango, salario_mensual_soles, vigente_desde)
 values ('cccccccc-0464-0000-0000-000000000003', 'colibri', 1950, '2020-01-01');
