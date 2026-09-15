@@ -6,6 +6,55 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-09-15 — Constancias de estudios: la integrante sube, DO revisa (0450) · SIN PEGAR · SIN PUSH
+
+Rama `claude/education-flow-audit-3ff1d7`, con `main` ya fusionado. Decisiones de
+producto tomadas con Felipe ese día (12 preguntas): **solo alerta** —aprobar o
+rechazar no cambia lo que se paga—; calendario por institución (frecuencia +
+próxima fecha); la constancia vence 5 días antes del cierre del periodo en que
+cae el pago; aviso a DO 7 días antes del pago y a la integrante 7 antes del
+plazo; aprueba solo DO; retirar/reemplazar mientras está pendiente; rechazo con
+categoría + comentario ≥ 3; lo que carga DO queda aprobado.
+
+**Qué hay:** migración
+[0450](../supabase/migrations/0450_la_constancia_de_estudios_se_entrega_y_se_revisa.sql)
+(entregas, archivos, avisos de fin, `familia_id`, espejo solo desde aprobadas,
+almacén con carpeta propia para la integrante y archivos revisados congelados);
+prueba 355 (66/66) y la 226 reescrita donde su promesa cambió (27/27), contra el
+Postgres local dentro de `BEGIN … ROLLBACK`; `/mio/educacion`; `/admin/educacion`
+rediseñada; Bandeja de DO y de la integrante; vitest 617/617.
+
+**Orden para producción — no se fusiona antes del paso 4:**
+1. Volver a pedir en el SQL Editor el md5 de `fn_educacion_registrar`,
+   `fn_educacion_por_atender`, `fn_educacion_quitar_comprobante`,
+   `fn_educacion_espejo_comprobante` y `fn_bandeja_marcar_visto`. Tienen que dar
+   los del encabezado de la 0450 (medidos el 2026-09-15). Si no, parar.
+2. Push de la rama (sin eso `dame-el-sql.sh 450` se niega) y pegar la 0450.
+3. La 0450 aborta sola si una sola asignación cambiara entre «paga» y «no paga».
+   Si terminó, confirmar: `select numero, nombre from migraciones_aplicadas where numero = 450;`
+   y la línea PLANILLA de `que_falta_pegar.sql` (la 0450 no toca la planilla).
+4. Recién ahí fusionar el PR (fusionar = publicar).
+
+**Pendiente, y hay que saberlo antes de pegar:**
+- **El día que se pega, todos los estudios existentes quedan «sin calendario de
+  pagos»** y el contador de Educación sube por cada uno. No es un error: nadie
+  registró todavía cuándo paga cada integrante. DO tiene que fijar frecuencia y
+  próxima fecha de cada estudio desde su panel.
+- **Sin verificación visual.** `apps/web/.env.local` no existe y la base local
+  compartida no tiene la 0450 (aplicarla le cambiaría el estado a otras sesiones).
+  Probar en la vista previa de Vercel tras pegar: subir desde un celular (tomar
+  foto, varias páginas, un PDF), retirar, rechazar, corregir, aprobar, y el
+  enlace «Revisar →» de la Bandeja.
+- HEIC: se convierte a JPG en el navegador; fuera de Safari puede no poder
+  leerse y la pantalla pide compartirla como JPG.
+- `fn_educacion_listar` y la tabla `educacion_comprobantes` quedan vivas solo por
+  compatibilidad (la tabla refleja cada papel como entrega aprobada); retirarlas
+  es una migración aparte cuando nada las lea.
+- El ADR 0003 anota que sus decisiones 5 y 8 las cerró la 0450: **no escribir otra
+  migración del contador de Educación.**
+
+---
+
 ## 2026-09-14 — Horarios caído en producción: la 0440 se fusionó a `main` sin pegarse — mismo patrón que 0404/0407, otra vez
 
 Felipe reportó: al cambiar el horario de cualquier persona, el modal

@@ -1,7 +1,9 @@
 # ADR 0003 — La Bandeja se ordena por urgencia y por dónde se resuelve
 
-Fecha: 2026-09-15. Estado: **implementado en la pantalla**; la migración del
-contador de Educación (decisión 8) está **pendiente** del md5 de producción.
+Fecha: 2026-09-15. Estado: **implementado en la pantalla**. La decisión 8 (el
+contador de Educación) y la 5 (plazo y papel de Educación) quedaron **resueltas y
+reemplazadas por la migración 0450** —ver al final de cada una—: no escribir otra
+migración para `fn_educacion_por_atender`, revertiría la 0450.
 Reemplaza las decisiones 3 («Por aprobar / Para saber») y 7 (filtro de sede) del
 [ADR 0002](0002-rediseno-bandeja.md). Las demás del 0002 siguen en pie.
 
@@ -79,6 +81,15 @@ verbo concreto («Subir papel», «Asignar horario») al lugar más exacto dispo
 papel en la descripción («Falta el papel de 2 meses ya pagados»). Lejos de
 vencer, con papel faltante, es «Documento pendiente» en Sin plazo.
 
+**REEMPLAZADA POR LA 0450 (mismo día).** Educación dejó de tener «papeles por
+mes»: cada pago a la institución tiene su constancia, que la integrante sube y DO
+revisa. En la Bandeja: cada constancia por revisar es un pendiente propio con
+enlace a esa entrega (se mide por lo que espera), y el estudio entra por su
+constancia vencida (Vencido, desde su plazo), por un pago a la institución en los
+próximos días (Hoy / Próximos) o por no tener calendario (Sin plazo). La vigencia
+del beneficio ya no genera pendiente: «vence en 0 días» era casi siempre una
+renovación normal. Ver `urgenciaEducacion` en `lib/admin/bandeja-urgencia.ts`.
+
 ### 6. Quien cesó sigue visible
 
 **DECIDÍ:** insignia «Cesó el …» y baja a Sin plazo. No se esconde una deuda de
@@ -95,11 +106,20 @@ filtros»); Educación muestra una franja «Mostrando solo…» con «Ver todas�
 resolver, la Bandeja emite `dynamic:bandeja-cambio` y `nav.tsx` vuelve a contar
 Bandeja e Incidencias con las mismas consultas.
 
-### 8. El contador de Educación cuenta lo mismo que la Bandeja (pendiente)
+### 8. El contador de Educación cuenta lo mismo que la Bandeja (resuelta en la 0450)
 
 **DECIDÍ:** una migración aparte que deja `fn_educacion_por_atender` con el criterio
 de la Bandeja. Se escribe **después** de pedir el md5 de producción, y se pega
 antes de fusionar.
+
+**HECHO EN LA 0450** (`la_constancia_de_estudios_se_entrega_y_se_revisa`), con el
+md5 de producción pedido el 2026-09-15. El contador cuenta constancias por
+revisar + constancias vencidas + estudios vigentes sin calendario + avisos de
+«ya no voy a pagar». La Bandeja cuenta eso mismo **más** los pagos a la
+institución de los próximos días (avisan, pero todavía no piden nada): esa es la
+única diferencia, y es a propósito. El criterio compartido vive en
+`esEducacionParaSaber` (`lib/admin/bandeja-equipo.ts`) y la prueba 355 compara el
+contador contra las listas.
 
 ## Evaluado y descartado sin pregunta
 

@@ -7,7 +7,8 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { ESTADO_CIVIL_LABELS, GENERO_LABELS, GRADO_INSTRUCCION_LABELS, TZ_LIMA, TIPO_VINCULO_LABEL, etiquetaDeCatalogo, hoyLima, puedeOperarEquipo, puedeVerIdentidad, puedeVerPlanilla } from "@cayla-dynamic/shared";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
-import { BUCKET_SOLICITUDES_PERFIL } from "@/lib/foto-dni";
+import { BUCKET_SOLICITUDES_PERFIL, CARAS_DNI, type CaraDni } from "@/lib/foto-dni";
+import { abrirArchivoFirmado } from "@/lib/abrir-archivo-firmado";
 import { Cargando } from "@/components/cargando";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { GraficoHoras, type DiaGrafico } from "@/components/grafico-horas";
@@ -261,6 +262,22 @@ export default function PerfilPersonaPage() {
     } finally {
       setBorrandoDni(false);
     }
+  }
+  /**
+   * Abre una cara del DNI YA APROBADO. Hasta aquí la foto solo se podía mirar
+   * en /admin/bandeja mientras estaba pendiente: una vez aprobada, la ficha
+   * decía «Cargadas y aprobadas» y el único botón al lado era «Cancelar
+   * documento» — que borra y no se deshace. Quien entraba a mirar el DNI solo
+   * encontraba la acción destructiva.
+   *
+   * Pasa por `abrirArchivoFirmado` y no por `window.open` tras la firma: el
+   * navegador bloquea a ratos la pestaña si la firma tarda (ver ese archivo).
+   * 60 segundos alcanzan para que cargue; el enlace no queda vivo dando vueltas.
+   * Quién puede leerla lo decide la política del bucket (0403), no esta pantalla.
+   */
+  async function verCaraDni(ruta: string) {
+    const fallo = await abrirArchivoFirmado(supabase, BUCKET_SOLICITUDES_PERFIL, ruta);
+    if (fallo) avisar("error", fallo);
   }
   const [incluirSueldo, setIncluirSueldo] = useState(true); // controla si el sueldo entra al PDF
   const [vacas, setVacas] = useState<VacacionesSaldo | null>(null);
@@ -527,6 +544,8 @@ export default function PerfilPersonaPage() {
   const nombre = persona ? `${persona.nombres} ${persona.apellidos}` : "";
   const iniciales = persona ? `${persona.nombres[0] ?? ""}${persona.apellidos[0] ?? ""}` : "";
   const tieneFotosDni = !!(ficha?.foto_dni_anverso_ruta || ficha?.foto_dni_reverso_ruta);
+  const rutaCaraDni = (cara: CaraDni): string | null =>
+    cara === "anverso" ? ficha?.foto_dni_anverso_ruta ?? null : ficha?.foto_dni_reverso_ruta ?? null;
 
   // ── Bloques reutilizados entre la pestaña interactiva y el PDF ───────────
   // Funciones simples que DEVUELVEN jsx — no componentes (no se usan como
@@ -558,11 +577,23 @@ export default function PerfilPersonaPage() {
             <div className="flex items-center justify-between gap-3">
               <Dato label="Fotos del DNI" valor={tieneFotosDni ? "Cargadas y aprobadas" : "—"} />
               {conAcciones && tieneFotosDni && (
-                <Menu trigger={({ alternar, abierto }) => (
-                  <Boton variante="sutil" tamano="sm" onClick={alternar} aria-haspopup="menu" aria-expanded={abierto}>•••</Boton>
-                )}>
-                  <MenuItem variante="peligro" onClick={() => setMostrandoCancelarDni(true)}>Cancelar documento</MenuItem>
-                </Menu>
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  {/* Ver va a la vista y cancelar queda dentro del «•••»: lo
+                      cotidiano es mirar el documento, lo excepcional es borrarlo. */}
+                  {CARAS_DNI.map((cara) => {
+                    const ruta = rutaCaraDni(cara.clave);
+                    return ruta ? (
+                      <Boton key={cara.clave} variante="secundario" tamano="sm" onClick={() => void verCaraDni(ruta)}>
+                        Ver {cara.etiqueta.toLowerCase()}
+                      </Boton>
+                    ) : null;
+                  })}
+                  <Menu trigger={({ alternar, abierto }) => (
+                    <Boton variante="sutil" tamano="sm" onClick={alternar} aria-haspopup="menu" aria-expanded={abierto} aria-label="Más acciones del DNI">•••</Boton>
+                  )}>
+                    <MenuItem variante="peligro" onClick={() => setMostrandoCancelarDni(true)}>Cancelar documento</MenuItem>
+                  </Menu>
+                </div>
               )}
             </div>
           </div>
