@@ -209,8 +209,14 @@ begin
     (persona_id, campo_modificado, valor_anterior, valor_nuevo, corregido_por, motivo)
   values
     (p_persona_id, 'liquidacion_pagada', null,
-     'S/' || to_char((v_l->>'total')::numeric, 'FM999999990.00') || ' · version ' || v_ver
-          || ' · pagada el ' || to_char(v_fecha_pago, 'DD/MM/YYYY'),   -- CAMBIO 0454
+     -- CAMBIO 0454 · el texto NO lleva la fecha de pago. `valor_nuevo` ya
+     -- tiene un formato exacto que otras pruebas comparan por igualdad
+     -- (196:154 — «S/0.00 · version 1», sin nada más) y por sufijo
+     -- (196:112 — `like '%version 1'`); agregarle algo al final las rompía
+     -- a las dos sin que ninguna fórmula ni ninguna cifra cambiara. La fecha
+     -- real de pago ya queda escrita, y consultable, en la columna propia:
+     -- `liquidacion_pagada.fecha_pago`. No hace falta repetirla acá.
+     'S/' || to_char((v_l->>'total')::numeric, 'FM999999990.00') || ' · version ' || v_ver,
      fn_persona_actual_id(),
      case
        when v_nota is null        then 'Liquidación marcada como pagada'
