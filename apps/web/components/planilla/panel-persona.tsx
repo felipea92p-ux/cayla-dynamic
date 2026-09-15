@@ -16,7 +16,8 @@ import { useState, type ReactNode, type RefObject } from "react";
 import Link from "next/link";
 import type { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import {
-  TIPO_VINCULO_LABEL, hoyLima, nombreDelPeriodo, parsearMontoSoles, periodoAnterior, periodoQueContiene,
+  ES_DE_MODALIDAD_FORMATIVA, TIPO_VINCULO_LABEL, hoyLima, nombreDelPeriodo, parsearMontoSoles,
+  periodoAnterior, periodoQueContiene,
   type BeneficioDesembolso, type PeriodoDeBeneficio,
 } from "@cayla-dynamic/shared";
 import { formatSoles, RANGO_LABEL } from "@/lib/rangos";
@@ -97,8 +98,13 @@ type AdelantoForm = {
   periodo: "actual" | "anterior";
 };
 
-const adelantoVacio = (): AdelantoForm => ({
-  beneficio: "gratificacion", monto: "", fecha: hoyLima(), nota: "", periodo: "actual",
+// CAMBIO 0465 — arranca en el beneficio que esa persona sí puede recibir. Con
+// un valor fijo, el formulario de una practicante abría en «gratificación»,
+// que ya no es una opción de su desplegable: el select salía en blanco y el
+// primer clic registraba lo que el navegador eligiera por su cuenta.
+const adelantoVacio = (tipoVinculo?: string | null): AdelantoForm => ({
+  beneficio: tipoVinculo === "practicante" ? "subvencion_semestral" : "gratificacion",
+  monto: "", fecha: hoyLima(), nota: "", periodo: "actual",
 });
 
 function periodosDelAdelanto(a: AdelantoForm): { actual: PeriodoDeBeneficio; anterior: PeriodoDeBeneficio } | null {
@@ -137,7 +143,7 @@ function Contenido({
   const sugeridoYaPagado = Math.max(0, Math.round(liqPorCubrir * 100) / 100);
   const [yaPagado, setYaPagado] = useState({ monto: String(sugeridoYaPagado), fecha: hoyLima() });
   const [mostrandoAdelanto, setMostrandoAdelanto] = useState(false);
-  const [adelanto, setAdelanto] = useState<AdelantoForm>(adelantoVacio);
+  const [adelanto, setAdelanto] = useState<AdelantoForm>(() => adelantoVacio(f.tipo_vinculo));
   const periodoAdelanto = periodoDelAdelanto(adelanto);
   const [basica, setBasica] = useState(f.sueldo_base_legal != null ? String(f.sueldo_base_legal) : "");
 
@@ -268,7 +274,13 @@ function Contenido({
       donde: "adelanto",
       c: {
         texto:
-          `¿Registrar un adelanto de ${CLASE_LABEL[adelanto.beneficio]} de ${formatSoles(monto)} para ${f.nombre}, pagado el ${isoADiaMesAnio(adelanto.fecha)}?\n` +
+          `¿Registrar un adelanto de ${
+            adelanto.beneficio === "subvencion_semestral"
+              ? "media subvención"
+              : adelanto.beneficio === "descanso_practicante"
+                ? "descanso de 15 días"
+                : CLASE_LABEL[adelanto.beneficio]
+          } de ${formatSoles(monto)} para ${f.nombre}, pagado el ${isoADiaMesAnio(adelanto.fecha)}?\n` +
           `Se anota como ${nombreDelPeriodo(periodo)}: la liquidación lo va a restar de esa misma ventana.`,
         textoBoton: "Registrar adelanto",
         accion: async () => {
@@ -284,7 +296,7 @@ function Contenido({
           if (error) { avisar("error", mensajeDeError(error, "registrar el adelanto")); return; }
           avisar("ok", `Adelanto de ${formatSoles(monto)} registrado. La liquidación lo va a restar sola cuando corresponda.`);
           setMostrandoAdelanto(false);
-          setAdelanto(adelantoVacio());
+          setAdelanto(adelantoVacio(f.tipo_vinculo));
         },
       },
     });
@@ -541,24 +553,43 @@ function Contenido({
           </div>
         )}
         {!mostrandoAdelanto ? (
-          <Boton tamano="sm" onClick={() => setMostrandoAdelanto(true)}>Adelanto de gratificación, CTS o vacaciones…</Boton>
+          <Boton tamano="sm" onClick={() => setMostrandoAdelanto(true)}>
+            {f.tipo_vinculo === "practicante"
+              ? "Adelanto de media subvención o descanso…"
+              : "Adelanto de gratificación, CTS o vacaciones…"}
+          </Boton>
         ) : (
           <div className="rounded-control border border-sand p-3">
             <p className="mb-2 text-sm text-taupe">
               Fuera del ciclo normal (típicamente a quien cesa a mitad de semestre). No toca este periodo: la liquidación lo resta sola.
             </p>
             <div className="flex flex-wrap items-end gap-2">
+              {/* CAMBIO 0465 — a una practicante no le tocan gratificación, CTS
+                  ni vacaciones (Ley 28518 art. 47), y sí sus dos pagos propios
+                  (art. 42). Cada vínculo ve solo lo suyo: ofrecer los cinco a
+                  todo el mundo es invitar a archivar un pago donde no va, que
+                  es el defecto que este mismo formulario tenía con la CTS. */}
               <CampoSelect
                 etiqueta="Beneficio" value={adelanto.beneficio}
                 onChange={(e) => setAdelanto({ ...adelanto, beneficio: e.target.value as typeof adelanto.beneficio })}
               >
-                <option value="gratificacion">Gratificación</option>
-                <option value="cts">CTS</option>
-                <option value="vacaciones">Vacaciones</option>
+                {f.tipo_vinculo === "practicante" ? (
+                  <>
+                    <option value="subvencion_semestral">Media subvención (cada 6 meses)</option>
+                    <option value="descanso_practicante">Descanso de 15 días</option>
+                  </>
+                ) : (
+                  <>
+                    <option value="gratificacion">Gratificación</option>
+                    <option value="cts">CTS</option>
+                    <option value="vacaciones">Vacaciones</option>
+                  </>
+                )}
               </CampoSelect>
               <Campo etiqueta="Monto (S/)" value={adelanto.monto} onChange={(e) => setAdelanto({ ...adelanto, monto: e.target.value })} className="w-32" />
               <Campo etiqueta="Fecha de pago" type="date" value={adelanto.fecha} onChange={(e) => setAdelanto({ ...adelanto, fecha: e.target.value })} />
-              {adelanto.beneficio !== "vacaciones" && periodosDelAdelanto(adelanto) && (
+              {!ES_DE_MODALIDAD_FORMATIVA.includes(adelanto.beneficio) &&
+                adelanto.beneficio !== "vacaciones" && periodosDelAdelanto(adelanto) && (
                 <CampoSelect
                   etiqueta="Periodo que se paga" value={adelanto.periodo}
                   onChange={(e) => setAdelanto({ ...adelanto, periodo: e.target.value as AdelantoForm["periodo"] })}

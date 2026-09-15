@@ -62,6 +62,26 @@ describe("vacaciones — una sola ventana, con el año del pago", () => {
   });
 });
 
+describe("modalidad formativa (0465) — hitos del convenio, no semestres calendario", () => {
+  it("cada concepto va a su propia ventana, con el año del pago", () => {
+    expect(periodoQueContiene("subvencion_semestral", "2026-06-20")).toEqual({
+      beneficio: "subvencion_semestral", ventana: "subvencion_semestral", anio: 2026,
+      desde: null, hasta: null, pagoLegal: null,
+    });
+    expect(periodoQueContiene("descanso_practicante", "2027-01-05")).toMatchObject({
+      ventana: "descanso_practicante", anio: 2027,
+    });
+  });
+  it("no tienen periodo anterior: su hito depende del convenio de cada persona", () => {
+    const p = periodoQueContiene("subvencion_semestral", "2026-06-20");
+    expect(periodoAnterior(p)).toBe(p);
+  });
+  it("se nombran por lo que son, no como una ventana de planilla", () => {
+    expect(nombreDelPeriodo(periodoQueContiene("subvencion_semestral", "2026-06-20"))).toBe("media subvención (2026)");
+    expect(nombreDelPeriodo(periodoQueContiene("descanso_practicante", "2026-06-20"))).toBe("descanso de 15 días (2026)");
+  });
+});
+
 describe("periodo anterior — para lo que la fecha sola no resuelve", () => {
   it("una CTS pagada el 10/05 puede ser el depósito atrasado de nov–abr", () => {
     const actual = periodoQueContiene("cts", "2026-05-10");
