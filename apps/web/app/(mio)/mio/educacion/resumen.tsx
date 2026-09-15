@@ -5,7 +5,7 @@ import Link from "next/link";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { ESTADO_CONSTANCIA, type EstadoConstancia } from "@cayla-dynamic/shared";
 import { Insignia } from "@/components/ui/insignia";
-import { fechaCorta } from "@/lib/educacion";
+import { enDias } from "@/lib/admin/bandeja-urgencia";
 
 /**
  * La pestaña «Educación» de /mio: una línea por estudio con el estado de su
@@ -22,6 +22,7 @@ interface Fila {
   vigencia: string;
   estado_constancia: EstadoConstancia;
   plazo: string | null;
+  dias_para_plazo: number | null;
 }
 
 export function ResumenEducacionMia() {
@@ -65,8 +66,8 @@ export function ResumenEducacionMia() {
                 <li key={f.familia_id} className="flex flex-wrap items-center justify-between gap-2">
                   <span>
                     {f.institucion}
-                    {f.plazo && (f.estado_constancia === "por_vencer" || f.estado_constancia === "falta_enviar") && (
-                      <span className="text-xs text-taupe"> · hasta el {fechaCorta(f.plazo)}</span>
+                    {f.plazo && f.dias_para_plazo !== null && (f.estado_constancia === "por_vencer" || f.estado_constancia === "falta_enviar") && (
+                      <span className="text-xs text-taupe"> · {enDias(f.dias_para_plazo, { futuro: "vence", pasado: "venció" })}</span>
                     )}
                   </span>
                   <Insignia variante={est.tono}>{est.etiqueta}</Insignia>

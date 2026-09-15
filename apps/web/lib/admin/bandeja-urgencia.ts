@@ -178,6 +178,181 @@ export function urgenciaSinHorario(h: HuecoDeHorario): Urgencia {
   };
 }
 
+export interface LiquidacionVencida {
+  dias_restantes: number;
+  vence_el: string;
+  total: number;
+}
+
+/**
+ * Una liquidación pasada de plazo (`fn_liquidaciones_pendientes`, 0454). Igual
+ * que `urgenciaSinHorario`: el riesgo ya ocurrió, así que no hay «hoy» ni
+ * «próximo» posible — solo vencido. Decidido con Felipe el 2026-09-15: de las
+ * cuatro señales que Liquidaciones podía mandar a la Bandeja (nueva pendiente,
+ * próxima a vencer, vencida, cálculo cambió), solo esta cruza — las otras tres
+ * duplican lo que la propia pantalla ya muestra sin agregar nada accionable.
+ */
+export function urgenciaLiquidacionVencida(l: LiquidacionVencida): Urgencia {
+  const dias = -l.dias_restantes;
+  return {
+    grupo: "vencido",
+    plazo: `Venció hace ${dias} día${dias === 1 ? "" : "s"}`,
+    nota: `el ${diaYMes(l.vence_el)}`,
+    orden: l.dias_restantes,
+  };
+}
+
+// ── Fuentes sumadas el 2026-09-15 (Contratos, Correcciones, Documentación,
+//    Feriados, Disciplina). Cada una se mide contra SU plazo real, nunca contra
+//    uno inventado para la Bandeja. ─────────────────────────────────────────
+
+/** `2026-09-15` + 30 → `2026-10-15`, por partes y en UTC: sin el huso del navegador. */
+export function sumarDias(fecha: string, dias: number): string {
+  const [y, m, d] = fecha.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + dias)).toISOString().slice(0, 10);
+}
+
+const PLAZO = { futuro: "Plazo vence", pasado: "Plazo venció" };
+
+/** Lo que la Bandeja lee de una fila de `fn_contratos_tablero` (0386). */
+export interface FilaContrato {
+  estado: string;
+  dias_restantes: number | null;
+  fecha_fin_contrato: string | null;
+  copia_entregada_at: string | null;
+  comunicado_mtpe_at: string | null;
+  copia_vence: string | null;
+  mtpe_vence: string | null;
+  dias_marcados_despues: number;
+}
+
+/**
+ * Qué estados de un contrato piden a alguien. Son los que la pantalla de
+ * Contratos pinta en «pendientes», MENOS `sin_vencimiento`: esa pantalla lo
+ * cuenta a la vez como pendiente y como vigente (su pestaña «Vigentes» lo
+ * junta con `ok`), así que no se trae una contradicción a la Bandeja. Si un
+ * contrato a plazo sin fecha de fin resulta ser un problema real, se agrega
+ * aquí con su propio texto — no se infiere.
+ */
+export const ESTADOS_CONTRATO_PENDIENTE: ReadonlySet<string> = new Set([
+  "desnaturalizado", "vencido", "por_vencer", "sin_contrato", "sin_firmar", "tramite_pendiente",
+]);
+
+export function urgenciaContrato(c: FilaContrato, hoy: string = hoyLima()): Urgencia {
+  switch (c.estado) {
+    case "desnaturalizado": {
+      const n = c.dias_marcados_despues;
+      // Primero de todo el grupo: es el único que ya puede haber cambiado el
+      // tipo de contrato por ley (art. 77 del D.S. 003-97-TR).
+      return { grupo: "vencido", plazo: "Riesgo art. 77", nota: `marcó ${n} día${n === 1 ? "" : "s"} sin contrato vigente`, orden: -100000 - n };
+    }
+    case "vencido":
+      return {
+        grupo: "vencido",
+        plazo: c.dias_restantes !== null ? enDias(c.dias_restantes, VENCE) : "Contrato vencido",
+        nota: c.fecha_fin_contrato ? `el ${diaYMes(c.fecha_fin_contrato)}` : null,
+        orden: c.dias_restantes ?? -1,
+      };
+    case "por_vencer": {
+      const d = c.dias_restantes ?? 0;
+      return { grupo: d === 0 ? "hoy" : "proximo", plazo: enDias(d, VENCE), nota: c.fecha_fin_contrato ? `el ${diaYMes(c.fecha_fin_contrato)}` : null, orden: d };
+    }
+    case "tramite_pendiente": {
+      // El trámite que falta primero: la copia (5 días desde el inicio) y
+      // luego la comunicación al MTPE (15 días desde la firma).
+      const limite = c.copia_entregada_at === null ? c.copia_vence : c.mtpe_vence;
+      if (!limite) return { grupo: "sin_plazo", plazo: "Trámite pendiente", nota: null, orden: 0 };
+      const d = diasEntre(hoy, limite);
+      return { grupo: d < 0 ? "vencido" : d === 0 ? "hoy" : "proximo", plazo: enDias(d, PLAZO), nota: `el ${diaYMes(limite)}`, orden: d };
+    }
+    case "sin_firmar":
+      return { grupo: "sin_plazo", plazo: "Sin firmar", nota: null, orden: 0 };
+    default:
+      return { grupo: "sin_plazo", plazo: "Sin contrato", nota: null, orden: 0 };
+  }
+}
+
+export interface PeriodoDePago { fecha_ini: string; fecha_fin: string }
+
+const CIERRA = { futuro: "Periodo cierra", pasado: "Periodo cerró" };
+
+/**
+ * Un día (o una marca) por revisar en Correcciones. Su plazo es el cierre del
+ * periodo que lo paga: después de pagado, corregirlo exige reabrir el periodo.
+ */
+export function urgenciaDiaPorRevisar(
+  fecha: string, periodoPagado: boolean, periodo: PeriodoDePago | null, hoy: string = hoyLima(),
+): Urgencia {
+  if (periodoPagado) {
+    return { grupo: "vencido", plazo: "Periodo ya pagado", nota: "hay que reabrirlo para corregir", orden: diasEntre(hoy, fecha) };
+  }
+  if (periodo && fecha < periodo.fecha_ini) {
+    return { grupo: "vencido", plazo: "Su periodo ya cerró", nota: `día ${diaYMes(fecha)}`, orden: diasEntre(hoy, fecha) };
+  }
+  if (periodo && fecha <= periodo.fecha_fin) {
+    const d = diasEntre(hoy, periodo.fecha_fin);
+    return {
+      grupo: d <= 0 ? "hoy" : "proximo",
+      plazo: d <= 0 ? "Periodo cierra hoy" : enDias(d, CIERRA),
+      nota: `el ${diaYMes(periodo.fecha_fin)}`,
+      orden: d,
+    };
+  }
+  return { grupo: "sin_plazo", plazo: "Por revisar", nota: null, orden: diasEntre(hoy, fecha) };
+}
+
+/**
+ * La constancia del bono de cumpleaños (`bono_estado` de `fn_documentos_tablero`).
+ * `este_mes` se cierra el último día del mes; `vencido` ya cumplió sin cargo.
+ */
+export function urgenciaBono(estado: string, hoy: string = hoyLima()): Urgencia {
+  if (estado === "vencido") return { grupo: "vencido", plazo: "Cumpleaños pasado", nota: "sin cargo firmado", orden: -1 };
+  const [y, m] = hoy.split("-").map(Number);
+  const finDeMes = new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
+  const d = diasEntre(hoy, finDeMes);
+  return { grupo: d === 0 ? "hoy" : "proximo", plazo: "Cumple este mes", nota: `cargo antes del ${diaYMes(finDeMes)}`, orden: d };
+}
+
+/**
+ * Plazo del descanso sustitutorio de un feriado trabajado: el trigger
+ * `fn_dcs_validar_dia_laborable` (0238) exige un motivo escrito si se da más
+ * de 30 días después del feriado.
+ */
+export const DIAS_PLAZO_DESCANSO_SUSTITUTORIO = 30;
+
+export interface FilaFeriado { fecha_feriado: string; estado: string | null; no_compensa_porque: string | null }
+
+/**
+ * Qué feriado trabajado pide a alguien. NO todo el que no tiene descanso: por
+ * ley eso es normal y se paga la sobretasa, así que traerlos llenaría la
+ * Bandeja de casos que no piden nada. Solo dos:
+ *   · un descanso acordado (PENDIENTE) que todavía no se da, contra su plazo;
+ *   · un descanso registrado que NO compensa (`no_compensa_porque`).
+ */
+export function esFeriadoParaBandeja(f: FilaFeriado): boolean {
+  return f.estado !== "OTORGADO" && (f.no_compensa_porque !== null || f.estado === "PENDIENTE");
+}
+
+export function urgenciaFeriado(f: FilaFeriado, hoy: string = hoyLima()): Urgencia {
+  if (f.no_compensa_porque) {
+    return { grupo: "vencido", plazo: "No compensa", nota: "el descanso registrado no sirve", orden: -1000 };
+  }
+  const limite = sumarDias(f.fecha_feriado, DIAS_PLAZO_DESCANSO_SUSTITUTORIO);
+  const d = diasEntre(hoy, limite);
+  return { grupo: d < 0 ? "vencido" : d === 0 ? "hoy" : "proximo", plazo: enDias(d, PLAZO), nota: `descanso hasta el ${diaYMes(limite)}`, orden: d };
+}
+
+/** Un borrador disciplinario esperando el descargo de la persona: su plazo es el del descargo. */
+export function urgenciaDescargo(venceAt: string, hoy: string = hoyLima()): Urgencia {
+  const d = diasEntre(hoy, fechaLima(venceAt));
+  return {
+    grupo: d <= 0 ? "hoy" : "proximo",
+    plazo: d <= 0 ? "Descargo vence hoy" : enDias(d, { futuro: "Descargo vence", pasado: "Descargo venció" }),
+    nota: "esperando a la persona",
+    orden: d,
+  };
+}
+
 /**
  * Alguien que ya cesó (decisión de Felipe, 2026-09-15): su pendiente no se
  * esconde —un papel que falta sigue faltando— pero deja de competir con lo

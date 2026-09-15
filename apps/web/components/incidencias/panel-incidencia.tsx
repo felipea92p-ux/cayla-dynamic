@@ -46,6 +46,9 @@ interface VistoBuenoFila {
 interface AusenciaDia {
   id: string; tipo: string; fecha_inicio: string; fecha_fin: string; motivo: string | null;
   registrada_por: string; registrada_at: string; aprobada_at: string | null;
+  /** Embebido desde tipos_ausencia — para saber si "aprobada_at" fue una
+   * decisión real de DO o si el tipo nace aprobado solo (vacaciones, 0442). */
+  tipos_ausencia: { requiere_aprobacion: boolean } | null;
 }
 interface Rastro {
   marcas: Marca[];
@@ -155,7 +158,7 @@ export function PanelIncidencia({
         : Promise.resolve({ data: [], error: null }),
       esFaltaJustificada
         ? supabase.from("ausencias")
-            .select("id, tipo, fecha_inicio, fecha_fin, motivo, registrada_por, registrada_at, aprobada_at")
+            .select("id, tipo, fecha_inicio, fecha_fin, motivo, registrada_por, registrada_at, aprobada_at, tipos_ausencia(requiere_aprobacion)")
             .eq("persona_id", personaId).is("anulada_at", null)
             .lte("fecha_inicio", fecha).gte("fecha_fin", fecha)
             .limit(1).maybeSingle()
@@ -206,7 +209,13 @@ export function PanelIncidencia({
   const supabase = createAdminSupabaseClient();
   const vistoBueno = i.aceptable ? VISTO_BUENO[i.aceptable] : null;
   const diasAusencia = rastro?.ausencia ? diasEntre(rastro.ausencia.fecha_inicio, rastro.ausencia.fecha_fin) : 0;
-  const ausenciaQuitableAca = !!rastro?.ausencia && diasAusencia === 1 && rastro.ausencia.tipo !== "vacaciones";
+  // Mismo candado que fn_anular_ausencia (0442): una vez que DO aprobó un tipo
+  // que de verdad exige su aprobación, deshacerlo deja de ser cosa de acá.
+  // Sin este chequeo, el botón se mostraba igual y quien lo intentaba se
+  // llevaba el error crudo del servidor en vez del mismo aviso que ya da
+  // Ausencias — la misma acción resolviéndose de dos formas distintas.
+  const ausenciaAprobadaPorDO = !!rastro?.ausencia?.aprobada_at && rastro.ausencia.tipos_ausencia?.requiere_aprobacion === true;
+  const ausenciaQuitableAca = !!rastro?.ausencia && diasAusencia === 1 && rastro.ausencia.tipo !== "vacaciones" && !ausenciaAprobadaPorDO;
 
   return (
     <Drawer abierto onCerrar={onCerrar} bloqueado={guardando} volverElFocoA={volverElFocoA} titulo={i.nombre}>
@@ -373,7 +382,9 @@ export function PanelIncidencia({
                 </p>
                 {!ausenciaQuitableAca && (
                   <p className="text-taupe">
-                    {diasAusencia > 1
+                    {ausenciaAprobadaPorDO
+                      ? "Ya la aprobó Desarrollo Organizacional — pídesela para anularla."
+                      : diasAusencia > 1
                       ? `Abarca ${diasAusencia} días: quitarla desde acá anularía los ${diasAusencia}. Se gestiona en Ausencias.`
                       : "Las vacaciones se gestionan en Ausencias."}{" "}
                     <Link href="/admin/ausencias" className="font-medium text-tinta underline underline-offset-2">Ver en Ausencias →</Link>
