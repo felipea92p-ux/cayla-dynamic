@@ -131,7 +131,12 @@
 -- ── A · La foto de antes: quién cobra hoy ───────────────────────────────────
 -- Se compara al final (sección K). Es la promesa de «solo alerta» escrita como
 -- algo que se puede verificar, no como una intención.
-create temp table _educacion_paga_antes_0450 on commit drop as
+--
+-- Tabla temporal de SESIÓN y no `on commit drop`: aplicada sin transacción
+-- (psql a secas), cada sentencia confirma sola y la tabla desaparecería antes
+-- de la comprobación. Medido el 2026-09-15. Se borra al final.
+drop table if exists _educacion_paga_antes_0450;
+create temp table _educacion_paga_antes_0450 as
 select id, (comprobante_url is not null) as con_papel
   from asignaciones_educacion;
 
