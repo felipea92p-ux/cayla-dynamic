@@ -349,6 +349,9 @@ function AlertaSobretiempo({ sedeSel }: { sedeSel: string }) {
 function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso: string) => void }) {
   const supabase = useMemo(() => createAdminSupabaseClient(), []);
   const [divs, setDivs] = useState<Divergencia[] | null>(null);
+  // Turnos de días en que la persona aún no tenía horario base: no hay contra
+  // qué compararlos, así que no son divergencias, solo se cuentan.
+  const [sinBase, setSinBase] = useState(0);
   const [error, setError] = useState(false);
   const [abierto, setAbierto] = useState(true);
   const [procesando, setProcesando] = useState<string | null>(null); // clave de fila, o "bulk"
@@ -394,6 +397,7 @@ function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso
     }
     tramosRef.current = hMap;
     const res: Divergencia[] = [];
+    let nSinBase = 0;
     for (const t of (turnos as any[]) ?? []) {
       const tramos = hMap.get(t.persona_id);
       const tramo = horarioVigente(tramos ?? [], t.fecha);
@@ -410,8 +414,13 @@ function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso
         tramos ?? []
       );
       const fila = { fecha: t.fecha, personaId: t.persona_id, persona: nombre.get(t.persona_id) ?? "?", espejo, tE, tS };
+      // Sin horario base ese día (caso TRU, set-2026: los horarios rigen desde
+      // el 12 de julio y el periodo abierto arranca el 28 de junio) el turno es
+      // la ÚNICA referencia de a qué hora le tocaba entrar. No diverge de nada:
+      // antes se listaba con "Usar el horario base" al lado —que dejaba el día
+      // sin referencia alguna— y entraba al botón de quitar espejos en bloque.
       if (!base) {
-        res.push({ ...fila, turnoTxt: rangoTxt(tE, tS), baseTxt: "sin horario base ese día" });
+        nSinBase++;
       } else if (tE === null) {
         if (base.entrada) res.push({ ...fila, turnoTxt: "descanso", baseTxt: rangoTxt(base.entrada, base.salida) });
       } else if (!base.entrada) {
@@ -420,6 +429,7 @@ function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso
         res.push({ ...fila, turnoTxt: rangoTxt(tE, tS), baseTxt: rangoTxt(base.entrada, base.salida) });
       }
     }
+    setSinBase(nSinBase);
     setDivs(res);
   }, [sedeSel, supabase]);
 
@@ -524,10 +534,19 @@ function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso
     return <div className="mb-4 max-w-2xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">No se pudo revisar los turnos contra el horario base.</div>;
   }
   if (divs === null) return null; // cargando en silencio (no estorba la vista principal)
+  const notaSinBase = sinBase > 0 && (
+    <>
+      {sinBase} turno{sinBase === 1 ? "" : "s"} {sinBase === 1 ? "cae" : "caen"} en días en que esa persona aún no tenía horario base.
+      Ahí el turno es lo único que dice a qué hora le tocaba entrar, así que no hay nada que comparar ni que quitar.
+    </>
+  );
   if (divs.length === 0) {
     return (
-      <div className="mb-4 flex max-w-2xl items-center gap-2 rounded-lg border border-verde/25 bg-verde/[0.06] px-4 py-2.5 text-sm text-verde">
-        <span>✓</span> Todos los turnos desde que empezó el periodo de planilla abierto coinciden con el horario base.
+      <div className="mb-4 max-w-2xl rounded-lg border border-verde/25 bg-verde/[0.06] px-4 py-2.5 text-sm text-verde">
+        <div className="flex items-center gap-2">
+          <span>✓</span> Todos los turnos desde que empezó el periodo de planilla abierto coinciden con el horario base.
+        </div>
+        {notaSinBase && <p className="mt-1 text-xs text-taupe">{notaSinBase}</p>}
       </div>
     );
   }
@@ -549,6 +568,7 @@ function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso
             <strong className="text-tinta">Usar el horario base</strong> = descarta el turno y vuelve a su horario (úsalo si el turno quedó viejo).{" "}
             Nada se borra solo: tú decides fila por fila.
           </p>
+          {notaSinBase && <p className="border-t border-ambar/20 px-4 py-2 text-xs leading-relaxed text-taupe">{notaSinBase}</p>}
 
           {espejos.length > 0 && (
             <div className="border-t border-ambar/20 px-4 py-2">

@@ -203,6 +203,28 @@ describe("esTurnoEspejoViejo — el caso Diana", () => {
   });
 });
 
+// El caso TRU (set-2026): los horarios base de la sede empiezan a regir el
+// 2026-07-12, pero el periodo abierto arranca el 2026-06-28. Los turnos de esas
+// dos semanas son la ÚNICA referencia de esos días, y el horario del 12 de julio
+// se armó copiándolos — así que coinciden con él. Eso no los vuelve viejos: un
+// horario que todavía no empezaba no puede haber quedado atrás.
+describe("esTurnoEspejoViejo — un horario que aún no empezaba no es viejo", () => {
+  const tramoDesdeJulio: HorarioTramo = { ...DIANA_VIEJO, vigente_desde: "2026-07-12", vigente_hasta: null };
+
+  it("sin ningún horario vigente ese día, coincidir con uno POSTERIOR no es espejo", () => {
+    const turno: TurnoDia = { hora_entrada: "07:45", hora_salida: "16:45", es_descanso: false };
+    // 2026-07-01 es miércoles; el único tramo empieza once días después.
+    expect(esTurnoEspejoViejo("2026-07-01", turno, [tramoDesdeJulio])).toBe(false);
+  });
+
+  it("con un horario vigente, coincidir con uno que empieza DESPUÉS tampoco es espejo", () => {
+    const turno: TurnoDia = { hora_entrada: "09:00", hora_salida: "18:00", es_descanso: false };
+    // El 2026-08-26 rige DIANA_VIEJO (07:45); el turno ya trae la hora de
+    // DIANA_VIGENTE, que arranca el 1 de septiembre: se adelantó, no se quedó atrás.
+    expect(esTurnoEspejoViejo("2026-08-26", turno, TRAMOS_DIANA)).toBe(false);
+  });
+});
+
 describe("fechasDelRango", () => {
   it("incluye los dos extremos", () => {
     expect(fechasDelRango("2026-08-12", "2026-08-15"))

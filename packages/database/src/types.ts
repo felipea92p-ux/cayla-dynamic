@@ -2588,29 +2588,41 @@ export type Database = {
         Row: {
           aceptado_at: string
           aceptado_por: string
+          anulada_at: string | null
+          anulada_motivo: string | null
+          anulada_por: string | null
           fecha: string
           id: string
           nota: string | null
           persona_id: string
           tipo: string
+          valor: number | null
         }
         Insert: {
           aceptado_at?: string
           aceptado_por: string
+          anulada_at?: string | null
+          anulada_motivo?: string | null
+          anulada_por?: string | null
           fecha: string
           id?: string
           nota?: string | null
           persona_id: string
           tipo: string
+          valor?: number | null
         }
         Update: {
           aceptado_at?: string
           aceptado_por?: string
+          anulada_at?: string | null
+          anulada_motivo?: string | null
+          anulada_por?: string | null
           fecha?: string
           id?: string
           nota?: string | null
           persona_id?: string
           tipo?: string
+          valor?: number | null
         }
         Relationships: [
           {
@@ -4958,6 +4970,7 @@ export type Database = {
           p_nota?: string | null
           p_persona_id: string | null
           p_tipo: string | null
+          p_valor?: number | null
         }
         Returns: undefined
       }
@@ -6746,7 +6759,12 @@ export type Database = {
         Returns: boolean
       }
       fn_quitar_aceptacion: {
-        Args: { p_fecha: string | null; p_persona_id: string | null; p_tipo: string | null }
+        Args: {
+          p_fecha: string | null
+          p_motivo: string | null
+          p_persona_id: string | null
+          p_tipo: string | null
+        }
         Returns: undefined
       }
       fn_quitar_descanso_sustitutorio: {

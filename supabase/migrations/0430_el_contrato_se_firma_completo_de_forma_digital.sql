@@ -70,6 +70,25 @@
 --   stack de PostgREST sigue sin poder levantarse en esta Mac (ver 0423/0424)
 --   y `donde-vive.sh` no pudo comparar por esa vía.
 --
+--   RE-VERIFICADO CONTRA PRODUCCIÓN el 2026-09-15, antes de pegar: las cinco
+--   siguen con el cuerpo que esta migración asume. md5 de `pg_proc.prosrc`
+--   pedido al SQL Editor — fn_contrato_editar a867178f…, fn_contrato_registrar
+--   fd1f86f5…, fn_set_fin_contrato fda44096…, fn_contrato_refrescar_vencimiento
+--   a78d1a73…, todos idénticos al cuerpo del repositorio. El de
+--   fn_confirmar_mi_firma_contrato (9fd167ef…) NO coincide tal cual y sí al
+--   quitarle los `\r`: producción tiene 30 retornos de carro de más, uno por
+--   línea, porque se pegó desde Windows. Es la causa benigna que documenta
+--   CLAUDE.md — mismo código, se comporta igual — y no la otra, que sí
+--   obligaría a parar.
+--
+--   QUE EL BACKFILL DE LA PARTE F NECESITA UN AUTOR, y que en el SQL Editor no
+--   lo hay. Es el motivo por el que esta migración estuvo sin poder pegarse:
+--   ver el bloque comentado en la propia parte F. Se resolvió sembrando la
+--   sesión con el admin activo más antiguo, con el criterio de la 0176. Si
+--   alguna vez no hubiera ningún admin activo con usuario, la migración se
+--   detiene sin tocar nada en vez de escribir datos de personas sin poder
+--   decir quién los cambió.
+--
 -- CÓMO SE REVIERTE
 --
 --   alter table contratos_generados drop constraint contrato_firma_coherente;
@@ -620,7 +639,54 @@ $$;
 do $$
 declare
   v_persona uuid;
+  v_admin   uuid;
+  v_auth    uuid;
+  v_cuantas int;
 begin
+  select count(distinct persona_id) into v_cuantas from contratos_generados
+   where firma_persona_confirmada_at is not null and fecha_firma is null;
+
+  if v_cuantas = 0 then
+    raise notice '0430 · no hay nada que rellenar: nadie tiene la firma confirmada sin fecha.';
+    return;
+  end if;
+
+  -- EL BACKFILL NECESITA UN AUTOR, Y EN EL SQL EDITOR NO HAY NINGUNO.
+  --
+  -- El bucle de abajo llama a fn_contrato_refrescar_vencimiento, que acaba en
+  -- fn_set_fin_contrato_nucleo, que audita el cambio de fecha_fin_contrato en
+  -- `correcciones_auditoria` — y esa tabla tiene `corregido_por` NOT NULL con
+  -- FK a personas. El núcleo lo resuelve con fn_persona_actual_id(), o sea
+  -- auth.uid(), que en el SQL Editor es NULL porque ahí no hay sesión. Sin
+  -- esto, el `raise exception 'No puedo identificar quién hace el cambio…'`
+  -- salta a la primera persona del bucle y, como todo el archivo se pega
+  -- dentro de una transacción, ABORTA LA MIGRACIÓN ENTERA.
+  --
+  -- Medido contra producción el 2026-09-15: hay 7 filas que entran a este
+  -- bucle, las 7 de gente activa y las 7 con una fecha que de verdad cambia,
+  -- así que el bucle se ejecuta seguro y el fallo era seguro también. No es
+  -- un caso de borde.
+  --
+  -- El criterio del autor NO se inventa aquí: se copia de la 0176, que se topó
+  -- con lo mismo y lo resolvió tomando el admin activo más antiguo, y
+  -- deteniéndose si no hay ninguno. Se le agrega una condición que la 0176 no
+  -- necesitaba: que ese admin TENGA usuario (`auth_user_id`), porque lo que se
+  -- siembra es la sesión, no el id de persona. El `set_config` es
+  -- transaction-local (tercer argumento `true`), así que se deshace solo al
+  -- terminar y no deja la sesión de nadie suplantada.
+  select p.id, p.auth_user_id into v_admin, v_auth
+    from personas p
+   where p.rol = 'admin' and p.estado = 'activo' and p.auth_user_id is not null
+   order by p.fecha_ingreso
+   limit 1;
+
+  if v_admin is null then
+    raise exception '0430 · hay % persona(s) por rellenar pero ningun admin activo con usuario que firme el rastro. No se toca nada.', v_cuantas;
+  end if;
+
+  perform set_config('request.jwt.claim.sub', v_auth::text, true);
+  raise notice '0430 · rellenando % persona(s); el rastro queda a nombre del admin activo mas antiguo.', v_cuantas;
+
   for v_persona in
     select distinct persona_id from contratos_generados
      where firma_persona_confirmada_at is not null and fecha_firma is null
@@ -633,7 +699,7 @@ begin
        and fecha_firma is null;
 
     perform fn_contrato_refrescar_vencimiento(
-      v_persona, 'Backfill 0430 — la firma digital ya confirmada pasa a contar como firma del contrato');
+      v_persona, 'Backfill de la migracion 0430: la firma digital ya confirmada pasa a contar como firma del contrato. Lo ejecuta la migracion, no el admin que figura como autor — el rastro exige un autor y se toma el admin activo mas antiguo.');
   end loop;
 end $$;
 
