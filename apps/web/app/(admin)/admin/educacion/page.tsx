@@ -246,6 +246,10 @@ function EducacionContenido() {
   // El enlace de la Bandeja: ?entrega=<id> abre el panel de esa entrega; ?familia=<id>, el del estudio.
   const entregaPedida = params.get("entrega");
   const familiaPedida = params.get("familia");
+  // ?persona=<id> (ADR 0003): se llega desde otra pantalla a una persona. Manda
+  // sobre los demás filtros —si su estudio ya terminó o ya se liquidó, «vigentes»
+  // la escondería justo cuando alguien vino a verla.
+  const personaPedida = params.get("persona");
   useEffect(() => {
     if (cargando) return;
     if (entregaPedida) {
@@ -285,6 +289,7 @@ function EducacionContenido() {
   );
 
   const visibles = situaciones.filter((s) => {
+    if (personaPedida) return s.persona_id === personaPedida;
     if (!verLiquidadas && liquidadas.has(s.persona_id)) return false;
     if (tarjeta === "pendientes" && !familiasConPendiente.has(s.familia_id)) return false;
     if (tarjeta === "por_vencer" && s.estado_constancia !== "por_vencer") return false;
@@ -521,6 +526,16 @@ function EducacionContenido() {
 
             {cargando ? <Cargando /> : (
               <>
+                {personaPedida && (
+                  <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-sand bg-papel px-3 py-2 text-sm">
+                    <span>
+                      Mostrando solo los estudios de{" "}
+                      <strong>{situaciones.find((s) => s.persona_id === personaPedida)?.persona ?? "esta persona"}</strong>, vigentes o no.
+                    </span>
+                    <Boton variante="enlace" onClick={() => router.replace("/admin/educacion")}>Ver todas</Boton>
+                  </div>
+                )}
+
                 {/* ── RESUMEN: solo lo accionable, y cada tarjeta filtra ────────── */}
                 <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
                   {([

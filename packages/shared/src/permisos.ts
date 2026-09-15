@@ -165,6 +165,15 @@ export function esRolEncargada(rol: RolPosible): boolean {
   return tiene(SOLO_ENCARGADA, rol);
 }
 
+/** Solo integrante — ni DO ni encargada. Objetivos la usa para decidir a
+ * quién puede gestionar una encargada de sede: a sus integrantes, nunca a
+ * otra encargada (esos los gestiona DO). */
+const SOLO_INTEGRANTE: readonly Rol[] = ["integrante"];
+
+export function esRolIntegrante(rol: RolPosible): boolean {
+  return tiene(SOLO_INTEGRANTE, rol);
+}
+
 /**
  * ALCANCE, no permiso: quién ve las cuatro sedes y quién solo la suya.
  *

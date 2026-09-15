@@ -352,7 +352,7 @@ function rangoDeFechas(ini: string, fin: string): string {
  * restando dos `new Date(iso)`: eso mete el huso del navegador en una cuenta
  * que ya está resuelta en fecha de Lima, y se corre un día.
  */
-function diasEntre(desde: string, hasta: string): number {
+export function diasEntre(desde: string, hasta: string): number {
   const [ay, am, ad] = desde.split("-").map(Number);
   const [by, bm, bd] = hasta.split("-").map(Number);
   return Math.round((Date.UTC(by, bm - 1, bd) - Date.UTC(ay, am - 1, ad)) / 86_400_000);
