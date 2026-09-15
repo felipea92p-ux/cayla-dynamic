@@ -316,7 +316,14 @@ with repo(numero, nombre, nunca) as (values
     (449, 'objetivos_recuerdan_quien_los_toco', false),
     (450, 'la_constancia_de_estudios_se_entrega_y_se_revisa', false),
     (451, 'un_visto_bueno_recuerda_lo_que_acepto', false),
-    (452, 'eliminar_un_periodo_deja_rastro', false)
+    (452, 'eliminar_un_periodo_deja_rastro', false),
+    (453, 'la_bandeja_vuelve_a_reconocer_educacion', false),
+    (454, 'liquidaciones_fecha_de_pago_y_diferencia_por_cierre', false),
+    (455, 'una_ausencia_registrada_despues_frena_la_firma_de_una_falta', false),
+    (456, 'republicar_sin_cambios_no_crea_version', false),
+    (457, 'editar_categoria_incluye_el_salario_declarado', false),
+    (458, 'constancias_por_version_historica', false),
+    (459, 'mi_rango_actual_para_el_portal', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
