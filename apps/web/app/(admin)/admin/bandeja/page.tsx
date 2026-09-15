@@ -71,7 +71,7 @@ import {
   fechaLima, hoyLima, puedeGestionarCatalogos, puedeGestionarContratos, puedeOperarEquipo, puedeVerIdentidad,
   puedeVerPlanilla, puedeVerSaludDeAlertas, puedeVerTodasLasSedes,
 } from "@cayla-dynamic/shared";
-import { esEducacionParaSaber, type FilaEducacionBandeja } from "@/lib/admin/bandeja-equipo";
+import { esEducacionParaSaber, resumenNormasPendientes, type FilaEducacionBandeja, type ResumenNormas } from "@/lib/admin/bandeja-equipo";
 
 // Los dos de educación (0450) no se resuelven aquí —la constancia se mira con sus
 // archivos, en Educación—, pero llevan «Nuevo» igual: son una cola de revisión, y
@@ -332,6 +332,11 @@ export default function BandejaPage() {
   const [sedes, setSedes] = useState<Sede[]>([]);
   const [ceses, setCeses] = useState<Map<string, string>>(new Map());
   const [vistosIniciales, setVistosIniciales] = useState<Set<string>>(new Set());
+  // El enlace compacto de Normas (0460): no es un ítem de esta cola —no se
+  // "resuelve" desde acá, se resuelve dejando constancia en Normas— así que
+  // se carga aparte de `cargar()` y se pinta como una línea, no como una
+  // sección con tabla. Ver `lib/admin/bandeja-equipo.ts`.
+  const [normas, setNormas] = useState<ResumenNormas | null>(null);
 
   // Lo que se escribe en el desplegable de cada fila, por clave de pendiente.
   const [textos, setTextos] = useState<Record<string, string>>({});
@@ -531,6 +536,15 @@ export default function BandejaPage() {
 
   // eslint-disable-next-line react-hooks/set-state-in-effect -- cargar al montar, mismo patrón que el resto del panel.
   useEffect(() => { void cargar(); }, [cargar]);
+
+  useEffect(() => {
+    if (!rol) return;
+    void (async () => {
+      const supabase = createAdminSupabaseClient();
+      const r = await resumenNormasPendientes(supabase, rol);
+      setNormas(r);
+    })();
+  }, [rol]);
 
   // Marcar visto TODO lo que se resuelve acá, una vez que terminó de cargar —
   // la insignia de «Nuevo» de esta visita ya se calculó con vistosIniciales.
@@ -944,6 +958,17 @@ export default function BandejaPage() {
     <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
         <CabeceraPagina titulo="Bandeja" descripcion="Todo lo que requiere tu atención, en un solo lugar." />
+
+        {/* Enlace compacto, no una sección: esto no se resuelve aquí —se
+            resuelve dejando constancia en Normas—, así que no le corresponde
+            un grupo de urgencia ni una fila por persona en esta cola. */}
+        {normas && (
+          <Link href={normas.href}
+            className="mb-6 flex items-center justify-between gap-2 rounded-control bg-hueso px-4 py-2.5 text-sm text-tinta hover:bg-sand/50">
+            <span>{normas.texto}</span>
+            <span className="shrink-0 font-medium text-rojo-profundo">Ver en Normas →</span>
+          </Link>
+        )}
 
         {cargando ? (
           <Cargando />

@@ -1,62 +1,66 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createAdminSupabaseClient } from "@cayla-dynamic/database";
+import { Fragment, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { createAdminSupabaseClient, type ClienteCayla } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { Cargando } from "@/components/cargando";
 import { useToast } from "@/components/toast";
-import { mensajeDeError } from "@/lib/admin/mensaje-error";
+import { mensajeDeError, type ErrorBase } from "@/lib/admin/mensaje-error";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 import { abrirArchivoFirmado } from "@/lib/abrir-archivo-firmado";
+import { descargarCsv, generarCsv } from "@/lib/admin/csv";
+import { diffLineas, type LineaDiff } from "@/lib/admin/diff-lineas";
 import { ROLES_DO, TZ_LIMA, hoyLima } from "@cayla-dynamic/shared";
 import { Documento } from "@/components/documento";
+import { bloquesDe } from "@/lib/admin/markdown-documento";
 import { Boton } from "@/components/ui/boton";
 import { Campo } from "@/components/ui/campo";
+import { AreaTexto } from "@/components/ui/area-texto";
 import { Insignia } from "@/components/ui/insignia";
+import { Modal } from "@/components/ui/modal";
+import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
+import { Search, X } from "lucide-react";
 
-// Normas: los documentos que rigen para todo el equipo, y la prueba de que se
-// entregaron.
+// ============================================================================
+// Normas — rediseño (2026-09-15, decidido con Felipe tras auditoría y
+// prototipo probado). Este archivo reemplaza la lista continua de antes por
+// una biblioteca con tabs: Vigentes (todos), y para DO además Versiones y
+// Constancias — quien no gestiona ve en su lugar Mi historial.
 //
-// POR QUÉ EXISTE ESTA PANTALLA. El Reglamento Interno promete que se entrega
-// «dejando constancia escrita de su recepción», y el D.S. 039-91-TR da cinco
-// días naturales para esa entrega. Hasta hoy el reglamento vivía en un enlace
-// de Drive —que además se cayó— y no había forma de probar quién recibió qué.
-//
-// Y hay algo que esto hace y el papel no puede: un cargo firmado a mano dice
-// que recibiste UN reglamento; no dice cuál versión. El día que una versión
-// sustituya a otra, esa es exactamente la diferencia que importa.
-//
-// POR QUÉ DOS VÍAS DE CONSTANCIA. Medido en producción el 2026-08-10: de 24
-// personas activas, 17 tienen cuenta y 7 no. Casi un tercio del equipo no puede
-// entrar al panel. Una pantalla que solo admitiera el acuse propio dejaría la
-// prueba incompleta justo donde más se mira, así que DO puede registrar la
-// constancia en papel de quien no tiene cuenta, con el cargo escaneado.
-//
-// POR QUÉ NO TODO DOCUMENTO PIDE CONSTANCIA. El reglamento y la política
-// salarial crean obligaciones y la ley exige poder probar que se informaron.
-// La presentación de la empresa no crea ninguna. Pedir acuse por ella enseñaría
-// que el acuse es trámite, y el día que llegue el reglamento nadie lo leería.
-// Lo decide `documentos_tipos.requiere_acuse`, que se administra en la base.
+// Las funciones SQL, el parser de markdown y el visor <Documento> NO cambian:
+// esta es una reescritura de interfaz sobre el mismo contrato de datos.
+// ============================================================================
 
-const MAX_BYTES_CARGO = 50 * 1024 * 1024;
-const TIPOS_CARGO = "image/jpeg,image/png,image/heic,image/webp,application/pdf";
+/** `fn_restaurar_documento` es de la migración 0460, recién escrita: el
+ *  cliente tipado (`ClienteCayla`) solo deja llamar funciones que ya están en
+ *  `packages/database/src/types.ts`, y ese archivo se regenera introspectando
+ *  el Postgres LOCAL que comparten las ~10 sesiones de este repositorio — hoy
+ *  va detrás de esta rama (le faltan tablas y columnas de migraciones ya
+ *  fusionadas), así que regenerarlo ahora habría borrado tipos legítimos en
+ *  vez de sumar uno nuevo. Se llama aparte, con la forma mínima de su
+ *  respuesta, hasta que alguien regenere `types.ts` con la base al día. */
+async function restaurarDocumento(
+  supabase: ClienteCayla,
+  documentoId: string,
+): Promise<{ data: number | null; error: ErrorBase | null }> {
+  const cliente = supabase as unknown as {
+    rpc(
+      fn: "fn_restaurar_documento",
+      args: { p_documento_id: string },
+    ): PromiseLike<{ data: number | null; error: ErrorBase | null }>;
+  };
+  return cliente.rpc("fn_restaurar_documento", { p_documento_id: documentoId });
+}
+
+type TabId = "vigentes" | "versiones" | "constancias" | "historial";
 
 interface Doc {
   documento_id: string;
   tipo: string;
   tipo_nombre: string;
-  /** Cuántas veces se ha publicado este tipo en el sistema. Dato técnico. */
   version: number;
-  /**
-   * La versión que el DOCUMENTO declara en su propio texto — «4.0».
-   *
-   * Es la que aparece en el cargo que la integrante firma, y por eso es la que
-   * manda en pantalla. Antes solo existía el correlativo, y con el Reglamento
-   * 4.0 publicado como `version = 1` el legajo de papel y la base no se podían
-   * cruzar sin abrir el texto congelado y leerlo. Es opcional: un documento sin
-   * versión editorial es legítimo, y entonces se muestra solo el correlativo.
-   */
   etiqueta_version: string | null;
   titulo: string;
   documento: string;
@@ -68,6 +72,13 @@ interface Doc {
   poblacion: number;
 }
 
+interface Tipo {
+  codigo: string;
+  nombre: string;
+  requiere_acuse: boolean;
+  orden: number;
+}
+
 interface FilaAcuse {
   persona_id: string;
   nombre: string;
@@ -75,37 +86,63 @@ interface FilaAcuse {
   tiene_cuenta: boolean;
   acusado_at: string | null;
   via: string | null;
-  /**
-   * La ruta REAL del cargo escaneado, tal como la guardó el registro.
-   *
-   * No viene de `fn_acuses_documento` —que no la devuelve— sino de una consulta
-   * aparte a `documentos_acuses`. Antes se reconstruía a mano como
-   * «documento/persona» y eso NUNCA podía funcionar: al subir, la clave lleva
-   * sello de tiempo y extensión, y `createSignedUrl` exige la clave exacta. O
-   * sea que todos los cargos archivados fallaban con «Object not found»,
-   * incluidos los subidos un minuto antes. Es la única prueba que tienen las
-   * integrantes sin cuenta: se guardaba bien y no se podía recuperar.
-   */
   storage_path: string | null;
 }
 
-interface Tipo {
-  codigo: string;
-  nombre: string;
+/** Una fila cruda de `documentos_institucionales`, para el tab Versiones —
+ *  SIN el texto completo: esa columna solo se pide al abrir una versión en
+ *  concreto (ver `documento`, abajo), no para listar. */
+interface VersionRow {
+  id: string;
+  tipo: string;
+  version: number;
+  etiqueta_version: string | null;
+  titulo: string;
+  vigente_desde: string;
+  publicado_at: string;
+  notas: string | null;
+}
+
+/** El documento abierto en el modal — vigente (viene de `docs`, ya trae todo)
+ *  o histórico (se pide aparte, con su texto). */
+interface ModalDoc {
+  documento_id: string;
+  tipo: string;
+  tipo_nombre: string;
+  version: number;
+  etiqueta_version: string | null;
+  titulo: string;
+  documento: string;
+  vigente_desde: string;
+  publicado_at: string;
+  esVigente: boolean;
+  /** Solo tienen sentido para la vigente: acusar una versión histórica no
+   *  significa nada en el modelo de datos (la constancia es de LA vigente que
+   *  se leyó), así que quedan en su valor neutro para una histórica y el
+   *  bloque de "dejar constancia" no se muestra. */
   requiere_acuse: boolean;
+  mi_acuse_at: string | null;
+  total_acuses: number;
+  poblacion: number;
+}
+
+interface MiConstancia {
+  documento_id: string;
+  titulo: string;
+  tipo_nombre: string;
+  etiqueta_version: string | null;
+  version: number;
+  acusado_at: string;
+  via: string;
 }
 
 /**
- * Qué es principal y qué es anexo.
- *
- * No es cosmética: el artículo 47 del Reglamento dice que los documentos
- * complementarios «tienen finalidad informativa» y que «en caso de discrepancia
- * prevalece este Reglamento». Si los seis aparecieran al mismo nivel, la
- * pantalla estaría diciendo lo contrario que el articulado, y quien la mire
- * creerá lo que ve antes que lo que lee.
- *
- * La lista vive acá y no en la base a propósito: es una decisión de jerarquía
- * normativa, no un dato que DO deba poder cambiar desde una pantalla.
+ * Qué es principal y qué es anexo. No es cosmética: el artículo 47 del
+ * Reglamento dice que los complementarios «tienen finalidad informativa» y
+ * que «en caso de discrepancia prevalece este Reglamento». La lista vive acá
+ * y no en la base a propósito: es una decisión de jerarquía normativa, no un
+ * dato que DO deba poder cambiar desde una pantalla. Hoy solo `rit` — el día
+ * que el RISST se declare principal, se agrega aquí.
  */
 const PRINCIPALES = ["rit"];
 
@@ -113,6 +150,12 @@ const PRINCIPALES = ["rit"];
  *  propósito, pero existe: sin él, un archivo equivocado se sube entero antes
  *  de que nadie note que no era un documento. */
 const MAX_BYTES_DOC = 2 * 1024 * 1024;
+
+const MAX_BYTES_CARGO = 50 * 1024 * 1024;
+const TIPOS_CARGO = "image/jpeg,image/png,image/heic,image/webp,application/pdf";
+
+const SELECT =
+  "rounded-control border border-sand bg-hueso px-3 py-2 text-base text-tinta transition-colors duration-150 sm:text-sm";
 
 function selloLima(iso: string | null): string {
   if (!iso) return "—";
@@ -132,72 +175,254 @@ function fechaCorta(iso: string): string {
 }
 
 /**
- * Cómo se nombra una versión en pantalla.
- *
- * Manda la del documento, y el correlativo baja a decir lo que de verdad es:
- * cuántas veces se ha publicado esto aquí. Antes se leía «versión 1» junto a un
- * texto que se titula «Versión 4.0», dos números que solo coincidirían por
- * casualidad — y el cargo que la integrante firma dice 4.0.
+ * Cómo se nombra una versión en pantalla. Manda la del documento (la que
+ * lleva el cargo que se firma), y el correlativo baja a decir lo que de
+ * verdad es: cuántas veces se ha publicado esto aquí.
  */
-function comoSeLlamaLaVersion(d: Doc): string {
-  const publicacion = `${d.version}.ª publicación en el sistema`;
-  return d.etiqueta_version ? `versión ${d.etiqueta_version} · ${publicacion}` : publicacion;
+function comoSeLlamaLaVersion(etiqueta: string | null, version: number): string {
+  const publicacion = `${version}.ª publicación en el sistema`;
+  return etiqueta ? `versión ${etiqueta} · ${publicacion}` : publicacion;
+}
+
+type Categoria = "principal" | "complementario" | "formato";
+
+function categoriaDe(tipo: string, requiereAcuse: boolean): Categoria {
+  if (PRINCIPALES.includes(tipo)) return "principal";
+  return requiereAcuse ? "complementario" : "formato";
+}
+
+const NOMBRE_CATEGORIA: Record<Categoria, string> = {
+  principal: "Documento principal",
+  complementario: "Complementario",
+  formato: "Formato",
+};
+
+/** El código a partir del nombre: la tabla exige `^[a-z0-9_]{2,40}$`. */
+function codigoDesde(nombre: string): string {
+  const sinTildes = nombre.normalize("NFD").replace(/[̀-ͯ]/g, "");
+  return sinTildes.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 40);
+}
+
+/** Un encabezado ## o ### del documento, para el índice del modal. `orden` es
+ *  la posición entre TODOS los encabezados (1 a 4), no solo los que entran al
+ *  índice — es lo que deja encontrar el elemento exacto en el DOM sin
+ *  depender de que el texto sea único. */
+interface EntradaIndice {
+  orden: number;
+  nivel: 2 | 3;
+  texto: string;
+}
+
+function indiceDe(texto: string): EntradaIndice[] {
+  const bloques = bloquesDe(texto);
+  const entradas: EntradaIndice[] = [];
+  let orden = 0;
+  for (const b of bloques) {
+    if (b.tipo !== "encabezado") continue;
+    if (b.nivel === 2 || b.nivel === 3) {
+      entradas.push({ orden, nivel: b.nivel, texto: b.marcas.map((m) => m.texto).join("") });
+    }
+    orden++;
+  }
+  return entradas;
 }
 
 export default function NormasPage() {
+  return (
+    <Suspense fallback={<main className="p-6"><Cargando texto="Cargando…" /></main>}>
+      <NormasPageContenido />
+    </Suspense>
+  );
+}
+
+function NormasPageContenido() {
   useTituloDocumento("Normas");
   const yo = usePersonaActual();
   const puedeGestionar = yo !== null && ROLES_DO.includes(yo.rol);
-
-  const [docs, setDocs] = useState<Doc[]>([]);
-  const [abierto, setAbierto] = useState<string | null>(null);
-  const [cargando, setCargando] = useState(true);
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { avisar } = useToast();
-  /**
-   * Los errores de constancia se avisan DONDE se produjeron, no en el toast.
-   *
-   * El toast global sirve para lo que es de la pantalla —cargar, publicar,
-   * crear un tipo—; para la
-   * constancia era el sitio equivocado. El caso que lo demuestra: el formulario
-   * del cargo en papel se abre desde una fila del seguimiento y se dibuja DESPUÉS
-   * de esa lista, que con el equipo completo son ~24 filas — unos 700 px entre el
-   * aviso y el botón que lo provocó. El error más probable, olvidar adjuntar el
-   * escaneo, se pintaba fuera de la vista y sin atenuar el botón.
-   *
-   * Y la asimetría era lo que hacía daño: el ÉXITO sí tenía señal local —el
-   * formulario se sustituye por «Dejaste constancia el …»— y el fallo ninguna. En
-   * la acción de la que depende la prueba legal, se veía cuando funcionaba y no
-   * se veía cuando no.
-   */
-  const [msgConstancia, setMsgConstancia] = useState<string | null>(null);
-  const [msgPapel, setMsgPapel] = useState<string | null>(null);
-  const [ocupado, setOcupado] = useState(false);
-  const [nombreDeclarado, setNombreDeclarado] = useState("");
-  // Para llevar el foco al campo que falta, no solo nombrarlo.
-  const refNombre = useRef<HTMLInputElement | null>(null);
-  const refCargo = useRef<HTMLInputElement | null>(null);
+  const supabase = useMemo(() => createAdminSupabaseClient(), []);
 
-  // El seguimiento de quién falta, sólo para quien puede verlo.
-  const [acuses, setAcuses] = useState<Map<string, FilaAcuse[]>>(new Map());
-  const [verSeguimiento, setVerSeguimiento] = useState<string | null>(null);
-  const [verAnexos, setVerAnexos] = useState(false);
+  // ── Tab activo, enlazable por `?tab=` ─────────────────────────────────────
+  const [tab, setTabState] = useState<TabId>(() => {
+    const t = searchParams.get("tab");
+    return t === "versiones" || t === "constancias" || t === "historial" ? t : "vigentes";
+  });
+  const setTab = useCallback((t: TabId) => {
+    setTabState(t);
+    const params = new URLSearchParams(Array.from(searchParams.entries()));
+    params.set("tab", t);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }, [pathname, router, searchParams]);
 
-  // ── Publicar una versión ──────────────────────────────────────────────────
-  // El texto NO se escribe aquí: se sube el archivo que vive en `docs/`, bajo
-  // control de versiones. Pegar 277.000 caracteres a mano es justo donde se
-  // pierde un trozo sin que nadie lo note, y el documento que vale como prueba
-  // es el que se guarda.
+  // Un tab que no le toca (colaboradora en Versiones, o DO en Mi historial)
+  // se corrige en cuanto se sabe el rol — antes no se sabe si corregir.
+  useEffect(() => {
+    if (yo === null) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- corrige el tab a uno permitido en cuanto se conoce el rol.
+    if (!puedeGestionar && (tab === "versiones" || tab === "constancias")) setTab("vigentes");
+    if (puedeGestionar && tab === "historial") setTab("vigentes");
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- solo reacciona a que se resuelva el rol, no a cada cambio de tab.
+  }, [yo, puedeGestionar]);
+
+  // ── Vigentes ───────────────────────────────────────────────────────────
+  const [docs, setDocs] = useState<Doc[]>([]);
+  const [cargando, setCargando] = useState(true);
   const [tipos, setTipos] = useState<Tipo[]>([]);
-  const [publicando, setPublicando] = useState(false);
-  // Alta de un tipo nuevo. La 0208 dejó escrito que este catálogo «se
-  // administra desde la pantalla», pero la pantalla no tenía cómo: hasta la
-  // 0215 la tabla solo permitía leer, así que cada documento nuevo era una
-  // migración. Esto es esa mitad que faltaba.
+  const [versionesCount, setVersionesCount] = useState<number | null>(null);
+
+  const [busqueda, setBusqueda] = useState("");
+  const [filtroTipo, setFiltroTipo] = useState<Categoria | "">("");
+  const [filtroConstancia, setFiltroConstancia] = useState<"" | "si" | "no">("");
+
+  const cargar = useCallback(async () => {
+    const { data, error } = await supabase.rpc("fn_documentos_vigentes");
+    if (error) {
+      avisar("error", mensajeDeError(error, "cargar los documentos"));
+      setCargando(false);
+      return;
+    }
+    setDocs((data as unknown as Doc[]) ?? []);
+    setCargando(false);
+  }, [supabase, avisar]);
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- cargar al montar, mismo patrón que el resto del panel.
+  useEffect(() => { void cargar(); }, [cargar]);
+
+  useEffect(() => {
+    void (async () => {
+      const { count } = await supabase
+        .from("documentos_institucionales")
+        .select("id", { count: "exact", head: true });
+      setVersionesCount(count ?? null);
+    })();
+  }, [supabase]);
+
+  useEffect(() => {
+    if (!puedeGestionar) return;
+    void (async () => {
+      const { data } = await supabase
+        .from("documentos_tipos")
+        .select("codigo, nombre, requiere_acuse, orden")
+        .eq("activo", true)
+        .order("orden");
+      setTipos((data as Tipo[]) ?? []);
+    })();
+  }, [supabase, puedeGestionar]);
+
+  const docsFiltrados = useMemo(() => {
+    const q = busqueda.trim().toLowerCase();
+    return docs.filter((d) => {
+      if (q && !(d.titulo.toLowerCase().includes(q) || d.documento.toLowerCase().includes(q))) return false;
+      if (filtroTipo && categoriaDe(d.tipo, d.requiere_acuse) !== filtroTipo) return false;
+      if (filtroConstancia === "si" && !d.requiere_acuse) return false;
+      if (filtroConstancia === "no" && d.requiere_acuse) return false;
+      return true;
+    });
+  }, [docs, busqueda, filtroTipo, filtroConstancia]);
+
+  const principales = docsFiltrados.filter((d) => categoriaDe(d.tipo, d.requiere_acuse) === "principal");
+  const complementarios = docsFiltrados.filter((d) => categoriaDe(d.tipo, d.requiere_acuse) === "complementario");
+  const formatos = docsFiltrados.filter((d) => categoriaDe(d.tipo, d.requiere_acuse) === "formato");
+
+  // ── Modal de documento ────────────────────────────────────────────────
+  const [modal, setModal] = useState<ModalDoc | null>(null);
+  const [modalCargando, setModalCargando] = useState(false);
+
+  function abrirModalVigente(d: Doc) {
+    setModal({
+      documento_id: d.documento_id, tipo: d.tipo, tipo_nombre: d.tipo_nombre,
+      version: d.version, etiqueta_version: d.etiqueta_version, titulo: d.titulo,
+      documento: d.documento, vigente_desde: d.vigente_desde, publicado_at: d.publicado_at,
+      esVigente: true, requiere_acuse: d.requiere_acuse, mi_acuse_at: d.mi_acuse_at,
+      total_acuses: d.total_acuses, poblacion: d.poblacion,
+    });
+  }
+
+  const abrirModalHistorico = useCallback(async (id: string) => {
+    setModalCargando(true);
+    const { data, error } = await supabase
+      .from("documentos_institucionales")
+      .select("id, tipo, version, etiqueta_version, titulo, documento, vigente_desde, publicado_at, notas")
+      .eq("id", id)
+      .maybeSingle();
+    setModalCargando(false);
+    if (error || !data) {
+      avisar("error", mensajeDeError(error ?? undefined, "abrir esa versión"));
+      return;
+    }
+    const info = tipos.find((t) => t.codigo === data.tipo);
+    setModal({
+      documento_id: data.id, tipo: data.tipo, tipo_nombre: info?.nombre ?? data.tipo,
+      version: data.version, etiqueta_version: data.etiqueta_version, titulo: data.titulo,
+      documento: data.documento, vigente_desde: data.vigente_desde, publicado_at: data.publicado_at,
+      esVigente: false, requiere_acuse: info?.requiere_acuse ?? false,
+      mi_acuse_at: null, total_acuses: 0, poblacion: 0,
+    });
+  }, [supabase, tipos, avisar]);
+
+  // El «#doc-<id>» con el que llega el aviso de acuses pendientes
+  // (components/acuses-pendientes.tsx) y la Bandeja: abre el modal directo,
+  // sin que la persona tenga que buscar el documento en la biblioteca.
+  useEffect(() => {
+    if (cargando || docs.length === 0) return;
+    const id = window.location.hash.replace(/^#doc-/, "");
+    if (!id || id === window.location.hash) return;
+    const d = docs.find((x) => x.documento_id === id);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- abre el modal al que apunta el enlace, una sola vez cuando `docs` llega.
+    if (d) abrirModalVigente(d);
+  }, [cargando, docs]);
+
+  function irAConstanciasDesdeModal(documentoId: string) {
+    setModal(null);
+    setConstanciaDocId(documentoId);
+    setTab("constancias");
+  }
+
+  // ── Dejar constancia propia (dentro del modal) ────────────────────────
+  const [nombreDeclarado, setNombreDeclarado] = useState("");
+  const [msgConstancia, setMsgConstancia] = useState<string | null>(null);
+  const [ocupadoAcuse, setOcupadoAcuse] = useState(false);
+  const refNombre = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- precarga el nombre declarado con el de la persona en cuanto se conoce.
+    if (yo?.nombreCompleto) setNombreDeclarado(yo.nombreCompleto);
+  }, [yo]);
+
+  useEffect(() => {
+    if (!msgConstancia) return;
+    refNombre.current?.scrollIntoView({ block: "center" });
+    refNombre.current?.focus({ preventScroll: true });
+  }, [msgConstancia]);
+
+  async function acusar(d: ModalDoc) {
+    if (nombreDeclarado.trim().split(/\s+/).filter(Boolean).length < 2) {
+      setMsgConstancia("Escribe tu nombre y tu apellido para dejar constancia.");
+      return;
+    }
+    setOcupadoAcuse(true); setMsgConstancia(null);
+    const { error } = await supabase.rpc("fn_acusar_documento", {
+      p_documento_id: d.documento_id,
+      p_nombre_declarado: nombreDeclarado.trim(),
+    });
+    setOcupadoAcuse(false);
+    if (error) { setMsgConstancia(mensajeDeError(error)); return; }
+    setModal((m) => (m ? { ...m, mi_acuse_at: new Date().toISOString() } : m));
+    await cargar();
+    avisar("ok", "Constancia registrada. No hace falta hacer nada más hasta que se publique una versión nueva.");
+  }
+
+  // ── Publicar una versión, en dos pasos ────────────────────────────────
+  const [publicarAbierto, setPublicarAbierto] = useState(false);
+  const [pasoPublicar, setPasoPublicar] = useState<1 | 2>(1);
+  const [ocupadoPublicar, setOcupadoPublicar] = useState(false);
   const [creandoTipo, setCreandoTipo] = useState(false);
   const [tipoNuevo, setTipoNuevo] = useState({ nombre: "", acuse: true });
   const [tipoElegido, setTipoElegido] = useState("rit");
   const [archivoDoc, setArchivoDoc] = useState<{ nombre: string; texto: string } | null>(null);
-  // Pegar el texto en vez de subir un archivo. Ver `PEGAR` más abajo.
   const [pegando, setPegando] = useState(false);
   const [textoPegado, setTextoPegado] = useState("");
   const [tituloDoc, setTituloDoc] = useState("");
@@ -205,115 +430,16 @@ export default function NormasPage() {
   const [notasDoc, setNotasDoc] = useState("");
   const [etiquetaDoc, setEtiquetaDoc] = useState("");
 
-  // La constancia en papel de quien no tiene cuenta.
-  const [papelPara, setPapelPara] = useState<{ doc: string; persona: string; nombre: string } | null>(null);
-  const [archivo, setArchivo] = useState<File | null>(null);
-  const [fechaPapel, setFechaPapel] = useState("");
-  const [notaPapel, setNotaPapel] = useState("");
-  const [progreso, setProgreso] = useState<number | null>(null);
-
-  const supabase = useMemo(() => createAdminSupabaseClient(), []);
-
-  // Todo lo que no es principal es anexo, sin lista escrita a mano: el día que
-  // se publique un documento nuevo aparece aquí solo.
-  const anexosVisibles = docs.filter((d) => !PRINCIPALES.includes(d.tipo));
-  /**
-   * Obedecer al «#doc-<id>» con el que llega quien viene del aviso de acuses
-   * pendientes.
-   *
-   * El aviso vive en `components/acuses-pendientes.tsx` y sale en todas las
-   * pantallas. Antes sus enlaces apuntaban a `/admin/normas` a secas: con dos
-   * constancias pendientes, los dos llevaban al mismo sitio y la persona tenía
-   * que buscar — y la segunda suele ser un anexo, que va plegado.
-   *
-   * Se espera a que `docs` esté cargado porque el elemento no existe hasta
-   * entonces, y se despliega el bloque de anexos si el documento está ahí: sin
-   * eso, abrirlo no se vería.
-   */
-  useEffect(() => {
-    if (cargando || docs.length === 0) return;
-    const id = window.location.hash.replace(/^#doc-/, "");
-    if (!id || id === window.location.hash) return;
-    const d = docs.find((x) => x.documento_id === id);
-    if (!d) return;
-    if (!PRINCIPALES.includes(d.tipo)) setVerAnexos(true);
-    setAbierto(id);
-    requestAnimationFrame(() =>
-      document.getElementById(`doc-${id}`)?.scrollIntoView({ behavior: "smooth", block: "start" }));
-  }, [cargando, docs]);
-
-  // Abrir el primero solo en la primera carga: `cargar` no depende de `abierto`
-  // —lo haría recrearse en cada plegado/desplegado y disparar un refetch por
-  // cada clic—, así que esta bandera es lo que distingue "primera carga" de
-  // "ya se cargó antes" sin leer `abierto` de un cierre que quedaría obsoleto.
-  const primeraCargaRef = useRef(true);
-
-  const cargar = useCallback(async () => {
-    setCargando(true);
-    // ⚠️ El error SÍ se mira. La pantalla de Disciplina no lo miraba y durante
-    // días imprimió «no hay nadie» cuando lo que había era un permiso que
-    // faltaba (migración 0204). Un falso «no hay documentos» sería lo mismo.
-    const { data, error } = await supabase.rpc("fn_documentos_vigentes");
-    if (error) {
-      avisar("error", mensajeDeError(error, "cargar los documentos"));
-      setCargando(false);
-      return;
-    }
-    const lista = (data as unknown as Doc[]) ?? [];
-    setDocs(lista);
-    if (lista.length && primeraCargaRef.current) {
-      setAbierto((prev) => (prev === null ? lista[0].documento_id : prev));
-    }
-    primeraCargaRef.current = false;
-    setCargando(false);
-  }, [supabase, avisar]);
-
-  useEffect(() => { void cargar(); }, [cargar]);
-
-  /**
-   * Un aviso de constancia se trae a la vista y se lleva el foco al campo.
-   *
-   * En un efecto y no junto al `setMsgConstancia…` por dos razones medidas en el navegador:
-   * `BloqueConstancia` se define dentro de esta pantalla, así que cada render le
-   * da identidad nueva y React REMONTA el campo — enfocar en el mismo tick apunta
-   * al nodo que se va, y con `requestAnimationFrame` tampoco llega. Y el aviso
-   * puede nacer fuera de la pantalla: el documento abierto ocupa hasta 60vh, así
-   * que el bloque de constancia queda por debajo del pliegue mientras no te
-   * desplaces. Un error que no se ve es un error que no existe para quien lo
-   * provocó.
-   */
-  useEffect(() => {
-    if (!msgConstancia) return;
-    refNombre.current?.scrollIntoView({ block: "center" });
-    refNombre.current?.focus({ preventScroll: true });
-  }, [msgConstancia]);
-
-  useEffect(() => {
-    if (!msgPapel) return;
-    refCargo.current?.scrollIntoView({ block: "center" });
-    refCargo.current?.focus({ preventScroll: true });
-  }, [msgPapel]);
-
-  // El nombre viene puesto, pero es EDITABLE: lo que prueba no es el dato de la
-  // base, es que la persona lo escriba. Eso convierte un clic en un acto
-  // deliberado — la misma decisión que tomó la política salarial.
-  useEffect(() => {
-    if (yo?.nombreCompleto) setNombreDeclarado(yo.nombreCompleto);
-  }, [yo]);
-
-  // El catálogo de tipos: se lee de la tabla, nunca se escribe en el código.
-  // Añadir «Presentación de CAYLA» tiene que ser un dato, no un despliegue.
-  useEffect(() => {
-    if (!puedeGestionar) return;
-    void (async () => {
-      const { data } = await supabase
-        .from("documentos_tipos")
-        .select("codigo, nombre, requiere_acuse")
-        .eq("activo", true)
-        .order("orden");
-      setTipos((data as Tipo[]) ?? []);
-    })();
-  }, [supabase, puedeGestionar]);
+  function abrirPublicar() {
+    setPasoPublicar(1);
+    if (!tipoElegido && tipos.length) setTipoElegido(tipos[0].codigo);
+    setPublicarAbierto(true);
+  }
+  function cerrarPublicar() {
+    setPublicarAbierto(false); setPasoPublicar(1);
+    setArchivoDoc(null); setTituloDoc(""); setTextoPegado(""); setNotasDoc(""); setEtiquetaDoc("");
+    setCreandoTipo(false);
+  }
 
   async function elegirArchivo(f: File | null) {
     setArchivoDoc(null);
@@ -323,36 +449,12 @@ export default function NormasPage() {
       return;
     }
     const texto = await f.text();
-    if (!texto.trim()) {
-      avisar("error", "El archivo está vacío.");
-      return;
-    }
+    if (!texto.trim()) { avisar("error", "El archivo está vacío."); return; }
     setArchivoDoc({ nombre: f.name, texto });
-    // El título sale de la primera línea de encabezado del documento, para que
-    // no haya dos verdades sobre cómo se llama.
     const h1 = texto.split("\n").find((l) => l.trim().startsWith("# "));
     if (h1 && !tituloDoc) setTituloDoc(h1.replace(/^#\s*/, "").trim());
   }
 
-  /**
-   * PEGAR: la segunda vía para traer el texto, y por qué existe.
-   *
-   * Hasta hoy solo se podía subir un archivo, con este argumento escrito en la
-   * pantalla: «el texto vive versionado en el repositorio y así no hay dos
-   * verdades». Es cierto para el Reglamento y sus anexos —viven en `docs/`— y
-   * es falso para todo lo demás. La misión, la visión y los valores no están en
-   * el repositorio ni tienen por qué estarlo: están en un Word o en un Canva, y
-   * exigir un `.md` obligaba a fabricar un archivo intermedio cuyo único
-   * propósito era pasar por este formulario.
-   *
-   * Lo que se guarda es idéntico por las dos vías —el texto, congelado en
-   * `documentos_institucionales.documento`—, así que la prueba no cambia: un
-   * acuse sigue apuntando a las palabras exactas que se mostraron. Lo que
-   * cambia es de dónde salieron esas palabras, y eso nunca se guardó.
-   *
-   * Se mantiene el tope de tamaño: pegar el manual equivocado es tan posible
-   * como subirlo.
-   */
   function pegarTexto(t: string) {
     setTextoPegado(t);
     if (!t.trim()) { setArchivoDoc(null); return; }
@@ -366,49 +468,41 @@ export default function NormasPage() {
     if (h1 && !tituloDoc) setTituloDoc(h1.replace(/^#\s*/, "").trim());
   }
 
-  /** El código a partir del nombre: la tabla exige `^[a-z0-9_]{2,40}$`, así que
-   *  se pide UNA cosa —el nombre— y el código se deriva. Pedir los dos obliga a
-   *  explicar qué es un código y deja que alguien escriba «Política HS» en el
-   *  campo equivocado, que es un error que no se ve hasta que falla el insert. */
-  function codigoDesde(nombre: string): string {
-    const sinTildes = nombre.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    return sinTildes.toLowerCase().replace(/[^a-z0-9]+/g, "_")
-      .replace(/^_+|_+$/g, "").slice(0, 40);
-  }
-
   async function crearTipo() {
     const nombre = tipoNuevo.nombre.trim();
     const codigo = codigoDesde(nombre);
-    if (codigo.length < 2) {
-      avisar("error", "El nombre tiene que tener al menos dos letras o números.");
-      return;
-    }
-    if (tipos.some((t) => t.codigo === codigo)) {
-      avisar("error", `Ya existe un documento con ese nombre (${codigo}).`);
-      return;
-    }
-    setOcupado(true);
-    // `orden` al final, y a partir del 100: los seis documentos que vinieron con
-    // el sistema ocupan del 10 al 60, así que uno nuevo se coloca detrás sin
-    // desplazar a ninguno. No se calcula del máximo real porque esta consulta
-    // no trae la columna `orden`, y fingir que sí la usa sería peor que esto.
+    if (codigo.length < 2) { avisar("error", "El nombre tiene que tener al menos dos letras o números."); return; }
+    if (tipos.some((t) => t.codigo === codigo)) { avisar("error", `Ya existe un documento con ese nombre (${codigo}).`); return; }
+    setOcupadoPublicar(true);
     const orden = 100 + tipos.length * 10;
     const { error } = await supabase.from("documentos_tipos")
       .insert({ codigo, nombre, orden, requiere_acuse: tipoNuevo.acuse });
-    setOcupado(false);
+    setOcupadoPublicar(false);
     if (error) { avisar("error", mensajeDeError(error, "crear el tipo de documento")); return; }
     const { data } = await supabase.from("documentos_tipos")
-      .select("codigo, nombre, requiere_acuse").eq("activo", true).order("orden");
+      .select("codigo, nombre, requiere_acuse, orden").eq("activo", true).order("orden");
     setTipos((data as Tipo[]) ?? []);
     setTipoElegido(codigo);
     setCreandoTipo(false); setTipoNuevo({ nombre: "", acuse: true });
     avisar("ok", `«${nombre}» ya se puede publicar${tipoNuevo.acuse ? ", y pedirá constancia a cada integrante" : ", para consulta y sin constancia"}.`);
   }
 
-  async function publicar() {
+  /** El documento vigente HOY de `tipoElegido`, si lo tiene — la base del
+   *  paso de confirmación: cuántas personas ya constaron esa versión y
+   *  volverían a estar pendientes de la nueva. */
+  const vigenteDelTipoElegido = docs.find((d) => d.tipo === tipoElegido);
+  const tipoElegidoInfo = tipos.find((t) => t.codigo === tipoElegido);
+  const numeroVersionNueva = (vigenteDelTipoElegido?.version ?? 0) + 1;
+
+  function irAConfirmarPublicar() {
     if (!archivoDoc) { avisar("error", "Falta el documento: sube el archivo o pega el texto."); return; }
     if (!tituloDoc.trim()) { avisar("error", "Falta el título con el que se va a mostrar."); return; }
-    setOcupado(true);
+    setPasoPublicar(2);
+  }
+
+  async function confirmarPublicar() {
+    if (!archivoDoc) return;
+    setOcupadoPublicar(true);
     const { data, error } = await supabase.rpc("fn_publicar_documento", {
       p_tipo: tipoElegido,
       p_titulo: tituloDoc.trim(),
@@ -417,74 +511,235 @@ export default function NormasPage() {
       p_notas: notasDoc.trim() || null,
       p_etiqueta: etiquetaDoc.trim() || null,
     });
-    setOcupado(false);
+    setOcupadoPublicar(false);
     if (error) { avisar("error", mensajeDeError(error, "publicar el documento")); return; }
-    // El título TAMBIÉN se limpia, y esto no es aseo.
-    //
-    // `elegirArchivo` rellena el título con el «# » del archivo solo si el campo
-    // está vacío, para no pisar lo que se haya escrito a mano. Sin limpiarlo
-    // aquí, el título de la publicación anterior seguía puesto, el guard lo veía
-    // lleno y no lo actualizaba: el 12-08-2026 la Resolución de designación se
-    // publicó con el título de la Política de Prevención, y en la lista salían
-    // dos documentos con el mismo nombre.
-    // `textoPegado` se limpia por la misma razón que el título: si se quedara
-    // puesto, la siguiente publicación arrancaría con el documento anterior en
-    // el cuadro y bastaría no mirarlo para publicarlo otra vez.
-    // Qué prometía este mensaje, y por qué ahora pregunta.
-    //
-    // Decía siempre «desde ahora cada integrante deja su constancia», y para un
-    // documento con `requiere_acuse = false` eso es falso: no se le va a pedir
-    // constancia a nadie. Se veía poco mientras publicar un documento sin acuse
-    // costaba una migración; se ve al primer intento desde que el catálogo se
-    // administra en pantalla. Y un mensaje de éxito que anuncia un trámite que
-    // no va a ocurrir deja esperando una lista de pendientes que nunca aparece.
-    const pideAcuse = tipos.find((t) => t.codigo === tipoElegido)?.requiere_acuse ?? true;
-    setPublicando(false); setArchivoDoc(null); setNotasDoc(""); setTituloDoc(""); setTextoPegado(""); setEtiquetaDoc("");
+    const pideAcuse = tipoElegidoInfo?.requiere_acuse ?? true;
+    cerrarPublicar();
     await cargar();
+    setVersiones([]); // se recarga sola la próxima vez que se mire el tab
+    setVersionesCount((n) => (n === null ? null : n + 1));
     avisar("ok", pideAcuse
       ? `Publicada la versión ${String(data)}. Desde ahora cada integrante deja su constancia, y quien no tenga cuenta la deja en papel.`
       : `Publicada la versión ${String(data)}. Queda publicada para consulta: este documento no pide constancia a nadie.`);
   }
 
-  async function cargarAcuses(documentoId: string) {
-    const { data } = await supabase.rpc("fn_acuses_documento", { p_documento_id: documentoId });
-    const filas = (data as unknown as FilaAcuse[]) ?? [];
-    // La ruta del cargo se pide APARTE, porque la función no la devuelve. La
-    // política `documentos_acuses_lectura` ya deja leer la tabla a administración
-    // y a los líderes, que son quienes ven este panel.
-    const { data: rutas } = await supabase
-      .from("documentos_acuses")
-      .select("persona_id, storage_path")
-      .eq("documento_id", documentoId);
-    const porPersona = new Map((rutas ?? []).map((r) => [r.persona_id as string, r.storage_path as string | null]));
-    setAcuses((m) => new Map(m).set(
-      documentoId,
-      filas.map((f) => ({ ...f, storage_path: porPersona.get(f.persona_id) ?? null })),
-    ));
+  // ── Tab Versiones (solo DO) ────────────────────────────────────────────
+  const [versiones, setVersiones] = useState<VersionRow[]>([]);
+  const [versionesCargando, setVersionesCargando] = useState(false);
+  const [filtroEstadoVersion, setFiltroEstadoVersion] = useState<"" | "vigente" | "historica">("");
+  const [filtroVigenciaDesde, setFiltroVigenciaDesde] = useState("");
+  const [filtroVigenciaHasta, setFiltroVigenciaHasta] = useState("");
+  const [diffAbierto, setDiffAbierto] = useState<{ id: string; lineas: LineaDiff[] } | null>(null);
+  const [diffCargando, setDiffCargando] = useState<string | null>(null);
+  const textosCache = useRef(new Map<string, string>());
+  const [restaurando, setRestaurando] = useState<VersionRow | null>(null);
+  const [ocupadoRestaurar, setOcupadoRestaurar] = useState(false);
+
+  const cargarVersiones = useCallback(async () => {
+    setVersionesCargando(true);
+    const { data, error } = await supabase
+      .from("documentos_institucionales")
+      .select("id, tipo, version, etiqueta_version, titulo, vigente_desde, publicado_at, notas")
+      .order("tipo")
+      .order("version", { ascending: false });
+    setVersionesCargando(false);
+    if (error) { avisar("error", mensajeDeError(error, "cargar las versiones")); return; }
+    setVersiones((data as VersionRow[]) ?? []);
+  }, [supabase, avisar]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- carga perezosa la primera vez que se mira el tab, mismo patrón que el resto del panel.
+    if (tab === "versiones" && puedeGestionar && versiones.length === 0 && !versionesCargando) void cargarVersiones();
+  }, [tab, puedeGestionar, versiones.length, versionesCargando, cargarVersiones]);
+
+  const vigentePorTipo = useMemo(() => new Map(docs.map((d) => [d.tipo, d.version])), [docs]);
+
+  const versionesFiltradas = useMemo(() => {
+    return versiones.filter((v) => {
+      const esVigente = vigentePorTipo.get(v.tipo) === v.version;
+      if (filtroEstadoVersion === "vigente" && !esVigente) return false;
+      if (filtroEstadoVersion === "historica" && esVigente) return false;
+      if (filtroVigenciaDesde && v.vigente_desde < filtroVigenciaDesde) return false;
+      if (filtroVigenciaHasta && v.vigente_desde > filtroVigenciaHasta) return false;
+      return true;
+    });
+  }, [versiones, vigentePorTipo, filtroEstadoVersion, filtroVigenciaDesde, filtroVigenciaHasta]);
+
+  const gruposVersiones = useMemo(() => {
+    const porTipo = new Map<string, VersionRow[]>();
+    for (const v of versionesFiltradas) {
+      const lista = porTipo.get(v.tipo) ?? [];
+      lista.push(v);
+      porTipo.set(v.tipo, lista);
+    }
+    const orden = new Map(tipos.map((t) => [t.codigo, t.orden]));
+    return Array.from(porTipo.entries())
+      .map(([codigo, filas]) => ({
+        codigo,
+        nombre: tipos.find((t) => t.codigo === codigo)?.nombre ?? filas[0]?.titulo ?? codigo,
+        filas: [...filas].sort((a, b) => b.version - a.version),
+      }))
+      .sort((a, b) => (orden.get(a.codigo) ?? 999) - (orden.get(b.codigo) ?? 999));
+  }, [versionesFiltradas, tipos]);
+
+  function verVersion(row: VersionRow) {
+    const esVigente = vigentePorTipo.get(row.tipo) === row.version;
+    const doc = esVigente ? docs.find((d) => d.documento_id === row.id) : undefined;
+    if (doc) abrirModalVigente(doc);
+    else void abrirModalHistorico(row.id);
   }
 
-  async function acusar(d: Doc) {
-    // Nombre Y apellido, no solo nombre. El `nombre_declarado` es lo que hace de
-    // firma en la constancia: escrito de puño y letra en un cargo de papel nadie
-    // pone solo el nombre de pila, y una constancia que dice «Ana» no identifica
-    // a nadie el día que hay dos Anas en la misma sede.
-    if (nombreDeclarado.trim().split(/\s+/).filter(Boolean).length < 2) {
-      setMsgConstancia("Escribe tu nombre y tu apellido para dejar constancia.");
+  async function textoDe(id: string): Promise<string | null> {
+    const enCache = textosCache.current.get(id);
+    if (enCache !== undefined) return enCache;
+    const { data, error } = await supabase
+      .from("documentos_institucionales").select("documento").eq("id", id).maybeSingle();
+    if (error || !data) return null;
+    textosCache.current.set(id, data.documento);
+    return data.documento;
+  }
+
+  async function compararConAnterior(row: VersionRow, anterior: VersionRow) {
+    if (diffAbierto?.id === row.id) { setDiffAbierto(null); return; }
+    setDiffCargando(row.id);
+    const [textoAnterior, textoNuevo] = await Promise.all([textoDe(anterior.id), textoDe(row.id)]);
+    setDiffCargando(null);
+    if (textoAnterior === null || textoNuevo === null) {
+      avisar("error", "No se pudo traer el texto de una de las dos versiones para compararlas.");
       return;
     }
-    setOcupado(true); setMsgConstancia(null);
-    const { error } = await supabase.rpc("fn_acusar_documento", {
-      p_documento_id: d.documento_id,
-      p_nombre_declarado: nombreDeclarado.trim(),
-    });
-    setOcupado(false);
-    if (error) { setMsgConstancia(mensajeDeError(error)); return; }
-    await cargar();
-    avisar("ok", "Constancia registrada. No hace falta hacer nada más hasta que se publique una versión nueva.");
+    setDiffAbierto({ id: row.id, lineas: diffLineas(textoAnterior, textoNuevo) });
   }
 
+  async function confirmarRestaurar() {
+    if (!restaurando) return;
+    setOcupadoRestaurar(true);
+    const { data, error } = await restaurarDocumento(supabase, restaurando.id);
+    setOcupadoRestaurar(false);
+    if (error) { avisar("error", mensajeDeError(error, "restaurar esta versión")); return; }
+    setRestaurando(null);
+    await Promise.all([cargar(), cargarVersiones()]);
+    setVersionesCount((n) => (n === null ? null : n + 1));
+    avisar("ok", `Restaurada como versión ${String(data)}, ahora vigente.`);
+  }
+
+  // ── Tab Constancias (solo DO) ──────────────────────────────────────────
+  const [constanciaDocId, setConstanciaDocId] = useState<string | null>(null);
+  const [filasConstancia, setFilasConstancia] = useState<FilaAcuse[]>([]);
+  const [constanciaCargando, setConstanciaCargando] = useState(false);
+  const [buscaPersona, setBuscaPersona] = useState("");
+  const [filtroSedeConstancia, setFiltroSedeConstancia] = useState("");
+  const [filtroEstadoConstancia, setFiltroEstadoConstancia] = useState<"" | "registrada" | "pendiente">("");
+  const [coberturaAnterior, setCoberturaAnterior] = useState<
+    { version: number; etiqueta: string | null; total: number; poblacion: number } | null
+  >(null);
+
+  const docsConAcuse = docs.filter((d) => d.requiere_acuse);
+
+  useEffect(() => {
+    if (tab !== "constancias" || !puedeGestionar) return;
+    if (constanciaDocId === null && docsConAcuse.length > 0) {
+      const preferido = docsConAcuse.find((d) => PRINCIPALES.includes(d.tipo)) ?? docsConAcuse[0];
+      setConstanciaDocId(preferido.documento_id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- solo elige un valor inicial, no debe repetirse cada render.
+  }, [tab, puedeGestionar, constanciaDocId, docsConAcuse.length]);
+
+  const cargarConstancias = useCallback(async (documentoId: string) => {
+    setConstanciaCargando(true);
+    setCoberturaAnterior(null);
+    const { data, error } = await supabase.rpc("fn_acuses_documento", { p_documento_id: documentoId });
+    if (error) {
+      setConstanciaCargando(false);
+      avisar("error", mensajeDeError(error, "cargar las constancias"));
+      return;
+    }
+    const filas = (data as unknown as FilaAcuse[]) ?? [];
+    const { data: rutas } = await supabase
+      .from("documentos_acuses").select("persona_id, storage_path").eq("documento_id", documentoId);
+    const porPersona = new Map((rutas ?? []).map((r) => [r.persona_id as string, r.storage_path as string | null]));
+    setFilasConstancia(filas.map((f) => ({ ...f, storage_path: porPersona.get(f.persona_id) ?? null })));
+    setConstanciaCargando(false);
+
+    // Cobertura de la versión anterior del mismo tipo, si existe.
+    const doc = docs.find((d) => d.documento_id === documentoId);
+    if (!doc) return;
+    const { data: prevRows } = await supabase
+      .from("documentos_institucionales")
+      .select("id, version, etiqueta_version")
+      .eq("tipo", doc.tipo)
+      .lt("version", doc.version)
+      .order("version", { ascending: false })
+      .limit(1);
+    const anterior = prevRows?.[0];
+    if (!anterior) return;
+    const { data: acusesAnterior } = await supabase
+      .rpc("fn_acuses_documento", { p_documento_id: anterior.id as string });
+    const filasAnterior = (acusesAnterior as unknown as FilaAcuse[]) ?? [];
+    setCoberturaAnterior({
+      version: anterior.version as number,
+      etiqueta: anterior.etiqueta_version as string | null,
+      total: filasAnterior.filter((f) => f.acusado_at !== null).length,
+      poblacion: filasAnterior.length,
+    });
+  }, [supabase, avisar, docs]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- carga las constancias del documento elegido, mismo patrón que el resto del panel.
+    if (tab === "constancias" && constanciaDocId) void cargarConstancias(constanciaDocId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- recarga solo cuando cambia el tab o el documento elegido, no en cada referencia nueva de `cargarConstancias`.
+  }, [tab, constanciaDocId]);
+
+  const porSede = useMemo(() => {
+    const sedes = Array.from(new Set(filasConstancia.map((f) => f.sede))).sort();
+    return sedes.map((sede) => {
+      const filas = filasConstancia.filter((f) => f.sede === sede);
+      return { sede, completas: filas.filter((f) => f.acusado_at !== null).length, total: filas.length };
+    });
+  }, [filasConstancia]);
+
+  const filasConstanciaFiltradas = useMemo(() => {
+    const q = buscaPersona.trim().toLowerCase();
+    return filasConstancia.filter((f) => {
+      if (q && !f.nombre.toLowerCase().includes(q)) return false;
+      if (filtroSedeConstancia && f.sede !== filtroSedeConstancia) return false;
+      if (filtroEstadoConstancia === "registrada" && f.acusado_at === null) return false;
+      if (filtroEstadoConstancia === "pendiente" && f.acusado_at !== null) return false;
+      return true;
+    });
+  }, [filasConstancia, buscaPersona, filtroSedeConstancia, filtroEstadoConstancia]);
+
+  function exportarCsvConstancias() {
+    const doc = docs.find((d) => d.documento_id === constanciaDocId);
+    const filas = filasConstanciaFiltradas.map((f) => ({
+      Persona: f.nombre,
+      Sede: f.sede,
+      Estado: f.acusado_at !== null ? "Constancia registrada" : "Pendiente de constancia",
+      Fecha: f.acusado_at ? selloLima(f.acusado_at) : "",
+    }));
+    const csv = generarCsv(filas, ["Persona", "Sede", "Estado", "Fecha"]);
+    const nombre = doc ? `constancias_${doc.tipo}_v${doc.version}.csv` : "constancias.csv";
+    descargarCsv(nombre, csv);
+  }
+
+  // El cargo en papel de quien no tiene cuenta.
+  const [papelPara, setPapelPara] = useState<{ persona: string; nombre: string } | null>(null);
+  const [archivo, setArchivo] = useState<File | null>(null);
+  const [fechaPapel, setFechaPapel] = useState("");
+  const [notaPapel, setNotaPapel] = useState("");
+  const [msgPapel, setMsgPapel] = useState<string | null>(null);
+  const [progreso, setProgreso] = useState<number | null>(null);
+  const [ocupadoPapel, setOcupadoPapel] = useState(false);
+  const refCargo = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (!msgPapel) return;
+    refCargo.current?.scrollIntoView({ block: "center" });
+    refCargo.current?.focus({ preventScroll: true });
+  }, [msgPapel]);
+
   async function guardarPapel() {
-    if (!papelPara) return;
+    if (!papelPara || !constanciaDocId) return;
     if (!archivo) {
       setMsgPapel("Falta el cargo firmado escaneado. Sin el papel no hay constancia que registrar.");
       return;
@@ -493,576 +748,901 @@ export default function NormasPage() {
       setMsgPapel(`“${archivo.name}” pesa ${(archivo.size / 1048576).toFixed(1)} MB y el máximo es 50 MB.`);
       return;
     }
-    setOcupado(true); setMsgPapel(null);
-    // La ruta cuelga del documento y de la persona: así no hay forma de
-    // archivar el cargo contra la versión equivocada.
+    setOcupadoPapel(true); setMsgPapel(null);
     const ext = archivo.name.split(".").pop()?.toLowerCase() ?? "bin";
-    const ruta = `${papelPara.doc}/${papelPara.persona}-${Date.now()}.${ext}`;
-
+    const ruta = `${constanciaDocId}/${papelPara.persona}-${Date.now()}.${ext}`;
     setProgreso(0);
     const fallo = await subirArchivoConProgreso(supabase, "acuses", ruta, archivo, setProgreso);
     setProgreso(null);
-    if (fallo) {
-      setOcupado(false);
-      setMsgPapel(`El archivo no subió (${fallo}). Vuelve a intentarlo.`);
-      return;
-    }
-
+    if (fallo) { setOcupadoPapel(false); setMsgPapel(`El archivo no subió (${fallo}). Vuelve a intentarlo.`); return; }
     const { error } = await supabase.rpc("fn_registrar_acuse_papel", {
-      p_documento_id: papelPara.doc,
+      p_documento_id: constanciaDocId,
       p_persona_id: papelPara.persona,
       p_path: ruta,
-      // La fecha buena es la del papel, no la de hoy: de la recepción cuelgan
-      // los plazos, y entre firmar y escanear pueden pasar días.
       p_acusado_at: fechaPapel ? new Date(`${fechaPapel}T12:00:00-05:00`).toISOString() : null,
       p_nota: notaPapel.trim() || null,
     });
-    setOcupado(false);
+    setOcupadoPapel(false);
     if (error) { setMsgPapel(mensajeDeError(error)); return; }
-    const doc = papelPara.doc;
     setPapelPara(null); setArchivo(null); setNotaPapel(""); setMsgPapel(null);
     await cargar();
-    await cargarAcuses(doc);
+    await cargarConstancias(constanciaDocId);
     avisar("ok", "Constancia en papel registrada, con su cargo archivado.");
   }
 
   async function verCargo(path: string) {
-    // URL firmada de vida corta: el almacén es privado y son papeles firmados.
     const fallo = await abrirArchivoFirmado(supabase, "acuses", path);
     if (fallo) setMsgPapel(fallo);
   }
 
+  // ── Tab Mi historial (quien no gestiona) ──────────────────────────────
+  const [misConstancias, setMisConstancias] = useState<MiConstancia[]>([]);
+  const [historialCargando, setHistorialCargando] = useState(false);
 
-  /**
-   * La constancia propia y su seguimiento.
-   *
-   * Es una función y no está escrita dos veces porque la usan el Reglamento y
-   * los anexos que piden constancia. Estaba solo en el Reglamento, y cuando la
-   * migración 0215 marcó la Política de Prevención como que sí la pide, quedó
-   * pidiendo una constancia que nadie podía dejar: la etiqueta roja salía en la
-   * lista y no había formulario debajo. Veintidós personas viendo un aviso que
-   * no se puede resolver.
-   *
-   * Vive dentro de NormasPage a propósito: cierra sobre `nombreDeclarado`,
-   * `acusar`, `verSeguimiento` y media docena más. Sacarla fuera obligaría a
-   * pasar doce props, y doce props es donde se cuela el que se olvidó.
-   */
-  function BloqueConstancia({ d }: { d: Doc }) {
-    const filas = acuses.get(d.documento_id) ?? [];
-    const pendientes = filas.filter((f) => f.acusado_at === null);
-    return (
-      <>
-        {/* ── La constancia propia ── */}
-        {d.requiere_acuse && (
-          <div className="mt-4 rounded-lg border border-sand bg-sand/20 p-3">
-            {d.mi_acuse_at ? (
-              <p className="text-xs text-taupe">
-                Dejaste constancia el <strong>{selloLima(d.mi_acuse_at)}</strong>. No hace falta
-                hacer nada más hasta que se publique una versión nueva. Si algo de este documento
-                no te cuadra, puedes plantearlo a la Gerencia y recibirás respuesta por escrito.
-              </p>
-            ) : (
-              <>
-                <p className="mb-2 text-xs text-taupe">
-                  Dejar constancia significa que recibiste este documento y fuiste informada de su
-                  contenido. No es una firma de conformidad ni renuncia a nada.
-                </p>
-                {msgConstancia && (
-                  <p role="alert" id="error-constancia"
-                    className="mb-2 rounded border border-rojo/30 bg-rojo/10 px-2 py-1.5 text-xs text-rojo">
-                    {msgConstancia}
-                  </p>
-                )}
-                <div className="flex flex-wrap items-end gap-2">
-                  {/* Se queda como <input> a mano (no <Campo>, que no es
-                      forwardRef): el efecto de más arriba lee
-                      `refNombre.current` para llevar el foco aquí cuando la
-                      constancia falla. Comparte la misma cadena base que
-                      Campo para no desentonar. */}
-                  <label className="flex flex-col gap-1 text-xs">
-                    Tu nombre y apellido
-                    <input ref={refNombre} value={nombreDeclarado}
-                      onChange={(e) => { setNombreDeclarado(e.target.value); setMsgConstancia(null); }}
-                      placeholder="como lo escribirías a mano"
-                      autoComplete="name"
-                      aria-invalid={msgConstancia !== null}
-                      aria-describedby={msgConstancia ? "error-constancia" : undefined}
-                      className={`w-64 rounded-control border bg-hueso px-3 py-2 text-base text-tinta sm:text-sm ${msgConstancia ? "border-rojo" : "border-sand"}`} />
-                  </label>
-                  <Boton variante="primario" tamano="sm" onClick={() => void acusar(d)} disabled={ocupado}>
-                    Dejar constancia
-                  </Boton>
-                </div>
-              </>
-            )}
-          </div>
-        )}
+  const cargarHistorial = useCallback(async () => {
+    if (!yo) return;
+    setHistorialCargando(true);
+    const { data, error } = await supabase
+      .from("documentos_acuses")
+      .select("documento_id, acusado_at, via")
+      .eq("persona_id", yo.id);
+    if (error || !data || data.length === 0) {
+      setHistorialCargando(false);
+      setMisConstancias([]);
+      return;
+    }
+    const ids = data.map((r) => r.documento_id as string);
+    const { data: docsRel } = await supabase
+      .from("documentos_institucionales")
+      .select("id, tipo, titulo, etiqueta_version, version")
+      .in("id", ids);
+    const porId = new Map((docsRel ?? []).map((d) => [d.id as string, d]));
+    const tiposCod = Array.from(new Set((docsRel ?? []).map((d) => d.tipo as string)));
+    const { data: tiposRel } = tiposCod.length
+      ? await supabase.from("documentos_tipos").select("codigo, nombre").in("codigo", tiposCod)
+      : { data: [] as { codigo: string; nombre: string }[] };
+    const nombrePorTipo = new Map((tiposRel ?? []).map((t) => [t.codigo as string, t.nombre as string]));
 
-        {/* ── El seguimiento, sólo para quien manda ── */}
-        {puedeGestionar && d.requiere_acuse && (
-          <div className="mt-4">
-            <Boton
-              variante="enlace"
-              className="text-xs"
-              onClick={() => {
-                const nuevo = verSeguimiento === d.documento_id ? null : d.documento_id;
-                setVerSeguimiento(nuevo);
-                if (nuevo) void cargarAcuses(nuevo);
-              }}>
-              {d.total_acuses} de {d.poblacion} han dejado constancia
-              {d.total_acuses < d.poblacion && ` · faltan ${d.poblacion - d.total_acuses}`}
-              {verSeguimiento === d.documento_id ? " · ocultar" : " · ver quién"}
-            </Boton>
+    const armadas: MiConstancia[] = data
+      .filter((r) => porId.has(r.documento_id as string))
+      .map((r) => {
+        const d = porId.get(r.documento_id as string)!;
+        return {
+          documento_id: r.documento_id as string,
+          titulo: d.titulo as string,
+          tipo_nombre: nombrePorTipo.get(d.tipo as string) ?? (d.tipo as string),
+          etiqueta_version: d.etiqueta_version as string | null,
+          version: d.version as number,
+          acusado_at: r.acusado_at as string,
+          via: r.via as string,
+        };
+      })
+      .sort((a, b) => b.acusado_at.localeCompare(a.acusado_at));
+    setMisConstancias(armadas);
+    setHistorialCargando(false);
+  }, [supabase, yo]);
 
-            {verSeguimiento === d.documento_id && (
-              <ul className="mt-2 divide-y rounded-lg border border-sand">
-                {filas.map((f) => (
-                  <li key={f.persona_id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-xs">
-                    <span>
-                      {f.nombre} <span className="text-taupe">· {f.sede}</span>
-                      {!f.tiene_cuenta && <Insignia atenuada className="ml-2">sin cuenta</Insignia>}
-                    </span>
-                    {f.acusado_at ? (
-                      <span className="text-taupe">
-                        {selloLima(f.acusado_at)} · {f.via === "papel" ? "en papel" : "desde el sistema"}
-                      </span>
-                    ) : (
-                      // Se queda nativo (no <Boton>): su color de reposo
-                      // —borde y texto en tinta— no es ninguna de las cinco
-                      // variantes (la más cercana, "sutil", arranca en taupe
-                      // y solo llega a tinta al pasar el mouse).
-                      <button
-                        onClick={() => {
-                          setPapelPara({ doc: d.documento_id, persona: f.persona_id, nombre: f.nombre });
-                          setArchivo(null); setFechaPapel(hoyLima()); setNotaPapel("");
-                          setMsgPapel(null);
-                        }}
-                        className="rounded border border-tinta/30 px-2 py-0.5 text-tinta hover:bg-sand/40">
-                        registrar su cargo en papel
-                      </button>
-                    )}
-                  </li>
-                ))}
-                {filas.length === 0 && <li className="px-3 py-2 text-xs text-taupe">Sin datos.</li>}
-              </ul>
-            )}
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- carga el historial al entrar al tab, mismo patrón que el resto del panel.
+    if (tab === "historial" && !puedeGestionar) void cargarHistorial();
+  }, [tab, puedeGestionar, cargarHistorial]);
 
-            {pendientes.length > 0 && verSeguimiento === d.documento_id && (
-              <p className="mt-2 text-xs text-taupe">
-                Quien no tiene cuenta deja constancia en papel: se le entrega el documento impreso,
-                firma el cargo y aquí se archiva el escaneo.
-              </p>
-            )}
-          </div>
-        )}
-
-        {/* ── El formulario del cargo en papel ── */}
-        {papelPara && papelPara.doc === d.documento_id && (
-          <div className="mt-3 rounded-lg border border-sand bg-sand/20 p-3">
-            <p className="mb-2 text-xs text-taupe">
-              Constancia en papel de <strong>{papelPara.nombre}</strong>. Sin el escaneo del cargo
-              firmado no se registra: aquí la constancia es la prueba.
-            </p>
-            {msgPapel && (
-              <p role="alert" id="error-papel"
-                className="mb-2 rounded border border-rojo/30 bg-rojo/10 px-2 py-1.5 text-xs text-rojo">
-                {msgPapel}
-              </p>
-            )}
-            <div className="grid gap-2 sm:grid-cols-2">
-              {/* Se queda como <input> a mano (no <Campo>): `guardarPapel`
-                  necesita `refCargo.current` para llevar el foco aquí si
-                  falta el escaneo, y Campo no reenvía ref. Comparte la
-                  cadena base de Campo (borde, radio, fondo) para no
-                  desentonar. */}
-              <label className="flex flex-col gap-1 text-xs">
-                Cargo firmado
-                <input ref={refCargo} type="file" accept={TIPOS_CARGO}
-                  onChange={(e) => { setArchivo(e.target.files?.[0] ?? null); setMsgPapel(null); }}
-                  aria-invalid={msgPapel !== null}
-                  aria-describedby={msgPapel ? "error-papel" : undefined}
-                  className={`rounded-control border bg-hueso px-3 py-2 text-sm file:mr-2 file:rounded file:border-0 file:bg-sand file:px-2 file:py-0.5 file:text-xs ${msgPapel ? "border-rojo" : "border-sand"}`} />
-              </label>
-              <Campo etiqueta="Fecha de recepción" type="date" value={fechaPapel} max={hoyLima()}
-                onChange={(e) => setFechaPapel(e.target.value)} />
-              <div className="sm:col-span-2">
-                <Campo etiqueta="Nota (opcional)" value={notaPapel} onChange={(e) => setNotaPapel(e.target.value)}
-                  placeholder="ej. entregado en la tienda, con la encargada presente" />
-              </div>
-            </div>
-            {progreso !== null && (
-              <div className="mt-2">
-                <div className="h-1.5 w-full overflow-hidden rounded-full bg-sand">
-                  <div className="h-full bg-tinta transition-[width] duration-200" style={{ width: `${progreso}%` }}
-                    role="progressbar" aria-valuenow={progreso} aria-valuemin={0} aria-valuemax={100}
-                    aria-label="Subiendo el cargo" />
-                </div>
-                <span className="text-xs text-taupe">Subiendo — {progreso}%</span>
-              </div>
-            )}
-            <div className="mt-2 flex items-center gap-2">
-              <Boton variante="primario" tamano="sm" onClick={() => void guardarPapel()} disabled={ocupado}>
-                {progreso !== null ? `Subiendo… ${progreso}%` : "Registrar constancia"}
-              </Boton>
-              <Boton variante="secundario" tamano="sm" onClick={() => setPapelPara(null)}>
-                Cancelar
-              </Boton>
-            </div>
-          </div>
-        )}
-
-        {/* ── Los cargos ya archivados ── */}
-        {puedeGestionar && verSeguimiento === d.documento_id && filas.some((f) => f.via === "papel") && (
-          <p className="mt-3 text-xs text-taupe">
-            Cargos archivados:{" "}
-            {/* Sin ruta no hay enlace: un botón que promete abrir y falla es peor
-                que un nombre en texto plano. Que el cargo existe sigue siendo un
-                dato que el seguimiento necesita ver. */}
-            {filas.filter((f) => f.via === "papel").map((f) => (
-              f.storage_path ? (
-                <button key={f.persona_id}
-                  onClick={() => void verCargo(f.storage_path!)}
-                  className="mr-2 font-medium underline">{f.nombre}</button>
-              ) : (
-                <span key={f.persona_id} className="mr-2" title="El cargo está registrado pero no se encontró su archivo.">
-                  {f.nombre}
-                </span>
-              )
-            ))}
-          </p>
-        )}
-      </>
-    );
-  }
+  // ── Resumen (arriba de la biblioteca) ─────────────────────────────────
+  const constanciasPendientes = docs
+    .filter((d) => d.requiere_acuse)
+    .reduce((s, d) => s + (d.poblacion - d.total_acuses), 0);
 
   return (
     <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
-        <div className="mx-auto w-full max-w-4xl">
-        <h1 className="mb-1 font-serif text-2xl">Normas</h1>
-        <p className="mb-5 text-sm text-taupe">
-          Los documentos que rigen para todo el equipo. Aquí se leen, y aquí queda la constancia
-          de que se recibieron — con la <strong>versión</strong>, que es lo que un papel firmado no dice.
-        </p>
+        <div className="mx-auto w-full max-w-5xl">
+          <CabeceraPagina
+            titulo="Normas"
+            descripcion="Los documentos que rigen para todo el equipo. Aquí se leen, y aquí queda la constancia de que se recibieron."
+            accion={puedeGestionar && (
+              <Boton variante="primario" onClick={abrirPublicar}>+ Nueva versión</Boton>
+            )}
+          />
 
-        {/* ── Publicar, sólo para quien puede ── */}
-        {puedeGestionar && (
-          <div className="mb-5 overflow-hidden rounded-2xl border border-sand bg-papel">
-            <button onClick={() => setPublicando((v) => !v)}
-              className="flex w-full items-center justify-between border-b bg-sand/50 px-4 py-2 text-left text-sm font-medium">
-              <span>Publicar una versión</span>
-              <span className="text-xs font-normal text-taupe">{publicando ? "ocultar" : "abrir"}</span>
-            </button>
-            {publicando && (
-              <div className="px-4 py-3">
-                <p className="mb-3 text-xs text-taupe">
-                  El texto puede venir de un archivo o pegarse aquí — se guarda igual, y congelado:
-                  un acuse de hoy seguirá apuntando dentro de cinco años a las palabras que se
-                  mostraron hoy. Publicar el <strong>mismo</strong> texto no crea versión nueva —
-                  pedir constancia sin que nada cambie enseña que la constancia es trámite.
-                </p>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <label className="flex flex-col gap-1 text-xs">
-                    <span className="flex items-baseline justify-between gap-2">
-                      Tipo de documento
-                      <button type="button" onClick={() => setCreandoTipo((v) => !v)}
-                        className="text-[11px] font-normal text-taupe underline underline-offset-2 hover:text-tinta">
-                        {creandoTipo ? "cancelar" : "añadir uno"}
-                      </button>
-                    </span>
-                    <select value={tipoElegido} onChange={(e) => setTipoElegido(e.target.value)}
-                      className="rounded border bg-crema px-2 py-1 text-xs">
-                      {tipos.map((t) => (
-                        <option key={t.codigo} value={t.codigo}>
-                          {t.nombre}{t.requiere_acuse ? "" : " (sin constancia)"}
-                        </option>
-                      ))}
-                    </select>
-                    {/* Esta lista no viene de fábrica: sale de `documentos_tipos`, que se
-                        administra desde aquí. Sin decirlo, el desplegable se lee como un
-                        catálogo cerrado y quien tiene un documento que no está en él cree
-                        que no cabe — pasó, y por eso está escrito. */}
-                    <span className="text-taupe">
-                      Esta lista la haces tú. Si tu documento no está, «añadir uno».
-                    </span>
-                  </label>
-                  <label className="flex flex-col gap-1 text-xs">
-                    <span className="flex items-baseline justify-between gap-2">
-                      {pegando ? "Texto del documento" : "Archivo (.md o .txt)"}
-                      <button type="button"
-                        onClick={() => { setPegando((v) => !v); setArchivoDoc(null); setTextoPegado(""); }}
-                        className="text-[11px] font-normal text-taupe underline underline-offset-2 hover:text-tinta">
-                        {pegando ? "subir un archivo" : "o pegar el texto"}
-                      </button>
-                    </span>
-                    {pegando ? (
-                      <textarea value={textoPegado} onChange={(e) => pegarTexto(e.target.value)}
-                        rows={4} placeholder="Pega aquí el texto — desde Word, Canva, donde esté."
-                        className="rounded border bg-crema px-2 py-1 font-mono text-[11px] leading-relaxed" />
-                    ) : (
-                      <input type="file" accept=".md,.txt,text/markdown,text/plain"
-                        onChange={(e) => void elegirArchivo(e.target.files?.[0] ?? null)}
-                        className="rounded border bg-crema px-2 py-1 text-xs file:mr-2 file:rounded file:border-0 file:bg-sand file:px-2 file:py-0.5 file:text-xs" />
-                    )}
-                  </label>
-                  <Campo etiqueta="Título con el que se muestra" value={tituloDoc}
-                    onChange={(e) => setTituloDoc(e.target.value)}
-                    placeholder="Reglamento Interno de Trabajo" />
-                  <div className="flex flex-col gap-1">
-                    <Campo etiqueta="Rige desde" type="date" value={vigenteDesde}
-                      onChange={(e) => setVigenteDesde(e.target.value)} />
-                    <span className="text-xs text-taupe">Si lo dejas vacío, rige desde hoy.</span>
-                  </div>
-                  {/* La versión que DICE el documento, que es la que va en el cargo
-                      que se firma. No se deduce del texto a propósito: solo el
-                      Reglamento la lleva en un sitio predecible, los anexos la
-                      tienen embutida en prosa y un texto pegado desde un Word
-                      puede no traerla. Un analizador acertaría en uno y fallaría
-                      en silencio en el resto. */}
-                  <div className="flex flex-col gap-1">
-                    <Campo etiqueta="Versión que dice el documento (opcional)" value={etiquetaDoc}
-                      onChange={(e) => setEtiquetaDoc(e.target.value)} placeholder="ej. 4.0" />
-                    <span className="text-xs text-taupe">
-                      La que aparece en el cargo que se firma. Si la dejas vacía, se muestra
-                      solo el número de publicación.
-                    </span>
-                  </div>
-                  <div className="sm:col-span-2">
-                    <Campo etiqueta="Nota de la versión (opcional)" value={notasDoc}
-                      onChange={(e) => setNotasDoc(e.target.value)}
-                      placeholder="ej. sustituye a la v3.0 de junio de 2026" />
-                  </div>
-                </div>
-
-                {creandoTipo && (
-                  <div className="mt-3 rounded-lg border border-sand bg-crema/40 p-3">
-                    <p className="mb-2 text-xs text-taupe">
-                      Un documento nuevo del expediente — una política, un protocolo, la
-                      presentación de la empresa. El código interno se deriva del nombre.
-                    </p>
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      <div className="flex flex-col gap-1">
-                        <Campo etiqueta="Nombre" value={tipoNuevo.nombre}
-                          onChange={(e) => setTipoNuevo((t) => ({ ...t, nombre: e.target.value }))}
-                          placeholder="Reglamento Interno de Seguridad y Salud" />
-                        {tipoNuevo.nombre.trim() !== "" && (
-                          <span className="text-[11px] text-taupe">código: {codigoDesde(tipoNuevo.nombre) || "—"}</span>
-                        )}
-                      </div>
-                      {/* Se queda como <label> a mano (no <CampoCasilla>): su
-                          etiqueta lleva una segunda línea explicativa debajo, y
-                          `etiqueta` en CampoCasilla solo admite texto plano.
-                          "size-4 accent-tinta" es a propósito el mismo patrón
-                          que usa CampoCasilla por dentro. */}
-                      <label className="flex items-start gap-2 text-xs sm:pt-5">
-                        <input type="checkbox" checked={tipoNuevo.acuse} className="mt-0.5 size-4 accent-tinta"
-                          onChange={(e) => setTipoNuevo((t) => ({ ...t, acuse: e.target.checked }))} />
-                        <span>
-                          Pedir constancia a cada integrante
-                          <span className="block text-[11px] text-taupe">
-                            Desmárcalo si el documento no le impone nada al equipo — una guía
-                            interna, un formulario en blanco. Un registro lleno de constancias
-                            que no significan nada no prueba nada.
-                          </span>
-                        </span>
-                      </label>
-                    </div>
-                    <div className="mt-2 flex items-center gap-2">
-                      <Boton variante="primario" tamano="sm" onClick={() => void crearTipo()}
-                        disabled={ocupado || !tipoNuevo.nombre.trim()}>
-                        Añadir
-                      </Boton>
-                    </div>
-                  </div>
-                )}
-
-                {archivoDoc && (
-                  <div className="mt-3 rounded-lg border border-sand bg-crema/40 p-3">
-                    {/* El recuento de artículos solo sale si hay alguno: «0 artículos
-                        detectados» en unos valores institucionales parece un fallo del
-                        lector, y no lo es — ese documento no tiene artículos. */}
-                    <p className="text-xs text-taupe">
-                      <strong>{archivoDoc.nombre}</strong> · {archivoDoc.texto.length.toLocaleString("es-PE")} caracteres
-                      {(() => {
-                        const n = archivoDoc.texto.split("\n").filter((l) => /^#{1,4}\s*ART[IÍ]CULO/i.test(l.trim())).length;
-                        return n > 0 ? ` · ${n} artículos detectados` : "";
-                      })()}
-                    </p>
-                    <div className="mt-2 max-h-40 overflow-y-auto text-[11px] leading-relaxed text-tinta">
-                      <Documento texto={archivoDoc.texto.slice(0, 1200)} />
-                    </div>
-                    <p className="mt-1 text-xs text-taupe">Vista previa del principio, para comprobar que es el archivo correcto.</p>
-                  </div>
-                )}
-
-                <div className="mt-3 flex items-center gap-2">
-                  <Boton variante="primario" tamano="sm" onClick={() => void publicar()} disabled={ocupado || !archivoDoc}>
-                    Publicar
-                  </Boton>
-                  <Boton variante="secundario" tamano="sm"
-                    onClick={() => { setPublicando(false); setArchivoDoc(null); setTituloDoc(""); setTextoPegado(""); }}>
-                    Cancelar
-                  </Boton>
-                </div>
-              </div>
+          {/* ── Tabs ── */}
+          <div className="mb-5 flex gap-1 border-b border-sand text-sm">
+            <BotonTab activo={tab === "vigentes"} onClick={() => setTab("vigentes")}>Vigentes</BotonTab>
+            {puedeGestionar ? (
+              <>
+                <BotonTab activo={tab === "versiones"} onClick={() => setTab("versiones")}>Versiones</BotonTab>
+                <BotonTab activo={tab === "constancias"} onClick={() => setTab("constancias")}>Constancias</BotonTab>
+              </>
+            ) : yo !== null && (
+              <BotonTab activo={tab === "historial"} onClick={() => setTab("historial")}>Mi historial</BotonTab>
             )}
           </div>
-        )}
 
-        {cargando ? (
-          <Cargando texto="Cargando los documentos…" />
-        ) : docs.length === 0 ? (
-          <p className="rounded-2xl border border-sand bg-papel px-4 py-6 text-sm text-taupe">
-            Todavía no hay ningún documento publicado.
-            {puedeGestionar && " Publica el primero con el botón de arriba."}
-          </p>
-        ) : (
-          <div className="space-y-4">
-            {docs.filter((d) => PRINCIPALES.includes(d.tipo)).map((d) => {
-              return (
-                <div key={d.documento_id} id={`doc-${d.documento_id}`}
-                  className="overflow-hidden rounded-2xl border border-sand bg-papel">
-                  <button
-                    onClick={() => setAbierto(abierto === d.documento_id ? null : d.documento_id)}
-                    className="flex w-full flex-wrap items-center justify-between gap-3 border-b bg-sand/50 px-4 py-3 text-left">
-                    <span>
-                      <span className="font-medium">{d.titulo}</span>
-                      <span className="ml-2 text-xs text-taupe">
-                        {comoSeLlamaLaVersion(d)} · rige desde {fechaCorta(d.vigente_desde)}
-                      </span>
-                    </span>
-                    {/* `flex-wrap` arriba y `whitespace-nowrap` en la píldora: con
-                        los títulos reales de los anexos —«Política de Prevención del
-                        Hostigamiento Sexual Laboral»— en los 295 px útiles de un
-                        móvil, «falta tu constancia» se partía en dos líneas DENTRO
-                        de su cápsula. Una etiqueta de estado partida se lee como
-                        pantalla rota, justo en el aviso que empuja a firmar. */}
-                    <span className="flex items-center gap-2 text-xs">
-                      {!d.requiere_acuse ? (
-                        <span className="whitespace-nowrap text-taupe">solo lectura</span>
-                      ) : d.mi_acuse_at ? (
-                        <Insignia variante="neutral">tu constancia está</Insignia>
-                      ) : (
-                        <Insignia variante="alerta">falta tu constancia</Insignia>
-                      )}
-                      <span className="text-taupe">{abierto === d.documento_id ? "ocultar" : "leer"}</span>
-                    </span>
-                  </button>
+          {tab === "vigentes" && (
+            <>
+              {/* ── Resumen ── */}
+              <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <TileResumen numero={docs.length} etiqueta="Documentos vigentes" />
+                <TileResumen numero={constanciasPendientes} etiqueta="Constancias pendientes" alerta={constanciasPendientes > 0} />
+                <TileResumen numero={versionesCount} etiqueta="Versiones publicadas" />
+                <TileResumen numero={docs.filter((d) => d.requiere_acuse).length} etiqueta="Requieren recepción" />
+              </div>
 
-                  {abierto === d.documento_id && (
-                    <div className="px-4 py-4">
-                      {/* La hoja se compone del MISMO texto que se lee acá, no
-                          de un PDF guardado aparte: dos archivos del mismo
-                          documento se desincronizan el día que uno cambia. */}
-                      <div className="mb-2 flex justify-end gap-3">
-                        <a href={`/admin/normas/${d.documento_id}/imprimir`} target="_blank" rel="noopener"
-                          className="text-xs text-taupe underline underline-offset-2 hover:text-tinta">
-                          imprimir
-                        </a>
-                        {/* La hoja de constancias es la otra mitad de la prueba:
-                            `imprimir` acredita QUÉ se comunicó y esta A QUIÉN. Va
-                            al lado y no dentro del seguimiento porque se busca el
-                            día que hay que adjuntar un papel, no el día que se
-                            persigue una firma. */}
-                        {d.requiere_acuse && puedeGestionar && (
-                          <a href={`/admin/normas/${d.documento_id}/constancias`} target="_blank" rel="noopener"
-                            className="text-xs text-taupe underline underline-offset-2 hover:text-tinta">
-                            hoja de constancias
-                          </a>
-                        )}
-                      </div>
-                      {/* La altura de la caja, y por qué 60vh y no 28rem.
-                          `PRINCIPALES = ["rit"]`, así que esta caja envuelve el
-                          ÚNICO documento principal y el más largo del sistema: 61
-                          artículos dentro de 448 px fijos, con el botón de dejar
-                          constancia pegado justo debajo del recorte. En móvil el
-                          scroll anidado obliga a agotar la caja antes de que la
-                          página se mueva. Se acota a la pantalla en vez de a una
-                          medida fija, y se conserva el tope en escritorio para que
-                          el panel de seguimiento —el que usa DO— no acabe 61
-                          artículos más abajo. `overscroll-contain` evita que el
-                          gesto se le escape a la página al llegar al final. */}
-                      <div className="max-h-[60vh] overscroll-contain overflow-y-auto rounded-lg border border-sand bg-crema/40 px-4 py-3 sm:max-h-[28rem]">
-                        <Documento texto={d.documento} />
-                      </div>
+              {/* ── Buscador y filtros ── */}
+              <div className="mb-5 flex flex-wrap items-center gap-2">
+                <label className="flex min-w-48 flex-1 items-center gap-2 rounded-control border border-sand bg-hueso px-3 focus-within:border-taupe focus-within:ring-2 focus-within:ring-rojo/30">
+                  <Search className="size-4 shrink-0 text-taupe" aria-hidden />
+                  <input
+                    type="search" value={busqueda} onChange={(e) => setBusqueda(e.target.value)}
+                    placeholder="Buscar por nombre o contenido…" aria-label="Buscar documento"
+                    className="w-full bg-transparent py-2 text-base text-tinta outline-none placeholder:text-taupe/60 sm:text-sm"
+                  />
+                </label>
+                <select aria-label="Tipo" value={filtroTipo} onChange={(e) => setFiltroTipo(e.target.value as Categoria | "")} className={SELECT}>
+                  <option value="">Tipo · todos</option>
+                  <option value="principal">Principal</option>
+                  <option value="complementario">Complementario</option>
+                  <option value="formato">Formato</option>
+                </select>
+                <select aria-label="Requiere constancia" value={filtroConstancia}
+                  onChange={(e) => setFiltroConstancia(e.target.value as "" | "si" | "no")} className={SELECT}>
+                  <option value="">Constancia · todas</option>
+                  <option value="si">Requiere constancia</option>
+                  <option value="no">No requiere</option>
+                </select>
+                {(busqueda || filtroTipo || filtroConstancia) && (
+                  <Boton variante="sutil" tamano="sm" onClick={() => { setBusqueda(""); setFiltroTipo(""); setFiltroConstancia(""); }}>
+                    Limpiar filtros
+                  </Boton>
+                )}
+              </div>
 
-                      <BloqueConstancia d={d} />
-
-                      <p className="mt-4 text-xs text-taupe">
-                        Publicado el {selloLima(d.publicado_at)} · {d.tipo_nombre}
-                      </p>
-                    </div>
+              {cargando ? (
+                <Cargando texto="Cargando los documentos…" />
+              ) : docs.length === 0 ? (
+                <p className="rounded-superficie border border-sand bg-papel px-4 py-6 text-sm text-taupe">
+                  Todavía no hay ningún documento publicado.
+                  {puedeGestionar && " Publica el primero con «+ Nueva versión»."}
+                </p>
+              ) : docsFiltrados.length === 0 ? (
+                <p className="rounded-superficie border border-sand bg-papel px-4 py-6 text-sm text-taupe">
+                  Ningún documento coincide con la búsqueda o los filtros.
+                </p>
+              ) : (
+                <div className="space-y-8">
+                  <GrupoDocumentos titulo="Documentos principales" docs={principales} puedeGestionar={puedeGestionar}
+                    onVer={abrirModalVigente} onVerConstancias={irAConstanciasDesdeModal} />
+                  {complementarios.length > 0 && (
+                    <GrupoDocumentos titulo="Documentos complementarios" docs={complementarios} puedeGestionar={puedeGestionar}
+                      onVer={abrirModalVigente} onVerConstancias={irAConstanciasDesdeModal} />
+                  )}
+                  {formatos.length > 0 && (
+                    <GrupoDocumentos titulo="Formatos y otros" docs={formatos} puedeGestionar={puedeGestionar}
+                      onVer={abrirModalVigente} onVerConstancias={irAConstanciasDesdeModal} />
                   )}
                 </div>
-              );
-            })}
-          </div>
-        )}
+              )}
+            </>
+          )}
 
-        {/* ── Anexos ────────────────────────────────────────────────────────
-            Plegados y debajo, no al lado. El artículo 47 del Reglamento dice
-            que estos documentos «tienen finalidad informativa» y que «en caso
-            de discrepancia prevalece este Reglamento»; ponerlos al mismo nivel
-            haría que la pantalla dijera lo contrario que el articulado. */}
-        {!cargando && anexosVisibles.length > 0 && (
-          <div className="mt-6 overflow-hidden rounded-2xl border border-sand bg-papel">
-            <button onClick={() => setVerAnexos((v) => !v)}
-              className="flex w-full items-center justify-between border-b bg-sand/50 px-4 py-2 text-left text-sm font-medium">
-              <span>Anexos <span className="font-normal text-taupe">· {anexosVisibles.length}</span></span>
-              <span className="text-xs font-normal text-taupe">{verAnexos ? "ocultar" : "ver"}</span>
-            </button>
-            {verAnexos && (
-              <div className="px-4 py-3">
-                <p className="mb-3 text-xs text-taupe">
-                  Documentos que explican y desarrollan el Reglamento. <strong>No crean
-                  obligaciones, faltas, sanciones ni plazos distintos</strong> de los que él
-                  establece, y si alguno discrepara, prevalece el Reglamento (artículo 47).
-                </p>
-                <ul className="divide-y">
-                  {anexosVisibles.map((a) => (
-                    <li key={a.documento_id} id={`doc-${a.documento_id}`} className="py-2">
-                      <button onClick={() => setAbierto(abierto === a.documento_id ? null : a.documento_id)}
-                        className="flex w-full flex-wrap items-center justify-between gap-3 text-left text-sm">
-                        <span>
-                          {a.titulo}
-                          <span className="ml-2 text-xs text-taupe">{comoSeLlamaLaVersion(a)}</span>
-                        </span>
-                        <span className="flex items-center gap-2 text-xs">
-                          {a.requiere_acuse && (a.mi_acuse_at
-                            ? <Insignia variante="neutral">tu constancia está</Insignia>
-                            : <Insignia variante="alerta">falta tu constancia</Insignia>)}
-                          <span className="text-taupe">{abierto === a.documento_id ? "ocultar" : "leer"}</span>
-                        </span>
-                      </button>
-                      {abierto === a.documento_id && (
-                        <>
-                        <div className="mt-2 flex justify-end gap-3">
-                          <a href={`/admin/normas/${a.documento_id}/imprimir`} target="_blank" rel="noopener"
-                            className="text-xs text-taupe underline underline-offset-2 hover:text-tinta">
-                            imprimir
-                          </a>
-                          {a.requiere_acuse && puedeGestionar && (
-                            <a href={`/admin/normas/${a.documento_id}/constancias`} target="_blank" rel="noopener"
-                              className="text-xs text-taupe underline underline-offset-2 hover:text-tinta">
-                              hoja de constancias
-                            </a>
-                          )}
-                        </div>
-                        <div className="mt-1 max-h-[24rem] overflow-y-auto rounded-lg border border-sand bg-crema/40 px-4 py-3">
-                          <Documento texto={a.documento} />
-                        </div>
-                        <BloqueConstancia d={a} />
-                        </>
-                      )}
-                    </li>
-                  ))}
-                </ul>
+          {tab === "versiones" && puedeGestionar && (
+            <div>
+              <div className="mb-5 flex flex-wrap items-center gap-2">
+                <select aria-label="Estado" value={filtroEstadoVersion}
+                  onChange={(e) => setFiltroEstadoVersion(e.target.value as "" | "vigente" | "historica")} className={SELECT}>
+                  <option value="">Estado · todas</option>
+                  <option value="vigente">Vigente</option>
+                  <option value="historica">Histórica</option>
+                </select>
+                <label className="flex items-center gap-1.5 text-xs text-taupe">
+                  Vigencia desde
+                  <input type="date" value={filtroVigenciaDesde} onChange={(e) => setFiltroVigenciaDesde(e.target.value)} className={`${SELECT} py-1.5`} />
+                </label>
+                <label className="flex items-center gap-1.5 text-xs text-taupe">
+                  hasta
+                  <input type="date" value={filtroVigenciaHasta} onChange={(e) => setFiltroVigenciaHasta(e.target.value)} className={`${SELECT} py-1.5`} />
+                </label>
+                {(filtroEstadoVersion || filtroVigenciaDesde || filtroVigenciaHasta) && (
+                  <Boton variante="sutil" tamano="sm" onClick={() => { setFiltroEstadoVersion(""); setFiltroVigenciaDesde(""); setFiltroVigenciaHasta(""); }}>
+                    Limpiar filtros
+                  </Boton>
+                )}
               </div>
-            )}
-          </div>
-        )}
+
+              {versionesCargando ? (
+                <Cargando texto="Cargando las versiones…" />
+              ) : gruposVersiones.length === 0 ? (
+                <p className="rounded-superficie border border-sand bg-papel px-4 py-6 text-sm text-taupe">
+                  Ninguna versión coincide con los filtros.
+                </p>
+              ) : (
+                <div className="space-y-8">
+                  {gruposVersiones.map((g) => (
+                    <div key={g.codigo}>
+                      <TituloGrupo texto={g.nombre} />
+                      <div className="divide-y divide-sand rounded-superficie border border-sand bg-papel px-4">
+                        {g.filas.map((row, i) => {
+                          const esVigente = vigentePorTipo.get(row.tipo) === row.version;
+                          const anterior = g.filas[i + 1];
+                          return (
+                            <div key={row.id} className="py-3">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <div>
+                                  <span className="font-serif text-base text-tinta">
+                                    {comoSeLlamaLaVersion(row.etiqueta_version, row.version)}
+                                  </span>
+                                  <span className="ml-2 text-xs text-taupe">
+                                    vigente desde {fechaCorta(row.vigente_desde)}
+                                    {row.notas && <> · {row.notas}</>}
+                                  </span>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-3">
+                                  {esVigente ? <Insignia variante="positivo">Vigente</Insignia> : <Insignia atenuada>Histórica</Insignia>}
+                                  <button onClick={() => verVersion(row)} className="text-xs font-medium text-rojo-profundo hover:underline">Ver</button>
+                                  <a href={`/admin/normas/${row.id}/imprimir`} target="_blank" rel="noopener"
+                                    className="text-xs font-medium text-rojo-profundo hover:underline">Descargar</a>
+                                  {anterior && (
+                                    <button onClick={() => void compararConAnterior(row, anterior)} disabled={diffCargando === row.id}
+                                      className="text-xs font-medium text-rojo-profundo hover:underline disabled:opacity-50">
+                                      {diffCargando === row.id ? "Comparando…" : diffAbierto?.id === row.id ? "Ocultar comparación" : "Comparar con la anterior"}
+                                    </button>
+                                  )}
+                                  {!esVigente && (
+                                    <button onClick={() => setRestaurando(row)} className="text-xs font-medium text-taupe hover:text-tinta hover:underline">
+                                      Restaurar esta versión
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                              {diffAbierto?.id === row.id && (
+                                <PanelDiff lineas={diffAbierto.lineas} />
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {tab === "constancias" && puedeGestionar && (
+            <ConstanciasTab
+              docsConAcuse={docsConAcuse}
+              constanciaDocId={constanciaDocId}
+              onElegir={setConstanciaDocId}
+              cargando={constanciaCargando}
+              filas={filasConstanciaFiltradas}
+              totalSinFiltrar={filasConstancia.length}
+              porSede={porSede}
+              coberturaAnterior={coberturaAnterior}
+              docActual={docs.find((d) => d.documento_id === constanciaDocId) ?? null}
+              busca={buscaPersona} onBusca={setBuscaPersona}
+              filtroSede={filtroSedeConstancia} onFiltroSede={setFiltroSedeConstancia}
+              filtroEstado={filtroEstadoConstancia} onFiltroEstado={setFiltroEstadoConstancia}
+              onExportar={exportarCsvConstancias}
+              onRegistrarPapel={(persona, nombre) => {
+                setPapelPara({ persona, nombre }); setArchivo(null); setFechaPapel(hoyLima()); setNotaPapel(""); setMsgPapel(null);
+              }}
+              onVerCargo={(p) => void verCargo(p)}
+              papelPara={papelPara}
+              archivo={archivo} onArchivo={setArchivo}
+              fechaPapel={fechaPapel} onFechaPapel={setFechaPapel}
+              notaPapel={notaPapel} onNotaPapel={setNotaPapel}
+              msgPapel={msgPapel} progreso={progreso} ocupadoPapel={ocupadoPapel}
+              onGuardarPapel={() => void guardarPapel()}
+              onCancelarPapel={() => setPapelPara(null)}
+              refCargo={refCargo}
+            />
+          )}
+
+          {tab === "historial" && !puedeGestionar && (
+            <div>
+              {historialCargando ? (
+                <Cargando texto="Reuniendo tu historial…" />
+              ) : misConstancias.length === 0 ? (
+                <p className="rounded-superficie border border-sand bg-papel px-4 py-6 text-sm text-taupe">
+                  Todavía no has dejado ninguna constancia.
+                </p>
+              ) : (
+                <div className="divide-y divide-sand rounded-superficie border border-sand bg-papel px-4">
+                  {misConstancias.map((m) => (
+                    <div key={`${m.documento_id}-${m.acusado_at}`} className="flex flex-wrap items-center justify-between gap-2 py-3">
+                      <div>
+                        <span className="font-serif text-base text-tinta">{m.titulo}</span>
+                        <span className="ml-2 text-xs text-taupe">{comoSeLlamaLaVersion(m.etiqueta_version, m.version)}</span>
+                      </div>
+                      <Insignia variante="positivo">Constancia registrada — {selloLima(m.acusado_at)}</Insignia>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p className="mt-3 text-xs text-taupe">
+                Solo ves tu propio historial. La política salarial tiene su propio seguimiento, en «Política salarial».
+              </p>
+            </div>
+          )}
         </div>
       </main>
+
+      {/* ── Modal de documento ── */}
+      <Modal abierto={modal !== null} onCerrar={() => setModal(null)} titulo={modal?.titulo} ancho="xl" bloqueado={ocupadoAcuse}>
+        {modalCargando ? (
+          <Cargando texto="Abriendo el documento…" />
+        ) : modal && (
+          <ModalDocumentoContenido
+            doc={modal}
+            onCerrar={() => setModal(null)}
+            onVerConstancias={puedeGestionar ? () => irAConstanciasDesdeModal(modal.documento_id) : undefined}
+            nombreDeclarado={nombreDeclarado} onNombreDeclarado={(v) => { setNombreDeclarado(v); setMsgConstancia(null); }}
+            msgConstancia={msgConstancia} ocupadoAcuse={ocupadoAcuse}
+            onAcusar={() => void acusar(modal)}
+            refNombre={refNombre}
+          />
+        )}
+      </Modal>
+
+      {/* ── Modal de publicar (2 pasos) ── */}
+      <Modal abierto={publicarAbierto} onCerrar={cerrarPublicar} ancho="lg" bloqueado={ocupadoPublicar}
+        titulo={pasoPublicar === 1 ? "Publicar nueva versión — 1. Redactar" : "Publicar nueva versión — 2. Confirmar"}>
+        {pasoPublicar === 1 ? (
+          <div>
+            <p className="mb-3 text-xs text-taupe">
+              El texto puede venir de un archivo o pegarse aquí — se guarda igual, y congelado: un
+              acuse de hoy seguirá apuntando dentro de cinco años a las palabras que se mostraron
+              hoy. Publicar el <strong>mismo</strong> texto no crea versión nueva.
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="flex flex-col gap-1 text-xs">
+                <span className="flex items-baseline justify-between gap-2">
+                  Tipo de documento
+                  <button type="button" onClick={() => setCreandoTipo((v) => !v)}
+                    className="text-[11px] font-normal text-taupe underline underline-offset-2 hover:text-tinta">
+                    {creandoTipo ? "cancelar" : "añadir uno"}
+                  </button>
+                </span>
+                <select value={tipoElegido} onChange={(e) => setTipoElegido(e.target.value)} className={SELECT}>
+                  {tipos.map((t) => (
+                    <option key={t.codigo} value={t.codigo}>{t.nombre}{t.requiere_acuse ? "" : " (sin constancia)"}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex flex-col gap-1 text-xs">
+                <span className="flex items-baseline justify-between gap-2">
+                  {pegando ? "Texto del documento" : "Archivo (.md o .txt)"}
+                  <button type="button" onClick={() => { setPegando((v) => !v); setArchivoDoc(null); setTextoPegado(""); }}
+                    className="text-[11px] font-normal text-taupe underline underline-offset-2 hover:text-tinta">
+                    {pegando ? "subir un archivo" : "o pegar el texto"}
+                  </button>
+                </span>
+                {pegando ? (
+                  <AreaTexto value={textoPegado} onChange={(e) => pegarTexto(e.target.value)} rows={3}
+                    placeholder="Pega aquí el texto — desde Word, Canva, donde esté." className="font-mono text-[11px]" />
+                ) : (
+                  <input type="file" accept=".md,.txt,text/markdown,text/plain" onChange={(e) => void elegirArchivo(e.target.files?.[0] ?? null)}
+                    className="rounded-control border border-sand bg-hueso px-3 py-2 text-xs file:mr-2 file:rounded file:border-0 file:bg-sand file:px-2 file:py-0.5 file:text-xs" />
+                )}
+              </label>
+              <Campo etiqueta="Título con el que se muestra" value={tituloDoc} onChange={(e) => setTituloDoc(e.target.value)}
+                placeholder="Reglamento Interno de Trabajo" />
+              <div className="flex flex-col gap-1">
+                <Campo etiqueta="Rige desde" type="date" value={vigenteDesde} onChange={(e) => setVigenteDesde(e.target.value)} />
+                <span className="text-xs text-taupe">Si lo dejas vacío, rige desde hoy.</span>
+              </div>
+              <div className="flex flex-col gap-1">
+                <Campo etiqueta="Versión que dice el documento (opcional)" value={etiquetaDoc} onChange={(e) => setEtiquetaDoc(e.target.value)} placeholder="ej. 4.0" />
+                <span className="text-xs text-taupe">La que aparece en el cargo que se firma.</span>
+              </div>
+              <div className="sm:col-span-2">
+                <Campo etiqueta="Nota de la versión (opcional)" value={notasDoc} onChange={(e) => setNotasDoc(e.target.value)}
+                  placeholder="ej. sustituye a la v3.0 de junio de 2026" />
+              </div>
+            </div>
+
+            {creandoTipo && (
+              <div className="mt-3 rounded-control border border-sand bg-crema/40 p-3">
+                <p className="mb-2 text-xs text-taupe">
+                  Un documento nuevo del expediente — una política, un protocolo, la presentación de la empresa.
+                </p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <div className="flex flex-col gap-1">
+                    <Campo etiqueta="Nombre" value={tipoNuevo.nombre}
+                      onChange={(e) => setTipoNuevo((t) => ({ ...t, nombre: e.target.value }))}
+                      placeholder="Reglamento Interno de Seguridad y Salud" />
+                    {tipoNuevo.nombre.trim() !== "" && (
+                      <span className="text-[11px] text-taupe">código: {codigoDesde(tipoNuevo.nombre) || "—"}</span>
+                    )}
+                  </div>
+                  <label className="flex items-start gap-2 text-xs sm:pt-5">
+                    <input type="checkbox" checked={tipoNuevo.acuse} className="mt-0.5 size-4 accent-tinta"
+                      onChange={(e) => setTipoNuevo((t) => ({ ...t, acuse: e.target.checked }))} />
+                    <span>
+                      Pedir constancia a cada integrante
+                      <span className="block text-[11px] text-taupe">Desmárcalo si el documento no le impone nada al equipo.</span>
+                    </span>
+                  </label>
+                </div>
+                <Boton variante="primario" tamano="sm" className="mt-2" onClick={() => void crearTipo()} disabled={ocupadoPublicar || !tipoNuevo.nombre.trim()}>
+                  Añadir
+                </Boton>
+              </div>
+            )}
+
+            {archivoDoc && (
+              <div className="mt-3 rounded-control border border-sand bg-crema/40 p-3">
+                <p className="text-xs text-taupe">
+                  <strong>{archivoDoc.nombre}</strong> · {archivoDoc.texto.length.toLocaleString("es-PE")} caracteres
+                </p>
+                <div className="mt-2 max-h-40 overflow-y-auto text-[11px] leading-relaxed text-tinta">
+                  <Documento texto={archivoDoc.texto.slice(0, 1200)} />
+                </div>
+                <p className="mt-1 text-xs text-taupe">Vista previa del principio, para comprobar que es el archivo correcto.</p>
+              </div>
+            )}
+
+            <div className="mt-4 flex items-center gap-2">
+              <Boton variante="primario" tamano="sm" onClick={irAConfirmarPublicar} disabled={!archivoDoc}>Continuar →</Boton>
+              <Boton variante="secundario" tamano="sm" onClick={cerrarPublicar}>Cancelar</Boton>
+            </div>
+          </div>
+        ) : (
+          <div>
+            <div className="mb-4 rounded-control bg-hueso px-4 py-3 text-sm leading-relaxed text-tinta">
+              <p>
+                Esto creará <strong>la versión {numeroVersionNueva}</strong> de{" "}
+                <strong>{tipoElegidoInfo?.nombre ?? tipoElegido}</strong>.
+                La versión actual queda intacta como histórica.
+              </p>
+              {vigenteDelTipoElegido && (tipoElegidoInfo?.requiere_acuse ?? true) && vigenteDelTipoElegido.total_acuses > 0 && (
+                <p className="mt-1">
+                  <strong>{vigenteDelTipoElegido.total_acuses} {vigenteDelTipoElegido.total_acuses === 1 ? "persona" : "personas"}</strong> que
+                  ya {vigenteDelTipoElegido.total_acuses === 1 ? "dejó" : "dejaron"} constancia de la versión anterior volverá
+                  {vigenteDelTipoElegido.total_acuses === 1 ? "" : "n"} a aparecer como pendiente
+                  {vigenteDelTipoElegido.total_acuses === 1 ? "" : "s"}.
+                </p>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <Boton variante="primario" tamano="sm" onClick={() => void confirmarPublicar()} disabled={ocupadoPublicar} cargando={ocupadoPublicar}>
+                Confirmar y publicar
+              </Boton>
+              <Boton variante="secundario" tamano="sm" onClick={() => setPasoPublicar(1)} disabled={ocupadoPublicar}>← Volver a editar</Boton>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* ── Confirmar restaurar ── */}
+      <Modal abierto={restaurando !== null} onCerrar={() => setRestaurando(null)} titulo="Restaurar esta versión" ancho="sm" bloqueado={ocupadoRestaurar}>
+        {restaurando && (
+          <>
+            <p className="mb-4 text-sm text-tinta">
+              ¿Restaurar la versión {comoSeLlamaLaVersion(restaurando.etiqueta_version, restaurando.version)} como nueva
+              versión vigente? Se creará una versión nueva con este mismo texto.
+            </p>
+            <div className="flex justify-end gap-2">
+              <Boton variante="secundario" onClick={() => setRestaurando(null)} disabled={ocupadoRestaurar}>Cancelar</Boton>
+              <Boton variante="primario" onClick={() => void confirmarRestaurar()} disabled={ocupadoRestaurar} cargando={ocupadoRestaurar}>
+                Restaurar
+              </Boton>
+            </div>
+          </>
+        )}
+      </Modal>
+    </div>
+  );
+}
+
+// ============================================================================
+// Piezas de presentación
+// ============================================================================
+
+function BotonTab({ activo, onClick, children }: { activo: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button onClick={onClick}
+      className={`-mb-px border-b-2 px-3 py-2 font-medium transition-colors duration-150 ${
+        activo ? "border-rojo text-tinta" : "border-transparent text-taupe hover:text-tinta"}`}>
+      {children}
+    </button>
+  );
+}
+
+function TileResumen({ numero, etiqueta, alerta }: { numero: number | null; etiqueta: string; alerta?: boolean }) {
+  return (
+    <div className="rounded-superficie border border-sand bg-papel px-4 py-3">
+      <div className={`font-serif text-2xl font-medium tabular-nums ${alerta ? "text-rojo-profundo" : "text-tinta"}`}>
+        {numero === null ? "—" : numero}
+      </div>
+      <div className="mt-0.5 text-xs text-taupe">{etiqueta}</div>
+    </div>
+  );
+}
+
+function TituloGrupo({ texto }: { texto: string }) {
+  return (
+    <div className="mb-3 flex items-baseline gap-2">
+      <span className="text-xs font-semibold uppercase tracking-[0.08em] text-taupe">{texto}</span>
+      <span className="h-px flex-1 bg-sand" />
+    </div>
+  );
+}
+
+function GrupoDocumentos({
+  titulo, docs, puedeGestionar, onVer, onVerConstancias,
+}: {
+  titulo: string;
+  docs: Doc[];
+  puedeGestionar: boolean;
+  onVer: (d: Doc) => void;
+  onVerConstancias: (documentoId: string) => void;
+}) {
+  return (
+    <div>
+      <TituloGrupo texto={titulo} />
+      <div className="space-y-3">
+        {docs.map((d) => (
+          <div key={d.documento_id} id={`doc-${d.documento_id}`} className="rounded-superficie border border-sand bg-papel p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h3 className="font-serif text-lg text-tinta">{d.titulo}</h3>
+                <p className="mt-0.5 text-xs text-taupe">
+                  {comoSeLlamaLaVersion(d.etiqueta_version, d.version)} · vigente desde {fechaCorta(d.vigente_desde)}
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Insignia variante="positivo">Vigente</Insignia>
+                {d.requiere_acuse && (d.mi_acuse_at
+                  ? <Insignia variante="positivo">Constancia registrada</Insignia>
+                  : <Insignia variante="advertencia">Pendiente de constancia</Insignia>)}
+              </div>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-4 text-xs font-medium">
+              <button onClick={() => onVer(d)} className="text-rojo-profundo hover:underline">Ver documento →</button>
+              {puedeGestionar && d.requiere_acuse && (
+                <button onClick={() => onVerConstancias(d.documento_id)} className="text-rojo-profundo hover:underline">Ver constancias →</button>
+              )}
+              <a href={`/admin/normas/${d.documento_id}/imprimir`} target="_blank" rel="noopener" className="text-rojo-profundo hover:underline">
+                Descargar PDF
+              </a>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function PanelDiff({ lineas }: { lineas: LineaDiff[] }) {
+  return (
+    <div className="mt-3 max-h-72 overflow-y-auto rounded-control bg-hueso px-3 py-2 font-mono text-[11px] leading-relaxed">
+      {lineas.map((l, i) => (
+        <div key={i}
+          className={
+            l.tipo === "agregada" ? "bg-verde/15 px-1"
+            : l.tipo === "quitada" ? "bg-rojo/15 px-1 line-through decoration-rojo/60"
+            : "px-1"
+          }>
+          {l.texto === "" ? " " : l.texto}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ModalDocumentoContenido({
+  doc, onCerrar, onVerConstancias, nombreDeclarado, onNombreDeclarado, msgConstancia, ocupadoAcuse, onAcusar, refNombre,
+}: {
+  doc: ModalDoc;
+  onCerrar: () => void;
+  onVerConstancias?: () => void;
+  nombreDeclarado: string;
+  onNombreDeclarado: (v: string) => void;
+  msgConstancia: string | null;
+  ocupadoAcuse: boolean;
+  onAcusar: () => void;
+  refNombre: React.RefObject<HTMLInputElement | null>;
+}) {
+  const bodyRef = useRef<HTMLDivElement | null>(null);
+  const indice = useMemo(() => indiceDe(doc.documento), [doc.documento]);
+
+  function irAEncabezado(orden: number) {
+    const el = bodyRef.current?.querySelectorAll("h1,h2,h3,h4")[orden];
+    el?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  return (
+    <div>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-taupe sm:grid-cols-3">
+          <div>
+            <dt className="inline">Tipo: </dt>
+            <dd className="inline text-tinta">{NOMBRE_CATEGORIA[categoriaDe(doc.tipo, doc.requiere_acuse)]} · {doc.tipo_nombre}</dd>
+          </div>
+          <div><dt className="inline">Versión: </dt><dd className="inline text-tinta">{comoSeLlamaLaVersion(doc.etiqueta_version, doc.version)}</dd></div>
+          <div><dt className="inline">Vigente desde: </dt><dd className="inline text-tinta">{fechaCorta(doc.vigente_desde)}</dd></div>
+          <div><dt className="inline">Publicado: </dt><dd className="inline text-tinta">{selloLima(doc.publicado_at)}</dd></div>
+          <div>
+            <dt className="inline">Estado: </dt>
+            <dd className="inline">{doc.esVigente ? <Insignia variante="positivo">Vigente</Insignia> : <Insignia atenuada>Histórica</Insignia>}</dd>
+          </div>
+          {doc.requiere_acuse && (
+            <div>
+              <dt className="inline">Constancias: </dt>
+              <dd className="inline text-tinta">{doc.total_acuses}/{doc.poblacion}</dd>
+            </div>
+          )}
+        </dl>
+        <button onClick={onCerrar} aria-label="Cerrar" className="shrink-0 rounded-pildora border border-sand bg-papel p-1.5 text-taupe hover:text-tinta">
+          <X size={16} strokeWidth={1.8} aria-hidden />
+        </button>
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-4 text-xs font-medium">
+        <a href={`/admin/normas/${doc.documento_id}/imprimir`} target="_blank" rel="noopener" className="text-rojo-profundo hover:underline">Descargar PDF</a>
+        <a href={`/admin/normas/${doc.documento_id}/imprimir`} target="_blank" rel="noopener" className="text-rojo-profundo hover:underline">Imprimir</a>
+        {onVerConstancias && doc.esVigente && (
+          <button onClick={onVerConstancias} className="text-rojo-profundo hover:underline">Ver constancias</button>
+        )}
+      </div>
+
+      {doc.esVigente && doc.requiere_acuse && (
+        <div className="mt-4 rounded-control border border-sand bg-sand/20 p-3">
+          {doc.mi_acuse_at ? (
+            <p className="text-xs text-taupe">
+              Dejaste constancia el <strong>{selloLima(doc.mi_acuse_at)}</strong>. No hace falta hacer nada más hasta
+              que se publique una versión nueva.
+            </p>
+          ) : (
+            <>
+              <p className="mb-2 text-xs text-taupe">
+                Dejar constancia significa que recibiste este documento y fuiste informada de su contenido. No es
+                una firma de conformidad ni renuncia a nada.
+              </p>
+              {msgConstancia && (
+                <p role="alert" className="mb-2 rounded border border-rojo/30 bg-rojo/10 px-2 py-1.5 text-xs text-rojo">
+                  {msgConstancia}
+                </p>
+              )}
+              <div className="flex flex-wrap items-end gap-2">
+                <label className="flex flex-col gap-1 text-xs">
+                  Tu nombre y apellido
+                  <input ref={refNombre} value={nombreDeclarado} onChange={(e) => onNombreDeclarado(e.target.value)}
+                    placeholder="como lo escribirías a mano" autoComplete="name" aria-invalid={msgConstancia !== null}
+                    className={`w-64 rounded-control border bg-hueso px-3 py-2 text-base text-tinta sm:text-sm ${msgConstancia ? "border-rojo" : "border-sand"}`} />
+                </label>
+                <Boton variante="primario" tamano="sm" onClick={onAcusar} disabled={ocupadoAcuse} cargando={ocupadoAcuse}>
+                  Dejar constancia
+                </Boton>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {indice.length > 1 && (
+        <div className="mt-4 rounded-control bg-hueso px-4 py-3 text-sm">
+          <span className="mb-2 block text-xs font-medium uppercase tracking-[0.06em] text-taupe">Índice</span>
+          <ol className="grid gap-x-6 gap-y-1 sm:grid-cols-2">
+            {indice.map((e, i) => (
+              <li key={i} className={e.nivel === 3 ? "ml-3 text-xs" : "text-sm"}>
+                <button onClick={() => irAEncabezado(e.orden)} className="text-left text-tinta hover:text-rojo-profundo hover:underline">
+                  {e.texto}
+                </button>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
+
+      <div ref={bodyRef} className="mt-4 max-h-[50vh] overscroll-contain overflow-y-auto rounded-control border border-sand bg-crema/40 px-4 py-3">
+        <Documento texto={doc.documento} />
+      </div>
+    </div>
+  );
+}
+
+function ConstanciasTab({
+  docsConAcuse, constanciaDocId, onElegir, cargando, filas, totalSinFiltrar, porSede, coberturaAnterior, docActual,
+  busca, onBusca, filtroSede, onFiltroSede, filtroEstado, onFiltroEstado, onExportar,
+  onRegistrarPapel, onVerCargo, papelPara, archivo, onArchivo, fechaPapel, onFechaPapel, notaPapel, onNotaPapel,
+  msgPapel, progreso, ocupadoPapel, onGuardarPapel, onCancelarPapel, refCargo,
+}: {
+  docsConAcuse: Doc[];
+  constanciaDocId: string | null;
+  onElegir: (id: string) => void;
+  cargando: boolean;
+  filas: FilaAcuse[];
+  totalSinFiltrar: number;
+  porSede: { sede: string; completas: number; total: number }[];
+  coberturaAnterior: { version: number; etiqueta: string | null; total: number; poblacion: number } | null;
+  docActual: Doc | null;
+  busca: string; onBusca: (v: string) => void;
+  filtroSede: string; onFiltroSede: (v: string) => void;
+  filtroEstado: "" | "registrada" | "pendiente"; onFiltroEstado: (v: "" | "registrada" | "pendiente") => void;
+  onExportar: () => void;
+  onRegistrarPapel: (persona: string, nombre: string) => void;
+  onVerCargo: (path: string) => void;
+  papelPara: { persona: string; nombre: string } | null;
+  archivo: File | null; onArchivo: (f: File | null) => void;
+  fechaPapel: string; onFechaPapel: (v: string) => void;
+  notaPapel: string; onNotaPapel: (v: string) => void;
+  msgPapel: string | null; progreso: number | null; ocupadoPapel: boolean;
+  onGuardarPapel: () => void; onCancelarPapel: () => void;
+  refCargo: React.RefObject<HTMLInputElement | null>;
+}) {
+  if (docsConAcuse.length === 0) {
+    return (
+      <p className="rounded-superficie border border-sand bg-papel px-4 py-6 text-sm text-taupe">
+        Ningún documento pide constancia todavía.
+      </p>
+    );
+  }
+
+  const total = docActual ? docActual.total_acuses : filas.filter((f) => f.acusado_at !== null).length;
+  const poblacion = docActual ? docActual.poblacion : totalSinFiltrar;
+  const pct = poblacion > 0 ? Math.round((total / poblacion) * 100) : 0;
+  const sedesUnicas = Array.from(new Set(porSede.map((s) => s.sede)));
+
+  return (
+    <div>
+      <label className="mb-4 flex max-w-md flex-col gap-1 text-xs text-taupe">
+        Documento
+        <select value={constanciaDocId ?? ""} onChange={(e) => onElegir(e.target.value)} className={SELECT}>
+          {docsConAcuse.map((d) => (
+            <option key={d.documento_id} value={d.documento_id}>{d.titulo} · {comoSeLlamaLaVersion(d.etiqueta_version, d.version)}</option>
+          ))}
+        </select>
+      </label>
+
+      {cargando ? <Cargando texto="Reuniendo las constancias…" /> : (
+        <>
+          <p className="mb-1 text-sm text-taupe">{total} / {poblacion} recibidas</p>
+          <div className="mb-5 h-2 w-full overflow-hidden rounded-pildora bg-sand">
+            <div className="h-full bg-verde transition-[width] duration-200" style={{ width: `${pct}%` }} />
+          </div>
+
+          {porSede.length > 0 && (
+            <div className="mb-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {porSede.map((s) => (
+                <div key={s.sede} className="rounded-control border border-sand bg-papel px-3 py-2">
+                  <div className="text-[11px] uppercase tracking-[0.06em] text-taupe">{s.sede}</div>
+                  <div className="font-serif text-xl font-medium tabular-nums text-tinta">{s.completas}/{s.total}</div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {coberturaAnterior && docActual && (
+            <div className="mb-5 flex flex-wrap gap-6">
+              <BarraCobertura etiqueta={`v${docActual.etiqueta_version ?? docActual.version}`} total={total} poblacion={poblacion} />
+              <BarraCobertura
+                etiqueta={`v${coberturaAnterior.etiqueta ?? coberturaAnterior.version} (anterior)`}
+                total={coberturaAnterior.total} poblacion={coberturaAnterior.poblacion}
+              />
+            </div>
+          )}
+
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <label className="flex min-w-40 flex-1 items-center gap-2 rounded-control border border-sand bg-hueso px-3">
+              <Search className="size-4 shrink-0 text-taupe" aria-hidden />
+              <input type="search" value={busca} onChange={(e) => onBusca(e.target.value)} placeholder="Buscar persona…"
+                aria-label="Buscar persona" className="w-full bg-transparent py-2 text-sm text-tinta outline-none placeholder:text-taupe/60" />
+            </label>
+            <select aria-label="Sede" value={filtroSede} onChange={(e) => onFiltroSede(e.target.value)} className={SELECT}>
+              <option value="">Sede · todas</option>
+              {sedesUnicas.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+            <select aria-label="Estado" value={filtroEstado} onChange={(e) => onFiltroEstado(e.target.value as "" | "registrada" | "pendiente")} className={SELECT}>
+              <option value="">Estado · todos</option>
+              <option value="registrada">Constancia registrada</option>
+              <option value="pendiente">Pendiente de constancia</option>
+            </select>
+            <Boton variante="secundario" tamano="sm" onClick={onExportar}>Exportar CSV</Boton>
+          </div>
+
+          <div className="overflow-x-auto rounded-superficie border border-sand bg-papel">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-sand bg-sand/40 text-left text-xs text-taupe">
+                  <th className="px-3 py-2 font-normal">Persona</th>
+                  <th className="px-3 py-2 font-normal">Sede</th>
+                  <th className="px-3 py-2 font-normal">Estado</th>
+                  <th className="px-3 py-2 font-normal">Fecha</th>
+                  <th className="px-3 py-2 font-normal" />
+                </tr>
+              </thead>
+              <tbody>
+                {filas.map((f) => (
+                  <Fragment key={f.persona_id}>
+                    <tr className="border-b border-sand odd:bg-hueso/40 align-top">
+                      <td className="px-3 py-2">{f.nombre}{!f.tiene_cuenta && <Insignia atenuada className="ml-2">sin cuenta</Insignia>}</td>
+                      <td className="px-3 py-2 text-taupe">{f.sede}</td>
+                      <td className="px-3 py-2">
+                        {f.acusado_at !== null
+                          ? <Insignia variante="positivo">Constancia registrada</Insignia>
+                          : <Insignia variante="advertencia">Pendiente de constancia</Insignia>}
+                      </td>
+                      <td className="px-3 py-2 text-taupe">
+                        {f.acusado_at ? <>{selloLima(f.acusado_at)} · {f.via === "papel" ? "en papel" : "desde el sistema"}</> : "—"}
+                      </td>
+                      <td className="px-3 py-2 text-right text-xs">
+                        {f.acusado_at === null ? (
+                          <button onClick={() => onRegistrarPapel(f.persona_id, f.nombre)} className="text-rojo-profundo hover:underline">
+                            registrar en papel
+                          </button>
+                        ) : f.via === "papel" && f.storage_path ? (
+                          <button onClick={() => onVerCargo(f.storage_path!)} className="text-rojo-profundo hover:underline">ver cargo</button>
+                        ) : null}
+                      </td>
+                    </tr>
+                    {papelPara?.persona === f.persona_id && (
+                      <tr>
+                        <td colSpan={5} className="bg-sand/20 px-3 py-3">
+                          <p className="mb-2 text-xs text-taupe">
+                            Constancia en papel de <strong>{papelPara.nombre}</strong>. Sin el escaneo del cargo firmado
+                            no se registra: aquí la constancia es la prueba.
+                          </p>
+                          {msgPapel && (
+                            <p role="alert" className="mb-2 rounded border border-rojo/30 bg-rojo/10 px-2 py-1.5 text-xs text-rojo">{msgPapel}</p>
+                          )}
+                          <div className="grid gap-2 sm:grid-cols-2">
+                            <label className="flex flex-col gap-1 text-xs">
+                              Cargo firmado
+                              <input ref={refCargo} type="file" accept={TIPOS_CARGO} onChange={(e) => onArchivo(e.target.files?.[0] ?? null)}
+                                className={`rounded-control border bg-hueso px-3 py-2 text-sm file:mr-2 file:rounded file:border-0 file:bg-sand file:px-2 file:py-0.5 file:text-xs ${msgPapel ? "border-rojo" : "border-sand"}`} />
+                              {archivo && (
+                                <span className="text-[11px] text-taupe">{archivo.name} · {(archivo.size / 1048576).toFixed(1)} MB</span>
+                              )}
+                            </label>
+                            <Campo etiqueta="Fecha de recepción" type="date" value={fechaPapel} max={hoyLima()} onChange={(e) => onFechaPapel(e.target.value)} />
+                            <div className="sm:col-span-2">
+                              <Campo etiqueta="Nota (opcional)" value={notaPapel} onChange={(e) => onNotaPapel(e.target.value)}
+                                placeholder="ej. entregado en la tienda, con la encargada presente" />
+                            </div>
+                          </div>
+                          {progreso !== null && (
+                            <div className="mt-2">
+                              <div className="h-1.5 w-full overflow-hidden rounded-pildora bg-sand">
+                                <div className="h-full bg-tinta transition-[width] duration-200" style={{ width: `${progreso}%` }} />
+                              </div>
+                              <span className="text-xs text-taupe">Subiendo — {progreso}%</span>
+                            </div>
+                          )}
+                          <div className="mt-2 flex items-center gap-2">
+                            <Boton variante="primario" tamano="sm" onClick={onGuardarPapel} disabled={ocupadoPapel}>
+                              {progreso !== null ? `Subiendo… ${progreso}%` : "Registrar constancia"}
+                            </Boton>
+                            <Boton variante="secundario" tamano="sm" onClick={onCancelarPapel}>Cancelar</Boton>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                ))}
+                {filas.length === 0 && (
+                  <tr><td colSpan={5} className="px-3 py-6 text-center text-taupe">Nadie coincide con la búsqueda o los filtros.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function BarraCobertura({ etiqueta, total, poblacion }: { etiqueta: string; total: number; poblacion: number }) {
+  const pct = poblacion > 0 ? Math.round((total / poblacion) * 100) : 0;
+  return (
+    <div className="min-w-40 flex-1">
+      <div className="mb-1 flex justify-between text-xs text-taupe">
+        <span>{etiqueta}</span>
+        <span>{total}/{poblacion}</span>
+      </div>
+      <div className="h-1.5 w-full overflow-hidden rounded-pildora bg-sand">
+        <div className="h-full bg-pizarra" style={{ width: `${pct}%` }} />
+      </div>
     </div>
   );
 }
