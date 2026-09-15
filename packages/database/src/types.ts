@@ -289,11 +289,14 @@ export type Database = {
           comprobante_url: string | null
           costo_declarado: number
           created_at: string
+          familia_id: string
+          frecuencia_pago: string | null
           id: string
           institucion: string
           monto: number
           nota: string | null
           persona_id: string
+          proxima_fecha_pago: string | null
           registrado_por: string | null
           vigente_desde: string
           vigente_hasta: string
@@ -305,11 +308,14 @@ export type Database = {
           comprobante_url?: string | null
           costo_declarado: number
           created_at?: string
+          familia_id: string
+          frecuencia_pago?: string | null
           id?: string
           institucion: string
           monto: number
           nota?: string | null
           persona_id: string
+          proxima_fecha_pago?: string | null
           registrado_por?: string | null
           vigente_desde: string
           vigente_hasta: string
@@ -321,11 +327,14 @@ export type Database = {
           comprobante_url?: string | null
           costo_declarado?: number
           created_at?: string
+          familia_id?: string
+          frecuencia_pago?: string | null
           id?: string
           institucion?: string
           monto?: number
           nota?: string | null
           persona_id?: string
+          proxima_fecha_pago?: string | null
           registrado_por?: string | null
           vigente_desde?: string
           vigente_hasta?: string
@@ -1720,6 +1729,78 @@ export type Database = {
         }
         Relationships: []
       }
+      educacion_avisos_fin: {
+        Row: {
+          asignacion_id: string
+          atendido_at: string | null
+          atendido_por: string | null
+          creado_at: string
+          creado_por: string
+          id: string
+          motivo: string
+          respuesta: string | null
+          ultimo_pago: string | null
+        }
+        Insert: {
+          asignacion_id: string
+          atendido_at?: string | null
+          atendido_por?: string | null
+          creado_at?: string
+          creado_por: string
+          id?: string
+          motivo: string
+          respuesta?: string | null
+          ultimo_pago?: string | null
+        }
+        Update: {
+          asignacion_id?: string
+          atendido_at?: string | null
+          atendido_por?: string | null
+          creado_at?: string
+          creado_por?: string
+          id?: string
+          motivo?: string
+          respuesta?: string | null
+          ultimo_pago?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "educacion_avisos_fin_asignacion_id_fkey"
+            columns: ["asignacion_id"]
+            isOneToOne: false
+            referencedRelation: "asignaciones_educacion"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "educacion_avisos_fin_atendido_por_fkey"
+            columns: ["atendido_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "educacion_avisos_fin_atendido_por_fkey"
+            columns: ["atendido_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "educacion_avisos_fin_creado_por_fkey"
+            columns: ["creado_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "educacion_avisos_fin_creado_por_fkey"
+            columns: ["creado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       educacion_comprobantes: {
         Row: {
           asignacion_id: string
@@ -1766,6 +1847,147 @@ export type Database = {
           {
             foreignKeyName: "educacion_comprobantes_subido_por_fkey"
             columns: ["subido_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      educacion_entrega_archivos: {
+        Row: {
+          bytes: number | null
+          created_at: string
+          entrega_id: string
+          id: string
+          nombre: string
+          orden: number
+          storage_path: string
+          tipo_mime: string | null
+        }
+        Insert: {
+          bytes?: number | null
+          created_at?: string
+          entrega_id: string
+          id?: string
+          nombre: string
+          orden: number
+          storage_path: string
+          tipo_mime?: string | null
+        }
+        Update: {
+          bytes?: number | null
+          created_at?: string
+          entrega_id?: string
+          id?: string
+          nombre?: string
+          orden?: number
+          storage_path?: string
+          tipo_mime?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "educacion_entrega_archivos_entrega_id_fkey"
+            columns: ["entrega_id"]
+            isOneToOne: false
+            referencedRelation: "educacion_entregas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      educacion_entregas: {
+        Row: {
+          asignacion_id: string
+          enviada_at: string
+          enviada_por: string | null
+          estado: string
+          fecha_pago: string
+          id: string
+          motivo_categoria: string | null
+          motivo_comentario: string | null
+          nota: string | null
+          origen: string
+          proxima_fecha_pago: string | null
+          reemplaza_a: string | null
+          retirada_at: string | null
+          revisada_at: string | null
+          revisada_por: string | null
+          tipo: string
+        }
+        Insert: {
+          asignacion_id: string
+          enviada_at?: string
+          enviada_por?: string | null
+          estado?: string
+          fecha_pago: string
+          id?: string
+          motivo_categoria?: string | null
+          motivo_comentario?: string | null
+          nota?: string | null
+          origen?: string
+          proxima_fecha_pago?: string | null
+          reemplaza_a?: string | null
+          retirada_at?: string | null
+          revisada_at?: string | null
+          revisada_por?: string | null
+          tipo: string
+        }
+        Update: {
+          asignacion_id?: string
+          enviada_at?: string
+          enviada_por?: string | null
+          estado?: string
+          fecha_pago?: string
+          id?: string
+          motivo_categoria?: string | null
+          motivo_comentario?: string | null
+          nota?: string | null
+          origen?: string
+          proxima_fecha_pago?: string | null
+          reemplaza_a?: string | null
+          retirada_at?: string | null
+          revisada_at?: string | null
+          revisada_por?: string | null
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "educacion_entregas_asignacion_id_fkey"
+            columns: ["asignacion_id"]
+            isOneToOne: false
+            referencedRelation: "asignaciones_educacion"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "educacion_entregas_enviada_por_fkey"
+            columns: ["enviada_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "educacion_entregas_enviada_por_fkey"
+            columns: ["enviada_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "educacion_entregas_reemplaza_a_fkey"
+            columns: ["reemplaza_a"]
+            isOneToOne: false
+            referencedRelation: "educacion_entregas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "educacion_entregas_revisada_por_fkey"
+            columns: ["revisada_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "educacion_entregas_revisada_por_fkey"
+            columns: ["revisada_por"]
             isOneToOne: false
             referencedRelation: "terminal_roster"
             referencedColumns: ["id"]
@@ -5528,6 +5750,37 @@ export type Database = {
         }
         Returns: string
       }
+      fn_educacion_atender_aviso_fin: {
+        Args: { p_id: string | null; p_respuesta?: string | null }
+        Returns: undefined
+      }
+      fn_educacion_avanzar_calendario: {
+        Args: { p_entrega_id: string | null }
+        Returns: undefined
+      }
+      fn_educacion_avisar_fin: {
+        Args: {
+          p_asignacion_id: string | null
+          p_motivo: string | null
+          p_ultimo_pago?: string | null
+        }
+        Returns: string
+      }
+      fn_educacion_avisos_fin_pendientes: {
+        Args: never
+        Returns: {
+          asignacion_id: string
+          creado_at: string
+          familia_id: string
+          id: string
+          institucion: string
+          motivo: string
+          persona: string
+          persona_id: string
+          sede: string
+          ultimo_pago: string
+        }[]
+      }
       fn_educacion_candidatos: {
         Args: never
         Returns: {
@@ -5542,10 +5795,78 @@ export type Database = {
         Args: { p_hasta: string | null; p_id: string | null; p_motivo?: string | null }
         Returns: undefined
       }
+      fn_educacion_configurar: {
+        Args: {
+          p_dias_aviso_colab: number | null
+          p_dias_aviso_do: number | null
+          p_dias_plazo: number | null
+          p_texto_valido: string | null
+        }
+        Returns: undefined
+      }
       fn_educacion_desde_cuando_puede_regir: { Args: never; Returns: string }
+      fn_educacion_entregas: {
+        Args: { p_familia_id: string | null }
+        Returns: {
+          archivos: Json
+          asignacion_id: string
+          enviada_at: string
+          enviada_por: string
+          estado: string
+          fecha_pago: string
+          id: string
+          motivo_categoria: string
+          motivo_comentario: string
+          nota: string
+          origen: string
+          proxima_fecha_pago: string
+          reemplaza_a: string
+          retirada_at: string
+          revisada_at: string
+          revisada_por: string
+          tipo: string
+        }[]
+      }
+      fn_educacion_entregas_pendientes: {
+        Args: never
+        Returns: {
+          archivos: number
+          enviada_at: string
+          es_reenvio: boolean
+          familia_id: string
+          fecha_pago: string
+          id: string
+          institucion: string
+          persona: string
+          persona_id: string
+          sede: string
+          tipo: string
+        }[]
+      }
+      fn_educacion_enviar_entrega: {
+        Args: {
+          p_archivos: Json | null
+          p_asignacion_id: string | null
+          p_fecha_pago: string | null
+          p_id: string | null
+          p_nota?: string | null
+          p_proxima_fecha_pago: string | null
+          p_reemplaza_a?: string | null
+          p_tipo: string | null
+        }
+        Returns: string
+      }
       fn_educacion_fecha_pagada: {
         Args: { p_fecha: string | null; p_persona_id: string | null }
         Returns: boolean
+      }
+      fn_educacion_fijar_calendario: {
+        Args: {
+          p_asignacion_id: string | null
+          p_frecuencia: string | null
+          p_proxima: string | null
+        }
+        Returns: undefined
       }
       fn_educacion_limite_comprobante: {
         Args: never
@@ -5613,7 +5934,16 @@ export type Database = {
           subido_por: string
         }[]
       }
+      fn_educacion_parametro: {
+        Args: { p_clave: string | null; p_defecto: number | null }
+        Returns: number
+      }
+      fn_educacion_plazo: { Args: { p_fecha_pago: string | null }; Returns: string }
       fn_educacion_por_atender: { Args: never; Returns: number }
+      fn_educacion_puede_subir_entrega: {
+        Args: { p_path: string | null }
+        Returns: boolean
+      }
       fn_educacion_puede_ver: { Args: { p_path: string | null }; Returns: boolean }
       fn_educacion_quitar_comprobante: {
         Args: { p_id: string | null; p_motivo: string | null }
@@ -5622,6 +5952,10 @@ export type Database = {
       fn_educacion_realinear: {
         Args: { p_actor?: string | null; p_desde: string | null; p_persona_id: string | null }
         Returns: number
+      }
+      fn_educacion_refrescar_espejo: {
+        Args: { p_familia_id: string | null }
+        Returns: undefined
       }
       fn_educacion_registrar: {
         Args: {
@@ -5639,6 +5973,23 @@ export type Database = {
         }
         Returns: string
       }
+      fn_educacion_resolver_entrega: {
+        Args: {
+          p_aprobar: boolean | null
+          p_categoria?: string | null
+          p_comentario?: string | null
+          p_id: string | null
+        }
+        Returns: undefined
+      }
+      fn_educacion_retirar_entrega: {
+        Args: { p_id: string | null }
+        Returns: undefined
+      }
+      fn_educacion_ruta_congelada: {
+        Args: { p_path: string | null }
+        Returns: boolean
+      }
       fn_educacion_saldo: {
         Args: {
           p_desde: string | null
@@ -5647,6 +5998,42 @@ export type Database = {
           p_persona_id: string | null
         }
         Returns: number
+      }
+      fn_educacion_situacion: {
+        Args: never
+        Returns: {
+          aprobadas: number
+          asignacion_id: string
+          aviso_fin_id: string
+          aviso_fin_motivo: string
+          beneficiario: string
+          beneficiario_nombre: string
+          dias_para_pago: number
+          dias_para_plazo: number
+          entrega_archivos: number
+          entrega_enviada_at: string
+          entrega_estado: string
+          entrega_id: string
+          estado_constancia: string
+          familia_id: string
+          fecha_pago_constancia: string
+          frecuencia_pago: string
+          institucion: string
+          monto: number
+          motivo_categoria: string
+          motivo_comentario: string
+          paga: boolean
+          pago_proximo: boolean
+          persona: string
+          persona_id: string
+          plazo: string
+          proxima_fecha_pago: string
+          rango: string
+          sede: string
+          vigencia: string
+          vigente_desde: string
+          vigente_hasta: string
+        }[]
       }
       fn_educacion_tope: {
         Args: { p_fecha: string | null; p_persona_id: string | null }
