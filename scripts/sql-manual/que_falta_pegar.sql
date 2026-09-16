@@ -332,7 +332,9 @@ with repo(numero, nombre, nunca) as (values
     (465, 'el_practicante_devenga_su_descanso_y_su_subvencion_semestral', false),
     (467, 'la_practicante_devenga_su_media_subvencion', false),
     (468, 'seis_filas_fantasma_salen_de_una_foto_ya_pagada', false),
-    (470, 'se_retira_la_implementacion_paralela_de_la_0465', false)
+    (470, 'el_mtpe_ya_no_es_tramite_para_nadie', false),
+    (471, 'se_retira_la_implementacion_paralela_de_la_0465', false),
+    (476, 'se_retira_la_implementacion_paralela_de_la_0465', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
