@@ -337,7 +337,8 @@ with repo(numero, nombre, nunca) as (values
     (473, 'la_bandeja_mia_tambien_recuerda_lo_que_ya_viste', false),
     (474, 'la_bandeja_deja_de_pagar_por_un_calculo_que_no_usa', false),
     (475, 'liquidaciones_pendientes_deja_de_calcular_dos_veces', false),
-    (476, 'el_cuspp_deja_de_frenar_el_cierre_de_planilla', false)
+    (476, 'el_cuspp_deja_de_frenar_el_cierre_de_planilla', false),
+    (477, 'el_bono_de_cumpleanos_se_firma_desde_el_sistema', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte

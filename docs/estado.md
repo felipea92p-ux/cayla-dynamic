@@ -6,6 +6,97 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-09-16 — El bono de cumpleaños también se firma desde /mio (0477) · escrita, auditada en local · SIN FUSIONAR, SIN PEGAR
+
+Felipe pidió que la declaración de ruta y el bono de cumpleaños se pudieran
+firmar desde el login de cada persona. La ruta ya lo hacía —0423/0429, del
+2026-09-12— y esa parte no necesitó código: `/mio/movilidad` ya existe, y en
+cuanto alguien entra a su cuenta le aparece sola en su Bandeja. El botón
+«Pedir firma» de la Bandeja admin sigue yendo a `admin/documentacion` a
+propósito: es la vía de escaneo que Felipe decidió conservar, no un trámite
+roto.
+
+El bono de cumpleaños sí era nuevo — la propia 0423 lo había dejado fuera
+adrede («solo la declaración de ruta por ahora»).
+
+**Una primera versión de esta migración tuvo un candado que se descartó
+completo antes de pegarse en ningún lado**, y vale la pena dejar escrito por
+qué: se asumió que el bono se entrega en efectivo en mano —lo que el nombre
+de siempre, «constancia de ENTREGA», sugiere— y por eso esa versión exigía
+que un admin marcara «entregado» (tabla `bono_entregas_pendientes` +
+`fn_bono_marcar_entregado`) antes de que la persona pudiera firmar, para
+evitar que alguien confirmara «recibí S/ 180» sin haberlo recibido. Al
+preguntarle a Felipe, el bono se paga por **transferencia bancaria**, no en
+efectivo — la transferencia ya es su propia prueba de entrega, así que ese
+candado resolvía un riesgo que con transferencia no existe. Se tiró entero y
+se rehizo mirando la ruta: mismo criterio, sin ningún paso previo de un
+admin.
+
+Migración [0477](../supabase/migrations/0477_el_bono_de_cumpleanos_se_firma_desde_el_sistema.sql),
+mucho más chica que la primera versión:
+
+- `fn_confirmar_mi_bono_cumpleanos` — nueva, copia estructural de
+  `fn_confirmar_mi_declaracion_ruta` (0423/0429) sin nada que declarar: en
+  planilla, activa, firma guardada, monto del `bono_onomastico` vigente
+  (nunca uno que declare quien firma), y sin una constancia ya vigente este
+  año.
+- `fn_bono_monto_vigente` — nueva, y no estaba en el plan original: se
+  encontró probando en el navegador que `/mio/cumpleanos` mostraba «no hay
+  monto vigente» con la fila SÍ presente en `parametros_laborales`, porque
+  esa tabla solo la puede leer un admin (`parametros_laborales_lectura_admin`).
+  Sin esta función, nadie que no sea admin puede ver ANTES de firmar la cifra
+  que está confirmando — se firmaría a ciegas, lo mismo que la 0425 ya evitó
+  para la tarifa de movilidad. `fn_confirmar_mi_bono_cumpleanos` la llama en
+  vez de repetir el `select`.
+- `fn_documento_registrar` y `fn_documentos_tablero`: **sin ningún cambio**
+  — el índice único `persona_id, anio` de `documentos_firmados` (0157) ya
+  impide, por sí solo, que convivan dos constancias vigentes del mismo año
+  sin importar por cuál camino llegue la primera.
+- Frontend: pantalla nueva `/mio/cumpleanos` (sin campos que llenar, solo
+  leer y firmar) y la Bandeja mía (`lib/bandeja-mia.ts`) avisa cuando
+  `bono_estado` es `este_mes` o `vencido`, con link a esa pantalla — mismo
+  mecanismo que ya usa la ruta, sin tocar `admin/documentacion` para nada
+  (tampoco lo tocó la 0423 para la ruta).
+
+Auditada con `begin … rollback` en el Postgres local (prueba pgTAP
+[376](../supabase/tests/376_el_bono_se_firma_desde_el_sistema.test.sql),
+10 aserciones: la misma puerta que ya exige `fn_documento_registrar`, que no
+se puede firmar dos veces el mismo año, que el monto lo calcula el servidor,
+que las dos vías —escaneo y firma digital— no pueden convivir con dos
+constancias vigentes del mismo año, y que `fn_bono_monto_vigente` la puede
+llamar cualquiera y no solo un admin). Las pruebas 334-336 de la ruta siguen
+en verde.
+
+**Y probada en el navegador de punta a punta**, con una cuenta de prueba
+(`integrante`, en planilla, cumpleaños en el mes actual — borrada al
+terminar): apareció sola en «Necesita que hagas algo» de `/mio/bandeja`,
+`/mio/cumpleanos` mostró el papel con el monto real (S/ 180.00) ANTES de
+firmar, dibujar y guardar la firma habilitó el botón, firmar dejó la
+constancia archivada con su fecha y monto, y el pendiente desapareció de la
+Bandeja. Ese recorrido fue lo que encontró el hueco de `fn_bono_monto_vigente`
+de arriba — sin probarlo en pantalla, ese hueco quedaba invisible: el SQL y
+el TypeScript por separado no lo delatan, porque cada uno hace exactamente lo
+que se le pidió.
+
+De paso, al auditar la primera versión se encontró que el Postgres local de
+esta Mac le faltaba la 0448 (mismo hueco de `migraciones_aplicadas` que ya
+documentaba este archivo para 431-434, 437-438 y 444-448) — se aplicó a mano
+para poder auditar contra la base correcta. El md5 de PRODUCCIÓN de
+`fn_documento_registrar` (`5909cada98bc2f879fd8f30dffeaffbe`) coincidió
+exacto con el archivo 0448 del repositorio: producción está bien, era esta
+Mac la atrasada. Como la 0477 final no toca esa función, esto queda solo
+como nota — no hay nada que volver a verificar antes de pegar por ese lado.
+
+**Antes de pegar:** repetir `donde-vive.sh` para `fn_confirmar_mi_bono_cumpleanos`
+y `fn_bono_monto_vigente` —son funciones nuevas, pero conviene comprobar que
+nadie más las haya creado en otra rama mientras esto esperaba revisión (ver
+la 0297/0299).
+
+Falta además: fusionar el PR, y pegar la 0477 ANTES de fusionar (regla de la
+casa — `main` publica sola).
+
+---
+
 ## 2026-09-15 — La tarjeta de Liquidaciones de la Bandeja dejó de fallar por timeout (0474, 0475) · pegada en producción · SIN FUSIONAR
 
 Felipe reportó el recuadro rojo en la Bandeja: «No se pudo cargar
