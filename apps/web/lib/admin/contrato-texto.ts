@@ -792,20 +792,22 @@ function clausulaNaturalezaYPlazo(d: DatosContrato): string {
     escrito.</p>`;
 }
 
-/** DÉCIMA OCTAVA — difiere porque el registro ante la AAT (art. 72-73) solo alcanza a un plazo fijo. Ver 0347. */
+/**
+ * DÉCIMA OCTAVA — ya no distingue por tipo. Hasta la 0470 el plazo fijo y el
+ * convenio de prácticas prometían además "comunicarlo a la Autoridad
+ * Administrativa de Trabajo dentro de los quince (15) días naturales": una
+ * obligación derogada desde el 2016-11-11 (D. Leg. 1246 modificó el art. 73
+ * del D.S. 003-97-TR para plazo fijo, y derogó el último párrafo del art. 46
+ * de la Ley 28518 para convenios). Seguir imprimiéndola era prometerle a
+ * quien firma un trámite que la empresa ya no hace ni tiene dónde hacer — se
+ * declara solo con la Planilla Electrónica, sin esta comunicación aparte.
+ */
 function clausulaEntregaCopia(d: DatosContrato): string {
   const colaborador = etiquetaColaborador(d);
-  if (d.tipo === "indefinido") {
-    return `
+  return `
     <h3>DÉCIMA OCTAVA. ENTREGA DE COPIA</h3>
     <p>LA EMPRESA entregará a ${colaborador} copia del presente contrato dentro de los tres (3) días hábiles
     siguientes al inicio de la prestación de servicios.</p>`;
-  }
-  return `
-    <h3>DÉCIMA OCTAVA. ENTREGA DE COPIA Y REGISTRO</h3>
-    <p>LA EMPRESA entregará a ${colaborador} copia del presente contrato dentro de los tres (3) días hábiles
-    siguientes al inicio de la prestación de servicios, y lo comunicará a la Autoridad Administrativa de Trabajo
-    para su registro dentro de los quince (15) días naturales siguientes a su suscripción.</p>`;
 }
 
 /** VIGÉSIMA — la indemnización de un indefinido se cuenta por años de servicio (art. 38), no por meses restantes de plazo (art. 76). Ver 0347. */

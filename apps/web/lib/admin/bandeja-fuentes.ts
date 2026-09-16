@@ -128,7 +128,7 @@ export interface ItemVacacion {
   records_vencidos: number; vence_el: string; dias_para_vencer: number;
 }
 
-/** Una fila de `fn_liquidaciones_pendientes` (0454), con lo que la Bandeja mira. */
+/** Una fila de `fn_liquidaciones_vencidas_bandeja` (0474), con lo que la Bandeja mira. */
 export interface ItemLiquidacion {
   persona_id: string; persona: string; sede: string;
   fecha_cese: string; vence_el: string; dias_restantes: number; total: number;
@@ -509,9 +509,9 @@ function textoContrato(c: ItemContrato): { titulo: string; detalle: string | nul
     case "por_vencer": return { titulo: "Contrato por vencer", detalle: null, accion: "Preparar renovación" };
     case "sin_firmar": return { titulo: "Contrato pendiente de firma", detalle: null, accion: "Registrar firma" };
     case "tramite_pendiente":
-      return c.copia_entregada_at === null
-        ? { titulo: "Falta entregar la copia del contrato", detalle: null, accion: "Registrar entrega" }
-        : { titulo: "Falta comunicar el contrato al MTPE", detalle: null, accion: "Registrar comunicación" };
+      // Desde la 0470 este estado solo significa "falta la copia": comunicar
+      // el contrato al MTPE ya no es trámite de nadie (D. Leg. 1246).
+      return { titulo: "Falta entregar la copia del contrato", detalle: null, accion: "Registrar entrega" };
     default: return { titulo: "Sin contrato registrado", detalle: null, accion: "Registrar contrato" };
   }
 }

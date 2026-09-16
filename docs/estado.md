@@ -6,7 +6,7 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-09-15 — La tarjeta de Liquidaciones de la Bandeja dejó de fallar por timeout (0471, 0472) · SIN PEGAR · SIN FUSIONAR
+## 2026-09-15 — La tarjeta de Liquidaciones de la Bandeja dejó de fallar por timeout (0474, 0475) · SIN PEGAR · SIN FUSIONAR
 
 Felipe reportó el recuadro rojo en la Bandeja: «No se pudo cargar
 liquidaciones vencidas: canceling statement due to statement timeout».
@@ -25,20 +25,20 @@ por un dato que tira a la basura.
 
 Dos migraciones, en dos pasos (decidido con Felipe):
 
-- [0471](../supabase/migrations/0471_la_bandeja_deja_de_pagar_por_un_calculo_que_no_usa.sql)
+- [0474](../supabase/migrations/0474_la_bandeja_deja_de_pagar_por_un_calculo_que_no_usa.sql)
   — `fn_liquidaciones_vencidas_bandeja()`, función nueva y liviana: filtra a
   cesadas sin pagar ANTES de calcular, así que nunca toca a quien ya cobró.
   `bandeja-fuentes.ts` pasa a pedir esta en vez de la pesada.
   `fn_liquidaciones_pendientes` no se toca: sigue siendo la única fuente de
   `/admin/liquidaciones`, que sí necesita `descuadra_real`.
-- [0472](../supabase/migrations/0472_liquidaciones_pendientes_deja_de_calcular_dos_veces.sql)
+- [0475](../supabase/migrations/0475_liquidaciones_pendientes_deja_de_calcular_dos_veces.sql)
   — esa pantalla deja de pagar el cálculo dos veces: un solo
   `left join lateral` llama `fn_liquidacion_diferencias` una vez, y de ahí
   salen los dos booleanos con `bool_or`. Ni una cifra cambia.
 
-Auditadas contra Postgres local: la 0471 reproducida en vivo en `/admin/bandeja`
+Auditadas contra Postgres local: la 0474 reproducida en vivo en `/admin/bandeja`
 (la tarjeta pasó de "—" con el error a "3", con las mismas tres personas que
-el filtro de siempre). La 0472 comparada fila por fila contra el
+el filtro de siempre). La 0475 comparada fila por fila contra el
 comportamiento anterior —idéntica para las 17 cesadas reales— y con dos
 casos armados a mano en `begin…rollback` (una liquidación con diferencia real
 → `descuadra_real=true`; una liquidación que calza exacto → ambos `false`).
@@ -58,6 +58,55 @@ frente a este repositorio —le faltan 415-419, 431-434, 437-438, 444-448, 461,
 esta rama—. Se rellenó a mano 450-455 (las que esta migración necesitaba para
 poder auditarse) porque ya estaban fusionadas a `main`; el resto queda como
 está, fuera de este alcance.
+
+---
+
+## 2026-09-15 — El MTPE deja de ser trámite para nadie (0470) · SIN PEGAR · SIN FUSIONAR
+
+Felipe leyó que "el trámite del ministerio" no era necesario y pidió
+confirmarlo antes de tocar nada. Confirmado con tres fuentes independientes:
+el Decreto Legislativo N.° 1246 ("simplificación administrativa", vigente
+desde el 2016-11-11) eliminó la comunicación a la Autoridad Administrativa de
+Trabajo tanto para contratos sujetos a modalidad (modificó el art. 73, D.S.
+003-97-TR) como para convenios de modalidad formativa (derogó el último
+párrafo del art. 46, Ley 28518) — para AMBOS, no solo para el indefinido que
+la 0347 ya había eximido. Hoy se declara solo con la Planilla Electrónica.
+
+Alcance del arreglo:
+1. **`fn_contratos_tablero`** (migración
+   [0470](../supabase/migrations/0470_el_mtpe_ya_no_es_tramite_para_nadie.sql)):
+   `tramite_pendiente` ya no exige `comunicado_mtpe_at` a ningún tipo — solo
+   falta la copia. `comunicado_mtpe_at` se deja sin borrar (puede tener
+   fechas históricas anotadas de buena fe).
+2. **El texto del contrato** (`apps/web/lib/admin/contrato-texto.ts`): la
+   cláusula DÉCIMA OCTAVA de plazo fijo y convenio dejó de prometerle a quien
+   firma una comunicación al MTPE que la empresa ya no hace ni tiene dónde
+   hacer. Ya no distingue por tipo — es la misma cláusula para todos.
+3. **La pantalla** `/admin/contratos`: sin badge "MTPE" pendiente, sin botón
+   "Marcar comunicado al MTPE" (quedan dos: solo "Marcar copia entregada").
+   `ETIQUETA_CORTA.tramite_pendiente` pasa de "Falta trámite" a "Falta la
+   copia" — ya no hay caso especial para el indefinido, todos comparten la
+   misma regla.
+4. **La Bandeja** (`bandeja-urgencia.ts`, `bandeja-fuentes.ts`): el plazo de
+   `tramite_pendiente` es siempre el de la copia (inicio + 5); el texto
+   "Falta comunicar el contrato al MTPE" se retira.
+
+Auditado con control: prueba pgTAP nueva
+[373](../supabase/tests/373_el_mtpe_ya_no_es_tramite_para_nadie.test.sql) —
+un plazo fijo y un convenio de prácticas, firmados y con copia entregada pero
+SIN `comunicado_mtpe_at`, llegan a 'ok' con la 0470 puesta y a
+'tramite_pendiente' con el cuerpo anterior (0386) — confirma que el cambio es
+el que corrige, no una coincidencia. El indefinido (0347) no se movió.
+Verificado además en el navegador contra Postgres local: dos personas de
+prueba (plazo fijo y convenio) en estado real "Falta la copia", sin botón de
+MTPE, y al marcar la copia entregada pasan a "Vigente" sin pedir nada más.
+`pnpm typecheck` y `pnpm test` (743/743) en verde.
+
+**Antes de pegar:** el md5 de partida de `fn_contratos_tablero` se comprobó
+contra el Postgres LOCAL (34df0321b7abfdc7cf030e23d8c8543b, 4780 caracteres),
+no contra producción — sin acceso al SQL Editor en esta sesión. Correr
+`donde-vive.sh fn_contratos_tablero` y comparar contra producción antes de
+pegar, como pide siempre esta casa.
 
 ---
 

@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0472 — `fn_liquidaciones_pendientes` deja de calcular la misma liquidación
+-- 0475 — `fn_liquidaciones_pendientes` deja de calcular la misma liquidación
 --        dos veces por persona
 -- ============================================================================
 --
@@ -8,7 +8,7 @@
 --   UNA sola llamada a `fn_liquidacion_diferencias` por persona en vez de dos.
 --   Sirve a `/admin/liquidaciones`, la única pantalla que llama a esta
 --   función hoy (la Bandeja pasó a `fn_liquidaciones_vencidas_bandeja`,
---   0471, que ni siquiera calcula esto).
+--   0474, que ni siquiera calcula esto).
 --
 -- QUÉ ASUME
 --   `fn_liquidacion_diferencias` (0454) es la única definición vigente,
@@ -24,7 +24,7 @@
 --   `fn_liquidacion_diferencias` —cuando la persona sí cobró— hace un cálculo
 --   de liquidación entero por dentro (`fn_liquidacion` → `fn_planilla_calcular`).
 --   Con 17 cesadas en el Postgres local, esta función tardaba 518 ms; en
---   producción llegó a cancelarse por `statement_timeout` (ver 0471).
+--   producción llegó a cancelarse por `statement_timeout` (ver 0474).
 --
 -- ── LA CORRECCIÓN ────────────────────────────────────────────────────────────
 --   Un solo `left join lateral` llama `fn_liquidacion_diferencias(p.id)` una
@@ -40,7 +40,7 @@
 --   eran 2N + M; ahora son N + M. Para quien ya cobró, la mitad del costo.
 --
 -- ── LO QUE ESTA MIGRACIÓN NO HACE ───────────────────────────────────────────
---   No toca `fn_liquidaciones_vencidas_bandeja` (0471): esa ya no calcula
+--   No toca `fn_liquidaciones_vencidas_bandeja` (0474): esa ya no calcula
 --   `descuadra`/`descuadra_real` en absoluto, por eso no necesita este arreglo.
 --
 -- ── IDEMPOTENTE ─────────────────────────────────────────────────────────────
@@ -83,15 +83,15 @@ as $fn$
     (fn_hoy_lima() > p.fecha_cese + 2 and f.persona_id is null),
     round(coalesce(f.total, (fn_liquidacion(p.id, p.fecha_cese)->>'total')::numeric, 0), 2),
     (f.persona_id is not null),
-    coalesce(dif.hay_diferencia, false),      -- CAMBIO 0472
-    coalesce(dif.hay_diferencia_real, false)  -- CAMBIO 0472
+    coalesce(dif.hay_diferencia, false),      -- CAMBIO 0475
+    coalesce(dif.hay_diferencia_real, false)  -- CAMBIO 0475
   from personas p
   left join sedes s on s.id = p.sede_base_id
   left join lateral (
     select lp.* from liquidacion_pagada lp
     where lp.persona_id = p.id order by lp.version desc limit 1
   ) f on f.anulada is not true
-  -- CAMBIO 0472 · una sola llamada a fn_liquidacion_diferencias, no dos.
+  -- CAMBIO 0475 · una sola llamada a fn_liquidacion_diferencias, no dos.
   left join lateral (
     select
       bool_or(true)              as hay_diferencia,
@@ -107,11 +107,11 @@ $fn$;
 comment on function fn_liquidaciones_pendientes() is
   'Quién cesó y qué le falta cobrar. descuadra: cualquier diferencia contra lo '
   'pagado. descuadra_real: solo la que NO explica el cierre de Planilla — la '
-  'que de verdad hay que revisar. Ver 0251, 0454 y 0472 (una sola llamada a '
+  'que de verdad hay que revisar. Ver 0251, 0454 y 0475 (una sola llamada a '
   'fn_liquidacion_diferencias, no dos).';
 
 insert into migraciones_aplicadas (numero, nombre)
-values (472, 'liquidaciones_pendientes_deja_de_calcular_dos_veces')
+values (475, 'liquidaciones_pendientes_deja_de_calcular_dos_veces')
 on conflict (numero) do update set nombre = excluded.nombre, aplicada_at = now();
 
 notify pgrst, 'reload schema';

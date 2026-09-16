@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0471 — La Bandeja deja de pagar por un cálculo que no usa
+-- 0474 — La Bandeja deja de pagar por un cálculo que no usa
 -- ============================================================================
 --
 -- QUÉ PROMETE
@@ -90,13 +90,13 @@ $fn$;
 comment on function fn_liquidaciones_vencidas_bandeja() is
   'Cesadas sin liquidación pagada, ya vencidas (fecha_cese + 2 días). Para la '
   'Bandeja: nunca calcula sobre quien ya cobró, a diferencia de '
-  'fn_liquidaciones_pendientes (0454), que sirve a /admin/liquidaciones. Ver 0471.';
+  'fn_liquidaciones_pendientes (0454), que sirve a /admin/liquidaciones. Ver 0474.';
 
 revoke execute on function fn_liquidaciones_vencidas_bandeja() from public, anon;
 grant  execute on function fn_liquidaciones_vencidas_bandeja() to authenticated;
 
 insert into migraciones_aplicadas (numero, nombre)
-values (471, 'la_bandeja_deja_de_pagar_por_un_calculo_que_no_usa')
+values (474, 'la_bandeja_deja_de_pagar_por_un_calculo_que_no_usa')
 on conflict (numero) do update set nombre = excluded.nombre, aplicada_at = now();
 
 notify pgrst, 'reload schema';
