@@ -35,6 +35,7 @@ import { Tabla, TablaEncabezado, Th, Fila } from "@/components/ui/tabla";
 import { Campo, CampoSelect } from "@/components/ui/campo";
 import { AreaTexto } from "@/components/ui/area-texto";
 import { Modal } from "@/components/ui/modal";
+import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
 import { hoyLima, puedeOperarEquipo, puedeVerTodasLasSedes } from "@cayla-dynamic/shared";
@@ -900,19 +901,19 @@ export default function AusenciasPage() {
   return (
     <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
-        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-          <div className="max-w-3xl">
-            <h1 className="mb-1 font-serif text-2xl">Ausencias</h1>
-            <p className="text-xs text-taupe">
+        <CabeceraPagina
+          titulo="Ausencias"
+          descripcion={
+            <>
               Todos los días que alguien no vino, y por qué — vacaciones incluidas. Un día registrado aquí{" "}
               <strong className="font-medium">deja de contar como falta injustificada</strong> y no alimenta el
               expediente disciplinario. En CAYLA solo se paga lo que la ley obliga —descanso médico con
               documento, maternidad, vacaciones y el duelo de un familiar directo— o lo que la empresa decide
               conceder aparte (licencia con goce).
-            </p>
-          </div>
-          <Boton variante="primario" onClick={abrirRegistro}>+ Registrar ausencia</Boton>
-        </div>
+            </>
+          }
+          accion={<Boton variante="primario" onClick={abrirRegistro}>+ Registrar ausencia</Boton>}
+        />
 
         {/* ── Panel consolidado: impacto por colaborador ────────────────────
             Reemplaza los tres avisos sueltos de antes (vacaciones por vencer,
