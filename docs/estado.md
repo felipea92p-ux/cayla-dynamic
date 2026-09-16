@@ -6,7 +6,7 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-09-16 — El bono de cumpleaños se pide desde Info y DO confirma la transferencia (0478) · auditada en local · SIN FUSIONAR, SIN PEGAR
+## 2026-09-16 — El bono de cumpleaños se pide desde Info y DO confirma la transferencia (0478) · fusionada (PR #424) · pegada en producción
 
 Felipe pidió que Melany pudiera **pedir** su incentivo de cumpleaños desde su
 Info. Se construyó ENCIMA de la 0477 (entrada de abajo, PR #422), no en
@@ -57,13 +57,10 @@ de cumpleaños · S/ 180.00 por transferir», NO desapareció al firmar →
 setiembre» y la constancia con las dos fechas. La 0478 quedó aplicada en el
 Postgres local compartido.
 
-**Antes de pegar, en este orden:**
-1. `./scripts/donde-vive.sh` de `fn_mi_bono_cumpleanos`,
-   `fn_bonos_por_transferir`, `fn_confirmar_entrega_bono` y
-   `fn_confirmar_mi_bono_cumpleanos`, en el mismo mensaje en que se entrega el
-   SQL — que ninguna otra rama las haya creado mientras esto esperaba.
-2. Pegar la **0477** y después la **0478**. La 0478 no corre sin la 0477.
-3. Recién ahí fusionar (este PR incluye el #422; fusionar es publicar).
+**✅ Pegada y fusionada el 2026-09-16.** La 0477 y la 0478 están aplicadas en
+producción (confirmado por `md5(prosrc)` en vivo contra
+`vovjyyiafkxteijimpuy`) y el PR #424 —que incluía el #422— ya está en
+`main`. `que_falta_pegar.sql` las marca `✓ aplicada` a ambas.
 
 **Pendientes que esto dejó a la vista, sin tocar:**
 - `fn_documentos_tablero` (0424) calcula `bono_estado` también a quien es
@@ -81,7 +78,7 @@ Postgres local compartido.
 
 ---
 
-## 2026-09-16 — El bono de cumpleaños también se firma desde /mio (0477) · escrita, auditada en local · SIN FUSIONAR, SIN PEGAR
+## 2026-09-16 — El bono de cumpleaños también se firma desde /mio (0477) · fusionada (PR #422/#424) · pegada en producción
 
 Felipe pidió que la declaración de ruta y el bono de cumpleaños se pudieran
 firmar desde el login de cada persona. La ruta ya lo hacía —0423/0429, del
@@ -162,17 +159,12 @@ exacto con el archivo 0448 del repositorio: producción está bien, era esta
 Mac la atrasada. Como la 0477 final no toca esa función, esto queda solo
 como nota — no hay nada que volver a verificar antes de pegar por ese lado.
 
-**Antes de pegar:** repetir `donde-vive.sh` para `fn_confirmar_mi_bono_cumpleanos`
-y `fn_bono_monto_vigente` —son funciones nuevas, pero conviene comprobar que
-nadie más las haya creado en otra rama mientras esto esperaba revisión (ver
-la 0297/0299).
-
-Falta además: fusionar el PR, y pegar la 0477 ANTES de fusionar (regla de la
-casa — `main` publica sola).
+**✅ Pegada y fusionada el 2026-09-16** junto con la 0478 (ver la entrada de
+arriba).
 
 ---
 
-## 2026-09-15 — La tarjeta de Liquidaciones de la Bandeja dejó de fallar por timeout (0474, 0475) · pegada en producción · SIN FUSIONAR
+## 2026-09-15 — La tarjeta de Liquidaciones de la Bandeja dejó de fallar por timeout (0474, 0475) · pegada en producción · fusionada (PR #417)
 
 Felipe reportó el recuadro rojo en la Bandeja: «No se pudo cargar
 liquidaciones vencidas: canceling statement due to statement timeout».
@@ -278,7 +270,7 @@ sistema le exija comunicar nada al MTPE.
 
 ---
 
-## 2026-09-15 — Quien ingresa después ya no se cuela en un periodo anterior (0463) · SIN PEGAR · SIN FUSIONAR
+## 2026-09-15 — Quien ingresa después ya no se cuela en un periodo anterior (0463) · pegada · fusionada (PR #404)
 
 Felipe reportó, mirando `/admin/planilla`: cinco practicantes que ingresaron
 en septiembre aparecían con fila propia en los periodos de julio y agosto —
@@ -312,7 +304,7 @@ producción, porque la clave de servicio está rotada a propósito.
 
 ---
 
-## 2026-09-15 — Educación: la 0450 ya está pegada; nace la 0461 (colaborador pide su apoyo) · SIN PEGAR · PR #390
+## 2026-09-15 — Educación: la 0450 ya está pegada; nace la 0461 (colaborador pide su apoyo) · pegada · fusionada (PR #390)
 
 **La 0450 quedó PEGADA Y VERIFICADA este mismo día** (esta entrada reemplaza el
 aviso «SIN PEGAR · SIN PUSH» de más arriba, que quedó desactualizado apenas se
@@ -1042,7 +1034,7 @@ una comprobación que nadie había construido. Ahora el estado se llama así.
 (comprobado: no tienen fila en `migraciones_aplicadas`); la 0393 lleva la
 explicación larga de arriba. `numeracion.sh` ya dice «sin novedad».
 
-## 2026-09-07 — El freno SQL→producción deja de mirar el disco (la «mitad cara» del 🔴#0) · SIN FUSIONAR
+## 2026-09-07 — El freno SQL→producción deja de mirar el disco (la «mitad cara» del 🔴#0) · fusionada (PR #250, 2026-09-08)
 
 [PR #250](https://github.com/felipea92p-ux/cayla-dynamic/pull/250). El
 `estado.md` lo pedía desde el 2026-08-14 y era el único freno del repo que
