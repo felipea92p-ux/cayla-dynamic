@@ -320,11 +320,19 @@ with repo(numero, nombre, nunca) as (values
     (453, 'la_bandeja_vuelve_a_reconocer_educacion', false),
     (454, 'liquidaciones_fecha_de_pago_y_diferencia_por_cierre', false),
     (455, 'una_ausencia_registrada_despues_frena_la_firma_de_una_falta', false),
+    (456, 'republicar_sin_cambios_no_crea_version', false),
+    (457, 'editar_categoria_incluye_el_salario_declarado', false),
+    (458, 'constancias_por_version_historica', false),
+    (459, 'mi_rango_actual_para_el_portal', false),
     (460, 'restaurar_una_version_anterior', false),
     (461, 'el_colaborador_pide_su_apoyo_educativo', false),
     (462, 'quien_firma_digital_ya_tiene_su_copia', false),
     (463, 'quien_ingresa_despues_no_se_cuela_en_un_periodo_anterior', false),
-    (465, 'el_practicante_devenga_su_descanso_y_su_subvencion_semestral', false)
+    (464, 'la_planilla_deja_de_contar_a_quien_todavia_no_existia', false),
+    (465, 'el_practicante_devenga_su_descanso_y_su_subvencion_semestral', false),
+    (467, 'la_practicante_devenga_su_media_subvencion', false),
+    (468, 'seis_filas_fantasma_salen_de_una_foto_ya_pagada', false),
+    (469, 'la_colision_de_la_0465_se_limpia', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
