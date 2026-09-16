@@ -206,9 +206,13 @@ function MiMovilidadContenido() {
         // RPC ya devuelve solo lo suyo (0425), igual que fn_documentos_tablero.
         supabase.rpc("fn_movilidad_revisiones_pedidas", { p_solo_pendientes: false }),
         supabase.rpc("fn_firma_empresa"),
-        // El documento completo (0429): sin admin de por medio, esta RPC
-        // también devuelve solo lo suyo — mismo criterio que las de arriba.
-        supabase.rpc("fn_documentos_listar"),
+        // El documento completo (0429). A diferencia de fn_documentos_tablero
+        // (p_solo_mi_fila) y fn_movilidad_revisiones_pedidas, esta RPC SÍ
+        // devuelve lo de todo el mundo cuando quien pregunta es admin/líder y
+        // no se filtra — por eso p_persona_id va explícito: sin él, alguien de
+        // DO veía acá la declaración de ruta de OTRA persona (la primera fila
+        // vigente de la tabla entera, no la suya).
+        supabase.rpc("fn_documentos_listar", { p_persona_id: p.id as string }),
       ]);
     setCargando(false);
     if (eFila) {
