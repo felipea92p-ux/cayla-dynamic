@@ -39,18 +39,24 @@ import { ordenarContratoVigente } from "./mi-contrato";
  *     · sus vacaciones                              (solicitudes_vacaciones, 0330)
  *     · que se revisara un día suyo                 (revisiones_pedidas, 0257)
  *
- * POR QUÉ LOS PENDIENTES NO CADUCAN, Y POR QUÉ ESO RESUELVE «LO LEÍDO»
+ * POR QUÉ LOS PENDIENTES NO CADUCAN, Y CÓMO SE MARCA «LO LEÍDO»
  *
- * Hasta el 2026-09-08 no se guardaba en ninguna parte si una persona ya había
- * visto su bandeja, y se decidió no guardarlo: un «leído» en el navegador se
- * pierde al cambiar de equipo y, en una Mac compartida, puede dejarle OCULTO a
- * la segunda persona un mensaje que nunca vio.
- *
- * La decisión sigue en pie, y esta versión la aprovecha en vez de pelearse con
- * ella: para lo que hay que FIRMAR, «leído» es «firmado», y eso YA está
- * guardado —`firma_persona_confirmada_at`, `mi_acuse_at`— desde antes. No hace
- * falta una tabla nueva ni una migración: el sistema no necesita saber si lo
+ * Para lo que hay que FIRMAR, «leído» es «firmado», y eso YA está guardado
+ * —`firma_persona_confirmada_at`, `mi_acuse_at`— desde antes: no hace falta
+ * ninguna tabla para los PENDIENTES, el sistema no necesita saber si lo
  * miraste, necesita saber si lo hiciste.
+ *
+ * Para las RESPUESTAS sí hay un «visto» guardado, desde la 0473: reusa
+ * `bandeja_vistos` (0436), la misma tabla que ya usaba /admin/bandeja. Hasta
+ * entonces se había decidido explícitamente NO guardarlo (2026-09-08) — la
+ * objeción de ese día era un «leído» en el NAVEGADOR, que se pierde al
+ * cambiar de equipo y, en una computadora compartida, puede dejarle OCULTO a
+ * la segunda persona un mensaje que nunca vio. Esa objeción no alcanza a
+ * `bandeja_vistos`: es una fila en el servidor atada a `persona_id`, no al
+ * navegador, y /mio ya exige sesión propia (a diferencia del terminal de
+ * marcaje, que marca sin PIN a propósito) — así que el mismo riesgo que hizo
+ * descartar el `localStorage` no existe acá. Ver `fueVista` más abajo y
+ * `marcarVistoComo` de `MensajeBandeja`.
  *
  * QUÉ SIGUE SIN JUNTAR
  *
@@ -73,18 +79,15 @@ import { ordenarContratoVigente } from "./mi-contrato";
  */
 
 /**
- * Cuántos días una respuesta sigue contando como novedad.
+ * Cuántos días una respuesta sigue contando como novedad SI NADIE LA VIO.
  *
- * No hay «leído» guardado en ninguna parte a propósito (decisión de Felipe,
- * 2026-09-08): guardarlo exigiría una migración, y las dos alternativas sin
- * migración son peores. Un «leído» en el navegador se pierde al cambiar de
- * equipo y, en una computadora compartida, puede dejarle OCULTO a la segunda
- * persona un mensaje que nunca vio — esconder el rechazo de un cambio de
- * cuenta bancaria es peor que repetirlo.
- *
- * Lo que este número hace, y hay que saberlo al tocarlo: una RESPUESTA no se
- * apaga al leerla, caduca sola. Se prefiere un número que insiste de más a uno
- * que calla de menos.
+ * Desde la 0473 una respuesta se apaga apenas se marca vista en
+ * `bandeja_vistos` (ver `fueVista` en `armarBandeja`) — pero si la persona
+ * nunca vuelve a abrir su Bandeja, este número es el que igual la apaga sola.
+ * Es un techo, no el único mecanismo: se prefiere un número que insiste de
+ * más a uno que calla de menos, para el caso en que «visto» nunca llegue a
+ * escribirse (la escritura es best-effort desde el cliente, ver
+ * bandeja/page.tsx — si falla, esto sigue siendo la única red).
  *
  * ⚠ NO se aplica a los PENDIENTES. Un contrato sin firmar no caduca a los 14
  * días: caduca cuando se firma. Caducar ahí sería apagar el aviso justo cuando
@@ -137,6 +140,16 @@ export interface MensajeBandeja {
   nuevo: boolean;
   /** A dónde lleva «Verlo →», o `null` si no hay a dónde ir de verdad. */
   ir: string | null;
+  /**
+   * Cómo marcarla como vista en `bandeja_vistos` (0436, extendida por la
+   * 0473) para que dejar de ser «nuevo» sobreviva a la próxima carga, sin
+   * depender de que la persona vuelva a abrir la pantalla antes de que
+   * caduquen sola los DIAS_NOVEDAD. `null` en los PENDIENTES —no caducan
+   * nunca, y su insignia ni se pinta, ver `Tarjeta` en bandeja/page.tsx— y en
+   * lo que está ESPERANDO —nunca es «nuevo»—: ninguno de los dos necesita
+   * marcarse.
+   */
+  marcarVistoComo: { tipo: string; itemId: string } | null;
 }
 
 /** Una solicitud de cambio de ficha. Tal como la devuelve `fn_mis_solicitudes_perfil()`. */
@@ -293,6 +306,13 @@ export interface FuentesBandeja {
   educacionEntregas?: FilaEducacionEntrega[];
   /** Sus estudios y en qué está cada constancia (0450). */
   educacionSituacion?: FilaEducacionSituacion[];
+  /**
+   * Qué claves de `bandeja_vistos` (0436/0473) ya marcó ella misma, como
+   * `"<tipo_item>:<item_id>"` — igual que ya lo lee `/admin/bandeja`. Falla
+   * suave si la consulta no vino: un Set vacío hace que todo se vea «nuevo»,
+   * que es el lado seguro (nunca esconde una respuesta real).
+   */
+  vistos: Set<string>;
 }
 
 export interface Bandeja {
@@ -408,6 +428,10 @@ export function armarBandeja(fuentes: FuentesBandeja, hoy: string = hoyLima()): 
   const pendientes: { m: MensajeBandeja; instante: number }[] = [];
 
   const esNueva = (fecha: string) => diasEntre(fecha, hoy) <= DIAS_NOVEDAD;
+  // «Visto» en bandeja_vistos: una vez que se marca, deja de ser «nuevo»
+  // aunque todavía no pasen los DIAS_NOVEDAD — ver el campo `vistos` de
+  // FuentesBandeja y `marcarVistoComo` de MensajeBandeja.
+  const fueVista = (tipo: string, itemId: string) => fuentes.vistos.has(`${tipo}:${itemId}`);
 
   // ── LO QUE DEPENDE DE TI ────────────────────────────────────────────────
   // Todos entran con `nuevo: true` y ninguno mira DIAS_NOVEDAD: no caducan.
@@ -429,6 +453,7 @@ export function armarBandeja(fuentes: FuentesBandeja, hoy: string = hoyLima()): 
           : `Desde el ${diaYMes(c.fecha_inicio)}, sin fecha de término. Léelo entero y confirma tu firma; hasta que lo hagas seguirá acá.`,
         nuevo: true,
         ir: "/mio/contrato",
+        marcarVistoComo: null,
       },
     });
   }
@@ -455,6 +480,7 @@ export function armarBandeja(fuentes: FuentesBandeja, hoy: string = hoyLima()): 
           : "Sostiene que tu movilidad no pague impuestos ni descuentos. Fírmala desde el sistema — no hace falta imprimir ni escanear nada.",
         nuevo: true,
         ir: "/mio/movilidad",
+        marcarVistoComo: null,
       },
     });
   }
@@ -473,6 +499,7 @@ export function armarBandeja(fuentes: FuentesBandeja, hoy: string = hoyLima()): 
         detalle: "Está en Info, en la pestaña «Historial». Firmarlo no es aceptar lo que dice: puedes firmarlo y presentar tu descargo, o dejar constancia de que te niegas a firmar.",
         nuevo: true,
         ir: "/mio",
+        marcarVistoComo: null,
       },
     });
   }
@@ -494,6 +521,7 @@ export function armarBandeja(fuentes: FuentesBandeja, hoy: string = hoyLima()): 
           : "No firmas ningún compromiso: dejas constancia de haber sido informada.",
         nuevo: true,
         ir: a.href,
+        marcarVistoComo: null,
       },
     });
   }
@@ -531,6 +559,7 @@ export function armarBandeja(fuentes: FuentesBandeja, hoy: string = hoyLima()): 
           detalle: `${rotos.map(diaYMes).join(", ")}. Falta la salida o la puso el sistema, así que las horas de ${rotos.length === 1 ? "ese día" : "esos días"} no son las que trabajaste. Se arregla mientras el periodo del ${diaYMes(fecha_ini)} al ${diaYMes(fecha_fin)} siga abierto; después ya no.`,
           nuevo: true,
           ir: "/mio",
+          marcarVistoComo: null,
         },
       });
     }
@@ -549,6 +578,7 @@ export function armarBandeja(fuentes: FuentesBandeja, hoy: string = hoyLima()): 
           detalle: `Lo pediste ${haceCuanto(fecha, hoy)}. Desarrollo Organizacional todavía no responde.`,
           nuevo: false,
           ir: "/mio/editar",
+          marcarVistoComo: null,
         },
       });
       continue;
@@ -570,8 +600,9 @@ export function armarBandeja(fuentes: FuentesBandeja, hoy: string = hoyLima()): 
         detalle: f.estado === "aprobado"
           ? "Ya está aplicado en tu ficha."
           : "Puedes volver a pedirlo con el documento que falta.",
-        nuevo: esNueva(fecha),
+        nuevo: esNueva(fecha) && !fueVista("solicitud_perfil", f.id),
         ir: "/mio/editar",
+        marcarVistoComo: { tipo: "solicitud_perfil", itemId: f.id },
       },
     });
   }
@@ -590,6 +621,7 @@ export function armarBandeja(fuentes: FuentesBandeja, hoy: string = hoyLima()): 
           detalle: `Lo pediste ${haceCuanto(fecha, hoy)}. Desarrollo Organizacional todavía no responde.`,
           nuevo: false,
           ir: null,
+          marcarVistoComo: null,
         },
       });
       continue;
@@ -605,8 +637,9 @@ export function armarBandeja(fuentes: FuentesBandeja, hoy: string = hoyLima()): 
         titulo: `Tus vacaciones ${rango} fueron ${f.estado === "aprobada" ? "aprobadas" : "rechazadas"}`,
         respuesta: f.respuesta?.trim() || null,
         detalle: f.estado === "aprobada" ? "Ya están cargadas en tu calendario." : null,
-        nuevo: esNueva(fecha),
+        nuevo: esNueva(fecha) && !fueVista("solicitud_vacacion", f.id),
         ir: null,
+        marcarVistoComo: { tipo: "solicitud_vacacion", itemId: f.id },
       },
     });
   }
@@ -624,6 +657,7 @@ export function armarBandeja(fuentes: FuentesBandeja, hoy: string = hoyLima()): 
           detalle: `Lo pediste ${haceCuanto(fecha, hoy)}. Todavía no lo revisan.`,
           nuevo: false,
           ir: null,
+          marcarVistoComo: null,
         },
       });
       continue;
@@ -640,8 +674,9 @@ export function armarBandeja(fuentes: FuentesBandeja, hoy: string = hoyLima()): 
         // una respuesta, y ocultarlo dejaría el pedido colgado para siempre.
         respuesta: f.respuesta?.trim() || null,
         detalle: f.respuesta?.trim() ? null : "Se revisó, sin nota escrita.",
-        nuevo: esNueva(fecha),
+        nuevo: esNueva(fecha) && !fueVista("revision", f.id),
         ir: null,
+        marcarVistoComo: { tipo: "revision", itemId: f.id },
       },
     });
   }
@@ -662,6 +697,7 @@ export function armarBandeja(fuentes: FuentesBandeja, hoy: string = hoyLima()): 
           detalle: `Lo pediste ${haceCuanto(fecha, hoy)}: «${f.motivo}». Todavía no lo revisan.`,
           nuevo: false,
           ir: "/mio/movilidad",
+          marcarVistoComo: null,
         },
       });
       continue;
@@ -675,8 +711,9 @@ export function armarBandeja(fuentes: FuentesBandeja, hoy: string = hoyLima()): 
         titulo: "Revisamos tu declaración de ruta",
         respuesta: f.respuesta?.trim() || null,
         detalle: f.respuesta?.trim() ? null : "Se revisó, sin nota escrita.",
-        nuevo: esNueva(fecha),
+        nuevo: esNueva(fecha) && !fueVista("revision_movilidad", f.id),
         ir: "/mio/movilidad",
+        marcarVistoComo: { tipo: "revision_movilidad", itemId: f.id },
       },
     });
   }
@@ -693,8 +730,9 @@ export function armarBandeja(fuentes: FuentesBandeja, hoy: string = hoyLima()): 
         titulo: `Tu turno cambió: ${f.valor_anterior} → ${f.valor_nuevo}`,
         respuesta: null,
         detalle: f.motivo,
-        nuevo: esNueva(fecha),
+        nuevo: esNueva(fecha) && !fueVista("cambio_turno", f.id),
         ir: "/mio?tab=turnos",
+        marcarVistoComo: { tipo: "cambio_turno", itemId: f.id },
       },
     });
   }
@@ -719,6 +757,7 @@ export function armarBandeja(fuentes: FuentesBandeja, hoy: string = hoyLima()): 
           detalle: `La enviaste ${haceCuanto(fecha, hoy)}. Desarrollo Organizacional todavía no la revisa.`,
           nuevo: false,
           ir,
+          marcarVistoComo: null,
         },
       });
       continue;
@@ -743,8 +782,9 @@ export function armarBandeja(fuentes: FuentesBandeja, hoy: string = hoyLima()): 
         detalle: aprobada
           ? `${f.institucion}. No tienes que hacer nada más con este pago.`
           : "Corrígela y vuelve a enviarla desde Educación. Lo que cobras este mes no cambia.",
-        nuevo: esNueva(fecha),
+        nuevo: esNueva(fecha) && !fueVista("entrega_educacion", f.id),
         ir,
+        marcarVistoComo: { tipo: "entrega_educacion", itemId: f.id },
       },
     });
   }
@@ -770,6 +810,7 @@ export function armarBandeja(fuentes: FuentesBandeja, hoy: string = hoyLima()): 
         detalle: `${pago}${plazo}Es el respaldo de tu apoyo educativo; subirla no cambia lo que cobras.`,
         nuevo: true,
         ir: `/mio/educacion?familia=${s.familia_id}`,
+        marcarVistoComo: null,
       },
     });
   }
@@ -843,7 +884,7 @@ export async function traerBandeja(
   hoy: string = hoyLima(),
 ): Promise<{ bandeja: Bandeja; noSePudo: string[] }> {
   const [perfil, catalogo, vacaciones, revisiones, contrato, memos, acuses, periodo, movilidad, revisionesMovilidad, turnos,
-    educacionEntregas, educacionSituacion] =
+    educacionEntregas, educacionSituacion, vistos] =
     await Promise.all([
     supabase.from("solicitudes_cambio_perfil")
       .select("id, campo, estado, creada_at, resuelta_at, motivo")
@@ -909,6 +950,14 @@ export async function traerBandeja(
     // En qué está cada estudio suyo: la misma función que lee el panel de DO,
     // filtrada abajo por persona por la misma razón.
     supabase.rpc("fn_educacion_situacion"),
+    // Qué ya marcó como visto ella misma (0436, extendida por la 0473). El
+    // `.eq` es cinturón y tirantes: `bandeja_vistos` hoy solo tiene una
+    // policy de lectura (la propia, sin excepción para admin ni líder — ver
+    // 0436), así que no hay una segunda policy que ensanche esto como sí
+    // pasa con `revisiones_pedidas` o `correcciones_auditoria` arriba, pero
+    // el filtro explícito no cuesta nada y evita tener que recordarlo si eso
+    // cambia. Falla suave: sin esto, todo se ve «nuevo», el lado seguro.
+    supabase.from("bandeja_vistos").select("tipo_item, item_id").eq("persona_id", personaId),
   ]);
 
   // Las jornadas del periodo, solo si hay periodo abierto. Va en su propia
@@ -947,6 +996,10 @@ export async function traerBandeja(
     })[]).map(({ asignaciones_educacion: a, ...e }) => ({ ...e, familia_id: a.familia_id, institucion: a.institucion })),
     educacionSituacion: ((educacionSituacion.data ?? []) as unknown as FilaEducacionSituacion[])
       .filter((s) => s.persona_id === personaId),
+    vistos: new Set(
+      ((vistos.data ?? []) as { tipo_item: string; item_id: string }[])
+        .map((v) => `${v.tipo_item}:${v.item_id}`),
+    ),
   }, hoy);
 
   return {

@@ -168,6 +168,25 @@ export default function MiBandejaPage() {
     return () => { vivo = false; };
   }, [cargar, router]);
 
+  // Marca como vistas (bandeja_vistos, 0436/0473) las respuestas que se
+  // acaban de pintar como «nuevo», para que la próxima vez que abra la
+  // Bandeja ya no lo estén — sin que dependa de que apriete «Verlo →», que ni
+  // siquiera existe para vacaciones o para un día revisado. Mismo patrón que
+  // ya usa /admin/bandeja: se dispara una vez por carga, en cuanto cambia la
+  // referencia de `bandeja`, nunca en cada render.
+  useEffect(() => {
+    if (!bandeja) return;
+    for (const m of bandeja.respuestas) {
+      if (m.nuevo && m.marcarVistoComo) {
+        void supabase.rpc("fn_bandeja_marcar_visto", {
+          p_tipo_item: m.marcarVistoComo.tipo,
+          p_item_id: m.marcarVistoComo.itemId,
+        });
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- una vez por carga, no por cada render.
+  }, [bandeja]);
+
   return (
     <main className="mx-auto min-h-screen w-full max-w-2xl bg-crema px-5 py-8 text-tinta">
       <Link href="/mio" className="text-sm text-taupe hover:text-tinta hover:underline">
