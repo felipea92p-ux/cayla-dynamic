@@ -182,7 +182,7 @@ function IncidenciasContenido() {
       traerTodo<unknown>((ini, fin) =>
         supabase
           .from("jornadas")
-          .select("persona_id, fecha, estado, entrada_ts, salida_final_ts, tiene_salida_no_retornada, personas:persona_id(nombres, apellidos, sedes:sede_base_id(codigo))")
+          .select("persona_id, fecha, estado, entrada_ts, salida_final_ts, tiene_salida_no_retornada, personas:persona_id(nombres, apellidos, estado, sedes:sede_base_id(codigo))")
           .gte("fecha", desde).lte("fecha", hasta)
           .order("fecha", { ascending: false })
           .order("persona_id")
@@ -193,7 +193,7 @@ function IncidenciasContenido() {
         supabase
           .from("jornadas")
           // `en_planilla` viaja para que el patrón se quede exclusivo de quien está en planilla (0413).
-          .select("persona_id, fecha, entrada_ts, personas:persona_id(nombres, apellidos, en_planilla, sedes:sede_base_id(codigo))")
+          .select("persona_id, fecha, entrada_ts, personas:persona_id(nombres, apellidos, en_planilla, estado, sedes:sede_base_id(codigo))")
           .gte("fecha", v.desdePatron).lte("fecha", HOY)
           .gt("minutos_tarde", 0)
           .order("fecha", { ascending: false })
@@ -220,7 +220,7 @@ function IncidenciasContenido() {
       traerTodo<unknown>((ini, fin) =>
         supabase
           .from("jornadas")
-          .select("persona_id, fecha, horas_trabajadas, estado, personas:persona_id(nombres, apellidos, tipo_vinculo, practicante_modalidad, sedes:sede_base_id(codigo))")
+          .select("persona_id, fecha, horas_trabajadas, estado, personas:persona_id(nombres, apellidos, tipo_vinculo, practicante_modalidad, estado, sedes:sede_base_id(codigo))")
           .gte("fecha", v.desdeHoras).lte("fecha", HOY)
           .gt("horas_trabajadas", 0)
           .order("persona_id")
@@ -229,7 +229,7 @@ function IncidenciasContenido() {
       traerTodo<unknown>((ini, fin) =>
         supabase
           .from("jornadas")
-          .select("persona_id, fecha, personas:persona_id(nombres, apellidos, sedes:sede_base_id(codigo))")
+          .select("persona_id, fecha, personas:persona_id(nombres, apellidos, estado, sedes:sede_base_id(codigo))")
           .gte("fecha", v.desdeRacha).lte("fecha", HOY)
           .gt("horas_trabajadas", 0)
           .order("persona_id")

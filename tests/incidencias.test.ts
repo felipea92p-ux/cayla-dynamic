@@ -8,7 +8,7 @@ import {
 const HOY = "2026-09-15";
 
 const persona = (nombres: string, sede = "AQP", extra: Record<string, unknown> = {}) => ({
-  nombres, apellidos: "Prueba", en_planilla: true, sedes: { codigo: sede }, ...extra,
+  nombres, apellidos: "Prueba", en_planilla: true, estado: "activo", sedes: { codigo: sede }, ...extra,
 });
 
 function datos(parcial: Partial<DatosDeteccion>): DatosDeteccion {
@@ -105,6 +105,18 @@ describe("cierres del día", () => {
     expect(r.aceptacion).toBeDefined();
     expect(r.aceptacionCaducada).toBeUndefined();
   });
+
+  it("quien ya cesó no genera avisos de marcación: la detección corre en vivo y nadie va a dar por revisado el día de alguien que ya se fue", () => {
+    const r = detectarIncidencias(datos({
+      jornadasRango: [{
+        persona_id: "p1", fecha: "2026-09-10", estado: "auto_cerrada_pendiente",
+        entrada_ts: "2026-09-10T14:00:00Z", salida_final_ts: "2026-09-10T23:00:00Z",
+        tiene_salida_no_retornada: true, personas: persona("Sasha", "AQP", { estado: "inactivo" }),
+      }],
+      salidaTemprana: [{ persona_id: "p1", fecha: "2026-09-10", minutos_salida_temprana: 142 }],
+    }));
+    expect(r).toEqual([]);
+  });
 });
 
 describe("patrón de tardanzas", () => {
@@ -141,6 +153,14 @@ describe("patrón de tardanzas", () => {
     }));
     expect(r).toEqual([]);
   });
+
+  it("a quien ya cesó no se le genera el aviso, aunque haya llegado tarde 4 veces en sus últimos días trabajados", () => {
+    const cesada = { estado: "inactivo" };
+    const r = detectarIncidencias(datos({
+      tardanzas: [tardanza("2026-09-09", cesada), tardanza("2026-09-01", cesada), tardanza("2026-08-20", cesada)],
+    }));
+    expect(r).toEqual([]);
+  });
 });
 
 describe("descanso semanal", () => {
@@ -159,6 +179,11 @@ describe("descanso semanal", () => {
     expect(r.tipo).toBe("racha_preventiva");
     expect(r.aceptable).toBeUndefined();
     expect(r.severidad).toBe("baja");
+  });
+
+  it("a quien ya cesó no se le genera el aviso de racha", () => {
+    const cesado = dias("2026-09-14", 7).map((j) => ({ ...j, personas: persona("Andrés", "LIM", { estado: "inactivo" }) }));
+    expect(detectarIncidencias(datos({ diasRacha: cesado }))).toEqual([]);
   });
 });
 
@@ -179,6 +204,14 @@ describe("exceso de jornada", () => {
     const [r] = detectarIncidencias(datos({ horasVentana: horas("2026-09-01", 7, 7.5) }));
     expect(r.tipo).toBe("jornada_excedida");
     expect(r.aceptable).toBe("jornada_excedida");
+  });
+
+  it("a quien ya cesó no se le genera el aviso de exceso de jornada", () => {
+    const filas = Array.from({ length: 7 }, (_, i) => ({
+      persona_id: "p1", fecha: addDias("2026-09-14", -i), horas_trabajadas: 7.5, estado: "cerrada",
+      personas: persona("Carmen", "TRU", { estado: "inactivo" }),
+    }));
+    expect(detectarIncidencias(datos({ horasVentana: filas }))).toEqual([]);
   });
 
   it("una practicante preprofesional se mide contra su propio tope, no contra 48", () => {
