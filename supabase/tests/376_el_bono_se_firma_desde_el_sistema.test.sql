@@ -52,6 +52,13 @@ insert into parametros_laborales (clave, valor, vigente_desde, sede_codigo)
 values ('bono_onomastico', 180.00, '2020-01-01', null)
 on conflict do nothing;
 
+-- Desde la 0478 el bono solo se pide en el mes del cumpleaños (o después):
+-- sin fecha de nacimiento, «con todo en regla» dejaría de estarlo. Las dos
+-- que firman cumplen este mes; lo que esta prueba defiende no cambia.
+insert into datos_personales (persona_id, fecha_nacimiento) values
+  ('00000000-0000-0000-0000-000000376001', make_date(1995, extract(month from fn_hoy_lima())::int, 10)),
+  ('00000000-0000-0000-0000-000000376004', make_date(1995, extract(month from fn_hoy_lima())::int, 10));
+
 -- ── 1 · Fuera de planilla no tiene bono que firmar ─────────────────────────
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000376012', true);
 select throws_ok(
