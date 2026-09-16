@@ -6,6 +6,57 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-09-15 — El MTPE deja de ser trámite para nadie (0470) · pegada en producción
+
+Felipe leyó que "el trámite del ministerio" no era necesario y pidió
+confirmarlo antes de tocar nada. Confirmado con tres fuentes independientes:
+el Decreto Legislativo N.° 1246 ("simplificación administrativa", vigente
+desde el 2016-11-11) eliminó la comunicación a la Autoridad Administrativa de
+Trabajo tanto para contratos sujetos a modalidad (modificó el art. 73, D.S.
+003-97-TR) como para convenios de modalidad formativa (derogó el último
+párrafo del art. 46, Ley 28518) — para AMBOS, no solo para el indefinido que
+la 0347 ya había eximido. Hoy se declara solo con la Planilla Electrónica.
+
+Alcance del arreglo:
+1. **`fn_contratos_tablero`** (migración
+   [0470](../supabase/migrations/0470_el_mtpe_ya_no_es_tramite_para_nadie.sql)):
+   `tramite_pendiente` ya no exige `comunicado_mtpe_at` a ningún tipo — solo
+   falta la copia. `comunicado_mtpe_at` se deja sin borrar (puede tener
+   fechas históricas anotadas de buena fe).
+2. **El texto del contrato** (`apps/web/lib/admin/contrato-texto.ts`): la
+   cláusula DÉCIMA OCTAVA de plazo fijo y convenio dejó de prometerle a quien
+   firma una comunicación al MTPE que la empresa ya no hace ni tiene dónde
+   hacer. Ya no distingue por tipo — es la misma cláusula para todos.
+3. **La pantalla** `/admin/contratos`: sin badge "MTPE" pendiente, sin botón
+   "Marcar comunicado al MTPE" (quedan dos: solo "Marcar copia entregada").
+   `ETIQUETA_CORTA.tramite_pendiente` pasa de "Falta trámite" a "Falta la
+   copia" — ya no hay caso especial para el indefinido, todos comparten la
+   misma regla.
+4. **La Bandeja** (`bandeja-urgencia.ts`, `bandeja-fuentes.ts`): el plazo de
+   `tramite_pendiente` es siempre el de la copia (inicio + 5); el texto
+   "Falta comunicar el contrato al MTPE" se retira.
+
+Auditado con control: prueba pgTAP nueva
+[373](../supabase/tests/373_el_mtpe_ya_no_es_tramite_para_nadie.test.sql) —
+un plazo fijo y un convenio de prácticas, firmados y con copia entregada pero
+SIN `comunicado_mtpe_at`, llegan a 'ok' con la 0470 puesta y a
+'tramite_pendiente' con el cuerpo anterior (0386) — confirma que el cambio es
+el que corrige, no una coincidencia. El indefinido (0347) no se movió.
+Verificado además en el navegador contra Postgres local: dos personas de
+prueba (plazo fijo y convenio) en estado real "Falta la copia", sin botón de
+MTPE, y al marcar la copia entregada pasan a "Vigente" sin pedir nada más.
+`pnpm typecheck` y `pnpm test` (743/743) en verde.
+
+**Md5 contra producción, hecho bien:** el de partida se pidió a producción
+ANTES de pegar y coincidió exacto con el que la migración asumía
+(`34df0321b7abfdc7cf030e23d8c8543b`, 4780 caracteres) — producción no se había
+movido desde la 0386. Felipe pegó la 0470 y el md5 de llegada volvió a
+coincidir con el declarado en el archivo (`85d99e5aafcfdc5737f7f142284e1a8a`,
+4288 caracteres). Cerrado: no queda ningún tipo de contrato al que este
+sistema le exija comunicar nada al MTPE.
+
+---
+
 ## 2026-09-15 — Quien ingresa después ya no se cuela en un periodo anterior (0463) · SIN PEGAR · SIN FUSIONAR
 
 Felipe reportó, mirando `/admin/planilla`: cinco practicantes que ingresaron

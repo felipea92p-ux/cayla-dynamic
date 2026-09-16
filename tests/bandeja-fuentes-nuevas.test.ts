@@ -46,11 +46,12 @@ describe("contratos", () => {
       .toMatchObject({ grupo: "proximo", plazo: "Vence en 10 días" });
   });
 
-  it("el trámite que falta decide el plazo: primero la copia, después el MTPE", () => {
+  it("el trámite pendiente siempre mide el plazo de la copia — el MTPE ya no es trámite de nadie (0470)", () => {
+    // mtpe_vence viaja en la fila (fn_contratos_tablero sigue devolviéndolo)
+    // pero ya no decide nada: `tramite_pendiente` solo significa "falta la
+    // copia", así que el plazo que se lee es siempre copia_vence.
     const tramite = { ...contratoBase, estado: "tramite_pendiente", copia_vence: "2026-09-17", mtpe_vence: "2026-09-10" };
     expect(urgenciaContrato(tramite, HOY)).toMatchObject({ grupo: "proximo", plazo: "Plazo vence en 2 días" });
-    expect(urgenciaContrato({ ...tramite, copia_entregada_at: "2026-09-12" }, HOY))
-      .toMatchObject({ grupo: "vencido", plazo: "Plazo venció hace 5 días" });
   });
 
   it("el riesgo art. 77 va primero de todo el grupo vencido", () => {
