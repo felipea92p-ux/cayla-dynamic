@@ -258,9 +258,11 @@ export function urgenciaContrato(c: FilaContrato, hoy: string = hoyLima()): Urge
       return { grupo: d === 0 ? "hoy" : "proximo", plazo: enDias(d, VENCE), nota: c.fecha_fin_contrato ? `el ${diaYMes(c.fecha_fin_contrato)}` : null, orden: d };
     }
     case "tramite_pendiente": {
-      // El trámite que falta primero: la copia (5 días desde el inicio) y
-      // luego la comunicación al MTPE (15 días desde la firma).
-      const limite = c.copia_entregada_at === null ? c.copia_vence : c.mtpe_vence;
+      // Desde la 0469, `tramite_pendiente` solo significa "falta la copia" —
+      // comunicar el contrato al MTPE ya no es trámite de nadie (D. Leg.
+      // 1246), así que el plazo que importa es siempre el de la copia (5
+      // días desde el inicio de la prestación).
+      const limite = c.copia_vence;
       if (!limite) return { grupo: "sin_plazo", plazo: "Trámite pendiente", nota: null, orden: 0 };
       const d = diasEntre(hoy, limite);
       return { grupo: d < 0 ? "vencido" : d === 0 ? "hoy" : "proximo", plazo: enDias(d, PLAZO), nota: `el ${diaYMes(limite)}`, orden: d };
