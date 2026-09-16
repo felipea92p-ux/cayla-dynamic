@@ -159,6 +159,7 @@ interface PersonaEmbebida {
   en_planilla?: boolean | null;
   tipo_vinculo?: string | null;
   practicante_modalidad?: string | null;
+  estado?: string | null;
   sedes: { codigo: string } | null;
 }
 interface ConPersona {
@@ -203,6 +204,15 @@ function quien(p: ConPersona) {
   };
 }
 
+/** Quien ya cesó no vuelve a aparecer en un aviso nuevo: la detección corre en
+ * vivo (ver encabezado), así que sin este corte un patrón de sus últimos días
+ * trabajados quedaría "por revisar" para siempre, sin nadie que pueda darlo
+ * por resuelto. El historial de disciplina y de planilla sigue viendo a
+ * quien cesó por su cuenta: esto solo afecta esta bandeja operativa. */
+function estaActiva(p: ConPersona): boolean {
+  return p.personas?.estado === "activo";
+}
+
 // ── La detección ───────────────────────────────────────────────────────────
 
 export function detectarIncidencias(d: DatosDeteccion): Incidencia[] {
@@ -241,6 +251,7 @@ export function detectarIncidencias(d: DatosDeteccion): Incidencia[] {
   for (const e of d.salidaTemprana) minutosPorClave.set(`${e.persona_id}|${e.fecha}`, e.minutos_salida_temprana ?? 0);
 
   for (const j of d.jornadasRango) {
+    if (!estaActiva(j)) continue;
     const base = { ...quien(j), fecha: j.fecha, entrada: j.entrada_ts, salida: j.salida_final_ts, valor: null };
     if (j.estado === "auto_cerrada_pendiente") {
       out.push(conAceptacion({
@@ -283,6 +294,7 @@ export function detectarIncidencias(d: DatosDeteccion): Incidencia[] {
     for (const j of d.tardanzas) {
       if (levantadas.has(`${j.persona_id}|${j.fecha}`)) continue;
       if (j.personas?.en_planilla !== true) continue;
+      if (!estaActiva(j)) continue;
       const prev = porPersona.get(j.persona_id);
       if (prev) prev.count++;
       else porPersona.set(j.persona_id, { count: 1, ultima: j });
@@ -310,6 +322,7 @@ export function detectarIncidencias(d: DatosDeteccion): Incidencia[] {
   // esconder una sobrecarga real): se dice que el exceso se apoya en ellos (0284).
   const porPersonaHoras = new Map<string, { dias: { fecha: string; horas: number }[]; sinConfirmar: Set<string>; fila: ConPersona }>();
   for (const j of d.horasVentana) {
+    if (!estaActiva(j)) continue;
     const dia = { fecha: j.fecha, horas: Number(j.horas_trabajadas) || 0 };
     const pendiente = j.estado === "auto_cerrada_pendiente";
     const prev = porPersonaHoras.get(j.persona_id);
@@ -365,6 +378,7 @@ export function detectarIncidencias(d: DatosDeteccion): Incidencia[] {
   // caduca vive en `avisoDeRacha`, con sus pruebas.
   const porPersonaDias = new Map<string, { fechas: string[]; fila: ConPersona }>();
   for (const j of d.diasRacha) {
+    if (!estaActiva(j)) continue;
     const prev = porPersonaDias.get(j.persona_id);
     if (prev) prev.fechas.push(j.fecha);
     else porPersonaDias.set(j.persona_id, { fechas: [j.fecha], fila: j });
