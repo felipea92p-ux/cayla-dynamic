@@ -102,7 +102,7 @@ export type OrigenBandeja =
   // se aprobó, y depende de ti subirla cuando pagas.
   | "educacion"
   // Lo que depende de ti. No caduca.
-  | "contrato" | "memo" | "acuse" | "marcaje" | "ruta"
+  | "contrato" | "memo" | "acuse" | "marcaje" | "ruta" | "bono"
   // Te lo hicieron a ti — no lo pediste, así que no hay nada "esperando" para
   // este origen — pero caduca igual que una respuesta: un turno ya guardado
   // no es algo que quede pendiente de hacer.
@@ -257,6 +257,12 @@ export interface FilaMovilidad {
   ruta_firmada_el: string | null;
   ruta_monto: number | null;
   ruta_desfasada: boolean;
+  // La misma fila trae también su bono de cumpleaños (0477): 'este_mes' y
+  // 'vencido' son los dos que le tocan a ELLA —puede firmar su constancia
+  // ya mismo, se paga por transferencia y no hace falta que nadie le
+  // entregue nada primero—. Los demás (proximo, sin_fecha, no_aplica) no
+  // son un pendiente todavía.
+  bono_estado: "ok" | "sin_fecha" | "no_aplica" | "este_mes" | "vencido" | "proximo" | null;
 }
 
 /** Una constancia de estudios suya (0450), de `educacion_entregas`, con su estudio. */
@@ -412,6 +418,10 @@ function instanteDe(resuelta: string | null, pedida: string): number {
  *              (0423). Menos urgente que el contrato —no define la relación
  *              entera— pero es plata suya de por medio, así que va antes que
  *              las obligaciones que son de la empresa.
+ *   bono     · la constancia de su bono de cumpleaños (0477), en el mes de
+ *              su onomástico o después. Mismo criterio que la ruta —plata
+ *              suya— justo después, porque a diferencia de la ruta no
+ *              sostiene un pago que se repite cada periodo.
  *   acuse    · obligación legal de la EMPRESA (Ley 30709, RIT). Importa, pero
  *              quien queda expuesta si falta no es ella.
  *   marcaje  · se arregla mientras el periodo siga abierto, y hasta entonces
@@ -420,7 +430,7 @@ function instanteDe(resuelta: string | null, pedida: string): number {
 //   educacion · la constancia de su apoyo educativo (0450). Como la ruta, es
 //              plata suya de por medio, pero no le cambia el pago de este mes
 //              (decisión «solo alerta»): va justo después.
-const PESO_PENDIENTE: Record<string, number> = { memo: 0, contrato: 1, ruta: 2, educacion: 2.5, acuse: 3, marcaje: 4 };
+const PESO_PENDIENTE: Record<string, number> = { memo: 0, contrato: 1, ruta: 2, bono: 2.2, educacion: 2.5, acuse: 3, marcaje: 4 };
 
 export function armarBandeja(fuentes: FuentesBandeja, hoy: string = hoyLima()): Bandeja {
   const respuestas: { m: MensajeBandeja; instante: number }[] = [];
@@ -480,6 +490,26 @@ export function armarBandeja(fuentes: FuentesBandeja, hoy: string = hoyLima()): 
           : "Sostiene que tu movilidad no pague impuestos ni descuentos. Fírmala desde el sistema — no hace falta imprimir ni escanear nada.",
         nuevo: true,
         ir: "/mio/movilidad",
+        marcarVistoComo: null,
+      },
+    });
+  }
+
+  // El bono de cumpleaños (0477). Aparece en el mes de su onomástico
+  // ('este_mes') o si ya pasó y sigue sin firmar ('vencido') — se paga por
+  // transferencia, así que no hace falta que nadie le entregue nada primero
+  // para que pueda firmar su constancia.
+  if (fuentes.movilidad &&
+      (fuentes.movilidad.bono_estado === "este_mes" || fuentes.movilidad.bono_estado === "vencido")) {
+    pendientes.push({
+      instante: 0,
+      m: {
+        clave: "bono:constancia", origen: "bono", estado: "por_firmar", fecha: hoy,
+        titulo: "Falta tu firma en la constancia de tu bono de cumpleaños",
+        respuesta: null,
+        detalle: "Sostiene la causa de tu asignación por onomástico. Fírmala desde el sistema — no hace falta imprimir ni escanear nada.",
+        nuevo: true,
+        ir: "/mio/cumpleanos",
         marcarVistoComo: null,
       },
     });

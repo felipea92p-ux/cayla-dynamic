@@ -5357,6 +5357,7 @@ export type Database = {
         Args: { p_anio: number | null; p_persona_id: string | null; p_ventana: string | null }
         Returns: number
       }
+      fn_bono_monto_vigente: { Args: never; Returns: number }
       fn_borrar_dni_de: {
         Args: { p_motivo: string | null; p_persona_id: string | null }
         Returns: {
@@ -5440,6 +5441,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      fn_confirmar_mi_bono_cumpleanos: { Args: never; Returns: string }
       fn_confirmar_mi_declaracion_ruta: {
         Args: {
           p_distrito: string | null

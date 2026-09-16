@@ -611,3 +611,44 @@ describe("armarBandeja · visto (0473)", () => {
     expect(b.pendientes[0].nuevo).toBe(true);
   });
 });
+
+// ── El bono de cumpleaños (0477) ────────────────────────────────────────────
+// Se paga por transferencia: a diferencia de un candado de entrega en mano,
+// acá basta con que sea su mes (o que ya haya pasado sin firmar) para que le
+// toque a ella. 'proximo', 'sin_fecha' y 'no_aplica' todavía no son un
+// pendiente — avisárselos sería pedirle que resuelva algo que no puede
+// resolver todavía.
+describe("armarBandeja · bono de cumpleaños", () => {
+  it.each(["este_mes", "vencido"] as const)(
+    "bono_estado = %s le toca a ella, y lleva a /mio/cumpleanos",
+    (estado) => {
+      const b = armarBandeja({
+        ...VACIO,
+        movilidad: {
+          estado: "ok", ruta_firmada_el: "2026-08-01", ruta_monto: 10, ruta_desfasada: false,
+          bono_estado: estado,
+        },
+      }, HOY);
+
+      expect(b.pendientes).toHaveLength(1);
+      expect(b.pendientes[0].clave).toBe("bono:constancia");
+      expect(b.pendientes[0].ir).toBe("/mio/cumpleanos");
+      expect(b.pendientes[0].marcarVistoComo).toBeNull();
+    },
+  );
+
+  it.each(["proximo", "sin_fecha", "no_aplica", "ok", null] as const)(
+    "bono_estado = %s no le pide nada a ella todavía",
+    (estado) => {
+      const b = armarBandeja({
+        ...VACIO,
+        movilidad: {
+          estado: "ok", ruta_firmada_el: "2026-08-01", ruta_monto: 10, ruta_desfasada: false,
+          bono_estado: estado,
+        },
+      }, HOY);
+
+      expect(b.pendientes.filter((m) => m.origen === "bono")).toHaveLength(0);
+    },
+  );
+});
