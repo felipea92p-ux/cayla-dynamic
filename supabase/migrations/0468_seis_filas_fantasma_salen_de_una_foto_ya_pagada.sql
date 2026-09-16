@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0467 · seis filas fantasma salen de una foto ya pagada
+-- 0468 · seis filas fantasma salen de una foto ya pagada
 -- ============================================================================
 -- QUÉ PROMETE
 --
@@ -125,15 +125,15 @@ begin
      and d.total = 0.00;
 
   if v_n = 0 then
-    raise notice '0467 · ninguna de las seis filas fantasma existe ya (aplicado antes, o esta base nunca las tuvo). Nada que hacer.';
+    raise notice '0468 · ninguna de las seis filas fantasma existe ya (aplicado antes, o esta base nunca las tuvo). Nada que hacer.';
     return;
   end if;
 
   if v_n <> 6 then
-    raise exception '0467 · PARA. Se esperaban las seis filas auditadas el 2026-09-15 (persona, periodo, version, total = 0.00 exacto) y se encontraron %. Algo cambió desde la auditoría. No se borró nada.', v_n;
+    raise exception '0468 · PARA. Se esperaban las seis filas auditadas el 2026-09-15 (persona, periodo, version, total = 0.00 exacto) y se encontraron %. Algo cambió desde la auditoría. No se borró nada.', v_n;
   end if;
 
-  raise notice '0467 · las seis filas verificadas, procediendo a borrarlas: %', v_filas;
+  raise notice '0468 · las seis filas verificadas, procediendo a borrarlas: %', v_filas;
 
   -- ── Apaga el candado de inmutabilidad, SOLO por esta transacción ─────────
   drop trigger if exists trg_foto_es_inmutable on planilla_pagada_detalle;
@@ -146,7 +146,7 @@ begin
 
   get diagnostics v_n = row_count;
   if v_n <> 6 then
-    raise exception '0467 · PARA. Se esperaba borrar 6 filas y se borraron %. Revisa antes de continuar — el candado ya está apagado.', v_n;
+    raise exception '0468 · PARA. Se esperaba borrar 6 filas y se borraron %. Revisa antes de continuar — el candado ya está apagado.', v_n;
   end if;
 
   -- ── Y lo vuelve a encender, en la misma transacción ───────────────────────
@@ -154,12 +154,12 @@ begin
     before update or delete on planilla_pagada_detalle
     for each row execute function fn_trg_foto_es_inmutable();
 
-  raise notice '0467 · seis filas fantasma borradas. Candado de inmutabilidad reactivado.';
+  raise notice '0468 · seis filas fantasma borradas. Candado de inmutabilidad reactivado.';
 end;
 $$;
 
 insert into migraciones_aplicadas (numero, nombre) values
-  (467, 'seis_filas_fantasma_salen_de_una_foto_ya_pagada')
+  (468, 'seis_filas_fantasma_salen_de_una_foto_ya_pagada')
 on conflict (numero) do update set nombre = excluded.nombre, aplicada_at = now();
 
 -- ── Comprobación ─────────────────────────────────────────────────────────
