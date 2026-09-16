@@ -65,6 +65,7 @@ import { Insignia } from "@/components/ui/insignia";
 import { Campo, CampoSelect, CampoCasilla } from "@/components/ui/campo";
 import { Boton } from "@/components/ui/boton";
 import { Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
+import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
 import { X, Search } from "lucide-react";
 
 // Por encima de esto la cuadrícula deja de ayudar y empieza a colgar el
@@ -1054,36 +1055,36 @@ function DesempenoContenido() {
   return (
     <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
-        <div className="mb-4 flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <h1 className="font-serif text-2xl">Desempeño del equipo</h1>
-            <p className="mt-0.5 text-sm text-taupe">Toca una fila y su desempeño se abre debajo. Cada cuadrito es un día: tócalo para ver qué pasó y resolverlo ahí mismo.</p>
-          </div>
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="flex gap-1 rounded-lg border p-1 text-sm">
-              {/* La más usada primero: es lo que una encargada mira el lunes
-                  por la mañana, y antes había que armarla a mano con los dos
-                  calendarios.
-                  Nativos a propósito: esto es un control segmentado (varias
-                  opciones dentro de un mismo marco), no un botón suelto —
-                  <Boton> siempre trae su propio padding/tamaño y forzarlo acá
-                  rompería el marco compartido "rounded-lg border p-1". */}
-              <button onClick={() => aplicarPreset("semana")} className="rounded-md px-2.5 py-1 hover:bg-sand/60">Esta semana</button>
-              <button onClick={() => aplicarPreset("mes")} className="rounded-md px-2.5 py-1 hover:bg-sand/60">Este mes</button>
-              <button onClick={() => aplicarPreset("mesPasado")} className="rounded-md px-2.5 py-1 hover:bg-sand/60">Mes pasado</button>
-              {periodo && (
-                <button onClick={() => { setDesde(periodo.fecha_ini); setHasta(periodo.fecha_fin); }}
-                  className="rounded-md px-2.5 py-1 hover:bg-sand/60"
-                  title={`Periodo en curso: ${periodo.fecha_ini} a ${periodo.fecha_fin}`}>
-                  Periodo de planilla
-                </button>
-              )}
-              <button onClick={() => aplicarPreset("anio")} className="rounded-md px-2.5 py-1 hover:bg-sand/60">Todo el año</button>
+        <CabeceraPagina
+          titulo="Desempeño del equipo"
+          descripcion="Toca una fila y su desempeño se abre debajo. Cada cuadrito es un día: tócalo para ver qué pasó y resolverlo ahí mismo."
+          accion={
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="flex gap-1 rounded-lg border p-1 text-sm">
+                {/* La más usada primero: es lo que una encargada mira el lunes
+                    por la mañana, y antes había que armarla a mano con los dos
+                    calendarios.
+                    Nativos a propósito: esto es un control segmentado (varias
+                    opciones dentro de un mismo marco), no un botón suelto —
+                    <Boton> siempre trae su propio padding/tamaño y forzarlo acá
+                    rompería el marco compartido "rounded-lg border p-1". */}
+                <button onClick={() => aplicarPreset("semana")} className="rounded-md px-2.5 py-1 hover:bg-sand/60">Esta semana</button>
+                <button onClick={() => aplicarPreset("mes")} className="rounded-md px-2.5 py-1 hover:bg-sand/60">Este mes</button>
+                <button onClick={() => aplicarPreset("mesPasado")} className="rounded-md px-2.5 py-1 hover:bg-sand/60">Mes pasado</button>
+                {periodo && (
+                  <button onClick={() => { setDesde(periodo.fecha_ini); setHasta(periodo.fecha_fin); }}
+                    className="rounded-md px-2.5 py-1 hover:bg-sand/60"
+                    title={`Periodo en curso: ${periodo.fecha_ini} a ${periodo.fecha_fin}`}>
+                    Periodo de planilla
+                  </button>
+                )}
+                <button onClick={() => aplicarPreset("anio")} className="rounded-md px-2.5 py-1 hover:bg-sand/60">Todo el año</button>
+              </div>
+              <Campo etiqueta="Desde" type="date" value={desde} onChange={(e) => setDesde(e.target.value)} />
+              <Campo etiqueta="Hasta" type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} />
             </div>
-            <Campo etiqueta="Desde" type="date" value={desde} onChange={(e) => setDesde(e.target.value)} />
-            <Campo etiqueta="Hasta" type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} />
-          </div>
-        </div>
+          }
+        />
 
         <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-sand bg-papel px-4 py-3 text-sm">
           <div className="relative">

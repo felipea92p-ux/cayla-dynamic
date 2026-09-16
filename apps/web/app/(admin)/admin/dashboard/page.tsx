@@ -10,6 +10,7 @@ import { Boton } from "@/components/ui/boton";
 import { Insignia } from "@/components/ui/insignia";
 import { Campo, CampoCasilla, CampoSelect } from "@/components/ui/campo";
 import { Fila, Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
+import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
 import {
   TZ_LIMA, esRolEncargada, hoyLima, formatoMinutos, puedeVerTodasLasSedes,
 } from "@cayla-dynamic/shared";
@@ -770,45 +771,49 @@ export default function DashboardPage() {
   return (
     <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6 sm:p-8">
-        <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <h1 className="font-serif text-3xl font-medium leading-tight">Asistencia de hoy</h1>
-            <p className="mt-1.5 flex items-center gap-2 text-xs text-taupe">
-              {cargando && filas.length === 0 ? (
-                "Cargando…"
-              ) : (
-                <>
-                  <span className="relative flex h-2 w-2" aria-hidden>
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-verde/60" />
-                    <span className="relative inline-flex h-2 w-2 rounded-full bg-verde" />
-                  </span>
-                  En vivo · actualizado {actualizado} · se refresca cada 30s
-                </>
+        <CabeceraPagina
+          titulo="Asistencia de hoy"
+          descripcion={
+            <>
+              <div className="flex items-center gap-2">
+                {cargando && filas.length === 0 ? (
+                  "Cargando…"
+                ) : (
+                  <>
+                    <span className="relative flex h-2 w-2" aria-hidden>
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-verde/60" />
+                      <span className="relative inline-flex h-2 w-2 rounded-full bg-verde" />
+                    </span>
+                    En vivo · actualizado {actualizado} · se refresca cada 30s
+                  </>
+                )}
+              </div>
+              {/* Honesto sobre el alcance real de "en vivo": Disciplina y Contratos
+                  no van en el mismo refresco de 30s (cambian una vez al día, no
+                  cada medio minuto) — decirlo evita la promesa que el título de
+                  arriba no cumple para esas dos franjas. */}
+              <div className="mt-0.5 text-taupe">Disciplina y Contratos se cargan al abrir la pantalla — recarga para verlos al día.</div>
+              {/* Aviso discreto, no un banner: alguien de vacaciones podría verse como
+                  "sin marcar" mientras esta consulta no responda. Menos grave que
+                  Contratos o la alerta de sede — por eso no interrumpe la pantalla. */}
+              {ausenciasNoRespondieron && (
+                <div className="mt-1 text-ambar" title="Alguien de vacaciones podría verse como 'Sin marcar' mientras esto no se pueda comprobar.">
+                  ⚠ no se pudo comprobar las ausencias de hoy
+                </div>
               )}
-            </p>
-            {/* Honesto sobre el alcance real de "en vivo": Disciplina y Contratos
-                no van en el mismo refresco de 30s (cambian una vez al día, no
-                cada medio minuto) — decirlo evita la promesa que el título de
-                arriba no cumple para esas dos franjas. */}
-            <p className="mt-0.5 text-xs text-taupe">Disciplina y Contratos se cargan al abrir la pantalla — recarga para verlos al día.</p>
-            {/* Aviso discreto, no un banner: alguien de vacaciones podría verse como
-                "sin marcar" mientras esta consulta no responda. Menos grave que
-                Contratos o la alerta de sede — por eso no interrumpe la pantalla. */}
-            {ausenciasNoRespondieron && (
-              <p className="mt-1 text-xs text-ambar" title="Alguien de vacaciones podría verse como 'Sin marcar' mientras esto no se pueda comprobar.">
-                ⚠ no se pudo comprobar las ausencias de hoy
-              </p>
-            )}
-          </div>
-          <a
-            href={URL_SHEET_ASISTENCIA}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="rounded-xl border border-sand bg-papel px-4 py-2 text-sm font-medium text-tinta transition-all hover:-translate-y-0.5 hover:border-taupe"
-          >
-            Ver en Google Sheets ↗
-          </a>
-        </div>
+            </>
+          }
+          accion={
+            <a
+              href={URL_SHEET_ASISTENCIA}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded-control border border-sand bg-papel px-4 py-2 text-sm font-medium text-tinta transition-all hover:-translate-y-0.5 hover:border-taupe"
+            >
+              Ver en Google Sheets ↗
+            </a>
+          }
+        />
 
         {error && (
           <div className="mb-6 rounded-2xl border border-rojo/20 bg-rojo/[0.06] px-4 py-3 text-sm text-rojo-profundo">

@@ -10,7 +10,14 @@
 // también a "+ Registrar asignación" en Educación. Envolver a una segunda
 // línea es estrictamente mejor que recortar la acción principal de la
 // pantalla; en desktop nunca hay tan poco ancho como para que dispare.
-
+//
+// `descripcion` va en un `<div>`, no en un `<p>` (2026-09-16): Dashboard y
+// Horas nunca adoptaron esta cabecera porque su descripción real es más de
+// una línea (el punto "en vivo", el aviso de qué NO se refresca, filtros de
+// rango) y un `<p>` no puede contener otros bloques sin que el navegador
+// cierre la etiqueta antes de tiempo. Un `<div>` con `mt-1 text-sm text-taupe`
+// se ve idéntico para el caso de una sola línea de texto (Tailwind ya pone
+// todos los márgenes en cero) y además admite varias.
 import type { ReactNode } from "react";
 
 export function CabeceraPagina({
@@ -29,7 +36,7 @@ export function CabeceraPagina({
           {titulo}
         </h1>
         {descripcion && (
-          <p className="mt-1 max-w-2xl text-sm text-taupe">{descripcion}</p>
+          <div className="mt-1 max-w-2xl text-sm text-taupe">{descripcion}</div>
         )}
       </div>
       {accion && <div className="shrink-0">{accion}</div>}
