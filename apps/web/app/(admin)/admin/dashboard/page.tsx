@@ -206,8 +206,9 @@ function EstadoCelda({ f, linkCorregir, ahoraDecimal }: { f: FilaPersona; linkCo
 // La tabla de personas de una sede: filas en escritorio, tarjetas en celular.
 // Un solo componente para que cualquier lista de personas de esta pantalla se
 // vea y se corrija igual — cada fila con tardanza o auto-cierre enlaza a
-// Correcciones de esa persona ese día.
-function TablaPersonas({ filas, linkCorregir, ahoraDecimal }: { filas: FilaPersona[]; linkCorregir: (personaId: string) => string; ahoraDecimal: number }) {
+// Correcciones de esa persona ese día. `conSede` agrega la columna cuando la
+// lista mezcla sedes (el detalle de un número del resumen).
+function TablaPersonas({ filas, linkCorregir, ahoraDecimal, conSede = false }: { filas: FilaPersona[]; linkCorregir: (personaId: string) => string; ahoraDecimal: number; conSede?: boolean }) {
   return (
     <>
       {/* Escritorio: tabla completa. En celular una tabla de 5 columnas no
@@ -217,6 +218,7 @@ function TablaPersonas({ filas, linkCorregir, ahoraDecimal }: { filas: FilaPerso
         <Tabla>
           <TablaEncabezado>
             <Th>Nombre</Th>
+            {conSede && <Th>Sede</Th>}
             <Th>Estado</Th>
             <Th>Entrada</Th>
             <Th>Tardanza</Th>
@@ -226,11 +228,14 @@ function TablaPersonas({ filas, linkCorregir, ahoraDecimal }: { filas: FilaPerso
             {filas.map((f) => (
               <Fila key={f.personaId}>
                 <td className="px-4 py-2.5">{f.nombre}</td>
+                {conSede && <td className="px-4 py-2.5 text-taupe">{f.sede}</td>}
                 <td className="px-4 py-2.5">
                   <EstadoCelda f={f} linkCorregir={linkCorregir} ahoraDecimal={ahoraDecimal} />
                 </td>
-                <td className="px-4 py-2.5">{horaLima(f.entrada)}</td>
-                <td className="px-4 py-2.5">
+                {/* nowrap en horas y tardanza: con la columna Sede, "08:00 a. m." se
+                    partía en dos líneas por debajo de ~900 px. */}
+                <td className="whitespace-nowrap px-4 py-2.5">{horaLima(f.entrada)}</td>
+                <td className="whitespace-nowrap px-4 py-2.5">
                   {f.minutosTarde === null || f.minutosTarde === 0 ? (
                     <span className="text-taupe/40">—</span>
                   ) : (
@@ -239,7 +244,7 @@ function TablaPersonas({ filas, linkCorregir, ahoraDecimal }: { filas: FilaPerso
                     </Link>
                   )}
                 </td>
-                <td className="px-4 py-2.5">
+                <td className="whitespace-nowrap px-4 py-2.5">
                   {horaLima(f.salidaFinal)}
                   {f.salidaTemprana ? (
                     <Link href={linkCorregir(f.personaId)} className="ml-2 transition-opacity hover:opacity-80">
@@ -258,7 +263,10 @@ function TablaPersonas({ filas, linkCorregir, ahoraDecimal }: { filas: FilaPerso
         {filas.map((f) => (
           <div key={f.personaId} className="rounded-superficie border border-sand bg-hueso p-4">
             <div className="mb-2 flex items-center justify-between gap-2">
-              <span className="font-medium">{f.nombre}</span>
+              <span className="font-medium">
+                {f.nombre}
+                {conSede && <span className="font-normal text-taupe"> · {f.sede}</span>}
+              </span>
               <span className="shrink-0">
                 <EstadoCelda f={f} linkCorregir={linkCorregir} ahoraDecimal={ahoraDecimal} />
               </span>
@@ -371,6 +379,19 @@ function calcularCoberturaSede(deSede: FilaPersona[], meta: MetaSede, tramoTarde
     faltanOp, faltanEnc, problema: faltanOp || faltanEnc, sinMarcarReal, programadosHoy, alertaSinEntrada,
   };
 }
+
+// "2 operativas y 1 encargada": lo que le falta a una sede para su meta de
+// ahora. Lo dicen "Requiere atención" y el detalle de "Sedes bajo mínimo", con
+// las mismas palabras.
+function loQueFalta(cob: CoberturaSede): string {
+  const partes: string[] = [];
+  if (cob.faltanOp) partes.push(`${cob.metaOp - cob.opPiso} operativa${cob.metaOp - cob.opPiso === 1 ? "" : "s"}`);
+  if (cob.faltanEnc) partes.push(`${cob.metaEnc - cob.encPiso} encargada${cob.metaEnc - cob.encPiso === 1 ? "" : "s"}`);
+  return partes.join(" y ");
+}
+
+// Los cuatro números del resumen. Cada uno abre su detalle debajo al hacer clic.
+type ClaveResumen = "trabajando" | "tardanzas" | "sin_marcar" | "bajo_minimo";
 
 // "Faltan 3" / "Falta 1" — concordancia real, no un texto fijo por métrica.
 function faltanTexto(n: number): string {
@@ -495,6 +516,10 @@ export default function DashboardPage() {
   // Qué sedes tienen su tabla de personas abierta manualmente (más allá de lo
   // que fuercen los filtros). Por sede, no global: cada una se expande aparte.
   const [detalleAbierto, setDetalleAbierto] = useState<Record<string, boolean>>({});
+  // Qué número del resumen tiene su detalle abierto. No se guarda entre visitas
+  // a propósito: abrir mañana la pantalla y encontrarla mostrando solo las
+  // tardanzas de ayer haría creer que no hay nada más.
+  const [resumenAbierto, setResumenAbierto] = useState<ClaveResumen | null>(null);
 
   // Semáforo disciplinario para la franja (aparte del refresco de asistencia).
   useEffect(() => {
@@ -792,10 +817,24 @@ export default function DashboardPage() {
   });
 
   // ---------- Resumen global ----------
-  const trabajandoAhoraTotal = filas.filter(estaTrabajando).length;
-  const tardanzasHoyTotal = filas.filter(llegoTarde).length;
-  const sinMarcarRealTotal = filas.filter((f) => sinMarcarYaLeTocaba(f, ahoraDecimal)).length;
-  const sedesBajoMinimo = sedes.filter((s) => coberturaPorSede.get(s.sedeId)!.problema).length;
+  // El número de cada tarjeta ES el largo de la lista que abre al hacer clic —
+  // no una cuenta aparte—, así "10 tardanzas" y las filas del detalle no pueden
+  // salir de dos reglas distintas. Orden del detalle: por sede y, dentro, por
+  // nombre (el orden en que ya llegan las personas).
+  const porSede = (a: FilaPersona, b: FilaPersona) => a.sede.localeCompare(b.sede);
+  const personasDelResumen: Record<Exclude<ClaveResumen, "bajo_minimo">, FilaPersona[]> = {
+    trabajando: filas.filter(estaTrabajando).sort(porSede),
+    tardanzas: filas.filter(llegoTarde).sort(porSede),
+    sin_marcar: filas.filter((f) => sinMarcarYaLeTocaba(f, ahoraDecimal)).sort(porSede),
+  };
+  const sedesBajoMinimo = sedes.filter((s) => coberturaPorSede.get(s.sedeId)!.problema);
+  const resumen: { clave: ClaveResumen; label: string; n: number; color: string }[] = [
+    { clave: "trabajando", label: "Trabajando ahora", n: personasDelResumen.trabajando.length, color: personasDelResumen.trabajando.length > 0 ? "text-verde" : "text-tinta" },
+    { clave: "tardanzas", label: "Tardanzas hoy", n: personasDelResumen.tardanzas.length, color: personasDelResumen.tardanzas.length > 0 ? "text-rojo" : "text-tinta" },
+    { clave: "sin_marcar", label: "Sin marcar cuando ya debían", n: personasDelResumen.sin_marcar.length, color: personasDelResumen.sin_marcar.length > 0 ? "text-rojo" : "text-verde" },
+    { clave: "bajo_minimo", label: "Sedes bajo mínimo", n: sedesBajoMinimo.length, color: sedesBajoMinimo.length > 0 ? "text-rojo" : "text-verde" },
+  ];
+  const resumenDetalle = resumen.find((k) => k.clave === resumenAbierto) ?? null;
 
   // ---------- Disciplina, ya cargada arriba — hoisted para el resumen y el panel único ----------
   // Cualquier escalón alcanzado va en rojo, no solo la amonestación. Comparar
@@ -824,6 +863,17 @@ export default function DashboardPage() {
     setSedeFiltro("todas");
   }
   const sedesMostradas = sedeFiltro === "todas" ? sedes : sedes.filter((s) => s.codigo === sedeFiltro);
+  // Desde el detalle de "Sedes bajo mínimo" a la tarjeta de esa sede. Primero se
+  // quita el filtro de sede —si la tenía oculta, la tarjeta no existe— y se baja
+  // en el cuadro siguiente, cuando React ya la pintó. Un <a href="#…"> saltaba
+  // antes de eso y no llegaba a ningún lado.
+  function irASede(codigo: string) {
+    setSedeFiltro("todas");
+    const suave = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    requestAnimationFrame(() =>
+      document.getElementById(`sede-${codigo}`)?.scrollIntoView({ behavior: suave ? "smooth" : "auto", block: "start" }),
+    );
+  }
 
   // ---------- Requiere atención (cobertura + Disciplina, en un solo panel) ----------
   interface ItemAtencion { key: string; sede: string; texto: string; href?: string; tono: "critico" | "advertencia" }
@@ -837,10 +887,7 @@ export default function DashboardPage() {
       });
     }
     if (cob.faltanOp || cob.faltanEnc) {
-      const partes: string[] = [];
-      if (cob.faltanOp) partes.push(`${cob.metaOp - cob.opPiso} operativa${cob.metaOp - cob.opPiso === 1 ? "" : "s"}`);
-      if (cob.faltanEnc) partes.push(`${cob.metaEnc - cob.encPiso} encargada${cob.metaEnc - cob.encPiso === 1 ? "" : "s"}`);
-      itemsAtencion.push({ key: `cobertura-${s.sedeId}`, sede: s.codigo, tono: "advertencia", texto: `faltan ${partes.join(" y ")}` });
+      itemsAtencion.push({ key: `cobertura-${s.sedeId}`, sede: s.codigo, tono: "advertencia", texto: `faltan ${loQueFalta(cob)}` });
     }
     if (cob.sinMarcarReal > 0) {
       itemsAtencion.push({
@@ -962,19 +1009,81 @@ export default function DashboardPage() {
                 gris claro a un metro de la pantalla. Rojo y no rojo-profundo:
                 a 36px basta 3:1 (5.17 claro, 4.28 oscuro), y rojo-profundo se
                 lee café sobre papel. */}
-            <div className="mb-6 grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-sand bg-sand sm:grid-cols-4">
-              {[
-                { n: trabajandoAhoraTotal, label: "Trabajando ahora", color: trabajandoAhoraTotal > 0 ? "text-verde" : "text-tinta" },
-                { n: tardanzasHoyTotal, label: "Tardanzas hoy", color: tardanzasHoyTotal > 0 ? "text-rojo" : "text-tinta" },
-                { n: sinMarcarRealTotal, label: "Sin marcar cuando ya debían", color: sinMarcarRealTotal > 0 ? "text-rojo" : "text-verde" },
-                { n: sedesBajoMinimo, label: "Sedes bajo mínimo", color: sedesBajoMinimo > 0 ? "text-rojo" : "text-verde" },
-              ].map((k) => (
-                <div key={k.label} className="bg-papel px-5 py-4">
-                  <div className={`font-serif text-4xl font-medium leading-none tabular-nums ${k.color}`}>{k.n}</div>
-                  <div className="mt-2 text-sm text-taupe">{k.label}</div>
-                </div>
-              ))}
+            {/* Cada número es un botón que abre su detalle justo debajo, y un
+                segundo clic lo cierra. En cero no se puede abrir: no hay nada
+                que mostrar, y un botón que abre una lista vacía enseña que
+                hacer clic no sirve. El contorno de foco va hacia adentro
+                (outline-offset negativo): el contenedor recorta lo que sale.
+                `flex-col justify-start` porque un <button> centra su contenido
+                en vertical, y la tarjeta con la etiqueta en dos líneas dejaba
+                su número más arriba que las otras tres. */}
+            <div className={`${resumenDetalle ? "mb-3" : "mb-6"} grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-sand bg-sand sm:grid-cols-4`}>
+              {resumen.map((k) => {
+                const abierto = resumenAbierto === k.clave;
+                return (
+                  <button
+                    key={k.clave}
+                    type="button"
+                    disabled={k.n === 0}
+                    aria-expanded={k.n === 0 ? undefined : abierto}
+                    aria-controls="detalle-resumen"
+                    aria-label={`${k.label}: ${k.n}`}
+                    onClick={() => setResumenAbierto(abierto ? null : k.clave)}
+                    className={`flex flex-col justify-start px-5 py-4 text-left transition-colors focus-visible:outline-offset-[-3px] disabled:cursor-default ${abierto ? "bg-hueso" : "bg-papel enabled:hover:bg-crema"}`}
+                  >
+                    {/* <span> y no <div>: dentro de un <button> HTML solo admite
+                        contenido de frase. */}
+                    <span className="flex items-start justify-between gap-2">
+                      <span className={`font-serif text-4xl font-medium leading-none tabular-nums ${k.color}`}>{k.n}</span>
+                      {k.n > 0 && (
+                        <span aria-hidden className={`text-xs ${abierto ? "font-medium text-tinta" : "text-taupe"}`}>{abierto ? "Cerrar ↑" : "Ver ↓"}</span>
+                      )}
+                    </span>
+                    <span className="mt-2 block text-sm text-taupe">{k.label}</span>
+                  </button>
+                );
+              })}
             </div>
+
+            {/* DETALLE DEL NÚMERO ABIERTO. De todas las sedes a la vista, sin
+                los filtros de más arriba: el número tampoco los aplica, y si la
+                lista los aplicara, al "10" le respondería una lista de 3. */}
+            {resumenDetalle && (
+              <section id="detalle-resumen" className="mb-8 rounded-2xl border border-sand bg-papel p-5">
+                <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+                  <h2 className="font-serif text-xl font-medium">
+                    {resumenDetalle.label} <span className="text-taupe">· {resumenDetalle.n}</span>
+                  </h2>
+                  <Boton variante="enlace" tamano="sm" onClick={() => setResumenAbierto(null)}>
+                    Cerrar ↑
+                  </Boton>
+                </div>
+                {resumenDetalle.clave === "bajo_minimo" ? (
+                  // Sedes, no personas: el detalle es qué le falta a cada una, y
+                  // un enlace a su tarjeta de más abajo, que ya tiene todo.
+                  sedesBajoMinimo.length === 0 ? (
+                    <p className="text-sm text-taupe">Ninguna sede está bajo mínimo ahora mismo.</p>
+                  ) : (
+                    <ul className="flex flex-col">
+                      {sedesBajoMinimo.map((s) => (
+                        <li key={s.sedeId} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-sand/60 py-2 text-sm first:border-t-0">
+                          <span><strong className="font-semibold">{s.codigo}</strong> faltan {loQueFalta(coberturaPorSede.get(s.sedeId)!)}</span>
+                          <Boton variante="enlace" tamano="sm" className="text-xs font-semibold text-rojo-profundo" onClick={() => irASede(s.codigo)}>
+                            Ver sede ↓
+                          </Boton>
+                        </li>
+                      ))}
+                    </ul>
+                  )
+                ) : personasDelResumen[resumenDetalle.clave].length === 0 ? (
+                  // Posible sin cerrar: el refresco de 30 s puede dejar en cero
+                  // una lista que estaba abierta.
+                  <p className="text-sm text-taupe">Nadie ahora mismo.</p>
+                ) : (
+                  <TablaPersonas filas={personasDelResumen[resumenDetalle.clave]} linkCorregir={linkCorregir} ahoraDecimal={ahoraDecimal} conSede />
+                )}
+              </section>
+            )}
 
             {/* REQUIERE ATENCIÓN — cobertura de sedes + Disciplina, un solo lugar */}
             {itemsAtencion.length === 0 ? (
@@ -1153,7 +1262,7 @@ export default function DashboardPage() {
               const tablaVisible = hayFiltrosDeContenido || (detalleAbierto[sedeId] ?? false);
 
               return (
-                <section key={sedeId} className="relative mb-8 overflow-hidden rounded-2xl border border-sand bg-papel p-5 pl-6 sm:p-6 sm:pl-7">
+                <section key={sedeId} id={`sede-${codigo}`} className="relative mb-8 scroll-mt-24 overflow-hidden rounded-2xl border border-sand bg-papel p-5 pl-6 sm:p-6 sm:pl-7">
                   <Franja tono={estadoSede.tono} />
                   <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
                     <h2 className="font-serif text-2xl font-medium leading-tight">
