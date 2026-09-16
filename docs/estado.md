@@ -6,7 +6,7 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-09-15 — La tarjeta de Liquidaciones de la Bandeja dejó de fallar por timeout (0474, 0475) · SIN PEGAR · SIN FUSIONAR
+## 2026-09-15 — La tarjeta de Liquidaciones de la Bandeja dejó de fallar por timeout (0474, 0475) · pegada en producción · SIN FUSIONAR
 
 Felipe reportó el recuadro rojo en la Bandeja: «No se pudo cargar
 liquidaciones vencidas: canceling statement due to statement timeout».
@@ -61,7 +61,7 @@ está, fuera de este alcance.
 
 ---
 
-## 2026-09-15 — El MTPE deja de ser trámite para nadie (0470) · SIN PEGAR · SIN FUSIONAR
+## 2026-09-15 — El MTPE deja de ser trámite para nadie (0470) · pegada en producción
 
 Felipe leyó que "el trámite del ministerio" no era necesario y pidió
 confirmarlo antes de tocar nada. Confirmado con tres fuentes independientes:
@@ -102,11 +102,13 @@ prueba (plazo fijo y convenio) en estado real "Falta la copia", sin botón de
 MTPE, y al marcar la copia entregada pasan a "Vigente" sin pedir nada más.
 `pnpm typecheck` y `pnpm test` (743/743) en verde.
 
-**Antes de pegar:** el md5 de partida de `fn_contratos_tablero` se comprobó
-contra el Postgres LOCAL (34df0321b7abfdc7cf030e23d8c8543b, 4780 caracteres),
-no contra producción — sin acceso al SQL Editor en esta sesión. Correr
-`donde-vive.sh fn_contratos_tablero` y comparar contra producción antes de
-pegar, como pide siempre esta casa.
+**Md5 contra producción, hecho bien:** el de partida se pidió a producción
+ANTES de pegar y coincidió exacto con el que la migración asumía
+(`34df0321b7abfdc7cf030e23d8c8543b`, 4780 caracteres) — producción no se había
+movido desde la 0386. Felipe pegó la 0470 y el md5 de llegada volvió a
+coincidir con el declarado en el archivo (`85d99e5aafcfdc5737f7f142284e1a8a`,
+4288 caracteres). Cerrado: no queda ningún tipo de contrato al que este
+sistema le exija comunicar nada al MTPE.
 
 ---
 
