@@ -203,6 +203,96 @@ function EstadoCelda({ f, linkCorregir, ahoraDecimal }: { f: FilaPersona; linkCo
   return <Insignia variante={estilo.variante} atenuada={estilo.atenuada}>{estilo.label}</Insignia>;
 }
 
+// La tabla de personas de una sede: filas en escritorio, tarjetas en celular.
+// Un solo componente para que cualquier lista de personas de esta pantalla se
+// vea y se corrija igual — cada fila con tardanza o auto-cierre enlaza a
+// Correcciones de esa persona ese día.
+function TablaPersonas({ filas, linkCorregir, ahoraDecimal }: { filas: FilaPersona[]; linkCorregir: (personaId: string) => string; ahoraDecimal: number }) {
+  return (
+    <>
+      {/* Escritorio: tabla completa. En celular una tabla de 5 columnas no
+          cabe sin scroll horizontal incómodo, así que de sm hacia abajo se
+          arma la versión en tarjetas de más abajo — mismos datos. */}
+      <div className="hidden sm:block">
+        <Tabla>
+          <TablaEncabezado>
+            <Th>Nombre</Th>
+            <Th>Estado</Th>
+            <Th>Entrada</Th>
+            <Th>Tardanza</Th>
+            <Th>Salida final</Th>
+          </TablaEncabezado>
+          <tbody>
+            {filas.map((f) => (
+              <Fila key={f.personaId}>
+                <td className="px-4 py-2.5">{f.nombre}</td>
+                <td className="px-4 py-2.5">
+                  <EstadoCelda f={f} linkCorregir={linkCorregir} ahoraDecimal={ahoraDecimal} />
+                </td>
+                <td className="px-4 py-2.5">{horaLima(f.entrada)}</td>
+                <td className="px-4 py-2.5">
+                  {f.minutosTarde === null || f.minutosTarde === 0 ? (
+                    <span className="text-taupe/40">—</span>
+                  ) : (
+                    <Link href={linkCorregir(f.personaId)} className="font-semibold text-rojo-profundo underline decoration-rojo/30 underline-offset-2 transition-colors hover:decoration-rojo">
+                      {f.minutosTarde} min tarde
+                    </Link>
+                  )}
+                </td>
+                <td className="px-4 py-2.5">
+                  {horaLima(f.salidaFinal)}
+                  {f.salidaTemprana ? (
+                    <Link href={linkCorregir(f.personaId)} className="ml-2 transition-opacity hover:opacity-80">
+                      <Insignia variante="advertencia" tamano="sm">anticip. {formatoMinutos(f.salidaTemprana)}</Insignia>
+                    </Link>
+                  ) : null}
+                </td>
+              </Fila>
+            ))}
+          </tbody>
+        </Tabla>
+      </div>
+
+      {/* Celular: la misma información en tarjetas apiladas, una por persona. */}
+      <div className="flex flex-col gap-2 sm:hidden">
+        {filas.map((f) => (
+          <div key={f.personaId} className="rounded-superficie border border-sand bg-hueso p-4">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <span className="font-medium">{f.nombre}</span>
+              <span className="shrink-0">
+                <EstadoCelda f={f} linkCorregir={linkCorregir} ahoraDecimal={ahoraDecimal} />
+              </span>
+            </div>
+            <div className="grid grid-cols-3 gap-x-2 gap-y-1 border-t border-sand pt-2 text-xs">
+              <span className="text-taupe">Entrada</span>
+              <span className="text-taupe">Tardanza</span>
+              <span className="text-taupe">Salida final</span>
+              <span>{horaLima(f.entrada)}</span>
+              <span>
+                {f.minutosTarde === null || f.minutosTarde === 0 ? (
+                  <span className="text-taupe/40">—</span>
+                ) : (
+                  <Link href={linkCorregir(f.personaId)} className="font-semibold text-rojo-profundo underline decoration-rojo/30 underline-offset-2">
+                    {f.minutosTarde} min
+                  </Link>
+                )}
+              </span>
+              <span>
+                {horaLima(f.salidaFinal)}
+                {f.salidaTemprana ? (
+                  <Link href={linkCorregir(f.personaId)} className="ml-1 inline-block">
+                    <Insignia variante="advertencia" tamano="sm">+{formatoMinutos(f.salidaTemprana)}</Insignia>
+                  </Link>
+                ) : null}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
 function fechaBonita(iso: string): string {
   const [y, m, d] = iso.split("-").map(Number);
   return new Intl.DateTimeFormat("es-PE", { day: "2-digit", month: "long", timeZone: "UTC" }).format(new Date(Date.UTC(y, m - 1, d)));
@@ -1145,87 +1235,7 @@ export default function DashboardPage() {
                       {deSedeMostrada.length === 0 ? (
                         <p className="text-sm text-taupe">No encontramos personas con estos filtros en esta sede.</p>
                       ) : (
-                        <>
-                          {/* Escritorio: tabla completa. En celular una tabla de 5 columnas no
-                              cabe sin scroll horizontal incómodo, así que de sm hacia abajo se
-                              arma la versión en tarjetas de más abajo — mismos datos. */}
-                          <div className="hidden sm:block">
-                            <Tabla>
-                              <TablaEncabezado>
-                                <Th>Nombre</Th>
-                                <Th>Estado</Th>
-                                <Th>Entrada</Th>
-                                <Th>Tardanza</Th>
-                                <Th>Salida final</Th>
-                              </TablaEncabezado>
-                              <tbody>
-                                {deSedeMostrada.map((f) => (
-                                  <Fila key={f.personaId}>
-                                    <td className="px-4 py-2.5">{f.nombre}</td>
-                                    <td className="px-4 py-2.5">
-                                      <EstadoCelda f={f} linkCorregir={linkCorregir} ahoraDecimal={ahoraDecimal} />
-                                    </td>
-                                    <td className="px-4 py-2.5">{horaLima(f.entrada)}</td>
-                                    <td className="px-4 py-2.5">
-                                      {f.minutosTarde === null || f.minutosTarde === 0 ? (
-                                        <span className="text-taupe/40">—</span>
-                                      ) : (
-                                        <Link href={linkCorregir(f.personaId)} className="font-semibold text-rojo-profundo underline decoration-rojo/30 underline-offset-2 transition-colors hover:decoration-rojo">
-                                          {f.minutosTarde} min tarde
-                                        </Link>
-                                      )}
-                                    </td>
-                                    <td className="px-4 py-2.5">
-                                      {horaLima(f.salidaFinal)}
-                                      {f.salidaTemprana ? (
-                                        <Link href={linkCorregir(f.personaId)} className="ml-2 transition-opacity hover:opacity-80">
-                                          <Insignia variante="advertencia" tamano="sm">anticip. {formatoMinutos(f.salidaTemprana)}</Insignia>
-                                        </Link>
-                                      ) : null}
-                                    </td>
-                                  </Fila>
-                                ))}
-                              </tbody>
-                            </Tabla>
-                          </div>
-
-                          {/* Celular: la misma información en tarjetas apiladas, una por persona. */}
-                          <div className="flex flex-col gap-2 sm:hidden">
-                            {deSedeMostrada.map((f) => (
-                              <div key={f.personaId} className="rounded-superficie border border-sand bg-hueso p-4">
-                                <div className="mb-2 flex items-center justify-between gap-2">
-                                  <span className="font-medium">{f.nombre}</span>
-                                  <span className="shrink-0">
-                                    <EstadoCelda f={f} linkCorregir={linkCorregir} ahoraDecimal={ahoraDecimal} />
-                                  </span>
-                                </div>
-                                <div className="grid grid-cols-3 gap-x-2 gap-y-1 border-t border-sand pt-2 text-xs">
-                                  <span className="text-taupe">Entrada</span>
-                                  <span className="text-taupe">Tardanza</span>
-                                  <span className="text-taupe">Salida final</span>
-                                  <span>{horaLima(f.entrada)}</span>
-                                  <span>
-                                    {f.minutosTarde === null || f.minutosTarde === 0 ? (
-                                      <span className="text-taupe/40">—</span>
-                                    ) : (
-                                      <Link href={linkCorregir(f.personaId)} className="font-semibold text-rojo-profundo underline decoration-rojo/30 underline-offset-2">
-                                        {f.minutosTarde} min
-                                      </Link>
-                                    )}
-                                  </span>
-                                  <span>
-                                    {horaLima(f.salidaFinal)}
-                                    {f.salidaTemprana ? (
-                                      <Link href={linkCorregir(f.personaId)} className="ml-1 inline-block">
-                                        <Insignia variante="advertencia" tamano="sm">+{formatoMinutos(f.salidaTemprana)}</Insignia>
-                                      </Link>
-                                    ) : null}
-                                  </span>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </>
+                        <TablaPersonas filas={deSedeMostrada} linkCorregir={linkCorregir} ahoraDecimal={ahoraDecimal} />
                       )}
                       {!hayFiltrosDeContenido && (
                         <Boton variante="enlace" tamano="sm" className="mt-3" onClick={() => setDetalleAbierto((s) => ({ ...s, [sedeId]: false }))}>
