@@ -168,10 +168,11 @@ function EstadoCelda({ f, linkCorregir, ahoraDecimal }: { f: FilaPersona; linkCo
         </Link>
       );
     }
-    // "desconocido": no hay horario contra qué medir. Mismo texto apagado sin
-    // pastilla de siempre — es honesto sobre lo que no se sabe, no inventa una
-    // tranquilidad que no se puede probar.
-    return <span className="text-xs text-taupe/50">Sin marcar</span>;
+    // "desconocido": no hay horario contra qué medir. Mismo texto sin pastilla
+    // de siempre — es honesto sobre lo que no se sabe, no inventa una
+    // tranquilidad que no se puede probar. Taupe entero, no al 50%: así daba
+    // 2.1:1 y no se leía, y "no sabemos" también es información.
+    return <span className="text-xs text-taupe">Sin marcar</span>;
   }
   const estilo = ESTILO_ESTADO[f.estado] ?? ESTILO_ESTADO.cerrada;
   if (f.estado === "auto_cerrada_pendiente") {
@@ -271,22 +272,58 @@ function faltanTexto(n: number): string {
   return n === 1 ? "Falta 1" : `Faltan ${n}`;
 }
 
+// Franja de estado en el borde izquierdo de una tarjeta. Es lo que permite
+// leer la pantalla bajando la vista sin leer ni un número: rojo = hay que
+// actuar, verde = cubierto. Sin sombra ni degradado (regla de la paleta): la
+// tarjeta se distingue por tono, no por relieve. Nunca va sola — el mismo
+// estado está siempre dicho en texto al lado, para quien no distingue el color.
+// "neutral" no pinta nada: sin estado no hay qué señalar, y una franja color
+// arena se veía como un borde mal dibujado. La tarjeta conserva su relleno
+// izquierdo igual, para que los textos de todas queden alineados.
+type TonoFranja = "alerta" | "advertencia" | "positivo" | "neutral";
+const COLOR_FRANJA: Record<TonoFranja, string | null> = {
+  alerta: "bg-rojo",
+  advertencia: "bg-ambar",
+  positivo: "bg-verde",
+  neutral: null,
+};
+function Franja({ tono }: { tono: TonoFranja }) {
+  const color = COLOR_FRANJA[tono];
+  return color && <span aria-hidden className={`absolute inset-y-0 left-0 w-1 ${color}`} />;
+}
+
 // Un tile de cobertura (Operativas / Encargadas), protagonista a propósito:
 // es la pregunta que de verdad decide si hay que actuar, no un dato al pie.
+//
+// Se rellena con el color de su estado en vez de ser papel sobre papel: antes
+// la tarjeta de la sede y sus dos tiles eran el mismo tono, y lo único que
+// decía "falta gente" era el color de un número en trazo fino.
+//
+// Dos rojos a propósito. El número es texto grande (36px), y ahí WCAG pide
+// 3:1: el rojo da 4.49:1 claro y 3.78:1 oscuro sobre este relleno, y se lee
+// ROJO. El "Faltan 2" es texto chico, pide 4.5:1, y el rojo en modo oscuro no
+// llega — va en rojo-profundo (7.03 / 5.25:1). Se probó el número también en
+// rojo-profundo y sobre el relleno cálido se leía café, no alerta.
+// El verde va al 8% y no al 10%: al 10% la etiqueta taupe baja a 4.44:1 en
+// modo oscuro.
 function TileCobertura({ label, n, meta, sinMeta, tramo }: { label: string; n: number; meta: number; sinMeta: boolean; tramo?: string }) {
   const ok = !sinMeta && n >= meta;
-  const color = sinMeta ? "var(--color-taupe)" : ok ? "var(--color-verde)" : "var(--color-rojo)";
+  const tono = sinMeta
+    ? { caja: "border-sand bg-crema", numero: "text-taupe", texto: "text-taupe" }
+    : ok
+      ? { caja: "border-verde/30 bg-verde/[0.08]", numero: "text-verde", texto: "text-verde" }
+      : { caja: "border-rojo/30 bg-rojo/10", numero: "text-rojo", texto: "text-rojo-profundo" };
   return (
-    <div className="rounded-superficie border border-sand bg-papel px-4 py-3">
+    <div className={`rounded-superficie border px-4 py-3 ${tono.caja}`}>
       <div className="flex items-baseline gap-1.5">
-        <span className="font-serif text-3xl tabular-nums" style={{ color }}>{n}</span>
-        {!sinMeta && <span className="text-base text-taupe">/ {meta}</span>}
+        <span className={`font-serif text-4xl font-medium leading-none tabular-nums ${tono.numero}`}>{n}</span>
+        {!sinMeta && <span className="text-lg text-taupe">/ {meta}</span>}
       </div>
-      <div className="mt-0.5 text-xs text-taupe">
+      <div className="mt-1.5 text-xs text-taupe">
         {label}{sinMeta ? " · sin meta" : tramo ? ` · meta ${tramo}` : ""}
       </div>
       {!sinMeta && (
-        <div className="mt-1 text-xs font-medium" style={{ color }}>{ok ? "Completo" : faltanTexto(meta - n)}</div>
+        <div className={`mt-1 text-sm font-semibold ${tono.texto}`}>{ok ? "Completo" : faltanTexto(meta - n)}</div>
       )}
     </div>
   );
@@ -735,7 +772,7 @@ export default function DashboardPage() {
       <main className="flex-1 p-6 sm:p-8">
         <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
           <div>
-            <h1 className="font-serif text-3xl leading-tight">Asistencia de hoy</h1>
+            <h1 className="font-serif text-3xl font-medium leading-tight">Asistencia de hoy</h1>
             <p className="mt-1.5 flex items-center gap-2 text-xs text-taupe">
               {cargando && filas.length === 0 ? (
                 "Cargando…"
@@ -753,7 +790,7 @@ export default function DashboardPage() {
                 no van en el mismo refresco de 30s (cambian una vez al día, no
                 cada medio minuto) — decirlo evita la promesa que el título de
                 arriba no cumple para esas dos franjas. */}
-            <p className="mt-0.5 text-xs text-taupe/70">Disciplina y Contratos se cargan al abrir la pantalla — recarga para verlos al día.</p>
+            <p className="mt-0.5 text-xs text-taupe">Disciplina y Contratos se cargan al abrir la pantalla — recarga para verlos al día.</p>
             {/* Aviso discreto, no un banner: alguien de vacaciones podría verse como
                 "sin marcar" mientras esta consulta no responda. Menos grave que
                 Contratos o la alerta de sede — por eso no interrumpe la pantalla. */}
@@ -774,7 +811,7 @@ export default function DashboardPage() {
         </div>
 
         {error && (
-          <div className="mb-6 rounded-2xl border border-rojo/20 bg-rojo/[0.06] px-4 py-3 text-sm text-rojo">
+          <div className="mb-6 rounded-2xl border border-rojo/20 bg-rojo/[0.06] px-4 py-3 text-sm text-rojo-profundo">
             No se pudo cargar la asistencia de hoy: {error}{" "}
             <Boton variante="enlace" onClick={() => void cargar()}>
               Reintentar
@@ -820,41 +857,47 @@ export default function DashboardPage() {
               )}
             </div>
 
-            {/* RESUMEN GLOBAL */}
+            {/* RESUMEN GLOBAL. Número grande y con peso: EB Garamond en su peso
+                normal tiene el trazo tan fino que un "2" en rojo se leía como
+                gris claro a un metro de la pantalla. Rojo y no rojo-profundo:
+                a 36px basta 3:1 (5.17 claro, 4.28 oscuro), y rojo-profundo se
+                lee café sobre papel. */}
             <div className="mb-6 grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-sand bg-sand sm:grid-cols-4">
-              <div className="bg-papel px-5 py-4">
-                <div className="font-serif text-3xl tabular-nums">{trabajandoAhoraTotal}</div>
-                <div className="text-xs text-taupe">Trabajando ahora</div>
-              </div>
-              <div className="bg-papel px-5 py-4">
-                <div className="font-serif text-3xl tabular-nums" style={{ color: tardanzasHoyTotal > 0 ? "var(--color-rojo)" : undefined }}>{tardanzasHoyTotal}</div>
-                <div className="text-xs text-taupe">Tardanzas hoy</div>
-              </div>
-              <div className="bg-papel px-5 py-4">
-                <div className="font-serif text-3xl tabular-nums" style={{ color: sinMarcarRealTotal > 0 ? "var(--color-rojo)" : "var(--color-verde)" }}>{sinMarcarRealTotal}</div>
-                <div className="text-xs text-taupe">Sin marcar cuando ya debían</div>
-              </div>
-              <div className="bg-papel px-5 py-4">
-                <div className="font-serif text-3xl tabular-nums" style={{ color: sedesBajoMinimo > 0 ? "var(--color-rojo)" : "var(--color-verde)" }}>{sedesBajoMinimo}</div>
-                <div className="text-xs text-taupe">Sedes bajo mínimo</div>
-              </div>
+              {[
+                { n: trabajandoAhoraTotal, label: "Trabajando ahora", color: trabajandoAhoraTotal > 0 ? "text-verde" : "text-tinta" },
+                { n: tardanzasHoyTotal, label: "Tardanzas hoy", color: tardanzasHoyTotal > 0 ? "text-rojo" : "text-tinta" },
+                { n: sinMarcarRealTotal, label: "Sin marcar cuando ya debían", color: sinMarcarRealTotal > 0 ? "text-rojo" : "text-verde" },
+                { n: sedesBajoMinimo, label: "Sedes bajo mínimo", color: sedesBajoMinimo > 0 ? "text-rojo" : "text-verde" },
+              ].map((k) => (
+                <div key={k.label} className="bg-papel px-5 py-4">
+                  <div className={`font-serif text-4xl font-medium leading-none tabular-nums ${k.color}`}>{k.n}</div>
+                  <div className="mt-2 text-sm text-taupe">{k.label}</div>
+                </div>
+              ))}
             </div>
 
             {/* REQUIERE ATENCIÓN — cobertura de sedes + Disciplina, un solo lugar */}
             {itemsAtencion.length === 0 ? (
-              <div className="mb-8 rounded-2xl border border-sand bg-papel p-5">
+              <div className="relative mb-8 overflow-hidden rounded-2xl border border-sand bg-papel p-5 pl-6">
+                <Franja tono="positivo" />
                 <div className="etiqueta text-verde">Requiere atención</div>
                 <p className="mt-2 text-sm text-taupe">Nada pendiente ahora mismo.</p>
               </div>
             ) : (
-              <div className="mb-8 rounded-2xl border border-sand bg-rojo/[0.04] p-5">
-                <div className="etiqueta text-rojo">Requiere atención</div>
+              <div className="relative mb-8 overflow-hidden rounded-2xl border border-sand bg-papel p-5 pl-6">
+                <Franja tono={itemsAtencion.some((it) => it.tono === "critico") ? "alerta" : "advertencia"} />
+                <div className="etiqueta text-rojo-profundo">Requiere atención</div>
                 <ul className="mt-1 flex flex-col">
                   {itemsAtencion.map((it) => {
+                    // El punto repite el tono de cada fila: antes solo el "Ver →"
+                    // lo decía, y las filas sin enlace no tenían ninguno.
                     const contenido = (
                       <span className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 py-2 text-sm">
-                        <span><strong>{it.sede}</strong> <span className="text-taupe">{it.texto}</span></span>
-                        {it.href && <span className={`text-xs font-medium ${it.tono === "critico" ? "text-rojo" : "text-ambar"}`}>Ver →</span>}
+                        <span className="flex items-baseline gap-2">
+                          <span aria-hidden className={`size-2 shrink-0 translate-y-[-1px] rounded-full ${it.tono === "critico" ? "bg-rojo" : "bg-ambar"}`} />
+                          <span><strong className="font-semibold">{it.sede}</strong> <span className="text-tinta">{it.texto}</span></span>
+                        </span>
+                        {it.href && <span className={`text-xs font-semibold ${it.tono === "critico" ? "text-rojo-profundo" : "text-ambar"}`}>Ver →</span>}
                       </span>
                     );
                     return (
@@ -874,9 +917,9 @@ export default function DashboardPage() {
                 documento y dejó una constancia digital, firmando o prefiriendo no
                 hacerlo. Ninguna de las dos reemplaza el trámite físico. */}
             {respuestasMemo.length > 0 && (
-              <div className="mb-8 rounded-2xl border border-sand bg-verde/[0.04] p-5">
+              <div className="mb-8 rounded-2xl border border-sand bg-papel p-5 pl-6">
                 <div className="mb-2 flex items-center justify-between">
-                  <span className="font-serif text-lg text-tinta">Colaboradores respondieron su memo</span>
+                  <span className="font-serif text-xl font-medium text-tinta">Colaboradores respondieron su memo</span>
                   <Link href="/admin/disciplina" className="text-xs font-medium text-taupe hover:underline">Ver disciplina →</Link>
                 </div>
                 {respuestasMemo.map((r) => (
@@ -931,13 +974,16 @@ export default function DashboardPage() {
                 .sort((a, b) => b[1] - a[1])[0] ?? ["", 0];
               const hayRacimo = cuantos >= 3;
               return (
-                <div className="mb-8 rounded-2xl border border-sand bg-ambar/[0.05] p-5">
+                <div className="relative mb-8 overflow-hidden rounded-2xl border border-sand bg-papel p-5 pl-6">
+                  {/* Rojo si alguien ya pasó su fecha (el art. 77 ya corrió);
+                      ámbar si solo se acerca. */}
+                  <Franja tono={vencidos.length > 0 ? "alerta" : "advertencia"} />
                   <div className="mb-2 flex items-center justify-between">
-                    <span className="font-serif text-lg text-tinta">Contratos a plazo fijo</span>
-                    <Link href="/admin/equipo" className="text-xs font-medium text-rojo hover:underline">Ver equipo →</Link>
+                    <span className="font-serif text-xl font-medium text-tinta">Contratos a plazo fijo</span>
+                    <Link href="/admin/equipo" className="text-xs font-semibold text-rojo-profundo hover:underline">Ver equipo →</Link>
                   </div>
                   {hayRacimo && (
-                    <p className="mb-2 rounded-lg bg-rojo/10 px-3 py-2 text-sm text-rojo">
+                    <p className="mb-2 rounded-lg bg-rojo/10 px-3 py-2 text-sm text-rojo-profundo">
                       <strong>{cuantos} contratos vencen el mismo día</strong> ({fechaBonita(fechaRacimo)}).
                       No son {cuantos} trámites repartidos: son {cuantos} decisiones, {cuantos} redacciones
                       y {cuantos} firmas en la misma semana. Al que se pase de fecha con la persona
@@ -952,7 +998,7 @@ export default function DashboardPage() {
                           terminó el {fechaBonita(c.fecha_fin_contrato)} y sigue activa
                         </Insignia>
                       </span>
-                      <span className="text-xs font-medium text-rojo">renovar o registrar su salida →</span>
+                      <span className="text-xs font-semibold text-rojo-profundo">renovar o registrar su salida →</span>
                     </div>
                   ))}
                   {porVencer.map((c) => (
@@ -994,25 +1040,35 @@ export default function DashboardPage() {
               const deSedeCompleta = filas.filter((f) => f.sedeId === sedeId);
               const deSedeMostrada = deSedeCompleta.filter(filaCoincideFiltros);
               const cob = coberturaPorSede.get(sedeId)!;
-              const chipClase = cob.problema
-                ? "border-rojo/30 bg-rojo/[0.06] text-rojo-profundo"
-                : cob.sinMetaOp && cob.sinMetaEnc
-                  ? "border-sand bg-sand text-taupe"
-                  : "border-verde/30 bg-verde/[0.06] text-verde";
-              const chipTexto = cob.problema ? "Cobertura insuficiente" : (cob.sinMetaOp && cob.sinMetaEnc) ? "Sin meta configurada" : "Cobertura correcta";
+              // Un solo estado de la sede, del que salen la franja y la pastilla —
+              // así no pueden decir cosas distintas. "Sede sin marcajes" también
+              // es alerta aunque no tenga meta: nadie llegó y a alguien le tocaba.
+              const estadoSede: { tono: TonoFranja; texto: string } =
+                cob.problema || cob.alertaSinEntrada
+                  ? { tono: "alerta", texto: cob.problema ? "Cobertura insuficiente" : "Sin marcajes" }
+                  : cob.sinMetaOp && cob.sinMetaEnc
+                    ? { tono: "neutral", texto: "Sin meta configurada" }
+                    : { tono: "positivo", texto: "Cobertura correcta" };
 
               const tablaVisible = hayFiltrosDeContenido || (detalleAbierto[sedeId] ?? false);
 
               return (
-                <section key={sedeId} className="mb-8 rounded-2xl border border-sand bg-papel p-5 sm:p-6">
+                <section key={sedeId} className="relative mb-8 overflow-hidden rounded-2xl border border-sand bg-papel p-5 pl-6 sm:p-6 sm:pl-7">
+                  <Franja tono={estadoSede.tono} />
                   <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
-                    <h2 className="font-serif text-xl">
+                    <h2 className="font-serif text-2xl font-medium leading-tight">
                       {codigo}{" "}
-                      <span className="text-base font-normal text-taupe">
+                      <span className="text-lg font-normal text-taupe">
                         — {cob.activos.length} trabajando de {cob.programadosHoy} programadas hoy
                       </span>
                     </h2>
-                    <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${chipClase}`}>{chipTexto}</span>
+                    <Insignia
+                      variante={estadoSede.tono}
+                      atenuada={estadoSede.tono === "neutral"}
+                      className="px-3 py-1 font-semibold"
+                    >
+                      {estadoSede.texto}
+                    </Insignia>
                   </div>
                   <p className="mb-4 text-xs text-taupe">
                     {deSedeCompleta.length} en el equipo de la sede — no todas tenían turno hoy.
@@ -1023,7 +1079,7 @@ export default function DashboardPage() {
                       repetimos acá, junto a la sede, para quien llegó directo a esta
                       tarjeta sin pasar por el resumen. */}
                   {cob.alertaSinEntrada && (
-                    <div className="mb-4 flex items-center gap-2 rounded-2xl border border-rojo bg-rojo/[0.06] px-5 py-3 text-sm font-semibold text-rojo">
+                    <div className="mb-4 flex items-center gap-2 rounded-2xl border border-rojo bg-rojo/[0.06] px-5 py-3 text-sm font-semibold text-rojo-profundo">
                       <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-rojo text-[10px] font-bold text-crema">!</span>
                       Sin marcajes desde las {horaAmPmDe(cob.alertaSinEntrada)} — nadie de esta sede ha marcado entrada todavía.
                     </div>
@@ -1036,18 +1092,40 @@ export default function DashboardPage() {
                     <TileCobertura label="Encargadas" n={cob.encPiso} meta={cob.metaEnc} sinMeta={cob.sinMetaEnc} />
                   </div>
 
-                  <div className="mb-4">
-                    <div className="text-xs text-taupe">Trabajando ahora · {cob.activos.length}</div>
-                    <div className="mt-1.5 flex flex-wrap gap-2">
+                  {/* Recuadro verde claro de "Trabajando ahora": estuvo desde julio y
+                      el commit 8aae5710 (15-sep) lo cambió por una línea de texto
+                      suelta. Era lo que se buscaba primero al abrir la pantalla, así
+                      que vuelve. Sin nadie trabajando no se pinta de verde: verde es
+                      "hay gente en piso", y un recuadro verde que dice "nadie"
+                      afirmaría lo contrario de lo que escribe. Al 15% y no al 6% de
+                      antes: es el mismo relleno de la insignia "Presente", y con el
+                      verde retonado el 2026-09-06 el 6% ya se leía gris. La etiqueta
+                      verde encima da 5.27:1 claro y 4.91:1 oscuro. */}
+                  <div
+                    className={`mb-4 rounded-superficie border px-4 py-3 ${cob.activos.length > 0 ? "border-verde/30 bg-verde/15" : "border-sand bg-crema"}`}
+                  >
+                    <div className={`etiqueta ${cob.activos.length > 0 ? "text-verde" : "text-taupe"}`}>Trabajando ahora · {cob.activos.length}</div>
+                    <div className="mt-2 flex flex-wrap gap-2">
                       {cob.activos.length === 0 ? (
                         <span className="text-sm text-taupe">Nadie está trabajando actualmente.</span>
                       ) : (
-                        cob.activos.map((f) => (
-                          <span key={f.personaId} className="rounded-full border border-sand bg-papel px-3 py-1 text-sm transition-colors hover:border-taupe">
-                            {f.nombre}
-                            {f.estado === "en_pausa" && <span className="ml-1 text-ambar">· en pausa</span>}
-                          </span>
-                        ))
+                        // Pastillas en papel sobre el verde, como antes; quien está en
+                        // refrigerio se distingue por borde y punto ámbar. Su fondo
+                        // queda en papel a propósito: ámbar sobre relleno ámbar daba
+                        // 4.26:1 en modo oscuro, y sobre papel da 6.17:1.
+                        cob.activos.map((f) => {
+                          const enPausa = f.estado === "en_pausa";
+                          return (
+                            <span
+                              key={f.personaId}
+                              className={`inline-flex items-center gap-2 rounded-full border bg-papel px-3 py-1 text-sm ${enPausa ? "border-ambar/45" : "border-verde/25"}`}
+                            >
+                              <span aria-hidden className={`size-1.5 rounded-full ${enPausa ? "bg-ambar" : "bg-verde"}`} />
+                              {f.nombre}
+                              {enPausa && <span className="text-ambar">· en pausa</span>}
+                            </span>
+                          );
+                        })
                       )}
                     </div>
                   </div>
@@ -1082,7 +1160,7 @@ export default function DashboardPage() {
                                       {f.minutosTarde === null || f.minutosTarde === 0 ? (
                                         <span className="text-taupe/40">—</span>
                                       ) : (
-                                        <Link href={linkCorregir(f.personaId)} className="font-semibold text-rojo underline decoration-rojo/30 underline-offset-2 transition-colors hover:decoration-rojo">
+                                        <Link href={linkCorregir(f.personaId)} className="font-semibold text-rojo-profundo underline decoration-rojo/30 underline-offset-2 transition-colors hover:decoration-rojo">
                                           {f.minutosTarde} min tarde
                                         </Link>
                                       )}
@@ -1120,7 +1198,7 @@ export default function DashboardPage() {
                                     {f.minutosTarde === null || f.minutosTarde === 0 ? (
                                       <span className="text-taupe/40">—</span>
                                     ) : (
-                                      <Link href={linkCorregir(f.personaId)} className="font-semibold text-rojo underline decoration-rojo/30 underline-offset-2">
+                                      <Link href={linkCorregir(f.personaId)} className="font-semibold text-rojo-profundo underline decoration-rojo/30 underline-offset-2">
                                         {f.minutosTarde} min
                                       </Link>
                                     )}
