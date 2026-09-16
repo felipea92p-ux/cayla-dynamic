@@ -6,7 +6,7 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-09-15 — Dos sesiones construyeron el mismo beneficio a la vez; gana la que se fusionó primero (0470) · SIN PEGAR
+## 2026-09-15 — Dos sesiones construyeron el mismo beneficio a la vez; gana la que se fusionó primero (0471) · PEGADA
 
 La Ley 28518 le da a un practicante dos beneficios propios que la 0322
 (2026-08-29) dejó escritos como pendientes —descanso de 15 días al superar 12
@@ -36,23 +36,81 @@ DESPLEGADO es el del PR #408: llama directo a
 `ley28518_*`.
 
 **Decidido con Felipe: se queda el PR #408**, ya vivo y funcionando; esta
-rama se retira. La migración [`0470`](../supabase/migrations/0470_se_retira_la_implementacion_paralela_de_la_0465.sql)
-deshace la 0465 por completo — `fn_provisiones` vuelve a ser, byte por byte,
-el cuerpo de la 0428 (verificado: mismo md5 que devolvió producción cuando se
-le pidió ANTES de pegar la 0465, la prueba de que es exactamente el cuerpo
-previo a que las dos ramas chocaran) — y retira `fn_practicante_ya_depositado`,
-que ya no usa nadie. No toca el CHECK ni `fn_subvenciones_practicante`: esos
-son del PR #408, ya en uso. Auditada en el Postgres local, en los dos órdenes
-posibles de aplicación, dentro de `BEGIN…ROLLBACK`: mismo resultado en los
-dos casos. El PR #409 se cierra sin fusionar.
+rama se retira. La migración se escribió primero como 0470, pero ese número
+lo reclamó A LA VEZ otra migración sin relación (`el_mtpe_ya_no_es_tramite_
+para_nadie`, ver la entrada siguiente) — pisó el registro en
+`migraciones_aplicadas`, aunque el SQL que corrió siguió siendo el correcto,
+confirmado con las dos consultas de comprobación antes de renumerar. Quedó
+como [`0471`](../supabase/migrations/0471_se_retira_la_implementacion_paralela_de_la_0465.sql),
+ya fusionada a `main` y pegada en producción: `fn_provisiones` vuelve a ser,
+byte por byte, el cuerpo de la 0428 (verificado: mismo md5 que devolvió
+producción cuando se le pidió ANTES de pegar la 0465, la prueba de que es
+exactamente el cuerpo previo a que las dos ramas chocaran) — y retira
+`fn_practicante_ya_depositado`, que ya no usa nadie. No toca el CHECK ni
+`fn_subvenciones_practicante`: esos son del PR #408, ya en uso. Auditada en
+el Postgres local, en los dos órdenes posibles de aplicación, dentro de
+`BEGIN…ROLLBACK`: mismo resultado en los dos casos. El PR #409 se cierra sin
+fusionar.
 
 **La lección:** ningún freno automático puede cazar "otra rama está
 construyendo esta misma idea" cuando las dos ramas nacen la misma tarde y
 corren en paralelo — es el mismo límite que ya anotó la 0299 el 2026-08-25.
 Lo que sí funcionó fue `siguiente-numero.sh`, cazando la colisión de NÚMERO en
-cada sesión por separado; lo que ninguna herramienta cazó fue la colisión de
-IDEA, y esa la encontró Felipe pidiendo el estado real de producción cuando
-algo no cuadraba.
+cada sesión por separado (dos veces seguidas, con dos ramas distintas) —
+lo que ninguna herramienta cazó fue la colisión de IDEA del PR #408, y esa la
+encontró Felipe pidiendo el estado real de producción cuando algo no
+cuadraba.
+
+---
+
+## 2026-09-15 — El MTPE deja de ser trámite para nadie (0470) · pegada en producción
+
+Felipe leyó que "el trámite del ministerio" no era necesario y pidió
+confirmarlo antes de tocar nada. Confirmado con tres fuentes independientes:
+el Decreto Legislativo N.° 1246 ("simplificación administrativa", vigente
+desde el 2016-11-11) eliminó la comunicación a la Autoridad Administrativa de
+Trabajo tanto para contratos sujetos a modalidad (modificó el art. 73, D.S.
+003-97-TR) como para convenios de modalidad formativa (derogó el último
+párrafo del art. 46, Ley 28518) — para AMBOS, no solo para el indefinido que
+la 0347 ya había eximido. Hoy se declara solo con la Planilla Electrónica.
+
+Alcance del arreglo:
+1. **`fn_contratos_tablero`** (migración
+   [0470](../supabase/migrations/0470_el_mtpe_ya_no_es_tramite_para_nadie.sql)):
+   `tramite_pendiente` ya no exige `comunicado_mtpe_at` a ningún tipo — solo
+   falta la copia. `comunicado_mtpe_at` se deja sin borrar (puede tener
+   fechas históricas anotadas de buena fe).
+2. **El texto del contrato** (`apps/web/lib/admin/contrato-texto.ts`): la
+   cláusula DÉCIMA OCTAVA de plazo fijo y convenio dejó de prometerle a quien
+   firma una comunicación al MTPE que la empresa ya no hace ni tiene dónde
+   hacer. Ya no distingue por tipo — es la misma cláusula para todos.
+3. **La pantalla** `/admin/contratos`: sin badge "MTPE" pendiente, sin botón
+   "Marcar comunicado al MTPE" (quedan dos: solo "Marcar copia entregada").
+   `ETIQUETA_CORTA.tramite_pendiente` pasa de "Falta trámite" a "Falta la
+   copia" — ya no hay caso especial para el indefinido, todos comparten la
+   misma regla.
+4. **La Bandeja** (`bandeja-urgencia.ts`, `bandeja-fuentes.ts`): el plazo de
+   `tramite_pendiente` es siempre el de la copia (inicio + 5); el texto
+   "Falta comunicar el contrato al MTPE" se retira.
+
+Auditado con control: prueba pgTAP nueva
+[373](../supabase/tests/373_el_mtpe_ya_no_es_tramite_para_nadie.test.sql) —
+un plazo fijo y un convenio de prácticas, firmados y con copia entregada pero
+SIN `comunicado_mtpe_at`, llegan a 'ok' con la 0470 puesta y a
+'tramite_pendiente' con el cuerpo anterior (0386) — confirma que el cambio es
+el que corrige, no una coincidencia. El indefinido (0347) no se movió.
+Verificado además en el navegador contra Postgres local: dos personas de
+prueba (plazo fijo y convenio) en estado real "Falta la copia", sin botón de
+MTPE, y al marcar la copia entregada pasan a "Vigente" sin pedir nada más.
+`pnpm typecheck` y `pnpm test` (743/743) en verde.
+
+**Md5 contra producción, hecho bien:** el de partida se pidió a producción
+ANTES de pegar y coincidió exacto con el que la migración asumía
+(`34df0321b7abfdc7cf030e23d8c8543b`, 4780 caracteres) — producción no se había
+movido desde la 0386. Felipe pegó la 0470 y el md5 de llegada volvió a
+coincidir con el declarado en el archivo (`85d99e5aafcfdc5737f7f142284e1a8a`,
+4288 caracteres). Cerrado: no queda ningún tipo de contrato al que este
+sistema le exija comunicar nada al MTPE.
 
 ---
 

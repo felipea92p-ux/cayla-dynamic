@@ -47,15 +47,12 @@
 -- variables que ya no se usan ahí (v_hora_entrada_esperada,
 -- v_hora_salida_esperada): viven ahora dentro de la función nueva.
 --
--- MD5 DE PARTIDA — NO SE PUDO MEDIR EN ESTA SESIÓN. El Postgres local de esta
--- Mac no está disponible (Docker Desktop no respondía al escribir esto,
--- 2026-09-14). El cuerpo de fn_recalcular_jornada se copió tal cual del
--- archivo `0413_a_un_practicante_ya_se_le_mide_la_tardanza.sql`, confirmado
--- como la única versión vigente con `./scripts/donde-vive.sh
--- fn_recalcular_jornada` el 2026-09-14. Como manda CLAUDE.md: antes de pegar
--- esto, correr contra PRODUCCIÓN (no contra esta Mac) la consulta de md5 de
--- fn_recalcular_jornada de siempre y confirmar que coincide con lo que
--- declare `donde-vive.sh` en el momento de pegar:
+-- MD5 DE PARTIDA — pedido a PRODUCCIÓN el 2026-09-15, después de que el
+-- Postgres local de esta Mac (caído al escribir esto, Docker Desktop no
+-- respondía, 2026-09-14) volviera a estar disponible. El cuerpo se copió tal
+-- cual del archivo `0413_a_un_practicante_ya_se_le_mide_la_tardanza.sql`,
+-- confirmado como la única versión vigente con `./scripts/donde-vive.sh
+-- fn_recalcular_jornada` el 2026-09-14:
 --
 --   select md5(p.prosrc) as tal_cual,
 --          md5(array_to_string(array(
@@ -65,6 +62,11 @@
 --          ), chr(10)))                 as sin_comentarios
 --     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
 --    where n.nspname = 'public' and p.proname = 'fn_recalcular_jornada';
+--
+-- → tal_cual = 11c659cae6ee236d81fdddb1c4d8dd8b (12 872 caracteres) —
+-- COINCIDE, carácter por carácter, con el cuerpo de la 0413 de este
+-- repositorio. Producción no había derivado ni un byte entre la 0413 y el
+-- momento de escribir esta migración: el punto de partida que asume es real.
 --
 -- AUDITADO EMPÍRICAMENTE el 2026-09-14, en BEGIN…ROLLBACK contra el Postgres
 -- local (sin datos reales — la base compartida estaba vacía de personas y

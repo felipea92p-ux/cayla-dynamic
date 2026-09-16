@@ -3,7 +3,6 @@ import {
   COLUMNAS_CSV,
   COLUMNAS_CSV_ANTERIORES,
   calendario,
-  descansoPracticanteEstado,
   estadoVentana,
   estadosFila,
   fechaCorta,
@@ -15,11 +14,15 @@ import {
   pagosDe,
   proximoDesembolso,
   resumen,
+  saldoDeFila,
+  subvencionDe,
   totalProximo,
+  totalesSubvenciones,
   ventanasDe,
   type DesembolsoLibro,
   type ProvData,
   type ProvPersona,
+  type SubvData,
 } from "@/lib/admin/provisiones";
 
 // Personas de ejemplo con la forma del jsonb de fn_provisiones (0428). Los
@@ -252,13 +255,69 @@ describe("CSV", () => {
   });
 });
 
-describe("descansoPracticanteEstado — Ley 28518 (0464)", () => {
-  it("sin la bandera de la base, sigue acumulando (nunca antes de los 12 meses)", () => {
-    expect(descansoPracticanteEstado(practicante)).toBe("acumulando");
+describe("subvenciones de modalidad formativa (0467)", () => {
+  // Lo que devuelve fn_subvenciones_practicante para la practicante del equipo.
+  const subv: SubvData = {
+    as_of: "2026-09-15",
+    factor_media_subvencion: 0.5,
+    factor_descanso: 0.5,
+    personas: [
+      {
+        persona_id: "e",
+        nombre: "Sofía Cueva",
+        sede: "TRU",
+        fecha_ingreso: "2026-01-01",
+        subvencion_mensual: 1130,
+        sin_subvencion: false,
+        semestres_cumplidos: 1,
+        semestre_desde: "2026-07-01",
+        semestre_hasta: "2027-01-01",
+        proximo_hito: "2027-01-01",
+        media_sub_devengado: 799.19,
+        media_sub_pagado: null,
+        media_sub_saldo: 799.19,
+        descanso_cumple: "2027-01-01",
+        descanso_ganado: false,
+        descanso_devengado: 396.35,
+        descanso_pagado: null,
+        descanso_saldo: 396.35,
+        total_saldo: 1195.54,
+      },
+    ],
+  };
+
+  it("encuentra la subvención de su persona y solo la suya", () => {
+    expect(subvencionDe(subv, practicante)?.media_sub_saldo).toBe(799.19);
+    expect(subvencionDe(subv, ctsVencida)).toBeNull();
   });
-  it("con la bandera en true, ya es completo: no vuelve a compararse dias_convenio acá", () => {
-    const p = persona({ persona_id: "k", nombre: "W", tipo_vinculo: "practicante", ley28518_descanso_completo: true });
-    expect(descansoPracticanteEstado(p)).toBe("completo");
+
+  it("mientras se lee, o si no se pudo leer, no inventa una fila", () => {
+    expect(subvencionDe(undefined, practicante)).toBeNull();
+    expect(subvencionDe(null, practicante)).toBeNull();
+  });
+
+  it("el saldo de una practicante sale de su función, no del gran_total de la base", () => {
+    // La base manda gran_total 0 para ella, y ESO SIGUE SIENDO CORRECTO: no
+    // devenga gratificación, CTS ni vacaciones (art. 47).
+    expect(practicante.gran_total).toBe(0);
+    expect(saldoDeFila(practicante, subv)).toBe(1195.54);
+  });
+
+  it("para el resto del equipo el saldo sigue siendo el de la base", () => {
+    expect(saldoDeFila(ctsVencida, subv)).toBe(ctsVencida.gran_total);
+  });
+
+  it("los totales de practicantes se suman aparte y dicen a cuántas cubren", () => {
+    expect(totalesSubvenciones(equipo, subv)).toEqual({
+      media: 799.19,
+      descanso: 396.35,
+      total: 1195.54,
+      personas: 1,
+    });
+  });
+
+  it("sin practicantes visibles no hay fila de totales que pintar", () => {
+    expect(totalesSubvenciones([ctsVencida, alDia], subv)).toBeNull();
   });
 });
 

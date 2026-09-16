@@ -327,7 +327,7 @@ const ETIQUETA_CORTA: Record<string, string> = {
   sin_firmar: "Sin firmar",
   sin_vencimiento: "Sin vencimiento",
   por_vencer: "Vence pronto",
-  tramite_pendiente: "Falta trámite",
+  tramite_pendiente: "Falta la copia",
   ok: "Vigente",
 };
 
@@ -383,7 +383,7 @@ const ESTADO_TABLERO: Record<string, { texto: string; grave: boolean }> = {
   sin_firmar: { texto: "pendiente de firma", grave: false },
   sin_vencimiento: { texto: "sin fecha de vencimiento", grave: false },
   por_vencer: { texto: "vence pronto", grave: false },
-  tramite_pendiente: { texto: "falta copia o comunicación al MTPE", grave: false },
+  tramite_pendiente: { texto: "falta entregar copia", grave: false },
   ok: { texto: "al día", grave: false },
 };
 
@@ -1915,8 +1915,13 @@ export default function ContratosPage() {
     setFirmaPersonaAbierta(fila.firma_persona);
   }
 
-  /** Anota que se entregó la copia o que se comunicó al MTPE. */
-  async function marcarTramite(id: string, tramite: "copia" | "mtpe") {
+  /**
+   * Anota que se entregó la copia. `fn_contrato_marcar_tramite` todavía
+   * acepta 'mtpe' (columna que se deja sin borrar, 0470), pero la pantalla ya
+   * no ofrece marcarlo: comunicar el contrato al MTPE dejó de ser trámite de
+   * nadie desde el D. Leg. 1246.
+   */
+  async function marcarTramite(id: string, tramite: "copia") {
     const { error } = await supabase.rpc("fn_contrato_marcar_tramite", {
       p_id: id,
       p_tramite: tramite,
@@ -2178,10 +2183,7 @@ export default function ContratosPage() {
                 ? "Cerca del tope"
                 : esPracticanteFila && f.estado === "sin_vencimiento"
                   ? "Sin fecha fin"
-                  : // Un indefinido nunca debe comunicación al MTPE (0347).
-                    f.tipo === "indefinido" && f.estado === "tramite_pendiente"
-                    ? "Falta la copia"
-                    : // BUG cerrado: `ETIQUETA_CORTA.sin_contrato` ("Sin
+                  : // BUG cerrado: `ETIQUETA_CORTA.sin_contrato` ("Sin
                       // registrar") tapaba la distinción que `estadoSinContrato`
                       // ya calculaba en `e.texto` — alguien con un contrato
                       // firmado EN PAPEL antes de que este generador existiera
@@ -3491,20 +3493,16 @@ export default function ContratosPage() {
                         )}
                       </div>
 
-                      {/* Los dos plazos, solo mientras falten: confirmar en cada
-                          fila lo que ya se hizo llena la pantalla de recibos.
-                          Un indefinido no se registra ante la Autoridad de
-                          Trabajo (0347) — ese trámite no le corresponde. */}
-                      {c.fecha_firma &&
-                        (!c.copia_entregada_at || (c.tipo !== "indefinido" && !c.comunicado_mtpe_at)) && (
-                          <p className="text-xs text-taupe">
-                            Falta{" "}
-                            {!c.copia_entregada_at &&
-                              `entregar copia a ${c.tipo === "convenio_practicas" ? "la practicante" : "la colaboradora"}`}
-                            {!c.copia_entregada_at && c.tipo !== "indefinido" && !c.comunicado_mtpe_at && " y "}
-                            {c.tipo !== "indefinido" && !c.comunicado_mtpe_at && "comunicar a la Autoridad de Trabajo"}
-                          </p>
-                        )}
+                      {/* Solo mientras falte: confirmar en cada fila lo que ya
+                          se hizo llena la pantalla de recibos. Comunicar el
+                          contrato a la Autoridad de Trabajo ya no es un
+                          trámite de nadie (0470, D. Leg. 1246) — lo único que
+                          puede faltar acá es la copia. */}
+                      {c.fecha_firma && !c.copia_entregada_at && (
+                        <p className="text-xs text-taupe">
+                          Falta entregar copia a {c.tipo === "convenio_practicas" ? "la practicante" : "la colaboradora"}
+                        </p>
+                      )}
 
                       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
                         <Boton variante="enlace" onClick={() => abrirGenerado(c.id)}>
@@ -3537,11 +3535,6 @@ export default function ContratosPage() {
                         {c.fecha_firma && !c.copia_entregada_at && (
                           <Boton variante="enlace" onClick={() => marcarTramite(c.id, "copia")}>
                             Marcar copia entregada
-                          </Boton>
-                        )}
-                        {c.fecha_firma && c.tipo !== "indefinido" && !c.comunicado_mtpe_at && (
-                          <Boton variante="enlace" onClick={() => marcarTramite(c.id, "mtpe")}>
-                            Marcar comunicado al MTPE
                           </Boton>
                         )}
                         {/* Anular va al final y en taupe: es destructivo, no
@@ -3712,7 +3705,7 @@ export default function ContratosPage() {
                   ? { texto: "Pendiente de firma", variante: "neutral" }
                   : c.fecha_fin && c.fecha_fin < hoyLima()
                     ? { texto: "Vencido", variante: "alerta" }
-                    : !c.copia_entregada_at || (c.tipo !== "indefinido" && !c.comunicado_mtpe_at)
+                    : !c.copia_entregada_at
                       ? { texto: "Trámite pendiente", variante: "advertencia" }
                       : { texto: "Vigente", variante: "positivo" };
               // La historia, de lo más reciente a lo más antiguo. Solo eventos
@@ -3816,17 +3809,16 @@ export default function ContratosPage() {
                       <dd className={`text-right ${c.copia_entregada_at ? "text-verde" : "text-taupe"}`}>
                         {c.copia_entregada_at ? formatearFecha(c.copia_entregada_at) : "falta"}
                       </dd>
-                      {/* Un indefinido no se registra ante la Autoridad de
-                          Trabajo (0347): ese trámite no le corresponde y
-                          pedírselo sería un falso pendiente para siempre. */}
-                      <dt className="text-taupe">MTPE</dt>
-                      <dd className={`text-right ${c.tipo === "indefinido" ? "text-taupe" : c.comunicado_mtpe_at ? "text-verde" : "text-taupe"}`}>
-                        {c.tipo === "indefinido"
-                          ? "no corresponde"
-                          : c.comunicado_mtpe_at
-                            ? formatearFecha(c.comunicado_mtpe_at)
-                            : "falta"}
-                      </dd>
+                      {/* Ningún tipo se registra ante la Autoridad de Trabajo
+                          (0470, D. Leg. 1246): ese trámite no le corresponde
+                          a nadie desde 2016. Solo se muestra si ya quedó una
+                          fecha anotada de antes — no como algo pendiente. */}
+                      {c.comunicado_mtpe_at && (
+                        <>
+                          <dt className="text-taupe">MTPE</dt>
+                          <dd className="text-right text-taupe">{formatearFecha(c.comunicado_mtpe_at)}</dd>
+                        </>
+                      )}
                       <dt className="text-taupe">Generado por</dt>
                       <dd className="text-right">{c.generado_por ?? "—"}</dd>
                     </dl>
@@ -3872,11 +3864,6 @@ export default function ContratosPage() {
                     {vive && c.fecha_firma && !c.copia_entregada_at && (
                       <Boton variante="secundario" onClick={() => void marcarTramite(c.id, "copia")}>
                         Marcar copia entregada
-                      </Boton>
-                    )}
-                    {vive && c.fecha_firma && c.tipo !== "indefinido" && !c.comunicado_mtpe_at && (
-                      <Boton variante="secundario" onClick={() => void marcarTramite(c.id, "mtpe")}>
-                        Marcar comunicado al MTPE
                       </Boton>
                     )}
                     <Boton variante="enlace" className="ml-auto text-sm" onClick={() => setDetalleId(null)}>

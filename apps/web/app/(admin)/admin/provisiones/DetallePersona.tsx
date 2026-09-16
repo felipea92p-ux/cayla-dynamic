@@ -4,7 +4,6 @@ import { cx } from "@/components/ui/cx";
 import { Insignia } from "@/components/ui/insignia";
 import { Estados } from "./TablaProvisiones";
 import {
-  descansoPracticanteEstado,
   ETIQUETA_ESTADO_VENTANA,
   ETIQUETA_ORIGEN,
   bonificacionDe,
@@ -18,11 +17,13 @@ import {
   pagadoVentana,
   pagosDe,
   proximoDesembolso,
+  subvencionDe,
   ventanasDe,
   type DesembolsoLibro,
   type EstadoVentana,
   type ProvData,
   type ProvPersona,
+  type Subvenciones,
   type Ventana,
   type VentanaClave,
   type VentanaLibro,
@@ -51,7 +52,18 @@ const VARIANTE: Record<EstadoVentana, "advertencia" | "informativo" | "positivo"
 
 const pct = (x: number) => `${(x * 100).toLocaleString("es-PE", { maximumFractionDigits: 2 })} %`;
 
-export function DetallePersona({ data, persona: p, libro }: { data: ProvData; persona: ProvPersona; libro: Libro }) {
+export function DetallePersona({
+  data,
+  persona: p,
+  libro,
+  subvenciones,
+}: {
+  data: ProvData;
+  persona: ProvPersona;
+  libro: Libro;
+  /** Lo que devenga una practicante (0467). Viene de otra función. */
+  subvenciones: Subvenciones;
+}) {
   const anio = Number(data.as_of.slice(0, 4));
   const vinculo = esPracticante(p) ? "Practicante" : "Planilla";
 
@@ -77,52 +89,110 @@ export function DetallePersona({ data, persona: p, libro }: { data: ProvData; pe
   );
 
   if (esPracticante(p)) {
-    const estadoDescanso = descansoPracticanteEstado(p);
+    const s = subvencionDe(subvenciones, p);
     return (
-      <div className="grid gap-7 [font-variant-numeric:tabular-nums]">
+      <div className="grid gap-6 [font-variant-numeric:tabular-nums]">
         {cabecera}
         <p className="text-sm">
           Por la Ley 28518, una modalidad formativa <strong className="font-medium">no genera</strong>{" "}
-          gratificación, CTS ni las vacaciones de 30 días. Eso no cambia.
+          gratificación, CTS ni vacaciones de trabajador (art. 47). Sí genera estos dos pagos (art. 42), y por
+          eso ocupa una fila como cualquier otra persona.
         </p>
 
-        {p.ley28518_sin_tarifa && (
+        {s === null ? (
           <p className="text-sm text-rojo-profundo">
-            Sin tramo de salario vigente: el descanso y la subvención de abajo salen en S/ 0.00, no porque no le
-            correspondan. El salario se asigna en Equipo.
+            No se pudieron leer sus subvenciones. Los montos de esta persona no se están mostrando; vuelve a
+            cargar la pantalla.
           </p>
+        ) : (
+          <>
+            {s.sin_subvencion && (
+              <p className="text-sm text-rojo-profundo">
+                Sin subvención mensual cargada: sus dos conceptos salen en cero, no porque no le toquen. Se
+                asigna en Equipo, igual que un salario.
+              </p>
+            )}
+
+            <Seccion
+              titulo="Media subvención"
+              total={s.media_sub_saldo}
+              nota="Media subvención mensual por cada 6 meses continuos de convenio (Ley 28518, art. 42)."
+            >
+              <div className="grid gap-3 rounded-control border border-sand p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h4 className="font-medium">
+                    Semestre en curso{" "}
+                    <span className="font-normal text-taupe">
+                      · {fechaCorta(s.semestre_desde)} → {fechaCorta(s.semestre_hasta)}
+                    </span>
+                  </h4>
+                  <Insignia variante="neutral" atenuada>
+                    {s.semestres_cumplidos === 0
+                      ? "primer semestre"
+                      : `${s.semestres_cumplidos} ${s.semestres_cumplidos === 1 ? "hito cumplido" : "hitos cumplidos"}`}
+                  </Insignia>
+                </div>
+                <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-3">
+                  <Dato etiqueta="Subvención mensual">
+                    {s.subvencion_mensual === null ? "—" : formatSoles(s.subvencion_mensual)}
+                  </Dato>
+                  <Dato etiqueta="Devengado">{formatSoles(s.media_sub_devengado)}</Dato>
+                  <Dato etiqueta="Pagado">
+                    <Pagos p={p} ventana="subvencion_semestral" anio={anio} libro={libro} monto={s.media_sub_pagado ?? 0} />
+                  </Dato>
+                  <Dato etiqueta="Saldo" className={cx("font-semibold", s.media_sub_saldo < 0 && "text-pizarra")}>
+                    {formatSoles(s.media_sub_saldo)}
+                  </Dato>
+                  <Dato etiqueta="Próximo hito">{fechaCorta(s.proximo_hito)}</Dato>
+                </dl>
+              </div>
+            </Seccion>
+
+            <Seccion
+              titulo="Descanso de 15 días"
+              total={s.descanso_saldo}
+              nota="15 días subvencionados al cumplir 12 meses continuos. Se pagan aunque el convenio termine sin gozarlos."
+            >
+              <div className="grid gap-3 rounded-control border border-sand p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h4 className="font-medium">
+                    Cumple el año el{" "}
+                    <span className="font-normal text-taupe">{fechaCorta(s.descanso_cumple)}</span>
+                  </h4>
+                  <Insignia variante={s.descanso_ganado ? "positivo" : "neutral"} atenuada={!s.descanso_ganado}>
+                    {s.descanso_ganado ? "Ganado" : "Acumulando"}
+                  </Insignia>
+                </div>
+                <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-3">
+                  <Dato etiqueta="Devengado">{formatSoles(s.descanso_devengado)}</Dato>
+                  <Dato etiqueta="Pagado">
+                    <Pagos p={p} ventana="descanso_practicante" anio={anio} libro={libro} monto={s.descanso_pagado ?? 0} />
+                  </Dato>
+                  <Dato etiqueta="Saldo" className={cx("font-semibold", s.descanso_saldo < 0 && "text-pizarra")}>
+                    {formatSoles(s.descanso_saldo)}
+                  </Dato>
+                </dl>
+                {!s.descanso_ganado && (
+                  <p className="text-xs text-taupe">
+                    Se reserva mes a mes para que el día 365 el dinero ya esté guardado. Si el convenio termina
+                    antes de los 12 meses, este saldo no se paga.
+                  </p>
+                )}
+              </div>
+            </Seccion>
+
+            <section className="grid gap-2 border-t border-sand pt-4">
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="font-medium">Saldo total</span>
+                <span className="font-serif text-2xl">{formatSoles(s.total_saldo)}</span>
+              </div>
+              <p className="text-sm text-taupe">
+                No entra en el «Saldo total» de gratificación, CTS y vacaciones del resto del equipo: son
+                conceptos distintos, de otra ley y con otra fecha de pago.
+              </p>
+            </section>
+          </>
         )}
-
-        <Seccion
-          titulo="Descanso subvencionado"
-          total={p.ley28518_descanso_devengado ?? 0}
-          nota="15 días, una sola vez, al superar los 12 meses continuos de convenio (art. 20)."
-        >
-          <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-3">
-            <Dato etiqueta="Convenio desde">{fechaCorta(p.fecha_ingreso)}</Dato>
-            <Dato etiqueta="Días de convenio">{p.ley28518_dias_convenio ?? 0}</Dato>
-            <Dato etiqueta="Días de descanso acumulados">{(p.ley28518_descanso_dias ?? 0).toFixed(1)} de 15</Dato>
-            <Dato etiqueta="Estado">
-              <Insignia variante={estadoDescanso === "completo" ? "informativo" : "neutral"} atenuada={estadoDescanso === "acumulando"}>
-                {estadoDescanso === "completo" ? "Completo · le corresponde" : "Acumulando"}
-              </Insignia>
-            </Dato>
-            <Dato etiqueta="Subvención mensual usada en el cálculo">{formatSoles(p.ley28518_subvencion_mensual ?? 0)}</Dato>
-          </dl>
-        </Seccion>
-
-        <Seccion
-          titulo="Subvención semestral"
-          total={p.ley28518_subvencion_devengada ?? 0}
-          nota="Media subvención adicional cada 6 meses continuos de convenio (art. 42.7); se repite mientras siga activo."
-        >
-          <p className="text-sm text-taupe">Acumulado de por vida, no por semestre: nunca se reinicia a cero.</p>
-        </Seccion>
-
-        <p className="text-xs text-taupe">
-          Informativo: ninguno de los dos entra en el saldo total ni tiene todavía un pago automático. Felipe
-          decide cuándo pagarlo.
-        </p>
       </div>
     );
   }
@@ -280,11 +350,30 @@ function BloqueVacaciones({ p, libro, anio }: { p: ProvPersona; libro: Libro; an
   );
 }
 
-function Pagos({ p, ventana, anio, libro }: { p: ProvPersona; ventana: VentanaLibro; anio: number; libro: Libro }) {
-  const total = ventana === "vacaciones" ? (p.vac_monto_pagado ?? 0) : pagadoVentana(p, ventana);
+function Pagos({
+  p,
+  ventana,
+  anio,
+  libro,
+  monto,
+}: {
+  p: ProvPersona;
+  ventana: VentanaLibro;
+  anio: number;
+  libro: Libro;
+  /** Lo cobrado, cuando no viaja en el jsonb de fn_provisiones: las dos
+   *  ventanas de modalidad formativa lo traen de su propia función (0467). */
+  monto?: number;
+}) {
+  // Las dos ventanas de modalidad formativa (0467) no viven en el jsonb de
+  // fn_provisiones: su cobrado llega en `monto`, desde la otra función.
+  const esDeModalidadFormativa = ventana === "subvencion_semestral" || ventana === "descanso_practicante";
+  const total =
+    monto ??
+    (esDeModalidadFormativa ? 0 : ventana === "vacaciones" ? (p.vac_monto_pagado ?? 0) : pagadoVentana(p, ventana));
   if (total <= 0) return <>—</>;
   if (!libro) return <>{formatSoles(total)}</>;
-  const pagos = pagosDe(p, ventana, anio, libro);
+  const pagos = pagosDe(p, ventana, anio, libro, total);
   return (
     <>
       {formatSoles(pagos.total)}

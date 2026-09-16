@@ -29,8 +29,28 @@
 // dos leen es el mismo.
 // ============================================================================
 
-export type BeneficioDesembolso = "gratificacion" | "cts" | "vacaciones";
-export type VentanaDesembolso = "grati_s1" | "grati_s2" | "cts_may" | "cts_nov" | "vacaciones";
+export type BeneficioDesembolso =
+  | "gratificacion"
+  | "cts"
+  | "vacaciones"
+  // Los dos de modalidad formativa (Ley 28518 art. 42), que agregó la 0467.
+  | "subvencion_semestral"
+  | "descanso_practicante";
+
+export type VentanaDesembolso =
+  | "grati_s1"
+  | "grati_s2"
+  | "cts_may"
+  | "cts_nov"
+  | "vacaciones"
+  | "subvencion_semestral"
+  | "descanso_practicante";
+
+/** Los dos conceptos que solo le tocan a una practicante. */
+export const ES_DE_MODALIDAD_FORMATIVA: readonly BeneficioDesembolso[] = [
+  "subvencion_semestral",
+  "descanso_practicante",
+];
 
 export interface PeriodoDeBeneficio {
   beneficio: BeneficioDesembolso;
@@ -62,6 +82,15 @@ export function periodoQueContiene(beneficio: BeneficioDesembolso, fechaISO: str
 
   if (beneficio === "vacaciones") {
     return { beneficio, ventana: "vacaciones", anio: y, desde: null, hasta: null, pagoLegal: null };
+  }
+
+  // MODALIDAD FORMATIVA · no son semestres calendario: sus hitos caen en el
+  // aniversario del convenio de cada persona, que esta función no conoce. El
+  // año es el del pago, y con eso basta: `fn_subvenciones_practicante` (0467)
+  // resta lo anotado sumando TODOS los años, justamente para que el año con
+  // que se archive no pueda esconder un pago ya hecho.
+  if (beneficio === "subvencion_semestral" || beneficio === "descanso_practicante") {
+    return { beneficio, ventana: beneficio, anio: y, desde: null, hasta: null, pagoLegal: null };
   }
 
   if (beneficio === "gratificacion") {
@@ -110,6 +139,8 @@ export function rangoDelPeriodo(p: PeriodoDeBeneficio): string {
 
 /** "CTS de noviembre 2026 (periodo may–oct 2026)" — cómo se le dice a una persona. */
 export function nombreDelPeriodo(p: PeriodoDeBeneficio): string {
+  if (p.beneficio === "subvencion_semestral") return `media subvención (${p.anio})`;
+  if (p.beneficio === "descanso_practicante") return `descanso de 15 días (${p.anio})`;
   if (p.beneficio === "vacaciones") return `vacaciones (${p.anio})`;
   const nombre = p.beneficio === "cts" ? "CTS" : "gratificación";
   return `${nombre} de ${mesAnio(p.pagoLegal!, MESES)} (periodo ${rangoDelPeriodo(p)})`;
