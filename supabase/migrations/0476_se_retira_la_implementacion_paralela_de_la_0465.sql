@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0470_se_retira_la_implementacion_paralela_de_la_0465.sql
+-- 0476_se_retira_la_implementacion_paralela_de_la_0465.sql
 -- ============================================================================
 --
 -- QUÉ PROMETE
@@ -960,7 +960,7 @@ revoke execute on function fn_provisiones(date, date) from public, anon;
 drop function if exists fn_practicante_ya_depositado(uuid, text);
 
 insert into migraciones_aplicadas (numero, nombre) values
-  (470, 'se_retira_la_implementacion_paralela_de_la_0465')
+  (476, 'se_retira_la_implementacion_paralela_de_la_0465')
 on conflict (numero) do update set nombre = excluded.nombre, aplicada_at = now();
 
 notify pgrst, 'reload schema';
