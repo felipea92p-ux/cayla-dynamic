@@ -269,7 +269,13 @@ export default function BandejaPage() {
     ];
     for (const [tipo, id] of items) {
       if (!vistosIniciales.has(`${tipo}:${id}`)) {
-        void supabase.rpc("fn_bandeja_marcar_visto", { p_tipo_item: tipo, p_item_id: id });
+        // `supabase.rpc(...)` sola NO dispara nada: postgrest-js solo hace el
+        // fetch dentro de `.then()` (PostgrestBuilder#then). Sin ese `.then()`
+        // —o un `await`— esto arma la petición y la descarta en silencio: ni
+        // error, ni red, ni consola. Medido el 2026-09-16: esta línea llevaba
+        // así desde la 0436 y nunca marcó un solo «visto» en producción.
+        void supabase.rpc("fn_bandeja_marcar_visto", { p_tipo_item: tipo, p_item_id: id })
+          .then(() => {}, () => {});
       }
     }
     // Solo cuando termina de cargar: una vez por visita.
