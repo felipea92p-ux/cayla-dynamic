@@ -1092,22 +1092,33 @@ export default function DashboardPage() {
                     <TileCobertura label="Encargadas" n={cob.encPiso} meta={cob.metaEnc} sinMeta={cob.sinMetaEnc} />
                   </div>
 
-                  <div className="mb-4">
-                    <div className="etiqueta text-taupe">Trabajando ahora · {cob.activos.length}</div>
+                  {/* Recuadro verde claro de "Trabajando ahora": estuvo desde julio y
+                      el commit 8aae5710 (15-sep) lo cambió por una línea de texto
+                      suelta. Era lo que se buscaba primero al abrir la pantalla, así
+                      que vuelve. Sin nadie trabajando no se pinta de verde: verde es
+                      "hay gente en piso", y un recuadro verde que dice "nadie"
+                      afirmaría lo contrario de lo que escribe. Al 15% y no al 6% de
+                      antes: es el mismo relleno de la insignia "Presente", y con el
+                      verde retonado el 2026-09-06 el 6% ya se leía gris. La etiqueta
+                      verde encima da 5.27:1 claro y 4.91:1 oscuro. */}
+                  <div
+                    className={`mb-4 rounded-superficie border px-4 py-3 ${cob.activos.length > 0 ? "border-verde/30 bg-verde/15" : "border-sand bg-crema"}`}
+                  >
+                    <div className={`etiqueta ${cob.activos.length > 0 ? "text-verde" : "text-taupe"}`}>Trabajando ahora · {cob.activos.length}</div>
                     <div className="mt-2 flex flex-wrap gap-2">
                       {cob.activos.length === 0 ? (
                         <span className="text-sm text-taupe">Nadie está trabajando actualmente.</span>
                       ) : (
-                        // Mismo verde/ámbar que "Presente"/"En pausa" en la tabla de
-                        // abajo: antes eran papel sobre papel con borde sand, y no
-                        // se distinguía quién estaba en piso de quién en refrigerio
-                        // hasta leer el texto al final del nombre.
+                        // Pastillas en papel sobre el verde, como antes; quien está en
+                        // refrigerio se distingue por borde y punto ámbar. Su fondo
+                        // queda en papel a propósito: ámbar sobre relleno ámbar daba
+                        // 4.26:1 en modo oscuro, y sobre papel da 6.17:1.
                         cob.activos.map((f) => {
                           const enPausa = f.estado === "en_pausa";
                           return (
                             <span
                               key={f.personaId}
-                              className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm ${enPausa ? "border-ambar/35 bg-ambar/[0.16]" : "border-verde/30 bg-verde/[0.14]"}`}
+                              className={`inline-flex items-center gap-2 rounded-full border bg-papel px-3 py-1 text-sm ${enPausa ? "border-ambar/45" : "border-verde/25"}`}
                             >
                               <span aria-hidden className={`size-1.5 rounded-full ${enPausa ? "bg-ambar" : "bg-verde"}`} />
                               {f.nombre}
