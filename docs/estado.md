@@ -6,6 +6,48 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-09-15 — Dos sesiones construyeron la misma idea a la vez; se limpia el residuo (0469) · SIN PEGAR
+
+El mismo día en que se pegó la 0465 (ver la entrada de abajo), otra sesión —
+`claude/practicantes-subvencion-semestral`, PR
+[#408](https://github.com/felipea92p-ux/cayla-dynamic/pull/408)— construyó de
+forma independiente la MISMA idea de negocio (descanso de 15 días + subvención
+semestral de un practicante), con una arquitectura distinta (una función
+nueva, `fn_subvenciones_practicante`, en vez de reescribir `fn_provisiones`) y
+reclamó el mismo número, renumerada después a 0466 y luego a 0467 por el mismo
+`siguiente-numero.sh` que ya había avisado antes.
+
+**Contra producción se confirmó que quedaron restos de las dos.** `fn_provisiones`
+tiene mi cuerpo completo (la otra migración declara por escrito que nunca la
+toca), pero su `ALTER TABLE` pisó mi valor `subvencion_practicante` en el CHECK
+de `desembolsos_beneficios.ventana` con el suyo (`subvencion_semestral`), y su
+`fn_subvenciones_practicante` quedó viva y sin nada que la llame — la misma
+ambigüedad de dos puertas para la misma pregunta que causó el accidente de la
+0297/0299 (dos funciones de vencimiento de vacaciones, cada una con su propia
+ventana, conviviendo en silencio).
+
+**Decidido con Felipe: se conserva la 0465** (ya viva, auditada con 34 pruebas
+pgTAP) **y se cierra el PR #408 sin fusionar** — su código de pantalla nunca
+llegó a desplegarse, así que no hay nada de frontend que limpiar, solo SQL. La
+0469 ensancha el CHECK para admitir los tres nombres que llegaron a
+declararse (nunca se restringe sin comprobar antes que ninguna fila los usa) y
+retira la función huérfana. Auditada dos veces en el Postgres local, en los
+dos órdenes posibles en que pudo haber quedado producción, dentro de
+`BEGIN…ROLLBACK` — mismo resultado final en los dos casos, y la 369 sigue en
+34/34 después de la limpieza.
+
+**La lección, para el resto de esta sesión y las que vengan:** el check de
+"otra rama ya lo está haciendo" (`git log --all`, `git grep`) no encuentra una
+rama que se creó la MISMA tarde que la propia, y las dos sesiones corrieron en
+paralelo sin solaparse en el tiempo lo suficiente como para que ninguna viera
+a la otra. No hay freno automático para esto — es el mismo límite que ya
+anotó la 0299 el 2026-08-25. Lo que sí funcionó: `siguiente-numero.sh` cazó la
+colisión de NÚMERO en las dos sesiones, cada una por su lado, antes de que
+llegara a `main`; lo que ninguna herramienta cazó fue la colisión de IDEA, y
+esa la encontró Felipe pidiendo el estado real de producción.
+
+---
+
 ## 2026-09-15 — El practicante ya devenga su descanso de 15 días y su subvención semestral (0465) · PEGADA Y VERIFICADA
 
 Cierra un pendiente que la 0322 (2026-08-29) dejó escrito a propósito: la Ley
