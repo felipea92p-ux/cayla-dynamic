@@ -157,3 +157,15 @@
 # `numero = 466`. Nunca se aplicó con ese número ni con ningún otro que no
 # sea el 468 actual.
 0466  Renumerada en cadena (465→466→467→468) por choques sucesivos con otras ramas el mismo día; se fusionó como la 0468 de hoy. Nunca se aplicó en producción como 0466.
+
+# ── 0469 · AUTOCHOQUE DE NUMERACIÓN EN LA MISMA RAMA (2026-09-15) ───────────
+#
+# La migración de retiro de la 0465 pasó por el número 469 en un push anterior
+# de esta misma rama (claude/suspicious-einstein-983c57), y el hook de
+# numeración lo marcó como "ya reclamado" contra el propio historial remoto
+# de la rama al renombrar el archivo -- un falso choque consigo misma, no con
+# otra sesión. Se renumeró a 471 (el siguiente número realmente libre, ya que
+# el 470 lo tomó de por medio la migración del MTPE fusionada a main).
+# Confirmado contra producción el 2026-09-15: `migraciones_aplicadas` no
+# tiene ninguna fila con `numero = 469`.
+0469  Autochoque de numeración dentro de la misma rama al renombrar un archivo (claude/suspicious-einstein-983c57, 2026-09-15); se renumeró a 471. Nunca se aplicó en producción como 0469.
