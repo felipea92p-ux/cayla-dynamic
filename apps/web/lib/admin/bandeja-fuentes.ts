@@ -207,6 +207,18 @@ export function pendientesDeDocumento(d: ItemDocumento): { ruta: "sin_ruta" | "d
   };
 }
 
+/**
+ * Un bono de cumpleaños que alguien PIDIÓ desde su Info y DO todavía no
+ * confirma haber transferido (`fn_bonos_por_transferir`, 0478). Distinto de
+ * `documento_bono`: aquél es «nadie lo pidió todavía», y desaparece en cuanto
+ * ella firma — éste es justo lo que queda después, y solo se va cuando DO dice
+ * «Ya se lo transferí».
+ */
+export interface ItemBonoPorTransferir {
+  documento_id: string; persona_id: string; persona: string; sede: string;
+  anio: number; monto: number | null; pedido_el: string; pedido_at: string;
+}
+
 /** Un feriado trabajado (`fn_feriados_laborados`, 0419). */
 export interface ItemFeriado extends FilaFeriado {
   persona_id: string; nombre: string; sede: string; feriado_nombre: string; fecha_descanso: string | null;
@@ -266,6 +278,7 @@ export interface FuentesBandeja {
   /** El periodo de pago abierto hoy, para medir los días por revisar contra su cierre. */
   periodo: PeriodoDePago | null;
   documentos: ItemDocumento[];
+  bonosPorTransferir: ItemBonoPorTransferir[];
   feriados: ItemFeriado[];
   disciplina: ItemDisciplina[];
   resumenAlertas: ResumenAlertas | null;
@@ -281,7 +294,7 @@ export const FUENTES_VACIAS: FuentesBandeja = {
   educacion: [], entregasEducacion: [], avisosFinEducacion: [], solicitudesEducacion: [], vacaciones: [], sinHorario: [],
   liquidacionesVencidas: [], revisiones: [], revisionesMovilidad: [], revisionesContrato: [],
   solicitudesVacaciones: [], solicitudesPerfil: [], contratos: [], diasPorRevisar: [], marcasApartadas: [],
-  periodo: null, documentos: [], feriados: [], disciplina: [], resumenAlertas: null, fallidas: [],
+  periodo: null, documentos: [], bonosPorTransferir: [], feriados: [], disciplina: [], resumenAlertas: null, fallidas: [],
 };
 
 /** Cuántos avisos por correo necesitan a una persona. Lo que se reintenta solo no cuenta. */
@@ -362,6 +375,7 @@ export async function traerFuentesBandeja(
     pedir<ItemDocumento>(supabase.rpc("fn_documentos_tablero"), "documentacion", "la documentación", (xs) => {
       f.documentos = xs.filter((d) => { const p = pendientesDeDocumento(d); return p.ruta !== null || p.bono; });
     });
+    pedir<ItemBonoPorTransferir>(supabase.rpc("fn_bonos_por_transferir"), "documentacion", "los bonos de cumpleaños por transferir", (xs) => { f.bonosPorTransferir = xs; });
     pedir<ItemFeriado>(
       supabase.rpc("fn_feriados_laborados", { p_desde: sumarDias(hoy, -DIAS_ATRAS_FERIADOS), p_hasta: hoy }),
       "feriados", "los feriados trabajados", (xs) => { f.feriados = xs.filter(esFeriadoParaBandeja); },
@@ -450,7 +464,8 @@ export type TipoItemVisto =
 
 export type TipoPendiente =
   | TipoItemVisto | "educacion" | "vacaciones_por_vencer" | "sin_horario" | "liquidacion_vencida"
-  | "contrato" | "dia_por_revisar" | "marca_apartada" | "documento_ruta" | "documento_bono" | "feriado" | "disciplina";
+  | "contrato" | "dia_por_revisar" | "marca_apartada" | "documento_ruta" | "documento_bono" | "bono_por_transferir"
+  | "feriado" | "disciplina";
 
 /**
  * Un pendiente, sea del tipo que sea. Quién, qué, dónde, de qué módulo, cuándo
@@ -735,6 +750,22 @@ export function armarPendientes(
         ir: { texto: "Registrar constancia", href: `/admin/documentacion?persona=${d.persona_id}` }, contexto: null,
       });
     }
+  }
+  // ⇩ 0478 ⇩ Se resuelve aquí: lo único que falta es que DO diga que ya
+  // transfirió, con la fecha. Espera desde que lo pidió, como cualquier otro
+  // pedido: a la semana pasa a vencido.
+  for (const b of f.bonosPorTransferir) {
+    agregar({
+      clave: `bono_por_transferir:${b.documento_id}`, tipo: "bono_por_transferir", itemId: b.documento_id,
+      personaId: b.persona_id, persona: b.persona, sede: b.sede, modulo: "documentacion",
+      titulo: "Pidió su bono de cumpleaños",
+      detalle: `${b.monto !== null ? `${formatSoles(Number(b.monto))} por transferir` : "Por transferir"} · lo pidió el ${diaYMes(b.pedido_el)}`,
+      urgencia: urgenciaEspera(b.pedido_at, hoy), resolucion: "aqui", ir: null,
+      // Sin enlace a Documentación A PROPÓSITO: esa pantalla todavía no sabe
+      // mostrar una constancia firmada desde el sistema (solo abre escaneos),
+      // y un «Ver su constancia» que no la muestra es peor que no ofrecerlo.
+      contexto: null,
+    });
   }
   for (const x of f.feriados) {
     agregar({

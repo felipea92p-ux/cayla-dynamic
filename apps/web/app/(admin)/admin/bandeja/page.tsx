@@ -10,9 +10,10 @@
 // junta. Si un pendiente se arregla en su módulo, a la próxima carga ya no está.
 //
 // QUÉ NO HACE. No resuelve nada que ya tenga su propio formulario: enlaza a la
-// persona en su módulo. Cinco tipos sí se resuelven aquí mismo porque son una
-// sola RPC con un texto opcional: las tres revisiones pedidas («marcar
-// atendida»), las solicitudes de vacaciones y las de cambio de perfil.
+// persona en su módulo. Seis tipos sí se resuelven aquí mismo porque son una
+// sola RPC con un texto o una fecha: las tres revisiones pedidas («marcar
+// atendida»), las solicitudes de vacaciones, las de cambio de perfil y el bono
+// de cumpleaños que alguien pidió («Ya se lo transferí», 0478).
 //
 // A quién se le muestra. Lo decide la base: la encargada recibe solo lo de su
 // sede. Aquí `puede*` decide qué se PIDE y qué categorías se pintan.
@@ -181,6 +182,10 @@ export default function BandejaPage() {
 
   // Lo que se escribe en el desplegable de cada fila, por clave de pendiente.
   const [textos, setTextos] = useState<Record<string, string>>({});
+  // La fecha de cada transferencia por confirmar. Nace en HOY y no en "": es lo
+  // más probable, y un campo de fecha vacío que bloquea el envío es la regla
+  // quinta de CLAUDE.md. Lo que se ve y lo que se manda es la MISMA expresión.
+  const [fechas, setFechas] = useState<Record<string, string>>({});
   const [errores, setErrores] = useState<Record<string, string>>({});
   const [ocupado, setOcupado] = useState<string | null>(null);
   const [abierta, setAbierta] = useState<string | null>(null);
@@ -341,6 +346,8 @@ export default function BandejaPage() {
           case "revision_contrato": return { ...f, revisionesContrato: fuera(f.revisionesContrato) };
           case "solicitud_vacacion": return { ...f, solicitudesVacaciones: fuera(f.solicitudesVacaciones) };
           case "solicitud_perfil": return { ...f, solicitudesPerfil: fuera(f.solicitudesPerfil) };
+          case "bono_por_transferir":
+            return { ...f, bonosPorTransferir: f.bonosPorTransferir.filter((x) => x.documento_id !== p.itemId) };
           default: return f;
         }
       });
@@ -381,6 +388,20 @@ export default function BandejaPage() {
     retirar(p, `${que} — ${p.persona}.`);
   }
 
+  async function confirmarTransferencia(p: Pendiente, fecha: string) {
+    if (!fecha) {
+      setErrores((e) => ({ ...e, [p.clave]: "Elige la fecha en que salió la transferencia." }));
+      return;
+    }
+    setErrores((e) => { const n = { ...e }; delete n[p.clave]; return n; });
+    const supabase = createAdminSupabaseClient();
+    setOcupado(p.clave);
+    const { error } = await supabase.rpc("fn_confirmar_entrega_bono", { p_documento_id: p.itemId, p_fecha: fecha });
+    setOcupado(null);
+    if (error) { avisar("error", mensajeDeError(error, "confirmar la transferencia")); return; }
+    retirar(p, `Transferencia confirmada — ${p.persona} lo verá en su Info.`);
+  }
+
   /** El bucket es privado: cada documento se abre con una URL firmada, pedida
    *  al momento de mirar — nunca se firman todos de golpe. */
   async function verDocumentoPerfil(ruta: string) {
@@ -409,6 +430,30 @@ export default function BandejaPage() {
             </div>
             <Boton variante="primario" onClick={() => void atender(p)} cargando={ocupado === p.clave} className="w-full sm:w-auto">
               Marcar atendida
+            </Boton>
+          </div>
+          {contexto}
+        </div>
+      );
+    }
+
+    if (p.tipo === "bono_por_transferir") {
+      const fecha = fechas[p.clave] ?? hoy;
+      return (
+        <div className="flex flex-col gap-2">
+          <p className="text-sm">
+            Ya firmó su constancia al pedirlo. Cuando la transferencia salga del banco, confírmala aquí
+            con su fecha: hasta entonces este aviso no se va, y {p.persona} lo ve como pedido en su Info.
+          </p>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+            <Campo
+              id={`fecha-${p.clave}`} etiqueta="Fecha de la transferencia" type="date"
+              value={fecha} max={hoy} error={errores[p.clave]} className="sm:w-44"
+              onChange={(e) => setFechas((f) => ({ ...f, [p.clave]: e.target.value }))}
+            />
+            <Boton variante="primario" onClick={() => void confirmarTransferencia(p, fecha)} cargando={ocupado === p.clave}
+              className="w-full sm:w-auto">
+              Ya se lo transferí
             </Boton>
           </div>
           {contexto}
@@ -468,7 +513,10 @@ export default function BandejaPage() {
     const estaAbierta = abierta === p.clave;
     const soloVer = p.tipo === "solicitud_perfil"
       && !!fuentes.solicitudesPerfil.find((s) => s.id === p.itemId)?.solo_do && !puedeVerIdentidad(rol);
-    const verbo = soloVer ? "Ver" : p.tipo === "solicitud_vacacion" || p.tipo === "solicitud_perfil" ? "Resolver" : "Atender";
+    const verbo = soloVer ? "Ver"
+      : p.tipo === "solicitud_vacacion" || p.tipo === "solicitud_perfil" ? "Resolver"
+      : p.tipo === "bono_por_transferir" ? "Confirmar"
+      : "Atender";
     return (
       <li
         key={p.clave}

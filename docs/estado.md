@@ -6,6 +6,81 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-09-16 — El bono de cumpleaños se pide desde Info y DO confirma la transferencia (0478) · auditada en local · SIN FUSIONAR, SIN PEGAR
+
+Felipe pidió que Melany pudiera **pedir** su incentivo de cumpleaños desde su
+Info. Se construyó ENCIMA de la 0477 (entrada de abajo, PR #422), no en
+paralelo: esta rama la trae entera.
+
+**El hueco que cierra, con el caso concreto.** Con la 0477 sola, Melany firma
+su constancia y en ese instante desaparece de la Bandeja de DO la única fila
+que recordaba su bono («Bono de cumpleaños sin constancia firmada»): el
+tablero ya ve una constancia y dice `ok`. Nadie transfiere, el sistema dice
+«al día», y ella tiene firmado «Recibí conforme» por S/ 180 que no cobró.
+Ninguna otra pantalla lleva la cuenta de ese pago (no pasa por planilla ni por
+el libro de desembolsos). Se le planteó a Felipe con tres opciones y eligió:
+**pedir = firmar, y DO confirma la transferencia**.
+
+[0478](../supabase/migrations/0478_el_bono_de_cumpleanos_se_pide_y_do_confirma_la_transferencia.sql):
+
+- `documentos_firmados` gana `entrega_confirmada_el/_por/_at`, con dos
+  constraints: las tres juntas o ninguna, y solo en un bono firmado desde el
+  sistema (el papel no la necesita: su `fecha_firma` ya es la de entrega).
+- `fn_mi_bono_cumpleanos()` — qué le toca a cada quien: `pedido`, `no_aplica`,
+  `sin_fecha`, `proximo`, `este_mes`, `vencido`, `entregado`. Compone el
+  tablero y le agrega `en_planilla` y la transferencia. La leen Info, la
+  Bandeja mía y /mio/cumpleanos, y es la puerta del pedido.
+- `fn_confirmar_mi_bono_cumpleanos` (reescribe la de la 0477): solo se pide
+  en el mes del cumpleaños o después. La 0477 dejaba firmar cualquier mes.
+- `fn_bonos_por_transferir()` y `fn_confirmar_entrega_bono(id, fecha)` — solo
+  DO, nadie confirma el suyo, ni futura ni de otro año, `for update` contra
+  dos confirmaciones a la vez, con auditoría.
+
+Frontend: tarjeta «Tu bono de cumpleaños» y aviso «Pide tu bono» en Info;
+/mio/cumpleanos pasa a «Pedir mi bono» con sus estados; Bandeja mía (pídelo /
+lo pediste / te lo transfirieron); Bandeja de DO con la fila «Pidió su bono de
+cumpleaños», que se resuelve ahí mismo con fecha (nace en hoy) y «Ya se lo
+transferí». Lógica compartida en `apps/web/lib/mi-bono.ts`.
+
+**Auditado:** prueba pgTAP
+[377](../supabase/tests/377_el_bono_se_pide_y_do_confirma_la_transferencia.test.sql)
+(28 aserciones) en verde con la 0478 dentro de `begin … rollback`, y su
+control sin la migración falla. La 376 de la 0477 se ajustó (sus firmantes no
+tenían fecha de nacimiento, y desde la 0478 no estarían «en regla»): pasa con
+y sin la 0478, y la versión original falla con ella, que es lo esperado.
+Vitest 767 en verde, typecheck en verde. **Probado en el navegador de punta a
+punta** con dos cuentas locales temporales (borradas al terminar): Info
+mostró la tarjeta y el aviso con S/ 180.00 → «Pedir mi bono» → Info pasó a
+«Pedido» y la Bandeja de ella bajó de 3 a 2 → la de DO mostró «Pidió su bono
+de cumpleaños · S/ 180.00 por transferir», NO desapareció al firmar →
+«Ya se lo transferí» la sacó (menú 72 → 71) → ella vio «Transferido el 16 de
+setiembre» y la constancia con las dos fechas. La 0478 quedó aplicada en el
+Postgres local compartido.
+
+**Antes de pegar, en este orden:**
+1. `./scripts/donde-vive.sh` de `fn_mi_bono_cumpleanos`,
+   `fn_bonos_por_transferir`, `fn_confirmar_entrega_bono` y
+   `fn_confirmar_mi_bono_cumpleanos`, en el mismo mensaje en que se entrega el
+   SQL — que ninguna otra rama las haya creado mientras esto esperaba.
+2. Pegar la **0477** y después la **0478**. La 0478 no corre sin la 0477.
+3. Recién ahí fusionar (este PR incluye el #422; fusionar es publicar).
+
+**Pendientes que esto dejó a la vista, sin tocar:**
+- `fn_documentos_tablero` (0424) calcula `bono_estado` también a quien es
+  practicante, aunque la base le niega el bono: DO ve en su Bandeja «Bono de
+  cumpleaños sin constancia firmada» de alguien a quien no puede registrárselo.
+  Info y la Bandeja mía ya no se equivocan (usan `fn_mi_bono_cumpleanos`); el
+  arreglo de fondo es en el tablero y pide su md5 de PRODUCCIÓN antes de
+  escribir.
+- Documentación no sabe **mostrar** una constancia de bono firmada desde el
+  sistema (solo abre escaneos, como la ruta antes de `abrirVerFirma`), y su
+  «Subir otro» sobre ella falla por el índice único de un bono por año.
+- `/mio/movilidad` pide `fn_documentos_listar` sin `p_persona_id`: a alguien
+  de DO le pinta como suya la declaración de ruta de otra persona. En
+  /mio/cumpleanos ya se corrigió.
+
+---
+
 ## 2026-09-16 — El bono de cumpleaños también se firma desde /mio (0477) · escrita, auditada en local · SIN FUSIONAR, SIN PEGAR
 
 Felipe pidió que la declaración de ruta y el bono de cumpleaños se pudieran
