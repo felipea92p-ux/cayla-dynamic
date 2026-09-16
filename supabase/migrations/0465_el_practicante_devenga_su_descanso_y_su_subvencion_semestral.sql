@@ -1,95 +1,190 @@
 -- ============================================================================
 -- 0465_el_practicante_devenga_su_descanso_y_su_subvencion_semestral.sql
 -- ============================================================================
--- ESTE ARCHIVO ES UNA RECONSTRUCCIÓN, NO UNA REDACCIÓN ORIGINAL
 --
---   La 465 se aplicó a producción el 2026-09-15 a las 18:39:38 (hora Lima) sin
---   quedar en ningún archivo del repositorio -- ni commiteado, ni suelto en
---   ningún worktree, ni en ninguna rama de GitHub. Es el mismo accidente que
---   este archivo (CLAUDE.md) documenta con la 0177, la 0243 y la 0381: una
---   migración cuyo único ejemplar vivía en producción, en riesgo real de
---   desaparecer para siempre el día que alguien reconstruyera el esquema con
---   `supabase db reset`.
+-- QUÉ PROMETE
+--   Que un practicante deje de aparecer con "no genera nada" en Provisiones y
+--   en su detalle, cuando la Ley 28518 sí le da DOS beneficios propios que la
+--   0322 dejó escritos como pendientes (art. 20 y art. 42.7):
 --
---   Se reconstruyó minutos después de descubrir el hueco, comparando el
---   `prosrc` VIGENTE de `fn_provisiones` en producción contra el cuerpo
---   conocido de la 0428 (la migración anterior que la había tocado). El diff
---   entre las dos fue enteramente aditivo salvo una coma agregada al final de
---   una línea existente (para poder anexar campos nuevos) -- así que se pudo
---   reconstruir con certeza completa: no hay una sola línea de esta migración
---   que sea una suposición.
+--     · Un descanso de 15 días subvencionados, una SOLA vez, al superar los
+--       12 meses continuos de convenio (decidido con Felipe: no se repite —
+--       la práctica PROFESIONAL topa en 12 meses por ley, así que este caso
+--       es sobre todo de práctica PRE-profesional, que puede seguir años).
+--     · Media subvención económica adicional, cada 6 meses continuos de
+--       convenio, mientras la modalidad siga — este SÍ se repite.
 --
---   El cuerpo de abajo es BYTE POR BYTE el que corría en producción al
---   momento de reconstruirlo (md5 08026578b3f7f97109d8c3dc53812fb7, 53788
---   caracteres, medido el 2026-09-15, y sin ningún otro `CAMBIO 0XXX` entre la
---   0428 y esta). No se pudo pedir el md5 de partida ANTES de escribir, como
---   manda la regla de la casa -- no existe partida que pedir cuando la
---   escritura de verdad ya pasó hace horas y sin testigo. Pegar este archivo
---   en el SQL Editor no debería cambiar nada: producción ya tiene exactamente
---   este texto (verificarlo es justo la comprobación del final). Su único
---   propósito es que git y `supabase db reset` dejen de mentir sobre lo que
---   de verdad hay ahí.
+--   Ninguno de los dos toca gratificación, CTS ni las vacaciones de 30 días:
+--   esos tres SIGUEN sin aplicarle a un practicante (art. 47) y el aviso de
+--   la 0428 sobre esos tres queda igual. Esto es un CUARTO y QUINTO concepto
+--   nuevo, propio de la modalidad formativa, que hasta hoy no existían en
+--   ningún lado del sistema.
 --
--- QUÉ PROMETE (reconstruido leyendo el código, no del autor original)
+-- POR QUÉ ESTO NO ES UN DEFECTO DE CÁLCULO VIEJO, SINO UNO NUEVO POR CERRAR
+--   La 0322 (2026-08-29) ya documentó los dos beneficios y decidió NO
+--   modelarlos: "con prácticas profesionales topando en 12 meses por ley,
+--   casi nunca se activan, y queda como trabajo pendiente documentado en vez
+--   de una rama que nadie va a poder probar". El rediseño de Provisiones de
+--   hoy (0395/0428, PR #395) fue más lejos sin querer: la nota que le muestra
+--   a Felipe dice literalmente "la ley no les da estos tres beneficios. No es
+--   que falte cargar algo" — cierto para gratificación/CTS/vacaciones, pero
+--   leído junto a "practicante" sugiere que la ley no le da NADA parecido a
+--   vacaciones, y sí le da: el descanso de 15 días. Esta migración cierra el
+--   pendiente de la 0322 y dispareja lo que dice la pantalla de lo que dice
+--   la ley.
 --
---   Que un practicante (Ley 28518, arts. 20 y 42.7) aparezca en
---   `/admin/provisiones` con dos beneficios propios que la ley SÍ le da aunque
---   no gane gratificación, CTS ni vacaciones (0274/0322): un descanso de 15
---   días al año de convenio (tope a los 365 días, "una sola vez") y una
---   subvención económica semestral -- los dos devengados de forma continua
---   desde `fecha_ingreso` y restando lo que ya conste en el libro de
---   desembolsos (`desembolsos_beneficios`, 0155) vía una función nueva,
---   `fn_practicante_ya_depositado(persona_id, ventana)`.
+-- CÓMO SE CALCULA, Y POR QUÉ ASÍ
+--   Devengado ACUMULADO, sin ventanas de calendario — a propósito. Las
+--   cuatro ventanas de gratificación/CTS son fechas fijas del año peruano
+--   (15/07, 15/12, 15/05, 15/11); estos dos beneficios son por ANIVERSARIO
+--   de `fecha_ingreso`, uno distinto por persona, y "cuánto lleva devengado
+--   en total, alguna vez, menos lo ya pagado" es más simple y más seguro que
+--   perseguir semestres discretos que se reinician: un semestre que se
+--   reinicia a 0 % de progreso el mismo día en que su 100 % se completa se
+--   vería, sin nada más, como si la plata devengada hubiera desaparecido.
+--   Con la fórmula continua eso no puede pasar: el número solo baja cuando
+--   HAY un pago registrado en el libro (ver abajo), nunca por el paso del
+--   tiempo.
 --
--- UN DEFECTO ENCONTRADO AL RECONSTRUIRLA, Y POR QUÉ NO SE ARREGLA ACÁ
+--     · Descanso (una sola vez, tope a los 12 meses):
+--         devengado = subvención_mensual × 0.5 × mín(días_convenio, 365) / 365
+--       (0.5 porque 15 días de un mes de 30 son media subvención — la misma
+--       convención de "medio sueldo" que ya usa la gratificación de pequeña
+--       empresa en este sistema.) Llega a su tope a los 365 días y se queda
+--       ahí PARA SIEMPRE, así el convenio siga cinco años más: es el "una
+--       sola vez" que pidió Felipe.
+--     · Subvención semestral (se repite, sin tope):
+--         devengado = subvención_mensual × 0.5 × días_convenio / 182.5
+--       Nunca deja de crecer mientras la persona siga activa como
+--       practicante: dos semestres cumplidos sin cobrar valen el doble que
+--       uno, tal como manda el art. 42.7 ("por cada seis meses").
 --
---   `ley28518_subvencion_devengada` resta
---   `fn_practicante_ya_depositado(p.id, 'subvencion_practicante')` -- un valor
---   de `ventana` que NUNCA pudo existir: la 0467, aplicada 14 minutos después
---   de esta (18:53:02), amplió el CHECK de `desembolsos_beneficios.ventana` y
---   el único valor que dejó para este pago es `'subvencion_semestral'`. Como
---   `fn_practicante_ya_depositado` solo hace SELECT, la resta da 0 por
---   `coalesce(sum(...), 0)` sobre cero filas SIEMPRE -- así que el día que DO
---   registre un pago real de subvención, este campo lo iba a seguir mostrando
---   como pendiente para siempre. Comprobado el 2026-09-15: ese día no existía
---   ninguna fila con esa ventana ni con `'subvencion_semestral'` todavía, así
---   que el número que se veía era correcto -- el bug estaba dormido, nunca
---   activo. (El otro campo, `ley28518_descanso_devengado`, sí usa el valor
---   correcto, `'descanso_practicante'`, y no tiene este problema.)
+--   `subvención_mensual` se lee de `asignaciones_salario` vigente A LA FECHA
+--   DE CORTE (misma tabla y mismo criterio de vigencia que ya usa esta
+--   función para el resto de personas) — no de un campo nuevo. Si no hay
+--   tramo vigente, sale 0 y se avisa con `ley28518_sin_tarifa`, la misma
+--   familia de aviso que la 0365 ya usa para todo lo demás (nunca un cero
+--   silencioso que se lea como "no le corresponde").
 --
---   No se arregla acá porque la 0467 -- escrita sin saber que esta migración
---   existía, minutos antes -- resolvió el mismo problema de negocio con una
---   función aparte, `fn_subvenciones_practicante`, con una fórmula de devengo
---   distinta (por hitos de 6 meses con prorrateo, no continua) y
---   deliberadamente SIN tocar `fn_provisiones` (decisión de Felipe,
---   2026-09-16, escrita en el encabezado de la 0467: acoplar esto a
---   `fn_provisiones` arriesga la función que `fn_grati_cts_periodo` usa para
---   autocompletar depósitos reales de gratificación y CTS -- comprobado que
---   hoy no lo hace, porque esa función solo lee las claves `grati_s1`,
---   `grati_s2`, `cts_may`, `cts_nov` del jsonb, nunca las `ley28518_*`, pero
---   es la clase de acoplamiento que la 0467 decidió no crear de todos modos).
---   La 0469 retira estos siete campos y la función
---   `fn_practicante_ya_depositado` de acá, dejando `fn_subvenciones_practicante`
---   (0467) como la única fuente para este cálculo -- ver esa migración para
---   el porqué completo.
+-- EL LIBRO DE DESEMBOLSOS GANA DOS VENTANAS NUEVAS
+--   `desembolsos_beneficios.ventana` admitía cinco valores fijos
+--   (`grati_s1`, `grati_s2`, `cts_may`, `cts_nov`, `vacaciones`) — todas
+--   atadas a un año calendario, por eso `fn_beneficio_ya_depositado` filtra
+--   por `anio`. Estos dos conceptos NO son de un año calendario (son
+--   acumulados de por vida, ver arriba), así que no encajan en esa función:
+--   se agrega `fn_practicante_ya_depositado(persona_id, ventana)`, que suma
+--   SIN filtrar por año, y dos valores nuevos al CHECK de la tabla —
+--   `descanso_practicante` y `subvencion_practicante` — para que Felipe
+--   pueda registrar ahí el día que pague uno de estos dos a mano (igual que
+--   ya registra un depósito de CTS por transferencia).
 --
 -- QUÉ ASUME
+--   · Que "días de convenio" se cuenta desde `personas.fecha_ingreso`, igual
+--     que ya hace el tablero de contratos para el tope de 12 meses (0336) —
+--     no sumando la duración de cada convenio generado por separado.
+--   · Que ninguno de los dos beneficios se paga solo por planilla: no hay
+--     todavía un botón de "pagar" ni una línea automática en la boleta.
+--     "Dynamic avisa, nunca paga solo" para un concepto que recién empieza a
+--     medirse — Felipe decide cuándo se paga. OJO: a diferencia de una CTS o
+--     gratificación adelantada, hoy NO hay un botón en `panel-persona.tsx`
+--     que registre este pago — el panel "🎁 Adelanto de beneficio" solo
+--     conoce `BeneficioDesembolso` ("gratificacion"|"cts"|"vacaciones"), un
+--     tipo cerrado en `packages/shared/src/ventanas-beneficio.ts` atado a
+--     ventanas de calendario fijas, y estos dos beneficios no tienen una.
+--     Hasta que exista esa pantalla (trabajo aparte, con su propia decisión
+--     de diseño: un beneficio sin "período" no encaja en ese selector tal
+--     cual), un pago se registra con un `insert` directo a
+--     `desembolsos_beneficios` desde el SQL Editor — el mismo camino que ya
+--     usa cualquier ajuste manual poco frecuente de este sistema.
+--   · Que estos dos conceptos NO entran en `gran_total` ni en los totales de
+--     columna de la tabla principal (Gratificación/CTS/Vacaciones/Saldo
+--     total): esos siguen siendo, exactamente, los tres beneficios de
+--     trabajador dependiente. El practicante sigue fuera de esa tabla (ver
+--     0428) y estos dos números nuevos viven solo en su fila plegada y en
+--     su panel de detalle.
 --
---   Que el punto de partida es la 0428 (blindada contra un lector de SQL que
---   no distinga comentarios, PR #396) tal como quedó en el repositorio, y que
---   nadie más tocó `fn_provisiones` entre la 0428 y esta -- confirmado: no
---   aparece ningún otro marcador `CAMBIO 0XXX` entre `CAMBIO 0428` y
---   `CAMBIO 0465` en el cuerpo reconstruido.
+-- QUÉ NO HACE
+--   · No paga nada por planilla ni genera un movimiento automático.
+--   · No toca `fn_devenga`, `fn_devenga_algo` ni `fn_devenga_beneficios`: la
+--     gratificación, la CTS y las vacaciones de 30 días de un practicante
+--     siguen en cero, por la misma razón de siempre (art. 47).
+--   · No construye el horario reducido de 30h/48h ni el resto de pendientes
+--     de Practicantes que no son de dinero — quedan donde ya estaban.
+--
+-- MD5 DE PARTIDA — pedido a `donde-vive.sh fn_provisiones` contra el
+--   Postgres LOCAL (el mismo que ya usan los ~10 worktrees) antes de escribir
+--   una sola línea:
+--     tal cual:        d7ff7cb8ef8c159ece656caacc8aed90
+--     sin comentarios:  a89483d1f63933d7064550b9ccb441e9
+--   Copia el cuerpo de la 0428, que `donde-vive.sh` marcó como LA VIGENTE.
+--
+--   PEDIDO A PRODUCCIÓN justo antes de pegar (2026-09-15, proyecto
+--   vovjyyiafkxteijimpuy): `tal_cual` dio 51b69875b258b8c7d6812a8d64019f7b
+--   (no coincide) pero `sin_comentarios` dio a89483d1f63933d7064550b9ccb441e9
+--   — coincide exacto con el de esta Mac, y 50 256 caracteres contra los
+--   49 192 de acá es la diferencia de comentarios, no de código. Es el
+--   segundo desenlace, no el tercero: producción tiene el MISMO cuerpo de la
+--   0428, solo perdió los comentarios al pegarse (le pasa a casi la mitad de
+--   las funciones de este repo). Sigue siendo seguro copiar de acá.
 --
 -- CÓMO SE REVIERTE
---
---   No hace falta escribirlo: la 0469, cuatro migraciones después, ya retira
---   exactamente lo que esta agregó (los siete campos `ley28518_*` y la
---   función `fn_practicante_ya_depositado`), dejando `fn_provisiones` como
---   estaba antes de esta migración salvo por la coma que se agregó para
---   permitir estos campos -- esa coma es inofensiva sola y no hace falta
---   quitarla.
+--   Volviendo a pegar el bloque `CREATE OR REPLACE FUNCTION fn_provisiones`
+--   de la 0428 tal cual, y el CHECK de `desembolsos_beneficios.ventana` a sus
+--   cinco valores originales (con `drop constraint if exists` + `add
+--   constraint`, igual que se agregó). `fn_practicante_ya_depositado` se
+--   puede dejar: sin filas que la usen no hace daño, pero un `drop function`
+--   también revierte limpio si se prefiere.
 -- ============================================================================
+
+-- ── El libro de desembolsos admite las dos ventanas nuevas ──────────────────
+-- Mismo idioma que la 0322 usó para `personas_tipo_vinculo_valido`: soltar y
+-- volver a crear el CHECK, idempotente, sin tocar filas existentes (solo
+-- ENSANCHA el conjunto permitido — ninguna fila de las cinco ventanas de
+-- siempre deja de cumplir esto).
+alter table desembolsos_beneficios drop constraint if exists desembolsos_beneficios_ventana_check;
+alter table desembolsos_beneficios add constraint desembolsos_beneficios_ventana_check
+  check (ventana = any (array[
+    'grati_s1', 'grati_s2', 'cts_may', 'cts_nov', 'vacaciones',
+    'descanso_practicante', 'subvencion_practicante'
+  ]));
+
+comment on column desembolsos_beneficios.ventana is
+  'Las cinco ventanas del año laboral peruano (grati_s1/s2, cts_may/nov, vacaciones) '
+  'más, desde la 0465, los dos beneficios propios de un practicante (Ley 28518): '
+  'descanso_practicante y subvencion_practicante. Estos dos NO son de un año '
+  'calendario — se leen con fn_practicante_ya_depositado, no con fn_beneficio_ya_depositado.';
+
+-- ── Cuánto ya se le pagó a un practicante de uno de sus dos beneficios ──────
+-- Hermana de `fn_beneficio_ya_depositado` (0163), pero SIN filtrar por año:
+-- esa función existe para las cinco ventanas atadas al año calendario, y
+-- estos dos beneficios no lo están (ver el encabezado de esta migración). Un
+-- `fn_beneficio_ya_depositado(id, 'descanso_practicante', 2026)` real dejaría
+-- fuera un pago registrado en 2027 sobre el mismo devengo acumulado — el
+-- error exacto que esta función separada evita.
+create or replace function fn_practicante_ya_depositado(
+  p_persona_id uuid,
+  p_ventana    text
+)
+returns numeric
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select coalesce(sum(d.monto), 0)
+  from desembolsos_beneficios d
+  where d.persona_id = p_persona_id
+    and d.ventana    = p_ventana;
+$$;
+
+comment on function fn_practicante_ya_depositado(uuid, text) is
+  'Cuánto se le ha pagado ya a un practicante de "descanso_practicante" o '
+  '"subvencion_practicante", sumado de por vida (sin filtrar por año, a '
+  'diferencia de fn_beneficio_ya_depositado): estos dos beneficios de la Ley '
+  '28518 se devengan de forma continua desde fecha_ingreso, no por año calendario.';
+
+grant execute on function fn_practicante_ya_depositado(uuid, text) to authenticated;
+revoke execute on function fn_practicante_ya_depositado(uuid, text) from public, anon;
 
 CREATE OR REPLACE FUNCTION public.fn_provisiones(p_as_of date DEFAULT NULL::date, p_salario_asof date DEFAULT NULL::date)
  RETURNS jsonb
@@ -1018,27 +1113,12 @@ end;
 $function$
 ;
 
+-- EL PERMISO, REPETIDO A PROPÓSITO. `create or replace` conserva los grants,
+-- así que esto es redundante hoy — y se escribe igual, porque la 0363 existe
+-- justo para el día en que alguien vuelva a copiar de una versión que no lo
+-- traía.
 grant execute on function fn_provisiones(date, date) to authenticated;
 revoke execute on function fn_provisiones(date, date) from public, anon;
-
--- La función que fn_provisiones llama para el "ya depositado" de cada
--- practicante. Reconstruida igual: es exactamente lo que devuelve hoy
--- producción para `pg_get_functiondef`.
-CREATE OR REPLACE FUNCTION public.fn_practicante_ya_depositado(p_persona_id uuid, p_ventana text)
- RETURNS numeric
- LANGUAGE sql
- STABLE SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
-  select coalesce(sum(d.monto), 0)
-  from desembolsos_beneficios d
-  where d.persona_id = p_persona_id
-    and d.ventana    = p_ventana;
-$function$
-;
-
-grant execute on function fn_practicante_ya_depositado(uuid, text) to authenticated;
-revoke execute on function fn_practicante_ya_depositado(uuid, text) from public, anon;
 
 insert into migraciones_aplicadas (numero, nombre)
 values (465, 'el_practicante_devenga_su_descanso_y_su_subvencion_semestral')
@@ -1047,25 +1127,35 @@ on conflict (numero) do update set nombre = excluded.nombre, aplicada_at = now()
 notify pgrst, 'reload schema';
 
 -- ── Comprobación ─────────────────────────────────────────────────────────
--- Pegar esto NO debería cambiar nada: producción ya tiene este texto byte
--- por byte. Lo que hay que ver:
---   md5_llegada       · debe dar 08026578b3f7f97109d8c3dc53812fb7 (el medido
---                       el 2026-09-15 antes de escribir este archivo) -- si
---                       no coincide, alguien tocó fn_provisiones entre medio
---                       y esta migración quedaría corrigiendo una versión
---                       que ya no es la vigente.
---   tiene_el_cambio   · el marcador de esta migración sigue presente
---   una_sola_version  · no hay una gemela de ninguna de las dos funciones
---   la_pantalla_puede · `authenticated` sigue pudiendo llamar a las dos
+-- Lo que hay que ver al terminar de pegar:
+--   tiene_el_cambio_428  · el cuerpo de la 0428 sigue adentro (no se revirtió)
+--   tiene_el_cambio_465  · el cuerpo nuevo de esta migración entró
+--   conserva_la_0365     · el aviso de tramo de salario NO se revirtió
+--   una_sola_version     · la firma no cambió; no hay gemela
+--   la_pantalla_puede    · `authenticated` sigue pudiendo llamarla
+--   check_admite_los_7   · el CHECK de desembolsos_beneficios ya acepta los
+--                          dos valores nuevos, sin perder los cinco viejos
 select
-  (select md5(p.prosrc) from pg_proc p where p.proname = 'fn_provisiones')
-                                                                    as md5_llegada,
-  (select position('CAMBIO 0465' in p.prosrc) > 0 from pg_proc p
-    where p.proname = 'fn_provisiones')                            as tiene_el_cambio,
-  (select count(*) from pg_proc where proname = 'fn_provisiones')  as una_sola_fn_provisiones,
-  (select count(*) from pg_proc where proname = 'fn_practicante_ya_depositado')
-                                                                    as una_sola_fn_ya_depositado,
-  has_function_privilege('authenticated', 'fn_provisiones(date,date)', 'execute')
-                                                                    as la_pantalla_puede_provisiones,
-  has_function_privilege('authenticated', 'fn_practicante_ya_depositado(uuid,text)', 'execute')
-                                                                    as la_pantalla_puede_ya_depositado;
+  position('CAMBIO 0428' in p.prosrc) > 0                                        as tiene_el_cambio_428,
+  position('CAMBIO 0465' in p.prosrc) > 0                                        as tiene_el_cambio_465,
+  position('sin_salario_vigente' in p.prosrc) > 0                                as conserva_la_0365,
+  (select count(*) from pg_proc where proname = 'fn_provisiones')                as una_sola_version,
+  has_function_privilege('authenticated', p.oid, 'execute')                      as la_pantalla_puede,
+  md5(p.prosrc)                                                                  as md5_llegada
+from pg_proc p
+where p.proname = 'fn_provisiones';
+
+select pg_get_constraintdef(oid) as check_admite_los_7
+  from pg_constraint
+ where conname = 'desembolsos_beneficios_ventana_check';
+
+-- No se llama a fn_provisiones() acá: exige fn_es_admin_o_lider(), que en
+-- el SQL Editor corre sin JWT y siempre da false. Se comprueba contra la
+-- misma condición que el filtro nuevo evalúa, directo sobre personas.
+select p.nombres || ' ' || p.apellidos as nombre, p.tipo_vinculo, p.fecha_ingreso,
+       (current_date - p.fecha_ingreso) as dias_convenio,
+       fn_devenga_algo(p.id) as devenga_algo,
+       (p.estado = 'activo' and (fn_devenga_algo(p.id) or p.tipo_vinculo = 'practicante')) as sale_en_provisiones
+  from personas p
+ where p.tipo_vinculo = 'practicante' and p.estado = 'activo'
+ order by p.nombres;

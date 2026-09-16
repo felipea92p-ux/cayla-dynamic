@@ -1,91 +1,75 @@
 -- ============================================================================
--- 0469_las_dos_puertas_de_ley_28518_se_quedan_en_una_sola.sql
+-- 0469_se_retira_la_implementacion_paralela_de_la_0465.sql
 -- ============================================================================
+--
 -- QUÉ PROMETE
+--   Deshace por completo la 0465 (`el_practicante_devenga_su_descanso_y_su_
+--   subvencion_semestral`): `fn_provisiones` vuelve a ser, byte por byte, el
+--   cuerpo de la 0428, y `fn_practicante_ya_depositado` se retira.
 --
---   Que exista una sola fuente para "cuánto lleva devengado una practicante
---   por descanso y subvención semestral" (Ley 28518, arts. 20 y 42.7):
---   `fn_subvenciones_practicante` (0467). Esta migración retira los siete
---   campos `ley28518_*` y la función `fn_practicante_ya_depositado` que la
---   0465 había agregado dentro de `fn_provisiones`, dejando esa función
---   exactamente como estaba en la 0428.
+-- POR QUÉ — DOS SESIONES CONSTRUYERON LA MISMA IDEA A LA VEZ
+--   El mismo día, otra sesión (`claude/practicantes-subvencion-semestral`, PR
+--   #408) construyó de forma independiente el mismo beneficio (descanso de 15
+--   días + subvención semestral de un practicante, Ley 28518) con una
+--   arquitectura distinta: una función nueva y separada,
+--   `fn_subvenciones_practicante`, que a propósito NO toca `fn_provisiones`.
+--   Ese PR se fusionó a `main` — y `main` se publica solo — ANTES de que esta
+--   sesión terminara de resolver la colisión de número (0465 lo reclamaron
+--   las dos). El frontend que quedó desplegado en producción es el del PR
+--   #408: llama directo a `fn_subvenciones_practicante`
+--   (`apps/web/app/(admin)/admin/provisiones/page.tsx`), no a los campos
+--   `ley28518_*` que esta migración retira.
 --
--- POR QUÉ -- LA HISTORIA COMPLETA, PORQUE LAS DOS MIGRACIONES SE ESCRIBIERON
--- SIN QUE UNA SUPIERA DE LA OTRA
+--   Decidido con Felipe el 2026-09-15: se queda la implementación del PR
+--   #408, que ya está viva y funcionando. La de esta rama se retira para no
+--   dejar dos cálculos del mismo beneficio conviviendo sin que nada los
+--   concilie — la misma ambigüedad que causó el accidente de la 0297/0299
+--   (dos funciones para la misma pregunta, cada una con su propia respuesta).
 --
---   El 2026-09-15, en menos de 15 minutos, dos sesiones distintas resolvieron
---   el mismo problema legal por caminos distintos:
+-- QUÉ HACÍA LA 0465 QUE ESTA MIGRACIÓN DESHACE
+--   Agregaba siete claves (`ley28518_dias_convenio`, `ley28518_descanso_dias`,
+--   `ley28518_descanso_completo`, `ley28518_descanso_devengado`,
+--   `ley28518_subvencion_devengada`, `ley28518_sin_tarifa`,
+--   `ley28518_subvencion_mensual`) al jsonb de `fn_provisiones`, y la función
+--   `fn_practicante_ya_depositado(uuid, text)` para leer el libro de
+--   desembolsos sin filtrar por año. Ningún código vigente las lee ya: el
+--   frontend de esta misma rama (PR #409) nunca se fusionó a `main`.
 --
---     · 18:39 -- la 0465 ("el_practicante_devenga_su_descanso_y_su_subvencion_
---       semestral") agregó los dos beneficios DENTRO de `fn_provisiones`, con
---       una fórmula de devengo CONTINUA (sin hitos) y una función propia,
---       `fn_practicante_ya_depositado`. Esta migración se aplicó a producción
---       sin quedar en ningún archivo del repositorio -- se reconstruyó recién
---       el 2026-09-15 comparando el `prosrc` vigente contra la 0428 (ver
---       `0465_el_practicante_devenga_su_descanso_y_su_subvencion_semestral.sql`,
---       escrita minutos antes que esta).
+-- QUÉ NO TOCA, A PROPÓSITO
+--   El CHECK de `desembolsos_beneficios.ventana` NO se toca. Hoy admite
+--   `descanso_practicante` y `subvencion_semestral` (los nombres del PR #408,
+--   ya aplicados en producción sin pasar por esta rama) — nunca llegó a
+--   admitir `subvencion_practicante` de forma persistente (la 0469 que iba a
+--   agregarlo se retira de esta rama sin haberse pegado nunca), así que no
+--   hay nada que achicar ahí. Confirmado contra producción, 2026-09-15:
 --
---     · 18:53 -- la 0467 ("la_practicante_devenga_su_media_subvencion")
---       resolvió el MISMO problema con una función nueva y separada,
---       `fn_subvenciones_practicante`, con una fórmula de devengo POR HITOS de
---       6 meses (con prorrateo del semestre en curso -- más cuidadosa: su
---       propio encabezado documenta un defecto de borde que la fórmula
---       continua no tiene en cuenta). Su encabezado declara, como decisión
---       explícita de Felipe fechada 2026-09-16: "no toca `fn_provisiones`"
---       -- precisamente para no acoplar un concepto exclusivo de practicantes
---       a la función que `fn_grati_cts_periodo` (0346) usa para autocompletar
---       depósitos REALES de gratificación y CTS. Quien escribió la 0467 no
---       podía saber que la 0465 ya había hecho justo lo que la 0467 decidió
---       evitar, 14 minutos antes.
+--     select pg_get_constraintdef(oid) from pg_constraint
+--      where conname = 'desembolsos_beneficios_ventana_check';
+--     → admite grati_s1, grati_s2, cts_may, cts_nov, vacaciones,
+--       subvencion_semestral, descanso_practicante — el conjunto del PR #408.
 --
---   El resultado, encontrado al reconstruir la 465: producción tenía DOS
---   números distintos para la misma pregunta legal ("cuánta subvención
---   semestral lleva devengada esta practicante"), en dos sitios distintos,
---   con dos fórmulas distintas, y nadie los había reconciliado. Es la misma
---   familia de accidente que la 0297/0299 documentada en este archivo -- dos
---   puertas para la misma pregunta -- salvo que acá ni siquiera son la misma
---   respuesta.
+--   Tampoco toca `fn_subvenciones_practicante`: es la función vigente del PR
+--   #408, la usa el frontend ya desplegado.
 --
---   Y de regalo, un bug ya inerte pero real: `ley28518_subvencion_devengada`
---   (la versión de la 0465, la que esta migración retira) restaba
---   `fn_practicante_ya_depositado(p.id, 'subvencion_practicante')` -- un
---   valor de `ventana` que el CHECK de `desembolsos_beneficios` (ampliado por
---   la propia 0467) nunca permite: el único valor legal es
---   `'subvencion_semestral'`. Esa resta iba a dar 0 para siempre, aunque DO
---   registrara un pago real. Comprobado el 2026-09-15: no existía ninguna
---   fila con esa ventana todavía, así que el número que se veía era correcto
---   -- pero es una bomba de tiempo que esta migración desactiva retirándola
---   por completo, en vez de corregir el nombre y mantener dos fórmulas vivas.
+-- MD5 DE PARTIDA (el cuerpo al que se vuelve)
+--   Extraído literalmente de `supabase/migrations/0428_practicantes_visibles_
+--   en_provisiones.sql` (líneas de `CREATE OR REPLACE FUNCTION` a `revoke`),
+--   sin transcribir nada a mano. Verificado en el Postgres local, dentro de
+--   `BEGIN…ROLLBACK`: `md5(prosrc)` = 51b69875b258b8c7d6812a8d64019f7b,
+--   50 256 caracteres — el MISMO valor que devolvió producción cuando se le
+--   pidió el md5 de `fn_provisiones` ANTES de pegar la 0465 (2026-09-15): la
+--   prueba de que este cuerpo es, byte por byte, el que corría antes de que
+--   las dos ramas colisionaran.
 --
--- QUÉ ASUME
---
---   Que la 0465 y la 0467 ya están aplicadas (los `drop function` de abajo
---   asumen que las dos existen). `fn_subvenciones_practicante` (0467) queda
---   INTACTA -- esta migración no la toca, es la que se queda como única
---   fuente.
---
--- CÓMO SE VERIFICÓ QUE ESTO NO CAMBIA NINGÚN NÚMERO YA MOSTRADO
---
---   `gran_total` (la cifra que sí importa de `fn_provisiones`) se calcula en
---   `col.grati_total + col.be_total + col.cts_total + col.vac`, ANTES de que
---   el cuerpo llegue a los campos `ley28518_*` -- ninguno de los dos entra en
---   esa suma. Y `fn_grati_cts_periodo` (0346), la única función que consume
---   el jsonb de `fn_provisiones` para algo que no sea pintar una pantalla,
---   solo lee las claves `grati_s1`, `grati_s2`, `cts_may`, `cts_nov` -- nunca
---   ninguna `ley28518_*`. Retirar estos siete campos no mueve ni un centavo
---   de ningún total ya calculado, y ningún código de este repositorio los lee
---   todavía (comprobado con `git grep -n "ley28518"` sobre `apps/` y
---   `packages/`: cero resultados).
---
---   Y la comprobación fuerte: el cuerpo resultante de `fn_provisiones` -- el
---   de la 0465 menos exactamente estos dos bloques -- es BYTE POR BYTE
---   idéntico al que dejó la 0428. Se comprobó con un `diff` local antes de
---   escribir esta migración.
+-- QUÉ COMPROBAR ANTES DE PEGAR
+--   select count(*) from desembolsos_beneficios where ventana = 'subvencion_practicante';
+--   → debe dar 0 (nadie anotó un pago con ese nombre; nada usa esa ventana).
 --
 -- CÓMO SE REVIERTE
---
---   Volver a pegar la 0465 (que ya está en el repositorio) y la 0467 tal
---   cual están. Esta migración no toca ninguna tabla ni ningún dato.
+--   No aplica: esta migración YA ES la reversión de la 0465. Si hiciera falta
+--   deshacer ESTA, el cuerpo completo de la 0465 vive en
+--   `supabase/migrations/0465_el_practicante_devenga_su_descanso_y_su_
+--   subvencion_semestral.sql` de esta misma rama.
 -- ============================================================================
 
 CREATE OR REPLACE FUNCTION public.fn_provisiones(p_as_of date DEFAULT NULL::date, p_salario_asof date DEFAULT NULL::date)
@@ -963,37 +947,32 @@ end;
 $function$
 ;
 
+-- EL PERMISO, REPETIDO A PROPÓSITO. `create or replace` conserva los grants,
+-- así que esto es redundante hoy — y se escribe igual, porque la 0363 existe
+-- justo para el día en que alguien vuelva a copiar de una versión que no lo
+-- traía.
 grant execute on function fn_provisiones(date, date) to authenticated;
 revoke execute on function fn_provisiones(date, date) from public, anon;
 
--- Queda huérfana: nadie más la llama después de este retiro (la única
--- llamada vivía dentro del bloque que se acaba de quitar). `fn_subvenciones_
--- practicante` (0467) usa `fn_beneficio_ya_depositado` (0163), no esta.
+-- ── La función que la 0465 agregó, retirada ─────────────────────────────────
+-- Nada la usa: `fn_provisiones` ya no la llama (volvió al cuerpo de arriba), y
+-- la pantalla del PR #408 usa `fn_subvenciones_practicante`, no esta.
 drop function if exists fn_practicante_ya_depositado(uuid, text);
 
-insert into migraciones_aplicadas (numero, nombre)
-values (469, 'las_dos_puertas_de_ley_28518_se_quedan_en_una_sola')
+insert into migraciones_aplicadas (numero, nombre) values
+  (469, 'se_retira_la_implementacion_paralela_de_la_0465')
 on conflict (numero) do update set nombre = excluded.nombre, aplicada_at = now();
 
 notify pgrst, 'reload schema';
 
 -- ── Comprobación ─────────────────────────────────────────────────────────
--- Lo que hay que ver al terminar de pegar:
---   ya_no_tiene_ley28518   · ningún campo ley28518_* sigue en el cuerpo
---   ya_no_llama_a_deposito · ya no queda la llamada a fn_practicante_ya_depositado
---   fn_ya_depositado_existe · debe dar 0 -- se retiró
---   una_sola_version       · sigue sin haber una gemela de fn_provisiones
---   la_pantalla_puede      · authenticated sigue pudiendo llamarla
---   fn_subvenciones_practicante_intacta · sigue existiendo, sin tocar
 select
-  (select position('ley28518' in p.prosrc) = 0 from pg_proc p
-    where p.proname = 'fn_provisiones')                              as ya_no_tiene_ley28518,
-  (select position('fn_practicante_ya_depositado' in p.prosrc) = 0 from pg_proc p
-    where p.proname = 'fn_provisiones')                              as ya_no_llama_a_deposito,
-  (select count(*) from pg_proc where proname = 'fn_practicante_ya_depositado')
-                                                                       as fn_ya_depositado_existe,
-  (select count(*) from pg_proc where proname = 'fn_provisiones')     as una_sola_version,
-  has_function_privilege('authenticated', 'fn_provisiones(date,date)', 'execute')
-                                                                       as la_pantalla_puede,
-  (select count(*) from pg_proc where proname = 'fn_subvenciones_practicante')
-                                                                       as fn_subvenciones_practicante_intacta;
+  md5(p.prosrc) = '51b69875b258b8c7d6812a8d64019f7b'      as volvio_a_ser_la_0428,
+  position('CAMBIO 0465' in p.prosrc) > 0                 as no_debe_tener_el_cambio_465,
+  position('ley28518' in p.prosrc) > 0                    as no_debe_tener_ningun_ley28518,
+  (select count(*) from pg_proc where proname = 'fn_provisiones') as una_sola_version
+from pg_proc p
+where p.proname = 'fn_provisiones';
+
+select (select count(*) from pg_proc where proname = 'fn_practicante_ya_depositado') as debe_ser_cero,
+       (select count(*) from pg_proc where proname = 'fn_subvenciones_practicante') as debe_ser_uno_sigue_viva;
