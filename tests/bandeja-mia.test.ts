@@ -48,6 +48,7 @@ const VACIO = {
   perfil: [], vacaciones: [], revisiones: [],
   contrato: null, memos: [], acuses: [], marcajes: [], periodo: null,
   movilidad: null, revisionesMovilidad: [], turnos: [],
+  vistos: new Set<string>(),
 };
 
 // ── Las constancias de estudios (0450) ─────────────────────────────────────
@@ -533,5 +534,80 @@ describe("armarBandeja", () => {
 
     expect(b.avisos).toBe(b.pendientes.length + b.respuestas.filter((m) => m.nuevo).length);
     expect(b.avisos).toBe(2);
+  });
+});
+
+// ── «VISTO» (0473) ──────────────────────────────────────────────────────────
+// El mecanismo es el mismo `bandeja_vistos` que ya usa /admin/bandeja (0436),
+// extendido para que /mio/bandeja también lo use — sin depender de que exista
+// un enlace «Verlo →», que ni vacaciones ni una revisión de un día tienen.
+//
+// Lo que importa defender: cada origen se marca con el `tipo_item` que de
+// verdad acepta `fn_bandeja_marcar_visto`, NO con `origen` — son cadenas
+// distintas a propósito («revision-movilidad» adentro de bandeja-mia.ts,
+// «revision_movilidad» en bandeja_vistos), y confundirlas dejaría el «visto»
+// escribiéndose bajo un tipo que la función rechaza.
+describe("armarBandeja · visto (0473)", () => {
+  it("una revisión de ruta atendida es «nuevo» hasta que su clave está en vistos", () => {
+    const fuentes = {
+      ...VACIO,
+      revisionesMovilidad: [{
+        id: "r1", motivo: "no me cuadra el monto",
+        pedida_at: enLima("2026-09-07"), atendida_at: enLima("2026-09-08"),
+        respuesta: "atendido de prueba",
+      }],
+    };
+
+    const sinVisto = armarBandeja(fuentes, HOY).respuestas[0];
+    expect(sinVisto.nuevo).toBe(true);
+    expect(sinVisto.marcarVistoComo).toEqual({ tipo: "revision_movilidad", itemId: "r1" });
+
+    const conVisto = armarBandeja(
+      { ...fuentes, vistos: new Set(["revision_movilidad:r1"]) },
+      HOY,
+    ).respuestas[0];
+    expect(conVisto.nuevo).toBe(false);
+  });
+
+  it("un cambio de turno se marca con 'cambio_turno', no con el origen 'turno'", () => {
+    const fuentes = {
+      ...VACIO,
+      turnos: [{
+        id: "t1", valor_anterior: "9:00-18:00", valor_nuevo: "10:00-19:00",
+        corregido_at: enLima("2026-09-06"), motivo: "cambio de cobertura",
+      }],
+    };
+
+    const { respuestas } = armarBandeja(fuentes, HOY);
+    expect(respuestas[0].marcarVistoComo).toEqual({ tipo: "cambio_turno", itemId: "t1" });
+    expect(respuestas[0].nuevo).toBe(true);
+
+    const vista = armarBandeja({ ...fuentes, vistos: new Set(["cambio_turno:t1"]) }, HOY).respuestas[0];
+    expect(vista.nuevo).toBe(false);
+  });
+
+  it("vistos con un tipo o un id que no coincide no apaga la insignia", () => {
+    const fuentes = {
+      ...VACIO,
+      revisionesMovilidad: [{
+        id: "r1", motivo: "m", pedida_at: enLima("2026-09-07"), atendida_at: enLima("2026-09-08"), respuesta: null,
+      }],
+      vistos: new Set(["revision_movilidad:otro-id", "revision:r1"]),
+    };
+
+    expect(armarBandeja(fuentes, HOY).respuestas[0].nuevo).toBe(true);
+  });
+
+  it("un pendiente nunca marca vistoComo: no caduca y su insignia no se pinta de todos modos", () => {
+    const b = armarBandeja({
+      ...VACIO,
+      contrato: {
+        id: "c1", tipo: "indefinido", fecha_inicio: "2026-01-01", fecha_fin: null,
+        generado_at: enLima("2026-09-08"), firma_persona_confirmada_at: null,
+      },
+    }, HOY);
+
+    expect(b.pendientes[0].marcarVistoComo).toBeNull();
+    expect(b.pendientes[0].nuevo).toBe(true);
   });
 });
