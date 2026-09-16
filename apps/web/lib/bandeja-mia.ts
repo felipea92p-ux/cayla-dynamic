@@ -360,6 +360,11 @@ const MESES = [
   "julio", "agosto", "setiembre", "octubre", "noviembre", "diciembre",
 ];
 
+/** `10` → «octubre». Con la ortografía de acá: «setiembre». */
+export function nombreDelMes(mes: number): string {
+  return MESES[mes - 1] ?? "";
+}
+
 /** `2026-10-05` → «5 de octubre». La forma en que lo diría ella, no la del ISO. */
 export function diaYMes(iso: string): string {
   const [, m, d] = iso.split("-");
@@ -769,13 +774,14 @@ export function armarBandeja(fuentes: FuentesBandeja, hoy: string = hoyLima()): 
   // Info y en /mio/cumpleanos.
   if (fuentes.bono?.estado === "pedido" && fuentes.bono.pedido_el) {
     const b = fuentes.bono;
+    const pedidoEl = fuentes.bono.pedido_el;
     esperando.push({
-      instante: Date.parse(`${b.pedido_el}T00:00:00Z`),
+      instante: Date.parse(`${pedidoEl}T00:00:00Z`),
       m: {
-        clave: `bono:${b.documento_id}`, origen: "bono", estado: "pendiente", fecha: b.pedido_el,
+        clave: `bono:${b.documento_id}`, origen: "bono", estado: "pendiente", fecha: pedidoEl,
         titulo: "Pediste tu bono de cumpleaños",
         respuesta: null,
-        detalle: `Lo pediste ${haceCuanto(b.pedido_el, hoy)}. Desarrollo Organizacional todavía no confirma la transferencia.`,
+        detalle: `Lo pediste ${haceCuanto(pedidoEl, hoy)}. Desarrollo Organizacional todavía no confirma la transferencia.`,
         nuevo: false,
         ir: "/mio/cumpleanos",
         marcarVistoComo: null,
@@ -783,13 +789,14 @@ export function armarBandeja(fuentes: FuentesBandeja, hoy: string = hoyLima()): 
     });
   } else if (fuentes.bono?.estado === "entregado" && fuentes.bono.pedido_el && fuentes.bono.entregado_el) {
     const b = fuentes.bono;
+    const entregadoEl = fuentes.bono.entregado_el;
     respuestas.push({
-      instante: Date.parse(`${b.entregado_el}T00:00:00Z`),
+      instante: Date.parse(`${entregadoEl}T00:00:00Z`),
       m: {
-        clave: `bono:${b.documento_id}`, origen: "bono", estado: "atendido", fecha: b.entregado_el as string,
+        clave: `bono:${b.documento_id}`, origen: "bono", estado: "atendido", fecha: entregadoEl,
         titulo: "Te transfirieron tu bono de cumpleaños",
         respuesta: null,
-        detalle: `${b.monto !== null ? `${formatSoles(b.monto)} · ` : ""}transferido el ${diaYMes(b.entregado_el as string)}.`,
+        detalle: `${b.monto !== null ? `${formatSoles(b.monto)} · ` : ""}transferido el ${diaYMes(entregadoEl)}.`,
         nuevo: false,
         ir: "/mio/cumpleanos",
         marcarVistoComo: null,

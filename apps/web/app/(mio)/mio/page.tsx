@@ -44,6 +44,8 @@ import { loQueNoSePudo } from "@/lib/admin/lo-que-no-se-pudo";
 import { cicloVigente, type DiaTrabajado } from "@/lib/admin/ciclo-sobretiempo";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { esMemoPorFirmar, traerBandeja } from "@/lib/bandeja-mia";
+import { mostrarBonoEnInfo, puedePedirBono, traerMiBono, type MiBono } from "@/lib/mi-bono";
+import { formatSoles } from "@/lib/rangos";
 import { useRecorridoGuiado, type PasoRecorrido } from "@/lib/use-recorrido-guiado";
 
 /**
@@ -1215,6 +1217,18 @@ export default function MioPage() {
     return () => { vivo = false; };
   }, [supabase, yo?.id]);
 
+  // Su bono de cumpleaños (0478). Aparte del bloque grande por la misma razón
+  // que la ruta: depende solo de quién es. Qué le toca lo contesta la base
+  // —la misma función que es la puerta del pedido—, así que el botón de acá
+  // no puede ofrecer algo que el servidor después rechace.
+  const [miBono, setMiBono] = useState<MiBono | null>(null);
+  useEffect(() => {
+    if (!yo?.id) return;
+    let vivo = true;
+    void traerMiBono(supabase).then(({ bono }) => { if (vivo) setMiBono(bono); });
+    return () => { vivo = false; };
+  }, [supabase, yo?.id]);
+
   // Sus propios memos disciplinarios ya entregados (0404). Aparte del bloque
   // grande por la misma razón que `contrato`/`vacas`: depende solo de quién
   // es. `fn_mis_memos()` ya filtra `estado = 'entregado'` del lado del
@@ -1592,6 +1606,19 @@ export default function MioPage() {
         ir: () => { setTab("ausencias"); irArriba(); },
       });
     }
+    // El bono de cumpleaños: solo cuando pedirlo es posible. Un «ya lo pediste»
+    // no va en este recuadro — no le pide nada a ella; vive en su tarjeta.
+    if (puedePedirBono(miBono)) {
+      out.push({
+        clave: "bono",
+        texto: "Pide tu bono de cumpleaños",
+        detalle: `${miBono?.monto != null ? `${formatSoles(miBono.monto)}. ` : ""}${
+          miBono?.estado === "vencido"
+            ? "Ya pasó tu cumpleaños y todavía no lo pides: aún estás a tiempo."
+            : "Es el mes de tu cumpleaños: pídelo y Desarrollo Organizacional te lo transfiere."}`,
+        ir: () => router.push("/mio/cumpleanos"),
+      });
+    }
     // Genérica a propósito: ni el nivel ni el motivo de la sanción van acá.
     // Esta tarjeta puede verla de reojo cualquiera que pase cerca de la
     // pantalla — el detalle recién se ve al entrar al documento mismo.
@@ -1605,7 +1632,7 @@ export default function MioPage() {
     }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resumen, respondidas, pendientesRevision, vacas, memosPorFirmar]);
+  }, [resumen, respondidas, pendientesRevision, vacas, memosPorFirmar, miBono]);
 
   const objCumplidos = objetivos.filter((o) => o.cumplido).length;
   const mesLabel = `${MESES_LARGOS[Number(hasta.slice(5, 7)) - 1].toLowerCase()} ${hasta.slice(0, 4)}`;
@@ -1940,6 +1967,31 @@ export default function MioPage() {
                   className="text-tinta underline underline-offset-2 hover:text-rojo-profundo">
                   Pedir vacaciones →
                 </button>
+              }
+            />
+          )}
+
+          {/* El bono de cumpleaños (0478). Solo aparece cuando hay algo que
+              hacer o que esperar, y en su mes: ver `mostrarBonoEnInfo`. */}
+          {miBono && mostrarBonoEnInfo(miBono, hoyLima()) && (
+            <TarjetaClave
+              titulo="Tu bono de cumpleaños"
+              valor={miBono.estado === "pedido" ? "Pedido"
+                : miBono.estado === "entregado" ? "Entregado"
+                : miBono.monto != null ? formatSoles(miBono.monto) : "Te toca"}
+              pie={miBono.estado === "pedido"
+                ? `Lo pediste el ${diaYMes(miBono.pedido_el!)}. Desarrollo Organizacional te lo transfiere y aquí verás la fecha.`
+                : miBono.estado === "entregado"
+                  ? `${miBono.pedido_el ? "Transferido" : "Recibido"} el ${diaYMes(miBono.entregado_el!)}${
+                      miBono.monto != null ? `: ${formatSoles(miBono.monto)}` : ""}. ¡Feliz cumpleaños!`
+                  : miBono.estado === "vencido"
+                    ? "Ya pasó tu cumpleaños y todavía no lo pides: aún estás a tiempo."
+                    : "Es el mes de tu cumpleaños. Pídelo firmando tu constancia y Desarrollo Organizacional te lo transfiere."}
+              alerta={puedePedirBono(miBono)}
+              accion={
+                <Link href="/mio/cumpleanos" className="text-tinta underline underline-offset-2 hover:text-rojo-profundo">
+                  {puedePedirBono(miBono) ? "Pedir mi bono →" : "Ver mi constancia →"}
+                </Link>
               }
             />
           )}

@@ -10,10 +10,21 @@ import { Marca } from "@/components/marca";
 import { Boton } from "@/components/ui/boton";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
+import { nombreDelMes } from "@/lib/bandeja-mia";
+import { puedePedirBono, traerMiBono, type MiBono } from "@/lib/mi-bono";
+import { formatSoles } from "@/lib/rangos";
 import { FirmaEditor } from "@/app/(admin)/admin/personas/[id]/FirmaEditor";
 
 /**
- * Tu constancia del bono de cumpleaños, en autoservicio (0477).
+ * Tu bono de cumpleaños: pedirlo, y ver en qué quedó (0477/0478).
+ *
+ * PEDIRLO ES FIRMAR LA CONSTANCIA (0478). Desde Info se llega acá con «Pedir
+ * mi bono». Al firmar, a Desarrollo Organizacional le queda en su Bandeja
+ * «Pidió su bono de cumpleaños» hasta que confirma la transferencia con su
+ * fecha — y esa fecha es la que esta pantalla le muestra a ella después. Qué
+ * le toca (y si el botón aparece) lo contesta `fn_mi_bono_cumpleanos`, la
+ * misma función que el servidor usa de puerta: la pantalla no puede ofrecer
+ * un pedido que la base después rechace.
  *
  * QUÉ REEMPLAZA. Hasta hoy el único camino era admin/documentacion: se
  * imprimía la constancia, se firmaba a mano y un admin subía el escaneo.
@@ -31,11 +42,6 @@ import { FirmaEditor } from "@/app/(admin)/admin/personas/[id]/FirmaEditor";
  * EL MONTO NUNCA SE PIDE ACÁ. Lo calcula el servidor con el bono_onomastico
  * vigente — nunca una cifra que la persona escriba.
  */
-
-interface MiBono {
-  estado: "ok" | "sin_fecha" | "no_aplica" | "este_mes" | "vencido" | "proximo" | null;
-  firmada_el: string | null;
-}
 
 interface MiDocumento {
   fecha_firma: string | null;
@@ -60,7 +66,7 @@ function MiCumpleanosContenido() {
   const supabase = createAdminSupabaseClient();
 
   const [yo, setYo] = useState<Yo | null>(null);
-  const [bono, setBono] = useState<MiBono | null | undefined>(undefined);
+  const [bono, setBono] = useState<MiBono | null>(null);
   const [miFirma, setMiFirma] = useState<string | null>(null);
   const [miDocumento, setMiDocumento] = useState<MiDocumento | null>(null);
   const [cargando, setCargando] = useState(true);
@@ -75,10 +81,6 @@ function MiCumpleanosContenido() {
   const [firmando, setFirmando] = useState(false);
   const [verDocumento, setVerDocumento] = useState(false);
   const [aviso, setAviso] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
-  // El monto vigente de parametros_laborales (bono_onomastico), para
-  // mostrarlo en el papel ANTES de firmar — mismo criterio que /mio/movilidad
-  // con su tarifa: no se firma a ciegas un monto que solo aparece después.
-  const [montoVigente, setMontoVigente] = useState<number | null>(null);
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -123,46 +125,44 @@ function MiCumpleanosContenido() {
     }
     setFirmanteCargo(vf?.cargo ?? null);
 
-    const [{ data: fila, error: eFila }, { data: fu }, { data: fe }, { data: docs }, { data: montoParam }] =
+    const [{ bono: miBono, error: eBono }, { data: fu }, { data: fe }, { data: docs }] =
       await Promise.all([
-        supabase.rpc("fn_documentos_tablero", { p_solo_mi_fila: true }),
+        // Qué le toca, con el monto que rige hoy (0478). `parametros_laborales`
+        // solo la lee DO; esta función lo trae para mostrarlo ANTES de pedir.
+        traerMiBono(supabase),
         supabase.rpc("fn_mi_firma"),
         supabase.rpc("fn_firma_empresa"),
-        supabase.rpc("fn_documentos_listar"),
-        // `parametros_laborales` solo la lee un admin (RLS) — por eso el
-        // monto sale de esta RPC (0477) y no de una consulta directa a la
-        // tabla. Se MUESTRA lo que hay, incluido "no hay": sin fila vigente,
-        // queda en null y el papel lo dice tal cual, nunca un valor de
-        // respaldo.
-        supabase.rpc("fn_bono_monto_vigente"),
+        // Con `p_persona_id` y no sin argumentos: para DO, esta RPC sin
+        // argumento devuelve los documentos de TODO el equipo, y la pantalla
+        // pintaría como «tuya» la constancia de otra persona (0429).
+        supabase.rpc("fn_documentos_listar", { p_persona_id: p.id as string }),
       ]);
     setCargando(false);
-    if (eFila) {
-      setError(mensajeDeError(eFila, "traer tu bono de cumpleaños"));
+    if (eBono) {
+      setError(mensajeDeError(eBono, "traer tu bono de cumpleaños"));
       return;
     }
-    type FilaTablero = { bono_estado: MiBono["estado"]; bono_firmada_el: string | null };
-    const propia = ((fila as FilaTablero[] | null) ?? [])[0] ?? null;
-    setBono(propia ? { estado: propia.bono_estado, firmada_el: propia.bono_firmada_el } : null);
+    setBono(miBono);
     setMiFirma((fu as string | null) ?? null);
     setFirmaEmpresa((fe as string | null) ?? null);
-    const monto = Number(montoParam);
-    setMontoVigente(Number.isFinite(monto) && monto > 0 ? monto : null);
 
-    const anioActual = new Date().getFullYear();
-    type FilaDoc = { tipo: string; anio: number | null; vigente: boolean; fecha_firma: string | null; firma_persona: string | null; monto_declarado: number | null };
-    const miBono = ((docs as FilaDoc[] | null) ?? []).find((d) => d.tipo === "bono" && d.vigente && d.anio === anioActual);
-    setMiDocumento(miBono ? {
-      fecha_firma: miBono.fecha_firma,
-      firma: miBono.firma_persona,
-      monto_declarado: miBono.monto_declarado,
+    // La constancia es la que dice la base, por su id — no «la de este año»
+    // según el reloj del navegador, que en año nuevo puede ir por delante.
+    type FilaDoc = { id: string; fecha_firma: string | null; firma_persona: string | null; monto_declarado: number | null };
+    const doc = miBono?.documento_id
+      ? ((docs as FilaDoc[] | null) ?? []).find((d) => d.id === miBono.documento_id)
+      : undefined;
+    setMiDocumento(doc ? {
+      fecha_firma: doc.fecha_firma,
+      firma: doc.firma_persona,
+      monto_declarado: doc.monto_declarado,
     } : null);
   }, [supabase, router]);
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void cargar(); }, [cargar]);
 
-  useTituloDocumento(yo && miDocumento ? `${yo.nombreOficial} — Constancia del bono de cumpleaños` : null);
+  useTituloDocumento(yo && miDocumento?.firma ? `${yo.nombreOficial} — Constancia del bono de cumpleaños` : null);
 
   async function firmar() {
     if (!miFirma) {
@@ -174,10 +174,13 @@ function MiCumpleanosContenido() {
     const { error: eFirmar } = await supabase.rpc("fn_confirmar_mi_bono_cumpleanos");
     setFirmando(false);
     if (eFirmar) {
-      setAviso({ tipo: "error", texto: mensajeDeError(eFirmar, "firmar tu constancia") });
+      setAviso({ tipo: "error", texto: mensajeDeError(eFirmar, "pedir tu bono") });
       return;
     }
-    setAviso({ tipo: "ok", texto: "Constancia firmada. Ya no hace falta que imprimas ni subas nada." });
+    setAviso({
+      tipo: "ok",
+      texto: "Listo, pediste tu bono. Desarrollo Organizacional ya lo tiene en su Bandeja; cuando te lo transfiera, aquí verás la fecha.",
+    });
     await cargar();
   }
 
@@ -202,10 +205,11 @@ function MiCumpleanosContenido() {
       <Link href="/mio" className="mb-4 inline-block text-sm text-taupe hover:text-tinta hover:underline">
         ← Volver a Info
       </Link>
-      <h1 className="mb-1 font-serif text-xl">Constancia del bono de cumpleaños</h1>
+      <h1 className="mb-1 font-serif text-xl">Tu bono de cumpleaños</h1>
       <p className="mb-6 text-sm text-taupe">
-        Acredita que recibiste tu asignación por onomástico y su causa (D.S. N.º 001-97-TR, art. 19 g).
-        Firmarla acá la reemplaza por completo: no hace falta imprimir, firmar a mano ni escanear nada.
+        Una asignación de {bono?.monto != null ? formatSoles(bono.monto) : "la empresa"} en el mes de tu
+        cumpleaños. Se pide firmando tu constancia aquí —sin imprimir ni escanear nada— y Desarrollo
+        Organizacional te la transfiere.
       </p>
 
       {aviso && (
@@ -216,22 +220,42 @@ function MiCumpleanosContenido() {
         </p>
       )}
 
-      {bono === null && (
+      {/* Lo que todavía no se puede pedir: se dice por qué y qué hacer, nunca un botón que va a fallar. */}
+      {(!bono || bono.estado === "no_aplica") && (
         <p className="rounded-lg bg-sand/40 px-4 py-3 text-sm text-taupe">
-          Esto no te corresponde por ahora — no aplica a tu tipo de vínculo, o tu contrato ya está por terminar.
-          Si crees que es un error, avisa a Desarrollo Organizacional.
+          Este año no te corresponde el bono de cumpleaños: es para quien está en planilla, y rige desde que
+          existe o desde tu ingreso. Si crees que es un error, avisa a Desarrollo Organizacional.
+        </p>
+      )}
+      {bono?.estado === "sin_fecha" && (
+        <p className="rounded-lg bg-sand/40 px-4 py-3 text-sm text-taupe">
+          Falta tu fecha de nacimiento en tu ficha, así que el sistema no sabe cuándo es tu cumpleaños.
+          Avisa a Desarrollo Organizacional para que la registre.
+        </p>
+      )}
+      {bono?.estado === "proximo" && bono.mes_cumpleanos && (
+        <p className="rounded-lg bg-sand/40 px-4 py-3 text-sm text-taupe">
+          Tu cumpleaños es en {nombreDelMes(bono.mes_cumpleanos)}: desde el primer día de ese mes vas a poder
+          pedirlo aquí, y también te lo recordaremos en tu Info.
         </p>
       )}
 
-      {bono && bono.estado === "ok" && (
+      {/* Ya lo pidió, o ya se entregó. */}
+      {(bono?.estado === "pedido" || bono?.estado === "entregado") && (
         <section className="rounded-2xl border border-sand p-5 text-sm">
-          <p className="text-verde">
-            Firmada el {bono.firmada_el ? fechaLarga(bono.firmada_el) : "—"}
-            {miDocumento?.monto_declarado != null && (
-              <>, declarando S/ {Number(miDocumento.monto_declarado).toFixed(2)}</>
-            )}.
-          </p>
-          {miDocumento && !verDocumento && (
+          {bono.estado === "pedido" ? (
+            <p className="text-tinta">
+              Lo pediste el {bono.pedido_el ? fechaLarga(bono.pedido_el) : "—"}
+              {bono.monto != null && <> por {formatSoles(bono.monto)}</>}. Desarrollo Organizacional todavía no
+              confirma la transferencia: cuando lo haga, aquí verás la fecha.
+            </p>
+          ) : (
+            <p className="text-verde">
+              {bono.pedido_el ? "Transferido" : "Recibido"} el {bono.entregado_el ? fechaLarga(bono.entregado_el) : "—"}
+              {bono.monto != null && <>: {formatSoles(bono.monto)}</>}.
+            </p>
+          )}
+          {miDocumento?.firma && !verDocumento && (
             <Boton variante="enlace" className="mt-3 block" onClick={() => setVerDocumento(true)}>
               Ver mi constancia firmada
             </Boton>
@@ -239,7 +263,7 @@ function MiCumpleanosContenido() {
         </section>
       )}
 
-      {bono && bono.estado === "ok" && miDocumento && verDocumento && (
+      {miDocumento?.firma && verDocumento && (bono?.estado === "pedido" || bono?.estado === "entregado") && (
         <div className="mt-4 rounded-2xl border border-sand p-5">
           <div className="mb-3 flex items-center justify-between print:hidden">
             <h2 className="font-serif text-lg">Tu constancia firmada</h2>
@@ -253,6 +277,7 @@ function MiCumpleanosContenido() {
           <PapelBono
             monto={miDocumento.monto_declarado}
             fecha={miDocumento.fecha_firma}
+            transferidoEl={bono.estado === "entregado" ? bono.entregado_el : null}
             nombreOficial={yo?.nombreOficial ?? null}
             documento={yo?.documento ?? null}
             firmaPersona={miDocumento.firma}
@@ -263,17 +288,28 @@ function MiCumpleanosContenido() {
         </div>
       )}
 
-      {bono && bono.estado !== "ok" && (
+      {/* Pedirlo: su mes, o después si se le pasó. */}
+      {bono && puedePedirBono(bono) && (
         <div className="rounded-2xl border border-sand p-5">
-          {montoVigente === null && (
+          {bono.estado === "vencido" && (
+            <p className="mb-4 rounded-lg bg-ambar/10 px-3 py-2 text-sm text-tinta">
+              Ya pasó tu cumpleaños y todavía no lo pides: aún estás a tiempo.
+            </p>
+          )}
+          {bono.monto === null && (
             <p className="mb-4 rounded-lg bg-rojo/10 px-3 py-2 text-sm text-rojo">
-              No hay un monto de bono de onomástico vigente en el sistema, así que todavía no se puede firmar.
+              No hay un monto de bono de onomástico vigente en el sistema, así que todavía no se puede pedir.
               Avisa a Desarrollo Organizacional.
             </p>
           )}
+          <p className="mb-4 text-sm text-taupe">
+            Al pedirlo firmas esta constancia. Léela: es lo que acredita que el bono es por tu cumpleaños y no
+            parte de tu sueldo.
+          </p>
           <PapelBono
-            monto={montoVigente}
+            monto={bono.monto}
             fecha={null}
+            transferidoEl={null}
             nombreOficial={yo?.nombreOficial ?? null}
             documento={yo?.documento ?? null}
             firmaPersona={miFirma}
@@ -294,12 +330,12 @@ function MiCumpleanosContenido() {
             )}
           </div>
 
-          <Boton variante="primario" cargando={firmando} disabled={!miFirma || montoVigente === null}
+          <Boton variante="primario" cargando={firmando} disabled={!miFirma || bono.monto === null}
             onClick={() => void firmar()}>
-            Firmar mi constancia
+            Pedir mi bono
           </Boton>
           {!miFirma && (
-            <p className="mt-2 text-xs text-taupe">Configura tu firma arriba antes de poder confirmar.</p>
+            <p className="mt-2 text-xs text-taupe">Configura tu firma arriba antes de poder pedirlo.</p>
           )}
         </div>
       )}
@@ -309,9 +345,12 @@ function MiCumpleanosContenido() {
 
 /** La hoja de la constancia — mismo texto legal que imprime admin/documentacion,
  *  para que autoservicio y escaneo acrediten exactamente la misma causa. */
-function PapelBono({ monto, fecha, nombreOficial, documento, firmaPersona, firmaEmpresa, firmanteNombre, firmanteCargo }: {
+function PapelBono({ monto, fecha, transferidoEl, nombreOficial, documento, firmaPersona, firmaEmpresa, firmanteNombre, firmanteCargo }: {
   monto: number | null;
+  /** Cuándo la firmó (= cuándo pidió el bono). Null mientras todavía no la firma. */
   fecha: string | null;
+  /** Cuándo DO confirmó la transferencia (0478). Null mientras no la confirma. */
+  transferidoEl: string | null;
   nombreOficial: string | null;
   documento: string | null;
   firmaPersona: string | null;
@@ -346,7 +385,11 @@ function PapelBono({ monto, fecha, nombreOficial, documento, firmaPersona, firma
 
       <p className="mb-10 text-sm text-taupe">
         La presente constancia acredita la entrega y su causa.{" "}
-        {fecha ? `Recibida el ${fechaLarga(fecha)}.` : "Confirmada desde el sistema."}
+        {/* Dos fechas, no una: firmarla es PEDIR el bono (0478), y la
+            transferencia llega después. Decir «recibida» el día del pedido
+            afirmaría una entrega que todavía no pasó. */}
+        {fecha ? `Firmada desde el sistema el ${fechaLarga(fecha)}.` : "Se firma desde el sistema."}
+        {transferidoEl ? ` Transferida el ${fechaLarga(transferidoEl)}.` : fecha ? " Transferencia pendiente de confirmar." : ""}
       </p>
 
       <div className="grid grid-cols-2 gap-10 pt-6">

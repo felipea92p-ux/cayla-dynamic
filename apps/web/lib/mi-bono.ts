@@ -60,7 +60,9 @@ export function mostrarBonoEnInfo(b: MiBono | null | undefined, hoy: string): bo
 }
 
 /** Lee tu bono. Una sola fila, o null si la sesión no está enlazada con una persona. */
-export async function traerMiBono(supabase: ClienteCayla): Promise<{ bono: MiBono | null; error: unknown }> {
+export async function traerMiBono(
+  supabase: ClienteCayla,
+): Promise<{ bono: MiBono | null; error: { message: string; code?: string } | null }> {
   const { data, error } = await supabase.rpc("fn_mi_bono_cumpleanos");
   if (error) return { bono: null, error };
   const fila = ((data ?? []) as unknown as MiBono[])[0] ?? null;
