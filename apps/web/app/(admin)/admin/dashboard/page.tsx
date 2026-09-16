@@ -136,6 +136,23 @@ function subEstadoSinMarcar(f: FilaPersona, ahoraDecimal: number): SubEstadoSinM
   return f.origenEsperadoHoy === "sin_horario" ? "desconocido" : "descansa";
 }
 
+// Las tres preguntas que el resumen de arriba cuenta y que los filtros y la
+// cobertura vuelven a hacer. Estaban escritas a mano en cada sitio —la de
+// "sin marcar y ya le tocaba" tres veces—, y si una copia cambiaba, el número
+// del resumen y la lista de personas iban a dejar de coincidir sin que nada
+// avisara. Una sola vez, acá.
+function estaTrabajando(f: FilaPersona): boolean {
+  return f.estado === "abierta" || f.estado === "en_pausa";
+}
+function llegoTarde(f: FilaPersona): boolean {
+  return (f.minutosTarde ?? 0) > 0;
+}
+// Sin marcar, sin ausencia que lo cubra, y con la hora de entrada (más el
+// margen) ya pasada. Quien aún no entra o descansa hoy NO cuenta.
+function sinMarcarYaLeTocaba(f: FilaPersona, ahoraDecimal: number): boolean {
+  return f.estado === "sin_marcar" && !f.ausenciaHoy && subEstadoSinMarcar(f, ahoraDecimal) === "falta_real";
+}
+
 // La misma celda de estado, compartida entre la tabla de escritorio y las
 // tarjetas de celular — para no mantener dos copias del mismo if/else.
 function EstadoCelda({ f, linkCorregir, ahoraDecimal }: { f: FilaPersona; linkCorregir: (personaId: string) => string; ahoraDecimal: number }) {
@@ -226,7 +243,7 @@ interface CoberturaSede {
   alertaSinEntrada: string | null;
 }
 function calcularCoberturaSede(deSede: FilaPersona[], meta: MetaSede, tramoTarde: boolean, ahoraDecimal: number): CoberturaSede {
-  const activos = deSede.filter((f) => f.estado === "abierta" || f.estado === "en_pausa");
+  const activos = deSede.filter(estaTrabajando);
   const metaOp = tramoTarde ? meta.tar : meta.man;
   // Cobertura EN VIVO: "en piso" = solo Presente (abierta). Quien está en
   // pausa/refrigerio no cuenta — no está físicamente cubriendo ahora.
@@ -236,9 +253,7 @@ function calcularCoberturaSede(deSede: FilaPersona[], meta: MetaSede, tramoTarde
   const sinMetaEnc = meta.enc <= 0;
   const faltanOp = !sinMetaOp && opPiso < metaOp;
   const faltanEnc = !sinMetaEnc && encPiso < meta.enc;
-  const sinMarcarReal = deSede.filter(
-    (f) => f.estado === "sin_marcar" && !f.ausenciaHoy && subEstadoSinMarcar(f, ahoraDecimal) === "falta_real",
-  ).length;
+  const sinMarcarReal = deSede.filter((f) => sinMarcarYaLeTocaba(f, ahoraDecimal)).length;
   // Cuántas de las personas asignadas a esta sede tenían HOY un horario/turno
   // real que decía que trabajaban — el denominador que faltaba: "de Y" antes
   // mezclaba a todo el equipo (vacaciones, descansos, quien ya salió) con
@@ -687,11 +702,9 @@ export default function DashboardPage() {
   });
 
   // ---------- Resumen global ----------
-  const trabajandoAhoraTotal = filas.filter((f) => f.estado === "abierta" || f.estado === "en_pausa").length;
-  const tardanzasHoyTotal = filas.filter((f) => (f.minutosTarde ?? 0) > 0).length;
-  const sinMarcarRealTotal = filas.filter(
-    (f) => f.estado === "sin_marcar" && !f.ausenciaHoy && subEstadoSinMarcar(f, ahoraDecimal) === "falta_real",
-  ).length;
+  const trabajandoAhoraTotal = filas.filter(estaTrabajando).length;
+  const tardanzasHoyTotal = filas.filter(llegoTarde).length;
+  const sinMarcarRealTotal = filas.filter((f) => sinMarcarYaLeTocaba(f, ahoraDecimal)).length;
   const sedesBajoMinimo = sedes.filter((s) => coberturaPorSede.get(s.sedeId)!.problema).length;
 
   // ---------- Disciplina, ya cargada arriba — hoisted para el resumen y el panel único ----------
@@ -707,10 +720,7 @@ export default function DashboardPage() {
     if (busqueda && !f.nombre.toLowerCase().includes(busqueda.trim().toLowerCase())) return false;
     if (estadoFiltro !== "todos" && f.estado !== estadoFiltro) return false;
     if (soloAlertas) {
-      const esAlerta =
-        f.estado === "auto_cerrada_pendiente" ||
-        (f.minutosTarde ?? 0) > 0 ||
-        (f.estado === "sin_marcar" && !f.ausenciaHoy && subEstadoSinMarcar(f, ahoraDecimal) === "falta_real");
+      const esAlerta = f.estado === "auto_cerrada_pendiente" || llegoTarde(f) || sinMarcarYaLeTocaba(f, ahoraDecimal);
       if (!esAlerta) return false;
     }
     return true;
