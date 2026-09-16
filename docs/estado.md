@@ -6,6 +6,61 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-09-15 — La tarjeta de Liquidaciones de la Bandeja dejó de fallar por timeout (0471, 0472) · SIN PEGAR · SIN FUSIONAR
+
+Felipe reportó el recuadro rojo en la Bandeja: «No se pudo cargar
+liquidaciones vencidas: canceling statement due to statement timeout».
+`fn_liquidaciones_pendientes` (0454) calcula la liquidación completa —motor
+de planilla incluido— de cada cesada, y de la que YA COBRÓ la calcula DOS
+VECES más (`descuadra` y `descuadra_real` llaman `fn_liquidacion_diferencias`
+por separado; Postgres no comparte el resultado entre dos llamadas del mismo
+SELECT). Medido en el Postgres local con 17 cesadas: 518 ms — y esa lista
+solo crece, porque a nadie se le borra.
+
+Pero el defecto real estaba en quién la llamaba: la Bandeja (todo admin o
+líder, en cada carga) pedía esa función completa para descartar
+`descuadra`/`descuadra_real` sin usarlos — `esLiquidacionParaBandeja` solo
+mira `!pagada && vencido && total>0`. Pagaba el cálculo más caro del sistema
+por un dato que tira a la basura.
+
+Dos migraciones, en dos pasos (decidido con Felipe):
+
+- [0471](../supabase/migrations/0471_la_bandeja_deja_de_pagar_por_un_calculo_que_no_usa.sql)
+  — `fn_liquidaciones_vencidas_bandeja()`, función nueva y liviana: filtra a
+  cesadas sin pagar ANTES de calcular, así que nunca toca a quien ya cobró.
+  `bandeja-fuentes.ts` pasa a pedir esta en vez de la pesada.
+  `fn_liquidaciones_pendientes` no se toca: sigue siendo la única fuente de
+  `/admin/liquidaciones`, que sí necesita `descuadra_real`.
+- [0472](../supabase/migrations/0472_liquidaciones_pendientes_deja_de_calcular_dos_veces.sql)
+  — esa pantalla deja de pagar el cálculo dos veces: un solo
+  `left join lateral` llama `fn_liquidacion_diferencias` una vez, y de ahí
+  salen los dos booleanos con `bool_or`. Ni una cifra cambia.
+
+Auditadas contra Postgres local: la 0471 reproducida en vivo en `/admin/bandeja`
+(la tarjeta pasó de "—" con el error a "3", con las mismas tres personas que
+el filtro de siempre). La 0472 comparada fila por fila contra el
+comportamiento anterior —idéntica para las 17 cesadas reales— y con dos
+casos armados a mano en `begin…rollback` (una liquidación con diferencia real
+→ `descuadra_real=true`; una liquidación que calza exacto → ambos `false`).
+Prueba pgTAP 359 (la que defiende `descuadra`/`descuadra_real` desde la 0454)
+en verde; 133 también. Typecheck y `pnpm test` (743 pruebas) en verde.
+
+**Antes de pegar:** pedir en el SQL Editor el md5 de `fn_liquidacion_diferencias`
+y `fn_liquidaciones_pendientes` contra la 0454 vigente (`donde-vive.sh`) — se
+auditó contra el repositorio local, no contra producción. **Pegar las dos
+ANTES de fusionar el PR**: en cuanto se fusione, el frontend en producción
+llama a `fn_liquidaciones_vencidas_bandeja` de inmediato, y si no existe
+todavía en la base, la Bandeja vuelve a fallar para todo el mundo.
+
+Hallazgo aparte, sin tocar: el Postgres local compartido tiene un hueco real
+frente a este repositorio —le faltan 415-419, 431-434, 437-438, 444-448, 461,
+463-464, 467-468, y tiene aplicadas 469/470 que no están en ningún archivo de
+esta rama—. Se rellenó a mano 450-455 (las que esta migración necesitaba para
+poder auditarse) porque ya estaban fusionadas a `main`; el resto queda como
+está, fuera de este alcance.
+
+---
+
 ## 2026-09-15 — Quien ingresa después ya no se cuela en un periodo anterior (0463) · SIN PEGAR · SIN FUSIONAR
 
 Felipe reportó, mirando `/admin/planilla`: cinco practicantes que ingresaron
