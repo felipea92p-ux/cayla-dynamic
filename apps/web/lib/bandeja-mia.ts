@@ -6,6 +6,8 @@ import {
 import { loQueNoSePudo } from "./admin/lo-que-no-se-pudo";
 import { traerAcusesPendientes, type AcusePendiente } from "./acuses-pendientes";
 import { ordenarContratoVigente } from "./mi-contrato";
+import { puedePedirBono, traerMiBono, type MiBono } from "./mi-bono";
+import { formatSoles } from "./rangos";
 
 /**
  * La Bandeja de cada persona — «qué te respondieron».
@@ -257,12 +259,6 @@ export interface FilaMovilidad {
   ruta_firmada_el: string | null;
   ruta_monto: number | null;
   ruta_desfasada: boolean;
-  // La misma fila trae también su bono de cumpleaños (0477): 'este_mes' y
-  // 'vencido' son los dos que le tocan a ELLA —puede firmar su constancia
-  // ya mismo, se paga por transferencia y no hace falta que nadie le
-  // entregue nada primero—. Los demás (proximo, sin_fecha, no_aplica) no
-  // son un pendiente todavía.
-  bono_estado: "ok" | "sin_fecha" | "no_aplica" | "este_mes" | "vencido" | "proximo" | null;
 }
 
 /** Una constancia de estudios suya (0450), de `educacion_entregas`, con su estudio. */
@@ -308,6 +304,13 @@ export interface FuentesBandeja {
   revisionesMovilidad: FilaRevisionMovilidad[];
   /** Cambios de turno que le hicieron. Ver `FilaTurno`. */
   turnos: FilaTurno[];
+  /**
+   * Su bono de cumpleaños (0478), de `fn_mi_bono_cumpleanos`. NO del
+   * `bono_estado` del tablero: ese no sabe que el bono es de planilla y le
+   * pediría a una practicante algo que la base le niega. Opcional: sin él no
+   * se dice nada del bono.
+   */
+  bono?: MiBono | null;
   /** Sus constancias de estudios (0450). Opcional: quien no estudia no trae nada. */
   educacionEntregas?: FilaEducacionEntrega[];
   /** Sus estudios y en qué está cada constancia (0450). */
@@ -418,8 +421,8 @@ function instanteDe(resuelta: string | null, pedida: string): number {
  *              (0423). Menos urgente que el contrato —no define la relación
  *              entera— pero es plata suya de por medio, así que va antes que
  *              las obligaciones que son de la empresa.
- *   bono     · la constancia de su bono de cumpleaños (0477), en el mes de
- *              su onomástico o después. Mismo criterio que la ruta —plata
+ *   bono     · pedir su bono de cumpleaños (0477/0478), en el mes de su
+ *              onomástico o después. Mismo criterio que la ruta —plata
  *              suya— justo después, porque a diferencia de la ruta no
  *              sostiene un pago que se repite cada periodo.
  *   acuse    · obligación legal de la EMPRESA (Ley 30709, RIT). Importa, pero
@@ -495,19 +498,22 @@ export function armarBandeja(fuentes: FuentesBandeja, hoy: string = hoyLima()): 
     });
   }
 
-  // El bono de cumpleaños (0477). Aparece en el mes de su onomástico
-  // ('este_mes') o si ya pasó y sigue sin firmar ('vencido') — se paga por
-  // transferencia, así que no hace falta que nadie le entregue nada primero
-  // para que pueda firmar su constancia.
-  if (fuentes.movilidad &&
-      (fuentes.movilidad.bono_estado === "este_mes" || fuentes.movilidad.bono_estado === "vencido")) {
+  // El bono de cumpleaños (0477/0478). Pedirlo ES firmar su constancia, así
+  // que le toca a ELLA en el mes de su onomástico, o después si se le pasó.
+  // Qué le toca lo decide `fn_mi_bono_cumpleanos` —la misma función que es la
+  // puerta del pedido—, no el tablero: por eso acá no hay regla, solo lectura.
+  if (fuentes.bono && puedePedirBono(fuentes.bono)) {
+    const b = fuentes.bono;
+    const monto = b.monto !== null ? `${formatSoles(b.monto)}. ` : "";
     pendientes.push({
       instante: 0,
       m: {
-        clave: "bono:constancia", origen: "bono", estado: "por_firmar", fecha: hoy,
-        titulo: "Falta tu firma en la constancia de tu bono de cumpleaños",
+        clave: "bono:pedir", origen: "bono", estado: "por_firmar", fecha: hoy,
+        titulo: "Pide tu bono de cumpleaños",
         respuesta: null,
-        detalle: "Sostiene la causa de tu asignación por onomástico. Fírmala desde el sistema — no hace falta imprimir ni escanear nada.",
+        detalle: b.estado === "vencido"
+          ? `${monto}Ya pasó tu cumpleaños y todavía no lo pides: aún estás a tiempo.`
+          : `${monto}Es el mes de tu cumpleaños. Lo pides firmando tu constancia, y Desarrollo Organizacional te lo transfiere.`,
         nuevo: true,
         ir: "/mio/cumpleanos",
         marcarVistoComo: null,
@@ -748,6 +754,49 @@ export function armarBandeja(fuentes: FuentesBandeja, hoy: string = hoyLima()): 
     });
   }
 
+  // Su bono de cumpleaños, después de pedirlo (0478). Mientras DO no confirme
+  // la transferencia, lo está ESPERANDO: lo pidió ella, así que nunca es
+  // «nuevo». Cuando DO la confirma pasa a respuesta — solo si lo pidió desde
+  // el sistema: un cargo en papel lo firmó con el dinero en la mano, no hay
+  // nada que avisarle.
+  //
+  // Esa respuesta NO cuenta en el número del botón, a diferencia de las
+  // demás. No por criterio: `bandeja_vistos` no tiene un tipo para marcarla
+  // vista, y agregarlo reescribe `fn_bandeja_marcar_visto`, que está en
+  // producción y la están ensanchando otras ramas. Sin «visto», contarla
+  // dejaría el número en 1 durante DIAS_NOVEDAD aunque ya la haya leído — y
+  // un contador que no baja enseña a no mirarlo. La ve igual en la lista, en
+  // Info y en /mio/cumpleanos.
+  if (fuentes.bono?.estado === "pedido" && fuentes.bono.pedido_el) {
+    const b = fuentes.bono;
+    esperando.push({
+      instante: Date.parse(`${b.pedido_el}T00:00:00Z`),
+      m: {
+        clave: `bono:${b.documento_id}`, origen: "bono", estado: "pendiente", fecha: b.pedido_el,
+        titulo: "Pediste tu bono de cumpleaños",
+        respuesta: null,
+        detalle: `Lo pediste ${haceCuanto(b.pedido_el, hoy)}. Desarrollo Organizacional todavía no confirma la transferencia.`,
+        nuevo: false,
+        ir: "/mio/cumpleanos",
+        marcarVistoComo: null,
+      },
+    });
+  } else if (fuentes.bono?.estado === "entregado" && fuentes.bono.pedido_el && fuentes.bono.entregado_el) {
+    const b = fuentes.bono;
+    respuestas.push({
+      instante: Date.parse(`${b.entregado_el}T00:00:00Z`),
+      m: {
+        clave: `bono:${b.documento_id}`, origen: "bono", estado: "atendido", fecha: b.entregado_el as string,
+        titulo: "Te transfirieron tu bono de cumpleaños",
+        respuesta: null,
+        detalle: `${b.monto !== null ? `${formatSoles(b.monto)} · ` : ""}transferido el ${diaYMes(b.entregado_el as string)}.`,
+        nuevo: false,
+        ir: "/mio/cumpleanos",
+        marcarVistoComo: null,
+      },
+    });
+  }
+
   // Cambios de turno que le hicieron (0298). No los pidió — alguien con
   // permiso le cambió el horario — así que no hay nada "esperando": entran
   // directo como respuesta, y caducan igual que las demás a los DIAS_NOVEDAD.
@@ -914,7 +963,7 @@ export async function traerBandeja(
   hoy: string = hoyLima(),
 ): Promise<{ bandeja: Bandeja; noSePudo: string[] }> {
   const [perfil, catalogo, vacaciones, revisiones, contrato, memos, acuses, periodo, movilidad, revisionesMovilidad, turnos,
-    educacionEntregas, educacionSituacion, vistos] =
+    educacionEntregas, educacionSituacion, vistos, bono] =
     await Promise.all([
     supabase.from("solicitudes_cambio_perfil")
       .select("id, campo, estado, creada_at, resuelta_at, motivo")
@@ -988,6 +1037,9 @@ export async function traerBandeja(
     // el filtro explícito no cuesta nada y evita tener que recordarlo si eso
     // cambia. Falla suave: sin esto, todo se ve «nuevo», el lado seguro.
     supabase.from("bandeja_vistos").select("tipo_item, item_id").eq("persona_id", personaId),
+    // Su bono de cumpleaños (0478). La función ya contesta solo por quien
+    // pregunta (`fn_persona_actual_id`), sin excepción para DO.
+    traerMiBono(supabase),
   ]);
 
   // Las jornadas del periodo, solo si hay periodo abierto. Va en su propia
@@ -1026,6 +1078,7 @@ export async function traerBandeja(
     })[]).map(({ asignaciones_educacion: a, ...e }) => ({ ...e, familia_id: a.familia_id, institucion: a.institucion })),
     educacionSituacion: ((educacionSituacion.data ?? []) as unknown as FilaEducacionSituacion[])
       .filter((s) => s.persona_id === personaId),
+    bono: bono.bono,
     vistos: new Set(
       ((vistos.data ?? []) as { tipo_item: string; item_id: string }[])
         .map((v) => `${v.tipo_item}:${v.item_id}`),
@@ -1055,6 +1108,7 @@ export async function traerBandeja(
       { error: turnos.error, que: "tus cambios de turno" },
       { error: educacionEntregas.error, que: "tus constancias de estudios" },
       { error: educacionSituacion.error, que: "tu apoyo educativo" },
+      { error: bono.error, que: "tu bono de cumpleaños" },
     ]),
   };
 }

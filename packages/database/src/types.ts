@@ -1528,6 +1528,9 @@ export type Database = {
           anulado_motivo: string | null
           anulado_por: string | null
           created_at: string
+          entrega_confirmada_at: string | null
+          entrega_confirmada_el: string | null
+          entrega_confirmada_por: string | null
           es_negativa: boolean
           fecha_firma: string
           firma_persona: string | null
@@ -1554,6 +1557,9 @@ export type Database = {
           anulado_motivo?: string | null
           anulado_por?: string | null
           created_at?: string
+          entrega_confirmada_at?: string | null
+          entrega_confirmada_el?: string | null
+          entrega_confirmada_por?: string | null
           es_negativa?: boolean
           fecha_firma: string
           firma_persona?: string | null
@@ -1580,6 +1586,9 @@ export type Database = {
           anulado_motivo?: string | null
           anulado_por?: string | null
           created_at?: string
+          entrega_confirmada_at?: string | null
+          entrega_confirmada_el?: string | null
+          entrega_confirmada_por?: string | null
           es_negativa?: boolean
           fecha_firma?: string
           firma_persona?: string | null
@@ -5358,6 +5367,19 @@ export type Database = {
         Returns: number
       }
       fn_bono_monto_vigente: { Args: never; Returns: number }
+      fn_bonos_por_transferir: {
+        Args: never
+        Returns: {
+          anio: number
+          documento_id: string
+          monto: number
+          pedido_at: string
+          pedido_el: string
+          persona: string
+          persona_id: string
+          sede: string
+        }[]
+      }
       fn_borrar_dni_de: {
         Args: { p_motivo: string | null; p_persona_id: string | null }
         Returns: {
@@ -5440,6 +5462,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      fn_confirmar_entrega_bono: {
+        Args: { p_documento_id: string | null; p_fecha: string | null }
+        Returns: string
       }
       fn_confirmar_mi_bono_cumpleanos: { Args: never; Returns: string }
       fn_confirmar_mi_declaracion_ruta: {
@@ -6692,6 +6718,18 @@ export type Database = {
         Returns: {
           dias: number
           meses: number
+        }[]
+      }
+      fn_mi_bono_cumpleanos: {
+        Args: never
+        Returns: {
+          anio: number
+          documento_id: string
+          entregado_el: string
+          estado: string
+          mes_cumpleanos: number
+          monto: number
+          pedido_el: string
         }[]
       }
       fn_mi_firma: { Args: never; Returns: string }
