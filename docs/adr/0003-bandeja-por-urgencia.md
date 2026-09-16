@@ -160,7 +160,7 @@ Cada una usa el criterio de SU pantalla, con tres excepciones escritas:
 
 | Fuente | Entra | Plazo | Queda fuera, y por qué |
 |---|---|---|---|
-| Contratos (`fn_contratos_tablero`) | desnaturalizado, vencido, por vencer, sin contrato, sin firmar, trámite pendiente | fin del contrato; trámite pendiente = copia (inicio + 5) — desde la 0469 el MTPE ya no es trámite de nadie (D. Leg. 1246) | `sin_vencimiento`: la pantalla lo cuenta como pendiente y como vigente a la vez |
+| Contratos (`fn_contratos_tablero`) | desnaturalizado, vencido, por vencer, sin contrato, sin firmar, trámite pendiente | fin del contrato; trámite pendiente = copia (inicio + 5) — desde la 0470 el MTPE ya no es trámite de nadie (D. Leg. 1246) | `sin_vencimiento`: la pantalla lo cuenta como pendiente y como vigente a la vez |
 | Correcciones (`fn_dias_por_revisar`, `fn_marcas_apartadas`) | días con marcas por revisar, marcas apartadas | cierre del periodo que lo paga (`periodos_planilla`) | — (se pide con tope 1000: la RPC corta antes de devolver) |
 | Documentación (`fn_documentos_tablero`) | ruta sin firmar o desfasada; bono de este mes o ya pasado | bono: fin de mes | `se_nego` (ya resuelta); bono `sin_fecha` (la pantalla lo deja en «nada que hacer») |
 | Feriados (`fn_feriados_laborados`, 120 días atrás) | descanso acordado sin otorgar; descanso que no compensa | feriado + 30 días | feriado trabajado sin descanso registrado: por ley se paga la sobretasa y no pide nada |

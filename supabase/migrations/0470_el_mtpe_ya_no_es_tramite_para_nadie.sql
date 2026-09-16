@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0469 · El MTPE ya no es trámite para nadie
+-- 0470 · El MTPE ya no es trámite para nadie
 -- ============================================================================
 -- QUÉ PROMETE
 --
@@ -54,7 +54,7 @@
 --   con `./scripts/donde-vive.sh fn_contratos_tablero` (6 versiones
 --   repartidas: 0287, 0333, 0336, 0347, 0386, con la 0386 como la última). El
 --   cuerpo de abajo es el de la 0386 íntegro, con esa única línea cambiada y
---   marcada CAMBIO 0469.
+--   marcada CAMBIO 0470.
 --
 --   md5 de partida: NO se pudo pedir a producción en esta sesión (sin acceso
 --   al SQL Editor). Local (`npx supabase start`, sin drift en esta función):
@@ -64,6 +64,13 @@
 --     select md5(prosrc), md5(regexp_replace(prosrc, '--[^\n]*', '', 'g')),
 --            length(prosrc)
 --       from pg_proc where proname = 'fn_contratos_tablero';
+--
+--   md5 de llegada (medido en local DESPUÉS de renumerar 0469→0470 — el
+--   marcador CAMBIO cambia con el número, así que medir antes habría dado un
+--   valor que ya no es el de este archivo): 85d99e5aafcfdc5737f7f142284e1a8a
+--   · 4288 caracteres. Sirve para confirmar que lo pegado quedó igual a lo
+--   que se probó acá, no para decidir si pegar — eso lo decide el md5 de
+--   partida de arriba.
 --
 -- CÓMO SE REVIERTE
 --   Correr de nuevo el cuerpo de `fn_contratos_tablero` tal como quedó en
@@ -148,7 +155,7 @@ as $$
       when g.fecha_efectiva is null                      then 'sin_vencimiento'
       when g.fecha_efectiva < fn_hoy_lima()               then 'vencido'
       when g.fecha_efectiva - fn_hoy_lima() <= 60         then 'por_vencer'
-      -- ⇩⇩⇩ CAMBIO 0469 ⇩⇩⇩ ya no exige `comunicado_mtpe_at`: el Decreto
+      -- ⇩⇩⇩ CAMBIO 0470 ⇩⇩⇩ ya no exige `comunicado_mtpe_at`: el Decreto
       -- Legislativo N.° 1246 (vigente desde 2016-11-11) eliminó esa
       -- comunicación a la Autoridad Administrativa de Trabajo tanto para
       -- contratos sujetos a modalidad (modificó el art. 73, D.S. 003-97-TR)
@@ -185,12 +192,12 @@ $$;
 grant execute on function fn_contratos_tablero() to authenticated;
 
 comment on function fn_contratos_tablero() is
-  'Qué contrato o convenio necesita atención, y por qué (0287/0333/0336/0347/0386/0469). '
+  'Qué contrato o convenio necesita atención, y por qué (0287/0333/0336/0347/0386/0470). '
   'Para una practicante, `fecha_fin_contrato` es la fecha EFECTIVA que gobierna: '
   'la más temprana entre su convenio y el tope legal de 12 meses desde que '
   'ingresó (Ley 28518 art. 30) — no necesariamente la que tiene escrita en su '
   'ficha. Un indefinido (0347) se resuelve antes del chequeo de vencimiento: '
-  '"trámite pendiente" si falta la copia, si no "ok". Desde la 0469, NINGÚN '
+  '"trámite pendiente" si falta la copia, si no "ok". Desde la 0470, NINGÚN '
   'tipo exige `comunicado_mtpe_at`: el D. Leg. 1246 (2016-11-11) eliminó esa '
   'comunicación a la AAT tanto para plazo fijo (art. 73, D.S. 003-97-TR) como '
   'para convenios de prácticas (art. 46, Ley 28518). El contrato que manda se '
@@ -203,18 +210,18 @@ comment on column contratos_generados.comunicado_mtpe_at is
   'Cuando se comunico el contrato a la Autoridad Administrativa de Trabajo — '
   'obligacion derogada desde el 2016-11-11 (D. Leg. 1246: modifico el art. 73 '
   'del D.S. 003-97-TR para plazo fijo, y derogo el ultimo parrafo del art. 46 '
-  'de la Ley 28518 para convenios de practicas). Desde la 0469 esta columna ya '
+  'de la Ley 28518 para convenios de practicas). Desde la 0470 esta columna ya '
   'no bloquea ningun estado del tablero (fn_contratos_tablero); se deja sin '
   'borrar porque puede tener fechas historicas anotadas de buena fe bajo la '
   'creencia anterior.';
 
 insert into migraciones_aplicadas (numero, nombre)
-values (469, 'el_mtpe_ya_no_es_tramite_para_nadie')
+values (470, 'el_mtpe_ya_no_es_tramite_para_nadie')
 on conflict (numero) do update set nombre = excluded.nombre, aplicada_at = now();
 
 notify pgrst, 'reload schema';
 
 do $$
 begin
-  raise notice '0469 · fn_contratos_tablero ya no exige comunicado_mtpe_at a ningún tipo de contrato (D. Leg. 1246, derogado desde 2016-11-11). No cambia ninguna fila.';
+  raise notice '0470 · fn_contratos_tablero ya no exige comunicado_mtpe_at a ningún tipo de contrato (D. Leg. 1246, derogado desde 2016-11-11). No cambia ninguna fila.';
 end $$;

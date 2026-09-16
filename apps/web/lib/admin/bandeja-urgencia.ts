@@ -258,7 +258,7 @@ export function urgenciaContrato(c: FilaContrato, hoy: string = hoyLima()): Urge
       return { grupo: d === 0 ? "hoy" : "proximo", plazo: enDias(d, VENCE), nota: c.fecha_fin_contrato ? `el ${diaYMes(c.fecha_fin_contrato)}` : null, orden: d };
     }
     case "tramite_pendiente": {
-      // Desde la 0469, `tramite_pendiente` solo significa "falta la copia" —
+      // Desde la 0470, `tramite_pendiente` solo significa "falta la copia" —
       // comunicar el contrato al MTPE ya no es trámite de nadie (D. Leg.
       // 1246), así que el plazo que importa es siempre el de la copia (5
       // días desde el inicio de la prestación).

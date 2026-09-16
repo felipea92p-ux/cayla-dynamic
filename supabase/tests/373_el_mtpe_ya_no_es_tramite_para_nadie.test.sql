@@ -4,7 +4,7 @@
 -- Se corre así, en esta Mac:   npx supabase test db
 -- Lo que sí se pega vive en supabase/migrations/ y scripts/sql-manual/.
 -- ============================================================================
--- 372_el_mtpe_ya_no_es_tramite_para_nadie.test.sql — 0469
+-- 373_el_mtpe_ya_no_es_tramite_para_nadie.test.sql — 0470
 -- ============================================================================
 -- La 0347 eximió al indefinido de `comunicado_mtpe_at`, pero dejó la
 -- exigencia puesta para plazo fijo ('nuevo') y convenio de prácticas — el

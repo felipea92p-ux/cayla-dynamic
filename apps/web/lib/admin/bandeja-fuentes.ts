@@ -509,7 +509,7 @@ function textoContrato(c: ItemContrato): { titulo: string; detalle: string | nul
     case "por_vencer": return { titulo: "Contrato por vencer", detalle: null, accion: "Preparar renovación" };
     case "sin_firmar": return { titulo: "Contrato pendiente de firma", detalle: null, accion: "Registrar firma" };
     case "tramite_pendiente":
-      // Desde la 0469 este estado solo significa "falta la copia": comunicar
+      // Desde la 0470 este estado solo significa "falta la copia": comunicar
       // el contrato al MTPE ya no es trámite de nadie (D. Leg. 1246).
       return { titulo: "Falta entregar la copia del contrato", detalle: null, accion: "Registrar entrega" };
     default: return { titulo: "Sin contrato registrado", detalle: null, accion: "Registrar contrato" };

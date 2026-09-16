@@ -1917,7 +1917,7 @@ export default function ContratosPage() {
 
   /**
    * Anota que se entregó la copia. `fn_contrato_marcar_tramite` todavía
-   * acepta 'mtpe' (columna que se deja sin borrar, 0469), pero la pantalla ya
+   * acepta 'mtpe' (columna que se deja sin borrar, 0470), pero la pantalla ya
    * no ofrece marcarlo: comunicar el contrato al MTPE dejó de ser trámite de
    * nadie desde el D. Leg. 1246.
    */
@@ -3496,7 +3496,7 @@ export default function ContratosPage() {
                       {/* Solo mientras falte: confirmar en cada fila lo que ya
                           se hizo llena la pantalla de recibos. Comunicar el
                           contrato a la Autoridad de Trabajo ya no es un
-                          trámite de nadie (0469, D. Leg. 1246) — lo único que
+                          trámite de nadie (0470, D. Leg. 1246) — lo único que
                           puede faltar acá es la copia. */}
                       {c.fecha_firma && !c.copia_entregada_at && (
                         <p className="text-xs text-taupe">
@@ -3810,7 +3810,7 @@ export default function ContratosPage() {
                         {c.copia_entregada_at ? formatearFecha(c.copia_entregada_at) : "falta"}
                       </dd>
                       {/* Ningún tipo se registra ante la Autoridad de Trabajo
-                          (0469, D. Leg. 1246): ese trámite no le corresponde
+                          (0470, D. Leg. 1246): ese trámite no le corresponde
                           a nadie desde 2016. Solo se muestra si ya quedó una
                           fecha anotada de antes — no como algo pendiente. */}
                       {c.comunicado_mtpe_at && (

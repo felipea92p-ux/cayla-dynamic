@@ -793,7 +793,7 @@ function clausulaNaturalezaYPlazo(d: DatosContrato): string {
 }
 
 /**
- * DÉCIMA OCTAVA — ya no distingue por tipo. Hasta la 0469 el plazo fijo y el
+ * DÉCIMA OCTAVA — ya no distingue por tipo. Hasta la 0470 el plazo fijo y el
  * convenio de prácticas prometían además "comunicarlo a la Autoridad
  * Administrativa de Trabajo dentro de los quince (15) días naturales": una
  * obligación derogada desde el 2016-11-11 (D. Leg. 1246 modificó el art. 73

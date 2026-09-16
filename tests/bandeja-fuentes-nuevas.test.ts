@@ -46,7 +46,7 @@ describe("contratos", () => {
       .toMatchObject({ grupo: "proximo", plazo: "Vence en 10 días" });
   });
 
-  it("el trámite pendiente siempre mide el plazo de la copia — el MTPE ya no es trámite de nadie (0469)", () => {
+  it("el trámite pendiente siempre mide el plazo de la copia — el MTPE ya no es trámite de nadie (0470)", () => {
     // mtpe_vence viaja en la fila (fn_contratos_tablero sigue devolviéndolo)
     // pero ya no decide nada: `tramite_pendiente` solo significa "falta la
     // copia", así que el plazo que se lee es siempre copia_vence.

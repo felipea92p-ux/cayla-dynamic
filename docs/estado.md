@@ -6,7 +6,7 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-09-15 — El MTPE deja de ser trámite para nadie (0469) · SIN PEGAR · SIN FUSIONAR
+## 2026-09-15 — El MTPE deja de ser trámite para nadie (0470) · SIN PEGAR · SIN FUSIONAR
 
 Felipe leyó que "el trámite del ministerio" no era necesario y pidió
 confirmarlo antes de tocar nada. Confirmado con tres fuentes independientes:
@@ -19,7 +19,7 @@ la 0347 ya había eximido. Hoy se declara solo con la Planilla Electrónica.
 
 Alcance del arreglo:
 1. **`fn_contratos_tablero`** (migración
-   [0469](../supabase/migrations/0469_el_mtpe_ya_no_es_tramite_para_nadie.sql)):
+   [0470](../supabase/migrations/0470_el_mtpe_ya_no_es_tramite_para_nadie.sql)):
    `tramite_pendiente` ya no exige `comunicado_mtpe_at` a ningún tipo — solo
    falta la copia. `comunicado_mtpe_at` se deja sin borrar (puede tener
    fechas históricas anotadas de buena fe).
@@ -37,9 +37,9 @@ Alcance del arreglo:
    "Falta comunicar el contrato al MTPE" se retira.
 
 Auditado con control: prueba pgTAP nueva
-[372](../supabase/tests/372_el_mtpe_ya_no_es_tramite_para_nadie.test.sql) —
+[373](../supabase/tests/373_el_mtpe_ya_no_es_tramite_para_nadie.test.sql) —
 un plazo fijo y un convenio de prácticas, firmados y con copia entregada pero
-SIN `comunicado_mtpe_at`, llegan a 'ok' con la 0469 puesta y a
+SIN `comunicado_mtpe_at`, llegan a 'ok' con la 0470 puesta y a
 'tramite_pendiente' con el cuerpo anterior (0386) — confirma que el cambio es
 el que corrige, no una coincidencia. El indefinido (0347) no se movió.
 Verificado además en el navegador contra Postgres local: dos personas de
