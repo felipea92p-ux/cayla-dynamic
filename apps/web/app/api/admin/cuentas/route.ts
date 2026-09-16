@@ -183,12 +183,20 @@ export async function POST(req: Request) {
       // lo que les corresponde (la política salarial va sin `roles` a propósito)
       // y las RLS de `asignaciones_salario` y `movimientos_planilla` siguen
       // cerradas a admin/líder: no ven sueldos de nadie, ni el suyo en planilla.
+      //
+      // También entra la practicante (`en_planilla` es falso para ella: no es
+      // 'planilla' ni 'prueba'), aunque su motivo no sea la Ley 30709 — tiene
+      // horario y marca en el terminal igual que cualquiera, así que necesita la
+      // misma cuenta mínima para entrar a lo suyo. RxH y no_trabajador se quedan
+      // afuera a propósito: a un locador no se le mide jornada (0191), y darle
+      // una cuenta de este tipo sería la misma señal de subordinación que esa
+      // migración existe para evitar.
       const { data: sinCuenta } = await admin
         .from("personas")
-        .select("id, nombres, apellidos, email, en_planilla, sedes:sede_base_id(codigo)")
+        .select("id, nombres, apellidos, email, en_planilla, tipo_vinculo, sedes:sede_base_id(codigo)")
         .eq("rol", "integrante")
         .eq("estado", "activo")
-        .eq("en_planilla", true)
+        .or("en_planilla.eq.true,tipo_vinculo.eq.practicante")
         .is("auth_user_id", null)
         .order("apellidos");
       const invitables = (sinCuenta ?? [])
