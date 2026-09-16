@@ -28,7 +28,7 @@ values ('bbbbbbbb-0473-0000-0000-000000000001', '00000000-0000-0000-0000-0000000
 
 insert into personas (id, nombres, apellidos, sede_base_id, pin_hash, rol, auth_user_id)
 values ('cccccccc-0473-0000-0000-000000000001', 'Tomás', 'Turno',
-        'aaaaaaaa-0473-0000-0000-000000000001', 'x', 'colaborador', 'bbbbbbbb-0473-0000-0000-000000000001');
+        'aaaaaaaa-0473-0000-0000-000000000001', 'x', 'integrante', 'bbbbbbbb-0473-0000-0000-000000000001');
 
 set local request.jwt.claims = '{"sub":"bbbbbbbb-0473-0000-0000-000000000001","role":"authenticated"}';
 

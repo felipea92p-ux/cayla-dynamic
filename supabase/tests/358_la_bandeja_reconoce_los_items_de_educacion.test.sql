@@ -25,9 +25,10 @@
 -- producción por la otra puerta.
 --
 -- El marcador de la aserción 1 se actualiza con cada migración que vuelve a
--- tocar esta función (0453 lo dejó en «CAMBIO 0450»; la 0461 lo deja en
--- «CAMBIO 0461»): es un canario de «partiste de la última versión», no una
--- promesa de que ese texto exacto sobreviva para siempre.
+-- tocar esta función (0453 lo dejó en «CAMBIO 0450»; la 0461 lo dejó en
+-- «CAMBIO 0461»; la 0473 lo deja en «CAMBIO 0473»): es un canario de
+-- «partiste de la última versión», no una promesa de que ese texto exacto
+-- sobreviva para siempre.
 --
 -- Por qué la 6 exige el mensaje exacto: la función tiene DOS excepciones que
 -- levantan P0001 —«tu cuenta no está enlazada» y «tipo no reconocido»—. Con
@@ -53,8 +54,8 @@ set local request.jwt.claims = '{"sub":"bbbbbbbb-0453-0000-0000-000000000001","r
 
 -- ── 1-2 · La vigente es la de la 0461, y es una sola ────────────────────────
 select ok(
-  (select prosrc like '%CAMBIO 0461%' from pg_proc where proname = 'fn_bandeja_marcar_visto'),
-  '0461: la versión vigente de fn_bandeja_marcar_visto es la de la 0461, no una anterior');
+  (select prosrc like '%CAMBIO 0473%' from pg_proc where proname = 'fn_bandeja_marcar_visto'),
+  '0473: la versión vigente de fn_bandeja_marcar_visto es la de la 0473, no una anterior');
 
 select is(
   (select count(*)::int from pg_proc where proname = 'fn_bandeja_marcar_visto'),
