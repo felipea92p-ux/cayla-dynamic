@@ -178,10 +178,17 @@ export default function MiBandejaPage() {
     if (!bandeja) return;
     for (const m of bandeja.respuestas) {
       if (m.nuevo && m.marcarVistoComo) {
+        // `supabase.rpc(...)` sola NO dispara nada: postgrest-js solo hace el
+        // fetch dentro de `.then()` (PostgrestBuilder#then). Sin ese `.then()`
+        // —o un `await`, que lo llama por dentro— esto arma la petición y la
+        // descarta en silencio: ni error, ni red, ni consola. `void` marca la
+        // promesa como ignorada a propósito; el `.then(() => {}, () => {})`
+        // es lo que de verdad la ejecuta, y traga éxito y error por igual
+        // porque esto es best-effort — si falla, DIAS_NOVEDAD sigue de red.
         void supabase.rpc("fn_bandeja_marcar_visto", {
           p_tipo_item: m.marcarVistoComo.tipo,
           p_item_id: m.marcarVistoComo.itemId,
-        });
+        }).then(() => {}, () => {});
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- una vez por carga, no por cada render.
