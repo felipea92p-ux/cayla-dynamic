@@ -6,123 +6,53 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-09-15 — Dos sesiones construyeron la misma idea a la vez; se limpia el residuo (0469) · SIN PEGAR
+## 2026-09-15 — Dos sesiones construyeron el mismo beneficio a la vez; gana la que se fusionó primero (0470) · SIN PEGAR
 
-El mismo día en que se pegó la 0465 (ver la entrada de abajo), otra sesión —
-`claude/practicantes-subvencion-semestral`, PR
-[#408](https://github.com/felipea92p-ux/cayla-dynamic/pull/408)— construyó de
-forma independiente la MISMA idea de negocio (descanso de 15 días + subvención
-semestral de un practicante), con una arquitectura distinta (una función
-nueva, `fn_subvenciones_practicante`, en vez de reescribir `fn_provisiones`) y
-reclamó el mismo número, renumerada después a 0466 y luego a 0467 por el mismo
-`siguiente-numero.sh` que ya había avisado antes.
+La Ley 28518 le da a un practicante dos beneficios propios que la 0322
+(2026-08-29) dejó escritos como pendientes —descanso de 15 días al superar 12
+meses de convenio, subvención adicional cada 6 meses—. El mismo día, DOS
+sesiones distintas los construyeron en paralelo, sin saber una de la otra:
 
-**Contra producción se confirmó que quedaron restos de las dos.** `fn_provisiones`
-tiene mi cuerpo completo (la otra migración declara por escrito que nunca la
-toca), pero su `ALTER TABLE` pisó mi valor `subvencion_practicante` en el CHECK
-de `desembolsos_beneficios.ventana` con el suyo (`subvencion_semestral`), y su
-`fn_subvenciones_practicante` quedó viva y sin nada que la llame — la misma
-ambigüedad de dos puertas para la misma pregunta que causó el accidente de la
-0297/0299 (dos funciones de vencimiento de vacaciones, cada una con su propia
-ventana, conviviendo en silencio).
+- Esta rama (PR [#409](https://github.com/felipea92p-ux/cayla-dynamic/pull/409)):
+  reescribiendo `fn_provisiones` con siete claves `ley28518_*` nuevas
+  (migración 0465, auditada con 34 pruebas pgTAP).
+- `claude/practicantes-subvencion-semestral` (PR
+  [#408](https://github.com/felipea92p-ux/cayla-dynamic/pull/408)): una
+  función nueva y separada, `fn_subvenciones_practicante`, que a propósito
+  nunca toca `fn_provisiones`.
 
-**Decidido con Felipe: se conserva la 0465** (ya viva, auditada con 34 pruebas
-pgTAP) **y se cierra el PR #408 sin fusionar** — su código de pantalla nunca
-llegó a desplegarse, así que no hay nada de frontend que limpiar, solo SQL. La
-0469 ensancha el CHECK para admitir los tres nombres que llegaron a
-declararse (nunca se restringe sin comprobar antes que ninguna fila los usa) y
-retira la función huérfana. Auditada dos veces en el Postgres local, en los
-dos órdenes posibles en que pudo haber quedado producción, dentro de
-`BEGIN…ROLLBACK` — mismo resultado final en los dos casos, y la 369 sigue en
-34/34 después de la limpieza.
+Las dos reclamaron el número 0465 — el mismo choque que ya había cazado
+`siguiente-numero.sh` para cada una por su lado, así que las dos terminaron
+renumerándose sin saber que la colisión era con la otra.
 
-**La lección, para el resto de esta sesión y las que vengan:** el check de
-"otra rama ya lo está haciendo" (`git log --all`, `git grep`) no encuentra una
-rama que se creó la MISMA tarde que la propia, y las dos sesiones corrieron en
-paralelo sin solaparse en el tiempo lo suficiente como para que ninguna viera
-a la otra. No hay freno automático para esto — es el mismo límite que ya
-anotó la 0299 el 2026-08-25. Lo que sí funcionó: `siguiente-numero.sh` cazó la
-colisión de NÚMERO en las dos sesiones, cada una por su lado, antes de que
-llegara a `main`; lo que ninguna herramienta cazó fue la colisión de IDEA, y
-esa la encontró Felipe pidiendo el estado real de producción.
+**El PR #408 se fusionó a `main` primero** (23:55:18) — y `main` se publica
+solo — mientras esta sesión todavía auditaba la colisión de número. Contra
+producción se confirmó que quedaron restos de las dos migraciones SQL
+(`fn_provisiones` con mi cuerpo completo, pero el CHECK de
+`desembolsos_beneficios.ventana` con los nombres del PR #408 pisando los
+míos, y su `fn_subvenciones_practicante` viva) — y que el frontend YA
+DESPLEGADO es el del PR #408: llama directo a
+`fn_subvenciones_practicante` (`admin/provisiones/page.tsx`), no a mis campos
+`ley28518_*`.
 
----
+**Decidido con Felipe: se queda el PR #408**, ya vivo y funcionando; esta
+rama se retira. La migración [`0470`](../supabase/migrations/0470_se_retira_la_implementacion_paralela_de_la_0465.sql)
+deshace la 0465 por completo — `fn_provisiones` vuelve a ser, byte por byte,
+el cuerpo de la 0428 (verificado: mismo md5 que devolvió producción cuando se
+le pidió ANTES de pegar la 0465, la prueba de que es exactamente el cuerpo
+previo a que las dos ramas chocaran) — y retira `fn_practicante_ya_depositado`,
+que ya no usa nadie. No toca el CHECK ni `fn_subvenciones_practicante`: esos
+son del PR #408, ya en uso. Auditada en el Postgres local, en los dos órdenes
+posibles de aplicación, dentro de `BEGIN…ROLLBACK`: mismo resultado en los
+dos casos. El PR #409 se cierra sin fusionar.
 
-## 2026-09-15 — El practicante ya devenga su descanso de 15 días y su subvención semestral (0465) · PEGADA Y VERIFICADA
-
-Cierra un pendiente que la 0322 (2026-08-29) dejó escrito a propósito: la Ley
-28518 le da a un practicante DOS beneficios propios —un descanso de 15 días,
-una sola vez, al superar los 12 meses continuos de convenio (art. 20), y una
-subvención adicional cada 6 meses continuos que sí se repite (art. 42.7)—, y
-hasta hoy ninguno de los dos se calculaba en ningún lado del sistema. Distinto
-de gratificación/CTS/vacaciones de 30 días, que un practicante sigue sin
-generar: eso no cambia.
-
-**Lo que lo disparó:** el rediseño de Provisiones de hoy (0428, PR #395) le
-puso a la pantalla una nota que dice "la ley no les da estos tres beneficios.
-No es que falte cargar algo" — cierta para esos tres, pero leída junto a
-"practicante" sonaba a que la ley no le da nada parecido a vacaciones, y sí le
-da el descanso. Felipe lo notó después de preguntar por los beneficios reales
-de un practicante en Perú.
-
-**Cómo se calcula** (`fn_provisiones`, siete claves nuevas en el jsonb de cada
-persona, en 0/false para quien no es practicante): devengado ACUMULADO desde
-`fecha_ingreso`, sin ventanas de calendario fijas como grati/CTS —el descanso
-topa a los 365 días y se queda ahí para siempre ("una sola vez"), la
-subvención semestral no tiene tope y sigue creciendo mientras la persona siga
-activa—, menos lo que ya diga el libro de desembolsos. La séptima clave,
-`ley28518_subvencion_mensual`, expone la tarifa real usada en los dos
-cálculos, para que nadie tenga que adivinarla ni ir a Equipo a comprobarla.
-`desembolsos_beneficios` gana dos ventanas nuevas (`descanso_practicante`,
-`subvencion_practicante`) y una función hermana de `fn_beneficio_ya_depositado`
-que suma SIN filtrar por año, porque estos dos beneficios no son de un año
-calendario.
-
-**Verificado dos veces en el Postgres local**, dentro de `BEGIN…ROLLBACK`
-(nunca se tocó la base compartida, solo se leyó): a mano, con seis
-practicantes de laboratorio a 0, 91, 365 y 400 días de convenio, uno sin
-tarifa cargada y uno con un pago ya registrado — confirmando que el descanso
-topa exactamente en S/565.00 (medio sueldo de S/1,130) a los 365 días y no
-crece más a los 400, que la subvención semestral SÍ sigue creciendo
-(S/1,130.00 → S/1,238.36), que el pago registrado se resta exacto, y que una
-persona en planilla normal no se mueve un céntimo. Y con una prueba pgTAP
-independiente ([`369`](../supabase/tests/369_el_practicante_devenga_su_descanso_y_subvencion.test.sql),
-escrita por una sesión separada a partir del mismo contrato, sin ver el SQL ya
-implementado): **34/34 en verde**, incluidos los tres casos que la auditoría a
-mano no cubrió — el CHECK de `desembolsos_beneficios` sigue rechazando una
-ventana inventada, `fn_practicante_ya_depositado` no mezcla las dos ventanas
-nuevas entre sí, y un rxh sigue sin aparecer en la pantalla (0274/0428, sin
-abrirle una puerta nueva).
-
-**Colisión de numeración, cazada antes de empujar.** Se escribió primero como
-0464/368; a mitad de la sesión, `siguiente-numero.sh` reveló que la rama
-`claude/planilla-no-cuenta-a-quien-aun-no-existia` ya había tomado esos mismos
-dos números (con contenido completamente distinto) mientras esta sesión
-trabajaba. Se renumeró a **0465/369** antes de commitear nada — el caso de
-manual que el propio script existe para evitar.
-
-**Qué NO hace:** no paga nada por planilla ni genera un movimiento automático
-— "Dynamic avisa, nunca paga solo" para un concepto que recién empieza a
-medirse. Y, a propósito, todavía no hay un botón para registrar el pago: el
-panel "🎁 Adelanto de beneficio" de `panel-persona.tsx` solo conoce
-gratificación/CTS/vacaciones (ventanas de calendario fijas); estos dos
-beneficios no tienen una, así que por ahora un pago se anota con un `insert`
-directo a `desembolsos_beneficios` desde el SQL Editor — la pantalla dedicada
-queda como trabajo aparte. Tampoco entra en `gran_total` ni en los totales de
-columna de la tabla principal: vive solo en la fila plegada de Practicantes y
-en su panel de detalle.
-
-**Pegada y verificada en producción el 2026-09-15**, PR
-[#409](https://github.com/felipea92p-ux/cayla-dynamic/pull/409). El md5 de
-`fn_provisiones` contra producción dio el segundo desenlace —`sin_comentarios`
-coincide (`a89483d1f63933d7064550b9ccb441e9`), producción perdió los
-comentarios al pegarse, mismo código— y quedó declarado en la cabecera de la
-migración. La consulta final del archivo, corrida en el SQL Editor, mostró los
-cinco practicantes reales de la sede TRU (Benjamín Cueva, Daniel Ruiz, Diego
-Narro, Fernanda Espinoza, Milagritos Zarate) con `dias_convenio` correcto —
-entre 0 y 11 días, ninguno cerca todavía de los 12 meses, así que sus
-descansos/subvenciones hoy son montos chicos, como corresponde. Falta
-fusionar el PR para publicar el frontend que muestra estos montos.
+**La lección:** ningún freno automático puede cazar "otra rama está
+construyendo esta misma idea" cuando las dos ramas nacen la misma tarde y
+corren en paralelo — es el mismo límite que ya anotó la 0299 el 2026-08-25.
+Lo que sí funcionó fue `siguiente-numero.sh`, cazando la colisión de NÚMERO en
+cada sesión por separado; lo que ninguna herramienta cazó fue la colisión de
+IDEA, y esa la encontró Felipe pidiendo el estado real de producción cuando
+algo no cuadraba.
 
 ---
 
