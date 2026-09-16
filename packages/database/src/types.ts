@@ -6615,6 +6615,20 @@ export type Database = {
           vencido: boolean
         }[]
       }
+      fn_liquidaciones_vencidas_bandeja: {
+        Args: never
+        Returns: {
+          dias_restantes: number
+          fecha_cese: string
+          pagada: boolean
+          persona: string
+          persona_id: string
+          sede: string
+          total: number
+          vence_el: string
+          vencido: boolean
+        }[]
+      }
       fn_marca_apartada_reportar: {
         Args: {
           p_client_uuid: string | null

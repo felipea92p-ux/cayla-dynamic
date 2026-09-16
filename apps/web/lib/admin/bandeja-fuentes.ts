@@ -128,7 +128,7 @@ export interface ItemVacacion {
   records_vencidos: number; vence_el: string; dias_para_vencer: number;
 }
 
-/** Una fila de `fn_liquidaciones_pendientes` (0454), con lo que la Bandeja mira. */
+/** Una fila de `fn_liquidaciones_vencidas_bandeja` (0474), con lo que la Bandeja mira. */
 export interface ItemLiquidacion {
   persona_id: string; persona: string; sede: string;
   fecha_cese: string; vence_el: string; dias_restantes: number; total: number;
@@ -337,7 +337,7 @@ export async function traerFuentesBandeja(
     pedir<ItemSolicitudEducacion>(supabase.rpc("fn_educacion_solicitudes_pendientes"), "educacion", "las solicitudes de apoyo educativo", (xs) => { f.solicitudesEducacion = xs; });
     pedir<FilaEducacionBandeja>(supabase.rpc("fn_educacion_situacion"), "educacion", "educación", (xs) => { f.educacion = xs.filter(esEducacionParaSaber); });
     pedir<ItemSolicitudVacacion>(supabase.rpc("fn_solicitudes_vacaciones", { p_solo_pendientes: true }), "ausencias", "solicitudes de vacaciones", (xs) => { f.solicitudesVacaciones = xs; });
-    pedir<ItemLiquidacion>(supabase.rpc("fn_liquidaciones_pendientes"), "liquidaciones", "liquidaciones vencidas", (xs) => { f.liquidacionesVencidas = xs.filter(esLiquidacionParaBandeja); });
+    pedir<ItemLiquidacion>(supabase.rpc("fn_liquidaciones_vencidas_bandeja"), "liquidaciones", "liquidaciones vencidas", (xs) => { f.liquidacionesVencidas = xs.filter(esLiquidacionParaBandeja); });
   }
 
   if (puedeOperarEquipo(rol)) {
