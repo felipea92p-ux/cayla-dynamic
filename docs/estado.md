@@ -6808,6 +6808,42 @@ periodo vigente y devuelve una fila por cada locador con retención. Lo esperado
 consulta al lado por la misma razón que A.2.d: un riesgo latente sin forma de
 volver a medirlo es una frase que envejece sola.
 
+### A.2.c.ter · El freno de CUSPP bloqueaba Planilla entera, y nunca pasó por git
+
+**Encontrado y retirado el 2026-09-16** (migración 0476). Producción tenía,
+dentro de `fn_planilla_congelar`, un cuarto freno además de los tres que sí
+están en este repo (0243/0244, 0284, 0326): si a cualquier persona de
+«Planilla» o «Prueba» afiliada a una AFP le faltaba el CUSPP, `raise
+exception` — nadie del grupo se congelaba, aunque solo a una le faltara el
+dato. Se veía como un toast al intentar «Confirmar pago y congelar», con el
+periodo quedando ABIERTO.
+
+**Nunca hubo una migración para eso.** Su propio comentario se etiquetaba
+"CAMBIO 0397", pero la 0397 real de este repo es
+`la_practicante_cobra_movilidad_y_educacion` — un cambio completamente
+distinto. Alguna sesión lo pegó directo en el SQL Editor de producción y
+nunca llegó a escribir el archivo: mismo defecto que la 0177 y la 0243
+(ver `CLAUDE.md`), solo que acá ni siquiera se perdió un archivo — nunca
+existió.
+
+**Por qué se retiró y no se ajustó.** El dato en sí importa —el CUSPP es lo
+que le permite a SUNAT/la AFP atribuir el aporte a la cuenta individual de
+cada quien—, pero el freno contradecía una decisión ya tomada y medida en
+este mismo repo (`scripts/sql-manual/que_pasa_con_la_afp.sql`, agosto 2026:
+"el CUSPP no cambia ni un sol", y no tenerlo nunca debía frenar nada) y
+bloqueaba a las 21 personas de «Planilla» por un dato que le falta a UNA sola
+—Carmen Sanándres, LIM, Profuturo; también Lizzelott Ramírez Gomez, CCO,
+Integra— pendiente de pedírselo al contador desde el 2026-08-13 (ver A.2.c
+arriba). Exactamente el falso positivo que este proyecto ya identificó como
+el peor error posible.
+
+**Lo que se queda igual:** el aviso de ficha incompleta en
+`/admin/datos-personales` (`leCorrespondeCuspp`) sigue avisando sin bloquear.
+Y los otros tres frenos de `fn_planilla_congelar` no se tocaron.
+
+**Pendiente real, sin freno detrás ahora:** el CUSPP de Carmen y de
+Lizzelott se sigue debiendo pedir al contador — ver A.2.c.
+
 ### A.2.d · Dos campos para «¿tiene hijos menores?» — uno paga y el otro declara
 
 **Medido el 2026-08-10: hoy no cuesta nada.** De las 21 personas activas en
