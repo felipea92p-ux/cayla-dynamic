@@ -55,15 +55,12 @@
 -- advisory lock — no necesita el lock: es una comparación de fechas, no toca
 -- ninguna tabla.
 --
--- MD5 DE PARTIDA — NO SE PUDO MEDIR EN ESTA SESIÓN. El Postgres local de esta
--- Mac no llegaba a la 0440 al escribir esto. El cuerpo se copió tal cual del
--- archivo `0440_el_horario_tambien_se_cambia_por_una_puerta.sql` de `main`.
--- Como manda CLAUDE.md: antes de pegar esto, correr contra PRODUCCIÓN (no
--- contra esta Mac) la consulta de md5 de `fn_set_horario_semanal` — tal cual
--- como abajo — y confirmar que el resultado coincide con lo que declare
--- `donde-vive.sh` en el momento de pegar, no en el momento en que esto se
--- escribió. Con la 0440 recién fusionada, el md5 de PARTIDA que corresponde
--- pedir es el que deja ESA migración en producción, no el de la 0380:
+-- MD5 DE PARTIDA — pedido a PRODUCCIÓN el 2026-09-15, después de que el
+-- Postgres local de esta Mac (que no llegaba a la 0440 al escribir esto)
+-- volviera a estar disponible. El cuerpo se copió tal cual del archivo
+-- `0440_el_horario_tambien_se_cambia_por_una_puerta.sql` de `main` — recién
+-- fusionada, así que el md5 de PARTIDA que correspondía pedir era el que
+-- dejó ESA migración en producción, no el de la 0380:
 --
 --   select md5(p.prosrc) as tal_cual,
 --          md5(array_to_string(array(
@@ -73,6 +70,12 @@
 --          ), chr(10)))                 as sin_comentarios
 --     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
 --    where n.nspname = 'public' and p.proname = 'fn_set_horario_semanal';
+--
+-- → tal_cual = bb0f052510ca3a69070ce7d3571fd8e9 (3 954 caracteres) —
+-- COINCIDE, carácter por carácter, con el cuerpo de la 0440 de este
+-- repositorio. Producción no había derivado ni un byte entre que se fusionó
+-- la 0440 y que se escribió esta migración: el punto de partida que esta
+-- migración asume es el real.
 --
 -- CÓMO SE REVIERTE: quitar el bloque «CAMBIO 0444» y volver al cuerpo tal
 -- cual de la 0440 — pero no se debería: eso reabre el agujero que costó la
