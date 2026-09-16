@@ -159,3 +159,41 @@ describe("la lista y las categorías", () => {
     expect(modulosDeLaBandeja("integrante")).toEqual([]);
   });
 });
+
+// ── El bono que alguien pidió desde su Info (0478) ─────────────────────────
+// Lo que se defiende: que firmar la constancia NO sea lo que apaga el aviso
+// de DO. `documento_bono` se va al firmar (el tablero ya dice `ok`); este
+// otro queda, se resuelve aquí mismo, y espera como cualquier pedido.
+describe("bono de cumpleaños por transferir", () => {
+  const pedido = {
+    documento_id: "b1", persona_id: "m", persona: "Melany Prueba", sede: "TRU",
+    anio: 2026, monto: 180, pedido_el: "2026-09-14", pedido_at: "2026-09-14T15:00:00Z",
+  };
+
+  it("un pedido es una fila de Documentación que se resuelve aquí, con monto y fecha", () => {
+    const filas = armarPendientes({ ...FUENTES_VACIAS, bonosPorTransferir: [pedido] }, { hoy: HOY });
+    expect(filas).toHaveLength(1);
+    expect(filas[0]).toMatchObject({
+      tipo: "bono_por_transferir", itemId: "b1", personaId: "m", modulo: "documentacion",
+      titulo: "Pidió su bono de cumpleaños", resolucion: "aqui", ir: null,
+    });
+    expect(filas[0].detalle).toContain("por transferir · lo pidió el 14 de setiembre");
+    expect(filas[0].urgencia.grupo).toBe("sin_plazo");
+  });
+
+  it("a la semana sin transferir pasa a vencido", () => {
+    const filas = armarPendientes(
+      { ...FUENTES_VACIAS, bonosPorTransferir: [{ ...pedido, pedido_el: "2026-09-05", pedido_at: "2026-09-05T15:00:00Z" }] },
+      { hoy: HOY });
+    expect(filas[0].urgencia.grupo).toBe("vencido");
+  });
+
+  it("convive con el aviso de otra persona que todavía no lo pide", () => {
+    const filas = armarPendientes({
+      ...FUENTES_VACIAS,
+      bonosPorTransferir: [pedido],
+      documentos: [{ persona_id: "o", persona: "Olga", sede: "TRU", estado: "ok", ruta_desfasada: false, bono_estado: "este_mes" }],
+    }, { hoy: HOY });
+    expect(filas.map((p) => p.tipo).sort()).toEqual(["bono_por_transferir", "documento_bono"]);
+  });
+});
