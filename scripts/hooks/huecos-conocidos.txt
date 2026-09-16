@@ -145,3 +145,15 @@
 # Nunca se aplicó en producción con ese número.
 
 0420  Renumerada dentro de la misma rama (commit accf7de9, 2026-09-11) a 0422, junto con la 0419→0421: otra rama ya había tomado esos dos números al fusionar primero. Nunca se aplicó en producción como 0420.
+
+# ── 0466 · RENUMERACIÓN EN CADENA (2026-09-15) ──────────────────────────────
+#
+# La migración "seis filas fantasma salen de una foto ya pagada" pasó por
+# 0465 (commit 2322f5e3), se renumeró a 0466 (173f08d4: "otra rama ya había
+# empujado esos números"), volvió a chocar y pasó por 0467 dos veces más
+# (89cabefc, 31ae6902: colisión con claude/practicantes-subvencion-semestral)
+# antes de fusionarse como la 0468 que existe hoy. Confirmado contra
+# producción el 2026-09-15: `migraciones_aplicadas` no tiene ninguna fila con
+# `numero = 466`. Nunca se aplicó con ese número ni con ningún otro que no
+# sea el 468 actual.
+0466  Renumerada en cadena (465→466→467→468) por choques sucesivos con otras ramas el mismo día; se fusionó como la 0468 de hoy. Nunca se aplicó en producción como 0466.
