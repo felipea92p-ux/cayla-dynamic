@@ -6,7 +6,23 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-09-16 — El bono de cumpleaños se pide desde Info y DO confirma la transferencia (0478) · auditada en local · SIN FUSIONAR, SIN PEGAR
+## 2026-09-16 — El bono de cumpleaños se pide desde Info y DO confirma la transferencia (0478) · pegada en producción · fusionada (#424)
+
+**Pegada el 2026-09-16, con la 0477 ya en producción.** Antes de pegar se
+midió la 0477 en el SQL Editor: `fn_bono_monto_vigente` (`7bb28ab0…`, 252) y
+`fn_confirmar_mi_bono_cumpleanos` (`1f0ee916…`, 2208) idénticas al archivo,
+sin `\r`, con su registro 477 — o sea, la 0478 partió de la versión correcta.
+La 0478 devolvió sus cinco comprobaciones en verde, con el registro
+`478 · el_bono_de_cumpleanos_se_pide_y_do_confirma_la_transferencia`.
+
+Dos cosas del camino que vale la pena saber:
+- **El #424 se fusionó ANTES de pegar la 0478**, así que hubo un rato en que
+  Info, la Bandeja mía y la de DO llamaban funciones que producción no tenía
+  (errores visibles, sin plata en juego). Es la regla de CLAUDE.md —«la
+  migración se pega ANTES de fusionar»— fallando otra vez por el mismo camino.
+- **Repegar la 0477 falla** con «function … already exists»: usa `create
+  function`, no `create or replace`. No está rota; ya estaba aplicada. La
+  0478 sí es idempotente.
 
 Felipe pidió que Melany pudiera **pedir** su incentivo de cumpleaños desde su
 Info. Se construyó ENCIMA de la 0477 (entrada de abajo, PR #422), no en
@@ -81,7 +97,7 @@ Postgres local compartido.
 
 ---
 
-## 2026-09-16 — El bono de cumpleaños también se firma desde /mio (0477) · escrita, auditada en local · SIN FUSIONAR, SIN PEGAR
+## 2026-09-16 — El bono de cumpleaños también se firma desde /mio (0477) · pegada en producción · fusionada (#422) · su candado de mes y el aviso a DO llegaron con la 0478
 
 Felipe pidió que la declaración de ruta y el bono de cumpleaños se pudieran
 firmar desde el login de cada persona. La ruta ya lo hacía —0423/0429, del
