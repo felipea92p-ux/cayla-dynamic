@@ -761,7 +761,10 @@ export function armarPendientes(
       titulo: "Pidió su bono de cumpleaños",
       detalle: `${b.monto !== null ? `${formatSoles(Number(b.monto))} por transferir` : "Por transferir"} · lo pidió el ${diaYMes(b.pedido_el)}`,
       urgencia: urgenciaEspera(b.pedido_at, hoy), resolucion: "aqui", ir: null,
-      contexto: { texto: "Ver su constancia en Documentación", href: `/admin/documentacion?persona=${b.persona_id}` },
+      // Sin enlace a Documentación A PROPÓSITO: esa pantalla todavía no sabe
+      // mostrar una constancia firmada desde el sistema (solo abre escaneos),
+      // y un «Ver su constancia» que no la muestra es peor que no ofrecerlo.
+      contexto: null,
     });
   }
   for (const x of f.feriados) {
