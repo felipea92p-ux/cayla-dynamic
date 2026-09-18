@@ -4,9 +4,26 @@
     {
       "name": "web-dev",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["pnpm", "--filter", "@cayla-dynamic/web", "dev"],
+      "runtimeArgs": [
+        "pnpm",
+        "--filter",
+        "@cayla-dynamic/web",
+        "dev"
+      ],
       "port": 3000,
       "autoPort": true
+    },
+    {
+      "name": "web-dev-mock",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "apps/web/node_modules/next/dist/bin/next",
+        "dev",
+        "apps/web",
+        "-p",
+        "3111"
+      ],
+      "port": 3111
     }
   ]
 }
