@@ -54,6 +54,18 @@ const nuncaResponde = (signal: AbortSignal) =>
     signal.addEventListener("abort", () => reject(signal.reason ?? new Error("abortada")));
   });
 
+/**
+ * El caso nuevo, medido el 2026-09-17 con el terminal congelado en
+ * "Confirmando en 0s…": ni siquiera escucha el abort. Es lo que pasa de
+ * verdad en supabase-js cuando `fetchWithAuth` está resolviendo el token de
+ * acceso —`await getAccessToken()`, que puede salir a refrescarlo por red—
+ * ANTES de llamar a `fetch`: el `.abortSignal()` de nuestro `.rpc()` solo se
+ * conecta a ESE `fetch` final, así que si el atasco está un paso antes, el
+ * corte nunca llega a tener a quién avisarle. Sin un segundo cerrojo que no
+ * dependa del abort, esto se queda colgado para siempre.
+ */
+const nuncaEscuchaElAbort = () => new Promise<{ error: { message: string } | null }>(() => {});
+
 describe("enviarMarcaje", () => {
   it("cuando el servidor acepta, dice que llegó y que salió bien", async () => {
     const { cliente } = clienteFalso(async () => ({ error: null }));
@@ -80,6 +92,14 @@ describe("enviarMarcaje", () => {
   it("un envío que no llegó NO cuenta para apartar la marca", async () => {
     const { cliente } = clienteFalso(nuncaResponde);
     expect((await enviarMarcaje(cliente, MARCA, 20)).llego).toBe(false);
+  });
+
+  it("cuando el colgado ni siquiera escucha el abort, TERMINA igual por el segundo cerrojo", async () => {
+    const { cliente } = clienteFalso(nuncaEscuchaElAbort);
+    const r = await enviarMarcaje(cliente, MARCA, 20);
+    // Sin `conTope` esta prueba se queda colgada hasta que vitest la mate —
+    // igual que el terminal se quedaba en "Confirmando en 0s…" para siempre.
+    expect(r).toEqual({ ok: false, error: "el envío no obtuvo respuesta a tiempo", llego: false });
   });
 
   it("nunca lanza: una excepción escapada volvería a colgar el terminal", async () => {
