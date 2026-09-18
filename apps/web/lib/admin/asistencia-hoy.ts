@@ -8,11 +8,22 @@
 //               si no hay fila) y que `entradaEsperadaHoy` sale de
 //               `jornada-esperada.ts`, nunca de un cálculo propio.
 //
-// Vivía dentro de `admin/dashboard/page.tsx`. Una página de Next solo puede
-// exportar la página (cualquier otra cosa rompe el build), así que ninguna de
-// estas reglas se podía probar sin abrir un navegador. Esta mudanza no cambia
-// lo que nada hace: mueve el código tal cual, para poder probarlo ANTES de
-// tocarlo.
+// «TRABAJANDO» Y «EN PAUSA» SON DOS RESPUESTAS, NO UNA (2026-09-18).
+// El Dashboard contaba como «trabajando» a quien estaba en pausa. `en_pausa` es
+// cualquier salida temporal abierta —refrigerio, trámite, médico, personal—: la
+// jornada sigue abierta, pero la persona NO está en el piso ni cubriendo la sede.
+// En pleno refrigerio la pantalla decía «14 trabajando ahora» con nueve de esas
+// catorce fuera, y una sede entera en pausa aparecía como «4 trabajando de 4».
+// Acá se dice una sola vez; ninguna pantalla escribe a mano `abierta || en_pausa`
+// para contestar «¿está trabajando?».
+//
+// (Esa unión SÍ es la respuesta correcta a OTRA pregunta —«¿su jornada de hoy
+// sigue sin cerrar?»— y por eso sigue en /mio y en la bandeja: ahí se decide si
+// falta una salida, no se cuenta gente en piso.)
+//
+// Vive acá y no dentro de `admin/dashboard/page.tsx` porque una página de Next
+// solo puede exportar la página: cualquier otra cosa rompe el build, y así nada
+// de esto se podía probar sin abrir un navegador.
 // ============================================================================
 
 // Margen antes de avisar que una sede entera no marcó nada. No es la tolerancia
@@ -76,13 +87,22 @@ export function subEstadoSinMarcar(f: FilaPersona, ahoraDecimal: number): SubEst
   return f.origenEsperadoHoy === "sin_horario" ? "desconocido" : "descansa";
 }
 
-// Las tres preguntas que el resumen de arriba cuenta y que los filtros y la
+// Las preguntas que el resumen de arriba cuenta y que los filtros y la
 // cobertura vuelven a hacer. Estaban escritas a mano en cada sitio —la de
 // "sin marcar y ya le tocaba" tres veces—, y si una copia cambiaba, el número
 // del resumen y la lista de personas iban a dejar de coincidir sin que nada
 // avisara. Una sola vez, acá.
-export function estaTrabajando(f: FilaPersona): boolean {
-  return f.estado === "abierta" || f.estado === "en_pausa";
+//
+// Reciben el `estado` y no la fila entera: la Hoja de sede lo tiene como texto
+// suelto y no arma un `FilaPersona`.
+
+/** En el piso ahora: entró y no está fuera. Solo `abierta`. */
+export function trabajandoAhora(estado: string): boolean {
+  return estado === "abierta";
+}
+/** Salió temporalmente y no ha vuelto (refrigerio, trámite, médico…). No trabaja ahora. */
+export function enPausaAhora(estado: string): boolean {
+  return estado === "en_pausa";
 }
 export function llegoTarde(f: FilaPersona): boolean {
   return (f.minutosTarde ?? 0) > 0;
@@ -100,7 +120,10 @@ export interface MetaSede { man: number; tar: number; enc: number; }
 // ordenar, para el resumen global y para la tarjeta — antes esta cuenta vivía
 // solo dentro del .map() de render y no se podía usar para decidir el orden.
 export interface CoberturaSede {
-  activos: FilaPersona[];
+  /** En el piso ahora (`abierta`). Es lo que cuenta contra la meta. */
+  trabajando: FilaPersona[];
+  /** Con la jornada abierta pero fuera un rato. No cuentan en piso ni como «trabajando». */
+  enPausa: FilaPersona[];
   opPiso: number;
   encPiso: number;
   metaOp: number;
@@ -115,12 +138,14 @@ export interface CoberturaSede {
   alertaSinEntrada: string | null;
 }
 export function calcularCoberturaSede(deSede: FilaPersona[], meta: MetaSede, tramoTarde: boolean, ahoraDecimal: number): CoberturaSede {
-  const activos = deSede.filter(estaTrabajando);
+  const trabajando = deSede.filter((f) => trabajandoAhora(f.estado));
+  const enPausa = deSede.filter((f) => enPausaAhora(f.estado));
   const metaOp = tramoTarde ? meta.tar : meta.man;
-  // Cobertura EN VIVO: "en piso" = solo Presente (abierta). Quien está en
-  // pausa/refrigerio no cuenta — no está físicamente cubriendo ahora.
-  const opPiso = deSede.filter((f) => f.esOperativa && f.estado === "abierta").length;
-  const encPiso = deSede.filter((f) => f.esEncargada && f.estado === "abierta").length;
+  // Cobertura EN VIVO: "en piso" = trabajando ahora. Quien está en pausa no
+  // cuenta — no está físicamente cubriendo. Sale de la MISMA lista que el
+  // recuadro «Trabajando ahora», así que las dos cifras no pueden discrepar.
+  const opPiso = trabajando.filter((f) => f.esOperativa).length;
+  const encPiso = trabajando.filter((f) => f.esEncargada).length;
   const sinMetaOp = metaOp <= 0;
   const sinMetaEnc = meta.enc <= 0;
   const faltanOp = !sinMetaOp && opPiso < metaOp;
@@ -149,7 +174,7 @@ export function calcularCoberturaSede(deSede: FilaPersona[], meta: MetaSede, tra
   }
 
   return {
-    activos, opPiso, encPiso, metaOp, metaEnc: meta.enc, sinMetaOp, sinMetaEnc,
+    trabajando, enPausa, opPiso, encPiso, metaOp, metaEnc: meta.enc, sinMetaOp, sinMetaEnc,
     faltanOp, faltanEnc, problema: faltanOp || faltanEnc, sinMarcarReal, programadosHoy, alertaSinEntrada,
   };
 }
@@ -167,4 +192,28 @@ export function loQueFalta(cob: CoberturaSede): string {
 // "Faltan 3" / "Falta 1" — concordancia real, no un texto fijo por métrica.
 export function faltanTexto(n: number): string {
   return n === 1 ? "Falta 1" : `Faltan ${n}`;
+}
+
+/**
+ * De dónde sale «programadas hoy» frente al equipo entero de la sede.
+ *
+ * Antes eran dos cosas mal atadas: el encabezado decía «N trabajando de M
+ * programadas» —el N cuenta a cualquiera que esté trabajando, el M solo a quien
+ * tenía turno, así que podía salir «5 de 4»— y el renglón de abajo imprimía
+ * siempre «no todas tenían turno hoy», aunque TODAS lo tuvieran (una sede de 2
+ * con las 2 programadas decía lo contrario de sus propios números).
+ *
+ * «Les tocaba trabajar» y no «tenían turno»: quien está de vacaciones o con
+ * descanso médico tiene su turno en el papel, pero hoy no le tocaba venir.
+ */
+export function textoEquipoDelDia(programadas: number, equipo: number): string {
+  if (equipo <= 0) return "No hay personas en el equipo de esta sede.";
+  if (equipo === 1) {
+    return programadas >= 1
+      ? "Hoy le tocaba trabajar a la única persona del equipo."
+      : "A la única persona del equipo no le tocaba trabajar hoy.";
+  }
+  if (programadas <= 0) return `A ninguna de las ${equipo} personas del equipo le tocaba trabajar hoy.`;
+  if (programadas >= equipo) return `Hoy les tocaba trabajar a las ${equipo} personas del equipo.`;
+  return `Hoy ${programadas === 1 ? "le" : "les"} tocaba trabajar a ${programadas} de las ${equipo} personas del equipo.`;
 }

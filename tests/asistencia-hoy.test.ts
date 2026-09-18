@@ -12,12 +12,16 @@
 // quien todavía no le toca entrar, cuesta más que dejar pasar una falta real.
 // ============================================================================
 import { describe, expect, it } from "vitest";
+import { ESTADOS_JORNADA } from "@cayla-dynamic/shared";
 import {
   calcularCoberturaSede,
+  enPausaAhora,
   faltanTexto,
   loQueFalta,
   sinMarcarYaLeTocaba,
   subEstadoSinMarcar,
+  textoEquipoDelDia,
+  trabajandoAhora,
   type FilaPersona,
 } from "@/lib/admin/asistencia-hoy";
 
@@ -42,6 +46,124 @@ const fila = (o: Partial<FilaPersona> = {}): FilaPersona => ({
 });
 
 const META_0 = { man: 0, tar: 0, enc: 0 };
+
+// ----------------------------------------------------------------------------
+// El error que originó esta prueba (2026-09-18, 1:48 p. m.): el Dashboard decía
+// «OTRU — 4 trabajando de 4 programadas hoy» con las 4 personas en pausa, y
+// «14 trabajando ahora» arriba con nueve de esas catorce fuera del piso.
+// Estar en pausa (refrigerio, trámite, médico…) NO es estar trabajando.
+// ----------------------------------------------------------------------------
+describe("trabajandoAhora / enPausaAhora — quien está en pausa no trabaja", () => {
+  it("solo `abierta` está trabajando", () => {
+    expect(trabajandoAhora("abierta")).toBe(true);
+    expect(trabajandoAhora("en_pausa")).toBe(false);
+  });
+
+  it("solo `en_pausa` está en pausa", () => {
+    expect(enPausaAhora("en_pausa")).toBe(true);
+    expect(enPausaAhora("abierta")).toBe(false);
+  });
+
+  it("nadie está a la vez trabajando y en pausa, en ninguno de los estados que existen", () => {
+    // Recorre el catálogo entero (más «sin_marcar», que no es un estado de
+    // jornada sino la ausencia de una): si mañana aparece un estado nuevo, cae
+    // acá y obliga a decidir a qué lado va.
+    for (const estado of [...ESTADOS_JORNADA, "sin_marcar"]) {
+      expect(trabajandoAhora(estado) && enPausaAhora(estado), estado).toBe(false);
+    }
+  });
+
+  it("quien ya salió, o quedó auto-cerrado, o no marcó, no está trabajando ni en pausa", () => {
+    for (const estado of ["cerrada", "revisada", "auto_cerrada_pendiente", "sin_marcar"]) {
+      expect(trabajandoAhora(estado), estado).toBe(false);
+      expect(enPausaAhora(estado), estado).toBe(false);
+    }
+  });
+});
+
+describe("calcularCoberturaSede — trabajando y en pausa por separado", () => {
+  it("la captura de OTRU: cuatro programadas, las cuatro en pausa → nadie trabaja", () => {
+    const equipo = [
+      fila({ personaId: "a", estado: "en_pausa", entrada: "x" }),
+      fila({ personaId: "b", estado: "en_pausa", entrada: "x" }),
+      fila({ personaId: "c", estado: "en_pausa", entrada: "x" }),
+      fila({ personaId: "d", estado: "en_pausa", entrada: "x" }),
+      fila({ personaId: "e", entradaEsperadaHoy: null, origenEsperadoHoy: "turno" }), // descansa
+    ];
+    const cob = calcularCoberturaSede(equipo, META_0, false, 13.8);
+    expect(cob.trabajando).toHaveLength(0);
+    expect(cob.enPausa).toHaveLength(4);
+    expect(cob.programadosHoy).toBe(4);
+    expect(cob.opPiso).toBe(0);
+  });
+
+  it("la captura de LIM: dos personas en pausa contra una meta de 4 + 1 → falta todo", () => {
+    const equipo = [
+      fila({ personaId: "a", estado: "en_pausa", entrada: "x", esEncargada: true }),
+      fila({ personaId: "b", estado: "en_pausa", entrada: "x" }),
+    ];
+    const cob = calcularCoberturaSede(equipo, { man: 4, tar: 4, enc: 1 }, false, 13.8);
+    expect(cob.problema).toBe(true);
+    expect(loQueFalta(cob)).toBe("4 operativas y 1 encargada");
+    expect(cob.enPausa).toHaveLength(2); // y la pantalla puede decir que están en el refrigerio
+  });
+
+  it("mezcla: quien trabaja y quien está en pausa van en listas distintas", () => {
+    const equipo = [
+      fila({ personaId: "a", estado: "abierta", entrada: "x" }),
+      fila({ personaId: "b", estado: "abierta", entrada: "x" }),
+      fila({ personaId: "c", estado: "en_pausa", entrada: "x" }),
+      fila({ personaId: "d", estado: "cerrada", entrada: "x", salidaFinal: "y" }),
+      fila({ personaId: "e" }), // sin marcar
+    ];
+    const cob = calcularCoberturaSede(equipo, META_0, false, 10);
+    expect(cob.trabajando.map((f) => f.personaId)).toEqual(["a", "b"]);
+    expect(cob.enPausa.map((f) => f.personaId)).toEqual(["c"]);
+  });
+
+  it("«en piso» sale de la misma lista que «trabajando»: las dos cifras no pueden discrepar", () => {
+    const equipo = [
+      fila({ personaId: "a", estado: "abierta", entrada: "x" }),
+      fila({ personaId: "b", estado: "en_pausa", entrada: "x" }),
+    ];
+    const cob = calcularCoberturaSede(equipo, { man: 2, tar: 2, enc: 0 }, false, 13);
+    expect(cob.opPiso).toBe(cob.trabajando.filter((f) => f.esOperativa).length);
+  });
+
+  it("quien trabaja en su día libre cuenta como trabajando, aunque no estuviera programado", () => {
+    // Por eso el encabezado ya no dice «N de M programadas»: con este caso salía
+    // «1 trabajando de 0 programadas», una razón imposible.
+    const equipo = [fila({ estado: "abierta", entrada: "x", entradaEsperadaHoy: null, origenEsperadoHoy: "turno" })];
+    const cob = calcularCoberturaSede(equipo, META_0, false, 10);
+    expect(cob.trabajando).toHaveLength(1);
+    expect(cob.programadosHoy).toBe(0);
+  });
+});
+
+describe("textoEquipoDelDia — de dónde sale «programadas hoy»", () => {
+  it("parte del equipo", () => {
+    expect(textoEquipoDelDia(4, 5)).toBe("Hoy les tocaba trabajar a 4 de las 5 personas del equipo.");
+    expect(textoEquipoDelDia(1, 5)).toBe("Hoy le tocaba trabajar a 1 de las 5 personas del equipo.");
+  });
+
+  it("todo el equipo — LIM en la captura: 2 de 2 NO puede decir «no todas tenían turno»", () => {
+    expect(textoEquipoDelDia(2, 2)).toBe("Hoy les tocaba trabajar a las 2 personas del equipo.");
+    expect(textoEquipoDelDia(2, 2)).not.toMatch(/no todas/i);
+  });
+
+  it("nadie del equipo", () => {
+    expect(textoEquipoDelDia(0, 3)).toBe("A ninguna de las 3 personas del equipo le tocaba trabajar hoy.");
+  });
+
+  it("una sola persona en el equipo", () => {
+    expect(textoEquipoDelDia(1, 1)).toBe("Hoy le tocaba trabajar a la única persona del equipo.");
+    expect(textoEquipoDelDia(0, 1)).toBe("A la única persona del equipo no le tocaba trabajar hoy.");
+  });
+
+  it("sede sin equipo", () => {
+    expect(textoEquipoDelDia(0, 0)).toBe("No hay personas en el equipo de esta sede.");
+  });
+});
 
 describe("subEstadoSinMarcar — «sin marcar» son cuatro cosas distintas", () => {
   it("dentro del margen de 30 min todavía es pronto", () => {

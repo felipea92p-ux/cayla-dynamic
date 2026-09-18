@@ -18,8 +18,8 @@ import { esperadoDelDia, horarioVigente, type HorarioTramo, type TurnoDia } from
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
 import {
-  calcularCoberturaSede, estaTrabajando, faltanTexto, llegoTarde, loQueFalta,
-  sinMarcarYaLeTocaba, subEstadoSinMarcar,
+  calcularCoberturaSede, enPausaAhora, faltanTexto, llegoTarde, loQueFalta,
+  sinMarcarYaLeTocaba, subEstadoSinMarcar, textoEquipoDelDia, trabajandoAhora,
   type CoberturaSede, type FilaPersona, type MetaSede,
 } from "@/lib/admin/asistencia-hoy";
 
@@ -69,7 +69,11 @@ const ESTILO_ESTADO: Record<
   string,
   { label: string; variante?: "positivo" | "advertencia"; atenuada?: boolean; clase?: string }
 > = {
-  abierta: { label: "Presente", variante: "positivo" },
+  // «Trabajando» y no «Presente»: es exactamente lo que cuenta el resumen de
+  // arriba («Trabajando ahora»). Con dos palabras para el mismo estado, la fila
+  // decía «Presente» donde el número decía «trabajando», y quien está en pausa
+  // —también presente en la sede, en cierto sentido— quedaba en el medio.
+  abierta: { label: "Trabajando", variante: "positivo" },
   en_pausa: { label: "En pausa", variante: "advertencia" },
   cerrada: { label: "Salió", atenuada: true },
   auto_cerrada_pendiente: { label: "Auto-cerrada ⚠", clase: "bg-rojo text-crema" },
@@ -665,13 +669,13 @@ export default function DashboardPage() {
 
   // Orden: primero la sede con cobertura insuficiente (decisión de la
   // auditoría de sep-2026 — antes solo importaba quién tenía más gente
-  // trabajando). Empate se resuelve igual que antes: más gente activa ahora,
-  // y si sigue empatado, alfabético.
+  // trabajando). Empate se resuelve igual que antes: más gente trabajando
+  // ahora, y si sigue empatado, alfabético.
   const sedes = [...sedesDeAlcance].sort((a, b) => {
     const ca = coberturaPorSede.get(a.sedeId)!;
     const cb = coberturaPorSede.get(b.sedeId)!;
     if (ca.problema !== cb.problema) return ca.problema ? -1 : 1;
-    return cb.activos.length - ca.activos.length || a.codigo.localeCompare(b.codigo);
+    return cb.trabajando.length - ca.trabajando.length || a.codigo.localeCompare(b.codigo);
   });
 
   // ---------- Resumen global ----------
@@ -681,13 +685,21 @@ export default function DashboardPage() {
   // nombre (el orden en que ya llegan las personas).
   const porSede = (a: FilaPersona, b: FilaPersona) => a.sede.localeCompare(b.sede);
   const personasDelResumen: Record<Exclude<ClaveResumen, "bajo_minimo">, FilaPersona[]> = {
-    trabajando: filas.filter(estaTrabajando).sort(porSede),
+    trabajando: filas.filter((f) => trabajandoAhora(f.estado)).sort(porSede),
     tardanzas: filas.filter(llegoTarde).sort(porSede),
     sin_marcar: filas.filter((f) => sinMarcarYaLeTocaba(f, ahoraDecimal)).sort(porSede),
   };
+  // Quien está en pausa NO cuenta en «Trabajando ahora» (no está en el piso),
+  // pero tampoco desaparece: se dice al lado, para que en pleno refrigerio el
+  // número bajo no parezca gente que no vino.
+  const enPausaTotal = filas.filter((f) => enPausaAhora(f.estado)).length;
   const sedesBajoMinimo = sedes.filter((s) => coberturaPorSede.get(s.sedeId)!.problema);
-  const resumen: { clave: ClaveResumen; label: string; n: number; color: string }[] = [
-    { clave: "trabajando", label: "Trabajando ahora", n: personasDelResumen.trabajando.length, color: personasDelResumen.trabajando.length > 0 ? "text-verde" : "text-tinta" },
+  const resumen: { clave: ClaveResumen; label: string; n: number; color: string; nota?: string }[] = [
+    {
+      clave: "trabajando", label: "Trabajando ahora", n: personasDelResumen.trabajando.length,
+      color: personasDelResumen.trabajando.length > 0 ? "text-verde" : "text-tinta",
+      nota: enPausaTotal > 0 ? `y ${enPausaTotal} en pausa` : undefined,
+    },
     { clave: "tardanzas", label: "Tardanzas hoy", n: personasDelResumen.tardanzas.length, color: personasDelResumen.tardanzas.length > 0 ? "text-rojo" : "text-tinta" },
     { clave: "sin_marcar", label: "Sin marcar cuando ya debían", n: personasDelResumen.sin_marcar.length, color: personasDelResumen.sin_marcar.length > 0 ? "text-rojo" : "text-verde" },
     { clave: "bajo_minimo", label: "Sedes bajo mínimo", n: sedesBajoMinimo.length, color: sedesBajoMinimo.length > 0 ? "text-rojo" : "text-verde" },
@@ -745,7 +757,12 @@ export default function DashboardPage() {
       });
     }
     if (cob.faltanOp || cob.faltanEnc) {
-      itemsAtencion.push({ key: `cobertura-${s.sedeId}`, sede: s.codigo, tono: "advertencia", texto: `faltan ${loQueFalta(cob)}` });
+      // «Hay N en pausa» porque «faltan 4 operativas» no dice si no vinieron o
+      // si están en el refrigerio — y a la hora de almuerzo es lo segundo.
+      itemsAtencion.push({
+        key: `cobertura-${s.sedeId}`, sede: s.codigo, tono: "advertencia",
+        texto: `faltan ${loQueFalta(cob)} en piso` + (cob.enPausa.length > 0 ? ` — hay ${cob.enPausa.length} en pausa` : ""),
+      });
     }
     if (cob.sinMarcarReal > 0) {
       itemsAtencion.push({
@@ -850,7 +867,7 @@ export default function DashboardPage() {
               )}
               <CampoSelect etiqueta="Estado" value={estadoFiltro} onChange={(e) => setEstadoFiltro(e.target.value)} className="min-w-36">
                 <option value="todos">Todos</option>
-                <option value="abierta">Presente</option>
+                <option value="abierta">Trabajando</option>
                 <option value="en_pausa">En pausa</option>
                 <option value="cerrada">Salió</option>
                 <option value="sin_marcar">Sin marcar</option>
@@ -889,7 +906,7 @@ export default function DashboardPage() {
                     disabled={k.n === 0}
                     aria-expanded={k.n === 0 ? undefined : abierto}
                     aria-controls="detalle-resumen"
-                    aria-label={`${k.label}: ${k.n}`}
+                    aria-label={`${k.label}: ${k.n}${k.nota ? `, ${k.nota}` : ""}`}
                     onClick={() => setResumenAbierto(abierto ? null : k.clave)}
                     className={`flex flex-col justify-start px-5 py-4 text-left transition-colors focus-visible:outline-offset-[-3px] disabled:cursor-default ${abierto ? "bg-hueso" : "bg-papel enabled:hover:bg-crema"}`}
                   >
@@ -902,6 +919,7 @@ export default function DashboardPage() {
                       )}
                     </span>
                     <span className="mt-2 block text-sm text-taupe">{k.label}</span>
+                    {k.nota && <span className="mt-0.5 block text-xs font-medium text-ambar">{k.nota}</span>}
                   </button>
                 );
               })}
@@ -1129,8 +1147,13 @@ export default function DashboardPage() {
                   <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
                     <h2 className="font-serif text-2xl font-medium leading-tight">
                       {codigo}{" "}
+                      {/* «N trabajando ahora · M en pausa», no «N de M programadas»:
+                          el N cuenta a cualquiera que esté en el piso y el M solo a
+                          quien tenía turno, así que la razón podía salir «5 de 4».
+                          Cuántas les tocaba venir se dice abajo, con sus palabras. */}
                       <span className="text-lg font-normal text-taupe">
-                        — {cob.activos.length} trabajando de {cob.programadosHoy} programadas hoy
+                        — {cob.trabajando.length} trabajando ahora
+                        {cob.enPausa.length > 0 && <> · <span className="text-ambar">{cob.enPausa.length} en pausa</span></>}
                       </span>
                     </h2>
                     <Insignia
@@ -1142,7 +1165,7 @@ export default function DashboardPage() {
                     </Insignia>
                   </div>
                   <p className="mb-4 text-xs text-taupe">
-                    {deSedeCompleta.length} en el equipo de la sede — no todas tenían turno hoy.
+                    {textoEquipoDelDia(cob.programadosHoy, deSedeCompleta.length)}
                   </p>
 
                   {/* La única alerta que se permite el rojo sagrado en esta pantalla,
@@ -1169,37 +1192,58 @@ export default function DashboardPage() {
                       que vuelve. Sin nadie trabajando no se pinta de verde: verde es
                       "hay gente en piso", y un recuadro verde que dice "nadie"
                       afirmaría lo contrario de lo que escribe. Al 15% y no al 6% de
-                      antes: es el mismo relleno de la insignia "Presente", y con el
+                      antes: es el mismo relleno de la insignia "Trabajando", y con el
                       verde retonado el 2026-09-06 el 6% ya se leía gris. La etiqueta
                       verde encima da 5.27:1 claro y 4.91:1 oscuro. */}
                   <div
-                    className={`mb-4 rounded-superficie border px-4 py-3 ${cob.activos.length > 0 ? "border-verde/30 bg-verde/15" : "border-sand bg-crema"}`}
+                    className={`mb-4 rounded-superficie border px-4 py-3 ${cob.trabajando.length > 0 ? "border-verde/30 bg-verde/15" : "border-sand bg-crema"}`}
                   >
-                    <div className={`etiqueta ${cob.activos.length > 0 ? "text-verde" : "text-taupe"}`}>Trabajando ahora · {cob.activos.length}</div>
+                    <div className={`etiqueta ${cob.trabajando.length > 0 ? "text-verde" : "text-taupe"}`}>Trabajando ahora · {cob.trabajando.length}</div>
                     <div className="mt-2 flex flex-wrap gap-2">
-                      {cob.activos.length === 0 ? (
-                        <span className="text-sm text-taupe">Nadie está trabajando actualmente.</span>
+                      {cob.trabajando.length === 0 ? (
+                        <span className="text-sm text-taupe">Nadie está trabajando en este momento.</span>
                       ) : (
-                        // Pastillas en papel sobre el verde, como antes; quien está en
-                        // refrigerio se distingue por borde y punto ámbar. Su fondo
-                        // queda en papel a propósito: ámbar sobre relleno ámbar daba
-                        // 4.26:1 en modo oscuro, y sobre papel da 6.17:1.
-                        cob.activos.map((f) => {
-                          const enPausa = f.estado === "en_pausa";
-                          return (
-                            <span
-                              key={f.personaId}
-                              className={`inline-flex items-center gap-2 rounded-full border bg-papel px-3 py-1 text-sm ${enPausa ? "border-ambar/45" : "border-verde/25"}`}
-                            >
-                              <span aria-hidden className={`size-1.5 rounded-full ${enPausa ? "bg-ambar" : "bg-verde"}`} />
-                              {f.nombre}
-                              {enPausa && <span className="text-ambar">· en pausa</span>}
-                            </span>
-                          );
-                        })
+                        // Pastillas en papel sobre el verde, como antes.
+                        cob.trabajando.map((f) => (
+                          <span
+                            key={f.personaId}
+                            className="inline-flex items-center gap-2 rounded-full border border-verde/25 bg-papel px-3 py-1 text-sm"
+                          >
+                            <span aria-hidden className="size-1.5 rounded-full bg-verde" />
+                            {f.nombre}
+                          </span>
+                        ))
                       )}
                     </div>
                   </div>
+
+                  {/* «En pausa», aparte y no dentro de «Trabajando ahora». Hasta el
+                      2026-09-18 quien había salido a refrigerio, a un trámite o al
+                      médico iba en el recuadro verde con una etiqueta ámbar, y el
+                      número de arriba lo contaba como trabajando: en pleno almuerzo
+                      una sede entera fuera decía «4 trabajando». Sigue a la vista
+                      —si no, un equipo en refrigerio parecería gente que no vino—
+                      pero no como trabajando.
+                      Relleno al 10%: la etiqueta ámbar encima da 5.89:1 en claro y
+                      5.22:1 en oscuro (midiendo con la misma fórmula que el verde).
+                      Las pastillas quedan en papel: ámbar sobre relleno ámbar daba
+                      4.26:1 en modo oscuro, y sobre papel da 6.17:1. */}
+                  {cob.enPausa.length > 0 && (
+                    <div className="mb-4 rounded-superficie border border-ambar/30 bg-ambar/10 px-4 py-3">
+                      <div className="etiqueta text-ambar">En pausa · {cob.enPausa.length}</div>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {cob.enPausa.map((f) => (
+                          <span
+                            key={f.personaId}
+                            className="inline-flex items-center gap-2 rounded-full border border-ambar/45 bg-papel px-3 py-1 text-sm"
+                          >
+                            <span aria-hidden className="size-1.5 rounded-full bg-ambar" />
+                            {f.nombre}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {tablaVisible ? (
                     <>
