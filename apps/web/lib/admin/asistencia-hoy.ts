@@ -26,6 +26,8 @@
 // de esto se podía probar sin abrir un navegador.
 // ============================================================================
 
+import { TZ_LIMA, formatoMinutos } from "@cayla-dynamic/shared";
+
 // Margen antes de avisar que una sede entera no marcó nada. No es la tolerancia
 // de tardanza (esa es cero: SIN tolerancia, por minuto, según fn_recalcular_jornada) —
 // esta es una franja solo de aviso operativo, y avisar al minuto uno generaría
@@ -62,6 +64,9 @@ export interface FilaPersona {
   // "08:00" si el horario/turno de hoy dice que le tocaba trabajar; null si le
   // tocaba descanso o no se pudo determinar (misma cascada de jornada-esperada.ts).
   entradaEsperadaHoy: string | null;
+  // Desde cuándo está en pausa (solo si `estado` es `en_pausa` y se pudo saber:
+  // ver `pausaAbiertaDe`). null/ausente = no hay dato, NO «no está en pausa».
+  pausa?: PausaAbierta | null;
   // De dónde salió esa respuesta (turno puntual / horario_por_dia / legacy /
   // sin_horario) — solo importa cuando entradaEsperadaHoy es null, para
   // distinguir "hoy descansa" (una respuesta real) de "no hay con qué medirlo"
@@ -249,4 +254,97 @@ export function textoEquipoDelDia(programadas: number, equipo: number): string {
   if (programadas <= 0) return `A ninguna de las ${equipo} personas del equipo le tocaba trabajar hoy.`;
   if (programadas >= equipo) return `Hoy les tocaba trabajar a las ${equipo} personas del equipo.`;
   return `Hoy ${programadas === 1 ? "le" : "les"} tocaba trabajar a ${programadas} de las ${equipo} personas del equipo.`;
+}
+
+// ============================================================================
+// «Desde cuándo» está en pausa cada persona
+// ============================================================================
+// `jornadas.estado = 'en_pausa'` dice QUE alguien está fuera, no desde cuándo.
+// Sin eso, un refrigerio de 40 minutos y un retorno que nadie marcó hace tres
+// horas se ven idénticos —el mismo «en pausa»— y son lo opuesto: el primero es
+// lo normal, el segundo es una jornada que alguien tiene que corregir. La hora
+// exacta de la salida vive en los marcajes, que son la fuente de verdad.
+//
+// QUÉ PROMETE · dadas las marcas NO anuladas de hoy de alguien que la base ya
+//               marcó «en pausa», decir qué salida sigue abierta y desde cuándo.
+// QUÉ ASUME   · que la persona ya está en pausa según `jornadas.estado`. Esto NO
+//               decide SI está en pausa (lo decide la base, en un solo sitio):
+//               solo cuándo empezó. Replica la regla de fn_recalcular_jornada —la
+//               última `salida_*` que no sea la final, sin un `retorno_*` después—
+//               y si no encuentra una salida abierta devuelve null, nunca inventa.
+
+/** Lo mínimo de un marcaje que hace falta para saber si hay una pausa abierta. */
+export interface MarcaDePausa { tipo: string; timestamp_marca: string }
+
+export interface PausaAbierta {
+  /** La salida que sigue abierta: `salida_almuerzo`, `salida_tramite`… */
+  tipo: string;
+  /** Cuándo salió: el `timestamp_marca` de esa salida, tal cual llega de la base. */
+  desde: string;
+}
+
+export function pausaAbiertaDe(marcas: MarcaDePausa[]): PausaAbierta | null {
+  const enOrden = [...marcas].sort((a, b) => Date.parse(a.timestamp_marca) - Date.parse(b.timestamp_marca));
+  let abierta: PausaAbierta | null = null;
+  for (const m of enOrden) {
+    // Con la salida final el día cerró: la base ya no dice «en pausa» para él.
+    if (m.tipo === "salida_final") return null;
+    if (m.tipo.startsWith("salida_")) abierta = { tipo: m.tipo, desde: m.timestamp_marca };
+    else if (m.tipo.startsWith("retorno_")) abierta = null;
+  }
+  return abierta;
+}
+
+/** Minutos que lleva algo abierto. Nunca negativo: un reloj adelantado no da «hace -3 min». */
+export function minutosDesde(desde: string, ahora: Date = new Date()): number {
+  return Math.max(0, Math.floor((ahora.getTime() - Date.parse(desde)) / 60_000));
+}
+
+/** «1:05 p. m.» — la hora de Lima de un instante, sin cero a la izquierda. */
+export function horaCortaLima(iso: string): string {
+  return new Intl.DateTimeFormat("es-PE", {
+    timeZone: TZ_LIMA, hour: "numeric", minute: "2-digit", hour12: true,
+  }).format(new Date(iso));
+}
+
+/**
+ * «desde la 1:05 p. m.» / «desde las 2:40 p. m.». El artículo lo pide la hora:
+ * es «la una» pero «las dos». Y es justo la hora del refrigerio la que cae en
+ * «la una», así que escribir «desde las» a secas sería el error más frecuente.
+ */
+export function desdeLaHora(iso: string): string {
+  const hora = Number(
+    new Intl.DateTimeFormat("es-PE", { timeZone: TZ_LIMA, hour: "numeric", hour12: true })
+      .formatToParts(new Date(iso)).find((p) => p.type === "hour")?.value,
+  );
+  return `desde ${hora === 1 ? "la" : "las"} ${horaCortaLima(iso)}`;
+}
+
+/**
+ * Por qué salió, dicho sin detalle: «refrigerio» (lo esperado, y lo único que
+ * tiene un tramo previsto) u «otra salida».
+ *
+ * A propósito NO se distingue «médico» ni «asunto personal». Esta pantalla se
+ * mira de un vistazo, se comparte y se captura, y «fulana salió al médico» es un
+ * dato de salud con nombre propio en un lugar que no lo necesita. El detalle
+ * sigue en Correcciones, para quien lo tiene que resolver.
+ */
+export function motivoDePausa(tipo: string): string {
+  return tipo === "salida_almuerzo" ? "refrigerio" : "otra salida";
+}
+
+/** «refrigerio desde la 1:05 p. m. · 45 min» */
+export function textoPausa(p: PausaAbierta, ahora: Date = new Date()): string {
+  return `${motivoDePausa(p.tipo)} ${desdeLaHora(p.desde)} · ${formatoMinutos(minutosDesde(p.desde, ahora))}`;
+}
+
+/**
+ * Para ordenar «En pausa»: quien lleva más tiempo fuera va primero —es a quien
+ * hay que mirar—, y quien no tiene dato va al final en vez de mezclarse.
+ */
+export function porPausaMasLarga(a: { pausa?: PausaAbierta | null }, b: { pausa?: PausaAbierta | null }): number {
+  const ta = a.pausa ? Date.parse(a.pausa.desde) : Infinity;
+  const tb = b.pausa ? Date.parse(b.pausa.desde) : Infinity;
+  if (ta === tb) return 0;
+  return ta < tb ? -1 : 1;
 }

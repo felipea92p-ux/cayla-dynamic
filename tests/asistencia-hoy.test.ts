@@ -15,14 +15,21 @@ import { describe, expect, it } from "vitest";
 import { ESTADOS_JORNADA } from "@cayla-dynamic/shared";
 import {
   calcularCoberturaSede,
+  desdeLaHora,
   enPausaAhora,
   faltanTexto,
   fechaConDia,
   fechaCorta,
+  horaCortaLima,
   loQueFalta,
+  minutosDesde,
+  motivoDePausa,
+  pausaAbiertaDe,
+  porPausaMasLarga,
   sinMarcarYaLeTocaba,
   subEstadoSinMarcar,
   textoEquipoDelDia,
+  textoPausa,
   textoSinMarcar,
   trabajandoAhora,
   type FilaPersona,
@@ -359,5 +366,139 @@ describe("loQueFalta y faltanTexto — concordancia", () => {
   it("«Falta 1» / «Faltan 3»", () => {
     expect(faltanTexto(1)).toBe("Falta 1");
     expect(faltanTexto(3)).toBe("Faltan 3");
+  });
+});
+
+// ----------------------------------------------------------------------------
+// «Desde cuándo» está en pausa. Lima es UTC-5: 18:05Z = 1:05 p. m.
+// ----------------------------------------------------------------------------
+const marca = (tipo: string, timestamp_marca: string) => ({ tipo, timestamp_marca });
+const T = {
+  entrada: "2026-09-18T12:00:00Z", // 7:00 a. m.
+  almuerzo: "2026-09-18T18:05:00Z", // 1:05 p. m.
+  retorno: "2026-09-18T19:10:00Z", // 2:10 p. m.
+  tramite: "2026-09-18T21:30:00Z", // 4:30 p. m.
+  final: "2026-09-18T23:00:00Z", // 6:00 p. m.
+};
+
+describe("pausaAbiertaDe — qué salida sigue abierta", () => {
+  it("sin marcas, o solo con la entrada, no hay pausa", () => {
+    expect(pausaAbiertaDe([])).toBeNull();
+    expect(pausaAbiertaDe([marca("entrada", T.entrada)])).toBeNull();
+  });
+
+  it("entró y salió a refrigerio: la pausa empezó en esa salida", () => {
+    expect(pausaAbiertaDe([marca("entrada", T.entrada), marca("salida_almuerzo", T.almuerzo)])).toEqual({
+      tipo: "salida_almuerzo",
+      desde: T.almuerzo,
+    });
+  });
+
+  it("si ya regresó, no hay pausa", () => {
+    const dia = [marca("entrada", T.entrada), marca("salida_almuerzo", T.almuerzo), marca("retorno_almuerzo", T.retorno)];
+    expect(pausaAbiertaDe(dia)).toBeNull();
+  });
+
+  it("una segunda salida, después de regresar, es OTRA pausa: cuenta desde ella, no desde la primera", () => {
+    const dia = [
+      marca("entrada", T.entrada),
+      marca("salida_almuerzo", T.almuerzo),
+      marca("retorno_almuerzo", T.retorno),
+      marca("salida_tramite", T.tramite),
+    ];
+    expect(pausaAbiertaDe(dia)).toEqual({ tipo: "salida_tramite", desde: T.tramite });
+  });
+
+  it("con la salida final el día cerró: no hay pausa aunque no haya marcado el retorno", () => {
+    const dia = [marca("entrada", T.entrada), marca("salida_almuerzo", T.almuerzo), marca("salida_final", T.final)];
+    expect(pausaAbiertaDe(dia)).toBeNull();
+  });
+
+  it("dos salidas seguidas sin retorno: manda la última, igual que la base", () => {
+    const dia = [marca("entrada", T.entrada), marca("salida_almuerzo", T.almuerzo), marca("salida_personal", T.tramite)];
+    expect(pausaAbiertaDe(dia)?.desde).toBe(T.tramite);
+  });
+
+  it("un retorno sin salida antes no inventa una pausa", () => {
+    expect(pausaAbiertaDe([marca("entrada", T.entrada), marca("retorno_almuerzo", T.retorno)])).toBeNull();
+  });
+
+  it("cualquier salida temporal cuenta, también «otra salida»", () => {
+    expect(pausaAbiertaDe([marca("salida_otro", T.almuerzo)])?.tipo).toBe("salida_otro");
+  });
+
+  it("no depende del orden en que lleguen las marcas", () => {
+    const desordenado = [marca("salida_almuerzo", T.almuerzo), marca("entrada", T.entrada), marca("retorno_almuerzo", T.retorno)];
+    expect(pausaAbiertaDe(desordenado)).toBeNull();
+  });
+});
+
+describe("desdeLaHora — «la una» pero «las dos»", () => {
+  it("la 1 lleva «la»: es justo la hora del refrigerio", () => {
+    expect(desdeLaHora(T.almuerzo)).toBe("desde la 1:05 p. m.");
+    expect(desdeLaHora("2026-09-18T06:15:00Z")).toBe("desde la 1:15 a. m.");
+  });
+
+  it("el resto lleva «las», incluidas las 12", () => {
+    expect(desdeLaHora(T.retorno)).toBe("desde las 2:10 p. m.");
+    expect(desdeLaHora("2026-09-18T17:00:00Z")).toBe("desde las 12:00 p. m.");
+    expect(desdeLaHora("2026-09-18T05:30:00Z")).toBe("desde las 12:30 a. m.");
+  });
+
+  it("la hora se dice en Lima, sin cero a la izquierda", () => {
+    expect(horaCortaLima(T.almuerzo)).toBe("1:05 p. m.");
+  });
+});
+
+describe("minutosDesde y textoPausa — cuánto lleva", () => {
+  const ahora = new Date("2026-09-18T18:50:00Z"); // 1:50 p. m.
+
+  it("cuenta minutos completos", () => {
+    expect(minutosDesde(T.almuerzo, ahora)).toBe(45);
+    expect(minutosDesde(T.almuerzo, new Date("2026-09-18T18:49:59Z"))).toBe(44);
+  });
+
+  it("nunca sale negativo si el reloj de la marca va adelantado", () => {
+    expect(minutosDesde(T.almuerzo, new Date("2026-09-18T18:00:00Z"))).toBe(0);
+  });
+
+  it("dice motivo, desde cuándo y cuánto", () => {
+    expect(textoPausa({ tipo: "salida_almuerzo", desde: T.almuerzo }, ahora)).toBe("refrigerio desde la 1:05 p. m. · 45 min");
+  });
+
+  it("pasada la hora usa horas y minutos", () => {
+    const tarde = new Date("2026-09-18T21:25:00Z"); // 4:25 p. m. → 3 h 20 min
+    expect(textoPausa({ tipo: "salida_almuerzo", desde: T.almuerzo }, tarde)).toBe("refrigerio desde la 1:05 p. m. · 3h 20m");
+  });
+});
+
+describe("motivoDePausa — el Dashboard no publica por qué salió", () => {
+  it("«refrigerio» es refrigerio", () => {
+    expect(motivoDePausa("salida_almuerzo")).toBe("refrigerio");
+  });
+
+  it("todo lo demás es «otra salida»: ni «médico» ni «asunto personal» salen en pantalla", () => {
+    for (const tipo of ["salida_medico", "salida_personal", "salida_tramite", "salida_otro"]) {
+      const dicho = motivoDePausa(tipo);
+      expect(dicho, tipo).toBe("otra salida");
+      expect(dicho, tipo).not.toMatch(/m[eé]dic|personal|tr[aá]mite/i);
+    }
+  });
+});
+
+describe("porPausaMasLarga — a quién mirar primero", () => {
+  const p = (desde: string) => ({ pausa: { tipo: "salida_almuerzo", desde } });
+
+  it("quien salió antes va primero", () => {
+    const orden = [p(T.tramite), p(T.almuerzo), p(T.retorno)].sort(porPausaMasLarga);
+    expect(orden.map((x) => x.pausa.desde)).toEqual([T.almuerzo, T.retorno, T.tramite]);
+  });
+
+  it("quien no tiene dato va al final, no mezclado", () => {
+    const sinDato = { pausa: null };
+    const orden = [sinDato, p(T.retorno), { }, p(T.almuerzo)].sort(porPausaMasLarga);
+    expect(orden[0]).toEqual(p(T.almuerzo));
+    expect(orden[1]).toEqual(p(T.retorno));
+    expect(orden.slice(2)).toEqual([sinDato, {}]);
   });
 });
