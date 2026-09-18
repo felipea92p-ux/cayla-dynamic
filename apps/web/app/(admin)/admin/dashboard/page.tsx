@@ -17,6 +17,12 @@ import {
 import { esperadoDelDia, horarioVigente, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
+import {
+  calcularCoberturaSede, enPausaAhora, faltanTexto, fechaConDia, fechaCorta, llegoTarde, loQueFalta,
+  sinMarcarYaLeTocaba, subEstadoSinMarcar, textoEquipoDelDia, textoSinMarcar, trabajandoAhora,
+  type CoberturaSede, type FilaPersona, type MetaSede,
+} from "@/lib/admin/asistencia-hoy";
+import { esFallaDeRed, mensajeDeError } from "@/lib/admin/mensaje-error";
 
 const REFRESCO_MS = 30_000;
 // Mismo Sheet de siempre si la variable de entorno todavía no está puesta en
@@ -27,13 +33,9 @@ const URL_SHEET_ASISTENCIA =
   "https://docs.google.com/spreadsheets/d/19jhc5IN0LpbyG00jEwqt4ZB420Ob_rVcGRAdXR88riA/edit";
 // Corte mañana/tarde de la meta de cobertura — mismo valor fijo que Turnos (14:15).
 const CORTE_TARDE = 14.25;
-// Margen antes de avisar que una sede entera no marcó nada. No es la tolerancia
-// de tardanza (esa es cero: SIN tolerancia, por minuto, según fn_recalcular_jornada) —
-// esta es una franja solo de aviso operativo, y avisar al minuto uno generaría
-// más ruido que señal con cualquier desfase normal de la mañana. Se reutiliza
-// también para decidir, fila por fila, si alguien "sin marcar" ya debía haber
-// llegado o si todavía es pronto — mismo criterio, mismo margen.
-const MARGEN_ALERTA_SEDE_MIN = 30;
+// Ventana de «Respuestas a memos». Una sola constante para la consulta y para el
+// título de la franja: si la una cambiara sin la otra, el título mentiría.
+const DIAS_RESPUESTAS_MEMO = 14;
 
 
 // Día de la semana (0=domingo … 6=sábado) de un ISO — misma convención que
@@ -61,35 +63,6 @@ function horaLima(ts: string | null): string {
   }).format(new Date(ts));
 }
 
-interface FilaPersona {
-  personaId: string;
-  nombre: string;
-  sede: string;
-  sedeId: string;
-  estado: string;
-  entrada: string | null;
-  salidaFinal: string | null;
-  minutosTarde: number | null;
-  salidaTemprana: number | null;
-  enPausaSinRetorno: boolean;
-  esOperativa: boolean; // cuenta contra la meta de operativas
-  esEncargada: boolean; // supervisor_sede o marca es_encargada_piso
-  // Vacaciones, descanso médico u otra ausencia de `ausencias` que cubre HOY.
-  // Sin esto, alguien de vacaciones se ve idéntico a un "sin marcar" real en
-  // la única pantalla que se mira de un vistazo — el mismo riesgo de falso
-  // positivo que la 0101 ya resolvió para el semáforo disciplinario, pero acá
-  // nadie lo había cerrado porque esta franja no pasa por fn_faltas_resumen.
-  ausenciaHoy: { nombre: string; pendiente: boolean } | null;
-  // "08:00" si el horario/turno de hoy dice que le tocaba trabajar; null si le
-  // tocaba descanso o no se pudo determinar (misma cascada de jornada-esperada.ts).
-  entradaEsperadaHoy: string | null;
-  // De dónde salió esa respuesta (turno puntual / horario_por_dia / legacy /
-  // sin_horario) — solo importa cuando entradaEsperadaHoy es null, para
-  // distinguir "hoy descansa" (una respuesta real) de "no hay con qué medirlo"
-  // (no es una respuesta). Ver jornada-esperada.ts:estadoDelDia, que ya hace
-  // esta misma distinción para Correcciones/Incidencias.
-  origenEsperadoHoy: "turno" | "horario" | "legacy" | "sin_horario";
-}
 
 // Estados: verde/ámbar cálidos para lo operativo (van por <Insignia>), Rojo
 // lleno para la alerta crítica. "auto_cerrada_pendiente" se queda con su
@@ -100,18 +73,17 @@ const ESTILO_ESTADO: Record<
   string,
   { label: string; variante?: "positivo" | "advertencia"; atenuada?: boolean; clase?: string }
 > = {
-  abierta: { label: "Presente", variante: "positivo" },
+  // «Trabajando» y no «Presente»: es exactamente lo que cuenta el resumen de
+  // arriba («Trabajando ahora»). Con dos palabras para el mismo estado, la fila
+  // decía «Presente» donde el número decía «trabajando», y quien está en pausa
+  // —también presente en la sede, en cierto sentido— quedaba en el medio.
+  abierta: { label: "Trabajando", variante: "positivo" },
   en_pausa: { label: "En pausa", variante: "advertencia" },
   cerrada: { label: "Salió", atenuada: true },
   auto_cerrada_pendiente: { label: "Auto-cerrada ⚠", clase: "bg-rojo text-crema" },
   revisada: { label: "Salió (revisada)", atenuada: true },
 };
 
-// "08:00" → 8.0, para comparar contra horaDecimalLimaAhora().
-function horaDecimalDe(hhmm: string): number {
-  const [h, m] = hhmm.slice(0, 5).split(":").map(Number);
-  return h + (m || 0) / 60;
-}
 // "08:00" → "8:00 a. m.", para el mensaje de la alerta.
 function horaAmPmDe(hhmm: string): string {
   const [h, m] = hhmm.slice(0, 5).split(":").map(Number);
@@ -120,39 +92,6 @@ function horaAmPmDe(hhmm: string): string {
   );
 }
 
-// El hallazgo central de la auditoría de sep-2026: "Sin marcar" cubría tres
-// situaciones que no tienen nada que ver entre sí — alguien que entra a las
-// 4pm siendo la 1pm se veía IGUAL que alguien que debía entrar a las 8am y no
-// llegó. El dato para distinguirlas ya existía (entradaEsperadaHoy, calculado
-// arriba con la misma cascada que usa el backend); lo que faltaba era usarlo
-// acá. "sin_horario" se deja aparte a propósito: ahí no sabemos si le tocaba
-// o no, así que no se afirma "descansa hoy" — sería una falsa tranquilidad
-// tan peligrosa como el falso positivo que esto viene a arreglar.
-type SubEstadoSinMarcar = "aun_no_inicia" | "falta_real" | "descansa" | "desconocido";
-function subEstadoSinMarcar(f: FilaPersona, ahoraDecimal: number): SubEstadoSinMarcar {
-  if (f.entradaEsperadaHoy) {
-    const yaDebiaHaberLlegado = ahoraDecimal >= horaDecimalDe(f.entradaEsperadaHoy) + MARGEN_ALERTA_SEDE_MIN / 60;
-    return yaDebiaHaberLlegado ? "falta_real" : "aun_no_inicia";
-  }
-  return f.origenEsperadoHoy === "sin_horario" ? "desconocido" : "descansa";
-}
-
-// Las tres preguntas que el resumen de arriba cuenta y que los filtros y la
-// cobertura vuelven a hacer. Estaban escritas a mano en cada sitio —la de
-// "sin marcar y ya le tocaba" tres veces—, y si una copia cambiaba, el número
-// del resumen y la lista de personas iban a dejar de coincidir sin que nada
-// avisara. Una sola vez, acá.
-function estaTrabajando(f: FilaPersona): boolean {
-  return f.estado === "abierta" || f.estado === "en_pausa";
-}
-function llegoTarde(f: FilaPersona): boolean {
-  return (f.minutosTarde ?? 0) > 0;
-}
-// Sin marcar, sin ausencia que lo cubra, y con la hora de entrada (más el
-// margen) ya pasada. Quien aún no entra o descansa hoy NO cuenta.
-function sinMarcarYaLeTocaba(f: FilaPersona, ahoraDecimal: number): boolean {
-  return f.estado === "sin_marcar" && !f.ausenciaHoy && subEstadoSinMarcar(f, ahoraDecimal) === "falta_real";
-}
 
 // La misma celda de estado, compartida entre la tabla de escritorio y las
 // tarjetas de celular — para no mantener dos copias del mismo if/else.
@@ -241,7 +180,7 @@ function TablaPersonas({ filas, linkCorregir, ahoraDecimal, conSede = false }: {
                     <span className="text-taupe/40">—</span>
                   ) : (
                     <Link href={linkCorregir(f.personaId)} className="font-semibold text-rojo-profundo underline decoration-rojo/30 underline-offset-2 transition-colors hover:decoration-rojo">
-                      {f.minutosTarde} min tarde
+                      {formatoMinutos(f.minutosTarde)} tarde
                     </Link>
                   )}
                 </td>
@@ -249,7 +188,7 @@ function TablaPersonas({ filas, linkCorregir, ahoraDecimal, conSede = false }: {
                   {horaLima(f.salidaFinal)}
                   {f.salidaTemprana ? (
                     <Link href={linkCorregir(f.personaId)} className="ml-2 transition-opacity hover:opacity-80">
-                      <Insignia variante="advertencia" tamano="sm">anticip. {formatoMinutos(f.salidaTemprana)}</Insignia>
+                      <Insignia variante="advertencia" tamano="sm">{formatoMinutos(f.salidaTemprana)} antes</Insignia>
                     </Link>
                   ) : null}
                 </td>
@@ -282,7 +221,7 @@ function TablaPersonas({ filas, linkCorregir, ahoraDecimal, conSede = false }: {
                   <span className="text-taupe/40">—</span>
                 ) : (
                   <Link href={linkCorregir(f.personaId)} className="font-semibold text-rojo-profundo underline decoration-rojo/30 underline-offset-2">
-                    {f.minutosTarde} min
+                    {formatoMinutos(f.minutosTarde)}
                   </Link>
                 )}
               </span>
@@ -290,7 +229,7 @@ function TablaPersonas({ filas, linkCorregir, ahoraDecimal, conSede = false }: {
                 {horaLima(f.salidaFinal)}
                 {f.salidaTemprana ? (
                   <Link href={linkCorregir(f.personaId)} className="ml-1 inline-block">
-                    <Insignia variante="advertencia" tamano="sm">+{formatoMinutos(f.salidaTemprana)}</Insignia>
+                    <Insignia variante="advertencia" tamano="sm">{formatoMinutos(f.salidaTemprana)} antes</Insignia>
                   </Link>
                 ) : null}
               </span>
@@ -300,11 +239,6 @@ function TablaPersonas({ filas, linkCorregir, ahoraDecimal, conSede = false }: {
       </div>
     </>
   );
-}
-
-function fechaBonita(iso: string): string {
-  const [y, m, d] = iso.split("-").map(Number);
-  return new Intl.DateTimeFormat("es-PE", { day: "2-digit", month: "long", timeZone: "UTC" }).format(new Date(Date.UTC(y, m - 1, d)));
 }
 
 // `umbral` nombra el escalón alcanzado desde la 0200 — amonestacion ·
@@ -320,84 +254,10 @@ interface RespuestaMemoRow {
 // negativo cuando la fecha ya pasó, y ese es el grupo que duele.
 interface ContratoRow { persona_id: string; nombre: string; sede: string; fecha_fin_contrato: string; dias_restantes: number; ya_vencio: boolean }
 
-interface MetaSede { man: number; tar: number; enc: number; }
-
-// Cobertura de una sede en este momento: cuánta gente hay EN PISO ahora vs la
-// meta del tramo. Se calcula una sola vez por sede y se reutiliza para
-// ordenar, para el resumen global y para la tarjeta — antes esta cuenta vivía
-// solo dentro del .map() de render y no se podía usar para decidir el orden.
-interface CoberturaSede {
-  activos: FilaPersona[];
-  opPiso: number;
-  encPiso: number;
-  metaOp: number;
-  metaEnc: number;
-  sinMetaOp: boolean;
-  sinMetaEnc: boolean;
-  faltanOp: boolean;
-  faltanEnc: boolean;
-  problema: boolean;
-  sinMarcarReal: number;
-  programadosHoy: number;
-  alertaSinEntrada: string | null;
-}
-function calcularCoberturaSede(deSede: FilaPersona[], meta: MetaSede, tramoTarde: boolean, ahoraDecimal: number): CoberturaSede {
-  const activos = deSede.filter(estaTrabajando);
-  const metaOp = tramoTarde ? meta.tar : meta.man;
-  // Cobertura EN VIVO: "en piso" = solo Presente (abierta). Quien está en
-  // pausa/refrigerio no cuenta — no está físicamente cubriendo ahora.
-  const opPiso = deSede.filter((f) => f.esOperativa && f.estado === "abierta").length;
-  const encPiso = deSede.filter((f) => f.esEncargada && f.estado === "abierta").length;
-  const sinMetaOp = metaOp <= 0;
-  const sinMetaEnc = meta.enc <= 0;
-  const faltanOp = !sinMetaOp && opPiso < metaOp;
-  const faltanEnc = !sinMetaEnc && encPiso < meta.enc;
-  const sinMarcarReal = deSede.filter((f) => sinMarcarYaLeTocaba(f, ahoraDecimal)).length;
-  // Cuántas de las personas asignadas a esta sede tenían HOY un horario/turno
-  // real que decía que trabajaban — el denominador que faltaba: "de Y" antes
-  // mezclaba a todo el equipo (vacaciones, descansos, quien ya salió) con
-  // quien de verdad tenía que estar. Ver hallazgo de la auditoría, Fase 4.
-  const programadosHoy = deSede.filter((f) => f.entradaEsperadaHoy !== null && !f.ausenciaHoy).length;
-
-  // Alerta de sede sin actividad: a alguien ya le tocaba entrar (según su
-  // horario u horario), con margen, y todavía nadie de la sede marcó nada.
-  // Se excluye a quien tiene una ausencia hoy — mandar de vacaciones a todo
-  // el equipo de una sede no es "nadie llegó", es que nadie tenía que llegar.
-  const entradasEsperadasHoy = deSede
-    .filter((f) => !f.ausenciaHoy && f.entradaEsperadaHoy)
-    .map((f) => f.entradaEsperadaHoy!)
-    .sort();
-  const nadieMarcoTodavia = deSede.every((f) => f.entrada === null);
-  let alertaSinEntrada: string | null = null;
-  if (entradasEsperadasHoy.length > 0 && nadieMarcoTodavia) {
-    const primeraEntrada = entradasEsperadasHoy[0];
-    const minutosPasados = (ahoraDecimal - horaDecimalDe(primeraEntrada)) * 60;
-    if (minutosPasados >= MARGEN_ALERTA_SEDE_MIN) alertaSinEntrada = primeraEntrada;
-  }
-
-  return {
-    activos, opPiso, encPiso, metaOp, metaEnc: meta.enc, sinMetaOp, sinMetaEnc,
-    faltanOp, faltanEnc, problema: faltanOp || faltanEnc, sinMarcarReal, programadosHoy, alertaSinEntrada,
-  };
-}
-
-// "2 operativas y 1 encargada": lo que le falta a una sede para su meta de
-// ahora. Lo dicen "Requiere atención" y el detalle de "Sedes bajo mínimo", con
-// las mismas palabras.
-function loQueFalta(cob: CoberturaSede): string {
-  const partes: string[] = [];
-  if (cob.faltanOp) partes.push(`${cob.metaOp - cob.opPiso} operativa${cob.metaOp - cob.opPiso === 1 ? "" : "s"}`);
-  if (cob.faltanEnc) partes.push(`${cob.metaEnc - cob.encPiso} encargada${cob.metaEnc - cob.encPiso === 1 ? "" : "s"}`);
-  return partes.join(" y ");
-}
 
 // Los cuatro números del resumen. Cada uno abre su detalle debajo al hacer clic.
 type ClaveResumen = "trabajando" | "tardanzas" | "sin_marcar" | "bajo_minimo";
 
-// "Faltan 3" / "Falta 1" — concordancia real, no un texto fijo por métrica.
-function faltanTexto(n: number): string {
-  return n === 1 ? "Falta 1" : `Faltan ${n}`;
-}
 
 // Franja de estado en el borde izquierdo de una tarjeta. Es lo que permite
 // leer la pantalla bajando la vista sin leer ni un número: rojo = hay que
@@ -569,7 +429,7 @@ export default function DashboardPage() {
       // fijo" más abajo: es informativo, no un aviso de plazo legal corriendo
       // como el resto de esta franja — si la RPC no responde, la tarjeta
       // simplemente no aparece.
-      const { data: resp } = await sb.rpc("fn_memos_recientes_respuesta_sancionado", { p_dias: 14 });
+      const { data: resp } = await sb.rpc("fn_memos_recientes_respuesta_sancionado", { p_dias: DIAS_RESPUESTAS_MEMO });
       setRespuestasMemo(Array.isArray(resp) ? (resp as RespuestaMemoRow[]) : []);
     })();
   }, []);
@@ -672,7 +532,16 @@ export default function DashboardPage() {
     ]);
 
     if (errSedes || errPersonas || errJornadas) {
-      setError((errSedes ?? errPersonas ?? errJornadas)!.message);
+      // Con la traducción de la casa, no el `.message` crudo: quien mira este
+      // banner administra personas, no lee «TypeError: Failed to fetch». Y el
+      // corte de red se dice aparte —como en el login—, porque la respuesta
+      // correcta es otra: no es un dato mal puesto, es que no hay conexión.
+      const fallo = errSedes ?? errPersonas ?? errJornadas;
+      setError(
+        esFallaDeRed(fallo)
+          ? "No se pudo cargar la asistencia de hoy: no hay conexión con el sistema. Intenta de nuevo en un momento."
+          : mensajeDeError(fallo, "cargar la asistencia de hoy"),
+      );
       setCargando(false);
       return; // no pisa `filas`/`sedesActivas` con datos parciales/vacíos
     }
@@ -778,7 +647,10 @@ export default function DashboardPage() {
 
   const ahoraDecimal = horaDecimalLimaAhora();
   const tramoTarde = ahoraDecimal >= CORTE_TARDE;
-  const tramoLabel = tramoTarde ? "tarde" : "mañana";
+  // «de la mañana», no «mañana»: «meta mañana» se lee como la meta de MAÑANA (el
+  // día siguiente). Y a la 1:48 p. m. sigue siendo la meta de la mañana: el corte
+  // es a las 14:15, igual que en Turnos.
+  const tramoLabel = tramoTarde ? "de la tarde" : "de la mañana";
   const hoy = hoyLima();
   // Un incidente (tardanza, auto-cierre) enlaza directo a Corregir de esa persona/fecha.
   const linkCorregir = (personaId: string) => `/admin/correcciones?persona=${personaId}&fecha=${hoy}`;
@@ -808,13 +680,13 @@ export default function DashboardPage() {
 
   // Orden: primero la sede con cobertura insuficiente (decisión de la
   // auditoría de sep-2026 — antes solo importaba quién tenía más gente
-  // trabajando). Empate se resuelve igual que antes: más gente activa ahora,
-  // y si sigue empatado, alfabético.
+  // trabajando). Empate se resuelve igual que antes: más gente trabajando
+  // ahora, y si sigue empatado, alfabético.
   const sedes = [...sedesDeAlcance].sort((a, b) => {
     const ca = coberturaPorSede.get(a.sedeId)!;
     const cb = coberturaPorSede.get(b.sedeId)!;
     if (ca.problema !== cb.problema) return ca.problema ? -1 : 1;
-    return cb.activos.length - ca.activos.length || a.codigo.localeCompare(b.codigo);
+    return cb.trabajando.length - ca.trabajando.length || a.codigo.localeCompare(b.codigo);
   });
 
   // ---------- Resumen global ----------
@@ -824,16 +696,29 @@ export default function DashboardPage() {
   // nombre (el orden en que ya llegan las personas).
   const porSede = (a: FilaPersona, b: FilaPersona) => a.sede.localeCompare(b.sede);
   const personasDelResumen: Record<Exclude<ClaveResumen, "bajo_minimo">, FilaPersona[]> = {
-    trabajando: filas.filter(estaTrabajando).sort(porSede),
+    trabajando: filas.filter((f) => trabajandoAhora(f.estado)).sort(porSede),
     tardanzas: filas.filter(llegoTarde).sort(porSede),
     sin_marcar: filas.filter((f) => sinMarcarYaLeTocaba(f, ahoraDecimal)).sort(porSede),
   };
+  // Quien está en pausa NO cuenta en «Trabajando ahora» (no está en el piso),
+  // pero tampoco desaparece: se dice al lado, para que en pleno refrigerio el
+  // número bajo no parezca gente que no vino.
+  const enPausaTotal = filas.filter((f) => enPausaAhora(f.estado)).length;
   const sedesBajoMinimo = sedes.filter((s) => coberturaPorSede.get(s.sedeId)!.problema);
-  const resumen: { clave: ClaveResumen; label: string; n: number; color: string }[] = [
-    { clave: "trabajando", label: "Trabajando ahora", n: personasDelResumen.trabajando.length, color: personasDelResumen.trabajando.length > 0 ? "text-verde" : "text-tinta" },
+  const resumen: { clave: ClaveResumen; label: string; n: number; color: string; nota?: string }[] = [
+    {
+      clave: "trabajando", label: "Trabajando ahora", n: personasDelResumen.trabajando.length,
+      color: personasDelResumen.trabajando.length > 0 ? "text-verde" : "text-tinta",
+      nota: enPausaTotal > 0 ? `y ${enPausaTotal} en pausa` : undefined,
+    },
     { clave: "tardanzas", label: "Tardanzas hoy", n: personasDelResumen.tardanzas.length, color: personasDelResumen.tardanzas.length > 0 ? "text-rojo" : "text-tinta" },
-    { clave: "sin_marcar", label: "Sin marcar cuando ya debían", n: personasDelResumen.sin_marcar.length, color: personasDelResumen.sin_marcar.length > 0 ? "text-rojo" : "text-verde" },
-    { clave: "bajo_minimo", label: "Sedes bajo mínimo", n: sedesBajoMinimo.length, color: sedesBajoMinimo.length > 0 ? "text-rojo" : "text-verde" },
+    // Tres frases distintas para lo mismo («sin marcar cuando ya debían», «sin
+    // marcar y ya le tocaba», la insignia de la fila): ahora dicen lo mismo, con
+    // verbo — «ya les tocaba entrar».
+    { clave: "sin_marcar", label: "Sin marcar y ya les tocaba entrar", n: personasDelResumen.sin_marcar.length, color: personasDelResumen.sin_marcar.length > 0 ? "text-rojo" : "text-verde" },
+    // «Bajo la meta», no «bajo mínimo»: Turnos, los recuadros de cada sede y la
+    // pastilla dicen «meta». «Mínimo» era una tercera palabra para lo mismo.
+    { clave: "bajo_minimo", label: "Sedes bajo la meta", n: sedesBajoMinimo.length, color: sedesBajoMinimo.length > 0 ? "text-rojo" : "text-verde" },
   ];
   const resumenDetalle = resumen.find((k) => k.clave === resumenAbierto) ?? null;
 
@@ -864,7 +749,7 @@ export default function DashboardPage() {
     setSedeFiltro("todas");
   }
   const sedesMostradas = sedeFiltro === "todas" ? sedes : sedes.filter((s) => s.codigo === sedeFiltro);
-  // Desde el detalle de "Sedes bajo mínimo" a la tarjeta de esa sede. Primero se
+  // Desde el detalle de "Sedes bajo la meta" a la tarjeta de esa sede. Primero se
   // quita el filtro de sede —si la tenía oculta, la tarjeta no existe— y se baja
   // en el cuadro siguiente, cuando React ya la pintó. Un <a href="#…"> saltaba
   // antes de eso y no llegaba a ningún lado.
@@ -888,12 +773,17 @@ export default function DashboardPage() {
       });
     }
     if (cob.faltanOp || cob.faltanEnc) {
-      itemsAtencion.push({ key: `cobertura-${s.sedeId}`, sede: s.codigo, tono: "advertencia", texto: `faltan ${loQueFalta(cob)}` });
+      // «Hay N en pausa» porque «faltan 4 operativas» no dice si no vinieron o
+      // si están en el refrigerio — y a la hora de almuerzo es lo segundo.
+      itemsAtencion.push({
+        key: `cobertura-${s.sedeId}`, sede: s.codigo, tono: "advertencia",
+        texto: `faltan ${loQueFalta(cob)} en piso` + (cob.enPausa.length > 0 ? ` — hay ${cob.enPausa.length} en pausa` : ""),
+      });
     }
     if (cob.sinMarcarReal > 0) {
       itemsAtencion.push({
         key: `sinmarcar-${s.sedeId}`, sede: s.codigo, tono: "advertencia",
-        texto: `${cob.sinMarcarReal} sin marcar y ya le tocaba`,
+        texto: textoSinMarcar(cob.sinMarcarReal),
       });
     }
   }
@@ -925,13 +815,22 @@ export default function DashboardPage() {
               <div className="flex items-center gap-2">
                 {cargando && filas.length === 0 ? (
                   "Cargando…"
+                ) : error ? (
+                  // Si el último refresco falló, «en vivo» sería mentira: los
+                  // números de abajo son de la última vez que sí respondió.
+                  <>
+                    <span className="inline-flex h-2 w-2 rounded-full bg-ambar" aria-hidden />
+                    {fechaConDia(hoy)} · sin actualizar{actualizado ? ` — estos datos son de las ${actualizado}` : ""}
+                  </>
                 ) : (
                   <>
                     <span className="relative flex h-2 w-2" aria-hidden>
                       <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-verde/60" />
                       <span className="relative inline-flex h-2 w-2 rounded-full bg-verde" />
                     </span>
-                    En vivo · actualizado {actualizado} · se refresca cada 30s
+                    {/* La fecha, porque «hoy» sin fecha no dice de qué día son los números
+                        (una captura de esta pantalla no se puede fechar después). */}
+                    {fechaConDia(hoy)} · en vivo · actualizado {actualizado} · se refresca cada 30s
                   </>
                 )}
               </div>
@@ -945,7 +844,7 @@ export default function DashboardPage() {
                   Contratos o la alerta de sede — por eso no interrumpe la pantalla. */}
               {ausenciasNoRespondieron && (
                 <div className="mt-1 text-ambar" title="Alguien de vacaciones podría verse como 'Sin marcar' mientras esto no se pueda comprobar.">
-                  ⚠ no se pudo comprobar las ausencias de hoy
+                  ⚠ No se pudieron comprobar las ausencias de hoy
                 </div>
               )}
             </>
@@ -964,7 +863,7 @@ export default function DashboardPage() {
 
         {error && (
           <div className="mb-6 rounded-2xl border border-rojo/20 bg-rojo/[0.06] px-4 py-3 text-sm text-rojo-profundo">
-            No se pudo cargar la asistencia de hoy: {error}{" "}
+            {error}{" "}
             <Boton variante="enlace" onClick={() => void cargar()}>
               Reintentar
             </Boton>
@@ -993,7 +892,7 @@ export default function DashboardPage() {
               )}
               <CampoSelect etiqueta="Estado" value={estadoFiltro} onChange={(e) => setEstadoFiltro(e.target.value)} className="min-w-36">
                 <option value="todos">Todos</option>
-                <option value="abierta">Presente</option>
+                <option value="abierta">Trabajando</option>
                 <option value="en_pausa">En pausa</option>
                 <option value="cerrada">Salió</option>
                 <option value="sin_marcar">Sin marcar</option>
@@ -1032,7 +931,7 @@ export default function DashboardPage() {
                     disabled={k.n === 0}
                     aria-expanded={k.n === 0 ? undefined : abierto}
                     aria-controls="detalle-resumen"
-                    aria-label={`${k.label}: ${k.n}`}
+                    aria-label={`${k.label}: ${k.n}${k.nota ? `, ${k.nota}` : ""}`}
                     onClick={() => setResumenAbierto(abierto ? null : k.clave)}
                     className={`flex flex-col justify-start px-5 py-4 text-left transition-colors focus-visible:outline-offset-[-3px] disabled:cursor-default ${abierto ? "bg-hueso" : "bg-papel enabled:hover:bg-crema"}`}
                   >
@@ -1045,6 +944,7 @@ export default function DashboardPage() {
                       )}
                     </span>
                     <span className="mt-2 block text-sm text-taupe">{k.label}</span>
+                    {k.nota && <span className="mt-0.5 block text-xs font-medium text-ambar">{k.nota}</span>}
                   </button>
                 );
               })}
@@ -1067,12 +967,12 @@ export default function DashboardPage() {
                   // Sedes, no personas: el detalle es qué le falta a cada una, y
                   // un enlace a su tarjeta de más abajo, que ya tiene todo.
                   sedesBajoMinimo.length === 0 ? (
-                    <p className="text-sm text-taupe">Ninguna sede está bajo mínimo ahora mismo.</p>
+                    <p className="text-sm text-taupe">Ninguna sede está bajo la meta ahora mismo.</p>
                   ) : (
                     <ul className="flex flex-col">
                       {sedesBajoMinimo.map((s) => (
                         <li key={s.sedeId} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-sand/60 py-2 text-sm first:border-t-0">
-                          <span><strong className="font-semibold">{s.codigo}</strong> faltan {loQueFalta(coberturaPorSede.get(s.sedeId)!)}</span>
+                          <span><strong className="font-semibold">{s.codigo}:</strong> faltan {loQueFalta(coberturaPorSede.get(s.sedeId)!)} en piso</span>
                           <Boton variante="enlace" tamano="sm" className="text-xs font-semibold text-rojo-profundo" onClick={() => irASede(s.codigo)}>
                             Ver sede ↓
                           </Boton>
@@ -1109,7 +1009,7 @@ export default function DashboardPage() {
                       <span className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 py-2 text-sm">
                         <span className="flex items-baseline gap-2">
                           <span aria-hidden className={`size-2 shrink-0 translate-y-[-1px] rounded-full ${it.tono === "critico" ? "bg-rojo" : "bg-ambar"}`} />
-                          <span><strong className="font-semibold">{it.sede}</strong> <span className="text-tinta">{it.texto}</span></span>
+                          <span><strong className="font-semibold">{it.sede}:</strong> <span className="text-tinta">{it.texto}</span></span>
                         </span>
                         {it.href && <span className={`text-xs font-semibold ${it.tono === "critico" ? "text-rojo-profundo" : "text-ambar"}`}>Ver →</span>}
                       </span>
@@ -1133,7 +1033,9 @@ export default function DashboardPage() {
             {respuestasMemo.length > 0 && (
               <div className="mb-8 rounded-2xl border border-sand bg-papel p-5 pl-6">
                 <div className="mb-2 flex items-center justify-between">
-                  <span className="font-serif text-xl font-medium text-tinta">Colaboradores respondieron su memo</span>
+                  <span className="font-serif text-xl font-medium text-tinta">
+                    Respuestas a memos <span className="text-taupe">· últimos {DIAS_RESPUESTAS_MEMO} días</span>
+                  </span>
                   <Link href="/admin/disciplina" className="text-xs font-medium text-taupe hover:underline">Ver disciplina →</Link>
                 </div>
                 {respuestasMemo.map((r) => (
@@ -1145,7 +1047,7 @@ export default function DashboardPage() {
                         {r.firmado_at ? "firmó digitalmente" : "prefirió no firmar"}
                       </Insignia>
                     </span>
-                    <span className="text-xs text-taupe">{fechaBonita((r.firmado_at ?? r.rechazado_at)!.slice(0, 10))}</span>
+                    <span className="text-xs text-taupe">{fechaCorta((r.firmado_at ?? r.rechazado_at)!.slice(0, 10))}</span>
                   </Link>
                 ))}
               </div>
@@ -1198,7 +1100,7 @@ export default function DashboardPage() {
                   </div>
                   {hayRacimo && (
                     <p className="mb-2 rounded-lg bg-rojo/10 px-3 py-2 text-sm text-rojo-profundo">
-                      <strong>{cuantos} contratos vencen el mismo día</strong> ({fechaBonita(fechaRacimo)}).
+                      <strong>{cuantos} contratos vencen el mismo día</strong> ({fechaCorta(fechaRacimo)}).
                       No son {cuantos} trámites repartidos: son {cuantos} decisiones, {cuantos} redacciones
                       y {cuantos} firmas en la misma semana. Al que se pase de fecha con la persona
                       todavía trabajando, el <strong>art. 77</strong> lo vuelve indefinido solo.
@@ -1209,7 +1111,7 @@ export default function DashboardPage() {
                       <span>
                         <strong>{c.nombre}</strong> <span className="text-taupe">· {c.sede}</span>
                         <Insignia variante="alerta" className="ml-2">
-                          terminó el {fechaBonita(c.fecha_fin_contrato)} y sigue activa
+                          terminó el {fechaCorta(c.fecha_fin_contrato)} y sigue de alta
                         </Insignia>
                       </span>
                       <span className="text-xs font-semibold text-rojo-profundo">renovar o registrar su salida →</span>
@@ -1220,14 +1122,14 @@ export default function DashboardPage() {
                       <span>
                         <strong>{c.nombre}</strong> <span className="text-taupe">· {c.sede}</span>
                         <Insignia variante="advertencia" className="ml-2">
-                          {enCuantos(c.dias_restantes)} · {fechaBonita(c.fecha_fin_contrato)}
+                          {enCuantos(c.dias_restantes)} · {fechaCorta(c.fecha_fin_contrato)}
                         </Insignia>
                       </span>
                     </div>
                   ))}
                   <p className="border-t border-sand/60 pt-2.5 text-xs text-taupe">
                     {vencidos.length > 0
-                      ? "Mientras siga figurando activa sigue marcando, sigue cobrando y sigue acumulando gratificación, CTS y vacaciones. Anotar la fecha no da de baja a nadie: eso se decide y se registra a mano."
+                      ? "Mientras siga de alta sigue marcando, sigue cobrando y sigue acumulando gratificación, CTS y vacaciones. Anotar la fecha no da de baja a nadie: eso se decide y se registra a mano."
                       : "La fecha es lo previsto, no un hecho. Un contrato puede renovarse: esto solo avisa antes de que llegue el día."}
                   </p>
                 </div>
@@ -1272,8 +1174,13 @@ export default function DashboardPage() {
                   <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
                     <h2 className="font-serif text-2xl font-medium leading-tight">
                       {codigo}{" "}
+                      {/* «N trabajando ahora · M en pausa», no «N de M programadas»:
+                          el N cuenta a cualquiera que esté en el piso y el M solo a
+                          quien tenía turno, así que la razón podía salir «5 de 4».
+                          Cuántas les tocaba venir se dice abajo, con sus palabras. */}
                       <span className="text-lg font-normal text-taupe">
-                        — {cob.activos.length} trabajando de {cob.programadosHoy} programadas hoy
+                        — {cob.trabajando.length} trabajando ahora
+                        {cob.enPausa.length > 0 && <> · <span className="text-ambar">{cob.enPausa.length} en pausa</span></>}
                       </span>
                     </h2>
                     <Insignia
@@ -1285,7 +1192,7 @@ export default function DashboardPage() {
                     </Insignia>
                   </div>
                   <p className="mb-4 text-xs text-taupe">
-                    {deSedeCompleta.length} en el equipo de la sede — no todas tenían turno hoy.
+                    {textoEquipoDelDia(cob.programadosHoy, deSedeCompleta.length)}
                   </p>
 
                   {/* La única alerta que se permite el rojo sagrado en esta pantalla,
@@ -1303,7 +1210,7 @@ export default function DashboardPage() {
                       actuar, así que va primero y grande — no al pie como texto. */}
                   <div className="mb-4 grid grid-cols-2 gap-3 sm:max-w-md">
                     <TileCobertura label="Operativas en piso" n={cob.opPiso} meta={cob.metaOp} sinMeta={cob.sinMetaOp} tramo={tramoLabel} />
-                    <TileCobertura label="Encargadas" n={cob.encPiso} meta={cob.metaEnc} sinMeta={cob.sinMetaEnc} />
+                    <TileCobertura label="Encargadas en piso" n={cob.encPiso} meta={cob.metaEnc} sinMeta={cob.sinMetaEnc} />
                   </div>
 
                   {/* Recuadro verde claro de "Trabajando ahora": estuvo desde julio y
@@ -1312,37 +1219,58 @@ export default function DashboardPage() {
                       que vuelve. Sin nadie trabajando no se pinta de verde: verde es
                       "hay gente en piso", y un recuadro verde que dice "nadie"
                       afirmaría lo contrario de lo que escribe. Al 15% y no al 6% de
-                      antes: es el mismo relleno de la insignia "Presente", y con el
+                      antes: es el mismo relleno de la insignia "Trabajando", y con el
                       verde retonado el 2026-09-06 el 6% ya se leía gris. La etiqueta
                       verde encima da 5.27:1 claro y 4.91:1 oscuro. */}
                   <div
-                    className={`mb-4 rounded-superficie border px-4 py-3 ${cob.activos.length > 0 ? "border-verde/30 bg-verde/15" : "border-sand bg-crema"}`}
+                    className={`mb-4 rounded-superficie border px-4 py-3 ${cob.trabajando.length > 0 ? "border-verde/30 bg-verde/15" : "border-sand bg-crema"}`}
                   >
-                    <div className={`etiqueta ${cob.activos.length > 0 ? "text-verde" : "text-taupe"}`}>Trabajando ahora · {cob.activos.length}</div>
+                    <div className={`etiqueta ${cob.trabajando.length > 0 ? "text-verde" : "text-taupe"}`}>Trabajando ahora · {cob.trabajando.length}</div>
                     <div className="mt-2 flex flex-wrap gap-2">
-                      {cob.activos.length === 0 ? (
-                        <span className="text-sm text-taupe">Nadie está trabajando actualmente.</span>
+                      {cob.trabajando.length === 0 ? (
+                        <span className="text-sm text-taupe">Nadie está trabajando en este momento.</span>
                       ) : (
-                        // Pastillas en papel sobre el verde, como antes; quien está en
-                        // refrigerio se distingue por borde y punto ámbar. Su fondo
-                        // queda en papel a propósito: ámbar sobre relleno ámbar daba
-                        // 4.26:1 en modo oscuro, y sobre papel da 6.17:1.
-                        cob.activos.map((f) => {
-                          const enPausa = f.estado === "en_pausa";
-                          return (
-                            <span
-                              key={f.personaId}
-                              className={`inline-flex items-center gap-2 rounded-full border bg-papel px-3 py-1 text-sm ${enPausa ? "border-ambar/45" : "border-verde/25"}`}
-                            >
-                              <span aria-hidden className={`size-1.5 rounded-full ${enPausa ? "bg-ambar" : "bg-verde"}`} />
-                              {f.nombre}
-                              {enPausa && <span className="text-ambar">· en pausa</span>}
-                            </span>
-                          );
-                        })
+                        // Pastillas en papel sobre el verde, como antes.
+                        cob.trabajando.map((f) => (
+                          <span
+                            key={f.personaId}
+                            className="inline-flex items-center gap-2 rounded-full border border-verde/25 bg-papel px-3 py-1 text-sm"
+                          >
+                            <span aria-hidden className="size-1.5 rounded-full bg-verde" />
+                            {f.nombre}
+                          </span>
+                        ))
                       )}
                     </div>
                   </div>
+
+                  {/* «En pausa», aparte y no dentro de «Trabajando ahora». Hasta el
+                      2026-09-18 quien había salido a refrigerio, a un trámite o al
+                      médico iba en el recuadro verde con una etiqueta ámbar, y el
+                      número de arriba lo contaba como trabajando: en pleno almuerzo
+                      una sede entera fuera decía «4 trabajando». Sigue a la vista
+                      —si no, un equipo en refrigerio parecería gente que no vino—
+                      pero no como trabajando.
+                      Relleno al 10%: la etiqueta ámbar encima da 5.89:1 en claro y
+                      5.22:1 en oscuro (midiendo con la misma fórmula que el verde).
+                      Las pastillas quedan en papel: ámbar sobre relleno ámbar daba
+                      4.26:1 en modo oscuro, y sobre papel da 6.17:1. */}
+                  {cob.enPausa.length > 0 && (
+                    <div className="mb-4 rounded-superficie border border-ambar/30 bg-ambar/10 px-4 py-3">
+                      <div className="etiqueta text-ambar">En pausa · {cob.enPausa.length}</div>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {cob.enPausa.map((f) => (
+                          <span
+                            key={f.personaId}
+                            className="inline-flex items-center gap-2 rounded-full border border-ambar/45 bg-papel px-3 py-1 text-sm"
+                          >
+                            <span aria-hidden className="size-1.5 rounded-full bg-ambar" />
+                            {f.nombre}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {tablaVisible ? (
                     <>

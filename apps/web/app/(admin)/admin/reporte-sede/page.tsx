@@ -13,6 +13,7 @@ import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { traerTodo } from "@/lib/admin/traer-todo";
 import { loQueNoSePudo, sePuedeEntregar } from "@/lib/admin/lo-que-no-se-pudo";
 import { NIVEL_DISCIPLINARIO_CORTO, TZ_LIMA, esRolEncargada, hoyLima, primeroDeMesLima } from "@cayla-dynamic/shared";
+import { enPausaAhora, trabajandoAhora } from "@/lib/admin/asistencia-hoy";
 
 const CORTE_TARDE = 14.25; // mismo corte mañana/tarde que Turnos/Dashboard
 
@@ -56,6 +57,23 @@ interface Meta { man: number; tar: number; enc: number }
 // suspension · imputacion · bloqueado · aviso —, no solo «amonestacion o aviso».
 interface TardRow { persona_id: string; nombre: string; sede: string; tardanzas_mes: number; umbral: string }
 interface FaltaRow { persona_id: string; nombre: string; sede: string; nivel: string }
+
+// Una línea de cobertura: «Operativas en piso 2 / meta 4 · faltan 2». Vive acá,
+// al nivel del módulo, y no dentro de la pantalla: un componente definido en el
+// render se vuelve a crear en cada render y reinicia su estado (la regla
+// `react-hooks/static-components`). No usa nada de la pantalla, solo sus propias
+// propiedades, así que moverlo no cambia lo que dibuja.
+const Cobertura = ({ label, n, m }: { label: string; n: number; m: number }) => {
+  const sinMeta = m <= 0; const ok = !sinMeta && n >= m;
+  const color = sinMeta ? "var(--color-taupe)" : ok ? "var(--color-verde)" : "var(--color-rojo)";
+  return (
+    <span className="flex items-center gap-1.5 text-sm">
+      <span className="text-taupe">{label}</span>
+      <span className="font-semibold tabular-nums" style={{ color }}>{n}{!sinMeta && <span className="font-normal text-taupe"> / meta {m}</span>}</span>
+      {sinMeta ? <span className="text-xs text-taupe/60">sin meta</span> : <span className="text-xs font-medium" style={{ color }}>{ok ? "· completo" : `· faltan ${m - n}`}</span>}
+    </span>
+  );
+};
 
 function ReporteSedeContenido() {
   const router = useRouter();
@@ -249,9 +267,13 @@ function ReporteSedeContenido() {
 
   const sede = sedes.find((s) => s.id === sedeId);
   const tramoTarde = horaDecimalLimaAhora() >= CORTE_TARDE;
-  const activos = filas.filter((f) => f.estadoHoy === "abierta" || f.estadoHoy === "en_pausa");
-  const opPiso = filas.filter((f) => f.esOperativa && f.estadoHoy === "abierta").length;
-  const encPiso = filas.filter((f) => f.esEncargada && f.estadoHoy === "abierta").length;
+  // «Trabajando» y «en pausa» son dos cosas (ver asistencia-hoy.ts): la misma
+  // cuenta que el Dashboard, con la misma definición, para que la hoja que se
+  // imprime y la pantalla no digan números distintos a la misma hora.
+  const trabajando = filas.filter((f) => trabajandoAhora(f.estadoHoy));
+  const enPausa = filas.filter((f) => enPausaAhora(f.estadoHoy));
+  const opPiso = trabajando.filter((f) => f.esOperativa).length;
+  const encPiso = trabajando.filter((f) => f.esEncargada).length;
   const metaOp = tramoTarde ? meta.tar : meta.man;
   const rango = rangoLabel(desde, hasta);
   const hoy = hoyLima();
@@ -261,18 +283,6 @@ function ReporteSedeContenido() {
   // se archivan por periodo y se comparan entre sedes, así que ordenados por
   // fecha quedan agrupados solos en la carpeta.
   useTituloDocumento(sede ? `Reporte ${rango} — ${sede.nombre}` : null);
-
-  const Cobertura = ({ label, n, m }: { label: string; n: number; m: number }) => {
-    const sinMeta = m <= 0; const ok = !sinMeta && n >= m;
-    const color = sinMeta ? "var(--color-taupe)" : ok ? "var(--color-verde)" : "var(--color-rojo)";
-    return (
-      <span className="flex items-center gap-1.5 text-sm">
-        <span className="text-taupe">{label}</span>
-        <span className="font-semibold tabular-nums" style={{ color }}>{n}{!sinMeta && <span className="font-normal text-taupe"> / meta {m}</span>}</span>
-        {sinMeta ? <span className="text-xs text-taupe/60">sin meta</span> : <span className="text-xs font-medium" style={{ color }}>{ok ? "· completo" : `· faltan ${m - n}`}</span>}
-      </span>
-    );
-  };
 
   return (
     <div className="flex flex-1 flex-col">
@@ -380,18 +390,29 @@ function ReporteSedeContenido() {
 
             {/* HOY */}
             <section className="mb-6 rounded-2xl border border-verde/20 bg-verde/[0.06] p-5 print:break-inside-avoid print:bg-white">
-              <div className="etiqueta text-verde">Hoy · {activos.length} trabajando de {filas.length}</div>
+              <div className="etiqueta text-verde">
+                Hoy · {trabajando.length} trabajando ahora{enPausa.length > 0 ? ` · ${enPausa.length} en pausa` : ""} · equipo de {filas.length}
+              </div>
               <div className="mt-3 flex flex-wrap gap-2">
-                {activos.length === 0 ? <span className="text-sm text-taupe">Nadie marcado todavía.</span> :
-                  activos.map((f) => (
-                    <span key={f.personaId} className="rounded-full border border-sand bg-papel px-3 py-1 text-sm">
-                      {f.nombre}{f.estadoHoy === "en_pausa" && <span className="ml-1 text-ambar">· en pausa</span>}
-                    </span>
+                {/* «Nadie está trabajando», no «nadie marcado todavía»: quien ya
+                    marcó y salió también deja este recuadro vacío, y decir que
+                    nadie marcó sería falso a las 6 de la tarde. */}
+                {trabajando.length === 0 ? <span className="text-sm text-taupe">Nadie está trabajando en este momento.</span> :
+                  trabajando.map((f) => (
+                    <span key={f.personaId} className="rounded-full border border-sand bg-papel px-3 py-1 text-sm">{f.nombre}</span>
                   ))}
               </div>
+              {enPausa.length > 0 && (
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <span className="etiqueta text-ambar">En pausa</span>
+                  {enPausa.map((f) => (
+                    <span key={f.personaId} className="rounded-full border border-ambar/45 bg-papel px-3 py-1 text-sm">{f.nombre}</span>
+                  ))}
+                </div>
+              )}
               <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-1 border-t border-verde/15 pt-3">
                 <Cobertura label="Operativas en piso" n={opPiso} m={metaOp} />
-                <Cobertura label="Encargadas" n={encPiso} m={meta.enc} />
+                <Cobertura label="Encargadas en piso" n={encPiso} m={meta.enc} />
               </div>
             </section>
 
