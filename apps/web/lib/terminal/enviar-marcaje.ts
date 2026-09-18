@@ -1,6 +1,6 @@
 import type { createTerminalSupabaseClient } from "@cayla-dynamic/database";
 import type { OutboxEntry } from "./offline-db";
-import { SEGUNDOS_ESPERA_RED } from "./tope-de-red";
+import { SEGUNDOS_ESPERA_RED, conTope } from "./tope-de-red";
 
 type ClienteTerminal = ReturnType<typeof createTerminalSupabaseClient>;
 
@@ -21,6 +21,24 @@ type ClienteTerminal = ReturnType<typeof createTerminalSupabaseClient>;
  * Ocho segundos: de sobra para una conexión lenta que funciona, poco para que
  * una persona se quede mirando una pantalla que no avanza. Pasado el tope la
  * marca ya está guardada en la cola y se sincroniza sola.
+ *
+ * Y EL `.abortSignal()` SOLO CUBRE LA MITAD, descubierto el 2026-09-17 con el
+ * terminal congelado en "Confirmando en 0s…" sin llegar nunca a la pantalla
+ * de "Listo" ni a la de rechazo. supabase-js resuelve el token de acceso ANTES
+ * de invocar `fetch` — `fetchWithAuth` hace `await getAccessToken()` y recién
+ * con ese valor arma la petición con el `signal` puesto—, y esa espera del
+ * token pasa por `auth.getSession()`, que si el access token está por vencer
+ * sale a refrescarlo por red. Ese refresco no lleva NINGÚN `AbortSignal`: es
+ * el mismo modo de falla que `tope-de-red.ts` ya documentó para `getSession()`
+ * en el arranque, pero ahí seguía sin cubrirse en el camino de marcar. Con la
+ * red del mismo tipo que describe ese archivo —responde pero no enruta— el
+ * refresco se queda esperando una respuesta que no llega, y NUESTRO tope de
+ * 8 s nunca se entera porque corre más abajo, en un `fetch` al que la
+ * ejecución ni siquiera había llegado. `conTope` es el segundo cerrojo: no
+ * cancela el refresco atascado —eso sigue vivo, igual que en `arrancar()`—
+ * pero garantiza que ESTA llamada, la que el terminal está esperando para
+ * soltar `confirmandoRef` y salir de la pantalla de confirmación, no se quede
+ * esperando más que estos mismos 8 s.
  */
 export const SEGUNDOS_ESPERA_ENVIO = SEGUNDOS_ESPERA_RED;
 
@@ -84,22 +102,37 @@ export async function enviarMarcaje(
   entry: OutboxEntry,
   msEspera: number = SEGUNDOS_ESPERA_ENVIO * 1000,
 ): Promise<ResultadoEnvio> {
+  const SIN_RESPUESTA = Symbol("sin respuesta");
   try {
-    const { error } = await cliente
-      .rpc("fn_registrar_marcaje", {
-        p_persona_id: entry.personaId,
-        p_tipo: entry.tipo,
-        p_timestamp_cliente: entry.timestampCliente,
-        p_client_uuid: entry.clientUuid,
-        p_origen: "terminal",
-        p_terminal_id: entry.terminalId,
-        p_motivo_otro: entry.motivoOtro,
-        p_confirmo_sin_refrigerio: entry.confirmoSinRefrigerio,
-      })
-      .abortSignal(AbortSignal.timeout(msEspera));
+    // `conTope` es el segundo cerrojo, no un reemplazo del `.abortSignal()`
+    // de abajo — ver el porqué en el comentario de `SEGUNDOS_ESPERA_ENVIO`.
+    // El `.abortSignal()` sigue puesto porque, cuando SÍ se llega a hacer el
+    // `fetch`, cancelarlo de verdad libera la conexión antes; `conTope` es la
+    // red de seguridad para cuando ni siquiera se llega a intentarlo, porque
+    // la espera está atascada un paso antes, resolviendo el token.
+    const resultado = await conTope(
+      cliente
+        .rpc("fn_registrar_marcaje", {
+          p_persona_id: entry.personaId,
+          p_tipo: entry.tipo,
+          p_timestamp_cliente: entry.timestampCliente,
+          p_client_uuid: entry.clientUuid,
+          p_origen: "terminal",
+          p_terminal_id: entry.terminalId,
+          p_motivo_otro: entry.motivoOtro,
+          p_confirmo_sin_refrigerio: entry.confirmoSinRefrigerio,
+        })
+        .abortSignal(AbortSignal.timeout(msEspera)),
+      SIN_RESPUESTA,
+      msEspera / 1000,
+    );
 
-    return error
-      ? { ok: false, error: error.message, llego: true }
+    if (resultado === SIN_RESPUESTA) {
+      return { ok: false, error: "el envío no obtuvo respuesta a tiempo", llego: false };
+    }
+
+    return resultado.error
+      ? { ok: false, error: resultado.error.message, llego: true }
       : { ok: true, llego: true };
   } catch (e) {
     // Aquí cae el corte por tiempo, y también una red que se va a mitad de
