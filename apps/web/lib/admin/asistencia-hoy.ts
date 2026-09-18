@@ -180,8 +180,8 @@ export function calcularCoberturaSede(deSede: FilaPersona[], meta: MetaSede, tra
 }
 
 // "2 operativas y 1 encargada": lo que le falta a una sede para su meta de
-// ahora. Lo dicen "Requiere atención" y el detalle de "Sedes bajo mínimo", con
-// las mismas palabras.
+// ahora. Lo dicen "Requiere atención" y el detalle de "Sedes bajo la meta", con
+// las mismas palabras (y las dos le agregan «en piso»).
 export function loQueFalta(cob: CoberturaSede): string {
   const partes: string[] = [];
   if (cob.faltanOp) partes.push(`${cob.metaOp - cob.opPiso} operativa${cob.metaOp - cob.opPiso === 1 ? "" : "s"}`);
@@ -192,6 +192,39 @@ export function loQueFalta(cob: CoberturaSede): string {
 // "Faltan 3" / "Falta 1" — concordancia real, no un texto fijo por métrica.
 export function faltanTexto(n: number): string {
   return n === 1 ? "Falta 1" : `Faltan ${n}`;
+}
+
+/**
+ * «14 de diciembre». Con `day: "2-digit"` el es-PE arma «14-diciembre» —con
+ * guion y sin «de»—, que es lo que se leía en los avisos de contratos. Con
+ * `numeric` sale la frase entera. La zona es UTC porque `iso` es una fecha
+ * (sin hora): en la de Lima, «2026-12-14» caería al día anterior.
+ */
+export function fechaCorta(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Intl.DateTimeFormat("es-PE", { day: "numeric", month: "long", timeZone: "UTC" }).format(
+    new Date(Date.UTC(y, m - 1, d)),
+  );
+}
+
+/** «viernes 18 de setiembre». Sin la coma que agrega el es-PE tras el día de la semana. */
+export function fechaConDia(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  const dia = new Intl.DateTimeFormat("es-PE", { weekday: "long", timeZone: "UTC" }).format(
+    new Date(Date.UTC(y, m - 1, d)),
+  );
+  return `${dia} ${fechaCorta(iso)}`;
+}
+
+/**
+ * Lo que dice «Requiere atención» de quien no marcó y ya le tocaba. Antes era
+ * «N sin marcar y ya le tocaba» con «le» fijo: con dos personas, «2 … ya le
+ * tocaba». Y sin verbo tras «ya le tocaba» — ¿qué?: entrar.
+ */
+export function textoSinMarcar(n: number): string {
+  return n === 1
+    ? "1 no ha marcado y ya le tocaba entrar"
+    : `${n} no han marcado y ya les tocaba entrar`;
 }
 
 /**

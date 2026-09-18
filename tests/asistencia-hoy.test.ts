@@ -17,10 +17,13 @@ import {
   calcularCoberturaSede,
   enPausaAhora,
   faltanTexto,
+  fechaConDia,
+  fechaCorta,
   loQueFalta,
   sinMarcarYaLeTocaba,
   subEstadoSinMarcar,
   textoEquipoDelDia,
+  textoSinMarcar,
   trabajandoAhora,
   type FilaPersona,
 } from "@/lib/admin/asistencia-hoy";
@@ -162,6 +165,47 @@ describe("textoEquipoDelDia — de dónde sale «programadas hoy»", () => {
 
   it("sede sin equipo", () => {
     expect(textoEquipoDelDia(0, 0)).toBe("No hay personas en el equipo de esta sede.");
+  });
+});
+
+describe("fechaCorta — «14 de diciembre», no «14-diciembre»", () => {
+  it("escribe la frase entera, con «de»", () => {
+    expect(fechaCorta("2026-12-14")).toBe("14 de diciembre");
+  });
+
+  it("nunca deja el guion que armaba el formato de dos dígitos", () => {
+    // Era lo que decían los avisos de contratos: «vence en 87 días · 14-diciembre».
+    for (const iso of ["2026-12-14", "2026-01-31", "2026-09-05"]) {
+      expect(fechaCorta(iso), iso).not.toContain("-");
+    }
+  });
+
+  it("el día de un dígito va sin cero", () => {
+    // «setiembre» es como lo escribe el es-PE (y como se dice en Perú); la
+    // expresión acepta las dos formas para no depender de la versión de ICU.
+    expect(fechaCorta("2026-09-05")).toMatch(/^5 de sep?tiembre$/);
+  });
+
+  it("no corre el día por la zona horaria: 1 de enero sigue siendo 1 de enero", () => {
+    expect(fechaCorta("2027-01-01")).toBe("1 de enero");
+  });
+});
+
+describe("fechaConDia — la pantalla dice qué día es", () => {
+  it("día de la semana + fecha, sin coma", () => {
+    expect(fechaConDia("2026-12-14")).toBe("lunes 14 de diciembre");
+    expect(fechaConDia("2026-09-18")).toMatch(/^viernes 18 de sep?tiembre$/);
+  });
+});
+
+describe("textoSinMarcar — concordancia", () => {
+  it("una persona: «le tocaba»", () => {
+    expect(textoSinMarcar(1)).toBe("1 no ha marcado y ya le tocaba entrar");
+  });
+
+  it("varias: «les tocaba» (antes decía «2 … ya le tocaba»)", () => {
+    expect(textoSinMarcar(2)).toBe("2 no han marcado y ya les tocaba entrar");
+    expect(textoSinMarcar(12)).toBe("12 no han marcado y ya les tocaba entrar");
   });
 });
 

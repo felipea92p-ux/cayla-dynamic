@@ -407,7 +407,7 @@ function ReporteSedeContenido() {
               )}
               <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-1 border-t border-verde/15 pt-3">
                 <Cobertura label="Operativas en piso" n={opPiso} m={metaOp} />
-                <Cobertura label="Encargadas" n={encPiso} m={meta.enc} />
+                <Cobertura label="Encargadas en piso" n={encPiso} m={meta.enc} />
               </div>
             </section>
 

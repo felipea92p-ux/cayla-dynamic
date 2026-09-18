@@ -18,10 +18,11 @@ import { esperadoDelDia, horarioVigente, type HorarioTramo, type TurnoDia } from
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
 import {
-  calcularCoberturaSede, enPausaAhora, faltanTexto, llegoTarde, loQueFalta,
-  sinMarcarYaLeTocaba, subEstadoSinMarcar, textoEquipoDelDia, trabajandoAhora,
+  calcularCoberturaSede, enPausaAhora, faltanTexto, fechaConDia, fechaCorta, llegoTarde, loQueFalta,
+  sinMarcarYaLeTocaba, subEstadoSinMarcar, textoEquipoDelDia, textoSinMarcar, trabajandoAhora,
   type CoberturaSede, type FilaPersona, type MetaSede,
 } from "@/lib/admin/asistencia-hoy";
+import { esFallaDeRed, mensajeDeError } from "@/lib/admin/mensaje-error";
 
 const REFRESCO_MS = 30_000;
 // Mismo Sheet de siempre si la variable de entorno todavía no está puesta en
@@ -32,6 +33,9 @@ const URL_SHEET_ASISTENCIA =
   "https://docs.google.com/spreadsheets/d/19jhc5IN0LpbyG00jEwqt4ZB420Ob_rVcGRAdXR88riA/edit";
 // Corte mañana/tarde de la meta de cobertura — mismo valor fijo que Turnos (14:15).
 const CORTE_TARDE = 14.25;
+// Ventana de «Respuestas a memos». Una sola constante para la consulta y para el
+// título de la franja: si la una cambiara sin la otra, el título mentiría.
+const DIAS_RESPUESTAS_MEMO = 14;
 
 
 // Día de la semana (0=domingo … 6=sábado) de un ISO — misma convención que
@@ -176,7 +180,7 @@ function TablaPersonas({ filas, linkCorregir, ahoraDecimal, conSede = false }: {
                     <span className="text-taupe/40">—</span>
                   ) : (
                     <Link href={linkCorregir(f.personaId)} className="font-semibold text-rojo-profundo underline decoration-rojo/30 underline-offset-2 transition-colors hover:decoration-rojo">
-                      {f.minutosTarde} min tarde
+                      {formatoMinutos(f.minutosTarde)} tarde
                     </Link>
                   )}
                 </td>
@@ -184,7 +188,7 @@ function TablaPersonas({ filas, linkCorregir, ahoraDecimal, conSede = false }: {
                   {horaLima(f.salidaFinal)}
                   {f.salidaTemprana ? (
                     <Link href={linkCorregir(f.personaId)} className="ml-2 transition-opacity hover:opacity-80">
-                      <Insignia variante="advertencia" tamano="sm">anticip. {formatoMinutos(f.salidaTemprana)}</Insignia>
+                      <Insignia variante="advertencia" tamano="sm">{formatoMinutos(f.salidaTemprana)} antes</Insignia>
                     </Link>
                   ) : null}
                 </td>
@@ -217,7 +221,7 @@ function TablaPersonas({ filas, linkCorregir, ahoraDecimal, conSede = false }: {
                   <span className="text-taupe/40">—</span>
                 ) : (
                   <Link href={linkCorregir(f.personaId)} className="font-semibold text-rojo-profundo underline decoration-rojo/30 underline-offset-2">
-                    {f.minutosTarde} min
+                    {formatoMinutos(f.minutosTarde)}
                   </Link>
                 )}
               </span>
@@ -225,7 +229,7 @@ function TablaPersonas({ filas, linkCorregir, ahoraDecimal, conSede = false }: {
                 {horaLima(f.salidaFinal)}
                 {f.salidaTemprana ? (
                   <Link href={linkCorregir(f.personaId)} className="ml-1 inline-block">
-                    <Insignia variante="advertencia" tamano="sm">+{formatoMinutos(f.salidaTemprana)}</Insignia>
+                    <Insignia variante="advertencia" tamano="sm">{formatoMinutos(f.salidaTemprana)} antes</Insignia>
                   </Link>
                 ) : null}
               </span>
@@ -235,11 +239,6 @@ function TablaPersonas({ filas, linkCorregir, ahoraDecimal, conSede = false }: {
       </div>
     </>
   );
-}
-
-function fechaBonita(iso: string): string {
-  const [y, m, d] = iso.split("-").map(Number);
-  return new Intl.DateTimeFormat("es-PE", { day: "2-digit", month: "long", timeZone: "UTC" }).format(new Date(Date.UTC(y, m - 1, d)));
 }
 
 // `umbral` nombra el escalón alcanzado desde la 0200 — amonestacion ·
@@ -430,7 +429,7 @@ export default function DashboardPage() {
       // fijo" más abajo: es informativo, no un aviso de plazo legal corriendo
       // como el resto de esta franja — si la RPC no responde, la tarjeta
       // simplemente no aparece.
-      const { data: resp } = await sb.rpc("fn_memos_recientes_respuesta_sancionado", { p_dias: 14 });
+      const { data: resp } = await sb.rpc("fn_memos_recientes_respuesta_sancionado", { p_dias: DIAS_RESPUESTAS_MEMO });
       setRespuestasMemo(Array.isArray(resp) ? (resp as RespuestaMemoRow[]) : []);
     })();
   }, []);
@@ -533,7 +532,16 @@ export default function DashboardPage() {
     ]);
 
     if (errSedes || errPersonas || errJornadas) {
-      setError((errSedes ?? errPersonas ?? errJornadas)!.message);
+      // Con la traducción de la casa, no el `.message` crudo: quien mira este
+      // banner administra personas, no lee «TypeError: Failed to fetch». Y el
+      // corte de red se dice aparte —como en el login—, porque la respuesta
+      // correcta es otra: no es un dato mal puesto, es que no hay conexión.
+      const fallo = errSedes ?? errPersonas ?? errJornadas;
+      setError(
+        esFallaDeRed(fallo)
+          ? "No se pudo cargar la asistencia de hoy: no hay conexión con el sistema. Intenta de nuevo en un momento."
+          : mensajeDeError(fallo, "cargar la asistencia de hoy"),
+      );
       setCargando(false);
       return; // no pisa `filas`/`sedesActivas` con datos parciales/vacíos
     }
@@ -639,7 +647,10 @@ export default function DashboardPage() {
 
   const ahoraDecimal = horaDecimalLimaAhora();
   const tramoTarde = ahoraDecimal >= CORTE_TARDE;
-  const tramoLabel = tramoTarde ? "tarde" : "mañana";
+  // «de la mañana», no «mañana»: «meta mañana» se lee como la meta de MAÑANA (el
+  // día siguiente). Y a la 1:48 p. m. sigue siendo la meta de la mañana: el corte
+  // es a las 14:15, igual que en Turnos.
+  const tramoLabel = tramoTarde ? "de la tarde" : "de la mañana";
   const hoy = hoyLima();
   // Un incidente (tardanza, auto-cierre) enlaza directo a Corregir de esa persona/fecha.
   const linkCorregir = (personaId: string) => `/admin/correcciones?persona=${personaId}&fecha=${hoy}`;
@@ -701,8 +712,13 @@ export default function DashboardPage() {
       nota: enPausaTotal > 0 ? `y ${enPausaTotal} en pausa` : undefined,
     },
     { clave: "tardanzas", label: "Tardanzas hoy", n: personasDelResumen.tardanzas.length, color: personasDelResumen.tardanzas.length > 0 ? "text-rojo" : "text-tinta" },
-    { clave: "sin_marcar", label: "Sin marcar cuando ya debían", n: personasDelResumen.sin_marcar.length, color: personasDelResumen.sin_marcar.length > 0 ? "text-rojo" : "text-verde" },
-    { clave: "bajo_minimo", label: "Sedes bajo mínimo", n: sedesBajoMinimo.length, color: sedesBajoMinimo.length > 0 ? "text-rojo" : "text-verde" },
+    // Tres frases distintas para lo mismo («sin marcar cuando ya debían», «sin
+    // marcar y ya le tocaba», la insignia de la fila): ahora dicen lo mismo, con
+    // verbo — «ya les tocaba entrar».
+    { clave: "sin_marcar", label: "Sin marcar y ya les tocaba entrar", n: personasDelResumen.sin_marcar.length, color: personasDelResumen.sin_marcar.length > 0 ? "text-rojo" : "text-verde" },
+    // «Bajo la meta», no «bajo mínimo»: Turnos, los recuadros de cada sede y la
+    // pastilla dicen «meta». «Mínimo» era una tercera palabra para lo mismo.
+    { clave: "bajo_minimo", label: "Sedes bajo la meta", n: sedesBajoMinimo.length, color: sedesBajoMinimo.length > 0 ? "text-rojo" : "text-verde" },
   ];
   const resumenDetalle = resumen.find((k) => k.clave === resumenAbierto) ?? null;
 
@@ -733,7 +749,7 @@ export default function DashboardPage() {
     setSedeFiltro("todas");
   }
   const sedesMostradas = sedeFiltro === "todas" ? sedes : sedes.filter((s) => s.codigo === sedeFiltro);
-  // Desde el detalle de "Sedes bajo mínimo" a la tarjeta de esa sede. Primero se
+  // Desde el detalle de "Sedes bajo la meta" a la tarjeta de esa sede. Primero se
   // quita el filtro de sede —si la tenía oculta, la tarjeta no existe— y se baja
   // en el cuadro siguiente, cuando React ya la pintó. Un <a href="#…"> saltaba
   // antes de eso y no llegaba a ningún lado.
@@ -767,7 +783,7 @@ export default function DashboardPage() {
     if (cob.sinMarcarReal > 0) {
       itemsAtencion.push({
         key: `sinmarcar-${s.sedeId}`, sede: s.codigo, tono: "advertencia",
-        texto: `${cob.sinMarcarReal} sin marcar y ya le tocaba`,
+        texto: textoSinMarcar(cob.sinMarcarReal),
       });
     }
   }
@@ -799,13 +815,22 @@ export default function DashboardPage() {
               <div className="flex items-center gap-2">
                 {cargando && filas.length === 0 ? (
                   "Cargando…"
+                ) : error ? (
+                  // Si el último refresco falló, «en vivo» sería mentira: los
+                  // números de abajo son de la última vez que sí respondió.
+                  <>
+                    <span className="inline-flex h-2 w-2 rounded-full bg-ambar" aria-hidden />
+                    {fechaConDia(hoy)} · sin actualizar{actualizado ? ` — estos datos son de las ${actualizado}` : ""}
+                  </>
                 ) : (
                   <>
                     <span className="relative flex h-2 w-2" aria-hidden>
                       <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-verde/60" />
                       <span className="relative inline-flex h-2 w-2 rounded-full bg-verde" />
                     </span>
-                    En vivo · actualizado {actualizado} · se refresca cada 30s
+                    {/* La fecha, porque «hoy» sin fecha no dice de qué día son los números
+                        (una captura de esta pantalla no se puede fechar después). */}
+                    {fechaConDia(hoy)} · en vivo · actualizado {actualizado} · se refresca cada 30s
                   </>
                 )}
               </div>
@@ -819,7 +844,7 @@ export default function DashboardPage() {
                   Contratos o la alerta de sede — por eso no interrumpe la pantalla. */}
               {ausenciasNoRespondieron && (
                 <div className="mt-1 text-ambar" title="Alguien de vacaciones podría verse como 'Sin marcar' mientras esto no se pueda comprobar.">
-                  ⚠ no se pudo comprobar las ausencias de hoy
+                  ⚠ No se pudieron comprobar las ausencias de hoy
                 </div>
               )}
             </>
@@ -838,7 +863,7 @@ export default function DashboardPage() {
 
         {error && (
           <div className="mb-6 rounded-2xl border border-rojo/20 bg-rojo/[0.06] px-4 py-3 text-sm text-rojo-profundo">
-            No se pudo cargar la asistencia de hoy: {error}{" "}
+            {error}{" "}
             <Boton variante="enlace" onClick={() => void cargar()}>
               Reintentar
             </Boton>
@@ -942,12 +967,12 @@ export default function DashboardPage() {
                   // Sedes, no personas: el detalle es qué le falta a cada una, y
                   // un enlace a su tarjeta de más abajo, que ya tiene todo.
                   sedesBajoMinimo.length === 0 ? (
-                    <p className="text-sm text-taupe">Ninguna sede está bajo mínimo ahora mismo.</p>
+                    <p className="text-sm text-taupe">Ninguna sede está bajo la meta ahora mismo.</p>
                   ) : (
                     <ul className="flex flex-col">
                       {sedesBajoMinimo.map((s) => (
                         <li key={s.sedeId} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-sand/60 py-2 text-sm first:border-t-0">
-                          <span><strong className="font-semibold">{s.codigo}</strong> faltan {loQueFalta(coberturaPorSede.get(s.sedeId)!)}</span>
+                          <span><strong className="font-semibold">{s.codigo}:</strong> faltan {loQueFalta(coberturaPorSede.get(s.sedeId)!)} en piso</span>
                           <Boton variante="enlace" tamano="sm" className="text-xs font-semibold text-rojo-profundo" onClick={() => irASede(s.codigo)}>
                             Ver sede ↓
                           </Boton>
@@ -984,7 +1009,7 @@ export default function DashboardPage() {
                       <span className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 py-2 text-sm">
                         <span className="flex items-baseline gap-2">
                           <span aria-hidden className={`size-2 shrink-0 translate-y-[-1px] rounded-full ${it.tono === "critico" ? "bg-rojo" : "bg-ambar"}`} />
-                          <span><strong className="font-semibold">{it.sede}</strong> <span className="text-tinta">{it.texto}</span></span>
+                          <span><strong className="font-semibold">{it.sede}:</strong> <span className="text-tinta">{it.texto}</span></span>
                         </span>
                         {it.href && <span className={`text-xs font-semibold ${it.tono === "critico" ? "text-rojo-profundo" : "text-ambar"}`}>Ver →</span>}
                       </span>
@@ -1008,7 +1033,9 @@ export default function DashboardPage() {
             {respuestasMemo.length > 0 && (
               <div className="mb-8 rounded-2xl border border-sand bg-papel p-5 pl-6">
                 <div className="mb-2 flex items-center justify-between">
-                  <span className="font-serif text-xl font-medium text-tinta">Colaboradores respondieron su memo</span>
+                  <span className="font-serif text-xl font-medium text-tinta">
+                    Respuestas a memos <span className="text-taupe">· últimos {DIAS_RESPUESTAS_MEMO} días</span>
+                  </span>
                   <Link href="/admin/disciplina" className="text-xs font-medium text-taupe hover:underline">Ver disciplina →</Link>
                 </div>
                 {respuestasMemo.map((r) => (
@@ -1020,7 +1047,7 @@ export default function DashboardPage() {
                         {r.firmado_at ? "firmó digitalmente" : "prefirió no firmar"}
                       </Insignia>
                     </span>
-                    <span className="text-xs text-taupe">{fechaBonita((r.firmado_at ?? r.rechazado_at)!.slice(0, 10))}</span>
+                    <span className="text-xs text-taupe">{fechaCorta((r.firmado_at ?? r.rechazado_at)!.slice(0, 10))}</span>
                   </Link>
                 ))}
               </div>
@@ -1073,7 +1100,7 @@ export default function DashboardPage() {
                   </div>
                   {hayRacimo && (
                     <p className="mb-2 rounded-lg bg-rojo/10 px-3 py-2 text-sm text-rojo-profundo">
-                      <strong>{cuantos} contratos vencen el mismo día</strong> ({fechaBonita(fechaRacimo)}).
+                      <strong>{cuantos} contratos vencen el mismo día</strong> ({fechaCorta(fechaRacimo)}).
                       No son {cuantos} trámites repartidos: son {cuantos} decisiones, {cuantos} redacciones
                       y {cuantos} firmas en la misma semana. Al que se pase de fecha con la persona
                       todavía trabajando, el <strong>art. 77</strong> lo vuelve indefinido solo.
@@ -1084,7 +1111,7 @@ export default function DashboardPage() {
                       <span>
                         <strong>{c.nombre}</strong> <span className="text-taupe">· {c.sede}</span>
                         <Insignia variante="alerta" className="ml-2">
-                          terminó el {fechaBonita(c.fecha_fin_contrato)} y sigue activa
+                          terminó el {fechaCorta(c.fecha_fin_contrato)} y sigue de alta
                         </Insignia>
                       </span>
                       <span className="text-xs font-semibold text-rojo-profundo">renovar o registrar su salida →</span>
@@ -1095,14 +1122,14 @@ export default function DashboardPage() {
                       <span>
                         <strong>{c.nombre}</strong> <span className="text-taupe">· {c.sede}</span>
                         <Insignia variante="advertencia" className="ml-2">
-                          {enCuantos(c.dias_restantes)} · {fechaBonita(c.fecha_fin_contrato)}
+                          {enCuantos(c.dias_restantes)} · {fechaCorta(c.fecha_fin_contrato)}
                         </Insignia>
                       </span>
                     </div>
                   ))}
                   <p className="border-t border-sand/60 pt-2.5 text-xs text-taupe">
                     {vencidos.length > 0
-                      ? "Mientras siga figurando activa sigue marcando, sigue cobrando y sigue acumulando gratificación, CTS y vacaciones. Anotar la fecha no da de baja a nadie: eso se decide y se registra a mano."
+                      ? "Mientras siga de alta sigue marcando, sigue cobrando y sigue acumulando gratificación, CTS y vacaciones. Anotar la fecha no da de baja a nadie: eso se decide y se registra a mano."
                       : "La fecha es lo previsto, no un hecho. Un contrato puede renovarse: esto solo avisa antes de que llegue el día."}
                   </p>
                 </div>
@@ -1183,7 +1210,7 @@ export default function DashboardPage() {
                       actuar, así que va primero y grande — no al pie como texto. */}
                   <div className="mb-4 grid grid-cols-2 gap-3 sm:max-w-md">
                     <TileCobertura label="Operativas en piso" n={cob.opPiso} meta={cob.metaOp} sinMeta={cob.sinMetaOp} tramo={tramoLabel} />
-                    <TileCobertura label="Encargadas" n={cob.encPiso} meta={cob.metaEnc} sinMeta={cob.sinMetaEnc} />
+                    <TileCobertura label="Encargadas en piso" n={cob.encPiso} meta={cob.metaEnc} sinMeta={cob.sinMetaEnc} />
                   </div>
 
                   {/* Recuadro verde claro de "Trabajando ahora": estuvo desde julio y
