@@ -58,6 +58,23 @@ interface Meta { man: number; tar: number; enc: number }
 interface TardRow { persona_id: string; nombre: string; sede: string; tardanzas_mes: number; umbral: string }
 interface FaltaRow { persona_id: string; nombre: string; sede: string; nivel: string }
 
+// Una línea de cobertura: «Operativas en piso 2 / meta 4 · faltan 2». Vive acá,
+// al nivel del módulo, y no dentro de la pantalla: un componente definido en el
+// render se vuelve a crear en cada render y reinicia su estado (la regla
+// `react-hooks/static-components`). No usa nada de la pantalla, solo sus propias
+// propiedades, así que moverlo no cambia lo que dibuja.
+const Cobertura = ({ label, n, m }: { label: string; n: number; m: number }) => {
+  const sinMeta = m <= 0; const ok = !sinMeta && n >= m;
+  const color = sinMeta ? "var(--color-taupe)" : ok ? "var(--color-verde)" : "var(--color-rojo)";
+  return (
+    <span className="flex items-center gap-1.5 text-sm">
+      <span className="text-taupe">{label}</span>
+      <span className="font-semibold tabular-nums" style={{ color }}>{n}{!sinMeta && <span className="font-normal text-taupe"> / meta {m}</span>}</span>
+      {sinMeta ? <span className="text-xs text-taupe/60">sin meta</span> : <span className="text-xs font-medium" style={{ color }}>{ok ? "· completo" : `· faltan ${m - n}`}</span>}
+    </span>
+  );
+};
+
 function ReporteSedeContenido() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -266,18 +283,6 @@ function ReporteSedeContenido() {
   // se archivan por periodo y se comparan entre sedes, así que ordenados por
   // fecha quedan agrupados solos en la carpeta.
   useTituloDocumento(sede ? `Reporte ${rango} — ${sede.nombre}` : null);
-
-  const Cobertura = ({ label, n, m }: { label: string; n: number; m: number }) => {
-    const sinMeta = m <= 0; const ok = !sinMeta && n >= m;
-    const color = sinMeta ? "var(--color-taupe)" : ok ? "var(--color-verde)" : "var(--color-rojo)";
-    return (
-      <span className="flex items-center gap-1.5 text-sm">
-        <span className="text-taupe">{label}</span>
-        <span className="font-semibold tabular-nums" style={{ color }}>{n}{!sinMeta && <span className="font-normal text-taupe"> / meta {m}</span>}</span>
-        {sinMeta ? <span className="text-xs text-taupe/60">sin meta</span> : <span className="text-xs font-medium" style={{ color }}>{ok ? "· completo" : `· faltan ${m - n}`}</span>}
-      </span>
-    );
-  };
 
   return (
     <div className="flex flex-1 flex-col">
