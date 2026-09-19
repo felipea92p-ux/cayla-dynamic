@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   detectarIncidencias, ventanasDeConsulta, lunesDeLaSemana, addDias, estadoDe, compararIncidencias,
+  coberturaDeCarga, enFrase, CARGA_COMPLETA,
   type DatosDeteccion,
 } from "@/lib/admin/incidencias";
 
@@ -286,5 +287,47 @@ describe("estado y orden de la bandeja", () => {
       "media 2026-09-12",
       "baja 2026-09-14", "baja 2026-08-26",
     ]);
+  });
+});
+
+describe("lo que no se pudo comprobar", () => {
+  it("con todo contestado no hay faltantes ni categorías sin comprobar", () => {
+    const c = coberturaDeCarga({ faltas: null, salidas: undefined, excesos: null });
+    expect(c).toBe(CARGA_COMPLETA);
+    expect(c.duras).toEqual([]);
+  });
+
+  it("si falla fn_faltas, «sin faltas» no se puede afirmar: la caja de faltas queda sin comprobar", () => {
+    const c = coberturaDeCarga({ faltas: { message: "timeout" } });
+    expect(c.duras).toEqual(["las faltas"]);
+    expect([...c.categoriasSinComprobar]).toEqual(["faltas"]);
+  });
+
+  it("cada fuente dura apaga SU caja del resumen y ninguna otra", () => {
+    expect([...coberturaDeCarga({ salidas: 1 }).categoriasSinComprobar]).toEqual(["marcaciones"]);
+    expect([...coberturaDeCarga({ excesos: 1 }).categoriasSinComprobar]).toEqual(["patrones"]);
+    expect([...coberturaDeCarga({ rachas: 1 }).categoriasSinComprobar]).toEqual(["patrones"]);
+  });
+
+  it("una fuente suave se avisa pero NO impide decir «todo revisado» ni apaga ninguna caja", () => {
+    const c = coberturaDeCarga({ convenios: { message: "x" }, nombres: { message: "y" } });
+    expect(c.faltantes).toHaveLength(2);
+    expect(c.duras).toEqual([]);
+    expect(c.categoriasSinComprobar.size).toBe(0);
+  });
+
+  it("nombra lo que falta, no la consulta, y respeta el orden declarado", () => {
+    const c = coberturaDeCarga({ rachas: 1, faltas: 1, revisiones: 1 });
+    expect(c.faltantes).toEqual([
+      "las faltas", "los días seguidos sin descanso", "los días que tu equipo pidió revisar",
+    ]);
+    expect(c.duras).toEqual(["las faltas", "los días seguidos sin descanso"]);
+  });
+
+  it("enFrase arma la lista en español", () => {
+    expect(enFrase([])).toBe("");
+    expect(enFrase(["a"])).toBe("a");
+    expect(enFrase(["a", "b"])).toBe("a y b");
+    expect(enFrase(["a", "b", "c"])).toBe("a, b y c");
   });
 });

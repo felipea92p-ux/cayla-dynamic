@@ -44,8 +44,9 @@ import { traerTodo } from "@/lib/admin/traer-todo";
 import { sinTildes } from "@/lib/sin-tildes";
 import type { HorarioTramo } from "@/lib/admin/jornada-esperada";
 import {
-  addDias, compararIncidencias, detectarIncidencias, estadoDe, lunesDeLaSemana, TIPOS_EN_LOTE, ventanasDeConsulta,
-  type Categoria, type DatosDeteccion, type Incidencia, type TipoIncidencia,
+  addDias, CARGA_COMPLETA, compararIncidencias, coberturaDeCarga, detectarIncidencias, enFrase, estadoDe,
+  lunesDeLaSemana, TIPOS_EN_LOTE, ventanasDeConsulta,
+  type Categoria, type CoberturaDeCarga, type DatosDeteccion, type Incidencia, type TipoIncidencia,
 } from "@/lib/admin/incidencias";
 import {
   IconoIncidencia, NOMBRE_TIPO, REGLA, REGLAS_EN_ORDEN, SIGUE_EL_PERIODO, accionDe, fechaCorta, fechaHoraLima, horaLima,
@@ -127,6 +128,9 @@ function IncidenciasContenido() {
   const [error, setError] = useState<string | null>(null);
   const [errorAccion, setErrorAccion] = useState<string | null>(null);
   const [avisoLevantadas, setAvisoLevantadas] = useState<string | null>(null);
+  // Qué consultas no contestaron. Un vacío que viene de un error no es «no hay
+  // nada»: ver `coberturaDeCarga` en lib/admin/incidencias.ts.
+  const [carga, setCarga] = useState<CoberturaDeCarga>(CARGA_COMPLETA);
 
   const [busca, setBusca] = useState("");
   const [sedeFiltro, setSedeFiltro] = useState("");
@@ -150,7 +154,7 @@ function IncidenciasContenido() {
     return nombreTipoAusencia.get(codigo) ?? MOTIVOS_FUERA_DE_AUSENCIAS[m] ?? m.replaceAll("_", " ");
   }, [nombreTipoAusencia]);
 
-  const cargar = useCallback(async () => {
+  const cargarDatos = useCallback(async () => {
     const supabase = createAdminSupabaseClient();
     const { data: sesion } = await supabase.auth.getSession();
     if (!sesion.session) { router.replace("/admin/login"); return; }
@@ -161,22 +165,22 @@ function IncidenciasContenido() {
 
     const [
       { data, error: errData },
-      { data: extraData },
+      { data: extraData, error: errExtra },
       { data: tardias, error: errTardias },
       { data: sedesData, error: errSedes },
       { data: encargadasData, error: errEnc },
       { data: metasData, error: errMetas },
       { data: horariosData, error: errHorarios },
       { data: turnosData, error: errTurnos },
-      { data: aceptadasData },
-      { data: personasData },
-      { data: faltasData },
-      { data: revisionesData },
+      { data: aceptadasData, error: errAceptadas },
+      { data: personasData, error: errPersonas },
+      { data: faltasData, error: errFaltas },
+      { data: revisionesData, error: errRevisiones },
       { data: levTardData, error: errLevTard },
-      { data: horasSemanaData },
-      { data: diasRachaData },
-      { data: contratosData },
-      { data: tiposData },
+      { data: horasSemanaData, error: errHoras },
+      { data: diasRachaData, error: errRacha },
+      { data: contratosData, error: errContratos },
+      { data: tiposData, error: errTipos },
     ] = await Promise.all([
       // Por lotes: PostgREST cortaba en 1000 filas sin avisar.
       traerTodo<unknown>((ini, fin) =>
@@ -245,6 +249,12 @@ function IncidenciasContenido() {
       return; // no pisa la lista con datos parciales
     }
     setError(null);
+    // Lo que falló y no frena la pantalla: se dice, no se calla.
+    setCarga(coberturaDeCarga({
+      faltas: errFaltas, salidas: errExtra, excesos: errHoras, rachas: errRacha,
+      vistos_buenos: errAceptadas, revisiones: errRevisiones, convenios: errContratos,
+      nombres: errPersonas, motivos: errTipos,
+    }));
     setAvisoLevantadas(
       errLevTard
         ? `No se pudo comprobar qué tardanzas ya fueron levantadas (${errLevTard.message}). ` +
@@ -296,6 +306,17 @@ function IncidenciasContenido() {
     setSeleccion(new Set());
     setCargando(false);
   }, [router, desde, hasta]);
+
+  // Una excepción (no un `error` de Supabase, que ya se maneja arriba) dejaba el
+  // esqueleto de carga para siempre, sin decir nada.
+  const cargar = useCallback(async () => {
+    try {
+      await cargarDatos();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error inesperado al cargar.");
+      setCargando(false);
+    }
+  }, [cargarDatos]);
 
   // eslint-disable-next-line react-hooks/set-state-in-effect -- cargar al montar y al mover el periodo, mismo patrón que el resto del panel.
   useEffect(() => { void cargar(); }, [cargar]);
@@ -516,6 +537,7 @@ function IncidenciasContenido() {
             <span className="font-serif text-4xl leading-none tabular-nums text-tinta">{cargando ? "—" : porRevisar.length}</span>
             <span className="text-sm text-taupe">
               por revisar{!cargando && resueltas > 0 && <> · {resueltas} ya resuelta{resueltas === 1 ? "" : "s"}</>}
+              {!cargando && carga.duras.length > 0 && <> · incompleto</>}
             </span>
           </button>
           {CATEGORIAS.map((c, idx) => {
@@ -534,8 +556,12 @@ function IncidenciasContenido() {
                   activa ? "bg-hueso" : "hover:bg-crema/60",
                 )}
               >
-                <span className="font-serif text-3xl leading-none tabular-nums text-tinta">{cargando ? "—" : n}</span>
-                <span className="text-sm text-taupe">{c.etiqueta}</span>
+                <span className="font-serif text-3xl leading-none tabular-nums text-tinta">
+                  {cargando || carga.categoriasSinComprobar.has(c.clave) ? "—" : n}
+                </span>
+                <span className="text-sm text-taupe">
+                  {c.etiqueta}{!cargando && carga.categoriasSinComprobar.has(c.clave) && <> · sin comprobar</>}
+                </span>
               </button>
             );
           })}
@@ -624,6 +650,13 @@ function IncidenciasContenido() {
             <Boton variante="enlace" onClick={() => void cargar()}>Reintentar</Boton>
           </div>
         )}
+        {carga.faltantes.length > 0 && (
+          <div className="rounded-control border border-ambar/30 bg-ambar/10 px-4 py-3 text-sm">
+            <strong className="font-medium">No se pudo comprobar {enFrase(carga.faltantes)}.</strong>{" "}
+            {carga.duras.length > 0 && "Eso no significa que no haya nada. "}
+            <Boton variante="enlace" onClick={() => void cargar()}>Reintentar</Boton>
+          </div>
+        )}
         {errorAccion && (
           <div className="flex items-start gap-3 rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo-profundo">
             <span className="flex-1">{errorAccion}</span>
@@ -635,8 +668,11 @@ function IncidenciasContenido() {
 
         {!cargando && !error && visibles.length === 0 && (
           <div className="flex flex-col items-center gap-2 rounded-superficie border border-sand bg-papel px-6 py-10 text-center">
+            {/* «Todo revisado» afirma que se comprobó. Si una fuente dura falló, no se comprobó. */}
             <p className="font-serif text-xl text-tinta">
-              {hayFiltros ? "No hay incidencias con estos filtros." : "Todo revisado en este periodo."}
+              {carga.duras.length > 0
+                ? `No se pudo comprobar ${enFrase(carga.duras)}.`
+                : hayFiltros ? "No hay incidencias con estos filtros." : "Todo revisado en este periodo."}
             </p>
             {hayFiltros
               ? <Boton variante="enlace" className="text-sm text-taupe" onClick={limpiarFiltros}>Limpiar filtros</Boton>
