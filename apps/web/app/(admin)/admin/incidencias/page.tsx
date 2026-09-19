@@ -236,6 +236,7 @@ function IncidenciasContenido() {
           .select("persona_id, fecha, horas_trabajadas, estado, personas:persona_id(nombres, apellidos, tipo_vinculo, practicante_modalidad, estado, sedes:sede_base_id(codigo))")
           .gte("fecha", v.desdeHoras).lte("fecha", hoy)
           .gt("horas_trabajadas", 0)
+          .order("fecha")
           .order("persona_id")
           .range(ini, fin),
       ),
@@ -245,6 +246,7 @@ function IncidenciasContenido() {
           .select("persona_id, fecha, personas:persona_id(nombres, apellidos, estado, sedes:sede_base_id(codigo))")
           .gte("fecha", v.desdeRacha).lte("fecha", hoy)
           .gt("horas_trabajadas", 0)
+          .order("fecha")
           .order("persona_id")
           .range(ini, fin),
       ),
