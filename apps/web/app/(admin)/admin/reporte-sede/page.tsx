@@ -13,7 +13,7 @@ import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { traerTodo } from "@/lib/admin/traer-todo";
 import { loQueNoSePudo, sePuedeEntregar } from "@/lib/admin/lo-que-no-se-pudo";
 import { NIVEL_DISCIPLINARIO_CORTO, TZ_LIMA, esRolEncargada, hoyLima, primeroDeMesLima } from "@cayla-dynamic/shared";
-import { enPausaAhora, porPausaMasLarga, textoPausaDesde, trabajandoAhora, type PausaAbierta } from "@/lib/admin/asistencia-hoy";
+import { causaMetaImposible, enPausaAhora, porPausaMasLarga, textoPausaDesde, trabajandoAhora, type PausaAbierta } from "@/lib/admin/asistencia-hoy";
 import { traerPausasAbiertas } from "@/lib/admin/pausas-abiertas";
 
 const CORTE_TARDE = 14.25; // mismo corte mañana/tarde que Turnos/Dashboard
@@ -291,6 +291,15 @@ function ReporteSedeContenido() {
   const opPiso = trabajando.filter((f) => f.esOperativa).length;
   const encPiso = trabajando.filter((f) => f.esEncargada).length;
   const metaOp = tramoTarde ? meta.tar : meta.man;
+  // El equipo que PODRÍA cubrir cada meta (esté hoy o no): ver causaMetaImposible.
+  const equipoOperativas = filas.filter((f) => f.esOperativa).length;
+  const equipoLideres = filas.filter((f) => f.esEncargada).length;
+  const mostrarOperativas = !(equipoOperativas === 0 && metaOp <= 0);
+  const mostrarLideres = !(equipoLideres === 0 && meta.enc <= 0);
+  const causasMeta = [
+    { quien: "Operativas", causa: causaMetaImposible("operativas", metaOp, equipoOperativas) },
+    { quien: "Líderes", causa: causaMetaImposible("lideres", meta.enc, equipoLideres) },
+  ].flatMap((c) => (c.causa ? [{ quien: c.quien, detalle: c.causa.detalle }] : []));
   const rango = rangoLabel(desde, hasta);
   const hoy = hoyLima();
 
@@ -433,10 +442,20 @@ function ReporteSedeContenido() {
                   {pausasNoRespondieron && <span className="text-xs text-ambar">No se pudo comprobar desde cuándo.</span>}
                 </div>
               )}
-              <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-1 border-t border-verde/15 pt-3">
-                <Cobertura label="Operativas en piso" n={opPiso} m={metaOp} />
-                <Cobertura label="Líderes en piso" n={encPiso} m={meta.enc} />
-              </div>
+              {/* Igual que en el Dashboard: una línea «0 · sin meta» de un grupo que en
+                  esta sede no existe no informa nada, y la causa de una meta que no se
+                  puede cumplir se dice en vez de dejar un «faltan 1» que parece falta. */}
+              {(mostrarOperativas || mostrarLideres) && (
+                <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-1 border-t border-verde/15 pt-3">
+                  {mostrarOperativas && <Cobertura label="Operativas en piso" n={opPiso} m={metaOp} />}
+                  {mostrarLideres && <Cobertura label="Líderes en piso" n={encPiso} m={meta.enc} />}
+                </div>
+              )}
+              {causasMeta.map((c) => (
+                <p key={c.quien} className="mt-2 text-xs text-taupe">
+                  <strong className="font-semibold text-tinta">{c.quien}:</strong> {c.detalle}
+                </p>
+              ))}
             </section>
 
             {/* EL PERIODO */}

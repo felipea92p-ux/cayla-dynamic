@@ -141,6 +141,10 @@ export interface CoberturaSede {
   sinMarcarReal: number;
   programadosHoy: number;
   alertaSinEntrada: string | null;
+  /** Cuántas personas del EQUIPO —estén hoy o no— son de un área operativa. */
+  equipoOperativas: number;
+  /** Cuántas del EQUIPO cuentan como líder en piso (rol de líder de sede o marca de piso). */
+  equipoLideres: number;
 }
 export function calcularCoberturaSede(deSede: FilaPersona[], meta: MetaSede, tramoTarde: boolean, ahoraDecimal: number): CoberturaSede {
   const trabajando = deSede.filter((f) => trabajandoAhora(f.estado));
@@ -178,10 +182,55 @@ export function calcularCoberturaSede(deSede: FilaPersona[], meta: MetaSede, tra
     if (minutosPasados >= MARGEN_ALERTA_SEDE_MIN) alertaSinEntrada = primeraEntrada;
   }
 
+  // El equipo que PODRÍA cubrir cada meta, esté hoy o no. Sin esto, «0 de 1» no
+  // distingue «faltó alguien que sí existe» de «en esta sede no hay quién pueda».
+  const equipoOperativas = deSede.filter((f) => f.esOperativa).length;
+  const equipoLideres = deSede.filter((f) => f.esEncargada).length;
+
   return {
     trabajando, enPausa, opPiso, encPiso, metaOp, metaEnc: meta.enc, sinMetaOp, sinMetaEnc,
     faltanOp, faltanEnc, problema: faltanOp || faltanEnc, sinMarcarReal, programadosHoy, alertaSinEntrada,
+    equipoOperativas, equipoLideres,
   };
+}
+
+/**
+ * Por qué una meta NO se va a poder cumplir por más gente que venga, o null si
+ * sí se puede. `resumen` cabe en una línea de «Requiere atención»; `detalle`
+ * dice además qué hacer.
+ *
+ * El caso que la originó (2026-09-18): Central es solo administración —nadie de
+ * un área operativa, nadie marcado como líder de piso— y aun así tenía una meta
+ * de 1 líder en piso. La tarjeta decía «Cobertura insuficiente · Falta 1» todos
+ * los días, y nadie podía hacer nada para apagarla: el problema no era de
+ * asistencia, era que la meta no le correspondía a esa sede. Una alarma que
+ * nunca se apaga enseña a ignorar todas las demás.
+ *
+ * NO cambia el color ni la gravedad, y eso es a propósito: si a una tienda se le
+ * fue su única líder, el rojo es correcto. Solo dice la causa, para que quien
+ * mira sepa qué arreglar.
+ */
+export function causaMetaImposible(
+  quien: "operativas" | "lideres",
+  meta: number,
+  equipo: number,
+): { resumen: string; detalle: string } | null {
+  if (meta <= 0 || equipo >= meta) return null;
+  if (equipo === 0) {
+    return quien === "operativas"
+      ? {
+          resumen: "nadie del equipo es de un área operativa",
+          detalle: "Nadie del equipo es de un área operativa. Si esta sede no las necesita, pon la meta en 0 en Turnos.",
+        }
+      : {
+          resumen: "nadie del equipo cuenta como líder",
+          detalle: "Nadie del equipo cuenta como líder. Si esta sede no lo necesita, pon la meta en 0 en Turnos.",
+        };
+  }
+  const detalle = equipo === 1
+    ? `La meta (${meta}) es mayor que la única persona del equipo que cuenta: aunque venga, no se cumple.`
+    : `La meta (${meta}) es mayor que las ${equipo} personas del equipo que cuentan: aunque vengan todas, no se cumple.`;
+  return { resumen: "la meta es mayor que el equipo", detalle };
 }
 
 // "2 operativas y 1 encargada": lo que le falta a una sede para su meta de

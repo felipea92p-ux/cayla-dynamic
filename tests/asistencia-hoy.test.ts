@@ -15,6 +15,7 @@ import { describe, expect, it } from "vitest";
 import { ESTADOS_JORNADA } from "@cayla-dynamic/shared";
 import {
   calcularCoberturaSede,
+  causaMetaImposible,
   desdeLaHora,
   enPausaAhora,
   faltanTexto,
@@ -507,5 +508,70 @@ describe("porPausaMasLarga — a quién mirar primero", () => {
     expect(orden[0]).toEqual(p(T.almuerzo));
     expect(orden[1]).toEqual(p(T.retorno));
     expect(orden.slice(2)).toEqual([sinDato, {}]);
+  });
+});
+
+// ----------------------------------------------------------------------------
+// Central (2026-09-18): solo administración. Nadie de un área operativa, nadie
+// marcado como líder de piso —Felipe es admin, y la marca `es_encargada_piso`
+// que haría contar a un admin no tiene ninguna pantalla para ponerla— y aun así
+// la sede tenía una meta de 1 líder en piso. Resultado: «Cobertura insuficiente
+// · Falta 1» todos los días, sin nada que nadie pudiera hacer para apagarla.
+// ----------------------------------------------------------------------------
+describe("el equipo que PODRÍA cubrir cada meta", () => {
+  it("cuenta a quien es operativa o líder aunque hoy no esté", () => {
+    const equipo = [
+      fila({ personaId: "a", esOperativa: true, estado: "abierta", entrada: "x" }),
+      fila({ personaId: "b", esOperativa: true }),                        // no ha llegado
+      fila({ personaId: "c", esOperativa: false, esEncargada: true }),   // líder, hoy sin marcar
+      fila({ personaId: "d", esOperativa: false, estado: "cerrada", entrada: "x", salidaFinal: "y" }),
+    ];
+    const cob = calcularCoberturaSede(equipo, META_0, false, 10);
+    expect(cob.equipoOperativas).toBe(2);
+    expect(cob.equipoLideres).toBe(1);
+  });
+
+  it("Central: dos administradores trabajando, ninguno operativo ni líder, meta de 1 líder", () => {
+    const equipo = [
+      fila({ personaId: "a", esOperativa: false, esEncargada: false, estado: "abierta", entrada: "x" }),
+      fila({ personaId: "b", esOperativa: false, esEncargada: false, estado: "abierta", entrada: "x", entradaEsperadaHoy: null }),
+    ];
+    const cob = calcularCoberturaSede(equipo, { man: 0, tar: 0, enc: 1 }, false, 13);
+    expect(cob.trabajando).toHaveLength(2);
+    expect(cob.equipoOperativas).toBe(0);
+    expect(cob.equipoLideres).toBe(0);
+    // El rojo se queda: la falta es cierta según la meta. Lo que cambia es que
+    // ahora se sabe POR QUÉ (ver causaMetaImposible), no que se calle.
+    expect(cob.faltanEnc).toBe(true);
+    expect(cob.problema).toBe(true);
+  });
+});
+
+describe("causaMetaImposible — por qué una meta no se cumple aunque vengan todos", () => {
+  it("sin meta, o con equipo de sobra: no hay nada que explicar", () => {
+    expect(causaMetaImposible("lideres", 0, 0)).toBeNull();
+    expect(causaMetaImposible("operativas", 3, 3)).toBeNull();
+    expect(causaMetaImposible("operativas", 3, 8)).toBeNull();
+  });
+
+  it("Central: meta de 1 líder y nadie del equipo cuenta como líder", () => {
+    const c = causaMetaImposible("lideres", 1, 0)!;
+    expect(c.resumen).toBe("nadie del equipo cuenta como líder");
+    expect(c.detalle).toBe("Nadie del equipo cuenta como líder. Si esta sede no lo necesita, pon la meta en 0 en Turnos.");
+  });
+
+  it("meta de operativas y nadie del equipo es de un área operativa", () => {
+    expect(causaMetaImposible("operativas", 2, 0)!.resumen).toBe("nadie del equipo es de un área operativa");
+  });
+
+  it("LIM: meta de 4 operativas con solo 2 personas que cuentan", () => {
+    const c = causaMetaImposible("operativas", 4, 2)!;
+    expect(c.resumen).toBe("la meta es mayor que el equipo");
+    expect(c.detalle).toBe("La meta (4) es mayor que las 2 personas del equipo que cuentan: aunque vengan todas, no se cumple.");
+  });
+
+  it("una sola persona que cuenta, concordancia en singular", () => {
+    expect(causaMetaImposible("operativas", 2, 1)!.detalle)
+      .toBe("La meta (2) es mayor que la única persona del equipo que cuenta: aunque venga, no se cumple.");
   });
 });
