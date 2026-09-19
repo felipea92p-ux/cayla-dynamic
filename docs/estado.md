@@ -6,6 +6,52 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-09-18 — Dashboard: la meta ya no se mide con la sede cerrada, y el «0 en piso» dice por qué · SIN MIGRACIÓN · SIN FUSIONAR
+
+**Sin SQL: no hay nada que pegar.** Cambia `asistencia-hoy.ts`, la pantalla del
+Dashboard y sus pruebas (95 en `asistencia-hoy.test.ts`; 880 en total). Verificado
+con pruebas y typecheck; **no se vio en pantalla** — el panel no levanta sin
+`.env.local` y el Postgres local estaba colgado.
+
+**El error.** Una captura tras el cierre de TRU decía «Cobertura insuficiente ·
+Faltan 8 · Faltan 2» con sus doce personas ya idas (la última a las 20:23; una
+descansaba y otra no tenía horario). La meta «de la tarde» corría de 14:15 a
+medianoche, sin fin: el Dashboard no sabía cuándo cierra una tienda, y Turnos sí
+(«no se pinta rojo antes de abrir ni después de cerrar»). Dos pantallas, dos
+reglas. Se confirmó contra producción con una consulta de solo lectura, no por
+suposición: a la hora de la captura AQP seguía abierta (salidas 21:53 y 22:16).
+
+**Lo que cambió** (decidido con quien administra, 2026-09-18):
+- `fueraDeHorarioDeHoy`: la sede pasa a gris «Fuera de horario» y `faltanOp`,
+  `faltanEnc` y `problema` salen en falso —así se apagan a la vez la tarjeta, el
+  orden, «Requiere atención» y «Sedes bajo la meta»— **solo si ya no queda nadie
+  en piso ni en pausa** y ya pasó la última salida programada de hoy (o aún no
+  llega la primera entrada). El horario sale de los turnos y horarios de HOY, no
+  de una hora de cierre escrita a mano. Cada duda cae hacia el rojo: sin hora de
+  salida de alguien, sin nadie programado o con un turno que cruza medianoche, no
+  declara nada. Pasada la primera entrada con nadie en piso SIGUE rojo (les
+  tocaba y no llegaron).
+- `desgloseProgramadas`: con 0 en piso, la tarjeta dice «Según el horario de
+  hoy: 6 ya salieron · 3 aún no llegan · 1 no llegó y ya le tocaba». Reparte a
+  todas las programadas; una prueba recorre cada estado de jornada para que
+  ninguna quede sin contar.
+- La líder de una tienda cuenta en las dos metas (operativas y líderes), así que
+  «2/2 + 1/1» pueden ser solo 2 personas: la pantalla lo dice.
+
+**Conocido y aceptado:** entre la última salida programada y la salida real del
+último, la tarjeta sigue midiendo (TRU: 20:15→20:23). Es lo que pidió la regla
+«solo si ya no queda nadie».
+
+**Pendiente, y no es de código** (datos reales, 2026-09-18 23:45):
+- **LIM tiene meta de 4 operativas y solo 3 personas activas** (2 operativas + 1 RxH
+  de estrategia comercial): imposible aunque vinieran todas. ¿Meta mal cargada o
+  faltan integrantes? Se corrige en Turnos.
+- **CCO tiene meta de 1 líder y nadie que cuente como líder:** rojo todo el día
+  hasta que se ponga en 0 en Turnos.
+- **Una integrante de TRU trabajó hoy sin horario vigente** (ni turno): nada la
+  mide —ni tardanza ni falta— y el Dashboard dice «les tocaba a 10 de 12» cuando
+  trabajaron 11.
+
 ## 2026-09-16 — El bono de cumpleaños se pide desde Info y DO confirma la transferencia (0478) · pegada en producción · fusionada (#424)
 
 **Pegada el 2026-09-16, con la 0477 ya en producción.** Antes de pegar se

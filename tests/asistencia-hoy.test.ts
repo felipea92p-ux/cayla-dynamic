@@ -21,6 +21,7 @@ import {
   faltanTexto,
   fechaConDia,
   fechaCorta,
+  fueraDeHorarioDeHoy,
   horaCortaLima,
   loQueFalta,
   minutosDesde,
@@ -29,7 +30,10 @@ import {
   porPausaMasLarga,
   sinMarcarYaLeTocaba,
   subEstadoSinMarcar,
+  textoDesglose,
   textoEquipoDelDia,
+  textoFueraDeHorario,
+  textoLiderEnLasDosMetas,
   textoPausa,
   textoPausaDesde,
   textoSinMarcar,
@@ -573,5 +577,205 @@ describe("causaMetaImposible — por qué una meta no se cumple aunque vengan to
   it("una sola persona que cuenta, concordancia en singular", () => {
     expect(causaMetaImposible("operativas", 2, 1)!.detalle)
       .toBe("La meta (2) es mayor que la única persona del equipo que cuenta: aunque venga, no se cumple.");
+  });
+});
+
+// ----------------------------------------------------------------------------
+// El error de la captura de 2026-09-18, entre el cierre de TRU y el de AQP:
+// «TRU — Cobertura insuficiente · Faltan 8 · Faltan 2», con sus doce personas
+// ya idas (la última salió a las 20:23), una descansando y otra sin horario.
+// La meta «de la tarde» corría de 14:15 a medianoche: el Dashboard no sabía
+// cuándo cierra una tienda. Los números de estas pruebas salen de la base real.
+// ----------------------------------------------------------------------------
+describe("fueraDeHorarioDeHoy — la meta no se mide fuera del horario de la sede", () => {
+  // Lo que ya salió: cerró su jornada y su horario de hoy terminaba a `salida`.
+  const yaSalio = (id: string, salida = "20:15", o: Partial<FilaPersona> = {}) =>
+    fila({ personaId: id, estado: "cerrada", entrada: "x", salidaFinal: "y", entradaEsperadaHoy: "07:45", salidaEsperadaHoy: salida, ...o });
+
+  // TRU del viernes 2026-09-18: 10 programadas (todas ya salieron), Danitza descansa
+  // (su día 5 no está en sus días) y María trabajó sin ningún horario vigente.
+  const truTrasElCierre = () => [
+    ...["a", "b", "c", "d", "e", "f", "g"].map((id) => yaSalio(id)),
+    yaSalio("h", "19:45"), yaSalio("i", "19:45"), yaSalio("j", "13:45"),
+    fila({ personaId: "k", entradaEsperadaHoy: null, origenEsperadoHoy: "horario" }), // descansa
+    fila({ personaId: "l", estado: "cerrada", entrada: "x", salidaFinal: "y", entradaEsperadaHoy: null, origenEsperadoHoy: "sin_horario" }),
+  ];
+  const META_TRU = { man: 7, tar: 8, enc: 2 };
+
+  it("TRU a las 21:00, ya sin nadie: no faltan 8 — está fuera de horario", () => {
+    const cob = calcularCoberturaSede(truTrasElCierre(), META_TRU, true, 21);
+    expect(cob.programadosHoy).toBe(10);
+    expect(cob.fueraDeHorario).toEqual({ cuando: "despues", hora: "20:15" });
+    expect(cob.faltanOp).toBe(false);
+    expect(cob.faltanEnc).toBe(false);
+    expect(cob.problema).toBe(false);
+    expect(loQueFalta(cob)).toBe("");
+  });
+
+  it("TRU a las 15:00, misma gente ya idas, sigue siendo rojo: todavía es horario de tienda", () => {
+    const cob = calcularCoberturaSede(truTrasElCierre(), META_TRU, true, 15);
+    expect(cob.fueraDeHorario).toBeNull();
+    expect(cob.problema).toBe(true);
+    expect(loQueFalta(cob)).toBe("8 operativas y 2 líderes");
+  });
+
+  it("queda alguien en piso pasada la última salida: se sigue midiendo (solo si ya no queda nadie)", () => {
+    const equipo = [...truTrasElCierre(), fila({ personaId: "z", estado: "abierta", entrada: "x", salidaEsperadaHoy: "20:15" })];
+    const cob = calcularCoberturaSede(equipo, META_TRU, true, 20.2);
+    expect(cob.fueraDeHorario).toBeNull();
+    expect(cob.problema).toBe(true);
+  });
+
+  it("quien está en pausa también cuenta como «queda alguien»", () => {
+    const equipo = [...truTrasElCierre(), fila({ personaId: "z", estado: "en_pausa", entrada: "x", salidaEsperadaHoy: "20:15" })];
+    expect(calcularCoberturaSede(equipo, META_TRU, true, 21).fueraDeHorario).toBeNull();
+  });
+
+  it("antes de abrir: a las 6:30 con la primera entrada a las 7:45, no faltan las ocho", () => {
+    const equipo = ["a", "b", "c"].map((id) => fila({ personaId: id, entradaEsperadaHoy: "07:45", salidaEsperadaHoy: "20:15" }));
+    const cob = calcularCoberturaSede(equipo, META_TRU, false, 6.5);
+    expect(cob.fueraDeHorario).toEqual({ cuando: "antes", hora: "07:45" });
+    expect(cob.problema).toBe(false);
+  });
+
+  it("pasada la primera entrada con nadie en piso SIGUE siendo rojo: les tocaba y no llegaron", () => {
+    // La otra cara: apagar el rojo aquí escondería una sede entera que no abrió.
+    const equipo = ["a", "b", "c"].map((id) => fila({ personaId: id, entradaEsperadaHoy: "07:45", salidaEsperadaHoy: "20:15" }));
+    const cob = calcularCoberturaSede(equipo, META_TRU, false, 9);
+    expect(cob.fueraDeHorario).toBeNull();
+    expect(cob.problema).toBe(true);
+  });
+
+  it("si a alguien le falta la hora de salida, no se sabe cuándo termina el día: no lo da por cerrado", () => {
+    const equipo = [yaSalio("a"), yaSalio("b", "20:15", { salidaEsperadaHoy: null })];
+    expect(calcularCoberturaSede(equipo, META_TRU, true, 21).fueraDeHorario).toBeNull();
+    // Y sin el campo en absoluto (una fila armada por una pantalla que no lo manda), igual.
+    const sinCampo = fila({ estado: "cerrada", entrada: "x", salidaFinal: "y", entradaEsperadaHoy: "07:45" });
+    expect(calcularCoberturaSede([sinCampo], META_TRU, true, 21).fueraDeHorario).toBeNull();
+  });
+
+  it("a nadie le tocaba hoy: no hay horario contra qué medir, sigue como estaba", () => {
+    const equipo = [fila({ personaId: "a", entradaEsperadaHoy: null, origenEsperadoHoy: "horario" })];
+    const cob = calcularCoberturaSede(equipo, META_TRU, true, 21);
+    expect(cob.fueraDeHorario).toBeNull();
+    expect(cob.problema).toBe(true);
+  });
+
+  it("un turno que cruza medianoche no se da por cerrado a las 22:00", () => {
+    // Entra a las 21:00 y sale a las 05:00: a las 22:00 sin haber llegado, es falta.
+    const equipo = [fila({ personaId: "a", entradaEsperadaHoy: "21:00", salidaEsperadaHoy: "05:00" })];
+    expect(calcularCoberturaSede(equipo, META_TRU, true, 22).fueraDeHorario).toBeNull();
+  });
+
+  it("quien está de vacaciones no fija el horario de la sede", () => {
+    const equipo = [
+      ...truTrasElCierre(),
+      fila({ personaId: "v", entradaEsperadaHoy: "10:00", salidaEsperadaHoy: "23:00", ausenciaHoy: { nombre: "Vacaciones", pendiente: false } }),
+    ];
+    expect(calcularCoberturaSede(equipo, META_TRU, true, 21).fueraDeHorario).toEqual({ cuando: "despues", hora: "20:15" });
+  });
+
+  it("es una función pura del horario: sin gente programada no dice nada", () => {
+    expect(fueraDeHorarioDeHoy([], false, 21)).toBeNull();
+  });
+});
+
+describe("desgloseProgramadas — dónde está cada quien a quien le tocaba hoy", () => {
+  it("reparte a todas las programadas, sin sobrar ni faltar", () => {
+    const equipo = [
+      fila({ personaId: "a", estado: "abierta", entrada: "x" }),
+      fila({ personaId: "b", estado: "en_pausa", entrada: "x" }),
+      fila({ personaId: "c", estado: "cerrada", entrada: "x", salidaFinal: "y" }),
+      fila({ personaId: "d", estado: "cerrada", entrada: "x", salidaFinal: "y" }),
+      fila({ personaId: "e", estado: "revisada", entrada: "x", salidaFinal: "y" }),
+      fila({ personaId: "f", estado: "auto_cerrada_pendiente", entrada: "x" }),
+      fila({ personaId: "g", entradaEsperadaHoy: "15:00" }),           // sin marcar, todavía no es su hora
+      fila({ personaId: "h", entradaEsperadaHoy: "08:00" }),           // sin marcar, ya le tocaba
+      fila({ personaId: "i", entradaEsperadaHoy: null, origenEsperadoHoy: "turno" }),   // descansa: no entra
+      fila({ personaId: "j", ausenciaHoy: { nombre: "Vacaciones", pendiente: false } }), // ausente: no entra
+    ];
+    const cob = calcularCoberturaSede(equipo, META_0, false, 13);
+    expect(cob.desgloseProgramadas).toEqual({ enPiso: 1, enPausa: 1, yaSalieron: 4, aunNoLlegan: 1, noLlegaron: 1 });
+    const d = cob.desgloseProgramadas;
+    expect(d.enPiso + d.enPausa + d.yaSalieron + d.aunNoLlegan + d.noLlegaron).toBe(cob.programadosHoy);
+  });
+
+  it("cualquier estado posible de la jornada cae en exactamente un grupo", () => {
+    // Si mañana la base agrega un estado, esta prueba dice dónde cae en vez de
+    // dejar a una persona sin contar.
+    for (const estado of [...ESTADOS_JORNADA, "sin_marcar"]) {
+      const cob = calcularCoberturaSede([fila({ estado })], META_0, false, 13);
+      const d = cob.desgloseProgramadas;
+      expect(d.enPiso + d.enPausa + d.yaSalieron + d.aunNoLlegan + d.noLlegaron, estado).toBe(1);
+    }
+  });
+
+  it("TRU tras el cierre: las diez programadas ya salieron", () => {
+    const equipo = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"].map((id) =>
+      fila({ personaId: id, estado: "cerrada", entrada: "x", salidaFinal: "y" }),
+    );
+    expect(calcularCoberturaSede(equipo, META_0, false, 21).desgloseProgramadas).toEqual({
+      enPiso: 0, enPausa: 0, yaSalieron: 10, aunNoLlegan: 0, noLlegaron: 0,
+    });
+  });
+});
+
+describe("textoDesglose — lo que sigue a «Nadie está trabajando en este momento»", () => {
+  const cero = { enPiso: 0, enPausa: 0, yaSalieron: 0, aunNoLlegan: 0, noLlegaron: 0 };
+
+  it("nombra solo lo que existe, con concordancia", () => {
+    expect(textoDesglose({ ...cero, yaSalieron: 10 })).toBe("Según el horario de hoy: 10 ya salieron.");
+    expect(textoDesglose({ ...cero, yaSalieron: 6, aunNoLlegan: 3, noLlegaron: 1 }))
+      .toBe("Según el horario de hoy: 6 ya salieron · 3 aún no llegan · 1 no llegó y ya le tocaba.");
+    expect(textoDesglose({ ...cero, yaSalieron: 1, aunNoLlegan: 1, noLlegaron: 2 }))
+      .toBe("Según el horario de hoy: 1 ya salió · 1 aún no llega · 2 no llegaron y ya les tocaba.");
+  });
+
+  it("dice a quien está en pausa, para que la suma cuadre con el total de programadas", () => {
+    expect(textoDesglose({ ...cero, enPausa: 2, yaSalieron: 1 })).toBe("Según el horario de hoy: 2 en pausa · 1 ya salió.");
+  });
+
+  it("si a nadie le tocaba hoy no hay nada que desglosar", () => {
+    expect(textoDesglose(cero)).toBeNull();
+  });
+});
+
+describe("textoFueraDeHorario — por qué la meta no se mide", () => {
+  it("después de la última salida", () => {
+    expect(textoFueraDeHorario({ cuando: "despues", hora: "20:15" }, "8:15 p. m."))
+      .toBe("Ya pasó la última salida programada de hoy (8:15 p. m.) y nadie sigue en piso: la meta no se mide.");
+  });
+  it("antes de la primera entrada", () => {
+    expect(textoFueraDeHorario({ cuando: "antes", hora: "07:45" }, "7:45 a. m."))
+      .toBe("Todavía no llega la primera entrada programada de hoy (7:45 a. m.): la meta no se mide.");
+  });
+});
+
+describe("la líder que cuenta en las dos metas (AQP, 2026-09-18)", () => {
+  // «2 trabajando ahora» pero «2/2 operativas» + «1/1 líderes»: la líder de la
+  // tienda es de un área operativa Y líder, y se cuenta en ambos recuadros.
+  const aqp = [
+    fila({ personaId: "sandra", estado: "abierta", entrada: "x", esOperativa: true, esEncargada: true }),
+    fila({ personaId: "mateo", estado: "abierta", entrada: "x", esOperativa: true, esEncargada: false }),
+  ];
+
+  it("dos personas en piso llenan una meta de 2 operativas y 1 líder", () => {
+    const cob = calcularCoberturaSede(aqp, { man: 2, tar: 2, enc: 1 }, true, 18);
+    expect(cob.trabajando).toHaveLength(2);
+    expect(cob.opPiso).toBe(2);
+    expect(cob.encPiso).toBe(1);
+    expect(cob.problema).toBe(false);
+    expect(cob.lideresEnAmbasMetas).toBe(1);
+  });
+
+  it("solo cuenta a quien está en piso AHORA, no a toda el equipo", () => {
+    const equipo = [{ ...aqp[0], estado: "cerrada" }, aqp[1]];
+    expect(calcularCoberturaSede(equipo, META_0, true, 18).lideresEnAmbasMetas).toBe(0);
+  });
+
+  it("el aviso concuerda y calla cuando no aplica", () => {
+    expect(textoLiderEnLasDosMetas(1)).toBe("1 líder de equipo cuenta en las dos metas: operativas y líderes.");
+    expect(textoLiderEnLasDosMetas(2)).toBe("2 líderes de equipo cuentan en las dos metas: operativas y líderes.");
+    expect(textoLiderEnLasDosMetas(0)).toBeNull();
   });
 });
