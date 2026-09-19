@@ -339,7 +339,8 @@ with repo(numero, nombre, nunca) as (values
     (475, 'liquidaciones_pendientes_deja_de_calcular_dos_veces', false),
     (476, 'el_cuspp_deja_de_frenar_el_cierre_de_planilla', false),
     (477, 'el_bono_de_cumpleanos_se_firma_desde_el_sistema', false),
-    (478, 'el_bono_de_cumpleanos_se_pide_y_do_confirma_la_transferencia', false)
+    (478, 'el_bono_de_cumpleanos_se_pide_y_do_confirma_la_transferencia', false),
+    (480, 'las_novedades_del_sistema_se_marcan_como_vistas', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
