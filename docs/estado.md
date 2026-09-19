@@ -6,6 +6,79 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-09-19 — El bono de cumpleaños firmado entra a la boleta (0479) · ESCRITA, NO AUDITADA · NO PEGADA · SIN FUSIONAR
+
+**Nada de esto está en producción.** La migración y el frontend están escritos y
+verificados solo hasta donde se pudo sin base: typecheck, 883 pruebas de vitest y
+análisis sintáctico del SQL con el parser de Postgres (`pglast`, incluido el
+cuerpo PL/pgSQL). **La auditoría contra Postgres local NO se hizo: Docker Desktop
+estaba colgado** (`docker info` no respondía; 500 sin parar), así que ni el SQL
+se ejecutó ni la prueba pgTAP 378 se corrió. Por la regla de la casa, esto está
+«escrito», no «listo».
+
+Felipe pidió que Melany pudiera firmar su cargo de cumpleaños y que, al hacerlo,
+el incentivo apareciera en su boleta. **Lo primero ya existía** desde la 0477/0478
+(`/mio/cumpleanos`, «Pedir mi bono», con la firma digital); la captura era la
+pantalla del papel de DO, «Subir cargo». **Lo segundo no:** hasta la 0478 firmar
+solo creaba un pedido que DO transfería por fuera, sin tocar la planilla.
+
+**Cómo se hizo.** [0479](../supabase/migrations/0479_el_bono_de_cumpleanos_firmado_entra_a_la_boleta.sql):
+al firmar, la misma transacción crea una línea `bono` «Asignación por
+cumpleaños» en `movimientos_planilla` del último periodo que ya empezó y la ata a
+la constancia (`documentos_firmados.movimiento_id`). **No se tocó
+`fn_planilla_calcular`:** su bucket de bonos ya suma al total y la boleta ya los
+pinta. Verificado leyendo la vigente (0397): `mov.bonos` solo entra al JSON, al
+`total` y a la retención de 4.ª (0 para quien está en planilla) — **no** a AFP,
+EsSalud ni provisiones. Tampoco al 3-de-6-meses de la 0278: es de una vez al año.
+
+- Si al firmar **no hay periodo, o está pagado para su grupo**, no se escribe en
+  ninguna boleta: la firma vale igual y queda `pedido` — el camino de la 0478
+  (DO transfiere y confirma). Nunca se bloquea a la persona ni se toca lo pagado.
+- **No se paga dos veces, por esquema y no por `if`:** un bono en boleta no puede
+  tener `entrega_confirmada_*` (constraint), ni dos constancias la misma línea
+  (índice único), y `fn_confirmar_entrega_bono` lo rechaza con su motivo.
+- Si DO **quita la línea** desde Planilla, el vínculo se suelta (`on delete set
+  null`) y el bono vuelve a «pedido» y a la lista por transferir: no se pierde.
+- `fn_mi_bono_cumpleanos()` gana el estado `en_boleta` y las columnas `via` y
+  `periodo_fin` (por eso se BORRA y se recrea). Para un bono pagado con la
+  planilla la pantalla dice el periodo, no un «pagado el…» inventado.
+- El primer bloque de la migración **compara el md5 de las cuatro funciones contra
+  la 0478 en la base donde se pega** y se detiene sin aplicar nada si difiere.
+  Tolera `\r` (pegada desde Windows). Es la comprobación «md5 de producción antes
+  de escribir», ejecutada al pegar; no reemplaza pedirlo antes de entregar.
+
+**Decisión que revierte una de hace tres días, y hay que decirlo:** el 2026-09-16
+Felipe eligió que DO confirmara una transferencia aparte. Con la línea en la
+boleta el bono se paga con la planilla, y esa transferencia deja de existir salvo
+como respaldo. Si Felipe prefería lo contrario, esta migración no debe pegarse.
+
+**Antes de pegar (en este orden):**
+1. Levantar Docker y correr `npx supabase test db` — la **378** (38 aserciones,
+   incluida «ella, como ella misma, ve el bono en su boleta y el total sube
+   exactamente el monto») y, como control, la 376 y la 377 (que suponen una base
+   sin periodos). Comparar contra las mismas SIN la 0479.
+2. Audit empírico de dinero, en `begin … rollback`: `fn_planilla_calcular_persona`
+   de una persona con y sin la línea — solo pueden cambiar `bonos` y `total`. Y
+   `fn_liquidacion` de la misma persona, que no debe moverse.
+3. `donde-vive.sh` de las cuatro funciones **en el mensaje en que se entrega**.
+4. Regenerar `packages/database/src/types.ts` (se editó a mano: `movimiento_id`,
+   su relación, y las dos columnas de `fn_mi_bono_cumpleanos`).
+5. **Pegar la 0479 ANTES de fusionar** (fusionar publica). El frontend tolera la
+   base vieja (`via` y `periodo_fin` son opcionales), pero la firma no entraría a
+   la boleta hasta que se pegue.
+
+**Pendiente, y no es de código:** el código PLAME del cumpleaños (0203) sigue
+«por confirmar con el contador» (ver `movilidad-y-codigos-plame-para-el-contador.md`).
+Ahora ese S/ 180 sale en la boleta como «Asignación por cumpleaños»: el contador
+tiene que saber que es no remunerativo (art. 19 g) del D.S. 001-97-TR) y no entra
+a la base de aportes — el sistema ya lo respeta.
+
+**Límite conocido:** sin botón «ponerlo en la boleta» para DO. Un pedido que quedó
+sin línea (no había periodo al firmar) solo puede cerrarse con «Ya se lo transferí».
+`/mio/boleta` solo muestra el periodo que contiene hoy: en los días entre el 29 y la
+creación del siguiente periodo, el bono puede quedar en un periodo que ella ya no
+puede abrir — se paga igual, y DO lo ve en Planilla.
+
 ## 2026-09-18 — Dashboard: la meta ya no se mide con la sede cerrada, y el «0 en piso» dice por qué · SIN MIGRACIÓN · SIN FUSIONAR
 
 **Sin SQL: no hay nada que pegar.** Cambia `asistencia-hoy.ts`, la pantalla del

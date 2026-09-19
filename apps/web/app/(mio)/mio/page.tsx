@@ -1615,7 +1615,7 @@ export default function MioPage() {
         detalle: `${miBono?.monto != null ? `${formatSoles(miBono.monto)}. ` : ""}${
           miBono?.estado === "vencido"
             ? "Ya pasó tu cumpleaños y todavía no lo pides: aún estás a tiempo."
-            : "Es el mes de tu cumpleaños: pídelo y Desarrollo Organizacional te lo transfiere."}`,
+            : "Es el mes de tu cumpleaños: pídelo y se suma a tu boleta."}`,
         ir: () => router.push("/mio/cumpleanos"),
       });
     }
@@ -1977,16 +1977,24 @@ export default function MioPage() {
             <TarjetaClave
               titulo="Tu bono de cumpleaños"
               valor={miBono.estado === "pedido" ? "Pedido"
-                : miBono.estado === "entregado" ? "Entregado"
+                : miBono.estado === "en_boleta" ? "En tu boleta"
+                : miBono.estado === "entregado" ? (miBono.via === "boleta" ? "Pagado" : "Entregado")
                 : miBono.monto != null ? formatSoles(miBono.monto) : "Te toca"}
               pie={miBono.estado === "pedido"
                 ? `Lo pediste el ${diaYMes(miBono.pedido_el!)}. Desarrollo Organizacional te lo transfiere y aquí verás la fecha.`
-                : miBono.estado === "entregado"
-                  ? `${miBono.pedido_el ? "Transferido" : "Recibido"} el ${diaYMes(miBono.entregado_el!)}${
-                      miBono.monto != null ? `: ${formatSoles(miBono.monto)}` : ""}. ¡Feliz cumpleaños!`
-                  : miBono.estado === "vencido"
-                    ? "Ya pasó tu cumpleaños y todavía no lo pides: aún estás a tiempo."
-                    : "Es el mes de tu cumpleaños. Pídelo firmando tu constancia y Desarrollo Organizacional te lo transfiere."}
+                : miBono.estado === "en_boleta"
+                  ? `Ya está en tu boleta${miBono.periodo_fin ? ` del periodo que cierra el ${diaYMes(miBono.periodo_fin)}` : ""} y se paga junto con tu planilla.`
+                  : miBono.estado === "entregado"
+                    // Por la boleta no hay «día en que se transfirió»: la
+                    // planilla no lo guarda por persona, solo el periodo.
+                    ? miBono.via === "boleta"
+                      ? `Pagado con tu planilla${miBono.periodo_fin ? ` del periodo que cerró el ${diaYMes(miBono.periodo_fin)}` : ""}${
+                          miBono.monto != null ? `: ${formatSoles(miBono.monto)}` : ""}. ¡Feliz cumpleaños!`
+                      : `${miBono.pedido_el ? "Transferido" : "Recibido"} el ${miBono.entregado_el ? diaYMes(miBono.entregado_el) : "—"}${
+                          miBono.monto != null ? `: ${formatSoles(miBono.monto)}` : ""}. ¡Feliz cumpleaños!`
+                    : miBono.estado === "vencido"
+                      ? "Ya pasó tu cumpleaños y todavía no lo pides: aún estás a tiempo."
+                      : "Es el mes de tu cumpleaños. Pídelo firmando tu constancia y se suma a tu boleta."}
               alerta={puedePedirBono(miBono)}
               accion={
                 <Link href="/mio/cumpleanos" className="text-tinta underline underline-offset-2 hover:text-rojo-profundo">
