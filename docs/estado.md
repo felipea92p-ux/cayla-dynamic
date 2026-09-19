@@ -6,6 +6,46 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-09-19 — Anuncios cuenta qué mejora en el sistema · SIN MIGRACIÓN · SIN FUSIONAR
+
+**Sin SQL: no hay nada que pegar.** Verificado con pruebas (902; 22 nuevas en
+`novedades.test.ts` y `permisos.test.ts`), typecheck y lint limpios. **Fusionar
+esto es publicarlo** (`main` se despliega sola), y las cinco entradas iniciales
+son texto que leerá el equipo entero: conviene leerlas antes de fusionar.
+
+Felipe pidió que Anuncios «anunciara ya mensajes preestablecidos y, cada vez
+que hay una mejora o actualización, explicara qué mejoró». Se leyó como una
+sección de novedades del sistema, aparte de los comunicados de DO, y no como
+plantillas para que DO publique (esa lectura queda sin construir).
+
+- **Dónde vive:** `apps/web/lib/novedades.ts`, una lista escrita a mano dentro
+  del código, con su encabezado de qué va y qué no. La dibuja
+  `components/novedades-del-sistema.tsx` al final de `/admin/anuncios`.
+- **Por qué en el código y no en `anuncios`:** sale con el mismo despliegue que
+  la mejora que cuenta. Una fila exigiría una migración, y la migración se pega
+  antes de fusionar: el aviso saldría antes que la mejora.
+- **Quién ve qué:** `puedeVerNovedad` en `permisos.ts` (`todos` / `panel` /
+  `do`). Una integrante ve 2 de las 5; la líder de equipo y DO ven las 5 (hoy
+  ninguna es solo para DO). Es relevancia, no secreto: el texto baja al
+  navegador de todos.
+- **«Nueva»:** se calcula por fecha (14 días), sin guardar nada por persona.
+  Quien la leyó ayer la sigue viendo «Nueva» unos días. Guardarlo por persona
+  pediría una tabla y una migración para algo que ningún trámite necesita.
+- **Regla nueva en CLAUDE.md** («Novedades del sistema»): un cambio que se
+  nota lleva su entrada en el mismo PR. **Nada la obliga**; si se olvida, la
+  sección envejece y le cuenta al equipo que nada mejora.
+
+**No se vio en pantalla con la página real:** el panel no levanta sin
+`.env.local`. Se dibujó la sección sola en una ruta temporal (ya borrada) en
+claro, oscuro y a 375 px, sin desbordes. Falta ver `/admin/anuncios` completa,
+con el formulario de DO y los comunicados.
+
+**Pendiente:** «Lo mío» sigue mostrando solo comunicados sin leer; las
+novedades no llegan a quien no abre Anuncios. Traerlas exige un «visto» por
+persona (`bandeja_vistos` ya lo hace, con una migración para su `check`). Y el
+rediseño de Anuncios del prototipo del 15-sep (`docs/anuncios-prototipo-2026-09-15.html`,
+PR #401) sigue sin decidirse: si se adopta, esta sección se muda con él.
+
 ## 2026-09-18 — Dashboard: la meta ya no se mide con la sede cerrada, y el «0 en piso» dice por qué · SIN MIGRACIÓN · SIN FUSIONAR
 
 **Sin SQL: no hay nada que pegar.** Cambia `asistencia-hoy.ts`, la pantalla del

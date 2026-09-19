@@ -23,6 +23,7 @@ import { Campo, CampoSelect } from "@/components/ui/campo";
 import { AreaTexto } from "@/components/ui/area-texto";
 import { useToast } from "@/components/toast";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
+import { NovedadesDelSistema } from "@/components/novedades-del-sistema";
 import { puedeGestionarAnuncios } from "@cayla-dynamic/shared";
 
 interface Sede { id: string; codigo: string; nombre: string; }
@@ -135,7 +136,8 @@ export default function AnunciosPage() {
         <p className="mb-5 max-w-2xl text-sm text-taupe">
           Comunicados de Desarrollo Organizacional al equipo — cierre de planilla,
           feriados, política nueva. Quedan aquí para que se puedan volver a
-          encontrar, a diferencia de un chat.
+          encontrar, a diferencia de un chat. Más abajo, las novedades del
+          sistema: qué mejoró en Dynamic y por qué te sirve.
         </p>
 
         {/* Con permiso para publicar, el formulario va fijo a un lado y la
@@ -166,6 +168,7 @@ export default function AnunciosPage() {
           )}
 
           <div>
+            <h2 className="mb-3 font-serif text-xl text-tinta">Comunicados</h2>
             {cargando ? (
               <Cargando />
             ) : vigentes.length === 0 ? (
@@ -221,6 +224,13 @@ export default function AnunciosPage() {
                 </ul>
               </details>
             )}
+
+            {/* Espera a que termine la carga para que `rol` casi siempre ya
+                haya llegado: sin esperar, las novedades de panel y de DO
+                aparecerían de golpe debajo de una lista que ya se dibujó. Si
+                el rol no llega (cuenta sin ficha), se ven las de todos y nada
+                más — no depende de nada externo para mostrarse. */}
+            {!cargando && <NovedadesDelSistema rol={rol} />}
           </div>
         </div>
       </main>
