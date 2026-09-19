@@ -41,6 +41,7 @@ import { Insignia } from "@/components/ui/insignia";
 import { TablaEncabezado, Th } from "@/components/ui/tabla";
 import { cx } from "@/components/ui/cx";
 import { traerTodo } from "@/lib/admin/traer-todo";
+import { crearCargaVigente } from "@/lib/admin/carga-vigente";
 import { sinTildes } from "@/lib/sin-tildes";
 import type { HorarioTramo } from "@/lib/admin/jornada-esperada";
 import {
@@ -154,7 +155,12 @@ function IncidenciasContenido() {
     return nombreTipoAusencia.get(codigo) ?? MOTIVOS_FUERA_DE_AUSENCIAS[m] ?? m.replaceAll("_", " ");
   }, [nombreTipoAusencia]);
 
+  const cargasVigentes = useRef(crearCargaVigente());
+
   const cargarDatos = useCallback(async () => {
+    // Cada `await` deja una ventana en la que puede haber empezado otra carga
+    // más nueva; solo la última escribe (ver carga-vigente.ts).
+    const idCarga = cargasVigentes.current.empezar();
     const supabase = createAdminSupabaseClient();
     const { data: sesion } = await supabase.auth.getSession();
     if (!sesion.session) { router.replace("/admin/login"); return; }
@@ -243,6 +249,7 @@ function IncidenciasContenido() {
       supabase.from("tipos_ausencia").select("codigo, nombre"),
     ]);
 
+    if (!cargasVigentes.current.vigente(idCarga)) return; // llegó tarde: otra carga más nueva ya está en camino
     if (errData || errTardias || errSedes || errEnc || errMetas || errHorarios || errTurnos) {
       setError((errData ?? errTardias ?? errSedes ?? errEnc ?? errMetas ?? errHorarios ?? errTurnos)!.message);
       setCargando(false);

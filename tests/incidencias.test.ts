@@ -4,6 +4,7 @@ import {
   coberturaDeCarga, enFrase, CARGA_COMPLETA,
   type DatosDeteccion,
 } from "@/lib/admin/incidencias";
+import { crearCargaVigente } from "@/lib/admin/carga-vigente";
 
 // Martes 15 de setiembre de 2026, el día en que se escribió esto.
 const HOY = "2026-09-15";
@@ -329,5 +330,21 @@ describe("lo que no se pudo comprobar", () => {
     expect(enFrase(["a"])).toBe("a");
     expect(enFrase(["a", "b"])).toBe("a y b");
     expect(enFrase(["a", "b", "c"])).toBe("a, b y c");
+  });
+});
+
+describe("carga vigente", () => {
+  it("una carga lenta que termina DESPUÉS de una más nueva ya no vale", () => {
+    const c = crearCargaVigente();
+    const treintaDias = c.empezar();
+    const estaSemana = c.empezar();
+    // Termina primero la nueva, y luego la vieja llega tarde.
+    expect(c.vigente(estaSemana)).toBe(true);
+    expect(c.vigente(treintaDias)).toBe(false);
+  });
+
+  it("con una sola carga, vale", () => {
+    const c = crearCargaVigente();
+    expect(c.vigente(c.empezar())).toBe(true);
   });
 });
