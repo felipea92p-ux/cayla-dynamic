@@ -64,6 +64,10 @@ export interface FilaPersona {
   // "08:00" si el horario/turno de hoy dice que le tocaba trabajar; null si le
   // tocaba descanso o no se pudo determinar (misma cascada de jornada-esperada.ts).
   entradaEsperadaHoy: string | null;
+  // "18:00": hasta cuándo le tocaba hoy, de la MISMA cascada que la entrada. null
+  // o ausente = no se sabe cuándo termina su día, y eso NO es «ya terminó»:
+  // sin este dato la sede nunca se declara fuera de horario (ver fueraDeHorarioDeHoy).
+  salidaEsperadaHoy?: string | null;
   // Desde cuándo está en pausa (solo si `estado` es `en_pausa` y se pudo saber:
   // ver `pausaAbiertaDe`). null/ausente = no hay dato, NO «no está en pausa».
   pausa?: PausaAbierta | null;
@@ -145,7 +149,85 @@ export interface CoberturaSede {
   equipoOperativas: number;
   /** Cuántas del EQUIPO cuentan como líder en piso (rol de líder de sede o marca de piso). */
   equipoLideres: number;
+  /**
+   * Si la sede está fuera de su horario de hoy Y no queda nadie en piso: la meta
+   * no se mide y `faltanOp`/`faltanEnc`/`problema` salen en falso. null = dentro
+   * de horario, o no se puede saber. Ver `fueraDeHorarioDeHoy`.
+   */
+  fueraDeHorario: FueraDeHorario | null;
+  /** De quienes les tocaba hoy, dónde está cada quien ahora. La suma es `programadosHoy`. */
+  desgloseProgramadas: DesgloseProgramadas;
+  /**
+   * Cuántas de las personas EN PISO ahora cuentan en las dos metas a la vez: una
+   * líder de tienda es de un área operativa Y líder. Por eso «2 operativas + 1 líder»
+   * pueden ser solo 2 personas — decisión de 2026-09-18.
+   */
+  lideresEnAmbasMetas: number;
 }
+
+/** Dónde está ahora cada persona a la que le tocaba trabajar hoy. Se reparten TODAS, sin sobrar ni faltar. */
+export interface DesgloseProgramadas {
+  enPiso: number;
+  enPausa: number;
+  /** Su jornada de hoy ya cerró (`cerrada`, `revisada` o `auto_cerrada_pendiente`). */
+  yaSalieron: number;
+  /** Sin marcar, y todavía no es su hora de entrada (más el margen). */
+  aunNoLlegan: number;
+  /** Sin marcar, y su hora de entrada ya pasó. Es la única falta real de la lista. */
+  noLlegaron: number;
+}
+
+export interface FueraDeHorario {
+  /** «antes» de la primera entrada programada de hoy, o «despues» de la última salida. */
+  cuando: "antes" | "despues";
+  /** «HH:MM» del límite que se cruzó: la primera entrada o la última salida. */
+  hora: string;
+}
+
+/**
+ * ¿La sede está fuera de su horario de HOY, sin nadie en piso? Entonces «Faltan 8»
+ * no dice que falte gente: dice que ya cerró (o aún no abre).
+ *
+ * El caso que la originó (2026-09-18, tras el cierre): TRU marcó «Cobertura
+ * insuficiente · Faltan 8 · Faltan 2» con sus once personas ya idas —la última
+ * a las 20:23— y la décima descansando. La meta «de la tarde» corría de 14:15 a
+ * medianoche, sin fin: el Dashboard no sabía cuándo cierra una tienda. Turnos
+ * ya lo sabía («no se pinta rojo antes de abrir ni después de cerrar»).
+ *
+ * El horario sale de los turnos y horarios de las personas de HOY, no de una
+ * hora de cierre escrita a mano por sede: un dato más para mantener al día
+ * habría podido contradecir los turnos cargados.
+ *
+ * Solo dice «fuera de horario» cuando está segura. Cada duda cae hacia el rojo,
+ * porque callar una falta de cobertura real cuesta más que un aviso de más:
+ * · queda alguien en piso o en pausa (decisión: «solo si ya no queda nadie»);
+ * · a nadie le tocaba hoy → no hay horario contra qué medir, sigue como estaba;
+ * · a alguien le falta la hora de salida → no se sabe cuándo termina el día;
+ * · algún turno cruza medianoche → el día de la sede no acaba en su fecha.
+ */
+export function fueraDeHorarioDeHoy(
+  programadas: FilaPersona[],
+  hayAlguienEnPiso: boolean,
+  ahoraDecimal: number,
+): FueraDeHorario | null {
+  if (hayAlguienEnPiso || programadas.length === 0) return null;
+
+  const primeraEntrada = programadas
+    .map((f) => f.entradaEsperadaHoy!)
+    .reduce((a, b) => (horaDecimalDe(b) < horaDecimalDe(a) ? b : a));
+  if (ahoraDecimal < horaDecimalDe(primeraEntrada)) return { cuando: "antes", hora: primeraEntrada };
+
+  const salidas = programadas.map((f) => f.salidaEsperadaHoy ?? null);
+  if (salidas.some((s) => s === null)) return null;
+  const cruzaMedianoche = programadas.some(
+    (f, i) => horaDecimalDe(salidas[i]!) <= horaDecimalDe(f.entradaEsperadaHoy!),
+  );
+  if (cruzaMedianoche) return null;
+
+  const ultimaSalida = (salidas as string[]).reduce((a, b) => (horaDecimalDe(b) > horaDecimalDe(a) ? b : a));
+  return ahoraDecimal >= horaDecimalDe(ultimaSalida) ? { cuando: "despues", hora: ultimaSalida } : null;
+}
+
 export function calcularCoberturaSede(deSede: FilaPersona[], meta: MetaSede, tramoTarde: boolean, ahoraDecimal: number): CoberturaSede {
   const trabajando = deSede.filter((f) => trabajandoAhora(f.estado));
   const enPausa = deSede.filter((f) => enPausaAhora(f.estado));
@@ -157,14 +239,31 @@ export function calcularCoberturaSede(deSede: FilaPersona[], meta: MetaSede, tra
   const encPiso = trabajando.filter((f) => f.esEncargada).length;
   const sinMetaOp = metaOp <= 0;
   const sinMetaEnc = meta.enc <= 0;
-  const faltanOp = !sinMetaOp && opPiso < metaOp;
-  const faltanEnc = !sinMetaEnc && encPiso < meta.enc;
+  // Quienes tenían HOY un horario/turno real que decía que trabajaban — el
+  // denominador que faltaba: "de Y" antes mezclaba a todo el equipo
+  // (vacaciones, descansos, quien ya salió) con quien de verdad tenía que estar.
+  // Ver hallazgo de la auditoría, Fase 4.
+  const programadas = deSede.filter((f) => f.entradaEsperadaHoy !== null && !f.ausenciaHoy);
+  const programadosHoy = programadas.length;
+  // La meta solo se mide dentro del horario: fuera de él, «faltan» no es cierto.
+  const fueraDeHorario = fueraDeHorarioDeHoy(programadas, trabajando.length + enPausa.length > 0, ahoraDecimal);
+  const faltanOp = fueraDeHorario === null && !sinMetaOp && opPiso < metaOp;
+  const faltanEnc = fueraDeHorario === null && !sinMetaEnc && encPiso < meta.enc;
   const sinMarcarReal = deSede.filter((f) => sinMarcarYaLeTocaba(f, ahoraDecimal)).length;
-  // Cuántas de las personas asignadas a esta sede tenían HOY un horario/turno
-  // real que decía que trabajaban — el denominador que faltaba: "de Y" antes
-  // mezclaba a todo el equipo (vacaciones, descansos, quien ya salió) con
-  // quien de verdad tenía que estar. Ver hallazgo de la auditoría, Fase 4.
-  const programadosHoy = deSede.filter((f) => f.entradaEsperadaHoy !== null && !f.ausenciaHoy).length;
+
+  // Dónde está cada persona a la que le tocaba hoy. Todo lo que no es «en piso»,
+  // «en pausa» ni «sin marcar» es una jornada ya cerrada, así que el reparto
+  // cubre todos los estados posibles y la suma es siempre `programadosHoy`.
+  const desgloseProgramadas: DesgloseProgramadas = { enPiso: 0, enPausa: 0, yaSalieron: 0, aunNoLlegan: 0, noLlegaron: 0 };
+  for (const f of programadas) {
+    if (trabajandoAhora(f.estado)) desgloseProgramadas.enPiso++;
+    else if (enPausaAhora(f.estado)) desgloseProgramadas.enPausa++;
+    else if (f.estado === "sin_marcar") {
+      if (subEstadoSinMarcar(f, ahoraDecimal) === "falta_real") desgloseProgramadas.noLlegaron++;
+      else desgloseProgramadas.aunNoLlegan++;
+    } else desgloseProgramadas.yaSalieron++;
+  }
+  const lideresEnAmbasMetas = trabajando.filter((f) => f.esOperativa && f.esEncargada).length;
 
   // Alerta de sede sin actividad: a alguien ya le tocaba entrar (según su
   // horario u horario), con margen, y todavía nadie de la sede marcó nada.
@@ -190,7 +289,7 @@ export function calcularCoberturaSede(deSede: FilaPersona[], meta: MetaSede, tra
   return {
     trabajando, enPausa, opPiso, encPiso, metaOp, metaEnc: meta.enc, sinMetaOp, sinMetaEnc,
     faltanOp, faltanEnc, problema: faltanOp || faltanEnc, sinMarcarReal, programadosHoy, alertaSinEntrada,
-    equipoOperativas, equipoLideres,
+    equipoOperativas, equipoLideres, fueraDeHorario, desgloseProgramadas, lideresEnAmbasMetas,
   };
 }
 
@@ -303,6 +402,41 @@ export function textoEquipoDelDia(programadas: number, equipo: number): string {
   if (programadas <= 0) return `A ninguna de las ${equipo} personas del equipo le tocaba trabajar hoy.`;
   if (programadas >= equipo) return `Hoy les tocaba trabajar a las ${equipo} personas del equipo.`;
   return `Hoy ${programadas === 1 ? "le" : "les"} tocaba trabajar a ${programadas} de las ${equipo} personas del equipo.`;
+}
+
+/**
+ * «Según el horario de hoy: 6 ya salieron · 3 aún no llegan · 1 no llegó y ya le
+ * tocaba». Es lo que sigue a «Nadie está trabajando en este momento»: un 0 en
+ * piso es lo mismo a las 4 p. m. de un cambio de turno que tras el cierre o con
+ * una falta real, y hasta el 2026-09-18 la tarjeta los mostraba idénticos.
+ * Solo nombra lo que existe (sin «0 en pausa») y devuelve null si a nadie le tocaba.
+ */
+export function textoDesglose(d: DesgloseProgramadas): string | null {
+  const partes: string[] = [];
+  if (d.enPiso > 0) partes.push(`${d.enPiso} trabajando`);
+  if (d.enPausa > 0) partes.push(`${d.enPausa} en pausa`);
+  if (d.yaSalieron > 0) partes.push(d.yaSalieron === 1 ? "1 ya salió" : `${d.yaSalieron} ya salieron`);
+  if (d.aunNoLlegan > 0) partes.push(d.aunNoLlegan === 1 ? "1 aún no llega" : `${d.aunNoLlegan} aún no llegan`);
+  if (d.noLlegaron > 0) partes.push(d.noLlegaron === 1 ? "1 no llegó y ya le tocaba" : `${d.noLlegaron} no llegaron y ya les tocaba`);
+  return partes.length === 0 ? null : `Según el horario de hoy: ${partes.join(" · ")}.`;
+}
+
+/**
+ * Por qué la meta no se está midiendo. Recibe la hora ya formateada («8:15 p. m.»):
+ * darle formato es de la pantalla, y este módulo no depende de ella.
+ */
+export function textoFueraDeHorario(f: FueraDeHorario, horaFormateada: string): string {
+  return f.cuando === "despues"
+    ? `Ya pasó la última salida programada de hoy (${horaFormateada}) y nadie sigue en piso: la meta no se mide.`
+    : `Todavía no llega la primera entrada programada de hoy (${horaFormateada}): la meta no se mide.`;
+}
+
+/** Aviso de que los dos recuadros de cobertura pueden contar a la misma persona. */
+export function textoLiderEnLasDosMetas(n: number): string | null {
+  if (n <= 0) return null;
+  return n === 1
+    ? "1 líder de equipo cuenta en las dos metas: operativas y líderes."
+    : `${n} líderes de equipo cuentan en las dos metas: operativas y líderes.`;
 }
 
 // ============================================================================

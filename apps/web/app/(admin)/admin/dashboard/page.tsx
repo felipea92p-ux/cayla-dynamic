@@ -19,8 +19,8 @@ import { usePersonaActual } from "@/lib/admin/use-rol";
 import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
 import {
   calcularCoberturaSede, causaMetaImposible, enPausaAhora, faltanTexto, fechaConDia, fechaCorta, llegoTarde, loQueFalta,
-  minutosDesde, porPausaMasLarga, sinMarcarYaLeTocaba, subEstadoSinMarcar, textoEquipoDelDia,
-  textoPausa, textoPausaDesde, textoSinMarcar, trabajandoAhora,
+  minutosDesde, porPausaMasLarga, sinMarcarYaLeTocaba, subEstadoSinMarcar, textoDesglose, textoEquipoDelDia,
+  textoFueraDeHorario, textoLiderEnLasDosMetas, textoPausa, textoPausaDesde, textoSinMarcar, trabajandoAhora,
   type CoberturaSede, type FilaPersona, type MetaSede,
 } from "@/lib/admin/asistencia-hoy";
 import { traerPausasAbiertas } from "@/lib/admin/pausas-abiertas";
@@ -304,9 +304,14 @@ function Franja({ tono }: { tono: TonoFranja }) {
 // rojo-profundo y sobre el relleno cálido se leía café, no alerta.
 // El verde va al 8% y no al 10%: al 10% la etiqueta taupe baja a 4.44:1 en
 // modo oscuro.
-function TileCobertura({ label, n, meta, sinMeta, tramo }: { label: string; n: number; meta: number; sinMeta: boolean; tramo?: string }) {
+//
+// Fuera de horario (la sede ya cerró o aún no abre, y no queda nadie) el tile se
+// apaga a neutro y no dice «Faltan N»: la meta no se está midiendo, y un rojo ahí
+// afirmaba una falta que no existe. Ver fueraDeHorarioDeHoy.
+function TileCobertura({ label, n, meta, sinMeta, tramo, fueraDeHorario = false }: { label: string; n: number; meta: number; sinMeta: boolean; tramo?: string; fueraDeHorario?: boolean }) {
   const ok = !sinMeta && n >= meta;
-  const tono = sinMeta
+  const sinMedir = fueraDeHorario && !sinMeta && !ok;
+  const tono = sinMeta || sinMedir
     ? { caja: "border-sand bg-crema", numero: "text-taupe", texto: "text-taupe" }
     : ok
       ? { caja: "border-verde/30 bg-verde/[0.08]", numero: "text-verde", texto: "text-verde" }
@@ -321,7 +326,7 @@ function TileCobertura({ label, n, meta, sinMeta, tramo }: { label: string; n: n
         {label}{sinMeta ? " · sin meta" : tramo ? ` · meta ${tramo}` : ""}
       </div>
       {!sinMeta && (
-        <div className={`mt-1 text-sm font-semibold ${tono.texto}`}>{ok ? "Completo" : faltanTexto(meta - n)}</div>
+        <div className={`mt-1 text-sm font-semibold ${tono.texto}`}>{ok ? "Completo" : sinMedir ? "Fuera de horario" : faltanTexto(meta - n)}</div>
       )}
     </div>
   );
@@ -629,6 +634,7 @@ export default function DashboardPage() {
         estado: j?.estado ?? "sin_marcar",
         entrada: j?.entrada_ts ?? null,
         entradaEsperadaHoy: esperado.trabaja ? esperado.entrada : null,
+        salidaEsperadaHoy: esperado.trabaja ? esperado.salida : null,
         origenEsperadoHoy: esperado.origen,
         salidaFinal: j?.salida_final_ts ?? null,
         minutosTarde: j?.minutos_tarde ?? null,
@@ -1196,12 +1202,22 @@ export default function DashboardPage() {
               // «Sin cobertura que medir» y no «Sin meta configurada» cuando la sede no
               // tiene a nadie de un área operativa: lo segundo se lee como una tarea
               // pendiente, y en una sede de solo administración no hay nada que configurar.
+              // «Fuera de horario» solo si hay una meta que de otro modo se leería roja:
+              // en una sede sin meta el letrero no aporta, y cambiar de «Sin cobertura
+              // que medir» a «Fuera de horario» según la hora sería ruido. Va después
+              // de la alerta de «Sin marcajes»: si nadie marcó en todo el día, cerrar la
+              // tienda no lo apaga.
+              const hayMeta = !cob.sinMetaOp || !cob.sinMetaEnc;
               const estadoSede: { tono: TonoFranja; texto: string } =
                 cob.problema || cob.alertaSinEntrada
                   ? { tono: "alerta", texto: cob.problema ? "Cobertura insuficiente" : "Sin marcajes" }
-                  : cob.sinMetaOp && cob.sinMetaEnc
-                    ? { tono: "neutral", texto: cob.equipoOperativas === 0 ? "Sin cobertura que medir" : "Sin meta configurada" }
-                    : { tono: "positivo", texto: "Cobertura correcta" };
+                  : cob.fueraDeHorario && hayMeta
+                    ? { tono: "neutral", texto: "Fuera de horario" }
+                    : cob.sinMetaOp && cob.sinMetaEnc
+                      ? { tono: "neutral", texto: cob.equipoOperativas === 0 ? "Sin cobertura que medir" : "Sin meta configurada" }
+                      : { tono: "positivo", texto: "Cobertura correcta" };
+              const fueraDeHorarioVisible = cob.fueraDeHorario !== null && hayMeta;
+              const aviso = { lider: textoLiderEnLasDosMetas(cob.lideresEnAmbasMetas), desglose: textoDesglose(cob.desgloseProgramadas) };
               const mostrarTileOperativas = !(cob.equipoOperativas === 0 && cob.sinMetaOp);
               const mostrarTileLideres = !(cob.equipoLideres === 0 && cob.sinMetaEnc);
               const causasMeta = [
@@ -1258,12 +1274,24 @@ export default function DashboardPage() {
                   {(mostrarTileOperativas || mostrarTileLideres) && (
                     <div className={`mb-4 grid gap-3 sm:max-w-md ${mostrarTileOperativas && mostrarTileLideres ? "grid-cols-2" : "grid-cols-1 sm:max-w-[13.5rem]"}`}>
                       {mostrarTileOperativas && (
-                        <TileCobertura label="Operativas en piso" n={cob.opPiso} meta={cob.metaOp} sinMeta={cob.sinMetaOp} tramo={tramoLabel} />
+                        <TileCobertura label="Operativas en piso" n={cob.opPiso} meta={cob.metaOp} sinMeta={cob.sinMetaOp} tramo={tramoLabel} fueraDeHorario={fueraDeHorarioVisible} />
                       )}
                       {mostrarTileLideres && (
-                        <TileCobertura label="Líderes en piso" n={cob.encPiso} meta={cob.metaEnc} sinMeta={cob.sinMetaEnc} />
+                        <TileCobertura label="Líderes en piso" n={cob.encPiso} meta={cob.metaEnc} sinMeta={cob.sinMetaEnc} fueraDeHorario={fueraDeHorarioVisible} />
                       )}
                     </div>
+                  )}
+                  {/* Por qué los recuadros están apagados: sin esto, un gris sin
+                      explicación se lee como un dato que falta. */}
+                  {fueraDeHorarioVisible && cob.fueraDeHorario && (
+                    <p className="mb-4 text-xs text-taupe">
+                      {textoFueraDeHorario(cob.fueraDeHorario, horaAmPmDe(cob.fueraDeHorario.hora))}
+                    </p>
+                  )}
+                  {/* Una líder de tienda es de un área operativa Y líder: los dos
+                      recuadros pueden sumar más que la gente que hay en piso. */}
+                  {aviso.lider && mostrarTileOperativas && mostrarTileLideres && (
+                    <p className="mb-4 text-xs text-taupe">{aviso.lider}</p>
                   )}
                   {/* Por qué una meta no se puede cumplir por más gente que venga:
                       no cambia el color —ver causaMetaImposible— pero dice qué arreglar. */}
@@ -1288,7 +1316,12 @@ export default function DashboardPage() {
                     <div className={`etiqueta ${cob.trabajando.length > 0 ? "text-verde" : "text-taupe"}`}>Trabajando ahora · {cob.trabajando.length}</div>
                     <div className="mt-2 flex flex-wrap gap-2">
                       {cob.trabajando.length === 0 ? (
-                        <span className="text-sm text-taupe">Nadie está trabajando en este momento.</span>
+                        <div className="text-sm text-taupe">
+                          <span>Nadie está trabajando en este momento.</span>
+                          {/* Un 0 en piso es igual de 0 en un cambio de turno, tras el
+                              cierre o con una falta real: esto dice cuál de los tres. */}
+                          {aviso.desglose && <span className="mt-1 block text-xs">{aviso.desglose}</span>}
+                        </div>
                       ) : (
                         // Pastillas en papel sobre el verde, como antes.
                         cob.trabajando.map((f) => (
