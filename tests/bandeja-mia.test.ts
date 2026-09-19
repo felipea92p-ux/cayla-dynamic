@@ -34,7 +34,7 @@
 // ============================================================================
 import { describe, expect, it } from "vitest";
 import {
-  armarBandeja, DIAS_NOVEDAD, type FilaEducacionEntrega, type FilaEducacionSituacion,
+  armarBandeja, DIAS_NOVEDAD, type FilaBoletaBandeja, type FilaEducacionEntrega, type FilaEducacionSituacion,
 } from "@/lib/bandeja-mia";
 import { mostrarBonoEnInfo, puedePedirBono, type MiBono } from "@/lib/mi-bono";
 
@@ -752,5 +752,95 @@ describe("mostrarBonoEnInfo", () => {
     for (const e of ["pedido", "en_boleta", "entregado", "proximo", "sin_fecha", "no_aplica"] as const) {
       expect(puedePedirBono(b(e))).toBe(false);
     }
+  });
+});
+
+// ── Su boleta oficial (0482) ────────────────────────────────────────────────
+// Publicada y sin abrir es un PENDIENTE: depende de ella y no caduca. Deja de
+// contar cuando `vista_at` se escribe —el hecho ya está en la base, como la
+// firma de un contrato—, no a los DIAS_NOVEDAD ni cuando la «marca como vista»
+// la pantalla: por eso `marcarVistoComo` es null. Lo que se defiende:
+//   · sin abrir cuenta; abierta, en papel o sin publicar, no;
+//   · a los tres meses sin abrir SIGUE contando (la boleta que más hay que
+//     seguir avisando es la que lleva tiempo sin abrirse);
+//   · el mes del título sale de `fecha_fin` (el periodo del 29 al 28 se llama
+//     por el mes en que termina) y el enlace lleva a la sección Boletas.
+describe("armarBandeja · boleta oficial (0482)", () => {
+  const boleta = (x: Partial<FilaBoletaBandeja>): FilaBoletaBandeja => ({
+    boleta_id: "b1", fecha_fin: "2026-08-28", estado: "publicada",
+    vista_at: null, publicada_at: enLima("2026-09-05"), ...x,
+  });
+
+  it("publicada y sin abrir es un pendiente que cuenta, con su mes y su enlace", () => {
+    const b = armarBandeja({ ...VACIO, boletas: [boleta({})] }, HOY);
+    expect(b.pendientes).toHaveLength(1);
+    const m = b.pendientes[0];
+    expect(m.origen).toBe("boleta");
+    expect(m.estado).toBe("por_ver");
+    expect(m.titulo).toBe("Tu boleta de agosto ya está disponible");
+    expect(m.ir).toBe("/mio?tab=boletas");
+    expect(m.nuevo).toBe(true);
+    expect(m.marcarVistoComo).toBeNull();
+    expect(b.avisos).toBe(1);
+  });
+
+  it("el mes es el de fecha_fin: el periodo que termina en setiembre se llama septiembre", () => {
+    const b = armarBandeja({ ...VACIO, boletas: [boleta({ fecha_fin: "2026-09-28" })] }, HOY);
+    expect(b.pendientes[0].titulo).toBe("Tu boleta de septiembre ya está disponible");
+  });
+
+  it("abierta (vista_at escrito) deja de contar", () => {
+    const b = armarBandeja({ ...VACIO, boletas: [boleta({ vista_at: enLima("2026-09-06") })] }, HOY);
+    expect(b.pendientes).toHaveLength(0);
+    expect(b.avisos).toBe(0);
+  });
+
+  it("sin publicar (estado null) o entregada en papel no le piden nada", () => {
+    const b = armarBandeja({
+      ...VACIO,
+      boletas: [boleta({ estado: null, boleta_id: null, publicada_at: null }), boleta({ boleta_id: "b2", estado: "papel" })],
+    }, HOY);
+    expect(b.pendientes).toHaveLength(0);
+    expect(b.avisos).toBe(0);
+  });
+
+  it("no caduca: a los tres meses sin abrir sigue contando", () => {
+    const b = armarBandeja({
+      ...VACIO,
+      boletas: [boleta({ publicada_at: enLima("2026-06-05") })],
+    }, HOY);
+    expect(b.pendientes).toHaveLength(1);
+    expect(b.avisos).toBe(1);
+  });
+
+  it("dos boletas sin abrir son dos avisos, la más vieja arriba", () => {
+    const b = armarBandeja({
+      ...VACIO,
+      boletas: [
+        boleta({ boleta_id: "b2", fecha_fin: "2026-08-28", publicada_at: enLima("2026-09-05") }),
+        boleta({ boleta_id: "b1", fecha_fin: "2026-07-28", publicada_at: enLima("2026-08-05") }),
+      ],
+    }, HOY);
+    expect(b.pendientes.map((m) => m.clave)).toEqual(["boleta:b1", "boleta:b2"]);
+    expect(b.avisos).toBe(2);
+  });
+
+  it("va después de lo que tiene plazo: el marcaje roto y el contrato sin firmar", () => {
+    const b = armarBandeja({
+      ...VACIO,
+      boletas: [boleta({})],
+      contrato: {
+        id: "c1", tipo: "indefinido", fecha_inicio: "2026-01-01", fecha_fin: null,
+        generado_at: enLima("2026-09-01"), firma_persona_confirmada_at: null,
+      },
+      periodo: { fecha_ini: "2026-08-29", fecha_fin: "2026-09-28" },
+      marcajes: [{ fecha: "2026-09-02", estado: "auto_cerrada_pendiente", horas_trabajadas: null }],
+    }, HOY);
+    expect(b.pendientes.map((m) => m.origen)).toEqual(["contrato", "marcaje", "boleta"]);
+  });
+
+  it("sin `boletas` no se dice nada de boletas", () => {
+    const b = armarBandeja({ ...VACIO }, HOY);
+    expect(b.pendientes.filter((m) => m.origen === "boleta")).toHaveLength(0);
   });
 });

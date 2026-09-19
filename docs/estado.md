@@ -6,6 +6,68 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-09-19 — Las boletas oficiales se suben y se publican (0482) · SQL ENTREGADO, SIN PEGAR · SIN FUSIONAR
+
+**Hay SQL: la [0482](../supabase/migrations/0482_las_boletas_oficiales_se_suben_y_se_publican.sql).
+No está pegada en producción.** La rama `claude/magical-booth-1dd79b` está en GitHub
+(sin PR abierto, así que **CI no la ha probado**); el SQL se entregó con
+`dame-el-sql.sh` (922 líneas, md5 `e88d8a15…`, comprobado por fuera contra el
+archivo). **Orden obligatorio: pegar → verificar → PR → CI verde → fusionar.**
+Fusionar es publicar, y sin la 0482 la Bandeja de TODAS las personas mostraría
+«Falta tus boletas» en rojo (`fn_mis_boletas` no existiría).
+
+Felipe pidió que DO suba las boletas de pago y que cada persona las vea y las
+descargue. **No es la boleta calculada** (`/mio/boleta`, `BoletaHoja`): es la del
+contador, en foto o PDF, de una o varias hojas. La calculada no se tocó.
+
+Decisiones de Felipe (2026-09-19): la oficial manda; DO la sube persona por persona
+y pulsa «Publicar»; aviso en la Bandeja y globito en el menú; todas las personas
+reciben boleta (practicantes incluidos); se guardan la publicación, la primera
+apertura y «Confirmar que la recibí»; tope de 500 MB por boleta y 50 MB por archivo,
+sin tope de hojas; DO trabaja desde celular y computadora.
+
+- **La forma:** archivo (inmutable) → versión (lista ordenada de hojas, solo se
+  agrega) → boleta (una por persona y periodo). `boletas`, `boletas_versiones`,
+  `boletas_partes`, `boletas_acuses`. Editar es crear la versión N+1.
+- **El acuse cuelga de la versión:** confirmar no cae sobre lo que no se vio, y la
+  constancia anterior no se borra cuando cambian el documento. **Confirmar exige
+  haberla abierto**, y lo exige la base.
+- **Si cambió el contenido de una boleta publicada, avisar es obligatorio** aunque
+  DO diga que no; solo se puede omitir cuando únicamente se reordenó. Felipe no
+  eligió entre «siempre avisar» y «casilla»: se construyó la **casilla con ese
+  guardarraíl** (era la recomendación). La base soporta las dos: cambiar es
+  pantalla.
+- **Quién ve qué archivo:** DO todo; la persona solo la versión vigente y publicada
+  de una boleta suya. Un archivo que una versión usa no se pisa ni se borra.
+- **Sin cuenta:** DO anota «entregada en papel». **No hay forma de saber cuántas
+  personas activas tienen cuenta** sin correr en producción:
+  `select count(*) filter (where auth_user_id is not null), count(*) from personas
+  where estado = 'activo' and en_planilla;` — pendiente.
+
+**Cómo se verificó, y lo que NO:**
+- Prueba pgTAP [380](../supabase/tests/380_las_boletas_oficiales_se_suben_y_se_publican.test.sql)
+  (86 aserciones): pasa, pero **contra un Postgres temporal de Homebrew con un
+  andamio mínimo de Supabase y un pgTAP de juguete, no contra la base local
+  completa** (Docker Desktop no respondía). Se sabotearon a propósito tres reglas
+  (abrir archivos ajenos, ignorar el aviso obligatorio, confirmar sobre una versión
+  vieja) y la prueba las detectó. **La señal fiable es `db-tests` en CI**: hay que
+  abrir el PR. Punto que solo Supabase real puede decir: si rechaza un `delete`
+  directo sobre `storage.objects` (la prueba no depende de eso).
+- 1 027 pruebas de vitest, typecheck y linter: verdes. **Ninguna pantalla se vio en
+  un navegador** (no hay `.env.local` ni Supabase local): el responsive, la
+  subida real, el giro y la compresión de fotos, el visor y el modal en celular
+  están comprobados solo por tipos y lectura. Hay una demo aprobada en un
+  artefacto de Claude, no en el repo.
+- No se reescribió ninguna función existente: no hay md5 de partida que medir.
+
+**Pendiente:** correr las pantallas con la base local (`.env.local` + `supabase
+start`); la novedad para el equipo ya está en `novedades.ts`; cuántos meses hacia
+atrás cargar y el plan de almacenamiento de Supabase (≈ 180 MB/año con fotos
+reducidas, techo de 500 MB por boleta). «Septiembre» (Planilla) y «setiembre» (el
+resto de `/mio`) conviven en estas pantallas: el repo ya estaba dividido.
+
+---
+
 ## 2026-09-19 — Anuncios cuenta qué mejora en el sistema, y «Lo mío» las muestra · MIGRACIÓN 0480 PEGADA Y VERIFICADA · SIN FUSIONAR
 
 **Hay SQL: la [0480](../supabase/migrations/0480_las_novedades_del_sistema_se_marcan_como_vistas.sql),

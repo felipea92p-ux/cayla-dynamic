@@ -666,6 +666,196 @@ export type Database = {
           },
         ]
       }
+      boletas: {
+        Row: {
+          anulada_at: string | null
+          anulada_motivo: string | null
+          anulada_por: string | null
+          creada_at: string
+          creada_por: string
+          estado: string
+          id: string
+          periodo_id: string
+          persona_id: string
+          publicada_at: string | null
+          publicada_por: string | null
+        }
+        Insert: {
+          anulada_at?: string | null
+          anulada_motivo?: string | null
+          anulada_por?: string | null
+          creada_at?: string
+          creada_por: string
+          estado?: string
+          id?: string
+          periodo_id: string
+          persona_id: string
+          publicada_at?: string | null
+          publicada_por?: string | null
+        }
+        Update: {
+          anulada_at?: string | null
+          anulada_motivo?: string | null
+          anulada_por?: string | null
+          creada_at?: string
+          creada_por?: string
+          estado?: string
+          id?: string
+          periodo_id?: string
+          persona_id?: string
+          publicada_at?: string | null
+          publicada_por?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "boletas_periodo_id_fkey"
+            columns: ["periodo_id"]
+            isOneToOne: false
+            referencedRelation: "periodos_planilla"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "boletas_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "boletas_creada_por_fkey"
+            columns: ["creada_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "boletas_publicada_por_fkey"
+            columns: ["publicada_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "boletas_anulada_por_fkey"
+            columns: ["anulada_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      boletas_acuses: {
+        Row: {
+          recibida_at: string | null
+          version_id: string
+          vista_at: string | null
+        }
+        Insert: {
+          recibida_at?: string | null
+          version_id: string
+          vista_at?: string | null
+        }
+        Update: {
+          recibida_at?: string | null
+          version_id?: string
+          vista_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "boletas_acuses_version_id_fkey"
+            columns: ["version_id"]
+            isOneToOne: false
+            referencedRelation: "boletas_versiones"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      boletas_partes: {
+        Row: {
+          bytes: number
+          id: string
+          mime: string
+          orden: number
+          storage_path: string
+          tipo: string
+          version_id: string
+        }
+        Insert: {
+          bytes: number
+          id?: string
+          mime: string
+          orden: number
+          storage_path: string
+          tipo: string
+          version_id: string
+        }
+        Update: {
+          bytes?: number
+          id?: string
+          mime?: string
+          orden?: number
+          storage_path?: string
+          tipo?: string
+          version_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "boletas_partes_version_id_tipo_fkey"
+            columns: ["version_id"]
+            isOneToOne: false
+            referencedRelation: "boletas_versiones"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      boletas_versiones: {
+        Row: {
+          avisar: boolean
+          boleta_id: string
+          creada_at: string
+          creada_por: string
+          id: string
+          n: number
+          nota: string | null
+          tipo: string
+        }
+        Insert: {
+          avisar?: boolean
+          boleta_id: string
+          creada_at?: string
+          creada_por: string
+          id?: string
+          n: number
+          nota?: string | null
+          tipo: string
+        }
+        Update: {
+          avisar?: boolean
+          boleta_id?: string
+          creada_at?: string
+          creada_por?: string
+          id?: string
+          n?: number
+          nota?: string | null
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "boletas_versiones_boleta_id_fkey"
+            columns: ["boleta_id"]
+            isOneToOne: false
+            referencedRelation: "boletas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "boletas_versiones_creada_por_fkey"
+            columns: ["creada_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bonos_umbral_permitido: {
         Row: {
           autorizado_por: string | null
@@ -5409,6 +5599,84 @@ export type Database = {
         Args: { p_anio: number | null; p_persona_id: string | null; p_ventana: string | null }
         Returns: number
       }
+      fn_boleta_anular: {
+        Args: { p_boleta_id: string | null; p_motivo: string | null }
+        Returns: undefined
+      }
+      fn_boleta_archivo_libre: { Args: { p_path: string | null }; Returns: boolean }
+      fn_boleta_confirmar_recibo: {
+        Args: { p_version_id: string | null }
+        Returns: undefined
+      }
+      fn_boleta_guardar_version: {
+        Args: {
+          p_avisar?: boolean | null
+          p_nota?: string | null
+          p_partes: Json | null
+          p_periodo_id: string | null
+          p_persona_id: string | null
+          p_tipo: string | null
+        }
+        Returns: string
+      }
+      fn_boleta_marcar_papel: {
+        Args: { p_periodo_id: string | null; p_persona_id: string | null }
+        Returns: string
+      }
+      fn_boleta_partes: {
+        Args: { p_version_id: string | null }
+        Returns: {
+          bytes: number
+          mime: string
+          orden: number
+          storage_path: string
+        }[]
+      }
+      fn_boleta_puede_ver: { Args: { p_path: string | null }; Returns: boolean }
+      fn_boleta_versiones: {
+        Args: { p_boleta_id: string | null }
+        Returns: {
+          avisar: boolean
+          bytes: number
+          creada_at: string
+          creada_por: string
+          n: number
+          n_partes: number
+          nota: string | null
+          recibida_at: string | null
+          tipo: string
+          version_id: string
+          vigente: boolean
+          vista_at: string | null
+        }[]
+      }
+      fn_boletas_publicar: {
+        Args: { p_periodo_id: string | null; p_personas?: string[] | null }
+        Returns: number
+      }
+      fn_boletas_tablero: {
+        Args: { p_periodo_id: string | null }
+        Returns: {
+          actualizada: boolean
+          boleta_id: string | null
+          bytes: number
+          cargo: string | null
+          estado: string
+          grupo_pagado: boolean
+          n_partes: number
+          nombre: string
+          persona_id: string
+          publicada_at: string | null
+          recibida_at: string | null
+          sede_codigo: string
+          tiene_cuenta: boolean
+          tipo: string | null
+          tipo_vinculo: string
+          version_id: string | null
+          version_n: number | null
+          vista_at: string | null
+        }[]
+      }
       fn_bono_monto_vigente: { Args: never; Returns: number }
       fn_bonos_por_transferir: {
         Args: never
@@ -6788,6 +7056,25 @@ export type Database = {
         }[]
       }
       fn_mi_rango_actual: { Args: never; Returns: string }
+      fn_mis_boletas: {
+        Args: never
+        Returns: {
+          actualizada: boolean
+          boleta_id: string | null
+          bytes: number
+          estado: string | null
+          fecha_fin: string
+          fecha_ini: string
+          n_partes: number
+          periodo_id: string
+          publicada_at: string | null
+          recibida_at: string | null
+          tipo: string | null
+          version_id: string | null
+          version_n: number | null
+          vista_at: string | null
+        }[]
+      }
       fn_mis_memos: {
         Args: never
         Returns: {

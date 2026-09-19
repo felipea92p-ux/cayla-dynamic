@@ -5,9 +5,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   CalendarClock, CalendarDays, Car, FileSignature, GraduationCap, History, IdCard, Inbox, LayoutDashboard,
-  ScrollText, Target, TreePalm, UserRound,
+  ReceiptText, ScrollText, Target, TreePalm, UserRound,
 } from "lucide-react";
 import { ResumenEducacionMia } from "./educacion/resumen";
+import { BoletasMias } from "./boletas/boletas-mias";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Colibri } from "@/components/marca";
 import { AcusesPendientes } from "@/components/acuses-pendientes";
@@ -46,6 +47,8 @@ import { cicloVigente, type DiaTrabajado } from "@/lib/admin/ciclo-sobretiempo";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { esMemoPorFirmar, traerBandeja } from "@/lib/bandeja-mia";
 import { mostrarBonoEnInfo, puedePedirBono, traerMiBono, type MiBono } from "@/lib/mi-bono";
+import { esBoletaNueva } from "@/lib/boletas";
+import { contarBoletasNuevas, nombreDelPeriodo, traerMisBoletas, type FilaMiBoleta } from "@/lib/mis-boletas";
 import { formatSoles } from "@/lib/rangos";
 import { useRecorridoGuiado, type PasoRecorrido } from "@/lib/use-recorrido-guiado";
 
@@ -257,7 +260,7 @@ interface Derechohabiente {
 
 /** Las diez secciones de la pantalla. Ver el comentario de `tab`. */
 type Tab =
-  | "resumen" | "dias" | "turnos" | "dni" | "datos" | "ausencias" | "contrato" | "movilidad" | "educacion"
+  | "resumen" | "dias" | "turnos" | "dni" | "datos" | "ausencias" | "contrato" | "boletas" | "movilidad" | "educacion"
   | "firma" | "objetivos" | "historial";
 
 /**
@@ -282,6 +285,9 @@ const SECCIONES: readonly SeccionDetalle<Tab>[] = [
   { valor: "datos", label: "Tus datos", Icon: UserRound },
   { valor: "ausencias", label: "Vacaciones y permisos", Icon: TreePalm },
   { valor: "contrato", label: "Contrato", Icon: ScrollText },
+  // Las boletas OFICIALES del contador (0482), no la boleta en vivo de
+  // `/mio/boleta`. Icono de recibo: es lo que es, y no repite ninguno del menú.
+  { valor: "boletas", label: "Boletas", Icon: ReceiptText },
   { valor: "movilidad", label: "Movilidad", Icon: Car },
   // Mismo ícono que «Educación» en el menú del panel (nav-items.ts).
   { valor: "educacion", label: "Educación", Icon: GraduationCap },
@@ -1230,6 +1236,32 @@ export default function MioPage() {
     return () => { vivo = false; };
   }, [supabase, yo?.id]);
 
+  // Sus boletas OFICIALES, las que entrega el contador (0482). Se traen acá y no
+  // dentro de la pestaña porque el globito del menú y el aviso del Resumen tienen
+  // que verse ANTES de que alguien abra «Boletas»; la pestaña pinta esta misma
+  // lectura, así que el número y la lista no pueden discrepar. `fn_mis_boletas`
+  // contesta solo por quien pregunta, incluso si es de DO.
+  //
+  // Si falla, NO se inventa un «0 nuevas»: el globito calla y la pestaña dice que
+  // no pudo leerlas. Recargar tras abrir/confirmar corre por `onRecargar`.
+  const [misBoletas, setMisBoletas] = useState<FilaMiBoleta[] | null>(null);
+  const [misBoletasError, setMisBoletasError] = useState<string | null>(null);
+  const cargarMisBoletas = useCallback(async () => {
+    const r = await traerMisBoletas(supabase);
+    if (r.error) { setMisBoletasError(r.error); return; }
+    setMisBoletasError(null);
+    setMisBoletas(r.filas);
+  }, [supabase]);
+  // La carga solo pone estado cuando la base contesta (después de un `await`),
+  // no de forma síncrona; el linter no lo distingue. Mismo permiso que
+  // `cargarAvisosDeBandeja`, más abajo.
+  useEffect(() => {
+    if (!yo?.id) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void cargarMisBoletas();
+  }, [cargarMisBoletas, yo?.id]);
+  const boletasNuevas = useMemo(() => (misBoletas ? contarBoletasNuevas(misBoletas) : 0), [misBoletas]);
+
   // Sus propios memos disciplinarios ya entregados (0404). Aparte del bloque
   // grande por la misma razón que `contrato`/`vacas`: depende solo de quién
   // es. `fn_mis_memos()` ya filtra `estado = 'entregado'` del lado del
@@ -1443,9 +1475,14 @@ export default function MioPage() {
   // «Mi DNI» solo existe si la base tiene dónde guardarlo: mientras la
   // migración no esté pegada, esa sección no se ofrece (mismo criterio que ya
   // usaba la pestaña).
+  //
+  // «Boletas» lleva el globito con las publicadas que aún no abrió: sale de la
+  // misma lectura que pinta la pestaña (`misBoletas`), no de una cuenta aparte.
   const secciones = useMemo(
-    () => SECCIONES.filter((s) => s.valor !== "dni" || hayCampoDni),
-    [hayCampoDni],
+    () => SECCIONES
+      .filter((s) => s.valor !== "dni" || hayCampoDni)
+      .map((s) => (s.valor === "boletas" && boletasNuevas > 0 ? { ...s, contador: boletasNuevas } : s)),
+    [hayCampoDni, boletasNuevas],
   );
 
   // Recorrido guiado de "Resumen", primera vez. `Boolean(yo)` y no solo `yo`:
@@ -1928,6 +1965,22 @@ export default function MioPage() {
         // DESPUÉS del ancla `#detalle` (regla de hermandad en globals.css), y
         // esta vive antes.
         <div className="entra-seccion mb-6 grid gap-3 sm:grid-cols-2">
+          {/* Una boleta oficial publicada y sin abrir. Solo aparece mientras haya
+              una: en cuanto se abre, `vista_at` queda escrito y esto se va. Lleva
+              a «Boletas», no a `/mio/boleta` (esa es la boleta en vivo). */}
+          {boletasNuevas > 0 && misBoletas && (
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-2xl border border-ambar/40 bg-ambar/[0.07] p-4 text-sm sm:col-span-2">
+              <p className="text-tinta">
+                {boletasNuevas === 1
+                  ? `Tu boleta de ${nombreDelPeriodo(misBoletas.find(esBoletaNueva)!.fecha_fin, { minuscula: true })} ya está disponible.`
+                  : `Tienes ${boletasNuevas} boletas nuevas.`}
+              </p>
+              <button onClick={() => elegirSeccion("boletas")}
+                className="min-h-11 text-tinta underline underline-offset-2 hover:text-rojo-profundo">
+                Ir a Boletas →
+              </button>
+            </div>
+          )}
           {/* El periodo de pago. Sin montos: la boleta vive en su propia pantalla
               porque es un documento que se imprime, y el print de esta imprimiría
               las quince secciones de arriba con él. */}
@@ -2799,6 +2852,15 @@ export default function MioPage() {
             </div>
           )}
         </section>
+      )}
+
+      {/* ── BOLETAS (0482) ───────────────────────────────────────────────────
+          Las boletas oficiales del contador, por periodo pagado. NO es
+          `/mio/boleta` (el cálculo del periodo en curso). El componente vive
+          aparte, como Educación, y pinta la lectura de `fn_mis_boletas` que esta
+          pantalla ya trajo para el globito del menú. */}
+      {tab === "boletas" && (
+        <BoletasMias filas={misBoletas} error={misBoletasError} onRecargar={cargarMisBoletas} />
       )}
 
       {/* ── MOVILIDAD ────────────────────────────────────────────────────────

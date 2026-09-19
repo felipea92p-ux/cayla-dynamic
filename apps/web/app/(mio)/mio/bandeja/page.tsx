@@ -53,6 +53,9 @@ const TONO: Record<EstadoBandeja, "positivo" | "alerta" | "informativo" | "adver
   // tareas — y un contrato sin firmar no es un error de nadie todavía.
   por_firmar: "advertencia",
   por_arreglar: "advertencia",
+  // Tu boleta oficial ya está: no es una falta ni una firma, es «ya puedes
+  // verla». Informativo, pero la tarjeta sigue siendo de pendientes (borde ámbar).
+  por_ver: "informativo",
 };
 
 const ETIQUETA: Record<EstadoBandeja, string> = {
@@ -62,6 +65,7 @@ const ETIQUETA: Record<EstadoBandeja, string> = {
   pendiente: "sin respuesta",
   por_firmar: "falta tu firma",
   por_arreglar: "por arreglar",
+  por_ver: "por abrir",
 };
 
 /** «7 de setiembre», y con año cuando no es el de hoy: «25 de junio de 2025». */
@@ -76,10 +80,10 @@ type Resultado =
   | { tipo: "error"; texto: string }
   | { tipo: "sin-sesion" };
 
-/** Los dos estados que dependen de ella. Se pregunta por el estado y no por la
+/** Los tres estados que dependen de ella. Se pregunta por el estado y no por la
  *  lista en la que vino: una tarjeta tiene que poder pintarse sola. */
 function esPendiente(m: MensajeBandeja): boolean {
-  return m.estado === "por_firmar" || m.estado === "por_arreglar";
+  return m.estado === "por_firmar" || m.estado === "por_arreglar" || m.estado === "por_ver";
 }
 
 function Tarjeta({ m, hoy }: { m: MensajeBandeja; hoy: string }) {
@@ -113,7 +117,7 @@ function Tarjeta({ m, hoy }: { m: MensajeBandeja; hoy: string }) {
 
       {m.ir && (
         <Link href={m.ir} className="mt-2 inline-block text-xs text-tinta underline underline-offset-2 hover:text-rojo-profundo">
-          {esPendiente(m) ? "Hacerlo →" : "Verlo →"}
+          {m.estado === "por_ver" ? "Abrirla →" : esPendiente(m) ? "Hacerlo →" : "Verlo →"}
         </Link>
       )}
     </li>
@@ -240,7 +244,7 @@ export default function MiBandejaPage() {
             <section className="mb-8">
               <h2 className="mb-1 font-serif text-lg">Necesita que hagas algo</h2>
               <p className="mb-3 text-xs text-taupe">
-                Esto no se va solo con el tiempo: sigue acá hasta que lo firmes o lo arregles.
+                Esto no se va solo con el tiempo: sigue acá hasta que lo firmes, lo arregles o lo abras.
               </p>
               <ul className="space-y-3">
                 {bandeja.pendientes.map((m) => <Tarjeta key={m.clave} m={m} hoy={hoy} />)}
