@@ -18,7 +18,7 @@ import { esperadoDelDia, horarioVigente, type HorarioTramo, type TurnoDia } from
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
 import {
-  calcularCoberturaSede, enPausaAhora, faltanTexto, fechaConDia, fechaCorta, llegoTarde, loQueFalta,
+  calcularCoberturaSede, causaMetaImposible, enPausaAhora, faltanTexto, fechaConDia, fechaCorta, llegoTarde, loQueFalta,
   minutosDesde, porPausaMasLarga, sinMarcarYaLeTocaba, subEstadoSinMarcar, textoEquipoDelDia,
   textoPausa, textoPausaDesde, textoSinMarcar, trabajandoAhora,
   type CoberturaSede, type FilaPersona, type MetaSede,
@@ -801,9 +801,17 @@ export default function DashboardPage() {
     if (cob.faltanOp || cob.faltanEnc) {
       // «Hay N en pausa» porque «faltan 4 operativas» no dice si no vinieron o
       // si están en el refrigerio — y a la hora de almuerzo es lo segundo.
+      // Y si la meta no se puede cumplir con el equipo que hay, se dice: sin eso,
+      // «faltan 1 líder» parece que alguien no vino, y no es así.
+      const imposibles = [
+        cob.faltanOp ? causaMetaImposible("operativas", cob.metaOp, cob.equipoOperativas)?.resumen : undefined,
+        cob.faltanEnc ? causaMetaImposible("lideres", cob.metaEnc, cob.equipoLideres)?.resumen : undefined,
+      ].filter(Boolean);
       itemsAtencion.push({
         key: `cobertura-${s.sedeId}`, sede: s.codigo, tono: "advertencia",
-        texto: `faltan ${loQueFalta(cob)} en piso` + (cob.enPausa.length > 0 ? ` — hay ${cob.enPausa.length} en pausa` : ""),
+        texto: `faltan ${loQueFalta(cob)} en piso`
+          + (cob.enPausa.length > 0 ? ` — hay ${cob.enPausa.length} en pausa` : "")
+          + (imposibles.length > 0 ? ` — ${imposibles.join(" y ")}` : ""),
       });
     }
     if (cob.sinMarcarReal > 0) {
@@ -1185,12 +1193,21 @@ export default function DashboardPage() {
               // Un solo estado de la sede, del que salen la franja y la pastilla —
               // así no pueden decir cosas distintas. "Sede sin marcajes" también
               // es alerta aunque no tenga meta: nadie llegó y a alguien le tocaba.
+              // «Sin cobertura que medir» y no «Sin meta configurada» cuando la sede no
+              // tiene a nadie de un área operativa: lo segundo se lee como una tarea
+              // pendiente, y en una sede de solo administración no hay nada que configurar.
               const estadoSede: { tono: TonoFranja; texto: string } =
                 cob.problema || cob.alertaSinEntrada
                   ? { tono: "alerta", texto: cob.problema ? "Cobertura insuficiente" : "Sin marcajes" }
                   : cob.sinMetaOp && cob.sinMetaEnc
-                    ? { tono: "neutral", texto: "Sin meta configurada" }
+                    ? { tono: "neutral", texto: cob.equipoOperativas === 0 ? "Sin cobertura que medir" : "Sin meta configurada" }
                     : { tono: "positivo", texto: "Cobertura correcta" };
+              const mostrarTileOperativas = !(cob.equipoOperativas === 0 && cob.sinMetaOp);
+              const mostrarTileLideres = !(cob.equipoLideres === 0 && cob.sinMetaEnc);
+              const causasMeta = [
+                { quien: "Operativas", causa: causaMetaImposible("operativas", cob.metaOp, cob.equipoOperativas) },
+                { quien: "Líderes", causa: causaMetaImposible("lideres", cob.metaEnc, cob.equipoLideres) },
+              ].flatMap((c) => (c.causa ? [{ quien: c.quien, detalle: c.causa.detalle }] : []));
 
               const tablaVisible = hayFiltrosDeContenido || (detalleAbierto[sedeId] ?? false);
 
@@ -1234,10 +1251,27 @@ export default function DashboardPage() {
 
                   {/* Cobertura protagonista: es la pregunta que decide si hay que
                       actuar, así que va primero y grande — no al pie como texto. */}
-                  <div className="mb-4 grid grid-cols-2 gap-3 sm:max-w-md">
-                    <TileCobertura label="Operativas en piso" n={cob.opPiso} meta={cob.metaOp} sinMeta={cob.sinMetaOp} tramo={tramoLabel} />
-                    <TileCobertura label="Líderes en piso" n={cob.encPiso} meta={cob.metaEnc} sinMeta={cob.sinMetaEnc} />
-                  </div>
+                  {/* Un tile que dice «0 · sin meta» en una sede donde ese grupo no
+                      existe no informa nada, y en Central (solo administración) se
+                      leía como que algo estaba sin configurar. Se muestra solo si
+                      hay meta, o si hay gente que la pueda cubrir. */}
+                  {(mostrarTileOperativas || mostrarTileLideres) && (
+                    <div className={`mb-4 grid gap-3 sm:max-w-md ${mostrarTileOperativas && mostrarTileLideres ? "grid-cols-2" : "grid-cols-1 sm:max-w-[13.5rem]"}`}>
+                      {mostrarTileOperativas && (
+                        <TileCobertura label="Operativas en piso" n={cob.opPiso} meta={cob.metaOp} sinMeta={cob.sinMetaOp} tramo={tramoLabel} />
+                      )}
+                      {mostrarTileLideres && (
+                        <TileCobertura label="Líderes en piso" n={cob.encPiso} meta={cob.metaEnc} sinMeta={cob.sinMetaEnc} />
+                      )}
+                    </div>
+                  )}
+                  {/* Por qué una meta no se puede cumplir por más gente que venga:
+                      no cambia el color —ver causaMetaImposible— pero dice qué arreglar. */}
+                  {causasMeta.map((c) => (
+                    <p key={c.quien} className="mb-4 text-xs text-taupe">
+                      <strong className="font-semibold text-tinta">{c.quien}:</strong> {c.detalle}
+                    </p>
+                  ))}
 
                   {/* Recuadro verde claro de "Trabajando ahora": estuvo desde julio y
                       el commit 8aae5710 (15-sep) lo cambió por una línea de texto
