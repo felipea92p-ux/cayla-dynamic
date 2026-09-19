@@ -13,7 +13,8 @@ import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { traerTodo } from "@/lib/admin/traer-todo";
 import { loQueNoSePudo, sePuedeEntregar } from "@/lib/admin/lo-que-no-se-pudo";
 import { NIVEL_DISCIPLINARIO_CORTO, TZ_LIMA, esRolEncargada, hoyLima, primeroDeMesLima } from "@cayla-dynamic/shared";
-import { enPausaAhora, trabajandoAhora } from "@/lib/admin/asistencia-hoy";
+import { enPausaAhora, porPausaMasLarga, textoPausaDesde, trabajandoAhora, type PausaAbierta } from "@/lib/admin/asistencia-hoy";
+import { traerPausasAbiertas } from "@/lib/admin/pausas-abiertas";
 
 const CORTE_TARDE = 14.25; // mismo corte mañana/tarde que Turnos/Dashboard
 
@@ -49,6 +50,8 @@ interface Sede { id: string; codigo: string; nombre: string }
 interface Fila {
   personaId: string; nombre: string;
   estadoHoy: string; // abierta / en_pausa / cerrada / sin_marcar
+  // Desde cuándo está en pausa, si `estadoHoy` es `en_pausa` y se pudo saber.
+  pausa?: PausaAbierta | null;
   esOperativa: boolean; esEncargada: boolean;
   dias: number; horas: number; tardanzas: number; minTarde: number; salidasTemp: number;
 }
@@ -104,6 +107,11 @@ function ReporteSedeContenido() {
    * falta se NOTE en vez de rellenarse.
    */
   const [noSePudo, setNoSePudo] = useState<string[]>([]);
+  // Desde cuándo está en pausa cada quien no se pudo consultar. Va APARTE de
+  // `noSePudo` a propósito: todo lo que entra ahí desactiva el PDF, y esto es un
+  // detalle del recuadro «Hoy» —los nombres salen igual, sin hora— que no vuelve
+  // falso el papel. Bloquear la impresión por eso sería desproporcionado.
+  const [pausasNoRespondieron, setPausasNoRespondieron] = useState(false);
   /**
    * Por qué no se pudo elegir ninguna sede, cuando la consulta SÍ contestó.
    *
@@ -254,7 +262,15 @@ function ReporteSedeContenido() {
         salidasTemp: salTemp.get(p.id) ?? 0,
       };
     });
-    setFilas(filasCalc);
+    // Desde cuándo está en pausa cada quien (solo de los que la base ya marcó
+    // «en pausa»). Si falla, salen sus nombres sin hora.
+    const { porPersona: pausas, fallo: fallaronPausas } = await traerPausasAbiertas(
+      supabase,
+      filasCalc.filter((f) => enPausaAhora(f.estadoHoy)).map((f) => f.personaId),
+      hoy,
+    );
+    setPausasNoRespondieron(fallaronPausas);
+    setFilas(filasCalc.map((f) => ({ ...f, pausa: pausas.get(f.personaId) ?? null })));
     // Cualquier escalón alcanzado entra a «Necesita atención», no solo la
     // amonestación: esta hoja se imprime y se lleva a la sede.
     setTardAlerta(((tardResumen as TardRow[]) ?? []).filter((t) => t.sede === codigoSede && t.umbral !== "aviso"));
@@ -405,9 +421,16 @@ function ReporteSedeContenido() {
               {enPausa.length > 0 && (
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   <span className="etiqueta text-ambar">En pausa</span>
-                  {enPausa.map((f) => (
-                    <span key={f.personaId} className="rounded-full border border-ambar/45 bg-papel px-3 py-1 text-sm">{f.nombre}</span>
+                  {/* Con la hora de salida y SIN «cuánto lleva»: en un papel los
+                      minutos envejecen (leídos mañana afirman lo que no es), la
+                      hora de salida no. */}
+                  {[...enPausa].sort(porPausaMasLarga).map((f) => (
+                    <span key={f.personaId} className="rounded-full border border-ambar/45 bg-papel px-3 py-1 text-sm">
+                      {f.nombre}
+                      {f.pausa && <span className="ml-1.5 text-xs text-taupe">{textoPausaDesde(f.pausa)}</span>}
+                    </span>
                   ))}
+                  {pausasNoRespondieron && <span className="text-xs text-ambar">No se pudo comprobar desde cuándo.</span>}
                 </div>
               )}
               <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-1 border-t border-verde/15 pt-3">

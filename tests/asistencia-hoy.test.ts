@@ -30,6 +30,7 @@ import {
   subEstadoSinMarcar,
   textoEquipoDelDia,
   textoPausa,
+  textoPausaDesde,
   textoSinMarcar,
   trabajandoAhora,
   type FilaPersona,
@@ -460,6 +461,12 @@ describe("minutosDesde y textoPausa — cuánto lleva", () => {
 
   it("nunca sale negativo si el reloj de la marca va adelantado", () => {
     expect(minutosDesde(T.almuerzo, new Date("2026-09-18T18:00:00Z"))).toBe(0);
+  });
+
+  it("en un papel impreso va solo la hora de salida: los minutos envejecen", () => {
+    expect(textoPausaDesde({ tipo: "salida_almuerzo", desde: T.almuerzo })).toBe("refrigerio desde la 1:05 p. m.");
+    expect(textoPausaDesde({ tipo: "salida_tramite", desde: T.tramite })).toBe("otra salida desde las 4:30 p. m.");
+    expect(textoPausaDesde({ tipo: "salida_almuerzo", desde: T.almuerzo })).not.toMatch(/min/);
   });
 
   it("dice motivo, desde cuándo y cuánto", () => {

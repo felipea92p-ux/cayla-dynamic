@@ -333,9 +333,18 @@ export function motivoDePausa(tipo: string): string {
   return tipo === "salida_almuerzo" ? "refrigerio" : "otra salida";
 }
 
-/** «refrigerio desde la 1:05 p. m. · 45 min» */
+/**
+ * «refrigerio desde la 1:05 p. m.» — sin cuánto lleva. Es lo que va en un papel
+ * impreso: la hora de salida es un hecho que no envejece, mientras que «45 min»
+ * solo era cierto en el instante de imprimir y leído mañana afirma lo que no es.
+ */
+export function textoPausaDesde(p: PausaAbierta): string {
+  return `${motivoDePausa(p.tipo)} ${desdeLaHora(p.desde)}`;
+}
+
+/** «refrigerio desde la 1:05 p. m. · 45 min» — para una pantalla que se refresca sola. */
 export function textoPausa(p: PausaAbierta, ahora: Date = new Date()): string {
-  return `${motivoDePausa(p.tipo)} ${desdeLaHora(p.desde)} · ${formatoMinutos(minutosDesde(p.desde, ahora))}`;
+  return `${textoPausaDesde(p)} · ${formatoMinutos(minutosDesde(p.desde, ahora))}`;
 }
 
 /**
