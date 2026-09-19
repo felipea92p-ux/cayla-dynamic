@@ -13,3 +13,5 @@ export * from "./clave";
 export * from "./duracion";
 export * from "./educacion";
 export * from "./ventanas-beneficio";
+export * from "./sedes";
+export * from "./cobertura-equipo";

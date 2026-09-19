@@ -12,7 +12,7 @@ import { Campo, CampoCasilla, CampoSelect } from "@/components/ui/campo";
 import { Fila, Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
 import {
-  TZ_LIMA, esRolEncargada, hoyLima, formatoMinutos, puedeVerTodasLasSedes,
+  TZ_LIMA, cuentaEnCobertura, etiquetaDeSede, hoyLima, formatoMinutos, puedeVerTodasLasSedes,
 } from "@cayla-dynamic/shared";
 import { esperadoDelDia, horarioVigente, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
 import { usePersonaActual } from "@/lib/admin/use-rol";
@@ -348,7 +348,7 @@ export default function DashboardPage() {
   // personas de abajo. Antes se armaba agrupando `filas` por sede_id, así que
   // una sede sin nadie que cumpliera activo+en_planilla+no_sueldo_fijo
   // desaparecía entera, sin aviso, en vez de mostrarse con "0 de 0".
-  const [sedesActivas, setSedesActivas] = useState<{ id: string; codigo: string }[]>([]);
+  const [sedesActivas, setSedesActivas] = useState<{ id: string; codigo: string; nombre: string; tipo: string; ciudad: string | null }[]>([]);
   const [metasPorSede, setMetasPorSede] = useState<Map<string, MetaSede>>(new Map());
   const [actualizado, setActualizado] = useState<string>("");
   const [cargando, setCargando] = useState(true);
@@ -522,7 +522,7 @@ export default function DashboardPage() {
     ] = await Promise.all([
       // Misma consulta que /admin/reporte-sede: la lista de sedes a mostrar
       // nunca se deriva de quién aparece en otra tabla.
-      supabase.from("sedes").select("id, codigo").eq("activa", true).order("codigo"),
+      supabase.from("sedes").select("id, codigo, nombre, tipo, ciudad").eq("activa", true).order("codigo"),
       supabase
         .from("personas")
         .select("id, nombres, apellidos, rol, sede_base_id, sedes:sede_base_id(codigo)")
@@ -581,9 +581,12 @@ export default function DashboardPage() {
     // página no se cae. Las metas fallan aún más suave: sin meta = neutro.
     const areasList: Area[] = parseAreas(areasRaw, errAreas);
     const funcionPorPersona = new Map(
-      ((funciones as { persona_id: string; funcion: string; es_encargada_piso?: boolean }[] | null) ?? [])
-        .map((x) => [x.persona_id, { funcion: x.funcion, enc: Boolean(x.es_encargada_piso) }]),
+      ((funciones as { persona_id: string; funcion: string; es_encargada_piso?: boolean; tipo_vinculo?: string | null }[] | null) ?? [])
+        .map((x) => [x.persona_id, { funcion: x.funcion, enc: Boolean(x.es_encargada_piso), vinculo: x.tipo_vinculo ?? null }]),
     );
+    // Quién cuenta en la cobertura depende del TIPO de la sede (en una central
+    // el administrador hace de líder), así que se busca por sede base.
+    const tipoDeSede = new Map((sedesData ?? []).map((s) => [s.id, s.tipo]));
     setMetasPorSede(new Map(
       ((metasRaw as { sede_id: string; meta: number; meta_tarde: number | null; meta_encargadas: number | null }[] | null) ?? [])
         .map((m) => [m.sede_id, { man: m.meta ?? 0, tar: m.meta_tarde ?? m.meta ?? 0, enc: m.meta_encargadas ?? 0 }]),
@@ -632,6 +635,15 @@ export default function DashboardPage() {
       const turno = turnoPorPersona.get(p.id) ?? null;
       const horario = horarioVigente(horariosPorPersona.get(p.id) ?? [], hoy);
       const esperado = esperadoDelDia(hoy, turno, horario);
+      const cuenta = cuentaEnCobertura(
+        {
+          rol: p.rol,
+          tipoVinculo: f?.vinculo ?? null,
+          esEncargadaPiso: Boolean(f?.enc),
+          areaOperativa: esOperativaEn(areasList, f?.funcion ?? AREA_DEFAULT),
+        },
+        tipoDeSede.get(p.sede_base_id) ?? null,
+      );
       return {
         personaId: p.id,
         nombre: `${p.nombres} ${p.apellidos}`,
@@ -646,8 +658,8 @@ export default function DashboardPage() {
         minutosTarde: j?.minutos_tarde ?? null,
         salidaTemprana: salidaTempranaPorPersona.get(p.id) ?? null,
         enPausaSinRetorno: j?.tiene_salida_no_retornada ?? false,
-        esOperativa: esOperativaEn(areasList, f?.funcion ?? AREA_DEFAULT),
-        esEncargada: esRolEncargada(p.rol) || Boolean(f?.enc),
+        esOperativa: cuenta.operativa,
+        esEncargada: cuenta.lider,
         ausenciaHoy: ausenciaPorPersona.get(p.id) ?? null,
       };
     });
@@ -704,7 +716,10 @@ export default function DashboardPage() {
   // cuando `yo` ya cargó, para no mostrarle una pantalla vacía a un admin por
   // un instante.
   const sedesDeAlcance = sedesActivas
-    .map((s) => ({ sedeId: s.id, codigo: s.codigo }))
+    // `etiqueta` es la única forma de decir una sede (packages/shared/src/sedes.ts):
+    // «Taller · Lima» y «Tienda · Lima» no se pueden confundir; el código viaja
+    // aparte porque es lo que las separa si dos comparten título.
+    .map((s) => ({ sedeId: s.id, codigo: s.codigo, etiqueta: etiquetaDeSede(s) }))
     .filter((s) => !yo || esAdmin || s.sedeId === yo.sedeBaseId);
 
   // Cobertura de cada sede, calculada una sola vez y reutilizada para ordenar,
@@ -812,14 +827,14 @@ export default function DashboardPage() {
     const cob = coberturaPorSede.get(s.sedeId)!;
     if (cob.alertaSinEntrada) {
       itemsAtencion.push({
-        key: `sin-entrada-${s.sedeId}`, sede: s.codigo, tono: "critico",
+        key: `sin-entrada-${s.sedeId}`, sede: s.etiqueta.texto, tono: "critico",
         texto: `sin marcajes desde las ${horaAmPmDe(cob.alertaSinEntrada)} — nadie ha marcado entrada todavía`,
       });
     }
     if (cob.gravedad === "revisar") {
       // Solo faltan metas imposibles: no se pide que venga nadie, se pide revisar el dato.
       itemsAtencion.push({
-        key: `cobertura-${s.sedeId}`, sede: s.codigo, tono: "advertencia",
+        key: `cobertura-${s.sedeId}`, sede: s.etiqueta.texto, tono: "advertencia",
         texto: textoMetaPorRevisar(cob),
       });
     } else if (cob.faltanOp || cob.faltanEnc) {
@@ -832,7 +847,7 @@ export default function DashboardPage() {
         cob.faltanEnc ? causaMetaImposible("lideres", cob.metaEnc, cob.equipoLideres)?.resumen : undefined,
       ].filter(Boolean);
       itemsAtencion.push({
-        key: `cobertura-${s.sedeId}`, sede: s.codigo, tono: "advertencia",
+        key: `cobertura-${s.sedeId}`, sede: s.etiqueta.texto, tono: "advertencia",
         texto: `faltan ${loQueFalta(cob)} en piso`
           + (cob.enPausa.length > 0 ? ` — hay ${cob.enPausa.length} en pausa` : "")
           + (imposibles.length > 0 ? ` — ${imposibles.join(" y ")}` : ""),
@@ -840,7 +855,7 @@ export default function DashboardPage() {
     }
     if (cob.sinMarcarReal > 0) {
       itemsAtencion.push({
-        key: `sinmarcar-${s.sedeId}`, sede: s.codigo, tono: "advertencia",
+        key: `sinmarcar-${s.sedeId}`, sede: s.etiqueta.texto, tono: "advertencia",
         texto: textoSinMarcar(cob.sinMarcarReal),
       });
     }
@@ -945,7 +960,7 @@ export default function DashboardPage() {
               {sedes.length > 1 && (
                 <CampoSelect etiqueta="Sede" value={sedeFiltro} onChange={(e) => setSedeFiltro(e.target.value)} className="min-w-32">
                   <option value="todas">Todas</option>
-                  {sedes.map((s) => <option key={s.sedeId} value={s.codigo}>{s.codigo}</option>)}
+                  {sedes.map((s) => <option key={s.sedeId} value={s.codigo}>{s.etiqueta.texto}</option>)}
                 </CampoSelect>
               )}
               <CampoSelect etiqueta="Estado" value={estadoFiltro} onChange={(e) => setEstadoFiltro(e.target.value)} className="min-w-36">
@@ -1026,7 +1041,7 @@ export default function DashboardPage() {
                     <ul className="flex flex-col">
                       {sedesBajoMinimo.map((s) => (
                         <li key={s.sedeId} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-sand/60 py-2 text-sm first:border-t-0">
-                          <span><strong className="font-semibold">{s.codigo}:</strong> faltan {loQueFalta(coberturaPorSede.get(s.sedeId)!)} en piso</span>
+                          <span><strong className="font-semibold">{s.etiqueta.texto}:</strong> faltan {loQueFalta(coberturaPorSede.get(s.sedeId)!)} en piso</span>
                           <Boton variante="enlace" tamano="sm" className="text-xs font-semibold text-rojo-profundo" onClick={() => irASede(s.codigo)}>
                             Ver sede ↓
                           </Boton>
@@ -1206,7 +1221,7 @@ export default function DashboardPage() {
               </p>
             )}
 
-            {sedesMostradas.map(({ sedeId, codigo }) => {
+            {sedesMostradas.map(({ sedeId, codigo, etiqueta }) => {
               const deSedeCompleta = filas.filter((f) => f.sedeId === sedeId);
               const deSedeMostrada = deSedeCompleta.filter(filaCoincideFiltros);
               const cob = coberturaPorSede.get(sedeId)!;
@@ -1256,7 +1271,8 @@ export default function DashboardPage() {
                   <Franja tono={estadoSede.tono} />
                   <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
                     <h2 className="font-serif text-2xl font-medium leading-tight">
-                      {codigo}{" "}
+                      {etiqueta.titulo}{" "}
+                      <span className="text-base font-normal text-taupe">({codigo})</span>{" "}
                       {/* «N trabajando ahora · M en pausa», no «N de M programadas»:
                           el N cuenta a cualquiera que esté en el piso y el M solo a
                           quien tenía turno, así que la razón podía salir «5 de 4».

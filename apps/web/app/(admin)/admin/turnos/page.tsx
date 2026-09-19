@@ -13,7 +13,7 @@ import { Boton } from "@/components/ui/boton";
 import { Campo, CampoSelect } from "@/components/ui/campo";
 import { Insignia } from "@/components/ui/insignia";
 import { Modal } from "@/components/ui/modal";
-import { hoyLima, puedeOperarEquipo, puedeVerTodasLasSedes } from "@cayla-dynamic/shared";
+import { cuentaEnCobertura, hoyLima, puedeOperarEquipo, puedeVerTodasLasSedes } from "@cayla-dynamic/shared";
 import { esperadoDelDia, esTurnoEspejoViejo, horarioVigente, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
 import { cicloVigente, type DiaTrabajado } from "@/lib/admin/ciclo-sobretiempo";
 import { colorCobertura, etiquetaCobertura, type TonoCobertura } from "@/lib/admin/cobertura-turnos";
@@ -47,14 +47,14 @@ function etiquetaDia(iso: string): { abr: string; num: string } {
   return { abr: DIAS_ABR[d.getUTCDay()], num: `${d.getUTCDate()} ${MESES[d.getUTCMonth()]}` };
 }
 
-interface Persona { id: string; nombres: string; apellidos: string; rol: string; funcion: string; esEncargadaPiso: boolean; }
+interface Persona { id: string; nombres: string; apellidos: string; rol: string; funcion: string; esEncargadaPiso: boolean; tipoVinculo: string | null; }
 // El tramo de horario y "quién le tocaba trabajar ese día" viven en
 // jornada-esperada.ts — es la misma cascada que usa el backend
 // (fn_recalcular_jornada) y que ya adoptaron incidencias/horas/correcciones.
 // Escribir una copia acá sería exactamente la quinta que CLAUDE.md prohíbe.
 type Horario = HorarioTramo;
 type Turno = TurnoDia;
-interface Sede { id: string; codigo: string; nombre: string }
+interface Sede { id: string; codigo: string; nombre: string; tipo: string }
 
 type Celda =
   | { tipo: "turno"; entrada: string; salida: string | null; refrigerio?: number }
@@ -703,7 +703,7 @@ export default function TurnosPage() {
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data }) => {
       if (!data.session) { router.replace("/admin/login"); return; }
-      const { data: s, error: eS } = await supabase.from("sedes").select("id, codigo, nombre").order("codigo");
+      const { data: s, error: eS } = await supabase.from("sedes").select("id, codigo, nombre, tipo").order("codigo");
       // Sin esto, si la consulta fallaba `sedes` se quedaba en [] en silencio:
       // el selector de sede salía vacío y la pantalla no decía por qué —
       // se leía como "no hay sedes", no como el error que de verdad era.
@@ -756,8 +756,8 @@ export default function TurnosPage() {
     // Si falla la RPC de funciones O la del catálogo de áreas, la cobertura puede
     // contar mal (degrada a defaults) — se avisa en pantalla en vez de fallar en silencio.
     setFuncionesFallo(Boolean(fErr) || Boolean(arErr));
-    const mapF = new Map(((f as { persona_id: string; funcion: string; es_encargada_piso?: boolean }[] | null) ?? []).map((x) => [x.persona_id, { funcion: x.funcion, esEncargadaPiso: Boolean(x.es_encargada_piso) }]));
-    setPersonas((((p as Omit<Persona, "funcion" | "esEncargadaPiso">[]) ?? []).map((x) => ({ ...x, funcion: mapF.get(x.id)?.funcion ?? AREA_DEFAULT, esEncargadaPiso: mapF.get(x.id)?.esEncargadaPiso ?? false }))));
+    const mapF = new Map(((f as { persona_id: string; funcion: string; es_encargada_piso?: boolean; tipo_vinculo?: string | null }[] | null) ?? []).map((x) => [x.persona_id, { funcion: x.funcion, esEncargadaPiso: Boolean(x.es_encargada_piso), tipoVinculo: x.tipo_vinculo ?? null }]));
+    setPersonas((((p as Omit<Persona, "funcion" | "esEncargadaPiso" | "tipoVinculo">[]) ?? []).map((x) => ({ ...x, funcion: mapF.get(x.id)?.funcion ?? AREA_DEFAULT, esEncargadaPiso: mapF.get(x.id)?.esEncargadaPiso ?? false, tipoVinculo: mapF.get(x.id)?.tipoVinculo ?? null }))));
     const mapH = new Map<string, Horario[]>();
     for (const x of (h as HorarioTramo[]) ?? []) {
       const arr = mapH.get(x.persona_id) ?? [];
@@ -852,11 +852,21 @@ export default function TurnosPage() {
     }
     return franjas;
   }, [personas, celda]);
-  const esOperativa = useCallback((p: Persona) => esOperativaEn(areas, p.funcion), [areas]);
-  // Cuenta como encargada quien tiene el rol supervisor_sede O la marca
-  // es_encargada_piso (un admin de confianza que además está en el piso, como
-  // Janis — mantiene sus permisos de admin y de paso suma en la cobertura).
-  const esEncargada = (p: Persona) => p.rol === "supervisor_sede" || p.esEncargadaPiso;
+  // Quién cuenta como operativo y como líder es UNA definición
+  // (packages/shared/src/cobertura-equipo.ts), la misma del Dashboard y del
+  // Reporte de sede: depende del tipo de la sede que se está mirando. La marca
+  // es_encargada_piso sigue sirviendo para un admin de confianza que además está
+  // en el piso de una tienda, como Janis.
+  const tipoSedeSel = sedes.find((x) => x.id === sedeSel)?.tipo ?? null;
+  const cuentaEnPiso = useCallback(
+    (p: Persona) => cuentaEnCobertura(
+      { rol: p.rol, tipoVinculo: p.tipoVinculo, esEncargadaPiso: p.esEncargadaPiso, areaOperativa: esOperativaEn(areas, p.funcion) },
+      tipoSedeSel,
+    ),
+    [areas, tipoSedeSel],
+  );
+  const esOperativa = useCallback((p: Persona) => cuentaEnPiso(p).operativa, [cuentaEnPiso]);
+  const esEncargada = (p: Persona) => cuentaEnPiso(p).lider;
   const coberturaPorHora = useCallback(
     (fecha: string) => coberturaPorFranja(fecha, HORA_INICIO, HORA_FIN - HORA_INICIO, 1, esOperativa),
     [coberturaPorFranja, esOperativa],
@@ -1387,7 +1397,7 @@ export default function TurnosPage() {
                     {/* Una fila por persona: barra = su rango de turno ese día */}
                     {personas.map((p) => {
                       const c = celda(p.id, iso);
-                      const operativa = esOperativaEn(areas, p.funcion);
+                      const operativa = esOperativa(p);
                       return (
                         <button key={p.id} onClick={() => abrir(p.id, iso)}
                           className="flex w-full items-center border-t border-sand/60 text-left transition-colors hover:bg-sand/20">
