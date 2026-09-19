@@ -186,6 +186,28 @@ export interface CoberturaSede {
    * pueden ser solo 2 personas — decisión de 2026-09-18.
    */
   lideresEnAmbasMetas: number;
+  /** Quienes marcaron hoy sin horario ni turno contra qué medirlos. Ver `marcaronSinHorario`. */
+  marcaronSinHorario: FilaPersona[];
+}
+
+/**
+ * Quienes marcaron hoy SIN tener ni horario vigente ni turno: nada mide su
+ * puntualidad ni su falta, y no entran en «les tocaba a N». En TRU (2026-09-18)
+ * trabajaron 11 y la pantalla decía «10 de las 12», sin avisar que una integrante
+ * ni siquiera tenía horario cargado.
+ *
+ * Solo personal operativo y líderes: un administrador de Central sin horario es
+ * normal, y avisarlo todos los días enseñaría a ignorar el aviso.
+ *
+ * `sin_horario` es «no hay con qué medirlo» y no «hoy descansa» (ver
+ * `origenEsperadoHoy`). Ojo: si la consulta de turnos u horarios FALLA, todas las
+ * filas llegan como `sin_horario`; quien llama tiene que apagar el aviso en ese
+ * caso, porque acá no hay forma de distinguirlo.
+ */
+export function marcaronSinHorario(deSede: FilaPersona[]): FilaPersona[] {
+  return deSede.filter(
+    (f) => f.origenEsperadoHoy === "sin_horario" && f.entrada !== null && (f.esOperativa || f.esEncargada),
+  );
 }
 
 /** Dónde está ahora cada persona a la que le tocaba trabajar hoy. Se reparten TODAS, sin sobrar ni faltar. */
@@ -313,6 +335,7 @@ export function calcularCoberturaSede(deSede: FilaPersona[], meta: MetaSede, tra
     trabajando, enPausa, opPiso, encPiso, metaOp, metaEnc: meta.enc, sinMetaOp, sinMetaEnc,
     faltanOp, faltanEnc, problema: faltanOp || faltanEnc, sinMarcarReal, programadosHoy, alertaSinEntrada,
     equipoOperativas, equipoLideres, fueraDeHorario, desgloseProgramadas, lideresEnAmbasMetas,
+    marcaronSinHorario: marcaronSinHorario(deSede),
   };
 }
 
@@ -452,6 +475,15 @@ export function textoFueraDeHorario(f: FueraDeHorario, horaFormateada: string): 
   return f.cuando === "despues"
     ? `Ya pasó la última salida programada de hoy (${horaFormateada}) y nadie sigue en piso: la meta no se mide.`
     : `Todavía no llega la primera entrada programada de hoy (${horaFormateada}): la meta no se mide.`;
+}
+
+/** «A y B marcaron hoy sin horario ni turno asignado…»: dice quién y dónde se arregla. */
+export function textoSinHorario(nombres: string[]): string | null {
+  if (nombres.length === 0) return null;
+  const quienes = nombres.length === 1
+    ? nombres[0]
+    : `${nombres.slice(0, -1).join(", ")} y ${nombres[nombres.length - 1]}`;
+  return `${quienes} ${nombres.length === 1 ? "marcó" : "marcaron"} hoy sin horario ni turno asignado, así que nada mide su puntualidad. Se arregla en Horarios.`;
 }
 
 /** Aviso de que los dos recuadros de cobertura pueden contar a la misma persona. */

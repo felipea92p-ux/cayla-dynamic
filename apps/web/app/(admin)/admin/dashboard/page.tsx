@@ -20,7 +20,7 @@ import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
 import {
   calcularCoberturaSede, causaMetaImposible, coincideConFiltroDeEstado, enPausaAhora, faltanTexto, fechaConDia, fechaCorta, llegoTarde, loQueFalta,
   minutosDesde, porPausaMasLarga, sinMarcarYaLeTocaba, subEstadoSinMarcar, textoDesglose, textoEquipoDelDia,
-  OPCIONES_FILTRO_ESTADO, textoFueraDeHorario, textoLiderEnLasDosMetas, textoPausa, textoPausaDesde, textoSinMarcar, trabajandoAhora,
+  OPCIONES_FILTRO_ESTADO, textoFueraDeHorario, textoLiderEnLasDosMetas, textoSinHorario, textoPausa, textoPausaDesde, textoSinMarcar, trabajandoAhora,
   type CoberturaSede, type FilaPersona, type MetaSede,
 } from "@/lib/admin/asistencia-hoy";
 import { traerPausasAbiertas } from "@/lib/admin/pausas-abiertas";
@@ -1213,7 +1213,13 @@ export default function DashboardPage() {
                       ? { tono: "neutral", texto: cob.equipoOperativas === 0 ? "Sin cobertura que medir" : "Sin meta configurada" }
                       : { tono: "positivo", texto: "Cobertura correcta" };
               const fueraDeHorarioVisible = cob.fueraDeHorario !== null && hayMeta;
-              const aviso = { lider: textoLiderEnLasDosMetas(cob.lideresEnAmbasMetas), desglose: textoDesglose(cob.desgloseProgramadas) };
+              // «Sin horario» se apaga si la consulta de turnos u horarios falló: entonces
+              // TODAS las filas llegan sin horario, y el aviso acusaría a cada quien que marcó.
+              const aviso = {
+                lider: textoLiderEnLasDosMetas(cob.lideresEnAmbasMetas),
+                desglose: textoDesglose(cob.desgloseProgramadas),
+                sinHorario: horarioEsperadoNoRespondio ? null : textoSinHorario(cob.marcaronSinHorario.map((f) => f.nombre)),
+              };
               const mostrarTileOperativas = !(cob.equipoOperativas === 0 && cob.sinMetaOp);
               const mostrarTileLideres = !(cob.equipoLideres === 0 && cob.sinMetaEnc);
               const causasMeta = [
@@ -1246,9 +1252,12 @@ export default function DashboardPage() {
                       {estadoSede.texto}
                     </Insignia>
                   </div>
-                  <p className="mb-4 text-xs text-taupe">
+                  <p className={`${aviso.sinHorario ? "mb-1" : "mb-4"} text-xs text-taupe`}>
                     {textoEquipoDelDia(cob.programadosHoy, deSedeCompleta.length)}
                   </p>
+                  {/* Quien marcó sin horario no entra en «les tocaba a N»: sin esta línea,
+                      la cuenta de arriba dice 10 de 12 cuando trabajaron 11. */}
+                  {aviso.sinHorario && <p className="mb-4 text-xs text-ambar">{aviso.sinHorario}</p>}
 
                   {/* La única alerta que se permite el rojo sagrado en esta pantalla,
                       además de la que ya vive arriba en "Requiere atención": la

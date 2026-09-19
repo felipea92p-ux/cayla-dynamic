@@ -25,6 +25,7 @@ import {
   fueraDeHorarioDeHoy,
   horaCortaLima,
   loQueFalta,
+  marcaronSinHorario,
   minutosDesde,
   motivoDePausa,
   OPCIONES_FILTRO_ESTADO,
@@ -38,6 +39,7 @@ import {
   textoLiderEnLasDosMetas,
   textoPausa,
   textoPausaDesde,
+  textoSinHorario,
   textoSinMarcar,
   trabajandoAhora,
   type FilaPersona,
@@ -818,5 +820,56 @@ describe("coincideConFiltroDeEstado — «Salió» también trae a quien tiene l
     for (const estado of [...ESTADOS_JORNADA, "sin_marcar"]) {
       expect(OPCIONES_FILTRO_ESTADO.some((o) => coincideConFiltroDeEstado(estado, o.valor)), estado).toBe(true);
     }
+  });
+});
+
+// ----------------------------------------------------------------------------
+// TRU, 2026-09-18: trabajaron 11 y la pantalla decía «les tocaba a 10 de las 12».
+// La undécima marcó de 14:14 a 19:30 sin tener horario vigente NI turno: nada la
+// medía —ni tardanza ni falta— y nadie se enteraba.
+// ----------------------------------------------------------------------------
+describe("marcaronSinHorario — quien trabajó sin nada contra qué medirlo", () => {
+  const sinHorario = (o: Partial<FilaPersona> = {}) =>
+    fila({ estado: "cerrada", entrada: "14:14", salidaFinal: "19:30", entradaEsperadaHoy: null, origenEsperadoHoy: "sin_horario", ...o });
+
+  it("la de TRU: marcó, sin horario ni turno, y es del personal operativo", () => {
+    const equipo = [sinHorario({ personaId: "maria", nombre: "María" }), fila({ personaId: "otra", estado: "cerrada", entrada: "x" })];
+    const cob = calcularCoberturaSede(equipo, META_0, true, 21);
+    expect(cob.marcaronSinHorario.map((f) => f.personaId)).toEqual(["maria"]);
+    // Y por eso no está en «les tocaba»: el aviso existe para decirlo.
+    expect(cob.programadosHoy).toBe(1);
+  });
+
+  it("quien descansa (horario o turno que dice que hoy no) NO es «sin horario»", () => {
+    // Descansar es una respuesta; no tener horario, no. Confundirlas sería acusar a quien libra.
+    const descansa = fila({ estado: "cerrada", entrada: "x", entradaEsperadaHoy: null, origenEsperadoHoy: "horario" });
+    expect(marcaronSinHorario([descansa])).toEqual([]);
+  });
+
+  it("quien no marcó no cuenta: sin marcar y sin horario no es una falta, es un dato que falta", () => {
+    expect(marcaronSinHorario([sinHorario({ entrada: null, estado: "sin_marcar" })])).toEqual([]);
+  });
+
+  it("un administrador de Central sin horario no dispara el aviso todos los días", () => {
+    expect(marcaronSinHorario([sinHorario({ esOperativa: false, esEncargada: false })])).toEqual([]);
+  });
+
+  it("un líder que no es de un área operativa SÍ cuenta", () => {
+    expect(marcaronSinHorario([sinHorario({ esOperativa: false, esEncargada: true })])).toHaveLength(1);
+  });
+});
+
+describe("textoSinHorario — quién, y dónde se arregla", () => {
+  it("concuerda con una, dos o tres personas", () => {
+    expect(textoSinHorario(["María Orbegoso"]))
+      .toBe("María Orbegoso marcó hoy sin horario ni turno asignado, así que nada mide su puntualidad. Se arregla en Horarios.");
+    expect(textoSinHorario(["Ana", "Luz"]))
+      .toBe("Ana y Luz marcaron hoy sin horario ni turno asignado, así que nada mide su puntualidad. Se arregla en Horarios.");
+    expect(textoSinHorario(["Ana", "Luz", "Eva"]))
+      .toBe("Ana, Luz y Eva marcaron hoy sin horario ni turno asignado, así que nada mide su puntualidad. Se arregla en Horarios.");
+  });
+
+  it("sin nadie, no dice nada", () => {
+    expect(textoSinHorario([])).toBeNull();
   });
 });
