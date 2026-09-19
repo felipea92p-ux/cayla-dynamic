@@ -1400,7 +1400,7 @@ export default function DisciplinaPage() {
               <label htmlFor="constancia" className="grid gap-1 text-sm">
                 Cómo consta (obligatorio)
                 <AreaTexto id="constancia" value={constanciaTexto} onChange={(e) => setConstanciaTexto(e.target.value)} rows={3}
-                  placeholder="ej. se lo comuniqué en persona en la oficina de la sede, delante de la encargada" />
+                  placeholder="ej. se lo comuniqué en persona en la oficina de la sede, delante de su líder de equipo" />
               </label>
               <p className="text-xs text-taupe">Quién se la hizo, dónde y quién más estaba. Si fue verbal, dilo: es más débil que un cargo firmado.</p>
               <div className="flex justify-end gap-3">

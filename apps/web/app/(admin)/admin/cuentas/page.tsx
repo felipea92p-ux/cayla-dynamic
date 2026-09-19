@@ -71,7 +71,7 @@ function ListaNoCargada({ que, motivo, noSignifica, reintentar }: { que: string;
 const ROL_LABEL: Record<string, string> = {
   admin: "Admin",
   lider_do: "Líder DO",
-  supervisor_sede: "Encargada",
+  supervisor_sede: "Líder de equipo",
 };
 
 export default function CuentasPage() {
@@ -214,7 +214,7 @@ export default function CuentasPage() {
     const data = await pedir({ accion: "promover", personaId: p.id });
     setProcesando(null);
     if (data.error) { setMsgGestion({ tipo: "error", texto: `${p.nombre}: ${data.error}` }); return; }
-    setMsgGestion({ tipo: "ok", texto: `${p.nombre} ahora es encargada de ${p.sede}. Ya puedes crearle su cuenta abajo.` });
+    setMsgGestion({ tipo: "ok", texto: `${p.nombre} ahora es líder de equipo de ${p.sede}. Ya puedes crearle su cuenta abajo.` });
     void listar();
   }
 
@@ -539,16 +539,16 @@ export default function CuentasPage() {
           </div>
         )}
 
-        <h2 className="mb-1 mt-8 font-serif text-lg">Convertir en encargada</h2>
+        <h2 className="mb-1 mt-8 font-serif text-lg">Convertir en líder de equipo</h2>
         <p className="mb-3 text-sm text-taupe">
           Da acceso al panel de su sede a una integrante. Al convertirla, aparece arriba para crearle su cuenta.
         </p>
         {cargando ? (
           <p className="text-sm text-taupe">Cargando…</p>
         ) : errListado && promovibles.length === 0 ? (
-          <ListaNoCargada que="a quién se puede convertir en encargada" motivo={errListado} noSignifica="no haya a quién convertir" reintentar={() => void listar()} />
+          <ListaNoCargada que="a quién se puede convertir en líder de equipo" motivo={errListado} noSignifica="no haya a quién convertir" reintentar={() => void listar()} />
         ) : promovibles.length === 0 ? (
-          <SinDatos texto="No hay integrantes por promover." pista="Acá aparece quien todavía no tiene cuenta de acceso al panel. Si está vacío, es que todas las personas con rol de encargada o líder ya tienen la suya." />
+          <SinDatos texto="No hay integrantes por promover." pista="Acá aparece quien todavía no tiene cuenta de acceso al panel. Si está vacío, es que todas las personas con rol de líder de equipo o de líder DO ya tienen la suya." />
         ) : (
           <div className="flex flex-wrap gap-2">
             {promovibles.map((p) => (
@@ -561,7 +561,7 @@ export default function CuentasPage() {
                   onClick={() => promover(p)}
                   disabled={procesando === p.id}
                 >
-                  {procesando === p.id ? "…" : "Hacer encargada"}
+                  {procesando === p.id ? "…" : "Hacer líder de equipo"}
                 </Boton>
               </div>
             ))}

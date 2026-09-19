@@ -611,7 +611,7 @@ export default function BandejaPage() {
           <Cargando />
         ) : !puedeEntrar ? (
           <div className="max-w-2xl rounded-control bg-ambar/15 px-4 py-3 text-sm text-ambar">
-            Esta pantalla es para quien opera el equipo — encargadas y Desarrollo Organizacional.
+            Esta pantalla es para quien opera el equipo — líderes de equipo y Desarrollo Organizacional.
           </div>
         ) : (
           <>
@@ -715,7 +715,8 @@ export default function BandejaPage() {
                             {resumenAlertas.motivos_definitivos.map((m) => <li key={m}>{m}</li>)}
                           </ul>
                           <span className="mt-1 block">
-                            Si dice «sin encargada con correo», se arregla en Equipo dándole correo a la encargada de esa sede;
+                            Si dice «sin líder de equipo con correo» (o «sin encargada con correo», en avisos anteriores),
+                            se arregla en Equipo cargando el correo de su líder de equipo;
                             si es de Resend, revisa la clave <code>RESEND_API_KEY</code> y el dominio verificado.
                           </span>
                         </>

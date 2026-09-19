@@ -398,7 +398,7 @@ function MiEditarContenido() {
         )}
       </div>
       <p className="mb-5 text-sm text-taupe">
-        Los cambios se piden, no se aplican solos: los revisa {yo.sede ? "tu encargada o " : ""}Desarrollo Organizacional
+        Los cambios se piden, no se aplican solos: los revisa {yo.sede ? "tu líder de equipo o " : ""}Desarrollo Organizacional
         antes de que se apliquen.
       </p>
 

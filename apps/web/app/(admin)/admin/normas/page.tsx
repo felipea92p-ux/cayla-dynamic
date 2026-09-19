@@ -1598,7 +1598,7 @@ function ConstanciasTab({
                             <Campo etiqueta="Fecha de recepción" type="date" value={fechaPapel} max={hoyLima()} onChange={(e) => onFechaPapel(e.target.value)} />
                             <div className="sm:col-span-2">
                               <Campo etiqueta="Nota (opcional)" value={notaPapel} onChange={(e) => onNotaPapel(e.target.value)}
-                                placeholder="ej. entregado en la tienda, con la encargada presente" />
+                                placeholder="ej. entregado en la tienda, con su líder de equipo presente" />
                             </div>
                           </div>
                           {progreso !== null && (

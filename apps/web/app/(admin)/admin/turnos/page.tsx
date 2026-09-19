@@ -16,6 +16,7 @@ import { Modal } from "@/components/ui/modal";
 import { hoyLima, puedeOperarEquipo, puedeVerTodasLasSedes } from "@cayla-dynamic/shared";
 import { esperadoDelDia, esTurnoEspejoViejo, horarioVigente, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
 import { cicloVigente, type DiaTrabajado } from "@/lib/admin/ciclo-sobretiempo";
+import { colorCobertura, etiquetaCobertura, type TonoCobertura } from "@/lib/admin/cobertura-turnos";
 
 // ── Fechas (todo en ISO yyyy-mm-dd, semana de lunes a domingo) ──────────────
 function parseISO(iso: string): Date {
@@ -90,29 +91,8 @@ const inicioFranja = (i: number) => HORA_INICIO_SEMANA + i * 0.5;
 function pctEnRango(horaDec: number): number {
   return Math.min(100, Math.max(0, ((horaDec - HORA_INICIO) / (HORA_FIN - HORA_INICIO)) * 100));
 }
-// Rojo → Verde según qué tan cerca está de la meta; a partir de la meta queda
-// verde sólido (el excedente ya no necesita más degradado). Sin meta no hay
-// contra qué medir: taupe neutro, no rojo (el rojo sin significado solo mete
-// ruido de alarma).
-//
-// `color-mix()` en vez de interpolar RGB a mano: antes esto devolvía un
-// `rgb(...)` fijo que JS calculaba una sola vez y que NUNCA cambiaba con el
-// tema, mientras que el texto de encima sí seguía `var(--color-crema)` —así
-// que en oscuro el texto se volvía casi negro sobre un fondo que seguía
-// siendo el rojo/verde de tema claro: 3.17:1 en el extremo rojo y 3.63:1 en
-// el verde, los dos por debajo del 4.5:1 que exige WCAG AA para texto de
-// 10-11px (medido 2026-09-07). Con `var(--color-rojo)`/`var(--color-verde)`
-// el navegador resuelve el color con los valores del tema activo en cada
-// pintado: en oscuro esos tokens son más claros a propósito, y el texto
-// crema-oscuro (casi negro) vuelve a leerse — 4.70:1 a 6.26:1 medido contra
-// el degradado completo. De paso, el verde fijo de antes (#5f7a52) ya no
-// coincidía con NINGÚN token vigente (#48603f claro / #85a476 oscuro): era
-// una copia que se quedó atrás cuando el token se retonó.
-function colorCobertura(n: number, meta: number): string {
-  if (meta <= 0) return "var(--color-taupe)";
-  const ratioPct = Math.round(Math.min(n / meta, 1) * 100);
-  return `color-mix(in oklab, var(--color-verde) ${ratioPct}%, var(--color-rojo))`;
-}
+// `colorCobertura` (de qué color se pinta una hora contra su meta) vive en
+// lib/admin/cobertura-turnos.ts, con su explicación y sus pruebas.
 // La meta cambia a media tarde: hasta 14:15 es la meta de la MAÑANA, después la
 // de la TARDE (fijo por ahora, ambas sedes — decisión de Felipe).
 const CORTE_TARDE = 14.25; // 14:15
@@ -173,9 +153,14 @@ function siluetaSVG(cov: number[], metaArr: number[], maxY: number) {
 // (topado a 100% por franja para que la tarde de sobra NO tape una mañana vacía),
 // más el motor de sugerencia: redistribuir (hay gente que mover) vs falta
 // personal (déficit sin sobra en ningún lado → contratar).
+//
+// `hayGente` = hay al menos una OPERATIVA programada ese día. Se llamaba
+// `hayTurnos`, y por eso «sin turnos» salía en días que tenían turnos de sobra:
+// quien está en un área que no es operativa tiene su turno y su barra, pero acá
+// no cuenta. Ver etiquetaCobertura, que es lo que traduce esto a una frase.
 function resumenOperativas(cov: number[], metaMan: number, metaTar: number, hi0: number, tam: number) {
   const idx = cov.map((v, i) => (v > 0 ? i : -1)).filter((i) => i >= 0);
-  if (idx.length === 0) return { hayTurnos: false, sinMeta: false, pct: 0, supHoras: 0, sug: null as string | null, redistribuir: null as "adelantar" | "retrasar" | null };
+  if (idx.length === 0) return { hayGente: false, sinMeta: false, pct: 0, supHoras: 0, sug: null as string | null, redistribuir: null as "adelantar" | "retrasar" | null };
   let suma = 0, n = 0, defMan = 0, defTar = 0, supMan = 0, supTar = 0, supFr = 0;
   for (let i = idx[0]; i <= idx[idx.length - 1]; i++) {
     const tarde = hi0 + i * tam >= CORTE_TARDE;
@@ -185,7 +170,7 @@ function resumenOperativas(cov: number[], metaMan: number, metaTar: number, hi0:
     if (cov[i] < m) { if (tarde) defTar++; else defMan++; }
     else if (cov[i] > m) { if (tarde) supTar++; else supMan++; supFr++; }
   }
-  if (n === 0) return { hayTurnos: true, sinMeta: true, pct: 0, supHoras: 0, sug: null, redistribuir: null };
+  if (n === 0) return { hayGente: true, sinMeta: true, pct: 0, supHoras: 0, sug: null, redistribuir: null };
   const hayDef = defMan + defTar > 0, haySup = supMan + supTar > 0;
   let sug: string | null = null;
   let redistribuir: "adelantar" | "retrasar" | null = null;
@@ -196,22 +181,26 @@ function resumenOperativas(cov: number[], metaMan: number, metaTar: number, hi0:
   } else if (hayDef && !haySup) {
     sug = "Te falta personal ese día — ni moviendo turnos alcanza.";
   }
-  return { hayTurnos: true, sinMeta: false, pct: Math.round((suma / n) * 100), supHoras: Math.round(supFr * tam * 10) / 10, sug, redistribuir };
+  return { hayGente: true, sinMeta: false, pct: Math.round((suma / n) * 100), supHoras: Math.round(supFr * tam * 10) / 10, sug, redistribuir };
 }
 
 // Resumen de ENCARGADAS: promedio de llenado vs la meta (igual que operativas,
 // con meta plana todo el día). Decisión de Felipe 2026-07-17: 1 encargada de
 // una meta de 2 se lee "cubierto 50%", no piso estricto en 0%.
-function resumenEncargadas(cov: number[], meta: number): { pct: number; hayTurnos: boolean; sinMeta: boolean } {
+function resumenEncargadas(cov: number[], meta: number): { pct: number; hayGente: boolean; sinMeta: boolean } {
   const idx = cov.map((v, i) => (v > 0 ? i : -1)).filter((i) => i >= 0);
-  if (idx.length === 0) return { pct: 0, hayTurnos: false, sinMeta: false };
-  if (meta <= 0) return { pct: 0, hayTurnos: true, sinMeta: true };
+  if (idx.length === 0) return { pct: 0, hayGente: false, sinMeta: false };
+  if (meta <= 0) return { pct: 0, hayGente: true, sinMeta: true };
   const ventana = cov.slice(idx[0], idx[idx.length - 1] + 1);
   const suma = ventana.reduce((s, v) => s + Math.min(v / meta, 1), 0);
-  return { pct: Math.round((suma / ventana.length) * 100), hayTurnos: true, sinMeta: false };
+  return { pct: Math.round((suma / ventana.length) * 100), hayGente: true, sinMeta: false };
 }
 // Verde ≥90 · ámbar 60-89 · rojo <60 (umbral elegido por Felipe).
 const colorDePct = (pct: number) => (pct >= 90 ? "var(--color-verde)" : pct >= 60 ? "var(--color-ambar)" : "var(--color-rojo)");
+// El color de la frase de cobertura de un día (ver etiquetaCobertura): rojo si es
+// una alerta, gris si es solo un dato, y el color del porcentaje si es un número.
+const colorDeTono = (tono: TonoCobertura, pct: number) =>
+  tono === "alerta" ? "var(--color-rojo)" : tono === "neutro" ? "var(--color-taupe)" : colorDePct(pct);
 
 // ── Diagnóstico: turnos que NO coinciden con el horario base ─────────────────
 // Un turno del día PISA el horario base (para tardanza y cobertura). Si un turno
@@ -1011,7 +1000,7 @@ export default function TurnosPage() {
   async function comprometerMetaEncargadas(dia: number, valor: string) {
     const meta = Math.max(0, Math.round(Number(valor) || 0));
     const { error } = await supabase.rpc("fn_set_meta_encargadas", { p_sede_id: sedeSel, p_dia_semana: dia, p_meta: meta });
-    if (error) { avisar("error", mensajeDeError(error, "guardar la meta de encargadas")); await cargar(); }
+    if (error) { avisar("error", mensajeDeError(error, "guardar la meta de líderes")); await cargar(); }
   }
 
   if (rol !== null && !puedeVer) {
@@ -1031,7 +1020,9 @@ export default function TurnosPage() {
             <p className="max-w-2xl text-sm text-taupe">
               Arma la semana por sede. Toca la fila de una persona en un día para poner su turno o marcar
               descanso. La meta tiene dos tramos: mañana y tarde (el corte es 14:15) — la franja de abajo
-              de cada día compara la gente de cada hora contra la meta de su tramo.
+              de cada día compara la gente de cada hora contra la meta de su tramo. La cobertura solo
+              cuenta a las áreas operativas de sede: quien trabaja en otra área se ve en ámbar, con su
+              área al lado, y no suma.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -1090,7 +1081,7 @@ export default function TurnosPage() {
           <div className="space-y-6">
             {([
               { titulo: "Cobertura (áreas operativas)", tipo: "op", filtro: esOperativa },
-              { titulo: "Encargadas (supervisor_sede)", tipo: "enc", filtro: esEncargada },
+              { titulo: "Líderes de equipo", tipo: "enc", filtro: esEncargada },
             ] as const).map(({ titulo, tipo, filtro }) => {
               const covPorDia = dias.map((iso) => coberturaPorFranja(iso, HORA_INICIO_SEMANA, N_FRANJAS_SEMANA, 0.5, filtro));
               // meta por franja de cada día: operativas cambia mañana/tarde; encargadas es plana.
@@ -1107,14 +1098,13 @@ export default function TurnosPage() {
                   : metasEncargadas.get(dia) ?? 0;
               }));
               const maxY = Math.max(tipo === "op" ? 6 : 3, ...covPorDia.flat(), metaMax + 1);
-              const colorPct = colorDePct;
               return (
                 <div key={titulo}>
                   <h2 className="font-serif text-lg">{titulo}</h2>
                   <p className="mb-2 text-xs text-taupe">
                     {tipo === "op"
                       ? "Verde = cubierto · rojo = falta · ámbar = sobra (la meta sube en la tarde, línea punteada). Abajo: qué tan lleno corriste vs tu meta, en promedio del día."
-                      : "Abajo: qué tan lleno corriste vs tu meta de encargadas, en promedio del día (1 de 2 = 50%)."}
+                      : "Abajo: qué tan lleno corriste vs tu meta de líderes, en promedio del día (1 de 2 = 50%)."}
                   </p>
                   <div className="overflow-x-auto">
                     <div className="grid min-w-[640px] grid-cols-7 gap-2">
@@ -1133,7 +1123,10 @@ export default function TurnosPage() {
                         const metaDia = tipo === "op"
                           ? Math.max(metas.get(dia) ?? 0, metasTarde.get(dia) ?? 0)
                           : metasEncargadas.get(dia) ?? 0;
-                        const nadieProgramado = !r.hayTurnos && metaDia > 0;
+                        const et = etiquetaCobertura({
+                          quien: tipo === "op" ? "operativas" : "lideres",
+                          hayGente: r.hayGente, sinMeta: r.sinMeta, hayMeta: metaDia > 0, pct: r.pct,
+                        });
                         return (
                           <button key={iso} onClick={() => irADia(iso)}
                             className={`rounded-lg border p-2 text-center transition-opacity hover:opacity-80 ${hoy ? "border-tinta" : "border-sand"}`}
@@ -1149,18 +1142,11 @@ export default function TurnosPage() {
                               <path d={s.line} fill="none" style={{ stroke: "var(--color-verde)", strokeWidth: 1.6, strokeLinejoin: "round" }} />
                             </svg>
                             <div className="mt-1.5 flex h-4 items-center justify-center text-xs">
-                              {nadieProgramado ? (
-                                <span className="font-medium text-rojo">¡nadie programado!</span>
-                              ) : r.sinMeta ? (
-                                // Medido: text-taupe/60 sobre crema da 2.4:1 (falla
-                                // 4.5:1 AA) — el token sin diluir da 5.2:1 claro y
-                                // 5.8:1 oscuro.
-                                <span className="text-[11px] text-taupe">sin meta</span>
-                              ) : !r.hayTurnos ? (
-                                <span className="text-[11px] text-taupe">sin turnos</span>
-                              ) : (
-                                <span className="font-medium" style={{ color: colorPct(r.pct) }}>cubierto {r.pct}%</span>
-                              )}
+                              {/* Medido: text-taupe/60 sobre crema da 2.4:1 (falla 4.5:1
+                                  AA) — el token sin diluir da 5.2:1 claro y 5.8:1 oscuro. */}
+                              <span className={et.tono === "neutro" ? "text-[11px]" : "font-medium"} style={{ color: colorDeTono(et.tono, r.pct) }}>
+                                {et.texto}
+                              </span>
                             </div>
                             {/* Aviso corto: redistribuir (ámbar) o falta personal (rojo) */}
                             <div className="flex h-3 items-center justify-center">
@@ -1204,10 +1190,10 @@ export default function TurnosPage() {
                 <p className="mb-3 max-w-3xl text-xs text-taupe">
                   Toda la semana, hora por hora. El <strong>número</strong> es cuántas operativas cubren esa media
                   hora; el <strong>color</strong> va de rojo (falta) a verde (llega a la meta de su tramo). Los{" "}
-                  <span className="inline-block h-1.5 w-1.5 translate-y-[1px] rounded-full bg-taupe" /> son encargadas.
+                  <span className="inline-block h-1.5 w-1.5 translate-y-[1px] rounded-full bg-taupe" /> son líderes.
                   Un borde{" "}
                   <span className="inline-block h-2.5 w-2.5 translate-y-[2px] rounded-[2px]" style={{ outline: "1.5px dashed var(--color-ambar)", outlineOffset: "-1.5px" }} />{" "}
-                  ámbar punteado marca una franja bien cubierta pero sin ninguna encargada, donde sí se esperaba una.
+                  ámbar punteado marca una franja bien cubierta pero sin ningún líder, donde sí se esperaba uno.
                   Toca una celda para ver quién cubre y editar sus turnos.
                 </p>
                 {!hayGente ? (
@@ -1277,7 +1263,7 @@ export default function TurnosPage() {
                               const sinEncargadaAlguna = encFalta && nEnc === 0;
                               return (
                                 <button key={iso} onClick={() => setPanel({ fecha: iso, franjaIdx: fi })}
-                                  title={`${t}–${decimalAHHMM(inicioFranja(fi) + 0.5)} · ${nOp} operativa${nOp === 1 ? "" : "s"}${metaOp > 0 ? ` (meta ${metaOp})` : ""}${nEnc > 0 ? ` · ${nEnc} encargada${nEnc === 1 ? "" : "s"}` : sinEncargadaAlguna ? ` · sin encargada (meta ${metaEnc})` : ""}`}
+                                  title={`${t}–${decimalAHHMM(inicioFranja(fi) + 0.5)} · ${nOp} operativa${nOp === 1 ? "" : "s"}${metaOp > 0 ? ` (meta ${metaOp})` : ""}${nEnc > 0 ? ` · ${nEnc} ${nEnc === 1 ? "líder" : "líderes"}` : sinEncargadaAlguna ? ` · sin líder (meta ${metaEnc})` : ""}`}
                                   className="relative m-[1.5px] flex h-6 items-center justify-center rounded-[3px] text-[11px] font-medium tabular-nums transition-all hover:z-10 hover:ring-2 hover:ring-tinta/25"
                                   style={{
                                     background: bg,
@@ -1324,6 +1310,11 @@ export default function TurnosPage() {
                 const covFrEnc = coberturaPorFranja(iso, HORA_INICIO_SEMANA, N_FRANJAS_SEMANA, 0.5, esEncargada);
                 const r = resumenOperativas(covFr, metaMan, metaTar, HORA_INICIO_SEMANA, 0.5);
                 const rEnc = resumenEncargadas(covFrEnc, metaEnc);
+                const etOp = etiquetaCobertura({ quien: "operativas", hayGente: r.hayGente, sinMeta: r.sinMeta, hayMeta: Math.max(metaMan, metaTar) > 0, pct: r.pct });
+                const etEnc = etiquetaCobertura({ quien: "lideres", hayGente: rEnc.hayGente, sinMeta: rEnc.sinMeta, hayMeta: metaEnc > 0, pct: rEnc.pct });
+                // ¿Alguien de un área operativa trabaja este día? Si nadie, la franja de
+                // cobertura de abajo no tiene nada que contar y lo dice con palabras.
+                const sinOperativasHoy = horas.every((n) => n === 0);
                 // Candidato concreto a mover (para la sugerencia de redistribución)
                 let candidato = "";
                 if (r.redistribuir === "adelantar") {
@@ -1343,7 +1334,7 @@ export default function TurnosPage() {
                       </div>
                       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
                         <label className="flex items-center gap-1.5 text-taupe">
-                          Meta op.
+                          Meta operativas
                           {esAdmin ? (
                             <>
                               <input type="number" min={0} value={metaMan} title="meta de la mañana (hasta 14:15)"
@@ -1357,14 +1348,14 @@ export default function TurnosPage() {
                           ) : (
                             <span>{metaMan}/{metaTar}</span>
                           )}
-                          <span className="text-taupe">mañ/tar</span>
+                          <span className="text-taupe">mañana / tarde</span>
                         </label>
-                        <span className="font-medium" style={{ color: !r.hayTurnos && Math.max(metaMan, metaTar) > 0 ? "var(--color-rojo)" : r.sinMeta || !r.hayTurnos ? "var(--color-taupe)" : colorDePct(r.pct) }}>
-                          {!r.hayTurnos && Math.max(metaMan, metaTar) > 0 ? "¡nadie programado!" : r.sinMeta ? "sin meta" : !r.hayTurnos ? "sin turnos" : `cubierto ${r.pct}%`}
+                        <span className="font-medium" style={{ color: colorDeTono(etOp.tono, r.pct) }}>
+                          {etOp.texto}
                           {r.supHoras > 0 && <span className="text-ambar"> · sobra {r.supHoras}h</span>}
                         </span>
                         <label className="flex items-center gap-1.5 border-l border-sand pl-3 text-taupe">
-                          Encargadas
+                          Líderes
                           {esAdmin ? (
                             <input type="number" min={0} value={metaEnc}
                               onChange={(e) => editarMetaEncargadas(dia, e.target.value)}
@@ -1374,8 +1365,8 @@ export default function TurnosPage() {
                             <span>{metaEnc || "—"}</span>
                           )}
                         </label>
-                        <span className="font-medium" style={{ color: !rEnc.hayTurnos && metaEnc > 0 ? "var(--color-rojo)" : rEnc.sinMeta || !rEnc.hayTurnos ? "var(--color-taupe)" : colorDePct(rEnc.pct) }}>
-                          {!rEnc.hayTurnos && metaEnc > 0 ? "¡ninguna programada!" : rEnc.sinMeta ? "sin meta" : !rEnc.hayTurnos ? "sin turnos" : `cubierto ${rEnc.pct}%`}
+                        <span className="font-medium" style={{ color: colorDeTono(etEnc.tono, rEnc.pct) }}>
+                          {etEnc.texto}
                         </span>
                       </div>
                     </div>
@@ -1400,10 +1391,14 @@ export default function TurnosPage() {
                       return (
                         <button key={p.id} onClick={() => abrir(p.id, iso)}
                           className="flex w-full items-center border-t border-sand/60 text-left transition-colors hover:bg-sand/20">
-                          <span className="w-[176px] shrink-0 truncate px-3 py-2 text-xs">
-                            {p.nombres} {p.apellidos}
+                          {/* Sin `truncate`: con el nombre y el área más largos que la
+                              columna, el recorte se comía justo la etiqueta del área y
+                              quedaba «…» —con la barra en ámbar y ninguna explicación de
+                              por qué—. Ahora la etiqueta baja de renglón. */}
+                          <span className="flex w-[176px] shrink-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 px-3 py-2 text-xs">
+                            <span>{p.nombres} {p.apellidos}</span>
                             {!operativa && (
-                              <Insignia variante="advertencia" tamano="sm" className="ml-1.5">{areaCorto(areas, p.funcion)}</Insignia>
+                              <Insignia variante="advertencia" tamano="sm">{areaCorto(areas, p.funcion)}</Insignia>
                             )}
                           </span>
                           <span className="relative h-7 flex-1">
@@ -1464,6 +1459,14 @@ export default function TurnosPage() {
                           </span>
                           );
                         })}
+                        {/* Si nadie de un área operativa trabaja ese día, la franja no
+                            tiene nada que contar: se dice, en vez de dejar un bloque
+                            que parezca «todo cubierto». */}
+                        {sinOperativasHoy && (
+                          <span className="absolute inset-0 flex items-center px-3 text-[11px] text-taupe">
+                            Nadie de un área operativa trabaja este día: aquí no hay cobertura que medir.
+                          </span>
+                        )}
                       </div>
                     </div>
                   </section>
@@ -1521,7 +1524,7 @@ export default function TurnosPage() {
               </div>
 
               <div className="mb-4">
-                <div className="etiqueta mb-2 text-taupe">Encargadas · {encs.length}{metaEnc > 0 ? ` / meta ${metaEnc}` : ""}</div>
+                <div className="etiqueta mb-2 text-taupe">Líderes · {encs.length}{metaEnc > 0 ? ` / meta ${metaEnc}` : ""}</div>
                 {encs.length === 0 ? (
                   <p className="text-sm text-taupe">Ninguna esta media hora.</p>
                 ) : (

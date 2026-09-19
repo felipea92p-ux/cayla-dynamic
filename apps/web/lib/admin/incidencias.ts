@@ -432,9 +432,9 @@ export function detectarIncidencias(d: DatosDeteccion): Incidencia[] {
       const sufijo = proximaSemana ? " · próxima semana, todavía se puede reprogramar" : "";
       out.push(conAceptacion({
         personaId: null, nombre: `Sede ${codigo}`, sede: codigo, fecha: dia, entrada: null, salida: null,
-        tipo: "deficit_encargadas", titulo: "Déficit de encargadas",
+        tipo: "deficit_encargadas", titulo: "Déficit de líderes",
         detalle: `${cubiertas} de ${m.meta_encargadas}${proximaSemana ? " · próxima semana" : ""}`,
-        texto: `Déficit de encargadas (${cubiertas}/${m.meta_encargadas})${sufijo}`,
+        texto: `Déficit de líderes (${cubiertas}/${m.meta_encargadas})${sufijo}`,
         valor: cubiertas, severidad: "media", categoria: "otros",
       }));
     }

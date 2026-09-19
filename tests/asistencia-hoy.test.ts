@@ -107,7 +107,7 @@ describe("calcularCoberturaSede — trabajando y en pausa por separado", () => {
     ];
     const cob = calcularCoberturaSede(equipo, { man: 4, tar: 4, enc: 1 }, false, 13.8);
     expect(cob.problema).toBe(true);
-    expect(loQueFalta(cob)).toBe("4 operativas y 1 encargada");
+    expect(loQueFalta(cob)).toBe("4 operativas y 1 líder");
     expect(cob.enPausa).toHaveLength(2); // y la pantalla puede decir que están en el refrigerio
   });
 
@@ -345,11 +345,11 @@ describe("loQueFalta y faltanTexto — concordancia", () => {
     ...o,
   });
 
-  it("dice operativas y encargadas juntas, en plural o singular según el número", () => {
+  it("dice operativas y líderes juntos, en plural o singular según el número", () => {
     expect(loQueFalta(cob({ faltanOp: true, metaOp: 4, opPiso: 0, faltanEnc: true, metaEnc: 1, encPiso: 0 })))
-      .toBe("4 operativas y 1 encargada");
+      .toBe("4 operativas y 1 líder");
     expect(loQueFalta(cob({ faltanOp: true, metaOp: 2, opPiso: 1 }))).toBe("1 operativa");
-    expect(loQueFalta(cob({ faltanEnc: true, metaEnc: 2, encPiso: 0 }))).toBe("2 encargadas");
+    expect(loQueFalta(cob({ faltanEnc: true, metaEnc: 2, encPiso: 0 }))).toBe("2 líderes");
   });
 
   it("no dice nada de lo que no falta", () => {

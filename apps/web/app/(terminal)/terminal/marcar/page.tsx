@@ -557,7 +557,7 @@ export default function MarcarPage() {
     mostrarMensaje(
       ok
         ? `Listo, ${personaActual.nombres} — tu día está abierto de nuevo.`
-        : "No se pudo reabrir. Intenta otra vez o avisa a tu encargada.",
+        : "No se pudo reabrir. Intenta otra vez o avisa a tu líder de equipo.",
       ok ? "ok" : "alerta",
     );
   }
@@ -591,7 +591,7 @@ export default function MarcarPage() {
     if (!terminal) {
       mostrarMensaje(
         `${personaActual.nombres}: este equipo no terminó de configurarse y tu marca NO quedó ` +
-          `registrada. Avisa a tu encargada ahora — no te vayas creyendo que marcaste.`,
+          `registrada. Avisa a tu líder de equipo ahora — no te vayas creyendo que marcaste.`,
         "alerta",
       );
       return;
@@ -698,7 +698,7 @@ export default function MarcarPage() {
     mostrarMensaje(
       rechazadaPorElServidor
         ? `No quedó registrada — el sistema no aceptó esta marca de ${personaActual.nombres}. `
-          + "Avisa a tu encargada ANTES de irte: no se va a arreglar sola."
+          + "Avisa a tu líder de equipo ANTES de irte: no se va a arreglar sola."
         : `Listo — ${TIPO_MARCA_LABELS[entry.tipo]} de ${personaActual.nombres}${
             sincronizadoAhora ? "" : " (se sincronizará cuando vuelva la conexión)"
           }`,
@@ -763,7 +763,7 @@ export default function MarcarPage() {
           </span>
           <p className="text-lg font-medium text-rojo sm:text-xl">
             {marcasApartadas} {marcasApartadas === 1 ? "marca" : "marcas"} sin registrar — avisa a tu
-            encargada
+            líder de equipo
           </p>
         </div>
       )}
@@ -789,7 +789,7 @@ export default function MarcarPage() {
             {Math.abs(desfase.segundos) >= DESFASE_GRAVE_SEG
               ? "Con este desfase una marca puede caer en el día equivocado y pagarse en otra jornada."
               : "Las tardanzas se miden por minuto: este desfase puede inventar o borrar una."}{" "}
-            Avisa a tu encargada para que corrijan la hora de esta Mac.
+            Avisa a tu líder de equipo para que corrijan la hora de esta Mac.
           </p>
         </div>
       )}

@@ -173,7 +173,7 @@ export function NombreGrid({
           <p className="text-xl text-taupe">
             Esta Mac no pudo leer la lista, ni del servidor ni de su copia guardada. Si hay internet
             en la tienda, toca «Volver a intentar». Si sigue igual, hoy no se puede marcar en esta
-            Mac: <strong className="text-tinta">anota tu hora de llegada y dísela a tu encargada</strong>,
+            Mac: <strong className="text-tinta">anota tu hora de llegada y dísela a tu líder de equipo</strong>,
             que la registra desde el panel. Tus horas no se pierden.
           </p>
           <button onClick={onReintentar} className={`${BTN_PRIMARIO} py-4 text-xl`}>

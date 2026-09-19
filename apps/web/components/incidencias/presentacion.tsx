@@ -88,7 +88,7 @@ export const NOMBRE_TIPO: Record<TipoIncidencia, string> = {
   jornada_excedida: "Jornada excedida (ya ocurrió)",
   racha_preventiva: "6 días seguidos (preventivo)",
   racha_sin_descanso: "Días seguidos sin descanso",
-  deficit_encargadas: "Déficit de encargadas",
+  deficit_encargadas: "Déficit de líderes",
   falta_injustificada: "Falta injustificada",
   falta_justificada: "Falta justificada",
 };
@@ -125,7 +125,7 @@ export const REGLA: Record<TipoIncidencia, string> = {
     `Trabajó más de ${MAXIMO_DIAS_SIN_DESCANSO} días seguidos sin su descanso semanal. La infracción ya ocurrió: marcarla revisada deja constancia. ` +
     "Si la racha sigue creciendo, el aviso vuelve con el día nuevo.",
   deficit_encargadas:
-    "Ese día la sede tiene menos encargadas programadas que su mínimo (se configura en Turnos). Mira esta semana y la siguiente, para avisar mientras todavía se puede reprogramar.",
+    "Ese día la sede tiene menos líderes programados que su mínimo (se configura en Turnos). Mira esta semana y la siguiente, para avisar mientras todavía se puede reprogramar.",
   falta_injustificada:
     "Le tocaba trabajar según su turno u horario, no marcó, no era feriado y su contrato seguía vigente. " +
     "Justificarla la saca del conteo; sin justificar, puede entrar a un expediente en Disciplina.",
@@ -141,7 +141,7 @@ export const REGLAS_EN_ORDEN: readonly { titulo: string; tipos: TipoIncidencia[]
   { titulo: "Patrón de tardanzas", tipos: ["patron_tardanzas"] },
   { titulo: "Jornada excedida", tipos: ["jornada_excedida_viva", "jornada_excedida"] },
   { titulo: "Días sin descanso", tipos: ["racha_preventiva", "racha_sin_descanso"] },
-  { titulo: "Déficit de encargadas", tipos: ["deficit_encargadas"] },
+  { titulo: "Déficit de líderes", tipos: ["deficit_encargadas"] },
 ];
 
 // ── Qué se puede hacer ─────────────────────────────────────────────────────

@@ -23,7 +23,7 @@ export default function TerminalError({
         <h1 className="font-serif text-4xl">Algo se detuvo</h1>
         <p className="mx-auto max-w-md text-base leading-relaxed text-taupe">
           La pantalla tuvo un problema. Toca el botón para volver a intentar. Si
-          sigue igual, avisa a tu encargada.
+          sigue igual, avisa a tu líder de equipo.
         </p>
       </div>
       <button
