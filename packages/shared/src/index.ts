@@ -15,3 +15,4 @@ export * from "./educacion";
 export * from "./ventanas-beneficio";
 export * from "./sedes";
 export * from "./cobertura-equipo";
+export * from "./auditoria";

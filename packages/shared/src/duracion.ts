@@ -21,3 +21,11 @@ export function formatoMinutos(min: number): string {
   if (min < 60) return `${min} min`;
   return `${Math.floor(min / 60)}h ${String(min % 60).padStart(2, "0")}m`;
 }
+
+/**
+ * Por encima de tres horas una tardanza no es una medición confiable: casi
+ * siempre ese día la persona tenía OTRO turno y se comparó contra el
+ * equivocado (RIT 17.5). Espeja `fn_tardanza_es_medible` (0189); si un lado
+ * cambia, cambia el otro.
+ */
+export const MINUTOS_MAXIMOS_TARDANZA_MEDIBLE = 180;

@@ -198,3 +198,24 @@ export function siNoSinDato(valor: boolean | null | undefined): "SI" | "NO" | "S
   if (valor === false) return "NO";
   return "SIN DATO";
 }
+
+/**
+ * Cómo se lee `jornadas.estado` en el día abierto de una persona (Correcciones).
+ * Distinto del Dashboard, que habla del «ahora» («Trabajando»): acá el día
+ * puede ser de hace un mes, y «abierta» significa que nadie marcó la salida.
+ */
+export const JORNADA_ESTADO_LABELS: Record<string, string> = {
+  abierta: "Sin salida marcada",
+  en_pausa: "En pausa",
+  cerrada: "Cerrada",
+  auto_cerrada_pendiente: "Cerrada por el sistema, sin confirmar",
+  revisada: "Revisada",
+};
+
+/** De dónde vino un marcaje (`marcajes.origen`). */
+export const ORIGEN_MARCA_LABELS: Record<string, string> = {
+  terminal: "Terminal",
+  admin_correccion: "Manual",
+  auto_cierre: "Auto-cierre",
+  import_historico: "Historial importado",
+};
