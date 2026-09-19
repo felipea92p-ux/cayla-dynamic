@@ -191,6 +191,17 @@ export function esRolEncargada(rol: RolPosible): boolean {
   return tiene(SOLO_ENCARGADA, rol);
 }
 
+/**
+ * Administra el sistema: admin o líder DO. NO es un permiso — es la pregunta
+ * «¿este rol es de administración?» que necesita la cobertura para saber quién
+ * hace de líder en una sede central (ver `cuentaEnCobertura`). Para decidir qué
+ * puede hacer alguien en una pantalla se usa la función de permiso que
+ * corresponda, no esta.
+ */
+export function esRolAdministrativo(rol: RolPosible): boolean {
+  return tiene(DO, rol);
+}
+
 /** Solo integrante — ni DO ni encargada. Objetivos la usa para decidir a
  * quién puede gestionar una encargada de sede: a sus integrantes, nunca a
  * otra encargada (esos los gestiona DO). */
