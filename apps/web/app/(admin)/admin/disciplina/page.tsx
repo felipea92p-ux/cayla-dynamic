@@ -969,11 +969,20 @@ export default function DisciplinaPage() {
     const s = deteccionAbierta?.situacion;
     const tipo = caso.tipo;
     const pid = caso.personaId;
+    // Si ya hay un borrador de esta persona y causal, «Generar» solo puede negarse: lo
+    // útil es llevarla a él. Antes el panel decía «revísalo en Borradores» y no había cómo ir.
+    const borradorExistente = docs.find((x) => x.estado === "borrador" && x.persona_id === pid && x.tipo_causal === tipo) ?? null;
     accionesPanel = (
       <div className="flex flex-wrap items-center gap-3">
-        <Boton variante="primario" onClick={() => void generar(tipo, pid)} disabled={!s?.generable} cargando={ocupado === pid}>
-          Generar borrador
-        </Boton>
+        {borradorExistente ? (
+          <Boton variante="primario" onClick={() => { setTab("borradores"); setCaso({ tipo: "documento", id: borradorExistente.id }); }}>
+            Ir al borrador
+          </Boton>
+        ) : (
+          <Boton variante="primario" onClick={() => void generar(tipo, pid)} disabled={!s?.generable} cargando={ocupado === pid}>
+            Generar borrador
+          </Boton>
+        )}
         <p className="min-w-0 flex-1 basis-60 text-xs text-taupe">
           {s?.generable
             ? "Crea un borrador sin número con estas pruebas. No comunica ni firma nada todavía."
@@ -1044,6 +1053,16 @@ export default function DisciplinaPage() {
     historial: historial.length,
   };
 
+  // Qué hay por hacer HOY, en una línea. La pantalla abre en «Requieren revisión», que puede
+  // decir 0 mientras lo que espera —un borrador por trabajar— está en otra pestaña; quien la abre
+  // por primera vez no tiene cómo saberlo. Con un fallo de lectura no se afirma nada: un «no hay
+  // nada» construido sobre datos que no se pudieron leer se leería como un hecho.
+  const porHacer: Array<{ tab: Pestana; texto: string }> = [];
+  if (conteo.revision > 0) porHacer.push({ tab: "revision", texto: `${conteo.revision} caso${conteo.revision === 1 ? "" : "s"} por revisar` });
+  if (conteo.borradores > 0) porHacer.push({ tab: "borradores", texto: `${conteo.borradores} borrador${conteo.borradores === 1 ? "" : "es"} por trabajar` });
+  if (conteo.entregar > 0) porHacer.push({ tab: "entregar", texto: `${conteo.entregar} documento${conteo.entregar === 1 ? "" : "s"} por entregar o cerrar` });
+  const puedeResumir = !cargando && !falloTard && !falloFaltas && !falloDocs && !hayFiltro;
+
   // ── Render ─────────────────────────────────────────────────────────────
   return (
     <div className="flex flex-1 flex-col">
@@ -1091,6 +1110,20 @@ export default function DisciplinaPage() {
             </label>
           )}
         </div>
+
+        {puedeResumir && (
+          <p className="mb-3 flex flex-wrap items-baseline gap-x-2 text-sm text-taupe" data-hoy>
+            <span className="font-medium text-tinta">Para hoy:</span>
+            {porHacer.length === 0
+              ? <span>nada por hacer aquí.</span>
+              : porHacer.map((x, i) => (
+                  <span key={x.tab}>
+                    {i > 0 && <span aria-hidden>· </span>}
+                    <Boton variante="enlace" className="text-sm text-tinta" onClick={() => setTab(x.tab)}>{x.texto}</Boton>
+                  </span>
+                ))}
+          </p>
+        )}
 
         {/* Pestañas */}
         {/* En el celular las cuatro van en 2 × 2 y no en una franja que se
