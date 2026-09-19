@@ -54,8 +54,6 @@ import {
 } from "@/components/incidencias/presentacion";
 import { EstadoInsignia, PanelIncidencia } from "@/components/incidencias/panel-incidencia";
 
-const HOY = hoyLima();
-
 // ── Periodo ────────────────────────────────────────────────────────────────
 type Periodo = "semana" | "mes" | "30" | "libre";
 const PERIODOS: { clave: Exclude<Periodo, "libre">; etiqueta: string }[] = [
@@ -63,10 +61,14 @@ const PERIODOS: { clave: Exclude<Periodo, "libre">; etiqueta: string }[] = [
   { clave: "mes", etiqueta: "Este mes" },
   { clave: "30", etiqueta: "Últimos 30 días" },
 ];
-function rangoDe(p: Exclude<Periodo, "libre">): [string, string] {
-  if (p === "semana") return [lunesDeLaSemana(HOY), HOY];
-  if (p === "mes") return [`${HOY.slice(0, 8)}01`, HOY];
-  return [addDias(HOY, -30), HOY];
+// `hoy` se pregunta cada vez y no se guarda en una constante del módulo: un
+// módulo se evalúa una sola vez por carga de página, y una pestaña abierta el
+// viernes que se mira el sábado seguía con la fecha del viernes (los avisos de
+// «hoy» se corrían un día y la jornada que se quedó abierta el viernes no salía).
+function rangoDe(p: Exclude<Periodo, "libre">, hoy: string): [string, string] {
+  if (p === "semana") return [lunesDeLaSemana(hoy), hoy];
+  if (p === "mes") return [`${hoy.slice(0, 8)}01`, hoy];
+  return [addDias(hoy, -30), hoy];
 }
 
 // ── Resumen ────────────────────────────────────────────────────────────────
@@ -109,8 +111,8 @@ function IncidenciasContenido() {
   const rol = yo?.rol ?? null;
 
   const [periodo, setPeriodo] = useState<Periodo>("30");
-  const [desde, setDesde] = useState(addDias(HOY, -30));
-  const [hasta, setHasta] = useState(HOY);
+  const [desde, setDesde] = useState(() => addDias(hoyLima(), -30));
+  const [hasta, setHasta] = useState(() => hoyLima());
 
   const [incidencias, setIncidencias] = useState<Incidencia[]>([]);
   const [sedes, setSedes] = useState<Sede[]>([]);
@@ -167,7 +169,8 @@ function IncidenciasContenido() {
     setCargando(true);
 
     // Qué rango pide cada consulta: vive junto a la detección para que no se separen.
-    const v = ventanasDeConsulta(HOY, desde, hasta);
+    const hoy = hoyLima();
+    const v = ventanasDeConsulta(hoy, desde, hasta);
 
     const [
       { data, error: errData },
@@ -204,7 +207,7 @@ function IncidenciasContenido() {
           .from("jornadas")
           // `en_planilla` viaja para que el patrón se quede exclusivo de quien está en planilla (0413).
           .select("persona_id, fecha, entrada_ts, personas:persona_id(nombres, apellidos, en_planilla, estado, sedes:sede_base_id(codigo))")
-          .gte("fecha", v.desdePatron).lte("fecha", HOY)
+          .gte("fecha", v.desdePatron).lte("fecha", hoy)
           .gt("minutos_tarde", 0)
           .order("fecha", { ascending: false })
           .order("persona_id")
@@ -226,12 +229,12 @@ function IncidenciasContenido() {
       supabase.rpc("fn_faltas", { p_desde: desde, p_hasta: hasta }),
       supabase.rpc("fn_revisiones_pedidas", { p_solo_pendientes: true }),
       // Falla DURA para el patrón (se apaga entero), suave para el resto.
-      supabase.from("tardanzas_justificadas").select("persona_id, fecha").gte("fecha", v.desdePatron).lte("fecha", HOY),
+      supabase.from("tardanzas_justificadas").select("persona_id, fecha").gte("fecha", v.desdePatron).lte("fecha", hoy),
       traerTodo<unknown>((ini, fin) =>
         supabase
           .from("jornadas")
           .select("persona_id, fecha, horas_trabajadas, estado, personas:persona_id(nombres, apellidos, tipo_vinculo, practicante_modalidad, estado, sedes:sede_base_id(codigo))")
-          .gte("fecha", v.desdeHoras).lte("fecha", HOY)
+          .gte("fecha", v.desdeHoras).lte("fecha", hoy)
           .gt("horas_trabajadas", 0)
           .order("persona_id")
           .range(ini, fin),
@@ -240,7 +243,7 @@ function IncidenciasContenido() {
         supabase
           .from("jornadas")
           .select("persona_id, fecha, personas:persona_id(nombres, apellidos, estado, sedes:sede_base_id(codigo))")
-          .gte("fecha", v.desdeRacha).lte("fecha", HOY)
+          .gte("fecha", v.desdeRacha).lte("fecha", hoy)
           .gt("horas_trabajadas", 0)
           .order("persona_id")
           .range(ini, fin),
@@ -279,7 +282,7 @@ function IncidenciasContenido() {
     const sedesRows = (sedesData as Sede[] | null) ?? [];
 
     setIncidencias(detectarIncidencias({
-      hoy: HOY,
+      hoy,
       jornadasRango: (data as DatosDeteccion["jornadasRango"] | null) ?? [],
       salidaTemprana: (extraData as unknown as DatosDeteccion["salidaTemprana"] | null) ?? [],
       tardanzas: (tardias as DatosDeteccion["tardanzas"] | null) ?? [],
@@ -327,6 +330,28 @@ function IncidenciasContenido() {
 
   // eslint-disable-next-line react-hooks/set-state-in-effect -- cargar al montar y al mover el periodo, mismo patrón que el resto del panel.
   useEffect(() => { void cargar(); }, [cargar]);
+
+  // Si la pestaña estuvo abierta y cambió el día de Lima, al volver a mirarla se
+  // recalcula el periodo y se recarga. No hay un reloj corriendo: solo importa
+  // cuando alguien mira, y un intervalo gastaría batería en el celular.
+  const diaVisto = useRef(hoyLima());
+  useEffect(() => {
+    function alVolver() {
+      if (document.visibilityState !== "visible") return;
+      const hoy = hoyLima();
+      if (hoy === diaVisto.current) return;
+      diaVisto.current = hoy;
+      if (periodo === "libre") { void cargar(); return; } // un rango elegido a mano no se mueve
+      const [d, h] = rangoDe(periodo, hoy);
+      setDesde(d); setHasta(h); // cambia el rango, y con él se recarga sola
+    }
+    document.addEventListener("visibilitychange", alVolver);
+    window.addEventListener("focus", alVolver);
+    return () => {
+      document.removeEventListener("visibilitychange", alVolver);
+      window.removeEventListener("focus", alVolver);
+    };
+  }, [periodo, cargar]);
 
   // ── Alcance: lo que esta persona puede ver ─────────────────────────────
   const codigoDeMiSede = sedes.find((s) => s.id === yo?.sedeBaseId)?.codigo ?? null;
@@ -427,7 +452,7 @@ function IncidenciasContenido() {
   const incidenciaAbierta = abierta ? incidencias.find((i) => i.clave === abierta) ?? null : null;
 
   function elegirPeriodo(p: Exclude<Periodo, "libre">) {
-    const [d, h] = rangoDe(p);
+    const [d, h] = rangoDe(p, hoyLima());
     setPeriodo(p); setDesde(d); setHasta(h);
   }
 
