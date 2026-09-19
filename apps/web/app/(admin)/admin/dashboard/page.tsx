@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
@@ -32,8 +32,15 @@ import {
 import { PanelColapsable } from "./panel-colapsable";
 import { PanelAtencionBanner, PanelAtencionLateral } from "./panel-atencion";
 import { usePendientesBandeja } from "./use-pendientes-bandeja";
+import { useRefrescoLento } from "./use-refresco-lento";
 
 const REFRESCO_MS = 30_000;
+// Los catálogos casi fijos (sedes, áreas, tipos de ausencia) no cambian cada 30 s: se
+// piden al abrir y se vuelven a pedir cada 10 minutos. Recargar la pantalla los trae
+// al instante (la caché vive solo mientras la pestaña está abierta), así que reactivar
+// una sede y recargar la muestra enseguida. Las metas de cobertura NO entran aquí:
+// se editan en Turnos y se siguen pidiendo en cada ciclo.
+const CATALOGOS_MS = 10 * 60_000;
 // Mismo Sheet de siempre si la variable de entorno todavía no está puesta en
 // Vercel — así este cambio no puede romper el enlace en producción el día que
 // se despliegue antes de cargar la variable.
@@ -424,11 +431,12 @@ export default function DashboardPage() {
   const prefs = useMemo(() => normalizarPreferencias(prefsCrudas), [prefsCrudas]);
   const [personalizando, setPersonalizando] = useState(false);
   const pendientesBandeja = usePendientesBandeja(prefs.kpisExtra.pendientes === true, yo?.rol);
+  const catalogos = useRef<{ en: number; sedes: unknown; areas: unknown; tipos: unknown } | null>(null);
 
   // Semáforo disciplinario para la franja (aparte del refresco de asistencia).
-  useEffect(() => {
+  const cargarDisciplina = useCallback(async () => {
     const sb = createAdminSupabaseClient();
-    void (async () => {
+    await (async () => {
       const [{ data: t, error: errT }, { data: f, error: errF }] = await Promise.all([
         sb.rpc("fn_tardanzas_resumen", {}),
         sb.rpc("fn_faltas_resumen", {}),
@@ -476,6 +484,7 @@ export default function DashboardPage() {
       setRespuestasMemo(Array.isArray(resp) ? (resp as RespuestaMemoRow[]) : []);
     })();
   }, []);
+  useRefrescoLento(cargarDisciplina);
 
   // Contratos a plazo fijo: los que vencen dentro de 30 días y —lo que de verdad
   // importa— los que YA vencieron sin que nadie registrara la salida. La fecha se
@@ -489,9 +498,9 @@ export default function DashboardPage() {
   // convierte un contrato en indefinido con solo que la persona siga
   // trabajando después de la fecha, y ese plazo corre igual aunque la pantalla
   // no haya podido mirar — mismo criterio que `discNoRespondio` en Disciplina.
-  useEffect(() => {
+  const cargarContratos = useCallback(async () => {
     const sb = createAdminSupabaseClient();
-    void (async () => {
+    await (async () => {
       // NOVENTA días, no treinta. Veintiún contratos a plazo fijo y **veinte
       // vencen el mismo 31 de diciembre**: con la ventana de 30 el aviso
       // aparecía el 1 de diciembre, dejando un mes —en plena campaña de fin de
@@ -505,6 +514,7 @@ export default function DashboardPage() {
       setContratos(Array.isArray(data) ? (data as ContratoRow[]) : []);
     })();
   }, []);
+  useRefrescoLento(cargarContratos);
 
   const cargar = useCallback(async () => {
     const supabase = createAdminSupabaseClient();
@@ -516,6 +526,10 @@ export default function DashboardPage() {
 
     const hoy = hoyLima();
     const diaHoy = diaSemanaDe(hoy);
+    const pedirSedes = () => supabase.from("sedes").select("id, codigo, nombre, tipo, ciudad").eq("activa", true).order("codigo");
+    const pedirAreas = () => supabase.rpc("fn_areas");
+    const pedirTiposAusencia = () => supabase.from("tipos_ausencia").select("codigo, nombre, requiere_aprobacion");
+    const guardado = catalogos.current && Date.now() - catalogos.current.en < CATALOGOS_MS ? catalogos.current : null;
     // minutos_salida_temprana va por RPC (fn_jornadas_extra) porque el schema cache
     // de PostgREST no expone la columna; el select directo fallaría entero.
     const [
@@ -529,7 +543,7 @@ export default function DashboardPage() {
       // Ausencias SÍ lleva su error: si falla, alguien de vacaciones se vería
       // idéntico a un "sin marcar" real, y eso merece un aviso discreto (ver abajo).
       { data: ausenciasHoy, error: errAusencias },
-      { data: tiposAusencia }, // catálogo (nombre + si exige aprobación), para no repetirlo a mano acá
+      { data: tiposAusencia, error: errTipos }, // catálogo (nombre + si exige aprobación), para no repetirlo a mano acá
       // Turnos y horarios SÍ llevan su error: de los dos sale `entradaEsperadaHoy`,
       // que alimenta la única alerta roja de esta pantalla fuera de Disciplina
       // ("sede sin marcar"). Si cualquiera de las dos falla, esa alerta no puede
@@ -539,7 +553,7 @@ export default function DashboardPage() {
     ] = await Promise.all([
       // Misma consulta que /admin/reporte-sede: la lista de sedes a mostrar
       // nunca se deriva de quién aparece en otra tabla.
-      supabase.from("sedes").select("id, codigo, nombre, tipo, ciudad").eq("activa", true).order("codigo"),
+      guardado ? (guardado.sedes as Awaited<ReturnType<typeof pedirSedes>>) : pedirSedes(),
       supabase
         .from("personas")
         .select("id, nombres, apellidos, rol, sede_base_id, sedes:sede_base_id(codigo)")
@@ -560,12 +574,12 @@ export default function DashboardPage() {
         .eq("fecha", hoy),
       supabase.rpc("fn_jornadas_extra", { p_desde: hoy, p_hasta: hoy }),
       supabase.rpc("fn_personas_funciones"),
-      supabase.rpc("fn_areas"),
+      guardado ? (guardado.areas as Awaited<ReturnType<typeof pedirAreas>>) : pedirAreas(),
       supabase.from("metas_cobertura").select("sede_id, meta, meta_tarde, meta_encargadas").eq("dia_semana", diaHoy),
       // anulada_at is null: una ausencia anulada no cubre nada. El rango incluye
       // hoy con <= / >=, igual que el `between` que ya usa fn_faltas_resumen.
       supabase.from("ausencias").select("persona_id, tipo, aprobada_at").is("anulada_at", null).lte("fecha_inicio", hoy).gte("fecha_fin", hoy),
-      supabase.from("tipos_ausencia").select("codigo, nombre, requiere_aprobacion"),
+      guardado ? (guardado.tipos as Awaited<ReturnType<typeof pedirTiposAusencia>>) : pedirTiposAusencia(),
       supabase.from("turnos").select("persona_id, fecha, hora_entrada, hora_salida, es_descanso").eq("fecha", hoy),
       supabase
         .from("horarios_asignados")
@@ -589,6 +603,14 @@ export default function DashboardPage() {
       return; // no pisa `filas`/`sedesActivas` con datos parciales/vacíos
     }
     setError(null);
+    if (!guardado && !errAreas && !errTipos) {
+      catalogos.current = {
+        en: Date.now(),
+        sedes: { data: sedesData, error: errSedes },
+        areas: { data: areasRaw, error: errAreas },
+        tipos: { data: tiposAusencia, error: errTipos },
+      };
+    }
     setSedesActivas(sedesData ?? []);
     setAusenciasNoRespondieron(Boolean(errAusencias));
     setHorarioEsperadoNoRespondio(Boolean(errTurnos || errHorarios));
@@ -950,7 +972,7 @@ export default function DashboardPage() {
                   no van en el mismo refresco de 30s (cambian una vez al día, no
                   cada medio minuto) — decirlo evita la promesa que el título de
                   arriba no cumple para esas dos franjas. */}
-              <div className="mt-0.5 text-taupe">Disciplina y Contratos se cargan al abrir la pantalla — recarga para verlos al día.</div>
+              <div className="mt-0.5 text-taupe">Disciplina, memos y contratos se actualizan cada 5 minutos.</div>
               {/* Aviso discreto, no un banner: alguien de vacaciones podría verse como
                   "sin marcar" mientras esta consulta no responda. Menos grave que
                   Contratos o la alerta de sede — por eso no interrumpe la pantalla. */}
@@ -1481,7 +1503,7 @@ export default function DashboardPage() {
                 documento y dejó una constancia digital, firmando o prefiriendo no
                 hacerlo. Ninguna de las dos reemplaza el trámite físico. */}
             {respuestasMemo.length > 0 && panelVisible("memos") && (
-              <PanelColapsable {...panelProps("memos", "Respuestas a memos", "se carga al abrir la pantalla")}>
+              <PanelColapsable {...panelProps("memos", "Respuestas a memos", "se actualiza cada 5 min")}>
               <div className="rounded-2xl border border-sand bg-papel p-5 pl-6">
                 <div className="mb-2 flex items-center justify-between">
                   <span className="text-xs text-taupe">Últimos {DIAS_RESPUESTAS_MEMO} días</span>
@@ -1510,7 +1532,7 @@ export default function DashboardPage() {
                 Documentación. Sin esta franja, la fecha anotada en Equipo solo sirve
                 si alguien se acuerda de ir a buscarla. */}
             {(contratosNoRespondio || contratos.length > 0) && panelVisible("contratos") && (
-              <PanelColapsable {...panelProps("contratos", "Contratos a plazo fijo", "se carga al abrir la pantalla")}>
+              <PanelColapsable {...panelProps("contratos", "Contratos a plazo fijo", "se actualiza cada 5 min")}>
               {(() => {
               // Igual que Disciplina: si la RPC no contestó, la franja NO se
               // calla — dice que no pudo mirar, en vez de parecer un mes tranquilo.
