@@ -188,7 +188,24 @@ export interface CoberturaSede {
   lideresEnAmbasMetas: number;
   /** Quienes marcaron hoy sin horario ni turno contra qué medirlos. Ver `marcaronSinHorario`. */
   marcaronSinHorario: FilaPersona[];
+  /** Falta esta meta Y no se puede cumplir aunque vengan todos: se revisa en Turnos. */
+  metaOpImposible: boolean;
+  metaEncImposible: boolean;
+  /**
+   * «alerta» = falta gente que SÍ podría venir (rojo). «revisar» = lo único que
+   * falta son metas imposibles de cumplir (ámbar: es un dato de Turnos). null = no
+   * falta nada, o la sede está fuera de horario. `problema` sigue diciendo «falta
+   * algo» sea cual sea la causa; esto dice qué tan urgente es.
+   *
+   * Costo conocido, aceptado a propósito: una tienda que pierde a su ÚNICA líder
+   * también queda en «revisar» —equipo 0 contra meta 1—, porque la función no
+   * puede distinguirla de una meta mal cargada sin historia. La pantalla dice la
+   * causa y «Requiere atención» la lista, pero ya no es rojo.
+   */
+  gravedad: GravedadCobertura;
 }
+
+export type GravedadCobertura = "alerta" | "revisar" | null;
 
 /**
  * Quienes marcaron hoy SIN tener ni horario vigente ni turno: nada mide su
@@ -331,11 +348,22 @@ export function calcularCoberturaSede(deSede: FilaPersona[], meta: MetaSede, tra
   const equipoOperativas = deSede.filter((f) => f.esOperativa).length;
   const equipoLideres = deSede.filter((f) => f.esEncargada).length;
 
+  // ¿Lo que falta es gente que podría venir, o una meta que NO se puede cumplir
+  // por más que vengan todos? Lo segundo es un dato por revisar en Turnos, no una
+  // sede con menos gente de la que debía: el mismo rojo para las dos era un rojo
+  // que nadie podía apagar viniendo a trabajar (LIM: meta de 4 con 3 personas;
+  // CCO: meta de 1 líder sin nadie que cuente como líder).
+  const metaOpImposible = faltanOp && causaMetaImposible("operativas", metaOp, equipoOperativas) !== null;
+  const metaEncImposible = faltanEnc && causaMetaImposible("lideres", meta.enc, equipoLideres) !== null;
+  const hayFaltaPosible = (faltanOp && !metaOpImposible) || (faltanEnc && !metaEncImposible);
+  const gravedad: GravedadCobertura = hayFaltaPosible ? "alerta" : faltanOp || faltanEnc ? "revisar" : null;
+
   return {
     trabajando, enPausa, opPiso, encPiso, metaOp, metaEnc: meta.enc, sinMetaOp, sinMetaEnc,
     faltanOp, faltanEnc, problema: faltanOp || faltanEnc, sinMarcarReal, programadosHoy, alertaSinEntrada,
     equipoOperativas, equipoLideres, fueraDeHorario, desgloseProgramadas, lideresEnAmbasMetas,
     marcaronSinHorario: marcaronSinHorario(deSede),
+    metaOpImposible, metaEncImposible, gravedad,
   };
 }
 
@@ -376,6 +404,18 @@ export function causaMetaImposible(
     ? `La meta (${meta}) es mayor que la única persona del equipo que cuenta: aunque venga, no se cumple.`
     : `La meta (${meta}) es mayor que las ${equipo} personas del equipo que cuentan: aunque vengan todas, no se cumple.`;
   return { resumen: "la meta es mayor que el equipo", detalle };
+}
+
+/**
+ * Lo que dice «Requiere atención» de una sede cuya única falta son metas que no se
+ * pueden cumplir. Dice qué meta y por qué, y dónde se arregla: «faltan 4
+ * operativas» sería mentira aquí, porque no hay a quién pedirle que venga.
+ */
+export function textoMetaPorRevisar(cob: CoberturaSede): string {
+  const partes: string[] = [];
+  if (cob.metaOpImposible) partes.push(`personal operativo: ${causaMetaImposible("operativas", cob.metaOp, cob.equipoOperativas)!.resumen}`);
+  if (cob.metaEncImposible) partes.push(`líderes: ${causaMetaImposible("lideres", cob.metaEnc, cob.equipoLideres)!.resumen}`);
+  return `revisa la meta en Turnos — ${partes.join("; ")}`;
 }
 
 // "2 operativas y 1 encargada": lo que le falta a una sede para su meta de

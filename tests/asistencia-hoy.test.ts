@@ -37,6 +37,7 @@ import {
   textoEquipoDelDia,
   textoFueraDeHorario,
   textoLiderEnLasDosMetas,
+  textoMetaPorRevisar,
   textoPausa,
   textoPausaDesde,
   textoSinHorario,
@@ -548,10 +549,12 @@ describe("el equipo que PODRÍA cubrir cada meta", () => {
     expect(cob.trabajando).toHaveLength(2);
     expect(cob.equipoOperativas).toBe(0);
     expect(cob.equipoLideres).toBe(0);
-    // El rojo se queda: la falta es cierta según la meta. Lo que cambia es que
-    // ahora se sabe POR QUÉ (ver causaMetaImposible), no que se calle.
+    // La falta sigue siendo cierta según la meta (`problema`), y se sabe POR QUÉ
+    // (ver causaMetaImposible). Desde la decisión del 2026-09-18 ya no es ROJO: no
+    // falta gente que pueda venir, falta que alguien revise la meta en Turnos.
     expect(cob.faltanEnc).toBe(true);
     expect(cob.problema).toBe(true);
+    expect(cob.gravedad).toBe("revisar");
   });
 });
 
@@ -871,5 +874,83 @@ describe("textoSinHorario — quién, y dónde se arregla", () => {
 
   it("sin nadie, no dice nada", () => {
     expect(textoSinHorario([])).toBeNull();
+  });
+});
+
+// ----------------------------------------------------------------------------
+// Meta imposible = ámbar, no rojo (decisión del 2026-09-18). LIM tenía meta de 4
+// operativas con 3 personas activas, y CCO meta de 1 líder sin nadie que cuente
+// como líder: rojo todos los días, sin que nadie pudiera apagarlo trabajando.
+// ----------------------------------------------------------------------------
+describe("gravedad — rojo si falta gente que podría venir, ámbar si la meta no se puede cumplir", () => {
+  const enPiso = (o: Partial<FilaPersona> = {}) => fila({ estado: "abierta", entrada: "x", ...o });
+
+  it("LIM: meta de 4 con 2 operativas en piso y la líder cumplida → ámbar, aunque «falte»", () => {
+    const equipo = [enPiso({ personaId: "raquel", esEncargada: true }), enPiso({ personaId: "joselyn" })];
+    const cob = calcularCoberturaSede(equipo, { man: 4, tar: 4, enc: 1 }, false, 15);
+    expect(cob.faltanOp).toBe(true);
+    expect(cob.metaOpImposible).toBe(true);
+    expect(cob.metaEncImposible).toBe(false);
+    expect(cob.problema).toBe(true);
+    expect(cob.gravedad).toBe("revisar");
+  });
+
+  it("CCO: meta de 1 líder sin nadie que cuente como líder → ámbar", () => {
+    const equipo = [enPiso({ esOperativa: false, esEncargada: false })];
+    const cob = calcularCoberturaSede(equipo, { man: 0, tar: 0, enc: 1 }, false, 15);
+    expect(cob.metaEncImposible).toBe(true);
+    expect(cob.gravedad).toBe("revisar");
+  });
+
+  it("LIM cuando la líder que SÍ existe se fue: falta gente que podría venir → rojo", () => {
+    // Mezcla: la meta de operativas es imposible, pero la de líderes se podría
+    // cumplir (hay una líder en el equipo) y hoy no está. Manda lo que es cierto.
+    const equipo = [
+      fila({ personaId: "raquel", estado: "cerrada", entrada: "x", salidaFinal: "y", esEncargada: true }),
+      enPiso({ personaId: "joselyn" }),
+    ];
+    const cob = calcularCoberturaSede(equipo, { man: 4, tar: 4, enc: 1 }, false, 15);
+    expect(cob.metaOpImposible).toBe(true);
+    expect(cob.metaEncImposible).toBe(false);
+    expect(cob.gravedad).toBe("alerta");
+  });
+
+  it("TRU a las 15:00 sin nadie en piso: falta gente real → rojo", () => {
+    const equipo = Array.from({ length: 12 }, (_, i) => fila({ personaId: `p${i}`, estado: "cerrada", entrada: "x", salidaFinal: "y", esEncargada: i < 4 }));
+    const cob = calcularCoberturaSede(equipo, { man: 7, tar: 8, enc: 2 }, true, 15);
+    expect(cob.gravedad).toBe("alerta");
+  });
+
+  it("sin nada que falte, o fuera de horario, no hay gravedad", () => {
+    const equipo = [enPiso({ personaId: "a" }), enPiso({ personaId: "b" })];
+    expect(calcularCoberturaSede(equipo, { man: 2, tar: 2, enc: 0 }, false, 15).gravedad).toBeNull();
+    const tarde = [fila({ estado: "cerrada", entrada: "x", salidaFinal: "y", salidaEsperadaHoy: "20:15" })];
+    const cob = calcularCoberturaSede(tarde, { man: 4, tar: 4, enc: 1 }, true, 21);
+    expect(cob.fueraDeHorario).not.toBeNull();
+    expect(cob.gravedad).toBeNull();
+    expect(cob.metaOpImposible).toBe(false); // fuera de horario nada «falta», ni siquiera lo imposible
+  });
+
+  it("COSTO CONOCIDO: una tienda que pierde a su única líder también sale ámbar", () => {
+    // Equipo 0 contra meta 1 es lo mismo que una meta mal cargada: sin historia no
+    // se distinguen. Está escrito acá para que nadie lo descubra por sorpresa.
+    const equipo = [enPiso({ esEncargada: false })];
+    expect(calcularCoberturaSede(equipo, { man: 0, tar: 0, enc: 1 }, false, 15).gravedad).toBe("revisar");
+  });
+});
+
+describe("textoMetaPorRevisar — qué meta, por qué, y dónde se arregla", () => {
+  it("LIM: meta de operativas mayor que el equipo", () => {
+    const equipo = [
+      fila({ personaId: "raquel", estado: "abierta", entrada: "x", esEncargada: true }),
+      fila({ personaId: "joselyn", estado: "abierta", entrada: "x" }),
+    ];
+    const cob = calcularCoberturaSede(equipo, { man: 4, tar: 4, enc: 1 }, false, 15);
+    expect(textoMetaPorRevisar(cob)).toBe("revisa la meta en Turnos — personal operativo: la meta es mayor que el equipo");
+  });
+
+  it("CCO: nadie cuenta como líder", () => {
+    const cob = calcularCoberturaSede([fila({ estado: "abierta", entrada: "x", esOperativa: false })], { man: 0, tar: 0, enc: 1 }, false, 15);
+    expect(textoMetaPorRevisar(cob)).toBe("revisa la meta en Turnos — líderes: nadie del equipo cuenta como líder");
   });
 });

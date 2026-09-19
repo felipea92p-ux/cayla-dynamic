@@ -20,7 +20,7 @@ import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
 import {
   calcularCoberturaSede, causaMetaImposible, coincideConFiltroDeEstado, enPausaAhora, faltanTexto, fechaConDia, fechaCorta, llegoTarde, loQueFalta,
   minutosDesde, porPausaMasLarga, sinMarcarYaLeTocaba, subEstadoSinMarcar, textoDesglose, textoEquipoDelDia,
-  OPCIONES_FILTRO_ESTADO, textoFueraDeHorario, textoLiderEnLasDosMetas, textoSinHorario, textoPausa, textoPausaDesde, textoSinMarcar, trabajandoAhora,
+  OPCIONES_FILTRO_ESTADO, textoFueraDeHorario, textoLiderEnLasDosMetas, textoMetaPorRevisar, textoSinHorario, textoPausa, textoPausaDesde, textoSinMarcar, trabajandoAhora,
   type CoberturaSede, type FilaPersona, type MetaSede,
 } from "@/lib/admin/asistencia-hoy";
 import { traerPausasAbiertas } from "@/lib/admin/pausas-abiertas";
@@ -308,14 +308,20 @@ function Franja({ tono }: { tono: TonoFranja }) {
 // Fuera de horario (la sede ya cerró o aún no abre, y no queda nadie) el tile se
 // apaga a neutro y no dice «Faltan N»: la meta no se está midiendo, y un rojo ahí
 // afirmaba una falta que no existe. Ver fueraDeHorarioDeHoy.
-function TileCobertura({ label, n, meta, sinMeta, tramo, fueraDeHorario = false }: { label: string; n: number; meta: number; sinMeta: boolean; tramo?: string; fueraDeHorario?: boolean }) {
+//
+// Ámbar y «Meta por revisar» cuando la meta no se puede cumplir aunque vengan todos
+// (`porRevisar`): ahí «Faltan 4» era cierto pero nadie podía hacer nada, y un rojo
+// que no se apaga viniendo a trabajar enseña a ignorar los rojos. Ver `gravedad`.
+function TileCobertura({ label, n, meta, sinMeta, tramo, fueraDeHorario = false, porRevisar = false }: { label: string; n: number; meta: number; sinMeta: boolean; tramo?: string; fueraDeHorario?: boolean; porRevisar?: boolean }) {
   const ok = !sinMeta && n >= meta;
   const sinMedir = fueraDeHorario && !sinMeta && !ok;
   const tono = sinMeta || sinMedir
     ? { caja: "border-sand bg-crema", numero: "text-taupe", texto: "text-taupe" }
     : ok
       ? { caja: "border-verde/30 bg-verde/[0.08]", numero: "text-verde", texto: "text-verde" }
-      : { caja: "border-rojo/30 bg-rojo/10", numero: "text-rojo", texto: "text-rojo-profundo" };
+      : porRevisar
+        ? { caja: "border-ambar/30 bg-ambar/10", numero: "text-ambar", texto: "text-ambar" }
+        : { caja: "border-rojo/30 bg-rojo/10", numero: "text-rojo", texto: "text-rojo-profundo" };
   return (
     <div className={`rounded-superficie border px-4 py-3 ${tono.caja}`}>
       <div className="flex items-baseline gap-1.5">
@@ -326,7 +332,7 @@ function TileCobertura({ label, n, meta, sinMeta, tramo, fueraDeHorario = false 
         {label}{sinMeta ? " · sin meta" : tramo ? ` · meta ${tramo}` : ""}
       </div>
       {!sinMeta && (
-        <div className={`mt-1 text-sm font-semibold ${tono.texto}`}>{ok ? "Completo" : sinMedir ? "Fuera de horario" : faltanTexto(meta - n)}</div>
+        <div className={`mt-1 text-sm font-semibold ${tono.texto}`}>{ok ? "Completo" : sinMedir ? "Fuera de horario" : porRevisar ? "Meta por revisar" : faltanTexto(meta - n)}</div>
       )}
     </div>
   );
@@ -717,7 +723,10 @@ export default function DashboardPage() {
   const sedes = [...sedesDeAlcance].sort((a, b) => {
     const ca = coberturaPorSede.get(a.sedeId)!;
     const cb = coberturaPorSede.get(b.sedeId)!;
-    if (ca.problema !== cb.problema) return ca.problema ? -1 : 1;
+    // Primero el rojo (falta gente que podría venir), luego el ámbar (una meta por
+    // revisar en Turnos) y al final las que no tienen nada.
+    const rango = (g: CoberturaSede["gravedad"]) => (g === "alerta" ? 0 : g === "revisar" ? 1 : 2);
+    if (rango(ca.gravedad) !== rango(cb.gravedad)) return rango(ca.gravedad) - rango(cb.gravedad);
     return cb.trabajando.length - ca.trabajando.length || a.codigo.localeCompare(b.codigo);
   });
 
@@ -736,7 +745,10 @@ export default function DashboardPage() {
   // pero tampoco desaparece: se dice al lado, para que en pleno refrigerio el
   // número bajo no parezca gente que no vino.
   const enPausaTotal = filas.filter((f) => enPausaAhora(f.estado)).length;
-  const sedesBajoMinimo = sedes.filter((s) => coberturaPorSede.get(s.sedeId)!.problema);
+  // Solo las que les falta gente que SÍ podría venir: las de meta imposible no se
+  // arreglan con asistencia, y contadas aquí dejarían este número en rojo todos los
+  // días por un dato de Turnos. Esas van en «Requiere atención», en ámbar.
+  const sedesBajoMinimo = sedes.filter((s) => coberturaPorSede.get(s.sedeId)!.gravedad === "alerta");
   const resumen: { clave: ClaveResumen; label: string; n: number; color: string; nota?: string }[] = [
     {
       clave: "trabajando", label: "Trabajando ahora", n: personasDelResumen.trabajando.length,
@@ -804,7 +816,13 @@ export default function DashboardPage() {
         texto: `sin marcajes desde las ${horaAmPmDe(cob.alertaSinEntrada)} — nadie ha marcado entrada todavía`,
       });
     }
-    if (cob.faltanOp || cob.faltanEnc) {
+    if (cob.gravedad === "revisar") {
+      // Solo faltan metas imposibles: no se pide que venga nadie, se pide revisar el dato.
+      itemsAtencion.push({
+        key: `cobertura-${s.sedeId}`, sede: s.codigo, tono: "advertencia",
+        texto: textoMetaPorRevisar(cob),
+      });
+    } else if (cob.faltanOp || cob.faltanEnc) {
       // «Hay N en pausa» porque «faltan 4 operativas» no dice si no vinieron o
       // si están en el refrigerio — y a la hora de almuerzo es lo segundo.
       // Y si la meta no se puede cumplir con el equipo que hay, se dice: sin eso,
@@ -1204,14 +1222,18 @@ export default function DashboardPage() {
               // de la alerta de «Sin marcajes»: si nadie marcó en todo el día, cerrar la
               // tienda no lo apaga.
               const hayMeta = !cob.sinMetaOp || !cob.sinMetaEnc;
+              // Rojo solo si falta gente que podría venir, o nadie marcó en todo el día.
+              // Una meta imposible es ámbar «Meta por revisar»: se arregla en Turnos.
               const estadoSede: { tono: TonoFranja; texto: string } =
-                cob.problema || cob.alertaSinEntrada
-                  ? { tono: "alerta", texto: cob.problema ? "Cobertura insuficiente" : "Sin marcajes" }
-                  : cob.fueraDeHorario && hayMeta
-                    ? { tono: "neutral", texto: "Fuera de horario" }
-                    : cob.sinMetaOp && cob.sinMetaEnc
-                      ? { tono: "neutral", texto: cob.equipoOperativas === 0 ? "Sin cobertura que medir" : "Sin meta configurada" }
-                      : { tono: "positivo", texto: "Cobertura correcta" };
+                cob.gravedad === "alerta" || cob.alertaSinEntrada
+                  ? { tono: "alerta", texto: cob.gravedad === "alerta" ? "Cobertura insuficiente" : "Sin marcajes" }
+                  : cob.gravedad === "revisar"
+                    ? { tono: "advertencia", texto: "Meta por revisar" }
+                    : cob.fueraDeHorario && hayMeta
+                      ? { tono: "neutral", texto: "Fuera de horario" }
+                      : cob.sinMetaOp && cob.sinMetaEnc
+                        ? { tono: "neutral", texto: cob.equipoOperativas === 0 ? "Sin cobertura que medir" : "Sin meta configurada" }
+                        : { tono: "positivo", texto: "Cobertura correcta" };
               const fueraDeHorarioVisible = cob.fueraDeHorario !== null && hayMeta;
               // «Sin horario» se apaga si la consulta de turnos u horarios falló: entonces
               // TODAS las filas llegan sin horario, y el aviso acusaría a cada quien que marcó.
@@ -1279,10 +1301,10 @@ export default function DashboardPage() {
                   {(mostrarTileOperativas || mostrarTileLideres) && (
                     <div className={`mb-4 grid gap-3 sm:max-w-md ${mostrarTileOperativas && mostrarTileLideres ? "grid-cols-2" : "grid-cols-1 sm:max-w-[13.5rem]"}`}>
                       {mostrarTileOperativas && (
-                        <TileCobertura label="Personal operativo en piso" n={cob.opPiso} meta={cob.metaOp} sinMeta={cob.sinMetaOp} tramo={tramoLabel} fueraDeHorario={fueraDeHorarioVisible} />
+                        <TileCobertura label="Personal operativo en piso" n={cob.opPiso} meta={cob.metaOp} sinMeta={cob.sinMetaOp} tramo={tramoLabel} fueraDeHorario={fueraDeHorarioVisible} porRevisar={cob.metaOpImposible} />
                       )}
                       {mostrarTileLideres && (
-                        <TileCobertura label="Líderes en piso" n={cob.encPiso} meta={cob.metaEnc} sinMeta={cob.sinMetaEnc} fueraDeHorario={fueraDeHorarioVisible} />
+                        <TileCobertura label="Líderes en piso" n={cob.encPiso} meta={cob.metaEnc} sinMeta={cob.sinMetaEnc} fueraDeHorario={fueraDeHorarioVisible} porRevisar={cob.metaEncImposible} />
                       )}
                     </div>
                   )}
