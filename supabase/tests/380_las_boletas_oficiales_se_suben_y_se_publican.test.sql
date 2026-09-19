@@ -30,8 +30,9 @@ insert into personas (id, nombres, apellidos, sede_base_id, rol, pin_hash, auth_
   ('00000000-0000-0000-0000-0000000ea004', 'EncBol',  'Lab', '00000000-0000-0000-0000-0000000e0001', 'supervisor_sede', 'x', '00000000-0000-0000-0000-0000000eb004', '2023-01-01', 'planilla', 'Líder de equipo'),
   ('00000000-0000-0000-0000-0000000ea005', 'CamiBol', 'Lab', '00000000-0000-0000-0000-0000000e0001', 'integrante',      'x', '00000000-0000-0000-0000-0000000eb005', '2023-01-01', 'practicante', 'Practicante'),
   ('00000000-0000-0000-0000-0000000ea006', 'JorgeBol','Lab', '00000000-0000-0000-0000-0000000e0001', 'integrante',      'x', null,                                   '2023-01-01', 'planilla', 'Costurero');
-insert into personas (id, nombres, apellidos, sede_base_id, rol, pin_hash, fecha_ingreso, tipo_vinculo, estado) values
-  ('00000000-0000-0000-0000-0000000ea007', 'InactBol', 'Lab', '00000000-0000-0000-0000-0000000e0001', 'integrante', 'x', '2023-01-01', 'planilla', 'inactivo');
+-- Un inactivo lleva fecha de cese: lo exige `personas_cese_coherente` (0086).
+insert into personas (id, nombres, apellidos, sede_base_id, rol, pin_hash, fecha_ingreso, tipo_vinculo, estado, fecha_cese) values
+  ('00000000-0000-0000-0000-0000000ea007', 'InactBol', 'Lab', '00000000-0000-0000-0000-0000000e0001', 'integrante', 'x', '2023-01-01', 'planilla', 'inactivo', '2024-01-31');
 set session_replication_role = origin;
 
 -- P1 pagado para planilla y practicante; P2 sin ninguna fila de pago (= abierto).
