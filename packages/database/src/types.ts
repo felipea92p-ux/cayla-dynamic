@@ -1539,6 +1539,7 @@ export type Database = {
           firma_persona_user_agent: string | null
           id: string
           monto_declarado: number | null
+          movimiento_id: string | null
           nota: string | null
           persona_id: string | null
           registrado_por: string
@@ -1568,6 +1569,7 @@ export type Database = {
           firma_persona_user_agent?: string | null
           id?: string
           monto_declarado?: number | null
+          movimiento_id?: string | null
           nota?: string | null
           persona_id?: string | null
           registrado_por: string
@@ -1597,6 +1599,7 @@ export type Database = {
           firma_persona_user_agent?: string | null
           id?: string
           monto_declarado?: number | null
+          movimiento_id?: string | null
           nota?: string | null
           persona_id?: string | null
           registrado_por?: string
@@ -1621,6 +1624,13 @@ export type Database = {
             columns: ["anulado_por"]
             isOneToOne: false
             referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documentos_firmados_movimiento_id_fkey"
+            columns: ["movimiento_id"]
+            isOneToOne: false
+            referencedRelation: "movimientos_planilla"
             referencedColumns: ["id"]
           },
           {
@@ -6764,6 +6774,8 @@ export type Database = {
           mes_cumpleanos: number
           monto: number
           pedido_el: string
+          periodo_fin: string
+          via: string
         }[]
       }
       fn_mi_firma: { Args: never; Returns: string }

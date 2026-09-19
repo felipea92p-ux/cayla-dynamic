@@ -122,6 +122,29 @@ export function sinMarcarYaLeTocaba(f: FilaPersona, ahoraDecimal: number): boole
   return f.estado === "sin_marcar" && !f.ausenciaHoy && subEstadoSinMarcar(f, ahoraDecimal) === "falta_real";
 }
 
+// Las opciones del filtro «Estado» y qué estados de jornada trae cada una.
+//
+// «Salió» filtraba solo `cerrada`, y la tabla escribe «Salió (revisada)» para
+// quien tiene la jornada `revisada`: filtrando por «Salió», tres de las cuatro
+// personas que se habían ido de OTRU (2026-09-18) no aparecían, con la misma
+// palabra en pantalla. Las opciones viven acá, y no en el JSX, para que una
+// prueba compruebe que NINGÚN estado queda sin una opción que lo encuentre.
+export const OPCIONES_FILTRO_ESTADO = [
+  { valor: "abierta", etiqueta: "Trabajando" },
+  { valor: "en_pausa", etiqueta: "En pausa" },
+  { valor: "cerrada", etiqueta: "Salió" },
+  { valor: "sin_marcar", etiqueta: "Sin marcar" },
+  { valor: "auto_cerrada_pendiente", etiqueta: "Auto-cerrada" },
+] as const;
+
+/** ¿Este estado de jornada lo trae la opción del filtro? `todos` trae a todos. */
+export function coincideConFiltroDeEstado(estado: string, filtro: string): boolean {
+  if (filtro === "todos") return true;
+  // «Salió» = la jornada terminó, esté o no revisada (así la llama la tabla).
+  if (filtro === "cerrada") return estado === "cerrada" || estado === "revisada";
+  return estado === filtro;
+}
+
 export interface MetaSede { man: number; tar: number; enc: number; }
 
 // Cobertura de una sede en este momento: cuánta gente hay EN PISO ahora vs la
@@ -163,6 +186,45 @@ export interface CoberturaSede {
    * pueden ser solo 2 personas — decisión de 2026-09-18.
    */
   lideresEnAmbasMetas: number;
+  /** Quienes marcaron hoy sin horario ni turno contra qué medirlos. Ver `marcaronSinHorario`. */
+  marcaronSinHorario: FilaPersona[];
+  /** Falta esta meta Y no se puede cumplir aunque vengan todos: se revisa en Turnos. */
+  metaOpImposible: boolean;
+  metaEncImposible: boolean;
+  /**
+   * «alerta» = falta gente que SÍ podría venir (rojo). «revisar» = lo único que
+   * falta son metas imposibles de cumplir (ámbar: es un dato de Turnos). null = no
+   * falta nada, o la sede está fuera de horario. `problema` sigue diciendo «falta
+   * algo» sea cual sea la causa; esto dice qué tan urgente es.
+   *
+   * Costo conocido, aceptado a propósito: una tienda que pierde a su ÚNICA líder
+   * también queda en «revisar» —equipo 0 contra meta 1—, porque la función no
+   * puede distinguirla de una meta mal cargada sin historia. La pantalla dice la
+   * causa y «Requiere atención» la lista, pero ya no es rojo.
+   */
+  gravedad: GravedadCobertura;
+}
+
+export type GravedadCobertura = "alerta" | "revisar" | null;
+
+/**
+ * Quienes marcaron hoy SIN tener ni horario vigente ni turno: nada mide su
+ * puntualidad ni su falta, y no entran en «les tocaba a N». En TRU (2026-09-18)
+ * trabajaron 11 y la pantalla decía «10 de las 12», sin avisar que una integrante
+ * ni siquiera tenía horario cargado.
+ *
+ * Solo personal operativo y líderes: un administrador de Central sin horario es
+ * normal, y avisarlo todos los días enseñaría a ignorar el aviso.
+ *
+ * `sin_horario` es «no hay con qué medirlo» y no «hoy descansa» (ver
+ * `origenEsperadoHoy`). Ojo: si la consulta de turnos u horarios FALLA, todas las
+ * filas llegan como `sin_horario`; quien llama tiene que apagar el aviso en ese
+ * caso, porque acá no hay forma de distinguirlo.
+ */
+export function marcaronSinHorario(deSede: FilaPersona[]): FilaPersona[] {
+  return deSede.filter(
+    (f) => f.origenEsperadoHoy === "sin_horario" && f.entrada !== null && (f.esOperativa || f.esEncargada),
+  );
 }
 
 /** Dónde está ahora cada persona a la que le tocaba trabajar hoy. Se reparten TODAS, sin sobrar ni faltar. */
@@ -286,10 +348,22 @@ export function calcularCoberturaSede(deSede: FilaPersona[], meta: MetaSede, tra
   const equipoOperativas = deSede.filter((f) => f.esOperativa).length;
   const equipoLideres = deSede.filter((f) => f.esEncargada).length;
 
+  // ¿Lo que falta es gente que podría venir, o una meta que NO se puede cumplir
+  // por más que vengan todos? Lo segundo es un dato por revisar en Turnos, no una
+  // sede con menos gente de la que debía: el mismo rojo para las dos era un rojo
+  // que nadie podía apagar viniendo a trabajar (LIM: meta de 4 con 3 personas;
+  // CCO: meta de 1 líder sin nadie que cuente como líder).
+  const metaOpImposible = faltanOp && causaMetaImposible("operativas", metaOp, equipoOperativas) !== null;
+  const metaEncImposible = faltanEnc && causaMetaImposible("lideres", meta.enc, equipoLideres) !== null;
+  const hayFaltaPosible = (faltanOp && !metaOpImposible) || (faltanEnc && !metaEncImposible);
+  const gravedad: GravedadCobertura = hayFaltaPosible ? "alerta" : faltanOp || faltanEnc ? "revisar" : null;
+
   return {
     trabajando, enPausa, opPiso, encPiso, metaOp, metaEnc: meta.enc, sinMetaOp, sinMetaEnc,
     faltanOp, faltanEnc, problema: faltanOp || faltanEnc, sinMarcarReal, programadosHoy, alertaSinEntrada,
     equipoOperativas, equipoLideres, fueraDeHorario, desgloseProgramadas, lideresEnAmbasMetas,
+    marcaronSinHorario: marcaronSinHorario(deSede),
+    metaOpImposible, metaEncImposible, gravedad,
   };
 }
 
@@ -330,6 +404,18 @@ export function causaMetaImposible(
     ? `La meta (${meta}) es mayor que la única persona del equipo que cuenta: aunque venga, no se cumple.`
     : `La meta (${meta}) es mayor que las ${equipo} personas del equipo que cuentan: aunque vengan todas, no se cumple.`;
   return { resumen: "la meta es mayor que el equipo", detalle };
+}
+
+/**
+ * Lo que dice «Requiere atención» de una sede cuya única falta son metas que no se
+ * pueden cumplir. Dice qué meta y por qué, y dónde se arregla: «faltan 4
+ * operativas» sería mentira aquí, porque no hay a quién pedirle que venga.
+ */
+export function textoMetaPorRevisar(cob: CoberturaSede): string {
+  const partes: string[] = [];
+  if (cob.metaOpImposible) partes.push(`personal operativo: ${causaMetaImposible("operativas", cob.metaOp, cob.equipoOperativas)!.resumen}`);
+  if (cob.metaEncImposible) partes.push(`líderes: ${causaMetaImposible("lideres", cob.metaEnc, cob.equipoLideres)!.resumen}`);
+  return `revisa la meta en Turnos — ${partes.join("; ")}`;
 }
 
 // "2 operativas y 1 encargada": lo que le falta a una sede para su meta de
@@ -431,12 +517,21 @@ export function textoFueraDeHorario(f: FueraDeHorario, horaFormateada: string): 
     : `Todavía no llega la primera entrada programada de hoy (${horaFormateada}): la meta no se mide.`;
 }
 
+/** «A y B marcaron hoy sin horario ni turno asignado…»: dice quién y dónde se arregla. */
+export function textoSinHorario(nombres: string[]): string | null {
+  if (nombres.length === 0) return null;
+  const quienes = nombres.length === 1
+    ? nombres[0]
+    : `${nombres.slice(0, -1).join(", ")} y ${nombres[nombres.length - 1]}`;
+  return `${quienes} ${nombres.length === 1 ? "marcó" : "marcaron"} hoy sin horario ni turno asignado, así que nada mide su puntualidad. Se arregla en Horarios.`;
+}
+
 /** Aviso de que los dos recuadros de cobertura pueden contar a la misma persona. */
 export function textoLiderEnLasDosMetas(n: number): string | null {
   if (n <= 0) return null;
   return n === 1
-    ? "1 líder de equipo cuenta en las dos metas: operativas y líderes."
-    : `${n} líderes de equipo cuentan en las dos metas: operativas y líderes.`;
+    ? "1 líder de equipo cuenta en las dos metas: personal operativo y líderes."
+    : `${n} líderes de equipo cuentan en las dos metas: personal operativo y líderes.`;
 }
 
 // ============================================================================

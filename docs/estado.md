@@ -80,10 +80,83 @@ aparte de los comunicados de DO, y no como plantillas para que DO publique
 (`docs/anuncios-prototipo-2026-09-15.html`, PR #401) sigue sin decidirse: si se
 adopta, esta sección se muda con él.
 
+## 2026-09-19 — El bono de cumpleaños firmado entra a la boleta (0479) · ESCRITA, NO AUDITADA · NO PEGADA · SIN FUSIONAR
+
+**Nada de esto está en producción.** La migración y el frontend están escritos y
+verificados solo hasta donde se pudo sin base: typecheck, 883 pruebas de vitest y
+análisis sintáctico del SQL con el parser de Postgres (`pglast`, incluido el
+cuerpo PL/pgSQL). **La auditoría contra Postgres local NO se hizo: Docker Desktop
+estaba colgado** (`docker info` no respondía; 500 sin parar), así que ni el SQL
+se ejecutó ni la prueba pgTAP 378 se corrió. Por la regla de la casa, esto está
+«escrito», no «listo».
+
+Felipe pidió que Melany pudiera firmar su cargo de cumpleaños y que, al hacerlo,
+el incentivo apareciera en su boleta. **Lo primero ya existía** desde la 0477/0478
+(`/mio/cumpleanos`, «Pedir mi bono», con la firma digital); la captura era la
+pantalla del papel de DO, «Subir cargo». **Lo segundo no:** hasta la 0478 firmar
+solo creaba un pedido que DO transfería por fuera, sin tocar la planilla.
+
+**Cómo se hizo.** [0479](../supabase/migrations/0479_el_bono_de_cumpleanos_firmado_entra_a_la_boleta.sql):
+al firmar, la misma transacción crea una línea `bono` «Asignación por
+cumpleaños» en `movimientos_planilla` del último periodo que ya empezó y la ata a
+la constancia (`documentos_firmados.movimiento_id`). **No se tocó
+`fn_planilla_calcular`:** su bucket de bonos ya suma al total y la boleta ya los
+pinta. Verificado leyendo la vigente (0397): `mov.bonos` solo entra al JSON, al
+`total` y a la retención de 4.ª (0 para quien está en planilla) — **no** a AFP,
+EsSalud ni provisiones. Tampoco al 3-de-6-meses de la 0278: es de una vez al año.
+
+- Si al firmar **no hay periodo, o está pagado para su grupo**, no se escribe en
+  ninguna boleta: la firma vale igual y queda `pedido` — el camino de la 0478
+  (DO transfiere y confirma). Nunca se bloquea a la persona ni se toca lo pagado.
+- **No se paga dos veces, por esquema y no por `if`:** un bono en boleta no puede
+  tener `entrega_confirmada_*` (constraint), ni dos constancias la misma línea
+  (índice único), y `fn_confirmar_entrega_bono` lo rechaza con su motivo.
+- Si DO **quita la línea** desde Planilla, el vínculo se suelta (`on delete set
+  null`) y el bono vuelve a «pedido» y a la lista por transferir: no se pierde.
+- `fn_mi_bono_cumpleanos()` gana el estado `en_boleta` y las columnas `via` y
+  `periodo_fin` (por eso se BORRA y se recrea). Para un bono pagado con la
+  planilla la pantalla dice el periodo, no un «pagado el…» inventado.
+- El primer bloque de la migración **compara el md5 de las cuatro funciones contra
+  la 0478 en la base donde se pega** y se detiene sin aplicar nada si difiere.
+  Tolera `\r` (pegada desde Windows). Es la comprobación «md5 de producción antes
+  de escribir», ejecutada al pegar; no reemplaza pedirlo antes de entregar.
+
+**Decisión que revierte una de hace tres días, y hay que decirlo:** el 2026-09-16
+Felipe eligió que DO confirmara una transferencia aparte. Con la línea en la
+boleta el bono se paga con la planilla, y esa transferencia deja de existir salvo
+como respaldo. Si Felipe prefería lo contrario, esta migración no debe pegarse.
+
+**Antes de pegar (en este orden):**
+1. Levantar Docker y correr `npx supabase test db` — la **378** (38 aserciones,
+   incluida «ella, como ella misma, ve el bono en su boleta y el total sube
+   exactamente el monto») y, como control, la 376 y la 377 (que suponen una base
+   sin periodos). Comparar contra las mismas SIN la 0479.
+2. Audit empírico de dinero, en `begin … rollback`: `fn_planilla_calcular_persona`
+   de una persona con y sin la línea — solo pueden cambiar `bonos` y `total`. Y
+   `fn_liquidacion` de la misma persona, que no debe moverse.
+3. `donde-vive.sh` de las cuatro funciones **en el mensaje en que se entrega**.
+4. Regenerar `packages/database/src/types.ts` (se editó a mano: `movimiento_id`,
+   su relación, y las dos columnas de `fn_mi_bono_cumpleanos`).
+5. **Pegar la 0479 ANTES de fusionar** (fusionar publica). El frontend tolera la
+   base vieja (`via` y `periodo_fin` son opcionales), pero la firma no entraría a
+   la boleta hasta que se pegue.
+
+**Pendiente, y no es de código:** el código PLAME del cumpleaños (0203) sigue
+«por confirmar con el contador» (ver `movilidad-y-codigos-plame-para-el-contador.md`).
+Ahora ese S/ 180 sale en la boleta como «Asignación por cumpleaños»: el contador
+tiene que saber que es no remunerativo (art. 19 g) del D.S. 001-97-TR) y no entra
+a la base de aportes — el sistema ya lo respeta.
+
+**Límite conocido:** sin botón «ponerlo en la boleta» para DO. Un pedido que quedó
+sin línea (no había periodo al firmar) solo puede cerrarse con «Ya se lo transferí».
+`/mio/boleta` solo muestra el periodo que contiene hoy: en los días entre el 29 y la
+creación del siguiente periodo, el bono puede quedar en un periodo que ella ya no
+puede abrir — se paga igual, y DO lo ve en Planilla.
+
 ## 2026-09-18 — Dashboard: la meta ya no se mide con la sede cerrada, y el «0 en piso» dice por qué · SIN MIGRACIÓN · SIN FUSIONAR
 
 **Sin SQL: no hay nada que pegar.** Cambia `asistencia-hoy.ts`, la pantalla del
-Dashboard y sus pruebas (95 en `asistencia-hoy.test.ts`; 880 en total). Verificado
+Dashboard y sus pruebas (115 en `asistencia-hoy.test.ts`; 900 en total). Verificado
 con pruebas y typecheck; **no se vio en pantalla** — el panel no levanta sin
 `.env.local` y el Postgres local estaba colgado.
 
@@ -112,19 +185,45 @@ suposición: a la hora de la captura AQP seguía abierta (salidas 21:53 y 22:16)
 - La líder de una tienda cuenta en las dos metas (operativas y líderes), así que
   «2/2 + 1/1» pueden ser solo 2 personas: la pantalla lo dice.
 
+**Segunda tanda, tras «siguen existiendo errores»** (2026-09-19; una revisión del
+resumen de arriba, los filtros y «Requiere atención», que la primera no había mirado):
+- **Textos.** «Operativas en piso» → «Personal operativo en piso». Con 0 en piso,
+  el desglose reemplaza a «Nadie está trabajando en este momento» (repetía el 0 por
+  tercera vez). «Ver detalle (12 personas del equipo)».
+- **El filtro «Salió» escondía gente.** La tabla dice «Salió (revisada)» y el
+  filtro solo buscaba `cerrada`: en OTRU, 3 de las 4 personas que se habían ido no
+  aparecían. `coincideConFiltroDeEstado` y `OPCIONES_FILTRO_ESTADO`; una prueba
+  comprueba que ningún estado de jornada queda sin una opción que lo encuentre.
+- **«Marcó hoy sin horario ni turno asignado».** La integrante de TRU que trabajó
+  sin horario ya no pasa desapercibida: la tarjeta dice quién y que se arregla en
+  Horarios. Solo personal operativo y líderes, y **se apaga si la consulta de
+  turnos u horarios falla** (entonces todas las filas llegan sin horario y el aviso
+  acusaría a todos).
+- **Meta imposible = ámbar «Meta por revisar», no rojo** (`gravedad`). Lo eligió
+  quien administra, **contra la recomendación** de dejar el rojo y arreglar el dato:
+  «Sedes bajo la meta» cuenta solo las rojas; las ámbar van en «Requiere atención».
+  **Costo conocido:** una tienda que pierde a su ÚNICA líder también sale ámbar
+  (equipo 0 contra meta 1 no se distingue de una meta mal cargada sin historia).
+
 **Conocido y aceptado:** entre la última salida programada y la salida real del
 último, la tarjeta sigue midiendo (TRU: 20:15→20:23). Es lo que pidió la regla
 «solo si ya no queda nadie».
 
-**Pendiente, y no es de código** (datos reales, 2026-09-18 23:45):
+**Pendiente, y no es de código** (datos reales, 2026-09-18 23:45). Con la tanda de
+arriba dejan de ser rojo, pero siguen siendo datos mal puestos:
 - **LIM tiene meta de 4 operativas y solo 3 personas activas** (2 operativas + 1 RxH
   de estrategia comercial): imposible aunque vinieran todas. ¿Meta mal cargada o
-  faltan integrantes? Se corrige en Turnos.
-- **CCO tiene meta de 1 líder y nadie que cuente como líder:** rojo todo el día
-  hasta que se ponga en 0 en Turnos.
-- **Una integrante de TRU trabajó hoy sin horario vigente** (ni turno): nada la
-  mide —ni tardanza ni falta— y el Dashboard dice «les tocaba a 10 de 12» cuando
-  trabajaron 11.
+  faltan integrantes? Se corrige en Turnos. Hoy sale ámbar «Meta por revisar».
+- **CCO tiene meta de 1 líder y nadie que cuente como líder.** Se apaga poniéndola
+  en 0 en Turnos. Hoy sale ámbar «Meta por revisar».
+- **Una integrante de TRU trabajó sin horario vigente** (ni turno): hay que cargarle
+  su horario en Horarios; la tarjeta ya lo avisa.
+- **Tres practicantes de OTRU** tienen la jornada de hoy «revisada» con la misma
+  salida (20:52) y ~12 horas: ¿hora real o corrección en bloque? Sin verificar.
+- **Una jornada de CCO seguía abierta a las 23:45** (desde las 08:57, última marca
+  18:46) y contaba como «trabajando». Hay un cierre automático cada 15 min (0007);
+  no se verificó su regla vigente. Sin horario asignado no hay contra qué medirla:
+  no se hizo nada a propósito, un umbral inventado llenaría la pantalla de avisos.
 
 ## 2026-09-16 — El bono de cumpleaños se pide desde Info y DO confirma la transferencia (0478) · pegada en producción · fusionada (#424)
 

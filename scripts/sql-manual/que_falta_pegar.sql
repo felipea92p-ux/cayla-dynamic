@@ -340,6 +340,7 @@ with repo(numero, nombre, nunca) as (values
     (476, 'el_cuspp_deja_de_frenar_el_cierre_de_planilla', false),
     (477, 'el_bono_de_cumpleanos_se_firma_desde_el_sistema', false),
     (478, 'el_bono_de_cumpleanos_se_pide_y_do_confirma_la_transferencia', false),
+    (479, 'el_bono_de_cumpleanos_firmado_entra_a_la_boleta', false),
     (480, 'las_novedades_del_sistema_se_marcan_como_vistas', false)
 ),
 diff as (
