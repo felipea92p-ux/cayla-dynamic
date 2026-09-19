@@ -17,6 +17,7 @@ import { CampoSelect } from "@/components/ui/campo";
 import { AreaTexto } from "@/components/ui/area-texto";
 import { esperadoDelDia, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
 import { estadoDe, type Incidencia } from "@/lib/admin/incidencias";
+import { valorDeCorreccion } from "@/lib/admin/valor-de-correccion";
 import {
   IconoIncidencia, REGLA, VISTO_BUENO, enlaceDe, fechaCorta, fechaHoraLima, fechaLarga, horaLima,
 } from "./presentacion";
@@ -464,7 +465,7 @@ export function PanelIncidencia({
                     <span className="w-12 shrink-0 text-taupe">{fechaCorta(c.corregido_at.slice(0, 10))}</span>
                     <span className="text-tinta">
                       Corrección de {c.campo_modificado.replaceAll("_", " ")}
-                      {c.valor_anterior || c.valor_nuevo ? `: ${c.valor_anterior ?? "—"} → ${c.valor_nuevo ?? "—"}` : ""}
+                      {c.valor_anterior || c.valor_nuevo ? `: ${valorDeCorreccion(c.valor_anterior)} → ${valorDeCorreccion(c.valor_nuevo)}` : ""}
                       <span className="block text-taupe">{quien(c.corregido_por)}{c.motivo ? ` · «${c.motivo}»` : ""}</span>
                     </span>
                   </li>
