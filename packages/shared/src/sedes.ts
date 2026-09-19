@@ -63,16 +63,13 @@ export function etiquetaDeSede(s: SedeParaRotular): EtiquetaDeSede {
   // alguien escribió en /admin/sedes, y si tampoco hay, el código. Nunca vacío.
   const respaldo = nombre || codigo;
 
-  let titulo: string;
-  if (!esTipoSede(s.tipo)) {
-    titulo = respaldo;
-  } else if (s.tipo === "central") {
-    // Central no tiene ciudad propia (0282): aunque una fila vieja la traiga,
-    // «Central · Trujillo» sería afirmar algo que la sede no sabe.
-    titulo = TIPO_SEDE_LABELS.central;
-  } else {
-    titulo = ciudad ? `${TIPO_SEDE_LABELS[s.tipo]} · ${ciudad}` : respaldo;
-  }
+  // Una sede `central` no tiene ciudad propia (0282) y por eso no se rotula
+  // «Central · algo»: se queda con su nombre. No se le pone la palabra
+  // «Central» a secas porque puede haber más de una — en producción están
+  // CCO («Central») y OTRU («Oficina TRU»), las dos de tipo central, y un
+  // rótulo fijo las habría vuelto idénticas.
+  const rotulaPorCiudad = esTipoSede(s.tipo) && s.tipo !== "central" && ciudad !== "";
+  const titulo = rotulaPorCiudad ? `${TIPO_SEDE_LABELS[s.tipo as TipoSede]} · ${ciudad}` : respaldo;
 
   return { titulo, codigo, texto: `${titulo} (${codigo})` };
 }

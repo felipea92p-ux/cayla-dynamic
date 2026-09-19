@@ -21,9 +21,21 @@ describe("etiquetaDeSede", () => {
     expect(nueva.titulo).toBe("Tienda · Trujillo");
   });
 
-  it("Central no lleva ciudad, ni siquiera si una fila vieja la trae (0282)", () => {
+  it("una sede central no lleva ciudad, ni siquiera si una fila vieja la trae (0282)", () => {
     const central = etiquetaDeSede({ codigo: "CCO", nombre: "Central", tipo: "central", ciudad: "Trujillo" });
     expect(central.titulo).toBe("Central");
+  });
+
+  it("dos sedes centrales no se vuelven idénticas: CCO y OTRU existen así en producción", () => {
+    const cco = etiquetaDeSede({ codigo: "CCO", nombre: "Central", tipo: "central", ciudad: null });
+    const otru = etiquetaDeSede({ codigo: "OTRU", nombre: "Oficina TRU", tipo: "central", ciudad: null });
+    expect(cco.titulo).toBe("Central");
+    expect(otru.titulo).toBe("Oficina TRU");
+  });
+
+  it("la Tienda de Lima tal como está hoy en producción (ciudad nula) cae a su nombre", () => {
+    const hoy = etiquetaDeSede({ codigo: "003", nombre: "Tienda LIM", tipo: "tienda", ciudad: null });
+    expect(hoy.titulo).toBe("Tienda LIM");
   });
 
   it("sin ciudad no se inventa una: cae al nombre de la sede", () => {
