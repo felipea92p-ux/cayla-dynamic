@@ -37,6 +37,7 @@ import { useToast } from "@/components/toast";
 import { instanteEntrega } from "@/lib/admin/instante-entrega";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 import { abrirArchivoFirmado } from "@/lib/abrir-archivo-firmado";
+import { BannerAviso } from "@/components/ui/banner-aviso";
 import { Boton } from "@/components/ui/boton";
 import { Insignia } from "@/components/ui/insignia";
 import { Modal } from "@/components/ui/modal";
@@ -1166,6 +1167,15 @@ export default function DisciplinaPage() {
             {tab === "borradores" && (
               <>
                 {falloDocs && <FalloLectura que="el legajo" />}
+                {!exigeDescargo && (
+                  <BannerAviso variante="advertencia" titulo="Estos borradores se firman sin esperar el plazo de descargo" className="mb-4 p-4">
+                    <p className="text-tinta">
+                      Es la política vigente de la empresa (Gerencia, 17-ago): no hace falta comunicar los cargos ni esperar
+                      dos días hábiles. El RIT 19.3 y 55.2 sí prevén ese plazo, y la consulta con el laboralista sigue
+                      pendiente. Cada documento firmado así lo deja escrito en su expediente.
+                    </p>
+                  </BannerAviso>
+                )}
                 {borradores.length === 0 ? (
                   <Vacio>{hayFiltro ? "No hay borradores con estos filtros." : "No hay borradores pendientes."}</Vacio>
                 ) : (
@@ -1344,7 +1354,11 @@ export default function DisciplinaPage() {
                 ["Mes cerrado", "Se puede documentar un mes concluido, pero una demora injustificada equivale a condonación. Del mes más viejo al más nuevo.", "RIT 19.4 · 52 · 56.6"],
                 ["Faltas", "Día programado sin marca ni justificación. Umbral grave: 4 seguidas · 6 en 30 días · 16 en 180 días.", "LPCL 25 h)"],
                 ["Antecedente", "Solo cuenta lo entregado en los doce meses previos. Firmado y no entregado no agrava.", "RIT 56.1 · 56.2"],
-                ["Antes de firmar", "Amonestación y suspensión: comunicar los cargos por escrito y esperar dos días hábiles de descargo; después, valorarlo.", "RIT 55.2 · 19.3"],
+                exigeDescargo
+                  ? ["Antes de firmar", "Amonestación y suspensión: comunicar los cargos por escrito y esperar dos días hábiles de descargo; después, valorarlo.", "RIT 55.2 · 19.3"]
+                  // La política de la empresa (0267) puede relevar el trámite. El modal decía siempre lo
+                  // primero, y quien lo leía creía que la pantalla lo exigía cuando no lo hacía.
+                  : ["Antes de firmar", "Hoy la empresa firma amonestaciones y suspensiones sin esperar el plazo de descargo previo (decisión de Gerencia del 17-ago). El Reglamento sí lo prevé: comunicar los cargos por escrito y esperar dos días hábiles. La consulta con el laboralista sigue pendiente.", "RIT 55.2 · 19.3"],
                 ["Suspensión", "Tope de tres días laborables. La primera por tardanzas, de uno a dos días; la segunda, de dos a tres y siempre mayor que la primera.", "RIT 54.5 · 19.2 c) d)"],
                 ["Incidencias", "Cuenta tardanzas sobre 30 días corridos, así que puede mostrar un número mayor que acá. El que gobierna el documento es el del mes calendario.", ""],
               ].map(([t, x, ref]) => (
