@@ -115,6 +115,16 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-09-19-correcciones-historial-y-celular",
+    fecha: "2026-09-19",
+    titulo: "Correcciones: el historial cuenta lo que pasó, y se usa desde el celular",
+    queMejoro:
+      "El historial de cada persona ahora muestra primero sus correcciones de marcajes, con nombres claros: un cambio de tipo de marca o la confirmación de una salida del auto-cierre ya no aparecen como «otro sistema». Los cambios de horario, contrato o educación siguen ahí, a un toque en «Todo».\n\n" +
+      "Cuando una marca que el terminal no pudo registrar se resuelve, el historial dice cómo terminó: se registró con su hora original, o se declaró improcedente.\n\n" +
+      "Si algo no se pudo consultar al abrir la pantalla, ahora se avisa con un botón para reintentar, en vez de mostrar listas vacías que se leen como «no hay nada pendiente». Y en el celular la lista de personas y el día abierto ya no se pelean el espacio: se ve una cosa a la vez.",
+    audiencia: "panel",
+  },
+  {
     id: "2026-09-19-anuncios-cuenta-que-mejora",
     fecha: "2026-09-19",
     titulo: "Anuncios ahora también cuenta qué mejora en el sistema",
