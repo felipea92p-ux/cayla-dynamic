@@ -37,6 +37,7 @@ import { useToast } from "@/components/toast";
 import { instanteEntrega } from "@/lib/admin/instante-entrega";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 import { abrirArchivoFirmado } from "@/lib/abrir-archivo-firmado";
+import { BannerAviso } from "@/components/ui/banner-aviso";
 import { Boton } from "@/components/ui/boton";
 import { Insignia } from "@/components/ui/insignia";
 import { Modal } from "@/components/ui/modal";
@@ -59,7 +60,7 @@ import {
   type Adjunto, type DocDisciplina, type FaltaRow, type Pestana, type SituacionDeteccion, type TardanzaRow, type TipoPapel,
 } from "@/lib/admin/disciplina";
 import {
-  NIVEL_DISCIPLINARIO_CORTO, NIVEL_DISCIPLINARIO_LABELS, fechaLima, hoyLima, mesesRecientesLima, nombreDelMesLima,
+  NIVEL_DISCIPLINARIO_CORTO, NIVEL_DISCIPLINARIO_LABELS, etiquetaDeSede, fechaLima, hoyLima, mesesRecientesLima, nombreDelMesLima,
   nombreDelMesLimaTitulo, primeroDeMesLima, puedeAnularDocumentoDisciplinario, puedeOperarEquipo,
   puedeVerTodasLasSedes, rangoDelDiaLima, rangoDelMesLima,
 } from "@cayla-dynamic/shared";
@@ -88,7 +89,7 @@ const COLUMNAS_DOC = "id, persona_id, tipo_causal, nivel, estado, periodo_desde,
 
 // Seis columnas, la segunda (sede) secundaria: en tablet se esconde y la
 // plantilla de `md` tiene cinco. Literal a propósito (ver lista-casos.tsx).
-const PLANTILLA = "md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.3fr)_auto] lg:grid-cols-[minmax(0,1.4fr)_3.5rem_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.3fr)_auto]";
+const PLANTILLA = "md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.3fr)_auto] lg:grid-cols-[minmax(0,1.4fr)_7rem_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.3fr)_auto]";
 
 const TXT_DESFASE = "La asistencia cambió después de generar el borrador: algún día ya no se sostiene. Ábrelo para ver cuál.";
 
@@ -140,15 +141,16 @@ function PasosBorrador({ etapa }: { etapa: (typeof ETAPAS)[number] }) {
 }
 
 function TabBtn({ valor, tab, setTab, cuenta, urgente, children }: {
-  valor: Pestana; tab: Pestana; setTab: (t: Pestana) => void; cuenta: number; urgente?: boolean; children: ReactNode;
+  // `null` = no se pudo leer. Un «0» sobre datos que no se leyeron se lee como un hecho.
+  valor: Pestana; tab: Pestana; setTab: (t: Pestana) => void; cuenta: number | null; urgente?: boolean; children: ReactNode;
 }) {
   return (
-    <button type="button" role="tab" id={`tab-${valor}`} aria-selected={tab === valor} aria-controls={`panel-${valor}`}
+    <button type="button" role="tab" id={`tab-${valor}`} title={cuenta === null ? "No se pudo leer" : undefined} aria-selected={tab === valor} aria-controls={`panel-${valor}`}
       onClick={() => setTab(valor)}
       className={cx("-mb-px inline-flex items-center gap-2 whitespace-nowrap border-b-2 px-3 py-2 text-sm transition-colors",
         tab === valor ? "border-rojo font-medium text-tinta" : "border-transparent text-taupe hover:text-tinta")}>
       {children}
-      <Insignia variante={urgente && cuenta > 0 ? "contador" : "neutral"} tamano="sm" punto={false} className="tabular-nums">{cuenta}</Insignia>
+      <Insignia variante={urgente && cuenta !== null && cuenta > 0 ? "contador" : "neutral"} tamano="sm" punto={false} className="tabular-nums">{cuenta ?? "?"}</Insignia>
     </button>
   );
 }
@@ -169,10 +171,10 @@ function Vacio({ children }: { children: ReactNode }) {
   return <p className="border-t border-dashed border-sand py-2 text-sm text-taupe">{children}</p>;
 }
 
-function FalloLectura({ que }: { que: string }) {
+function FalloLectura({ que, consecuencia }: { que: string; consecuencia?: string }) {
   return (
     <p className="mb-3 rounded-control bg-rojo/10 px-3 py-2 text-sm text-rojo-profundo">
-      No se pudo leer {que}. <strong>Esto NO significa que no haya nadie</strong> — significa que no se pudo mirar.
+      No se pudo leer {que}. <strong>{consecuencia ?? "Esto NO significa que no haya nadie"}</strong> — significa que no se pudo mirar.
       Vuelve a cargar la página; si sigue igual, avisa antes de dar el periodo por revisado.
     </p>
   );
@@ -197,9 +199,14 @@ export default function DisciplinaPage() {
   const [falloTard, setFalloTard] = useState(false);
   const [falloFaltas, setFalloFaltas] = useState(false);
   const [falloDocs, setFalloDocs] = useState(false);
+  // Las dos lecturas «tolerantes»: sin ellas la pantalla funciona, pero MIENTE en silencio — sin
+  // `personas` no se sabe quién cesó ni cómo se llama; sin adjuntos todo entregado parece sin cargo.
+  const [falloPersonas, setFalloPersonas] = useState(false);
+  const [falloAdjuntos, setFalloAdjuntos] = useState(false);
   const [docs, setDocs] = useState<DocDisciplina[]>([]);
   const [personas, setPersonas] = useState<Map<string, PersonaInfo>>(new Map());
-  const [sedes, setSedes] = useState<string[]>([]);
+  // Código (la llave, con la que filtra) y cómo se rotula. «LIM» sola no dice si es el Taller o la Tienda.
+  const [sedes, setSedes] = useState<Array<{ codigo: string; titulo: string; texto: string }>>([]);
   const [nombresAusencia, setNombresAusencia] = useState<Map<string, string>>(new Map());
   const [adjuntos, setAdjuntos] = useState<Map<string, Adjunto[]>>(new Map());
   // Quién puede suscribir CADA borrador: depende del nivel y de la sede (0074).
@@ -270,7 +277,7 @@ export default function DisciplinaPage() {
     if (!sesion.session) { router.replace("/admin/login"); return []; }
     const [
       { data: t, error: eT }, { data: f, error: eF }, { data: d, error: eD },
-      { data: p }, { data: s }, { data: ta },
+      { data: p, error: eP }, { data: s }, { data: ta },
     ] = await Promise.all([
       // Mes en curso: sin argumentos. Uno cerrado: `p_as_of` en su último día (0067).
       supabase.rpc("fn_tardanzas_resumen",
@@ -280,20 +287,22 @@ export default function DisciplinaPage() {
       // pantalla y no había dónde consultarlos.
       supabase.from("expediente_disciplinario").select(COLUMNAS_DOC).order("creado_at", { ascending: false }),
       supabase.from("personas").select("id, nombres, apellidos, estado, sede_base_id, fecha_cese"),
-      supabase.from("sedes").select("id, codigo").order("codigo"),
+      supabase.from("sedes").select("id, codigo, nombre, tipo, ciudad").order("codigo"),
       supabase.from("tipos_ausencia").select("codigo, nombre"),
     ]);
     // Los TRES errores, cada uno nombrando su sección: un «error al cargar»
     // genérico deja igual de ciego que el silencio.
     const fallos = [
-      eT ? mensajeDeError(eT, "cargar el semáforo de tardanzas") : null,
-      eF ? mensajeDeError(eF, "cargar el semáforo de faltas") : null,
+      eT ? mensajeDeError(eT, "cargar la cuenta de tardanzas") : null,
+      eF ? mensajeDeError(eF, "cargar la cuenta de faltas") : null,
       eD ? mensajeDeError(eD, "cargar el legajo") : null,
+      eP ? mensajeDeError(eP, "cargar a las personas") : null,
     ].filter(Boolean);
     if (fallos.length) avisar("error", fallos.join(" · "));
     setFalloTard(!!eT);
     setFalloFaltas(!!eF);
     setFalloDocs(!!eD);
+    setFalloPersonas(!!eP);
 
     // Doble casteo: `types.ts` es generado y no describe `sin_medir` (ver 0184).
     setTardanzas(Array.isArray(t) ? (t as unknown as TardanzaRow[]) : []);
@@ -301,12 +310,16 @@ export default function DisciplinaPage() {
     const lista = Array.isArray(d) ? (d as unknown as DocDisciplina[]) : [];
     setDocs(lista);
 
-    const codigoDeSede = new Map(((s ?? []) as { id: string; codigo: string }[]).map((x) => [x.id, x.codigo]));
-    setSedes([...new Set(codigoDeSede.values())]);
+    const sedesList = (s ?? []) as Array<{ id: string; codigo: string; nombre: string; tipo: string | null; ciudad: string | null }>;
+    const codigoDeSede = new Map(sedesList.map((x) => [x.id, x.codigo]));
+    // El rótulo sale del tipo y la ciudad de la propia sede (etiquetaDeSede), no de una lista por código.
+    const rotuloDeCodigo = new Map(sedesList.map((x) => [x.codigo, etiquetaDeSede(x)]));
+    setSedes([...rotuloDeCodigo.values()].map((e) => ({ codigo: e.codigo, titulo: e.titulo, texto: e.texto })));
     const personasList = (p ?? []) as Array<{ id: string; nombres: string; apellidos: string; estado: string; sede_base_id: string | null; fecha_cese: string | null }>;
     setPersonas(new Map(personasList.map((x) => [x.id, {
       nombre: `${x.nombres} ${x.apellidos}`,
       sede: (x.sede_base_id && codigoDeSede.get(x.sede_base_id)) || "",
+      sedeRotulo: (x.sede_base_id && rotuloDeCodigo.get(codigoDeSede.get(x.sede_base_id) ?? "")?.titulo) || "",
       estado: x.estado,
       fechaCese: x.fecha_cese,
     }])));
@@ -314,13 +327,15 @@ export default function DisciplinaPage() {
     setNombresAusencia(tipos);
 
     // Consulta aparte y tolerante: sin adjuntos la pantalla sigue funcionando.
-    const { data: adj } = await supabase
+    const { data: adj, error: eAdj } = await supabase
       .from("expediente_adjuntos")
       .select("id, documento_id, storage_path, tipo, nota, subido_at")
       .order("subido_at", { ascending: false });
     const porDoc = new Map<string, Adjunto[]>();
     for (const a of (adj as Adjunto[]) ?? []) porDoc.set(a.documento_id, [...(porDoc.get(a.documento_id) ?? []), a]);
     setAdjuntos(porDoc);
+    setFalloAdjuntos(!!eAdj);
+    if (eAdj) avisar("error", mensajeDeError(eAdj, "cargar los cargos archivados"));
 
     const borradores = lista.filter((x) => x.estado === "borrador");
     const [pares, evs, { data: cfg }, { data: sc }] = await Promise.all([
@@ -633,7 +648,7 @@ export default function DisciplinaPage() {
     setResolviendo(null);
     await cargar();
     avisar("ok", resultado === "archivado"
-      ? "Procedimiento archivado. El semáforo deja de pedir una decisión ya tomada."
+      ? "Procedimiento archivado. El sistema deja de pedir una decisión ya tomada."
       : "Anotado que se resolvió con despido. La carta se emite aparte.");
   }
 
@@ -939,6 +954,8 @@ export default function DisciplinaPage() {
   // Una función que devuelve celdas, no un componente: un componente definido
   // dentro de la página se volvería a montar entero en cada render.
   function celdaPersona(id: string, nombre: string, sede: string, alAbrir: (e: MouseEvent<HTMLElement>) => void, cesada = false) {
+    // `sede` es el código (lo que filtra); lo que se lee es su rótulo: «Taller · Lima», no «LIM».
+    const rotulo = sedes.find((x) => x.codigo === sede)?.titulo ?? sede;
     return (
       <>
         <Celda>
@@ -947,9 +964,9 @@ export default function DisciplinaPage() {
             {nombre}
           </button>
           {cesada && <Insignia variante="advertencia" tamano="sm" className="ml-2">cesó</Insignia>}
-          {sede && <span className="text-xs text-taupe lg:hidden"> · {sede}</span>}
+          {sede && <span className="text-xs text-taupe lg:hidden"> · {rotulo}</span>}
         </Celda>
-        <Celda secundaria><span className="hidden text-taupe lg:inline">{sede || "—"}</span></Celda>
+        <Celda secundaria><span className="hidden text-taupe lg:inline">{sede ? rotulo : "—"}</span></Celda>
       </>
     );
   }
@@ -968,15 +985,24 @@ export default function DisciplinaPage() {
     const s = deteccionAbierta?.situacion;
     const tipo = caso.tipo;
     const pid = caso.personaId;
+    // Si ya hay un borrador de esta persona y causal, «Generar» solo puede negarse: lo
+    // útil es llevarla a él. Antes el panel decía «revísalo en Borradores» y no había cómo ir.
+    const borradorExistente = docs.find((x) => x.estado === "borrador" && x.persona_id === pid && x.tipo_causal === tipo) ?? null;
     accionesPanel = (
       <div className="flex flex-wrap items-center gap-3">
-        <Boton variante="primario" onClick={() => void generar(tipo, pid)} disabled={!s?.generable} cargando={ocupado === pid}>
-          Generar borrador
-        </Boton>
+        {borradorExistente ? (
+          <Boton variante="primario" onClick={() => { setTab("borradores"); setCaso({ tipo: "documento", id: borradorExistente.id }); }}>
+            Ir al borrador
+          </Boton>
+        ) : (
+          <Boton variante="primario" onClick={() => void generar(tipo, pid)} disabled={!s?.generable} cargando={ocupado === pid}>
+            Generar borrador
+          </Boton>
+        )}
         <p className="min-w-0 flex-1 basis-60 text-xs text-taupe">
           {s?.generable
             ? "Crea un borrador sin número con estas pruebas. No comunica ni firma nada todavía."
-            : s?.porQueNo ?? "Esta persona ya no aparece en el semáforo."}
+            : s?.porQueNo ?? "Esta persona ya no aparece en la cuenta."}
         </p>
       </div>
     );
@@ -1036,12 +1062,32 @@ export default function DisciplinaPage() {
     );
   }
 
-  const conteo = {
-    revision: alcanzaron.length,
-    borradores: borradores.length,
-    entregar: porEntregar.length,
-    historial: historial.length,
+  const falloConteo = falloTard || falloFaltas;
+  const conteo: Record<Pestana, number | null> = {
+    revision: falloConteo ? null : alcanzaron.length,
+    borradores: falloDocs ? null : borradores.length,
+    entregar: falloDocs ? null : porEntregar.length,
+    historial: falloDocs ? null : historial.length,
   };
+  // Lo que vale en las pestañas de documentos: el legajo, las personas y los papeles archivados.
+  const avisosDeLegajo = (
+    <>
+      {falloDocs && <FalloLectura que="el legajo" />}
+      {falloPersonas && <FalloLectura que="a las personas (nombres, sedes y quién ya cesó)" consecuencia="Los nombres y el estado de cese que se ven pueden estar incompletos" />}
+      {falloAdjuntos && <FalloLectura que="los cargos y papeles archivados" consecuencia="Un documento que aparece sin su cargo puede sí tenerlo" />}
+    </>
+  );
+
+  // Qué hay por hacer HOY, en una línea. La pantalla abre en «Requieren revisión», que puede
+  // decir 0 mientras lo que espera —un borrador por trabajar— está en otra pestaña; quien la abre
+  // por primera vez no tiene cómo saberlo. Con un fallo de lectura no se afirma nada: un «no hay
+  // nada» construido sobre datos que no se pudieron leer se leería como un hecho.
+  const porHacer: Array<{ tab: Pestana; texto: string }> = [];
+  const nRevision = alcanzaron.length, nBorradores = borradores.length, nEntregar = porEntregar.length;
+  if (nRevision > 0) porHacer.push({ tab: "revision", texto: `${nRevision} caso${nRevision === 1 ? "" : "s"} por revisar` });
+  if (nBorradores > 0) porHacer.push({ tab: "borradores", texto: `${nBorradores} borrador${nBorradores === 1 ? "" : "es"} por trabajar` });
+  if (nEntregar > 0) porHacer.push({ tab: "entregar", texto: `${nEntregar} documento${nEntregar === 1 ? "" : "s"} por entregar o cerrar` });
+  const puedeResumir = !cargando && !falloTard && !falloFaltas && !falloDocs && !falloPersonas && !falloAdjuntos && !hayFiltro;
 
   // ── Render ─────────────────────────────────────────────────────────────
   return (
@@ -1085,11 +1131,25 @@ export default function DisciplinaPage() {
               <select id="f-sede" value={sedeFiltro} onChange={(e) => setSedeFiltro(e.target.value)}
                 className="rounded-control border border-sand bg-hueso px-2.5 py-1.5 text-sm text-tinta">
                 <option value="">Todas</option>
-                {sedes.map((s) => <option key={s} value={s}>{s}</option>)}
+                {sedes.map((x) => <option key={x.codigo} value={x.codigo}>{x.texto}</option>)}
               </select>
             </label>
           )}
         </div>
+
+        {puedeResumir && (
+          <p className="mb-3 flex flex-wrap items-baseline gap-x-2 text-sm text-taupe">
+            <span className="font-medium text-tinta">Para hoy:</span>
+            {porHacer.length === 0
+              ? <span>nada por hacer aquí.</span>
+              : porHacer.map((x, i) => (
+                  <span key={x.tab}>
+                    {i > 0 && <span aria-hidden>· </span>}
+                    <Boton variante="enlace" className="text-sm text-tinta" onClick={() => setTab(x.tab)}>{x.texto}</Boton>
+                  </span>
+                ))}
+          </p>
+        )}
 
         {/* Pestañas */}
         {/* En el celular las cuatro van en 2 × 2 y no en una franja que se
@@ -1109,14 +1169,15 @@ export default function DisciplinaPage() {
             {/* ── Requieren revisión ─────────────────────────────────── */}
             {tab === "revision" && (
               <>
-                {falloTard && <FalloLectura que="el semáforo de tardanzas" />}
-                {falloFaltas && <FalloLectura que="el semáforo de faltas" />}
+                {falloTard && <FalloLectura que="la cuenta de tardanzas" />}
+                {falloFaltas && <FalloLectura que="la cuenta de faltas" />}
+                {falloPersonas && <FalloLectura que="a las personas (nombres, sedes y quién ya cesó)" consecuencia="Los nombres y las sedes que se ven pueden estar incompletos" />}
                 <Grupo titulo="Alcanzaron un umbral" detalle="Revisar el caso no genera nada: el borrador se prepara desde ahí.">
                   {alcanzaron.length === 0 ? (
-                    <Vacio>
+                    falloConteo ? null : <Vacio>
                       {hayFiltro
                         ? "Nadie con estos filtros."
-                        : `Nadie alcanza su umbral de tardanzas en ${nombreMes} ni está en el semáforo de faltas.`}
+                        : `Nadie alcanza su umbral de tardanzas en ${nombreMes} ni tiene faltas por revisar.`}
                     </Vacio>
                   ) : (
                     <ListaCasos etiqueta="Alcanzaron un umbral" plantilla={PLANTILLA} encabezados={encabezados("Motivo", "Progreso", "Situación", "")}>
@@ -1140,7 +1201,7 @@ export default function DisciplinaPage() {
                 {(seguimiento.length > 0 || !hayFiltro) && (
                   <Grupo titulo="En seguimiento" detalle="Cerca del umbral o a la espera de otra decisión. No admiten documento.">
                     {seguimiento.length === 0 ? (
-                      <Vacio>Nadie cerca de su umbral en {nombreMes}.</Vacio>
+                      falloConteo ? null : <Vacio>Nadie cerca de su umbral en {nombreMes}.</Vacio>
                     ) : (
                       <ListaCasos etiqueta="En seguimiento" plantilla={PLANTILLA} encabezados={encabezados("Motivo", "Progreso", "Situación", "")}>
                         {seguimiento.map((x) => {
@@ -1165,9 +1226,18 @@ export default function DisciplinaPage() {
             {/* ── Borradores ─────────────────────────────────────────── */}
             {tab === "borradores" && (
               <>
-                {falloDocs && <FalloLectura que="el legajo" />}
+                {avisosDeLegajo}
+                {!exigeDescargo && (
+                  <BannerAviso variante="advertencia" titulo="Estos borradores se firman sin esperar el plazo de descargo" className="mb-4 p-4">
+                    <p className="text-tinta">
+                      Es la política vigente de la empresa (Gerencia, 17-ago): no hace falta comunicar los cargos ni esperar
+                      dos días hábiles. El RIT 19.3 y 55.2 sí prevén ese plazo, y la consulta con el laboralista sigue
+                      pendiente. Cada documento firmado así lo deja escrito en su expediente.
+                    </p>
+                  </BannerAviso>
+                )}
                 {borradores.length === 0 ? (
-                  <Vacio>{hayFiltro ? "No hay borradores con estos filtros." : "No hay borradores pendientes."}</Vacio>
+                  falloDocs ? null : <Vacio>{hayFiltro ? "No hay borradores con estos filtros." : "No hay borradores pendientes."}</Vacio>
                 ) : (
                   <ListaCasos etiqueta="Borradores" plantilla={PLANTILLA} encabezados={encabezados("Documento", "Paso", "Situación", "")}>
                     {borradores.map((d) => {
@@ -1201,10 +1271,10 @@ export default function DisciplinaPage() {
             {/* ── Por entregar ───────────────────────────────────────── */}
             {tab === "entregar" && (
               <>
-                {falloDocs && <FalloLectura que="el legajo" />}
+                {avisosDeLegajo}
                 <Grupo titulo="Firmados sin entregar" detalle="Un documento firmado y no entregado todavía no produce efecto (56.2).">
                   {firmados.length === 0 ? (
-                    <Vacio>{hayFiltro ? "Ninguno con estos filtros." : "No hay documentos firmados pendientes de entrega."}</Vacio>
+                    falloDocs ? null : <Vacio>{hayFiltro ? "Ninguno con estos filtros." : "No hay documentos firmados pendientes de entrega."}</Vacio>
                   ) : (
                     <ListaCasos etiqueta="Firmados sin entregar" plantilla={PLANTILLA} encabezados={encabezados("Documento", "Firmado", "Situación", "")}>
                       {firmados.map((d) => {
@@ -1267,9 +1337,9 @@ export default function DisciplinaPage() {
             {/* ── Historial ──────────────────────────────────────────── */}
             {tab === "historial" && (
               <>
-                {falloDocs && <FalloLectura que="el legajo" />}
+                {avisosDeLegajo}
                 {historial.length === 0 ? (
-                  <Vacio>{hayFiltro ? "Nada en el historial con estos filtros." : "Todavía no hay documentos cerrados."}</Vacio>
+                  falloDocs ? null : <Vacio>{hayFiltro ? "Nada en el historial con estos filtros." : "Todavía no hay documentos cerrados."}</Vacio>
                 ) : (
                   <ListaCasos etiqueta="Historial" plantilla={PLANTILLA} encabezados={encabezados("Documento", "Desenlace", "Estado", "")}>
                     {historial.map((d) => {
@@ -1339,13 +1409,17 @@ export default function DisciplinaPage() {
             <p className="text-taupe">Lo que el sistema mira para detectar. Detectar no es sancionar: cada documento lo revisa y firma una persona.</p>
             <dl className="grid gap-3">
               {[
-                ["Tardanzas", "En un mismo mes calendario: 3 sin antecedente vigente · 2 tras una amonestación · 1 tras una suspensión. Cada fila dice el suyo.", "RIT 19.2"],
-                ["Sin medir", "Más de tres horas tarde no suma: casi siempre es un turno mal asignado. Se revisa a mano.", "Mig. 0189"],
+                ["Tardanzas", "En un mismo mes calendario: 3 sin antecedente vigente → amonestación escrita · 2 con una amonestación vigente → primera suspensión · 1 con una suspensión vigente → segunda suspensión, mayor que la primera · 1 tardanza nueva tras la segunda suspensión → imputación de cargos. Cada fila dice el paso que le toca a esa persona.", "RIT 19.2"],
+                ["Sin medir", "Un día con más de tres horas de diferencia no suma: casi siempre es un turno mal cargado. Se revisa a mano con la persona y con su líder de equipo.", "RIT 17.5"],
                 ["Mes cerrado", "Se puede documentar un mes concluido, pero una demora injustificada equivale a condonación. Del mes más viejo al más nuevo.", "RIT 19.4 · 52 · 56.6"],
                 ["Faltas", "Día programado sin marca ni justificación. Umbral grave: 4 seguidas · 6 en 30 días · 16 en 180 días.", "LPCL 25 h)"],
                 ["Antecedente", "Solo cuenta lo entregado en los doce meses previos. Firmado y no entregado no agrava.", "RIT 56.1 · 56.2"],
-                ["Antes de firmar", "Amonestación y suspensión: comunicar los cargos por escrito y esperar dos días hábiles de descargo; después, valorarlo.", "RIT 55.2 · 19.3"],
-                ["Suspensión", "Tope de tres días laborables; la primera por tardanzas, de uno a dos; la siguiente, mayor que la anterior.", "RIT 54.5 · 19.2 c) d)"],
+                exigeDescargo
+                  ? ["Antes de firmar", "Amonestación y suspensión: comunicar los cargos por escrito y esperar dos días hábiles de descargo; después, valorarlo.", "RIT 55.2 · 19.3"]
+                  // La política de la empresa (0267) puede relevar el trámite. El modal decía siempre lo
+                  // primero, y quien lo leía creía que la pantalla lo exigía cuando no lo hacía.
+                  : ["Antes de firmar", "Hoy la empresa firma amonestaciones y suspensiones sin esperar el plazo de descargo previo (decisión de Gerencia del 17-ago). El Reglamento sí lo prevé: comunicar los cargos por escrito y esperar dos días hábiles. La consulta con el laboralista sigue pendiente.", "RIT 55.2 · 19.3"],
+                ["Suspensión", "Tope de tres días laborables. La primera por tardanzas, de uno a dos días; la segunda, de dos a tres y siempre mayor que la primera.", "RIT 54.5 · 19.2 c) d)"],
                 ["Incidencias", "Cuenta tardanzas sobre 30 días corridos, así que puede mostrar un número mayor que acá. El que gobierna el documento es el del mes calendario.", ""],
               ].map(([t, x, ref]) => (
                 <div key={t} className="grid gap-0.5 border-t border-sand pt-2 sm:grid-cols-[8rem_1fr] sm:gap-4">
@@ -1602,7 +1676,7 @@ export default function DisciplinaPage() {
                   : "Motivo de la anulación (obligatorio)"}
                 <AreaTexto id="motivo-anular" value={motivoAnular} onChange={(e) => setMotivoAnular(e.target.value)} rows={3} />
               </label>
-              <p className="text-xs text-taupe">Anular no es archivar: devuelve el escalón al peldaño que de verdad tocaba.</p>
+              <p className="text-xs text-taupe">Anular no es archivar: devuelve la escala al paso que de verdad tocaba.</p>
               <div className="flex justify-end gap-3">
                 <Boton variante="secundario" onClick={() => setAnulando(null)} disabled={ocupado === anulando.id}>Cancelar</Boton>
                 <Boton variante="peligro" onClick={() => void confirmarAnular()} cargando={ocupado === anulando.id}>Anular</Boton>

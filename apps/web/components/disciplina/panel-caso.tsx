@@ -25,11 +25,11 @@ import {
   NIVEL_DISCIPLINARIO_LABELS, fechaLima, hoyLima, nombreDelMesLima, primeroDeMesLima, rangoDelDiaLima,
 } from "@cayla-dynamic/shared";
 import {
-  antecedentesVigentes, esGradual, etapaDelBorrador, eventosDeObservacion, UMBRAL_FALTAS,
+  antecedentesVigentes, esGradual, etapaDelBorrador, eventosDeObservacion, explicarPasoTardanza, SIN_FOTO_DEL_HORARIO, UMBRAL_FALTAS,
   type Adjunto, type DocDisciplina, type FaltaRow, type SituacionDeteccion, type TardanzaRow, type TipoPapel,
 } from "@/lib/admin/disciplina";
 import { evidenciaDeDocumento, evidenciaDeTardanzasDelMes, type Evidencia } from "@/lib/admin/disciplina-evidencia";
-import { addDias, fechaCorta, selloLima, ultimoDiaDelMes } from "./formato";
+import { fechaConAnio, fechaCorta, selloLima, sumarMeses, ultimoDiaDelMes } from "./formato";
 
 type Cliente = ReturnType<typeof createAdminSupabaseClient>;
 
@@ -38,7 +38,8 @@ export type CasoAbierto =
   | { tipo: "falta"; personaId: string }
   | { tipo: "documento"; id: string };
 
-export interface PersonaInfo { nombre: string; sede: string; estado: string; fechaCese: string | null }
+/** `sede` es el código (la llave); `sedeRotulo` es lo que se lee: «Taller · Lima». */
+export interface PersonaInfo { nombre: string; sede: string; sedeRotulo?: string; estado: string; fechaCese: string | null }
 
 export const CAUSAL_LABEL: Record<string, string> = { tardanza: "Tardanzas", falta: "Faltas", conducta: "Conducta" };
 
@@ -64,12 +65,6 @@ export const ESTADO_DOCUMENTO: Record<string, { texto: string; variante: "neutra
 
 const ETIQUETA_DESCARGO: Record<string, string> = {
   sin_descargo: "no presentó descargo", total: "descargo acogido", parcial: "descargo acogido en parte", no: "descargo no acogido",
-};
-
-const ESCALON_POR_MINIMO: Record<number, string> = {
-  3: "sin antecedente vigente",
-  2: "tras una amonestación",
-  1: "tras una suspensión",
 };
 
 export function PanelCaso(props: {
@@ -150,7 +145,7 @@ function ContenidoCaso({
     <div className="grid gap-6 text-sm">
       {/* ── Qué es este caso ─────────────────────────────────────────── */}
       <div className="-mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-taupe">
-        {persona?.sede && <span>Sede <strong className="font-medium text-tinta">{persona.sede}</strong></span>}
+        {persona?.sede && <span>Sede <strong className="font-medium text-tinta">{persona.sedeRotulo || persona.sede}</strong></span>}
         <span>{CAUSAL_LABEL[causal] ?? causal}</span>
         {doc
           ? doc.periodo_desde && <span className="tabular-nums">{fechaCorta(doc.periodo_desde)}{doc.periodo_hasta && doc.periodo_hasta !== doc.periodo_desde ? ` al ${fechaCorta(doc.periodo_hasta)}` : ""}</span>
@@ -231,12 +226,10 @@ function ContenidoCaso({
             <>
               <strong className="font-medium tabular-nums">
                 {tardanza.tardanzas_mes} tardanza{tardanza.tardanzas_mes === 1 ? "" : "s"} medible{tardanza.tardanzas_mes === 1 ? "" : "s"} en {nombreDelMesLima(mesTard)}
-                {tardanza.minimo !== null && <span className="font-normal text-taupe"> · su escalón exige {tardanza.minimo}</span>}
+                {tardanza.minimo !== null && <span className="font-normal text-taupe"> · el paso que le toca exige {tardanza.minimo}</span>}
               </strong>
               <span className="text-taupe">
-                {tardanza.minimo !== null
-                  ? `Umbral ${ESCALON_POR_MINIMO[tardanza.minimo] ?? ""} en un mismo mes calendario. El sistema propone el escalón; la decisión es de quien firma.`
-                  : "Tiene una imputación de cargos vigente: el siguiente paso lo decide Gerencia tras evaluar sus descargos."}
+                {explicarPasoTardanza(tardanza)} El sistema propone el paso; la decisión es de quien firma.
               </span>
               <span className="text-xs text-taupe">RIT 19.2 · el mes calendario manda; Incidencias cuenta 30 días corridos y puede dar más</span>
             </>
@@ -250,11 +243,11 @@ function ContenidoCaso({
               </div>
               <span className="mt-1 text-xs text-taupe">
                 Umbral grave art. 25 h) de la LPCL. «En 30 días» es el mayor número de faltas dentro de cualquier ventana de 30 días.
-                Este semáforo todavía no descuenta faltas ya sancionadas: mira los antecedentes antes de actuar.
+                Esta cuenta todavía no descuenta faltas ya sancionadas: mira los antecedentes antes de actuar.
               </span>
             </>
           ) : (
-            <span className="text-taupe">Esta persona ya no aparece en el semáforo. Vuelve a cargar la página.</span>
+            <span className="text-taupe">Esta persona ya no aparece en la cuenta. Vuelve a cargar la página.</span>
           )}
         </div>
       </Seccion>
@@ -317,8 +310,15 @@ function ContenidoCaso({
             <p className="mt-2 text-xs text-taupe">
               {doc
                 ? `El documento cita ${evidencia.filas.length} día${evidencia.filas.length === 1 ? "" : "s"}; hoy se sostienen ${evidencia.filas.length - evidencia.noCuentan}. «Esperada» es el horario con que se midió ese día.`
-                : `Cuentan ${evidencia.filas.length - evidencia.noCuentan}; el semáforo dice ${tardanza?.tardanzas_mes ?? "—"}. Si no coinciden, manda el semáforo: es el que usa el generador.`}
+                : `Cuentan ${evidencia.filas.length - evidencia.noCuentan}; la cuenta del mes dice ${tardanza?.tardanzas_mes ?? "—"}. Si no coinciden, manda la cuenta del mes: es la que usa el sistema para preparar el borrador.`}
             </p>
+            {evidencia.filas.some((f) => f.esperada === SIN_FOTO_DEL_HORARIO) && (
+              <p className="mt-2 text-xs text-taupe">
+                «{SIN_FOTO_DEL_HORARIO}»: ese día se midió antes de que el sistema guardara con qué horario, así que aquí
+                no se puede mostrar. Confirma en Turnos y Horarios que la hora de entrada era la correcta antes de
+                comunicar los cargos.
+              </p>
+            )}
           </>
         )}
       </Seccion>
@@ -335,8 +335,8 @@ function ContenidoCaso({
                   {NIVEL_DISCIPLINARIO_LABELS[a.nivel as keyof typeof NIVEL_DISCIPLINARIO_LABELS] ?? a.nivel}
                 </Insignia>
                 <span className="tabular-nums">
-                  {a.correlativo ?? "sin número"} · entregado el {fechaCorta(fechaLima(a.entregado_at!))} · vigente hasta el{" "}
-                  {fechaCorta(addDias(fechaLima(a.entregado_at!), 365))}
+                  {a.correlativo ?? "sin número"} · entregado el {fechaConAnio(fechaLima(a.entregado_at!))} · vigente hasta el{" "}
+                  {fechaConAnio(sumarMeses(fechaLima(a.entregado_at!), 12))}
                   {a.nivel === "verbal" && <span className="text-taupe"> · no agrava</span>}
                 </span>
               </li>
@@ -353,7 +353,7 @@ function ContenidoCaso({
           </ul>
         )}
         <p className="mt-2 text-xs text-taupe">
-          Referencia para leer el caso. El escalón lo calcula la base, que además descuenta lo ya sancionado.
+          Referencia para leer el caso. El paso que toca lo calcula el sistema con los documentos entregados, y además descuenta lo ya sancionado.
         </p>
       </Seccion>
 
@@ -456,7 +456,7 @@ function InformacionDelDocumento({
             </p>
           ) : (
             <p className="text-rojo-profundo">
-              Procedimiento abierto. Tras evaluar sus descargos, registra la decisión: si no, el semáforo seguirá
+              Procedimiento abierto. Tras evaluar sus descargos, registra la decisión: si no, el sistema seguirá
               pidiéndola durante doce meses.
             </p>
           )
