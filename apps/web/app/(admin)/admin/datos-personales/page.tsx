@@ -988,7 +988,7 @@ export default function DatosPersonalesPage() {
         </div>
         <p className="mb-5 max-w-2xl text-sm text-taupe">
           Mantén actualizada la información personal necesaria para gestión y planilla.
-          <Ayuda texto="Datos sensibles — visibles solo para Desarrollo Organizacional, la encargada de tu sede y cada persona sobre sí misma." />
+          <Ayuda texto="Datos sensibles — visibles solo para Desarrollo Organizacional, tu líder de equipo y cada persona sobre sí misma." />
         </p>
 
         {/* ── Pendientes, arriba de todo ────────────────────────────────────

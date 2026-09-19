@@ -4,8 +4,8 @@
 // QUÉ PROMETE · convertir el resumen de cobertura de un día en la frase y el tono
 //               con que se muestra, y decidir de qué color se pinta una hora.
 // QUÉ ASUME   · que la cobertura cuenta SOLO a un grupo —las personas de áreas
-//               operativas, o las encargadas—: «nadie» quiere decir «nadie de
-//               ese grupo», nunca «nadie programado».
+//               operativas, o los líderes de equipo—: «nadie» quiere decir
+//               «nadie de ese grupo», nunca «nadie programado».
 //
 // Por qué existe (2026-09-18): Oficina TRU tiene cinco personas y todas están
 // en áreas que no son operativas (Expansión y otras). Turnos las dibujaba
@@ -17,7 +17,9 @@
 // escrita al pie de la página; el resultado, en el encabezado de cada día.
 // ============================================================================
 
-export type QuienSeMide = "operativas" | "encargadas";
+// «lideres» son los líderes de equipo (en el código se siguen llamando `esEncargada`,
+// por historia: el rol es `supervisor_sede`; en pantalla es «líder de equipo»).
+export type QuienSeMide = "operativas" | "lideres";
 
 /** De qué tono se pinta la frase: rojo, gris neutro, o el color del porcentaje. */
 export type TonoCobertura = "alerta" | "neutro" | "porcentaje";
@@ -34,6 +36,12 @@ export interface ResumenParaEtiqueta {
   pct: number;
 }
 
+// Cada grupo con su concordancia: «ninguna operativa» pero «ningún líder».
+const SIN_NADIE: Record<QuienSeMide, { alerta: string; dato: string }> = {
+  operativas: { alerta: "¡ninguna operativa programada!", dato: "sin operativas programadas" },
+  lideres: { alerta: "¡ningún líder programado!", dato: "sin líderes programados" },
+};
+
 /**
  * La frase de cada día: «cubierto 75 %», «sin meta», o —cuando no hay nadie del
  * grupo— lo que de verdad pasa. Con meta puesta y nadie del grupo es una alerta
@@ -43,10 +51,10 @@ export interface ResumenParaEtiqueta {
  * este grupo no cuenta.
  */
 export function etiquetaCobertura(r: ResumenParaEtiqueta): { texto: string; tono: TonoCobertura } {
-  const grupo = r.quien === "operativas" ? "operativa" : "encargada";
-  if (!r.hayGente && r.hayMeta) return { texto: `¡ninguna ${grupo} programada!`, tono: "alerta" };
+  const sinNadie = SIN_NADIE[r.quien];
+  if (!r.hayGente && r.hayMeta) return { texto: sinNadie.alerta, tono: "alerta" };
   if (r.sinMeta) return { texto: "sin meta", tono: "neutro" };
-  if (!r.hayGente) return { texto: `sin ${grupo}s programadas`, tono: "neutro" };
+  if (!r.hayGente) return { texto: sinNadie.dato, tono: "neutro" };
   return { texto: `cubierto ${r.pct}%`, tono: "porcentaje" };
 }
 

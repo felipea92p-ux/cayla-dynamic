@@ -40,13 +40,13 @@ describe("etiquetaCobertura — operativas", () => {
   });
 });
 
-describe("etiquetaCobertura — encargadas", () => {
-  const enc = { ...base, quien: "encargadas" as const };
+describe("etiquetaCobertura — líderes de equipo", () => {
+  const enc = { ...base, quien: "lideres" as const };
 
   it("las mismas cuatro respuestas, en su propio idioma", () => {
     expect(etiquetaCobertura(enc)).toEqual({ texto: "cubierto 75%", tono: "porcentaje" });
-    expect(etiquetaCobertura({ ...enc, hayGente: false })).toEqual({ texto: "¡ninguna encargada programada!", tono: "alerta" });
-    expect(etiquetaCobertura({ ...enc, hayGente: false, hayMeta: false })).toEqual({ texto: "sin encargadas programadas", tono: "neutro" });
+    expect(etiquetaCobertura({ ...enc, hayGente: false })).toEqual({ texto: "¡ningún líder programado!", tono: "alerta" });
+    expect(etiquetaCobertura({ ...enc, hayGente: false, hayMeta: false })).toEqual({ texto: "sin líderes programados", tono: "neutro" });
     expect(etiquetaCobertura({ ...enc, sinMeta: true, hayMeta: false })).toEqual({ texto: "sin meta", tono: "neutro" });
   });
 

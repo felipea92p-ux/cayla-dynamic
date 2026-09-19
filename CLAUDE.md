@@ -246,13 +246,18 @@ migraciones. Los nombres de variables y funciones siguen la convención en ingl�
 | Se dice | Nunca |
 |---|---|
 | integrante, colaboradora | empleado |
-| líder de equipo, encargada de sede | jefe, supervisor |
+| líder de equipo | jefe, supervisor, encargada |
 | sede, tienda, boutique | sucursal |
 | Desarrollo Organizacional (DO) | RRHH |
 | clienta | cliente (para quien compra) |
 
-El código tiene el rol `supervisor_sede` en la base por historia; en pantalla y en
-prosa siempre es **encargada**.
+El código tiene el rol `supervisor_sede` en la base por historia —y con él nombres
+como `esEncargada`, `es_encargada_piso` o `meta_encargadas`, que no se renombran—;
+en pantalla y en prosa siempre es **líder de equipo**, y **«líder(es)»** a secas en
+los contadores cortos («Líderes en piso»). Hasta el 2026-09-18 la pantalla decía
+«encargada» en unos sitios y «líder de equipo» en otros (Equipo, Objetivos, la
+boleta): dos palabras para la misma persona. No se confunde con `lider_do`, que
+es «Líder DO» (Desarrollo Organizacional).
 
 ---
 

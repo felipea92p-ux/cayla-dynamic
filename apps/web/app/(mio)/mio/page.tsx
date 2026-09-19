@@ -327,7 +327,7 @@ const PASOS_TOUR_RESUMEN: readonly PasoRecorrido[] = [
   { selector: '[data-tour="mio-resumen-turno"]', titulo: "Tu próximo turno",
     texto: "Tu horario y el próximo feriado que le toca a tu sede." },
   { selector: '[data-tour="mio-resumen-objetivos"]', titulo: "Tus objetivos",
-    texto: "Los conversa contigo tu encargada. Aquí solo ves el avance." },
+    texto: "Los conversa contigo tu líder de equipo. Aquí solo ves el avance." },
 ];
 
 /**
@@ -1352,7 +1352,7 @@ export default function MioPage() {
     const { error } = await supabase.rpc("fn_pedir_revision", { p_fecha: fecha, p_comentario: comentario.trim() });
     setEnviando(false);
     if (error) { setAvisoRevision({ tipo: "error", texto: error.message }); return; }
-    setAvisoRevision({ tipo: "ok", texto: "Listo. Tu encargada lo va a ver." });
+    setAvisoRevision({ tipo: "ok", texto: "Listo. Tu líder de equipo lo va a ver." });
     setComentario("");
     await cargar();
   }
@@ -1751,7 +1751,7 @@ export default function MioPage() {
               <p className="etiqueta text-taupe">Info</p>
               <h1 className="mt-0.5 font-serif text-3xl leading-tight">{yo?.nombre ?? "Info"}</h1>
               {/* El CARGO, nunca el rol del sistema: «supervisor_sede» no es a
-                  lo que se dedica nadie, y en pantalla siempre es «encargada». */}
+                  lo que se dedica nadie, y en pantalla siempre es «líder de equipo». */}
               <p className="mt-1 text-sm text-taupe">
                 {[yo?.cargo, yo?.sede].filter(Boolean).join(" · ") || "CAYLA"}
               </p>
@@ -2006,7 +2006,7 @@ export default function MioPage() {
               : "—"}
             pie={proximos.length > 0
               ? `Te toca ${cuando(proximos[0].fecha)}.${feriados.length > 0 ? ` Próximo feriado: ${diaYMes(feriados[0].fecha)}, ${feriados[0].nombre}.` : ""}`
-              : "No hay turnos ni horario cargados para los próximos días. Si eso no es lo que esperabas, avísale a tu encargada."}
+              : "No hay turnos ni horario cargados para los próximos días. Si eso no es lo que esperabas, avísale a tu líder de equipo."}
             accion={
               <button onClick={() => { setTab("turnos"); irArriba(); }}
                 className="text-tinta underline underline-offset-2 hover:text-rojo-profundo">
@@ -2021,8 +2021,8 @@ export default function MioPage() {
             titulo={`Tus objetivos de ${mesLabel}`}
             valor={objetivos.length > 0 ? `${objCumplidos} de ${objetivos.length}` : "—"}
             pie={objetivos.length > 0
-              ? "Los marca tu encargada cuando los conversan."
-              : `Todavía no tienes objetivos cargados para ${mesLabel}. Los acuerda contigo tu encargada.`}
+              ? "Los marca tu líder de equipo cuando los conversan."
+              : `Todavía no tienes objetivos cargados para ${mesLabel}. Los acuerda contigo tu líder de equipo.`}
             accion={objetivos.length > 0 ? (
               <button onClick={() => { setTab("objetivos"); irArriba(); }}
                 className="text-tinta underline underline-offset-2 hover:text-rojo-profundo">
@@ -2224,7 +2224,7 @@ export default function MioPage() {
                         ) : puedePedirRevision ? (
                           <div className="mt-3">
                             <label className="flex flex-col gap-1 text-xs text-taupe">
-                              ¿Algo de este día no cuadra? Cuéntalo y le llega a tu encargada.
+                              ¿Algo de este día no cuadra? Cuéntalo y le llega a tu líder de equipo.
                               <AreaTexto value={comentario} onChange={(e) => setComentario(e.target.value)} rows={2}
                                 placeholder="Ese día sí vine, marqué la entrada y la salida no me tomó." />
                             </label>
@@ -2252,7 +2252,7 @@ export default function MioPage() {
                     <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] bg-sand" /> descanso</span>
                   </div>
                   <p className="mt-3 text-xs text-taupe">
-                    Si tu encargada justificó una tardanza, deja de contar acá.
+                    Si tu líder de equipo justificó una tardanza, deja de contar acá.
                   </p>
                 </>
               )}
@@ -2324,7 +2324,7 @@ export default function MioPage() {
           <p className="mb-3 text-sm text-taupe">Tus próximos días de trabajo, de hoy en adelante.</p>
           {proximos.length === 0 ? (
             <p className="text-sm text-taupe">
-              No hay turnos ni horario cargados para los próximos días. Si eso no es lo que esperabas, avísale a tu encargada.
+              No hay turnos ni horario cargados para los próximos días. Si eso no es lo que esperabas, avísale a tu líder de equipo.
             </p>
           ) : (
             <ul className="flex flex-wrap gap-2">
@@ -2372,7 +2372,7 @@ export default function MioPage() {
               0001), esta frase cambia con ello — no antes. */}
           <p className="mb-4 text-sm text-taupe">
             Sube una foto de cada cara. Se revisan antes de que queden guardadas: hasta entonces
-            tu ficha sigue con lo que ya tenía. Las ven Administración y tu encargada de sede;
+            tu ficha sigue con lo que ya tenía. Las ven Administración y tu líder de equipo;
             nadie más del equipo.
           </p>
 
@@ -2647,7 +2647,7 @@ export default function MioPage() {
               <h2 className="mb-3 font-serif text-lg">Pedir vacaciones</h2>
               <p className="mb-3 text-taupe">
                 Tienes <strong className="text-tinta">{vacas.dias_pendientes} días</strong> pendientes. Elige el rango y avisa —tu
-                encargada no la aprueba, la aprueba Desarrollo Organizacional.
+                líder de equipo no la aprueba, la aprueba Desarrollo Organizacional.
               </p>
               <form onSubmit={(e) => void pedirVacaciones(e)} className="flex flex-wrap items-end gap-3">
                 <label className="flex flex-col gap-1 text-xs text-taupe">Desde
@@ -2742,7 +2742,7 @@ export default function MioPage() {
               </ul>
             )}
             <p className="mt-3 text-xs text-taupe">
-              Si presentaste algo que no aparece acá, todavía se puede registrar — avísale a tu encargada.
+              Si presentaste algo que no aparece acá, todavía se puede registrar — avísale a tu líder de equipo.
               {hayCumpleanos && " Y recuerda que tienes permiso por tu cumpleaños: se pide, no se descuenta solo."}
             </p>
           </section>
@@ -2865,7 +2865,7 @@ export default function MioPage() {
           </div>
           {objetivos.length === 0 ? (
             <p className="text-sm text-taupe">
-              Todavía no tienes objetivos cargados para {mesLabel}. Los acuerda contigo tu encargada.
+              Todavía no tienes objetivos cargados para {mesLabel}. Los acuerda contigo tu líder de equipo.
             </p>
           ) : (
             <>
@@ -2887,7 +2887,7 @@ export default function MioPage() {
                 ))}
               </ul>
               <p className="mt-3 text-xs text-taupe">
-                Los marca tu encargada cuando los conversan. Si crees que alguno ya está, díselo.
+                Los marca tu líder de equipo cuando los conversan. Si crees que alguno ya está, díselo.
               </p>
             </>
           )}
@@ -3002,7 +3002,7 @@ export default function MioPage() {
       )}
 
       <p className="mt-6 text-xs text-taupe">
-        Si algo no cuadra, no lo dejes pasar: avisa a tu encargada y se corrige con el motivo anotado. Lo que
+        Si algo no cuadra, no lo dejes pasar: avisa a tu líder de equipo y se corrige con el motivo anotado. Lo que
         ves sale de tus marcajes, y un marcaje mal registrado se arregla, no se discute al final del mes.
       </p>
     </main>

@@ -1210,7 +1210,7 @@ export default function DashboardPage() {
                       actuar, así que va primero y grande — no al pie como texto. */}
                   <div className="mb-4 grid grid-cols-2 gap-3 sm:max-w-md">
                     <TileCobertura label="Operativas en piso" n={cob.opPiso} meta={cob.metaOp} sinMeta={cob.sinMetaOp} tramo={tramoLabel} />
-                    <TileCobertura label="Encargadas en piso" n={cob.encPiso} meta={cob.metaEnc} sinMeta={cob.sinMetaEnc} />
+                    <TileCobertura label="Líderes en piso" n={cob.encPiso} meta={cob.metaEnc} sinMeta={cob.sinMetaEnc} />
                   </div>
 
                   {/* Recuadro verde claro de "Trabajando ahora": estuvo desde julio y

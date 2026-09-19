@@ -28,7 +28,7 @@ import {
 
 const ROLES_OPCIONES = [
   { valor: "integrante", label: "Integrante" },
-  { valor: "supervisor_sede", label: "Líder de equipo (encargada)" },
+  { valor: "supervisor_sede", label: "Líder de equipo" },
   { valor: "lider_do", label: "Líder de Desarrollo Organizacional" },
   { valor: "admin", label: "Admin" },
 ] as const;

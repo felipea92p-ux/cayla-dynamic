@@ -185,7 +185,7 @@ export function calcularCoberturaSede(deSede: FilaPersona[], meta: MetaSede, tra
 export function loQueFalta(cob: CoberturaSede): string {
   const partes: string[] = [];
   if (cob.faltanOp) partes.push(`${cob.metaOp - cob.opPiso} operativa${cob.metaOp - cob.opPiso === 1 ? "" : "s"}`);
-  if (cob.faltanEnc) partes.push(`${cob.metaEnc - cob.encPiso} encargada${cob.metaEnc - cob.encPiso === 1 ? "" : "s"}`);
+  if (cob.faltanEnc) partes.push(`${cob.metaEnc - cob.encPiso} ${cob.metaEnc - cob.encPiso === 1 ? "líder" : "líderes"}`);
   return partes.join(" y ");
 }
 

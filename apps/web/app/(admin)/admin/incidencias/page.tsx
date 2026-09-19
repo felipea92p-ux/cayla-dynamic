@@ -430,7 +430,7 @@ function IncidenciasContenido() {
             </dl>
             <p className="mt-4 border-t border-sand pt-3 text-xs text-taupe">
               <strong className="font-medium text-tinta">Sobre el periodo:</strong> Desde y Hasta filtran las faltas y los
-              cierres del día. Patrones, excesos de jornada, días sin descanso y déficit de encargadas se miden sobre
+              cierres del día. Patrones, excesos de jornada, días sin descanso y déficit de líderes se miden sobre
               ventanas fijas desde hoy, porque describen la situación actual de la persona, no un rango histórico.
             </p>
           </section>

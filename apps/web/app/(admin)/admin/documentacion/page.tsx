@@ -2020,7 +2020,7 @@ export default function DocumentacionPage() {
                     etiqueta="Nota (opcional)"
                     value={notaDoc} onChange={(e) => setNotaDoc(e.target.value)}
                     placeholder={subiendo.negativa
-                      ? "ej. presente la encargada de TRU como testigo"
+                      ? "ej. testigo: líder de equipo de TRU"
                       : ETIQUETA_SUBIDA[subiendo.que].ejemploNota} />
                 </div>
               </div>

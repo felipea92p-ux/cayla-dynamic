@@ -195,7 +195,7 @@ export async function GET(req: Request) {
         sinDestinatario++;
         sedesSinDestinatario.add(a.sede_codigo);
         const { error: errorMarcar1 } = await sb.rpc("fn_marcar_alerta_resultado", {
-          p_id: a.alerta_id, p_exito: false, p_nota: `intento ${intento}: sin encargada con correo activo en esa sede`,
+          p_id: a.alerta_id, p_exito: false, p_nota: `intento ${intento}: sin líder de equipo con correo activo en esa sede`,
         });
         // Si esto falla, la fila queda 'procesando' aunque el correo ya se
         // decidió (aquí, que no se envió) — Supabase nunca lanza excepción
@@ -238,7 +238,7 @@ export async function GET(req: Request) {
     }
     if (sinDestinatario > 0) {
       Sentry.captureMessage(
-        `Alertas por correo: ${sinDestinatario} aviso(s) sin encargada con correo en ${[...sedesSinDestinatario].sort().join(", ")}`,
+        `Alertas por correo: ${sinDestinatario} aviso(s) sin líder de equipo con correo en ${[...sedesSinDestinatario].sort().join(", ")}`,
         { level: "warning", extra: { sedes: [...sedesSinDestinatario].sort() } },
       );
     }
