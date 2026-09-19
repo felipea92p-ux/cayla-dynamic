@@ -136,3 +136,97 @@ con el margen de cortesía concedido.
 En concreto: si el procedimiento continúa como está, si se anula y se retrocede
 al escalón d), o si el defecto del descargo previo obliga a reconstruir el
 expediente desde el principio.
+
+---
+---
+
+# Consultas 3 a 8 — surgidas de la auditoría de Disciplina del 2026-09-19
+
+> Son **preguntas**, no cambios: ninguna modifica cuándo se sanciona hasta que
+> el laboralista responda. En el repositorio **no consta respuesta a las
+> consultas 1 y 2** de arriba (el estado las da por resueltas por decisión
+> interna, migraciones 0246 y 0267; no es lo mismo que una respuesta).
+> Todo lo que se cita del RIT es del texto vigente (v4.0). Ninguna norma o
+> jurisprudencia externa se cita de memoria: donde haría falta, la pregunta lo
+> deja como **verificar con el laboralista**.
+
+## Consulta 3 — El descargo previo y la política vigente
+
+Desde el 17-ago-2026 CAYLA firma amonestaciones y suspensiones **sin** el plazo
+de descargo previo, por decisión de Gerencia General; cada documento firmado así
+lo hace constar en su expediente («firmado sin descargo previo registrado…»). El
+RIT, en cambio, dice en los numerales 19.3 y 55.2 que la omisión del descargo
+previo invalida la medida y que esta no se computa como antecedente ni sirve de
+peldaño para el inciso h) del artículo 25 de la LPCL. La migración 0267 recoge
+lo que se le expuso a Gerencia al decidir.
+
+1. ¿Un descargo **verbal**, recogido antes de firmar y con constancia en el
+   propio documento, cumple los numerales 19.3 y 55.2?
+2. Si no lo cumple, ¿lo ya firmado bajo esa política se **subsana** —comunicando
+   los cargos después y ratificando— o solo se corrige hacia adelante?
+3. Cuando ya se comunicaron los cargos, ¿conviene que el sistema exija terminar el
+   trámite (plazo y valoración) aunque la política general esté apagada?
+
+*Contexto: mientras responde, la dirección elegida por Felipe es volver a exigir
+el descargo previo. El motivo de agosto —ningún botón permitía el trámite— ya no
+existe: la pantalla ofrece «Comunicar cargos» y «Ya se lo comuniqué».*
+
+## Consulta 4 — Desde cuándo se «conoce» el hecho (inmediatez)
+
+El numeral 52.6 exige dejar constancia escrita de la fecha en que se tomó
+conocimiento comprobado de los hechos y no fija un plazo numérico. Hoy el
+sistema no guarda esa fecha.
+
+1. Para tardanzas, ¿el conocimiento comprobado corre desde la **primera** del mes,
+   desde la que **completa el umbral**, o desde el **cierre del mes**?
+2. ¿Qué demora se considera razonable en la práctica para una amonestación o una
+   suspensión por tardanzas? CAYLA no fijará ningún número sin esta respuesta.
+3. ¿Basta como constancia el registro del propio sistema («alcanzó el umbral el
+   día X»), o debe constar de otra forma?
+
+## Consulta 5 — Días que el RIT dice que no son tardanza y el sistema cuenta
+
+1. El numeral 17.4 c) excluye el tiempo de un **permiso o licencia** ya concedidos
+   y el 17.3 los días de vacaciones; el sistema cuenta esas tardanzas salvo que
+   alguien las «levante» a mano. ¿Se alinea el sistema al texto, sea cual sea la
+   duración del permiso?
+2. El numeral 17.3 excluye los «**feriados sin turno programado**»; el sistema mide
+   contra el horario base (decisión del 2026-08-18: en 22 de 25 feriados
+   trabajados no había turno registrado). ¿Se reforma el texto del RIT para que
+   diga lo que se hace, o se cambia lo que se hace para que cumpla el texto?
+3. ¿Qué situaciones deben **excluir** el cómputo de tardanzas y desde qué
+   notificación —gestación, lactancia, fuero sindical, violencia, licencia
+   sindical— además de las que el RIT ya nombra? **Verificar con el laboralista**:
+   el RIT no las trata en el capítulo de tardanzas.
+
+## Consulta 6 — Días sin foto del horario con que se midieron
+
+Las jornadas medidas antes de la migración 0446 (mediados de setiembre de 2026)
+no guardan con qué horario se calculó la tardanza. Para sostener una tardanza así (numerales 17.2 y 19.5), ¿basta
+**reconstruir** el horario vigente ese día desde el historial de turnos y
+horarios, o hace falta otro respaldo?
+
+## Consulta 7 — Documento entregado con el numeral equivocado
+
+Las amonestaciones impresas desde la renumeración del RIT (2026-08-15) citan el
+«artículo 7» y, las de faltas, el «8.3-b», que hoy son otras materias, en lugar de
+los numerales 19.2 b) y 21.2 b). El numeral 55.3 exige la norma con su numeral y
+literal. *(No se ha visto el papel entregado; se comprueba con el cargo
+archivado.)*
+
+1. ¿La cita equivocada invalida la medida, o se sostiene por los hechos y el
+   escalón?
+2. Si es subsanable, ¿basta una **rectificación notificada** con cargo?
+3. Si se rectifica, ¿desde qué fecha corren los doce meses de antecedente: la de
+   la entrega original o la de la rectificación?
+
+## Consulta 8 — Quién estampa la firma
+
+El numeral 54.4 c) permite que Desarrollo Organizacional suscriba suspensiones e
+imputaciones. Hoy el sistema deja que quien tramita estampe como firmante a
+**otra** persona competente (p. ej. Gerencia), salvo en la carta de despido, que
+siempre la firma Gerencia en persona.
+
+¿Es válido para una amonestación o suspensión que el documento figure firmado por
+alguien distinto de quien lo firmó, o debe llevar la firma de quien de verdad lo
+suscribe? *(Firmando DO como DO, no haría falta estampar a nadie.)*

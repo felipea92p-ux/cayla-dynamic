@@ -168,6 +168,152 @@ se confirmó el mecanismo razonando sobre el SQL vigente.
   que audita esto para cualquier persona y se puede volver a correr cuando se
   quiera.
 
+### Auditoría de la pantalla Disciplina · 2026-09-19
+
+Leída contra el código, las migraciones vigentes y el RIT v4.0. **Nada de esto
+está medido en producción todavía**: no hubo acceso y el Postgres local estaba
+apagado. Son mecanismos confirmados en el código, con población por medir;
+las consultas para reproducirlos van al final del bloque. La auditoría del
+2026-09-13 (rama sin fusionar `claude/cayla-disciplina-auditoria-9f1cf5`,
+archivo `docs/auditoria-disciplina-2026-09-13.md` allá) nunca llegó a este
+catálogo: aquí entran los suyos que siguen vivos. Escrita con el alcance «solo
+auditar y proponer»: ninguna de estas entradas está arreglada.
+
+- **La política `disciplina_descargo_previo` nació en `false`** (0267, decisión
+  de Gerencia del 17-ago) y con eso «Firmar» no exige comunicar cargos, esperar
+  el plazo ni valorar el descargo: el borrador sale «Listo para firmar» sin
+  pasos. El modal «Antes de firmar» (`page.tsx:1347`) sigue diciendo lo
+  contrario, y el RIT 19.3 y 55.2 dicen que omitirlo invalida la medida y que no
+  se computa como antecedente. **Dirección elegida por Felipe el 2026-09-19:**
+  volver a exigirlo hasta que responda el laboralista (Consulta 3 del doc 10).
+  Sin aplicar: el `UPDATE` que documenta la propia 0267 lo pega Felipe. Además,
+  la pantalla debe decir qué política rige (lee `exigeDescargo`, `page.tsx:212`).
+  El motivo de agosto —ningún botón permitía el trámite— ya no existe:
+  `page.tsx:838-840` ofrece «Comunicar cargos» y «Ya se lo comuniqué».
+- **La evidencia de una tardanza muestra `Esperada —` cuando la jornada no tiene
+  foto del horario** (`horario_aplicado` nulo: jornadas medidas antes de la 0446,
+  ≈14-15 set). No es «tardanza contra nada» —sin hora programada `minutos_tarde`
+  queda en NULL, `0445:116-118`—, pero la pantalla no distingue «sin foto» de
+  «sin horario» (`disciplina.ts:294-299`) ni detecta que el horario cambió
+  después de medir, y la pinta «Cuenta» (`disciplina.ts:275`). Un caso de
+  setiembre (TRU, 2/2, ya con borrador de suspensión) depende de un día así:
+  si ese día no se sostiene, queda en 1/2. **Antes de firmar ese borrador,
+  correr la consulta A de abajo.** Arreglo propuesto: mostrar «Sin foto del
+  horario», reconstruir la esperada con `jornada-esperada.ts` (no una quinta
+  copia) y tratar la diferencia como desfase. **No** recalcular en masa las
+  jornadas sin foto: movería minutos de todos sin que nadie los vea; si se hace,
+  primero un preview de diferencias como el de la 0447.
+- **El memo de amonestación cita «artículo 7» y «8.3-b»** (`memo/[id]/page.tsx:320`
+  y `:331`): hoy el 7 es «Periodo de prueba» y el 8.3 es el registro de contratos.
+  El RIT 55.3 exige la norma con su numeral y literal. Reconfirmado el
+  2026-09-19; venía del informe del 13-09. Las amonestaciones impresas desde la
+  renumeración del 15-ago pueden citarlo mal, incluido un antecedente vigente de
+  setiembre (no se vio el papel entregado: comprobar con el cargo archivado).
+  Dos líneas de código; los papeles ya entregados van a la Consulta 7.
+- **El conteo suma tardanzas en días con permiso, licencia o vacaciones
+  aprobados**, y el RIT 17.3 y 17.4 c) dicen que no cuentan. Solo se excluye lo
+  «levantado» a mano. La 0455 lo dejó así a propósito para tardanzas
+  (`0455:27-35`) y `fn_tardanzas_resumen` no mira `ausencias` (`0311:555-575`).
+  La pantalla lo rotula «Cuenta · ese día figura X» (`disciplina.ts:274`): avisa
+  pero cuenta. En el catálogo figuraba como «preventivo, sin ningún caso»
+  (2026-08-18); falta volver a medirlo (consulta C).
+- **Feriados: el texto del RIT y la práctica discrepan.** El RIT 17.3 excluye
+  «feriados sin turno programado»; el sistema mide contra el horario base, por
+  decisión de Felipe del 2026-08-18 con datos (22 de 25 feriados trabajados sin
+  turno registrado). Queda como pregunta al laboralista: reformar el texto o
+  cambiar la práctica (Consulta 5).
+- **Sin mecanismo, o sin excluir, lo que el RIT dice que no es tardanza:**
+  lactancia (17.4 a; el 33.5 dice que Dynamic ajusta el horario y no se encontró
+  dónde), violencia (art. 22), turno cargado después de iniciado el día (`turnos`
+  no guarda cuándo se cargó, `0013:7-15`) y suspensión ya cumplida. Gestación y
+  fuero sindical no los trata el RIT en el capítulo de tardanzas: pregunta al
+  laboralista. `personal_direccion` ya figura en «Latentes» más abajo.
+- **«Sede» es el código de la sede BASE** (TRU, LIM) en la lista, el panel, el
+  filtro y el memo impreso («Sede LIM», `memo/[id]/page.tsx:465`). Con el Taller
+  y la Tienda de Lima no identifica el hecho, y no dice dónde marcó
+  (`jornadas.sede_id` sí lo sabe). Arreglo: usar `etiquetaDeSede` (commit
+  `49bd29d0`, rama `claude/dashboard-lima-sedes-missing-c46610`, sin fusionar),
+  ampliando el `select` de `sedes` en `page.tsx:283` a `nombre, tipo, ciudad`;
+  sin SQL. No crear una función local.
+- **«vigente hasta el 25-ago.» se imprime sin año** (`panel-caso.tsx:338-339` con
+  `formato.ts:8`), junto a «entregado el 25-ago.»: en setiembre se lee como
+  vencido; es el 25-ago-2027. Se suma a la diferencia 365 días vs 12 meses ya
+  anotada más abajo.
+- **Jerga a quien firma:** «Mig. 0189» (`page.tsx:1343`), «semáforo», «escalón»,
+  «la base», «generador», «Sin medir». Y `ESCALON_POR_MINIMO[1]` («tras una
+  suspensión», `panel-caso.tsx:69-73`) sirve igual para quien va a su segunda
+  suspensión que para quien va a imputación: el motor da `minimo = 1` en los dos
+  casos (`0311:313`). La regla vive en cuatro sitios —RIT, motor,
+  `page.tsx:1342`, `panel-caso.tsx:69`— y ninguna prueba los ata.
+- **La pantalla no dice qué hacer hoy ni cuánto se lleva sin actuar.** Abre en
+  «Requieren revisión 0» (`page.tsx:218`) mientras el borrador está en
+  «Borradores», y «Ver detalle» de «Ya tiene borrador» no lleva a él.
+  `ultima_fecha` sale del conteo y no se muestra (`disciplina.ts:38-41`). El RIT
+  52.6 pide constancia de la fecha de conocimiento comprobado y no existe dónde
+  guardarla. **No inventar un plazo:** el RIT no lo fija (Consulta 4).
+- **Doble borrador simultáneo.** `fn_expediente_generar_tardanza` comprueba y
+  luego inserta sin candado (`0311:384-388`) y no se encontró índice único más
+  que el de `correlativo` (`0056:50`; confirmar con `pg_indexes`). Tampoco se
+  midió si dos firmas simultáneas del mismo borrador se pisan:
+  `fn_expediente_firmar` lee y actualiza sin `for update` (`0455:68,162`).
+  Arreglo propuesto: índice único parcial de un borrador por persona y causal.
+- **Firmar no revalida** (informe del 13-09, #3, **reconfirmado** leyendo la 0455):
+  la base no comprueba el rango de días ni las fechas de la suspensión al firmar.
+  Y para tardanzas el freno de «borrador desactualizado» es solo pantalla
+  (`page.tsx:833-838`); si la lectura de evidencia falla, `noCuentan` queda en 0
+  y el freno se apaga sin aviso en la lista. Sin releer: #4 (vigencia de la
+  imputación medida desde `firmado_at`) y #5 (valorar el descargo antes de que
+  venza su plazo) del mismo informe.
+- **Errores mudos.** Con `fn_tardanzas_resumen` caído, bajo el aviso rojo sigue
+  «Nadie alcanza su umbral…» y los contadores dicen 0 (`page.tsx:1112-1119`). Los
+  fallos de `personas`, adjuntos, constancia del Reglamento y evidencia no se
+  avisan (`page.tsx:304-343`): sin `personas` no se detecta a quien cesó y se le
+  ofrece «Subir cargo firmado» (`page.tsx:860`).
+- **Quién firma.** Bien definido en la base (art. 54.4, `0455:127-154`). Dos
+  detalles: `firmanteDe` preselecciona `lista[0]` si quien abre no está en la
+  lista (`page.tsx:485-488`) y la base deja estampar la firma de otra persona
+  competente salvo en despido. El 54.4 c) ya permite que DO suscriba directamente:
+  Consulta 8.
+
+**Cómo reproducir** (solo lectura; en el SQL Editor de producción).
+
+```sql
+-- A · con qué se midió cada día del caso, y qué horario había ese día
+-- (reemplazar <persona> y las fechas; dow = día de la semana, 0 = domingo)
+select j.fecha, (j.entrada_ts at time zone 'America/Lima')::time as marco,
+       j.minutos_tarde, j.horario_aplicado,
+       j.updated_at at time zone 'America/Lima' as calculada_el
+  from jornadas j where j.persona_id = '<persona>' and j.fecha in ('<dia1>','<dia2>');
+
+select 'turno' as fuente, t.hora_entrada::text as entrada, t.es_descanso::text as dato
+  from turnos t where t.persona_id = '<persona>' and t.fecha = '<dia1>'
+union all
+select 'horario', h.horario_por_dia->'<dow>'->>'e',
+       h.vigente_desde::text || ' → ' || coalesce(h.vigente_hasta::text, 'hoy')
+  from horarios_asignados h
+ where h.persona_id = '<persona>' and h.vigente_desde <= '<dia1>'
+   and (h.vigente_hasta is null or h.vigente_hasta >= '<dia1>');
+
+-- B · la política y el estado del borrador
+select clave, valor from configuracion where clave = 'disciplina_descargo_previo';
+select nivel, creado_at, cargos_comunicados_at, descargo_vence_at, descargo_acogido
+  from expediente_disciplinario where persona_id = '<persona>' and estado = 'borrador';
+
+-- C · el tamaño de los huecos
+select
+ (select count(*) from jornadas where minutos_tarde between 1 and 180
+    and horario_aplicado is null and fecha >= '2026-09-01') as tardanzas_de_set_sin_foto,
+ (select count(distinct (j.persona_id, j.fecha)) from jornadas j
+    join ausencias a on a.persona_id = j.persona_id and a.anulada_at is null
+     and j.fecha between a.fecha_inicio and coalesce(a.fecha_fin, a.fecha_inicio)
+   where j.minutos_tarde between 1 and 180 and j.fecha >= '2026-08-01'
+     and not exists (select 1 from tardanzas_justificadas t
+                      where t.persona_id = j.persona_id and t.fecha = j.fecha))
+   as contadas_en_dia_con_ausencia,
+ (select count(*) from personas where personal_direccion and estado = 'activo'
+    and en_planilla and not sueldo_fijo) as direccion_medida;
+```
+
 ### Latentes confirmados · hoy no cuestan nada
 
 Mecanismo real, población cero hoy. Se anotan para que el día que se enciendan
