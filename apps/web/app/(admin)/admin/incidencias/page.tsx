@@ -95,7 +95,7 @@ interface RevisionPedida {
 interface PracticanteSobreTope {
   persona_id: string; persona: string; sede: string; estado: string; dias_restantes: number | null;
 }
-interface Sede { id: string; codigo: string; nombre: string; activa: boolean }
+interface Sede { id: string; codigo: string; nombre: string; activa: boolean; tipo: string | null }
 interface AceptadaRow {
   persona_id: string; fecha: string; tipo: string; nota: string | null;
   aceptado_por: string; aceptado_at: string; valor: number | null;
@@ -213,8 +213,11 @@ function IncidenciasContenido() {
           .order("persona_id")
           .range(ini, fin),
       ),
-      supabase.from("sedes").select("id, codigo, nombre, activa").order("codigo"),
-      supabase.from("personas").select("id, sede_base_id").eq("rol", "supervisor_sede").eq("estado", "activo"),
+      supabase.from("sedes").select("id, codigo, nombre, activa, tipo").order("codigo"),
+      // Quienes PODRÍAN contar como líder (líder de equipo, marca de piso o administración);
+      // quién cuenta en cada sede lo decide cuentaEnCobertura, dentro de la detección.
+      supabase.from("personas").select("id, sede_base_id, rol, tipo_vinculo, es_encargada_piso")
+        .eq("estado", "activo").or("rol.eq.supervisor_sede,es_encargada_piso.eq.true,rol.in.(admin,lider_do)"),
       supabase.from("metas_cobertura").select("sede_id, dia_semana, meta_encargadas").gt("meta_encargadas", 0),
       supabase.from("horarios_asignados").select("persona_id, hora_entrada, hora_salida, dias_laborables, horario_por_dia, almuerzo_min_minutos, vigente_desde, vigente_hasta").lte("vigente_desde", v.domingoSiguiente).or(`vigente_hasta.is.null,vigente_hasta.gte.${v.lunesActual}`),
       supabase.from("turnos").select("persona_id, fecha, hora_entrada, hora_salida, es_descanso").gte("fecha", v.lunesActual).lte("fecha", v.domingoSiguiente),
@@ -293,7 +296,7 @@ function IncidenciasContenido() {
       diasRacha: (diasRachaData as DatosDeteccion["diasRacha"] | null) ?? [],
       aceptadas: aceptadasRows.filter((a) => a.anulada_at === null),
       sedes: sedesRows,
-      encargadas: (encargadasData as { id: string; sede_base_id: string }[] | null) ?? [],
+      encargadas: (encargadasData as DatosDeteccion["encargadas"] | null) ?? [],
       metas: (metasData as { sede_id: string; dia_semana: number; meta_encargadas: number }[] | null) ?? [],
       horarios: (horariosData as HorarioTramo[] | null) ?? [],
       turnos: (turnosData as DatosDeteccion["turnos"] | null) ?? [],

@@ -1,5 +1,5 @@
 import {
-  MAXIMO_LEGAL_SEMANAL, avisoDeRacha, ventanaMasCargada, maximoSemanalPracticante,
+  MAXIMO_LEGAL_SEMANAL, avisoDeRacha, cuentaEnCobertura, ventanaMasCargada, maximoSemanalPracticante,
 } from "@cayla-dynamic/shared";
 import { esperadoDelDia, horarioVigente, type HorarioTramo, type TurnoDia } from "./jornada-esperada";
 import { loQueNoSePudo } from "./lo-que-no-se-pudo";
@@ -187,8 +187,11 @@ export interface DatosDeteccion {
     /** numeric llega como número o como texto según el cliente. */
     valor?: number | string | null;
   }[];
-  sedes: { id: string; codigo: string }[];
-  encargadas: { id: string; sede_base_id: string }[];
+  /** `tipo` es `sedes.tipo` (central, taller, tienda): decide si un administrador cuenta como líder. */
+  sedes: { id: string; codigo: string; tipo?: string | null }[];
+  /** Personas activas que PODRÍAN contar como líder de su sede. Quién cuenta de
+   * verdad lo decide `cuentaEnCobertura` (packages/shared), no esta lista. */
+  encargadas: { id: string; sede_base_id: string; rol: string | null; tipo_vinculo: string | null; es_encargada_piso: boolean }[];
   metas: { sede_id: string; dia_semana: number; meta_encargadas: number }[];
   horarios: HorarioTramo[];
   turnos: (TurnoDia & { persona_id: string; fecha: string })[];
@@ -411,6 +414,7 @@ export function detectarIncidencias(d: DatosDeteccion): Incidencia[] {
   // aviso llega mientras todavía se puede reprogramar (auditoría 2026-09-13).
   // «¿Le toca trabajar?» se pregunta a jornada-esperada, nunca se reescribe.
   const codigoPorSede = new Map(d.sedes.map((s) => [s.id, s.codigo]));
+  const tipoPorSede = new Map(d.sedes.map((s) => [s.id, s.tipo ?? null]));
   const turnoPorClave = new Map(d.turnos.map((t) => [`${t.persona_id}|${t.fecha}`, t as TurnoDia]));
   const horariosPorPersona = new Map<string, HorarioTramo[]>();
   for (const h of d.horarios) {
@@ -427,7 +431,18 @@ export function detectarIncidencias(d: DatosDeteccion): Incidencia[] {
     const dow = diaSemanaNum(dia);
     for (const m of d.metas) {
       if (m.dia_semana !== dow) continue;
-      const cubiertas = d.encargadas.filter((e) => e.sede_base_id === m.sede_id && trabajaEseDia(e.id, dia)).length;
+      // Misma definición que el Dashboard, Turnos y Reporte de sede: en Central
+      // manda un administrador; en una tienda solo cuenta quien es líder o
+      // lleva la marca de piso. Tener la propia aquí hacía que Central saliera
+      // «0 de 1» todos los días.
+      const tipoSede = tipoPorSede.get(m.sede_id) ?? null;
+      const cubiertas = d.encargadas.filter((e) =>
+        e.sede_base_id === m.sede_id
+        && cuentaEnCobertura(
+          { rol: e.rol, tipoVinculo: e.tipo_vinculo, esEncargadaPiso: e.es_encargada_piso, areaOperativa: false },
+          tipoSede,
+        ).lider
+        && trabajaEseDia(e.id, dia)).length;
       if (cubiertas >= m.meta_encargadas) continue;
       const codigo = codigoPorSede.get(m.sede_id) ?? "?";
       const sufijo = proximaSemana ? " · próxima semana, todavía se puede reprogramar" : "";
