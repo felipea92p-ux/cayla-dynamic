@@ -6,15 +6,18 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-09-19 — Anuncios cuenta qué mejora en el sistema, y «Lo mío» las muestra · MIGRACIÓN 0480 SIN PEGAR · SIN FUSIONAR
+## 2026-09-19 — Anuncios cuenta qué mejora en el sistema, y «Lo mío» las muestra · MIGRACIÓN 0480 PEGADA Y VERIFICADA · SIN FUSIONAR
 
 **Hay SQL: la [0480](../supabase/migrations/0480_las_novedades_del_sistema_se_marcan_como_vistas.sql),
-sin pegar, y se pega ANTES de fusionar.** Si el código llega primero no se rompe
-nada —«Lo mío» calla y Anuncios muestra por fecha, sin botón—, pero nadie puede
-marcar «Entendido» hasta que la tabla exista. Es una tabla y una función nuevas:
-no reescribe ninguna función existente, así que no hay md5 de partida que medir.
-**Fusionar es publicar** (`main` se despliega sola), y las cinco entradas
-iniciales son texto que leerá el equipo entero: conviene leerlas antes.
+PEGADA Y VERIFICADA en producción el 2026-09-19** (antes de fusionar, como
+manda el orden). La consulta de comprobación devolvió
+`1 | 1 | true | 480 · las_novedades_del_sistema_se_marcan_como_vistas`, y la de
+permisos: `authenticated` solo con `SELECT`, `anon` sin nada, `postgres` y
+`service_role` con todo (lo normal) — el `revoke` hizo su trabajo. Es una tabla y
+una función nuevas: no reescribe ninguna función existente, así que no hay md5
+de partida que medir. **Fusionar es publicar** (`main` se despliega sola), y las
+cinco entradas iniciales son texto que leerá el equipo entero: conviene leerlas
+antes.
 
 Se pidió que Anuncios «anunciara mensajes preestablecidos y, cada vez que hay
 una mejora o actualización, explicara qué mejoró», y después que también
