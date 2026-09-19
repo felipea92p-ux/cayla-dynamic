@@ -1,8 +1,10 @@
 import { describe, it, expect } from "vitest";
 import {
   detectarIncidencias, ventanasDeConsulta, lunesDeLaSemana, addDias, estadoDe, compararIncidencias,
+  coberturaDeCarga, enFrase, CARGA_COMPLETA,
   type DatosDeteccion,
 } from "@/lib/admin/incidencias";
+import { crearCargaVigente } from "@/lib/admin/carga-vigente";
 
 // Martes 15 de setiembre de 2026, el día en que se escribió esto.
 const HOY = "2026-09-15";
@@ -254,6 +256,50 @@ describe("déficit de encargadas", () => {
     expect(r[0].personaId).toBeNull();
     expect(r[0].clave).not.toBe(r[1].clave);
   });
+
+  // Quién cuenta como líder es UNA definición (cobertura-equipo.ts), la misma del
+  // Dashboard, Turnos y Reporte de sede. Esta detección tenía la suya
+  // (`rol = supervisor_sede`) y por eso Central, que la lleva un administrador,
+  // salía «0 de 1» TODOS los días: 12 de los 34 «por revisar» en producción.
+  const todosLosDias = [0, 1, 2, 3, 4, 5, 6];
+  const horario = (persona_id: string) => ({
+    persona_id, vigente_desde: "2026-01-01", vigente_hasta: null, hora_entrada: "08:00", hora_salida: "17:00",
+    dias_laborables: todosLosDias, horario_por_dia: null, almuerzo_min_minutos: 0,
+  });
+  const metaTodos = todosLosDias.map((dia_semana) => ({ sede_id: "s1", dia_semana, meta_encargadas: 1 }));
+  const admin = { id: "a1", sede_base_id: "s1", rol: "admin", tipo_vinculo: "planilla", es_encargada_piso: false };
+
+  it("en una sede central, un administrador que trabaja ese día cubre la meta", () => {
+    const r = detectarIncidencias(datos({
+      sedes: [{ id: "s1", codigo: "CCO", tipo: "central" }],
+      metas: metaTodos, encargadas: [admin], horarios: [horario("a1")],
+    }));
+    expect(r).toEqual([]);
+  });
+
+  it("en una tienda, un administrador NO cuenta como líder: declararía cubierta una tienda sin encargada", () => {
+    const r = detectarIncidencias(datos({
+      sedes: [{ id: "s1", codigo: "AQP", tipo: "tienda" }],
+      metas: metaTodos, encargadas: [admin], horarios: [horario("a1")],
+    }));
+    expect(r).toHaveLength(14);
+  });
+
+  it("en una tienda, la marca es_encargada_piso sí cuenta, y la líder de equipo también", () => {
+    const sedes = [{ id: "s1", codigo: "AQP", tipo: "tienda" }];
+    const conMarca = { ...admin, es_encargada_piso: true };
+    const lider = { id: "l1", sede_base_id: "s1", rol: "supervisor_sede", tipo_vinculo: "planilla", es_encargada_piso: false };
+    expect(detectarIncidencias(datos({ sedes, metas: metaTodos, encargadas: [conMarca], horarios: [horario("a1")] }))).toEqual([]);
+    expect(detectarIncidencias(datos({ sedes, metas: metaTodos, encargadas: [lider], horarios: [horario("l1")] }))).toEqual([]);
+  });
+
+  it("una sede de tipo desconocido se trata como tienda: nunca cuenta de más", () => {
+    const r = detectarIncidencias(datos({
+      sedes: [{ id: "s1", codigo: "XX" }],
+      metas: metaTodos, encargadas: [admin], horarios: [horario("a1")],
+    }));
+    expect(r).toHaveLength(14);
+  });
 });
 
 describe("estado y orden de la bandeja", () => {
@@ -286,5 +332,63 @@ describe("estado y orden de la bandeja", () => {
       "media 2026-09-12",
       "baja 2026-09-14", "baja 2026-08-26",
     ]);
+  });
+});
+
+describe("lo que no se pudo comprobar", () => {
+  it("con todo contestado no hay faltantes ni categorías sin comprobar", () => {
+    const c = coberturaDeCarga({ faltas: null, salidas: undefined, excesos: null });
+    expect(c).toBe(CARGA_COMPLETA);
+    expect(c.duras).toEqual([]);
+  });
+
+  it("si falla fn_faltas, «sin faltas» no se puede afirmar: la caja de faltas queda sin comprobar", () => {
+    const c = coberturaDeCarga({ faltas: { message: "timeout" } });
+    expect(c.duras).toEqual(["las faltas"]);
+    expect([...c.categoriasSinComprobar]).toEqual(["faltas"]);
+  });
+
+  it("cada fuente dura apaga SU caja del resumen y ninguna otra", () => {
+    expect([...coberturaDeCarga({ salidas: 1 }).categoriasSinComprobar]).toEqual(["marcaciones"]);
+    expect([...coberturaDeCarga({ excesos: 1 }).categoriasSinComprobar]).toEqual(["patrones"]);
+    expect([...coberturaDeCarga({ rachas: 1 }).categoriasSinComprobar]).toEqual(["patrones"]);
+  });
+
+  it("una fuente suave se avisa pero NO impide decir «todo revisado» ni apaga ninguna caja", () => {
+    const c = coberturaDeCarga({ convenios: { message: "x" }, nombres: { message: "y" } });
+    expect(c.faltantes).toHaveLength(2);
+    expect(c.duras).toEqual([]);
+    expect(c.categoriasSinComprobar.size).toBe(0);
+  });
+
+  it("nombra lo que falta, no la consulta, y respeta el orden declarado", () => {
+    const c = coberturaDeCarga({ rachas: 1, faltas: 1, revisiones: 1 });
+    expect(c.faltantes).toEqual([
+      "las faltas", "los días seguidos sin descanso", "los días que tu equipo pidió revisar",
+    ]);
+    expect(c.duras).toEqual(["las faltas", "los días seguidos sin descanso"]);
+  });
+
+  it("enFrase arma la lista en español", () => {
+    expect(enFrase([])).toBe("");
+    expect(enFrase(["a"])).toBe("a");
+    expect(enFrase(["a", "b"])).toBe("a y b");
+    expect(enFrase(["a", "b", "c"])).toBe("a, b y c");
+  });
+});
+
+describe("carga vigente", () => {
+  it("una carga lenta que termina DESPUÉS de una más nueva ya no vale", () => {
+    const c = crearCargaVigente();
+    const treintaDias = c.empezar();
+    const estaSemana = c.empezar();
+    // Termina primero la nueva, y luego la vieja llega tarde.
+    expect(c.vigente(estaSemana)).toBe(true);
+    expect(c.vigente(treintaDias)).toBe(false);
+  });
+
+  it("con una sola carga, vale", () => {
+    const c = crearCargaVigente();
+    expect(c.vigente(c.empezar())).toBe(true);
   });
 });
