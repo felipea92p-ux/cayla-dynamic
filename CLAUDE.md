@@ -625,6 +625,55 @@ art. 19 e) y f).
 
 ---
 
+## Novedades del sistema
+
+**Un cambio que el equipo va a notar lleva su novedad en el MISMO pull
+request.** La lista vive en `apps/web/lib/novedades.ts`. Se lee en
+`/admin/anuncios`, debajo de los comunicados de DO, y en «Lo mío», donde solo
+aparecen las que a esa persona le faltan por entender (las tres más recientes,
+con su primer párrafo). El encabezado del archivo dice qué va, qué no y cómo se
+escribe una entrada.
+
+Está en el código y no en la tabla `anuncios` por una razón de orden: `main` se
+publica sola, así que una novedad en el código sale con la mejora que cuenta,
+ni antes ni después. Una fila en `anuncios` exigiría una migración, y la
+migración se pega ANTES de fusionar: el aviso «ya puedes hacer X» estaría en
+pantalla mientras X todavía no existe.
+
+Criterio: ¿alguien de una sede lo va a notar al usar el sistema? Un error que
+dejó de pasar, una pantalla que dice otra cosa, un botón nuevo: sí. Refactores,
+pruebas, migraciones internas y renumeraciones: no. Medido el 2026-09-19, de
+169 commits desde el 15 de septiembre, 55 eran solo bastidores — por eso no se
+generan solas desde los mensajes de commit.
+
+**Qué guarda la base, y qué pasa si falta.** Solo quién entendió cada novedad:
+`novedades_vistas` (0480), por persona, con `fn_marcar_novedad_vista`. «Nueva» =
+de los últimos 14 días y sin entender; esa regla vive en un solo sitio
+(`esNovedadPendiente`) y la usan las dos pantallas. **La 0480 se pega ANTES de
+fusionar**, como toda migración; si el código llega primero no se rompe nada:
+sin poder leer las marcas, «Lo mío» calla y Anuncios muestra por fecha, sin
+botón. El `id` de cada entrada tiene un formato que la base también exige, y
+`tests/novedades.test.ts` compara los dos lados.
+
+**Nunca una regla de pago, un descuento, una tardanza o algo disciplinario.**
+«Entendido» en una novedad es un marcador liviano, sin acuse: no prueba que
+nadie se enteró, y lo que afecta a una persona hay que poder probar que se le
+informó. Lo que cambie cuánto se le paga a alguien va por la Política salarial
+(versionada, con acuse) o por Normas; en una novedad, como mucho, se avisa que
+hay algo nuevo que leer allá. Y sin nombres ni montos: la lista baja al
+navegador de todo el mundo, y la audiencia (`todos` / `panel` / `do`) decide qué
+se dibuja, no qué es secreto. `tests/novedades.test.ts` vigila montos, DNI,
+correos y el vocabulario.
+
+**Nada obliga a escribirla: es memoria, y ya se sabe lo que valen las reglas de
+este archivo que dependen de eso.** La señal de que se está olvidando es que la
+entrada más reciente tenga semanas mientras `main` no ha parado. No se puso un
+freno en el push porque la mayoría de los cambios de pantalla no se notan, y un
+aviso que salta siempre se aprende a ignorar; si el olvido se repite, el paso
+siguiente es medir cuántos cambios notables hubo sin entrada antes de decidir.
+
+---
+
 ## Qué hay en `docs/`
 
 | Ruta | Qué es |

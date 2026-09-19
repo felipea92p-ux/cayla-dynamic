@@ -112,6 +112,32 @@ export function puedeGestionarAnuncios(rol: RolPosible): boolean {
 }
 
 /**
+ * A quién le llega una novedad del sistema (`apps/web/lib/novedades.ts`):
+ *
+ *   todos — cualquiera con cuenta, integrantes incluidas.
+ *   panel — quien opera una sede: DO y líder de equipo.
+ *   do    — solo DO: lo que toca planilla, contratos, el pago.
+ *
+ * Es RELEVANCIA, no confidencialidad. Las novedades viajan dentro del código
+ * que baja al navegador de todo el mundo; la audiencia solo evita que una
+ * integrante lea sobre una pantalla que no tiene. Por eso ninguna novedad
+ * puede llevar un dato que no sea para todos —montos, nombres, documentos— y
+ * `tests/novedades.test.ts` lo comprueba. Para lo que sí es confidencial, la
+ * base: ver el aviso de arriba sobre qué protege de verdad.
+ *
+ * Sin rol cargado, solo `todos`: el mismo lado seguro que el resto del archivo.
+ */
+export type AudienciaNovedad = "todos" | "panel" | "do";
+
+export function puedeVerNovedad(rol: RolPosible, audiencia: AudienciaNovedad): boolean {
+  switch (audiencia) {
+    case "todos": return true;
+    case "panel": return tiene(DO_Y_ENCARGADA, rol);
+    case "do": return tiene(DO, rol);
+  }
+}
+
+/**
  * Ver si el despacho de avisos por correo está sano: cuántos quedaron
  * atascados, cuáles fallaron tres veces, cuáles caducaron sin salir. Es una
  * pregunta de operación del sistema, no del equipo: la encargada de una sede

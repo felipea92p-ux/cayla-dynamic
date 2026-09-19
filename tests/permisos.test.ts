@@ -11,8 +11,37 @@ import {
   puedeVerPlanilla, puedeVerIdentidad, puedeGestionarCatalogos,
   puedeOperarEquipo, puedeVerTodasLasSedes, puedeExportarPadron,
   puedeVerSaludDeAlertas, puedeExportarAsistencia, puedeAnularDocumentoDisciplinario,
+  puedeVerNovedad,
   ROLES, ROLES_CON_PANEL, ROLES_DO, ROLES_EXPORTAN_ASISTENCIA,
 } from "@cayla-dynamic/shared";
+
+describe("las novedades del sistema le llegan a quien las puede usar", () => {
+  it("«panel» sigue exactamente la lista de quienes ven el panel — si esa cambia, esta cae", () => {
+    for (const rol of ROLES) {
+      expect(puedeVerNovedad(rol, "panel")).toBe((ROLES_CON_PANEL as readonly string[]).includes(rol));
+    }
+  });
+
+  it("«do» es solo DO: la líder de equipo no lee sobre planilla", () => {
+    for (const rol of ROLES) {
+      expect(puedeVerNovedad(rol, "do")).toBe(ROLES_DO.includes(rol));
+    }
+    expect(puedeVerNovedad("supervisor_sede", "do")).toBe(false);
+  });
+
+  it("«todos» llega a los cuatro roles, incluso con el rol sin cargar", () => {
+    for (const rol of [...ROLES, null, undefined, ""]) {
+      expect(puedeVerNovedad(rol, "todos")).toBe(true);
+    }
+  });
+
+  it("sin rol, un rol vacío o desconocido nunca abre «panel» ni «do»", () => {
+    for (const rol of [null, undefined, "", "contador"]) {
+      expect(puedeVerNovedad(rol, "panel")).toBe(false);
+      expect(puedeVerNovedad(rol, "do")).toBe(false);
+    }
+  });
+});
 
 describe("anular un documento disciplinario es de DO, aunque la encargada lo tramite", () => {
   it("la encargada no anula: fn_expediente_anular se lo rechaza (0058)", () => {
