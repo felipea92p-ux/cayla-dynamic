@@ -38,7 +38,8 @@ export type CasoAbierto =
   | { tipo: "falta"; personaId: string }
   | { tipo: "documento"; id: string };
 
-export interface PersonaInfo { nombre: string; sede: string; estado: string; fechaCese: string | null }
+/** `sede` es el código (la llave); `sedeRotulo` es lo que se lee: «Taller · Lima». */
+export interface PersonaInfo { nombre: string; sede: string; sedeRotulo?: string; estado: string; fechaCese: string | null }
 
 export const CAUSAL_LABEL: Record<string, string> = { tardanza: "Tardanzas", falta: "Faltas", conducta: "Conducta" };
 
@@ -144,7 +145,7 @@ function ContenidoCaso({
     <div className="grid gap-6 text-sm">
       {/* ── Qué es este caso ─────────────────────────────────────────── */}
       <div className="-mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-taupe">
-        {persona?.sede && <span>Sede <strong className="font-medium text-tinta">{persona.sede}</strong></span>}
+        {persona?.sede && <span>Sede <strong className="font-medium text-tinta">{persona.sedeRotulo || persona.sede}</strong></span>}
         <span>{CAUSAL_LABEL[causal] ?? causal}</span>
         {doc
           ? doc.periodo_desde && <span className="tabular-nums">{fechaCorta(doc.periodo_desde)}{doc.periodo_hasta && doc.periodo_hasta !== doc.periodo_desde ? ` al ${fechaCorta(doc.periodo_hasta)}` : ""}</span>

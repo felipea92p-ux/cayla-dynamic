@@ -60,7 +60,7 @@ import {
   type Adjunto, type DocDisciplina, type FaltaRow, type Pestana, type SituacionDeteccion, type TardanzaRow, type TipoPapel,
 } from "@/lib/admin/disciplina";
 import {
-  NIVEL_DISCIPLINARIO_CORTO, NIVEL_DISCIPLINARIO_LABELS, fechaLima, hoyLima, mesesRecientesLima, nombreDelMesLima,
+  NIVEL_DISCIPLINARIO_CORTO, NIVEL_DISCIPLINARIO_LABELS, etiquetaDeSede, fechaLima, hoyLima, mesesRecientesLima, nombreDelMesLima,
   nombreDelMesLimaTitulo, primeroDeMesLima, puedeAnularDocumentoDisciplinario, puedeOperarEquipo,
   puedeVerTodasLasSedes, rangoDelDiaLima, rangoDelMesLima,
 } from "@cayla-dynamic/shared";
@@ -89,7 +89,7 @@ const COLUMNAS_DOC = "id, persona_id, tipo_causal, nivel, estado, periodo_desde,
 
 // Seis columnas, la segunda (sede) secundaria: en tablet se esconde y la
 // plantilla de `md` tiene cinco. Literal a propósito (ver lista-casos.tsx).
-const PLANTILLA = "md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.3fr)_auto] lg:grid-cols-[minmax(0,1.4fr)_3.5rem_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.3fr)_auto]";
+const PLANTILLA = "md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.3fr)_auto] lg:grid-cols-[minmax(0,1.4fr)_7rem_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.3fr)_auto]";
 
 const TXT_DESFASE = "La asistencia cambió después de generar el borrador: algún día ya no se sostiene. Ábrelo para ver cuál.";
 
@@ -205,7 +205,8 @@ export default function DisciplinaPage() {
   const [falloAdjuntos, setFalloAdjuntos] = useState(false);
   const [docs, setDocs] = useState<DocDisciplina[]>([]);
   const [personas, setPersonas] = useState<Map<string, PersonaInfo>>(new Map());
-  const [sedes, setSedes] = useState<string[]>([]);
+  // Código (la llave, con la que filtra) y cómo se rotula. «LIM» sola no dice si es el Taller o la Tienda.
+  const [sedes, setSedes] = useState<Array<{ codigo: string; titulo: string; texto: string }>>([]);
   const [nombresAusencia, setNombresAusencia] = useState<Map<string, string>>(new Map());
   const [adjuntos, setAdjuntos] = useState<Map<string, Adjunto[]>>(new Map());
   // Quién puede suscribir CADA borrador: depende del nivel y de la sede (0074).
@@ -286,7 +287,7 @@ export default function DisciplinaPage() {
       // pantalla y no había dónde consultarlos.
       supabase.from("expediente_disciplinario").select(COLUMNAS_DOC).order("creado_at", { ascending: false }),
       supabase.from("personas").select("id, nombres, apellidos, estado, sede_base_id, fecha_cese"),
-      supabase.from("sedes").select("id, codigo").order("codigo"),
+      supabase.from("sedes").select("id, codigo, nombre, tipo, ciudad").order("codigo"),
       supabase.from("tipos_ausencia").select("codigo, nombre"),
     ]);
     // Los TRES errores, cada uno nombrando su sección: un «error al cargar»
@@ -309,12 +310,16 @@ export default function DisciplinaPage() {
     const lista = Array.isArray(d) ? (d as unknown as DocDisciplina[]) : [];
     setDocs(lista);
 
-    const codigoDeSede = new Map(((s ?? []) as { id: string; codigo: string }[]).map((x) => [x.id, x.codigo]));
-    setSedes([...new Set(codigoDeSede.values())]);
+    const sedesList = (s ?? []) as Array<{ id: string; codigo: string; nombre: string; tipo: string | null; ciudad: string | null }>;
+    const codigoDeSede = new Map(sedesList.map((x) => [x.id, x.codigo]));
+    // El rótulo sale del tipo y la ciudad de la propia sede (etiquetaDeSede), no de una lista por código.
+    const rotuloDeCodigo = new Map(sedesList.map((x) => [x.codigo, etiquetaDeSede(x)]));
+    setSedes([...rotuloDeCodigo.values()].map((e) => ({ codigo: e.codigo, titulo: e.titulo, texto: e.texto })));
     const personasList = (p ?? []) as Array<{ id: string; nombres: string; apellidos: string; estado: string; sede_base_id: string | null; fecha_cese: string | null }>;
     setPersonas(new Map(personasList.map((x) => [x.id, {
       nombre: `${x.nombres} ${x.apellidos}`,
       sede: (x.sede_base_id && codigoDeSede.get(x.sede_base_id)) || "",
+      sedeRotulo: (x.sede_base_id && rotuloDeCodigo.get(codigoDeSede.get(x.sede_base_id) ?? "")?.titulo) || "",
       estado: x.estado,
       fechaCese: x.fecha_cese,
     }])));
@@ -949,6 +954,8 @@ export default function DisciplinaPage() {
   // Una función que devuelve celdas, no un componente: un componente definido
   // dentro de la página se volvería a montar entero en cada render.
   function celdaPersona(id: string, nombre: string, sede: string, alAbrir: (e: MouseEvent<HTMLElement>) => void, cesada = false) {
+    // `sede` es el código (lo que filtra); lo que se lee es su rótulo: «Taller · Lima», no «LIM».
+    const rotulo = sedes.find((x) => x.codigo === sede)?.titulo ?? sede;
     return (
       <>
         <Celda>
@@ -957,9 +964,9 @@ export default function DisciplinaPage() {
             {nombre}
           </button>
           {cesada && <Insignia variante="advertencia" tamano="sm" className="ml-2">cesó</Insignia>}
-          {sede && <span className="text-xs text-taupe lg:hidden"> · {sede}</span>}
+          {sede && <span className="text-xs text-taupe lg:hidden"> · {rotulo}</span>}
         </Celda>
-        <Celda secundaria><span className="hidden text-taupe lg:inline">{sede || "—"}</span></Celda>
+        <Celda secundaria><span className="hidden text-taupe lg:inline">{sede ? rotulo : "—"}</span></Celda>
       </>
     );
   }
@@ -1124,7 +1131,7 @@ export default function DisciplinaPage() {
               <select id="f-sede" value={sedeFiltro} onChange={(e) => setSedeFiltro(e.target.value)}
                 className="rounded-control border border-sand bg-hueso px-2.5 py-1.5 text-sm text-tinta">
                 <option value="">Todas</option>
-                {sedes.map((s) => <option key={s} value={s}>{s}</option>)}
+                {sedes.map((x) => <option key={x.codigo} value={x.codigo}>{x.texto}</option>)}
               </select>
             </label>
           )}
