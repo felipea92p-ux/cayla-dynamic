@@ -3368,6 +3368,39 @@ export type Database = {
           },
         ]
       }
+      novedades_vistas: {
+        Row: {
+          novedad_id: string
+          persona_id: string
+          visto_at: string
+        }
+        Insert: {
+          novedad_id: string
+          persona_id: string
+          visto_at?: string
+        }
+        Update: {
+          novedad_id?: string
+          persona_id?: string
+          visto_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "novedades_vistas_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "novedades_vistas_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       objetivos_items: {
         Row: {
           anio: number
@@ -6678,6 +6711,7 @@ export type Database = {
         Returns: undefined
       }
       fn_marcar_anuncio_leido: { Args: { p_id: string | null }; Returns: undefined }
+      fn_marcar_novedad_vista: { Args: { p_novedad_id: string | null }; Returns: undefined }
       fn_marcas_apartadas: {
         Args: never
         Returns: {

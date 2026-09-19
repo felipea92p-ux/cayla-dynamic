@@ -55,23 +55,44 @@ import { hoyLima, puedeVerNovedad, type AudienciaNovedad } from "@cayla-dynamic/
 //   se agrega otra que lo corrija —el mismo criterio de `anuncios`, que se
 //   anulan y no se editan.
 //
-// POR QUÉ «NUEVA» SE CALCULA POR FECHA Y NO SE GUARDA POR PERSONA
-//   Guardar quién leyó cada novedad pide una tabla, su migración pegada a
-//   mano y sus pruebas —para algo que ningún trámite necesita saber—. Con la
-//   fecha basta, funciona igual sin conexión, y no tiene el defecto de un
-//   «leído» guardado en el navegador: en un equipo compartido le ocultaría a
-//   la segunda persona lo que nunca vio (la misma objeción que descartó
-//   `localStorage` en la Bandeja, ver `bandeja-mia.ts`). El precio: quien la
-//   leyó ayer la sigue viendo «Nueva» hasta que pasen los días.
+// «NUEVA» Y «ENTENDIDA»
+//   Una novedad está PENDIENTE para una persona si es de los últimos
+//   `DIAS_COMO_NUEVA` días Y ella no la marcó como entendida. La marca vive en
+//   `novedades_vistas` (0480), por persona y en la base, no en el navegador: en
+//   un equipo compartido un «visto» del navegador le ocultaría a la segunda
+//   persona lo que nunca vio (la objeción que descartó `localStorage` en la
+//   Bandeja, ver `bandeja-mia.ts`).
+//   La ventana de días sigue a propósito: sin ella, el día que esto sale cada
+//   persona tendría toda la lista pendiente, y quien vuelve de vacaciones
+//   encontraría un mes de avisos viejos empujando lo importante.
+//
+//   Hasta el 2026-09-19 «Nueva» era solo por fecha y no se guardaba nada. Cambió
+//   cuando se pidió mostrarlas en «Lo mío», la primera pantalla de cada
+//   persona: una tarjeta que ahí no se puede descartar se aprende a ignorar.
+//
+//   Si la base no responde, o la 0480 aún no está pegada: «Lo mío» calla las
+//   novedades —mostrar algo que no se puede descartar es peor que no mostrarlo—
+//   y Anuncios las muestra por fecha, sin botón. Ninguna se pierde: siempre
+//   quedan en Anuncios.
+//
+// EL PRIMER PÁRRAFO TIENE QUE VALER SOLO
+//   «Lo mío» muestra únicamente el primer párrafo de `queMejoro` (lo demás
+//   queda en Anuncios). Si lo que hace útil a la novedad está en el segundo,
+//   en «Lo mío» no se ve.
 //
 // SE ROMPE SI
 //   Se fusiona un cambio visible sin su entrada: la sección envejece y, sin
-//   decirlo, le cuenta al equipo que nada mejora. Y si alguien escribe aquí
-//   una regla de pago pensando que «ya se avisó».
+//   decirlo, le cuenta al equipo que nada mejora. Si alguien escribe aquí una
+//   regla de pago pensando que «ya se avisó». Y si el formato del id cambia en
+//   un solo lado —esta lista o el `check` de `novedades_vistas`—: una novedad
+//   legítima dejaría de poder marcarse; `tests/novedades.test.ts` compara las dos.
 // ============================================================================
 
 export interface Novedad {
-  /** `AAAA-MM-DD-lo-que-cambio`. Único y estable: nunca se reutiliza ni se cambia. */
+  /**
+   * `AAAA-MM-DD-lo-que-cambio`: solo minúsculas, cifras y guiones, hasta 100
+   * caracteres (`FORMATO_ID_NOVEDAD`). Único y estable: nunca se reutiliza ni se cambia.
+   */
   id: string;
   /** Día de Lima (`2026-09-18`) en que llegó a producción. */
   fecha: string;
@@ -84,6 +105,13 @@ export interface Novedad {
 /** Cuántos días una novedad se muestra como «Nueva» desde su fecha. */
 export const DIAS_COMO_NUEVA = 14;
 
+/**
+ * La forma de un `id`. Es el MISMO patrón del `check` de `novedades_vistas`
+ * (0480): la base no conoce la lista, solo rechaza lo que no tiene forma de id.
+ */
+export const FORMATO_ID_NOVEDAD = /^[0-9]{4}-[0-9]{2}-[0-9]{2}-[a-z0-9]+(-[a-z0-9]+)*$/;
+export const LARGO_MAXIMO_ID_NOVEDAD = 100;
+
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
@@ -91,8 +119,8 @@ export const NOVEDADES: readonly Novedad[] = [
     fecha: "2026-09-19",
     titulo: "Anuncios ahora también cuenta qué mejora en el sistema",
     queMejoro:
-      "Cada vez que Dynamic cambia en algo que se nota al usarlo, lo explicamos aquí en palabras simples: qué cambió y por qué te sirve.\n\n" +
-      "Va aparte de los comunicados de Desarrollo Organizacional, para que no se confundan. Lo que cambió en los últimos días ya está listado abajo.",
+      "Cada vez que Dynamic cambia en algo que se nota al usarlo, lo explicamos en las novedades del sistema, en palabras simples: qué cambió y por qué te sirve.\n\n" +
+      "Las encuentras siempre en Anuncios, aparte de los comunicados de Desarrollo Organizacional para que no se confundan. Lo que cambió en los últimos días ya está listado.",
     audiencia: "todos",
   },
   {
@@ -160,6 +188,46 @@ function diasDesde(fecha: string, hoy: string): number {
 export function esNovedadNueva(n: Novedad, hoy: string = hoyLima()): boolean {
   const dias = diasDesde(n.fecha, hoy);
   return dias >= 0 && dias <= DIAS_COMO_NUEVA;
+}
+
+/**
+ * ¿Le falta entender esta novedad a la persona? Es la ÚNICA respuesta a esa
+ * pregunta: «Lo mío» y Anuncios la usan las dos, para que marcarla en una la
+ * apague en la otra.
+ *
+ * `vistas === null` es «no sé qué entendió» (cargando, o no se pudo leer):
+ * decide solo la fecha. Es el modo degradado de Anuncios; «Lo mío» ni llega a
+ * preguntar en ese caso, porque calla.
+ */
+export function esNovedadPendiente(
+  n: Novedad,
+  vistas: ReadonlySet<string> | null,
+  hoy: string = hoyLima(),
+): boolean {
+  return esNovedadNueva(n, hoy) && (vistas === null || !vistas.has(n.id));
+}
+
+/**
+ * Las que a esta persona todavía le faltan: de su rol, de los últimos
+ * `DIAS_COMO_NUEVA` días y sin marcar como entendidas. Más reciente primero.
+ */
+export function novedadesPendientes(
+  rol: string | null | undefined,
+  vistas: ReadonlySet<string>,
+  hoy: string = hoyLima(),
+  lista: readonly Novedad[] = NOVEDADES,
+): Novedad[] {
+  return novedadesPara(rol, lista).filter((n) => esNovedadPendiente(n, vistas, hoy));
+}
+
+/** Lo único que «Lo mío» muestra de una novedad. Ver «EL PRIMER PÁRRAFO TIENE QUE VALER SOLO». */
+export function primerParrafo(n: Novedad): string {
+  return n.queMejoro.split("\n\n")[0].trim();
+}
+
+/** ¿Tiene más que contar después del primer párrafo? Entonces «Lo mío» invita a leerla completa. */
+export function tieneMasQueElPrimerParrafo(n: Novedad): boolean {
+  return n.queMejoro.split("\n\n").filter((p) => p.trim() !== "").length > 1;
 }
 
 /**

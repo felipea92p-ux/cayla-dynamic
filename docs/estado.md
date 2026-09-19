@@ -6,45 +6,67 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-09-19 — Anuncios cuenta qué mejora en el sistema · SIN MIGRACIÓN · SIN FUSIONAR
+## 2026-09-19 — Anuncios cuenta qué mejora en el sistema, y «Lo mío» las muestra · MIGRACIÓN 0480 SIN PEGAR · SIN FUSIONAR
 
-**Sin SQL: no hay nada que pegar.** Verificado con pruebas (902; 22 nuevas en
-`novedades.test.ts` y `permisos.test.ts`), typecheck y lint limpios. **Fusionar
-esto es publicarlo** (`main` se despliega sola), y las cinco entradas iniciales
-son texto que leerá el equipo entero: conviene leerlas antes de fusionar.
+**Hay SQL: la [0480](../supabase/migrations/0480_las_novedades_del_sistema_se_marcan_como_vistas.sql),
+sin pegar, y se pega ANTES de fusionar.** Si el código llega primero no se rompe
+nada —«Lo mío» calla y Anuncios muestra por fecha, sin botón—, pero nadie puede
+marcar «Entendido» hasta que la tabla exista. Es una tabla y una función nuevas:
+no reescribe ninguna función existente, así que no hay md5 de partida que medir.
+**Fusionar es publicar** (`main` se despliega sola), y las cinco entradas
+iniciales son texto que leerá el equipo entero: conviene leerlas antes.
 
-Felipe pidió que Anuncios «anunciara ya mensajes preestablecidos y, cada vez
-que hay una mejora o actualización, explicara qué mejoró». Se leyó como una
-sección de novedades del sistema, aparte de los comunicados de DO, y no como
-plantillas para que DO publique (esa lectura queda sin construir).
+Se pidió que Anuncios «anunciara mensajes preestablecidos y, cada vez que hay
+una mejora o actualización, explicara qué mejoró», y después que también
+aparecieran en «Lo mío». Se leyó como una sección de novedades del sistema,
+aparte de los comunicados de DO, y no como plantillas para que DO publique
+(esa lectura queda sin construir).
 
-- **Dónde vive:** `apps/web/lib/novedades.ts`, una lista escrita a mano dentro
-  del código, con su encabezado de qué va y qué no. La dibuja
-  `components/novedades-del-sistema.tsx` al final de `/admin/anuncios`.
-- **Por qué en el código y no en `anuncios`:** sale con el mismo despliegue que
-  la mejora que cuenta. Una fila exigiría una migración, y la migración se pega
-  antes de fusionar: el aviso saldría antes que la mejora.
+- **Dónde vive la lista:** `apps/web/lib/novedades.ts`, escrita a mano dentro
+  del código, con su encabezado de qué va y qué no. Sale con el mismo despliegue
+  que la mejora que cuenta; una fila en `anuncios` exigiría una migración y el
+  aviso saldría antes que la mejora.
+- **Dónde se ve:** al final de `/admin/anuncios` (todas las de la persona, con
+  «Nueva» y «Entendido») y en «Lo mío» tras los comunicados (las tres más
+  recientes que le faltan, con su primer párrafo). Marcar en una apaga en la otra.
+- **Qué guarda la base:** solo quién entendió cada una (`novedades_vistas`,
+  `fn_marcar_novedad_vista`). Tabla propia, no `bandeja_vistos` (su `item_id` es
+  `uuid` y su `check`/función se reescriben en cada migración de la Bandeja) ni
+  `anuncios_leidos` (llave foránea a `anuncios`). Lectura solo de las propias
+  marcas; escritura solo por la función; `do nothing` para no correr la fecha de
+  la primera vez.
 - **Quién ve qué:** `puedeVerNovedad` en `permisos.ts` (`todos` / `panel` /
-  `do`). Una integrante ve 2 de las 5; la líder de equipo y DO ven las 5 (hoy
-  ninguna es solo para DO). Es relevancia, no secreto: el texto baja al
-  navegador de todos.
-- **«Nueva»:** se calcula por fecha (14 días), sin guardar nada por persona.
-  Quien la leyó ayer la sigue viendo «Nueva» unos días. Guardarlo por persona
-  pediría una tabla y una migración para algo que ningún trámite necesita.
+  `do`). Una integrante ve 2 de las 5; la líder de equipo y DO ven las 5. Es
+  relevancia, no secreto: el texto baja al navegador de todos.
+- **«Nueva»:** de los últimos 14 días y sin entender, en un solo sitio
+  (`esNovedadPendiente`). Antes era solo por fecha; cambió al pedirse «Lo mío»,
+  donde una tarjeta que no se puede descartar se aprende a ignorar.
 - **Regla nueva en CLAUDE.md** («Novedades del sistema»): un cambio que se
   nota lleva su entrada en el mismo PR. **Nada la obliga**; si se olvida, la
   sección envejece y le cuenta al equipo que nada mejora.
 
-**No se vio en pantalla con la página real:** el panel no levanta sin
-`.env.local`. Se dibujó la sección sola en una ruta temporal (ya borrada) en
-claro, oscuro y a 375 px, sin desbordes. Falta ver `/admin/anuncios` completa,
-con el formulario de DO y los comunicados.
+**Cómo se verificó, y qué NO:**
+- **La prueba pgTAP 379 (17 aserciones) no corrió en pgTAP real.** Docker
+  Desktop estaba colgado (error 500 del socket) y la base local no respondía.
+  Se ejecutó en un Postgres 17 desechable de Homebrew, con un sustituto mínimo
+  de pgTAP escrito para esto: 17 de 17, la migración pegada dos veces sin error,
+  y tres mutaciones a propósito (volver a marcar corre la fecha, sin `check`,
+  policy abierta) cayeron cada una en la aserción prevista. **La señal fiable
+  sigue siendo `db-tests` de GitHub Actions al abrir el PR.**
+- **`packages/database/src/types.ts` está editado a mano** (tabla y función,
+  imitando el formato generado). Cuando Docker vuelva, regenerarlo con
+  `gen-types` y comprobar que no cambia nada más que esto.
+- 915 pruebas (35 nuevas), typecheck limpio, lint de lo tocado sin errores
+  nuevos (los 2 de `mio/page.tsx` ya estaban en `HEAD`).
+- **No se vieron las páginas reales**, el panel no levanta sin `.env.local`. Se
+  dibujaron las dos piezas en una ruta temporal (ya borrada), en claro, oscuro y
+  a 375 px: marcar en «Lo mío» apaga en Anuncios, el modo «no sé» calla una y
+  quita los botones de la otra, y una integrante ve solo 2. **Falta ver
+  `/admin/anuncios` y `/mio` completas, con la base detrás.**
 
-**Pendiente:** «Lo mío» sigue mostrando solo comunicados sin leer; las
-novedades no llegan a quien no abre Anuncios. Traerlas exige un «visto» por
-persona (`bandeja_vistos` ya lo hace, con una migración para su `check`). Y el
-rediseño de Anuncios del prototipo del 15-sep (`docs/anuncios-prototipo-2026-09-15.html`,
-PR #401) sigue sin decidirse: si se adopta, esta sección se muda con él.
+**Pendiente:** el rediseño de Anuncios del prototipo del 15-sep
+(`docs/anuncios-prototipo-2026-09-15.html`, PR #401) sigue sin decidirse: si se
+adopta, esta sección se muda con él.
 
 ## 2026-09-18 — Dashboard: la meta ya no se mide con la sede cerrada, y el «0 en piso» dice por qué · SIN MIGRACIÓN · SIN FUSIONAR
 

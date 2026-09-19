@@ -12,6 +12,7 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Colibri } from "@/components/marca";
 import { AcusesPendientes } from "@/components/acuses-pendientes";
 import { AnunciosWidget } from "@/components/anuncios-widget";
+import { NovedadesWidget } from "@/components/novedades-widget";
 import { SelectorTema } from "@/components/selector-tema";
 import { MenuDetalle, type SeccionDetalle } from "@/components/nav/menu-detalle";
 import { Boton } from "@/components/ui/boton";
@@ -1852,6 +1853,9 @@ export default function MioPage() {
       <AcusesPendientes />
 
       <AnunciosWidget />
+
+      {/* Lo que mejoró en el sistema. No pide nada: se entiende y desaparece. */}
+      <NovedadesWidget />
 
       {aviso && <div className="mb-6 rounded-2xl border border-ambar/30 bg-ambar/[0.06] p-4 text-sm">{aviso}</div>}
 

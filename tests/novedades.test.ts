@@ -7,9 +7,13 @@
 // futuro) están como pruebas y no solo como comentario.
 // ============================================================================
 import { describe, it, expect } from "vitest";
+import { readdirSync, readFileSync } from "node:fs";
+import path from "node:path";
 import { hoyLima } from "@cayla-dynamic/shared";
 import {
-  DIAS_COMO_NUEVA, NOVEDADES, esNovedadNueva, fechaDeNovedad, novedadesPara,
+  DIAS_COMO_NUEVA, FORMATO_ID_NOVEDAD, LARGO_MAXIMO_ID_NOVEDAD, NOVEDADES,
+  esNovedadNueva, esNovedadPendiente, fechaDeNovedad, novedadesPara, novedadesPendientes,
+  primerParrafo, tieneMasQueElPrimerParrafo,
   type Novedad,
 } from "@/lib/novedades";
 
@@ -35,6 +39,20 @@ describe("la lista real de novedades: lo que no debe existir", () => {
       expect(Number.isNaN(d.getTime())).toBe(false);
       expect(d.toISOString().startsWith(n.fecha)).toBe(true);
       expect(n.fecha <= hoy).toBe(true);
+    }
+  });
+
+  it("el id tiene la forma que la base acepta: si no, esa novedad nunca podría marcarse como entendida", () => {
+    for (const n of NOVEDADES) {
+      expect(n.id).toMatch(FORMATO_ID_NOVEDAD);
+      expect(n.id.length).toBeLessThanOrEqual(LARGO_MAXIMO_ID_NOVEDAD);
+    }
+  });
+
+  it("el primer párrafo existe y es corto: es lo único que «Lo mío» muestra", () => {
+    for (const n of NOVEDADES) {
+      expect(primerParrafo(n).length).toBeGreaterThan(0);
+      expect(primerParrafo(n).length).toBeLessThanOrEqual(420);
     }
   });
 
@@ -136,5 +154,85 @@ describe("fechaDeNovedad: el día que se escribió es el que se ve", () => {
     expect(fechaDeNovedad("2026-09-18")).toMatch(/^18\b/);
     expect(fechaDeNovedad("2026-09-01")).toMatch(/^1\b/);
     expect(fechaDeNovedad("2026-12-31")).toMatch(/^31\b/);
+  });
+});
+
+describe("el formato del id es UNO: el de la lista y el check de la base no se separan", () => {
+  it("el patrón de FORMATO_ID_NOVEDAD está, tal cual, en la migración vigente de novedades_vistas", () => {
+    // Por CONTENIDO y no por nombre de archivo; y la última que lo define, no
+    // cualquiera: si un día otra migración cambia el `check`, esa es la que manda.
+    const carpeta = path.resolve(import.meta.dirname, "../supabase/migrations");
+    const definen = readdirSync(carpeta)
+      .filter((f) => f.endsWith(".sql"))
+      .sort()
+      .filter((f) => readFileSync(path.join(carpeta, f), "utf8").includes("novedad_id ~"));
+    expect(definen.length).toBeGreaterThan(0);
+    const sql = readFileSync(path.join(carpeta, definen[definen.length - 1]), "utf8");
+    expect(sql).toContain(`'${FORMATO_ID_NOVEDAD.source}'`);
+    expect(sql).toContain(`char_length(novedad_id) <= ${LARGO_MAXIMO_ID_NOVEDAD}`);
+  });
+
+  it("y lo que la base rechaza, el patrón también", () => {
+    for (const malo of ["", "Sin-Fecha", "2026-09-19", "2026-09-19-", "2026-09-19-Con-Mayus", "2026-09-19-con espacio", "2026-09-19--doble"]) {
+      expect(FORMATO_ID_NOVEDAD.test(malo)).toBe(false);
+    }
+    expect(FORMATO_ID_NOVEDAD.test("2026-09-19-anuncios-cuenta-que-mejora")).toBe(true);
+  });
+});
+
+describe("esNovedadPendiente / novedadesPendientes: lo que le falta a ESTA persona", () => {
+  const hoy = "2026-09-19";
+  const lista: Novedad[] = [
+    nov({ id: "2026-09-18-a", fecha: "2026-09-18", audiencia: "todos" }),
+    nov({ id: "2026-09-17-b", fecha: "2026-09-17", audiencia: "panel" }),
+    nov({ id: "2026-09-16-c", fecha: "2026-09-16", audiencia: "todos" }),
+    nov({ id: "2026-08-01-vieja", fecha: "2026-08-01", audiencia: "todos" }),
+  ];
+  const ids = (rol: string | null, vistas: string[]) =>
+    novedadesPendientes(rol, new Set(vistas), hoy, lista).map((n) => n.id);
+
+  it("sin haber marcado nada, ve las recientes de su rol y no las viejas", () => {
+    expect(ids("integrante", [])).toEqual(["2026-09-18-a", "2026-09-16-c"]);
+    expect(ids("supervisor_sede", [])).toEqual(["2026-09-18-a", "2026-09-17-b", "2026-09-16-c"]);
+  });
+
+  it("la que marcó como entendida deja de estar pendiente, y solo esa", () => {
+    expect(ids("integrante", ["2026-09-18-a"])).toEqual(["2026-09-16-c"]);
+  });
+
+  it("una marca de una novedad que ya no está en la lista no estorba", () => {
+    expect(ids("integrante", ["2026-01-01-que-ya-no-existe"])).toEqual(["2026-09-18-a", "2026-09-16-c"]);
+  });
+
+  it("si entendió todas, no queda nada pendiente — y «Lo mío» no dibuja nada", () => {
+    expect(ids("admin", ["2026-09-18-a", "2026-09-17-b", "2026-09-16-c"])).toEqual([]);
+  });
+
+  it("sin saber qué entendió (null), decide solo la fecha: el modo degradado de Anuncios", () => {
+    expect(esNovedadPendiente(lista[0], null, hoy)).toBe(true);
+    expect(esNovedadPendiente(lista[3], null, hoy)).toBe(false);
+  });
+
+  it("un conjunto vacío NO es «no sé»: todo lo reciente está pendiente, y lo entendido no", () => {
+    expect(esNovedadPendiente(lista[0], new Set(), hoy)).toBe(true);
+    expect(esNovedadPendiente(lista[0], new Set(["2026-09-18-a"]), hoy)).toBe(false);
+  });
+
+  it("un rol sin cargar solo ve las de todos, también entre las pendientes", () => {
+    expect(ids(null, [])).toEqual(["2026-09-18-a", "2026-09-16-c"]);
+  });
+});
+
+describe("primerParrafo: lo que «Lo mío» muestra de cada novedad", () => {
+  it("es lo que hay antes de la primera línea en blanco", () => {
+    const n = nov({ id: "2026-09-19-x", fecha: "2026-09-19", queMejoro: "Uno.\n\nDos.\n\nTres." });
+    expect(primerParrafo(n)).toBe("Uno.");
+    expect(tieneMasQueElPrimerParrafo(n)).toBe(true);
+  });
+
+  it("si solo tiene un párrafo, no invita a «leerla completa»", () => {
+    const n = nov({ id: "2026-09-19-x", fecha: "2026-09-19", queMejoro: "Solo uno." });
+    expect(primerParrafo(n)).toBe("Solo uno.");
+    expect(tieneMasQueElPrimerParrafo(n)).toBe(false);
   });
 });
