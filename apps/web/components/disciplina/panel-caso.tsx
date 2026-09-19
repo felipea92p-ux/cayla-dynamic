@@ -25,7 +25,7 @@ import {
   NIVEL_DISCIPLINARIO_LABELS, fechaLima, hoyLima, nombreDelMesLima, primeroDeMesLima, rangoDelDiaLima,
 } from "@cayla-dynamic/shared";
 import {
-  antecedentesVigentes, esGradual, etapaDelBorrador, eventosDeObservacion, UMBRAL_FALTAS,
+  antecedentesVigentes, esGradual, etapaDelBorrador, eventosDeObservacion, SIN_FOTO_DEL_HORARIO, UMBRAL_FALTAS,
   type Adjunto, type DocDisciplina, type FaltaRow, type SituacionDeteccion, type TardanzaRow, type TipoPapel,
 } from "@/lib/admin/disciplina";
 import { evidenciaDeDocumento, evidenciaDeTardanzasDelMes, type Evidencia } from "@/lib/admin/disciplina-evidencia";
@@ -319,6 +319,13 @@ function ContenidoCaso({
                 ? `El documento cita ${evidencia.filas.length} día${evidencia.filas.length === 1 ? "" : "s"}; hoy se sostienen ${evidencia.filas.length - evidencia.noCuentan}. «Esperada» es el horario con que se midió ese día.`
                 : `Cuentan ${evidencia.filas.length - evidencia.noCuentan}; el semáforo dice ${tardanza?.tardanzas_mes ?? "—"}. Si no coinciden, manda el semáforo: es el que usa el generador.`}
             </p>
+            {evidencia.filas.some((f) => f.esperada === SIN_FOTO_DEL_HORARIO) && (
+              <p className="mt-2 text-xs text-taupe">
+                «{SIN_FOTO_DEL_HORARIO}»: ese día se midió antes de que el sistema guardara con qué horario, así que aquí
+                no se puede mostrar. Confirma en Turnos y Horarios que la hora de entrada era la correcta antes de
+                comunicar los cargos.
+              </p>
+            )}
           </>
         )}
       </Seccion>

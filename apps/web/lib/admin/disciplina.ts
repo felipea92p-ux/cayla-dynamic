@@ -291,11 +291,26 @@ export function estadoHoyFalta(opciones: { dia: DiaAsistencia | undefined; ausen
   return { cuenta: true, etiqueta: "Sigue sin marca" };
 }
 
-/** La hora que se esperaba, tal como se midió. `—` si la jornada es anterior a
- *  la 0446 o no hubo jornada. */
+/** Lo que dice la columna «Esperada» cuando la jornada no trae la foto del
+ *  horario. NO es «no había horario»: una tardanza medida (minutos > 0) se midió
+ *  contra una hora programada, así que lo que falta es la foto, no el horario. */
+export const SIN_FOTO_DEL_HORARIO = "Sin foto del horario";
+
+/**
+ * La hora que se esperaba, tal como se midió.
+ *
+ * Antes salía «—» para cuatro cosas distintas, y quien firma no podía saber cuál:
+ *   · no hubo jornada                        → «—»
+ *   · jornada medida antes de la 0446, con tardanza → «Sin foto del horario»
+ *   · el horario de ese día era descanso     → «Descanso»
+ *   · la foto no trae hora de entrada        → «Sin horario»
+ */
 export function horaEsperada(dia: DiaAsistencia | undefined): string {
-  const e = dia?.horario_aplicado?.entrada;
-  return e ? e.slice(0, 5) : "—";
+  if (!dia) return "—";
+  const h = dia.horario_aplicado;
+  if (!h) return (dia.minutos_tarde ?? 0) > 0 ? SIN_FOTO_DEL_HORARIO : "Sin dato del horario";
+  if (h.es_descanso) return "Descanso";
+  return h.entrada ? h.entrada.slice(0, 5) : "Sin horario";
 }
 
 // ── Antecedentes ─────────────────────────────────────────────────────────────

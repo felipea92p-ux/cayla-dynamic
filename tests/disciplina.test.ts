@@ -11,7 +11,7 @@ import { describe, it, expect } from "vitest";
 import {
   etapaDelBorrador, pestanaDelDocumento, pendientesDeEntregado, situacionTardanza, situacionFalta,
   estadoHoyTardanza, estadoHoyFalta, antecedentesVigentes, eventosDeObservacion,
-  admiteEntregaAnteriorAlCese, normalizarBusqueda, horaEsperada,
+  admiteEntregaAnteriorAlCese, normalizarBusqueda, horaEsperada, SIN_FOTO_DEL_HORARIO,
   type DocDisciplina, type Adjunto, type TardanzaRow, type FaltaRow, type DiaAsistencia,
 } from "@/lib/admin/disciplina";
 
@@ -141,7 +141,15 @@ describe("la evidencia dice qué es verdad HOY, no solo lo que se guardó al gen
   });
   it("la hora esperada sale de la foto del horario (0446), recortada a HH:MM", () => {
     expect(horaEsperada(dia({}))).toBe("10:00");
-    expect(horaEsperada(dia({ horario_aplicado: null }))).toBe("—");
+    expect(horaEsperada(dia({ horario_aplicado: null, minutos_tarde: 0 }))).toBe("Sin dato del horario");
+  });
+  it("una tardanza medida sin foto del horario no se muestra como «—»: se midió contra algo (0445)", () => {
+    expect(horaEsperada(dia({ horario_aplicado: null, minutos_tarde: 2 }))).toBe(SIN_FOTO_DEL_HORARIO);
+    expect(horaEsperada(undefined)).toBe("—");
+  });
+  it("un día de descanso o sin hora de entrada lo dice", () => {
+    expect(horaEsperada(dia({ horario_aplicado: { entrada: null, es_descanso: true } }))).toBe("Descanso");
+    expect(horaEsperada(dia({ horario_aplicado: { entrada: null, es_descanso: false } }))).toBe("Sin horario");
   });
 });
 
