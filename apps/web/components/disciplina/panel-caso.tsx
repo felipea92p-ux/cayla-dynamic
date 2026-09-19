@@ -29,7 +29,7 @@ import {
   type Adjunto, type DocDisciplina, type FaltaRow, type SituacionDeteccion, type TardanzaRow, type TipoPapel,
 } from "@/lib/admin/disciplina";
 import { evidenciaDeDocumento, evidenciaDeTardanzasDelMes, type Evidencia } from "@/lib/admin/disciplina-evidencia";
-import { addDias, fechaCorta, selloLima, ultimoDiaDelMes } from "./formato";
+import { fechaConAnio, fechaCorta, selloLima, sumarMeses, ultimoDiaDelMes } from "./formato";
 
 type Cliente = ReturnType<typeof createAdminSupabaseClient>;
 
@@ -335,8 +335,8 @@ function ContenidoCaso({
                   {NIVEL_DISCIPLINARIO_LABELS[a.nivel as keyof typeof NIVEL_DISCIPLINARIO_LABELS] ?? a.nivel}
                 </Insignia>
                 <span className="tabular-nums">
-                  {a.correlativo ?? "sin número"} · entregado el {fechaCorta(fechaLima(a.entregado_at!))} · vigente hasta el{" "}
-                  {fechaCorta(addDias(fechaLima(a.entregado_at!), 365))}
+                  {a.correlativo ?? "sin número"} · entregado el {fechaConAnio(fechaLima(a.entregado_at!))} · vigente hasta el{" "}
+                  {fechaConAnio(sumarMeses(fechaLima(a.entregado_at!), 12))}
                   {a.nivel === "verbal" && <span className="text-taupe"> · no agrava</span>}
                 </span>
               </li>
