@@ -2938,7 +2938,7 @@ export default function MioPage() {
                           {NIVEL_DISCIPLINARIO_LABELS[m.nivel as keyof typeof NIVEL_DISCIPLINARIO_LABELS] ?? m.nivel}
                         </span>
                         <span className="text-xs text-taupe">
-                          {m.entregado_at ? diaYMes(m.entregado_at.slice(0, 10)) : "—"}
+                          {m.entregado_at ? diaYMes(fechaLimaDeMarca(m.entregado_at)) : "—"}
                         </span>
                       </div>
                       <p className="text-taupe">
@@ -2947,13 +2947,13 @@ export default function MioPage() {
                       </p>
                       {m.firma_sancionado_confirmada_at && (
                         <p className="mt-1 text-verde">
-                          Firmaste este documento el {diaYMes(m.firma_sancionado_confirmada_at.slice(0, 10))}.
+                          Firmaste este documento el {diaYMes(fechaLimaDeMarca(m.firma_sancionado_confirmada_at))}.
                         </p>
                       )}
                       {m.sancionado_rechazo_firma_at && (
                         <p className="mt-1 text-taupe">
                           Quedó anotado que preferiste no firmarlo digitalmente, el{" "}
-                          {diaYMes(m.sancionado_rechazo_firma_at.slice(0, 10))}.
+                          {diaYMes(fechaLimaDeMarca(m.sancionado_rechazo_firma_at))}.
                         </p>
                       )}
                       {!resuelto && puedeFirmar && (
