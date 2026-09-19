@@ -19,9 +19,11 @@ import { usePersonaActual } from "@/lib/admin/use-rol";
 import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
 import {
   calcularCoberturaSede, enPausaAhora, faltanTexto, fechaConDia, fechaCorta, llegoTarde, loQueFalta,
-  sinMarcarYaLeTocaba, subEstadoSinMarcar, textoEquipoDelDia, textoSinMarcar, trabajandoAhora,
+  minutosDesde, porPausaMasLarga, sinMarcarYaLeTocaba, subEstadoSinMarcar, textoEquipoDelDia,
+  textoPausa, textoPausaDesde, textoSinMarcar, trabajandoAhora,
   type CoberturaSede, type FilaPersona, type MetaSede,
 } from "@/lib/admin/asistencia-hoy";
+import { traerPausasAbiertas } from "@/lib/admin/pausas-abiertas";
 import { esFallaDeRed, mensajeDeError } from "@/lib/admin/mensaje-error";
 
 const REFRESCO_MS = 30_000;
@@ -140,6 +142,15 @@ function EstadoCelda({ f, linkCorregir, ahoraDecimal }: { f: FilaPersona; linkCo
     );
   }
   if (estilo.clase) return <span className={`rounded-full px-2 py-0.5 text-xs ${estilo.clase}`}>{estilo.label}</span>;
+  // En pausa: cuánto lleva, para no confundir un refrigerio de 40 minutos con un
+  // retorno que nadie marcó hace tres horas. La hora exacta va en el `title`.
+  if (f.estado === "en_pausa" && f.pausa) {
+    return (
+      <span title={textoPausa(f.pausa)}>
+        <Insignia variante={estilo.variante}>{estilo.label} · {formatoMinutos(minutosDesde(f.pausa.desde))}</Insignia>
+      </span>
+    );
+  }
   return <Insignia variante={estilo.variante} atenuada={estilo.atenuada}>{estilo.label}</Insignia>;
 }
 
@@ -348,6 +359,10 @@ export default function DashboardPage() {
   // "sin marcar" real mientras esto no se pueda comprobar (mismo riesgo de
   // falso positivo que ya resuelve `ausenciaHoy` cuando la consulta sí responde).
   const [ausenciasNoRespondieron, setAusenciasNoRespondieron] = useState(false);
+  // `marcajes` no contestó al pedir DESDE CUÁNDO está en pausa cada quien: sus
+  // nombres se muestran igual, sin hora, y el recuadro lo dice. Que falle no es
+  // «nadie tiene pausa» (ver pausas-abiertas.ts).
+  const [pausasNoRespondieron, setPausasNoRespondieron] = useState(false);
   const [sinCargo, setSinCargo] = useState(0);
   // El par de consultas de abajo no respondió. Sin esta distinción, si
   // `expediente_adjuntos` falla, `conPapel` queda vacío y TODOS los memos
@@ -625,7 +640,18 @@ export default function DashboardPage() {
       };
     });
 
-    setFilas(resultado);
+    // Desde cuándo está en pausa cada quien: una consulta chica, solo de los que
+    // la base ya marcó «en pausa». Va después del cálculo de arriba porque hace
+    // falta saber QUIÉNES son. Si falla, las filas quedan sin hora —no se
+    // esconden— y `pausasNoRespondieron` lo avisa.
+    const { porPersona: pausas, fallo: fallaronPausas } = await traerPausasAbiertas(
+      supabase,
+      resultado.filter((f) => enPausaAhora(f.estado)).map((f) => f.personaId),
+      hoy,
+    );
+    setPausasNoRespondieron(fallaronPausas);
+
+    setFilas(resultado.map((f) => ({ ...f, pausa: pausas.get(f.personaId) ?? null })));
     setActualizado(new Intl.DateTimeFormat("es-PE", { timeZone: TZ_LIMA, hour: "2-digit", minute: "2-digit", second: "2-digit" }).format(new Date()));
     setCargando(false);
   }, [router]);
@@ -1258,17 +1284,32 @@ export default function DashboardPage() {
                   {cob.enPausa.length > 0 && (
                     <div className="mb-4 rounded-superficie border border-ambar/30 bg-ambar/10 px-4 py-3">
                       <div className="etiqueta text-ambar">En pausa · {cob.enPausa.length}</div>
+                      {/* Quien lleva más tiempo fuera va primero: es a quien hay que
+                          mirar. Cada quien dice desde cuándo y cuánto lleva —un
+                          refrigerio de 40 minutos se ve distinto de un retorno que
+                          nadie marcó hace tres horas—; sin dato, solo el nombre. */}
                       <div className="mt-2 flex flex-wrap gap-2">
-                        {cob.enPausa.map((f) => (
+                        {[...cob.enPausa].sort(porPausaMasLarga).map((f) => (
                           <span
                             key={f.personaId}
-                            className="inline-flex items-center gap-2 rounded-full border border-ambar/45 bg-papel px-3 py-1 text-sm"
+                            className="inline-flex items-start gap-2 rounded-superficie border border-ambar/45 bg-papel px-3 py-1.5 text-sm"
                           >
-                            <span aria-hidden className="size-1.5 rounded-full bg-ambar" />
-                            {f.nombre}
+                            <span aria-hidden className="mt-1.5 size-1.5 shrink-0 rounded-full bg-ambar" />
+                            <span>
+                              {f.nombre}
+                              {f.pausa && (
+                                <span className="block text-xs text-taupe">
+                                  {/* La duración no se parte: en celular «3h 20m» quedaba como «3h» / «20m». */}
+                                  {textoPausaDesde(f.pausa)} · <span className="whitespace-nowrap">{formatoMinutos(minutosDesde(f.pausa.desde))}</span>
+                                </span>
+                              )}
+                            </span>
                           </span>
                         ))}
                       </div>
+                      {pausasNoRespondieron && (
+                        <p className="mt-2 text-xs text-ambar">No se pudo comprobar desde cuándo están en pausa.</p>
+                      )}
                     </div>
                   )}
 
