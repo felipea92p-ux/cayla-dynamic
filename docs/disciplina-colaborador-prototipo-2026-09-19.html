@@ -1,0 +1,558 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prototipo · Disciplina del colaborador</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=EB+Garamond:ital,wght@0,500;0,700;1,500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --crema:#f5f0e8; --papel:#fbf8f2; --tinta:#1a1a18; --rojo:#b8412d; --rojo-profundo:#8b2a1f;
+  --sand:#e8e0d0; --taupe:#805c4c; --verde:#48603f; --ambar:#74501a; --hueso:#eae1d2; --pizarra:#4c5d6e;
+  --r-control:.5rem; --r-sup:1rem; --r-flot:1.25rem;
+  --sans:"DM Sans",ui-sans-serif,system-ui,sans-serif; --serif:"EB Garamond",ui-serif,Georgia,serif;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --crema:#1c1a16; --papel:#26221d; --tinta:#ede7db; --rojo:#d4634a; --rojo-profundo:#e8836b; --sand:#332e27;
+    --taupe:#ab9080; --verde:#8fae80; --ambar:#c99a4a; --hueso:#15110d; --pizarra:#9db0c2; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --crema:#1c1a16; --papel:#26221d; --tinta:#ede7db; --rojo:#d4634a; --rojo-profundo:#e8836b; --sand:#332e27;
+  --taupe:#ab9080; --verde:#8fae80; --ambar:#c99a4a; --hueso:#15110d; --pizarra:#9db0c2; color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--crema);color:var(--tinta);font-family:var(--sans);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased}
+h1,h2,h3{font-family:var(--serif);font-weight:700;margin:0;letter-spacing:.005em}
+button{font:inherit;color:inherit;cursor:pointer}
+:focus-visible{outline:2px solid var(--rojo);outline-offset:2px}
+.sr{position:absolute;left:-9999px}
+
+/* ── barra del prototipo ── */
+.proto{position:sticky;top:0;z-index:20;background:var(--tinta);color:var(--crema);padding:.55rem 1rem;display:flex;flex-wrap:wrap;gap:.6rem 1rem;align-items:center;font-size:.8rem}
+.proto b{letter-spacing:.08em;text-transform:uppercase;font-size:.7rem}
+.seg{display:inline-flex;border:1px solid color-mix(in oklab,var(--crema) 40%,transparent);border-radius:var(--r-control);overflow:hidden}
+.seg button{background:transparent;border:0;color:var(--crema);padding:.3rem .7rem}
+.seg button[aria-pressed=true]{background:var(--crema);color:var(--tinta);font-weight:700}
+.proto select,.proto .chk{background:transparent;color:var(--crema);border:1px solid color-mix(in oklab,var(--crema) 40%,transparent);border-radius:var(--r-control);padding:.28rem .5rem;font:inherit}
+.proto select option{color:#1a1a18}
+.proto .lnk{background:transparent;border:0;color:var(--crema);text-decoration:underline;padding:.2rem .3rem}
+.chk{display:inline-flex;gap:.4rem;align-items:center}
+@media (max-width:640px){.proto{position:static}}
+body[data-v="hoy"] .solo-nueva{display:none!important}
+body[data-v="nueva"] .solo-hoy{display:none!important}
+.tabs{display:flex;gap:.25rem;overflow-x:auto;border-bottom:1px solid var(--sand);margin-bottom:1rem}
+.tabs button{background:none;border:0;border-bottom:2px solid transparent;padding:.5rem .7rem;white-space:nowrap;color:var(--taupe);font-size:.85rem}
+.tabs button[aria-selected=true]{border-bottom-color:var(--rojo);color:var(--tinta);font-weight:700}
+.hoy-nota{border-left:4px solid var(--pizarra)}
+.lista-p{list-style:none;margin:.5rem 0 0;padding:0}
+.lista-p button{width:100%;text-align:left;background:var(--hueso);border:1px solid var(--sand);border-radius:var(--r-control);padding:.6rem .8rem}
+
+
+.pasos{background:var(--hueso);border-bottom:1px solid var(--sand);padding:.6rem 1rem;display:flex;flex-wrap:wrap;gap:.4rem .9rem;font-size:.78rem;color:var(--taupe)}
+.pasos span{display:inline-flex;gap:.35rem;align-items:center}
+.pasos i{font-style:normal;width:1.35rem;height:1.35rem;border-radius:99px;background:var(--sand);display:inline-grid;place-items:center;font-size:.7rem;color:var(--tinta)}
+.pasos .hecho i{background:var(--verde);color:var(--crema)}
+.pasos .hecho{color:var(--tinta)}
+.pasos .ahora i{background:var(--rojo);color:#fff}
+.pasos .ahora{color:var(--tinta);font-weight:700}
+
+main{max-width:960px;margin:0 auto;padding:1.25rem 1rem 4rem}
+.wrap-colab{max-width:720px;margin:0 auto}
+
+/* ── piezas ── */
+.marca{display:flex;align-items:baseline;gap:.5rem;margin-bottom:1rem}
+.marca h1{font-size:1.5rem}.marca small{color:var(--taupe);letter-spacing:.2em;text-transform:uppercase;font-size:.65rem}
+.migas{font-size:.8rem;color:var(--taupe);margin-bottom:.75rem}
+.migas a{color:var(--taupe);text-decoration:underline;cursor:pointer;background:none;border:0;padding:0}
+.card{background:var(--papel);border:1px solid var(--sand);border-radius:var(--r-sup);padding:1.1rem 1.25rem;margin-bottom:1rem}
+.card h2{font-size:1.2rem;margin-bottom:.25rem}
+.muted{color:var(--taupe)}.small{font-size:.8rem}.xs{font-size:.72rem}
+.row{display:flex;flex-wrap:wrap;gap:.5rem .75rem;align-items:center}
+.between{justify-content:space-between}
+.pill{display:inline-flex;align-items:center;gap:.35rem;border-radius:99px;padding:.12rem .6rem;font-size:.72rem;font-weight:500;background:color-mix(in oklab,var(--taupe) 14%,transparent);color:var(--taupe)}
+.pill::before{content:"";width:.4rem;height:.4rem;border-radius:99px;background:currentColor}
+.pill.adv{background:color-mix(in oklab,var(--ambar) 16%,transparent);color:var(--ambar)}
+.pill.alerta{background:color-mix(in oklab,var(--rojo) 14%,transparent);color:var(--rojo-profundo)}
+.pill.ok{background:color-mix(in oklab,var(--verde) 16%,transparent);color:var(--verde)}
+.pill.info{background:color-mix(in oklab,var(--pizarra) 16%,transparent);color:var(--pizarra)}
+.pill.cnt{background:var(--rojo);color:#fff}.pill.cnt::before{display:none}
+.btn{border-radius:var(--r-control);border:1px solid var(--taupe);background:transparent;padding:.5rem .95rem;font-weight:500;min-height:2.5rem}
+.btn:hover{background:var(--hueso)}
+.btn.pri{background:var(--tinta);color:var(--crema);border-color:var(--tinta)}
+.btn.pri:hover{opacity:.9}
+.btn.sut{border-color:transparent;text-decoration:underline;color:var(--taupe);padding:.4rem .3rem}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+.btn.pel{border-color:var(--rojo-profundo);color:var(--rojo-profundo)}
+.banner{border:1px solid var(--sand);border-left:4px solid var(--ambar);background:var(--papel);border-radius:var(--r-control);padding:.7rem .9rem;margin-bottom:1rem;display:flex;flex-wrap:wrap;gap:.5rem .8rem;align-items:center;justify-content:space-between}
+.banner.verde{border-left-color:var(--verde)}
+.banner.rojo{border-left-color:var(--rojo)}
+.flag{font-size:.68rem;color:var(--ambar);border:1px dashed var(--ambar);border-radius:99px;padding:0 .45rem;margin-left:.35rem;white-space:nowrap}
+.gris{opacity:.55;pointer-events:none}
+hr.sep{border:0;border-top:1px solid var(--sand);margin:.9rem 0}
+
+/* documento */
+.hoja{background:var(--papel);border:1px solid var(--sand);border-radius:var(--r-control);padding:1.4rem 1.5rem;font-family:var(--serif);font-size:1.05rem;line-height:1.55}
+.hoja h3{font-size:1.15rem;text-align:center;letter-spacing:.06em;margin-bottom:.8rem}
+.hoja dl{display:grid;grid-template-columns:5.5rem 1fr;gap:.1rem .6rem;margin:0 0 .8rem;font-family:var(--sans);font-size:.85rem}
+.hoja dt{color:var(--taupe)}.hoja dd{margin:0}
+.hoja table{width:100%;border-collapse:collapse;font-family:var(--sans);font-size:.82rem;margin:.6rem 0}
+.hoja th{background:var(--sand);text-align:left;font-weight:500;padding:.35rem .6rem;color:var(--taupe)}
+.hoja td{padding:.35rem .6rem;border-top:1px solid var(--sand)}
+.hoja p{margin:.5rem 0}
+.sello{font-family:var(--sans);font-size:.72rem;color:var(--taupe);border-top:1px dashed var(--sand);margin-top:.9rem;padding-top:.6rem;word-break:break-all}
+.firma-e{font-family:var(--serif);font-style:italic;font-size:1.5rem;border-bottom:1px solid var(--tinta);display:inline-block;padding:0 .6rem}
+
+/* respuesta */
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:.7rem}
+@media (max-width:640px){.tiles{grid-template-columns:1fr}}
+.tile{text-align:left;background:var(--papel);border:1px solid var(--sand);border-radius:var(--r-sup);padding:.9rem 1rem;display:flex;flex-direction:column;gap:.3rem;min-height:7.2rem}
+.tile:hover:not([disabled]){border-color:var(--taupe);background:var(--hueso)}
+.tile strong{font-family:var(--serif);font-size:1.1rem}
+.tile span{font-size:.8rem;color:var(--taupe)}
+.tile[disabled]{opacity:.5;cursor:not-allowed}
+.hist{list-style:none;margin:0;padding:0;border-left:1px solid var(--sand);margin-left:.4rem}
+.hist li{position:relative;padding:0 0 .8rem 1rem}
+.hist li::before{content:"";position:absolute;left:-4px;top:.5rem;width:7px;height:7px;border-radius:99px;background:var(--taupe)}
+.hist li.ok::before{background:var(--verde)}.hist li.rojo::before{background:var(--rojo)}
+
+label.f{display:grid;gap:.25rem;font-size:.85rem;margin-bottom:.7rem}
+input[type=text],input[type=password],select.f,textarea{width:100%;background:var(--hueso);border:1px solid var(--sand);border-radius:var(--r-control);padding:.5rem .65rem;font:inherit;color:var(--tinta)}
+textarea{min-height:6rem;resize:vertical}
+.drop{border:1.5px dashed var(--taupe);border-radius:var(--r-sup);padding:1rem;text-align:center;background:var(--hueso)}
+.err{color:var(--rojo-profundo);font-size:.8rem;min-height:1.1rem}
+
+/* modal */
+.velo{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;z-index:50;padding:1rem}
+.velo.on{display:flex}
+.modal{background:var(--papel);border-radius:var(--r-flot);border:1px solid var(--sand);max-width:30rem;width:100%;padding:1.3rem 1.4rem;max-height:90vh;overflow:auto}
+.modal h2{font-size:1.25rem;margin-bottom:.4rem}
+.toast{position:fixed;left:50%;bottom:1.2rem;transform:translateX(-50%) translateY(8px);background:var(--tinta);color:var(--crema);padding:.6rem 1rem;border-radius:var(--r-control);font-size:.85rem;opacity:0;transition:.25s;z-index:60;max-width:90vw}
+.toast.on{opacity:1;transform:translateX(-50%)}
+
+/* admin */
+.tabla{width:100%;border-collapse:collapse;font-size:.85rem}
+.tabla th{background:var(--sand);text-align:left;font-weight:500;color:var(--taupe);padding:.5rem .7rem;font-size:.75rem;text-transform:uppercase;letter-spacing:.05em}
+.tabla td{padding:.65rem .7rem;border-top:1px solid var(--sand);vertical-align:middle}
+.tabla tr.sel td{background:var(--hueso)}
+.tabla-wrap{overflow-x:auto;background:var(--papel);border:1px solid var(--sand);border-radius:var(--r-sup);margin-bottom:1rem}
+.cols{display:grid;grid-template-columns:1fr;gap:1rem}
+@media (min-width:900px){.cols.dos{grid-template-columns:1.3fr 1fr}}
+.tec{font-family:ui-monospace,Menlo,monospace;font-size:.72rem;background:var(--hueso);border:1px solid var(--sand);border-radius:var(--r-control);padding:.6rem .8rem;overflow:auto;white-space:pre}
+details.card summary{cursor:pointer;font-family:var(--serif);font-weight:700;font-size:1.05rem}
+.aviso-proto{font-size:.75rem;color:var(--taupe);text-align:center;margin-top:2rem}
+
+@media print{
+  body *{visibility:hidden}
+  #zona-impresion,#zona-impresion *{visibility:visible}
+  #zona-impresion{position:absolute;inset:0;padding:1.5cm;background:#fff;color:#000}
+  .proto,.pasos,.toast{display:none}
+}
+</style>
+</head>
+<body>
+
+<div class="proto" role="region" aria-label="Controles del prototipo">
+  <b>Demo · datos ficticios · nada se guarda</b>
+  <div class="seg" role="group" aria-label="Versión">
+    <button data-act="version" data-ver="hoy" aria-pressed="true">Cómo es HOY</button>
+    <button data-act="version" data-ver="nueva" aria-pressed="false">Propuesta</button>
+  </div>
+  <div class="seg" role="group" aria-label="Vista">
+    <button data-act="vista" data-v="admin" aria-pressed="true">DO · Administración</button>
+    <button data-act="vista" data-v="colab" aria-pressed="false">Colaboradora</button>
+  </div>
+  <label>Documento <select id="ctl-tipo" data-act="tipo"><option value="amonestacion">Amonestación escrita</option><option value="suspension">Suspensión sin goce</option></select></label>
+  <label class="chk solo-nueva"><input type="checkbox" id="ctl-medio" data-act="medio" checked> Medio digital habilitado por la persona</label>
+  <label class="chk solo-hoy"><input type="checkbox" id="ctl-firma" checked> La persona ya configuró su firma (Mi perfil → Firma)</label>
+  <button class="lnk solo-nueva" data-act="dias">Avanzar 5 días hábiles sin respuesta</button>
+  <button class="lnk" data-act="tema">Claro / oscuro</button>
+  <button class="lnk" data-act="reset">Reiniciar</button>
+</div>
+<div class="pasos" id="pasos" aria-label="Avance del flujo"></div>
+
+<main id="app"></main>
+
+<div class="velo" id="velo"><div class="modal" id="modal" role="dialog" aria-modal="true"></div></div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+/* ───────────────────────── Datos ficticios ───────────────────────── */
+const PERSONA = { nombre: "Ana Prueba", sede: "Tienda · Trujillo (TRU)" };
+const HECHOS = [
+  { f: "04-ago-2026", esp: "10:00", marco: "10:06", min: 6 },
+  { f: "11-ago-2026", esp: "10:00", marco: "10:02", min: 2 },
+  { f: "25-ago-2026", esp: "10:00", marco: "10:09", min: 9 },
+];
+const MOTIVOS = [
+  ["marca", "Esa marca no es mía o la hora es otra"],
+  ["permiso", "Ese día tenía permiso, licencia o una justificación"],
+  ["horario", "Mi horario o turno ese día era otro"],
+  ["desacuerdo", "No estoy de acuerdo con la medida"],
+  ["otro", "Otro motivo"],
+];
+const TIPOS = {
+  amonestacion: { nivel: "Amonestación escrita", corr: "T-01/0007-2026-CAYLA", pill: "adv", firmado: "14-set-2026" },
+  suspension:   { nivel: "Suspensión sin goce de haber", corr: "T-02/0003-2026-CAYLA", pill: "alerta", firmado: "14-set-2026" },
+};
+
+/* ───────────────────────── Estado ───────────────────────── */
+let VERSION = "hoy";
+const nuevo = () => ({
+  h: { entregado: null, tab: "resumen", pant: "panel", resp: null, memo: false },
+  vista: "admin", pantalla: "portada", tipo: document.getElementById("ctl-tipo")?.value || "amonestacion",
+  enviado: null,          // DO envía el documento por el sistema
+  avisoLogin: true,       // aviso no bloqueante al iniciar sesión
+  recibido: null,         // {at, hash} — la entrega digital
+  respuestas: [],         // solo inserciones
+  bandeja: [],            // avisos del administrador
+  cambiando: false,       // «cambiar mi respuesta»
+  vias: null,             // panel B / C abierto
+  diasSinRespuesta: 0,
+  toast: null,
+});
+let S = nuevo();
+const $ = (s, r = document) => r.querySelector(s);
+const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+const fmtLima = (d = new Date()) => new Intl.DateTimeFormat("es-PE", { timeZone: "America/Lima", day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }).format(d).replace(/\./g, "").replace(",", " ·");
+const medioHabilitado = () => $("#ctl-medio").checked;
+const T = () => TIPOS[S.tipo];
+
+/* Texto congelado del memo: es lo que se sella (y de lo que sale el hash). */
+function textoMemo() {
+  const t = T();
+  const filas = HECHOS.map((h) => `<tr><td>${h.f}</td><td>${h.esp}</td><td>${h.marco}</td><td>${h.min}′</td></tr>`).join("");
+  const susp = S.tipo === "suspension"
+    ? `<p>Se le impone <strong>SUSPENSIÓN SIN GOCE DE HABER de dos (2) días</strong>, que se cumplirán el <strong>lunes 12 y el martes 13 de octubre de 2026</strong>, días laborables suyos. Esos días no generan pago de horas ni se cuentan como inasistencia (numerales 54.5 y 19.2 c).</p>
+       <p>Se le advierte que una nueva reiteración habilita la segunda suspensión, de mayor duración (numeral 19.2 d).</p>`
+    : `<p>Por lo expuesto, se le impone <strong>AMONESTACIÓN ESCRITA</strong>, que se incorpora a su legajo y produce efecto de antecedente durante doce (12) meses contados desde su notificación (numerales 19.2 b y 56.1).</p>
+       <p>Se le advierte que una nueva reiteración habilita la primera suspensión sin goce de haber (numeral 19.2 c).</p>`;
+  return `<h3>MEMORÁNDUM · ${t.nivel.toUpperCase()}</h3>
+  <dl><dt>N.º</dt><dd>${t.corr}</dd><dt>Para</dt><dd>${PERSONA.nombre} · ${PERSONA.sede}</dd><dt>De</dt><dd>Desarrollo Organizacional · CAYLA</dd><dt>Emitido</dt><dd>${t.firmado}</dd><dt>Asunto</dt><dd>${t.nivel} por tardanzas</dd></dl>
+  <p>El presente memorándum deja constancia de que, durante agosto de 2026, usted registró <strong>3 tardanzas</strong> en un mismo mes calendario, alcanzando el umbral del literal b) del numeral 19.2 del Reglamento Interno de Trabajo de CAYLA.</p>
+  <table><thead><tr><th>Fecha</th><th>Hora esperada</th><th>Marcó</th><th>Minutos</th></tr></thead><tbody>${filas}</tbody></table>
+  ${susp}
+  <p>Usted puede dejar constancia de su respuesta a este documento.</p>`;
+}
+
+async function sha(texto) {
+  try {
+    const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(texto));
+    return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+  } catch {
+    let h = 2166136261; for (const c of texto) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); }
+    return (h >>> 0).toString(16).padStart(8, "0").repeat(8);
+  }
+}
+const corto = (h) => h.slice(0, 8) + "…" + h.slice(-6);
+
+/* ───────────────────────── Derivados ───────────────────────── */
+const ultima = () => S.respuestas[S.respuestas.length - 1] || null;
+function estadoRespuesta() {
+  const r = ultima();
+  if (!r) return { texto: "Sin respuesta", pill: "" };
+  if (r.via === "digital") return { texto: "Firmó digitalmente", pill: "ok" };
+  if (r.via === "rechazo") return { texto: "No conforme", pill: "alerta" };
+  return ({ pendiente_validacion: { texto: "Papel por validar", pill: "adv" }, validada: { texto: "Papel validado", pill: "ok" }, observada: { texto: "Papel observado", pill: "alerta" } })[r.revision];
+}
+function estadoDocumento() {
+  if (!S.enviado) return { texto: "Firmado · por entregar", pill: "adv" };
+  if (!S.recibido) return { texto: "Enviado · esperando recepción", pill: "info" };
+  return { texto: "Entregado (digital)", pill: "ok" };
+}
+function paso() {
+  if (!S.enviado) return 1;
+  if (!S.recibido) return S.pantalla === "portada" ? 2 : 3;
+  if (!S.respuestas.length) return 4;
+  return 5;
+}
+
+/* ───────────────────────── Acciones de dominio ───────────────────────── */
+function avisoAdmin(tipo, texto, gravedad) {
+  S.bandeja.unshift({ id: Date.now() + Math.random(), tipo, texto, gravedad, at: fmtLima() });
+}
+async function agregarRespuesta(datos) {
+  const hash = await sha(textoMemo().replace(/<[^>]+>/g, " "));
+  S.respuestas.push({ id: S.respuestas.length + 1, at: fmtLima(), hash, ...datos });
+  S.cambiando = false; S.vias = null;
+}
+
+/* ───────────────────────── Vistas · colaboradora ───────────────────────── */
+function vColab() {
+  const marca = `<div class="marca"><h1>Dynamic</h1><small>CAYLA</small></div>`;
+  let h = `<div class="wrap-colab">${marca}`;
+  if (S.pantalla === "portada") {
+    if (S.enviado && S.avisoLogin && !S.recibido) h += `<div class="banner rojo" role="status"><div><strong>Hay un documento para ti en Disciplina.</strong><div class="small muted">Ábrelo cuando puedas; no se cierra solo.</div></div><div class="row"><button class="btn pri" data-act="abrir">Abrir</button><button class="btn sut" data-act="despues">Después</button></div></div>`;
+    h += `<div class="card"><h2>Hola, ${PERSONA.nombre.split(" ")[0]}</h2><p class="muted small" style="margin:0">${PERSONA.sede}</p></div>`;
+    if (S.enviado && !S.recibido) h += `<div class="card" style="border-color:var(--rojo)"><div class="row between"><div><h2>Tienes 1 documento por recibir</h2><p class="muted small" style="margin:0">Está en Disciplina. Recibirlo no es aceptar lo que dice.</p></div><button class="btn pri" data-act="abrir">Ver documento</button></div></div>`;
+    else if (S.recibido) h += `<div class="card"><div class="row between"><div><h2>Disciplina</h2><p class="muted small" style="margin:0">1 documento · ${estadoRespuesta().texto.toLowerCase()}</p></div><button class="btn" data-act="abrir">Abrir</button></div></div>`;
+    h += ["Mi jornada", "Boleta de pago", "Mi contrato"].map((x) => `<div class="card gris"><h2>${x}</h2><p class="muted small" style="margin:0">(resto de Info, sin cambios)</p></div>`).join("");
+  } else if (S.pantalla === "lista") {
+    h += `<div class="migas"><button class="btn sut" data-act="portada" style="padding:0">Info</button> › Disciplina</div><h1 style="font-size:1.7rem;margin-bottom:.8rem">Disciplina</h1>`;
+    h += `<div class="card"><div class="row between"><div><div class="row"><h2>${T().nivel}</h2><span class="pill ${T().pill}">${S.tipo === "suspension" ? "Suspensión" : "Amonestación"}</span></div><p class="muted small" style="margin:.2rem 0 0">Tardanzas · ${T().corr} · emitido el ${T().firmado}</p>${S.recibido ? `<p class="small" style="margin:.4rem 0 0">Recibido el ${S.recibido.at}</p>` : ""}</div><div style="text-align:right"><span class="pill ${estadoDocumento().pill}">${estadoDocumento().texto}</span><div class="xs muted" style="margin-top:.3rem">${S.recibido ? "Tu respuesta: " + estadoRespuesta().texto : "Falta confirmar recepción"}</div></div></div><hr class="sep"><button class="btn pri" data-act="detalle">${S.recibido ? "Ver documento y respuesta" : "Ver y recibir documento"}</button></div>`;
+  } else {
+    h += `<div class="migas"><button class="btn sut" data-act="portada" style="padding:0">Info</button> › <button class="btn sut" data-act="lista" style="padding:0">Disciplina</button> › ${T().corr}</div>`;
+    h += `<div class="card" style="padding:.9rem 1.1rem"><div class="row between"><div class="row"><h2>${T().nivel}</h2><span class="pill ${T().pill}">${S.tipo === "suspension" ? "Suspensión" : "Amonestación"}</span></div><span class="pill ${estadoDocumento().pill}">${estadoDocumento().texto}</span></div></div>`;
+    h += `<div id="zona-impresion"><div class="hoja">${textoMemo()}<div class="sello">Texto sellado al firmarlo el emisor · huella <span id="hash-doc">calculando…</span>${S.respuestas.some((r) => r.via === "digital") ? `<div style="margin-top:.6rem;font-family:var(--sans)">Firma digital de la persona:<br><span class="firma-e">${PERSONA.nombre}</span></div>` : ""}</div></div></div>`;
+    // Paso 1 — recepción
+    h += `<div class="card" style="margin-top:1rem"><div class="row between"><div><h2>Paso 1 · Recibir</h2>`;
+    if (!S.recibido) h += `<p class="muted small" style="margin:.1rem 0 0">Confirma con tu contraseña que recibiste este documento. <strong>Recibir no es aceptar lo que dice</strong>: después eliges cómo responder.<span class="flag">texto a validar con el laboralista</span></p></div><button class="btn pri" data-act="recibir">Confirmo que lo recibí</button>`;
+    else h += `<p class="small" style="margin:.1rem 0 0"><span class="pill ok">Recibido</span> el ${S.recibido.at} · huella <code>${corto(S.recibido.hash)}</code></p></div>`;
+    h += `</div></div>`;
+    // Paso 2 — responder
+    const puede = !!S.recibido;
+    const r = ultima();
+    if (!r || S.cambiando) {
+      h += `<div class="card ${puede ? "" : "gris"}"><h2>Paso 2 · ¿Cómo respondes?</h2><p class="muted small" style="margin:.1rem 0 .8rem">Es opcional y no cambia que la medida esté entregada. Lo que elijas queda registrado con fecha y hora, y no se borra.${S.cambiando ? " Si cambias de respuesta, la anterior queda en tu historial." : ""}</p>
+      <div class="tiles"><button class="tile" data-act="via" data-v="digital"><strong>Firmar aquí</strong><span>Firmas en el sistema con tu contraseña. Queda sellado.</span></button>
+      <button class="tile" data-act="via" data-v="fisica"><strong>Firmar en papel</strong><span>Descargas, firmas a mano y subes el escaneo. DO lo valida.</span></button>
+      <button class="tile" data-act="via" data-v="rechazo"><strong>No estoy conforme</strong><span>Dejas tu motivo y tus observaciones. Avisamos a DO.</span></button></div>`;
+      if (S.vias === "fisica") {
+        h += `<hr class="sep"><h3 style="font-size:1.05rem;margin-bottom:.5rem">Firma en papel</h3><div class="row" style="margin-bottom:.8rem"><button class="btn" data-act="imprimir">1 · Descargar para imprimir</button><span class="muted small">Se abre la impresión del navegador; guárdalo como PDF o imprímelo.</span></div>
+        <div class="drop"><p style="margin:0 0 .5rem">2 · Sube el documento firmado</p><input type="file" id="archivo" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"><p class="xs muted" style="margin:.5rem 0 0">PDF, JPG o PNG · máximo 10 MB</p></div><div class="err" id="err-arch"></div><div class="row" style="justify-content:flex-end"><button class="btn pri" data-act="enviar-fisica">Enviar a DO</button></div>`;
+      }
+      if (S.vias === "rechazo") {
+        h += `<hr class="sep"><h3 style="font-size:1.05rem;margin-bottom:.5rem">No estoy conforme</h3>
+        <label class="f">Motivo<select class="f" id="motivo"><option value="">Elige un motivo…</option>${MOTIVOS.map(([k, t]) => `<option value="${k}">${t}</option>`).join("")}</select></label>
+        <label class="f">Cuéntanos qué pasó <span class="muted xs">(mínimo 20 caracteres)</span><textarea id="detalle" placeholder="Fechas, horas, qué documento o quién puede confirmarlo…"></textarea></label><div class="err" id="err-rech"></div>
+        <p class="small muted">La medida sigue vigente mientras DO revisa tu observación. Esto no reemplaza el acta de negativa a firmar, ni el pedido de reconsideración.<span class="flag">nombre y alcance: a validar con el laboralista</span></p>
+        <div class="row" style="justify-content:flex-end"><button class="btn pri" data-act="enviar-rechazo">Enviar</button></div>`;
+      }
+      h += `</div>`;
+    } else {
+      const e = estadoRespuesta();
+      h += `<div class="card"><h2>Tu respuesta</h2><div class="row" style="margin:.4rem 0"><span class="pill ${e.pill}">${e.texto}</span><span class="muted small">${r.at}</span></div>`;
+      if (r.via === "digital") h += `<p class="small">Tu firma quedó sellada junto con la huella del texto <code>${corto(r.hash)}</code>. No se puede borrar ni modificar.</p>`;
+      if (r.via === "fisica") h += `<p class="small">Enviaste <strong>${esc(r.archivo)}</strong>. ${r.revision === "pendiente_validacion" ? "DO lo va a revisar y te avisamos." : r.revision === "validada" ? "DO validó tu archivo." : "DO pidió otro archivo: " + esc(r.nota || "") }</p>`;
+      if (r.via === "rechazo") h += `<p class="small"><strong>${esc(MOTIVOS.find((m) => m[0] === r.motivo)[1])}</strong><br>${esc(r.detalle)}</p><p class="small muted">Avisamos a DO. ${r.acta ? "DO registró el acta de negativa." : ""}${r.gerencia ? " DO lo pasó a Gerencia como reconsideración." : ""}</p>`;
+      h += `<div class="row"><button class="btn" data-act="imprimir">Descargar documento${r.via === "digital" ? " firmado" : ""}</button><button class="btn sut" data-act="cambiar">Cambiar mi respuesta</button></div></div>`;
+    }
+    if (S.respuestas.length) {
+      h += `<div class="card"><h2>Historial de respuestas</h2><ul class="hist" style="margin-top:.6rem">${[...S.respuestas].reverse().map((x) => `<li class="${x.via === "rechazo" ? "rojo" : "ok"}"><strong>${({ digital: "Firmó digitalmente", fisica: "Envió el documento firmado en papel", rechazo: "No estoy conforme" })[x.via]}</strong><div class="xs muted">${x.at} · huella ${corto(x.hash)}</div></li>`).join("")}</ul></div>`;
+    }
+  }
+  return h + `</div>`;
+}
+
+/* ───────────────────────── Vistas · administración ───────────────────────── */
+function vAdmin() {
+  const e = estadoDocumento(), rp = estadoRespuesta();
+  const sinResp = S.recibido && !S.respuestas.length;
+  let h = `<div class="cols dos"><div>`;
+  h += `<h1 style="font-size:1.7rem;margin-bottom:.2rem">Disciplina</h1><p class="muted small" style="margin:0 0 .8rem">Aquí DO ve qué eligió la persona. La respuesta es informativa: no atasca ningún documento.</p>`;
+  h += `<div class="tabla-wrap"><table class="tabla"><thead><tr><th>Persona</th><th>Sede</th><th>Documento</th><th>Estado</th><th>Respuesta</th></tr></thead><tbody><tr class="sel"><td><strong>${PERSONA.nombre}</strong></td><td>Tienda · Trujillo</td><td>${T().corr}<div class="xs muted">${T().nivel}</div></td><td><span class="pill ${e.pill}">${e.texto}</span></td><td><span class="pill ${rp.pill}">${rp.texto}</span>${sinResp && S.diasSinRespuesta >= 5 ? `<div class="xs muted">${S.diasSinRespuesta} días hábiles</div>` : ""}</td></tr></tbody></table></div>`;
+  h += `<div class="card"><h2>Caso · ${PERSONA.nombre}</h2><p class="muted small" style="margin:0 0 .6rem">${T().nivel} por tardanzas · agosto de 2026</p><h3 style="font-size:1rem;margin:.6rem 0 .3rem">Entrega</h3>`;
+  if (!S.enviado) {
+    h += `<p class="small">El documento está firmado. Hoy se entrega en papel; con el medio digital habilitado, también puede enviarse por el sistema y la persona confirma la recepción con su contraseña.</p>`;
+    h += medioHabilitado()
+      ? `<div class="row"><button class="btn pri" data-act="enviar">Enviar por el sistema</button><span class="muted small">Le llega un aviso genérico, sin nivel ni motivo.</span></div>`
+      : `<div class="row"><button class="btn pri" disabled>Enviar por el sistema</button><span class="small" style="color:var(--rojo-profundo)">${PERSONA.nombre.split(" ")[0]} todavía no habilitó el medio digital: la entrega sigue siendo en papel.</span></div>`;
+  } else if (!S.recibido) h += `<p class="small"><span class="pill info">Enviado</span> ${S.enviado}. Cuenta como entregado cuando la persona confirme la recepción; hasta entonces sigue «firmado, por entregar» y queda el respaldo en papel.</p>`;
+  else h += `<p class="small"><span class="pill ok">Entregado por el sistema</span> ${S.recibido.at} · confirmado con contraseña · huella <code>${corto(S.recibido.hash)}</code></p>`;
+  h += `<hr class="sep"><h3 style="font-size:1rem;margin:0 0 .4rem">Respuesta del colaborador</h3>`;
+  if (!S.respuestas.length) h += `<p class="muted small">${S.recibido ? "Todavía no responde." : "Aparece cuando la persona reciba el documento."}</p>`;
+  else h += `<ul class="hist">${[...S.respuestas].reverse().map((x, i) => {
+    let d = "";
+    if (x.via === "digital") d = `<div class="small">Firma digital con contraseña reconfirmada. Huella <code>${corto(x.hash)}</code>. <span class="firma-e" style="font-size:1.1rem">${PERSONA.nombre}</span></div>`;
+    if (x.via === "fisica") {
+      d = `<div class="small">Archivo: <strong>${esc(x.archivo)}</strong> (${esc(x.tam)}) · <button class="btn sut" data-act="ver-arch">Ver archivo</button> <span class="pill ${({ pendiente_validacion: "adv", validada: "ok", observada: "alerta" })[x.revision]}">${({ pendiente_validacion: "Pendiente de validación", validada: "Validado", observada: "Observado" })[x.revision]}</span></div>`;
+      if (i === 0 && x.revision === "pendiente_validacion") d += `<label class="f" style="margin-top:.5rem">Nota si pides otro archivo<input type="text" id="nota-rev" placeholder="ej. la foto salió cortada"></label><div class="row"><button class="btn pri" data-act="validar">Validar archivo</button><button class="btn" data-act="observar">Pedir otro archivo</button></div>`;
+    }
+    if (x.via === "rechazo") {
+      d = `<div class="small"><strong>${esc(MOTIVOS.find((m) => m[0] === x.motivo)[1])}</strong><br>${esc(x.detalle)}</div>`;
+      if (i === 0) d += `<div class="row" style="margin-top:.5rem"><button class="btn" data-act="acta" ${x.acta ? "disabled" : ""}>${x.acta ? "Acta registrada" : "Registrar acta de negativa"}</button><button class="btn" data-act="gerencia" ${x.gerencia ? "disabled" : ""}>${x.gerencia ? "Pasado a Gerencia" : "Pasar a Gerencia (reconsideración)"}</button></div>`;
+    }
+    return `<li class="${x.via === "rechazo" ? "rojo" : "ok"}"><strong>${({ digital: "Firmó digitalmente", fisica: "Envió el papel firmado", rechazo: "No conforme" })[x.via]}</strong> <span class="xs muted">${x.at}</span>${d}</li>`;
+  }).join("")}</ul>`;
+  h += `</div></div><div>`;
+  // Bandeja
+  h += `<div class="card"><div class="row between"><h2>Bandeja de DO</h2>${S.bandeja.length ? `<span class="pill cnt">${S.bandeja.length}</span>` : ""}</div>`;
+  h += S.bandeja.length ? `<ul class="hist" style="margin-top:.7rem">${S.bandeja.map((b) => `<li class="${b.gravedad === "alerta" ? "rojo" : "ok"}"><span class="pill ${b.gravedad === "alerta" ? "alerta" : b.gravedad === "adv" ? "adv" : "info"}">${b.tipo}</span><div class="small">${b.texto}</div><div class="xs muted">${b.at}</div></li>`).join("")}</ul>` : `<p class="muted small">Sin avisos. Llegan aquí: cuando la persona no está conforme (al instante), cuando sube un papel por validar y cuando pasan 5 días hábiles sin respuesta.</p>`;
+  h += `<p class="xs muted" style="margin:.6rem 0 0">«Al instante» = aparece en la Bandeja al abrirla. El correo diario sigue yendo solo a la líder de sede.</p></div>`;
+  // Vista técnica
+  h += `<details class="card"><summary>Qué guardaría la base en cada paso</summary><p class="small muted">Solo inserciones: nada se actualiza ni se borra.</p><div class="tec">${esc(vistaTecnica())}</div></details>`;
+  return h + `</div></div>`;
+}
+function vistaTecnica() {
+  const l = [];
+  l.push(`expediente_disciplinario  (estado NO cambia)\n  estado          = ${S.recibido ? "entregado" : "firmado"}\n  medio_entrega   = ${S.recibido ? "sistema   ← valor nuevo" : "—"}\n  recibido_at     = ${S.recibido ? S.recibido.at : "—"}\n  recibido_sha256 = ${S.recibido ? S.recibido.hash.slice(0, 16) + "…" : "—"}\n  contenido_html  = (texto congelado al firmar el emisor)`);
+  l.push(`\nexpediente_respuestas  (append-only)`);
+  if (!S.respuestas.length) l.push("  (sin filas)");
+  S.respuestas.forEach((r) => l.push(`  #${r.id} via=${r.via}${r.revision ? " revision=" + r.revision : ""}${r.motivo ? " motivo=" + r.motivo : ""}\n     creada_at=${r.at}  sha256=${r.hash.slice(0, 12)}…`));
+  return l.join("\n");
+}
+
+/* ───────────────────────── Render ───────────────────────── */
+/* ───────────────────────── Versión «HOY» (calcada del código actual, 0408) ───────────────────────── */
+const corta = (iso) => iso;   // «19 set», como diaYMes en /mio
+const hoyCorta = () => new Intl.DateTimeFormat("es-PE", { timeZone: "America/Lima", day: "2-digit", month: "short" }).format(new Date()).replace(/\./g, "");
+const hoyLarga = () => new Intl.DateTimeFormat("es-PE", { timeZone: "America/Lima", day: "numeric", month: "long", year: "numeric" }).format(new Date()).replace("septiembre", "setiembre");
+const PESTANAS = ["Resumen", "Mis días", "Mis turnos", "Mi DNI", "Tus datos", "Vacaciones y permisos", "Contrato", "Movilidad", "Educación", "Firma", "Objetivos", "Historial"];
+
+function vHoyColab() {
+  const h = S.h, t = T(), pendiente = !!h.entregado && !h.resp;
+  let x = `<div class="wrap-colab"><div class="marca"><h1>Dynamic</h1><small>CAYLA</small></div>`;
+  x += `<div class="row between" style="margin-bottom:.6rem"><h1 style="font-size:1.6rem">Info</h1><button class="btn" data-act="h-bandeja">Bandeja${pendiente ? ' <span class="pill cnt">1</span>' : ""}</button></div>`;
+  x += `<div class="tabs" role="tablist">${PESTANAS.map((n) => `<button role="tab" aria-selected="${(h.pant === "panel" && ((n === "Historial" && h.tab === "historial") || (n === "Resumen" && h.tab === "resumen")))}" data-act="h-tab" data-t="${n === "Historial" ? "historial" : n === "Resumen" ? "resumen" : "otro"}">${n}</button>`).join("")}</div>`;
+  if (h.pant === "bandeja") {
+    x += `<div class="card"><h2>Bandeja</h2><p class="muted small" style="margin:.1rem 0 .7rem">Lo que te respondieron y lo que te falta.</p>`;
+    x += pendiente
+      ? `<div class="card" style="background:var(--hueso);margin:0"><div class="row between"><strong>Tienes un documento por revisar y firmar</strong><span class="pill info">Por firmar</span></div><p class="small muted" style="margin:.4rem 0">Está en Info, en la pestaña «Historial». Firmarlo no es aceptar lo que dice: puedes firmarlo y presentar tu descargo, o dejar constancia de que te niegas a firmar.</p><button class="btn pri" data-act="h-tab" data-t="historial">Ir</button></div>`
+      : `<p class="muted small">Nada pendiente.</p>`;
+    x += `</div>`;
+  } else if (h.tab === "resumen") {
+    x += `<div class="card"><h2>Hola, ${PERSONA.nombre.split(" ")[0]}</h2><p class="muted small" style="margin:0">${PERSONA.sede}</p></div>`;
+    if (pendiente) x += `<div class="card"><h2>Pendientes</h2><ul class="lista-p"><li><button data-act="h-tab" data-t="historial">Tienes 1 documento por revisar y firmar <span aria-hidden>→</span></button></li></ul><p class="xs muted" style="margin:.5rem 0 0">Genérica a propósito: ni el nivel ni el motivo aparecen aquí.</p></div>`;
+    x += ["Esta semana", "Tu periodo de pago", "Próximos turnos"].map((n) => `<div class="card gris"><h2>${n}</h2><p class="muted small" style="margin:0">(resto de Info, sin cambios)</p></div>`).join("");
+  } else if (h.tab === "historial") {
+    if (h.entregado) {
+      x += `<section class="card"><h2 style="margin-bottom:.2rem">Tus memos disciplinarios</h2><p class="muted small" style="margin:0 0 .8rem">Los que ya te entregaron. Firmarlos digitalmente (o dejar constancia de que prefieres no hacerlo) no reemplaza el trámite en físico — es evidencia adicional, con su propia fecha y hora.</p>
+      <div class="row between"><strong>${t.nivel}</strong><span class="xs muted">${h.entregado}</span></div><p class="muted" style="margin:0">Tardanzas · ${t.corr}</p>`;
+      if (h.resp && h.resp.tipo === "firma") x += `<p style="margin:.4rem 0 0;color:var(--verde)">Firmaste este documento el ${h.resp.dia}.</p>`;
+      if (h.resp && h.resp.tipo === "rechazo") x += `<p class="muted" style="margin:.4rem 0 0">Quedó anotado que preferiste no firmarlo digitalmente, el ${h.resp.dia}.</p>`;
+      if (!h.resp) x += `<div class="row" style="margin-top:.6rem"><button class="btn pri" data-act="h-firmar">Firmar</button><button class="btn sut" data-act="h-rechazar">Prefiero no firmar digitalmente</button></div>`;
+      x += `</section>`;
+    }
+    x += `<section class="card"><h2>Correcciones a tus marcajes</h2><p class="muted small" style="margin:.1rem 0 .5rem">Cuando alguien corrige uno de tus marcajes queda anotado acá, con el motivo. Son las 20 más recientes.</p><p class="muted small" style="margin:0">Nadie ha corregido ningún marcaje tuyo.</p></section>`;
+  } else {
+    x += `<div class="card gris"><h2>${PESTANAS.find((n) => n) && "Otra pestaña"}</h2><p class="muted small" style="margin:0">(sin cambios en esta demo)</p></div>`;
+  }
+  x += `<details class="card hoy-nota"><summary>Lo que hoy NO hace</summary><ul class="small" style="margin:.6rem 0 0;padding-left:1.1rem">
+    <li>La persona <strong>no puede leer el documento</strong> aquí: solo ve nivel, fecha y número.</li>
+    <li>No hay aviso al iniciar sesión ni correo: solo se entera si abre su cuenta y mira Resumen o Bandeja.</li>
+    <li>No puede dejar un comentario ni un motivo.</li>
+    <li>Tras responder, la pantalla no ofrece cambiar la respuesta (la base sí permitiría reemplazarla).</li>
+    <li>DO no recibe ningún aviso ni ve una insignia en la tabla: lo ve solo al abrir el memo.</li>
+    <li>Nada de esto es «la entrega»: esa la marca DO con el papel.</li></ul></details>`;
+  return x + `</div>`;
+}
+function vHoyAdmin() {
+  const h = S.h, t = T();
+  let x = `<div style="max-width:760px;margin:0 auto"><h1 style="font-size:1.7rem;margin-bottom:.8rem">Disciplina</h1>`;
+  x += `<div class="tabla-wrap"><table class="tabla"><thead><tr><th>Persona</th><th>Sede</th><th>Documento</th><th>Estado</th></tr></thead><tbody><tr class="sel"><td><strong>${PERSONA.nombre}</strong></td><td>Tienda · Trujillo</td><td>${t.corr}<div class="xs muted">${t.nivel}</div></td><td>${h.entregado ? '<span class="pill ok">Entregado</span>' : '<span class="pill adv">Firmado · por entregar</span>'}</td></tr></tbody></table></div>`;
+  x += `<div class="card"><h2>Caso · ${PERSONA.nombre}</h2>`;
+  if (!h.entregado) x += `<p class="small">Firmado y no entregado: todavía no produce efecto (56.2). Se entrega en papel; al subir el cargo firmado queda «entregado».</p><div class="row"><button class="btn pri" data-act="h-entregar">Subir cargo firmado</button><span class="muted small">(o «Entregar sin papel», en el menú ⋯)</span></div>`;
+  else {
+    x += `<p class="small"><span class="pill ok">Entregado</span> ${h.entregado} · en mano · con cargo archivado</p><div class="row"><button class="btn" data-act="h-memo">${h.memo ? "Cerrar memo" : "Ver memo"}</button></div>`;
+    if (h.memo) {
+      x += `<div class="hoja" style="margin-top:.8rem">${textoMemo()}<div class="sello" style="margin-top:.9rem">Recibí conforme: ______________________</div></div>`;
+      if (h.resp) x += `<div class="xs" style="margin-top:.8rem;border:1px solid var(--sand);border-radius:.5rem;background:var(--papel);padding:.75rem;color:var(--taupe)">${h.resp.tipo === "firma" ? `<p style="margin:0 0 .5rem;color:var(--verde)">${PERSONA.nombre} confirmó su firma digital el ${hoyLarga()}.</p><span class="firma-e" style="font-size:1.4rem">${PERSONA.nombre}</span>` : `<p style="margin:0">${PERSONA.nombre} dejó constancia de que prefiere no firmar digitalmente, el ${hoyLarga()}.</p>`}</div>`;
+      else x += `<p class="xs muted" style="margin-top:.6rem">Sin respuesta de la persona: en el memo no aparece nada.</p>`;
+    }
+  }
+  x += `</div><div class="card hoy-nota"><strong>Lo que DO ve hoy de la respuesta de la persona</strong><p class="small muted" style="margin:.3rem 0 0">Nada en la tabla ni en la Bandeja: solo aparece dentro del memo, si lo abre. La función que iba a avisarle (<code>fn_memos_recientes_respuesta_sancionado</code>) existe, pero ninguna pantalla la usa.</p></div></div>`;
+  return x;
+}
+function renderHoy() {
+  const h = S.h;
+  $("#app").innerHTML = S.vista === "colab" ? vHoyColab() : vHoyAdmin();
+  document.querySelectorAll(".seg button[data-v]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.v === S.vista)));
+  const p = !h.entregado ? 1 : h.resp ? (h.memo ? 6 : 5) : S.vista === "admin" ? 2 : (h.tab === "historial" && h.pant === "panel" ? 4 : 3);
+  const nombres = ["DO entrega el papel y lo marca", "La persona abre su cuenta", "Ve el aviso", "Firma o prefiere no firmar", "DO abre el memo"];
+  $("#pasos").innerHTML = nombres.map((n, i) => `<span class="${i + 1 < p ? "hecho" : i + 1 === p ? "ahora" : ""}"><i>${i + 1 < p ? "✓" : i + 1}</i>${n}</span>`).join("") + `<span class="muted" style="margin-left:auto">${S.vista === "admin" ? "Estás viendo el panel de DO" : "Estás viendo la cuenta de la colaboradora"} · versión de HOY</span>`;
+}
+
+function render() {
+  document.body.dataset.v = VERSION;
+  document.querySelectorAll("[data-ver]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.ver === VERSION)));
+  if (VERSION === "hoy") return renderHoy();
+  $("#app").innerHTML = S.vista === "colab" ? vColab() : vAdmin();
+  document.querySelectorAll(".seg button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.v === S.vista)));
+  const p = paso();
+  const nombres = ["DO envía", "Aviso a la persona", "Recibe", "Responde", "DO lo ve"];
+  $("#pasos").innerHTML = nombres.map((n, i) => `<span class="${i + 1 < p ? "hecho" : i + 1 === p ? "ahora" : ""}"><i>${i + 1 < p ? "✓" : i + 1}</i>${n}</span>`).join("") + `<span class="muted" style="margin-left:auto">${S.vista === "admin" ? "Estás viendo el panel de DO" : "Estás viendo la cuenta de la colaboradora"}</span>`;
+  if (S.vista === "colab" && S.pantalla === "detalle") sha(textoMemo().replace(/<[^>]+>/g, " ")).then((h) => { const el = $("#hash-doc"); if (el) el.textContent = corto(h); });
+}
+function toast(t) { const el = $("#toast"); el.textContent = t; el.classList.add("on"); clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove("on"), 2800); }
+function modal(html) { $("#modal").innerHTML = html; $("#velo").classList.add("on"); const i = $("#modal input,#modal button"); i && i.focus(); }
+function cerrar() { $("#velo").classList.remove("on"); }
+
+/* ───────────────────────── Eventos ───────────────────────── */
+document.addEventListener("click", async (ev) => {
+  const el = ev.target.closest("[data-act]"); if (!el) return;
+  const a = el.dataset.act;
+  if (a === "version") { VERSION = el.dataset.ver; S = nuevo(); return render(); }
+  if (a === "h-entregar") { S.h.entregado = hoyCorta(); toast("Cargo archivado y documento marcado como entregado."); return render(); }
+  if (a === "h-tab") { if (el.dataset.t === "otro") return toast("(sin cambios en esta demo)"); S.h.tab = el.dataset.t; S.h.pant = "panel"; return render(); }
+  if (a === "h-bandeja") { S.h.pant = "bandeja"; return render(); }
+  if (a === "h-memo") { S.h.memo = !S.h.memo; return render(); }
+  if (a === "h-firmar") {
+    if (!$("#ctl-firma").checked) return toast("Todavía no configuraste tu firma. Ve a Mi perfil → Firma antes de firmar.");
+    S.h.resp = { tipo: "firma", dia: hoyCorta() }; toast("Firma guardada en el memo."); return render();
+  }
+  if (a === "h-rechazar") { S.h.resp = { tipo: "rechazo", dia: hoyCorta() }; toast("Quedó anotado que prefieres no firmar digitalmente."); return render(); }
+  if (a === "vista") { S.vista = el.dataset.v; if (S.vista === "colab" && S.pantalla === "portada") { /* la persona entra */ } return render(); }
+  if (a === "tipo" || a === "medio") return;
+  if (a === "reset") { S = nuevo(); return render(); }
+  if (a === "tema") { const r = document.documentElement; r.dataset.theme = r.dataset.theme === "dark" ? "light" : "dark"; return; }
+  if (a === "dias") {
+    if (!S.recibido || S.respuestas.length) return toast(!S.recibido ? "Primero la persona debe recibir el documento." : "La persona ya respondió: no hay recordatorio que generar.");
+    S.diasSinRespuesta = 5;
+    avisoAdmin("Recordatorio", `${PERSONA.nombre} recibió ${T().corr} hace 5 días hábiles y no respondió. Es un recordatorio interno, no un plazo legal.`, "adv");
+    toast("Pasaron 5 días hábiles: llegó un recordatorio a la Bandeja de DO."); return render();
+  }
+  if (a === "enviar") { S.enviado = fmtLima(); S.avisoLogin = true; toast("Enviado. La persona verá un aviso genérico al entrar."); return render(); }
+  if (a === "abrir") { S.avisoLogin = false; S.pantalla = "lista"; return render(); }
+  if (a === "despues") { S.avisoLogin = false; return render(); }
+  if (a === "portada") { S.pantalla = "portada"; return render(); }
+  if (a === "lista") { S.pantalla = "lista"; return render(); }
+  if (a === "detalle") { S.pantalla = "detalle"; return render(); }
+  if (a === "recibir") return modal(`<h2>Confirma con tu contraseña</h2><p class="small muted">Vas a confirmar que recibiste ${T().corr}. Queda tu fecha, tu hora y la huella del texto que recibiste. No es aceptar lo que dice.</p><label class="f">Contraseña<input type="password" id="clave" autocomplete="off" placeholder="cualquier valor sirve en el prototipo"></label><div class="err" id="err-clave"></div><div class="row" style="justify-content:flex-end"><button class="btn sut" data-act="cerrar">Cancelar</button><button class="btn pri" data-act="ok-recibir">Confirmar recepción</button></div>`);
+  if (a === "cerrar") return cerrar();
+  if (a === "ok-recibir") {
+    if (!$("#clave").value) return ($("#err-clave").textContent = "Escribe tu contraseña.");
+    S.recibido = { at: fmtLima(), hash: await sha(textoMemo().replace(/<[^>]+>/g, " ")) };
+    avisoAdmin("Recibido", `${PERSONA.nombre} confirmó la recepción de ${T().corr}. Cuenta como entregado desde hoy.`, "ok");
+    cerrar(); toast("Recepción confirmada."); return render();
+  }
+  if (a === "via") {
+    if (!S.recibido) return toast("Primero confirma que recibiste el documento (paso 1).");
+    if (el.dataset.v === "digital") return modal(`<h2>Firmar en el sistema</h2><p class="small muted">Se guarda tu firma, la fecha, la hora y la huella del texto. <strong>No se podrá borrar.</strong> Si más adelante quieres responder distinto, se agrega una respuesta nueva y esta queda en tu historial.</p><p style="text-align:center;margin:.8rem 0"><span class="firma-e">${PERSONA.nombre}</span><br><span class="xs muted">tu firma configurada en Mi perfil</span></p><label class="f">Vuelve a escribir tu contraseña<input type="password" id="clave" autocomplete="off"></label><div class="err" id="err-clave"></div><div class="row" style="justify-content:flex-end"><button class="btn sut" data-act="cerrar">Cancelar</button><button class="btn pri" data-act="ok-firmar">Firmar</button></div>`);
+    S.vias = el.dataset.v; return render();
+  }
+  if (a === "ok-firmar") {
+    if (!$("#clave").value) return ($("#err-clave").textContent = "Escribe tu contraseña para firmar.");
+    await agregarRespuesta({ via: "digital" });
+    avisoAdmin("Firma digital", `${PERSONA.nombre} firmó ${T().corr} en el sistema.`, "ok");
+    cerrar(); toast("Firmado. Quedó sellado."); return render();
+  }
+  if (a === "imprimir") return window.print();
+  if (a === "enviar-fisica") {
+    const f = $("#archivo").files[0], err = $("#err-arch");
+    if (!f) return (err.textContent = "Elige el archivo firmado.");
+    const okTipo = /\.(pdf|jpe?g|png)$/i.test(f.name) || ["application/pdf", "image/jpeg", "image/png"].includes(f.type);
+    if (!okTipo) return (err.textContent = "Solo PDF, JPG o PNG.");
+    if (f.size > 10 * 1048576) return (err.textContent = `Pesa ${(f.size / 1048576).toFixed(1)} MB y el máximo es 10 MB.`);
+    await agregarRespuesta({ via: "fisica", archivo: f.name, tam: f.size > 1048576 ? (f.size / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(f.size / 1024)) + " KB", revision: "pendiente_validacion" });
+    avisoAdmin("Por validar", `${PERSONA.nombre} subió el documento firmado en papel (${f.name}). Falta que DO lo valide.`, "adv");
+    toast("Enviado. Queda pendiente de validación por DO."); return render();
+  }
+  if (a === "enviar-rechazo") {
+    const m = $("#motivo").value, d = $("#detalle").value.trim(), err = $("#err-rech");
+    if (!m) return (err.textContent = "Elige un motivo.");
+    if (d.length < 20) return (err.textContent = `Cuéntanos un poco más (${d.length}/20 caracteres).`);
+    await agregarRespuesta({ via: "rechazo", motivo: m, detalle: d });
+    avisoAdmin("No conforme", `${PERSONA.nombre} no está conforme con ${T().corr}: «${MOTIVOS.find((x) => x[0] === m)[1]}».`, "alerta");
+    toast("Enviado. Avisamos a DO."); return render();
+  }
+  if (a === "cambiar") { S.cambiando = true; return render(); }
+  if (a === "ver-arch") return modal(`<h2>Vista del archivo</h2><p class="small muted">En el sistema se abre con un enlace firmado de vida corta.</p><div class="drop" style="min-height:8rem;display:grid;place-items:center">[ escaneo subido por la persona ]</div><div class="row" style="justify-content:flex-end;margin-top:.8rem"><button class="btn pri" data-act="cerrar">Cerrar</button></div>`);
+  if (a === "validar") { ultima().revision = "validada"; toast("Archivo validado. Cuenta como cargo firmado."); return render(); }
+  if (a === "observar") { const r = ultima(); r.revision = "observada"; r.nota = ($("#nota-rev")?.value || "").trim() || "vuelve a subirlo"; avisoAdmin("Para la persona", `Se pidió otro archivo a ${PERSONA.nombre}.`, "info"); toast("Se le pidió otro archivo."); return render(); }
+  if (a === "acta") { ultima().acta = true; toast("Acta de negativa registrada (con testigo, como hoy)."); return render(); }
+  if (a === "gerencia") { ultima().gerencia = true; toast("Pasado a Gerencia como reconsideración."); return render(); }
+});
+document.addEventListener("change", (ev) => {
+  if (ev.target.id === "ctl-tipo") { S = nuevo(); S.tipo = ev.target.value; render(); }
+  if (ev.target.id === "ctl-medio") render();
+});
+document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") cerrar(); });
+$("#velo").addEventListener("click", (ev) => { if (ev.target.id === "velo") cerrar(); });
+
+render();
+</script>
+</body>
+</html>
