@@ -11,7 +11,7 @@ import {
   puedeVerPlanilla, puedeVerIdentidad, puedeGestionarCatalogos,
   puedeOperarEquipo, puedeVerTodasLasSedes, puedeExportarPadron,
   puedeVerSaludDeAlertas, puedeExportarAsistencia, puedeAnularDocumentoDisciplinario,
-  puedeVerNovedad,
+  puedeVerNovedad, puedeGestionarBoletas,
   ROLES, ROLES_CON_PANEL, ROLES_DO, ROLES_EXPORTAN_ASISTENCIA,
 } from "@cayla-dynamic/shared";
 
@@ -63,6 +63,9 @@ describe("la encargada de sede opera a su equipo, pero no ve la plata", () => {
   it("no ve DNI ni cuenta bancaria", () => {
     expect(puedeVerIdentidad("supervisor_sede")).toBe(false);
   });
+  it("no sube ni ve las boletas de pago del equipo (0482)", () => {
+    expect(puedeGestionarBoletas("supervisor_sede")).toBe(false);
+  });
   it("no crea sedes, áreas ni feriados — eso cambia el pago de las cuatro sedes", () => {
     expect(puedeGestionarCatalogos("supervisor_sede")).toBe(false);
   });
@@ -81,7 +84,7 @@ describe("la encargada de sede opera a su equipo, pero no ve la plata", () => {
 });
 
 describe("quien solo marca no entra al panel", () => {
-  for (const permiso of [puedeVerPlanilla, puedeVerIdentidad, puedeGestionarCatalogos, puedeOperarEquipo, puedeVerTodasLasSedes, puedeVerSaludDeAlertas, puedeExportarAsistencia]) {
+  for (const permiso of [puedeVerPlanilla, puedeVerIdentidad, puedeGestionarCatalogos, puedeOperarEquipo, puedeVerTodasLasSedes, puedeVerSaludDeAlertas, puedeExportarAsistencia, puedeGestionarBoletas]) {
     it(`integrante: ${permiso.name} = false`, () => {
       expect(permiso("integrante")).toBe(false);
     });
@@ -103,6 +106,9 @@ describe("DO ve todo", () => {
     it(`${rol} se baja el CSV de asistencia (hallazgo 26)`, () => {
       expect(puedeExportarAsistencia(rol)).toBe(true);
     });
+    it(`${rol} sube y publica las boletas oficiales (0482)`, () => {
+      expect(puedeGestionarBoletas(rol)).toBe(true);
+    });
   }
 });
 
@@ -116,6 +122,7 @@ describe("null no pasa como autorizado", () => {
       expect(puedeOperarEquipo(raro)).toBe(false);
       expect(puedeVerSaludDeAlertas(raro)).toBe(false);
       expect(puedeExportarAsistencia(raro)).toBe(false);
+      expect(puedeGestionarBoletas(raro)).toBe(false);
     });
   }
 });

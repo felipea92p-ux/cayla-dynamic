@@ -112,6 +112,22 @@ export function puedeGestionarAnuncios(rol: RolPosible): boolean {
 }
 
 /**
+ * Subir, publicar, anular y ver las boletas OFICIALES de todo el equipo
+ * (`/admin/planilla/boletas`, migración 0482): la boleta que entrega el
+ * contador. Solo DO — es lo que cobra cada persona, y una encargada de sede no
+ * ve lo que gana su equipo. Se nombra aparte de `puedeVerPlanilla` por la misma
+ * razón que `puedeGestionarContratos`: hoy comparten lista, pero «ver el pago»
+ * y «entregar el documento del pago» son dos preguntas, y cuando una cambie no
+ * debe arrastrar a la otra sin que alguien lo decida a propósito.
+ *
+ * La base decide de verdad (`fn_es_admin_o_lider()` en cada función `fn_boleta_*`);
+ * esto solo decide si se DIBUJA la pantalla.
+ */
+export function puedeGestionarBoletas(rol: RolPosible): boolean {
+  return tiene(DO, rol);
+}
+
+/**
  * A quién le llega una novedad del sistema (`apps/web/lib/novedades.ts`):
  *
  *   todos — cualquiera con cuenta, integrantes incluidas.
