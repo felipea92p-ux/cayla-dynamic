@@ -774,8 +774,8 @@ describe("la líder que cuenta en las dos metas (AQP, 2026-09-18)", () => {
   });
 
   it("el aviso concuerda y calla cuando no aplica", () => {
-    expect(textoLiderEnLasDosMetas(1)).toBe("1 líder de equipo cuenta en las dos metas: operativas y líderes.");
-    expect(textoLiderEnLasDosMetas(2)).toBe("2 líderes de equipo cuentan en las dos metas: operativas y líderes.");
+    expect(textoLiderEnLasDosMetas(1)).toBe("1 líder de equipo cuenta en las dos metas: personal operativo y líderes.");
+    expect(textoLiderEnLasDosMetas(2)).toBe("2 líderes de equipo cuentan en las dos metas: personal operativo y líderes.");
     expect(textoLiderEnLasDosMetas(0)).toBeNull();
   });
 });

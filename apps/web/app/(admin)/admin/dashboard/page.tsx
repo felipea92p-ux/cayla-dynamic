@@ -1221,7 +1221,7 @@ export default function DashboardPage() {
               const mostrarTileOperativas = !(cob.equipoOperativas === 0 && cob.sinMetaOp);
               const mostrarTileLideres = !(cob.equipoLideres === 0 && cob.sinMetaEnc);
               const causasMeta = [
-                { quien: "Operativas", causa: causaMetaImposible("operativas", cob.metaOp, cob.equipoOperativas) },
+                { quien: "Personal operativo", causa: causaMetaImposible("operativas", cob.metaOp, cob.equipoOperativas) },
                 { quien: "Líderes", causa: causaMetaImposible("lideres", cob.metaEnc, cob.equipoLideres) },
               ].flatMap((c) => (c.causa ? [{ quien: c.quien, detalle: c.causa.detalle }] : []));
 
@@ -1274,7 +1274,7 @@ export default function DashboardPage() {
                   {(mostrarTileOperativas || mostrarTileLideres) && (
                     <div className={`mb-4 grid gap-3 sm:max-w-md ${mostrarTileOperativas && mostrarTileLideres ? "grid-cols-2" : "grid-cols-1 sm:max-w-[13.5rem]"}`}>
                       {mostrarTileOperativas && (
-                        <TileCobertura label="Operativas en piso" n={cob.opPiso} meta={cob.metaOp} sinMeta={cob.sinMetaOp} tramo={tramoLabel} fueraDeHorario={fueraDeHorarioVisible} />
+                        <TileCobertura label="Personal operativo en piso" n={cob.opPiso} meta={cob.metaOp} sinMeta={cob.sinMetaOp} tramo={tramoLabel} fueraDeHorario={fueraDeHorarioVisible} />
                       )}
                       {mostrarTileLideres && (
                         <TileCobertura label="Líderes en piso" n={cob.encPiso} meta={cob.metaEnc} sinMeta={cob.sinMetaEnc} fueraDeHorario={fueraDeHorarioVisible} />
@@ -1316,12 +1316,11 @@ export default function DashboardPage() {
                     <div className={`etiqueta ${cob.trabajando.length > 0 ? "text-verde" : "text-taupe"}`}>Trabajando ahora · {cob.trabajando.length}</div>
                     <div className="mt-2 flex flex-wrap gap-2">
                       {cob.trabajando.length === 0 ? (
-                        <div className="text-sm text-taupe">
-                          <span>Nadie está trabajando en este momento.</span>
-                          {/* Un 0 en piso es igual de 0 en un cambio de turno, tras el
-                              cierre o con una falta real: esto dice cuál de los tres. */}
-                          {aviso.desglose && <span className="mt-1 block text-xs">{aviso.desglose}</span>}
-                        </div>
+                        // Un 0 en piso es igual de 0 en un cambio de turno, tras el cierre o con
+                        // una falta real: el desglose dice cuál de los tres. Reemplaza a «Nadie
+                        // está trabajando», que repetía por tercera vez el 0 que ya dicen el
+                        // título de la sede y la etiqueta de este recuadro.
+                        <span className="text-sm text-taupe">{aviso.desglose ?? "Nadie está trabajando en este momento."}</span>
                       ) : (
                         // Pastillas en papel sobre el verde, como antes.
                         cob.trabajando.map((f) => (
@@ -1395,7 +1394,9 @@ export default function DashboardPage() {
                     </>
                   ) : (
                     <Boton variante="enlace" tamano="sm" onClick={() => setDetalleAbierto((s) => ({ ...s, [sedeId]: true }))}>
-                      Ver detalle ↓ ({deSedeCompleta.length} persona{deSedeCompleta.length === 1 ? "" : "s"})
+                      {/* «del equipo», como la frase de arriba («10 de las 12 personas del
+                          equipo»): el detalle lista a todo el equipo, no solo a quien le tocaba hoy. */}
+                      Ver detalle ↓ ({deSedeCompleta.length} persona{deSedeCompleta.length === 1 ? "" : "s"} del equipo)
                     </Boton>
                   )}
                 </section>

@@ -435,8 +435,8 @@ export function textoFueraDeHorario(f: FueraDeHorario, horaFormateada: string): 
 export function textoLiderEnLasDosMetas(n: number): string | null {
   if (n <= 0) return null;
   return n === 1
-    ? "1 líder de equipo cuenta en las dos metas: operativas y líderes."
-    : `${n} líderes de equipo cuentan en las dos metas: operativas y líderes.`;
+    ? "1 líder de equipo cuenta en las dos metas: personal operativo y líderes."
+    : `${n} líderes de equipo cuentan en las dos metas: personal operativo y líderes.`;
 }
 
 // ============================================================================
