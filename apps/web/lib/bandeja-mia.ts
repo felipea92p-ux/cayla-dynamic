@@ -8,6 +8,8 @@ import { traerAcusesPendientes, type AcusePendiente } from "./acuses-pendientes"
 import { ordenarContratoVigente } from "./mi-contrato";
 import { puedePedirBono, traerMiBono, type MiBono } from "./mi-bono";
 import { formatSoles } from "./rangos";
+import { esBoletaNueva } from "./boletas";
+import { nombreDelPeriodo, traerMisBoletas, type FilaMiBoleta } from "./mis-boletas";
 
 /**
  * La Bandeja de cada persona — «qué te respondieron».
@@ -34,6 +36,7 @@ import { formatSoles } from "./rangos";
  *     · un memo disciplinario por firmar             (fn_mis_memos, 0404)
  *     · la política salarial y el RIT sin acusar     (Ley 30709)
  *     · días con el marcaje incompleto del periodo que se le va a pagar
+ *     · su boleta oficial publicada y todavía sin abrir  (fn_mis_boletas, 0482)
  *
  *   RESPUESTAS — lo que pidió y alguien le contestó. Eso sí caduca a los
  *   DIAS_NOVEDAD, porque no hay nada que hacer con ello:
@@ -105,6 +108,8 @@ export type OrigenBandeja =
   | "educacion"
   // Lo que depende de ti. No caduca.
   | "contrato" | "memo" | "acuse" | "marcaje" | "ruta" | "bono"
+  // Su boleta oficial publicada, sin abrir (0482). Deja de contar cuando la abre.
+  | "boleta"
   // Te lo hicieron a ti — no lo pediste, así que no hay nada "esperando" para
   // este origen — pero caduca igual que una respuesta: un turno ya guardado
   // no es algo que quede pendiente de hacer.
@@ -119,7 +124,9 @@ export type EstadoBandeja =
   /** Depende de una firma tuya: el contrato, un memo, una constancia. */
   | "por_firmar"
   /** Depende de que pidas que se corrija: un día con el marcaje incompleto. */
-  | "por_arreglar";
+  | "por_arreglar"
+  /** Te dejaron algo para abrir y todavía no lo abriste: tu boleta oficial. */
+  | "por_ver";
 
 export interface MensajeBandeja {
   /** Estable entre recargas: sirve de `key` de React y de desempate del orden. */
@@ -285,6 +292,14 @@ export interface FilaEducacionSituacion {
   plazo: string | null;
 }
 
+/**
+ * Una boleta oficial suya, de `fn_mis_boletas()` (0482). Solo lo que hace falta
+ * para decidir si está «nueva» y cómo llamarla: quién la abrió y cuándo es un
+ * hecho que la base ya guarda (`vista_at`), así que no hay tabla de «vistos»
+ * para esto, igual que con un contrato sin firmar.
+ */
+export type FilaBoletaBandeja = Pick<FilaMiBoleta, "boleta_id" | "fecha_fin" | "estado" | "vista_at" | "publicada_at">;
+
 export interface FuentesBandeja {
   perfil: FilaPerfil[];
   vacaciones: FilaVacacion[];
@@ -311,6 +326,8 @@ export interface FuentesBandeja {
    * se dice nada del bono.
    */
   bono?: MiBono | null;
+  /** Sus boletas oficiales (0482). Opcional: sin ellas, no se dice nada de boletas. */
+  boletas?: FilaBoletaBandeja[];
   /** Sus constancias de estudios (0450). Opcional: quien no estudia no trae nada. */
   educacionEntregas?: FilaEducacionEntrega[];
   /** Sus estudios y en qué está cada constancia (0450). */
@@ -438,7 +455,10 @@ function instanteDe(resuelta: string | null, pedida: string): number {
 //   educacion · la constancia de su apoyo educativo (0450). Como la ruta, es
 //              plata suya de por medio, pero no le cambia el pago de este mes
 //              (decisión «solo alerta»): va justo después.
-const PESO_PENDIENTE: Record<string, number> = { memo: 0, contrato: 1, ruta: 2, bono: 2.2, educacion: 2.5, acuse: 3, marcaje: 4 };
+//   boleta   · su boleta oficial publicada (0482). Es un aviso de «ya puedes
+//              verla», no algo que se pierda o caduque: va al final, después de
+//              lo que tiene un plazo.
+const PESO_PENDIENTE: Record<string, number> = { memo: 0, contrato: 1, ruta: 2, bono: 2.2, educacion: 2.5, acuse: 3, marcaje: 4, boleta: 5 };
 
 export function armarBandeja(fuentes: FuentesBandeja, hoy: string = hoyLima()): Bandeja {
   const respuestas: { m: MensajeBandeja; instante: number }[] = [];
@@ -604,6 +624,27 @@ export function armarBandeja(fuentes: FuentesBandeja, hoy: string = hoyLima()): 
         },
       });
     }
+  }
+
+  // Su boleta oficial publicada y sin abrir (0482). Cuenta hasta que la abre —
+  // `vista_at` ya está guardado—, y NO caduca a los DIAS_NOVEDAD: una boleta sin
+  // abrir a los 20 días es justo la que más hay que seguir avisando. Una por
+  // periodo, con el mes en el título: dos boletas sin abrir son dos avisos.
+  for (const b of fuentes.boletas ?? []) {
+    if (!esBoletaNueva(b) || !b.boleta_id) continue;
+    pendientes.push({
+      instante: b.publicada_at ? Date.parse(b.publicada_at) : 0,
+      m: {
+        clave: `boleta:${b.boleta_id}`, origen: "boleta", estado: "por_ver",
+        fecha: b.publicada_at ? fechaLima(b.publicada_at) : hoy,
+        titulo: `Tu boleta de ${nombreDelPeriodo(b.fecha_fin, { conAnio: false, minuscula: true })} ya está disponible`,
+        respuesta: null,
+        detalle: "Es la boleta oficial que entregó el contador. Ábrela en «Boletas»; seguirá acá hasta que la abras.",
+        nuevo: true,
+        ir: "/mio?tab=boletas",
+        marcarVistoComo: null,
+      },
+    });
   }
 
   for (const f of fuentes.perfil) {
@@ -1007,7 +1048,7 @@ export async function traerBandeja(
   hoy: string = hoyLima(),
 ): Promise<{ bandeja: Bandeja; noSePudo: string[] }> {
   const [perfil, catalogo, vacaciones, revisiones, contrato, memos, acuses, periodo, movilidad, revisionesMovilidad, turnos,
-    educacionEntregas, educacionSituacion, vistos, bono] =
+    educacionEntregas, educacionSituacion, vistos, bono, boletas] =
     await Promise.all([
     supabase.from("solicitudes_cambio_perfil")
       .select("id, campo, estado, creada_at, resuelta_at, motivo")
@@ -1084,6 +1125,9 @@ export async function traerBandeja(
     // Su bono de cumpleaños (0478). La función ya contesta solo por quien
     // pregunta (`fn_persona_actual_id`), sin excepción para DO.
     traerMiBono(supabase),
+    // Sus boletas oficiales (0482). La función contesta solo por quien
+    // pregunta, sin excepción para DO: no hace falta filtro de persona.
+    traerMisBoletas(supabase),
   ]);
 
   // Las jornadas del periodo, solo si hay periodo abierto. Va en su propia
@@ -1123,6 +1167,7 @@ export async function traerBandeja(
     educacionSituacion: ((educacionSituacion.data ?? []) as unknown as FilaEducacionSituacion[])
       .filter((s) => s.persona_id === personaId),
     bono: bono.bono,
+    boletas: boletas.filas,
     vistos: new Set(
       ((vistos.data ?? []) as { tipo_item: string; item_id: string }[])
         .map((v) => `${v.tipo_item}:${v.item_id}`),
@@ -1153,6 +1198,9 @@ export async function traerBandeja(
       { error: educacionEntregas.error, que: "tus constancias de estudios" },
       { error: educacionSituacion.error, que: "tu apoyo educativo" },
       { error: bono.error, que: "tu bono de cumpleaños" },
+      // Solo importa que haya fallado: para no pintar «no tienes nada» sobre una
+      // boleta que sí hay. (Si la 0482 no está pegada, esto lo dice a gritos.)
+      { error: boletas.error, que: "tus boletas" },
     ]),
   };
 }

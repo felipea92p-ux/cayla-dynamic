@@ -642,7 +642,8 @@ $fn$;
 
 -- ── 10 · DO mira el periodo: una fila por persona ────────────────────────────
 -- Devuelve a TODAS las personas activas (y a quien, aunque ya no lo esté, tenga
--- boleta en ese periodo). `estado` es: falta · borrador · publicada · papel ·
+-- boleta en ese periodo). `actualizada` = es una versión avisada posterior a la
+-- primera y la persona todavía no la confirmó: se apaga sola al confirmar. `estado` es: falta · borrador · publicada · papel ·
 -- anulada. La pantalla deriva «vista» y «confirmada» de las dos fechas.
 create or replace function fn_boletas_tablero(p_periodo_id uuid)
 returns table (
@@ -673,7 +674,7 @@ begin
          v.id, v.n, v.tipo,
          coalesce(x.n_partes, 0)::int,
          coalesce(x.bytes, 0)::bigint,
-         coalesce(v.n > 1 and v.avisar, false),
+         coalesce(v.n > 1 and v.avisar and a.recibida_at is null, false),
          b.publicada_at, a.vista_at, a.recibida_at
     from personas pe
     join sedes s on s.id = pe.sede_base_id
@@ -772,7 +773,7 @@ $fn$;
 
 
 -- ── 13 · La persona confirma que la recibió ──────────────────────────────────
--- Solo la dueña, solo de la versión VIGENTE y publicada. Si DO la reemplazó
+-- Solo la dueña, solo de la versión VIGENTE y publicada, y solo si ya la abrió. Si DO la reemplazó
 -- mientras la tenía abierta, se rechaza con un mensaje que dice qué hacer: la
 -- confirmación jamás cae sobre una versión que no vio. Idempotente.
 create or replace function fn_boleta_confirmar_recibo(p_version_id uuid)
@@ -808,11 +809,18 @@ begin
     raise exception 'Tu boleta se actualizó: ábrela de nuevo antes de confirmar.';
   end if;
 
-  insert into boletas_acuses (version_id, vista_at, recibida_at)
-  values (p_version_id, now(), now())
-  on conflict (version_id) do update
-     set vista_at    = coalesce(boletas_acuses.vista_at, excluded.vista_at),
-         recibida_at = coalesce(boletas_acuses.recibida_at, excluded.recibida_at);
+  -- Confirmar que la recibió exige haberla ABIERTO: quien confirma sin haberla
+  -- pedido no está confirmando nada. La primera apertura la escribe
+  -- `fn_boleta_partes`; sin ella, esto se rechaza con un mensaje que dice qué hacer.
+  if not exists (select 1 from boletas_acuses a
+                  where a.version_id = p_version_id and a.vista_at is not null) then
+    raise exception 'Ábrela con «Ver» antes de confirmar que la recibiste.';
+  end if;
+
+  -- Idempotente: si ya estaba confirmada, la fecha de la primera vez no se corre.
+  update boletas_acuses
+     set recibida_at = coalesce(recibida_at, now())
+   where version_id = p_version_id;
 end;
 $fn$;
 
@@ -844,7 +852,7 @@ begin
          b.id, b.estado,
          v.id, v.n, v.tipo,
          coalesce(x.n_partes, 0)::int, coalesce(x.bytes, 0)::bigint,
-         coalesce(v.n > 1 and v.avisar, false),
+         coalesce(v.n > 1 and v.avisar and a.recibida_at is null, false),
          b.publicada_at, a.vista_at, a.recibida_at
     from periodos_planilla pe
     left join boletas b

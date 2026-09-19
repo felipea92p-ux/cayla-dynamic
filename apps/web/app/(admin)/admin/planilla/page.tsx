@@ -22,6 +22,7 @@
 // componentes en `components/planilla/`.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Check, MoreHorizontal, Search } from "lucide-react";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
@@ -709,6 +710,14 @@ export default function PlanillaPage() {
               <Boton onClick={descargarCsvPlanilla} disabled={!proy || cargando || filasTodas.length === 0} title="Todos los grupos y todas las partidas del periodo, sin filtros">
                 Descargar CSV
               </Boton>
+              {periodoSel && (
+                <Link
+                  href={`/admin/planilla/boletas?periodo=${periodoSel}`}
+                  className="text-sm text-taupe underline underline-offset-2 transition-colors hover:text-tinta"
+                >
+                  Boletas de este periodo →
+                </Link>
+              )}
               <Menu
                 trigger={({ abierto, alternar }) => (
                   <Boton

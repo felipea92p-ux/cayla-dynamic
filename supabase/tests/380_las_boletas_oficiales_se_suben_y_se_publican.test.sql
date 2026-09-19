@@ -16,7 +16,7 @@
 -- (f) todos los grupos reciben boleta, también quien no tiene cuenta.
 -- ============================================================================
 begin;
-select plan(81);
+select plan(86);
 
 -- ── Sedes, personas y periodos ───────────────────────────────────────────
 insert into sedes (id, codigo, nombre, activa, tipo) values
@@ -270,13 +270,26 @@ select is(
   (select version_n::text || ' · vista=' || coalesce(vista_at::text, 'nunca') || ' · recibida=' || coalesce(recibida_at::text, 'nunca')
      from fn_mis_boletas() where periodo_id = '00000000-0000-0000-0000-0000000ef001'),
   '2 · vista=nunca · recibida=nunca', 'Ana ve la versión 2, limpia');
+select is((select actualizada from fn_mis_boletas() where periodo_id = '00000000-0000-0000-0000-0000000ef001'), true,
+  'y su boleta figura «actualizada» mientras no confirme la versión nueva');
 
 -- Solo reordenar: con «no avisar» se conserva la constancia.
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000eb002', true);
+select throws_ok($$ select fn_boleta_confirmar_recibo(
+    (select v.id from boletas_versiones v join boletas b on b.id = v.boleta_id
+      where b.persona_id = '00000000-0000-0000-0000-0000000ea002' and v.n = 2)) $$,
+  'P0001', 'Ábrela con «Ver» antes de confirmar que la recibiste.',
+  'no se confirma recibo de una versión que nunca se abrió (lo exige la base, no solo la pantalla)');
+select lives_ok($$ select * from fn_boleta_partes(
+    (select v.id from boletas_versiones v join boletas b on b.id = v.boleta_id
+      where b.persona_id = '00000000-0000-0000-0000-0000000ea002' and v.n = 2)) $$,
+  'Ana abre la versión 2');
 select lives_ok($$ select fn_boleta_confirmar_recibo(
     (select v.id from boletas_versiones v join boletas b on b.id = v.boleta_id
       where b.persona_id = '00000000-0000-0000-0000-0000000ea002' and v.n = 2)) $$,
   'Ana confirma la versión 2');
+select is((select actualizada from fn_mis_boletas() where periodo_id = '00000000-0000-0000-0000-0000000ef001'), false,
+  'y al confirmarla, «actualizada» se apaga sola');
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000eb001', true);
 select lives_ok(
   $$ select fn_boleta_guardar_version('00000000-0000-0000-0000-0000000ef001','00000000-0000-0000-0000-0000000ea002','imagen',
@@ -375,6 +388,10 @@ select is((select fn_boletas_publicar('00000000-0000-0000-0000-0000000ef001', ar
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000eb005', true);
 select is((select estado from fn_mis_boletas() where periodo_id = '00000000-0000-0000-0000-0000000ef001'), 'publicada',
   'la practicante la ve');
+select throws_ok($$ select fn_boleta_confirmar_recibo(
+    (select v.id from boletas_versiones v join boletas b on b.id = v.boleta_id
+      where b.persona_id = '00000000-0000-0000-0000-0000000ea005')) $$,
+  'P0001', 'Ábrela con «Ver» antes de confirmar que la recibiste.', 'la practicante tampoco confirma sin abrirla');
 
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000eb001', true);
 select lives_ok($$ select fn_boleta_marcar_papel('00000000-0000-0000-0000-0000000ef001','00000000-0000-0000-0000-0000000ea006') $$,
