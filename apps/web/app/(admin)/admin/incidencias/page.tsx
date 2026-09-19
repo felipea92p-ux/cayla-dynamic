@@ -31,7 +31,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ChevronDown } from "lucide-react";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
-import { esRolEncargada, hoyLima, puedeVerTodasLasSedes } from "@cayla-dynamic/shared";
+import { esRolEncargada, etiquetaDeSede, hoyLima, puedeVerTodasLasSedes } from "@cayla-dynamic/shared";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { Cargando, EsqueletoSecciones } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
@@ -95,7 +95,7 @@ interface RevisionPedida {
 interface PracticanteSobreTope {
   persona_id: string; persona: string; sede: string; estado: string; dias_restantes: number | null;
 }
-interface Sede { id: string; codigo: string; nombre: string; activa: boolean; tipo: string | null }
+interface Sede { id: string; codigo: string; nombre: string; activa: boolean; tipo: string | null; ciudad: string | null }
 interface AceptadaRow {
   persona_id: string; fecha: string; tipo: string; nota: string | null;
   aceptado_por: string; aceptado_at: string; valor: number | null;
@@ -213,7 +213,7 @@ function IncidenciasContenido() {
           .order("persona_id")
           .range(ini, fin),
       ),
-      supabase.from("sedes").select("id, codigo, nombre, activa, tipo").order("codigo"),
+      supabase.from("sedes").select("id, codigo, nombre, activa, tipo, ciudad").order("codigo"),
       // Quienes PODRÍAN contar como líder (líder de equipo, marca de piso o administración);
       // quién cuenta en cada sede lo decide cuentaEnCobertura, dentro de la detección.
       supabase.from("personas").select("id, sede_base_id, rol, tipo_vinculo, es_encargada_piso")
@@ -398,7 +398,11 @@ function IncidenciasContenido() {
     [alcance],
   );
   const sedesDeLaVista = [...new Set(visibles.map((i) => i.sede))].sort();
-  const nombreSede = (codigo: string) => sedes.find((s) => s.codigo === codigo)?.nombre ?? null;
+  // Cómo se dice una sede: UNA función para todas las pantallas (packages/shared/src/sedes.ts).
+  // El código es la llave y no describe nada («003» es el de la Tienda de Lima); lo que se
+  // lee es «Taller · Lima» / «Tienda · Lima». Un código sin sede en la tabla se queda como está.
+  const sedePorCodigo = useMemo(() => new Map(sedes.map((s) => [s.codigo, etiquetaDeSede(s)])), [sedes]);
+  const rotuloDeSede = (codigo: string) => sedePorCodigo.get(codigo)?.titulo ?? codigo;
 
   const hayFiltros = busca !== "" || sedeFiltro !== "" || tipoFiltro !== "" || categoria !== "" || estadoFiltro !== "por_revisar";
   function limpiarFiltros() {
@@ -619,7 +623,7 @@ function IncidenciasContenido() {
               <CampoSelect id="incidencias-sede" aria-label="Sede" value={sedeFiltro} onChange={(e) => setSedeFiltro(e.target.value)}>
                 <option value="">Todas las sedes</option>
                 {sedesDelFiltro.map((s) => (
-                  <option key={s} value={s}>{s}{nombreSede(s) ? ` · ${nombreSede(s)}` : ""}</option>
+                  <option key={s} value={s}>{sedePorCodigo.get(s)?.texto ?? s}</option>
                 ))}
               </CampoSelect>
             )}
@@ -736,8 +740,8 @@ function IncidenciasContenido() {
                     onClick={() => setPlegadas((p) => { const n = new Set(p); if (n.has(sede)) n.delete(sede); else n.add(sede); return n; })}
                     className="flex w-full flex-wrap items-baseline gap-x-3 gap-y-1 px-5 py-3.5 text-left transition-colors hover:bg-crema/60"
                   >
-                    <span className="font-serif text-xl text-tinta">{sede}</span>
-                    {nombreSede(sede) && <span className="text-sm text-taupe">{nombreSede(sede)}</span>}
+                    <span className="font-serif text-xl text-tinta">{rotuloDeSede(sede)}</span>
+                    {rotuloDeSede(sede) !== sede && <span className="text-sm text-taupe">{sede}</span>}
                     <span className="text-sm text-taupe">· {casos.length} caso{casos.length === 1 ? "" : "s"}</span>
                     {altas > 0 && <Insignia variante="alerta" tamano="sm">{altas} alta{altas === 1 ? "" : "s"}</Insignia>}
                     <ChevronDown aria-hidden className={cx("ml-auto size-4 self-center text-taupe transition-transform", !abiertaSede && "-rotate-90")} />
@@ -945,6 +949,7 @@ function IncidenciasContenido() {
           onCerrar={() => setAbierta(null)}
           volverElFocoA={volverFoco}
           motivoNoPuedeActuar={incidenciaAbierta ? motivoNoPuede(incidenciaAbierta) : null}
+          rotuloDeSede={rotuloDeSede}
           etiquetaMotivo={etiquetaMotivo}
           nombrePorId={nombrePorId}
           onCambio={async (claveNueva) => {

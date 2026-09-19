@@ -88,6 +88,7 @@ export function PanelIncidencia({
   onCerrar,
   volverElFocoA,
   motivoNoPuedeActuar,
+  rotuloDeSede,
   etiquetaMotivo,
   nombrePorId,
   onCambio,
@@ -97,6 +98,8 @@ export function PanelIncidencia({
   volverElFocoA: RefObject<HTMLElement | null>;
   /** null si quien mira puede actuar sobre este caso; si no, por qué no. */
   motivoNoPuedeActuar: string | null;
+  /** Cómo se dice la sede de un caso («Tienda · Lima»), no su código. */
+  rotuloDeSede: (codigo: string) => string;
   etiquetaMotivo: (motivo: string | null) => string;
   nombrePorId: Map<string, string>;
   /** Recargar la bandeja. `claveNueva`: la clave con que el caso sigue existiendo
@@ -224,7 +227,7 @@ export function PanelIncidencia({
         {/* ── Qué es ─────────────────────────────────────────────────── */}
         <div className="flex flex-col gap-3">
           <p className="text-taupe">
-            {i.personaId ? `${i.sede} · ` : ""}{fechaLarga(i.fecha)}
+            {i.personaId ? `${rotuloDeSede(i.sede)} · ` : ""}{fechaLarga(i.fecha)}
           </p>
           <div className="flex items-start gap-3">
             <IconoIncidencia incidencia={i} />
