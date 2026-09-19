@@ -20,7 +20,7 @@ import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
 import {
   calcularCoberturaSede, enPausaAhora, faltanTexto, fechaConDia, fechaCorta, llegoTarde, loQueFalta,
   minutosDesde, porPausaMasLarga, sinMarcarYaLeTocaba, subEstadoSinMarcar, textoEquipoDelDia,
-  textoPausa, textoSinMarcar, trabajandoAhora,
+  textoPausa, textoPausaDesde, textoSinMarcar, trabajandoAhora,
   type CoberturaSede, type FilaPersona, type MetaSede,
 } from "@/lib/admin/asistencia-hoy";
 import { traerPausasAbiertas } from "@/lib/admin/pausas-abiertas";
@@ -1297,7 +1297,12 @@ export default function DashboardPage() {
                             <span aria-hidden className="mt-1.5 size-1.5 shrink-0 rounded-full bg-ambar" />
                             <span>
                               {f.nombre}
-                              {f.pausa && <span className="block text-xs text-taupe">{textoPausa(f.pausa)}</span>}
+                              {f.pausa && (
+                                <span className="block text-xs text-taupe">
+                                  {/* La duración no se parte: en celular «3h 20m» quedaba como «3h» / «20m». */}
+                                  {textoPausaDesde(f.pausa)} · <span className="whitespace-nowrap">{formatoMinutos(minutosDesde(f.pausa.desde))}</span>
+                                </span>
+                              )}
                             </span>
                           </span>
                         ))}
