@@ -286,7 +286,7 @@ select fn_documento_registrar('bono', fn_hoy_lima() - 1, '00000000-0000-0000-000
                               false, null, 'documentos/bono-en-papel.pdf');
 insert into movimientos_planilla (periodo_id, persona_id, tipo, concepto, monto, creado_por)
 values ('00000000-0000-0000-0000-0000000378a1', '00000000-0000-0000-0000-000000378007',
-        'bono', 'Bono suelto de laboratorio', 10.00, '00000000-0000-0000-0000-000000378016');
+        'bono', 'Bono suelto de laboratorio', 10.00, '00000000-0000-0000-0000-000000378006');
 select throws_ok(
   $$ update documentos_firmados
         set movimiento_id = (select id from movimientos_planilla
