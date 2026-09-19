@@ -53,6 +53,7 @@ const PREFIJOS: readonly (readonly [string, TemaAuditoria])[] = [
   ["tramo_", "horario"],
   ["contrato_", "contrato"],
   ["documento_", "documento"],
+  ["boletas.", "documento"],
   ["educacion_", "educacion"],
   ["liquidacion_", "liquidacion"],
   ["salario_", "liquidacion"],

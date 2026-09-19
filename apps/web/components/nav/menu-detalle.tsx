@@ -44,6 +44,7 @@ import { useFocoAtrapado } from "@/lib/use-foco-atrapado";
 import { useSalidaAnimada } from "@/lib/use-salida-animada";
 import { Colibri, Marca } from "@/components/marca";
 import { cx } from "@/components/ui/cx";
+import { Insignia } from "@/components/ui/insignia";
 
 // Lo que tarda el cajón en irse. Tiene que coincidir con `.cajon-sale` de
 // globals.css: es lo que el hook espera antes de desmontarlo.
@@ -53,6 +54,12 @@ export type SeccionDetalle<T extends string> = {
   valor: T;
   label: string;
   Icon: LucideIcon;
+  /**
+   * Cuántas cosas nuevas esperan en esta sección (ej.: boletas publicadas y aún
+   * sin abrir). Opcional: sin él, o en 0, el renglón no dibuja nada, así que las
+   * secciones que no lo usan quedan exactamente como estaban.
+   */
+  contador?: number;
 };
 
 type ModoMenu = "auto" | "rail" | "ancho" | "cajon";
@@ -65,17 +72,24 @@ type ModoMenu = "auto" | "rail" | "ancho" | "cajon";
 // `py-1.5` porque son treinta renglones y cada 4px de más son 120px de scroll.
 // Acá son ocho, no hay scroll que ahorrar, y `py-2` es el mismo alto que el
 // panel ya usa en rail.
-const CLASES: Record<ModoMenu, { fila: string; etiqueta: string }> = {
+//
+// `pildora` y `punto` son lo del contador y siguen la regla de
+// `panel-navegacion.tsx`: en ancho y en cajón, la píldora con el número; en rail
+// no cabe un número, así que un punto (y el dato viaja en el `title` y en el
+// texto para lector de pantalla).
+const CLASES: Record<ModoMenu, { fila: string; etiqueta: string; pildora: string; punto: string }> = {
   // Sin elegir: la CSS decide. Rail por debajo de 1280px, ancho a partir de ahí.
   auto: {
     fila: "justify-center px-2 py-2 xl:justify-start xl:gap-2.5 xl:px-3",
     etiqueta: "sr-only xl:not-sr-only",
+    pildora: "hidden xl:inline-flex",
+    punto: "xl:hidden",
   },
-  rail: { fila: "justify-center px-2 py-2", etiqueta: "sr-only" },
-  ancho: { fila: "gap-2.5 px-3 py-2", etiqueta: "" },
+  rail: { fila: "justify-center px-2 py-2", etiqueta: "sr-only", pildora: "hidden", punto: "" },
+  ancho: { fila: "gap-2.5 px-3 py-2", etiqueta: "", pildora: "inline-flex", punto: "hidden" },
   // El cajón se toca con el dedo: py-3 deja el renglón en ~44px, el mínimo de
   // un objetivo táctil.
-  cajon: { fila: "gap-3 px-3 py-3", etiqueta: "" },
+  cajon: { fila: "gap-3 px-3 py-3", etiqueta: "", pildora: "inline-flex", punto: "hidden" },
 };
 
 // Los mismos anchos que `sidebar-admin.tsx`, no unos parecidos: las dos
@@ -129,6 +143,7 @@ function ListaSecciones<T extends string>({
     <div className="grid gap-0.5">
       {secciones.map((s, i) => {
         const activa = s.valor === activo;
+        const conAviso = (s.contador ?? 0) > 0;
         return (
           <button
             key={s.valor}
@@ -148,7 +163,7 @@ function ListaSecciones<T extends string>({
             // foco con las flechas y a que cada panel sea un `tabpanel`; a
             // medias sería peor que esto, que hoy es correcto.
             aria-current={activa ? "page" : undefined}
-            title={s.label}
+            title={conAviso ? `${s.label} — ${s.contador} por ver` : s.label}
             className={cx(
               "relative flex items-center rounded-control text-left text-sm transition-colors duration-150 active:scale-[0.97]",
               modo === "cajon" && "fila-en-cascada",
@@ -163,6 +178,25 @@ function ListaSecciones<T extends string>({
                 así el lector de pantalla la sigue leyendo y quien mira la tiene
                 en el `title`. */}
             <span className={cx("truncate", c.etiqueta)}>{s.label}</span>
+
+            {conAviso ? (
+              <>
+                {/* Ancho: la píldora con el número. `Insignia` va DENTRO de un
+                    contenedor que decide cuándo se ve, y no con `hidden` en su
+                    propia clase: la insignia ya trae su `inline-flex`, y dos
+                    clases de `display` en el mismo elemento las decide el orden
+                    del CSS, no el de la línea. */}
+                <span className={cx("ml-auto", c.pildora)} aria-hidden>
+                  <Insignia variante="contador" tamano="sm">{s.contador}</Insignia>
+                </span>
+                {/* Rail: un punto, como el panel. */}
+                <span
+                  aria-hidden
+                  className={cx("absolute right-1.5 top-1.5 size-2 rounded-pildora bg-rojo", c.punto)}
+                />
+                <span className="sr-only">{s.contador} por ver</span>
+              </>
+            ) : null}
           </button>
         );
       })}

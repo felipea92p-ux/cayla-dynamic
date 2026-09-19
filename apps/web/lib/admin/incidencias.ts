@@ -1,7 +1,8 @@
 import {
-  MAXIMO_LEGAL_SEMANAL, avisoDeRacha, ventanaMasCargada, maximoSemanalPracticante,
+  MAXIMO_LEGAL_SEMANAL, avisoDeRacha, cuentaEnCobertura, ventanaMasCargada, maximoSemanalPracticante,
 } from "@cayla-dynamic/shared";
 import { esperadoDelDia, horarioVigente, type HorarioTramo, type TurnoDia } from "./jornada-esperada";
+import { loQueNoSePudo } from "./lo-que-no-se-pudo";
 
 /**
  * QUÉ INCIDENCIAS DE ASISTENCIA HAY QUE MIRAR.
@@ -186,8 +187,11 @@ export interface DatosDeteccion {
     /** numeric llega como número o como texto según el cliente. */
     valor?: number | string | null;
   }[];
-  sedes: { id: string; codigo: string }[];
-  encargadas: { id: string; sede_base_id: string }[];
+  /** `tipo` es `sedes.tipo` (central, taller, tienda): decide si un administrador cuenta como líder. */
+  sedes: { id: string; codigo: string; tipo?: string | null }[];
+  /** Personas activas que PODRÍAN contar como líder de su sede. Quién cuenta de
+   * verdad lo decide `cuentaEnCobertura` (packages/shared), no esta lista. */
+  encargadas: { id: string; sede_base_id: string; rol: string | null; tipo_vinculo: string | null; es_encargada_piso: boolean }[];
   metas: { sede_id: string; dia_semana: number; meta_encargadas: number }[];
   horarios: HorarioTramo[];
   turnos: (TurnoDia & { persona_id: string; fecha: string })[];
@@ -410,6 +414,7 @@ export function detectarIncidencias(d: DatosDeteccion): Incidencia[] {
   // aviso llega mientras todavía se puede reprogramar (auditoría 2026-09-13).
   // «¿Le toca trabajar?» se pregunta a jornada-esperada, nunca se reescribe.
   const codigoPorSede = new Map(d.sedes.map((s) => [s.id, s.codigo]));
+  const tipoPorSede = new Map(d.sedes.map((s) => [s.id, s.tipo ?? null]));
   const turnoPorClave = new Map(d.turnos.map((t) => [`${t.persona_id}|${t.fecha}`, t as TurnoDia]));
   const horariosPorPersona = new Map<string, HorarioTramo[]>();
   for (const h of d.horarios) {
@@ -426,7 +431,18 @@ export function detectarIncidencias(d: DatosDeteccion): Incidencia[] {
     const dow = diaSemanaNum(dia);
     for (const m of d.metas) {
       if (m.dia_semana !== dow) continue;
-      const cubiertas = d.encargadas.filter((e) => e.sede_base_id === m.sede_id && trabajaEseDia(e.id, dia)).length;
+      // Misma definición que el Dashboard, Turnos y Reporte de sede: en Central
+      // manda un administrador; en una tienda solo cuenta quien es líder o
+      // lleva la marca de piso. Tener la propia aquí hacía que Central saliera
+      // «0 de 1» todos los días.
+      const tipoSede = tipoPorSede.get(m.sede_id) ?? null;
+      const cubiertas = d.encargadas.filter((e) =>
+        e.sede_base_id === m.sede_id
+        && cuentaEnCobertura(
+          { rol: e.rol, tipoVinculo: e.tipo_vinculo, esEncargadaPiso: e.es_encargada_piso, areaOperativa: false },
+          tipoSede,
+        ).lider
+        && trabajaEseDia(e.id, dia)).length;
       if (cubiertas >= m.meta_encargadas) continue;
       const codigo = codigoPorSede.get(m.sede_id) ?? "?";
       const sufijo = proximaSemana ? " · próxima semana, todavía se puede reprogramar" : "";
@@ -492,6 +508,73 @@ export function compararIncidencias(a: Incidencia, b: Incidencia): number {
     || (a.fecha < b.fecha ? 1 : a.fecha > b.fecha ? -1 : 0)
     || a.nombre.localeCompare(b.nombre, "es")
     || (a.clave < b.clave ? -1 : a.clave > b.clave ? 1 : 0);
+}
+
+// ── Qué no se pudo comprobar ───────────────────────────────────────────────
+//
+// QUÉ PROMETE. Que la pantalla distinga «no hay nada» de «no pude mirar». Un
+// «Todo revisado» sobre una consulta que falló es una AFIRMACIÓN falsa: dice
+// que se comprobó y no se comprobó (ver `lo-que-no-se-pudo.ts`).
+//
+// DURA o SUAVE. Es dura la fuente sin la cual no se puede afirmar que no hay
+// nada de ese tipo: si `fn_faltas` falla, no se puede decir «sin faltas». Esa
+// categoría pasa a «sin comprobar» y «Todo revisado» deja de mostrarse. Es suave
+// la que solo empobrece la pantalla (un nombre, un aviso aparte): se avisa, pero
+// el resto se puede seguir revisando.
+//
+// Por qué no bloquear todo ante cualquier error: una falla de `contratos` (solo
+// pinta el aviso de convenios de prácticas) dejaría a la líder de equipo sin
+// poder revisar faltas.
+//
+// SE ROMPE SI alguien agrega una consulta a `cargar()` y no la declara acá: se
+// vuelve a tirar su `error` sin que nada lo note. Por eso la lista vive aparte
+// y tiene su prueba.
+
+export type FuenteDeIncidencias =
+  | "faltas" | "salidas" | "excesos" | "rachas"
+  | "vistos_buenos" | "revisiones" | "convenios" | "nombres" | "motivos";
+
+const FUENTES: Record<FuenteDeIncidencias, { que: string; categoria: Categoria | null; dura: boolean }> = {
+  faltas: { que: "las faltas", categoria: "faltas", dura: true },
+  salidas: { que: "las salidas anticipadas", categoria: "marcaciones", dura: true },
+  excesos: { que: "los excesos de jornada", categoria: "patrones", dura: true },
+  rachas: { que: "los días seguidos sin descanso", categoria: "patrones", dura: true },
+  vistos_buenos: { que: "los vistos buenos ya dados (avisos ya revisados pueden volver a salir y el historial no se muestra)", categoria: null, dura: false },
+  revisiones: { que: "los días que tu equipo pidió revisar", categoria: null, dura: false },
+  convenios: { que: "los convenios de prácticas cerca del tope de 12 meses", categoria: null, dura: false },
+  nombres: { que: "los nombres de quienes dieron un visto bueno", categoria: null, dura: false },
+  motivos: { que: "los nombres de los motivos de justificación", categoria: null, dura: false },
+};
+
+export interface CoberturaDeCarga {
+  /** Todo lo que no se pudo traer, en el orden en que se declaró. */
+  faltantes: string[];
+  /** Solo lo que impide afirmar «no hay nada» (subconjunto de `faltantes`). */
+  duras: string[];
+  /** Las cajas del resumen que no se pueden contar. */
+  categoriasSinComprobar: ReadonlySet<Categoria>;
+}
+
+export const CARGA_COMPLETA: CoberturaDeCarga = { faltantes: [], duras: [], categoriasSinComprobar: new Set() };
+
+/** `errores` = el `error` que devolvió cada consulta (null/undefined si contestó). */
+export function coberturaDeCarga(errores: Partial<Record<FuenteDeIncidencias, unknown>>): CoberturaDeCarga {
+  const fuentes = (Object.keys(FUENTES) as FuenteDeIncidencias[]).filter((f) => Boolean(errores[f]));
+  if (fuentes.length === 0) return CARGA_COMPLETA;
+  const faltantes = loQueNoSePudo(fuentes.map((f) => ({ error: errores[f], que: FUENTES[f].que })));
+  return {
+    faltantes,
+    duras: fuentes.filter((f) => FUENTES[f].dura).map((f) => FUENTES[f].que),
+    categoriasSinComprobar: new Set(
+      fuentes.map((f) => FUENTES[f].categoria).filter((c): c is Categoria => c !== null),
+    ),
+  };
+}
+
+/** «a», «a y b», «a, b y c». */
+export function enFrase(items: readonly string[]): string {
+  if (items.length <= 1) return items[0] ?? "";
+  return `${items.slice(0, -1).join(", ")} y ${items[items.length - 1]}`;
 }
 
 /** Los tipos que se pueden marcar revisados en lote: solo afirman «lo vi», nada

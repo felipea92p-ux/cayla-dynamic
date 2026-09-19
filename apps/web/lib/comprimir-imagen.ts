@@ -17,6 +17,11 @@
  * `imageOrientation: "from-image"` corrige la orientación EXIF sola — sin eso,
  * una foto tomada con el celular en vertical se subía girada.
  *
+ * `giroGrados` (0, 90, 180 o 270, en sentido de las agujas del reloj) existe
+ * para las boletas (0482): una foto de un papel sale de lado a menudo, y DO tiene
+ * que poder enderezarla antes de guardarla. Con 0 —el valor por defecto— el
+ * camino es EXACTAMENTE el de antes: la foto de perfil y la del DNI no cambian.
+ *
  * Y hay un segundo efecto que no es cosmético: la salida SIEMPRE es JPEG. Los
  * buckets tienen lista cerrada de formatos, y `solicitudes-perfil` solo acepta
  * jpeg, png y pdf — un iPhone entrega HEIC, que Safari sí sabe decodificar acá
@@ -27,18 +32,29 @@ export async function comprimirImagen(
   archivo: File,
   ladoMayorPx: number,
   calidadJpeg: number,
+  giroGrados: 0 | 90 | 180 | 270 = 0,
 ): Promise<Blob> {
   const bitmap = await createImageBitmap(archivo, { imageOrientation: "from-image" });
-  const escala = Math.min(1, ladoMayorPx / Math.max(bitmap.width, bitmap.height));
-  const ancho = Math.round(bitmap.width * escala);
-  const alto = Math.round(bitmap.height * escala);
+  // Con un cuarto de vuelta, el ancho y el alto de lo que se dibuja se cruzan.
+  const cruzado = giroGrados === 90 || giroGrados === 270;
+  const anchoOrigen = cruzado ? bitmap.height : bitmap.width;
+  const altoOrigen = cruzado ? bitmap.width : bitmap.height;
+  const escala = Math.min(1, ladoMayorPx / Math.max(anchoOrigen, altoOrigen));
+  const ancho = Math.round(anchoOrigen * escala);
+  const alto = Math.round(altoOrigen * escala);
 
   const canvas = document.createElement("canvas");
   canvas.width = ancho;
   canvas.height = alto;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Este navegador no puede procesar la imagen.");
-  ctx.drawImage(bitmap, 0, 0, ancho, alto);
+  if (giroGrados === 0) {
+    ctx.drawImage(bitmap, 0, 0, ancho, alto);
+  } else {
+    ctx.translate(ancho / 2, alto / 2);
+    ctx.rotate((giroGrados * Math.PI) / 180);
+    ctx.drawImage(bitmap, -(bitmap.width * escala) / 2, -(bitmap.height * escala) / 2, bitmap.width * escala, bitmap.height * escala);
+  }
   bitmap.close();
 
   const blob = await new Promise<Blob | null>((resolve) =>

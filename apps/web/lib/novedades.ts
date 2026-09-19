@@ -115,6 +115,17 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-09-19-boletas-de-pago-en-tu-cuenta",
+    fecha: "2026-09-19",
+    titulo: "Ahora puedes ver y guardar tus boletas de pago en Dynamic",
+    queMejoro:
+      "Desarrollo Organizacional sube la boleta de pago que entrega el contador, y tú la ves y la guardas en «Boletas», dentro de Lo mío. " +
+      "Cuando hay una nueva, te aparece el aviso en tu Bandeja y un número junto a «Boletas».\n\n" +
+      "Al abrirla puedes pulsar «Confirmar que la recibí»: así queda anotado que la tienes. " +
+      "Si algo de tu boleta no cuadra, avisa a Desarrollo Organizacional.",
+    audiencia: "todos",
+  },
+  {
     id: "2026-09-19-correcciones-historial-y-celular",
     fecha: "2026-09-19",
     titulo: "Correcciones: el historial cuenta lo que pasó, y se usa desde el celular",

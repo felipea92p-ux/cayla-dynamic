@@ -31,7 +31,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ChevronDown } from "lucide-react";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
-import { esRolEncargada, hoyLima, puedeVerTodasLasSedes } from "@cayla-dynamic/shared";
+import { esRolEncargada, etiquetaDeSede, hoyLima, puedeVerTodasLasSedes } from "@cayla-dynamic/shared";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { Cargando, EsqueletoSecciones } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
@@ -41,18 +41,18 @@ import { Insignia } from "@/components/ui/insignia";
 import { TablaEncabezado, Th } from "@/components/ui/tabla";
 import { cx } from "@/components/ui/cx";
 import { traerTodo } from "@/lib/admin/traer-todo";
+import { crearCargaVigente } from "@/lib/admin/carga-vigente";
 import { sinTildes } from "@/lib/sin-tildes";
 import type { HorarioTramo } from "@/lib/admin/jornada-esperada";
 import {
-  addDias, compararIncidencias, detectarIncidencias, estadoDe, lunesDeLaSemana, TIPOS_EN_LOTE, ventanasDeConsulta,
-  type Categoria, type DatosDeteccion, type Incidencia, type TipoIncidencia,
+  addDias, CARGA_COMPLETA, compararIncidencias, coberturaDeCarga, detectarIncidencias, enFrase, estadoDe,
+  lunesDeLaSemana, TIPOS_EN_LOTE, ventanasDeConsulta,
+  type Categoria, type CoberturaDeCarga, type DatosDeteccion, type Incidencia, type TipoIncidencia,
 } from "@/lib/admin/incidencias";
 import {
   IconoIncidencia, NOMBRE_TIPO, REGLA, REGLAS_EN_ORDEN, SIGUE_EL_PERIODO, accionDe, fechaCorta, fechaHoraLima, horaLima,
 } from "@/components/incidencias/presentacion";
 import { EstadoInsignia, PanelIncidencia } from "@/components/incidencias/panel-incidencia";
-
-const HOY = hoyLima();
 
 // ── Periodo ────────────────────────────────────────────────────────────────
 type Periodo = "semana" | "mes" | "30" | "libre";
@@ -61,10 +61,14 @@ const PERIODOS: { clave: Exclude<Periodo, "libre">; etiqueta: string }[] = [
   { clave: "mes", etiqueta: "Este mes" },
   { clave: "30", etiqueta: "Últimos 30 días" },
 ];
-function rangoDe(p: Exclude<Periodo, "libre">): [string, string] {
-  if (p === "semana") return [lunesDeLaSemana(HOY), HOY];
-  if (p === "mes") return [`${HOY.slice(0, 8)}01`, HOY];
-  return [addDias(HOY, -30), HOY];
+// `hoy` se pregunta cada vez y no se guarda en una constante del módulo: un
+// módulo se evalúa una sola vez por carga de página, y una pestaña abierta el
+// viernes que se mira el sábado seguía con la fecha del viernes (los avisos de
+// «hoy» se corrían un día y la jornada que se quedó abierta el viernes no salía).
+function rangoDe(p: Exclude<Periodo, "libre">, hoy: string): [string, string] {
+  if (p === "semana") return [lunesDeLaSemana(hoy), hoy];
+  if (p === "mes") return [`${hoy.slice(0, 8)}01`, hoy];
+  return [addDias(hoy, -30), hoy];
 }
 
 // ── Resumen ────────────────────────────────────────────────────────────────
@@ -91,7 +95,7 @@ interface RevisionPedida {
 interface PracticanteSobreTope {
   persona_id: string; persona: string; sede: string; estado: string; dias_restantes: number | null;
 }
-interface Sede { id: string; codigo: string; nombre: string; activa: boolean }
+interface Sede { id: string; codigo: string; nombre: string; activa: boolean; tipo: string | null; ciudad: string | null }
 interface AceptadaRow {
   persona_id: string; fecha: string; tipo: string; nota: string | null;
   aceptado_por: string; aceptado_at: string; valor: number | null;
@@ -107,8 +111,8 @@ function IncidenciasContenido() {
   const rol = yo?.rol ?? null;
 
   const [periodo, setPeriodo] = useState<Periodo>("30");
-  const [desde, setDesde] = useState(addDias(HOY, -30));
-  const [hasta, setHasta] = useState(HOY);
+  const [desde, setDesde] = useState(() => addDias(hoyLima(), -30));
+  const [hasta, setHasta] = useState(() => hoyLima());
 
   const [incidencias, setIncidencias] = useState<Incidencia[]>([]);
   const [sedes, setSedes] = useState<Sede[]>([]);
@@ -127,6 +131,9 @@ function IncidenciasContenido() {
   const [error, setError] = useState<string | null>(null);
   const [errorAccion, setErrorAccion] = useState<string | null>(null);
   const [avisoLevantadas, setAvisoLevantadas] = useState<string | null>(null);
+  // Qué consultas no contestaron. Un vacío que viene de un error no es «no hay
+  // nada»: ver `coberturaDeCarga` en lib/admin/incidencias.ts.
+  const [carga, setCarga] = useState<CoberturaDeCarga>(CARGA_COMPLETA);
 
   const [busca, setBusca] = useState("");
   const [sedeFiltro, setSedeFiltro] = useState("");
@@ -150,33 +157,39 @@ function IncidenciasContenido() {
     return nombreTipoAusencia.get(codigo) ?? MOTIVOS_FUERA_DE_AUSENCIAS[m] ?? m.replaceAll("_", " ");
   }, [nombreTipoAusencia]);
 
-  const cargar = useCallback(async () => {
+  const cargasVigentes = useRef(crearCargaVigente());
+
+  const cargarDatos = useCallback(async () => {
+    // Cada `await` deja una ventana en la que puede haber empezado otra carga
+    // más nueva; solo la última escribe (ver carga-vigente.ts).
+    const idCarga = cargasVigentes.current.empezar();
     const supabase = createAdminSupabaseClient();
     const { data: sesion } = await supabase.auth.getSession();
     if (!sesion.session) { router.replace("/admin/login"); return; }
     setCargando(true);
 
     // Qué rango pide cada consulta: vive junto a la detección para que no se separen.
-    const v = ventanasDeConsulta(HOY, desde, hasta);
+    const hoy = hoyLima();
+    const v = ventanasDeConsulta(hoy, desde, hasta);
 
     const [
       { data, error: errData },
-      { data: extraData },
+      { data: extraData, error: errExtra },
       { data: tardias, error: errTardias },
       { data: sedesData, error: errSedes },
       { data: encargadasData, error: errEnc },
       { data: metasData, error: errMetas },
       { data: horariosData, error: errHorarios },
       { data: turnosData, error: errTurnos },
-      { data: aceptadasData },
-      { data: personasData },
-      { data: faltasData },
-      { data: revisionesData },
+      { data: aceptadasData, error: errAceptadas },
+      { data: personasData, error: errPersonas },
+      { data: faltasData, error: errFaltas },
+      { data: revisionesData, error: errRevisiones },
       { data: levTardData, error: errLevTard },
-      { data: horasSemanaData },
-      { data: diasRachaData },
-      { data: contratosData },
-      { data: tiposData },
+      { data: horasSemanaData, error: errHoras },
+      { data: diasRachaData, error: errRacha },
+      { data: contratosData, error: errContratos },
+      { data: tiposData, error: errTipos },
     ] = await Promise.all([
       // Por lotes: PostgREST cortaba en 1000 filas sin avisar.
       traerTodo<unknown>((ini, fin) =>
@@ -194,14 +207,17 @@ function IncidenciasContenido() {
           .from("jornadas")
           // `en_planilla` viaja para que el patrón se quede exclusivo de quien está en planilla (0413).
           .select("persona_id, fecha, entrada_ts, personas:persona_id(nombres, apellidos, en_planilla, estado, sedes:sede_base_id(codigo))")
-          .gte("fecha", v.desdePatron).lte("fecha", HOY)
+          .gte("fecha", v.desdePatron).lte("fecha", hoy)
           .gt("minutos_tarde", 0)
           .order("fecha", { ascending: false })
           .order("persona_id")
           .range(ini, fin),
       ),
-      supabase.from("sedes").select("id, codigo, nombre, activa").order("codigo"),
-      supabase.from("personas").select("id, sede_base_id").eq("rol", "supervisor_sede").eq("estado", "activo"),
+      supabase.from("sedes").select("id, codigo, nombre, activa, tipo, ciudad").order("codigo"),
+      // Quienes PODRÍAN contar como líder (líder de equipo, marca de piso o administración);
+      // quién cuenta en cada sede lo decide cuentaEnCobertura, dentro de la detección.
+      supabase.from("personas").select("id, sede_base_id, rol, tipo_vinculo, es_encargada_piso")
+        .eq("estado", "activo").or("rol.eq.supervisor_sede,es_encargada_piso.eq.true,rol.in.(admin,lider_do)"),
       supabase.from("metas_cobertura").select("sede_id, dia_semana, meta_encargadas").gt("meta_encargadas", 0),
       supabase.from("horarios_asignados").select("persona_id, hora_entrada, hora_salida, dias_laborables, horario_por_dia, almuerzo_min_minutos, vigente_desde, vigente_hasta").lte("vigente_desde", v.domingoSiguiente).or(`vigente_hasta.is.null,vigente_hasta.gte.${v.lunesActual}`),
       supabase.from("turnos").select("persona_id, fecha, hora_entrada, hora_salida, es_descanso").gte("fecha", v.lunesActual).lte("fecha", v.domingoSiguiente),
@@ -216,13 +232,14 @@ function IncidenciasContenido() {
       supabase.rpc("fn_faltas", { p_desde: desde, p_hasta: hasta }),
       supabase.rpc("fn_revisiones_pedidas", { p_solo_pendientes: true }),
       // Falla DURA para el patrón (se apaga entero), suave para el resto.
-      supabase.from("tardanzas_justificadas").select("persona_id, fecha").gte("fecha", v.desdePatron).lte("fecha", HOY),
+      supabase.from("tardanzas_justificadas").select("persona_id, fecha").gte("fecha", v.desdePatron).lte("fecha", hoy),
       traerTodo<unknown>((ini, fin) =>
         supabase
           .from("jornadas")
           .select("persona_id, fecha, horas_trabajadas, estado, personas:persona_id(nombres, apellidos, tipo_vinculo, practicante_modalidad, estado, sedes:sede_base_id(codigo))")
-          .gte("fecha", v.desdeHoras).lte("fecha", HOY)
+          .gte("fecha", v.desdeHoras).lte("fecha", hoy)
           .gt("horas_trabajadas", 0)
+          .order("fecha")
           .order("persona_id")
           .range(ini, fin),
       ),
@@ -230,8 +247,9 @@ function IncidenciasContenido() {
         supabase
           .from("jornadas")
           .select("persona_id, fecha, personas:persona_id(nombres, apellidos, estado, sedes:sede_base_id(codigo))")
-          .gte("fecha", v.desdeRacha).lte("fecha", HOY)
+          .gte("fecha", v.desdeRacha).lte("fecha", hoy)
           .gt("horas_trabajadas", 0)
+          .order("fecha")
           .order("persona_id")
           .range(ini, fin),
       ),
@@ -239,12 +257,19 @@ function IncidenciasContenido() {
       supabase.from("tipos_ausencia").select("codigo, nombre"),
     ]);
 
+    if (!cargasVigentes.current.vigente(idCarga)) return; // llegó tarde: otra carga más nueva ya está en camino
     if (errData || errTardias || errSedes || errEnc || errMetas || errHorarios || errTurnos) {
       setError((errData ?? errTardias ?? errSedes ?? errEnc ?? errMetas ?? errHorarios ?? errTurnos)!.message);
       setCargando(false);
       return; // no pisa la lista con datos parciales
     }
     setError(null);
+    // Lo que falló y no frena la pantalla: se dice, no se calla.
+    setCarga(coberturaDeCarga({
+      faltas: errFaltas, salidas: errExtra, excesos: errHoras, rachas: errRacha,
+      vistos_buenos: errAceptadas, revisiones: errRevisiones, convenios: errContratos,
+      nombres: errPersonas, motivos: errTipos,
+    }));
     setAvisoLevantadas(
       errLevTard
         ? `No se pudo comprobar qué tardanzas ya fueron levantadas (${errLevTard.message}). ` +
@@ -262,7 +287,7 @@ function IncidenciasContenido() {
     const sedesRows = (sedesData as Sede[] | null) ?? [];
 
     setIncidencias(detectarIncidencias({
-      hoy: HOY,
+      hoy,
       jornadasRango: (data as DatosDeteccion["jornadasRango"] | null) ?? [],
       salidaTemprana: (extraData as unknown as DatosDeteccion["salidaTemprana"] | null) ?? [],
       tardanzas: (tardias as DatosDeteccion["tardanzas"] | null) ?? [],
@@ -271,7 +296,7 @@ function IncidenciasContenido() {
       diasRacha: (diasRachaData as DatosDeteccion["diasRacha"] | null) ?? [],
       aceptadas: aceptadasRows.filter((a) => a.anulada_at === null),
       sedes: sedesRows,
-      encargadas: (encargadasData as { id: string; sede_base_id: string }[] | null) ?? [],
+      encargadas: (encargadasData as DatosDeteccion["encargadas"] | null) ?? [],
       metas: (metasData as { sede_id: string; dia_semana: number; meta_encargadas: number }[] | null) ?? [],
       horarios: (horariosData as HorarioTramo[] | null) ?? [],
       turnos: (turnosData as DatosDeteccion["turnos"] | null) ?? [],
@@ -297,8 +322,41 @@ function IncidenciasContenido() {
     setCargando(false);
   }, [router, desde, hasta]);
 
+  // Una excepción (no un `error` de Supabase, que ya se maneja arriba) dejaba el
+  // esqueleto de carga para siempre, sin decir nada.
+  const cargar = useCallback(async () => {
+    try {
+      await cargarDatos();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error inesperado al cargar.");
+      setCargando(false);
+    }
+  }, [cargarDatos]);
+
   // eslint-disable-next-line react-hooks/set-state-in-effect -- cargar al montar y al mover el periodo, mismo patrón que el resto del panel.
   useEffect(() => { void cargar(); }, [cargar]);
+
+  // Si la pestaña estuvo abierta y cambió el día de Lima, al volver a mirarla se
+  // recalcula el periodo y se recarga. No hay un reloj corriendo: solo importa
+  // cuando alguien mira, y un intervalo gastaría batería en el celular.
+  const diaVisto = useRef(hoyLima());
+  useEffect(() => {
+    function alVolver() {
+      if (document.visibilityState !== "visible") return;
+      const hoy = hoyLima();
+      if (hoy === diaVisto.current) return;
+      diaVisto.current = hoy;
+      if (periodo === "libre") { void cargar(); return; } // un rango elegido a mano no se mueve
+      const [d, h] = rangoDe(periodo, hoy);
+      setDesde(d); setHasta(h); // cambia el rango, y con él se recarga sola
+    }
+    document.addEventListener("visibilitychange", alVolver);
+    window.addEventListener("focus", alVolver);
+    return () => {
+      document.removeEventListener("visibilitychange", alVolver);
+      window.removeEventListener("focus", alVolver);
+    };
+  }, [periodo, cargar]);
 
   // ── Alcance: lo que esta persona puede ver ─────────────────────────────
   const codigoDeMiSede = sedes.find((s) => s.id === yo?.sedeBaseId)?.codigo ?? null;
@@ -340,7 +398,11 @@ function IncidenciasContenido() {
     [alcance],
   );
   const sedesDeLaVista = [...new Set(visibles.map((i) => i.sede))].sort();
-  const nombreSede = (codigo: string) => sedes.find((s) => s.codigo === codigo)?.nombre ?? null;
+  // Cómo se dice una sede: UNA función para todas las pantallas (packages/shared/src/sedes.ts).
+  // El código es la llave y no describe nada («003» es el de la Tienda de Lima); lo que se
+  // lee es «Taller · Lima» / «Tienda · Lima». Un código sin sede en la tabla se queda como está.
+  const sedePorCodigo = useMemo(() => new Map(sedes.map((s) => [s.codigo, etiquetaDeSede(s)])), [sedes]);
+  const rotuloDeSede = (codigo: string) => sedePorCodigo.get(codigo)?.titulo ?? codigo;
 
   const hayFiltros = busca !== "" || sedeFiltro !== "" || tipoFiltro !== "" || categoria !== "" || estadoFiltro !== "por_revisar";
   function limpiarFiltros() {
@@ -399,7 +461,7 @@ function IncidenciasContenido() {
   const incidenciaAbierta = abierta ? incidencias.find((i) => i.clave === abierta) ?? null : null;
 
   function elegirPeriodo(p: Exclude<Periodo, "libre">) {
-    const [d, h] = rangoDe(p);
+    const [d, h] = rangoDe(p, hoyLima());
     setPeriodo(p); setDesde(d); setHasta(h);
   }
 
@@ -516,6 +578,7 @@ function IncidenciasContenido() {
             <span className="font-serif text-4xl leading-none tabular-nums text-tinta">{cargando ? "—" : porRevisar.length}</span>
             <span className="text-sm text-taupe">
               por revisar{!cargando && resueltas > 0 && <> · {resueltas} ya resuelta{resueltas === 1 ? "" : "s"}</>}
+              {!cargando && carga.duras.length > 0 && <> · incompleto</>}
             </span>
           </button>
           {CATEGORIAS.map((c, idx) => {
@@ -534,8 +597,12 @@ function IncidenciasContenido() {
                   activa ? "bg-hueso" : "hover:bg-crema/60",
                 )}
               >
-                <span className="font-serif text-3xl leading-none tabular-nums text-tinta">{cargando ? "—" : n}</span>
-                <span className="text-sm text-taupe">{c.etiqueta}</span>
+                <span className="font-serif text-3xl leading-none tabular-nums text-tinta">
+                  {cargando || carga.categoriasSinComprobar.has(c.clave) ? "—" : n}
+                </span>
+                <span className="text-sm text-taupe">
+                  {c.etiqueta}{!cargando && carga.categoriasSinComprobar.has(c.clave) && <> · sin comprobar</>}
+                </span>
               </button>
             );
           })}
@@ -556,7 +623,7 @@ function IncidenciasContenido() {
               <CampoSelect id="incidencias-sede" aria-label="Sede" value={sedeFiltro} onChange={(e) => setSedeFiltro(e.target.value)}>
                 <option value="">Todas las sedes</option>
                 {sedesDelFiltro.map((s) => (
-                  <option key={s} value={s}>{s}{nombreSede(s) ? ` · ${nombreSede(s)}` : ""}</option>
+                  <option key={s} value={s}>{sedePorCodigo.get(s)?.texto ?? s}</option>
                 ))}
               </CampoSelect>
             )}
@@ -624,6 +691,13 @@ function IncidenciasContenido() {
             <Boton variante="enlace" onClick={() => void cargar()}>Reintentar</Boton>
           </div>
         )}
+        {carga.faltantes.length > 0 && (
+          <div className="rounded-control border border-ambar/30 bg-ambar/10 px-4 py-3 text-sm">
+            <strong className="font-medium">No se pudo comprobar {enFrase(carga.faltantes)}.</strong>{" "}
+            {carga.duras.length > 0 && "Eso no significa que no haya nada. "}
+            <Boton variante="enlace" onClick={() => void cargar()}>Reintentar</Boton>
+          </div>
+        )}
         {errorAccion && (
           <div className="flex items-start gap-3 rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo-profundo">
             <span className="flex-1">{errorAccion}</span>
@@ -635,8 +709,11 @@ function IncidenciasContenido() {
 
         {!cargando && !error && visibles.length === 0 && (
           <div className="flex flex-col items-center gap-2 rounded-superficie border border-sand bg-papel px-6 py-10 text-center">
+            {/* «Todo revisado» afirma que se comprobó. Si una fuente dura falló, no se comprobó. */}
             <p className="font-serif text-xl text-tinta">
-              {hayFiltros ? "No hay incidencias con estos filtros." : "Todo revisado en este periodo."}
+              {carga.duras.length > 0
+                ? `No se pudo comprobar ${enFrase(carga.duras)}.`
+                : hayFiltros ? "No hay incidencias con estos filtros." : "Todo revisado en este periodo."}
             </p>
             {hayFiltros
               ? <Boton variante="enlace" className="text-sm text-taupe" onClick={limpiarFiltros}>Limpiar filtros</Boton>
@@ -663,8 +740,8 @@ function IncidenciasContenido() {
                     onClick={() => setPlegadas((p) => { const n = new Set(p); if (n.has(sede)) n.delete(sede); else n.add(sede); return n; })}
                     className="flex w-full flex-wrap items-baseline gap-x-3 gap-y-1 px-5 py-3.5 text-left transition-colors hover:bg-crema/60"
                   >
-                    <span className="font-serif text-xl text-tinta">{sede}</span>
-                    {nombreSede(sede) && <span className="text-sm text-taupe">{nombreSede(sede)}</span>}
+                    <span className="font-serif text-xl text-tinta">{rotuloDeSede(sede)}</span>
+                    {rotuloDeSede(sede) !== sede && <span className="text-sm text-taupe">{sede}</span>}
                     <span className="text-sm text-taupe">· {casos.length} caso{casos.length === 1 ? "" : "s"}</span>
                     {altas > 0 && <Insignia variante="alerta" tamano="sm">{altas} alta{altas === 1 ? "" : "s"}</Insignia>}
                     <ChevronDown aria-hidden className={cx("ml-auto size-4 self-center text-taupe transition-transform", !abiertaSede && "-rotate-90")} />
@@ -872,6 +949,7 @@ function IncidenciasContenido() {
           onCerrar={() => setAbierta(null)}
           volverElFocoA={volverFoco}
           motivoNoPuedeActuar={incidenciaAbierta ? motivoNoPuede(incidenciaAbierta) : null}
+          rotuloDeSede={rotuloDeSede}
           etiquetaMotivo={etiquetaMotivo}
           nombrePorId={nombrePorId}
           onCambio={async (claveNueva) => {
