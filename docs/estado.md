@@ -6,6 +6,31 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-09-19 — Incidencias: el lote pide confirmación y dirección sale del exceso · SIN SQL · SIN FUSIONAR
+
+**No hay SQL: solo pantalla.** Fusionar es publicar (`main` se despliega sola). Cierra lo
+que la auditoría de `/admin/incidencias` del 2026-09-19 dejó decidido y que `main` aún no
+tenía. Los otros siete arreglos de esa auditoría (lecturas que fallan, respuesta vigente,
+«hoy» renovable, orden único, déficit con `cuentaEnCobertura`, sede con `etiquetaDeSede`,
+rastro en hora de Lima) **ya estaban fusionados** por otra sesión: una primera versión de
+esta rama los repetía y se descartó al integrar `main` (queda respaldada en la rama local
+`respaldo-incidencias-4b0b826c`, que no se sube).
+
+- **El lote de excesos y rachas se mantiene (decisión de Felipe), con confirmación:** lista
+  nombre, sede, fecha y horas o días, dice que es un incumplimiento de la empresa, y que la
+  compensación (recargo 0185, sobretasa 0280) se paga en planilla y esta constancia no la
+  comprueba. Los textos del visto bueno individual dicen lo mismo.
+- **Personal de dirección fuera del aviso de exceso de 48 h** (decisión de Felipe); sigue en
+  la racha sin descanso, que es otra norma y sí se le paga.
+- **En celular se elige caso por caso** para el lote (antes solo existía «todas»).
+- **Si los vistos buenos no se pudieron leer, el lote se apaga:** sin verlos, todo lo revisado
+  reaparece como pendiente y el lote lo reemplazaría en silencio.
+
+**Cómo se verificó, y qué NO:** pruebas, `tsc` y `eslint` en verde, y una mutación a
+propósito de la exclusión de dirección que la prueba nueva atrapó. **No se vio en pantalla**
+(sin `.env.local` ni pila local): conviene mirar la confirmación del lote y la columna de
+casillas a 375 px, también en modo oscuro, antes de fusionar.
+
 ## 2026-09-19 — Las boletas oficiales se suben y se publican (0482) · MIGRACIÓN PEGADA Y VERIFICADA · FUSIONADA · PANTALLAS SIN PROBAR
 
 **Hay SQL: la [0482](../supabase/migrations/0482_las_boletas_oficiales_se_suben_y_se_publican.sql),

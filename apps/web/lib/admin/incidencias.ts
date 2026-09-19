@@ -160,6 +160,8 @@ interface PersonaEmbebida {
   en_planilla?: boolean | null;
   tipo_vinculo?: string | null;
   practicante_modalidad?: string | null;
+  /** Personal de dirección (0187): el D.S. 007-2002-TR art. 5 lo excluye de la jornada máxima. */
+  personal_direccion?: boolean | null;
   estado?: string | null;
   sedes: { codigo: string } | null;
 }
@@ -327,6 +329,10 @@ export function detectarIncidencias(d: DatosDeteccion): Incidencia[] {
   const porPersonaHoras = new Map<string, { dias: { fecha: string; horas: number }[]; sinConfirmar: Set<string>; fila: ConPersona }>();
   for (const j of d.horasVentana) {
     if (!estaActiva(j)) continue;
+    // Decisión de Felipe (2026-09-19): al personal de dirección no se le avisa el
+    // exceso de 48 h, porque la ley lo excluye de la jornada máxima. Sigue en la
+    // racha sin descanso, que es otra norma y que sí se le paga (0187 y 0280).
+    if (j.personas?.personal_direccion === true) continue;
     const dia = { fecha: j.fecha, horas: Number(j.horas_trabajadas) || 0 };
     const pendiente = j.estado === "auto_cerrada_pendiente";
     const prev = porPersonaHoras.get(j.persona_id);
