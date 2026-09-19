@@ -1112,7 +1112,7 @@ export default function DisciplinaPage() {
         </div>
 
         {puedeResumir && (
-          <p className="mb-3 flex flex-wrap items-baseline gap-x-2 text-sm text-taupe" data-hoy>
+          <p className="mb-3 flex flex-wrap items-baseline gap-x-2 text-sm text-taupe">
             <span className="font-medium text-tinta">Para hoy:</span>
             {porHacer.length === 0
               ? <span>nada por hacer aquí.</span>
