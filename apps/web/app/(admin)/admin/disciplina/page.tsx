@@ -141,15 +141,16 @@ function PasosBorrador({ etapa }: { etapa: (typeof ETAPAS)[number] }) {
 }
 
 function TabBtn({ valor, tab, setTab, cuenta, urgente, children }: {
-  valor: Pestana; tab: Pestana; setTab: (t: Pestana) => void; cuenta: number; urgente?: boolean; children: ReactNode;
+  // `null` = no se pudo leer. Un «0» sobre datos que no se leyeron se lee como un hecho.
+  valor: Pestana; tab: Pestana; setTab: (t: Pestana) => void; cuenta: number | null; urgente?: boolean; children: ReactNode;
 }) {
   return (
-    <button type="button" role="tab" id={`tab-${valor}`} aria-selected={tab === valor} aria-controls={`panel-${valor}`}
+    <button type="button" role="tab" id={`tab-${valor}`} title={cuenta === null ? "No se pudo leer" : undefined} aria-selected={tab === valor} aria-controls={`panel-${valor}`}
       onClick={() => setTab(valor)}
       className={cx("-mb-px inline-flex items-center gap-2 whitespace-nowrap border-b-2 px-3 py-2 text-sm transition-colors",
         tab === valor ? "border-rojo font-medium text-tinta" : "border-transparent text-taupe hover:text-tinta")}>
       {children}
-      <Insignia variante={urgente && cuenta > 0 ? "contador" : "neutral"} tamano="sm" punto={false} className="tabular-nums">{cuenta}</Insignia>
+      <Insignia variante={urgente && cuenta !== null && cuenta > 0 ? "contador" : "neutral"} tamano="sm" punto={false} className="tabular-nums">{cuenta ?? "?"}</Insignia>
     </button>
   );
 }
@@ -170,10 +171,10 @@ function Vacio({ children }: { children: ReactNode }) {
   return <p className="border-t border-dashed border-sand py-2 text-sm text-taupe">{children}</p>;
 }
 
-function FalloLectura({ que }: { que: string }) {
+function FalloLectura({ que, consecuencia }: { que: string; consecuencia?: string }) {
   return (
     <p className="mb-3 rounded-control bg-rojo/10 px-3 py-2 text-sm text-rojo-profundo">
-      No se pudo leer {que}. <strong>Esto NO significa que no haya nadie</strong> — significa que no se pudo mirar.
+      No se pudo leer {que}. <strong>{consecuencia ?? "Esto NO significa que no haya nadie"}</strong> — significa que no se pudo mirar.
       Vuelve a cargar la página; si sigue igual, avisa antes de dar el periodo por revisado.
     </p>
   );
@@ -198,6 +199,10 @@ export default function DisciplinaPage() {
   const [falloTard, setFalloTard] = useState(false);
   const [falloFaltas, setFalloFaltas] = useState(false);
   const [falloDocs, setFalloDocs] = useState(false);
+  // Las dos lecturas «tolerantes»: sin ellas la pantalla funciona, pero MIENTE en silencio — sin
+  // `personas` no se sabe quién cesó ni cómo se llama; sin adjuntos todo entregado parece sin cargo.
+  const [falloPersonas, setFalloPersonas] = useState(false);
+  const [falloAdjuntos, setFalloAdjuntos] = useState(false);
   const [docs, setDocs] = useState<DocDisciplina[]>([]);
   const [personas, setPersonas] = useState<Map<string, PersonaInfo>>(new Map());
   const [sedes, setSedes] = useState<string[]>([]);
@@ -271,7 +276,7 @@ export default function DisciplinaPage() {
     if (!sesion.session) { router.replace("/admin/login"); return []; }
     const [
       { data: t, error: eT }, { data: f, error: eF }, { data: d, error: eD },
-      { data: p }, { data: s }, { data: ta },
+      { data: p, error: eP }, { data: s }, { data: ta },
     ] = await Promise.all([
       // Mes en curso: sin argumentos. Uno cerrado: `p_as_of` en su último día (0067).
       supabase.rpc("fn_tardanzas_resumen",
@@ -290,11 +295,13 @@ export default function DisciplinaPage() {
       eT ? mensajeDeError(eT, "cargar la cuenta de tardanzas") : null,
       eF ? mensajeDeError(eF, "cargar la cuenta de faltas") : null,
       eD ? mensajeDeError(eD, "cargar el legajo") : null,
+      eP ? mensajeDeError(eP, "cargar a las personas") : null,
     ].filter(Boolean);
     if (fallos.length) avisar("error", fallos.join(" · "));
     setFalloTard(!!eT);
     setFalloFaltas(!!eF);
     setFalloDocs(!!eD);
+    setFalloPersonas(!!eP);
 
     // Doble casteo: `types.ts` es generado y no describe `sin_medir` (ver 0184).
     setTardanzas(Array.isArray(t) ? (t as unknown as TardanzaRow[]) : []);
@@ -315,13 +322,15 @@ export default function DisciplinaPage() {
     setNombresAusencia(tipos);
 
     // Consulta aparte y tolerante: sin adjuntos la pantalla sigue funcionando.
-    const { data: adj } = await supabase
+    const { data: adj, error: eAdj } = await supabase
       .from("expediente_adjuntos")
       .select("id, documento_id, storage_path, tipo, nota, subido_at")
       .order("subido_at", { ascending: false });
     const porDoc = new Map<string, Adjunto[]>();
     for (const a of (adj as Adjunto[]) ?? []) porDoc.set(a.documento_id, [...(porDoc.get(a.documento_id) ?? []), a]);
     setAdjuntos(porDoc);
+    setFalloAdjuntos(!!eAdj);
+    if (eAdj) avisar("error", mensajeDeError(eAdj, "cargar los cargos archivados"));
 
     const borradores = lista.filter((x) => x.estado === "borrador");
     const [pares, evs, { data: cfg }, { data: sc }] = await Promise.all([
@@ -1046,22 +1055,32 @@ export default function DisciplinaPage() {
     );
   }
 
-  const conteo = {
-    revision: alcanzaron.length,
-    borradores: borradores.length,
-    entregar: porEntregar.length,
-    historial: historial.length,
+  const falloConteo = falloTard || falloFaltas;
+  const conteo: Record<Pestana, number | null> = {
+    revision: falloConteo ? null : alcanzaron.length,
+    borradores: falloDocs ? null : borradores.length,
+    entregar: falloDocs ? null : porEntregar.length,
+    historial: falloDocs ? null : historial.length,
   };
+  // Lo que vale en las pestañas de documentos: el legajo, las personas y los papeles archivados.
+  const avisosDeLegajo = (
+    <>
+      {falloDocs && <FalloLectura que="el legajo" />}
+      {falloPersonas && <FalloLectura que="a las personas (nombres, sedes y quién ya cesó)" consecuencia="Los nombres y el estado de cese que se ven pueden estar incompletos" />}
+      {falloAdjuntos && <FalloLectura que="los cargos y papeles archivados" consecuencia="Un documento que aparece sin su cargo puede sí tenerlo" />}
+    </>
+  );
 
   // Qué hay por hacer HOY, en una línea. La pantalla abre en «Requieren revisión», que puede
   // decir 0 mientras lo que espera —un borrador por trabajar— está en otra pestaña; quien la abre
   // por primera vez no tiene cómo saberlo. Con un fallo de lectura no se afirma nada: un «no hay
   // nada» construido sobre datos que no se pudieron leer se leería como un hecho.
   const porHacer: Array<{ tab: Pestana; texto: string }> = [];
-  if (conteo.revision > 0) porHacer.push({ tab: "revision", texto: `${conteo.revision} caso${conteo.revision === 1 ? "" : "s"} por revisar` });
-  if (conteo.borradores > 0) porHacer.push({ tab: "borradores", texto: `${conteo.borradores} borrador${conteo.borradores === 1 ? "" : "es"} por trabajar` });
-  if (conteo.entregar > 0) porHacer.push({ tab: "entregar", texto: `${conteo.entregar} documento${conteo.entregar === 1 ? "" : "s"} por entregar o cerrar` });
-  const puedeResumir = !cargando && !falloTard && !falloFaltas && !falloDocs && !hayFiltro;
+  const nRevision = alcanzaron.length, nBorradores = borradores.length, nEntregar = porEntregar.length;
+  if (nRevision > 0) porHacer.push({ tab: "revision", texto: `${nRevision} caso${nRevision === 1 ? "" : "s"} por revisar` });
+  if (nBorradores > 0) porHacer.push({ tab: "borradores", texto: `${nBorradores} borrador${nBorradores === 1 ? "" : "es"} por trabajar` });
+  if (nEntregar > 0) porHacer.push({ tab: "entregar", texto: `${nEntregar} documento${nEntregar === 1 ? "" : "s"} por entregar o cerrar` });
+  const puedeResumir = !cargando && !falloTard && !falloFaltas && !falloDocs && !falloPersonas && !falloAdjuntos && !hayFiltro;
 
   // ── Render ─────────────────────────────────────────────────────────────
   return (
@@ -1145,9 +1164,10 @@ export default function DisciplinaPage() {
               <>
                 {falloTard && <FalloLectura que="la cuenta de tardanzas" />}
                 {falloFaltas && <FalloLectura que="la cuenta de faltas" />}
+                {falloPersonas && <FalloLectura que="a las personas (nombres, sedes y quién ya cesó)" consecuencia="Los nombres y las sedes que se ven pueden estar incompletos" />}
                 <Grupo titulo="Alcanzaron un umbral" detalle="Revisar el caso no genera nada: el borrador se prepara desde ahí.">
                   {alcanzaron.length === 0 ? (
-                    <Vacio>
+                    falloConteo ? null : <Vacio>
                       {hayFiltro
                         ? "Nadie con estos filtros."
                         : `Nadie alcanza su umbral de tardanzas en ${nombreMes} ni tiene faltas por revisar.`}
@@ -1174,7 +1194,7 @@ export default function DisciplinaPage() {
                 {(seguimiento.length > 0 || !hayFiltro) && (
                   <Grupo titulo="En seguimiento" detalle="Cerca del umbral o a la espera de otra decisión. No admiten documento.">
                     {seguimiento.length === 0 ? (
-                      <Vacio>Nadie cerca de su umbral en {nombreMes}.</Vacio>
+                      falloConteo ? null : <Vacio>Nadie cerca de su umbral en {nombreMes}.</Vacio>
                     ) : (
                       <ListaCasos etiqueta="En seguimiento" plantilla={PLANTILLA} encabezados={encabezados("Motivo", "Progreso", "Situación", "")}>
                         {seguimiento.map((x) => {
@@ -1199,7 +1219,7 @@ export default function DisciplinaPage() {
             {/* ── Borradores ─────────────────────────────────────────── */}
             {tab === "borradores" && (
               <>
-                {falloDocs && <FalloLectura que="el legajo" />}
+                {avisosDeLegajo}
                 {!exigeDescargo && (
                   <BannerAviso variante="advertencia" titulo="Estos borradores se firman sin esperar el plazo de descargo" className="mb-4 p-4">
                     <p className="text-tinta">
@@ -1210,7 +1230,7 @@ export default function DisciplinaPage() {
                   </BannerAviso>
                 )}
                 {borradores.length === 0 ? (
-                  <Vacio>{hayFiltro ? "No hay borradores con estos filtros." : "No hay borradores pendientes."}</Vacio>
+                  falloDocs ? null : <Vacio>{hayFiltro ? "No hay borradores con estos filtros." : "No hay borradores pendientes."}</Vacio>
                 ) : (
                   <ListaCasos etiqueta="Borradores" plantilla={PLANTILLA} encabezados={encabezados("Documento", "Paso", "Situación", "")}>
                     {borradores.map((d) => {
@@ -1244,10 +1264,10 @@ export default function DisciplinaPage() {
             {/* ── Por entregar ───────────────────────────────────────── */}
             {tab === "entregar" && (
               <>
-                {falloDocs && <FalloLectura que="el legajo" />}
+                {avisosDeLegajo}
                 <Grupo titulo="Firmados sin entregar" detalle="Un documento firmado y no entregado todavía no produce efecto (56.2).">
                   {firmados.length === 0 ? (
-                    <Vacio>{hayFiltro ? "Ninguno con estos filtros." : "No hay documentos firmados pendientes de entrega."}</Vacio>
+                    falloDocs ? null : <Vacio>{hayFiltro ? "Ninguno con estos filtros." : "No hay documentos firmados pendientes de entrega."}</Vacio>
                   ) : (
                     <ListaCasos etiqueta="Firmados sin entregar" plantilla={PLANTILLA} encabezados={encabezados("Documento", "Firmado", "Situación", "")}>
                       {firmados.map((d) => {
@@ -1310,9 +1330,9 @@ export default function DisciplinaPage() {
             {/* ── Historial ──────────────────────────────────────────── */}
             {tab === "historial" && (
               <>
-                {falloDocs && <FalloLectura que="el legajo" />}
+                {avisosDeLegajo}
                 {historial.length === 0 ? (
-                  <Vacio>{hayFiltro ? "Nada en el historial con estos filtros." : "Todavía no hay documentos cerrados."}</Vacio>
+                  falloDocs ? null : <Vacio>{hayFiltro ? "Nada en el historial con estos filtros." : "Todavía no hay documentos cerrados."}</Vacio>
                 ) : (
                   <ListaCasos etiqueta="Historial" plantilla={PLANTILLA} encabezados={encabezados("Documento", "Desenlace", "Estado", "")}>
                     {historial.map((d) => {
