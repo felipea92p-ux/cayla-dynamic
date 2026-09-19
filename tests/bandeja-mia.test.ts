@@ -613,9 +613,10 @@ describe("armarBandeja · visto (0473)", () => {
   });
 });
 
-// ── El bono de cumpleaños (0477/0478) ───────────────────────────────────────
-// Pedirlo es firmar su constancia, y DO confirma después la transferencia. Lo
-// que se defiende:
+// ── El bono de cumpleaños (0477/0478/0479) ──────────────────────────────────
+// Pedirlo es firmar su constancia; desde la 0479 el bono entra a su boleta, y
+// solo si no había periodo abierto queda para que DO lo transfiera. Lo que se
+// defiende:
 //   · le toca a ELLA solo en su mes, o después si se le pasó — y lo decide
 //     `fn_mi_bono_cumpleanos`, no el `bono_estado` del tablero (que se lo
 //     ofrecería a una practicante);
@@ -663,6 +664,47 @@ describe("armarBandeja · bono de cumpleaños", () => {
     expect(b.avisos).toBe(0);
   });
 
+  it("en la boleta: esperando, con el periodo que la paga, y no cuenta", () => {
+    const b = armarBandeja({
+      ...VACIO,
+      bono: bono({
+        estado: "en_boleta", documento_id: "d1", pedido_el: "2026-09-06",
+        via: "boleta", periodo_fin: "2026-09-28",
+      }),
+    }, HOY);
+    expect(b.pendientes).toHaveLength(0);
+    expect(b.esperando).toHaveLength(1);
+    expect(b.esperando[0].titulo).toBe("Tu bono de cumpleaños va en tu boleta");
+    expect(b.esperando[0].detalle).toContain("28 de setiembre");
+    expect(b.esperando[0].detalle).toContain("tu planilla");
+    expect(b.esperando[0].detalle).not.toContain("transfer");
+    expect(b.avisos).toBe(0);
+  });
+
+  it("en la boleta, sin periodo_fin (base anterior a la 0479): no se rompe ni inventa fecha", () => {
+    const b = armarBandeja({
+      ...VACIO, bono: bono({ estado: "en_boleta", documento_id: "d1", pedido_el: "2026-09-06" }),
+    }, HOY);
+    expect(b.esperando).toHaveLength(1);
+    expect(b.esperando[0].detalle).not.toContain("periodo que cierra");
+  });
+
+  it("pagado con la planilla: respuesta con el periodo (sin día de transferencia inventado)", () => {
+    const b = armarBandeja({
+      ...VACIO,
+      bono: bono({
+        estado: "entregado", documento_id: "d1", pedido_el: "2026-09-06",
+        entregado_el: null, via: "boleta", periodo_fin: "2026-09-28",
+      }),
+    }, HOY);
+    expect(b.respuestas).toHaveLength(1);
+    expect(b.respuestas[0].titulo).toBe("Tu bono de cumpleaños se pagó con tu planilla");
+    expect(b.respuestas[0].detalle).toContain("28 de setiembre");
+    expect(b.respuestas[0].detalle).toContain("S/");
+    expect(b.respuestas[0].nuevo).toBe(false);
+    expect(b.avisos).toBe(0);
+  });
+
   it("transferido tras pedirlo: respuesta con fecha y monto, sin número en el botón", () => {
     const b = armarBandeja({
       ...VACIO,
@@ -691,7 +733,7 @@ describe("mostrarBonoEnInfo", () => {
   });
 
   it("va cuando hay algo que hacer o que esperar", () => {
-    for (const e of ["este_mes", "vencido", "pedido"] as const) expect(mostrarBonoEnInfo(b(e), HOY)).toBe(true);
+    for (const e of ["este_mes", "vencido", "pedido", "en_boleta"] as const) expect(mostrarBonoEnInfo(b(e), HOY)).toBe(true);
   });
 
   it("entregado: solo en el mes de su cumpleaños", () => {
@@ -707,7 +749,7 @@ describe("mostrarBonoEnInfo", () => {
   it("el botón se habilita con la misma condición que exige la base", () => {
     expect(puedePedirBono(b("este_mes"))).toBe(true);
     expect(puedePedirBono(b("vencido"))).toBe(true);
-    for (const e of ["pedido", "entregado", "proximo", "sin_fecha", "no_aplica"] as const) {
+    for (const e of ["pedido", "en_boleta", "entregado", "proximo", "sin_fecha", "no_aplica"] as const) {
       expect(puedePedirBono(b(e))).toBe(false);
     }
   });

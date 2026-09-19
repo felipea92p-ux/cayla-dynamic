@@ -518,7 +518,7 @@ export function armarBandeja(fuentes: FuentesBandeja, hoy: string = hoyLima()): 
         respuesta: null,
         detalle: b.estado === "vencido"
           ? `${monto}Ya pasó tu cumpleaños y todavía no lo pides: aún estás a tiempo.`
-          : `${monto}Es el mes de tu cumpleaños. Lo pides firmando tu constancia, y Desarrollo Organizacional te lo transfiere.`,
+          : `${monto}Es el mes de tu cumpleaños. Lo pides firmando tu constancia y se suma a tu boleta.`,
         nuevo: true,
         ir: "/mio/cumpleanos",
         marcarVistoComo: null,
@@ -782,6 +782,43 @@ export function armarBandeja(fuentes: FuentesBandeja, hoy: string = hoyLima()): 
         titulo: "Pediste tu bono de cumpleaños",
         respuesta: null,
         detalle: `Lo pediste ${haceCuanto(pedidoEl, hoy)}. Desarrollo Organizacional todavía no confirma la transferencia.`,
+        nuevo: false,
+        ir: "/mio/cumpleanos",
+        marcarVistoComo: null,
+      },
+    });
+  } else if (fuentes.bono?.estado === "en_boleta" && fuentes.bono.pedido_el) {
+    // Desde la 0479 este es el camino normal: al firmar, el bono entra a su
+    // boleta y ya no hay nadie a quien esperar — solo la fecha de la planilla.
+    // Sigue en «esperando» y no en «pendientes» por lo mismo que `pedido`: no
+    // hay nada que ella deba hacer, así que no cuenta en el botón.
+    const b = fuentes.bono;
+    const pedidoEl = fuentes.bono.pedido_el;
+    esperando.push({
+      instante: Date.parse(`${pedidoEl}T00:00:00Z`),
+      m: {
+        clave: `bono:${b.documento_id}`, origen: "bono", estado: "pendiente", fecha: pedidoEl,
+        titulo: "Tu bono de cumpleaños va en tu boleta",
+        respuesta: null,
+        detalle: `Lo pediste ${haceCuanto(pedidoEl, hoy)}. ${b.monto !== null ? `${formatSoles(b.monto)} ya ` : "Ya "}está en tu boleta${
+          b.periodo_fin ? ` del periodo que cierra el ${diaYMes(b.periodo_fin)}` : ""} y se paga junto con tu planilla.`,
+        nuevo: false,
+        ir: "/mio/cumpleanos",
+        marcarVistoComo: null,
+      },
+    });
+  } else if (fuentes.bono?.estado === "entregado" && fuentes.bono.via === "boleta" && fuentes.bono.periodo_fin) {
+    // Pagado con la planilla. No hay «día en que se transfirió»: la planilla no
+    // lo guarda por persona, así que se dice el periodo que la pagó.
+    const b = fuentes.bono;
+    const periodoFin = fuentes.bono.periodo_fin;
+    respuestas.push({
+      instante: Date.parse(`${periodoFin}T00:00:00Z`),
+      m: {
+        clave: `bono:${b.documento_id}`, origen: "bono", estado: "atendido", fecha: periodoFin,
+        titulo: "Tu bono de cumpleaños se pagó con tu planilla",
+        respuesta: null,
+        detalle: `${b.monto !== null ? `${formatSoles(b.monto)} · ` : ""}en tu boleta del periodo que cerró el ${diaYMes(periodoFin)}.`,
         nuevo: false,
         ir: "/mio/cumpleanos",
         marcarVistoComo: null,

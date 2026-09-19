@@ -18,13 +18,15 @@ import { FirmaEditor } from "@/app/(admin)/admin/personas/[id]/FirmaEditor";
 /**
  * Tu bono de cumpleaños: pedirlo, y ver en qué quedó (0477/0478).
  *
- * PEDIRLO ES FIRMAR LA CONSTANCIA (0478). Desde Info se llega acá con «Pedir
- * mi bono». Al firmar, a Desarrollo Organizacional le queda en su Bandeja
- * «Pidió su bono de cumpleaños» hasta que confirma la transferencia con su
- * fecha — y esa fecha es la que esta pantalla le muestra a ella después. Qué
- * le toca (y si el botón aparece) lo contesta `fn_mi_bono_cumpleanos`, la
- * misma función que el servidor usa de puerta: la pantalla no puede ofrecer
- * un pedido que la base después rechace.
+ * PEDIRLO ES FIRMAR LA CONSTANCIA (0478), Y AL FIRMAR ENTRA A SU BOLETA
+ * (0479). Desde Info se llega acá con «Pedir mi bono». Al firmar, el bono
+ * queda como una línea de su boleta del periodo que corre y se paga junto con
+ * su planilla: no hay nadie a quien esperar. Solo si no había un periodo de
+ * planilla abierto —o alguien quitó la línea— queda «pedido», y ahí sí DO lo
+ * transfiere y confirma la fecha (el respaldo de la 0478). Qué le toca (y si
+ * el botón aparece) lo contesta `fn_mi_bono_cumpleanos`, la misma función que
+ * el servidor usa de puerta: la pantalla no puede ofrecer un pedido que la
+ * base después rechace.
  *
  * QUÉ REEMPLAZA. Hasta hoy el único camino era admin/documentacion: se
  * imprimía la constancia, se firmaba a mano y un admin subía el escaneo.
@@ -177,10 +179,10 @@ function MiCumpleanosContenido() {
       setAviso({ tipo: "error", texto: mensajeDeError(eFirmar, "pedir tu bono") });
       return;
     }
-    setAviso({
-      tipo: "ok",
-      texto: "Listo, pediste tu bono. Desarrollo Organizacional ya lo tiene en su Bandeja; cuando te lo transfiera, aquí verás la fecha.",
-    });
+    // Qué pasó exactamente lo dice la tarjeta de abajo, ya recargada: «en tu
+    // boleta» si había periodo abierto, «pedido» si no. Este aviso no
+    // adivina cuál de las dos fue.
+    setAviso({ tipo: "ok", texto: "Listo, pediste tu bono. Abajo ves en qué quedó." });
     await cargar();
   }
 
@@ -208,8 +210,8 @@ function MiCumpleanosContenido() {
       <h1 className="mb-1 font-serif text-xl">Tu bono de cumpleaños</h1>
       <p className="mb-6 text-sm text-taupe">
         Una asignación de {bono?.monto != null ? formatSoles(bono.monto) : "la empresa"} en el mes de tu
-        cumpleaños. Se pide firmando tu constancia aquí —sin imprimir ni escanear nada— y Desarrollo
-        Organizacional te la transfiere.
+        cumpleaños. Se pide firmando tu constancia aquí —sin imprimir ni escanear nada— y se suma a tu
+        boleta.
       </p>
 
       {aviso && (
@@ -240,14 +242,31 @@ function MiCumpleanosContenido() {
         </p>
       )}
 
-      {/* Ya lo pidió, o ya se entregó. */}
-      {(bono?.estado === "pedido" || bono?.estado === "entregado") && (
+      {/* Ya lo pidió (en su boleta, o esperando a DO), o ya se entregó. */}
+      {(bono?.estado === "pedido" || bono?.estado === "en_boleta" || bono?.estado === "entregado") && (
         <section className="rounded-2xl border border-sand p-5 text-sm">
-          {bono.estado === "pedido" ? (
+          {bono.estado === "en_boleta" ? (
             <p className="text-tinta">
               Lo pediste el {bono.pedido_el ? fechaLarga(bono.pedido_el) : "—"}
-              {bono.monto != null && <> por {formatSoles(bono.monto)}</>}. Desarrollo Organizacional todavía no
-              confirma la transferencia: cuando lo haga, aquí verás la fecha.
+              {bono.monto != null && <> por {formatSoles(bono.monto)}</>}. Ya está en tu boleta
+              {bono.periodo_fin ? <> del periodo que cierra el {fechaLarga(bono.periodo_fin)}</> : null} y se
+              paga junto con tu planilla.{" "}
+              <Link href="/mio/boleta" className="underline underline-offset-2 hover:text-rojo-profundo">
+                Ver mi boleta →
+              </Link>
+            </p>
+          ) : bono.estado === "pedido" ? (
+            <p className="text-tinta">
+              Lo pediste el {bono.pedido_el ? fechaLarga(bono.pedido_el) : "—"}
+              {bono.monto != null && <> por {formatSoles(bono.monto)}</>}. Todavía no está en ninguna boleta, así
+              que Desarrollo Organizacional te lo transfiere: cuando lo confirme, aquí verás la fecha.
+            </p>
+          ) : bono.via === "boleta" ? (
+            // No hay «día en que se transfirió»: la planilla no lo guarda por
+            // persona. Se dice el periodo, que es un hecho.
+            <p className="text-verde">
+              Pagado con tu planilla{bono.periodo_fin ? <> del periodo que cerró el {fechaLarga(bono.periodo_fin)}</> : null}
+              {bono.monto != null && <>: {formatSoles(bono.monto)}</>}.
             </p>
           ) : (
             <p className="text-verde">
@@ -263,7 +282,7 @@ function MiCumpleanosContenido() {
         </section>
       )}
 
-      {miDocumento?.firma && verDocumento && (bono?.estado === "pedido" || bono?.estado === "entregado") && (
+      {miDocumento?.firma && verDocumento && (bono?.estado === "pedido" || bono?.estado === "en_boleta" || bono?.estado === "entregado") && (
         <div className="mt-4 rounded-2xl border border-sand p-5">
           <div className="mb-3 flex items-center justify-between print:hidden">
             <h2 className="font-serif text-lg">Tu constancia firmada</h2>
@@ -277,7 +296,8 @@ function MiCumpleanosContenido() {
           <PapelBono
             monto={miDocumento.monto_declarado}
             fecha={miDocumento.fecha_firma}
-            transferidoEl={bono.estado === "entregado" ? bono.entregado_el : null}
+            transferidoEl={bono.estado === "entregado" && bono.via !== "boleta" ? bono.entregado_el : null}
+            enBoleta={bono.via === "boleta"}
             nombreOficial={yo?.nombreOficial ?? null}
             documento={yo?.documento ?? null}
             firmaPersona={miDocumento.firma}
@@ -310,6 +330,7 @@ function MiCumpleanosContenido() {
             monto={bono.monto}
             fecha={null}
             transferidoEl={null}
+            enBoleta={false}
             nombreOficial={yo?.nombreOficial ?? null}
             documento={yo?.documento ?? null}
             firmaPersona={miFirma}
@@ -345,12 +366,14 @@ function MiCumpleanosContenido() {
 
 /** La hoja de la constancia — mismo texto legal que imprime admin/documentacion,
  *  para que autoservicio y escaneo acrediten exactamente la misma causa. */
-function PapelBono({ monto, fecha, transferidoEl, nombreOficial, documento, firmaPersona, firmaEmpresa, firmanteNombre, firmanteCargo }: {
+function PapelBono({ monto, fecha, transferidoEl, enBoleta, nombreOficial, documento, firmaPersona, firmaEmpresa, firmanteNombre, firmanteCargo }: {
   monto: number | null;
   /** Cuándo la firmó (= cuándo pidió el bono). Null mientras todavía no la firma. */
   fecha: string | null;
   /** Cuándo DO confirmó la transferencia (0478). Null mientras no la confirma. */
   transferidoEl: string | null;
+  /** Va en su boleta de planilla (0479): entonces no hay transferencia aparte que confirmar. */
+  enBoleta: boolean;
   nombreOficial: string | null;
   documento: string | null;
   firmaPersona: string | null;
@@ -389,7 +412,9 @@ function PapelBono({ monto, fecha, transferidoEl, nombreOficial, documento, firm
             transferencia llega después. Decir «recibida» el día del pedido
             afirmaría una entrega que todavía no pasó. */}
         {fecha ? `Firmada desde el sistema el ${fechaLarga(fecha)}.` : "Se firma desde el sistema."}
-        {transferidoEl ? ` Transferida el ${fechaLarga(transferidoEl)}.` : fecha ? " Transferencia pendiente de confirmar." : ""}
+        {enBoleta
+          ? " Se paga junto con su planilla, en la boleta del periodo."
+          : transferidoEl ? ` Transferida el ${fechaLarga(transferidoEl)}.` : fecha ? " Transferencia pendiente de confirmar." : ""}
       </p>
 
       <div className="grid grid-cols-2 gap-10 pt-6">
