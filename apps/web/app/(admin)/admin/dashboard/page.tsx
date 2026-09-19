@@ -18,9 +18,9 @@ import { esperadoDelDia, horarioVigente, type HorarioTramo, type TurnoDia } from
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
 import {
-  calcularCoberturaSede, causaMetaImposible, enPausaAhora, faltanTexto, fechaConDia, fechaCorta, llegoTarde, loQueFalta,
+  calcularCoberturaSede, causaMetaImposible, coincideConFiltroDeEstado, enPausaAhora, faltanTexto, fechaConDia, fechaCorta, llegoTarde, loQueFalta,
   minutosDesde, porPausaMasLarga, sinMarcarYaLeTocaba, subEstadoSinMarcar, textoDesglose, textoEquipoDelDia,
-  textoFueraDeHorario, textoLiderEnLasDosMetas, textoPausa, textoPausaDesde, textoSinMarcar, trabajandoAhora,
+  OPCIONES_FILTRO_ESTADO, textoFueraDeHorario, textoLiderEnLasDosMetas, textoPausa, textoPausaDesde, textoSinMarcar, trabajandoAhora,
   type CoberturaSede, type FilaPersona, type MetaSede,
 } from "@/lib/admin/asistencia-hoy";
 import { traerPausasAbiertas } from "@/lib/admin/pausas-abiertas";
@@ -765,7 +765,7 @@ export default function DashboardPage() {
   // ---------- Filtros ----------
   function filaCoincideFiltros(f: FilaPersona): boolean {
     if (busqueda && !f.nombre.toLowerCase().includes(busqueda.trim().toLowerCase())) return false;
-    if (estadoFiltro !== "todos" && f.estado !== estadoFiltro) return false;
+    if (!coincideConFiltroDeEstado(f.estado, estadoFiltro)) return false;
     if (soloAlertas) {
       const esAlerta = f.estado === "auto_cerrada_pendiente" || llegoTarde(f) || sinMarcarYaLeTocaba(f, ahoraDecimal);
       if (!esAlerta) return false;
@@ -932,11 +932,7 @@ export default function DashboardPage() {
               )}
               <CampoSelect etiqueta="Estado" value={estadoFiltro} onChange={(e) => setEstadoFiltro(e.target.value)} className="min-w-36">
                 <option value="todos">Todos</option>
-                <option value="abierta">Trabajando</option>
-                <option value="en_pausa">En pausa</option>
-                <option value="cerrada">Salió</option>
-                <option value="sin_marcar">Sin marcar</option>
-                <option value="auto_cerrada_pendiente">Auto-cerrada</option>
+                {OPCIONES_FILTRO_ESTADO.map((o) => <option key={o.valor} value={o.valor}>{o.etiqueta}</option>)}
               </CampoSelect>
               <div className="pb-2">
                 <CampoCasilla etiqueta="Solo alertas" checked={soloAlertas} onChange={(e) => setSoloAlertas(e.target.checked)} />

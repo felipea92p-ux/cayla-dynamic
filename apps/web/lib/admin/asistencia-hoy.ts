@@ -122,6 +122,29 @@ export function sinMarcarYaLeTocaba(f: FilaPersona, ahoraDecimal: number): boole
   return f.estado === "sin_marcar" && !f.ausenciaHoy && subEstadoSinMarcar(f, ahoraDecimal) === "falta_real";
 }
 
+// Las opciones del filtro «Estado» y qué estados de jornada trae cada una.
+//
+// «Salió» filtraba solo `cerrada`, y la tabla escribe «Salió (revisada)» para
+// quien tiene la jornada `revisada`: filtrando por «Salió», tres de las cuatro
+// personas que se habían ido de OTRU (2026-09-18) no aparecían, con la misma
+// palabra en pantalla. Las opciones viven acá, y no en el JSX, para que una
+// prueba compruebe que NINGÚN estado queda sin una opción que lo encuentre.
+export const OPCIONES_FILTRO_ESTADO = [
+  { valor: "abierta", etiqueta: "Trabajando" },
+  { valor: "en_pausa", etiqueta: "En pausa" },
+  { valor: "cerrada", etiqueta: "Salió" },
+  { valor: "sin_marcar", etiqueta: "Sin marcar" },
+  { valor: "auto_cerrada_pendiente", etiqueta: "Auto-cerrada" },
+] as const;
+
+/** ¿Este estado de jornada lo trae la opción del filtro? `todos` trae a todos. */
+export function coincideConFiltroDeEstado(estado: string, filtro: string): boolean {
+  if (filtro === "todos") return true;
+  // «Salió» = la jornada terminó, esté o no revisada (así la llama la tabla).
+  if (filtro === "cerrada") return estado === "cerrada" || estado === "revisada";
+  return estado === filtro;
+}
+
 export interface MetaSede { man: number; tar: number; enc: number; }
 
 // Cobertura de una sede en este momento: cuánta gente hay EN PISO ahora vs la

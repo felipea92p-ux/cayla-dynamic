@@ -16,6 +16,7 @@ import { ESTADOS_JORNADA } from "@cayla-dynamic/shared";
 import {
   calcularCoberturaSede,
   causaMetaImposible,
+  coincideConFiltroDeEstado,
   desdeLaHora,
   enPausaAhora,
   faltanTexto,
@@ -26,6 +27,7 @@ import {
   loQueFalta,
   minutosDesde,
   motivoDePausa,
+  OPCIONES_FILTRO_ESTADO,
   pausaAbiertaDe,
   porPausaMasLarga,
   sinMarcarYaLeTocaba,
@@ -777,5 +779,44 @@ describe("la líder que cuenta en las dos metas (AQP, 2026-09-18)", () => {
     expect(textoLiderEnLasDosMetas(1)).toBe("1 líder de equipo cuenta en las dos metas: personal operativo y líderes.");
     expect(textoLiderEnLasDosMetas(2)).toBe("2 líderes de equipo cuentan en las dos metas: personal operativo y líderes.");
     expect(textoLiderEnLasDosMetas(0)).toBeNull();
+  });
+});
+
+// ----------------------------------------------------------------------------
+// El filtro «Estado» (2026-09-18): la tabla escribe «Salió (revisada)» para quien
+// tiene la jornada `revisada`, pero el filtro «Salió» solo buscaba `cerrada`. En
+// OTRU, tres de las cuatro personas que se habían ido no aparecían al filtrar.
+// ----------------------------------------------------------------------------
+describe("coincideConFiltroDeEstado — «Salió» también trae a quien tiene la jornada revisada", () => {
+  it("OTRU: de cuatro que se fueron (tres revisadas, una cerrada), «Salió» trae a las cuatro", () => {
+    const salieron = ["revisada", "revisada", "revisada", "cerrada"];
+    expect(salieron.filter((e) => coincideConFiltroDeEstado(e, "cerrada"))).toHaveLength(4);
+  });
+
+  it("«Salió» no trae a quien sigue en el piso, en pausa, sin marcar ni auto-cerrada", () => {
+    for (const estado of ["abierta", "en_pausa", "sin_marcar", "auto_cerrada_pendiente"]) {
+      expect(coincideConFiltroDeEstado(estado, "cerrada"), estado).toBe(false);
+    }
+  });
+
+  it("las demás opciones siguen siendo exactas: `revisada` no se cuela en ninguna", () => {
+    for (const filtro of ["abierta", "en_pausa", "sin_marcar", "auto_cerrada_pendiente"]) {
+      expect(coincideConFiltroDeEstado("revisada", filtro), filtro).toBe(false);
+      expect(coincideConFiltroDeEstado(filtro, filtro), filtro).toBe(true);
+    }
+  });
+
+  it("«Todos» trae a todos", () => {
+    for (const estado of [...ESTADOS_JORNADA, "sin_marcar"]) {
+      expect(coincideConFiltroDeEstado(estado, "todos"), estado).toBe(true);
+    }
+  });
+
+  it("ningún estado de jornada queda sin una opción del filtro que lo encuentre", () => {
+    // Si mañana la base agrega un estado, esta prueba dice que el filtro no lo
+    // alcanza — en vez de descubrirlo cuando alguien no encuentre a una persona.
+    for (const estado of [...ESTADOS_JORNADA, "sin_marcar"]) {
+      expect(OPCIONES_FILTRO_ESTADO.some((o) => coincideConFiltroDeEstado(estado, o.valor)), estado).toBe(true);
+    }
   });
 });
