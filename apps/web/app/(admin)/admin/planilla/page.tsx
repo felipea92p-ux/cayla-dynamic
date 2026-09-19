@@ -24,7 +24,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Check, MoreHorizontal, Search } from "lucide-react";
+import { Check, MoreHorizontal, ReceiptText, Search } from "lucide-react";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import {
   TIPOS_VINCULO, TIPO_VINCULO_LABEL, hoyLima, puedeVerPlanilla, type TipoVinculo,
@@ -707,15 +707,17 @@ export default function PlanillaPage() {
               </CampoSelect>
               </div>
               <Boton onClick={abrirNuevo}>+ Nuevo periodo</Boton>
-              <Boton onClick={descargarCsvPlanilla} disabled={!proy || cargando || filasTodas.length === 0} title="Todos los grupos y todas las partidas del periodo, sin filtros">
-                Descargar CSV
-              </Boton>
+              {/* La entrada a las boletas oficiales (0482). Es un botón de verdad y
+                  no un enlace de texto: es un módulo de uso mensual y estaba tan
+                  discreto que se preguntó dónde estaba. Mismo trazo que el
+                  primario de `Boton`, pero como <Link> porque navega. */}
               {periodoSel && (
                 <Link
                   href={`/admin/planilla/boletas?periodo=${periodoSel}`}
-                  className="text-sm text-taupe underline underline-offset-2 transition-colors hover:text-tinta"
+                  className="inline-flex items-center gap-2 rounded-control bg-tinta px-4 py-2 text-sm font-medium text-crema transition-colors duration-150 hover:bg-rojo-profundo active:scale-[0.98]"
                 >
-                  Boletas de este periodo →
+                  <ReceiptText size={16} aria-hidden />
+                  Boletas del periodo
                 </Link>
               )}
               <Menu
@@ -731,6 +733,14 @@ export default function PlanillaPage() {
                   </Boton>
                 )}
               >
+                {/* El CSV vivía como botón suelto junto al periodo: es una acción de
+                    uso ocasional y ocupaba el sitio de lo que se usa cada mes. Al
+                    menú con la misma condición de siempre: sin proyección, cargando
+                    o sin filas no hay nada que descargar. */}
+                <MenuItem onClick={descargarCsvPlanilla} disabled={!proy || cargando || filasTodas.length === 0}>
+                  Descargar CSV
+                  <span className="block text-xs text-taupe">Todos los grupos y partidas del periodo, sin filtros</span>
+                </MenuItem>
                 <MenuItem onClick={() => setFeriadosAbierto(true)}>Feriados del año…</MenuItem>
                 {puedeEliminar && (
                   <MenuItem variante="peligro" onClick={() => { setEliminarTexto(""); setEliminarModal(true); }}>
