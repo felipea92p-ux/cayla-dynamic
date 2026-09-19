@@ -12,7 +12,7 @@ import { Campo, CampoCasilla, CampoSelect } from "@/components/ui/campo";
 import { Fila, Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
 import {
-  TZ_LIMA, esRolEncargada, hoyLima, formatoMinutos, puedeVerTodasLasSedes,
+  TZ_LIMA, cuentaEnCobertura, hoyLima, formatoMinutos, puedeVerTodasLasSedes,
 } from "@cayla-dynamic/shared";
 import { esperadoDelDia, horarioVigente, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
 import { usePersonaActual } from "@/lib/admin/use-rol";
@@ -348,7 +348,7 @@ export default function DashboardPage() {
   // personas de abajo. Antes se armaba agrupando `filas` por sede_id, así que
   // una sede sin nadie que cumpliera activo+en_planilla+no_sueldo_fijo
   // desaparecía entera, sin aviso, en vez de mostrarse con "0 de 0".
-  const [sedesActivas, setSedesActivas] = useState<{ id: string; codigo: string }[]>([]);
+  const [sedesActivas, setSedesActivas] = useState<{ id: string; codigo: string; tipo: string }[]>([]);
   const [metasPorSede, setMetasPorSede] = useState<Map<string, MetaSede>>(new Map());
   const [actualizado, setActualizado] = useState<string>("");
   const [cargando, setCargando] = useState(true);
@@ -522,7 +522,7 @@ export default function DashboardPage() {
     ] = await Promise.all([
       // Misma consulta que /admin/reporte-sede: la lista de sedes a mostrar
       // nunca se deriva de quién aparece en otra tabla.
-      supabase.from("sedes").select("id, codigo").eq("activa", true).order("codigo"),
+      supabase.from("sedes").select("id, codigo, tipo").eq("activa", true).order("codigo"),
       supabase
         .from("personas")
         .select("id, nombres, apellidos, rol, sede_base_id, sedes:sede_base_id(codigo)")
@@ -581,9 +581,12 @@ export default function DashboardPage() {
     // página no se cae. Las metas fallan aún más suave: sin meta = neutro.
     const areasList: Area[] = parseAreas(areasRaw, errAreas);
     const funcionPorPersona = new Map(
-      ((funciones as { persona_id: string; funcion: string; es_encargada_piso?: boolean }[] | null) ?? [])
-        .map((x) => [x.persona_id, { funcion: x.funcion, enc: Boolean(x.es_encargada_piso) }]),
+      ((funciones as { persona_id: string; funcion: string; es_encargada_piso?: boolean; tipo_vinculo?: string | null }[] | null) ?? [])
+        .map((x) => [x.persona_id, { funcion: x.funcion, enc: Boolean(x.es_encargada_piso), vinculo: x.tipo_vinculo ?? null }]),
     );
+    // Quién cuenta en la cobertura depende del TIPO de la sede (en una central
+    // el administrador hace de líder), así que se busca por sede base.
+    const tipoDeSede = new Map((sedesData ?? []).map((s) => [s.id, s.tipo]));
     setMetasPorSede(new Map(
       ((metasRaw as { sede_id: string; meta: number; meta_tarde: number | null; meta_encargadas: number | null }[] | null) ?? [])
         .map((m) => [m.sede_id, { man: m.meta ?? 0, tar: m.meta_tarde ?? m.meta ?? 0, enc: m.meta_encargadas ?? 0 }]),
@@ -632,6 +635,15 @@ export default function DashboardPage() {
       const turno = turnoPorPersona.get(p.id) ?? null;
       const horario = horarioVigente(horariosPorPersona.get(p.id) ?? [], hoy);
       const esperado = esperadoDelDia(hoy, turno, horario);
+      const cuenta = cuentaEnCobertura(
+        {
+          rol: p.rol,
+          tipoVinculo: f?.vinculo ?? null,
+          esEncargadaPiso: Boolean(f?.enc),
+          areaOperativa: esOperativaEn(areasList, f?.funcion ?? AREA_DEFAULT),
+        },
+        tipoDeSede.get(p.sede_base_id) ?? null,
+      );
       return {
         personaId: p.id,
         nombre: `${p.nombres} ${p.apellidos}`,
@@ -646,8 +658,8 @@ export default function DashboardPage() {
         minutosTarde: j?.minutos_tarde ?? null,
         salidaTemprana: salidaTempranaPorPersona.get(p.id) ?? null,
         enPausaSinRetorno: j?.tiene_salida_no_retornada ?? false,
-        esOperativa: esOperativaEn(areasList, f?.funcion ?? AREA_DEFAULT),
-        esEncargada: esRolEncargada(p.rol) || Boolean(f?.enc),
+        esOperativa: cuenta.operativa,
+        esEncargada: cuenta.lider,
         ausenciaHoy: ausenciaPorPersona.get(p.id) ?? null,
       };
     });

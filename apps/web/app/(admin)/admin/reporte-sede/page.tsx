@@ -12,7 +12,7 @@ import { Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { traerTodo } from "@/lib/admin/traer-todo";
 import { loQueNoSePudo, sePuedeEntregar } from "@/lib/admin/lo-que-no-se-pudo";
-import { NIVEL_DISCIPLINARIO_CORTO, TZ_LIMA, esRolEncargada, hoyLima, primeroDeMesLima } from "@cayla-dynamic/shared";
+import { NIVEL_DISCIPLINARIO_CORTO, TZ_LIMA, cuentaEnCobertura, hoyLima, primeroDeMesLima } from "@cayla-dynamic/shared";
 import { causaMetaImposible, enPausaAhora, porPausaMasLarga, textoPausaDesde, trabajandoAhora, type PausaAbierta } from "@/lib/admin/asistencia-hoy";
 import { traerPausasAbiertas } from "@/lib/admin/pausas-abiertas";
 
@@ -46,7 +46,7 @@ function horaDecimalLimaAhora(): number {
 }
 function fmtHoras(h: number): string { const hh = Math.floor(h); const mm = Math.round((h - hh) * 60); return `${hh}h ${String(mm).padStart(2, "0")}m`; }
 
-interface Sede { id: string; codigo: string; nombre: string }
+interface Sede { id: string; codigo: string; nombre: string; tipo: string }
 interface Fila {
   personaId: string; nombre: string;
   estadoHoy: string; // abierta / en_pausa / cerrada / sin_marcar
@@ -130,7 +130,7 @@ function ReporteSedeContenido() {
     void (async () => {
       const { data: sesion } = await supabase.auth.getSession();
       if (!sesion.session) { router.replace("/admin/login"); return; }
-      const { data, error } = await supabase.from("sedes").select("id, codigo, nombre").eq("activa", true).order("codigo");
+      const { data, error } = await supabase.from("sedes").select("id, codigo, nombre, tipo").eq("activa", true).order("codigo");
       // Si esta falla, el desplegable queda vacío, nunca hay `sedeId`, `cargar()`
       // sale por su primera línea y la pantalla se queda en blanco SIN UNA SOLA
       // PALABRA — se lee como «no hay sedes», que es una frase falsa.
@@ -227,8 +227,11 @@ function ReporteSedeContenido() {
 
     const areasList: Area[] = parseAreas(areasRaw, errAreas);
     const funcionPorPersona = new Map(
-      ((funciones as { persona_id: string; funcion: string; es_encargada_piso?: boolean }[] | null) ?? [])
-        .map((x) => [x.persona_id, { funcion: x.funcion, enc: Boolean(x.es_encargada_piso) }]));
+      ((funciones as { persona_id: string; funcion: string; es_encargada_piso?: boolean; tipo_vinculo?: string | null }[] | null) ?? [])
+        .map((x) => [x.persona_id, { funcion: x.funcion, enc: Boolean(x.es_encargada_piso), vinculo: x.tipo_vinculo ?? null }]));
+    // Misma definición que el Dashboard y Turnos (cobertura-equipo.ts): depende
+    // del tipo de la sede que se está mirando.
+    const tipoDeSede = sedes.find((x) => x.id === sedeId)?.tipo ?? null;
     const m = ((metasRaw as { meta: number; meta_tarde: number | null; meta_encargadas: number | null }[] | null) ?? [])[0];
     setMeta({ man: m?.meta ?? 0, tar: m?.meta_tarde ?? m?.meta ?? 0, enc: m?.meta_encargadas ?? 0 });
 
@@ -249,12 +252,21 @@ function ReporteSedeContenido() {
       const reales = js.filter((j) => (j.horas_trabajadas ?? 0) <= 24); // excluye agregados históricos 2025
       const hoyJ = js.find((j) => j.fecha === hoy);
       const f = funcionPorPersona.get(p.id);
+      const cuenta = cuentaEnCobertura(
+        {
+          rol: p.rol,
+          tipoVinculo: f?.vinculo ?? null,
+          esEncargadaPiso: Boolean(f?.enc),
+          areaOperativa: esOperativaEn(areasList, f?.funcion ?? AREA_DEFAULT),
+        },
+        tipoDeSede,
+      );
       return {
         personaId: p.id,
         nombre: `${p.nombres} ${p.apellidos}`,
         estadoHoy: hoyJ?.estado ?? "sin_marcar",
-        esOperativa: esOperativaEn(areasList, f?.funcion ?? AREA_DEFAULT),
-        esEncargada: esRolEncargada(p.rol) || Boolean(f?.enc),
+        esOperativa: cuenta.operativa,
+        esEncargada: cuenta.lider,
         dias: reales.filter((j) => (j.horas_trabajadas ?? 0) > 0).length,
         horas: js.reduce((s, j) => s + (j.horas_trabajadas ?? 0), 0),
         tardanzas: js.filter((j) => (j.minutos_tarde ?? 0) > 0).length,
