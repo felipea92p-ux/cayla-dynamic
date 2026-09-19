@@ -39,7 +39,12 @@
 --       entran ni por la función ni por un insert directo
 --   · una persona leyendo las marcas de otra .. RLS: solo `persona_id` propia
 --   · escribir sin pasar por la función ....... sin policies de insert/update/
---       delete y sin esos permisos: mismo patrón que `anuncios` y `bandeja_vistos`
+--       delete Y con esos permisos revocados a mano. Supabase le concede por
+--       defecto escritura a `authenticated` sobre toda tabla nueva de `public`
+--       (la 0315 nació del mismo mecanismo, con `anon` y las funciones): las
+--       policies ya la bloquean, pero `truncate` ni siquiera pasa por RLS, y un
+--       permiso que no existe vale más que una policy que alguien puede agregar
+--       mañana. Ver `supabase/tests/379_*`.
 --
 -- ── POR QUÉ `do nothing` Y NO `do update` AL MARCAR DE NUEVO ─────────────────
 --
@@ -87,9 +92,12 @@ create policy novedades_vistas_select_propia on novedades_vistas
   for select to authenticated using (persona_id = fn_persona_actual_id());
 
 -- Sin policies de insert/update/delete: toda escritura pasa por la función de
--- abajo, igual que `anuncios` (0351).
+-- abajo, igual que `anuncios` (0351). Y sin los permisos tampoco: primero se
+-- quita todo —lo que Supabase concede por defecto incluye escribir y `truncate`—
+-- y después se devuelve solo leer. El orden importa: al revés, el `revoke` se
+-- llevaría también el `select`.
+revoke all on novedades_vistas from anon, authenticated, public;
 grant select on novedades_vistas to authenticated;
-revoke all on novedades_vistas from anon, public;
 
 -- ── 2 · Marcar como entendida — idempotente ──────────────────────────────────
 -- Una sola sentencia: o queda la marca o no queda nada. Volver a marcar la

@@ -11,7 +11,7 @@
 -- insert directo, y (d) nada se escribe sin pasar por la función.
 -- ============================================================================
 begin;
-select plan(17);
+select plan(19);
 
 insert into sedes (id, codigo, nombre, activa, tipo) values
   ('00000000-0000-0000-0000-0000000ec901', 'ZZN01', 'Sede novedades uno', true, 'tienda');
@@ -84,21 +84,45 @@ select throws_ok(
   'no se escribe por insert directo: solo por la función'
 );
 
+reset role;
+
+-- ── Ni siquiera la dueña de la marca escribe a mano ──────────────────────
+-- Supabase le concede a `authenticated` escritura sobre toda tabla nueva de
+-- `public`; la migración la revoca. Sin ese `revoke`, un update o un delete no
+-- dan error: RLS los deja en cero filas y la prueba lo tomaría por bueno. Y
+-- `truncate` no pasa por RLS, así que solo el permiso lo detiene.
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000ecb01', true);
+set local role authenticated;
+
 select throws_ok(
   $$ update novedades_vistas set visto_at = now() $$,
   '42501',
   null,
-  'no se actualiza una marca a mano'
+  'la dueña no actualiza su marca a mano'
 );
 
 select throws_ok(
   $$ delete from novedades_vistas $$,
   '42501',
   null,
-  'no se borra una marca a mano'
+  'la dueña no borra su marca a mano'
+);
+
+select throws_ok(
+  $$ truncate novedades_vistas $$,
+  '42501',
+  null,
+  'nadie vacía la tabla: truncate no pasa por RLS, solo lo detiene el permiso'
 );
 
 reset role;
+
+select is(
+  (select count(*)::int from novedades_vistas
+    where persona_id = '00000000-0000-0000-0000-0000000eca01'),
+  1,
+  'y la marca sigue ahí'
+);
 
 -- ── Un id sin forma de id no entra ───────────────────────────────────────
 select throws_ok(

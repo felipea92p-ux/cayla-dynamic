@@ -46,13 +46,22 @@ aparte de los comunicados de DO, y no como plantillas para que DO publique
   sección envejece y le cuenta al equipo que nada mejora.
 
 **Cómo se verificó, y qué NO:**
-- **La prueba pgTAP 379 (17 aserciones) no corrió en pgTAP real.** Docker
+- **La prueba pgTAP 379 (19 aserciones) no corrió en pgTAP real.** Docker
   Desktop estaba colgado (error 500 del socket) y la base local no respondía.
   Se ejecutó en un Postgres 17 desechable de Homebrew, con un sustituto mínimo
-  de pgTAP escrito para esto: 17 de 17, la migración pegada dos veces sin error,
-  y tres mutaciones a propósito (volver a marcar corre la fecha, sin `check`,
-  policy abierta) cayeron cada una en la aserción prevista. **La señal fiable
-  sigue siendo `db-tests` de GitHub Actions al abrir el PR.**
+  de pgTAP escrito para esto y **con los permisos por defecto de Supabase
+  emulados** (ver la 0315): 19 de 19, la migración pegada tres veces sin error,
+  y mutaciones a propósito (volver a marcar corre la fecha, sin `check`, policy
+  abierta, **sin el `revoke`**) cayeron cada una en la aserción prevista.
+  **La señal fiable sigue siendo `db-tests` de GitHub Actions al abrir el PR.**
+- **Lo que la primera versión no vio, y por qué importa:** la base desechable no
+  tenía los permisos por defecto de Supabase, que le dan a `authenticated`
+  escritura —incluido `truncate`, que no pasa por RLS— sobre toda tabla nueva de
+  `public`. Con ellos, dos aserciones habrían puesto el CI en rojo, y sin el
+  `revoke` que ahora lleva la 0480 una persona logueada vaciaba la tabla. RLS ya
+  bloqueaba insert/update/delete; el hueco era `truncate`, alcanzable solo por
+  SQL directo (PostgREST no lo expone). Regla que deja: **una base desechable
+  para probar permisos tiene que traer los permisos por defecto del motor real.**
 - **`packages/database/src/types.ts` está editado a mano** (tabla y función,
   imitando el formato generado). Cuando Docker vuelva, regenerarlo con
   `gen-types` y comprobar que no cambia nada más que esto.
