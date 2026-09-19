@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
@@ -25,6 +25,13 @@ import {
 } from "@/lib/admin/asistencia-hoy";
 import { traerPausasAbiertas } from "@/lib/admin/pausas-abiertas";
 import { esFallaDeRed, mensajeDeError } from "@/lib/admin/mensaje-error";
+import {
+  KPIS_EXTRA, PANELES_NO_OCULTABLES, alternarAlertas, alternarColapsado, alternarKpiExtra, alternarOculto,
+  moverPanel, normalizarPreferencias, PREFERENCIAS_INICIALES, type KpiExtra, type PanelId,
+} from "@/lib/admin/tablero-preferencias";
+import { PanelColapsable } from "./panel-colapsable";
+import { PanelAtencionBanner, PanelAtencionLateral } from "./panel-atencion";
+import { usePendientesBandeja } from "./use-pendientes-bandeja";
 
 const REFRESCO_MS = 30_000;
 // Mismo Sheet de siempre si la variable de entorno todavía no está puesta en
@@ -407,6 +414,16 @@ export default function DashboardPage() {
   // a propósito: abrir mañana la pantalla y encontrarla mostrando solo las
   // tardanzas de ayer haría creer que no hay nada más.
   const [resumenAbierto, setResumenAbierto] = useState<ClaveResumen | null>(null);
+  // Qué sedes tienen su tarjeta desplegada. De ESTA visita, no se guarda: abrir
+  // mañana con la tarjeta de ayer desplegada haría creer que es lo único que hay.
+  const [sedesAbiertas, setSedesAbiertas] = useState<Record<string, boolean>>({});
+  // El tablero de cada persona (orden, colapsados, ocultos, indicadores extra):
+  // se guarda en su navegador, como «equipo colapsado» de Correcciones. Lo
+  // guardado puede venir viejo o dañado, así que SIEMPRE pasa por normalizar.
+  const [prefsCrudas, setPrefsCrudas] = useFiltroGuardado<unknown>("dashboard.tablero", null);
+  const prefs = useMemo(() => normalizarPreferencias(prefsCrudas), [prefsCrudas]);
+  const [personalizando, setPersonalizando] = useState(false);
+  const pendientesBandeja = usePendientesBandeja(prefs.kpisExtra.pendientes === true, yo?.rol);
 
   // Semáforo disciplinario para la franja (aparte del refresco de asistencia).
   useEffect(() => {
@@ -808,12 +825,34 @@ export default function DashboardPage() {
     setSedeFiltro("todas");
   }
   const sedesMostradas = sedeFiltro === "todas" ? sedes : sedes.filter((s) => s.codigo === sedeFiltro);
+  // Cada panel recibe de aquí su forma de colapsar, subir, bajar y ocultar. Las
+  // reglas (qué no se puede ocultar) viven en tablero-preferencias.ts.
+  const panelProps = (id: PanelId, titulo: string, frescura: string) => {
+    const i = prefs.orden.indexOf(id);
+    return {
+      id, titulo, frescura, orden: i, personalizando,
+      colapsado: prefs.colapsados[id] === true,
+      alAlternar: () => setPrefsCrudas(alternarColapsado(prefs, id)),
+      oculto: prefs.ocultos[id] === true,
+      puedeOcultar: !PANELES_NO_OCULTABLES.includes(id),
+      puedeSubir: i > 0, puedeBajar: i < prefs.orden.length - 1,
+      alSubir: () => setPrefsCrudas(moverPanel(prefs, id, -1)),
+      alBajar: () => setPrefsCrudas(moverPanel(prefs, id, 1)),
+      alOcultar: () => setPrefsCrudas(alternarOculto(prefs, id)),
+    };
+  };
+  const panelVisible = (id: PanelId) => personalizando || prefs.ocultos[id] !== true;
+  const ausentesHoy = filas.filter((f) => f.ausenciaHoy).length;
+
   // Desde el detalle de "Sedes bajo la meta" a la tarjeta de esa sede. Primero se
   // quita el filtro de sede —si la tenía oculta, la tarjeta no existe— y se baja
   // en el cuadro siguiente, cuando React ya la pintó. Un <a href="#…"> saltaba
   // antes de eso y no llegaba a ningún lado.
   function irASede(codigo: string) {
     setSedeFiltro("todas");
+    const destino = sedes.find((x) => x.codigo === codigo);
+    if (destino) setSedesAbiertas((a) => ({ ...a, [destino.sedeId]: true }));
+    if (prefs.colapsados.sedes) setPrefsCrudas(alternarColapsado(prefs, "sedes"));
     const suave = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     requestAnimationFrame(() =>
       document.getElementById(`sede-${codigo}`)?.scrollIntoView({ behavior: suave ? "smooth" : "auto", block: "start" }),
@@ -821,20 +860,20 @@ export default function DashboardPage() {
   }
 
   // ---------- Requiere atención (cobertura + Disciplina, en un solo panel) ----------
-  interface ItemAtencion { key: string; sede: string; texto: string; href?: string; tono: "critico" | "advertencia" }
+  interface ItemAtencion { key: string; sede: string; texto: string; href?: string; accion?: string; tono: "critico" | "advertencia" }
   const itemsAtencion: ItemAtencion[] = [];
   for (const s of sedes) {
     const cob = coberturaPorSede.get(s.sedeId)!;
     if (cob.alertaSinEntrada) {
       itemsAtencion.push({
-        key: `sin-entrada-${s.sedeId}`, sede: s.etiqueta.texto, tono: "critico",
+        key: `sin-entrada-${s.sedeId}`, sede: s.etiqueta.texto, tono: "critico", href: "/admin/incidencias", accion: "Ver incidencias",
         texto: `sin marcajes desde las ${horaAmPmDe(cob.alertaSinEntrada)} — nadie ha marcado entrada todavía`,
       });
     }
     if (cob.gravedad === "revisar") {
       // Solo faltan metas imposibles: no se pide que venga nadie, se pide revisar el dato.
       itemsAtencion.push({
-        key: `cobertura-${s.sedeId}`, sede: s.etiqueta.texto, tono: "advertencia",
+        key: `cobertura-${s.sedeId}`, sede: s.etiqueta.texto, tono: "advertencia", href: "/admin/turnos", accion: "Revisar meta",
         texto: textoMetaPorRevisar(cob),
       });
     } else if (cob.faltanOp || cob.faltanEnc) {
@@ -847,7 +886,7 @@ export default function DashboardPage() {
         cob.faltanEnc ? causaMetaImposible("lideres", cob.metaEnc, cob.equipoLideres)?.resumen : undefined,
       ].filter(Boolean);
       itemsAtencion.push({
-        key: `cobertura-${s.sedeId}`, sede: s.etiqueta.texto, tono: "advertencia",
+        key: `cobertura-${s.sedeId}`, sede: s.etiqueta.texto, tono: "advertencia", href: "/admin/turnos", accion: "Ver turnos",
         texto: `faltan ${loQueFalta(cob)} en piso`
           + (cob.enPausa.length > 0 ? ` — hay ${cob.enPausa.length} en pausa` : "")
           + (imposibles.length > 0 ? ` — ${imposibles.join(" y ")}` : ""),
@@ -855,25 +894,25 @@ export default function DashboardPage() {
     }
     if (cob.sinMarcarReal > 0) {
       itemsAtencion.push({
-        key: `sinmarcar-${s.sedeId}`, sede: s.etiqueta.texto, tono: "advertencia",
+        key: `sinmarcar-${s.sedeId}`, sede: s.etiqueta.texto, tono: "advertencia", href: "/admin/correcciones", accion: "Corregir marcas",
         texto: textoSinMarcar(cob.sinMarcarReal),
       });
     }
   }
   if (discNoRespondio) {
     itemsAtencion.push({
-      key: "disc", sede: "Disciplina", href: "/admin/disciplina", tono: "advertencia",
+      key: "disc", sede: "Disciplina", href: "/admin/disciplina", accion: "Ver disciplina", tono: "advertencia",
       texto: "el semáforo no respondió — no es que no haya nadie, es que no pudo mirar",
     });
   } else if (casosDisciplina > 0) {
     itemsAtencion.push({
-      key: "disc", sede: "Disciplina", href: "/admin/disciplina", tono: "critico",
+      key: "disc", sede: "Disciplina", href: "/admin/disciplina", accion: "Ver disciplina", tono: "critico",
       texto: `${casosDisciplina} caso${casosDisciplina === 1 ? "" : "s"} requiere${casosDisciplina === 1 ? "" : "n"} revisión`
         + (sinCargoNoRespondio ? " (no se pudo comprobar memos sin cargo)" : ""),
     });
   } else if (sinCargoNoRespondio) {
     itemsAtencion.push({
-      key: "disc", sede: "Disciplina", href: "/admin/disciplina", tono: "advertencia",
+      key: "disc", sede: "Disciplina", href: "/admin/disciplina", accion: "Ver disciplina", tono: "advertencia",
       texto: "no se pudo comprobar si hay memos entregados sin el cargo firmado",
     });
   }
@@ -923,14 +962,29 @@ export default function DashboardPage() {
             </>
           }
           accion={
-            <a
-              href={URL_SHEET_ASISTENCIA}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="rounded-control border border-sand bg-papel px-4 py-2 text-sm font-medium text-tinta transition-all hover:-translate-y-0.5 hover:border-taupe"
-            >
-              Ver en Google Sheets ↗
-            </a>
+            <div className="flex flex-wrap items-center gap-3">
+              {prefs.alertasOcultas && (
+                <span className="hidden xl:block">
+                  <Boton variante="secundario" tamano="sm" onClick={() => setPrefsCrudas(alternarAlertas(prefs))}>
+                    ⟨ Alertas
+                    {itemsAtencion.some((it) => it.tono === "critico") && (
+                      <span className="ml-1.5 rounded-full bg-rojo px-2 py-0.5 text-crema">{itemsAtencion.filter((it) => it.tono === "critico").length}</span>
+                    )}
+                  </Boton>
+                </span>
+              )}
+              <Boton variante={personalizando ? "primario" : "secundario"} tamano="sm" aria-pressed={personalizando} onClick={() => setPersonalizando((v) => !v)}>
+                {personalizando ? "Listo" : "Personalizar"}
+              </Boton>
+              <a
+                href={URL_SHEET_ASISTENCIA}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-taupe underline underline-offset-4 transition-colors hover:text-tinta"
+              >
+                Ver en Google Sheets ↗
+              </a>
+            </div>
           }
         />
 
@@ -977,6 +1031,34 @@ export default function DashboardPage() {
               )}
             </div>
 
+            <div className={prefs.alertasOcultas ? "" : "xl:grid xl:grid-cols-[minmax(0,1fr)_20rem] xl:items-start xl:gap-6"}>
+              {/* Los paneles van en una columna flex y se ordenan con `order`: el
+                  contenido de cada uno se queda escrito donde está. */}
+              <div className="flex min-w-0 flex-col">
+                {itemsAtencion.length > 0 && (
+                  <div style={{ order: -3 }} className="mb-6 xl:hidden">
+                    <PanelAtencionBanner items={itemsAtencion} />
+                  </div>
+                )}
+                <nav style={{ order: -2 }} aria-label="Atajos" className="mb-6 flex flex-wrap items-center gap-2">
+                  <span className="text-xs text-taupe">Atajos:</span>
+                  {[
+                    { href: "/admin/ausencias", texto: "Registrar ausencia" },
+                    { href: "/admin/turnos", texto: "Ver turnos" },
+                    esAdmin ? { href: "/admin/documentacion", texto: "Aprobar documentos" } : { href: "/admin/correcciones", texto: "Corregir marcas" },
+                  ].map((a) => (
+                    <Link key={a.href} href={a.href} className="rounded-control border border-sand bg-papel px-3 py-1.5 text-sm font-medium text-tinta transition-colors hover:border-taupe">{a.texto}</Link>
+                  ))}
+                </nav>
+                {personalizando && (
+                  <div style={{ order: -1 }} className="mb-6 flex flex-wrap items-center justify-between gap-2 rounded-control border border-dashed border-pizarra bg-pizarra/10 px-3 py-2 text-sm">
+                    <span><strong>Personalizar:</strong> reordena con ↑ ↓, oculta lo que no uses y agrega indicadores en «Resumen del día». Se guarda en este navegador.</span>
+                    <Boton variante="enlace" tamano="sm" onClick={() => setPrefsCrudas(PREFERENCIAS_INICIALES)}>Restablecer diseño</Boton>
+                  </div>
+                )}
+
+            {panelVisible("resumen") && (
+              <PanelColapsable {...panelProps("resumen", "Resumen del día", "en vivo · cada 30 s")}>
             {/* RESUMEN GLOBAL. Número grande y con peso: EB Garamond en su peso
                 normal tiene el trazo tan fino que un "2" en rojo se leía como
                 gris claro a un metro de la pantalla. Rojo y no rojo-profundo:
@@ -990,6 +1072,24 @@ export default function DashboardPage() {
                 `flex-col justify-start` porque un <button> centra su contenido
                 en vertical, y la tarjeta con la etiqueta en dos líneas dejaba
                 su número más arriba que las otras tres. */}
+            <div className="mb-3 flex flex-wrap items-center gap-2" role="group" aria-label="Indicadores visibles">
+              <span className="text-xs text-taupe">Indicadores:</span>
+              <span className="rounded-full border border-tinta bg-tinta px-3 py-1 text-xs text-crema">Asistencia</span>
+              {KPIS_EXTRA.map((k: KpiExtra) => {
+                const activo = prefs.kpisExtra[k] === true;
+                return (
+                  <button
+                    key={k}
+                    type="button"
+                    aria-pressed={activo}
+                    onClick={() => setPrefsCrudas(alternarKpiExtra(prefs, k))}
+                    className={`rounded-full border px-3 py-1 text-xs transition-colors ${activo ? "border-tinta bg-tinta text-crema" : "border-taupe text-tinta hover:bg-sand/50"}`}
+                  >
+                    {activo ? "✓ " : "+ "}{k === "pendientes" ? "Pendientes de acción" : "Personal"}
+                  </button>
+                );
+              })}
+            </div>
             <div className={`${resumenDetalle ? "mb-3" : "mb-6"} grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-sand bg-sand sm:grid-cols-4`}>
               {resumen.map((k) => {
                 const abierto = resumenAbierto === k.clave;
@@ -1059,152 +1159,59 @@ export default function DashboardPage() {
               </section>
             )}
 
-            {/* REQUIERE ATENCIÓN — cobertura de sedes + Disciplina, un solo lugar */}
-            {itemsAtencion.length === 0 ? (
-              <div className="relative mb-8 overflow-hidden rounded-2xl border border-sand bg-papel p-5 pl-6">
-                <Franja tono="positivo" />
-                <div className="etiqueta text-verde">Requiere atención</div>
-                <p className="mt-2 text-sm text-taupe">Nada pendiente ahora mismo.</p>
-              </div>
-            ) : (
-              <div className="relative mb-8 overflow-hidden rounded-2xl border border-sand bg-papel p-5 pl-6">
-                <Franja tono={itemsAtencion.some((it) => it.tono === "critico") ? "alerta" : "advertencia"} />
-                <div className="etiqueta text-rojo-profundo">Requiere atención</div>
-                <ul className="mt-1 flex flex-col">
-                  {itemsAtencion.map((it) => {
-                    // El punto repite el tono de cada fila: antes solo el "Ver →"
-                    // lo decía, y las filas sin enlace no tenían ninguno.
-                    const contenido = (
-                      <span className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 py-2 text-sm">
-                        <span className="flex items-baseline gap-2">
-                          <span aria-hidden className={`size-2 shrink-0 translate-y-[-1px] rounded-full ${it.tono === "critico" ? "bg-rojo" : "bg-ambar"}`} />
-                          <span><strong className="font-semibold">{it.sede}:</strong> <span className="text-tinta">{it.texto}</span></span>
-                        </span>
-                        {it.href && <span className={`text-xs font-semibold ${it.tono === "critico" ? "text-rojo-profundo" : "text-ambar"}`}>Ver →</span>}
-                      </span>
-                    );
-                    return (
-                      <li key={it.key} className="border-t border-sand/60 first:border-t-0">
-                        {it.href ? (
-                          <Link href={it.href} className="-mx-1 block rounded px-1 transition-colors hover:bg-rojo/[0.06]">{contenido}</Link>
-                        ) : contenido}
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            )}
-
-            {/* QUIÉN RESPONDIÓ SU MEMO (0404). Aparte del panel de arriba porque
-                no es un plazo legal corriendo — es informativo: alguien ya vio su
-                documento y dejó una constancia digital, firmando o prefiriendo no
-                hacerlo. Ninguna de las dos reemplaza el trámite físico. */}
-            {respuestasMemo.length > 0 && (
-              <div className="mb-8 rounded-2xl border border-sand bg-papel p-5 pl-6">
-                <div className="mb-2 flex items-center justify-between">
-                  <span className="font-serif text-xl font-medium text-tinta">
-                    Respuestas a memos <span className="text-taupe">· últimos {DIAS_RESPUESTAS_MEMO} días</span>
-                  </span>
-                  <Link href="/admin/disciplina" className="text-xs font-medium text-taupe hover:underline">Ver disciplina →</Link>
+            {prefs.kpisExtra.personal && (
+              <div className="mt-3 rounded-2xl border border-sand bg-papel p-5">
+                <div className="mb-3 flex items-baseline justify-between gap-2">
+                  <span className="etiqueta text-taupe">Personal</span>
+                  <Link href="/admin/equipo" className="text-xs text-taupe hover:underline">Equipo →</Link>
                 </div>
-                {respuestasMemo.map((r) => (
-                  <Link key={r.id} href={`/admin/disciplina/memo/${r.id}`}
-                    className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-sand/60 py-2 text-sm transition-colors hover:bg-verde/[0.06]">
-                    <span>
-                      <strong>{r.persona}</strong>
-                      <Insignia variante={r.firmado_at ? "positivo" : "neutral"} className="ml-2">
-                        {r.firmado_at ? "firmó digitalmente" : "prefirió no firmar"}
-                      </Insignia>
-                    </span>
-                    <span className="text-xs text-taupe">{fechaCorta((r.firmado_at ?? r.rechazado_at)!.slice(0, 10))}</span>
-                  </Link>
-                ))}
+                <div className="grid grid-cols-3 gap-4">
+                  <div><span className="block font-serif text-3xl font-medium leading-none tabular-nums">{filas.length}</span><span className="mt-1 block text-xs text-taupe">Equipo que marca asistencia</span></div>
+                  <div><span className="block font-serif text-3xl font-medium leading-none tabular-nums">{ausentesHoy}</span><span className="mt-1 block text-xs text-taupe">Ausentes hoy</span></div>
+                  <div><span className={`block font-serif text-3xl font-medium leading-none tabular-nums ${contratos.length > 0 ? "text-ambar" : ""}`}>{contratos.length}</span><span className="mt-1 block text-xs text-taupe">Contratos por vencer</span></div>
+                </div>
+                <p className="mt-3 text-xs text-taupe">Cuenta a quien marca asistencia: no incluye recibos por honorarios ni sueldo fijo.</p>
               </div>
             )}
 
-            {/* CONTRATOS A PLAZO FIJO. Dos grupos, y el importante es el primero:
-                quien ya venció y sigue figurando activo. Ese caso no se nota en
-                ninguna otra pantalla —la persona aparece normal en asistencia, en
-                planilla y en provisiones— y desde la 0162 tampoco en el tablero de
-                Documentación. Sin esta franja, la fecha anotada en Equipo solo sirve
-                si alguien se acuerda de ir a buscarla. */}
-            {(() => {
-              // Igual que Disciplina: si la RPC no contestó, la franja NO se
-              // calla — dice que no pudo mirar, en vez de parecer un mes tranquilo.
-              if (contratosNoRespondio) {
-                return (
-                  <section className="mb-8 rounded-2xl border border-ambar/30 bg-ambar/[0.06] p-5">
-                    <div className="etiqueta text-ambar">Contratos a plazo fijo · no se pudo consultar</div>
-                    <p className="mt-2 text-sm text-tinta">
-                      No se pudo revisar qué contratos vencen o ya vencieron. El plazo del{" "}
-                      <strong>artículo 77</strong> corre igual aunque esta franja no haya podido mirar.
-                      Vuelve a cargar, y si sigue igual revisa{" "}
-                      <Link href="/admin/equipo" className="underline">Equipo</Link>.
-                    </p>
-                  </section>
-                );
-              }
-              const vencidos = contratos.filter((c) => c.ya_vencio);
-              const porVencer = contratos.filter((c) => !c.ya_vencio);
-              if (!vencidos.length && !porVencer.length) return null;
-              const enCuantos = (dias: number) =>
-                dias <= 0 ? "vence hoy" : dias === 1 ? "vence mañana" : `vence en ${dias} días`;
-              // ¿Muchos caen el MISMO día? Veinte líneas seguidas con la misma fecha
-              // se leen como veinte avisos sueltos, y el problema no son veinte
-              // renovaciones repartidas: es que hay que hacerlas todas esa semana.
-              // Se dice de una vez, arriba, antes de la lista.
-              const porFecha = new Map<string, number>();
-              for (const c of porVencer) porFecha.set(c.fecha_fin_contrato, (porFecha.get(c.fecha_fin_contrato) ?? 0) + 1);
-              const [fechaRacimo, cuantos] = [...porFecha.entries()]
-                .sort((a, b) => b[1] - a[1])[0] ?? ["", 0];
-              const hayRacimo = cuantos >= 3;
-              return (
-                <div className="relative mb-8 overflow-hidden rounded-2xl border border-sand bg-papel p-5 pl-6">
-                  {/* Rojo si alguien ya pasó su fecha (el art. 77 ya corrió);
-                      ámbar si solo se acerca. */}
-                  <Franja tono={vencidos.length > 0 ? "alerta" : "advertencia"} />
-                  <div className="mb-2 flex items-center justify-between">
-                    <span className="font-serif text-xl font-medium text-tinta">Contratos a plazo fijo</span>
-                    <Link href="/admin/equipo" className="text-xs font-semibold text-rojo-profundo hover:underline">Ver equipo →</Link>
+            {prefs.kpisExtra.pendientes && (
+              <div className="mt-3 rounded-2xl border border-sand bg-papel p-5">
+                <div className="mb-3 flex items-baseline justify-between gap-2">
+                  <span className="etiqueta text-taupe">Pendientes de acción</span>
+                  <Link href="/admin/bandeja" className="text-xs text-taupe hover:underline">Bandeja{pendientesBandeja.resumen ? ` · ${pendientesBandeja.resumen.total}` : ""} →</Link>
+                </div>
+                {pendientesBandeja.fallo && !pendientesBandeja.resumen ? (
+                  <p className="text-sm text-ambar">No se pudieron traer los pendientes de la Bandeja. Vuelve a cargar la pantalla.</p>
+                ) : !pendientesBandeja.resumen ? (
+                  <p className="text-sm text-taupe">Cargando pendientes…</p>
+                ) : pendientesBandeja.resumen.total === 0 ? (
+                  <p className="text-sm text-taupe">Nada pendiente en la Bandeja.</p>
+                ) : (
+                  <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                    {pendientesBandeja.resumen.porModulo.map((m) => (
+                      <Link key={m.clave} href={m.ruta} className="block transition-opacity hover:opacity-80">
+                        <span className="block font-serif text-3xl font-medium leading-none tabular-nums">{m.n}</span>
+                        <span className="mt-1 block text-xs text-taupe">{m.etiqueta}</span>
+                      </Link>
+                    ))}
+                    {pendientesBandeja.resumen.otros > 0 && (
+                      <Link href="/admin/bandeja" className="block transition-opacity hover:opacity-80">
+                        <span className="block font-serif text-3xl font-medium leading-none tabular-nums">{pendientesBandeja.resumen.otros}</span>
+                        <span className="mt-1 block text-xs text-taupe">Otros</span>
+                      </Link>
+                    )}
                   </div>
-                  {hayRacimo && (
-                    <p className="mb-2 rounded-lg bg-rojo/10 px-3 py-2 text-sm text-rojo-profundo">
-                      <strong>{cuantos} contratos vencen el mismo día</strong> ({fechaCorta(fechaRacimo)}).
-                      No son {cuantos} trámites repartidos: son {cuantos} decisiones, {cuantos} redacciones
-                      y {cuantos} firmas en la misma semana. Al que se pase de fecha con la persona
-                      todavía trabajando, el <strong>art. 77</strong> lo vuelve indefinido solo.
-                    </p>
-                  )}
-                  {vencidos.map((c) => (
-                    <div key={c.persona_id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-sand/60 py-2 text-sm">
-                      <span>
-                        <strong>{c.nombre}</strong> <span className="text-taupe">· {c.sede}</span>
-                        <Insignia variante="alerta" className="ml-2">
-                          terminó el {fechaCorta(c.fecha_fin_contrato)} y sigue de alta
-                        </Insignia>
-                      </span>
-                      <span className="text-xs font-semibold text-rojo-profundo">renovar o registrar su salida →</span>
-                    </div>
-                  ))}
-                  {porVencer.map((c) => (
-                    <div key={c.persona_id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-sand/60 py-2 text-sm">
-                      <span>
-                        <strong>{c.nombre}</strong> <span className="text-taupe">· {c.sede}</span>
-                        <Insignia variante="advertencia" className="ml-2">
-                          {enCuantos(c.dias_restantes)} · {fechaCorta(c.fecha_fin_contrato)}
-                        </Insignia>
-                      </span>
-                    </div>
-                  ))}
-                  <p className="border-t border-sand/60 pt-2.5 text-xs text-taupe">
-                    {vencidos.length > 0
-                      ? "Mientras siga de alta sigue marcando, sigue cobrando y sigue acumulando gratificación, CTS y vacaciones. Anotar la fecha no da de baja a nadie: eso se decide y se registra a mano."
-                      : "La fecha es lo previsto, no un hecho. Un contrato puede renovarse: esto solo avisa antes de que llegue el día."}
-                  </p>
-                </div>
-              );
-            })()}
+                )}
+                {(pendientesBandeja.incompleto || (pendientesBandeja.fallo && pendientesBandeja.resumen)) && (
+                  <p className="mt-3 text-xs text-ambar">Alguna sección de la Bandeja no respondió: este número puede estar corto.</p>
+                )}
+              </div>
+            )}
+              </PanelColapsable>
+            )}
 
+            {panelVisible("sedes") && (
+              <PanelColapsable {...panelProps("sedes", "Sedes", "en vivo · cada 30 s")}>
             {/* !alertaSinEntrada && horarioEsperadoNoRespondio, a nivel global:
                 si turnos/horarios fallaron, ninguna sede puede calcular su alerta
                 de "sin marcajes" ni su denominador de programados hoy. */}
@@ -1221,6 +1228,8 @@ export default function DashboardPage() {
               </p>
             )}
 
+            {sedesMostradas.length > 0 && (
+            <div className="overflow-hidden rounded-2xl border border-sand bg-papel">
             {sedesMostradas.map(({ sedeId, codigo, etiqueta }) => {
               const deSedeCompleta = filas.filter((f) => f.sedeId === sedeId);
               const deSedeMostrada = deSedeCompleta.filter(filaCoincideFiltros);
@@ -1265,31 +1274,46 @@ export default function DashboardPage() {
               ].flatMap((c) => (c.causa ? [{ quien: c.quien, detalle: c.causa.detalle }] : []));
 
               const tablaVisible = hayFiltrosDeContenido || (detalleAbierto[sedeId] ?? false);
+              // La lista es lo primero que se lee; la tarjeta completa se despliega. Con
+              // un filtro de contenido activo se despliega sola: quien busca a alguien
+              // no debería tener que abrir cada sede para encontrarla.
+              const abierta = hayFiltrosDeContenido || (sedesAbiertas[sedeId] ?? false);
+              const resumenCob = !cob.sinMetaOp
+                ? { texto: `${cob.opPiso} / ${cob.metaOp} operativas`, pct: Math.min(100, Math.round((cob.opPiso / cob.metaOp) * 100)) }
+                : !cob.sinMetaEnc
+                  ? { texto: `${cob.encPiso} / ${cob.metaEnc} líderes`, pct: Math.min(100, Math.round((cob.encPiso / cob.metaEnc) * 100)) }
+                  : { texto: `${cob.trabajando.length} trabajando ahora`, pct: 0 };
+              const colorBarra = estadoSede.tono === "alerta" ? "bg-rojo" : estadoSede.tono === "advertencia" ? "bg-ambar" : estadoSede.tono === "positivo" ? "bg-verde" : "bg-taupe/40";
+              const tardanzasSede = deSedeCompleta.filter(llegoTarde).length;
 
               return (
-                <section key={sedeId} id={`sede-${codigo}`} className="relative mb-8 scroll-mt-24 overflow-hidden rounded-2xl border border-sand bg-papel p-5 pl-6 sm:p-6 sm:pl-7">
-                  <Franja tono={estadoSede.tono} />
-                  <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
-                    <h2 className="font-serif text-2xl font-medium leading-tight">
-                      {etiqueta.titulo}{" "}
-                      <span className="text-base font-normal text-taupe">({codigo})</span>{" "}
-                      {/* «N trabajando ahora · M en pausa», no «N de M programadas»:
-                          el N cuenta a cualquiera que esté en el piso y el M solo a
-                          quien tenía turno, así que la razón podía salir «5 de 4».
-                          Cuántas les tocaba venir se dice abajo, con sus palabras. */}
-                      <span className="text-lg font-normal text-taupe">
-                        — {cob.trabajando.length} trabajando ahora
-                        {cob.enPausa.length > 0 && <> · <span className="text-ambar">{cob.enPausa.length} en pausa</span></>}
-                      </span>
-                    </h2>
-                    <Insignia
-                      variante={estadoSede.tono}
-                      atenuada={estadoSede.tono === "neutral"}
-                      className="px-3 py-1 font-semibold"
-                    >
-                      {estadoSede.texto}
-                    </Insignia>
-                  </div>
+                <section key={sedeId} id={`sede-${codigo}`} className="scroll-mt-24 border-t border-sand first:border-t-0">
+                  <button
+                    type="button"
+                    onClick={() => setSedesAbiertas((a) => ({ ...a, [sedeId]: !(a[sedeId] ?? false) }))}
+                    aria-expanded={abierta}
+                    aria-controls={`sede-${codigo}-detalle`}
+                    className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 px-5 py-3 text-left transition-colors hover:bg-hueso/60 sm:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_auto_auto]"
+                  >
+                    <span className="min-w-0">
+                      <span className="font-semibold">{etiqueta.titulo}</span>{" "}
+                      <span className="text-xs text-taupe">({codigo})</span>
+                      <span className="block text-xs text-taupe">{textoEquipoDelDia(cob.programadosHoy, deSedeCompleta.length)}</span>
+                    </span>
+                    <span className="order-3 col-span-2 sm:order-none sm:col-span-1">
+                      <span className="text-sm">{resumenCob.texto}{cob.enPausa.length > 0 && <span className="text-ambar"> · {cob.enPausa.length} en pausa</span>}</span>
+                      <span aria-hidden className="mt-1 block h-1.5 overflow-hidden rounded-full bg-sand"><span className={`block h-full ${colorBarra}`} style={{ width: `${resumenCob.pct}%` }} /></span>
+                    </span>
+                    <span className="hidden sm:block">
+                      {tardanzasSede > 0 ? <Insignia variante="alerta">{tardanzasSede} tarde</Insignia> : <span className="text-xs text-taupe">sin tardanzas</span>}
+                    </span>
+                    <span className="flex items-center gap-2">
+                      <Insignia variante={estadoSede.tono} atenuada={estadoSede.tono === "neutral"} className="px-3 py-1 font-semibold">{estadoSede.texto}</Insignia>
+                      <span aria-hidden className="text-taupe">{abierta ? "▴" : "▾"}</span>
+                    </span>
+                  </button>
+                  {abierta && (
+                  <div id={`sede-${codigo}-detalle`} className="border-t border-dashed border-sand bg-hueso/40 px-5 py-4 pl-6">
                   <p className={`${aviso.sinHorario ? "mb-1" : "mb-4"} text-xs text-taupe`}>
                     {textoEquipoDelDia(cob.programadosHoy, deSedeCompleta.length)}
                   </p>
@@ -1442,9 +1466,137 @@ export default function DashboardPage() {
                       Ver detalle ↓ ({deSedeCompleta.length} persona{deSedeCompleta.length === 1 ? "" : "s"} del equipo)
                     </Boton>
                   )}
+                  </div>
+                  )}
                 </section>
               );
             })}
+            </div>
+            )}
+              </PanelColapsable>
+            )}
+
+            {/* QUIÉN RESPONDIÓ SU MEMO (0404). Aparte del panel de arriba porque
+                no es un plazo legal corriendo — es informativo: alguien ya vio su
+                documento y dejó una constancia digital, firmando o prefiriendo no
+                hacerlo. Ninguna de las dos reemplaza el trámite físico. */}
+            {respuestasMemo.length > 0 && panelVisible("memos") && (
+              <PanelColapsable {...panelProps("memos", "Respuestas a memos", "se carga al abrir la pantalla")}>
+              <div className="rounded-2xl border border-sand bg-papel p-5 pl-6">
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="text-xs text-taupe">Últimos {DIAS_RESPUESTAS_MEMO} días</span>
+                  <Link href="/admin/disciplina" className="text-xs font-medium text-taupe hover:underline">Ver disciplina →</Link>
+                </div>
+                {respuestasMemo.map((r) => (
+                  <Link key={r.id} href={`/admin/disciplina/memo/${r.id}`}
+                    className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-sand/60 py-2 text-sm transition-colors hover:bg-verde/[0.06]">
+                    <span>
+                      <strong>{r.persona}</strong>
+                      <Insignia variante={r.firmado_at ? "positivo" : "neutral"} className="ml-2">
+                        {r.firmado_at ? "firmó digitalmente" : "prefirió no firmar"}
+                      </Insignia>
+                    </span>
+                    <span className="text-xs text-taupe">{fechaCorta((r.firmado_at ?? r.rechazado_at)!.slice(0, 10))}</span>
+                  </Link>
+                ))}
+              </div>
+              </PanelColapsable>
+            )}
+
+            {/* CONTRATOS A PLAZO FIJO. Dos grupos, y el importante es el primero:
+                quien ya venció y sigue figurando activo. Ese caso no se nota en
+                ninguna otra pantalla —la persona aparece normal en asistencia, en
+                planilla y en provisiones— y desde la 0162 tampoco en el tablero de
+                Documentación. Sin esta franja, la fecha anotada en Equipo solo sirve
+                si alguien se acuerda de ir a buscarla. */}
+            {(contratosNoRespondio || contratos.length > 0) && panelVisible("contratos") && (
+              <PanelColapsable {...panelProps("contratos", "Contratos a plazo fijo", "se carga al abrir la pantalla")}>
+              {(() => {
+              // Igual que Disciplina: si la RPC no contestó, la franja NO se
+              // calla — dice que no pudo mirar, en vez de parecer un mes tranquilo.
+              if (contratosNoRespondio) {
+                return (
+                  <section className="rounded-2xl border border-ambar/30 bg-ambar/[0.06] p-5">
+                    <div className="etiqueta text-ambar">Contratos a plazo fijo · no se pudo consultar</div>
+                    <p className="mt-2 text-sm text-tinta">
+                      No se pudo revisar qué contratos vencen o ya vencieron. El plazo del{" "}
+                      <strong>artículo 77</strong> corre igual aunque esta franja no haya podido mirar.
+                      Vuelve a cargar, y si sigue igual revisa{" "}
+                      <Link href="/admin/equipo" className="underline">Equipo</Link>.
+                    </p>
+                  </section>
+                );
+              }
+              const vencidos = contratos.filter((c) => c.ya_vencio);
+              const porVencer = contratos.filter((c) => !c.ya_vencio);
+              if (!vencidos.length && !porVencer.length) return null;
+              const enCuantos = (dias: number) =>
+                dias <= 0 ? "vence hoy" : dias === 1 ? "vence mañana" : `vence en ${dias} días`;
+              // ¿Muchos caen el MISMO día? Veinte líneas seguidas con la misma fecha
+              // se leen como veinte avisos sueltos, y el problema no son veinte
+              // renovaciones repartidas: es que hay que hacerlas todas esa semana.
+              // Se dice de una vez, arriba, antes de la lista.
+              const porFecha = new Map<string, number>();
+              for (const c of porVencer) porFecha.set(c.fecha_fin_contrato, (porFecha.get(c.fecha_fin_contrato) ?? 0) + 1);
+              const [fechaRacimo, cuantos] = [...porFecha.entries()]
+                .sort((a, b) => b[1] - a[1])[0] ?? ["", 0];
+              const hayRacimo = cuantos >= 3;
+              return (
+                <div className="relative overflow-hidden rounded-2xl border border-sand bg-papel p-5 pl-6">
+                  {/* Rojo si alguien ya pasó su fecha (el art. 77 ya corrió);
+                      ámbar si solo se acerca. */}
+                  <Franja tono={vencidos.length > 0 ? "alerta" : "advertencia"} />
+                  <div className="mb-2 flex items-center justify-between">
+                    <span />
+                    <Link href="/admin/equipo" className="text-xs font-semibold text-rojo-profundo hover:underline">Ver equipo →</Link>
+                  </div>
+                  {hayRacimo && (
+                    <p className="mb-2 rounded-lg bg-rojo/10 px-3 py-2 text-sm text-rojo-profundo">
+                      <strong>{cuantos} contratos vencen el mismo día</strong> ({fechaCorta(fechaRacimo)}).
+                      No son {cuantos} trámites repartidos: son {cuantos} decisiones, {cuantos} redacciones
+                      y {cuantos} firmas en la misma semana. Al que se pase de fecha con la persona
+                      todavía trabajando, el <strong>art. 77</strong> lo vuelve indefinido solo.
+                    </p>
+                  )}
+                  {vencidos.map((c) => (
+                    <div key={c.persona_id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-sand/60 py-2 text-sm">
+                      <span>
+                        <strong>{c.nombre}</strong> <span className="text-taupe">· {c.sede}</span>
+                        <Insignia variante="alerta" className="ml-2">
+                          terminó el {fechaCorta(c.fecha_fin_contrato)} y sigue de alta
+                        </Insignia>
+                      </span>
+                      <span className="text-xs font-semibold text-rojo-profundo">renovar o registrar su salida →</span>
+                    </div>
+                  ))}
+                  {porVencer.map((c) => (
+                    <div key={c.persona_id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-sand/60 py-2 text-sm">
+                      <span>
+                        <strong>{c.nombre}</strong> <span className="text-taupe">· {c.sede}</span>
+                        <Insignia variante="advertencia" className="ml-2">
+                          {enCuantos(c.dias_restantes)} · {fechaCorta(c.fecha_fin_contrato)}
+                        </Insignia>
+                      </span>
+                    </div>
+                  ))}
+                  <p className="border-t border-sand/60 pt-2.5 text-xs text-taupe">
+                    {vencidos.length > 0
+                      ? "Mientras siga de alta sigue marcando, sigue cobrando y sigue acumulando gratificación, CTS y vacaciones. Anotar la fecha no da de baja a nadie: eso se decide y se registra a mano."
+                      : "La fecha es lo previsto, no un hecho. Un contrato puede renovarse: esto solo avisa antes de que llegue el día."}
+                  </p>
+                </div>
+              );
+            })()}
+              </PanelColapsable>
+            )}
+              </div>
+
+              {!prefs.alertasOcultas && (
+                <aside className="hidden xl:sticky xl:top-4 xl:block">
+                  <PanelAtencionLateral items={itemsAtencion} alOcultar={() => setPrefsCrudas(alternarAlertas(prefs))} />
+                </aside>
+              )}
+            </div>
           </>
         )}
       </main>
