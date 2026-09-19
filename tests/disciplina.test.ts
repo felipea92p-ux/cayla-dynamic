@@ -11,7 +11,7 @@ import { describe, it, expect } from "vitest";
 import {
   etapaDelBorrador, pestanaDelDocumento, pendientesDeEntregado, situacionTardanza, situacionFalta,
   estadoHoyTardanza, estadoHoyFalta, antecedentesVigentes, eventosDeObservacion,
-  admiteEntregaAnteriorAlCese, normalizarBusqueda, horaEsperada, SIN_FOTO_DEL_HORARIO,
+  admiteEntregaAnteriorAlCese, normalizarBusqueda, horaEsperada, SIN_FOTO_DEL_HORARIO, explicarPasoTardanza,
   type DocDisciplina, type Adjunto, type TardanzaRow, type FaltaRow, type DiaAsistencia,
 } from "@/lib/admin/disciplina";
 
@@ -194,4 +194,23 @@ describe("persona cesada: la entrega solo tiene sentido si pudo ocurrir antes de
 
 it("la búsqueda ignora tildes y mayúsculas", () => {
   expect(normalizarBusqueda("  Ramírez ")).toBe("ramirez");
+});
+
+describe("el paso de la escala se dice completo: los cuatro peldaños del numeral 19.2", () => {
+  const paso = (minimo: number | null, nivel_siguiente: string) => explicarPasoTardanza({ minimo, nivel_siguiente });
+  it("sin antecedente toca la amonestación, con 3", () => {
+    expect(paso(3, "amonestacion")).toMatch(/amonestación escrita: 3 tardanzas/);
+  });
+  it("con una amonestación toca la primera suspensión, con 2", () => {
+    expect(paso(2, "suspension")).toMatch(/primera suspensión: 2 tardanzas/);
+  });
+  it("con una suspensión toca la SEGUNDA, y lo dice — el mismo minimo=1 que la imputación", () => {
+    expect(paso(1, "suspension")).toMatch(/segunda suspensión, de mayor duración/);
+  });
+  it("con dos suspensiones toca la imputación de cargos (19.2 e)", () => {
+    expect(paso(1, "imputacion")).toMatch(/imputación de cargos/);
+  });
+  it("con una imputación vigente no propone nada: decide Gerencia", () => {
+    expect(paso(null, "imputacion")).toMatch(/Gerencia/);
+  });
 });

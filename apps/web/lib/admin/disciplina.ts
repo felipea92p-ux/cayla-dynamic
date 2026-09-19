@@ -166,6 +166,28 @@ export interface SituacionDeteccion {
  * generar_tardanza`, 0413: n < mínimo). Las tres filas del 2026-09-15 eran de
  * ese tipo. Un botón que solo puede dar error enseña a ignorar los errores.
  */
+/**
+ * Qué paso de la escala le toca a alguien y con cuántas tardanzas del mes, dicho
+ * para quien firma. Sale de lo que devuelve la base (`minimo` y `nivel_siguiente`),
+ * no de una lista escrita acá: `minimo = 1` es tanto «tras una suspensión» (toca
+ * la segunda) como «tras dos» (toca imputar), y una sola frase para los dos casos
+ * es la que dejaba pasar por alto el paso d) del numeral 19.2.
+ */
+export function explicarPasoTardanza(t: Pick<TardanzaRow, "minimo" | "nivel_siguiente">): string {
+  const n = (k: number) => `${k} tardanza${k === 1 ? "" : "s"}`;
+  if (t.minimo === null) return "Tiene una imputación de cargos vigente: el siguiente paso lo decide Gerencia tras evaluar sus descargos.";
+  if (t.nivel_siguiente === "imputacion") {
+    return `Con dos suspensiones ya entregadas, el paso que toca es la imputación de cargos: basta ${n(t.minimo)} nueva.`;
+  }
+  if (t.nivel_siguiente === "suspension" && t.minimo === 1) {
+    return `Con una suspensión vigente, el paso que toca es la segunda suspensión, de mayor duración que la primera: basta ${n(1)} en el mes.`;
+  }
+  if (t.nivel_siguiente === "suspension") {
+    return `Con una amonestación vigente, el paso que toca es la primera suspensión: ${n(t.minimo)} en un mismo mes calendario.`;
+  }
+  return `Sin antecedente vigente, el paso que toca es la amonestación escrita: ${n(t.minimo)} en un mismo mes calendario.`;
+}
+
 export function situacionTardanza(t: TardanzaRow, nombreMes: string, tieneBorrador: boolean): SituacionDeteccion {
   if (t.umbral === "bloqueado") {
     return {
@@ -183,7 +205,7 @@ export function situacionTardanza(t: TardanzaRow, nombreMes: string, tieneBorrad
     const falta = t.minimo !== null ? Math.max(t.minimo - t.tardanzas_mes, 1) : 1;
     return {
       grupo: "seguimiento", etiqueta: falta === 1 ? "Le falta 1" : `Le faltan ${falta}`, variante: "advertencia", generable: false,
-      porQueNo: `Aún no llega a su umbral: lleva ${t.tardanzas_mes} en ${nombreMes} y su escalón exige ${t.minimo ?? "más"}.`,
+      porQueNo: `Aún no llega a su umbral: lleva ${t.tardanzas_mes} en ${nombreMes} y el paso que le toca exige ${t.minimo ?? "más"}.`,
     };
   }
   const nivel = NIVEL_DISCIPLINARIO_CORTO[t.umbral as keyof typeof NIVEL_DISCIPLINARIO_CORTO] ?? t.umbral;

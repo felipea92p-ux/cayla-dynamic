@@ -286,8 +286,8 @@ export default function DisciplinaPage() {
     // Los TRES errores, cada uno nombrando su sección: un «error al cargar»
     // genérico deja igual de ciego que el silencio.
     const fallos = [
-      eT ? mensajeDeError(eT, "cargar el semáforo de tardanzas") : null,
-      eF ? mensajeDeError(eF, "cargar el semáforo de faltas") : null,
+      eT ? mensajeDeError(eT, "cargar la cuenta de tardanzas") : null,
+      eF ? mensajeDeError(eF, "cargar la cuenta de faltas") : null,
       eD ? mensajeDeError(eD, "cargar el legajo") : null,
     ].filter(Boolean);
     if (fallos.length) avisar("error", fallos.join(" · "));
@@ -633,7 +633,7 @@ export default function DisciplinaPage() {
     setResolviendo(null);
     await cargar();
     avisar("ok", resultado === "archivado"
-      ? "Procedimiento archivado. El semáforo deja de pedir una decisión ya tomada."
+      ? "Procedimiento archivado. El sistema deja de pedir una decisión ya tomada."
       : "Anotado que se resolvió con despido. La carta se emite aparte.");
   }
 
@@ -976,7 +976,7 @@ export default function DisciplinaPage() {
         <p className="min-w-0 flex-1 basis-60 text-xs text-taupe">
           {s?.generable
             ? "Crea un borrador sin número con estas pruebas. No comunica ni firma nada todavía."
-            : s?.porQueNo ?? "Esta persona ya no aparece en el semáforo."}
+            : s?.porQueNo ?? "Esta persona ya no aparece en la cuenta."}
         </p>
       </div>
     );
@@ -1109,14 +1109,14 @@ export default function DisciplinaPage() {
             {/* ── Requieren revisión ─────────────────────────────────── */}
             {tab === "revision" && (
               <>
-                {falloTard && <FalloLectura que="el semáforo de tardanzas" />}
-                {falloFaltas && <FalloLectura que="el semáforo de faltas" />}
+                {falloTard && <FalloLectura que="la cuenta de tardanzas" />}
+                {falloFaltas && <FalloLectura que="la cuenta de faltas" />}
                 <Grupo titulo="Alcanzaron un umbral" detalle="Revisar el caso no genera nada: el borrador se prepara desde ahí.">
                   {alcanzaron.length === 0 ? (
                     <Vacio>
                       {hayFiltro
                         ? "Nadie con estos filtros."
-                        : `Nadie alcanza su umbral de tardanzas en ${nombreMes} ni está en el semáforo de faltas.`}
+                        : `Nadie alcanza su umbral de tardanzas en ${nombreMes} ni tiene faltas por revisar.`}
                     </Vacio>
                   ) : (
                     <ListaCasos etiqueta="Alcanzaron un umbral" plantilla={PLANTILLA} encabezados={encabezados("Motivo", "Progreso", "Situación", "")}>
@@ -1339,13 +1339,13 @@ export default function DisciplinaPage() {
             <p className="text-taupe">Lo que el sistema mira para detectar. Detectar no es sancionar: cada documento lo revisa y firma una persona.</p>
             <dl className="grid gap-3">
               {[
-                ["Tardanzas", "En un mismo mes calendario: 3 sin antecedente vigente · 2 tras una amonestación · 1 tras una suspensión. Cada fila dice el suyo.", "RIT 19.2"],
-                ["Sin medir", "Más de tres horas tarde no suma: casi siempre es un turno mal asignado. Se revisa a mano.", "Mig. 0189"],
+                ["Tardanzas", "En un mismo mes calendario: 3 sin antecedente vigente → amonestación escrita · 2 con una amonestación vigente → primera suspensión · 1 con una suspensión vigente → segunda suspensión, mayor que la primera · 1 tardanza nueva tras la segunda suspensión → imputación de cargos. Cada fila dice el paso que le toca a esa persona.", "RIT 19.2"],
+                ["Sin medir", "Un día con más de tres horas de diferencia no suma: casi siempre es un turno mal cargado. Se revisa a mano con la persona y con su líder de equipo.", "RIT 17.5"],
                 ["Mes cerrado", "Se puede documentar un mes concluido, pero una demora injustificada equivale a condonación. Del mes más viejo al más nuevo.", "RIT 19.4 · 52 · 56.6"],
                 ["Faltas", "Día programado sin marca ni justificación. Umbral grave: 4 seguidas · 6 en 30 días · 16 en 180 días.", "LPCL 25 h)"],
                 ["Antecedente", "Solo cuenta lo entregado en los doce meses previos. Firmado y no entregado no agrava.", "RIT 56.1 · 56.2"],
                 ["Antes de firmar", "Amonestación y suspensión: comunicar los cargos por escrito y esperar dos días hábiles de descargo; después, valorarlo.", "RIT 55.2 · 19.3"],
-                ["Suspensión", "Tope de tres días laborables; la primera por tardanzas, de uno a dos; la siguiente, mayor que la anterior.", "RIT 54.5 · 19.2 c) d)"],
+                ["Suspensión", "Tope de tres días laborables. La primera por tardanzas, de uno a dos días; la segunda, de dos a tres y siempre mayor que la primera.", "RIT 54.5 · 19.2 c) d)"],
                 ["Incidencias", "Cuenta tardanzas sobre 30 días corridos, así que puede mostrar un número mayor que acá. El que gobierna el documento es el del mes calendario.", ""],
               ].map(([t, x, ref]) => (
                 <div key={t} className="grid gap-0.5 border-t border-sand pt-2 sm:grid-cols-[8rem_1fr] sm:gap-4">
@@ -1602,7 +1602,7 @@ export default function DisciplinaPage() {
                   : "Motivo de la anulación (obligatorio)"}
                 <AreaTexto id="motivo-anular" value={motivoAnular} onChange={(e) => setMotivoAnular(e.target.value)} rows={3} />
               </label>
-              <p className="text-xs text-taupe">Anular no es archivar: devuelve el escalón al peldaño que de verdad tocaba.</p>
+              <p className="text-xs text-taupe">Anular no es archivar: devuelve la escala al paso que de verdad tocaba.</p>
               <div className="flex justify-end gap-3">
                 <Boton variante="secundario" onClick={() => setAnulando(null)} disabled={ocupado === anulando.id}>Cancelar</Boton>
                 <Boton variante="peligro" onClick={() => void confirmarAnular()} cargando={ocupado === anulando.id}>Anular</Boton>
