@@ -115,6 +115,18 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-09-19-incidencias-dice-lo-que-no-pudo-mirar",
+    fecha: "2026-09-19",
+    titulo: "Incidencias avisa cuando no pudo mirar algo, en vez de decir «todo revisado»",
+    queMejoro:
+      "Antes, si a Incidencias le fallaba una lectura —por ejemplo la de las faltas—, la pantalla podía decir «Todo revisado» sin haber mirado eso. " +
+      "Ahora dice qué no pudo comprobar y te pide reintentar antes de dar el periodo por revisado.\n\n" +
+      "También cambió: «Marcar como revisadas» en lote ahora te muestra la lista de casos y pide confirmación; en el celular puedes elegir los casos uno por uno; " +
+      "el «Déficit de líderes» de Central deja de aparecer cuando hay un administrador a cargo; la sede se lee «Taller · Lima» o «Tienda · Lima», no solo «LIM»; " +
+      "y las horas del rastro de un caso salen en hora de Lima.",
+    audiencia: "panel",
+  },
+  {
     id: "2026-09-19-boletas-de-pago-en-tu-cuenta",
     fecha: "2026-09-19",
     titulo: "Ahora puedes ver y guardar tus boletas de pago en Dynamic",

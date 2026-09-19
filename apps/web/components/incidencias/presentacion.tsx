@@ -114,10 +114,11 @@ export const REGLA: Record<TipoIncidencia, string> = {
     "No es el conteo que arma un memo: el reglamento interno cuenta por mes calendario, y eso vive en Disciplina.",
   jornada_excedida_viva:
     `Más de ${MAXIMO_LEGAL_SEMANAL} h en una ventana de 7 días seguidos que termina esta semana (una practicante preprofesional: 30 h). ` +
-    "Es el máximo legal, no un objetivo, y todavía se puede mover un turno.",
+    "Es el máximo legal, no un objetivo, y todavía se puede mover un turno. No se avisa al personal de dirección: la ley lo excluye de la jornada máxima.",
   jornada_excedida:
     `Pasó de ${MAXIMO_LEGAL_SEMANAL} h en 7 días seguidos hace más de una semana (se mira hasta ${VENTANA_EXCESO_DIAS} días atrás). ` +
-    "Ya no se puede evitar: marcarla revisada deja constancia de quién la vio. El recargo del sobretiempo se paga aparte y no levanta el tope.",
+    "Ya no se puede evitar: marcarla revisada deja constancia de quién la vio. El recargo del sobretiempo se paga aparte y no levanta el tope. " +
+    "No se avisa al personal de dirección: la ley lo excluye de la jornada máxima.",
   racha_preventiva:
     `Lleva ${MAXIMO_DIAS_SIN_DESCANSO} días seguidos trabajando: el siguiente le toca descansar. El descanso se cuenta en ciclos de 7 días, no por semana de calendario. ` +
     "El aviso se va solo en cuanto descansa.",
@@ -146,6 +147,20 @@ export const REGLAS_EN_ORDEN: readonly { titulo: string; tipos: TipoIncidencia[]
 
 // ── Qué se puede hacer ─────────────────────────────────────────────────────
 
+/**
+ * Lo que un visto bueno sobre un incumplimiento de la empresa NO dice. Un exceso
+ * de 48 h o una racha sin descanso son de CAYLA, no de la persona; la compensación
+ * se paga en la planilla (recargo del sobretiempo desde la 0185, sobretasa del
+ * descanso semanal trabajado desde la 0280) y esta pantalla no la verifica. Sin
+ * esa frase, «revisada» se lee como «resuelta».
+ */
+export const COMPENSACION_NO_COMPROBADA: Record<"racha_sin_descanso" | "jornada_excedida", string> = {
+  racha_sin_descanso:
+    "La sobretasa por trabajar el descanso semanal se paga en la planilla; esta constancia no comprueba que se haya pagado.",
+  jornada_excedida:
+    "El recargo del sobretiempo se paga en la planilla; esta constancia no comprueba que se haya pagado.",
+};
+
 /** El texto del visto bueno dice QUÉ se está afirmando (decisión de Felipe,
  * 2026-09-15). En el almuerzo esa afirmación decide cuántas horas se pagan. */
 export const VISTO_BUENO: Record<TipoAceptable, { boton: string; ayuda: string }> = {
@@ -165,13 +180,15 @@ export const VISTO_BUENO: Record<TipoAceptable, { boton: string; ayuda: string }
     boton: "Marcar revisada",
     ayuda:
       "Dejas constancia de que viste esta racha. No la borra: queda quién la revisó y cuándo. " +
-      "La racha ya pasó y no se puede deshacer — esto solo dice que no se te escapó.",
+      "La racha ya pasó y no se puede deshacer — esto solo dice que no se te escapó. " +
+      COMPENSACION_NO_COMPROBADA.racha_sin_descanso,
   },
   jornada_excedida: {
     boton: "Marcar revisada",
     ayuda:
       "Dejas constancia de que viste este exceso. No lo borra: queda quién lo revisó y cuándo. " +
-      "Pasar de 48 h no se arregla pagando el recargo: es un tope.",
+      "Pasar de 48 h no se arregla pagando el recargo: es un tope. " +
+      COMPENSACION_NO_COMPROBADA.jornada_excedida,
   },
 };
 

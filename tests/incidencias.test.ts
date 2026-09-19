@@ -224,6 +224,22 @@ describe("exceso de jornada", () => {
     const [r] = detectarIncidencias(datos({ horasVentana: filas }));
     expect(r?.detalle).toContain("máx. 30");
   });
+
+  it("al personal de dirección no se le avisa el exceso: la ley lo excluye de la jornada máxima", () => {
+    // Las mismas 52.5 h que dan un aviso «vivo» arriba; con la marca de dirección, ninguno.
+    const filas = horas("2026-09-14", 7, 7.5).map((f) => ({ ...f, personas: persona("Carmen", "CCO", { personal_direccion: true }) }));
+    expect(detectarIncidencias(datos({ horasVentana: filas }))).toEqual([]);
+    // Y con la marca en falso, sigue siendo un exceso.
+    const sinMarca = horas("2026-09-14", 7, 7.5).map((f) => ({ ...f, personas: persona("Carmen", "TRU", { personal_direccion: false }) }));
+    expect(detectarIncidencias(datos({ horasVentana: sinMarca }))[0]?.tipo).toBe("jornada_excedida_viva");
+  });
+
+  it("la racha sin descanso SÍ se le avisa al personal de dirección: el descanso semanal es otra norma", () => {
+    const filas = Array.from({ length: 8 }, (_, i) => ({
+      persona_id: "p1", fecha: addDias("2026-09-14", -i), personas: persona("Carmen", "CCO", { personal_direccion: true }),
+    }));
+    expect(detectarIncidencias(datos({ diasRacha: filas }))[0]?.tipo).toBe("racha_sin_descanso");
+  });
 });
 
 describe("faltas", () => {

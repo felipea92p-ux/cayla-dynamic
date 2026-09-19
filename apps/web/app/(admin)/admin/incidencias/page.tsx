@@ -38,6 +38,7 @@ import { Boton } from "@/components/ui/boton";
 import { Campo, CampoSelect } from "@/components/ui/campo";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
 import { Insignia } from "@/components/ui/insignia";
+import { Modal } from "@/components/ui/modal";
 import { TablaEncabezado, Th } from "@/components/ui/tabla";
 import { cx } from "@/components/ui/cx";
 import { traerTodo } from "@/lib/admin/traer-todo";
@@ -50,7 +51,8 @@ import {
   type Categoria, type CoberturaDeCarga, type DatosDeteccion, type Incidencia, type TipoIncidencia,
 } from "@/lib/admin/incidencias";
 import {
-  IconoIncidencia, NOMBRE_TIPO, REGLA, REGLAS_EN_ORDEN, SIGUE_EL_PERIODO, accionDe, fechaCorta, fechaHoraLima, horaLima,
+  COMPENSACION_NO_COMPROBADA, IconoIncidencia, NOMBRE_TIPO, REGLA, REGLAS_EN_ORDEN, SIGUE_EL_PERIODO, accionDe, fechaCorta,
+  fechaHoraLima, horaLima,
 } from "@/components/incidencias/presentacion";
 import { EstadoInsignia, PanelIncidencia } from "@/components/incidencias/panel-incidencia";
 
@@ -146,6 +148,10 @@ function IncidenciasContenido() {
 
   const [seleccion, setSeleccion] = useState<Set<string>>(new Set());
   const [loteando, setLoteando] = useState(false);
+  // Los casos que están a punto de marcarse en lote, esperando confirmación.
+  const [confirmandoLote, setConfirmandoLote] = useState<Incidencia[] | null>(null);
+  // Si los vistos buenos no se pudieron leer, el lote se apaga (ver `loteable`).
+  const [vistosBuenosFallaron, setVistosBuenosFallaron] = useState(false);
 
   const [abierta, setAbierta] = useState<string | null>(null);
   const volverFoco = useRef<HTMLElement | null>(null);
@@ -236,7 +242,8 @@ function IncidenciasContenido() {
       traerTodo<unknown>((ini, fin) =>
         supabase
           .from("jornadas")
-          .select("persona_id, fecha, horas_trabajadas, estado, personas:persona_id(nombres, apellidos, tipo_vinculo, practicante_modalidad, estado, sedes:sede_base_id(codigo))")
+          // `personal_direccion` viaja para dejar a ese personal fuera del aviso de exceso.
+          .select("persona_id, fecha, horas_trabajadas, estado, personas:persona_id(nombres, apellidos, tipo_vinculo, practicante_modalidad, personal_direccion, estado, sedes:sede_base_id(codigo))")
           .gte("fecha", v.desdeHoras).lte("fecha", hoy)
           .gt("horas_trabajadas", 0)
           .order("fecha")
@@ -270,6 +277,7 @@ function IncidenciasContenido() {
       vistos_buenos: errAceptadas, revisiones: errRevisiones, convenios: errContratos,
       nombres: errPersonas, motivos: errTipos,
     }));
+    setVistosBuenosFallaron(Boolean(errAceptadas));
     setAvisoLevantadas(
       errLevTard
         ? `No se pudo comprobar qué tardanzas ya fueron levantadas (${errLevTard.message}). ` +
@@ -419,8 +427,10 @@ function IncidenciasContenido() {
     }
     return null;
   }
+  // Sin poder leer los vistos buenos ya dados, todo lo revisado reaparece como pendiente:
+  // ofrecer el lote así reemplazaría vistos buenos de otras personas sin que se vean.
   const loteable = (i: Incidencia) =>
-    !!i.aceptable && TIPOS_EN_LOTE.has(i.aceptable) && estadoDe(i) !== "resuelta" && motivoNoPuede(i) === null;
+    !vistosBuenosFallaron && !!i.aceptable && TIPOS_EN_LOTE.has(i.aceptable) && estadoDe(i) !== "resuelta" && motivoNoPuede(i) === null;
 
   async function marcarRevisadas(objetivo: Incidencia[]) {
     setLoteando(true);
@@ -438,6 +448,7 @@ function IncidenciasContenido() {
       hechas++;
     }
     setLoteando(false);
+    setConfirmandoLote(null);
     await cargar();
   }
 
@@ -764,16 +775,17 @@ function IncidenciasContenido() {
                               return n;
                             })}
                           />
-                          Seleccionar las {loteables.length} que solo piden constancia (rachas y excesos que ya ocurrieron)
+                          Seleccionar las {loteables.length} rachas y excesos que ya ocurrieron
                         </label>
+                        {/* Pide confirmación con la lista: son incumplimientos de la empresa, no de la persona. */}
                         <Boton
                           variante="sutil"
                           tamano="sm"
                           disabled={elegidos.length === 0 || loteando}
                           cargando={loteando}
-                          onClick={() => void marcarRevisadas(elegidos)}
+                          onClick={() => setConfirmandoLote(elegidos)}
                         >
-                          Marcar {elegidos.length || ""} como revisada{elegidos.length === 1 ? "" : "s"}
+                          Marcar {elegidos.length || ""} como revisada{elegidos.length === 1 ? "" : "s"}…
                         </Boton>
                       </div>
                     )}
@@ -856,8 +868,26 @@ function IncidenciasContenido() {
                     {/* Celular: tarjetas. Toda la tarjeta abre el caso. */}
                     <ul className="divide-y divide-sand md:hidden">
                       {casos.map((i) => (
-                        <li key={i.clave}>
-                          <button type="button" onClick={(e) => abrir(i, e.currentTarget)} className="flex w-full flex-col gap-2 px-4 py-3.5 text-left">
+                        <li key={i.clave} className="flex items-stretch">
+                          {/* En celular también se elige caso por caso (antes solo existía «todas»). */}
+                          {loteables.length > 0 && (
+                            loteable(i) ? (
+                              <label className="flex w-11 shrink-0 items-center justify-center">
+                                <input
+                                  type="checkbox"
+                                  aria-label={`Seleccionar ${i.nombre}, ${i.titulo}`}
+                                  className="size-5 accent-tinta"
+                                  checked={seleccion.has(i.clave)}
+                                  onChange={(e) => setSeleccion((s) => { const n = new Set(s); if (e.target.checked) n.add(i.clave); else n.delete(i.clave); return n; })}
+                                />
+                              </label>
+                            ) : <span aria-hidden className="w-11 shrink-0" />
+                          )}
+                          <button
+                            type="button"
+                            onClick={(e) => abrir(i, e.currentTarget)}
+                            className={cx("flex min-w-0 flex-1 flex-col gap-2 py-3.5 pr-4 text-left", loteables.length > 0 ? "pl-1" : "pl-4")}
+                          >
                             <span className="flex items-start justify-between gap-2">
                               <span className="flex flex-col">
                                 <span className="font-medium text-tinta">{i.nombre}</span>
@@ -957,6 +987,47 @@ function IncidenciasContenido() {
             if (claveNueva) setAbierta(claveNueva);
           }}
         />
+
+        {/* Confirmación del lote. Excesos de 48 h y rachas sin descanso son incumplimientos de la
+            EMPRESA: quien marca tiene que ver a quién y cuánto, y saber qué NO está diciendo. */}
+        <Modal
+          abierto={confirmandoLote !== null}
+          onCerrar={() => setConfirmandoLote(null)}
+          titulo={confirmandoLote ? `Marcar ${confirmandoLote.length} como revisada${confirmandoLote.length === 1 ? "" : "s"}` : undefined}
+          ancho="lg"
+          bloqueado={loteando}
+        >
+          {confirmandoLote && (
+            <div className="flex flex-col gap-4 text-sm">
+              <p className="text-tinta">
+                Vas a dejar constancia, con tu nombre y sin nota, de que viste {confirmandoLote.length === 1 ? "este caso" : "estos casos"}:
+              </p>
+              <ul className="flex max-h-64 flex-col gap-1.5 overflow-y-auto rounded-control border border-sand p-3">
+                {confirmandoLote.map((i) => (
+                  <li key={i.clave} className="flex flex-col">
+                    <span>
+                      <strong className="font-medium text-tinta">{i.nombre}</strong>
+                      <span className="text-taupe"> · {rotuloDeSede(i.sede)} · {fechaCorta(i.fecha)}</span>
+                    </span>
+                    <span className="text-taupe">{i.titulo}{i.detalle ? ` · ${i.detalle}` : ""}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="rounded-control bg-hueso px-3 py-2.5 leading-relaxed text-tinta">
+                Esto es un incumplimiento de la empresa, no de la persona. Marcarlo no lo corrige ni dice que se compensó.
+                {confirmandoLote.some((i) => i.aceptable === "racha_sin_descanso") && <> {COMPENSACION_NO_COMPROBADA.racha_sin_descanso}</>}
+                {confirmandoLote.some((i) => i.aceptable === "jornada_excedida") && <> {COMPENSACION_NO_COMPROBADA.jornada_excedida}</>}
+                {" "}Si algún caso necesita una nota, ábrelo y márcalo aparte.
+              </p>
+              <div className="flex justify-end gap-2">
+                <Boton tamano="sm" onClick={() => setConfirmandoLote(null)} disabled={loteando}>Cancelar</Boton>
+                <Boton variante="primario" tamano="sm" cargando={loteando} onClick={() => void marcarRevisadas(confirmandoLote)}>
+                  Marcar {confirmandoLote.length} como revisada{confirmandoLote.length === 1 ? "" : "s"}
+                </Boton>
+              </div>
+            </div>
+          )}
+        </Modal>
       </main>
     </div>
   );
