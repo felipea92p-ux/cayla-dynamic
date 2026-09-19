@@ -9,7 +9,7 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 ## 2026-09-18 — Dashboard: la meta ya no se mide con la sede cerrada, y el «0 en piso» dice por qué · SIN MIGRACIÓN · SIN FUSIONAR
 
 **Sin SQL: no hay nada que pegar.** Cambia `asistencia-hoy.ts`, la pantalla del
-Dashboard y sus pruebas (95 en `asistencia-hoy.test.ts`; 880 en total). Verificado
+Dashboard y sus pruebas (115 en `asistencia-hoy.test.ts`; 900 en total). Verificado
 con pruebas y typecheck; **no se vio en pantalla** — el panel no levanta sin
 `.env.local` y el Postgres local estaba colgado.
 
@@ -38,19 +38,45 @@ suposición: a la hora de la captura AQP seguía abierta (salidas 21:53 y 22:16)
 - La líder de una tienda cuenta en las dos metas (operativas y líderes), así que
   «2/2 + 1/1» pueden ser solo 2 personas: la pantalla lo dice.
 
+**Segunda tanda, tras «siguen existiendo errores»** (2026-09-19; una revisión del
+resumen de arriba, los filtros y «Requiere atención», que la primera no había mirado):
+- **Textos.** «Operativas en piso» → «Personal operativo en piso». Con 0 en piso,
+  el desglose reemplaza a «Nadie está trabajando en este momento» (repetía el 0 por
+  tercera vez). «Ver detalle (12 personas del equipo)».
+- **El filtro «Salió» escondía gente.** La tabla dice «Salió (revisada)» y el
+  filtro solo buscaba `cerrada`: en OTRU, 3 de las 4 personas que se habían ido no
+  aparecían. `coincideConFiltroDeEstado` y `OPCIONES_FILTRO_ESTADO`; una prueba
+  comprueba que ningún estado de jornada queda sin una opción que lo encuentre.
+- **«Marcó hoy sin horario ni turno asignado».** La integrante de TRU que trabajó
+  sin horario ya no pasa desapercibida: la tarjeta dice quién y que se arregla en
+  Horarios. Solo personal operativo y líderes, y **se apaga si la consulta de
+  turnos u horarios falla** (entonces todas las filas llegan sin horario y el aviso
+  acusaría a todos).
+- **Meta imposible = ámbar «Meta por revisar», no rojo** (`gravedad`). Lo eligió
+  quien administra, **contra la recomendación** de dejar el rojo y arreglar el dato:
+  «Sedes bajo la meta» cuenta solo las rojas; las ámbar van en «Requiere atención».
+  **Costo conocido:** una tienda que pierde a su ÚNICA líder también sale ámbar
+  (equipo 0 contra meta 1 no se distingue de una meta mal cargada sin historia).
+
 **Conocido y aceptado:** entre la última salida programada y la salida real del
 último, la tarjeta sigue midiendo (TRU: 20:15→20:23). Es lo que pidió la regla
 «solo si ya no queda nadie».
 
-**Pendiente, y no es de código** (datos reales, 2026-09-18 23:45):
+**Pendiente, y no es de código** (datos reales, 2026-09-18 23:45). Con la tanda de
+arriba dejan de ser rojo, pero siguen siendo datos mal puestos:
 - **LIM tiene meta de 4 operativas y solo 3 personas activas** (2 operativas + 1 RxH
   de estrategia comercial): imposible aunque vinieran todas. ¿Meta mal cargada o
-  faltan integrantes? Se corrige en Turnos.
-- **CCO tiene meta de 1 líder y nadie que cuente como líder:** rojo todo el día
-  hasta que se ponga en 0 en Turnos.
-- **Una integrante de TRU trabajó hoy sin horario vigente** (ni turno): nada la
-  mide —ni tardanza ni falta— y el Dashboard dice «les tocaba a 10 de 12» cuando
-  trabajaron 11.
+  faltan integrantes? Se corrige en Turnos. Hoy sale ámbar «Meta por revisar».
+- **CCO tiene meta de 1 líder y nadie que cuente como líder.** Se apaga poniéndola
+  en 0 en Turnos. Hoy sale ámbar «Meta por revisar».
+- **Una integrante de TRU trabajó sin horario vigente** (ni turno): hay que cargarle
+  su horario en Horarios; la tarjeta ya lo avisa.
+- **Tres practicantes de OTRU** tienen la jornada de hoy «revisada» con la misma
+  salida (20:52) y ~12 horas: ¿hora real o corrección en bloque? Sin verificar.
+- **Una jornada de CCO seguía abierta a las 23:45** (desde las 08:57, última marca
+  18:46) y contaba como «trabajando». Hay un cierre automático cada 15 min (0007);
+  no se verificó su regla vigente. Sin horario asignado no hay contra qué medirla:
+  no se hizo nada a propósito, un umbral inventado llenaría la pantalla de avisos.
 
 ## 2026-09-16 — El bono de cumpleaños se pide desde Info y DO confirma la transferencia (0478) · pegada en producción · fusionada (#424)
 
