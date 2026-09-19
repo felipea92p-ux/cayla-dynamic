@@ -6,15 +6,24 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-09-19 — Las boletas oficiales se suben y se publican (0482) · SQL ENTREGADO, SIN PEGAR · SIN FUSIONAR
+## 2026-09-19 — Las boletas oficiales se suben y se publican (0482) · MIGRACIÓN PEGADA Y VERIFICADA · FUSIONADA · PANTALLAS SIN PROBAR
 
-**Hay SQL: la [0482](../supabase/migrations/0482_las_boletas_oficiales_se_suben_y_se_publican.sql).
-No está pegada en producción.** La rama `claude/magical-booth-1dd79b` está en GitHub
-(sin PR abierto, así que **CI no la ha probado**); el SQL se entregó con
-`dame-el-sql.sh` (922 líneas, md5 `e88d8a15…`, comprobado por fuera contra el
-archivo). **Orden obligatorio: pegar → verificar → PR → CI verde → fusionar.**
-Fusionar es publicar, y sin la 0482 la Bandeja de TODAS las personas mostraría
-«Falta tus boletas» en rojo (`fn_mis_boletas` no existiría).
+**Hay SQL: la [0482](../supabase/migrations/0482_las_boletas_oficiales_se_suben_y_se_publican.sql),
+PEGADA Y VERIFICADA en producción el 2026-09-19.** La consulta de comprobación
+devolvió `4 | 11 | 4 | 1 | 4 | 482 · las_boletas_oficiales_se_suben_y_se_publi…`
+(4 tablas, 11 funciones, 4 políticas de Storage, bucket privado, RLS en las 4) y la
+de permisos: en las cuatro tablas `authenticated` solo lee (`true`), no escribe
+(`false`) y `anon` no ve nada (`false`) — el `revoke` hizo su trabajo.
+
+**Ojo con el orden en que pasó, porque no fue el que manda CLAUDE.md.** El PR
+[#442](https://github.com/felipea92p-ux/cayla-dynamic/pull/442) se **fusionó a las
+23:12 UTC (18:12 en Lima), antes de pegar la migración**: `main` desplegó el código
+de las boletas con `fn_mis_boletas` todavía inexistente en producción, durante unos
+minutos, hasta que se pegó el SQL. Es exactamente lo que la regla «la migración se
+pega ANTES de fusionar» evita (la Bandeja de todas las personas pudo mostrar
+«Falta tus boletas» en rojo). No se reportó daño: las pantallas eran nuevas y nada
+del marcaje ni de la planilla lee estas tablas. CI (`db-tests`, 293 archivos y
+3 089 aserciones, incluida la prueba 380) estaba en verde antes de fusionar.
 
 Felipe pidió que DO suba las boletas de pago y que cada persona las vea y las
 descargue. **No es la boleta calculada** (`/mio/boleta`, `BoletaHoja`): es la del
@@ -46,12 +55,13 @@ sin tope de hojas; DO trabaja desde celular y computadora.
 
 **Cómo se verificó, y lo que NO:**
 - Prueba pgTAP [380](../supabase/tests/380_las_boletas_oficiales_se_suben_y_se_publican.test.sql)
-  (86 aserciones): pasa, pero **contra un Postgres temporal de Homebrew con un
-  andamio mínimo de Supabase y un pgTAP de juguete, no contra la base local
-  completa** (Docker Desktop no respondía). Se sabotearon a propósito tres reglas
+  (86 aserciones): **pasa en CI contra una base real de Supabase** (`db-tests`). Antes
+  se había corrido solo contra un Postgres temporal de Homebrew con un andamio
+  mínimo (Docker Desktop no respondía); esa versión falló en CI por un error de la
+  PRUEBA —la persona inactiva sin `fecha_cese`, `personas_cese_coherente` de la
+  0086— y no de la migración, que se aplicó bien en esa misma base. Se sabotearon a propósito tres reglas
   (abrir archivos ajenos, ignorar el aviso obligatorio, confirmar sobre una versión
-  vieja) y la prueba las detectó. **La señal fiable es `db-tests` en CI**: hay que
-  abrir el PR. Punto que solo Supabase real puede decir: si rechaza un `delete`
+  vieja) y la prueba las detectó. Queda sin saberse si Supabase rechaza un `delete`
   directo sobre `storage.objects` (la prueba no depende de eso).
 - 1 027 pruebas de vitest, typecheck y linter: verdes. **Ninguna pantalla se vio en
   un navegador** (no hay `.env.local` ni Supabase local): el responsive, la
@@ -60,7 +70,11 @@ sin tope de hojas; DO trabaja desde celular y computadora.
   artefacto de Claude, no en el repo.
 - No se reescribió ninguna función existente: no hay md5 de partida que medir.
 
-**Pendiente:** correr las pantallas con la base local (`.env.local` + `supabase
+**Pendiente, por orden:** (1) **la primera prueba real** —una sola boleta propia de
+Felipe, subida, publicada, vista en `/mio` y confirmada—: ninguna pantalla se ha visto
+funcionando, y **todo lo que se sube queda para siempre** (archivos y versiones no se
+editan ni se borran, solo se anulan con motivo), así que no se prueba con las
+boletas del equipo; (2) correr las pantallas con la base local (`.env.local` + `supabase
 start`); la novedad para el equipo ya está en `novedades.ts`; cuántos meses hacia
 atrás cargar y el plan de almacenamiento de Supabase (≈ 180 MB/año con fotos
 reducidas, techo de 500 MB por boleta). «Septiembre» (Planilla) y «setiembre» (el
