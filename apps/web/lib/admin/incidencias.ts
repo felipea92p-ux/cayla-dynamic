@@ -1,7 +1,7 @@
 import {
   MAXIMO_LEGAL_SEMANAL, avisoDeRacha, cuentaEnCobertura, ventanaMasCargada, maximoSemanalPracticante,
 } from "@cayla-dynamic/shared";
-import { esperadoDelDia, horarioVigente, type HorarioTramo, type TurnoDia } from "./jornada-esperada";
+import { diaDeLaSedeDe, esperadoDelDia, horarioVigente, type HorarioTramo, type TurnoDia } from "./jornada-esperada";
 import { loQueNoSePudo } from "./lo-que-no-se-pudo";
 
 /**
@@ -194,6 +194,13 @@ export interface DatosDeteccion {
   /** Personas activas que PODRÍAN contar como líder de su sede. Quién cuenta de
    * verdad lo decide `cuentaEnCobertura` (packages/shared), no esta lista. */
   encargadas: { id: string; sede_base_id: string; rol: string | null; tipo_vinculo: string | null; es_encargada_piso: boolean }[];
+  /** El EQUIPO de cada sede: quien está activo y marca (en planilla o practicante, sin
+   * sueldo fijo) —la misma población que el Dashboard—. De aquí sale «¿a alguien de la
+   * sede le tocaba trabajar ese día?» (`diaDeLaSedeDe`), que decide si un déficit de
+   * líderes es real. NO es la lista de líderes (esa es `encargadas`): un día sin turnos
+   * se reconoce mirando a TODA la sede, no solo a quien podría liderarla. Vacío = no se
+   * sabe: el aviso sale como siempre. */
+  equipo: { id: string; sede_base_id: string }[];
   metas: { sede_id: string; dia_semana: number; meta_encargadas: number }[];
   horarios: HorarioTramo[];
   turnos: (TurnoDia & { persona_id: string; fecha: string })[];
@@ -419,6 +426,17 @@ export function detectarIncidencias(d: DatosDeteccion): Incidencia[] {
   // Esta semana Y la siguiente: con el horario de la próxima ya asignado, el
   // aviso llega mientras todavía se puede reprogramar (auditoría 2026-09-13).
   // «¿Le toca trabajar?» se pregunta a jornada-esperada, nunca se reescribe.
+  //
+  // Un día en que A NADIE de la sede le toca trabajar no le falta ningún líder que
+  // pudiera venir: lo que sobra es la meta («1 líder el domingo» en una sede que ese
+  // día no abre), y eso lo dicen Turnos y el Dashboard, que es donde se arregla.
+  // Central es el caso que lo destapó (2026-09-20): trabaja de lunes a sábado, el
+  // domingo es opcional, y la bandeja abría «Déficit de líderes (0/1)» todos los
+  // domingos —dos por visita— por una falta que ninguna asistencia podía arreglar.
+  // Solo se calla con una respuesta REAL de descanso (`no_trabaja`): con
+  // `sin_horario` —nadie tiene horario cargado, un tramo venció, la sede es nueva—
+  // no se sabe, y ahí el aviso sale como siempre. Y con `trabaja` (a alguien le toca
+  // pero no hay líder: una tienda con operativas y sin líder) es un déficit de verdad.
   const codigoPorSede = new Map(d.sedes.map((s) => [s.id, s.codigo]));
   const tipoPorSede = new Map(d.sedes.map((s) => [s.id, s.tipo ?? null]));
   const turnoPorClave = new Map(d.turnos.map((t) => [`${t.persona_id}|${t.fecha}`, t as TurnoDia]));
@@ -428,8 +446,15 @@ export function detectarIncidencias(d: DatosDeteccion): Incidencia[] {
     arr.push(h);
     horariosPorPersona.set(h.persona_id, arr);
   }
+  const equipoPorSede = new Map<string, string[]>();
+  for (const p of d.equipo) {
+    const arr = equipoPorSede.get(p.sede_base_id) ?? [];
+    arr.push(p.id);
+    equipoPorSede.set(p.sede_base_id, arr);
+  }
+  const tramosDe = (personaId: string) => horariosPorPersona.get(personaId) ?? [];
   const trabajaEseDia = (personaId: string, fecha: string) =>
-    esperadoDelDia(fecha, turnoPorClave.get(`${personaId}|${fecha}`) ?? null, horarioVigente(horariosPorPersona.get(personaId) ?? [], fecha)).trabaja;
+    esperadoDelDia(fecha, turnoPorClave.get(`${personaId}|${fecha}`) ?? null, horarioVigente(tramosDe(personaId), fecha)).trabaja;
   const lunesActual = lunesDeLaSemana(hoy);
   for (let i = 0; i < 14; i++) {
     const dia = addDias(lunesActual, i);
@@ -450,6 +475,23 @@ export function detectarIncidencias(d: DatosDeteccion): Incidencia[] {
         ).lider
         && trabajaEseDia(e.id, dia)).length;
       if (cubiertas >= m.meta_encargadas) continue;
+      // Solo se pregunta cuando ya habría aviso: es la excepción, no el camino común.
+      // Y solo con `cubiertas === 0`: un líder que SÍ trabaja ese día prueba que la
+      // sede abre, aunque no esté en `equipo` (un líder con sueldo fijo no marca y el
+      // equipo no lo lista). Con meta 2 y un solo líder trabajando, callar diría «hoy
+      // no abre» sobre una sede que tiene a alguien adentro y le falta el segundo.
+      //
+      // COSTO CONOCIDO (revisión del 2026-09-20), igual para toda sede: una tienda que SÍ
+      // debía abrir ese día, con meta, cuyo horario base no lo incluye y a la que nadie le
+      // armó turnos (ni siquiera la semana siguiente, donde este aviso servía justo para
+      // reprogramar), ya no avisa aquí. La red que queda es el ámbar «Meta sin turnos» del
+      // Dashboard —solo el mismo día— y el rojo de Turnos. Se aceptó a propósito: no se
+      // distingue una meta que sobra (Central el domingo) de unos turnos que faltan, y
+      // hacer una excepción por tipo de sede sería un caso especial más.
+      if (cubiertas === 0 && diaDeLaSedeDe(
+        equipoPorSede.get(m.sede_id) ?? [], dia,
+        (id) => turnoPorClave.get(`${id}|${dia}`) ?? null, tramosDe,
+      ) === "no_trabaja") continue;
       const codigo = codigoPorSede.get(m.sede_id) ?? "?";
       const sufijo = proximaSemana ? " · próxima semana, todavía se puede reprogramar" : "";
       out.push(conAceptacion({
@@ -538,7 +580,7 @@ export function compararIncidencias(a: Incidencia, b: Incidencia): number {
 
 export type FuenteDeIncidencias =
   | "faltas" | "salidas" | "excesos" | "rachas"
-  | "vistos_buenos" | "revisiones" | "convenios" | "nombres" | "motivos";
+  | "vistos_buenos" | "revisiones" | "convenios" | "nombres" | "motivos" | "equipo";
 
 const FUENTES: Record<FuenteDeIncidencias, { que: string; categoria: Categoria | null; dura: boolean }> = {
   faltas: { que: "las faltas", categoria: "faltas", dura: true },
@@ -550,6 +592,10 @@ const FUENTES: Record<FuenteDeIncidencias, { que: string; categoria: Categoria |
   convenios: { que: "los convenios de prácticas cerca del tope de 12 meses", categoria: null, dura: false },
   nombres: { que: "los nombres de quienes dieron un visto bueno", categoria: null, dura: false },
   motivos: { que: "los nombres de los motivos de justificación", categoria: null, dura: false },
+  // Suave y sin categoría: si el equipo no llega, el déficit de líderes vuelve a avisar
+  // TAMBIÉN los días en que la sede no trabaja (más avisos, nunca menos), así que «todo
+  // revisado» sigue siendo cierto y ninguna caja queda sin comprobar.
+  equipo: { que: "qué sedes tenían turno cada día (el déficit de líderes puede avisar también un día en que nadie de la sede trabajaba)", categoria: null, dura: false },
 };
 
 export interface CoberturaDeCarga {
