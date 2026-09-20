@@ -178,6 +178,7 @@ export function MenuItem({
   onClick,
   href,
   variante = "normal",
+  disabled = false,
   children,
 }: {
   onClick?: () => void;
@@ -185,12 +186,21 @@ export function MenuItem({
   /** "peligro" para lo destructivo o excepcional (cancelar, anular) — mismo
    * criterio de color que Boton variante="peligro". */
   variante?: "normal" | "peligro";
+  /** Solo para ítems con `onClick`. Se marca con `aria-disabled` y NO con el
+   * atributo `disabled`: un botón deshabilitado no recibe foco, y la navegación
+   * con flechas del menú recorre los ítems llamando a `.focus()`, así que se
+   * quedaría trabada justo en él. Con `aria-disabled` el ítem sigue en el
+   * recorrido, un lector de pantalla lo anuncia como no disponible, y el clic
+   * no hace nada. */
+  disabled?: boolean;
   children: ReactNode;
 }) {
   // focus:bg-sand/50 además del hover: con flechas el foco recorre los ítems,
-  // y sin fondo quien usa teclado no ve en cuál está.
+  // y sin fondo quien usa teclado no ve en cuál está. El hover se apaga en un
+  // ítem no disponible; el foco no, por esa misma razón.
   const clase = cx(
-    "block w-full px-3 py-2 text-left text-sm transition-colors duration-150 hover:bg-sand/50 focus:bg-sand/50 focus:outline-none",
+    "block w-full px-3 py-2 text-left text-sm transition-colors duration-150 focus:bg-sand/50 focus:outline-none",
+    disabled ? "cursor-not-allowed opacity-50" : "hover:bg-sand/50",
     variante === "peligro" ? "text-rojo" : "text-tinta",
   );
   if (href) {
@@ -201,7 +211,13 @@ export function MenuItem({
     );
   }
   return (
-    <button type="button" role="menuitem" onClick={onClick} className={clase}>
+    <button
+      type="button"
+      role="menuitem"
+      aria-disabled={disabled || undefined}
+      onClick={disabled ? undefined : onClick}
+      className={clase}
+    >
       {children}
     </button>
   );
