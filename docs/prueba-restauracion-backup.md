@@ -110,6 +110,44 @@ reproduzca lo que se pagó — para eso está la otra consulta. Tampoco prueba
 
 ---
 
+## Los archivos de Storage no están en este respaldo (las boletas oficiales)
+
+Todo lo de arriba es la BASE. Los archivos que viven en Storage —hoy, las boletas
+oficiales que sube DO (0482, bucket «boletas»)— no entran en ningún paso de esta
+guía. Por lo que se sabe de Supabase, tampoco entran en el respaldo diario de la
+base de datos (**confírmalo en la consola de tu plan**: es un dato de la
+plataforma, no de este repositorio).
+
+**Qué se perdería.** La base guarda quién publicó cada boleta y cuándo la abrió y
+la confirmó cada persona; el documento —la foto o el PDF que entregó el contador—
+está solo en el bucket. Si Storage pierde un archivo, la constancia queda apuntando
+a nada, y ese archivo no se puede regenerar: no lo calculó el sistema.
+
+**Qué hacer.** Una vez al mes, después de cerrar el periodo y publicar las boletas:
+
+```bash
+./scripts/respaldar-boletas.sh            # baja el bucket a ~/CAYLA-respaldos/boletas/…
+```
+
+Lo baja fuera del repositorio (lleva sueldos de personas reales), comprueba que lo
+bajado coincide con lo que Storage lista y deja un `MANIFIESTO.sha256` para
+comprobar después que nada cambió. **Luego copia esa carpeta a un segundo lugar**
+(otro disco u otro servicio): una copia en el mismo disco de la Mac no es respaldo.
+Son ≈ 180 MB al año, así que cada corrida es una copia completa y fechada.
+
+**Qué NO está probado.** Restaurar. La base referencia cada hoja por su ruta
+(`<periodo>/<persona>/<uuid>.<ext>`), así que restaurar es volver a subir cada
+archivo a **la misma ruta**. Cuando haya una primera copia real, prueba restaurar
+UN archivo en el Supabase local (`MODO_STORAGE=--local`) antes de necesitarlo.
+Tampoco se ha corrido el script contra el CLI de Supabase real: se probó con un
+CLI de mentira (10 casos, incluida una copia incompleta y una descarga que falla).
+En la primera corrida real, si el conteo dice «NO COINCIDE» y los números
+parecen razonables, puede ser el formato de lo que lista el CLI: se ajusta el
+`grep` del paso 3 del script. Falla en voz alta, no en silencio: un conteo que no
+coincide nunca se da por bueno.
+
+---
+
 ## Con qué frecuencia
 
 No hay una regla escrita todavía porque nunca se había hecho. Como punto de
