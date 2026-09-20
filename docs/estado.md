@@ -1461,7 +1461,18 @@ una comprobación que nadie había construido. Ahora el estado se llama así.
 (comprobado: no tienen fila en `migraciones_aplicadas`); la 0393 lleva la
 explicación larga de arriba. `numeracion.sh` ya dice «sin novedad».
 
-## 2026-09-07 — El freno SQL→producción deja de mirar el disco (la «mitad cara» del 🔴#0) · SIN FUSIONAR
+## 2026-09-07 — El freno SQL→producción deja de mirar el disco (la «mitad cara» del 🔴#0) · FUSIONADA (#250)
+
+> **Corregido el 2026-09-19 20:02:** decía «SIN FUSIONAR». El PR #250 se fusionó
+> el **2026-09-08 12:10 de Lima** — once días mintiendo. Comprobado en el código,
+> no en el mensaje del PR: `que-falta-pegar.sh` ya arma la lista con
+> `git ls-tree` de `origin/main` y `HEAD`, y la consulta ya trae la CTE
+> `huerfanas`.
+>
+> **La encontró el hook nuevo, no una persona.** El barrido manual de ese mismo
+> día se apoyó en los números de migración del encabezado y esta entrada no
+> lleva ninguno: es sobre un script. Vale anotarlo porque es justo el caso que
+> un par de ojos pierde y una comprobación mecánica no.
 
 [PR #250](https://github.com/felipea92p-ux/cayla-dynamic/pull/250). El
 `estado.md` lo pedía desde el 2026-08-14 y era el único freno del repo que
