@@ -14,9 +14,9 @@ import { Campo, CampoSelect } from "@/components/ui/campo";
 import { Insignia } from "@/components/ui/insignia";
 import { Modal } from "@/components/ui/modal";
 import { cuentaEnCobertura, hoyLima, puedeOperarEquipo, puedeVerTodasLasSedes } from "@cayla-dynamic/shared";
-import { esperadoDelDia, esTurnoEspejoViejo, horarioVigente, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
+import { diaDeLaSedeDe, esperadoDelDia, esTurnoEspejoViejo, horarioVigente, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
 import { cicloVigente, type DiaTrabajado } from "@/lib/admin/ciclo-sobretiempo";
-import { colorCobertura, etiquetaCobertura, type TonoCobertura } from "@/lib/admin/cobertura-turnos";
+import { colorCobertura, etiquetaCobertura, etiquetaSedeSinTurnos, type TonoCobertura } from "@/lib/admin/cobertura-turnos";
 
 // ── Fechas (todo en ISO yyyy-mm-dd, semana de lunes a domingo) ──────────────
 function parseISO(iso: string): Date {
@@ -867,6 +867,17 @@ export default function TurnosPage() {
   );
   const esOperativa = useCallback((p: Persona) => cuentaEnPiso(p).operativa, [cuentaEnPiso]);
   const esEncargada = (p: Persona) => cuentaEnPiso(p).lider;
+  // ¿Ese día la sede simplemente no se labora? (ver etiquetaSedeSinTurnos). «Nadie
+  // tiene turno» se le pregunta a jornada-esperada.ts con TODAS las personas de la
+  // grilla —no solo las del grupo medido—, y las tres metas son las que están en
+  // pantalla. null = el día se muestra como siempre. Sirve a las vistas Día y Semana.
+  const sedeSinTurnosEn = (iso: string) => {
+    const dia = diaSemana(iso);
+    return etiquetaSedeSinTurnos(
+      diaDeLaSedeDe(personas.map((p) => p.id), iso, (id) => turnos.get(`${id}|${iso}`) ?? null, (id) => horarios.get(id) ?? []),
+      { manana: metas.get(dia) ?? 0, tarde: metasTarde.get(dia) ?? 0, lideres: metasEncargadas.get(dia) ?? 0 },
+    );
+  };
   const coberturaPorHora = useCallback(
     (fecha: string) => coberturaPorFranja(fecha, HORA_INICIO, HORA_FIN - HORA_INICIO, 1, esOperativa),
     [coberturaPorFranja, esOperativa],
@@ -1130,10 +1141,13 @@ export default function TurnosPage() {
                           : { ...resumenEncargadas(cov, metasEncargadas.get(dia) ?? 0), supHoras: 0, sug: null as string | null, redistribuir: null };
                         // Con meta puesta pero NADIE programado, el día no está "cerrado":
                         // alguien olvidó armar los turnos — eso se avisa en rojo, no en gris.
+                        // Si a nadie de la sede le toca Y las tres metas son 0, el día
+                        // simplemente no se labora: una palabra gris, en vez de la frase
+                        // del grupo (que suena a falla un domingo de Central).
                         const metaDia = tipo === "op"
                           ? Math.max(metas.get(dia) ?? 0, metasTarde.get(dia) ?? 0)
                           : metasEncargadas.get(dia) ?? 0;
-                        const et = etiquetaCobertura({
+                        const et = sedeSinTurnosEn(iso) ?? etiquetaCobertura({
                           quien: tipo === "op" ? "operativas" : "lideres",
                           hayGente: r.hayGente, sinMeta: r.sinMeta, hayMeta: metaDia > 0, pct: r.pct,
                         });
@@ -1320,7 +1334,11 @@ export default function TurnosPage() {
                 const covFrEnc = coberturaPorFranja(iso, HORA_INICIO_SEMANA, N_FRANJAS_SEMANA, 0.5, esEncargada);
                 const r = resumenOperativas(covFr, metaMan, metaTar, HORA_INICIO_SEMANA, 0.5);
                 const rEnc = resumenEncargadas(covFrEnc, metaEnc);
-                const etOp = etiquetaCobertura({ quien: "operativas", hayGente: r.hayGente, sinMeta: r.sinMeta, hayMeta: Math.max(metaMan, metaTar) > 0, pct: r.pct });
+                // Un día en que la sede no se labora (a nadie le toca y las tres metas son 0)
+                // dice UNA vez «Sin turnos», en el lugar de la frase de operativas, y la de
+                // líderes no se dibuja: dos frases de grupo sonaban a falla un domingo de Central.
+                const sinTurnosSede = sedeSinTurnosEn(iso);
+                const etOp = sinTurnosSede ?? etiquetaCobertura({ quien: "operativas", hayGente: r.hayGente, sinMeta: r.sinMeta, hayMeta: Math.max(metaMan, metaTar) > 0, pct: r.pct });
                 const etEnc = etiquetaCobertura({ quien: "lideres", hayGente: rEnc.hayGente, sinMeta: rEnc.sinMeta, hayMeta: metaEnc > 0, pct: rEnc.pct });
                 // ¿Alguien de un área operativa trabaja este día? Si nadie, la franja de
                 // cobertura de abajo no tiene nada que contar y lo dice con palabras.
@@ -1347,11 +1365,11 @@ export default function TurnosPage() {
                           Meta operativas
                           {esAdmin ? (
                             <>
-                              <input type="number" min={0} value={metaMan} title="meta de la mañana (hasta 14:15)"
+                              <input type="number" min={0} value={metaMan} title={`meta de la mañana de todos los ${DIAS_PLURAL[dia]} (hasta 14:15)`}
                                 onChange={(e) => editarMeta(dia, "manana", e.target.value)} onBlur={() => comprometerMeta(dia)}
                                 className="w-11 rounded border border-sand bg-crema px-1 py-0.5 text-center" />
                               <span className="text-taupe">/</span>
-                              <input type="number" min={0} value={metaTar} title="meta de la tarde (desde 14:15)"
+                              <input type="number" min={0} value={metaTar} title={`meta de la tarde de todos los ${DIAS_PLURAL[dia]} (desde 14:15)`}
                                 onChange={(e) => editarMeta(dia, "tarde", e.target.value)} onBlur={() => comprometerMeta(dia)}
                                 className="w-11 rounded border border-sand bg-crema px-1 py-0.5 text-center" />
                             </>
@@ -1367,7 +1385,9 @@ export default function TurnosPage() {
                         <label className="flex items-center gap-1.5 border-l border-sand pl-3 text-taupe">
                           Líderes
                           {esAdmin ? (
-                            <input type="number" min={0} value={metaEnc}
+                            // La meta es por día de la semana, no por fecha: el Dashboard manda aquí a poner 0
+                            // «en los domingos», y sin este texto nada dice que vale para todos.
+                            <input type="number" min={0} value={metaEnc} title={`meta de líderes de todos los ${DIAS_PLURAL[dia]}`}
                               onChange={(e) => editarMetaEncargadas(dia, e.target.value)}
                               onBlur={(e) => comprometerMetaEncargadas(dia, e.target.value)}
                               className="w-11 rounded border border-sand bg-crema px-1 py-0.5 text-center" />
@@ -1375,9 +1395,11 @@ export default function TurnosPage() {
                             <span>{metaEnc || "—"}</span>
                           )}
                         </label>
-                        <span className="font-medium" style={{ color: colorDeTono(etEnc.tono, rEnc.pct) }}>
-                          {etEnc.texto}
-                        </span>
+                        {!sinTurnosSede && (
+                          <span className="font-medium" style={{ color: colorDeTono(etEnc.tono, rEnc.pct) }}>
+                            {etEnc.texto}
+                          </span>
+                        )}
                       </div>
                     </div>
                     {/* Sugerencia: redistribuir (hay gente que mover) o falta personal (contratar) */}
