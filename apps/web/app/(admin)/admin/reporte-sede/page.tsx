@@ -15,6 +15,8 @@ import { loQueNoSePudo, sePuedeEntregar } from "@/lib/admin/lo-que-no-se-pudo";
 import { NIVEL_DISCIPLINARIO_CORTO, TZ_LIMA, cuentaEnCobertura, hoyLima, primeroDeMesLima } from "@cayla-dynamic/shared";
 import { causaMetaImposible, enPausaAhora, porPausaMasLarga, textoPausaDesde, trabajandoAhora, type PausaAbierta } from "@/lib/admin/asistencia-hoy";
 import { traerPausasAbiertas } from "@/lib/admin/pausas-abiertas";
+import { SEDE_SIN_TURNOS, diaDeLaSedeDe, type DiaDeLaSede, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
+import { coberturaDeHoyApagada, hojaIncluyeHoy, textoMetaDeHoy } from "@/lib/admin/cobertura-hoja-sede";
 
 const CORTE_TARDE = 14.25; // mismo corte mañana/tarde que Turnos/Dashboard
 
@@ -112,6 +114,10 @@ function ReporteSedeContenido() {
   // detalle del recuadro «Hoy» —los nombres salen igual, sin hora— que no vuelve
   // falso el papel. Bloquear la impresión por eso sería desproporcionado.
   const [pausasNoRespondieron, setPausasNoRespondieron] = useState(false);
+  // Qué día es HOY para esta sede: si a alguien del equipo le tocaba trabajar, si a
+  // nadie, o si no hay con qué saberlo (null: no se preguntó o la consulta falló).
+  // Ver cobertura-hoja-sede.ts.
+  const [diaDeHoy, setDiaDeHoy] = useState<DiaDeLaSede | null>(null);
   /**
    * Por qué no se pudo elegir ninguna sede, cuando la consulta SÍ contestó.
    *
@@ -177,6 +183,8 @@ function ReporteSedeContenido() {
       { data: metasRaw, error: errMetas },
       { data: tardResumen, error: errTard },
       { data: faltasResumen, error: errFaltas },
+      { data: turnosHoy, error: errTurnos },
+      { data: horariosVigentes, error: errHorarios },
     ] = await Promise.all([
       // Mismo criterio del dashboard (7afe8e5): un practicante trabaja en la
       // sede y tiene que salir en su hoja, aunque el escalafón disciplinario
@@ -208,7 +216,25 @@ function ReporteSedeContenido() {
       // HOY con el umbral de hoy, no el del periodo que se está archivando.
       supabase.rpc("fn_tardanzas_resumen", { p_as_of: hasta }),
       supabase.rpc("fn_faltas_resumen", { p_as_of: hasta }),
+      // Turnos y horarios de HOY: de los dos sale «¿a alguien del equipo le tocaba
+      // trabajar hoy?» (jornada-esperada.ts). Se traen los de todo el mundo y se
+      // mira solo a quienes son de esta sede — son decenas de filas, no más — igual
+      // que el Dashboard, para que las dos pantallas lean lo mismo.
+      supabase.from("turnos").select("persona_id, fecha, hora_entrada, hora_salida, es_descanso").eq("fecha", hoy),
+      supabase
+        .from("horarios_asignados")
+        .select("persona_id, hora_entrada, hora_salida, dias_laborables, horario_por_dia, almuerzo_min_minutos, vigente_desde, vigente_hasta")
+        .lte("vigente_desde", hoy)
+        .or(`vigente_hasta.is.null,vigente_hasta.gte.${hoy}`),
     ]);
+    // Los turnos de hoy solo importan si la hoja llega hasta hoy.
+    //
+    // Si estas dos consultas fallan NO se nombran en `noSePudo` (que apaga el PDF): la
+    // línea de cobertura se imprime exactamente como antes de existir esto —con su «faltan 1»
+    // si tocaba—, que es un papel tan válido como el de ayer. Bloquear la impresión porque
+    // falló un dato que solo APAGA una alarma sería desproporcionado; es el mismo criterio de
+    // `pausasNoRespondieron`, arriba.
+    const llegaAHoy = hojaIncluyeHoy(desde, hasta, hoy);
 
     // Qué se cayó, con el nombre de la columna que alimenta — no el de la RPC.
     // Quien lee esto está a punto de firmar el papel, no de depurar.
@@ -233,7 +259,7 @@ function ReporteSedeContenido() {
     // del tipo de la sede que se está mirando.
     const tipoDeSede = sedes.find((x) => x.id === sedeId)?.tipo ?? null;
     const m = ((metasRaw as { meta: number; meta_tarde: number | null; meta_encargadas: number | null }[] | null) ?? [])[0];
-    setMeta({ man: m?.meta ?? 0, tar: m?.meta_tarde ?? m?.meta ?? 0, enc: m?.meta_encargadas ?? 0 });
+    const metaNueva = { man: m?.meta ?? 0, tar: m?.meta_tarde ?? m?.meta ?? 0, enc: m?.meta_encargadas ?? 0 };
 
     // Salidas anticipadas del mes (RPC; solo filas > 0).
     const salTemp = new Map<string, number>();
@@ -274,6 +300,29 @@ function ReporteSedeContenido() {
         salidasTemp: salTemp.get(p.id) ?? 0,
       };
     });
+    // Qué día es hoy para la sede. Misma cascada que el Dashboard: el turno puntual
+    // de hoy manda y, si no hay, el horario base vigente. Si alguna de las dos
+    // consultas falló, o el rango no llega a hoy, es «no se sabe» (null) y la línea
+    // de cobertura queda como estaba.
+    let diaDeHoyNuevo: DiaDeLaSede | null = null;
+    if (llegaAHoy && !errTurnos && !errHorarios) {
+      const turnoPorPersona = new Map(
+        ((turnosHoy as { persona_id: string; hora_entrada: string | null; hora_salida: string | null; es_descanso: boolean }[] | null) ?? [])
+          .map((t) => [t.persona_id, t as TurnoDia]),
+      );
+      const tramosPorPersona = new Map<string, HorarioTramo[]>();
+      for (const h of (horariosVigentes as HorarioTramo[] | null) ?? []) {
+        const arr = tramosPorPersona.get(h.persona_id) ?? [];
+        arr.push(h);
+        tramosPorPersona.set(h.persona_id, arr);
+      }
+      diaDeHoyNuevo = diaDeLaSedeDe(
+        filasCalc.map((f) => f.personaId),
+        hoy,
+        (id) => turnoPorPersona.get(id) ?? null,
+        (id) => tramosPorPersona.get(id) ?? [],
+      );
+    }
     // Desde cuándo está en pausa cada quien (solo de los que la base ya marcó
     // «en pausa»). Si falla, salen sus nombres sin hora.
     const { porPersona: pausas, fallo: fallaronPausas } = await traerPausasAbiertas(
@@ -283,6 +332,13 @@ function ReporteSedeContenido() {
     );
     setPausasNoRespondieron(fallaronPausas);
     setFilas(filasCalc.map((f) => ({ ...f, pausa: pausas.get(f.personaId) ?? null })));
+    // Junto a `filas`, no antes: la línea de cobertura cruza las dos, y con un
+    // `await` en medio se pintaría un instante el día de esta sede con el equipo
+    // de la anterior.
+    setDiaDeHoy(diaDeHoyNuevo);
+    // La meta también, junto a `filas`: al cambiar de sede, con el `await` de pausas en medio,
+    // se veía un instante la meta de la sede nueva con el equipo de la anterior.
+    setMeta(metaNueva);
     // Cualquier escalón alcanzado entra a «Necesita atención», no solo la
     // amonestación: esta hoja se imprime y se lleva a la sede.
     setTardAlerta(((tardResumen as TardRow[]) ?? []).filter((t) => t.sede === codigoSede && t.umbral !== "aviso"));
@@ -314,6 +370,14 @@ function ReporteSedeContenido() {
   ].flatMap((c) => (c.causa ? [{ quien: c.quien, detalle: c.causa.detalle }] : []));
   const rango = rangoLabel(desde, hasta);
   const hoy = hoyLima();
+  // Central un domingo: meta de 1 líder y a nadie le toca. Sin esto salía «faltan 1»
+  // en rojo en un papel que se firma. Ver cobertura-hoja-sede.ts.
+  const coberturaApagada = coberturaDeHoyApagada({
+    dia: diaDeHoy,
+    estadosHoy: filas.map((f) => f.estadoHoy),
+    rangoIncluyeHoy: hojaIncluyeHoy(desde, hasta, hoy),
+  });
+  const textoMeta = textoMetaDeHoy(meta.man, meta.tar, meta.enc);
 
   // El nombre con el que se guarda el PDF. Ver use-titulo-documento.ts.
   // Aquí el periodo va DELANTE, al contrario que en la boleta: estos reportes
@@ -457,7 +521,16 @@ function ReporteSedeContenido() {
               {/* Igual que en el Dashboard: una línea «0 · sin meta» de un grupo que en
                   esta sede no existe no informa nada, y la causa de una meta que no se
                   puede cumplir se dice en vez de dejar un «faltan 1» que parece falta. */}
-              {(mostrarOperativas || mostrarLideres) && (
+              {/* Sin turnos hoy —y con la certeza de que es porque descansan, no porque
+                  falte el horario— no hay cobertura que medir: la línea se apaga en gris
+                  y dice por qué. Con meta, la nombra sin pintarla como faltante: es una
+                  hoja que se imprime, así que es corta y no da instrucciones. */}
+              {coberturaApagada ? (
+                <div className="mt-4 border-t border-verde/15 pt-3 text-sm text-taupe">
+                  <p><span className="font-medium">{SEDE_SIN_TURNOS}</span> · Hoy a nadie del equipo le tocaba trabajar.</p>
+                  {textoMeta && <p className="mt-1 text-xs">{textoMeta} No se mide porque nadie tiene turno; se define en Turnos.</p>}
+                </div>
+              ) : (mostrarOperativas || mostrarLideres) && (
                 <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-1 border-t border-verde/15 pt-3">
                   {mostrarOperativas && <Cobertura label="Operativas en piso" n={opPiso} m={metaOp} />}
                   {mostrarLideres && <Cobertura label="Líderes en piso" n={encPiso} m={meta.enc} />}
