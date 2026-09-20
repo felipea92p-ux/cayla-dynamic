@@ -115,6 +115,20 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-09-20-dashboard-sede-sin-turnos-hoy",
+    fecha: "2026-09-20",
+    titulo: "Un día en que la sede no tiene turnos ya no se lee como una falla",
+    queMejoro:
+      "Un domingo, las sedes sin turnos aparecían como «Sin meta configurada» —como si faltara configurar algo— y Central salía en rojo con «Cobertura insuficiente» aunque a nadie le tocaba trabajar. " +
+      "Ahora el Dashboard pinta en gris «Sin turnos» a la sede sin turnos y con meta 0, la deja al final de la lista y ya no muestra recuadros de ceros. «Sin meta configurada» pasa a «Sin meta hoy».\n\n" +
+      "Si una sede tiene meta para hoy y sus horarios y turnos dicen que nadie trabaja, sale en ámbar como «Meta sin turnos», porque los dos datos se contradicen. " +
+      "Si no abre ese día de la semana, pon en 0 su meta en Turnos (vale para todos los domingos, por ejemplo); si abre, arma sus turnos. " +
+      "Ya no cuenta como «bajo la meta»: a nadie le tocaba venir.\n\n" +
+      "Lo mismo vale en otras pantallas: Incidencias ya no avisa «Déficit de líderes» un día en que a nadie de la sede le tocaba trabajar, la Hoja de sede impresa ya no dice «faltan 1» en rojo por eso, y Turnos dice «Sin turnos» en vez de «sin operativas programadas» cuando la meta de ese día es 0. " +
+      "Además, «Sedes bajo la meta» dice cuántas sedes se están midiendo hoy («de 2 que se miden hoy»).",
+    audiencia: "panel",
+  },
+  {
     id: "2026-09-19-incidencias-dice-lo-que-no-pudo-mirar",
     fecha: "2026-09-19",
     titulo: "Incidencias avisa cuando no pudo mirar algo, en vez de decir «todo revisado»",

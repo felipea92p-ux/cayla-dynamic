@@ -6,6 +6,63 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-09-20 — Un día en que la sede no tiene turnos ya no se lee como una falla · SIN SQL · SIN FUSIONAR
+
+**No hay SQL: solo pantalla.** Fusionar es publicar (`main` se despliega sola). Nació de un
+domingo: el Dashboard decía «Sin meta configurada» de tres sedes que no abren, y «Cobertura
+insuficiente · falta 1 líder» de Central, donde a nadie le tocaba ir. **La misma falsa alarma
+salía en cuatro pantallas**, y las cuatro se corrigieron con UNA pregunta compartida.
+
+- **`diaDeLaSede`** (`lib/admin/jornada-esperada.ts`): «¿a alguien de la sede le toca ese día?».
+  Tres respuestas: `trabaja`, `no_trabaja` (a nadie, **con al menos UNA respuesta real de descanso**)
+  y `sin_horario` (no se sabe). Solo `no_trabaja` autoriza a callar o bajar una alarma; con todos
+  sin horario cargado —un tramo venció, sede nueva— todo sigue como estaba. Una auditoría demostró
+  que tratar «sin horario» como «descansa» bajaba un rojo a ámbar con un texto falso.
+- **Dashboard.** Sede sin turnos y con meta 0 → gris **«Sin turnos»**, al final de la lista, sin
+  recuadros de ceros ni barra vacía. Con meta y sin turnos → ámbar **«Meta sin turnos»** (no cuenta
+  en «Sedes bajo la meta»). «Sin meta configurada» pasó a **«Sin meta hoy»**: en Turnos un 0 puesto
+  a propósito y uno nunca tocado se ven igual, así que decir «configurada» podía ser falso.
+  «Sedes bajo la meta» dice sobre cuántas sedes se mide («de 1 que se mide hoy»).
+- **Incidencias:** no emite «Déficit de líderes» un día en que a nadie de la sede le tocaba.
+  **Hoja de sede impresa:** la línea de cobertura de HOY se apaga en gris con la misma palabra.
+  **Turnos:** con las tres metas del día en 0 y nadie programado dice «Sin turnos» una vez, en vez
+  de «sin operativas programadas» y «sin líderes programados». Con meta > 0 y nadie programado
+  **Turnos sigue en rojo** (ahí sí alguien olvidó armar los turnos): es la decisión vigente.
+- **Palabra elegida por Felipe:** «Sin turnos» (entre «Descanso», «No labora», «Fuera de actividad»,
+  «Sin operación»…). Vive en una constante, `SEDE_SIN_TURNOS`.
+
+**Costos conocidos, aceptados y escritos en el código** (`CoberturaSede`, `incidencias.ts`):
+1. Una tienda que SÍ debía abrir, con meta y sin turnos armados, baja de rojo a ámbar en el
+   Dashboard y **deja de avisar en Incidencias** (incluida la semana siguiente). Solo la ven
+   «Requiere atención» y el rojo de Turnos. No existe una hora de apertura por sede con qué escalarla.
+2. Quien viene en su día libre y marca deja de contar la sede como «sin turnos»: se mide contra
+   su meta (una persona contra meta 2 sale en rojo). Es lo pactado: si alguien trabajó, abrió.
+
+**Pendiente, y no es de código.** **Central tiene meta de 1 líder el domingo** y ese día nadie
+tiene turno (Central trabaja lunes a sábado; el domingo es opcional). Hasta que se ponga en 0
+sale ámbar «Meta sin turnos». **Se arregla en Turnos → Central → vista Día → domingo → «Líderes» = 0**;
+la meta es por día de la semana, así que vale para todos los domingos. Solo la puede editar quien
+ve todas las sedes (admin, DO). Con eso pasa sola a gris en las cuatro pantallas.
+
+**Pendiente de código, aparte** (sugerido, sin hacer):
+- **Los feriados no entran en «le tocaba trabajar».** El backend decidió (0051/0070) que «feriado
+  no cuenta salvo turno explícito» y `fn_faltas` lo aplica; `esperadoDelDia` y el Dashboard no
+  saben de feriados. Una tienda que cierra en feriado (horario base «trabaja», sin turno puntual)
+  sale con «Sin marcajes desde las 8:15» en rojo crítico. No lo introdujo este cambio.
+- **Hoja de sede de un periodo cerrado:** su recuadro «Hoy» se calcula con las jornadas del rango,
+  así que en un periodo ya cerrado dice «Nadie está trabajando» y pinta «faltan N» en rojo en un
+  papel que se archiva.
+
+**Cómo se verificó, y qué NO.** Pruebas (1163 en verde, con controles de mutación a mano por cada pieza),
+`tsc` y `eslint` sin errores nuevos. **Se vio en pantalla** con un servidor de datos simulado
+(no está en el repo): Dashboard un domingo y un martes, claro/oscuro/celular, la caída de horarios,
+Turnos, Hoja de sede e Incidencias. **No se probó con datos reales de producción:** falta comprobar
+que las personas de CCO, AQP, LIM y OTRU tienen un horario vigente hoy (si una sede no tiene
+ninguno, el sistema NO la apaga en gris: dice «Sin meta hoy» o sigue en rojo, y eso sería verdad:
+no hay horarios cargados).
+
+---
+
 ## 2026-09-19 — Incidencias: el lote pide confirmación y dirección sale del exceso · SIN SQL · SIN FUSIONAR
 
 **No hay SQL: solo pantalla.** Fusionar es publicar (`main` se despliega sola). Cierra lo
@@ -316,7 +373,8 @@ arriba dejan de ser rojo, pero siguen siendo datos mal puestos:
   de estrategia comercial): imposible aunque vinieran todas. ¿Meta mal cargada o
   faltan integrantes? Se corrige en Turnos. Hoy sale ámbar «Meta por revisar».
 - **CCO tiene meta de 1 líder y nadie que cuente como líder.** Se apaga poniéndola
-  en 0 en Turnos. Hoy sale ámbar «Meta por revisar».
+  en 0 en Turnos. Hoy sale ámbar «Meta por revisar» (entre semana) y «Meta sin turnos»
+  los domingos, hasta que se ponga en 0 (ver la entrada del 2026-09-20).
 - **Una integrante de TRU trabajó sin horario vigente** (ni turno): hay que cargarle
   su horario en Horarios; la tarjeta ya lo avisa.
 - **Tres practicantes de OTRU** tienen la jornada de hoy «revisada» con la misma
