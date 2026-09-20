@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   dowDe, horarioVigente, esperadoDelDia, fechasDelRango, estadoDelDia, esTurnoEspejoViejo,
+  diaDeLaSede, diaDeLaSedeDe, SEDE_SIN_TURNOS,
   type HorarioTramo, type Esperado, type TurnoDia,
 } from "@/lib/admin/jornada-esperada";
 
@@ -314,5 +315,78 @@ describe("estadoDelDia — los falsos positivos, que son el peor error", () => {
 
   it("marcó cero horas y no hay falta: queda sin marcar, no como jornada cumplida", () => {
     expect(dia({ jornada: { horas: 0, minutosTarde: 0, estado: "cerrada" } })).toBe("sin_marca");
+  });
+});
+
+// ----------------------------------------------------------------------------
+// «¿A alguien de esta sede le toca trabajar ese día?» — la misma pregunta que
+// esperadoDelDia, un piso más arriba. Nació el 2026-09-20 porque Central tiene
+// meta de 1 líder el domingo y el domingo nadie tiene turno, y tres pantallas
+// (Dashboard, Incidencias, Hoja de sede) lo respondían cada una a su manera.
+// ----------------------------------------------------------------------------
+describe("diaDeLaSede — a nadie le toca no es lo mismo que no se sabe", () => {
+  const trabaja = { trabaja: true, origen: "horario" } as const;
+  const descansaPorHorario = { trabaja: false, origen: "horario" } as const;
+  const descansaPorTurno = { trabaja: false, origen: "turno" } as const;
+  const sinHorario = { trabaja: false, origen: "sin_horario" } as const;
+
+  it("basta una persona a quien le toque", () => {
+    expect(diaDeLaSede([descansaPorHorario, trabaja])).toBe("trabaja");
+    expect(diaDeLaSede([sinHorario, trabaja])).toBe("trabaja");
+  });
+
+  it("a nadie le toca, con una respuesta real de descanso: «no_trabaja»", () => {
+    expect(diaDeLaSede([descansaPorHorario, descansaPorHorario])).toBe("no_trabaja");
+    expect(diaDeLaSede([descansaPorTurno])).toBe("no_trabaja");
+  });
+
+  it("una sola respuesta real alcanza, aunque otras personas no tengan horario", () => {
+    expect(diaDeLaSede([sinHorario, descansaPorHorario])).toBe("no_trabaja");
+  });
+
+  it("TODOS sin horario es «sin_horario»: no se sabe, y eso NO autoriza a callar una alarma", () => {
+    expect(diaDeLaSede([sinHorario, sinHorario])).toBe("sin_horario");
+  });
+
+  it("un equipo vacío no tiene a quién preguntarle: «sin_horario»", () => {
+    expect(diaDeLaSede([])).toBe("sin_horario");
+  });
+
+  it("la palabra de pantalla es una sola", () => {
+    expect(SEDE_SIN_TURNOS).toBe("Sin turnos");
+  });
+});
+
+describe("diaDeLaSedeDe — desde las personas, sus turnos y sus horarios", () => {
+  // Central: dos personas con horario de lunes a sábado. El domingo nadie trabaja.
+  const centralLunAsab: HorarioTramo = {
+    persona_id: "x", vigente_desde: "2026-01-01", vigente_hasta: null,
+    hora_entrada: "09:00", hora_salida: "18:00", dias_laborables: [1, 2, 3, 4, 5, 6],
+    horario_por_dia: Object.fromEntries([1, 2, 3, 4, 5, 6].map((d) => [String(d), { e: "09:00", s: "18:00", r: 60 }])),
+    almuerzo_min_minutos: 60,
+  };
+  const tramosDe = (id: string) => (id === "sin" ? [] : [{ ...centralLunAsab, persona_id: id }]);
+  const sinTurno = () => null;
+
+  it("Central el domingo 2026-09-20: nadie trabaja, con respuesta real", () => {
+    expect(diaDeLaSedeDe(["a", "b"], "2026-09-20", sinTurno, tramosDe)).toBe("no_trabaja");
+  });
+
+  it("Central el sábado 2026-09-19: trabaja", () => {
+    expect(diaDeLaSedeDe(["a", "b"], "2026-09-19", sinTurno, tramosDe)).toBe("trabaja");
+  });
+
+  it("un turno puntual de un domingo por excepción le gana al horario: la sede trabaja", () => {
+    const turno = (id: string): TurnoDia | null => (id === "a" ? { hora_entrada: "10:00", hora_salida: "14:00", es_descanso: false } : null);
+    expect(diaDeLaSedeDe(["a", "b"], "2026-09-20", turno, tramosDe)).toBe("trabaja");
+  });
+
+  it("nadie con horario vigente: «sin_horario», no «no_trabaja»", () => {
+    expect(diaDeLaSedeDe(["sin"], "2026-09-20", sinTurno, tramosDe)).toBe("sin_horario");
+  });
+
+  it("un horario vencido ayer cuenta como sin horario hoy", () => {
+    const vencido = (id: string) => [{ ...centralLunAsab, persona_id: id, vigente_hasta: "2026-09-19" }];
+    expect(diaDeLaSedeDe(["a"], "2026-09-21", sinTurno, vencido)).toBe("sin_horario");
   });
 });
