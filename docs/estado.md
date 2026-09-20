@@ -47,6 +47,15 @@ entrega el contador, pregunta A); el aviso en la Bandeja de DO de «sin abrir ha
 **Pendiente, por orden:** (1) la primera prueba real (guía de arriba), sigue siendo lo
 primero; (2) la primera copia real con el script; (3) enviar la consulta.
 
+**Aparte, y de planilla:** [`hallazgos-abiertos.md`](hallazgos-abiertos.md) daba por
+abiertos cinco defectos 🔴 de la tabla del 05-set que ya tienen migración (0416, 0417,
+0418, 0419) y cuatro viñetas más (0283, 0278, 0346, el CSV rehecho el 15-set). Quedan
+tachados **como cerrados en el código, no en producción**: lo que falta es confirmar
+con la línea PLANILLA de `que_falta_pegar.sql` que producción corre la versión vigente
+del núcleo (la 0463 trae la 0416, 0417 y 0418), y aparte que estén la 0419
+(`fn_feriados_laborados`), la 0278/0283 (truncas) y la 0346 (`fn_grati_cts_periodo`).
+Una lista armada solo con esa tabla se equivocó en casi todo.
+
 ---
 
 ## 2026-09-19 — Incidencias: el lote pide confirmación y dirección sale del exceso · SIN SQL · SIN FUSIONAR
