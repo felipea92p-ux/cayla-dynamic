@@ -6,6 +6,64 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-09-20 — Un feriado sin turnos ya no grita en rojo: el Dashboard pregunta «¿abre hoy la sede?» · SIN SQL · SIN FUSIONAR
+
+**No hay SQL: solo pantalla. Apilado sobre el PR #451** (la entrada de abajo): su rama es la base de
+este PR, así que **se fusiona DESPUÉS de #451**. Fusionar es publicar. **El próximo feriado es el
+jueves 2026-10-08.**
+
+**Nació de una revisión de código** que señaló que `esperadoDelDia` no sabe de feriados mientras
+`fn_faltas` sí. **Verificado: el hallazgo es real, pero el arreglo sugerido —hacer que la cascada
+diga `trabaja:false` en feriado— rompe más de lo que arregla, y no se hizo.** Lo que se midió:
+
+- La base solo condiciona a «hay turno explícito» el ACUSAR: `fn_faltas` no cuenta falta un feriado
+  sin turno (0051, 0070, vigente en la 0414). Pero `fn_recalcular_jornada` (0446) no nombra los
+  feriados: mide tardanza y horas contra el horario base también en feriado —decisión de Felipe del
+  2026-08-18, con datos: **22 de 25 feriados trabajados no tenían ni un turno**, o sea que las sedes
+  abren con su horario normal (`hallazgos-abiertos.md`, A4)—.
+- Si la cascada dijera «feriado ⇒ no trabaja»: quien vino un feriado pasaría de «ok» a «extra» en
+  Horas y Mío (probado), y Correcciones diría «ya no hay horario: alguien lo cambió» en cada
+  jornada trabajada en feriado (`correcciones/page.tsx:1187`). Y silenciaría la alarma justo cuando
+  la sede abre, que es el caso común.
+
+**Lo que se hizo.** Dos preguntas distintas que la base mantiene separadas y la revisión mezclaba:
+«¿qué le tocaba?» (`esperadoDelDia`, **intacta**, con una prueba que fija por qué) y «¿se le puede
+exigir?» (`esFeriadoSinTurno`, gemela de la cláusula de `fn_faltas`).
+
+- **Dashboard** (decisión de Felipe: aviso ámbar que pregunta). Feriado, sin turnos, nadie marcó y
+  ya pasó la hora → en vez del rojo «Sin marcajes» y «Cobertura insuficiente», ámbar
+  **«Feriado · ¿abre hoy?»**, y por persona **«Feriado · le tocaba 08:00»** en neutro y sin enlace a
+  Correcciones. No cuentan en «sin marcar y ya les tocaba»: el número coincide con lo que acusa la base.
+- **Hoja de sede impresa:** la línea de cobertura de HOY se apaga con la palabra «Feriado» y «no se
+  sabe si la sede abre hoy». No dice «a nadie le tocaba»: por horario les tocaría, y en un papel que
+  se firma sería falso.
+- **`diaDeLaSede`** gana una cuarta respuesta, `feriado_sin_confirmar` («no se sabe si abre»).
+- **Incidencias NO cambia**, aunque el alcance elegido lo incluía: «Déficit de líderes» es una
+  alarma de planeación y en un feriado con horario base contesta «cubierto», la dirección segura.
+  Se dejó escrito en su código para que nadie la «complete» por simetría.
+
+**Se conserva el rojo** donde debe: si alguien armó el turno del feriado, o si el dato no se pudo
+leer (falla la consulta de feriados, de turnos o de horarios), la alarma es la roja de siempre. Una
+duda cae hacia la alarma, no hacia el silencio. Se probó con mutaciones: cada regla nueva rota a
+propósito hace caer alguna prueba.
+
+**Límites conocidos, no resueltos:**
+- **Demote de una alarma real.** En un feriado en que la sede SÍ abre y la Mac mini no está
+  marcando, el aviso es ámbar y no rojo: una falla real tarda más en notarse. Es el precio de no
+  gritar en los feriados que cierran, y es lo que se eligió.
+- **`feriados` es global, sin sede.** No se puede decir «TRU abre y LIM no». Por eso se pregunta.
+  La respuesta que no adivina sería una tabla por sede, con un hábito que los datos dicen que no
+  se cumple: se descartó.
+- **Con la sede abierta a medias** (alguien marcó, otros no) la meta se mide como cualquier día y
+  puede seguir en rojo «faltan N», aunque a los que no llegaron ya no se les acuse individualmente.
+- **La discrepancia RIT 17.3 ↔ práctica sigue abierta** (Consulta 5 al laboralista). Si obliga a
+  cambiar la práctica, cambia la base y la cascada a la vez.
+- **No se vio en un navegador:** el panel no levanta aquí sin `.env.local` ni el Supabase local, y
+  ese Postgres es uno solo para ~10 worktrees. La lógica está probada (1206 pruebas, con
+  mutaciones) y el JSX compila; falta mirar el Dashboard con un feriado real o simulado.
+
+---
+
 ## 2026-09-20 — Un día en que la sede no tiene turnos ya no se lee como una falla · SIN SQL · SIN FUSIONAR
 
 **No hay SQL: solo pantalla.** Fusionar es publicar (`main` se despliega sola). Nació de un
