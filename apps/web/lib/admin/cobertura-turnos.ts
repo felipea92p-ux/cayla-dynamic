@@ -108,7 +108,9 @@ export function etiquetaSedeSinTurnos(
   dia: DiaDeLaSede,
   metas: MetasDelDia,
 ): { texto: string; tono: TonoCobertura } | null {
-  if (dia === "trabaja") return null;
+  // Nombradas, no «todo lo que no sea `trabaja`»: una respuesta nueva de `diaDeLaSede`
+  // no puede caer aquí y decir «Sin turnos» sin que alguien lo haya decidido.
+  if (dia !== "no_trabaja" && dia !== "sin_horario") return null;
   if (metas.manana > 0 || metas.tarde > 0 || metas.lideres > 0) return null;
   return { texto: SEDE_SIN_TURNOS, tono: "neutro" };
 }

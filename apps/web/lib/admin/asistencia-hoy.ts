@@ -343,6 +343,24 @@ export function fueraDeHorarioDeHoy(
   return ahoraDecimal >= horaDecimalDe(ultimaSalida) ? { cuando: "despues", hora: ultimaSalida } : null;
 }
 
+/**
+ * La primera hora de entrada esperada entre estas filas, si ya pasó (con el margen de
+ * `MARGEN_ALERTA_SEDE_MIN`), o null. No mira si alguien marcó: quien llama lo pregunta
+ * antes, porque «nadie marcó» es un hecho de toda la sede y no de las filas que se pasen.
+ *
+ * Se excluye a quien tiene una ausencia hoy — mandar de vacaciones a todo el equipo de
+ * una sede no es «nadie llegó», es que nadie tenía que llegar.
+ */
+function primeraEntradaVencida(filas: FilaPersona[], ahoraDecimal: number): string | null {
+  const entradas = filas
+    .filter((f) => !f.ausenciaHoy && f.entradaEsperadaHoy)
+    .map((f) => f.entradaEsperadaHoy!)
+    .sort();
+  if (entradas.length === 0) return null;
+  const minutosPasados = (ahoraDecimal - horaDecimalDe(entradas[0])) * 60;
+  return minutosPasados >= MARGEN_ALERTA_SEDE_MIN ? entradas[0] : null;
+}
+
 export function calcularCoberturaSede(
   deSede: FilaPersona[],
   meta: MetaSede,
@@ -389,12 +407,6 @@ export function calcularCoberturaSede(
 
   // Alerta de sede sin actividad: a alguien ya le tocaba entrar (según su
   // horario u horario), con margen, y todavía nadie de la sede marcó nada.
-  // Se excluye a quien tiene una ausencia hoy — mandar de vacaciones a todo
-  // el equipo de una sede no es "nadie llegó", es que nadie tenía que llegar.
-  const entradasEsperadasHoy = deSede
-    .filter((f) => !f.ausenciaHoy && f.entradaEsperadaHoy)
-    .map((f) => f.entradaEsperadaHoy!)
-    .sort();
   const nadieMarcoTodavia = deSede.every((f) => f.entrada === null);
   // «Hoy no abre»: nadie tiene turno NI horario que diga «trabaja hoy» y nadie marcó.
   // Se mira `entradaEsperadaHoy` de TODAS las filas, con o sin ausencia: si el equipo
@@ -411,17 +423,16 @@ export function calcularCoberturaSede(
   // un problema que se arregla en Horarios (auditoría 2026-09-20, hallazgo demostrado).
   // Un equipo vacío no dice nada: no hay a quién preguntarle.
   const diaSede = diaDeLaSede(deSede.map((f) => ({ trabaja: f.entradaEsperadaHoy !== null, origen: f.origenEsperadoHoy })));
-  const sinTurnosHoy = horarioConocido && deSede.length > 0 && nadieMarcoTodavia && diaSede !== "trabaja";
+  // «Sin turnos» son EXACTAMENTE estas dos respuestas, nombradas y no «todo lo que no sea
+  // `trabaja`»: con el complemento, cualquier respuesta nueva de `diaDeLaSede` caería aquí
+  // sin que nadie lo decidiera, y diría «a nadie le tocaba» de un día que no se sabe.
+  const sinTurnosHoy = horarioConocido && deSede.length > 0 && nadieMarcoTodavia
+    && (diaSede === "no_trabaja" || diaSede === "sin_horario");
   const metaOpDelDia = Math.max(meta.man, meta.tar);
   const hayMetaHoy = metaOpDelDia > 0 || meta.enc > 0;
   const metaSinTurnos = sinTurnosHoy && hayMetaHoy && diaSede === "no_trabaja";
   const noAbreHoy = sinTurnosHoy && !hayMetaHoy;
-  let alertaSinEntrada: string | null = null;
-  if (entradasEsperadasHoy.length > 0 && nadieMarcoTodavia) {
-    const primeraEntrada = entradasEsperadasHoy[0];
-    const minutosPasados = (ahoraDecimal - horaDecimalDe(primeraEntrada)) * 60;
-    if (minutosPasados >= MARGEN_ALERTA_SEDE_MIN) alertaSinEntrada = primeraEntrada;
-  }
+  const alertaSinEntrada = nadieMarcoTodavia ? primeraEntradaVencida(deSede, ahoraDecimal) : null;
 
   // El equipo que PODRÍA cubrir cada meta, esté hoy o no. Sin esto, «0 de 1» no
   // distingue «faltó alguien que sí existe» de «en esta sede no hay quién pueda».
