@@ -15,8 +15,9 @@ import { loQueNoSePudo, sePuedeEntregar } from "@/lib/admin/lo-que-no-se-pudo";
 import { NIVEL_DISCIPLINARIO_CORTO, TZ_LIMA, cuentaEnCobertura, hoyLima, primeroDeMesLima } from "@cayla-dynamic/shared";
 import { causaMetaImposible, enPausaAhora, porPausaMasLarga, textoPausaDesde, trabajandoAhora, type PausaAbierta } from "@/lib/admin/asistencia-hoy";
 import { traerPausasAbiertas } from "@/lib/admin/pausas-abiertas";
-import { SEDE_SIN_TURNOS, diaDeLaSedeDe, type DiaDeLaSede, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
-import { coberturaDeHoyApagada, hojaIncluyeHoy, textoMetaDeHoy } from "@/lib/admin/cobertura-hoja-sede";
+import { diaDeLaSedeDe, type DiaDeLaSede, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
+import { coberturaDeHoyApagada, hojaIncluyeHoy, textoCoberturaApagada, textoMetaDeHoy } from "@/lib/admin/cobertura-hoja-sede";
+import { traerSiEsFeriado } from "@/lib/admin/feriado-de-hoy";
 
 const CORTE_TARDE = 14.25; // mismo corte mañana/tarde que Turnos/Dashboard
 
@@ -185,6 +186,9 @@ function ReporteSedeContenido() {
       { data: faltasResumen, error: errFaltas },
       { data: turnosHoy, error: errTurnos },
       { data: horariosVigentes, error: errHorarios },
+      // ¿Hoy es feriado? Solo cambia QUÉ se apaga y con qué palabra (ver `diaDeLaSedeDe`).
+      // Si falla cae a «no es feriado» y la línea se imprime como antes: una duda no calla.
+      feriadoHoy,
     ] = await Promise.all([
       // Mismo criterio del dashboard (7afe8e5): un practicante trabaja en la
       // sede y tiene que salir en su hoja, aunque el escalafón disciplinario
@@ -226,6 +230,7 @@ function ReporteSedeContenido() {
         .select("persona_id, hora_entrada, hora_salida, dias_laborables, horario_por_dia, almuerzo_min_minutos, vigente_desde, vigente_hasta")
         .lte("vigente_desde", hoy)
         .or(`vigente_hasta.is.null,vigente_hasta.gte.${hoy}`),
+      traerSiEsFeriado(supabase, hoy),
     ]);
     // Los turnos de hoy solo importan si la hoja llega hasta hoy.
     //
@@ -321,6 +326,7 @@ function ReporteSedeContenido() {
         hoy,
         (id) => turnoPorPersona.get(id) ?? null,
         (id) => tramosPorPersona.get(id) ?? [],
+        feriadoHoy.esFeriado,
       );
     }
     // Desde cuándo está en pausa cada quien (solo de los que la base ya marcó
@@ -370,14 +376,18 @@ function ReporteSedeContenido() {
   ].flatMap((c) => (c.causa ? [{ quien: c.quien, detalle: c.causa.detalle }] : []));
   const rango = rangoLabel(desde, hasta);
   const hoy = hoyLima();
+  // Una sola pregunta para las dos decisiones de abajo: si el recuadro «Hoy» se dibuja
+  // y si su línea de cobertura se apaga. Ver cobertura-hoja-sede.ts.
+  const hojaLlegaAHoy = hojaIncluyeHoy(desde, hasta, hoy);
   // Central un domingo: meta de 1 líder y a nadie le toca. Sin esto salía «faltan 1»
   // en rojo en un papel que se firma. Ver cobertura-hoja-sede.ts.
   const coberturaApagada = coberturaDeHoyApagada({
     dia: diaDeHoy,
     estadosHoy: filas.map((f) => f.estadoHoy),
-    rangoIncluyeHoy: hojaIncluyeHoy(desde, hasta, hoy),
+    rangoIncluyeHoy: hojaLlegaAHoy,
   });
   const textoMeta = textoMetaDeHoy(meta.man, meta.tar, meta.enc);
+  const textoApagada = textoCoberturaApagada(diaDeHoy);
 
   // El nombre con el que se guarda el PDF. Ver use-titulo-documento.ts.
   // Aquí el periodo va DELANTE, al contrario que en la boleta: estos reportes
@@ -489,59 +499,74 @@ function ReporteSedeContenido() {
               {sede.nombre} <span className="text-lg font-normal text-taupe">· {rango}</span>
             </h2>
 
-            {/* HOY */}
-            <section className="mb-6 rounded-2xl border border-verde/20 bg-verde/[0.06] p-5 print:break-inside-avoid print:bg-white">
-              <div className="etiqueta text-verde">
-                Hoy · {trabajando.length} trabajando ahora{enPausa.length > 0 ? ` · ${enPausa.length} en pausa` : ""} · equipo de {filas.length}
-              </div>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {/* «Nadie está trabajando», no «nadie marcado todavía»: quien ya
-                    marcó y salió también deja este recuadro vacío, y decir que
-                    nadie marcó sería falso a las 6 de la tarde. */}
-                {trabajando.length === 0 ? <span className="text-sm text-taupe">Nadie está trabajando en este momento.</span> :
-                  trabajando.map((f) => (
-                    <span key={f.personaId} className="rounded-full border border-sand bg-papel px-3 py-1 text-sm">{f.nombre}</span>
-                  ))}
-              </div>
-              {enPausa.length > 0 && (
-                <div className="mt-3 flex flex-wrap items-center gap-2">
-                  <span className="etiqueta text-ambar">En pausa</span>
-                  {/* Con la hora de salida y SIN «cuánto lleva»: en un papel los
-                      minutos envejecen (leídos mañana afirman lo que no es), la
-                      hora de salida no. */}
-                  {[...enPausa].sort(porPausaMasLarga).map((f) => (
-                    <span key={f.personaId} className="rounded-full border border-ambar/45 bg-papel px-3 py-1 text-sm">
-                      {f.nombre}
-                      {f.pausa && <span className="ml-1.5 text-xs text-taupe">{textoPausaDesde(f.pausa)}</span>}
-                    </span>
-                  ))}
-                  {pausasNoRespondieron && <span className="text-xs text-ambar">No se pudo comprobar desde cuándo.</span>}
+            {/* HOY — solo si la hoja llega hasta hoy. «Hoy» sale de las jornadas del rango
+                elegido: en un periodo que termina antes de hoy esa consulta nunca lo trae, y
+                cada integrante caía en «sin marcar» — un «Nadie está trabajando» y un
+                «faltan N» en rojo que eran un cero inventado, escrito en un papel que se
+                firma y se archiva. La hoja de un periodo cerrado describe ese periodo, igual
+                que «Necesita atención» (que mide con el fin del rango, no con hoy): no lleva
+                un «Hoy» que no le corresponde. */}
+            {hojaLlegaAHoy ? (
+              <section className="mb-6 rounded-2xl border border-verde/20 bg-verde/[0.06] p-5 print:break-inside-avoid print:bg-white">
+                <div className="etiqueta text-verde">
+                  Hoy · {trabajando.length} trabajando ahora{enPausa.length > 0 ? ` · ${enPausa.length} en pausa` : ""} · equipo de {filas.length}
                 </div>
-              )}
-              {/* Igual que en el Dashboard: una línea «0 · sin meta» de un grupo que en
-                  esta sede no existe no informa nada, y la causa de una meta que no se
-                  puede cumplir se dice en vez de dejar un «faltan 1» que parece falta. */}
-              {/* Sin turnos hoy —y con la certeza de que es porque descansan, no porque
-                  falte el horario— no hay cobertura que medir: la línea se apaga en gris
-                  y dice por qué. Con meta, la nombra sin pintarla como faltante: es una
-                  hoja que se imprime, así que es corta y no da instrucciones. */}
-              {coberturaApagada ? (
-                <div className="mt-4 border-t border-verde/15 pt-3 text-sm text-taupe">
-                  <p><span className="font-medium">{SEDE_SIN_TURNOS}</span> · Hoy a nadie del equipo le tocaba trabajar.</p>
-                  {textoMeta && <p className="mt-1 text-xs">{textoMeta} No se mide porque nadie tiene turno; se define en Turnos.</p>}
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {/* «Nadie está trabajando», no «nadie marcado todavía»: quien ya
+                      marcó y salió también deja este recuadro vacío, y decir que
+                      nadie marcó sería falso a las 6 de la tarde. */}
+                  {trabajando.length === 0 ? <span className="text-sm text-taupe">Nadie está trabajando en este momento.</span> :
+                    trabajando.map((f) => (
+                      <span key={f.personaId} className="rounded-full border border-sand bg-papel px-3 py-1 text-sm">{f.nombre}</span>
+                    ))}
                 </div>
-              ) : (mostrarOperativas || mostrarLideres) && (
-                <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-1 border-t border-verde/15 pt-3">
-                  {mostrarOperativas && <Cobertura label="Operativas en piso" n={opPiso} m={metaOp} />}
-                  {mostrarLideres && <Cobertura label="Líderes en piso" n={encPiso} m={meta.enc} />}
-                </div>
-              )}
-              {causasMeta.map((c) => (
-                <p key={c.quien} className="mt-2 text-xs text-taupe">
-                  <strong className="font-semibold text-tinta">{c.quien}:</strong> {c.detalle}
-                </p>
-              ))}
-            </section>
+                {enPausa.length > 0 && (
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <span className="etiqueta text-ambar">En pausa</span>
+                    {/* Con la hora de salida y SIN «cuánto lleva»: en un papel los
+                        minutos envejecen (leídos mañana afirman lo que no es), la
+                        hora de salida no. */}
+                    {[...enPausa].sort(porPausaMasLarga).map((f) => (
+                      <span key={f.personaId} className="rounded-full border border-ambar/45 bg-papel px-3 py-1 text-sm">
+                        {f.nombre}
+                        {f.pausa && <span className="ml-1.5 text-xs text-taupe">{textoPausaDesde(f.pausa)}</span>}
+                      </span>
+                    ))}
+                    {pausasNoRespondieron && <span className="text-xs text-ambar">No se pudo comprobar desde cuándo.</span>}
+                  </div>
+                )}
+                {/* Igual que en el Dashboard: una línea «0 · sin meta» de un grupo que en
+                    esta sede no existe no informa nada, y la causa de una meta que no se
+                    puede cumplir se dice en vez de dejar un «faltan 1» que parece falta. */}
+                {/* Sin turnos hoy —y con la certeza de que es porque descansan, no porque
+                    falte el horario— no hay cobertura que medir: la línea se apaga en gris
+                    y dice por qué. Con meta, la nombra sin pintarla como faltante: es una
+                    hoja que se imprime, así que es corta y no da instrucciones. */}
+                {coberturaApagada ? (
+                  <div className="mt-4 border-t border-verde/15 pt-3 text-sm text-taupe">
+                    <p><span className="font-medium">{textoApagada.titulo}</span> · {textoApagada.detalle}</p>
+                    {textoMeta && <p className="mt-1 text-xs">{textoMeta} No se mide porque nadie tiene turno; se define en Turnos.</p>}
+                  </div>
+                ) : (mostrarOperativas || mostrarLideres) && (
+                  <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-1 border-t border-verde/15 pt-3">
+                    {mostrarOperativas && <Cobertura label="Operativas en piso" n={opPiso} m={metaOp} />}
+                    {mostrarLideres && <Cobertura label="Líderes en piso" n={encPiso} m={meta.enc} />}
+                  </div>
+                )}
+                {causasMeta.map((c) => (
+                  <p key={c.quien} className="mt-2 text-xs text-taupe">
+                    <strong className="font-semibold text-tinta">{c.quien}:</strong> {c.detalle}
+                  </p>
+                ))}
+              </section>
+            ) : (
+              // Solo en pantalla: en el papel no hay nada que explicar, y en la pantalla
+              // quien cambia «Hasta» y ve desaparecer el recuadro no debe pensar que se rompió.
+              <p className="mb-6 text-sm text-taupe print:hidden">
+                «Hoy» no aparece porque este periodo termina antes de hoy: la hoja describe solo el periodo elegido.
+                Para ver quién está en piso ahora, pon «Hasta» en hoy o abre el Dashboard.
+              </p>
+            )}
 
             {/* EL PERIODO */}
             <section className="mb-6 print:break-inside-avoid">

@@ -115,6 +115,28 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-09-20-dashboard-feriado-sin-turnos-pregunta",
+    fecha: "2026-09-20",
+    titulo: "Un feriado sin turnos ya no sale en rojo: el Dashboard pregunta si la sede abre",
+    queMejoro:
+      "En un feriado en que nadie de la sede ha marcado y nadie armó turnos, el Dashboard decía en rojo «Sin marcajes» y «Cobertura insuficiente», y cada persona salía como «Sin marcar · le tocaba 08:00». Pero un feriado puede abrir o no, y el sistema no lo sabe: era una alarma falsa cuando la sede cerraba. " +
+      "Ahora sale en ámbar «Feriado · ¿abre hoy?», y cada persona dice «Feriado · le tocaba 08:00», sin enlace para corregir.\n\n" +
+      "Si la sede abre, arma sus turnos de ese día en Turnos: con un turno armado el aviso vuelve a ser el de siempre. Y apenas alguien marca la entrada, el Dashboard entiende que la sede abrió y mide su meta como cualquier otro día. " +
+      "La Hoja de sede impresa también deja de imprimir «faltan 1» en rojo un feriado sin turnos: dice «Feriado» y que no se sabe si la sede abre.",
+    audiencia: "panel",
+  },
+  {
+    id: "2026-09-20-hoja-de-sede-periodo-cerrado-sin-hoy",
+    fecha: "2026-09-20",
+    titulo: "La Hoja de sede de un periodo cerrado ya no trae un «Hoy» que no le corresponde",
+    queMejoro:
+      "Al armar la hoja de un periodo que ya terminó —por ejemplo el del 29 al 28 que se archiva—, el recuadro «Hoy» decía «Nadie está trabajando en este momento» y pintaba en rojo la cobertura, con un «faltan» aunque nadie faltara. " +
+      "Eran ceros inventados: la hoja solo trae los días del periodo elegido y hoy no estaba entre ellos, y ese rojo quedaba escrito en un papel que se firma y se archiva.\n\n" +
+      "Ahora, si el periodo termina antes de hoy, la hoja no dibuja el recuadro «Hoy» y describe solo el periodo; en pantalla una línea lo explica. " +
+      "Para ver quién está en piso ahora, deja «Hasta» en hoy o abre el Dashboard.",
+    audiencia: "panel",
+  },
+  {
     id: "2026-09-20-dashboard-sede-sin-turnos-hoy",
     fecha: "2026-09-20",
     titulo: "Un día en que la sede no tiene turnos ya no se lee como una falla",
