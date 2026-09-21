@@ -65,7 +65,9 @@ propósito hace caer alguna prueba.
   marcada (se mide normal)—, el mismo día con el feriado apagado (vuelve al rojo de siempre), con
   la consulta de feriados fallando (vuelve al rojo y la página no se cae) y la Hoja de sede de
   TRU. De ahí salieron dos textos que se corrigieron. **No prueba SQL, RLS ni el flujo real con
-  Supabase**, y **falta verlo con datos reales** antes de publicar. 1213 pruebas, con mutaciones.
+  Supabase**, y **falta verlo con datos reales** antes de publicar. 1219 pruebas, con mutaciones.
+  Tras fusionar #452 (que reindentó la sección «Hoy» de la Hoja de sede) no se volvió a mirar esa
+  pantalla en un navegador: el simulador se perdió con un reinicio de la sesión.
   El simulador no está en el repo: si se quiere repetir, hay que decidir si se guarda en `scripts/`.
 
 ---
