@@ -437,6 +437,13 @@ export function detectarIncidencias(d: DatosDeteccion): Incidencia[] {
   // `sin_horario` —nadie tiene horario cargado, un tramo venció, la sede es nueva—
   // no se sabe, y ahí el aviso sale como siempre. Y con `trabaja` (a alguien le toca
   // pero no hay líder: una tienda con operativas y sin líder) es un déficit de verdad.
+  //
+  // FERIADOS: este aviso no los conoce, y no debe (2026-09-20). Es una alarma de
+  // PLANEACIÓN —pregunta si el horario cubre a un líder ese día, esta semana y la próxima—,
+  // y en un feriado con horario base contesta «cubierto», que es la dirección segura. La
+  // falsa alarma de feriado nace donde se ACUSA una ausencia el mismo día (el Dashboard y la
+  // Hoja de sede: `esFeriadoSinTurno`), no donde se revisa un horario. Enseñarle feriados
+  // aquí solo lo haría callar más — y este aviso existe justo para reprogramar a tiempo.
   const codigoPorSede = new Map(d.sedes.map((s) => [s.id, s.codigo]));
   const tipoPorSede = new Map(d.sedes.map((s) => [s.id, s.tipo ?? null]));
   const turnoPorClave = new Map(d.turnos.map((t) => [`${t.persona_id}|${t.fecha}`, t as TurnoDia]));

@@ -26,9 +26,11 @@
 // a quien no le tocaba es el más caro; callar una falta real, el más silencioso.
 // Por eso «apagada» pide TRES cosas a la vez, y cualquier duda deja la línea como
 // estaba:
-//   1 · la sede tiene al menos UNA respuesta real de descanso (`no_trabaja`). Si
-//       todos están «sin_horario» (un tramo venció, sede nueva, equipo vacío) es «no
-//       se sabe», y «no se sabe» no autoriza a callar nada;
+//   1 · la sede tiene al menos UNA respuesta real de descanso (`no_trabaja`), o es un
+//       feriado en que nadie tiene turno (`feriado_sin_confirmar`: por su horario base
+//       les tocaría, pero la base no lo exige sin un turno, y no se sabe si la sede
+//       abre). Si todos están «sin_horario» (un tramo venció, sede nueva, equipo
+//       vacío) es «no se sabe», y «no se sabe» no autoriza a callar nada;
 //   2 · nadie ha iniciado jornada hoy — quien viene en su día libre y marca hizo
 //       abrir la sede, y ahí la meta vuelve a medirse;
 //   3 · el rango de la hoja incluye hoy: si termina antes, la consulta de jornadas
@@ -36,7 +38,7 @@
 // ============================================================================
 
 import { metaDelDiaTexto } from "@/lib/admin/asistencia-hoy";
-import type { DiaDeLaSede } from "@/lib/admin/jornada-esperada";
+import { SEDE_SIN_TURNOS, type DiaDeLaSede } from "@/lib/admin/jornada-esperada";
 
 export interface OpcionesCoberturaApagada {
   /**
@@ -62,15 +64,27 @@ export function hojaIncluyeHoy(desde: string, hasta: string, hoy: string): boole
 
 /**
  * ¿Se apaga la línea de cobertura del recuadro «Hoy»? Solo con una respuesta real
- * de que hoy nadie trabaja Y sin que nadie haya iniciado jornada.
+ * de que hoy nadie trabaja —o de un feriado en que nadie tiene turno— Y sin que nadie
+ * haya iniciado jornada.
  *
  * Un equipo vacío nunca la apaga: `every` sobre una lista vacía es verdadero, y
  * «nadie marcó» dicho de nadie no es una afirmación.
  */
 export function coberturaDeHoyApagada({ dia, estadosHoy, rangoIncluyeHoy }: OpcionesCoberturaApagada): boolean {
   if (!rangoIncluyeHoy) return false;
-  if (dia !== "no_trabaja") return false;
+  if (dia !== "no_trabaja" && dia !== "feriado_sin_confirmar") return false;
   return estadosHoy.length > 0 && estadosHoy.every((e) => e === "sin_marcar");
+}
+
+/**
+ * Lo que dice la hoja en lugar de la línea de cobertura apagada. Corto y sin
+ * instrucciones: es un papel que se firma. Un feriado sin turnos NO dice «a nadie le
+ * tocaba»: por su horario les tocaría, y lo que no se sabe es si la sede abre.
+ */
+export function textoCoberturaApagada(dia: DiaDeLaSede | null): { titulo: string; detalle: string } {
+  return dia === "feriado_sin_confirmar"
+    ? { titulo: "Feriado", detalle: "Sin turnos armados: no se sabe si la sede abre hoy." }
+    : { titulo: SEDE_SIN_TURNOS, detalle: "Hoy a nadie del equipo le tocaba trabajar." };
 }
 
 /**

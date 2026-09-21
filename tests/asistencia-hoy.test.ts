@@ -41,6 +41,7 @@ import {
   textoLiderEnLasDosMetas,
   textoMetaPorRevisar,
   textoMetaSinTurnos,
+  TEXTO_FERIADO_SIN_CONFIRMAR,
   textoPausa,
   textoPausaDesde,
   textoSinHorario,
@@ -1163,5 +1164,135 @@ describe("las banderas de «sin turnos» nunca se contradicen", () => {
         }
       }
     }
+  });
+});
+
+// ----------------------------------------------------------------------------
+// FERIADOS (2026-09-20). Un feriado con nadie marcado y sin turnos armados no es
+// una falla que acusar: en 22 de 25 feriados trabajados las sedes abrieron con su
+// horario base y sin turnos, y otros feriados se cierran. `fn_faltas` tampoco
+// cuenta falta ese día (0051, 0070, 0414). Rojo sería falso cuando cierra; callar,
+// falso cuando abre. Se PREGUNTA, en ámbar. Y donde sí hay turno, el rojo se queda.
+// ----------------------------------------------------------------------------
+describe("feriado — la persona: «le tocaba» no se convierte en «faltó»", () => {
+  const feriado = (o: Partial<FilaPersona> = {}) => fila({ origenEsperadoHoy: "horario", feriadoSinTurnoHoy: true, ...o });
+
+  it("pasada la hora, sin turno: «feriado», no «falta_real»", () => {
+    expect(subEstadoSinMarcar(feriado(), 9)).toBe("feriado");
+  });
+
+  it("antes de la hora sigue siendo «aun_no_inicia»: el feriado no cambia lo que es temprano", () => {
+    expect(subEstadoSinMarcar(feriado(), 7.5)).toBe("aun_no_inicia");
+  });
+
+  it("SIN la bandera es la falta real de siempre (también si no se pudo saber que era feriado)", () => {
+    expect(subEstadoSinMarcar(fila({ origenEsperadoHoy: "horario" }), 9)).toBe("falta_real");
+    expect(subEstadoSinMarcar(fila({ origenEsperadoHoy: "horario", feriadoSinTurnoHoy: false }), 9)).toBe("falta_real");
+  });
+
+  it("con un turno explícito el feriado no suaviza nada", () => {
+    expect(subEstadoSinMarcar(fila({ origenEsperadoHoy: "turno", feriadoSinTurnoHoy: false }), 9)).toBe("falta_real");
+  });
+
+  it("no cuenta como «sin marcar y ya le tocaba»: el número del resumen coincide con lo que acusa la base", () => {
+    expect(sinMarcarYaLeTocaba(feriado(), 9)).toBe(false);
+    expect(sinMarcarYaLeTocaba(fila({ origenEsperadoHoy: "horario" }), 9)).toBe(true);
+  });
+
+  it("no cambia lo que le tocaba: la hora de entrada sigue ahí para poder decir «le tocaba 08:00»", () => {
+    expect(feriado().entradaEsperadaHoy).toBe("08:00");
+  });
+});
+
+describe("feriado — la sede: nadie marcó y nadie armó turnos", () => {
+  const META_2 = { man: 2, tar: 2, enc: 1 };
+  const soloHorario = (personaId: string, o: Partial<FilaPersona> = {}) =>
+    fila({ personaId, origenEsperadoHoy: "horario", feriadoSinTurnoHoy: true, esEncargada: personaId === "a", ...o });
+  const equipo = () => [soloHorario("a"), soloHorario("b"), soloHorario("c")];
+
+  it("pasada la hora: NO hay rojo, hay la pregunta en ámbar", () => {
+    const c = calcularCoberturaSede(equipo(), META_2, false, 9);
+    expect(c.alertaSinEntrada).toBeNull();
+    expect(c.feriadoSinConfirmar).toBe(true);
+    expect(c.gravedad).toBe("revisar"); // ámbar, no «alerta»
+    expect(textoMetaPorRevisar(c)).toBe(TEXTO_FERIADO_SIN_CONFIRMAR);
+  });
+
+  it("la pregunta es una pregunta: no afirma ni que abre ni que cierra", () => {
+    expect(TEXTO_FERIADO_SIN_CONFIRMAR).toContain("¿abre hoy la sede?");
+    expect(TEXTO_FERIADO_SIN_CONFIRMAR).not.toMatch(/falt|cerrad|insuficiente/i);
+  });
+
+  it("no la confunde con «Sin turnos»: a nadie le tocaba NO es lo que se sabe", () => {
+    const c = calcularCoberturaSede(equipo(), META_2, false, 9);
+    expect(c.sinTurnosHoy).toBe(false);
+    expect(c.noAbreHoy).toBe(false);
+    expect(c.metaSinTurnos).toBe(false);
+  });
+
+  it("nadie se cuenta como «no llegó y ya le tocaba»: pasan a «aún no llegan»", () => {
+    const c = calcularCoberturaSede(equipo(), META_2, false, 9);
+    expect(c.sinMarcarReal).toBe(0);
+    expect(c.desgloseProgramadas.noLlegaron).toBe(0);
+    expect(c.desgloseProgramadas.aunNoLlegan).toBe(3);
+    expect(textoDesglose(c.desgloseProgramadas)).not.toContain("no llegó");
+  });
+
+  it("dentro del margen de la hora todavía no pregunta: aún es temprano, como cualquier día", () => {
+    const c = calcularCoberturaSede(equipo(), META_2, false, 8.2);
+    expect(c.feriadoSinConfirmar).toBe(false);
+    expect(c.alertaSinEntrada).toBeNull();
+  });
+
+  it("apenas alguien marca, la sede abrió: la pregunta se apaga y la meta vuelve a medirse como cualquier día", () => {
+    const abierta = [soloHorario("a", { estado: "abierta", entrada: "x" }), soloHorario("b"), soloHorario("c")];
+    const c = calcularCoberturaSede(abierta, META_2, false, 9);
+    expect(c.feriadoSinConfirmar).toBe(false);
+    expect(c.faltanOp).toBe(true);
+    expect(c.gravedad).toBe("alerta");
+    // …y aun así nadie del piso se acusa de «no llegó»: eso lo decide fn_faltas, y no lo cuenta.
+    expect(c.sinMarcarReal).toBe(0);
+  });
+
+  it("sin la bandera en las filas —la consulta de feriados o de turnos falló— la alarma es la roja de siempre", () => {
+    const sinSaber = [fila({ personaId: "a", origenEsperadoHoy: "horario" }), fila({ personaId: "b", origenEsperadoHoy: "horario" })];
+    const c = calcularCoberturaSede(sinSaber, META_2, false, 9);
+    expect(c.alertaSinEntrada).toBe("08:00");
+    expect(c.feriadoSinConfirmar).toBe(false);
+    expect(c.gravedad).toBe("alerta");
+  });
+
+  it("una sede que SÍ armó turnos en el feriado conserva el rojo: registrar el turno es decir «hoy abro»", () => {
+    const conTurnos = [
+      fila({ personaId: "a", origenEsperadoHoy: "turno", feriadoSinTurnoHoy: false }),
+      fila({ personaId: "b", origenEsperadoHoy: "turno", feriadoSinTurnoHoy: false }),
+    ];
+    const c = calcularCoberturaSede(conTurnos, META_2, false, 9);
+    expect(c.alertaSinEntrada).toBe("08:00");
+    expect(c.feriadoSinConfirmar).toBe(false);
+    expect(c.sinMarcarReal).toBe(2);
+  });
+
+  it("mezcla: con el turno de UNA persona la sede abre, y el rojo lo dice esa persona, no la de solo-horario", () => {
+    const mezcla = [
+      fila({ personaId: "a", origenEsperadoHoy: "turno", feriadoSinTurnoHoy: false, entradaEsperadaHoy: "10:00" }),
+      soloHorario("b", { entradaEsperadaHoy: "08:00" }),
+    ];
+    const c = calcularCoberturaSede(mezcla, META_0, false, 11);
+    expect(c.feriadoSinConfirmar).toBe(false);
+    expect(c.alertaSinEntrada).toBe("10:00"); // no «08:00»: esa hora es de quien no tiene turno
+    expect(c.sinMarcarReal).toBe(1); // solo la que tiene turno
+  });
+
+  it("si todo el equipo está de vacaciones nadie tenía que llegar: tampoco se pregunta si abre", () => {
+    const vac = { nombre: "Vacaciones", pendiente: false };
+    const c = calcularCoberturaSede([soloHorario("a", { ausenciaHoy: vac }), soloHorario("b", { ausenciaHoy: vac })], META_2, false, 10);
+    expect(c.feriadoSinConfirmar).toBe(false);
+    expect(c.alertaSinEntrada).toBeNull();
+  });
+
+  it("un feriado en que a nadie le tocaría por horario no inventa una pregunta", () => {
+    const descansan = [fila({ entradaEsperadaHoy: null, origenEsperadoHoy: "horario", feriadoSinTurnoHoy: true })];
+    expect(calcularCoberturaSede(descansan, META_0, false, 10).feriadoSinConfirmar).toBe(false);
   });
 });

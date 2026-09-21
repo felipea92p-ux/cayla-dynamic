@@ -15,8 +15,9 @@ import { loQueNoSePudo, sePuedeEntregar } from "@/lib/admin/lo-que-no-se-pudo";
 import { NIVEL_DISCIPLINARIO_CORTO, TZ_LIMA, cuentaEnCobertura, hoyLima, primeroDeMesLima } from "@cayla-dynamic/shared";
 import { causaMetaImposible, enPausaAhora, porPausaMasLarga, textoPausaDesde, trabajandoAhora, type PausaAbierta } from "@/lib/admin/asistencia-hoy";
 import { traerPausasAbiertas } from "@/lib/admin/pausas-abiertas";
-import { SEDE_SIN_TURNOS, diaDeLaSedeDe, type DiaDeLaSede, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
-import { coberturaDeHoyApagada, hojaIncluyeHoy, textoMetaDeHoy } from "@/lib/admin/cobertura-hoja-sede";
+import { diaDeLaSedeDe, type DiaDeLaSede, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
+import { coberturaDeHoyApagada, hojaIncluyeHoy, textoCoberturaApagada, textoMetaDeHoy } from "@/lib/admin/cobertura-hoja-sede";
+import { traerSiEsFeriado } from "@/lib/admin/feriado-de-hoy";
 
 const CORTE_TARDE = 14.25; // mismo corte mañana/tarde que Turnos/Dashboard
 
@@ -185,6 +186,9 @@ function ReporteSedeContenido() {
       { data: faltasResumen, error: errFaltas },
       { data: turnosHoy, error: errTurnos },
       { data: horariosVigentes, error: errHorarios },
+      // ¿Hoy es feriado? Solo cambia QUÉ se apaga y con qué palabra (ver `diaDeLaSedeDe`).
+      // Si falla cae a «no es feriado» y la línea se imprime como antes: una duda no calla.
+      feriadoHoy,
     ] = await Promise.all([
       // Mismo criterio del dashboard (7afe8e5): un practicante trabaja en la
       // sede y tiene que salir en su hoja, aunque el escalafón disciplinario
@@ -226,6 +230,7 @@ function ReporteSedeContenido() {
         .select("persona_id, hora_entrada, hora_salida, dias_laborables, horario_por_dia, almuerzo_min_minutos, vigente_desde, vigente_hasta")
         .lte("vigente_desde", hoy)
         .or(`vigente_hasta.is.null,vigente_hasta.gte.${hoy}`),
+      traerSiEsFeriado(supabase, hoy),
     ]);
     // Los turnos de hoy solo importan si la hoja llega hasta hoy.
     //
@@ -321,6 +326,7 @@ function ReporteSedeContenido() {
         hoy,
         (id) => turnoPorPersona.get(id) ?? null,
         (id) => tramosPorPersona.get(id) ?? [],
+        feriadoHoy.esFeriado,
       );
     }
     // Desde cuándo está en pausa cada quien (solo de los que la base ya marcó
@@ -378,6 +384,7 @@ function ReporteSedeContenido() {
     rangoIncluyeHoy: hojaIncluyeHoy(desde, hasta, hoy),
   });
   const textoMeta = textoMetaDeHoy(meta.man, meta.tar, meta.enc);
+  const textoApagada = textoCoberturaApagada(diaDeHoy);
 
   // El nombre con el que se guarda el PDF. Ver use-titulo-documento.ts.
   // Aquí el periodo va DELANTE, al contrario que en la boleta: estos reportes
@@ -527,7 +534,7 @@ function ReporteSedeContenido() {
                   hoja que se imprime, así que es corta y no da instrucciones. */}
               {coberturaApagada ? (
                 <div className="mt-4 border-t border-verde/15 pt-3 text-sm text-taupe">
-                  <p><span className="font-medium">{SEDE_SIN_TURNOS}</span> · Hoy a nadie del equipo le tocaba trabajar.</p>
+                  <p><span className="font-medium">{textoApagada.titulo}</span> · {textoApagada.detalle}</p>
                   {textoMeta && <p className="mt-1 text-xs">{textoMeta} No se mide porque nadie tiene turno; se define en Turnos.</p>}
                 </div>
               ) : (mostrarOperativas || mostrarLideres) && (

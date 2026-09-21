@@ -18,7 +18,7 @@ import {
   type HorarioTramo,
   type TurnoDia,
 } from "@/lib/admin/jornada-esperada";
-import { coberturaDeHoyApagada, hojaIncluyeHoy, textoMetaDeHoy } from "@/lib/admin/cobertura-hoja-sede";
+import { coberturaDeHoyApagada, hojaIncluyeHoy, textoCoberturaApagada, textoMetaDeHoy } from "@/lib/admin/cobertura-hoja-sede";
 
 const SIN_MARCAR = "sin_marcar";
 const apagada = (dia: DiaDeLaSede | null, estadosHoy: string[], rangoIncluyeHoy = true) =>
@@ -160,5 +160,80 @@ describe("textoMetaDeHoy — la meta que acompaña al «Sin turnos»", () => {
   it("usa el vocabulario de la casa: líder, nunca encargada ni jefe", () => {
     const t = textoMetaDeHoy(2, 2, 1) ?? "";
     expect(t).not.toMatch(/encargad|jefe|supervisor/i);
+  });
+});
+
+// ----------------------------------------------------------------------------
+// FERIADOS (2026-09-20). La hoja se IMPRIME y se firma: un feriado sin turnos y sin
+// nadie marcado no puede quedar escrito como «faltan 1» en rojo, cuando no se sabe si
+// la sede abre. Pero tampoco puede decir «a nadie le tocaba»: por su horario les
+// tocaría, y esa es una afirmación falsa en un papel.
+// ----------------------------------------------------------------------------
+describe("coberturaDeHoyApagada — un feriado sin turnos", () => {
+  it("feriado_sin_confirmar y nadie marcó → apagada", () => {
+    expect(apagada("feriado_sin_confirmar", [SIN_MARCAR, SIN_MARCAR])).toBe(true);
+  });
+
+  it("apenas alguien marca la sede abrió: la meta vuelve a medirse, igual que con «no_trabaja»", () => {
+    expect(apagada("feriado_sin_confirmar", [SIN_MARCAR, "abierta"])).toBe(false);
+    expect(apagada("feriado_sin_confirmar", ["cerrada", SIN_MARCAR])).toBe(false);
+  });
+
+  it("si el rango no llega a hoy, «nadie marcó» sería un cero inventado: no se apaga", () => {
+    expect(apagada("feriado_sin_confirmar", [SIN_MARCAR], false)).toBe(false);
+  });
+
+  it("un equipo vacío no la apaga", () => {
+    expect(apagada("feriado_sin_confirmar", [])).toBe(false);
+  });
+
+  it("«trabaja» y «sin_horario» siguen sin apagarla: un feriado no relaja lo que ya estaba cerrado a propósito", () => {
+    expect(apagada("trabaja", [SIN_MARCAR])).toBe(false);
+    expect(apagada("sin_horario", [SIN_MARCAR])).toBe(false);
+    expect(apagada(null, [SIN_MARCAR])).toBe(false);
+  });
+});
+
+describe("textoCoberturaApagada — lo que queda escrito en el papel", () => {
+  it("un día en que a nadie le tocaba trabajar dice lo de siempre", () => {
+    expect(textoCoberturaApagada("no_trabaja")).toEqual({
+      titulo: "Sin turnos",
+      detalle: "Hoy a nadie del equipo le tocaba trabajar.",
+    });
+  });
+
+  it("un feriado sin turnos NO afirma que a nadie le tocaba: dice lo que no se sabe", () => {
+    const t = textoCoberturaApagada("feriado_sin_confirmar");
+    expect(t.titulo).toBe("Feriado");
+    expect(t.detalle).toContain("no se sabe si la sede abre");
+    expect(t.detalle).not.toMatch(/a nadie/i);
+  });
+});
+
+describe("Hoja de sede — de punta a punta, con el martes de Fiestas Patrias", () => {
+  const lunAsab: HorarioTramo = {
+    persona_id: "x", vigente_desde: "2026-01-01", vigente_hasta: null,
+    hora_entrada: "09:00", hora_salida: "18:00", dias_laborables: [1, 2, 3, 4, 5, 6],
+    horario_por_dia: Object.fromEntries([1, 2, 3, 4, 5, 6].map((d) => [String(d), { e: "09:00", s: "18:00", r: 60 }])),
+    almuerzo_min_minutos: 60,
+  };
+  const tramosDe = (id: string) => [{ ...lunAsab, persona_id: id }];
+  const sinTurno = () => null;
+
+  it("feriado, sin turnos, nadie marcó: la línea se apaga con la palabra «Feriado»", () => {
+    const dia = diaDeLaSedeDe(["a", "b"], "2026-07-28", sinTurno, tramosDe, true);
+    expect(apagada(dia, [SIN_MARCAR, SIN_MARCAR])).toBe(true);
+    expect(textoCoberturaApagada(dia).titulo).toBe("Feriado");
+  });
+
+  it("el mismo día sin saber que es feriado (falló la consulta): la línea se imprime como antes", () => {
+    const dia = diaDeLaSedeDe(["a", "b"], "2026-07-28", sinTurno, tramosDe);
+    expect(apagada(dia, [SIN_MARCAR, SIN_MARCAR])).toBe(false);
+  });
+
+  it("feriado con turnos armados: la línea se imprime, con su «faltan» si toca", () => {
+    const turno = (id: string): TurnoDia | null => (id === "a" ? { hora_entrada: "10:00", hora_salida: "14:00", es_descanso: false } : null);
+    const dia = diaDeLaSedeDe(["a", "b"], "2026-07-28", turno, tramosDe, true);
+    expect(apagada(dia, [SIN_MARCAR, SIN_MARCAR])).toBe(false);
   });
 });
