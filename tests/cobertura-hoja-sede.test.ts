@@ -85,6 +85,47 @@ describe("hojaIncluyeHoy — el rango elegido llega a hoy", () => {
   });
 });
 
+// La pantalla usa esta misma respuesta para decidir si dibuja el recuadro «Hoy». Sin
+// ella, el recuadro de un periodo cerrado se armaba con las jornadas del rango —que no
+// traen hoy— y salía «Nadie está trabajando» con «faltan N» en rojo: un cero inventado
+// en un papel que se firma y se archiva. Estos son los casos del periodo de planilla,
+// que va del 29 al 28.
+describe("hojaIncluyeHoy — cuándo el recuadro «Hoy» existe en una hoja de periodo", () => {
+  const DESDE = "2026-08-29";
+  const HASTA = "2026-09-28";
+
+  it("el último día del periodo, ese día ES hoy: el recuadro existe", () => {
+    expect(hojaIncluyeHoy(DESDE, HASTA, "2026-09-28")).toBe(true);
+  });
+
+  it("el día siguiente al cierre —cuando de verdad se imprime— el recuadro NO existe", () => {
+    // El caso que originó esto: hoy = 29, la hoja llega hasta el 28.
+    expect(hojaIncluyeHoy(DESDE, HASTA, "2026-09-29")).toBe(false);
+  });
+
+  it("«hasta ayer» también lo oculta: elegir no contar el día de hoy lo deja fuera", () => {
+    expect(hojaIncluyeHoy("2026-09-01", "2026-09-19", "2026-09-20")).toBe(false);
+  });
+
+  it("un solo día pasado, no; un solo día que es hoy, sí", () => {
+    expect(hojaIncluyeHoy("2026-09-19", "2026-09-19", "2026-09-20")).toBe(false);
+    expect(hojaIncluyeHoy("2026-09-20", "2026-09-20", "2026-09-20")).toBe(true);
+  });
+
+  it("un campo de fecha vacío no llega a hoy: no se inventa un «Hoy» sin rango", () => {
+    expect(hojaIncluyeHoy("", "", "2026-09-20")).toBe(false);
+    expect(hojaIncluyeHoy("2026-09-01", "", "2026-09-20")).toBe(false);
+  });
+
+  it("y cuando el recuadro no existe, apagar su cobertura tampoco es una opción: no hay línea que apagar", () => {
+    // Las dos decisiones tienen que decir lo mismo (la pantalla las alimenta de una
+    // misma respuesta): con el rango cerrado, ni «Sin turnos» ni «faltan N».
+    const llega = hojaIncluyeHoy(DESDE, HASTA, "2026-09-29");
+    expect(llega).toBe(false);
+    expect(coberturaDeHoyApagada({ dia: "no_trabaja", estadosHoy: [SIN_MARCAR, SIN_MARCAR], rangoIncluyeHoy: llega })).toBe(false);
+  });
+});
+
 describe("de punta a punta — Central, con sus turnos y horarios de verdad", () => {
   // Central trabaja de lunes a sábado; el domingo es opcional y nadie tiene turno.
   const centralLunAsab: HorarioTramo = {

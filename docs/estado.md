@@ -49,9 +49,18 @@ ve todas las sedes (admin, DO). Con eso pasa sola a gris en las cuatro pantallas
   no cuenta salvo turno explícito» y `fn_faltas` lo aplica; `esperadoDelDia` y el Dashboard no
   saben de feriados. Una tienda que cierra en feriado (horario base «trabaja», sin turno puntual)
   sale con «Sin marcajes desde las 8:15» en rojo crítico. No lo introdujo este cambio.
-- **Hoja de sede de un periodo cerrado:** su recuadro «Hoy» se calcula con las jornadas del rango,
+- ~~**Hoja de sede de un periodo cerrado:** su recuadro «Hoy» se calcula con las jornadas del rango,
   así que en un periodo ya cerrado dice «Nadie está trabajando» y pinta «faltan N» en rojo en un
-  papel que se archiva.
+  papel que se archiva.~~ **Hecho, sin fusionar** —rama `claude/hoja-sede-periodo-cerrado-sin-hoy`,
+  un PR apilado sobre este (su base es la rama de este PR; al fusionarse este, GitHub lo reapunta a
+  `main`)—. **Decidido por Felipe el 2026-09-20: el recuadro «Hoy» se OCULTA** cuando el rango termina
+  antes de hoy, y no se trae «hoy» aparte. Razón: la hoja de un periodo cerrado describe ese periodo
+  —«Necesita atención» ya medía con el fin del rango, no con hoy—; traer «hoy» archivaría en la hoja del
+  periodo X el estado de un día que no es X, fotografiado a la hora de imprimir. En pantalla queda una
+  línea que dice por qué no aparece (no sale en el papel). Lo decide la misma `hojaIncluyeHoy`
+  de arriba, para el recuadro y para su línea de cobertura. **No se vio en pantalla con datos reales:**
+  falta abrir la hoja de una sede con «Hasta» anterior a hoy y comprobar que no hay recuadro «Hoy»
+  ni rojo, y con «Hasta» = hoy que sigue como siempre.
 
 **Cómo se verificó, y qué NO.** Pruebas (1163 en verde, con controles de mutación a mano por cada pieza),
 `tsc` y `eslint` sin errores nuevos. **Se vio en pantalla** con un servidor de datos simulado
