@@ -58,9 +58,15 @@ propósito hace caer alguna prueba.
   puede seguir en rojo «faltan N», aunque a los que no llegaron ya no se les acuse individualmente.
 - **La discrepancia RIT 17.3 ↔ práctica sigue abierta** (Consulta 5 al laboralista). Si obliga a
   cambiar la práctica, cambia la base y la cascada a la vez.
-- **No se vio en un navegador:** el panel no levanta aquí sin `.env.local` ni el Supabase local, y
-  ese Postgres es uno solo para ~10 worktrees. La lógica está probada (1206 pruebas, con
-  mutaciones) y el JSX compila; falta mirar el Dashboard con un feriado real o simulado.
+- **Visto en un navegador (2026-09-21), pero con un backend SIMULADO.** El panel no levanta aquí
+  sin Docker ni `.env.local`, y ese Postgres es uno solo para ~10 worktrees, así que se miró con
+  un simulador de la API (fuera del repo, con personas inventadas). Se vieron los tres casos en el
+  Dashboard —sede sin turnos (ámbar), con turnos armados (rojo conservado), con la líder ya
+  marcada (se mide normal)—, el mismo día con el feriado apagado (vuelve al rojo de siempre), con
+  la consulta de feriados fallando (vuelve al rojo y la página no se cae) y la Hoja de sede de
+  TRU. De ahí salieron dos textos que se corrigieron. **No prueba SQL, RLS ni el flujo real con
+  Supabase**, y **falta verlo con datos reales** antes de publicar. 1213 pruebas, con mutaciones.
+  El simulador no está en el repo: si se quiere repetir, hay que decidir si se guarda en `scripts/`.
 
 ---
 
