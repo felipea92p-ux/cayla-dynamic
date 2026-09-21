@@ -196,6 +196,7 @@ function IncidenciasContenido() {
       { data: diasRachaData, error: errRacha },
       { data: contratosData, error: errContratos },
       { data: tiposData, error: errTipos },
+      { data: equipoData, error: errEquipo },
     ] = await Promise.all([
       // Por lotes: PostgREST cortaba en 1000 filas sin avisar.
       traerTodo<unknown>((ini, fin) =>
@@ -262,6 +263,14 @@ function IncidenciasContenido() {
       ),
       supabase.rpc("fn_contratos_tablero"),
       supabase.from("tipos_ausencia").select("codigo, nombre"),
+      // El equipo de cada sede, para saber si ese día a alguien le tocaba trabajar
+      // (el déficit de líderes se calla cuando a nadie le tocaba). La misma población
+      // que el Dashboard —quien marca—; el alcance por rol lo pone RLS: una líder de
+      // equipo ve a su sede, que es la única que la pantalla le muestra.
+      supabase.from("personas").select("id, sede_base_id")
+        .eq("estado", "activo")
+        .or("en_planilla.eq.true,tipo_vinculo.eq.practicante")
+        .eq("sueldo_fijo", false),
     ]);
 
     if (!cargasVigentes.current.vigente(idCarga)) return; // llegó tarde: otra carga más nueva ya está en camino
@@ -275,7 +284,7 @@ function IncidenciasContenido() {
     setCarga(coberturaDeCarga({
       faltas: errFaltas, salidas: errExtra, excesos: errHoras, rachas: errRacha,
       vistos_buenos: errAceptadas, revisiones: errRevisiones, convenios: errContratos,
-      nombres: errPersonas, motivos: errTipos,
+      nombres: errPersonas, motivos: errTipos, equipo: errEquipo,
     }));
     setVistosBuenosFallaron(Boolean(errAceptadas));
     setAvisoLevantadas(
@@ -305,6 +314,8 @@ function IncidenciasContenido() {
       aceptadas: aceptadasRows.filter((a) => a.anulada_at === null),
       sedes: sedesRows,
       encargadas: (encargadasData as DatosDeteccion["encargadas"] | null) ?? [],
+      // Con error llega vacío = «no se sabe»: el aviso sale como siempre (ver `equipo`).
+      equipo: (equipoData as DatosDeteccion["equipo"] | null) ?? [],
       metas: (metasData as { sede_id: string; dia_semana: number; meta_encargadas: number }[] | null) ?? [],
       horarios: (horariosData as HorarioTramo[] | null) ?? [],
       turnos: (turnosData as DatosDeteccion["turnos"] | null) ?? [],

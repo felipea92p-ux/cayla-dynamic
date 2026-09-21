@@ -143,6 +143,56 @@ export function esperadoDelDia(fecha: string, turno: TurnoDia | null, horario: H
   return NADA;
 }
 
+// ============================================================================
+// El día de una SEDE — la pregunta de esperadoDelDia, un piso más arriba
+// ============================================================================
+// «¿A alguien de esta sede le toca trabajar ese día?» la contestaban tres
+// pantallas por su cuenta, y la falsa alarma volvía en cada una (2026-09-20):
+// Central tiene meta de 1 líder el domingo pero el domingo nadie tiene turno, y
+// el Dashboard decía «Cobertura insuficiente», Incidencias «Déficit de líderes
+// 0/1» y la Hoja de sede impresa «faltan 1» en rojo — por una falta que ninguna
+// asistencia podía arreglar, porque a nadie le tocaba ir. Se dice acá, una vez.
+//
+// Tres respuestas y no dos, porque «nadie tiene turno» significa dos cosas:
+//   · «trabaja»     — a alguien le toca.
+//   · «no_trabaja»  — a nadie le toca, y hay al menos UNA respuesta real de que
+//                     descansa (un turno de descanso, o un horario que no incluye
+//                     ese día). Es lo único que autoriza a callar una alarma.
+//   · «sin_horario» — a nadie le toca, pero es porque NO HAY con qué medirlo
+//                     (un tramo venció sin sucesor, una sede nueva, un equipo
+//                     vacío). No dice «hoy no abre»: dice «no se sabe», y ahí
+//                     cada alarma sigue como estaba.
+// ============================================================================
+
+/** La palabra de pantalla para «ese día esta sede no tiene turnos». Una sola, en todas las pantallas. */
+export const SEDE_SIN_TURNOS = "Sin turnos";
+
+export type DiaDeLaSede = "trabaja" | "no_trabaja" | "sin_horario";
+
+/** La respuesta de esperadoDelDia de cada persona del equipo → la de la sede. */
+export function diaDeLaSede(esperados: readonly Pick<Esperado, "trabaja" | "origen">[]): DiaDeLaSede {
+  let respuestaRealDeDescanso = false;
+  for (const e of esperados) {
+    if (e.trabaja) return "trabaja";
+    if (e.origen !== "sin_horario") respuestaRealDeDescanso = true;
+  }
+  return respuestaRealDeDescanso ? "no_trabaja" : "sin_horario";
+}
+
+/**
+ * Lo mismo a partir de las personas y sus turnos/horarios, para las pantallas que
+ * no traen un `Esperado` por persona. Un equipo vacío es «sin_horario»: sin gente
+ * no hay a quién preguntarle.
+ */
+export function diaDeLaSedeDe(
+  personaIds: readonly string[],
+  fecha: string,
+  turnoDe: (personaId: string) => TurnoDia | null,
+  tramosDe: (personaId: string) => HorarioTramo[],
+): DiaDeLaSede {
+  return diaDeLaSede(personaIds.map((id) => esperadoDelDia(fecha, turnoDe(id), horarioVigente(tramosDe(id), fecha))));
+}
+
 /**
  * ¿Este turno puntual es un "espejo viejo"? — coincide con un tramo de
  * horario que la persona YA NO TIENE VIGENTE, y probablemente solo sigue ahí

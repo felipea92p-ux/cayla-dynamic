@@ -27,6 +27,7 @@
 // ============================================================================
 
 import { TZ_LIMA, formatoMinutos } from "@cayla-dynamic/shared";
+import { diaDeLaSede } from "@/lib/admin/jornada-esperada";
 
 // Margen antes de avisar que una sede entera no marcó nada. No es la tolerancia
 // de tardanza (esa es cero: SIN tolerancia, por minuto, según fn_recalcular_jornada) —
@@ -192,10 +193,62 @@ export interface CoberturaSede {
   metaOpImposible: boolean;
   metaEncImposible: boolean;
   /**
+   * Hoy esta sede no tiene turnos: a nadie del equipo le toca trabajar (ni una sola
+   * persona tiene turno u horario que lo diga —cuente o no una ausencia—) y nadie ha
+   * marcado. Es un hecho del DÍA, no de la hora: no cambia a las 2:15 p. m. cuando
+   * corre la meta de la tarde. Es lo que el sistema SABE; que el negocio no abra ese día
+   * es lo que dice la meta en 0 (ver `noAbreHoy`).
+   *
+   * Es `false` si la consulta de turnos u horarios falló (`horarioConocido`): entonces
+   * todas las filas llegan sin horario y «nadie tiene turno» no dice que la sede no
+   * trabaje, dice que no se pudo mirar. Y es `false` con un equipo vacío.
+   *
+   * Dos límites conocidos, aceptados y medidos con pruebas:
+   * · Sale del reloj de hoy: quien viene en su día libre y marca deja de ser «sin
+   *   turnos» (`nadieMarcoTodavia`), y la sede vuelve a medirse contra su meta —con
+   *   una meta de 2 y una sola persona, «faltan» es rojo—. Es lo pactado: si alguien
+   *   está o estuvo trabajando, la sede abrió.
+   * · No ve jornadas abiertas de AYER que cruzan la medianoche: un turno de
+   *   22:00 a 06:00 deja hoy a esa persona como «descansa» aunque siga en el piso, y
+   *   la sede sale «Sin turnos». CAYLA no tiene turnos nocturnos; solo pasa
+   *   minutos después de un cierre pasada la medianoche.
+   */
+  sinTurnosHoy: boolean;
+  /** Hay meta de cobertura para hoy, en cualquiera de los dos tramos o de líderes. */
+  hayMetaHoy: boolean;
+  /** La meta más alta de operativas de hoy (mañana o tarde): con ella se escribe «una meta de N». */
+  metaOpDelDia: number;
+  /**
+   * Hoy esta sede no tiene turnos Y su meta de hoy es 0: ese día no se labora, y no hay
+   * nada que medir. La pantalla la apaga en gris («Sin turnos») en vez de decir «Sin
+   * meta configurada», que pide configurar algo que se dejó en 0 a propósito. Es
+   * `sinTurnosHoy && !hayMetaHoy`. Con meta y turnos ausentes hay otra bandera
+   * (`metaSinTurnos`), pero ojo: NO son complementarias. Con meta, sin turnos y TODOS
+   * sin horario ninguna de las dos se activa —no se sabe si le tocaba abrir— y la sede
+   * se mide contra su meta como siempre.
+   */
+  noAbreHoy: boolean;
+  /**
+   * Hay meta para hoy, nadie tiene turno y al menos UNA persona tiene una respuesta
+   * real de que hoy descansa (`diaDeLaSede` = «no_trabaja»): la meta y los turnos se
+   * contradicen. O la sede no abre este día y su meta debería ser 0, o abre y nadie
+   * armó sus turnos — las dos se arreglan en Turnos, y ninguna es «falta gente que
+   * podría venir», porque a nadie le tocaba venir. Por eso es «revisar» (ámbar) y no
+   * «alerta» (rojo). Ver `gravedad`.
+   */
+  metaSinTurnos: boolean;
+  /**
    * «alerta» = falta gente que SÍ podría venir (rojo). «revisar» = lo único que
    * falta son metas imposibles de cumplir (ámbar: es un dato de Turnos). null = no
    * falta nada, o la sede está fuera de horario. `problema` sigue diciendo «falta
    * algo» sea cual sea la causa; esto dice qué tan urgente es.
+   *
+   * Segundo costo conocido (2026-09-20): una tienda que SÍ debía abrir, con meta,
+   * cuyos turnos nadie armó y donde no llega nadie, queda en ámbar todo el día y
+   * nada la escala a rojo —antes salía «Cobertura insuficiente»—. Solo se ve en su
+   * tarjeta y en «Requiere atención». No se puede escalar por hora: no existe una
+   * hora de apertura por sede, y la alarma de «sin marcajes» necesita al menos una
+   * entrada esperada. La red que queda es Turnos, que pinta ese día en rojo.
    *
    * Costo conocido, aceptado a propósito: una tienda que pierde a su ÚNICA líder
    * también queda en «revisar» —equipo 0 contra meta 1—, porque la función no
@@ -290,7 +343,14 @@ export function fueraDeHorarioDeHoy(
   return ahoraDecimal >= horaDecimalDe(ultimaSalida) ? { cuando: "despues", hora: ultimaSalida } : null;
 }
 
-export function calcularCoberturaSede(deSede: FilaPersona[], meta: MetaSede, tramoTarde: boolean, ahoraDecimal: number): CoberturaSede {
+export function calcularCoberturaSede(
+  deSede: FilaPersona[],
+  meta: MetaSede,
+  tramoTarde: boolean,
+  ahoraDecimal: number,
+  // false = la consulta de turnos u horarios falló: ver `CoberturaSede.sinTurnosHoy`.
+  horarioConocido = true,
+): CoberturaSede {
   const trabajando = deSede.filter((f) => trabajandoAhora(f.estado));
   const enPausa = deSede.filter((f) => enPausaAhora(f.estado));
   const metaOp = tramoTarde ? meta.tar : meta.man;
@@ -336,6 +396,26 @@ export function calcularCoberturaSede(deSede: FilaPersona[], meta: MetaSede, tra
     .map((f) => f.entradaEsperadaHoy!)
     .sort();
   const nadieMarcoTodavia = deSede.every((f) => f.entrada === null);
+  // «Hoy no abre»: nadie tiene turno NI horario que diga «trabaja hoy» y nadie marcó.
+  // Se mira `entradaEsperadaHoy` de TODAS las filas, con o sin ausencia: si el equipo
+  // entero está de vacaciones pero su horario decía que trabajaba, la sede debía
+  // abrir y quedó sin nadie — eso es un hueco de cobertura, no un día cerrado.
+  // La respuesta de la sede es la de jornada-esperada.ts (`diaDeLaSede`), la misma que usan
+  // Incidencias y la Hoja de sede: «no_trabaja» exige al menos UNA respuesta real de que hoy
+  // descansa; «sin_horario» —todos sin horario cargado— es «no se sabe».
+  //
+  // `sinTurnosHoy` es el hecho literal (nadie tiene turno y nadie marcó) y vale también con
+  // todos sin horario: con la meta en 0 no hay nada que alarmar y «Sin turnos» es cierto.
+  // Lo que baja un rojo a ámbar (`metaSinTurnos`) sí pide la respuesta real: con todos sin
+  // horario y meta, nadie sabe si le toca abrir, y decir «a nadie le tocaba» mandaría a Turnos
+  // un problema que se arregla en Horarios (auditoría 2026-09-20, hallazgo demostrado).
+  // Un equipo vacío no dice nada: no hay a quién preguntarle.
+  const diaSede = diaDeLaSede(deSede.map((f) => ({ trabaja: f.entradaEsperadaHoy !== null, origen: f.origenEsperadoHoy })));
+  const sinTurnosHoy = horarioConocido && deSede.length > 0 && nadieMarcoTodavia && diaSede !== "trabaja";
+  const metaOpDelDia = Math.max(meta.man, meta.tar);
+  const hayMetaHoy = metaOpDelDia > 0 || meta.enc > 0;
+  const metaSinTurnos = sinTurnosHoy && hayMetaHoy && diaSede === "no_trabaja";
+  const noAbreHoy = sinTurnosHoy && !hayMetaHoy;
   let alertaSinEntrada: string | null = null;
   if (entradasEsperadasHoy.length > 0 && nadieMarcoTodavia) {
     const primeraEntrada = entradasEsperadasHoy[0];
@@ -356,14 +436,20 @@ export function calcularCoberturaSede(deSede: FilaPersona[], meta: MetaSede, tra
   const metaOpImposible = faltanOp && causaMetaImposible("operativas", metaOp, equipoOperativas) !== null;
   const metaEncImposible = faltanEnc && causaMetaImposible("lideres", meta.enc, equipoLideres) !== null;
   const hayFaltaPosible = (faltanOp && !metaOpImposible) || (faltanEnc && !metaEncImposible);
-  const gravedad: GravedadCobertura = hayFaltaPosible ? "alerta" : faltanOp || faltanEnc ? "revisar" : null;
+  // Con meta y sin ningún turno, ni «faltan» ni «bien»: la meta y los turnos se
+  // contradicen. Va primero porque le gana al rojo: «Cobertura insuficiente · falta
+  // 1 líder» un domingo en que a nadie le tocaba venir era una alarma que ninguna
+  // asistencia podía apagar (Central, 2026-09-20) — ver `metaSinTurnos`.
+  const gravedad: GravedadCobertura = metaSinTurnos
+    ? "revisar"
+    : hayFaltaPosible ? "alerta" : faltanOp || faltanEnc ? "revisar" : null;
 
   return {
     trabajando, enPausa, opPiso, encPiso, metaOp, metaEnc: meta.enc, sinMetaOp, sinMetaEnc,
-    faltanOp, faltanEnc, problema: faltanOp || faltanEnc, sinMarcarReal, programadosHoy, alertaSinEntrada,
+    faltanOp, faltanEnc, problema: faltanOp || faltanEnc || metaSinTurnos, sinMarcarReal, programadosHoy, alertaSinEntrada,
     equipoOperativas, equipoLideres, fueraDeHorario, desgloseProgramadas, lideresEnAmbasMetas,
     marcaronSinHorario: marcaronSinHorario(deSede),
-    metaOpImposible, metaEncImposible, gravedad,
+    metaOpImposible, metaEncImposible, sinTurnosHoy, hayMetaHoy, metaOpDelDia, noAbreHoy, metaSinTurnos, gravedad,
   };
 }
 
@@ -407,11 +493,45 @@ export function causaMetaImposible(
 }
 
 /**
- * Lo que dice «Requiere atención» de una sede cuya única falta son metas que no se
- * pueden cumplir. Dice qué meta y por qué, y dónde se arregla: «faltan 4
- * operativas» sería mentira aquí, porque no hay a quién pedirle que venga.
+ * «hay meta de 1 líder para hoy, pero a nadie del equipo le toca trabajar». Es la
+ * frase de una sede con meta y sin ningún turno (`metaSinTurnos`): dice los dos lados
+ * de la contradicción, para que quien la lee sepa que se arregla en Turnos y no
+ * esperando a que alguien llegue.
+ */
+export function textoMetaSinTurnos(cob: CoberturaSede): string {
+  return `hay meta de ${metaDelDiaTexto(cob)} para hoy, pero a nadie del equipo le tocaba trabajar`;
+}
+
+/**
+ * «domingos», «lunes», «sábados»: el día de la semana de una fecha, en plural. La meta de
+ * cobertura es por DÍA DE LA SEMANA, no por fecha —poner 0 un domingo la apaga en todos los
+ * domingos—, y quien lo lee tiene que saberlo antes de tocarla. Los que ya terminan en «s»
+ * (lunes, martes…) no cambian.
+ */
+export function diaDeLaSemanaEnPlural(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  const dia = new Intl.DateTimeFormat("es-PE", { weekday: "long", timeZone: "UTC" }).format(new Date(Date.UTC(y, m - 1, d)));
+  return dia.endsWith("s") ? dia : `${dia}s`;
+}
+
+/** «4 operativas y 1 líder»: la meta de hoy con la concordancia de cada grupo. */
+export function metaDelDiaTexto(cob: Pick<CoberturaSede, "metaOpDelDia" | "metaEnc">): string {
+  const partes: string[] = [];
+  if (cob.metaOpDelDia > 0) partes.push(`${cob.metaOpDelDia} operativa${cob.metaOpDelDia === 1 ? "" : "s"}`);
+  if (cob.metaEnc > 0) partes.push(`${cob.metaEnc} ${cob.metaEnc === 1 ? "líder" : "líderes"}`);
+  return partes.join(" y ");
+}
+
+/**
+ * Lo que dice «Requiere atención» de una sede cuya falta son metas imposibles de
+ * cumplir, o una meta que ningún turno respalda (`metaSinTurnos`). Dice qué meta y
+ * por qué, y dónde se arregla: «faltan 4 operativas» sería mentira aquí, porque no
+ * hay a quién pedirle que venga.
  */
 export function textoMetaPorRevisar(cob: CoberturaSede): string {
+  // Sin el «revisa la meta en Turnos —» de las otras: el botón que la acompaña ya dice
+  // «Revisar meta», y con meta y sin turnos no se sabe cuál de los dos datos está mal.
+  if (cob.metaSinTurnos) return textoMetaSinTurnos(cob);
   const partes: string[] = [];
   if (cob.metaOpImposible) partes.push(`personal operativo: ${causaMetaImposible("operativas", cob.metaOp, cob.equipoOperativas)!.resumen}`);
   if (cob.metaEncImposible) partes.push(`líderes: ${causaMetaImposible("lideres", cob.metaEnc, cob.equipoLideres)!.resumen}`);

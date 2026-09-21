@@ -17,7 +17,7 @@ function datos(parcial: Partial<DatosDeteccion>): DatosDeteccion {
   return {
     hoy: HOY,
     jornadasRango: [], salidaTemprana: [], tardanzas: [], tardanzasLevantadas: [],
-    horasVentana: [], diasRacha: [], aceptadas: [], sedes: [], encargadas: [], metas: [],
+    horasVentana: [], diasRacha: [], aceptadas: [], sedes: [], encargadas: [], equipo: [], metas: [],
     horarios: [], turnos: [], faltas: [],
     etiquetaMotivo: (m) => m ?? "",
     ...parcial,
@@ -316,6 +316,147 @@ describe("déficit de encargadas", () => {
     }));
     expect(r).toHaveLength(14);
   });
+
+  // ── Un día en que a nadie de la sede le toca trabajar (2026-09-20) ────────
+  // Central trabaja de lunes a sábado; el domingo es opcional y nadie tiene turno.
+  // Con meta de 1 líder los siete días, la bandeja abría «Déficit de líderes (0/1)»
+  // cada domingo —dos por visita, este y el próximo— por una falta que ninguna
+  // asistencia podía arreglar. HOY = martes 15: los domingos son el 20 y el 27.
+  describe("un día en que a nadie de la sede le toca trabajar", () => {
+    const DOMINGO = "2026-09-20";
+    const DOMINGO_SIGUIENTE = "2026-09-27";
+    const lunesASabado = [1, 2, 3, 4, 5, 6];
+    const horarioDias = (persona_id: string, dias: number[]) => ({ ...horario(persona_id), dias_laborables: dias });
+    const turnoTrabaja = (persona_id: string, fecha: string) =>
+      ({ persona_id, fecha, hora_entrada: "09:00", hora_salida: "18:00", es_descanso: false });
+    const turnoDescanso = (persona_id: string, fecha: string) =>
+      ({ persona_id, fecha, hora_entrada: null, hora_salida: null, es_descanso: true });
+    const central = { id: "s1", codigo: "CCO", tipo: "central" };
+    const tienda = { id: "s2", codigo: "TRU", tipo: "tienda" };
+    const enS1 = (id: string) => ({ id, sede_base_id: "s1" });
+    const enS2 = (id: string) => ({ id, sede_base_id: "s2" });
+
+    it("Central el domingo, sin turnos: no avisa; los días que el administrador trabaja no cambian", () => {
+      const r = detectarIncidencias(datos({
+        sedes: [central], metas: metaTodos,
+        encargadas: [admin], equipo: [enS1("a1")], horarios: [horarioDias("a1", lunesASabado)],
+      }));
+      expect(r).toEqual([]);
+    });
+
+    it("el mismo domingo, con el administrador sin horario cargado, SÍ avisa: no se sabe si le tocaba", () => {
+      // «Nadie tiene turno» solo calla con una respuesta real de descanso. Sin ningún
+      // horario es «no se sabe» —un tramo venció, la sede es nueva—, y ahí el aviso
+      // sigue como estaba: callar por una consulta vacía escondería un hueco real.
+      const r = detectarIncidencias(datos({
+        sedes: [central], metas: metaTodos,
+        encargadas: [admin], equipo: [enS1("a1")], horarios: [],
+      }));
+      expect(r).toHaveLength(14);
+    });
+
+    it("sin equipo cargado (o si la consulta del equipo falló) el aviso sale como siempre", () => {
+      const r = detectarIncidencias(datos({
+        sedes: [central], metas: metaTodos,
+        encargadas: [admin], equipo: [], horarios: [horarioDias("a1", lunesASabado)],
+      }));
+      expect(r.map((i) => i.fecha)).toEqual([DOMINGO, DOMINGO_SIGUIENTE]);
+    });
+
+    it("un tramo de horario vencido no es una respuesta de descanso", () => {
+      const vencido = { ...horarioDias("a1", lunesASabado), vigente_hasta: "2026-08-31" };
+      const r = detectarIncidencias(datos({
+        sedes: [central], metas: metaTodos,
+        encargadas: [admin], equipo: [enS1("a1")], horarios: [vencido],
+      }));
+      expect(r).toHaveLength(14);
+    });
+
+    it("una tienda con operativas que trabajan y sin líder SÍ tiene déficit; el domingo que nadie abre, no", () => {
+      // Las dos operativas trabajan lunes a sábado: seis déficits por semana. Que un
+      // administrador de la tienda también trabaje esos días no cuenta como líder.
+      const r = detectarIncidencias(datos({
+        sedes: [tienda], metas: metaTodos.map((m) => ({ ...m, sede_id: "s2" })),
+        encargadas: [{ ...admin, sede_base_id: "s2" }],
+        equipo: [enS2("o1"), enS2("o2"), enS2("a1")],
+        horarios: [horarioDias("o1", lunesASabado), horarioDias("o2", lunesASabado), horarioDias("a1", lunesASabado)],
+      }));
+      expect(r).toHaveLength(12);
+      expect(r.map((i) => i.fecha)).not.toContain(DOMINGO);
+      expect(r.map((i) => i.fecha)).not.toContain(DOMINGO_SIGUIENTE);
+      expect(r.every((i) => i.sede === "TRU")).toBe(true);
+    });
+
+    it("una tienda con operativas que trabajan TODOS los días, domingo incluido, avisa los catorce", () => {
+      const r = detectarIncidencias(datos({
+        sedes: [tienda], metas: metaTodos.map((m) => ({ ...m, sede_id: "s2" })),
+        encargadas: [], equipo: [enS2("o1")], horarios: [horario("o1")],
+      }));
+      expect(r).toHaveLength(14);
+    });
+
+    it("la semana siguiente funciona igual: un turno puntual ese domingo lo vuelve un déficit de verdad", () => {
+      // Central descansa el domingo 20 (calla) pero una colaboradora —que no cuenta
+      // como líder— tiene turno el 27: a alguien le toca y no hay líder que lo cubra.
+      const r = detectarIncidencias(datos({
+        sedes: [central], metas: metaTodos,
+        encargadas: [admin], equipo: [enS1("a1"), enS1("c1")],
+        horarios: [horarioDias("a1", lunesASabado), horarioDias("c1", lunesASabado)],
+        turnos: [turnoTrabaja("c1", DOMINGO_SIGUIENTE)],
+      }));
+      expect(r.map((i) => [i.fecha, i.detalle])).toEqual([[DOMINGO_SIGUIENTE, "0 de 1 · próxima semana"]]);
+    });
+
+    it("un turno de descanso es una respuesta real, aunque no haya horario base", () => {
+      // El domingo 20 alguien marcó «descansa» a mano: a nadie le toca. El 27 nadie
+      // dijo nada y no hay horario: no se sabe, y avisa.
+      const r = detectarIncidencias(datos({
+        sedes: [central], metas: [{ sede_id: "s1", dia_semana: 0, meta_encargadas: 1 }],
+        encargadas: [admin], equipo: [enS1("a1")], horarios: [],
+        turnos: [turnoDescanso("a1", DOMINGO)],
+      }));
+      expect(r.map((i) => i.fecha)).toEqual([DOMINGO_SIGUIENTE]);
+    });
+
+    it("un turno puntual en el domingo le gana a un horario que decía descanso", () => {
+      // Su horario base descansa los domingos, pero este domingo tiene turno: a
+      // alguien le toca, y sin líder que lo cubra es un déficit de verdad.
+      const r = detectarIncidencias(datos({
+        sedes: [central], metas: [{ sede_id: "s1", dia_semana: 0, meta_encargadas: 1 }],
+        encargadas: [], equipo: [enS1("c1")], horarios: [horarioDias("c1", lunesASabado)],
+        turnos: [turnoTrabaja("c1", DOMINGO)],
+      }));
+      expect(r.map((i) => i.fecha)).toEqual([DOMINGO]);
+    });
+
+    it("un líder que trabaja ese día prueba que la sede abre, aunque no figure en el equipo", () => {
+      // Meta de 2 líderes el domingo. Un administrador con sueldo fijo (no marca, así que
+      // no está en `equipo`) trabaja ese domingo: cubre 1 de 2. El equipo que sí marca
+      // descansa —«nadie trabaja»—, pero decirlo callaría el segundo líder que falta.
+      const sueldoFijo = { ...admin, id: "f1" };
+      const r = detectarIncidencias(datos({
+        sedes: [central], metas: [{ sede_id: "s1", dia_semana: 0, meta_encargadas: 2 }],
+        encargadas: [sueldoFijo], equipo: [enS1("c1")],
+        horarios: [horarioDias("c1", lunesASabado), horario("f1")],
+      }));
+      expect(r.map((i) => [i.fecha, i.detalle])).toEqual([
+        [DOMINGO, "1 de 2"], [DOMINGO_SIGUIENTE, "1 de 2 · próxima semana"],
+      ]);
+    });
+
+    it("cada sede se responde con SU equipo: que una abra no desapaga a la otra", () => {
+      // Domingo: Central descansa entera (calla); la tienda TRU tiene una operativa
+      // con turno y ninguna líder (avisa). El equipo de una no entra en la cuenta de la otra.
+      const r = detectarIncidencias(datos({
+        sedes: [central, tienda],
+        metas: [{ sede_id: "s1", dia_semana: 0, meta_encargadas: 1 }, { sede_id: "s2", dia_semana: 0, meta_encargadas: 1 }],
+        encargadas: [admin], equipo: [enS1("a1"), enS2("o1")],
+        horarios: [horarioDias("a1", lunesASabado), horarioDias("o1", lunesASabado)],
+        turnos: [turnoTrabaja("o1", DOMINGO)],
+      }));
+      expect(r.map((i) => [i.sede, i.fecha])).toEqual([["TRU", DOMINGO]]);
+    });
+  });
 });
 
 describe("estado y orden de la bandeja", () => {
@@ -373,6 +514,17 @@ describe("lo que no se pudo comprobar", () => {
   it("una fuente suave se avisa pero NO impide decir «todo revisado» ni apaga ninguna caja", () => {
     const c = coberturaDeCarga({ convenios: { message: "x" }, nombres: { message: "y" } });
     expect(c.faltantes).toHaveLength(2);
+    expect(c.duras).toEqual([]);
+    expect(c.categoriasSinComprobar.size).toBe(0);
+  });
+
+  it("si el equipo no llega, se avisa pero es suave: el déficit avisa de MÁS, nunca de menos", () => {
+    // Sin el equipo, el déficit de líderes vuelve a salir también los días en que la
+    // sede no trabaja. Son avisos de sobra, no avisos que falten: «todo revisado»
+    // sigue siendo cierto, y ninguna caja del resumen queda sin comprobar.
+    const c = coberturaDeCarga({ equipo: { message: "timeout" } });
+    expect(c.faltantes).toHaveLength(1);
+    expect(c.faltantes[0]).toContain("déficit de líderes");
     expect(c.duras).toEqual([]);
     expect(c.categoriasSinComprobar.size).toBe(0);
   });
