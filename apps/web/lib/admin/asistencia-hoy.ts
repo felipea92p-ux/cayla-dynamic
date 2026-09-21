@@ -78,6 +78,12 @@ export interface FilaPersona {
   // (no es una respuesta). Ver jornada-esperada.ts:estadoDelDia, que ya hace
   // esta misma distinción para Correcciones/Incidencias.
   origenEsperadoHoy: "turno" | "horario" | "legacy" | "sin_horario";
+  // Hoy es feriado y a esta persona nadie le armó turno (`esFeriadoSinTurno`): la base no le
+  // exige ese día —`fn_faltas` no cuenta falta—, así que «sin marcar» no se acusa. No cambia
+  // lo que le tocaba (`entradaEsperadaHoy` sigue diciendo 08:00): solo qué se hace si no llega.
+  // Ausente = «no»: quien no lo llena, o no pudo saber si hoy es feriado, obtiene la alarma
+  // de siempre, y una duda cae hacia la alarma, no hacia el silencio.
+  feriadoSinTurnoHoy?: boolean;
 }
 
 // El hallazgo central de la auditoría de sep-2026: "Sin marcar" cubría tres
@@ -88,11 +94,17 @@ export interface FilaPersona {
 // acá. "sin_horario" se deja aparte a propósito: ahí no sabemos si le tocaba
 // o no, así que no se afirma "descansa hoy" — sería una falsa tranquilidad
 // tan peligrosa como el falso positivo que esto viene a arreglar.
-export type SubEstadoSinMarcar = "aun_no_inicia" | "falta_real" | "descansa" | "desconocido";
+//
+// «feriado» es la cuarta: le tocaba por su horario y ya pasó la hora, pero es feriado y
+// nadie le armó turno. No es «falta_real»: la base no la cuenta (`fn_faltas`), y el
+// Dashboard no puede acusar lo que la base no acusa. Tampoco «aun_no_inicia»: la hora ya
+// pasó. Se dice tal cual —«Feriado · le tocaba 08:00»— y no se afirma nada más.
+export type SubEstadoSinMarcar = "aun_no_inicia" | "falta_real" | "feriado" | "descansa" | "desconocido";
 export function subEstadoSinMarcar(f: FilaPersona, ahoraDecimal: number): SubEstadoSinMarcar {
   if (f.entradaEsperadaHoy) {
     const yaDebiaHaberLlegado = ahoraDecimal >= horaDecimalDe(f.entradaEsperadaHoy) + MARGEN_ALERTA_SEDE_MIN / 60;
-    return yaDebiaHaberLlegado ? "falta_real" : "aun_no_inicia";
+    if (!yaDebiaHaberLlegado) return "aun_no_inicia";
+    return f.feriadoSinTurnoHoy ? "feriado" : "falta_real";
   }
   return f.origenEsperadoHoy === "sin_horario" ? "desconocido" : "descansa";
 }
@@ -238,6 +250,25 @@ export interface CoberturaSede {
    */
   metaSinTurnos: boolean;
   /**
+   * Hoy es feriado, NADIE de la sede tiene turno explícito, por su horario base a alguien le
+   * tocaría, ya pasó esa hora (con margen) y nadie ha marcado: no se sabe si la sede abre.
+   * Reemplaza al rojo «Sin marcajes» y al «Cobertura insuficiente» de ese día por un ámbar
+   * que PREGUNTA («¿abre hoy la sede?»), porque las dos respuestas son normales: en 22 de 25
+   * feriados trabajados las sedes abrieron con su horario base y sin turnos (A4, 2026-08-18),
+   * y otros feriados se cierran. Rojo sería falso en los segundos; callar, en los primeros.
+   *
+   * Solo vale mientras nadie haya marcado: quien marca en un feriado prueba que la sede
+   * abrió, y la meta vuelve a medirse como cualquier día.
+   *
+   * NO depende de `horarioConocido`, a propósito: si la consulta de turnos u horarios
+   * falló, el Dashboard ni siquiera marca `feriadoSinTurnoHoy` (sin turnos, todos parecerían
+   * «sin turno»), y esta bandera nunca se enciende — la alarma cae al rojo de siempre. Y
+   * `horarioConocido` también se apaga si fallaron las METAS, que no tienen que ver con los
+   * turnos: atarla a él dejaría el rojo sin ese aviso (el rojo ya excluye a quien está en
+   * feriado) y sin la pregunta: ninguna alarma.
+   */
+  feriadoSinConfirmar: boolean;
+  /**
    * «alerta» = falta gente que SÍ podría venir (rojo). «revisar» = lo único que
    * falta son metas imposibles de cumplir (ámbar: es un dato de Turnos). null = no
    * falta nada, o la sede está fuera de horario. `problema` sigue diciendo «falta
@@ -286,7 +317,10 @@ export interface DesgloseProgramadas {
   enPausa: number;
   /** Su jornada de hoy ya cerró (`cerrada`, `revisada` o `auto_cerrada_pendiente`). */
   yaSalieron: number;
-  /** Sin marcar, y todavía no es su hora de entrada (más el margen). */
+  /**
+   * Sin marcar, y todavía no es su hora de entrada (más el margen) — o ya lo es pero es
+   * feriado y nadie le armó turno: la base no se lo exige, así que no cuenta como «no llegó».
+   */
   aunNoLlegan: number;
   /** Sin marcar, y su hora de entrada ya pasó. Es la única falta real de la lista. */
   noLlegaron: number;
@@ -343,6 +377,24 @@ export function fueraDeHorarioDeHoy(
   return ahoraDecimal >= horaDecimalDe(ultimaSalida) ? { cuando: "despues", hora: ultimaSalida } : null;
 }
 
+/**
+ * La primera hora de entrada esperada entre estas filas, si ya pasó (con el margen de
+ * `MARGEN_ALERTA_SEDE_MIN`), o null. No mira si alguien marcó: quien llama lo pregunta
+ * antes, porque «nadie marcó» es un hecho de toda la sede y no de las filas que se pasen.
+ *
+ * Se excluye a quien tiene una ausencia hoy — mandar de vacaciones a todo el equipo de
+ * una sede no es «nadie llegó», es que nadie tenía que llegar.
+ */
+function primeraEntradaVencida(filas: FilaPersona[], ahoraDecimal: number): string | null {
+  const entradas = filas
+    .filter((f) => !f.ausenciaHoy && f.entradaEsperadaHoy)
+    .map((f) => f.entradaEsperadaHoy!)
+    .sort();
+  if (entradas.length === 0) return null;
+  const minutosPasados = (ahoraDecimal - horaDecimalDe(entradas[0])) * 60;
+  return minutosPasados >= MARGEN_ALERTA_SEDE_MIN ? entradas[0] : null;
+}
+
 export function calcularCoberturaSede(
   deSede: FilaPersona[],
   meta: MetaSede,
@@ -389,12 +441,6 @@ export function calcularCoberturaSede(
 
   // Alerta de sede sin actividad: a alguien ya le tocaba entrar (según su
   // horario u horario), con margen, y todavía nadie de la sede marcó nada.
-  // Se excluye a quien tiene una ausencia hoy — mandar de vacaciones a todo
-  // el equipo de una sede no es "nadie llegó", es que nadie tenía que llegar.
-  const entradasEsperadasHoy = deSede
-    .filter((f) => !f.ausenciaHoy && f.entradaEsperadaHoy)
-    .map((f) => f.entradaEsperadaHoy!)
-    .sort();
   const nadieMarcoTodavia = deSede.every((f) => f.entrada === null);
   // «Hoy no abre»: nadie tiene turno NI horario que diga «trabaja hoy» y nadie marcó.
   // Se mira `entradaEsperadaHoy` de TODAS las filas, con o sin ausencia: si el equipo
@@ -410,18 +456,27 @@ export function calcularCoberturaSede(
   // horario y meta, nadie sabe si le toca abrir, y decir «a nadie le tocaba» mandaría a Turnos
   // un problema que se arregla en Horarios (auditoría 2026-09-20, hallazgo demostrado).
   // Un equipo vacío no dice nada: no hay a quién preguntarle.
-  const diaSede = diaDeLaSede(deSede.map((f) => ({ trabaja: f.entradaEsperadaHoy !== null, origen: f.origenEsperadoHoy })));
-  const sinTurnosHoy = horarioConocido && deSede.length > 0 && nadieMarcoTodavia && diaSede !== "trabaja";
+  const diaSede = diaDeLaSede(deSede.map((f) => ({
+    trabaja: f.entradaEsperadaHoy !== null,
+    origen: f.origenEsperadoHoy,
+    feriadoSinTurno: f.feriadoSinTurnoHoy,
+  })));
+  // «Sin turnos» son EXACTAMENTE estas dos respuestas, nombradas y no «todo lo que no sea
+  // `trabaja`»: con el complemento, cualquier respuesta nueva de `diaDeLaSede` caería aquí
+  // sin que nadie lo decidiera, y diría «a nadie le tocaba» de un día que no se sabe.
+  const sinTurnosHoy = horarioConocido && deSede.length > 0 && nadieMarcoTodavia
+    && (diaSede === "no_trabaja" || diaSede === "sin_horario");
   const metaOpDelDia = Math.max(meta.man, meta.tar);
   const hayMetaHoy = metaOpDelDia > 0 || meta.enc > 0;
   const metaSinTurnos = sinTurnosHoy && hayMetaHoy && diaSede === "no_trabaja";
   const noAbreHoy = sinTurnosHoy && !hayMetaHoy;
-  let alertaSinEntrada: string | null = null;
-  if (entradasEsperadasHoy.length > 0 && nadieMarcoTodavia) {
-    const primeraEntrada = entradasEsperadasHoy[0];
-    const minutosPasados = (ahoraDecimal - horaDecimalDe(primeraEntrada)) * 60;
-    if (minutosPasados >= MARGEN_ALERTA_SEDE_MIN) alertaSinEntrada = primeraEntrada;
-  }
+  // El rojo mira solo a quien la base SÍ le exige hoy. En un feriado, quien está ahí solo por su
+  // horario base no lo prueba: es la pregunta de abajo, no una alarma.
+  const alertaSinEntrada = nadieMarcoTodavia
+    ? primeraEntradaVencida(deSede.filter((f) => !f.feriadoSinTurnoHoy), ahoraDecimal)
+    : null;
+  const feriadoSinConfirmar = nadieMarcoTodavia && diaSede === "feriado_sin_confirmar"
+    && primeraEntradaVencida(deSede.filter((f) => f.feriadoSinTurnoHoy), ahoraDecimal) !== null;
 
   // El equipo que PODRÍA cubrir cada meta, esté hoy o no. Sin esto, «0 de 1» no
   // distingue «faltó alguien que sí existe» de «en esta sede no hay quién pueda».
@@ -440,7 +495,9 @@ export function calcularCoberturaSede(
   // contradicen. Va primero porque le gana al rojo: «Cobertura insuficiente · falta
   // 1 líder» un domingo en que a nadie le tocaba venir era una alarma que ninguna
   // asistencia podía apagar (Central, 2026-09-20) — ver `metaSinTurnos`.
-  const gravedad: GravedadCobertura = metaSinTurnos
+  // El feriado sin confirmar también le gana al rojo, por la misma razón: «falta 1» un
+  // feriado en que quizá la sede ni abre es una alarma que ninguna asistencia apagaría.
+  const gravedad: GravedadCobertura = metaSinTurnos || feriadoSinConfirmar
     ? "revisar"
     : hayFaltaPosible ? "alerta" : faltanOp || faltanEnc ? "revisar" : null;
 
@@ -449,7 +506,7 @@ export function calcularCoberturaSede(
     faltanOp, faltanEnc, problema: faltanOp || faltanEnc || metaSinTurnos, sinMarcarReal, programadosHoy, alertaSinEntrada,
     equipoOperativas, equipoLideres, fueraDeHorario, desgloseProgramadas, lideresEnAmbasMetas,
     marcaronSinHorario: marcaronSinHorario(deSede),
-    metaOpImposible, metaEncImposible, sinTurnosHoy, hayMetaHoy, metaOpDelDia, noAbreHoy, metaSinTurnos, gravedad,
+    metaOpImposible, metaEncImposible, sinTurnosHoy, hayMetaHoy, metaOpDelDia, noAbreHoy, metaSinTurnos, feriadoSinConfirmar, gravedad,
   };
 }
 
@@ -528,7 +585,18 @@ export function metaDelDiaTexto(cob: Pick<CoberturaSede, "metaOpDelDia" | "metaE
  * por qué, y dónde se arregla: «faltan 4 operativas» sería mentira aquí, porque no
  * hay a quién pedirle que venga.
  */
+/**
+ * La pregunta de una sede en un feriado que nadie ha confirmado (`feriadoSinConfirmar`).
+ * Una sola, para «Requiere atención». Es una PREGUNTA a propósito: la respuesta puede ser
+ * «sí, abre» o «no, hoy cierra», y el sistema no lo sabe.
+ *
+ * Sin «:» adentro, a propósito: la lista la escribe detrás de «Tienda · Trujillo (TRU):», y
+ * un «feriado:» propio dejaba dos dos puntos seguidos (visto en pantalla el 2026-09-21).
+ */
+export const TEXTO_FERIADO_SIN_CONFIRMAR = "es feriado y nadie ha marcado todavía — ¿abre hoy la sede?";
+
 export function textoMetaPorRevisar(cob: CoberturaSede): string {
+  if (cob.feriadoSinConfirmar) return TEXTO_FERIADO_SIN_CONFIRMAR;
   // Sin el «revisa la meta en Turnos —» de las otras: el botón que la acompaña ya dice
   // «Revisar meta», y con meta y sin turnos no se sabe cuál de los dos datos está mal.
   if (cob.metaSinTurnos) return textoMetaSinTurnos(cob);
@@ -598,16 +666,23 @@ export function textoSinMarcar(n: number): string {
  * «Les tocaba trabajar» y no «tenían turno»: quien está de vacaciones o con
  * descanso médico tiene su turno en el papel, pero hoy no le tocaba venir.
  */
-export function textoEquipoDelDia(programadas: number, equipo: number): string {
+export function textoEquipoDelDia(programadas: number, equipo: number, feriadoSinConfirmar = false): string {
   if (equipo <= 0) return "No hay personas en el equipo de esta sede.";
+  // En un feriado sin turnos «Hoy les tocaba trabajar» junto a «¿abre hoy?» se lee como una
+  // contradicción (visto en pantalla el 2026-09-21): por su horario les tocaba, pero nadie armó
+  // turnos y no se sabe si la sede abre. Solo cambia el arranque y el cierre de la frase, y solo
+  // en las ramas donde a alguien le tocaba: la de «a nadie» devuelve antes su frase de siempre.
+  const feriado = feriadoSinConfirmar;
+  const cierre = feriado ? "; es feriado y no hay turnos armados." : ".";
+  const arranque = (le: "le" | "les") => (feriado ? `Por horario ${le} tocaba` : `Hoy ${le} tocaba trabajar`);
   if (equipo === 1) {
     return programadas >= 1
-      ? "Hoy le tocaba trabajar a la única persona del equipo."
+      ? `${arranque("le")} a la única persona del equipo${cierre}`
       : "A la única persona del equipo no le tocaba trabajar hoy.";
   }
   if (programadas <= 0) return `A ninguna de las ${equipo} personas del equipo le tocaba trabajar hoy.`;
-  if (programadas >= equipo) return `Hoy les tocaba trabajar a las ${equipo} personas del equipo.`;
-  return `Hoy ${programadas === 1 ? "le" : "les"} tocaba trabajar a ${programadas} de las ${equipo} personas del equipo.`;
+  if (programadas >= equipo) return `${arranque("les")} a las ${equipo} personas del equipo${cierre}`;
+  return `${arranque(programadas === 1 ? "le" : "les")} a ${programadas} de las ${equipo} personas del equipo${cierre}`;
 }
 
 /**
