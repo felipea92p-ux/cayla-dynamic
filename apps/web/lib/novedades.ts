@@ -126,6 +126,17 @@ export const NOVEDADES: readonly Novedad[] = [
     audiencia: "panel",
   },
   {
+    id: "2026-09-20-hoja-de-sede-periodo-cerrado-sin-hoy",
+    fecha: "2026-09-20",
+    titulo: "La Hoja de sede de un periodo cerrado ya no trae un «Hoy» que no le corresponde",
+    queMejoro:
+      "Al armar la hoja de un periodo que ya terminó —por ejemplo el del 29 al 28 que se archiva—, el recuadro «Hoy» decía «Nadie está trabajando en este momento» y pintaba en rojo la cobertura, con un «faltan» aunque nadie faltara. " +
+      "Eran ceros inventados: la hoja solo trae los días del periodo elegido y hoy no estaba entre ellos, y ese rojo quedaba escrito en un papel que se firma y se archiva.\n\n" +
+      "Ahora, si el periodo termina antes de hoy, la hoja no dibuja el recuadro «Hoy» y describe solo el periodo; en pantalla una línea lo explica. " +
+      "Para ver quién está en piso ahora, deja «Hasta» en hoy o abre el Dashboard.",
+    audiencia: "panel",
+  },
+  {
     id: "2026-09-20-dashboard-sede-sin-turnos-hoy",
     fecha: "2026-09-20",
     titulo: "Un día en que la sede no tiene turnos ya no se lee como una falla",
