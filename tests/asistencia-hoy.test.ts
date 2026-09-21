@@ -1223,6 +1223,12 @@ describe("feriado — la sede: nadie marcó y nadie armó turnos", () => {
     expect(TEXTO_FERIADO_SIN_CONFIRMAR).not.toMatch(/falt|cerrad|insuficiente/i);
   });
 
+  it("no lleva «:» propio: la lista la escribe detrás de «Tienda · Trujillo (TRU):» y quedaban dos seguidos", () => {
+    expect(TEXTO_FERIADO_SIN_CONFIRMAR).toBe("es feriado y nadie ha marcado todavía — ¿abre hoy la sede?");
+    expect(TEXTO_FERIADO_SIN_CONFIRMAR).not.toContain(":");
+    expect(`Tienda · Trujillo (TRU): ${TEXTO_FERIADO_SIN_CONFIRMAR}`.match(/:/g)).toHaveLength(1);
+  });
+
   it("no la confunde con «Sin turnos»: a nadie le tocaba NO es lo que se sabe", () => {
     const c = calcularCoberturaSede(equipo(), META_2, false, 9);
     expect(c.sinTurnosHoy).toBe(false);
@@ -1294,5 +1300,39 @@ describe("feriado — la sede: nadie marcó y nadie armó turnos", () => {
   it("un feriado en que a nadie le tocaría por horario no inventa una pregunta", () => {
     const descansan = [fila({ entradaEsperadaHoy: null, origenEsperadoHoy: "horario", feriadoSinTurnoHoy: true })];
     expect(calcularCoberturaSede(descansan, META_0, false, 10).feriadoSinConfirmar).toBe(false);
+  });
+});
+
+describe("textoEquipoDelDia en un feriado sin confirmar — «por horario», no «hoy les tocaba»", () => {
+  it("a todos les tocaría por su horario", () => {
+    expect(textoEquipoDelDia(3, 3, true)).toBe("Por horario les tocaba a las 3 personas del equipo; es feriado y no hay turnos armados.");
+  });
+
+  it("a una parte del equipo, con el singular y el plural en su sitio", () => {
+    expect(textoEquipoDelDia(4, 5, true)).toBe("Por horario les tocaba a 4 de las 5 personas del equipo; es feriado y no hay turnos armados.");
+    expect(textoEquipoDelDia(1, 5, true)).toBe("Por horario le tocaba a 1 de las 5 personas del equipo; es feriado y no hay turnos armados.");
+  });
+
+  it("a la única persona del equipo", () => {
+    expect(textoEquipoDelDia(1, 1, true)).toBe("Por horario le tocaba a la única persona del equipo; es feriado y no hay turnos armados.");
+  });
+
+  it("no dice «Hoy … tocaba trabajar»: junto a «¿abre hoy?» se leía como una contradicción", () => {
+    for (const [p, e] of [[3, 3], [4, 5], [1, 5], [1, 1]] as const) {
+      expect(textoEquipoDelDia(p, e, true)).not.toMatch(/^Hoy|tocaba trabajar/);
+    }
+  });
+
+  it("si a nadie le tocaba no hay a quién decirle «por horario»: la frase es la de siempre", () => {
+    expect(textoEquipoDelDia(0, 3, true)).toBe(textoEquipoDelDia(0, 3));
+    expect(textoEquipoDelDia(0, 1, true)).toBe(textoEquipoDelDia(0, 1));
+    expect(textoEquipoDelDia(0, 0, true)).toBe(textoEquipoDelDia(0, 0));
+  });
+
+  it("SIN la bandera todas las frases son exactamente las de siempre", () => {
+    for (const [p, e] of [[3, 3], [4, 5], [1, 5], [1, 1], [0, 3], [0, 1], [0, 0]] as const) {
+      expect(textoEquipoDelDia(p, e, false)).toBe(textoEquipoDelDia(p, e));
+    }
+    expect(textoEquipoDelDia(3, 3)).toBe("Hoy les tocaba trabajar a las 3 personas del equipo.");
   });
 });

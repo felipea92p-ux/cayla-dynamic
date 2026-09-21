@@ -1411,7 +1411,7 @@ export default function DashboardPage() {
                           taupe legible, el mismo de todo lo secundario de esta pantalla. */}
                       <span className={cob.noAbreHoy ? "font-medium text-taupe" : "font-semibold"}>{etiqueta.titulo}</span>{" "}
                       <span className="text-xs text-taupe">({codigo})</span>
-                      <span className="block text-xs text-taupe">{textoEquipoDelDia(cob.programadosHoy, deSedeCompleta.length)}</span>
+                      <span className="block text-xs text-taupe">{textoEquipoDelDia(cob.programadosHoy, deSedeCompleta.length, cob.feriadoSinConfirmar)}</span>
                     </span>
                     {resumenCob ? (
                       <span className="order-3 col-span-2 sm:order-none sm:col-span-1">

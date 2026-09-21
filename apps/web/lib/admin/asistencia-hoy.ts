@@ -587,10 +587,13 @@ export function metaDelDiaTexto(cob: Pick<CoberturaSede, "metaOpDelDia" | "metaE
  */
 /**
  * La pregunta de una sede en un feriado que nadie ha confirmado (`feriadoSinConfirmar`).
- * Una sola, para «Requiere atención» y la tarjeta. Es una PREGUNTA a propósito: la
- * respuesta puede ser «sí, abre» o «no, hoy cierra», y el sistema no lo sabe.
+ * Una sola, para «Requiere atención». Es una PREGUNTA a propósito: la respuesta puede ser
+ * «sí, abre» o «no, hoy cierra», y el sistema no lo sabe.
+ *
+ * Sin «:» adentro, a propósito: la lista la escribe detrás de «Tienda · Trujillo (TRU):», y
+ * un «feriado:» propio dejaba dos dos puntos seguidos (visto en pantalla el 2026-09-21).
  */
-export const TEXTO_FERIADO_SIN_CONFIRMAR = "feriado: nadie ha marcado todavía — ¿abre hoy la sede?";
+export const TEXTO_FERIADO_SIN_CONFIRMAR = "es feriado y nadie ha marcado todavía — ¿abre hoy la sede?";
 
 export function textoMetaPorRevisar(cob: CoberturaSede): string {
   if (cob.feriadoSinConfirmar) return TEXTO_FERIADO_SIN_CONFIRMAR;
@@ -663,16 +666,23 @@ export function textoSinMarcar(n: number): string {
  * «Les tocaba trabajar» y no «tenían turno»: quien está de vacaciones o con
  * descanso médico tiene su turno en el papel, pero hoy no le tocaba venir.
  */
-export function textoEquipoDelDia(programadas: number, equipo: number): string {
+export function textoEquipoDelDia(programadas: number, equipo: number, feriadoSinConfirmar = false): string {
   if (equipo <= 0) return "No hay personas en el equipo de esta sede.";
+  // En un feriado sin turnos «Hoy les tocaba trabajar» junto a «¿abre hoy?» se lee como una
+  // contradicción (visto en pantalla el 2026-09-21): por su horario les tocaba, pero nadie armó
+  // turnos y no se sabe si la sede abre. Solo cambia el arranque y el cierre de la frase, y solo
+  // en las ramas donde a alguien le tocaba: la de «a nadie» devuelve antes su frase de siempre.
+  const feriado = feriadoSinConfirmar;
+  const cierre = feriado ? "; es feriado y no hay turnos armados." : ".";
+  const arranque = (le: "le" | "les") => (feriado ? `Por horario ${le} tocaba` : `Hoy ${le} tocaba trabajar`);
   if (equipo === 1) {
     return programadas >= 1
-      ? "Hoy le tocaba trabajar a la única persona del equipo."
+      ? `${arranque("le")} a la única persona del equipo${cierre}`
       : "A la única persona del equipo no le tocaba trabajar hoy.";
   }
   if (programadas <= 0) return `A ninguna de las ${equipo} personas del equipo le tocaba trabajar hoy.`;
-  if (programadas >= equipo) return `Hoy les tocaba trabajar a las ${equipo} personas del equipo.`;
-  return `Hoy ${programadas === 1 ? "le" : "les"} tocaba trabajar a ${programadas} de las ${equipo} personas del equipo.`;
+  if (programadas >= equipo) return `${arranque("les")} a las ${equipo} personas del equipo${cierre}`;
+  return `${arranque(programadas === 1 ? "le" : "les")} a ${programadas} de las ${equipo} personas del equipo${cierre}`;
 }
 
 /**
