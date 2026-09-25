@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   dowDe, horarioVigente, esperadoDelDia, fechasDelRango, estadoDelDia, esTurnoEspejoViejo,
+  diaDeLaSede, diaDeLaSedeDe, esFeriadoSinTurno, SEDE_SIN_TURNOS,
   type HorarioTramo, type Esperado, type TurnoDia,
 } from "@/lib/admin/jornada-esperada";
 
@@ -314,5 +315,196 @@ describe("estadoDelDia — los falsos positivos, que son el peor error", () => {
 
   it("marcó cero horas y no hay falta: queda sin marcar, no como jornada cumplida", () => {
     expect(dia({ jornada: { horas: 0, minutosTarde: 0, estado: "cerrada" } })).toBe("sin_marca");
+  });
+});
+
+// ----------------------------------------------------------------------------
+// «¿A alguien de esta sede le toca trabajar ese día?» — la misma pregunta que
+// esperadoDelDia, un piso más arriba. Nació el 2026-09-20 porque Central tiene
+// meta de 1 líder el domingo y el domingo nadie tiene turno, y tres pantallas
+// (Dashboard, Incidencias, Hoja de sede) lo respondían cada una a su manera.
+// ----------------------------------------------------------------------------
+describe("diaDeLaSede — a nadie le toca no es lo mismo que no se sabe", () => {
+  const trabaja = { trabaja: true, origen: "horario" } as const;
+  const descansaPorHorario = { trabaja: false, origen: "horario" } as const;
+  const descansaPorTurno = { trabaja: false, origen: "turno" } as const;
+  const sinHorario = { trabaja: false, origen: "sin_horario" } as const;
+
+  it("basta una persona a quien le toque", () => {
+    expect(diaDeLaSede([descansaPorHorario, trabaja])).toBe("trabaja");
+    expect(diaDeLaSede([sinHorario, trabaja])).toBe("trabaja");
+  });
+
+  it("a nadie le toca, con una respuesta real de descanso: «no_trabaja»", () => {
+    expect(diaDeLaSede([descansaPorHorario, descansaPorHorario])).toBe("no_trabaja");
+    expect(diaDeLaSede([descansaPorTurno])).toBe("no_trabaja");
+  });
+
+  it("una sola respuesta real alcanza, aunque otras personas no tengan horario", () => {
+    expect(diaDeLaSede([sinHorario, descansaPorHorario])).toBe("no_trabaja");
+  });
+
+  it("TODOS sin horario es «sin_horario»: no se sabe, y eso NO autoriza a callar una alarma", () => {
+    expect(diaDeLaSede([sinHorario, sinHorario])).toBe("sin_horario");
+  });
+
+  it("un equipo vacío no tiene a quién preguntarle: «sin_horario»", () => {
+    expect(diaDeLaSede([])).toBe("sin_horario");
+  });
+
+  it("la palabra de pantalla es una sola", () => {
+    expect(SEDE_SIN_TURNOS).toBe("Sin turnos");
+  });
+});
+
+describe("diaDeLaSedeDe — desde las personas, sus turnos y sus horarios", () => {
+  // Central: dos personas con horario de lunes a sábado. El domingo nadie trabaja.
+  const centralLunAsab: HorarioTramo = {
+    persona_id: "x", vigente_desde: "2026-01-01", vigente_hasta: null,
+    hora_entrada: "09:00", hora_salida: "18:00", dias_laborables: [1, 2, 3, 4, 5, 6],
+    horario_por_dia: Object.fromEntries([1, 2, 3, 4, 5, 6].map((d) => [String(d), { e: "09:00", s: "18:00", r: 60 }])),
+    almuerzo_min_minutos: 60,
+  };
+  const tramosDe = (id: string) => (id === "sin" ? [] : [{ ...centralLunAsab, persona_id: id }]);
+  const sinTurno = () => null;
+
+  it("Central el domingo 2026-09-20: nadie trabaja, con respuesta real", () => {
+    expect(diaDeLaSedeDe(["a", "b"], "2026-09-20", sinTurno, tramosDe)).toBe("no_trabaja");
+  });
+
+  it("Central el sábado 2026-09-19: trabaja", () => {
+    expect(diaDeLaSedeDe(["a", "b"], "2026-09-19", sinTurno, tramosDe)).toBe("trabaja");
+  });
+
+  it("un turno puntual de un domingo por excepción le gana al horario: la sede trabaja", () => {
+    const turno = (id: string): TurnoDia | null => (id === "a" ? { hora_entrada: "10:00", hora_salida: "14:00", es_descanso: false } : null);
+    expect(diaDeLaSedeDe(["a", "b"], "2026-09-20", turno, tramosDe)).toBe("trabaja");
+  });
+
+  it("nadie con horario vigente: «sin_horario», no «no_trabaja»", () => {
+    expect(diaDeLaSedeDe(["sin"], "2026-09-20", sinTurno, tramosDe)).toBe("sin_horario");
+  });
+
+  it("un horario vencido ayer cuenta como sin horario hoy", () => {
+    const vencido = (id: string) => [{ ...centralLunAsab, persona_id: id, vigente_hasta: "2026-09-19" }];
+    expect(diaDeLaSedeDe(["a"], "2026-09-21", sinTurno, vencido)).toBe("sin_horario");
+  });
+});
+
+// ----------------------------------------------------------------------------
+// FERIADOS (2026-09-20). `fn_faltas` no cuenta falta un feriado sin turno
+// explícito (0051, 0070, 0414), pero la base SÍ mide tardanza y horas contra el
+// horario base ese día (fn_recalcular_jornada, 0446; decisión de Felipe del
+// 2026-08-18: 22 de 25 feriados trabajados no tenían ni un turno). Son dos
+// preguntas: «¿qué le tocaba?» y «¿se le puede exigir?».
+// ----------------------------------------------------------------------------
+describe("esperadoDelDia NO sabe de feriados, a propósito", () => {
+  // 2026-07-28 = martes y Fiestas Patrias (tabla `feriados`, migración 0024).
+  // 2026-07-21 = martes normal.
+  const FERIADO = "2026-07-28";
+  const NORMAL = "2026-07-21";
+
+  it("un feriado de horario base «trabaja» contesta EXACTAMENTE lo mismo que un martes normal", () => {
+    // Si esto falla porque alguien enseñó feriados a la cascada, leer el encabezado de
+    // jornada-esperada.ts antes de tocar la prueba: la base mide tardanza y horas contra
+    // el horario base también en feriado, y la cascada tiene que decir lo mismo que ella.
+    expect(esperadoDelDia(FERIADO, null, AQP)).toEqual(esperadoDelDia(NORMAL, null, AQP));
+    expect(esperadoDelDia(FERIADO, null, AQP).trabaja).toBe(true);
+  });
+
+  it("quien SÍ vino un feriado sin turno es «ok», no «extra» — y lo sería si la cascada dijera «no trabaja»", () => {
+    const vino = { horas: 9, minutosTarde: 0, estado: "cerrada" };
+    const base = { fecha: FERIADO, hoy: "2026-07-29", jornada: vino, falta: null, tardanzaJustificada: false, agregado: false };
+    expect(estadoDelDia({ ...base, esperado: esperadoDelDia(FERIADO, null, AQP) })).toBe("ok");
+    // El estado que saldría en Horas y Mío si se hiciera el «arreglo» en la cascada:
+    const siFueraDescanso: Esperado = { trabaja: false, entrada: null, salida: null, horas: 0, origen: "horario" };
+    expect(estadoDelDia({ ...base, esperado: siFueraDescanso })).toBe("extra");
+  });
+
+  it("quien NO vino ya sale «sin_marca» y no «falta»: la falta viene de fn_faltas, que sí conoce el feriado", () => {
+    const base = { fecha: FERIADO, hoy: "2026-07-29", jornada: null, falta: null, tardanzaJustificada: false, agregado: false };
+    expect(estadoDelDia({ ...base, esperado: esperadoDelDia(FERIADO, null, AQP) })).toBe("sin_marca");
+  });
+});
+
+describe("esFeriadoSinTurno — el gemelo de la cláusula de fn_faltas", () => {
+  it("feriado y ningún turno puntual (manda el horario base): sí", () => {
+    expect(esFeriadoSinTurno(true, { origen: "horario" })).toBe(true);
+    expect(esFeriadoSinTurno(true, { origen: "legacy" })).toBe(true);
+  });
+
+  it("feriado con un turno puntual, de trabajo o de descanso: no — el turno explícito es lo que la base pide", () => {
+    expect(esFeriadoSinTurno(true, { origen: "turno" })).toBe(false);
+  });
+
+  it("un día que no es feriado nunca lo es, tenga o no turno", () => {
+    for (const origen of ["turno", "horario", "legacy", "sin_horario"] as const) {
+      expect(esFeriadoSinTurno(false, { origen })).toBe(false);
+    }
+  });
+});
+
+describe("diaDeLaSede en feriado — «no se sabe si abre» es una respuesta, no un silencio ni una acusación", () => {
+  const porHorarioEnFeriado = { trabaja: true, origen: "horario", feriadoSinTurno: true } as const;
+  const conTurno = { trabaja: true, origen: "turno", feriadoSinTurno: false } as const;
+  const descansa = { trabaja: false, origen: "horario", feriadoSinTurno: true } as const;
+  const sinHorario = { trabaja: false, origen: "sin_horario", feriadoSinTurno: true } as const;
+
+  it("a todos les tocaría solo por su horario base: «feriado_sin_confirmar»", () => {
+    expect(diaDeLaSede([porHorarioEnFeriado, porHorarioEnFeriado])).toBe("feriado_sin_confirmar");
+  });
+
+  it("un turno explícito de UNA persona prueba que la sede abre: «trabaja», y el rojo de siempre", () => {
+    expect(diaDeLaSede([porHorarioEnFeriado, conTurno])).toBe("trabaja");
+    expect(diaDeLaSede([conTurno, porHorarioEnFeriado])).toBe("trabaja"); // el orden no importa
+  });
+
+  it("gana a «no_trabaja»: si alguien tiene horario ese día y otros descansan, no se afirma que la sede no abre", () => {
+    expect(diaDeLaSede([descansa, porHorarioEnFeriado])).toBe("feriado_sin_confirmar");
+  });
+
+  it("si a NADIE le tocaría, el feriado no inventa una pregunta: sigue «no_trabaja» o «sin_horario»", () => {
+    expect(diaDeLaSede([descansa, descansa])).toBe("no_trabaja");
+    expect(diaDeLaSede([sinHorario, sinHorario])).toBe("sin_horario");
+  });
+
+  it("SIN la bandera la respuesta es la de siempre: quien no la pasa, o no pudo saber si es feriado, no cambia", () => {
+    expect(diaDeLaSede([{ trabaja: true, origen: "horario" }])).toBe("trabaja");
+    expect(diaDeLaSede([{ trabaja: true, origen: "horario", feriadoSinTurno: false }])).toBe("trabaja");
+  });
+});
+
+describe("diaDeLaSedeDe con esFeriado — el martes de Fiestas Patrias en una sede de lunes a sábado", () => {
+  const lunAsab: HorarioTramo = {
+    persona_id: "x", vigente_desde: "2026-01-01", vigente_hasta: null,
+    hora_entrada: "09:00", hora_salida: "18:00", dias_laborables: [1, 2, 3, 4, 5, 6],
+    horario_por_dia: Object.fromEntries([1, 2, 3, 4, 5, 6].map((d) => [String(d), { e: "09:00", s: "18:00", r: 60 }])),
+    almuerzo_min_minutos: 60,
+  };
+  const tramosDe = (id: string) => [{ ...lunAsab, persona_id: id }];
+  const sinTurno = () => null;
+  const FERIADO = "2026-07-28";
+
+  it("feriado y nadie con turno: «feriado_sin_confirmar»", () => {
+    expect(diaDeLaSedeDe(["a", "b"], FERIADO, sinTurno, tramosDe, true)).toBe("feriado_sin_confirmar");
+  });
+
+  it("el mismo día sin decir que es feriado (Turnos, o la consulta falló): «trabaja», como antes", () => {
+    expect(diaDeLaSedeDe(["a", "b"], FERIADO, sinTurno, tramosDe)).toBe("trabaja");
+    expect(diaDeLaSedeDe(["a", "b"], FERIADO, sinTurno, tramosDe, false)).toBe("trabaja");
+  });
+
+  it("feriado con el turno de UNA persona armado: «trabaja»", () => {
+    const turno = (id: string): TurnoDia | null => (id === "a" ? { hora_entrada: "10:00", hora_salida: "14:00", es_descanso: false } : null);
+    expect(diaDeLaSedeDe(["a", "b"], FERIADO, turno, tramosDe, true)).toBe("trabaja");
+  });
+
+  it("un turno de DESCANSO también es un turno explícito, pero no prueba que la sede abra: sigue la pregunta si otra persona tiene horario", () => {
+    const descanso = (id: string): TurnoDia | null => (id === "a" ? { hora_entrada: null, hora_salida: null, es_descanso: true } : null);
+    expect(diaDeLaSedeDe(["a", "b"], FERIADO, descanso, tramosDe, true)).toBe("feriado_sin_confirmar");
+  });
+
+  it("un feriado en domingo, en una sede que no abre domingos: nadie trabajaría por horario, así que no hay nada que preguntar", () => {
+    expect(diaDeLaSedeDe(["a", "b"], "2026-11-01", sinTurno, tramosDe, true)).toBe("no_trabaja");
   });
 });
