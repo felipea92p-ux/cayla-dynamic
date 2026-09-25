@@ -32,6 +32,24 @@
 // insertara un tramo a mano sin esa columna, Turnos habría mostrado lunes a
 // viernes mientras el resto del sistema mostraba descanso todos los días.
 //
+// LO QUE ESTA CASCADA NO SABE, A PROPÓSITO: los FERIADOS. Parece un hueco —`fn_faltas`
+// sí los conoce— y una revisión de código lo señaló el 2026-09-20, pero no lo es:
+// la base tampoco los aplica al medir lo que le tocaba. `fn_recalcular_jornada`
+// (0446) no nombra ni una vez la palabra: mide tardanza y horas contra el horario
+// base también en feriado, por decisión de Felipe del 2026-08-18 con datos —22 de 25
+// feriados trabajados no tenían ni un turno, o sea que las sedes abren con su horario
+// normal (docs/hallazgos-abiertos.md, A4)—. Lo único que la base condiciona a «hay
+// turno explícito» es ACUSAR: `fn_faltas` no cuenta falta un feriado sin turno.
+// Son dos preguntas —«¿qué le tocaba?» y «¿se le puede exigir?»— y esta función
+// contesta la primera; la segunda es `esFeriadoSinTurno`, más abajo.
+//
+// Hacer que esta función devolviera `trabaja:false` en feriado la volvería
+// contradictoria con la base, y se midió qué rompe: quien vino un feriado pasaría
+// de «ok» a «extra» en Horas y Mío, y Correcciones diría «ya no hay horario: alguien
+// lo cambió» en cada jornada trabajada en feriado. Si algún día el laboralista
+// obliga a cambiar la práctica (hallazgos-abiertos, Consulta 5), cambia la base y
+// esta función a la vez — no una sola.
+//
 // ANTES DE ESCRIBIR UNA QUINTA COPIA que responda «¿le tocaba trabajar ese
 // día?», usar ésta.
 
@@ -141,6 +159,102 @@ export function esperadoDelDia(fecha: string, turno: TurnoDia | null, horario: H
   }
 
   return NADA;
+}
+
+// ============================================================================
+// El día de una SEDE — la pregunta de esperadoDelDia, un piso más arriba
+// ============================================================================
+// «¿A alguien de esta sede le toca trabajar ese día?» la contestaban tres
+// pantallas por su cuenta, y la falsa alarma volvía en cada una (2026-09-20):
+// Central tiene meta de 1 líder el domingo pero el domingo nadie tiene turno, y
+// el Dashboard decía «Cobertura insuficiente», Incidencias «Déficit de líderes
+// 0/1» y la Hoja de sede impresa «faltan 1» en rojo — por una falta que ninguna
+// asistencia podía arreglar, porque a nadie le tocaba ir. Se dice acá, una vez.
+//
+// Cuatro respuestas, porque «nadie tiene turno» significa cosas distintas:
+//   · «trabaja»     — a alguien le toca.
+//   · «no_trabaja»  — a nadie le toca, y hay al menos UNA respuesta real de que
+//                     descansa (un turno de descanso, o un horario que no incluye
+//                     ese día). Es lo único que autoriza a callar una alarma.
+//   · «sin_horario» — a nadie le toca, pero es porque NO HAY con qué medirlo
+//                     (un tramo venció sin sucesor, una sede nueva, un equipo
+//                     vacío). No dice «hoy no abre»: dice «no se sabe», y ahí
+//                     cada alarma sigue como estaba.
+//   · «feriado_sin_confirmar» — por su horario base a alguien le tocaría, pero es
+//                     FERIADO y NADIE de la sede tiene turno explícito. No es
+//                     «trabaja»: la base no exige ese día sin un turno (`fn_faltas`,
+//                     ver `esFeriadoSinTurno`), y las sedes abren en feriado unas
+//                     veces sí y otras no. Tampoco es «no_trabaja»: ninguna respuesta
+//                     dice que descansan. Es «no se sabe si abre», y por eso las
+//                     pantallas PREGUNTAN («¿abre hoy?») en vez de acusar o de callar.
+// ============================================================================
+
+/** La palabra de pantalla para «ese día esta sede no tiene turnos». Una sola, en todas las pantallas. */
+export const SEDE_SIN_TURNOS = "Sin turnos";
+
+export type DiaDeLaSede = "trabaja" | "no_trabaja" | "sin_horario" | "feriado_sin_confirmar";
+
+/**
+ * ¿Es feriado y a esta persona nadie le armó un turno para ese día? — el gemelo en
+ * pantalla de la cláusula de `fn_faltas` «feriado sin turno explícito no cuenta»
+ * (0051, 0070, vigente en la 0414: `not (fer.es is not null and not tb.hay_turno)`).
+ *
+ * Contesta «¿se le puede EXIGIR?», no «¿qué le tocaba?»: esa es `esperadoDelDia`, que
+ * a propósito no sabe de feriados (ver el encabezado). Se usa SOLO donde se alarma
+ * —«sin marcar», «sede sin marcajes», «faltan N»—, nunca para medir tardanzas ni horas.
+ *
+ * «Hay turno» es `origen === "turno"`: un turno puntual —de trabajo o de descanso—
+ * fue lo que decidió el día, que es exactamente lo que la base entiende por «turno
+ * explícito».
+ */
+export function esFeriadoSinTurno(esFeriado: boolean, esperado: Pick<Esperado, "origen">): boolean {
+  return esFeriado && esperado.origen !== "turno";
+}
+
+/**
+ * La respuesta de esperadoDelDia de cada persona del equipo → la de la sede.
+ * `feriadoSinTurno` (ver `esFeriadoSinTurno`) es opcional y su ausencia es «no»: quien
+ * no lo pasa, o falló al saber si hoy es feriado, obtiene la respuesta de siempre —
+ * y una duda cae hacia la alarma, nunca hacia el silencio.
+ */
+export function diaDeLaSede(
+  esperados: readonly (Pick<Esperado, "trabaja" | "origen"> & { feriadoSinTurno?: boolean })[],
+): DiaDeLaSede {
+  let respuestaRealDeDescanso = false;
+  let soloPorHorarioEnFeriado = false;
+  for (const e of esperados) {
+    if (e.trabaja) {
+      // Le tocaría por su horario base, pero es feriado y nadie le armó turno: eso no
+      // prueba que la sede abra. Un turno explícito de OTRA persona sí lo prueba, y
+      // gana porque se sigue recorriendo.
+      if (e.feriadoSinTurno) { soloPorHorarioEnFeriado = true; continue; }
+      return "trabaja";
+    }
+    if (e.origen !== "sin_horario") respuestaRealDeDescanso = true;
+  }
+  if (soloPorHorarioEnFeriado) return "feriado_sin_confirmar";
+  return respuestaRealDeDescanso ? "no_trabaja" : "sin_horario";
+}
+
+/**
+ * Lo mismo a partir de las personas y sus turnos/horarios, para las pantallas que
+ * no traen un `Esperado` por persona. Un equipo vacío es «sin_horario»: sin gente
+ * no hay a quién preguntarle. `esFeriado` es «¿`fecha` está en la tabla `feriados`?»;
+ * por defecto `false`, así que quien no lo pasa (Turnos) no cambia de respuesta.
+ */
+export function diaDeLaSedeDe(
+  personaIds: readonly string[],
+  fecha: string,
+  turnoDe: (personaId: string) => TurnoDia | null,
+  tramosDe: (personaId: string) => HorarioTramo[],
+  esFeriado = false,
+): DiaDeLaSede {
+  return diaDeLaSede(
+    personaIds.map((id) => {
+      const esperado = esperadoDelDia(fecha, turnoDe(id), horarioVigente(tramosDe(id), fecha));
+      return { ...esperado, feriadoSinTurno: esFeriadoSinTurno(esFeriado, esperado) };
+    }),
+  );
 }
 
 /**

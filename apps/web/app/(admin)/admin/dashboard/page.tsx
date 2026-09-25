@@ -14,16 +14,17 @@ import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
 import {
   TZ_LIMA, cuentaEnCobertura, etiquetaDeSede, hoyLima, formatoMinutos, puedeVerTodasLasSedes,
 } from "@cayla-dynamic/shared";
-import { esperadoDelDia, horarioVigente, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
+import { esFeriadoSinTurno, esperadoDelDia, horarioVigente, SEDE_SIN_TURNOS, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
 import {
   calcularCoberturaSede, causaMetaImposible, coincideConFiltroDeEstado, enPausaAhora, faltanTexto, fechaConDia, fechaCorta, llegoTarde, loQueFalta,
   minutosDesde, porPausaMasLarga, sinMarcarYaLeTocaba, subEstadoSinMarcar, textoDesglose, textoEquipoDelDia,
-  OPCIONES_FILTRO_ESTADO, textoFueraDeHorario, textoLiderEnLasDosMetas, textoMetaPorRevisar, textoSinHorario, textoPausa, textoPausaDesde, textoSinMarcar, trabajandoAhora,
+  diaDeLaSemanaEnPlural, metaDelDiaTexto, OPCIONES_FILTRO_ESTADO, textoFueraDeHorario, textoLiderEnLasDosMetas, textoMetaPorRevisar, textoMetaSinTurnos, textoSinHorario, textoPausa, textoPausaDesde, textoSinMarcar, trabajandoAhora,
   type CoberturaSede, type FilaPersona, type MetaSede,
 } from "@/lib/admin/asistencia-hoy";
 import { traerPausasAbiertas } from "@/lib/admin/pausas-abiertas";
+import { traerSiEsFeriado } from "@/lib/admin/feriado-de-hoy";
 import { esFallaDeRed, mensajeDeError } from "@/lib/admin/mensaje-error";
 import {
   KPIS_EXTRA, PANELES_NO_OCULTABLES, alternarAlertas, alternarColapsado, alternarKpiExtra, alternarOculto,
@@ -133,6 +134,11 @@ function EstadoCelda({ f, linkCorregir, ahoraDecimal }: { f: FilaPersona; linkCo
     }
     if (sub === "descansa") {
       return <Insignia variante="neutral" atenuada>Descansa hoy</Insignia>;
+    }
+    // Feriado sin turno: le tocaba por su horario y la hora ya pasó, pero la base no se lo
+    // exige (no es falta). Neutro y sin enlace a Correcciones: no hay nada que corregir.
+    if (sub === "feriado") {
+      return <Insignia variante="neutral">Feriado · le tocaba {horaAmPmDe(f.entradaEsperadaHoy!)}</Insignia>;
     }
     if (sub === "falta_real") {
       return (
@@ -380,6 +386,10 @@ export default function DashboardPage() {
   // única de esta pantalla fuera de Disciplina— no puede dispararse aunque
   // corresponda. Sin esta bandera esa alerta se apaga en silencio.
   const [horarioEsperadoNoRespondio, setHorarioEsperadoNoRespondio] = useState(false);
+  // `metas_cobertura` no contestó: todas las sedes reciben meta 0, y decir de una sede sin
+  // turnos «no tiene meta para este día» sería afirmar lo que no se sabe. Se comporta como
+  // `horarioEsperadoNoRespondio`: sin meta confiable, ninguna sede se declara «Sin turnos».
+  const [metasNoRespondieron, setMetasNoRespondieron] = useState(false);
   // `ausencias` no contestó: alguien de vacaciones puede verse idéntico a un
   // "sin marcar" real mientras esto no se pueda comprobar (mismo riesgo de
   // falso positivo que ya resuelve `ausenciaHoy` cuando la consulta sí responde).
@@ -539,7 +549,7 @@ export default function DashboardPage() {
       { data: extras }, // fn_jornadas_extra ya está diseñada para fallar en silencio (ver comentario abajo)
       { data: funciones }, // función + es_encargada_piso (RPC: el schema cache no expone la columna)
       { data: areasRaw, error: errAreas }, // catálogo de áreas (para saber cuáles son operativas)
-      { data: metasRaw }, // metas de cobertura de hoy por sede (falla suave: sin meta = neutro)
+      { data: metasRaw, error: errMetas }, // metas de cobertura de hoy por sede (falla suave: sin meta = neutro; ver `metasNoRespondieron`)
       // Ausencias SÍ lleva su error: si falla, alguien de vacaciones se vería
       // idéntico a un "sin marcar" real, y eso merece un aviso discreto (ver abajo).
       { data: ausenciasHoy, error: errAusencias },
@@ -550,6 +560,10 @@ export default function DashboardPage() {
       // dispararse aunque corresponda — y sin la bandera, se apagaría sin aviso.
       { data: turnosHoy, error: errTurnos },
       { data: horariosVigentes, error: errHorarios },
+      // ¿Hoy es feriado? Solo SUAVIZA una alarma (ver `esFeriadoSinTurno`), así que si la
+      // consulta falla no hace falta bandera: cae a «no es feriado» y la alarma vuelve a ser
+      // la roja de siempre. Una duda cae hacia la alarma, no hacia el silencio.
+      feriadoHoy,
     ] = await Promise.all([
       // Misma consulta que /admin/reporte-sede: la lista de sedes a mostrar
       // nunca se deriva de quién aparece en otra tabla.
@@ -586,6 +600,7 @@ export default function DashboardPage() {
         .select("persona_id, hora_entrada, hora_salida, dias_laborables, horario_por_dia, almuerzo_min_minutos, vigente_desde, vigente_hasta")
         .lte("vigente_desde", hoy)
         .or(`vigente_hasta.is.null,vigente_hasta.gte.${hoy}`),
+      traerSiEsFeriado(supabase, hoy),
     ]);
 
     if (errSedes || errPersonas || errJornadas) {
@@ -611,9 +626,7 @@ export default function DashboardPage() {
         tipos: { data: tiposAusencia, error: errTipos },
       };
     }
-    setSedesActivas(sedesData ?? []);
     setAusenciasNoRespondieron(Boolean(errAusencias));
-    setHorarioEsperadoNoRespondio(Boolean(errTurnos || errHorarios));
 
     // Función/área/encargada: si la RPC falla, degradamos a "todos operativos"
     // (misma política que Turnos) — la cobertura puede marcar de más pero la
@@ -626,10 +639,10 @@ export default function DashboardPage() {
     // Quién cuenta en la cobertura depende del TIPO de la sede (en una central
     // el administrador hace de líder), así que se busca por sede base.
     const tipoDeSede = new Map((sedesData ?? []).map((s) => [s.id, s.tipo]));
-    setMetasPorSede(new Map(
+    const metasNuevas = new Map(
       ((metasRaw as { sede_id: string; meta: number; meta_tarde: number | null; meta_encargadas: number | null }[] | null) ?? [])
-        .map((m) => [m.sede_id, { man: m.meta ?? 0, tar: m.meta_tarde ?? m.meta ?? 0, enc: m.meta_encargadas ?? 0 }]),
-    ));
+        .map((m) => [m.sede_id, { man: m.meta ?? 0, tar: m.meta_tarde ?? m.meta ?? 0, enc: m.meta_encargadas ?? 0 }] as const),
+    );
 
     const jornadaPorPersona = new Map((jornadas ?? []).map((j: any) => [j.persona_id, j]));
     // Solo llegan filas con minutos > 0 y la fecha es fija (hoy), así que basta persona_id → minutos.
@@ -693,6 +706,9 @@ export default function DashboardPage() {
         entradaEsperadaHoy: esperado.trabaja ? esperado.entrada : null,
         salidaEsperadaHoy: esperado.trabaja ? esperado.salida : null,
         origenEsperadoHoy: esperado.origen,
+        // Sin turnos u horarios no se sabe quién tiene turno explícito: todos parecerían
+        // «sin turno» y se suavizaría una alarma que quizá corresponde. Ahí, la de siempre.
+        feriadoSinTurnoHoy: esFeriadoSinTurno(feriadoHoy.esFeriado && !errTurnos && !errHorarios, esperado),
         salidaFinal: j?.salida_final_ts ?? null,
         minutosTarde: j?.minutos_tarde ?? null,
         salidaTemprana: salidaTempranaPorPersona.get(p.id) ?? null,
@@ -714,6 +730,15 @@ export default function DashboardPage() {
     );
     setPausasNoRespondieron(fallaronPausas);
 
+    // Sedes, metas y «los horarios llegaron» se guardan JUNTO a `filas`, no antes del `await`
+    // de arriba: la pantalla los cruza (una sede sin turnos, con o sin meta, sale de las tres
+    // cosas), y con una consulta de pausas en medio pintaba un instante metas y horarios de
+    // este ciclo con las filas del anterior —todas sin horario tras un ciclo caído: «Sin
+    // turnos» de una tienda que sí abre—. Revisión del 2026-09-20.
+    setSedesActivas(sedesData ?? []);
+    setMetasPorSede(metasNuevas);
+    setMetasNoRespondieron(Boolean(errMetas));
+    setHorarioEsperadoNoRespondio(Boolean(errTurnos || errHorarios));
     setFilas(resultado.map((f) => ({ ...f, pausa: pausas.get(f.personaId) ?? null })));
     setActualizado(new Intl.DateTimeFormat("es-PE", { timeZone: TZ_LIMA, hour: "2-digit", minute: "2-digit", second: "2-digit" }).format(new Date()));
     setCargando(false);
@@ -763,11 +788,18 @@ export default function DashboardPage() {
 
   // Cobertura de cada sede, calculada una sola vez y reutilizada para ordenar,
   // para el resumen global y para cada tarjeta.
+  //
+  // «Nadie tiene turno hoy» solo es un hecho si los turnos y horarios llegaron: si la
+  // consulta falló, o aún no ha llegado nada, todas las filas vienen sin horario y eso
+  // diría «hoy no abre» de una tienda que sí abre. Y «esta sede no tiene meta para hoy»
+  // solo es un hecho si las metas llegaron. Sin ellos, cada sede se mide como siempre:
+  // contra su meta.
+  const horarioConocido = !horarioEsperadoNoRespondio && !metasNoRespondieron && !(cargando && filas.length === 0);
   const coberturaPorSede = new Map<string, CoberturaSede>();
   for (const s of sedesDeAlcance) {
     const deSede = filas.filter((f) => f.sedeId === s.sedeId);
     const meta = metasPorSede.get(s.sedeId) ?? { man: 0, tar: 0, enc: 0 };
-    coberturaPorSede.set(s.sedeId, calcularCoberturaSede(deSede, meta, tramoTarde, ahoraDecimal));
+    coberturaPorSede.set(s.sedeId, calcularCoberturaSede(deSede, meta, tramoTarde, ahoraDecimal, horarioConocido));
   }
 
   // Orden: primero la sede con cobertura insuficiente (decisión de la
@@ -778,9 +810,11 @@ export default function DashboardPage() {
     const ca = coberturaPorSede.get(a.sedeId)!;
     const cb = coberturaPorSede.get(b.sedeId)!;
     // Primero el rojo (falta gente que podría venir), luego el ámbar (una meta por
-    // revisar en Turnos) y al final las que no tienen nada.
-    const rango = (g: CoberturaSede["gravedad"]) => (g === "alerta" ? 0 : g === "revisar" ? 1 : 2);
-    if (rango(ca.gravedad) !== rango(cb.gravedad)) return rango(ca.gravedad) - rango(cb.gravedad);
+    // revisar en Turnos), luego las que operan sin novedad, y al final las que hoy no
+    // abren: sin esto, una sede cerrada podía quedar ANTES de una que abre a las 10 y
+    // aún no ha llegado nadie, porque las dos tienen 0 trabajando.
+    const rango = (c: CoberturaSede) => (c.noAbreHoy ? 3 : c.gravedad === "alerta" ? 0 : c.gravedad === "revisar" ? 1 : 2);
+    if (rango(ca) !== rango(cb)) return rango(ca) - rango(cb);
     return cb.trabajando.length - ca.trabajando.length || a.codigo.localeCompare(b.codigo);
   });
 
@@ -803,7 +837,16 @@ export default function DashboardPage() {
   // arreglan con asistencia, y contadas aquí dejarían este número en rojo todos los
   // días por un dato de Turnos. Esas van en «Requiere atención», en ámbar.
   const sedesBajoMinimo = sedes.filter((s) => coberturaPorSede.get(s.sedeId)!.gravedad === "alerta");
-  const resumen: { clave: ClaveResumen; label: string; n: number; color: string; nota?: string }[] = [
+  // «Bajo la meta: 1» junto a cinco sedes se lee como «1 de 5»; un domingo son 1 de las
+  // 2 que se miden. «Se miden» y no «con turnos» ni «que abren»: cuenta las sedes que NO
+  // se apagaron (gris o ámbar), que es lo que puede estar bajo la meta. Una sede sin
+  // horario cargado y con meta sigue midiéndose, aunque nadie tenga turno. Solo se dice
+  // cuando alguna sede se apagó, para no repetir en un día normal lo evidente.
+  const sedesQueSeMiden = sedes.filter((s) => { const c = coberturaPorSede.get(s.sedeId)!; return !(c.noAbreHoy || c.metaSinTurnos || c.feriadoSinConfirmar); }).length;
+  const notaSedesQueSeMiden = sedesQueSeMiden === sedes.length
+    ? undefined
+    : sedesQueSeMiden === 0 ? "ninguna se mide hoy" : `de ${sedesQueSeMiden} que se ${sedesQueSeMiden === 1 ? "mide" : "miden"} hoy`;
+  const resumen: { clave: ClaveResumen; label: string; n: number; color: string; nota?: string; notaSuave?: boolean }[] = [
     {
       clave: "trabajando", label: "Trabajando ahora", n: personasDelResumen.trabajando.length,
       color: personasDelResumen.trabajando.length > 0 ? "text-verde" : "text-tinta",
@@ -816,7 +859,7 @@ export default function DashboardPage() {
     { clave: "sin_marcar", label: "Sin marcar y ya les tocaba entrar", n: personasDelResumen.sin_marcar.length, color: personasDelResumen.sin_marcar.length > 0 ? "text-rojo" : "text-verde" },
     // «Bajo la meta», no «bajo mínimo»: Turnos, los recuadros de cada sede y la
     // pastilla dicen «meta». «Mínimo» era una tercera palabra para lo mismo.
-    { clave: "bajo_minimo", label: "Sedes bajo la meta", n: sedesBajoMinimo.length, color: sedesBajoMinimo.length > 0 ? "text-rojo" : "text-verde" },
+    { clave: "bajo_minimo", label: "Sedes bajo la meta", n: sedesBajoMinimo.length, color: sedesBajoMinimo.length > 0 ? "text-rojo" : "text-verde", nota: notaSedesQueSeMiden, notaSuave: true },
   ];
   const resumenDetalle = resumen.find((k) => k.clave === resumenAbierto) ?? null;
 
@@ -893,9 +936,13 @@ export default function DashboardPage() {
       });
     }
     if (cob.gravedad === "revisar") {
-      // Solo faltan metas imposibles: no se pide que venga nadie, se pide revisar el dato.
+      // Faltan metas imposibles, o hay meta y nadie con turno (`metaSinTurnos`): no se pide
+      // que venga nadie, se pide revisar el dato.
       itemsAtencion.push({
-        key: `cobertura-${s.sedeId}`, sede: s.etiqueta.texto, tono: "advertencia", href: "/admin/turnos", accion: "Revisar meta",
+        key: `cobertura-${s.sedeId}`, sede: s.etiqueta.texto, tono: "advertencia", href: "/admin/turnos",
+        // En un feriado sin confirmar no hay una meta que revisar: hay una pregunta, y si la
+        // respuesta es «abre», lo que se hace es armar los turnos de hoy.
+        accion: cob.feriadoSinConfirmar ? "Ver turnos" : "Revisar meta",
         texto: textoMetaPorRevisar(cob),
       });
     } else if (cob.faltanOp || cob.faltanEnc) {
@@ -1135,7 +1182,8 @@ export default function DashboardPage() {
                       )}
                     </span>
                     <span className="mt-2 block text-sm text-taupe">{k.label}</span>
-                    {k.nota && <span className="mt-0.5 block text-xs font-medium text-ambar">{k.nota}</span>}
+                    {/* Ámbar es «mira esto»; la nota de cuántas sedes abren solo informa. */}
+                    {k.nota && <span className={`mt-0.5 block text-xs ${k.notaSuave ? "text-taupe" : "font-medium text-ambar"}`}>{k.nota}</span>}
                   </button>
                 );
               })}
@@ -1259,9 +1307,22 @@ export default function DashboardPage() {
               // Un solo estado de la sede, del que salen la franja y la pastilla —
               // así no pueden decir cosas distintas. "Sede sin marcajes" también
               // es alerta aunque no tenga meta: nadie llegó y a alguien le tocaba.
-              // «Sin cobertura que medir» y no «Sin meta configurada» cuando la sede no
+              // «Sin cobertura que medir» y no «Sin meta hoy» cuando la sede no
               // tiene a nadie de un área operativa: lo segundo se lee como una tarea
               // pendiente, y en una sede de solo administración no hay nada que configurar.
+              // «Sin turnos» (gris) es lo que dice una sede a la que hoy no le toca trabajar a
+              // nadie y que tampoco tiene meta para hoy: ese día no se labora y no hay nada que
+              // medir. Antes decía «Sin meta configurada», que pedía configurar algo que se
+              // dejó en 0 a propósito (2026-09-20: tres sedes decían eso un domingo). Se dice
+              // «sin turnos» y no «cerrada» porque es lo que el sistema sabe (la palabra la
+              // eligió Felipe, y es la misma de Turnos: SEDE_SIN_TURNOS).
+              // «Sin meta hoy» queda para quien SÍ tiene gente hoy y no tiene meta EN NINGÚN TRAMO
+              // (una tienda que abre a las 14:00 tiene meta de tarde: por la mañana dice «Sin meta de
+              // la mañana», que sí es cierto); y no dice
+              // «configurada» porque en Turnos un 0 puesto a propósito y uno nunca tocado se ven
+              // igual, y afirmar que falta configurar algo podía ser falso.
+              // Con meta y sin turnos (`metaSinTurnos`) los datos se contradicen: ámbar, y se
+              // arregla en Turnos — no es «falta gente», porque a nadie le tocaba venir.
               // «Fuera de horario» solo si hay una meta que de otro modo se leería roja:
               // en una sede sin meta el letrero no aporta, y cambiar de «Sin cobertura
               // que medir» a «Fuera de horario» según la hora sería ruido. Va después
@@ -1273,13 +1334,19 @@ export default function DashboardPage() {
               const estadoSede: { tono: TonoFranja; texto: string } =
                 cob.gravedad === "alerta" || cob.alertaSinEntrada
                   ? { tono: "alerta", texto: cob.gravedad === "alerta" ? "Cobertura insuficiente" : "Sin marcajes" }
-                  : cob.gravedad === "revisar"
-                    ? { tono: "advertencia", texto: "Meta por revisar" }
-                    : cob.fueraDeHorario && hayMeta
-                      ? { tono: "neutral", texto: "Fuera de horario" }
-                      : cob.sinMetaOp && cob.sinMetaEnc
-                        ? { tono: "neutral", texto: cob.equipoOperativas === 0 ? "Sin cobertura que medir" : "Sin meta configurada" }
-                        : { tono: "positivo", texto: "Cobertura correcta" };
+                  : cob.metaSinTurnos
+                    ? { tono: "advertencia", texto: "Meta sin turnos" }
+                    : cob.feriadoSinConfirmar
+                      ? { tono: "advertencia", texto: "Feriado · ¿abre hoy?" }
+                      : cob.gravedad === "revisar"
+                        ? { tono: "advertencia", texto: "Meta por revisar" }
+                        : cob.noAbreHoy
+                          ? { tono: "neutral", texto: SEDE_SIN_TURNOS }
+                          : cob.fueraDeHorario && hayMeta
+                            ? { tono: "neutral", texto: "Fuera de horario" }
+                            : cob.sinMetaOp && cob.sinMetaEnc
+                              ? { tono: "neutral", texto: cob.equipoOperativas === 0 ? "Sin cobertura que medir" : cob.hayMetaHoy ? `Sin meta ${tramoLabel}` : "Sin meta hoy" }
+                              : { tono: "positivo", texto: "Cobertura correcta" };
               const fueraDeHorarioVisible = cob.fueraDeHorario !== null && hayMeta;
               // «Sin horario» se apaga si la consulta de turnos u horarios falló: entonces
               // TODAS las filas llegan sin horario, y el aviso acusaría a cada quien que marcó.
@@ -1288,8 +1355,20 @@ export default function DashboardPage() {
                 desglose: textoDesglose(cob.desgloseProgramadas),
                 sinHorario: horarioEsperadoNoRespondio ? null : textoSinHorario(cob.marcaronSinHorario.map((f) => f.nombre)),
               };
-              const mostrarTileOperativas = !(cob.equipoOperativas === 0 && cob.sinMetaOp);
-              const mostrarTileLideres = !(cob.equipoLideres === 0 && cob.sinMetaEnc);
+              // Con la sede sin turnos, dos recuadros de «0 · sin meta» (o «0 / 1 · Falta 1» contra
+              // una meta que nadie puede cubrir porque a nadie le toca) no informan: la fila y una
+              // frase dicen lo que pasa.
+              // «Apagada» = gris (`noAbreHoy`: sin turnos y sin meta, haya o no respuesta clara de
+              // descanso: no hay nada que alarmar) o ámbar (`metaSinTurnos`: hay meta y la respuesta
+              // clara es que nadie trabaja). Una sede sin turnos, con meta y SIN respuesta clara
+              // —todos sin horario— no se apaga: sigue en rojo, y sus recuadros son la explicación
+              // de ese rojo.
+              // Y en un feriado sin confirmar (`feriadoSinConfirmar`) también: «0 / 2 · Faltan 2»
+              // contra una meta de un día en que quizá la sede ni abre sería el mismo rojo que
+              // esa pregunta viene a evitar.
+              const apagada = cob.noAbreHoy || cob.metaSinTurnos || cob.feriadoSinConfirmar;
+              const mostrarTileOperativas = !apagada && !(cob.equipoOperativas === 0 && cob.sinMetaOp);
+              const mostrarTileLideres = !apagada && !(cob.equipoLideres === 0 && cob.sinMetaEnc);
               const causasMeta = [
                 { quien: "Personal operativo", causa: causaMetaImposible("operativas", cob.metaOp, cob.equipoOperativas) },
                 { quien: "Líderes", causa: causaMetaImposible("lideres", cob.metaEnc, cob.equipoLideres) },
@@ -1300,11 +1379,20 @@ export default function DashboardPage() {
               // un filtro de contenido activo se despliega sola: quien busca a alguien
               // no debería tener que abrir cada sede para encontrarla.
               const abierta = hayFiltrosDeContenido || (sedesAbiertas[sedeId] ?? false);
-              const resumenCob = !cob.sinMetaOp
-                ? { texto: `${cob.opPiso} / ${cob.metaOp} operativas`, pct: Math.min(100, Math.round((cob.opPiso / cob.metaOp) * 100)) }
-                : !cob.sinMetaEnc
-                  ? { texto: `${cob.encPiso} / ${cob.metaEnc} líderes`, pct: Math.min(100, Math.round((cob.encPiso / cob.metaEnc) * 100)) }
-                  : { texto: `${cob.trabajando.length} trabajando ahora`, pct: 0 };
+              // `pct` null = no hay meta contra qué llenar una barra: una barra vacía se lee como «0 %
+              // cubierto», que es lo contrario de «no se mide». Y una sede que hoy no abre no dice
+              // nada en esta columna: «0 trabajando ahora» es ruido donde a nadie le toca.
+              const resumenCob: { texto: string; pct: number | null } | null = cob.noAbreHoy
+                ? null
+                : cob.metaSinTurnos
+                  ? { texto: `Meta de ${metaDelDiaTexto(cob)} · sin turnos`, pct: null }
+                  : cob.feriadoSinConfirmar
+                    ? { texto: "Feriado · sin turnos armados", pct: null }
+                  : !cob.sinMetaOp
+                    ? { texto: `${cob.opPiso} / ${cob.metaOp} operativas`, pct: Math.min(100, Math.round((cob.opPiso / cob.metaOp) * 100)) }
+                    : !cob.sinMetaEnc
+                      ? { texto: `${cob.encPiso} / ${cob.metaEnc} líderes`, pct: Math.min(100, Math.round((cob.encPiso / cob.metaEnc) * 100)) }
+                      : { texto: `${cob.trabajando.length} trabajando ahora`, pct: null };
               const colorBarra = estadoSede.tono === "alerta" ? "bg-rojo" : estadoSede.tono === "advertencia" ? "bg-ambar" : estadoSede.tono === "positivo" ? "bg-verde" : "bg-taupe/40";
               const tardanzasSede = deSedeCompleta.filter(llegoTarde).length;
 
@@ -1315,19 +1403,33 @@ export default function DashboardPage() {
                     onClick={() => setSedesAbiertas((a) => ({ ...a, [sedeId]: !(a[sedeId] ?? false) }))}
                     aria-expanded={abierta}
                     aria-controls={`sede-${codigo}-detalle`}
-                    className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 px-5 py-3 text-left transition-colors hover:bg-hueso/60 sm:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_auto_auto]"
+                    className={`grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 px-5 py-3 text-left transition-colors sm:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_auto_auto] ${cob.noAbreHoy ? "bg-hueso/40 hover:bg-hueso/70" : "hover:bg-hueso/60"}`}
                   >
                     <span className="min-w-0">
-                      <span className="font-semibold">{etiqueta.titulo}</span>{" "}
+                      {/* Una sede que hoy no abre baja de volumen: nombre sin negrita y en taupe, sobre
+                          el fondo «hundido» (hueso). Menos tinta, no menos contraste: sigue siendo texto
+                          taupe legible, el mismo de todo lo secundario de esta pantalla. */}
+                      <span className={cob.noAbreHoy ? "font-medium text-taupe" : "font-semibold"}>{etiqueta.titulo}</span>{" "}
                       <span className="text-xs text-taupe">({codigo})</span>
-                      <span className="block text-xs text-taupe">{textoEquipoDelDia(cob.programadosHoy, deSedeCompleta.length)}</span>
+                      <span className="block text-xs text-taupe">{textoEquipoDelDia(cob.programadosHoy, deSedeCompleta.length, cob.feriadoSinConfirmar)}</span>
                     </span>
-                    <span className="order-3 col-span-2 sm:order-none sm:col-span-1">
-                      <span className="text-sm">{resumenCob.texto}{cob.enPausa.length > 0 && <span className="text-ambar"> · {cob.enPausa.length} en pausa</span>}</span>
-                      <span aria-hidden className="mt-1 block h-1.5 overflow-hidden rounded-full bg-sand"><span className={`block h-full ${colorBarra}`} style={{ width: `${resumenCob.pct}%` }} /></span>
-                    </span>
+                    {resumenCob ? (
+                      <span className="order-3 col-span-2 sm:order-none sm:col-span-1">
+                        <span className="text-sm">{resumenCob.texto}{cob.enPausa.length > 0 && <span className="text-ambar"> · {cob.enPausa.length} en pausa</span>}</span>
+                        {resumenCob.pct !== null && (
+                          <span aria-hidden className="mt-1 block h-1.5 overflow-hidden rounded-full bg-sand"><span className={`block h-full ${colorBarra}`} style={{ width: `${resumenCob.pct}%` }} /></span>
+                        )}
+                      </span>
+                    ) : (
+                      // Sin contenido, pero la celda queda en la cuadrícula para que la pastilla siga
+                      // alineada con la de las otras filas. En celular se oculta: ahí ocuparía una línea vacía.
+                      <span aria-hidden className="hidden sm:block" />
+                    )}
                     <span className="hidden sm:block">
-                      {tardanzasSede > 0 ? <Insignia variante="alerta">{tardanzasSede} tarde</Insignia> : <span className="text-xs text-taupe">sin tardanzas</span>}
+                      {tardanzasSede > 0
+                        ? <Insignia variante="alerta">{tardanzasSede} tarde</Insignia>
+                        // «sin tardanzas» confirma algo cuando había quién llegara tarde; en una sede sin turnos nadie podía.
+                        : !apagada && <span className="text-xs text-taupe">sin tardanzas</span>}
                     </span>
                     <span className="flex items-center gap-2">
                       <Insignia variante={estadoSede.tono} atenuada={estadoSede.tono === "neutral"} className="px-3 py-1 font-semibold">{estadoSede.texto}</Insignia>
@@ -1336,12 +1438,35 @@ export default function DashboardPage() {
                   </button>
                   {abierta && (
                   <div id={`sede-${codigo}-detalle`} className="border-t border-dashed border-sand bg-hueso/40 px-5 py-4 pl-6">
-                  <p className={`${aviso.sinHorario ? "mb-1" : "mb-4"} text-xs text-taupe`}>
-                    {textoEquipoDelDia(cob.programadosHoy, deSedeCompleta.length)}
-                  </p>
+                  {/* La frase «a N de las M personas les tocaba» vive en la fila, que siempre está a la
+                      vista: repetirla al abrir el detalle era decir lo mismo dos veces seguidas. */}
                   {/* Quien marcó sin horario no entra en «les tocaba a N»: sin esta línea,
                       la cuenta de arriba dice 10 de 12 cuando trabajaron 11. */}
                   {aviso.sinHorario && <p className="mb-4 text-xs text-ambar">{aviso.sinHorario}</p>}
+
+                  {/* Por qué la fila está en gris o en ámbar: sin esto, quien no sabe qué es «Sin turnos»
+                      tendría que adivinarlo. Dice los dos lados y dónde se arregla. */}
+                  {cob.noAbreHoy && (
+                    <p className="mb-4 text-xs text-taupe">
+                      Hoy no hay nada que medir: nadie tiene turno y esta sede no tiene meta para este día. La meta de cada día se define en Turnos.
+                    </p>
+                  )}
+                  {cob.metaSinTurnos && (
+                    <p className="mb-4 text-xs text-taupe">
+                      <strong className="font-semibold text-tinta">Meta sin turnos:</strong> {textoMetaSinTurnos(cob)}. {esAdmin
+                        ? <>Si esta sede no abre los {diaDeLaSemanaEnPlural(hoy)}, pon en 0 su meta de ese día en Turnos: vale para todos los {diaDeLaSemanaEnPlural(hoy)}. Si abre, arma sus turnos.</>
+                        : <>Si esta sede no abre los {diaDeLaSemanaEnPlural(hoy)}, pídele a un administrador que ponga en 0 su meta de ese día: vale para todos los {diaDeLaSemanaEnPlural(hoy)}. Si abre, arma sus turnos.</>}
+                    </p>
+                  )}
+
+                  {/* El feriado sin confirmar es una PREGUNTA, no una alarma: ámbar, y dice las dos
+                      salidas. El rojo de abajo queda para lo que sí es una falla. */}
+                  {cob.feriadoSinConfirmar && (
+                    <div className="mb-4 rounded-2xl border border-ambar/60 bg-ambar/[0.06] px-5 py-3 text-sm text-tinta">
+                      <strong className="font-semibold">Feriado:</strong> nadie de esta sede ha marcado todavía y hoy no hay turnos armados, así que no se sabe si abre.
+                      Si abre, arma sus turnos de hoy en Turnos; si hoy cierra, no hace falta hacer nada.
+                    </div>
+                  )}
 
                   {/* La única alerta que se permite el rojo sagrado en esta pantalla,
                       además de la que ya vive arriba en "Requiere atención": la
@@ -1399,6 +1524,8 @@ export default function DashboardPage() {
                       antes: es el mismo relleno de la insignia "Trabajando", y con el
                       verde retonado el 2026-09-06 el 6% ya se leía gris. La etiqueta
                       verde encima da 5.27:1 claro y 4.91:1 oscuro. */}
+                  {/* Sin turnos hoy nadie marcó, así que este recuadro diría siempre «0 · Nadie está trabajando». */}
+                  {!apagada && (
                   <div
                     className={`mb-4 rounded-superficie border px-4 py-3 ${cob.trabajando.length > 0 ? "border-verde/30 bg-verde/15" : "border-sand bg-crema"}`}
                   >
@@ -1424,6 +1551,7 @@ export default function DashboardPage() {
                       )}
                     </div>
                   </div>
+                  )}
 
                   {/* «En pausa», aparte y no dentro de «Trabajando ahora». Hasta el
                       2026-09-18 quien había salido a refrigerio, a un trámite o al

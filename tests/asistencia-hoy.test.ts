@@ -25,6 +25,8 @@ import {
   fueraDeHorarioDeHoy,
   horaCortaLima,
   loQueFalta,
+  diaDeLaSemanaEnPlural,
+  metaDelDiaTexto,
   marcaronSinHorario,
   minutosDesde,
   motivoDePausa,
@@ -38,6 +40,8 @@ import {
   textoFueraDeHorario,
   textoLiderEnLasDosMetas,
   textoMetaPorRevisar,
+  textoMetaSinTurnos,
+  TEXTO_FERIADO_SIN_CONFIRMAR,
   textoPausa,
   textoPausaDesde,
   textoSinHorario,
@@ -952,5 +956,383 @@ describe("textoMetaPorRevisar — qué meta, por qué, y dónde se arregla", () 
   it("CCO: nadie cuenta como líder", () => {
     const cob = calcularCoberturaSede([fila({ estado: "abierta", entrada: "x", esOperativa: false })], { man: 0, tar: 0, enc: 1 }, false, 15);
     expect(textoMetaPorRevisar(cob)).toBe("revisa la meta en Turnos — líderes: nadie del equipo cuenta como líder");
+  });
+});
+
+// ----------------------------------------------------------------------------
+// Domingo 2026-09-20. El Dashboard decía «Sin meta configurada» de tres sedes que
+// simplemente no abren los domingos —a nadie le toca, y su meta de ese día es 0
+// a propósito— y «Cobertura insuficiente · falta 1 líder» de Central, donde
+// tampoco le tocaba a nadie. Las dos cosas mentían: la primera pide configurar
+// algo que ya está configurado, la segunda alarma por una falta que ninguna
+// asistencia puede arreglar.
+//
+// «Hoy no abre» es un hecho del DÍA (nadie tiene turno y nadie marcó), y sale de
+// calcularCoberturaSede como `sinTurnosHoy`. Con meta, es una contradicción de
+// datos (`metaSinTurnos`) y se arregla en Turnos: ámbar, no rojo.
+// ----------------------------------------------------------------------------
+describe("sinTurnosHoy — una sede que hoy no abre", () => {
+  // Quien hoy descansa según su horario: una respuesta real, no «sin horario».
+  const descansa = (id: string, o: Partial<FilaPersona> = {}) =>
+    fila({ personaId: id, entradaEsperadaHoy: null, origenEsperadoHoy: "horario", ...o });
+
+  it("AQP un domingo: dos personas que descansan y meta 0 → no abre, y nada se alarma", () => {
+    const cob = calcularCoberturaSede([descansa("a"), descansa("b")], META_0, false, 10);
+    expect(cob.sinTurnosHoy).toBe(true);
+    expect(cob.hayMetaHoy).toBe(false);
+    expect(cob.noAbreHoy).toBe(true);
+    expect(cob.metaSinTurnos).toBe(false);
+    expect(cob.programadosHoy).toBe(0);
+    expect(cob.gravedad).toBeNull();
+    expect(cob.problema).toBe(false);
+  });
+
+  it("Central un domingo: meta de 1 líder y a nadie le toca → ámbar, NO rojo", () => {
+    const equipo = [descansa("a", { esOperativa: false, esEncargada: true }), descansa("b", { esOperativa: false })];
+    const cob = calcularCoberturaSede(equipo, { man: 0, tar: 0, enc: 1 }, false, 10);
+    expect(cob.sinTurnosHoy).toBe(true);
+    expect(cob.metaSinTurnos).toBe(true);
+    expect(cob.noAbreHoy).toBe(false); // con meta no es «no abre»: es una contradicción por revisar
+    // Sí «falta» contra la meta, pero no es gente que pueda venir: a nadie le tocaba.
+    expect(cob.faltanEnc).toBe(true);
+    expect(cob.problema).toBe(true);
+    expect(cob.gravedad).toBe("revisar");
+    // Sin el prefijo «revisa la meta en Turnos —» de las metas imposibles: el botón ya dice «Revisar meta».
+    expect(textoMetaPorRevisar(cob)).toBe("hay meta de 1 líder para hoy, pero a nadie del equipo le tocaba trabajar");
+  });
+
+  it("es un hecho del día, no de la hora: la meta de la tarde no lo cambia a las 2:15 p. m.", () => {
+    // Una sede que solo tiene meta de tarde (abre a las 14:00): por la mañana sinMetaOp
+    // es true, y antes decía «Sin meta configurada» hasta el corte, y «Cobertura
+    // insuficiente» después. Los dos tramos cuentan para saber si hoy hay meta.
+    const equipo = [descansa("a"), descansa("b")];
+    const meta = { man: 0, tar: 3, enc: 0 };
+    const manana = calcularCoberturaSede(equipo, meta, false, 10);
+    const tarde = calcularCoberturaSede(equipo, meta, true, 15);
+    for (const cob of [manana, tarde]) {
+      expect(cob.hayMetaHoy).toBe(true);
+      // Con meta —aunque hoy sea solo de la tarde— NUNCA es «no abre»: sería un ámbar (o un rojo)
+      // enterrado en gris, al final de la lista, con «esta sede no tiene meta para este día».
+      expect(cob.noAbreHoy).toBe(false);
+      expect(cob.metaSinTurnos).toBe(true);
+      expect(cob.gravedad).toBe("revisar");
+      expect(cob.problema).toBe(true);
+    }
+    expect(textoMetaSinTurnos(manana)).toBe("hay meta de 3 operativas para hoy, pero a nadie del equipo le tocaba trabajar");
+  });
+
+  it("un día normal NO es «no abre»: basta con que a una persona le toque", () => {
+    const cob = calcularCoberturaSede([descansa("a"), fila({ personaId: "b" })], { man: 1, tar: 1, enc: 0 }, false, 10);
+    expect(cob.sinTurnosHoy).toBe(false);
+    expect(cob.metaSinTurnos).toBe(false);
+  });
+
+  it("todo el equipo de vacaciones PERO con turno hoy: la sede debía abrir → sigue siendo rojo", () => {
+    // El otro lado de la moneda. Si «de vacaciones» contara como «no le toca», una
+    // tienda sin nadie por vacaciones simultáneas saldría gris, y es un hueco real.
+    const vac = { nombre: "Vacaciones", pendiente: false };
+    const equipo = [fila({ personaId: "a", ausenciaHoy: vac }), fila({ personaId: "b", ausenciaHoy: vac })];
+    const cob = calcularCoberturaSede(equipo, { man: 2, tar: 2, enc: 0 }, false, 10);
+    expect(cob.programadosHoy).toBe(0);
+    expect(cob.sinTurnosHoy).toBe(false);
+    expect(cob.noAbreHoy).toBe(false);
+    expect(cob.metaSinTurnos).toBe(false);
+    expect(cob.gravedad).toBe("alerta");
+  });
+
+  it("si alguien marcó hoy, la sede abrió aunque nadie tuviera turno", () => {
+    const equipo = [descansa("a", { estado: "cerrada", entrada: "x", salidaFinal: "y" }), descansa("b")];
+    const cob = calcularCoberturaSede(equipo, { man: 1, tar: 1, enc: 0 }, false, 18);
+    expect(cob.sinTurnosHoy).toBe(false);
+    expect(cob.metaSinTurnos).toBe(false);
+  });
+
+  it("si la consulta de turnos u horarios falló, NO se afirma que está cerrada", () => {
+    // Todas las filas llegan sin horario: «nadie tiene turno» aquí es «no se pudo mirar».
+    const equipo = [descansa("a", { origenEsperadoHoy: "sin_horario" }), descansa("b", { origenEsperadoHoy: "sin_horario" })];
+    const cob = calcularCoberturaSede(equipo, { man: 2, tar: 2, enc: 1 }, false, 10, false);
+    expect(cob.sinTurnosHoy).toBe(false);
+    expect(cob.metaSinTurnos).toBe(false);
+    expect(cob.gravedad).toBe("alerta"); // como antes: ante la duda, el rojo de siempre
+  });
+
+  it("una sede sin nadie visible en su equipo NO se declara sin turnos: no hay respuesta que dar", () => {
+    // Verdad vacía: «nadie tiene turno» sobre cero personas no dice que la sede no abra
+    // (todo sueldo fijo o RxH, o RLS que le oculta las filas a quien mira).
+    const cob = calcularCoberturaSede([], { man: 0, tar: 0, enc: 1 }, false, 10);
+    expect(cob.sinTurnosHoy).toBe(false);
+    expect(cob.metaSinTurnos).toBe(false);
+    expect(cob.noAbreHoy).toBe(false);
+  });
+
+  it("TODOS sin horario cargado y con meta: no se sabe si le toca abrir → sigue en rojo, no baja a ámbar", () => {
+    // El caso que la auditoría demostró: se venció un tramo de horario sin sucesor y toda la sede
+    // pasa a `sin_horario`. Antes decía «revisa la meta en Turnos» —se arregla en Horarios— y
+    // bajaba de rojo a ámbar sin base. Bajar la severidad exige una respuesta REAL de descanso.
+    const sinHorario = (id: string) => descansa(id, { origenEsperadoHoy: "sin_horario" });
+    const cob = calcularCoberturaSede([sinHorario("a"), sinHorario("b")], { man: 2, tar: 2, enc: 0 }, false, 10);
+    expect(cob.sinTurnosHoy).toBe(true);
+    expect(cob.noAbreHoy).toBe(false); // hay meta: no se apaga en gris, ni al final de la lista
+    expect(cob.metaSinTurnos).toBe(false);
+    expect(cob.gravedad).toBe("alerta");
+  });
+
+  it("TODOS sin horario cargado y con meta 0: no hay nada que alarmar, y «Sin turnos» es cierto", () => {
+    // Con la meta en 0 no hay severidad que bajar: la palabra gris solo dice lo que se sabe.
+    const sinHorario = (id: string) => descansa(id, { origenEsperadoHoy: "sin_horario" });
+    const cob = calcularCoberturaSede([sinHorario("a"), sinHorario("b")], META_0, false, 10);
+    expect(cob.sinTurnosHoy).toBe(true);
+    expect(cob.noAbreHoy).toBe(true);
+    expect(cob.gravedad).toBeNull();
+  });
+
+  it("con una respuesta real de descanso, aunque otra persona no tenga horario, la meta sí baja a ámbar", () => {
+    const equipo = [descansa("a"), descansa("b", { origenEsperadoHoy: "sin_horario" })];
+    expect(calcularCoberturaSede(equipo, META_0, false, 10).noAbreHoy).toBe(true);
+    expect(calcularCoberturaSede(equipo, { man: 1, tar: 1, enc: 0 }, false, 10).metaSinTurnos).toBe(true);
+  });
+
+  it("con turnos, el resto sigue igual: las metas imposibles siguen ámbar y las faltas reales rojas", () => {
+    const equipo = [fila({ personaId: "a" })];
+    expect(calcularCoberturaSede(equipo, { man: 1, tar: 1, enc: 0 }, false, 10).gravedad).toBe("alerta");
+    expect(calcularCoberturaSede(equipo, { man: 3, tar: 3, enc: 0 }, false, 10).gravedad).toBe("revisar");
+  });
+});
+
+describe("textoMetaSinTurnos — dice los dos lados de la contradicción", () => {
+  const cob = (meta: { man: number; tar: number; enc: number }) =>
+    calcularCoberturaSede([fila({ entradaEsperadaHoy: null, origenEsperadoHoy: "horario" })], meta, false, 10);
+
+  it("operativas y líderes juntos, con concordancia", () => {
+    expect(textoMetaSinTurnos(cob({ man: 2, tar: 4, enc: 1 }))).toBe(
+      "hay meta de 4 operativas y 1 líder para hoy, pero a nadie del equipo le tocaba trabajar",
+    );
+    expect(textoMetaSinTurnos(cob({ man: 1, tar: 1, enc: 2 }))).toBe(
+      "hay meta de 1 operativa y 2 líderes para hoy, pero a nadie del equipo le tocaba trabajar",
+    );
+  });
+});
+
+describe("metaDelDiaTexto", () => {
+  it("dice solo lo que tiene meta, con concordancia", () => {
+    const sola = (meta: { man: number; tar: number; enc: number }) => calcularCoberturaSede([], meta, false, 10);
+    expect(metaDelDiaTexto(sola({ man: 0, tar: 0, enc: 1 }))).toBe("1 líder");
+    expect(metaDelDiaTexto(sola({ man: 1, tar: 3, enc: 0 }))).toBe("3 operativas");
+    expect(metaDelDiaTexto(sola({ man: 2, tar: 2, enc: 2 }))).toBe("2 operativas y 2 líderes");
+    expect(metaDelDiaTexto(sola(META_0))).toBe("");
+  });
+});
+
+describe("diaDeLaSemanaEnPlural — la meta es por día de la semana, no por fecha", () => {
+  it("dice el día en plural, sin cambiar los que ya terminan en «s»", () => {
+    expect(diaDeLaSemanaEnPlural("2026-09-20")).toBe("domingos");
+    expect(diaDeLaSemanaEnPlural("2026-09-19")).toBe("sábados");
+    expect(diaDeLaSemanaEnPlural("2026-09-21")).toBe("lunes");
+    expect(diaDeLaSemanaEnPlural("2026-09-23")).toBe("miércoles");
+  });
+});
+
+describe("las banderas de «sin turnos» nunca se contradicen", () => {
+  // Cuatro estados representados con varias banderas: el tipo deja combinarlas mal, así que se
+  // barre un puñado de situaciones y se comprueban las relaciones que las pantallas dan por hechas.
+  const equipos: Record<string, FilaPersona[]> = {
+    descansan: [fila({ personaId: "a", entradaEsperadaHoy: null, origenEsperadoHoy: "horario" })],
+    sinHorario: [fila({ personaId: "a", entradaEsperadaHoy: null, origenEsperadoHoy: "sin_horario" })],
+    trabajan: [fila({ personaId: "a" })],
+    vacio: [],
+  };
+  const metas = [META_0, { man: 2, tar: 2, enc: 0 }, { man: 0, tar: 3, enc: 0 }, { man: 0, tar: 0, enc: 1 }];
+
+  it("noAbreHoy y metaSinTurnos nunca a la vez; noAbreHoy implica sin meta y sin gravedad; metaSinTurnos implica «revisar»", () => {
+    for (const [nombre, equipo] of Object.entries(equipos)) {
+      for (const meta of metas) {
+        for (const tarde of [false, true]) {
+          const cob = calcularCoberturaSede(equipo, meta, tarde, tarde ? 15 : 10);
+          const caso = `${nombre} · meta ${JSON.stringify(meta)} · ${tarde ? "tarde" : "mañana"}`;
+          expect(cob.noAbreHoy && cob.metaSinTurnos, caso).toBe(false);
+          if (cob.noAbreHoy) {
+            expect(cob.hayMetaHoy, caso).toBe(false);
+            expect(cob.gravedad, caso).toBeNull();
+            expect(cob.problema, caso).toBe(false);
+          }
+          if (cob.metaSinTurnos) {
+            expect(cob.hayMetaHoy, caso).toBe(true);
+            expect(cob.gravedad, caso).toBe("revisar");
+            expect(cob.problema, caso).toBe(true);
+          }
+          if (cob.sinTurnosHoy) expect(cob.programadosHoy, caso).toBe(0);
+        }
+      }
+    }
+  });
+});
+
+// ----------------------------------------------------------------------------
+// FERIADOS (2026-09-20). Un feriado con nadie marcado y sin turnos armados no es
+// una falla que acusar: en 22 de 25 feriados trabajados las sedes abrieron con su
+// horario base y sin turnos, y otros feriados se cierran. `fn_faltas` tampoco
+// cuenta falta ese día (0051, 0070, 0414). Rojo sería falso cuando cierra; callar,
+// falso cuando abre. Se PREGUNTA, en ámbar. Y donde sí hay turno, el rojo se queda.
+// ----------------------------------------------------------------------------
+describe("feriado — la persona: «le tocaba» no se convierte en «faltó»", () => {
+  const feriado = (o: Partial<FilaPersona> = {}) => fila({ origenEsperadoHoy: "horario", feriadoSinTurnoHoy: true, ...o });
+
+  it("pasada la hora, sin turno: «feriado», no «falta_real»", () => {
+    expect(subEstadoSinMarcar(feriado(), 9)).toBe("feriado");
+  });
+
+  it("antes de la hora sigue siendo «aun_no_inicia»: el feriado no cambia lo que es temprano", () => {
+    expect(subEstadoSinMarcar(feriado(), 7.5)).toBe("aun_no_inicia");
+  });
+
+  it("SIN la bandera es la falta real de siempre (también si no se pudo saber que era feriado)", () => {
+    expect(subEstadoSinMarcar(fila({ origenEsperadoHoy: "horario" }), 9)).toBe("falta_real");
+    expect(subEstadoSinMarcar(fila({ origenEsperadoHoy: "horario", feriadoSinTurnoHoy: false }), 9)).toBe("falta_real");
+  });
+
+  it("con un turno explícito el feriado no suaviza nada", () => {
+    expect(subEstadoSinMarcar(fila({ origenEsperadoHoy: "turno", feriadoSinTurnoHoy: false }), 9)).toBe("falta_real");
+  });
+
+  it("no cuenta como «sin marcar y ya le tocaba»: el número del resumen coincide con lo que acusa la base", () => {
+    expect(sinMarcarYaLeTocaba(feriado(), 9)).toBe(false);
+    expect(sinMarcarYaLeTocaba(fila({ origenEsperadoHoy: "horario" }), 9)).toBe(true);
+  });
+
+  it("no cambia lo que le tocaba: la hora de entrada sigue ahí para poder decir «le tocaba 08:00»", () => {
+    expect(feriado().entradaEsperadaHoy).toBe("08:00");
+  });
+});
+
+describe("feriado — la sede: nadie marcó y nadie armó turnos", () => {
+  const META_2 = { man: 2, tar: 2, enc: 1 };
+  const soloHorario = (personaId: string, o: Partial<FilaPersona> = {}) =>
+    fila({ personaId, origenEsperadoHoy: "horario", feriadoSinTurnoHoy: true, esEncargada: personaId === "a", ...o });
+  const equipo = () => [soloHorario("a"), soloHorario("b"), soloHorario("c")];
+
+  it("pasada la hora: NO hay rojo, hay la pregunta en ámbar", () => {
+    const c = calcularCoberturaSede(equipo(), META_2, false, 9);
+    expect(c.alertaSinEntrada).toBeNull();
+    expect(c.feriadoSinConfirmar).toBe(true);
+    expect(c.gravedad).toBe("revisar"); // ámbar, no «alerta»
+    expect(textoMetaPorRevisar(c)).toBe(TEXTO_FERIADO_SIN_CONFIRMAR);
+  });
+
+  it("la pregunta es una pregunta: no afirma ni que abre ni que cierra", () => {
+    expect(TEXTO_FERIADO_SIN_CONFIRMAR).toContain("¿abre hoy la sede?");
+    expect(TEXTO_FERIADO_SIN_CONFIRMAR).not.toMatch(/falt|cerrad|insuficiente/i);
+  });
+
+  it("no lleva «:» propio: la lista la escribe detrás de «Tienda · Trujillo (TRU):» y quedaban dos seguidos", () => {
+    expect(TEXTO_FERIADO_SIN_CONFIRMAR).toBe("es feriado y nadie ha marcado todavía — ¿abre hoy la sede?");
+    expect(TEXTO_FERIADO_SIN_CONFIRMAR).not.toContain(":");
+    expect(`Tienda · Trujillo (TRU): ${TEXTO_FERIADO_SIN_CONFIRMAR}`.match(/:/g)).toHaveLength(1);
+  });
+
+  it("no la confunde con «Sin turnos»: a nadie le tocaba NO es lo que se sabe", () => {
+    const c = calcularCoberturaSede(equipo(), META_2, false, 9);
+    expect(c.sinTurnosHoy).toBe(false);
+    expect(c.noAbreHoy).toBe(false);
+    expect(c.metaSinTurnos).toBe(false);
+  });
+
+  it("nadie se cuenta como «no llegó y ya le tocaba»: pasan a «aún no llegan»", () => {
+    const c = calcularCoberturaSede(equipo(), META_2, false, 9);
+    expect(c.sinMarcarReal).toBe(0);
+    expect(c.desgloseProgramadas.noLlegaron).toBe(0);
+    expect(c.desgloseProgramadas.aunNoLlegan).toBe(3);
+    expect(textoDesglose(c.desgloseProgramadas)).not.toContain("no llegó");
+  });
+
+  it("dentro del margen de la hora todavía no pregunta: aún es temprano, como cualquier día", () => {
+    const c = calcularCoberturaSede(equipo(), META_2, false, 8.2);
+    expect(c.feriadoSinConfirmar).toBe(false);
+    expect(c.alertaSinEntrada).toBeNull();
+  });
+
+  it("apenas alguien marca, la sede abrió: la pregunta se apaga y la meta vuelve a medirse como cualquier día", () => {
+    const abierta = [soloHorario("a", { estado: "abierta", entrada: "x" }), soloHorario("b"), soloHorario("c")];
+    const c = calcularCoberturaSede(abierta, META_2, false, 9);
+    expect(c.feriadoSinConfirmar).toBe(false);
+    expect(c.faltanOp).toBe(true);
+    expect(c.gravedad).toBe("alerta");
+    // …y aun así nadie del piso se acusa de «no llegó»: eso lo decide fn_faltas, y no lo cuenta.
+    expect(c.sinMarcarReal).toBe(0);
+  });
+
+  it("sin la bandera en las filas —la consulta de feriados o de turnos falló— la alarma es la roja de siempre", () => {
+    const sinSaber = [fila({ personaId: "a", origenEsperadoHoy: "horario" }), fila({ personaId: "b", origenEsperadoHoy: "horario" })];
+    const c = calcularCoberturaSede(sinSaber, META_2, false, 9);
+    expect(c.alertaSinEntrada).toBe("08:00");
+    expect(c.feriadoSinConfirmar).toBe(false);
+    expect(c.gravedad).toBe("alerta");
+  });
+
+  it("una sede que SÍ armó turnos en el feriado conserva el rojo: registrar el turno es decir «hoy abro»", () => {
+    const conTurnos = [
+      fila({ personaId: "a", origenEsperadoHoy: "turno", feriadoSinTurnoHoy: false }),
+      fila({ personaId: "b", origenEsperadoHoy: "turno", feriadoSinTurnoHoy: false }),
+    ];
+    const c = calcularCoberturaSede(conTurnos, META_2, false, 9);
+    expect(c.alertaSinEntrada).toBe("08:00");
+    expect(c.feriadoSinConfirmar).toBe(false);
+    expect(c.sinMarcarReal).toBe(2);
+  });
+
+  it("mezcla: con el turno de UNA persona la sede abre, y el rojo lo dice esa persona, no la de solo-horario", () => {
+    const mezcla = [
+      fila({ personaId: "a", origenEsperadoHoy: "turno", feriadoSinTurnoHoy: false, entradaEsperadaHoy: "10:00" }),
+      soloHorario("b", { entradaEsperadaHoy: "08:00" }),
+    ];
+    const c = calcularCoberturaSede(mezcla, META_0, false, 11);
+    expect(c.feriadoSinConfirmar).toBe(false);
+    expect(c.alertaSinEntrada).toBe("10:00"); // no «08:00»: esa hora es de quien no tiene turno
+    expect(c.sinMarcarReal).toBe(1); // solo la que tiene turno
+  });
+
+  it("si todo el equipo está de vacaciones nadie tenía que llegar: tampoco se pregunta si abre", () => {
+    const vac = { nombre: "Vacaciones", pendiente: false };
+    const c = calcularCoberturaSede([soloHorario("a", { ausenciaHoy: vac }), soloHorario("b", { ausenciaHoy: vac })], META_2, false, 10);
+    expect(c.feriadoSinConfirmar).toBe(false);
+    expect(c.alertaSinEntrada).toBeNull();
+  });
+
+  it("un feriado en que a nadie le tocaría por horario no inventa una pregunta", () => {
+    const descansan = [fila({ entradaEsperadaHoy: null, origenEsperadoHoy: "horario", feriadoSinTurnoHoy: true })];
+    expect(calcularCoberturaSede(descansan, META_0, false, 10).feriadoSinConfirmar).toBe(false);
+  });
+});
+
+describe("textoEquipoDelDia en un feriado sin confirmar — «por horario», no «hoy les tocaba»", () => {
+  it("a todos les tocaría por su horario", () => {
+    expect(textoEquipoDelDia(3, 3, true)).toBe("Por horario les tocaba a las 3 personas del equipo; es feriado y no hay turnos armados.");
+  });
+
+  it("a una parte del equipo, con el singular y el plural en su sitio", () => {
+    expect(textoEquipoDelDia(4, 5, true)).toBe("Por horario les tocaba a 4 de las 5 personas del equipo; es feriado y no hay turnos armados.");
+    expect(textoEquipoDelDia(1, 5, true)).toBe("Por horario le tocaba a 1 de las 5 personas del equipo; es feriado y no hay turnos armados.");
+  });
+
+  it("a la única persona del equipo", () => {
+    expect(textoEquipoDelDia(1, 1, true)).toBe("Por horario le tocaba a la única persona del equipo; es feriado y no hay turnos armados.");
+  });
+
+  it("no dice «Hoy … tocaba trabajar»: junto a «¿abre hoy?» se leía como una contradicción", () => {
+    for (const [p, e] of [[3, 3], [4, 5], [1, 5], [1, 1]] as const) {
+      expect(textoEquipoDelDia(p, e, true)).not.toMatch(/^Hoy|tocaba trabajar/);
+    }
+  });
+
+  it("si a nadie le tocaba no hay a quién decirle «por horario»: la frase es la de siempre", () => {
+    expect(textoEquipoDelDia(0, 3, true)).toBe(textoEquipoDelDia(0, 3));
+    expect(textoEquipoDelDia(0, 1, true)).toBe(textoEquipoDelDia(0, 1));
+    expect(textoEquipoDelDia(0, 0, true)).toBe(textoEquipoDelDia(0, 0));
+  });
+
+  it("SIN la bandera todas las frases son exactamente las de siempre", () => {
+    for (const [p, e] of [[3, 3], [4, 5], [1, 5], [1, 1], [0, 3], [0, 1], [0, 0]] as const) {
+      expect(textoEquipoDelDia(p, e, false)).toBe(textoEquipoDelDia(p, e));
+    }
+    expect(textoEquipoDelDia(3, 3)).toBe("Hoy les tocaba trabajar a las 3 personas del equipo.");
   });
 });
