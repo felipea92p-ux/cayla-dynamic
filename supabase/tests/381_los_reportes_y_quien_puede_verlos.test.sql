@@ -101,8 +101,8 @@ insert into reporte_mensajes (reporte_id, autor_id, texto, interno) values
   ('00000000-0000-0000-0000-0000000c7001', '00000000-0000-0000-0000-0000000c0003', '¿Cuándo pasó exactamente?', false),
   ('00000000-0000-0000-0000-0000000c7001', '00000000-0000-0000-0000-0000000c0003', 'Nota: hablar primero con Bea.', true),
   ('00000000-0000-0000-0000-0000000c7008', '00000000-0000-0000-0000-0000000c0005', 'Mensaje del Título X', false);
-insert into reporte_eventos (reporte_id, tipo, por) values
-  ('00000000-0000-0000-0000-0000000c7001', 'mediacion', '00000000-0000-0000-0000-0000000c0003');
+insert into reporte_eventos (reporte_id, tipo, por, detalle) values
+  ('00000000-0000-0000-0000-0000000c7001', 'accion', '00000000-0000-0000-0000-0000000c0003', '{"accion": "mediacion"}');
 insert into reporte_medidas (reporte_id, para_persona_id, instruccion, creada_por) values
   ('00000000-0000-0000-0000-0000000c7008', '00000000-0000-0000-0000-0000000c0003',
    'Desde mañana, Bea pasa al turno tarde hasta nuevo aviso.', '00000000-0000-0000-0000-0000000c0005');

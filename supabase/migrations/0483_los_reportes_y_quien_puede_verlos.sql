@@ -114,6 +114,7 @@
 --   drop function if exists fn_reporte_quien_lo_leera(text, uuid, uuid[], uuid[]),
 --     fn_reporte_puede_ver_archivo(text), fn_reporte_archivo_libre(text),
 --     fn_reporte_puede_ver(uuid), fn_reporte_puede_gestionar(uuid),
+--     fn_reporte_motivo(uuid), fn_reporte_motivo_de(uuid, uuid),
 --     fn_reporte_es_autor(uuid), fn_reporte_acceso(uuid, uuid, text, uuid, smallint, boolean, uuid[]),
 --     fn_reporte_nivel_persona(uuid), fn_gerencia_general_id() cascade;
 --   drop policy reportes_insert/select/update/delete on storage.objects;
@@ -293,9 +294,8 @@ create table if not exists reportes (
   -- fn_reporte_escalar (paso 2). NO decide quién puede leerlo: eso es la regla.
   gestiona            text check (gestiona in ('lider', 'do', 'gerencia')),
   creado_at           timestamptz not null default now(),
-  acuse_at            timestamptz,
-  vence_acuse_at      timestamptz,
-  vence_respuesta_at  timestamptz,
+  -- Los plazos NO van aquí: el Título X tiene nueve, encadenados (el informe
+  -- abre el traslado y la decisión). Viven en `reporte_plazos` (0484).
   cerrado_at          timestamptz,
   cierre_texto        text,
   cierre_resultado    text check (cierre_resultado in
@@ -345,8 +345,8 @@ create table if not exists reporte_eventos (
   id          uuid primary key default gen_random_uuid(),
   reporte_id  uuid not null references reportes(id),
   tipo        text not null check (tipo in
-                ('creado', 'acuse', 'estado', 'reclasificado', 'escalado', 'mediacion',
-                 'medida', 'derivado_expediente', 'cerrado', 'lectura')),
+                ('creado', 'acuse', 'estado', 'reclasificado', 'escalado', 'accion',
+                 'medida', 'plazo', 'derivado_expediente', 'cerrado', 'lectura')),
   por         uuid references personas(id),
   at          timestamptz not null default now(),
   detalle     jsonb not null default '{}'::jsonb
@@ -468,6 +468,9 @@ begin
   end if;
   if old.estado = 'cerrado' and new.estado <> 'cerrado' then
     raise exception 'Un reporte cerrado no se reabre.';
+  end if;
+  if old.expediente_id is not null and new.expediente_id is distinct from old.expediente_id then
+    raise exception 'El enlace a un expediente disciplinario no se cambia.';
   end if;
   return new;
 end;
@@ -593,8 +596,11 @@ begin
 end;
 $fn$;
 
-create or replace function fn_reporte_puede_gestionar(p_reporte uuid)
-returns boolean
+-- La regla aplicada a un reporte que ya existe, para una persona cualquiera.
+-- Interna: la usan las funciones que necesitan saber si HAY alguien que pueda
+-- recibir un caso (paso 2), sin exponer a quién.
+create or replace function fn_reporte_motivo_de(p_reporte uuid, p_viewer uuid)
+returns text
 language plpgsql
 stable
 security definer
@@ -608,7 +614,7 @@ begin
   select r.autor_id, r.via, r.sede_id, r.nivel into v_r
     from reportes r where r.id = p_reporte;
   if not found then
-    return false;
+    return null;
   end if;
 
   select coalesce(array_agg(rp.persona_id), '{}'::uuid[]),
@@ -617,9 +623,33 @@ begin
     from reporte_personas rp
    where rp.reporte_id = p_reporte;
 
-  return fn_reporte_acceso(fn_persona_actual_id(), v_r.autor_id, v_r.via, v_r.sede_id,
-                           v_r.nivel, v_contra_do, v_mencionadas) is not null;
+  return fn_reporte_acceso(p_viewer, v_r.autor_id, v_r.via, v_r.sede_id,
+                           v_r.nivel, v_contra_do, v_mencionadas);
 end;
+$fn$;
+
+-- Por qué quien llama gestiona este reporte: 'gerencia', 'do', 'lider',
+-- 'investigadora', o null. Las funciones de escritura deciden con esto qué
+-- puede hacer cada una (la líder no cierra un caso de convivencia, la
+-- investigadora no decide).
+create or replace function fn_reporte_motivo(p_reporte uuid)
+returns text
+language sql
+stable
+security definer
+set search_path = public
+as $fn$
+  select fn_reporte_motivo_de(p_reporte, fn_persona_actual_id());
+$fn$;
+
+create or replace function fn_reporte_puede_gestionar(p_reporte uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $fn$
+  select fn_reporte_motivo(p_reporte) is not null;
 $fn$;
 
 create or replace function fn_reporte_es_autor(p_reporte uuid)
@@ -850,6 +880,7 @@ create policy reportes_delete on storage.objects
 -- persona que se les pase.
 grant execute on function
   fn_gerencia_general_id(),
+  fn_reporte_motivo(uuid),
   fn_reporte_puede_gestionar(uuid),
   fn_reporte_es_autor(uuid),
   fn_reporte_puede_ver(uuid),
@@ -861,6 +892,7 @@ to authenticated;
 
 revoke execute on function
   fn_gerencia_general_id(),
+  fn_reporte_motivo(uuid),
   fn_reporte_puede_gestionar(uuid),
   fn_reporte_es_autor(uuid),
   fn_reporte_puede_ver(uuid),
@@ -872,6 +904,7 @@ from public, anon;
 
 revoke execute on function
   fn_reporte_acceso(uuid, uuid, text, uuid, smallint, boolean, uuid[]),
+  fn_reporte_motivo_de(uuid, uuid),
   fn_reporte_nivel_persona(uuid),
   fn_guarda_gerencia_general(),
   fn_reporte_personas_foto(),

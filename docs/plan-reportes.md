@@ -370,8 +370,7 @@ empezar**, no se fijan aquí. Nombres en español, como el resto del esquema.
 | `ticket` | text opcional | Solo en reportes sobre una clienta |
 | `estado` | text check | `recibido` · `en_revision` · `cerrado` |
 | `gestiona` | text check | `lider` · `do` · `admin`. Quién lleva el caso ahora; `escalar` lo sube |
-| `creado_at`, `acuse_at`, `cerrado_at` | timestamptz | |
-| `vence_acuse_at`, `vence_respuesta_at` | timestamptz | De `fn_sumar_dias_habiles` al crear; se recalculan si cambia la vía |
+| `creado_at`, `cerrado_at` | timestamptz | Los plazos van aparte, en `reporte_plazos` (0484): el Título X tiene nueve y se encadenan |
 | `cierre_texto` | text | La respuesta escrita. Obligatoria para cerrar |
 | `cierre_resultado` | text check | `resuelto` · `confirmado` · `no_confirmado` · `derivado_disciplinario` · `sin_accion` |
 | `expediente_id` | uuid → expediente_disciplinario, opcional | El puente de la sección 11 |
@@ -411,9 +410,13 @@ español y `grant` solo a `authenticated`.
 | `fn_reporte_nivel_persona(persona)` | Del 0 al 3 según la tabla de escalones: el 3 es solo para quien devuelve `fn_gerencia_general_id()`, y el resto sale del rol **actual y activo** (`personas.estado = 'activo'`, como `fn_rol_actual` desde la 0374) |
 | **`fn_reporte_puede_ver(reporte)`** | **La regla de la sección 7.** Devuelve boolean, nunca `null` |
 | `fn_reporte_quien_lo_leera(via, sede, personas[])` | Lo que el paso final de la pantalla muestra: cargos, sin nombres |
-| `fn_reporte_crear(…)` | Valida, calcula `nivel`, `gestiona` y los plazos, guarda y **acusa recibo** (evento `acuse` a nombre de DO) |
+| `fn_reporte_crear(…)` | Valida, calcula `nivel`, `gestiona` y los plazos, guarda y **acusa recibo** (evento `acuse` a nombre de DO). **Si nadie activo puede recibirlo, lo rechaza** y orienta al sobre cerrado (48.7) y a los canales externos (48.9): guardarlo daría la falsa tranquilidad de haberlo presentado |
 | `fn_reporte_mensaje(reporte, texto, interno)` | Agrega al hilo. Solo quien gestiona puede escribir `interno = true` |
-| `fn_reporte_estado(reporte, estado, motivo)` | `recibido → en_revision`; nunca retrocede desde `cerrado` |
+| `fn_reporte_en_revision(reporte)` | `recibido → en_revision`. También pasa sola con la primera palabra de quien gestiona. Nunca retrocede desde `cerrado` |
+| `fn_reporte_anotar_accion(reporte, accion, nota)` | Conversación, mediación, cambio de proceso. **En el Título X no hay mediación ni conversación** (48.14) |
+| `fn_reporte_plazo_cumplir(reporte, clave, nota)` | Los plazos del Título X que son actos: salud, traslado, aviso al MTPE, informe. El informe es de quien investiga; DO lo registra solo si investiga una persona externa (48.2-bis b) |
+| `fn_reporte_indicios_delito(reporte, nota)` | Abre el plazo de 24 horas del 49.4 i) |
+| `fn_reporte_adjuntar`, `fn_reporte_abrir`, `fn_organo_titulo_x_guardar` / `_cerrar`, `fn_reporte_medida_cumplida` | Registrar evidencia; dejar rastro de cada apertura; nombrar a quien investiga (con acta, y nunca a DO: 48.3); la líder marca su instrucción |
 | `fn_reporte_reclasificar(reporte, via, motivo)` | Por ejemplo, la líder detecta que es de tipo sexual: pasa a `titulo_x` y **la líder pierde el acceso en el acto**. Eso cumple por sí solo el deber del 49.3 |
 | `fn_reporte_escalar(reporte, motivo)` | La líder sube el caso a DO (`gestiona = 'do'`) |
 | `fn_reporte_cerrar(reporte, resultado, texto)` | Exige el texto. En convivencia y Título X, **solo cierra DO** (decisiones 14 y 12) |
@@ -621,7 +624,7 @@ fusionar, porque fusionar a `main` es publicar:
    Es la prueba que más vale de toda la funcionalidad. Incluye el control: la
    misma consulta hecha por un `authenticated` sin función guardián no
    devuelve nada.
-2. **Funciones guardián y plazos**, con pgTAP de cada transición, del trigger
+2. ✅ **Hecho: migración 0484 + prueba 382 (120 aserciones)**. Los plazos viven en `reporte_plazos`, uno por fila, con su norma y su dueña. **Funciones guardián y plazos**, con pgTAP de cada transición, del trigger
    que bloquea el `UPDATE` directo, de la reclasificación que quita el acceso a
    la líder y de los vencimientos con un feriado en medio.
 3. **`/mio/reportes`**: formulario, «Mis reportes» y la fuente en la Bandeja.
