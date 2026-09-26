@@ -191,6 +191,7 @@ la segunda ronda no se sostiene.
 |---|---|---|
 | 18 | **Quién es la Gerencia General** | **Solo Felipe.** Los otros cuatro admins tienen el rol por temas operativos |
 | 19 | **Quién ve los reportes de las sedes** | **La líder de la sede, DO y la Gerencia General.** Los demás admins **no** ven reportes. Es el círculo más chico que cumple el Reglamento |
+| 21 | **Dónde va en el panel y cómo se llama** | En el grupo **Personas**, antes de Disciplina. En el panel se llama **«Casos»**, porque ya existe un grupo «Reportes» con informes (Hoja de sede, Exportar CSV); en /mio sigue siendo «Reportes». Sus plazos entran como una fuente más de la Bandeja del panel (`lib/admin/bandeja-fuentes.ts`), no como otra bandeja |
 | 20 | **La 0435 (`mensajes_encargada`)** | **Reportes la absorbe** con un quinto tipo, `consulta` («Consulta a mi líder»): vía 43-B, sin personas, con su plazo de 10 días hábiles. La 0435 no se borra ni recibe pantalla |
 
 ---
@@ -628,7 +629,8 @@ fusionar, porque fusionar a `main` es publicar:
 2. ✅ **Hecho: migración 0484 + prueba 382 (120 aserciones)**. Los plazos viven en `reporte_plazos`, uno por fila, con su norma y su dueña. **Funciones guardián y plazos**, con pgTAP de cada transición, del trigger
    que bloquea el `UPDATE` directo, de la reclasificación que quita el acceso a
    la líder y de los vencimientos con un feriado en medio.
-3. **`/mio/reportes`**: formulario, «Mis reportes» y la fuente en la Bandeja.
+3. ✅ **Hecho**: pestaña «Reportes» en /mio con su globito, `/mio/reportes/nuevo`,
+   `/mio/reportes/[id]`, la fuente en la Bandeja de /mio y la novedad. **`/mio/reportes`**: formulario, «Mis reportes» y la fuente en la Bandeja.
    Incluye la entrada en `novedades.ts`, sin montos, nombres ni nada
    disciplinario.
 4. **`/admin/reportes`**: bandeja, ficha, pantalla de órganos y

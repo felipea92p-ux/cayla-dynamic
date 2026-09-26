@@ -115,6 +115,17 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-09-26-reportes-en-info",
+    fecha: "2026-09-26",
+    titulo: "Nuevo en Info: «Reportes», para contar algo o proponer una mejora",
+    queMejoro:
+      "En Info hay una sección nueva, «Reportes». Ahí puedes contar algo que pasó con el equipo, con la empresa o con una clienta, proponer una idea de mejora o hacerle una consulta a tu líder, y ver en qué va y qué te respondieron. " +
+      "Lo lee solo quien lo gestiona, y antes de enviarlo la pantalla te dice quiénes lo van a leer.\n\n" +
+      "Si es algo de tipo sexual, o si hay un riesgo para alguien ahora, márcalo arriba del formulario: va por un camino aparte y con plazos propios, y tu líder no lo ve. " +
+      "La persona reportada nunca sabe quién reportó, y cada reporte tiene una fecha límite de respuesta escrita, que ves apenas lo envías.",
+    audiencia: "todos",
+  },
+  {
     id: "2026-09-20-dashboard-feriado-sin-turnos-pregunta",
     fecha: "2026-09-20",
     titulo: "Un feriado sin turnos ya no sale en rojo: el Dashboard pregunta si la sede abre",
