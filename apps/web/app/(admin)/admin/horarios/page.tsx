@@ -20,7 +20,7 @@ import { Drawer } from "@/components/ui/drawer";
 // cinco columnas por jornada, y esa no se lee en una columna estrecha con
 // scroll horizontal — va en Modal ancho="lg".
 import { Modal } from "@/components/ui/modal";
-import { ROLES_DO, hoyLima, puedeOperarEquipo, maximoSemanalPracticante, leCorrespondeHorario } from "@cayla-dynamic/shared";
+import { ROLES_DO, etiquetaDeSede, hoyLima, puedeOperarEquipo, maximoSemanalPracticante, leCorrespondeHorario, type EtiquetaDeSede } from "@cayla-dynamic/shared";
 // horasDia() reimplementaba (salida − entrada) − refrigerio a mano, sin el
 // ajuste "si la salida no es posterior a la entrada, el turno cruza
 // medianoche" que horasEntre() ya resuelve (turnos/page.tsx también la
@@ -365,6 +365,11 @@ export default function HorariosPage() {
   // cada carga.
   const [vigentesHoy, setVigentesHoy] = useState<Map<string, Horario>>(new Map());
   const [sedes, setSedes] = useState<Record<string, string>>({});
+  // Código → cómo se dice en pantalla. El código sigue siendo la llave de
+  // agrupar y filtrar; lo que cambia es lo que se lee: «Tienda · Lima» y no
+  // «003», «Oficina TRU» y no «OTRU» (etiquetaDeSede, mismo rótulo que
+  // Incidencias y Dashboard).
+  const [etiquetas, setEtiquetas] = useState<Map<string, EtiquetaDeSede>>(new Map());
   const [cargando, setCargando] = useState(true);
 
   // ── Buscador y filtros ──
@@ -432,7 +437,7 @@ export default function HorariosPage() {
     ] = await Promise.all([
       supabase.from("personas").select("id, nombres, apellidos, rol, sede_base_id, personal_direccion").eq("estado", "activo").order("nombres"),
       supabase.from("horarios_asignados").select("persona_id, hora_entrada, hora_salida, vigente_desde, almuerzo_min_minutos, almuerzo_max_minutos, dias_laborables, horario_por_dia").is("vigente_hasta", null),
-      supabase.from("sedes").select("id, codigo"),
+      supabase.from("sedes").select("id, codigo, nombre, tipo, ciudad"),
       // tipo_vinculo y practicante_modalidad no viajan en el select de arriba
       // (schema cache de PostgREST): para saber contra qué máximo avisar
       // hace falta esta RPC. Tolerante: si falla, nadie ve el aviso — no se
@@ -456,7 +461,9 @@ export default function HorariosPage() {
     );
     const abiertos = (h as Horario[]) ?? [];
     setHorarios(new Map(abiertos.map((x) => [x.persona_id, x])));
-    setSedes(Object.fromEntries(((s as any[]) ?? []).map((x) => [x.id, x.codigo])));
+    const filasSede = (s as { id: string; codigo: string; nombre: string; tipo: string | null; ciudad: string | null }[] | null) ?? [];
+    setSedes(Object.fromEntries(filasSede.map((x) => [x.id, x.codigo])));
+    setEtiquetas(new Map(filasSede.map((x) => [x.codigo, etiquetaDeSede(x)])));
 
     // El tramo abierto puede empezar a futuro (alguien programó un cambio de
     // horario). Para esas personas nada más, trae el tramo que cubre HOY —
@@ -757,12 +764,16 @@ export default function HorariosPage() {
     );
   }
 
-  const todasLasSedes = [...new Set(editables.map((p) => sedes[p.sede_base_id] ?? "?"))].sort();
+  const rotuloDeSede = (codigo: string) => etiquetas.get(codigo)?.titulo ?? codigo;
+  // Por el rótulo, no por el código: así las dos sedes de Lima quedan juntas
+  // y «003» deja de ir primero solo por empezar con un número.
+  const porRotulo = (a: string, b: string) => rotuloDeSede(a).localeCompare(rotuloDeSede(b), "es");
+  const todasLasSedes = [...new Set(editables.map((p) => sedes[p.sede_base_id] ?? "?"))].sort(porRotulo);
   // RxH y dirección (Gerencia General) no llevan horario: no tenerlo es lo
   // correcto, así que ni cuentan como "sin horario" ni entran al aviso.
   const leCorresponde = (p: Persona) => leCorrespondeHorario(p.tipo_vinculo, p.personal_direccion);
   const sinHorarioLista = filtrados.filter((p) => !estadoDeHoy(p).con && leCorresponde(p));
-  const porSede = [...new Set(filtrados.map((p) => sedes[p.sede_base_id] ?? "?"))].sort();
+  const porSede = [...new Set(filtrados.map((p) => sedes[p.sede_base_id] ?? "?"))].sort(porRotulo);
 
   // Resumen superior: sobre `editables` (todo lo que puedes ver), no sobre
   // `filtrados` — si no, los números cambiarían con el filtro que ellos
@@ -802,7 +813,7 @@ export default function HorariosPage() {
         <h1 className="mb-1 font-serif text-2xl">Horarios base</h1>
         <div className="mb-5 flex max-w-2xl items-start gap-1.5">
           <p className="text-sm text-taupe">
-            Define la jornada semanal y descansos de cada colaborador. Los cambios conservan el historial y pueden
+            Define la jornada semanal y los descansos de cada integrante. Los cambios conservan el historial y pueden
             aplicarse desde una fecha determinada.
           </p>
           <button
@@ -859,7 +870,7 @@ export default function HorariosPage() {
               </div>
               <CampoSelect value={filtroSede} onChange={(e) => setFiltroSede(e.target.value)} aria-label="Filtrar por sede">
                 <option value="">Todas las sedes</option>
-                {todasLasSedes.map((sd) => <option key={sd} value={sd}>{sd}</option>)}
+                {todasLasSedes.map((sd) => <option key={sd} value={sd}>{etiquetas.get(sd)?.texto ?? sd}</option>)}
               </CampoSelect>
               <CampoSelect value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value as typeof filtroEstado)} aria-label="Filtrar por estado">
                 <option value="">Cualquier estado</option>
@@ -915,7 +926,10 @@ export default function HorariosPage() {
           const deSede = filtrados.filter((p) => (sedes[p.sede_base_id] ?? "?") === sede);
           return (
             <section key={sede} className="mb-8">
-              <h2 className="mb-2 font-serif text-lg">{sede}</h2>
+              <h2 className="mb-2 flex items-baseline gap-2">
+                <span className="font-serif text-lg">{rotuloDeSede(sede)}</span>
+                {rotuloDeSede(sede) !== sede && <span className="text-sm text-taupe">{sede}</span>}
+              </h2>
 
               {/* Escritorio y tablet: tabla. Cabecera fija dentro de su propia
                   sede si crece lo suficiente (alturaMaxima es lo que activa
@@ -923,15 +937,23 @@ export default function HorariosPage() {
                   Con ~30 personas en 4 sedes esto casi nunca llega a hacer
                   scroll propio; cuando una sede sí crezca, ya está listo. */}
               <div className="hidden sm:block">
-                <Tabla className="[font-variant-numeric:tabular-nums]" alturaMaxima="60vh">
+                {/* table-fixed con los mismos anchos en todas las sedes: cada
+                    sede es su propia tabla, y con el ancho automático cada una
+                    repartía las columnas a su manera — «Horario» caía en un
+                    sitio distinto en AQP, CCO, LIM y TRU. Descanso se queda
+                    con lo que sobra: los fijos están medidos para que la
+                    fecha y el enlace de corrección quepan en una línea, y
+                    Nombre lleva un porcentaje para no quedar en 70 px —y un
+                    nombre en cinco renglones— cuando la ventana es angosta. */}
+                <Tabla className="[font-variant-numeric:tabular-nums] [&>table]:table-fixed" alturaMaxima="60vh">
                   <TablaEncabezado>
                     <Th className="w-9">{null}</Th>
-                    <Th>Nombre</Th>
-                    <Th>Horario</Th>
-                    <Th>Horas semanales</Th>
+                    <Th className="w-[19%]">Nombre</Th>
+                    <Th className="w-[16%]">Horario</Th>
+                    <Th className="w-24">Horas semanales</Th>
                     <Th>Descanso</Th>
-                    <Th>Vigente desde</Th>
-                    <Th>{null}</Th>
+                    <Th className="w-[7.5rem]">Vigente desde</Th>
+                    <Th className="w-48">{null}</Th>
                   </TablaEncabezado>
                   <tbody>
                     {deSede.map((p) => {
@@ -974,7 +996,7 @@ export default function HorariosPage() {
                                 <button
                                   type="button"
                                   onClick={() => setSemanaExpandida((x) => (x === p.id ? null : p.id))}
-                                  className="text-pizarra hover:text-tinta"
+                                  className="text-left text-pizarra hover:text-tinta"
                                 >
                                   varía por día · {expandida ? "Ocultar" : "Ver semana →"}
                                 </button>
@@ -1003,21 +1025,26 @@ export default function HorariosPage() {
                               )}
                             </td>
                             <td className="px-4 py-2 text-taupe">{a ? textoDescanso(a.dias) : "—"}</td>
-                            <td className="px-4 py-2 text-taupe">{h ? fechaCorta(h.vigente_desde) : "—"}</td>
+                            <td className="whitespace-nowrap px-4 py-2 text-taupe">{h ? fechaCorta(h.vigente_desde) : "—"}</td>
                             <td className="px-4 py-2">
-                              <div className="flex items-center justify-end gap-3">
+                              {/* Uno debajo del otro y el enlace en una sola línea:
+                                  lado a lado no cabían, y «Corregir días ya
+                                  trabajados» se partía en tres renglones que
+                                  hacían cada fila el triple de alta. «Cambiar»
+                                  arriba porque es lo de todos los días. */}
+                              <div className="flex flex-col items-end gap-1">
                                 {/* «corregir pasado» hasta el 2026-09-15: no decía que
                                     vuelve a medir días ya pagados. Al lado de «Cambiar»
                                     (de hoy en adelante), el nombre tiene que marcar la
                                     diferencia sin que nadie la explique. */}
-                                {h && (
-                                  <Boton variante="enlace" tamano="sm" onClick={() => abrirRetro(p)}>
-                                    Corregir días ya trabajados
-                                  </Boton>
-                                )}
                                 <Boton variante="secundario" tamano="sm" onClick={(e) => abrirEdicion(p, e.currentTarget)}>
                                   {abierto ? "Cambiar" : "Asignar"}
                                 </Boton>
+                                {h && (
+                                  <Boton variante="enlace" tamano="sm" className="whitespace-nowrap text-xs" onClick={() => abrirRetro(p)}>
+                                    Corregir días ya trabajados
+                                  </Boton>
+                                )}
                               </div>
                             </td>
                           </Fila>
@@ -1062,7 +1089,7 @@ export default function HorariosPage() {
                           />
                           <span>
                             <span className="block text-sm font-medium text-tinta">{p.nombres} {p.apellidos}</span>
-                            <span className="block text-xs text-taupe">{sede}</span>
+                            <span className="block text-xs text-taupe">{rotuloDeSede(sede)}</span>
                           </span>
                         </label>
                         <Boton variante="secundario" tamano="sm" onClick={(e) => abrirEdicion(p, e.currentTarget)}>

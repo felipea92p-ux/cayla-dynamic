@@ -115,6 +115,16 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-09-26-horarios-sedes-con-nombre-y-filas-compactas",
+    fecha: "2026-09-26",
+    titulo: "Horarios base dice el nombre de cada sede y se lee en menos espacio",
+    queMejoro:
+      "En Horarios base, las sedes aparecían con su código: «003» y «OTRU» no le decían a nadie qué sede eran. " +
+      "Ahora cada bloque lleva el mismo nombre que en Incidencias y el Dashboard —«Tienda · Lima», «Oficina TRU», «Taller · Lima»— con el código al lado, y el filtro de sedes también.\n\n" +
+      "Además, las columnas quedan en el mismo sitio en todas las sedes, y «Corregir días ya trabajados» va debajo de «Cambiar», en una sola línea: antes se partía en tres renglones y cada fila ocupaba el triple de alto.",
+    audiencia: "panel",
+  },
+  {
     id: "2026-09-20-dashboard-feriado-sin-turnos-pregunta",
     fecha: "2026-09-20",
     titulo: "Un feriado sin turnos ya no sale en rojo: el Dashboard pregunta si la sede abre",
