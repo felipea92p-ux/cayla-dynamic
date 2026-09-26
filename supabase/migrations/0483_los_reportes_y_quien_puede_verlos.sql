@@ -273,7 +273,9 @@ create table if not exists reportes (
   autor_id            uuid not null references personas(id),
   -- La sede DEL HECHO, no la de quien escribe: decide qué líder lo ve.
   sede_id             uuid not null references sedes(id),
-  tipo                text not null check (tipo in ('persona', 'empresa', 'clienta', 'idea')),
+  -- `consulta` absorbe el mensaje libre a la líder de la 0435 (plan, decisión
+  -- 20): un mensaje a la líder ES una consulta del 43-B y tiene su plazo.
+  tipo                text not null check (tipo in ('persona', 'empresa', 'clienta', 'idea', 'consulta')),
   -- reclamo: 43-B · convivencia: 43-A · titulo_x: arts. 47–51.
   via                 text not null check (via in ('reclamo', 'convivencia', 'titulo_x')),
   urgente             boolean not null default false,

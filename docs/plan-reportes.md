@@ -191,6 +191,7 @@ la segunda ronda no se sostiene.
 |---|---|---|
 | 18 | **Quién es la Gerencia General** | **Solo Felipe.** Los otros cuatro admins tienen el rol por temas operativos |
 | 19 | **Quién ve los reportes de las sedes** | **La líder de la sede, DO y la Gerencia General.** Los demás admins **no** ven reportes. Es el círculo más chico que cumple el Reglamento |
+| 20 | **La 0435 (`mensajes_encargada`)** | **Reportes la absorbe** con un quinto tipo, `consulta` («Consulta a mi líder»): vía 43-B, sin personas, con su plazo de 10 días hábiles. La 0435 no se borra ni recibe pantalla |
 
 ---
 
@@ -217,6 +218,7 @@ contacto de tipo sexual, o hay un riesgo para alguien ahora?»*
 | La empresa (proceso, herramienta, sede, turnos, condiciones) | Reclamo (43-B) | |
 | Una clienta | Reclamo (43-B) | Si el hecho es de tipo sexual, pasa al Título X, que también alcanza a clientas (47.7) |
 | Una idea de mejora | Reclamo (43-B), como sugerencia | |
+| Una consulta a mi líder | Reclamo (43-B), como consulta | Absorbe la 0435 (decisión 20). Llega a la líder de la sede |
 
 **Paso 2 · Qué pasó.** Texto libre. En la Fase 2, la IA ayuda a contar hechos
 (qué, cuándo, dónde) sin juicios.
@@ -601,12 +603,14 @@ con cargo (60.6), y la pantalla Normas ya sabe registrar ese acuse (60.3 c).
    9 de septiembre de 2026. Sin ese dato, `organos_titulo_x` arranca vacía y
    todo reporte del Título X nace con alerta.
 3. **Mapa de conflictos:** ¿se confirma que solo lo ven la Gerencia General y DO? (La sección 12 decía «admin y DO»; con la decisión 19, los otros admins quedan fuera.)
-4. **¿Qué pasa con la 0435 (`mensajes_encargada`)?** Ya existe en la base, sin
-   pantalla. Un mensaje a la líder **es** una consulta del 43-B, así que le
-   corre el mismo plazo de 10 hábiles; si viven separados, uno de los dos
-   caminos no cuenta el plazo. **Recomendación:** Reportes absorbe ese caso
-   como un quinto tipo, «Consulta a mi líder», y la 0435 no recibe pantalla.
-   Antes, confirmar en producción que no tiene filas.
+4. ~~**¿Qué pasa con la 0435?**~~ **Decidido: Reportes la absorbe** (decisión
+   20). Queda por confirmar en producción que `mensajes_encargada` no tiene
+   filas, porque nunca tuvo pantalla. Si tiene, hay que decidir qué hacer con
+   esos mensajes antes de retirar sus funciones:
+
+   ```sql
+   select count(*) from mensajes_encargada;
+   ```
 5. **Retención:** ¿4 años desde el cierre, como propone la sección 14?
 6. **Proveedora de IA:** se decide en la Fase 2.
 

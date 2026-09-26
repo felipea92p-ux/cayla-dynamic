@@ -404,7 +404,7 @@ begin
   if p_via is null or p_via not in ('reclamo', 'convivencia', 'titulo_x') then
     raise exception 'Vía de reporte desconocida.';
   end if;
-  if p_tipo is null or p_tipo not in ('persona', 'empresa', 'clienta', 'idea') then
+  if p_tipo is null or p_tipo not in ('persona', 'empresa', 'clienta', 'idea', 'consulta') then
     raise exception 'Tipo de reporte desconocido.';
   end if;
   -- El Título X alcanza también a clientas (47.7); la convivencia es entre personas.
@@ -417,8 +417,12 @@ begin
   if p_tipo = 'persona' and p_via <> 'titulo_x' and cardinality(v_inv) = 0 then
     raise exception 'Elige a la persona sobre la que reportas.';
   end if;
-  if p_tipo in ('empresa', 'idea') and cardinality(v_inv) > 0 then
-    raise exception 'Un reporte sobre la empresa o una idea no nombra a personas involucradas.';
+  if p_tipo in ('empresa', 'idea', 'consulta') and cardinality(v_inv) > 0 then
+    raise exception 'Un reporte sobre la empresa, una idea o una consulta no nombra a personas involucradas.';
+  end if;
+  -- Una consulta es del 43-B, siempre: la absorbida 0435 (plan, decisión 20).
+  if p_tipo = 'consulta' and p_via <> 'reclamo' then
+    raise exception 'Una consulta a tu líder va por el 43-B: consultas, reclamos y sugerencias.';
   end if;
 
   if v_yo = any(v_inv) or v_yo = any(v_tes) then

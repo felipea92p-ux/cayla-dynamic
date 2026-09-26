@@ -28,7 +28,7 @@
 -- dentro de begin/rollback.
 -- ============================================================================
 begin;
-select plan(120);
+select plan(125);
 
 -- ── Semilla ──────────────────────────────────────────────────────────────
 insert into sedes (id, codigo, nombre, activa, tipo) values
@@ -106,6 +106,19 @@ select lives_ok($$ select fn_reporte_crear('persona', 'titulo_x', '00000000-0000
 select is((select gestiona from reportes where relato = 'X1 Queja de hostigamiento'), 'do',
   'el Título X lo recibe DO');
 
+-- La consulta a la líder (absorbe la 0435): va a la líder, con el plazo del 43-B.2.
+select lives_ok($$ select fn_reporte_crear('consulta', 'reclamo', '00000000-0000-0000-0000-0000000e5001',
+                     fn_hoy_lima(), 'Q1 ¿Cuándo sale el rol de la próxima semana?') $$,
+  'Ana le escribe una consulta a su líder');
+select is((select gestiona from reportes where relato = 'Q1 ¿Cuándo sale el rol de la próxima semana?'), 'lider',
+  'la consulta la lleva la líder de la sede');
+select is((pg_temp.plazo('Q1 ¿Cuándo sale el rol de la próxima semana?', 'respuesta')).vence_at, pg_temp.habil(10),
+  'y tiene el plazo de 10 días hábiles que la 0435 no contaba');
+select throws_like($$ select fn_reporte_crear('consulta', 'convivencia', '00000000-0000-0000-0000-0000000e5001', fn_hoy_lima(), 'x') $$,
+  '%persona del equipo%', 'una consulta no va por convivencia');
+select throws_like($$ select fn_reporte_crear('consulta', 'reclamo', '00000000-0000-0000-0000-0000000e5001', fn_hoy_lima(), 'x',
+                        array['00000000-0000-0000-0000-0000000e0002']::uuid[]) $$,
+  '%no nombra%', 'ni nombra a personas');
 select throws_like($$ select fn_reporte_crear('empresa', 'convivencia', '00000000-0000-0000-0000-0000000e5001', fn_hoy_lima(), 'x') $$,
   '%persona del equipo%', 'convivencia es entre personas');
 select throws_like($$ select fn_reporte_crear('persona', 'reclamo', '00000000-0000-0000-0000-0000000e5001', fn_hoy_lima(), 'x') $$,
@@ -380,16 +393,16 @@ select throws_like($$ select fn_reporte_abrir(pg_temp.id_de('R1 El aire acondici
 
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000f0003', true);
 select is((select string_agg(left(r.relato, 2), ',' order by r.relato) from fn_reportes_bandeja() b join reportes r on r.id = b.id),
-  'R1', 'la bandeja de la líder: lo abierto de su sede sobre nadie o sobre colaboradoras');
+  'Q1,R1', 'la bandeja de la líder: lo abierto de su sede sobre nadie o sobre colaboradoras');
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000f0005', true);
 select is((select string_agg(left(r.relato, 2), ',' order by r.relato) from fn_reportes_bandeja() b join reportes r on r.id = b.id),
-  'C2,R1,X1,X2', 'la bandeja de DO: lo abierto, y el X1 cerrado porque le queda el aviso al MTPE');
+  'C2,Q1,R1,X1,X2', 'la bandeja de DO: lo abierto, y el X1 cerrado porque le queda el aviso al MTPE');
 select is((select semaforo from fn_reportes_bandeja() where codigo = (select codigo from reportes where relato = 'X1 Queja de hostigamiento')),
   'por_vencer', 'con su semáforo: el traslado vence en un día hábil');
 
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000f0001', true);
-select is((select count(*)::int from fn_reportes_mios()), 6,
-  'Ana ve sus seis reportes en «Mis reportes»');
+select is((select count(*)::int from fn_reportes_mios()), 7,
+  'Ana ve sus siete reportes en «Mis reportes»');
 select is((select mensajes from fn_reportes_mios() where id = pg_temp.id_de('C1 Bea me grita delante de clientas')), 2,
   'con los mensajes que le tocan, sin notas internas');
 select is((select cierre_texto from fn_reportes_mios() where id = pg_temp.id_de('I1 Un perchero en la trastienda')),
