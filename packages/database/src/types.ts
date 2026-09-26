@@ -7478,6 +7478,124 @@ export type Database = {
         Args: { p_grupo?: string | null; p_motivo: string | null; p_periodo_id: string | null }
         Returns: Json
       }
+      fn_reporte_abrir: { Args: { p_reporte: string | null }; Returns: string }
+      fn_reporte_adjuntar: {
+        Args: {
+          p_interno?: boolean | null
+          p_path: string | null
+          p_reporte: string | null
+        }
+        Returns: string
+      }
+      fn_reporte_adjuntos: {
+        Args: { p_reporte: string | null }
+        Returns: {
+          bytes: number | null
+          creado_at: string
+          es_mio: boolean
+          id: string
+          interno: boolean
+          mimetype: string | null
+          storage_path: string
+        }[]
+      }
+      fn_reporte_crear: {
+        Args: {
+          p_espera?: string | null
+          p_fecha_hecho: string | null
+          p_involucradas?: string[] | null
+          p_primera_vez?: boolean | null
+          p_relato: string | null
+          p_sede: string | null
+          p_testigos?: string[] | null
+          p_ticket?: string | null
+          p_tipo: string | null
+          p_urgente?: boolean | null
+          p_via: string | null
+          p_ya_conversado?: string | null
+        }
+        Returns: {
+          codigo: string
+          id: string
+        }[]
+      }
+      fn_reporte_detalle: {
+        Args: { p_reporte: string | null }
+        Returns: {
+          cerrado_at: string | null
+          cierre_texto: string | null
+          codigo: string
+          creado_at: string
+          espera: string | null
+          estado: string
+          fecha_hecho: string
+          id: string
+          mi_papel: string
+          relato: string
+          respuesta_vence_at: string | null
+          sede_codigo: string
+          tipo: string
+          urgente: boolean
+          via: string
+        }[]
+      }
+      fn_reporte_hilo: {
+        Args: { p_reporte: string | null }
+        Returns: {
+          creado_at: string
+          es_mio: boolean
+          id: string
+          interno: boolean
+          quien: string
+          texto: string
+        }[]
+      }
+      fn_reporte_mensaje: {
+        Args: {
+          p_interno?: boolean | null
+          p_reporte: string | null
+          p_responde_para?: string | null
+          p_texto: string | null
+        }
+        Returns: string
+      }
+      fn_reporte_padron: {
+        Args: never
+        Returns: {
+          cargo: string | null
+          id: string
+          nombre: string
+          sede_codigo: string | null
+        }[]
+      }
+      fn_reporte_quien_lo_leera: {
+        Args: {
+          p_involucradas: string[] | null
+          p_sede: string | null
+          p_testigos: string[] | null
+          p_via: string | null
+        }
+        Returns: {
+          cargo: string
+        }[]
+      }
+      fn_reportes_mios: {
+        Args: never
+        Returns: {
+          cerrado_at: string | null
+          cierre_texto: string | null
+          codigo: string
+          creado_at: string
+          estado: string
+          id: string
+          mensajes: number
+          respuesta_vence_at: string | null
+          sin_leer: number
+          tipo: string
+          ultimo_mensaje_at: string | null
+          via: string
+        }[]
+      }
       fn_resellar_dia: {
         Args: { p_fecha: string | null; p_persona_id: string | null }
         Returns: undefined
