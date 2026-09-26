@@ -276,9 +276,14 @@ Gerencia General, un reporte sobre cualquier admin pasaría por el 48.2-bis, y
 los cinco verían todos los reportes. La marca vive en `configuracion`, con la
 clave `gerencia_general` y el valor `{"persona_id": …}`. Es una sola fila y no
 una columna de `personas`, porque hay una sola persona y la pregunta es «quién
-es», no «¿esta persona lo es?». La cambia solo una función guardián,
-`fn_set_gerencia_general`, que deja rastro en `reporte_eventos` y avisa a DO.
-Como el nivel y la ruta de cada reporte se guardan al crearlo, **cambiar la
+es», no «¿esta persona lo es?». **Se cambia solo desde el SQL Editor**: un
+trigger rechaza cualquier escritura de esa fila que no venga de `postgres`,
+porque la RLS de `configuracion` (0007) deja escribir a cualquier admin, y
+cualquiera de los cinco podría marcarse a sí mismo. La 0483 la siembra desde
+`firmante_empresa` (0147), que ya apunta a Felipe. *(El borrador anterior
+proponía una función `fn_set_gerencia_general`; se descartó al construir,
+porque una función llamable desde el panel es justo la puerta que hay que
+cerrar.)* Como el nivel y la ruta de cada reporte se guardan al crearlo, **cambiar la
 marca no abre los reportes que ya existen**: quien se quita la marca no gana
 acceso a lo que se dijo de ella.
 
@@ -403,7 +408,6 @@ español y `grant` solo a `authenticated`.
 | Función | Hace |
 |---|---|
 | `fn_gerencia_general_id()` | La persona marcada en `configuracion.gerencia_general`, o `null` si falta. Si falta, los reportes de nivel 2 y 3 no tienen quién los gestione, y la bandeja de DO lo avisa |
-| `fn_set_gerencia_general(persona, motivo)` | Cambia la marca. Solo la puede llamar un admin; deja rastro y avisa a DO. No toca los reportes ya creados |
 | `fn_reporte_nivel_persona(persona)` | Del 0 al 3 según la tabla de escalones: el 3 es solo para quien devuelve `fn_gerencia_general_id()`, y el resto sale del rol **actual y activo** (`personas.estado = 'activo'`, como `fn_rol_actual` desde la 0374) |
 | **`fn_reporte_puede_ver(reporte)`** | **La regla de la sección 7.** Devuelve boolean, nunca `null` |
 | `fn_reporte_quien_lo_leera(via, sede, personas[])` | Lo que el paso final de la pantalla muestra: cargos, sin nombres |
@@ -424,10 +428,12 @@ las funciones, y un trigger `before update` en `reportes` rechaza cambios que
 no vengan de ellas (`current_user <> 'postgres'`). Es la cuarta instancia del
 molde, después de la 0261, las 0295/0296 y la 0342.
 
-**Bucket `reportes`**, privado: ruta `<reporte_id>/<uuid>.<ext>`. Las
-políticas de lectura y escritura llaman a `fn_reporte_puede_ver`, con el mismo
-molde que el bucket `expedientes` de la 0074. Formatos: imagen (con HEIC,
-como la 0170) y PDF.
+**Bucket `reportes`**, privado: ruta `<reporte_id>/<uuid>.<ext>`, con las
+cuatro políticas que Storage necesita (lo aprendido en la 0482). Formatos:
+imagen (con HEIC, como la 0170) y PDF. Un archivo registrado en
+**`reporte_adjuntos`** ya es evidencia y no se pisa ni se borra; uno sin
+registrar está «libre». Es el molde de `boletas_partes`. Los adjuntos
+`interno` no los abre quien reportó.
 
 ---
 
@@ -608,7 +614,8 @@ con cargo (60.6), y la pantalla Normas ya sabe registrar ese acuse (60.3 c).
 **Fase 1, sin IA.** Cada paso es un PR, y la migración se pega **antes** de
 fusionar, porque fusionar a `main` es publicar:
 
-1. **Tablas, `fn_reporte_puede_ver`, RLS y bucket**, con pgTAP que recorre
+1. ✅ **Hecho: migración 0483 + prueba 381 (70 aserciones)**, en la rama
+   `claude/plan-reportes-fase1`. **Tablas, `fn_reporte_puede_ver`, RLS y bucket**, con pgTAP que recorre
    **cada celda de las dos tablas de la sección 7**: cada rol contra cada nivel,
    quien está mencionada, quien reporta, la investigadora, la Gerencia General apartada, los otros admins sin acceso y la `lider_do` inactiva.
    Es la prueba que más vale de toda la funcionalidad. Incluye el control: la
