@@ -40,7 +40,8 @@ La idea de Felipe:
 |---|---|---|
 | Espacio de la colaboradora | `/mio` (`apps/web/app/(mio)/mio/page.tsx`), arreglo `SECCIONES` | «Reportes» entra como sección, con subrutas `/mio/reportes/…` |
 | Roles | `packages/shared/src/enums.ts`: `integrante`, `supervisor_sede` (en pantalla, **líder de equipo**), `lider_do`, `admin` | Son los cuatro escalones de la cadena (sección 7) |
-| El cargo que corresponde a cada rol | `fn_cargo_de_rol` (0074): `admin` → **Gerencia General** | Para el Reglamento, «Gerencia General» es el rol admin. No se inventa otro campo |
+| El cargo que corresponde a cada rol | `fn_cargo_de_rol` (0074): `admin` → «Gerencia General» | **No sirve para Reportes.** Medido en producción el 2026-09-26: hay **5 admins activos** y la Gerencia General es **una sola persona**. Hace falta una marca propia (sección 7) |
+| Cuántas personas hay en DO | Medido en producción el 2026-09-26: **1 persona activa con `lider_do`**, que no es la Gerencia General | Hay quien reciba un reporte sobre la Gerencia General. Si esa persona se va, el camino del 48.2-bis se queda sin receptora (sección 15) |
 | Permisos | `packages/shared/src/permisos.ts` para la pantalla; RLS para la seguridad real (`fn_es_admin_o_lider`, `fn_rol_actual`, `fn_persona_actual_id`) | Una función nueva `puedeVerReportes` y la RLS propia de la sección 8 |
 | **Días hábiles** | **`fn_sumar_dias_habiles(desde, n)` (0212)**: salta sábados, domingos y `feriados`, y vence a las 23:59 de Lima | Todos los plazos del Reglamento se calculan con ella. **No se escribe otra** |
 | Mensaje libre a la líder | **`mensajes_encargada` (0435)**, con `fn_enviar_mensaje_encargada` y `fn_responder_mensaje_encargada`. **Sin pantalla**: ningún archivo de `apps/` la llama | Se solapa con Reportes: ver la decisión pendiente 15.4 |
@@ -172,13 +173,24 @@ Lo que el Reglamento ya fija y el diseño respeta:
 
 | # | Tema | Decisión |
 |---|---|---|
-| 11 | **La cadena** | **Colaboradora → líder de equipo → DO → admin.** Un reporte lo gestiona el escalón que está por encima de la persona reportada. Nunca le llega a quien es mencionada |
-| 12 | **Reporte sobre un admin** (Gerencia General, incluido Felipe) | Se sigue el **48.2-bis**: el admin queda apartado; **recibe y decide DO** (líder DO); investiga la Delegada o, si depende directamente del admin, una persona externa. No va a alguien «de rango parecido»: una socia o directora también puede ser denunciada por la misma regla |
+| 11 | **La cadena** | **Colaboradora → líder de equipo → DO → admin** (el último escalón es la Gerencia General, no cualquier admin: decisión 18). Un reporte lo gestiona el escalón que está por encima de la persona reportada. Nunca le llega a quien es mencionada |
+| 12 | **Reporte sobre la Gerencia General** (Felipe) | Se sigue el **48.2-bis**: la Gerencia General queda apartada; **recibe y decide DO** (líder DO); investiga la Delegada o, si depende directamente del admin, una persona externa. No va a alguien «de rango parecido»: una socia o directora también puede ser denunciada por la misma regla |
 | 13 | **La líder de equipo en reclamos y convivencia** | **Ve todo lo de su sede**, incluidos los conflictos entre compañeras y el acoso laboral, **para mediar y resolver primero**. DO recibe el aviso de todo, sin urgencia, y entra si el caso escala. **Si el reporte es sobre la líder, va directo a DO** |
 | 14 | **Acoso laboral (43-A)** | **La líder actúa y DO es dueña del plazo.** El sistema acusa recibo a nombre de DO y el cierre escrito de los 15 hábiles lo firma DO, que puede recoger lo que hizo la líder. Cumple el 43-A sin reformarlo |
 | 15 | **Título X en Dynamic** | **Orienta y también recibe la queja completa**, con acceso exclusivo |
 | 16 | **La líder y el Título X** | **No ve el contenido.** Apoya cuando DO se lo pide: recibe solo la instrucción de una medida de protección, como cambiar un turno, y la ejecuta. Felipe había propuesto que mediara; se descartó porque el 48.14 prohíbe la confrontación |
 | 17 | **Finalidad de datos (44.4)** | **La Fase 1 sale ya.** Antes de la IA y el mapa, una **v4.1 del Reglamento** agrega la finalidad, el plazo de conservación y la proveedora de IA |
+
+### Tercera ronda (misma fecha): con los números de producción
+
+Felipe corrió la consulta de la sección 15 en el SQL Editor: **5 admins
+activos y 1 `lider_do`**. Con eso, la ecuación «admin = Gerencia General» de
+la segunda ronda no se sostiene.
+
+| # | Tema | Decisión |
+|---|---|---|
+| 18 | **Quién es la Gerencia General** | **Solo Felipe.** Los otros cuatro admins tienen el rol por temas operativos |
+| 19 | **Quién ve los reportes de las sedes** | **La líder de la sede, DO y la Gerencia General.** Los demás admins **no** ven reportes. Es el círculo más chico que cumple el Reglamento |
 
 ---
 
@@ -251,12 +263,28 @@ Es el corazón del diseño y vive **una sola vez**, en `fn_reporte_puede_ver`
 
 ### Los escalones
 
-| Nivel | Rol | En pantalla |
+| Nivel | Quién | En pantalla |
 |---|---|---|
-| 0 | `integrante` | colaboradora |
-| 1 | `supervisor_sede` | líder de equipo |
-| 2 | `lider_do` | DO |
-| 3 | `admin` | Gerencia General (`fn_cargo_de_rol`) |
+| 0 | rol `integrante` | colaboradora |
+| 1 | rol `supervisor_sede` | líder de equipo |
+| 2 | rol `lider_do`, **y los admins que no son la Gerencia General** | DO · panel |
+| 3 | **la Gerencia General**: la persona marcada, no el rol (ver abajo) | Gerencia General |
+
+**La Gerencia General es una marca, no un rol.** En producción hay 5 admins
+y una sola Gerencia General (decisión 18). Si Reportes tomara `admin` como
+Gerencia General, un reporte sobre cualquier admin pasaría por el 48.2-bis, y
+los cinco verían todos los reportes. La marca vive en `configuracion`, con la
+clave `gerencia_general` y el valor `{"persona_id": …}`. Es una sola fila y no
+una columna de `personas`, porque hay una sola persona y la pregunta es «quién
+es», no «¿esta persona lo es?». La cambia solo una función guardián,
+`fn_set_gerencia_general`, que deja rastro en `reporte_eventos` y avisa a DO.
+Como el nivel y la ruta de cada reporte se guardan al crearlo, **cambiar la
+marca no abre los reportes que ya existen**: quien se quita la marca no gana
+acceso a lo que se dijo de ella.
+
+Los admins que no son la Gerencia General quedan en el nivel 2: un reporte
+sobre ellos lo gestiona la Gerencia General, igual que uno sobre DO. **Por
+tener el rol no ven reportes** (decisión 19).
 
 El **nivel del reporte** es el nivel más alto entre las personas
 **involucradas**. Las testigos no lo suben. Se guarda al crear el reporte, como
@@ -265,13 +293,13 @@ visible para quien antes no podía verlo.
 
 ### Reclamo (43-B) y convivencia (43-A)
 
-| Nivel del reporte | Líder de equipo de la sede del hecho | DO (`lider_do`) | Admin |
-|---|---|---|---|
-| Sin personas (empresa, clienta, idea) | ✅ gestiona | ✅ recibe aviso | ✅ |
-| 0 · sobre una colaboradora | ✅ **gestiona y media** | ✅ recibe aviso; entra si escala | ✅ |
-| 1 · sobre una líder de equipo | ❌ | ✅ **gestiona** | ✅ |
-| 2 · sobre DO | ❌ | ❌ | ✅ **gestiona** (43-A.5) |
-| 3 · sobre la Gerencia General | ❌ | ✅ **recibe y decide** (48.2-bis) | ❌ **apartado** |
+| Nivel del reporte | Líder de equipo de la sede del hecho | DO (`lider_do`) | Gerencia General | Otros admins |
+|---|---|---|---|---|
+| Sin personas (empresa, clienta, idea) | ✅ gestiona | ✅ recibe aviso | ✅ | ❌ |
+| 0 · sobre una colaboradora | ✅ **gestiona y media** | ✅ recibe aviso; entra si escala | ✅ | ❌ |
+| 1 · sobre una líder de equipo | ❌ | ✅ **gestiona** | ✅ | ❌ |
+| 2 · sobre DO o sobre otro admin | ❌ | ❌ si es sobre DO; ✅ si es sobre otro admin | ✅ **gestiona** (43-A.5) | ❌ |
+| 3 · sobre la Gerencia General | ❌ | ✅ **recibe y decide** (48.2-bis) | ❌ **apartada** | ❌ |
 
 Y siempre, para cualquier fila:
 
@@ -288,7 +316,8 @@ Y siempre, para cualquier fila:
 | Quien presenta la queja | La suya, con estado, plazos e hilo |
 | DO (`lider_do`) no mencionada | ✅ recibe y decide (48.1) |
 | La **investigadora** de la sede (Delegada titular; si está impedida, la suplente; mientras no haya, la designada) | ✅, salvo que esté mencionada (48.3) |
-| Admin | Solo si la queja es contra DO (48.2). **Nunca** si es contra la Gerencia General (48.2-bis a) |
+| Gerencia General | Solo si la queja es contra DO (48.2). **Nunca** si es contra ella (48.2-bis a) |
+| Otros admins | ❌ |
 | Líder de equipo | ❌ **Nunca el contenido.** Solo la **instrucción** de una medida de protección que DO le encargue, sin los hechos |
 | Persona externa del 48.2-bis b) | Trabaja fuera de Dynamic; DO registra sus actuaciones |
 
@@ -373,7 +402,9 @@ español y `grant` solo a `authenticated`.
 
 | Función | Hace |
 |---|---|
-| `fn_reporte_nivel_persona(persona)` | 0–3 según el rol **actual y activo** (`fn_rol_actual` de la 0374 ya ignora a las inactivas) |
+| `fn_gerencia_general_id()` | La persona marcada en `configuracion.gerencia_general`, o `null` si falta. Si falta, los reportes de nivel 2 y 3 no tienen quién los gestione, y la bandeja de DO lo avisa |
+| `fn_set_gerencia_general(persona, motivo)` | Cambia la marca. Solo la puede llamar un admin; deja rastro y avisa a DO. No toca los reportes ya creados |
+| `fn_reporte_nivel_persona(persona)` | Del 0 al 3 según la tabla de escalones: el 3 es solo para quien devuelve `fn_gerencia_general_id()`, y el resto sale del rol **actual y activo** (`personas.estado = 'activo'`, como `fn_rol_actual` desde la 0374) |
 | **`fn_reporte_puede_ver(reporte)`** | **La regla de la sección 7.** Devuelve boolean, nunca `null` |
 | `fn_reporte_quien_lo_leera(via, sede, personas[])` | Lo que el paso final de la pantalla muestra: cargos, sin nombres |
 | `fn_reporte_crear(…)` | Valida, calcula `nivel`, `gestiona` y los plazos, guarda y **acusa recibo** (evento `acuse` a nombre de DO) |
@@ -478,7 +509,7 @@ justificada pagada por el camino de siempre, para que la planilla la vea.
 
 Felipe eligió la opción más potente, que también es la más delicada:
 
-- **Lo ven solo admin y DO.** Las líderes no, porque en una sede de 4 personas
+- **Lo ven solo la Gerencia General y DO.** Ni los otros admins ni las líderes, porque en una sede de 4 personas
   «quién reporta a quién» deja de ser confidencial al instante. *(Pendiente de
   confirmar.)*
 - **Los casos del Título X y los que suben por la cadena** (reportes sobre
@@ -547,22 +578,20 @@ con cargo (60.6), y la pantalla Normas ya sabe registrar ese acuse (60.3 c).
 
 ## 15 · Lo que falta decidir o averiguar
 
-1. **¿Quién tiene hoy el rol `lider_do`?** Todo el camino «reporte sobre
-   Felipe» depende de que exista **al menos una persona activa con `lider_do`**
-   que no sea admin. Si DO es, en la práctica, Felipe, un reporte sobre él no
-   tiene quién lo reciba dentro de Dynamic, y la pantalla tendría que mandar al
-   sobre cerrado o al canal externo. Para verlo en el SQL Editor:
-
-   ```sql
-   select rol, count(*) filter (where estado = 'activo') as activas
-     from personas where rol in ('lider_do','admin') group by rol;
-   ```
-
+1. ~~**¿Quién tiene hoy el rol `lider_do`?**~~ **Respondido el 2026-09-26:** 1
+   `lider_do` y 5 admins activos. De ahí salen las decisiones 18 y 19 y la
+   marca de Gerencia General de la sección 7. **Lo que queda es un riesgo, no
+   una pregunta:** el camino del 48.2-bis depende de **una sola persona**. Si
+   la única `lider_do` se va o se ausenta, un reporte sobre la Gerencia General
+   no tiene quién lo reciba dentro de Dynamic. En ese caso, la pantalla debe
+   mandar al sobre cerrado (48.7) y al canal externo (48.9), y avisarlo al
+   crear el reporte, no después. La prueba pgTAP cubre este caso con la
+   `lider_do` inactiva.
 2. **¿Quién investiga el Título X en cada sede hoy?** La resolución transitoria
    tiene el nombre en blanco, y las elecciones de Delegada vencían el
    9 de septiembre de 2026. Sin ese dato, `organos_titulo_x` arranca vacía y
    todo reporte del Título X nace con alerta.
-3. **Mapa de conflictos:** ¿se confirma que solo lo ven admin y DO?
+3. **Mapa de conflictos:** ¿se confirma que solo lo ven la Gerencia General y DO? (La sección 12 decía «admin y DO»; con la decisión 19, los otros admins quedan fuera.)
 4. **¿Qué pasa con la 0435 (`mensajes_encargada`)?** Ya existe en la base, sin
    pantalla. Un mensaje a la líder **es** una consulta del 43-B, así que le
    corre el mismo plazo de 10 hábiles; si viven separados, uno de los dos
@@ -581,7 +610,7 @@ fusionar, porque fusionar a `main` es publicar:
 
 1. **Tablas, `fn_reporte_puede_ver`, RLS y bucket**, con pgTAP que recorre
    **cada celda de las dos tablas de la sección 7**: cada rol contra cada nivel,
-   quien está mencionada, quien reporta, la investigadora y el admin apartado.
+   quien está mencionada, quien reporta, la investigadora, la Gerencia General apartada, los otros admins sin acceso y la `lider_do` inactiva.
    Es la prueba que más vale de toda la funcionalidad. Incluye el control: la
    misma consulta hecha por un `authenticated` sin función guardián no
    devuelve nada.
