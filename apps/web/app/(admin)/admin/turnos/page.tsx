@@ -16,7 +16,7 @@ import { Modal } from "@/components/ui/modal";
 import { cuentaEnCobertura, hoyLima, puedeOperarEquipo, puedeVerTodasLasSedes } from "@cayla-dynamic/shared";
 import { diaDeLaSedeDe, esperadoDelDia, esTurnoEspejoViejo, horarioVigente, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
 import { cicloVigente, type DiaTrabajado } from "@/lib/admin/ciclo-sobretiempo";
-import { colorCobertura, etiquetaCobertura, etiquetaSedeSinTurnos, type TonoCobertura } from "@/lib/admin/cobertura-turnos";
+import { colorCobertura, etiquetaCobertura, etiquetaSedeSinTurnos, pintarCeldaIntegrada, ventanaDelDia, type TonoCobertura } from "@/lib/admin/cobertura-turnos";
 
 // ── Fechas (todo en ISO yyyy-mm-dd, semana de lunes a domingo) ──────────────
 function parseISO(iso: string): Date {
@@ -1208,6 +1208,10 @@ export default function TurnosPage() {
             }
             const hayGente = f1 >= f0;
             const filas = hayGente ? Array.from({ length: f1 - f0 + 1 }, (_, k) => f0 + k) : [];
+            // …pero lo que se MIDE es la ventana de cada día, como en la vista
+            // Semana: el domingo de TRU sale a las 18:15 y sus últimas franjas
+            // no son una falta (ver pintarCeldaIntegrada).
+            const ventanas = dias.map((_, di) => ventanaDelDia(covOp[di], covEnc[di]));
             const cols = "3.25rem repeat(7, minmax(0, 1fr))";
             return (
               <div>
@@ -1217,7 +1221,8 @@ export default function TurnosPage() {
                   <span className="inline-block h-1.5 w-1.5 translate-y-[1px] rounded-full bg-taupe" /> son líderes.
                   Un borde{" "}
                   <span className="inline-block h-2.5 w-2.5 translate-y-[2px] rounded-[2px]" style={{ outline: "1.5px dashed var(--color-ambar)", outlineOffset: "-1.5px" }} />{" "}
-                  ámbar punteado marca una franja bien cubierta pero sin ningún líder, donde sí se esperaba uno.
+                  ámbar punteado marca una franja con operativas pero sin ningún líder, donde sí se esperaba uno.
+                  Lo que queda antes de la primera entrada o después de la última salida de cada día no se mide.
                   Toca una celda para ver quién cubre y editar sus turnos.
                 </p>
                 {!hayGente ? (
@@ -1269,25 +1274,22 @@ export default function TurnosPage() {
                               const metaOp = metaDeHora(inicioFranja(fi), metas.get(dia) ?? 0, metasTarde.get(dia) ?? 0);
                               const metaEnc = metasEncargadas.get(dia) ?? 0;
                               const encFalta = metaEnc > 0 && nEnc < metaEnc;
-                              const bg = nOp > 0
-                                ? colorCobertura(nOp, metaOp)
-                                : nEnc > 0
-                                ? "color-mix(in srgb, var(--color-taupe) 12%, transparent)" // solo encargada esa hora
-                                : metaOp > 0
-                                ? "color-mix(in srgb, var(--color-rojo) 10%, transparent)" // meta puesta pero nadie: falta suave
-                                : "color-mix(in srgb, var(--color-sand) 35%, transparent)"; // sin meta: sand tenue
+                              const v = ventanas[di];
+                              const { fondo: bg, bordeSinLider, fueraDelDia } = pintarCeldaIntegrada({
+                                operativas: nOp, lideres: nEnc, metaOperativas: metaOp, metaLideres: metaEnc,
+                                dentroDelDia: v === null || (fi >= v.desde && fi <= v.hasta),
+                              });
                               const claro = nOp > 0;
                               // Cuando SÍ hay encargadas, el déficit contra la meta ya se ve en
                               // la opacidad de sus puntos. Pero si no hay NINGUNA (nEnc === 0),
                               // no hay puntos que atenuar — la franja quedaba en el mismo verde
                               // que una bien liderada, y el déficit de liderazgo se volvía
-                              // invisible. Solo se marca cuando la sede SÍ puso una meta de
-                              // encargadas para ese día (metaEnc > 0): sin meta, cero encargadas
-                              // es una franja normal, no un déficit.
-                              const sinEncargadaAlguna = encFalta && nEnc === 0;
+                              // invisible. Por eso el borde ámbar (bordeSinLider), que solo sale
+                              // con operativas en la franja y meta de líderes puesta ese día.
+                              const sinEncargadaAlguna = bordeSinLider;
                               return (
                                 <button key={iso} onClick={() => setPanel({ fecha: iso, franjaIdx: fi })}
-                                  title={`${t}–${decimalAHHMM(inicioFranja(fi) + 0.5)} · ${nOp} operativa${nOp === 1 ? "" : "s"}${metaOp > 0 ? ` (meta ${metaOp})` : ""}${nEnc > 0 ? ` · ${nEnc} ${nEnc === 1 ? "líder" : "líderes"}` : sinEncargadaAlguna ? ` · sin líder (meta ${metaEnc})` : ""}`}
+                                  title={fueraDelDia ? `${t}–${decimalAHHMM(inicioFranja(fi) + 0.5)} · fuera del horario de ese día` : `${t}–${decimalAHHMM(inicioFranja(fi) + 0.5)} · ${nOp} operativa${nOp === 1 ? "" : "s"}${metaOp > 0 ? ` (meta ${metaOp})` : ""}${nEnc > 0 ? ` · ${nEnc} ${nEnc === 1 ? "líder" : "líderes"}` : sinEncargadaAlguna ? ` · sin líder (meta ${metaEnc})` : ""}`}
                                   className="relative m-[1.5px] flex h-6 items-center justify-center rounded-[3px] text-[11px] font-medium tabular-nums transition-all hover:z-10 hover:ring-2 hover:ring-tinta/25"
                                   style={{
                                     background: bg,

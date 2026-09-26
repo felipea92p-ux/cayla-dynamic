@@ -11,7 +11,7 @@
 // vez, en gris. Con cualquier meta puesta se queda la alerta roja de siempre.
 // ============================================================================
 import { describe, expect, it } from "vitest";
-import { colorCobertura, etiquetaCobertura, etiquetaSedeSinTurnos } from "@/lib/admin/cobertura-turnos";
+import { colorCobertura, etiquetaCobertura, etiquetaSedeSinTurnos, pintarCeldaIntegrada, ventanaDelDia } from "@/lib/admin/cobertura-turnos";
 import { SEDE_SIN_TURNOS, diaDeLaSedeDe, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
 
 const base = { quien: "operativas" as const, hayGente: true, sinMeta: false, hayMeta: true, pct: 75 };
@@ -175,5 +175,62 @@ describe("etiquetaSedeSinTurnos — el domingo de Central", () => {
   it("basta una persona con turno para que ya no sea «Sin turnos», aunque las metas estén en 0", () => {
     const dia = diaDe(["a", "b"], { b: turno }, { a: [tramo("a", LUN_A_SAB)] });
     expect(etiquetaSedeSinTurnos(dia, META_0)).toBeNull();
+  });
+});
+
+// ----------------------------------------------------------------------------
+// La Vista Integrada y el domingo de TRU (2026-09-26): la semana sale a las
+// 20:15, el domingo a las 18:15. Las franjas del domingo después de su última
+// salida se pintaban como falta y con el borde de «sin líder».
+// ----------------------------------------------------------------------------
+describe("ventanaDelDia — de la primera entrada a la última salida", () => {
+  it("cuenta operativas y líderes por igual", () => {
+    expect(ventanaDelDia([0, 2, 3, 0, 0], [0, 0, 0, 1, 0])).toEqual({ desde: 1, hasta: 3 });
+  });
+
+  it("un hueco en medio del día sigue dentro de la ventana", () => {
+    expect(ventanaDelDia([2, 0, 0, 2], [0, 0, 0, 0])).toEqual({ desde: 0, hasta: 3 });
+  });
+
+  it("sin nadie en todo el día: null", () => {
+    expect(ventanaDelDia([0, 0], [0, 0])).toBeNull();
+  });
+});
+
+describe("pintarCeldaIntegrada — una franja de la sábana semanal", () => {
+  const celda = { operativas: 0, lideres: 0, metaOperativas: 5, metaLideres: 1, dentroDelDia: true };
+
+  it("domingo de TRU después de las 18:15: arena neutra, sin falta y sin borde", () => {
+    const r = pintarCeldaIntegrada({ ...celda, dentroDelDia: false });
+    expect(r.fondo).toContain("--color-sand");
+    expect(r.fondo).not.toContain("--color-rojo");
+    expect(r.bordeSinLider).toBe(false);
+    expect(r.fueraDelDia).toBe(true);
+  });
+
+  it("un hueco dentro del día con meta: falta suave, pero sin el borde de «sin líder»", () => {
+    const r = pintarCeldaIntegrada(celda);
+    expect(r.fondo).toContain("--color-rojo");
+    expect(r.bordeSinLider).toBe(false);
+    expect(r.fueraDelDia).toBe(false);
+  });
+
+  it("con operativas y sin ningún líder, habiendo meta de líderes: borde ámbar", () => {
+    const r = pintarCeldaIntegrada({ ...celda, operativas: 5 });
+    expect(r.fondo).toBe(colorCobertura(5, 5));
+    expect(r.bordeSinLider).toBe(true);
+  });
+
+  it("con operativas y sin meta de líderes: sin borde", () => {
+    expect(pintarCeldaIntegrada({ ...celda, operativas: 5, metaLideres: 0 }).bordeSinLider).toBe(false);
+  });
+
+  it("con operativas y un líder: sin borde", () => {
+    expect(pintarCeldaIntegrada({ ...celda, operativas: 5, lideres: 1 }).bordeSinLider).toBe(false);
+  });
+
+  it("un día entero sin nadie y con meta (se olvidó armar los turnos): sigue en falta", () => {
+    // La página pasa dentroDelDia = true cuando ventanaDelDia da null.
+    expect(pintarCeldaIntegrada(celda).fondo).toContain("--color-rojo");
   });
 });
