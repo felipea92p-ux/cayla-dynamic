@@ -28,7 +28,7 @@
 -- dentro de begin/rollback.
 -- ============================================================================
 begin;
-select plan(125);
+select plan(134);
 
 -- ── Semilla ──────────────────────────────────────────────────────────────
 insert into sedes (id, codigo, nombre, activa, tipo) values
@@ -379,17 +379,38 @@ select lives_ok($$ select fn_reporte_adjuntar(pg_temp.id_de('R1 El aire acondici
 select is((select bytes from reporte_adjuntos where storage_path = current_setting('t.adj')), 4321::bigint,
   'el peso sale del almacenamiento, no de lo que diga el navegador');
 
+select is((select sin_leer from fn_reportes_mios() where id = pg_temp.id_de('R1 El aire acondicionado no funciona')), 1,
+  'el aviso de fecha de DO le figura a Ana como una respuesta sin leer');
 select is(fn_reporte_abrir(pg_temp.id_de('R1 El aire acondicionado no funciona')), 'autora',
   'la autora abre su reporte');
+select is((select sin_leer from fn_reportes_mios() where id = pg_temp.id_de('R1 El aire acondicionado no funciona')), 0,
+  'y al abrirlo deja de estar sin leer');
+select is((select mi_papel from fn_reporte_detalle(pg_temp.id_de('R1 El aire acondicionado no funciona'))), 'autora',
+  'el detalle le dice a la pantalla que ella es la autora');
+select is((select count(*)::int from fn_reporte_adjuntos(pg_temp.id_de('R1 El aire acondicionado no funciona')) where es_mio), 1,
+  'y le lista su foto');
+select is((select string_agg(quien, ',' order by quien) from fn_reporte_hilo(pg_temp.id_de('C1 Bea me grita delante de clientas'))),
+  'Tú,Tu líder de equipo', 'en el hilo, quien respondió se nombra por su cargo en el caso, no por su nombre');
+select ok(not exists (select 1 from fn_reporte_padron() where id = '00000000-0000-0000-0000-0000000e0001'),
+  'el padrón no la incluye a ella misma');
+select ok(exists (select 1 from fn_reporte_padron() where id = '00000000-0000-0000-0000-0000000e0002'),
+  'y sí a sus compañeras, aunque la RLS de personas no se las deje leer');
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000f0005', true);
 select is(fn_reporte_abrir(pg_temp.id_de('R1 El aire acondicionado no funciona')), 'do',
   'DO lo abre');
-select is((select count(*)::int from reporte_eventos
-            where reporte_id = pg_temp.id_de('R1 El aire acondicionado no funciona') and tipo = 'lectura'), 1,
-  'y solo la apertura desde el panel deja rastro (44.13)');
+-- Se ordena por el motivo y no por `at`: dentro de la transacción de la prueba
+-- las dos aperturas empatan en now() (ver CLAUDE.md, «un orden que depende del
+-- orden físico no es un orden»).
+select is((select string_agg(detalle ->> 'motivo', ',' order by detalle ->> 'motivo') from reporte_eventos
+            where reporte_id = pg_temp.id_de('R1 El aire acondicionado no funciona') and tipo = 'lectura'), 'autora,do',
+  'cada apertura deja rastro, con quién abrió (44.13)');
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000f0007', true);
 select throws_like($$ select fn_reporte_abrir(pg_temp.id_de('R1 El aire acondicionado no funciona')) $$,
   '%No tienes acceso%', 'Otto, admin, no lo abre');
+select throws_like($$ select * from fn_reporte_detalle(pg_temp.id_de('R1 El aire acondicionado no funciona')) $$,
+  '%No tienes acceso%', 'ni lee su detalle');
+select throws_like($$ select * from fn_reporte_hilo(pg_temp.id_de('R1 El aire acondicionado no funciona')) $$,
+  '%No tienes acceso%', 'ni su hilo');
 
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000f0003', true);
 select is((select string_agg(left(r.relato, 2), ',' order by r.relato) from fn_reportes_bandeja() b join reportes r on r.id = b.id),

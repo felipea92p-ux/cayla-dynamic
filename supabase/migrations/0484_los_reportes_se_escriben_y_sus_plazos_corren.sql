@@ -68,6 +68,7 @@
 --     fn_reporte_medida_cumplida(uuid), fn_reporte_adjuntar(uuid, text, boolean),
 --     fn_reporte_abrir(uuid), fn_reporte_plazo_cumplir(uuid, text, text),
 --     fn_reporte_indicios_delito(uuid, text), fn_reportes_bandeja(), fn_reportes_mios(),
+--     fn_reporte_padron(), fn_reporte_detalle(uuid), fn_reporte_hilo(uuid), fn_reporte_adjuntos(uuid),
 --     fn_organo_titulo_x_guardar(uuid, uuid, text, date, text), fn_organo_titulo_x_cerrar(uuid, date, text),
 --     fn_reporte_plazo_abrir(uuid, text, timestamptz, timestamptz), fn_reporte_plazos_de_via(uuid),
 --     fn_reporte_gestora_inicial(uuid), fn_reporte_hay_quien(uuid, text),
@@ -978,9 +979,11 @@ begin
 end;
 $fn$;
 
--- La pantalla la llama al abrir la ficha: cada apertura desde el panel deja
--- rastro (44.13). Devuelve el motivo, para que la pantalla sepa qué botones
--- mostrar; quien reportó recibe 'autora'.
+-- La pantalla la llama al abrir la ficha: cada apertura deja rastro. Desde el
+-- panel es la trazabilidad del 44.13; la de quien reportó es lo que permite
+-- saber qué respuestas todavía no leyó (`fn_reportes_mios.sin_leer`). Devuelve
+-- el motivo, para que la pantalla sepa qué mostrar; quien reportó recibe
+-- 'autora'.
 create or replace function fn_reporte_abrir(p_reporte uuid)
 returns text
 language plpgsql
@@ -996,6 +999,7 @@ begin
     return v_motivo;
   end if;
   if fn_reporte_es_autor(p_reporte) then
+    perform fn_reporte_evento(p_reporte, 'lectura', '{"motivo": "autora"}');
     return 'autora';
   end if;
   raise exception 'No tienes acceso a este reporte.';
@@ -1080,22 +1084,164 @@ returns table (
   cierre_texto      text,
   respuesta_vence_at timestamptz,
   mensajes          int,
-  ultimo_mensaje_at timestamptz
+  ultimo_mensaje_at timestamptz,
+  -- Lo que le escribieron (o el cierre) DESPUÉS de la última vez que ella
+  -- abrió el reporte. Es el globito del menú y la fuente de su Bandeja.
+  sin_leer          int
 )
 language sql
 stable
 security definer
 set search_path = public
 as $fn$
+  with yo as (select fn_persona_actual_id() as id)
   select r.id, r.codigo, r.tipo, r.via, r.estado, r.creado_at, r.cerrado_at, r.cierre_texto,
          (select min(p.vence_at) from reporte_plazos p
            where p.reporte_id = r.id and p.cumplido_at is null and p.anulado_at is null
              and p.clave in ('respuesta', 'respuesta_prometida', 'resolucion', 'decision')),
          (select count(*)::int from reporte_mensajes m where m.reporte_id = r.id and not m.interno),
-         (select max(m.creado_at) from reporte_mensajes m where m.reporte_id = r.id and not m.interno)
+         (select max(m.creado_at) from reporte_mensajes m where m.reporte_id = r.id and not m.interno),
+         (select count(*)::int from reporte_mensajes m
+           where m.reporte_id = r.id and not m.interno and m.autor_id <> yo.id
+             and m.creado_at > coalesce(lec.at, '-infinity'::timestamptz))
+         + case when r.cerrado_at > coalesce(lec.at, '-infinity'::timestamptz) then 1 else 0 end
     from reportes r
-   where r.autor_id = fn_persona_actual_id()
+    cross join yo
+    left join lateral (
+      select max(e.at) as at from reporte_eventos e
+       where e.reporte_id = r.id and e.tipo = 'lectura' and e.por = yo.id
+    ) lec on true
+   where r.autor_id = yo.id
    order by r.creado_at desc, r.id;
+$fn$;
+
+-- ── 11b · Lo que leen las pantallas de un reporte ───────────────────────────
+-- Todo por funciones y no por las tablas: así la pantalla de quien reportó
+-- nunca recibe una columna que no le toca (el resultado, las notas internas,
+-- los nombres de quienes gestionan).
+
+-- El padrón para elegir a quién se reporta y quién lo vio. Una integrante no
+-- puede leer `personas` (RLS de la 0003): esto le da solo nombre, cargo y sede
+-- de las personas activas, que son datos que el equipo ya conoce.
+create or replace function fn_reporte_padron()
+returns table (id uuid, nombre text, cargo text, sede_codigo text)
+language sql
+stable
+security definer
+set search_path = public
+as $fn$
+  select p.id, p.nombres || ' ' || p.apellidos, p.cargo, s.codigo
+    from personas p
+    left join sedes s on s.id = p.sede_base_id
+   where p.estado = 'activo'
+     and fn_persona_actual_id() is not null
+     and p.id <> fn_persona_actual_id()
+   order by p.nombres, p.apellidos, p.id;
+$fn$;
+
+create or replace function fn_reporte_detalle(p_reporte uuid)
+returns table (
+  id                 uuid,
+  codigo             text,
+  tipo               text,
+  via                text,
+  estado             text,
+  urgente            boolean,
+  sede_codigo        text,
+  fecha_hecho        date,
+  relato             text,
+  espera             text,
+  creado_at          timestamptz,
+  cerrado_at         timestamptz,
+  cierre_texto       text,
+  respuesta_vence_at timestamptz,
+  mi_papel           text
+)
+language plpgsql
+stable
+security definer
+set search_path = public
+as $fn$
+declare
+  v_papel text := fn_reporte_motivo(p_reporte);
+begin
+  if v_papel is null then
+    if fn_reporte_es_autor(p_reporte) is not true then
+      raise exception 'No tienes acceso a este reporte.';
+    end if;
+    v_papel := 'autora';
+  end if;
+  return query
+  select r.id, r.codigo, r.tipo, r.via, r.estado, r.urgente, s.codigo, r.fecha_hecho, r.relato,
+         r.espera, r.creado_at, r.cerrado_at, r.cierre_texto,
+         (select min(p.vence_at) from reporte_plazos p
+           where p.reporte_id = r.id and p.cumplido_at is null and p.anulado_at is null
+             and p.clave in ('respuesta', 'respuesta_prometida', 'resolucion', 'decision')),
+         v_papel
+    from reportes r
+    join sedes s on s.id = r.sede_id
+   where r.id = p_reporte;
+end;
+$fn$;
+
+-- El hilo. Quien escribió se dice por su CARGO respecto de este caso («Tu
+-- líder de equipo», «Desarrollo Organizacional»), no por su nombre: es lo
+-- que la pantalla de quien reportó puede mostrar, y quien gestiona ya sabe
+-- quién es quién. Las notas internas solo salen para quien gestiona.
+create or replace function fn_reporte_hilo(p_reporte uuid)
+returns table (id uuid, texto text, interno boolean, creado_at timestamptz, es_mio boolean, quien text)
+language plpgsql
+stable
+security definer
+set search_path = public
+as $fn$
+declare
+  v_yo      uuid := fn_persona_actual_id();
+  v_gestora boolean := fn_reporte_puede_gestionar(p_reporte);
+  v_autor   uuid;
+begin
+  if not v_gestora and fn_reporte_es_autor(p_reporte) is not true then
+    raise exception 'No tienes acceso a este reporte.';
+  end if;
+  select autor_id into v_autor from reportes where reportes.id = p_reporte;
+  return query
+  select m.id, m.texto, m.interno, m.creado_at, m.autor_id = v_yo,
+         case
+           when m.autor_id = v_yo    then 'Tú'
+           when m.autor_id = v_autor then 'Quien reportó'
+           else coalesce(case fn_reporte_motivo_de(p_reporte, m.autor_id)
+                  when 'lider'         then case when v_gestora then 'Líder de equipo' else 'Tu líder de equipo' end
+                  when 'do'            then 'Desarrollo Organizacional'
+                  when 'gerencia'      then 'Gerencia General'
+                  when 'investigadora' then 'Quien investiga'
+                end, 'Quien gestionó el caso')
+         end
+    from reporte_mensajes m
+   where m.reporte_id = p_reporte
+     and (v_gestora or not m.interno)
+   order by m.creado_at, m.id;
+end;
+$fn$;
+
+create or replace function fn_reporte_adjuntos(p_reporte uuid)
+returns table (id uuid, storage_path text, mimetype text, bytes bigint, interno boolean, creado_at timestamptz, es_mio boolean)
+language plpgsql
+stable
+security definer
+set search_path = public
+as $fn$
+declare
+  v_gestora boolean := fn_reporte_puede_gestionar(p_reporte);
+begin
+  if not v_gestora and fn_reporte_es_autor(p_reporte) is not true then
+    raise exception 'No tienes acceso a este reporte.';
+  end if;
+  return query
+  select a.id, a.storage_path, a.mimetype, a.bytes, a.interno, a.creado_at, a.subido_por = fn_persona_actual_id()
+    from reporte_adjuntos a
+   where a.reporte_id = p_reporte and (v_gestora or not a.interno)
+   order by a.creado_at, a.id;
+end;
 $fn$;
 
 
@@ -1203,6 +1349,10 @@ grant execute on function
   fn_reporte_indicios_delito(uuid, text),
   fn_reportes_bandeja(),
   fn_reportes_mios(),
+  fn_reporte_padron(),
+  fn_reporte_detalle(uuid),
+  fn_reporte_hilo(uuid),
+  fn_reporte_adjuntos(uuid),
   fn_organo_titulo_x_guardar(uuid, uuid, text, date, text),
   fn_organo_titulo_x_cerrar(uuid, date, text)
 to authenticated;
@@ -1224,6 +1374,10 @@ revoke execute on function
   fn_reporte_indicios_delito(uuid, text),
   fn_reportes_bandeja(),
   fn_reportes_mios(),
+  fn_reporte_padron(),
+  fn_reporte_detalle(uuid),
+  fn_reporte_hilo(uuid),
+  fn_reporte_adjuntos(uuid),
   fn_organo_titulo_x_guardar(uuid, uuid, text, date, text),
   fn_organo_titulo_x_cerrar(uuid, date, text)
 from public, anon;
@@ -1256,6 +1410,7 @@ select
      'fn_reporte_reclasificar','fn_reporte_escalar','fn_reporte_cerrar','fn_reporte_derivar',
      'fn_reporte_medida','fn_reporte_medida_cumplida','fn_reporte_adjuntar','fn_reporte_abrir',
      'fn_reporte_plazo_cumplir','fn_reporte_indicios_delito','fn_reportes_bandeja','fn_reportes_mios',
-     'fn_organo_titulo_x_guardar','fn_organo_titulo_x_cerrar')) as funciones_de_18,
+     'fn_organo_titulo_x_guardar','fn_organo_titulo_x_cerrar','fn_reporte_padron','fn_reporte_detalle',
+     'fn_reporte_hilo','fn_reporte_adjuntos')) as funciones_de_22,
   (select count(*) from migraciones_aplicadas where numero = 483) as la_0483_esta,
   (select numero || ' · ' || nombre from migraciones_aplicadas where numero = 484) as registro;
