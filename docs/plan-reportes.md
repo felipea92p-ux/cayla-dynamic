@@ -605,12 +605,9 @@ con cargo (60.6), y la pantalla Normas ya sabe registrar ese acuse (60.3 c).
 3. **Mapa de conflictos:** ¿se confirma que solo lo ven la Gerencia General y DO? (La sección 12 decía «admin y DO»; con la decisión 19, los otros admins quedan fuera.)
 4. ~~**¿Qué pasa con la 0435?**~~ **Decidido: Reportes la absorbe** (decisión
    20). Queda por confirmar en producción que `mensajes_encargada` no tiene
-   filas, porque nunca tuvo pantalla. Si tiene, hay que decidir qué hacer con
-   esos mensajes antes de retirar sus funciones:
-
-   ```sql
-   select count(*) from mensajes_encargada;
-   ```
+   filas, porque nunca tuvo pantalla. **Medido en producción el 2026-09-26:
+   0 filas.** No hay mensajes que migrar; retirar sus dos funciones es seguro
+   y puede ir en cualquier migración futura.
 5. **Retención:** ¿4 años desde el cierre, como propone la sección 14?
 6. **Proveedora de IA:** se decide en la Fase 2.
 

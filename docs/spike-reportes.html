@@ -211,6 +211,7 @@ hr { border:0; border-top:1px solid var(--color-sand); margin:18px 0; }
   <button data-ir="nuevo">Nuevo reporte</button>
   <button data-ir="detalle">Un reporte</button>
   <span style="opacity:.7;margin-left:6px">Panel:</span>
+  <button data-ir="dash">Dashboard</button>
   <button data-ir="bandeja">Bandeja</button>
   <button data-ir="ficha">Ficha del caso</button>
   <span class="sep"></span>
@@ -232,10 +233,10 @@ hr { border:0; border-top:1px solid var(--color-sand); margin:18px 0; }
       <div class="item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5M12 7v5l4 2"/></svg>Historial</div>
     </nav>
     <nav id="menu-panel" class="oculto">
-      <div class="item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>Dashboard</div>
+      <div class="item" data-ir="dash" id="item-dash"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>Dashboard</div>
       <div class="item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>Equipo</div>
       <div class="item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4M12 17h.01"/></svg>Incidencias</div>
-      <div class="item on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/></svg>Reportes<span class="ins contador pill">3</span></div>
+      <div class="item on" data-ir="bandeja" id="item-reportes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/></svg>Reportes<span class="ins contador pill" id="contador-panel">3</span></div>
       <div class="item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v18M3 7h18M5 7l-2 7h6L7 7M19 7l-2 7h6l-2-7"/></svg>Disciplina</div>
     </nav>
     <div class="pie"><div class="item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>Salir</div></div>
@@ -473,6 +474,90 @@ hr { border:0; border-top:1px solid var(--color-sand); margin:18px 0; }
       </div>
     </section>
 
+    <!-- ═══════════ 3b · PANEL · DASHBOARD ═══════════ -->
+    <section class="contenido oculto" id="p-dash">
+      <div class="cabecera">
+        <div>
+          <p class="etiqueta">Panel · Dashboard</p>
+          <h1>Buenos días, Felipe</h1>
+          <p class="muted" style="margin-top:4px">Sábado 26 de septiembre · así se vería la tarjeta de Reportes junto a las que ya existen.</p>
+        </div>
+        <div class="filtros" style="margin:0" id="quien-mira-dash">
+          <button class="on" data-mira="gg">Como Gerencia General</button>
+          <button data-mira="admin">Como otro admin</button>
+        </div>
+      </div>
+
+      <div class="grid2" style="grid-template-columns:repeat(auto-fit,minmax(260px,1fr))">
+        <div class="tarjeta" style="opacity:.55">
+          <p class="etiqueta" style="margin:0 0 6px">Hoy en las sedes</p>
+          <p style="margin:0;font-family:var(--font-serif);font-size:26px">18 de 21</p>
+          <p class="muted" style="margin:0">personas marcaron entrada · tarjeta que ya existe</p>
+        </div>
+        <div class="tarjeta" style="opacity:.55">
+          <p class="etiqueta" style="margin:0 0 6px">Incidencias</p>
+          <p style="margin:0;font-family:var(--font-serif);font-size:26px">4</p>
+          <p class="muted" style="margin:0">por revisar · tarjeta que ya existe</p>
+        </div>
+
+        <div class="tarjeta" id="tarjeta-reportes" style="border-color:color-mix(in srgb, var(--color-rojo) 30%, var(--color-sand))">
+          <div class="fila" style="justify-content:space-between;margin-bottom:8px">
+            <p class="etiqueta" style="margin:0">Reportes</p>
+            <span class="ins alerta">1 vencido</span>
+          </div>
+          <p style="margin:0;font-family:var(--font-serif);font-size:26px">5 abiertos</p>
+          <p class="muted" style="margin:0 0 12px">1 urgente · 1 del Título X · 1 sobre DO, que solo ves tú</p>
+          <div class="plazos-lista" style="margin-bottom:12px">
+            <div><span><span class="codigo">R-2026-0016</span> · convivencia · AQP</span><span class="ins alerta">Vencido</span></div>
+            <div><span><span class="codigo">R-2026-0017</span> · sobre DO · CCO</span><span class="ins advertencia">Por vencer</span></div>
+          </div>
+          <button class="btn sm" data-ir="bandeja">Abrir Reportes</button>
+          <p class="chico taupe" style="margin:10px 0 0">El aviso nunca lleva el contenido: solo cuántos hay y qué plazo aprieta.</p>
+        </div>
+      </div>
+
+      <div class="seccion oculto" id="nota-otro-admin" style="margin-top:16px">
+        <div style="font-weight:500">Un admin que no es la Gerencia General no ve la tarjeta de Reportes ni el ítem del menú.</div>
+        <p class="muted" style="margin:4px 0 0">Hoy hay 5 admins y una sola Gerencia General (decisión 19). Tener el rol no abre los reportes: lo abre la marca de Gerencia General, que solo se cambia desde el SQL Editor.</p>
+      </div>
+
+      <div class="tarjeta" style="margin-top:16px" id="stats">
+        <div class="fila" style="justify-content:space-between;margin-bottom:12px">
+          <h2 style="font-size:18px">Septiembre, en números</h2>
+          <span class="chico taupe">paso 5 · cumple el registro del 43-B.4</span>
+        </div>
+        <div class="grid2" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:18px">
+          <div>
+            <p class="etiqueta" style="margin:0 0 8px">Por tipo</p>
+            <div class="plazos-lista">
+              <div><span>La empresa</span><span>6</span></div>
+              <div><span>Ideas de mejora</span><span>5</span></div>
+              <div><span>Consultas a la líder</span><span>4</span></div>
+              <div><span>Convivencia</span><span>3</span></div>
+              <div><span>Título X</span><span>1</span></div>
+            </div>
+          </div>
+          <div>
+            <p class="etiqueta" style="margin:0 0 8px">Plazos</p>
+            <p style="margin:0;font-family:var(--font-serif);font-size:24px">92 %</p>
+            <p class="muted" style="margin:0">respondidos dentro del plazo del Reglamento</p>
+            <p style="margin:10px 0 0;font-family:var(--font-serif);font-size:24px">4,1 días</p>
+            <p class="muted" style="margin:0">hábiles, en promedio, hasta la respuesta</p>
+          </div>
+          <div>
+            <p class="etiqueta" style="margin:0 0 8px">Cómo terminaron</p>
+            <div class="plazos-lista">
+              <div><span>Resuelto</span><span>11</span></div>
+              <div><span>Sin acción</span><span>3</span></div>
+              <div><span>Confirmado</span><span>1</span></div>
+              <div><span>Derivado a disciplina</span><span>1</span></div>
+            </div>
+          </div>
+        </div>
+        <p class="chico taupe" style="margin:12px 0 0">Por sede se muestra solo si hay 5 reportes o más: por debajo se adivina quién fue. Sin nada por persona (eso es el mapa de la fase 3).</p>
+      </div>
+    </section>
+
     <!-- ═══════════ 4 · PANEL · BANDEJA ═══════════ -->
     <section class="contenido oculto" id="p-bandeja">
       <div class="cabecera">
@@ -482,23 +567,25 @@ hr { border:0; border-top:1px solid var(--color-sand); margin:18px 0; }
           <p class="muted" style="margin-top:4px">Lo urgente primero, después lo que vence antes.</p>
         </div>
         <div class="filtros" style="margin:0">
-          <button class="on" data-vista="do">Vista de DO</button>
-          <button data-vista="lider">Vista de la líder</button>
+          <button class="on" data-vista="gg">Gerencia General</button>
+          <button data-vista="do">DO</button>
+          <button data-vista="lider">Líder de TRU</button>
         </div>
       </div>
       <div class="aviso-fijo"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>Un reporte no es una falta. Nada se sanciona desde aquí.</div>
-      <div class="filtros"><button class="on">Abiertos · 5</button><button>Lo que gestiono</button><button>Vencidos · 1</button><button>Cerrados</button></div>
+      <div class="filtros"><button class="on" id="cuenta-abiertos">Abiertos · 5</button><button>Lo que gestiono</button><button>Vencidos · 1</button><button>Cerrados</button></div>
       <table class="tabla">
         <thead><tr><th>Caso</th><th>Tipo</th><th class="ocultar-movil">Sede</th><th>Lo lleva</th><th>Próximo plazo</th></tr></thead>
         <tbody id="filas">
-          <tr class="clic fila-do" data-ir="ficha"><td><span class="ins alerta">Urgente</span><div class="codigo" style="margin-top:4px">R-2026-0016</div></td><td>Convivencia · 43-A<div class="chico taupe">sobre una colaboradora</div></td><td class="ocultar-movil">AQP</td><td>DO</td><td><span class="ins alerta">Vencido</span><div class="chico taupe">Resolución escrita · ayer</div></td></tr>
-          <tr class="clic fila-do fila-lider" data-ir="ficha"><td><div class="codigo">R-2026-0014</div><span class="chico taupe">nueva respuesta</span></td><td>Convivencia · 43-A<div class="chico taupe">sobre una colaboradora</div></td><td class="ocultar-movil">TRU</td><td>Líder</td><td><span class="ins positivo">En plazo</span><div class="chico taupe">Resolución · lun 19 oct</div></td></tr>
+          <tr class="clic fila-do fila-gg" data-ir="ficha"><td><span class="ins alerta">Urgente</span><div class="codigo" style="margin-top:4px">R-2026-0016</div></td><td>Convivencia · 43-A<div class="chico taupe">sobre una colaboradora</div></td><td class="ocultar-movil">AQP</td><td>DO</td><td><span class="ins alerta">Vencido</span><div class="chico taupe">Resolución escrita · ayer</div></td></tr>
+          <tr class="clic fila-do fila-gg fila-lider" data-ir="ficha"><td><div class="codigo">R-2026-0014</div><span class="chico taupe">nueva respuesta</span></td><td>Convivencia · 43-A<div class="chico taupe">sobre una colaboradora</div></td><td class="ocultar-movil">TRU</td><td>Líder</td><td><span class="ins positivo">En plazo</span><div class="chico taupe">Resolución · lun 19 oct</div></td></tr>
           <tr class="clic fila-do"><td><div class="codigo">R-2026-0015</div></td><td>Título X<div class="chico taupe">queja de hostigamiento</div></td><td class="ocultar-movil">LIM</td><td>DO</td><td><span class="ins advertencia">Por vencer</span><div class="chico taupe">Medidas de protección · mañana</div></td></tr>
-          <tr class="clic fila-do fila-lider"><td><div class="codigo">R-2026-0011</div></td><td>Consulta<div class="chico taupe">a la líder</div></td><td class="ocultar-movil">TRU</td><td>Líder</td><td><span class="ins positivo">En plazo</span><div class="chico taupe">Respuesta · lun 12 oct</div></td></tr>
-          <tr class="clic fila-do fila-lider"><td><div class="codigo">R-2026-0012</div></td><td>La empresa · 43-B<div class="chico taupe">aire acondicionado</div></td><td class="ocultar-movil">TRU</td><td>Líder</td><td><span class="ins positivo">En plazo</span><div class="chico taupe">Respuesta avisada · vie 16 oct</div></td></tr>
+          <tr class="clic fila-do fila-gg fila-lider"><td><div class="codigo">R-2026-0011</div></td><td>Consulta<div class="chico taupe">a la líder</div></td><td class="ocultar-movil">TRU</td><td>Líder</td><td><span class="ins positivo">En plazo</span><div class="chico taupe">Respuesta · lun 12 oct</div></td></tr>
+          <tr class="clic fila-do fila-gg fila-lider"><td><div class="codigo">R-2026-0012</div></td><td>La empresa · 43-B<div class="chico taupe">aire acondicionado</div></td><td class="ocultar-movil">TRU</td><td>Líder</td><td><span class="ins positivo">En plazo</span><div class="chico taupe">Respuesta avisada · vie 16 oct</div></td></tr>
+          <tr class="clic fila-gg"><td><div class="codigo">R-2026-0017</div></td><td>Convivencia · 43-A<div class="chico taupe">sobre DO</div></td><td class="ocultar-movil">CCO</td><td>Gerencia</td><td><span class="ins advertencia">Por vencer</span><div class="chico taupe">Resolución escrita · lun 28 sep</div></td></tr>
         </tbody>
       </table>
-      <p class="chico taupe" id="nota-lider" style="margin-top:10px" hidden>La líder ve lo de su sede sobre colaboradoras, la empresa, ideas y consultas. No ve lo que la menciona ni nada del Título X.</p>
+      <p class="chico taupe" id="nota-vista" style="margin-top:10px">La Gerencia General ve lo de todas las sedes, y es quien gestiona lo que es sobre DO (R-2026-0017). No ve el Título X salvo que la queja sea contra DO, ni nada que la mencione a ella: eso lo recibe DO (48.2-bis).</p>
       <div class="seccion" style="margin-top:18px;padding:14px 16px">
         <div class="fila" style="justify-content:space-between">
           <div><div style="font-weight:500">Quién investiga el Título X en cada sede</div><div class="muted">TRU y AQP: Delegada elegida · LIM y CCO: <span style="color:var(--color-rojo-profundo)">sin nombrar</span> — las quejas de esas sedes llegan con alerta.</div></div>
@@ -576,12 +663,14 @@ hr { border:0; border-top:1px solid var(--color-sand); margin:18px 0; }
 
 <script>
 (function () {
-  var pantallas = { mios: "p-mios", nuevo: "p-nuevo", detalle: "p-detalle", bandeja: "p-bandeja", ficha: "p-ficha" };
-  var titulos = { mios: "Reportes", nuevo: "Nuevo reporte", detalle: "R-2026-0014", bandeja: "Reportes", ficha: "R-2026-0014" };
+  var pantallas = { mios: "p-mios", nuevo: "p-nuevo", detalle: "p-detalle", dash: "p-dash", bandeja: "p-bandeja", ficha: "p-ficha" };
+  var titulos = { mios: "Reportes", nuevo: "Nuevo reporte", detalle: "R-2026-0014", dash: "Dashboard", bandeja: "Reportes", ficha: "R-2026-0014" };
   function ir(p) {
     Object.keys(pantallas).forEach(function (k) { document.getElementById(pantallas[k]).classList.toggle("oculto", k !== p); });
     document.querySelectorAll(".spike [data-ir]").forEach(function (b) { b.classList.toggle("on", b.dataset.ir === p); });
-    var panel = p === "bandeja" || p === "ficha";
+    var panel = p === "bandeja" || p === "ficha" || p === "dash";
+    document.getElementById("item-dash").classList.toggle("on", p === "dash");
+    document.getElementById("item-reportes").classList.toggle("on", p !== "dash");
     document.getElementById("menu-mio").classList.toggle("oculto", panel);
     document.getElementById("menu-panel").classList.toggle("oculto", !panel);
     document.getElementById("topbar-titulo").textContent = titulos[p];
@@ -668,13 +757,35 @@ hr { border:0; border-top:1px solid var(--color-sand); margin:18px 0; }
   chkX.addEventListener("change", pintarPaso);
   chkMal.addEventListener("change", pintarQuien);
 
-  // Bandeja: vista de DO / de la líder
+  // Bandeja: quién mira
+  var notas = {
+    gg: "La Gerencia General ve lo de todas las sedes, y es quien gestiona lo que es sobre DO (R-2026-0017). No ve el Título X salvo que la queja sea contra DO, ni nada que la mencione a ella: eso lo recibe DO (48.2-bis).",
+    do: "DO ve lo de todas las sedes, incluido el Título X. No ve lo que es sobre DO (R-2026-0017): eso va a la Gerencia General (43-A.5).",
+    lider: "La líder ve lo de su sede sobre colaboradoras, la empresa, ideas y consultas. No ve lo que la menciona ni nada del Título X."
+  };
   document.querySelectorAll("[data-vista]").forEach(function (b) {
     b.addEventListener("click", function () {
-      var lider = b.dataset.vista === "lider";
+      var v = b.dataset.vista, n = 0;
       document.querySelectorAll("[data-vista]").forEach(function (x) { x.classList.toggle("on", x === b); });
-      document.querySelectorAll("#filas tr").forEach(function (tr) { tr.classList.toggle("oculto", lider && !tr.classList.contains("fila-lider")); });
-      document.getElementById("nota-lider").hidden = !lider;
+      document.querySelectorAll("#filas tr").forEach(function (tr) {
+        var ve = tr.classList.contains("fila-" + v); tr.classList.toggle("oculto", !ve); if (ve) n++;
+      });
+      document.getElementById("cuenta-abiertos").textContent = "Abiertos · " + n;
+      document.getElementById("contador-panel").textContent = n;
+      document.getElementById("nota-vista").textContent = notas[v];
+    });
+  });
+  document.querySelector('[data-vista="gg"]').click();
+
+  // Dashboard: Gerencia General / otro admin
+  document.querySelectorAll("[data-mira]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      var otro = b.dataset.mira === "admin";
+      document.querySelectorAll("[data-mira]").forEach(function (x) { x.classList.toggle("on", x === b); });
+      document.getElementById("tarjeta-reportes").classList.toggle("oculto", otro);
+      document.getElementById("stats").classList.toggle("oculto", otro);
+      document.getElementById("nota-otro-admin").classList.toggle("oculto", !otro);
+      document.getElementById("item-reportes").classList.toggle("oculto", otro);
     });
   });
 
