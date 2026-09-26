@@ -4,6 +4,7 @@ import {
   type EstadoConstancia, type MotivoRechazo,
 } from "@cayla-dynamic/shared";
 import { loQueNoSePudo } from "./admin/lo-que-no-se-pudo";
+import { esJornadaEnCurso } from "./admin/jornada-esperada";
 import { traerAcusesPendientes, type AcusePendiente } from "./acuses-pendientes";
 import { ordenarContratoVigente } from "./mi-contrato";
 import { puedePedirBono, traerMiBono, type MiBono } from "./mi-bono";
@@ -606,7 +607,7 @@ export function armarBandeja(fuentes: FuentesBandeja, hoy: string = hoyLima()): 
       // sin horas o cerrada por el sistema es un día que hay que revisar.
       .filter((j) => j.estado === "auto_cerrada_pendiente" || j.horas_trabajadas === null)
       // Su jornada de HOY todavía abierta no es un día roto: está trabajando.
-      .filter((j) => !(j.fecha === hoy && (j.estado === "abierta" || j.estado === "en_pausa")))
+      .filter((j) => !esJornadaEnCurso(j.fecha, hoy, j.estado))
       .map((j) => j.fecha)
       .sort();
 

@@ -399,6 +399,42 @@ export function estadoDelDia(opciones: {
   return "sin_marca";
 }
 
+/**
+ * ¿Es su jornada de HOY, todavía abierta? Está trabajando en este momento.
+ *
+ * `estadoDelDia` la devuelve como "revisar" —marcó y el día no está cerrado—,
+ * y para un día PASADO eso es exactamente lo que hay que decir: se fue sin
+ * marcar la salida. Para HOY no falta nada, y llamarlo «por revisar» acusa de
+ * un problema a quien está cumpliendo su turno. El corte por fecha es lo que
+ * hace segura la excepción: una jornada abierta de AYER sigue avisando.
+ *
+ * Borde conocido y a propósito: un turno que cruza la medianoche cuelga de la
+ * fecha de ayer, así que entre las 00:00 y su salida vuelve a leerse como
+ * incompleto (ver `lib/terminal/jornada-en-curso.ts` y la 0240).
+ *
+ * Vivía copiada en «Lo mío» y en la Bandeja; Desempeño la necesitó el
+ * 2026-09-26 —acusaba de «marcaje sin cerrar» a las seis personas que a
+ * mediodía estaban en su turno— y se mudó acá para no escribir una tercera.
+ */
+export function esJornadaEnCurso(fecha: string, hoy: string, estadoJornada: string | null | undefined): boolean {
+  return fecha === hoy && (estadoJornada === "abierta" || estadoJornada === "en_pausa");
+}
+
+/**
+ * ¿Este día ya entra en «lo que le tocaba»?
+ *
+ * Los días pasados, siempre. Los futuros, nunca. Y HOY solo cuando su jornada
+ * ya cerró con horas: mientras el día no termine, sumar sus horas esperadas
+ * contra cero horas trabajadas pinta en deuda a todo el equipo al mediodía —
+ * las horas de hoy entran abajo recién al marcar la salida, así que arriba
+ * tienen que entrar a la vez.
+ */
+export function cuentaEnLoQueLeTocaba(fecha: string, hoy: string, jornada: JornadaDelDia | null): boolean {
+  if (fecha < hoy) return true;
+  if (fecha > hoy) return false;
+  return jornada !== null && jornada.horas !== null && !esJornadaEnCurso(fecha, hoy, jornada.estado);
+}
+
 /** Las fechas ISO de un rango, ambas incluidas. */
 export function fechasDelRango(desde: string, hasta: string): string[] {
   const out: string[] = [];

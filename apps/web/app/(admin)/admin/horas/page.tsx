@@ -59,7 +59,8 @@ import { MESES, lecturaObjetivos, type ObjetivoItem } from "@/lib/objetivos";
 import { GraficoHoras, type DiaGrafico } from "@/components/grafico-horas";
 import {
   esperadoDelDia, horarioVigente, fechasDelRango, dowDe, estadoDelDia,
-  type Esperado, type EstadoDia, type HorarioTramo, type TurnoDia,
+  esJornadaEnCurso, cuentaEnLoQueLeTocaba,
+  type Esperado, type EstadoDia, type HorarioTramo, type JornadaDelDia, type TurnoDia,
 } from "@/lib/admin/jornada-esperada";
 import { Insignia } from "@/components/ui/insignia";
 import { Campo, CampoSelect, CampoCasilla } from "@/components/ui/campo";
@@ -186,6 +187,9 @@ interface Dia {
   levantada: string | null;      // motivo del levantamiento de la tardanza
   faltaMotivo: string | null;    // motivo por el que ese día no cuenta como falta
   agregado: boolean;             // registro histórico 2025 (un mes en una fecha)
+  // Su jornada de HOY, todavía abierta: está trabajando. No es un marcaje
+  // roto aunque `estado` diga "revisar" (ver esJornadaEnCurso).
+  enCurso: boolean;
 }
 
 interface Fila {
@@ -219,6 +223,14 @@ interface Fila {
   tardanzasSospechosas: number;
   horasTotales: number;
   horasReales: number;
+  // Las horas y los días trabajados en fechas que TENÍAN contra qué medirse
+  // (horario o turno vigente ese día). Son las que se comparan con
+  // `horasEsperadas`: `horasReales` incluye además los días anteriores a su
+  // primer horario cargado, y comparar eso contra lo que tocaba daba
+  // «11 888 h de 4 675 h» en «Todo el año» —dos veces y media lo que les
+  // tocaba— cuando lo que pasaba es que el horario se cargó a mitad de año.
+  horasConReferencia: number;
+  diasTrabajadosConReferencia: number;
   horasAgregadas: number;
   agregados: number;
   tardanzas: number;
@@ -240,30 +252,37 @@ interface Fila {
 }
 
 const porRevisar = (f: Fila) => f.incompletas + f.pendientes;
-const cumplimiento = (f: Fila) => (f.horasEsperadas > 0 ? f.horasReales / f.horasEsperadas : -1);
+const cumplimiento = (f: Fila) => (f.horasEsperadas > 0 ? f.horasConReferencia / f.horasEsperadas : -1);
 const objPct = (f: Fila) => (f.objTotal > 0 ? f.objCumplidos / f.objTotal : -1);
 
 // Colores del cuadrito. Se leen en este orden en la leyenda, y el ámbar tiene
 // tres intensidades porque siete minutos y dos horas no son la misma noticia.
+function colorTardanza(m: number): string {
+  // Antes: "bg-ambar brightness-75" para la grave. Un filtro que siempre
+  // oscurece funciona sobre --color-ambar en claro (#74501a, ya oscuro) y
+  // se INVIERTE en oscuro (#c99a4a, un dorado claro): ahí "más oscuro" se
+  // acerca al fondo en vez de saltar, y la de veinte minutos brilla más
+  // que la de dos horas. El anillo no depende de qué tan claro sea el
+  // token en cada tema, así que apunta igual en los dos.
+  if (m >= TARDANZA_GRAVE_MIN) return "bg-ambar ring-2 ring-inset ring-rojo-profundo";
+  if (m >= TARDANZA_SERIA_MIN) return "bg-ambar";
+  // Era /45: medía 2.09:1 en claro y 2.34:1 en oscuro contra bg-papel,
+  // por debajo del piso de 3:1 para contraste no-textual (WCAG 1.4.11).
+  // /65 llega a ~3.0:1 en los dos temas sin acercarse a "tardanza seria".
+  return "bg-ambar/65";
+}
+
 function colorDia(d: Dia): string {
+  // Hoy, en su jornada: un contorno verde, no el punteado de «por revisar» —
+  // no falta nada, está trabajando. Si llegó tarde, eso ya es un hecho y se
+  // pinta como cualquier otra tardanza.
+  if (d.enCurso) {
+    return (d.minutosTarde ?? 0) > 0 && !d.levantada ? colorTardanza(d.minutosTarde!) : "border-2 border-verde bg-papel";
+  }
   switch (d.estado) {
     case "falta": return "bg-rojo";
     case "revisar": return "border border-dashed border-taupe bg-papel";
-    case "tarde": {
-      const m = d.minutosTarde ?? 0;
-      // Antes: "bg-ambar brightness-75" para la grave. Un filtro que siempre
-      // oscurece funciona sobre --color-ambar en claro (#74501a, ya oscuro) y
-      // se INVIERTE en oscuro (#c99a4a, un dorado claro): ahí "más oscuro" se
-      // acerca al fondo en vez de saltar, y la de veinte minutos brilla más
-      // que la de dos horas. El anillo no depende de qué tan claro sea el
-      // token en cada tema, así que apunta igual en los dos.
-      if (m >= TARDANZA_GRAVE_MIN) return "bg-ambar ring-2 ring-inset ring-rojo-profundo";
-      if (m >= TARDANZA_SERIA_MIN) return "bg-ambar";
-      // Era /45: medía 2.09:1 en claro y 2.34:1 en oscuro contra bg-papel,
-      // por debajo del piso de 3:1 para contraste no-textual (WCAG 1.4.11).
-      // /65 llega a ~3.0:1 en los dos temas sin acercarse a "tardanza seria".
-      return "bg-ambar/65";
-    }
+    case "tarde": return colorTardanza(d.minutosTarde ?? 0);
     // Era /20: 1.34:1 en claro, 1.29:1 en oscuro. /75 llega a ~3:1 en oscuro
     // (el más exigente de los dos) sin cambiar el resto de la escala.
     case "justificada": return "bg-rojo/75";
@@ -298,7 +317,9 @@ function explicarDia(d: Dia, nombre: string): string {
   if ((d.minutosSalidaTemprana ?? 0) > 0) partes.push(`salió ${formatoMinutos(d.minutosSalidaTemprana!)} antes`);
   if (d.estado === "falta") partes.push("FALTA");
   if (d.estado === "justificada") partes.push(`no marcó — ${MOTIVO_NO_FALTA[d.faltaMotivo ?? ""] ?? etiqueta(MOTIVOS_FALTA, d.faltaMotivo) ?? "justificada"}`);
-  if (d.estado === "revisar") partes.push(d.jornadaEstado === "auto_cerrada_pendiente" ? "cerrada automáticamente" : "sin salida marcada");
+  if (d.enCurso) partes.push("en su jornada, todavía sin marcar la salida");
+  else if (d.estado === "revisar") partes.push(d.jornadaEstado === "auto_cerrada_pendiente" ? "cerrada automáticamente" : "sin salida marcada");
+  if (d.estado === "futuro" && d.esperado.trabaja && d.fecha === hoyLima()) partes.push("hoy, todavía sin marcaje");
   if (d.estado === "extra") partes.push("trabajó en su día de descanso");
   if (d.agregado) partes.push("registro histórico 2025 (un mes en una fecha)");
   return partes.join(" · ");
@@ -394,9 +415,10 @@ function medidoContra(d: Dia): { texto: string; sospechoso: boolean } {
 // El desempeño de una persona, abierto DEBAJO de su fila. Va debajo y no en
 // otra pantalla ni tapando la tabla: así siguen a la vista las demás filas para
 // comparar, y no se pierden ni los filtros ni el periodo.
-function DetallePersona({ f, meta, anio, mes, sel, onDia }: {
+function DetallePersona({ f, meta, anio, mes, mesEnCurso, sel, onDia }: {
   f: Fila; meta: number;
   anio: number; mes: number;   // el mes de «hasta»: los objetivos son mensuales
+  mesEnCurso: boolean;         // ese mes todavía no terminó: nada se pinta en rojo
   sel: { personaId: string; fecha: string } | null;
   onDia: (personaId: string, fecha: string) => void;
 }) {
@@ -412,7 +434,7 @@ function DetallePersona({ f, meta, anio, mes, sel, onDia }: {
     .map((d) => ({
       fecha: d.fecha,
       horas: d.horas ?? 0,
-      problema: d.estado === "tarde" || d.estado === "revisar",
+      problema: d.estado === "tarde" || (d.estado === "revisar" && !d.enCurso),
     }));
   const promedio = f.diasTrabajados > 0 ? f.horasReales / f.diasTrabajados : 0;
   const diasSospechosos = conMarcaje.filter((d) => medidoContra(d).sospechoso);
@@ -423,7 +445,7 @@ function DetallePersona({ f, meta, anio, mes, sel, onDia }: {
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
         {[
           { label: "Total del periodo", valor: fmtHoras(f.horasReales) },
-          { label: "Días trabajados", valor: `${f.diasTrabajados}${f.diasEsperados ? ` de ${f.diasEsperados}` : ""}` },
+          { label: "Días trabajados", valor: f.diasEsperados ? `${f.diasTrabajadosConReferencia} de ${f.diasEsperados}` : String(f.diasTrabajados) },
           { label: "Promedio por día", valor: promedio > 0 ? fmtHoras(promedio) : "—" },
           { label: "Días con tardanza", valor: String(f.tardanzas) },
           { label: "Salidas anticipadas", valor: String(f.salidasTempranas) },
@@ -515,7 +537,9 @@ function DetallePersona({ f, meta, anio, mes, sel, onDia }: {
         ) : (
           <>
             <div className="mb-3 h-2 overflow-hidden rounded-full bg-sand">
-              <div className={`h-full rounded-full ${objPorcentaje >= 60 ? "bg-verde" : objPorcentaje >= 30 ? "bg-ambar" : "bg-rojo"}`}
+              {/* Mientras el mes no termina, la barra solo dice cuánto va — un
+                  0 % el día 26 no es un incumplimiento todavía. */}
+              <div className={`h-full rounded-full ${mesEnCurso ? "bg-pizarra" : objPorcentaje >= 60 ? "bg-verde" : objPorcentaje >= 30 ? "bg-ambar" : "bg-rojo"}`}
                 style={{ width: `${objPorcentaje}%` }} />
             </div>
             <ul className="space-y-1 text-sm">
@@ -565,7 +589,7 @@ function DetallePersona({ f, meta, anio, mes, sel, onDia }: {
                 title="Abrir este día">
                 <td className="px-4 py-2 capitalize">{fechaLarga(d.fecha)}</td>
                 <td className="px-4 py-2">{horaLima(d.entradaTs)}</td>
-                <td className="px-4 py-2">{d.salidaTs ? horaLima(d.salidaTs) : <span className="text-ambar">—</span>}</td>
+                <td className="px-4 py-2">{d.salidaTs ? horaLima(d.salidaTs) : <span className={d.enCurso ? "text-taupe" : "text-ambar"}>—</span>}</td>
                 <td className="px-4 py-2">{d.horas !== null ? fmtHoras(d.horas) : "—"}</td>
                 <td className="px-4 py-2">
                   {(d.minutosTarde ?? 0) > 0
@@ -586,7 +610,8 @@ function DetallePersona({ f, meta, anio, mes, sel, onDia }: {
                   {mc.sospechoso && <span title="Este día no tenía turno cargado: la tardanza o la salida anticipada se midió contra el horario base."> ⚠</span>}
                 </td>
                 <td className="px-4 py-2 text-xs">
-                  {d.estado === "revisar" && <Insignia variante="advertencia" punto={false}>
+                  {d.enCurso && <Insignia atenuada punto={false}>en su jornada</Insignia>}
+                  {d.estado === "revisar" && !d.enCurso && <Insignia variante="advertencia" punto={false}>
                     {d.jornadaEstado === "auto_cerrada_pendiente" ? "auto-cerrada" : "sin salida"}</Insignia>}
                   {d.estado === "extra" && <Insignia variante="positivo" punto={false}>en su descanso</Insignia>}
                   {d.agregado && <Insignia atenuada punto={false}>histórico 2025</Insignia>}
@@ -606,11 +631,14 @@ function DetallePersona({ f, meta, anio, mes, sel, onDia }: {
   );
 }
 
-function Tile({ label, valor, pie, tono = "neutral" }: { label: string; valor: string; pie?: string; tono?: "neutral" | "alerta" }) {
+// "alerta" (rojo) es para lo que ya es grave; "aviso" (ámbar) para lo que hay
+// que mirar — el mismo corte que usa la fila, para que la tarjeta y la tabla
+// no pinten el mismo dato de dos colores.
+function Tile({ label, valor, pie, tono = "neutral" }: { label: string; valor: string; pie?: string; tono?: "neutral" | "aviso" | "alerta" }) {
   return (
     <div className="rounded-xl border border-sand bg-papel px-4 py-3">
       <div className="text-xs uppercase tracking-wide text-taupe">{label}</div>
-      <div className={`mt-1 text-2xl font-semibold [font-variant-numeric:tabular-nums] ${tono === "alerta" && valor !== "0" ? "text-rojo" : ""}`}>{valor}</div>
+      <div className={`mt-1 text-2xl font-semibold [font-variant-numeric:tabular-nums] ${valor === "0" ? "" : tono === "alerta" ? "text-rojo" : tono === "aviso" ? "text-ambar" : ""}`}>{valor}</div>
       {pie && <div className="text-xs text-taupe">{pie}</div>}
     </div>
   );
@@ -627,7 +655,10 @@ function DesempenoContenido() {
   const [filas, setFilas] = useState<Fila[]>([]);
   const [areas, setAreas] = useState<Area[]>(AREAS_FALLBACK);
   const [periodo, setPeriodo] = useState<{ fecha_ini: string; fecha_fin: string } | null>(null);
-  const [sinActividad, setSinActividad] = useState(0);
+  // Todas las personas, tengan o no algo en el rango: el denominador del
+  // recuadro «Personas» y de la nota del pie, con los mismos filtros que la
+  // tabla (ver `sinActividad`).
+  const [personasTodas, setPersonasTodas] = useState<{ sede: string; area: string; activa: boolean; conAlgo: boolean }[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -652,6 +683,9 @@ function DesempenoContenido() {
   const fechas = useMemo(() => (desde <= hasta ? fechasDelRango(desde, hasta) : []), [desde, hasta]);
   const hayCuadricula = fechas.length > 0 && fechas.length <= MAX_DIAS_CUADRICULA;
   const mesObjetivos = `${MESES[Number(hasta.slice(5, 7)) - 1]} ${hasta.slice(0, 4)}`;
+  // Los objetivos de un mes que no terminó no se pintan en rojo: un 0/3 el
+  // 26 de septiembre dice cuánto va, no que no se cumplió.
+  const mesObjetivosEnCurso = hasta.slice(0, 7) >= hoyLima().slice(0, 7);
 
   const cargar = useCallback(async () => {
     const supabase = createAdminSupabaseClient();
@@ -782,6 +816,7 @@ function DesempenoContenido() {
         dias: [], diasEsperados: 0, diasTrabajados: 0, diasConMotivo: 0,
         horasEsperadas: 0, horasConMotivo: 0, diasSinTurno: 0, tardanzasSospechosas: 0,
         horasTotales: 0, horasReales: 0, horasAgregadas: 0, agregados: 0,
+        horasConReferencia: 0, diasTrabajadosConReferencia: 0,
         tardanzas: 0, tardanzasLevantadas: 0, minutosTarde: 0, peorTardanza: 0,
         salidasTempranas: 0, horasExtra: 0,
         faltas: 0, faltasJustificadas: 0, incompletas: 0, pendientes: 0,
@@ -801,12 +836,18 @@ function DesempenoContenido() {
         // gratificación— pero no es un día: fuera del promedio y del cuadrito.
         const agregado = (horas ?? 0) > 24;
 
-        const estado: EstadoDia = estadoDelDia({
-          fecha, hoy, esperado, agregado,
-          jornada: j ? { horas, minutosTarde: j.minutos_tarde, estado: j.estado } : null,
-          falta,
+        const jornada: JornadaDelDia | null = j ? { horas, minutosTarde: j.minutos_tarde, estado: j.estado } : null;
+        const enCurso = esJornadaEnCurso(fecha, hoy, j?.estado);
+
+        let estado: EstadoDia = estadoDelDia({
+          fecha, hoy, esperado, agregado, jornada, falta,
           tardanzaJustificada: levantada !== null,
         });
+        // HOY sin ningún marcaje todavía no es «le tocaba y no marcó»: el día
+        // no terminó y puede que su turno ni haya empezado. Se pinta como lo
+        // que aún no llega. Si la base ya lo cuenta como falta, estadoDelDia
+        // devolvió "falta" antes y esto no lo toca.
+        if (fecha === hoy && estado === "sin_marca") estado = "futuro";
 
         f.dias.push({
           fecha, estado, esperado,
@@ -820,34 +861,49 @@ function DesempenoContenido() {
           levantada,
           faltaMotivo: falta?.motivo ?? null,
           agregado,
+          enCurso,
         });
 
         // ── Acumulados ─────────────────────────────────────────────────────
-        // Lo esperado solo cuenta hasta hoy: sumar los días que todavía no
-        // llegaron pintaría a todo el mundo en deuda a principio de mes.
-        // Lo esperado solo cuenta hasta hoy —sumar los días que no llegaron
-        // pintaría a todo el mundo en deuda a principio de mes— y NO cuenta los
-        // días con motivo registrado. Sin esa segunda resta, quien estuvo de
-        // vacaciones aparece debiendo las horas de sus vacaciones: un número que
-        // hace quedar mal a quien tenía permiso.
+        // Lo esperado solo cuenta los días que ya terminaron —sumar los que no
+        // llegaron pintaría a todo el mundo en deuda a principio de mes, y HOY
+        // entra recién cuando cierra su jornada, a la vez que sus horas (ver
+        // cuentaEnLoQueLeTocaba)— y NO cuenta los días con motivo registrado.
+        // Sin esa segunda resta, quien estuvo de vacaciones aparece debiendo
+        // las horas de sus vacaciones: un número que hace quedar mal a quien
+        // tenía permiso. Una falta sin justificar sí entra siempre: le tocaba.
         if (esperado.trabaja && fecha <= hoy) {
           if (falta?.justificada) { f.diasConMotivo++; f.horasConMotivo += esperado.horas; }
-          else { f.diasEsperados++; f.horasEsperadas += esperado.horas; }
-          if (esperado.origen !== "turno") f.diasSinTurno++;
+          else if (falta || cuentaEnLoQueLeTocaba(fecha, hoy, jornada)) {
+            f.diasEsperados++; f.horasEsperadas += esperado.horas;
+            if (esperado.origen !== "turno") f.diasSinTurno++;
+          }
         }
         // Mismo criterio que medidoContra() en DetallePersona: solo "horario"
         // o "legacy" pueden ser sospechosos — "turno" es la referencia correcta
-        // y "sin_horario" no tiene con qué medir una tardanza.
+        // y "sin_horario" no tiene con qué medir una tardanza. Y solo lo que
+        // sigue en pie: una tardanza ya justificada no tiene nada que revisar
+        // en Turnos. Antes contaba también esas, y la tarjeta decía «10» al
+        // lado de «Tardanzas 4» sin que se entendiera de dónde salía la
+        // diferencia (eran las justificadas y las salidas anticipadas).
         if ((esperado.origen === "horario" || esperado.origen === "legacy") &&
-            ((j?.minutos_tarde ?? 0) > 0 || (extraPor.get(clave) ?? 0) > 0)) {
+            (((j?.minutos_tarde ?? 0) > 0 && levantada === null) || (extraPor.get(clave) ?? 0) > 0)) {
           f.tardanzasSospechosas++;
         }
         if (esperado.origen !== "sin_horario") f.tieneHorario = true;
         if (horas !== null) {
           f.horasTotales += horas;
           if (agregado) { f.horasAgregadas += horas; f.agregados++; }
-          else { f.horasReales += horas; if (horas > 0) f.diasTrabajados++; }
-        } else if (j) f.incompletas++;
+          else {
+            f.horasReales += horas;
+            if (horas > 0) f.diasTrabajados++;
+            if (esperado.origen !== "sin_horario") {
+              f.horasConReferencia += horas;
+              if (horas > 0) f.diasTrabajadosConReferencia++;
+            }
+          }
+        // Su jornada de hoy, abierta, no está incompleta: está trabajando.
+        } else if (j && !enCurso) f.incompletas++;
         if (j?.estado === "auto_cerrada_pendiente") f.pendientes++;
         if ((j?.minutos_tarde ?? 0) > 0) {
           if (levantada) f.tardanzasLevantadas++;
@@ -873,8 +929,12 @@ function DesempenoContenido() {
     const conAlgo = out.filter((r) =>
       r.diasTrabajados > 0 || r.agregados > 0 || r.incompletas > 0 ||
       r.faltas > 0 || r.faltasJustificadas > 0 || r.diasEsperados > 0 ||
-      r.ausenciasDias > 0);
-    setSinActividad(out.filter((r) => r.activa).length - conAlgo.filter((r) => r.activa).length);
+      r.ausenciasDias > 0 ||
+      // El lunes a las diez, «Esta semana» solo tiene jornadas abiertas: sin
+      // esto la tabla quedaba vacía justo mientras el equipo está trabajando.
+      r.dias.some((d) => d.enCurso));
+    const conAlgoIds = new Set(conAlgo.map((r) => r.personaId));
+    setPersonasTodas(out.map((r) => ({ sede: r.sede, area: r.area, activa: r.activa, conAlgo: conAlgoIds.has(r.personaId) })));
     setFilas(conAlgo);
 
     // Al llegar desde la ficha con ?persona=, se abre el día MÁS GRAVE de esa
@@ -887,7 +947,7 @@ function DesempenoContenido() {
       const f = conAlgo.find((x) => x.personaId === personaEnlace);
       const porGravedad: EstadoDia[] = ["falta", "tarde", "revisar"];
       for (const e of f ? porGravedad : []) {
-        const cand = f!.dias.filter((d) => d.estado === e);
+        const cand = f!.dias.filter((d) => d.estado === e && !d.enCurso);
         if (cand.length === 0) continue;
         const peor = e === "tarde"
           ? cand.reduce((a, b) => ((a.minutosTarde ?? 0) >= (b.minutosTarde ?? 0) ? a : b))
@@ -915,6 +975,14 @@ function DesempenoContenido() {
   const areasPresentes = useMemo(() => [...new Set(filas.map((f) => f.area))].filter(Boolean).sort(), [filas]);
   const hayObjetivos = useMemo(() => filas.some((f) => f.objTotal > 0), [filas]);
   const hayAusencias = useMemo(() => filas.some((f) => f.ausenciasDias > 0), [filas]);
+  // Activas que no salen en la tabla por no tener nada en el rango, con los
+  // MISMOS filtros de sede y área que la tabla. Antes se contaban sobre todo
+  // el equipo: con TRU elegida, el recuadro decía «11 de 47 con actividad»
+  // —las 47 eran todas las sedes, inactivas incluidas— y la nota del pie
+  // hablaba de personas de otras sedes.
+  const sinActividad = useMemo(() => personasTodas.filter((p) =>
+    p.activa && !p.conAlgo && (!fSede || p.sede === fSede) && (!fArea || p.area === fArea)).length,
+  [personasTodas, fSede, fArea]);
 
   const vista = useMemo(() => {
     const q = plano(fBusca.trim());
@@ -928,13 +996,15 @@ function DesempenoContenido() {
 
   const totales = useMemo(() => ({
     horas: vista.reduce((s, f) => s + f.horasReales, 0),
+    // Lo que se compara con `esperadas` son solo las horas de días que tenían
+    // horario o turno. Antes se comparaba el total, y el recuadro decía
+    // «163 h de 90 h que tocaban» cuando el 90 era el horario de UNA de tres
+    // personas, o «11 888 h de 4 675 h» en el año cuando los horarios se
+    // cargaron a mitad de año. Un total que suma manzanas comparadas con nada.
+    // Lo que no tenía contra qué medirse se dice aparte, no se esconde.
+    horasConReferencia: vista.reduce((s, f) => s + f.horasConReferencia, 0),
     agregadas: vista.reduce((s, f) => s + f.horasAgregadas, 0),
     esperadas: vista.reduce((s, f) => s + f.horasEsperadas, 0),
-    // Cuánta gente de la vista NO tiene horario ni turnos cargados. Sin esto el
-    // recuadro decía «163 h de 90 h que tocaban» —trabajaron casi el doble de
-    // lo que les tocaba— cuando lo que pasaba es que el 90 era el horario de
-    // UNA de las tres. Un total que suma manzanas comparadas con nada.
-    sinHorario: vista.filter((f) => !f.tieneHorario).length,
     tardanzas: vista.reduce((s, f) => s + f.tardanzas, 0),
     peor: vista.reduce((m, f) => Math.max(m, f.peorTardanza), 0),
     sospechosas: vista.reduce((s, f) => s + f.tardanzasSospechosas, 0),
@@ -996,6 +1066,8 @@ function DesempenoContenido() {
       dias_trabajados: f.diasTrabajados,
       dias_esperados: f.tieneHorario ? f.diasEsperados : "",
       horas_reales: f.horasReales.toFixed(1),
+      // Las que se comparan con horas_esperadas: las de días con horario.
+      horas_con_horario: f.tieneHorario ? f.horasConReferencia.toFixed(1) : "",
       horas_esperadas: f.tieneHorario ? f.horasEsperadas.toFixed(1) : "",
       tardanzas: f.tardanzas,
       peor_tardanza_min: f.tardanzas > 0 ? f.peorTardanza : "",
@@ -1012,7 +1084,7 @@ function DesempenoContenido() {
     }));
     const csv = generarCsv(filas, [
       "nombre", "sede", "area", "activa",
-      "dias_trabajados", "dias_esperados", "horas_reales", "horas_esperadas",
+      "dias_trabajados", "dias_esperados", "horas_reales", "horas_con_horario", "horas_esperadas",
       "tardanzas", "peor_tardanza_min", "faltas", "por_revisar",
       "ausencias_dias", "ausencias_dias_pagados", "ausencias_dias_no_pagados",
       "objetivos_cumplidos", "objetivos_total",
@@ -1127,20 +1199,26 @@ function DesempenoContenido() {
         </div>
 
         <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-7">
-          <Tile label="Horas del periodo" valor={`${totales.horas.toFixed(0)} h`}
+          <Tile label="Horas del periodo"
+            valor={`${(totales.esperadas === 0 ? totales.horas : totales.horasConReferencia).toFixed(0)} h`}
             pie={
               totales.esperadas === 0
                 ? "nadie tiene horario cargado: no hay con qué comparar"
-                : totales.sinHorario > 0
-                  ? `de ${totales.esperadas.toFixed(0)} h que tocaban a ${vista.length - totales.sinHorario} de ${vista.length}`
-                  : `de ${totales.esperadas.toFixed(0)} h que tocaban`
+                : `de ${totales.esperadas.toFixed(0)} h que tocaban` +
+                  (totales.horas - totales.horasConReferencia >= 0.5
+                    ? ` · además ${(totales.horas - totales.horasConReferencia).toFixed(0)} h en días sin horario cargado`
+                    : "")
             } />
           <Tile label="Faltas" valor={String(totales.faltas)} tono="alerta" pie="le tocaba y no marcó" />
-          <Tile label="Tardanzas" valor={String(totales.tardanzas)} tono="alerta"
+          <Tile label="Tardanzas" valor={String(totales.tardanzas)}
+            tono={totales.peor >= TARDANZA_SERIA_MIN ? "alerta" : "aviso"}
             pie={totales.peor > 0 ? `la peor, ${formatoMinutos(totales.peor)}` : undefined} />
-          <Tile label="Turnos sin cargar" valor={String(totales.sospechosas)} tono="alerta"
-            pie="tardanzas medidas contra el horario base, no el turno" />
-          <Tile label="Por revisar" valor={String(totales.porRevisar)} tono="alerta" pie="marcajes sin cerrar" />
+          {/* Neutral y no en rojo: no es un dato sobre las personas sino sobre
+              lo que falta cargar en Turnos. */}
+          <Tile label="Medidas sin turno" valor={String(totales.sospechosas)}
+            pie="días con tardanza o salida anticipada, medidos contra el horario base" />
+          <Tile label="Por revisar" valor={String(totales.porRevisar)} tono="aviso"
+            pie="marcajes sin cerrar de días que ya terminaron" />
           {/* El total se abre en dos cifras con el mismo peso visual
               (0443/auditoría de Ausencias): "pagados" mezcla descanso médico
               y maternidad —protegidos por ley— con licencias que CAYLA
@@ -1153,7 +1231,10 @@ function DesempenoContenido() {
                 ? "nadie en el periodo"
                 : `${totales.ausenciasDiasNoPagados} no pagados · ${totales.ausenciasDiasPagados} pagados`
             } />
-          <Tile label="Personas" valor={String(vista.length)} pie={`de ${filas.length} con actividad`} />
+          <Tile label="Personas" valor={String(vista.length)}
+            pie={sinActividad > 0
+              ? `y ${sinActividad} activa${sinActividad === 1 ? "" : "s"} sin nada en el rango`
+              : "todas las activas tienen actividad"} />
         </div>
 
         {error && (
@@ -1214,15 +1295,16 @@ function DesempenoContenido() {
                     <Fragment key={f.personaId}>
                     <tr
                       onClick={() => setAbierta((a) => (a === f.personaId ? null : f.personaId))}
-                      className={`group cursor-pointer border-t align-middle hover:bg-crema/60 ${abierta === f.personaId ? "bg-crema" : ""}`}
-                      title={abierta === f.personaId ? "Cerrar su desempeño" : "Ver su desempeño"}>
+                      // Sin `title`: el aviso nativo de toda la fila se abría encima
+                      // de la celda que se estaba leyendo. La flecha ▸/▾ ya lo dice.
+                      className={`group cursor-pointer border-t align-middle hover:bg-crema/60 ${abierta === f.personaId ? "bg-crema" : ""}`}>
                       {/* Ancla de la fila: sticky para que arrastrar en horizontal —el
                           caso normal en un teléfono, con hasta ~62 columnas de
                           cuadrícula— no pierda de vista de quién es. Fondo propio
                           (papel o crema, el mismo que ya traía la fila): una celda
                           sticky pinta su propia capa, y sin esto se transparenta al
                           pasar por debajo de las columnas que siguen desplazándose. */}
-                      <td className={`sticky left-0 z-[1] px-3 py-1.5 ${abierta === f.personaId ? "bg-crema" : "bg-papel group-hover:bg-crema/60"}`}>
+                      <td className={`sticky left-0 z-[1] whitespace-nowrap px-3 py-1.5 ${abierta === f.personaId ? "bg-crema" : "bg-papel group-hover:bg-crema/60"}`}>
                         <span aria-hidden className="mr-1.5 inline-block w-2 text-taupe">{abierta === f.personaId ? "▾" : "▸"}</span>
                         {f.nombre}
                         {!f.activa && <Insignia atenuada tamano="sm" punto={false} className="ml-2">inactiva</Insignia>}
@@ -1232,8 +1314,11 @@ function DesempenoContenido() {
                         </div>
                       </td>
                       <td className="px-3 py-1.5 text-taupe">{f.sede}</td>
-                      <td className="px-3 py-1.5 text-right">
-                        {f.diasTrabajados}
+                      <td className="px-3 py-1.5 text-right"
+                        title={f.tieneHorario && f.diasTrabajados > f.diasTrabajadosConReferencia
+                          ? `Además trabajó ${f.diasTrabajados - f.diasTrabajadosConReferencia} día(s) sin horario cargado, que no se comparan.`
+                          : undefined}>
+                        {f.tieneHorario ? f.diasTrabajadosConReferencia : f.diasTrabajados}
                         {f.tieneHorario
                           ? <span className="text-taupe/60"> / {f.diasEsperados}</span>
                           : <Link href="/admin/horarios" onClick={(e) => e.stopPropagation()}
@@ -1243,8 +1328,13 @@ function DesempenoContenido() {
                             </Link>}
                       </td>
                       <td className="px-3 py-1.5 text-right">
-                        <span className="font-medium">{f.horasReales.toFixed(1)}</span>
+                        <span className="font-medium">{(f.tieneHorario ? f.horasConReferencia : f.horasReales).toFixed(1)}</span>
                         {f.tieneHorario && <span className="text-taupe/60"> / {f.horasEsperadas.toFixed(1)}</span>}
+                        {f.tieneHorario && f.horasReales - f.horasConReferencia >= 0.05 && (
+                          <div className="text-[11px] text-taupe" title="Horas de días en que no tenía horario ni turno cargado: no hay contra qué compararlas.">
+                            +{(f.horasReales - f.horasConReferencia).toFixed(1)} sin horario
+                          </div>
+                        )}
                       </td>
                       <td className="px-3 py-1.5 text-right">
                         {f.tardanzas === 0
@@ -1267,7 +1357,7 @@ function DesempenoContenido() {
                       {hayObjetivos && (
                         <td className="px-3 py-1.5 text-right">
                           {f.objTotal === 0 ? <span className="text-taupe/40">—</span>
-                            : <span className={objPct(f) < 0.3 ? "text-rojo" : ""}>{f.objCumplidos}/{f.objTotal}</span>}
+                            : <span className={objPct(f) < 0.3 && !mesObjetivosEnCurso ? "text-rojo" : ""}>{f.objCumplidos}/{f.objTotal}</span>}
                         </td>
                       )}
                       {hayCuadricula && (
@@ -1296,6 +1386,7 @@ function DesempenoContenido() {
                             meta={f.diasEsperados > 0 ? f.horasEsperadas / f.diasEsperados : 0}
                             anio={Number(hasta.slice(0, 4))}
                             mes={Number(hasta.slice(5, 7))}
+                            mesEnCurso={mesObjetivosEnCurso}
                             sel={sel}
                             onDia={abrirDia}
                           />
@@ -1314,6 +1405,7 @@ function DesempenoContenido() {
               <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] bg-rojo" /> falta</span>
               <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] bg-rojo/75" /> no marcó, con motivo</span>
               <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] border border-dashed border-taupe bg-papel" /> marcaje por revisar</span>
+              <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] border-2 border-verde bg-papel" /> hoy, en su jornada</span>
               <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] bg-verde/45 ring-1 ring-inset ring-verde" /> trabajó en su descanso</span>
               <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] bg-sand" /> descanso</span>
               <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] bg-taupe/70" /> le tocaba, sin marcaje y sin motivo</span>
@@ -1332,11 +1424,12 @@ function DesempenoContenido() {
         <p className="mt-4 max-w-3xl text-xs text-taupe">
           Ordenado por lo que necesita atención: faltas, después la <strong>peor</strong> tardanza del periodo
           (no cuántas), después los marcajes por revisar. «Días» y «horas» van contra lo que le tocaba según su
-          horario y sus turnos, contando solo hasta hoy y <strong>sin los días con motivo registrado</strong>:
-          quien estuvo de vacaciones no debe las horas de sus vacaciones. Las tardanzas con motivo registrado no cuentan, y las
+          horario y sus turnos, contando solo los días que ya terminaron —hoy entra al marcar la salida— y{" "}
+          <strong>sin los días con motivo registrado</strong>: quien estuvo de vacaciones no debe las horas de
+          sus vacaciones. Los días en que no tenía horario ni turno cargado no se comparan con nada: se dicen aparte. Las tardanzas con motivo registrado no cuentan, y las
           faltas las calcula la base: no es falta el día de vacaciones, el de descanso sustitutorio por feriado,
           el de suspensión ni el que tiene justificación.
-          {hayObjetivos && <> Los objetivos son los de <strong>{mesObjetivos.toLowerCase()}</strong>: son mensuales, no siguen al rango.</>}
+          {hayObjetivos && <> Los objetivos son los de <strong>{mesObjetivos.toLowerCase()}</strong>: son mensuales, no siguen al rango{mesObjetivosEnCurso ? ", y como el mes no terminó ninguno se pinta en rojo" : ""}.</>}
           {totales.agregadas > 0 && (
             <> Este rango incluye <strong>{totales.agregadas.toFixed(0)} h de registros históricos de 2025</strong> —
             el total de un mes guardado en una sola fecha, porque entonces no había marcaje diario. La planilla
@@ -1344,8 +1437,9 @@ function DesempenoContenido() {
             cuadrícula, que compara contra lo que tocaba día a día.</>
           )}
           {sinActividad > 0 && (
-            <> Hay <strong>{sinActividad} persona{sinActividad === 1 ? "" : "s"} activa{sinActividad === 1 ? "" : "s"}</strong> sin
-            nada que mostrar en este rango (ingreso posterior o sin horario cargado); no salen en la tabla.</>
+            <> Hay <strong>{sinActividad} persona{sinActividad === 1 ? "" : "s"} activa{sinActividad === 1 ? "" : "s"}</strong>
+            {fSede || fArea ? " con estos filtros" : ""} sin nada que mostrar en este rango (ingreso posterior o sin
+            horario cargado); no salen en la tabla.</>
           )}
         </p>
       </main>
@@ -1386,7 +1480,9 @@ function DesempenoContenido() {
                   </div>
                   <div className="flex justify-between gap-4">
                     <dt className="text-taupe">Salió</dt>
-                    <dd>{diaSel.salidaTs ? horaLima(diaSel.salidaTs) : <span className="text-ambar">sin marcar</span>}</dd>
+                    <dd>{diaSel.salidaTs ? horaLima(diaSel.salidaTs)
+                      : diaSel.enCurso ? <span className="text-taupe">todavía en su jornada</span>
+                      : <span className="text-ambar">sin marcar</span>}</dd>
                   </div>
                   <div className="flex justify-between gap-4">
                     <dt className="text-taupe">Trabajó</dt>
@@ -1415,7 +1511,13 @@ function DesempenoContenido() {
                     No marcó, y no cuenta como falta: {MOTIVO_NO_FALTA[diaSel.faltaMotivo ?? ""] ?? etiqueta(MOTIVOS_FALTA, diaSel.faltaMotivo) ?? "justificada"}.
                   </p>
                 )}
-                {diaSel.estado === "revisar" && (
+                {diaSel.enCurso && (
+                  <p className="mt-3 rounded-lg bg-sand/60 px-3 py-2">
+                    Está en su jornada. Las horas de hoy se calculan al marcar la salida; hasta entonces este día
+                    no cuenta ni en lo trabajado ni en lo que le tocaba.
+                  </p>
+                )}
+                {diaSel.estado === "revisar" && !diaSel.enCurso && (
                   <p className="mt-3 rounded-lg bg-ambar/10 px-3 py-2">
                     {diaSel.jornadaEstado === "auto_cerrada_pendiente"
                       ? "El sistema cerró este día automáticamente porque nadie marcó la salida."
@@ -1482,14 +1584,14 @@ function DesempenoContenido() {
                 {/* Botón, no enlace, solo cuando "revisar" es la única acción
                     pendiente real del día — los otros dos enlaces de abajo son
                     exploración, no algo que haga falta resolver. */}
-                {diaSel.estado === "revisar" && (
+                {diaSel.estado === "revisar" && !diaSel.enCurso && (
                   <Boton variante="primario"
                     onClick={() => router.push(`/admin/correcciones?persona=${filaSel.personaId}&fecha=${diaSel.fecha}`)}>
                     Abrir este día en Correcciones →
                   </Boton>
                 )}
                 <div className="flex flex-col gap-2">
-                  {diaSel.estado !== "revisar" && (
+                  {(diaSel.estado !== "revisar" || diaSel.enCurso) && (
                     <Link href={`/admin/correcciones?persona=${filaSel.personaId}&fecha=${diaSel.fecha}`}
                       className="text-rojo hover:underline">Abrir este día en Correcciones →</Link>
                   )}
