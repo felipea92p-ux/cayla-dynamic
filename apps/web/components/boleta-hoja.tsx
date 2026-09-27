@@ -2,7 +2,7 @@ import { RANGO_LABEL, formatSoles } from "@/lib/rangos";
 import { Marca } from "@/components/marca";
 import { Insignia } from "@/components/ui/insignia";
 import { MESES_LARGO, fechaCorta, fmtHoras } from "@/lib/admin/planilla/formato";
-import type { Fila, Proyeccion } from "@/lib/admin/planilla/tipos";
+import type { Fila, Proyeccion, SubvencionPracticante } from "@/lib/admin/planilla/tipos";
 import {
   EMPRESA,
   TZ_LIMA,
@@ -121,9 +121,14 @@ export interface BoletaHojaProps {
   baseLegal: number | null;
   documento: string | null;
   fechaIngreso: string | null;
+  // Lo que una practicante lleva devengado de descanso + subvención semestral
+  // (0485). Ausente (undefined) mientras esa consulta aparte todavía no
+  // contestó, o para cualquiera que no sea practicante — nunca se pide para
+  // los otros dos documentos.
+  subvencionPracticante?: SubvencionPracticante | null;
 }
 
-export function BoletaHoja({ f, proy, baseLegal, documento, fechaIngreso }: BoletaHojaProps) {
+export function BoletaHoja({ f, proy, baseLegal, documento, fechaIngreso, subvencionPracticante }: BoletaHojaProps) {
   // ── QUIÉN RECIBE ESTE PAPEL ────────────────────────────────────────────────
   // Hasta el 2026-08-08 esta pantalla imprimía UN solo documento para todos, y
   // ese documento hablaba el idioma de un contrato de trabajo: «boleta»,
@@ -257,9 +262,14 @@ export function BoletaHoja({ f, proy, baseLegal, documento, fechaIngreso }: Bole
   // calcula `fn_planilla_calcular` con `salario_ref`. Si algún día difieren,
   // usar el otro daría una tarifa que no reproduce el total de la propia hoja.
   //
-  // CUATRO DECIMALES, y no dos: a S/ 8.93 la hora, 27 h 30 min dan S/ 245.58 y
-  // la hoja remata en S/ 245.66. Ocho céntimos bastan para que alguien piense
-  // que le descontaron algo; con S/ 8.9330 la multiplicación cierra.
+  // DOS DECIMALES (decisión de Felipe, 2026-09-27): esto ya se probó a cuatro
+  // —ver el historial de esta línea— precisamente porque a dos la
+  // multiplicación «tarifa × horas» no siempre cierra contra el total de más
+  // abajo (a S/ 8.93 la hora, 27 h 30 min dan S/ 245.58 contra S/ 245.66 de la
+  // hoja). Se vuelve a dos de todas formas: la tarifa a cuatro decimales se
+  // lee peor de lo que vale evitar una diferencia de céntimos, y esa
+  // diferencia no es un error — es solo que la tarifa mostrada está
+  // redondeada y el total no.
   //
   // Solo aplica sin `sueldoFijo`: quien tiene un monto fijo pactado (0250) SÍ
   // tiene un «mes completo» real que mostrar, y esa frase se queda igual.
@@ -421,13 +431,13 @@ export function BoletaHoja({ f, proy, baseLegal, documento, fechaIngreso }: Bole
               había que poner en el pie para explicarla.
               El potencial sigue existiendo en Planilla, para gestión interna. */}
           {/* A UN LOCADOR SIN MONTO FIJO SE LE DICE SU TARIFA, NO UN SUELDO
-              MENSUAL. Ver el cálculo y el porqué de los cuatro decimales donde
-              se define `tarifaHora`, más arriba. */}
+              MENSUAL. Ver el cálculo y el redondeo a dos decimales donde se
+              define `tarifaHora`, más arriba. */}
           {tarifaHora !== null ? (
             <dl className="mt-3 space-y-1 text-sm">
               <div className="flex justify-between gap-4">
                 <dt className="font-medium">Tarifa por hora</dt>
-                <dd className="font-medium">S/ {tarifaHora.toFixed(4)}</dd>
+                <dd className="font-medium">S/ {tarifaHora.toFixed(2)}</dd>
               </div>
             </dl>
           ) : (
@@ -909,7 +919,11 @@ export function BoletaHoja({ f, proy, baseLegal, documento, fechaIngreso }: Bole
             a decirle a un locador «CAYLA paga por ti tu seguro de salud y tu
             gratificación» — que es, en una palabra, la definición de trabajador.
             La regla se dice por lo que la persona ES, no por lo que le salió. */}
-        {!esLocador && (aporteEssalud > 0 || f.provision_total > 0) && (
+        {!esLocador &&
+          (aporteEssalud > 0 ||
+            f.provision_total > 0 ||
+            (subvencionPracticante &&
+              (subvencionPracticante.mediaSubSaldo > 0 || subvencionPracticante.descansoSaldo > 0))) && (
           <div className="mb-6 rounded-lg bg-sand/40 p-4 print:mb-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-tinta">
               Además, CAYLA paga por ti
@@ -1000,6 +1014,41 @@ export function BoletaHoja({ f, proy, baseLegal, documento, fechaIngreso }: Bole
                     </td>
                   </tr>
                 )}
+                {/* Ley 28518, art. 42 (0465/0467/0485). A diferencia de las tres de
+                    arriba, esto NO es «la parte de este mes»: se acumula desde el
+                    ingreso, por aniversario del convenio, y esta hoja solo lo dice si
+                    hay algo devengado — un cero mudo aquí sería peor que no imprimir
+                    nada, así que las dos filas se quedan fuera del `!esLocador` de
+                    siempre y viven solas bajo su propia condición. */}
+                {subvencionPracticante && subvencionPracticante.mediaSubSaldo > 0 && (
+                  <tr className="border-t border-sand">
+                    <td className="py-2">
+                      Media subvención — acumulada desde tu ingreso
+                      <span className="block text-xs text-taupe">
+                        se gana media subvención por cada 6 meses continuos de convenio (art.
+                        42) · próximo hito {fechaCorta(subvencionPracticante.semestreHasta)}
+                      </span>
+                    </td>
+                    <td className="py-2 text-right align-top">
+                      {formatSoles(subvencionPracticante.mediaSubSaldo)}
+                    </td>
+                  </tr>
+                )}
+                {subvencionPracticante && subvencionPracticante.descansoSaldo > 0 && (
+                  <tr className="border-t border-sand">
+                    <td className="py-2">
+                      Descanso de 15 días — acumulado desde tu ingreso
+                      <span className="block text-xs text-taupe">
+                        {subvencionPracticante.descansoGanado
+                          ? "ya cumpliste los 12 meses continuos: se paga aunque no lo goces"
+                          : `se gana al cumplir 12 meses continuos de convenio (${fechaCorta(subvencionPracticante.descansoCumple)})`}
+                      </span>
+                    </td>
+                    <td className="py-2 text-right align-top">
+                      {formatSoles(subvencionPracticante.descansoSaldo)}
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
             {/* Antes decía «los montos acumulados son a la fecha», y no era cierto: estas
@@ -1007,10 +1056,26 @@ export function BoletaHoja({ f, proy, baseLegal, documento, fechaIngreso }: Bole
                 no el acumulado. Quien comparaba su boleta contra la pantalla de Provisiones
                 veía dos números distintos para lo que parecía lo mismo. Corregido el
                 2026-08-01, después de que Felipe lo notara en la boleta de Danitza. */}
-            <p className="mt-3 text-xs text-taupe">
-              Son <strong>las partes de este mes</strong>. Se van sumando mes a mes y se
-              pagan completas en las fechas de ley.
-            </p>
+            {f.provision_total > 0 && (
+              <p className="mt-3 text-xs text-taupe">
+                Son <strong>las partes de este mes</strong>. Se van sumando mes a mes y se
+                pagan completas en las fechas de ley.
+              </p>
+            )}
+            {/* La nota de arriba diría algo falso sobre estas dos: no son «la parte
+                de este mes», son lo acumulado desde el ingreso (ver el comentario de
+                la fila). Necesitan su propia leyenda, y la de más peso es que nadie
+                se las va a pagar sola: a diferencia de grati/CTS/vacaciones, todavía
+                no hay un botón ni una fecha fija — se piden. */}
+            {subvencionPracticante &&
+              (subvencionPracticante.mediaSubSaldo > 0 || subvencionPracticante.descansoSaldo > 0) && (
+                <p className="mt-3 text-xs text-taupe">
+                  La media subvención y el descanso son <strong>lo acumulado desde tu
+                  ingreso</strong>, no la parte de este mes: se ganan por aniversario de tu
+                  convenio. No se pagan solos con la planilla — pídelos a Desarrollo
+                  Organizacional cuando corresponda.
+                </p>
+              )}
           </div>
         )}
 
@@ -1079,10 +1144,15 @@ export function BoletaHoja({ f, proy, baseLegal, documento, fechaIngreso }: Bole
           // recibo" también, porque un practicante no emite nada) ni la del
           // trabajador (le sobra PLAME como boleta oficial y "remuneración
           // computable": una subvención no lo es). Cinco puntos, con la misma
-          // regla de las otras dos versiones: sin cifras, y los derechos que
-          // el sistema todavía no calcula solo se dicen igual — omitirlos
-          // sería negarle a la persona un derecho real por una limitación de
-          // esta pantalla, y eso pesa distinto que un adorno de más.
+          // regla de las otras dos versiones: sin cifras.
+          //
+          // CAMBIO 0485: el último punto decía «el sistema todavía no los
+          // calcula solo: pídelos si se cumplen» sobre el descanso y la media
+          // subvención — cierto hasta la 0467 (2026-09-15), falso desde
+          // entonces: SÍ se calculan (ver el bloque de arriba, «Además, CAYLA
+          // paga por ti»), solo que Felipe sigue siendo quien decide cuándo se
+          // pagan. Un documento que le dice a la persona que su propio
+          // sistema no sabe algo que sí sabe es peor que no decir nada.
           <div className="mb-6 rounded-lg bg-sand/40 p-4 text-sm print:mb-3 print:break-inside-avoid print:p-3">
             <p className="mb-3 font-medium">Sobre este documento</p>
             <ul className="list-disc space-y-2 pl-5">
@@ -1106,10 +1176,11 @@ export function BoletaHoja({ f, proy, baseLegal, documento, fechaIngreso }: Bole
                 <span className="font-medium">
                   Por eso aquí no hay gratificación, CTS, vacaciones ni aporte a tu pensión.
                 </span>{" "}
-                Son derechos propios de un contrato de trabajo (art. 47). Si tus prácticas
-                superan los 12 meses continuos sí te corresponde un descanso de 15 días, y media
-                subvención adicional por cada 6 meses continuos — son derechos tuyos aunque este
-                sistema todavía no los calcule solo: pídelos si se cumplen.
+                Son derechos propios de un contrato de trabajo (art. 47). El descanso de 15
+                días al cumplir 12 meses continuos y la media subvención adicional por cada 6
+                meses continuos sí te corresponden (art. 42): si ya tienes algo acumulado, lo
+                ves arriba, en «Además, CAYLA paga por ti» — pídelo a Desarrollo
+                Organizacional cuando corresponda.
               </li>
               <li>
                 <span className="font-medium">Tu subvención no genera retención de impuesto a la renta.</span>{" "}
