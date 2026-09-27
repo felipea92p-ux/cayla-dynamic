@@ -115,6 +115,19 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-09-27-constancia-practicante-descanso-y-subvencion",
+    fecha: "2026-09-27",
+    titulo: "Tu constancia de subvención ya muestra tu descanso y tu subvención semestral",
+    queMejoro:
+      "Tu constancia de subvención ya mostraba lo que ganas por tus horas y tu movilidad, pero le faltaban " +
+      "los otros dos beneficios que la Ley 28518 (art. 42) también te da: el descanso de 15 días al cumplir " +
+      "12 meses continuos de convenio, y una media subvención adicional por cada 6 meses continuos.\n\n" +
+      "Ahora, si ya tienes algo acumulado de cualquiera de los dos, lo ves en tu constancia, junto al aporte " +
+      "de EsSalud. Sigue siendo algo que pides a Desarrollo Organizacional cuando corresponda — esto solo " +
+      "hace que puedas verlo antes de pedirlo.",
+    audiencia: "todos",
+  },
+  {
     id: "2026-09-27-boleta-feriados-especifica-fecha",
     fecha: "2026-09-27",
     titulo: "Tu boleta ahora dice qué feriado se pagó, no solo el monto",
