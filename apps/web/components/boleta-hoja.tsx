@@ -257,9 +257,14 @@ export function BoletaHoja({ f, proy, baseLegal, documento, fechaIngreso }: Bole
   // calcula `fn_planilla_calcular` con `salario_ref`. Si algún día difieren,
   // usar el otro daría una tarifa que no reproduce el total de la propia hoja.
   //
-  // CUATRO DECIMALES, y no dos: a S/ 8.93 la hora, 27 h 30 min dan S/ 245.58 y
-  // la hoja remata en S/ 245.66. Ocho céntimos bastan para que alguien piense
-  // que le descontaron algo; con S/ 8.9330 la multiplicación cierra.
+  // DOS DECIMALES (decisión de Felipe, 2026-09-27): esto ya se probó a cuatro
+  // —ver el historial de esta línea— precisamente porque a dos la
+  // multiplicación «tarifa × horas» no siempre cierra contra el total de más
+  // abajo (a S/ 8.93 la hora, 27 h 30 min dan S/ 245.58 contra S/ 245.66 de la
+  // hoja). Se vuelve a dos de todas formas: la tarifa a cuatro decimales se
+  // lee peor de lo que vale evitar una diferencia de céntimos, y esa
+  // diferencia no es un error — es solo que la tarifa mostrada está
+  // redondeada y el total no.
   //
   // Solo aplica sin `sueldoFijo`: quien tiene un monto fijo pactado (0250) SÍ
   // tiene un «mes completo» real que mostrar, y esa frase se queda igual.
@@ -421,13 +426,13 @@ export function BoletaHoja({ f, proy, baseLegal, documento, fechaIngreso }: Bole
               había que poner en el pie para explicarla.
               El potencial sigue existiendo en Planilla, para gestión interna. */}
           {/* A UN LOCADOR SIN MONTO FIJO SE LE DICE SU TARIFA, NO UN SUELDO
-              MENSUAL. Ver el cálculo y el porqué de los cuatro decimales donde
-              se define `tarifaHora`, más arriba. */}
+              MENSUAL. Ver el cálculo y el redondeo a dos decimales donde se
+              define `tarifaHora`, más arriba. */}
           {tarifaHora !== null ? (
             <dl className="mt-3 space-y-1 text-sm">
               <div className="flex justify-between gap-4">
                 <dt className="font-medium">Tarifa por hora</dt>
-                <dd className="font-medium">S/ {tarifaHora.toFixed(4)}</dd>
+                <dd className="font-medium">S/ {tarifaHora.toFixed(2)}</dd>
               </div>
             </dl>
           ) : (
