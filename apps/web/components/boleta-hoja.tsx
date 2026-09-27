@@ -210,6 +210,12 @@ export function BoletaHoja({ f, proy, baseLegal, documento, fechaIngreso }: Bole
         ? fechaCorta(f.sobretiempo_desde)
         : `${fechaCorta(f.sobretiempo_desde)} al ${fechaCorta(f.sobretiempo_hasta)}`
       : null;
+  // Qué feriados componen el monto de arriba. Se excluyen los `antes_ingreso`
+  // porque esos no pagan nada (feriado anterior a que la persona entrara) — no
+  // son parte de este número y listarlos aquí solo confundiría. Mismo criterio
+  // (fecha + horas trabajadas + proporcionales) que ya usan la tabla de Planilla
+  // y el panel de la persona: no se inventa una redacción nueva para la boleta.
+  const feriadosQuePagan = f.feriados_detalle.filter((d) => !d.antes_ingreso);
 
   // Subtotal ganado: todo lo que suma, antes de restar. Solo se muestra si hay
   // algo que restar — sin eso sería idéntico al total y solo agregaría ruido.
@@ -530,8 +536,20 @@ export function BoletaHoja({ f, proy, baseLegal, documento, fechaIngreso }: Bole
             )}
             {f.monto_feriados > 0 && (
               <tr className="border-t border-sand">
-                <td className="py-2">Feriados</td>
-                <td className="py-2 text-right">{formatSoles(f.monto_feriados)}</td>
+                <td className="py-2">
+                  Feriados
+                  {feriadosQuePagan.length > 0 && (
+                    <span className="block text-xs text-taupe">
+                      {feriadosQuePagan
+                        .map(
+                          (d) =>
+                            `${fechaCorta(d.fecha)}: ${fmtHorasHumano(d.horas_trabajadas)} trabajadas + ${fmtHorasHumano(d.proporcional_horas)} proporcionales`,
+                        )
+                        .join(" · ")}
+                    </span>
+                  )}
+                </td>
+                <td className="py-2 text-right align-top">{formatSoles(f.monto_feriados)}</td>
               </tr>
             )}
             {/* Sobretiempo (0185). Se imprime el RECARGO, que es lo que esta línea
