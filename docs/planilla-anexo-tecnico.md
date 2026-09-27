@@ -85,6 +85,20 @@ de razonar sobre el supuesto anterior en vez de consultar la base. La medición
 que zanjó todo —horas por día, por persona, excluyendo ingresos recientes— cabía
 en una consulta.
 
+**⚠️ Ojo con no confundir el descarte de arriba con la 0484.** El cuarto
+descarte («quien gana la RMV cae por debajo del mínimo legal») es sobre
+alguien de **planilla** que trabaja el periodo **completo** con un turno
+reducido — ahí el piso sigue sin tocarse, por ley, y no se reabre.
+
+La **0484** (2026-09-27) es un caso distinto: `tipo_vinculo = 'prueba'` cuyo
+ingreso Y cese caben dentro de un mismo periodo —no trabajó el mes completo,
+trabajó unos días de él, o ninguno—. Ahí, desde la 0484, **no se genera
+EsSalud en absoluto**, por decisión explícita de Felipe y pese a que el D.S.
+009-97-SA no hace esa excepción por ley para el período de prueba (ver el
+encabezado de esa migración para el riesgo aceptado). Si una sesión futura ve
+a alguien de `'prueba'` con `aporte_essalud = 0` y lo lee como el mismo
+defecto ya descartado arriba, no lo es: es la regla nueva funcionando.
+
 ---
 
 ## Cómo se paga un feriado
