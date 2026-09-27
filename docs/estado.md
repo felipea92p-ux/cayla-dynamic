@@ -6,6 +6,51 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-09-27 — El período de prueba deja de generar EsSalud · migración 0484 · SIN PEGAR
+
+**Disparado por el cierre «Prueba» del periodo 29/08–27/09/2026** (pagado el
+27/09): 6 personas —Ana Huaccha, Angie Vizcarra, Geison Alcantára, María Vera,
+María Orbegoso, Steven Cruz—, todas con `fecha_ingreso` Y `fecha_cese` DENTRO
+de ese mismo periodo (de 0 a 25 días activo sobre 30), generaron S/101,70 de
+EsSalud cada una — S/610,20 en total. Angie ni siquiera marcó una hora:
+ingresó y cesó el mismo día.
+
+**Verificado contra producción (`vovjyyiafkxteijimpuy`) antes de escribir
+nada:** la foto congelada de ese cierre no tiene ninguna fila duplicada — el
+número es exactamente `6 × S/1.130 × 9 %`, el piso de la RMV aplicado
+completo y sin prorratear a las 6, por diseño de `fn_planilla_calcular_nucleo`
+(el piso solo se prorratea por días de subsidio, 0262 — nunca por
+entrada/cese a mitad de periodo, y la 0417 lo dice explícito: «no se tocó»).
+
+**Esto NO es el «riesgo de RMV» ya descartado dos veces** en
+`planilla-anexo-tecnico.md`: ese descarte es sobre alguien de planilla que
+trabaja el mes COMPLETO con turno reducido. Este caso es alguien cuyo vínculo
+entero —ingreso y cese— cupo dentro de un solo periodo de prueba.
+
+**⚠️ Decisión de Felipe (2026-09-27), con el riesgo legal explicado y
+aceptado:** `tipo_vinculo = 'prueba'` deja de generar EsSalud, punto — no solo
+prorratearlo, no solo excluir a quien no llegó a trabajar. Se le planteó que
+la ley (D.S. 009-97-SA) no hace esa excepción para el período de prueba, que
+solo protege contra el despido injustificado, y que dejar de declarar es una
+subdeclaración real frente a SUNAT. Decidió igual, con las 6 personas del caso
+real como alcance. Ver el encabezado de la
+[`0484`](../supabase/migrations/0484_el_periodo_de_prueba_deja_de_generar_essalud.sql)
+para el detalle completo.
+
+**Auditado contra Postgres local** (`BEGIN … ROLLBACK`, nunca `db reset`):
+prueba pgTAP
+[`382`](../supabase/tests/382_el_periodo_de_prueba_no_genera_essalud.test.sql),
+con control — la misma prueba SIN el cambio falla exactamente en los dos
+casos de `'prueba'` (101.70 en vez de 0) y el testigo de planilla no se mueve.
+
+**Pendiente, y es decisión de Felipe, no de esta migración:** el periodo ya
+pagado (27/09) NO se corrige solo. `planilla_pagada_detalle` es append-only;
+para que esos S/610,20 ya pagados bajen a S/0, hay que **pegar la 0484
+primero** y después **reabrir «Prueba» de ese periodo desde Planilla y volver
+a pagarlo** — dos pasos, en ese orden.
+
+---
+
 ## 2026-09-20 — Un feriado sin turnos ya no grita en rojo: el Dashboard pregunta «¿abre hoy la sede?» · SIN SQL · FUSIONADA (#453 → rescatada por #454)
 
 > **Corregido el 2026-09-25 al fusionar `main` en el PR #449:** decía «SIN
