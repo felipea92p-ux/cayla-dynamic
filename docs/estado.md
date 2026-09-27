@@ -6,6 +6,41 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-09-27 — La constancia de una practicante ya muestra su descanso y su subvención semestral · SQL YA PEGADA
+
+**Origen: Felipe adjuntó su propia constancia de subvención (Benjamin Cueva, OTRU) y avisó que
+«hay otro tipo de beneficios pero no se están mostrando».** Investigado sin adivinar: se confirmó
+con `AskUserQuestion` que se refería al descanso de 15 días y la media subvención semestral de la
+Ley 28518 art. 42 — la 0465/0467 (2026-09-15) YA los calcula, pero solo en la pantalla de
+Provisiones (que ve DO); el documento que la propia persona se lleva seguía sin decir nada, y su
+texto legal del pie afirmaba «este sistema todavía no los calcula», que ya era falso.
+
+**Migración nueva: [`0485`](../supabase/migrations/0485_el_practicante_ve_su_descanso_y_subvencion_semestral.sql),
+pegada por Felipe el 2026-09-27 (`migraciones_aplicadas` confirma numero y nombre).**
+Crea `fn_mis_subvenciones_practicante()` — la misma fórmula que `fn_subvenciones_practicante`
+(0467), copiada para una sola persona (quien llama, vía `fn_persona_actual_id()`), sin exigir
+admin/líder. Prueba pgTAP nueva: `383_el_practicante_ve_su_descanso_y_subvencion_semestral`
+— corrida aislada contra el Postgres local (`BEGIN … ROLLBACK`, sin tocar la base compartida):
+10/10 en verde.
+
+**Por qué una función hermana y no una reescritura:** `fn_subvenciones_practicante` exige
+`fn_es_admin_o_lider()` a propósito (es la que usa DO para ver a TODAS las practicantes); tocar su
+guard para que una practicante se vea a sí misma es el peor lugar para un error de permisos. Mismo
+molde que ya usa este repo dos veces: `fn_planilla_calcular` junto a `fn_planilla_calcular_persona`
+(0329), y `fn_bonos_por_transferir` junto a `fn_mi_bono_cumpleanos` (0478).
+
+**Frontend:** [`boleta-hoja.tsx`](../apps/web/components/boleta-hoja.tsx) gana dos filas nuevas
+dentro de «Además, CAYLA paga por ti» —solo si hay algo devengado— y corrige el texto legal del
+practicante. Las dos pantallas que imprimen este documento (`/mio/boleta` y
+`/admin/planilla/boleta`) piden el dato aparte y con el mismo criterio de siempre: si la consulta
+falla, la constancia sigue saliendo sin esas dos líneas, no se cae. `typecheck` y los 1219 tests de
+vitest, verdes. Novedad agregada (`2026-09-27-constancia-practicante-descanso-y-subvencion`).
+
+**No paga nada solo.** Igual que hasta hoy: Felipe decide cuándo se transfiere: la constancia ahora
+lo hace VISIBLE, no lo pone en la planilla.
+
+---
+
 ## 2026-09-27 — El período de prueba deja de generar EsSalud · migración 0484 · SIN PEGAR
 
 **Disparado por el cierre «Prueba» del periodo 29/08–27/09/2026** (pagado el
