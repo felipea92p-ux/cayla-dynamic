@@ -115,8 +115,18 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
-    id: "2026-09-26-turnos-integrada-y-revision-de-dias-pasados",
-    fecha: "2026-09-26",
+    id: "2026-09-27-boleta-feriados-especifica-fecha",
+    fecha: "2026-09-27",
+    titulo: "Tu boleta ahora dice qué feriado se pagó, no solo el monto",
+    queMejoro:
+      "La línea «Feriados» de tu boleta mostraba solo el monto, sin decir de qué feriado salía ni con qué horas se calculó. " +
+      "Ahora, debajo del monto, aparece la fecha de cada feriado pagado con las horas trabajadas y las horas proporcionales que lo componen.\n\n" +
+      "El total no cambia: es la misma cifra de siempre, ahora explicada para que puedas comprobarla sin preguntar.",
+    audiencia: "todos",
+  },
+  {
+    id: "2026-09-27-turnos-integrada-y-revision-de-dias-pasados",
+    fecha: "2026-09-27",
     titulo: "Turnos: la Integrada respeta la salida de cada día y los días pasados muestran su marcaje",
     queMejoro:
       "En la vista Integrada, las horas después de la última salida de un día —por ejemplo el domingo después de las 18:15— salían en rojo y con el borde ámbar de «sin líder», como si faltara gente con la tienda ya cerrada. " +
