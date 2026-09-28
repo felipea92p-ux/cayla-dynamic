@@ -5768,6 +5768,18 @@ export type Database = {
         Args: { p_rol: Database["public"]["Enums"]["rol_usuario"] | null }
         Returns: string
       }
+      fn_casos_resumen: {
+        Args: { p_desde?: string | null }
+        Returns: {
+          estado: string
+          mes: string
+          sede_codigo: string
+          sede_id: string
+          tipo: string
+          vencido: boolean
+          via: string
+        }[]
+      }
       fn_cerrar_derechohabiente: {
         Args: { p_hasta?: string | null; p_id: string | null }
         Returns: undefined
