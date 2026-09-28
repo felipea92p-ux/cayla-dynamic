@@ -68,11 +68,6 @@ select lives_ok($$ insert into reporte_plazos (reporte_id, clave, norma, descrip
                             'plazo vencido de prueba', 'do', now() - interval '10 days', now() - interval '3 days') $$,
   'se abre a mano un segundo plazo, ya vencido, sobre R2');
 
--- R1 se envejece 4 meses: sirve para probar el filtro `p_desde`.
-select lives_ok($$ update reportes set creado_at = now() - interval '4 months'
-                    where id = pg_temp.id_de('R1 la caja registradora se traba seguido') $$,
-  'R1 se envejece a hace 4 meses, para el filtro p_desde');
-
 -- ── (a)+(b) Cada quien ve lo que gestiona, y nada más ───────────────────────
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000d1302', true);
 select is( (select count(*) from fn_casos_resumen(null)), 2::bigint,
@@ -105,10 +100,16 @@ select is( (select mes from fn_casos_resumen(null) where sede_codigo = 'ZZR02'),
   'el mes de R3 es el de hoy, truncado' );
 
 -- ── (d) `p_desde` filtra por creado_at ───────────────────────────────────────
-select is( (select count(*) from fn_casos_resumen((current_date - interval '2 months')::date)), 2::bigint,
-  'con p_desde de hace 2 meses, R1 (envejecido a 4) queda fuera: Dina ve solo 2' );
-select is( (select count(*) from fn_casos_resumen((current_date - interval '6 months')::date)), 3::bigint,
-  'con p_desde de hace 6 meses entran los tres' );
+-- `reportes` es de solo agregar (fn_reportes_guardian lo impide incluso para
+-- postgres: «lo que se reportó no se reescribe»), así que no se puede
+-- envejecer un reporte para probar el filtro. Se prueba con el borde de hoy:
+-- los tres nacieron con `creado_at = now()`. `fn_hoy_lima()` y no
+-- `current_date` a propósito (ver 92_nadie_usa_current_date): el servidor
+-- corre en UTC.
+select is( (select count(*) from fn_casos_resumen(fn_hoy_lima() + 1)), 0::bigint,
+  'con p_desde de mañana, ninguno califica: los tres nacieron hoy' );
+select is( (select count(*) from fn_casos_resumen(fn_hoy_lima())), 3::bigint,
+  'con p_desde de hoy entran los tres' );
 
 -- ── (e) Nadie sin `authenticated` la llama ──────────────────────────────────
 reset role;
