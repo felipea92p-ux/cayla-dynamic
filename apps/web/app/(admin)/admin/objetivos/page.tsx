@@ -436,7 +436,7 @@ function ObjetivosContenido() {
       const { data: p } = await supabase
         .from("personas")
         .select("id, nombres, apellidos, rol, sede_base_id, sedes:sede_base_id(codigo, nombre)")
-        .eq("estado", "activo")
+        .eq("estado", "activo").eq("cuenta_de_servicio", false)
         .order("nombres");
       setPersonas((p as unknown as Persona[]) ?? []);
     });

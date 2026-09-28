@@ -36,7 +36,7 @@ export async function GET(req: Request) {
   }
 
   try {
-    const personas = await pageAll(() => sb.from("personas").select("id,nombres,apellidos,estado,fecha_cese,sedes:sede_base_id(codigo)"));
+    const personas = await pageAll(() => sb.from("personas").select("id,nombres,apellidos,estado,fecha_cese,sedes:sede_base_id(codigo)").eq("cuenta_de_servicio", false));
     const sedes = await pageAll(() => sb.from("sedes").select("id,codigo"));
     const jornadas = await pageAll(() => sb.from("jornadas").select("persona_id,fecha,horas_trabajadas,minutos_tarde").gte("fecha", ini).lte("fecha", fin));
     // Las marcas anuladas (mig. 0081) quedan fuera: la hoja debe reflejar el día

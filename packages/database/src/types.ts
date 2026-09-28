@@ -3850,6 +3850,7 @@ export type Database = {
           con_hijos: boolean
           constancia_4ta_hasta: string | null
           created_at: string
+          cuenta_de_servicio: boolean
           devenga_beneficios: boolean | null
           devenga_cts: boolean | null
           devenga_grati: boolean | null
@@ -3892,6 +3893,7 @@ export type Database = {
           con_hijos?: boolean
           constancia_4ta_hasta?: string | null
           created_at?: string
+          cuenta_de_servicio?: boolean
           devenga_beneficios?: boolean | null
           devenga_cts?: boolean | null
           devenga_grati?: boolean | null
@@ -3934,6 +3936,7 @@ export type Database = {
           con_hijos?: boolean
           constancia_4ta_hasta?: string | null
           created_at?: string
+          cuenta_de_servicio?: boolean
           devenga_beneficios?: boolean | null
           devenga_cts?: boolean | null
           devenga_grati?: boolean | null
@@ -7888,6 +7891,10 @@ export type Database = {
       }
       fn_set_con_hijos: {
         Args: { p_con_hijos: boolean | null; p_persona_id: string | null }
+        Returns: undefined
+      }
+      fn_set_cuenta_de_servicio: {
+        Args: { p_motivo?: string | null; p_persona_id: string | null; p_valor: boolean | null }
         Returns: undefined
       }
       fn_set_datos_personales: {

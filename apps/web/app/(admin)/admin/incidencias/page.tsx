@@ -224,7 +224,7 @@ function IncidenciasContenido() {
       // Quienes PODRÍAN contar como líder (líder de equipo, marca de piso o administración);
       // quién cuenta en cada sede lo decide cuentaEnCobertura, dentro de la detección.
       supabase.from("personas").select("id, sede_base_id, rol, tipo_vinculo, es_encargada_piso")
-        .eq("estado", "activo").or("rol.eq.supervisor_sede,es_encargada_piso.eq.true,rol.in.(admin,lider_do)"),
+        .eq("estado", "activo").eq("cuenta_de_servicio", false).or("rol.eq.supervisor_sede,es_encargada_piso.eq.true,rol.in.(admin,lider_do)"),
       supabase.from("metas_cobertura").select("sede_id, dia_semana, meta_encargadas").gt("meta_encargadas", 0),
       supabase.from("horarios_asignados").select("persona_id, hora_entrada, hora_salida, dias_laborables, horario_por_dia, almuerzo_min_minutos, vigente_desde, vigente_hasta").lte("vigente_desde", v.domingoSiguiente).or(`vigente_hasta.is.null,vigente_hasta.gte.${v.lunesActual}`),
       supabase.from("turnos").select("persona_id, fecha, hora_entrada, hora_salida, es_descanso").gte("fecha", v.lunesActual).lte("fecha", v.domingoSiguiente),
@@ -268,7 +268,7 @@ function IncidenciasContenido() {
       // que el Dashboard —quien marca—; el alcance por rol lo pone RLS: una líder de
       // equipo ve a su sede, que es la única que la pantalla le muestra.
       supabase.from("personas").select("id, sede_base_id")
-        .eq("estado", "activo")
+        .eq("estado", "activo").eq("cuenta_de_servicio", false)
         .or("en_planilla.eq.true,tipo_vinculo.eq.practicante")
         .eq("sueldo_fijo", false),
     ]);

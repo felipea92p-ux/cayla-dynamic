@@ -823,7 +823,7 @@ export default function ContratosPage() {
       supabase
         .from("personas")
         .select("id, nombres, apellidos, documento, cargo, sede_base_id, sede_fisica_id, email, fecha_ingreso, fecha_fin_contrato, cobra_movilidad, personal_direccion, sueldo_fijo, en_planilla, tipo_vinculo, practicante_modalidad")
-        .eq("estado", "activo")
+        .eq("estado", "activo").eq("cuenta_de_servicio", false)
         .order("apellidos"),
       supabase.from("sedes").select("id, nombre, codigo, ciudad"),
       supabase.from("datos_personales").select("persona_id, nombre_dni, direccion, genero"),
@@ -854,7 +854,7 @@ export default function ContratosPage() {
       // Las fichas SIN filtrar por `en_planilla`: quien firma por la empresa no
       // tiene por qué estar en planilla —puede ser accionista— y buscarlo en la
       // lista del desplegable lo dejaría sin nombre ni DNI en el contrato.
-      supabase.from("personas").select("id, nombres, apellidos, documento").eq("estado", "activo"),
+      supabase.from("personas").select("id, nombres, apellidos, documento").eq("estado", "activo").eq("cuenta_de_servicio", false),
       // Mi propia firma escaneada. Solo la mía: fn_mi_firma no acepta parámetros.
       supabase.rpc("fn_mi_firma"),
       supabase.rpc("fn_persona_actual_id"),

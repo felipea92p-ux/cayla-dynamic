@@ -177,6 +177,8 @@ export default function EquipoPage() {
   const router = useRouter();
   const [sedes, setSedes] = useState<Sede[]>([]);
   const [personas, setPersonas] = useState<Persona[]>([]);
+  // Las estaciones de retail (0490): filas de `personas` que no son personas.
+  const [cuentasServicio, setCuentasServicio] = useState<{ id: string; nombres: string; apellidos: string; estado: string; sede_base_id: string }[]>([]);
   // Catálogo de áreas (tabla `areas` vía RPC fn_areas; NUNCA por REST — schema cache trabado).
   const [areas, setAreas] = useState<Area[]>(AREAS_FALLBACK);
   // Fecha de ingreso + primera entrada marcada por persona (RPC fn_ingresos; solo admin/lider,
@@ -377,8 +379,20 @@ export default function EquipoPage() {
     );
     setFuncionesOk(!funcionesError);
     setSedes(sedesData ?? []);
+    // Cuentas de servicio (0490): las estaciones de retail. Consulta aparte y
+    // tolerante, como las de arriba: si la 0490 todavía no está en producción,
+    // falla sola, nadie se aparta y la pantalla queda como era. Las que sí lo
+    // son salen de la tabla y de todos los contadores —no son del equipo— y se
+    // listan en su propio bloque al final, para poder revisarlas.
+    const { data: servData, error: servError } = await supabase
+      .from("personas")
+      .select("id")
+      .eq("cuenta_de_servicio", true);
+    const idsServicio = new Set(servError ? [] : ((servData as { id: string }[] | null) ?? []).map((s) => s.id));
+    const todas = (personasData as { id: string; nombres: string; apellidos: string; estado: string; sede_base_id: string }[] | null) ?? [];
+    setCuentasServicio(todas.filter((p) => idsServicio.has(p.id)));
     setPersonas(
-      ((personasData as Omit<Persona, "funcion" | "con_hijos" | "visible_todas_sedes" | "tipo_vinculo" | "practicante_modalidad" | "fecha_cese" | "motivo_cese">[]) ?? []).map((p) => {
+      ((personasData as Omit<Persona, "funcion" | "con_hijos" | "visible_todas_sedes" | "tipo_vinculo" | "practicante_modalidad" | "fecha_cese" | "motivo_cese">[]) ?? []).filter((p) => !idsServicio.has(p.id)).map((p) => {
         const extra = funciones.get(p.id);
         return { ...p, funcion: extra?.funcion ?? AREA_DEFAULT, con_hijos: extra?.con_hijos ?? false, visible_todas_sedes: extra?.visible_todas_sedes ?? false, tipo_vinculo: extra?.tipo_vinculo ?? "planilla", practicante_modalidad: extra?.practicante_modalidad ?? null, cargo: extra?.cargo ?? null, fecha_cese: extra?.fecha_cese ?? null, motivo_cese: extra?.motivo_cese ?? null };
       }),
@@ -2076,6 +2090,35 @@ export default function EquipoPage() {
               ))}
             </div>
           </>
+        )}
+
+        {/* Cuentas de servicio (0490): plegado, al final y sin contar en nada.
+            Están aquí para poder revisarlas o desmarcar una por error desde su
+            ficha — no para operarlas: no marcan, no cobran, no tienen horario. */}
+        {!cargando && cuentasServicio.length > 0 && (
+          <details className="mt-6 max-w-2xl rounded-lg border border-sand bg-papel px-4 py-3 text-sm">
+            <summary className="cursor-pointer select-none text-taupe">
+              Cuentas de servicio ({cuentasServicio.length}) — no son personas
+            </summary>
+            <p className="mt-2 text-xs text-taupe">
+              Estaciones de caja y almacén que usa Retail. Existen como fichas porque Retail les atribuye
+              ventas, pero Dynamic no las paga, no aparecen en el terminal de marcaje ni cuentan en ninguna
+              lista. Si alguna es en realidad una persona, ábrela y desmárcala.
+            </p>
+            <ul className="mt-3 divide-y divide-sand">
+              {cuentasServicio.map((c) => (
+                <li key={c.id} className="flex items-center justify-between gap-3 py-2">
+                  <span>
+                    {c.nombres} {c.apellidos}{" "}
+                    <span className="text-xs text-taupe">· {codigoSede(c.sede_base_id)}{c.estado !== "activo" ? " · inactiva" : ""}</span>
+                  </span>
+                  <Link href={`/admin/personas/${c.id}`} className="shrink-0 text-xs underline underline-offset-4 hover:text-rojo">
+                    Ver ficha
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </details>
         )}
 
         <p className="mt-4 max-w-2xl text-xs text-taupe">

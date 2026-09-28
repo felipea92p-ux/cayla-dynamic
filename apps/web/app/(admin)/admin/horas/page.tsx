@@ -673,7 +673,7 @@ function DesempenoContenido() {
     ] = await Promise.all([
       supabase.from("personas")
         .select("id, nombres, apellidos, estado, funcion, fecha_ingreso, sedes:sede_base_id(codigo)")
-        .order("nombres"),
+        .eq("cuenta_de_servicio", false).order("nombres"),
       // Por lotes: PostgREST corta en 1000 filas y devuelve 200 OK sin avisar.
       // El order por fecha+persona no es cosmético: sin un orden estable, dos
       // lotes pueden repetir una fila y perder otra.

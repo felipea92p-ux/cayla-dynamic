@@ -381,7 +381,7 @@ export default function AusenciasPage() {
     const { data: sesion } = await supabase.auth.getSession();
     if (!sesion.session) { router.replace("/admin/login"); return; }
     const [{ data: p, error: eP }, { data: t }, { data: a, error: eA }, { data: al, error: eAl }, { data: sub, error: eSub }, { data: pv, error: ePv }, { data: pf }] = await Promise.all([
-      supabase.from("personas").select("id, nombres, apellidos").eq("estado", "activo").order("nombres"),
+      supabase.from("personas").select("id, nombres, apellidos").eq("estado", "activo").eq("cuenta_de_servicio", false).order("nombres"),
       supabase.rpc("fn_tipos_ausencia"),
       supabase.rpc("fn_ausencias", { p_desde: desde, p_hasta: hasta }),
       supabase.rpc("fn_ausencias_alerta", {}),

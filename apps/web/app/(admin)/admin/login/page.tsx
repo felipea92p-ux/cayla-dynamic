@@ -7,6 +7,7 @@ import { Colibri } from "@/components/marca";
 import { ROLES_CON_PANEL, claveSirve } from "@cayla-dynamic/shared";
 import { clavePorCambiar, marcarMiClavePorCambiar } from "@/lib/admin/mi-clave";
 import { esFallaDeRed } from "@/lib/admin/mensaje-error";
+import { esCuentaDeServicio, MENSAJE_CUENTA_DE_SERVICIO } from "@/lib/cuenta-de-servicio";
 import { Campo } from "@/components/ui/campo";
 import { CampoClave } from "@/components/ui/campo-clave";
 import { Boton } from "@/components/ui/boton";
@@ -60,6 +61,16 @@ export default function AdminLoginPage() {
       .select("rol")
       .eq("auth_user_id", data.user?.id ?? "")
       .maybeSingle();
+
+    // Una estación de retail tiene usuario (así entra a las tiendas), pero no
+    // es una persona: aquí no tiene nada que ver. Antes que la clave, porque
+    // mandarla a cambiarla sería invitarla a quedarse (0490).
+    if (await esCuentaDeServicio(supabase, data.user?.id)) {
+      await supabase.auth.signOut();
+      setCargando(false);
+      setError(MENSAJE_CUENTA_DE_SERVICIO);
+      return;
+    }
 
     // ── ¿HAY QUE CAMBIAR ESTA CLAVE ANTES DE SEGUIR? ────────────────────────
     //

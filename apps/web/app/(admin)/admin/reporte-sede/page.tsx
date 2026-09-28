@@ -195,7 +195,7 @@ function ReporteSedeContenido() {
       // (fn_tardanzas_resumen/fn_faltas_resumen, más abajo) lo siga
       // excluyendo — esta hoja solo lo muestra, no lo sanciona.
       supabase.from("personas").select("id, nombres, apellidos, rol, sede_base_id")
-        .eq("estado", "activo")
+        .eq("estado", "activo").eq("cuenta_de_servicio", false)
         .or("en_planilla.eq.true,tipo_vinculo.eq.practicante")
         .eq("sueldo_fijo", false).eq("sede_base_id", sedeId).order("nombres"),
       // Por lotes: sin esto PostgREST cortaba en 1000 filas en silencio y la
