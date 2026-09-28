@@ -68,9 +68,15 @@
 -- niega a marcar a quien:
 --
 --   · tiene un marcaje o una jornada (una estación no marca asistencia);
---   · tiene una fila en `planilla_pagada_detalle` (ya se le pagó un mes);
+--   · ya cobró dinero en un mes congelado (`planilla_pagada_detalle.total > 0`);
 --   · no tiene rol `integrante` (una cuenta compartida nunca administra — la
 --     misma regla que retail escribió en su CHECK).
+--
+-- Lo del mes congelado es `total > 0` y no «tiene una fila» a propósito: si la
+-- planilla de un periodo se congela ANTES de pegar esta migración, cada
+-- estación queda con su fila —S/ 0 de pago, solo el aporte de EsSalud— y con
+-- «tiene una fila» ya no se la podría marcar nunca. A una estación nunca se le
+-- paga un sol; a una persona real, sí.
 --
 -- Desmarcar no tiene condiciones: devolver a alguien a la planilla nunca
 -- esconde nada.
@@ -81,7 +87,7 @@
 -- columna, y lo único que las distingue es que su nombre dice
 -- «(no es persona)». Se usa eso para marcarlas una vez; de aquí en adelante
 -- se marca desde la ficha de la persona. Si alguna tuviera marcajes, jornadas
--- o un mes pagado, NO se marca y se avisa por NOTICE: esa fila hay que
+-- o un mes cobrado, NO se marca y se avisa por NOTICE: esa fila hay que
 -- mirarla con alguien antes de esconderla.
 --
 -- No hay rastro en `correcciones_auditoria` de este marcado inicial:
@@ -199,8 +205,11 @@ begin
        or exists (select 1 from jornadas where persona_id = p_persona_id) then
       raise exception 'Esta ficha tiene marcajes: alguien trabajó con ella. Una cuenta de servicio no marca asistencia, y marcarla así la sacaría de la planilla.';
     end if;
-    if exists (select 1 from planilla_pagada_detalle where persona_id = p_persona_id) then
-      raise exception 'A esta ficha ya se le pagó al menos un mes. No se puede marcar como cuenta de servicio.';
+    -- `total > 0` y no «tiene una fila»: ver el encabezado. Una estación
+    -- congelada en un periodo tiene su fila con S/ 0; una persona, no.
+    if exists (select 1 from planilla_pagada_detalle
+                where persona_id = p_persona_id and coalesce(total, 0) > 0) then
+      raise exception 'A esta ficha ya se le pagó dinero en al menos un mes. No se puede marcar como cuenta de servicio.';
     end if;
   end if;
 
@@ -225,7 +234,7 @@ $$;
 comment on function fn_set_cuenta_de_servicio(uuid, boolean, text) is
   'Marca o desmarca una fila de personas como cuenta de servicio (una estación de retail, no '
   'una persona). Solo admin o líder DO. Se niega a marcar a quien tiene marcajes, jornadas o un '
-  'mes pagado, o un rol distinto de integrante: marcar saca de la planilla. Deja rastro en '
+  'mes cobrado (total > 0), o un rol distinto de integrante: marcar saca de la planilla. Deja rastro en '
   'correcciones_auditoria. 0490.';
 
 revoke all on function fn_set_cuenta_de_servicio(uuid, boolean, text) from public, anon;
@@ -268,7 +277,8 @@ begin
     select p.id, p.nombres || ' ' || p.apellidos as nombre, p.rol::text as rol,
            exists (select 1 from marcajes m where m.persona_id = p.id)
              or exists (select 1 from jornadas j where j.persona_id = p.id)          as marco,
-           exists (select 1 from planilla_pagada_detalle d where d.persona_id = p.id) as pagada
+           exists (select 1 from planilla_pagada_detalle d
+                    where d.persona_id = p.id and coalesce(d.total, 0) > 0)          as pagada
       from personas p
      where (p.nombres || ' ' || p.apellidos) ilike '%(no es persona)%'
        and not p.cuenta_de_servicio
@@ -278,7 +288,7 @@ begin
         r.nombre,
         concat_ws(', ',
           case when r.marco  then 'tiene marcajes' end,
-          case when r.pagada then 'ya tiene un mes pagado' end,
+          case when r.pagada then 'ya cobró dinero en un mes congelado' end,
           case when r.rol <> 'integrante' then 'su rol es ' || r.rol end);
     else
       update personas set cuenta_de_servicio = true where id = r.id;

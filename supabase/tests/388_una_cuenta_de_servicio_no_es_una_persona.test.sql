@@ -20,7 +20,7 @@
 -- estaría apagado (lección de la 232 y la 271).
 -- ============================================================================
 begin;
-select plan(15);
+select plan(17);
 
 insert into sedes (id, codigo, nombre, activa) values
   ('00000000-0000-0000-0000-000000038801', 'ZZ388', 'Sede de laboratorio 388', true);
@@ -40,6 +40,18 @@ insert into personas (id, nombres, apellidos, sede_base_id, rol, estado, pin_has
   ('00000000-0000-0000-0000-000000038814', 'Marcela',    'Trabaja',                   '00000000-0000-0000-0000-000000038801',
    'integrante',      'activo', 'x', null,                                    '2026-01-01');
 insert into jornadas (persona_id, fecha) values ('00000000-0000-0000-0000-000000038814', '2026-09-10');
+-- Un mes congelado: la estación quedó con su fila en S/ 0 (se congeló antes de
+-- pegar la 0490); Paula cobró de verdad.
+insert into personas (id, nombres, apellidos, sede_base_id, rol, estado, pin_hash, fecha_ingreso) values
+  ('00000000-0000-0000-0000-000000038815', 'ESTACIÓN —', 'Almacén Lab (no es persona)', '00000000-0000-0000-0000-000000038801',
+   'integrante', 'activo', 'x', '2026-06-01'),
+  ('00000000-0000-0000-0000-000000038816', 'Paula',      'Cobro',                       '00000000-0000-0000-0000-000000038801',
+   'integrante', 'activo', 'x', '2026-06-01');
+insert into periodos_planilla (id, fecha_ini, fecha_fin, estado) values
+  ('00000000-0000-0000-0000-000000038821', '2026-06-29', '2026-07-28', 'pagado');
+insert into planilla_pagada_detalle (periodo_id, persona_id, version, origen, grupo, nombre, sede_codigo, fila, pago_base, total) values
+  ('00000000-0000-0000-0000-000000038821', '00000000-0000-0000-0000-000000038815', 1, 'pago', 'planilla', 'Almacén Lab', 'ZZ388', '{}', 0,   0),
+  ('00000000-0000-0000-0000-000000038821', '00000000-0000-0000-0000-000000038816', 1, 'pago', 'planilla', 'Paula Cobro', 'ZZ388', '{}', 500, 500);
 set session_replication_role = origin;
 
 -- ── 1-2 · El candado: ni update ni insert directos ─────────────────────────
@@ -76,6 +88,14 @@ select throws_ok(
   $$ select fn_set_cuenta_de_servicio('00000000-0000-0000-0000-000000038812', true) $$,
   'Una cuenta de servicio no puede tener rol de líder ni de administración. Cámbiale el rol a integrante primero.',
   'BLOQUEADO · una cuenta con rol de líder no se marca');
+
+select throws_ok(
+  $$ select fn_set_cuenta_de_servicio('00000000-0000-0000-0000-000000038816', true) $$,
+  'A esta ficha ya se le pagó dinero en al menos un mes. No se puede marcar como cuenta de servicio.',
+  'BLOQUEADO · a quien ya cobró en un mes congelado no se la esconde');
+select lives_ok(
+  $$ select fn_set_cuenta_de_servicio('00000000-0000-0000-0000-000000038815', true) $$,
+  'PERMITIDO · una estación congelada con S/ 0 (antes de pegar la 0490) todavía se puede marcar');
 
 -- ── 6-7 · Lo que sí funciona, y deja rastro ────────────────────────────────
 select lives_ok(
