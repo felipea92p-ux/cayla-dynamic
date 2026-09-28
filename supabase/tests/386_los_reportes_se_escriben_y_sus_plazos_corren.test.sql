@@ -28,7 +28,7 @@
 -- dentro de begin/rollback.
 -- ============================================================================
 begin;
-select plan(134);
+select plan(146);
 
 -- ── Semilla ──────────────────────────────────────────────────────────────
 insert into sedes (id, codigo, nombre, activa, tipo) values
@@ -454,6 +454,32 @@ select lives_ok($$ select fn_organo_titulo_x_cerrar((select id from organos_titu
 select throws_like($$ select fn_organo_titulo_x_cerrar((select id from organos_titulo_x where persona_id = '00000000-0000-0000-0000-0000000e0010'),
                         fn_hoy_lima(), 'otra vez') $$,
   '%ya está cerrado%', 'una sola vez');
+
+
+-- ── (k) Lo que lee el panel ─────────────────────────────────────────────────
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000f0003', true);
+select ok(fn_ve_casos(), 'la líder ve el ítem «Casos»');
+select is((select count(*)::int from fn_mis_medidas()), 1, 'y la instrucción que le encargaron');
+select throws_like($$ select * from fn_reporte_lideres(pg_temp.id_de('X1 Queja de hostigamiento')) $$,
+  '%Solo Desarrollo Organizacional%', 'pero no elige a quién encargar una medida');
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000f0006', true);
+select ok(fn_ve_casos(), 'la Gerencia General ve «Casos» por la marca');
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000f0007', true);
+select ok(not fn_ve_casos(), 'un admin que no es la Gerencia General no ve el ítem');
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000f0001', true);
+select ok(not fn_ve_casos(), 'ni una colaboradora');
+select ok((select count(*) from fn_reporte_plazos(pg_temp.id_de('R1 El aire acondicionado no funciona'))) > 0,
+  'quien reportó ve los plazos de su reporte');
+select throws_like($$ select * from fn_reporte_personas(pg_temp.id_de('R1 El aire acondicionado no funciona')) $$,
+  '%No gestionas%', 'pero no la lista de personas con nombre, que es de quien gestiona');
+select ok((select count(*) from fn_organos_titulo_x()) >= 1, 'quién investiga en cada sede es información publicada (48.6)');
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000f0005', true);
+select is((select string_agg(persona, ',') from fn_reporte_expedientes(pg_temp.id_de('C1 Bea me grita delante de clientas'))),
+  'Bea Esc', 'DO ve para enlazar solo los expedientes de las involucradas');
+select is((select string_agg(papel || ':' || nombre, ',' order by papel, nombre) from fn_reporte_personas(pg_temp.id_de('C1 Bea me grita delante de clientas'))),
+  'involucrada:Bea Esc', 'y a quién menciona el caso, con nombre');
+select ok(exists (select 1 from fn_reporte_eventos(pg_temp.id_de('C1 Bea me grita delante de clientas')) where tipo = 'escalado'),
+  'y la línea de tiempo con cada escalamiento');
 
 
 -- ── (j) Guardianes y guardas null-safe ──────────────────────────────────────

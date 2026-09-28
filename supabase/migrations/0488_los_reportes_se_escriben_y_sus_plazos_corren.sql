@@ -69,6 +69,9 @@
 --     fn_reporte_abrir(uuid), fn_reporte_plazo_cumplir(uuid, text, text),
 --     fn_reporte_indicios_delito(uuid, text), fn_reportes_bandeja(), fn_reportes_mios(),
 --     fn_reporte_padron(), fn_reporte_detalle(uuid), fn_reporte_hilo(uuid), fn_reporte_adjuntos(uuid),
+--     fn_ve_casos(), fn_reporte_plazos(uuid), fn_reporte_personas(uuid), fn_reporte_eventos(uuid),
+--     fn_reporte_medidas(uuid), fn_mis_medidas(), fn_reporte_lideres(uuid), fn_reporte_expedientes(uuid),
+--     fn_organos_titulo_x(),
 --     fn_organo_titulo_x_guardar(uuid, uuid, text, date, text), fn_organo_titulo_x_cerrar(uuid, date, text),
 --     fn_reporte_plazo_abrir(uuid, text, timestamptz, timestamptz), fn_reporte_plazos_de_via(uuid),
 --     fn_reporte_gestora_inicial(uuid), fn_reporte_hay_quien(uuid, text),
@@ -1245,6 +1248,191 @@ end;
 $fn$;
 
 
+-- ── 11c · Lo que lee el panel («Casos») ─────────────────────────────────────
+
+-- ¿Le corresponde el ítem «Casos» del menú? A la líder de equipo, a DO y a la
+-- Gerencia General: la MARCA, no el rol admin (decisión 19). Los otros admins
+-- no ven el ítem, porque la regla nunca les va a mostrar un caso.
+create or replace function fn_ve_casos()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $fn$
+  select coalesce(
+    fn_rol_actual() in ('supervisor_sede', 'lider_do')
+    or fn_persona_actual_id() is not distinct from fn_gerencia_general_id(),
+    false);
+$fn$;
+
+-- Los plazos de un caso, con su norma y su dueña. Quien reportó también los
+-- ve: son sus derechos.
+create or replace function fn_reporte_plazos(p_reporte uuid)
+returns table (clave text, norma text, descripcion text, duena text, vence_at timestamptz,
+               cumplido_at timestamptz, anulado_at timestamptz, nota text)
+language plpgsql
+stable
+security definer
+set search_path = public
+as $fn$
+begin
+  if fn_reporte_puede_ver(p_reporte) is not true then
+    raise exception 'No tienes acceso a este reporte.';
+  end if;
+  return query
+  select p.clave, p.norma, p.descripcion, p.duena, p.vence_at, p.cumplido_at, p.anulado_at, p.nota
+    from reporte_plazos p
+   where p.reporte_id = p_reporte
+   order by p.anulado_at nulls first, p.vence_at, p.id;
+end;
+$fn$;
+
+-- A quién menciona el caso, con nombre: solo para quien lo gestiona.
+create or replace function fn_reporte_personas(p_reporte uuid)
+returns table (persona_id uuid, nombre text, papel text)
+language plpgsql
+stable
+security definer
+set search_path = public
+as $fn$
+begin
+  if fn_reporte_puede_gestionar(p_reporte) is not true then
+    raise exception 'No gestionas este reporte.';
+  end if;
+  return query
+  select rp.persona_id, p.nombres || ' ' || p.apellidos, rp.papel
+    from reporte_personas rp
+    join personas p on p.id = rp.persona_id
+   where rp.reporte_id = p_reporte
+   order by rp.papel, p.nombres, rp.persona_id;
+end;
+$fn$;
+
+-- La línea de tiempo, con quién hizo cada cosa. Las aperturas van aparte en
+-- la pantalla; aquí vienen todas, y la pantalla decide cómo agruparlas.
+create or replace function fn_reporte_eventos(p_reporte uuid)
+returns table (id uuid, at timestamptz, tipo text, quien text, detalle jsonb)
+language plpgsql
+stable
+security definer
+set search_path = public
+as $fn$
+begin
+  if fn_reporte_puede_gestionar(p_reporte) is not true then
+    raise exception 'No gestionas este reporte.';
+  end if;
+  return query
+  select e.id, e.at, e.tipo,
+         coalesce(p.nombres || ' ' || p.apellidos, 'Dynamic'),
+         e.detalle
+    from reporte_eventos e
+    left join personas p on p.id = e.por
+   where e.reporte_id = p_reporte
+   order by e.at, e.id;
+end;
+$fn$;
+
+create or replace function fn_reporte_medidas(p_reporte uuid)
+returns table (id uuid, para text, instruccion text, vigente_hasta date, cumplida_at timestamptz, creado_at timestamptz)
+language plpgsql
+stable
+security definer
+set search_path = public
+as $fn$
+begin
+  if fn_reporte_puede_gestionar(p_reporte) is not true then
+    raise exception 'No gestionas este reporte.';
+  end if;
+  return query
+  select m.id, p.nombres || ' ' || p.apellidos, m.instruccion, m.vigente_hasta, m.cumplida_at, m.creado_at
+    from reporte_medidas m
+    join personas p on p.id = m.para_persona_id
+   where m.reporte_id = p_reporte
+   order by m.creado_at, m.id;
+end;
+$fn$;
+
+-- Lo que le encargaron a la líder que llama. Sin el caso: ni su código, ni
+-- quién, ni por qué (plan, decisión 16).
+create or replace function fn_mis_medidas()
+returns table (id uuid, instruccion text, vigente_hasta date, cumplida_at timestamptz, creado_at timestamptz)
+language sql
+stable
+security definer
+set search_path = public
+as $fn$
+  select m.id, m.instruccion, m.vigente_hasta, m.cumplida_at, m.creado_at
+    from reporte_medidas m
+   where m.para_persona_id = fn_persona_actual_id()
+   order by m.cumplida_at nulls first, m.creado_at desc, m.id;
+$fn$;
+
+-- A quién se le puede encargar una medida de este caso: líderes activas que
+-- no están mencionadas. Solo DO o la Gerencia pregunta esto.
+create or replace function fn_reporte_lideres(p_reporte uuid)
+returns table (id uuid, nombre text, sede_codigo text)
+language plpgsql
+stable
+security definer
+set search_path = public
+as $fn$
+begin
+  if coalesce(fn_reporte_motivo(p_reporte), '') not in ('do', 'gerencia') then
+    raise exception 'Solo Desarrollo Organizacional dicta medidas de protección.';
+  end if;
+  return query
+  select p.id, p.nombres || ' ' || p.apellidos, s.codigo
+    from personas p
+    left join sedes s on s.id = p.sede_base_id
+   where p.estado = 'activo' and p.rol = 'supervisor_sede'
+     and not exists (select 1 from reporte_personas rp where rp.reporte_id = p_reporte and rp.persona_id = p.id)
+   order by s.codigo, p.nombres, p.id;
+end;
+$fn$;
+
+-- Los expedientes que se pueden enlazar: los de las personas INVOLUCRADAS.
+create or replace function fn_reporte_expedientes(p_reporte uuid)
+returns table (id uuid, persona text, nivel text, estado text, correlativo text, creado_at timestamptz)
+language plpgsql
+stable
+security definer
+set search_path = public
+as $fn$
+begin
+  if coalesce(fn_reporte_motivo(p_reporte), '') not in ('do', 'gerencia') then
+    raise exception 'Solo Desarrollo Organizacional enlaza un reporte con disciplina.';
+  end if;
+  return query
+  select x.id, p.nombres || ' ' || p.apellidos, x.nivel, x.estado, x.correlativo, x.creado_at
+    from expediente_disciplinario x
+    join personas p on p.id = x.persona_id
+   where x.persona_id in (select rp.persona_id from reporte_personas rp
+                           where rp.reporte_id = p_reporte and rp.papel = 'involucrada')
+     and x.estado <> 'anulado'
+   order by x.creado_at desc, x.id;
+end;
+$fn$;
+
+-- Quién investiga en cada sede. Es información publicada (48.6).
+create or replace function fn_organos_titulo_x()
+returns table (id uuid, sede_codigo text, sede_nombre text, persona_id uuid, nombre text,
+               papel text, desde date, hasta date, acta text)
+language sql
+stable
+security definer
+set search_path = public
+as $fn$
+  select o.id, s.codigo, s.nombre, o.persona_id, p.nombres || ' ' || p.apellidos,
+         o.papel, o.desde, o.hasta, o.acta
+    from organos_titulo_x o
+    join sedes s on s.id = o.sede_id
+    join personas p on p.id = o.persona_id
+   where fn_persona_actual_id() is not null
+   order by s.codigo, o.hasta nulls first, case o.papel when 'delegada' then 1 when 'suplente' then 2 else 3 end, o.desde desc, o.id;
+$fn$;
+
+
 -- ── 12 · Quién investiga en cada sede ───────────────────────────────────────
 -- La designación consta en acta (48.3): sin acta no se registra.
 create or replace function fn_organo_titulo_x_guardar(
@@ -1353,6 +1541,15 @@ grant execute on function
   fn_reporte_detalle(uuid),
   fn_reporte_hilo(uuid),
   fn_reporte_adjuntos(uuid),
+  fn_ve_casos(),
+  fn_reporte_plazos(uuid),
+  fn_reporte_personas(uuid),
+  fn_reporte_eventos(uuid),
+  fn_reporte_medidas(uuid),
+  fn_mis_medidas(),
+  fn_reporte_lideres(uuid),
+  fn_reporte_expedientes(uuid),
+  fn_organos_titulo_x(),
   fn_organo_titulo_x_guardar(uuid, uuid, text, date, text),
   fn_organo_titulo_x_cerrar(uuid, date, text)
 to authenticated;
@@ -1378,6 +1575,15 @@ revoke execute on function
   fn_reporte_detalle(uuid),
   fn_reporte_hilo(uuid),
   fn_reporte_adjuntos(uuid),
+  fn_ve_casos(),
+  fn_reporte_plazos(uuid),
+  fn_reporte_personas(uuid),
+  fn_reporte_eventos(uuid),
+  fn_reporte_medidas(uuid),
+  fn_mis_medidas(),
+  fn_reporte_lideres(uuid),
+  fn_reporte_expedientes(uuid),
+  fn_organos_titulo_x(),
   fn_organo_titulo_x_guardar(uuid, uuid, text, date, text),
   fn_organo_titulo_x_cerrar(uuid, date, text)
 from public, anon;
@@ -1411,6 +1617,8 @@ select
      'fn_reporte_medida','fn_reporte_medida_cumplida','fn_reporte_adjuntar','fn_reporte_abrir',
      'fn_reporte_plazo_cumplir','fn_reporte_indicios_delito','fn_reportes_bandeja','fn_reportes_mios',
      'fn_organo_titulo_x_guardar','fn_organo_titulo_x_cerrar','fn_reporte_padron','fn_reporte_detalle',
-     'fn_reporte_hilo','fn_reporte_adjuntos')) as funciones_de_22,
+     'fn_reporte_hilo','fn_reporte_adjuntos','fn_ve_casos','fn_reporte_plazos','fn_reporte_personas',
+     'fn_reporte_eventos','fn_reporte_medidas','fn_mis_medidas','fn_reporte_lideres','fn_reporte_expedientes',
+     'fn_organos_titulo_x')) as funciones_de_31,
   (select count(*) from migraciones_aplicadas where numero = 483) as la_0483_esta,
   (select numero || ' · ' || nombre from migraciones_aplicadas where numero = 488) as registro;
