@@ -11,7 +11,7 @@ import {
   LayoutDashboard, Inbox, TriangleAlert, PencilLine, CalendarClock, Clock, Gauge,
   Users, IdCard, TreePalm, Gavel, ReceiptText, PiggyBank, Target, LayoutGrid, KeyRound,
   Building2, FileDown, FileText, FileSignature, CalendarCheck, Coins, Scale, GraduationCap, HandCoins,
-  BookText, UserRound, ScrollText, Megaphone, Palette,
+  BookText, UserRound, ScrollText, Megaphone, Palette, MessagesSquare,
   type LucideIcon,
 } from "lucide-react";
 import { ROLES_CON_PANEL, ROLES_DO, ROLES_EXPORTAN_ASISTENCIA } from "@cayla-dynamic/shared";
@@ -33,6 +33,12 @@ export type Item = {
   Icon: LucideIcon;
   roles?: readonly string[];
   contador?: Contador;
+  /**
+   * Una condición que el rol no alcanza a decir. Hoy una sola: «casos», que
+   * se ve si `fn_ve_casos` (0488) dice que sí — la Gerencia General es una
+   * MARCA, no un rol, y de los admins solo ella gestiona reportes.
+   */
+  requiere?: "casos";
 };
 
 export type Grupo = { label?: string; items: Item[] };
@@ -127,6 +133,11 @@ export const GRUPOS: Grupo[] = [
     { href: "/admin/contratos", label: "Contratos", Icon: ScrollText, roles: DO },
     { href: "/admin/documentacion", label: "Documentación", Icon: FileSignature, roles: DO },
     { href: "/admin/objetivos", label: "Objetivos", Icon: Target, roles: SEDE },
+    // «Casos» (Reportes, 0483/0488; plan, decisión 21). Aquí y no en el grupo
+    // «Reportes», que son informes: este nombre evita que un ítem y un grupo
+    // digan lo mismo con dos sentidos. Va ANTES de Disciplina, no después: un
+    // reporte no es una falta, y el orden no debe sugerir que lleva a una.
+    { href: "/admin/casos", label: "Casos", Icon: MessagesSquare, roles: SEDE, requiere: "casos" },
     { href: "/admin/disciplina", label: "Disciplina", Icon: Gavel, roles: SEDE },
   ] },
   { label: "Pago", items: [
