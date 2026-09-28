@@ -49,8 +49,23 @@ ARCHIVOS=$(git diff --name-only --diff-filter=d "$BASE...HEAD" -- 'apps/web/**/*
            | while read -r f; do [ -f "$f" ] && echo "$f"; done)
 [ -z "$ARCHIVOS" ] && exit 0
 
+# Un Python que ARRANQUE, no uno que exista en el PATH. Mismo motivo y mismo
+# arreglo que `lint-de-lo-nuevo.sh` (2026-09-28): en Windows `python3` y
+# `python` existen siempre como acceso directo de la Microsoft Store, que sin
+# Python instalado imprime «no se encontró Python» y falla — y ese fallo se lee
+# igual que el `sys.exit(1)` de «hay un campo de fecha que bloquea», así que
+# frenaba push que no tenían ninguno. Sin Python se avisa y se deja pasar.
+PY=""
+for candidato in python3 python; do
+  if "$candidato" -c 'import json' >/dev/null 2>&1; then PY="$candidato"; break; fi
+done
+if [ -z "$PY" ]; then
+  echo "  ⚠ No hay Python en esta máquina; este freno corrió pero este push NO se revisó."
+  exit 0
+fi
+
 export DIFF_BASE="$BASE"
-printf '%s\n' "$ARCHIVOS" | python3 -c '
+printf '%s\n' "$ARCHIVOS" | "$PY" -c '
 import io, os, re, subprocess, sys
 
 base = os.environ["DIFF_BASE"]
