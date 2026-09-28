@@ -66,6 +66,20 @@ function MarcoConChrome({ pathname, children }: { pathname: string; children: Re
   const persona = usePersonaActual();
   const rol = persona?.rol ?? null;
 
+  // «Casos» no lo decide el rol: la Gerencia General es una marca (0483). Se
+  // pregunta a la base una vez por persona. Mientras no contesta, el ítem no
+  // se pinta: aparecer y desaparecer sería peor que llegar un instante tarde.
+  const [veCasos, setVeCasos] = useState(false);
+  useEffect(() => {
+    if (!persona?.id) return;
+    let vivo = true;
+    createAdminSupabaseClient().rpc("fn_ve_casos").then(
+      ({ data }) => { if (vivo) setVeCasos(data === true); },
+      () => {},
+    );
+    return () => { vivo = false; };
+  }, [persona?.id]);
+
   const { modo, expandido, alternar } = useNavColapsado();
   const { cerrados, alternarGrupo } = useGruposCerrados();
   const [cajonAbierto, setCajonAbierto] = useState(false);
@@ -237,7 +251,9 @@ function MarcoConChrome({ pathname, children }: { pathname: string; children: Re
     router.replace("/admin/login");
   }
 
-  const visible = (it: Item) => !it.roles || (rol !== null && it.roles.includes(rol));
+  const visible = (it: Item) =>
+    (!it.roles || (rol !== null && it.roles.includes(rol)))
+    && (it.requiere !== "casos" || veCasos);
   const grupos = GRUPOS
     .map((g) => ({ ...g, items: g.items.filter(visible) }))
     .filter((g) => g.items.length > 0);

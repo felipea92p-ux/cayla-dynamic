@@ -10,6 +10,7 @@ import { puedePedirBono, traerMiBono, type MiBono } from "./mi-bono";
 import { formatSoles } from "./rangos";
 import { esBoletaNueva } from "./boletas";
 import { nombreDelPeriodo, traerMisBoletas, type FilaMiBoleta } from "./mis-boletas";
+import { fechaEnPalabras, traerMisReportes, tituloDeReporte, type FilaMiReporte } from "./reportes";
 
 /**
  * La Bandeja de cada persona — «qué te respondieron».
@@ -114,7 +115,10 @@ export type OrigenBandeja =
   // Te lo hicieron a ti — no lo pediste, así que no hay nada "esperando" para
   // este origen — pero caduca igual que una respuesta: un turno ya guardado
   // no es algo que quede pendiente de hacer.
-  | "turno";
+  | "turno"
+  // Sus reportes (0483/0488): lo que le respondieron y no leyó, y lo que sigue
+  // abierto esperando respuesta.
+  | "reporte";
 
 /**
  * `atendido` es de las revisiones y no es lo mismo que `aprobado`: a un pedido
@@ -342,6 +346,8 @@ export interface FuentesBandeja {
   bono?: MiBono | null;
   /** Sus boletas oficiales (0482). Opcional: sin ellas, no se dice nada de boletas. */
   boletas?: FilaBoletaBandeja[];
+  /** Sus reportes (0488), de `fn_reportes_mios`. Opcional: sin ellos, no se dice nada de reportes. */
+  reportes?: FilaMiReporte[];
   /** Sus constancias de estudios (0450). Opcional: quien no estudia no trae nada. */
   educacionEntregas?: FilaEducacionEntrega[];
   /** Sus estudios y en qué está cada constancia (0450). */
@@ -678,6 +684,48 @@ export function armarBandeja(fuentes: FuentesBandeja, hoy: string = hoyLima()): 
         detalle: "Es la boleta oficial que entregó el contador. Ábrela en «Boletas»; seguirá acá hasta que la abras.",
         nuevo: true,
         ir: "/mio?tab=boletas",
+        marcarVistoComo: null,
+      },
+    });
+  }
+
+  // Sus reportes (0488). Lo que le escribieron o el cierre, sin leer, cuenta
+  // hasta que abre el reporte —abrirlo lo deja escrito en la base— y NO caduca
+  // a los DIAS_NOVEDAD, por lo mismo que la boleta: una respuesta sobre algo
+  // que ella contó es justo la que no puede perderse. Lo que sigue abierto sin
+  // nada nuevo va a «esperando», con la fecha en que le tienen que responder.
+  for (const r of fuentes.reportes ?? []) {
+    const clave = `reporte:${r.id}`;
+    const nombre = `${tituloDeReporte(r.tipo, r.via).toLowerCase()} (${r.codigo})`;
+    if (r.sin_leer > 0) {
+      const cuando = r.cerrado_at ?? r.ultimo_mensaje_at ?? r.creado_at;
+      respuestas.push({
+        instante: Date.parse(cuando),
+        m: {
+          clave, origen: "reporte", estado: "atendido", fecha: fechaLima(cuando),
+          titulo: r.estado === "cerrado" ? `Respondieron y cerraron tu reporte: ${nombre}` : `Te respondieron en tu reporte: ${nombre}`,
+          respuesta: null,
+          detalle: "Ábrelo para leer la respuesta; seguirá acá hasta que lo abras.",
+          nuevo: true,
+          ir: `/mio/reportes/${r.id}`,
+          marcarVistoComo: null,
+        },
+      });
+      continue;
+    }
+    if (r.estado === "cerrado") continue;
+    const fecha = fechaLima(r.creado_at);
+    esperando.push({
+      instante: Date.parse(r.creado_at),
+      m: {
+        clave, origen: "reporte", estado: "pendiente", fecha,
+        titulo: `Enviaste un reporte: ${nombre}`,
+        respuesta: null,
+        detalle: r.respuesta_vence_at
+          ? `Lo enviaste ${haceCuanto(fecha, hoy)}. Te responden por escrito a más tardar el ${fechaEnPalabras(r.respuesta_vence_at)}.`
+          : `Lo enviaste ${haceCuanto(fecha, hoy)}. Sigue en curso.`,
+        nuevo: false,
+        ir: `/mio/reportes/${r.id}`,
         marcarVistoComo: null,
       },
     });
@@ -1084,7 +1132,7 @@ export async function traerBandeja(
   hoy: string = hoyLima(),
 ): Promise<{ bandeja: Bandeja; noSePudo: string[] }> {
   const [perfil, catalogo, vacaciones, revisiones, contrato, memos, acuses, periodo, movilidad, revisionesMovilidad, turnos,
-    educacionEntregas, educacionSituacion, vistos, bono, boletas, memosPorRecibir] =
+    educacionEntregas, educacionSituacion, vistos, bono, boletas, memosPorRecibir, reportes] =
     await Promise.all([
     supabase.from("solicitudes_cambio_perfil")
       .select("id, campo, estado, creada_at, resuelta_at, motivo")
@@ -1168,6 +1216,8 @@ export async function traerBandeja(
     // contesta solo por quien pregunta y devuelve únicamente los enviados: un
     // borrador, o un firmado que nadie envió, sigue siendo invisible para ella.
     supabase.rpc("fn_mis_memos_por_recibir"),
+    // Sus reportes (0488). Igual: `fn_reportes_mios` contesta solo por quien pregunta.
+    traerMisReportes(supabase),
   ]);
 
   // Las jornadas del periodo, solo si hay periodo abierto. Va en su propia
@@ -1209,6 +1259,7 @@ export async function traerBandeja(
       .filter((s) => s.persona_id === personaId),
     bono: bono.bono,
     boletas: boletas.filas,
+    reportes: reportes.filas,
     vistos: new Set(
       ((vistos.data ?? []) as { tipo_item: string; item_id: string }[])
         .map((v) => `${v.tipo_item}:${v.item_id}`),
@@ -1245,6 +1296,7 @@ export async function traerBandeja(
       // Solo importa que haya fallado: para no pintar «no tienes nada» sobre una
       // boleta que sí hay. (Si la 0482 no está pegada, esto lo dice a gritos.)
       { error: boletas.error, que: "tus boletas" },
+      { error: reportes.error, que: "tus reportes" },
     ]),
   };
 }

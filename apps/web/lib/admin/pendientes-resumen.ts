@@ -17,6 +17,7 @@ export const RUTA_MODULO: Record<ModuloBandeja, string> = {
   horarios: "/admin/horarios",
   datos_personales: "/admin/datos-personales",
   liquidaciones: "/admin/liquidaciones",
+  casos: "/admin/casos",
 };
 
 export interface PendientesDeUnModulo {
