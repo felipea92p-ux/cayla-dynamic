@@ -128,6 +128,17 @@ export const NOVEDADES: readonly Novedad[] = [
     audiencia: "todos",
   },
   {
+    id: "2026-09-28-reportes-en-info",
+    fecha: "2026-09-28",
+    titulo: "Nuevo en Info: «Reportes», para contar algo o proponer una mejora",
+    queMejoro:
+      "En Info hay una sección nueva, «Reportes». Ahí puedes contar algo que pasó con el equipo, con la empresa o con una clienta, proponer una idea de mejora o hacerle una consulta a tu líder, y ver en qué va y qué te respondieron. " +
+      "Lo lee solo quien lo gestiona, y antes de enviarlo la pantalla te dice quiénes lo van a leer.\n\n" +
+      "Si es algo de tipo sexual, o si hay un riesgo para alguien ahora, márcalo arriba del formulario: va por un camino aparte y con plazos propios, y tu líder no lo ve. " +
+      "La persona reportada nunca sabe quién reportó, y cada reporte tiene una fecha límite de respuesta escrita, que ves apenas lo envías.",
+    audiencia: "todos",
+  },
+  {
     id: "2026-09-27-constancia-practicante-descanso-y-subvencion",
     fecha: "2026-09-27",
     titulo: "Tu constancia de subvención ya muestra tu descanso y tu subvención semestral",

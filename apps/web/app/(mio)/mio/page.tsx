@@ -5,10 +5,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   CalendarClock, CalendarDays, Car, FileSignature, GraduationCap, History, IdCard, Inbox, LayoutDashboard,
-  ReceiptText, ScrollText, Target, TreePalm, UserRound,
+  MessageSquareText, ReceiptText, ScrollText, Target, TreePalm, UserRound,
 } from "lucide-react";
 import { ResumenEducacionMia } from "./educacion/resumen";
 import { BoletasMias } from "./boletas/boletas-mias";
+import { ReportesMios } from "./reportes/reportes-mios";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Colibri } from "@/components/marca";
 import { AcusesPendientes } from "@/components/acuses-pendientes";
@@ -49,6 +50,7 @@ import { esMemoPorFirmar, traerBandeja } from "@/lib/bandeja-mia";
 import { mostrarBonoEnInfo, puedePedirBono, traerMiBono, type MiBono } from "@/lib/mi-bono";
 import { esBoletaNueva } from "@/lib/boletas";
 import { contarBoletasNuevas, nombreDelPeriodo, traerMisBoletas, type FilaMiBoleta } from "@/lib/mis-boletas";
+import { contarSinLeer, traerMisReportes, type FilaMiReporte } from "@/lib/reportes";
 import { formatSoles } from "@/lib/rangos";
 import { useRecorridoGuiado, type PasoRecorrido } from "@/lib/use-recorrido-guiado";
 
@@ -261,7 +263,7 @@ interface Derechohabiente {
 /** Las diez secciones de la pantalla. Ver el comentario de `tab`. */
 type Tab =
   | "resumen" | "dias" | "turnos" | "dni" | "datos" | "ausencias" | "contrato" | "boletas" | "movilidad" | "educacion"
-  | "firma" | "objetivos" | "historial";
+  | "firma" | "objetivos" | "reportes" | "historial";
 
 /**
  * Las mismas diez, con su icono y en el orden en que se leen.
@@ -293,6 +295,9 @@ const SECCIONES: readonly SeccionDetalle<Tab>[] = [
   { valor: "educacion", label: "Educación", Icon: GraduationCap },
   { valor: "firma", label: "Firma", Icon: FileSignature },
   { valor: "objetivos", label: "Objetivos", Icon: Target },
+  // Lo que contó y en qué va (0483/0488). Va antes de Historial y no arriba:
+  // es algo que se usa de vez en cuando, no todos los días.
+  { valor: "reportes", label: "Reportes", Icon: MessageSquareText },
   { valor: "historial", label: "Historial", Icon: History },
 ];
 
@@ -1262,6 +1267,23 @@ export default function MioPage() {
   }, [cargarMisBoletas, yo?.id]);
   const boletasNuevas = useMemo(() => (misBoletas ? contarBoletasNuevas(misBoletas) : 0), [misBoletas]);
 
+  // Sus reportes (0488): igual que las boletas, se leen aquí y no en la
+  // pestaña, para que el globito del menú se vea antes de abrirla.
+  const [misReportes, setMisReportes] = useState<FilaMiReporte[] | null>(null);
+  const [misReportesError, setMisReportesError] = useState<string | null>(null);
+  const cargarMisReportes = useCallback(async () => {
+    const r = await traerMisReportes(supabase);
+    if (r.error) { setMisReportesError(r.error); return; }
+    setMisReportesError(null);
+    setMisReportes(r.filas);
+  }, [supabase]);
+  useEffect(() => {
+    if (!yo?.id) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void cargarMisReportes();
+  }, [cargarMisReportes, yo?.id]);
+  const reportesSinLeer = useMemo(() => (misReportes ? contarSinLeer(misReportes) : 0), [misReportes]);
+
   // Sus propios memos disciplinarios ya entregados (0404). Aparte del bloque
   // grande por la misma razón que `contrato`/`vacas`: depende solo de quién
   // es. `fn_mis_memos()` ya filtra `estado = 'entregado'` del lado del
@@ -1493,8 +1515,9 @@ export default function MioPage() {
   const secciones = useMemo(
     () => SECCIONES
       .filter((s) => s.valor !== "dni" || hayCampoDni)
-      .map((s) => (s.valor === "boletas" && boletasNuevas > 0 ? { ...s, contador: boletasNuevas } : s)),
-    [hayCampoDni, boletasNuevas],
+      .map((s) => (s.valor === "boletas" && boletasNuevas > 0 ? { ...s, contador: boletasNuevas } : s))
+      .map((s) => (s.valor === "reportes" && reportesSinLeer > 0 ? { ...s, contador: reportesSinLeer } : s)),
+    [hayCampoDni, boletasNuevas, reportesSinLeer],
   );
 
   // Recorrido guiado de "Resumen", primera vez. `Boolean(yo)` y no solo `yo`:
@@ -2884,6 +2907,8 @@ export default function MioPage() {
       {tab === "boletas" && (
         <BoletasMias filas={misBoletas} error={misBoletasError} onRecargar={cargarMisBoletas} />
       )}
+
+      {tab === "reportes" && <ReportesMios filas={misReportes} error={misReportesError} />}
 
       {/* ── MOVILIDAD ────────────────────────────────────────────────────────
           Solo dice si le falta o si quedó desactualizada, y lleva a firmarla.
