@@ -52,6 +52,15 @@ export function tituloDeReporte(tipo: string, via: string): string {
   }
 }
 
+/** Cómo se nombra un caso en el panel: su camino en el Reglamento. */
+export function etiquetaDeVia(via: string, tipo: string): string {
+  if (via === "titulo_x") return "Título X · hostigamiento sexual";
+  if (via === "convivencia") return "Convivencia · 43-A";
+  if (tipo === "consulta") return "Consulta a la líder · 43-B";
+  if (tipo === "idea") return "Idea de mejora · 43-B";
+  return "Reclamo · 43-B";
+}
+
 export function etiquetaDeEstado(estado: string): { texto: string; variante: "neutral" | "informativo" | "positivo" } {
   if (estado === "cerrado") return { texto: "Cerrado", variante: "positivo" };
   if (estado === "en_revision") return { texto: "En revisión", variante: "informativo" };

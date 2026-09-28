@@ -37,7 +37,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import {
-  CalendarCheck, Clock, FileSignature, Gavel, GraduationCap, HandCoins, IdCard, Inbox, PencilLine, ScrollText, Search,
+  CalendarCheck, Clock, FileSignature, Gavel, GraduationCap, HandCoins, IdCard, Inbox, MessagesSquare, PencilLine, ScrollText, Search,
   TreePalm, type LucideIcon,
 } from "lucide-react";
 import { Cargando } from "@/components/cargando";
@@ -77,6 +77,7 @@ const ICONO_MODULO: Record<ModuloBandeja, LucideIcon> = {
   horarios: Clock,
   datos_personales: IdCard,
   liquidaciones: HandCoins,
+  casos: MessagesSquare,
 };
 
 // Columnas de la fila en ancho completo. Literal, no armado: Tailwind solo ve

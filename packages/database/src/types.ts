@@ -7104,6 +7104,16 @@ export type Database = {
           vista_at: string | null
         }[]
       }
+      fn_mis_medidas: {
+        Args: never
+        Returns: {
+          creado_at: string
+          cumplida_at: string | null
+          id: string
+          instruccion: string
+          vigente_hasta: string | null
+        }[]
+      }
       fn_mis_memos: {
         Args: never
         Returns: {
@@ -7189,6 +7199,38 @@ export type Database = {
       fn_objetivos_sync_mes: {
         Args: { p_anio: number | null; p_mes: number | null; p_persona_id: string | null }
         Returns: undefined
+      }
+      fn_organo_titulo_x_cerrar: {
+        Args: {
+          p_hasta: string | null
+          p_id: string | null
+          p_motivo: string | null
+        }
+        Returns: undefined
+      }
+      fn_organo_titulo_x_guardar: {
+        Args: {
+          p_acta: string | null
+          p_desde: string | null
+          p_papel: string | null
+          p_persona: string | null
+          p_sede: string | null
+        }
+        Returns: string
+      }
+      fn_organos_titulo_x: {
+        Args: never
+        Returns: {
+          acta: string | null
+          desde: string
+          hasta: string | null
+          id: string
+          nombre: string
+          papel: string
+          persona_id: string
+          sede_codigo: string
+          sede_nombre: string
+        }[]
       }
       fn_otorgar_descanso_sustitutorio: {
         Args: {
@@ -7539,6 +7581,22 @@ export type Database = {
           storage_path: string
         }[]
       }
+      fn_reporte_anotar_accion: {
+        Args: {
+          p_accion: string | null
+          p_nota: string | null
+          p_reporte: string | null
+        }
+        Returns: undefined
+      }
+      fn_reporte_cerrar: {
+        Args: {
+          p_reporte: string | null
+          p_resultado: string | null
+          p_texto: string | null
+        }
+        Returns: undefined
+      }
       fn_reporte_crear: {
         Args: {
           p_espera?: string | null
@@ -7558,6 +7616,10 @@ export type Database = {
           codigo: string
           id: string
         }[]
+      }
+      fn_reporte_derivar: {
+        Args: { p_expediente: string | null; p_reporte: string | null }
+        Returns: undefined
       }
       fn_reporte_detalle: {
         Args: { p_reporte: string | null }
@@ -7579,6 +7641,35 @@ export type Database = {
           via: string
         }[]
       }
+      fn_reporte_en_revision: {
+        Args: { p_reporte: string | null }
+        Returns: undefined
+      }
+      fn_reporte_escalar: {
+        Args: { p_motivo: string | null; p_reporte: string | null }
+        Returns: undefined
+      }
+      fn_reporte_eventos: {
+        Args: { p_reporte: string | null }
+        Returns: {
+          at: string
+          detalle: Json
+          id: string
+          quien: string
+          tipo: string
+        }[]
+      }
+      fn_reporte_expedientes: {
+        Args: { p_reporte: string | null }
+        Returns: {
+          correlativo: string | null
+          creado_at: string
+          estado: string
+          id: string
+          nivel: string
+          persona: string
+        }[]
+      }
       fn_reporte_hilo: {
         Args: { p_reporte: string | null }
         Returns: {
@@ -7588,6 +7679,42 @@ export type Database = {
           interno: boolean
           quien: string
           texto: string
+        }[]
+      }
+      fn_reporte_indicios_delito: {
+        Args: { p_nota: string | null; p_reporte: string | null }
+        Returns: undefined
+      }
+      fn_reporte_lideres: {
+        Args: { p_reporte: string | null }
+        Returns: {
+          id: string
+          nombre: string
+          sede_codigo: string | null
+        }[]
+      }
+      fn_reporte_medida: {
+        Args: {
+          p_hasta?: string | null
+          p_instruccion: string | null
+          p_para: string | null
+          p_reporte: string | null
+        }
+        Returns: string
+      }
+      fn_reporte_medida_cumplida: {
+        Args: { p_medida: string | null }
+        Returns: undefined
+      }
+      fn_reporte_medidas: {
+        Args: { p_reporte: string | null }
+        Returns: {
+          creado_at: string
+          cumplida_at: string | null
+          id: string
+          instruccion: string
+          para: string
+          vigente_hasta: string | null
         }[]
       }
       fn_reporte_mensaje: {
@@ -7608,6 +7735,35 @@ export type Database = {
           sede_codigo: string | null
         }[]
       }
+      fn_reporte_personas: {
+        Args: { p_reporte: string | null }
+        Returns: {
+          nombre: string
+          papel: string
+          persona_id: string
+        }[]
+      }
+      fn_reporte_plazo_cumplir: {
+        Args: {
+          p_clave: string | null
+          p_nota: string | null
+          p_reporte: string | null
+        }
+        Returns: undefined
+      }
+      fn_reporte_plazos: {
+        Args: { p_reporte: string | null }
+        Returns: {
+          anulado_at: string | null
+          clave: string
+          cumplido_at: string | null
+          descripcion: string
+          duena: string
+          norma: string
+          nota: string | null
+          vence_at: string
+        }[]
+      }
       fn_reporte_quien_lo_leera: {
         Args: {
           p_involucradas: string[] | null
@@ -7617,6 +7773,35 @@ export type Database = {
         }
         Returns: {
           cargo: string
+        }[]
+      }
+      fn_reporte_reclasificar: {
+        Args: {
+          p_motivo: string | null
+          p_reporte: string | null
+          p_via: string | null
+        }
+        Returns: undefined
+      }
+      fn_reportes_bandeja: {
+        Args: never
+        Returns: {
+          autora: string
+          codigo: string
+          creado_at: string
+          estado: string
+          gestiona: string | null
+          id: string
+          mi_motivo: string
+          plazos_vencidos: number
+          proximo_norma: string | null
+          proximo_plazo: string | null
+          proximo_vence_at: string | null
+          sede_codigo: string
+          semaforo: string | null
+          tipo: string
+          urgente: boolean
+          via: string
         }[]
       }
       fn_reportes_mios: {
@@ -8092,6 +8277,7 @@ export type Database = {
         Args: { p_campo: string | null; p_valor: Json | null }
         Returns: undefined
       }
+      fn_ve_casos: { Args: never; Returns: boolean }
       fn_ventanas_de_regularidad: {
         Args: { p_fecha: string | null }
         Returns: {

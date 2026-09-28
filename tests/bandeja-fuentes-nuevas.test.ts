@@ -20,7 +20,7 @@ import {
 } from "../apps/web/lib/admin/bandeja-fuentes";
 import {
   ESTADOS_CONTRATO_PENDIENTE, esFeriadoParaBandeja, sumarDias, urgenciaBono, urgenciaContrato,
-  urgenciaDiaPorRevisar, urgenciaFeriado,
+  urgenciaCaso, urgenciaDiaPorRevisar, urgenciaFeriado,
 } from "../apps/web/lib/admin/bandeja-urgencia";
 import type { DocDisciplina } from "../apps/web/lib/admin/disciplina";
 
@@ -154,9 +154,10 @@ describe("la lista y las categorías", () => {
     expect(filas.find((p) => p.tipo === "contrato")?.ir?.href).toBe("/admin/contratos?persona=c");
   });
 
-  it("la encargada ve sus cinco módulos; DO ve los diez", () => {
-    expect(modulosDeLaBandeja("supervisor_sede")).toEqual(["correcciones", "disciplina", "ausencias", "horarios", "datos_personales"]);
-    expect(modulosDeLaBandeja("admin")).toHaveLength(10);
+  it("la encargada ve sus seis módulos; DO ve los once", () => {
+    // «casos» (Reportes, 0488) entra para las dos: la base decide qué casos ve cada una.
+    expect(modulosDeLaBandeja("supervisor_sede")).toEqual(["correcciones", "disciplina", "ausencias", "horarios", "datos_personales", "casos"]);
+    expect(modulosDeLaBandeja("admin")).toHaveLength(11);
     expect(modulosDeLaBandeja("integrante")).toEqual([]);
   });
 });
@@ -196,5 +197,30 @@ describe("bono de cumpleaños por transferir", () => {
       documentos: [{ persona_id: "o", persona: "Olga", sede: "TRU", estado: "ok", ruta_desfasada: false, bono_estado: "este_mes" }],
     }, { hoy: HOY });
     expect(filas.map((p) => p.tipo).sort()).toEqual(["bono_por_transferir", "documento_bono"]);
+  });
+});
+
+// ── Casos de Reportes (0488) ───────────────────────────────────────────────
+// Lo que se defiende: que la fila de un caso no diga nunca quién reportó ni a
+// quién (la Bandeja es de un vistazo), y que un caso urgente suba a «Hoy».
+describe("casos de Reportes", () => {
+  const caso = {
+    id: "k1", codigo: "R-2026-0007", tipo: "persona", via: "convivencia", estado: "recibido", urgente: false,
+    sede_codigo: "TRU", proximo_plazo: "Resolución escrita", proximo_norma: "43-A.6",
+    proximo_vence_at: "2026-09-18T04:59:59Z",
+  };
+  it("se nombra por su código y lleva a su ficha", () => {
+    const [fila] = armarPendientes({ ...FUENTES_VACIAS, casos: [caso] }, { hoy: HOY });
+    expect(fila.persona).toBe("Caso R-2026-0007");
+    expect(fila.personaId).toBeNull();
+    expect(fila.titulo).toBe("Convivencia · 43-A");
+    expect(fila.ir?.href).toBe("/admin/casos/k1");
+    expect(fila.urgencia.grupo).toBe("proximo");
+  });
+  it("un caso urgente va a «Hoy» aunque su plazo sea más adelante", () => {
+    expect(urgenciaCaso({ ...caso, urgente: true }, HOY).grupo).toBe("hoy");
+  });
+  it("un plazo pasado es vencido, urgente o no", () => {
+    expect(urgenciaCaso({ ...caso, proximo_vence_at: "2026-09-14T04:59:59Z" }, HOY).grupo).toBe("vencido");
   });
 });
