@@ -282,6 +282,9 @@ export interface FilaMovilidad {
   ruta_firmada_el: string | null;
   ruta_monto: number | null;
   ruta_desfasada: boolean;
+  /** 0492 — incompleta (versión corta, sin pasaje) o vencida (un año). Sin la
+   *  0492 pegada no llega, y se lee como «al día». */
+  ruta_por_renovar?: "incompleta" | "vencida" | null;
 }
 
 /** Una constancia de estudios suya (0450), de `educacion_entregas`, con su estudio. */
@@ -521,21 +524,34 @@ export function armarBandeja(fuentes: FuentesBandeja, hoy: string = hoyLima()): 
   // firmó pero con una tarifa que quedó vieja, se le avisa igual: es la
   // misma alerta que ya pinta el tablero de Documentación para DO, solo que
   // acá le llega a ELLA, que es quien puede arreglarlo firmando de nuevo.
-  if (fuentes.movilidad && (fuentes.movilidad.estado === "sin_ruta" || fuentes.movilidad.ruta_desfasada)) {
+  // Y desde la 0492, si quedó por renovar (incompleta o vencida): también la
+  // arregla ELLA firmando de nuevo. La desfasada manda si coinciden.
+  const porRenovar = fuentes.movilidad?.estado === "ok" && !fuentes.movilidad.ruta_desfasada
+    ? (fuentes.movilidad.ruta_por_renovar ?? null) : null;
+  if (fuentes.movilidad && (fuentes.movilidad.estado === "sin_ruta" || fuentes.movilidad.ruta_desfasada || porRenovar)) {
     const mov = fuentes.movilidad;
     const desfasada = mov.estado !== "sin_ruta" && mov.ruta_desfasada;
+    const yaFirmada = desfasada || porRenovar !== null;
     pendientes.push({
-      instante: desfasada && mov.ruta_firmada_el ? Date.parse(`${mov.ruta_firmada_el}T00:00:00Z`) : 0,
+      instante: yaFirmada && mov.ruta_firmada_el ? Date.parse(`${mov.ruta_firmada_el}T00:00:00Z`) : 0,
       m: {
         clave: "ruta:declaracion", origen: "ruta", estado: "por_firmar",
-        fecha: desfasada && mov.ruta_firmada_el ? mov.ruta_firmada_el : hoy,
+        fecha: yaFirmada && mov.ruta_firmada_el ? mov.ruta_firmada_el : hoy,
         titulo: desfasada
           ? "Tu declaración de ruta quedó desactualizada"
-          : "Falta tu declaración de ruta y gasto de transporte",
+          : porRenovar === "incompleta"
+            ? "Renueva tu declaración de ruta: ahora tiene los cinco puntos"
+            : porRenovar === "vencida"
+              ? "Renueva tu declaración de ruta: ya pasó un año"
+              : "Falta tu declaración de ruta y gasto de transporte",
         respuesta: null,
         detalle: desfasada
           ? `La firmaste declarando S/ ${Number(mov.ruta_monto).toFixed(2)} y hoy se paga otra tarifa. Vuelve a firmarla con el monto vigente.`
-          : "Sostiene que tu movilidad no pague impuestos ni descuentos. Fírmala desde el sistema — no hace falta imprimir ni escanear nada.",
+          : porRenovar === "incompleta"
+            ? "La firmaste con la versión corta, que no preguntaba el costo del pasaje ni el uso de taxi. Vuelve a firmarla; tu movilidad se sigue pagando igual mientras tanto."
+            : porRenovar === "vencida"
+              ? "Se renueva una vez al año para confirmar tu ruta. Vuelve a firmarla; tu movilidad se sigue pagando igual mientras tanto."
+              : "Sostiene que tu movilidad no pague impuestos ni descuentos. Fírmala desde el sistema — no hace falta imprimir ni escanear nada.",
         nuevo: true,
         ir: "/mio/movilidad",
         marcarVistoComo: null,
