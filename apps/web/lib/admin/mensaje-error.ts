@@ -43,6 +43,12 @@ const POR_CODIGO: Record<string, string> = {
   "42501": "No tienes permiso para hacer esto.",
   "42883": "Esta función todavía no está en la base de datos. Avisa a Felipe: falta aplicar una migración.",
   "42P01": "Falta una tabla en la base de datos. Avisa a Felipe: falta aplicar una migración.",
+  // La pantalla pide una columna que la base todavía no tiene. Es la forma en
+  // que se ve un PR fusionado antes de pegar su migración (`main` se publica
+  // sola): el 2026-09-28 Disciplina dejó de cargar el legajo porque pedía
+  // `enviado_a_info_at` de la 0486, y el aviso decía «el sistema no pudo
+  // completar la operación», que no dejaba adivinar que bastaba con pegarla.
+  "42703": "Falta una columna en la base de datos. Avisa a Felipe: falta aplicar una migración.",
   PGRST301: "Tu sesión venció. Vuelve a entrar.",
   PGRST202: "El sistema no encontró esta función. Avisa a Felipe: falta aplicar una migración.",
   PGRST204: "El sistema no reconoce una columna nueva. Suele arreglarse solo en unos minutos; si no, avisa a Felipe.",
