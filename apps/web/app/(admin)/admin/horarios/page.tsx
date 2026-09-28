@@ -430,7 +430,7 @@ export default function HorariosPage() {
       { data: s, error: errS },
       { data: f, error: errF },
     ] = await Promise.all([
-      supabase.from("personas").select("id, nombres, apellidos, rol, sede_base_id, personal_direccion").eq("estado", "activo").order("nombres"),
+      supabase.from("personas").select("id, nombres, apellidos, rol, sede_base_id, personal_direccion").eq("estado", "activo").eq("cuenta_de_servicio", false).order("nombres"),
       supabase.from("horarios_asignados").select("persona_id, hora_entrada, hora_salida, vigente_desde, almuerzo_min_minutos, almuerzo_max_minutos, dias_laborables, horario_por_dia").is("vigente_hasta", null),
       supabase.from("sedes").select("id, codigo"),
       // tipo_vinculo y practicante_modalidad no viajan en el select de arriba

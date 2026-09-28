@@ -350,7 +350,9 @@ with repo(numero, nombre, nunca) as (values
     (486, 'el_memo_se_entrega_por_info', false),
     (487, 'la_imputacion_lleva_la_firma_escaneada', false),
     (488, 'los_reportes_se_escriben_y_sus_plazos_corren', false),
-    (489, 'la_declaracion_de_ruta_vuelve_a_preguntar_pasaje_y_taxi', false)
+    (489, 'la_declaracion_de_ruta_vuelve_a_preguntar_pasaje_y_taxi', false),
+    (490, 'una_cuenta_de_servicio_no_es_una_persona', false),
+    (491, 'la_planilla_y_las_listas_dejan_fuera_a_las_cuentas_de_servicio', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte

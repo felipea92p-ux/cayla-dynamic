@@ -803,7 +803,7 @@ export default function DocumentacionPage() {
     const [{ data: ps }, { data: ss }, { data: cfg }] = await Promise.all([
       supabase.from("personas")
         .select("id, nombres, apellidos, documento, funcion, sede_base_id, fecha_ingreso, en_planilla, tipo_vinculo")
-        .eq("estado", "activo").order("apellidos"),
+        .eq("estado", "activo").eq("cuenta_de_servicio", false).order("apellidos"),
       supabase.from("sedes").select("id, nombre, codigo"),
       // La tarifa vigente hoy. Si la 0118 no está pegada esto devuelve vacío, y
       // entonces la pantalla lo dice en vez de inventar un monto.
@@ -898,7 +898,7 @@ export default function DocumentacionPage() {
     const { data: fin } = await supabase
       .from("personas")
       .select("id, fecha_fin_contrato")
-      .eq("estado", "activo")
+      .eq("estado", "activo").eq("cuenta_de_servicio", false)
       .not("fecha_fin_contrato", "is", null);
     const porVencer = new Map(
       ((fin as { id: string; fecha_fin_contrato: string }[] | null) ?? [])
@@ -913,7 +913,7 @@ export default function DocumentacionPage() {
     const { data: fisicas } = await supabase
       .from("personas")
       .select("id, sede_fisica_id")
-      .eq("estado", "activo")
+      .eq("estado", "activo").eq("cuenta_de_servicio", false)
       .not("sede_fisica_id", "is", null);
     setSedeDeReparto(new Map(
       ((fisicas as { id: string; sede_fisica_id: string }[] | null) ?? [])

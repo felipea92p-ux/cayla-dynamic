@@ -6,6 +6,61 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-09-28 — Las estaciones de Retail dejan de ser personas para Dynamic · migraciones 0490 + 0491 · ESCRITAS Y PROBADAS · SIN PEGAR · SIN FUSIONAR
+
+**Origen:** Datos personales mostraba seis «ESTACIÓN — Caja/Almacén … (no es persona)» como fichas
+sin completar. Son las terminales compartidas de cayla-retail (ADR-0160 de ese repo): filas de
+`personas` porque retail les cuelga ventas (57 FK) y ACTIVAS porque su acceso lo exige
+(`fn_rol_actual` 0374 y 67 comparaciones de retail con `estado = 'activo'`). Marcarlas inactivas
+les cortaba las tiendas.
+
+**Lo que costaba, medido en local** (`begin … rollback`, estación creada con los defaults de
+`personas`): nacen `en_planilla = true`, `planilla`, sueldo 1130, y **`fn_planilla_calcular` les
+ponía S/ 101.70 de EsSalud a cada una** (piso de la RMV) — el mismo síntoma que la 0484, por otra
+causa. Además salían en el terminal de marcaje, en la población del Reglamento, en los acuses de la
+política salarial, en Contratos y en Documentación.
+
+**Decisiones de Felipe (2026-09-28):** columna propia (no leer `retail.colaboradores.terminal`, no
+por nombre); fuera de TODO Dynamic; se les niega la entrada a Dynamic; se ven solo en un bloque
+plegado al final de Equipo.
+
+- **[`0490`](../supabase/migrations/0490_una_cuenta_de_servicio_no_es_una_persona.sql)** —
+  `personas.cuenta_de_servicio`, puerta `fn_set_cuenta_de_servicio` + trigger (update E insert),
+  marca por nombre las que ya existen y saca las cuentas del `terminal_roster`. La puerta se niega
+  a esconder a quien tiene marcajes/jornadas, a quien cobró dinero en un mes congelado
+  (`total > 0`, no «tiene fila»: una estación congelada queda con S/ 0) o a quien no es
+  `integrante`. No reescribe funciones: sin md5 de partida.
+- **[`0491`](../supabase/migrations/0491_la_planilla_y_las_listas_dejan_fuera_a_las_cuentas_de_servicio.sql)**
+  — `not p.cuenta_de_servicio` en nueve funciones: planilla (núcleo), provisiones, vacaciones,
+  población obligada, política salarial, Documentación, Contratos, candidatos de educación,
+  boletas. Cuerpos de `pg_get_functiondef` sobre la vigente de cada una, con **freno de md5** que
+  acepta sin comentarios y con CRLF. Probado: pasa sobre los originales, pasa con CRLF, bloquea
+  con otro cuerpo.
+- **Pantallas:** 27 consultas filtran la columna; login, marco del panel y un layout nuevo de
+  «Lo mío» rechazan a una estación con sesión; ficha con insignia e interruptor (DO,
+  `puedeMarcarCuentaDeServicio`); novedad para el panel.
+
+**Verificado:** pgTAP `388` 17/17 (con control: desmarcada vuelve a la planilla); typecheck;
+vitest 1227 + permisos; navegador contra Postgres local con 4 estaciones de prueba (login
+rechazado, Datos personales/Equipo/Contratos/Documentación/Horarios sin estaciones, marcar y
+desmarcar desde la ficha con su rastro). Hecho en Windows: la base local se construyó desde una
+copia LF de `supabase/` (con CRLF la 0311 aborta por su propio freno).
+
+**⚠️ Orden al pegar, y por qué urge:**
+1. **La 0491 exige la 0484 en producción** (parte de su `fn_planilla_calcular_nucleo`). Si la 0484
+   sigue sin pegar, el freno de la 0491 aborta nombrando esa función — no rompe nada. O se pega la
+   0484 primero (decisión ya tomada, ver abajo), o se reconstruye la 0491 desde la versión de
+   producción.
+2. Pegar **0490 → 0491 ANTES de congelar la planilla del periodo** que cierra hoy: si no, las
+   estaciones entran congeladas con su EsSalud. (La 0490 igual las marca —su fila es de S/ 0—,
+   pero ese periodo habría que reabrirlo y volver a pagarlo, como el caso de la 0484.)
+3. Recién después, fusionar: las listas filtran por la columna.
+4. Mirar los NOTICE de la 0490: debe decir 6 marcadas. Una estación con marcajes NO se marca.
+5. **De aquí en adelante**, cada estación nueva que se cree para Retail se marca desde su ficha
+   («•••» → «No es una persona»). Retail sigue sin saber de esta columna.
+
+---
+
 ## 2026-09-27 — Un memo se puede entregar por Info, sin papel · migración 0486 · ESCRITA Y PROBADA · SIN PEGAR · SIN FUSIONAR
 
 **Origen: «ella puede firmar desde Info, o vendría bien un botón de notificar?»** Se investigó y
