@@ -58,6 +58,11 @@
 --   las de la 0429 — confirmado el 2026-09-28 con `./scripts/donde-vive.sh`
 --   y con `git grep` en todas las ramas (ninguna las redefine después).
 --
+--   md5 de partida, pedido a PRODUCCIÓN el 2026-09-28 (idéntico al repo,
+--   sin retornos de Windows):
+--     fn_confirmar_mi_declaracion_ruta (4 args) · 89ec31279a6779068a25d67d9445bcae · 4504 caracteres
+--     fn_documentos_listar (1 arg)              · 18f6b61870210046db08d95a61af3249 · 1028 caracteres
+--
 -- POR QUÉ LOS PARÁMETROS NUEVOS TIENEN DEFAULT
 --
 --   La migración se pega ANTES de fusionar el PR, así que durante unos
