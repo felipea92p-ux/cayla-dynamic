@@ -267,7 +267,7 @@ function AlertaSobretiempo({ sedeSel }: { sedeSel: string }) {
       // su ciclo, y este aviso solo lee `jornadas` — no dispara disciplina.
       const { data: personas, error: eP } = await supabase.from("personas")
         .select("id, nombres, apellidos")
-        .eq("sede_base_id", sedeSel).eq("estado", "activo")
+        .eq("sede_base_id", sedeSel).eq("estado", "activo").eq("cuenta_de_servicio", false)
         .or("en_planilla.eq.true,tipo_vinculo.eq.practicante")
         .eq("sueldo_fijo", false);
       if (eP) { if (vivo) setError(true); return; }
@@ -366,7 +366,7 @@ function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso
     // Mismo criterio del dashboard (7afe8e5): un practicante también tiene
     // turno y horario asignados, y esta pantalla solo compara uno contra otro.
     const { data: personas, error: eP } = await supabase.from("personas")
-      .select("id, nombres, apellidos").eq("sede_base_id", sedeSel).eq("estado", "activo")
+      .select("id, nombres, apellidos").eq("sede_base_id", sedeSel).eq("estado", "activo").eq("cuenta_de_servicio", false)
       .or("en_planilla.eq.true,tipo_vinculo.eq.practicante")
       .eq("sueldo_fijo", false);
     if (eP) { setError(true); return; }
@@ -737,7 +737,7 @@ export default function TurnosPage() {
       // mismo `OR` puntual, sin tocar `en_planilla` ni el escalafón
       // disciplinario, que siguen igual para las demás pantallas.
       supabase.from("personas").select("id, nombres, apellidos, rol")
-        .eq("sede_base_id", sedeSel).eq("estado", "activo")
+        .eq("sede_base_id", sedeSel).eq("estado", "activo").eq("cuenta_de_servicio", false)
         .or("en_planilla.eq.true,tipo_vinculo.eq.practicante")
         .eq("sueldo_fijo", false).order("nombres"),
       supabase.from("horarios_asignados").select("persona_id, hora_entrada, hora_salida, dias_laborables, horario_por_dia, almuerzo_min_minutos, vigente_desde, vigente_hasta").lte("vigente_desde", domingo).or(`vigente_hasta.is.null,vigente_hasta.gte.${lunes}`),

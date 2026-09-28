@@ -150,7 +150,7 @@ export async function POST(req: Request) {
         .from("personas")
         .select("id, nombres, apellidos, rol, auth_user_id, sedes:sede_base_id(codigo)")
         .in("rol", [...ROLES_CON_PANEL])
-        .eq("estado", "activo")
+        .eq("estado", "activo").eq("cuenta_de_servicio", false)
         .order("nombres");
       const usuarios = await usuariosPorId(admin);
       const cuentas = (personas ?? []).map((p: any) => ({
@@ -166,7 +166,7 @@ export async function POST(req: Request) {
         .from("personas")
         .select("id, nombres, apellidos, sedes:sede_base_id(codigo)")
         .eq("rol", "integrante")
-        .eq("estado", "activo")
+        .eq("estado", "activo").eq("cuenta_de_servicio", false)
         .order("nombres");
       const promovibles = (integrantes ?? []).map((p: any) => ({
         id: p.id,
@@ -195,7 +195,7 @@ export async function POST(req: Request) {
         .from("personas")
         .select("id, nombres, apellidos, email, en_planilla, tipo_vinculo, sedes:sede_base_id(codigo)")
         .eq("rol", "integrante")
-        .eq("estado", "activo")
+        .eq("estado", "activo").eq("cuenta_de_servicio", false)
         .or("en_planilla.eq.true,tipo_vinculo.eq.practicante")
         .is("auth_user_id", null)
         .order("apellidos");
@@ -224,7 +224,7 @@ export async function POST(req: Request) {
         .from("personas")
         .select("id, nombres, apellidos, rol, auth_user_id, sedes:sede_base_id(codigo)")
         .not("auth_user_id", "is", null)
-        .eq("estado", "activo")
+        .eq("estado", "activo").eq("cuenta_de_servicio", false)
         .order("apellidos");
       const pendientes = (conCuenta ?? [])
         .map((p: any) => ({ p, u: usuarios[p.auth_user_id] }))

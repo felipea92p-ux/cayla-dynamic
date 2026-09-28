@@ -82,6 +82,18 @@ describe("lo que Postgres dice solo, no sale a la pantalla", () => {
     expect(salida).not.toMatch(/column|does not exist/i);
   });
 
+  it("una columna que falta dice que falta una migración, no «el sistema no pudo»", () => {
+    // Lo que devolvió PostgREST el 2026-09-28 con la 0486 sin pegar.
+    const salida = mensajeDeError(
+      { code: "42703", message: "column expediente_disciplinario.enviado_a_info_at does not exist" },
+      "cargar el legajo",
+    );
+    expect(salida).toMatch(/^No se pudo cargar el legajo: /);
+    expect(salida).toMatch(/falta aplicar una migración/);
+    // `\b`: «columna» lleva «column» dentro, y esa palabra sí puede salir.
+    expect(salida).not.toMatch(/\bcolumn\b|does not exist|enviado_a_info_at/i);
+  });
+
   it("pero un mensaje sin código y sin jerga sí se muestra: suele ser nuestro", () => {
     const texto = "Ya existe una asignación vigente para esa persona.";
     expect(mensajeDeError({ message: texto })).toBe(texto);

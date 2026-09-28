@@ -292,7 +292,7 @@ export default function DisciplinaPage() {
       // Todos los estados: anulados y cerrados sin entrega desaparecían de la
       // pantalla y no había dónde consultarlos.
       supabase.from("expediente_disciplinario").select(COLUMNAS_DOC).order("creado_at", { ascending: false }),
-      supabase.from("personas").select("id, nombres, apellidos, estado, sede_base_id, fecha_cese"),
+      supabase.from("personas").select("id, nombres, apellidos, estado, sede_base_id, fecha_cese").eq("cuenta_de_servicio", false),
       supabase.from("sedes").select("id, codigo, nombre, tipo, ciudad").order("codigo"),
       supabase.from("tipos_ausencia").select("codigo, nombre"),
     ]);

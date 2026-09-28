@@ -121,6 +121,18 @@ export function puedeGestionarContratos(rol: RolPosible): boolean {
 }
 
 /**
+ * Marcar o desmarcar una ficha como cuenta de servicio (0490): una estación
+ * de retail, no una persona. Marcarla la saca de la planilla, así que es de
+ * DO — la misma lista que `fn_set_cuenta_de_servicio` exige en la base con
+ * `fn_es_admin_o_lider`. Se nombra aparte y no se reusa
+ * `puedeAdministrarEquipo`: si esa se abre algún día a la líder de equipo,
+ * esta no debe abrirse con ella sin decidirlo.
+ */
+export function puedeMarcarCuentaDeServicio(rol: RolPosible): boolean {
+  return tiene(DO, rol);
+}
+
+/**
  * Publicar o anular un anuncio del tablón de Desarrollo Organizacional. Hoy
  * equivale a DO, igual que `puedeGestionarCatalogos` — pero es una pregunta
  * distinta ("quién habla en nombre de la empresa a las cuatro sedes") y se

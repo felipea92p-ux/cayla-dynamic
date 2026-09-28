@@ -87,7 +87,7 @@ export function BuscadorGlobal({
     void createAdminSupabaseClient()
       .from("personas")
       .select("id, nombres, apellidos, estado")
-      .order("nombres")
+      .eq("cuenta_de_servicio", false).order("nombres")
       .then(({ data, error }) => {
         if (!vivo) return;
         if (error) { setPersonasEstado("error"); return; }
