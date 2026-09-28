@@ -128,6 +128,18 @@ export const NOVEDADES: readonly Novedad[] = [
     audiencia: "panel",
   },
   {
+    id: "2026-09-28-declaracion-de-ruta-se-renueva",
+    fecha: "2026-09-28",
+    titulo: "Tu declaración de ruta ahora se renueva",
+    queMejoro:
+      "Si firmaste tu declaración de ruta desde Info en estas últimas semanas, lo hiciste con la versión corta, " +
+      "que no preguntaba el costo del pasaje ni el uso de taxi. Ahora vas a ver un aviso para volver a firmarla " +
+      "con los cinco puntos: se hace desde Info, en un minuto.\n\n" +
+      "Además, desde ahora cada declaración se renueva una vez al año, en la fecha en que la firmaste. " +
+      "Mientras no la renueves, tu movilidad se sigue pagando igual.",
+    audiencia: "todos",
+  },
+  {
     id: "2026-09-28-declaracion-de-ruta-pasaje-y-taxi",
     fecha: "2026-09-28",
     titulo: "Tu declaración de ruta vuelve a preguntar el pasaje y el taxi",

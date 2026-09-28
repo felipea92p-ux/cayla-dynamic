@@ -6227,6 +6227,7 @@ export type Database = {
           ruta_id: string
           ruta_monto: number
           ruta_negativa: boolean
+          ruta_por_renovar: string
           ruta_tarifa_vigente: number
           sede: string
         }[]
