@@ -125,6 +125,19 @@ export const NOVEDADES: readonly Novedad[] = [
     audiencia: "panel",
   },
   {
+    id: "2026-09-28-casos-en-el-dashboard",
+    fecha: "2026-09-28",
+    titulo: "El Dashboard ya cuenta cuántos Casos hay, de qué son y en qué sede",
+    queMejoro:
+      "Hasta ahora, para saber cuántos reportes había en Casos —y de qué se trataban— había que abrir la Bandeja " +
+      "y contarlos a mano. En «Resumen del día», junto a «Pendientes de acción» y «Personal», hay un indicador " +
+      "nuevo: «+ Casos». Al agregarlo, se ve cuántos casos hay en los últimos 6 meses, cuántos siguen abiertos, " +
+      "cuántos tienen un plazo vencido, y cuántos se eligió reportar sobre cada tema y en cada sede.\n\n" +
+      "Son solo números: nadie ve desde aquí quién escribió cada reporte, así que sigue siendo tan confidencial " +
+      "como siempre. Se ve lo mismo que ya se puede ver en Casos, uno por uno, solo que sumado.",
+    audiencia: "panel",
+  },
+  {
     id: "2026-09-28-declaracion-de-ruta-se-renueva",
     fecha: "2026-09-28",
     titulo: "Tu declaración de ruta ahora se renueva",
