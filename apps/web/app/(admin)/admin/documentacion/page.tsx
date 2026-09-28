@@ -232,7 +232,18 @@ interface FilaTablero {
   // y por eso se pintan en gris.
   bono_estado: "ok" | "sin_fecha" | "no_aplica" | "este_mes" | "vencido" | "proximo" | null;
   estado: "sin_ruta" | "se_nego" | "ok";
+  /** 0492 — firmada, pero toca renovarla: 'incompleta' (versión corta, sin
+   *  pasaje) o 'vencida' (un año). La renueva la propia persona desde Info, y
+   *  mientras tanto sigue sosteniendo el pago. Sin la 0492 pegada no llega. */
+  ruta_por_renovar?: "incompleta" | "vencida" | null;
 }
+
+// Lo que se escribe bajo la insignia cuando una declaración firmada toca
+// renovarla (0492). Un solo lugar para la tabla y para las tarjetas del móvil.
+const POR_RENOVAR: Record<"incompleta" | "vencida", string> = {
+  incompleta: "por renovar · versión corta",
+  vencida: "por renovar · pasó un año",
+};
 
 // Qué exige acción de Desarrollo Organizacional y qué no. Se escribe una vez
 // acá y no repartido en cada `if` de la tabla: el día que se agregue un estado,
@@ -2146,6 +2157,11 @@ export default function DocumentacionPage() {
                                   tarifa desfasada
                                 </span>
                               )}
+                              {!f.ruta_desfasada && f.estado === "ok" && f.ruta_por_renovar && (
+                                <span className="mt-1 block text-xs text-ambar">
+                                  {POR_RENOVAR[f.ruta_por_renovar]}
+                                </span>
+                              )}
                             </td>
                             <td className="px-4 py-2 text-taupe">
                               {f.estado === "ok" ? fechaLarga(f.ruta_firmada_el!) : "—"}
@@ -2174,6 +2190,9 @@ export default function DocumentacionPage() {
                             <>{fechaLarga(f.ruta_firmada_el!)} · <TipoDeFirmaRuta f={f} /></>
                           ) : "—"}
                           {f.ruta_desfasada && <span className="ml-1 text-rojo">· tarifa desfasada</span>}
+                          {!f.ruta_desfasada && f.estado === "ok" && f.ruta_por_renovar && (
+                            <span className="ml-1 text-ambar">· {POR_RENOVAR[f.ruta_por_renovar]}</span>
+                          )}
                         </div>
                         <div className="mt-2 flex justify-end">
                           <FilaAccionesRuta f={f} />
