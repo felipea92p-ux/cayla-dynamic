@@ -1,8 +1,9 @@
 import type { ClienteCayla } from "@cayla-dynamic/database";
 import {
   fechaLima, hoyLima, NIVEL_DISCIPLINARIO_LABELS, puedeGestionarCatalogos, puedeGestionarContratos,
-  puedeOperarEquipo, puedeVerPlanilla, puedeVerSaludDeAlertas,
+  puedeOperarEquipo, puedeVerCasos, puedeVerPlanilla, puedeVerSaludDeAlertas,
 } from "@cayla-dynamic/shared";
+import { etiquetaDeVia } from "../reportes";
 import { diaYMes } from "../bandeja-mia";
 import { formatSoles } from "../rangos";
 import {
@@ -10,7 +11,7 @@ import {
 } from "./disciplina";
 import {
   compararPendientes, conCese, documentoEducacion, ESTADOS_CONTRATO_PENDIENTE, esFeriadoParaBandeja, sumarDias,
-  urgenciaBono, urgenciaContrato, urgenciaDescargo, urgenciaDiaPorRevisar, urgenciaEducacion, urgenciaEspera,
+  urgenciaBono, urgenciaCaso, urgenciaContrato, urgenciaDescargo, urgenciaDiaPorRevisar, urgenciaEducacion, urgenciaEspera,
   urgenciaFeriado, urgenciaInicio, urgenciaLiquidacionVencida, urgenciaRecordVacaciones, urgenciaSinHorario,
   type FilaContrato, type FilaFeriado, type PeriodoDePago, type Urgencia,
 } from "./bandeja-urgencia";
@@ -44,7 +45,7 @@ import {
 /** De qué módulo viene cada pendiente. */
 export type ModuloBandeja =
   | "contratos" | "correcciones" | "disciplina" | "documentacion" | "feriados"
-  | "educacion" | "ausencias" | "horarios" | "datos_personales" | "liquidaciones";
+  | "educacion" | "ausencias" | "horarios" | "datos_personales" | "liquidaciones" | "casos";
 
 /**
  * Los módulos que la Bandeja revisa, en el orden de sus tarjetas, y quién puede
@@ -61,6 +62,10 @@ export const MODULOS_BANDEJA: readonly { clave: ModuloBandeja; etiqueta: string;
   { clave: "horarios", etiqueta: "Horarios", puedeVer: puedeOperarEquipo },
   { clave: "datos_personales", etiqueta: "Datos personales", puedeVer: puedeOperarEquipo },
   { clave: "liquidaciones", etiqueta: "Liquidaciones", puedeVer: puedeVerPlanilla },
+  // Reportes (0483/0488). `puedeVerCasos` abre la puerta por rol; la base
+  // decide qué casos ve cada quien, y a un admin sin la marca de Gerencia
+  // General no le devuelve ninguno: su tarjeta sale «Al día», que es cierto.
+  { clave: "casos", etiqueta: "Casos", puedeVer: puedeVerCasos },
 ];
 
 export const ETIQUETA_MODULO = Object.fromEntries(MODULOS_BANDEJA.map((m) => [m.clave, m.etiqueta])) as Record<ModuloBandeja, string>;
@@ -259,6 +264,24 @@ export interface ResumenAlertas {
   motivos_definitivos: string[];
 }
 
+/**
+ * Un caso de Reportes con un plazo del Reglamento pendiente, de
+ * `fn_reportes_bandeja` (0488). Solo lo que la fila necesita: ni el relato ni
+ * a quién menciona — eso se lee en su ficha, que deja rastro al abrirse.
+ */
+export interface ItemCaso {
+  id: string;
+  codigo: string;
+  tipo: string;
+  via: string;
+  estado: string;
+  urgente: boolean;
+  sede_codigo: string;
+  proximo_plazo: string | null;
+  proximo_norma: string | null;
+  proximo_vence_at: string | null;
+}
+
 export interface FuentesBandeja {
   educacion: FilaEducacionBandeja[];
   entregasEducacion: ItemEntregaEducacion[];
@@ -281,6 +304,7 @@ export interface FuentesBandeja {
   bonosPorTransferir: ItemBonoPorTransferir[];
   feriados: ItemFeriado[];
   disciplina: ItemDisciplina[];
+  casos: ItemCaso[];
   resumenAlertas: ResumenAlertas | null;
   /**
    * Módulos con al menos una consulta que falló. La pantalla NO los pinta
@@ -294,7 +318,7 @@ export const FUENTES_VACIAS: FuentesBandeja = {
   educacion: [], entregasEducacion: [], avisosFinEducacion: [], solicitudesEducacion: [], vacaciones: [], sinHorario: [],
   liquidacionesVencidas: [], revisiones: [], revisionesMovilidad: [], revisionesContrato: [],
   solicitudesVacaciones: [], solicitudesPerfil: [], contratos: [], diasPorRevisar: [], marcasApartadas: [],
-  periodo: null, documentos: [], bonosPorTransferir: [], feriados: [], disciplina: [], resumenAlertas: null, fallidas: [],
+  periodo: null, documentos: [], bonosPorTransferir: [], feriados: [], disciplina: [], casos: [], resumenAlertas: null, fallidas: [],
 };
 
 /** Cuántos avisos por correo necesitan a una persona. Lo que se reintenta solo no cuenta. */
@@ -351,6 +375,10 @@ export async function traerFuentesBandeja(
     pedir<FilaEducacionBandeja>(supabase.rpc("fn_educacion_situacion"), "educacion", "educación", (xs) => { f.educacion = xs.filter(esEducacionParaSaber); });
     pedir<ItemSolicitudVacacion>(supabase.rpc("fn_solicitudes_vacaciones", { p_solo_pendientes: true }), "ausencias", "solicitudes de vacaciones", (xs) => { f.solicitudesVacaciones = xs; });
     pedir<ItemLiquidacion>(supabase.rpc("fn_liquidaciones_vencidas_bandeja"), "liquidaciones", "liquidaciones vencidas", (xs) => { f.liquidacionesVencidas = xs.filter(esLiquidacionParaBandeja); });
+  }
+
+  if (puedeVerCasos(rol)) {
+    pedir<ItemCaso>(supabase.rpc("fn_reportes_bandeja"), "casos", "los casos de Reportes", (xs) => { f.casos = xs; });
   }
 
   if (puedeOperarEquipo(rol)) {
@@ -465,7 +493,7 @@ export type TipoItemVisto =
 export type TipoPendiente =
   | TipoItemVisto | "educacion" | "vacaciones_por_vencer" | "sin_horario" | "liquidacion_vencida"
   | "contrato" | "dia_por_revisar" | "marca_apartada" | "documento_ruta" | "documento_bono" | "bono_por_transferir"
-  | "feriado" | "disciplina";
+  | "feriado" | "disciplina" | "caso";
 
 /**
  * Un pendiente, sea del tipo que sea. Quién, qué, dónde, de qué módulo, cuándo
@@ -685,6 +713,18 @@ export function armarPendientes(
       detalle: `${h.nunca_tuvo_horario ? "" : `Del ${diaYMes(h.primer_dia)} al ${diaYMes(h.ultimo_dia)}. `}Esos días no miden tardanza, y una licencia que caiga ahí se paga en cero.`,
       urgencia: urgenciaSinHorario(h), resolucion: "afuera",
       ir: { texto: "Asignar horario", href: "/admin/horarios" }, contexto: null,
+    });
+  }
+  // Casos de Reportes: se nombran por su código, nunca por quién reportó ni a
+  // quién. La Bandeja es de un vistazo; lo confidencial se lee en la ficha.
+  for (const c of f.casos) {
+    agregar({
+      clave: `caso:${c.id}`, tipo: "caso", itemId: c.id,
+      personaId: null, persona: `Caso ${c.codigo}`, sede: c.sede_codigo, modulo: "casos",
+      titulo: etiquetaDeVia(c.via, c.tipo),
+      detalle: c.proximo_plazo ? `${c.proximo_plazo}${c.proximo_norma ? ` (${c.proximo_norma})` : ""}` : null,
+      urgencia: urgenciaCaso(c, hoy), resolucion: "afuera",
+      ir: { texto: "Abrir el caso", href: `/admin/casos/${c.id}` }, contexto: null,
     });
   }
   for (const l of f.liquidacionesVencidas) {

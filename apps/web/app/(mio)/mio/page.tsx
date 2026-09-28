@@ -5,10 +5,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   CalendarClock, CalendarDays, Car, FileSignature, GraduationCap, History, IdCard, Inbox, LayoutDashboard,
-  ReceiptText, ScrollText, Target, TreePalm, UserRound,
+  MessageSquareText, ReceiptText, ScrollText, Target, TreePalm, UserRound,
 } from "lucide-react";
 import { ResumenEducacionMia } from "./educacion/resumen";
 import { BoletasMias } from "./boletas/boletas-mias";
+import { ReportesMios } from "./reportes/reportes-mios";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Colibri } from "@/components/marca";
 import { AcusesPendientes } from "@/components/acuses-pendientes";
@@ -49,6 +50,7 @@ import { esMemoPorFirmar, traerBandeja } from "@/lib/bandeja-mia";
 import { mostrarBonoEnInfo, puedePedirBono, traerMiBono, type MiBono } from "@/lib/mi-bono";
 import { esBoletaNueva } from "@/lib/boletas";
 import { contarBoletasNuevas, nombreDelPeriodo, traerMisBoletas, type FilaMiBoleta } from "@/lib/mis-boletas";
+import { contarSinLeer, traerMisReportes, type FilaMiReporte } from "@/lib/reportes";
 import { formatSoles } from "@/lib/rangos";
 import { useRecorridoGuiado, type PasoRecorrido } from "@/lib/use-recorrido-guiado";
 
@@ -261,7 +263,7 @@ interface Derechohabiente {
 /** Las diez secciones de la pantalla. Ver el comentario de `tab`. */
 type Tab =
   | "resumen" | "dias" | "turnos" | "dni" | "datos" | "ausencias" | "contrato" | "boletas" | "movilidad" | "educacion"
-  | "firma" | "objetivos" | "historial";
+  | "firma" | "objetivos" | "reportes" | "historial";
 
 /**
  * Las mismas diez, con su icono y en el orden en que se leen.
@@ -293,6 +295,9 @@ const SECCIONES: readonly SeccionDetalle<Tab>[] = [
   { valor: "educacion", label: "Educación", Icon: GraduationCap },
   { valor: "firma", label: "Firma", Icon: FileSignature },
   { valor: "objetivos", label: "Objetivos", Icon: Target },
+  // Lo que contó y en qué va (0483/0488). Va antes de Historial y no arriba:
+  // es algo que se usa de vez en cuando, no todos los días.
+  { valor: "reportes", label: "Reportes", Icon: MessageSquareText },
   { valor: "historial", label: "Historial", Icon: History },
 ];
 
@@ -1262,6 +1267,23 @@ export default function MioPage() {
   }, [cargarMisBoletas, yo?.id]);
   const boletasNuevas = useMemo(() => (misBoletas ? contarBoletasNuevas(misBoletas) : 0), [misBoletas]);
 
+  // Sus reportes (0488): igual que las boletas, se leen aquí y no en la
+  // pestaña, para que el globito del menú se vea antes de abrirla.
+  const [misReportes, setMisReportes] = useState<FilaMiReporte[] | null>(null);
+  const [misReportesError, setMisReportesError] = useState<string | null>(null);
+  const cargarMisReportes = useCallback(async () => {
+    const r = await traerMisReportes(supabase);
+    if (r.error) { setMisReportesError(r.error); return; }
+    setMisReportesError(null);
+    setMisReportes(r.filas);
+  }, [supabase]);
+  useEffect(() => {
+    if (!yo?.id) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void cargarMisReportes();
+  }, [cargarMisReportes, yo?.id]);
+  const reportesSinLeer = useMemo(() => (misReportes ? contarSinLeer(misReportes) : 0), [misReportes]);
+
   // Sus propios memos disciplinarios ya entregados (0404). Aparte del bloque
   // grande por la misma razón que `contrato`/`vacas`: depende solo de quién
   // es. `fn_mis_memos()` ya filtra `estado = 'entregado'` del lado del
@@ -1276,6 +1298,18 @@ export default function MioPage() {
   }, [supabase, yo?.id]);
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void cargarMisMemos(); }, [cargarMisMemos]);
+
+  // Los memos que le enviaron a su Info y todavía no recibió (0486). Aparte de
+  // `misMemos` porque son cosas distintas: estos NO están entregados todavía —
+  // solo su confirmación los entrega—, y `fn_mis_memos` no los trae a propósito.
+  const [memosPorRecibir, setMemosPorRecibir] = useState<{ id: string; enviado_a_info_at: string }[]>([]);
+  const cargarMemosPorRecibir = useCallback(async () => {
+    if (!yo?.id) { setMemosPorRecibir([]); return; }
+    const { data } = await supabase.rpc("fn_mis_memos_por_recibir");
+    setMemosPorRecibir(data ?? []);
+  }, [supabase, yo?.id]);
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { void cargarMemosPorRecibir(); }, [cargarMemosPorRecibir]);
 
   // El criterio vive en lib/bandeja-mia.ts, que es de donde sale también el
   // número del botón «Bandeja». Escrito dos veces, un día uno de los dos
@@ -1481,8 +1515,9 @@ export default function MioPage() {
   const secciones = useMemo(
     () => SECCIONES
       .filter((s) => s.valor !== "dni" || hayCampoDni)
-      .map((s) => (s.valor === "boletas" && boletasNuevas > 0 ? { ...s, contador: boletasNuevas } : s)),
-    [hayCampoDni, boletasNuevas],
+      .map((s) => (s.valor === "boletas" && boletasNuevas > 0 ? { ...s, contador: boletasNuevas } : s))
+      .map((s) => (s.valor === "reportes" && reportesSinLeer > 0 ? { ...s, contador: reportesSinLeer } : s)),
+    [hayCampoDni, boletasNuevas, reportesSinLeer],
   );
 
   // Recorrido guiado de "Resumen", primera vez. `Boolean(yo)` y no solo `yo`:
@@ -1668,9 +1703,19 @@ export default function MioPage() {
         ir: () => { setTab("historial"); irArriba(); },
       });
     }
+    // Uno por documento, y no «tienes N»: cada uno se abre por su cuenta y lo
+    // que se confirma es ESE documento. Genérico igual que el de arriba.
+    for (const m of memosPorRecibir) {
+      out.push({
+        clave: `memo-recibir:${m.id}`,
+        texto: "Tienes un documento por recibir",
+        detalle: "Ábrelo, léelo y confirma que lo recibiste. Recibirlo no es aceptar lo que dice: puedes firmarlo o recibirlo sin firmar.",
+        ir: () => router.push(`/mio/memo/${m.id}`),
+      });
+    }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resumen, respondidas, pendientesRevision, vacas, memosPorFirmar, miBono]);
+  }, [resumen, respondidas, pendientesRevision, vacas, memosPorFirmar, memosPorRecibir, miBono]);
 
   const objCumplidos = objetivos.filter((o) => o.cumplido).length;
   const mesLabel = `${MESES_LARGOS[Number(hasta.slice(5, 7)) - 1].toLowerCase()} ${hasta.slice(0, 4)}`;
@@ -2863,6 +2908,8 @@ export default function MioPage() {
         <BoletasMias filas={misBoletas} error={misBoletasError} onRecargar={cargarMisBoletas} />
       )}
 
+      {tab === "reportes" && <ReportesMios filas={misReportes} error={misReportesError} />}
+
       {/* ── MOVILIDAD ────────────────────────────────────────────────────────
           Solo dice si le falta o si quedó desactualizada, y lleva a firmarla.
           El formulario en sí vive en /mio/movilidad, mismo criterio que el
@@ -2986,8 +3033,9 @@ export default function MioPage() {
             <section className="mb-4 rounded-2xl border border-sand p-5 text-sm">
               <h2 className="mb-1 font-serif text-lg">Tus memos disciplinarios</h2>
               <p className="mb-3 text-taupe">
-                Los que ya te entregaron. Firmarlos digitalmente (o dejar constancia de que prefieres no
-                hacerlo) no reemplaza el trámite en físico — es evidencia adicional, con su propia fecha y hora.
+                Los que ya te entregaron. Si te lo entregaron en papel, firmarlo acá (o dejar constancia de
+                que prefieres no hacerlo) es evidencia adicional, con su propia fecha y hora: no reemplaza el papel.
+                Si te lo enviaron a tu Info, la entrega ya quedó hecha cuando lo recibiste.
               </p>
               <ul className="space-y-3">
                 {misMemos.map((m) => {
@@ -3007,6 +3055,11 @@ export default function MioPage() {
                         {CAUSAL_LABEL_MIO[m.tipo_causal] ?? m.tipo_causal}
                         {m.correlativo ? ` · ${m.correlativo}` : ""}
                       </p>
+                      {puedeFirmar && (
+                        <Link href={`/mio/memo/${m.id}`} className="mt-1 inline-block text-xs text-taupe underline hover:text-tinta">
+                          Ver el documento
+                        </Link>
+                      )}
                       {m.firma_sancionado_confirmada_at && (
                         <p className="mt-1 text-verde">
                           Firmaste este documento el {diaYMes(fechaLimaDeMarca(m.firma_sancionado_confirmada_at))}.

@@ -42,6 +42,26 @@ function tiene(lista: readonly Rol[], rol: RolPosible): boolean {
  * Plata: sueldos, planilla, boletas, provisiones, costos.
  * Solo DO. Una encargada de sede no ve lo que gana su equipo.
  */
+/**
+ * ¿Puede entrar a «Casos» (Reportes, 0483/0488)? La líder de equipo, DO y
+ * admin, a nivel de ROL. Es solo la puerta de la pantalla: la Gerencia General
+ * es una marca y no un rol, así que un admin que no la tiene entra y la base no
+ * le devuelve ningún caso. El ítem del menú lo decide `fn_ve_casos`, que sí
+ * conoce la marca.
+ */
+export function puedeVerCasos(rol: RolPosible): boolean {
+  return tiene(DO_Y_ENCARGADA, rol);
+}
+
+/**
+ * ¿Se le ofrece registrar a quien investiga el Título X en una sede? DO por
+ * rol. La base exige además, para un admin, la marca de Gerencia General
+ * (`fn_organo_titulo_x_guardar`, 0488): un admin sin ella recibe su mensaje.
+ */
+export function puedeNombrarInvestigadora(rol: RolPosible): boolean {
+  return tiene(DO, rol);
+}
+
 export function puedeVerPlanilla(rol: RolPosible): boolean {
   return tiene(DO, rol);
 }

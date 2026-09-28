@@ -2410,6 +2410,8 @@ export type Database = {
           entrega_testigo_nombre: string | null
           entregado_at: string | null
           entregado_por: string | null
+          enviado_a_info_at: string | null
+          enviado_a_info_por: string | null
           estado: string
           fecha_cese: string | null
           firma_sancionado: string | null
@@ -2448,6 +2450,8 @@ export type Database = {
           entrega_testigo_nombre?: string | null
           entregado_at?: string | null
           entregado_por?: string | null
+          enviado_a_info_at?: string | null
+          enviado_a_info_por?: string | null
           estado?: string
           fecha_cese?: string | null
           firma_sancionado?: string | null
@@ -2486,6 +2490,8 @@ export type Database = {
           entrega_testigo_nombre?: string | null
           entregado_at?: string | null
           entregado_por?: string | null
+          enviado_a_info_at?: string | null
+          enviado_a_info_por?: string | null
           estado?: string
           fecha_cese?: string | null
           firma_sancionado?: string | null
@@ -2557,6 +2563,20 @@ export type Database = {
           {
             foreignKeyName: "expediente_disciplinario_entregado_por_fkey"
             columns: ["entregado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expediente_disciplinario_enviado_a_info_por_fkey"
+            columns: ["enviado_a_info_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expediente_disciplinario_enviado_a_info_por_fkey"
+            columns: ["enviado_a_info_por"]
             isOneToOne: false
             referencedRelation: "terminal_roster"
             referencedColumns: ["id"]
@@ -6637,6 +6657,10 @@ export type Database = {
           tiene_firma: boolean
         }[]
       }
+      fn_expediente_enviar_a_info: {
+        Args: { p_id: string | null }
+        Returns: undefined
+      }
       fn_expediente_firmar: {
         Args: { p_firmante_id?: string | null; p_id: string | null }
         Returns: string
@@ -6668,6 +6692,10 @@ export type Database = {
       fn_expediente_reabrir: { Args: { p_id: string | null }; Returns: undefined }
       fn_expediente_resolver: {
         Args: { p_id: string | null; p_motivo: string | null; p_resultado: string | null }
+        Returns: undefined
+      }
+      fn_expediente_retirar_de_info: {
+        Args: { p_id: string | null }
         Returns: undefined
       }
       fn_expediente_set_suspension: {
@@ -7055,6 +7083,7 @@ export type Database = {
           tipo: string
         }[]
       }
+      fn_mi_memo: { Args: { p_id: string | null }; Returns: Json }
       fn_mi_rango_actual: { Args: never; Returns: string }
       fn_mis_boletas: {
         Args: never
@@ -7075,6 +7104,16 @@ export type Database = {
           vista_at: string | null
         }[]
       }
+      fn_mis_medidas: {
+        Args: never
+        Returns: {
+          creado_at: string
+          cumplida_at: string | null
+          id: string
+          instruccion: string
+          vigente_hasta: string | null
+        }[]
+      }
       fn_mis_memos: {
         Args: never
         Returns: {
@@ -7086,6 +7125,13 @@ export type Database = {
           nivel: string
           sancionado_rechazo_firma_at: string
           tipo_causal: string
+        }[]
+      }
+      fn_mis_memos_por_recibir: {
+        Args: never
+        Returns: {
+          enviado_a_info_at: string
+          id: string
         }[]
       }
       fn_mis_solicitudes_perfil: {
@@ -7153,6 +7199,38 @@ export type Database = {
       fn_objetivos_sync_mes: {
         Args: { p_anio: number | null; p_mes: number | null; p_persona_id: string | null }
         Returns: undefined
+      }
+      fn_organo_titulo_x_cerrar: {
+        Args: {
+          p_hasta: string | null
+          p_id: string | null
+          p_motivo: string | null
+        }
+        Returns: undefined
+      }
+      fn_organo_titulo_x_guardar: {
+        Args: {
+          p_acta: string | null
+          p_desde: string | null
+          p_papel: string | null
+          p_persona: string | null
+          p_sede: string | null
+        }
+        Returns: string
+      }
+      fn_organos_titulo_x: {
+        Args: never
+        Returns: {
+          acta: string | null
+          desde: string
+          hasta: string | null
+          id: string
+          nombre: string
+          papel: string
+          persona_id: string
+          sede_codigo: string
+          sede_nombre: string
+        }[]
       }
       fn_otorgar_descanso_sustitutorio: {
         Args: {
@@ -7370,6 +7448,10 @@ export type Database = {
         Returns: undefined
       }
       fn_rechazar_firma_memo: { Args: { p_id: string | null }; Returns: undefined }
+      fn_recibir_memo_digital: {
+        Args: { p_firmar: boolean | null; p_id: string | null }
+        Returns: undefined
+      }
       fn_regenerar_pin: { Args: { p_persona_id: string | null }; Returns: string }
       fn_regimen_pension_divergentes: {
         Args: never
@@ -7477,6 +7559,270 @@ export type Database = {
       fn_repagar_periodo: {
         Args: { p_grupo?: string | null; p_motivo: string | null; p_periodo_id: string | null }
         Returns: Json
+      }
+      fn_reporte_abrir: { Args: { p_reporte: string | null }; Returns: string }
+      fn_reporte_adjuntar: {
+        Args: {
+          p_interno?: boolean | null
+          p_path: string | null
+          p_reporte: string | null
+        }
+        Returns: string
+      }
+      fn_reporte_adjuntos: {
+        Args: { p_reporte: string | null }
+        Returns: {
+          bytes: number | null
+          creado_at: string
+          es_mio: boolean
+          id: string
+          interno: boolean
+          mimetype: string | null
+          storage_path: string
+        }[]
+      }
+      fn_reporte_anotar_accion: {
+        Args: {
+          p_accion: string | null
+          p_nota: string | null
+          p_reporte: string | null
+        }
+        Returns: undefined
+      }
+      fn_reporte_cerrar: {
+        Args: {
+          p_reporte: string | null
+          p_resultado: string | null
+          p_texto: string | null
+        }
+        Returns: undefined
+      }
+      fn_reporte_crear: {
+        Args: {
+          p_espera?: string | null
+          p_fecha_hecho: string | null
+          p_involucradas?: string[] | null
+          p_primera_vez?: boolean | null
+          p_relato: string | null
+          p_sede: string | null
+          p_testigos?: string[] | null
+          p_ticket?: string | null
+          p_tipo: string | null
+          p_urgente?: boolean | null
+          p_via: string | null
+          p_ya_conversado?: string | null
+        }
+        Returns: {
+          codigo: string
+          id: string
+        }[]
+      }
+      fn_reporte_derivar: {
+        Args: { p_expediente: string | null; p_reporte: string | null }
+        Returns: undefined
+      }
+      fn_reporte_detalle: {
+        Args: { p_reporte: string | null }
+        Returns: {
+          autora: string | null
+          cerrado_at: string | null
+          cierre_resultado: string | null
+          cierre_texto: string | null
+          codigo: string
+          creado_at: string
+          espera: string | null
+          estado: string
+          fecha_hecho: string
+          gestiona: string | null
+          id: string
+          mi_papel: string
+          relato: string
+          respuesta_vence_at: string | null
+          sede_codigo: string
+          tipo: string
+          urgente: boolean
+          via: string
+        }[]
+      }
+      fn_reporte_en_revision: {
+        Args: { p_reporte: string | null }
+        Returns: undefined
+      }
+      fn_reporte_escalar: {
+        Args: { p_motivo: string | null; p_reporte: string | null }
+        Returns: undefined
+      }
+      fn_reporte_eventos: {
+        Args: { p_reporte: string | null }
+        Returns: {
+          at: string
+          detalle: Json
+          id: string
+          quien: string
+          tipo: string
+        }[]
+      }
+      fn_reporte_expedientes: {
+        Args: { p_reporte: string | null }
+        Returns: {
+          correlativo: string | null
+          creado_at: string
+          estado: string
+          id: string
+          nivel: string
+          persona: string
+        }[]
+      }
+      fn_reporte_hilo: {
+        Args: { p_reporte: string | null }
+        Returns: {
+          creado_at: string
+          es_mio: boolean
+          id: string
+          interno: boolean
+          quien: string
+          texto: string
+        }[]
+      }
+      fn_reporte_indicios_delito: {
+        Args: { p_nota: string | null; p_reporte: string | null }
+        Returns: undefined
+      }
+      fn_reporte_lideres: {
+        Args: { p_reporte: string | null }
+        Returns: {
+          id: string
+          nombre: string
+          sede_codigo: string | null
+        }[]
+      }
+      fn_reporte_medida: {
+        Args: {
+          p_hasta?: string | null
+          p_instruccion: string | null
+          p_para: string | null
+          p_reporte: string | null
+        }
+        Returns: string
+      }
+      fn_reporte_medida_cumplida: {
+        Args: { p_medida: string | null }
+        Returns: undefined
+      }
+      fn_reporte_medidas: {
+        Args: { p_reporte: string | null }
+        Returns: {
+          creado_at: string
+          cumplida_at: string | null
+          id: string
+          instruccion: string
+          para: string
+          vigente_hasta: string | null
+        }[]
+      }
+      fn_reporte_mensaje: {
+        Args: {
+          p_interno?: boolean | null
+          p_reporte: string | null
+          p_responde_para?: string | null
+          p_texto: string | null
+        }
+        Returns: string
+      }
+      fn_reporte_padron: {
+        Args: never
+        Returns: {
+          cargo: string | null
+          id: string
+          nombre: string
+          sede_codigo: string | null
+        }[]
+      }
+      fn_reporte_personas: {
+        Args: { p_reporte: string | null }
+        Returns: {
+          nombre: string
+          papel: string
+          persona_id: string
+        }[]
+      }
+      fn_reporte_plazo_cumplir: {
+        Args: {
+          p_clave: string | null
+          p_nota: string | null
+          p_reporte: string | null
+        }
+        Returns: undefined
+      }
+      fn_reporte_plazos: {
+        Args: { p_reporte: string | null }
+        Returns: {
+          anulado_at: string | null
+          clave: string
+          cumplido_at: string | null
+          descripcion: string
+          duena: string
+          norma: string
+          nota: string | null
+          vence_at: string
+        }[]
+      }
+      fn_reporte_quien_lo_leera: {
+        Args: {
+          p_involucradas: string[] | null
+          p_sede: string | null
+          p_testigos: string[] | null
+          p_via: string | null
+        }
+        Returns: {
+          cargo: string
+        }[]
+      }
+      fn_reporte_reclasificar: {
+        Args: {
+          p_motivo: string | null
+          p_reporte: string | null
+          p_via: string | null
+        }
+        Returns: undefined
+      }
+      fn_reportes_bandeja: {
+        Args: never
+        Returns: {
+          autora: string
+          codigo: string
+          creado_at: string
+          estado: string
+          gestiona: string | null
+          id: string
+          mi_motivo: string
+          plazos_vencidos: number
+          proximo_norma: string | null
+          proximo_plazo: string | null
+          proximo_vence_at: string | null
+          sede_codigo: string
+          semaforo: string | null
+          tipo: string
+          urgente: boolean
+          via: string
+        }[]
+      }
+      fn_reportes_mios: {
+        Args: never
+        Returns: {
+          cerrado_at: string | null
+          cierre_texto: string | null
+          codigo: string
+          creado_at: string
+          estado: string
+          id: string
+          mensajes: number
+          respuesta_vence_at: string | null
+          sin_leer: number
+          tipo: string
+          ultimo_mensaje_at: string | null
+          via: string
+        }[]
       }
       fn_resellar_dia: {
         Args: { p_fecha: string | null; p_persona_id: string | null }
@@ -7934,6 +8280,7 @@ export type Database = {
         Args: { p_campo: string | null; p_valor: Json | null }
         Returns: undefined
       }
+      fn_ve_casos: { Args: never; Returns: boolean }
       fn_ventanas_de_regularidad: {
         Args: { p_fecha: string | null }
         Returns: {

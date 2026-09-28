@@ -64,7 +64,7 @@ describe("la lista no tiene agujeros", () => {
 
   it("son siete grupos y treinta pantallas", () => {
     expect(GRUPOS).toHaveLength(7);
-    expect(TODOS).toHaveLength(30);
+    expect(TODOS).toHaveLength(31);
   });
 
   it("solo el primer grupo va sin título — los otros seis se anuncian", () => {

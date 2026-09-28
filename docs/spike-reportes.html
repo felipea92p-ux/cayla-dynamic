@@ -1,0 +1,796 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spike · Reportes</title>
+<!--
+  SPIKE VISUAL — no es código de la app. Es una maqueta navegable de cómo se
+  verían «Reportes» en /mio (paso 3) y en el panel (paso 4), hecha con los
+  tokens reales de apps/web/app/globals.css (los once --color-*, los radios,
+  DM Sans + EB Garamond) y con la forma de los componentes de
+  apps/web/components/ui (Boton, Insignia, Campo, TarjetaInfo, MenuDetalle).
+  Los datos son inventados. Ver docs/plan-reportes.md, secciones 6 y 9.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&family=EB+Garamond:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --color-crema:#f5f0e8; --color-papel:#fbf8f2; --color-tinta:#1a1a18; --color-rojo:#b8412d;
+  --color-rojo-profundo:#8b2a1f; --color-sand:#e8e0d0; --color-taupe:#805c4c; --color-verde:#48603f;
+  --color-ambar:#74501a; --color-hueso:#eae1d2; --color-pizarra:#4c5d6e;
+  --radius-control:.5rem; --radius-superficie:1rem; --radius-flotante:1.25rem; --radius-pildora:999px;
+  --font-sans:"DM Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-serif:"EB Garamond", ui-serif, Georgia, serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-crema:#1c1a16; --color-papel:#26221d; --color-tinta:#ede7db; --color-rojo:#d4634a;
+    --color-rojo-profundo:#e8836b; --color-sand:#332e27; --color-taupe:#ab9080; --color-verde:#8fae80;
+    --color-ambar:#c99a4a; --color-hueso:#15110d; --color-pizarra:#9db0c2; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --color-crema:#1c1a16; --color-papel:#26221d; --color-tinta:#ede7db; --color-rojo:#d4634a;
+  --color-rojo-profundo:#e8836b; --color-sand:#332e27; --color-taupe:#ab9080; --color-verde:#8fae80;
+  --color-ambar:#c99a4a; --color-hueso:#15110d; --color-pizarra:#9db0c2; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin:0; }
+body { background:var(--color-crema); color:var(--color-tinta); font-family:var(--font-sans); font-size:14px; line-height:1.5; }
+h1,h2,h3 { font-family:var(--font-serif); font-weight:500; margin:0; }
+button, input, select, textarea { font:inherit; color:inherit; }
+a { color:inherit; }
+.etiqueta { text-transform:uppercase; letter-spacing:.16em; font-size:.7rem; font-weight:500; color:var(--color-taupe); }
+.taupe { color:var(--color-taupe); }
+.muted { color:var(--color-taupe); font-size:13px; }
+.chico { font-size:12px; }
+
+/* ── Barra del spike (fuera de la app) ── */
+.spike { position:sticky; top:0; z-index:50; display:flex; flex-wrap:wrap; gap:6px; align-items:center;
+  padding:8px 16px; background:var(--color-tinta); color:var(--color-crema); font-size:12px; }
+.spike b { font-weight:600; margin-right:6px; letter-spacing:.04em; }
+.spike button { border:1px solid color-mix(in srgb, var(--color-crema) 30%, transparent); background:transparent;
+  color:var(--color-crema); border-radius:var(--radius-pildora); padding:3px 10px; cursor:pointer; font-size:12px; }
+.spike button.on { background:var(--color-crema); color:var(--color-tinta); }
+.spike .sep { flex:1; }
+
+/* ── Chrome de la app ── */
+.app { display:flex; min-height:calc(100vh - 42px); }
+.menu { width:232px; flex-shrink:0; border-right:1px solid var(--color-sand); display:flex; flex-direction:column; }
+.menu .marca { height:64px; display:flex; align-items:center; gap:10px; padding:0 14px; border-bottom:1px solid var(--color-sand);
+  font-family:var(--font-serif); font-size:20px; letter-spacing:.08em; }
+.menu .marca i { width:22px; height:22px; border-radius:50% 50% 50% 0; background:var(--color-rojo); display:inline-block; transform:rotate(-45deg); }
+.menu nav { padding:8px; display:grid; gap:2px; overflow-y:auto; }
+.item { display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:var(--radius-control); color:var(--color-taupe);
+  cursor:pointer; position:relative; font-size:14px; }
+.item:hover { background:color-mix(in srgb, var(--color-sand) 40%, transparent); color:var(--color-rojo); }
+.item.on { background:color-mix(in srgb, var(--color-sand) 60%, transparent); color:var(--color-tinta); font-weight:500; }
+.item svg { width:17px; height:17px; flex-shrink:0; }
+.item .pill { margin-left:auto; }
+.menu .pie { margin-top:auto; border-top:1px solid var(--color-sand); padding:8px; }
+main { flex:1; min-width:0; }
+.contenido { max-width:1024px; margin:0 auto; padding:32px 20px 64px; }
+.topbar { display:none; }
+
+/* ── Primitivas (espejo de components/ui) ── */
+.tarjeta { background:var(--color-papel); border:1px solid var(--color-sand); border-radius:var(--radius-superficie); padding:20px; }
+.seccion { border:1px solid var(--color-sand); border-radius:var(--radius-superficie); padding:20px; }
+.btn { border-radius:var(--radius-control); padding:8px 16px; font-size:14px; font-weight:500; cursor:pointer; border:1px solid var(--color-sand);
+  background:transparent; transition:background .15s, border-color .15s; }
+.btn:hover { background:color-mix(in srgb, var(--color-sand) 50%, transparent); }
+.btn:active { transform:scale(.98); }
+.btn.primario { background:var(--color-tinta); color:var(--color-crema); border-color:var(--color-tinta); }
+.btn.primario:hover { background:var(--color-tinta); opacity:.92; }
+.btn.sutil { color:var(--color-taupe); }
+.btn.peligro { color:var(--color-rojo); border-color:color-mix(in srgb, var(--color-rojo) 30%, transparent); }
+.btn.sm { padding:4px 12px; font-size:12px; }
+.btn:disabled { opacity:.5; cursor:default; }
+.ins { display:inline-flex; align-items:center; gap:6px; white-space:nowrap; border-radius:var(--radius-pildora); padding:2px 8px; font-size:12px; }
+.ins::before { content:""; width:6px; height:6px; border-radius:50%; background:currentColor; }
+.ins.nodot::before { display:none; }
+.ins.neutral { background:var(--color-sand); color:var(--color-tinta); }
+.ins.alerta { background:color-mix(in srgb, var(--color-rojo) 10%, transparent); color:var(--color-rojo-profundo); }
+.ins.advertencia { background:color-mix(in srgb, var(--color-ambar) 15%, transparent); color:var(--color-ambar); }
+.ins.positivo { background:color-mix(in srgb, var(--color-verde) 15%, transparent); color:var(--color-verde); }
+.ins.informativo { background:color-mix(in srgb, var(--color-pizarra) 15%, transparent); color:var(--color-pizarra); }
+.ins.contador { background:var(--color-rojo); color:var(--color-crema); font-weight:500; }
+.ins.contador::before { display:none; }
+label.campo { display:flex; flex-direction:column; gap:4px; }
+label.campo > span { font-size:14px; color:var(--color-taupe); }
+.input, select.input, textarea.input { border:1px solid var(--color-sand); background:var(--color-hueso); border-radius:var(--radius-control);
+  padding:8px 12px; font-size:14px; width:100%; }
+textarea.input { min-height:132px; resize:vertical; line-height:1.55; }
+.check { display:flex; gap:10px; align-items:flex-start; }
+.check input { width:16px; height:16px; accent-color:var(--color-tinta); margin-top:2px; }
+.fila { display:flex; flex-wrap:wrap; gap:12px; align-items:center; }
+.grid2 { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+.pila > * + * { margin-top:14px; }
+hr { border:0; border-top:1px solid var(--color-sand); margin:18px 0; }
+
+/* ── Piezas de Reportes ── */
+.cabecera { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:flex-end; gap:12px; margin-bottom:22px; }
+.cabecera h1 { font-size:30px; line-height:1.1; margin-top:2px; }
+.lista-rep { display:grid; gap:10px; }
+.rep { display:grid; grid-template-columns:auto 1fr auto; gap:14px; align-items:center; background:var(--color-papel);
+  border:1px solid var(--color-sand); border-radius:var(--radius-superficie); padding:14px 16px; cursor:pointer; }
+.rep:hover { border-color:color-mix(in srgb, var(--color-taupe) 40%, transparent); }
+.rep .ico { width:36px; height:36px; border-radius:var(--radius-control); background:var(--color-hueso); display:grid; place-items:center; color:var(--color-taupe); }
+.rep .ico svg { width:18px; height:18px; }
+.rep .titulo { font-weight:500; }
+.rep .der { text-align:right; display:grid; gap:4px; justify-items:end; }
+.codigo { font-variant-numeric:tabular-nums; letter-spacing:.02em; color:var(--color-taupe); font-size:12px; }
+
+.urgencia { border:1px solid color-mix(in srgb, var(--color-rojo) 35%, transparent); background:color-mix(in srgb, var(--color-rojo) 6%, var(--color-papel));
+  border-radius:var(--radius-superficie); padding:16px 18px; }
+.urgencia .check span { font-weight:500; }
+.pasos { display:flex; gap:6px; margin:18px 0 16px; }
+.pasos div { flex:1; height:4px; border-radius:4px; background:var(--color-sand); }
+.pasos div.on { background:var(--color-tinta); }
+.tipos { display:grid; grid-template-columns:repeat(auto-fill, minmax(190px, 1fr)); gap:10px; }
+.tipo { text-align:left; border:1px solid var(--color-sand); background:var(--color-papel); border-radius:var(--radius-superficie); padding:14px;
+  cursor:pointer; display:grid; gap:4px; }
+.tipo:hover { border-color:color-mix(in srgb, var(--color-taupe) 40%, transparent); }
+.tipo.on { border-color:var(--color-tinta); box-shadow:inset 0 0 0 1px var(--color-tinta); }
+.tipo svg { width:20px; height:20px; color:var(--color-taupe); margin-bottom:4px; }
+.tipo b { font-weight:500; }
+.tipo small { color:var(--color-taupe); font-size:12px; line-height:1.4; }
+.chips { display:flex; flex-wrap:wrap; gap:6px; }
+.chip { display:inline-flex; gap:6px; align-items:center; background:var(--color-sand); border-radius:var(--radius-pildora); padding:3px 4px 3px 10px; font-size:13px; }
+.chip button { border:0; background:transparent; cursor:pointer; color:var(--color-taupe); padding:0 6px; }
+.quien { display:flex; gap:12px; align-items:flex-start; border-radius:var(--radius-superficie); padding:14px 16px;
+  background:color-mix(in srgb, var(--color-pizarra) 9%, var(--color-papel)); border:1px solid color-mix(in srgb, var(--color-pizarra) 25%, transparent); }
+.quien svg { width:20px; height:20px; color:var(--color-pizarra); flex-shrink:0; margin-top:2px; }
+.nav-pasos { display:flex; justify-content:space-between; margin-top:20px; }
+.subir { border:1px dashed color-mix(in srgb, var(--color-taupe) 50%, transparent); border-radius:var(--radius-superficie); padding:16px;
+  text-align:center; color:var(--color-taupe); background:var(--color-hueso); }
+.x-orienta { border-left:3px solid var(--color-pizarra); padding:4px 0 4px 14px; }
+.x-orienta li { margin:4px 0; }
+
+.estados { display:flex; align-items:center; gap:8px; margin:6px 0 2px; }
+.estados .p { display:flex; align-items:center; gap:6px; font-size:13px; color:var(--color-taupe); }
+.estados .p i { width:10px; height:10px; border-radius:50%; border:2px solid var(--color-sand); display:inline-block; }
+.estados .p.hecho { color:var(--color-tinta); }
+.estados .p.hecho i { background:var(--color-tinta); border-color:var(--color-tinta); }
+.estados .l { flex:0 0 26px; height:2px; background:var(--color-sand); }
+.estados .l.hecho { background:var(--color-tinta); }
+.plazo { display:flex; gap:10px; align-items:center; padding:12px 14px; border-radius:var(--radius-control); background:var(--color-hueso); }
+.plazo svg { width:18px; height:18px; color:var(--color-taupe); flex-shrink:0; }
+.hilo { display:grid; gap:12px; }
+.msg { max-width:78%; padding:10px 14px; border-radius:14px; background:var(--color-papel); border:1px solid var(--color-sand); }
+.msg.yo { margin-left:auto; background:var(--color-sand); border-color:var(--color-sand); }
+.msg.interna { background:color-mix(in srgb, var(--color-ambar) 9%, var(--color-papel)); border:1px dashed color-mix(in srgb, var(--color-ambar) 45%, transparent); }
+.msg .quien-escribe { font-size:12px; color:var(--color-taupe); margin-bottom:2px; }
+.sistema { text-align:center; font-size:12px; color:var(--color-taupe); }
+.cierre { border-left:3px solid var(--color-verde); padding:4px 0 4px 14px; }
+
+.tabla { width:100%; border-collapse:separate; border-spacing:0; background:var(--color-papel); border:1px solid var(--color-sand); border-radius:var(--radius-superficie); overflow:hidden; }
+.tabla th { text-align:left; font-weight:500; font-size:12px; color:var(--color-taupe); background:var(--color-sand); padding:9px 12px; }
+.tabla td { padding:11px 12px; border-top:1px solid var(--color-sand); vertical-align:top; }
+.tabla tr:nth-child(even) td { background:color-mix(in srgb, var(--color-hueso) 55%, transparent); }
+.tabla tr.clic { cursor:pointer; }
+.tabla tr.clic:hover td { background:color-mix(in srgb, var(--color-sand) 40%, transparent); }
+.filtros { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:14px; }
+.filtros button { border:1px solid var(--color-sand); background:transparent; border-radius:var(--radius-pildora); padding:4px 12px; cursor:pointer; font-size:13px; color:var(--color-taupe); }
+.filtros button.on { background:var(--color-tinta); color:var(--color-crema); border-color:var(--color-tinta); }
+.aviso-fijo { font-size:12px; color:var(--color-taupe); display:flex; gap:8px; align-items:center; margin-bottom:14px; }
+.ficha { display:grid; grid-template-columns:minmax(0, 1fr) 300px; gap:18px; align-items:start; }
+.linea-t { display:grid; gap:12px; font-size:13px; }
+.linea-t div { display:grid; grid-template-columns:14px 1fr; gap:10px; }
+.linea-t i { width:8px; height:8px; border-radius:50%; background:var(--color-taupe); margin-top:6px; }
+.plazos-lista { display:grid; gap:8px; }
+.plazos-lista div { display:flex; justify-content:space-between; gap:8px; font-size:13px; align-items:center; }
+.acciones { display:flex; flex-wrap:wrap; gap:8px; }
+.oculto { display:none !important; }
+
+@media (max-width: 860px) {
+  .menu { display:none; }
+  .spike { position:static; }
+  .topbar { display:flex; position:sticky; top:0; z-index:30; height:56px; align-items:center; gap:10px; padding:0 16px;
+    border-bottom:1px solid var(--color-sand); background:var(--color-crema); }
+  .topbar .btnmenu { background:var(--color-tinta); color:var(--color-crema); border-radius:var(--radius-control); padding:6px 10px; font-size:13px; }
+  .topbar p { flex:1; text-align:center; font-family:var(--font-serif); font-size:18px; margin:0; }
+  .contenido { padding:20px 16px 48px; }
+  .grid2 { grid-template-columns:1fr; }
+  .ficha { grid-template-columns:1fr; }
+  .rep { grid-template-columns:auto 1fr; }
+  .rep .der { grid-column:1 / -1; justify-items:start; text-align:left; display:flex; gap:8px; flex-wrap:wrap; }
+  .msg { max-width:92%; }
+  .ocultar-movil { display:none; }
+}
+</style>
+</head>
+<body>
+
+<div class="spike" role="toolbar" aria-label="Pantallas del spike">
+  <b>SPIKE · REPORTES</b>
+  <span class="taupe" style="color:inherit;opacity:.7">Lo mío:</span>
+  <button data-ir="mios" class="on">Mis reportes</button>
+  <button data-ir="nuevo">Nuevo reporte</button>
+  <button data-ir="detalle">Un reporte</button>
+  <span style="opacity:.7;margin-left:6px">Panel:</span>
+  <button data-ir="dash">Dashboard</button>
+  <button data-ir="bandeja">Bandeja</button>
+  <button data-ir="ficha">Ficha del caso</button>
+  <span class="sep"></span>
+  <button id="tema">Modo oscuro</button>
+</div>
+
+<div class="app">
+  <aside class="menu" aria-label="Menú">
+    <div class="marca"><i></i>CAYLA</div>
+    <nav id="menu-mio">
+      <div class="item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>Resumen</div>
+      <div class="item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>Mis días</div>
+      <div class="item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18M12 14v3l2 1"/></svg>Mis turnos</div>
+      <div class="item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 8c.7-1 1-2 1-3 0 0-3 0-5 2-2-2-5-2-5-2 0 1 .3 2 1 3"/><path d="M12 7v15M5 22h14"/></svg>Vacaciones y permisos</div>
+      <div class="item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 21h12a2 2 0 0 0 2-2v-2H10v2a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v3h4"/><path d="M19 17V5a2 2 0 0 0-2-2H4"/></svg>Contrato</div>
+      <div class="item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8M12 17.5v-11"/></svg>Boletas</div>
+      <div class="item on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/></svg>Reportes<span class="ins contador pill">1</span></div>
+      <div class="item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>Objetivos</div>
+      <div class="item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5M12 7v5l4 2"/></svg>Historial</div>
+    </nav>
+    <nav id="menu-panel" class="oculto">
+      <div class="item" data-ir="dash" id="item-dash"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>Dashboard</div>
+      <div class="item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>Equipo</div>
+      <div class="item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4M12 17h.01"/></svg>Incidencias</div>
+      <div class="item on" data-ir="bandeja" id="item-reportes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/></svg>Reportes<span class="ins contador pill" id="contador-panel">3</span></div>
+      <div class="item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v18M3 7h18M5 7l-2 7h6L7 7M19 7l-2 7h6l-2-7"/></svg>Disciplina</div>
+    </nav>
+    <div class="pie"><div class="item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>Salir</div></div>
+  </aside>
+
+  <main>
+    <div class="topbar"><span class="btnmenu">Menú</span><p id="topbar-titulo">Reportes</p></div>
+
+    <!-- ═══════════ 1 · MIS REPORTES ═══════════ -->
+    <section class="contenido" id="p-mios">
+      <div class="cabecera">
+        <div>
+          <p class="etiqueta">Info · Reportes</p>
+          <h1>Tus reportes</h1>
+          <p class="muted" style="margin-top:4px;max-width:560px">Cuéntanos algo que pasó con el equipo, con la empresa o con una clienta, propón una mejora o hazle una consulta a tu líder. Lo lee solo quien lo gestiona; la persona reportada <b style="color:var(--color-tinta);font-weight:500">nunca sabrá que fuiste tú</b>.</p>
+        </div>
+        <button class="btn primario" data-ir="nuevo">+ Nuevo reporte</button>
+      </div>
+
+      <div class="lista-rep">
+        <div class="rep" data-ir="detalle">
+          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 12 0v1"/></svg></div>
+          <div>
+            <div class="titulo">Sobre una compañera</div>
+            <div class="muted">Enviado el sábado 26 de septiembre · <span class="codigo">R-2026-0014</span></div>
+          </div>
+          <div class="der">
+            <span class="ins informativo">En revisión</span>
+            <span class="chico taupe">1 respuesta nueva</span>
+          </div>
+        </div>
+        <div class="rep">
+          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"/></svg></div>
+          <div>
+            <div class="titulo">Idea de mejora</div>
+            <div class="muted">«Un perchero en la trastienda» · <span class="codigo">R-2026-0009</span></div>
+          </div>
+          <div class="der">
+            <span class="ins positivo">Cerrado</span>
+            <span class="chico taupe">Respondido el 18 sep</span>
+          </div>
+        </div>
+        <div class="rep">
+          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01"/></svg></div>
+          <div>
+            <div class="titulo">Consulta a mi líder</div>
+            <div class="muted">«¿Cuándo sale el rol de la próxima semana?» · <span class="codigo">R-2026-0011</span></div>
+          </div>
+          <div class="der">
+            <span class="ins neutral">Recibido</span>
+            <span class="chico taupe">Te responden a más tardar el lun 12 oct</span>
+          </div>
+        </div>
+      </div>
+
+      <p class="muted" style="margin-top:22px">¿Es algo de tipo sexual, o hay un riesgo para alguien ahora? Usa <a href="#" data-ir="nuevo">Nuevo reporte</a> y márcalo arriba: va por un camino aparte y con plazos propios.</p>
+    </section>
+
+    <!-- ═══════════ 2 · NUEVO REPORTE ═══════════ -->
+    <section class="contenido oculto" id="p-nuevo">
+      <div class="cabecera" style="margin-bottom:14px">
+        <div>
+          <p class="etiqueta">Reportes · Nuevo</p>
+          <h1>Contar algo</h1>
+        </div>
+        <button class="btn sutil" data-ir="mios">Cancelar</button>
+      </div>
+
+      <div class="urgencia">
+        <label class="check"><input type="checkbox" id="chk-x">
+          <div><span>¿Es acoso sexual, un comentario o un contacto de tipo sexual?</span>
+          <div class="muted">Va por el procedimiento del Título X: lo leen solo Desarrollo Organizacional y quien investiga en tu sede. <b style="font-weight:500">Tu líder no lo ve.</b></div></div>
+        </label>
+        <label class="check" style="margin-top:10px"><input type="checkbox" id="chk-urg">
+          <div><span>Hay un riesgo para alguien ahora</span>
+          <div class="muted">Llega a Desarrollo Organizacional al instante. Si hay peligro inmediato, llama al <b style="font-weight:500">105</b>.</div></div>
+        </label>
+      </div>
+
+      <div class="pasos" id="barra-pasos"><div class="on"></div><div></div><div></div><div></div></div>
+
+      <!-- Paso 1 -->
+      <div class="paso" data-paso="1">
+        <h2 style="font-size:20px;margin-bottom:4px">¿Sobre qué es?</h2>
+        <p class="muted" style="margin:0 0 14px">Elige una. Si no estás segura, elige la más cercana: quien lo lea puede moverlo.</p>
+        <div class="tipos" id="tipos">
+          <button class="tipo on" data-tipo="persona"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 12 0v1"/></svg><b>Una persona del equipo</b><small>Un trato, un conflicto, algo que se repite.</small></button>
+          <button class="tipo" data-tipo="empresa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h1M14 9h1M9 13h1M14 13h1M10 21v-4h4v4"/></svg><b>La empresa</b><small>Un proceso, turnos, la sede, herramientas, condiciones.</small></button>
+          <button class="tipo" data-tipo="clienta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><path d="M3 6h18M16 10a4 4 0 0 1-8 0"/></svg><b>Una clienta</b><small>Algo que pasó atendiendo. No pedimos sus datos.</small></button>
+          <button class="tipo" data-tipo="idea"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"/></svg><b>Una idea de mejora</b><small>Algo que haría mejor el trabajo o la tienda.</small></button>
+          <button class="tipo" data-tipo="consulta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01"/></svg><b>Una consulta a mi líder</b><small>Una pregunta sobre tu trabajo. Te responden por escrito.</small></button>
+        </div>
+        <div id="convivencia" class="seccion" style="margin-top:14px;padding:14px 16px">
+          <label class="check"><input type="checkbox" id="chk-maltrato">
+            <div><span style="font-weight:500">Es maltrato o acoso</span>
+            <div class="muted">Gritos, humillaciones, exclusión, amenazas (43-A). Desarrollo Organizacional te responde por escrito en 15 días hábiles.</div></div>
+          </label>
+        </div>
+      </div>
+
+      <!-- Paso 2 -->
+      <div class="paso oculto" data-paso="2">
+        <h2 style="font-size:20px;margin-bottom:4px">¿Qué pasó?</h2>
+        <p class="muted" style="margin:0 0 14px">Cuenta los hechos como si se los contaras a alguien que no estuvo: qué pasó, cuándo y dónde. No hace falta que sea perfecto.</p>
+        <textarea class="input" placeholder="Ej.: El martes, cerca de las 4 p. m., en caja…">El martes, cerca de las 4 p. m., mientras atendía a una clienta en caja, me levantó la voz delante de ella y me dijo que no sabía hacer mi trabajo. No es la primera vez: la semana pasada pasó algo parecido en la trastienda.</textarea>
+        <p class="chico taupe" style="margin-top:6px">Más adelante, un asistente podrá ayudarte a ordenar lo que escribas (fase 2).</p>
+      </div>
+
+      <!-- Paso 3 -->
+      <div class="paso oculto" data-paso="3">
+        <h2 style="font-size:20px;margin-bottom:14px">Detalles</h2>
+        <div class="pila">
+          <div class="grid2">
+            <label class="campo"><span>Fecha del hecho</span><input class="input" type="date" value="2026-09-22"></label>
+            <label class="campo"><span>Sede donde pasó</span><select class="input"><option>Tienda TRU</option><option>Tienda AQP</option><option>Taller LIM</option><option>Central (CCO)</option></select></label>
+          </div>
+          <div id="campo-personas">
+            <label class="campo"><span>¿Sobre quién es?</span>
+              <select class="input" id="sel-persona">
+                <option value="">Busca en el equipo…</option>
+                <option value="col">Bea Morales · Vendedora</option>
+                <option value="lider">Rosa Díaz · Líder de equipo</option>
+                <option value="do">Lucía Paredes · Desarrollo Organizacional</option>
+              </select>
+            </label>
+            <div class="chips" id="chips-personas" style="margin-top:8px"><span class="chip" data-v="col">Bea Morales<button aria-label="Quitar">×</button></span></div>
+          </div>
+          <div id="campo-testigos">
+            <label class="campo"><span>¿Alguien más lo vio? <span class="chico">(opcional)</span></span>
+              <select class="input"><option>Busca en el equipo…</option><option>Carla Ruiz · Vendedora</option></select>
+            </label>
+            <div class="chips" style="margin-top:8px"><span class="chip">Carla Ruiz<button aria-label="Quitar">×</button></span></div>
+          </div>
+          <div id="campo-ticket" class="oculto">
+            <label class="campo"><span>N.º de ticket o boleta <span class="chico">(opcional — no pongas el nombre de la clienta)</span></span><input class="input" placeholder="B001-000123"></label>
+          </div>
+          <div class="grid2">
+            <label class="campo"><span>¿Es la primera vez?</span><select class="input"><option>No, ya pasó antes</option><option>Sí</option><option>No lo sé</option></select></label>
+            <label class="campo"><span>¿Ya lo conversaste con alguien? <span class="chico">(opcional)</span></span><input class="input" placeholder="Con quién y cuándo"></label>
+          </div>
+          <div>
+            <span class="muted">Fotos o archivos <span class="chico">(opcional)</span></span>
+            <div class="subir" style="margin-top:6px">Arrastra aquí o <u>elige un archivo</u> · foto (también de iPhone) o PDF</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Paso 4 -->
+      <div class="paso oculto" data-paso="4">
+        <h2 style="font-size:20px;margin-bottom:4px">¿Qué esperas que pase?</h2>
+        <p class="muted" style="margin:0 0 14px">Ayuda a quien lo lea a saber qué hacer. Puedes cambiar de idea después, en el hilo.</p>
+        <div class="tipos" id="espera" style="grid-template-columns:repeat(auto-fill,minmax(160px,1fr))">
+          <button class="tipo"><b>Que se sepa</b><small>Quiero que quede registrado.</small></button>
+          <button class="tipo on"><b>Conversar</b><small>Que alguien hable con nosotras.</small></button>
+          <button class="tipo"><b>Que cambie algo</b><small>Un proceso, un turno, una regla.</small></button>
+          <button class="tipo"><b>Que se actúe</b><small>Que se tomen medidas.</small></button>
+        </div>
+        <hr>
+        <div class="quien" id="quien">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+          <div>
+            <div style="font-weight:500">Lo van a leer: <span id="quien-lista">tu líder de equipo, Desarrollo Organizacional y la Gerencia General.</span></div>
+            <div class="muted" id="quien-nota">La persona reportada no sabrá que fuiste tú. Las represalias están prohibidas (arts. 43-A.7 y 43-B.5).</div>
+            <div class="muted" id="quien-plazo" style="margin-top:4px">Te responden por escrito a más tardar el <b style="color:var(--color-tinta);font-weight:500">lunes 19 de octubre</b> (15 días hábiles; el 8 de octubre es feriado).</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Orientación del Título X -->
+      <div class="seccion oculto" id="x-orienta" style="margin-top:16px">
+        <h2 style="font-size:18px;margin-bottom:6px">Tu queja va por el Título X</h2>
+        <div class="x-orienta muted">
+          <ul style="margin:0;padding-left:18px">
+            <li>La leen <b style="font-weight:500;color:var(--color-tinta)">Desarrollo Organizacional</b> y <b style="font-weight:500;color:var(--color-tinta)">quien investiga en tu sede</b>. Tu líder no la ve.</li>
+            <li>Nadie te pondrá frente a la otra persona ni te hará repetirlo una y otra vez (48.14).</li>
+            <li>En 1 día hábil te ofrecen atención en salud; en 3, medidas de protección.</li>
+            <li>También puedes entregarla en sobre cerrado o acudir directo a SUNAFIL, al MTPE, a la Policía o al Ministerio Público (48.9).</li>
+          </ul>
+        </div>
+        <p class="chico taupe" style="margin:10px 0 0">Solo es obligatorio contar qué pasó (48.8). Todo lo demás es opcional.</p>
+      </div>
+
+      <div class="nav-pasos">
+        <button class="btn" id="atras" disabled>Atrás</button>
+        <button class="btn primario" id="siguiente">Siguiente</button>
+      </div>
+    </section>
+
+    <!-- ═══════════ 3 · UN REPORTE (autora) ═══════════ -->
+    <section class="contenido oculto" id="p-detalle">
+      <button class="btn sutil sm" data-ir="mios" style="margin-bottom:14px">← Tus reportes</button>
+      <div class="cabecera" style="margin-bottom:10px">
+        <div>
+          <p class="etiqueta">Sobre una compañera · <span class="codigo">R-2026-0014</span></p>
+          <h1>Enviado el 26 de septiembre</h1>
+        </div>
+        <span class="ins informativo">En revisión</span>
+      </div>
+      <div class="estados"><span class="p hecho"><i></i>Recibido</span><span class="l hecho"></span><span class="p hecho"><i></i>En revisión</span><span class="l"></span><span class="p"><i></i>Cerrado</span></div>
+
+      <div class="plazo" style="margin:16px 0 20px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+        <div>Desarrollo Organizacional te responde por escrito a más tardar el <b style="font-weight:500">lunes 19 de octubre</b>. <span class="taupe">Recibimos tu reporte el mismo día (acuse, 43-A.6).</span></div>
+      </div>
+
+      <div class="grid2" style="grid-template-columns:minmax(0,1fr) 260px;align-items:start" id="det-grid">
+        <div class="tarjeta">
+          <h2 style="font-size:18px;margin-bottom:12px">Conversación</h2>
+          <div class="hilo">
+            <div class="sistema">Sábado 26 · Recibimos tu reporte</div>
+            <div class="msg yo"><div class="quien-escribe">Tú · 26 sep, 10:14</div>Pasó dos veces esta semana.</div>
+            <div class="msg"><div class="quien-escribe">Tu líder de equipo · 27 sep, 09:02</div>Gracias por contarlo. ¿Había alguien más en caja cuando pasó? Quiero conversar con las dos por separado esta semana.</div>
+          </div>
+          <hr>
+          <label class="campo"><span>Responder</span><textarea class="input" style="min-height:80px" placeholder="Escribe tu respuesta…"></textarea></label>
+          <div class="fila" style="justify-content:space-between;margin-top:10px"><span class="chico taupe">Adjuntar foto o PDF</span><button class="btn primario sm">Enviar</button></div>
+        </div>
+        <div class="pila">
+          <div class="tarjeta" style="padding:16px">
+            <p class="etiqueta" style="margin:0 0 6px">Lo que contaste</p>
+            <p style="margin:0;font-size:13px">El martes, cerca de las 4 p. m., mientras atendía a una clienta en caja, me levantó la voz delante de ella…</p>
+            <p class="chico taupe" style="margin:8px 0 0">Martes 22 sep · Tienda TRU · 1 foto</p>
+          </div>
+          <div class="tarjeta" style="padding:16px">
+            <p class="etiqueta" style="margin:0 0 6px">Quién lo lee</p>
+            <p style="margin:0;font-size:13px">Tu líder de equipo, Desarrollo Organizacional y la Gerencia General. Nadie más.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="tarjeta" style="margin-top:18px;opacity:.9">
+        <p class="etiqueta" style="margin:0 0 8px">Así se ve el cierre (ejemplo de otro reporte)</p>
+        <div class="cierre"><div style="font-weight:500">Respuesta de Desarrollo Organizacional · 18 sep</div>
+        <p style="margin:4px 0 0">Buena idea: el perchero llega el lunes y queda junto a la puerta de la trastienda. Gracias por proponerlo.</p></div>
+      </div>
+    </section>
+
+    <!-- ═══════════ 3b · PANEL · DASHBOARD ═══════════ -->
+    <section class="contenido oculto" id="p-dash">
+      <div class="cabecera">
+        <div>
+          <p class="etiqueta">Panel · Dashboard</p>
+          <h1>Buenos días, Felipe</h1>
+          <p class="muted" style="margin-top:4px">Sábado 26 de septiembre · así se vería la tarjeta de Reportes junto a las que ya existen.</p>
+        </div>
+        <div class="filtros" style="margin:0" id="quien-mira-dash">
+          <button class="on" data-mira="gg">Como Gerencia General</button>
+          <button data-mira="admin">Como otro admin</button>
+        </div>
+      </div>
+
+      <div class="grid2" style="grid-template-columns:repeat(auto-fit,minmax(260px,1fr))">
+        <div class="tarjeta" style="opacity:.55">
+          <p class="etiqueta" style="margin:0 0 6px">Hoy en las sedes</p>
+          <p style="margin:0;font-family:var(--font-serif);font-size:26px">18 de 21</p>
+          <p class="muted" style="margin:0">personas marcaron entrada · tarjeta que ya existe</p>
+        </div>
+        <div class="tarjeta" style="opacity:.55">
+          <p class="etiqueta" style="margin:0 0 6px">Incidencias</p>
+          <p style="margin:0;font-family:var(--font-serif);font-size:26px">4</p>
+          <p class="muted" style="margin:0">por revisar · tarjeta que ya existe</p>
+        </div>
+
+        <div class="tarjeta" id="tarjeta-reportes" style="border-color:color-mix(in srgb, var(--color-rojo) 30%, var(--color-sand))">
+          <div class="fila" style="justify-content:space-between;margin-bottom:8px">
+            <p class="etiqueta" style="margin:0">Reportes</p>
+            <span class="ins alerta">1 vencido</span>
+          </div>
+          <p style="margin:0;font-family:var(--font-serif);font-size:26px">5 abiertos</p>
+          <p class="muted" style="margin:0 0 12px">1 urgente · 1 del Título X · 1 sobre DO, que solo ves tú</p>
+          <div class="plazos-lista" style="margin-bottom:12px">
+            <div><span><span class="codigo">R-2026-0016</span> · convivencia · AQP</span><span class="ins alerta">Vencido</span></div>
+            <div><span><span class="codigo">R-2026-0017</span> · sobre DO · CCO</span><span class="ins advertencia">Por vencer</span></div>
+          </div>
+          <button class="btn sm" data-ir="bandeja">Abrir Reportes</button>
+          <p class="chico taupe" style="margin:10px 0 0">El aviso nunca lleva el contenido: solo cuántos hay y qué plazo aprieta.</p>
+        </div>
+      </div>
+
+      <div class="seccion oculto" id="nota-otro-admin" style="margin-top:16px">
+        <div style="font-weight:500">Un admin que no es la Gerencia General no ve la tarjeta de Reportes ni el ítem del menú.</div>
+        <p class="muted" style="margin:4px 0 0">Hoy hay 5 admins y una sola Gerencia General (decisión 19). Tener el rol no abre los reportes: lo abre la marca de Gerencia General, que solo se cambia desde el SQL Editor.</p>
+      </div>
+
+      <div class="tarjeta" style="margin-top:16px" id="stats">
+        <div class="fila" style="justify-content:space-between;margin-bottom:12px">
+          <h2 style="font-size:18px">Septiembre, en números</h2>
+          <span class="chico taupe">paso 5 · cumple el registro del 43-B.4</span>
+        </div>
+        <div class="grid2" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:18px">
+          <div>
+            <p class="etiqueta" style="margin:0 0 8px">Por tipo</p>
+            <div class="plazos-lista">
+              <div><span>La empresa</span><span>6</span></div>
+              <div><span>Ideas de mejora</span><span>5</span></div>
+              <div><span>Consultas a la líder</span><span>4</span></div>
+              <div><span>Convivencia</span><span>3</span></div>
+              <div><span>Título X</span><span>1</span></div>
+            </div>
+          </div>
+          <div>
+            <p class="etiqueta" style="margin:0 0 8px">Plazos</p>
+            <p style="margin:0;font-family:var(--font-serif);font-size:24px">92 %</p>
+            <p class="muted" style="margin:0">respondidos dentro del plazo del Reglamento</p>
+            <p style="margin:10px 0 0;font-family:var(--font-serif);font-size:24px">4,1 días</p>
+            <p class="muted" style="margin:0">hábiles, en promedio, hasta la respuesta</p>
+          </div>
+          <div>
+            <p class="etiqueta" style="margin:0 0 8px">Cómo terminaron</p>
+            <div class="plazos-lista">
+              <div><span>Resuelto</span><span>11</span></div>
+              <div><span>Sin acción</span><span>3</span></div>
+              <div><span>Confirmado</span><span>1</span></div>
+              <div><span>Derivado a disciplina</span><span>1</span></div>
+            </div>
+          </div>
+        </div>
+        <p class="chico taupe" style="margin:12px 0 0">Por sede se muestra solo si hay 5 reportes o más: por debajo se adivina quién fue. Sin nada por persona (eso es el mapa de la fase 3).</p>
+      </div>
+    </section>
+
+    <!-- ═══════════ 4 · PANEL · BANDEJA ═══════════ -->
+    <section class="contenido oculto" id="p-bandeja">
+      <div class="cabecera">
+        <div>
+          <p class="etiqueta">Panel · Reportes</p>
+          <h1>Reportes</h1>
+          <p class="muted" style="margin-top:4px">Lo urgente primero, después lo que vence antes.</p>
+        </div>
+        <div class="filtros" style="margin:0">
+          <button class="on" data-vista="gg">Gerencia General</button>
+          <button data-vista="do">DO</button>
+          <button data-vista="lider">Líder de TRU</button>
+        </div>
+      </div>
+      <div class="aviso-fijo"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>Un reporte no es una falta. Nada se sanciona desde aquí.</div>
+      <div class="filtros"><button class="on" id="cuenta-abiertos">Abiertos · 5</button><button>Lo que gestiono</button><button>Vencidos · 1</button><button>Cerrados</button></div>
+      <table class="tabla">
+        <thead><tr><th>Caso</th><th>Tipo</th><th class="ocultar-movil">Sede</th><th>Lo lleva</th><th>Próximo plazo</th></tr></thead>
+        <tbody id="filas">
+          <tr class="clic fila-do fila-gg" data-ir="ficha"><td><span class="ins alerta">Urgente</span><div class="codigo" style="margin-top:4px">R-2026-0016</div></td><td>Convivencia · 43-A<div class="chico taupe">sobre una colaboradora</div></td><td class="ocultar-movil">AQP</td><td>DO</td><td><span class="ins alerta">Vencido</span><div class="chico taupe">Resolución escrita · ayer</div></td></tr>
+          <tr class="clic fila-do fila-gg fila-lider" data-ir="ficha"><td><div class="codigo">R-2026-0014</div><span class="chico taupe">nueva respuesta</span></td><td>Convivencia · 43-A<div class="chico taupe">sobre una colaboradora</div></td><td class="ocultar-movil">TRU</td><td>Líder</td><td><span class="ins positivo">En plazo</span><div class="chico taupe">Resolución · lun 19 oct</div></td></tr>
+          <tr class="clic fila-do"><td><div class="codigo">R-2026-0015</div></td><td>Título X<div class="chico taupe">queja de hostigamiento</div></td><td class="ocultar-movil">LIM</td><td>DO</td><td><span class="ins advertencia">Por vencer</span><div class="chico taupe">Medidas de protección · mañana</div></td></tr>
+          <tr class="clic fila-do fila-gg fila-lider"><td><div class="codigo">R-2026-0011</div></td><td>Consulta<div class="chico taupe">a la líder</div></td><td class="ocultar-movil">TRU</td><td>Líder</td><td><span class="ins positivo">En plazo</span><div class="chico taupe">Respuesta · lun 12 oct</div></td></tr>
+          <tr class="clic fila-do fila-gg fila-lider"><td><div class="codigo">R-2026-0012</div></td><td>La empresa · 43-B<div class="chico taupe">aire acondicionado</div></td><td class="ocultar-movil">TRU</td><td>Líder</td><td><span class="ins positivo">En plazo</span><div class="chico taupe">Respuesta avisada · vie 16 oct</div></td></tr>
+          <tr class="clic fila-gg"><td><div class="codigo">R-2026-0017</div></td><td>Convivencia · 43-A<div class="chico taupe">sobre DO</div></td><td class="ocultar-movil">CCO</td><td>Gerencia</td><td><span class="ins advertencia">Por vencer</span><div class="chico taupe">Resolución escrita · lun 28 sep</div></td></tr>
+        </tbody>
+      </table>
+      <p class="chico taupe" id="nota-vista" style="margin-top:10px">La Gerencia General ve lo de todas las sedes, y es quien gestiona lo que es sobre DO (R-2026-0017). No ve el Título X salvo que la queja sea contra DO, ni nada que la mencione a ella: eso lo recibe DO (48.2-bis).</p>
+      <div class="seccion" style="margin-top:18px;padding:14px 16px">
+        <div class="fila" style="justify-content:space-between">
+          <div><div style="font-weight:500">Quién investiga el Título X en cada sede</div><div class="muted">TRU y AQP: Delegada elegida · LIM y CCO: <span style="color:var(--color-rojo-profundo)">sin nombrar</span> — las quejas de esas sedes llegan con alerta.</div></div>
+          <button class="btn sm">Registrar con acta</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════ 5 · PANEL · FICHA ═══════════ -->
+    <section class="contenido oculto" id="p-ficha">
+      <button class="btn sutil sm" data-ir="bandeja" style="margin-bottom:14px">← Reportes</button>
+      <div class="cabecera" style="margin-bottom:14px">
+        <div>
+          <p class="etiqueta">Convivencia · 43-A · Tienda TRU · <span class="codigo">R-2026-0014</span></p>
+          <h1>Sobre una colaboradora</h1>
+          <p class="muted" style="margin-top:4px">De Ana Quispe (confidencial) · sobre Bea Morales · testigo: Carla Ruiz</p>
+        </div>
+        <div class="fila"><span class="ins informativo">En revisión</span><span class="ins neutral nodot">Lo lleva: líder</span></div>
+      </div>
+      <div class="aviso-fijo"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>Abriste esta ficha: queda registrado (44.13).</div>
+
+      <div class="ficha">
+        <div class="pila">
+          <div class="tarjeta">
+            <p class="etiqueta" style="margin:0 0 6px">Lo reportado · martes 22 sep</p>
+            <p style="margin:0">El martes, cerca de las 4 p. m., mientras atendía a una clienta en caja, me levantó la voz delante de ella y me dijo que no sabía hacer mi trabajo. No es la primera vez: la semana pasada pasó algo parecido en la trastienda.</p>
+            <p class="chico taupe" style="margin:10px 0 0">Espera: <b style="font-weight:500;color:var(--color-tinta)">conversar</b> · No es la primera vez · 1 foto adjunta</p>
+          </div>
+          <div class="tarjeta">
+            <h2 style="font-size:18px;margin-bottom:12px">Conversación</h2>
+            <div class="hilo">
+              <div class="msg"><div class="quien-escribe">Ana (autora) · 26 sep</div>Pasó dos veces esta semana.</div>
+              <div class="msg yo"><div class="quien-escribe">Tú · 27 sep</div>Gracias por contarlo. ¿Había alguien más en caja cuando pasó?</div>
+              <div class="msg interna"><div class="quien-escribe">Nota interna · Tú · 27 sep — Ana no la ve</div>Hablar primero con Bea por separado. Revisar si coincide con la tardanza del lunes.</div>
+            </div>
+            <hr>
+            <textarea class="input" style="min-height:70px" placeholder="Escribe a Ana…"></textarea>
+            <div class="fila" style="justify-content:space-between;margin-top:10px">
+              <label class="check chico"><input type="checkbox"> Nota interna (Ana no la ve)</label>
+              <button class="btn primario sm">Enviar</button>
+            </div>
+          </div>
+        </div>
+        <div class="pila">
+          <div class="tarjeta" style="padding:16px">
+            <p class="etiqueta" style="margin:0 0 10px">Plazos del Reglamento</p>
+            <div class="plazos-lista">
+              <div><span>Acuse · 43-A.6</span><span class="ins positivo">Hecho</span></div>
+              <div><span>Resolución escrita · 43-A.6<br><span class="chico taupe">la firma DO · lun 19 oct</span></span><span class="ins positivo">En plazo</span></div>
+            </div>
+          </div>
+          <div class="tarjeta" style="padding:16px">
+            <p class="etiqueta" style="margin:0 0 10px">Qué se hizo</p>
+            <div class="linea-t">
+              <div><i></i><span>26 sep · Recibido · acuse automático a nombre de DO</span></div>
+              <div><i></i><span>27 sep · En revisión</span></div>
+              <div><i></i><span>28 sep · Mediación: «conversé con las dos por separado»</span></div>
+            </div>
+          </div>
+          <div class="tarjeta" style="padding:16px">
+            <p class="etiqueta" style="margin:0 0 10px">Acciones</p>
+            <div class="acciones">
+              <button class="btn sm">Registrar acción</button>
+              <button class="btn sm">Escalar a DO</button>
+              <button class="btn sm">Cambiar de vía</button>
+              <button class="btn sm" disabled title="En convivencia cierra Desarrollo Organizacional">Cerrar</button>
+            </div>
+            <p class="chico taupe" style="margin:10px 0 0">Cerrar un caso de convivencia es de DO (decisión 14). Si notas algo de tipo sexual, «Cambiar de vía» lo pasa al Título X y dejas de verlo.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+(function () {
+  var pantallas = { mios: "p-mios", nuevo: "p-nuevo", detalle: "p-detalle", dash: "p-dash", bandeja: "p-bandeja", ficha: "p-ficha" };
+  var titulos = { mios: "Reportes", nuevo: "Nuevo reporte", detalle: "R-2026-0014", dash: "Dashboard", bandeja: "Reportes", ficha: "R-2026-0014" };
+  function ir(p) {
+    Object.keys(pantallas).forEach(function (k) { document.getElementById(pantallas[k]).classList.toggle("oculto", k !== p); });
+    document.querySelectorAll(".spike [data-ir]").forEach(function (b) { b.classList.toggle("on", b.dataset.ir === p); });
+    var panel = p === "bandeja" || p === "ficha" || p === "dash";
+    document.getElementById("item-dash").classList.toggle("on", p === "dash");
+    document.getElementById("item-reportes").classList.toggle("on", p !== "dash");
+    document.getElementById("menu-mio").classList.toggle("oculto", panel);
+    document.getElementById("menu-panel").classList.toggle("oculto", !panel);
+    document.getElementById("topbar-titulo").textContent = titulos[p];
+    window.scrollTo(0, 0);
+  }
+  document.addEventListener("click", function (e) {
+    var t = e.target.closest("[data-ir]");
+    if (t) { e.preventDefault(); ir(t.dataset.ir); }
+  });
+
+  // Tema
+  var tema = document.getElementById("tema");
+  tema.addEventListener("click", function () {
+    var r = document.documentElement;
+    var oscuro = r.dataset.theme !== "dark" && !(r.dataset.theme !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
+    r.dataset.theme = oscuro ? "dark" : "light";
+    tema.textContent = oscuro ? "Modo claro" : "Modo oscuro";
+  });
+
+  // Asistente de 4 pasos
+  var paso = 1, tipo = "persona", persona = "col";
+  var atras = document.getElementById("atras"), sig = document.getElementById("siguiente");
+  var chkX = document.getElementById("chk-x"), chkMal = document.getElementById("chk-maltrato");
+  function pintarPaso() {
+    document.querySelectorAll("#p-nuevo .paso").forEach(function (d) { d.classList.toggle("oculto", +d.dataset.paso !== paso); });
+    document.querySelectorAll("#barra-pasos div").forEach(function (d, i) { d.classList.toggle("on", i < paso); });
+    atras.disabled = paso === 1;
+    sig.textContent = paso === 4 ? "Enviar reporte" : "Siguiente";
+    document.getElementById("x-orienta").classList.toggle("oculto", !chkX.checked);
+    pintarQuien();
+  }
+  function pintarQuien() {
+    var x = chkX.checked, lista, nota, plazo;
+    var noPersonas = tipo !== "persona";
+    document.getElementById("convivencia").classList.toggle("oculto", tipo !== "persona" || x);
+    document.getElementById("campo-personas").classList.toggle("oculto", noPersonas && !(x && tipo === "clienta") || tipo === "clienta");
+    document.getElementById("campo-ticket").classList.toggle("oculto", tipo !== "clienta");
+    document.getElementById("campo-testigos").classList.toggle("oculto", tipo === "idea" || tipo === "consulta");
+    if (x) {
+      lista = "Desarrollo Organizacional y quien investiga en tu sede. Tu líder no lo ve.";
+      nota = "Nadie te pondrá frente a la otra persona (48.14). Las represalias están prohibidas (art. 51).";
+      plazo = "Te ofrecen atención en salud en <b>1 día hábil</b> y medidas de protección en <b>3</b>. El informe de quien investiga llega en 15 días calendario.";
+    } else if (tipo === "persona" && persona === "lider") {
+      lista = "Desarrollo Organizacional y la Gerencia General. Como es sobre una líder, no lo ve ninguna líder.";
+      nota = "La persona reportada no sabrá que fuiste tú. Las represalias están prohibidas (arts. 43-A.7 y 43-B.5).";
+      plazo = chkMal.checked ? "Te responden por escrito a más tardar el <b>lunes 19 de octubre</b>." : "Te responden por escrito a más tardar el <b>lunes 12 de octubre</b>.";
+    } else if (tipo === "persona" && persona === "do") {
+      lista = "la Gerencia General. Como es sobre Desarrollo Organizacional, DO no lo ve (43-A.5).";
+      nota = "La persona reportada no sabrá que fuiste tú. Las represalias están prohibidas.";
+      plazo = "Te responden por escrito a más tardar el <b>lunes 19 de octubre</b>.";
+    } else {
+      lista = "tu líder de equipo, Desarrollo Organizacional y la Gerencia General.";
+      nota = tipo === "persona" ? "La persona reportada no sabrá que fuiste tú. Las represalias están prohibidas (arts. 43-A.7 y 43-B.5)." : "Presentar un reclamo o una sugerencia nunca es una falta (43-B.5).";
+      plazo = (tipo === "persona" && chkMal.checked)
+        ? "Te responden por escrito a más tardar el <b>lunes 19 de octubre</b> (15 días hábiles; el 8 de octubre es feriado)."
+        : "Te responden por escrito a más tardar el <b>lunes 12 de octubre</b> (10 días hábiles; el 8 de octubre es feriado).";
+    }
+    document.getElementById("quien-lista").textContent = lista;
+    document.getElementById("quien-nota").textContent = nota;
+    document.getElementById("quien-plazo").innerHTML = plazo.replace(/<b>/g, '<b style="color:var(--color-tinta);font-weight:500">');
+  }
+  atras.addEventListener("click", function () { if (paso > 1) { paso--; pintarPaso(); } });
+  sig.addEventListener("click", function () {
+    if (paso < 4) { paso++; pintarPaso(); }
+    else { alert("Spike: aquí se llamaría a fn_reporte_crear y se volvería a «Tus reportes» con el código nuevo."); }
+  });
+  document.getElementById("tipos").addEventListener("click", function (e) {
+    var b = e.target.closest(".tipo"); if (!b) return;
+    tipo = b.dataset.tipo;
+    document.querySelectorAll("#tipos .tipo").forEach(function (x) { x.classList.toggle("on", x === b); });
+    pintarQuien();
+  });
+  document.getElementById("espera").addEventListener("click", function (e) {
+    var b = e.target.closest(".tipo"); if (!b) return;
+    document.querySelectorAll("#espera .tipo").forEach(function (x) { x.classList.toggle("on", x === b); });
+  });
+  document.getElementById("sel-persona").addEventListener("change", function (e) {
+    if (!e.target.value) return;
+    persona = e.target.value;
+    var nombre = e.target.options[e.target.selectedIndex].text.split(" · ")[0];
+    document.getElementById("chips-personas").innerHTML = '<span class="chip">' + nombre + '<button aria-label="Quitar">×</button></span>';
+    pintarQuien();
+  });
+  chkX.addEventListener("change", pintarPaso);
+  chkMal.addEventListener("change", pintarQuien);
+
+  // Bandeja: quién mira
+  var notas = {
+    gg: "La Gerencia General ve lo de todas las sedes, y es quien gestiona lo que es sobre DO (R-2026-0017). No ve el Título X salvo que la queja sea contra DO, ni nada que la mencione a ella: eso lo recibe DO (48.2-bis).",
+    do: "DO ve lo de todas las sedes, incluido el Título X. No ve lo que es sobre DO (R-2026-0017): eso va a la Gerencia General (43-A.5).",
+    lider: "La líder ve lo de su sede sobre colaboradoras, la empresa, ideas y consultas. No ve lo que la menciona ni nada del Título X."
+  };
+  document.querySelectorAll("[data-vista]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      var v = b.dataset.vista, n = 0;
+      document.querySelectorAll("[data-vista]").forEach(function (x) { x.classList.toggle("on", x === b); });
+      document.querySelectorAll("#filas tr").forEach(function (tr) {
+        var ve = tr.classList.contains("fila-" + v); tr.classList.toggle("oculto", !ve); if (ve) n++;
+      });
+      document.getElementById("cuenta-abiertos").textContent = "Abiertos · " + n;
+      document.getElementById("contador-panel").textContent = n;
+      document.getElementById("nota-vista").textContent = notas[v];
+    });
+  });
+  document.querySelector('[data-vista="gg"]').click();
+
+  // Dashboard: Gerencia General / otro admin
+  document.querySelectorAll("[data-mira]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      var otro = b.dataset.mira === "admin";
+      document.querySelectorAll("[data-mira]").forEach(function (x) { x.classList.toggle("on", x === b); });
+      document.getElementById("tarjeta-reportes").classList.toggle("oculto", otro);
+      document.getElementById("stats").classList.toggle("oculto", otro);
+      document.getElementById("nota-otro-admin").classList.toggle("oculto", !otro);
+      document.getElementById("item-reportes").classList.toggle("oculto", otro);
+    });
+  });
+
+  pintarPaso();
+})();
+</script>
+</body>
+</html>
