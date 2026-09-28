@@ -346,6 +346,7 @@ with repo(numero, nombre, nunca) as (values
     (482, 'las_boletas_oficiales_se_suben_y_se_publican', false),
     (484, 'el_periodo_de_prueba_deja_de_generar_essalud', false),
     (485, 'el_practicante_ve_su_descanso_y_subvencion_semestral', false),
+    (486, 'el_memo_se_entrega_por_info', false),
     (487, 'la_imputacion_lleva_la_firma_escaneada', false)
 ),
 diff as (

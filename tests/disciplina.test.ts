@@ -23,7 +23,8 @@ function doc(p: Partial<DocDisciplina> = {}): DocDisciplina {
     fecha_cese: null, resuelto_at: null, resuelto_resultado: null, resuelto_motivo: null, resuelto_por: null,
     cargos_comunicados_at: null, descargo_vence_at: null, descargo_acogido: null, descargo_valoracion: null,
     correlativo: null, creado_at: "2026-09-12T15:00:00Z", creado_por: null, firmante_id: null, firmado_at: null,
-    entregado_at: null, entregado_por: null, medio_entrega: null, entrega_testigo_nombre: null, observacion: null,
+    entregado_at: null, entregado_por: null, medio_entrega: null, entrega_testigo_nombre: null,
+    enviado_a_info_at: null, enviado_a_info_por: null, observacion: null,
     ...p,
   };
 }
@@ -70,6 +71,22 @@ describe("entregado no es lo mismo que cerrado", () => {
   });
   it("una imputación entregada con cargo pero sin resolver sigue pidiendo una decisión", () => {
     expect(pendientesDeEntregado(doc({ estado: "entregado", nivel: "imputacion" }), [adj("cargo_firmado")])).toEqual(["resolver"]);
+  });
+  // 0486. La entrega por Info se prueba con la confirmación de la persona, que
+  // vive en la fila; no hay papel que archivar. Sin esta regla, cada memo
+  // entregado por Info se quedaría para siempre en «Entregados que aún piden
+  // algo», pidiéndole a quien emitió un cargo que no existe.
+  it("un entregado por Info no pide cargo y pasa al historial", () => {
+    const d = doc({ estado: "entregado", medio_entrega: "digital", enviado_a_info_at: "2026-09-12T15:00:00Z", enviado_a_info_por: "u1" });
+    expect(pendientesDeEntregado(d, [])).toEqual([]);
+    expect(pestanaDelDocumento(d, [])).toBe("historial");
+  });
+  it("y uno entregado en mano sin cargo lo sigue pidiendo: la excepción es solo del medio digital", () => {
+    expect(pendientesDeEntregado(doc({ estado: "entregado", medio_entrega: "fisico" }), [])).toEqual(["cargo"]);
+    expect(pendientesDeEntregado(doc({ estado: "entregado", medio_entrega: "correo" }), [])).toEqual(["cargo"]);
+  });
+  it("enviado a Info pero sin recibir sigue siendo un firmado: está por entregar", () => {
+    expect(pestanaDelDocumento(doc({ estado: "firmado", enviado_a_info_at: "2026-09-12T15:00:00Z", enviado_a_info_por: "u1" }), [])).toBe("entregar");
   });
   it("anulados y cerrados sin entrega van al historial", () => {
     expect(pestanaDelDocumento(doc({ estado: "anulado" }), [])).toBe("historial");
