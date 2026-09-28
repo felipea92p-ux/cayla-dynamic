@@ -46,8 +46,10 @@
 --   termina la relación laboral es una decisión que no se toma de pasada.
 --
 -- MD5 DE PARTIDA
---   Producción (`fn_firma_de_memo`): POR COMPLETAR con la consulta del mensaje
---   de entrega, ANTES de pegar. Parte de la 0148 (la vigente en el repositorio).
+--   Producción (`fn_firma_de_memo`), pedido al SQL Editor el 2026-09-27:
+--     md5 de partida: f1c0ab05e73ef79f39332c08164d3799  (736 caracteres)
+--   Coincide byte por byte con la 0148 y con el Postgres local: producción tiene
+--   la versión vigente del repositorio, con sus comentarios.
 --
 -- CÓMO SE REVIERTE
 --   Volver a la lista de la 0148: `d.nivel in ('verbal','amonestacion',
