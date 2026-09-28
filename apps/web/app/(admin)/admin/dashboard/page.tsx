@@ -33,6 +33,7 @@ import {
 import { PanelColapsable } from "./panel-colapsable";
 import { PanelAtencionBanner, PanelAtencionLateral } from "./panel-atencion";
 import { usePendientesBandeja } from "./use-pendientes-bandeja";
+import { useCasosResumen } from "./use-casos-resumen";
 import { useRefrescoLento } from "./use-refresco-lento";
 
 const REFRESCO_MS = 30_000;
@@ -441,6 +442,11 @@ export default function DashboardPage() {
   const prefs = useMemo(() => normalizarPreferencias(prefsCrudas), [prefsCrudas]);
   const [personalizando, setPersonalizando] = useState(false);
   const pendientesBandeja = usePendientesBandeja(prefs.kpisExtra.pendientes === true, yo?.rol);
+  const casosResumen = useCasosResumen(prefs.kpisExtra.casos === true);
+  // La categoría con más casos, para escalar las barras de «Por categoría» — se
+  // saca aquí y no dentro del `.map()` de la lista para que TS no pierda el
+  // `resumen` que ya se comprobó no-nulo antes de entrar a esa rama.
+  const maxCategoriaCasos = casosResumen.resumen?.porCategoria[0]?.total ?? 0;
   const catalogos = useRef<{ en: number; sedes: unknown; areas: unknown; tipos: unknown } | null>(null);
 
   // Semáforo disciplinario para la franja (aparte del refresco de asistencia).
@@ -1159,7 +1165,7 @@ export default function DashboardPage() {
                     onClick={() => setPrefsCrudas(alternarKpiExtra(prefs, k))}
                     className={`rounded-full border px-3 py-1 text-xs transition-colors ${activo ? "border-tinta bg-tinta text-crema" : "border-taupe text-tinta hover:bg-sand/50"}`}
                   >
-                    {activo ? "✓ " : "+ "}{k === "pendientes" ? "Pendientes de acción" : "Personal"}
+                    {activo ? "✓ " : "+ "}{k === "pendientes" ? "Pendientes de acción" : k === "personal" ? "Personal" : "Casos"}
                   </button>
                 );
               })}
@@ -1279,6 +1285,73 @@ export default function DashboardPage() {
                 )}
                 {(pendientesBandeja.incompleto || (pendientesBandeja.fallo && pendientesBandeja.resumen)) && (
                   <p className="mt-3 text-xs text-ambar">Alguna sección de la Bandeja no respondió: este número puede estar corto.</p>
+                )}
+              </div>
+            )}
+
+            {prefs.kpisExtra.casos && (
+              <div className="mt-3 rounded-2xl border border-sand bg-papel p-5">
+                <div className="mb-3 flex items-baseline justify-between gap-2">
+                  <span className="etiqueta text-taupe">Casos</span>
+                  <Link href="/admin/casos" className="text-xs text-taupe hover:underline">Casos →</Link>
+                </div>
+                {casosResumen.fallo && !casosResumen.resumen ? (
+                  <p className="text-sm text-ambar">No se pudo traer el resumen de casos. Vuelve a cargar la pantalla.</p>
+                ) : !casosResumen.resumen ? (
+                  <p className="text-sm text-taupe">Cargando casos…</p>
+                ) : casosResumen.resumen.total === 0 ? (
+                  <p className="text-sm text-taupe">Nada que gestionar en Casos en los últimos 6 meses.</p>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                      <div><span className="block font-serif text-3xl font-medium leading-none tabular-nums">{casosResumen.resumen.total}</span><span className="mt-1 block text-xs text-taupe">Últimos 6 meses</span></div>
+                      <div><span className="block font-serif text-3xl font-medium leading-none tabular-nums">{casosResumen.resumen.abiertos}</span><span className="mt-1 block text-xs text-taupe">Abiertos ahora</span></div>
+                      <div><span className={`block font-serif text-3xl font-medium leading-none tabular-nums ${casosResumen.resumen.vencidos > 0 ? "text-rojo" : ""}`}>{casosResumen.resumen.vencidos}</span><span className="mt-1 block text-xs text-taupe">Con un plazo vencido</span></div>
+                      <div><span className="block font-serif text-3xl font-medium leading-none tabular-nums">{casosResumen.resumen.cerrados}</span><span className="mt-1 block text-xs text-taupe">Cerrados</span></div>
+                    </div>
+
+                    <div className="mt-4 grid gap-5 sm:grid-cols-2">
+                      <div>
+                        <span className="mb-2 block text-xs font-medium text-taupe">Por categoría</span>
+                        <ul className="flex flex-col gap-2">
+                          {casosResumen.resumen.porCategoria.map((c) => (
+                            <li key={c.tipo}>
+                              <div className="flex items-baseline justify-between gap-2 text-xs">
+                                <span>{c.etiqueta}</span>
+                                <span className="font-semibold tabular-nums">{c.total}</span>
+                              </div>
+                              <span aria-hidden className="mt-1 block h-1.5 overflow-hidden rounded-full bg-sand">
+                                <span
+                                  className="block h-full bg-taupe"
+                                  style={{ width: `${Math.round((c.total / maxCategoriaCasos) * 100)}%` }}
+                                />
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                      <div>
+                        <span className="mb-2 block text-xs font-medium text-taupe">Por sede</span>
+                        <ul className="flex flex-col">
+                          {casosResumen.resumen.porSede.map((s) => (
+                            <li key={s.sedeCodigo} className="flex items-center justify-between gap-2 border-t border-sand/60 py-1.5 text-xs first:border-t-0">
+                              <span className="font-medium">{s.sedeCodigo}</span>
+                              <span className="flex items-center gap-2 text-taupe">
+                                {s.abiertos} abierto{s.abiertos === 1 ? "" : "s"}
+                                {s.vencidos > 0 && (
+                                  <Insignia variante="alerta" tamano="sm">{s.vencidos} vencido{s.vencidos === 1 ? "" : "s"}</Insignia>
+                                )}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+
+                    <p className="mt-4 text-xs text-taupe">
+                      Cuenta casos, no personas: nadie ve quién reportó desde este indicador.
+                    </p>
+                  </>
                 )}
               </div>
             )}
