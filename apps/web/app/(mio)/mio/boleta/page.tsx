@@ -9,7 +9,7 @@ import { Cargando } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
 import { BoletaHoja } from "@/components/boleta-hoja";
 import { MESES_LARGO } from "@/lib/admin/planilla/formato";
-import type { Fila, Proyeccion } from "@/lib/admin/planilla/tipos";
+import type { Fila, Proyeccion, SubvencionPracticante } from "@/lib/admin/planilla/tipos";
 import { hoyLima } from "@cayla-dynamic/shared";
 
 // Tu boleta, en autoservicio (0339) — SOLO el periodo actual, nunca uno pasado.
@@ -46,6 +46,7 @@ function MiBoletaContenido() {
   const [periodo, setPeriodo] = useState<{ id: string; fecha_ini: string; fecha_fin: string } | null>(null);
   const [fila, setFila] = useState<(Fila & { sin_datos?: boolean }) | null>(null);
   const [fuente, setFuente] = useState<"foto" | "calculo" | null>(null);
+  const [subvencionPracticante, setSubvencionPracticante] = useState<SubvencionPracticante | null>(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -130,6 +131,43 @@ function MiBoletaContenido() {
     const { fuente: f2, ...resto } = (f ?? {}) as unknown as Fila & { fuente: "foto" | "calculo"; sin_datos?: boolean };
     setFila(resto as Fila & { sin_datos?: boolean });
     setFuente(f2 ?? null);
+
+    // Los dos beneficios propios de la Ley 28518 (0465/0467/0485) NO salen de
+    // `fn_planilla_calcular_persona` — es una consulta APARTE, y solo tiene
+    // sentido pedirla si esta persona es practicante. Si falla, la boleta
+    // sigue saliendo sin esas dos líneas: es información añadida, no un
+    // requisito para ver el pago (mismo criterio que la base legal, más abajo).
+    if (resto.tipo_vinculo === "practicante") {
+      // `as never`: la función nace con la 0485 y los tipos generados de
+      // Supabase no la conocen hasta que la migración esté pegada y se
+      // regeneren — mismo recurso que ya usa provisiones/page.tsx con la 0467.
+      const { data: sub } = await supabase.rpc("fn_mis_subvenciones_practicante" as never);
+      const filas = (sub as unknown as Array<Record<string, unknown>> | null) ?? [];
+      const fila0 = filas[0] as
+        | {
+            sin_subvencion: boolean;
+            media_sub_saldo: number;
+            semestre_hasta: string;
+            descanso_saldo: number;
+            descanso_ganado: boolean;
+            descanso_cumple: string;
+          }
+        | undefined;
+      setSubvencionPracticante(
+        fila0
+          ? {
+              sinSubvencion: fila0.sin_subvencion,
+              mediaSubSaldo: fila0.media_sub_saldo,
+              semestreHasta: fila0.semestre_hasta,
+              descansoSaldo: fila0.descanso_saldo,
+              descansoGanado: fila0.descanso_ganado,
+              descansoCumple: fila0.descanso_cumple,
+            }
+          : null,
+      );
+    } else {
+      setSubvencionPracticante(null);
+    }
   }, [supabase, router]);
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -226,6 +264,7 @@ function MiBoletaContenido() {
         baseLegal={yo.sueldoBaseLegal}
         documento={yo.documento}
         fechaIngreso={yo.fechaIngreso}
+        subvencionPracticante={subvencionPracticante}
       />
     </main>
   );

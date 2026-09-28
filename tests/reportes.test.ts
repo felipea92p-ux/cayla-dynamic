@@ -1,7 +1,7 @@
 // ============================================================================
 // reportes.test.ts — Lo que la pantalla de Reportes decide antes de preguntar
 // ============================================================================
-// La base (0483, 0484) es la que manda: quién lee, qué plazos corren, si se
+// La base (0483, 0488) es la que manda: quién lee, qué plazos corren, si se
 // puede enviar. Esto prueba lo único que la pantalla decide sola, y que puede
 // romperse sin que nadie lo note: qué vía corresponde a lo que se marcó (si se
 // equivoca, un acoso viaja como reclamo y su plazo es otro), qué se reclama

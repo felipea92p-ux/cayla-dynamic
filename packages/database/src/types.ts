@@ -2410,6 +2410,8 @@ export type Database = {
           entrega_testigo_nombre: string | null
           entregado_at: string | null
           entregado_por: string | null
+          enviado_a_info_at: string | null
+          enviado_a_info_por: string | null
           estado: string
           fecha_cese: string | null
           firma_sancionado: string | null
@@ -2448,6 +2450,8 @@ export type Database = {
           entrega_testigo_nombre?: string | null
           entregado_at?: string | null
           entregado_por?: string | null
+          enviado_a_info_at?: string | null
+          enviado_a_info_por?: string | null
           estado?: string
           fecha_cese?: string | null
           firma_sancionado?: string | null
@@ -2486,6 +2490,8 @@ export type Database = {
           entrega_testigo_nombre?: string | null
           entregado_at?: string | null
           entregado_por?: string | null
+          enviado_a_info_at?: string | null
+          enviado_a_info_por?: string | null
           estado?: string
           fecha_cese?: string | null
           firma_sancionado?: string | null
@@ -2557,6 +2563,20 @@ export type Database = {
           {
             foreignKeyName: "expediente_disciplinario_entregado_por_fkey"
             columns: ["entregado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expediente_disciplinario_enviado_a_info_por_fkey"
+            columns: ["enviado_a_info_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expediente_disciplinario_enviado_a_info_por_fkey"
+            columns: ["enviado_a_info_por"]
             isOneToOne: false
             referencedRelation: "terminal_roster"
             referencedColumns: ["id"]
@@ -6637,6 +6657,10 @@ export type Database = {
           tiene_firma: boolean
         }[]
       }
+      fn_expediente_enviar_a_info: {
+        Args: { p_id: string | null }
+        Returns: undefined
+      }
       fn_expediente_firmar: {
         Args: { p_firmante_id?: string | null; p_id: string | null }
         Returns: string
@@ -6668,6 +6692,10 @@ export type Database = {
       fn_expediente_reabrir: { Args: { p_id: string | null }; Returns: undefined }
       fn_expediente_resolver: {
         Args: { p_id: string | null; p_motivo: string | null; p_resultado: string | null }
+        Returns: undefined
+      }
+      fn_expediente_retirar_de_info: {
+        Args: { p_id: string | null }
         Returns: undefined
       }
       fn_expediente_set_suspension: {
@@ -7055,6 +7083,7 @@ export type Database = {
           tipo: string
         }[]
       }
+      fn_mi_memo: { Args: { p_id: string | null }; Returns: Json }
       fn_mi_rango_actual: { Args: never; Returns: string }
       fn_mis_boletas: {
         Args: never
@@ -7086,6 +7115,13 @@ export type Database = {
           nivel: string
           sancionado_rechazo_firma_at: string
           tipo_causal: string
+        }[]
+      }
+      fn_mis_memos_por_recibir: {
+        Args: never
+        Returns: {
+          enviado_a_info_at: string
+          id: string
         }[]
       }
       fn_mis_solicitudes_perfil: {
@@ -7370,6 +7406,10 @@ export type Database = {
         Returns: undefined
       }
       fn_rechazar_firma_memo: { Args: { p_id: string | null }; Returns: undefined }
+      fn_recibir_memo_digital: {
+        Args: { p_firmar: boolean | null; p_id: string | null }
+        Returns: undefined
+      }
       fn_regenerar_pin: { Args: { p_persona_id: string | null }; Returns: string }
       fn_regimen_pension_divergentes: {
         Args: never

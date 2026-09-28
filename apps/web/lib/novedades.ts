@@ -115,14 +115,37 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
-    id: "2026-09-26-reportes-en-info",
-    fecha: "2026-09-26",
+    id: "2026-09-28-reportes-en-info",
+    fecha: "2026-09-28",
     titulo: "Nuevo en Info: «Reportes», para contar algo o proponer una mejora",
     queMejoro:
       "En Info hay una sección nueva, «Reportes». Ahí puedes contar algo que pasó con el equipo, con la empresa o con una clienta, proponer una idea de mejora o hacerle una consulta a tu líder, y ver en qué va y qué te respondieron. " +
       "Lo lee solo quien lo gestiona, y antes de enviarlo la pantalla te dice quiénes lo van a leer.\n\n" +
       "Si es algo de tipo sexual, o si hay un riesgo para alguien ahora, márcalo arriba del formulario: va por un camino aparte y con plazos propios, y tu líder no lo ve. " +
       "La persona reportada nunca sabe quién reportó, y cada reporte tiene una fecha límite de respuesta escrita, que ves apenas lo envías.",
+    audiencia: "todos",
+  },
+  {
+    id: "2026-09-27-constancia-practicante-descanso-y-subvencion",
+    fecha: "2026-09-27",
+    titulo: "Tu constancia de subvención ya muestra tu descanso y tu subvención semestral",
+    queMejoro:
+      "Tu constancia de subvención ya mostraba lo que ganas por tus horas y tu movilidad, pero le faltaban " +
+      "los otros dos beneficios que la Ley 28518 (art. 42) también te da: el descanso de 15 días al cumplir " +
+      "12 meses continuos de convenio, y una media subvención adicional por cada 6 meses continuos.\n\n" +
+      "Ahora, si ya tienes algo acumulado de cualquiera de los dos, lo ves en tu constancia, junto al aporte " +
+      "de EsSalud. Sigue siendo algo que pides a Desarrollo Organizacional cuando corresponda — esto solo " +
+      "hace que puedas verlo antes de pedirlo.",
+    audiencia: "todos",
+  },
+  {
+    id: "2026-09-27-boleta-feriados-especifica-fecha",
+    fecha: "2026-09-27",
+    titulo: "Tu boleta ahora dice qué feriado se pagó, no solo el monto",
+    queMejoro:
+      "La línea «Feriados» de tu boleta mostraba solo el monto, sin decir de qué feriado salía ni con qué horas se calculó. " +
+      "Ahora, debajo del monto, aparece la fecha de cada feriado pagado con las horas trabajadas y las horas proporcionales que lo componen.\n\n" +
+      "El total no cambia: es la misma cifra de siempre, ahora explicada para que puedas comprobarla sin preguntar.",
     audiencia: "todos",
   },
   {

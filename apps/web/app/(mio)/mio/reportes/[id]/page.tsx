@@ -20,7 +20,7 @@ import { useMiFicha } from "../usar-mi-ficha";
 /**
  * Un reporte, visto por quien lo escribió (docs/plan-reportes.md, sección 6).
  *
- * ABRIRLO DEJA RASTRO (`fn_reporte_abrir`, 0484): así la base sabe qué
+ * ABRIRLO DEJA RASTRO (`fn_reporte_abrir`, 0488): así la base sabe qué
  * respuestas ya leyó, y el globito del menú y su Bandeja dejan de avisar.
  *
  * LO QUE NO SE MUESTRA, y es a propósito: el resultado del caso (habla de otra

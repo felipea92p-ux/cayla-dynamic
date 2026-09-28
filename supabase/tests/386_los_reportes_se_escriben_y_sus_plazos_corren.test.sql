@@ -4,9 +4,9 @@
 -- Se corre así, en esta Mac:   npx supabase test db
 -- Lo que sí se pega vive en supabase/migrations/ y scripts/sql-manual/.
 -- ============================================================================
--- 382_los_reportes_se_escriben_y_sus_plazos_corren.test.sql
+-- 386_los_reportes_se_escriben_y_sus_plazos_corren.test.sql
 -- ============================================================================
--- Cubre la migración 0484: cómo se escribe un reporte y cómo corren sus
+-- Cubre la migración 0488: cómo se escribe un reporte y cómo corren sus
 -- plazos. Lo que hay que blindar:
 --   (a) crear: validaciones, a quién le toca, y el rechazo cuando nadie puede
 --       recibirlo (no queda un reporte huérfano);
@@ -58,7 +58,7 @@ insert into organos_titulo_x (sede_id, persona_id, papel, desde, acta) values
 -- Un feriado en el PRIMER día hábil después de hoy: los plazos tienen que
 -- saltarlo. Se elige mirando el calendario, no suponiendo el día de la semana.
 insert into feriados (fecha, nombre)
-select min(d)::date, 'Feriado de prueba 382'
+select min(d)::date, 'Feriado de prueba 386'
   from generate_series(fn_hoy_lima() + 1, fn_hoy_lima() + 7, interval '1 day') d
  where extract(dow from d) not in (0, 6)
    and not exists (select 1 from feriados f where f.fecha = d::date)

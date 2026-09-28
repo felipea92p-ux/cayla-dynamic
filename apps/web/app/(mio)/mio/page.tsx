@@ -295,7 +295,7 @@ const SECCIONES: readonly SeccionDetalle<Tab>[] = [
   { valor: "educacion", label: "Educación", Icon: GraduationCap },
   { valor: "firma", label: "Firma", Icon: FileSignature },
   { valor: "objetivos", label: "Objetivos", Icon: Target },
-  // Lo que contó y en qué va (0483/0484). Va antes de Historial y no arriba:
+  // Lo que contó y en qué va (0483/0488). Va antes de Historial y no arriba:
   // es algo que se usa de vez en cuando, no todos los días.
   { valor: "reportes", label: "Reportes", Icon: MessageSquareText },
   { valor: "historial", label: "Historial", Icon: History },
@@ -1267,7 +1267,7 @@ export default function MioPage() {
   }, [cargarMisBoletas, yo?.id]);
   const boletasNuevas = useMemo(() => (misBoletas ? contarBoletasNuevas(misBoletas) : 0), [misBoletas]);
 
-  // Sus reportes (0484): igual que las boletas, se leen aquí y no en la
+  // Sus reportes (0488): igual que las boletas, se leen aquí y no en la
   // pestaña, para que el globito del menú se vea antes de abrirla.
   const [misReportes, setMisReportes] = useState<FilaMiReporte[] | null>(null);
   const [misReportesError, setMisReportesError] = useState<string | null>(null);
@@ -1298,6 +1298,18 @@ export default function MioPage() {
   }, [supabase, yo?.id]);
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void cargarMisMemos(); }, [cargarMisMemos]);
+
+  // Los memos que le enviaron a su Info y todavía no recibió (0486). Aparte de
+  // `misMemos` porque son cosas distintas: estos NO están entregados todavía —
+  // solo su confirmación los entrega—, y `fn_mis_memos` no los trae a propósito.
+  const [memosPorRecibir, setMemosPorRecibir] = useState<{ id: string; enviado_a_info_at: string }[]>([]);
+  const cargarMemosPorRecibir = useCallback(async () => {
+    if (!yo?.id) { setMemosPorRecibir([]); return; }
+    const { data } = await supabase.rpc("fn_mis_memos_por_recibir");
+    setMemosPorRecibir(data ?? []);
+  }, [supabase, yo?.id]);
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { void cargarMemosPorRecibir(); }, [cargarMemosPorRecibir]);
 
   // El criterio vive en lib/bandeja-mia.ts, que es de donde sale también el
   // número del botón «Bandeja». Escrito dos veces, un día uno de los dos
@@ -1691,9 +1703,19 @@ export default function MioPage() {
         ir: () => { setTab("historial"); irArriba(); },
       });
     }
+    // Uno por documento, y no «tienes N»: cada uno se abre por su cuenta y lo
+    // que se confirma es ESE documento. Genérico igual que el de arriba.
+    for (const m of memosPorRecibir) {
+      out.push({
+        clave: `memo-recibir:${m.id}`,
+        texto: "Tienes un documento por recibir",
+        detalle: "Ábrelo, léelo y confirma que lo recibiste. Recibirlo no es aceptar lo que dice: puedes firmarlo o recibirlo sin firmar.",
+        ir: () => router.push(`/mio/memo/${m.id}`),
+      });
+    }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resumen, respondidas, pendientesRevision, vacas, memosPorFirmar, miBono]);
+  }, [resumen, respondidas, pendientesRevision, vacas, memosPorFirmar, memosPorRecibir, miBono]);
 
   const objCumplidos = objetivos.filter((o) => o.cumplido).length;
   const mesLabel = `${MESES_LARGOS[Number(hasta.slice(5, 7)) - 1].toLowerCase()} ${hasta.slice(0, 4)}`;
@@ -3011,8 +3033,9 @@ export default function MioPage() {
             <section className="mb-4 rounded-2xl border border-sand p-5 text-sm">
               <h2 className="mb-1 font-serif text-lg">Tus memos disciplinarios</h2>
               <p className="mb-3 text-taupe">
-                Los que ya te entregaron. Firmarlos digitalmente (o dejar constancia de que prefieres no
-                hacerlo) no reemplaza el trámite en físico — es evidencia adicional, con su propia fecha y hora.
+                Los que ya te entregaron. Si te lo entregaron en papel, firmarlo acá (o dejar constancia de
+                que prefieres no hacerlo) es evidencia adicional, con su propia fecha y hora: no reemplaza el papel.
+                Si te lo enviaron a tu Info, la entrega ya quedó hecha cuando lo recibiste.
               </p>
               <ul className="space-y-3">
                 {misMemos.map((m) => {
@@ -3032,6 +3055,11 @@ export default function MioPage() {
                         {CAUSAL_LABEL_MIO[m.tipo_causal] ?? m.tipo_causal}
                         {m.correlativo ? ` · ${m.correlativo}` : ""}
                       </p>
+                      {puedeFirmar && (
+                        <Link href={`/mio/memo/${m.id}`} className="mt-1 inline-block text-xs text-taupe underline hover:text-tinta">
+                          Ver el documento
+                        </Link>
+                      )}
                       {m.firma_sancionado_confirmada_at && (
                         <p className="mt-1 text-verde">
                           Firmaste este documento el {diaYMes(fechaLimaDeMarca(m.firma_sancionado_confirmada_at))}.

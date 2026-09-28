@@ -473,7 +473,12 @@ export default function DashboardPage() {
         { data: entregados, error: errEntregados },
         { data: papeles, error: errPapeles },
       ] = await Promise.all([
-        sb.from("expediente_disciplinario").select("id").eq("estado", "entregado"),
+        // `.neq("medio_entrega", "digital")`: una entrega por Info (0486) no tiene
+        // papel que archivar —su constancia es la confirmación de la persona, en
+        // la misma fila—. Es la misma regla que `pendientesDeEntregado`, repetida
+        // acá porque esta franja pide a la base solo los ids. Un entregado siempre
+        // tiene medio (chk_entregado_completo), así que el `<>` no pierde filas.
+        sb.from("expediente_disciplinario").select("id").eq("estado", "entregado").neq("medio_entrega", "digital"),
         sb.from("expediente_adjuntos").select("documento_id"),
       ]);
       if (errEntregados || errPapeles) {

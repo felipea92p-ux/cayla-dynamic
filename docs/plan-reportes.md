@@ -373,7 +373,7 @@ empezar**, no se fijan aquí. Nombres en español, como el resto del esquema.
 | `ticket` | text opcional | Solo en reportes sobre una clienta |
 | `estado` | text check | `recibido` · `en_revision` · `cerrado` |
 | `gestiona` | text check | `lider` · `do` · `admin`. Quién lleva el caso ahora; `escalar` lo sube |
-| `creado_at`, `cerrado_at` | timestamptz | Los plazos van aparte, en `reporte_plazos` (0484): el Título X tiene nueve y se encadenan |
+| `creado_at`, `cerrado_at` | timestamptz | Los plazos van aparte, en `reporte_plazos` (0488): el Título X tiene nueve y se encadenan |
 | `cierre_texto` | text | La respuesta escrita. Obligatoria para cerrar |
 | `cierre_resultado` | text check | `resuelto` · `confirmado` · `no_confirmado` · `derivado_disciplinario` · `sin_accion` |
 | `expediente_id` | uuid → expediente_disciplinario, opcional | El puente de la sección 11 |
@@ -626,7 +626,7 @@ fusionar, porque fusionar a `main` es publicar:
    Es la prueba que más vale de toda la funcionalidad. Incluye el control: la
    misma consulta hecha por un `authenticated` sin función guardián no
    devuelve nada.
-2. ✅ **Hecho: migración 0484 + prueba 382 (120 aserciones)**. Los plazos viven en `reporte_plazos`, uno por fila, con su norma y su dueña. **Funciones guardián y plazos**, con pgTAP de cada transición, del trigger
+2. ✅ **Hecho: migración 0488 + prueba 386 (120 aserciones)**. Los plazos viven en `reporte_plazos`, uno por fila, con su norma y su dueña. **Funciones guardián y plazos**, con pgTAP de cada transición, del trigger
    que bloquea el `UPDATE` directo, de la reclasificación que quita el acceso a
    la líder y de los vencimientos con un feriado en medio.
 3. ✅ **Hecho**: pestaña «Reportes» en /mio con su globito, `/mio/reportes/nuevo`,

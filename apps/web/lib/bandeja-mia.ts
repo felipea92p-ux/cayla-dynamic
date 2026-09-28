@@ -35,6 +35,7 @@ import { fechaEnPalabras, traerMisReportes, tituloDeReporte, type FilaMiReporte 
  *   firma, no cuando lo mira.
  *     · su contrato, mientras no confirme su firma   (contratos_generados, 0402)
  *     · un memo disciplinario por firmar             (fn_mis_memos, 0404)
+ *     · un memo que le enviaron a su Info y aún no recibió  (fn_mis_memos_por_recibir, 0486)
  *     · la política salarial y el RIT sin acusar     (Ley 30709)
  *     · días con el marcaje incompleto del periodo que se le va a pagar
  *     · su boleta oficial publicada y todavía sin abrir  (fn_mis_boletas, 0482)
@@ -115,7 +116,7 @@ export type OrigenBandeja =
   // este origen — pero caduca igual que una respuesta: un turno ya guardado
   // no es algo que quede pendiente de hacer.
   | "turno"
-  // Sus reportes (0483/0484): lo que le respondieron y no leyó, y lo que sigue
+  // Sus reportes (0483/0488): lo que le respondieron y no leyó, y lo que sigue
   // abierto esperando respuesta.
   | "reporte";
 
@@ -244,6 +245,17 @@ export interface FilaMemo {
   sancionado_rechazo_firma_at: string | null;
 }
 
+/**
+ * Un memo que se envió a su Info y todavía no recibió, de
+ * `fn_mis_memos_por_recibir()` (0486). Solo `id` y desde cuándo: ni el nivel ni
+ * el motivo viajan acá, porque esta tarjeta la ve de reojo cualquiera que pase
+ * cerca de la pantalla. El detalle recién existe al abrir el documento.
+ */
+export interface FilaMemoPorRecibir {
+  id: string;
+  enviado_a_info_at: string;
+}
+
 /** Un día del periodo abierto cuyo marcaje quedó incompleto. */
 export interface FilaMarcaje {
   fecha: string;
@@ -311,6 +323,8 @@ export interface FuentesBandeja {
   /** El contrato vigente, o null si no tiene ninguno. */
   contrato: FilaContrato | null;
   memos: FilaMemo[];
+  /** Memos enviados a su Info que todavía no recibió (0486). Opcional: sin él, no se dice nada. */
+  memosPorRecibir?: FilaMemoPorRecibir[];
   /** Ya resueltos por lib/acuses-pendientes.ts: acá solo se pintan. */
   acuses: AcusePendiente[];
   /** Días del periodo abierto, sin filtrar: el criterio de «incompleto» vive acá. */
@@ -332,7 +346,7 @@ export interface FuentesBandeja {
   bono?: MiBono | null;
   /** Sus boletas oficiales (0482). Opcional: sin ellas, no se dice nada de boletas. */
   boletas?: FilaBoletaBandeja[];
-  /** Sus reportes (0484), de `fn_reportes_mios`. Opcional: sin ellos, no se dice nada de reportes. */
+  /** Sus reportes (0488), de `fn_reportes_mios`. Opcional: sin ellos, no se dice nada de reportes. */
   reportes?: FilaMiReporte[];
   /** Sus constancias de estudios (0450). Opcional: quien no estudia no trae nada. */
   educacionEntregas?: FilaEducacionEntrega[];
@@ -571,6 +585,28 @@ export function armarBandeja(fuentes: FuentesBandeja, hoy: string = hoyLima()): 
     });
   }
 
+  // Los memos ENVIADOS a su Info que todavía no recibió (0486). Es lo mismo que
+  // un memo por firmar para la Bandeja —algo que depende de ella y no caduca—,
+  // con una diferencia que importa: ESTE todavía no está entregado, y solo su
+  // confirmación lo entrega. Por eso el texto le pide RECIBIRLO, no firmarlo:
+  // firmar es opcional, recibir es lo que cuenta.
+  //
+  // GENÉRICO, igual que arriba: ni el nivel ni el motivo.
+  for (const m of fuentes.memosPorRecibir ?? []) {
+    pendientes.push({
+      instante: Date.parse(m.enviado_a_info_at),
+      m: {
+        clave: `memo-recibir:${m.id}`, origen: "memo", estado: "por_firmar", fecha: fechaLima(m.enviado_a_info_at),
+        titulo: "Tienes un documento por recibir",
+        respuesta: null,
+        detalle: "Ábrelo, léelo y confirma que lo recibiste. Recibirlo no es aceptar lo que dice: puedes firmarlo y presentar tu descargo, o recibirlo sin firmar.",
+        nuevo: true,
+        ir: `/mio/memo/${m.id}`,
+        marcarVistoComo: null,
+      },
+    });
+  }
+
   // Las constancias de ley. Ya vienen resueltas: acá no se decide qué exige
   // acuse (eso vive en lib/acuses-pendientes.ts, que es lo que también lee la
   // banda de arriba de /mio).
@@ -653,7 +689,7 @@ export function armarBandeja(fuentes: FuentesBandeja, hoy: string = hoyLima()): 
     });
   }
 
-  // Sus reportes (0484). Lo que le escribieron o el cierre, sin leer, cuenta
+  // Sus reportes (0488). Lo que le escribieron o el cierre, sin leer, cuenta
   // hasta que abre el reporte —abrirlo lo deja escrito en la base— y NO caduca
   // a los DIAS_NOVEDAD, por lo mismo que la boleta: una respuesta sobre algo
   // que ella contó es justo la que no puede perderse. Lo que sigue abierto sin
@@ -1096,7 +1132,7 @@ export async function traerBandeja(
   hoy: string = hoyLima(),
 ): Promise<{ bandeja: Bandeja; noSePudo: string[] }> {
   const [perfil, catalogo, vacaciones, revisiones, contrato, memos, acuses, periodo, movilidad, revisionesMovilidad, turnos,
-    educacionEntregas, educacionSituacion, vistos, bono, boletas, reportes] =
+    educacionEntregas, educacionSituacion, vistos, bono, boletas, memosPorRecibir, reportes] =
     await Promise.all([
     supabase.from("solicitudes_cambio_perfil")
       .select("id, campo, estado, creada_at, resuelta_at, motivo")
@@ -1176,7 +1212,11 @@ export async function traerBandeja(
     // Sus boletas oficiales (0482). La función contesta solo por quien
     // pregunta, sin excepción para DO: no hace falta filtro de persona.
     traerMisBoletas(supabase),
-    // Sus reportes (0484). Igual: `fn_reportes_mios` contesta solo por quien pregunta.
+    // Los memos que le enviaron a su Info y todavía no recibió (0486). La función
+    // contesta solo por quien pregunta y devuelve únicamente los enviados: un
+    // borrador, o un firmado que nadie envió, sigue siendo invisible para ella.
+    supabase.rpc("fn_mis_memos_por_recibir"),
+    // Sus reportes (0488). Igual: `fn_reportes_mios` contesta solo por quien pregunta.
     traerMisReportes(supabase),
   ]);
 
@@ -1205,6 +1245,7 @@ export async function traerBandeja(
     revisiones: (revisiones.data ?? []) as unknown as FilaRevision[],
     contrato: (contrato.data ?? null) as unknown as FilaContrato | null,
     memos: ((memos.data ?? []) as unknown as FilaMemo[]),
+    memosPorRecibir: ((memosPorRecibir.data ?? []) as unknown as FilaMemoPorRecibir[]),
     acuses,
     marcajes: ((marcajes?.data ?? []) as unknown as FilaMarcaje[]),
     periodo: per,
@@ -1242,6 +1283,9 @@ export async function traerBandeja(
       { error: revisiones.error, que: "tus pedidos de revisar un día" },
       { error: contrato.error, que: "tu contrato" },
       { error: memos.error, que: "tus documentos por firmar" },
+      // Si la 0486 no está pegada esto lo dice a gritos, como con las boletas: un
+      // documento por recibir que no se muestra es peor que un aviso de más.
+      { error: memosPorRecibir.error, que: "tus documentos por recibir" },
       { error: marcajes?.error ?? null, que: "tus días del periodo" },
       { error: movilidad.error, que: "tu declaración de ruta" },
       { error: revisionesMovilidad.error, que: "tus pedidos de revisión de esa declaración" },

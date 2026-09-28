@@ -119,7 +119,8 @@ describe("disciplina usa las etapas de su pantalla", () => {
     resuelto_motivo: null, resuelto_por: null, cargos_comunicados_at: null, descargo_vence_at: null,
     descargo_acogido: null, descargo_valoracion: null, correlativo: null, creado_at: "2026-09-01T15:00:00Z",
     creado_por: null, firmante_id: null, firmado_at: null, entregado_at: null, entregado_por: null,
-    medio_entrega: null, entrega_testigo_nombre: null, observacion: null, ...x,
+    medio_entrega: null, entrega_testigo_nombre: null, enviado_a_info_at: null, enviado_a_info_por: null,
+    observacion: null, ...x,
   });
   const ahora = new Date("2026-09-15T15:00:00Z");
 

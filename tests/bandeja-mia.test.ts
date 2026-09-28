@@ -418,6 +418,69 @@ describe("armarBandeja", () => {
     expect(b.pendientes).toEqual([]);
   });
 
+  // ── Un memo enviado a su Info (0486) ───────────────────────────────────────
+  // ENVIAR NO ENTREGA: el memo todavía no es suyo hasta que ella lo confirma, y
+  // lo único que la Bandeja puede hacer es decirle que hay algo esperándola.
+  it("un memo enviado a su Info aparece como pendiente, sin decir de qué es, y lleva a abrirlo", () => {
+    const b = armarBandeja({
+      ...VACIO,
+      memosPorRecibir: [{ id: "m9", enviado_a_info_at: enLima("2026-09-05") }],
+    }, HOY);
+
+    expect(b.pendientes).toHaveLength(1);
+    expect(b.pendientes[0].origen).toBe("memo");
+    expect(b.pendientes[0].titulo).toBe("Tienes un documento por recibir");
+    expect(b.pendientes[0].ir).toBe("/mio/memo/m9");
+    // Esta tarjeta la ve de reojo cualquiera que pase cerca de la pantalla.
+    const texto = `${b.pendientes[0].titulo} ${b.pendientes[0].detalle ?? ""}`.toLowerCase();
+    for (const palabra of ["suspensi", "amonesta", "tardanza", "inasistencia", "sanci", "falta"]) {
+      expect(texto).not.toContain(palabra);
+    }
+    expect(b.avisos).toBe(1);
+  });
+
+  it("le pide RECIBIRLO, no firmarlo: firmar es opcional y recibir es lo que entrega", () => {
+    const b = armarBandeja({
+      ...VACIO,
+      memosPorRecibir: [{ id: "m9", enviado_a_info_at: enLima("2026-09-05") }],
+    }, HOY);
+
+    expect(b.pendientes[0].titulo.toLowerCase()).toContain("recibir");
+    expect(b.pendientes[0].titulo.toLowerCase()).not.toContain("firmar");
+    // Y dice que puede recibirlo sin firmarlo: si no, «firmar» se lee obligatorio.
+    expect(b.pendientes[0].detalle).toContain("sin firmar");
+  });
+
+  it("un memo por recibir NO caduca: sigue contando a los 90 días", () => {
+    const b = armarBandeja({
+      ...VACIO,
+      memosPorRecibir: [{ id: "m9", enviado_a_info_at: enLima("2026-06-10") }],
+    }, HOY);
+
+    expect(b.pendientes).toHaveLength(1);
+    expect(b.avisos).toBe(1);
+  });
+
+  it("uno por recibir y uno ya entregado por firmar son dos avisos, no uno", () => {
+    const b = armarBandeja({
+      ...VACIO,
+      memosPorRecibir: [{ id: "m9", enviado_a_info_at: enLima("2026-09-05") }],
+      memos: [{
+        id: "m1", nivel: "amonestacion", entregado_at: enLima("2026-09-01"),
+        firma_sancionado_confirmada_at: null, sancionado_rechazo_firma_at: null,
+      }],
+    }, HOY);
+
+    expect(b.pendientes).toHaveLength(2);
+    expect(new Set(b.pendientes.map((m) => m.clave)).size).toBe(2);
+    expect(b.avisos).toBe(2);
+  });
+
+  it("sin la fuente no dice nada: con la 0486 sin pegar, el resto de la Bandeja sigue igual", () => {
+    // VACIO no trae `memosPorRecibir` a propósito.
+    expect(armarBandeja({ ...VACIO }, HOY).pendientes).toEqual([]);
+  });
+
   it("los días con el marcaje incompleto van en UN mensaje, y solo los del periodo abierto", () => {
     const b = armarBandeja({
       ...VACIO,

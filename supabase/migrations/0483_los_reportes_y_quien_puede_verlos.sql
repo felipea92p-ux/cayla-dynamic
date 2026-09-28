@@ -297,7 +297,7 @@ create table if not exists reportes (
   gestiona            text check (gestiona in ('lider', 'do', 'gerencia')),
   creado_at           timestamptz not null default now(),
   -- Los plazos NO van aquí: el Título X tiene nueve, encadenados (el informe
-  -- abre el traslado y la decisión). Viven en `reporte_plazos` (0484).
+  -- abre el traslado y la decisión). Viven en `reporte_plazos` (0488).
   cerrado_at          timestamptz,
   cierre_texto        text,
   cierre_resultado    text check (cierre_resultado in

@@ -65,6 +65,9 @@ export interface DocDisciplina {
   firmante_id: string | null; firmado_at: string | null;
   entregado_at: string | null; entregado_por: string | null; medio_entrega: string | null;
   entrega_testigo_nombre: string | null;
+  /** Cuándo y quién lo puso en la Info de la persona (0486). NO es la entrega:
+   *  esa es `entregado_at`, y llega cuando ella lo confirma. */
+  enviado_a_info_at: string | null; enviado_a_info_por: string | null;
   observacion: string | null;
 }
 
@@ -125,11 +128,17 @@ export type PendienteDeEntregado = "cargo" | "resolver";
  * depende de la palabra de quien la registró, y una imputación entregada sin
  * resolver hace que el semáforo pida la misma decisión durante doce meses.
  * Mientras pida algo, no pasa al historial.
+ *
+ * UNA ENTREGA POR INFO NO PIDE CARGO (0486). Su constancia no es un papel
+ * escaneado: es la confirmación de la propia persona, con su fecha y hora, en la
+ * misma fila del documento. Pedirle a quien emitió que «suba el cargo» de una
+ * entrega que nunca tuvo papel sería un pendiente que no se puede cumplir, y
+ * un aviso que no se puede cumplir enseña a ignorar los que sí.
  */
 export function pendientesDeEntregado(d: DocDisciplina, adjuntos: readonly Adjunto[]): PendienteDeEntregado[] {
   if (d.estado !== "entregado") return [];
   const p: PendienteDeEntregado[] = [];
-  if (!tienePapelDeEntrega(adjuntos)) p.push("cargo");
+  if (!tienePapelDeEntrega(adjuntos) && d.medio_entrega !== "digital") p.push("cargo");
   if (d.nivel === "imputacion" && !d.resuelto_at) p.push("resolver");
   return p;
 }

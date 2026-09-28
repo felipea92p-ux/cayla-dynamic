@@ -7,7 +7,7 @@ import { mensajeDeError } from "./admin/mensaje-error";
  *
  * QUIÉN DECIDE QUÉ
  *   Quién puede leer un reporte, a quién le toca, qué plazos corren y si se
- *   puede enviar lo decide la BASE (0483 y 0484). Lo de aquí es lo que la
+ *   puede enviar lo decide la BASE (0483 y 0488). Lo de aquí es lo que la
  *   pantalla necesita para no hacer esperar a nadie por un error obvio y para
  *   hablar en palabras: qué vía corresponde a lo que se marcó, qué falta en el
  *   formulario, y cómo se dice una fecha de vencimiento. Si la base dice otra

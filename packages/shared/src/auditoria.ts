@@ -66,6 +66,9 @@ const EXACTOS: Record<string, TemaAuditoria> = {
   cargo: "persona",
   rango: "persona",
   descuentos_vivos_tras_anular: "liquidacion",
+  // Quién investiga el hostigamiento sexual en una sede (0488): un encargo
+  // que se le da a una persona, con acta.
+  organos_titulo_x: "persona",
 };
 
 export function temaDeCampo(campo: string): TemaAuditoria {
@@ -91,6 +94,7 @@ const ROTULOS: Record<string, string> = {
   dia_reabierto_desde_terminal: "Día reabierto desde el terminal",
   "turnos.horario": "Turno cambiado",
   horarios_asignados: "Horario cambiado",
+  organos_titulo_x: "Nombramiento para investigar el Título X",
 };
 
 /** El nombre en español de un campo; si no lo conoce, el crudo sin guiones bajos. */

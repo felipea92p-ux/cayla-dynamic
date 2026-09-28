@@ -6,6 +6,143 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-09-27 — Un memo se puede entregar por Info, sin papel · migración 0486 · ESCRITA Y PROBADA · SIN PEGAR · SIN FUSIONAR
+
+**Origen: «ella puede firmar desde Info, o vendría bien un botón de notificar?»** Se investigó y
+la respuesta corta fue que ninguna de las dos: desde Info solo se firma un memo YA entregado
+(0408: `fn_mis_memos` filtra `estado = 'entregado'`), y un botón de notificar no tenía por dónde
+avisar —el sistema no tiene correo, WhatsApp ni push— y habría dado la falsa sensación de haber
+notificado, cuando el 56.2 dice que un firmado sin entregar no produce efecto. Felipe decidió que
+la entrega digital sí se quiere, **«ambas opciones son válidas, pero estando en tres ciudades lo
+digital tiene que ayudar»**, y eso es lo que se construyó.
+
+**Cómo funciona.** Quien emite pulsa **«Enviar a su Info»** (botón visible junto a «Subir cargo
+firmado»; ninguna es «la normal»). La persona lo abre en `/mio/memo/<id>`, lo lee y confirma con
+**«Firmar y recibir»** o **«Recibir sin firmar»**, cada una con una segunda confirmación. Ese clic
+ES la entrega: `estado = entregado`, `medio_entrega = 'digital'`, con fecha y hora. Enviar no
+entrega ni agrava; abrir tampoco. Se puede **retirar** el envío mientras no lo haya recibido.
+Nivel 4 queda fuera (como en la 0408).
+
+**Migración [`0486`](../supabase/migrations/0486_el_memo_se_entrega_por_info.sql).** Solo agrega:
+dos columnas (`enviado_a_info_at/por`), el medio `digital`, cinco constraints que hacen imposibles
+los estados absurdos (entrega digital sin envío previo, sin respuesta suya, borrador enviado…) y
+cinco funciones. **No reescribe ninguna función existente**, así que no hay md5 de partida. Nadie
+puede escribir «digital» en nombre de otro: `fn_expediente_entregar` no lo acepta. Requiere la
+**0408 ya en producción** —verificarlo con `./scripts/que-falta-pegar.sh` antes de pegar—.
+
+**Verificado sin tocar el Postgres compartido.** El que hay levantado en esta Mac es el de
+**cayla-retail**, no el de este repo. Se levantó un contenedor propio y desechable con la misma
+imagen (`supabase/postgres:17.6.1.143`, puerto 54990), se aplicaron las 466 migraciones desde
+cero (con `storage.buckets` de mentira: el servicio de almacenamiento no corre) y sobre él:
+- Prueba nueva **`384_el_memo_se_entrega_por_info`: 49/49**, con **control**: quitando dos
+  constraints, las pruebas de esos estados imposibles fallan.
+- **Suite pgTAP entera contra esa base: 277 archivos verdes.** Otros 19 fallan **igual sin la
+  0486** (columnas de GoTrue que la imagen no trae, `supabase_migrations`…): huecos del banco de
+  pruebas, no regresiones. Comparado uno por uno con y sin la migración.
+- Pantallas probadas en el navegador contra las funciones REALES (servidor que imita a PostgREST
+  pero ejecuta cada RPC en esa base como rol `authenticated`): el camino de firmar, el de recibir
+  sin firmar, la carrera «lo retiraron mientras ella lo tenía abierto», y el envío/retiro desde
+  Disciplina. 1227 pruebas de interfaz en verde.
+
+**Un hallazgo que justifica la pantalla nueva.** La pantalla del memo del panel, abierta por una
+integrante, **imprimiría al representante legal como firmante** cuando lo firmó su líder de equipo
+—la RLS le esconde la ficha de quien firma y esa pantalla cae al valor por defecto—. `fn_mi_memo`
+nombra a quien firmó del lado del servidor; por eso la persona no lee el memo con la pantalla del
+panel. El papel se extrajo a `components/disciplina/memo-documento.tsx` (commit aparte, sin cambio
+de comportamiento, verificado línea por línea contra el original) y lo pintan las dos pantallas.
+
+**Lo que falta, en orden:**
+1. **Consultar al laboralista** si la firma de «Mi firma» —que puede ser una imagen, un trazo o
+   el nombre en una tipografía— sirve como constancia de recibido. La suposición está escrita en
+   la cabecera de la 0486. Puede construirse y revisarse antes; **no conviene usarla con una
+   sanción real sin esa respuesta.**
+2. Pegar la 0486 **ANTES** de fusionar (`./scripts/dame-el-sql.sh 486`, con el número re-pedido
+   con `./scripts/siguiente-numero.sh` y `donde-vive.sh` justo antes de entregar). Si el código
+   llega primero, `/mio` muestra el aviso rojo «no se pudo traer tus documentos por recibir» a
+   todo el equipo.
+3. Sin canal de aviso: la persona se entera al abrir Info, o cuando quien lo envió se lo dice.
+   Por eso existe «Copiar el aviso para ella» en el menú (texto genérico, sin nombrar de qué es).
+
+## 2026-09-27 — La constancia de una practicante ya muestra su descanso y su subvención semestral · SQL YA PEGADA
+
+**Origen: Felipe adjuntó su propia constancia de subvención (Benjamin Cueva, OTRU) y avisó que
+«hay otro tipo de beneficios pero no se están mostrando».** Investigado sin adivinar: se confirmó
+con `AskUserQuestion` que se refería al descanso de 15 días y la media subvención semestral de la
+Ley 28518 art. 42 — la 0465/0467 (2026-09-15) YA los calcula, pero solo en la pantalla de
+Provisiones (que ve DO); el documento que la propia persona se lleva seguía sin decir nada, y su
+texto legal del pie afirmaba «este sistema todavía no los calcula», que ya era falso.
+
+**Migración nueva: [`0485`](../supabase/migrations/0485_el_practicante_ve_su_descanso_y_subvencion_semestral.sql),
+pegada por Felipe el 2026-09-27 (`migraciones_aplicadas` confirma numero y nombre).**
+Crea `fn_mis_subvenciones_practicante()` — la misma fórmula que `fn_subvenciones_practicante`
+(0467), copiada para una sola persona (quien llama, vía `fn_persona_actual_id()`), sin exigir
+admin/líder. Prueba pgTAP nueva: `383_el_practicante_ve_su_descanso_y_subvencion_semestral`
+— corrida aislada contra el Postgres local (`BEGIN … ROLLBACK`, sin tocar la base compartida):
+10/10 en verde.
+
+**Por qué una función hermana y no una reescritura:** `fn_subvenciones_practicante` exige
+`fn_es_admin_o_lider()` a propósito (es la que usa DO para ver a TODAS las practicantes); tocar su
+guard para que una practicante se vea a sí misma es el peor lugar para un error de permisos. Mismo
+molde que ya usa este repo dos veces: `fn_planilla_calcular` junto a `fn_planilla_calcular_persona`
+(0329), y `fn_bonos_por_transferir` junto a `fn_mi_bono_cumpleanos` (0478).
+
+**Frontend:** [`boleta-hoja.tsx`](../apps/web/components/boleta-hoja.tsx) gana dos filas nuevas
+dentro de «Además, CAYLA paga por ti» —solo si hay algo devengado— y corrige el texto legal del
+practicante. Las dos pantallas que imprimen este documento (`/mio/boleta` y
+`/admin/planilla/boleta`) piden el dato aparte y con el mismo criterio de siempre: si la consulta
+falla, la constancia sigue saliendo sin esas dos líneas, no se cae. `typecheck` y los 1219 tests de
+vitest, verdes. Novedad agregada (`2026-09-27-constancia-practicante-descanso-y-subvencion`).
+
+**No paga nada solo.** Igual que hasta hoy: Felipe decide cuándo se transfiere: la constancia ahora
+lo hace VISIBLE, no lo pone en la planilla.
+
+---
+
+## 2026-09-27 — El período de prueba deja de generar EsSalud · migración 0484 · SIN PEGAR
+
+**Disparado por el cierre «Prueba» del periodo 29/08–27/09/2026** (pagado el
+27/09): 6 personas —Ana Huaccha, Angie Vizcarra, Geison Alcantára, María Vera,
+María Orbegoso, Steven Cruz—, todas con `fecha_ingreso` Y `fecha_cese` DENTRO
+de ese mismo periodo (de 0 a 25 días activo sobre 30), generaron S/101,70 de
+EsSalud cada una — S/610,20 en total. Angie ni siquiera marcó una hora:
+ingresó y cesó el mismo día.
+
+**Verificado contra producción (`vovjyyiafkxteijimpuy`) antes de escribir
+nada:** la foto congelada de ese cierre no tiene ninguna fila duplicada — el
+número es exactamente `6 × S/1.130 × 9 %`, el piso de la RMV aplicado
+completo y sin prorratear a las 6, por diseño de `fn_planilla_calcular_nucleo`
+(el piso solo se prorratea por días de subsidio, 0262 — nunca por
+entrada/cese a mitad de periodo, y la 0417 lo dice explícito: «no se tocó»).
+
+**Esto NO es el «riesgo de RMV» ya descartado dos veces** en
+`planilla-anexo-tecnico.md`: ese descarte es sobre alguien de planilla que
+trabaja el mes COMPLETO con turno reducido. Este caso es alguien cuyo vínculo
+entero —ingreso y cese— cupo dentro de un solo periodo de prueba.
+
+**⚠️ Decisión de Felipe (2026-09-27), con el riesgo legal explicado y
+aceptado:** `tipo_vinculo = 'prueba'` deja de generar EsSalud, punto — no solo
+prorratearlo, no solo excluir a quien no llegó a trabajar. Se le planteó que
+la ley (D.S. 009-97-SA) no hace esa excepción para el período de prueba, que
+solo protege contra el despido injustificado, y que dejar de declarar es una
+subdeclaración real frente a SUNAT. Decidió igual, con las 6 personas del caso
+real como alcance. Ver el encabezado de la
+[`0484`](../supabase/migrations/0484_el_periodo_de_prueba_deja_de_generar_essalud.sql)
+para el detalle completo.
+
+**Auditado contra Postgres local** (`BEGIN … ROLLBACK`, nunca `db reset`):
+prueba pgTAP
+[`382`](../supabase/tests/382_el_periodo_de_prueba_no_genera_essalud.test.sql),
+con control — la misma prueba SIN el cambio falla exactamente en los dos
+casos de `'prueba'` (101.70 en vez de 0) y el testigo de planilla no se mueve.
+
+**Pendiente, y es decisión de Felipe, no de esta migración:** el periodo ya
+pagado (27/09) NO se corrige solo. `planilla_pagada_detalle` es append-only;
+para que esos S/610,20 ya pagados bajen a S/0, hay que **pegar la 0484
+primero** y después **reabrir «Prueba» de ese periodo desde Planilla y volver
+a pagarlo** — dos pasos, en ese orden.
+
+---
+
 ## 2026-09-20 — Un feriado sin turnos ya no grita en rojo: el Dashboard pregunta «¿abre hoy la sede?» · SIN SQL · SIN FUSIONAR
 
 **No hay SQL: solo pantalla. Apilado sobre el PR #451** (la entrada de abajo): su rama es la base de

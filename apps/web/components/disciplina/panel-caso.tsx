@@ -49,6 +49,8 @@ export const MEDIO_ENTREGA: Record<string, string> = {
   correo: "por correo",
   notarial: "por conducto notarial",
   acta_negativa: "con acta de negativa a firmar",
+  // 0486: la persona lo abrió en su Info y confirmó que lo recibió.
+  digital: "por Info, con su confirmación",
 };
 
 export const ETIQUETA_PAPEL: Record<TipoPapel, string> = {
@@ -490,6 +492,9 @@ function HistorialDelDocumento({ doc, papeles, personas }: { doc: DocDisciplina;
   const eventos: Evento[] = [{ cuando: doc.creado_at, titulo: "Se generó el borrador", quien: nombre(doc.creado_por) }];
   if (doc.cargos_comunicados_at) eventos.push({ cuando: doc.cargos_comunicados_at, titulo: "Se comunicaron los cargos", quien: null });
   if (doc.firmado_at) eventos.push({ cuando: doc.firmado_at, titulo: `Firmado${doc.correlativo ? ` · ${doc.correlativo}` : ""}`, quien: nombre(doc.firmante_id) });
+  // El envío a Info NO es la entrega (0486): queda como un paso propio para que
+  // se lea que entre «enviado» y «entregado» pasó el tiempo que ella tardó en abrirlo.
+  if (doc.enviado_a_info_at) eventos.push({ cuando: doc.enviado_a_info_at, titulo: "Enviado a su Info", quien: nombre(doc.enviado_a_info_por) });
   if (doc.entregado_at) eventos.push({
     cuando: doc.entregado_at,
     titulo: `Entregado${doc.medio_entrega ? ` ${MEDIO_ENTREGA[doc.medio_entrega] ?? doc.medio_entrega}` : ""}`,

@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0484_los_reportes_se_escriben_y_sus_plazos_corren.sql
+-- 0488_los_reportes_se_escriben_y_sus_plazos_corren.sql
 -- ============================================================================
 -- QUÉ PROMETE
 --   Que un reporte se pueda crear, conversar, reclasificar, escalar, cerrar y
@@ -1396,7 +1396,7 @@ revoke execute on function
 from public, anon, authenticated;
 
 insert into migraciones_aplicadas (numero, nombre)
-values (484, 'los_reportes_se_escriben_y_sus_plazos_corren')
+values (488, 'los_reportes_se_escriben_y_sus_plazos_corren')
 on conflict (numero) do update set nombre = excluded.nombre, aplicada_at = now();
 
 notify pgrst, 'reload schema';
@@ -1413,4 +1413,4 @@ select
      'fn_organo_titulo_x_guardar','fn_organo_titulo_x_cerrar','fn_reporte_padron','fn_reporte_detalle',
      'fn_reporte_hilo','fn_reporte_adjuntos')) as funciones_de_22,
   (select count(*) from migraciones_aplicadas where numero = 483) as la_0483_esta,
-  (select numero || ' · ' || nombre from migraciones_aplicadas where numero = 484) as registro;
+  (select numero || ' · ' || nombre from migraciones_aplicadas where numero = 488) as registro;
