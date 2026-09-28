@@ -1733,8 +1733,12 @@ export type Database = {
           nota: string | null
           persona_id: string | null
           registrado_por: string
+          ruta_costo_pasaje: number | null
+          ruta_costo_taxi: number | null
           ruta_declarada: string | null
           ruta_distrito: string | null
+          ruta_frecuencia_taxi: number | null
+          ruta_gasto_diario: number | null
           ruta_medios_ida: number | null
           ruta_medios_vuelta: number | null
           ruta_provincia: string | null
@@ -1763,8 +1767,12 @@ export type Database = {
           nota?: string | null
           persona_id?: string | null
           registrado_por: string
+          ruta_costo_pasaje?: number | null
+          ruta_costo_taxi?: number | null
           ruta_declarada?: string | null
           ruta_distrito?: string | null
+          ruta_frecuencia_taxi?: number | null
+          ruta_gasto_diario?: number | null
           ruta_medios_ida?: number | null
           ruta_medios_vuelta?: number | null
           ruta_provincia?: string | null
@@ -1793,8 +1801,12 @@ export type Database = {
           nota?: string | null
           persona_id?: string | null
           registrado_por?: string
+          ruta_costo_pasaje?: number | null
+          ruta_costo_taxi?: number | null
           ruta_declarada?: string | null
           ruta_distrito?: string | null
+          ruta_frecuencia_taxi?: number | null
+          ruta_gasto_diario?: number | null
           ruta_medios_ida?: number | null
           ruta_medios_vuelta?: number | null
           ruta_provincia?: string | null
@@ -5804,7 +5816,10 @@ export type Database = {
       fn_confirmar_mi_bono_cumpleanos: { Args: never; Returns: string }
       fn_confirmar_mi_declaracion_ruta: {
         Args: {
+          p_costo_pasaje?: number | null
+          p_costo_taxi?: number | null
           p_distrito: string | null
+          p_frecuencia_taxi?: number | null
           p_medios_ida: number | null
           p_medios_vuelta: number | null
           p_provincia: string | null
@@ -6168,8 +6183,12 @@ export type Database = {
           persona: string
           persona_id: string
           registrado_por: string
+          ruta_costo_pasaje: number
+          ruta_costo_taxi: number
           ruta_declarada: string
           ruta_distrito: string
+          ruta_frecuencia_taxi: number
+          ruta_gasto_diario: number
           ruta_medios_ida: number
           ruta_medios_vuelta: number
           ruta_provincia: string
