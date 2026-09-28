@@ -115,6 +115,19 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-09-28-declaracion-de-ruta-pasaje-y-taxi",
+    fecha: "2026-09-28",
+    titulo: "Tu declaración de ruta vuelve a preguntar el pasaje y el taxi",
+    queMejoro:
+      "La declaración de ruta que firmas desde Info tenía menos puntos que el papel de siempre: decía dónde vives " +
+      "y cuántos medios de transporte usas, pero no cuánto cuesta cada pasaje ni si a veces tienes que tomar taxi. " +
+      "Ahora tiene los cinco puntos del papel: escribes el costo de tu pasaje, el gasto diario se calcula " +
+      "solo, y si según tu turno a veces usas taxi, anotas cuánto cuesta y cuántas veces por semana.\n\n" +
+      "El taxi es opcional: si no lo usas, déjalo en blanco. Si ya firmaste tu declaración, no tienes que volver a " +
+      "hacerlo: sigue vigente tal como la firmaste.",
+    audiencia: "todos",
+  },
+  {
     id: "2026-09-27-constancia-practicante-descanso-y-subvencion",
     fecha: "2026-09-27",
     titulo: "Tu constancia de subvención ya muestra tu descanso y tu subvención semestral",

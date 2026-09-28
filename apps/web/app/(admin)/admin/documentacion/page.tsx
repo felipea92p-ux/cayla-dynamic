@@ -321,6 +321,12 @@ interface DocArchivado {
   ruta_provincia: string | null;
   ruta_medios_ida: number | null;
   ruta_medios_vuelta: number | null;
+  /** Solo tipo=ruta, y solo desde la 0489 — null en lo firmado antes. El
+   *  taxi también es null cuando declaró que no lo usa. */
+  ruta_costo_pasaje: number | null;
+  ruta_gasto_diario: number | null;
+  ruta_costo_taxi: number | null;
+  ruta_frecuencia_taxi: number | null;
 }
 
 const MAX_BYTES_DOC = 50 * 1024 * 1024;
@@ -422,6 +428,9 @@ export default function DocumentacionPage() {
     // texto real que esa persona firmó, y no hay forma honesta de partirlo en
     // columnas que no existían ese día.
     distrito: string | null; provincia: string | null; mediosIda: number | null; mediosVuelta: number | null;
+    // Pasaje y taxi (0489), con el mismo criterio: null en lo firmado antes.
+    costoPasaje: number | null; gastoDiario: number | null;
+    costoTaxi: number | null; frecuenciaTaxi: number | null;
   } | null>(null);
   // La firma de la empresa para ese visor — ver el comentario junto a
   // `fn_firma_empresa` en `cargar()`.
@@ -678,6 +687,10 @@ export default function DocumentacionPage() {
       provincia: doc?.ruta_provincia ?? null,
       mediosIda: doc?.ruta_medios_ida ?? null,
       mediosVuelta: doc?.ruta_medios_vuelta ?? null,
+      costoPasaje: doc?.ruta_costo_pasaje ?? null,
+      gastoDiario: doc?.ruta_gasto_diario ?? null,
+      costoTaxi: doc?.ruta_costo_taxi ?? null,
+      frecuenciaTaxi: doc?.ruta_frecuencia_taxi ?? null,
     });
   }
 
@@ -1871,6 +1884,30 @@ export default function DocumentacionPage() {
                             medio(s) de transporte por tramo, y de regreso{" "}
                             <strong>{verFirma.mediosVuelta}</strong>.
                           </li>
+                          {/* Pasaje y taxi (0489): solo si se declararon —
+                              lo firmado antes no los tenía. */}
+                          {verFirma.costoPasaje !== null && (
+                            <>
+                              <li>
+                                El costo de cada pasaje es de S/{" "}
+                                <strong>{Number(verFirma.costoPasaje).toFixed(2)}</strong>, de modo que su gasto
+                                diario habitual de ida y vuelta asciende a S/{" "}
+                                <strong>{Number(verFirma.gastoDiario ?? 0).toFixed(2)}</strong>.
+                              </li>
+                              <li>
+                                {verFirma.costoTaxi !== null ? (
+                                  <>
+                                    Según el horario de su turno, en ocasiones debe utilizar taxi u otro medio
+                                    particular, cuyo costo por viaje asciende aproximadamente a S/{" "}
+                                    <strong>{Number(verFirma.costoTaxi).toFixed(2)}</strong>. Esto ocurre
+                                    alrededor de <strong>{verFirma.frecuenciaTaxi}</strong> veces por semana.
+                                  </>
+                                ) : (
+                                  <>No utiliza taxi ni otro medio particular para este traslado.</>
+                                )}
+                              </li>
+                            </>
+                          )}
                           <li>
                             Declara que la información consignada es veraz, y se compromete a informar a{" "}
                             {EMPRESA.nombre} si cambia de domicilio o de ruta habitual.
