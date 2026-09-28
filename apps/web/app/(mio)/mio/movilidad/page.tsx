@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
-import { EMPRESA } from "@cayla-dynamic/shared";
+import { EMPRESA, hoyLima } from "@cayla-dynamic/shared";
 import { Cargando } from "@/components/cargando";
 import { Marca } from "@/components/marca";
 import { Boton } from "@/components/ui/boton";
@@ -103,9 +103,17 @@ const soles = (n: number) => Number(n).toFixed(2);
  *  pasaje. La MISMA fórmula con la que `fn_confirmar_mi_declaracion_ruta`
  *  (0489) congela `ruta_gasto_diario` — esto solo la muestra mientras se llena. */
 function gastoDiario(ida: string, vuelta: string, pasaje: string): number | null {
-  const [i, v, p] = [Number(ida), Number(vuelta), Number(pasaje)];
-  if (pasaje.trim() === "" || [i, v, p].some((n) => !Number.isFinite(n) || n < 0)) return null;
+  const [i, v, p] = [aNumero(ida), aNumero(vuelta), aNumero(pasaje)];
+  if ([i, v, p].some((n) => !Number.isFinite(n) || n < 0)) return null;
   return Math.round((i + v) * p * 100) / 100;
+}
+
+/** Lo que se escribió en una raya de la hoja, como número. Las rayas son
+ *  texto libre —sin flechitas de `type="number"`, a pedido—, así que acá se
+ *  acepta «2,50» igual que «2.50», y en blanco es NaN, nunca un 0 inventado. */
+function aNumero(texto: string): number {
+  const limpio = texto.trim().replace(",", ".");
+  return limpio === "" ? NaN : Number(limpio);
 }
 
 function fechaLarga(iso: string): string {
@@ -146,7 +154,9 @@ function MiMovilidadContenido() {
   // y al día: si le falta o quedó vieja, es lo primero que tiene que ver.
   const [formAbierto, setFormAbierto] = useState(false);
   const [distrito, setDistrito] = useState("");
-  const [provincia, setProvincia] = useState("Lima");
+  // En blanco: la escribe quien firma. Arrancaba en «Lima», que es falso
+  // para tres de las cuatro sedes.
+  const [provincia, setProvincia] = useState("");
   const [mediosIda, setMediosIda] = useState("1");
   const [mediosVuelta, setMediosVuelta] = useState("1");
   const [costoPasaje, setCostoPasaje] = useState("");
@@ -281,18 +291,30 @@ function MiMovilidadContenido() {
       setAviso({ tipo: "error", texto: "Todavía no configuraste tu firma. Bájala aquí abajo antes de confirmar." });
       return;
     }
+    // Las rayas son texto libre: lo que no sea un número entero en los medios
+    // o en las veces se ataja acá, con un mensaje, antes de que la base lo
+    // rechace con uno técnico al convertirlo a `integer`.
+    const [ida, vuelta, veces] = [aNumero(mediosIda), aNumero(mediosVuelta), aNumero(vecesTaxi)];
+    if (!Number.isInteger(ida) || !Number.isInteger(vuelta)) {
+      setAviso({ tipo: "error", texto: "Escribe cuántos medios de transporte usas de ida y de regreso, en números enteros." });
+      return;
+    }
+    if (vecesTaxi.trim() !== "" && !Number.isInteger(veces)) {
+      setAviso({ tipo: "error", texto: "Escribe cuántas veces por semana usas taxi, en un número entero." });
+      return;
+    }
     setFirmando(true);
     setAviso(null);
     const { error: eFirmar } = await supabase.rpc("fn_confirmar_mi_declaracion_ruta", {
       p_distrito: distrito.trim(),
       p_provincia: provincia.trim(),
-      p_medios_ida: Number(mediosIda),
-      p_medios_vuelta: Number(mediosVuelta),
-      p_costo_pasaje: Number(costoPasaje),
+      p_medios_ida: ida,
+      p_medios_vuelta: vuelta,
+      p_costo_pasaje: aNumero(costoPasaje),
       // En blanco = no usa taxi: se manda null, no 0, para que el servidor no
       // tenga que adivinar si «0» fue una respuesta o un campo sin tocar.
-      p_costo_taxi: costoTaxi.trim() === "" ? null : Number(costoTaxi),
-      p_frecuencia_taxi: vecesTaxi.trim() === "" ? null : Number(vecesTaxi),
+      p_costo_taxi: costoTaxi.trim() === "" ? null : aNumero(costoTaxi),
+      p_frecuencia_taxi: vecesTaxi.trim() === "" ? null : veces,
     });
     setFirmando(false);
     if (eFirmar) {
@@ -642,14 +664,14 @@ function MiMovilidadContenido() {
                   <li>
                     Para llegar a mi centro de labores utilizo{" "}
                     <input
-                      type="number" min={0} max={10}
+                      inputMode="numeric" autoComplete="off"
                       value={mediosIda}
                       onChange={(e) => setMediosIda(e.target.value)}
                       className={`${CLASE_INPUT_HOJA} w-12`}
                     />{" "}
                     medio(s) de transporte por tramo, y de regreso{" "}
                     <input
-                      type="number" min={0} max={10}
+                      inputMode="numeric" autoComplete="off"
                       value={mediosVuelta}
                       onChange={(e) => setMediosVuelta(e.target.value)}
                       className={`${CLASE_INPUT_HOJA} w-12`}
@@ -659,7 +681,7 @@ function MiMovilidadContenido() {
                   <li>
                     El costo de cada pasaje es de S/{" "}
                     <input
-                      type="number" min={0} step="0.10" inputMode="decimal"
+                      inputMode="decimal" autoComplete="off"
                       value={costoPasaje}
                       onChange={(e) => setCostoPasaje(e.target.value)}
                       placeholder="0.00"
@@ -674,7 +696,7 @@ function MiMovilidadContenido() {
                     Según el horario de mi turno, en ocasiones debo utilizar taxi u otro medio particular,
                     cuyo costo por viaje asciende aproximadamente a S/{" "}
                     <input
-                      type="number" min={0} step="0.50" inputMode="decimal"
+                      inputMode="decimal" autoComplete="off"
                       value={costoTaxi}
                       onChange={(e) => setCostoTaxi(e.target.value)}
                       placeholder="0.00"
@@ -682,7 +704,7 @@ function MiMovilidadContenido() {
                     />
                     . Esto ocurre alrededor de{" "}
                     <input
-                      type="number" min={0} max={7}
+                      inputMode="numeric" autoComplete="off"
                       value={vecesTaxi}
                       onChange={(e) => setVecesTaxi(e.target.value)}
                       placeholder="0"
@@ -709,7 +731,12 @@ function MiMovilidadContenido() {
                 </p>
 
                 <p className="mb-10 text-xs text-taupe">
-                  Suscrito en {yo?.sedeNombre ?? "—"}, el {fechaLarga(new Date().toISOString().slice(0, 10))}.
+                  {/* El día de la firma es hoy en Lima: el mismo que el
+                      servidor guarda con `fn_hoy_lima()` al firmar, y el que
+                      después muestra «Ver mi declaración firmada». Antes
+                      salía de `toISOString()`, que es UTC: después de las
+                      7 p. m. en Perú la hoja decía mañana. */}
+                  Suscrito en {yo?.sedeNombre ?? "—"}, el {fechaLarga(hoyLima())}.
                 </p>
 
                 <div className="grid grid-cols-2 gap-10 border-t border-sand pt-6">
