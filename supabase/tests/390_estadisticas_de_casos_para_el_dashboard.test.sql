@@ -105,9 +105,9 @@ select is( (select mes from fn_casos_resumen(null) where sede_codigo = 'ZZR02'),
   'el mes de R3 es el de hoy, truncado' );
 
 -- ── (d) `p_desde` filtra por creado_at ───────────────────────────────────────
-select is( (select count(*) from fn_casos_resumen(current_date - interval '2 months')), 2::bigint,
+select is( (select count(*) from fn_casos_resumen((current_date - interval '2 months')::date)), 2::bigint,
   'con p_desde de hace 2 meses, R1 (envejecido a 4) queda fuera: Dina ve solo 2' );
-select is( (select count(*) from fn_casos_resumen(current_date - interval '6 months')), 3::bigint,
+select is( (select count(*) from fn_casos_resumen((current_date - interval '6 months')::date)), 3::bigint,
   'con p_desde de hace 6 meses entran los tres' );
 
 -- ── (e) Nadie sin `authenticated` la llama ──────────────────────────────────
