@@ -6,6 +6,63 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-09-27 — Un memo se puede entregar por Info, sin papel · migración 0486 · ESCRITA Y PROBADA · SIN PEGAR · SIN FUSIONAR
+
+**Origen: «ella puede firmar desde Info, o vendría bien un botón de notificar?»** Se investigó y
+la respuesta corta fue que ninguna de las dos: desde Info solo se firma un memo YA entregado
+(0408: `fn_mis_memos` filtra `estado = 'entregado'`), y un botón de notificar no tenía por dónde
+avisar —el sistema no tiene correo, WhatsApp ni push— y habría dado la falsa sensación de haber
+notificado, cuando el 56.2 dice que un firmado sin entregar no produce efecto. Felipe decidió que
+la entrega digital sí se quiere, **«ambas opciones son válidas, pero estando en tres ciudades lo
+digital tiene que ayudar»**, y eso es lo que se construyó.
+
+**Cómo funciona.** Quien emite pulsa **«Enviar a su Info»** (botón visible junto a «Subir cargo
+firmado»; ninguna es «la normal»). La persona lo abre en `/mio/memo/<id>`, lo lee y confirma con
+**«Firmar y recibir»** o **«Recibir sin firmar»**, cada una con una segunda confirmación. Ese clic
+ES la entrega: `estado = entregado`, `medio_entrega = 'digital'`, con fecha y hora. Enviar no
+entrega ni agrava; abrir tampoco. Se puede **retirar** el envío mientras no lo haya recibido.
+Nivel 4 queda fuera (como en la 0408).
+
+**Migración [`0486`](../supabase/migrations/0486_el_memo_se_entrega_por_info.sql).** Solo agrega:
+dos columnas (`enviado_a_info_at/por`), el medio `digital`, cinco constraints que hacen imposibles
+los estados absurdos (entrega digital sin envío previo, sin respuesta suya, borrador enviado…) y
+cinco funciones. **No reescribe ninguna función existente**, así que no hay md5 de partida. Nadie
+puede escribir «digital» en nombre de otro: `fn_expediente_entregar` no lo acepta. Requiere la
+**0408 ya en producción** —verificarlo con `./scripts/que-falta-pegar.sh` antes de pegar—.
+
+**Verificado sin tocar el Postgres compartido.** El que hay levantado en esta Mac es el de
+**cayla-retail**, no el de este repo. Se levantó un contenedor propio y desechable con la misma
+imagen (`supabase/postgres:17.6.1.143`, puerto 54990), se aplicaron las 466 migraciones desde
+cero (con `storage.buckets` de mentira: el servicio de almacenamiento no corre) y sobre él:
+- Prueba nueva **`384_el_memo_se_entrega_por_info`: 49/49**, con **control**: quitando dos
+  constraints, las pruebas de esos estados imposibles fallan.
+- **Suite pgTAP entera contra esa base: 277 archivos verdes.** Otros 19 fallan **igual sin la
+  0486** (columnas de GoTrue que la imagen no trae, `supabase_migrations`…): huecos del banco de
+  pruebas, no regresiones. Comparado uno por uno con y sin la migración.
+- Pantallas probadas en el navegador contra las funciones REALES (servidor que imita a PostgREST
+  pero ejecuta cada RPC en esa base como rol `authenticated`): el camino de firmar, el de recibir
+  sin firmar, la carrera «lo retiraron mientras ella lo tenía abierto», y el envío/retiro desde
+  Disciplina. 1227 pruebas de interfaz en verde.
+
+**Un hallazgo que justifica la pantalla nueva.** La pantalla del memo del panel, abierta por una
+integrante, **imprimiría al representante legal como firmante** cuando lo firmó su líder de equipo
+—la RLS le esconde la ficha de quien firma y esa pantalla cae al valor por defecto—. `fn_mi_memo`
+nombra a quien firmó del lado del servidor; por eso la persona no lee el memo con la pantalla del
+panel. El papel se extrajo a `components/disciplina/memo-documento.tsx` (commit aparte, sin cambio
+de comportamiento, verificado línea por línea contra el original) y lo pintan las dos pantallas.
+
+**Lo que falta, en orden:**
+1. **Consultar al laboralista** si la firma de «Mi firma» —que puede ser una imagen, un trazo o
+   el nombre en una tipografía— sirve como constancia de recibido. La suposición está escrita en
+   la cabecera de la 0486. Puede construirse y revisarse antes; **no conviene usarla con una
+   sanción real sin esa respuesta.**
+2. Pegar la 0486 **ANTES** de fusionar (`./scripts/dame-el-sql.sh 486`, con el número re-pedido
+   con `./scripts/siguiente-numero.sh` y `donde-vive.sh` justo antes de entregar). Si el código
+   llega primero, `/mio` muestra el aviso rojo «no se pudo traer tus documentos por recibir» a
+   todo el equipo.
+3. Sin canal de aviso: la persona se entera al abrir Info, o cuando quien lo envió se lo dice.
+   Por eso existe «Copiar el aviso para ella» en el menú (texto genérico, sin nombrar de qué es).
+
 ## 2026-09-27 — La constancia de una practicante ya muestra su descanso y su subvención semestral · SQL YA PEGADA
 
 **Origen: Felipe adjuntó su propia constancia de subvención (Benjamin Cueva, OTRU) y avisó que

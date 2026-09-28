@@ -85,7 +85,7 @@ const FALTA_PAPEL: Record<TipoPapel, string> = {
   descargo: "Falta el descargo. Es el papel que prueba que la persona pudo defenderse dentro del plazo del art. 31.",
 };
 
-const COLUMNAS_DOC = "id, persona_id, tipo_causal, nivel, estado, periodo_desde, periodo_hasta, hechos, suspension_dias, suspension_desde, suspension_hasta, suspension_fechas, fecha_cese, resuelto_at, resuelto_por, resuelto_resultado, resuelto_motivo, correlativo, creado_at, creado_por, firmante_id, firmado_at, entregado_at, entregado_por, medio_entrega, entrega_testigo_nombre, cargos_comunicados_at, descargo_vence_at, descargo_acogido, descargo_valoracion, observacion";
+const COLUMNAS_DOC = "id, persona_id, tipo_causal, nivel, estado, periodo_desde, periodo_hasta, hechos, suspension_dias, suspension_desde, suspension_hasta, suspension_fechas, fecha_cese, resuelto_at, resuelto_por, resuelto_resultado, resuelto_motivo, correlativo, creado_at, creado_por, firmante_id, firmado_at, entregado_at, entregado_por, medio_entrega, entrega_testigo_nombre, enviado_a_info_at, enviado_a_info_por, cargos_comunicados_at, descargo_vence_at, descargo_acogido, descargo_valoracion, observacion";
 
 // Seis columnas, la segunda (sede) secundaria: en tablet se esconde y la
 // plantilla de `md` tiene cinco. Literal a propósito (ver lista-casos.tsx).
@@ -103,7 +103,13 @@ interface Accion {
   disabled?: boolean;
   title?: string;
 }
-interface Acciones { principal: Accion | null; estado: string | null; menu: Array<Accion | "separador"> }
+/**
+ * `segunda` es un botón visible al lado del principal, no un elemento del menú.
+ * Existe para el documento firmado (0486): «subir el cargo» y «enviar a su
+ * Info» son DOS caminos equivalentes de entregar, y esconder uno detrás de «⋯»
+ * habría dicho, sin decirlo, que uno es el normal y el otro la excepción.
+ */
+interface Acciones { principal: Accion | null; segunda?: Accion | null; estado: string | null; menu: Array<Accion | "separador"> }
 
 interface FilaDeteccion {
   clave: string; tipo: "tardanza" | "falta"; personaId: string; nombre: string; sede: string;
@@ -630,6 +636,42 @@ export default function DisciplinaPage() {
     avisar("ok", "Marcado como entregado. Sube el cargo firmado cuando llegue.");
   }
 
+  // ── Enviar a su Info (0486): el segundo camino de entrega ────────────────
+  // ENVIAR NO ENTREGA. El documento sigue firmado y sin efecto (56.2) hasta que
+  // la persona lo abra y confirme que lo recibió; por eso el aviso lo dice
+  // clarito, para que quien lo envía no crea que ya cerró el trámite.
+  async function enviarAInfo(d: DocDisciplina) {
+    setOcupado(d.id);
+    const { error } = await supabase.rpc("fn_expediente_enviar_a_info", { p_id: d.id });
+    setOcupado(null);
+    if (error) { avisar("error", mensajeDeError(error)); return; }
+    await cargar();
+    avisar("ok", "Enviado a su Info. Todavía NO está entregado: queda entregado cuando ella lo abra y confirme. Avísale que lo tiene ahí — en «⋯» puedes copiar el aviso.");
+  }
+
+  async function retirarDeInfo(d: DocDisciplina) {
+    setOcupado(d.id);
+    const { error } = await supabase.rpc("fn_expediente_retirar_de_info", { p_id: d.id });
+    setOcupado(null);
+    if (error) { avisar("error", mensajeDeError(error)); return; }
+    await cargar();
+    avisar("ok", "Retirado de su Info. Vuelve a estar solo firmado.");
+  }
+
+  // El texto no dice de qué es el documento: viaja por un chat y lo puede ver
+  // cualquiera que tenga esa pantalla delante. Es lo único que hace falta
+  // —que sepa que hay algo y dónde—, porque el sistema no tiene con qué
+  // avisarle por su cuenta (ni correo, ni WhatsApp, ni notificación).
+  async function copiarAvisoInfo() {
+    const texto = `Hola, te envié un documento a tu Info. Entra a ${window.location.origin}/mio, ábrelo, léelo y confirma que lo recibiste. Ahí mismo puedes firmarlo o recibirlo sin firmar.`;
+    try {
+      await navigator.clipboard.writeText(texto);
+      avisar("ok", "Aviso copiado. Pégalo en el chat con ella.");
+    } catch {
+      avisar("error", "No se pudo copiar. Avísale que tiene un documento por recibir en su Info.");
+    }
+  }
+
   // ── Resolver una imputación (art. 31): NO es anular ─────────────────────
   async function confirmarResolver() {
     if (!resolviendo) return;
@@ -882,15 +924,29 @@ export default function DisciplinaPage() {
           estado: null, menu,
         };
       }
+      // Entrega por Info (0486): solo los tres niveles que admiten firma digital;
+      // imputación y despido se entregan en físico o por vía notarial.
+      const admiteInfo = ["verbal", "amonestacion", "suspension"].includes(d.nivel);
+      const enInfo = d.enviado_a_info_at !== null;
       return {
         principal: { etiqueta: "Subir cargo firmado", alPulsar: () => abrirCargo(d.id, "cargo_firmado"), variante: "primario", disabled: ocup },
+        segunda: admiteInfo && !enInfo
+          ? { etiqueta: "Enviar a su Info", alPulsar: () => void enviarAInfo(d), variante: "secundario", disabled: ocup,
+              title: "Ella lo abre en su Info, lo lee y confirma que lo recibió: esa confirmación es la entrega. Es otro camino, igual de válido que el papel." }
+          : null,
         estado: null,
         menu: [
           memo,
+          ...(enInfo ? [
+            { etiqueta: "Copiar el aviso para ella", alPulsar: () => void copiarAvisoInfo(), disabled: ocup },
+            { etiqueta: "Retirar de su Info", alPulsar: () => void retirarDeInfo(d), disabled: ocup },
+          ] : []),
           { etiqueta: "Registrar negativa a firmar", alPulsar: () => abrirCargo(d.id, "acta_negativa"), disabled: ocup },
           { etiqueta: "Entregar sin papel", alPulsar: () => { setMedio("fisico"); setEntregandoSinPapel(d); }, disabled: ocup },
-          "separador",
-          { etiqueta: "Cambiar firmante", alPulsar: () => setReabriendo(d.id), disabled: ocup },
+          // «Cambiar firmante» vuelve el documento a borrador, y un documento
+          // enviado a Info no puede ser borrador (chk_envio_info_no_borrador).
+          // Mientras esté enviado, primero se retira.
+          ...(enInfo ? [] : ["separador" as const, { etiqueta: "Cambiar firmante", alPulsar: () => setReabriendo(d.id), disabled: ocup }]),
         ],
       };
     }
@@ -929,6 +985,12 @@ export default function DisciplinaPage() {
           <Boton variante={a.principal.variante ?? "secundario"} tamano="sm" onClick={(e) => a.principal!.alPulsar(e)}
             disabled={a.principal.disabled} title={a.principal.title}>
             {a.principal.etiqueta}
+          </Boton>
+        )}
+        {a.segunda && (
+          <Boton variante="secundario" tamano="sm" onClick={(e) => a.segunda!.alPulsar(e)}
+            disabled={a.segunda.disabled} title={a.segunda.title}>
+            {a.segunda.etiqueta}
           </Boton>
         )}
         {(menu.length > 0 || verCaso) && (
@@ -1292,7 +1354,11 @@ export default function DisciplinaPage() {
                                 ? <Insignia variante="advertencia">Cesó{info?.fechaCese ? ` el ${fechaCorta(info.fechaCese)}` : ""}</Insignia>
                                 : ev && ev.noCuentan > 0
                                   ? <Insignia variante="alerta">Cita días que ya no cuentan</Insignia>
-                                  : <Insignia variante="informativo">Por entregar</Insignia>}
+                                  : d.enviado_a_info_at
+                                    // Enviado no es entregado: sigue «por entregar», y lo
+                                    // que la fila tiene que decir es que la pelota está en su cancha.
+                                    ? <Insignia variante="informativo">En su Info · sin recibir</Insignia>
+                                    : <Insignia variante="informativo">Por entregar</Insignia>}
                             </Celda>
                             <Celda acciones>{pintarAcciones(accionesDeDocumento(d), () => abrirCaso({ tipo: "documento", id: d.id }))}</Celda>
                           </FilaCaso>

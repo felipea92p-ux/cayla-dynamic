@@ -47,6 +47,9 @@ interface Doc {
   firma_sancionado: string | null;
   firma_sancionado_confirmada_at: string | null;
   sancionado_rechazo_firma_at: string | null;
+  /** Cómo se entregó y cuándo (0486): con `digital`, el papel lleva el recibido de la persona. */
+  medio_entrega: string | null;
+  entregado_at: string | null;
 }
 interface Persona { nombres: string; apellidos: string; documento: string | null; funcion: string; sede_base_id: string; rol: string }
 
@@ -118,7 +121,7 @@ export default function MemoPage() {
     const { data: sesion } = await supabase.auth.getSession();
     if (!sesion.session) { router.replace("/admin/login"); return; }
     const { data: d, error: eD } = await supabase.from("expediente_disciplinario")
-      .select("id, correlativo, persona_id, tipo_causal, nivel, estado, periodo_desde, periodo_hasta, hechos, suspension_dias, suspension_desde, suspension_hasta, suspension_fechas, fecha_cese, firmante_id, firmado_at, creado_at, firma_sancionado, firma_sancionado_confirmada_at, sancionado_rechazo_firma_at")
+      .select("id, correlativo, persona_id, tipo_causal, nivel, estado, periodo_desde, periodo_hasta, hechos, suspension_dias, suspension_desde, suspension_hasta, suspension_fechas, fecha_cese, firmante_id, firmado_at, creado_at, firma_sancionado, firma_sancionado_confirmada_at, sancionado_rechazo_firma_at, medio_entrega, entregado_at")
       .eq("id", id).maybeSingle();
     if (eD || !d) { setErr("No se encontró el documento (o no tienes permiso para verlo)."); setCargando(false); return; }
     const doc = d as unknown as Doc;
@@ -258,6 +261,7 @@ export default function MemoPage() {
             firmaUrl={firmaUrl}
             previas={previas}
             firmanteIlegible={firmanteIlegible}
+            recepcion={doc.medio_entrega === "digital" && doc.entregado_at ? { at: doc.entregado_at, firma: doc.firma_sancionado } : null}
           >
             {/* Constancia DIGITAL del sancionado (0404) — solo en pantalla,
                 nunca en el papel: el «Recibí conforme» de arriba sigue en

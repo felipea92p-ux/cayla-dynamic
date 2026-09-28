@@ -39,6 +39,10 @@ export function fechaLarga(iso: string): string {
   }
   return fmt(new Date(iso), TZ_LIMA);
 }
+/** La hora en Lima, `21:34`. La entrega digital la fecha al minuto: es lo que la distingue de un papel sin hora. */
+export function horaLima(iso: string): string {
+  return new Intl.DateTimeFormat("es-PE", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: TZ_LIMA }).format(new Date(iso));
+}
 /** El nivel dicho dentro de una frase, en minúscula. */
 const NIVEL_EN_PROSA: Record<string, string> = {
   verbal: "llamada verbal de atención",
@@ -204,7 +208,7 @@ function Cuerpo({ doc, previas }: { doc: DocMemo; previas: Previa[] }) {
 }
 
 export function MemoDocumento({
-  doc, persona, sede, areas, firmante, cargoFirmante, firmaUrl, previas, firmanteIlegible = false, children,
+  doc, persona, sede, areas, firmante, cargoFirmante, firmaUrl, previas, firmanteIlegible = false, recepcion = null, children,
 }: {
   doc: DocMemo;
   persona: PersonaMemo | null;
@@ -217,6 +221,14 @@ export function MemoDocumento({
   previas: Previa[];
   /** Firmado, pero la sesión no pudo leer la ficha de quien firma (solo el panel). */
   firmanteIlegible?: boolean;
+  /**
+   * Recibido por Info (0486): llena el «Recibí conforme» con la constancia
+   * digital de la persona. Solo se pasa cuando `medio_entrega = 'digital'`. Con
+   * una entrega en físico —aunque después la persona haya confirmado su firma
+   * en Info— ese cuadro sigue en blanco, porque es el que recoge la firma de
+   * puño y letra y esa es la que de verdad prueba la entrega en mano.
+   */
+  recepcion?: { at: string; firma: string | null } | null;
   /** Lo que la pantalla agrega debajo del papel — nunca va impreso. */
   children?: ReactNode;
 }) {
@@ -225,7 +237,7 @@ export function MemoDocumento({
   const esNivel4 = doc.nivel === "imputacion" || doc.nivel === "despido";
 
   return (
-      <div className="memo hoja mx-auto max-w-[760px] rounded-lg border border-sand p-10 font-serif text-[13px] leading-relaxed text-tinta print:rounded-none print:border-0 print:p-0">
+      <div className="memo hoja mx-auto max-w-[760px] rounded-lg border border-sand p-5 sm:p-10 font-serif text-[13px] leading-relaxed text-tinta print:rounded-none print:border-0 print:p-0">
         {esNivel4 && (
           <p className="mb-4 rounded bg-ambar/15 px-3 py-2 text-xs text-ambar print:hidden">
             Documento de Nivel 4. Antes de emitirlo, valídalo con un abogado laboralista y entrégalo en físico o por vía notarial (nunca por correo).
@@ -304,15 +316,34 @@ export function MemoDocumento({
             <p className="text-taupe">{cargoFirmante ? `${cargoFirmante} — ${EMPRESA.nombre}` : EMPRESA.nombre}</p>
           </div>
           <div>
-            <div className="h-28 text-taupe">Recibí conforme:</div>
+            {recepcion ? (
+              <div className="flex h-28 items-end justify-center">
+                {recepcion.firma && (
+                  <img src={recepcion.firma} alt="" aria-hidden className="block h-28 w-auto max-w-full" />
+                )}
+              </div>
+            ) : (
+              <div className="h-28 text-taupe">Recibí conforme:</div>
+            )}
             <div className="border-t pt-1">{nombre} · DNI {persona?.documento ?? "____"}</div>
-            <p className="mt-1 text-taupe">Fecha: __________  Hora: ______</p>
+            {recepcion ? (
+              <p className="mt-1 text-taupe">
+                Recibido en forma digital el {fechaLarga(recepcion.at)}, {horaLima(recepcion.at)} h.
+                {recepcion.firma ? " Firmado digitalmente." : " Recibido sin firmar."}
+              </p>
+            ) : (
+              <p className="mt-1 text-taupe">Fecha: __________  Hora: ______</p>
+            )}
           </div>
         </div>
-        <p className="mt-6 text-[11px] text-taupe">
-          Constancia de negativa a recibir (si aplica): el colaborador se negó a recibir el presente documento.
-          Testigo 1: __________________  ·  Testigo 2: __________________
-        </p>
+        {/* Con una entrega digital ya no hay nada que negar: la persona lo abrió y
+            confirmó que lo recibió, y esa constancia está arriba. */}
+        {!recepcion && (
+          <p className="mt-6 text-[11px] text-taupe">
+            Constancia de negativa a recibir (si aplica): el colaborador se negó a recibir el presente documento.
+            Testigo 1: __________________  ·  Testigo 2: __________________
+          </p>
+        )}
 
 
       {children}
