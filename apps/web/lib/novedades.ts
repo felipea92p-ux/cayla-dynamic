@@ -115,6 +115,20 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-09-28-estaciones-de-retail-dejan-de-aparecer",
+    fecha: "2026-09-28",
+    titulo: "Las estaciones de caja y almacén de Retail ya no aparecen como si fueran personas",
+    queMejoro:
+      "Las cuentas que Retail usa en cada tienda —«ESTACIÓN — Caja Lima», «ESTACIÓN — Almacén Trujillo» y " +
+      "las demás— salían en Datos personales como fichas sin completar, en Equipo, en el terminal de marcaje " +
+      "de su sede y en las listas de Contratos y Documentación. Ya no: Dynamic las reconoce como cuentas de " +
+      "servicio y las deja fuera de todo.\n\n" +
+      "Siguen funcionando igual en Retail. Si necesitas revisarlas, están al final de Equipo, en un bloque " +
+      "plegado «Cuentas de servicio». Y si alguna vez una ficha se marca así por error, desde su ficha se " +
+      "desmarca con el menú «•••».",
+    audiencia: "panel",
+  },
+  {
     id: "2026-09-27-constancia-practicante-descanso-y-subvencion",
     fecha: "2026-09-27",
     titulo: "Tu constancia de subvención ya muestra tu descanso y tu subvención semestral",

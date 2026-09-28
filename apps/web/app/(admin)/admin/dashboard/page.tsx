@@ -576,7 +576,7 @@ export default function DashboardPage() {
       supabase
         .from("personas")
         .select("id, nombres, apellidos, rol, sede_base_id, sedes:sede_base_id(codigo)")
-        .eq("estado", "activo")
+        .eq("estado", "activo").eq("cuenta_de_servicio", false)
         // `tipo_vinculo = 'practicante'`, no simplemente `not en_planilla`:
         // así un RxH no entra por accidente. Mismo criterio puntual que la
         // 0333 usó para que un practicante dejara de ser invisible en

@@ -294,7 +294,7 @@ export default function CorreccionesPage() {
     const [p, pf, s, dr, ap] = await Promise.all([
       supabase
         .from("personas").select("id, nombres, apellidos, rol, sede_base_id, tipo_vinculo, personal_direccion, estado")
-        .order("nombres"),
+        .eq("cuenta_de_servicio", false).order("nombres"),
       supabase.rpc("fn_personas_funciones"),
       supabase.from("sedes").select("id, nombre").order("nombre"),
       supabase.rpc("fn_dias_por_revisar", { p_limite: LIMITE_DIAS_POR_REVISAR }),

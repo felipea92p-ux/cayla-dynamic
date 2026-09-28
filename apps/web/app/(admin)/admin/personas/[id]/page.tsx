@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
-import { ESTADO_CIVIL_LABELS, GENERO_LABELS, GRADO_INSTRUCCION_LABELS, TZ_LIMA, TIPO_VINCULO_LABEL, etiquetaDeCatalogo, hoyLima, puedeOperarEquipo, puedeVerIdentidad, puedeVerPlanilla } from "@cayla-dynamic/shared";
+import { ESTADO_CIVIL_LABELS, GENERO_LABELS, GRADO_INSTRUCCION_LABELS, TZ_LIMA, TIPO_VINCULO_LABEL, etiquetaDeCatalogo, hoyLima, puedeMarcarCuentaDeServicio, puedeOperarEquipo, puedeVerIdentidad, puedeVerPlanilla } from "@cayla-dynamic/shared";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { BUCKET_SOLICITUDES_PERFIL, CARAS_DNI, type CaraDni } from "@/lib/foto-dni";
@@ -183,6 +183,30 @@ export default function PerfilPersonaPage() {
 
   // ── Datos base (se cargan siempre) ────────────────────────────────────────
   const [persona, setPersona] = useState<Persona | null>(null);
+  // ¿Es una estación de retail y no una persona? (0490). null = no se sabe.
+  const [cuentaServicio, setCuentaServicio] = useState<boolean | null>(null);
+  const [cambiandoServicio, setCambiandoServicio] = useState(false);
+  const [guardandoServicio, setGuardandoServicio] = useState(false);
+  const [motivoServicio, setMotivoServicio] = useState("");
+  const puedeMarcarServicio = puedeMarcarCuentaDeServicio(rol);
+
+  async function cambiarCuentaServicio() {
+    if (cuentaServicio === null) return;
+    setGuardandoServicio(true);
+    const { error } = await supabase.rpc("fn_set_cuenta_de_servicio", {
+      p_persona_id: id,
+      p_valor: !cuentaServicio,
+      p_motivo: motivoServicio.trim() || undefined,
+    });
+    setGuardandoServicio(false);
+    if (error) { avisar("error", mensajeDeError(error)); return; }
+    avisar("ok", cuentaServicio
+      ? "Vuelve a ser una persona: entra otra vez a la planilla y a las listas del equipo."
+      : "Marcada como cuenta de servicio: sale de la planilla, del terminal y de las listas del equipo.");
+    setCuentaServicio(!cuentaServicio);
+    setCambiandoServicio(false);
+    setMotivoServicio("");
+  }
   const [ficha, setFicha] = useState<Ficha | null>(null);
   const [sede, setSede] = useState<string>("");
   const [salario, setSalario] = useState<Salario | null>(null);
@@ -300,6 +324,12 @@ export default function PerfilPersonaPage() {
       if (eP) { if (vivo) { setErr(`No se pudo cargar a la persona: ${mensajeDeError(eP)}`); setErrReintentable(true); setCargando(false); } return; }
       if (!p) { if (vivo) { setErr("No se encontró a la persona (o no tienes permiso para verla)."); setCargando(false); } return; }
       if (vivo) setPersona(p as Persona);
+      // Cuenta de servicio (0490): aparte y tolerante. Si la columna todavía no
+      // existe, queda en null y la ficha no ofrece marcarla — no se cae entera.
+      void supabase.from("personas").select("cuenta_de_servicio").eq("id", id).maybeSingle()
+        .then(({ data, error }) => {
+          if (vivo) setCuentaServicio(error || !data ? null : (data as { cuenta_de_servicio: boolean }).cuenta_de_servicio);
+        });
       // Las consultas se miran UNA POR UNA. Antes solo se revisaba la
       // del salario —y su fallo, además, tumbaba la ficha entera—; las otras
       // fallaban en silencio y su sección se pintaba como vacía.
@@ -759,6 +789,11 @@ export default function PerfilPersonaPage() {
                       </span>
                     )}
                     {!persona.en_planilla && <Insignia variante="advertencia" punto={false} className="ml-2">fuera de planilla</Insignia>}
+                    {cuentaServicio && (
+                      <span title="Estación de Retail (0490): no es una persona. No se paga, no aparece en el terminal de marcaje ni en las listas del equipo.">
+                        <Insignia variante="advertencia" punto={false} className="ml-2">cuenta de servicio</Insignia>
+                      </span>
+                    )}
                   </p>
                   {/* El motivo va en el CUERPO, no en un `title`. Esta ficha se
                       abre en el iPad de la sede —donde no hay puntero que
@@ -790,6 +825,11 @@ export default function PerfilPersonaPage() {
                   <Boton variante="secundario" tamano="sm" onClick={alternar} aria-haspopup="menu" aria-expanded={abierto}>•••</Boton>
                 )}>
                   <MenuItem href="/admin/equipo">Editar, PIN o registrar salida (en Equipo)</MenuItem>
+                  {puedeMarcarServicio && cuentaServicio !== null && (
+                    <MenuItem onClick={() => setCambiandoServicio(true)} variante={cuentaServicio ? "normal" : "peligro"}>
+                      {cuentaServicio ? "Es una persona: desmarcar cuenta de servicio" : "No es una persona: marcar como cuenta de servicio"}
+                    </MenuItem>
+                  )}
                 </Menu>
               </div>
             </div>
@@ -1190,6 +1230,39 @@ export default function PerfilPersonaPage() {
             disabled={motivoBorrarDni.trim() === ""}
           >
             Cancelar el DNI
+          </Boton>
+        </div>
+      </Modal>
+
+      {/* Cuenta de servicio (0490). Marcar saca de la planilla: por eso se
+          confirma, y por eso la base se niega si esta ficha tiene marcajes. */}
+      <Modal
+        abierto={cambiandoServicio}
+        onCerrar={() => { setCambiandoServicio(false); setMotivoServicio(""); }}
+        titulo={cuentaServicio ? "Desmarcar cuenta de servicio" : "Marcar como cuenta de servicio"}
+        bloqueado={guardandoServicio}
+      >
+        <p className="text-sm text-taupe">
+          {cuentaServicio
+            ? "Esta ficha vuelve a tratarse como una persona: entra otra vez a la planilla, al terminal de marcaje de su sede y a todas las listas del equipo."
+            : "Úsalo solo para una estación de Retail (una caja o un almacén compartido), nunca para una persona: deja de pagarse, sale del terminal de marcaje y de todas las listas del equipo. Su acceso a Retail no cambia; a Dynamic ya no podrá entrar."}
+        </p>
+        <div className="mt-3">
+          <Campo
+            etiqueta="Motivo (opcional)"
+            value={motivoServicio}
+            onChange={(e) => setMotivoServicio(e.target.value)}
+            placeholder={cuentaServicio ? "por qué es una persona" : "qué estación es"}
+          />
+        </div>
+        <div className="mt-4 flex justify-end gap-2">
+          <Boton variante="secundario" onClick={() => { setCambiandoServicio(false); setMotivoServicio(""); }} disabled={guardandoServicio}>Cancelar</Boton>
+          <Boton
+            variante={cuentaServicio ? "primario" : "peligro"}
+            onClick={() => void cambiarCuentaServicio()}
+            cargando={guardandoServicio}
+          >
+            {cuentaServicio ? "Es una persona" : "Marcar como cuenta de servicio"}
           </Boton>
         </div>
       </Modal>

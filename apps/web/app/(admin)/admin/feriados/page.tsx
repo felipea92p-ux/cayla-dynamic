@@ -170,10 +170,10 @@ export default function FeriadosPage() {
       // corresponda, mismo criterio que un locador desde la 0154) ni tiene
       // "falta injustificada" que perdonar con un descanso sustitutorio.
       supabase.from("personas").select("id, nombres, apellidos, sede_base_id, tipo_vinculo")
-        .eq("estado", "activo")
+        .eq("estado", "activo").eq("cuenta_de_servicio", false)
         .or("en_planilla.eq.true,tipo_vinculo.eq.practicante")
         .order("nombres"),
-      supabase.from("personas").select("id, nombres, apellidos, sede_base_id").order("nombres"),
+      supabase.from("personas").select("id, nombres, apellidos, sede_base_id").eq("cuenta_de_servicio", false).order("nombres"),
       supabase.from("sedes").select("id, codigo, nombre").order("codigo"),
       supabase.from("feriados").select("fecha, nombre").order("fecha", { ascending: false }).limit(40),
       supabase.rpc("fn_feriados_laborados", { p_desde: desde, p_hasta: hasta }),

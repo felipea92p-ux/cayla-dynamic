@@ -11,7 +11,7 @@ import {
   puedeVerPlanilla, puedeVerIdentidad, puedeGestionarCatalogos,
   puedeOperarEquipo, puedeVerTodasLasSedes, puedeExportarPadron,
   puedeVerSaludDeAlertas, puedeExportarAsistencia, puedeAnularDocumentoDisciplinario,
-  puedeVerNovedad, puedeGestionarBoletas,
+  puedeVerNovedad, puedeGestionarBoletas, puedeMarcarCuentaDeServicio,
   ROLES, ROLES_CON_PANEL, ROLES_DO, ROLES_EXPORTAN_ASISTENCIA,
 } from "@cayla-dynamic/shared";
 
@@ -40,6 +40,20 @@ describe("las novedades del sistema le llegan a quien las puede usar", () => {
       expect(puedeVerNovedad(rol, "panel")).toBe(false);
       expect(puedeVerNovedad(rol, "do")).toBe(false);
     }
+  });
+});
+
+describe("marcar una cuenta de servicio es de DO: la saca de la planilla (0490)", () => {
+  it("la líder de equipo no marca: fn_set_cuenta_de_servicio exige fn_es_admin_o_lider", () => {
+    expect(puedeMarcarCuentaDeServicio("supervisor_sede")).toBe(false);
+    expect(puedeMarcarCuentaDeServicio("integrante")).toBe(false);
+  });
+  it("gerencia y la líder de DO sí", () => {
+    expect(puedeMarcarCuentaDeServicio("admin")).toBe(true);
+    expect(puedeMarcarCuentaDeServicio("lider_do")).toBe(true);
+  });
+  it("sin rol cargado, no", () => {
+    expect(puedeMarcarCuentaDeServicio(null)).toBe(false);
   });
 });
 

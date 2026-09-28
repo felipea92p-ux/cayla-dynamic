@@ -318,7 +318,7 @@ export default function DatosPersonalesPage() {
       { data: fn, error: eFN },
       { data: per, error: ePer },
     ] = await Promise.all([
-      supabase.from("personas").select("id, nombres, apellidos, documento, sede_base_id, email, regimen_pension, auth_user_id, en_planilla").eq("estado", "activo").order("nombres"),
+      supabase.from("personas").select("id, nombres, apellidos, documento, sede_base_id, email, regimen_pension, auth_user_id, en_planilla").eq("estado", "activo").eq("cuenta_de_servicio", false).order("nombres"),
       supabase.from("sedes").select("id, codigo"),
       supabase.from("datos_personales").select("persona_id, nombre_dni, fecha_nacimiento, estado_civil, genero, direccion, celular, entidad_bancaria, numero_cuenta, grado_instruccion, hijos_menores, foto_dni_url, foto_personal_url, foto_profesional_url, emergencia_nombre, emergencia_vinculo, emergencia_telefono, discapacidad, discapacidad_conadis, cuspp"),
       supabase.from("derechohabientes").select("id, persona_id, nombres, apellidos, documento, fecha_nacimiento, vinculo, essalud, vida_ley, vigente_hasta, nota").order("apellidos"),
