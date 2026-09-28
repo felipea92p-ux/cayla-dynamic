@@ -344,10 +344,12 @@ with repo(numero, nombre, nunca) as (values
     (480, 'las_novedades_del_sistema_se_marcan_como_vistas', false),
     (481, 'la_tienda_de_lima_sabe_su_ciudad', false),
     (482, 'las_boletas_oficiales_se_suben_y_se_publican', false),
+    (483, 'los_reportes_y_quien_puede_verlos', false),
     (484, 'el_periodo_de_prueba_deja_de_generar_essalud', false),
     (485, 'el_practicante_ve_su_descanso_y_subvencion_semestral', false),
     (486, 'el_memo_se_entrega_por_info', false),
-    (487, 'la_imputacion_lleva_la_firma_escaneada', false)
+    (487, 'la_imputacion_lleva_la_firma_escaneada', false),
+    (488, 'los_reportes_se_escriben_y_sus_plazos_corren', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
