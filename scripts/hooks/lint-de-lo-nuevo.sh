@@ -84,12 +84,30 @@ case "$SALIDA" in
     exit 0 ;;
 esac
 
+# Un Python que ARRANQUE, no uno que exista en el PATH. En Windows `python3` y
+# `python` existen siempre: son el acceso directo de la Microsoft Store, que
+# sin Python instalado imprime «no se encontró Python» y falla. El 2026-09-28,
+# en el primer push desde esa máquina, eso se leyó como «este push agrega
+# errores de lint» y frenó un push que no tenía ninguno. `command -v` no lo
+# distingue; ejecutarlo sí. Sin Python se avisa y se deja pasar, igual que
+# cuando eslint no devuelve nada: este freno bloquea por errores de lint, no
+# por lo que tenga instalado la máquina de quien empuja.
+PY=""
+for candidato in python3 python; do
+  if "$candidato" -c 'import json' >/dev/null 2>&1; then PY="$candidato"; break; fi
+done
+if [ -z "$PY" ]; then
+  echo "  ⚠ No hay Python en esta máquina; el linter corrió pero este push NO se revisó."
+  echo "    Compruébalo a mano:  npx pnpm --filter @cayla-dynamic/web lint"
+  exit 0
+fi
+
 export DIFF_BASE="$BASE"
 # Con printf y NO con echo: en algunos `sh` echo interpreta las secuencias de
 # escape, y el JSON de eslint lleva \n dentro de los mensajes. Los convertia en
 # saltos reales y rompia el JSON antes de que python lo viera. Cuarto y ultimo
 # modo en que este guardian se volvia ciego sin decirlo.
-printf '%s' "$SALIDA" | python3 -c '
+printf '%s' "$SALIDA" | "$PY" -c '
 import json, subprocess, sys, os, re
 
 base = os.environ["DIFF_BASE"]
