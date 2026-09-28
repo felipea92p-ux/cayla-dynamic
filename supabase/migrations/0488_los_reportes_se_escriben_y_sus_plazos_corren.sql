@@ -1158,7 +1158,12 @@ returns table (
   cerrado_at         timestamptz,
   cierre_texto       text,
   respuesta_vence_at timestamptz,
-  mi_papel           text
+  mi_papel           text,
+  -- Solo para quien gestiona: a quien reportó le llegan en null. Quién lo
+  -- escribió es confidencial (decisión 2) y quién lo lleva no es asunto suyo.
+  autora             text,
+  gestiona           text,
+  cierre_resultado   text
 )
 language plpgsql
 stable
@@ -1180,9 +1185,13 @@ begin
          (select min(p.vence_at) from reporte_plazos p
            where p.reporte_id = r.id and p.cumplido_at is null and p.anulado_at is null
              and p.clave in ('respuesta', 'respuesta_prometida', 'resolucion', 'decision')),
-         v_papel
+         v_papel,
+         case when v_papel <> 'autora' then pa.nombres || ' ' || pa.apellidos end,
+         case when v_papel <> 'autora' then r.gestiona end,
+         case when v_papel <> 'autora' then r.cierre_resultado end
     from reportes r
     join sedes s on s.id = r.sede_id
+    join personas pa on pa.id = r.autor_id
    where r.id = p_reporte;
 end;
 $fn$;

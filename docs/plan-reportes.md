@@ -633,7 +633,7 @@ fusionar, porque fusionar a `main` es publicar:
    `/mio/reportes/[id]`, la fuente en la Bandeja de /mio y la novedad. **`/mio/reportes`**: formulario, «Mis reportes» y la fuente en la Bandeja.
    Incluye la entrada en `novedades.ts`, sin montos, nombres ni nada
    disciplinario.
-4. **`/admin/reportes`**: bandeja, ficha, pantalla de órganos y
+4. ✅ **Hecho, como «Casos»** (decisión 21): `/admin/casos` con la lista, las instrucciones de la líder y quién investiga en cada sede; `/admin/casos/[id]` con la ficha y todas sus acciones; el módulo «casos» en la Bandeja del panel. **`/admin/reportes`**: bandeja, ficha, pantalla de órganos y
    `puedeVerReportes` en `permisos.ts` y en `nav-items.ts`.
 5. **Estadísticas básicas** por tipo, sede y mes, con tiempo de respuesta y
    cumplimiento de plazos. A la líder, solo las de su sede y sin nada por

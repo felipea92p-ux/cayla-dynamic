@@ -28,7 +28,7 @@
 -- dentro de begin/rollback.
 -- ============================================================================
 begin;
-select plan(146);
+select plan(148);
 
 -- ── Semilla ──────────────────────────────────────────────────────────────
 insert into sedes (id, codigo, nombre, activa, tipo) values
@@ -387,6 +387,9 @@ select is((select sin_leer from fn_reportes_mios() where id = pg_temp.id_de('R1 
   'y al abrirlo deja de estar sin leer');
 select is((select mi_papel from fn_reporte_detalle(pg_temp.id_de('R1 El aire acondicionado no funciona'))), 'autora',
   'el detalle le dice a la pantalla que ella es la autora');
+select ok((select autora is null and gestiona is null and cierre_resultado is null
+             from fn_reporte_detalle(pg_temp.id_de('R1 El aire acondicionado no funciona'))),
+  'y a ella no le devuelve su propio nombre, quién lo lleva ni el resultado');
 select is((select count(*)::int from fn_reporte_adjuntos(pg_temp.id_de('R1 El aire acondicionado no funciona')) where es_mio), 1,
   'y le lista su foto');
 select is((select string_agg(quien, ',' order by quien) from fn_reporte_hilo(pg_temp.id_de('C1 Bea me grita delante de clientas'))),
@@ -474,6 +477,8 @@ select throws_like($$ select * from fn_reporte_personas(pg_temp.id_de('R1 El air
   '%No gestionas%', 'pero no la lista de personas con nombre, que es de quien gestiona');
 select ok((select count(*) from fn_organos_titulo_x()) >= 1, 'quién investiga en cada sede es información publicada (48.6)');
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000f0005', true);
+select is((select autora || ' · ' || gestiona from fn_reporte_detalle(pg_temp.id_de('C1 Bea me grita delante de clientas'))),
+  'Ana Esc · gerencia', 'a quien gestiona, el detalle le dice quién reportó y quién lo lleva');
 select is((select string_agg(persona, ',') from fn_reporte_expedientes(pg_temp.id_de('C1 Bea me grita delante de clientas'))),
   'Bea Esc', 'DO ve para enlazar solo los expedientes de las involucradas');
 select is((select string_agg(papel || ':' || nombre, ',' order by papel, nombre) from fn_reporte_personas(pg_temp.id_de('C1 Bea me grita delante de clientas'))),

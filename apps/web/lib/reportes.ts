@@ -162,3 +162,81 @@ export function rutaDeAdjunto(reporteId: string, mimetype: string, uuid: string 
   const ext = EXTENSIONES[mimetype];
   return ext ? `${reporteId}/${uuid}.${ext}` : null;
 }
+
+/** Por qué alguien gestiona un caso: lo que devuelve `fn_reporte_motivo` (0483). */
+export type MotivoCaso = "lider" | "do" | "gerencia" | "investigadora";
+
+export interface AccionesCaso {
+  escribir: boolean;
+  enRevision: boolean;
+  anotar: boolean;
+  /** Las acciones que se ofrecen al registrar algo: en el Título X no hay mediación (48.14). */
+  tiposDeAccion: readonly ("conversacion" | "mediacion" | "cambio_proceso" | "otra")[];
+  reclasificar: boolean;
+  escalar: boolean;
+  medida: boolean;
+  cerrar: boolean;
+  /** Si no se puede cerrar, por qué: se muestra junto al botón apagado. */
+  porQueNoCierra: string | null;
+  derivar: boolean;
+  indiciosDelito: boolean;
+  avisarFecha: boolean;
+}
+
+/**
+ * Qué botones muestra la ficha de un caso. Es el cuadro «QUIÉN HACE QUÉ» del
+ * encabezado de la 0488 visto desde la pantalla: solo decide qué se OFRECE.
+ * Quien decide de verdad es la base, y si dice otra cosa su mensaje se muestra.
+ */
+export function accionesDelCaso(c: {
+  motivo: MotivoCaso;
+  via: string;
+  estado: string;
+  gestiona: string | null;
+  informeRegistrado: boolean;
+  respuestaPendiente: boolean;
+}): AccionesCaso {
+  const abierto = c.estado !== "cerrado";
+  const decide = c.motivo === "do" || c.motivo === "gerencia";
+  const tituloX = c.via === "titulo_x";
+  const puedeCerrarPorVia = c.via === "reclamo" ? c.motivo !== "investigadora" : decide;
+  let porQueNoCierra: string | null = null;
+  if (!abierto) porQueNoCierra = "Ya está cerrado.";
+  else if (!puedeCerrarPorVia) {
+    porQueNoCierra = c.motivo === "investigadora"
+      ? "Quien investiga propone; decide Desarrollo Organizacional (48.1)."
+      : "En convivencia cierra Desarrollo Organizacional, con la respuesta escrita del 43-A.6.";
+  } else if (tituloX && !c.informeRegistrado) porQueNoCierra = "Falta el informe de quien investiga (49.7).";
+  return {
+    escribir: true,
+    enRevision: abierto && c.estado === "recibido",
+    anotar: abierto,
+    tiposDeAccion: tituloX ? ["cambio_proceso", "otra"] : ["conversacion", "mediacion", "cambio_proceso", "otra"],
+    reclasificar: abierto && (!tituloX || decide),
+    escalar: abierto && (c.gestiona === "lider" || c.gestiona === "do") && c.motivo !== "investigadora",
+    medida: abierto && decide && c.via !== "reclamo",
+    cerrar: porQueNoCierra === null,
+    porQueNoCierra,
+    derivar: decide,
+    indiciosDelito: decide && tituloX,
+    avisarFecha: abierto && c.via === "reclamo" && c.motivo !== "investigadora" && c.respuestaPendiente,
+  };
+}
+
+export const RESULTADOS_CIERRE: readonly { valor: string; texto: string }[] = [
+  { valor: "resuelto", texto: "Resuelto" },
+  { valor: "confirmado", texto: "Se confirmaron los hechos" },
+  { valor: "no_confirmado", texto: "No se confirmaron los hechos" },
+  { valor: "sin_accion", texto: "Sin acción" },
+  { valor: "derivado_disciplinario", texto: "Derivado a disciplina" },
+];
+
+export const NOMBRE_ACCION: Record<string, string> = {
+  conversacion: "Conversación", mediacion: "Mediación", cambio_proceso: "Cambio de proceso", otra: "Otra actuación",
+};
+
+export const NOMBRE_EVENTO: Record<string, string> = {
+  creado: "Recibido", acuse: "Acuse de recibo", estado: "En revisión", reclasificado: "Cambió de vía",
+  escalado: "Escalado", accion: "Actuación", medida: "Medida de protección", plazo: "Plazo cumplido",
+  derivado_expediente: "Enlazado a disciplina", cerrado: "Cerrado", lectura: "Abierto",
+};

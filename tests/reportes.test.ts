@@ -9,7 +9,7 @@
 // ============================================================================
 import { describe, expect, it } from "vitest";
 import {
-  contarSinLeer, faltaEnReporte, fechaEnPalabras, rutaDeAdjunto, tituloDeReporte, viaDeReporte,
+  accionesDelCaso, contarSinLeer, faltaEnReporte, fechaEnPalabras, rutaDeAdjunto, tituloDeReporte, viaDeReporte,
   type BorradorReporte, type FilaMiReporte,
 } from "@/lib/reportes";
 
@@ -93,5 +93,42 @@ describe("rutaDeAdjunto", () => {
   });
   it("un formato que el bucket no acepta no se intenta subir", () => {
     expect(rutaDeAdjunto("r1", "video/mp4", "u1")).toBeNull();
+  });
+});
+
+describe("accionesDelCaso", () => {
+  const base = { via: "convivencia", estado: "en_revision", gestiona: "lider", informeRegistrado: false, respuestaPendiente: true };
+  it("la líder media y escala, pero no cierra convivencia (decisión 14)", () => {
+    const a = accionesDelCaso({ ...base, motivo: "lider" });
+    expect(a.tiposDeAccion).toContain("mediacion");
+    expect(a.escalar).toBe(true);
+    expect(a.cerrar).toBe(false);
+    expect(a.porQueNoCierra).toMatch(/Desarrollo Organizacional/);
+    expect(a.medida).toBe(false);
+  });
+  it("la líder sí cierra un reclamo de su sede", () => {
+    expect(accionesDelCaso({ ...base, via: "reclamo", motivo: "lider" }).cerrar).toBe(true);
+  });
+  it("en el Título X nadie media, y DO no decide sin informe", () => {
+    const a = accionesDelCaso({ ...base, via: "titulo_x", gestiona: "do", motivo: "do" });
+    expect(a.tiposDeAccion).not.toContain("mediacion");
+    expect(a.cerrar).toBe(false);
+    expect(a.porQueNoCierra).toMatch(/informe/);
+    expect(accionesDelCaso({ ...base, via: "titulo_x", gestiona: "do", motivo: "do", informeRegistrado: true }).cerrar).toBe(true);
+  });
+  it("quien investiga no reclasifica, no escala y no cierra", () => {
+    const a = accionesDelCaso({ ...base, via: "titulo_x", gestiona: "do", motivo: "investigadora" });
+    expect(a.reclasificar).toBe(false);
+    expect(a.escalar).toBe(false);
+    expect(a.cerrar).toBe(false);
+  });
+  it("el aviso de fecha es solo del 43-B y mientras corre la respuesta", () => {
+    expect(accionesDelCaso({ ...base, via: "reclamo", motivo: "do" }).avisarFecha).toBe(true);
+    expect(accionesDelCaso({ ...base, via: "reclamo", motivo: "do", respuestaPendiente: false }).avisarFecha).toBe(false);
+    expect(accionesDelCaso({ ...base, motivo: "do" }).avisarFecha).toBe(false);
+  });
+  it("un caso cerrado ya no ofrece acciones de trámite", () => {
+    const a = accionesDelCaso({ ...base, estado: "cerrado", motivo: "do" });
+    expect([a.anotar, a.escalar, a.reclasificar, a.cerrar, a.medida]).toEqual([false, false, false, false, false]);
   });
 });

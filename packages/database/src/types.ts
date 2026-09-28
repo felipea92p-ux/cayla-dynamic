@@ -7624,13 +7624,16 @@ export type Database = {
       fn_reporte_detalle: {
         Args: { p_reporte: string | null }
         Returns: {
+          autora: string | null
           cerrado_at: string | null
+          cierre_resultado: string | null
           cierre_texto: string | null
           codigo: string
           creado_at: string
           espera: string | null
           estado: string
           fecha_hecho: string
+          gestiona: string | null
           id: string
           mi_papel: string
           relato: string

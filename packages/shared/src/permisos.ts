@@ -53,6 +53,15 @@ export function puedeVerCasos(rol: RolPosible): boolean {
   return tiene(DO_Y_ENCARGADA, rol);
 }
 
+/**
+ * ¿Se le ofrece registrar a quien investiga el Título X en una sede? DO por
+ * rol. La base exige además, para un admin, la marca de Gerencia General
+ * (`fn_organo_titulo_x_guardar`, 0488): un admin sin ella recibe su mensaje.
+ */
+export function puedeNombrarInvestigadora(rol: RolPosible): boolean {
+  return tiene(DO, rol);
+}
+
 export function puedeVerPlanilla(rol: RolPosible): boolean {
   return tiene(DO, rol);
 }
