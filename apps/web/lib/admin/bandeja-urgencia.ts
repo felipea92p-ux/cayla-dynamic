@@ -344,6 +344,28 @@ export function urgenciaFeriado(f: FilaFeriado, hoy: string = hoyLima()): Urgenc
   return { grupo: d < 0 ? "vencido" : d === 0 ? "hoy" : "proximo", plazo: enDias(d, PLAZO), nota: `descanso hasta el ${diaYMes(limite)}`, orden: d };
 }
 
+/**
+ * Un caso de Reportes (0488): su plazo es el del Reglamento que vence antes
+ * (`fn_reportes_bandeja` ya lo elige). Un caso URGENTE sube a «Hoy» aunque su
+ * plazo sea más adelante: quien lo marcó dijo que hay un riesgo ahora.
+ */
+export function urgenciaCaso(
+  c: { proximo_vence_at: string | null; proximo_plazo: string | null; urgente: boolean },
+  hoy: string = hoyLima(),
+): Urgencia {
+  if (!c.proximo_vence_at) {
+    return { grupo: c.urgente ? "hoy" : "sin_plazo", plazo: c.urgente ? "Urgente" : "Sin plazo", nota: null, orden: 0 };
+  }
+  const d = diasEntre(hoy, fechaLima(c.proximo_vence_at));
+  const grupo: GrupoUrgencia = d < 0 ? "vencido" : d === 0 || c.urgente ? "hoy" : "proximo";
+  return {
+    grupo,
+    plazo: c.urgente && d > 0 ? `Urgente · ${enDias(d, VENCE).toLowerCase()}` : enDias(d, VENCE),
+    nota: c.proximo_plazo ? c.proximo_plazo.charAt(0).toLowerCase() + c.proximo_plazo.slice(1) : null,
+    orden: c.urgente ? d - 1000 : d,
+  };
+}
+
 /** Un borrador disciplinario esperando el descargo de la persona: su plazo es el del descargo. */
 export function urgenciaDescargo(venceAt: string, hoy: string = hoyLima()): Urgencia {
   const d = diasEntre(hoy, fechaLima(venceAt));
