@@ -49,6 +49,10 @@ import { FirmaEditor } from "@/app/(admin)/admin/personas/[id]/FirmaEditor";
  * 0257). Sí se puede volver a firmar sola cuando la declaración quedó
  * DESFASADA (cambió la tarifa de la sede): ahí no hay nada que corregir de
  * tu parte, solo una fecha y un monto que actualizar.
+ *
+ * Y desde la 0492, también cuando quedó POR RENOVAR: INCOMPLETA (se firmó con
+ * la versión corta, sin pasaje) o VENCIDA (pasó un año). El criterio vive en
+ * `fn_ruta_por_renovar`; esta pantalla solo lee `ruta_por_renovar` del tablero.
  */
 
 interface MiDeclaracion {
@@ -58,6 +62,9 @@ interface MiDeclaracion {
   ruta_desfasada: boolean;
   ruta_firma_persona_confirmada_at: string | null;
   ruta_tarifa_vigente: number | null;
+  /** 0492 — null si está al día. Si la 0492 todavía no se pegó, la columna no
+   *  llega y queda `undefined`: se lee igual que «al día». */
+  ruta_por_renovar?: "incompleta" | "vencida" | null;
 }
 
 /** Una solicitud suya de revisión de la declaración de ruta (0425). */
@@ -253,7 +260,8 @@ function MiMovilidadContenido() {
     }
     const propia = ((fila as MiDeclaracion[] | null) ?? [])[0] ?? null;
     setDeclaracion(propia);
-    setFormAbierto(propia === null ? false : propia.estado !== "ok" || propia.ruta_desfasada);
+    setFormAbierto(propia === null ? false
+      : propia.estado !== "ok" || propia.ruta_desfasada || !!propia.ruta_por_renovar);
     setMiFirma((fu as string | null) ?? null);
     setFirmaEmpresa((fe as string | null) ?? null);
     // La más reciente primero (fn_movilidad_revisiones_pedidas ya ordena por
@@ -361,7 +369,12 @@ function MiMovilidadContenido() {
     );
   }
 
-  const vigenteYAlDia = declaracion != null && declaracion.estado === "ok" && !declaracion.ruta_desfasada;
+  // Desfasada manda sobre «por renovar»: las dos se arreglan firmando de
+  // nuevo, y la de la tarifa es la que explica un monto distinto.
+  const porRenovar = declaracion?.estado === "ok" && !declaracion.ruta_desfasada
+    ? (declaracion.ruta_por_renovar ?? null) : null;
+  const vigenteYAlDia = declaracion != null && declaracion.estado === "ok" && !declaracion.ruta_desfasada
+    && porRenovar === null;
   const tarifa = declaracion?.ruta_tarifa_vigente ?? null;
   const gasto = gastoDiario(mediosIda, mediosVuelta, costoPasaje);
 
@@ -397,7 +410,7 @@ function MiMovilidadContenido() {
 
           {/* ── ESTADO ACTUAL ──────────────────────────────────────────── */}
           <section className="mb-4 rounded-2xl border border-sand p-5 text-sm">
-            {declaracion!.estado === "ok" && !declaracion!.ruta_desfasada && (
+            {vigenteYAlDia && (
               <p className="text-verde">
                 Firmada el {fechaLarga(declaracion!.ruta_firmada_el!)}, declarando S/{" "}
                 {Number(declaracion!.ruta_monto).toFixed(2)} por día efectivamente asistido.
@@ -411,6 +424,22 @@ function MiMovilidadContenido() {
                 Firmada el {fechaLarga(declaracion!.ruta_firmada_el!)} declarando S/{" "}
                 {Number(declaracion!.ruta_monto).toFixed(2)}, pero hoy tu sede paga S/{" "}
                 {Number(declaracion!.ruta_tarifa_vigente).toFixed(2)}. Vuelve a firmarla con el monto vigente.
+              </p>
+            )}
+            {/* Por renovar (0492). No es un error de la persona: nada de rojo.
+                Y se dice que la movilidad no se detiene, porque es verdad —la
+                planilla no mira esto— y es lo primero que alguien se pregunta. */}
+            {porRenovar === "incompleta" && (
+              <p className="text-ambar">
+                Firmada el {fechaLarga(declaracion!.ruta_firmada_el!)} con la versión corta, que no preguntaba el
+                costo del pasaje ni el uso de taxi. Vuelve a firmarla con los cinco puntos. Tu movilidad se sigue
+                pagando igual mientras tanto.
+              </p>
+            )}
+            {porRenovar === "vencida" && (
+              <p className="text-ambar">
+                Firmada el {fechaLarga(declaracion!.ruta_firmada_el!)}: ya pasó un año. Vuelve a firmarla para
+                confirmar tu ruta de este año. Tu movilidad se sigue pagando igual mientras tanto.
               </p>
             )}
             {declaracion!.estado === "sin_ruta" && (

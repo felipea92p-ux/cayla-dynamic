@@ -1215,6 +1215,7 @@ export default function MioPage() {
   // comentario CAMBIO 0423 en la migración).
   const [miMovilidad, setMiMovilidad] = useState<{
     estado: "sin_ruta" | "se_nego" | "ok"; ruta_firmada_el: string | null; ruta_desfasada: boolean;
+    ruta_por_renovar?: "incompleta" | "vencida" | null;   // 0492
   } | null>(null);
   const [miMovilidadCargada, setMiMovilidadCargada] = useState(false);
   useEffect(() => {
@@ -1222,7 +1223,10 @@ export default function MioPage() {
     let vivo = true;
     void supabase.rpc("fn_documentos_tablero", { p_solo_mi_fila: true }).then(({ data }) => {
       if (!vivo) return;
-      type Fila = { estado: "sin_ruta" | "se_nego" | "ok"; ruta_firmada_el: string | null; ruta_desfasada: boolean };
+      type Fila = {
+        estado: "sin_ruta" | "se_nego" | "ok"; ruta_firmada_el: string | null; ruta_desfasada: boolean;
+        ruta_por_renovar?: "incompleta" | "vencida" | null;
+      };
       setMiMovilidad(((data as Fila[] | null) ?? [])[0] ?? null);
       setMiMovilidadCargada(true);
     });
@@ -2923,8 +2927,15 @@ export default function MioPage() {
             <p className="text-taupe">Esto no te corresponde por ahora.</p>
           ) : (
             <div>
-              <p className={miMovilidad.estado === "ok" && !miMovilidad.ruta_desfasada ? "text-verde" : "text-rojo"}>
-                {miMovilidad.estado === "ok" && !miMovilidad.ruta_desfasada
+              <p className={
+                miMovilidad.estado === "ok" && !miMovilidad.ruta_desfasada
+                  ? (miMovilidad.ruta_por_renovar ? "text-ambar" : "text-verde")
+                  : "text-rojo"}>
+                {miMovilidad.estado === "ok" && !miMovilidad.ruta_desfasada && miMovilidad.ruta_por_renovar === "incompleta"
+                  ? `Firmada el ${diaYMes(miMovilidad.ruta_firmada_el!)}, con la versión corta. Toca renovarla.`
+                  : miMovilidad.estado === "ok" && !miMovilidad.ruta_desfasada && miMovilidad.ruta_por_renovar === "vencida"
+                  ? `Firmada el ${diaYMes(miMovilidad.ruta_firmada_el!)}: ya pasó un año. Toca renovarla.`
+                  : miMovilidad.estado === "ok" && !miMovilidad.ruta_desfasada
                   ? `Firmada el ${diaYMes(miMovilidad.ruta_firmada_el!)}.`
                   : miMovilidad.estado === "ok"
                     ? "Firmada, pero con una tarifa que ya no es la vigente."
