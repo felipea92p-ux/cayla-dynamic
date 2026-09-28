@@ -308,7 +308,7 @@ export function MemoDocumento({
         <div className="firma mt-10 grid grid-cols-2 gap-8 text-[12px] print:break-inside-avoid">
           <div>
             <div className="flex h-28 items-end justify-center">
-              {firmaUrl && !esNivel4 && (
+              {firmaUrl && (
                 <img src={firmaUrl} alt="" aria-hidden className="block h-28 w-auto max-w-full" />
               )}
             </div>

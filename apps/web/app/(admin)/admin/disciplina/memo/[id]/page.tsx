@@ -200,8 +200,10 @@ export default function MemoPage() {
     // Firma escaneada de quien suscribe ESTE documento. Se pide por documento y
     // no por persona: así la encargada de una sede puede imprimir un memo suyo
     // firmado por gerencia, sin poder pedir la firma de gerencia a secas. La
-    // función también deja fuera imputación y despido, que no llevan firma
-    // escaneada (ver render).
+    // función decide a qué documentos se les estampa: verbal, amonestación,
+    // suspensión e imputación (0487). La carta de despido la firma Gerencia a
+    // mano y la función no la entrega. La pantalla NO repite esa regla: si lo
+    // hiciera, cambiar la función no bastaría para cambiar el papel.
     if (doc.firmante_id) {
       const { data: fu } = await supabase.rpc("fn_firma_de_memo", { p_doc_id: id });
       setFirmaUrl(typeof fu === "string" && fu.startsWith("data:image") ? fu : null);
