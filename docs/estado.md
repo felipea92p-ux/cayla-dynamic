@@ -6,6 +6,63 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-09-29 — Casos filtraba `p_desde` contra la medianoche de UTC, no la de Lima · migración 0494 · PEGADA Y VERIFICADA · SIN FUSIONAR
+
+**Origen:** CI (db-tests) del PR #472 reventó la prueba 390 con «con p_desde de mañana, ninguno
+califica» — dio 3, no 0. No fue flaky: `fn_casos_resumen` (0493) comparaba `r.creado_at >= p_desde`
+con `p_desde date`, y ese `>=` convierte `p_desde` con el cast implícito `date → timestamptz`, que
+asume medianoche EN EL TIMEZONE DE LA SESIÓN (UTC en el servidor) y no en Lima. Deja una ventana de
+5 horas —19:00 a 00:00 en Lima— donde un reporte de "ayer" en Lima ya contaba como "de hoy". El CI
+que falló corrió justo en esa ventana (02:46 UTC = 21:46 Lima del día previo); fuera de ella la
+prueba pasa siempre, así que se leía como intermitente sin serlo.
+
+**Arreglo:** ancla `p_desde` a la medianoche de Lima con la misma fórmula que ya usa la 0488
+(`(fecha + time '00:00:00') at time zone 'America/Lima'`) — el `+ time` fuerza el tipo `timestamp`
+antes de `at time zone`, que sin eso resuelve el overload contrario en silencio (medido: sin el
+`+ time`, `date at time zone 'America/Lima'` da la conversión Lima→UTC en vez de UTC→Lima, sin
+ningún error que avise). Reproducido y verificado en un Postgres desechable con el instante exacto
+del CI que falló, y con la misma fórmula en un instante "seguro" del día — las dos veces con el
+resultado correcto. El frontend no cambia: ya manda `p_desde` con `hoyLima()` (`fecha-lima.ts`), el
+bug era solo del lado del servidor.
+
+**Pegada y comprobada contra producción (2026-09-29 22:01 Lima, dentro de la ventana que rompía el
+filtro):** md5 del cuerpo idéntico byte a byte al del repo (570 car., `f3ac...59f4`), `migraciones_
+aplicadas` tiene la 494, y la misma fórmula evaluada en vivo con `now()` de producción dio
+`mañana → false` / `hoy → true` — en el peor momento del día para este bug.
+
+**De paso, algo que no toca esta migración:** `fn_set_meta_cobertura` tiene DOS versiones en
+`public` (medido con la misma consulta). No es el mismo síntoma de la 0393 —esa función no está en
+ningún camino de esta sesión—, pero es la misma familia de accidente (0297/0299) y queda para
+revisar aparte.
+
+## 2026-09-28 — La 0393 deja de gritar «MIRA ARRIBA»: ya estaba explicada · SIN SQL · SIN FUSIONAR
+
+**Origen:** `que_falta_pegar.sql` en producción dijo «393 · ⚠️ SOBRA LA FILA» y «⚠️ 1 PEGADAS Y NO
+GUARDADAS», y la sesión arrancó a decidir si fusionar el generador de firma o retirarlo. **Esa
+decisión ya estaba tomada y medida el 2026-09-08** (entrada de abajo, y `huecos-conocidos.txt`):
+contenido superado por la 0395/0398, no se recupera. Lo que fallaba era la consulta, que no tenía
+forma de saber que un caso ya estaba explicado y gritó igual durante tres semanas — el aviso que
+cazó la 0177, la 0243 y la 0381 estaba aprendiendo a leerse como ruido.
+
+**Qué cambia:** una fila de `huecos-conocidos.txt` con la marca `[sobra la fila: <nombre>]` sale en
+la consulta como «ya explicada» y no cuenta para el resumen. La excepción exige número **y** nombre:
+si otra migración se pega con el 393, el nombre cambia y el aviso vuelve solo. Probado en un
+Postgres desechable: la 0393 real calla; el 393 con otro nombre grita; una huérfana nueva grita
+aunque la 0393 esté explicada; sin marcas, igual que antes.
+
+**La rama `claude/signature-generator-function-bd2127` se guardó y se borró (decidido con Felipe el
+2026-09-28).** Sin PR, fusionarla habría dejado dos `fn_set_mi_firma` y «Quitar firma» habría fallado
+con «is not unique» (comprobado en un Postgres desechable). Mismo caso que la 0108
+(`movilidad-supeditada-a-asistencia`, abandonada en agosto): su commit ya no existe en el disco de
+ninguna Mac de trabajo, solo lo conservaba GitHub sin garantía. Las dos ramas quedaron con una
+etiqueta antes de borrarlas — `archivo/0393-generador-de-firma` y
+`archivo/0108-movilidad-supeditada-a-asistencia` — para que el SQL exacto que corrió en producción
+(o casi corrió, en el caso de la 0108) sobreviva sin depender de que nadie recuerde un hash de
+commit. Ver `scripts/hooks/huecos-conocidos.txt`.
+
+**Pendiente:** re-medir en producción que no haya ninguna `fn_set_mi_firma` de más (la foto es del
+09-08) — la consulta va en el PR.
+
 ## 2026-09-28 — Las estaciones de Retail dejan de ser personas para Dynamic · migraciones 0490 + 0491 · ESCRITAS Y PROBADAS · SIN PEGAR · SIN FUSIONAR
 
 **Origen:** Datos personales mostraba seis «ESTACIÓN — Caja/Almacén … (no es persona)» como fichas
