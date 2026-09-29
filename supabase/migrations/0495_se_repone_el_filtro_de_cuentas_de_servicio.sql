@@ -78,21 +78,32 @@
 do $freno$
 declare
   v_md5_actual text;
+  v_prosrc_actual text;
 begin
-  select md5(prosrc) into v_md5_actual
+  select prosrc, md5(prosrc) into v_prosrc_actual, v_md5_actual
   from pg_proc where proname = 'fn_planilla_calcular_nucleo';
 
   if v_md5_actual is null then
     raise exception 'PARA. fn_planilla_calcular_nucleo no existe.';
   end if;
 
-  if v_md5_actual = '7ccdf385a170b8191e6eb0a0a1e9f41c' then
-    raise notice '0495: ya tiene el filtro repuesto (md5 %). No se toca nada.', v_md5_actual;
+  -- Ya tiene el filtro: puede ser porque esta misma migración ya corrió en
+  -- producción (md5 7ccdf385a170b8191e6eb0a0a1e9f41c), o porque la 0491 se
+  -- aplicó EN ORDEN, sin el accidente de producción — una base construida
+  -- desde cero, como la que arma db-tests en cada PR, donde la 0484 corre
+  -- ANTES que la 0491 y nunca la pisa. Medido en CI: md5
+  -- dd3eaed7707d997cb21963dc3549abc9, un tercer valor válido que la primera
+  -- versión de este freno no contemplaba y hacía fallar sin motivo. En los
+  -- dos casos el destino es el mismo —el filtro puesto—, así que se
+  -- comprueba por su presencia (el mismo criterio que ya usa la 0491 en su
+  -- propia comprobación final) y no por una lista cerrada de md5.
+  if position('cuenta_de_servicio' in v_prosrc_actual) > 0 then
+    raise notice '0495: ya tiene el filtro (md5 %). No se toca nada.', v_md5_actual;
     return;
   end if;
 
   if v_md5_actual <> 'e3a64e989acf92d10cb04cc13eb91c7e' then
-    raise exception 'PARA. El md5 de fn_planilla_calcular_nucleo es % y esta migracion esperaba e3a64e989acf92d10cb04cc13eb91c7e (el medido en produccion el 2026-09-28, antes del filtro) o 7ccdf385a170b8191e6eb0a0a1e9f41c (despues). Alguien volvio a tocar la funcion entre medias: revisar a mano con donde-vive.sh antes de seguir.', v_md5_actual;
+    raise exception 'PARA. El md5 de fn_planilla_calcular_nucleo es % y esta migracion esperaba e3a64e989acf92d10cb04cc13eb91c7e (el medido en produccion el 2026-09-28, antes del filtro) o que ya tuviera el filtro puesto. Alguien volvio a tocar la funcion entre medias: revisar a mano con donde-vive.sh antes de seguir.', v_md5_actual;
   end if;
 end
 $freno$;
