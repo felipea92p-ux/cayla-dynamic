@@ -354,7 +354,9 @@ with repo(numero, nombre, nunca) as (values
     (490, 'una_cuenta_de_servicio_no_es_una_persona', false),
     (491, 'la_planilla_y_las_listas_dejan_fuera_a_las_cuentas_de_servicio', false),
     (492, 'la_declaracion_de_ruta_se_renueva', false),
-    (493, 'estadisticas_de_casos_para_el_dashboard', false)
+    (493, 'estadisticas_de_casos_para_el_dashboard', false),
+    (494, 'casos_resumen_filtra_por_medianoche_de_lima', false),
+    (495, 'se_repone_el_filtro_de_cuentas_de_servicio', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
