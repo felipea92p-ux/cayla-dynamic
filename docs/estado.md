@@ -6,6 +6,26 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-09-28 — La 0393 deja de gritar «MIRA ARRIBA»: ya estaba explicada · SIN SQL · SIN FUSIONAR
+
+**Origen:** `que_falta_pegar.sql` en producción dijo «393 · ⚠️ SOBRA LA FILA» y «⚠️ 1 PEGADAS Y NO
+GUARDADAS», y la sesión arrancó a decidir si fusionar el generador de firma o retirarlo. **Esa
+decisión ya estaba tomada y medida el 2026-09-08** (entrada de abajo, y `huecos-conocidos.txt`):
+contenido superado por la 0395/0398, no se recupera. Lo que fallaba era la consulta, que no tenía
+forma de saber que un caso ya estaba explicado y gritó igual durante tres semanas — el aviso que
+cazó la 0177, la 0243 y la 0381 estaba aprendiendo a leerse como ruido.
+
+**Qué cambia:** una fila de `huecos-conocidos.txt` con la marca `[sobra la fila: <nombre>]` sale en
+la consulta como «ya explicada» y no cuenta para el resumen. La excepción exige número **y** nombre:
+si otra migración se pega con el 393, el nombre cambia y el aviso vuelve solo. Probado en un
+Postgres desechable: la 0393 real calla; el 393 con otro nombre grita; una huérfana nueva grita
+aunque la 0393 esté explicada; sin marcas, igual que antes.
+
+**Pendiente:** re-medir en producción que no haya ninguna `fn_set_mi_firma` de más (la foto es del
+09-08) — la consulta va en el PR. Y la rama `claude/signature-generator-function-bd2127` sigue viva
+en GitHub sin PR: fusionarla hoy dejaría dos `fn_set_mi_firma` y «Quitar firma» fallaría con «is not
+unique» (comprobado). Decidir con Felipe si se borra.
+
 ## 2026-09-28 — Las estaciones de Retail dejan de ser personas para Dynamic · migraciones 0490 + 0491 · ESCRITAS Y PROBADAS · SIN PEGAR · SIN FUSIONAR
 
 **Origen:** Datos personales mostraba seis «ESTACIÓN — Caja/Almacén … (no es persona)» como fichas

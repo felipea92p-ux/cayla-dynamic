@@ -15,6 +15,17 @@
 # la consulta que genera `./scripts/que-falta-pegar.sh`, corrida en producción:
 # si el número aparece como «SOBRA LA FILA», no es un hueco explicado — es una
 # migración perdida, y hay que recuperar su contenido antes de silenciarla.
+#
+# SALVO UN CASO, que lleva marca propia: la fila está en producción pero su
+# contenido quedó SUPERADO por migraciones que sí están guardadas, y recuperar
+# el archivo haría daño (ver la 0393, abajo). Esa línea se escribe
+#
+#   0393  [sobra la fila: <nombre exacto en migraciones_aplicadas>] <razón>
+#
+# y `que-falta-pegar.sh` la muestra como «ya explicada» en vez de gritar «MIRA
+# ARRIBA». El nombre va porque es lo que prueba que la fila es LA que se
+# investigó: si otra migración se pega mañana con el mismo número, el nombre
+# cambia y el aviso vuelve solo. Sin marca, el aviso sigue — que es lo seguro.
 
 0031  Fuera de git por datos personales. Vive como scripts/sql-manual/aplicar_0031_historico_2025.sql, ignorado en .gitignore. Su fila SÍ está en migraciones_aplicadas.
 0033  Igual que la 0031: scripts/sql-manual/aplicar_0033_ingresos_2025.sql, fuera de git por datos personales.
@@ -129,7 +140,15 @@
 #
 # Medido el 2026-09-08 contra producción: la función existe con tres argumentos,
 # y no hay ninguna de un argumento.
-0393  Pegada el 07/09 desde una rama sin fusionar, pero su contenido quedó superado por la 0395 y la 0398, que sí están en main y en producción. NO se recupera el archivo: crearía una sobrecarga de fn_set_mi_firma y rompería la pantalla con «function is not unique». El PR de esa rama se cierra sin fusionar.
+#
+# Y la rama sigue viva en GitHub (sin PR): fusionarla hoy traería además su
+# 0394, que crea `fn_set_mi_firma(text, text)` junto a la de tres, y «Quitar
+# firma» —que llama con un solo argumento— reventaría con «is not unique».
+# Comprobado el 2026-09-28 en un Postgres desechable, sobre la historia de
+# producción (0393 → 0395 → 0398): pegar esa 0394 deja dos fn_set_mi_firma y
+# la llamada de un argumento falla. Lo mismo si alguien volviera a pegar la
+# 0393 después de la 0398.
+0393  [sobra la fila: cualquiera_guarda_su_propia_firma] Pegada el 07/09 desde una rama sin fusionar, pero su contenido quedó superado por la 0395 y la 0398, que sí están en main y en producción. NO se recupera el archivo: crearía una sobrecarga de fn_set_mi_firma y rompería la pantalla con «function is not unique». El PR de esa rama se cierra sin fusionar.
 
 # ── 0420 · RENUMERACIÓN LIMPIA (2026-09-11) ─────────────────────────────────
 #
