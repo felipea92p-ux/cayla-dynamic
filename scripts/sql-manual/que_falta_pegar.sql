@@ -356,7 +356,8 @@ with repo(numero, nombre, nunca) as (values
     (492, 'la_declaracion_de_ruta_se_renueva', false),
     (493, 'estadisticas_de_casos_para_el_dashboard', false),
     (494, 'casos_resumen_filtra_por_medianoche_de_lima', false),
-    (495, 'se_repone_el_filtro_de_cuentas_de_servicio', false)
+    (495, 'se_repone_el_filtro_de_cuentas_de_servicio', false),
+    (496, 'un_periodo_con_todo_pagado_deja_de_leerse_como_a_medias', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
