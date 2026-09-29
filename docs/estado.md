@@ -6,6 +6,25 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-09-29 — Casos filtraba `p_desde` contra la medianoche de UTC, no la de Lima · migración 0494 · SIN PEGAR
+
+**Origen:** CI (db-tests) del PR #472 reventó la prueba 390 con «con p_desde de mañana, ninguno
+califica» — dio 3, no 0. No fue flaky: `fn_casos_resumen` (0493) comparaba `r.creado_at >= p_desde`
+con `p_desde date`, y ese `>=` convierte `p_desde` con el cast implícito `date → timestamptz`, que
+asume medianoche EN EL TIMEZONE DE LA SESIÓN (UTC en el servidor) y no en Lima. Deja una ventana de
+5 horas —19:00 a 00:00 en Lima— donde un reporte de "ayer" en Lima ya contaba como "de hoy". El CI
+que falló corrió justo en esa ventana (02:46 UTC = 21:46 Lima del día previo); fuera de ella la
+prueba pasa siempre, así que se leía como intermitente sin serlo.
+
+**Arreglo:** ancla `p_desde` a la medianoche de Lima con la misma fórmula que ya usa la 0488
+(`(fecha + time '00:00:00') at time zone 'America/Lima'`) — el `+ time` fuerza el tipo `timestamp`
+antes de `at time zone`, que sin eso resuelve el overload contrario en silencio (medido: sin el
+`+ time`, `date at time zone 'America/Lima'` da la conversión Lima→UTC en vez de UTC→Lima, sin
+ningún error que avise). Reproducido y verificado en un Postgres desechable con el instante exacto
+del CI que falló, y con la misma fórmula en un instante "seguro" del día — las dos veces con el
+resultado correcto. El frontend no cambia: ya manda `p_desde` con `hoyLima()` (`fecha-lima.ts`), el
+bug era solo del lado del servidor.
+
 ## 2026-09-28 — La 0393 deja de gritar «MIRA ARRIBA»: ya estaba explicada · SIN SQL · SIN FUSIONAR
 
 **Origen:** `que_falta_pegar.sql` en producción dijo «393 · ⚠️ SOBRA LA FILA» y «⚠️ 1 PEGADAS Y NO
