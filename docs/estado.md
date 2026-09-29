@@ -6,7 +6,7 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-09-29 — Casos filtraba `p_desde` contra la medianoche de UTC, no la de Lima · migración 0494 · SIN PEGAR
+## 2026-09-29 — Casos filtraba `p_desde` contra la medianoche de UTC, no la de Lima · migración 0494 · PEGADA Y VERIFICADA · SIN FUSIONAR
 
 **Origen:** CI (db-tests) del PR #472 reventó la prueba 390 con «con p_desde de mañana, ninguno
 califica» — dio 3, no 0. No fue flaky: `fn_casos_resumen` (0493) comparaba `r.creado_at >= p_desde`
@@ -24,6 +24,16 @@ ningún error que avise). Reproducido y verificado en un Postgres desechable con
 del CI que falló, y con la misma fórmula en un instante "seguro" del día — las dos veces con el
 resultado correcto. El frontend no cambia: ya manda `p_desde` con `hoyLima()` (`fecha-lima.ts`), el
 bug era solo del lado del servidor.
+
+**Pegada y comprobada contra producción (2026-09-29 22:01 Lima, dentro de la ventana que rompía el
+filtro):** md5 del cuerpo idéntico byte a byte al del repo (570 car., `f3ac...59f4`), `migraciones_
+aplicadas` tiene la 494, y la misma fórmula evaluada en vivo con `now()` de producción dio
+`mañana → false` / `hoy → true` — en el peor momento del día para este bug.
+
+**De paso, algo que no toca esta migración:** `fn_set_meta_cobertura` tiene DOS versiones en
+`public` (medido con la misma consulta). No es el mismo síntoma de la 0393 —esa función no está en
+ningún camino de esta sesión—, pero es la misma familia de accidente (0297/0299) y queda para
+revisar aparte.
 
 ## 2026-09-28 — La 0393 deja de gritar «MIRA ARRIBA»: ya estaba explicada · SIN SQL · SIN FUSIONAR
 
