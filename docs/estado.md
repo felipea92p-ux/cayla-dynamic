@@ -21,10 +21,18 @@ si otra migración se pega con el 393, el nombre cambia y el aviso vuelve solo. 
 Postgres desechable: la 0393 real calla; el 393 con otro nombre grita; una huérfana nueva grita
 aunque la 0393 esté explicada; sin marcas, igual que antes.
 
+**La rama `claude/signature-generator-function-bd2127` se guardó y se borró (decidido con Felipe el
+2026-09-28).** Sin PR, fusionarla habría dejado dos `fn_set_mi_firma` y «Quitar firma» habría fallado
+con «is not unique» (comprobado en un Postgres desechable). Mismo caso que la 0108
+(`movilidad-supeditada-a-asistencia`, abandonada en agosto): su commit ya no existe en el disco de
+ninguna Mac de trabajo, solo lo conservaba GitHub sin garantía. Las dos ramas quedaron con una
+etiqueta antes de borrarlas — `archivo/0393-generador-de-firma` y
+`archivo/0108-movilidad-supeditada-a-asistencia` — para que el SQL exacto que corrió en producción
+(o casi corrió, en el caso de la 0108) sobreviva sin depender de que nadie recuerde un hash de
+commit. Ver `scripts/hooks/huecos-conocidos.txt`.
+
 **Pendiente:** re-medir en producción que no haya ninguna `fn_set_mi_firma` de más (la foto es del
-09-08) — la consulta va en el PR. Y la rama `claude/signature-generator-function-bd2127` sigue viva
-en GitHub sin PR: fusionarla hoy dejaría dos `fn_set_mi_firma` y «Quitar firma» fallaría con «is not
-unique» (comprobado). Decidir con Felipe si se borra.
+09-08) — la consulta va en el PR.
 
 ## 2026-09-28 — Las estaciones de Retail dejan de ser personas para Dynamic · migraciones 0490 + 0491 · ESCRITAS Y PROBADAS · SIN PEGAR · SIN FUSIONAR
 

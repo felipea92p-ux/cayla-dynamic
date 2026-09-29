@@ -29,7 +29,7 @@
 
 0031  Fuera de git por datos personales. Vive como scripts/sql-manual/aplicar_0031_historico_2025.sql, ignorado en .gitignore. Su fila SÍ está en migraciones_aplicadas.
 0033  Igual que la 0031: scripts/sql-manual/aplicar_0033_ingresos_2025.sql, fuera de git por datos personales.
-0108  Existió en la rama movilidad-supeditada-a-asistencia (commit 1b54c02, del 2026-07-29), BORRADA el 2026-08-05 después de revisarla. Nunca se aplicó en producción. Su contenido está superado: la jurisprudencia (Res. 239-2020-SUNAFIL, Exp. 1038-2019) vive en la 0111, 0117, 0118, 0122, 0142 y 0150; los pasajes por ciudad están en la 0142 y más actualizados; y el sustento firmado de cada ruta es el pendiente de los convenios en docs/estado.md. Lo ÚNICO exclusivo era su fn_planilla_calcular del 29/07, con tarifa S/6 única: fusionarla habría revertido ocho migraciones de planilla. Se recupera con `git checkout 1b54c02 -- supabase/migrations/0108_movilidad_supeditada_a_asistencia.sql`.
+0108  Existió en la rama movilidad-supeditada-a-asistencia (commit 1b54c02, del 2026-07-29), BORRADA el 2026-08-05 después de revisarla. Nunca se aplicó en producción. Su contenido está superado: la jurisprudencia (Res. 239-2020-SUNAFIL, Exp. 1038-2019) vive en la 0111, 0117, 0118, 0122, 0142 y 0150; los pasajes por ciudad están en la 0142 y más actualizados; y el sustento firmado de cada ruta es el pendiente de los convenios en docs/estado.md. Lo ÚNICO exclusivo era su fn_planilla_calcular del 29/07, con tarifa S/6 única: fusionarla habría revertido ocho migraciones de planilla. El commit 1b54c02 ya no existe en el disco de ninguna Mac de trabajo (comprobado el 2026-09-28) — solo lo conservaba GitHub, sin garantía, así que se le puso la etiqueta `archivo/0108-movilidad-supeditada-a-asistencia`. Se recupera con `git checkout archivo/0108-movilidad-supeditada-a-asistencia -- supabase/migrations/0108_movilidad_supeditada_a_asistencia.sql`.
 0133  Número saltado al numerar. Comprobado contra producción el 2026-08-05: no figura en migraciones_aplicadas, así que nunca se aplicó. No hay nada que recuperar.
 0139  Número saltado al numerar, mismo caso que la 0133 y comprobado el mismo día.
 
@@ -141,14 +141,20 @@
 # Medido el 2026-09-08 contra producción: la función existe con tres argumentos,
 # y no hay ninguna de un argumento.
 #
-# Y la rama sigue viva en GitHub (sin PR): fusionarla hoy traería además su
-# 0394, que crea `fn_set_mi_firma(text, text)` junto a la de tres, y «Quitar
-# firma» —que llama con un solo argumento— reventaría con «is not unique».
-# Comprobado el 2026-09-28 en un Postgres desechable, sobre la historia de
-# producción (0393 → 0395 → 0398): pegar esa 0394 deja dos fn_set_mi_firma y
-# la llamada de un argumento falla. Lo mismo si alguien volviera a pegar la
-# 0393 después de la 0398.
-0393  [sobra la fila: cualquiera_guarda_su_propia_firma] Pegada el 07/09 desde una rama sin fusionar, pero su contenido quedó superado por la 0395 y la 0398, que sí están en main y en producción. NO se recupera el archivo: crearía una sobrecarga de fn_set_mi_firma y rompería la pantalla con «function is not unique». El PR de esa rama se cierra sin fusionar.
+# La rama estuvo viva en GitHub (sin PR) hasta el 2026-09-28: fusionarla habría
+# traído además su 0394, que crea `fn_set_mi_firma(text, text)` junto a la de
+# tres, y «Quitar firma» —que llama con un solo argumento— habría reventado con
+# «is not unique». Comprobado ese día en un Postgres desechable, sobre la
+# historia de producción (0393 → 0395 → 0398): pegar esa 0394 deja dos
+# fn_set_mi_firma y la llamada de un argumento falla. Lo mismo si alguien
+# volviera a pegar la 0393 después de la 0398.
+#
+# Con esa trampa confirmada, la rama se guardó con la etiqueta
+# `archivo/0393-generador-de-firma` (contiene la 0393 idéntica a la pegada, la
+# 0394 nunca pegada, y el generador de firma) y se borró — decidido con Felipe
+# el 2026-09-28. Ya no hay PR ni rama que alguien pueda fusionar por error; el
+# SQL exacto que corrió en producción sigue disponible desde la etiqueta.
+0393  [sobra la fila: cualquiera_guarda_su_propia_firma] Pegada el 07/09 desde una rama sin fusionar, pero su contenido quedó superado por la 0395 y la 0398, que sí están en main y en producción. NO se recupera el archivo: crearía una sobrecarga de fn_set_mi_firma y rompería la pantalla con «function is not unique». La rama se guardó como `archivo/0393-generador-de-firma` y se borró el 2026-09-28.
 
 # ── 0420 · RENUMERACIÓN LIMPIA (2026-09-11) ─────────────────────────────────
 #
