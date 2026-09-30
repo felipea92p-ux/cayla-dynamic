@@ -8289,6 +8289,7 @@ export type Database = {
           paga: boolean
           requiere_aprobacion: boolean
           requiere_documento: boolean
+          suspende_record: boolean
           ventana_alerta_dias: number | null
         }[]
         SetofOptions: {
