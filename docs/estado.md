@@ -6,7 +6,7 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-09-29/30 — Un cese con reingreso se regulariza (0499 PEGADA · regularización HECHA y verificada) · la licencia sin goce (0497/0498) está FUSIONADA pero SIN PEGAR
+## 2026-09-29/30 — Un cese con reingreso se regulariza (0499 PEGADA · regularización HECHA y verificada) · la licencia sin goce (0497/0498) se RETIRÓ sin haberse pegado
 
 **Estado al 2026-09-30, por la tarde — lo que de verdad pasó en producción:**
 - **0499 pegada y verificada** (`funcion_cambiada = true`; `migraciones_aplicadas` tiene la 499 con su nombre).
@@ -20,10 +20,17 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
   15.04 → 4.96 días, reserva sin líneas negativas (vac S/141.65, CTS S/153.45, gratificación S/211.80), el
   sistema no la da por liquidada, y el rastro tiene sus dos filas. El bloque para deshacerlo quedó probado
   (anula la liquidación y devuelve el ingreso; no despaga lo pagado) y no se necesitó.
-- **0497/0498 fusionadas (#474) pero sin pegar y sin uso**: no hacen falta para este caso (son para un acuerdo de
-  no venir SIN cese). Mientras tanto `que_falta_pegar.sql` las marca ❌. Decisión pendiente: pegarlas (inertes con
-  el interruptor apagado, pero reescriben cuatro funciones grandes para algo que hoy nadie usa) o retirarlas
-  dejando el hueco 0497–0498 documentado en `huecos-conocidos.txt`.
+- **0497/0498 (licencia sin goce) RETIRADAS el 2026-09-30, sin haberse pegado nunca.** Estaban fusionadas desde
+  #474 y no hacían falta para este caso (son para un acuerdo de no venir SIN cese). Se retiraron por tres razones:
+  el uso futuro es bajo e incierto (un caso en unas treinta personas, y ese caso no era una licencia); no se podían
+  encender hasta que el laboralista respondiera; y mientras estuvieran sin pegar el informe de «qué falta pegar»
+  las marcaba ❌ para siempre, que es lo que enseña a no mirarlo. Se retiró también el aviso de la pantalla de
+  Ausencias y los tipos. **Siguen en el historial de git** (commits `104a111b`, `b61e6675` y `413e0e5d`, PR #474):
+  para reponerlas hacen falta dos cosas —un caso real de acuerdo sin cese y la respuesta del laboralista sobre si
+  esos días cuentan como servicio—, y entonces conviene rehacerlas sobre la versión vigente de las cuatro funciones,
+  no restaurarlas tal cual. Quedan como hueco documentado en `huecos-conocidos.txt`.
+  **Lo que de verdad falta construir es un flujo de reingreso**: el caso real fue un cese con reingreso, y hoy se
+  resuelve con SQL a mano; `fn_reactivar_persona` conserva `fecha_ingreso` y no hay historial de ingresos.
 - **Accidente de proceso, ya rescatado:** #474 se fusionó a las 09:39 (Lima), ANTES de que se subiera la 0499;
   esos commits quedaron en la rama, fuera de `main`, mientras producción ya tenía la función. Es el mismo
   modo de fallar que #452/#453. Se rescataron en un PR aparte. **Regla: no empujar más commits a una rama cuyo
@@ -46,6 +53,8 @@ cuadraba eran los días.
 registrara esos 71 días como lo que fueran: el contador seguía en 15.0. Y la liquidación al cesar
 paga `días pendientes` desde ese mismo contador, así que el sistema no tenía cómo representar
 «estuvo fuera». (La reserva en soles nunca tuvo el problema: un día sin marca no tiene `pago_dia`.)
+
+**[RETIRADAS el 2026-09-30 — esta descripción se conserva solo como referencia del diseño.]**
 
 **Se construyó en dos migraciones, a propósito** (primero se cambia el terreno, después el cambio):
 
@@ -152,8 +161,8 @@ si otra sesión fusionó algo que las reescriba, antes de pegar.**
    trabajo del primer periodo, y el contrato de la segunda etapa. El sistema guarda el detalle de la
    liquidación (`liquidacion_pagada.detalle`) pero su pantalla de Liquidaciones lista a quien está
    cesado, así que para alguien activa los papeles hay que armarlos de ese detalle.
-5. Lo de las 0497/0498 (licencia sin goce) **queda como mecanismo** para los acuerdos de no venir sin
-   cese; no hace falta pegarlo para esto.
+5. Lo de las 0497/0498 (licencia sin goce) **se retiró** (ver arriba): no hacía falta para esto y queda en el
+   historial de git por si aparece un caso real.
 
 **Lo que esto NO arregla, y conviene no atribuirle:**
 - **Sueldo fijo:** la planilla no lee `ausencias` (medido en la 0247). Una licencia sin goce baja
