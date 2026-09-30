@@ -116,6 +116,44 @@ con_nombre() {
   done | sed '$ s/,$//'
 }
 
+# ── Las filas que sobran y YA SE EXPLICARON ─────────────────────────────────
+#
+# El estado «SOBRA LA FILA» (ver la consulta, más abajo) tiene dos desenlaces, y
+# el segundo —«su contenido quedó superado, NO se recupera el archivo»— es
+# permanente: esa fila va a estar en producción para siempre. Hasta el
+# 2026-09-28 la consulta no tenía forma de saberlo, así que la 0393, investigada
+# y medida el 2026-09-08, siguió saliendo como «⚠️ PEGADAS Y NO GUARDADAS» y
+# «MIRA ARRIBA» en cada ejecución durante tres semanas, y el 2026-09-28 una
+# sesión volvió a abrir desde cero una decisión que ya estaba tomada. El único
+# aviso de esta consulta que cazó la 0177, la 0243 y la 0381 estaba aprendiendo
+# a leerse como ruido.
+#
+# Se declara en `huecos-conocidos.txt`, que es donde ya vive la explicación, con
+# una marca en la misma línea: `0393  [sobra la fila: <nombre>] <razón>`. Lee
+# del árbol que se empuja y no del que guarda el script, por la misma razón que
+# `hooks/numeracion.sh`: una rama puede explicar algo que `main` todavía no.
+#
+# POR QUÉ NÚMERO Y NOMBRE, no solo el número. Desde el 2026-09-10 el registro se
+# escribe con `do update set nombre`: si otra migración se pega mañana con el
+# número 393, la fila cambia de nombre. Esa fila sería una huérfana NUEVA, y una
+# excepción atada solo al número la callaría. Es la misma lección de la 0405 y la
+# 0409: un registro se verifica por `numero` Y `nombre`.
+HUECOS_CONOCIDOS="scripts/hooks/huecos-conocidos.txt"
+explicadas_cte() {
+  local filas=""
+  if [ -f "$HUECOS_CONOCIDOS" ]; then
+    filas="$(grep -E '^[0-9]+[[:space:]]+\[sobra la fila: [^]]+\]' "$HUECOS_CONOCIDOS" \
+      | sed -E "s/^0*([0-9]+)[[:space:]]+\[sobra la fila: ([^]]+)\].*/(\1, '\2')/" \
+      | paste -sd, - || true)"
+  fi
+  if [ -n "$filas" ]; then
+    echo "explicadas(numero, nombre) as (values $filas),"
+  else
+    # `values` vacío no es SQL válido; una lista sin filas sí.
+    echo "explicadas(numero, nombre) as (select null::int, null::text where false),"
+  fi
+}
+
 # ── El catálogo de versiones de fn_planilla_calcular, CALCULADO ──────────────
 #
 # Hasta el 2026-08-08 estas líneas se escribían a mano, y ese día mintieron TRES
@@ -281,13 +319,20 @@ diff as (
 --   b) El número se anotó pero su contenido quedó SUPERADO por migraciones
 --      posteriores que sí están guardadas → NO commitear el archivo viejo, que
 --      podría crear una sobrecarga y repetir el «function is not unique» de la
---      0297/0299. Se anota el número en `huecos-conocidos.txt` con su razón.
---      Es el caso de la 0393, medido el 2026-09-08.
+--      0297/0299. Se anota en `huecos-conocidos.txt` con su razón y la marca
+--      `[sobra la fila: <nombre>]`: desde entonces sale acá como «ya
+--      explicada» y deja de contar como alarma. Es el caso de la 0393, medido
+--      el 2026-09-08.
 --
 -- Para distinguirlas hay que mirar si lo que esa migración creaba sigue vigente
--- en producción con la misma firma. Cero filas es lo normal.
+-- en producción con la misma firma. Cero filas SIN EXPLICAR es lo normal.
+PIE
+explicadas_cte
+cat <<'PIE1'
 huerfanas as (
-  select a.numero, a.nombre, a.aplicada_at
+  select a.numero, a.nombre, a.aplicada_at,
+         exists (select 1 from explicadas e
+                  where e.numero = a.numero and e.nombre = a.nombre) as explicada
   from migraciones_aplicadas a
   where a.numero >= (select min(numero) from repo)
     and not exists (select 1 from repo r where r.numero = a.numero)
@@ -305,11 +350,14 @@ select * from (
 
   union all
 
-  -- Las huérfanas, una fila cada una y ANTES del resumen. Si hay alguna, es lo
-  -- único que importa de toda esta consulta.
+  -- Las huérfanas, una fila cada una y ANTES del resumen. Si hay alguna sin
+  -- explicar, es lo único que importa de toda esta consulta. Las explicadas se
+  -- siguen viendo —como las que no se pegan—, pero con su razón al lado.
   select a.numero::text,
          a.nombre,
-         '⚠️  SOBRA LA FILA — revísala (ver abajo)',
+         case when a.explicada
+              then '—   sobra la fila, ya explicada (ver scripts/hooks/huecos-conocidos.txt)'
+              else '⚠️  SOBRA LA FILA — revísala (ver abajo)' end,
          to_char(a.aplicada_at, 'DD/MM/YYYY'),
          999997
   from huerfanas a
@@ -324,13 +372,13 @@ select * from (
          (select count(*) filter (where not falta and not nunca_ira) from diff)::text || ' aplicadas · ' ||
          (select count(*) filter (where nunca_ira) from diff)::text || ' que no se pegan · ' ||
          (select count(*) from diff)::text || ' en git' ||
-         case when (select count(*) from huerfanas) > 0
-              then ' · ⚠️ ' || (select count(*) from huerfanas)::text || ' PEGADAS Y NO GUARDADAS'
+         case when (select count(*) filter (where not explicada) from huerfanas) > 0
+              then ' · ⚠️ ' || (select count(*) filter (where not explicada) from huerfanas)::text || ' PEGADAS Y NO GUARDADAS'
               else '' end,
-         -- Una huérfana manda sobre todo lo demás: que falte pegar algo es
-         -- atraso normal; que algo esté pegado y sin guardar es lo que costó
-         -- tres sustos y no avisa solo.
-         case when (select count(*) from huerfanas) > 0 then '⚠️  MIRA ARRIBA'
+         -- Una huérfana sin explicar manda sobre todo lo demás: que falte pegar
+         -- algo es atraso normal; que algo esté pegado y sin guardar es lo que
+         -- costó tres sustos y no avisa solo.
+         case when (select count(*) filter (where not explicada) from huerfanas) > 0 then '⚠️  MIRA ARRIBA'
               when (select count(*) filter (where falta) from diff) = 0
               then '✓   al día' else '❌  hay pendientes' end,
          '', 999999
@@ -342,7 +390,7 @@ select * from (
          'fn_planilla_calcular · versión viva',
          coalesce((
            select case md5(prosrc)
-PIE
+PIE1
 catalogo_planilla
 cat <<'PIE2'
              else '⚠ md5 SIN CATALOGAR: ' || md5(prosrc)

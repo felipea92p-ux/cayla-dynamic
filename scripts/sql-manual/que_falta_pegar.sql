@@ -354,7 +354,12 @@ with repo(numero, nombre, nunca) as (values
     (490, 'una_cuenta_de_servicio_no_es_una_persona', false),
     (491, 'la_planilla_y_las_listas_dejan_fuera_a_las_cuentas_de_servicio', false),
     (492, 'la_declaracion_de_ruta_se_renueva', false),
-    (493, 'estadisticas_de_casos_para_el_dashboard', false)
+    (493, 'estadisticas_de_casos_para_el_dashboard', false),
+    (494, 'casos_resumen_filtra_por_medianoche_de_lima', false),
+    (495, 'se_repone_el_filtro_de_cuentas_de_servicio', false),
+    (496, 'un_periodo_con_todo_pagado_deja_de_leerse_como_a_medias', false),
+    (497, 'una_interrupcion_de_servicio_se_puede_registrar', false),
+    (498, 'las_vacaciones_descuentan_la_licencia_sin_goce', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
