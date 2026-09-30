@@ -6,6 +6,98 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-09-29 — Las interrupciones de servicio ya se pueden registrar y el contador de vacaciones puede leerlas · migraciones 0497 y 0498 · SIN PEGAR · SIN FUSIONAR
+
+**Origen:** la pantalla de Provisiones mostraba **15.0 días** de vacaciones para una integrante
+que cumple su primer año esta semana, y la pregunta fue cómo los acumuló tan rápido si estudia
+y trabaja a tiempo parcial. Los datos de producción (SELECTs de Felipe, sin nombres aquí): ingreso
+hace un año, sin cese, sueldo continuo, y **71 días seguidos sin una sola marca** en el medio, sin
+ninguna ausencia escrita. El monto reservado estaba bien —sigue las horas marcadas—; lo que no
+cuadraba eran los días.
+
+**El defecto no era aritmético, era de modelo.** `fn_vacaciones_saldo_interno` (0357) gana
+`15 × años + trunco` por calendario desde `fecha_ingreso` y **no lee `ausencias`**. Da igual que DO
+registrara esos 71 días como lo que fueran: el contador seguía en 15.0. Y la liquidación al cesar
+paga `días pendientes` desde ese mismo contador, así que el sistema no tenía cómo representar
+«estuvo fuera». (La reserva en soles nunca tuvo el problema: un día sin marca no tiene `pago_dia`.)
+
+**Se construyó en dos migraciones, a propósito** (primero se cambia el terreno, después el cambio):
+
+| | qué hace | toca plata | necesita md5 |
+|---|---|---|---|
+| **0497** | columna `tipos_ausencia.suspende_record` (con dos constraints: no puede convivir con `paga` ni con `descuenta_vacaciones`), el tipo `licencia_sin_goce` y dos funciones internas (`fn_dias_suspendidos`, `fn_fecha_ingreso_efectiva`) | no | no: solo agrega |
+| **0498** | `fn_vacaciones_saldo_interno`, `fn_vacaciones_truncas`, `fn_vacaciones_resumen` y `fn_provisiones` leen el ingreso efectivo | sí | sí: guardia dentro de la migración |
+
+**El interruptor nace APAGADO.** Si los días de una licencia sin goce restan del año de servicio es
+una regla legal, y no la decide una migración. Con él apagado ambas migraciones son inertes: se
+puede pegar y registrar desde hoy sin que se mueva un día ni un sol. Cuando el laboralista confirme:
+`update tipos_ausencia set suspende_record = true where codigo = 'licencia_sin_goce';` — sin
+migración, y todo lo ya registrado cuenta desde ese momento.
+
+**Restar los días y correr el aniversario son la MISMA cuenta** (se había planteado como dos
+opciones para el laboralista): una sola función, `fn_fecha_ingreso_efectiva`, corre `fecha_ingreso`
+tantos días como la persona estuvo fuera, y las cuatro la leen. La única pregunta legal que queda
+es binaria: ¿cuenta como servicio, sí o no?
+
+**Medido en un Postgres desechable** (fechas inventadas, sueldo S/1,950, 71 días fuera): saldo
+14.88 → 11.88 días, liquidación S/967.20 → S/772.20 (= 3 × 1,950 ÷ 2 ÷ 15 = S/195.00), reserva en
+soles sin cambio. Con el interruptor apagado las **44 pruebas** que ya tocaban estas funciones
+(565 aserciones) dan exactamente lo mismo antes y después. Pruebas nuevas: 391 (23 aserciones) y
+392 (24), y se comprobó que pueden fallar rompiendo cada función de a una.
+
+**La guardia de la 0498.** No se pudo pedir el md5 a producción antes de escribirla, así que la
+verificación se movió al momento de pegar: la migración compara cada cuerpo contra el que se leyó
+(repositorio al 2026-09-29) y **PARA sin aplicar nada** si es otra versión. Acepta tal cual, sin
+comentarios y con `\r` por línea. Probada con una versión distinta (aborta, no aplica nada), con
+`\r` (pasa) y repegada sobre sí misma (aborta). **Aun así: `donde-vive.sh` de las cuatro y mirar
+si otra sesión fusionó algo que las reescriba, antes de pegar.**
+
+**Pendiente, en este orden:**
+1. **RESPONDIDO por Felipe el 2026-09-30: la persona se fue, dejó de trabajar y luego regresó.**
+   Eso **no es una licencia sin goce**, y la diferencia importa: es un cese seguido de un reingreso
+   (o, si nadie lo formalizó, una ausencia de hecho cuya naturaleza legal decide el laboralista).
+   **Las 0497/0498 NO resuelven este caso**: cubren un acuerdo de no venir sin cese, que es otra
+   cosa. Lo que el sistema tiene hoy para esto:
+   · No hay cese registrado (`fecha_cese` nula, sin rastro de cese ni de reactivación en
+     `correcciones_auditoria`) y el tramo de sueldo siguió abierto.
+   · **No existe un flujo de reingreso.** `fn_reactivar_persona` (0209/0327) existe «porque a veces la
+     baja fue un error»: conserva `fecha_ingreso`, así que aunque SÍ se hubiera cesado y reactivado,
+     el contador de vacaciones contaría el hueco como servicio. Hay una sola columna de fecha de
+     ingreso por persona y ningún historial de ingresos.
+   · Si fue un cese real, la liquidación de la primera etapa (vacaciones, CTS y gratificación
+     truncas) habría estado vencida desde entonces y hoy no hay cómo saber si se pagó. **Esto hay que
+     mirarlo con el laboralista antes que cualquier cambio de código.**
+   · Otra persona activa tiene **exactamente el mismo patrón** (cero marcas en abril y mayo, cuando
+     las otras nueve tienen entre 22 y 29 por mes): no es un hueco global de la importación, pero
+     sí conviene saber si es el mismo caso.
+2. **Registrarlos con fecha pasada NO se puede por la vía normal:** `fn_registrar_ausencia` rechaza
+   cualquier ausencia que cruce un periodo ya pagado (0327), y esos 71 días cruzan tres. Es el
+   freno correcto en general. Para este caso hay que hacerlo a mano en el SQL Editor y con rastro
+   en `correcciones_auditoria`; **ese SQL nombra a una persona y no vive en git.**
+3. **Consulta al laboralista, con los hechos de arriba:** (a) si alguien que se fue sin que se
+   formalizara un cese y volvió conserva su antigüedad o empieza una nueva; (b) si hubo un cese
+   de hecho, qué queda pendiente de la primera etapa; (c) para los acuerdos de no venir SIN cese,
+   si esos días cuentan como servicio para el récord vacacional. Hasta que responda, el
+   interruptor sigue apagado.
+4. Pegar la 0497 (sin riesgo), después la 0498 (con `donde-vive.sh` antes), y recién entonces
+   encender el interruptor — **solo si hay casos de acuerdo sin cese; para un cese con reingreso el
+   camino es otro y todavía no existe.**
+
+**Lo que esto NO arregla, y conviene no atribuirle:**
+- **Sueldo fijo:** la planilla no lee `ausencias` (medido en la 0247). Una licencia sin goce baja
+  los días de vacaciones de quien tiene sueldo fijo, pero **no** le baja el sueldo; ese descuento
+  hay que hacerlo aparte.
+- **La reserva de vacaciones vuelve a cero en el aniversario de calendario** aunque los días
+  ganados sigan sin gozar (`vv` mide desde `va.aniv_ini`, `fn_provisiones` 0491). Es un defecto
+  aparte y anterior: mientras `fn_vacaciones_resumen` dice «te debemos 15 días», Provisiones
+  reserva casi cero. Sale de leer el código; se puede confirmar mirando la columna Vacaciones de
+  cualquiera el día siguiente a su aniversario. Sin decidir.
+- **`fn_personas_sin_horario_vigente` (0385) ya existía** y ya mide a quien marca sin horario. Lo
+  que salió de más en esta revisión —marcas de enero a julio sin horario— es en su mayoría
+  historia importada de antes del 10 de julio, cuando `horarios_asignados` todavía no existía; no
+  es un defecto nuevo. Las dos personas de Central que siguen sin horario hoy son las que la 0385
+  ya documenta como a propósito.
+
 ## 2026-09-29 — Casos filtraba `p_desde` contra la medianoche de UTC, no la de Lima · migración 0494 · PEGADA Y VERIFICADA · SIN FUSIONAR
 
 **Origen:** CI (db-tests) del PR #472 reventó la prueba 390 con «con p_desde de mañana, ninguno

@@ -4957,6 +4957,7 @@ export type Database = {
           paga: boolean
           requiere_aprobacion: boolean
           requiere_documento: boolean
+          suspende_record: boolean
           ventana_alerta_dias: number | null
         }
         Insert: {
@@ -4969,6 +4970,7 @@ export type Database = {
           paga?: boolean
           requiere_aprobacion?: boolean
           requiere_documento?: boolean
+          suspende_record?: boolean
           ventana_alerta_dias?: number | null
         }
         Update: {
@@ -4981,6 +4983,7 @@ export type Database = {
           paga?: boolean
           requiere_aprobacion?: boolean
           requiere_documento?: boolean
+          suspende_record?: boolean
           ventana_alerta_dias?: number | null
         }
         Relationships: []
@@ -6142,6 +6145,14 @@ export type Database = {
           sede: string
         }[]
       }
+      fn_dias_suspendidos: {
+        Args: {
+          p_desde: string | null
+          p_hasta: string | null
+          p_persona_id: string | null
+        }
+        Returns: number
+      }
       fn_dias_suspension: {
         Args: { p_desde: string | null; p_dias: number | null; p_persona_id: string | null }
         Returns: {
@@ -6786,6 +6797,10 @@ export type Database = {
       fn_fecha_en_periodo_pagado: {
         Args: { p_fecha: string | null; p_persona_id: string | null }
         Returns: boolean
+      }
+      fn_fecha_ingreso_efectiva: {
+        Args: { p_as_of: string | null; p_persona_id: string | null }
+        Returns: string
       }
       fn_fecha_limite_asistencia: {
         Args: { p_persona_id: string | null }
@@ -8274,6 +8289,7 @@ export type Database = {
           paga: boolean
           requiere_aprobacion: boolean
           requiere_documento: boolean
+          suspende_record: boolean
           ventana_alerta_dias: number | null
         }[]
         SetofOptions: {
