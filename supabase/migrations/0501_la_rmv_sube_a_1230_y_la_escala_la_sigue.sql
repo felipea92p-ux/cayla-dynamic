@@ -114,7 +114,7 @@
 --       cambia. Las pendientes se recalculan con 123 al abrirlas.
 --     · Qué error deja, y en qué sentido: una liquidación cuya fecha de
 --       referencia sea anterior al 2026-10-01 (un cese de octubre mira el mes
---       anterior) y se calcule con 123 en vez de 113 paga unos céntimos de más
+--       anterior) y se calcule con 123 en vez de 113 paga de más (medido: unos S/ 17.67 en una liquidación sin pagar de alguien con hijos que cesó en septiembre)
 --       —a favor de quien se va y acotado a esa ventana—; lo contrario, dejar
 --       113, pagaba de menos a todo cese desde noviembre, sin límite.
 --     · DEUDA que queda y se anota en estado.md: `fn_remuneracion_computable`
@@ -212,9 +212,14 @@
 --       update configuracion set valor = jsonb_set(valor,'{monto}','113.00')
 --        where clave = 'asignacion_familiar';
 --       alter table personas alter column sueldo_base_legal set default 1130.00;
---   · Los sueldos: volver a llamar `fn_fijar_base_declarada` con el monto viejo
---     del rango y la MISMA fecha (2026-10-01); deja el mismo dinero de antes (no
---     el mismo historial: queda el tramo viejo cerrado y otro igual abierto).
+--   · Los sueldos: ⚠️ NO basta volver a llamar `fn_fijar_base_declarada` con el
+--     monto viejo. Esa función iguala a TODOS los del rango al monto pedido y
+--     solo respeta lo que venga en `p_omitir`: a quien cobre un monto propio por
+--     encima (1,300 o 1,500, justo los que esta migración protege) lo BAJARÍA a
+--     1,130 o 1,185, y bajarle el sueldo a alguien es reducción unilateral. La
+--     reversión correcta se restringe a quienes esta migración subió (tramo
+--     abierto desde 2026-10-01 con la nota «Migración 0501») y pasa a todos los
+--     demás en `p_omitir`; pídela armada, con sus ids, en vez de improvisarla.
 --     Y `categorias_laborales.salario_declarado` de vuelta a 1130 / 1185.
 --   · Después de pagar ese periodo, NADA de esto se revierte sin reducir
 --     unilateralmente una remuneración. En especial la asignación familiar.
