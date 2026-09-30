@@ -67,21 +67,51 @@ si otra sesión fusionó algo que las reescriba, antes de pegar.**
    · Si fue un cese real, la liquidación de la primera etapa (vacaciones, CTS y gratificación
      truncas) habría estado vencida desde entonces y hoy no hay cómo saber si se pagó. **Esto hay que
      mirarlo con el laboralista antes que cualquier cambio de código.**
-   · Otra persona activa tiene **exactamente el mismo patrón** (cero marcas en abril y mayo, cuando
-     las otras nueve tienen entre 22 y 29 por mes): no es un hueco global de la importación, pero
-     sí conviene saber si es el mismo caso.
-2. **Registrarlos con fecha pasada NO se puede por la vía normal:** `fn_registrar_ausencia` rechaza
-   cualquier ausencia que cruce un periodo ya pagado (0327), y esos 71 días cruzan tres. Es el
-   freno correcto en general. Para este caso hay que hacerlo a mano en el SQL Editor y con rastro
-   en `correcciones_auditoria`; **ese SQL nombra a una persona y no vive en git.**
-3. **Consulta al laboralista, con los hechos de arriba:** (a) si alguien que se fue sin que se
-   formalizara un cese y volvió conserva su antigüedad o empieza una nueva; (b) si hubo un cese
-   de hecho, qué queda pendiente de la primera etapa; (c) para los acuerdos de no venir SIN cese,
-   si esos días cuentan como servicio para el récord vacacional. Hasta que responda, el
-   interruptor sigue apagado.
-4. Pegar la 0497 (sin riesgo), después la 0498 (con `donde-vive.sh` antes), y recién entonces
-   encender el interruptor — **solo si hay casos de acuerdo sin cese; para un cese con reingreso el
-   camino es otro y todavía no existe.**
+   · La otra persona activa con cero marcas en abril y mayo (las demás tienen entre 22 y 29 por mes)
+     es una **accionista, fuera de planilla**: no es el mismo caso. (Aquí se sugirió antes que podía
+     serlo; Felipe lo corrigió el 2026-09-30. Quien filtre «activos sin marcas» debe excluir a
+     `no_trabajador`, que no tiene jornada que marcar.) Descartado también un hueco global de la
+     importación: las demás personas de planilla sí tienen marcas esos dos meses.
+2. **DECIDIDO por Felipe el 2026-09-30: opción A — tratarlo como cese y reingreso**, con SQL a mano. El
+   camino normal está cerrado por tres frenos que son correctos en general: `fn_cesar_persona`
+   no cesa dentro de un periodo ya pagado ni cuando hay un sueldo posterior al cese;
+   `fn_set_fecha_ingreso` no cambia el ingreso si hay jornadas en un periodo pagado;
+   `fn_registrar_ausencia` no registra nada que cruce un periodo pagado. Se ensayó entero en un
+   Postgres desechable (caso con la estructura y las cifras del real):
+   · **0499** (en este PR, con la prueba 393): `fn_persona_liquidada` decía «existe alguna fila de
+     liquidación no anulada». Quien se liquidaba y volvía a trabajar quedaba «liquidada» para siempre
+     y **desaparecía de las colas «días por revisar» y «marcas apartadas»** (las dos la usan para
+     ocultar a quien ya cobró). Medido: sin la 0499 su marca apartada dejaba de verse. Y hallazgo de
+     paso: anular la liquidación tampoco la deshacía para esa función, porque la anulación es una
+     versión nueva y la original queda con `anulada = false`. Ahora cuenta la ÚLTIMA versión y solo
+     si es del cese que la persona tiene HOY. 15 pruebas previas (272 aserciones) idénticas.
+   · **El guion de regularización** (4 pasos: diagnóstico, cálculo en seco, escritura, comprobación)
+     **nombra a una persona y no vive en git**; se entrega por el chat. La escritura es un solo bloque
+     todo-o-nada con más de diez guardas (persona única y activa, ingreso esperado —que frena la doble
+     corrida—, fechas coherentes, ninguna marca entre el cese y el reingreso, sin liquidación previa,
+     0499 pegada, y el total igual al que se revisó y se pagó).
+   · Qué hace: registra la liquidación de la primera etapa en `liquidacion_pagada` (la foto inmutable,
+     con su ingreso y su cese) y mueve `fecha_ingreso` al reingreso. **No inactiva a la persona ni un
+     instante**: `personas_cese_coherente` no deja una persona activa con cese y forzarlo dispara el
+     trigger de educación. No toca los tramos de sueldo ni de horario.
+   · Efectos medidos: vacaciones vuelven a empezar (15.0 → ~5 días); la reserva de grati y CTS baja
+     en lo que la liquidación paga; la cola de marcas sigue mostrándola; **los periodos pagados no
+     cambian** (su foto queda igual).
+   · **Riesgo conocido:** el cálculo EN VIVO de un periodo pagado de la primera etapa puede bajar
+     (en el ensayo, enero: −S/93.35 por el feriado del 1 de enero, que ya no le corresponde con un
+     ingreso posterior). Lo pagado no se toca; solo importa si alguien REABRE ese periodo y lo
+     vuelve a pagar. `fn_set_fecha_ingreso` se negaba justo por esto.
+3. **Consulta al laboralista** (la opción A no la espera, pero conviene): (a) la liquidación de la
+   primera etapa debía pagarse a las 48 horas del cese y hoy está vencida: ¿corren intereses? (b) si
+   alguien que se fue sin que se formalizara un cese y volvió conserva su antigüedad; (c) para los
+   acuerdos de no venir SIN cese, si esos días cuentan como servicio para el récord vacacional
+   (eso es lo único que enciende o no el interruptor de la 0497/0498).
+4. **Papeles de la primera etapa, que no son SQL:** la hoja de liquidación y el certificado de
+   trabajo del primer periodo, y el contrato de la segunda etapa. El sistema guarda el detalle de la
+   liquidación (`liquidacion_pagada.detalle`) pero su pantalla de Liquidaciones lista a quien está
+   cesado, así que para alguien activa los papeles hay que armarlos de ese detalle.
+5. Lo de las 0497/0498 (licencia sin goce) **queda como mecanismo** para los acuerdos de no venir sin
+   cese; no hace falta pegarlo para esto.
 
 **Lo que esto NO arregla, y conviene no atribuirle:**
 - **Sueldo fijo:** la planilla no lee `ausencias` (medido en la 0247). Una licencia sin goce baja
