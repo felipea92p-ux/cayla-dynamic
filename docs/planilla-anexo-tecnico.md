@@ -77,7 +77,7 @@ vuelvan a perseguir.**
 | *"El feriado debería valer un día de la jornada de cada quien"* | No. Se paga **proporcional al tiempo laborado del mes**: quien vino la mitad cobra la mitad. Decisión de Felipe, confirmada. Que un part-time cobre menos feriado **no es un bug**. |
 | *"El factor debería ser 45/7 = 6,4286 en vez de 6,5"* | Asumía 7,5 h/día. Se marcan ~7,9. Cambiarlo subiría la planilla 1,11 % (S/ 228/mes) corrigiendo algo que no está roto. |
 | *"Hay un efecto calendario del 9,5 %"* | Artefacto de contar días laborables enteros (25/26/27). La gente trabaja por ritmo semanal, no por cupo mensual de días. |
-| *"Quien gana la RMV cae por debajo del mínimo legal"* | No, y **sigue siendo no aunque la escala arranque en 1 130 desde el 29/07/2026**. La justificación cambió, la conclusión no: **el piso vive en el cálculo**. `fn_planilla_calcular` declara `greatest(bri.base, piso_essalud)`, y `piso_essalud` es la RMV entera —solo se prorratea por días subsidiados, que es lo que manda el D.S. 009-97-SA—. Por alguien que devengó S/36.96 se aporta igual sobre S/1,130. **Que el pago por horas quede debajo no es lo mismo que declarar debajo**, y el pago por horas es una regla que no se reabre. Perseguido de nuevo el 2026-08-20; misma conclusión. |
+| *"Quien gana la RMV cae por debajo del mínimo legal"* | No, y **sigue siendo no aunque la escala arranque en 1 130 desde el 29/07/2026**. La justificación cambió, la conclusión no: **el piso vive en el cálculo**. `fn_planilla_calcular` declara `greatest(bri.base, piso_essalud)`, y `piso_essalud` es la RMV entera —solo se prorratea por días subsidiados, que es lo que manda el D.S. 009-97-SA—. Por alguien que devengó S/36.96 se aporta igual sobre S/1,130. **Que el pago por horas quede debajo no es lo mismo que declarar debajo**, y el pago por horas es una regla que no se reabre. Perseguido de nuevo el 2026-08-20; misma conclusión. **Desde el 01/10/2026 el piso es S/1 230** (D.S. 015-2026-TR, migración 0501): el mismo mecanismo, la misma conclusión, con otro número —y el periodo que cierra el 28/10 lee esa RMV entera, incluidos el 29 y 30 de septiembre—. |
 | *"El equipo trabaja 4,4 días por semana"* | Promedio contaminado: mezclaba a 6 personas con menos de 8 semanas de antigüedad. Quien lleva tiempo y cumple hace 6 días. |
 
 **La lección de método:** medir antes de proponer. Cada uno de esos cinco salió
@@ -140,6 +140,15 @@ semanal no compensa nada y la sobretasa se sigue debiendo. La validación de la
   colibri **es** la RMV (0128), compensada con movilidad, educación y bono, y el
   equipo lo aceptó. **No hace falta colchón porque el piso está en el cálculo**
   —ver la tabla de descartados—, así que esta regla queda sustituida por esa.
+  **Hoy (desde el 01/10/2026, migración 0501):** la RMV es S/1 230 y colibri la
+  iguala; cayla declara S/1 245 y support S/1 260 (ya cumplía y no se toca), o
+  sea que quedan **por encima por S/15 y S/30**. Es la escala más barata que
+  mantiene el orden. Cuando salga el segundo tramo de la RMV (S/1 300, decreto
+  del primer semestre de 2027) las tres volverán a quedar bajo el piso y hay que
+  rehacer el reajuste. Y el primer periodo con el sueldo nuevo (29/09–28/10)
+  paga **dos días al sueldo de septiembre**: un colibri con asistencia completa
+  cobra S/1 223,33 y una cayla S/1 241,00 — no es «menos que la RMV», son dos
+  días de septiembre al sueldo de septiembre.
 
 --
 

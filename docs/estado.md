@@ -6,6 +6,182 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-09-30 — La RMV sube a S/ 1,230 el 1-oct, la escala la sigue y la asignación familiar sube a S/ 123 · migración 0501 · SIN PEGAR · SIN FUSIONAR
+
+**Origen:** el **D.S. 015-2026-TR**, publicado el **2026-09-28** en El Peruano (edición extraordinaria), art. 1,
+lleva la RMV a S/ 1,300 **en dos tramos**: el primero (+S/ 100 = **S/ 1,230**) rige el **2026-10-01**; el
+segundo (+S/ 70) lo fijará **otro decreto supremo en el primer semestre de 2027** y **NO está construido**.
+Verificado contra el texto publicado. El decreto no menciona la asignación familiar.
+
+**Lo decidido por Felipe (2026-09-30)** — la migración **0501** y la prueba **395** lo construyen:
+
+| | antes | desde el **2026-10-01** |
+|---|---|---|
+| RMV (`parametros_laborales`) | 1,130 | **1,230** |
+| Base declarada **colibrí** (10 personas) — sueldo y `sueldo_base_legal` | 1,130 | **1,230** |
+| Base declarada **cayla** (4) | 1,185 | **1,245** |
+| **support** (1) · aurora · oráculo · archicaylo | 1,260 · 1,360 · 1,440 · 1,500 | **sin cambio** (ni un tramo nuevo) |
+| Lo que publica la **Política salarial** (`categorias_laborales.salario_declarado`) | 1,130 · 1,185 · 1,260 | **1,230 · 1,245 · 1,260** |
+| **Asignación familiar** | 113 | **123** (10 % de la RMV, Ley 25129 art. 1) |
+| `DEFAULT` de `personas.sueldo_base_legal` (altas futuras) | 1,130 | **1,230** |
+
+**Por qué support se queda en 1,260:** ya cumple la RMV. La escala es la **más barata que mantiene el orden**.
+La cobertura de estudios llega a S/ 270 al mes y la Política publica una «Referencia mensual» = remuneración +
+movilidad (hasta S/ 288) + estudios (colibrí 1,608 · cayla 1,713 · support 1,818 · aurora 2,008): **la
+educación no se sube ni se iguala «para compensar»; la base cumple sola.**
+
+**Lo que cuesta** (factor 1.2567 = EsSalud 9 % + grati 8.33 % + CTS 4.17 % + vacaciones 4.17 %; **estimado**, el
+número real sale de `fn_simular_planilla`): colibrí +100 × 10 = S/ 1,256.70 · cayla +60 × 4 = S/ 301.61 →
+**≈ S/ 1,558.31 al mes** (~S/ 18,700 al año). La asignación suma **≈ S/ 12.57 al mes por cada integrante que la
+cobra**: cuántos son lo dice la consulta (iv) del script de abajo. **Alternativas medidas y descartadas por ahora:**
+cayla también en 1,230 (el mínimo absoluto de ley) ahorraría S/ 75.40 al mes → S/ 1,482.91 en total, pero deja a
+colibrí y cayla con la **misma** base; la escala 1,230 / 1,260 / 1,290 (support también sube) costaría
+S/ 1,671.41. Felipe puede pedir la primera: es cambiar **un número** (`v_montos` de la 0501, `param` del script,
+`rangos.ts` y la prueba 395).
+
+**⚠️ El primer periodo con el sueldo nuevo paga MENOS de lo que parece.** Los sueldos suben **desde el 2026-10-01**
+y la planilla paga **por día con el tramo de cada jornada**: el 29 y el 30 de septiembre, que caen dentro del
+periodo 29/09 → 28/10, se pagan al **sueldo viejo**. Un colibrí con asistencia completa cobra **≈ S/ 1,223.33**
+(2/30 × 1,130 + 28/30 × 1,230), una cayla **≈ S/ 1,241.00** — **no es «menos que la RMV»**: son dos días de
+septiembre al sueldo de septiembre; desde el periodo siguiente cobran el sueldo completo. (Medido en la prueba 395.)
+El piso de EsSalud sí usa la RMV **entera** de 1,230 en ese periodo, porque se lee al último día: 9 % × 1,230 =
+S/ 110.70 (antes 101.70). Tener esta explicación a mano el día de pago.
+
+### La asignación familiar sube a 123 — irreversible, y por qué se tocó `configuracion`
+
+**Decidido «por ley»**, sabiendo que la nota de la 0122 dice que la pequeña empresa no la tiene entre sus derechos
+(la «vía de riesgo cero» de agosto era dejarla en 113). **Una vez que un periodo se calcula y se paga con 123,
+bajarla es una reducción unilateral de remuneración** (art. 30 inc. b del D.S. 003-97-TR): la única parte de la
+0501 que no se deshace.
+
+La asignación vive en **dos sitios** —medido contra las 480 migraciones—: `parametros_laborales` (versionada; la
+leen el núcleo de la planilla y `fn_provisiones`) y `configuracion.asignacion_familiar` (0113, **sin fechas**; es
+el respaldo de las dos anteriores y la **única** fuente de `fn_remuneracion_computable`, de la que cuelgan las
+liquidaciones por cese). Subir solo la versionada dejaba la boleta en 123 y la liquidación en 113, **en contra de
+quien se va**. La 0501 sube las dos. Qué recalcula: solo lo **no pagado** (`liquidacion_pagada` congela el total).
+Qué error deja: una liquidación cuya fecha de referencia sea anterior al 1-oct pero se calcule con 123 paga unos
+céntimos **de más** (un cese de octubre mira el mes anterior); dejar 113 pagaba de menos a todo cese desde noviembre.
+
+**Deuda que queda:** `fn_remuneracion_computable` sigue leyendo `configuracion` sin fecha; lo correcto es que lea
+`parametros_laborales` a `p_fecha_ref` (migración propia, con md5 de producción). Y los `coalesce(…, 113.00)`
+escritos **dentro** de las funciones (núcleo, `fn_provisiones`, `fn_remuneracion_computable`) siguen ahí: solo se
+usan si faltan las dos tablas, y no faltan. Cuando la RMV suba al segundo tramo, la asignación a **130** hay que
+subirla en **los dos** sitios otra vez.
+
+### Los practicantes NO se tocan, y hay que mirarlos
+
+`fn_fijar_base_declarada` exige `en_planilla` y un practicante tiene `en_planilla = false`: la 0501 **no los
+alcanza**, y su subvención pactada bajo S/ 1,230 (o su proporción a las horas pactadas: RMV × horas / 30 si es
+preprofesional con menos de 30 h) queda bajo el piso de la Ley 28518 art. 45 **sin que el sistema lo marque**.
+No se les sube a ciegas: quien pactó menos horas tiene piso proporcional. La consulta (ii) de
+`scripts/sql-manual/antes_de_pegar_la_rmv_1230.sql` los lista con su piso viejo y su piso nuevo; **Felipe los
+resuelve con sus datos**. Además: desde el 1-oct Contratos **bloquea** generar un convenio con subvención bajo el
+piso (por eso el código lee ahora la RMV con la regla de la planilla y no como «la fila abierta»), su EsSalud sube
+solo (piso puro, 101.70 → 110.70) y los convenios ya firmados siguen diciendo 1,130 en el papel (pagar más es
+favorable, pero el papel queda viejo: adenda o próxima renovación, **consulta para el laboralista**).
+
+### La otra rama: `claude/salary-update-1230-bd7a09` — descartarla o cerrarla
+
+Otra sesión escribió el mismo día (10:00–10:17) una versión **distinta** de este trabajo: una 0500 con la RMV en
+1,230 **y la asignación en 123**, un guion que deja **colibrí y cayla ambos en 1,230**, la prueba 394 y su propia
+entrada en este archivo (que recomienda «colibrí y cayla iguales»: **superada por la decisión de arriba**). No está
+fusionada ni pegada. **No fusionarla:** su 0500 sube la asignación sin tocar `configuracion` (las dos verdades), su
+guion afirma que «no baja a nadie» y la función **sí baja** a quien ya cobre más de su rango, y las dos ramas tocan
+`estado.md` y `rangos.ts` (habrá conflicto). **Si de todos modos se pegara, la 0501 sigue siendo correcta** en
+cualquier orden (`on conflict do nothing`, cierres que no repiten, solo sube). Si se descarta, el número **0500 queda
+como hueco** —el hook solo avisa— y conviene dejarlo anotado acá; la 0499 ya está en `main` (PR #476) y la 0501
+se ensayó también con ella aplicada.
+
+### Lo que la 0501 detiene, y cómo se ensayó
+
+Todo va en **una transacción** con guardia final: aborta en voz alta —sin tocar nada— si hay alguien con la base
+sin confirmar, con `base_provision` propia (`fn_set_salario` no la copia al tramo nuevo y sus provisiones bajarían
+en silencio), con sueldo fijo, con un tramo ya programado después del 1-oct, o con un campo por encima y otro por
+debajo; si no hay un admin activo con usuario; o si al final el sistema no lee 1,130 / 1,230 y 113 / 123 donde
+debe. **Solo sube:** quien ya cobra más de su rango (monto propio) queda como está (`fn_fijar_base_declarada` **no**
+protege de bajar; se le pasa `p_omitir` calculado). Presta la identidad del admin activo más antiguo **solo dentro de
+la transacción** (mismo patrón que la 0462; el guard de las funciones no se toca) y **corrige la nota** que la
+función deja escrita para un alza. Ensayada contra la cadena completa de 480 migraciones en un Postgres
+desechable con un escenario tipo producción (10 + 4 + 1 + 1 + 1 y casos de borde): los **nueve** casos que deben
+detenerla (base sin confirmar, `base_provision`, sueldo fijo, tramo programado, un campo arriba y otro abajo, sin
+admin, periodo ya pagado, otra RMV sembrada el 1-oct, otra asignación sembrada el 1-oct) y el que debe **pasar**
+(una cuenta de servicio en colibrí se omite), la base vacía de CI (pasa sin exigir admin), repegarla dos veces
+(mismos conteos), quien ya cobra más (1,500 y 1,300: no baja), el pago real por tramos y la suite pgTAP completa
+**con control**: 305 archivos antes y 306 después, sin ninguna diferencia salvo la prueba nueva **395 (31
+aserciones)**. Los mismos **19 archivos** fallan con y sin la migración, por el entorno (a `auth.users` le faltan
+columnas de GoTrue); la 122 falla en el control solo porque no existe `supabase_migrations.schema_migrations` y con esa
+tabla emulada **pasa y verifica la fila de la 0501**. Se comprobó que la 395 **puede fallar** con cinco mutaciones a
+propósito (configuracion en 113, DEFAULT en 1,130, Política en 1,130, la RMV nueva borrada, y el reajuste sin
+`p_omitir`). **No se simuló el reloj de Postgres en
+octubre**: las pruebas con fechas relativas a hoy comparan identidades, no montos, pero `db-tests` de GitHub es la
+señal fiable.
+
+### Guion de mañana — 2026-10-01
+
+**El orden importa: la migración se pega ANTES de fusionar, y la política se publica DESPUÉS de fusionar.**
+Y **no** se pega la noche del 30: entre pegar y el 1-oct la pantalla de Contratos (código viejo) no vería ninguna RMV.
+
+1. **Subir la rama y abrir el PR.** Hoy el `pre-push` **fallaría**: la novedad de la Política lleva fecha
+   2026-10-01 y `tests/novedades.test.ts` rechaza una fecha futura («no del futuro»); es la **única** prueba roja de
+   la suite y se pone verde sola a las 00:00 de Lima (comprobado simulando esa fecha). Esperar a que `db-tests` de
+   GitHub termine en verde. *(Si hubiera que subirla hoy: cambiar `id` y `fecha` de la novedad a 2026-09-30 y volver
+   a 2026-10-01 antes de fusionar. No se recomienda: un `id` con fecha equivocada queda para siempre.)*
+2. **Consultas de comprobación.** `./scripts/que-falta-pegar.sh` (qué falta en producción; que la 0500 de la rama paralela **no** esté pegada) y
+   pegar **`scripts/sql-manual/antes_de_pegar_la_rmv_1230.sql`** en el SQL Editor (una sola consulta, 17 filas).
+   Mirar: fila 2 (**14** personas suben), fila 3 (**todo en 0**: si no, la migración se detendrá), fila 4, fila 5
+   («nadie»), **fila 6 y 7 (practicantes)**, fila 11 (**periodo abierto 2026-09-29 → 2026-10-28**; si la `fecha_fin`
+   es otra, avisar antes de seguir), fila 13 (¿está la 0500?) y fila 14 (quién firmará el rastro).
+3. **Pegar la 0501:** `./scripts/dame-el-sql.sh 0501` (se niega si no está commiteada y en GitHub byte por byte; el
+   portapapeles debe conservar los acentos: `diff <(pbpaste) supabase/migrations/0501_*.sql`). No reescribe ninguna
+   función, así que no hay md5 de partida. Pegarla **entera**: termina con una consulta de una fila.
+4. **Comprobar:** esa fila debe decir `1230 · 1130 · 123 · 113 · 123 · 1230.00 · colibri 1230.00 · cayla 1245.00 ·
+   support 1260.00 · 501 la_rmv_sube_a_1230_y_la_escala_la_sigue`. Volver a pegar el script del paso 2: filas 2 = 0,
+   8 = `1130 / 1230`, 9 = `113 / 123 / 123`, 17 = `1230 · 1245 · 1260 · 1360 · 1440 · 1500`. Si la migración
+   **abortó**, no se tocó nada: el mensaje dice qué caso es (paso 2). Pegarla dos veces es seguro.
+5. **Fusionar el PR** (= publicar; ~1 minuto). Comprobar en `/admin/equipo`, abriendo la edición del sueldo de un
+   colibrí, que **no** sale el aviso ámbar «Fuera de la base del rango» (la base propuesta ya es 1,230), y que
+   Contratos ve la RMV.
+6. **Publicar la Política salarial.** En `/admin/politica-salarial` aparece la insignia **«Desactualizada»** y el
+   aviso «El cuadro cambió después de publicar» (desde que se pegó el SQL); enlace «Publica una versión nueva» →
+   **`/admin/politica-salarial/versiones`** («Versiones y publicación») → **«Publicar»** → ventana «Publicar política
+   salarial» («Esto creará la versión N+1») → **«Publicar versión nueva»**. Volver a `/admin/politica-salarial`: debe
+   decir **«Vigente»** y la tabla de la escala **1,230 / 1,245 / 1,260**. Todas las constancias se piden de nuevo.
+7. **Qué ve cada integrante.** Al abrir Dynamic (`/mio` o el panel) le sale el aviso **«Te falta dejar una
+   constancia»** → **«Leer y dejar constancia»** → `/admin/politica-salarial` → al final, «Constancia de haber
+   recibido este documento»: escribe su nombre y pulsa **«Dejar constancia»** («Gracias. Tu constancia quedó
+   registrada.»). Si cierra con «Ahora no — me lo recuerdas la próxima vez», vuelve a salir; la Bandeja lo cuenta.
+   El seguimiento está en `/admin/politica-salarial/constancias` y en «Constancias: X / Y» de la política.
+   **Quien no la abre:** nada se bloquea ni se descuenta y nadie firma por ella (Dynamic avisa, nunca sanciona); queda
+   pendiente y visible para DO. Propuesta: pasados unos días, DO se lo pide en persona o le entrega el documento
+   impreso («Imprimir / Guardar como PDF») —la Ley 30709 exige poder probar que se informó—.
+8. **La novedad** («Hay una versión nueva de la Política salarial para leer y confirmar», para todos, sin montos) sale
+   sola con el fusionado, en Anuncios y en «Lo mío».
+9. **Antes del cierre del 28/10:** abrir la boleta de un colibrí y confirmar el pago mezclado por tramos (≈ 1,223.33
+   con asistencia completa); resolver los practicantes (paso 2, filas 6–7).
+
+**Si se hace en otro orden:** *publicar la política antes de pegar el SQL* → el documento se congela con la escala
+vieja (1,130 / 1,185), las constancias se dejan sobre un papel que la planilla desmiente y hay que publicar de nuevo
+y volver a pedirlas todas. *Publicarla antes de fusionar* → publica el párrafo viejo de la cláusula de la mínima
+vital. *Fusionar antes de pegar* → `main` se publica sola: Equipo propone bases (1,230 / 1,245) que el sistema aún no
+paga, Contratos lee la RMV vieja, y la novedad avisa de una versión que todavía no existe. *Pegar la noche del 30* →
+Contratos sin RMV hasta el 1-oct (el convenio de jornada reducida saldría con «[FALTA PUBLICAR LA RMV VIGENTE EN EL
+SISTEMA]»). *Pegar después de pagar el periodo 29/09 → 28/10* → el candado de periodo pagado de `fn_set_salario`
+rechaza el cambio y la migración aborta entera.
+
+**Pendiente, en este orden:**
+1. **Los practicantes** (arriba) y su papel: adenda o renovación con el laboralista.
+2. **Descartar o cerrar la rama paralela** y anotar el hueco del 0500 si se descarta.
+3. **`fn_remuneracion_computable` que lea por fecha** (la deuda de las dos verdades) — migración propia.
+4. **El segundo tramo (S/ 1,300, primer semestre de 2027):** colibrí, cayla **y support** vuelven a quedar bajo el
+   piso, hay que rehacer esta misma migración con la asignación en **130**. Nada en el sistema avisa cuando el decreto
+   salga: es vigilancia de Felipe (o un aviso periódico si se decide construirlo).
+5. **Confirmar con el contador/laboralista** la asignación familiar de una pequeña empresa (REMYPE vigente y quién
+   entró antes del D. Leg. 1086), ya decidida por Felipe pero sin el sustento cerrado (ver el análisis del 2026-08-15).
+6. **Los borradores de las ~20 renovaciones** generados antes de pegar llevan la remuneración vieja congelada en el
+   documento: regenerarlos (un borrador se corrige, no se duplica) antes de imprimir.
+
+---
+
 ## 2026-09-29 — Las interrupciones de servicio ya se pueden registrar y el contador de vacaciones puede leerlas · migraciones 0497 y 0498 · SIN PEGAR · SIN FUSIONAR
 
 **Origen:** la pantalla de Provisiones mostraba **15.0 días** de vacaciones para una integrante
@@ -8001,7 +8177,8 @@ techo repite esto exacto. Está sin decidir si esa función debe pasar a bloquea
 | **Las bases declaradas** de los cuatro rangos altos — y hay que bajar **los dos campos**, `sueldo_base_legal` **y** `salario_mensual_soles` | confirmar los montos finales |
 | **Cargar las declaraciones de ruta firmadas** | **de Felipe. Plazo: 28/08/2026.** El sitio donde subirlas ya existe |
 | **Indicador del umbral de 20 trabajadores** — promedio corrido del ejercicio, con aviso al acercarse | nada. **Acordado: se construye después de cerrar el Seguro de Vida Ley** |
-| **Versionar la RMV a S/1,300** cuando se publique el decreto | que salga la norma |
+| **Versionar la RMV a S/1,230 y subir la escala** — [`0501`](../supabase/migrations/0501_la_rmv_sube_a_1230_y_la_escala_la_sigue.sql), prueba 395: **escrita, sin pegar ni fusionar** | pegarla **el 2026-10-01 y antes de fusionar** (ver «Guion de mañana», arriba) |
+| **Versionar la RMV a S/1,300 y reajustar de nuevo colibrí, cayla y support** (asignación familiar a S/130) | **el segundo decreto**, «primer semestre de 2027» y sin fecha. Nada en el sistema avisa cuando salga |
 | **Imprimir y firmar las ~20 renovaciones** — la pieza ya existe (`/admin/contratos`) y su SQL está al día | **la revisión legal del texto**, que no ha hecho nadie |
 
 ### El generador de contratos, tras la auditoría del 2026-08-24
@@ -8061,6 +8238,10 @@ anteriores (decisión de Felipe, 2026-08-24 — las renovaciones los reemplazan)
 
 ### La 0128 sigue escrita y sin llamar
 
+> ⚠️ **2026-09-30:** la **0501** la llama por primera vez, para subir colibrí (S/1,230) y cayla (S/1,245) por la
+> RMV nueva —solo sube; ver la entrada de arriba—. Y la escala **sí está decidida** desde el 2026-08-04 (`rangos.ts`).
+> Lo que sigue describe el estado de agosto y **no** debe leerse como vigente.
+
 `fn_fijar_base_declarada(rango, monto, vigencia, omitir[])` baja **los dos**
 campos que intervienen en el pago al mismo monto, versionando el salario vía
 `fn_set_salario`. La migración **crea la función y no la llama**: crearla no mueve
@@ -8107,18 +8288,19 @@ calcularlo solo y mostrarlo **antes** de que se firme el contrato.
 
 ### Sobre la RMV
 
-El alza se anunció el 28/07/2026 y **el decreto no está publicado**. Cuando
-salga, son dos sentencias por cada clave —`rmv` y `asignacion_familiar`— escritas
-en las cabeceras de la 0116 y la 0122. Los periodos ya pagados quedan intactos.
+**Actualizado el 2026-09-30.** El decreto **salió**: **D.S. 015-2026-TR**, publicado el 2026-09-28. Llevó la RMV a
+S/1,300 en dos tramos: **S/1,230 desde el 2026-10-01** (construido en la 0501, sin pegar; ver la entrada de arriba)
+y **S/1,300** por otro decreto en el primer semestre de 2027 (**sin construir, sin fecha, y nada avisa cuando salga**).
+La versión de agosto de esta sección decía que «el decreto no está publicado» y que eran «dos sentencias por cada
+clave»: hoy se hace en **una migración** (la RMV, la asignación en sus dos sitios, la escala y lo que publica la
+Política), y la asignación familiar **sí** se subió (S/123, irreversible).
 
-⚠️ **Ojo con el plazo, porque Dante lo describió mal.** Dijo que hay que esperar
-al Congreso y a la promulgación. La RMV **no se fija por ley**: se fija por
-**Decreto Supremo del Ejecutivo**, previa consulta al Consejo Nacional de
-Trabajo, conforme al art. 24 de la Constitución (la subida a S/1,130 fue el
-**D.S. 006-2024-TR**). Puede publicarse de un día para
-otro y regir desde el 1° del mes siguiente. **La vigilancia se mide en semanas,
-no en meses.** Donde sí puede tener razón es en el bono compensatorio para MYPE:
-eso es gasto público y probablemente sí necesita norma con rango de ley.
+⚠️ **Sobre el plazo, que Dante describió mal y aquí se confirmó.** Dijo que había que esperar al Congreso y a la
+promulgación. La RMV **no se fija por ley**: se fija por **Decreto Supremo del Ejecutivo**, previa consulta al
+Consejo Nacional de Trabajo, conforme al art. 24 de la Constitución (la subida a S/1,130 fue el **D.S. 006-2024-TR**
+y ésta el **D.S. 015-2026-TR**, dos meses después del anuncio del 28/07). Se publicó de un día para otro y rige el
+1° del mes siguiente. **La vigilancia se mide en semanas, no en meses.** Donde sí puede tener razón es en el bono
+compensatorio para MYPE: eso es gasto público y probablemente sí necesita norma con rango de ley.
 
 ### La fila general de movilidad vale S/ 10.00 — decisión tomada, se queda
 
@@ -8227,7 +8409,7 @@ de tu sueldo». **Sin total y sin porcentaje**, por decisión tomada.
 
 | Concepto | Decisión | Amparo |
 |---|---|---|
-| **Movilidad** | S/10.00 por día marcado en AQP y TRU, **S/12.00 en LIM** (0142) · 4 traslados · refrigerio de 1h15 habilita almorzar en casa. **Techo: ninguna tarifa diaria pasa del 4% de la RMV** (hoy **S/45.20**), con candado en la 0152 y prueba 119 | Art. 19 e) · PLAME **0909** ✅ confirmado |
+| **Movilidad** | S/10.00 por día marcado en AQP y TRU, **S/12.00 en LIM** (0142) · 4 traslados · refrigerio de 1h15 habilita almorzar en casa. **Techo: ninguna tarifa diaria pasa del 4% de la RMV** (**S/45.20** hasta el 30/09/2026 · **S/49.20** desde el 01/10, con la RMV de S/1,230), con candado en la 0152 y prueba 119 | Art. 19 e) · PLAME **0909** ✅ confirmado |
 | **Educación** | 75% del comprobante, tope por rango · vale para el trabajador **y/o sus hijos**, sin tope de edad | Art. 19 f) · PLAME **0202** ⚠️ falta confirmar el cero |
 | **Bono cumpleaños** | **S/180**, igual para los 26, en el mes del onomástico, sin condición de antigüedad | Art. 19 g) · PLAME **0203** ⚠️ mismo caso |
 | **Pensión** | Tasa real por persona (12.84%–13.06% u ONP 13%), desde el periodo abierto | — |

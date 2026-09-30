@@ -14,6 +14,7 @@ import { Insignia } from "@/components/ui/insignia";
 import { Menu, MenuItem } from "@/components/ui/menu";
 import { TablaEncabezado, Th } from "@/components/ui/tabla";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
+import { vigentesAl } from "@/lib/admin/parametro-vigente";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 import { abrirArchivoFirmado } from "@/lib/abrir-archivo-firmado";
 import { useToast } from "@/components/toast";
@@ -210,6 +211,8 @@ interface Parametro {
   clave: string;
   valor: number;
   sede_codigo: string | null;
+  vigente_desde: string;
+  vigente_hasta: string | null;
 }
 interface ContratoFila {
   id: string;
@@ -832,12 +835,19 @@ export default function ContratosPage() {
       // null y el contrato lo dice en vez de inventar un monto — misma
       // regla que /admin/documentacion. La RMV es el piso de la subvención
       // de un convenio de prácticas (Ley 28518, art. 45).
+      //
+      // «Vigente» es la condición de la planilla —`vigente_desde <= hoy` y
+      // (`vigente_hasta` nula o `>= hoy`)—, NO «la fila abierta»: con `.is(null)`,
+      // cerrar la RMV vieja (vigente_hasta = víspera) y abrir la nueva con fecha
+      // futura dejaba la pantalla sin RMV hasta el día del cambio, y con las dos
+      // abiertas se quedaba con la primera que llegara. Ver parametro-vigente.ts.
       supabase
         .from("parametros_laborales")
-        .select("clave, valor, sede_codigo")
+        .select("clave, valor, sede_codigo, vigente_desde, vigente_hasta")
         .in("clave", ["movilidad_diaria", "bono_onomastico", "rmv"])
         .lte("vigente_desde", hoy)
-        .is("vigente_hasta", null),
+        .or(`vigente_hasta.is.null,vigente_hasta.gte.${hoy}`)
+        .order("vigente_desde", { ascending: false }),
       // La versión vigente del RIT. Se lee de la tabla, no se escribe a
       // mano: es exactamente el dato que este repo prohíbe hardcodear.
       supabase
@@ -885,7 +895,7 @@ export default function ContratosPage() {
     setFirmaUrl(miFirma?.startsWith("data:image") ? miFirma : null);
     setEsFirmante(Boolean(firmanteId) && firmanteId === (yo.data as string | null));
 
-    const paramsData = (params.data as Parametro[]) ?? [];
+    const paramsData = vigentesAl((params.data as Parametro[]) ?? [], hoy);
     setMovilidadTarifas(paramsData.filter((p) => p.clave === "movilidad_diaria"));
     const bono = paramsData.find((p) => p.clave === "bono_onomastico");
     setBonoOnomastico(bono ? Number(bono.valor) : null);

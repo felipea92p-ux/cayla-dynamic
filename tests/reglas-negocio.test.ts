@@ -89,11 +89,12 @@ describe("baseDeclaradaDe — el monto que declara cada rango", () => {
   });
 
   // Ninguna base puede quedar por debajo de la RMV: sería declarar menos que el
-  // mínimo legal. Colibrí y cayla están clavados en ella a propósito, así que este
-  // es el guardián de que nadie las baje por descuido — y el recordatorio de que
-  // hay que subirlas cuando la RMV suba.
+  // mínimo legal. Colibrí está clavado en ella a propósito, así que este es el
+  // guardián de que nadie lo baje por descuido — y el recordatorio de que hay que
+  // subir lo que quede debajo cuando la RMV suba (hoy es colibrí; con el segundo
+  // tramo de S/ 1,300 volverán a ser colibrí, cayla y support).
   it("ninguna base declarada cae por debajo de la RMV vigente", () => {
-    const RMV = 1130; // D.S. 006-2024-TR, vigente al 2026-08-03
+    const RMV = 1230; // D.S. 015-2026-TR (publicado el 2026-09-28), vigente desde 2026-10-01
     for (const r of RANGOS) {
       expect(r.baseDeclarada, `${r.label} declara menos que la RMV`).toBeGreaterThanOrEqual(RMV);
     }
