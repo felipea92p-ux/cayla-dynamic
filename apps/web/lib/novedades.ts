@@ -115,6 +115,19 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-09-30-certificado-de-trabajo-con-recibi",
+    fecha: "2026-09-30",
+    titulo: "El certificado de trabajo ya trae su línea de «Recibí conforme»",
+    queMejoro:
+      "Hasta ahora, el certificado de trabajo que se imprime desde Liquidaciones salía solo con la firma de CAYLA: " +
+      "no había dónde dejar constancia de que la persona lo recibió, ni de qué día. Como el sistema no archiva " +
+      "el papel que se imprime, esa firma era la única forma de probar la entrega dentro de las 48 horas del cese.\n\n" +
+      "Ahora, a la izquierda de la firma de CAYLA, hay una línea de «Recibí conforme» con el nombre y el DNI de la " +
+      "persona, y un espacio para que escriba a mano la fecha en que lo recibe. Imprime dos copias y guarda en el " +
+      "legajo la que firme quien cesó.",
+    audiencia: "do",
+  },
+  {
     id: "2026-09-28-casos-en-el-dashboard",
     fecha: "2026-09-28",
     titulo: "El Dashboard ya cuenta cuántos Casos hay, de qué son y en qué sede",
