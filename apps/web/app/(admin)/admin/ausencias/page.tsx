@@ -125,8 +125,6 @@ interface Persona { id: string; nombres: string; apellidos: string }
 interface Tipo {
   codigo: string; nombre: string; paga: boolean;
   requiere_documento: boolean; requiere_aprobacion: boolean;
-  /** 0497. Opcional: si esa migración no está pegada, la columna no llega y el aviso no sale. */
-  suspende_record?: boolean;
 }
 interface Ausencia {
   id: string; persona_id: string; nombre: string; sede: string;
@@ -814,19 +812,6 @@ export default function AusenciasPage() {
           placeholder="ej. viaja a Lima por el fallecimiento de su padre"
         />
       </div>
-
-      {/* 0497/0498 — quien registra esto no tiene por qué saber que recorta vacaciones:
-          sin este aviso lo descubre la persona el día que ve su saldo o su liquidación.
-          Sale del catálogo (`suspende_record`) y no de una lista de códigos: solo aparece
-          cuando el interruptor está ENCENDIDO, que es cuando el texto es verdad. */}
-      {tipoSel?.suspende_record && (
-        <p className="text-xs text-taupe sm:col-span-2">
-          <strong className="font-medium text-tinta">Esta licencia recorta las vacaciones.</strong>{" "}
-          Los días que dure no cuentan como servicio para ganarlas: el año de la persona se corre esa
-          cantidad de días. No cuenta hasta que Desarrollo Organizacional la apruebe, y si se anula
-          con motivo, los días vuelven.
-        </p>
-      )}
 
       {tipoSel?.requiere_documento && (
         <>

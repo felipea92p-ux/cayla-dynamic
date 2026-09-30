@@ -125,6 +125,18 @@ export const NOVEDADES: readonly Novedad[] = [
     audiencia: "panel",
   },
   {
+    id: "2026-09-30-correcciones-sin-quienes-ya-cesaron",
+    fecha: "2026-09-30",
+    titulo: "Correcciones ya no lista a quienes dejaron de trabajar",
+    queMejoro:
+      "La lista de colaboradores de Correcciones mostraba también a quienes ya cesaron, con un «(cesó)» al lado, " +
+      "y había que pasar por encima de ellos para llegar a quien sí trabaja. Ahora la lista trae solo a quienes " +
+      "siguen activos.\n\n" +
+      "Si un día por revisar de alguien que cesó sigue pendiente, sigue apareciendo en los avisos de arriba de " +
+      "la pantalla, y desde ahí se abre igual que antes.",
+    audiencia: "panel",
+  },
+  {
     id: "2026-09-30-certificado-de-trabajo-con-recibi",
     fecha: "2026-09-30",
     titulo: "El certificado de trabajo ya trae su línea de «Recibí conforme»",
