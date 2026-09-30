@@ -94,6 +94,22 @@ si otra sesión fusionó algo que las reescriba, antes de pegar.**
      con su ingreso y su cese) y mueve `fecha_ingreso` al reingreso. **No inactiva a la persona ni un
      instante**: `personas_cese_coherente` no deja una persona activa con cese y forzarlo dispara el
      trigger de educación. No toca los tramos de sueldo ni de horario.
+   · **Lo que reveló el diagnóstico real (2026-09-30), y cambió el guion:** `periodos_planilla` no
+     tiene ningún periodo entre febrero y el 28/06/2026 —todo lo anterior se pagó por Excel—, el libro
+     de desembolsos de esa persona está vacío, y la planilla de julio le pagó S/317.53 de gratificación.
+     **`fn_liquidacion` no ve nada de lo pagado antes del 28/06**: su paso 1 («el sueldo pendiente no se
+     pudo calcular», grati y CTS «ya depositado S/0») es un TOPE, no lo que se debe pagar; pagarlo tal
+     cual puede pagar dos veces. Esto vale para CUALQUIER liquidación de alguien que trabajó antes de esa
+     fecha, no solo para este caso.
+   · **Cómo se descuentan los pagos previos, medido:** anotarlos en el libro de desembolsos NO sirve aquí.
+     Con el escenario ilustrativo (gratificación de diciembre y los S/317.53 de julio) la gratificación
+     trunca sale NEGATIVA (−S/77.73, y ese negativo entra en el registro de la liquidación) y Provisiones
+     muestra −S/250 de «pagado de más» en gratificación. Causa: un pago de julio cubre las DOS etapas y el
+     libro no lo puede partir, y al mover el ingreso esas ventanas dejan de contar el trabajo de la primera
+     etapa. La vía que funciona: el guion de escritura recibe lo YA PAGADO por concepto y registra en
+     `liquidacion_pagada` los importes NETOS, con el cálculo bruto y el ajuste dentro de `detalle`
+     (`regularizacion`). Cada concepto se descuenta por separado y nunca baja de cero: un pago de más en uno
+     se anota como «pagado de más no compensado» y no le quita a otro. Sin negativos en Provisiones.
    · Efectos medidos: vacaciones vuelven a empezar (15.0 → ~5 días); la reserva de grati y CTS baja
      en lo que la liquidación paga; la cola de marcas sigue mostrándola; **los periodos pagados no
      cambian** (su foto queda igual).
