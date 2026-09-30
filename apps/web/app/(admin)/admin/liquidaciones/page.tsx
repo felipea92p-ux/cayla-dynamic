@@ -1265,6 +1265,29 @@ function FirmaEmpresa({ firmante, firma }: { firmante: FirmanteEmpresa | null; f
   );
 }
 
+// El «recibí» del certificado. El Reglamento (59.6) obliga a entregarlo dentro
+// de las 48 horas del cese, y el sistema no guarda que se entregó ni cuándo —el
+// documento se arma en vivo, no se archiva—. La única prueba de esa entrega es
+// esta firma y esta fecha, escritas a mano por quien lo recibe. Por eso la fecha
+// de recepción es un espacio en blanco y no `hoyLima()`: la que importa es el
+// día en que el papel llegó a sus manos, no el día en que se imprimió.
+//
+// `conFirmaEmpresa` alinea la línea de firma con la de CAYLA cuando esta lleva
+// imagen de firma arriba (`h-14`); sin imagen, las dos líneas ya quedan a la
+// misma altura y no hace falta reservar nada.
+function RecibiConforme({ p, conFirmaEmpresa }: { p: PapelesCese; conFirmaEmpresa: boolean }) {
+  return (
+    <div className={`text-xs ${conFirmaEmpresa ? "pt-14" : ""}`}>
+      <div className="w-56 border-t border-tinta pt-1">Recibí conforme</div>
+      <div>{p.nombre_completo}</div>
+      {p.documento && <div>DNI N.° {p.documento}</div>}
+      <div className="mt-2">
+        Fecha de recepción: <span className="inline-block w-32 border-b border-tinta align-baseline" />
+      </div>
+    </div>
+  );
+}
+
 function HojaCertificado({
   p, apreciacion, firmante, firma,
 }: { p: PapelesCese; apreciacion: string; firmante: FirmanteEmpresa | null; firma: string | null }) {
@@ -1303,7 +1326,8 @@ function HojaCertificado({
         Trujillo, {fechaLarga(hoy)}.
       </p>
 
-      <div className="mt-12 flex justify-end">
+      <div className="mt-12 flex items-start justify-between gap-6">
+        <RecibiConforme p={p} conFirmaEmpresa={!!firma} />
         <FirmaEmpresa firmante={firmante} firma={firma} />
       </div>
 
