@@ -6,7 +6,33 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-09-29 — Las interrupciones de servicio ya se pueden registrar y el contador de vacaciones puede leerlas · migraciones 0497 y 0498 · SIN PEGAR · SIN FUSIONAR
+## 2026-09-29/30 — Un cese con reingreso se regulariza (0499 PEGADA · regularización HECHA y verificada) · la licencia sin goce (0497/0498) está FUSIONADA pero SIN PEGAR
+
+**Estado al 2026-09-30, por la tarde — lo que de verdad pasó en producción:**
+- **0499 pegada y verificada** (`funcion_cambiada = true`; `migraciones_aplicadas` tiene la 499 con su nombre).
+- **Regularización ejecutada por Felipe (paso 2) y comprobada (paso 3).** La fecha de ingreso de la persona
+  pasó de 30/09/2025 a 02/06/2026; se registró la liquidación de la primera etapa (versión 1) **neta en cero,
+  saldada por declaración** de Felipe, sin verificar contra comprobantes: sueldo de marzo pagado; gratificación
+  de 2025 pagada (se tomó el importe del sistema, S/359.70); los S/317.53 de la planilla de julio atribuidos
+  por completo a la primera etapa, con **S/77.73 anotados como «pagado de más» sin compensar**; CTS saldada
+  por otro arreglo (S/282.03); vacaciones «pagadas» **sin monto declarado, se asumió que completas (S/317.24)**.
+  La fecha de pago quedó vacía a propósito. Resultado medido en producción, igual al del ensayo: vacaciones
+  15.04 → 4.96 días, reserva sin líneas negativas (vac S/141.65, CTS S/153.45, gratificación S/211.80), el
+  sistema no la da por liquidada, y el rastro tiene sus dos filas. El bloque para deshacerlo quedó probado
+  (anula la liquidación y devuelve el ingreso; no despaga lo pagado) y no se necesitó.
+- **0497/0498 fusionadas (#474) pero sin pegar y sin uso**: no hacen falta para este caso (son para un acuerdo de
+  no venir SIN cese). Mientras tanto `que_falta_pegar.sql` las marca ❌. Decisión pendiente: pegarlas (inertes con
+  el interruptor apagado, pero reescriben cuatro funciones grandes para algo que hoy nadie usa) o retirarlas
+  dejando el hueco 0497–0498 documentado en `huecos-conocidos.txt`.
+- **Accidente de proceso, ya rescatado:** #474 se fusionó a las 09:39 (Lima), ANTES de que se subiera la 0499;
+  esos commits quedaron en la rama, fuera de `main`, mientras producción ya tenía la función. Es el mismo
+  modo de fallar que #452/#453. Se rescataron en un PR aparte. **Regla: no empujar más commits a una rama cuyo
+  PR ya se fusionó; comprobar `gh pr view` antes de cada push.**
+- **Sin decidir ni comprobar:** la baja y el alta en el T-Registro de SUNAT (22/03 y 02/06) y las PLAME de abril y
+  mayo; el documento firmado del mutuo acuerdo; los comprobantes de los pagos declarados; y si la liquidación de
+  quien trabaja a tiempo parcial debe calcularse con el sueldo base completo o con su ritmo real (consulta al
+  laboralista, junto con los intereses por la demora).
+
 
 **Origen:** la pantalla de Provisiones mostraba **15.0 días** de vacaciones para una integrante
 que cumple su primer año esta semana, y la pregunta fue cómo los acumuló tan rápido si estudia
