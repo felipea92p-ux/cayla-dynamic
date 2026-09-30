@@ -183,10 +183,6 @@ export default function CorreccionesPage() {
   const rol = yo?.rol ?? null;
   const [personas, setPersonas] = useState<Persona[]>([]);
   const [sedes, setSedes] = useState<Sede[]>([]);
-  // Quién ya se liquidó (0421) — solo esas desaparecen del selector. Mientras
-  // esté cesada y sin liquidar, sigue disponible: puede tener un marcaje real
-  // por corregir antes de calcularle esa liquidación.
-  const [personaLiquidada, setPersonaLiquidada] = useState<Set<string>>(new Set());
   const [personaId, setPersonaId] = useState("");
   const [fecha, setFecha] = useState(hoyLima());
   // Filtro de la lista de la izquierda — no de qué persona está abierta.
@@ -287,22 +283,22 @@ export default function CorreccionesPage() {
     const supabase = createAdminSupabaseClient();
     const { data } = await supabase.auth.getSession();
     if (!data.session) { router.replace("/admin/login"); return; }
-    // Sin filtro de estado en la base: se incluye a quien ya cesó, y el
-    // filtro real (activa, o cesada pero sin liquidar) se aplica abajo con
-    // `personasCorregibles` — hay que poder corregir el marcaje de alguien
-    // que acaba de cesar ANTES de que se le calcule su liquidación (0421).
-    const [p, pf, s, dr, ap] = await Promise.all([
+    // Sin filtro de estado en la base, a propósito: la lista de la izquierda
+    // solo muestra a quien sigue activo (`personasCorregibles`), pero el panel del
+    // día y los nombres del historial se resuelven contra TODAS las personas — un
+    // día que se abre desde una banda o desde un enlace puede ser de alguien que
+    // ya cesó, y sin su fila quedaría sin nombre.
+    const [p, s, dr, ap] = await Promise.all([
       supabase
         .from("personas").select("id, nombres, apellidos, rol, sede_base_id, tipo_vinculo, personal_direccion, estado")
         .eq("cuenta_de_servicio", false).order("nombres"),
-      supabase.rpc("fn_personas_funciones"),
       supabase.from("sedes").select("id, nombre").order("nombre"),
       supabase.rpc("fn_dias_por_revisar", { p_limite: LIMITE_DIAS_POR_REVISAR }),
       supabase.rpc("fn_marcas_apartadas"),
     ]);
     // DURAS (afirman algo sobre una persona o un pago): el equipo, los días por
     // revisar y las marcas apartadas. BLANDAS (solo comodidad): sedes, que es
-    // un filtro, y las liquidadas, que solo esconde a quien ya cobró todo.
+    // un filtro.
     setBaseFalla(loQueNoSePudo([
       { error: p.error, que: "la lista del equipo" },
       { error: dr.error, que: "los días por revisar" },
@@ -310,12 +306,6 @@ export default function CorreccionesPage() {
     ]));
     if (!p.error) setPersonas((p.data as Persona[]) ?? []);
     if (!s.error) setSedes((s.data as Sede[]) ?? []);
-    if (!pf.error) {
-      setPersonaLiquidada(new Set(
-        (((pf.data as { persona_id: string; liquidada: boolean }[] | null) ?? []))
-          .filter((f) => f.liquidada).map((f) => f.persona_id),
-      ));
-    }
     if (!dr.error) setPorRevisar((dr.data as unknown as DiaPorRevisar[]) ?? []);
     if (!ap.error) setApartadas((ap.data as unknown as MarcaApartada[]) ?? []);
   }, [router]);
@@ -623,16 +613,17 @@ export default function CorreccionesPage() {
   const puedeCorregir = puedeOperarEquipo(rol);
   const esSupervisor = esRolEncargada(rol);
 
-  // Activa, o cesada pero todavía sin liquidar (0421/0422) — la ya liquidada
-  // desaparece del selector, sin excepción, se vea o no el filtro de arriba:
-  // aquí no aplica un toggle "ver todas", es el mismo caso "cerrado" en toda
-  // la pantalla. Y una encargada no puede corregir su propia asistencia ni la
-  // de un admin.
+  // Solo quien sigue activo entra a la lista: a quien ya cesó no se le ofrece
+  // aquí (decisión de Felipe, 2026-09-30 — estorbaba la vista, y lo dijo dos
+  // veces). Su día NO desaparece de la pantalla: sigue abriéndose desde las
+  // bandas de arriba (`fn_dias_por_revisar`, que por la 0422 aún incluye al
+  // cesado sin liquidar) y desde un enlace `?persona=…`. Y una encargada no
+  // puede corregir su propia asistencia ni la de un admin.
   const personasCorregibles = useMemo(() => {
-    const disponibles = personas.filter((p) => p.estado === "activo" || !personaLiquidada.has(p.id));
-    if (!esSupervisor || !yo) return disponibles;
-    return disponibles.filter((p) => p.id !== yo.id && !ROLES_DO.includes(p.rol));
-  }, [personas, personaLiquidada, esSupervisor, yo]);
+    const activas = personas.filter((p) => p.estado === "activo");
+    if (!esSupervisor || !yo) return activas;
+    return activas.filter((p) => p.id !== yo.id && !ROLES_DO.includes(p.rol));
+  }, [personas, esSupervisor, yo]);
 
   // Cuántos días por revisar tiene cada persona, en TODO el equipo — no solo el
   // día que está abierto ahora mismo. Es lo que deja elegir a quién atender sin
@@ -931,7 +922,7 @@ export default function CorreccionesPage() {
                         </span>
                         <span className="min-w-0 flex-1">
                           <span className={`block truncate text-sm font-medium ${seleccionada ? "text-rojo" : "text-tinta"}`}>
-                            {p.nombres} {p.apellidos}{p.estado !== "activo" ? " (cesó)" : ""}
+                            {p.nombres} {p.apellidos}
                           </span>
                           <span className="block truncate text-xs text-taupe">
                             {sedeNombrePorId.get(p.sede_base_id) ?? "—"}

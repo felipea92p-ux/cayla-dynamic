@@ -118,71 +118,101 @@ señal fiable.
 
 ### Guion de mañana — 2026-10-01
 
-**El orden importa: la migración se pega ANTES de fusionar, y la política se publica DESPUÉS de fusionar.**
-Y **no** se pega la noche del 30: entre pegar y el 1-oct la pantalla de Contratos (código viejo) no vería ninguna RMV.
+**RMV a S/ 1,230 · escala nueva · asignación familiar S/ 123 · Política salarial nueva** — revisado por un lector sin contexto que lo recorrió paso a paso contra el código.
 
-1. **Subir la rama y abrir el PR.** Hoy el `pre-push` **fallaría**: la novedad de la Política lleva fecha
-   2026-10-01 y `tests/novedades.test.ts` rechaza una fecha futura («no del futuro»); es la **única** prueba roja de
-   la suite y se pone verde sola a las 00:00 de Lima (comprobado simulando esa fecha). Esperar a que `db-tests` de
-   GitHub termine en verde. *(Si hubiera que subirla hoy: cambiar `id` y `fecha` de la novedad a 2026-09-30 y volver
-   a 2026-10-01 antes de fusionar. No se recomienda: un `id` con fecha equivocada queda para siempre.)*
-2. **Consultas de comprobación.** `./scripts/que-falta-pegar.sh` (qué falta en producción; que la 0500 de la rama paralela **no** esté pegada) y
-   pegar **`scripts/sql-manual/antes_de_pegar_la_rmv_1230.sql`** en el SQL Editor (una sola consulta, 17 filas).
-   Mirar: fila 2 (**14** personas suben), fila 3 (**todo en 0**: si no, la migración se detendrá), fila 4, fila 5
-   («nadie»), **fila 6 y 7 (practicantes)**, fila 11 (**periodo abierto 2026-09-29 → 2026-10-28**; si la `fecha_fin`
-   es otra, avisar antes de seguir), fila 13 (¿está la 0500?) y fila 14 (quién firmará el rastro).
-3. **Pegar la 0501:** `./scripts/dame-el-sql.sh 0501` (se niega si no está commiteada y en GitHub byte por byte; el
-   portapapeles debe conservar los acentos: `diff <(pbpaste) supabase/migrations/0501_*.sql`). No reescribe ninguna
-   función, así que no hay md5 de partida. Pegarla **entera**: termina con una consulta de una fila.
-4. **Comprobar:** esa fila debe decir `1230 · 1130 · 123 · 113 · 123 · 1230.00 · colibri 1230.00 · cayla 1245.00 ·
-   support 1260.00 · 501 la_rmv_sube_a_1230_y_la_escala_la_sigue`. Volver a pegar el script del paso 2: filas 2 = 0,
-   8 = `1130 / 1230`, 9 = `113 / 123 / 123`, 17 = `1230 · 1245 · 1260 · 1360 · 1440 · 1500`. Si la migración
-   **abortó**, no se tocó nada: el mensaje dice qué caso es (paso 2). Pegarla dos veces es seguro.
-5. **Fusionar el PR** (= publicar; ~1 minuto). Comprobar en `/admin/equipo`, abriendo la edición del sueldo de un
-   colibrí, que **no** sale el aviso ámbar «Fuera de la base del rango» (la base propuesta ya es 1,230), y que
-   Contratos ve la RMV.
-6. **Publicar la Política salarial.** En `/admin/politica-salarial` aparece la insignia **«Desactualizada»** y el
-   aviso «El cuadro cambió después de publicar» (desde que se pegó el SQL); enlace «Publica una versión nueva» →
-   **`/admin/politica-salarial/versiones`** («Versiones y publicación») → **«Publicar»** → ventana «Publicar política
-   salarial» («Esto creará la versión N+1») → **«Publicar versión nueva»**. Volver a `/admin/politica-salarial`: debe
-   decir **«Vigente»** y la tabla de la escala **1,230 / 1,245 / 1,260**. Todas las constancias se piden de nuevo.
-7. **Qué ve cada integrante.** Al abrir Dynamic (`/mio` o el panel) le sale el aviso **«Te falta dejar una
-   constancia»** → **«Leer y dejar constancia»** → `/admin/politica-salarial` → al final, «Constancia de haber
-   recibido este documento»: escribe su nombre y pulsa **«Dejar constancia»** («Gracias. Tu constancia quedó
-   registrada.»). Si cierra con «Ahora no — me lo recuerdas la próxima vez», vuelve a salir; la Bandeja lo cuenta.
-   El seguimiento está en `/admin/politica-salarial/constancias` y en «Constancias: X / Y» de la política.
-   **Quien no la abre:** nada se bloquea ni se descuenta y nadie firma por ella (Dynamic avisa, nunca sanciona); queda
-   pendiente y visible para DO. Propuesta: pasados unos días, DO se lo pide en persona o le entrega el documento
-   impreso («Imprimir / Guardar como PDF») —la Ley 30709 exige poder probar que se informó—.
-8. **La novedad** («Hay una versión nueva de la Política salarial para leer y confirmar», para todos, sin montos) sale
-   sola con el fusionado, en Anuncios y en «Lo mío».
-9. **Antes del cierre del 28/10:** abrir la boleta de un colibrí y confirmar el pago mezclado por tramos (≈ 1,223.33
-   con asistencia completa); resolver los practicantes (paso 2, filas 6–7).
+**Orden que no se altera:** comprobar → pegar la 0501 en producción → fusionar el PR → recargar y comprobar → publicar la Política → avisar. Nada se hace en producción esta noche (30-sep): entre pegar y el 1-oct la pantalla Contratos (con el código viejo) no vería ninguna RMV.
 
-**Si se hace en otro orden:** *publicar la política antes de pegar el SQL* → el documento se congela con la escala
-vieja (1,130 / 1,185), las constancias se dejan sobre un papel que la planilla desmiente y hay que publicar de nuevo
-y volver a pedirlas todas. *Publicarla antes de fusionar* → publica el párrafo viejo de la cláusula de la mínima
-vital. *Fusionar antes de pegar* → `main` se publica sola: Equipo propone bases (1,230 / 1,245) que el sistema aún no
-paga, Contratos lee la RMV vieja, y la novedad avisa de una versión que todavía no existe. *Pegar la noche del 30* →
-Contratos sin RMV hasta el 1-oct (el convenio de jornada reducida saldría con «[FALTA PUBLICAR LA RMV VIGENTE EN EL
-SISTEMA]»). *Pegar después de pagar el periodo 29/09 → 28/10* → el candado de periodo pagado de `fn_set_salario`
-rechaza el cambio y la migración aborta entera.
+**Nunca, en ningún paso:** pegar la 0500 ni correr scripts/sql-manual/reajuste_bases_rmv_1230.sql (son de la rama claude/salary-update-1230-bd7a09; ese script baja Cayla de 1,245 a 1,230 y reescribe la Política) · npx vercel --prod · supabase db reset · fusionar el PR antes del paso 10 · pulsar «Confirmar de todas formas» en la ventana de publicar.
 
-**Pendiente, en este orden:**
-1. **Los practicantes** (arriba) y su papel: adenda o renovación con el laboralista.
-2. **Descartar o cerrar la rama paralela** y anotar el hueco del 0500 si se descarta.
-3. **`fn_remuneracion_computable` que lea por fecha** (la deuda de las dos verdades) — migración propia.
-4. **El segundo tramo (S/ 1,300, primer semestre de 2027):** colibrí, cayla **y support** vuelven a quedar bajo el
-   piso, hay que rehacer esta misma migración con la asignación en **130**. Nada en el sistema avisa cuando el decreto
-   salga: es vigilancia de Felipe (o un aviso periódico si se decide construirlo).
-5. **Confirmar con el contador/laboralista** la asignación familiar de una pequeña empresa (REMYPE vigente y quién
-   entró antes del D. Leg. 1086), ya decidida por Felipe pero sin el sustento cerrado (ver el análisis del 2026-08-15).
-6. **Los borradores de las ~20 renovaciones** generados antes de pegar llevan la remuneración vieja congelada en el
-   documento: regenerarlos (un borrador se corrige, no se duplica) antes de imprimir.
+**A. Preparar** (lo hace Claude, con tu OK, dentro de la carpeta de este trabajo: .claude/worktrees/planilla-seccion-feriado-21d627, rama claude/salary-structure-update-4f2712; solo después de las 00:00 hora de Lima del 1-oct: antes, el pre-push se detiene porque la novedad lleva fecha 2026-10-01 y tests/novedades.test.ts rechaza fechas futuras)
+1. **Hecho el 2026-09-30:** se trajo origin/main a la rama (0499, retiro de las 0497/0498, novedad del certificado) y se resolvieron novedades.ts —las tres entradas— y este archivo —las dos secciones—. Pasadas las 00:00 de Lima, Claude vuelve a correr ./scripts/siguiente-numero.sh: si la 0501 ya no está libre, renumera migración, prueba 395, script antes_de_pegar y textos, y lo vuelve a comprobar.
+2. Decisión tuya antes de abrir el PR (opcional): la Política dice que las categorías por debajo «se reajustan a la nueva mínima», pero Cayla queda en 1,245. Redacción sugerida: «se reajustan, como mínimo, hasta la nueva mínima». Si se cambia, va en este mismo PR.
+3. Commit nuevo (nunca --amend) y git push. Si el hook responde que regeneró la consulta de qué falta pegar y aborta, es normal: repetir git push.
+4. Abrir el PR como BORRADOR (draft), con título «NO FUSIONAR ANTES DE PEGAR LA 0501» y este guion pegado en la descripción. Comprobar: gh pr view N --json isDraft,autoMergeRequest debe dar true y null, y Auto-fix apagado. Un borrador no se puede fusionar ni por costumbre ni por fusión automática.
+5. Esperar a que db-tests y ui-tests salgan en verde sobre el ÚLTIMO commit. Si alguno sale rojo: no pegar ni fusionar; pasar a Claude el nombre de la prueba.
+
+**B. Comprobar y pegar** (tú; Supabase, proyecto de PRODUCCIÓN —no el local—, SQL Editor; los comandos, en la terminal dentro de la carpeta del trabajo)
+6. ./scripts/que-falta-pegar.sh genera scripts/sql-manual/que_falta_pegar.sql (solo lo genera): pega ese archivo en el SQL Editor y ejecútalo. Esperado: la 0501 figura pendiente y no hay ninguna fila nueva de «SOBRA LA FILA»; la 0500 NO debe estar aplicada. Si lo está: parar.
+7. ./scripts/dame-el-sql.sh scripts/sql-manual/antes_de_pegar_la_rmv_1230.sql (así los acentos no se rompen), pegar, ejecutar: una sola tabla de 17 filas. Leer:
+   - Fila 2: «14 persona(s)» (10 Colibrí + 4 Cayla medidos el 30-sep; si difiere, mira la fila 1 y para).
+   - Fila 3 (los cinco casos) y fila 15: TODO en 0. Si no, la migración se detendrá: no seguir. Remedio por causa: *base sin confirmar* → confirmarla en Equipo; *base_provision propia* o *sueldo fijo* → decisión de Felipe, no se resuelve a ciegas; *tramo de sueldo programado después del 1-oct* → revisarlo en Equipo; *un campo arriba y otro abajo* → igualar a mano (consulta (i) del script); *fila 15 (rendimiento < 100 en un mes pagado)* → decisión de Felipe.
+   - Fila 4: «nadie» o quien cobra por encima de su monto (esa persona NO se toca, es lo correcto).
+   - Fila 5: «nadie». Si sale una estación o cuenta de servicio de rango Colibrí, es lo esperado: la migración la omite a propósito.
+   - Filas 6 y 7: practicantes. La 0501 NO los toca. Anota quiénes salen «QUEDA BAJO EL PISO EL 1-OCT» (paso 17).
+   - Fila 8: antes «1130 / 1130». Fila 9: antes «113 / 113 / 113». Los valores salen con cinco decimales (1130.00000 es 1130).
+   - Fila 10: cuántas personas cobran asignación familiar (cada una cuesta ≈ S/ 12.57 más al mes y, pagado un periodo con 123, no se puede bajar).
+   - Fila 11: periodo abierto 2026-09-29 → 2026-10-28 (que además figure el de agosto-septiembre aún sin pagar es normal; si el que empieza el 29-sep tiene otra fecha_fin, para y avisa). Fila 12: último periodo cerrado o pagado.
+   - Fila 13: la 499 puede figurar; la 500 y la 501 NO.
+   - Fila 14: quién firmará el rastro (el admin activo más antiguo con usuario; no tiene que ser Felipe).
+   - Fila 16: cuántas constancias dejó la versión vigente (te dice a cuántas personas llegará el aviso).
+   - Fila 17: antes 1130 · 1185 · 1260 · 1360 · 1440 · 1500 (con dos decimales).
+8. ./scripts/dame-el-sql.sh 0501 y comprobar los acentos: diff <(pbpaste) supabase/migrations/0501_*.sql && echo idéntico. Pegar ENTERO en el SQL Editor y ejecutar. Es todo o nada: si da error, no se tocó nada; copia el mensaje completo y para. No hay prisa contable: se puede pegar después mientras el periodo 29-sep → 28-oct no esté pagado. Si luego el editor contesta «current transaction is aborted», recarga la pestaña del SQL Editor.
+9. Comprobar la fila que devuelve: RMV 15-oct 1230 · RMV 30-sep 1130 · asignación 15-oct 123 · asignación 30-sep 113 · configuración 123 · default 1230.00 · «colibri 1230.00 · cayla 1245.00 · support 1260.00» · «501 la_rmv_sube_a_1230_y_la_escala_la_sigue» (los ceros de más no importan). Volver a ejecutar el paso 7: fila 2 = 0 persona(s); fila 8 = 1130 / 1230; fila 9 = 113 / 123 / 123; fila 17 = 1230 · 1245 · 1260 · 1360 · 1440 · 1500. Desde aquí hasta el paso 14 no pares (unos 15 minutos y, de preferencia, antes de que abran las sedes): desde ahora cualquiera que abra Política salarial ve la escala nueva con la insignia «Desactualizada».
+
+**C. Fusionar y publicar** (tú)
+10. En GitHub, en el PR: «Ready for review» → confirmar que el CI sigue en verde → botón verde de fusionar (fusionar ES publicar). Esperar el despliegue de Vercel en «Ready» (~1 minuto; pestaña Deployments de cayla-dynamic o el check de Vercel en el commit de main). Si la fusión cae en un día distinto del 1-oct, antes de fusionar corregir id y fecha de la novedad.
+11. Recarga forzada (Cmd+Shift+R) en TODAS las pestañas de Dynamic que tengas abiertas (una pestaña vieja publicaría el texto viejo). Personas → Equipo → botón «•••» de una fila Colibrí → «Editar salario»: base 1,230 y NO debe salir el aviso ámbar «Fuera de la base del rango». Con una Cayla, 1,245. Cierra SIN guardar.
+12. Publicaciones → Política salarial: la insignia «Desactualizada» y el aviso ámbar «El cuadro cambió después de publicar» → enlace «Publica una versión nueva» (o la pestaña «Versiones y publicación», /admin/politica-salarial/versiones) → sección «Publicar» → botón «Publicar» → ventana «Publicar política salarial». Debe decir «Esto creará la versión N+1» y «Las X personas obligadas van a tener que dejar constancia de nuevo». Si en cambio dice «No hay cambios de contenido»: pulsa solo «Cancelar»; significa que el navegador no ve el SQL o el código nuevo; recarga forzada y repite. Pulsa «Publicar versión nueva» UNA vez. Mensaje verde esperado: «Se publicó la versión N+1. Las constancias se piden de nuevo.»
+13. Comprobar. (a) Versiones y publicación → Historial → «Ver» en la versión nueva: sección «La escala» con Colibrí 1,230 · Cayla 1,245 · Support 1,260 · Aurora 1,360 · Oráculo 1,440 · ArchiCayla 1,500, y la cláusula de la mínima vital con el texto nuevo. (b) Documento vigente: «Versión N+1 · publicada el <hoy> · Vigente · Constancias: 0 / Y». En esa pantalla la escala no se dibuja como tabla: ábrela con el botón «+» de «Cómo se aplica cada criterio a cada categoría» (tarjetas S/ 1230.00 · 1245.00 · 1260.00 · 1360.00 · 1440.00 · 1500.00).
+14. Deja tu propia constancia: al abrir Dynamic sale «Te falta dejar una constancia» → «Leer y dejar constancia» → al final, «Constancia de haber recibido este documento» (tu nombre ya viene escrito) → «Dejar constancia» → «Gracias. Tu constancia quedó registrada.»
+15. Avisar a todos.
+   - La novedad «Hay una versión nueva de la Política salarial para leer y confirmar» ya salió con la fusión, para todos los roles: en Publicaciones → Anuncios (sección de novedades) y en «Lo mío» (tarjeta «Una novedad del sistema», con «Entendido»; 14 días). No lleva montos: así debe ser.
+   - Recomendado: un Anuncio de DO justo ahora, para tener el aviso a tu hora. Publicaciones → Anuncios → «Publicar un anuncio»: Título «Hay una versión nueva de la Política salarial para leer y confirmar». Cuerpo: «Desarrollo Organizacional publicó hoy una versión nueva de la Política salarial. Al abrir Dynamic verás un aviso que pide dejar constancia: entra con «Leer y dejar constancia», lee el documento y pulsa «Dejar constancia» al final. Dejar constancia no significa estar de acuerdo: significa que la recibiste y la leíste. Si tienes una duda o una discrepancia, puedes plantearla a la Gerencia y recibirás respuesta por escrito.» A quién: «Todas las sedes» → «Publicar». Sin montos.
+   - Quien tenga Dynamic abierto desde antes verá el aviso al recargar; quien no tenga cuenta no lo verá nunca (ver paso 16).
+
+**D. Después**
+16. Seguimiento en Publicaciones → Política salarial → «Constancias» (hoja imprimible con pendientes y motivo). Quien no deja constancia: no se bloquea nada, no se le descuenta nada y nadie la firma por ella; queda pendiente y visible. A los 3 días, su líder de equipo o DO la acompaña a abrir su propia cuenta y dejarla ella misma (es la única vía: la hoja dice «no hay vía en papel para este documento»). Si no puede entrar, qué otra prueba de entrega se acepta es consulta al laboralista; no se promete antes. Para dar el documento en papel: Versiones y publicación → «Ver» → «Descargar PDF» (el «Imprimir / Guardar como PDF» del documento vigente omite la sección «La escala»). El «X / Y» de Política y la hoja de Constancias pueden diferir en quien está en días de selección: vale la hoja.
+17. Antes del cierre del 28-oct:
+   - Practicantes (filas 6-7): resolver con sus datos. Desde el 1-oct Contratos bloquea generar o renovar un convenio con subvención bajo el piso (RMV, o su proporción a las horas pactadas); su EsSalud sube solo de 101.70 a 110.70; los convenios firmados siguen diciendo 1,130 (adenda o renovación: consulta al laboralista).
+   - Personas → Datos personales: revisar los ⚠ de asignación familiar («se le paga y declara que no tiene hijos menores», etc.). A quien se le pague sin corresponder recibirá S/ 123 desde el 1-oct y no se podrá bajar.
+   - Regenerar los borradores de renovaciones creados antes de pegar (llevan la remuneración vieja congelada; un borrador se corrige, no se duplica).
+   - Abrir la boleta de una Colibrí y de una Cayla del periodo 29-sep → 28-oct: la línea de remuneración con el mes completo debe dar ≈ 1,223.33 y ≈ 1,241.00 (no es el total de la boleta) y el piso de EsSalud 110.70.
+   - Explicación para quien pregunte: «Del 29 de septiembre al 28 de octubre, los días 29 y 30 de septiembre se pagan con el sueldo de septiembre y del 1 al 28 de octubre con el sueldo nuevo; por eso este primer periodo sale por debajo del sueldo nuevo completo. Desde el periodo siguiente cobras el monto completo.»
+   - Avisar en persona (DO o su líder de equipo) a las personas de Colibrí y Cayla del ajuste, y a quienes cobran asignación familiar de su nuevo monto: el aviso del sistema no lleva montos. Support, Aurora, Oráculo y ArchiCayla no suben.
+18. Limpieza (Claude): cerrar la rama claude/salary-update-1230-bd7a09 y su worktree sin fusionar; después de confirmar en la fila 13 que la 500 no está en producción, anotar el hueco 0500 en scripts/hooks/huecos-conocidos.txt con su razón. Vigilancia de Felipe: el segundo tramo de la RMV (S/ 1,300, decreto del primer semestre de 2027) no está construido y nada avisa cuando salga; entonces Colibrí, Cayla y Support vuelven a quedar bajo el piso y la asignación pasa a 130 en parametros_laborales y en configuracion.
+
+**Si algo sale en otro orden**
+- Fusionar antes de pegar: Equipo propone bases (1,230 / 1,245) que el sistema aún no paga, Contratos lee la RMV vieja y la novedad avisa de una versión que no existe. Pegar la 0501 y seguir con el paso 12 recarga el estado.
+- Publicar la Política antes de pegar el SQL o antes de fusionar (o desde una pestaña vieja): se congela un documento con la escala o la cláusula viejas; hay que publicar otra versión y todo el equipo confirma dos veces.
+- Pegar la noche del 30: Contratos sin RMV hasta el 1-oct («[FALTA PUBLICAR LA RMV VIGENTE EN EL SISTEMA]» en el convenio de jornada reducida).
+- Pegar después de pagar el periodo 29-sep → 28-oct: el candado de periodo pagado de fn_set_salario rechaza el cambio y la 0501 aborta entera.
+- Pegar la 0500 o el reajuste de la rama paralela después de la 0501: baja Cayla a 1,230; detener y avisar.
 
 ---
 
-## 2026-09-29 — Las interrupciones de servicio ya se pueden registrar y el contador de vacaciones puede leerlas · migraciones 0497 y 0498 · SIN PEGAR · SIN FUSIONAR
+## 2026-09-29/30 — Un cese con reingreso se regulariza (0499 PEGADA · regularización HECHA y verificada) · la licencia sin goce (0497/0498) se RETIRÓ sin haberse pegado
+
+**Estado al 2026-09-30, por la tarde — lo que de verdad pasó en producción:**
+- **0499 pegada y verificada** (`funcion_cambiada = true`; `migraciones_aplicadas` tiene la 499 con su nombre).
+- **Regularización ejecutada por Felipe (paso 2) y comprobada (paso 3).** La fecha de ingreso de la persona
+  pasó de 30/09/2025 a 02/06/2026; se registró la liquidación de la primera etapa (versión 1) **neta en cero,
+  saldada por declaración** de Felipe, sin verificar contra comprobantes: sueldo de marzo pagado; gratificación
+  de 2025 pagada (se tomó el importe del sistema, S/359.70); los S/317.53 de la planilla de julio atribuidos
+  por completo a la primera etapa, con **S/77.73 anotados como «pagado de más» sin compensar**; CTS saldada
+  por otro arreglo (S/282.03); vacaciones «pagadas» **sin monto declarado, se asumió que completas (S/317.24)**.
+  La fecha de pago quedó vacía a propósito. Resultado medido en producción, igual al del ensayo: vacaciones
+  15.04 → 4.96 días, reserva sin líneas negativas (vac S/141.65, CTS S/153.45, gratificación S/211.80), el
+  sistema no la da por liquidada, y el rastro tiene sus dos filas. El bloque para deshacerlo quedó probado
+  (anula la liquidación y devuelve el ingreso; no despaga lo pagado) y no se necesitó.
+- **0497/0498 (licencia sin goce) RETIRADAS el 2026-09-30, sin haberse pegado nunca.** Estaban fusionadas desde
+  #474 y no hacían falta para este caso (son para un acuerdo de no venir SIN cese). Se retiraron por tres razones:
+  el uso futuro es bajo e incierto (un caso en unas treinta personas, y ese caso no era una licencia); no se podían
+  encender hasta que el laboralista respondiera; y mientras estuvieran sin pegar el informe de «qué falta pegar»
+  las marcaba ❌ para siempre, que es lo que enseña a no mirarlo. Se retiró también el aviso de la pantalla de
+  Ausencias y los tipos. **Siguen en el historial de git** (commits `104a111b`, `b61e6675` y `413e0e5d`, PR #474):
+  para reponerlas hacen falta dos cosas —un caso real de acuerdo sin cese y la respuesta del laboralista sobre si
+  esos días cuentan como servicio—, y entonces conviene rehacerlas sobre la versión vigente de las cuatro funciones,
+  no restaurarlas tal cual. Quedan como hueco documentado en `huecos-conocidos.txt`.
+  **Lo que de verdad falta construir es un flujo de reingreso**: el caso real fue un cese con reingreso, y hoy se
+  resuelve con SQL a mano; `fn_reactivar_persona` conserva `fecha_ingreso` y no hay historial de ingresos.
+- **Accidente de proceso, ya rescatado:** #474 se fusionó a las 09:39 (Lima), ANTES de que se subiera la 0499;
+  esos commits quedaron en la rama, fuera de `main`, mientras producción ya tenía la función. Es el mismo
+  modo de fallar que #452/#453. Se rescataron en un PR aparte. **Regla: no empujar más commits a una rama cuyo
+  PR ya se fusionó; comprobar `gh pr view` antes de cada push.**
+- **Sin decidir ni comprobar:** la baja y el alta en el T-Registro de SUNAT (22/03 y 02/06) y las PLAME de abril y
+  mayo; el documento firmado del mutuo acuerdo; los comprobantes de los pagos declarados; y si la liquidación de
+  quien trabaja a tiempo parcial debe calcularse con el sueldo base completo o con su ritmo real (consulta al
+  laboralista, junto con los intereses por la demora).
 
 **Origen:** la pantalla de Provisiones mostraba **15.0 días** de vacaciones para una integrante
 que cumple su primer año esta semana, y la pregunta fue cómo los acumuló tan rápido si estudia
@@ -196,6 +226,8 @@ cuadraba eran los días.
 registrara esos 71 días como lo que fueran: el contador seguía en 15.0. Y la liquidación al cesar
 paga `días pendientes` desde ese mismo contador, así que el sistema no tenía cómo representar
 «estuvo fuera». (La reserva en soles nunca tuvo el problema: un día sin marca no tiene `pago_dia`.)
+
+**[RETIRADAS el 2026-09-30 — esta descripción se conserva solo como referencia del diseño.]**
 
 **Se construyó en dos migraciones, a propósito** (primero se cambia el terreno, después el cambio):
 
@@ -243,21 +275,67 @@ si otra sesión fusionó algo que las reescriba, antes de pegar.**
    · Si fue un cese real, la liquidación de la primera etapa (vacaciones, CTS y gratificación
      truncas) habría estado vencida desde entonces y hoy no hay cómo saber si se pagó. **Esto hay que
      mirarlo con el laboralista antes que cualquier cambio de código.**
-   · Otra persona activa tiene **exactamente el mismo patrón** (cero marcas en abril y mayo, cuando
-     las otras nueve tienen entre 22 y 29 por mes): no es un hueco global de la importación, pero
-     sí conviene saber si es el mismo caso.
-2. **Registrarlos con fecha pasada NO se puede por la vía normal:** `fn_registrar_ausencia` rechaza
-   cualquier ausencia que cruce un periodo ya pagado (0327), y esos 71 días cruzan tres. Es el
-   freno correcto en general. Para este caso hay que hacerlo a mano en el SQL Editor y con rastro
-   en `correcciones_auditoria`; **ese SQL nombra a una persona y no vive en git.**
-3. **Consulta al laboralista, con los hechos de arriba:** (a) si alguien que se fue sin que se
-   formalizara un cese y volvió conserva su antigüedad o empieza una nueva; (b) si hubo un cese
-   de hecho, qué queda pendiente de la primera etapa; (c) para los acuerdos de no venir SIN cese,
-   si esos días cuentan como servicio para el récord vacacional. Hasta que responda, el
-   interruptor sigue apagado.
-4. Pegar la 0497 (sin riesgo), después la 0498 (con `donde-vive.sh` antes), y recién entonces
-   encender el interruptor — **solo si hay casos de acuerdo sin cese; para un cese con reingreso el
-   camino es otro y todavía no existe.**
+   · La otra persona activa con cero marcas en abril y mayo (las demás tienen entre 22 y 29 por mes)
+     es una **accionista, fuera de planilla**: no es el mismo caso. (Aquí se sugirió antes que podía
+     serlo; Felipe lo corrigió el 2026-09-30. Quien filtre «activos sin marcas» debe excluir a
+     `no_trabajador`, que no tiene jornada que marcar.) Descartado también un hueco global de la
+     importación: las demás personas de planilla sí tienen marcas esos dos meses.
+2. **DECIDIDO por Felipe el 2026-09-30: opción A — tratarlo como cese y reingreso**, con SQL a mano. El
+   camino normal está cerrado por tres frenos que son correctos en general: `fn_cesar_persona`
+   no cesa dentro de un periodo ya pagado ni cuando hay un sueldo posterior al cese;
+   `fn_set_fecha_ingreso` no cambia el ingreso si hay jornadas en un periodo pagado;
+   `fn_registrar_ausencia` no registra nada que cruce un periodo pagado. Se ensayó entero en un
+   Postgres desechable (caso con la estructura y las cifras del real):
+   · **0499** (en este PR, con la prueba 393): `fn_persona_liquidada` decía «existe alguna fila de
+     liquidación no anulada». Quien se liquidaba y volvía a trabajar quedaba «liquidada» para siempre
+     y **desaparecía de las colas «días por revisar» y «marcas apartadas»** (las dos la usan para
+     ocultar a quien ya cobró). Medido: sin la 0499 su marca apartada dejaba de verse. Y hallazgo de
+     paso: anular la liquidación tampoco la deshacía para esa función, porque la anulación es una
+     versión nueva y la original queda con `anulada = false`. Ahora cuenta la ÚLTIMA versión y solo
+     si es del cese que la persona tiene HOY. 15 pruebas previas (272 aserciones) idénticas.
+   · **El guion de regularización** (4 pasos: diagnóstico, cálculo en seco, escritura, comprobación)
+     **nombra a una persona y no vive en git**; se entrega por el chat. La escritura es un solo bloque
+     todo-o-nada con más de diez guardas (persona única y activa, ingreso esperado —que frena la doble
+     corrida—, fechas coherentes, ninguna marca entre el cese y el reingreso, sin liquidación previa,
+     0499 pegada, y el total igual al que se revisó y se pagó).
+   · Qué hace: registra la liquidación de la primera etapa en `liquidacion_pagada` (la foto inmutable,
+     con su ingreso y su cese) y mueve `fecha_ingreso` al reingreso. **No inactiva a la persona ni un
+     instante**: `personas_cese_coherente` no deja una persona activa con cese y forzarlo dispara el
+     trigger de educación. No toca los tramos de sueldo ni de horario.
+   · **Lo que reveló el diagnóstico real (2026-09-30), y cambió el guion:** `periodos_planilla` no
+     tiene ningún periodo entre febrero y el 28/06/2026 —todo lo anterior se pagó por Excel—, el libro
+     de desembolsos de esa persona está vacío, y la planilla de julio le pagó S/317.53 de gratificación.
+     **`fn_liquidacion` no ve nada de lo pagado antes del 28/06**: su paso 1 («el sueldo pendiente no se
+     pudo calcular», grati y CTS «ya depositado S/0») es un TOPE, no lo que se debe pagar; pagarlo tal
+     cual puede pagar dos veces. Esto vale para CUALQUIER liquidación de alguien que trabajó antes de esa
+     fecha, no solo para este caso.
+   · **Cómo se descuentan los pagos previos, medido:** anotarlos en el libro de desembolsos NO sirve aquí.
+     Con el escenario ilustrativo (gratificación de diciembre y los S/317.53 de julio) la gratificación
+     trunca sale NEGATIVA (−S/77.73, y ese negativo entra en el registro de la liquidación) y Provisiones
+     muestra −S/250 de «pagado de más» en gratificación. Causa: un pago de julio cubre las DOS etapas y el
+     libro no lo puede partir, y al mover el ingreso esas ventanas dejan de contar el trabajo de la primera
+     etapa. La vía que funciona: el guion de escritura recibe lo YA PAGADO por concepto y registra en
+     `liquidacion_pagada` los importes NETOS, con el cálculo bruto y el ajuste dentro de `detalle`
+     (`regularizacion`). Cada concepto se descuenta por separado y nunca baja de cero: un pago de más en uno
+     se anota como «pagado de más no compensado» y no le quita a otro. Sin negativos en Provisiones.
+   · Efectos medidos: vacaciones vuelven a empezar (15.0 → ~5 días); la reserva de grati y CTS baja
+     en lo que la liquidación paga; la cola de marcas sigue mostrándola; **los periodos pagados no
+     cambian** (su foto queda igual).
+   · **Riesgo conocido:** el cálculo EN VIVO de un periodo pagado de la primera etapa puede bajar
+     (en el ensayo, enero: −S/93.35 por el feriado del 1 de enero, que ya no le corresponde con un
+     ingreso posterior). Lo pagado no se toca; solo importa si alguien REABRE ese periodo y lo
+     vuelve a pagar. `fn_set_fecha_ingreso` se negaba justo por esto.
+3. **Consulta al laboralista** (la opción A no la espera, pero conviene): (a) la liquidación de la
+   primera etapa debía pagarse a las 48 horas del cese y hoy está vencida: ¿corren intereses? (b) si
+   alguien que se fue sin que se formalizara un cese y volvió conserva su antigüedad; (c) para los
+   acuerdos de no venir SIN cese, si esos días cuentan como servicio para el récord vacacional
+   (eso es lo único que enciende o no el interruptor de la 0497/0498).
+4. **Papeles de la primera etapa, que no son SQL:** la hoja de liquidación y el certificado de
+   trabajo del primer periodo, y el contrato de la segunda etapa. El sistema guarda el detalle de la
+   liquidación (`liquidacion_pagada.detalle`) pero su pantalla de Liquidaciones lista a quien está
+   cesado, así que para alguien activa los papeles hay que armarlos de ese detalle.
+5. Lo de las 0497/0498 (licencia sin goce) **se retiró** (ver arriba): no hacía falta para esto y queda en el
+   historial de git por si aparece un caso real.
 
 **Lo que esto NO arregla, y conviene no atribuirle:**
 - **Sueldo fijo:** la planilla no lee `ausencias` (medido en la 0247). Una licencia sin goce baja

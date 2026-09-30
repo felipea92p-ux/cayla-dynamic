@@ -119,7 +119,7 @@ export const NOVEDADES: readonly Novedad[] = [
     fecha: "2026-10-01",
     titulo: "Hay una versión nueva de la Política salarial para leer y confirmar",
     queMejoro:
-      "Se publicó una versión nueva de la Política salarial. Al abrir Dynamic verás el aviso «Te falta dejar una " +
+      "Desarrollo Organizacional publica hoy una versión nueva de la Política salarial. Al abrir Dynamic verás el aviso «Te falta dejar una " +
       "constancia»: entra con «Leer y dejar constancia», lee el documento y, al final, escribe tu nombre y pulsa " +
       "«Dejar constancia». Se lee en un minuto.\n\n" +
       "Dejar constancia no significa estar de acuerdo con lo que dice: significa que la recibiste y la leíste. " +
@@ -127,6 +127,31 @@ export const NOVEDADES: readonly Novedad[] = [
       "Gerencia y recibirás respuesta por escrito. Si cierras el aviso sin firmar, vuelve a salir hasta que dejes " +
       "tu constancia.",
     audiencia: "todos",
+  },
+  {
+    id: "2026-09-30-correcciones-sin-quienes-ya-cesaron",
+    fecha: "2026-09-30",
+    titulo: "Correcciones ya no lista a quienes dejaron de trabajar",
+    queMejoro:
+      "La lista de colaboradores de Correcciones mostraba también a quienes ya cesaron, con un «(cesó)» al lado, " +
+      "y había que pasar por encima de ellos para llegar a quien sí trabaja. Ahora la lista trae solo a quienes " +
+      "siguen activos.\n\n" +
+      "Si un día por revisar de alguien que cesó sigue pendiente, sigue apareciendo en los avisos de arriba de " +
+      "la pantalla, y desde ahí se abre igual que antes.",
+    audiencia: "panel",
+  },
+  {
+    id: "2026-09-30-certificado-de-trabajo-con-recibi",
+    fecha: "2026-09-30",
+    titulo: "El certificado de trabajo ya trae su línea de «Recibí conforme»",
+    queMejoro:
+      "Hasta ahora, el certificado de trabajo que se imprime desde Liquidaciones salía solo con la firma de CAYLA: " +
+      "no había dónde dejar constancia de que la persona lo recibió, ni de qué día. Como el sistema no archiva " +
+      "el papel que se imprime, esa firma era la única forma de probar la entrega dentro de las 48 horas del cese.\n\n" +
+      "Ahora, a la izquierda de la firma de CAYLA, hay una línea de «Recibí conforme» con el nombre y el DNI de la " +
+      "persona, y un espacio para que escriba a mano la fecha en que lo recibe. Imprime dos copias y guarda en el " +
+      "legajo la que firme quien cesó.",
+    audiencia: "do",
   },
   {
     id: "2026-09-28-casos-en-el-dashboard",
