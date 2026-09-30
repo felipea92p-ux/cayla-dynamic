@@ -53,19 +53,35 @@ comentarios y con `\r` por línea. Probada con una versión distinta (aborta, no
 si otra sesión fusionó algo que las reescriba, antes de pegar.**
 
 **Pendiente, en este orden:**
-1. **Saber qué fueron esos 71 días** (DO / Felipe). Las marcas de esa época entraron de las hojas
-   de Excel (`scripts/migracion-historica/importar.mjs`, por mes): un hueco puede ser una ausencia
-   real o datos que nunca entraron. Por el conteo de jornadas de las demás personas en ese mismo
-   rango (p. ej. 159 jornadas de ~190 días) no parece un hueco global de la importación, pero NO se
-   midió mes por mes: hay que confirmarlo con una consulta y con lo que Felipe recuerde.
+1. **RESPONDIDO por Felipe el 2026-09-30: la persona se fue, dejó de trabajar y luego regresó.**
+   Eso **no es una licencia sin goce**, y la diferencia importa: es un cese seguido de un reingreso
+   (o, si nadie lo formalizó, una ausencia de hecho cuya naturaleza legal decide el laboralista).
+   **Las 0497/0498 NO resuelven este caso**: cubren un acuerdo de no venir sin cese, que es otra
+   cosa. Lo que el sistema tiene hoy para esto:
+   · No hay cese registrado (`fecha_cese` nula, sin rastro de cese ni de reactivación en
+     `correcciones_auditoria`) y el tramo de sueldo siguió abierto.
+   · **No existe un flujo de reingreso.** `fn_reactivar_persona` (0209/0327) existe «porque a veces la
+     baja fue un error»: conserva `fecha_ingreso`, así que aunque SÍ se hubiera cesado y reactivado,
+     el contador de vacaciones contaría el hueco como servicio. Hay una sola columna de fecha de
+     ingreso por persona y ningún historial de ingresos.
+   · Si fue un cese real, la liquidación de la primera etapa (vacaciones, CTS y gratificación
+     truncas) habría estado vencida desde entonces y hoy no hay cómo saber si se pagó. **Esto hay que
+     mirarlo con el laboralista antes que cualquier cambio de código.**
+   · Otra persona activa tiene **exactamente el mismo patrón** (cero marcas en abril y mayo, cuando
+     las otras nueve tienen entre 22 y 29 por mes): no es un hueco global de la importación, pero
+     sí conviene saber si es el mismo caso.
 2. **Registrarlos con fecha pasada NO se puede por la vía normal:** `fn_registrar_ausencia` rechaza
    cualquier ausencia que cruce un periodo ya pagado (0327), y esos 71 días cruzan tres. Es el
    freno correcto en general. Para este caso hay que hacerlo a mano en el SQL Editor y con rastro
    en `correcciones_auditoria`; **ese SQL nombra a una persona y no vive en git.**
-3. **Consulta al laboralista:** si los días de una licencia sin goce cuentan como servicio para el
-   récord vacacional. Hasta que responda, el interruptor sigue apagado.
+3. **Consulta al laboralista, con los hechos de arriba:** (a) si alguien que se fue sin que se
+   formalizara un cese y volvió conserva su antigüedad o empieza una nueva; (b) si hubo un cese
+   de hecho, qué queda pendiente de la primera etapa; (c) para los acuerdos de no venir SIN cese,
+   si esos días cuentan como servicio para el récord vacacional. Hasta que responda, el
+   interruptor sigue apagado.
 4. Pegar la 0497 (sin riesgo), después la 0498 (con `donde-vive.sh` antes), y recién entonces
-   encender el interruptor.
+   encender el interruptor — **solo si hay casos de acuerdo sin cese; para un cese con reingreso el
+   camino es otro y todavía no existe.**
 
 **Lo que esto NO arregla, y conviene no atribuirle:**
 - **Sueldo fijo:** la planilla no lee `ausencias` (medido en la 0247). Una licencia sin goce baja
