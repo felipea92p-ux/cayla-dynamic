@@ -419,23 +419,28 @@ export default function ArchivoPage() {
         {msgForm && (
           <p role="alert" className="mb-3 rounded border border-rojo/30 bg-rojo/10 px-3 py-2 text-sm text-rojo">{msgForm}</p>
         )}
-        <div className="grid gap-3 sm:grid-cols-2">
-          <label className="flex flex-col gap-1 sm:col-span-2">
+        {/* `grid-cols-1` y no la grilla implícita: sin él, en un teléfono la única
+            columna crece hasta el ancho natural del selector de archivo y los
+            campos se salen del diálogo por la derecha. */}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <label className="flex min-w-0 flex-col gap-1 sm:col-span-2">
             <span className="text-sm text-taupe">{reemplazando ? "Archivo nuevo (opcional)" : "Archivo"}</span>
             <input
               type="file"
               accept={TIPOS_ARCHIVO}
               onChange={(e) => { setArchivo(e.target.files?.[0] ?? null); setMsgForm(null); }}
-              className={`rounded-control border bg-hueso px-3 py-2 text-sm text-tinta file:mr-2 file:rounded file:border-0 file:bg-sand file:px-2 file:py-0.5 file:text-xs file:text-tinta ${
+              className={`w-full min-w-0 rounded-control border bg-hueso px-3 py-2 text-sm text-tinta file:mr-2 file:rounded file:border-0 file:bg-sand file:px-2 file:py-0.5 file:text-xs file:text-tinta ${
                 intentoGuardar && (faltaArchivo || problemaArchivo) ? "border-rojo" : "border-sand"
               }`}
             />
-            <span className="text-xs text-taupe">
+            <span className={`text-xs ${intentoGuardar && (faltaArchivo || problemaArchivo) ? "text-rojo" : "text-taupe"}`}>
               {archivo
-                ? `${archivo.name} · ${pesoLegible(archivo.size)}`
+                ? problemaArchivo ?? `${archivo.name} · ${pesoLegible(archivo.size)}`
                 : reemplazando
                   ? `Si no eliges uno, se conserva el actual: ${reemplazando.nombre_archivo}`
-                  : "Un PDF o una foto, hasta 50 MB."}
+                  : intentoGuardar
+                    ? "Falta el archivo: elige el PDF o la foto del papel."
+                    : "Un PDF o una foto, hasta 50 MB."}
             </span>
           </label>
           <div className="sm:col-span-2">
@@ -498,14 +503,16 @@ export default function ArchivoPage() {
             />
             <span className="mt-1 block text-xs text-taupe">Déjalo vacío si el papel no vence. Si vence, avisa dos meses antes.</span>
           </div>
-          <div className="sm:col-span-2">
+          {/* Rótulo propio y no `etiqueta`: AreaTexto lo pinta en mayúsculas y
+              el resto de este formulario (Campo) va en caja normal. */}
+          <label className="flex flex-col gap-1 sm:col-span-2">
+            <span className="text-sm text-taupe">Nota (opcional)</span>
             <AreaTexto
-              etiqueta="Nota (opcional)"
               value={form.nota}
               onChange={(e) => setForm({ ...form, nota: e.target.value })}
               placeholder="ej. El original está colgado junto a la caja de la tienda"
             />
-          </div>
+          </label>
         </div>
         {progreso !== null && (
           <div className="mt-3">
@@ -538,13 +545,16 @@ export default function ArchivoPage() {
               este motivo. Úsalo para un papel que ya no aplica o que se subió por error. Si solo cambió un dato,
               usa «Corregir o reemplazar».
             </p>
-            <AreaTexto
-              etiqueta="Por qué se retira"
-              value={motivo}
-              onChange={(e) => { setMotivo(e.target.value); setMsgRetiro(null); }}
-              placeholder="ej. La tienda cerró y su licencia ya no aplica"
-              error={msgRetiro ?? undefined}
-            />
+            <label className="flex flex-col gap-1">
+              <span className="text-sm text-taupe">Por qué se retira</span>
+              <AreaTexto
+                value={motivo}
+                onChange={(e) => { setMotivo(e.target.value); setMsgRetiro(null); }}
+                placeholder="ej. La tienda cerró y su licencia ya no aplica"
+                className={msgRetiro ? "border-rojo" : undefined}
+              />
+              {msgRetiro && <span className="text-xs text-rojo">{msgRetiro}</span>}
+            </label>
             <div className="mt-4 flex justify-end gap-2">
               <Boton onClick={() => setRetirando(null)} disabled={ocupadoRetiro}>Cancelar</Boton>
               <Boton variante="peligro" onClick={() => void confirmarRetiro()} cargando={ocupadoRetiro}>Sí, retirar</Boton>
