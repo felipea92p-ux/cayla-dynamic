@@ -359,7 +359,8 @@ with repo(numero, nombre, nunca) as (values
     (495, 'se_repone_el_filtro_de_cuentas_de_servicio', false),
     (496, 'un_periodo_con_todo_pagado_deja_de_leerse_como_a_medias', false),
     (499, 'liquidada_es_de_su_cese_actual', false),
-    (501, 'la_rmv_sube_a_1230_y_la_escala_la_sigue', false)
+    (501, 'la_rmv_sube_a_1230_y_la_escala_la_sigue', false),
+    (502, 'la_subvencion_pactada_de_los_practicantes_sigue_a_la_rmv_de_1230', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
