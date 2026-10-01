@@ -254,6 +254,112 @@ export type Database = {
           },
         ]
       }
+      archivo_empresa: {
+        Row: {
+          bytes: number
+          entidad: string
+          fecha_documento: string
+          id: string
+          mime: string
+          nombre_archivo: string
+          nota: string | null
+          numero: string | null
+          reemplaza_a: string | null
+          retirado_at: string | null
+          retirado_motivo: string | null
+          retirado_por: string | null
+          sede_id: string | null
+          storage_path: string
+          subido_at: string
+          subido_por: string
+          titulo: string
+          vence_el: string | null
+        }
+        Insert: {
+          bytes: number
+          entidad: string
+          fecha_documento: string
+          id?: string
+          mime: string
+          nombre_archivo: string
+          nota?: string | null
+          numero?: string | null
+          reemplaza_a?: string | null
+          retirado_at?: string | null
+          retirado_motivo?: string | null
+          retirado_por?: string | null
+          sede_id?: string | null
+          storage_path: string
+          subido_at?: string
+          subido_por: string
+          titulo: string
+          vence_el?: string | null
+        }
+        Update: {
+          bytes?: number
+          entidad?: string
+          fecha_documento?: string
+          id?: string
+          mime?: string
+          nombre_archivo?: string
+          nota?: string | null
+          numero?: string | null
+          reemplaza_a?: string | null
+          retirado_at?: string | null
+          retirado_motivo?: string | null
+          retirado_por?: string | null
+          sede_id?: string | null
+          storage_path?: string
+          subido_at?: string
+          subido_por?: string
+          titulo?: string
+          vence_el?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "archivo_empresa_reemplaza_a_fkey"
+            columns: ["reemplaza_a"]
+            isOneToOne: false
+            referencedRelation: "archivo_empresa"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "archivo_empresa_retirado_por_fkey"
+            columns: ["retirado_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "archivo_empresa_retirado_por_fkey"
+            columns: ["retirado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "archivo_empresa_sede_id_fkey"
+            columns: ["sede_id"]
+            isOneToOne: false
+            referencedRelation: "sedes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "archivo_empresa_subido_por_fkey"
+            columns: ["subido_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "archivo_empresa_subido_por_fkey"
+            columns: ["subido_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       areas: {
         Row: {
           activa: boolean
@@ -5516,6 +5622,52 @@ export type Database = {
         Returns: undefined
       }
       fn_aprobar_ausencia: { Args: { p_id: string | null }; Returns: undefined }
+      fn_archivo_empresa: {
+        Args: never
+        Returns: {
+          bytes: number
+          entidad: string
+          estado: string
+          fecha_documento: string
+          id: string
+          mime: string
+          nombre_archivo: string
+          nota: string | null
+          numero: string | null
+          reemplaza_a: string | null
+          reemplazada_por: string | null
+          retirado_at: string | null
+          retirado_motivo: string | null
+          retirado_por_nombre: string | null
+          sede_id: string | null
+          sede_nombre: string | null
+          storage_path: string
+          subido_at: string
+          subido_por_nombre: string | null
+          titulo: string
+          vence_el: string | null
+        }[]
+      }
+      fn_archivo_libre: { Args: { p_path: string | null }; Returns: boolean }
+      fn_archivo_retirar: {
+        Args: { p_id: string | null; p_motivo: string | null }
+        Returns: undefined
+      }
+      fn_archivo_subir: {
+        Args: {
+          p_entidad: string | null
+          p_fecha_documento: string | null
+          p_nombre_archivo: string | null
+          p_nota: string | null
+          p_numero: string | null
+          p_reemplaza_a?: string | null
+          p_sede_id: string | null
+          p_storage_path: string | null
+          p_titulo: string | null
+          p_vence_el: string | null
+        }
+        Returns: string
+      }
       fn_area_activa: {
         Args: { p_activa: boolean | null; p_codigo: string | null }
         Returns: undefined

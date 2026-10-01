@@ -92,7 +92,7 @@ select throws_ok(
        '2026-09-08', null, null, null) $$,
   'P0001', 'El archivo no llegó al almacén. Vuelve a subirlo.', 'una ruta que no existe en Storage no entra (el archivo va primero)');
 select throws_ok(
-  $$ select fn_archivo_subir('Felipe DNI.pdf', 'constancia.pdf', 'Constancia', 'ANPD', null,
+  $$ select fn_archivo_subir('Nombre Apellido DNI.pdf', 'constancia.pdf', 'Constancia', 'ANPD', null,
        '2026-09-08', null, null, null) $$,
   'P0001', 'La ruta del archivo no tiene la forma esperada.', 'una ruta con nombres no entra');
 select throws_ok(
@@ -263,7 +263,7 @@ select is(
   4, 'DO ve los cuatro');
 select throws_ok(
   $$ insert into storage.objects (bucket_id, name, metadata)
-     values ('archivo-empresa', 'Felipe DNI.pdf', '{"size": 1, "mimetype": "application/pdf"}') $$,
+     values ('archivo-empresa', 'Nombre Apellido DNI.pdf', '{"size": 1, "mimetype": "application/pdf"}') $$,
   '42501', null, 'DO no sube un archivo con nombres en la ruta');
 delete from storage.objects where bucket_id = 'archivo-empresa' and name = '1a000000-0000-0000-0000-000000000001.pdf';
 update storage.objects set metadata = '{"size": 1, "mimetype": "application/pdf"}'
