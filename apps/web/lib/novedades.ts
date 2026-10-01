@@ -115,6 +115,20 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-10-01-nueva-version-de-la-politica-salarial",
+    fecha: "2026-10-01",
+    titulo: "Hay una versión nueva de la Política salarial para leer y confirmar",
+    queMejoro:
+      "Desarrollo Organizacional publica hoy una versión nueva de la Política salarial. Al abrir Dynamic verás el aviso «Te falta dejar una " +
+      "constancia»: entra con «Leer y dejar constancia», lee el documento y, al final, escribe tu nombre y pulsa " +
+      "«Dejar constancia». Se lee en un minuto.\n\n" +
+      "Dejar constancia no significa estar de acuerdo con lo que dice: significa que la recibiste y la leíste. " +
+      "Si algo no te queda claro, o tienes una discrepancia, puedes plantearla a Desarrollo Organizacional o a la " +
+      "Gerencia y recibirás respuesta por escrito. Si cierras el aviso sin firmar, vuelve a salir hasta que dejes " +
+      "tu constancia.",
+    audiencia: "todos",
+  },
+  {
     id: "2026-09-30-correcciones-sin-quienes-ya-cesaron",
     fecha: "2026-09-30",
     titulo: "Correcciones ya no lista a quienes dejaron de trabajar",
