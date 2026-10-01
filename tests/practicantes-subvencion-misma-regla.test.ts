@@ -1,15 +1,16 @@
 // ============================================================================
-// practicantes-piso-misma-regla.test.ts — la regla de la 0502 es UNA
+// practicantes-subvencion-misma-regla.test.ts — la regla de la 0502 es UNA
 // ============================================================================
-// La 0502 sube a su piso legal a los practicantes que hoy cobran menos. «Quién
-// sube y a cuánto» es una consulta (la vista `v0502`) y vive escrita en TRES
-// archivos, porque cada uno la necesita donde está:
+// La 0502 alinea a la RMV nueva la subvención PACTADA de los practicantes que hoy
+// cobran menos. «Quién sube y a cuánto» es una consulta (la vista `v0502`) y vive
+// escrita en TRES archivos, porque cada uno la necesita donde está:
 //
 //   · la migración la ejecuta;
 //   · la prueba pgTAP 396 la mide sobre practicantes de laboratorio;
 //   · el script de comprobación se la muestra a Felipe ANTES de pegar, persona
 //     por persona, y es lo que él lee para confirmar la suposición «jornada
-//     completa» de quien no tiene horas pactadas en un convenio.
+//     completa» de quien no tiene horas pactadas en un convenio, y para ver los
+//     convenios en conflicto que detienen la migración.
 //
 // El riesgo no es que la regla esté mal escrita: es que las tres copias se
 // separen. Si el script dijera «SUBE a 820» y la migración subiera a 1,230,
@@ -27,9 +28,9 @@ import path from "node:path";
 
 const RAIZ = path.resolve(import.meta.dirname, "..");
 const ARCHIVOS = {
-  migracion: "supabase/migrations/0502_los_practicantes_llegan_al_piso_de_1230.sql",
-  prueba: "supabase/tests/396_los_practicantes_llegan_al_piso_de_1230.test.sql",
-  script: "scripts/sql-manual/antes_de_pegar_los_practicantes_1230.sql",
+  migracion: "supabase/migrations/0502_la_subvencion_pactada_de_los_practicantes_sigue_a_la_rmv_de_1230.sql",
+  prueba: "supabase/tests/396_la_subvencion_pactada_de_los_practicantes_sigue_a_la_rmv_de_1230.test.sql",
+  script: "scripts/sql-manual/antes_de_pegar_la_subvencion_de_los_practicantes_1230.sql",
 } as const;
 
 const ABRE = "-- >>> REGLA 0502";
@@ -68,6 +69,12 @@ describe("la regla de la 0502: la que se ejecuta es la que se midió y la que se
     for (const pieza of [
       "convenio_practicas", // de dónde salen las horas pactadas
       "anulado_at is null", // el anulado no cuenta
+      "horas_semanales is not null", // solo cuentan los convenios que traen horas…
+      "horas_semanales is null", // …y los que no las traen se miran aparte (conflicto)
+      "count(distinct c.horas_semanales) > 1", // horas distintas entre sí: conflicto
+      "sh.persona_id is not null", // con horas y sin horas a la vez: conflicto
+      "'conflicto_convenios'", // lo que detiene la migración
+      "f.vigente_desde >= date '2026-10-01'", // un tramo que empieza el 1-oct o después: la migración se detiene
       "parametros_laborales", // la RMV se LEE, no se escribe a mano
       "least(b.horas, 30) / 30", // el piso proporcional del preprofesional
       "'sube'",

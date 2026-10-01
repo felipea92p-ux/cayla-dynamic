@@ -3,21 +3,26 @@
 -- falla con "function plan(integer) does not exist" — y falla a propósito.
 -- Se corre así, en esta Mac:   npx supabase test db
 -- ============================================================================
--- 396_los_practicantes_llegan_al_piso_de_1230.test.sql — migración 0502
+-- 396_la_subvencion_pactada_de_los_practicantes_sigue_a_la_rmv_de_1230.test.sql — migración 0502
 -- ============================================================================
 -- La 0501 subió la RMV a S/ 1,230 el 2026-10-01 pero NO alcanzó a los
--- practicantes (`fn_fijar_base_declarada` exige `en_planilla`). La 0502 los sube,
--- por regla —practicante activo, subvención bajo su piso— y nunca por rango.
--- Esta prueba mide lo que esa migración PROMETE:
+-- practicantes (`fn_fijar_base_declarada` exige `en_planilla`). La 0502 alinea la
+-- subvención PACTADA de ellos a la RMV, por regla —practicante activo, subvención
+-- bajo su referencia— y nunca por rango. Esta prueba mide lo que esa migración
+-- PROMETE (y no dice nada de lo que NO promete: que la boleta llegue a esa cifra
+-- es consulta abierta con el laboralista).
 --
 --   A · LA REGLA: quién sube, a cuánto, y quién queda como está. Es la vista
 --       `v0502` de la migración, PALABRA POR PALABRA (la compara
---       tests/practicantes-piso-misma-regla.test.ts), sobre catorce practicantes
---       que cubren cada rama: jornada completa supuesta, convenio de 20 h
---       (piso proporcional 820), convenio de 30 h, el convenio más reciente
---       manda, el anulado no cuenta, quien ya cobra el piso o más (NO baja), sin
---       modalidad, sin tramo, ingreso posterior al 1-oct, y cuentas de servicio,
---       inactivos y personas de otros vínculos, que la regla ni mira.
+--       tests/practicantes-subvencion-misma-regla.test.ts), sobre una veintena
+--       de practicantes que cubren cada rama: jornada completa supuesta, convenio
+--       de 20 h (referencia proporcional 820), de 30 h y de 40 h (el tope en
+--       30 h), un borrador con horas que también protege, el convenio ANULADO que
+--       no cuenta, convenios EN CONFLICTO (horas distintas entre sí; uno firmado
+--       con horas y otro posterior sin ellas) que la migración no resuelve a
+--       ciegas, quien ya cobra su referencia o más (NO baja), sin modalidad, sin
+--       tramo, ingreso posterior al 1-oct, y cuentas de servicio, inactivos y
+--       personas de otros vínculos, que la regla ni mira.
 --
 --   B · LA ACCIÓN, como la hace la migración: `fn_set_salario` por persona con
 --       el rango que ya tiene, y la base legal solo si era menor. El tramo viejo
@@ -25,11 +30,16 @@
 --       abre tramos.
 --
 --   C · LA PLANILLA LO LEE BIEN: un practicante que marca 6.5 h los 31 días del
---       periodo 28-sep → 28-oct cobra 3/31 × 1,130 + 28/31 × 1,130 → 1,220.32,
+--       periodo 28-sep → 28-oct cobra 3/31 × 1,130 + 28/31 × 1,230 → 1,220.32,
 --       no 1,230: tres días de septiembre al sueldo de septiembre. Y su EsSalud
 --       no se mueve (piso puro, ya subió con la 0501).
 --
---   D · EL CANDADO ES POR GRUPO: con el grupo «planilla» pagado, el sueldo de un
+--   D · EL TRAMO QUE EMPIEZA EL 1-OCT: `fn_set_salario` BORRA todo tramo con
+--       vigente_desde >= la fecha. Quien ingresó HOY y cobra menos que su
+--       referencia perdería el único tramo que tiene, y la reversión lo dejaría
+--       sin ninguno: la regla lo marca (`desde_oct`) y la migración se detiene.
+--
+--   E · EL CANDADO ES POR GRUPO: con el grupo «planilla» pagado, el sueldo de un
 --       practicante todavía se puede subir; con el grupo «practicante» pagado,
 --       no. Es la premisa de «pegar antes de pagar».
 --
@@ -37,17 +47,18 @@
 -- migración es un `do $$` anónimo y esta prueba no puede ejecutarlo (pgTAP no lee
 -- archivos del servidor, y un `\i` metería su begin/commit dentro de la
 -- transacción de la prueba y haría persistir los datos). Lo que sí comprueba es
--- la REGLA, que es la misma que ejecuta la migración, y cada pieza sobre la que
--- se apoya la subida. El ensayo del bloque completo —los casos que lo detienen,
--- la idempotencia, «nadie baja», la guardia y las mutaciones que la hacen
--- fallar— se hizo contra la cadena completa en una base desechable y está
--- descrito en docs/estado.md.
+-- la REGLA, que es la misma que ejecuta la migración —incluida la clasificación
+-- «conflicto_convenios», que es lo que la hace detenerse—, y cada pieza sobre la
+-- que se apoya la subida. El ensayo del bloque completo —los casos que lo
+-- detienen, el candado de una sola pegada a la vez, la idempotencia, «nadie baja»,
+-- la guardia y las mutaciones que la hacen fallar— se hizo contra la cadena
+-- completa en una base desechable y está descrito en docs/estado.md.
 --
 -- Cuando salga el segundo tramo de la RMV (S/ 1,300) esta prueba se actualiza A
--- PROPÓSITO: es parte del recordatorio de que el piso vuelve a subir.
+-- PROPÓSITO: es parte del recordatorio de que la referencia vuelve a subir.
 -- ============================================================================
 begin;
-select plan(38);
+select plan(48);
 
 -- ── El laboratorio ──────────────────────────────────────────────────────────
 insert into sedes (id, codigo, nombre)
@@ -86,21 +97,25 @@ begin
   end if;
 end $$;
 
--- Un convenio de prácticas con horas pactadas (y su fecha de inicio, que decide
--- cuál es «el más reciente» cuando dos se generaron en la misma transacción).
+-- Un convenio de prácticas NO anulado (con horas, o sin ellas si p_horas es nulo),
+-- firmado o en borrador. La fecha de inicio ya no decide «cuál manda»: valen todos.
 create or replace function pg_temp.conv(
-  p_n int, p_horas numeric, p_inicio date default date '2026-03-02', p_anulado boolean default false)
+  p_n int, p_horas numeric, p_inicio date default date '2026-03-02',
+  p_anulado boolean default false, p_firmado boolean default false)
 returns void language plpgsql as $$
 declare v uuid := ('d0396000-0000-0000-0000-' || lpad(p_n::text, 12, '0'))::uuid;
 begin
   insert into contratos_generados
     (persona_id, tipo, cargo, sede_id, remuneracion_mensual, fecha_inicio, fecha_fin,
-     horas_semanales, documento_html, generado_por, anulado_at, anulado_por, anulado_motivo)
+     horas_semanales, documento_html, generado_por, anulado_at, anulado_por, anulado_motivo,
+     fecha_firma, registrado_por)
   values (v, 'convenio_practicas', 'Practicante', '11111111-1111-1111-1111-111111111396', 1130,
           p_inicio, p_inicio + 365, p_horas, '<p>x</p>', 'd0396000-0000-0000-0000-0000000000aa',
           case when p_anulado then now() end,
           case when p_anulado then 'd0396000-0000-0000-0000-0000000000aa'::uuid end,
-          case when p_anulado then 'laboratorio 396' end);
+          case when p_anulado then 'laboratorio 396' end,
+          case when p_firmado then p_inicio + 2 end,
+          case when p_firmado then 'd0396000-0000-0000-0000-0000000000aa'::uuid end);
 end $$;
 
 select pg_temp.prac(1,  'profesional',    1130, 1130);                                 -- sube a 1230
@@ -119,8 +134,12 @@ select pg_temp.prac(13, 'profesional',    1130, 1130, p_ingreso => date '2026-10
                         p_desde => date '2026-10-05');                                 -- ingreso posterior sin horas: omitida
 select pg_temp.prac(14, 'preprofesional', 1130, 1130, p_ingreso => date '2026-10-05',
                         p_desde => date '2026-10-05');                                 -- ingreso posterior CON horas (20): su piso proporcional
-select pg_temp.prac(15, 'preprofesional', 1130, 1130);                                 -- dos convenios: el más reciente (30 h) manda
+select pg_temp.prac(15, 'preprofesional', 1130, 1130);                                 -- dos convenios con horas DISTINTAS (20 y 30): CONFLICTO
 select pg_temp.prac(16, 'profesional',    1130, 1130, p_rango => 'oraculo');           -- rango oráculo: para probar que la 0501 no los alcanza
+select pg_temp.prac(17, 'preprofesional', 1130, 1130);                                 -- convenio FIRMADO de 20 h y otro POSTERIOR sin horas: CONFLICTO
+select pg_temp.prac(18, 'preprofesional',  700,  700);                                 -- un BORRADOR (sin firmar) con 20 h: también protege
+select pg_temp.prac(19, 'preprofesional', 1130, 1130);                                 -- dos convenios de 20 h (renovación) + uno sin horas ANULADO: no es conflicto
+select pg_temp.prac(27, 'preprofesional', 1300, 1300);                                 -- convenio de 40 h (más que la jornada máxima de su modalidad): tope en 30 h
 -- Controles: personas que la 0502 NO debe mover.
 select pg_temp.prac(20, null, 1130, 1130, p_vinculo => 'planilla');                    -- integrante en planilla
 select pg_temp.prac(21, null, 1130, 1130, p_vinculo => 'rxh');                         -- locador
@@ -131,8 +150,17 @@ select pg_temp.conv(5, 20);
 select pg_temp.conv(6, 30);
 select pg_temp.conv(14, 20, date '2026-10-05');
 select pg_temp.conv(3, 20, date '2026-03-02', true);                                   -- ANULADO con 20 h: no cuenta
-select pg_temp.conv(15, 20, date '2026-03-02');                                        -- el viejo dice 20 h…
-select pg_temp.conv(15, 30, date '2026-09-01');                                        -- …el nuevo dice 30 h: manda el nuevo
+select pg_temp.conv(15, 20, date '2026-03-02');                                        -- uno dice 20 h…
+select pg_temp.conv(15, 30, date '2026-09-01');                                        -- …el otro dice 30 h: se contradicen, no manda «el más reciente»
+select pg_temp.conv(17, 20, date '2026-03-02', false, true);                           -- FIRMADO, 20 h…
+select pg_temp.conv(17, null, date '2026-09-01');                                      -- …y un borrador posterior SIN horas: se contradicen
+select pg_temp.conv(18, 20, date '2026-03-02');                                        -- borrador con 20 h: cuenta
+select pg_temp.conv(27, 40);                                                           -- 40 h: el piso proporcional tiene tope en 30 h (RMV entera, nunca más)
+select pg_temp.conv(19, 20, date '2026-03-02');                                        -- 20 h…
+select pg_temp.conv(19, 20, date '2026-09-01');                                        -- …y 20 h otra vez: coinciden, no hay conflicto
+select pg_temp.conv(19, null, date '2026-06-01', true);                                -- un convenio sin horas ANULADO: no cuenta
+select pg_temp.conv(1, null);                                                          -- un convenio sin horas (profesional: el generador no las guarda)…
+select pg_temp.conv(1, null, date '2026-09-01');                                       -- …y otro: dos sin horas NO son conflicto, solo suposición
 
 -- Un practicante que marca 6.5 h los 31 días del periodo abierto (asistencia completa).
 insert into jornadas (persona_id, fecha, horas_trabajadas)
@@ -146,14 +174,25 @@ create temporary view v0502 as
 -- >>> REGLA 0502
 with
 conv as (
-  -- El convenio de prácticas que manda por persona: el más reciente sin anular.
-  -- El orden es el de fn_contratos_tablero (0386), que contesta esta misma
-  -- pregunta en otra pantalla: generado_at, inicio, fin y id como ancla.
-  select distinct on (c.persona_id) c.persona_id, c.horas_semanales
+  -- Los convenios de prácticas NO anulados de cada persona que TRAEN horas
+  -- pactadas, firmados o en borrador: equivocarse hacia «protegerlo» se arregla
+  -- pegando de nuevo; subir de más no se deshace. Valen todos juntos, no «el más
+  -- reciente»: si dicen cosas distintas esa persona es un CONFLICTO (abajo).
+  select c.persona_id,
+         min(c.horas_semanales)                as horas,
+         count(distinct c.horas_semanales) > 1 as horas_distintas
     from contratos_generados c
    where c.tipo = 'convenio_practicas' and c.anulado_at is null
-   order by c.persona_id, c.generado_at desc, c.fecha_inicio desc,
-            c.fecha_fin desc, c.id desc
+     and c.horas_semanales is not null
+   group by c.persona_id
+),
+sin_horas as (
+  -- Los NO anulados que NO traen horas: el generador no pudo determinarlas, o es
+  -- el convenio de un profesional, a quien nunca se le guardan.
+  select distinct c.persona_id
+    from contratos_generados c
+   where c.tipo = 'convenio_practicas' and c.anulado_at is null
+     and c.horas_semanales is null
 ),
 rmv as (
   -- La RMV tal como la lee la planilla: la fila vigente en esa fecha.
@@ -174,12 +213,21 @@ base as (
          p.sueldo_fijo           as sfijo,
          p.fecha_ingreso         as ingreso,
          p.practicante_modalidad as modalidad,
-         cv.horas_semanales      as horas,
-         (cv.horas_semanales is null) as asumida,
+         cv.horas                as horas,
+         (cv.horas is null)      as asumida,
+         -- Dos convenios vigentes que se CONTRADICEN: horas distintas entre sí, o
+         -- uno con horas y otro sin ellas. No se elige cuál «manda»: la migración
+         -- se detiene y Felipe decide a mano.
+         (coalesce(cv.horas_distintas, false)
+          or (cv.persona_id is not null and sh.persona_id is not null)) as conflicto,
          (select r.valor from rmv r)  as rmv,
+         -- Un tramo de sueldo que EMPIEZA el 1-oct o después: programado, o el de
+         -- quien ingresó hoy o más tarde. fn_set_salario BORRA todo tramo con
+         -- vigente_desde >= la fecha, y la reversión —que reabre el tramo cerrado
+         -- el 30-sep— lo dejaría sin ninguno.
          exists (select 1 from asignaciones_salario f
                   where f.persona_id = p.id
-                    and f.vigente_desde > date '2026-10-01') as futuro,
+                    and f.vigente_desde >= date '2026-10-01') as desde_oct,
          -- Un cambio de sueldo ya programado: un tramo CERRADO que todavía cubre
          -- el 1-oct. Lo que se pagará ese día no es el tramo abierto que lee la
          -- regla sino ese, y no se resuelve a ciegas.
@@ -191,19 +239,22 @@ base as (
     left join asignaciones_salario a
       on a.persona_id = p.id and a.vigente_hasta is null
     left join conv cv on cv.persona_id = p.id
+    left join sin_horas sh on sh.persona_id = p.id
    where p.tipo_vinculo = 'practicante' and p.estado = 'activo'
      and coalesce(p.cuenta_de_servicio, false) = false
 ),
 con_piso as (
   select b.*,
-         case when b.modalidad = 'preprofesional' and b.horas is not null
+         case when b.conflicto then null
+              when b.modalidad = 'preprofesional' and b.horas is not null
               then round(b.rmv * least(b.horas, 30) / 30, 2)
               else b.rmv end as piso
     from base b
 )
-select c.persona_id, c.rango, c.modalidad, c.horas, c.asumida,
-       c.sal, c.base, c.bp, c.sfijo, c.futuro, c.programado, c.rmv, c.piso,
+select c.persona_id, c.rango, c.modalidad, c.horas, c.asumida, c.conflicto,
+       c.sal, c.base, c.bp, c.sfijo, c.desde_oct, c.programado, c.rmv, c.piso,
        case
+         when c.conflicto then 'conflicto_convenios'
          when c.modalidad is null then 'omitida_sin_modalidad'
          when c.rango is null then 'omitida_sin_tramo'
          when c.asumida and c.ingreso > date '2026-10-01' then 'omitida_ingreso_posterior'
@@ -218,7 +269,7 @@ select c.persona_id, c.rango, c.modalidad, c.horas, c.asumida,
 
 -- Lo que la regla dice de la persona N del laboratorio.
 create or replace function pg_temp.dice(p_n int) returns text language sql as $$
-  select coalesce((select accion || ' · piso ' || piso::numeric(10,2)::text from v0502
+  select coalesce((select accion || ' · piso ' || coalesce(piso::numeric(10,2)::text, 'sin calcular') from v0502
                     where persona_id = ('d0396000-0000-0000-0000-' || lpad(p_n::text, 12, '0'))::uuid),
                   'fuera de la regla')
 $$;
@@ -237,7 +288,7 @@ $$;
 -- ── Lo que deja la cadena de migraciones ────────────────────────────────────
 select is(
   (select nombre from migraciones_aplicadas where numero = 502),
-  'los_practicantes_llegan_al_piso_de_1230',
+  'la_subvencion_pactada_de_los_practicantes_sigue_a_la_rmv_de_1230',
   'la 0502 dejó su fila en el registro con su nombre (no solo con su número)');
 
 select is(
@@ -274,8 +325,16 @@ select is(pg_temp.dice(13), 'omitida_ingreso_posterior · piso 1230.00',
   'quien ingresó después del 1-oct y no tiene horas pactadas queda FUERA: la suposición no lo cubre');
 select is(pg_temp.dice(14), 'cumple_jornada_reducida · piso 820.00',
   'quien ingresó después del 1-oct pero SÍ tiene horas en su convenio no es suposición: se evalúa con su piso proporcional');
-select is(pg_temp.dice(15), 'sube · piso 1230.00',
-  'con dos convenios manda el MÁS RECIENTE (30 h): el viejo de 20 h no lo deja a mitad de piso');
+select is(pg_temp.dice(15), 'conflicto_convenios · piso sin calcular',
+  'dos convenios vigentes con horas DISTINTAS (20 y 30): conflicto. No manda «el más reciente»: la migración se detiene y Felipe decide a mano');
+select is(pg_temp.dice(17), 'conflicto_convenios · piso sin calcular',
+  'un convenio FIRMADO de 20 h y otro posterior SIN horas: conflicto, no «asumida». Antes subía a 1,230 a quien firmó 20 h');
+select is(pg_temp.dice(18), 'sube · piso 820.00',
+  'un BORRADOR (sin firmar) con 20 h también protege: sube a 820, no a 1,230 (equivocarse hacia «protegerlo» se arregla pegando de nuevo)');
+select is(pg_temp.dice(19), 'cumple_jornada_reducida · piso 820.00',
+  'dos convenios de 20 h que coinciden no son conflicto, y un convenio sin horas ANULADO no cuenta: queda en su referencia proporcional (820) y no se toca');
+select is(pg_temp.dice(27), 'cumple · piso 1230.00',
+  'un convenio de 40 h NO sube la referencia por encima de la RMV: el piso proporcional tiene tope en 30 h');
 select is(
   (select count(*)::int from v0502
     where persona_id in ('d0396000-0000-0000-0000-000000000011',
@@ -308,7 +367,7 @@ create temporary table suben on commit drop as
 select * from v0502 where accion = 'sube';
 
 select is((select count(*)::int from suben), 7,
-  'suben siete: 1, 2, 3, 5, 6, 15 y 16 (y solo ellos)');
+  'suben siete: 1, 2, 3, 5, 6, 16 y 18 (y solo ellos; los dos conflictos de convenios NO suben)');
 
 create temporary table tramos_antes on commit drop as
 select count(*)::int as n from asignaciones_salario;
@@ -348,6 +407,13 @@ select is(
   pg_temp.tramos(20) || pg_temp.tramos(21) || pg_temp.tramos(22),
   array['1130.00:2026-03-02:abierto', '1130.00:2026-03-02:abierto', '1130.00:2026-03-02:abierto'],
   'ni el integrante en planilla, ni el locador, ni quien está en prueba: la 0502 es solo de practicantes');
+select is(pg_temp.tramos(15) || pg_temp.tramos(17),
+  array['1130.00:2026-03-02:abierto', '1130.00:2026-03-02:abierto'],
+  'los dos conflictos de convenios quedan EXACTAMENTE como estaban: ninguna subida a ciegas');
+select is(pg_temp.tramos(18), array['700.00:2026-03-02:2026-09-30', '820.00:2026-10-01:abierto'],
+  'el del borrador de 20 h pasa de 700 a 820 y NO a 1,230');
+select is(pg_temp.tramos(19), array['1130.00:2026-03-02:abierto'],
+  'el de los dos convenios de 20 h que coinciden y ya cobra 1,130 queda como estaba, sin un tramo nuevo');
 select is((select count(*)::int from v0502 where accion = 'sube'), 0,
   'y la regla, vuelta a preguntar DESPUÉS, no encuentra a nadie bajo su piso');
 
@@ -374,7 +440,23 @@ $$, 'repetir la subida no falla…');
 select is((select count(*)::int from asignaciones_salario), (select n from tramos_antes) + 7,
   '…y no abre tramos de más: solo los siete de la primera vez (el tramo del 1-oct se reemplaza, no se apila)');
 
--- ── D · El candado de periodo pagado es por GRUPO ───────────────────────────
+-- ── D · El tramo que EMPIEZA el 1-oct: la regla lo marca y la migración se detiene ──
+-- Quien ingresó el 1-oct y cobra menos que su referencia tiene un único tramo, que
+-- empieza ese día. fn_set_salario borra todo tramo con vigente_desde >= la fecha.
+select pg_temp.prac(24, 'profesional', 1130, 1130,
+                    p_ingreso => date '2026-10-01', p_desde => date '2026-10-01');
+select is(
+  (select desde_oct and accion = 'sube' from v0502
+    where persona_id = 'd0396000-0000-0000-0000-000000000024'),
+  true,
+  'quien ingresó el 1-oct y cobra menos que su referencia: la regla lo marca «desde_oct» y la migración se DETIENE (no lo sube a ciegas)');
+select lives_ok(
+  $$select fn_set_salario('d0396000-0000-0000-0000-000000000024', 'colibri', 1230, date '2026-10-01', 'borde 396')$$,
+  'si la migración lo subiera igual, fn_set_salario lo aceptaría…');
+select is(pg_temp.tramos(24), array['1230.00:2026-10-01:abierto'],
+  '…y BORRARÍA su único tramo (el de 1,130 que empezaba el 1-oct): no quedaría ningún tramo cerrado el 30-sep que la reversión pudiera reabrir');
+
+-- ── E · El candado de periodo pagado es por GRUPO ───────────────────────────
 select pg_temp.prac(30, 'profesional', 1130, 1130);
 insert into periodo_grupo_pago (periodo_id, grupo, estado)
 values ('22222222-3960-0000-0000-000000000002', 'planilla', 'pagado');
