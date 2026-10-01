@@ -350,8 +350,9 @@ export function construirDocumento(cuadro: Cuadro, fecha: string): Documento {
         tipo: "destacado",
         texto:
           "Ninguna categoría puede quedar por debajo de la remuneración mínima vital. Cuando la mínima " +
-          "vital suba, las categorías que queden debajo se reajustan a la nueva mínima, sin necesidad de " +
-          "publicar una versión nueva de este documento.",
+          "vital suba, las categorías que queden debajo se reajustan, como mínimo, hasta la nueva mínima " +
+          "desde el día en que esta rija; y como esta escala muestra esos montos, se publica una versión nueva de este " +
+          "documento y se pide de nuevo la constancia.",
       },
     ],
   });

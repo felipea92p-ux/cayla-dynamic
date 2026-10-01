@@ -115,14 +115,28 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
-    id: "2026-09-30-horarios-sedes-con-nombre-y-filas-compactas",
-    fecha: "2026-09-30",
+    id: "2026-10-01-horarios-sedes-con-nombre-y-filas-compactas",
+    fecha: "2026-10-01",
     titulo: "Horarios base dice el nombre de cada sede y se lee en menos espacio",
     queMejoro:
       "En Horarios base, las sedes aparecían con su código: «003» y «OTRU» no le decían a nadie qué sede eran. " +
       "Ahora cada bloque lleva el mismo nombre que en Incidencias y el Dashboard —«Tienda · Lima», «Oficina TRU», «Taller · Lima»— con el código al lado, y el filtro de sedes también.\n\n" +
       "Además, las columnas quedan en el mismo sitio en todas las sedes, y «Corregir días ya trabajados» va debajo de «Cambiar», en una sola línea: antes se partía en tres renglones y cada fila ocupaba el triple de alto.",
     audiencia: "panel",
+  },
+  {
+    id: "2026-10-01-nueva-version-de-la-politica-salarial",
+    fecha: "2026-10-01",
+    titulo: "Hay una versión nueva de la Política salarial para leer y confirmar",
+    queMejoro:
+      "Desarrollo Organizacional publica hoy una versión nueva de la Política salarial. Al abrir Dynamic verás el aviso «Te falta dejar una " +
+      "constancia»: entra con «Leer y dejar constancia», lee el documento y, al final, escribe tu nombre y pulsa " +
+      "«Dejar constancia». Se lee en un minuto.\n\n" +
+      "Dejar constancia no significa estar de acuerdo con lo que dice: significa que la recibiste y la leíste. " +
+      "Si algo no te queda claro, o tienes una discrepancia, puedes plantearla a Desarrollo Organizacional o a la " +
+      "Gerencia y recibirás respuesta por escrito. Si cierras el aviso sin firmar, vuelve a salir hasta que dejes " +
+      "tu constancia.",
+    audiencia: "todos",
   },
   {
     id: "2026-09-30-correcciones-sin-quienes-ya-cesaron",
