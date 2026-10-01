@@ -40,10 +40,16 @@ S/ 1,671.41. Felipe puede pedir la primera: es cambiar **un número** (`v_montos
 `rangos.ts` y la prueba 395).
 
 **⚠️ El primer periodo con el sueldo nuevo paga MENOS de lo que parece.** Los sueldos suben **desde el 2026-10-01**
-y la planilla paga **por día con el tramo de cada jornada**: el 29 y el 30 de septiembre, que caen dentro del
-periodo 29/09 → 28/10, se pagan al **sueldo viejo**. Un colibrí con asistencia completa cobra **≈ S/ 1,223.33**
-(2/30 × 1,130 + 28/30 × 1,230), una cayla **≈ S/ 1,241.00** — **no es «menos que la RMV»**: son dos días de
-septiembre al sueldo de septiembre; desde el periodo siguiente cobran el sueldo completo. (Medido en la prueba 395.)
+y la planilla paga **por día con el tramo de cada jornada**: los días de septiembre que caen dentro del
+periodo abierto se pagan al **sueldo viejo**. **CORRECCIÓN del 2026-10-01:** el periodo abierto en producción es
+**28/09 → 28/10 (31 días)** —lo midió la fila 11 del script de comprobación; el último pagado cerró el 27/09—, no el
+29/09 → 28/10 de 30 días que se asumió al escribir esto. Son **tres** días al sueldo viejo (28, 29 y 30), no dos:
+un colibrí con asistencia completa cobra **≈ S/ 1,220.32** (3/31 × 1,130 + 28/31 × 1,230) y una cayla
+**≈ S/ 1,239.19** (en la prueba 395, con un periodo de 30 días, daba 1,223.33 y 1,241.00) — **no es «menos que la RMV»**:
+son tres días de septiembre al sueldo de septiembre; desde el periodo siguiente cobran el sueldo completo.
+La cabecera de la 0501 (ya pegada, y por eso intacta: lo pegado tiene que seguir siendo idéntico a lo guardado)
+todavía dice «29-sep» y «2 días»; vale esta corrección, no ella. **Hoy hay 9 colibrí, no 10** (fila 1 del script):
+el costo mensual de la escala es ≈ S/ 1,433, no ≈ S/ 1,558.
 El piso de EsSalud sí usa la RMV **entera** de 1,230 en ese periodo, porque se lee al último día: 9 % × 1,230 =
 S/ 110.70 (antes 101.70). Tener esta explicación a mano el día de pago.
 
@@ -141,7 +147,7 @@ señal fiable.
    - Filas 6 y 7: practicantes. La 0501 NO los toca. Anota quiénes salen «QUEDA BAJO EL PISO EL 1-OCT» (paso 17).
    - Fila 8: antes «1130 / 1130». Fila 9: antes «113 / 113 / 113». Los valores salen con cinco decimales (1130.00000 es 1130).
    - Fila 10: cuántas personas cobran asignación familiar (cada una cuesta ≈ S/ 12.57 más al mes y, pagado un periodo con 123, no se puede bajar).
-   - Fila 11: periodo abierto 2026-09-29 → 2026-10-28 (que además figure el de agosto-septiembre aún sin pagar es normal; si el que empieza el 29-sep tiene otra fecha_fin, para y avisa). Fila 12: último periodo cerrado o pagado.
+   - Fila 11: periodo abierto que cierra el 2026-10-28 (el 1-oct se midió 2026-09-28 → 2026-10-28; si la fecha_fin NO es 2026-10-28, para y avisa). Fila 12: último periodo cerrado o pagado.
    - Fila 13: la 499 puede figurar; la 500 y la 501 NO.
    - Fila 14: quién firmará el rastro (el admin activo más antiguo con usuario; no tiene que ser Felipe).
    - Fila 16: cuántas constancias dejó la versión vigente (te dice a cuántas personas llegará el aviso).
@@ -166,8 +172,8 @@ señal fiable.
    - Practicantes (filas 6-7): resolver con sus datos. Desde el 1-oct Contratos bloquea generar o renovar un convenio con subvención bajo el piso (RMV, o su proporción a las horas pactadas); su EsSalud sube solo de 101.70 a 110.70; los convenios firmados siguen diciendo 1,130 (adenda o renovación: consulta al laboralista).
    - Personas → Datos personales: revisar los ⚠ de asignación familiar («se le paga y declara que no tiene hijos menores», etc.). A quien se le pague sin corresponder recibirá S/ 123 desde el 1-oct y no se podrá bajar.
    - Regenerar los borradores de renovaciones creados antes de pegar (llevan la remuneración vieja congelada; un borrador se corrige, no se duplica).
-   - Abrir la boleta de una Colibrí y de una Cayla del periodo 29-sep → 28-oct: la línea de remuneración con el mes completo debe dar ≈ 1,223.33 y ≈ 1,241.00 (no es el total de la boleta) y el piso de EsSalud 110.70.
-   - Explicación para quien pregunte: «Del 29 de septiembre al 28 de octubre, los días 29 y 30 de septiembre se pagan con el sueldo de septiembre y del 1 al 28 de octubre con el sueldo nuevo; por eso este primer periodo sale por debajo del sueldo nuevo completo. Desde el periodo siguiente cobras el monto completo.»
+   - Abrir la boleta de una Colibrí y de una Cayla del periodo 28-sep → 28-oct: la línea de remuneración con el mes completo debe dar ≈ 1,220.32 y ≈ 1,239.19 (no es el total de la boleta) y el piso de EsSalud 110.70.
+   - Explicación para quien pregunte: «Del 28 de septiembre al 28 de octubre, los días 28, 29 y 30 de septiembre se pagan con el sueldo de septiembre y del 1 al 28 de octubre con el sueldo nuevo; por eso este primer periodo sale por debajo del sueldo nuevo completo. Desde el periodo siguiente cobras el monto completo.»
    - Avisar en persona (DO o su líder de equipo) a las personas de Colibrí y Cayla del ajuste, y a quienes cobran asignación familiar de su nuevo monto: el aviso del sistema no lleva montos. Support, Aurora, Oráculo y ArchiCayla no suben.
 18. Limpieza (Claude): cerrar la rama claude/salary-update-1230-bd7a09 y su worktree sin fusionar; después de confirmar en la fila 13 que la 500 no está en producción, anotar el hueco 0500 en scripts/hooks/huecos-conocidos.txt con su razón. Vigilancia de Felipe: el segundo tramo de la RMV (S/ 1,300, decreto del primer semestre de 2027) no está construido y nada avisa cuando salga; entonces Colibrí, Cayla y Support vuelven a quedar bajo el piso y la asignación pasa a 130 en parametros_laborales y en configuracion.
 
@@ -175,7 +181,7 @@ señal fiable.
 - Fusionar antes de pegar: Equipo propone bases (1,230 / 1,245) que el sistema aún no paga, Contratos lee la RMV vieja y la novedad avisa de una versión que no existe. Pegar la 0501 y seguir con el paso 12 recarga el estado.
 - Publicar la Política antes de pegar el SQL o antes de fusionar (o desde una pestaña vieja): se congela un documento con la escala o la cláusula viejas; hay que publicar otra versión y todo el equipo confirma dos veces.
 - Pegar la noche del 30: Contratos sin RMV hasta el 1-oct («[FALTA PUBLICAR LA RMV VIGENTE EN EL SISTEMA]» en el convenio de jornada reducida).
-- Pegar después de pagar el periodo 29-sep → 28-oct: el candado de periodo pagado de fn_set_salario rechaza el cambio y la 0501 aborta entera.
+- Pegar después de pagar el periodo 28-sep → 28-oct: el candado de periodo pagado de fn_set_salario rechaza el cambio y la 0501 aborta entera.
 - Pegar la 0500 o el reajuste de la rama paralela después de la 0501: baja Cayla a 1,230; detener y avisar.
 
 ---

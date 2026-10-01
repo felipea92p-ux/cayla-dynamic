@@ -169,7 +169,7 @@ filas(orden, que, resultado) as (
                  || ' al mes con EsSalud, gratificación, CTS y vacaciones'
             from alc where not cs)
 
-  union all select 11, '(v) Periodos de planilla ABIERTOS y su fecha_fin real (esperado: 2026-09-29 → 2026-10-28)',
+  union all select 11, '(v) Periodos de planilla ABIERTOS y su fecha_fin real (esperado: fecha_fin 2026-10-28; el 1-oct se midió 2026-09-28 → 2026-10-28)',
          (select coalesce(string_agg(fecha_ini || ' → ' || fecha_fin, ' · ' order by fecha_ini), 'ninguno abierto')
             from periodos_planilla where estado = 'abierto')
 
