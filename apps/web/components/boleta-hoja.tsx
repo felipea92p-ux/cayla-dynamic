@@ -1,7 +1,7 @@
 import { RANGO_LABEL, formatSoles } from "@/lib/rangos";
 import { Marca } from "@/components/marca";
 import { Insignia } from "@/components/ui/insignia";
-import { MESES_LARGO, fechaCorta, fmtHoras } from "@/lib/admin/planilla/formato";
+import { MESES_LARGO, fechaCorta, feriadoNoCorresponde, fmtHoras } from "@/lib/admin/planilla/formato";
 import type { Fila, Proyeccion, SubvencionPracticante } from "@/lib/admin/planilla/tipos";
 import {
   EMPRESA,
@@ -215,12 +215,13 @@ export function BoletaHoja({ f, proy, baseLegal, documento, fechaIngreso, subven
         ? fechaCorta(f.sobretiempo_desde)
         : `${fechaCorta(f.sobretiempo_desde)} al ${fechaCorta(f.sobretiempo_hasta)}`
       : null;
-  // Qué feriados componen el monto de arriba. Se excluyen los `antes_ingreso`
-  // porque esos no pagan nada (feriado anterior a que la persona entrara) — no
-  // son parte de este número y listarlos aquí solo confundiría. Mismo criterio
-  // (fecha + horas trabajadas + proporcionales) que ya usan la tabla de Planilla
-  // y el panel de la persona: no se inventa una redacción nueva para la boleta.
-  const feriadosQuePagan = f.feriados_detalle.filter((d) => !d.antes_ingreso);
+  // Qué feriados componen el monto de arriba. Se excluyen los que no le
+  // corresponden —anteriores a su ingreso o, desde la 0505, posteriores a su
+  // cese— porque esos no pagan nada: no son parte de este número y listarlos
+  // aquí solo confundiría. Mismo criterio (fecha + horas trabajadas +
+  // proporcionales) que ya usan la tabla de Planilla y el panel de la persona:
+  // no se inventa una redacción nueva para la boleta.
+  const feriadosQuePagan = f.feriados_detalle.filter((d) => !feriadoNoCorresponde(d));
 
   // Subtotal ganado: todo lo que suma, antes de restar. Solo se muestra si hay
   // algo que restar — sin eso sería idéntico al total y solo agregaría ruido.
