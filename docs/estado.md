@@ -6,6 +6,33 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-10-02 — El feriado posterior al cese no corresponde · migración 0505 · ESCRITA Y PROBADA · SIN PEGAR · SIN FUSIONAR
+
+**Origen:** Planilla del periodo 29-sep → 28-oct mostraba «1 feriado(s) sin salario ese día: no se pudo calcular ·
+Equipo →» a dos personas que cesaron antes del 8-oct (una practicante y una integrante en planilla). Medido en
+producción con la propia función: tramos cerrados el día del cese, `sin_salario = true`, `monto = 0`. La plata estaba
+bien; el aviso era falso, y su enlace invitaba a reabrir el salario — `fn_set_salario` no mira el cese, y con eso el
+feriado SÍ se pagaba (S/ 14.41 medido en la prueba 399).
+
+**Decisión de Felipe (2026-10-02): el feriado posterior al cese NO se paga.** El sistema tenía dos respuestas: S/ 0 con
+la baja por el botón (todos los casos reales) y «saldo legítimo» en la 0244 / prueba 185 (cese puesto a mano). Gana la
+primera: art. 8 D. Leg. 713 («los trabajadores»), la liquidación ya corta en el cese, y es lo que producción pagaba.
+
+**Qué es:** `fn_feriado_devengado_nucleo` pregunta «¿seguía vinculada ese día?» antes que el salario. Un feriado
+posterior al cese pasa a «no corresponde», paga 0 aunque el tramo siga abierto, y deja de contar como «sin salario».
+El detalle gana `despues_cese`; la pantalla dice «no corresponde (posterior al cese)». Prueba **399** (15; contra la
+0397 caen las 9 previstas). La **185** cambia su montaje de § 11 al «marcaje cerrado tarde» (sigue 51/51). Suite
+entera en base desechable: idéntica antes y después en los 306 archivos previos.
+
+**Antes de pegar:** md5 de `fn_feriado_devengado_nucleo` en producción — el repositorio da `c2cddb1d…` (9 312). Se pega
+ANTES de fusionar: sin la 0505 la pantalla nueva se comporta igual que la vieja (`despues_cese` llega vacío).
+
+**Abierto:** el candado de `fn_set_salario` (asignar un salario que empieza después del cese) — la baja ya se niega a lo
+inverso (0176). Y los comentarios de `fn_periodo_pagado` (0244 y copias) siguen citando el feriado posterior al cese
+como saldo legítimo: desde la 0505 ese ejemplo es falso.
+
+---
+
 ## 2026-10-01 — El Archivo de la empresa (Empresa → Archivo) · migración 0503 · PEGADA Y VERIFICADA · SIN FUSIONAR
 
 **Origen:** había que guardar la constancia de inscripción del banco de datos *Videovigilancia* (ANPD,

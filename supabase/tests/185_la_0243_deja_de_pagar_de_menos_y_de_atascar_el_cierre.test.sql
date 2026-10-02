@@ -114,9 +114,9 @@ set session_replication_role = origin;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000185098', true);
 
 -- Sin feriados de por medio: acá lo que se compara son dos llamadas a la misma
--- función, y un feriado dentro de un rango y fuera del otro sería ruido. La
--- excepción es agosto, donde el feriado POSTERIOR AL CESE es justamente lo que
--- monta el saldo legítimo de la trampa 7 — ahí se pone uno a mano.
+-- función, y un feriado dentro de un rango y fuera del otro sería ruido. (Hasta
+-- la 0505 agosto era la excepción: un feriado posterior al cese montaba el
+-- saldo de § 11. Ese feriado ya no corresponde, y § 11 usa un marcaje tardío.)
 delete from feriados where fecha between '2026-03-01' and '2026-08-31';
 
 -- Nueve personas iguales entre sí. Lo único que las distingue es qué le pasa a
@@ -173,14 +173,18 @@ insert into jornadas (persona_id, fecha, horas_trabajadas, estado)
 select '00000000-0000-0000-0000-000000185008', d::date, 6.5, 'cerrada'
 from generate_series('2026-03-02'::date, '2026-03-15'::date, interval '1 day') d;
 
--- Agosto: trabaja del 1 al 10 y cesa el 10, pero el periodo llega al 30 y trae
--- un FERIADO el 20. Así el total del periodo (que va del 1 al 30) es mayor que
--- el sueldo que su liquidación cobró (que va del 1 al 10): ese sobrante es el
--- saldo legítimo que el freno le estaba quitando.
+-- Agosto: trabaja del 1 al 10 y cesa el 10, pero el marcaje del día 10 se cierra
+-- TARDE, después de que su liquidación ya se pagó (§ 11 lo agrega ahí). Así el
+-- total del periodo cuenta un día más que el que su liquidación cobró: ese
+-- sobrante es el saldo legítimo que el freno le estaba quitando.
+--
+-- Hasta la 0505 este saldo lo montaba un FERIADO el 20, posterior al cese. La
+-- 0505 decidió que ese feriado no corresponde (ya no era trabajadora el 20), así
+-- que el montaje pasó al tercer caso que la propia 0244 nombraba y nunca se
+-- montó: el marcaje cerrado tarde. Lo que esta sección mide no cambia.
 insert into jornadas (persona_id, fecha, horas_trabajadas, estado)
 select '00000000-0000-0000-0000-000000185009', d::date, 6.5, 'cerrada'
-from generate_series('2026-08-01'::date, '2026-08-10'::date, interval '1 day') d;
-insert into feriados (fecha, nombre) values ('2026-08-20', 'Feriado de laboratorio 185');
+from generate_series('2026-08-01'::date, '2026-08-09'::date, interval '1 day') d;
 
 -- El cese se pone a mano, como en la 130 y la 133: `fn_cesar_persona` se niega a
 -- cesar dentro de un periodo ya pagado (0176:285-291) y acá hace falta cesar
@@ -508,14 +512,20 @@ select cmp_ok(
 
 
 -- ── 11 · EL FRENO SE LEVANTA CON EL DESCUENTO, NO CON LA FILA EN CERO ──────
--- Agosto: cesa el 10, pero el periodo llega al 30 y trae un feriado el 20. El
--- total del periodo es MAYOR que el sueldo que su liquidacion cobro, asi que
--- descontar lo que el mensaje nombra NO deja su fila en cero. Con `total > 0`
--- como unica salida, el mes no cerraba nunca y las dos escapatorias eran
--- quitarle un saldo ganado o falsear un registro inmutable.
+-- Agosto: cesa el 10 y su liquidacion se paga, pero el marcaje del dia 10 se
+-- cierra DESPUES. El total del periodo es MAYOR que el sueldo que su liquidacion
+-- cobro, asi que descontar lo que el mensaje nombra NO deja su fila en cero. Con
+-- `total > 0` como unica salida, el mes no cerraba nunca y las dos escapatorias
+-- eran quitarle un saldo ganado o falsear un registro inmutable.
 select lives_ok(
   $$ select fn_liquidacion_pagar('00000000-0000-0000-0000-000000185009', 'liquidacion en 48h, como manda la ley') $$,
   'SALDO · se liquida dentro del plazo legal, con el periodo abierto');
+
+-- El marcaje del dia 10 se cierra tarde: ya con la liquidacion pagada. Va aca,
+-- entre dos aserciones, y no arriba con las demas jornadas: lo que lo hace un
+-- saldo es justamente que llegue DESPUES de congelarse la liquidacion.
+insert into jornadas (persona_id, fecha, horas_trabajadas, estado)
+values ('00000000-0000-0000-0000-000000185009', '2026-08-10', 6.5, 'cerrada');
 
 select cmp_ok(
   (select round((value->>'total')::numeric, 2)
