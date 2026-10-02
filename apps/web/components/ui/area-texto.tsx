@@ -27,6 +27,15 @@
 // separar entre los dos archivos, hay que juntarla en una constante
 // compartida — hoy vive repetida a propósito porque este componente solo
 // puede tocar este archivo.
+//
+// Y ya se separó una vez. El 2026-09-07 este componente copió la etiqueta de
+// Campo el mismo día en que Campo la pasaba de mayúsculas con tracking a caja
+// normal: se llevó la versión vieja. Durante tres semanas cada formulario que
+// mezclaba los dos —Anuncios, la medida de un caso, las categorías de la
+// política salarial— mostró dos rótulos distintos uno encima del otro, y la
+// pantalla del Archivo (en su rama, aún sin fusionar) terminó escribiendo su
+// propio <label> para no usar `etiqueta`.
+// Desde el 2026-10-01 rótulo y separación son los de Campo, clase por clase.
 
 import { useLayoutEffect, useRef } from "react";
 import type { TextareaHTMLAttributes } from "react";
@@ -46,8 +55,14 @@ type Props = Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, "value"> & {
 // Misma cadena base que Campo usa para <input>: mismo radio, mismo fondo,
 // mismo tamaño de texto. `resize-none overflow-hidden` es lo propio de este
 // componente (el alto lo pone el JS de abajo, no el usuario arrastrando).
+//
+// El tamaño también se había quedado atrás: aquí decía `text-sm` a secas
+// cuando Campo ya usaba `text-base sm:text-sm`, que es lo que evita que Safari
+// de iOS agrande la página al enfocar un control con letra menor a 16px (y no
+// la vuelva a achicar). Un <textarea> dispara ese zoom igual que un <input>, y
+// «Lo mío → Responder» se escribe sobre todo desde el teléfono.
 const CHROME_BASE =
-  "resize-none overflow-hidden rounded-control border border-sand bg-hueso px-3 py-2 text-sm text-tinta transition-colors duration-150 placeholder:text-taupe/60";
+  "resize-none overflow-hidden rounded-control border border-sand bg-hueso px-3 py-2 text-base text-tinta transition-colors duration-150 placeholder:text-taupe/60 sm:text-sm";
 
 function ajustarAltura(el: HTMLTextAreaElement) {
   // "auto" primero, para que al BORRAR texto la altura también baje: si no,
@@ -97,10 +112,8 @@ export function AreaTexto({ value, rows = 2, etiqueta, error, id, className, ...
   if (!etiqueta && !error) return campo;
 
   return (
-    <label className="flex flex-col gap-1.5">
-      {etiqueta && (
-        <span className="text-xs font-medium uppercase tracking-[0.06em] text-taupe">{etiqueta}</span>
-      )}
+    <label className="flex flex-col gap-1">
+      {etiqueta && <span className="text-sm text-taupe">{etiqueta}</span>}
       {campo}
       {error && <span className="text-xs text-rojo">{error}</span>}
     </label>

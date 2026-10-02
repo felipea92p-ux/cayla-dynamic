@@ -97,6 +97,9 @@ export interface FeriadoDetalle {
   horas_trabajadas: number;
   proporcional_horas: number;
   antes_ingreso: boolean;
+  /** Desde la 0505 · el feriado cae después de su cese: no corresponde, igual
+   *  que uno anterior al ingreso. Opcional porque sin la 0505 pegada no llega. */
+  despues_cese?: boolean;
   /** Desde la 0276 · lo que ese feriado devengó, SIN redondear. Quien lo
    *  muestre redondea: la boleta lo mete crudo en la base de provisión. */
   monto?: number;

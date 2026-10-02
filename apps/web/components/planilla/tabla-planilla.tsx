@@ -18,7 +18,7 @@ import { ChevronRight } from "lucide-react";
 import { formatSoles, RANGO_LABEL } from "@/lib/rangos";
 import { Insignia } from "@/components/ui/insignia";
 import { Tabla, TablaEncabezado, Th, Fila as FilaTabla } from "@/components/ui/tabla";
-import { fechaCorta, fechaDiaMes, fmtHoras } from "@/lib/admin/planilla/formato";
+import { fechaCorta, feriadoNoCorresponde, fmtHoras } from "@/lib/admin/planilla/formato";
 import { claveFila, sumarFilas, textoCese, type Cese, type Hallazgo } from "@/lib/admin/planilla/revision";
 import type { Fila } from "@/lib/admin/planilla/tipos";
 
@@ -161,15 +161,20 @@ export function TablaPlanilla({
                     className="px-4 py-2 text-right tabular-nums"
                     onClick={onAbrir ? abrir(f) : undefined}
                     title={f.feriados_detalle.length > 0
-                      ? f.feriados_detalle.map((d) => d.antes_ingreso
-                          ? `${fechaCorta(d.fecha)}: no corresponde (anterior al ingreso)`
-                          : `${fechaCorta(d.fecha)}: ${d.horas_trabajadas} h trabajadas + ${d.proporcional_horas} h proporcionales`).join("\n")
+                      ? f.feriados_detalle.map((d) =>
+                          `${fechaCorta(d.fecha)}: ${feriadoNoCorresponde(d) ?? `${d.horas_trabajadas} h trabajadas + ${d.proporcional_horas} h proporcionales`}`).join("\n")
                       : undefined}
                   >
                     {f.monto_feriados > 0 ? formatSoles(f.monto_feriados) : <Guion />}
                     {/* Una línea corta; el porqué completo va en el título de la celda y en el panel de la persona. */}
                     {f.feriados_no_corresponde > 0 && (
-                      <span className="mt-1 block whitespace-nowrap text-xs text-taupe" title={`Ingresó el ${fechaDiaMes(f.fecha_ingreso)}: el feriado es anterior a su ingreso`}>
+                      <span
+                        className="mt-1 block whitespace-nowrap text-xs text-taupe"
+                        title={f.feriados_detalle
+                          .filter((d) => feriadoNoCorresponde(d))
+                          .map((d) => `${fechaCorta(d.fecha)}: ${feriadoNoCorresponde(d)}`)
+                          .join("\n")}
+                      >
                         {f.feriados_no_corresponde} no aplica{f.feriados_no_corresponde === 1 ? "" : "n"}
                       </span>
                     )}

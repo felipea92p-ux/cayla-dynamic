@@ -6,6 +6,44 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-10-02 — El feriado posterior al cese no corresponde · migración 0505 · PEGADA Y VERIFICADA · SIN FUSIONAR
+
+**Origen:** Planilla del periodo 29-sep → 28-oct mostraba «1 feriado(s) sin salario ese día: no se pudo calcular ·
+Equipo →» a dos personas que cesaron antes del 8-oct (una practicante y una integrante en planilla). Medido en
+producción con la propia función: tramos cerrados el día del cese, `sin_salario = true`, `monto = 0`. La plata estaba
+bien; el aviso era falso, y su enlace invitaba a reabrir el salario — `fn_set_salario` no mira el cese, y con eso el
+feriado SÍ se pagaba (S/ 14.41 medido en la prueba 399).
+
+**Decisión de Felipe (2026-10-02): el feriado posterior al cese NO se paga.** El sistema tenía dos respuestas: S/ 0 con
+la baja por el botón (todos los casos reales) y «saldo legítimo» en la 0244 / prueba 185 (cese puesto a mano). Gana la
+primera: art. 8 D. Leg. 713 («los trabajadores»), la liquidación ya corta en el cese, y es lo que producción pagaba.
+
+**Qué es:** `fn_feriado_devengado_nucleo` pregunta «¿seguía vinculada ese día?» antes que el salario. Un feriado
+posterior al cese pasa a «no corresponde», paga 0 aunque el tramo siga abierto, y deja de contar como «sin salario».
+El detalle gana `despues_cese`; la pantalla dice «no corresponde (posterior al cese)». Prueba **399** (15; contra la
+0397 caen las 9 previstas). La **185** cambia su montaje de § 11 al «marcaje cerrado tarde» (sigue 51/51). Suite
+entera en base desechable: idéntica antes y después en los 306 archivos previos.
+
+**Pegada el 2026-10-02 y verificada** en el SQL Editor: md5 de partida `c2cddb1d…` (9 312) idéntico al repositorio;
+de llegada `82178e23…` (10 344), idéntico al de la base desechable; `migraciones_aplicadas` con **505 ·
+el_feriado_posterior_al_cese_no_corresponde** (número Y nombre); los dos casos reales pasan a `sin_salario = false`,
+`despues_cese = true`, `monto = 0`. Se pegó desde el portapapeles de `dame-el-sql.sh`, idéntico byte por byte a GitHub.
+Falta fusionar el PR #486, que es publicar la pantalla («no corresponde (posterior al cese)»).
+
+**Abierto:**
+- El candado de `fn_set_salario`: deja asignar salario a quien ya cesó, y con la fecha que propone Equipo (inicio del
+  periodo) BORRA los tramos reales que empiezan después. La baja ya se niega a lo inverso (0176). Migración chica.
+- **El vínculo no tiene historia.** `fn_reactivar_persona` (0327) pone `fecha_cese = null` y conserva el ingreso
+  original: tras un reingreso el sistema cree que la persona nunca se fue. Si alguien cesa el 2-oct y vuelve el 20-oct
+  del mismo periodo, el 8-oct vuelve a estar «vinculada» y con el salario cerrado: regresa el aviso falso, y si alguien
+  le pone salario, se paga un feriado de cuando no trabajaba. Afecta a la 0505 y a las cinco preguntas iguales del
+  núcleo (tope de pago y las cuatro ausencias de la 0418). La solución de fondo es una historia de vínculos (como las
+  «medidas» de SAP); tocaría el núcleo de planilla, así que se decide después del cierre de octubre.
+- Los comentarios de `fn_periodo_pagado` (0244 y copias) siguen citando el feriado posterior al cese como saldo
+  legítimo: desde la 0505 ese ejemplo es falso.
+
+---
+
 ## 2026-10-01 — La subvención pactada de los practicantes sigue a la RMV nueva · migración 0502 · PEGADA Y VERIFICADA · PR #480 SIN FUSIONAR
 
 **Estado al 2026-10-01, a mediodía — lo que de verdad pasó en producción:** Felipe pegó la 0502 y la fila final que devolvió coincide columna por columna con lo esperado: `tramos_0502 = 5` · `practicantes_bajo = 0` · `por_suposicion = 5` (ninguno tiene horas cargadas: la jornada completa de su modalidad se SUPUSO) · `con_horas_de_convenio = 0` · `educacion_realineada_hoy = 0` · registro `502 la_subvencion_pactada_de_los_practicantes_sigue_a_la_rmv_de_1230`. **Pendiente de la pegada:** volver a correr la consulta de comprobación y mirar que ningún practicante quede bajo el piso. **Lo que sigue abierto y NO lo resuelve la migración:** la consulta al laboralista de abajo (art. 45 con pago por horas; ningún convenio firmado en el sistema; adenda o renovación). Fusionar este PR no cambia pantallas: solo deja en `main` el archivo ya pegado.
@@ -430,7 +468,7 @@ señal fiable.
    - Abrir la boleta de una Colibrí y de una Cayla del periodo 28-sep → 28-oct: la línea de remuneración con el mes completo debe dar ≈ 1,220.32 y ≈ 1,239.19 (no es el total de la boleta) y el piso de EsSalud 110.70.
    - Explicación para quien pregunte: «Del 28 de septiembre al 28 de octubre, los días 28, 29 y 30 de septiembre se pagan con el sueldo de septiembre y del 1 al 28 de octubre con el sueldo nuevo; por eso este primer periodo sale por debajo del sueldo nuevo completo. Desde el periodo siguiente cobras el monto completo.»
    - Avisar en persona (DO o su líder de equipo) a las personas de Colibrí y Cayla del ajuste, y a quienes cobran asignación familiar de su nuevo monto: el aviso del sistema no lleva montos. Support, Aurora, Oráculo y ArchiCayla no suben.
-18. Limpieza (Claude): cerrar la rama claude/salary-update-1230-bd7a09 y su worktree sin fusionar; después de confirmar en la fila 13 que la 500 no está en producción, anotar el hueco 0500 en scripts/hooks/huecos-conocidos.txt con su razón. Vigilancia de Felipe: el segundo tramo de la RMV (S/ 1,300, decreto del primer semestre de 2027) no está construido y nada avisa cuando salga; entonces Colibrí, Cayla y Support vuelven a quedar bajo el piso y la asignación pasa a 130 en parametros_laborales y en configuracion.
+18. Limpieza (Claude). **Hecho el 2026-10-01:** los huecos 0472 y 0500 quedaron anotados en scripts/hooks/huecos-conocidos.txt con su razón; la rama de la 0500 se renombró a archivo/0500-no-pegar, sin fusionar y sin subir a GitHub (no se borró: es el único ejemplar de sus commits, y la nota del hueco los cita), y su sesión «Actualización de sueldo a 1230» quedó archivada en el app. Confirmado en el SQL Editor de producción: `select numero, nombre from migraciones_aplicadas where numero in (472, 500);` devolvió cero filas. Vigilancia de Felipe: el segundo tramo de la RMV (S/ 1,300, decreto del primer semestre de 2027) no está construido y nada avisa cuando salga; entonces Colibrí, Cayla y Support vuelven a quedar bajo el piso y la asignación pasa a 130 en parametros_laborales y en configuracion.
 
 **Si algo sale en otro orden**
 - Fusionar antes de pegar: Equipo propone bases (1,230 / 1,245) que el sistema aún no paga, Contratos lee la RMV vieja y la novedad avisa de una versión que no existe. Pegar la 0501 y seguir con el paso 12 recarga el estado.

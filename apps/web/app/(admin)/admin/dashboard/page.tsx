@@ -180,6 +180,22 @@ function EstadoCelda({ f, linkCorregir, ahoraDecimal }: { f: FilaPersona; linkCo
 // vea y se corrija igual — cada fila con tardanza o auto-cierre enlaza a
 // Correcciones de esa persona ese día. `conSede` agrega la columna cuando la
 // lista mezcla sedes (el detalle de un número del resumen).
+// El nombre de cada persona abre su día en Correcciones: ahí está el
+// historial completo de marcas, lo que se le esperaba y lo que se corrigió.
+// No se arma aquí una segunda vista del día —sería otra copia de «qué pasó
+// ese día» que tarde o temprano contaría distinto que Correcciones—; se
+// reusa el mismo enlace `?persona=…&fecha=…` que ya llevan el estado y la
+// tardanza. Dashboard y Correcciones los ven los mismos roles (`SEDE` en
+// nav-items.ts), así que el enlace nunca lleva a una puerta cerrada.
+function NombreAlDia({ f, linkCorregir }: { f: FilaPersona; linkCorregir: (personaId: string) => string }) {
+  return (
+    <Link href={linkCorregir(f.personaId)} title={`Ver el día de ${f.nombre} en Correcciones`}
+      className="underline-offset-2 hover:underline">
+      {f.nombre}
+    </Link>
+  );
+}
+
 function TablaPersonas({ filas, linkCorregir, ahoraDecimal, conSede = false }: { filas: FilaPersona[]; linkCorregir: (personaId: string) => string; ahoraDecimal: number; conSede?: boolean }) {
   return (
     <>
@@ -199,7 +215,9 @@ function TablaPersonas({ filas, linkCorregir, ahoraDecimal, conSede = false }: {
           <tbody>
             {filas.map((f) => (
               <Fila key={f.personaId}>
-                <td className="px-4 py-2.5">{f.nombre}</td>
+                <td className="px-4 py-2.5">
+                  <NombreAlDia f={f} linkCorregir={linkCorregir} />
+                </td>
                 {conSede && <td className="px-4 py-2.5 text-taupe">{f.sede}</td>}
                 <td className="px-4 py-2.5">
                   <EstadoCelda f={f} linkCorregir={linkCorregir} ahoraDecimal={ahoraDecimal} />
@@ -236,7 +254,7 @@ function TablaPersonas({ filas, linkCorregir, ahoraDecimal, conSede = false }: {
           <div key={f.personaId} className="rounded-superficie border border-sand bg-hueso p-4">
             <div className="mb-2 flex items-center justify-between gap-2">
               <span className="font-medium">
-                {f.nombre}
+                <NombreAlDia f={f} linkCorregir={linkCorregir} />
                 {conSede && <span className="font-normal text-taupe"> · {f.sede}</span>}
               </span>
               <span className="shrink-0">
@@ -1618,13 +1636,15 @@ export default function DashboardPage() {
                       ) : (
                         // Pastillas en papel sobre el verde, como antes.
                         cob.trabajando.map((f) => (
-                          <span
+                          <Link
                             key={f.personaId}
-                            className="inline-flex items-center gap-2 rounded-full border border-verde/25 bg-papel px-3 py-1 text-sm"
+                            href={linkCorregir(f.personaId)}
+                            title={`Ver el día de ${f.nombre} en Correcciones`}
+                            className="inline-flex items-center gap-2 rounded-full border border-verde/25 bg-papel px-3 py-1 text-sm transition-colors hover:border-verde hover:bg-verde/15"
                           >
                             <span aria-hidden className="size-1.5 rounded-full bg-verde" />
                             {f.nombre}
-                          </span>
+                          </Link>
                         ))
                       )}
                     </div>
@@ -1651,9 +1671,11 @@ export default function DashboardPage() {
                           nadie marcó hace tres horas—; sin dato, solo el nombre. */}
                       <div className="mt-2 flex flex-wrap gap-2">
                         {[...cob.enPausa].sort(porPausaMasLarga).map((f) => (
-                          <span
+                          <Link
                             key={f.personaId}
-                            className="inline-flex items-start gap-2 rounded-superficie border border-ambar/45 bg-papel px-3 py-1.5 text-sm"
+                            href={linkCorregir(f.personaId)}
+                            title={`Ver el día de ${f.nombre} en Correcciones`}
+                            className="inline-flex items-start gap-2 rounded-superficie border border-ambar/45 bg-papel px-3 py-1.5 text-sm transition-colors hover:border-ambar hover:bg-ambar/15"
                           >
                             <span aria-hidden className="mt-1.5 size-1.5 shrink-0 rounded-full bg-ambar" />
                             <span>
@@ -1665,7 +1687,7 @@ export default function DashboardPage() {
                                 </span>
                               )}
                             </span>
-                          </span>
+                          </Link>
                         ))}
                       </div>
                       {pausasNoRespondieron && (

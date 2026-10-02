@@ -178,9 +178,46 @@ Lo que eso significa, y hay que tenerlo presente al pedir permiso:
   despliegues que salen de un `git push`. Misma forma que el agujero de la 0177
   y la 0243 con `dame-el-sql.sh`: el freno está bien, el camino cómodo no pasa
   por él.
-- **No hay garantía de «CI verde antes de publicar».** El 2026-09-10 producción
-  sirvió el código de tres merges durante ~20 minutos mientras `db-tests`
-  todavía corría.
+- **Desde el 2026-09-21, fusionar un PR exige `db-tests` y `ui-tests` en verde
+  — pero eso no es lo mismo que «CI verde sobre lo que se publica».** Lo exige
+  el ruleset «main: pruebas obligatorias» de GitHub (qué cubre y quién lo
+  salta: ver «La red de seguridad»). Antes no había nada: el 2026-09-10
+  producción sirvió el código de tres merges durante ~20 minutos mientras
+  `db-tests` todavía corría. Lo que el ruleset todavía NO garantiza, medido el
+  2026-10-01:
+  - **Cuentan las pruebas del PR, no las del commit que llega a `main`.** El
+    ruleset tiene `strict=false`: no exige que la rama esté al día con `main`.
+    Las pruebas de un PR corren sobre su mezcla con el `main` *del momento en
+    que arrancaron*; si otro PR se fusiona en el medio, el tuyo entra con
+    pruebas que nunca vieron ese cambio. Pasó 1 vez en las 25 fusiones del
+    21-sep al #482: el #468 se probó a las 17:45 (UTC) y se fusionó a las
+    17:51, un minuto después que el #466. La corrida de `main` sobre los dos
+    juntos dio verde — después de publicados. Donde esto duele es la forma del
+    accidente de la 0261: dos PR que reescriben la misma función partiendo de
+    la misma versión pasan cada uno en verde, y juntos el de número mayor
+    revierte al otro sin que ninguna prueba lo haya visto antes de publicar.
+  - **La corrida de `main` después de fusionar sigue sin frenar nada.** Vercel
+    publica en menos de un minuto; `db-tests` tarda unos cinco.
+  - Exigir ramas al día (`strict=true`) cerraría el primer hueco, a cambio de
+    volver a correr el CI de todos los PR listos cada vez que uno se fusiona —
+    con diez worktrees, y con el plan de Actions que ya se agotó una vez el
+    2026-08-26. No está decidido; es de Felipe.
+- **`gh pr merge N --merge` a secas ya no fusiona si las pruebas no
+  terminaron**: se niega y ofrece `--auto` (medido el 2026-10-01 con el #482).
+  - **`--auto` es publicar en diferido**: deja la fusión armada y GitHub la
+    hace solo en cuanto las dos pruebas den verde, sin que nadie mire. Es la
+    forma correcta de «fusiona cuando esté verde», y por eso **se arma solo
+    cuando Felipe lo pidió para ESE PR**, con la migración ya pegada y con
+    `--merge` (`main` va con commits de fusión). El riesgo no es teórico:
+    encender «Auto-fix pull requests» en la app de escritorio la ha armado
+    sola, en squash, sin que nadie lo pidiera —el #464 el 2026-09-27 y el
+    #483 el 2026-10-01—, y en el #483 el panel de la app siguió diciendo que
+    no estaba armada. Lo único fiable es
+    `gh pr view N --json autoMergeRequest`: `null` es desarmada. Si aparece
+    armada sin que nadie la pidiera, se desarma (`gh pr merge N --disable-auto`)
+    y se avisa con la hora y quién la armó.
+  - **`--admin` salta el ruleset.** No es otra forma de fusionar: es la salida
+    de emergencia, y va con OK explícito de Felipe para ese PR.
 - **Y de aquí sale el orden que importa: la migración se pega ANTES de fusionar
   el PR que la usa.** Después de fusionar, el frontend ya está en el aire. Ese
   día falló dos veces —la 0404 dejó el envío del DNI rompiéndose *después* de
@@ -915,9 +952,57 @@ Solo mira lo que el push agrega, y esa es la razón de que sirva: comparar el á
 entero contra todas las ramas encuentra choques históricos de ramas abandonadas y
 falla en cualquier push. Un freno que chilla siempre se desactiva a la semana.
 
-Se eligió un hook local y **no** la protección de rama de GitHub porque esa
-habría exigido abrir un pull request por cada cambio — fricción constante para
-quien trabaja sola, a cambio de la misma garantía.
+**Y del lado de GitHub, desde el 2026-09-21: el ruleset «main: pruebas
+obligatorias».** Al principio se eligió solo el hook local y **no** proteger
+`main` en GitHub, porque eso habría exigido abrir un pull request por cada
+cambio — fricción constante para quien trabaja sola. Ese razonamiento caducó:
+para entonces todo entraba ya por PR, y el 2026-09-21 a las 09:34 (hora de
+Lima) se creó un ruleset sobre la rama por defecto. Tampoco era «la misma
+garantía»: el hook corre en esta Mac, se salta con `--no-verify` y no corre
+las pgTAP; el ruleset vive en GitHub y mira el CI. No se reemplazan: el hook
+frena lo que sale de la Mac, el ruleset lo que entra a `main`.
+
+Ojo al buscarlo: **no es la protección de rama clásica** —
+`gh api repos/felipea92p-ux/cayla-dynamic/branches/main/protection` da 404 y
+eso NO significa que `main` esté desprotegida—. Se mira así:
+
+```bash
+gh api repos/felipea92p-ux/cayla-dynamic/rulesets/23773404
+gh api repos/felipea92p-ux/cayla-dynamic/rules/branches/main   # las reglas que aplican hoy
+```
+
+Tiene tres reglas: no se puede borrar `main` (`deletion`), no se le puede
+reescribir la historia (`non_fast_forward`, o sea `push --force`), y nada
+entra sin `db-tests` y `ui-tests` en verde (`required_status_checks`, las dos
+de GitHub Actions, con `strict=false` — qué deja pasar eso está en «Desplegar
+a producción»). Y una excepción que lo cambia todo, medida el 2026-10-01:
+
+| | Colaborador con permiso de escritura (hoy hay uno) | Admin (hoy solo la cuenta de Felipe) |
+|---|---|---|
+| Fusionar un PR sin las dos pruebas en verde | bloqueado | bloqueado por defecto; `gh pr merge --admin` lo salta |
+| `git push` directo a `main` | bloqueado sin las dos pruebas en verde | **pasa** |
+| `push --force` o borrar `main` | bloqueado | pasa |
+
+La columna de la derecha sale de `bypass_actors`: el rol de repositorio
+`admin` con `bypass_mode: always` — «always» quiere decir que el salto vale
+también para un push directo, no solo dentro de un PR. **Y toda sesión de
+Claude trabaja con la cuenta de Felipe**, así que para el ruleset cada sesión
+es admin. Lo que de verdad protege a `main` de una sesión no es el ruleset:
+es que el camino normal (`gh pr merge`) pasa por él, y que `--admin` y el
+push directo a `main` no se usan sin OK explícito de Felipe. Lo del push
+directo no se probó con un push real, porque ese push publica.
+
+Lo que sí se midió es que hasta hoy nadie lo saltó. En septiembre, hasta el
+día 21, entraron a `main` 32 commits sin pull request (los últimos el 10-sep);
+desde el ruleset, **cero**: las 25 fusiones del 21-sep al #482 (1-oct)
+entraron por PR, y GitHub no registra ni una evaluación en `bypass`. Se
+vuelve a comprobar en una línea — si devuelve algo distinto de `[]`, algo
+llegó a producción sin pruebas. El `time_period` no es adorno: sin él, la API mira solo las últimas
+24 horas y un `[]` no dice nada del resto del mes.
+
+```bash
+gh api "repos/felipea92p-ux/cayla-dynamic/rulesets/rule-suites?ref=refs/heads/main&rule_suite_result=bypass&time_period=month"
+```
 
 Para que el hook funcione en un clon nuevo hay que activarlo una vez:
 ```bash
@@ -1071,5 +1156,8 @@ columna `now()` necesita desempate explícito, aunque en producción nunca empat
 En producción no empata porque cada escritura entra en su propia transacción; en
 una prueba siempre empata. Un orden que depende del orden físico no es un orden.
 
-En una urgencia real ambos se saltan: `git push --no-verify` y `npx vercel --prod`.
+En una urgencia real los tres se saltan: `git push --no-verify` (el hook),
+`npx vercel --prod` (`desplegar.sh`) y `gh pr merge --admin` (el ruleset — o
+un push directo a `main`, que con la cuenta de Felipe también pasa).
 Que se pueda saltar a propósito es parte del diseño; que se salte sin querer, no.
+Y el tercero publica en el acto, así que lo decide Felipe, nunca una sesión.
