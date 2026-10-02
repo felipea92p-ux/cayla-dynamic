@@ -40,7 +40,7 @@ import {
 } from "@cayla-dynamic/shared";
 import { MESES as MESES_LARGOS, type ObjetivoItem } from "@/lib/objetivos";
 import {
-  esperadoDelDia, horarioVigente, fechasDelRango, dowDe, estadoDelDia,
+  esperadoDelDia, horarioVigente, fechasDelRango, dowDe, estadoDelDia, esJornadaEnCurso,
   type Esperado, type EstadoDia, type HorarioTramo, type TurnoDia,
 } from "@/lib/admin/jornada-esperada";
 import { loQueNoSePudo } from "@/lib/admin/lo-que-no-se-pudo";
@@ -598,7 +598,7 @@ function colorDia(d: Dia): string {
  * ventana de horas del terminal, y esa regla ya vive en un solo sitio.
  */
 function enJornadaAbierta(d: Dia, hoy: string): boolean {
-  return d.fecha === hoy && (d.jornada?.estado === "abierta" || d.jornada?.estado === "en_pausa");
+  return esJornadaEnCurso(d.fecha, hoy, d.jornada?.estado);
 }
 
 function explicaDia(d: Dia): string {
