@@ -125,6 +125,32 @@ export const NOVEDADES: readonly Novedad[] = [
     audiencia: "panel",
   },
   {
+    id: "2026-10-01-dashboard-nombre-abre-el-dia",
+    fecha: "2026-10-01",
+    titulo: "En el Dashboard, el nombre de cada persona abre su día",
+    queMejoro:
+      "En «Sedes», al hacer clic en el nombre de alguien —en «Trabajando ahora», en «En pausa» o en el detalle " +
+      "del equipo— se abre Correcciones con esa persona y el día de hoy ya elegidos: ves todas sus marcas, a qué " +
+      "hora le tocaba entrar y lo que ya se corrigió.\n\n" +
+      "Antes solo se podía llegar ahí desde una tardanza o un estado; para ver el día de quien estaba trabajando " +
+      "sin novedad había que ir a Correcciones y buscarla en la lista.",
+    audiencia: "panel",
+  },
+  {
+    id: "2026-10-01-archivo-de-la-empresa",
+    fecha: "2026-10-01",
+    titulo: "Los papeles de la empresa ya tienen su lugar: Empresa → Archivo",
+    queMejoro:
+      "Hay un renglón nuevo al fondo del menú, «Empresa → Archivo», para los papeles que CAYLA presenta o recibe " +
+      "de una autoridad: la inscripción de un banco de datos personales, la constancia de REMYPE, la licencia de " +
+      "funcionamiento de cada sede. Se suben en PDF o en foto y se abren con un clic, para tenerlos a la mano el " +
+      "día de una inspección.\n\n" +
+      "Cada papel dice quién lo emite, de qué sede es, quién lo subió y cuándo. Si le pones fecha de vencimiento, " +
+      "la pantalla avisa dos meses antes. Nada se borra: corregir un dato deja la versión anterior en el historial, " +
+      "y retirar un papel pide escribir el motivo. Solo lo ve Desarrollo Organizacional.",
+    audiencia: "do",
+  },
+  {
     id: "2026-10-01-nueva-version-de-la-politica-salarial",
     fecha: "2026-10-01",
     titulo: "Hay una versión nueva de la Política salarial para leer y confirmar",
