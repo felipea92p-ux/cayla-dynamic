@@ -1116,9 +1116,12 @@ function NormasPageContenido() {
                     {pegando ? "subir un archivo" : "o pegar el texto"}
                   </button>
                 </span>
+                {/* `sm:text-[11px]` además de `text-[11px]`: AreaTexto trae `sm:text-sm`, y
+                    una regla con media query le gana a una suelta — sin esto, desde 640 px
+                    el texto pegado saldría a 14 px. */}
                 {pegando ? (
                   <AreaTexto value={textoPegado} onChange={(e) => pegarTexto(e.target.value)} rows={3}
-                    placeholder="Pega aquí el texto — desde Word, Canva, donde esté." className="font-mono text-[11px]" />
+                    placeholder="Pega aquí el texto — desde Word, Canva, donde esté." className="font-mono text-[11px] sm:text-[11px]" />
                 ) : (
                   <input type="file" accept=".md,.txt,text/markdown,text/plain" onChange={(e) => void elegirArchivo(e.target.files?.[0] ?? null)}
                     className="rounded-control border border-sand bg-hueso px-3 py-2 text-xs file:mr-2 file:rounded file:border-0 file:bg-sand file:px-2 file:py-0.5 file:text-xs" />
