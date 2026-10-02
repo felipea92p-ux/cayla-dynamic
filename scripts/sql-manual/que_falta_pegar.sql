@@ -360,6 +360,7 @@ with repo(numero, nombre, nunca) as (values
     (496, 'un_periodo_con_todo_pagado_deja_de_leerse_como_a_medias', false),
     (499, 'liquidada_es_de_su_cese_actual', false),
     (501, 'la_rmv_sube_a_1230_y_la_escala_la_sigue', false),
+    (502, 'la_subvencion_pactada_de_los_practicantes_sigue_a_la_rmv_de_1230', false),
     (503, 'el_archivo_de_la_empresa', false),
     (505, 'el_feriado_posterior_al_cese_no_corresponde', false)
 ),

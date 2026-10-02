@@ -44,6 +44,234 @@ Falta fusionar el PR #486, que es publicar la pantalla («no corresponde (poster
 
 ---
 
+## 2026-10-01 — La subvención pactada de los practicantes sigue a la RMV nueva · migración 0502 · PEGADA Y VERIFICADA · PR #480 SIN FUSIONAR
+
+**Estado al 2026-10-01, a mediodía — lo que de verdad pasó en producción:** Felipe pegó la 0502 y la fila final que devolvió coincide columna por columna con lo esperado: `tramos_0502 = 5` · `practicantes_bajo = 0` · `por_suposicion = 5` (ninguno tiene horas cargadas: la jornada completa de su modalidad se SUPUSO) · `con_horas_de_convenio = 0` · `educacion_realineada_hoy = 0` · registro `502 la_subvencion_pactada_de_los_practicantes_sigue_a_la_rmv_de_1230`. **Pendiente de la pegada:** volver a correr la consulta de comprobación y mirar que ningún practicante quede bajo el piso. **Lo que sigue abierto y NO lo resuelve la migración:** la consulta al laboralista de abajo (art. 45 con pago por horas; ningún convenio firmado en el sistema; adenda o renovación). Fusionar este PR no cambia pantallas: solo deja en `main` el archivo ya pegado.
+
+**Origen.** La 0501 —la RMV a S/ 1,230, **pegada y verificada** el 1-oct— no alcanza a los practicantes:
+`fn_fijar_base_declarada` exige `en_planilla` y ellos tienen `en_planilla = false`. En producción hay **cinco
+practicantes activos** (tres profesionales y dos preprofesionales) cuya subvención pactada es S/ 1,130 y desde el 1-oct
+queda **bajo la RMV** (Ley 28518 art. 45: no menos de una RMV a la jornada máxima de su modalidad; proporcional
+si pactaron menos). **Lo decidido por Felipe (2026-10-01):** llevar esa subvención pactada a S/ 1,230 desde el 1-oct,
+**por regla** y sin nombres ni ids en ningún archivo, con una migración **aparte** de la 0501.
+
+**Qué promete —y qué NO— esta migración.** Promete alinear **lo pactado** (el tramo vigente de `asignaciones_salario`: lo
+que Contratos exige y lo que imprime la constancia) a la RMV. **No promete que la boleta pague esa cifra ni que se
+cumpla el art. 45**: la planilla paga a un practicante por las horas marcadas, y un preprofesional que cumple sus 30 h
+semanales cobra ≈ dos tercios del tramo (ver «Lo que la 0502 NO resuelve»). Por eso el nombre dice «sigue a la RMV» y no
+«llega al piso», y la nota permanente de cada tramo no afirma cumplimiento. *(La primera pasada se llamaba «los
+practicantes llegan al piso»: prometía de más y se renombró.)*
+
+**Qué hay** (rama `claude/practicantes-piso-0502`; **nada pegado ni fusionado**):
+
+| Archivo | Qué |
+|---|---|
+| `supabase/migrations/0502_la_subvencion_pactada_de_los_practicantes_sigue_a_la_rmv_de_1230.sql` | La migración. Atómica, solo sube, idempotente, con guardia final y **una sola pegada a la vez** (candado de transacción). No reescribe ninguna función ni deja ningún objeto permanente. **Devuelve al final UNA fila** con los conteos. |
+| `supabase/tests/396_la_subvencion_pactada_de_los_practicantes_sigue_a_la_rmv_de_1230.test.sql` | 48 aserciones: la regla sobre una veintena de practicantes de laboratorio (convenios en conflicto incluidos), la acción, la planilla (1,220.32), el tramo que empieza el 1-oct, el candado por grupo. |
+| `scripts/sql-manual/antes_de_pegar_la_subvencion_de_los_practicantes_1230.sql` | Solo SELECT. 16 filas; la **fila 6** es una entrada por practicante y es lo que Felipe confirma. |
+| `tests/practicantes-subvencion-misma-regla.test.ts` | Compara, palabra por palabra, la regla de la migración, de la prueba y del script. |
+
+### La regla — y por qué no es «por rango»
+
+Se sube a quien cumpla **todo**: practicante **activo**, no cuenta de servicio, con subvención vigente **por debajo de
+su referencia**. La referencia es la **RMV vigente el 1-oct, leída de `parametros_laborales`** (no escrita a mano; la
+migración se detiene si no es 1,230, o sea si la 0501 no está) y, solo para un **preprofesional con convenio de menos de
+30 h**, su proporción: RMV × horas / 30 (la misma cuenta del generador de Contratos). **Nunca por rango:** cada
+practicante lleva uno de los seis rangos de `asignaciones_salario` —no existe un rango «practicante»—, así que un
+`UPDATE` o un `fn_fijar_base_declarada` por rango habría barrido también a quien pactó menos horas, y subirle de más no
+se puede deshacer (sería **bajarle** una subvención).
+
+**Qué convenios cuentan.** Todo convenio de prácticas **no anulado que traiga horas, firmado o en borrador**: equivocarse
+hacia «protegerlo» se arregla pegando de nuevo; subir de más no. Si una persona tiene convenios no anulados que **se
+contradicen** —horas distintas entre sí, o uno con horas y otro sin ellas— la migración **se DETIENE** con «conflicto de
+convenios» y Felipe decide a mano (anular en Contratos el que sobra). La primera pasada tomaba «el más reciente»: con un
+convenio **firmado de 20 h** y un borrador posterior sin horas, dejaba a esa persona «asumida» y la **subía a 1,230**
+(ensayado contra el borrador commiteado: sube); y al revés, un borrador sin firmar con 20 h la dejaba «no se toca» sin
+decirlo. Ahora la fila 6 muestra por persona cuántos convenios hay, sus horas y si están firmados.
+
+Lo que hace: `fn_set_salario` por persona, **con el rango que ya tiene**, desde el **1-oct** (el tramo viejo se cierra
+el 30-sep), y sube `personas.sueldo_base_legal` solo si ya tenía un valor menor (nulo se queda nulo) —no mueve el pago
+de un practicante, pero la constancia de subvención imprime «Subvención pactada (mes completo)» **leyendo esa
+columna**—. El valor anterior queda en `correcciones_auditoria` (`personas.sueldo_base_legal`), que es lo que permite
+revertirlo, y el motivo dice **el valor real** al que sube (el proporcional, si pactó menos horas; la primera pasada
+decía siempre «sube al piso de la RMV de S/ 1,230»). **Solo sube:** a quien ya cobra su referencia o más (1,230 o 1,300) no
+se le abre ni un tramo. La nota permanente de cada tramo dice: *«Subvención pactada alineada a la RMV de S/ X vigente
+desde el 2026-10-01 (referencia: Ley 28518, art. 45; si la boleta cumple el artículo es consulta abierta con el
+laboralista)…»* y, cuando las horas no salen de un convenio, *«jornada completa de su modalidad (48 h) SUPUESTA»* (30 h
+para un preprofesional).
+
+**Se OMITE y se cuenta (sin nombres)** a quien no tiene modalidad, no tiene subvención cargada o **ingresó después del
+1-oct sin horas pactadas**. **DETIENE** —sin tocar nada— si hay un conflicto de convenios; si a quien sube le tocaría una
+`base_provision` propia (`fn_set_salario` no la copia), sueldo fijo, o **un tramo de sueldo que EMPIEZA el 1-oct o
+después**; si hay un cambio de sueldo programado que todavía cubre el 1-oct; si no hay admin activo con usuario; si la
+RMV del 1-oct no es 1,230; o si el grupo practicante del periodo ya está **pagado** (candado de `fn_set_salario`, por
+grupo desde la 0327).
+
+*El tramo que empieza el 1-oct o después es de la segunda pasada:* `fn_set_salario` **borra** todo tramo con
+`vigente_desde >=` la fecha. A quien ingresó **hoy** y cobra menos que su referencia le habría borrado su único tramo
+para poner el nuestro, y la receta de reversión —que reabre el tramo cerrado el 30-sep— lo habría dejado con **cero
+tramos** (ensayado contra el borrador commiteado: lo hace). Ahora se detiene en voz alta.
+
+Presta la identidad del admin activo más antiguo **solo dentro de la transacción**, igual que la 0501 y la 0462; el guard
+de las funciones no se toca. **Una sola pegada a la vez:** lo primero que hace el bloque es tomar un candado de
+transacción; una segunda pegada simultánea espera y, al seguir, ya no encuentra a nadie bajo su referencia (sin el
+candado, dos pegadas simultáneas duplicaban las filas de auditoría de la base legal: medido, 12 en vez de 6).
+
+### ⚠️ La suposición «jornada completa» — la confirma Felipe leyendo la fila 6
+
+**Ninguno** de los cinco tiene un convenio con horas pactadas cargado en el sistema. El generador solo guarda las horas de
+un **preprofesional** (al profesional le deja `null`) y el sistema entero —generador, texto del convenio, el script de
+la 0501— lee «sin horas» como **jornada completa** de la modalidad (30 h / 48 h). La 0502 hace lo mismo, **y eso es una
+suposición, no un dato**. Está escrita en el encabezado de la migración y en la nota de cada tramo.
+
+**La protección por horas existe SOLO para el preprofesional con un convenio generado CON horas:** el generador guarda
+horas únicamente para él, y la regla las ignora si la modalidad no es «preprofesional». **Para los tres profesionales esa
+protección es NULA por construcción:** su convenio nunca lleva horas, la regla les aplica la RMV entera y no existe dónde
+cargar «este profesional trabaja menos» para que la regla lo lea. **Para un profesional de jornada reducida NO hay
+protección, y si Felipe duda de alguno, NO se pega.** *(La primera pasada decía que cargar horas en un convenio bastaba para proteger a cualquiera de los cinco: era falso
+para los profesionales.)*
+
+**Felipe NO ha confirmado la jornada de ninguno:** la fila 6 del script de la 0501 mostraba «horas completas» solo porque no hay horas cargadas (es el relleno cuando falta el dato; no comprueba nada). **Lo que la confirma es leer, ahora con las horas SUPUESTAS en número
+(30 o 48), lo que marcó cada uno en el último periodo pagado (aprox.), su horario vigente como señal débil y sus convenios
+con si están firmados, en la fila 6 del script nuevo ANTES de pegar.** La migración dice a cuántos subió por suposición
+**en la fila final que devuelve** (`por_suposicion`, `con_horas_de_convenio`): el SQL Editor **no muestra los
+`RAISE NOTICE`**, así que lo que importa no viaja en ellos. **Si no la confirma, no se pega.**
+
+### Lo que cuesta — MEDIDO, con su cota
+
+Con `fn_planilla_calcular` en un Postgres desechable propio (cadena completa de 480 migraciones + la 0502), el periodo
+**28-sep → 28-oct (31 días; tres al sueldo viejo)** y **jornadas MODELADAS** —las horas reales de producción no se
+pueden leer desde acá—. Por perfil (reproducido en la segunda pasada):
+
+| Jornada modelada | Horas del periodo | Cobra con 1,130 | Cobra con 1,230 | Sube |
+|---|---|---|---|---|
+| Preprofesional 6 h L–V (30 h/sem) | 138 | 773.90 | 833.45 | **+59.55** |
+| Preprofesional 5 h L–S (30 h/sem) | 135 | 757.07 | 816.63 | **+59.56** |
+| Profesional 8 h L–V (40 h/sem) | 184 | 1,031.86 | 1,111.27 | **+79.41** |
+| Profesional 8 h L–S (48 h/sem) | 216 | 1,211.32 | 1,306.60 | **+95.28** |
+| Asistencia completa, 6.5 h × 31 días (el techo) | 201.5 | 1,130.00 | 1,220.32 | **+90.32** |
+
+**Los S/ 384.12 de la primera pasada se retiran:** eran la SUMA de estas cinco jornadas distintas (una de 40 h y una de
+6.5 h todos los días), no una medida de los cinco reales, y no se reprodujeron como tal. **El rango medido para los cinco
+reales** (2 preprofesionales y 3 profesionales; la jornada máxima de cada modalidad como piso del rango y 6.5 h × 31
+días como techo; quien marque menos horas cuesta menos):
+
+- **Primer periodo (28-sep → 28-oct): ≈ S/ 405 a S/ 452** de pago por horas (3 de 31 días al sueldo viejo). Extremos:
+  2 × 59.55 + 3 × 95.28 = 404.94 y 5 × 90.32 = 451.60.
+- **En régimen: ≈ S/ 490 a S/ 565 al mes** según las horas que marquen (medido con jornadas modeladas: mezcla ≈ S/ 491; los cinco a jornada legal máxima ≈ S/ 520–526; los cinco a 6.5 h × 31 días ≈ S/ 564; quien marque menos cuesta menos) = el pago por horas a periodo completo (subida = horas × S/ 100 / (6.5 × días
+  del periodo)) **más el devengo semestral y del descanso, S/ 12.50 por persona**. El **EsSalud +9** ya subió con la 0501 y no
+  se cuenta acá.
+- **Por practicante: ≈ S/ 78 al mes (preprofesional de 30 h) a ≈ S/ 120 (profesional).**
+- **La cifra con las horas REALES la da la fila 8 del script** (horas del último periodo pagado de cada uno).
+- La estimación vieja de «≈ S/ 110–125 por practicante al mes» era el TECHO, no un promedio: 100 de pago + 12.50 de lo
+  devengado = 112.50, y 121.50 con los 9.00 de EsSalud de la 0501.
+
+- **Lo devengado se revalúa de golpe, una vez, en +8.85 %** (1,230 / 1,130): la media subvención semestral y el descanso de
+  15 días (Ley 28518 art. 42) los leen `fn_subvenciones_practicante` (0467; la usa Provisiones) y
+  `fn_mis_subvenciones_practicante` (0485; la ve el propio practicante) sobre la subvención **vigente al corte**, sin
+  versionar el pasado. Medido (reproducido en la segunda pasada) con ingreso el 2-mar y corte el 15-oct: **5,253.05 → 5,717.90 (+S/ 464.85
+  para los cinco)**; de ahí en adelante cada hito de seis meses y el descanso valen **S/ 50 más** por persona. Es costo real, no un
+  error: **quien mire Provisiones el día de la pegada va a ver el salto.**
+- **Efecto colateral heredado, medido:** cada tramo nuevo dispara `fn_educacion_realinear` (0281), que corrige la asignación
+  por educación de quien tenga una que no cuadre con el 75 % de su costo declarado y deja en la auditoría el motivo
+  «Cambió el rango» aunque el rango no cambió (pasa con S/ 80.00 sobre un costo de S/ 107: sube a S/ 80.25; no pasa si ya
+  cuadra). La **fila 9** del script dice de antemano a cuántos les puede pasar y la **fila final** de la migración cuenta
+  cuántos pasó (`educacion_realineada_hoy`).
+
+### Lo que la 0502 NO resuelve — consulta para el laboralista
+
+1. **¿Pagar por horas marcadas cumple el art. 45 de la Ley 28518 si un preprofesional de 30 h cobra ≈ dos tercios del
+   tramo?** La planilla paga a un practicante por las horas marcadas (6.5 h por día calendario = la subvención entera):
+   un preprofesional que cumple sus 30 h semanales cobra **≈ S/ 773–833** en el periodo (≈ 66 % del tramo), con 1,130 y
+   también con 1,230. La 0322 lo dejó escrito como decisión de quien da de alta. La 0502 alinea el TRAMO —lo pactado y lo
+   que Contratos exige—, no contesta esta pregunta, y ninguna pantalla la marca. **Si la respuesta es que un
+   preprofesional de 30 h debe cobrar la RMV entera, cerrar la brecha cuesta ≈ S/ 388–406 al mes por preprofesional
+   (≈ S/ 775 los dos), además de lo de la 0502.**
+2. **Ninguno de los cinco tiene convenio firmado en el sistema — y eso es un RIESGO, no solo un hueco de horas.** Toda
+   la categoría practicante (sin CTS, gratificación ni vacaciones, sin AFP ni 4.ª) descansa en que exista un convenio de
+   modalidad formativa por escrito. Sin convenio firmado y vigente esa modalidad podría no ser oponible y el vínculo
+   reclasificarse como laboral (a validar con el laboralista, no se afirma). La 0502 no lo cura ni lo agrava. ¿Qué papel
+   existe de cada uno, con qué modalidad y jornada? El sistema no puede probar la jornada pactada de ninguno.
+3. **Adenda o renovación para los convenios firmados que dicen 1,130:** pagar más es favorable, pero el papel queda viejo.
+
+**Pendiente que no es consulta:** el **segundo tramo de la RMV (S/ 1,300, primer semestre de 2027)** volverá a dejar la
+subvención pactada bajo la RMV: hay que rehacer esta migración con los números de ese día; nada en el sistema avisa
+cuando el decreto salga.
+
+### Orden de pegado — fecha límite real: ANTES de pagar el grupo practicante del periodo 28-sep → 28-oct
+
+**La 0502 es solo datos:** no cambia pantallas ni funciones, así que no depende del orden respecto de ningún PR. Pero
+`dame-el-sql.sh` se niega a entregarla si no está en GitHub byte por byte, así que **primero se sube** (rama, PR en
+borrador). **La fecha límite real no es el 28-oct sino el momento de pagar:** la migración se pega **ANTES de pagar el
+grupo practicante del periodo 28-sep → 28-oct** (el periodo cierra el 2026-10-28); desde que ese grupo figure como
+pagado, el candado de `fn_set_salario` (por grupo, desde la 0327) la hace abortar entera.
+
+1. `./scripts/que-falta-pegar.sh` y pegar lo que genera: la **0502** figura pendiente y **no** hay filas nuevas de «SOBRA LA FILA».
+2. `./scripts/dame-el-sql.sh scripts/sql-manual/antes_de_pegar_la_subvencion_de_los_practicantes_1230.sql` (así los
+   acentos no se rompen), pegar y ejecutar: una tabla de 16 filas. **Leer:** fila 1 (cuántos suben: lo esperado es 5),
+   fila 2 (`1230 / 1130`), fila 3 (**todo en 0**, incluido «CONFLICTO DE CONVENIOS»), fila 4 (quién firma el rastro),
+   fila 5 (a cuántos se les SUPONE la jornada), **fila 6 (una por practicante: ¿es verdad que trabaja esas horas?)**,
+   fila 8 (el costo con sus horas reales), fila 9 (educación a realinear), fila 10 (**0**), fila 11 (**ningún periodo
+   con practicantes pagados**).
+3. **Confirmar la fila 6, persona por persona.** Si alguna dice «DETIENE» o la jornada supuesta no es la real: parar y
+   corregir (convenio con las horas reales en Contratos —solo sirve para un preprofesional—, anular el convenio que
+   sobra, modalidad en Equipo) y volver a correr el paso 2. **Para un profesional no hay forma de cargar horas que la
+   regla lea: si dudas de alguno, NO se pega** (Plan B: los confirmados se suben a mano en Equipo, misma persona y rango, vigencia 2026-10-01; el dudoso espera a DO y al laboralista). **Si aparece «conflicto de convenios», NO anules a ciegas un convenio firmado:** la regla no mira fechas y un convenio vencido también cuenta; anular recalcula el vencimiento del contrato (0312).
+4. `./scripts/dame-el-sql.sh 0502` y `diff <(pbpaste) supabase/migrations/0502_*.sql && echo idéntico`. Pegar **entero** y
+   ejecutar: es todo o nada; si da error no se tocó nada — copiar el mensaje completo y parar.
+5. La fila que devuelve debe decir: `tramos_0502` = los que dijo la fila 1 como «sube» · `practicantes_bajo` = **solo**
+   los de jornada reducida o fuera (la fila 6) · `por_suposicion` = lo que dijo la fila 5 y `con_horas_de_convenio` el
+   resto (**la suma da `tramos_0502`**) · `educacion_realineada_hoy` = lo que anticipó la fila 9 (si dijo 0, 0) ·
+   `502 la_subvencion_pactada_de_los_practicantes_sigue_a_la_rmv_de_1230`.
+
+### Cómo se verifica
+
+Volver a correr el script del paso 2: **fila 12 = 0** (nadie bajo su referencia), **fila 13** = los que subían, con la
+división «por suposición / con horas de convenio» de la fila 5, **fila 14** = solo jornada reducida o fuera, **fila
+15 = 0**, **fila 16** = las dos migraciones **con número y nombre**. Después: abrir la boleta de un practicante del
+periodo 28-sep → 28-oct: «Subvención pactada (mes completo)» dice 1,230.00. Y recordar que Provisiones va a mostrar el
+salto de arriba y que **no se puede bajar después de pagar un periodo con ella**.
+
+### Cómo se ensayó (y qué NO se pudo ver)
+
+**Primera pasada:** el borrador pasó una auditoría independiente de tres auditores; esta segunda pasada aplica sus
+correcciones. **Segunda pasada**, contra la cadena completa de 480 migraciones (hasta la 0501) en un Postgres desechable
+**propio** (contenedor `scratch-0502p2-pg`, puerto 54993; no se tocó ningún `supabase_*`):
+
+- el archivo real pegado sobre una base sin practicantes (pasa, no exige admin, la fila final sale en ceros);
+- un escenario de 15 practicantes activos y 3 controles (integrante en planilla, locador, en prueba): sube **7**
+  (4 por suposición, 3 con horas de su convenio), la fila final dijo `7 · 7 · 4 · 3 · 0`; la **segunda pegada es
+  idempotente** (mismos hashes de tramos, bases y auditoría) y la **receta de reversión** devuelve tramos, bases y conteo
+  **exactos**;
+- **13 casos que deben detenerla**, todos con el estado **idéntico** después: horas distintas entre sí, firmado de 20 h con
+  un borrador posterior sin horas, conflicto en quien ya cumple, conflicto en quien no tiene modalidad, `base_provision`,
+  sueldo fijo, tramo programado después del 1-oct, **ingreso el 1-oct con tramo desde el 1-oct**, sin admin, otra RMV el
+  1-oct, sin ninguna RMV, grupo practicante ya pagado, cambio programado que cubre el 1-oct; y **5 que deben pasar**
+  (conflicto resuelto anulando uno, `base_provision` en quien no sube, ingreso el 1-oct con 1,230, solo el grupo
+  «planilla» pagado, sueldo fijo en quien no sube);
+- el **borrador commiteado** (el de la primera pasada) contra los dos casos de la auditoría: **sube a 1,230** a quien
+  firmó 20 h y **borra el único tramo** de quien ingresó el 1-oct. La versión nueva se detiene en los dos;
+- **concurrencia:** dos pegadas simultáneas dejan **6** filas de auditoría de la base legal con el candado y **12** sin
+  él (control);
+- **siete mutaciones a la migración** que la guardia final cazó (subir a todos a 1,230, no subir la base legal, rango fijo,
+  bajar a quien cobra más, mover a un integrante en planilla, saltarse a uno, base legal con otro valor); quitar los dos
+  frenos nuevos (conflicto de convenios y tramo desde el 1-oct) deja pasar la migración —o sea que esos frenos son los
+  que protegen—;
+- la **396** pasa **48/48** y se comprobó que **puede fallar** con **siete mutaciones** a su regla (sin la clasificación de
+  conflicto, conflicto solo por horas distintas, el borrador no cuenta, el anulado cuenta, el tramo del 1-oct no cuenta,
+  sin tope de 30 h, horas distintas sin detectar). La prueba de vitest se vio fallar al tocar una sola condición del script.
+  La **122** pasa (con `schema_migrations` emulada) verificando la fila de la 0502. **Suite pgTAP completa: 306 archivos**;
+  fallan los **mismos 20** que en el control de la primera pasada (a `auth.users` le faltan columnas de GoTrue; la 122
+  pasa si se emula `schema_migrations`), con **idénticos** conteos de aserciones en todos los demás. *(Trampa del banco de
+  pruebas: ocho archivos fallaban de entrada con «permission denied for schema public» porque la base desechable se
+  clonó con otro dueño que `postgres`; no era la 0502 —con el permiso puesto pasan—, y solo el control lo distinguió.)*
+
+**No se pudo ver:** el `do $$` de la migración no se puede ejecutar desde pgTAP (por eso la regla vive en una vista que SÍ
+se mide, y el bloque se ensayó aparte); y las **horas reales** de los cinco, que solo existen en producción — por eso la
+fila 8 del script y la confirmación de la fila 6 son de Felipe. `db-tests` de GitHub es la señal fiable de las pgTAP.
+
+---
+
 ## 2026-10-01 — El Archivo de la empresa (Empresa → Archivo) · migración 0503 · PEGADA Y VERIFICADA · SIN FUSIONAR
 
 **Origen:** había que guardar la constancia de inscripción del banco de datos *Videovigilancia* (ANPD,
@@ -71,7 +299,7 @@ su sede. Se resolvería abriéndole la lectura de los papeles de SU sede (`sede_
 
 ---
 
-## 2026-09-30 — La RMV sube a S/ 1,230 el 1-oct, la escala la sigue y la asignación familiar sube a S/ 123 · migración 0501 · SIN PEGAR · SIN FUSIONAR
+## 2026-09-30 — La RMV sube a S/ 1,230 el 1-oct, la escala la sigue y la asignación familiar sube a S/ 123 · migración 0501 · PEGADA y verificada (2026-10-01) · SIN FUSIONAR
 
 **Origen:** el **D.S. 015-2026-TR**, publicado el **2026-09-28** en El Peruano (edición extraordinaria), art. 1,
 lleva la RMV a S/ 1,300 **en dos tramos**: el primero (+S/ 100 = **S/ 1,230**) rige el **2026-10-01**; el
@@ -139,17 +367,17 @@ escritos **dentro** de las funciones (núcleo, `fn_provisiones`, `fn_remuneracio
 usan si faltan las dos tablas, y no faltan. Cuando la RMV suba al segundo tramo, la asignación a **130** hay que
 subirla en **los dos** sitios otra vez.
 
-### Los practicantes NO se tocan, y hay que mirarlos
+### Los practicantes: la 0501 NO los alcanza — los resuelve la **0502** (entrada «La subvención pactada de los practicantes sigue a la RMV nueva», arriba)
 
 `fn_fijar_base_declarada` exige `en_planilla` y un practicante tiene `en_planilla = false`: la 0501 **no los
-alcanza**, y su subvención pactada bajo S/ 1,230 (o su proporción a las horas pactadas: RMV × horas / 30 si es
-preprofesional con menos de 30 h) queda bajo el piso de la Ley 28518 art. 45 **sin que el sistema lo marque**.
-No se les sube a ciegas: quien pactó menos horas tiene piso proporcional. La consulta (ii) de
-`scripts/sql-manual/antes_de_pegar_la_rmv_1230.sql` los lista con su piso viejo y su piso nuevo; **Felipe los
-resuelve con sus datos**. Además: desde el 1-oct Contratos **bloquea** generar un convenio con subvención bajo el
-piso (por eso el código lee ahora la RMV con la regla de la planilla y no como «la fila abierta»), su EsSalud sube
-solo (piso puro, 101.70 → 110.70) y los convenios ya firmados siguen diciendo 1,130 en el papel (pagar más es
-favorable, pero el papel queda viejo: adenda o próxima renovación, **consulta para el laboralista**).
+alcanza**, y su subvención de S/ 1,130 queda bajo el piso de la Ley 28518 art. 45 (RMV, o su proporción a las horas
+pactadas) **sin que el sistema lo marque**. **Decidido el 2026-10-01 por Felipe: la migración 0502** alinea su subvención pactada a la RMV
+**por regla** (nunca por rango, que habría barrido a quien pactó menos horas) — ver la entrada de arriba, con la
+suposición «jornada completa», el costo medido, lo que NO promete (la boleta paga por horas) y el orden de pegado. Además, desde el 1-oct Contratos **bloquea**
+generar un convenio con subvención bajo el piso (por eso el código lee ahora la RMV con la regla de la planilla y no
+como «la fila abierta»), su EsSalud sube solo (piso puro, 101.70 → 110.70) y los convenios ya firmados siguen diciendo
+1,130 en el papel (pagar más es favorable, pero el papel queda viejo: adenda o próxima renovación, **consulta para el
+laboralista**).
 
 ### La otra rama: `claude/salary-update-1230-bd7a09` — descartarla o cerrarla
 
@@ -209,7 +437,7 @@ señal fiable.
    - Fila 3 (los cinco casos) y fila 15: TODO en 0. Si no, la migración se detendrá: no seguir. Remedio por causa: *base sin confirmar* → confirmarla en Equipo; *base_provision propia* o *sueldo fijo* → decisión de Felipe, no se resuelve a ciegas; *tramo de sueldo programado después del 1-oct* → revisarlo en Equipo; *un campo arriba y otro abajo* → igualar a mano (consulta (i) del script); *fila 15 (rendimiento < 100 en un mes pagado)* → decisión de Felipe.
    - Fila 4: «nadie» o quien cobra por encima de su monto (esa persona NO se toca, es lo correcto).
    - Fila 5: «nadie». Si sale una estación o cuenta de servicio de rango Colibrí, es lo esperado: la migración la omite a propósito.
-   - Filas 6 y 7: practicantes. La 0501 NO los toca. Anota quiénes salen «QUEDA BAJO EL PISO EL 1-OCT» (paso 17).
+   - Filas 6 y 7: practicantes. La 0501 NO los toca: los resuelve la 0502 (entrada «La subvención pactada de los practicantes sigue a la RMV nueva», con su propio script y orden de pegado). Anota quiénes salen «QUEDA BAJO EL PISO EL 1-OCT».
    - Fila 8: antes «1130 / 1130». Fila 9: antes «113 / 113 / 113». Los valores salen con cinco decimales (1130.00000 es 1130).
    - Fila 10: cuántas personas cobran asignación familiar (cada una cuesta ≈ S/ 12.57 más al mes y, pagado un periodo con 123, no se puede bajar).
    - Fila 11: periodo abierto que cierra el 2026-10-28 (el 1-oct se midió 2026-09-28 → 2026-10-28; si la fecha_fin NO es 2026-10-28, para y avisa). Fila 12: último periodo cerrado o pagado.
@@ -234,7 +462,7 @@ señal fiable.
 **D. Después**
 16. Seguimiento en Publicaciones → Política salarial → «Constancias» (hoja imprimible con pendientes y motivo). Quien no deja constancia: no se bloquea nada, no se le descuenta nada y nadie la firma por ella; queda pendiente y visible. A los 3 días, su líder de equipo o DO la acompaña a abrir su propia cuenta y dejarla ella misma (es la única vía: la hoja dice «no hay vía en papel para este documento»). Si no puede entrar, qué otra prueba de entrega se acepta es consulta al laboralista; no se promete antes. Para dar el documento en papel: Versiones y publicación → «Ver» → «Descargar PDF» (el «Imprimir / Guardar como PDF» del documento vigente omite la sección «La escala»). El «X / Y» de Política y la hoja de Constancias pueden diferir en quien está en días de selección: vale la hoja.
 17. Antes del cierre del 28-oct:
-   - Practicantes (filas 6-7): resolver con sus datos. Desde el 1-oct Contratos bloquea generar o renovar un convenio con subvención bajo el piso (RMV, o su proporción a las horas pactadas); su EsSalud sube solo de 101.70 a 110.70; los convenios firmados siguen diciendo 1,130 (adenda o renovación: consulta al laboralista).
+   - Practicantes (filas 6-7): **los resuelve la 0502** (entrada «La subvención pactada de los practicantes sigue a la RMV nueva»): se pega después de leer la fila 6 de su script y antes de pagar el grupo practicante del periodo 28-sep → 28-oct. Desde el 1-oct Contratos bloquea generar o renovar un convenio con subvención bajo el piso (RMV, o su proporción a las horas pactadas) —la 0502 lo desbloquea al subir el tramo—; su EsSalud sube solo de 101.70 a 110.70; los convenios firmados siguen diciendo 1,130 (adenda o renovación: consulta al laboralista).
    - Personas → Datos personales: revisar los ⚠ de asignación familiar («se le paga y declara que no tiene hijos menores», etc.). A quien se le pague sin corresponder recibirá S/ 123 desde el 1-oct y no se podrá bajar.
    - Regenerar los borradores de renovaciones creados antes de pegar (llevan la remuneración vieja congelada; un borrador se corrige, no se duplica).
    - Abrir la boleta de una Colibrí y de una Cayla del periodo 28-sep → 28-oct: la línea de remuneración con el mes completo debe dar ≈ 1,220.32 y ≈ 1,239.19 (no es el total de la boleta) y el piso de EsSalud 110.70.
