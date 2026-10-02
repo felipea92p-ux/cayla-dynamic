@@ -28,7 +28,7 @@ import { Boton } from "@/components/ui/boton";
 import { Campo, CampoSelect } from "@/components/ui/campo";
 import { AreaTexto } from "@/components/ui/area-texto";
 import { Insignia } from "@/components/ui/insignia";
-import { fechaCorta, fmtHoras, isoADiaMesAnio } from "@/lib/admin/planilla/formato";
+import { fechaCorta, feriadoNoCorresponde, fmtHoras, isoADiaMesAnio } from "@/lib/admin/planilla/formato";
 import {
   desgloseDe, grupoDe, liquidacionResuelta, textoCese, type Cese, type Hallazgo,
 } from "@/lib/admin/planilla/revision";
@@ -447,7 +447,7 @@ function Contenido({
             {f.feriados_detalle.map((d) => (
               <li key={d.fecha}>
                 Feriado {fechaCorta(d.fecha)}:{" "}
-                {d.antes_ingreso ? "no corresponde (anterior al ingreso)" : `${d.horas_trabajadas} h trabajadas + ${d.proporcional_horas} h proporcionales`}
+                {feriadoNoCorresponde(d) ?? `${d.horas_trabajadas} h trabajadas + ${d.proporcional_horas} h proporcionales`}
               </li>
             ))}
           </ul>

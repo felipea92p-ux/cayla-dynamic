@@ -54,6 +54,17 @@ export function fechaLargaLima(iso: string): string {
   }).format(new Date(iso));
 }
 
+/** Por qué un feriado NO le corresponde a esta persona, o null si sí le
+ *  corresponde. El motivo lo decide la base (`fn_feriado_devengado_nucleo`):
+ *  anterior a su ingreso, o —desde la 0505— posterior a su cese. Una sola
+ *  redacción para la tabla, el panel y la boleta: antes la tabla y el panel
+ *  escribían cada uno la suya, y solo sabían decir «anterior al ingreso». */
+export function feriadoNoCorresponde(d: { antes_ingreso: boolean; despues_cese?: boolean }): string | null {
+  if (d.antes_ingreso) return "no corresponde (anterior al ingreso)";
+  if (d.despues_cese) return "no corresponde (posterior al cese)";
+  return null;
+}
+
 export function fmtHoras(n: number): string {
   return `${n.toLocaleString("es-PE", { maximumFractionDigits: 2 })} h`;
 }
