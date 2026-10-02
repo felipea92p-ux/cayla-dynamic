@@ -1640,7 +1640,7 @@ export default function DashboardPage() {
                             key={f.personaId}
                             href={linkCorregir(f.personaId)}
                             title={`Ver el día de ${f.nombre} en Correcciones`}
-                            className="inline-flex items-center gap-2 rounded-full border border-verde/25 bg-papel px-3 py-1 text-sm transition-colors hover:border-verde"
+                            className="inline-flex items-center gap-2 rounded-full border border-verde/25 bg-papel px-3 py-1 text-sm transition-colors hover:border-verde hover:bg-verde/15"
                           >
                             <span aria-hidden className="size-1.5 rounded-full bg-verde" />
                             {f.nombre}
@@ -1675,7 +1675,7 @@ export default function DashboardPage() {
                             key={f.personaId}
                             href={linkCorregir(f.personaId)}
                             title={`Ver el día de ${f.nombre} en Correcciones`}
-                            className="inline-flex items-start gap-2 rounded-superficie border border-ambar/45 bg-papel px-3 py-1.5 text-sm transition-colors hover:border-ambar"
+                            className="inline-flex items-start gap-2 rounded-superficie border border-ambar/45 bg-papel px-3 py-1.5 text-sm transition-colors hover:border-ambar hover:bg-ambar/15"
                           >
                             <span aria-hidden className="mt-1.5 size-1.5 shrink-0 rounded-full bg-ambar" />
                             <span>
