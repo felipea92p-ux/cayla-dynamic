@@ -62,12 +62,12 @@ describe("la lista no tiene agujeros", () => {
     }
   });
 
-  it("son siete grupos y treinta pantallas", () => {
-    expect(GRUPOS).toHaveLength(7);
-    expect(TODOS).toHaveLength(31);
+  it("son ocho grupos y treinta y dos pantallas", () => {
+    expect(GRUPOS).toHaveLength(8);
+    expect(TODOS).toHaveLength(32);
   });
 
-  it("solo el primer grupo va sin título — los otros seis se anuncian", () => {
+  it("solo el primer grupo va sin título — los otros siete se anuncian", () => {
     expect(GRUPOS[0].label).toBeUndefined();
     for (const g of GRUPOS.slice(1)) expect(g.label).toBeTruthy();
   });
@@ -136,6 +136,11 @@ describe("dónde quedó cada renglón después de reagrupar", () => {
 
   it("«Apariencia» está en Configuración, con lo demás que se toca una vez al año", () => {
     expect(grupoDe("/admin/apariencia")).toBe("Configuración");
+  });
+
+  it("«Archivo» vive en Empresa y solo lo ve DO: guarda papeles con el DNI del representante (0503)", () => {
+    expect(grupoDe("/admin/archivo")).toBe("Empresa");
+    expect(TODOS.find((i) => i.href === "/admin/archivo")?.roles).toBe(ROLES_DO);
   });
 
   it("la cabecera sin título son las tres pantallas de mirar a diario", () => {
