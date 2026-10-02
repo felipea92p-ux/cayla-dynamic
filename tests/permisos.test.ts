@@ -11,7 +11,7 @@ import {
   puedeVerPlanilla, puedeVerIdentidad, puedeGestionarCatalogos,
   puedeOperarEquipo, puedeVerTodasLasSedes, puedeExportarPadron,
   puedeVerSaludDeAlertas, puedeExportarAsistencia, puedeAnularDocumentoDisciplinario,
-  puedeVerNovedad, puedeGestionarBoletas, puedeMarcarCuentaDeServicio,
+  puedeVerNovedad, puedeGestionarBoletas, puedeMarcarCuentaDeServicio, puedeGestionarArchivo,
   ROLES, ROLES_CON_PANEL, ROLES_DO, ROLES_EXPORTAN_ASISTENCIA,
 } from "@cayla-dynamic/shared";
 
@@ -80,6 +80,9 @@ describe("la encargada de sede opera a su equipo, pero no ve la plata", () => {
   it("no sube ni ve las boletas de pago del equipo (0482)", () => {
     expect(puedeGestionarBoletas("supervisor_sede")).toBe(false);
   });
+  it("no ve el Archivo de la empresa: la constancia de un banco de datos lleva el DNI del representante (0503)", () => {
+    expect(puedeGestionarArchivo("supervisor_sede")).toBe(false);
+  });
   it("no crea sedes, áreas ni feriados — eso cambia el pago de las cuatro sedes", () => {
     expect(puedeGestionarCatalogos("supervisor_sede")).toBe(false);
   });
@@ -98,7 +101,7 @@ describe("la encargada de sede opera a su equipo, pero no ve la plata", () => {
 });
 
 describe("quien solo marca no entra al panel", () => {
-  for (const permiso of [puedeVerPlanilla, puedeVerIdentidad, puedeGestionarCatalogos, puedeOperarEquipo, puedeVerTodasLasSedes, puedeVerSaludDeAlertas, puedeExportarAsistencia, puedeGestionarBoletas]) {
+  for (const permiso of [puedeVerPlanilla, puedeVerIdentidad, puedeGestionarCatalogos, puedeOperarEquipo, puedeVerTodasLasSedes, puedeVerSaludDeAlertas, puedeExportarAsistencia, puedeGestionarBoletas, puedeGestionarArchivo]) {
     it(`integrante: ${permiso.name} = false`, () => {
       expect(permiso("integrante")).toBe(false);
     });
@@ -123,6 +126,9 @@ describe("DO ve todo", () => {
     it(`${rol} sube y publica las boletas oficiales (0482)`, () => {
       expect(puedeGestionarBoletas(rol)).toBe(true);
     });
+    it(`${rol} custodia el Archivo de la empresa (0503)`, () => {
+      expect(puedeGestionarArchivo(rol)).toBe(true);
+    });
   }
 });
 
@@ -137,6 +143,7 @@ describe("null no pasa como autorizado", () => {
       expect(puedeVerSaludDeAlertas(raro)).toBe(false);
       expect(puedeExportarAsistencia(raro)).toBe(false);
       expect(puedeGestionarBoletas(raro)).toBe(false);
+      expect(puedeGestionarArchivo(raro)).toBe(false);
     });
   }
 });

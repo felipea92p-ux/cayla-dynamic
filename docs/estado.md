@@ -234,6 +234,33 @@ fila 8 del script y la confirmación de la fila 6 son de Felipe. `db-tests` de G
 
 ---
 
+## 2026-10-01 — El Archivo de la empresa (Empresa → Archivo) · migración 0503 · PEGADA Y VERIFICADA · SIN FUSIONAR
+
+**Origen:** había que guardar la constancia de inscripción del banco de datos *Videovigilancia* (ANPD,
+INS-2026-5135 · PJ-2026-4553, 08-09-2026) y su formulario firmado, para tenerlos a la mano en una auditoría.
+Dynamic no tenía dónde: todo lo que se subía colgaba de una persona. Felipe eligió construir un archivo propio
+(«A») y ponerlo en un grupo nuevo del menú, **Empresa → Archivo**, que solo ve DO.
+
+**Qué es:** tabla `archivo_empresa`, bucket privado `archivo-empresa`, `fn_archivo_subir` / `fn_archivo_retirar` /
+`fn_archivo_empresa`, pantalla `/admin/archivo`. Nada se edita ni se borra: corregir crea una ficha que reemplaza a
+la anterior (puede reusar el archivo) y retirar exige motivo. Avisa lo que vence en ≤ 60 días. Prueba pgTAP **397**
+(49 aserciones; el control sin índice único, sin trigger y con lectura abierta pone en rojo las 6 que deben caer).
+
+**Pegada el 2026-10-01 y verificada** en el SQL Editor: tabla 1/1, funciones 5/5, políticas de Storage 4/4,
+bucket privado, RLS activa, y `migraciones_aplicadas` con **503 · el_archivo_de_la_empresa** (número Y nombre).
+Se pegó desde el portapapeles de `dame-el-sql.sh`, comprobado idéntico byte por byte al archivo en GitHub.
+Falta fusionar el PR #481, que es publicar la pantalla.
+
+**Después de pegar:** subir los dos PDF de videovigilancia desde la pantalla (viven en Descargas de la MacBook; no
+van a git: llevan el DNI del representante). Y el primero que más vale subir es la **constancia de REMYPE**: sin ella
+no aplica el tope del 1 % de los ingresos netos a las multas de una inspección (ver «El techo que ordena todas las
+multas», más abajo).
+
+**Abierto:** la líder de equipo no ve el archivo; si un inspector llega a una tienda, no puede mostrar la licencia de
+su sede. Se resolvería abriéndole la lectura de los papeles de SU sede (`sede_id`), no del archivo entero.
+
+---
+
 ## 2026-09-30 — La RMV sube a S/ 1,230 el 1-oct, la escala la sigue y la asignación familiar sube a S/ 123 · migración 0501 · PEGADA y verificada (2026-10-01) · SIN FUSIONAR
 
 **Origen:** el **D.S. 015-2026-TR**, publicado el **2026-09-28** en El Peruano (edición extraordinaria), art. 1,

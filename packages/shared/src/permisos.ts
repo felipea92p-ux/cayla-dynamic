@@ -160,6 +160,25 @@ export function puedeGestionarBoletas(rol: RolPosible): boolean {
 }
 
 /**
+ * Ver, subir, reemplazar y retirar los papeles del Archivo de la empresa
+ * (`/admin/archivo`, migración 0503): lo que CAYLA presenta o recibe de una
+ * autoridad — inscripciones de bancos de datos, REMYPE, licencias. Solo DO: la
+ * constancia de un banco de datos lleva el DNI del representante legal.
+ *
+ * Se nombra aparte de `puedeGestionarCatalogos` porque es otra pregunta («quién
+ * custodia los papeles de la empresa», no «quién cambia cómo funciona el
+ * sistema»). Si algún día se abre la lectura a la líder de equipo para los
+ * papeles de SU sede —el caso de un inspector que llega a la tienda—, se abre
+ * acá, sin arrastrar los catálogos.
+ *
+ * La base decide de verdad (`fn_es_admin_o_lider()` en cada `fn_archivo_*` y en
+ * las políticas del bucket); esto solo decide si se DIBUJA la pantalla.
+ */
+export function puedeGestionarArchivo(rol: RolPosible): boolean {
+  return tiene(DO, rol);
+}
+
+/**
  * A quién le llega una novedad del sistema (`apps/web/lib/novedades.ts`):
  *
  *   todos — cualquiera con cuenta, integrantes incluidas.

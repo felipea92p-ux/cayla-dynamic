@@ -11,7 +11,7 @@ import {
   LayoutDashboard, Inbox, TriangleAlert, PencilLine, CalendarClock, Clock, Gauge,
   Users, IdCard, TreePalm, Gavel, ReceiptText, PiggyBank, Target, LayoutGrid, KeyRound,
   Building2, FileDown, FileText, FileSignature, CalendarCheck, Coins, Scale, GraduationCap, HandCoins,
-  BookText, UserRound, ScrollText, Megaphone, Palette, MessagesSquare,
+  BookText, UserRound, ScrollText, Megaphone, Palette, MessagesSquare, Archive,
   type LucideIcon,
 } from "lucide-react";
 import { ROLES_CON_PANEL, ROLES_DO, ROLES_EXPORTAN_ASISTENCIA } from "@cayla-dynamic/shared";
@@ -73,6 +73,15 @@ export type Grupo = { label?: string; items: Item[] };
 //     nombra lo mismo con la palabra de la casa («Planilla»).
 //
 // Lo que NO cambió: ninguna URL, ningún `roles`, ningún nombre de pantalla.
+//
+// Ocho desde el 2026-10-01: «Empresa», con un solo renglón, «Archivo» (0503).
+// Ninguno de los siete le servía, y cada uno por una razón concreta: Personas es
+// de papeles de alguien y este es de CAYLA; Publicaciones es lo que TODO el
+// equipo tiene que poder abrir, y esto lo ve solo DO; Configuración cambia cómo
+// funciona el sistema, y ahí nadie busca una constancia durante una inspección.
+// Se llama «Archivo» y no «Documentos» porque «Documentación» (Personas) ya es
+// otra cosa —los pactos que firma cada persona— y en el buscador (⌘K) las dos
+// saldrían juntas al escribir «docu».
 export const GRUPOS: Grupo[] = [
   { items: [
     // «Lo mío» va sin `roles` y va PRIMERO: es lo único de este menú que habla de
@@ -172,6 +181,12 @@ export const GRUPOS: Grupo[] = [
     // pantalla; hoy coincide con SEDE, pero se nombra aparte para que estrechar
     // el permiso apague también el renglón.
     { href: "/admin/exportar", label: "Exportar CSV", Icon: FileDown, roles: ROLES_EXPORTAN_ASISTENCIA },
+  ] },
+  // Lo que la empresa presenta o recibe de una autoridad: inscripciones,
+  // licencias, REMYPE. Va al fondo, junto a Configuración, por frecuencia —se
+  // abre pocas veces al año—, aunque el día que se abre sea urgente.
+  { label: "Empresa", items: [
+    { href: "/admin/archivo", label: "Archivo", Icon: Archive, roles: DO },
   ] },
   { label: "Configuración", items: [
     { href: "/admin/areas", label: "Áreas", Icon: LayoutGrid, roles: DO },
