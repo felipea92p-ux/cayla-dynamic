@@ -266,6 +266,18 @@ export const NOVEDADES: readonly Novedad[] = [
     audiencia: "todos",
   },
   {
+    id: "2026-09-27-turnos-integrada-y-revision-de-dias-pasados",
+    fecha: "2026-09-27",
+    titulo: "Turnos: la Integrada respeta la salida de cada día y los días pasados muestran su marcaje",
+    queMejoro:
+      "En la vista Integrada, las horas después de la última salida de un día —por ejemplo el domingo después de las 18:15— salían en rojo y con el borde ámbar de «sin líder», como si faltara gente con la tienda ya cerrada. " +
+      "Ahora cada día se mide solo entre su primera entrada y su última salida, igual que en la vista Semana, y el borde ámbar sale solo donde hay operativas sin ningún líder.\n\n" +
+      "En «turnos no coinciden con el horario base», las filas de días que ya pasaron muestran a qué hora marcó la persona. " +
+      "«Usar el horario base» en uno de esos días ahora te pide confirmar y te dice qué va a pasar: ese día se vuelve a medir contra la hora del horario base, y si el turno era lo que se le había indicado conviene dejarlo como está. " +
+      "«Quitar los espejos viejos» en bloque solo toca días de hoy en adelante. Y la etiqueta «excepción a propósito» pasa a llamarse «cambio puntual».",
+    audiencia: "panel",
+  },
+  {
     id: "2026-09-20-dashboard-feriado-sin-turnos-pregunta",
     fecha: "2026-09-20",
     titulo: "Un feriado sin turnos ya no sale en rojo: el Dashboard pregunta si la sede abre",

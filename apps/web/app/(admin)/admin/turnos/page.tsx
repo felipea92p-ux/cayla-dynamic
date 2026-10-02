@@ -13,10 +13,11 @@ import { Boton } from "@/components/ui/boton";
 import { Campo, CampoSelect } from "@/components/ui/campo";
 import { Insignia } from "@/components/ui/insignia";
 import { Modal } from "@/components/ui/modal";
-import { cuentaEnCobertura, hoyLima, puedeOperarEquipo, puedeVerTodasLasSedes } from "@cayla-dynamic/shared";
+import { cuentaEnCobertura, horaLima, hoyLima, puedeOperarEquipo, puedeVerTodasLasSedes } from "@cayla-dynamic/shared";
 import { diaDeLaSedeDe, esperadoDelDia, esTurnoEspejoViejo, horarioVigente, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
 import { cicloVigente, type DiaTrabajado } from "@/lib/admin/ciclo-sobretiempo";
-import { colorCobertura, etiquetaCobertura, etiquetaSedeSinTurnos, type TonoCobertura } from "@/lib/admin/cobertura-turnos";
+import { consecuenciaDeUsarBase as consecuenciaDeUsarBaseLib } from "@/lib/admin/revision-turnos";
+import { colorCobertura, etiquetaCobertura, etiquetaSedeSinTurnos, pintarCeldaIntegrada, ventanaDelDia, type TonoCobertura } from "@/lib/admin/cobertura-turnos";
 
 // ── Fechas (todo en ISO yyyy-mm-dd, semana de lunes a domingo) ──────────────
 function parseISO(iso: string): Date {
@@ -212,7 +213,13 @@ const colorDeTono = (tono: TonoCobertura, pct: number) =>
 // Solo lectura: no toca nada.
 // tE/tS = las horas REALES del turno (null = ese turno es descanso). Se guardan
 // para poder promover el turno a horario base ("Hacer permanente") sin re-consultar.
-interface Divergencia { fecha: string; personaId: string; persona: string; turnoTxt: string; baseTxt: string; espejo: boolean; tE: string | null; tS: string | null }
+//
+// `yaCorrio` = ese día ya se midió: es pasado, o es hoy y ya marcó. Ahí quitar el
+// turno no es cosmético: la jornada se recalcula contra el horario base, y si el
+// turno era lo que de verdad le habían dicho, aparece una tardanza (o una falta,
+// si el turno era descanso) que la persona nunca tuvo. `marco` = la hora a la que
+// marcó su entrada ese día, para decidir con el dato delante.
+interface Divergencia { fecha: string; personaId: string; persona: string; turnoTxt: string; baseTxt: string; espejo: boolean; tE: string | null; tS: string | null; baseE: string | null; yaCorrio: boolean; marco: string | null }
 const rangoTxt = (e: string | null, s: string | null) => (e ? `${e}${s ? `–${s}` : ""}` : "descanso");
 // El horario semanal completo de un tramo, como el jsonb que espera
 // fn_set_horario_semanal ({"1":{e,s,r}, …}). Sirve para cambiar UN día sin
@@ -335,6 +342,15 @@ function AlertaSobretiempo({ sedeSel }: { sedeSel: string }) {
   );
 }
 
+// Qué pasa si un día que ya corrió vuelve al horario base: ver revision-turnos.ts.
+function consecuenciaDeUsarBase(d: Divergencia): string {
+  const { abr, num } = etiquetaDia(d.fecha);
+  return consecuenciaDeUsarBaseLib({
+    etiqueta: `${abr.toLowerCase()} ${num}`, turnoTxt: d.turnoTxt, baseTxt: d.baseTxt,
+    turnoEntrada: d.tE, baseEntrada: d.baseE, marco: d.marco,
+  });
+}
+
 function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso: string) => void }) {
   const supabase = useMemo(() => createAdminSupabaseClient(), []);
   const [divs, setDivs] = useState<Divergencia[] | null>(null);
@@ -345,6 +361,9 @@ function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso
   const [abierto, setAbierto] = useState(true);
   const [procesando, setProcesando] = useState<string | null>(null); // clave de fila, o "bulk"
   const [confirmarBulk, setConfirmarBulk] = useState(false);
+  // Fila (por su clave) cuyo "Usar el horario base" espera confirmación: solo
+  // pasa con días que ya corrieron (ver `yaCorrio`).
+  const [confirmarBase, setConfirmarBase] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   // Tramos de horario de cada persona, para poder promover un turno a horario base.
   const tramosRef = useRef<Map<string, Horario[]>>(new Map());
@@ -373,11 +392,16 @@ function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso
     const ids = (personas ?? []).map((p) => p.id);
     const nombre = new Map((personas ?? []).map((p: any) => [p.id, `${p.nombres} ${p.apellidos}`]));
     if (ids.length === 0) { setDivs([]); return; }
-    const [{ data: turnos, error: eT }, { data: horarios, error: eH }] = await Promise.all([
+    const [{ data: turnos, error: eT }, { data: horarios, error: eH }, { data: jornadas, error: eJ }] = await Promise.all([
       supabase.from("turnos").select("persona_id, fecha, hora_entrada, hora_salida, es_descanso").in("persona_id", ids).gte("fecha", desde).order("fecha"),
       supabase.from("horarios_asignados").select("persona_id, hora_entrada, hora_salida, dias_laborables, horario_por_dia, almuerzo_min_minutos, vigente_desde, vigente_hasta").in("persona_id", ids),
+      supabase.from("jornadas").select("persona_id, fecha, entrada_ts").in("persona_id", ids).gte("fecha", desde).lte("fecha", hoy),
     ]);
-    if (eT || eH) { setError(true); return; }
+    if (eT || eH || eJ) { setError(true); return; }
+    const entradaDe = new Map<string, string>();
+    for (const j of (jornadas as { persona_id: string; fecha: string; entrada_ts: string | null }[]) ?? []) {
+      if (j.entrada_ts) entradaDe.set(`${j.persona_id}|${j.fecha}`, horaLima(j.entrada_ts));
+    }
     const hMap = new Map<string, Horario[]>();
     for (const h of (horarios as HorarioTramo[]) ?? []) {
       const arr = hMap.get(h.persona_id) ?? [];
@@ -402,7 +426,11 @@ function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso
         { hora_entrada: t.hora_entrada, hora_salida: t.hora_salida, es_descanso: t.es_descanso },
         tramos ?? []
       );
-      const fila = { fecha: t.fecha, personaId: t.persona_id, persona: nombre.get(t.persona_id) ?? "?", espejo, tE, tS };
+      const marco = entradaDe.get(`${t.persona_id}|${t.fecha}`) ?? null;
+      const fila = {
+        fecha: t.fecha, personaId: t.persona_id, persona: nombre.get(t.persona_id) ?? "?", espejo, tE, tS,
+        baseE: base?.entrada ?? null, yaCorrio: t.fecha < hoy || (t.fecha === hoy && marco !== null), marco,
+      };
       // Sin horario base ese día (caso TRU, set-2026: los horarios rigen desde
       // el 12 de julio y el periodo abierto arranca el 28 de junio) el turno es
       // la ÚNICA referencia de a qué hora le tocaba entrar. No diverge de nada:
@@ -427,7 +455,7 @@ function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso
   // Quitar el turno puntual ⇒ ese día vuelve a regir el horario base. La RPC
   // recalcula la jornada de esa fecha (y el candado bloquea periodos pagados).
   async function usarHorarioBase(d: Divergencia, clave: string) {
-    setProcesando(clave); setAviso(null);
+    setProcesando(clave); setAviso(null); setConfirmarBase(null);
     const { error: e } = await supabase.rpc("fn_quitar_turno", { p_persona_id: d.personaId, p_fecha: d.fecha });
     setProcesando(null);
     if (e) { setAviso(`No se pudo quitar el turno de ${d.persona}: ${e.message}`); return; }
@@ -539,13 +567,18 @@ function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso
       </div>
     );
   }
-  const espejos = divs.filter((d) => d.espejo);
+  // En bloque solo los que todavía no corrieron. Un espejo viejo de un día que
+  // ya pasó puede estar causando una tardanza falsa… o puede haber sido lo que
+  // de verdad se le indicó: eso se decide fila por fila, con su marcaje a la vista.
+  const espejosTodos = divs.filter((d) => d.espejo);
+  const espejos = espejosTodos.filter((d) => !d.yaCorrio);
+  const espejosPasados = espejosTodos.length - espejos.length;
   return (
     <div className="mb-4 max-w-2xl overflow-hidden rounded-2xl border border-ambar/40 bg-ambar/[0.06]">
       <button onClick={() => setAbierto((a) => !a)} className="flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left text-sm">
         <span className="font-medium text-ambar">
           {divs.length} turno{divs.length === 1 ? "" : "s"} no coincide{divs.length === 1 ? "" : "n"} con el horario base
-          {espejos.length > 0 && <span className="font-normal text-rojo"> · {espejos.length} probable{espejos.length === 1 ? "" : "s"} espejo viejo</span>}
+          {espejosTodos.length > 0 && <span className="font-normal text-rojo"> · {espejosTodos.length} probable{espejosTodos.length === 1 ? "" : "s"} espejo viejo</span>}
         </span>
         <span className="shrink-0 text-xs text-taupe">{abierto ? "ocultar" : "ver"}</span>
       </button>
@@ -554,7 +587,8 @@ function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso
           <p className="px-4 py-2 text-xs leading-relaxed text-taupe">
             El turno del día manda sobre el horario base. Decide cuál de los dos tiene la razón:{" "}
             <strong className="text-tinta">Hacer permanente</strong> = la hora del turno pasa a ser su horario base desde esa fecha (úsalo si de verdad le cambiaron el horario).{" "}
-            <strong className="text-tinta">Usar el horario base</strong> = descarta el turno y vuelve a su horario (úsalo si el turno quedó viejo).{" "}
+            <strong className="text-tinta">Usar el horario base</strong> = descarta el turno y vuelve a su horario (úsalo si el turno quedó viejo).
+            En un día que ya pasó, eso vuelve a medir su jornada contra el horario base: antes de aplicarlo te muestra a qué hora marcó.{" "}
             Nada se borra solo: tú decides fila por fila.
           </p>
           {notaSinBase && <p className="border-t border-ambar/20 px-4 py-2 text-xs leading-relaxed text-taupe">{notaSinBase}</p>}
@@ -574,6 +608,7 @@ function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso
                   </Boton>
                   <span className="text-[11px] text-taupe">
                     Esto <strong>descarta</strong> esas horas. Si a esa gente le cambiaron el horario de verdad, usa <strong>Hacer permanente</strong> fila por fila.
+                    {espejosPasados > 0 && <> Los {espejosPasados} de días que ya pasaron no entran: van fila por fila, porque su jornada ya se midió.</>}
                   </span>
                 </div>
               )}
@@ -594,21 +629,32 @@ function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso
                     </button>
                     <span className="text-xs">
                       <span className="text-ambar">turno {d.turnoTxt}</span> <span className="text-taupe">· base {d.baseTxt}</span>
+                      {d.yaCorrio && <span className="text-taupe"> · {d.marco ? `marcó ${d.marco}` : "sin marcaje"}</span>}
                     </span>
                   </div>
                   <div className="mt-1 flex flex-wrap items-center gap-2">
                     {d.espejo
                       ? <Insignia variante="alerta" tamano="sm">probable espejo viejo</Insignia>
-                      : <Insignia variante="neutral" atenuada tamano="sm">excepción a propósito</Insignia>}
+                      : <Insignia variante="neutral" atenuada tamano="sm">cambio puntual</Insignia>}
                     <button onClick={() => hacerPermanente(d, clave)} disabled={procesando !== null}
                       className="rounded border border-tinta/30 bg-tinta/5 px-2 py-0.5 text-[11px] font-medium hover:bg-tinta/10 disabled:opacity-40">
                       {procesando === clave ? "Aplicando…" : "Hacer permanente"}
                     </button>
-                    <button onClick={() => usarHorarioBase(d, clave)} disabled={procesando !== null}
+                    <button onClick={() => (d.yaCorrio ? setConfirmarBase(clave) : usarHorarioBase(d, clave))} disabled={procesando !== null || confirmarBase === clave}
                       className="rounded border px-2 py-0.5 text-[11px] text-taupe hover:bg-sand/40 disabled:opacity-40">
                       Usar el horario base
                     </button>
                   </div>
+                  {confirmarBase === clave && (
+                    <div className="mt-2 rounded-lg border border-rojo/30 bg-rojo/[0.06] px-3 py-2 text-xs leading-relaxed">
+                      <p className="text-tinta">{consecuenciaDeUsarBase(d)}</p>
+                      <p className="mt-1 text-taupe">Si el turno era lo que de verdad se le había indicado, déjalo como está.</p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <Boton variante="peligro" tamano="sm" cargando={procesando === clave} onClick={() => usarHorarioBase(d, clave)}>Sí, medir contra el horario base</Boton>
+                        <Boton variante="secundario" tamano="sm" onClick={() => setConfirmarBase(null)}>Cancelar</Boton>
+                      </div>
+                    </div>
+                  )}
                 </li>
               );
             })}
@@ -1208,6 +1254,10 @@ export default function TurnosPage() {
             }
             const hayGente = f1 >= f0;
             const filas = hayGente ? Array.from({ length: f1 - f0 + 1 }, (_, k) => f0 + k) : [];
+            // …pero lo que se MIDE es la ventana de cada día, como en la vista
+            // Semana: el domingo de TRU sale a las 18:15 y sus últimas franjas
+            // no son una falta (ver pintarCeldaIntegrada).
+            const ventanas = dias.map((_, di) => ventanaDelDia(covOp[di], covEnc[di]));
             const cols = "3.25rem repeat(7, minmax(0, 1fr))";
             return (
               <div>
@@ -1217,7 +1267,8 @@ export default function TurnosPage() {
                   <span className="inline-block h-1.5 w-1.5 translate-y-[1px] rounded-full bg-taupe" /> son líderes.
                   Un borde{" "}
                   <span className="inline-block h-2.5 w-2.5 translate-y-[2px] rounded-[2px]" style={{ outline: "1.5px dashed var(--color-ambar)", outlineOffset: "-1.5px" }} />{" "}
-                  ámbar punteado marca una franja bien cubierta pero sin ningún líder, donde sí se esperaba uno.
+                  ámbar punteado marca una franja con operativas pero sin ningún líder, donde sí se esperaba uno.
+                  Lo que queda antes de la primera entrada o después de la última salida de cada día no se mide.
                   Toca una celda para ver quién cubre y editar sus turnos.
                 </p>
                 {!hayGente ? (
@@ -1269,25 +1320,22 @@ export default function TurnosPage() {
                               const metaOp = metaDeHora(inicioFranja(fi), metas.get(dia) ?? 0, metasTarde.get(dia) ?? 0);
                               const metaEnc = metasEncargadas.get(dia) ?? 0;
                               const encFalta = metaEnc > 0 && nEnc < metaEnc;
-                              const bg = nOp > 0
-                                ? colorCobertura(nOp, metaOp)
-                                : nEnc > 0
-                                ? "color-mix(in srgb, var(--color-taupe) 12%, transparent)" // solo encargada esa hora
-                                : metaOp > 0
-                                ? "color-mix(in srgb, var(--color-rojo) 10%, transparent)" // meta puesta pero nadie: falta suave
-                                : "color-mix(in srgb, var(--color-sand) 35%, transparent)"; // sin meta: sand tenue
+                              const v = ventanas[di];
+                              const { fondo: bg, bordeSinLider, fueraDelDia } = pintarCeldaIntegrada({
+                                operativas: nOp, lideres: nEnc, metaOperativas: metaOp, metaLideres: metaEnc,
+                                dentroDelDia: v === null || (fi >= v.desde && fi <= v.hasta),
+                              });
                               const claro = nOp > 0;
                               // Cuando SÍ hay encargadas, el déficit contra la meta ya se ve en
                               // la opacidad de sus puntos. Pero si no hay NINGUNA (nEnc === 0),
                               // no hay puntos que atenuar — la franja quedaba en el mismo verde
                               // que una bien liderada, y el déficit de liderazgo se volvía
-                              // invisible. Solo se marca cuando la sede SÍ puso una meta de
-                              // encargadas para ese día (metaEnc > 0): sin meta, cero encargadas
-                              // es una franja normal, no un déficit.
-                              const sinEncargadaAlguna = encFalta && nEnc === 0;
+                              // invisible. Por eso el borde ámbar (bordeSinLider), que solo sale
+                              // con operativas en la franja y meta de líderes puesta ese día.
+                              const sinEncargadaAlguna = bordeSinLider;
                               return (
                                 <button key={iso} onClick={() => setPanel({ fecha: iso, franjaIdx: fi })}
-                                  title={`${t}–${decimalAHHMM(inicioFranja(fi) + 0.5)} · ${nOp} operativa${nOp === 1 ? "" : "s"}${metaOp > 0 ? ` (meta ${metaOp})` : ""}${nEnc > 0 ? ` · ${nEnc} ${nEnc === 1 ? "líder" : "líderes"}` : sinEncargadaAlguna ? ` · sin líder (meta ${metaEnc})` : ""}`}
+                                  title={fueraDelDia ? `${t}–${decimalAHHMM(inicioFranja(fi) + 0.5)} · fuera del horario de ese día` : `${t}–${decimalAHHMM(inicioFranja(fi) + 0.5)} · ${nOp} operativa${nOp === 1 ? "" : "s"}${metaOp > 0 ? ` (meta ${metaOp})` : ""}${nEnc > 0 ? ` · ${nEnc} ${nEnc === 1 ? "líder" : "líderes"}` : sinEncargadaAlguna ? ` · sin líder (meta ${metaEnc})` : ""}`}
                                   className="relative m-[1.5px] flex h-6 items-center justify-center rounded-[3px] text-[11px] font-medium tabular-nums transition-all hover:z-10 hover:ring-2 hover:ring-tinta/25"
                                   style={{
                                     background: bg,

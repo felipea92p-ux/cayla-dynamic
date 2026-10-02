@@ -135,3 +135,77 @@ export function colorCobertura(n: number, meta: number): string {
   const ratioPct = Math.round(Math.min(n / meta, 1) * 100);
   return `color-mix(in oklab, var(--color-verde) ${ratioPct}%, var(--color-rojo))`;
 }
+
+// ----------------------------------------------------------------------------
+// Una celda de la Vista Integrada (2026-09-26)
+// ----------------------------------------------------------------------------
+// La Integrada recorta sus filas con la semana ENTERA: de la primera franja en
+// que alguien entra, cualquier día, a la última en que alguien sigue. En Tienda
+// TRU eso es 07:45–20:15, porque de lunes a sábado se sale tarde; pero el
+// domingo la salida es a las 18:15. Esas cuatro franjas del domingo se pintaban
+// de rojo suave («meta puesta y nadie») y con el borde ámbar de «sin líder»:
+// dos alarmas sobre horas en que la tienda ya cerró, todos los domingos.
+//
+// La vista Semana nunca tuvo ese problema: su silueta y su porcentaje miden
+// solo dentro de la ventana DE CADA DÍA («así no se pinta rojo antes de abrir ni
+// después de cerrar»). Las dos vistas contestaban distinto a la misma pregunta;
+// ahora la Integrada usa la misma ventana.
+//
+// Y el borde ámbar se promete en la leyenda para una franja «con gente pero sin
+// ningún líder», y se dibujaba también sin nadie. Su razón de ser (ver la página)
+// es que un verde bien cubierto escondía la falta de líder; una franja vacía ya
+// dice lo suyo con el rojo, y el borde encima solo repetía la alarma.
+// ----------------------------------------------------------------------------
+
+/**
+ * La ventana de un día: de la primera a la última franja con alguien —operativa
+ * o líder—, o `null` si ese día no hay nadie programado.
+ */
+export function ventanaDelDia(operativas: number[], lideres: number[]): { desde: number; hasta: number } | null {
+  let desde = -1, hasta = -1;
+  const n = Math.max(operativas.length, lideres.length);
+  for (let i = 0; i < n; i++) {
+    if ((operativas[i] ?? 0) > 0 || (lideres[i] ?? 0) > 0) {
+      if (desde < 0) desde = i;
+      hasta = i;
+    }
+  }
+  return desde < 0 ? null : { desde, hasta };
+}
+
+export interface CeldaIntegrada {
+  /** Operativas que cubren la franja. */
+  operativas: number;
+  /** Líderes de equipo que cubren la franja. */
+  lideres: number;
+  metaOperativas: number;
+  metaLideres: number;
+  /**
+   * ¿La franja cae dentro de la ventana de SU día (`ventanaDelDia`)? Un día sin
+   * nadie programado cuenta como dentro: si tiene meta, alguien olvidó armar los
+   * turnos y eso tiene que seguir viéndose (el mismo criterio que etiquetaCobertura).
+   */
+  dentroDelDia: boolean;
+}
+
+/**
+ * De qué se pinta una celda de la Integrada: su fondo, si lleva el borde ámbar
+ * de «sin líder», y si queda fuera del horario de su día (para el título).
+ */
+export function pintarCeldaIntegrada(c: CeldaIntegrada): { fondo: string; bordeSinLider: boolean; fueraDelDia: boolean } {
+  if (c.operativas > 0) {
+    return {
+      fondo: colorCobertura(c.operativas, c.metaOperativas),
+      bordeSinLider: c.metaLideres > 0 && c.lideres === 0,
+      fueraDelDia: false,
+    };
+  }
+  // Solo líderes esa hora: un tinte taupe, sin número.
+  if (c.lideres > 0) return { fondo: "color-mix(in srgb, var(--color-taupe) 12%, transparent)", bordeSinLider: false, fueraDelDia: false };
+  // Ni una ni otro. Fuera del horario del día, o sin meta: arena tenue.
+  const arena = "color-mix(in srgb, var(--color-sand) 35%, transparent)";
+  if (!c.dentroDelDia) return { fondo: arena, bordeSinLider: false, fueraDelDia: true };
+  // Dentro del día y con meta: un hueco de verdad, falta suave.
+  if (c.metaOperativas > 0) return { fondo: "color-mix(in srgb, var(--color-rojo) 10%, transparent)", bordeSinLider: false, fueraDelDia: false };
+  return { fondo: arena, bordeSinLider: false, fueraDelDia: false };
+}
