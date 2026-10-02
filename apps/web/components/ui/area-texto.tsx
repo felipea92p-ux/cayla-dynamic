@@ -55,8 +55,14 @@ type Props = Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, "value"> & {
 // Misma cadena base que Campo usa para <input>: mismo radio, mismo fondo,
 // mismo tamaño de texto. `resize-none overflow-hidden` es lo propio de este
 // componente (el alto lo pone el JS de abajo, no el usuario arrastrando).
+//
+// El tamaño también se había quedado atrás: aquí decía `text-sm` a secas
+// cuando Campo ya usaba `text-base sm:text-sm`, que es lo que evita que Safari
+// de iOS agrande la página al enfocar un control con letra menor a 16px (y no
+// la vuelva a achicar). Un <textarea> dispara ese zoom igual que un <input>, y
+// «Lo mío → Responder» se escribe sobre todo desde el teléfono.
 const CHROME_BASE =
-  "resize-none overflow-hidden rounded-control border border-sand bg-hueso px-3 py-2 text-sm text-tinta transition-colors duration-150 placeholder:text-taupe/60";
+  "resize-none overflow-hidden rounded-control border border-sand bg-hueso px-3 py-2 text-base text-tinta transition-colors duration-150 placeholder:text-taupe/60 sm:text-sm";
 
 function ajustarAltura(el: HTMLTextAreaElement) {
   // "auto" primero, para que al BORRAR texto la altura también baje: si no,
