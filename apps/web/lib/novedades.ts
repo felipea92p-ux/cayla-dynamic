@@ -115,6 +115,18 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-10-02-horarios-sin-refrigerio",
+    fecha: "2026-10-02",
+    titulo: "En Horarios, un horario puede quedar sin refrigerio",
+    queMejoro:
+      "Quien entra solo en la tarde y ya llega almorzando no tenía cómo quedar bien: el refrigerio solo ofrecía " +
+      "60 o 75 minutos y le restaba una hora que nunca toma. Ahora la lista trae «Ninguno» (en el horario por día " +
+      "se ve como 0), y el total de la semana cuenta esas horas.\n\n" +
+      "Cuando alguien entra pasadas las 13:00 y todavía tiene refrigerio puesto, el editor lo avisa y ofrece " +
+      "«Poner sin refrigerio» con un clic. Es solo una sugerencia: no cambia nada hasta que la aceptas.",
+    audiencia: "panel",
+  },
+  {
     id: "2026-10-01-dashboard-nombre-abre-el-dia",
     fecha: "2026-10-01",
     titulo: "En el Dashboard, el nombre de cada persona abre su día",

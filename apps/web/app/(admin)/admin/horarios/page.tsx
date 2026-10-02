@@ -28,6 +28,7 @@ import { ROLES_DO, hoyLima, puedeOperarEquipo, maximoSemanalPracticante, leCorre
 // vez de las ocho reales, escondiendo el aviso de exceso legal semanal de
 // una practicante.
 import { horasEntre as horasDia, esTurnoEspejoViejo, type HorarioTramo } from "@/lib/admin/jornada-esperada";
+import { opcionesRefrigerio, etiquetaRefrigerio, yaLlegaAlmorzada, diasQueYaLlegaAlmorzada } from "@/lib/admin/refrigerio";
 
 const META_SEMANA = 45; // horas objetivo por semana (7.5h × 6 días)
 // El 2026-09-14 se pidió un mínimo de 250 caracteres para forzar un motivo
@@ -128,21 +129,6 @@ interface FilaPreview {
 const DIAS = [{ v: 1, l: "L" }, { v: 2, l: "M" }, { v: 3, l: "X" }, { v: 4, l: "J" }, { v: 5, l: "V" }, { v: 6, l: "S" }, { v: 0, l: "D" }];
 const NOMBRE_DIA: Record<number, string> = { 0: "domingo", 1: "lunes", 2: "martes", 3: "miércoles", 4: "jueves", 5: "viernes", 6: "sábado" };
 
-// El refrigerio real de CAYLA es 60 o 75 minutos, nunca otro número — un campo
-// libre dejaba pasar un "6" en vez de un "60" sin que nada lo detectara, y eso
-// se cuela directo al cálculo de jornada. Auditoría 2026-09-14.
-const REFRIGERIOS_MIN = [60, 75];
-
-// Datos viejos pueden traer un refrigerio fuera de {60, 75} (el schema
-// permite 45-75, el legacy por defecto era 45). En vez de esconderlo -el
-// selector no puede mostrar "seleccionado" un valor que no está en sus
-// opciones sin que el estado real quede desincronizado de lo que se ve- se
-// agrega como una tercera opción visible, para no pisarlo sin que quien
-// edita lo note.
-function opcionesRefrigerio(actual: number): number[] {
-  return REFRIGERIOS_MIN.includes(actual) ? REFRIGERIOS_MIN : [...REFRIGERIOS_MIN, actual].sort((a, b) => a - b);
-}
-
 // Buscar «Ramirez» tiene que encontrar a «Ramírez». Mismo normalizador que
 // /admin/contratos, /admin/horas y el buscador global.
 function sinTildes(t: string): string {
@@ -206,7 +192,7 @@ function useFormularioHorario() {
     setPorDia((prev) => {
       const next = { ...prev };
       if (next[d]) delete next[d];
-      else next[d] = { e: entrada || "08:00", s: salida || "18:00", r: refri || 60 };
+      else next[d] = { e: entrada || "08:00", s: salida || "18:00", r: refri };
       return next;
     });
   }
@@ -243,13 +229,53 @@ function useFormularioHorario() {
     ? Object.values(porDia).reduce((acc, v) => acc + horasDia(v.e, v.s, v.r), 0)
     : horasDia(entrada, salida, refri) * dias.length;
 
+  // Quien entra pasada la hora de almuerzo ya suele llegar almorzada, y un
+  // refrigerio puesto de más le resta una hora que nunca tomó. Es una SUGERENCIA
+  // que se aplica con un clic, nunca un cambio solo: quitar el refrigerio
+  // cambia cómo se miden las horas de esa persona. Cada caso se mira en su
+  // propio modo — en "misma hora" es una sola pregunta; por día, una por día.
+  const diasSinRefrigerioSugerido = modoPorDia
+    ? diasQueYaLlegaAlmorzada(porDia)
+    : yaLlegaAlmorzada({ e: entrada, s: salida, r: refri }) ? dias : [];
+  function ponerSinRefrigerio() {
+    if (modoPorDia) {
+      setPorDia((prev) => {
+        const next = { ...prev };
+        for (const d of diasQueYaLlegaAlmorzada(prev)) next[d] = { ...next[d], r: 0 };
+        return next;
+      });
+    } else {
+      setRefri(0);
+    }
+  }
+
   return {
-    modoPorDia, entrada, salida, refri, dias, porDia, totalSemana,
+    modoPorDia, entrada, salida, refri, dias, porDia, totalSemana, diasSinRefrigerioSugerido,
     setEntrada, setSalida, setRefri,
     aplicarAnalisis, toggleDia, toggleDiaPorDia, setCampoPorDia, setRefriPorDia, cambiarModo, construirHorario,
+    ponerSinRefrigerio,
   };
 }
 type FormularioHorario = ReturnType<typeof useFormularioHorario>;
+
+// El aviso de «¿ya llega almorzada?». No aparece si el refrigerio ya está en 0
+// ni si nadie entra después de las 13:00, así que quien trabaja de mañana nunca
+// lo ve. El botón es el único camino: la pantalla propone, no decide.
+function SugerenciaSinRefrigerio({ f }: { f: FormularioHorario }) {
+  const dias = f.diasSinRefrigerioSugerido;
+  if (dias.length === 0) return null;
+  const texto = f.modoPorDia
+    ? `${dias.map((d) => NOMBRE_DIA[d]).join(", ").replace(/^./, (c) => c.toUpperCase())} ${dias.length === 1 ? "entra" : "entran"} después de las 13:00.`
+    : `Entra a las ${f.entrada}, ya pasada la hora de almuerzo.`;
+  return (
+    <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-control bg-hueso px-3 py-2">
+      <p className="min-w-0 flex-1 text-xs text-taupe">
+        {texto} Si llega almorzada, no le toca refrigerio: esas horas sí cuentan en su jornada.
+      </p>
+      <Boton variante="secundario" tamano="sm" onClick={f.ponerSinRefrigerio}>Poner sin refrigerio</Boton>
+    </div>
+  );
+}
 
 // La grilla de días — toggle "misma hora todos los días" + modo rápido o por
 // día. Vive fuera del componente porque las dos instancias del formulario
@@ -275,10 +301,11 @@ function GrillaHorario({ f }: { f: FormularioHorario }) {
             <Campo etiqueta="Entrada" type="time" value={f.entrada} onChange={(e) => f.setEntrada(e.target.value)} />
             <Campo etiqueta="Salida" type="time" value={f.salida} onChange={(e) => f.setSalida(e.target.value)} />
             <CampoSelect etiqueta="Refrigerio" value={f.refri} onChange={(e) => f.setRefri(Number(e.target.value))}>
-              {opcionesRefrigerio(f.refri).map((m) => <option key={m} value={m}>{m} min</option>)}
+              {opcionesRefrigerio(f.refri).map((m) => <option key={m} value={m}>{etiquetaRefrigerio(m)}</option>)}
             </CampoSelect>
           </div>
           <p className="mt-2 text-xs text-taupe">Cada día: <span className="text-tinta">{fmtH(horasDia(f.entrada, f.salida, f.refri))}</span></p>
+          <SugerenciaSinRefrigerio f={f} />
           <div className="mt-3">
             <p className="mb-1.5 text-sm">Días de trabajo <span className="text-taupe">(los que no marcas son descanso)</span></p>
             <div className="flex gap-1.5">
@@ -313,8 +340,8 @@ function GrillaHorario({ f }: { f: FormularioHorario }) {
                       <input type="time" value={dd.e} onChange={(e) => f.setCampoPorDia(d.v, "e", e.target.value)} className="w-[90px] rounded-control border px-1.5 py-1 text-sm" />
                       <span className="text-taupe">–</span>
                       <input type="time" value={dd.s} onChange={(e) => f.setCampoPorDia(d.v, "s", e.target.value)} className="w-[90px] rounded-control border px-1.5 py-1 text-sm" />
-                      <select value={dd.r} onChange={(e) => f.setRefriPorDia(d.v, e.target.value)} title="refrigerio (min)" className="w-16 rounded-control border border-sand bg-hueso px-1 py-1 text-sm">
-                        {opcionesRefrigerio(dd.r).map((m) => <option key={m} value={m}>{m}</option>)}
+                      <select value={dd.r} onChange={(e) => f.setRefriPorDia(d.v, e.target.value)} title="refrigerio (min) — 0 = sin refrigerio" className="w-16 rounded-control border border-sand bg-hueso px-1 py-1 text-sm">
+                        {opcionesRefrigerio(dd.r).map((m) => <option key={m} value={m}>{etiquetaRefrigerio(m, true)}</option>)}
                       </select>
                       <span className="w-14 text-right text-xs text-tinta">{fmtH(horasDia(dd.e, dd.s, dd.r))}</span>
                     </>
@@ -323,7 +350,8 @@ function GrillaHorario({ f }: { f: FormularioHorario }) {
               );
             })}
           </div>
-          <p className="mt-1.5 text-xs text-taupe">La columna angosta es el refrigerio en minutos.</p>
+          <p className="mt-1.5 text-xs text-taupe">La columna angosta es el refrigerio en minutos (0 = sin refrigerio).</p>
+          <SugerenciaSinRefrigerio f={f} />
         </div>
       )}
     </>
