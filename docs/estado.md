@@ -24,7 +24,7 @@ El detalle gana `despues_cese`; la pantalla dice «no corresponde (posterior al 
 0397 caen las 9 previstas). La **185** cambia su montaje de § 11 al «marcaje cerrado tarde» (sigue 51/51). Suite
 entera en base desechable: idéntica antes y después en los 306 archivos previos.
 
-**Antes de pegar:** md5 de `fn_feriado_devengado_nucleo` en producción — el repositorio da `c2cddb1d…` (9 312). Se pega
+**md5 de partida:** `c2cddb1d…` (9 312) en el repositorio Y en producción (medido el 2026-10-02). Llegada: `82178e23…` (10 344). Se pega
 ANTES de fusionar: sin la 0505 la pantalla nueva se comporta igual que la vieja (`despues_cese` llega vacío).
 
 **Abierto:** el candado de `fn_set_salario` (asignar un salario que empieza después del cese) — la baja ya se niega a lo

@@ -105,8 +105,10 @@
 --   · Que la versión vigente es la de la 0397 (`./scripts/donde-vive.sh
 --     fn_feriado_devengado_nucleo`). md5 de partida en el repositorio:
 --     c2cddb1df20aa7bd5e662b5b47e1a4b8 (9 312 caracteres).
---     md5 de partida en PRODUCCIÓN: PENDIENTE — se pide en el SQL Editor antes
---     de pegar, y se vuelve a pedir en el mensaje en que se entrega.
+--     md5 de partida en PRODUCCIÓN, medido en el SQL Editor el 2026-10-02:
+--     c2cddb1df20aa7bd5e662b5b47e1a4b8 (9 312) — idéntico al repositorio.
+--     md5 de llegada (medido en la base desechable con la 0505 aplicada):
+--     82178e2323a2182d7faacb21066a69bc (10 344).
 --   · Que `personas.fecha_cese` es el último día trabajado, inclusive: el mismo
 --     corte que usan la 0418 para las ausencias y `fn_liquidacion`.
 --
