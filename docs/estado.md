@@ -6,7 +6,7 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-10-02 — El feriado posterior al cese no corresponde · migración 0505 · ESCRITA Y PROBADA · SIN PEGAR · SIN FUSIONAR
+## 2026-10-02 — El feriado posterior al cese no corresponde · migración 0505 · PEGADA Y VERIFICADA · SIN FUSIONAR
 
 **Origen:** Planilla del periodo 29-sep → 28-oct mostraba «1 feriado(s) sin salario ese día: no se pudo calcular ·
 Equipo →» a dos personas que cesaron antes del 8-oct (una practicante y una integrante en planilla). Medido en
@@ -24,12 +24,23 @@ El detalle gana `despues_cese`; la pantalla dice «no corresponde (posterior al 
 0397 caen las 9 previstas). La **185** cambia su montaje de § 11 al «marcaje cerrado tarde» (sigue 51/51). Suite
 entera en base desechable: idéntica antes y después en los 306 archivos previos.
 
-**md5 de partida:** `c2cddb1d…` (9 312) en el repositorio Y en producción (medido el 2026-10-02). Llegada: `82178e23…` (10 344). Se pega
-ANTES de fusionar: sin la 0505 la pantalla nueva se comporta igual que la vieja (`despues_cese` llega vacío).
+**Pegada el 2026-10-02 y verificada** en el SQL Editor: md5 de partida `c2cddb1d…` (9 312) idéntico al repositorio;
+de llegada `82178e23…` (10 344), idéntico al de la base desechable; `migraciones_aplicadas` con **505 ·
+el_feriado_posterior_al_cese_no_corresponde** (número Y nombre); los dos casos reales pasan a `sin_salario = false`,
+`despues_cese = true`, `monto = 0`. Se pegó desde el portapapeles de `dame-el-sql.sh`, idéntico byte por byte a GitHub.
+Falta fusionar el PR #486, que es publicar la pantalla («no corresponde (posterior al cese)»).
 
-**Abierto:** el candado de `fn_set_salario` (asignar un salario que empieza después del cese) — la baja ya se niega a lo
-inverso (0176). Y los comentarios de `fn_periodo_pagado` (0244 y copias) siguen citando el feriado posterior al cese
-como saldo legítimo: desde la 0505 ese ejemplo es falso.
+**Abierto:**
+- El candado de `fn_set_salario`: deja asignar salario a quien ya cesó, y con la fecha que propone Equipo (inicio del
+  periodo) BORRA los tramos reales que empiezan después. La baja ya se niega a lo inverso (0176). Migración chica.
+- **El vínculo no tiene historia.** `fn_reactivar_persona` (0327) pone `fecha_cese = null` y conserva el ingreso
+  original: tras un reingreso el sistema cree que la persona nunca se fue. Si alguien cesa el 2-oct y vuelve el 20-oct
+  del mismo periodo, el 8-oct vuelve a estar «vinculada» y con el salario cerrado: regresa el aviso falso, y si alguien
+  le pone salario, se paga un feriado de cuando no trabajaba. Afecta a la 0505 y a las cinco preguntas iguales del
+  núcleo (tope de pago y las cuatro ausencias de la 0418). La solución de fondo es una historia de vínculos (como las
+  «medidas» de SAP); tocaría el núcleo de planilla, así que se decide después del cierre de octubre.
+- Los comentarios de `fn_periodo_pagado` (0244 y copias) siguen citando el feriado posterior al cese como saldo
+  legítimo: desde la 0505 ese ejemplo es falso.
 
 ---
 
