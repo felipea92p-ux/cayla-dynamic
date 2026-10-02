@@ -396,6 +396,16 @@ const T = {
   final: "2026-09-18T23:00:00Z", // 6:00 p. m.
 };
 
+// El espacio entre «1:05», «p.» y «m.» no lo escribe este código: lo pone el
+// motor de idiomas que trae Node, y según su versión es uno normal o uno que no
+// se corta (U+00A0, U+202F), para que «p.» y «m.» no queden en dos renglones.
+// A la vista son idénticos, y en la sede lo decide el Safari de la Mac mini, no
+// nosotros. Con Node 22 (CI) y 24 sale el normal; el 2026-10-01 un contenedor
+// con otro Node sacó el especial y estas seis pruebas frenaron un push que solo
+// traía documentación. Por eso se igualan ANTES de comparar — y solo esos dos:
+// si el motor cambiara «p. m.» por «PM», la prueba lo tiene que seguir cazando.
+const conEspacioNormal = (texto: string) => texto.replace(/[\u00a0\u202f]/g, " ");
+
 describe("pausaAbiertaDe — qué salida sigue abierta", () => {
   it("sin marcas, o solo con la entrada, no hay pausa", () => {
     expect(pausaAbiertaDe([])).toBeNull();
@@ -450,18 +460,18 @@ describe("pausaAbiertaDe — qué salida sigue abierta", () => {
 
 describe("desdeLaHora — «la una» pero «las dos»", () => {
   it("la 1 lleva «la»: es justo la hora del refrigerio", () => {
-    expect(desdeLaHora(T.almuerzo)).toBe("desde la 1:05 p. m.");
-    expect(desdeLaHora("2026-09-18T06:15:00Z")).toBe("desde la 1:15 a. m.");
+    expect(conEspacioNormal(desdeLaHora(T.almuerzo))).toBe("desde la 1:05 p. m.");
+    expect(conEspacioNormal(desdeLaHora("2026-09-18T06:15:00Z"))).toBe("desde la 1:15 a. m.");
   });
 
   it("el resto lleva «las», incluidas las 12", () => {
-    expect(desdeLaHora(T.retorno)).toBe("desde las 2:10 p. m.");
-    expect(desdeLaHora("2026-09-18T17:00:00Z")).toBe("desde las 12:00 p. m.");
-    expect(desdeLaHora("2026-09-18T05:30:00Z")).toBe("desde las 12:30 a. m.");
+    expect(conEspacioNormal(desdeLaHora(T.retorno))).toBe("desde las 2:10 p. m.");
+    expect(conEspacioNormal(desdeLaHora("2026-09-18T17:00:00Z"))).toBe("desde las 12:00 p. m.");
+    expect(conEspacioNormal(desdeLaHora("2026-09-18T05:30:00Z"))).toBe("desde las 12:30 a. m.");
   });
 
   it("la hora se dice en Lima, sin cero a la izquierda", () => {
-    expect(horaCortaLima(T.almuerzo)).toBe("1:05 p. m.");
+    expect(conEspacioNormal(horaCortaLima(T.almuerzo))).toBe("1:05 p. m.");
   });
 });
 
@@ -478,18 +488,18 @@ describe("minutosDesde y textoPausa — cuánto lleva", () => {
   });
 
   it("en un papel impreso va solo la hora de salida: los minutos envejecen", () => {
-    expect(textoPausaDesde({ tipo: "salida_almuerzo", desde: T.almuerzo })).toBe("refrigerio desde la 1:05 p. m.");
-    expect(textoPausaDesde({ tipo: "salida_tramite", desde: T.tramite })).toBe("otra salida desde las 4:30 p. m.");
+    expect(conEspacioNormal(textoPausaDesde({ tipo: "salida_almuerzo", desde: T.almuerzo }))).toBe("refrigerio desde la 1:05 p. m.");
+    expect(conEspacioNormal(textoPausaDesde({ tipo: "salida_tramite", desde: T.tramite }))).toBe("otra salida desde las 4:30 p. m.");
     expect(textoPausaDesde({ tipo: "salida_almuerzo", desde: T.almuerzo })).not.toMatch(/min/);
   });
 
   it("dice motivo, desde cuándo y cuánto", () => {
-    expect(textoPausa({ tipo: "salida_almuerzo", desde: T.almuerzo }, ahora)).toBe("refrigerio desde la 1:05 p. m. · 45 min");
+    expect(conEspacioNormal(textoPausa({ tipo: "salida_almuerzo", desde: T.almuerzo }, ahora))).toBe("refrigerio desde la 1:05 p. m. · 45 min");
   });
 
   it("pasada la hora usa horas y minutos", () => {
     const tarde = new Date("2026-09-18T21:25:00Z"); // 4:25 p. m. → 3 h 20 min
-    expect(textoPausa({ tipo: "salida_almuerzo", desde: T.almuerzo }, tarde)).toBe("refrigerio desde la 1:05 p. m. · 3h 20m");
+    expect(conEspacioNormal(textoPausa({ tipo: "salida_almuerzo", desde: T.almuerzo }, tarde))).toBe("refrigerio desde la 1:05 p. m. · 3h 20m");
   });
 });
 
