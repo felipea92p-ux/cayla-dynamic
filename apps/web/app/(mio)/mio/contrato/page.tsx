@@ -58,6 +58,10 @@ function MiContratoContenido() {
     // confirmar.
     firma_persona_confirmada_at: string | null;
   } | null>(null);
+  // Cuando lo más reciente es una ADENDA (0505), el documento que modifica no
+  // puede desaparecer de la pantalla: la persona firma la adenda y sigue
+  // viendo su convenio o contrato completo debajo.
+  const [original, setOriginal] = useState<{ tipo: string; documento_html: string | null } | null>(null);
   const [miFirma, setMiFirma] = useState<string | null>(null);
   const [firmaEmpresa, setFirmaEmpresa] = useState<string | null>(null);
   const [avisoFirma, setAvisoFirma] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
@@ -140,6 +144,21 @@ function MiContratoContenido() {
       return;
     }
     setContrato(c as typeof contrato);
+    if (c && (c as { tipo: string }).tipo === "adendum") {
+      const { data: o } = await ordenarContratoVigente(
+        supabase
+          .from("contratos_generados")
+          .select("tipo, documento_html")
+          .eq("persona_id", yoActual.id)
+          .is("anulado_at", null)
+          .neq("tipo", "adendum"),
+      )
+        .limit(1)
+        .maybeSingle();
+      setOriginal((o as typeof original) ?? null);
+    } else {
+      setOriginal(null);
+    }
     setMiFirma((mf as string | null) ?? null);
     setFirmaEmpresa((fe as string | null) ?? null);
     // La más reciente primero (fn_contrato_revisiones_pedidas ya ordena por
@@ -184,7 +203,7 @@ function MiContratoContenido() {
         firma_persona_confirmada_at: new Date().toISOString(),
         fecha_firma: c.fecha_firma ?? hoyLima(),
       } : c));
-      setAvisoFirma({ tipo: "ok", texto: "Contrato firmado." });
+      setAvisoFirma({ tipo: "ok", texto: contrato.tipo === "adendum" ? "Adenda firmada." : "Contrato firmado." });
     }
     setConfirmando(false);
   }
@@ -247,6 +266,7 @@ function MiContratoContenido() {
     );
   }
 
+  const esAdenda = contrato.tipo === "adendum";
   const html = contrato.documento_html
     .replaceAll(MARCADOR_FIRMA_EMPRESA, firmaEmpresa ? `<img src="${firmaEmpresa}" alt="Firma de la empresa" />` : "&nbsp;")
     .replaceAll(MARCADOR_FIRMA_PERSONA, miFirma ? `<img src="${miFirma}" alt="Tu firma" />` : "&nbsp;");
@@ -280,7 +300,10 @@ function MiContratoContenido() {
           escaneo que Desarrollo Organizacional conserva como respaldo). */}
       {!contrato.fecha_firma && (
         <p className="mb-4 rounded-lg bg-ambar/[0.08] px-4 py-3 text-sm text-taupe print:hidden">
-          Este contrato todavía no ha sido firmado. Lo que ves es el borrador tal como se generó.
+          {esAdenda
+            ? "Esta adenda todavía no ha sido firmada."
+            : "Este contrato todavía no ha sido firmado."}{" "}
+          Lo que ves es el borrador tal como se generó.
         </p>
       )}
 
@@ -291,8 +314,8 @@ function MiContratoContenido() {
       <div className="mb-4 rounded-lg border border-sand bg-papel p-4 print:hidden">
         <h2 className="mb-1 font-serif text-base">Tu firma</h2>
         <p className="mb-3 text-xs text-taupe">
-          Al confirmar, tu firma queda estampada en el documento de abajo, junto a la de la empresa, y el
-          contrato queda firmado.
+          Al confirmar, tu firma queda estampada en el documento de abajo, junto a la de la empresa, y{" "}
+          {esAdenda ? "la adenda queda firmada" : "el contrato queda firmado"}.
         </p>
         {avisoFirma && (
           <p className={`mb-3 text-xs ${avisoFirma.tipo === "ok" ? "text-verde" : "text-rojo"}`}>{avisoFirma.texto}</p>
@@ -329,7 +352,9 @@ function MiContratoContenido() {
               ? "Confirmando…"
               : contrato.firma_persona_confirmada_at
                 ? "Confirmar mi firma aquí"
-                : "Firmar este contrato"}
+                : esAdenda
+                  ? "Firmar esta adenda"
+                  : "Firmar este contrato"}
           </button>
         </div>
       </div>
@@ -413,6 +438,24 @@ function MiContratoContenido() {
         className="hoja rounded-lg border border-sand p-8 text-sm leading-relaxed print:rounded-none print:border-0 print:p-0"
         dangerouslySetInnerHTML={{ __html: html }}
       />
+
+      {esAdenda && original?.documento_html && (
+        <section className="mt-8 print:hidden">
+          <h2 className="mb-2 font-serif text-base">
+            {original.tipo === "convenio_practicas"
+              ? "Tu convenio, el documento que esta adenda modifica"
+              : "Tu contrato, el documento que esta adenda modifica"}
+          </h2>
+          <div
+            className="hoja rounded-lg border border-sand p-8 text-sm leading-relaxed"
+            dangerouslySetInnerHTML={{
+              __html: original.documento_html
+                .replaceAll(MARCADOR_FIRMA_EMPRESA, firmaEmpresa ? `<img src="${firmaEmpresa}" alt="Firma de la empresa" />` : "&nbsp;")
+                .replaceAll(MARCADOR_FIRMA_PERSONA, miFirma ? `<img src="${miFirma}" alt="Tu firma" />` : "&nbsp;"),
+            }}
+          />
+        </section>
+      )}
     </main>
   );
 }

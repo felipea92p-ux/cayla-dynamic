@@ -27,6 +27,8 @@ import {
   MARCADOR_FIRMA_EMPRESA,
   MARCADOR_FIRMA_PERSONA,
   tipoQueCorresponde,
+  textoAdendaSeguroPrivado,
+  MARCA_POR_COMPLETAR,
   type DatosContrato,
 } from "@/lib/admin/contrato-texto";
 import { Search } from "lucide-react";
@@ -998,7 +1000,17 @@ export default function ContratosPage() {
     // Nace con el plazo más probable —tres meses para un convenio, un año para
     // un contrato modal— y se cambia en un clic.
     const esConvenioDeEstaPersona = p.tipo_vinculo === "practicante" || tipo === "convenio_practicas";
-    setFechaFin(finDePlazo(inicio, esConvenioDeEstaPersona ? 3 : 12));
+    // Una ADENDA no define un plazo nuevo: al firmarse, el vencimiento de la
+    // persona pasa a ser SU fecha de fin (`fn_contrato_refrescar_vencimiento`).
+    // Con el plazo de relleno de arriba —3 o 12 meses desde hoy— firmar una adenda
+    // de seguro movía el vencimiento del convenio sin que nadie lo decidiera, y
+    // el formulario obliga a escribir una fecha. Así que nace con la que ya
+    // rige, y solo se cambia si la adenda de verdad prorroga.
+    setFechaFin(
+      tipo === "adendum" && p.fecha_fin_contrato
+        ? p.fecha_fin_contrato
+        : finDePlazo(inicio, esConvenioDeEstaPersona ? 3 : 12),
+    );
 
     // TRAER EL ANEXO I / PLAN FORMATIVO DEL DOCUMENTO ANTERIOR, SI HAY (hallazgo
     // de la auditoría 2026-09-14, ver `traerDelAnteriorSiHay`). Async y con
@@ -1009,7 +1021,7 @@ export default function ContratosPage() {
     // tecleó nada todavía) — así una respuesta lenta nunca borra lo que quien
     // usa la pantalla ya empezó a escribir.
     let cancelado = false;
-    const tipoParaBuscar = p.tipo_vinculo === "practicante" ? "convenio_practicas" : tipo;
+    const tipoParaBuscar = p.tipo_vinculo === "practicante" && tipo !== "adendum" ? "convenio_practicas" : tipo;
     void traerDelAnteriorSiHay(p.id, tipoParaBuscar).then((anterior) => {
       if (cancelado || !anterior?.datos_formulario) return;
       const d = anterior.datos_formulario;
@@ -1103,7 +1115,15 @@ export default function ContratosPage() {
   // renovación/adendum — elegibles a mano — y esto solo la reemplaza cuando
   // la persona es practicante, sin que quien usa la pantalla tenga que saber
   // por qué el desplegable de tipo desaparece.
-  const tipoEfectivo = persona?.tipo_vinculo === "practicante" ? "convenio_practicas" : tipo;
+  // Salvo la ADENDA (0505): un convenio ya firmado se corrige con una adenda, no
+  // con otro convenio, y esa SÍ se puede elegir.
+  const tipoEfectivo =
+    persona?.tipo_vinculo === "practicante" ? (tipo === "adendum" ? "adendum" : "convenio_practicas") : tipo;
+  // «Adendum» es de un contrato de trabajo; lo de una practicante es una adenda al convenio.
+  const nombreDelTipo =
+    tipoEfectivo === "adendum" && persona?.tipo_vinculo === "practicante"
+      ? "Adenda al convenio"
+      : (TIPO_CONTRATO[tipoEfectivo] ?? tipoEfectivo);
   // La modalidad efectiva: la de la ficha si la persona YA es practicante
   // (0324) — eso no se pisa a mano —, o la elegida en pantalla cuando el
   // convenio se generó eligiéndolo del desplegable para alguien que no está
@@ -1352,6 +1372,7 @@ export default function ContratosPage() {
           activosPrincipales: sedeCod ? (ACTIVOS_PRINCIPALES_POR_SEDE[sedeCod] ?? "") : "",
           activosLibre,
           adendumTexto: adendumEditado,
+          esPracticante: persona.tipo_vinculo === "practicante",
           firmanteNombre: firmante.nombre,
           firmanteDni: firmante.dni,
           firmanteCargo: firmante.cargo,
@@ -1450,6 +1471,9 @@ export default function ContratosPage() {
   if (persona && esAdendum && adendumEditado.trim() === "") {
     bloqueos.push("Escribe qué se modifica del contrato vigente.");
   }
+  if (persona && esAdendum && adendumEditado.includes(MARCA_POR_COMPLETAR)) {
+    bloqueos.push("Completa los datos que quedaron entre corchetes en «Qué se modifica» (fecha, número y aseguradora de la póliza).");
+  }
   // Igualdad exacta contra el relleno NO basta: borrar el textarea —el gesto
   // natural antes de escribir— deja "" , que no es el placeholder, y el Anexo I
   // salía en blanco. Un anexo de funciones vacío es el que se cita («la función
@@ -1465,7 +1489,10 @@ export default function ContratosPage() {
   // `causaObjetivaTexto` (no tienen causa objetiva — uno no es contrato de
   // trabajo, el otro no es modalidad temporal), así que esta nota de relleno
   // no es asunto suyo.
-  if (persona && !esConvenio && !esIndefinido && causaEditada.includes("[REVISAR")) {
+  // Una adenda no tiene paso de causa objetiva: pedir quitar la nota de ahí la
+  // dejaba sin poder generarse nunca, para nadie (hallazgo de la verificación de
+  // la 0505 en el navegador — ya venía así desde el 2026-08-24).
+  if (persona && !esConvenio && !esIndefinido && !esAdendum && causaEditada.includes("[REVISAR")) {
     bloqueos.push("Revisa y quita la nota «[REVISAR antes de imprimir…]» de la causa objetiva.");
   }
   // Un beneficio con monto es un monto REAL o no se imprime. Sin tarifa vigente
@@ -2034,7 +2061,15 @@ export default function ContratosPage() {
     return () => document.removeEventListener("keydown", alPulsar);
   }, [documentoAbierto]);
 
-  useTituloDocumento(persona ? `${persona.nombres} ${persona.apellidos} — Contrato de trabajo` : null);
+  // El nombre con que se guarda el PDF. A una practicante nunca se le llama
+  // «Contrato de trabajo»: su documento es un convenio o una adenda a él (0333).
+  useTituloDocumento(
+    persona
+      ? `${persona.nombres} ${persona.apellidos} — ${
+          persona.tipo_vinculo !== "practicante" ? "Contrato de trabajo" : esAdendum ? "Adenda al convenio" : "Convenio de prácticas"
+        }`
+      : null,
+  );
 
   if (rol === null || cargando) {
     return (
@@ -2372,7 +2407,7 @@ export default function ContratosPage() {
                           {editando
                             ? `Editando: ${TIPO_CONTRATO[editando.tipo] ?? editando.tipo}`
                             : persona
-                              ? (TIPO_CONTRATO[tipoEfectivo] ?? tipoEfectivo)
+                              ? nombreDelTipo
                               : "Nuevo documento"}
                         </p>
                         {persona && (
@@ -2464,16 +2499,35 @@ export default function ContratosPage() {
                     </CampoSelect>
 
                     {persona?.tipo_vinculo === "practicante" ? (
-                      // Una practicante solo tiene un documento posible — no
-                      // "nuevo ingreso" ni "renovación", que son conceptos de
-                      // un contrato de trabajo (0333). Se fija sola y no se
-                      // elige.
-                      <Campo
-                        etiqueta="Tipo"
-                        className="disabled:bg-crema disabled:text-taupe"
-                        value="Convenio de prácticas"
-                        disabled
-                      />
+                      // Una practicante no tiene "nuevo ingreso" ni
+                      // "renovación", que son conceptos de un contrato de
+                      // trabajo (0333): su documento es el convenio. Desde la
+                      // 0505 puede además corregirlo con una adenda.
+                      <div>
+                        <span className="text-sm text-taupe">Tipo de documento</span>
+                        <div className="mt-1 grid gap-2 sm:grid-cols-2">
+                          {(["convenio_practicas", "adendum"] as const).map((clave) => (
+                            <button
+                              key={clave}
+                              type="button"
+                              disabled={editando !== null}
+                              onClick={() => setTipo(clave)}
+                              className={`rounded-lg border p-3 text-left transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-60 ${
+                                tipoEfectivo === clave ? "border-rojo bg-rojo/5" : "border-sand hover:bg-hueso/60"
+                              }`}
+                            >
+                              <span className="block text-sm font-medium text-tinta">
+                                {clave === "adendum" ? "Adenda al convenio" : TIPO_CONTRATO[clave]}
+                              </span>
+                              <span className="block text-xs text-taupe">
+                                {clave === "adendum"
+                                  ? "Modifica una cláusula puntual de un convenio ya firmado."
+                                  : DESCRIPCION_TIPO[clave]}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
                     ) : (
                       <div>
                         <span className="text-sm text-taupe">Tipo de documento</span>
@@ -2607,6 +2661,19 @@ export default function ContratosPage() {
                         />
                       )}
                     </div>
+                    {esAdendum && (
+                      <p className="text-xs text-taupe">
+                        Una adenda no cambia el plazo: la fecha de fin viene de lo que vence hoy. Cámbiala solo si
+                        esta adenda lo prorroga — al firmarse, esa pasa a ser la fecha de vencimiento de la persona.
+                      </p>
+                    )}
+                    {esAdendum && !persona.fecha_fin_contrato && (
+                      <p className="text-xs text-rojo">
+                        Esta persona no tiene un vencimiento registrado, así que la fecha de arriba es de relleno.
+                        Escribe la fecha de fin real de su convenio antes de generar: si no, al firmarse la adenda
+                        quedaría registrada una fecha que nadie acordó.
+                      </p>
+                    )}
                     <Campo
                       etiqueta="Cargo"
                       list="cargos-existentes"
@@ -2648,6 +2715,20 @@ export default function ContratosPage() {
                     value={adendumEditado}
                     onChange={(e) => setAdendumEditado(e.target.value)}
                   />
+                )}
+                {pasoActual === "contenido" && persona && persona.tipo_vinculo === "practicante" && (
+                  <div className="mt-2">
+                    <Boton
+                      variante="secundario"
+                      tamano="sm"
+                      onClick={() => setAdendumEditado(textoAdendaSeguroPrivado(datoPersonal?.genero === "masculino" ? "masculino" : datoPersonal?.genero === "femenino" ? "femenino" : null))}
+                    >
+                      Usar el texto del seguro privado (FOLA)
+                    </Boton>
+                    <p className="mt-1 text-xs text-taupe">
+                      Reemplaza lo escrito. Quedan tres datos de la póliza por completar antes de poder generar.
+                    </p>
+                  </div>
                 )}
 
                 {/* PASO — DATOS ACADÉMICOS (solo convenio). El preprofesional
@@ -2864,7 +2945,7 @@ export default function ContratosPage() {
                           </div>
                           <div>
                             <dt className="text-xs text-taupe">Tipo</dt>
-                            <dd>{TIPO_CONTRATO[tipoEfectivo] ?? tipoEfectivo}</dd>
+                            <dd>{nombreDelTipo}</dd>
                           </div>
                         </dl>
                       </div>
@@ -3009,7 +3090,9 @@ export default function ContratosPage() {
                           hay nada que editar EN ESTE formulario, cada uno se
                           corrige donde vive de verdad. */}
                       <div className="rounded-lg border border-sand p-3">
-                        <h3 className="font-serif text-base">Datos automáticos del colaborador</h3>
+                        <h3 className="font-serif text-base">
+                          {persona.tipo_vinculo === "practicante" ? "Datos automáticos de la practicante" : "Datos automáticos del colaborador"}
+                        </h3>
                         <dl className="mt-2 grid grid-cols-2 gap-2 text-xs text-taupe">
                           <div>
                             <dt className="font-semibold">DNI</dt>
@@ -3037,6 +3120,7 @@ export default function ContratosPage() {
                               {salarioVigente !== null ? `S/ ${salarioVigente.toFixed(2)}` : "sin asignación vigente"}
                             </dd>
                           </div>
+                          {!esAdendum && (
                           <div>
                             <dt className="font-semibold">Jornada del {esConvenio ? "convenio" : "contrato"}</dt>
                             <dd>
@@ -3050,6 +3134,7 @@ export default function ContratosPage() {
                                 : "48 horas semanales (el máximo legal — ver cláusula QUINTA)"}
                             </dd>
                           </div>
+                          )}
                           <div>
                             <dt className="font-semibold">Movilidad</dt>
                             <dd className="tabular-nums">

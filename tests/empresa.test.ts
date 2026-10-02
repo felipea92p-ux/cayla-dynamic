@@ -94,6 +94,7 @@ const DATOS_CONTRATO: DatosContrato = {
   activosPrincipales: "Caja registradora.",
   activosLibre: "",
   adendumTexto: "",
+  esPracticante: false,
   firmanteNombre: "Quien Firma",
   firmanteDni: "11111111",
   firmanteCargo: "Gerencia General",

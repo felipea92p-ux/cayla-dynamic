@@ -189,6 +189,13 @@ export interface DatosContrato {
    * dos documentos que dicen ser el mismo vínculo con condiciones distintas.
    */
   adendumTexto: string;
+  /**
+   * Solo para `tipo: "adendum"`: la persona es practicante (0505). Un adendum
+   * al contrato de trabajo habla de «vínculo laboral»; el de un practicante
+   * modifica un CONVENIO de modalidad formativa (Ley 28518) y no puede sonar
+   * a contrato de trabajo — el mismo cuidado que la 0333 puso en el convenio.
+   */
+  esPracticante: boolean;
 
   // Quién firma por CAYLA. Sale de `configuracion.firmante_empresa` (0147) más
   // la ficha de esa persona — no escrito a mano acá: la 0147 existe justamente
@@ -476,6 +483,33 @@ function segunGenero(d: DatosContrato, masculino: string, femenino: string): str
  */
 function etiquetaColaborador(d: DatosContrato): string {
   return segunGenero(d, "EL COLABORADOR", "LA COLABORADORA");
+}
+
+/**
+ * Marca de lo que Desarrollo Organizacional todavía tiene que escribir en el
+ * texto sugerido de la adenda. Mientras quede una, la pantalla no deja generar:
+ * una adenda con «[COMPLETAR: número]» impreso y firmado no prueba ninguna póliza.
+ */
+export const MARCA_POR_COMPLETAR = "[COMPLETAR";
+
+/**
+ * El texto sugerido para la adenda que pasa a un practicante del EsSalud al
+ * seguro privado FOLA (0504/0505). Dice lo mismo que la cláusula SEGURO del
+ * convenio nuevo: cuando una cambia, cambia la otra. Los datos de la póliza no
+ * se inventan: quedan como «[COMPLETAR: …]».
+ */
+export function textoAdendaSeguroPrivado(genero: DatosContrato["genero"]): string {
+  const etiqueta = genero === "masculino" ? "EL PRACTICANTE" : "LA PRACTICANTE";
+  return (
+    `Se modifica la cláusula SEGURO del convenio, que queda redactada así: «LA EMPRESA cubre los riesgos de ` +
+    `enfermedad y accidentes de ${etiqueta} mediante un seguro privado contratado a su cargo (Ley N.° 28518, ` +
+    `artículo 42.8), con una cobertura no menor a catorce (14) subvenciones mensuales en caso de enfermedad y ` +
+    `treinta (30) en caso de accidente, que alcanza también los accidentes ocurridos durante la ejecución de la ` +
+    `práctica, vigente desde el ${MARCA_POR_COMPLETAR}: fecha de inicio de la póliza], póliza N.° ` +
+    `${MARCA_POR_COMPLETAR}: número] de ${MARCA_POR_COMPLETAR}: aseguradora]. LA EMPRESA no se acoge al régimen ` +
+    `de prestaciones de EsSalud a favor de ${etiqueta} (artículo 47 de la misma ley). La prima íntegra es de ` +
+    `cargo de LA EMPRESA y no se descuenta de la subvención económica.»`
+  );
 }
 
 /**
@@ -901,13 +935,31 @@ function anexoIV(d: DatosContrato, etiquetaPersona = etiquetaColaborador(d)): st
  * plazo y su propio período de prueba, contradiría al primero.
  */
 function documentoAdendum(d: DatosContrato): string {
-  const colaborador = etiquetaColaborador(d);
+  const esConvenio = d.esPracticante;
+  const colaborador = esConvenio
+    ? segunGenero(d, "EL PRACTICANTE", "LA PRACTICANTE")
+    : etiquetaColaborador(d);
+  const documento = esConvenio ? "convenio de modalidad formativa" : "contrato de trabajo";
+  const presente = esConvenio ? "documento" : "adendum";
+  const modalidad =
+    d.practicanteModalidad === "preprofesional"
+      ? "prácticas preprofesionales"
+      : d.practicanteModalidad === "profesional"
+        ? "prácticas profesionales"
+        : "prácticas";
+  const antecedente = esConvenio
+    ? `Ambas partes mantienen vigente un convenio de modalidad formativa (Ley N.° 28518) por el cual ${colaborador}
+    realiza ${modalidad} como ${d.cargo} en la sede ${d.sedeNombre}, iniciado el
+    ${formatearFecha(d.fechaIngresoOriginal)}.`
+    : `Ambas partes mantienen vigente un contrato de trabajo por el cual ${colaborador} se
+    desempeña como ${d.cargo} en la sede ${d.sedeNombre}, cuyo vínculo laboral se inició el
+    ${formatearFecha(d.fechaIngresoOriginal)}.`;
   return `
   <article class="contrato">
     <header>
       <p class="empresa">${EMPRESA.nombre}</p>
       <p class="ruc">RUC N.° ${EMPRESA.ruc} · Sede ${d.sedeNombre}</p>
-      <h1>ADENDUM AL CONTRATO DE TRABAJO</h1>
+      <h1>${esConvenio ? "ADENDA AL CONVENIO DE MODALIDAD FORMATIVA" : "ADENDUM AL CONTRATO DE TRABAJO"}</h1>
     </header>
 
     <p>En ${enLaCiudadDe(d)}, al ${formatearFecha(d.fechaInicio)}, comparecen de una parte
@@ -918,27 +970,29 @@ function documentoAdendum(d: DatosContrato): string {
     ${colaborador}.</p>
 
     <h3>PRIMERA. ANTECEDENTE</h3>
-    <p>Ambas partes mantienen vigente un contrato de trabajo por el cual ${colaborador} se
-    desempeña como ${d.cargo} en la sede ${d.sedeNombre}, cuyo vínculo laboral se inició el
-    ${formatearFecha(d.fechaIngresoOriginal)}.</p>
+    <p>${antecedente}</p>
 
-    <h3>SEGUNDA. OBJETO DEL ADENDUM</h3>
-    <p>Por el presente documento, las partes acuerdan modificar el contrato indicado en la
+    <h3>${esConvenio ? "SEGUNDA. OBJETO DE LA ADENDA" : "SEGUNDA. OBJETO DEL ADENDUM"}</h3>
+    <p>Por el presente documento, las partes acuerdan modificar el ${esConvenio ? documento : "contrato"} indicado en la
     cláusula precedente en los siguientes términos:</p>
     ${listaDesdeTexto(d.adendumTexto)}
 
     <h3>TERCERA. VIGENCIA</h3>
-    <p>Lo acordado en el presente adendum rige desde el ${formatearFecha(d.fechaInicio)}.</p>
+    <p>Lo acordado en el presente ${presente} rige desde el ${formatearFecha(d.fechaInicio)}.</p>
 
     <h3>CUARTA. SUBSISTENCIA DE LO NO MODIFICADO</h3>
-    <p>Todas las demás cláusulas del contrato de trabajo y de sus anexos que no hayan sido
-    expresamente modificadas por el presente adendum mantienen plena vigencia y continúan
-    obligando a las partes en sus mismos términos.</p>
+    <p>Todas las demás cláusulas del ${documento} y de sus anexos que no hayan sido
+    expresamente modificadas por el presente ${presente} mantienen plena vigencia y continúan
+    obligando a las partes en sus mismos términos.${
+      esConvenio
+        ? ` El presente documento no modifica la naturaleza formativa del convenio ni genera relación laboral entre las partes.`
+        : ""
+    }</p>
 
-    <p>En señal de conformidad, las partes suscriben el presente adendum en ${enLaCiudadDe(d)}, el
+    <p>En señal de conformidad, las partes suscriben el presente ${presente} en ${enLaCiudadDe(d)}, el
     ${formatearFecha(d.fechaInicio)}, en tres (3) ejemplares de igual tenor.</p>
 
-    ${bloqueFirmas(d)}
+    ${bloqueFirmas(d, colaborador)}
     <p class="pie-hoja">${EMPRESA.nombre} · RUC N.° ${EMPRESA.ruc}</p>
   </article>`;
 }

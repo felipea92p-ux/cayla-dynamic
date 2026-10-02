@@ -16,6 +16,8 @@
 import { describe, expect, it } from "vitest";
 import {
   construirContrato,
+  textoAdendaSeguroPrivado,
+  MARCA_POR_COMPLETAR,
   finDelPeriodoDePrueba,
   numeroALetras,
   tipoQueCorresponde,
@@ -74,6 +76,7 @@ function datos(cambios: Partial<DatosContrato> = {}): DatosContrato {
     activosPrincipales: "Caja registradora.",
     activosLibre: "",
     adendumTexto: "",
+    esPracticante: false,
     firmanteNombre: "Firmante Apellido",
     firmanteDni: "87654321",
     firmanteCargo: "Gerencia General",
@@ -228,6 +231,66 @@ describe("el género en el contrato de trabajo", () => {
 // objetiva, no tiene período de prueba, no se le mide disciplina). Esta
 // prueba cuida las dos mitades: que el convenio diga lo que le corresponde, y
 // que NO herede por accidente el lenguaje del contrato de trabajo.
+// ── La adenda de un practicante (0505) ─────────────────────────────────────
+// Un adendum al contrato de trabajo habla de «vínculo laboral». El de un
+// practicante modifica un convenio de modalidad formativa y no puede sonar a
+// contrato de trabajo (Ley 28518, art. 47). Y el de planilla no puede cambiar.
+describe("documentoAdendum", () => {
+  const adenda = (cambios: Partial<DatosContrato> = {}) =>
+    construirContrato(
+      datos({ tipo: "adendum", adendumTexto: "Se modifica la cláusula SEGURO.", ...cambios }),
+    );
+
+  it("para un practicante es una adenda al convenio, sin lenguaje de contrato de trabajo", () => {
+    const texto = adenda({ esPracticante: true, practicanteModalidad: "profesional" });
+    expect(texto).toContain("ADENDA AL CONVENIO DE MODALIDAD FORMATIVA");
+    expect(texto).toContain("convenio de modalidad formativa (Ley N.° 28518)");
+    expect(texto).toContain("prácticas profesionales");
+    expect(texto).toContain("LA PRACTICANTE");
+    expect(texto).toContain("no modifica la naturaleza formativa del convenio ni genera relación laboral");
+    expect(texto).not.toContain("CONTRATO DE TRABAJO");
+    expect(texto).not.toContain("contrato de trabajo");
+    expect(texto).not.toContain("vínculo laboral");
+    expect(texto).not.toContain("COLABORADOR");
+  });
+
+  it("firma como EL PRACTICANTE cuando el género es masculino", () => {
+    const texto = adenda({ esPracticante: true, genero: "masculino" });
+    expect(texto).toContain("EL PRACTICANTE");
+    expect(texto).not.toContain("LA PRACTICANTE");
+  });
+
+  it("sin modalidad cargada dice «prácticas» a secas, no la inventa", () => {
+    const texto = adenda({ esPracticante: true, practicanteModalidad: null });
+    expect(texto).toContain("realiza prácticas como");
+    expect(texto).not.toContain("preprofesionales");
+  });
+
+  it("el texto sugerido del seguro privado deja la póliza por completar y respeta el género", () => {
+    const f = textoAdendaSeguroPrivado("femenino");
+    const m = textoAdendaSeguroPrivado("masculino");
+    expect(f).toContain("LA PRACTICANTE");
+    expect(m).toContain("EL PRACTICANTE");
+    expect(m).not.toContain("LA PRACTICANTE");
+    expect(f).toContain("artículo 42.8");
+    expect(f).toContain("catorce (14)");
+    expect(f).toContain("treinta (30)");
+    expect(f).toContain("no se acoge al régimen de prestaciones de EsSalud");
+    // Tres datos de la póliza que no se inventan: el bloqueo de la pantalla
+    // se apoya en esta marca.
+    expect(f.split(MARCA_POR_COMPLETAR).length - 1).toBe(3);
+  });
+
+  it("el adendum de una persona de planilla no cambió", () => {
+    const texto = adenda({ esPracticante: false });
+    expect(texto).toContain("ADENDUM AL CONTRATO DE TRABAJO");
+    expect(texto).toContain("OBJETO DEL ADENDUM");
+    expect(texto).toContain("presente adendum");
+    expect(texto).toContain("vínculo laboral");
+    expect(texto).not.toContain("naturaleza formativa");
+  });
+});
+
 describe("documentoConvenio", () => {
   function datosConvenio(cambios: Partial<DatosContrato> = {}): DatosContrato {
     return datos({
