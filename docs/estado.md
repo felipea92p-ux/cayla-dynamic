@@ -6,6 +6,66 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-10-04 — El alta de una persona solo entra por fn_crear_persona · migración 0507 · ESCRITA Y PROBADA · SIN PEGAR · SIN FUSIONAR
+
+**Origen:** dos revisiones independientes señalaron que la política `personas_insert_admin_lider` (0003) y el INSERT que
+la 0004 le dio a `authenticated` dejan a un admin o líder DO insertar en `personas` directo por REST, sin pasar por
+`fn_crear_persona`. La 0300 decía que esa función es «la única puerta de alta del sistema»: lo era de la app, no de la base.
+
+**Medido, y el hueco es real de punta a punta** (Postgres desechable con las 483 migraciones de `main`, `begin … rollback`,
+jwt de un `lider_do`): `fn_crear_persona(…, 'admin', …)` → «No puedes crear una persona con un rol igual o superior al
+tuyo»; el mismo admin con un `insert` directo → pasa. Atado a otra cuenta de acceso, esa cuenta entra con
+`fn_rol_actual() = admin` y usa `fn_set_rol` como admin legítimo. Los triggers de rol, sede, pensión y PIN son todos
+BEFORE UPDATE: el INSERT no los dispara. El único trigger de INSERT sobre `personas` es el de la 0490 y solo mira
+`cuenta_de_servicio` — corrige una premisa del encargo («no hay ninguno»), que salía así solo porque la base local no
+tenía la 0490.
+
+**Qué es:** la 0507 quita la política, revoca el INSERT de `personas` (a `public`, `anon` y `authenticated`) y el de la
+vista `retail.personas`, que es insertable y es la misma tabla por otro mango (hoy no sirve para dar de alta, por
+`nombres NOT NULL`; se salva solo por `security_invoker = true`). **No reescribe ninguna función → no hay md5 de partida.**
+`fn_crear_persona` sigue insertando porque es `SECURITY DEFINER` y su insert corre como su dueño. Prueba **401** (17); la
+**388** cambia de 17 a 18 (el insert directo ahora muere en el privilegio, y la mitad INSERT del trigger de la 0490 pasa
+a defenderse con `service_role`, que conserva su INSERT).
+
+**Por qué un revoke y no un trigger** (el molde de la 0296/0342/0490): ese molde existe porque en UPDATE el privilegio no
+se puede revocar sin dejar sin escribir las demás columnas. En INSERT nadie legítimo escribe directo, y lo que se puede
+borrar se borra. Un trigger «todo lo que no sea postgres» además frenaría a `service_role` (`setup-personas-prod.mjs`,
+`seed-dev.mjs`). Quién inserta hoy con sesión de usuario: **nadie** — `apps/web`, `packages/`, `cayla-retail` (seeds como
+postgres y un fixture propio) y las migraciones (las cuatro versiones de `fn_crear_persona`, todas definer) se revisaron.
+
+**Antes de pegar (solo lectura, tres `SELECT` en la cabecera de la migración):** que la única política de INSERT sea
+`personas_insert_admin_lider`; que la única función que inserta en `personas` sea `fn_crear_persona` con `prosecdef = t`;
+que `retail.personas` salga `{security_invoker=true}`. Si la 2 devuelve otra fila, parar: la migración la rompería.
+**Orden:** este PR no cambia ninguna pantalla; la 0507 se pega antes de fusionar, como toda migración. Verificar con
+`numero` Y `nombre` (507 · `el_alta_de_una_persona_solo_entra_por_fn_crear_persona`) y que el `select` final dé
+seis `t`.
+
+**Cómo se ensayó (y qué NO se pudo ver):**
+- Control: la 401 SIN la migración cae 10 de 17; con ella pasa 17/17. Idempotente (se pegó dos veces) y el bloque «cómo
+  se revierte» de la cabecera revierte de verdad (se probó).
+- Suite pgTAP entera en el desechable, con y sin la 0507: 308 archivos comunes idénticos (3 427 → 3 445 aserciones =
+  +1 de la 388 y +17 de la 401). Fallan los mismos 20 archivos de los dos lados, aserción por aserción; 11 se caen por
+  `auth.users.email_confirmed_at`, que la imagen no trae — con la columna añadida corren más y siguen idénticos. Esos 20
+  no son evidencia sobre la 0507: son el límite del desechable. Lo acota un barrido estático — de 308 archivos, solo la
+  388 inserta en `personas` como `authenticated`.
+- Convive con la 0506 (rama sin fusionar) en los **dos** órdenes: 400 (29/29), 235 (5/5), 401 (17/17), 388 (18/18).
+- **No se midió producción.** Tampoco si el registro de cuentas está abierto allá (`enable_signup` es un ajuste del
+  panel de Supabase; en el `config.toml` local está en `true`): si lo está, la cadena de arriba no necesita ni una
+  cuenta cómplice previa.
+
+**Abierto:**
+- **`correcciones_auditoria` admite INSERT directo de admin, líder DO y líder de equipo** (0003:227/231), sin trigger.
+  Medido: un `lider_do` inserta una fila con `corregido_por` = un admin y `corregido_at` de hace 40 días, y pasa. Es la
+  tabla del rastro de toda edición manual. Ojo antes de revocar: `fn_educacion_cerrar_al_cesar` la escribe sin ser
+  `SECURITY DEFINER` (se rompería el cese). Lanzado como tarea aparte.
+- Otras cinco tablas admiten INSERT directo de admin/líder (`configuracion`, `documentos_tipos`, `rendimiento_mensual`,
+  `tarifas_hora`, `terminales`; `push_tokens` es solo la fila propia y `horarios_asignados` ya tiene trigger). No se
+  midió cuáles tienen una función guardián que ese INSERT se salte.
+- `donde-vive.sh` toma el primer contenedor `supabase_db_*`; con retail y dynamic arriba toma el de retail y avisa
+  «la función no existe en el Postgres local» sin que sea cierto. No se tocó.
+
+---
+
 ## 2026-10-02 — El feriado posterior al cese no corresponde · migración 0505 · PEGADA Y VERIFICADA · SIN FUSIONAR
 
 **Origen:** Planilla del periodo 29-sep → 28-oct mostraba «1 feriado(s) sin salario ese día: no se pudo calcular ·
