@@ -6,6 +6,107 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-10-04 — El rastro de correcciones solo lo escriben las funciones · migración 0508 · ESCRITA Y PROBADA · SIN PEGAR · SIN FUSIONAR · SIN COMMITEAR
+
+**Origen:** al medir la 0507 (alta de personas solo por `fn_crear_persona`) salió un hueco hermano y más grave:
+`correcciones_auditoria` —el rastro de toda edición manual, del que cuelgan el expediente disciplinario y el rastro de
+planilla— aceptaba INSERT directo de cualquier admin, líder DO **o líder de equipo** (sobre alguien de su sede), con
+`corregido_por` de OTRA persona y `corregido_at` de hace semanas. **Medido** (Postgres desechable con las 483 migraciones
+de `main`, `begin … rollback`, `set role authenticated` + jwt): un `lider_do` inserta una fila a nombre de un admin y con
+fecha de hace 40 días, y pasa. UPDATE y DELETE dan 0 filas (RLS sin política: única cerradura). Y **TRUNCATE como
+`authenticated` vació la tabla entera**: RLS no gobierna TRUNCATE y los privilegios por defecto de Supabase se lo dan a 63
+de las 91 tablas de `public` (entre ellas `marcajes`, `jornadas`, `periodos_planilla`). PostgREST no expone TRUNCATE, así
+que por la API no se llega: es latente, no explotable hoy.
+
+**Qué es:** `0508_el_rastro_de_correcciones_solo_lo_escriben_las_funciones.sql` borra las dos políticas de INSERT y
+revoca INSERT, UPDATE, DELETE y TRUNCATE a `public`/`anon`/`authenticated` sobre la tabla. Solo lectura para toda sesión
+de usuario. **No reescribe ninguna función**: no hay md5 de partida y no puede revertir el trabajo de otra sesión.
+Idempotente (se repegó encima de sí misma en el desechable, sin error).
+
+**La advertencia que NO se confirmó.** Se dio por cierto que revocar el INSERT rompería el cese de quien tiene educación
+vigente, porque `fn_educacion_cerrar_al_cesar` (trigger AFTER UPDATE sobre `personas`) es la única de las 60 funciones que
+escriben la auditoría que NO es SECURITY DEFINER. Medido, no rompe nada, por dos razones independientes: (a) el trigger solo
+llega a su insert cuando cambian `estado`/`fecha_cese`, y eso solo lo puede hacer `postgres` (`fn_bloquear_cese_directo`,
+0432, lo niega a cualquier otro) — los ceses reales pasan por `fn_cesar_persona`, DEFINER, y dentro de ella el trigger
+corre como `postgres`; (b) aun con ese guardián apagado, el trigger ya moría antes, en su `update asignaciones_educacion`
+(«permission denied»: `authenticated` solo tiene SELECT ahí), con y sin la 0508. Medido de punta a punta con la migración
+puesta y la función SIN tocar: la asignación se cierra al cese y queda `educacion_cierre_por_cese`. Convertirla en DEFINER
+«por si acaso» le habría dado a su `update` el poder de saltarse RLS, para cubrir un camino que no existe.
+
+**Probado.** Prueba **402** (27 aserciones: estado, ataque desde lider_do / líder de equipo / admin / anon, UPDATE / DELETE /
+TRUNCATE, `fn_set_rol` y el cese con educación vigente siguen vivos con `corregido_por` = quien actuó, y un CONTROL que
+reabre a propósito). Sin la 0508 caen 14 (las cerraduras y el ataque) y pasan las 7 puertas oficiales; con ella, 27/27.
+**Suite pgTAP entera, A/B en el mismo desechable** (control = la 0508 revertida con SU PROPIO bloque «cómo se revierte», y
+la ACL y las 5 políticas comprobadas idénticas a `main`): 309 archivos; CON 3 520 ok / 55 not ok / 106 errores, SIN 3 506 /
+69 / 106; **0 de 308 archivos difieren aserción por aserción** (el único que cambia es el 402). 19 archivos fallan en los dos
+estados (línea base del desechable: `schema_migrations`, jwt/actas/configuración de documentos…); de esos, solo la **353**
+toca la auditoría y solo para LEERLA (cuenta filas que escriben `fn_set_horario_semanal` y `fn_corregir_horario_retroactivo`,
+ambas DEFINER de `postgres`): se rompe antes por el entorno, así que ese tramo queda cubierto por estructura y no por
+medición. En el desechable se añadió `auth.users.email_confirmed_at` y un `storage` mínimo (receta de la memoria).
+
+**Antes de pegar** (la 0508 va ANTES de fusionar el PR, como toda migración): tres consultas de solo lectura a producción,
+escritas en el encabezado, con su resultado esperado — (1) las DOS políticas de INSERT y los privilegios de la tabla; (2)
+que la ÚNICA función INVOKER que escribe la auditoría sea `fn_educacion_cerrar_al_cesar` y que NINGUNA actualice ni borre;
+(3) que `trg_personas_cese_solo_por_rpc` exista y esté activo (`tgenabled = 'O'`) y que `authenticated` NO pueda hacer
+UPDATE sobre `asignaciones_educacion`. Si la (2) devuelve algo más, parar: esa función dejaría de funcionar. No depende de
+la 0506 ni de la 0507 (otras sesiones; sin fusionar al 2026-10-04): no toca sus funciones ni sus tablas. Los archivos están
+SIN COMMITEAR: `dame-el-sql.sh 508` se negará hasta que estén en git y en GitHub.
+
+**⚠ Resultado PARCIAL en producción (2026-10-04) — NO CUADRA con el repo; no pegar hasta aclararlo.** Consulta 1 (privilegios):
+`authenticated` = `REFERENCES, SELECT, TRIGGER`; `anon` = `REFERENCES, TRIGGER`; `postgres` y `service_role` todo. El repo (y el
+desechable construido de él) da `arwdDxtm` a `anon` y a `authenticated`. O sea: en producción `authenticated` **ya no tiene
+INSERT, UPDATE, DELETE ni TRUNCATE** sobre esta tabla (a nivel de tabla; los privilegios por columna no se miraron), y ninguna
+migración ni documento del repo lo explica —hay `revoke all … from authenticated, anon` para otras tablas, no para esta—: un
+revoke a mano fuera del repo o unos privilegios por defecto distintos. Consecuencias: (1) el ataque medido en el desechable
+**puede no existir en producción para esta tabla**: ahí «un lider_do inserta directo» daría `permission denied`; no se probó
+allá y no se debe afirmar; (2) la 0508 sería en producción un no-op en privilegios (solo borraría las políticas de INSERT si
+existen) y su valor pasa a ser que **el repo reproduzca a producción** y que las bases nuevas (CI, local) nazcan igual de
+cerradas; (3) la cifra «TRUNCATE en 63 de 91 tablas» era del desechable; **medida en producción (consulta C): 62 de 92 tablas dan
+INSERT y TRUNCATE a `authenticated`**, así que los defaults son los mismos que en el repo. **La lista de las 62 (TRUNCATE)
+SÍ trae** `marcajes`, `jornadas`, `periodos_planilla`, `expediente_disciplinario`, `liquidacion_pagada`,
+`planilla_pagada_detalle`, `movimientos_planilla`, `asignaciones_salario`, `datos_personales`, `politica_salarial`… y **NO trae
+`personas` ni `correcciones_auditoria`**. Las cuentas cuadran con que producción tenga endurecidas a mano, fuera del repo,
+justo esas dos (desechable 63 − 2 + 1 tabla de respaldo = 62 — es una inferencia, no una medición). Si es así, el hueco de
+INSERT directo a `personas` de la 0507 tampoco existe en producción; se comprueba con
+`has_table_privilege('authenticated','public.personas','INSERT')`, no se infiere de la lista de TRUNCATE, porque 62 y 62 no
+prueban que sean las mismas 62. Consulta 2: coincide (UNA fila,
+`fn_educacion_cerrar_al_cesar`, `prosecdef = f`). Consulta 3b: coincide (`authenticated` NO actualiza
+`asignaciones_educacion`). **Faltan** la 1a (políticas), la 2b y la 3a (trigger del cese).
+
+**Abierto — otras tablas con escritura directa (reportado, NO tocado; decide Felipe):**
+- **`rendimiento_mensual`** (el bono por rendimiento): política `for all` a admin/líder, y su guardián
+  `fn_set_rendimiento`/`fn_quitar_rendimiento` (0111) se salta. **Medido** con un periodo pagado: la función dice «La planilla
+  de ese mes ya está PAGADA» y el upsert directo del `lider_do` PASA sobre ese mismo mes, con `puesto_por` de otra persona.
+  Los CHECK de rango y la FK de etiqueta sí valen directo; lo que se salta es el candado del mes pagado y el firmante. La app
+  no la escribe directo: es la candidata natural a un tratamiento como el de la 0507.
+- **`configuracion`**: política `for all` a admin/líder. La única función que la escribe es `fn_educacion_configurar` (rangos
+  0–20 y 0–30 días), y `valor` es jsonb sin constraint: un upsert directo se salta esos rangos. Las claves que mueven plata
+  —`planilla_provisiones`, `asignacion_familiar`, `bono_puntualidad`, `movilidad_diaria`, `liquidacion_incluye_variables`— no
+  tienen guardián NI rastro (solo 3 triggers: `gerencia_general`, firmante de empresa y `tasa_afp`). Ojo: la app SÍ escribe
+  directo `apariencia_tema` (`admin/apariencia/page.tsx:75`), así que no se puede cerrar «a lo 0507» sin antes mover esa clave
+  a una función.
+- **`tarifas_hora`, `terminales`, `documentos_tipos`, `push_tokens`**: ninguna función las escribe, así que no hay guardián
+  que saltar; la decisión es si deben ser solo-RPC. `documentos_tipos` la escribe la app directo (`admin/normas/page.tsx:479`);
+  `push_tokens` está acotada a la fila propia.
+- **TRUNCATE (e INSERT) a `authenticated` en 62 de las 92 tablas de producción** (63 de 91 en el desechable; herencia de los
+  defaults de Supabase). **Medido tabla por tabla en producción (2026-10-04, TRUNCATE):** están `marcajes`, `jornadas`,
+  `periodos_planilla`, `expediente_disciplinario`, `liquidacion_pagada`, `planilla_pagada_detalle`, `movimientos_planilla`,
+  `asignaciones_salario`, `datos_personales`. No alcanzable por PostgREST: es un privilegio sin cerradura, no un hueco que se
+  ataque hoy por la API. Es decisión de Felipe si se revoca en bloque (una migración con un `revoke truncate` sobre las tablas
+  append-only) o no se toca.
+- **`respaldo_horarios_chiara_20260814` está en producción y no en el repo** (solo en `scripts/sql-manual/restituir_horario_de_chiara.sql:67`,
+  `create table … as select`, que no activa RLS ni pone grants propios): es la tabla extra que explica 92 contra 91. Está en
+  la lista de las 62, o sea con los privilegios por defecto. Si no se le activó RLS a mano, cualquier sesión autenticada puede
+  leer y modificar esa copia de horarios. NO verificado: `select relrowsecurity, has_table_privilege('anon', oid, 'SELECT') from pg_class where relname = 'respaldo_horarios_chiara_20260814';`
+  — arreglo reversible: `alter table respaldo_horarios_chiara_20260814 enable row level security;` (sin política, solo la ve
+  `postgres`/`service_role`). Borrarla es decisión aparte: es dato.
+
+**No probado:** nada contra producción (ninguna consulta se corrió allá); el ataque se midió con `set role` + jwt en SQL, no con
+una petición HTTP real a PostgREST (es la misma mecánica, pero no se ejecutó); los 19 archivos rotos de la línea base (acotados
+a la 353); la pantalla de Correcciones, que solo LEE la tabla (se comprobó por búsqueda en el código, no abriéndola).
+
+---
+
 ## 2026-10-02 — El feriado posterior al cese no corresponde · migración 0505 · PEGADA Y VERIFICADA · SIN FUSIONAR
 
 **Origen:** Planilla del periodo 29-sep → 28-oct mostraba «1 feriado(s) sin salario ese día: no se pudo calcular ·

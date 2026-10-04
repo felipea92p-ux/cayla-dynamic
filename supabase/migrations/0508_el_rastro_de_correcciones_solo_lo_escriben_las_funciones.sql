@@ -1,0 +1,214 @@
+-- ============================================================================
+-- 0508 · EL RASTRO DE CORRECCIONES SOLO LO ESCRIBEN LAS FUNCIONES
+-- ============================================================================
+--
+-- QUÉ PROMETE
+--   Que una fila de `correcciones_auditoria` solo pueda nacer dentro de una
+--   función de la casa (las 59 SECURITY DEFINER que ya la escriben), con
+--   `corregido_por` = quien de verdad actuó y `corregido_at` = ahora. Que ni un
+--   POST armado a mano contra /rest/v1/correcciones_auditoria pueda agregar,
+--   alterar, borrar o vaciar el rastro. La tabla pasa a ser, para toda sesión de
+--   usuario, de SOLO LECTURA; lo garantiza la base, no que ninguna pantalla se
+--   acuerde de no escribirla.
+--
+-- EL DEFECTO, EN UNA LÍNEA
+--   La 0003 dejó dos políticas de INSERT (`auditoria_insert_admin_lider`, con
+--   `with check (fn_es_admin_o_lider())`, y `auditoria_insert_supervisor`, que
+--   solo exige que la persona afectada sea de la sede de quien escribe) y la
+--   0004 le dio a `authenticated` INSERT sobre toda la tabla. Nada de lo que se
+--   inserta se valida: ni quién firma el cambio, ni cuándo. Y no hay ningún
+--   trigger sobre la tabla.
+--
+-- LO QUE SE MIDIÓ (2026-10-04, Postgres desechable con las 483 migraciones de
+-- `main`, todo dentro de `begin … rollback`, `set role authenticated` y el
+-- `sub` del jwt de cada rol)
+--   1. Un `lider_do` hizo `insert into correcciones_auditoria` directo con
+--      `corregido_por` = el id de un ADMIN (no el suyo) y `corregido_at =
+--      now() - interval '40 days'`: PASÓ. La fila existe, a nombre del admin,
+--      con fecha de hace 40 días. Es la tabla de la que cuelga el expediente
+--      disciplinario y el rastro de planilla.
+--   2. Lo mismo con un líder de equipo (`supervisor_sede`) sobre una persona de
+--      su sede: PASÓ. No hace falta ser DO. Un integrante común sí queda
+--      frenado por RLS.
+--   3. UPDATE y DELETE como `authenticated`: 0 filas afectadas, porque no hay
+--      política para ellos y RLS niega por omisión. Esa es la ÚNICA cerradura:
+--      una sola política futura `for all` los abriría.
+--   4. TRUNCATE como `authenticated`: FUNCIONÓ y dejó la tabla en cero filas.
+--      RLS no gobierna TRUNCATE y nada más lo frena. El privilegio no lo dio
+--      ninguna migración nuestra: lo traen los privilegios por defecto de
+--      Supabase (`alter default privileges … grant all on tables to anon,
+--      authenticated`), igual que le dan TRUNCATE a 63 de las 91 tablas de
+--      `public`, entre ellas `marcajes`, `jornadas` y `periodos_planilla`.
+--      OJO con el alcance: PostgREST no expone TRUNCATE, así que por la API no
+--      se llega; es un privilegio latente que espera a la primera función
+--      INVOKER con SQL dinámico o a la primera conexión directa con ese rol.
+--      Aquí se cierra porque la tabla se dice «append-only» y no lo era.
+--
+-- QUIÉN ESCRIBE HOY EN `correcciones_auditoria` (medido; si alguno corriera con
+-- sesión de usuario y no fuera uno de los de abajo, esta migración NO se
+-- escribe así)
+--   · apps/web, packages/, scripts/: nadie la escribe; solo la leen.
+--   · En el esquema completo: 60 funciones tienen un `insert into
+--     correcciones_auditoria` (también contando solo el código, sin los
+--     comentarios `--`). 59 son SECURITY DEFINER y dueñas de `postgres`:
+--     su insert corre como su dueño y no necesita ni política ni privilegio.
+--     Ninguna función, definer o no, hace UPDATE, DELETE ni TRUNCATE sobre ella.
+--   · LA SEXAGÉSIMA ES LA ÚNICA INVOKER: `fn_educacion_cerrar_al_cesar()`, la
+--     función del trigger `trg_educacion_cerrar_al_cesar` (AFTER UPDATE sobre
+--     `personas`). Parecía que revocar el INSERT rompería el cese de una persona
+--     con educación vigente. Se midió y NO lo rompe, por dos razones que se
+--     bastan cada una por sí sola:
+--       a) El trigger solo hace su insert cuando `estado`/`fecha_cese` cambian,
+--          y eso solo puede hacerlo `postgres`: `fn_bloquear_cese_directo`
+--          (trigger BEFORE UPDATE `trg_personas_cese_solo_por_rpc`, 0432)
+--          levanta excepción si `current_user <> 'postgres'`. Los
+--          ceses reales pasan por `fn_cesar_persona`, que es SECURITY DEFINER,
+--          y dentro de ella el trigger corre COMO `postgres`.
+--       b) Aunque ese guardián se apagara, la función ya muere ANTES de llegar a
+--          la auditoría: su `update asignaciones_educacion` falla con «permission
+--          denied for table asignaciones_educacion», porque `authenticated`
+--          solo tiene SELECT ahí. Medido con el guardián desactivado y SIN esta
+--          migración: el mismo error. O sea, el camino «el trigger corre como
+--          authenticated» ya estaba roto antes y no lo cambia esta migración.
+--     Medido de punta a punta con la migración aplicada y la función SIN TOCAR:
+--     un `lider_do` cesa por `fn_cesar_persona` a alguien con una asignación de
+--     educación vigente → la asignación se cierra al día del cese y queda la
+--     fila `educacion_cierre_por_cese`. La prueba 402 lo defiende.
+--
+-- DECIDÍ:    cerrar la puerta entera en vez de vigilarla. Se borran las dos
+--            políticas de INSERT y se revoca INSERT, UPDATE, DELETE y TRUNCATE a
+--            `public`, `anon` y `authenticated` sobre la tabla. `authenticated`
+--            conserva SELECT (las tres políticas de lectura no se tocan).
+-- DESCARTÉ:  (1) Un trigger BEFORE INSERT que fuerce `corregido_por =
+--            fn_persona_actual_id()` y `corregido_at = now()`. Es el molde de la
+--            0296 y la 0342, y existe porque en UPDATE el privilegio NO se puede
+--            revocar sin dejar a todos sin poder escribir las demás columnas.
+--            Aquí esa razón no existe: nadie legítimo inserta directo. Y un
+--            trigger sería peor: dejaría a un `lider_do` escribir filas
+--            «verdaderas pero inventadas» (cualquier `campo_modificado`,
+--            cualquier `valor_nuevo`, con su propio nombre) en el expediente.
+--            Lo que se puede borrar se borra.
+--            (2) Revocar solo INSERT, que es lo que se midió como ataque. El
+--            TRUNCATE de arriba y la cerradura única de UPDATE/DELETE dicen que
+--            «append-only» descansaba en RLS sin política, que no es una
+--            garantía sino una ausencia.
+--            (3) Reescribir `fn_educacion_cerrar_al_cesar` como SECURITY
+--            DEFINER «por si acaso». Medido que no hace falta (arriba), y
+--            tendría un costo: su `update asignaciones_educacion` pasaría a
+--            correr como `postgres` y se saltaría el RLS que hoy la frena; se le
+--            daría más poder a una función para cubrir un camino que no existe.
+--            Además reescribirla obligaría a copiar su cuerpo y a declarar un md5
+--            de partida de producción: el camino de la 0261 y la 0276.
+-- SE ROMPE SI:
+--   1. Existe en producción una función SECURITY INVOKER, pegada a mano y por
+--      tanto fuera del repo, que inserte, actualice o borre en la auditoría con
+--      sesión de usuario: dejaría de funcionar con «permission denied for table
+--      correcciones_auditoria». La consulta 2 de abajo lo dice ANTES de pegar.
+--   2. Alguien «arregla» la cadena del cese devolviendo UPDATE a `authenticated`
+--      sobre `asignaciones_educacion` Y relajando `fn_bloquear_cese_directo`: el
+--      trigger de educación volvería a correr como `authenticated`, llegaría a
+--      la auditoría y el cese fallaría ahí. Falla en voz alta (no en silencio) y
+--      la prueba 402 lo cierra antes de fusionar.
+--   3. Una migración futura repite `grant … on all tables in schema public to
+--      authenticated` (la forma de la 0004). Devolvería INSERT/UPDATE/DELETE a
+--      esta tabla; como además falta la política de INSERT, RLS lo seguiría
+--      frenando — pero a UPDATE y DELETE los volvería a dejar en una sola
+--      cerradura. La prueba 402 comprueba los privilegios y los caza.
+--   4. Alguien monta un importador por PostgREST que escribe auditoría con
+--      sesión de usuario. Hoy no hay ninguno; las cargas usan `service_role`,
+--      que conserva todos sus privilegios.
+--
+-- LO QUE NO TOCA
+--   · `fn_educacion_cerrar_al_cesar` ni ninguna otra función: esta migración no
+--     reescribe ningún cuerpo, así que NO hay md5 de partida y no puede revertir
+--     el trabajo de otra sesión.
+--   · Las políticas de lectura (`auditoria_select_*`): quién LEE el rastro no
+--     cambia.
+--   · `service_role` (los scripts con llave de servicio) y `postgres`.
+--   · Las otras tablas que aceptan INSERT directo (`configuracion`,
+--     `rendimiento_mensual`, `tarifas_hora`, `terminales`, `documentos_tipos`,
+--     `push_tokens`): es otra decisión y de otra migración. Se reportaron aparte.
+--   · Que 63 de 91 tablas den TRUNCATE a `authenticated` por los privilegios por
+--     defecto de Supabase. Aquí solo se cierra en la auditoría.
+--
+-- ANTES DE PEGAR — TRES CONSULTAS DE SOLO LECTURA A PRODUCCIÓN (SQL Editor).
+-- Ninguna modifica nada. Confirman que producción se parece al repo en lo que
+-- esta migración da por cierto; si alguna no cuadra, parar y avisar.
+--
+--   -- 1) Esperado: DOS políticas de INSERT (auditoria_insert_admin_lider y
+--   --    auditoria_insert_supervisor, polcmd 'a') y tres de lectura, y
+--   --    `authenticated` con INSERT. Si hay otra política de INSERT, UPDATE,
+--   --    DELETE o ALL que no está en el repo, hay que conocerla antes.
+--   select polname, polcmd::text as cmd, pg_get_expr(polwithcheck, polrelid) as con_check
+--     from pg_policy where polrelid = 'public.correcciones_auditoria'::regclass order by 1;
+--   select grantee, string_agg(privilege_type, ',' order by privilege_type) as privilegios
+--     from information_schema.role_table_grants
+--    where table_schema = 'public' and table_name = 'correcciones_auditoria'
+--    group by grantee order by 1;
+--
+--   -- 2) Esperado: UNA fila, fn_educacion_cerrar_al_cesar, prosecdef = f, y
+--   --    NINGUNA fila en la segunda consulta. Cualquier otra fila es algo que
+--   --    esta migración rompe (sobre todo una función INVOKER que inserte, o
+--   --    cualquiera que actualice o borre).
+--   select n.nspname, p.proname, pg_get_function_identity_arguments(p.oid) as firma, p.prosecdef
+--     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+--    where n.nspname not in ('pg_catalog', 'information_schema') and not p.prosecdef
+--      and p.prosrc ~* 'insert\s+into\s+(public\.)?"?correcciones_auditoria"?\M';
+--   select n.nspname, p.proname, p.prosecdef
+--     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+--    where n.nspname not in ('pg_catalog', 'information_schema')
+--      and p.prosrc ~* '(update|delete\s+from|truncate(\s+table)?)\s+(only\s+)?(public\.)?"?correcciones_auditoria"?\M';
+--
+--   -- 3) Las dos premisas del cese. Esperado: el trigger EXISTE y está activo
+--   --    (tgenabled = 'O'), y `authenticated` NO puede hacer UPDATE sobre
+--   --    asignaciones_educacion (false). Si el primero no está, o el segundo es
+--   --    true, la razón (a) o la (b) de arriba ya no vale en producción.
+--   select tgname, tgenabled from pg_trigger
+--    where tgrelid = 'public.personas'::regclass and tgname = 'trg_personas_cese_solo_por_rpc';
+--   select has_table_privilege('authenticated', 'public.asignaciones_educacion', 'UPDATE') as authenticated_actualiza_educacion;
+--
+-- CÓMO SE REVIERTE (si algo legítimo apareciera)
+--   create policy auditoria_insert_admin_lider on correcciones_auditoria
+--     for insert to authenticated with check (fn_es_admin_o_lider());
+--   create policy auditoria_insert_supervisor on correcciones_auditoria
+--     for insert to authenticated
+--     with check (fn_rol_actual() = 'supervisor_sede'
+--                 and persona_id in (select id from personas where sede_base_id = fn_sede_actual_persona()));
+--   grant insert, update, delete on correcciones_auditoria to authenticated;
+--   (No se devuelve TRUNCATE: nunca fue decisión de nadie.) Y se retira la
+--   prueba 402. Reabrirlo es reabrir el hueco de arriba: antes de hacerlo,
+--   mejor un trigger BEFORE INSERT que fuerce `corregido_por` y `corregido_at`.
+--
+-- CÓMO SE COMPRUEBA QUE ENTRÓ
+--   El `select` del final: todas las columnas deben dar `true`.
+-- ============================================================================
+
+-- 1 · Las políticas que dejaban entrar a cualquier admin, líder DO o líder de
+--     equipo (de su sede). Sin política y sin privilegio: dos cerrojos.
+drop policy if exists auditoria_insert_admin_lider on correcciones_auditoria;
+drop policy if exists auditoria_insert_supervisor  on correcciones_auditoria;
+
+-- 2 · Los privilegios de escritura. `public` no los tenía; `anon` y `authenticated`
+--     sí (0004 y privilegios por defecto de Supabase). Revocar lo que no se
+--     concedió es un no-op, no un error, así que es seguro repetirlo.
+revoke insert, update, delete, truncate on correcciones_auditoria from public, anon, authenticated;
+
+insert into migraciones_aplicadas (numero, nombre)
+values (508, '0508_el_rastro_de_correcciones_solo_lo_escriben_las_funciones')
+on conflict (numero) do update set nombre = excluded.nombre, aplicada_at = now();
+
+-- ── COMPROBACION ────────────────────────────────────────────────────────────
+-- Todas deben dar `true`. Las dos últimas explican por qué esto es seguro: el
+-- trigger de educación sigue siendo la única función invoker que la escribe, y
+-- `service_role` conserva su INSERT para los scripts con llave de servicio.
+select
+  not has_table_privilege('authenticated', 'public.correcciones_auditoria', 'INSERT')   as authenticated_no_inserta,
+  not has_table_privilege('authenticated', 'public.correcciones_auditoria', 'UPDATE')   as authenticated_no_actualiza,
+  not has_table_privilege('authenticated', 'public.correcciones_auditoria', 'DELETE')   as authenticated_no_borra,
+  not has_table_privilege('authenticated', 'public.correcciones_auditoria', 'TRUNCATE') as authenticated_no_vacia,
+  not has_table_privilege('anon', 'public.correcciones_auditoria', 'INSERT')            as anon_no_inserta,
+  has_table_privilege('authenticated', 'public.correcciones_auditoria', 'SELECT')       as authenticated_sigue_leyendo,
+  (select count(*) = 0 from pg_policies
+    where schemaname = 'public' and tablename = 'correcciones_auditoria'
+      and cmd in ('INSERT', 'UPDATE', 'DELETE', 'ALL'))                                 as no_queda_politica_de_escritura,
+  has_table_privilege('service_role', 'public.correcciones_auditoria', 'INSERT')        as service_role_conserva_su_insert;
