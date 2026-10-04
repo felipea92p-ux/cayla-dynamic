@@ -10,7 +10,7 @@ import { Boton } from "@/components/ui/boton";
 import { BoletaHoja } from "@/components/boleta-hoja";
 import { MESES_LARGO } from "@/lib/admin/planilla/formato";
 import type { Fila, Proyeccion, SubvencionPracticante } from "@/lib/admin/planilla/tipos";
-import { hoyLima } from "@cayla-dynamic/shared";
+import { hoyLima, nombreOficial } from "@cayla-dynamic/shared";
 
 // Tu boleta, en autoservicio (0339) — SOLO el periodo actual, nunca uno pasado.
 //
@@ -39,6 +39,9 @@ function MiBoletaContenido() {
   const [yo, setYo] = useState<{
     id: string;
     nombre: string;
+    // El nombre completo del DNI (`datos_personales.nombre_dni`); `nombre` es
+    // el corto. La boleta imprime el primero y cae al segundo si falta.
+    nombreDni: string | null;
     documento: string | null;
     fechaIngreso: string | null;
     sueldoBaseLegal: number | null;
@@ -86,9 +89,15 @@ function MiBoletaContenido() {
       setError("Tu cuenta todavía no está enlazada con tu ficha. Avisa a Desarrollo Organizacional.");
       return;
     }
+    // Sin bloquear la boleta si esta lectura falla: el nombre completo es la
+    // identificación del papel, no un requisito para ver el pago. Cada persona
+    // lee su propia ficha (`dp_select_propia`, 0061).
+    const { data: ficha } = await supabase
+      .from("datos_personales").select("nombre_dni").eq("persona_id", p.id as string).maybeSingle();
     const yoActual = {
       id: p.id as string,
       nombre: `${p.nombres as string} ${p.apellidos as string}`,
+      nombreDni: (ficha?.nombre_dni as string | null | undefined) ?? null,
       documento: (p.documento as string | null) ?? null,
       fechaIngreso: (p.fecha_ingreso as string | null) ?? null,
       sueldoBaseLegal: (p.sueldo_base_legal as number | null) ?? null,
@@ -177,7 +186,7 @@ function MiBoletaContenido() {
 
   useTituloDocumento(
     yo && periodo && fila && !sinDatos
-      ? `${yo.nombre} — Boleta interna ${MESES_LARGO[Number(periodo.fecha_fin.slice(5, 7)) - 1]} ${periodo.fecha_fin.slice(0, 4)}`
+      ? `${nombreOficial(yo.nombreDni, yo.nombre)} — Boleta interna ${MESES_LARGO[Number(periodo.fecha_fin.slice(5, 7)) - 1]} ${periodo.fecha_fin.slice(0, 4)}`
       : null,
   );
 
@@ -264,6 +273,7 @@ function MiBoletaContenido() {
         baseLegal={yo.sueldoBaseLegal}
         documento={yo.documento}
         fechaIngreso={yo.fechaIngreso}
+        nombreDni={yo.nombreDni}
         subvencionPracticante={subvencionPracticante}
       />
     </main>
