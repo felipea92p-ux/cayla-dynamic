@@ -135,10 +135,14 @@
 -- arriba se midió en la base desechable, que se construye de estas migraciones)
 --   · `anon` y `authenticated` NO pueden insertar, actualizar, borrar ni vaciar
 --     esta tabla —tampoco por columna—: solo tienen REFERENCES, SELECT (solo
---     `authenticated`) y TRIGGER. Ninguna migración del repo lo hace: es un
---     revoke manual, fuera del repo. O sea, el ataque de arriba probablemente
+--     `authenticated`) y TRIGGER. Ninguna migración del repo lo hace: parece un
+--     revoke manual, fuera del repo (`anon` sin SELECT, que esta migración no
+--     quita, apunta a uno previo). O sea, el ataque de arriba probablemente
 --     NO existe en producción (no se probó allá); existe en el repo y en toda
---     base construida de él (CI, local).
+--     base construida de él (CI, local). SIN CONFIRMAR que esto no sea efecto
+--     de esta misma migración ya pegada: la consulta 0 de abajo lo dice. (Lección
+--     de la 0507: una comprobación «antes de pegar» sin la fila de
+--     `migraciones_aplicadas` no distingue «antes» de «después».)
 --   · Por eso en producción esta migración es, en lo que a privilegios toca,
 --     un no-op idempotente. Lo que hace es: (1) borrar las dos políticas de
 --     INSERT, si siguen ahí (la consulta 1 de abajo lo dice; su resultado no se
@@ -154,9 +158,14 @@
 -- ANTES DE PEGAR — CONSULTAS DE SOLO LECTURA A PRODUCCIÓN (SQL Editor).
 -- Ninguna modifica nada. Confirman que producción se parece a lo que esta
 -- migración da por cierto; si alguna no cuadra, parar y avisar. Pendientes al
--- 2026-10-04: la 1 (políticas) y la 2 segunda consulta. Ya medidas y cuadradas:
--- la 1 de privilegios (ver arriba: distinta del repo, y está bien), la 2
--- primera consulta y la 3.
+-- 2026-10-04: la 0, la 1 (políticas) y la 2 segunda consulta. Ya medidas y
+-- cuadradas: la 1 de privilegios (ver arriba: distinta del repo, y está bien), la
+-- 2 primera consulta y la 3.
+--
+--   -- 0) Esperado: SIN la fila 508 (si aparece, la 0508 ya está pegada y lo de
+--   --    arriba sobre «producción ya estaba cerrada» no se puede leer como previo).
+--   --    Que 507 aparezca es lo esperado: se pegó el 2026-10-04.
+--   select numero, nombre from migraciones_aplicadas where numero in (507, 508) order by 1;
 --
 --   -- 1) Esperado en el REPO: DOS políticas de INSERT (auditoria_insert_admin_lider
 --   --    y auditoria_insert_supervisor, polcmd 'a') y tres de lectura, y
