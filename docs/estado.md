@@ -6,7 +6,14 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-10-04 — El rastro de correcciones solo lo escriben las funciones · migración 0508 · ESCRITA Y PROBADA · SIN PEGAR · SIN FUSIONAR · SIN COMMITEAR
+## 2026-10-04 — El rastro de correcciones solo lo escriben las funciones · migración 0508 · ESCRITA Y PROBADA · SIN PEGAR · PR #491 (BORRADOR) · EN PRODUCCIÓN YA ESTABA CERRADA: ES ALINEAR EL REPO
+
+**LO QUE HAY QUE SABER PRIMERO (2026-10-04, medido en producción):** el hueco de abajo existe en el REPO y en toda base
+construida de las migraciones (CI, local), **no en producción**: allí `authenticated` y `anon` no pueden insertar, actualizar,
+borrar ni vaciar `correcciones_auditoria` (`has_table_privilege` y `has_any_column_privilege` en falso), y tampoco `authenticated`
+puede insertar en `personas`. Producción lleva esas dos tablas endurecidas a mano, fuera del repo. La 0508 (y la 0507) valen
+por alinear el repo con producción y por dejar la protección bajo control de versiones, no por cerrar un hueco vivo. Todo lo
+medido con `set role` más abajo es sobre la base desechable, no sobre producción.
 
 **Origen:** al medir la 0507 (alta de personas solo por `fn_crear_persona`) salió un hueco hermano y más grave:
 `correcciones_auditoria` —el rastro de toda edición manual, del que cuelgan el expediente disciplinario y el rastro de
@@ -49,10 +56,17 @@ escritas en el encabezado, con su resultado esperado — (1) las DOS políticas 
 que la ÚNICA función INVOKER que escribe la auditoría sea `fn_educacion_cerrar_al_cesar` y que NINGUNA actualice ni borre;
 (3) que `trg_personas_cese_solo_por_rpc` exista y esté activo (`tgenabled = 'O'`) y que `authenticated` NO pueda hacer
 UPDATE sobre `asignaciones_educacion`. Si la (2) devuelve algo más, parar: esa función dejaría de funcionar. No depende de
-la 0506 ni de la 0507 (otras sesiones; sin fusionar al 2026-10-04): no toca sus funciones ni sus tablas. Los archivos están
-SIN COMMITEAR: `dame-el-sql.sh 508` se negará hasta que estén en git y en GitHub.
+la 0506 ni de la 0507 (otras sesiones; sin fusionar al 2026-10-04): no toca sus funciones ni sus tablas. Commiteada y
+subida (PR #491, borrador): `dame-el-sql.sh 508` ya puede entregarla.
 
-**⚠ Resultado PARCIAL en producción (2026-10-04) — NO CUADRA con el repo; no pegar hasta aclararlo.** Consulta 1 (privilegios):
+**Resultado en producción (2026-10-04) — cuadran las premisas de seguridad; lo que no cuadraba era el supuesto de partida.**
+Medido: B (privilegios autoritativos, con columnas): `anon` y `authenticated` en falso para INSERT, UPDATE, DELETE, TRUNCATE y
+INSERT por columna. 3a: `trg_personas_cese_solo_por_rpc` activo (`tgenabled = 'O'`). 3b: `authenticated` no actualiza
+`asignaciones_educacion`. 2a: UNA fila, `fn_educacion_cerrar_al_cesar`. `personas`: `authenticated` NO inserta. **Faltan** la
+1a (políticas: si siguen las dos de INSERT, es lo único que la 0508 cambiaría allá) y la 2b (se espera vacía). Como los
+privilegios ya están revocados, pegar la 0508 es idempotente e inocua en producción: lo que hace es dejar el repo igual y
+registrar la 508 (si se fusiona sin pegar, `que_falta_pegar` la marcará). Detalle de cómo se llegó a esto (primera consulta,
+la que NO cuadraba):
 `authenticated` = `REFERENCES, SELECT, TRIGGER`; `anon` = `REFERENCES, TRIGGER`; `postgres` y `service_role` todo. El repo (y el
 desechable construido de él) da `arwdDxtm` a `anon` y a `authenticated`. O sea: en producción `authenticated` **ya no tiene
 INSERT, UPDATE, DELETE ni TRUNCATE** sobre esta tabla (a nivel de tabla; los privilegios por columna no se miraron), y ninguna
@@ -67,13 +81,16 @@ SÍ trae** `marcajes`, `jornadas`, `periodos_planilla`, `expediente_disciplinari
 `planilla_pagada_detalle`, `movimientos_planilla`, `asignaciones_salario`, `datos_personales`, `politica_salarial`… y **NO trae
 `personas` ni `correcciones_auditoria`**. Las cuentas cuadran con que producción tenga endurecidas a mano, fuera del repo,
 justo esas dos (desechable 63 − 2 + 1 tabla de respaldo = 62 — es una inferencia, no una medición). Si es así, el hueco de
-INSERT directo a `personas` de la 0507 tampoco existe en producción; se comprueba con
-`has_table_privilege('authenticated','public.personas','INSERT')`, no se infiere de la lista de TRUNCATE, porque 62 y 62 no
-prueban que sean las mismas 62. Consulta 2: coincide (UNA fila,
+INSERT directo a `personas` de la 0507 tampoco existe en producción; se comprobó con
+`has_table_privilege('authenticated','public.personas','INSERT')` (no se infirió de la lista de TRUNCATE, porque 62 y 62 no
+prueban que sean las mismas 62) y **dio `false`: la inferencia era correcta**. Consulta 2: coincide (UNA fila,
 `fn_educacion_cerrar_al_cesar`, `prosecdef = f`). Consulta 3b: coincide (`authenticated` NO actualiza
-`asignaciones_educacion`). **Faltan** la 1a (políticas), la 2b y la 3a (trigger del cese).
+`asignaciones_educacion`). (La lista de lo que faltaba ya quedó reducida arriba: solo la 1a y la 2b.)
 
-**Abierto — otras tablas con escritura directa (reportado, NO tocado; decide Felipe):**
+**Abierto — otras tablas con escritura directa (reportado, NO tocado; decide Felipe).** A diferencia de `personas` y
+`correcciones_auditoria`, **las seis tablas de esta lista SÍ están en la lista de las 62 de producción**: son las que
+probablemente conservan el hueco también allá (el INSERT no se verificó tabla por tabla: 62 y 62 no prueban que sean las
+mismas). Es la parte de este informe con exposición plausible en producción, y la de más consecuencia.
 - **`rendimiento_mensual`** (el bono por rendimiento): política `for all` a admin/líder, y su guardián
   `fn_set_rendimiento`/`fn_quitar_rendimiento` (0111) se salta. **Medido** con un periodo pagado: la función dice «La planilla
   de ese mes ya está PAGADA» y el upsert directo del `lider_do` PASA sobre ese mismo mes, con `puesto_por` de otra persona.

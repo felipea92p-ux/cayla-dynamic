@@ -131,14 +131,39 @@
 --   · Que 63 de 91 tablas den TRUNCATE a `authenticated` por los privilegios por
 --     defecto de Supabase. Aquí solo se cierra en la auditoría.
 --
--- ANTES DE PEGAR — TRES CONSULTAS DE SOLO LECTURA A PRODUCCIÓN (SQL Editor).
--- Ninguna modifica nada. Confirman que producción se parece al repo en lo que
--- esta migración da por cierto; si alguna no cuadra, parar y avisar.
+-- LO QUE RIGE EN PRODUCCIÓN (medido el 2026-10-04 en el SQL Editor; TODO lo de
+-- arriba se midió en la base desechable, que se construye de estas migraciones)
+--   · `anon` y `authenticated` NO pueden insertar, actualizar, borrar ni vaciar
+--     esta tabla —tampoco por columna—: solo tienen REFERENCES, SELECT (solo
+--     `authenticated`) y TRIGGER. Ninguna migración del repo lo hace: es un
+--     revoke manual, fuera del repo. O sea, el ataque de arriba probablemente
+--     NO existe en producción (no se probó allá); existe en el repo y en toda
+--     base construida de él (CI, local).
+--   · Por eso en producción esta migración es, en lo que a privilegios toca,
+--     un no-op idempotente. Lo que hace es: (1) borrar las dos políticas de
+--     INSERT, si siguen ahí (la consulta 1 de abajo lo dice; su resultado no se
+--     había recibido al escribir esto); (2) que el repo reproduzca a producción
+--     y toda base nueva nazca igual de cerrada; (3) dejar la protección bajo
+--     control de versiones, con su prueba (402).
+--   · Las premisas del cese, comprobadas en producción: el trigger
+--     `trg_personas_cese_solo_por_rpc` está activo (`tgenabled = 'O'`), y
+--     `authenticated` no puede hacer UPDATE sobre `asignaciones_educacion`.
+--     La única función INVOKER que escribe la auditoría es
+--     `fn_educacion_cerrar_al_cesar`, como en el repo.
 --
---   -- 1) Esperado: DOS políticas de INSERT (auditoria_insert_admin_lider y
---   --    auditoria_insert_supervisor, polcmd 'a') y tres de lectura, y
---   --    `authenticated` con INSERT. Si hay otra política de INSERT, UPDATE,
---   --    DELETE o ALL que no está en el repo, hay que conocerla antes.
+-- ANTES DE PEGAR — CONSULTAS DE SOLO LECTURA A PRODUCCIÓN (SQL Editor).
+-- Ninguna modifica nada. Confirman que producción se parece a lo que esta
+-- migración da por cierto; si alguna no cuadra, parar y avisar. Pendientes al
+-- 2026-10-04: la 1 (políticas) y la 2 segunda consulta. Ya medidas y cuadradas:
+-- la 1 de privilegios (ver arriba: distinta del repo, y está bien), la 2
+-- primera consulta y la 3.
+--
+--   -- 1) Esperado en el REPO: DOS políticas de INSERT (auditoria_insert_admin_lider
+--   --    y auditoria_insert_supervisor, polcmd 'a') y tres de lectura, y
+--   --    `authenticated` con INSERT. EN PRODUCCIÓN los privilegios ya se midieron
+--   --    y `authenticated` NO tiene INSERT (ver arriba); lo que falta mirar son las
+--   --    políticas. Si hay otra política de INSERT, UPDATE, DELETE o ALL que no
+--   --    está en el repo, hay que conocerla antes.
 --   select polname, polcmd::text as cmd, pg_get_expr(polwithcheck, polrelid) as con_check
 --     from pg_policy where polrelid = 'public.correcciones_auditoria'::regclass order by 1;
 --   select grantee, string_agg(privilege_type, ',' order by privilege_type) as privilegios
