@@ -10,7 +10,7 @@ import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { generarCsv, descargarCsv } from "@/lib/admin/csv";
 import { formatSoles } from "@/lib/rangos";
-import { EMPRESA, hoyLima, puedeVerPlanilla } from "@cayla-dynamic/shared";
+import { EMPRESA, hoyLima, nombreCorto, nombreOficial, puedeVerPlanilla, usaNombreDelDni } from "@cayla-dynamic/shared";
 import { Boton } from "@/components/ui/boton";
 import { Campo } from "@/components/ui/campo";
 import { CampoSelect } from "@/components/ui/campo";
@@ -129,7 +129,16 @@ type Detalle = Record<string, unknown> & {
 // componente de impresión lo muestra: no es lo que corresponde en ninguno de
 // los dos documentos.
 interface PapelesCese {
+  // Ojo con el nombre: `fn_papeles_cese` (0400) lo arma como «nombres apellidos»
+  // —el corto, el del terminal—, no como el del DNI. Esta pantalla lo REEMPLAZA
+  // al cargar (ver `cargarDetalle`) por `datos_personales.nombre_dni`, que es el
+  // que un banco compara contra el documento al soltar la CTS. Para cuando
+  // llega a un componente de impresión, `nombre_completo` ya es el bueno.
   nombre_completo: string;
+  // Lo agrega esta pantalla, no la función: la ficha no tiene cargado el nombre
+  // del DNI, así que el papel saldrá con el corto. Se avisa en la vista previa
+  // porque estos dos papeles no se corrigen una vez entregados.
+  sinNombreDni?: boolean;
   documento: string | null;
   genero: "masculino" | "femenino" | null;
   cargo: string | null;
@@ -273,14 +282,27 @@ export default function LiquidacionesPage() {
       ]);
       const cfgValor = (cfg.data as { valor: { persona_id?: string; cargo?: string } } | null)?.valor;
       if (!cfgValor?.persona_id) return;
-      const { data: ficha } = await supabase
-        .from("personas")
-        .select("nombres, apellidos, documento")
-        .eq("id", cfgValor.persona_id)
-        .maybeSingle();
+      const [{ data: ficha }, { data: dpFirmante }] = await Promise.all([
+        supabase
+          .from("personas")
+          .select("nombres, apellidos, documento")
+          .eq("id", cfgValor.persona_id)
+          .maybeSingle(),
+        supabase
+          .from("datos_personales")
+          .select("nombre_dni")
+          .eq("persona_id", cfgValor.persona_id)
+          .maybeSingle(),
+      ]);
       if (!ficha) return;
       setFirmanteEmpresa({
-        nombre: `${ficha.nombres} ${ficha.apellidos}`,
+        // Quien certifica firma con su nombre del DNI, igual que quien recibe el
+        // papel: un certificado entre «Elida Lizeth Salinas Mamani» y una firma
+        // de «Felipe Alvarez» no se ve de la misma empresa.
+        nombre: nombreOficial(
+          dpFirmante?.nombre_dni as string | null | undefined,
+          nombreCorto(ficha.nombres, ficha.apellidos),
+        ),
         dni: ficha.documento,
         cargo: cfgValor.cargo ?? "Gerencia General",
         personaId: cfgValor.persona_id,
@@ -312,7 +334,20 @@ export default function LiquidacionesPage() {
     // Sin bloquear la pantalla si esto falla: los papeles de salida son un
     // extra sobre la liquidación, no una condición para verla. Si falla, los
     // dos botones nuevos simplemente no aparecen (quedan detrás de `papelesCese`).
-    setPapelesCese(papeles.error ? null : (papeles.data as unknown as PapelesCese));
+    if (papeles.error) { setPapelesCese(null); return; }
+    const crudo = papeles.data as unknown as PapelesCese;
+    // El nombre del DNI no viaja en `fn_papeles_cese` y esa función no se
+    // reescribe por esto: se lee de la ficha, como ya hacen Contratos y el memo.
+    // Sin ficha o sin nombre cargado el papel cae al corto, y la vista previa lo
+    // dice (`sinNombreDni`) en vez de imprimirlo en silencio.
+    const { data: dp } = await supabase
+      .from("datos_personales").select("nombre_dni").eq("persona_id", personaId).maybeSingle();
+    const nombreDni = (dp?.nombre_dni as string | null | undefined) ?? null;
+    setPapelesCese({
+      ...crudo,
+      nombre_completo: nombreOficial(nombreDni, crudo.nombre_completo),
+      sinNombreDni: !usaNombreDelDni(nombreDni),
+    });
   }
 
   async function abrir(personaId: string) {
@@ -730,6 +765,19 @@ export default function LiquidacionesPage() {
                   Cerrar
                 </button>
               </div>
+              {(modalAbierto === "certificado" || modalAbierto === "constancia") && papelesCese?.sinNombreDni && (
+                <BannerAviso
+                  variante="advertencia"
+                  titulo="Falta el nombre completo del DNI"
+                  className="m-4 mb-0 p-3 print:hidden"
+                >
+                  <p>
+                    Este papel saldrá con el nombre corto con el que se ve en el terminal. Un banco compara el
+                    nombre contra el DNI al soltar la CTS: carga el nombre completo en Datos personales antes
+                    de imprimirlo — una vez entregado, no se puede corregir.
+                  </p>
+                </BannerAviso>
+              )}
               <div className="hoja overflow-y-auto p-8 text-sm leading-relaxed print:overflow-visible print:p-0">
                 {modalAbierto === "liquidacion" && detalle && <Hoja d={detalle} miFirma={miFirma} />}
                 {modalAbierto === "certificado" && papelesCese && (

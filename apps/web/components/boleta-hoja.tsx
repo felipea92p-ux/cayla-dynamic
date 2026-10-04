@@ -8,6 +8,7 @@ import {
   TZ_LIMA,
   esPrestadorDeServicios,
   nombreDelDocumentoDePago,
+  nombreOficial,
   nombreRegimenPension,
 } from "@cayla-dynamic/shared";
 
@@ -121,6 +122,13 @@ export interface BoletaHojaProps {
   baseLegal: number | null;
   documento: string | null;
   fechaIngreso: string | null;
+  // El nombre completo del DNI (`datos_personales.nombre_dni`). `f.nombre` sale
+  // de `fn_planilla_calcular` como «nombres apellidos» —el corto, el del
+  // terminal— y esa función no se toca por un nombre: es la que paga. Quien
+  // arma la pantalla lee el nombre del DNI aparte, igual que ya lee `documento`
+  // y `fechaIngreso`, y lo pasa acá. Ausente (null/undefined) mientras carga o
+  // si la ficha no lo tiene: la boleta cae al corto y no se rompe.
+  nombreDni?: string | null;
   // Lo que una practicante lleva devengado de descanso + subvención semestral
   // (0485). Ausente (undefined) mientras esa consulta aparte todavía no
   // contestó, o para cualquiera que no sea practicante — nunca se pide para
@@ -128,7 +136,7 @@ export interface BoletaHojaProps {
   subvencionPracticante?: SubvencionPracticante | null;
 }
 
-export function BoletaHoja({ f, proy, baseLegal, documento, fechaIngreso, subvencionPracticante }: BoletaHojaProps) {
+export function BoletaHoja({ f, proy, baseLegal, documento, fechaIngreso, nombreDni, subvencionPracticante }: BoletaHojaProps) {
   // ── QUIÉN RECIBE ESTE PAPEL ────────────────────────────────────────────────
   // Hasta el 2026-08-08 esta pantalla imprimía UN solo documento para todos, y
   // ese documento hablaba el idioma de un contrato de trabajo: «boleta»,
@@ -387,7 +395,7 @@ export function BoletaHoja({ f, proy, baseLegal, documento, fechaIngreso, subven
         </div>
 
         <div className="mb-6 print:mb-4">
-          <p className="font-serif text-2xl">{f.nombre}</p>
+          <p className="font-serif text-2xl">{nombreOficial(nombreDni, f.nombre)}</p>
           {/* EL PELDAÑO DE LA ESCALA NO SE IMPRIME EN EL PAPEL DE UN LOCADOR.
               La decisión ya estaba tomada —la 0182 lo quitó de la tabla de
               Planilla, con este argumento: la escala es de trabajadores, y decir

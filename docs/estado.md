@@ -132,6 +132,38 @@ a la 353); la pantalla de Correcciones, que solo LEE la tabla (se comprobó por 
 
 ---
 
+## 2026-10-04 — Dos nombres, cada uno en su sitio · SIN MIGRACIÓN · SIN FUSIONAR
+
+**Origen:** a cada integrante se le carga «un nombre y un apellido por practicidad» (`personas.nombres/apellidos`,
+lo que se ve en el terminal) y eso confundía: el formulario de Equipo los llamaba «Nombres» y «Apellidos», como si
+fueran los del DNI. El nombre completo ya existía (`datos_personales.nombre_dni`) y Contratos, el memo y «Lo mío» ya
+lo usaban; la boleta y los papeles de cese seguían imprimiendo el corto.
+
+**Qué es:** nada de esquema. `packages/shared/src/nombres.ts` dice una vez qué nombre va en un papel
+(`nombreOficial`: el del DNI, o el corto si falta; un `nombre_dni` de puros espacios cuenta como faltante). Lo usan
+la **boleta** (admin y «Lo mío»; también el nombre del PDF), el **certificado de trabajo**, la **constancia de cese** y
+la **firma de quien certifica por CAYLA**. En Equipo los campos pasan a «Nombre corto» / «Apellido corto» con la
+aclaración de dónde va el nombre completo. **El terminal no cambia** y una prueba (`tests/nombres.test.ts`) vigila
+que nunca lea `datos_personales`. Si falta el nombre del DNI, el certificado y la constancia lo avisan en la vista
+previa (no se imprimen en silencio: una vez entregados no se corrigen).
+
+**Decidido a propósito — qué NO se tocó:** `fn_planilla_calcular` y `fn_proyeccion_periodo` siguen armando
+`'nombre'` como «nombres apellidos» (es la función de pago; la boleta lee el nombre del DNI aparte, como ya leía
+`documento`). `fn_papeles_cese` (0400) igual: su campo `nombre_completo` sigue siendo el corto y la pantalla de
+Liquidaciones lo reemplaza al cargar. Si algún día se reescribe cualquiera de las dos por otra razón, conviene
+arreglarlo en origen.
+
+**Abierto:**
+- Las constancias de recepción de **Normas** y de **Política salarial** imprimen «Apellidos, Nombres» del corto.
+  No se tocaron: ordenan y se imprimen con la misma cadena, y `nombre_dni` es texto libre sin orden fijo.
+- Unas diez pantallas escriben a mano `ficha?.nombre_dni || nombre` (contratos, memo, firma, movilidad, cumpleaños…).
+  Funcionan; no se migraron al helper en este lote.
+- **El dato, no el código:** `nombre_dni` se teclea a mano y nada lo compara con el DNI. Quien no tiene ficha
+  todavía (el panel de Datos personales la lista «sin ficha») imprime con el corto. Medido en producción el
+  2026-10-04: **1 de 26** activos tiene `nombre_dni` vacío.
+
+---
+
 ## 2026-10-04 — El alta de una persona solo entra por fn_crear_persona · migración 0507 · PEGADA Y VERIFICADA · SIN FUSIONAR
 
 **Origen:** dos revisiones independientes señalaron que la política `personas_insert_admin_lider` (0003) y el INSERT que
