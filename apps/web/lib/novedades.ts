@@ -128,6 +128,19 @@ export const NOVEDADES: readonly Novedad[] = [
     audiencia: "do",
   },
   {
+    id: "2026-10-04-nombre-completo-en-los-papeles",
+    fecha: "2026-10-04",
+    titulo: "Tu boleta y tus papeles de salida llevan tu nombre completo, como en el DNI",
+    queMejoro:
+      "La boleta de pago, el certificado de trabajo y la constancia de cese ahora salen con tu nombre completo " +
+      "tal como está en tu DNI, y ya no con el nombre corto con el que apareces en el terminal. En el terminal " +
+      "sigues viéndote con el nombre corto, para encontrarte rápido.\n\n" +
+      "Si el nombre de tu DNI todavía no está cargado en Datos personales, el papel sale con el nombre corto: " +
+      "Desarrollo Organizacional lo ve en «Pendientes». En Equipo, los campos de nombre pasan a llamarse " +
+      "«Nombre corto» y «Apellido corto», para que no se confundan con el nombre legal.",
+    audiencia: "todos",
+  },
+  {
     id: "2026-10-02-horarios-sin-refrigerio",
     fecha: "2026-10-02",
     titulo: "En Horarios, un horario puede quedar sin refrigerio",

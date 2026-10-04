@@ -672,7 +672,7 @@ export default function EquipoPage() {
   // parecidos se saltaría solo.
   async function crearPersona(confirmado: boolean) {
     if (!form.nombres.trim() || !form.apellidos.trim() || !form.sedeId) {
-      avisar("error", "Nombres, apellidos y sede son obligatorios.");
+      avisar("error", "Nombre corto, apellido corto y sede son obligatorios.");
       return;
     }
     setGuardando(true);
@@ -739,8 +739,8 @@ export default function EquipoPage() {
     // panel de abajo, que no se apaga solo. Lo que quede acá es lo que sí puede
     // desaparecer a los pocos segundos sin que se pierda nada — el «agregada» y,
     // si toca, la advertencia de la asignación familiar.
-    const nombreCompleto = `${form.nombres.trim()} ${form.apellidos.trim()}`;
-    let texto = `${nombreCompleto} agregado(a).`;
+    const nombreCorto = `${form.nombres.trim()} ${form.apellidos.trim()}`;
+    let texto = `${nombreCorto} agregado(a).`;
     let tipoAviso: "ok" | "error" = "ok";
     if (form.conHijos) {
       const nuevaId = (creada as { id: string } | null)?.id;
@@ -759,7 +759,7 @@ export default function EquipoPage() {
     setForm(FORM_VACIO);
     // Antes de `cargar()`: el PIN tiene que estar en pantalla ya, no cuando
     // termine de releerse el equipo entero.
-    mostrarPin(nombreCompleto, pin);
+    mostrarPin(nombreCorto, pin);
     await cargar();
     avisar(tipoAviso, texto);
   }
@@ -1292,12 +1292,21 @@ export default function EquipoPage() {
   // ningún permiso)" contra el borde.
   const formulario = (modo: "alta" | "edicion") => (
     <div className="grid grid-cols-1 gap-4">
+      {/* Estos dos campos son el NOMBRE CORTO, no el nombre legal: «Elida» y
+          «Salinas», no «Elida Lizeth» y «Salinas Mamani». Se llamaban «Nombres» y
+          «Apellidos» —en plural, como un formulario del DNI— y quien los llenaba
+          con un nombre y un apellido «por practicidad» dejaba la duda de si
+          estaba cargando algo incompleto. El nombre completo vive en Datos
+          personales (`nombre_dni`) y es el que sale en los papeles: ver
+          `packages/shared/src/nombres.ts`. */}
       <label className="flex flex-col gap-1 text-sm">
-        Nombres
+        Nombre corto{" "}
+        <span className="text-taupe">(el de todos los días: así se ve en el terminal y en el panel)</span>
         <input value={form.nombres} onChange={(e) => { setForm({ ...form, nombres: e.target.value }); setParecidas(null); }} disabled={guardando} className="rounded-lg border px-3 py-2 disabled:opacity-50" />
       </label>
       <label className="flex flex-col gap-1 text-sm">
-        Apellidos
+        Apellido corto{" "}
+        <span className="text-taupe">(el nombre completo del DNI se carga en Datos personales y es el que sale en contratos, boletas y liquidaciones)</span>
         <input value={form.apellidos} onChange={(e) => { setForm({ ...form, apellidos: e.target.value }); setParecidas(null); }} disabled={guardando} className="rounded-lg border px-3 py-2 disabled:opacity-50" />
       </label>
       <label className="flex flex-col gap-1 text-sm">
