@@ -362,7 +362,8 @@ with repo(numero, nombre, nunca) as (values
     (501, 'la_rmv_sube_a_1230_y_la_escala_la_sigue', false),
     (502, 'la_subvencion_pactada_de_los_practicantes_sigue_a_la_rmv_de_1230', false),
     (503, 'el_archivo_de_la_empresa', false),
-    (505, 'el_feriado_posterior_al_cese_no_corresponde', false)
+    (505, 'el_feriado_posterior_al_cese_no_corresponde', false),
+    (506, 'un_alta_que_se_parece_a_alguien_pide_confirmacion', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
