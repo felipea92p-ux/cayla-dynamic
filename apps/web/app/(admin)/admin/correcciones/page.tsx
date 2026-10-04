@@ -251,6 +251,9 @@ export default function CorreccionesPage() {
   // el modal está abierto; el motivo se escribe en `apartadaMotivo`.
   const [apartadaAccion, setApartadaAccion] = useState<{ marca: MarcaApartada; resolucion: "repuesta" | "improcedente" } | null>(null);
   const [apartadaMotivo, setApartadaMotivo] = useState("");
+  // Reponer TODAS las apartadas de una vez: una caída del vínculo del terminal
+  // deja decenas, y resolverlas una a una cuesta lo mismo que el error original.
+  const [masivaAbierta, setMasivaAbierta] = useState(false);
   // ¿La secuencia de ESTE día sigue siendo imposible? Se pregunta en vivo a la
   // base en cada carga, no se deduce del sello guardado en las marcas: el sello
   // dice que el día estuvo roto alguna vez, no que lo siga estando.
@@ -355,6 +358,38 @@ export default function CorreccionesPage() {
         : `Declarada improcedente. No se registró ningún marcaje, y queda el motivo en el historial.`,
     );
     if (m.persona_id === personaId) void refrescar();
+  }
+
+  // Una por una y en orden de hora: la máquina de estados del marcaje exige
+  // entrada antes que salida, y repuestas al revés se rechazarían entre sí. Cada
+  // una pasa por la misma `fn_marca_apartada_resolver` que el botón individual,
+  // con sus mismas validaciones; la que la base rechace se queda en la lista y
+  // se informa, no se oculta.
+  async function resolverTodasApartadas() {
+    if (apartadaMotivo.trim().length < 3) {
+      avisar("error", "Escribe el motivo: esto decide si un día de trabajo queda registrado o no.");
+      return;
+    }
+    setResolviendo("todas");
+    const supabase = createAdminSupabaseClient();
+    const orden = [...apartadas].sort((a, b) => a.timestamp_cliente.localeCompare(b.timestamp_cliente));
+    let repuestas = 0;
+    const fallos: string[] = [];
+    for (const m of orden) {
+      const { error } = await supabase.rpc("fn_marca_apartada_resolver", {
+        p_id: m.id, p_resolucion: "repuesta", p_motivo: apartadaMotivo.trim(),
+      });
+      if (error) fallos.push(`${m.persona} ${m.fecha} ${horaTextoLima(m.timestamp_cliente)}: ${mensajeDeError(error, "resolver la marca apartada")}`);
+      else repuestas++;
+    }
+    setResolviendo(null);
+    setMasivaAbierta(false);
+    setApartadaMotivo("");
+    const { data: ap } = await supabase.rpc("fn_marcas_apartadas");
+    setApartadas((ap as unknown as MarcaApartada[]) ?? []);
+    if (fallos.length === 0) avisar("ok", `${repuestas} marcas registradas con su hora original.`);
+    else avisar("error", `${repuestas} registradas, ${fallos.length} no se pudieron: ${fallos.slice(0, 3).join(" · ")}${fallos.length > 3 ? " …" : ""} Revísalas una a una.`);
+    void refrescar();
   }
 
   const auditoriaLimite = auditoriaMas[personaId] ?? 30;
@@ -698,6 +733,13 @@ export default function CorreccionesPage() {
               El terminal las intentó seis veces y las apartó para no perderlas. La persona sí marcó:
               mientras no se repongan, ese día se paga como si no hubiera venido.
             </p>
+            {apartadas.length > 1 && (
+              <div className="mb-3">
+                <Boton variante="primario" tamano="sm" onClick={() => { setApartadaMotivo(""); setMasivaAbierta(true); }} disabled={resolviendo !== null}>
+                  Registrar todas con su hora ({apartadas.length})
+                </Boton>
+              </div>
+            )}
             <ul className="flex flex-col gap-2">
               {apartadas.map((m) => (
                 <li key={m.id} className="rounded-lg bg-papel px-3 py-2 text-sm">
@@ -1505,6 +1547,27 @@ export default function CorreccionesPage() {
             </div>
           </>
         )}
+      </Modal>
+
+      <Modal
+        abierto={masivaAbierta}
+        onCerrar={() => setMasivaAbierta(false)}
+        bloqueado={resolviendo !== null}
+        titulo="Registrar todas las marcas apartadas"
+        ancho="sm"
+      >
+        <p className="mb-4 text-sm text-taupe">
+          Vas a registrar <strong className="text-tinta">{apartadas.length} marcas</strong> con su hora original, en orden.
+          Si alguna no corresponde (por ejemplo, ya se corrigió a mano), la base la rechaza y queda en la lista.
+        </p>
+        <label className="mb-4 flex flex-col gap-1 text-sm">
+          Motivo (obligatorio, queda en el historial)
+          <AreaTexto value={apartadaMotivo} onChange={(e) => setApartadaMotivo(e.target.value)} rows={2} autoFocus placeholder="ej. el terminal estaba mal vinculado" />
+        </label>
+        <div className="flex justify-end gap-3">
+          <Boton onClick={() => setMasivaAbierta(false)} disabled={resolviendo !== null}>Cancelar</Boton>
+          <Boton variante="primario" onClick={() => void resolverTodasApartadas()} cargando={resolviendo !== null}>Registrar todas</Boton>
+        </div>
       </Modal>
 
       {/* Modal: motivo para resolver una marca apartada. Reemplaza el
