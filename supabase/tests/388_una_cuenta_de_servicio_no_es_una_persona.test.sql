@@ -20,7 +20,7 @@
 -- estaría apagado (lección de la 232 y la 271).
 -- ============================================================================
 begin;
-select plan(17);
+select plan(18);
 
 insert into sedes (id, codigo, nombre, activa) values
   ('00000000-0000-0000-0000-000000038801', 'ZZ388', 'Sede de laboratorio 388', true);
@@ -61,11 +61,26 @@ select throws_ok(
   $$ update personas set cuenta_de_servicio = true where id = '00000000-0000-0000-0000-000000038813' $$,
   'La cuenta de servicio se cambia con fn_set_cuenta_de_servicio, no con un update directo.',
   'BLOQUEADO · el update directo no marca, aunque lo pida un líder de DO');
+-- Desde la 0507 `authenticated` ya no tiene INSERT sobre `personas`: el insert
+-- directo muere en el privilegio, ANTES de llegar al trigger de esta migración.
+-- La aserción sigue defendiendo lo mismo (una fila no nace marcada), con un
+-- cerrojo más temprano; lo que cambió es el error.
+select throws_ok(
+  $$ insert into personas (nombres, apellidos, sede_base_id, pin_hash, cuenta_de_servicio)
+     values ('Nace', 'Marcada', '00000000-0000-0000-0000-000000038801', 'x', true) $$,
+  '42501', 'permission denied for table personas',
+  'BLOQUEADO · una fila no puede nacer marcada: el insert directo ni llega al trigger (0507)');
+reset role;
+
+-- 2b · La mitad INSERT del trigger de la 0490 sigue viva para quien todavía
+-- puede insertar directo: la llave de servicio. Sin esta aserción esa mitad
+-- quedaría sin ninguna prueba desde la 0507.
+set role service_role;
 select throws_ok(
   $$ insert into personas (nombres, apellidos, sede_base_id, pin_hash, cuenta_de_servicio)
      values ('Nace', 'Marcada', '00000000-0000-0000-0000-000000038801', 'x', true) $$,
   'Una persona nace como persona. Para marcarla como cuenta de servicio usa fn_set_cuenta_de_servicio.',
-  'BLOQUEADO · una fila no puede nacer marcada y saltarse las comprobaciones');
+  'BLOQUEADO · ni con la llave de servicio una fila nace marcada y se salta las comprobaciones');
 reset role;
 
 -- ── 3 · Solo admin o líder DO ──────────────────────────────────────────────

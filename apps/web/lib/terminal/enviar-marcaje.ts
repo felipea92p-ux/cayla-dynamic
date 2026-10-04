@@ -89,6 +89,23 @@ export function esRechazoDeEstado(error: string | undefined): boolean {
 }
 
 /**
+ * ¿La base rechazó la marca porque la SESIÓN de este navegador no es la del
+ * terminal que la marca declara? (`fn_registrar_marcaje`: «el terminal
+ * autenticado no coincide con p_terminal_id».)
+ *
+ * No es un rechazo de la marca: es un desajuste de ESTA Mac —su sesión y la
+ * ficha de terminal guardada en el navegador dicen cosas distintas—, y se
+ * resuelve solo cuando alguien la vuelve a vincular. Medido en producción el
+ * 2026-10-03: 110 marcas apartadas por esto (89 solo de TRU, desde julio), todas
+ * de personas que sí marcaron. Por eso la cola NO las aparta: las deja en cola
+ * y las sube sola cuando la sesión vuelve a ser la del terminal.
+ */
+export function esRechazoDeSesion(error: string | undefined): boolean {
+  if (!error) return false;
+  return error.includes("no coincide con p_terminal_id");
+}
+
+/**
  * Manda una marca al servidor con tope de tiempo. NUNCA lanza: quien la llama
  * decide qué hacer con la cola, y una excepción escapada aquí volvería a dejar
  * el terminal colgado, que es justo lo que esto vino a arreglar.
