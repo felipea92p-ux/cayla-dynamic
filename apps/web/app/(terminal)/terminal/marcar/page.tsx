@@ -21,7 +21,7 @@ import {
   obtenerPendientes,
 } from "@/lib/terminal/offline-db";
 import { sincronizarApartadas } from "@/lib/terminal/apartadas";
-import { enviarMarcaje, esRechazoDeEstado } from "@/lib/terminal/enviar-marcaje";
+import { enviarMarcaje, esRechazoDeEstado, esRechazoDeSesion } from "@/lib/terminal/enviar-marcaje";
 import { conTope, topeDeRed } from "@/lib/terminal/tope-de-red";
 import { cargarRoster } from "@/lib/terminal/roster";
 import { cargarMarcajesHoyPorPersona, confirmarEstadoPuntual, siguienteAccionPara } from "@/lib/terminal/estado-dia";
@@ -650,7 +650,10 @@ export default function MarcarPage() {
     if (navigator.onLine) {
       const { ok, error, llego } = await enviarMarcaje(createTerminalSupabaseClient(), entry);
       sincronizadoAhora = ok;
-      rechazadaPorElServidor = !ok && llego;
+      // Un desajuste de sesión NO es un rechazo de la marca: la cola lo corrige
+      // sola en el siguiente ciclo (sync.ts) o cuando se re-vincule la Mac. Decir
+      // «no quedó registrada» sería falso: está guardada y va a salir.
+      rechazadaPorElServidor = !ok && llego && !esRechazoDeSesion(error);
       // Marcarlo YA, no esperar a que sync.ts acumule 6 fallos confirmados
       // (minuto y medio) para enterarse de algo que este intento ya sabe.
       // Sigue en la cola y se sigue reintentando; lo único que cambia de
