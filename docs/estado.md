@@ -6,6 +6,52 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-10-04 — Un alta que se parece a alguien ya registrado pide confirmación · migración 0506 · SIN PEGAR · SIN FUSIONAR
+
+**Origen:** una persona quedó registrada dos veces en Equipo, el mismo fin de semana, una con el nombre corto y otra con
+el completo; las dos activas, con su PIN y visibles en el terminal de su sede. Ni el índice único de documento (0125)
+ni el del correo podían verlo: **el alta no captura el DNI**, y dos escrituras distintas de un nombre no chocan contra
+ninguna restricción. La causa de que se repitiera el alta, además: el formulario mostraba **Cargo y Tipo de vínculo**
+pero `crearPersona` nunca los mandaba, así que la fila nueva salía «Sin cargo» y lo natural era volver a registrarla
+(y quien elegía «Practicante» o «Recibo por honorarios» quedaba en «Planilla» sin enterarse).
+
+**Qué es:** `fn_crear_persona` se niega —`raise exception`, hint `persona_parecida`— si el nombre se parece al de alguien
+ya registrado, **activo o ya salido**, salvo que quien da de alta pase `p_confirmo_distinta = true`. La regla compara por
+palabras (sin tildes, sin partículas; campo por campo sin contradicción, campos cruzados, contención, y un tipeo de una
+letra en palabras de 5+): no avisa por compartir solo el nombre de pila ni solo un apellido. `fn_personas_parecidas` deja
+a la pantalla preguntar **a quién** se parece antes de escribir nada, y Equipo muestra un aviso con «Ver en la lista».
+Un `pg_advisory_xact_lock` pone en fila a dos altas simultáneas. El alta ya no pide Cargo ni Tipo de vínculo.
+La firma cambia de 7 a 8 argumentos: **`drop function` de la vieja**, o `create or replace` dejaría dos y la llamada
+quedaría ambigua (la 0297/0299 y la 0367).
+
+**Medido:** prueba **400** (29): 66 casos de nombres, el guardián, los permisos y una sola versión de la función; se
+comprobó que **falla** con el guardián apagado y con cuatro mutaciones (rama (c), sin NFC, confirmación NULL, sin tope).
+Dos altas simultáneas del mismo nombre dejan **1** fila con el candado y **2** sin él (dos sesiones reales). Las pruebas
+235, 250 y 159 pasan igual con y sin la migración. Revisión adversarial con verificador escéptico por hallazgo: ninguno
+bloquea; se aplicó el tope de 120 caracteres (la comparación es cuadrática), NFC, la exclusión de estaciones de retail y
+el aviso que se desplaza hasta la vista.
+
+**Para pegarla:** (1) `scripts/sql-manual/md5_fn_crear_persona.sql` en el SQL Editor de producción —el md5 de partida
+debe ser `143a698a…` (la 0300) y `versiones = 1`—; (2) `./scripts/dame-el-sql.sh 506`; (3) **pegar ANTES de fusionar**: si el
+PR llega a `main` primero, Equipo no puede dar de alta a nadie hasta que se pegue (falla cerrado, con el aviso «falta
+aplicar una migración»). Después, `scripts/sql-manual/pares_ya_registrados.sql` (solo lectura) para ver qué otras
+parejas ya están registradas dos veces; nadie lo había medido.
+
+**Abierto:**
+- **El INSERT directo a `personas` se salta todo esto.** La política `personas_insert_admin_lider` (0003) y el privilegio
+  de INSERT dejan que un admin o líder DO inserte por REST sin pasar por `fn_crear_persona`: ni el parecido, ni el
+  escalafón de la 0300 (medido: un `lider_do` crea un `admin` directo). La 0300 decía «única puerta» y no lo era.
+  Cierre propuesto, en su propia migración: quitar la política y el INSERT a `authenticated` —`fn_crear_persona` es
+  SECURITY DEFINER y sigue funcionando— tras comprobar que `cayla-retail` no inserta en `personas` con sesión de usuario.
+- `fn_reactivar_persona` no mira si ya hay otra persona activa parecida. Y cambiar el nombre en «Editar» no pasa por
+  la regla.
+- **El alta no captura el DNI**: es el único freno determinista (el índice único), y la regla de nombres no ve a dos
+  registros que no comparten ninguna palabra (~7.5 % de las parejas en la simulación).
+- `personas.fecha_ingreso` nace con `current_date` en UTC: quien se da de alta pasadas las 19:00 de Lima queda con ingreso
+  al día siguiente.
+
+---
+
 ## 2026-10-02 — El feriado posterior al cese no corresponde · migración 0505 · PEGADA Y VERIFICADA · SIN FUSIONAR
 
 **Origen:** Planilla del periodo 29-sep → 28-oct mostraba «1 feriado(s) sin salario ese día: no se pudo calcular ·
