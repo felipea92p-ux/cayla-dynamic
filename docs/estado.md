@@ -96,10 +96,11 @@ prueban que sean las mismas 62. Consulta 2: coincide (UNA fila,
   append-only) o no se toca.
 - **`respaldo_horarios_chiara_20260814` está en producción y no en el repo** (solo en `scripts/sql-manual/restituir_horario_de_chiara.sql:67`,
   `create table … as select`, que no activa RLS ni pone grants propios): es la tabla extra que explica 92 contra 91. Está en
-  la lista de las 62, o sea con los privilegios por defecto. Si no se le activó RLS a mano, cualquier sesión autenticada puede
-  leer y modificar esa copia de horarios. NO verificado: `select relrowsecurity, has_table_privilege('anon', oid, 'SELECT') from pg_class where relname = 'respaldo_horarios_chiara_20260814';`
-  — arreglo reversible: `alter table respaldo_horarios_chiara_20260814 enable row level security;` (sin política, solo la ve
-  `postgres`/`service_role`). Borrarla es decisión aparte: es dato.
+  la lista de las 62, o sea con los privilegios por defecto. **Verificado en producción (2026-10-04): `relrowsecurity = true` y
+  `anon` NO la lee — no hay nada que arreglar.** Un `create table … as` no activa RLS, así que alguien se la puso (o el proyecto
+  la activa solo en tablas nuevas). Lo que NO se miró son sus políticas: con RLS y sin políticas queda cerrada para
+  `authenticated`; una política permisiva la abriría. Borrarla es decisión aparte: es dato. La primera versión de esta entrada
+  la daba por posiblemente abierta: era una suposición sin medir, y la medición la desmintió.
 
 **No probado:** nada contra producción (ninguna consulta se corrió allá); el ataque se midió con `set role` + jwt en SQL, no con
 una petición HTTP real a PostgREST (es la misma mecánica, pero no se ejecutó); los 19 archivos rotos de la línea base (acotados
