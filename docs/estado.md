@@ -6,7 +6,46 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-10-05 — El terminal muestra en qué punto del día está cada integrante · SIN SQL · ESCRITO Y PROBADO · COMMITEADO EN LA RAMA, SIN FUSIONAR
+## 2026-10-05 — El filtro del terminal ilumina en vez de ocultar, y la pantalla se vuelve más quieta · SIN SQL · ESCRITO Y PROBADO · SIN COMMITEAR
+
+**Qué cambia (sobre el PR #495, ya publicado).** Viendo el diseño en producción se
+pidió algo más limpio: en una sede de 4 personas la leyenda era una fila de seis
+botones casi toda en cero.
+- La leyenda de botones sobre las tarjetas **se va**; en su lugar, una **píldora
+  única** fina bajo el selector de sede (`PildoraDeEstados`). Los estados con cero
+  personas no se dibujan.
+- Tocar un estado **ilumina** (borde y tono del estado) a quienes lo tienen y
+  **atenúa** al resto; ya **no oculta**. Se apaga a los 20 s (`SEGUNDOS_RESALTADO`)
+  y al tocar un nombre o cambiar de sede. Al no ocultar, desaparece todo el
+  andamiaje de «alto fijo para que el reloj no salte» y la línea «Mostrando N de M».
+- Las tarjetas son **todas iguales** (papel, borde fino); el estado vive en el
+  círculo de color de la esquina de la foto y en una línea gris con la hora.
+- **El ícono de la foto solo informa**: no filtra, y tocarlo marca como tocar
+  cualquier parte de la tarjeta (volvió a ser un solo botón). Se probó primero como
+  control y se retiró a pedido.
+- **Al pasar el mouse** por un ícono —el de la foto o el de la píldora— sale su
+  significado (`ConEtiqueta`). Solo con mouse: en una pantalla táctil el toque
+  dispara el mismo evento de «entrar» y la etiqueta quedaría pegada.
+
+**Por qué la etiqueta vive en un portal.** Una tarjeta atenuada lleva `opacity-30`
+y todo lo que cuelga de ella se atenúa con ella: justo la etiqueta del ícono de
+quien NO está iluminado es la que más falta hace leer. Medido en el navegador:
+opacidad 1 sobre una tarjeta atenuada.
+
+**Lo que se probó, y lo que NO.** Pruebas nuevas de `contarPresencias` y del orden de
+la píldora (`tests/presencia-casilla.test.ts`). En el navegador, con los
+componentes reales: la píldora ilumina, tocar el ícono de la foto abre la
+confirmación de marcar y no cambia el resaltado, la etiqueta sale con el mouse real
+(`pointerType: mouse`) y no queda pegada tras tocar. **No** se probó en una
+pantalla táctil real ni en el terminal de verdad (pide sesión de Supabase).
+
+**Deuda anotada.** Los tokens `--color-azul` y `--color-ceniza` siguen en uso (pausa
+y turno terminado) — se evaluó quitarlos con una versión «sin color» y se decidió
+dejar el color.
+
+---
+
+## 2026-10-05 — El terminal muestra en qué punto del día está cada integrante · SIN SQL · ESCRITO Y PROBADO · FUSIONADO (PR #495) Y PUBLICADO
 
 **Qué es.** En la pantalla de marcar, cada casilla dice si la persona está
 *laborando*, *en refrigerio*, *en pausa* (trámite, médico, personal, otro),

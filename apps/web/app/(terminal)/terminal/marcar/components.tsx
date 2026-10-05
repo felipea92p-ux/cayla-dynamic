@@ -1,14 +1,19 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { LucideIcon } from "lucide-react";
 import type { TipoMarca } from "@cayla-dynamic/shared";
 import { createTerminalSupabaseClient } from "@cayla-dynamic/database";
 import { Cargando } from "@/components/cargando";
 import type { RosterEntry } from "@/lib/terminal/offline-db";
-import type { PresenciaCasilla } from "@/lib/terminal/presencia";
+import type { ClavePresencia, PresenciaCasilla } from "@/lib/terminal/presencia";
 import { inicialesDe, urlPublicaFotoPerfil } from "@/lib/foto-perfil";
-import { ESTILO_PRESENCIA, etiquetaDePresencia, type ClaveFiltro, type EstiloPresencia } from "./presencia-visual";
+import {
+  ConEtiqueta,
+  ESTILO_PRESENCIA,
+  REPOSO_PRESENCIA,
+  etiquetaDePresencia,
+  type EstiloPresencia,
+} from "./presencia-visual";
 
 // Estilos compartidos de la superficie clara del terminal (crema, líneas finas Sand).
 //
@@ -34,12 +39,13 @@ import { ESTILO_PRESENCIA, etiquetaDePresencia, type ClaveFiltro, type EstiloPre
 // se repone donde se puede.
 const TILE =
   "cursor-pointer rounded-control border border-borde-control bg-papel transition-colors hover:border-rojo hover:bg-sand active:scale-95";
-// La casilla que SÍ dice en qué punto del día está la persona. El color del
-// borde y del fondo los pone el estado (`ESTILO_PRESENCIA`); acá solo lo que no
-// cambia. El hover mueve el borde a rojo igual que en TILE —feedback que se ve a
-// un metro— pero NO cambia el fondo: taparía el tono del estado.
-const TILE_PRESENCIA =
-  "cursor-pointer rounded-control border-[1.5px] transition-colors hover:border-rojo active:scale-95";
+// La tarjeta que SÍ dice en qué punto del día está la persona: un solo botón, igual
+// que la de siempre —tocar en cualquier parte marca, el ícono de la foto incluido—.
+// El color lo pone `REPOSO_PRESENCIA` o, si el estado está iluminado desde la
+// píldora, el del estado. Al presionar, el borde se va a rojo y la caja se encoge,
+// igual que en TILE: es el feedback que se ve a un metro de la pantalla.
+const CAJA_PRESENCIA =
+  "cursor-pointer rounded-control border-[1.5px] transition-all hover:border-rojo active:scale-95";
 const BTN_PRIMARIO =
   "cursor-pointer rounded-control bg-rojo px-5 py-3 font-medium text-crema transition-colors hover:bg-rojo-profundo active:scale-95";
 const BTN_SECUNDARIO =
@@ -100,7 +106,7 @@ export function NombreGrid({
   roster,
   estado,
   presencia,
-  filtro = null,
+  resaltado = null,
   onSeleccionar,
   onReintentar,
 }: {
@@ -115,8 +121,12 @@ export function NombreGrid({
    * sería acusar de más (el peor error de este sistema).
    */
   presencia?: Map<string, PresenciaCasilla>;
-  /** Muestra solo a quienes están en ese estado. Sin `presencia` no hace nada. */
-  filtro?: ClaveFiltro | null;
+  /**
+   * El estado iluminado desde la píldora de arriba: quienes lo tienen se destacan
+   * y los demás se atenúan. Ilumina, no oculta —nadie pierde su nombre de la
+   * pantalla—. Sin `presencia` no hace nada.
+   */
+  resaltado?: ClavePresencia | null;
   onSeleccionar: (persona: RosterEntry) => void;
   onReintentar: () => void;
 }) {
@@ -169,20 +179,6 @@ export function NombreGrid({
     return <p className="font-serif text-2xl text-taupe">Nadie en esta sede todavía.</p>;
   }
 
-  // Con un filtro puesto solo se ven quienes están en ese estado. Oculta, no
-  // atenúa: quien busca «¿quién está en refrigerio?» no quiere leer 25 nombres.
-  // Quien tiene el estado lo quita solo a los pocos segundos (page.tsx), porque
-  // un filtro olvidado les quita a las demás su nombre para marcar.
-  const visibles = filtro && presencia ? roster.filter((p) => presencia.get(p.id)?.clave === filtro) : roster;
-
-  if (visibles.length === 0) {
-    return (
-      <div className="flex w-full max-w-5xl flex-1 items-center justify-center">
-        <p className="font-serif text-2xl text-taupe">Nadie en este estado ahora.</p>
-      </div>
-    );
-  }
-
   return (
     // `max-w-2xl` + tope en 3 columnas eran una grilla pensada para un
     // teléfono: en un monitor de sede de 1920px la lista ocupaba un tercio de
@@ -190,37 +186,48 @@ export function NombreGrid({
     // que había más gente. `lg:`/`xl:` dejan que el ancho del monitor sume
     // columnas en vez de apilar filas.
     <div className="grid w-full max-w-5xl grid-cols-2 content-start gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-      {visibles.map((persona) => {
+      {roster.map((persona) => {
         const pres = presencia?.get(persona.id);
-        const estilo = pres ? ESTILO_PRESENCIA[pres.clave] : null;
+
+        // Sin estado confirmado: la casilla de siempre, un solo botón, sin nada
+        // que decir de nadie.
+        if (!pres) {
+          return (
+            <button
+              key={persona.id}
+              onClick={() => onSeleccionar(persona)}
+              className={`${TILE} flex flex-col items-center gap-2 px-4 py-5 font-serif text-xl`}
+            >
+              <AvatarPersona persona={persona} />
+              <span>
+                {persona.nombres} {persona.apellidos}
+              </span>
+            </button>
+          );
+        }
+
+        const estilo = ESTILO_PRESENCIA[pres.clave];
+        const etiqueta = etiquetaDePresencia(pres.clave);
+        const nombre = `${persona.nombres} ${persona.apellidos}`;
+        const encendida = resaltado === pres.clave;
+        const atenuada = resaltado !== null && !encendida;
         return (
           <button
             key={persona.id}
+            type="button"
             onClick={() => onSeleccionar(persona)}
-            // El estado ya no se dice con una palabra en la casilla —lo dicen el
-            // ícono de la foto y la leyenda—, así que quien usa lector de
-            // pantalla lo escucha acá completo.
-            aria-label={
-              pres
-                ? `${persona.nombres} ${persona.apellidos}: ${etiquetaDePresencia(pres.clave)}, ${pres.detalle}${
-                    pres.detalle2 ? `, ${pres.detalle2}` : ""
-                  }`
-                : undefined
-            }
-            className={
-              estilo
-                ? `${TILE_PRESENCIA} ${estilo.tile} flex flex-col items-center gap-1 px-3 pb-4 pt-5 text-center font-serif text-xl`
-                : `${TILE} flex flex-col items-center gap-2 px-4 py-5 font-serif text-xl`
-            }
+            // El estado ya no se dice con una palabra en la tarjeta —lo dicen el
+            // ícono de la foto y, al pasar el mouse, su etiqueta—, así que quien
+            // usa lector de pantalla lo escucha acá completo.
+            aria-label={`${nombre}: ${etiqueta}, ${pres.detalle}${pres.detalle2 ? `, ${pres.detalle2}` : ""}`}
+            className={`${CAJA_PRESENCIA} ${encendida ? estilo.iluminada : REPOSO_PRESENCIA} ${
+              atenuada ? "opacity-30" : ""
+            } flex flex-col items-center gap-1 px-3 pb-4 pt-5 text-center font-serif text-xl`}
           >
-            <AvatarPersona persona={persona} presencia={estilo} />
-            <span className={estilo?.apagada ? "text-taupe" : undefined}>
-              {persona.nombres} {persona.apellidos}
-            </span>
-            {pres && estilo && (
-              <span className={`font-sans text-sm font-medium ${estilo.texto}`}>{pres.detalle}</span>
-            )}
-            {pres?.detalle2 && <span className="font-sans text-sm text-taupe">{pres.detalle2}</span>}
+            <AvatarPersona persona={persona} presencia={estilo} etiqueta={etiqueta} />
+            <span className={estilo.apagada ? "text-taupe" : undefined}>{nombre}</span>
+            <span className="font-sans text-sm text-taupe">{pres.detalle}</span>
+            {pres.detalle2 && <span className="font-sans text-sm text-taupe">{pres.detalle2}</span>}
           </button>
         );
       })}
@@ -235,7 +242,16 @@ export function NombreGrid({
  * parecidos, pero NO es una prueba de identidad: el terminal sigue marcando
  * sin PIN, a propósito (decisión de Felipe, jul-2026).
  */
-function AvatarPersona({ persona, presencia }: { persona: RosterEntry; presencia?: EstiloPresencia | null }) {
+function AvatarPersona({
+  persona,
+  presencia,
+  etiqueta,
+}: {
+  persona: RosterEntry;
+  presencia?: EstiloPresencia | null;
+  /** La palabra del estado: es lo que sale al pasar el mouse por el ícono. */
+  etiqueta?: string;
+}) {
   // El cliente es un singleton cacheado por storageKey (client.ts): pedirlo
   // acá no crea una conexión nueva por cada tile de la grilla.
   const supabase = useMemo(() => createTerminalSupabaseClient(), []);
@@ -272,21 +288,28 @@ function AvatarPersona({ persona, presencia }: { persona: RosterEntry; presencia
   return (
     <span className={`relative block h-14 w-14 shrink-0 ${presencia ? "mb-2" : ""}`}>
       {foto}
-      {presencia && <IconoDeEstado presencia={presencia} />}
+      {/* El ícono solo INFORMA: dice el estado, y su palabra sale al pasar el mouse.
+          No es un control —tocarlo marca, como tocar cualquier parte de la tarjeta—:
+          el filtro vive únicamente en la píldora de arriba. */}
+      {presencia && (
+        <ConEtiqueta texto={etiqueta ?? ""} className="absolute -bottom-2 -right-2">
+          <InsigniaDeEstado presencia={presencia} />
+        </ConEtiqueta>
+      )}
     </span>
   );
 }
 
 /**
  * El círculo del estado, en la esquina de la foto. Su borde es del color del
- * FONDO de la casilla (`--bgt`), así que parece recortado de la foto en vez de
+ * FONDO de la tarjeta (`--anillo`), así que parece recortado de la foto en vez de
  * pegado encima.
  */
-function IconoDeEstado({ presencia }: { presencia: EstiloPresencia }) {
-  const Icono: LucideIcon = presencia.Icono;
+function InsigniaDeEstado({ presencia }: { presencia: EstiloPresencia }) {
+  const Icono = presencia.Icono;
   return (
     <span
-      className={`absolute -bottom-2 -right-2 flex h-7 w-7 items-center justify-center rounded-pildora border-2 border-[var(--bgt)] ${presencia.punto}`}
+      className={`grid h-7 w-7 place-items-center rounded-pildora border-2 border-[var(--anillo)] ${presencia.punto}`}
     >
       <Icono size={15} strokeWidth={2.5} aria-hidden />
     </span>

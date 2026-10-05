@@ -45,6 +45,32 @@ export interface PresenciaCasilla {
   detalle2?: string;
 }
 
+/**
+ * El orden en que se dibujan los estados en la píldora de arriba. «Libre hoy» va
+ * al final: no es un lugar en el que alguien esté, es que hoy no le tocaba.
+ */
+export const ORDEN_PRESENCIA: readonly ClavePresencia[] = [
+  "laborando",
+  "refrigerio",
+  "pausa",
+  "termino",
+  "sin_entrada",
+  "libre",
+];
+
+/**
+ * Cuántas personas hay en cada estado. Un estado en cero se queda en cero: es la
+ * pantalla la que decide no dibujarlo (en una sede de cuatro personas, la mitad
+ * de los estados serían un cero que no le dice nada a nadie).
+ */
+export function contarPresencias(presencias: Iterable<PresenciaCasilla>): Record<ClavePresencia, number> {
+  const conteo: Record<ClavePresencia, number> = {
+    laborando: 0, refrigerio: 0, pausa: 0, termino: 0, sin_entrada: 0, libre: 0,
+  };
+  for (const p of presencias) conteo[p.clave]++;
+  return conteo;
+}
+
 /** "14:00" → 14. Una sola receta; antes vivía privada en `sugerencias.ts`. */
 export function horaDecimalDeHHMM(hhmm: string): number {
   const [h, m] = hhmm.slice(0, 5).split(":").map(Number);
