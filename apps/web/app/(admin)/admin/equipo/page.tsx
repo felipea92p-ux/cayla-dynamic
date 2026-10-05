@@ -109,6 +109,19 @@ interface Sede {
   nombre: string;
 }
 
+// Alguien ya registrado cuyo nombre se parece al que se está dando de alta
+// (`fn_personas_parecidas`, 0506). Incluye a quien ya salió: se reactiva, no se
+// vuelve a crear.
+interface PersonaParecida {
+  persona_id: string;
+  nombres: string;
+  apellidos: string;
+  estado: string;
+  sede_codigo: string | null;
+  fecha_ingreso: string;
+  fecha_cese: string | null;
+}
+
 // Qué se muestra en la tabla. "fin_contrato" no es un estado de la persona sino
 // una pregunta de trabajo —«¿a quién tengo que renovar o no renovar?»— y vive en
 // el mismo desplegable porque es donde se la va a buscar.
@@ -229,6 +242,21 @@ export default function EquipoPage() {
   const [form, setForm] = useState<FormPersona>(FORM_VACIO);
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
+  // A quién se parece lo que se está dando de alta (0506). `null` = todavía no se
+  // preguntó (o se cambió el nombre y hay que volver a preguntar); con filas, el
+  // formulario pide confirmar que es OTRA persona antes de crear nada.
+  const [parecidas, setParecidas] = useState<PersonaParecida[] | null>(null);
+  // El aviso aparece ENCIMA de los botones, y en una pantalla de 768 px el botón
+  // «Es otra persona» queda a más de 1 000 px: sin llevarla hasta ahí parece que
+  // «Agregar» no hizo nada. Se desplaza y se le da el foco (el botón que se
+  // pulsó se deshabilita mientras guarda y el foco se iba al <body>).
+  const avisoParecidasRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (parecidas && parecidas.length > 0) {
+      avisoParecidasRef.current?.focus({ preventScroll: true });
+      avisoParecidasRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+    }
+  }, [parecidas]);
   // A quién devolverle el foco cuando se cierra el panel lateral — el botón o
   // el ítem de menú que lo abrió. Un solo ref para los seis paneles porque
   // solo uno puede estar abierto a la vez (ver `useFocoAtrapado`). Para el
@@ -639,15 +667,39 @@ export default function EquipoPage() {
     );
   }
 
-  async function crearPersona() {
+  // `confirmado` va SIEMPRE explícito (nunca `onClick={crearPersona}`): React le
+  // pasaría el evento como primer argumento, que es «verdadero», y el aviso de
+  // parecidos se saltaría solo.
+  async function crearPersona(confirmado: boolean) {
     if (!form.nombres.trim() || !form.apellidos.trim() || !form.sedeId) {
-      avisar("error", "Nombres, apellidos y sede son obligatorios.");
+      avisar("error", "Nombre corto, apellido corto y sede son obligatorios.");
       return;
     }
     setGuardando(true);
+    const supabase = createAdminSupabaseClient();
+    // 0506 · ANTES de generar un PIN y de escribir nada: ¿esta persona ya está
+    // registrada? Una persona quedó dada de alta dos veces porque dar de alta no
+    // miraba a nadie. Si la pregunta falla NO se sigue: el servidor tiene el mismo
+    // candado (`fn_crear_persona` se niega sin confirmación), pero seguir a ciegas
+    // sería justo lo que esto vino a evitar.
+    if (!confirmado) {
+      const { data: yaRegistradas, error: errorParecidas } = await supabase.rpc("fn_personas_parecidas", {
+        p_nombres: form.nombres.trim(),
+        p_apellidos: form.apellidos.trim(),
+      });
+      if (errorParecidas) {
+        setGuardando(false);
+        avisar("error", mensajeDeError(errorParecidas, "comprobar si ya está registrada"));
+        return;
+      }
+      if (yaRegistradas && yaRegistradas.length > 0) {
+        setGuardando(false);
+        setParecidas(yaRegistradas);
+        return;
+      }
+    }
     const pin = generarPin();
     const pinHash = await bcrypt.hash(pin, 10);
-    const supabase = createAdminSupabaseClient();
     // Alta por RPC: el insert REST falla entero (PGRST204) si el payload trae "funcion".
     const { data: creada, error } = await supabase.rpc("fn_crear_persona", {
       p_nombres: form.nombres.trim(),
@@ -657,8 +709,28 @@ export default function EquipoPage() {
       p_funcion: form.funcion,
       p_email: form.email.trim() || null,
       p_pin_hash: pinHash,
+      p_confirmo_distinta: confirmado,
     });
     if (error) {
+      // Tras CUALQUIER fallo se descarta el aviso: el siguiente clic vuelve a
+      // preguntar. Si el fallo fue de red y la persona sí llegó a crearse, el
+      // «Es otra persona — agregar igual» que seguía a la vista la habría
+      // duplicado: ahora el reintento la encuentra.
+      setParecidas(null);
+      // Carrera: otra pestaña dio de alta a esta persona entre la pregunta y el
+      // insert, y el servidor se negó. En vez de un toast con una instrucción, se
+      // muestra el aviso de siempre, con su botón.
+      if (error.hint === "persona_parecida") {
+        const { data: ahora } = await supabase.rpc("fn_personas_parecidas", {
+          p_nombres: form.nombres.trim(),
+          p_apellidos: form.apellidos.trim(),
+        });
+        if (ahora && ahora.length > 0) {
+          setGuardando(false);
+          setParecidas(ahora);
+          return;
+        }
+      }
       setGuardando(false);
       avisar("error", mensajeDeError(error, "crear"));
       return;
@@ -667,8 +739,8 @@ export default function EquipoPage() {
     // panel de abajo, que no se apaga solo. Lo que quede acá es lo que sí puede
     // desaparecer a los pocos segundos sin que se pierda nada — el «agregada» y,
     // si toca, la advertencia de la asignación familiar.
-    const nombreCompleto = `${form.nombres.trim()} ${form.apellidos.trim()}`;
-    let texto = `${nombreCompleto} agregado(a).`;
+    const nombreCorto = `${form.nombres.trim()} ${form.apellidos.trim()}`;
+    let texto = `${nombreCorto} agregado(a).`;
     let tipoAviso: "ok" | "error" = "ok";
     if (form.conHijos) {
       const nuevaId = (creada as { id: string } | null)?.id;
@@ -687,7 +759,7 @@ export default function EquipoPage() {
     setForm(FORM_VACIO);
     // Antes de `cargar()`: el PIN tiene que estar en pantalla ya, no cuando
     // termine de releerse el equipo entero.
-    mostrarPin(nombreCompleto, pin);
+    mostrarPin(nombreCorto, pin);
     await cargar();
     avisar(tipoAviso, texto);
   }
@@ -1183,6 +1255,20 @@ export default function EquipoPage() {
     setMostrandoAlta(false);
     setEditandoId(null);
     setForm(FORM_VACIO);
+    setParecidas(null);
+  }
+
+  // «Ver en la lista» del aviso de parecidos: cierra el alta y deja la tabla
+  // mostrando a esa persona, con todos los filtros quitados —si ya salió, el
+  // filtro «Solo el equipo actual» la escondería—. Desde ahí se abre su ficha o,
+  // si ya salió, se reactiva con «•••».
+  function verEnLaLista(p: PersonaParecida) {
+    cerrarFormulario();
+    setBusca(`${p.nombres} ${p.apellidos}`);
+    setFSede("todas");
+    setFArea("todas");
+    setFEstado("todos");
+    setSoloSinSalario(false);
   }
 
   // Una sola columna, sin `sm:grid-cols-2`: ese breakpoint mira el ANCHO DE LA
@@ -1206,13 +1292,22 @@ export default function EquipoPage() {
   // ningún permiso)" contra el borde.
   const formulario = (modo: "alta" | "edicion") => (
     <div className="grid grid-cols-1 gap-4">
+      {/* Estos dos campos son el NOMBRE CORTO, no el nombre legal: «Elida» y
+          «Salinas», no «Elida Lizeth» y «Salinas Mamani». Se llamaban «Nombres» y
+          «Apellidos» —en plural, como un formulario del DNI— y quien los llenaba
+          con un nombre y un apellido «por practicidad» dejaba la duda de si
+          estaba cargando algo incompleto. El nombre completo vive en Datos
+          personales (`nombre_dni`) y es el que sale en los papeles: ver
+          `packages/shared/src/nombres.ts`. */}
       <label className="flex flex-col gap-1 text-sm">
-        Nombres
-        <input value={form.nombres} onChange={(e) => setForm({ ...form, nombres: e.target.value })} className="rounded-lg border px-3 py-2" />
+        Nombre corto{" "}
+        <span className="text-taupe">(el de todos los días: así se ve en el terminal y en el panel)</span>
+        <input value={form.nombres} onChange={(e) => { setForm({ ...form, nombres: e.target.value }); setParecidas(null); }} disabled={guardando} className="rounded-lg border px-3 py-2 disabled:opacity-50" />
       </label>
       <label className="flex flex-col gap-1 text-sm">
-        Apellidos
-        <input value={form.apellidos} onChange={(e) => setForm({ ...form, apellidos: e.target.value })} className="rounded-lg border px-3 py-2" />
+        Apellido corto{" "}
+        <span className="text-taupe">(el nombre completo del DNI se carga en Datos personales y es el que sale en contratos, boletas y liquidaciones)</span>
+        <input value={form.apellidos} onChange={(e) => { setForm({ ...form, apellidos: e.target.value }); setParecidas(null); }} disabled={guardando} className="rounded-lg border px-3 py-2 disabled:opacity-50" />
       </label>
       <label className="flex flex-col gap-1 text-sm">
         Sede
@@ -1237,20 +1332,37 @@ export default function EquipoPage() {
       {/* CARGO (0182) — va justo debajo del rol a propósito: son la pareja que
           hasta hoy estaba mezclada. El rol de arriba decide qué abre; esto
           decide cómo se la nombra. */}
-      <label className="flex flex-col gap-1 text-sm">
-        Cargo{" "}
-        <span className="text-taupe">
-          (cómo se la nombra en la columna Cargo y en su contrato. No cambia ningún permiso)
-        </span>
-        <input
-          type="text"
-          value={form.cargo}
-          onChange={(e) => setForm({ ...form, cargo: e.target.value })}
-          placeholder="Ej.: Practicante de Derecho, Socia, Asesor"
-          maxLength={60}
-          className="rounded-lg border bg-crema px-3 py-2"
-        />
-      </label>
+      {/* EL CARGO Y EL VÍNCULO NO SE PIDEN AL DAR DE ALTA (0506). Este formulario los
+          mostraba pero `crearPersona` NUNCA los mandaba: solo llegan al servidor los
+          siete datos de `fn_crear_persona`. Quien escribía «Atención al cliente» veía
+          «Sin cargo» en la fila nueva, creía que no se había guardado y volvía a dar
+          de alta a la misma persona —con el nombre completo esta vez—: así quedó una
+          registrada dos veces. Peor era el vínculo: elegir «Recibo por honorarios» o
+          «Practicante» no hacía nada, y la persona quedaba como «Planilla», que
+          acumula gratificación, CTS y vacaciones. Un campo que se muestra es una
+          promesa de que se guarda; los dos viven en «Editar», donde sí se guardan. */}
+      {modo === "edicion" ? (
+        <label className="flex flex-col gap-1 text-sm">
+          Cargo{" "}
+          <span className="text-taupe">
+            (cómo se la nombra en la columna Cargo y en su contrato. No cambia ningún permiso)
+          </span>
+          <input
+            type="text"
+            value={form.cargo}
+            onChange={(e) => setForm({ ...form, cargo: e.target.value })}
+            placeholder="Ej.: Practicante de Derecho, Socia, Asesor"
+            maxLength={60}
+            className="rounded-lg border bg-crema px-3 py-2"
+          />
+        </label>
+      ) : (
+        <p className="rounded-lg bg-hueso px-3 py-2 text-xs text-taupe">
+          El cargo, el tipo de vínculo y el salario se completan después, con «Editar» y el menú «•••» de
+          esta persona. Mientras tanto queda como «Planilla»: si es practicante o va por recibo por
+          honorarios, cámbialo en «Editar» ANTES de asignarle salario.
+        </p>
+      )}
       <label className="flex flex-col gap-1 text-sm">
         Área{" "}
         <span className="text-taupe">
@@ -1417,7 +1529,7 @@ export default function EquipoPage() {
             : "Asignación familiar (tiene hijos) — según el monto vigente en Configuración"}
         </label>
       )}
-      {puedeSalarios && (
+      {puedeSalarios && modo === "edicion" && (
         // EL CAMPO CON MÁS CONSECUENCIAS DEL FORMULARIO. Existe en la base desde la
         // 0085 y hasta la 0119 no se podía elegir desde ninguna pantalla, así que
         // todos quedaban en 'planilla' por defecto. Se muestra la consecuencia
@@ -1547,18 +1659,64 @@ export default function EquipoPage() {
           </span>
         </label>
       )}
+      {/* EL AVISO DE PARECIDOS (0506). Dice A QUIÉN se parece —nombre completo,
+          si sigue en el equipo, sede e ingreso—: un «ya hay alguien parecido,
+          ¿seguro?» que no nombra a nadie se confirma a ciegas. «Ver en la lista»
+          lleva a esa persona con los filtros quitados, porque quien ya salió está
+          escondida por el filtro «Solo el equipo actual». */}
+      {modo === "alta" && parecidas && parecidas.length > 0 && (
+        <div ref={avisoParecidasRef} tabIndex={-1} role="alert" className="rounded-lg border border-rojo/30 bg-rojo/10 p-4 text-sm outline-none">
+          <p className="font-medium text-rojo-profundo">
+            {parecidas.length === 1 ? "Ya hay alguien registrado con un nombre parecido" : "Ya hay personas registradas con un nombre parecido"}
+          </p>
+          <p className="mt-1 text-taupe">
+            Si es la misma persona, no la registres otra vez: ábrela en la lista y complétala ahí
+            {parecidas.some((x) => x.estado !== "activo") ? " (a quien ya salió se la reactiva desde su menú «•••»)" : ""}.
+            Si es otra persona, confirma que es distinta.
+          </p>
+          <ul className="mt-3 flex flex-col gap-2">
+            {parecidas.map((x) => (
+              <li key={x.persona_id} className="flex items-center justify-between gap-3 rounded-lg bg-papel px-3 py-2">
+                <span>
+                  <span className="font-medium">{x.nombres} {x.apellidos}</span>
+                  <span className="block text-xs text-taupe">
+                    {x.estado === "activo"
+                      ? "Está en el equipo"
+                      : `Salió${x.fecha_cese ? ` el ${fmtFechaDMA(x.fecha_cese)}` : ""}`}
+                    {" · "}{x.sede_codigo ?? "sin sede"}{" · "}ingresó {fmtFechaDMA(x.fecha_ingreso)}
+                  </span>
+                </span>
+                <Boton variante="secundario" tamano="sm" onClick={() => verEnLaLista(x)}>
+                  Ver en la lista
+                </Boton>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       <div className="flex justify-end gap-3">
         <Boton variante="secundario" onClick={cerrarFormulario} disabled={guardando}>
           Cancelar
         </Boton>
-        <Boton
-          variante="primario"
-          onClick={modo === "alta" ? crearPersona : guardarEdicion}
-          disabled={guardando}
-          cargando={guardando}
-        >
-          {modo === "alta" ? "Agregar (genera PIN)" : "Guardar cambios"}
-        </Boton>
+        {modo === "alta" && parecidas && parecidas.length > 0 ? (
+          <Boton
+            variante="primario"
+            onClick={() => void crearPersona(true)}
+            disabled={guardando}
+            cargando={guardando}
+          >
+            Es otra persona — agregar igual
+          </Boton>
+        ) : (
+          <Boton
+            variante="primario"
+            onClick={modo === "alta" ? () => void crearPersona(false) : guardarEdicion}
+            disabled={guardando}
+            cargando={guardando}
+          >
+            {modo === "alta" ? "Agregar (genera PIN)" : "Guardar cambios"}
+          </Boton>
+        )}
       </div>
     </div>
   );
@@ -1808,7 +1966,7 @@ export default function EquipoPage() {
               <Boton
                 variante="primario"
                 onClick={(e) => {
-                  setMostrandoAlta(true); setForm(FORM_VACIO); setSalEditId(null); setHistId(null); setCeseId(null);
+                  setMostrandoAlta(true); setForm(FORM_VACIO); setParecidas(null); setSalEditId(null); setHistId(null); setCeseId(null);
                   focoAlAbrir.current = e.currentTarget;
                 }}
               >

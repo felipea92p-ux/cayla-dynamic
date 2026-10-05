@@ -6238,6 +6238,7 @@ export type Database = {
       fn_crear_persona: {
         Args: {
           p_apellidos: string | null
+          p_confirmo_distinta?: boolean | null
           p_email: string | null
           p_funcion: string | null
           p_nombres: string | null
@@ -7477,6 +7478,18 @@ export type Database = {
         Returns: boolean
       }
       fn_personas_funciones: { Args: never; Returns: Json }
+      fn_personas_parecidas: {
+        Args: { p_apellidos: string | null; p_nombres: string | null }
+        Returns: {
+          apellidos: string
+          estado: string
+          fecha_cese: string | null
+          fecha_ingreso: string
+          nombres: string
+          persona_id: string
+          sede_codigo: string | null
+        }[]
+      }
       fn_personas_sin_horario_vigente: {
         Args: { p_dias?: number | null }
         Returns: {
