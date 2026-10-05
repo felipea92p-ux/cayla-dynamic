@@ -115,6 +115,21 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-10-05-el-terminal-muestra-en-que-punto-esta-cada-integrante",
+    fecha: "2026-10-05",
+    titulo: "El terminal muestra en qué punto del día está cada integrante",
+    queMejoro:
+      "En la pantalla de marcar, cada casilla ahora dice si la persona está laborando, en refrigerio, en pausa " +
+      "(por un trámite, una cita médica u otro motivo), con el turno terminado o sin haber entrado todavía. Se ve " +
+      "en el ícono sobre su foto, en el color de la casilla y en la línea con la hora bajo su nombre.\n\n" +
+      "Bajo el reloj hay una leyenda que cuenta cuántas personas hay en cada estado. Si tocas uno, la pantalla " +
+      "muestra solo a esas personas; vuelve sola a los 20 segundos, o al tocar «Ver todos» o cualquier nombre. " +
+      "Marcar funciona igual que siempre.\n\n" +
+      "Quien salió y volvió sigue mostrando a qué hora entró, y aparte de cuándo a cuándo estuvo fuera. Si la " +
+      "Mac no pudo confirmar el estado del día, las casillas se ven como antes, en vez de mostrar algo dudoso.",
+    audiencia: "todos",
+  },
+  {
     id: "2026-10-04-constancias-con-nombre-completo",
     fecha: "2026-10-04",
     titulo: "Las constancias de Normas y de Política salarial traen el nombre completo del DNI",

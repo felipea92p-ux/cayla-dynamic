@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { MarcajeDelDia, SiguienteAccion, TipoMarca } from "@cayla-dynamic/shared";
+import type { LucideIcon } from "lucide-react";
+import type { TipoMarca } from "@cayla-dynamic/shared";
 import { createTerminalSupabaseClient } from "@cayla-dynamic/database";
 import { Cargando } from "@/components/cargando";
-import { Insignia } from "@/components/ui/insignia";
 import type { RosterEntry } from "@/lib/terminal/offline-db";
-import { siguienteAccionPara } from "@/lib/terminal/estado-dia";
+import type { PresenciaCasilla } from "@/lib/terminal/presencia";
 import { inicialesDe, urlPublicaFotoPerfil } from "@/lib/foto-perfil";
+import { ESTILO_PRESENCIA, etiquetaDePresencia, type ClaveFiltro, type EstiloPresencia } from "./presencia-visual";
 
 // Estilos compartidos de la superficie clara del terminal (crema, líneas finas Sand).
 //
@@ -33,6 +34,12 @@ import { inicialesDe, urlPublicaFotoPerfil } from "@/lib/foto-perfil";
 // se repone donde se puede.
 const TILE =
   "cursor-pointer rounded-control border border-borde-control bg-papel transition-colors hover:border-rojo hover:bg-sand active:scale-95";
+// La casilla que SÍ dice en qué punto del día está la persona. El color del
+// borde y del fondo los pone el estado (`ESTILO_PRESENCIA`); acá solo lo que no
+// cambia. El hover mueve el borde a rojo igual que en TILE —feedback que se ve a
+// un metro— pero NO cambia el fondo: taparía el tono del estado.
+const TILE_PRESENCIA =
+  "cursor-pointer rounded-control border-[1.5px] transition-colors hover:border-rojo active:scale-95";
 const BTN_PRIMARIO =
   "cursor-pointer rounded-control bg-rojo px-5 py-3 font-medium text-crema transition-colors hover:bg-rojo-profundo active:scale-95";
 const BTN_SECUNDARIO =
@@ -89,51 +96,27 @@ export function SelectorSede({
  */
 export type EstadoRoster = "cargando" | "listo" | "error";
 
-// Traduce la siguiente acción disponible —la MISMA máquina de estados que
-// decide qué se ofrece al tocar el nombre, `siguienteAccionPara`— a lo que se
-// ve en la casilla ANTES de tocarla. Sin esto, tocar era la única forma de
-// consultar en qué estado está alguien, y tocar arranca la cuenta atrás de
-// 3 s que marca sola: una duda se volvía un marcaje.
-function estadoDeLaCasilla(accion: SiguienteAccion): {
-  variante: "neutral" | "advertencia" | "positivo" | "informativo";
-  texto: string;
-} {
-  switch (accion.modo) {
-    case "unico":
-      // "entrada": todavía no llegó hoy. Cualquier otro "unico" es el retorno
-      // de una salida temporal (almuerzo, trámite…) que quedó abierta.
-      return accion.tipo === "entrada"
-        ? { variante: "neutral", texto: "Entrar" }
-        : { variante: "advertencia", texto: "Volver" };
-    case "elegir_salida":
-      // Ya entró, no tiene una salida abierta pendiente de retorno: está
-      // trabajando y lo único que le queda hoy es elegir cómo sale.
-      return { variante: "positivo", texto: "Salir" };
-    case "cerrado":
-      return { variante: "informativo", texto: "Día cerrado" };
-  }
-}
-
 export function NombreGrid({
   roster,
   estado,
-  marcajesPorPersona,
+  presencia,
+  filtro = null,
   onSeleccionar,
   onReintentar,
 }: {
   roster: RosterEntry[];
   estado: EstadoRoster;
   /**
-   * Marcajes de HOY por persona — el mismo mapa que `page.tsx` ya trae en
-   * `marcajesHoyRef` con `cargarMarcajesHoyPorPersona()`, sin ninguna consulta
-   * nueva. Opcional: sin él la grilla vuelve a como estaba, todas las
-   * casillas iguales — pero entonces la única forma de saber si alguien ya
-   * marcó su entrada es tocar su nombre, y eso ya arranca la cuenta atrás que
-   * marca sola. Para que el punto de color se vea al día, quien llame a este
-   * componente necesita que este mapa se actualice cuando cambian los
-   * marcajes (hoy es un `ref`, que no fuerza un nuevo render por sí solo).
+   * En qué punto del día está cada persona (ver `lib/terminal/presencia.ts`),
+   * ya calculado. Opcional a propósito: sin él, la grilla es la de siempre —todas
+   * las casillas iguales—. Quien llama lo omite mientras NO pudo confirmar el
+   * estado de hoy contra el servidor: un mapa vacío significa «todavía no lo
+   * sé», no «nadie ha entrado», y pintar a todo el equipo como «sin entrada»
+   * sería acusar de más (el peor error de este sistema).
    */
-  marcajesPorPersona?: Map<string, MarcajeDelDia[]>;
+  presencia?: Map<string, PresenciaCasilla>;
+  /** Muestra solo a quienes están en ese estado. Sin `presencia` no hace nada. */
+  filtro?: ClaveFiltro | null;
   onSeleccionar: (persona: RosterEntry) => void;
   onReintentar: () => void;
 }) {
@@ -186,33 +169,58 @@ export function NombreGrid({
     return <p className="font-serif text-2xl text-taupe">Nadie en esta sede todavía.</p>;
   }
 
+  // Con un filtro puesto solo se ven quienes están en ese estado. Oculta, no
+  // atenúa: quien busca «¿quién está en refrigerio?» no quiere leer 25 nombres.
+  // Quien tiene el estado lo quita solo a los pocos segundos (page.tsx), porque
+  // un filtro olvidado les quita a las demás su nombre para marcar.
+  const visibles = filtro && presencia ? roster.filter((p) => presencia.get(p.id)?.clave === filtro) : roster;
+
+  if (visibles.length === 0) {
+    return (
+      <div className="flex w-full max-w-5xl flex-1 items-center justify-center">
+        <p className="font-serif text-2xl text-taupe">Nadie en este estado ahora.</p>
+      </div>
+    );
+  }
+
   return (
     // `max-w-2xl` + tope en 3 columnas eran una grilla pensada para un
     // teléfono: en un monitor de sede de 1920px la lista ocupaba un tercio de
     // la pantalla y la fila 13 caía por debajo del borde sin que nada avisara
     // que había más gente. `lg:`/`xl:` dejan que el ancho del monitor sume
     // columnas en vez de apilar filas.
-    <div className="grid w-full max-w-5xl grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-      {roster.map((persona) => {
-        const accion = marcajesPorPersona
-          ? siguienteAccionPara(marcajesPorPersona.get(persona.id) ?? [])
-          : null;
-        const casilla = accion ? estadoDeLaCasilla(accion) : null;
+    <div className="grid w-full max-w-5xl grid-cols-2 content-start gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+      {visibles.map((persona) => {
+        const pres = presencia?.get(persona.id);
+        const estilo = pres ? ESTILO_PRESENCIA[pres.clave] : null;
         return (
           <button
             key={persona.id}
             onClick={() => onSeleccionar(persona)}
-            className={`${TILE} flex flex-col items-center gap-2 px-4 py-5 font-serif text-xl`}
+            // El estado ya no se dice con una palabra en la casilla —lo dicen el
+            // ícono de la foto y la leyenda—, así que quien usa lector de
+            // pantalla lo escucha acá completo.
+            aria-label={
+              pres
+                ? `${persona.nombres} ${persona.apellidos}: ${etiquetaDePresencia(pres.clave)}, ${pres.detalle}${
+                    pres.detalle2 ? `, ${pres.detalle2}` : ""
+                  }`
+                : undefined
+            }
+            className={
+              estilo
+                ? `${TILE_PRESENCIA} ${estilo.tile} flex flex-col items-center gap-1 px-3 pb-4 pt-5 text-center font-serif text-xl`
+                : `${TILE} flex flex-col items-center gap-2 px-4 py-5 font-serif text-xl`
+            }
           >
-            <AvatarPersona persona={persona} />
-            <span>
+            <AvatarPersona persona={persona} presencia={estilo} />
+            <span className={estilo?.apagada ? "text-taupe" : undefined}>
               {persona.nombres} {persona.apellidos}
             </span>
-            {casilla && (
-              <Insignia variante={casilla.variante} tamano="sm" className="font-sans">
-                {casilla.texto}
-              </Insignia>
+            {pres && estilo && (
+              <span className={`font-sans text-sm font-medium ${estilo.texto}`}>{pres.detalle}</span>
             )}
+            {pres?.detalle2 && <span className="font-sans text-sm text-taupe">{pres.detalle2}</span>}
           </button>
         );
       })}
@@ -227,7 +235,7 @@ export function NombreGrid({
  * parecidos, pero NO es una prueba de identidad: el terminal sigue marcando
  * sin PIN, a propósito (decisión de Felipe, jul-2026).
  */
-function AvatarPersona({ persona }: { persona: RosterEntry }) {
+function AvatarPersona({ persona, presencia }: { persona: RosterEntry; presencia?: EstiloPresencia | null }) {
   // El cliente es un singleton cacheado por storageKey (client.ts): pedirlo
   // acá no crea una conexión nueva por cada tile de la grilla.
   const supabase = useMemo(() => createTerminalSupabaseClient(), []);
@@ -241,20 +249,46 @@ function AvatarPersona({ persona }: { persona: RosterEntry }) {
   // terminal está funcionando de memoria.
   const [fotoFallo, setFotoFallo] = useState(false);
 
-  if (url && !fotoFallo) {
-    return (
+  // Quien ya terminó o hoy no trabaja se ve apagado: ahí no hay nada que hacer.
+  const apagada = presencia?.apagada ? "opacity-50" : "";
+
+  const foto =
+    url && !fotoFallo ? (
       // eslint-disable-next-line @next/next/no-img-element -- foto de un bucket externo, no un asset local
       <img
         src={url}
         alt=""
-        className="h-14 w-14 rounded-pildora object-cover"
+        className={`h-full w-full rounded-pildora object-cover ${apagada}`}
         onError={() => setFotoFallo(true)}
       />
+    ) : (
+      <span
+        className={`flex h-full w-full items-center justify-center rounded-pildora bg-sand text-lg text-taupe ${apagada}`}
+      >
+        {inicialesDe(persona.nombres, persona.apellidos)}
+      </span>
     );
-  }
+
   return (
-    <span className="flex h-14 w-14 items-center justify-center rounded-pildora bg-sand text-lg text-taupe">
-      {inicialesDe(persona.nombres, persona.apellidos)}
+    <span className={`relative block h-14 w-14 shrink-0 ${presencia ? "mb-2" : ""}`}>
+      {foto}
+      {presencia && <IconoDeEstado presencia={presencia} />}
+    </span>
+  );
+}
+
+/**
+ * El círculo del estado, en la esquina de la foto. Su borde es del color del
+ * FONDO de la casilla (`--bgt`), así que parece recortado de la foto en vez de
+ * pegado encima.
+ */
+function IconoDeEstado({ presencia }: { presencia: EstiloPresencia }) {
+  const Icono: LucideIcon = presencia.Icono;
+  return (
+    <span
+      className={`absolute -bottom-2 -right-2 flex h-7 w-7 items-center justify-center rounded-pildora border-2 border-[var(--bgt)] ${presencia.punto}`}
+    >
+      <Icono size={15} strokeWidth={2.5} aria-hidden />
     </span>
   );
 }

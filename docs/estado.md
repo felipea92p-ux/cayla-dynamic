@@ -6,6 +6,51 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-10-05 — El terminal muestra en qué punto del día está cada integrante · SIN SQL · ESCRITO Y PROBADO · COMMITEADO EN LA RAMA, SIN FUSIONAR
+
+**Qué es.** En la pantalla de marcar, cada casilla dice si la persona está
+*laborando*, *en refrigerio*, *en pausa* (trámite, médico, personal, otro),
+con el *turno terminado* o *sin entrada*: ícono sobre la foto, tono de la
+casilla y una línea con la hora. Bajo el reloj hay una leyenda con el conteo de
+cada estado que también FILTRA (oculta a los demás; se quita sola a los 20 s y
+al tocar un nombre). El reloj no se tocó.
+
+**No hay migración.** El estado se DERIVA de los marcajes que el terminal ya
+cargaba, y «entra 14:00» / «Libre hoy» salen de los `horarios_asignados` que
+`sugerencias.ts` ya traía. Al ser solo frontend, **fusionar = desplegar**
+(main se publica sola): no hay nada que pegar antes.
+
+**Dónde vive.**
+- `packages/shared/src/attendance-state-machine.ts` → `estadoPresencia()`. Misma
+  lógica, rama por rama, que `determinarSiguienteAccion`; la prueba
+  `tests/estado-presencia.test.ts` las cruza sobre ~22 000 secuencias de marcas y
+  se comprobó que SÍ falla si una diverge (se rompió a propósito).
+- `apps/web/lib/terminal/presencia.ts` → `presenciaDeLaCasilla()`: lo que dice la
+  línea de cada casilla (función pura, probada en `tests/presencia-casilla.test.ts`).
+- `apps/web/app/(terminal)/terminal/marcar/presencia-visual.tsx` → colores,
+  íconos y la leyenda; `components.tsx` (casilla) y `page.tsx` (cableado).
+- `globals.css`: dos tokens nuevos, `--color-azul` y `--color-ceniza` (ver CLAUDE.md).
+
+**Tres decisiones que importan.**
+1. **Sin estado confirmado, no se pinta nada.** Si el terminal no pudo leer las
+   marcas de hoy (arranque sin red), un mapa vacío no significa «nadie entró»:
+   las casillas se ven como siempre y no hay leyenda. Pintar a todos «sin
+   entrada» sería acusar de más.
+2. **La casilla dice la hora de la ENTRADA, no la del regreso.** «Desde 13:45»
+   tras volver del refrigerio se leía como una llegada tardía. Ahora dice «entró
+   08:02» y, aparte, «salió 13:00 · volvió 13:45» (el regreso se empareja con SU
+   salida: con varias, la del trámite de la tarde y no la del refrigerio). Lo detectó quien probó el prototipo.
+3. **Pasada su hora de entrada, la casilla NO dice «debía entrar».** Dice «aún sin
+   entrada», igual que quien no tiene horario: la tardanza se mide en su reporte,
+   no en una pantalla que ve todo el equipo.
+
+**Para ver en la tienda.** Que el azul (en pausa) y el gris (turno terminado) se
+distingan bien en la pantalla real, y que 20 s de filtro sea el tiempo justo (con
+la tienda llena quizá convenga 10-15 s: es la constante `SEGUNDOS_FILTRO` de
+`page.tsx`). La pantalla de marcar ya NO tiene ningún texto de instrucción.
+
+---
+
 ## 2026-10-04 — El rastro de correcciones solo lo escriben las funciones · migración 0508 · PEGADA EN PRODUCCIÓN (registro 508, sin políticas de INSERT) · PR #491 (BORRADOR) SIN FUSIONAR
 
 **LO QUE HAY QUE SABER PRIMERO (2026-10-04, medido en producción):** la 0508 **ya está pegada en producción**:

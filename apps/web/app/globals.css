@@ -53,6 +53,35 @@
      opacidad y el fondo con que el componente lo pinta de verdad, nunca sobre
      el token plano. */
   --color-pizarra: #4c5d6e;
+  /* Trece tokens desde el 2026-10-05: dos más, para el estado de cada integrante
+     en el terminal (Laborando, En refrigerio, En pausa, Turno terminado). Los
+     cuatro necesitaban su propio color —antes «En refrigerio» y «En pausa»
+     compartían ámbar y no se distinguían— y ninguno de los once que había
+     cubría un azul de «afuera, en la calle» ni un gris de «ya terminó».
+     Elegidos midiendo, no a ojo. Separación entre los cuatro colores del estado
+     (distancia de color ΔE; menos de ~10 se confunde), el par más cercano
+     siempre es verde/ceniza:
+       visión normal 20 (claro) · 24 (oscuro)     deuteranopía 10.6 · 12.9
+       protanopía    14.2 · 17.5                  tritanopía   13.0 · 14.6
+     El número más ajustado es 10.6, y por eso el color nunca va solo: cada
+     estado lleva además su ícono y su palabra, y «Turno terminado» se ve
+     apagado (foto y nombre atenuados, casilla más tenue). La simulación de
+     daltonismo es una aproximación (modelo de Machado): la prueba final es
+     verlo en la pantalla de la tienda.
+     Todo contraste se mide como el componente pinta de verdad, sobre papel:
+       azul    texto sobre la casilla teñida al 11 %   5.21:1 (claro) · 6.43:1 (oscuro)
+               texto sobre insignia al 15 % sobre crema 4.61:1 (claro) · 6.54:1 (oscuro)
+               ícono crema sobre el relleno             5.69:1 (claro) · 8.83:1 (oscuro)
+       ceniza  texto sobre la casilla teñida al 7 %    5.45:1 (claro) · 5.72:1 (oscuro)
+               texto sobre insignia al 15 % sobre crema 4.57:1 (claro) · 5.46:1 (oscuro)
+               ícono crema sobre el relleno             5.60:1 (claro) · 7.09:1 (oscuro)
+     Ceniza partió en #68645c y como insignia daba 4.27:1 sobre crema, bajo el
+     4.5:1 de WCAG AA: se oscureció un paso a #635f58 en vez de dejarlo para el
+     día en que alguien lo use así y nadie lo mida. Azul: no es el pizarra —ese
+     es gris azulado de «informativo» y en pantalla se confunde con el gris del
+     turno terminado—; es un azul franco. */
+  --color-azul: #2f5f9e; /* en pausa: trámite, médico, personal… */
+  --color-ceniza: #635f58; /* turno terminado */
 
   /* ── Radios ───────────────────────────────────────────────────
      Antes convivían 7 escalas (rounded, rounded-md, rounded-lg, rounded-xl,
@@ -131,6 +160,8 @@
     --color-ambar: #c99a4a;
     --color-hueso: #15110d;
     --color-pizarra: #9db0c2;
+    --color-azul: #9bbbe8;
+    --color-ceniza: #aaa59b;
     /* Sin esto, el calendario de <input type="date">, la lista de <select>,
        las scrollbars y el resaltado de autocompletado los sigue pintando el
        navegador en su paleta clara aunque la app esté en oscuro — invisibles
@@ -151,6 +182,8 @@
   --color-ambar: #c99a4a;
   --color-hueso: #15110d;
   --color-pizarra: #9db0c2;
+  --color-azul: #9bbbe8;
+  --color-ceniza: #aaa59b;
   color-scheme: dark;
 }
 
@@ -604,7 +637,7 @@
      su valor de pantalla al imprimir. Ya se desincronizó una vez (verde/ámbar
      quedaron en los valores que el 2026-09-06 se retiraron por dar justo el
      mínimo de WCAG AA, y faltaban hueso/pizarra, agregados ese mismo día).
-     Los once valores de acá son una copia exacta de los de `@theme` en modo
+     Los trece valores de acá son una copia exacta de los de `@theme` en modo
      claro — si uno se retona, este bloque también. */
   :root:not([data-tema="claro"]),
   :root[data-tema="claro"],
@@ -620,6 +653,8 @@
     --color-ambar: #74501a;
     --color-hueso: #eae1d2;
     --color-pizarra: #4c5d6e;
+    --color-azul: #2f5f9e;
+    --color-ceniza: #635f58;
     color-scheme: light;
   }
 
