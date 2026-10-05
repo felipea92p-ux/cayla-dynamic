@@ -363,6 +363,7 @@ with repo(numero, nombre, nunca) as (values
     (502, 'la_subvencion_pactada_de_los_practicantes_sigue_a_la_rmv_de_1230', false),
     (503, 'el_archivo_de_la_empresa', false),
     (505, 'el_feriado_posterior_al_cese_no_corresponde', false),
+    (506, 'un_alta_que_se_parece_a_alguien_pide_confirmacion', false),
     (507, 'el_alta_de_una_persona_solo_entra_por_fn_crear_persona', false)
 ),
 diff as (

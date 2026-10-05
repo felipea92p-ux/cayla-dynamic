@@ -115,6 +115,19 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-10-04-equipo-avisa-si-ya-esta-registrada",
+    fecha: "2026-10-04",
+    titulo: "Al agregar a alguien, Equipo avisa si ya está registrada",
+    queMejoro:
+      "Antes de dar de alta a una persona, Equipo revisa si ya hay alguien con un nombre parecido —aunque esté " +
+      "escrito más corto, sin tildes o con los apellidos cruzados— y lo muestra con su sede y su fecha de ingreso. " +
+      "Si es la misma, se abre desde la lista; si es otra, se confirma con un clic. Incluye a quien ya salió: " +
+      "esa persona se reactiva, no se registra de nuevo.\n\n" +
+      "El formulario de alta también cambió: ya no pide Cargo ni Tipo de vínculo, porque nunca se guardaban al " +
+      "agregar y la fila nueva salía «Sin cargo». Esos datos se completan después, con «Editar».",
+    audiencia: "do",
+  },
+  {
     id: "2026-10-04-nombre-completo-en-los-papeles",
     fecha: "2026-10-04",
     titulo: "Tu boleta y tus papeles de salida llevan tu nombre completo, como en el DNI",
