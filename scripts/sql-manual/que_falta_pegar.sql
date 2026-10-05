@@ -364,7 +364,8 @@ with repo(numero, nombre, nunca) as (values
     (503, 'el_archivo_de_la_empresa', false),
     (505, 'el_feriado_posterior_al_cese_no_corresponde', false),
     (506, 'un_alta_que_se_parece_a_alguien_pide_confirmacion', false),
-    (507, 'el_alta_de_una_persona_solo_entra_por_fn_crear_persona', false)
+    (507, 'el_alta_de_una_persona_solo_entra_por_fn_crear_persona', false),
+    (509, 'tres_tablas_que_solo_se_escriben_por_sus_funciones', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
