@@ -70,9 +70,9 @@ pantallas (solo SQL, pruebas y notas), pero fusionar es publicar `main`.
 en falso para INSERT, UPDATE, DELETE, TRUNCATE e INSERT por columna. 3a: `trg_personas_cese_solo_por_rpc` activo
 (`tgenabled = 'O'`). 3b: `authenticated` no actualiza `asignaciones_educacion`. 2a: UNA fila, `fn_educacion_cerrar_al_cesar`.
 O sea: la migración hizo en producción lo que decía, y las premisas con que se escribió (el cese con educación no depende
-del INSERT de `authenticated`) siguen cumpliéndose. **Falta la 2b** (se espera vacía; ahora sirve para saber si algo hecho
-a mano dejó de poder escribir la auditoría). No se ejercitó un cese real con educación vigente en producción: la evidencia es
-el catálogo y la prueba 402, no el uso.
+del INSERT de `authenticated`) siguen cumpliéndose. **2b: vacía** (producción, 2026-10-04, captura del SQL Editor: «Success. No rows returned»): ninguna función, definer o no,
+actualiza, borra ni vacía la auditoría, así que nada dependía de esos privilegios que la 0508 revocó. No se ejercitó un cese
+real con educación vigente en producción: la evidencia es el catálogo y la prueba 402, no el uso.
 
 **Lo que ese resultado NO dice, y una divergencia menor.** La primera consulta de privilegios (`authenticated = REFERENCES,
 SELECT, TRIGGER`; `anon = REFERENCES, TRIGGER`) y la de «62 de 92 tablas con INSERT y TRUNCATE» se corrieron con la 0508 ya
