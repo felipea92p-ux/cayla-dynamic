@@ -6,18 +6,18 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-10-04 — El rastro de correcciones solo lo escriben las funciones · migración 0508 · ESCRITA Y PROBADA · SIN PEGAR · PR #491 (BORRADOR) · EN PRODUCCIÓN YA ESTÁ CERRADA PARA ESCRITURA (falta confirmar que no es por la 0508)
+## 2026-10-04 — El rastro de correcciones solo lo escriben las funciones · migración 0508 · PEGADA EN PRODUCCIÓN (registro 508, sin políticas de INSERT) · PR #491 (BORRADOR) SIN FUSIONAR
 
-**LO QUE HAY QUE SABER PRIMERO (2026-10-04, medido en producción):** el hueco de abajo existe en el REPO y en toda base
-construida de las migraciones (CI, local). En producción, hoy, `anon` y `authenticated` NO pueden insertar, actualizar, borrar
-ni vaciar `correcciones_auditoria` (`has_table_privilege` y `has_any_column_privilege` en falso). Eso **probablemente** no
-viene de la 0508 —`anon` tampoco tiene SELECT, y la 0508 no lo quita—, o sea un revoke manual previo fuera del repo, **pero
-no está confirmado**: falta la fila de `migraciones_aplicadas` (507/508) que distinga «antes» de «después» de pegar (la lección
-que dejó la 0507, abajo). **Sobre `personas` NO se concluye nada:** `authenticated` no inserta allí, pero la 0507 ya estaba
-pegada cuando se midió, así que ese `false` no dice si el hueco existió alguna vez en producción (una versión anterior de
-esta entrada lo leyó como confirmación, y la propia 0507 documenta que esa lectura es el error a evitar; queda retirada). Lo
-que la 0508 vale seguro: alinear el repo y dejar la protección bajo control de versiones, con su prueba. Todo lo medido
-con `set role` más abajo es sobre la base desechable, no sobre producción.
+**LO QUE HAY QUE SABER PRIMERO (2026-10-04, medido en producción):** la 0508 **ya está pegada en producción**:
+`migraciones_aplicadas` trae **508 · `0508_el_rastro_de_correcciones_solo_lo_escriben_las_funciones`** (número Y nombre) y de
+la tabla solo quedan las tres políticas de lectura (`auditoria_select_admin_lider`, `_propia`, `_supervisor`); las dos de
+INSERT ya no existen. Por eso todo lo medido antes allí sobre esta tabla —`anon` y `authenticated` sin INSERT, UPDATE, DELETE
+ni TRUNCATE— es el estado POSTERIOR a la migración, y **no dice si el hueco existió en producción antes**: es desconocido. Dos
+versiones de esta entrada lo leyeron como «producción ya venía cerrada, probablemente por un revoke manual»; era una lectura
+sin respaldo, la misma trampa que dejó anotada la 0507 (una comprobación sin la fila del registro no distingue «antes» de
+«después»), y yo no sabía que se había pegado. Lo mismo vale para `personas` y la 0507. El hueco SÍ existe en el repo y en
+toda base construida de él (CI, local) hasta esta migración. Todo lo medido con `set role` más abajo es sobre la base
+desechable.
 
 **Origen:** al medir la 0507 (alta de personas solo por `fn_crear_persona`) salió un hueco hermano y más grave:
 `correcciones_auditoria` —el rastro de toda edición manual, del que cuelgan el expediente disciplinario y el rastro de
@@ -55,44 +55,33 @@ toca la auditoría y solo para LEERLA (cuenta filas que escriben `fn_set_horario
 ambas DEFINER de `postgres`): se rompe antes por el entorno, así que ese tramo queda cubierto por estructura y no por
 medición. En el desechable se añadió `auth.users.email_confirmed_at` y un `storage` mínimo (receta de la memoria).
 
-**Antes de pegar** (la 0508 va ANTES de fusionar el PR, como toda migración): tres consultas de solo lectura a producción,
+**Antes de pegar** (histórico: ya se pegó; el orden «pegar antes de fusionar» se cumple): tres consultas de solo lectura a producción,
 escritas en el encabezado, con su resultado esperado — (1) las DOS políticas de INSERT y los privilegios de la tabla; (2)
 que la ÚNICA función INVOKER que escribe la auditoría sea `fn_educacion_cerrar_al_cesar` y que NINGUNA actualice ni borre;
 (3) que `trg_personas_cese_solo_por_rpc` exista y esté activo (`tgenabled = 'O'`) y que `authenticated` NO pueda hacer
 UPDATE sobre `asignaciones_educacion`. Si la (2) devuelve algo más, parar: esa función dejaría de funcionar. No depende de
 la 0506 (ya en `main`, #489; su `fn_crear_persona` es DEFINER y no toca la auditoría) ni de la 0507 (ya pegada en
 producción y fusionada, #490): no toca sus funciones ni sus tablas; se probó sobre `main` + 0507 + 0508 (402, 401 y 388 pasan; suite entera con los mismos 19 archivos
-rotos de la línea base). Commiteada y subida (PR #491, borrador): `dame-el-sql.sh 508` ya puede entregarla.
+rotos de la línea base). Commiteada y subida (PR #491, borrador). **Como ya está pegada, el PR puede fusionarse cuando Felipe quiera**: no cambia
+pantallas (solo SQL, pruebas y notas), pero fusionar es publicar `main`.
 
-**Resultado en producción (2026-10-04) — cuadran las premisas de seguridad; lo que no cuadraba era el supuesto de partida.**
-Medido: B (privilegios autoritativos, con columnas): `anon` y `authenticated` en falso para INSERT, UPDATE, DELETE, TRUNCATE y
-INSERT por columna. 3a: `trg_personas_cese_solo_por_rpc` activo (`tgenabled = 'O'`). 3b: `authenticated` no actualiza
-`asignaciones_educacion`. 2a: UNA fila, `fn_educacion_cerrar_al_cesar`. `personas`: `authenticated` NO inserta. **Faltan** la
-1a (políticas: si siguen las dos de INSERT, es lo único que la 0508 cambiaría allá) y la 2b (se espera vacía). Como los
-privilegios ya están revocados, pegar la 0508 es idempotente e inocua en producción: lo que hace es dejar el repo igual y
-registrar la 508 (si se fusiona sin pegar, `que_falta_pegar` la marcará). Detalle de cómo se llegó a esto (primera consulta,
-la que NO cuadraba):
-`authenticated` = `REFERENCES, SELECT, TRIGGER`; `anon` = `REFERENCES, TRIGGER`; `postgres` y `service_role` todo. El repo (y el
-desechable construido de él) da `arwdDxtm` a `anon` y a `authenticated`. O sea: en producción `authenticated` **ya no tiene
-INSERT, UPDATE, DELETE ni TRUNCATE** sobre esta tabla (a nivel de tabla; los privilegios por columna no se miraron), y ninguna
-migración ni documento del repo lo explica —hay `revoke all … from authenticated, anon` para otras tablas, no para esta—: un
-revoke a mano fuera del repo o unos privilegios por defecto distintos. Consecuencias: (1) el ataque medido en el desechable
-**puede no existir en producción para esta tabla**: ahí «un lider_do inserta directo» daría `permission denied`; no se probó
-allá y no se debe afirmar; (2) la 0508 sería en producción un no-op en privilegios (solo borraría las políticas de INSERT si
-existen) y su valor pasa a ser que **el repo reproduzca a producción** y que las bases nuevas (CI, local) nazcan igual de
-cerradas; (3) la cifra «TRUNCATE en 63 de 91 tablas» era del desechable; **medida en producción (consulta C): 62 de 92 tablas dan
-INSERT y TRUNCATE a `authenticated`**, así que los defaults son los mismos que en el repo. **La lista de las 62 (TRUNCATE)
-SÍ trae** `marcajes`, `jornadas`, `periodos_planilla`, `expediente_disciplinario`, `liquidacion_pagada`,
-`planilla_pagada_detalle`, `movimientos_planilla`, `asignaciones_salario`, `datos_personales`, `politica_salarial`… y **NO trae
-`personas` ni `correcciones_auditoria`**. (Las cuentas: desechable 63 − 2 + 1 tabla de respaldo = 62; es una inferencia, no
-una medición, y **para `personas` NO se sostiene**: la 0507 solo revoca INSERT, de modo que `personas` ya no tenía TRUNCATE
-para `authenticated` —su ACL medida en producción es `rwdxtm`, sin `D`— sin que nadie lo haya endurecido: es un ACL distinto
-del del desechable, cuyo origen no se investigó.) Y la comprobación
-`has_table_privilege('authenticated','public.personas','INSERT')` dio `false`, pero **con la 0507 ya pegada**: no prueba
-que el hueco no existiera. Para `correcciones_auditoria` sí hay una divergencia real con el repo (ni INSERT, ni UPDATE, ni
-DELETE, ni TRUNCATE, y `anon` sin SELECT), de causa no confirmada. Consulta 2: coincide (UNA fila,
-`fn_educacion_cerrar_al_cesar`, `prosecdef = f`). Consulta 3b: coincide (`authenticated` NO actualiza
-`asignaciones_educacion`). (La lista de lo que faltaba ya quedó reducida arriba: solo la 1a y la 2b.)
+**Resultado en producción (2026-10-04) — TODO medido DESPUÉS de pegar la 0508.** Registro: 507 y 508 con sus nombres exactos.
+1a: la tabla tiene solo las tres políticas de lectura. B (privilegios autoritativos, con columnas): `anon` y `authenticated`
+en falso para INSERT, UPDATE, DELETE, TRUNCATE e INSERT por columna. 3a: `trg_personas_cese_solo_por_rpc` activo
+(`tgenabled = 'O'`). 3b: `authenticated` no actualiza `asignaciones_educacion`. 2a: UNA fila, `fn_educacion_cerrar_al_cesar`.
+O sea: la migración hizo en producción lo que decía, y las premisas con que se escribió (el cese con educación no depende
+del INSERT de `authenticated`) siguen cumpliéndose. **Falta la 2b** (se espera vacía; ahora sirve para saber si algo hecho
+a mano dejó de poder escribir la auditoría). No se ejercitó un cese real con educación vigente en producción: la evidencia es
+el catálogo y la prueba 402, no el uso.
+
+**Lo que ese resultado NO dice, y una divergencia menor.** La primera consulta de privilegios (`authenticated = REFERENCES,
+SELECT, TRIGGER`; `anon = REFERENCES, TRIGGER`) y la de «62 de 92 tablas con INSERT y TRUNCATE» se corrieron con la 0508 ya
+pegada, así que no dicen cómo estaba antes; la lista de las 62 SÍ trae `marcajes`, `jornadas`, `periodos_planilla`,
+`expediente_disciplinario`, `liquidacion_pagada`, `planilla_pagada_detalle`, `movimientos_planilla`, `asignaciones_salario`,
+`datos_personales`, `politica_salarial`… y no trae `correcciones_auditoria` (explicado por la 0508) ni `personas` (la 0507
+solo revoca INSERT, así que su falta de TRUNCATE no viene de ella: ACL `rwdxtm`, origen no investigado). Lo único que la 0508
+no explica es que `anon` tampoco tenga SELECT sobre la tabla (la migración no se lo quita y el repo se lo da): una divergencia
+de privilegios por defecto, sin efecto sobre la escritura.
 
 **Abierto — otras tablas con escritura directa (reportado, NO tocado; decide Felipe).** **Las seis tablas de esta lista SÍ
 están en la lista de las 62 con TRUNCATE de producción**, o sea con los privilegios por defecto; que tengan también INSERT

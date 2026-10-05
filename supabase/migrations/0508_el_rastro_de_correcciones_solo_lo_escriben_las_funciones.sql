@@ -131,40 +131,31 @@
 --   · Que 63 de 91 tablas den TRUNCATE a `authenticated` por los privilegios por
 --     defecto de Supabase. Aquí solo se cierra en la auditoría.
 --
--- LO QUE RIGE EN PRODUCCIÓN (medido el 2026-10-04 en el SQL Editor; TODO lo de
--- arriba se midió en la base desechable, que se construye de estas migraciones)
---   · `anon` y `authenticated` NO pueden insertar, actualizar, borrar ni vaciar
---     esta tabla —tampoco por columna—: solo tienen REFERENCES, SELECT (solo
---     `authenticated`) y TRIGGER. Ninguna migración del repo lo hace: parece un
---     revoke manual, fuera del repo (`anon` sin SELECT, que esta migración no
---     quita, apunta a uno previo). O sea, el ataque de arriba probablemente
---     NO existe en producción (no se probó allá); existe en el repo y en toda
---     base construida de él (CI, local). SIN CONFIRMAR que esto no sea efecto
---     de esta misma migración ya pegada: la consulta 0 de abajo lo dice. (Lección
---     de la 0507: una comprobación «antes de pegar» sin la fila de
---     `migraciones_aplicadas` no distingue «antes» de «después».)
---   · Por eso en producción esta migración es, en lo que a privilegios toca,
---     un no-op idempotente. Lo que hace es: (1) borrar las dos políticas de
---     INSERT, si siguen ahí (la consulta 1 de abajo lo dice; su resultado no se
---     había recibido al escribir esto); (2) que el repo reproduzca a producción
---     y toda base nueva nazca igual de cerrada; (3) dejar la protección bajo
---     control de versiones, con su prueba (402).
+-- LO QUE SE MIDIÓ EN PRODUCCIÓN (2026-10-04, SQL Editor) — OJO: DESPUÉS DE PEGAR ESTA
+-- MIGRACIÓN. `migraciones_aplicadas` ya traía la fila 508 con este nombre y de la
+-- tabla solo quedaban las tres políticas de lectura. Lo de arriba (el ataque, el
+-- TRUNCATE) se midió en la base desechable, que se construye de estas migraciones.
+--   · Hoy `anon` y `authenticated` NO pueden insertar, actualizar, borrar ni vaciar
+--     esta tabla —tampoco por columna—: es lo que esta migración hace, y no dice
+--     nada sobre si el hueco existió allí antes (se llegó a leer como «producción ya
+--     venía cerrada»; era la lectura equivocada, la misma de la 0507: una
+--     comprobación sin la fila del registro no distingue «antes» de «después»).
 --   · Las premisas del cese, comprobadas en producción: el trigger
 --     `trg_personas_cese_solo_por_rpc` está activo (`tgenabled = 'O'`), y
 --     `authenticated` no puede hacer UPDATE sobre `asignaciones_educacion`.
 --     La única función INVOKER que escribe la auditoría es
 --     `fn_educacion_cerrar_al_cesar`, como en el repo.
+--   · Divergencia menor que esta migración NO explica: `anon` tampoco tiene SELECT
+--     sobre la tabla (el repo se lo daba y aquí no se lo quita). Sin efecto sobre la
+--     escritura.
 --
 -- ANTES DE PEGAR — CONSULTAS DE SOLO LECTURA A PRODUCCIÓN (SQL Editor).
 -- Ninguna modifica nada. Confirman que producción se parece a lo que esta
--- migración da por cierto; si alguna no cuadra, parar y avisar. Pendientes al
--- 2026-10-04: la 0, la 1 (políticas) y la 2 segunda consulta. Ya medidas y
--- cuadradas: la 1 de privilegios (ver arriba: distinta del repo, y está bien), la
--- 2 primera consulta y la 3.
+-- migración da por cierto; si alguna no cuadra, parar y avisar. (Ya está pegada;
+-- se dejan por si hay que repetirla en otro entorno. INCLUYE el registro en la
+-- primera, para saber si es «antes» o «después».)
 --
---   -- 0) Esperado: SIN la fila 508 (si aparece, la 0508 ya está pegada y lo de
---   --    arriba sobre «producción ya estaba cerrada» no se puede leer como previo).
---   --    Que 507 aparezca es lo esperado: se pegó el 2026-10-04.
+--   -- 0) Esperado ANTES de pegar: SIN la fila 508. (Con ella, ya está pegada.)
 --   select numero, nombre from migraciones_aplicadas where numero in (507, 508) order by 1;
 --
 --   -- 1) Esperado en el REPO: DOS políticas de INSERT (auditoria_insert_admin_lider
