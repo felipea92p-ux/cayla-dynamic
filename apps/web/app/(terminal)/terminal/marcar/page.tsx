@@ -25,7 +25,7 @@ import { conTope, topeDeRed } from "@/lib/terminal/tope-de-red";
 import { cargarRoster } from "@/lib/terminal/roster";
 import { cargarMarcajesHoyPorPersona, confirmarEstadoPuntual, siguienteAccionPara } from "@/lib/terminal/estado-dia";
 import { cargarEstadisticasSugerenciaPorPersona, type EstadisticasTerminal } from "@/lib/terminal/sugerencias";
-import { presenciaDeLaCasilla, type HorarioDeHoy } from "@/lib/terminal/presencia";
+import { contarPresencias, presenciaDeLaCasilla, type ClavePresencia, type HorarioDeHoy } from "@/lib/terminal/presencia";
 import { veredictoDeSesion } from "@/lib/terminal/sesion";
 import { leerInfoTerminalCacheada, refrescarInfoTerminal, type TerminalInfo } from "@/lib/terminal/terminal-info";
 import { iniciarSincronizacionPeriodica } from "@/lib/terminal/sync";
@@ -49,7 +49,7 @@ import {
   SelectorSede,
   type EstadoRoster,
 } from "./components";
-import { ALTO_LINEA_FILTRO, LeyendaPresencia, type ClaveFiltro } from "./presencia-visual";
+import { PildoraDeEstados } from "./presencia-visual";
 
 type Pantalla =
   | "lista"
@@ -123,10 +123,11 @@ const SEGUNDOS_MENSAJE = 2.5;
 // para leer «Listo»; no bastan para leer que no quedó registrada, entenderlo
 // y decidir ir a buscar a la encargada. El que trae mala noticia espera.
 const SEGUNDOS_MENSAJE_ALERTA = 8;
-// Cuánto dura un filtro de la leyenda puesto. El filtro OCULTA a los demás, y un
-// filtro olvidado les quita su nombre para marcar: en un kiosco eso es lo peor
-// que puede pasar con esta función. Se quita solo; y también al tocar un nombre.
-const SEGUNDOS_FILTRO = 20;
+// Cuánto dura un estado iluminado. Iluminar atenúa a los demás —no los oculta—, así
+// que dejarlo puesto ya no le quita a nadie su nombre; pero una pantalla que se
+// queda a medias atenuada, por la tarde, mientras otra persona viene a marcar,
+// tampoco es lo que se quiere ver. Se apaga solo, y también al tocar un nombre.
+const SEGUNDOS_RESALTADO = 20;
 
 function horaCorta(iso: string): string {
   return new Intl.DateTimeFormat("es-PE", {
@@ -198,11 +199,8 @@ export default function MarcarPage() {
   const [estadoConfirmado, setEstadoConfirmado] = useState(false);
   // Para que «salió hace 25 min» siga siendo verdad sin que nadie toque nada.
   const [ahoraMs, setAhoraMs] = useState(() => Date.now());
-  const [filtroEstado, setFiltroEstado] = useState<ClaveFiltro | null>(null);
-  // Alto de la zona de la grilla al ponerse un filtro, para que el reloj no
-  // salte cuando quedan menos casillas (el contenido está centrado).
-  const [altoGrid, setAltoGrid] = useState<number | null>(null);
-  const zonaGridRef = useRef<HTMLDivElement>(null);
+  // El estado iluminado: quienes lo tienen se destacan y los demás se atenúan.
+  const [resaltado, setResaltado] = useState<ClavePresencia | null>(null);
   const refrescarVista = useCallback(() => setMarcajesVista(new Map(marcajesHoyRef.current)), []);
 
   const [pantalla, setPantalla] = useState<Pantalla>("lista");
@@ -235,13 +233,10 @@ export default function MarcarPage() {
   }, []);
 
   useEffect(() => {
-    if (!filtroEstado) return;
-    const t = window.setTimeout(() => {
-      setFiltroEstado(null);
-      setAltoGrid(null);
-    }, SEGUNDOS_FILTRO * 1000);
+    if (!resaltado) return;
+    const t = window.setTimeout(() => setResaltado(null), SEGUNDOS_RESALTADO * 1000);
     return () => window.clearTimeout(t);
-  }, [filtroEstado]);
+  }, [resaltado]);
 
   const cargarTodo = useCallback(async () => {
     try {
@@ -450,21 +445,18 @@ export default function MarcarPage() {
     setTimeout(volverALista, (tono === "alerta" ? SEGUNDOS_MENSAJE_ALERTA : SEGUNDOS_MENSAJE) * 1000);
   }
 
-  // Pone o quita el filtro de la leyenda. Al ponerlo guarda el alto de la zona de
-  // la grilla, para que al quedar menos casillas la pantalla no se encoja y el
-  // reloj no salte; al quitarlo, lo suelta.
-  function elegirFiltro(nuevo: ClaveFiltro | null) {
-    if (nuevo && !filtroEstado) setAltoGrid(zonaGridRef.current?.offsetHeight ?? null);
-    if (!nuevo) setAltoGrid(null);
-    setFiltroEstado(nuevo);
+  // Ilumina a quienes comparten un estado, o lo apaga si ya estaba iluminado. Lo
+  // llama la píldora de arriba: es el único control, el ícono de cada foto solo informa.
+  function resaltar(clave: ClavePresencia | null) {
+    setResaltado((actual) => (clave === null || clave === actual ? null : clave));
   }
 
   // Tocar un nombre marca. Sin paso intermedio, y es una decisión, no un descuido:
   // el control real es que la Mac mini está a la vista de todo el equipo, y lo que
   // se prioriza es que marcar sea instantáneo (Felipe, jul-2026 y 2026-09-04).
   function seleccionarPersona(persona: RosterEntry) {
-    // Marcar devuelve a la lista completa, así que un filtro puesto no sobrevive.
-    elegirFiltro(null);
+    // Marcar devuelve a la lista como siempre, así que lo iluminado no sobrevive.
+    setResaltado(null);
     setPersonaActual(persona);
     personaActualRef.current = persona;
     void continuarConPersona(persona);
@@ -804,16 +796,15 @@ export default function MarcarPage() {
     );
   }, [estadoConfirmado, rosterFiltrado, marcajesVista, horariosVista, ahoraMs]);
 
-  const conteosPresencia = useMemo(() => {
-    const c: Record<ClaveFiltro, number> = { laborando: 0, refrigerio: 0, pausa: 0, termino: 0, sin_entrada: 0 };
-    // «Libre hoy» cuenta en «Todos» pero no en ningún estado: no es un lugar en
-    // el que alguien esté.
-    for (const pres of presenciaPorPersona?.values() ?? []) if (pres.clave !== "libre") c[pres.clave]++;
-    return c;
-  }, [presenciaPorPersona]);
+  const conteosPresencia = useMemo(
+    () => contarPresencias(presenciaPorPersona?.values() ?? []),
+    [presenciaPorPersona],
+  );
 
-  // Sin estados no hay filtro posible, aunque haya quedado uno puesto.
-  const filtroActivo = presenciaPorPersona ? filtroEstado : null;
+  // Sin estados no hay nada que iluminar; y si el último de un estado ya marcó su
+  // regreso mientras estaba iluminado, ese estado desaparece de la píldora y no
+  // debe dejar a todos atenuados sin ninguno encendido.
+  const resaltadoActivo = presenciaPorPersona && resaltado && conteosPresencia[resaltado] > 0 ? resaltado : null;
 
   const sedeActivaNombre =
     sedesDisponibles.find((s) => s.codigo === sedeSeleccionada)?.nombre ?? terminal?.sedeNombre ?? "…";
@@ -891,34 +882,27 @@ export default function MarcarPage() {
             <SelectorSede
               sedes={sedesDisponibles}
               activa={sedeSeleccionada}
-              onCambiar={setSedeSeleccionada}
+              onCambiar={(codigo) => {
+                setResaltado(null);
+                setSedeSeleccionada(codigo);
+              }}
             />
-            {presenciaPorPersona && (
-              <LeyendaPresencia
+            {presenciaPorPersona && rosterFiltrado.length > 0 && (
+              <PildoraDeEstados
                 conteos={conteosPresencia}
                 total={rosterFiltrado.length}
-                filtro={filtroActivo}
-                onFiltro={elegirFiltro}
+                resaltado={resaltadoActivo}
+                onResaltar={resaltar}
               />
             )}
-            {/* La zona conserva su alto mientras hay un filtro: la línea «Mostrando
-                N de M» suma ALTO_LINEA_FILTRO y la grilla cede lo mismo. */}
-            <div
-              ref={zonaGridRef}
-              className="flex w-full justify-center"
-              style={
-                altoGrid && filtroActivo ? { minHeight: Math.max(altoGrid - ALTO_LINEA_FILTRO, 0) } : undefined
-              }
-            >
-              <NombreGrid
-                roster={rosterFiltrado}
-                estado={estadoRoster}
-                presencia={presenciaPorPersona}
-                filtro={filtroActivo}
-                onSeleccionar={seleccionarPersona}
-                onReintentar={() => { setEstadoRoster("cargando"); void arrancar(); }}
-              />
-            </div>
+            <NombreGrid
+              roster={rosterFiltrado}
+              estado={estadoRoster}
+              presencia={presenciaPorPersona}
+              resaltado={resaltadoActivo}
+              onSeleccionar={seleccionarPersona}
+              onReintentar={() => { setEstadoRoster("cargando"); void arrancar(); }}
+            />
           </div>
         )}
 

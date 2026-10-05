@@ -12,7 +12,7 @@
 // ============================================================================
 import { describe, it, expect } from "vitest";
 import type { MarcajeDelDia, TipoMarca } from "@cayla-dynamic/shared";
-import { horaDecimalDeHHMM, presenciaDeLaCasilla } from "@/lib/terminal/presencia";
+import { ORDEN_PRESENCIA, contarPresencias, horaDecimalDeHHMM, presenciaDeLaCasilla } from "@/lib/terminal/presencia";
 
 const lima = (hora: string) => `2026-10-05T${hora}:00-05:00`;
 const m = (tipo: TipoMarca, hora: string): MarcajeDelDia => ({ tipo, timestamp: lima(hora) });
@@ -159,5 +159,36 @@ describe("horaDecimalDeHHMM", () => {
     ["14:15:00", 14.25],
   ])("%s → %s", (hhmm, esperado) => {
     expect(horaDecimalDeHHMM(hhmm)).toBeCloseTo(esperado);
+  });
+});
+
+describe("contarPresencias y el orden de la píldora", () => {
+  const hecha = (clave: "laborando" | "refrigerio" | "pausa" | "termino" | "sin_entrada" | "libre") => ({
+    clave,
+    detalle: "x",
+  });
+
+  it("cuenta a cada persona en su estado, y los que no tiene en cero", () => {
+    const c = contarPresencias([hecha("laborando"), hecha("laborando"), hecha("refrigerio"), hecha("libre")]);
+    expect(c).toEqual({ laborando: 2, refrigerio: 1, pausa: 0, termino: 0, sin_entrada: 0, libre: 1 });
+  });
+
+  it("sin gente, todo en cero", () => {
+    expect(Object.values(contarPresencias([])).every((n) => n === 0)).toBe(true);
+  });
+
+  it("el orden incluye cada estado una sola vez, y «libre» es el último", () => {
+    expect([...ORDEN_PRESENCIA].sort()).toEqual(["laborando", "libre", "pausa", "refrigerio", "sin_entrada", "termino"]);
+    expect(ORDEN_PRESENCIA[ORDEN_PRESENCIA.length - 1]).toBe("libre");
+  });
+
+  it("lo que cuenta es lo que `presenciaDeLaCasilla` produce de verdad", () => {
+    const ahora = a("15:00");
+    const gente = [
+      presenciaDeLaCasilla([m("entrada", "08:00")], undefined, ahora),
+      presenciaDeLaCasilla([m("entrada", "08:00"), m("salida_almuerzo", "14:50")], undefined, ahora),
+      presenciaDeLaCasilla([], { entradaEsperada: null, libreHoy: true }, ahora),
+    ];
+    expect(contarPresencias(gente)).toMatchObject({ laborando: 1, refrigerio: 1, libre: 1, sin_entrada: 0 });
   });
 });

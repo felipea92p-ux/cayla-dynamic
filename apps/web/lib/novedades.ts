@@ -115,6 +115,20 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-10-05-el-terminal-ilumina-en-vez-de-ocultar",
+    fecha: "2026-10-05",
+    titulo: "En el terminal, los estados se iluminan en vez de ocultar a los demás",
+    queMejoro:
+      "En la pantalla de marcar, los botones grandes de estados que había sobre las casillas pasaron a ser una " +
+      "sola píldora fina bajo el selector de sede. Si tocas un estado, se iluminan las personas que están en él " +
+      "y las demás se atenúan, pero ninguna desaparece: todas siguen viendo su nombre para marcar.\n\n" +
+      "Los estados que nadie tiene ya no se dibujan, así que en una sede chica la píldora es muy corta. Las " +
+      "casillas son todas iguales y el estado se ve en el ícono de color de la esquina de la foto; al pasar el " +
+      "mouse por ese ícono o por la píldora aparece lo que significa. Tocar el ícono marca, igual que tocar " +
+      "cualquier parte de la casilla.",
+    audiencia: "todos",
+  },
+  {
     id: "2026-10-05-el-terminal-muestra-en-que-punto-esta-cada-integrante",
     fecha: "2026-10-05",
     titulo: "El terminal muestra en qué punto del día está cada integrante",
