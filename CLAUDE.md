@@ -377,8 +377,8 @@ Quedan tres campos así de antes —`contratos` y `documentacion` ya arreglados,
 paga en su lote y no a costa de que el freno mienta.
 
 Y una sexta, del 2026-08-31: **nunca un color de Tailwind por defecto
-—`bg-white`, `amber-100`, `bg-black`, `text-slate-900`— fuera de los once
-`--color-*` de `globals.css`.** Toda la pantalla se pinta con esos once
+—`bg-white`, `amber-100`, `bg-black`, `text-slate-900`— fuera de los trece
+`--color-*` de `globals.css`.** Toda la pantalla se pinta con esos trece
 nombres (`bg-crema`, `text-tinta`, `bg-papel`…) precisamente para que el modo
 oscuro pudiera llegar redefiniéndolos, sin tocar un componente. Un color de
 Tailwind por defecto no sigue esa redefinición: se queda con su valor fijo,
@@ -394,6 +394,18 @@ y por eso se apilaba sin distinguirse sobre `sand`). Los dos se midieron
 contra la fórmula de contraste WCAG antes de aceptarse (≥4.5:1 en los pares
 que los usan) — el mismo criterio que ya exige este archivo para planilla:
 medir, no asumir.
+
+Y trece desde el 2026-10-05: `--color-azul` (en pausa por un trámite, un
+médico u otro motivo) y `--color-ceniza` (turno terminado), para el estado de
+cada integrante en el terminal. «En refrigerio» y «En pausa» compartían ámbar
+y no se distinguían, y ninguno de los once cubría un azul franco ni un gris de
+«ya terminó». Se midieron como se pintan de verdad —sobre la casilla teñida y
+como insignia sobre crema— y uno de los dos **falló la primera vez**:
+`#68645c` daba 4.27:1 como insignia, así que se oscureció a `#635f58`. El
+detalle y las cifras están junto a los tokens en `globals.css`, incluida la
+separación entre los cuatro colores del estado para quien tiene daltonismo (la
+más ajustada, verde/ceniza, es 10.6 bajo deuteranopía: por eso el color nunca
+va solo, cada estado lleva además ícono y palabra).
 
 Se midió al escribirlo: ~20 usos sueltos en 11 archivos, casi todos insignias
 de aviso (`amber-100`/`amber-800` para "sin ficha", "valor antiguo", "fuera de

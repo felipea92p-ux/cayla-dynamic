@@ -6,7 +6,6 @@ import {
   TIPO_MARCA_LABELS,
   TZ_LIMA,
   sugerirSalidaPrincipal,
-  type EstadisticasSugerencia,
   type MarcajeDelDia,
   type TipoMarca,
 } from "@cayla-dynamic/shared";
@@ -25,7 +24,8 @@ import { enviarMarcaje, esRechazoDeEstado, esRechazoDeSesion } from "@/lib/termi
 import { conTope, topeDeRed } from "@/lib/terminal/tope-de-red";
 import { cargarRoster } from "@/lib/terminal/roster";
 import { cargarMarcajesHoyPorPersona, confirmarEstadoPuntual, siguienteAccionPara } from "@/lib/terminal/estado-dia";
-import { cargarEstadisticasSugerenciaPorPersona } from "@/lib/terminal/sugerencias";
+import { cargarEstadisticasSugerenciaPorPersona, type EstadisticasTerminal } from "@/lib/terminal/sugerencias";
+import { presenciaDeLaCasilla, type HorarioDeHoy } from "@/lib/terminal/presencia";
 import { veredictoDeSesion } from "@/lib/terminal/sesion";
 import { leerInfoTerminalCacheada, refrescarInfoTerminal, type TerminalInfo } from "@/lib/terminal/terminal-info";
 import { iniciarSincronizacionPeriodica } from "@/lib/terminal/sync";
@@ -49,6 +49,7 @@ import {
   SelectorSede,
   type EstadoRoster,
 } from "./components";
+import { ALTO_LINEA_FILTRO, LeyendaPresencia, type ClaveFiltro } from "./presencia-visual";
 
 type Pantalla =
   | "lista"
@@ -122,6 +123,10 @@ const SEGUNDOS_MENSAJE = 2.5;
 // para leer «Listo»; no bastan para leer que no quedó registrada, entenderlo
 // y decidir ir a buscar a la encargada. El que trae mala noticia espera.
 const SEGUNDOS_MENSAJE_ALERTA = 8;
+// Cuánto dura un filtro de la leyenda puesto. El filtro OCULTA a los demás, y un
+// filtro olvidado les quita su nombre para marcar: en un kiosco eso es lo peor
+// que puede pasar con esta función. Se quita solo; y también al tocar un nombre.
+const SEGUNDOS_FILTRO = 20;
 
 function horaCorta(iso: string): string {
   return new Intl.DateTimeFormat("es-PE", {
@@ -178,7 +183,27 @@ export default function MarcarPage() {
   // para afinar sugerirSalidaPrincipal — ver lib/terminal/sugerencias.ts. En
   // un ref y no en state por lo mismo que marcajesHoyRef: continuarConPersona
   // lo lee al tocar un nombre, y eso tiene que ser instantáneo, sin re-render.
-  const estadisticasSugerenciaRef = useRef<Map<string, EstadisticasSugerencia>>(new Map());
+  const estadisticasSugerenciaRef = useRef<Map<string, EstadisticasTerminal>>(new Map());
+
+  // ── Lo que se VE: en qué punto del día está cada persona ──────────────────
+  // Los marcajes y el horario viven en refs porque `continuarConPersona` los lee
+  // al tocar un nombre y eso no admite un re-render. Pintar la grilla SÍ lo
+  // necesita, y leer un ref mientras se renderiza no es seguro: de ahí estas
+  // copias en state. Cada vez que el ref cambia se llama a `refrescarVista()`.
+  const [marcajesVista, setMarcajesVista] = useState<Map<string, MarcajeDelDia[]>>(new Map());
+  const [horariosVista, setHorariosVista] = useState<Map<string, HorarioDeHoy>>(new Map());
+  // Espejo de `marcajesConfiablesRef`. Mientras sea `false` NO se pinta ningún
+  // estado: un mapa vacío significa «todavía no lo sé», no «nadie ha entrado», y
+  // pintar a todo el equipo como «sin entrada» sería acusar de más.
+  const [estadoConfirmado, setEstadoConfirmado] = useState(false);
+  // Para que «salió hace 25 min» siga siendo verdad sin que nadie toque nada.
+  const [ahoraMs, setAhoraMs] = useState(() => Date.now());
+  const [filtroEstado, setFiltroEstado] = useState<ClaveFiltro | null>(null);
+  // Alto de la zona de la grilla al ponerse un filtro, para que el reloj no
+  // salte cuando quedan menos casillas (el contenido está centrado).
+  const [altoGrid, setAltoGrid] = useState<number | null>(null);
+  const zonaGridRef = useRef<HTMLDivElement>(null);
+  const refrescarVista = useCallback(() => setMarcajesVista(new Map(marcajesHoyRef.current)), []);
 
   const [pantalla, setPantalla] = useState<Pantalla>("lista");
   const [personaActual, setPersonaActual] = useState<RosterEntry | null>(null);
@@ -204,6 +229,20 @@ export default function MarcarPage() {
   const [desfase, setDesfase] = useState<MedidaDesfase | null>(null);
   const confirmandoRef = useRef(false); // evita doble-envío del mismo marcaje
 
+  useEffect(() => {
+    const id = window.setInterval(() => setAhoraMs(Date.now()), 30_000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    if (!filtroEstado) return;
+    const t = window.setTimeout(() => {
+      setFiltroEstado(null);
+      setAltoGrid(null);
+    }, SEGUNDOS_FILTRO * 1000);
+    return () => window.clearTimeout(t);
+  }, [filtroEstado]);
+
   const cargarTodo = useCallback(async () => {
     try {
       const [rosterCargado, marcajes, estadisticas] = await Promise.all([
@@ -225,8 +264,13 @@ export default function MarcarPage() {
       if (marcajes.confiable || !marcajesConfiablesRef.current) {
         marcajesHoyRef.current = marcajes.mapa;
       }
-      if (marcajes.confiable) marcajesConfiablesRef.current = true;
+      if (marcajes.confiable) {
+        marcajesConfiablesRef.current = true;
+        setEstadoConfirmado(true);
+      }
       estadisticasSugerenciaRef.current = estadisticas;
+      setMarcajesVista(new Map(marcajesHoyRef.current));
+      setHorariosVista(estadisticas);
       // EL ERROR LO DECLARA LA FUENTE, NO EL `catch`, y esa es la mitad que
       // faltaba: `cargarRoster` no lanza NUNCA por red ni por un 500 —devuelve
       // la copia guardada en las cinco salidas de fallo—, así que una Mac recién
@@ -406,10 +450,21 @@ export default function MarcarPage() {
     setTimeout(volverALista, (tono === "alerta" ? SEGUNDOS_MENSAJE_ALERTA : SEGUNDOS_MENSAJE) * 1000);
   }
 
+  // Pone o quita el filtro de la leyenda. Al ponerlo guarda el alto de la zona de
+  // la grilla, para que al quedar menos casillas la pantalla no se encoja y el
+  // reloj no salte; al quitarlo, lo suelta.
+  function elegirFiltro(nuevo: ClaveFiltro | null) {
+    if (nuevo && !filtroEstado) setAltoGrid(zonaGridRef.current?.offsetHeight ?? null);
+    if (!nuevo) setAltoGrid(null);
+    setFiltroEstado(nuevo);
+  }
+
   // Tocar un nombre marca. Sin paso intermedio, y es una decisión, no un descuido:
   // el control real es que la Mac mini está a la vista de todo el equipo, y lo que
   // se prioriza es que marcar sea instantáneo (Felipe, jul-2026 y 2026-09-04).
   function seleccionarPersona(persona: RosterEntry) {
+    // Marcar devuelve a la lista completa, así que un filtro puesto no sobrevive.
+    elegirFiltro(null);
     setPersonaActual(persona);
     personaActualRef.current = persona;
     void continuarConPersona(persona);
@@ -486,6 +541,7 @@ export default function MarcarPage() {
 
     if (marcasConfirmadas !== null) {
       marcajesHoyRef.current.set(persona.id, marcasConfirmadas);
+      refrescarVista();
       decidirYMostrarAccion(persona, marcasConfirmadas);
       return;
     }
@@ -554,6 +610,9 @@ export default function MarcarPage() {
     } catch {
       ok = false;
     }
+    // El servidor acaba de quitar la salida final: se vuelve a leer el día, o la
+    // casilla seguiría diciendo «Turno terminado» hasta el refresco de 2 min.
+    if (ok) void cargarTodo();
     mostrarMensaje(
       ok
         ? `Listo, ${personaActual.nombres} — tu día está abierto de nuevo.`
@@ -616,6 +675,7 @@ export default function MarcarPage() {
     const lista = marcajesHoyRef.current.get(personaActual.id) ?? [];
     lista.push({ tipo: entry.tipo, timestamp: entry.timestampCliente });
     marcajesHoyRef.current.set(personaActual.id, lista);
+    refrescarVista();
 
     // LA MARCA SE GUARDA ANTES DE INTENTAR ENVIARLA, siempre, haya red o no.
     //
@@ -680,7 +740,10 @@ export default function MarcarPage() {
         // próximo toque de esta persona (o el de quien venga después) listo
         // para acertar en vez de repetir la misma suposición equivocada.
         void confirmarEstadoPuntual(entry.personaId).then((marcas) => {
-          if (marcas !== null) marcajesHoyRef.current.set(entry.personaId, marcas);
+          if (marcas !== null) {
+            marcajesHoyRef.current.set(entry.personaId, marcas);
+            refrescarVista();
+          }
         });
       }
     }
@@ -727,6 +790,30 @@ export default function MarcarPage() {
         .sort((a, b) => `${a.nombres} ${a.apellidos}`.localeCompare(`${b.nombres} ${b.apellidos}`, "es")),
     [roster, sedeSeleccionada],
   );
+
+  // En qué punto del día está cada persona de la sede, o `undefined` mientras el
+  // estado de hoy no se pudo confirmar (entonces las casillas son las de siempre).
+  const presenciaPorPersona = useMemo(() => {
+    if (!estadoConfirmado) return undefined;
+    const ahora = new Date(ahoraMs);
+    return new Map(
+      rosterFiltrado.map((p) => [
+        p.id,
+        presenciaDeLaCasilla(marcajesVista.get(p.id) ?? [], horariosVista.get(p.id), ahora),
+      ]),
+    );
+  }, [estadoConfirmado, rosterFiltrado, marcajesVista, horariosVista, ahoraMs]);
+
+  const conteosPresencia = useMemo(() => {
+    const c: Record<ClaveFiltro, number> = { laborando: 0, refrigerio: 0, pausa: 0, termino: 0, sin_entrada: 0 };
+    // «Libre hoy» cuenta en «Todos» pero no en ningún estado: no es un lugar en
+    // el que alguien esté.
+    for (const pres of presenciaPorPersona?.values() ?? []) if (pres.clave !== "libre") c[pres.clave]++;
+    return c;
+  }, [presenciaPorPersona]);
+
+  // Sin estados no hay filtro posible, aunque haya quedado uno puesto.
+  const filtroActivo = presenciaPorPersona ? filtroEstado : null;
 
   const sedeActivaNombre =
     sedesDisponibles.find((s) => s.codigo === sedeSeleccionada)?.nombre ?? terminal?.sedeNombre ?? "…";
@@ -806,12 +893,32 @@ export default function MarcarPage() {
               activa={sedeSeleccionada}
               onCambiar={setSedeSeleccionada}
             />
-            <NombreGrid
-              roster={rosterFiltrado}
-              estado={estadoRoster}
-              onSeleccionar={seleccionarPersona}
-              onReintentar={() => { setEstadoRoster("cargando"); void arrancar(); }}
-            />
+            {presenciaPorPersona && (
+              <LeyendaPresencia
+                conteos={conteosPresencia}
+                total={rosterFiltrado.length}
+                filtro={filtroActivo}
+                onFiltro={elegirFiltro}
+              />
+            )}
+            {/* La zona conserva su alto mientras hay un filtro: la línea «Mostrando
+                N de M» suma ALTO_LINEA_FILTRO y la grilla cede lo mismo. */}
+            <div
+              ref={zonaGridRef}
+              className="flex w-full justify-center"
+              style={
+                altoGrid && filtroActivo ? { minHeight: Math.max(altoGrid - ALTO_LINEA_FILTRO, 0) } : undefined
+              }
+            >
+              <NombreGrid
+                roster={rosterFiltrado}
+                estado={estadoRoster}
+                presencia={presenciaPorPersona}
+                filtro={filtroActivo}
+                onSeleccionar={seleccionarPersona}
+                onReintentar={() => { setEstadoRoster("cargando"); void arrancar(); }}
+              />
+            </div>
           </div>
         )}
 
