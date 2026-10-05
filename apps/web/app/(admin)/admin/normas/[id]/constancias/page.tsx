@@ -7,7 +7,8 @@ import { Cargando } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
-import { EMPRESA, TZ_LIMA, hoyLima } from "@cayla-dynamic/shared";
+import { loQueNoSePudo, sePuedeEntregar } from "@/lib/admin/lo-que-no-se-pudo";
+import { EMPRESA, TZ_LIMA, avisoNombresDelDni, hoyLima, usaNombreDelDni } from "@cayla-dynamic/shared";
 
 // La hoja de constancias de un documento: quién lo recibió, cuándo y por qué vía.
 //
@@ -76,6 +77,10 @@ interface Fila {
   acusado_at: string | null;
   via: string | null;
   dni: string | null;
+  // El nombre completo tal como consta en el DNI (`datos_personales.nombre_dni`).
+  // `nombre` es el de nómina («Apellidos, Nombres», del nombre corto): sirve para
+  // ordenar y cruzar la lista. Éste identifica a la persona ante quien lea el papel.
+  nombre_dni: string | null;
   nombre_declarado: string | null;
   fecha_fin_contrato: string | null;
   fecha_cese: string | null;
@@ -124,9 +129,11 @@ export default function ConstanciasDocumentoPage() {
   // pero a algunas filas les falta un dato que la hoja necesita para probar
   // algo (el DNI o el nombre declarado). Mostrarla en blanco como "—" sería
   // un falso negativo silencioso — se vería igual que "esta persona no puso
-  // su DNI" en vez de "el sistema no pudo traerlo". Mientras esté puesta, se
-  // apaga «Imprimir».
-  const [advertencia, setAdvertencia] = useState<string | null>(null);
+  // su DNI" en vez de "el sistema no pudo traerlo". Mientras tenga algo, se
+  // apaga «Imprimir». Es el mismo par (`loQueNoSePudo` / `sePuedeEntregar`) que
+  // ya usa la hoja de la política salarial: dos hojas gemelas que avisaban un
+  // fallo de dos maneras distintas eran dos respuestas a la misma pregunta.
+  const [noSePudo, setNoSePudo] = useState<string[]>([]);
   const [cargando, setCargando] = useState(true);
 
   useTituloDocumento(doc ? `Constancias · ${doc.titulo}` : "Constancias");
@@ -174,25 +181,30 @@ export default function ConstanciasDocumentoPage() {
     const { data: decl, error: e4 } = await supabase
       .from("documentos_acuses").select("persona_id, nombre_declarado").eq("documento_id", id);
 
+    // El nombre completo del DNI: no lo devuelve la función ni vive en `personas`
+    // (ahí está el corto). Cuando falla se NOMBRA —abajo, junto a las otras
+    // lecturas— y se apaga «Imprimir»: sin esto la hoja saldría con el corto en
+    // todas las filas, y eso se lee igual que «nadie tiene su nombre completo».
+    const { data: dp, error: e5 } = ids.length
+      ? await supabase.from("datos_personales").select("persona_id, nombre_dni").in("persona_id", ids)
+      : { data: [] as never[], error: null };
+
     // Si cualquiera de las dos falló, el DNI o el nombre declarado saldrían en
     // blanco en TODAS las filas — indistinguible de "no lo dejó" cuando en
     // realidad es "no se pudo traer". Se avisa y se apaga Imprimir en vez de
     // dejar que la hoja mienta.
-    if (e3 && e4) {
-      setAdvertencia(
-        "No se pudo traer el DNI, la fecha de salida ni el nombre declarado. Esta hoja no prueba nada mientras falte ese dato: recarga la página, y si sigue igual avisa a Felipe.",
-      );
-    } else if (e3) {
-      setAdvertencia(
-        "No se pudo traer el DNI ni la fecha de salida de las personas. Esta hoja no prueba nada mientras falte ese dato: recarga la página, y si sigue igual avisa a Felipe.",
-      );
-    } else if (e4) {
-      setAdvertencia(
-        "No se pudo traer el nombre declarado de las constancias. Esta hoja no prueba nada mientras falte ese dato: recarga la página, y si sigue igual avisa a Felipe.",
-      );
-    }
+    setNoSePudo(
+      loQueNoSePudo([
+        { error: e3, que: "el DNI y la fecha de salida de las personas" },
+        { error: e4, que: "el nombre declarado de las constancias" },
+        { error: e5, que: "el nombre completo del DNI" },
+      ]),
+    );
 
     const porId = new Map((pers ?? []).map((p: Record<string, unknown>) => [p.id as string, p]));
+    const nombreDniPorPersona = new Map(
+      (dp ?? []).map((r: Record<string, unknown>) => [r.persona_id as string, r.nombre_dni as string | null]),
+    );
     const porPersona = new Map((decl ?? []).map((a: Record<string, unknown>) => [a.persona_id as string, a.nombre_declarado as string | null]));
 
     const armadas: Fila[] = base.map((b) => {
@@ -208,6 +220,7 @@ export default function ConstanciasDocumentoPage() {
         ...b,
         nombre: apellidos && nombres ? `${apellidos}, ${nombres}` : b.nombre,
         dni: (p?.documento as string | null) ?? null,
+        nombre_dni: nombreDniPorPersona.get(b.persona_id) ?? null,
         nombre_declarado: porPersona.get(b.persona_id) ?? null,
         fecha_fin_contrato: (p?.fecha_fin_contrato as string | null) ?? null,
         fecha_cese: (p?.fecha_cese as string | null) ?? null,
@@ -250,6 +263,9 @@ export default function ConstanciasDocumentoPage() {
   const constan = filas.filter((f) => f.acusado_at !== null);
   const pendientes = filas.filter((f) => f.acusado_at === null);
   const total = filas.length;
+  // Solo en pantalla, y solo si la lectura contestó: si falló, faltarían todas
+  // y este aviso mentiría — ya lo dice el aviso rojo de arriba.
+  const avisoNombres = noSePudo.length === 0 ? avisoNombresDelDni(filas.map((f) => f.nombre_dni)) : null;
   const legal = BASE_LEGAL[doc.tipo] ?? null;
   const version = doc.etiqueta_version
     ? `${doc.etiqueta_version} (${doc.version}.ª publicación en el sistema)`
@@ -258,8 +274,9 @@ export default function ConstanciasDocumentoPage() {
   return (
     <main className="hoja mx-auto max-w-4xl p-6 print:max-w-none print:p-0">
       <div className="mb-5 flex flex-wrap items-center gap-2 print:hidden">
-        <Boton variante="primario" tamano="sm" onClick={() => window.print()} disabled={!!advertencia}
-          title={advertencia ?? undefined}>
+        <Boton variante="primario" tamano="sm" onClick={() => window.print()}
+          disabled={!sePuedeEntregar(!cargando, noSePudo)}
+          title={noSePudo.length > 0 ? `No se pudo traer ${noSePudo.join(", ")}.` : undefined}>
           Imprimir
         </Boton>
         <a href={`/admin/normas/${doc.id}/imprimir`} target="_blank" rel="noopener"
@@ -274,9 +291,16 @@ export default function ConstanciasDocumentoPage() {
         </p>
       </div>
 
-      {advertencia && (
+      {noSePudo.length > 0 && (
         <p className="mb-5 rounded-control border border-rojo/40 bg-rojo/10 px-4 py-3 text-xs text-rojo">
-          {advertencia}
+          No se pudo traer {noSePudo.join(", ")}. Esta hoja no prueba nada mientras falte ese dato:
+          recarga la página, y si sigue igual avisa a Felipe.
+        </p>
+      )}
+
+      {avisoNombres && (
+        <p className="mb-5 rounded-control border border-ambar/40 bg-ambar/[0.07] px-4 py-3 text-xs text-tinta print:hidden">
+          {avisoNombres}
         </p>
       )}
 
@@ -337,7 +361,12 @@ export default function ConstanciasDocumentoPage() {
           {constan.map((f, i) => (
             <tr key={f.persona_id} className="break-inside-avoid border-b border-sand align-top">
               <td className="py-1.5 pr-2 text-taupe">{i + 1}</td>
-              <td className="py-1.5 pr-2">{f.nombre}</td>
+              <td className="py-1.5 pr-2">
+                {f.nombre}
+                {usaNombreDelDni(f.nombre_dni) && (
+                  <span className="block text-[11px] text-taupe">{f.nombre_dni?.trim()}</span>
+                )}
+              </td>
               <td className="py-1.5 pr-2">{f.dni ?? "—"}</td>
               <td className="py-1.5 pr-2">{f.sede}</td>
               <td className="py-1.5 pr-2">{f.via === "papel" ? "cargo firmado" : "sistema"}</td>
@@ -356,7 +385,8 @@ export default function ConstanciasDocumentoPage() {
       <p className="mt-2 text-[11px] text-taupe">
         «Sistema»: la constancia la dejó la propia integrante desde el panel, escribiendo su nombre.
         «Cargo firmado»: se le entregó el documento impreso y firmó el cargo, que obra escaneado en
-        el legajo. Las horas son de Lima.
+        el legajo. Bajo cada nombre de la lista figura el nombre completo tal como consta en su DNI.
+        Las horas son de Lima.
       </p>
 
       {pendientes.length > 0 && (
@@ -369,7 +399,12 @@ export default function ConstanciasDocumentoPage() {
               const motivo = motivoPendiente(f);
               return (
                 <li key={f.persona_id} className="flex flex-wrap justify-between gap-2 py-1.5">
-                  <span>{f.nombre} <span className="text-taupe">· {f.sede}{f.dni ? ` · DNI ${f.dni}` : ""}</span></span>
+                  <span>
+                    {f.nombre} <span className="text-taupe">· {f.sede}{f.dni ? ` · DNI ${f.dni}` : ""}</span>
+                    {usaNombreDelDni(f.nombre_dni) && (
+                      <span className="block text-taupe">{f.nombre_dni?.trim()}</span>
+                    )}
+                  </span>
                   {motivo && <span className="text-taupe">{motivo}</span>}
                 </li>
               );

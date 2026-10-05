@@ -8,7 +8,7 @@ import { Boton } from "@/components/ui/boton";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { loQueNoSePudo, sePuedeEntregar } from "@/lib/admin/lo-que-no-se-pudo";
-import { EMPRESA, ROLES_DO, TZ_LIMA, hoyLima } from "@cayla-dynamic/shared";
+import { EMPRESA, ROLES_DO, TZ_LIMA, avisoNombresDelDni, hoyLima, usaNombreDelDni } from "@cayla-dynamic/shared";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { SubnavPoliticaSalarial } from "../_subnav";
 
@@ -44,6 +44,10 @@ interface Fila {
   persona_id: string;
   nombre: string;
   dni: string | null;
+  // El nombre completo tal como consta en el DNI (`datos_personales.nombre_dni`).
+  // `nombre` es el de nómina («Apellidos, Nombres», del nombre corto): sirve para
+  // ordenar y cruzar la lista. Éste identifica a la persona ante quien lea el papel.
+  nombre_dni: string | null;
   sede: string | null;
   acusado_at: string | null;
   nombre_declarado: string | null;
@@ -142,6 +146,16 @@ function ConstanciasPoliticaSalarialContenido() {
           .in("id", ids)
       : { data: [] as never[], error: null };
 
+    // El nombre completo del DNI vive en `datos_personales`, no en `personas`.
+    // Si falla se NOMBRA (abajo) y se apaga «Imprimir»: sin esto la hoja saldría
+    // con el corto en todas las filas, y eso se lee igual que «nadie lo tiene».
+    const { data: fichas, error: errFichas } = ids.length
+      ? await supabase.from("datos_personales").select("persona_id, nombre_dni").in("persona_id", ids)
+      : { data: [] as never[], error: null };
+    const nombreDniPorPersona = new Map(
+      (fichas ?? []).map((r: Record<string, unknown>) => [r.persona_id as string, r.nombre_dni as string | null]),
+    );
+
     const sedeIds = Array.from(
       new Set((pers ?? []).map((p: Record<string, unknown>) => p.sede_base_id as string).filter(Boolean))
     );
@@ -160,6 +174,7 @@ function ConstanciasPoliticaSalarialContenido() {
         { error: errPol, que: "la fecha de publicación" },
         { error: errPers, que: "el DNI, la sede y el motivo de los pendientes" },
         { error: errSedes, que: "el código de sede" },
+        { error: errFichas, que: "el nombre completo del DNI" },
       ]),
     );
 
@@ -174,6 +189,7 @@ function ConstanciasPoliticaSalarialContenido() {
         persona_id: b.persona_id,
         nombre: apellidos && nombres ? `${apellidos}, ${nombres}` : b.nombre,
         dni: (p?.documento as string | null) ?? null,
+        nombre_dni: nombreDniPorPersona.get(b.persona_id) ?? null,
         sede: sedeId ? codigoPorSede.get(sedeId) ?? null : null,
         acusado_at: b.acusado_at,
         nombre_declarado: b.nombre_declarado,
@@ -216,6 +232,9 @@ function ConstanciasPoliticaSalarialContenido() {
   const constan = filas.filter((f) => f.acusado_at !== null);
   const pendientes = filas.filter((f) => f.acusado_at === null);
   const total = filas.length;
+  // Solo en pantalla, y solo si la lectura contestó: si falló, faltarían todas
+  // y este aviso mentiría — ya lo dice el aviso rojo de «no se pudo traer».
+  const avisoNombres = noSePudo.length === 0 ? avisoNombresDelDni(filas.map((f) => f.nombre_dni)) : null;
   const esDO = persona !== null && ROLES_DO.includes(persona.rol);
   const esVigente = versionesDisponibles.length === 0 || version === versionesDisponibles[0];
 
@@ -271,6 +290,12 @@ function ConstanciasPoliticaSalarialContenido() {
         </p>
       )}
 
+      {avisoNombres && (
+        <p className="mb-5 rounded-control border border-ambar/40 bg-ambar/[0.07] px-4 py-3 text-xs text-tinta print:hidden">
+          {avisoNombres}
+        </p>
+      )}
+
       <header className="mb-5 border-b border-sand pb-4">
         <p className="font-serif text-[11px] uppercase tracking-[0.2em] text-taupe">
           {EMPRESA.nombre} · RUC N.° {EMPRESA.ruc}
@@ -323,7 +348,12 @@ function ConstanciasPoliticaSalarialContenido() {
           {constan.map((f, i) => (
             <tr key={f.persona_id} className="break-inside-avoid border-b border-sand align-top">
               <td className="py-1.5 pr-2 text-taupe">{i + 1}</td>
-              <td className="py-1.5 pr-2">{f.nombre}</td>
+              <td className="py-1.5 pr-2">
+                {f.nombre}
+                {usaNombreDelDni(f.nombre_dni) && (
+                  <span className="block text-[11px] text-taupe">{f.nombre_dni?.trim()}</span>
+                )}
+              </td>
               <td className="py-1.5 pr-2">{f.dni ?? "—"}</td>
               <td className="py-1.5 pr-2">{f.sede ?? "—"}</td>
               <td className="py-1.5 pr-2 whitespace-nowrap">{selloLima(f.acusado_at)}</td>
@@ -340,7 +370,8 @@ function ConstanciasPoliticaSalarialContenido() {
 
       <p className="mt-2 text-[11px] text-taupe">
         La constancia la deja la propia integrante desde el panel, escribiendo su nombre — no hay vía
-        en papel para este documento. Las horas son de Lima.
+        en papel para este documento. Bajo cada nombre de la lista figura el nombre completo tal como
+        consta en su DNI. Las horas son de Lima.
       </p>
 
       {pendientes.length > 0 && (
@@ -353,7 +384,12 @@ function ConstanciasPoliticaSalarialContenido() {
               const motivo = motivoPendiente(f);
               return (
                 <li key={f.persona_id} className="flex flex-wrap justify-between gap-2 py-1.5">
-                  <span>{f.nombre} <span className="text-taupe">· {f.sede ?? "—"}{f.dni ? ` · DNI ${f.dni}` : ""}</span></span>
+                  <span>
+                    {f.nombre} <span className="text-taupe">· {f.sede ?? "—"}{f.dni ? ` · DNI ${f.dni}` : ""}</span>
+                    {usaNombreDelDni(f.nombre_dni) && (
+                      <span className="block text-taupe">{f.nombre_dni?.trim()}</span>
+                    )}
+                  </span>
                   {motivo && <span className="text-taupe">{motivo}</span>}
                 </li>
               );

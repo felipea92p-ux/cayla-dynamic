@@ -15,7 +15,7 @@
 import { describe, expect, it } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
-import { nombreCorto, nombreOficial, usaNombreDelDni } from "@cayla-dynamic/shared";
+import { avisoNombresDelDni, nombreCorto, nombreOficial, usaNombreDelDni } from "@cayla-dynamic/shared";
 
 describe("nombreCorto", () => {
   it("junta nombre y apellido sin dejar espacios sueltos", () => {
@@ -58,6 +58,30 @@ describe("usaNombreDelDni — para avisar antes de imprimir lo que no se puede c
     expect(usaNombreDelDni(undefined)).toBe(false);
     expect(usaNombreDelDni("")).toBe(false);
     expect(usaNombreDelDni("   ")).toBe(false);
+  });
+});
+
+describe("avisoNombresDelDni — a cuántas les falta, en una hoja con muchas personas", () => {
+  it("si a todas les consta, no avisa nada", () => {
+    expect(avisoNombresDelDni(["Elida Lizeth Salinas Mamani", "Angie Aderlin Chávez Honorio"])).toBeNull();
+    expect(avisoNombresDelDni([])).toBeNull();
+  });
+
+  it("cuenta como faltante la que no tiene dato, la vacía y la de puros espacios", () => {
+    const aviso = avisoNombresDelDni(["Elida Lizeth Salinas Mamani", null, undefined, "", "   ", "Angie Aderlin Chávez Honorio"]);
+    expect(aviso).toContain("4 de 6 integrantes no tienen");
+  });
+
+  it("habla en singular cuando falta una sola", () => {
+    const aviso = avisoNombresDelDni(["Elida Lizeth Salinas Mamani", null]);
+    expect(aviso).toContain("1 de 2 integrantes no tiene cargado");
+    expect(aviso).toContain("sale solo con el nombre corto");
+  });
+
+  it("dice dónde se arregla, con el vocabulario de la casa", () => {
+    const aviso = avisoNombresDelDni([null]) ?? "";
+    expect(aviso).toContain("Datos personales");
+    expect(aviso).not.toMatch(/\b(emplead[oa]s?|jef[ea]s?|sucursal(es)?|rrhh)\b/i);
   });
 });
 
