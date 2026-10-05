@@ -365,6 +365,7 @@ with repo(numero, nombre, nunca) as (values
     (505, 'el_feriado_posterior_al_cese_no_corresponde', false),
     (506, 'un_alta_que_se_parece_a_alguien_pide_confirmacion', false),
     (507, 'el_alta_de_una_persona_solo_entra_por_fn_crear_persona', false),
+    (508, 'el_rastro_de_correcciones_solo_lo_escriben_las_funciones', false),
     (509, 'tres_tablas_que_solo_se_escriben_por_sus_funciones', false)
 ),
 diff as (
