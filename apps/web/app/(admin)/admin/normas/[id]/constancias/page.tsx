@@ -7,6 +7,7 @@ import { Cargando } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
+import { loQueNoSePudo, sePuedeEntregar } from "@/lib/admin/lo-que-no-se-pudo";
 import { EMPRESA, TZ_LIMA, hoyLima } from "@cayla-dynamic/shared";
 
 // La hoja de constancias de un documento: quién lo recibió, cuándo y por qué vía.
@@ -124,9 +125,11 @@ export default function ConstanciasDocumentoPage() {
   // pero a algunas filas les falta un dato que la hoja necesita para probar
   // algo (el DNI o el nombre declarado). Mostrarla en blanco como "—" sería
   // un falso negativo silencioso — se vería igual que "esta persona no puso
-  // su DNI" en vez de "el sistema no pudo traerlo". Mientras esté puesta, se
-  // apaga «Imprimir».
-  const [advertencia, setAdvertencia] = useState<string | null>(null);
+  // su DNI" en vez de "el sistema no pudo traerlo". Mientras tenga algo, se
+  // apaga «Imprimir». Es el mismo par (`loQueNoSePudo` / `sePuedeEntregar`) que
+  // ya usa la hoja de la política salarial: dos hojas gemelas que avisaban un
+  // fallo de dos maneras distintas eran dos respuestas a la misma pregunta.
+  const [noSePudo, setNoSePudo] = useState<string[]>([]);
   const [cargando, setCargando] = useState(true);
 
   useTituloDocumento(doc ? `Constancias · ${doc.titulo}` : "Constancias");
@@ -178,19 +181,12 @@ export default function ConstanciasDocumentoPage() {
     // blanco en TODAS las filas — indistinguible de "no lo dejó" cuando en
     // realidad es "no se pudo traer". Se avisa y se apaga Imprimir en vez de
     // dejar que la hoja mienta.
-    if (e3 && e4) {
-      setAdvertencia(
-        "No se pudo traer el DNI, la fecha de salida ni el nombre declarado. Esta hoja no prueba nada mientras falte ese dato: recarga la página, y si sigue igual avisa a Felipe.",
-      );
-    } else if (e3) {
-      setAdvertencia(
-        "No se pudo traer el DNI ni la fecha de salida de las personas. Esta hoja no prueba nada mientras falte ese dato: recarga la página, y si sigue igual avisa a Felipe.",
-      );
-    } else if (e4) {
-      setAdvertencia(
-        "No se pudo traer el nombre declarado de las constancias. Esta hoja no prueba nada mientras falte ese dato: recarga la página, y si sigue igual avisa a Felipe.",
-      );
-    }
+    setNoSePudo(
+      loQueNoSePudo([
+        { error: e3, que: "el DNI y la fecha de salida de las personas" },
+        { error: e4, que: "el nombre declarado de las constancias" },
+      ]),
+    );
 
     const porId = new Map((pers ?? []).map((p: Record<string, unknown>) => [p.id as string, p]));
     const porPersona = new Map((decl ?? []).map((a: Record<string, unknown>) => [a.persona_id as string, a.nombre_declarado as string | null]));
@@ -258,8 +254,9 @@ export default function ConstanciasDocumentoPage() {
   return (
     <main className="hoja mx-auto max-w-4xl p-6 print:max-w-none print:p-0">
       <div className="mb-5 flex flex-wrap items-center gap-2 print:hidden">
-        <Boton variante="primario" tamano="sm" onClick={() => window.print()} disabled={!!advertencia}
-          title={advertencia ?? undefined}>
+        <Boton variante="primario" tamano="sm" onClick={() => window.print()}
+          disabled={!sePuedeEntregar(!cargando, noSePudo)}
+          title={noSePudo.length > 0 ? `No se pudo traer ${noSePudo.join(", ")}.` : undefined}>
           Imprimir
         </Boton>
         <a href={`/admin/normas/${doc.id}/imprimir`} target="_blank" rel="noopener"
@@ -274,9 +271,10 @@ export default function ConstanciasDocumentoPage() {
         </p>
       </div>
 
-      {advertencia && (
+      {noSePudo.length > 0 && (
         <p className="mb-5 rounded-control border border-rojo/40 bg-rojo/10 px-4 py-3 text-xs text-rojo">
-          {advertencia}
+          No se pudo traer {noSePudo.join(", ")}. Esta hoja no prueba nada mientras falte ese dato:
+          recarga la página, y si sigue igual avisa a Felipe.
         </p>
       )}
 
