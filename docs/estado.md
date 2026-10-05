@@ -48,7 +48,7 @@ registradas dos veces; nadie lo había medido. Con la 0507 (la entrada de abajo)
   registros que no comparten ninguna palabra (~7.5 % de las parejas en la simulación).
 - `personas.fecha_ingreso` nace con `current_date` en UTC: quien se da de alta pasadas las 19:00 de Lima queda con ingreso
   al día siguiente.
-## 2026-10-04 — Dos nombres, cada uno en su sitio · SIN MIGRACIÓN · SIN FUSIONAR
+## 2026-10-04 — Dos nombres, cada uno en su sitio · SIN MIGRACIÓN · FUSIONADO (#492) y visto en producción
 
 **Origen:** a cada integrante se le carga «un nombre y un apellido por practicidad» (`personas.nombres/apellidos`,
 lo que se ve en el terminal) y eso confundía: el formulario de Equipo los llamaba «Nombres» y «Apellidos», como si
@@ -70,8 +70,11 @@ Liquidaciones lo reemplaza al cargar. Si algún día se reescribe cualquiera de 
 arreglarlo en origen.
 
 **Abierto:**
-- Las constancias de recepción de **Normas** y de **Política salarial** imprimen «Apellidos, Nombres» del corto.
-  No se tocaron: ordenan y se imprimen con la misma cadena, y `nombre_dni` es texto libre sin orden fijo.
+- ~~Las constancias de recepción de **Normas** y de **Política salarial** imprimen «Apellidos, Nombres» del corto.~~
+  **Resuelto en el PR siguiente** (rama `claude/constancias-nombre-completo`): la lista sigue ordenada por el
+  nombre corto de nómina —`nombre_dni` es texto libre y su orden de palabras varía de una persona a otra— y bajo
+  cada nombre figura el completo del DNI. Si falta, la pantalla lo cuenta (solo en pantalla); si la lectura
+  falla, se nombra y se apaga «Imprimir».
 - Unas diez pantallas escriben a mano `ficha?.nombre_dni || nombre` (contratos, memo, firma, movilidad, cumpleaños…).
   Funcionan; no se migraron al helper en este lote.
 - **El dato, no el código:** `nombre_dni` se teclea a mano y nada lo compara con el DNI. Quien no tiene ficha

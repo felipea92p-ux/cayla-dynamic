@@ -115,6 +115,19 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-10-04-constancias-con-nombre-completo",
+    fecha: "2026-10-04",
+    titulo: "Las constancias de Normas y de Política salarial traen el nombre completo del DNI",
+    queMejoro:
+      "En las hojas de «Constancia de entrega y difusión» —la de cada documento de Normas y la de la Política " +
+      "salarial— ahora figura, bajo cada nombre de la lista, el nombre completo tal como consta en el DNI. La " +
+      "lista sigue ordenada por apellido, como una nómina.\n\n" +
+      "Si a alguien todavía no se le cargó su nombre completo en Datos personales, la pantalla avisa cuántas " +
+      "personas faltan antes de imprimir. Si no se pudo leer ese dato, «Imprimir» queda apagado hasta recargar " +
+      "la página.",
+    audiencia: "do",
+  },
+  {
     id: "2026-10-04-equipo-avisa-si-ya-esta-registrada",
     fecha: "2026-10-04",
     titulo: "Al agregar a alguien, Equipo avisa si ya está registrada",

@@ -54,3 +54,26 @@ export function nombreOficial(nombreDni: string | null | undefined, corto: strin
 export function usaNombreDelDni(nombreDni: string | null | undefined): boolean {
   return typeof nombreDni === "string" && nombreDni.trim() !== "";
 }
+
+/**
+ * Para una hoja con muchas personas —las constancias de Normas y de Política
+ * salarial—: el aviso, solo en pantalla, de a cuántas les falta el nombre
+ * completo. `null` si a todas les consta.
+ *
+ * Está acá y no escrito en cada hoja porque las dos tienen que decir lo mismo,
+ * y porque la cuenta de «quién cuenta como faltante» es `usaNombreDelDni`: un
+ * `nombre_dni` de puros espacios no está cargado.
+ *
+ * Quien lo muestra debe callarlo si la lectura de `datos_personales` falló: ahí
+ * faltarían todas y el aviso mentiría. Ese caso ya lo cubre el aviso rojo de
+ * «no se pudo traer», que además apaga «Imprimir».
+ */
+export function avisoNombresDelDni(nombresDni: ReadonlyArray<string | null | undefined>): string | null {
+  const faltan = nombresDni.filter((n) => !usaNombreDelDni(n)).length;
+  if (faltan === 0) return null;
+  const quienes =
+    faltan === 1
+      ? `1 de ${nombresDni.length} integrantes no tiene cargado su nombre completo del DNI; en esta hoja sale solo con el nombre corto.`
+      : `${faltan} de ${nombresDni.length} integrantes no tienen cargado su nombre completo del DNI; en esta hoja salen solo con el nombre corto.`;
+  return `${quienes} Se carga en Datos personales.`;
+}
