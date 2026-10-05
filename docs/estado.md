@@ -87,6 +87,10 @@ de privilegios por defecto, sin efecto sobre la escritura.
 están en la lista de las 62 con TRUNCATE de producción**, o sea con los privilegios por defecto; que tengan también INSERT
 para `authenticated` no se verificó tabla por tabla (62 y 62 no prueban que sean las mismas), pero es lo que cabe esperar.
 Es la parte de este informe con exposición plausible en producción, y la de más consecuencia.
+**Actualización: la 0509 (en `main`, SIN PEGAR, entrada de arriba) midió estas mismas tablas por su lado y cierra
+`rendimiento_mensual`, `terminales` y `tarifas_hora`;** `configuracion` queda como decisión de Felipe y `documentos_tipos` se
+deja (la pantalla Normas inserta directo: es la puerta oficial); `push_tokens` es solo la fila propia. Lo que sigue es el
+análisis original de esta entrada, anterior a la 0509.
 - **`rendimiento_mensual`** (el bono por rendimiento): política `for all` a admin/líder, y su guardián
   `fn_set_rendimiento`/`fn_quitar_rendimiento` (0111) se salta. **Medido** con un periodo pagado: la función dice «La planilla
   de ese mes ya está PAGADA» y el upsert directo del `lider_do` PASA sobre ese mismo mes, con `puesto_por` de otra persona.
@@ -121,6 +125,50 @@ a la 353); la pantalla de Correcciones, que solo LEE la tabla (se comprobó por 
 
 ---
 
+
+---
+
+## 2026-10-04 — Tres tablas que solo se escriben por sus funciones · migración 0509 · ESCRITA Y PROBADA · SIN PEGAR · SIN FUSIONAR
+
+**Origen:** al cerrar la puerta de `personas` (0507) se midió que otras cinco tablas admitían INSERT directo de admin o
+líder DO, y se pidió medir cuáles tienen un guardián que esa puerta se salte. Esta es la lista, con jwt de un `lider_do`
+en el esquema completo de `main` (484 migraciones, `begin … rollback`):
+
+| Tabla | Quién escribe hoy con sesión | Guardián | Veredicto |
+|---|---|---|---|
+| `rendimiento_mensual` | nadie (ninguna pantalla llama a `fn_set_rendimiento`) | las dos funciones: rol, mes **no pagado**, catálogo | **se cierra (0509)**: el insert directo en un mes pagado PASABA |
+| `terminales` | nadie (la app solo la lee; los scripts usan `service_role`) | ninguno | **se cierra (0509)**: un `lider_do` se registró como terminal y marcó la entrada de OTRA persona, sin PIN y sin rastro |
+| `tarifas_hora` | nadie; nada la lee; 0 filas | ninguno | **se cierra (0509)**, sin consecuencia hoy |
+| `configuracion` | la app, una sola clave (`apariencia_tema`) | 3 claves con trigger (`gerencia_general`, `firmante_empresa`, `tasa_afp`); **11 sin ninguno**, incluidas las de plata | **NO se toca: decisión de Felipe** (abajo) |
+| `documentos_tipos` | la pantalla Normas inserta directo | ninguno | se deja: la puerta directa ES la oficial |
+
+**Qué es la 0509:** molde de la 0507 — quita las políticas de escritura y revoca INSERT/UPDATE/DELETE a `authenticated`,
+`anon` y `public` en las tres; conserva la lectura como estaba (en `tarifas_hora` la única política era `FOR ALL`, así que
+se repone como SELECT **antes** de quitarla). **No reescribe ninguna función → no hay md5 de partida.** Antes de tocar
+nada comprueba que ninguna función que no corra como su dueño escriba en ellas, y si la hay se niega a correr y la
+nombra (probado en los dos sentidos: se niega ante una `invoker`, deja pasar a una `definer`). La fila de
+`rendimiento_mensual` fija el porcentaje del complemento que paga el núcleo de planilla; quitarla SUBE el pago.
+
+**Antes de pegar:** una consulta de solo lectura, ya escrita en la cabecera de la migración (con la fila del registro,
+para que «antes» y «después» no se confundan). Esperado: el registro no tiene 509, una política `[*]` por tabla,
+ninguna fila en «escriben sin ser definer». Después de pegar: el `select` final da **siete** `t`, y el registro tiene
+`509 · 0509_tres_tablas_que_solo_se_escriben_por_sus_funciones`.
+
+**Cómo se ensayó (y qué NO se pudo ver):**
+- Prueba **403** (27). Sin la migración cae 15 de 27, y cada caída tiene su causa en el hueco; los 12 que pasan son los
+  de «sin romper lo viejo». Con ella, 27/27. Idempotente; el bloque «cómo se revierte» revierte de verdad.
+- Suite pgTAP entera, con y sin la 0509: 309 archivos comunes con las **mismas aserciones una a una** (3 511 → 3 538 =
+  +27 de la 403). Los mismos 19 archivos de entorno fallan de los dos lados (el desechable no los puede ejecutar bien;
+  no son evidencia sobre la 0509). Barrido estático: de 309 archivos, 23 escrituras en estas tablas y todas como
+  `postgres`. Ninguna prueba existente llamaba a `fn_set_rendimiento`: ahora tiene cobertura.
+- **No se midió producción.** Falta correr la consulta previa allá. Con `personas` coincidió con el repo; con estas tres
+  no se sabe.
+
+**`configuracion` — decisión de Felipe, no técnica:** hoy cualquier admin o líder DO puede cambiar las constantes de
+planilla (`movilidad_diaria` pasó en la medición; `planilla_provisiones`, `asignacion_familiar` y `bono_puntualidad`
+tampoco tienen trigger) sin dejar rastro. Las reglas de planilla se consideran decididas y en los hechos solo cambian por
+migración. Si esa es la intención, lo coherente es un trigger por clave como el de `gerencia_general`. No se cierra la
+tabla entera porque `apariencia_tema` se escribe legítimamente desde la app.
 
 ---
 
@@ -166,7 +214,7 @@ registradas dos veces; nadie lo había medido. Con la 0507 (la entrada de abajo)
   registros que no comparten ninguna palabra (~7.5 % de las parejas en la simulación).
 - `personas.fecha_ingreso` nace con `current_date` en UTC: quien se da de alta pasadas las 19:00 de Lima queda con ingreso
   al día siguiente.
-## 2026-10-04 — Dos nombres, cada uno en su sitio · SIN MIGRACIÓN · SIN FUSIONAR
+## 2026-10-04 — Dos nombres, cada uno en su sitio · SIN MIGRACIÓN · FUSIONADO (#492) y visto en producción
 
 **Origen:** a cada integrante se le carga «un nombre y un apellido por practicidad» (`personas.nombres/apellidos`,
 lo que se ve en el terminal) y eso confundía: el formulario de Equipo los llamaba «Nombres» y «Apellidos», como si
@@ -188,8 +236,11 @@ Liquidaciones lo reemplaza al cargar. Si algún día se reescribe cualquiera de 
 arreglarlo en origen.
 
 **Abierto:**
-- Las constancias de recepción de **Normas** y de **Política salarial** imprimen «Apellidos, Nombres» del corto.
-  No se tocaron: ordenan y se imprimen con la misma cadena, y `nombre_dni` es texto libre sin orden fijo.
+- ~~Las constancias de recepción de **Normas** y de **Política salarial** imprimen «Apellidos, Nombres» del corto.~~
+  **Resuelto en el PR siguiente** (rama `claude/constancias-nombre-completo`): la lista sigue ordenada por el
+  nombre corto de nómina —`nombre_dni` es texto libre y su orden de palabras varía de una persona a otra— y bajo
+  cada nombre figura el completo del DNI. Si falta, la pantalla lo cuenta (solo en pantalla); si la lectura
+  falla, se nombra y se apaga «Imprimir».
 - Unas diez pantallas escriben a mano `ficha?.nombre_dni || nombre` (contratos, memo, firma, movilidad, cumpleaños…).
   Funcionan; no se migraron al helper en este lote.
 - **El dato, no el código:** `nombre_dni` se teclea a mano y nada lo compara con el DNI. Quien no tiene ficha
@@ -198,7 +249,7 @@ arreglarlo en origen.
 
 ---
 
-## 2026-10-04 — El alta de una persona solo entra por fn_crear_persona · migración 0507 · PEGADA Y VERIFICADA · SIN FUSIONAR
+## 2026-10-04 — El alta de una persona solo entra por fn_crear_persona · migración 0507 · PEGADA Y VERIFICADA · FUSIONADA (PR #490)
 
 **Origen:** dos revisiones independientes señalaron que la política `personas_insert_admin_lider` (0003) y el INSERT que
 la 0004 le dio a `authenticated` dejan a un admin o líder DO insertar en `personas` directo por REST, sin pasar por
@@ -261,9 +312,9 @@ un alta real en producción (no se crea una persona de prueba allá); la evidenc
   tabla del rastro de toda edición manual. Ojo antes de revocar: `fn_educacion_cerrar_al_cesar` la escribe sin ser
   `SECURITY DEFINER` (se rompería el cese). Lanzado como tarea aparte; el registro de producción ya muestra la
   **0508** (`el_rastro_de_correcciones_solo_lo_escriben_las_funciones`), de esa otra sesión — su estado lo documenta ella.
-- Otras cinco tablas admiten INSERT directo de admin/líder (`configuracion`, `documentos_tipos`, `rendimiento_mensual`,
-  `tarifas_hora`, `terminales`; `push_tokens` es solo la fila propia y `horarios_asignados` ya tiene trigger). No se
-  midió cuáles tienen una función guardián que ese INSERT se salte.
+- Otras cinco tablas admitían INSERT directo de admin/líder (`configuracion`, `documentos_tipos`, `rendimiento_mensual`,
+  `tarifas_hora`, `terminales`; `push_tokens` es solo la fila propia y `horarios_asignados` ya tiene trigger). **Medidas
+  el 2026-10-04: ver la entrada de la 0509, arriba.**
 - `donde-vive.sh` toma el primer contenedor `supabase_db_*`; con retail y dynamic arriba toma el de retail y avisa
   «la función no existe en el Postgres local» sin que sea cierto. No se tocó.
 
