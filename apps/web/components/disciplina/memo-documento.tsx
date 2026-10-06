@@ -118,8 +118,8 @@ function Cuerpo({ doc, previas }: { doc: DocMemo; previas: Previa[] }) {
     if (nivel === "amonestacion" && t === "tardanza") {
       return (
         <>
-          <p>El presente memorándum deja constancia de que, durante el mes de <strong>{mesDe(doc.periodo_desde)}</strong>, usted registró <strong>{n} tardanzas</strong>, superando el umbral b) del artículo 7 del Reglamento Interno de Trabajo de {EMPRESA.nombre} (tres o más tardanzas en un mismo mes calendario), según el detalle de las marcaciones que a continuación se indica.</p>
-          <p>Las tardanzas detalladas no han sido objeto de sanción disciplinaria previa. El descuento proporcional por el tiempo no laborado, de haberse aplicado en planilla, tiene naturaleza contraprestativa y es independiente de esta sanción; no la sustituye.</p>
+          <p>El presente memorándum deja constancia de que, durante el mes de <strong>{mesDe(doc.periodo_desde)}</strong>, usted registró <strong>{n} tardanzas</strong>, alcanzando el umbral del literal b) del numeral 19.2 del Reglamento Interno de Trabajo de {EMPRESA.nombre} (tres tardanzas en un mismo periodo mensual calendario, sin antecedente vigente por la misma causa), según el detalle de las marcaciones que a continuación se indica.</p>
+          <p>Las tardanzas reiteradas constituyen falta conforme al literal b) del numeral 53.2 del RIT. Las tardanzas detalladas no han sido objeto de sanción disciplinaria previa. El descuento proporcional por el tiempo no laborado, de haberse aplicado en planilla, tiene naturaleza contraprestativa y es independiente de esta sanción; no la sustituye.</p>
           <p>Por lo expuesto, se le impone <strong>AMONESTACIÓN ESCRITA</strong>, que se incorpora a su legajo como antecedente disciplinario con vigencia de doce (12) meses desde su notificación (numeral 56.1 del RIT). Se le exhorta a corregir su puntualidad. La reincidencia dará lugar a <strong>suspensión sin goce de haber</strong> conforme al literal c) del numeral 19.2 del RIT.</p>
         </>
       );
@@ -128,8 +128,8 @@ function Cuerpo({ doc, previas }: { doc: DocMemo; previas: Previa[] }) {
       return (
         <>
           <p>El presente memorándum deja constancia de que, correspondiéndole laborar en la(s) fecha(s) que se detalla(n), usted <strong>no concurrió al centro de trabajo ni registró marca alguna</strong> en el sistema de control de asistencia, sin que exista justificación aceptada dentro del plazo previsto en el numeral 20.4 del RIT.</p>
-          <p>La inasistencia injustificada constituye falta conforme al literal c) del numeral 53.2 del RIT y contraviene el deber de asistencia y puntualidad (artículo 20 del RIT). El descuento del día no laborado y de la parte proporcional del descanso semanal es independiente de esta sanción.</p>
-          <p>Por lo expuesto, se le impone <strong>AMONESTACIÓN ESCRITA</strong>, incorporada a su legajo por doce (12) meses (numeral 56.1 del RIT). Una nueva inasistencia injustificada dará lugar a <strong>suspensión sin goce de haber</strong> (artículo 8.3-b), y la acumulación de ausencias puede configurar causal de despido conforme al artículo 25-h de la LPCL.</p>
+          <p>La inasistencia injustificada constituye falta conforme al literal c) del numeral 53.2 del RIT, con la gradación del literal a) del numeral 21.2, y contraviene el deber de asistencia y puntualidad (artículo 20 del RIT). El descuento del día no laborado y de la parte proporcional del descanso semanal es independiente de esta sanción.</p>
+          <p>Por lo expuesto, se le impone <strong>AMONESTACIÓN ESCRITA</strong>, incorporada a su legajo por doce (12) meses (numeral 56.1 del RIT). Una nueva inasistencia injustificada dará lugar a <strong>suspensión sin goce de haber</strong> (literal b) del numeral 21.2 del RIT), y la acumulación de ausencias puede configurar causal de despido conforme al artículo 25-h de la LPCL.</p>
         </>
       );
     }

@@ -211,6 +211,10 @@ muestra (carril 1: sin SQL, sin reglas, sin textos legales); el resto sigue abie
   renumeración del 15-ago pueden citarlo mal, incluido un antecedente vigente de
   setiembre (no se vio el papel entregado: comprobar con el cargo archivado).
   Dos líneas de código; los papeles ya entregados van a la Consulta 7.
+  ✅ *El código, corregido el 2026-10-06* (`components/disciplina/memo-documento.tsx`:
+  19.2 b) y 21.2 b), y además la falta del 53.2 b) y la gradación del 21.2 a),
+  que el 55.3 también pide). Lo vigila `tests/memo-citas-rit.test.ts`.
+  **Sigue abierto:** los papeles ya entregados con la cita vieja.
 - **El conteo suma tardanzas en días con permiso, licencia o vacaciones
   aprobados**, y el RIT 17.3 y 17.4 c) dicen que no cuentan. Solo se excluye lo
   «levantado» a mano. La 0455 lo dejó así a propósito para tardanzas
