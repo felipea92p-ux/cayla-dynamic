@@ -129,6 +129,30 @@ export const NOVEDADES: readonly Novedad[] = [
     audiencia: "todos",
   },
   {
+    id: "2026-10-06-el-apoyo-educativo-terminado-se-renueva",
+    fecha: "2026-10-06",
+    titulo: "Si tu apoyo educativo terminó y sigues estudiando, ahora lo renuevas desde tu portal",
+    queMejoro:
+      "En «Lo mío › Educación», cuando tu apoyo educativo ya terminó, aparece «Sigo estudiando: renovar mi apoyo», " +
+      "con tu institución y tus datos ya llenos. Antes esa pantalla mostraba tu solicitud como aprobada y no " +
+      "ofrecía ningún botón, así que no había cómo seguir subiendo tus constancias.\n\n" +
+      "Si te rechazaron la constancia de un pago que hiciste mientras el apoyo estaba vigente, ahora puedes " +
+      "corregirla aunque el apoyo ya haya terminado. Y al pedir el apoyo, la fecha de fin pregunta por el fin de tu " +
+      "ciclo o curso, no por el de este mes: se pide una sola vez y después cada mes subes tu constancia.",
+    audiencia: "todos",
+  },
+  {
+    id: "2026-10-06-lo-mio-vuelve-a-abrir-en-resumen",
+    fecha: "2026-10-06",
+    titulo: "Al recargar «Lo mío», vuelves a tu Resumen",
+    queMejoro:
+      "Si llegabas a «Lo mío» desde un aviso de la Bandeja o desde «← Tus reportes» y luego recargabas la " +
+      "página, se volvía a abrir esa misma sección —Reportes, Boletas o Turnos— en vez del Resumen. Ahora el " +
+      "aviso te lleva a su sección una sola vez, y al recargar siempre empiezas por el Resumen, donde están tus " +
+      "vacaciones, tu periodo de pago y las novedades.",
+    audiencia: "todos",
+  },
+  {
     id: "2026-10-05-el-terminal-ilumina-en-vez-de-ocultar",
     fecha: "2026-10-05",
     titulo: "En el terminal, los estados se iluminan en vez de ocultar a los demás",

@@ -952,11 +952,23 @@ export default function MioPage() {
   // de un cambio de turno) abre directo esa sección en vez de Resumen. Mismo
   // patrón que ?fecha= en Turnos — se valida con `esTab` para no dejar `tab`
   // en un valor que no exista si el enlace viene mal escrito.
+  //
+  // El enlace se USA UNA VEZ y se borra de la dirección. Antes se quedaba
+  // pegado: quien volvía de un reporte por «← Tus reportes» y recargaba la
+  // página caía otra vez en Reportes, no en Resumen (2026-10-06). Y no solo
+  // estorba: lo único que esta pantalla esconde detrás de Resumen son las
+  // novedades y «Pedir vacaciones» (ver el comentario de `tab`), así que una
+  // recarga que no abre en Resumen las esconde. Tampoco tiene sentido dejarlo:
+  // el menú de secciones nunca escribe en la dirección, así que tras el primer
+  // cambio de sección el `?tab=` ya no decía la verdad.
   useEffect(() => {
     void (() => {
-      const sp = new URLSearchParams(window.location.search);
-      const t = sp.get("tab");
-      if (t && esTab(t)) setTab(t);
+      const url = new URL(window.location.href);
+      const t = url.searchParams.get("tab");
+      if (t === null) return;
+      if (esTab(t)) setTab(t);
+      url.searchParams.delete("tab");
+      window.history.replaceState(window.history.state, "", url);
     })();
   }, []);
 

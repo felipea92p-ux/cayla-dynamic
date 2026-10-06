@@ -6,6 +6,7 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { ESTADO_CONSTANCIA, type EstadoConstancia } from "@cayla-dynamic/shared";
 import { Insignia } from "@/components/ui/insignia";
 import { enDias } from "@/lib/admin/bandeja-urgencia";
+import { fechaCorta } from "@/lib/educacion";
 
 /**
  * La pestaña «Educación» de /mio: una línea por estudio con el estado de su
@@ -14,12 +15,18 @@ import { enDias } from "@/lib/admin/bandeja-urgencia";
  *
  * Filtra por persona de forma explícita: si quien abre /mio es de DO,
  * `fn_educacion_situacion` le devuelve a todo el equipo.
+ *
+ * Sin estudio activo pero con uno terminado, no dice «no tienes una asignación»:
+ * dice cuál terminó y cuándo, y manda a renovarlo. Decir «Solicitar apoyo» a
+ * quien ya lo tenía la mandaba a una pantalla que, con la solicitud aprobada,
+ * no ofrecía ningún botón.
  */
 interface Fila {
   familia_id: string;
   persona_id: string;
   institucion: string;
   vigencia: string;
+  vigente_hasta: string;
   estado_constancia: EstadoConstancia;
   plazo: string | null;
   dias_para_plazo: number | null;
@@ -27,6 +34,8 @@ interface Fila {
 
 export function ResumenEducacionMia() {
   const [filas, setFilas] = useState<Fila[] | null>(null);
+  const [terminado, setTerminado] = useState<Fila | null>(null);
+  const [renovacionEnRevision, setRenovacionEnRevision] = useState(false);
   const [error, setError] = useState(false);
 
   useEffect(() => {
@@ -42,8 +51,15 @@ export function ResumenEducacionMia() {
       ]);
       if (!vivo) return;
       if (sit.error || !p) { setError(true); setFilas([]); return; }
-      setFilas(((sit.data ?? []) as unknown as Fila[])
-        .filter((f) => f.persona_id === p.id && f.vigencia !== "terminada"));
+      const mias = ((sit.data ?? []) as unknown as Fila[]).filter((f) => f.persona_id === p.id);
+      setFilas(mias.filter((f) => f.vigencia !== "terminada"));
+      // El que terminó más tarde: el mismo que /mio/educacion ofrece renovar.
+      setTerminado(mias.filter((f) => f.vigencia === "terminada")
+        .reduce<Fila | null>((m, f) => (!m || f.vigente_hasta > m.vigente_hasta ? f : m), null));
+      // Recién renovado, «Renuévalo →» sería pedirle lo que ya hizo.
+      const { data: sol } = await supabase.from("educacion_solicitudes").select("estado")
+        .eq("persona_id", p.id).order("enviada_at", { ascending: false }).limit(1).maybeSingle();
+      if (vivo) setRenovacionEnRevision(sol?.estado === "pendiente");
     })();
     return () => { vivo = false; };
   }, []);
@@ -55,6 +71,16 @@ export function ResumenEducacionMia() {
         <p className="text-taupe">Cargando…</p>
       ) : error ? (
         <p className="text-taupe">No se pudo leer tu apoyo educativo. Vuelve a intentarlo en un momento.</p>
+      ) : filas.length === 0 && terminado ? (
+        <>
+          <p className="text-taupe">
+            Tu apoyo en {terminado.institucion} terminó el {fechaCorta(terminado.vigente_hasta)}.
+          </p>
+          <Link href="/mio/educacion"
+            className="mt-3 inline-block text-tinta underline underline-offset-2 hover:text-rojo-profundo">
+            {renovacionEnRevision ? "Tu solicitud está en revisión →" : "¿Sigues estudiando? Renuévalo →"}
+          </Link>
+        </>
       ) : filas.length === 0 ? (
         <>
           <p className="text-taupe">No tienes una asignación educativa activa.</p>

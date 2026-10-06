@@ -80,6 +80,7 @@ export default function MemoPage() {
   // El mapeo, verificado uno por uno contra docs/reglamento-interno-de-trabajo.md:
   //   14.4 → 56.1   vigencia de doce meses del antecedente
   //   14.2 → 54.5   límites de la suspensión sin goce
+  //    7 b) → 19.2 b)  umbral de la amonestación por tardanzas
   //    7 c) → 19.2 c)  primera suspensión por tardanzas
   //   8.3-a → 53.2 c)  la inasistencia injustificada como falta
   //   8.3-b → 21.2 b)  segundo umbral de inasistencias
@@ -87,6 +88,11 @@ export default function MemoPage() {
   //   13-c → art. 20  inasistencias
   //
   // Si mañana sale una versión 5.0, esto se revisa ANTES de emitir nada.
+  //
+  // Y esta tabla no bastó: el texto vive en `components/disciplina/memo-documento.tsx`
+  // y dos citas —7 b) y 8.3-b— siguieron impresas en la v3 hasta el 2026-10-06.
+  // Desde entonces lo vigila `tests/memo-citas-rit.test.ts`, que contrasta cada
+  // cita del memo con `docs/reglamento-interno-de-trabajo.md`.
 
   const [previas, setPrevias] = useState<Previa[]>([]);
   const [areas, setAreas] = useState<Area[]>(AREAS_FALLBACK);
