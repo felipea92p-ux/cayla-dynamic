@@ -224,3 +224,46 @@ describe("casos de Reportes", () => {
     expect(urgenciaCaso({ ...caso, proximo_vence_at: "2026-09-14T04:59:59Z" }, HOY).grupo).toBe("vencido");
   });
 });
+
+// ── Conducta: el aviso a DO y el aviso a la líder (0515) ────────────────────
+describe("la Bandeja avisa de lo que registra una líder y de lo que DO hace con su caso", () => {
+  const conducta = {
+    id: "doc-1", persona_id: "p-1", persona: "Andrea Torres", sede: "TRU", nivel: "amonestacion",
+    creado_at: "2026-09-14T15:00:00Z", creador: "Lucía Ramos", falta: "Trato descortés (53.2 h)",
+  };
+  const traspaso = {
+    id: "tr-1", expediente_id: "doc-1", persona_id: "p-1", persona: "Andrea Torres", sede: "TRU",
+    accion: "tomar" as const, motivo: "El hecho fue con la tienda cerrada; lo reviso con ella.", hecho_at: "2026-09-14T16:00:00Z",
+  };
+
+  it("DO ve quién registró qué, y la falta con su nombre y su cita", () => {
+    const [fila] = armarPendientes({ ...FUENTES_VACIAS, conductaRegistrada: [conducta] }, { hoy: HOY });
+    expect(fila.tipo).toBe("conducta_registrada");
+    expect(fila.titulo).toBe("Lucía Ramos registró una amonestación escrita");
+    expect(fila.detalle).toBe("Trato descortés (53.2 h)");
+    expect(fila.persona).toBe("Andrea Torres");
+  });
+  it("lleva al caso abierto, no a la lista: DO «solo visualiza» y para tomarlo tiene que verlo", () => {
+    const [fila] = armarPendientes({ ...FUENTES_VACIAS, conductaRegistrada: [conducta] }, { hoy: HOY });
+    expect(fila.ir?.href).toBe("/admin/disciplina#doc-doc-1");
+    expect(fila.modulo).toBe("disciplina");
+    expect(fila.resolucion).toBe("afuera");
+  });
+  it("la líder lee que DO tomó su caso, con el motivo de DO", () => {
+    const [fila] = armarPendientes({ ...FUENTES_VACIAS, casosTraspasados: [traspaso] }, { hoy: HOY });
+    expect(fila.tipo).toBe("caso_traspasado");
+    expect(fila.titulo).toBe("Desarrollo Organizacional tomó tu caso");
+    expect(fila.detalle).toBe("«El hecho fue con la tienda cerrada; lo reviso con ella.»");
+  });
+  it("y que se lo devolvió", () => {
+    const [fila] = armarPendientes({ ...FUENTES_VACIAS, casosTraspasados: [{ ...traspaso, accion: "devolver" }] }, { hoy: HOY });
+    expect(fila.titulo).toBe("Desarrollo Organizacional te devolvió el caso");
+  });
+  it("sin avisos, no hay filas: una Bandeja sin conducta no inventa ninguna", () => {
+    expect(armarPendientes(FUENTES_VACIAS, { hoy: HOY })).toEqual([]);
+  });
+  it("cada aviso tiene su propia clave: el mismo caso puede avisarle a DO y a la líder a la vez", () => {
+    const filas = armarPendientes({ ...FUENTES_VACIAS, conductaRegistrada: [conducta], casosTraspasados: [traspaso] }, { hoy: HOY });
+    expect(new Set(filas.map((f) => f.clave)).size).toBe(2);
+  });
+});

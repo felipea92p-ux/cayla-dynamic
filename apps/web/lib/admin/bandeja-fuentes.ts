@@ -1,7 +1,7 @@
 import type { ClienteCayla } from "@cayla-dynamic/database";
 import {
-  fechaLima, hoyLima, NIVEL_DISCIPLINARIO_LABELS, puedeGestionarCatalogos, puedeGestionarContratos,
-  puedeOperarEquipo, puedeVerCasos, puedeVerPlanilla, puedeVerSaludDeAlertas,
+  esRolEncargada, fechaLima, hoyLima, NIVEL_DISCIPLINARIO_LABELS, puedeGestionarCatalogos, puedeGestionarContratos,
+  puedeOperarEquipo, puedeVerCasos, puedeVerPlanilla, puedeVerSaludDeAlertas, recibeAvisoDeConductaRegistrada,
 } from "@cayla-dynamic/shared";
 import { etiquetaDeVia } from "../reportes";
 import { diaYMes } from "../bandeja-mia";
@@ -282,6 +282,25 @@ export interface ItemCaso {
   proximo_vence_at: string | null;
 }
 
+/**
+ * Una falta de conducta que registró una líder de equipo y que la líder DO
+ * todavía no abrió (0515). Se va de la Bandeja al abrir el caso: DO «solo
+ * visualiza», decidido el 2026-10-06.
+ */
+export interface ItemConductaRegistrada {
+  id: string; persona_id: string; persona: string; sede: string;
+  nivel: string; creado_at: string; creador: string; falta: string;
+}
+
+/**
+ * DO tomó o devolvió un caso que inició esta líder, y ella todavía no lo
+ * abrió (0515). Uno por caso: el último traspaso, que es su estado de hoy.
+ */
+export interface ItemCasoTraspasado {
+  id: string; expediente_id: string; persona_id: string; persona: string; sede: string;
+  accion: "tomar" | "devolver"; motivo: string; hecho_at: string;
+}
+
 export interface FuentesBandeja {
   educacion: FilaEducacionBandeja[];
   entregasEducacion: ItemEntregaEducacion[];
@@ -304,6 +323,8 @@ export interface FuentesBandeja {
   bonosPorTransferir: ItemBonoPorTransferir[];
   feriados: ItemFeriado[];
   disciplina: ItemDisciplina[];
+  conductaRegistrada: ItemConductaRegistrada[];
+  casosTraspasados: ItemCasoTraspasado[];
   casos: ItemCaso[];
   resumenAlertas: ResumenAlertas | null;
   /**
@@ -318,7 +339,8 @@ export const FUENTES_VACIAS: FuentesBandeja = {
   educacion: [], entregasEducacion: [], avisosFinEducacion: [], solicitudesEducacion: [], vacaciones: [], sinHorario: [],
   liquidacionesVencidas: [], revisiones: [], revisionesMovilidad: [], revisionesContrato: [],
   solicitudesVacaciones: [], solicitudesPerfil: [], contratos: [], diasPorRevisar: [], marcasApartadas: [],
-  periodo: null, documentos: [], bonosPorTransferir: [], feriados: [], disciplina: [], casos: [], resumenAlertas: null, fallidas: [],
+  periodo: null, documentos: [], bonosPorTransferir: [], feriados: [], disciplina: [], conductaRegistrada: [], casosTraspasados: [],
+  casos: [], resumenAlertas: null, fallidas: [],
 };
 
 /** Cuántos avisos por correo necesitan a una persona. Lo que se reintenta solo no cuenta. */
@@ -396,6 +418,12 @@ export async function traerFuentesBandeja(
         .then(({ data }) => { f.periodo = (data as PeriodoDePago | null) ?? null; }),
     );
     tareas.push(traerDisciplina(supabase, fallo).then((xs) => { f.disciplina = xs; }));
+    if (recibeAvisoDeConductaRegistrada(rol)) {
+      tareas.push(traerConductaRegistrada(supabase, fallo).then((xs) => { f.conductaRegistrada = xs; }));
+    }
+    if (esRolEncargada(rol)) {
+      tareas.push(traerCasosTraspasados(supabase, fallo).then((xs) => { f.casosTraspasados = xs; }));
+    }
   }
 
   if (puedeGestionarCatalogos(rol)) {
@@ -482,6 +510,104 @@ async function traerDisciplina(
   return items;
 }
 
+/**
+ * Hasta cuándo atrás se avisa una falta registrada. No es un plazo legal: es
+ * para que una persona nueva en DO no herede como «por ver» todo el historial.
+ * Un documento de hace más de tres meses ya no se puede «tomar a tiempo».
+ */
+const DIAS_AVISO_CONDUCTA = 90;
+
+/** Los nombres de las personas y el código de su sede, para las filas de la Bandeja. */
+async function nombresYSedes(supabase: ClienteCayla, ids: string[]) {
+  const [per, sed] = await Promise.all([
+    supabase.from("personas").select("id, nombres, apellidos, rol, sede_base_id").in("id", ids),
+    supabase.from("sedes").select("id, codigo"),
+  ]);
+  const codigo = new Map(((sed.data ?? []) as { id: string; codigo: string }[]).map((x) => [x.id, x.codigo] as const));
+  const personas = new Map(((per.data ?? []) as { id: string; nombres: string; apellidos: string; rol: string; sede_base_id: string | null }[])
+    .map((p) => [p.id, { nombre: `${p.nombres} ${p.apellidos}`, rol: p.rol, sede: (p.sede_base_id && codigo.get(p.sede_base_id)) || "—" }] as const));
+  return { personas, error: per.error };
+}
+
+/**
+ * Para la líder DO: las faltas de conducta que registraron las líderes de
+ * equipo y que ella todavía no abrió. Lo que ya tomó no se avisa: si lo tomó,
+ * lo vio.
+ */
+async function traerConductaRegistrada(
+  supabase: ClienteCayla,
+  fallo: (modulo: ModuloBandeja, que: string, error: unknown) => void,
+): Promise<ItemConductaRegistrada[]> {
+  const desde = new Date(Date.now() - DIAS_AVISO_CONDUCTA * 864e5).toISOString();
+  const [docs, vistos, rot] = await Promise.all([
+    supabase.from("expediente_disciplinario")
+      .select("id, persona_id, nivel, creado_at, creado_por, falta_rit_version, falta_numeral, falta_literal, tomado_por")
+      .eq("tipo_causal", "conducta").neq("estado", "anulado").is("tomado_por", null).gte("creado_at", desde),
+    supabase.from("bandeja_vistos").select("item_id").eq("tipo_item", "conducta_registrada"),
+    supabase.from("faltas_rotulos").select("rit_version, numeral, literal, rotulo"),
+  ]);
+  if (docs.error || vistos.error) { fallo("disciplina", "las faltas registradas por las líderes", docs.error ?? vistos.error); return []; }
+  const visto = new Set(((vistos.data ?? []) as { item_id: string }[]).map((v) => v.item_id));
+  const filas = ((docs.data ?? []) as Array<{ id: string; persona_id: string; nivel: string; creado_at: string; creado_por: string;
+    falta_rit_version: number | null; falta_numeral: string | null; falta_literal: string | null }>).filter((d) => !visto.has(d.id));
+  if (filas.length === 0) return [];
+  const { personas, error } = await nombresYSedes(supabase, Array.from(new Set(filas.flatMap((d) => [d.persona_id, d.creado_por]))));
+  if (error) { fallo("disciplina", "las faltas registradas por las líderes", error); return []; }
+  const rotulo = new Map(((rot.data ?? []) as { rit_version: number; numeral: string; literal: string; rotulo: string }[])
+    .map((r) => [`${Number(r.rit_version)}:${r.numeral}.${r.literal}`, r.rotulo] as const));
+  return filas
+    .filter((d) => esRolEncargada(personas.get(d.creado_por)?.rol))
+    .map((d) => {
+      const cita = d.falta_numeral && d.falta_literal ? `${d.falta_numeral} ${d.falta_literal})` : "";
+      const nombre = rotulo.get(`${Number(d.falta_rit_version)}:${d.falta_numeral}.${d.falta_literal}`);
+      return {
+        id: d.id, persona_id: d.persona_id, persona: personas.get(d.persona_id)?.nombre ?? "—",
+        sede: personas.get(d.persona_id)?.sede ?? "—", nivel: d.nivel, creado_at: d.creado_at,
+        creador: personas.get(d.creado_por)?.nombre ?? "Una líder de equipo",
+        falta: nombre ? `${nombre} (${cita})` : cita,
+      };
+    });
+}
+
+/**
+ * Para la líder de equipo: lo que DO hizo con los casos que ella inició —los
+ * tomó o se los devolvió— y que ella todavía no abrió. Uno por caso: el último
+ * traspaso dice dónde está hoy.
+ */
+async function traerCasosTraspasados(
+  supabase: ClienteCayla,
+  fallo: (modulo: ModuloBandeja, que: string, error: unknown) => void,
+): Promise<ItemCasoTraspasado[]> {
+  const { data: u } = await supabase.auth.getUser();
+  if (!u.user) return [];
+  const { data: yo } = await supabase.from("personas").select("id").eq("auth_user_id", u.user.id).maybeSingle();
+  if (!yo) return [];
+  const { data: mios, error: eM } = await supabase.from("expediente_disciplinario")
+    .select("id, persona_id").eq("creado_por", (yo as { id: string }).id);
+  if (eM) { fallo("disciplina", "los casos que tomó Desarrollo Organizacional", eM); return []; }
+  const docs = new Map(((mios ?? []) as { id: string; persona_id: string }[]).map((d) => [d.id, d.persona_id] as const));
+  if (docs.size === 0) return [];
+  const [tr, vistos] = await Promise.all([
+    supabase.from("expediente_traspasos").select("id, expediente_id, accion, motivo, hecho_at")
+      .in("expediente_id", Array.from(docs.keys())).order("hecho_at", { ascending: false }),
+    supabase.from("bandeja_vistos").select("item_id").eq("tipo_item", "caso_traspasado"),
+  ]);
+  if (tr.error || vistos.error) { fallo("disciplina", "los casos que tomó Desarrollo Organizacional", tr.error ?? vistos.error); return []; }
+  const visto = new Set(((vistos.data ?? []) as { item_id: string }[]).map((v) => v.item_id));
+  // El último de cada caso (vienen del más nuevo al más viejo), y solo si no lo vio.
+  const ultimo = new Map<string, { id: string; expediente_id: string; accion: "tomar" | "devolver"; motivo: string; hecho_at: string }>();
+  for (const t of (tr.data ?? []) as Array<{ id: string; expediente_id: string; accion: "tomar" | "devolver"; motivo: string; hecho_at: string }>) {
+    if (!ultimo.has(t.expediente_id)) ultimo.set(t.expediente_id, t);
+  }
+  const pendientes = [...ultimo.values()].filter((t) => !visto.has(t.id));
+  if (pendientes.length === 0) return [];
+  const { personas } = await nombresYSedes(supabase, pendientes.map((t) => docs.get(t.expediente_id)!));
+  return pendientes.map((t) => {
+    const pid = docs.get(t.expediente_id)!;
+    return { ...t, persona_id: pid, persona: personas.get(pid)?.nombre ?? "—", sede: personas.get(pid)?.sede ?? "—" };
+  });
+}
+
 // ── Armar ───────────────────────────────────────────────────────────────────
 
 /** Los tipos que llevan «Nuevo desde tu última visita» (bandeja_vistos, 0436/0450). */
@@ -493,7 +619,7 @@ export type TipoItemVisto =
 export type TipoPendiente =
   | TipoItemVisto | "educacion" | "vacaciones_por_vencer" | "sin_horario" | "liquidacion_vencida"
   | "contrato" | "dia_por_revisar" | "marca_apartada" | "documento_ruta" | "documento_bono" | "bono_por_transferir"
-  | "feriado" | "disciplina" | "caso";
+  | "feriado" | "disciplina" | "caso" | "conducta_registrada" | "caso_traspasado";
 
 /**
  * Un pendiente, sea del tipo que sea. Quién, qué, dónde, de qué módulo, cuándo
@@ -827,6 +953,26 @@ export function armarPendientes(
       titulo: t.titulo, detalle: null,
       urgencia: t.urgencia, resolucion: "afuera",
       ir: { texto: t.accion, href: t.href }, contexto: null,
+    });
+  }
+  for (const c of f.conductaRegistrada) {
+    const nivel = ((NIVEL_DISCIPLINARIO_LABELS as Record<string, string>)[c.nivel] ?? c.nivel).toLowerCase();
+    agregar({
+      clave: `conducta_registrada:${c.id}`, tipo: "conducta_registrada", itemId: c.id, personaId: c.persona_id,
+      persona: c.persona, sede: c.sede, modulo: "disciplina",
+      titulo: `${c.creador} registró una ${nivel}`, detalle: c.falta || null,
+      urgencia: urgenciaEspera(c.creado_at, hoy), resolucion: "afuera",
+      ir: { texto: "Ver el caso", href: `/admin/disciplina#doc-${c.id}` }, contexto: null,
+    });
+  }
+  for (const t of f.casosTraspasados) {
+    agregar({
+      clave: `caso_traspasado:${t.id}`, tipo: "caso_traspasado", itemId: t.id, personaId: t.persona_id,
+      persona: t.persona, sede: t.sede, modulo: "disciplina",
+      titulo: t.accion === "tomar" ? "Desarrollo Organizacional tomó tu caso" : "Desarrollo Organizacional te devolvió el caso",
+      detalle: `«${t.motivo}»`,
+      urgencia: urgenciaEspera(t.hecho_at, hoy), resolucion: "afuera",
+      ir: { texto: "Ver el caso", href: `/admin/disciplina#doc-${t.expediente_id}` }, contexto: null,
     });
   }
   return lista.sort(compararPendientes);

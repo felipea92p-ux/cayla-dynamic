@@ -278,6 +278,23 @@ export function puedeTramitarDisciplina(rol: RolPosible, enPlanilla: boolean | n
   return tiene(DO, rol) || (tiene(SOLO_ENCARGADA, rol) && enPlanilla === true);
 }
 
+/** Solo la líder DO — no Gerencia ni otros admin. Ver `recibeAvisoDeConductaRegistrada`. */
+const SOLO_LIDER_DO: readonly Rol[] = ["lider_do"];
+
+/**
+ * ¿Le llega a la Bandeja cada falta de conducta que registra una líder de
+ * equipo (0515)? Solo a la líder DO, decidido el 2026-10-06: el aviso es para
+ * quien hace Desarrollo Organizacional. Los admin —tres de ellos externos, por
+ * honorarios— lo ven en Disciplina, pero no se les empuja un aviso
+ * disciplinario de personas con las que no trabajan.
+ *
+ * Tomar el caso es otra pregunta, más ancha: `puedeAnularDocumentoDisciplinario`
+ * (DO y admin), la misma regla con la que hoy se anula un documento.
+ */
+export function recibeAvisoDeConductaRegistrada(rol: RolPosible): boolean {
+  return tiene(SOLO_LIDER_DO, rol);
+}
+
 /**
  * Administra el sistema: admin o líder DO. NO es un permiso — es la pregunta
  * «¿este rol es de administración?» que necesita la cobertura para saber quién
