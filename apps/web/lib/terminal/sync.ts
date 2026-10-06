@@ -41,7 +41,9 @@ export async function sincronizarPendientes() {
       }
 
       if (!ok) {
-        await registrarIntentoFallido(entry.clientUuid, error ?? "sin detalle");
+        // Suma al tope solo lo que el servidor contestó Y es un rechazo de la
+        // marca: ni un corte de red ni un desajuste de sesión dicen nada de ella.
+        await registrarIntentoFallido(entry.clientUuid, error ?? "sin detalle", llego && !esRechazoDeSesion(error));
         // Tras varios intentos se deja de reintentar para no acumular "sin enviar"
         // para siempre — pero la marca NO se borra: se APARTA.
         //

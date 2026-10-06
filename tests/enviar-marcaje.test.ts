@@ -22,7 +22,13 @@
 //   el `db.delete()` que borraba marcas atrasadas (ver el comentario de sync.ts).
 // ============================================================================
 import { describe, expect, it } from "vitest";
-import { enviarMarcaje } from "@/lib/terminal/enviar-marcaje";
+import {
+  enviarMarcaje,
+  esRechazoDeEstado,
+  esFalloDeRed,
+  esRechazoDeSesion,
+  esSesionPerdida,
+} from "@/lib/terminal/enviar-marcaje";
 
 type Cliente = Parameters<typeof enviarMarcaje>[0];
 type Entrada = Parameters<typeof enviarMarcaje>[1];
@@ -126,5 +132,75 @@ describe("enviarMarcaje", () => {
       p_terminal_id: MARCA.terminalId,
       p_motivo_otro: "cita médica",
     });
+  });
+});
+
+// ============================================================================
+// Qué hace la cola con cada texto de rechazo
+// ============================================================================
+// Los tres textos son los que producción devolvió de verdad (marcas_apartadas,
+// 2026-10-06). Cada uno decide algo distinto en sync.ts, y un texto que cae en
+// la casilla equivocada o aparta una marca buena o la deja reintentándose
+// para siempre:
+//
+//   «no coincide con p_terminal_id»   → la marca está bien, el vínculo de la Mac no
+//   «permission denied for function»  → lo mismo: la Mac llamó SIN sesión (anon)
+//   «tipo … no válido»                → la marca no corresponde: se aparta ya
+describe("clasificar el rechazo de una marca", () => {
+  const SESION_DESAJUSTADA = "el terminal autenticado no coincide con p_terminal_id";
+  const SIN_SESION = "permission denied for function fn_registrar_marcaje";
+  const DE_ESTADO = "tipo salida_almuerzo no válido en el estado actual (se esperaba entrada)";
+
+  it("sin sesión (anon) es un problema de la Mac, no de la marca: la cola la espera", () => {
+    expect(esSesionPerdida(SIN_SESION)).toBe(true);
+    expect(esRechazoDeSesion(SIN_SESION)).toBe(true);
+  });
+
+  it("el desajuste de terminal sigue esperando en cola, pero NO es sesión perdida", () => {
+    // La franja roja y el mensaje «perdió su vínculo» son solo para quien se
+    // quedó sin sesión: a una Mac desajustada se la arregla sola la cola.
+    expect(esRechazoDeSesion(SESION_DESAJUSTADA)).toBe(true);
+    expect(esSesionPerdida(SESION_DESAJUSTADA)).toBe(false);
+  });
+
+  it("un rechazo de estado NO es de sesión: se aparta en el primer intento", () => {
+    expect(esRechazoDeEstado(DE_ESTADO)).toBe(true);
+    expect(esRechazoDeSesion(DE_ESTADO)).toBe(false);
+    expect(esSesionPerdida(DE_ESTADO)).toBe(false);
+  });
+
+  it("el permiso de OTRA función no se confunde con el de marcar", () => {
+    // Si mañana otra función devuelve «permission denied», no debe apartarse
+    // ni quedar esperando como si fuera un problema de vínculo.
+    expect(esSesionPerdida("permission denied for function fn_planilla_calcular")).toBe(false);
+  });
+
+  it("sin texto de error no hay nada que clasificar", () => {
+    expect(esSesionPerdida(undefined)).toBe(false);
+    expect(esRechazoDeSesion(undefined)).toBe(false);
+  });
+});
+
+describe("un fallo de red que supabase-js devuelve como error", () => {
+  // postgrest-js no lanza cuando fetch falla: arma `${nombre}: ${mensaje}`.
+  it.each([
+    "TypeError: Load failed",
+    "TypeError: Failed to fetch",
+    "TypeError: NetworkError when attempting to fetch resource.",
+    "TimeoutError: signal timed out",
+    "AbortError: The operation was aborted.",
+    "FetchError: fetch failed",
+  ])("«%s» NO es una respuesta del servidor", async (mensaje) => {
+    expect(esFalloDeRed(mensaje)).toBe(true);
+    const { cliente } = clienteFalso(async () => ({ error: { message: mensaje } }));
+    const r = await enviarMarcaje(cliente, MARCA);
+    expect(r).toEqual({ ok: false, error: mensaje, llego: false });
+  });
+
+  it("un rechazo de la base sigue siendo una respuesta: llego es true", () => {
+    expect(esFalloDeRed("tipo salida_almuerzo no válido en el estado actual")).toBe(false);
+    expect(esFalloDeRed("permission denied for function fn_registrar_marcaje")).toBe(false);
+    expect(esFalloDeRed("el terminal autenticado no coincide con p_terminal_id")).toBe(false);
+    expect(esFalloDeRed(undefined)).toBe(false);
   });
 });
