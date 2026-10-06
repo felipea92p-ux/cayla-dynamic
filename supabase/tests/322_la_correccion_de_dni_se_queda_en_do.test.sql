@@ -41,8 +41,11 @@ set session_replication_role = origin;
 select is((select solo_do from catalogo_campos_perfil where campo = 'correccion_identidad'),
   true, 'CATÁLOGO · correccion_identidad queda marcada como de DO');
 
-select is((select count(*)::int from catalogo_campos_perfil where solo_do),
-  1, 'CATÁLOGO · y es el único campo marcado — no se cerró de más');
+-- Desde la 0513 son DOS: cargar el documento por primera vez (`documento`) también
+-- es de DO, porque es el número que va en el contrato. Nada más: no se cerró de más.
+select is((select array_agg(campo order by campo) from catalogo_campos_perfil where solo_do),
+  array['correccion_identidad', 'documento']::text[],
+  'CATÁLOGO · y solo esos dos campos están marcados — no se cerró de más');
 
 -- La colaboradora pide corregir su número de documento.
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000fccc', true);

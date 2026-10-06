@@ -6,7 +6,7 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-10-06 — El alta pide el documento, y cada documento dice de qué tipo es · migración 0513 · EN CURSO · SIN PEGAR · NO FUSIONAR
+## 2026-10-06 — El alta pide el documento, y cada documento dice de qué tipo es · migración 0513 · ESCRITA Y PROBADA · SIN PEGAR · SIN FUSIONAR
 
 **Origen:** el alta no pedía el DNI, así que el índice único de documento (0125), el único freno exacto contra
 registrar dos veces a la misma persona, nunca actuaba sobre un alta, y alguien llegó a escribir un DNI en el
@@ -21,10 +21,16 @@ aprueba DO (sin adjunto; si está repetido, no se le dice de quién).
 Datos personales, «Lo mío › Editar», Bandeja. md5 de partida pedidos a producción: `fn_crear_persona` 50c42522…,
 `fn_set_documento` 5f0863e0…, idénticos al repo. Prueba **407** (35) y 235/400/401/221/227/317/322 ajustadas.
 
-**Falta, y por eso NO SE FUSIONA:** el campo `documento` en `catalogo_campos_perfil` (solo DO) y sus dos funciones
-—`fn_crear_solicitud_perfil` valida tipo, forma, «no tiene todavía» y «nadie más lo tiene» sin nombrar;
-`fn_aplicar_cambio_perfil` lo aplica—. Esperando sus md5 de producción (repo: a91c65c6… y 6ecd58a5…). Sin eso,
-«Lo mío» ofrece un campo que la base rechaza.
+**«Lo mío», dentro de la misma 0513:** fila `documento` en `catalogo_campos_perfil` (`solo_do`, sin adjunto),
+`fn_crear_solicitud_perfil` (valida tipo y forma; «ya tienes uno» → es de DO; un número que ya es de otra persona se
+rechaza SIN nombrarla) y `fn_aplicar_cambio_perfil` (aplica por `fn_set_documento`; si DO ya se lo cargó, la propuesta
+quedó vieja y no se aplica). Prueba **410** (16). La 322 pasa de «un solo campo solo-DO» a «exactamente esos dos».
+md5 de partida de producción: `fn_aplicar_cambio_perfil` fbcf2ac8… (6553) y `fn_crear_solicitud_perfil` 7a2f1dfe…
+(2941) — **con `\r`: 119 y 68 retornos = su número de líneas**, medido que el repo con `\r\n` da ese md5 exacto
+(la 0401 se pegó desde Windows). Benigno, pero la 0513 pegada desde la misma máquina los volverá a dejar con `\r`.
+
+**Antes de entregar el SQL se vuelven a pedir los md5 de las cuatro funciones**, en el mismo mensaje (regla de la casa).
+Pegar y fusionar seguidos: entre una y otra Equipo no puede dar de alta.
 
 **Lo que enseñó medir:** (1) el candado dejaba pasar un tipo sin número: un `null` da «no sé» y un CHECK lo deja
 pasar → `coalesce(…, false)`. (2) Quitarle a `authenticated` el permiso de la regla habría roto TODO update directo

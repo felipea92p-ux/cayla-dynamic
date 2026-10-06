@@ -6430,6 +6430,10 @@ export type Database = {
         Args: { p_id: string | null; p_motivo: string | null }
         Returns: undefined
       }
+      fn_documento_error: {
+        Args: { p_numero: string | null; p_tipo: string | null }
+        Returns: string
+      }
       fn_documento_forma_valida: {
         Args: { p_numero: string | null; p_tipo: string | null }
         Returns: boolean
