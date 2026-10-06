@@ -128,6 +128,17 @@ export const NOVEDADES: readonly Novedad[] = [
     audiencia: "todos",
   },
   {
+    id: "2026-10-06-lo-mio-vuelve-a-abrir-en-resumen",
+    fecha: "2026-10-06",
+    titulo: "Al recargar «Lo mío», vuelves a tu Resumen",
+    queMejoro:
+      "Si llegabas a «Lo mío» desde un aviso de la Bandeja o desde «← Tus reportes» y luego recargabas la " +
+      "página, se volvía a abrir esa misma sección —Reportes, Boletas o Turnos— en vez del Resumen. Ahora el " +
+      "aviso te lleva a su sección una sola vez, y al recargar siempre empiezas por el Resumen, donde están tus " +
+      "vacaciones, tu periodo de pago y las novedades.",
+    audiencia: "todos",
+  },
+  {
     id: "2026-10-05-el-terminal-ilumina-en-vez-de-ocultar",
     fecha: "2026-10-05",
     titulo: "En el terminal, los estados se iluminan en vez de ocultar a los demás",
