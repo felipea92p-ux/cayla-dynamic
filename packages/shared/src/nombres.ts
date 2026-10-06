@@ -77,3 +77,27 @@ export function avisoNombresDelDni(nombresDni: ReadonlyArray<string | null | und
       : `${faltan} de ${nombresDni.length} integrantes no tienen cargado su nombre completo del DNI; en esta hoja salen solo con el nombre corto.`;
   return `${quienes} Se carga en Datos personales.`;
 }
+
+// ── EL NÚMERO NO VA EN EL NOMBRE ─────────────────────────────────────────────
+//
+// El 2026-10-06 apareció en el panel una integrante con su DNI escrito dentro
+// del apellido corto. Ningún código lo pegó; se tecleó a mano, porque el
+// alta no tiene dónde poner el DNI y desde la 0506 un nombre parecido a otro pide
+// confirmación — escribir el número es la forma «natural» de distinguir a dos
+// personas cuando el formulario no ofrece otra. El resultado es un DNI a la vista
+// de cualquiera que abra una lista, y en el terminal de la sede, que marca sin PIN.
+//
+// La regla es UNA y la base la tiene igual (`personas_nombre_sin_documento`,
+// 0512): seis o más dígitos seguidos. Ahí cae cualquier documento —DNI 8, carné
+// de extranjería 9, RUC 11, un celular 9— y ningún nombre real ni ninguna
+// estación de retail. Si se cambia aquí, se cambia allá.
+export const PATRON_DOCUMENTO_EN_NOMBRE = /[0-9]{6,}/;
+
+/**
+ * El aviso para quien da de alta o edita, o `null` si el nombre está bien.
+ * Dice adónde va el número, no solo que está mal: sin eso se vuelve a escribir.
+ */
+export function avisoDocumentoEnNombre(nombres: string, apellidos: string): string | null {
+  if (!PATRON_DOCUMENTO_EN_NOMBRE.test(nombres) && !PATRON_DOCUMENTO_EN_NOMBRE.test(apellidos)) return null;
+  return "El nombre y el apellido corto van sin números: se ven en el terminal y en todas las listas. El DNI se guarda en Datos personales.";
+}

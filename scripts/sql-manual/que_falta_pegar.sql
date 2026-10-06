@@ -368,7 +368,8 @@ with repo(numero, nombre, nunca) as (values
     (508, 'el_rastro_de_correcciones_solo_lo_escriben_las_funciones', false),
     (509, 'tres_tablas_que_solo_se_escriben_por_sus_funciones', false),
     (510, 'la_lider_registra_una_falta_de_conducta', false),
-    (511, 'do_toma_el_caso_y_lo_devuelve', false)
+    (511, 'do_toma_el_caso_y_lo_devuelve', false),
+    (512, 'el_dni_no_va_en_el_nombre', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte

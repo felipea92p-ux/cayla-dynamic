@@ -15,7 +15,7 @@
 import { describe, expect, it } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
-import { avisoNombresDelDni, nombreCorto, nombreOficial, usaNombreDelDni } from "@cayla-dynamic/shared";
+import { avisoDocumentoEnNombre, avisoNombresDelDni, nombreCorto, nombreOficial, usaNombreDelDni } from "@cayla-dynamic/shared";
 
 describe("nombreCorto", () => {
   it("junta nombre y apellido sin dejar espacios sueltos", () => {
@@ -129,5 +129,21 @@ describe("el terminal nunca lee el nombre completo", () => {
       .filter((f) => lineasQueTocanElNombreDelDni(readFileSync(f, "utf8")).length > 0)
       .map((f) => path.relative(RAIZ, f));
     expect(infractores).toEqual([]);
+  });
+});
+
+// La 0512 tiene la misma regla en la base (`personas_nombre_sin_documento`). Los
+// casos son los mismos que la prueba pgTAP 406, para que las dos mitades no
+// puedan separarse sin que una de las dos lo note.
+describe("avisoDocumentoEnNombre — el DNI no va en el nombre", () => {
+  it("frena un documento en el nombre o en el apellido", () => {
+    expect(avisoDocumentoEnNombre("Prueba", "Cuatrocientos 12345678")).toMatch(/Datos personales/);
+    expect(avisoDocumentoEnNombre("12345678 Prueba", "Cuatrocientos")).not.toBeNull();
+    expect(avisoDocumentoEnNombre("Prueba", "Cuatrocientos 001234567")).not.toBeNull();
+  });
+  it("deja pasar nombres reales y estaciones con un número corto", () => {
+    expect(avisoDocumentoEnNombre("Prueba", "Cuatrocientos-Ñúñez")).toBeNull();
+    expect(avisoDocumentoEnNombre("ESTACIÓN — Caja 2", "(no es persona)")).toBeNull();
+    expect(avisoDocumentoEnNombre("Prueba", "Cuatrocientos 12345")).toBeNull();
   });
 });

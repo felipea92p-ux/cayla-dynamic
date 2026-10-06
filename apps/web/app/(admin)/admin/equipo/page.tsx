@@ -24,6 +24,7 @@ import { listarPendientesPorPersona } from "@/lib/admin/bandeja-equipo";
 import {
   hoyLima, primeroDeMesLima, rangoDelMesLima, puedeAdministrarEquipo, puedeVerPlanilla,
   MOTIVOS_CESE, MOTIVO_CESE_LABELS, etiquetaDeCatalogo, type MotivoCese, type Rol,
+  avisoDocumentoEnNombre,
 } from "@cayla-dynamic/shared";
 
 const ROLES_OPCIONES = [
@@ -675,6 +676,13 @@ export default function EquipoPage() {
       avisar("error", "Nombre corto, apellido corto y sede son obligatorios.");
       return;
     }
+    // Antes de preguntar por parecidos: si el DNI viaja en el apellido, el aviso
+    // de parecidos tampoco lo vería como la misma persona (0512).
+    const documentoEnNombre = avisoDocumentoEnNombre(form.nombres, form.apellidos);
+    if (documentoEnNombre) {
+      avisar("error", documentoEnNombre);
+      return;
+    }
     setGuardando(true);
     const supabase = createAdminSupabaseClient();
     // 0506 · ANTES de generar un PIN y de escribir nada: ¿esta persona ya está
@@ -789,6 +797,12 @@ export default function EquipoPage() {
     // traducido por mensajeDeError.
     if (form.finContrato && form.fechaIngreso && form.finContrato < form.fechaIngreso) {
       avisar("error", `El contrato no puede terminar antes de su ingreso (${fmtFechaDMA(form.fechaIngreso)}). Revisa la fecha.`);
+      return;
+    }
+    // Misma regla que el alta y que la base (0512): el número no va en el nombre.
+    const documentoEnNombreEdicion = avisoDocumentoEnNombre(form.nombres, form.apellidos);
+    if (documentoEnNombreEdicion) {
+      avisar("error", documentoEnNombreEdicion);
       return;
     }
     setGuardando(true);
@@ -1306,7 +1320,7 @@ export default function EquipoPage() {
       </label>
       <label className="flex flex-col gap-1 text-sm">
         Apellido corto{" "}
-        <span className="text-taupe">(el nombre completo del DNI se carga en Datos personales y es el que sale en contratos, boletas y liquidaciones)</span>
+        <span className="text-taupe">(sin números: el DNI y el nombre completo se cargan en Datos personales y son los que salen en contratos, boletas y liquidaciones)</span>
         <input value={form.apellidos} onChange={(e) => { setForm({ ...form, apellidos: e.target.value }); setParecidas(null); }} disabled={guardando} className="rounded-lg border px-3 py-2 disabled:opacity-50" />
       </label>
       <label className="flex flex-col gap-1 text-sm">
@@ -1672,7 +1686,8 @@ export default function EquipoPage() {
           <p className="mt-1 text-taupe">
             Si es la misma persona, no la registres otra vez: ábrela en la lista y complétala ahí
             {parecidas.some((x) => x.estado !== "activo") ? " (a quien ya salió se la reactiva desde su menú «•••»)" : ""}.
-            Si es otra persona, confirma que es distinta.
+            Si es otra persona, confirma con el botón de abajo que es distinta — no hace falta
+            cambiarle el nombre ni agregarle su DNI para diferenciarla.
           </p>
           <ul className="mt-3 flex flex-col gap-2">
             {parecidas.map((x) => (

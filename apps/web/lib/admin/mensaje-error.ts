@@ -80,6 +80,10 @@ const POR_CONSTRAINT: Record<string, string> = {
   // igual para cualquier otra escritura, y para el tiempo entre fusionar la
   // 0360 y pegarla en producción. Sin esto, lo que veía la encargada era
   // «conflicting key value violates exclusion constraint».
+  // La 0512: el DNI escrito dentro del nombre corto. Equipo lo frena antes con
+  // `avisoDocumentoEnNombre`; esto es para cualquier otra puerta.
+  personas_nombre_sin_documento:
+    "El nombre y el apellido corto van sin números: se ven en el terminal y en todas las listas. El DNI se guarda en Datos personales.",
   horarios_sin_solape:
     "Ese rango de fechas ya tiene otro horario asignado. Elige una fecha de vigencia posterior, o corrige primero el tramo que ya existe.",
 };
