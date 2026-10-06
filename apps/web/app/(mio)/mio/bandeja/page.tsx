@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { hoyLima } from "@cayla-dynamic/shared";
+import { EnlaceVolver } from "@/components/enlace-volver";
 import { Cargando, SinDatos } from "@/components/cargando";
 import { Insignia } from "@/components/ui/insignia";
 import {
@@ -200,9 +201,9 @@ export default function MiBandejaPage() {
 
   return (
     <main className="mx-auto min-h-screen w-full max-w-2xl bg-crema px-5 py-8 text-tinta">
-      <Link href="/mio" className="text-sm text-taupe hover:text-tinta hover:underline">
+      <EnlaceVolver href="/mio" className="text-sm text-taupe hover:text-tinta hover:underline">
         ← Volver a Info
-      </Link>
+      </EnlaceVolver>
 
       <h1 className="mt-3 font-serif text-2xl">Bandeja</h1>
       <p className="mt-1 mb-6 text-sm text-taupe">
