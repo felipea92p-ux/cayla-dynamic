@@ -115,6 +115,17 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-10-06-lo-mio-atras-vuelve-a-la-seccion",
+    fecha: "2026-10-06",
+    titulo: "En «Lo mío», «atrás» te devuelve a la sección en la que estabas",
+    queMejoro:
+      "Si abres un reporte y usas «atrás» —el botón del navegador o el gesto del teléfono—, vuelves a la lista " +
+      "de tus reportes, ya no al Resumen. Lo mismo entre secciones: si pasaste de Mis días a Boletas, «atrás» " +
+      "te devuelve a Mis días.\n\n" +
+      "Recargar la página te sigue llevando al Resumen, como hasta ahora.",
+    audiencia: "todos",
+  },
+  {
     id: "2026-10-06-datos-personales-ordena-los-pendientes",
     fecha: "2026-10-06",
     titulo: "En Datos personales, los pendientes se pliegan y se recorren en orden",
