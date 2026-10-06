@@ -46,8 +46,8 @@ set session_replication_role = origin;
 
 
 -- ── DE PARTIDA · el campo vive en el catálogo, no escrito a mano ────────────
-select is((select count(*)::int from catalogo_campos_perfil), 12,
-  'DE PARTIDA · el catálogo tiene sus 12 campos (los 11 de la 0399 + foto_dni)');
+select is((select count(*)::int from catalogo_campos_perfil), 13,
+  'DE PARTIDA · el catálogo tiene sus 13 campos (los 11 de la 0399 + foto_dni + documento de la 0513)');
 
 select is((select requiere_documento from catalogo_campos_perfil where campo = 'foto_dni'), true,
   'DE PARTIDA · foto_dni exige documento adjunto');

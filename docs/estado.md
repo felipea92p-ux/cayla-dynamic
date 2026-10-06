@@ -6,7 +6,7 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-10-06 — El alta pide el documento, y cada documento dice de qué tipo es · migración 0513 · ESCRITA Y PROBADA · SIN PEGAR · SIN FUSIONAR
+## 2026-10-06 — El alta pide el documento, y cada documento dice de qué tipo es · migración 0513 · PEGADA Y VERIFICADA EN PRODUCCIÓN · SIN FUSIONAR (PR #508)
 
 **Origen:** el alta no pedía el DNI, así que el índice único de documento (0125), el único freno exacto contra
 registrar dos veces a la misma persona, nunca actuaba sobre un alta, y alguien llegó a escribir un DNI en el
@@ -29,8 +29,19 @@ md5 de partida de producción: `fn_aplicar_cambio_perfil` fbcf2ac8… (6553) y `
 (2941) — **con `\r`: 119 y 68 retornos = su número de líneas**, medido que el repo con `\r\n` da ese md5 exacto
 (la 0401 se pegó desde Windows). Benigno, pero la 0513 pegada desde la misma máquina los volverá a dejar con `\r`.
 
-**Antes de entregar el SQL se vuelven a pedir los md5 de las cuatro funciones**, en el mismo mensaje (regla de la casa).
-Pegar y fusionar seguidos: entre una y otra Equipo no puede dar de alta.
+**Pegada el 2026-10-06 y verificada** en el SQL Editor. md5 de partida pedidos justo antes de entregar, los cuatro
+idénticos a lo esperado (`fn_crear_persona` 50c42522… · `fn_set_documento` 5f0863e0… · `fn_crear_solicitud_perfil`
+7a2f1dfe… y `fn_aplicar_cambio_perfil` fbcf2ac8…, estas dos con sus `\r`), 1 versión de cada una, `tipo_documento`
+inexistente, 0405 y 0512 registradas. De llegada: las ocho comprobaciones en `true` y `513 · el_alta_pide_el_documento`.
+Llegada (con `\r` en las dos de «Lo mío», por pegar desde Windows): `fn_crear_persona` dbabb62a… · `fn_set_documento`
+6d70abe6… · `fn_crear_solicitud_perfil` 9d473d27… · `fn_aplicar_cambio_perfil` 4265b073….
+
+**Ojo, hasta fusionar el PR #508:** Equipo ya no puede dar de alta con la pantalla vieja (la base exige el documento y
+la pantalla vieja no lo manda): falla sin escribir nada. Fusionar publica; son dos pasos seguidos.
+
+**CI:** `db-tests` falló en las pruebas 316 y 318, que contaban 12 campos en el catálogo y ahora son 13. Las dos pasan
+con la 0513 y fallan sin ella. Lección: al sumar una fila a un catálogo, buscar TODAS las pruebas que lo cuentan, no
+solo la que uno sabe que lo toca (se había ajustado la 322 y se escapó esto).
 
 **Lo que enseñó medir:** (1) el candado dejaba pasar un tipo sin número: un `null` da «no sé» y un CHECK lo deja
 pasar → `coalesce(…, false)`. (2) Quitarle a `authenticated` el permiso de la regla habría roto TODO update directo
