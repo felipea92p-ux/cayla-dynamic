@@ -370,7 +370,8 @@ with repo(numero, nombre, nunca) as (values
     (510, 'la_lider_registra_una_falta_de_conducta', false),
     (511, 'do_toma_el_caso_y_lo_devuelve', false),
     (512, 'el_dni_no_va_en_el_nombre', false),
-    (514, 'las_faltas_se_eligen_por_nombre_corto', false)
+    (514, 'las_faltas_se_eligen_por_nombre_corto', false),
+    (515, 'do_se_entera_y_la_lider_tambien', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
