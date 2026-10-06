@@ -29,8 +29,12 @@ values ('00000000-0000-0000-0000-00000000f10a', 'ZZDO1', 'Sede laboratorio solo_
 set session_replication_role = replica;
 insert into personas (id, nombres, apellidos, sede_base_id, rol, pin_hash, auth_user_id, fecha_ingreso) values
   ('00000000-0000-0000-0000-00000000f20a', 'DoAdmin', 'Lab', '00000000-0000-0000-0000-00000000f10a', 'admin', 'x', '00000000-0000-0000-0000-00000000faaa', '2024-01-01'),
-  ('00000000-0000-0000-0000-00000000f30a', 'DoEncargada', 'Lab', '00000000-0000-0000-0000-00000000f10a', 'supervisor_sede', 'x', '00000000-0000-0000-0000-00000000fbbb', '2024-01-01'),
-  ('00000000-0000-0000-0000-00000000f40a', 'DoColab', 'Lab', '00000000-0000-0000-0000-00000000f10a', 'integrante', 'x', '00000000-0000-0000-0000-00000000fccc', '2024-01-01');
+  ('00000000-0000-0000-0000-00000000f30a', 'DoEncargada', 'Lab', '00000000-0000-0000-0000-00000000f10a', 'supervisor_sede', 'x', '00000000-0000-0000-0000-00000000fbbb', '2024-01-01');
+-- La colaboradora YA tiene su DNI (inventado), con su tipo: lo que pide es CORREGIRLO.
+-- Desde la 0513 cargar uno por primera vez va por otro campo («documento»), y
+-- una corrección sin tipo usa el que la persona ya tenía.
+insert into personas (id, nombres, apellidos, sede_base_id, rol, pin_hash, auth_user_id, fecha_ingreso, tipo_documento, documento) values
+  ('00000000-0000-0000-0000-00000000f40a', 'DoColab', 'Lab', '00000000-0000-0000-0000-00000000f10a', 'integrante', 'x', '00000000-0000-0000-0000-00000000fccc', '2024-01-01', 'dni', '87654320');
 set session_replication_role = origin;
 
 -- ── DE PARTIDA · el catálogo marca identidad como de DO, y solo eso ─────────

@@ -20,7 +20,7 @@ import {
   UsersRound,
 } from "lucide-react";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
-import { desacuerdoAsignacionFamiliar, esPrestadorDeServicios, hoyLima, leCorrespondeCuspp, ESTADO_CIVIL_LABELS, ESTADOS_CIVILES, GENERO_LABELS, GENEROS, GRADO_INSTRUCCION_LABELS, GRADOS_INSTRUCCION, puedeExportarPadron, puedeOperarEquipo, puedeVerIdentidad, REGIMEN_PENSION_LABELS, REGIMENES_PENSION, siNoSinDato, VINCULO_DERECHOHABIENTE_LABELS, VINCULOS_DERECHOHABIENTE } from "@cayla-dynamic/shared";
+import { desacuerdoAsignacionFamiliar, esPrestadorDeServicios, hoyLima, leCorrespondeCuspp, ESTADO_CIVIL_LABELS, ESTADOS_CIVILES, GENERO_LABELS, GENEROS, GRADO_INSTRUCCION_LABELS, GRADOS_INSTRUCCION, puedeExportarPadron, puedeOperarEquipo, puedeVerIdentidad, REGIMEN_PENSION_LABELS, REGIMENES_PENSION, siNoSinDato, VINCULO_DERECHOHABIENTE_LABELS, VINCULOS_DERECHOHABIENTE, TIPOS_DOCUMENTO, TIPO_DOCUMENTO_LABEL, AYUDA_DOCUMENTO, errorDeDocumento, normalizarDocumento, esTipoDocumento, type TipoDocumento } from "@cayla-dynamic/shared";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
 import { Cargando } from "@/components/cargando";
@@ -34,6 +34,7 @@ import { Modal } from "@/components/ui/modal";
 
 interface Persona {
   id: string; nombres: string; apellidos: string; documento: string | null;
+  tipo_documento: string | null;   // CAMBIO 0513 — dni · ce · pasaporte
   sede_base_id: string; email: string | null;
   regimen_pension: string | null;   // CAMBIO 0125
   // Si tiene cuenta de acceso creada. Su correo pasa a ser su login, y la 0198
@@ -238,6 +239,9 @@ export default function DatosPersonalesPage() {
   // Identidad: viven en `personas`, no en la ficha, y se guardan con su propia
   // función porque cada una deja su rastro de auditoría por separado.
   const [dni, setDni] = useState("");
+  // 0513 · el tipo decide la forma del número. Quien no tiene documento todavía
+  // arranca en DNI, el caso de casi todo el equipo.
+  const [tipoDni, setTipoDni] = useState<TipoDocumento>("dni");
   const [motivoDni, setMotivoDni] = useState("");
   const [regimen, setRegimen] = useState("");
   // Desde cuándo rige el régimen nuevo. Lo exige la 0277: el descuento lo decide
@@ -318,7 +322,7 @@ export default function DatosPersonalesPage() {
       { data: fn, error: eFN },
       { data: per, error: ePer },
     ] = await Promise.all([
-      supabase.from("personas").select("id, nombres, apellidos, documento, sede_base_id, email, regimen_pension, auth_user_id, en_planilla").eq("estado", "activo").eq("cuenta_de_servicio", false).order("nombres"),
+      supabase.from("personas").select("id, nombres, apellidos, documento, tipo_documento, sede_base_id, email, regimen_pension, auth_user_id, en_planilla").eq("estado", "activo").eq("cuenta_de_servicio", false).order("nombres"),
       supabase.from("sedes").select("id, codigo"),
       supabase.from("datos_personales").select("persona_id, nombre_dni, fecha_nacimiento, estado_civil, genero, direccion, celular, entidad_bancaria, numero_cuenta, grado_instruccion, hijos_menores, foto_dni_url, foto_personal_url, foto_profesional_url, emergencia_nombre, emergencia_vinculo, emergencia_telefono, discapacidad, discapacidad_conadis, cuspp"),
       supabase.from("derechohabientes").select("id, persona_id, nombres, apellidos, documento, fecha_nacimiento, vinculo, essalud, vida_ley, vigente_hasta, nota").order("apellidos"),
@@ -418,6 +422,7 @@ export default function DatosPersonalesPage() {
     }
     const persona = personas.find((x) => x.id === id) ?? null;
     setDni(persona?.documento ?? "");
+    setTipoDni(esTipoDocumento(persona?.tipo_documento) ? persona.tipo_documento : "dni");
     setRegimen(persona?.regimen_pension ?? "");
     setRegimenDesde(periodoAbiertoIni ?? "");
     setEmail(persona?.email ?? "");
@@ -467,7 +472,10 @@ export default function DatosPersonalesPage() {
   }
 
   const personaSel = personas.find((p) => p.id === sel) ?? null;
-  const dniCambio = !!personaSel && dni.trim() !== (personaSel.documento ?? "");
+  // CAMBIO 0513 — cambiar solo el tipo (un número que era carné) también cuenta.
+  const tipoDniGuardado = esTipoDocumento(personaSel?.tipo_documento) ? personaSel.tipo_documento : "dni";
+  const dniCambio = !!personaSel && (normalizarDocumento(dni) !== (personaSel.documento ?? "")
+    || (dni.trim() !== "" && tipoDni !== tipoDniGuardado));
   // Escribir el DNI por primera vez no es una corrección: no hay nada que
   // justificar cuando antes no había ningún valor. El motivo solo tiene
   // sentido frente a un DNI que ya existía y se está reemplazando.
@@ -520,6 +528,12 @@ export default function DatosPersonalesPage() {
     }
     // El motivo del DNI se exige aquí y no solo en la base, para que el aviso
     // llegue antes de intentar guardar y no como un error del servidor.
+    // 0513 · la forma del número, con la misma regla que la base y antes de
+    // escribir nada (si no, la ficha se guarda y el DNI falla después).
+    if (dniCambio) {
+      const errorDni = errorDeDocumento(tipoDni, dni);
+      if (errorDni) { avisar("error", errorDni); return false; }
+    }
     if (dniEsCorreccion && !motivoDni.trim()) {
       avisar("error", "Escribe el motivo del cambio de DNI: ese número se imprime en memos y contratos.");
       return false;
@@ -572,7 +586,7 @@ export default function DatosPersonalesPage() {
     // guardados que no cambian nada.
     if (dniCambio) {
       const { error: eDni } = await supabase.rpc("fn_set_documento", {
-        p_persona_id: sel, p_documento: dni.trim(), p_motivo: motivoDni.trim(),
+        p_persona_id: sel, p_documento: normalizarDocumento(dni), p_motivo: motivoDni.trim(), p_tipo_documento: tipoDni,
       });
       if (eDni) { setGuardando(false); avisar("error", `La ficha se guardó, pero el DNI no: ${mensajeDeError(eDni)}`); return false; }
     }
@@ -1237,15 +1251,25 @@ export default function DatosPersonalesPage() {
                           porque se imprime en papeles legales y su cambio va a auditoría. */}
                       {anclado("documento", (
                         <Sensible>
-                          <label className="flex flex-col gap-1">
+                          <div className="flex flex-col gap-1">
                             <span className="text-sm text-taupe">
-                              Número de DNI
+                              Documento de identidad
                               {!puedeIdentidad && <span className="ml-1 text-[11px]">· solo Desarrollo Organizacional</span>}
                             </span>
-                            <input value={dni} disabled={!editMode || !puedeIdentidad}
-                              onChange={(e) => setDni(e.target.value)}
-                              className={`rounded-control border ${dniCambio ? "border-ambar" : "border-sand"} bg-hueso px-3 py-2 text-base text-tinta transition-colors duration-150 disabled:cursor-default disabled:border-transparent disabled:bg-hueso disabled:text-tinta sm:text-sm`} />
-                          </label>
+                            {/* CAMBIO 0513 — el tipo decide la forma: DNI 8 dígitos, carné 9 a 12, pasaporte/PTP 6 a 12. */}
+                            <div className="flex gap-2">
+                              <select value={tipoDni} disabled={!editMode || !puedeIdentidad} aria-label="Tipo de documento"
+                                onChange={(e) => setTipoDni(e.target.value as TipoDocumento)}
+                                className="rounded-control border border-sand bg-hueso px-2 py-2 text-base text-tinta disabled:cursor-default disabled:border-transparent sm:text-sm">
+                                {TIPOS_DOCUMENTO.map((t) => <option key={t} value={t}>{TIPO_DOCUMENTO_LABEL[t]}</option>)}
+                              </select>
+                              <input value={dni} disabled={!editMode || !puedeIdentidad} aria-label="Número de documento"
+                                inputMode={tipoDni === "dni" ? "numeric" : "text"}
+                                onChange={(e) => setDni(e.target.value)}
+                                className={`min-w-0 flex-1 rounded-control border ${dniCambio ? "border-ambar" : "border-sand"} bg-hueso px-3 py-2 text-base text-tinta transition-colors duration-150 disabled:cursor-default disabled:border-transparent disabled:bg-hueso disabled:text-tinta sm:text-sm`} />
+                            </div>
+                            {editMode && puedeIdentidad && <span className="text-[11px] text-taupe">{AYUDA_DOCUMENTO[tipoDni]}</span>}
+                          </div>
                         </Sensible>
                       ))}
                       {campo("Nombre completo (como en el DNI)", "nombre_dni")}

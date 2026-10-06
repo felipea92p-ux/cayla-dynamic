@@ -115,6 +115,29 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-10-06-el-alta-pide-el-documento",
+    fecha: "2026-10-06",
+    titulo: "Dar de alta a alguien ahora pide su documento",
+    queMejoro:
+      "En Equipo, «Agregar» pide el tipo de documento (DNI, carné de extranjería o pasaporte / PTP) y su número. " +
+      "Si ese documento ya lo tiene alguien registrado, el sistema no deja crearla otra vez y dice quién es, con " +
+      "«Ver en la lista»; si ya salió, se la reactiva desde su menú. Es lo que evita registrar dos veces a la misma " +
+      "persona.\n\n" +
+      "Las estaciones de retail se dan de alta marcando «Es una estación de retail»: no llevan documento. Y en Datos " +
+      "personales, el documento se corrige eligiendo también su tipo.",
+    audiencia: "panel",
+  },
+  {
+    id: "2026-10-06-cargar-mi-documento-desde-lo-mio",
+    fecha: "2026-10-06",
+    titulo: "Si tu documento no está cargado, ahora lo cargas desde «Lo mío»",
+    queMejoro:
+      "En «Lo mío › Mis datos › Editar», si tu documento de identidad todavía no figura, puedes elegir el tipo y " +
+      "escribir el número. Lo revisa Desarrollo Organizacional antes de guardarse, porque es el número que va en tu " +
+      "contrato. Si ya está cargado, se ve como siempre y solo DO lo puede corregir.",
+    audiencia: "todos",
+  },
+  {
     id: "2026-10-06-el-menu-de-lo-mio-se-ordena-por-temas",
     fecha: "2026-10-06",
     titulo: "El menú de «Lo mío» se ordena por temas y tiene buscador",
