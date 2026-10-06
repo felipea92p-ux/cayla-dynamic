@@ -115,6 +115,19 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-10-06-datos-personales-ordena-los-pendientes",
+    fecha: "2026-10-06",
+    titulo: "En Datos personales, los pendientes se pliegan y se recorren en orden",
+    queMejoro:
+      "La tarjeta de Pendientes ahora se pliega a una sola línea con los nombres: toca uno y se abre su ficha, lista " +
+      "para completar. La lista entera, con lo que le falta a cada persona, aparece en el espacio de la ficha cuando " +
+      "no tienes a nadie abierto.\n\n" +
+      "Al abrir una ficha pendiente, arriba dice en cuál vas («2 de 4») y tiene «Siguiente →» para pasar a la próxima. " +
+      "En la lista del equipo, «Por completar» muestra solo a quienes les falta algo. Y los filtros de sede ya no " +
+      "muestran sedes donde no hay nadie.",
+    audiencia: "panel",
+  },
+  {
     id: "2026-10-06-el-menu-de-lo-mio-se-ordena-por-temas",
     fecha: "2026-10-06",
     titulo: "El menú de «Lo mío» se ordena por temas y tiene buscador",
