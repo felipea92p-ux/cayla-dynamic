@@ -107,7 +107,7 @@ export default function MiReporte() {
   if (ficha.estado === "error") return <main className="p-8 text-sm text-rojo">{ficha.mensaje}</main>;
   if (error) {
     return (
-      <main className="mx-auto max-w-3xl px-5 py-8 text-sm">
+      <main className="mx-auto w-full max-w-3xl px-5 py-8 text-sm">
         <p className="rounded-control bg-rojo/10 px-3 py-2 text-rojo-profundo">{error}</p>
         <Link href="/mio?tab=reportes" className="mt-4 inline-block underline underline-offset-2">← Tus reportes</Link>
       </main>
