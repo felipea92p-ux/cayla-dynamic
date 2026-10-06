@@ -37,10 +37,10 @@ set session_replication_role = origin;
 -- La persona que cesó. Fechas elegidas para que el tiempo de servicio sea
 -- exacto y fácil de verificar a ojo: 6 años y 5 días, sin meses sueltos.
 insert into personas
-  (id, nombres, apellidos, documento, cargo, funcion, tipo_vinculo, sede_base_id,
+  (id, nombres, apellidos, documento, tipo_documento, cargo, funcion, tipo_vinculo, sede_base_id,
    pin_hash, estado, fecha_ingreso, fecha_cese, motivo_cese)
 values
-  ('00000000-0000-0000-0000-00000000f303', 'Melany', 'Cesada Prueba', '87654321',
+  ('00000000-0000-0000-0000-00000000f303', 'Melany', 'Cesada Prueba', '87654321', 'dni',
    'Vendedora', 'experiencia_marca', 'planilla', '00000000-0000-0000-0000-00000000f300',
    'test-hash', 'inactivo', '2020-01-15', '2026-01-20', 'renuncia');
 

@@ -370,6 +370,7 @@ with repo(numero, nombre, nunca) as (values
     (510, 'la_lider_registra_una_falta_de_conducta', false),
     (511, 'do_toma_el_caso_y_lo_devuelve', false),
     (512, 'el_dni_no_va_en_el_nombre', false),
+    (513, 'el_alta_pide_el_documento', false),
     (514, 'las_faltas_se_eligen_por_nombre_corto', false)
 ),
 diff as (

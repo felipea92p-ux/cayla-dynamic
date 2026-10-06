@@ -15,6 +15,8 @@ import {
   GRADO_INSTRUCCION_LABELS, GRADOS_INSTRUCCION,
   REGIMEN_PENSION_LABELS, siNoSinDato,
   VINCULO_DERECHOHABIENTE_LABELS,
+  TIPOS_DOCUMENTO, TIPO_DOCUMENTO_LABEL, AYUDA_DOCUMENTO, errorDeDocumento, normalizarDocumento,
+  esTipoDocumento, type TipoDocumento,
 } from "@cayla-dynamic/shared";
 
 /**
@@ -31,6 +33,11 @@ import {
  * discapacidad, familiares) se ve pero no se toca desde acá: para eso sigue
  * existiendo Desarrollo Organizacional en /admin/datos-personales.
  *
+ * Y UN OCTAVO, SOLO SI FALTA (0513): el documento. Quien no tiene ninguno
+ * cargado lo propone —tipo y número— y lo aprueba DO; quien ya lo tiene lo ve
+ * fijo, como antes. Corregir uno existente sigue siendo de DO. Decidido con
+ * Felipe el 2026-10-06.
+ *
  * EL VALOR REAL NO CAMBIA ACÁ: cada campo que cambió se manda como una
  * propuesta separada con `fn_crear_solicitud_perfil` (0399) — el catálogo
  * sigue siendo la única fuente de qué exige documento, nunca una lista
@@ -40,6 +47,7 @@ import {
 
 interface Yo {
   id: string; nombres: string; apellidos: string; documento: string | null;
+  tipoDocumento: string | null;   // 0513
   email: string | null; regimenPension: string | null; sede: string | null;
 }
 interface Ficha {
@@ -70,6 +78,7 @@ interface SolicitudPerfil {
 const CAMPOS_EDITABLES = [
   "celular", "direccion", "contacto_emergencia",
   "estado_civil", "grado_instruccion", "hijos_menores", "cuenta_bancaria",
+  "documento",   // 0513 — solo cuenta como cambio si no tiene documento (ver `cambios`)
 ] as const;
 type CampoEditable = (typeof CAMPOS_EDITABLES)[number];
 
@@ -78,6 +87,8 @@ interface FormEdit {
   emergencia_nombre: string; emergencia_vinculo: string; emergencia_telefono: string;
   estado_civil: string; grado_instruccion: string; hijos_menores: "" | "si" | "no";
   entidad_bancaria: string; numero_cuenta: string;
+  // 0513 — el tipo arranca en DNI, el caso de casi todo el equipo.
+  tipo_documento: TipoDocumento; documento: string;
 }
 
 function formDeFicha(f: Ficha | null): FormEdit {
@@ -88,6 +99,7 @@ function formDeFicha(f: Ficha | null): FormEdit {
     estado_civil: f?.estado_civil ?? "", grado_instruccion: f?.grado_instruccion ?? "",
     hijos_menores: f?.hijos_menores === true ? "si" : f?.hijos_menores === false ? "no" : "",
     entidad_bancaria: f?.entidad_bancaria ?? "", numero_cuenta: f?.numero_cuenta ?? "",
+    tipo_documento: "dni", documento: "",
   };
 }
 
@@ -131,7 +143,7 @@ function MiEditarContenido() {
 
     const { data: p } = await supabase
       .from("personas")
-      .select("id, nombres, apellidos, documento, email, regimen_pension, sedes!personas_sede_base_id_fkey(nombre)")
+      .select("id, nombres, apellidos, documento, tipo_documento, email, regimen_pension, sedes!personas_sede_base_id_fkey(nombre)")
       .eq("auth_user_id", uid).maybeSingle();
     if (!p) {
       setCargando(false);
@@ -141,6 +153,7 @@ function MiEditarContenido() {
     const yoActual: Yo = {
       id: p.id as string, nombres: p.nombres as string, apellidos: p.apellidos as string,
       documento: (p.documento as string | null) ?? null, email: (p.email as string | null) ?? null,
+      tipoDocumento: (p.tipo_documento as string | null) ?? null,
       regimenPension: (p.regimen_pension as string | null) ?? null,
       sede: ((p.sedes as { nombre: string } | null) ?? null)?.nombre ?? null,
     };
@@ -197,6 +210,9 @@ function MiEditarContenido() {
     cuenta_bancaria:
       form.entidad_bancaria.trim() !== (ficha?.entidad_bancaria ?? "")
       || form.numero_cuenta.trim() !== (ficha?.numero_cuenta ?? ""),
+    // Solo quien NO tiene documento puede proponerlo; si ya tiene, no cuenta
+    // como cambio aunque el estado del formulario diga otra cosa.
+    documento: !yo?.documento && form.documento.trim() !== "",
   };
   const hayAlgunCambio = CAMPOS_EDITABLES.some((c) => cambios[c]);
 
@@ -214,6 +230,9 @@ function MiEditarContenido() {
       case "hijos_menores": return { hijos_menores: form.hijos_menores === "si" };
       case "cuenta_bancaria": return {
         entidad_bancaria: form.entidad_bancaria.trim(), numero_cuenta: form.numero_cuenta.trim(),
+      };
+      case "documento": return {
+        tipo_documento: form.tipo_documento, documento: normalizarDocumento(form.documento),
       };
     }
   }
@@ -237,6 +256,11 @@ function MiEditarContenido() {
     if (porEnviar.length === 0) {
       setAviso({ tipo: "error", texto: "No cambiaste ningún dato." });
       return;
+    }
+    // 0513 · el número, con la misma regla que la base, antes de mandar nada.
+    if (cambios.documento) {
+      const errorDoc = errorDeDocumento(form.tipo_documento, form.documento);
+      if (errorDoc) { setAviso({ tipo: "error", texto: errorDoc }); return; }
     }
     // Se valida el documento de TODOS antes de mandar el primero: mejor
     // avisar antes que dejar la mitad de los pedidos enviados por culpa del
@@ -338,6 +362,37 @@ function MiEditarContenido() {
     );
   }
 
+  /** 0513 · quien no tiene documento lo propone aquí; lo aprueba DO. Con uno
+   *  pendiente se dice que está en revisión, y no se vuelve a pedir. */
+  function campoDocumentoNuevo() {
+    const pendiente = hayPendiente("documento");
+    if (pendiente || !editando) {
+      return campoFijo("Documento de identidad",
+        pendiente ? "Enviado: lo está revisando Desarrollo Organizacional" : "Sin cargar",
+        pendiente ? "pendiente de aprobación" : "puedes cargarlo con «Editar»");
+    }
+    return (
+      <div className="flex flex-col gap-1 sm:col-span-2">
+        <span id="campo-documento-nuevo" className="text-sm text-taupe">
+          Documento de identidad<span className="ml-1 text-[11px]">· todavía no está cargado</span>
+        </span>
+        <div className="flex gap-2">
+          <CampoSelect aria-label="Tipo de documento" value={form.tipo_documento}
+            onChange={(e) => setForm({ ...form, tipo_documento: e.target.value as TipoDocumento })}>
+            {TIPOS_DOCUMENTO.map((t) => <option key={t} value={t}>{TIPO_DOCUMENTO_LABEL[t]}</option>)}
+          </CampoSelect>
+          <Campo aria-labelledby="campo-documento-nuevo" value={form.documento} autoComplete="off"
+            inputMode={form.tipo_documento === "dni" ? "numeric" : "text"}
+            onChange={(e) => setForm({ ...form, documento: e.target.value })} className="min-w-0 flex-1" />
+        </div>
+        <span className="text-[11px] text-taupe">
+          {AYUDA_DOCUMENTO[form.tipo_documento]} Lo revisa Desarrollo Organizacional antes de guardarse:
+          es el número que va en tu contrato. Una vez cargado, solo DO lo puede corregir.
+        </span>
+      </div>
+    );
+  }
+
   /** Uno de los siete campos que sí se pueden pedir cambiar. Deshabilitado
    *  fuera de modo edición; dentro, muestra el botón de documento si el
    *  catálogo lo exige Y el valor de verdad cambió. */
@@ -412,7 +467,11 @@ function MiEditarContenido() {
         <section>
           <p className="mb-2 text-[11px] uppercase tracking-wider text-taupe">Identidad</p>
           <div className="grid gap-3 sm:grid-cols-2">
-            {campoFijo("Número de DNI", yo.documento ?? "—", "solo Desarrollo Organizacional")}
+            {yo.documento
+              ? campoFijo(
+                  esTipoDocumento(yo.tipoDocumento) ? TIPO_DOCUMENTO_LABEL[yo.tipoDocumento] : "Documento",
+                  yo.documento, "solo Desarrollo Organizacional")
+              : campoDocumentoNuevo()}
             {campoFijo("Nombre completo (como en el DNI)", ficha?.nombre_dni ?? "—")}
             {campoFijo("Fecha de nacimiento", ficha?.fecha_nacimiento ?? "—")}
             {campoFijo("Género", ficha?.genero ? (GENERO_LABELS[ficha.genero as keyof typeof GENERO_LABELS] ?? ficha.genero) : "—")}

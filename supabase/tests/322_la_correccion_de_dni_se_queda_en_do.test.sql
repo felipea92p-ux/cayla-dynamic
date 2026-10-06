@@ -29,16 +29,23 @@ values ('00000000-0000-0000-0000-00000000f10a', 'ZZDO1', 'Sede laboratorio solo_
 set session_replication_role = replica;
 insert into personas (id, nombres, apellidos, sede_base_id, rol, pin_hash, auth_user_id, fecha_ingreso) values
   ('00000000-0000-0000-0000-00000000f20a', 'DoAdmin', 'Lab', '00000000-0000-0000-0000-00000000f10a', 'admin', 'x', '00000000-0000-0000-0000-00000000faaa', '2024-01-01'),
-  ('00000000-0000-0000-0000-00000000f30a', 'DoEncargada', 'Lab', '00000000-0000-0000-0000-00000000f10a', 'supervisor_sede', 'x', '00000000-0000-0000-0000-00000000fbbb', '2024-01-01'),
-  ('00000000-0000-0000-0000-00000000f40a', 'DoColab', 'Lab', '00000000-0000-0000-0000-00000000f10a', 'integrante', 'x', '00000000-0000-0000-0000-00000000fccc', '2024-01-01');
+  ('00000000-0000-0000-0000-00000000f30a', 'DoEncargada', 'Lab', '00000000-0000-0000-0000-00000000f10a', 'supervisor_sede', 'x', '00000000-0000-0000-0000-00000000fbbb', '2024-01-01');
+-- La colaboradora YA tiene su DNI (inventado), con su tipo: lo que pide es CORREGIRLO.
+-- Desde la 0513 cargar uno por primera vez va por otro campo («documento»), y
+-- una corrección sin tipo usa el que la persona ya tenía.
+insert into personas (id, nombres, apellidos, sede_base_id, rol, pin_hash, auth_user_id, fecha_ingreso, tipo_documento, documento) values
+  ('00000000-0000-0000-0000-00000000f40a', 'DoColab', 'Lab', '00000000-0000-0000-0000-00000000f10a', 'integrante', 'x', '00000000-0000-0000-0000-00000000fccc', '2024-01-01', 'dni', '87654320');
 set session_replication_role = origin;
 
 -- ── DE PARTIDA · el catálogo marca identidad como de DO, y solo eso ─────────
 select is((select solo_do from catalogo_campos_perfil where campo = 'correccion_identidad'),
   true, 'CATÁLOGO · correccion_identidad queda marcada como de DO');
 
-select is((select count(*)::int from catalogo_campos_perfil where solo_do),
-  1, 'CATÁLOGO · y es el único campo marcado — no se cerró de más');
+-- Desde la 0513 son DOS: cargar el documento por primera vez (`documento`) también
+-- es de DO, porque es el número que va en el contrato. Nada más: no se cerró de más.
+select is((select array_agg(campo order by campo) from catalogo_campos_perfil where solo_do),
+  array['correccion_identidad', 'documento']::text[],
+  'CATÁLOGO · y solo esos dos campos están marcados — no se cerró de más');
 
 -- La colaboradora pide corregir su número de documento.
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000fccc', true);
