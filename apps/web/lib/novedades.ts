@@ -138,6 +138,19 @@ export const NOVEDADES: readonly Novedad[] = [
     audiencia: "todos",
   },
   {
+    id: "2026-10-06-el-historial-se-pliega-y-se-pagina",
+    fecha: "2026-10-06",
+    titulo: "El historial de «Lo mío» se pliega, se lee mejor y ya no se corta en 20",
+    queMejoro:
+      "En «Lo mío › Historial», «Cambios a tu registro» ahora aparece cerrado y dice cuántos cambios hay. Tócalo " +
+      "para abrirlo: se ven de 10 en 10, con «Anterior» y «Siguiente». Antes solo salían los 20 más recientes y " +
+      "el resto no se podía ver.\n\n" +
+      "Un cambio de horario ya no sale como un montón de llaves y comillas: dice, por ejemplo, de lunes a viernes " +
+      "de 8:30 a 2:00 y pasa a otro horario, desde qué día y con qué motivo. Además, el contrato, la boleta, " +
+      "Movilidad y «Contar algo» ya caben en la pantalla del celular, sin cortarse por el lado.",
+    audiencia: "todos",
+  },
+  {
     id: "2026-10-06-lo-mio-atras-vuelve-a-la-seccion",
     fecha: "2026-10-06",
     titulo: "En «Lo mío», «atrás» te devuelve a la sección en la que estabas",
