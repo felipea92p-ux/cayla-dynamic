@@ -115,6 +115,31 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-10-06-lo-mio-tiene-una-seccion-disciplina",
+    fecha: "2026-10-06",
+    titulo: "«Lo mío» tiene una sección nueva: Disciplina",
+    queMejoro:
+      "En Seguimiento hay una sección nueva, «Disciplina», justo antes de «Historial». Ahí ves tus documentos, " +
+      "de a 10 por página, y cómo vas este mes. Los memos que antes estaban en «Historial» ahora están en «Disciplina».\n\n" +
+      "Si te entregaron un documento en papel, ahí puedes abrirlo y dejar constancia de que lo leíste. Leerlo no es " +
+      "aceptarlo. Si no tienes nada pendiente, la sección te lo dice con un mensaje.\n\n" +
+      "En el menú, un número junto a «Disciplina» te avisa cuando hay algo por leer o por recibir.",
+    audiencia: "todos",
+  },
+  {
+    id: "2026-10-06-registrar-una-falta-desde-disciplina",
+    fecha: "2026-10-06",
+    titulo: "Desde Disciplina se puede registrar una falta de conducta",
+    queMejoro:
+      "En Disciplina hay un botón nuevo, «Registrar una falta», y el mismo botón en la ficha de cada persona. Se elige " +
+      "la falta por su nombre corto, con el texto del Reglamento a la vista; se cuenta qué pasó, cuándo y cuándo se " +
+      "supo; y queda un borrador que sigue el trámite de siempre: comunicar, firmar y entregar.\n\n" +
+      "La líder de equipo la registra para integrantes de su sede; a otra líder la registra Desarrollo Organizacional. " +
+      "Desarrollo Organizacional recibe un aviso en su Bandeja, puede tomar el caso y devolverlo con un motivo que lee " +
+      "la líder, y ve si la persona ya leyó lo que se le entregó en papel.",
+    audiencia: "panel",
+  },
+  {
     id: "2026-10-06-lo-mio-volver-retrocede",
     fecha: "2026-10-06",
     titulo: "En «Lo mío», «← Volver» y «Cancelar» te devuelven a donde estabas",
