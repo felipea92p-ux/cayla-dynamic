@@ -3281,6 +3281,32 @@ export type Database = {
           },
         ]
       }
+      lecturas_memo: {
+        Row: {
+          abierto_at: string
+          expediente_id: string
+          leido_at: string | null
+        }
+        Insert: {
+          abierto_at?: string
+          expediente_id: string
+          leido_at?: string | null
+        }
+        Update: {
+          abierto_at?: string
+          expediente_id?: string
+          leido_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lecturas_memo_expediente_id_fkey"
+            columns: ["expediente_id"]
+            isOneToOne: true
+            referencedRelation: "expediente_disciplinario"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       liquidacion_pagada: {
         Row: {
           anula_version: number | null
@@ -7363,6 +7389,10 @@ export type Database = {
       }
       fn_marcar_anuncio_leido: { Args: { p_id: string | null }; Returns: undefined }
       fn_marcar_novedad_vista: { Args: { p_novedad_id: string | null }; Returns: undefined }
+      fn_marcar_memo_leido: {
+        Args: { p_id: string | null }
+        Returns: string
+      }
       fn_marcas_apartadas: {
         Args: never
         Returns: {
@@ -7420,6 +7450,14 @@ export type Database = {
         }[]
       }
       fn_mi_firma: { Args: never; Returns: string }
+      fn_mi_cuenta_de_tardanzas: {
+        Args: { p_al?: string | null }
+        Returns: Json
+      }
+      fn_mi_disciplina: {
+        Args: never
+        Returns: Json
+      }
       fn_mi_firma_config: {
         Args: never
         Returns: {
@@ -7833,6 +7871,10 @@ export type Database = {
           p_path: string | null
           p_persona_id: string | null
         }
+        Returns: undefined
+      }
+      fn_registrar_apertura_memo: {
+        Args: { p_id: string | null }
         Returns: undefined
       }
       fn_registrar_ausencia: {
