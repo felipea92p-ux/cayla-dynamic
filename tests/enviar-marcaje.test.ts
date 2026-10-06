@@ -25,6 +25,7 @@ import { describe, expect, it } from "vitest";
 import {
   enviarMarcaje,
   esRechazoDeEstado,
+  esFalloDeRed,
   esRechazoDeSesion,
   esSesionPerdida,
 } from "@/lib/terminal/enviar-marcaje";
@@ -139,8 +140,8 @@ describe("enviarMarcaje", () => {
 // ============================================================================
 // Los tres textos son los que producción devolvió de verdad (marcas_apartadas,
 // 2026-10-06). Cada uno decide algo distinto en sync.ts, y un texto que cae en
-// la casilla equivocada o aparta una marca buena —la salida a almuerzo de
-// Oficina TRU— o la deja reintentándose para siempre:
+// la casilla equivocada o aparta una marca buena o la deja reintentándose
+// para siempre:
 //
 //   «no coincide con p_terminal_id»   → la marca está bien, el vínculo de la Mac no
 //   «permission denied for function»  → lo mismo: la Mac llamó SIN sesión (anon)
@@ -177,5 +178,29 @@ describe("clasificar el rechazo de una marca", () => {
   it("sin texto de error no hay nada que clasificar", () => {
     expect(esSesionPerdida(undefined)).toBe(false);
     expect(esRechazoDeSesion(undefined)).toBe(false);
+  });
+});
+
+describe("un fallo de red que supabase-js devuelve como error", () => {
+  // postgrest-js no lanza cuando fetch falla: arma `${nombre}: ${mensaje}`.
+  it.each([
+    "TypeError: Load failed",
+    "TypeError: Failed to fetch",
+    "TypeError: NetworkError when attempting to fetch resource.",
+    "TimeoutError: signal timed out",
+    "AbortError: The operation was aborted.",
+    "FetchError: fetch failed",
+  ])("«%s» NO es una respuesta del servidor", async (mensaje) => {
+    expect(esFalloDeRed(mensaje)).toBe(true);
+    const { cliente } = clienteFalso(async () => ({ error: { message: mensaje } }));
+    const r = await enviarMarcaje(cliente, MARCA);
+    expect(r).toEqual({ ok: false, error: mensaje, llego: false });
+  });
+
+  it("un rechazo de la base sigue siendo una respuesta: llego es true", () => {
+    expect(esFalloDeRed("tipo salida_almuerzo no válido en el estado actual")).toBe(false);
+    expect(esFalloDeRed("permission denied for function fn_registrar_marcaje")).toBe(false);
+    expect(esFalloDeRed("el terminal autenticado no coincide con p_terminal_id")).toBe(false);
+    expect(esFalloDeRed(undefined)).toBe(false);
   });
 });

@@ -360,9 +360,8 @@ export default function MarcarPage() {
   // una Mac mini de sede no se recarga en semanas. Si en medio del día la
   // sesión se pierde —el servidor rechaza el refresh token y auth-js borra las
   // credenciales— nada lo notaba: cada marca salía como `anon`, la base
-  // contestaba «permission denied», y la cola la apartaba al sexto intento. El
-  // 2026-10-06 así se apartó la salida a almuerzo de una integrante de Oficina
-  // TRU, y en AQP y TRU ya había 14 más desde agosto.
+  // contestaba «permission denied», y la cola la apartaba al sexto intento.
+  // Medido el 2026-10-06: 20 marcas así en AQP, TRU y Oficina TRU desde agosto.
   //
   // El veredicto es el mismo que ya usa el arranque (`veredictoDeSesion`), y
   // por eso solo «sin_vincular» enciende el aviso: un `no_se_pudo_saber` es un

@@ -148,11 +148,19 @@ export async function eliminarDeOutbox(clientUuid: string) {
   await db.delete("outbox", clientUuid);
 }
 
-export async function registrarIntentoFallido(clientUuid: string, error: string) {
+/**
+ * Anota un envío que falló. `cuentaParaElTope` es true solo si el servidor
+ * CONTESTÓ (`llego` de `enviarMarcaje`): el tope de seis apartaba marcas
+ * leyendo `intentos`, pero ese contador subía también con los cortes de red,
+ * así que cinco ticks sin internet dejaban la marca a un rechazo de ser
+ * apartada. Un fallo sin respuesta guarda el último error —para que Correcciones
+ * diga qué pasó— y no suma.
+ */
+export async function registrarIntentoFallido(clientUuid: string, error: string, cuentaParaElTope = true) {
   const db = await getDb();
   const entry = await db.get("outbox", clientUuid);
   if (entry) {
-    entry.intentos += 1;
+    if (cuentaParaElTope) entry.intentos += 1;
     entry.ultimoError = error;
     await db.put("outbox", entry);
   }
