@@ -22,6 +22,8 @@ import { Menu, MenuItem } from "@/components/ui/menu";
 import { Modal } from "@/components/ui/modal";
 import { Fila, Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
 import { FirmaEditor } from "./FirmaEditor";
+import { ModalRegistrarFalta } from "@/components/disciplina/registrar-falta";
+import { puedeRegistrarleConducta } from "@/lib/admin/conducta";
 
 const META_DIA = 7.5; // horas objetivo por día (45h/semana)
 
@@ -91,7 +93,7 @@ const CAMPO_LABEL: Record<string, string> = {
   funcion: "Área",
 };
 
-interface Persona { id: string; nombres: string; apellidos: string; documento: string | null; funcion: string; sede_base_id: string; fecha_ingreso: string; email: string | null; estado: string; en_planilla: boolean; sueldo_fijo: boolean; personal_direccion: boolean; tipo_vinculo: string }
+interface Persona { id: string; nombres: string; apellidos: string; documento: string | null; funcion: string; sede_base_id: string; fecha_ingreso: string; email: string | null; estado: string; en_planilla: boolean; sueldo_fijo: boolean; personal_direccion: boolean; tipo_vinculo: string; rol: string }
 interface Ficha { nombre_dni: string | null; fecha_nacimiento: string | null; estado_civil: string | null; genero: string | null; direccion: string | null; celular: string | null; entidad_bancaria: string | null; numero_cuenta: string | null; grado_instruccion: string | null; hijos_menores: boolean | null; foto_personal_url: string | null; foto_dni_anverso_ruta: string | null; foto_dni_reverso_ruta: string | null }
 interface Salario { rango: string; salario_mensual_soles: number; vigente_desde: string; vigente_hasta: string | null }
 interface TramoSalarioHist { rango: string; salario_mensual_soles: number; vigente_desde: string; vigente_hasta: string | null; asignado_por: string | null; nota: string | null }
@@ -314,7 +316,7 @@ export default function PerfilPersonaPage() {
       const { data: sesion } = await supabase.auth.getSession();
       if (!sesion.session) { router.replace("/admin/login"); return; }
       const { data: p, error: eP } = await supabase.from("personas")
-        .select("id, nombres, apellidos, documento, funcion, sede_base_id, fecha_ingreso, email, estado, en_planilla, sueldo_fijo, personal_direccion, tipo_vinculo")
+        .select("id, nombres, apellidos, documento, funcion, sede_base_id, fecha_ingreso, email, estado, en_planilla, sueldo_fijo, personal_direccion, tipo_vinculo, rol")
         .eq("id", id).maybeSingle();
       // La consulta que MANDA en esta pantalla tampoco funde error con vacío.
       // `eP` (la consulta falló) y `!p` (respondió y no hay fila) llevaban el
@@ -551,6 +553,16 @@ export default function PerfilPersonaPage() {
   // "Mi firma": solo en TU propio perfil, si puedes firmar (admin/líder).
   const esMiPerfil = !!yo && yo.id === id;
 
+  // La segunda puerta a «Registrar una falta» (la otra está en Disciplina,
+  // decidido el 2026-10-06): llega con esta persona ya elegida. Solo se ofrece
+  // si la base la va a aceptar — a quién se le puede registrar, 0510.
+  const [registrandoFalta, setRegistrandoFalta] = useState(false);
+  const yoRegistra = useMemo(
+    () => (yo ? { id: yo.id, rol: yo.rol, sedeBaseId: yo.sedeBaseId, enPlanilla: yo.enPlanilla } : null), [yo]);
+  const personaFija = useMemo(
+    () => (persona ? { id: persona.id, nombre: `${persona.nombres} ${persona.apellidos}` } : undefined), [persona]);
+  const puedeRegistrarFalta = !!yoRegistra && !!persona && puedeRegistrarleConducta(yoRegistra, persona);
+
   // Alertas del resumen (0428): solo lo que de verdad exige mirar, no un
   // resumen de todo. Vacaciones vencidas o por vencer en 60 días (mismo
   // umbral que ya pintaba ámbar la sección de abajo) y contrato vencido o por
@@ -696,6 +708,19 @@ export default function PerfilPersonaPage() {
   }
 
   function bloqueLegajo() {
+    return (
+      <>
+        {puedeRegistrarFalta && (
+          <div className="mb-3">
+            <Boton tamano="sm" onClick={() => setRegistrandoFalta(true)}>Registrar una falta</Boton>
+          </div>
+        )}
+        {listaLegajo()}
+      </>
+    );
+  }
+
+  function listaLegajo() {
     return errDocs ? (
       <AvisoNoSeCargo que="el legajo disciplinario" motivo={errDocs} noSignifica="no tenga antecedentes" reintentar={reintentar} />
     ) : docs.length === 0 ? (
@@ -1200,6 +1225,17 @@ export default function PerfilPersonaPage() {
           </>
         )}
       </main>
+
+      <ModalRegistrarFalta
+        abierto={registrandoFalta}
+        onCerrar={() => setRegistrandoFalta(false)}
+        supabase={supabase}
+        yo={yoRegistra}
+        personaFija={personaFija}
+        // El trámite sigue en Disciplina: se aterriza en el borrador recién
+        // creado, abierto en su caso (`#doc-ID`).
+        onRegistrado={(docId) => router.push(`/admin/disciplina#doc-${docId}`)}
+      />
 
       <Modal
         abierto={mostrandoCancelarDni}

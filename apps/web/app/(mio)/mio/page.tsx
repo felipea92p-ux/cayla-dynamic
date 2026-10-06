@@ -15,7 +15,7 @@ import { AnunciosWidget } from "@/components/anuncios-widget";
 import { NovedadesWidget } from "@/components/novedades-widget";
 import { SelectorTema } from "@/components/selector-tema";
 import { MenuDetalle } from "@/components/nav/menu-detalle";
-import { GRUPOS_MIO, esTab, type Tab } from "@/lib/mio-secciones";
+import { GRUPOS_MIO, TABS, type Tab } from "@/lib/mio-secciones";
 import { Boton } from "@/components/ui/boton";
 import { Insignia } from "@/components/ui/insignia";
 import { Campo } from "@/components/ui/campo";
@@ -51,6 +51,7 @@ import { esBoletaNueva } from "@/lib/boletas";
 import { contarBoletasNuevas, nombreDelPeriodo, traerMisBoletas, type FilaMiBoleta } from "@/lib/mis-boletas";
 import { contarSinLeer, traerMisReportes, type FilaMiReporte } from "@/lib/reportes";
 import { formatSoles } from "@/lib/rangos";
+import { direccionDeSeccion, seccionAlLlegar, seccionDeLaDireccion } from "@/lib/seccion-en-la-direccion";
 import { useRecorridoGuiado, type PasoRecorrido } from "@/lib/use-recorrido-guiado";
 
 /**
@@ -243,6 +244,16 @@ interface Derechohabiente {
 
 // Las secciones de la pantalla —cuáles son, en qué grupo va cada una, con qué
 // ícono y con qué palabras se buscan— viven en `lib/mio-secciones.ts`.
+
+/**
+ * Si «Lo mío» ya apareció alguna vez desde que se cargó este documento. Vive
+ * fuera del componente a propósito: tiene que sobrevivir a que la pantalla se
+ * desmonte al abrir un reporte y se vuelva a montar al volver «atrás», y
+ * volver a `false` solo con una carga de página entera. Es lo que distingue
+ * una recarga de un «atrás» que cae en la misma dirección (ver
+ * `esRecargaDeEstaDireccion`).
+ */
+let mioYaAparecio = false;
 
 /**
  * El recorrido de primera vez de «Resumen» — Fase 1 (ver CLAUDE.md). Solo esta
@@ -838,7 +849,7 @@ export default function MioPage() {
    * Si algún día «Resumen» deja de ser la sección inicial, esa acción queda
    * escondida y hay que sacarla de ahí antes.
    */
-  const [tab, setTab] = useState<Tab>("resumen");
+  const [tab, mostrarSeccion] = useState<Tab>("resumen");
 
   // El día abierto desde la cuadrícula. En un teléfono no hay `hover`, así que
   // sin esto los cuadritos de colores son decoración: se ve que el 12 está en
@@ -863,29 +874,50 @@ export default function MioPage() {
     void supabase.auth.getSession().then(({ data }) => setSesion(Boolean(data.session)));
   }, [supabase]);
 
-  // Deep-link: al llegar con ?tab=<sección> (ej. desde la Bandeja, al avisar
-  // de un cambio de turno) abre directo esa sección en vez de Resumen. Mismo
-  // patrón que ?fecha= en Turnos — se valida con `esTab` para no dejar `tab`
-  // en un valor que no exista si el enlace viene mal escrito.
+  // La sección vive en la dirección (`?tab=`), y de ahí salen tres cosas que
+  // se pidieron el 2026-10-06 y tiran en direcciones opuestas: un enlace con
+  // ?tab=<sección> —la Bandeja, «← Tus reportes»— abre esa sección; «atrás»
+  // (en el teléfono, el gesto) devuelve a la sección en la que estabas; y
+  // recargar abre SIEMPRE Resumen. La regla y sus dos trampas viven en
+  // `lib/seccion-en-la-direccion.ts`, con sus pruebas.
   //
-  // El enlace se USA UNA VEZ y se borra de la dirección. Antes se quedaba
-  // pegado: quien volvía de un reporte por «← Tus reportes» y recargaba la
-  // página caía otra vez en Reportes, no en Resumen (2026-10-06). Y no solo
-  // estorba: lo único que esta pantalla esconde detrás de Resumen son las
-  // novedades y «Pedir vacaciones» (ver el comentario de `tab`), así que una
-  // recarga que no abre en Resumen las esconde. Tampoco tiene sentido dejarlo:
-  // el menú de secciones nunca escribe en la dirección, así que tras el primer
-  // cambio de sección el `?tab=` ya no decía la verdad.
+  // Recargar abre Resumen porque es lo único que esta pantalla esconde detrás
+  // de una sección y no debe esconder: las novedades y «Pedir vacaciones» (ver
+  // el comentario de `tab`). Antes la recarga volvía a la última sección
+  // enlazada, y quien llegaba desde un aviso de la Bandeja no las veía más.
   useEffect(() => {
     void (() => {
-      const url = new URL(window.location.href);
-      const t = url.searchParams.get("tab");
-      if (t === null) return;
-      if (esTab(t)) setTab(t);
-      url.searchParams.delete("tab");
-      window.history.replaceState(window.history.state, "", url);
+      const carga = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
+      const { seccion, reemplazarPor } = seccionAlLlegar({
+        direccion: window.location.href,
+        carga: carga ? { tipo: carga.type, direccion: carga.name } : null,
+        primeraVez: !mioYaAparecio,
+      }, TABS, "resumen");
+      mioYaAparecio = true;
+      mostrarSeccion(seccion);
+      // `null` y no `window.history.state`: Next.js solo se entera del cambio
+      // de dirección si el estado que recibe NO trae ya el suyo.
+      if (reemplazarPor) window.history.replaceState(null, "", reemplazarPor);
     })();
+    // «Atrás» y «adelante» entre secciones no vuelven a montar la pantalla:
+    // solo cambian la dirección. Hay que leerla de nuevo.
+    const alMoverseEnElHistorial = () =>
+      mostrarSeccion(seccionDeLaDireccion(window.location.href, TABS, "resumen"));
+    window.addEventListener("popstate", alMoverseEnElHistorial);
+    return () => window.removeEventListener("popstate", alMoverseEnElHistorial);
   }, []);
+
+  /**
+   * Toda forma de cambiar de sección pasa por aquí —el menú, los botones de
+   * Resumen, los avisos de «necesita que hagas algo»—, y cada cambio es un paso
+   * del «atrás». Por eso NO se llama a `mostrarSeccion` directo desde un botón:
+   * la dirección dejaría de decir dónde estás y «atrás» te llevaría a otra parte.
+   */
+  function cambiarSeccion(valor: Tab) {
+    mostrarSeccion(valor);
+    const destino = direccionDeSeccion(window.location.href, valor, "resumen");
+    if (destino !== window.location.href) window.history.pushState(null, "", destino);
+  }
 
   async function entrar(e: FormEvent) {
     e.preventDefault();
@@ -1379,7 +1411,7 @@ export default function MioPage() {
    * media altura de una sección que ya no es la que estás mirando.
    */
   function elegirSeccion(valor: Tab) {
-    setTab(valor);
+    cambiarSeccion(valor);
     requestAnimationFrame(() => {
       const el = document.getElementById("detalle");
       if (el && el.getBoundingClientRect().top < 0) {
@@ -1413,7 +1445,7 @@ export default function MioPage() {
 
   /** Desde un aviso de arriba hasta el día concreto del que habla. */
   function abrirDia(fecha: string) {
-    setTab("dias");
+    cambiarSeccion("dias");
     setDiaAbierto(fecha);
     setComentario("");
     setAvisoRevision(null);
@@ -1561,7 +1593,7 @@ export default function MioPage() {
         clave: "vacaciones",
         texto: `Tus vacaciones más antiguas vencen el ${diaYMes(vacas.vence_el)}`,
         detalle: `Te quedan ${vacas.dias_pendientes} días sin tomar. Después de esa fecha esos días ya no se pueden tomar como descanso.`,
-        ir: () => { setTab("ausencias"); irArriba(); },
+        ir: () => { cambiarSeccion("ausencias"); irArriba(); },
       });
     }
     // El bono de cumpleaños: solo cuando pedirlo es posible. Un «ya lo pediste»
@@ -1585,7 +1617,7 @@ export default function MioPage() {
       out.push({
         clave: "memos",
         texto: `Tienes ${n} documento${n === 1 ? "" : "s"} por revisar y firmar`,
-        ir: () => { setTab("historial"); irArriba(); },
+        ir: () => { cambiarSeccion("historial"); irArriba(); },
       });
     }
     // Uno por documento, y no «tienes N»: cada uno se abre por su cuenta y lo
@@ -1955,7 +1987,7 @@ export default function MioPage() {
                 : "Días pendientes de tomar."}
               alerta={(vacas.dias_para_vencer ?? 999) <= 60 && vacas.records_sin_gozar > 0}
               accion={
-                <button onClick={() => { setTab("ausencias"); irArriba(); }}
+                <button onClick={() => { cambiarSeccion("ausencias"); irArriba(); }}
                   className="text-tinta underline underline-offset-2 hover:text-rojo-profundo">
                   Pedir vacaciones →
                 </button>
@@ -2008,7 +2040,7 @@ export default function MioPage() {
               ? `Te toca ${cuando(proximos[0].fecha)}.${feriados.length > 0 ? ` Próximo feriado: ${diaYMes(feriados[0].fecha)}, ${feriados[0].nombre}.` : ""}`
               : "No hay turnos ni horario cargados para los próximos días. Si eso no es lo que esperabas, avísale a tu líder de equipo."}
             accion={
-              <button onClick={() => { setTab("turnos"); irArriba(); }}
+              <button onClick={() => { cambiarSeccion("turnos"); irArriba(); }}
                 className="text-tinta underline underline-offset-2 hover:text-rojo-profundo">
                 Ver mis próximos días →
               </button>
@@ -2024,7 +2056,7 @@ export default function MioPage() {
               ? "Los marca tu líder de equipo cuando los conversan."
               : `Todavía no tienes objetivos cargados para ${mesLabel}. Los acuerda contigo tu líder de equipo.`}
             accion={objetivos.length > 0 ? (
-              <button onClick={() => { setTab("objetivos"); irArriba(); }}
+              <button onClick={() => { cambiarSeccion("objetivos"); irArriba(); }}
                 className="text-tinta underline underline-offset-2 hover:text-rojo-profundo">
                 Verlos →
               </button>

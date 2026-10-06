@@ -259,6 +259,26 @@ export function esRolEncargada(rol: RolPosible): boolean {
 }
 
 /**
+ * ¿Puede TRAMITAR disciplina —registrar una falta, comunicar cargos, firmar,
+ * entregar— y no solo mirarla?
+ *
+ * DO siempre: tramitar no es imponer. La practicante de DO prepara y toma
+ * casos; la firma la exige la base aparte (`fn_expediente_firmante_motivo`,
+ * 0510). La líder de equipo, solo con contrato de trabajo: una líder por
+ * honorarios o en prácticas ve la pantalla, pero no ejerce poder
+ * disciplinario (RIT 2.9). Decidido el 2026-10-06.
+ *
+ * Es la única función de este archivo que pregunta algo más que el rol, y por
+ * eso recibe el vínculo aparte: el rol dice qué se abre; el vínculo, si la
+ * persona puede ejercer poder de dirección. Espeja la rama de la líder de
+ * `fn_expediente_puede_actuar` (0510). Si se desincronizan gana la base, y la
+ * pantalla muestra un error en vez de un botón — el lado seguro.
+ */
+export function puedeTramitarDisciplina(rol: RolPosible, enPlanilla: boolean | null | undefined): boolean {
+  return tiene(DO, rol) || (tiene(SOLO_ENCARGADA, rol) && enPlanilla === true);
+}
+
+/**
  * Administra el sistema: admin o líder DO. NO es un permiso — es la pregunta
  * «¿este rol es de administración?» que necesita la cobertura para saber quién
  * hace de líder en una sede central (ver `cuentaEnCobertura`). Para decidir qué

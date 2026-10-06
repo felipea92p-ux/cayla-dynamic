@@ -29,6 +29,7 @@ import {
   type Adjunto, type DocDisciplina, type FaltaRow, type SituacionDeteccion, type TardanzaRow, type TipoPapel,
 } from "@/lib/admin/disciplina";
 import { evidenciaDeDocumento, evidenciaDeTardanzasDelMes, type Evidencia } from "@/lib/admin/disciplina-evidencia";
+import { citaDeFalta, type FaltaCatalogo } from "@/lib/admin/conducta";
 import { fechaConAnio, fechaCorta, selloLima, sumarMeses, ultimoDiaDelMes } from "./formato";
 
 type Cliente = ReturnType<typeof createAdminSupabaseClient>;
@@ -91,6 +92,8 @@ export function PanelCaso(props: {
   acciones: ReactNode;
   editores: ReactNode;
   onVerPapel: (path: string) => void;
+  /** El catálogo de faltas del RIT (0510), para nombrar la que cita un documento de conducta. */
+  faltas?: FaltaCatalogo[];
 }) {
   const { caso } = props;
   const doc = caso?.tipo === "documento" ? props.docs.find((d) => d.id === caso.id) ?? null : null;
@@ -109,7 +112,7 @@ export function PanelCaso(props: {
 
 function ContenidoCaso({
   caso, doc, personaId, persona, supabase, docs, adjuntos, personas, tardanza, falta, situacion, mesTard,
-  nombresAusencia, evidenciaPrevia, sinConstancia, exigeDescargo, puedeAnular, acciones, editores, onVerPapel,
+  nombresAusencia, evidenciaPrevia, sinConstancia, exigeDescargo, puedeAnular, acciones, editores, onVerPapel, faltas = [],
 }: Parameters<typeof PanelCaso>[0] & {
   caso: CasoAbierto; doc: DocDisciplina | null; personaId: string | null; persona: PersonaInfo | null;
 }) {
@@ -131,6 +134,13 @@ function ContenidoCaso({
 
   const evidencia = evidenciaPrevia ?? cargada;
   const causal = doc?.tipo_causal ?? caso.tipo;
+  // La falta que cita un documento de conducta, con SU versión del RIT: un
+  // documento de la v4.0 sigue citando la v4.0 aunque haya salido otra.
+  const faltaDoc = doc?.tipo_causal === "conducta"
+    ? faltas.find((f) => Number(f.rit_version) === Number(doc.falta_rit_version)
+        && f.numeral === doc.falta_numeral && f.literal === doc.falta_literal) ?? null
+    : null;
+  const relato = doc?.tipo_causal === "conducta" ? doc.hechos?.[0] ?? null : null;
   const cesada = persona?.estado === "inactivo";
   const papeles = doc ? adjuntos.get(doc.id) ?? [] : [];
 
@@ -223,6 +233,19 @@ function ContenidoCaso({
                       ? "Entregado: cuenta como antecedente doce meses desde su notificación (numeral 56.1)."
                       : "Ya no produce efecto."}
               </span>
+              {doc.tipo_causal === "conducta" && (
+                <div className="mt-2 grid gap-1 border-t border-sand pt-2">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-taupe">
+                    {faltaDoc?.rotulo ? `${faltaDoc.rotulo} · ` : ""}
+                    {doc.falta_numeral && doc.falta_literal ? citaDeFalta({ numeral: doc.falta_numeral, literal: doc.falta_literal }) : "falta"} del RIT
+                    {faltaDoc ? ` · falta ${faltaDoc.gravedad}` : ""}
+                  </span>
+                  <span>{faltaDoc?.texto ?? "No se pudo leer el texto de la falta en el catálogo del Reglamento."}</span>
+                  {doc.conocido_el && (
+                    <span className="text-xs text-taupe">La empresa supo del hecho el {fechaCorta(doc.conocido_el)}: desde ahí corre el plazo para actuar (52.6).</span>
+                  )}
+                </div>
+              )}
             </>
           ) : caso.tipo === "tardanza" && tardanza ? (
             <>
@@ -255,6 +278,20 @@ function ContenidoCaso({
       </Seccion>
 
       {/* ── Evidencia ────────────────────────────────────────────────── */}
+      {/* La conducta no tiene marcajes que mirar: su prueba es el relato de
+          quien lo vio, y lo que se adjunte. Es lo que la persona va a leer. */}
+      {causal === "conducta" ? (
+        <Seccion titulo="Lo que pasó">
+          {relato?.relato ? (
+            <div className="grid gap-1 rounded-control border border-sand px-4 py-3">
+              <span className="text-xs text-taupe tabular-nums">{fechaCorta(relato.fecha)}</span>
+              <p className="whitespace-pre-line">{relato.relato}</p>
+            </div>
+          ) : (
+            <p className="text-taupe">Este documento no trae relato.</p>
+          )}
+        </Seccion>
+      ) : (
       <Seccion titulo="Evidencia, día por día">
         {caso.tipo === "falta" ? (
           <p className="text-taupe">
@@ -324,6 +361,7 @@ function ContenidoCaso({
           </>
         )}
       </Seccion>
+      )}
 
       {/* ── Antecedentes ─────────────────────────────────────────────── */}
       <Seccion titulo="Antecedentes">
