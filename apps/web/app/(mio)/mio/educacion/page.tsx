@@ -1,7 +1,6 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import {
@@ -11,6 +10,7 @@ import {
   type EstadoConstancia, type EstadoEntrega, type EstadoSolicitud, type FrecuenciaPago, type MotivoRechazo,
   type TipoConstancia,
 } from "@cayla-dynamic/shared";
+import { EnlaceVolver } from "@/components/enlace-volver";
 import { Cargando } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
 import { Insignia } from "@/components/ui/insignia";
@@ -220,7 +220,7 @@ function EducacionContenido() {
         <p className="max-w-md rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo-profundo">
           {error} <Boton variante="enlace" onClick={() => void cargar()}>Reintentar</Boton>
         </p>
-        <Link href="/mio" className="mt-3 inline-block text-sm text-taupe hover:text-tinta hover:underline">← Volver a Info</Link>
+        <EnlaceVolver href="/mio" className="mt-3 inline-block text-sm text-taupe hover:text-tinta hover:underline">← Volver a Info</EnlaceVolver>
       </main>
     );
   }
@@ -237,7 +237,7 @@ function EducacionContenido() {
 
   return (
     <main className="mx-auto w-full max-w-2xl px-4 py-6 sm:px-6">
-      <Link href="/mio" className="mb-4 inline-block text-sm text-taupe hover:text-tinta hover:underline">← Volver a Info</Link>
+      <EnlaceVolver href="/mio" className="mb-4 inline-block text-sm text-taupe hover:text-tinta hover:underline">← Volver a Info</EnlaceVolver>
       <h1 className="mb-1 font-serif text-2xl">Educación</h1>
       <p className="mb-6 text-sm text-taupe">
         El apoyo de CAYLA para tus estudios o los de tus hijos, y las constancias que lo respaldan.
