@@ -25,8 +25,8 @@ import {
   NIVEL_DISCIPLINARIO_LABELS, fechaLima, hoyLima, nombreDelMesLima, primeroDeMesLima, rangoDelDiaLima,
 } from "@cayla-dynamic/shared";
 import {
-  antecedentesVigentes, esGradual, etapaDelBorrador, eventosDeObservacion, explicarPasoTardanza, SIN_FOTO_DEL_HORARIO, UMBRAL_FALTAS,
-  type Adjunto, type DocDisciplina, type FaltaRow, type SituacionDeteccion, type TardanzaRow, type TipoPapel,
+  antecedentesVigentes, esGradual, estadoDeLectura, etapaDelBorrador, eventosDeObservacion, explicarPasoTardanza, SIN_FOTO_DEL_HORARIO, UMBRAL_FALTAS,
+  type Adjunto, type DocDisciplina, type FaltaRow, type LecturaMemo, type SituacionDeteccion, type TardanzaRow, type TipoPapel,
 } from "@/lib/admin/disciplina";
 import { evidenciaDeDocumento, evidenciaDeTardanzasDelMes, type Evidencia } from "@/lib/admin/disciplina-evidencia";
 import { citaDeFalta, traspasosDe, type FaltaCatalogo, type Traspaso } from "@/lib/admin/conducta";
@@ -96,6 +96,8 @@ export function PanelCaso(props: {
   faltas?: FaltaCatalogo[];
   /** Las vueltas del caso entre la líder y DO (0511). */
   traspasos?: Traspaso[];
+  /** Quién abrió y quién leyó lo entregado en papel (0516). */
+  lecturas?: LecturaMemo[];
 }) {
   const { caso } = props;
   const doc = caso?.tipo === "documento" ? props.docs.find((d) => d.id === caso.id) ?? null : null;
@@ -114,7 +116,7 @@ export function PanelCaso(props: {
 
 function ContenidoCaso({
   caso, doc, personaId, persona, supabase, docs, adjuntos, personas, tardanza, falta, situacion, mesTard,
-  nombresAusencia, evidenciaPrevia, sinConstancia, exigeDescargo, puedeAnular, acciones, editores, onVerPapel, faltas = [], traspasos = [],
+  nombresAusencia, evidenciaPrevia, sinConstancia, exigeDescargo, puedeAnular, acciones, editores, onVerPapel, faltas = [], traspasos = [], lecturas = [],
 }: Parameters<typeof PanelCaso>[0] & {
   caso: CasoAbierto; doc: DocDisciplina | null; personaId: string | null; persona: PersonaInfo | null;
 }) {
@@ -146,6 +148,10 @@ function ContenidoCaso({
   // Quién tiene el caso, y las vueltas que dio (0511).
   const vueltas = doc ? traspasosDe(traspasos, doc.id) : [];
   const tomadoPor = doc?.tomado_por ? personas.get(doc.tomado_por)?.nombre ?? "Desarrollo Organizacional" : null;
+  // La constancia de lectura de lo entregado en papel (0516): lo que DO necesita para saber
+  // si la persona de verdad se enteró, sin preguntarle. Lo recibido por Info no la tiene
+  // porque su entrega ya es la constancia.
+  const lectura = doc ? estadoDeLectura(doc, lecturas.find((l) => l.expediente_id === doc.id), new Date()) : null;
   const cesada = persona?.estado === "inactivo";
   const papeles = doc ? adjuntos.get(doc.id) ?? [] : [];
 
@@ -247,6 +253,14 @@ function ContenidoCaso({
                       ? "Entregado: cuenta como antecedente doce meses desde su notificación (numeral 56.1)."
                       : "Ya no produce efecto."}
               </span>
+              {lectura && lectura.tipo !== "no_aplica" && (
+                <span className={cx("text-xs", lectura.tipo === "sin_abrir" && lectura.dias >= 7 ? "text-ambar" : "text-taupe")}>
+                  {lectura.tipo === "leido" && `La persona leyó el documento el ${selloLima(lectura.leido_at)} (lo había abierto el ${selloLima(lectura.abierto_at)}).`}
+                  {lectura.tipo === "firmo" && `La persona firmó su copia desde «Lo mío» el ${selloLima(lectura.firmado_at)}: firmar cuenta como haberlo leído.`}
+                  {lectura.tipo === "abierto" && `La persona abrió el documento el ${selloLima(lectura.abierto_at)}, pero todavía no confirmó que lo leyó.`}
+                  {lectura.tipo === "sin_abrir" && `La persona todavía no abrió el documento: se lo entregaron hace ${lectura.dias} día${lectura.dias === 1 ? "" : "s"}.`}
+                </span>
+              )}
               {doc.tipo_causal === "conducta" && (
                 <div className="mt-2 grid gap-1 border-t border-sand pt-2">
                   <span className="text-xs font-semibold uppercase tracking-wide text-taupe">
