@@ -227,6 +227,30 @@ Lo que eso significa, y hay que tenerlo presente al pedir permiso:
 Así que pedir permiso para fusionar y pedirlo para publicar son la misma
 petición. Dilo así cuando lo pidas.
 
+**Y una sesión de Claude comenta en el PR ANTES de fusionarlo.** Todas las
+sesiones trabajan con la cuenta de Felipe, así que para GitHub «lo fusionó
+Felipe» y «lo fusionó una sesión» son lo mismo. El 2026-10-06 el #505 se fusionó
+diez minutos después de abrirse y no hubo forma de saber cuál de las dos cosas
+pasó. Estaba bien hecho —por PR, con `db-tests` y `ui-tests` en verde— y aun así
+quedó sin respuesta la pregunta que importa: ¿alguien lo pidió?
+
+El comentario lleva la marca `<!-- cayla:fusion-sesion -->` y cuatro líneas:
+**Sesión** (worktree y rama), **Pidió** (quién, con sus palabras, y cuándo),
+**Pruebas** (estado de `db-tests` y `ui-tests` al fusionar) y **SQL** («no hay»,
+o qué migración se pegó antes y quién lo confirmó). Tiene que ser POSTERIOR al
+último commit del PR: un comentario de las 10:00 no avala un commit de las
+10:30, así que si empujas algo después —o traes `main` a la rama— se comenta de
+nuevo.
+
+Lo vigila `.claude/hooks/comentar-antes-de-fusionar.sh`, registrado en
+`.claude/settings.json`: frena `gh pr merge` —también con `--auto`, que es
+publicar en diferido— si falta el comentario, e imprime el formato exacto. Dos
+límites, y conviene saberlos: solo cubre a las sesiones de Claude que parten de
+una rama con este archivo (una web de GitHub o `gh api …/merge` no pasan por
+él), y si no puede leer el PR **frena**, no deja pasar. Que no lo vea un freno
+no es permiso: la regla es la de arriba, el freno solo la hace difícil de
+olvidar.
+
 **Ojo con el entorno.** El panel apunta al Supabase **local** (127.0.0.1), no a
 producción. Para diagnosticar prod, Felipe corre SELECTs en el SQL Editor. Nunca
 asumir que lo que se ve en local es lo que pasa en prod.
