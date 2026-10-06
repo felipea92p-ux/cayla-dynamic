@@ -35,7 +35,7 @@ con datos de prueba y la 0513 aplicada; se limpió y se revirtió a mano.
 
 ---
 
-## 2026-10-06 — El DNI no va en el nombre · migración 0512 · ESCRITA Y PROBADA · SIN PEGAR · SIN FUSIONAR
+## 2026-10-06 — El DNI no va en el nombre · migración 0512 · PEGADA Y VERIFICADA · FUSIONADO (#503)
 
 **Origen:** una integrante apareció en todas las listas (y en el terminal de su sede) con su DNI pegado al apellido
 corto. Ningún código lo pegó: se tecleó a mano en el alta. El alta no tiene campo para el DNI, y desde la 0506 un
@@ -51,9 +51,13 @@ quedaría el nombre vacío. Equipo frena lo mismo antes de escribir (alta y edic
 queda «Inventada Apellido»; repegada → 0 filas. Apellido = solo el número → se detiene. `tests/nombres.test.ts` con
 los mismos casos.
 
-**Orden:** pegar la 0512 ANTES de fusionar (no rompe nada si llega después: la pantalla ya frena sola, pero el
-nombre con DNI sigue a la vista hasta que se pegue). Después de pegarla: cargar el DNI de esa integrante en Datos
-personales si el NOTICE dice que no lo tiene.
+**Cómo quedó:** el PR se fusionó ANTES de pegar (sin daño: la pantalla frena sola). La primera pegada se detuvo
+sola —«le quedaría el apellido vacío»—: el número no iba pegado al apellido, ocupaba el campo entero (el apellido
+estaba escrito en el del nombre). Se corrigió a mano en Equipo → Editar y la segunda pegada dio
+`true | true | 512 · el_dni_no_va_en_el_nombre`. El freno de «nombre vacío» era justo para este caso: la suposición
+de dónde estaba el número era falsa y la migración no la adivinó.
+
+**Abierto:** el alta sigue sin pedir el DNI, que es el único freno determinista contra duplicados.
 
 ---
 
