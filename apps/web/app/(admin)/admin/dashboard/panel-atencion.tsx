@@ -82,16 +82,34 @@ export function PanelAtencionLateral({ items, alOcultar }: { items: ItemAtencion
 }
 
 export function PanelAtencionBanner({ items }: { items: ItemAtencionVista[] }) {
-  const [abierto, setAbierto] = useState(true);
+  // En celular nace PLEGADO: queda una línea con el rojo y el conteo, y el
+  // detalle se abre con un toque. En tablet y escritorio nace abierto, como
+  // siempre. Se decide al montar y no con CSS porque `abierto` también manda el
+  // texto del botón y el aria-expanded. Es seguro leer `window` aquí: este
+  // banner solo se monta cuando el Dashboard ya cargó, nunca en el servidor.
+  const [abierto, setAbierto] = useState(() => typeof window === "undefined" || !window.matchMedia("(max-width: 639px)").matches);
   const criticas = items.filter((i) => i.tono === "critico").length;
   if (items.length === 0) return null;
+  const titulo = criticas > 0
+    ? `${criticas} ${criticas === 1 ? "cosa requiere" : "cosas requieren"} atención`
+    : `${items.length} ${items.length === 1 ? "aviso" : "avisos"}`;
   return (
-    <div className={`rounded-2xl border bg-papel p-4 ${criticas > 0 ? "border-rojo/40" : "border-sand"}`} role={criticas > 0 ? "alert" : undefined}>
-      <div className="flex flex-wrap items-center justify-between gap-2">
+    <div className={`rounded-2xl border bg-papel px-3 py-2.5 sm:p-4 ${criticas > 0 ? "border-rojo/40" : "border-sand"}`} role={criticas > 0 ? "alert" : undefined}>
+      {/* Celular: toda la fila es el botón. Un «Ver» de 12 px en la esquina es
+          un blanco que se falla con el pulgar. */}
+      <button
+        type="button"
+        onClick={() => setAbierto((a) => !a)}
+        aria-expanded={abierto}
+        className="flex w-full items-center gap-2 text-left sm:hidden"
+      >
+        <span aria-hidden className={`size-2 shrink-0 rounded-full ${criticas > 0 ? "bg-rojo" : "bg-ambar"}`} />
+        <span className={`flex-1 text-sm font-medium ${criticas > 0 ? "text-rojo-profundo" : "text-tinta"}`}>{titulo}</span>
+        <span aria-hidden className="text-taupe">{abierto ? "▴" : "▾"}</span>
+      </button>
+      <div className="hidden flex-wrap items-center justify-between gap-2 sm:flex">
         <h2 className={`font-serif text-lg font-medium ${criticas > 0 ? "text-rojo-profundo" : "text-tinta"}`}>
-          {criticas > 0
-            ? `${criticas} ${criticas === 1 ? "cosa requiere" : "cosas requieren"} atención inmediata`
-            : `${items.length} ${items.length === 1 ? "aviso" : "avisos"}`}
+          {criticas > 0 ? `${titulo} inmediata` : titulo}
         </h2>
         <Boton variante="enlace" tamano="sm" onClick={() => setAbierto((a) => !a)} aria-expanded={abierto}>
           {abierto ? "Ocultar" : "Ver"}

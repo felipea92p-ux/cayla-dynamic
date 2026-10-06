@@ -11,6 +11,7 @@ import { Insignia } from "@/components/ui/insignia";
 import { Campo, CampoCasilla, CampoSelect } from "@/components/ui/campo";
 import { Fila, Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
+import { Menu, MenuItem } from "@/components/ui/menu";
 import {
   TZ_LIMA, cuentaEnCobertura, etiquetaDeSede, hoyLima, formatoMinutos, puedeVerTodasLasSedes,
 } from "@cayla-dynamic/shared";
@@ -32,6 +33,7 @@ import {
 } from "@/lib/admin/tablero-preferencias";
 import { PanelColapsable } from "./panel-colapsable";
 import { PanelAtencionBanner, PanelAtencionLateral } from "./panel-atencion";
+import { FiltrosCelular } from "./filtros-celular";
 import { usePendientesBandeja } from "./use-pendientes-bandeja";
 import { useCasosResumen } from "./use-casos-resumen";
 import { useRefrescoLento } from "./use-refresco-lento";
@@ -875,20 +877,24 @@ export default function DashboardPage() {
   const notaSedesQueSeMiden = sedesQueSeMiden === sedes.length
     ? undefined
     : sedesQueSeMiden === 0 ? "ninguna se mide hoy" : `de ${sedesQueSeMiden} que se ${sedesQueSeMiden === 1 ? "mide" : "miden"} hoy`;
-  const resumen: { clave: ClaveResumen; label: string; n: number; color: string; nota?: string; notaSuave?: boolean }[] = [
+  // `corto` es lo que cabe en el celular, donde los cuatro números van en una fila de
+  // ~70 px cada uno. El `label` completo se sigue leyendo al tocar (encabezado del
+  // detalle) y en el aria-label del botón: «Sin marcar» solo, sin «y ya les tocaba
+  // entrar», es la frase que acusaría a quien aún no tenía que haber llegado.
+  const resumen: { clave: ClaveResumen; label: string; corto: string; n: number; color: string; nota?: string; notaSuave?: boolean }[] = [
     {
-      clave: "trabajando", label: "Trabajando ahora", n: personasDelResumen.trabajando.length,
+      clave: "trabajando", label: "Trabajando ahora", corto: "Trabajando", n: personasDelResumen.trabajando.length,
       color: personasDelResumen.trabajando.length > 0 ? "text-verde" : "text-tinta",
       nota: enPausaTotal > 0 ? `y ${enPausaTotal} en pausa` : undefined,
     },
-    { clave: "tardanzas", label: "Tardanzas hoy", n: personasDelResumen.tardanzas.length, color: personasDelResumen.tardanzas.length > 0 ? "text-rojo" : "text-tinta" },
+    { clave: "tardanzas", label: "Tardanzas hoy", corto: "Tardanzas", n: personasDelResumen.tardanzas.length, color: personasDelResumen.tardanzas.length > 0 ? "text-rojo" : "text-tinta" },
     // Tres frases distintas para lo mismo («sin marcar cuando ya debían», «sin
     // marcar y ya le tocaba», la insignia de la fila): ahora dicen lo mismo, con
     // verbo — «ya les tocaba entrar».
-    { clave: "sin_marcar", label: "Sin marcar y ya les tocaba entrar", n: personasDelResumen.sin_marcar.length, color: personasDelResumen.sin_marcar.length > 0 ? "text-rojo" : "text-verde" },
+    { clave: "sin_marcar", label: "Sin marcar y ya les tocaba entrar", corto: "Sin marcar", n: personasDelResumen.sin_marcar.length, color: personasDelResumen.sin_marcar.length > 0 ? "text-rojo" : "text-verde" },
     // «Bajo la meta», no «bajo mínimo»: Turnos, los recuadros de cada sede y la
     // pastilla dicen «meta». «Mínimo» era una tercera palabra para lo mismo.
-    { clave: "bajo_minimo", label: "Sedes bajo la meta", n: sedesBajoMinimo.length, color: sedesBajoMinimo.length > 0 ? "text-rojo" : "text-verde", nota: notaSedesQueSeMiden, notaSuave: true },
+    { clave: "bajo_minimo", label: "Sedes bajo la meta", corto: "Bajo meta", n: sedesBajoMinimo.length, color: sedesBajoMinimo.length > 0 ? "text-rojo" : "text-verde", nota: notaSedesQueSeMiden, notaSuave: true },
   ];
   const resumenDetalle = resumen.find((k) => k.clave === resumenAbierto) ?? null;
 
@@ -1017,7 +1023,7 @@ export default function DashboardPage() {
 
   return (
     <div className="flex flex-1 flex-col">
-      <main className="flex-1 p-6 sm:p-8">
+      <main className="flex-1 p-4 sm:p-8">
         <CabeceraPagina
           titulo="Asistencia de hoy"
           descripcion={
@@ -1040,7 +1046,11 @@ export default function DashboardPage() {
                     </span>
                     {/* La fecha, porque «hoy» sin fecha no dice de qué día son los números
                         (una captura de esta pantalla no se puede fechar después). */}
-                    {fechaConDia(hoy)} · en vivo · actualizado {actualizado} · se refresca cada 30s
+                    {/* Celular: una línea («… · en vivo · 05:59 p. m.»). Los segundos y el «se
+                        refresca cada 30s» siguen en el menú ⋯ y en el escritorio; la fecha se queda
+                        siempre, por la razón de arriba. */}
+                    <span className="hidden sm:inline">{fechaConDia(hoy)} · en vivo · actualizado {actualizado} · se refresca cada 30s</span>
+                    <span className="sm:hidden">{fechaConDia(hoy)} · en vivo · {actualizado.replace(/^(\d{1,2}:\d{2}):\d{2}/, "$1")}</span>
                   </>
                 )}
               </div>
@@ -1048,7 +1058,7 @@ export default function DashboardPage() {
                   no van en el mismo refresco de 30s (cambian una vez al día, no
                   cada medio minuto) — decirlo evita la promesa que el título de
                   arriba no cumple para esas dos franjas. */}
-              <div className="mt-0.5 text-taupe">Disciplina, memos y contratos se actualizan cada 5 minutos.</div>
+              <div className="mt-0.5 hidden text-taupe sm:block">Disciplina, memos y contratos se actualizan cada 5 minutos.</div>
               {/* Aviso discreto, no un banner: alguien de vacaciones podría verse como
                   "sin marcar" mientras esta consulta no responda. Menos grave que
                   Contratos o la alerta de sede — por eso no interrumpe la pantalla. */}
@@ -1060,7 +1070,43 @@ export default function DashboardPage() {
             </>
           }
           accion={
-            <div className="flex flex-wrap items-center gap-3">
+            <>
+            {/* Celular: «Personalizar» y «Ver en Google Sheets» pasan a un menú ⋯. Eran dos
+                controles que compiten con el título y que casi nadie toca desde el teléfono
+                (lo personalizado se guarda por navegador). El aviso de que Disciplina, memos y
+                contratos se refrescan cada 5 min también vive aquí: el «en vivo» de arriba no
+                los incluye y ese matiz no se pierde, solo se mueve. */}
+            <div className="sm:hidden">
+              <Menu trigger={({ abierto, alternar }) => (
+                <button
+                  type="button"
+                  onClick={alternar}
+                  aria-haspopup="menu"
+                  aria-expanded={abierto}
+                  aria-label="Más opciones"
+                  className="flex size-10 items-center justify-center rounded-full border border-sand bg-papel text-xl leading-none text-tinta transition-colors hover:border-taupe/40 hover:bg-sand/50 active:scale-[0.97]"
+                >
+                  ⋯
+                </button>
+              )}>
+                <MenuItem onClick={() => setPersonalizando((v) => !v)}>
+                  {personalizando ? "Terminar de personalizar" : "Personalizar tablero"}
+                </MenuItem>
+                <a
+                  href={URL_SHEET_ASISTENCIA}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  role="menuitem"
+                  className="block w-full px-3 py-2 text-left text-sm text-tinta transition-colors duration-150 hover:bg-sand/50 focus:bg-sand/50 focus:outline-none"
+                >
+                  Ver en Google Sheets ↗
+                </a>
+                <div className="mt-1 w-64 border-t border-sand px-3 py-2 text-xs text-taupe">
+                  Esta pantalla se refresca cada 30 s. Disciplina, memos y contratos, cada 5 minutos.
+                </div>
+              </Menu>
+            </div>
+            <div className="hidden flex-wrap items-center gap-3 sm:flex">
               {prefs.alertasOcultas && (
                 <span className="hidden xl:block">
                   <Boton variante="secundario" tamano="sm" onClick={() => setPrefsCrudas(alternarAlertas(prefs))}>
@@ -1083,6 +1129,7 @@ export default function DashboardPage() {
                 Ver en Google Sheets ↗
               </a>
             </div>
+            </>
           }
         />
 
@@ -1099,8 +1146,21 @@ export default function DashboardPage() {
           <Cargando texto="Cargando la asistencia de hoy…" />
         ) : (
           <>
-            {/* FILTROS */}
-            <div className="mb-6 flex flex-wrap items-end gap-3 rounded-2xl border border-sand bg-papel p-4">
+            {/* FILTROS. Celular: buscador + botón «Filtros» (la hoja vive en el componente).
+                Desde 640 px, la caja de siempre. Comparten el mismo estado. */}
+            <FiltrosCelular
+              busqueda={busqueda}
+              alBuscar={setBusqueda}
+              sedes={sedes.map((s) => ({ codigo: s.codigo, texto: s.etiqueta.texto }))}
+              sedeFiltro={sedeFiltro}
+              alCambiarSede={setSedeFiltro}
+              estadoFiltro={estadoFiltro}
+              alCambiarEstado={setEstadoFiltro}
+              soloAlertas={soloAlertas}
+              alCambiarSoloAlertas={setSoloAlertas}
+              alLimpiar={limpiarFiltros}
+            />
+            <div className="mb-6 hidden flex-wrap items-end gap-3 rounded-2xl border border-sand bg-papel p-4 sm:flex">
               <div className="min-w-48 flex-1">
                 <Campo
                   etiqueta="Buscar persona"
@@ -1134,18 +1194,23 @@ export default function DashboardPage() {
                   contenido de cada uno se queda escrito donde está. */}
               <div className="flex min-w-0 flex-col">
                 {itemsAtencion.length > 0 && (
-                  <div style={{ order: -3 }} className="mb-6 xl:hidden">
+                  <div style={{ order: -3 }} className="mb-4 sm:mb-6 xl:hidden">
                     <PanelAtencionBanner items={itemsAtencion} />
                   </div>
                 )}
-                <nav style={{ order: -2 }} aria-label="Atajos" className="mb-6 flex flex-wrap items-center gap-2">
-                  <span className="text-xs text-taupe">Atajos:</span>
+                {/* Celular: una fila que se desliza de lado (no se parte en tres líneas) y que va
+                    DESPUÉS del resumen, no antes: lo primero son los números. `max-sm:order-1!`
+                    gana al `order` en línea de aquí, y deja a los atajos entre el resumen (0) y las
+                    sedes (1), que ya están en ese orden por defecto — si alguien reordena sus
+                    paneles en «Personalizar», los atajos se quedan donde él los puso. */}
+                <nav style={{ order: -2 }} aria-label="Atajos" className="mb-4 flex items-center gap-2 overflow-x-auto [scrollbar-width:none] max-sm:order-1! sm:mb-6 sm:flex-wrap sm:overflow-visible">
+                  <span className="hidden text-xs text-taupe sm:inline">Atajos:</span>
                   {[
                     { href: "/admin/ausencias", texto: "Registrar ausencia" },
                     { href: "/admin/turnos", texto: "Ver turnos" },
                     esAdmin ? { href: "/admin/documentacion", texto: "Aprobar documentos" } : { href: "/admin/correcciones", texto: "Corregir marcas" },
                   ].map((a) => (
-                    <Link key={a.href} href={a.href} className="rounded-control border border-sand bg-papel px-3 py-1.5 text-sm font-medium text-tinta transition-colors hover:border-taupe">{a.texto}</Link>
+                    <Link key={a.href} href={a.href} className="shrink-0 whitespace-nowrap rounded-control border border-sand bg-papel px-3 py-1.5 text-sm font-medium text-tinta transition-colors hover:border-taupe">{a.texto}</Link>
                   ))}
                 </nav>
                 {personalizando && (
@@ -1170,7 +1235,9 @@ export default function DashboardPage() {
                 `flex-col justify-start` porque un <button> centra su contenido
                 en vertical, y la tarjeta con la etiqueta en dos líneas dejaba
                 su número más arriba que las otras tres. */}
-            <div className="mb-3 flex flex-wrap items-center gap-2" role="group" aria-label="Indicadores visibles">
+            {/* Celular: esta fila solo aparece al «Personalizar» (menú ⋯). Es configuración del
+                tablero, no información del día, y ocupaba una línea en cada visita. */}
+            <div className={`mb-3 flex-wrap items-center gap-2 sm:flex ${personalizando ? "flex" : "hidden"}`} role="group" aria-label="Indicadores visibles">
               <span className="text-xs text-taupe">Indicadores:</span>
               <span className="rounded-full border border-tinta bg-tinta px-3 py-1 text-xs text-crema">Asistencia</span>
               {KPIS_EXTRA.map((k: KpiExtra) => {
@@ -1188,7 +1255,10 @@ export default function DashboardPage() {
                 );
               })}
             </div>
-            <div className={`${resumenDetalle ? "mb-3" : "mb-6"} grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-sand bg-sand sm:grid-cols-4`}>
+            {/* Celular: los cuatro números en UNA fila de ~75 px (antes un 2×2 de ~230 px), con
+                la etiqueta corta. El 2×2 gastaba un cuarto de pantalla en cuatro cifras. */}
+            <div className={resumenDetalle ? "mb-3" : "mb-4 sm:mb-6"}>
+            <div className="grid grid-cols-4 gap-px overflow-hidden rounded-2xl border border-sand bg-sand">
               {resumen.map((k) => {
                 const abierto = resumenAbierto === k.clave;
                 return (
@@ -1200,22 +1270,35 @@ export default function DashboardPage() {
                     aria-controls="detalle-resumen"
                     aria-label={`${k.label}: ${k.n}${k.nota ? `, ${k.nota}` : ""}`}
                     onClick={() => setResumenAbierto(abierto ? null : k.clave)}
-                    className={`flex flex-col justify-start px-5 py-4 text-left transition-colors focus-visible:outline-offset-[-3px] disabled:cursor-default ${abierto ? "bg-hueso" : "bg-papel enabled:hover:bg-crema"}`}
+                    className={`flex flex-col justify-start py-2 pr-1.5 pl-2.5 text-left transition-colors focus-visible:outline-offset-[-3px] disabled:cursor-default sm:px-5 sm:py-4 ${abierto ? "bg-hueso" : "bg-papel enabled:hover:bg-crema"}`}
                   >
                     {/* <span> y no <div>: dentro de un <button> HTML solo admite
                         contenido de frase. */}
                     <span className="flex items-start justify-between gap-2">
-                      <span className={`font-serif text-4xl font-medium leading-none tabular-nums ${k.color}`}>{k.n}</span>
+                      <span className={`font-serif text-[1.75rem] font-medium leading-none tabular-nums sm:text-4xl ${k.color}`}>{k.n}</span>
                       {k.n > 0 && (
-                        <span aria-hidden className={`text-xs ${abierto ? "font-medium text-tinta" : "text-taupe"}`}>{abierto ? "Cerrar ↑" : "Ver ↓"}</span>
+                        <span aria-hidden className={`hidden text-xs sm:inline ${abierto ? "font-medium text-tinta" : "text-taupe"}`}>{abierto ? "Cerrar ↑" : "Ver ↓"}</span>
                       )}
                     </span>
-                    <span className="mt-2 block text-sm text-taupe">{k.label}</span>
+                    <span className="mt-1 block text-[0.6875rem] leading-tight text-taupe sm:mt-2 sm:text-sm">
+                      <span className="sm:hidden">{k.corto}</span>
+                      <span className="hidden sm:inline">{k.label}</span>
+                    </span>
                     {/* Ámbar es «mira esto»; la nota de cuántas sedes abren solo informa. */}
-                    {k.nota && <span className={`mt-0.5 block text-xs ${k.notaSuave ? "text-taupe" : "font-medium text-ambar"}`}>{k.nota}</span>}
+                    {k.nota && <span className={`mt-0.5 hidden text-xs sm:block ${k.notaSuave ? "text-taupe" : "font-medium text-ambar"}`}>{k.nota}</span>}
                   </button>
                 );
               })}
+            </div>
+            {/* Las notas («y 2 en pausa», «de 3 que se miden hoy») no caben en una casilla de 70 px,
+                pero son información que corrige una lectura: sin ellas, «Trabajando 4» en pleno
+                refrigerio parece gente que no vino. En celular van en una línea bajo la fila,
+                solo cuando existen. */}
+            {resumen.some((k) => k.nota) && (
+              <p className="mt-2 px-1 text-xs text-taupe sm:hidden">
+                {resumen.filter((k) => k.nota).map((k) => `${k.label} ${k.nota}`).join(" · ")}
+              </p>
+            )}
             </div>
 
             {/* DETALLE DEL NÚMERO ABIERTO. De todas las sedes a la vista, sin
@@ -1499,8 +1582,40 @@ export default function DashboardPage() {
                     onClick={() => setSedesAbiertas((a) => ({ ...a, [sedeId]: !(a[sedeId] ?? false) }))}
                     aria-expanded={abierta}
                     aria-controls={`sede-${codigo}-detalle`}
-                    className={`grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 px-5 py-3 text-left transition-colors sm:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_auto_auto] ${cob.noAbreHoy ? "bg-hueso/40 hover:bg-hueso/70" : "hover:bg-hueso/60"}`}
+                    className={`relative block w-full px-4 py-3 text-left transition-colors sm:grid sm:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_auto_auto] sm:items-center sm:gap-x-4 sm:gap-y-2 sm:px-5 ${cob.noAbreHoy ? "bg-hueso/40 hover:bg-hueso/70" : "hover:bg-hueso/60"}`}
                   >
+                    {/* CELULAR. Franja de color a la izquierda (rojo/ámbar/verde se lee antes que
+                        cualquier palabra), y debajo, en este orden: nombre, el estado COMPLETO en su
+                        pastilla, cuánta gente hay contra la meta, y a quién le tocaba hoy. Antes el
+                        nombre se partía en tres líneas («Tienda · / Trujillo / (TRU)») y la pastilla
+                        quedaba apretada contra la flecha: el mismo grid de escritorio, estrechado.
+                        La franja nunca va sola: el estado está dicho también en texto. */}
+                    <span className="sm:hidden">
+                      <Franja tono={estadoSede.tono} />
+                      <span className="flex items-center justify-between gap-3">
+                        <span className="min-w-0">
+                          <span className={cob.noAbreHoy ? "font-medium text-taupe" : "font-semibold"}>{etiqueta.titulo}</span>{" "}
+                          <span className="text-xs text-taupe">({codigo})</span>
+                        </span>
+                        <span aria-hidden className="text-taupe">{abierta ? "▴" : "▾"}</span>
+                      </span>
+                      <span className="mt-1.5 block">
+                        <Insignia variante={estadoSede.tono} atenuada={estadoSede.tono === "neutral"} className="px-3 py-1 font-semibold">{estadoSede.texto}</Insignia>
+                      </span>
+                      {resumenCob && (
+                        <span className="mt-2 block">
+                          <span className="text-sm">{resumenCob.texto}{cob.enPausa.length > 0 && <span className="text-ambar"> · {cob.enPausa.length} en pausa</span>}</span>
+                          {resumenCob.pct !== null && (
+                            <span aria-hidden className="mt-1 block h-1.5 overflow-hidden rounded-full bg-sand"><span className={`block h-full ${colorBarra}`} style={{ width: `${resumenCob.pct}%` }} /></span>
+                          )}
+                        </span>
+                      )}
+                      <span className="mt-1.5 block text-xs text-taupe">{textoEquipoDelDia(cob.programadosHoy, deSedeCompleta.length, cob.feriadoSinConfirmar)}</span>
+                    </span>
+
+                    {/* ESCRITORIO: las cuatro columnas de siempre. `contents` hace que sus hijos
+                        sean las celdas del grid del botón. */}
+                    <span className="hidden sm:contents">
                     <span className="min-w-0">
                       {/* Una sede que hoy no abre baja de volumen: nombre sin negrita y en taupe, sobre
                           el fondo «hundido» (hueso). Menos tinta, no menos contraste: sigue siendo texto
@@ -1510,7 +1625,7 @@ export default function DashboardPage() {
                       <span className="block text-xs text-taupe">{textoEquipoDelDia(cob.programadosHoy, deSedeCompleta.length, cob.feriadoSinConfirmar)}</span>
                     </span>
                     {resumenCob ? (
-                      <span className="order-3 col-span-2 sm:order-none sm:col-span-1">
+                      <span>
                         <span className="text-sm">{resumenCob.texto}{cob.enPausa.length > 0 && <span className="text-ambar"> · {cob.enPausa.length} en pausa</span>}</span>
                         {resumenCob.pct !== null && (
                           <span aria-hidden className="mt-1 block h-1.5 overflow-hidden rounded-full bg-sand"><span className={`block h-full ${colorBarra}`} style={{ width: `${resumenCob.pct}%` }} /></span>
@@ -1518,10 +1633,10 @@ export default function DashboardPage() {
                       </span>
                     ) : (
                       // Sin contenido, pero la celda queda en la cuadrícula para que la pastilla siga
-                      // alineada con la de las otras filas. En celular se oculta: ahí ocuparía una línea vacía.
-                      <span aria-hidden className="hidden sm:block" />
+                      // alineada con la de las otras filas.
+                      <span aria-hidden />
                     )}
-                    <span className="hidden sm:block">
+                    <span>
                       {tardanzasSede > 0
                         ? <Insignia variante="alerta">{tardanzasSede} tarde</Insignia>
                         // «sin tardanzas» confirma algo cuando había quién llegara tarde; en una sede sin turnos nadie podía.
@@ -1531,9 +1646,10 @@ export default function DashboardPage() {
                       <Insignia variante={estadoSede.tono} atenuada={estadoSede.tono === "neutral"} className="px-3 py-1 font-semibold">{estadoSede.texto}</Insignia>
                       <span aria-hidden className="text-taupe">{abierta ? "▴" : "▾"}</span>
                     </span>
+                    </span>
                   </button>
                   {abierta && (
-                  <div id={`sede-${codigo}-detalle`} className="border-t border-dashed border-sand bg-hueso/40 px-5 py-4 pl-6">
+                  <div id={`sede-${codigo}-detalle`} className="border-t border-dashed border-sand bg-hueso/40 px-4 py-3 sm:px-5 sm:py-4 sm:pl-6">
                   {/* La frase «a N de las M personas les tocaba» vive en la fila, que siempre está a la
                       vista: repetirla al abrir el detalle era decir lo mismo dos veces seguidas. */}
                   {/* Quien marcó sin horario no entra en «les tocaba a N»: sin esta línea,

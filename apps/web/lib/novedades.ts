@@ -115,6 +115,19 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-10-06-asistencia-de-hoy-se-ve-completa-en-el-telefono",
+    fecha: "2026-10-06",
+    titulo: "«Asistencia de hoy» ya se ve completa en el teléfono",
+    queMejoro:
+      "En el teléfono, lo primero que ves ahora es lo que importa: si hay algo urgente y los cuatro números del día " +
+      "(trabajando, tardanzas, sin marcar y sedes bajo la meta), todo en la primera pantalla. Antes había que bajar " +
+      "más de una pantalla de filtros y botones para llegar al primer dato.\n\n" +
+      "El buscador queda arriba, y Sede, Estado y «Solo alertas» están en el botón «Filtros», que te dice cuántos tienes " +
+      "activos. «Personalizar» y «Ver en Google Sheets» pasaron al menú ⋯. Cada sede muestra su estado completo con una " +
+      "franja de color. Toca una cifra para ver quién es y qué cuenta exactamente. En la computadora todo sigue igual.",
+    audiencia: "panel",
+  },
+  {
     id: "2026-10-06-el-terminal-avisa-cuando-pierde-su-vinculo",
     fecha: "2026-10-06",
     titulo: "El terminal avisa cuando la Mac de la sede pierde su vínculo",
