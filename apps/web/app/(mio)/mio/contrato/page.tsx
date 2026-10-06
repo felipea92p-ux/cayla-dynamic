@@ -252,7 +252,7 @@ function MiContratoContenido() {
     .replaceAll(MARCADOR_FIRMA_PERSONA, miFirma ? `<img src="${miFirma}" alt="Tu firma" />` : "&nbsp;");
 
   return (
-    <main className="mx-auto max-w-2xl p-6 print:p-0">
+    <main className="mx-auto w-full min-w-0 max-w-2xl px-4 py-6 sm:p-6 print:p-0">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3 print:hidden">
         <Link href="/mio" className="text-sm text-taupe hover:text-tinta hover:underline">
           ← Volver a Info
@@ -410,7 +410,7 @@ function MiContratoContenido() {
 
       <div
         id="documento"
-        className="hoja rounded-lg border border-sand p-8 text-sm leading-relaxed print:rounded-none print:border-0 print:p-0"
+        className="hoja rounded-lg border border-sand p-4 text-sm sm:p-8 leading-relaxed print:rounded-none print:border-0 print:p-0"
         dangerouslySetInnerHTML={{ __html: html }}
       />
     </main>

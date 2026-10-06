@@ -99,7 +99,8 @@ const ROTULOS: Record<string, string> = {
 
 /** El nombre en español de un campo; si no lo conoce, el crudo sin guiones bajos. */
 export function rotuloDeCampo(campo: string): string {
-  return ROTULOS[campo] ?? campo.replaceAll("_", " ").replaceAll(".", " · ");
+  const crudo = campo.replaceAll("_", " ").replaceAll(".", " · ");
+  return ROTULOS[campo] ?? crudo.charAt(0).toUpperCase() + crudo.slice(1);
 }
 
 /**

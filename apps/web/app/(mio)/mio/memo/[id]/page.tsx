@@ -149,7 +149,7 @@ function MiMemoContenido() {
   const entregado = memo.estado === "entregado";
 
   return (
-    <main className="mx-auto max-w-[760px] p-6 print:p-0">
+    <main className="mx-auto w-full min-w-0 max-w-[760px] px-4 py-6 sm:p-6 print:p-0">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3 print:hidden">
         <Link href="/mio" className="text-sm text-taupe hover:text-tinta hover:underline">← Volver a Info</Link>
         <Boton variante="secundario" tamano="sm" onClick={() => window.print()}>

@@ -7,6 +7,7 @@ import { Inbox } from "lucide-react";
 import { ResumenEducacionMia } from "./educacion/resumen";
 import { BoletasMias } from "./boletas/boletas-mias";
 import { ReportesMios } from "./reportes/reportes-mios";
+import { CambiosMios } from "./cambios-mios";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Colibri } from "@/components/marca";
 import { AcusesPendientes } from "@/components/acuses-pendientes";
@@ -177,24 +178,6 @@ interface Revision {
   comentario: string;
   atendida_at: string | null;
   respuesta: string | null;
-}
-
-/**
- * Una corrección que alguien le aplicó a uno de sus marcajes. Vive en
- * `correcciones_auditoria` desde la 0001; `auditoria_select_propia` ya le deja
- * leer sus propias filas desde la 0003 — nadie lo mostraba, no porque faltara
- * permiso, sino porque ninguna pantalla lo pedía.
- */
-interface Correccion {
-  id: string;
-  campo_modificado: string;
-  valor_anterior: string | null;
-  valor_nuevo: string | null;
-  motivo: string;
-  corregido_at: string;
-  // Puede no haber marcaje asociado (ej. un ajuste de contrato): entonces
-  // PostgREST lo embebe como null, no como error.
-  marcajes: { tipo: string; timestamp_marca: string } | null;
 }
 
 /** Una petición suya de vacaciones. La escribe `fn_solicitar_vacaciones`. */
@@ -393,77 +376,10 @@ function hora(iso: string | null): string {
   }).format(new Date(iso));
 }
 
-/** Fecha y hora de un timestamp, en Lima: «20 ago, 1:15 p. m.». */
-function fechaYHora(iso: string): string {
-  return new Intl.DateTimeFormat("es-PE", {
-    timeZone: TZ_LIMA, day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hour12: true,
-  }).format(new Date(iso));
-}
-
 /** El día de Lima (YYYY-MM-DD) al que pertenece un timestamp — nunca el UTC
  *  crudo, que puede caer un día antes o después cerca de medianoche. */
 function fechaLimaDeMarca(iso: string): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: TZ_LIMA }).format(new Date(iso));
-}
-
-// Qué dice `campo_modificado` en `correcciones_auditoria` — vocabulario real,
-// tomado de los `insert` de las migraciones 0009/0010/0081/0084, no inventado.
-// Un campo nuevo que aparezca mañana no rompe nada: cae al fallback de abajo.
-const ETIQUETA_CAMPO: Record<string, string> = {
-  timestamp_marca: "Hora del marcaje",
-  tipo: "Tipo de marcaje",
-  marcaje_agregado: "Marcaje agregado",
-  marcaje_eliminado: "Marcaje eliminado",
-  marcaje_anulado: "Marcaje anulado",
-  marcaje_reactivado: "Marcaje reactivado",
-  auto_cierre_confirmado: "Cierre automático confirmado",
-  marca_apartada: "Un marcaje tuyo que no llegó a registrarse",
-};
-function etiquetaCampo(campo: string): string {
-  return ETIQUETA_CAMPO[campo] ?? campo.replaceAll("_", " ");
-}
-
-/**
- * ⚠ EL ERROR TÉCNICO NO SE LE ENSEÑA A LA PERSONA.
- *
- * `fn_marca_apartada_resolver` (0304) guarda en `valor_anterior` la marca Y el
- * error de Postgres que la apartó, separados por « · ». Eso está bien: DO
- * necesita ese texto para saber por qué el terminal no pudo registrarla.
- *
- * Pero esta pantalla la abre la persona desde su celular, y ahí ese texto salía
- * crudo — media pantalla de «Could not choose the best candidate function
- * between: public.fn_registrar_marcaje(p_persona_id => uuid, …)» en el sitio
- * donde esperaba leer qué pasó con su marcaje del jueves. No es una fuga: es
- * ruido que hace ilegible lo único que sí le importa. Se recorta acá, en la
- * presentación, y no en la base: el dato completo sigue donde tiene que estar.
- */
-function limpiaErrorTecnico(campo: string, valor: string | null): string | null {
-  if (campo !== "marca_apartada" || valor === null) return valor;
-  return valor.split(" · ")[0];
-}
-
-/** «repuesta» / «improcedente» dicho como se lo diría una persona a otra. */
-const RESOLUCION_APARTADA: Record<string, string> = {
-  repuesta: "se registró después, con su hora original",
-  improcedente: "se revisó y no correspondía registrarla",
-};
-// Dos formas reales de valor_anterior/valor_nuevo, tomadas de los mismos
-// insert: un timestamp a secas (`timestamp_marca`), o "tipo @ timestamp"
-// (marcaje_agregado/eliminado/anulado). Las dos traen la hora en su offset
-// crudo (+00), no en hora de Lima — reformatear es lo mismo que hace `hora()`
-// para cualquier otro timestamp de esta pantalla, no un caso aparte.
-function valorLegible(campo: string, valor: string | null): string {
-  if (valor === null) return "—";
-  if (campo === "timestamp_marca") {
-    const d = new Date(valor);
-    return Number.isNaN(d.getTime()) ? valor : fechaYHora(valor);
-  }
-  const conMarca = valor.match(/^(.+) @ (.+)$/);
-  if (conMarca) {
-    const d = new Date(conMarca[2]);
-    if (!Number.isNaN(d.getTime())) return `${conMarca[1]} · ${fechaYHora(conMarca[2])}`;
-  }
-  return valor; // "anulada", "revisada", un tipo de marcaje a secas, etc.
 }
 
 /** «2025-08-14» → «agosto de 2025». Para el «desde cuándo» del perfil. */
@@ -875,7 +791,6 @@ export default function MioPage() {
   const [periodo, setPeriodo] = useState<{ fecha_ini: string; fecha_fin: string } | null>(null);
   const [feriados, setFeriados] = useState<{ fecha: string; nombre: string }[]>([]);
   const [revisiones, setRevisiones] = useState<Map<string, Revision>>(new Map());
-  const [correcciones, setCorrecciones] = useState<Correccion[]>([]);
   // ¿Existe ya la tabla de la 0257? Mientras la migración no esté pegada,
   // PostgREST responde con error y pedir una revisión fallaría con un mensaje
   // que no significa nada para quien lo lee. Sin la tabla, ese trozo no sale.
@@ -1036,7 +951,6 @@ export default function MioPage() {
       { data: js, error: errJornadas }, { data: perd }, { data: hs, error: errHs }, { data: ts, error: errTs },
       { data: fl }, { data: objs }, { data: aus }, { data: tipos },
       { data: per }, { data: fer }, { data: revs, error: errRevs },
-      { data: corrs },
     ] = await Promise.all([
       supabase.from("jornadas")
         .select("fecha, entrada_ts, salida_final_ts, horas_trabajadas, minutos_tarde, estado")
@@ -1089,15 +1003,6 @@ export default function MioPage() {
       supabase.from("revisiones_pedidas")
         .select("fecha, comentario, atendida_at, respuesta")
         .eq("persona_id", yo.id),         // ← explícito, como todo lo de acá
-      // Igual que revisiones_pedidas: SIN filtro de fechas y con un límite fijo
-      // en vez de uno por rango. Una corrección de hace dos meses sigue siendo
-      // algo que le pasó a su marcaje; recortarla al mes que mira hoy la
-      // esconde justo del único lugar donde puede enterarse de que existió.
-      supabase.from("correcciones_auditoria")
-        .select("id, campo_modificado, valor_anterior, valor_nuevo, motivo, corregido_at, marcajes(tipo, timestamp_marca)")
-        .eq("persona_id", yo.id)          // ← explícito, como todo lo de acá
-        .order("corregido_at", { ascending: false })
-        .limit(20),
     ]);
 
     // Estas tres alimentan las tarjetas y la cuadrícula de «Tu mes». Si alguna
@@ -1130,7 +1035,6 @@ export default function MioPage() {
     // revisión y todo lo demás sigue igual. Se degrada, no se cae.
     setRevisiones(new Map(((revs as Revision[] | null) ?? []).map((r) => [r.fecha, r])));
     setPuedePedirRevision(!errRevs);
-    setCorrecciones((corrs as unknown as Correccion[] | null) ?? []);
     setCargando(false);
   }, [supabase, yo, desde, hasta]);
 
@@ -3016,7 +2920,12 @@ export default function MioPage() {
 
           Va en la ÚLTIMA pestaña y no arriba: es lo que ya pasó y está resuelto.
           Estaba de tercera sección de la pantalla, ocupándole media vista a algo
-          que se consulta una vez al mes. */}
+          que se consulta una vez al mes.
+
+          Desde el 2026-10-06 vive en `cambios-mios.tsx`: plegado, de a 10 por
+          página y traducido con el mismo `describirCambio` del panel. Antes
+          tenía su propio traductor, que no conocía el horario y lo pintaba
+          como JSON crudo, y un tope de 20 que escondía la 21. */}
       {tab === "historial" && (
         <>
           {/* Solo visible si tiene al menos un memo entregado — nada que
@@ -3083,39 +2992,7 @@ export default function MioPage() {
               </ul>
             </section>
           )}
-        <section className="rounded-2xl border border-sand p-5 text-sm">
-          <h2 className="mb-1 font-serif text-lg">Correcciones a tus marcajes</h2>
-          <p className="mb-3 text-taupe">
-            Cuando alguien corrige uno de tus marcajes queda anotado acá, con el motivo. Son las 20 más recientes.
-          </p>
-          {correcciones.length === 0 ? (
-            <p className="text-taupe">Nadie ha corregido ningún marcaje tuyo.</p>
-          ) : (
-            <ul className="space-y-3">
-              {correcciones.map((c) => {
-                const antes = limpiaErrorTecnico(c.campo_modificado, c.valor_anterior);
-                const despues = c.campo_modificado === "marca_apartada"
-                  ? RESOLUCION_APARTADA[c.valor_nuevo ?? ""] ?? c.valor_nuevo
-                  : null;
-                return (
-                  <li key={c.id} className="border-t border-sand pt-3 first:border-t-0 first:pt-0">
-                    <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
-                      <span className="font-medium">{etiquetaCampo(c.campo_modificado)}</span>
-                      <span className="text-xs text-taupe">{fechaYHora(c.corregido_at)}</span>
-                    </div>
-                    <p className="text-taupe">
-                      {despues !== null
-                        ? <>{valorLegible(c.campo_modificado, antes)} · {despues}</>
-                        : <>{valorLegible(c.campo_modificado, antes)} → {valorLegible(c.campo_modificado, c.valor_nuevo)}</>}
-                      {c.marcajes && <> · marcaje del {diaYMes(fechaLimaDeMarca(c.marcajes.timestamp_marca))}</>}
-                    </p>
-                    <p className="mt-0.5 italic">«{c.motivo}»</p>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </section>
+        {yo && <CambiosMios supabase={supabase} personaId={yo.id} />}
 
         {yo && <TusUltimosPeriodos personaId={yo.id} />}
         </>

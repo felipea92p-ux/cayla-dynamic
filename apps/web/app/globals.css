@@ -559,6 +559,28 @@
 .contrato .firmas > div {
   flex: 1;
 }
+/* En el celular —que es donde cada quien abre y firma su contrato desde /mio—
+   las dos firmas lado a lado no caben en ~300 px, y una palabra larga en
+   mayúsculas («PREPROFESIONALES») empujaba la hoja más ancha que la pantalla.
+   Solo en pantalla angosta: el papel impreso (A4, ~794 px) no entra acá y
+   sigue con las firmas lado a lado como siempre. */
+.contrato {
+  overflow-wrap: break-word;
+}
+@media screen and (max-width: 30rem) {
+  /* Justificado en ~300 px deja huecos enormes entre palabras. */
+  .contrato p {
+    text-align: left;
+  }
+  .contrato header p,
+  .contrato .firmas p {
+    text-align: center;
+  }
+  .contrato .firmas {
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+}
 .contrato .firmas p {
   text-align: center;
 }
