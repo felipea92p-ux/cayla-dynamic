@@ -24,7 +24,8 @@ import { listarPendientesPorPersona } from "@/lib/admin/bandeja-equipo";
 import {
   hoyLima, primeroDeMesLima, rangoDelMesLima, puedeAdministrarEquipo, puedeVerPlanilla,
   MOTIVOS_CESE, MOTIVO_CESE_LABELS, etiquetaDeCatalogo, type MotivoCese, type Rol,
-  avisoDocumentoEnNombre,
+  avisoDocumentoEnNombre, puedeMarcarCuentaDeServicio,
+  TIPOS_DOCUMENTO, TIPO_DOCUMENTO_LABEL, AYUDA_DOCUMENTO, errorDeDocumento, normalizarDocumento, type TipoDocumento,
 } from "@cayla-dynamic/shared";
 
 const ROLES_OPCIONES = [
@@ -183,9 +184,18 @@ interface FormPersona {
   // No aplica a `practicante` (0322): su subvención no genera renta de 4ta.
   retencion4ta: string;   // "" | automatica | siempre
   constancia4ta: string;  // fecha hasta la que vale su constancia del F.V. 1609
+  // El documento (0513) — solo en el alta. Una vez creada la persona, se
+  // corrige en Datos personales (fn_set_documento), con motivo y rastro.
+  // El tipo arranca en DNI, el caso de casi todo el equipo: un campo que
+  // bloquea el envío no arranca vacío (regla de la casa).
+  tipoDocumento: TipoDocumento;
+  documento: string;
+  // Una estación de retail (0490) no es una persona y no tiene documento:
+  // entra sin él y queda marcada en la misma operación (fn_crear_persona).
+  esEstacion: boolean;
 }
 
-const FORM_VACIO: FormPersona = { nombres: "", apellidos: "", sedeId: "", rol: "integrante", funcion: AREA_DEFAULT, email: "", conHijos: false, fechaIngreso: "", visibleTodasSedes: false, tipoVinculo: "planilla", practicanteModalidad: "", cargo: "", finContrato: "", motivoFinContrato: "", retencion4ta: "", constancia4ta: "" };
+const FORM_VACIO: FormPersona = { nombres: "", apellidos: "", sedeId: "", rol: "integrante", funcion: AREA_DEFAULT, email: "", conHijos: false, fechaIngreso: "", visibleTodasSedes: false, tipoVinculo: "planilla", practicanteModalidad: "", cargo: "", finContrato: "", motivoFinContrato: "", retencion4ta: "", constancia4ta: "", tipoDocumento: "dni", documento: "", esEstacion: false };
 
 export default function EquipoPage() {
   const router = useRouter();
@@ -247,6 +257,10 @@ export default function EquipoPage() {
   // preguntó (o se cambió el nombre y hay que volver a preguntar); con filas, el
   // formulario pide confirmar que es OTRA persona antes de crear nada.
   const [parecidas, setParecidas] = useState<PersonaParecida[] | null>(null);
+  // 0513 · el documento ya lo tiene alguien. A diferencia del nombre parecido,
+  // no se puede confirmar «es otra persona»: dos personas con el mismo
+  // documento no existen. `personaId` sale del `detail` del error de la base.
+  const [documentoDe, setDocumentoDe] = useState<{ mensaje: string; personaId: string | null } | null>(null);
   // El aviso aparece ENCIMA de los botones, y en una pantalla de 768 px el botón
   // «Es otra persona» queda a más de 1 000 px: sin llevarla hasta ahí parece que
   // «Agregar» no hizo nada. Se desplaza y se le da el foco (el botón que se
@@ -683,6 +697,15 @@ export default function EquipoPage() {
       avisar("error", documentoEnNombre);
       return;
     }
+    // 0513 · el documento, con la misma regla que la base. Una estación no lleva.
+    if (!form.esEstacion) {
+      const errorDoc = errorDeDocumento(form.tipoDocumento, form.documento);
+      if (errorDoc) {
+        avisar("error", errorDoc);
+        return;
+      }
+    }
+    setDocumentoDe(null);
     setGuardando(true);
     const supabase = createAdminSupabaseClient();
     // 0506 · ANTES de generar un PIN y de escribir nada: ¿esta persona ya está
@@ -718,6 +741,9 @@ export default function EquipoPage() {
       p_email: form.email.trim() || null,
       p_pin_hash: pinHash,
       p_confirmo_distinta: confirmado,
+      p_tipo_documento: form.esEstacion ? null : form.tipoDocumento,
+      p_documento: form.esEstacion ? null : normalizarDocumento(form.documento),
+      p_es_estacion: form.esEstacion,
     });
     if (error) {
       // Tras CUALQUIER fallo se descarta el aviso: el siguiente clic vuelve a
@@ -725,6 +751,13 @@ export default function EquipoPage() {
       // «Es otra persona — agregar igual» que seguía a la vista la habría
       // duplicado: ahora el reintento la encuentra.
       setParecidas(null);
+      // 0513 · el documento ya es de alguien: se dice a quién y no se ofrece
+      // «agregar igual». Va antes que el nombre parecido, como en la base.
+      if (error.hint === "documento_repetido") {
+        setGuardando(false);
+        setDocumentoDe({ mensaje: error.message, personaId: error.details || null });
+        return;
+      }
       // Carrera: otra pestaña dio de alta a esta persona entre la pregunta y el
       // insert, y el servidor se negó. En vez de un toast con una instrucción, se
       // muestra el aviso de siempre, con su botón.
@@ -1160,6 +1193,10 @@ export default function EquipoPage() {
       motivoFinContrato: "",
       retencion4ta: retenciones4ta.get(p.id)?.modo ?? "",
       constancia4ta: retenciones4ta.get(p.id)?.hasta ?? "",
+      // No se editan aquí (ver FormPersona): van solo para completar la forma.
+      tipoDocumento: "dni",
+      documento: "",
+      esEstacion: false,
     });
   }
 
@@ -1270,6 +1307,19 @@ export default function EquipoPage() {
     setEditandoId(null);
     setForm(FORM_VACIO);
     setParecidas(null);
+    setDocumentoDe(null);
+  }
+
+  // «Ver en la lista» del aviso de documento repetido (0513): igual que el de
+  // parecidos, pero la persona llega por su id —el `detail` del error—.
+  function verDuenaDelDocumento(personaId: string) {
+    const p = personas.find((x) => x.id === personaId);
+    cerrarFormulario();
+    if (p) setBusca(`${p.nombres} ${p.apellidos}`);
+    setFSede("todas");
+    setFArea("todas");
+    setFEstado("todos");
+    setSoloSinSalario(false);
   }
 
   // «Ver en la lista» del aviso de parecidos: cierra el alta y deja la tabla
@@ -1323,6 +1373,66 @@ export default function EquipoPage() {
         <span className="text-taupe">(sin números: el DNI y el nombre completo se cargan en Datos personales y son los que salen en contratos, boletas y liquidaciones)</span>
         <input value={form.apellidos} onChange={(e) => { setForm({ ...form, apellidos: e.target.value }); setParecidas(null); }} disabled={guardando} className="rounded-lg border px-3 py-2 disabled:opacity-50" />
       </label>
+      {/* ── EL DOCUMENTO (0513) ─────────────────────────────────────────────
+          Solo en el alta: es lo que impide registrar dos veces a la misma
+          persona (el índice único de documento). Después se corrige en Datos
+          personales, con motivo y rastro. La forma de cada tipo la dice
+          `AYUDA_DOCUMENTO`, la misma regla que la base. */}
+      {modo === "alta" && !form.esEstacion && (
+        <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
+          <label className="flex flex-col gap-1 text-sm">
+            Tipo de documento
+            <select
+              value={form.tipoDocumento}
+              onChange={(e) => { setForm({ ...form, tipoDocumento: e.target.value as TipoDocumento }); setDocumentoDe(null); }}
+              disabled={guardando}
+              className="rounded-lg border bg-crema px-3 py-2 disabled:opacity-50"
+            >
+              {TIPOS_DOCUMENTO.map((t) => <option key={t} value={t}>{TIPO_DOCUMENTO_LABEL[t]}</option>)}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            Número
+            <input
+              value={form.documento}
+              inputMode={form.tipoDocumento === "dni" ? "numeric" : "text"}
+              autoComplete="off"
+              onChange={(e) => { setForm({ ...form, documento: e.target.value }); setDocumentoDe(null); }}
+              disabled={guardando}
+              className="rounded-lg border px-3 py-2 disabled:opacity-50"
+            />
+            <span className="text-xs text-taupe">{AYUDA_DOCUMENTO[form.tipoDocumento]} Con esto el sistema sabe si ya está registrada.</span>
+          </label>
+        </div>
+      )}
+      {modo === "alta" && puedeMarcarCuentaDeServicio(rol) && (
+        <label className="flex items-start gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={form.esEstacion}
+            onChange={(e) => setForm({ ...form, esEstacion: e.target.checked, rol: e.target.checked ? "integrante" : form.rol })}
+            disabled={guardando}
+            className="mt-0.5 h-4 w-4 accent-tinta disabled:opacity-50"
+          />
+          <span>
+            Es una estación de retail (no es una persona)
+            <span className="block text-xs text-taupe">La cuenta compartida de una tienda en el sistema de retail. No lleva documento, no marca asistencia y no entra a la planilla.</span>
+          </span>
+        </label>
+      )}
+      {modo === "alta" && documentoDe && (
+        <div role="alert" className="rounded-lg border border-rojo/30 bg-rojo/10 p-4 text-sm">
+          <p className="font-medium text-rojo-profundo">Esta persona ya está registrada</p>
+          <p className="mt-1 text-taupe">{documentoDe.mensaje}</p>
+          {documentoDe.personaId && (
+            <div className="mt-3">
+              <Boton variante="secundario" tamano="sm" onClick={() => verDuenaDelDocumento(documentoDe.personaId as string)}>
+                Ver en la lista
+              </Boton>
+            </div>
+          )}
+        </div>
+      )}
       <label className="flex flex-col gap-1 text-sm">
         Sede
         <select value={form.sedeId} onChange={(e) => setForm({ ...form, sedeId: e.target.value })} className="rounded-lg border bg-crema px-3 py-2">
@@ -1337,7 +1447,8 @@ export default function EquipoPage() {
       <label className="flex flex-col gap-1 text-sm">
         Rol{" "}
         <span className="text-taupe">(qué pantallas puede abrir en Dynamic — no es su cargo)</span>
-        <select value={form.rol} onChange={(e) => setForm({ ...form, rol: e.target.value as Rol })} className="rounded-lg border bg-crema px-3 py-2">
+        {/* Una estación (0513) solo puede ser integrante: lo exige fn_set_cuenta_de_servicio. */}
+        <select value={form.rol} onChange={(e) => setForm({ ...form, rol: e.target.value as Rol })} disabled={form.esEstacion} className="rounded-lg border bg-crema px-3 py-2 disabled:opacity-50">
           {ROLES_OPCIONES.map((r) => (
             <option key={r.valor} value={r.valor}>{r.label}</option>
           ))}

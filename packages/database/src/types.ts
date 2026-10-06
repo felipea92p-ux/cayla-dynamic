@@ -4109,6 +4109,7 @@ export type Database = {
           sede_fisica_id: string | null
           sueldo_base_legal: number | null
           sueldo_fijo: boolean
+          tipo_documento: string | null
           tipo_vinculo: string
           updated_at: string
           visible_todas_sedes: boolean
@@ -4152,6 +4153,7 @@ export type Database = {
           sede_fisica_id?: string | null
           sueldo_base_legal?: number | null
           sueldo_fijo?: boolean
+          tipo_documento?: string | null
           tipo_vinculo?: string
           updated_at?: string
           visible_todas_sedes?: boolean
@@ -4195,6 +4197,7 @@ export type Database = {
           sede_fisica_id?: string | null
           sueldo_base_legal?: number | null
           sueldo_fijo?: boolean
+          tipo_documento?: string | null
           tipo_vinculo?: string
           updated_at?: string
           visible_todas_sedes?: boolean
@@ -6358,12 +6361,15 @@ export type Database = {
         Args: {
           p_apellidos: string | null
           p_confirmo_distinta?: boolean | null
+          p_documento?: string | null
           p_email: string | null
+          p_es_estacion?: boolean | null
           p_funcion: string | null
           p_nombres: string | null
           p_pin_hash: string | null
           p_rol: string | null
           p_sede_base_id: string | null
+          p_tipo_documento?: string | null
         }
         Returns: Json
       }
@@ -6423,6 +6429,14 @@ export type Database = {
       fn_documento_anular: {
         Args: { p_id: string | null; p_motivo: string | null }
         Returns: undefined
+      }
+      fn_documento_error: {
+        Args: { p_numero: string | null; p_tipo: string | null }
+        Returns: string
+      }
+      fn_documento_forma_valida: {
+        Args: { p_numero: string | null; p_tipo: string | null }
+        Returns: boolean
       }
       fn_documento_puede_ver: { Args: { p_path: string | null }; Returns: boolean }
       fn_documento_registrar: {
@@ -8290,7 +8304,12 @@ export type Database = {
         Returns: undefined
       }
       fn_set_documento: {
-        Args: { p_documento: string | null; p_motivo: string | null; p_persona_id: string | null }
+        Args: {
+          p_documento: string | null
+          p_motivo: string | null
+          p_persona_id: string | null
+          p_tipo_documento?: string | null
+        }
         Returns: undefined
       }
       fn_set_email: {
