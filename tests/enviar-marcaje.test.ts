@@ -22,7 +22,12 @@
 //   el `db.delete()` que borraba marcas atrasadas (ver el comentario de sync.ts).
 // ============================================================================
 import { describe, expect, it } from "vitest";
-import { enviarMarcaje } from "@/lib/terminal/enviar-marcaje";
+import {
+  enviarMarcaje,
+  esRechazoDeEstado,
+  esRechazoDeSesion,
+  esSesionPerdida,
+} from "@/lib/terminal/enviar-marcaje";
 
 type Cliente = Parameters<typeof enviarMarcaje>[0];
 type Entrada = Parameters<typeof enviarMarcaje>[1];
@@ -126,5 +131,51 @@ describe("enviarMarcaje", () => {
       p_terminal_id: MARCA.terminalId,
       p_motivo_otro: "cita médica",
     });
+  });
+});
+
+// ============================================================================
+// Qué hace la cola con cada texto de rechazo
+// ============================================================================
+// Los tres textos son los que producción devolvió de verdad (marcas_apartadas,
+// 2026-10-06). Cada uno decide algo distinto en sync.ts, y un texto que cae en
+// la casilla equivocada o aparta una marca buena —la salida a almuerzo de
+// Oficina TRU— o la deja reintentándose para siempre:
+//
+//   «no coincide con p_terminal_id»   → la marca está bien, el vínculo de la Mac no
+//   «permission denied for function»  → lo mismo: la Mac llamó SIN sesión (anon)
+//   «tipo … no válido»                → la marca no corresponde: se aparta ya
+describe("clasificar el rechazo de una marca", () => {
+  const SESION_DESAJUSTADA = "el terminal autenticado no coincide con p_terminal_id";
+  const SIN_SESION = "permission denied for function fn_registrar_marcaje";
+  const DE_ESTADO = "tipo salida_almuerzo no válido en el estado actual (se esperaba entrada)";
+
+  it("sin sesión (anon) es un problema de la Mac, no de la marca: la cola la espera", () => {
+    expect(esSesionPerdida(SIN_SESION)).toBe(true);
+    expect(esRechazoDeSesion(SIN_SESION)).toBe(true);
+  });
+
+  it("el desajuste de terminal sigue esperando en cola, pero NO es sesión perdida", () => {
+    // La franja roja y el mensaje «perdió su vínculo» son solo para quien se
+    // quedó sin sesión: a una Mac desajustada se la arregla sola la cola.
+    expect(esRechazoDeSesion(SESION_DESAJUSTADA)).toBe(true);
+    expect(esSesionPerdida(SESION_DESAJUSTADA)).toBe(false);
+  });
+
+  it("un rechazo de estado NO es de sesión: se aparta en el primer intento", () => {
+    expect(esRechazoDeEstado(DE_ESTADO)).toBe(true);
+    expect(esRechazoDeSesion(DE_ESTADO)).toBe(false);
+    expect(esSesionPerdida(DE_ESTADO)).toBe(false);
+  });
+
+  it("el permiso de OTRA función no se confunde con el de marcar", () => {
+    // Si mañana otra función devuelve «permission denied», no debe apartarse
+    // ni quedar esperando como si fuera un problema de vínculo.
+    expect(esSesionPerdida("permission denied for function fn_planilla_calcular")).toBe(false);
+  });
+
+  it("sin texto de error no hay nada que clasificar", () => {
+    expect(esSesionPerdida(undefined)).toBe(false);
+    expect(esRechazoDeSesion(undefined)).toBe(false);
   });
 });

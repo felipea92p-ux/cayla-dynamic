@@ -102,7 +102,35 @@ export function esRechazoDeEstado(error: string | undefined): boolean {
  */
 export function esRechazoDeSesion(error: string | undefined): boolean {
   if (!error) return false;
-  return error.includes("no coincide con p_terminal_id");
+  return error.includes("no coincide con p_terminal_id") || esSesionPerdida(error);
+}
+
+/**
+ * ¿La Mac llamó a la base SIN SESIÓN? Postgres lo dice así:
+ * «permission denied for function fn_registrar_marcaje».
+ *
+ * `fn_registrar_marcaje` solo le da EXECUTE a `authenticated` (migraciones 0353
+ * y 0366 le quitan `public` y `anon`). Cuando la sesión de la Mac se pierde —el
+ * refresh token fue rechazado y auth-js borró las credenciales— supabase-js
+ * sigue enviando la llamada, ahora con la llave anónima, y ese es el texto que
+ * vuelve. Medido en producción el 2026-10-06: `has_function_privilege` daba
+ * authenticated = true y anon = false, o sea que el permiso estaba bien y lo
+ * que faltaba era la sesión. Había 20 marcas apartadas así desde el 12-ago
+ * (AQP, TRU, Oficina TRU), la última de ese mismo día en Oficina TRU: la salida
+ * a almuerzo de una integrante, apartada tras seis intentos.
+ *
+ * Es el mismo caso que «no coincide con p_terminal_id» con otro texto: la marca
+ * está bien y el que está mal es el vínculo de ESTA Mac. Por eso `esRechazoDeSesion`
+ * lo incluye —la cola la deja esperando en vez de apartarla— y por eso hay una
+ * franja fija en pantalla (marcar/page.tsx) para que alguien vuelva a vincularla.
+ *
+ * Si algún día una migración le quita el permiso a `authenticated` por error, el
+ * síntoma sería este mismo texto: las marcas esperarían en cola —ninguna se
+ * pierde— y la franja avisaría; el diagnóstico, a la vista, es `has_function_privilege`.
+ */
+export function esSesionPerdida(error: string | undefined): boolean {
+  if (!error) return false;
+  return error.includes("permission denied for function fn_registrar_marcaje");
 }
 
 /**

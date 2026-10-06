@@ -20,7 +20,7 @@ import {
   obtenerPendientes,
 } from "@/lib/terminal/offline-db";
 import { sincronizarApartadas } from "@/lib/terminal/apartadas";
-import { enviarMarcaje, esRechazoDeEstado, esRechazoDeSesion } from "@/lib/terminal/enviar-marcaje";
+import { enviarMarcaje, esRechazoDeEstado, esRechazoDeSesion, esSesionPerdida } from "@/lib/terminal/enviar-marcaje";
 import { conTope, topeDeRed } from "@/lib/terminal/tope-de-red";
 import { cargarRoster } from "@/lib/terminal/roster";
 import { cargarMarcajesHoyPorPersona, confirmarEstadoPuntual, siguienteAccionPara } from "@/lib/terminal/estado-dia";
@@ -215,6 +215,9 @@ export default function MarcarPage() {
   const [historialCerrado, setHistorialCerrado] = useState<Array<{ label: string; hora: string }>>([]);
   const [pendientesSinEnviar, setPendientesSinEnviar] = useState(0);
   const [marcasApartadas, setMarcasApartadas] = useState(0);
+  // ¿Esta Mac se quedó sin sesión? Solo lo decide `revisarSesion`, nunca un
+  // rechazo suelto: ver el comentario de esa función.
+  const [sesionPerdida, setSesionPerdida] = useState(false);
   const [accionPendiente, setAccionPendiente] = useState<{
     tipo: TipoMarca; motivoOtro?: string; clientUuid?: string; confirmoSinRefrigerio?: boolean;
   } | null>(null);
@@ -350,6 +353,37 @@ export default function MarcarPage() {
     const detener = iniciarSincronizacionPeriodica();
     return detener;
   }, [arrancar]);
+
+  // LA SESIÓN SE REVISA MIENTRAS LA MAC ESTÁ ABIERTA, no solo al arrancar.
+  //
+  // `arrancar` es la única vez que el terminal pregunta si sigue vinculado, y
+  // una Mac mini de sede no se recarga en semanas. Si en medio del día la
+  // sesión se pierde —el servidor rechaza el refresh token y auth-js borra las
+  // credenciales— nada lo notaba: cada marca salía como `anon`, la base
+  // contestaba «permission denied», y la cola la apartaba al sexto intento. El
+  // 2026-10-06 así se apartó la salida a almuerzo de una integrante de Oficina
+  // TRU, y en AQP y TRU ya había 14 más desde agosto.
+  //
+  // El veredicto es el mismo que ya usa el arranque (`veredictoDeSesion`), y
+  // por eso solo «sin_vincular» enciende el aviso: un `no_se_pudo_saber` es un
+  // parpadeo de internet, las credenciales siguen en el disco, y asustar a la
+  // sede por eso enseñaría a ignorar la franja. «vinculado» la apaga sola.
+  const revisarSesion = useCallback(() => {
+    const SIN_RESPUESTA = Symbol("sin respuesta");
+    return conTope(createTerminalSupabaseClient().auth.getSession(), SIN_RESPUESTA)
+      .then((respuesta) => {
+        if (respuesta === SIN_RESPUESTA) return;
+        const veredicto = veredictoDeSesion({ session: respuesta.data.session, error: respuesta.error });
+        if (veredicto === "sin_vincular") setSesionPerdida(true);
+        else if (veredicto === "vinculado") setSesionPerdida(false);
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const t = setInterval(() => void revisarSesion(), 30_000);
+    return () => clearInterval(t);
+  }, [revisarSesion]);
 
   // El desfase del reloj: la última medida guardada primero —para que el aviso
   // esté en pantalla desde el primer segundo— y una medición nueva enseguida.
@@ -699,9 +733,11 @@ export default function MarcarPage() {
     // descarte a los seis. La persona se va convencida de que marcó, el día se
     // le cierra solo y cobra las horas que le invente el auto-cierre.
     let rechazadaPorElServidor = false;
+    let sinSesionEnEnvio = false;
     if (navigator.onLine) {
       const { ok, error, llego } = await enviarMarcaje(createTerminalSupabaseClient(), entry);
       sincronizadoAhora = ok;
+      sinSesionEnEnvio = !ok && llego && esSesionPerdida(error);
       // Un desajuste de sesión NO es un rechazo de la marca: la cola lo corrige
       // sola en el siguiente ciclo (sync.ts) o cuando se re-vincule la Mac. Decir
       // «no quedó registrada» sería falso: está guardada y va a salir.
@@ -740,6 +776,13 @@ export default function MarcarPage() {
       }
     }
 
+    // Sin sesión la marca NO está perdida —sigue en la cola y sale sola al
+    // volver a vincular la Mac—, pero tampoco está enviándose, y «Listo (se
+    // sincronizará cuando vuelva la conexión)» sería falso: no es la conexión
+    // lo que falta. Se pregunta la sesión en el acto para encender la franja
+    // sin esperar a la revisión de los 30 s.
+    if (sinSesionEnEnvio) void revisarSesion();
+
     // De la cola sale solo lo que el servidor confirmó.
     if (sincronizadoAhora && encolada) {
       try {
@@ -754,13 +797,16 @@ export default function MarcarPage() {
     // persona lee antes de darse la vuelta, y en una pantalla que se limpia a
     // los pocos segundos no hay una segunda oportunidad de decírselo.
     mostrarMensaje(
-      rechazadaPorElServidor
-        ? `No quedó registrada — el sistema no aceptó esta marca de ${personaActual.nombres}. `
-          + "Avisa a tu líder de equipo ANTES de irte: no se va a arreglar sola."
-        : `Listo — ${TIPO_MARCA_LABELS[entry.tipo]} de ${personaActual.nombres}${
-            sincronizadoAhora ? "" : " (se sincronizará cuando vuelva la conexión)"
-          }`,
-      rechazadaPorElServidor ? "alerta" : "ok",
+      sinSesionEnEnvio
+        ? `Tu marca de ${personaActual.nombres} quedó guardada, pero NO se está enviando: `
+          + "esta Mac perdió su vínculo con el sistema. Avisa a tu líder de equipo ANTES de irte."
+        : rechazadaPorElServidor
+          ? `No quedó registrada — el sistema no aceptó esta marca de ${personaActual.nombres}. `
+            + "Avisa a tu líder de equipo ANTES de irte: no se va a arreglar sola."
+          : `Listo — ${TIPO_MARCA_LABELS[entry.tipo]} de ${personaActual.nombres}${
+              sincronizadoAhora ? "" : " (se sincronizará cuando vuelva la conexión)"
+            }`,
+      sinSesionEnEnvio || rechazadaPorElServidor ? "alerta" : "ok",
     );
   }
 
@@ -846,6 +892,37 @@ export default function MarcarPage() {
             {marcasApartadas} {marcasApartadas === 1 ? "marca" : "marcas"} sin registrar — avisa a tu
             líder de equipo
           </p>
+        </div>
+      )}
+
+      {/* Sin sesión, las marcas se guardan pero NO salen: es más grave que una
+          marca apartada, porque afecta a todas las que vengan, y por eso va
+          pegada a ese aviso y no se puede cerrar. Solo se apaga cuando la Mac vuelve
+          a estar vinculada (`revisarSesion`). El botón es para quien tiene las
+          credenciales del terminal —la líder o DO—: nadie más puede completarlo,
+          y las marcas esperan en la cola mientras tanto. */}
+      {sesionPerdida && (
+        <div
+          className="flex flex-wrap items-center justify-center gap-3 border-b border-sand px-6 py-3 text-center"
+          role="alert"
+        >
+          <span
+            aria-hidden
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-rojo/15 text-lg text-rojo"
+          >
+            ⚠
+          </span>
+          <p className="text-lg font-medium text-rojo sm:text-xl">
+            Esta Mac perdió su vínculo: las marcas se guardan pero NO se envían — avisa a tu líder de
+            equipo
+          </p>
+          <button
+            type="button"
+            onClick={() => router.push("/terminal/vincular")}
+            className="text-base font-medium text-rojo underline underline-offset-4"
+          >
+            Volver a vincular
+          </button>
         </div>
       )}
 

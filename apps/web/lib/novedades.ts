@@ -115,6 +115,19 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-10-06-el-terminal-avisa-cuando-pierde-su-vinculo",
+    fecha: "2026-10-06",
+    titulo: "El terminal avisa cuando la Mac de la sede pierde su vínculo",
+    queMejoro:
+      "Si la Mac de una sede se queda sin su vínculo con el sistema, ahora aparece una franja roja fija: «Esta Mac " +
+      "perdió su vínculo: las marcas se guardan pero NO se envían». Antes nadie se enteraba, y las marcas terminaban " +
+      "apartadas en Correcciones después de seis intentos.\n\n" +
+      "Mientras esté así, las marcas se quedan guardadas en la Mac y salen solas al volver a vincularla; ya no se " +
+      "apartan. Si ves la franja, avisa a tu líder de equipo: quien tiene las credenciales del terminal usa " +
+      "«Volver a vincular» en la misma franja.",
+    audiencia: "panel",
+  },
+  {
     id: "2026-10-06-lo-mio-tiene-una-seccion-disciplina",
     fecha: "2026-10-06",
     titulo: "«Lo mío» tiene una sección nueva: Disciplina",
