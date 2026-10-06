@@ -4,8 +4,38 @@
 import { describe, it, expect } from "vitest";
 import {
   ESTADO_CONSTANCIA, MOTIVOS_RECHAZO, MOTIVO_RECHAZO_LABELS, TIPOS_CONSTANCIA, TIPO_CONSTANCIA_LABELS,
-  constanciaPideAlgoALaIntegrante, nombreDeArchivoSeguro, problemaDeArchivo, sugerirProximaFecha,
+  VIGENCIA_CORTA_DIAS, constanciaPideAlgoALaIntegrante, diasDeVigencia, finDeCicloSugerido,
+  nombreDeArchivoSeguro, problemaDeArchivo, sugerirProximaFecha,
 } from "@cayla-dynamic/shared";
+
+describe("finDeCicloSugerido", () => {
+  it("de enero a julio: el 31 de julio del mismo año", () => {
+    expect(finDeCicloSugerido("2026-01-02")).toBe("2026-07-31");
+    expect(finDeCicloSugerido("2026-07-31")).toBe("2026-07-31");
+  });
+  it("de agosto a diciembre: el 31 de diciembre del mismo año", () => {
+    expect(finDeCicloSugerido("2026-08-01")).toBe("2026-12-31");
+    expect(finDeCicloSugerido("2026-10-06")).toBe("2026-12-31");
+  });
+  it("nunca el mismo día en que empieza, salvo que empiece justo al cierre", () => {
+    expect(finDeCicloSugerido("2026-09-15")).not.toBe("2026-09-15");
+  });
+});
+
+describe("diasDeVigencia", () => {
+  it("cuenta el primer y el último día", () => {
+    expect(diasDeVigencia("2026-09-15", "2026-09-26")).toBe(12);
+    expect(diasDeVigencia("2026-10-06", "2026-10-06")).toBe(1);
+  });
+  it("cruza meses y años sin correrse por el huso", () => {
+    expect(diasDeVigencia("2026-12-31", "2027-01-01")).toBe(2);
+    expect(diasDeVigencia("2026-03-01", "2026-03-31")).toBe(31);
+  });
+  it("el caso que lo destapó pregunta; un mes completo no", () => {
+    expect(diasDeVigencia("2026-09-15", "2026-09-26")).toBeLessThan(VIGENCIA_CORTA_DIAS);
+    expect(diasDeVigencia("2026-10-01", "2026-10-31")).not.toBeLessThan(VIGENCIA_CORTA_DIAS);
+  });
+});
 
 describe("sugerirProximaFecha", () => {
   it("mensual: el mismo día del mes siguiente", () => {
