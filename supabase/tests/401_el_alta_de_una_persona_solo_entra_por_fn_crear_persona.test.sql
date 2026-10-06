@@ -104,7 +104,7 @@ set role authenticated;
 
 select lives_ok(
   $$ select fn_crear_persona('Alta401', 'Oficial', '00000000-0000-0000-0000-000000040100',
-                             'integrante', 'calidad_servicio', null, 'x') $$,
+                             'integrante', 'calidad_servicio', null, 'x', false, 'dni', '40100001') $$,
   'PERMITIDO · un lider_do da de alta a un integrante por fn_crear_persona, como siempre');
 
 reset role;
@@ -119,7 +119,7 @@ set role authenticated;
 
 select throws_ok(
   $$ select fn_crear_persona('Zeta401', 'ComoAdmin', '00000000-0000-0000-0000-000000040100',
-                             'admin', 'calidad_servicio', null, 'x') $$,
+                             'admin', 'calidad_servicio', null, 'x', false, 'dni', '40100002') $$,
   'No puedes crear una persona con un rol igual o superior al tuyo.',
   'SIN ROMPER LO VIEJO · la puerta oficial sigue frenando la escalada (0300)');
 
@@ -130,7 +130,7 @@ set role authenticated;
 
 select lives_ok(
   $$ select fn_crear_persona('Beta401', 'PorAdmin', '00000000-0000-0000-0000-000000040100',
-                             'lider_do', 'calidad_servicio', null, 'x') $$,
+                             'lider_do', 'calidad_servicio', null, 'x', false, 'dni', '40100003') $$,
   'PERMITIDO · un admin da de alta a un lider_do por fn_crear_persona');
 
 reset role;
