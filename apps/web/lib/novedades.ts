@@ -115,7 +115,6 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
-<<<<<<< HEAD
     id: "2026-10-06-el-alta-pide-el-documento",
     fecha: "2026-10-06",
     titulo: "Dar de alta a alguien ahora pide su documento",
@@ -136,7 +135,9 @@ export const NOVEDADES: readonly Novedad[] = [
       "En «Lo mío › Mis datos › Editar», si tu documento de identidad todavía no figura, puedes elegir el tipo y " +
       "escribir el número. Lo revisa Desarrollo Organizacional antes de guardarse, porque es el número que va en tu " +
       "contrato. Si ya está cargado, se ve como siempre y solo DO lo puede corregir.",
-=======
+    audiencia: "todos",
+  },
+  {
     id: "2026-10-06-lo-mio-atras-vuelve-a-la-seccion",
     fecha: "2026-10-06",
     titulo: "En «Lo mío», «atrás» te devuelve a la sección en la que estabas",
@@ -145,7 +146,6 @@ export const NOVEDADES: readonly Novedad[] = [
       "de tus reportes, ya no al Resumen. Lo mismo entre secciones: si pasaste de Mis días a Boletas, «atrás» " +
       "te devuelve a Mis días.\n\n" +
       "Recargar la página te sigue llevando al Resumen, como hasta ahora.",
->>>>>>> 5b79b89b24b58ac6e614d26c960202524d1ac74c
     audiencia: "todos",
   },
   {
