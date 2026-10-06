@@ -6,6 +6,28 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-10-06 — El DNI no va en el nombre · migración 0512 · ESCRITA Y PROBADA · SIN PEGAR · SIN FUSIONAR
+
+**Origen:** una integrante apareció en todas las listas (y en el terminal de su sede) con su DNI pegado al apellido
+corto. Ningún código lo pegó: se tecleó a mano en el alta. El alta no tiene campo para el DNI, y desde la 0506 un
+nombre parecido pide confirmación; escribir el número es la forma «natural» de diferenciar a alguien. Tampoco servía
+para frenar duplicados: el índice único mira `personas.documento`, no el apellido.
+
+**Qué es:** la 0512 quita de `nombres`/`apellidos` toda secuencia de 6+ dígitos (NOTICE con a quién tocó y si tiene
+el DNI cargado aparte) y agrega el CHECK `personas_nombre_sin_documento`. Se detiene sin tocar nada si a alguien le
+quedaría el nombre vacío. Equipo frena lo mismo antes de escribir (alta y edición) con `avisoDocumentoEnNombre`
+(`packages/shared/src/nombres.ts`, misma regla), y el aviso de parecidos dice que no hace falta agregar el DNI.
+
+**Medido:** prueba **406** (8) en verde con la migración; sin ella falla 5 de 8. Siembra con un DNI inventado →
+queda «Inventada Apellido»; repegada → 0 filas. Apellido = solo el número → se detiene. `tests/nombres.test.ts` con
+los mismos casos.
+
+**Orden:** pegar la 0512 ANTES de fusionar (no rompe nada si llega después: la pantalla ya frena sola, pero el
+nombre con DNI sigue a la vista hasta que se pegue). Después de pegarla: cargar el DNI de esa integrante en Datos
+personales si el NOTICE dice que no lo tiene.
+
+---
+
 ## 2026-10-05 — El filtro del terminal ilumina en vez de ocultar, y la pantalla se vuelve más quieta · SIN SQL · ESCRITO Y PROBADO · SIN COMMITEAR
 
 **Qué cambia (sobre el PR #495, ya publicado).** Viendo el diseño en producción se
