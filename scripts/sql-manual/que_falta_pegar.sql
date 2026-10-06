@@ -372,7 +372,9 @@ with repo(numero, nombre, nunca) as (values
     (512, 'el_dni_no_va_en_el_nombre', false),
     (513, 'el_alta_pide_el_documento', false),
     (514, 'las_faltas_se_eligen_por_nombre_corto', false),
-    (515, 'do_se_entera_y_la_lider_tambien', false)
+    (515, 'do_se_entera_y_la_lider_tambien', false),
+    (516, 'la_persona_deja_constancia_de_haber_leido', false),
+    (517, 'la_persona_ve_como_va_con_sus_tardanzas', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte

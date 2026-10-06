@@ -296,6 +296,21 @@ export function recibeAvisoDeConductaRegistrada(rol: RolPosible): boolean {
 }
 
 /**
+ * ¿Le llega a la Bandeja el aviso de que nadie dejó constancia de haber leído un
+ * documento entregado en papel hace más de una semana (0516)? Solo a la líder
+ * DO, por la misma razón que `recibeAvisoDeConductaRegistrada`: es el aviso de
+ * quien hace Desarrollo Organizacional, y no se le empuja a los admin externos
+ * por honorarios un aviso disciplinario de personas con las que no trabajan.
+ *
+ * Es una función aparte y no un reuso de aquella porque la pregunta es otra: si
+ * mañana la líder de equipo también debe perseguir a quien no leyó, se cambia
+ * esta y no la otra.
+ */
+export function recibeAvisoDeLecturaPendiente(rol: RolPosible): boolean {
+  return tiene(SOLO_LIDER_DO, rol);
+}
+
+/**
  * Administra el sistema: admin o líder DO. NO es un permiso — es la pregunta
  * «¿este rol es de administración?» que necesita la cobertura para saber quién
  * hace de líder en una sede central (ver `cuentaEnCobertura`). Para decidir qué

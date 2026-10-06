@@ -8,6 +8,8 @@ import { ResumenEducacionMia } from "./educacion/resumen";
 import { BoletasMias } from "./boletas/boletas-mias";
 import { ReportesMios } from "./reportes/reportes-mios";
 import { CambiosMios } from "./cambios-mios";
+import { DisciplinaMia } from "./disciplina-mia";
+import { cuantosPiden, porLeer, type CuentaMia, type DocMio } from "@/lib/mio-disciplina";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Colibri } from "@/components/marca";
 import { AcusesPendientes } from "@/components/acuses-pendientes";
@@ -33,7 +35,7 @@ import {
   urlFirmadaSolicitudPerfil, type CaraDni,
 } from "@/lib/foto-dni";
 import {
-  EMPRESA, ROLES_CON_PANEL, TZ_LIMA, hoyLima, NIVEL_DISCIPLINARIO_LABELS, formatoMinutos,
+  EMPRESA, ROLES_CON_PANEL, TZ_LIMA, hoyLima, formatoMinutos,
   ESTADO_CIVIL_LABELS, GENERO_LABELS, GRADO_INSTRUCCION_LABELS, VINCULO_DERECHOHABIENTE_LABELS,
   TIPO_VINCULO_LABEL,
 } from "@cayla-dynamic/shared";
@@ -44,8 +46,7 @@ import {
 } from "@/lib/admin/jornada-esperada";
 import { loQueNoSePudo } from "@/lib/admin/lo-que-no-se-pudo";
 import { cicloVigente, type DiaTrabajado } from "@/lib/admin/ciclo-sobretiempo";
-import { mensajeDeError } from "@/lib/admin/mensaje-error";
-import { esMemoPorFirmar, traerBandeja } from "@/lib/bandeja-mia";
+import { traerBandeja } from "@/lib/bandeja-mia";
 import { mostrarBonoEnInfo, puedePedirBono, traerMiBono, type MiBono } from "@/lib/mi-bono";
 import { esBoletaNueva } from "@/lib/boletas";
 import { contarBoletasNuevas, nombreDelPeriodo, traerMisBoletas, type FilaMiBoleta } from "@/lib/mis-boletas";
@@ -312,20 +313,6 @@ interface MiContrato {
   fecha_firma: string | null;
 }
 
-/** Fila de `fn_mis_memos()` (0404) — ya filtrada a `estado = 'entregado'`,
- *  nunca un borrador ni uno firmado-pero-no-entregado. */
-interface MiMemo {
-  id: string;
-  correlativo: string | null;
-  tipo_causal: string;
-  nivel: string;
-  entregado_at: string | null;
-  medio_entrega: string | null;
-  firma_sancionado_confirmada_at: string | null;
-  sancionado_rechazo_firma_at: string | null;
-}
-
-const CAUSAL_LABEL_MIO: Record<string, string> = { tardanza: "Tardanzas", falta: "Faltas", conducta: "Conducta" };
 
 const MESES = [
   "enero", "febrero", "marzo", "abril", "mayo", "junio",
@@ -1198,50 +1185,36 @@ export default function MioPage() {
   }, [cargarMisReportes, yo?.id]);
   const reportesSinLeer = useMemo(() => (misReportes ? contarSinLeer(misReportes) : 0), [misReportes]);
 
-  // Sus propios memos disciplinarios ya entregados (0404). Aparte del bloque
-  // grande por la misma razón que `contrato`/`vacas`: depende solo de quién
-  // es. `fn_mis_memos()` ya filtra `estado = 'entregado'` del lado del
-  // servidor — nunca un borrador ni uno firmado-pero-no-entregado, que es
-  // justo lo que el comentario de cabecera de este archivo advierte que
-  // `exp_select_propia` por sí sola no evita.
-  const [misMemos, setMisMemos] = useState<MiMemo[]>([]);
-  const cargarMisMemos = useCallback(async () => {
-    if (!yo?.id) { setMisMemos([]); return; }
-    const { data } = await supabase.rpc("fn_mis_memos");
-    setMisMemos((data as MiMemo[] | null) ?? []);
+  // Su disciplina: lo entregado, lo enviado a su Info que todavía no recibió, y cómo va
+  // este mes con sus tardanzas (0516, 0517). UNA sola lectura para la sección, el contador
+  // del menú y las tarjetas del Resumen: escrita tres veces, un día el número y la lista
+  // dirían distinto. La base filtra del lado del servidor —nunca un borrador ni uno firmado
+  // y sin enviar—, que es justo lo que `exp_select_propia` por sí sola no evita (ver el
+  // comentario de cabecera de este archivo).
+  //
+  // Las dos son tolerantes por separado: si «cómo vas» falla, la lista se ve igual; si falla
+  // la lista, se dice, y no se pinta «no tienes nada» sobre algo que no se pudo mirar.
+  const [miDisciplina, setMiDisciplina] = useState<DocMio[] | null>(null);
+  const [miDisciplinaError, setMiDisciplinaError] = useState(false);
+  const [miCuenta, setMiCuenta] = useState<CuentaMia | null>(null);
+  const cargarMiDisciplina = useCallback(async () => {
+    if (!yo?.id) { setMiDisciplina(null); setMiCuenta(null); return; }
+    const [{ data, error }, { data: cuenta }] = await Promise.all([
+      supabase.rpc("fn_mi_disciplina"),
+      supabase.rpc("fn_mi_cuenta_de_tardanzas", {}),
+    ]);
+    setMiCuenta((cuenta as unknown as CuentaMia | null) ?? null);
+    if (error) { setMiDisciplinaError(true); return; }
+    setMiDisciplinaError(false);
+    setMiDisciplina(((data as unknown as { documentos?: DocMio[] } | null)?.documentos) ?? []);
   }, [supabase, yo?.id]);
   // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { void cargarMisMemos(); }, [cargarMisMemos]);
+  useEffect(() => { void cargarMiDisciplina(); }, [cargarMiDisciplina]);
 
-  // Los memos que le enviaron a su Info y todavía no recibió (0486). Aparte de
-  // `misMemos` porque son cosas distintas: estos NO están entregados todavía —
-  // solo su confirmación los entrega—, y `fn_mis_memos` no los trae a propósito.
-  const [memosPorRecibir, setMemosPorRecibir] = useState<{ id: string; enviado_a_info_at: string }[]>([]);
-  const cargarMemosPorRecibir = useCallback(async () => {
-    if (!yo?.id) { setMemosPorRecibir([]); return; }
-    const { data } = await supabase.rpc("fn_mis_memos_por_recibir");
-    setMemosPorRecibir(data ?? []);
-  }, [supabase, yo?.id]);
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { void cargarMemosPorRecibir(); }, [cargarMemosPorRecibir]);
-
-  // El criterio vive en lib/bandeja-mia.ts, que es de donde sale también el
-  // número del botón «Bandeja». Escrito dos veces, un día uno de los dos
-  // dejaría de contar los verbales y el recuadro y el número dirían distinto.
-  const memosPorFirmar = useMemo(() => misMemos.filter(esMemoPorFirmar), [misMemos]);
-
-  async function firmarMemo(id: string) {
-    const { error } = await supabase.rpc("fn_firmar_memo_como_sancionado", { p_id: id });
-    if (error) { avisar("error", mensajeDeError(error, "firmar el memo")); return; }
-    avisar("ok", "Firma guardada en el memo.");
-    void cargarMisMemos();
-  }
-  async function rechazarFirmaMemo(id: string) {
-    const { error } = await supabase.rpc("fn_rechazar_firma_memo", { p_id: id });
-    if (error) { avisar("error", mensajeDeError(error, "registrar tu respuesta")); return; }
-    avisar("ok", "Quedó anotado que prefieres no firmar digitalmente.");
-    void cargarMisMemos();
-  }
+  // Lo que le pide algo: recibir lo enviado a su Info, o leer lo entregado en papel.
+  const memosPorRecibir = useMemo(() => (miDisciplina ?? []).filter((d) => d.estado === "por_recibir"), [miDisciplina]);
+  const memosPorLeer = useMemo(() => (miDisciplina ?? []).filter(porLeer), [miDisciplina]);
+  const disciplinaPide = useMemo(() => cuantosPiden(miDisciplina ?? []), [miDisciplina]);
 
   // Sus propias solicitudes de vacaciones. Aparte del bloque grande de arriba
   // por la misma razón que `vacas`: depende solo de quién es, no del rango de
@@ -1432,9 +1405,10 @@ export default function MioPage() {
       secciones: g.secciones
         .filter((s) => s.valor !== "dni" || hayCampoDni)
         .map((s) => (s.valor === "boletas" && boletasNuevas > 0 ? { ...s, contador: boletasNuevas } : s))
-        .map((s) => (s.valor === "reportes" && reportesSinLeer > 0 ? { ...s, contador: reportesSinLeer } : s)),
+        .map((s) => (s.valor === "reportes" && reportesSinLeer > 0 ? { ...s, contador: reportesSinLeer } : s))
+        .map((s) => (s.valor === "disciplina" && disciplinaPide > 0 ? { ...s, contador: disciplinaPide } : s)),
     })),
-    [hayCampoDni, boletasNuevas, reportesSinLeer],
+    [hayCampoDni, boletasNuevas, reportesSinLeer, disciplinaPide],
   );
 
   // Recorrido guiado de "Resumen", primera vez. `Boolean(yo)` y no solo `yo`:
@@ -1611,13 +1585,13 @@ export default function MioPage() {
     }
     // Genérica a propósito: ni el nivel ni el motivo de la sanción van acá.
     // Esta tarjeta puede verla de reojo cualquiera que pase cerca de la
-    // pantalla — el detalle recién se ve al entrar al documento mismo.
-    if (memosPorFirmar.length > 0) {
-      const n = memosPorFirmar.length;
+    // pantalla — el detalle recién se ve al abrir el documento, en Disciplina.
+    if (memosPorLeer.length > 0) {
+      const n = memosPorLeer.length;
       out.push({
         clave: "memos",
-        texto: `Tienes ${n} documento${n === 1 ? "" : "s"} por revisar y firmar`,
-        ir: () => { cambiarSeccion("historial"); irArriba(); },
+        texto: `Tienes ${n} documento${n === 1 ? "" : "s"} por leer`,
+        ir: () => { cambiarSeccion("disciplina"); irArriba(); },
       });
     }
     // Uno por documento, y no «tienes N»: cada uno se abre por su cuenta y lo
@@ -1632,7 +1606,7 @@ export default function MioPage() {
     }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resumen, respondidas, pendientesRevision, vacas, memosPorFirmar, memosPorRecibir, miBono]);
+  }, [resumen, respondidas, pendientesRevision, vacas, memosPorLeer, memosPorRecibir, miBono]);
 
   const objCumplidos = objetivos.filter((o) => o.cumplido).length;
   const mesLabel = `${MESES_LARGOS[Number(hasta.slice(5, 7)) - 1].toLowerCase()} ${hasta.slice(0, 4)}`;
@@ -2958,72 +2932,22 @@ export default function MioPage() {
           página y traducido con el mismo `describirCambio` del panel. Antes
           tenía su propio traductor, que no conocía el horario y lo pintaba
           como JSON crudo, y un tope de 20 que escondía la 21. */}
+      {/* ── DISCIPLINA ───────────────────────────────────────────────────────
+          Sus memos, el mensaje cuando no hay nada, la constancia de lectura y
+          cómo va este mes (entrega 4, 2026-10-06). Antes los memos vivían al
+          principio de «Historial», que no decía que ahí estaba la disciplina.
+          Todo vive en `disciplina-mia.tsx` y recibe los datos hechos: el menú y
+          el Resumen cuentan lo mismo que esta sección. */}
+      {tab === "disciplina" && yo && (
+        <DisciplinaMia
+          supabase={supabase} personaId={yo.id}
+          docs={miDisciplina} error={miDisciplinaError} cuenta={miCuenta}
+          onCambio={() => void cargarMiDisciplina()}
+        />
+      )}
+
       {tab === "historial" && (
         <>
-          {/* Solo visible si tiene al menos un memo entregado — nada que
-              mostrar, nada que ocupe pantalla. `fn_mis_memos()` (0404) ya
-              garantiza que nunca llegue acá un borrador. */}
-          {misMemos.length > 0 && (
-            <section className="mb-4 rounded-2xl border border-sand p-5 text-sm">
-              <h2 className="mb-1 font-serif text-lg">Tus memos disciplinarios</h2>
-              <p className="mb-3 text-taupe">
-                Los que ya te entregaron. Si te lo entregaron en papel, firmarlo acá (o dejar constancia de
-                que prefieres no hacerlo) es evidencia adicional, con su propia fecha y hora: no reemplaza el papel.
-                Si te lo enviaron a tu Info, la entrega ya quedó hecha cuando lo recibiste.
-              </p>
-              <ul className="space-y-3">
-                {misMemos.map((m) => {
-                  const puedeFirmar = ["verbal", "amonestacion", "suspension"].includes(m.nivel);
-                  const resuelto = Boolean(m.firma_sancionado_confirmada_at || m.sancionado_rechazo_firma_at);
-                  return (
-                    <li key={m.id} className="border-t border-sand pt-3 first:border-t-0 first:pt-0">
-                      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
-                        <span className="font-medium">
-                          {NIVEL_DISCIPLINARIO_LABELS[m.nivel as keyof typeof NIVEL_DISCIPLINARIO_LABELS] ?? m.nivel}
-                        </span>
-                        <span className="text-xs text-taupe">
-                          {m.entregado_at ? diaYMes(fechaLimaDeMarca(m.entregado_at)) : "—"}
-                        </span>
-                      </div>
-                      <p className="text-taupe">
-                        {CAUSAL_LABEL_MIO[m.tipo_causal] ?? m.tipo_causal}
-                        {m.correlativo ? ` · ${m.correlativo}` : ""}
-                      </p>
-                      {puedeFirmar && (
-                        <Link href={`/mio/memo/${m.id}`} className="mt-1 inline-block text-xs text-taupe underline hover:text-tinta">
-                          Ver el documento
-                        </Link>
-                      )}
-                      {m.firma_sancionado_confirmada_at && (
-                        <p className="mt-1 text-verde">
-                          Firmaste este documento el {diaYMes(fechaLimaDeMarca(m.firma_sancionado_confirmada_at))}.
-                        </p>
-                      )}
-                      {m.sancionado_rechazo_firma_at && (
-                        <p className="mt-1 text-taupe">
-                          Quedó anotado que preferiste no firmarlo digitalmente, el{" "}
-                          {diaYMes(fechaLimaDeMarca(m.sancionado_rechazo_firma_at))}.
-                        </p>
-                      )}
-                      {!resuelto && puedeFirmar && (
-                        <div className="mt-2 flex flex-wrap items-center gap-3">
-                          <Boton variante="primario" tamano="sm" onClick={() => void firmarMemo(m.id)}>Firmar</Boton>
-                          <Boton variante="enlace" className="text-xs text-taupe" onClick={() => void rechazarFirmaMemo(m.id)}>
-                            Prefiero no firmar digitalmente
-                          </Boton>
-                        </div>
-                      )}
-                      {!resuelto && !puedeFirmar && (
-                        <p className="mt-1 text-xs text-taupe">
-                          Este documento se firma en físico o vía notarial — no admite firma digital.
-                        </p>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-            </section>
-          )}
         {yo && <CambiosMios supabase={supabase} personaId={yo.id} />}
 
         {yo && <TusUltimosPeriodos personaId={yo.id} />}

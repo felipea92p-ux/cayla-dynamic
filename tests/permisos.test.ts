@@ -11,7 +11,7 @@ import {
   puedeVerPlanilla, puedeVerIdentidad, puedeGestionarCatalogos,
   puedeOperarEquipo, puedeVerTodasLasSedes, puedeExportarPadron,
   puedeVerSaludDeAlertas, puedeExportarAsistencia, puedeAnularDocumentoDisciplinario,
-  puedeTramitarDisciplina, recibeAvisoDeConductaRegistrada,
+  puedeTramitarDisciplina, recibeAvisoDeConductaRegistrada, recibeAvisoDeLecturaPendiente,
   puedeVerNovedad, puedeGestionarBoletas, puedeMarcarCuentaDeServicio, puedeGestionarArchivo,
   ROLES, ROLES_CON_PANEL, ROLES_DO, ROLES_EXPORTAN_ASISTENCIA,
 } from "@cayla-dynamic/shared";
@@ -85,6 +85,13 @@ describe("disciplina: mirar, tramitar y recibir el aviso son tres preguntas (051
     expect(recibeAvisoDeConductaRegistrada("admin")).toBe(false);
     expect(recibeAvisoDeConductaRegistrada("supervisor_sede")).toBe(false);
     expect(recibeAvisoDeConductaRegistrada(null)).toBe(false);
+  });
+  it("el aviso de «nadie leyó lo que se le entregó» también es solo de la líder DO", () => {
+    expect(recibeAvisoDeLecturaPendiente("lider_do")).toBe(true);
+    expect(recibeAvisoDeLecturaPendiente("admin")).toBe(false);
+    expect(recibeAvisoDeLecturaPendiente("supervisor_sede")).toBe(false);
+    expect(recibeAvisoDeLecturaPendiente("integrante")).toBe(false);
+    expect(recibeAvisoDeLecturaPendiente(undefined)).toBe(false);
   });
   it("y tomar el caso (DO y admin) es más ancho que recibir el aviso: si alguien los iguala, esto cae", () => {
     expect(puedeAnularDocumentoDisciplinario("admin")).toBe(true);

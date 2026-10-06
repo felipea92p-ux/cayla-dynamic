@@ -2,13 +2,14 @@ import type { ClienteCayla } from "@cayla-dynamic/database";
 import {
   esRolEncargada, fechaLima, hoyLima, NIVEL_DISCIPLINARIO_LABELS, puedeGestionarCatalogos, puedeGestionarContratos,
   puedeOperarEquipo, puedeVerCasos, puedeVerPlanilla, puedeVerSaludDeAlertas, recibeAvisoDeConductaRegistrada,
+  recibeAvisoDeLecturaPendiente,
   esTipoDocumento, TIPO_DOCUMENTO_LABEL,
 } from "@cayla-dynamic/shared";
 import { etiquetaDeVia } from "../reportes";
 import { diaYMes } from "../bandeja-mia";
 import { formatSoles } from "../rangos";
 import {
-  etapaDelBorrador, pendientesDeEntregado, type Adjunto, type DocDisciplina,
+  etapaDelBorrador, lecturaPendienteParaAviso, pendientesDeEntregado, type Adjunto, type DocDisciplina, type LecturaMemo,
 } from "./disciplina";
 import {
   compararPendientes, conCese, documentoEducacion, ESTADOS_CONTRATO_PENDIENTE, esFeriadoParaBandeja, sumarDias,
@@ -302,6 +303,19 @@ export interface ItemCasoTraspasado {
   accion: "tomar" | "devolver"; motivo: string; hecho_at: string;
 }
 
+/**
+ * Un documento entregado en papel hace más de una semana cuya persona no dejó
+ * constancia de haberlo leído (0516). Se va de la Bandeja cuando la deja: no
+ * hay marca de «visto», porque lo que quita el aviso es que la persona lea, no
+ * que DO lo mire.
+ */
+export interface ItemLecturaPendiente {
+  id: string; persona_id: string; persona: string; sede: string;
+  nivel: string; entregado_at: string; dias: number;
+  /** Lo abrió pero no confirmó que lo leyó. */
+  abierto: boolean;
+}
+
 export interface FuentesBandeja {
   educacion: FilaEducacionBandeja[];
   entregasEducacion: ItemEntregaEducacion[];
@@ -326,6 +340,7 @@ export interface FuentesBandeja {
   disciplina: ItemDisciplina[];
   conductaRegistrada: ItemConductaRegistrada[];
   casosTraspasados: ItemCasoTraspasado[];
+  lecturasPendientes: ItemLecturaPendiente[];
   casos: ItemCaso[];
   resumenAlertas: ResumenAlertas | null;
   /**
@@ -340,7 +355,7 @@ export const FUENTES_VACIAS: FuentesBandeja = {
   educacion: [], entregasEducacion: [], avisosFinEducacion: [], solicitudesEducacion: [], vacaciones: [], sinHorario: [],
   liquidacionesVencidas: [], revisiones: [], revisionesMovilidad: [], revisionesContrato: [],
   solicitudesVacaciones: [], solicitudesPerfil: [], contratos: [], diasPorRevisar: [], marcasApartadas: [],
-  periodo: null, documentos: [], bonosPorTransferir: [], feriados: [], disciplina: [], conductaRegistrada: [], casosTraspasados: [],
+  periodo: null, documentos: [], bonosPorTransferir: [], feriados: [], disciplina: [], conductaRegistrada: [], casosTraspasados: [], lecturasPendientes: [],
   casos: [], resumenAlertas: null, fallidas: [],
 };
 
@@ -421,6 +436,9 @@ export async function traerFuentesBandeja(
     tareas.push(traerDisciplina(supabase, fallo).then((xs) => { f.disciplina = xs; }));
     if (recibeAvisoDeConductaRegistrada(rol)) {
       tareas.push(traerConductaRegistrada(supabase, fallo).then((xs) => { f.conductaRegistrada = xs; }));
+    }
+    if (recibeAvisoDeLecturaPendiente(rol)) {
+      tareas.push(traerLecturasPendientes(supabase, fallo).then((xs) => { f.lecturasPendientes = xs; }));
     }
     if (esRolEncargada(rol)) {
       tareas.push(traerCasosTraspasados(supabase, fallo).then((xs) => { f.casosTraspasados = xs; }));
@@ -609,6 +627,49 @@ async function traerCasosTraspasados(
   });
 }
 
+/**
+ * Para la líder DO: lo entregado en papel hace más de una semana que su persona
+ * no ha dejado constancia de haber leído (0516, decidido el 2026-10-06).
+ *
+ * El filtro grueso va en la consulta y la regla fina en `lecturaPendienteParaAviso`,
+ * la misma que muestra el caso: lo recibido por Info no cuenta (recibir ya es la
+ * constancia), ni lo que la persona firmó, ni lo de más de doce meses, que ya no
+ * pesa y por eso `fn_mi_disciplina` tampoco le pide leerlo.
+ */
+async function traerLecturasPendientes(
+  supabase: ClienteCayla,
+  fallo: (modulo: ModuloBandeja, que: string, error: unknown) => void,
+): Promise<ItemLecturaPendiente[]> {
+  const ahora = new Date();
+  const hace12m = new Date(ahora); hace12m.setUTCMonth(hace12m.getUTCMonth() - 12);
+  const { data: docs, error } = await supabase.from("expediente_disciplinario")
+    .select("id, persona_id, nivel, estado, medio_entrega, entregado_at, firma_sancionado_confirmada_at")
+    .eq("estado", "entregado").neq("medio_entrega", "digital")
+    .in("nivel", ["verbal", "amonestacion", "suspension"])
+    .gte("entregado_at", hace12m.toISOString());
+  if (error) { fallo("disciplina", "los documentos sin leer", error); return []; }
+  const filas = (docs ?? []) as unknown as Array<Pick<DocDisciplina, "id" | "persona_id" | "nivel" | "estado" | "medio_entrega" | "entregado_at" | "firma_sancionado_confirmada_at">>;
+  if (filas.length === 0) return [];
+
+  const { data: lect, error: eL } = await supabase.from("lecturas_memo")
+    .select("expediente_id, abierto_at, leido_at").in("expediente_id", filas.map((d) => d.id));
+  if (eL) { fallo("disciplina", "las constancias de lectura", eL); return []; }
+  const lecturas = new Map(((lect ?? []) as LecturaMemo[]).map((l) => [l.expediente_id, l] as const));
+
+  const pendientes = filas.filter((d) => lecturaPendienteParaAviso(d, lecturas.get(d.id), ahora));
+  if (pendientes.length === 0) return [];
+  const { personas, error: eP } = await nombresYSedes(supabase, Array.from(new Set(pendientes.map((d) => d.persona_id))));
+  if (eP) { fallo("disciplina", "los documentos sin leer", eP); return []; }
+
+  return pendientes.map((d) => ({
+    id: d.id, persona_id: d.persona_id,
+    persona: personas.get(d.persona_id)?.nombre ?? "—", sede: personas.get(d.persona_id)?.sede ?? "—",
+    nivel: d.nivel, entregado_at: d.entregado_at!,
+    dias: Math.floor((ahora.getTime() - Date.parse(d.entregado_at!)) / 864e5),
+    abierto: Boolean(lecturas.get(d.id)),
+  }));
+}
+
 // ── Armar ───────────────────────────────────────────────────────────────────
 
 /** Los tipos que llevan «Nuevo desde tu última visita» (bandeja_vistos, 0436/0450). */
@@ -620,7 +681,7 @@ export type TipoItemVisto =
 export type TipoPendiente =
   | TipoItemVisto | "educacion" | "vacaciones_por_vencer" | "sin_horario" | "liquidacion_vencida"
   | "contrato" | "dia_por_revisar" | "marca_apartada" | "documento_ruta" | "documento_bono" | "bono_por_transferir"
-  | "feriado" | "disciplina" | "caso" | "conducta_registrada" | "caso_traspasado";
+  | "feriado" | "disciplina" | "caso" | "conducta_registrada" | "caso_traspasado" | "lectura_pendiente";
 
 /**
  * Un pendiente, sea del tipo que sea. Quién, qué, dónde, de qué módulo, cuándo
@@ -976,6 +1037,19 @@ export function armarPendientes(
       detalle: `«${t.motivo}»`,
       urgencia: urgenciaEspera(t.hecho_at, hoy), resolucion: "afuera",
       ir: { texto: "Ver el caso", href: `/admin/disciplina#doc-${t.expediente_id}` }, contexto: null,
+    });
+  }
+  for (const l of f.lecturasPendientes) {
+    const nivel = ((NIVEL_DISCIPLINARIO_LABELS as Record<string, string>)[l.nivel] ?? l.nivel).toLowerCase();
+    agregar({
+      clave: `lectura_pendiente:${l.id}`, tipo: "lectura_pendiente", itemId: l.id, personaId: l.persona_id,
+      persona: l.persona, sede: l.sede, modulo: "disciplina",
+      titulo: `No dejó constancia de haber leído su ${nivel}`,
+      detalle: l.abierto
+        ? `Lo abrió, pero no confirmó que lo leyó. Se lo entregaron hace ${l.dias} días.`
+        : `Todavía no lo abrió. Se lo entregaron hace ${l.dias} días.`,
+      urgencia: urgenciaEspera(l.entregado_at, hoy), resolucion: "afuera",
+      ir: { texto: "Ver el caso", href: `/admin/disciplina#doc-${l.id}` }, contexto: null,
     });
   }
   return lista.sort(compararPendientes);

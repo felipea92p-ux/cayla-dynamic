@@ -1,5 +1,5 @@
 import {
-  CalendarClock, CalendarDays, Car, FileSignature, GraduationCap, History, IdCard, LayoutDashboard,
+  CalendarClock, CalendarDays, Car, FileSignature, Gavel, GraduationCap, History, IdCard, LayoutDashboard,
   MessageSquareText, ReceiptText, ScrollText, Target, TreePalm, UserRound,
 } from "lucide-react";
 import type { GrupoDetalle } from "./secciones-de-menu";
@@ -8,13 +8,13 @@ import type { GrupoDetalle } from "./secciones-de-menu";
 // Las secciones de «Lo mío» (/mio), en el orden y los grupos en que se leen.
 // ============================================================================
 
-/** Las catorce secciones de la pantalla. Ver el comentario de `tab` en mio/page.tsx. */
+/** Las quince secciones de la pantalla. Ver el comentario de `tab` en mio/page.tsx. */
 export type Tab =
   | "resumen" | "dias" | "turnos" | "dni" | "datos" | "ausencias" | "contrato" | "boletas" | "movilidad" | "educacion"
-  | "firma" | "objetivos" | "reportes" | "historial";
+  | "firma" | "objetivos" | "reportes" | "disciplina" | "historial";
 
 /**
- * Las catorce, agrupadas.
+ * Las quince, agrupadas.
  *
  * LOS GRUPOS (2026-10-06). Hasta ese día eran una sola lista, en el orden en que
  * se fueron agregando: «Mi DNI» y «Tus datos» quedaban entre «Mis turnos» y
@@ -25,8 +25,14 @@ export type Tab =
  *     (`admin/nav-items.ts`) usa para esas ideas. Quien tiene las dos
  *     superficies no aprende dos nombres para lo mismo.
  *   · «Historial» va en Seguimiento y no en Asistencia, aunque guarde las
- *     correcciones a sus marcajes: ahí también están sus memos, y un memo no es
- *     asistencia. Junto a «Mis días» se leería como algo de todos los días.
+ *     correcciones a sus marcajes: junto a «Mis días» se leería como algo de
+ *     todos los días.
+ *   · «Disciplina» (2026-10-06, entrega 4 de las amonestaciones) también va en
+ *     Seguimiento, antes de «Historial», y se lleva los memos que vivían ahí:
+ *     «Historial» no decía que ahí estaba la disciplina, y quien quería saber
+ *     cómo iba no tenía por qué buscar en la última sección del menú. Se eligió
+ *     con un prototipo (`docs/disciplina-mio-prototipo-2026-10-06.html`).
+ *     El ícono es el de «Disciplina» en el menú del panel.
  *   · «Resumen» va solo y sin título, arriba: es donde se aterriza.
  *
  * Los grupos se pueden cerrar, como en el panel, y cada dispositivo se acuerda
@@ -77,11 +83,15 @@ export const GRUPOS_MIO: readonly GrupoDetalle<Tab>[] = [
     { valor: "objetivos", label: "Objetivos", Icon: Target, alias: ["metas"] },
     // Lo que contó y en qué va (0483/0488).
     { valor: "reportes", label: "Reportes", Icon: MessageSquareText, alias: ["contar", "queja"] },
-    { valor: "historial", label: "Historial", Icon: History, alias: ["memo", "amonestación", "correcciones"] },
+    // Sus memos, el mensaje cuando no hay nada, la constancia de lectura y cómo va
+    // con sus tardanzas este mes. Los alias son lo que alguien escribiría sin saber
+    // que existe: «memo» y «amonestación» llegaban a Historial antes de esta sección.
+    { valor: "disciplina", label: "Disciplina", Icon: Gavel, alias: ["memo", "amonestación", "llamada de atención", "sanción", "tardanza", "cómo voy", "legajo"] },
+    { valor: "historial", label: "Historial", Icon: History, alias: ["correcciones", "cambios"] },
   ] },
 ];
 
-/** Las catorce, en el orden del menú. */
+/** Las quince, en el orden del menú. */
 export const TABS: readonly Tab[] = GRUPOS_MIO.flatMap((g) => g.secciones.map((s) => s.valor));
 
 /** Si un texto que llegó de fuera (un `?tab=` de un enlace) es una sección que existe. */

@@ -59,7 +59,7 @@ import { evidenciaDeDocumento, type Evidencia } from "@/lib/admin/disciplina-evi
 import {
   ETAPAS, ETAPA_LABEL, admiteEntregaAnteriorAlCese, esGradual, etapaDelBorrador, eventosDeObservacion,
   normalizarBusqueda, pendientesDeEntregado, pestanaDelDocumento, situacionFalta, situacionTardanza, ultimoDiaDeEntrega,
-  type Adjunto, type DocDisciplina, type FaltaRow, type Pestana, type SituacionDeteccion, type TardanzaRow, type TipoPapel,
+  type Adjunto, type DocDisciplina, type FaltaRow, type LecturaMemo, type Pestana, type SituacionDeteccion, type TardanzaRow, type TipoPapel,
 } from "@/lib/admin/disciplina";
 import {
   NIVEL_DISCIPLINARIO_CORTO, NIVEL_DISCIPLINARIO_LABELS, etiquetaDeSede, fechaLima, hoyLima, mesesRecientesLima, nombreDelMesLima,
@@ -87,7 +87,7 @@ const FALTA_PAPEL: Record<TipoPapel, string> = {
   descargo: "Falta el descargo. Es el papel que prueba que la persona pudo defenderse dentro del plazo del art. 31.",
 };
 
-const COLUMNAS_DOC = "id, persona_id, tipo_causal, nivel, estado, periodo_desde, periodo_hasta, hechos, suspension_dias, suspension_desde, suspension_hasta, suspension_fechas, fecha_cese, resuelto_at, resuelto_por, resuelto_resultado, resuelto_motivo, correlativo, creado_at, creado_por, firmante_id, firmado_at, entregado_at, entregado_por, medio_entrega, entrega_testigo_nombre, enviado_a_info_at, enviado_a_info_por, cargos_comunicados_at, descargo_vence_at, descargo_acogido, descargo_valoracion, observacion, falta_rit_version, falta_numeral, falta_literal, conocido_el, tomado_por, tomado_at";
+const COLUMNAS_DOC = "id, persona_id, tipo_causal, nivel, estado, periodo_desde, periodo_hasta, hechos, suspension_dias, suspension_desde, suspension_hasta, suspension_fechas, fecha_cese, resuelto_at, resuelto_por, resuelto_resultado, resuelto_motivo, correlativo, creado_at, creado_por, firmante_id, firmado_at, entregado_at, entregado_por, medio_entrega, entrega_testigo_nombre, enviado_a_info_at, enviado_a_info_por, cargos_comunicados_at, descargo_vence_at, descargo_acogido, descargo_valoracion, observacion, falta_rit_version, falta_numeral, falta_literal, conocido_el, tomado_por, tomado_at, firma_sancionado_confirmada_at";
 
 // Seis columnas, la segunda (sede) secundaria: en tablet se esconde y la
 // plantilla de `md` tiene cinco. Literal a propósito (ver lista-casos.tsx).
@@ -282,6 +282,8 @@ export default function DisciplinaPage() {
   const [registrandoFalta, setRegistrandoFalta] = useState(false);
   /** Las vueltas de cada caso entre la líder y DO (0511). Tolerante: sin ellas el caso se ve igual, sin el porqué. */
   const [traspasos, setTraspasos] = useState<Traspaso[]>([]);
+  /** Quién abrió y quién leyó lo entregado en papel (0516). Tolerante: sin ellas el caso se ve igual, sin la constancia. */
+  const [lecturas, setLecturas] = useState<LecturaMemo[]>([]);
   const [traspasando, setTraspasando] = useState<{ id: string; accion: "tomar" | "devolver" } | null>(null);
   const [motivoTraspaso, setMotivoTraspaso] = useState("");
   /** El catálogo de faltas del RIT (0510) y sus nombres cortos (0514), para nombrar la que cita cada documento de conducta. */
@@ -375,6 +377,8 @@ export default function DisciplinaPage() {
     const { data: tr } = await supabase.from("expediente_traspasos")
       .select("id, expediente_id, accion, por, motivo, hecho_at").order("hecho_at", { ascending: false });
     setTraspasos(Array.isArray(tr) ? (tr as unknown as Traspaso[]) : []);
+    const { data: lect } = await supabase.from("lecturas_memo").select("expediente_id, abierto_at, leido_at");
+    setLecturas(Array.isArray(lect) ? (lect as unknown as LecturaMemo[]) : []);
 
     const borradores = lista.filter((x) => x.estado === "borrador");
     const [pares, evs, { data: cfg }, { data: sc }] = await Promise.all([
@@ -1583,6 +1587,7 @@ export default function DisciplinaPage() {
           onVerPapel={(path) => void verAdjunto(path)}
           faltas={faltasCatalogo}
           traspasos={traspasos}
+          lecturas={lecturas}
         />
 
         {/* La falta de conducta: la misma puerta que en la ficha de la persona. */}

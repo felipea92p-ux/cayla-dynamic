@@ -1,7 +1,7 @@
 // ============================================================================
 // mio-secciones.test.ts — El menú de «Lo mío», en grupos, y su buscador (⌘K)
 // ============================================================================
-// El 2026-10-06 las catorce secciones pasaron de una sola lista a cuatro
+// El 2026-10-06 las secciones pasaron de una sola lista a cuatro
 // grupos que se pueden cerrar, con un buscador. Lo que se prueba acá es lo que
 // un cambio en esa lista puede romper EN SILENCIO, sin error de tipos:
 //
@@ -17,11 +17,11 @@ import { buscarSecciones, type GrupoDetalle } from "@/lib/secciones-de-menu";
 
 const TODAS: Tab[] = [
   "resumen", "dias", "turnos", "dni", "datos", "ausencias", "contrato", "boletas", "movilidad", "educacion",
-  "firma", "objetivos", "reportes", "historial",
+  "firma", "objetivos", "reportes", "disciplina", "historial",
 ];
 
 describe("cada sección vive en un grupo, y en uno solo", () => {
-  it("están las catorce, ni una más ni una menos", () => {
+  it("están las quince, ni una más ni una menos", () => {
     expect([...TABS].sort()).toEqual([...TODAS].sort());
   });
 
@@ -47,9 +47,22 @@ describe("cada sección vive en un grupo, y en uno solo", () => {
     expect(titulos).toContain("Pago");
   });
 
-  it("«Historial» no va en Asistencia: ahí están sus memos, y un memo no es asistencia", () => {
+  it("«Historial» no va en Asistencia: son correcciones, no asistencia de todos los días", () => {
     const asistencia = GRUPOS_MIO.find((g) => g.label === "Asistencia");
     expect(asistencia?.secciones.map((s) => s.valor)).not.toContain("historial");
+  });
+
+  it("«Disciplina» va en Seguimiento, justo antes de «Historial»: ya no hay que buscar sus memos en la última sección", () => {
+    const seguimiento = GRUPOS_MIO.find((g) => g.label === "Seguimiento")!.secciones.map((s) => s.valor);
+    expect(seguimiento).toContain("disciplina");
+    expect(seguimiento.indexOf("disciplina")).toBe(seguimiento.indexOf("historial") - 1);
+  });
+
+  it("quien escribe «memo» o «amonestación» llega a Disciplina, que es donde están ahora, y no a Historial", () => {
+    for (const q of ["memo", "amonestacion", "llamada de atencion", "legajo"]) {
+      expect(buscarSecciones(GRUPOS_MIO, q)[0]?.seccion.valor, q).toBe("disciplina");
+    }
+    expect(buscarSecciones(GRUPOS_MIO, "correcciones")[0]?.seccion.valor).toBe("historial");
   });
 
   it("el menú habla en primera persona: «Mis datos», ya no «Tus datos»", () => {
@@ -74,7 +87,7 @@ describe("un ?tab= que llega de un enlace", () => {
 describe("el buscador (⌘K) encuentra lo que alguien escribiría", () => {
   const primera = (q: string) => buscarSecciones(GRUPOS_MIO, q)[0]?.seccion.valor;
 
-  it("sin nada escrito, las catorce y en el orden del menú: abrirlo sirve para hojear", () => {
+  it("sin nada escrito, las quince y en el orden del menú: abrirlo sirve para hojear", () => {
     expect(buscarSecciones(GRUPOS_MIO, "").map((r) => r.seccion.valor)).toEqual([...TABS]);
     expect(buscarSecciones(GRUPOS_MIO, "   ")).toHaveLength(TABS.length);
   });
@@ -82,7 +95,8 @@ describe("el buscador (⌘K) encuentra lo que alguien escribiría", () => {
   // Lo que la gente escribe cuando no sabe cómo se llama la sección.
   const CASOS: Array<[string, Tab]> = [
     ["sueldo", "boletas"],
-    ["memo", "historial"],
+    // Hasta el 2026-10-06 «memo» llevaba a Historial; sus memos viven ahora en Disciplina.
+    ["memo", "disciplina"],
     ["vacaciones", "ausencias"],
     ["descanso medico", "ausencias"],
     ["horario", "turnos"],
@@ -100,7 +114,7 @@ describe("el buscador (⌘K) encuentra lo que alguien escribiría", () => {
   it("no distingue tildes ni mayúsculas, en ninguna de las dos direcciones", () => {
     expect(primera("educacion")).toBe("educacion");
     expect(primera("EDUCACIÓN")).toBe("educacion");
-    expect(primera("amonestacion")).toBe("historial");
+    expect(primera("amonestacion")).toBe("disciplina");
     expect(primera("dirección")).toBe("datos");
   });
 
