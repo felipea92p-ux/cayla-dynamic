@@ -414,6 +414,21 @@
 .cajon-derecha-entra { animation: cajon-derecha-entra 260ms var(--ease-salida) backwards; }
 .cajon-derecha-sale { animation: cajon-derecha-sale 200ms ease-in forwards; }
 
+/* La hoja que sube desde abajo — para HojaInferior (2026-10-06, filtros del
+   Dashboard en celular). Misma duración y curva que los dos cajones de arriba,
+   por la misma razón: una tercera curva en la misma pantalla se siente como
+   otro producto. Solo cambia el eje: translateY. */
+@keyframes hoja-entra {
+  from { transform: translateY(100%); }
+  to { transform: none; }
+}
+@keyframes hoja-sale {
+  from { transform: none; }
+  to { transform: translateY(100%); }
+}
+.hoja-entra { animation: hoja-entra 260ms var(--ease-salida) backwards; }
+.hoja-sale { animation: hoja-sale 200ms ease-in forwards; }
+
 @keyframes entra-fila {
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: none; }
@@ -452,6 +467,8 @@
   .cajon-sale,
   .velo-entra,
   .velo-sale,
+  .hoja-entra,
+  .hoja-sale,
   .cajon-entra .fila-en-cascada,
   .titulo-entra,
   .menu-se-hace-notar,

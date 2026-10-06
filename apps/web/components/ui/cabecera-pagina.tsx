@@ -30,7 +30,9 @@ export function CabeceraPagina({
   accion?: ReactNode;
 }) {
   return (
-    <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
+    // `mb-5` en celular (2026-10-06): 32 px de aire bajo el título eran 32 px
+    // menos de pantalla útil en un teléfono, en las 18 pantallas que la usan.
+    <div className="mb-5 flex flex-wrap items-start justify-between gap-4 sm:mb-8">
       <div>
         <h1 className="font-serif text-[1.75rem] font-medium leading-tight tracking-[-0.01em] text-tinta">
           {titulo}
