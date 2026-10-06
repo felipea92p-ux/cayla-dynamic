@@ -379,7 +379,7 @@ function MiMovilidadContenido() {
   const gasto = gastoDiario(mediosIda, mediosVuelta, costoPasaje);
 
   return (
-    <main className="mx-auto max-w-2xl p-6">
+    <main className="mx-auto w-full min-w-0 max-w-2xl px-4 py-6 sm:p-6">
       <EnlaceVolver href="/mio" className="mb-4 inline-block text-sm text-taupe hover:text-tinta hover:underline">
         ← Volver a Info
       </EnlaceVolver>
