@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
+import { EnlaceVolver } from "@/components/enlace-volver";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { Cargando } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
@@ -226,9 +226,9 @@ function MiContratoContenido() {
             Reintentar
           </Boton>
         </p>
-        <Link href="/mio" className="mt-3 inline-block text-sm text-taupe hover:text-tinta hover:underline">
+        <EnlaceVolver href="/mio" className="mt-3 inline-block text-sm text-taupe hover:text-tinta hover:underline">
           ← Volver a Info
-        </Link>
+        </EnlaceVolver>
       </main>
     );
   }
@@ -240,9 +240,9 @@ function MiContratoContenido() {
           Todavía no tienes un contrato registrado en el sistema. Si crees que deberías tener uno, avisa a
           Desarrollo Organizacional.
         </p>
-        <Link href="/mio" className="mt-3 inline-block text-sm text-taupe hover:text-tinta hover:underline">
+        <EnlaceVolver href="/mio" className="mt-3 inline-block text-sm text-taupe hover:text-tinta hover:underline">
           ← Volver a Info
-        </Link>
+        </EnlaceVolver>
       </main>
     );
   }
@@ -254,9 +254,9 @@ function MiContratoContenido() {
   return (
     <main className="mx-auto max-w-2xl p-6 print:p-0">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3 print:hidden">
-        <Link href="/mio" className="text-sm text-taupe hover:text-tinta hover:underline">
+        <EnlaceVolver href="/mio" className="text-sm text-taupe hover:text-tinta hover:underline">
           ← Volver a Info
-        </Link>
+        </EnlaceVolver>
         <div className="flex flex-wrap items-center gap-3">
           {contrato.storage_path && (
             // Nativo a propósito: Boton variante="enlace" no aplica tamaño (solo

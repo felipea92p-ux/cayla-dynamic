@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
+import { EnlaceVolver } from "@/components/enlace-volver";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { Cargando } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
@@ -207,9 +207,9 @@ function MiBoletaContenido() {
             Reintentar
           </Boton>
         </p>
-        <Link href="/mio" className="mt-3 inline-block text-sm text-taupe hover:text-tinta hover:underline">
+        <EnlaceVolver href="/mio" className="mt-3 inline-block text-sm text-taupe hover:text-tinta hover:underline">
           ← Volver a Info
-        </Link>
+        </EnlaceVolver>
       </main>
     );
   }
@@ -221,9 +221,9 @@ function MiBoletaContenido() {
           Todavía no hay datos de tu planilla para este periodo. Si ya deberías tener marcajes, avisa a
           Desarrollo Organizacional.
         </p>
-        <Link href="/mio" className="mt-3 inline-block text-sm text-taupe hover:text-tinta hover:underline">
+        <EnlaceVolver href="/mio" className="mt-3 inline-block text-sm text-taupe hover:text-tinta hover:underline">
           ← Volver a Info
-        </Link>
+        </EnlaceVolver>
       </main>
     );
   }
@@ -259,9 +259,9 @@ function MiBoletaContenido() {
   return (
     <main className="mx-auto max-w-2xl p-6 print:p-0">
       <div className="mb-6 flex items-center justify-between print:hidden">
-        <Link href="/mio" className="text-sm text-taupe hover:text-tinta hover:underline">
+        <EnlaceVolver href="/mio" className="text-sm text-taupe hover:text-tinta hover:underline">
           ← Volver a Info
-        </Link>
+        </EnlaceVolver>
         <Boton variante="primario" onClick={() => window.print()}>
           Imprimir / Guardar como PDF
         </Boton>

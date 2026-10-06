@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
+import { EnlaceVolver } from "@/components/enlace-volver";
 import { Cargando } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
 import { Campo, CampoSelect } from "@/components/ui/campo";
@@ -300,9 +300,9 @@ function MiEditarContenido() {
     return (
       <main className="p-6">
         <p className="max-w-md rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">{error}</p>
-        <Link href="/mio" className="mt-3 inline-block text-sm text-taupe hover:text-tinta hover:underline">
+        <EnlaceVolver href="/mio" className="mt-3 inline-block text-sm text-taupe hover:text-tinta hover:underline">
           ← Volver a Info
-        </Link>
+        </EnlaceVolver>
       </main>
     );
   }
@@ -376,9 +376,9 @@ function MiEditarContenido() {
     <main className="mx-auto min-h-screen w-full max-w-3xl bg-crema px-5 py-8 text-tinta">
       <div className="mb-1 flex flex-wrap items-baseline justify-between gap-3">
         <div>
-          <Link href="/mio" className="text-sm text-taupe hover:text-tinta hover:underline">
+          <EnlaceVolver href="/mio" className="text-sm text-taupe hover:text-tinta hover:underline">
             ← Volver a Info
-          </Link>
+          </EnlaceVolver>
           <h1 className="mt-1 font-serif text-2xl">{yo.nombres} {yo.apellidos}</h1>
           {yo.sede && <p className="text-xs text-taupe">{yo.sede}</p>}
         </div>

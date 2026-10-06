@@ -115,6 +115,18 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-10-06-lo-mio-volver-retrocede",
+    fecha: "2026-10-06",
+    titulo: "En «Lo mío», «← Volver» y «Cancelar» te devuelven a donde estabas",
+    queMejoro:
+      "Los botones «← Volver a Info», «← Tus reportes» y «Cancelar» ahora hacen lo mismo que «atrás»: te " +
+      "devuelven a donde estabas, en vez de abrir una página más. Si desde Mis días abriste tu boleta y tocas " +
+      "«← Volver a Info», regresas a Mis días, no al Resumen; y si tocas «Cancelar» al escribir un reporte y " +
+      "luego usas «atrás», ya no vuelves al formulario que acabas de cerrar.\n\n" +
+      "Si abriste la pantalla directamente, sin pasar por «Lo mío», el botón te lleva a «Lo mío» como antes.",
+    audiencia: "todos",
+  },
+  {
     id: "2026-10-06-lo-mio-atras-vuelve-a-la-seccion",
     fecha: "2026-10-06",
     titulo: "En «Lo mío», «atrás» te devuelve a la sección en la que estabas",
