@@ -36,11 +36,17 @@ export type ModoMenu = "auto" | "rail" | "ancho" | "cajon";
 // donde no.
 const CLASES: Record<ModoMenu, { titulo: string; separador: string; ocultoAlCerrar: string }> = {
   // Sin elegir: la CSS decide. Rail por debajo de 1280px, ancho a partir de ahí.
-  auto: { titulo: "hidden xl:block", separador: "block xl:hidden", ocultoAlCerrar: "xl:hidden" },
+  auto: { titulo: "hidden xl:flex", separador: "block xl:hidden", ocultoAlCerrar: "xl:hidden" },
   rail: { titulo: "hidden", separador: "block", ocultoAlCerrar: "" },
-  ancho: { titulo: "block", separador: "hidden", ocultoAlCerrar: "hidden" },
-  cajon: { titulo: "block", separador: "hidden", ocultoAlCerrar: "hidden" },
+  ancho: { titulo: "flex", separador: "hidden", ocultoAlCerrar: "hidden" },
+  cajon: { titulo: "flex", separador: "hidden", ocultoAlCerrar: "hidden" },
 };
+// `titulo` dice `flex` y no `block`, y el botón NO lleva su propio `flex`: dos
+// clases de `display` en el mismo elemento las decide el orden del CSS, no el
+// de la línea. Hasta el 2026-10-06 el botón decía `flex` y el modo `xl:block`,
+// ganaba `block`, y como Tailwind pone `display: block` a todo `svg`, la flecha
+// caía en una segunda línea debajo del título: cada título medía 43 px en vez
+// de 29, en el panel desde que sus grupos se pliegan. Medido en el navegador.
 
 export function GrupoDeMenu({
   etiqueta,
@@ -78,7 +84,7 @@ export function GrupoDeMenu({
             aria-expanded={!cerrado}
             aria-controls={idLista}
             className={cx(
-              "etiqueta flex w-full items-center gap-1 rounded-control px-3 pb-0.5 pt-2.5 text-left transition-colors duration-150 hover:text-tinta",
+              "etiqueta w-full items-center gap-1 rounded-control px-3 pb-0.5 pt-2.5 text-left transition-colors duration-150 hover:text-tinta",
               // Si estás dentro de un grupo contraído, el título se pinta como
               // se pintan los renglones activos. Sin esto, contraer el grupo en
               // el que estás borra de la pantalla la única señal de dónde estás
