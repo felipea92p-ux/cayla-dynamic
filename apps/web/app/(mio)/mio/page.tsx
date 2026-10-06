@@ -953,6 +953,8 @@ export default function MioPage() {
    *
    * Las cuatro cifras —periodo de pago, vacaciones, próximo turno, objetivos—
    * viven por eso en «Resumen», que es la sección con la que ABRE la pantalla.
+   * Las novedades del sistema también (2026-10-06): no piden nada, así que no
+   * son «lo que te exige actuar hoy» y no tienen por qué seguirte.
    * Ese detalle es lo que sostiene la otra mitad de la regla: una acción no se
    * esconde nunca detrás de un renglón del menú, y «Pedir vacaciones» sigue
    * siendo de lo primero que se ve al entrar, sin tocar nada. Lo que cambió es
@@ -1940,8 +1942,14 @@ export default function MioPage() {
 
       <AnunciosWidget />
 
-      {/* Lo que mejoró en el sistema. No pide nada: se entiende y desaparece. */}
-      <NovedadesWidget />
+      {/* Lo que mejoró en el sistema. No pide nada: se entiende y desaparece.
+          Por eso vive SOLO en «Resumen» (2026-10-06) y no arriba de todas las
+          secciones como los acuses y los anuncios: no tiene fecha ni exige
+          actuar, así que cae en la otra mitad de la regla de `tab` — quien
+          elige «Mis turnos» pide ver sus turnos, no cuatro tarjetas sobre el
+          terminal. Una pendiente sigue esperando en «Resumen», que es la
+          sección con la que abre la pantalla. */}
+      {tab === "resumen" && <NovedadesWidget />}
 
       {aviso && <div className="mb-6 rounded-2xl border border-ambar/30 bg-ambar/[0.06] p-4 text-sm">{aviso}</div>}
 
