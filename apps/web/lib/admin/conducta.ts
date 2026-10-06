@@ -128,3 +128,53 @@ export interface AntecedentesConducta {
   significativa_por_acumulacion: boolean;
   que_corresponde: string;
 }
+
+// ── Tomar y devolver el caso (0511) ──────────────────────────────────────────
+
+/** Una vuelta del caso entre la líder y DO. Solo se agrega: nadie la edita. */
+export interface Traspaso {
+  id: string;
+  expediente_id: string;
+  accion: "tomar" | "devolver";
+  por: string;
+  motivo: string;
+  hecho_at: string;
+}
+
+/** Los traspasos de un caso, del más nuevo al más viejo. */
+export function traspasosDe(todos: readonly Traspaso[], expedienteId: string): Traspaso[] {
+  return todos
+    .filter((t) => t.expediente_id === expedienteId)
+    .sort((a, b) => Date.parse(b.hecho_at) - Date.parse(a.hecho_at));
+}
+
+/**
+ * Qué botón de traspaso se le ofrece a quien puede tomar casos (DO y admin,
+ * la misma regla con la que hoy se anula): «tomar» un caso que inició una
+ * líder y nadie tiene, «devolver» uno que ya tiene DO, o nada.
+ *
+ * Espeja `fn_expediente_tomar_caso` y `fn_expediente_devolver_caso` (0511):
+ * lo anulado no se toma, y un caso que no inició una líder ya está con DO. Si
+ * se desincronizan gana la base y la pantalla muestra su mensaje.
+ */
+export function accionDeTraspaso(
+  d: { estado: string; tomado_por?: string | null },
+  rolDeQuienLoInicio: string | null | undefined,
+  puedeTomar: boolean,
+): "tomar" | "devolver" | null {
+  if (!puedeTomar || d.estado === "anulado") return null;
+  if (d.tomado_por) return "devolver";
+  return esRolEncargada(rolDeQuienLoInicio) ? "tomar" : null;
+}
+
+/**
+ * ¿Ve esta persona el caso bloqueado? La líder de equipo sobre un caso que
+ * tomó DO: lo ve, pero ya no lo modifica. Espeja el candado de la 0511, que
+ * mira el rol de quien actúa y deja libre a la persona dueña del documento.
+ */
+export function casoBloqueadoParaMi(
+  d: { tomado_por?: string | null; persona_id: string },
+  yo: { id: string; rol: string | null } | null,
+): boolean {
+  return Boolean(d.tomado_por) && esRolEncargada(yo?.rol) && d.persona_id !== yo?.id;
+}

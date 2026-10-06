@@ -29,7 +29,7 @@ import {
   type Adjunto, type DocDisciplina, type FaltaRow, type SituacionDeteccion, type TardanzaRow, type TipoPapel,
 } from "@/lib/admin/disciplina";
 import { evidenciaDeDocumento, evidenciaDeTardanzasDelMes, type Evidencia } from "@/lib/admin/disciplina-evidencia";
-import { citaDeFalta, type FaltaCatalogo } from "@/lib/admin/conducta";
+import { citaDeFalta, traspasosDe, type FaltaCatalogo, type Traspaso } from "@/lib/admin/conducta";
 import { fechaConAnio, fechaCorta, selloLima, sumarMeses, ultimoDiaDelMes } from "./formato";
 
 type Cliente = ReturnType<typeof createAdminSupabaseClient>;
@@ -40,7 +40,7 @@ export type CasoAbierto =
   | { tipo: "documento"; id: string };
 
 /** `sede` es el código (la llave); `sedeRotulo` es lo que se lee: «Taller · Lima». */
-export interface PersonaInfo { nombre: string; sede: string; sedeRotulo?: string; estado: string; fechaCese: string | null }
+export interface PersonaInfo { nombre: string; sede: string; sedeRotulo?: string; estado: string; fechaCese: string | null; rol?: string }
 
 export const CAUSAL_LABEL: Record<string, string> = { tardanza: "Tardanzas", falta: "Faltas", conducta: "Conducta" };
 
@@ -94,6 +94,8 @@ export function PanelCaso(props: {
   onVerPapel: (path: string) => void;
   /** El catálogo de faltas del RIT (0510), para nombrar la que cita un documento de conducta. */
   faltas?: FaltaCatalogo[];
+  /** Las vueltas del caso entre la líder y DO (0511). */
+  traspasos?: Traspaso[];
 }) {
   const { caso } = props;
   const doc = caso?.tipo === "documento" ? props.docs.find((d) => d.id === caso.id) ?? null : null;
@@ -112,7 +114,7 @@ export function PanelCaso(props: {
 
 function ContenidoCaso({
   caso, doc, personaId, persona, supabase, docs, adjuntos, personas, tardanza, falta, situacion, mesTard,
-  nombresAusencia, evidenciaPrevia, sinConstancia, exigeDescargo, puedeAnular, acciones, editores, onVerPapel, faltas = [],
+  nombresAusencia, evidenciaPrevia, sinConstancia, exigeDescargo, puedeAnular, acciones, editores, onVerPapel, faltas = [], traspasos = [],
 }: Parameters<typeof PanelCaso>[0] & {
   caso: CasoAbierto; doc: DocDisciplina | null; personaId: string | null; persona: PersonaInfo | null;
 }) {
@@ -141,6 +143,9 @@ function ContenidoCaso({
         && f.numeral === doc.falta_numeral && f.literal === doc.falta_literal) ?? null
     : null;
   const relato = doc?.tipo_causal === "conducta" ? doc.hechos?.[0] ?? null : null;
+  // Quién tiene el caso, y las vueltas que dio (0511).
+  const vueltas = doc ? traspasosDe(traspasos, doc.id) : [];
+  const tomadoPor = doc?.tomado_por ? personas.get(doc.tomado_por)?.nombre ?? "Desarrollo Organizacional" : null;
   const cesada = persona?.estado === "inactivo";
   const papeles = doc ? adjuntos.get(doc.id) ?? [] : [];
 
@@ -169,6 +174,15 @@ function ContenidoCaso({
       </div>
 
       {/* ── Alertas: lo que cambia qué se puede hacer ────────────────── */}
+      {doc?.tomado_por && (
+        <BannerAviso variante="informativo" titulo={`Este caso lo tiene ${tomadoPor}`} className="p-4">
+          <p className="text-tinta">
+            {doc.tomado_at ? `Lo tomó el ${selloLima(doc.tomado_at)}. ` : ""}
+            Quien lo inició lo sigue viendo, pero no puede modificarlo ni agregarle papeles mientras DO lo tenga.
+            {vueltas[0] ? <> Motivo: «{vueltas[0].motivo}»</> : null}
+          </p>
+        </BannerAviso>
+      )}
       {doc?.estado === "firmado" && cesada && (
         <BannerAviso variante="advertencia" titulo="La persona ya cesó y no consta la entrega" className="p-4">
           <p className="text-tinta">
@@ -361,6 +375,23 @@ function ContenidoCaso({
           </>
         )}
       </Seccion>
+      )}
+
+      {vueltas.length > 0 && (
+        <Seccion titulo="Quién lo ha tenido">
+          <ol className="grid gap-2">
+            {vueltas.map((t) => (
+              <li key={t.id} className="rounded-control border border-sand px-3 py-2">
+                <span className="block text-tinta">
+                  <strong className="font-medium">{personas.get(t.por)?.nombre ?? "Desarrollo Organizacional"}</strong>
+                  {t.accion === "tomar" ? " tomó el caso" : " devolvió el caso a la líder"}
+                </span>
+                <span className="block text-xs text-taupe">{selloLima(t.hecho_at)}</span>
+                <span className="mt-1 block">«{t.motivo}»</span>
+              </li>
+            ))}
+          </ol>
+        </Seccion>
       )}
 
       {/* ── Antecedentes ─────────────────────────────────────────────── */}

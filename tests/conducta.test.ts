@@ -5,8 +5,9 @@
 import { describe, it, expect } from "vitest";
 import { puedeTramitarDisciplina } from "@cayla-dynamic/shared";
 import {
-  citaDeFalta, faltasElegibles, puedeRegistrarleConducta, queFaltaParaRegistrar,
-  type BorradorConducta, type Candidata, type FaltaCatalogo, type QuienRegistra,
+  accionDeTraspaso, casoBloqueadoParaMi, citaDeFalta, faltasElegibles, puedeRegistrarleConducta, queFaltaParaRegistrar,
+  traspasosDe,
+  type BorradorConducta, type Candidata, type FaltaCatalogo, type QuienRegistra, type Traspaso,
 } from "@/lib/admin/conducta";
 
 const falta = (numeral: string, literal: string, extra: Partial<FaltaCatalogo> = {}): FaltaCatalogo => ({
@@ -113,5 +114,60 @@ describe("queFaltaParaRegistrar", () => {
   });
   it("sin nivel elegido, no se guarda", () => {
     expect(queFaltaParaRegistrar({ ...completo, nivel: null }, hoy)).toBe("Elige qué vas a hacer.");
+  });
+});
+
+describe("accionDeTraspaso", () => {
+  const libre = { estado: "borrador", tomado_por: null };
+  it("DO toma un caso que inició una líder y nadie tiene", () => {
+    expect(accionDeTraspaso(libre, "supervisor_sede", true)).toBe("tomar");
+  });
+  it("y lo devuelve cuando ya lo tiene", () => {
+    expect(accionDeTraspaso({ ...libre, tomado_por: "D" }, "supervisor_sede", true)).toBe("devolver");
+  });
+  it("lo que inició DO ya está con DO: no hay nada que tomar", () => {
+    expect(accionDeTraspaso(libre, "lider_do", true)).toBeNull();
+    expect(accionDeTraspaso(libre, "admin", true)).toBeNull();
+  });
+  it("lo anulado no se toma, ni se devuelve", () => {
+    expect(accionDeTraspaso({ estado: "anulado", tomado_por: null }, "supervisor_sede", true)).toBeNull();
+    expect(accionDeTraspaso({ estado: "anulado", tomado_por: "D" }, "supervisor_sede", true)).toBeNull();
+  });
+  it("la líder no toma ni devuelve: sin permiso, ningún botón", () => {
+    expect(accionDeTraspaso(libre, "supervisor_sede", false)).toBeNull();
+    expect(accionDeTraspaso({ ...libre, tomado_por: "D" }, "supervisor_sede", false)).toBeNull();
+  });
+  it("sin saber quién lo inició, no se ofrece tomar", () => {
+    expect(accionDeTraspaso(libre, null, true)).toBeNull();
+    expect(accionDeTraspaso(libre, undefined, true)).toBeNull();
+  });
+});
+
+describe("casoBloqueadoParaMi", () => {
+  const tomado = { tomado_por: "D", persona_id: "I" };
+  it("la líder ve bloqueado el caso que tomó DO", () => {
+    expect(casoBloqueadoParaMi(tomado, { id: "L", rol: "supervisor_sede" })).toBe(true);
+  });
+  it("si nadie lo tomó, no hay bloqueo", () => {
+    expect(casoBloqueadoParaMi({ ...tomado, tomado_por: null }, { id: "L", rol: "supervisor_sede" })).toBe(false);
+  });
+  it("DO no se bloquea a sí misma", () => {
+    expect(casoBloqueadoParaMi(tomado, { id: "D", rol: "lider_do" })).toBe(false);
+  });
+  it("la persona del documento no queda atrapada, aunque sea líder: sigue pudiendo responder a su memo", () => {
+    expect(casoBloqueadoParaMi(tomado, { id: "I", rol: "supervisor_sede" })).toBe(false);
+  });
+  it("sin sesión cargada, no se bloquea nada que no se sepa", () => {
+    expect(casoBloqueadoParaMi(tomado, null)).toBe(false);
+  });
+});
+
+describe("traspasosDe", () => {
+  const t = (id: string, exp: string, hecho_at: string): Traspaso =>
+    ({ id, expediente_id: exp, accion: "tomar", por: "D", motivo: "m", hecho_at });
+  it("solo los de ese caso, del más nuevo al más viejo", () => {
+    const lista = [t("1", "A", "2026-10-01T10:00:00Z"), t("2", "B", "2026-10-02T10:00:00Z"), t("3", "A", "2026-10-03T10:00:00Z")];
+    expect(traspasosDe(lista, "A").map((x) => x.id)).toEqual(["3", "1"]);
+    expect(traspasosDe(lista, "Z")).toEqual([]);
   });
 });

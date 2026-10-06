@@ -41,9 +41,19 @@
 -- Que la 0510 está pegada (el catálogo y sus columnas en el expediente) —
 -- verificado en producción el 2026-10-06—.
 --
--- md5 de partida de `fn_mi_memo` (0486): df34ddb98d0a221a6499594c239c0b01
--- (2149 caracteres) según el repositorio. PENDIENTE de confirmar contra
--- producción antes de entregar esta migración.
+-- md5 de partida de `fn_mi_memo` (0486), pedido a PRODUCCIÓN el 2026-10-06:
+--   tal cual   40ff3b712eddd351772a9c95838c2312  (2207 caracteres)
+--   el repo    df34ddb98d0a221a6499594c239c0b01  (2149 caracteres)
+-- NO ES OTRA VERSIÓN. La diferencia es de 58 caracteres y el cuerpo tiene 58
+-- saltos de línea: es la firma del `\r` por línea que mete pegar desde Windows
+-- (la 0486 se pegó desde esa máquina; CLAUDE.md, 0401). Confirmado ese mismo
+-- día con `length(prosrc) - length(replace(prosrc, chr(13), ''))` = 58, y
+-- `md5(replace(prosrc, chr(13), ''))` = df34ddb9… exacto. Un `\r` antes de un
+-- salto de línea es espacio en blanco para PL/pgSQL: la función se comportaba
+-- igual.
+-- Esta migración REEMPLAZA ese cuerpo por el del repo, sin retornos. Si se
+-- pega desde Windows otra vez, el md5 volverá a no coincidir y la causa será
+-- la misma: se comprueba con esa consulta antes de sospechar de otra cosa.
 --
 -- ── CÓMO SE REVIERTE ────────────────────────────────────────────────────────
 --
