@@ -678,7 +678,8 @@ art. 19 e) y f).
 
 **Un cambio que el equipo va a notar lleva su novedad en el MISMO pull
 request.** La lista vive en `apps/web/lib/novedades.ts`. Se lee en
-`/admin/anuncios`, debajo de los comunicados de DO, y en «Lo mío», donde solo
+`/admin/anuncios`, debajo de los comunicados de DO, y en el «Resumen» de «Lo
+mío» —solo ahí, no en sus otras secciones—, donde solo
 aparecen las que a esa persona le faltan por entender (las tres más recientes,
 con su primer párrafo). El encabezado del archivo dice qué va, qué no y cómo se
 escribe una entrada.
