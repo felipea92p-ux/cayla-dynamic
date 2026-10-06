@@ -366,7 +366,8 @@ with repo(numero, nombre, nunca) as (values
     (506, 'un_alta_que_se_parece_a_alguien_pide_confirmacion', false),
     (507, 'el_alta_de_una_persona_solo_entra_por_fn_crear_persona', false),
     (508, 'el_rastro_de_correcciones_solo_lo_escriben_las_funciones', false),
-    (509, 'tres_tablas_que_solo_se_escriben_por_sus_funciones', false)
+    (509, 'tres_tablas_que_solo_se_escriben_por_sus_funciones', false),
+    (512, 'el_dni_no_va_en_el_nombre', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
