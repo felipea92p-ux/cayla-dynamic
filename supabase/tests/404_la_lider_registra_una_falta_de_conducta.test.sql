@@ -23,7 +23,7 @@
 --   · La líder no ve en su pantalla lo que DO le abrió a otra líder.
 -- ============================================================================
 begin;
-select plan(49);
+select plan(51);
 
 insert into sedes (id, codigo, nombre, activa) values
   ('00000000-0000-0000-0000-0000000c0d01', 'ZZCD1', 'Sede de laboratorio', true),
@@ -200,6 +200,16 @@ select throws_ok($$
           '[{"relato":"Un relato suficientemente largo para pasar."}]', '2026-09-01', '2026-09-01',
           '00000000-0000-0000-0000-0000000c0d11', 4.0, '53.1', 'd', '2026-09-02') $$,
   '23514', null, 'ESQUEMA · un hecho sin fecha se rechaza: el CHECK no deja pasar un NULL');
+
+-- El otro procedimiento queda abierto: una falta GRAVE de conducta (53.3) se
+-- imputa por el artículo 57 y cita el artículo 25 de la LPCL, no el catálogo.
+select pg_temp.como('00000000-0000-0000-0000-0000000c0da1');   -- Gerencia
+select lives_ok($$ select fn_expediente_crear_borrador('00000000-0000-0000-0000-0000000c0d17',
+       'conducta', 'imputacion', '[{"fecha":"2026-09-20","tipo":"falta grave"}]'::jsonb, '2026-09-20', '2026-09-20') $$,
+  'ESQUEMA · DO sigue preparando una imputación por falta grave de conducta, sin catálogo (art. 57)');
+select throws_ok($$ select fn_expediente_crear_borrador('00000000-0000-0000-0000-0000000c0d17',
+       'conducta', 'amonestacion', '[{"fecha":"2026-09-21","tipo":"conducta"}]'::jsonb, '2026-09-21', '2026-09-21') $$,
+  '23514', null, 'ESQUEMA · pero una amonestación por conducta sin su falta citada no entra ni por la vía genérica');
 
 -- ── QUIÉN FIRMA ─────────────────────────────────────────────────────────────
 select pg_temp.como('00000000-0000-0000-0000-0000000c0da4');   -- LiderUno

@@ -105,7 +105,9 @@
 --     días, topes y días hábiles (0235, 0294) y la decide DO. Queda para su
 --     propia entrega.
 --   · No registra faltas graves (53.3): esas abren el procedimiento del
---     artículo 57, que no es de una líder.
+--     artículo 57, que no es de una líder. Ese camino —DO preparando una
+--     imputación o un despido por conducta con `fn_expediente_crear_borrador`—
+--     sigue exactamente como estaba, sin cita del catálogo.
 --   · No registra los literales a), b) y c) del 53.2: el a) es una suma que
 --     calcula el sistema, y los b) y c) los miden los motores de tardanzas e
 --     inasistencias.
@@ -217,10 +219,13 @@ on conflict (rit_version, numeral, literal) do nothing;
 -- ════════════════════════════════════════════════════════════════════════════
 do $pre$
 begin
-  -- Ningún camino creaba documentos de conducta. Si alguno existe, alguien lo
-  -- insertó a mano y no tiene la forma que esta migración exige: mejor parar
-  -- aquí, con el motivo dicho, que a mitad de un ALTER.
+  -- Ninguna pantalla creaba documentos de conducta. Si existe alguno de nivel
+  -- verbal, amonestación o suspensión, alguien lo creó por la función genérica
+  -- y no tiene la forma que esta migración exige: mejor parar aquí, con el
+  -- motivo dicho, que a mitad de un ALTER. (Los de imputación o despido sí son
+  -- válidos y no frenan nada.)
   if exists (select 1 from expediente_disciplinario where tipo_causal = 'conducta'
+               and nivel in ('verbal', 'amonestacion', 'suspension')
                and not exists (select 1 from information_schema.columns
                                 where table_name = 'expediente_disciplinario'
                                   and column_name = 'falta_numeral')) then
@@ -258,10 +263,21 @@ begin
   -- pasar la fila. Sin él, un relato sin fecha haría NULL la comparación y el
   -- documento entraría. Y el `case` interior protege `jsonb_array_length`, que
   -- revienta sobre algo que no es una lista: un AND no garantiza el orden.
+  --
+  -- Y SOLO en los niveles del artículo 55 (verbal, amonestación, suspensión),
+  -- que son los que sancionan una falta leve o significativa del catálogo. La
+  -- imputación y el despido por conducta son otro procedimiento (art. 57):
+  -- se fundan en una falta GRAVE del 53.3, que cita el artículo 25 de la LPCL
+  -- y no un literal del catálogo —el 53.4 dice que una falta significativa
+  -- «nunca habilita el despido»—. DO los prepara con
+  -- `fn_expediente_crear_borrador`, y esta restricción no se los cierra. La
+  -- primera versión de esta migración sí lo hacía: la cazaron en GitHub las
+  -- pruebas 170 y 386, antes de pegar nada.
   if not exists (select 1 from pg_constraint where conname = 'chk_conducta_completa') then
     alter table expediente_disciplinario
       add constraint chk_conducta_completa check (coalesce(
-        case when tipo_causal = 'conducta' then
+        case
+          when tipo_causal = 'conducta' and nivel in ('verbal', 'amonestacion', 'suspension') then
                num_nonnulls(falta_rit_version, falta_numeral, falta_literal, conocido_el) = 4
            and periodo_desde is not null
            and periodo_hasta = periodo_desde
@@ -269,7 +285,10 @@ begin
            and case when jsonb_typeof(hechos) = 'array' then jsonb_array_length(hechos) = 1 else false end
            and (hechos->0->>'fecha')::date = periodo_desde
            and length(btrim(coalesce(hechos->0->>'relato', ''))) >= 20
-         else num_nulls(falta_rit_version, falta_numeral, falta_literal, conocido_el) = 4
+          -- Imputación y despido por conducta: nunca un literal del catálogo.
+          when tipo_causal = 'conducta' then
+               num_nulls(falta_rit_version, falta_numeral, falta_literal) = 3
+          else num_nulls(falta_rit_version, falta_numeral, falta_literal, conocido_el) = 4
         end, false));
   end if;
 end;

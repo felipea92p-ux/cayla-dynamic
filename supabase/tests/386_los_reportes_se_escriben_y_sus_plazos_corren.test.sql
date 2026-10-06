@@ -345,9 +345,17 @@ select lives_ok($$ select fn_reporte_plazo_cumplir(pg_temp.id_de('X2 Queja en la
 
 
 -- ── (g) Disciplina ──────────────────────────────────────────────────────────
-insert into expediente_disciplinario (id, persona_id, tipo_causal, nivel, creado_por) values
-  ('00000000-0000-0000-0000-0000000e9001', '00000000-0000-0000-0000-0000000e0002', 'conducta', 'amonestacion', '00000000-0000-0000-0000-0000000e0005'),
-  ('00000000-0000-0000-0000-0000000e9002', '00000000-0000-0000-0000-0000000e0010', 'conducta', 'amonestacion', '00000000-0000-0000-0000-0000000e0005');
+-- Desde la 0510 una amonestación por conducta cita su falta del catálogo
+-- (aquí el 53.2 h, trato descortés), con su fecha, cuándo se supo y qué pasó.
+insert into expediente_disciplinario (id, persona_id, tipo_causal, nivel, creado_por,
+                                      hechos, periodo_desde, periodo_hasta,
+                                      falta_rit_version, falta_numeral, falta_literal, conocido_el) values
+  ('00000000-0000-0000-0000-0000000e9001', '00000000-0000-0000-0000-0000000e0002', 'conducta', 'amonestacion', '00000000-0000-0000-0000-0000000e0005',
+   jsonb_build_array(jsonb_build_object('fecha', to_char(fn_hoy_lima() - 2, 'YYYY-MM-DD'), 'relato', 'Le gritó a una compañera delante de clientas.')),
+   fn_hoy_lima() - 2, fn_hoy_lima() - 2, 4.0, '53.2', 'h', fn_hoy_lima() - 1),
+  ('00000000-0000-0000-0000-0000000e9002', '00000000-0000-0000-0000-0000000e0010', 'conducta', 'amonestacion', '00000000-0000-0000-0000-0000000e0005',
+   jsonb_build_array(jsonb_build_object('fecha', to_char(fn_hoy_lima() - 2, 'YYYY-MM-DD'), 'relato', 'Le gritó a una compañera delante de clientas.')),
+   fn_hoy_lima() - 2, fn_hoy_lima() - 2, 4.0, '53.2', 'h', fn_hoy_lima() - 1);
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000f0006', true);
 select throws_like($$ select fn_reporte_cerrar(pg_temp.id_de('C1 Bea me grita delante de clientas'), 'derivado_disciplinario', 'Se derivó a disciplina.') $$,
   '%primero enlaza%', 'no se cierra como derivado sin el expediente');
