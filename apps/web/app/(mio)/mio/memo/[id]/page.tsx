@@ -42,6 +42,9 @@ interface MemoDigital {
   firma_sancionado_confirmada_at: string | null;
   sancionado_rechazo_firma_at: string | null;
   persona: { nombres: string; apellidos: string; documento: string | null; funcion: string; sede_codigo: string | null };
+  /** Conducta: la falta citada y cuándo se supo (los trae `fn_mi_memo` desde la 0514). */
+  falta?: { numeral: string; literal: string; texto: string; gravedad: string } | null;
+  conocido_el?: string | null;
   firmante: { nombre: string; cargo: string | null } | null;
   firma_emisor: string | null;
 }
@@ -250,6 +253,7 @@ function MiMemoContenido() {
           suspension_dias: memo.suspension_dias, suspension_desde: memo.suspension_desde,
           suspension_hasta: memo.suspension_hasta, suspension_fechas: memo.suspension_fechas,
           firmado_at: memo.firmado_at, creado_at: memo.creado_at,
+          falta: memo.falta ?? null, conocido_el: memo.conocido_el ?? null,
         }}
         persona={memo.persona}
         sede={memo.persona.sede_codigo ?? ""}

@@ -2517,6 +2517,7 @@ export type Database = {
       expediente_disciplinario: {
         Row: {
           cargos_comunicados_at: string | null
+          conocido_el: string | null
           correlativo: string | null
           creado_at: string
           creado_por: string
@@ -2531,6 +2532,9 @@ export type Database = {
           enviado_a_info_at: string | null
           enviado_a_info_por: string | null
           estado: string
+          falta_literal: string | null
+          falta_numeral: string | null
+          falta_rit_version: number | null
           fecha_cese: string | null
           firma_sancionado: string | null
           firma_sancionado_confirmada_at: string | null
@@ -2554,9 +2558,12 @@ export type Database = {
           suspension_fechas: string[] | null
           suspension_hasta: string | null
           tipo_causal: string
+          tomado_at: string | null
+          tomado_por: string | null
         }
         Insert: {
           cargos_comunicados_at?: string | null
+          conocido_el?: string | null
           correlativo?: string | null
           creado_at?: string
           creado_por: string
@@ -2571,6 +2578,9 @@ export type Database = {
           enviado_a_info_at?: string | null
           enviado_a_info_por?: string | null
           estado?: string
+          falta_literal?: string | null
+          falta_numeral?: string | null
+          falta_rit_version?: number | null
           fecha_cese?: string | null
           firma_sancionado?: string | null
           firma_sancionado_confirmada_at?: string | null
@@ -2594,9 +2604,12 @@ export type Database = {
           suspension_fechas?: string[] | null
           suspension_hasta?: string | null
           tipo_causal: string
+          tomado_at?: string | null
+          tomado_por?: string | null
         }
         Update: {
           cargos_comunicados_at?: string | null
+          conocido_el?: string | null
           correlativo?: string | null
           creado_at?: string
           creado_por?: string
@@ -2611,6 +2624,9 @@ export type Database = {
           enviado_a_info_at?: string | null
           enviado_a_info_por?: string | null
           estado?: string
+          falta_literal?: string | null
+          falta_numeral?: string | null
+          falta_rit_version?: number | null
           fecha_cese?: string | null
           firma_sancionado?: string | null
           firma_sancionado_confirmada_at?: string | null
@@ -2634,6 +2650,8 @@ export type Database = {
           suspension_fechas?: string[] | null
           suspension_hasta?: string | null
           tipo_causal?: string
+          tomado_at?: string | null
+          tomado_por?: string | null
         }
         Relationships: [
           {
@@ -2743,6 +2761,48 @@ export type Database = {
           },
         ]
       }
+      expediente_traspasos: {
+        Row: {
+          accion: string
+          expediente_id: string
+          hecho_at: string
+          id: string
+          motivo: string
+          por: string
+        }
+        Insert: {
+          accion: string
+          expediente_id: string
+          hecho_at?: string
+          id?: string
+          motivo: string
+          por: string
+        }
+        Update: {
+          accion?: string
+          expediente_id?: string
+          hecho_at?: string
+          id?: string
+          motivo?: string
+          por?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expediente_traspasos_expediente_id_fkey"
+            columns: ["expediente_id"]
+            isOneToOne: false
+            referencedRelation: "expediente_disciplinario"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expediente_traspasos_por_fkey"
+            columns: ["por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       factores_categoria: {
         Row: {
           factor: string
@@ -2770,6 +2830,56 @@ export type Database = {
             referencedRelation: "categorias_laborales"
             referencedColumns: ["rango"]
           },
+        ]
+      }
+      faltas_catalogo: {
+        Row: {
+          gravedad: string
+          literal: string
+          numeral: string
+          rit_version: number
+          se_registra_a_mano: boolean
+          texto: string
+        }
+        Insert: {
+          gravedad: string
+          literal: string
+          numeral: string
+          rit_version: number
+          se_registra_a_mano: boolean
+          texto: string
+        }
+        Update: {
+          gravedad?: string
+          literal?: string
+          numeral?: string
+          rit_version?: number
+          se_registra_a_mano?: boolean
+          texto?: string
+        }
+        Relationships: [
+        ]
+      }
+      faltas_rotulos: {
+        Row: {
+          literal: string
+          numeral: string
+          rit_version: number
+          rotulo: string
+        }
+        Insert: {
+          literal: string
+          numeral: string
+          rit_version: number
+          rotulo: string
+        }
+        Update: {
+          literal?: string
+          numeral?: string
+          rit_version?: number
+          rotulo?: string
+        }
+        Relationships: [
         ]
       }
       feriados: {
@@ -5949,6 +6059,15 @@ export type Database = {
         Returns: undefined
       }
       fn_cierre_lima: { Args: { p_fecha: string | null }; Returns: string }
+      fn_conducta_antecedentes: {
+        Args: {
+          p_fecha_hecho?: string | null
+          p_literal: string | null
+          p_numeral: string | null
+          p_persona_id: string | null
+        }
+        Returns: Json
+      }
       fn_confirmar_auto_cierre: {
         Args: { p_marcaje_id: string | null; p_motivo?: string | null }
         Returns: {
@@ -6811,6 +6930,18 @@ export type Database = {
         }
         Returns: string
       }
+      fn_expediente_crear_conducta: {
+        Args: {
+          p_conocido_el: string | null
+          p_fecha_hecho: string | null
+          p_literal: string | null
+          p_nivel: string | null
+          p_numeral: string | null
+          p_persona_id: string | null
+          p_relato: string | null
+        }
+        Returns: string
+      }
       fn_expediente_declarar_cargos_comunicados: {
         Args: {
           p_constancia: string | null
@@ -6819,6 +6950,10 @@ export type Database = {
           p_id: string | null
         }
         Returns: string
+      }
+      fn_expediente_devolver_caso: {
+        Args: { p_id: string | null; p_motivo: string | null }
+        Returns: undefined
       }
       fn_expediente_doc_code: {
         Args: { p_nivel: string | null; p_tipo: string | null }
@@ -6845,6 +6980,10 @@ export type Database = {
           p_testigo_nombre?: string | null
         }
         Returns: undefined
+      }
+      fn_expediente_firmante_motivo: {
+        Args: { p_firmante: string | null; p_nivel: string | null; p_persona: string | null }
+        Returns: string
       }
       fn_expediente_firmantes: {
         Args: { p_id: string | null }
@@ -6901,6 +7040,10 @@ export type Database = {
         Returns: {
           fecha: string
         }[]
+      }
+      fn_expediente_tomar_caso: {
+        Args: { p_id: string | null; p_motivo: string | null }
+        Returns: undefined
       }
       fn_expediente_valorar_descargo: {
         Args: { p_acogido: string | null; p_id: string | null; p_valoracion: string | null }
