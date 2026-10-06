@@ -115,6 +115,20 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-10-06-el-menu-de-lo-mio-se-ordena-por-temas",
+    fecha: "2026-10-06",
+    titulo: "El menú de «Lo mío» se ordena por temas y tiene buscador",
+    queMejoro:
+      "En «Lo mío», las secciones del menú ya no van en una sola lista: están agrupadas en Asistencia, Pago, " +
+      "Documentos y Seguimiento. Puedes cerrar los grupos que no usas tocando su título, y el menú se acuerda en " +
+      "ese dispositivo. En la computadora, ⌘K (Ctrl+K en Windows) abre un buscador: escribe «sueldo», " +
+      "«vacaciones» o «memo» y te lleva a la sección.\n\n" +
+      "En el teléfono, el botón «Menú» pasó al café de la paleta, el nombre de la sección queda al centro de la " +
+      "barra y el cambio de tema está dentro del menú, junto a la ✕. Si la lista no entra en la pantalla, abajo " +
+      "aparece «Más abajo» para que sepas que hay más secciones. «Tus datos» ahora se llama «Mis datos».",
+    audiencia: "todos",
+  },
+  {
     id: "2026-10-05-el-terminal-ilumina-en-vez-de-ocultar",
     fecha: "2026-10-05",
     titulo: "En el terminal, los estados se iluminan en vez de ocultar a los demás",

@@ -3,10 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  CalendarClock, CalendarDays, Car, FileSignature, GraduationCap, History, IdCard, Inbox, LayoutDashboard,
-  MessageSquareText, ReceiptText, ScrollText, Target, TreePalm, UserRound,
-} from "lucide-react";
+import { Inbox } from "lucide-react";
 import { ResumenEducacionMia } from "./educacion/resumen";
 import { BoletasMias } from "./boletas/boletas-mias";
 import { ReportesMios } from "./reportes/reportes-mios";
@@ -16,7 +13,8 @@ import { AcusesPendientes } from "@/components/acuses-pendientes";
 import { AnunciosWidget } from "@/components/anuncios-widget";
 import { NovedadesWidget } from "@/components/novedades-widget";
 import { SelectorTema } from "@/components/selector-tema";
-import { MenuDetalle, type SeccionDetalle } from "@/components/nav/menu-detalle";
+import { MenuDetalle } from "@/components/nav/menu-detalle";
+import { GRUPOS_MIO, esTab, type Tab } from "@/lib/mio-secciones";
 import { Boton } from "@/components/ui/boton";
 import { Insignia } from "@/components/ui/insignia";
 import { Campo } from "@/components/ui/campo";
@@ -260,46 +258,8 @@ interface Derechohabiente {
   vidaLey: boolean;
 }
 
-/** Las diez secciones de la pantalla. Ver el comentario de `tab`. */
-type Tab =
-  | "resumen" | "dias" | "turnos" | "dni" | "datos" | "ausencias" | "contrato" | "boletas" | "movilidad" | "educacion"
-  | "firma" | "objetivos" | "reportes" | "historial";
-
-/**
- * Las mismas diez, con su icono y en el orden en que se leen.
- *
- * Los iconos NO se eligieron sueltos: cada uno es el que el menú del panel
- * (`admin/nav-items.ts`) ya usa para esa misma idea — Turnos, Datos personales,
- * Ausencias, Contratos, Documentación, Objetivos —, así quien ve las dos
- * superficies reconoce la sección sin leer la etiqueta. Las cuatro que el panel
- * no tiene así: «Mis días» y «Historial», que no existen allá como pantalla,
- * «Movilidad» (0423), que allá es una sub-vista de Documentación —junto con la
- * política y el bono— y no una pantalla propia con su propio ícono, y «Tus
- * datos»: el panel junta ficha y DNI en una sola pantalla con `IdCard`, y ese
- * ícono ya lo usa acá «Mi DNI» — se le da uno propio para no repetirlo dentro
- * de la misma pantalla.
- */
-const SECCIONES: readonly SeccionDetalle<Tab>[] = [
-  { valor: "resumen", label: "Resumen", Icon: LayoutDashboard },
-  { valor: "dias", label: "Mis días", Icon: CalendarDays },
-  { valor: "turnos", label: "Mis turnos", Icon: CalendarClock },
-  { valor: "dni", label: "Mi DNI", Icon: IdCard },
-  { valor: "datos", label: "Tus datos", Icon: UserRound },
-  { valor: "ausencias", label: "Vacaciones y permisos", Icon: TreePalm },
-  { valor: "contrato", label: "Contrato", Icon: ScrollText },
-  // Las boletas OFICIALES del contador (0482), no la boleta en vivo de
-  // `/mio/boleta`. Icono de recibo: es lo que es, y no repite ninguno del menú.
-  { valor: "boletas", label: "Boletas", Icon: ReceiptText },
-  { valor: "movilidad", label: "Movilidad", Icon: Car },
-  // Mismo ícono que «Educación» en el menú del panel (nav-items.ts).
-  { valor: "educacion", label: "Educación", Icon: GraduationCap },
-  { valor: "firma", label: "Firma", Icon: FileSignature },
-  { valor: "objetivos", label: "Objetivos", Icon: Target },
-  // Lo que contó y en qué va (0483/0488). Va antes de Historial y no arriba:
-  // es algo que se usa de vez en cuando, no todos los días.
-  { valor: "reportes", label: "Reportes", Icon: MessageSquareText },
-  { valor: "historial", label: "Historial", Icon: History },
-];
+// Las secciones de la pantalla —cuáles son, en qué grupo va cada una, con qué
+// ícono y con qué palabras se buscan— viven en `lib/mio-secciones.ts`.
 
 /**
  * El recorrido de primera vez de «Resumen» — Fase 1 (ver CLAUDE.md). Solo esta
@@ -990,13 +950,13 @@ export default function MioPage() {
 
   // Deep-link: al llegar con ?tab=<sección> (ej. desde la Bandeja, al avisar
   // de un cambio de turno) abre directo esa sección en vez de Resumen. Mismo
-  // patrón que ?fecha= en Turnos — se valida contra SECCIONES para no dejar
-  // `tab` en un valor que no exista si el enlace viene mal escrito.
+  // patrón que ?fecha= en Turnos — se valida con `esTab` para no dejar `tab`
+  // en un valor que no exista si el enlace viene mal escrito.
   useEffect(() => {
     void (() => {
       const sp = new URLSearchParams(window.location.search);
       const t = sp.get("tab");
-      if (t && SECCIONES.some((s) => s.valor === t)) setTab(t as Tab);
+      if (t && esTab(t)) setTab(t);
     })();
   }, []);
 
@@ -1518,11 +1478,14 @@ export default function MioPage() {
   //
   // «Boletas» lleva el globito con las publicadas que aún no abrió: sale de la
   // misma lectura que pinta la pestaña (`misBoletas`), no de una cuenta aparte.
-  const secciones = useMemo(
-    () => SECCIONES
-      .filter((s) => s.valor !== "dni" || hayCampoDni)
-      .map((s) => (s.valor === "boletas" && boletasNuevas > 0 ? { ...s, contador: boletasNuevas } : s))
-      .map((s) => (s.valor === "reportes" && reportesSinLeer > 0 ? { ...s, contador: reportesSinLeer } : s)),
+  const grupos = useMemo(
+    () => GRUPOS_MIO.map((g) => ({
+      ...g,
+      secciones: g.secciones
+        .filter((s) => s.valor !== "dni" || hayCampoDni)
+        .map((s) => (s.valor === "boletas" && boletasNuevas > 0 ? { ...s, contador: boletasNuevas } : s))
+        .map((s) => (s.valor === "reportes" && reportesSinLeer > 0 ? { ...s, contador: reportesSinLeer } : s)),
+    })),
     [hayCampoDni, boletasNuevas, reportesSinLeer],
   );
 
@@ -1766,7 +1729,10 @@ export default function MioPage() {
     // pegajosa de arriba que abre el cajón.
     <div className="flex min-h-screen flex-col bg-crema text-tinta md:flex-row">
       <MenuDetalle
-        secciones={secciones}
+        grupos={grupos}
+        // Su propia memoria de grupos cerrados, no la del panel: los dos
+        // menús tienen un «Pago» y una «Asistencia» con cosas distintas.
+        memoriaGrupos="cayla-mio-grupos-cerrados"
         activo={tab}
         onSel={elegirSeccion}
         etiqueta="Secciones de tu perfil"
@@ -1778,23 +1744,19 @@ export default function MioPage() {
         // ve: crema sobre rojo da 4.83:1 en claro y 4.70:1 en oscuro, medido
         // como se pinta. El mismo enlace vive en la tarjeta para escritorio,
         // donde esta barra no existe.
-        //
-        // El tema va a su izquierda, en el mismo grupo: es lo que hace la
-        // cabecera del panel (tema arriba a la derecha), y en teléfono la
-        // tarjeta queda bajo el pliegue, que es justo donde estaba.
-        accion={
-          <div className="flex shrink-0 items-center gap-2">
-            <SelectorTema />
-            {yo && ROLES_CON_PANEL.includes(yo.rol as never) && (
-              <Link
-                href="/admin/dashboard"
-                className="whitespace-nowrap rounded-control bg-rojo px-3 py-2 text-xs font-medium text-crema transition-colors duration-150 hover:bg-rojo-profundo active:scale-[0.97]"
-              >
-                Volver al panel
-              </Link>
-            )}
-          </div>
-        }
+        accion={yo && ROLES_CON_PANEL.includes(yo.rol as never) && (
+          <Link
+            href="/admin/dashboard"
+            className="whitespace-nowrap rounded-control bg-rojo px-3 py-2 text-xs font-medium text-crema transition-colors duration-150 hover:bg-rojo-profundo active:scale-[0.97]"
+          >
+            Volver al panel
+          </Link>
+        )}
+        // El tema estaba a la izquierda de «Volver al panel», en la barra. Desde
+        // el 2026-10-06 va en la cabecera del cajón: se cambia una vez, y en la
+        // barra le quitaba al nombre de la sección el espacio para quedar al
+        // centro. En escritorio sigue en la tarjeta, como siempre.
+        accionCajon={<SelectorTema />}
         // «Salir» vive al pie del menú —cajón en teléfono, columna en
         // escritorio— y no en la tarjeta: es donde el panel tiene «Cerrar
         // sesión». Manda a /admin/login en vez de dejar el formulario de esta
