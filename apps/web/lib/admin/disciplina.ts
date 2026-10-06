@@ -27,7 +27,9 @@ export type EstadoDocumento = "borrador" | "firmado" | "entregado" | "anulado" |
 /** Los tres papeles que pueden colgar de un documento (mig. 0206). */
 export type TipoPapel = "cargo_firmado" | "acta_negativa" | "descargo";
 
-export interface Hecho { fecha: string; minutos?: number }
+/** Un día citado. `minutos` en las tardanzas; `relato` en la conducta (0510),
+ *  que cita un solo hecho y lo cuenta con palabras. */
+export interface Hecho { fecha: string; minutos?: number; relato?: string }
 
 /**
  * Una fila de `fn_tardanzas_resumen`. `umbral` nombra el escalón ALCANZADO
@@ -69,6 +71,12 @@ export interface DocDisciplina {
    *  esa es `entregado_at`, y llega cuando ella lo confirma. */
   enviado_a_info_at: string | null; enviado_a_info_por: string | null;
   observacion: string | null;
+  /** Conducta (0510): qué falta del catálogo cita y cuándo supo la empresa del
+   *  hecho (52.6). Opcionales: tardanzas e inasistencias no los tienen. */
+  falta_rit_version?: number | null; falta_numeral?: string | null; falta_literal?: string | null;
+  conocido_el?: string | null;
+  /** Quién de DO tomó el caso que inició una líder (0511). Null = con la sede. */
+  tomado_por?: string | null; tomado_at?: string | null;
 }
 
 // ── Borradores: en qué paso del art. 55.2 está ───────────────────────────────

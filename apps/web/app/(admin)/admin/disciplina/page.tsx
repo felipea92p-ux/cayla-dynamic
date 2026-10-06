@@ -47,6 +47,8 @@ import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
 import { Menu, MenuItem } from "@/components/ui/menu";
 import { cx } from "@/components/ui/cx";
 import { FormularioCargo, MAX_BYTES_CARGO, TITULO_PAPEL } from "@/components/disciplina/formulario-cargo";
+import { ModalRegistrarFalta } from "@/components/disciplina/registrar-falta";
+import type { FaltaCatalogo } from "@/lib/admin/conducta";
 import { Celda, FilaCaso, ListaCasos, type Encabezado } from "@/components/disciplina/lista-casos";
 import {
   CAUSAL_LABEL, ESTADO_DOCUMENTO, ETIQUETA_PAPEL, MEDIO_ENTREGA, PanelCaso,
@@ -62,7 +64,7 @@ import {
 import {
   NIVEL_DISCIPLINARIO_CORTO, NIVEL_DISCIPLINARIO_LABELS, etiquetaDeSede, fechaLima, hoyLima, mesesRecientesLima, nombreDelMesLima,
   nombreDelMesLimaTitulo, primeroDeMesLima, puedeAnularDocumentoDisciplinario, puedeOperarEquipo,
-  puedeVerTodasLasSedes, rangoDelDiaLima, rangoDelMesLima,
+  puedeTramitarDisciplina, puedeVerTodasLasSedes, rangoDelDiaLima, rangoDelMesLima,
 } from "@cayla-dynamic/shared";
 
 // ── Constantes ───────────────────────────────────────────────────────────────
@@ -85,7 +87,7 @@ const FALTA_PAPEL: Record<TipoPapel, string> = {
   descargo: "Falta el descargo. Es el papel que prueba que la persona pudo defenderse dentro del plazo del art. 31.",
 };
 
-const COLUMNAS_DOC = "id, persona_id, tipo_causal, nivel, estado, periodo_desde, periodo_hasta, hechos, suspension_dias, suspension_desde, suspension_hasta, suspension_fechas, fecha_cese, resuelto_at, resuelto_por, resuelto_resultado, resuelto_motivo, correlativo, creado_at, creado_por, firmante_id, firmado_at, entregado_at, entregado_por, medio_entrega, entrega_testigo_nombre, enviado_a_info_at, enviado_a_info_por, cargos_comunicados_at, descargo_vence_at, descargo_acogido, descargo_valoracion, observacion";
+const COLUMNAS_DOC = "id, persona_id, tipo_causal, nivel, estado, periodo_desde, periodo_hasta, hechos, suspension_dias, suspension_desde, suspension_hasta, suspension_fechas, fecha_cese, resuelto_at, resuelto_por, resuelto_resultado, resuelto_motivo, correlativo, creado_at, creado_por, firmante_id, firmado_at, entregado_at, entregado_por, medio_entrega, entrega_testigo_nombre, enviado_a_info_at, enviado_a_info_por, cargos_comunicados_at, descargo_vence_at, descargo_acogido, descargo_valoracion, observacion, falta_rit_version, falta_numeral, falta_literal, conocido_el, tomado_por, tomado_at";
 
 // Seis columnas, la segunda (sede) secundaria: en tablet se esconde y la
 // plantilla de `md` tiene cinco. Literal a propósito (ver lista-casos.tsx).
@@ -194,6 +196,12 @@ export default function DisciplinaPage() {
   const rol = yo?.rol ?? null;
   const puede = puedeOperarEquipo(rol);
   const puedeAnular = puedeAnularDocumentoDisciplinario(rol);
+  // Mirar y tramitar son dos permisos (0510): una líder por honorarios o en
+  // prácticas ve la pantalla, pero no registra, comunica ni firma (RIT 2.9).
+  const puedeTramitar = puedeTramitarDisciplina(rol, yo?.enPlanilla);
+  // Estable entre renders: el formulario de la falta lee sus datos cuando esto cambia.
+  const yoRegistra = useMemo(
+    () => (yo ? { id: yo.id, rol: yo.rol, sedeBaseId: yo.sedeBaseId, enPlanilla: yo.enPlanilla } : null), [yo]);
   const { avisar } = useToast();
   const supabase = useMemo(() => createAdminSupabaseClient(), []);
 
@@ -271,10 +279,13 @@ export default function DisciplinaPage() {
   const [motivoAnular, setMotivoAnular] = useState("");
   const [cerrandoSinEntrega, setCerrandoSinEntrega] = useState<string | null>(null);
   const [motivoCierre, setMotivoCierre] = useState("");
+  const [registrandoFalta, setRegistrandoFalta] = useState(false);
+  /** El catálogo de faltas del RIT (0510) y sus nombres cortos (0514), para nombrar la que cita cada documento de conducta. */
+  const [faltasCatalogo, setFaltasCatalogo] = useState<FaltaCatalogo[]>([]);
 
   const modalAbierto = verReglas || subiendoCargo !== null || entregandoSinPapel !== null || confirmandoCargos !== null
     || declarando !== null || valorando !== null || firmando !== null || resolviendo !== null || reabriendo !== null
-    || anulando !== null || cerrandoSinEntrega !== null;
+    || anulando !== null || cerrandoSinEntrega !== null || registrandoFalta;
 
   // ── Carga ──────────────────────────────────────────────────────────────
   const cargar = useCallback(async (): Promise<DocDisciplina[]> => {
@@ -343,6 +354,18 @@ export default function DisciplinaPage() {
     setFalloAdjuntos(!!eAdj);
     if (eAdj) avisar("error", mensajeDeError(eAdj, "cargar los cargos archivados"));
 
+    // El catálogo de faltas, tolerante: sin él un documento de conducta se ve
+    // con su número de literal en vez de su texto, pero la pantalla funciona.
+    const [{ data: cat }, { data: rot }] = await Promise.all([
+      supabase.from("faltas_catalogo").select("rit_version, numeral, literal, gravedad, texto, se_registra_a_mano"),
+      supabase.from("faltas_rotulos").select("rit_version, numeral, literal, rotulo"),
+    ]);
+    const rotulos = new Map(((rot ?? []) as Array<{ rit_version: number; numeral: string; literal: string; rotulo: string }>)
+      .map((r) => [`${Number(r.rit_version)}:${r.numeral}.${r.literal}`, r.rotulo]));
+    setFaltasCatalogo(((cat ?? []) as Array<Omit<FaltaCatalogo, "rotulo">>).map((f) => ({
+      ...f, rit_version: Number(f.rit_version), rotulo: rotulos.get(`${Number(f.rit_version)}:${f.numeral}.${f.literal}`) ?? null,
+    })));
+
     const borradores = lista.filter((x) => x.estado === "borrador");
     const [pares, evs, { data: cfg }, { data: sc }] = await Promise.all([
       Promise.all(borradores.map(async (x) => {
@@ -380,6 +403,14 @@ export default function DisciplinaPage() {
     if (!hash) return;
     const t0 = setTimeout(() => {
       if (hash === "entregados") { setTab("entregar"); return; }
+      // `#doc-ID`: desde la ficha de una persona, al registrar una falta, el
+      // borrador se abre con su caso. Aterrizar en la lista sin él obligaría a buscarlo.
+      if (hash.startsWith("doc-")) {
+        const id = hash.slice(4);
+        const d = docs.find((x) => x.id === id);
+        if (d) { setTab(pestanaDelDocumento(d, adjuntos.get(d.id) ?? [])); setCaso({ tipo: "documento", id }); }
+        return;
+      }
       if (!hash.startsWith("tard-") && !hash.startsWith("falta-")) return;
       setTab("revision");
       setResaltado(hash);
@@ -390,6 +421,9 @@ export default function DisciplinaPage() {
     }, 0);
     const t1 = setTimeout(() => setResaltado(null), 2800);
     return () => { clearTimeout(t0); clearTimeout(t1); };
+    // `docs` y `adjuntos` ya están cargados cuando `cargando` pasa a false; no
+    // se re-ejecuta al cambiarlos, para no reabrir el caso cada vez que se recarga.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cargando]);
 
   function abrirCaso(c: CasoAbierto, e?: MouseEvent<HTMLElement>) {
@@ -880,6 +914,9 @@ export default function DisciplinaPage() {
     const info = infoDe(d.persona_id);
     const ocup = ocupado === d.id;
     const memo: Accion = { etiqueta: "Ver memo", alPulsar: () => router.push(`/admin/disciplina/memo/${d.id}`) };
+    // Sin poder tramitar (0510): ver sí, actuar no. Antes se dibujaban todos
+    // los botones y cada uno solo podía devolver «Sin permiso».
+    if (!puedeTramitar) return { principal: null, estado: null, menu: [memo] };
     const verPapeles: Accion[] = papeles.map((a) => ({ etiqueta: ETIQUETA_PAPEL[a.tipo] ?? "Ver papel", alPulsar: () => void verAdjunto(a.storage_path) }));
     const anular: Accion[] = puedeAnular
       ? [{ etiqueta: d.estado === "borrador" ? "Anular borrador" : "Anular documento", alPulsar: () => abrirAnular(d.id, d.estado === "entregado"), variante: "peligro", disabled: ocup }]
@@ -1056,11 +1093,11 @@ export default function DisciplinaPage() {
           <Boton variante="primario" onClick={() => { setTab("borradores"); setCaso({ tipo: "documento", id: borradorExistente.id }); }}>
             Ir al borrador
           </Boton>
-        ) : (
+        ) : puedeTramitar ? (
           <Boton variante="primario" onClick={() => void generar(tipo, pid)} disabled={!s?.generable} cargando={ocupado === pid}>
             Generar borrador
           </Boton>
-        )}
+        ) : null}
         <p className="min-w-0 flex-1 basis-60 text-xs text-taupe">
           {s?.generable
             ? "Crea un borrador sin número con estas pruebas. No comunica ni firma nada todavía."
@@ -1157,6 +1194,9 @@ export default function DisciplinaPage() {
       <main className="flex-1 p-6">
         <CabeceraPagina
           titulo="Disciplina"
+          accion={puedeTramitar
+            ? <Boton variante="primario" onClick={() => setRegistrandoFalta(true)}>Registrar una falta</Boton>
+            : undefined}
           descripcion={
             <>
               Revisa incidencias que alcanzan umbrales y gestiona su trazabilidad.
@@ -1464,6 +1504,22 @@ export default function DisciplinaPage() {
           acciones={accionesPanel}
           editores={editoresPanel}
           onVerPapel={(path) => void verAdjunto(path)}
+          faltas={faltasCatalogo}
+        />
+
+        {/* La falta de conducta: la misma puerta que en la ficha de la persona. */}
+        <ModalRegistrarFalta
+          abierto={registrandoFalta}
+          onCerrar={() => setRegistrandoFalta(false)}
+          supabase={supabase}
+          yo={yoRegistra}
+          onRegistrado={async (id) => {
+            setRegistrandoFalta(false);
+            await cargar();
+            setTab("borradores");
+            setCaso({ tipo: "documento", id });
+            avisar("ok", "Falta registrada como borrador. Sigue el paso que indica el caso.");
+          }}
         />
 
         {/* ── Diálogos ───────────────────────────────────────────────────
