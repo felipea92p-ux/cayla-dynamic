@@ -6,6 +6,35 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-10-06 — El alta pide el documento, y cada documento dice de qué tipo es · migración 0513 · EN CURSO · SIN PEGAR · NO FUSIONAR
+
+**Origen:** el alta no pedía el DNI, así que el índice único de documento (0125), el único freno exacto contra
+registrar dos veces a la misma persona, nunca actuaba sobre un alta, y alguien llegó a escribir un DNI en el
+apellido (0512). Decidido con Felipe: obligatorio en el alta y exigido por la base; tres tipos —DNI 8 dígitos,
+carné de extranjería 9 a 12, pasaporte/PTP 6 a 12—; un documento repetido se niega diciendo quién lo tiene; el
+aviso de nombre parecido (0506) se queda como segunda red; quien no tiene documento lo propone desde «Lo mío» y lo
+aprueba DO (sin adjunto; si está repetido, no se le dice de quién).
+
+**Hecho (en la rama):** `personas.tipo_documento` + `fn_documento_forma_valida` + candado
+`personas_documento_coherente`; `fn_crear_persona` (11 args, `p_es_estacion` marca por `fn_set_cuenta_de_servicio`);
+`fn_set_documento` con el tipo OPCIONAL AL FINAL —`fn_aplicar_cambio_perfil` la llama con 3—. Pantallas: Equipo,
+Datos personales, «Lo mío › Editar», Bandeja. md5 de partida pedidos a producción: `fn_crear_persona` 50c42522…,
+`fn_set_documento` 5f0863e0…, idénticos al repo. Prueba **407** (35) y 235/400/401/221/227/317/322 ajustadas.
+
+**Falta, y por eso NO SE FUSIONA:** el campo `documento` en `catalogo_campos_perfil` (solo DO) y sus dos funciones
+—`fn_crear_solicitud_perfil` valida tipo, forma, «no tiene todavía» y «nadie más lo tiene» sin nombrar;
+`fn_aplicar_cambio_perfil` lo aplica—. Esperando sus md5 de producción (repo: a91c65c6… y 6ecd58a5…). Sin eso,
+«Lo mío» ofrece un campo que la base rechaza.
+
+**Lo que enseñó medir:** (1) el candado dejaba pasar un tipo sin número: un `null` da «no sé» y un CHECK lo deja
+pasar → `coalesce(…, false)`. (2) Quitarle a `authenticated` el permiso de la regla habría roto TODO update directo
+a `personas` (el CHECK se evalúa con los permisos de quien escribe; desde la 0076 las funciones nacen cerradas) →
+se abre a authenticated y service_role. Los dos los cazaron pruebas antes de pegar. (3) Al medir encadenando
+migraciones, la 0501 y la 0502 traen su propio `begin/commit` y anulan el `rollback`: la base local compartida quedó
+con datos de prueba y la 0513 aplicada; se limpió y se revirtió a mano.
+
+---
+
 ## 2026-10-06 — El DNI no va en el nombre · migración 0512 · ESCRITA Y PROBADA · SIN PEGAR · SIN FUSIONAR
 
 **Origen:** una integrante apareció en todas las listas (y en el terminal de su sede) con su DNI pegado al apellido

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import {
   Accessibility,
   BadgeInfo,
+  ChevronDown,
   ChevronLeft,
   CircleDollarSign,
   CreditCard,
@@ -280,7 +281,17 @@ export default function DatosPersonalesPage() {
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [q, setQ] = useState("");
-  const [soloSinFicha, setSoloSinFicha] = useState(false);
+  // «Por completar» en la lista del equipo. Reemplaza a la píldora «N sin
+  // ficha», que filtraba solo a quien no tenía ficha y dejaba fuera a quien
+  // la tenía a medias: dos recortes distintos de la misma pregunta, contados
+  // en tres sitios (la tarjeta de arriba, la píldora y una barra). Ahora hay
+  // un solo recorte, `incompletas`, y se cuenta una sola vez por lugar.
+  const [soloPendientes, setSoloPendientes] = useState(false);
+  // La franja de Pendientes arranca plegada a una línea con los nombres: la
+  // lista completa ya vive en la ficha vacía (ver «Por completar» más abajo),
+  // así que abierta por defecto solo empujaría el equipo hacia abajo. Se
+  // acuerda por navegador, como el colapso del equipo.
+  const [pendientesPlegado, setPendientesPlegado] = useFiltroGuardado("datos-personales.pendientes-plegado", true);
   // Filtro de sede en el listado de la izquierda. Las opciones NUNCA se
   // escriben a mano (ver CLAUDE.md — el `SEDES = ["TRU","LIM","AQP"]` que se
   // volvió falso cuando abrió Central): se derivan de `sedes`, el mismo mapa
@@ -398,7 +409,9 @@ export default function DatosPersonalesPage() {
   function seleccionar(id: string, forzarScroll = false, resaltar?: string, editar = false) {
     setSel(id); setMotivoDni(""); setDhAbierto(false); setDhNuevo(crearDhVacio()); setDhEditando(null);
     setCampoResaltado(null);
-    setVistaMobile("ficha");
+    // `id` vacío = cerrar la ficha («Ver la cola»): en móvil eso es volver a
+    // la lista, no quedarse mirando una ficha en blanco.
+    setVistaMobile(id ? "ficha" : "lista");
     // Toda ficha se abre en solo-lectura, salvo que quien llegó acá ya haya
     // pedido editar (Revisar →, Guardar y siguiente pendiente). Se pone acá y
     // no en cada botón porque esta es la ÚNICA puerta de entrada — la misma
@@ -636,9 +649,14 @@ export default function DatosPersonalesPage() {
    * calculada ANTES de guardar: guardar a `sel` no puede cambiar si otra
    * persona está completa o no, así que no hace falta esperar a que la
    * recarga de `guardar()` termine para saber a quién ir.
+   *
+   * «La próxima» es la que sigue a esta en la cola, dando la vuelta al final
+   * — no la primera de la lista: con la banda diciendo «2 de 4», guardar y
+   * caer en la 1 se leería como un salto hacia atrás.
    */
   async function guardarYSiguiente() {
-    const siguiente = incompletas.find((x) => x.p.id !== sel);
+    const i = incompletas.findIndex((x) => x.p.id === sel);
+    const siguiente = [...incompletas.slice(i + 1), ...incompletas.slice(0, Math.max(i, 0))].find((x) => x.p.id !== sel);
     const ok = await guardar();
     if (!ok) return;
     if (siguiente) seleccionar(siguiente.p.id, true, undefined, true);
@@ -693,15 +711,6 @@ export default function DatosPersonalesPage() {
     avisar("ok", `${nombre} quedó cerrado con la fecha de hoy.`);
   }
 
-  // Nunca a mano (ver CLAUDE.md — el `SEDES = ["TRU","LIM","AQP"]` que se
-  // volvió falso cuando abrió Central): los chips del filtro salen de
-  // `sedes`, el mismo mapa que ya llega de la tabla.
-  const sedesDisponibles = Array.from(new Set(sedes.values())).sort();
-  const lista = personas.filter((p) =>
-    `${p.nombres} ${p.apellidos}`.toLowerCase().includes(q.trim().toLowerCase())
-    && (filtroSede === "Todas" || sedes.get(p.sede_base_id) === filtroSede)
-    && (!soloSinFicha || !fichas.has(p.id)));
-  const sinFicha = personas.filter((p) => !fichas.has(p.id)).length;
   const misDerechos = derechos.filter((d) => d.persona_id === sel);
 
   // Se devuelven DOS listas separadas y no una sola, porque son dos cosas
@@ -819,6 +828,61 @@ export default function DatosPersonalesPage() {
       .sort((a, b) => b.avisos.length - a.avisos.length || b.faltan.length - a.faltan.length);
     return { estadoFichas: mapa, incompletas: pendientes };
   }, [personas, fichas, derechos, conHijos]);
+
+  // Nunca a mano (ver CLAUDE.md — el `SEDES = ["TRU","LIM","AQP"]` que se
+  // volvió falso cuando abrió Central): los chips salen de la sede base de
+  // las personas que están en la lista. Hasta el 2026-10-06 salían de TODA la
+  // tabla `sedes`, y aparecía «003» (la tienda de Lima, sin nadie con esa
+  // sede base): un filtro que, al tocarlo, vaciaba la lista.
+  const sedesDisponibles = Array.from(new Set(
+    personas.map((p) => sedes.get(p.sede_base_id)).filter((s): s is string => !!s),
+  )).sort();
+  // Sin pendientes no hay a quién filtrar: el control desaparece (ver la
+  // cabecera del equipo) y el filtro deja de aplicar aunque haya quedado
+  // encendido, para que completar la última ficha no deje la lista vacía.
+  const verPendientes = soloPendientes && incompletas.length > 0;
+  const lista = personas.filter((p) => {
+    const estado = estadoFichas.get(p.id);
+    return `${p.nombres} ${p.apellidos}`.toLowerCase().includes(q.trim().toLowerCase())
+      && (filtroSede === "Todas" || sedes.get(p.sede_base_id) === filtroSede)
+      && (!verPendientes || (!!estado && (estado.faltan.length > 0 || estado.avisos.length > 0)));
+  });
+  // Dónde está la ficha abierta dentro de la cola. -1 = no está pendiente, y
+  // entonces la banda «2 de 4» no se dibuja: se deriva de `incompletas` en
+  // vez de guardarse, así que al completar la ficha la banda se va sola.
+  const posEnCola = incompletas.findIndex((x) => x.p.id === sel);
+  const fichasAlDia = personas.length - incompletas.length;
+
+  /** «Revisar →»: abre la ficha ya editable y destaca lo primero que falta. */
+  function revisar(x: (typeof incompletas)[number]) {
+    intentarSeleccionar(x.p.id, true, x.faltan[0]?.clave, true);
+  }
+
+  /** Qué le falta a una ficha pendiente. Lo usan la franja y la cola: misma
+   *  frase en los dos sitios, escrita una vez. */
+  function detallePendiente({ faltan, avisos, sinFicha: nueva }: (typeof incompletas)[number]) {
+    return (
+      <>
+        {/* Los campos vacíos, en cadena. Si no hay ninguno no se
+            escribe «falta» a secas, que se lee como error. */}
+        {(nueva || faltan.length > 0) && (
+          <span className="text-xs text-taupe">
+            {nueva ? "sin ficha — falta todo" : faltan.map((c) => c.etiqueta).join(" · ")}
+          </span>
+        )}
+        {/* Las contradicciones no son un campo vacío más: no entran en la
+            cadena de arriba, van en su propia línea con la frase completa.
+            Solo la primera, para no engordar la fila — el resto se lee
+            dentro de la ficha. */}
+        {avisos.length > 0 && (
+          <span className="mt-0.5 flex items-start gap-1 text-xs text-ambar">
+            <TriangleAlert size={13} strokeWidth={1.8} className="mt-0.5 shrink-0" aria-hidden />
+            {avisos[0]}{avisos.length > 1 ? ` (+${avisos.length - 1} más)` : ""}
+          </span>
+        )}
+      </>
+    );
+  }
 
   /** "86% completa", o `null` si la persona no aplica ningún campo (no debería pasar). */
   function completitudDe(id: string): number | null {
@@ -1009,52 +1073,84 @@ export default function DatosPersonalesPage() {
             Solo se listan las fichas incompletas. Cuando estén todas al día
             este bloque desaparece, y esa ausencia ES la señal de que está
             cerrado — un contador «21 de 21» ocuparía sitio para no decir nada.
-            "Revisar →" selecciona a esa persona, trae su ficha a la vista y
-            destaca el primer campo que le falta (ver `intentarSeleccionar`). */}
+
+            Plegada (por defecto) es UNA línea: la cuenta y los nombres como
+            accesos directos. Está para que la cola siga a la vista mientras
+            se revisa la ficha de alguien que ya está al día; la lista entera,
+            con qué le falta a cada una, vive en la ficha vacía («Por
+            completar», más abajo). Desplegada ocupa todo el ancho en dos
+            columnas — antes era una tarjeta a 3/4 de ancho que empujaba el
+            equipo hacia abajo y dejaba vacía la mitad derecha.
+            "Revisar →" y cada nombre llevan al mismo sitio: esa ficha, ya
+            editable, con el primer campo que falta destacado (`revisar`). */}
         {!cargando && incompletas.length > 0 && (
-          <div className="mb-5 max-w-3xl rounded-superficie border border-sand bg-papel px-4 py-3">
-            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-              <h2 className="font-serif text-base">
-                Pendientes
+          <section className="mb-5 rounded-superficie border border-sand bg-papel px-4 py-2.5" aria-label="Pendientes">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+              <span className="flex items-center gap-1">
+                <h2 className="font-serif text-base">
+                  <button
+                    onClick={() => setPendientesPlegado((v) => !v)}
+                    aria-expanded={!pendientesPlegado}
+                    aria-controls="pendientes-lista"
+                    className="-ml-1 flex items-center gap-1 rounded-control px-1 py-0.5 transition-colors hover:bg-sand/50"
+                  >
+                    <ChevronDown size={15} strokeWidth={2} aria-hidden
+                      className={`text-taupe transition-transform motion-reduce:transition-none ${pendientesPlegado ? "-rotate-90" : ""}`} />
+                    Pendientes
+                  </button>
+                </h2>
                 <Ayuda texto="Son los datos que el contador necesita para el T-Registro. Sin ellos no se puede declarar a esa persona ni pagarle por transferencia." />
-              </h2>
+              </span>
               <span className="text-xs text-taupe">
                 {incompletas.length === 1 ? "1 ficha requiere información" : `${incompletas.length} fichas requieren información`}
+                {pendientesPlegado && ":"}
               </span>
+              {/* Plegada: hasta seis nombres y «+N más», que despliega. Con
+                  quince pendientes, quince chips serían tres líneas — justo
+                  lo que plegar existe para evitar. */}
+              {pendientesPlegado && (
+                <ul className="flex flex-wrap items-center gap-1.5">
+                  {incompletas.slice(0, 6).map((x) => (
+                    <li key={x.p.id}>
+                      <button
+                        onClick={() => revisar(x)}
+                        title={`Revisar la ficha de ${x.p.nombres} ${x.p.apellidos}`}
+                        className={`inline-flex items-center gap-1 rounded-pildora border bg-crema px-2.5 py-0.5 text-xs transition-colors hover:border-taupe ${sel === x.p.id ? "border-tinta" : "border-sand"}`}
+                      >
+                        {x.avisos.length > 0 && <TriangleAlert size={12} strokeWidth={1.8} className="text-ambar" aria-label="tiene datos que se contradicen" />}
+                        {x.p.nombres.split(" ")[0]} {x.p.apellidos.split(" ")[0]}
+                      </button>
+                    </li>
+                  ))}
+                  {incompletas.length > 6 && (
+                    <li>
+                      <button onClick={() => setPendientesPlegado(false)} className="text-xs text-taupe underline decoration-dotted underline-offset-2 hover:text-tinta">
+                        +{incompletas.length - 6} más
+                      </button>
+                    </li>
+                  )}
+                </ul>
+              )}
             </div>
-            <ul className={`mt-2 divide-y divide-sand/70 ${incompletas.length > 4 ? "max-h-56 overflow-y-auto" : ""}`}>
-              {incompletas.map(({ p, faltan, avisos, sinFicha: nueva }) => (
-                <li key={p.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 py-2 text-sm">
-                  <div className="min-w-0">
-                    <span className="font-medium">{p.nombres} {p.apellidos}</span>
-                    {/* Los campos vacíos, en cadena. Si no hay ninguno no se
-                        escribe «falta» a secas, que se lee como error. */}
-                    {(nueva || faltan.length > 0) && (
-                      <span className="ml-2 text-xs text-taupe">
-                        {nueva ? "sin ficha — falta todo" : faltan.map((c) => c.etiqueta).join(" · ")}
-                      </span>
-                    )}
-                    {/* Las contradicciones no son un campo vacío más: no
-                        entran en la cadena de arriba, van en su propia línea
-                        con la frase completa. Solo la primera, para no
-                        engordar la fila — el resto se lee dentro de la ficha. */}
-                    {avisos.length > 0 && (
-                      <p className="mt-0.5 flex items-start gap-1 text-xs text-ambar">
-                        <TriangleAlert size={13} strokeWidth={1.8} className="mt-0.5 shrink-0" aria-hidden />
-                        {avisos[0]}{avisos.length > 1 ? ` (+${avisos.length - 1} más)` : ""}
-                      </p>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => intentarSeleccionar(p.id, true, faltan[0]?.clave, true)}
-                    className="shrink-0 text-xs underline decoration-dotted underline-offset-2 hover:text-tinta"
-                  >
-                    Revisar →
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
+            {!pendientesPlegado && (
+              <ul id="pendientes-lista" className={`mt-1 grid gap-x-8 lg:grid-cols-2 ${incompletas.length > 8 ? "max-h-64 overflow-y-auto" : ""}`}>
+                {incompletas.map((x) => (
+                  <li key={x.p.id} className="flex items-center justify-between gap-x-3 border-t border-sand/70 py-2 text-sm">
+                    <div className="min-w-0">
+                      <span className="mr-2 font-medium">{x.p.nombres} {x.p.apellidos}</span>
+                      {detallePendiente(x)}
+                    </div>
+                    <button
+                      onClick={() => revisar(x)}
+                      className="shrink-0 text-xs underline decoration-dotted underline-offset-2 hover:text-tinta"
+                    >
+                      Revisar →
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
         )}
 
         {/* Sin columna fija para "Equipo" cuando está colapsado: si el
@@ -1082,12 +1178,6 @@ export default function DatosPersonalesPage() {
                     <PanelLeftClose size={15} strokeWidth={1.8} aria-hidden />
                   </button>
                 </span>
-                {sinFicha > 0 && (
-                  <button onClick={() => setSoloSinFicha((v) => !v)} aria-pressed={soloSinFicha}
-                    className={`rounded-pildora px-2 py-0.5 text-xs transition-colors ${soloSinFicha ? "bg-ambar/25 text-ambar" : "text-ambar hover:bg-ambar/15"}`}>
-                    {sinFicha} sin ficha
-                  </button>
-                )}
               </div>
               <div className="relative mt-2">
                 <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por nombre…"
@@ -1111,29 +1201,35 @@ export default function DatosPersonalesPage() {
                   ))}
                 </div>
               )}
-              {/* Mismo dato que "N fichas requieren información" del bloque
-                  Pendientes de arriba, solo que siempre a la vista mientras
-                  se navega la lista. Desaparece con `incompletas`: con todo
-                  al día no hay nada que barra. */}
+              {/* Un solo control para «quién tiene la ficha a medias». Antes
+                  había tres: la píldora «N sin ficha» (que dejaba fuera a
+                  quien tenía la ficha empezada), una barra «Fichas
+                  pendientes» y la tarjeta de arriba — el mismo dato contado
+                  de tres maneras. Desaparece con `incompletas`: con todo al
+                  día no hay nada que filtrar. */}
               {incompletas.length > 0 && (
-                <div className="mt-3 rounded-control border border-sand bg-crema/60 p-2.5">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-taupe">Fichas pendientes</span>
-                    <span className="font-serif text-sm">{incompletas.length}</span>
-                  </div>
-                  <div className="mt-1.5 h-1.5 overflow-hidden rounded-pildora bg-sand">
-                    <div
-                      className="h-full rounded-pildora bg-ambar"
-                      style={{ width: `${Math.round(((personas.length - incompletas.length) / Math.max(personas.length, 1)) * 100)}%` }}
-                    />
-                  </div>
+                <div role="group" aria-label="Qué fichas mostrar" className="mt-2 grid grid-cols-2 rounded-control border border-sand bg-crema p-0.5 text-xs">
+                  <button
+                    onClick={() => setSoloPendientes(false)}
+                    aria-pressed={!verPendientes}
+                    className={`rounded-control px-2 py-1 transition-colors ${!verPendientes ? "bg-papel font-medium text-tinta ring-1 ring-sand" : "text-taupe hover:text-tinta"}`}
+                  >
+                    Todas <span className="tabular-nums">{personas.length}</span>
+                  </button>
+                  <button
+                    onClick={() => setSoloPendientes(true)}
+                    aria-pressed={verPendientes}
+                    className={`rounded-control px-2 py-1 transition-colors ${verPendientes ? "bg-papel font-medium text-tinta ring-1 ring-sand" : "text-taupe hover:text-tinta"}`}
+                  >
+                    Por completar <span className="tabular-nums text-ambar">{incompletas.length}</span>
+                  </button>
                 </div>
               )}
             </div>
             {cargando ? (
               <Cargando />
             ) : lista.length === 0 ? (
-              <p className="px-3 py-4 text-sm text-taupe">Nadie coincide con “{q}”.</p>
+              <p className="px-3 py-4 text-sm text-taupe">{q.trim() ? `Nadie coincide con “${q}”.` : "Nadie con estos filtros."}</p>
             ) : (
               <ul className="max-h-[70vh] divide-y overflow-y-auto">
                 {lista.map((p) => {
@@ -1196,7 +1292,55 @@ export default function DatosPersonalesPage() {
             className={`scroll-mt-20 rounded-superficie border border-sand bg-papel ${vistaMobile === "lista" ? "hidden md:block" : "block"}`}
           >
             {!personaSel ? (
-              <p className="p-5 text-sm text-taupe">Elige a alguien de la lista para ver o editar su ficha.</p>
+              // Sin nadie elegido, este es el sitio más grande de la pantalla y
+              // estaba vacío. Ahí vive ahora la cola entera de Pendientes, con
+              // qué le falta a cada una; la franja de arriba es solo su resumen.
+              cargando || incompletas.length === 0 ? (
+                <p className="p-5 text-sm text-taupe">
+                  {!cargando && personas.length > 0 && "Todas las fichas están al día. "}
+                  Elige a alguien de la lista para ver o editar su ficha.
+                </p>
+              ) : (
+                <div className="p-5">
+                  <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+                    <div className="min-w-0">
+                      <h2 className="font-serif text-lg leading-tight">Por completar</h2>
+                      <p className="mt-1 max-w-prose text-xs text-taupe">
+                        Son los datos que el contador necesita para el T-Registro. Sin ellos no se puede declarar a esa persona ni pagarle por transferencia.
+                      </p>
+                    </div>
+                    <div className="w-full max-w-xs text-xs text-taupe">
+                      <div className="flex justify-between gap-3">
+                        <span>Fichas al día</span>
+                        <span className="tabular-nums text-tinta">{fichasAlDia} de {personas.length}</span>
+                      </div>
+                      <div className="mt-1.5 h-1.5 overflow-hidden rounded-pildora bg-sand" role="presentation">
+                        <div className="h-full rounded-pildora bg-verde" style={{ width: `${Math.round((fichasAlDia / Math.max(personas.length, 1)) * 100)}%` }} />
+                      </div>
+                    </div>
+                  </div>
+                  <ul className="mt-4 grid gap-2 xl:grid-cols-2">
+                    {incompletas.map((x) => (
+                      <li key={x.p.id} className="rounded-control border border-sand bg-crema px-3 py-2.5 transition-colors hover:border-taupe">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="min-w-0 truncate text-sm font-medium">
+                            {x.p.nombres} {x.p.apellidos}
+                            <span className="ml-1 text-xs font-normal text-taupe">· {sedes.get(x.p.sede_base_id)}</span>
+                          </span>
+                          <button
+                            onClick={() => revisar(x)}
+                            className="shrink-0 text-xs underline decoration-dotted underline-offset-2 hover:text-tinta"
+                          >
+                            Revisar →
+                          </button>
+                        </div>
+                        <div className="mt-0.5 flex flex-col">{detallePendiente(x)}</div>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="mt-3 text-xs text-taupe">O elige a cualquiera de la lista para ver su ficha.</p>
+                </div>
+              )
             ) : (
               <>
                 {/* Encabezado pegajoso: nombre, sede, % de completitud y "Ver
@@ -1204,6 +1348,38 @@ export default function DatosPersonalesPage() {
                     `top-16` la deja justo debajo de la barra superior del
                     panel (h-16 fijo, ver admin/nav.tsx), para que no se tapen. */}
                 <div className="sticky top-16 z-10 rounded-t-superficie border-b border-sand bg-papel px-5 py-3">
+                  {/* Banda de la cola: solo si esta ficha está pendiente. Se
+                      deriva de `posEnCola`, no de por dónde se llegó — así no
+                      hay un estado «vengo de la cola» que pueda quedar viejo, y
+                      al guardar la ficha completa la banda se va sola. Va DENTRO
+                      del encabezado pegajoso para que «Siguiente →» siga a mano
+                      al bajar por una ficha larga. */}
+                  {posEnCola >= 0 && (
+                    <div className="-mx-5 -mt-3 mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-t-superficie border-b border-sand bg-ambar/10 px-5 py-1.5 text-xs">
+                      <span><span className="font-medium text-ambar">Por completar</span> · <span className="tabular-nums">{posEnCola + 1} de {incompletas.length}</span></span>
+                      <span className="flex items-center gap-3">
+                        <button
+                          onClick={() => revisar(incompletas[posEnCola - 1])}
+                          disabled={posEnCola === 0}
+                          className="underline decoration-dotted underline-offset-2 hover:text-tinta disabled:cursor-default disabled:no-underline disabled:opacity-40"
+                        >
+                          ← Anterior
+                        </button>
+                        <button
+                          onClick={() => revisar(incompletas[posEnCola + 1])}
+                          disabled={posEnCola === incompletas.length - 1}
+                          className="underline decoration-dotted underline-offset-2 hover:text-tinta disabled:cursor-default disabled:no-underline disabled:opacity-40"
+                        >
+                          Siguiente →
+                        </button>
+                        {/* Cerrar la ficha pasa por la misma puerta que cambiar
+                            de persona: con algo sin guardar, pregunta. */}
+                        <button onClick={() => intentarSeleccionar("")} className="underline decoration-dotted underline-offset-2 hover:text-tinta">
+                          Ver la cola
+                        </button>
+                      </span>
+                    </div>
+                  )}
                   <button
                     onClick={() => setVistaMobile("lista")}
                     className="mb-1 flex items-center gap-0.5 text-xs text-taupe hover:text-tinta md:hidden"
