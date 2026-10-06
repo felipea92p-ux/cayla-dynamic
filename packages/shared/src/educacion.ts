@@ -160,6 +160,44 @@ export function sugerirProximaFecha(fechaPago: string, frecuencia: string | null
 }
 
 /**
+ * Hasta cuándo se SUGIERE que dura un estudio que empieza en `desde`: el fin
+ * del semestre académico peruano en que cae —31 de julio si empieza de enero a
+ * julio, 31 de diciembre si empieza de agosto a diciembre—.
+ *
+ * Existe porque el campo nacía en HOY, y una fecha de fin que nadie toca pide
+ * un apoyo de un día. Peor: se leía como «hasta cuándo vale este pago», no
+ * «hasta cuándo estudio». En octubre de 2026 un apoyo pedido el 15/09 quedó
+ * registrado hasta el 26/09, como si fuera de un solo mes, y al terminar la
+ * pantalla dejó de ofrecer subir constancias aunque la persona seguía pagando
+ * su pensión todos los meses. Es una sugerencia visible y editable: un curso
+ * de tres meses la cambia; lo que no puede pasar es que nazca en el mismo día.
+ */
+export function finDeCicloSugerido(desde: string): string {
+  const [y, m] = desde.split("-").map(Number);
+  return m && m <= 7 ? `${y}-07-31` : `${y}-12-31`;
+}
+
+/**
+ * Cuántos días cubre una vigencia, contando el primero y el último: del 15 al
+ * 26 de septiembre son 12. Aritmética UTC, sin `Date` local, por la misma
+ * razón que `sugerirProximaFecha`.
+ */
+export function diasDeVigencia(desde: string, hasta: string): number {
+  const ms = (f: string) => {
+    const [y, m, d] = f.split("-").map(Number);
+    return Date.UTC(y!, m! - 1, d!);
+  };
+  return Math.round((ms(hasta) - ms(desde)) / 86_400_000) + 1;
+}
+
+/**
+ * Por debajo de esto, el formulario pregunta antes de enviar si de verdad el
+ * estudio dura tan poco. No bloquea: un curso de dos semanas existe. Un mes
+ * completo (del 1 al 31) ya no pregunta.
+ */
+export const VIGENCIA_CORTA_DIAS = 31;
+
+/**
  * Un nombre de archivo que se puede poner en una ruta del almacén: sin
  * acentos, sin espacios ni símbolos, con su extensión. El nombre original se
  * guarda aparte (`educacion_entrega_archivos.nombre`) para mostrarlo tal cual.

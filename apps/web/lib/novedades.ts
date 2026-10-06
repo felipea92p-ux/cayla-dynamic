@@ -115,6 +115,19 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-10-06-el-apoyo-educativo-terminado-se-renueva",
+    fecha: "2026-10-06",
+    titulo: "Si tu apoyo educativo terminó y sigues estudiando, ahora lo renuevas desde tu portal",
+    queMejoro:
+      "En «Lo mío › Educación», cuando tu apoyo educativo ya terminó, aparece «Sigo estudiando: renovar mi apoyo», " +
+      "con tu institución y tus datos ya llenos. Antes esa pantalla mostraba tu solicitud como aprobada y no " +
+      "ofrecía ningún botón, así que no había cómo seguir subiendo tus constancias.\n\n" +
+      "Si te rechazaron la constancia de un pago que hiciste mientras el apoyo estaba vigente, ahora puedes " +
+      "corregirla aunque el apoyo ya haya terminado. Y al pedir el apoyo, la fecha de fin pregunta por el fin de tu " +
+      "ciclo o curso, no por el de este mes: se pide una sola vez y después cada mes subes tu constancia.",
+    audiencia: "todos",
+  },
+  {
     id: "2026-10-05-el-terminal-ilumina-en-vez-de-ocultar",
     fecha: "2026-10-05",
     titulo: "En el terminal, los estados se iluminan en vez de ocultar a los demás",
