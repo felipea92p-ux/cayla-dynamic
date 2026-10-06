@@ -77,6 +77,8 @@ export interface DocDisciplina {
   conocido_el?: string | null;
   /** Quién de DO tomó el caso que inició una líder (0511). Null = con la sede. */
   tomado_por?: string | null; tomado_at?: string | null;
+  /** Firmó su copia en papel desde «Lo mío» (0408). Firmar es un acto deliberado: cuenta como haberlo leído. */
+  firma_sancionado_confirmada_at?: string | null;
 }
 
 // ── Borradores: en qué paso del art. 55.2 está ───────────────────────────────
@@ -438,4 +440,61 @@ export function ultimoDiaDeEntrega(fechaCese: string): string {
 /** Para buscar «Quispe» escribiendo «quispe» y «Ramírez» escribiendo «ramirez». */
 export function normalizarBusqueda(texto: string): string {
   return texto.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().trim();
+}
+
+
+// ── La constancia de lectura (0516) ──────────────────────────────────────────
+
+/** Una fila de `lecturas_memo`: cuándo se abrió el documento y cuándo se leyó. */
+export interface LecturaMemo { expediente_id: string; abierto_at: string; leido_at: string | null }
+
+/**
+ * Desde cuántos días sin leer lo entregado le llega el aviso a la líder DO.
+ * Decidido el 2026-10-06: «aviso si pasan 7 días». Una semana es lo que tarda
+ * en volver alguien de vacaciones o de su día libre; antes sería ruido.
+ */
+export const DIAS_SIN_LEER_PARA_AVISO = 7;
+
+export type EstadoLectura =
+  | { tipo: "no_aplica" }
+  | { tipo: "firmo"; firmado_at: string }
+  | { tipo: "leido"; abierto_at: string; leido_at: string }
+  | { tipo: "abierto"; abierto_at: string }
+  | { tipo: "sin_abrir"; dias: number };
+
+const NIVELES_QUE_SE_LEEN = ["verbal", "amonestacion", "suspension"];
+
+/**
+ * Qué dice la constancia de lectura de un documento. Solo aplica a lo ENTREGADO
+ * EN PAPEL de los tres niveles que se leen en pantalla: lo recibido por Info ya
+ * tiene su constancia en la propia entrega (0486), y una imputación o un
+ * despido se entregan en físico o por vía notarial. Espeja `requiere_lectura`
+ * de `fn_mi_disciplina` (0516): la persona y DO ven lo mismo.
+ */
+export function estadoDeLectura(
+  d: Pick<DocDisciplina, "estado" | "nivel" | "medio_entrega" | "entregado_at" | "firma_sancionado_confirmada_at">,
+  lectura: LecturaMemo | undefined,
+  ahora: Date,
+): EstadoLectura {
+  if (d.estado !== "entregado" || d.medio_entrega === "digital" || !NIVELES_QUE_SE_LEEN.includes(d.nivel)) {
+    return { tipo: "no_aplica" };
+  }
+  if (lectura?.leido_at) return { tipo: "leido", abierto_at: lectura.abierto_at, leido_at: lectura.leido_at };
+  // Firmar es un acto deliberado con su propia fecha: cuenta como haberlo leído.
+  if (d.firma_sancionado_confirmada_at) return { tipo: "firmo", firmado_at: d.firma_sancionado_confirmada_at };
+  if (lectura) return { tipo: "abierto", abierto_at: lectura.abierto_at };
+  const dias = d.entregado_at ? Math.max(0, Math.floor((ahora.getTime() - Date.parse(d.entregado_at)) / 864e5)) : 0;
+  return { tipo: "sin_abrir", dias };
+}
+
+/** ¿Hay que avisarle a DO? Entregado en papel, sin leer, y con más de `DIAS_SIN_LEER_PARA_AVISO` días. */
+export function lecturaPendienteParaAviso(
+  d: Pick<DocDisciplina, "estado" | "nivel" | "medio_entrega" | "entregado_at" | "firma_sancionado_confirmada_at">,
+  lectura: LecturaMemo | undefined,
+  ahora: Date,
+): boolean {
+  const e = estadoDeLectura(d, lectura, ahora);
+  if (e.tipo !== "sin_abrir" && e.tipo !== "abierto") return false;
+  const dias = d.entregado_at ? Math.floor((ahora.getTime() - Date.parse(d.entregado_at)) / 864e5) : 0;
+  return dias >= DIAS_SIN_LEER_PARA_AVISO;
 }

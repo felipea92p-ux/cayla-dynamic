@@ -12,6 +12,7 @@ import {
   etapaDelBorrador, pestanaDelDocumento, pendientesDeEntregado, situacionTardanza, situacionFalta,
   estadoHoyTardanza, estadoHoyFalta, antecedentesVigentes, eventosDeObservacion,
   admiteEntregaAnteriorAlCese, normalizarBusqueda, horaEsperada, SIN_FOTO_DEL_HORARIO, explicarPasoTardanza,
+  estadoDeLectura, lecturaPendienteParaAviso, DIAS_SIN_LEER_PARA_AVISO,
   type DocDisciplina, type Adjunto, type TardanzaRow, type FaltaRow, type DiaAsistencia,
 } from "@/lib/admin/disciplina";
 
@@ -229,5 +230,50 @@ describe("el paso de la escala se dice completo: los cuatro peldaños del numera
   });
   it("con una imputación vigente no propone nada: decide Gerencia", () => {
     expect(paso(null, "imputacion")).toMatch(/Gerencia/);
+  });
+});
+
+
+describe("la constancia de lectura que ve DO (0516)", () => {
+  const ahora = new Date("2026-10-16T15:00:00Z");
+  const papel = (p: Partial<DocDisciplina> = {}) => doc({ estado: "entregado", medio_entrega: "fisico", entregado_at: "2026-10-04T15:00:00Z", ...p });
+
+  it("lo recibido por Info no la pide: recibir ya es la constancia", () => {
+    expect(estadoDeLectura(papel({ medio_entrega: "digital" }), undefined, ahora).tipo).toBe("no_aplica");
+  });
+  it("una imputación o un despido se entregan en físico o por notario: no aplica", () => {
+    expect(estadoDeLectura(papel({ nivel: "imputacion" }), undefined, ahora).tipo).toBe("no_aplica");
+  });
+  it("lo que no se entregó no aplica", () => {
+    expect(estadoDeLectura(papel({ estado: "firmado" }), undefined, ahora).tipo).toBe("no_aplica");
+  });
+  it("sin abrir: dice cuántos días lleva", () => {
+    expect(estadoDeLectura(papel(), undefined, ahora)).toEqual({ tipo: "sin_abrir", dias: 12 });
+  });
+  it("abierto pero sin «Lo leí»", () => {
+    const l = { expediente_id: "d1", abierto_at: "2026-10-05T10:00:00Z", leido_at: null };
+    expect(estadoDeLectura(papel(), l, ahora)).toEqual({ tipo: "abierto", abierto_at: l.abierto_at });
+  });
+  it("leído, con las dos horas", () => {
+    const l = { expediente_id: "d1", abierto_at: "2026-10-05T10:00:00Z", leido_at: "2026-10-05T10:02:00Z" };
+    expect(estadoDeLectura(papel(), l, ahora)).toEqual({ tipo: "leido", abierto_at: l.abierto_at, leido_at: l.leido_at });
+  });
+  it("firmar su copia cuenta como haberlo leído: es un acto deliberado con su propia fecha", () => {
+    expect(estadoDeLectura(papel({ firma_sancionado_confirmada_at: "2026-10-06T10:00:00Z" }), undefined, ahora).tipo).toBe("firmo");
+  });
+  it("el aviso a DO salta a los 7 días y no antes", () => {
+    expect(DIAS_SIN_LEER_PARA_AVISO).toBe(7);
+    expect(lecturaPendienteParaAviso(papel({ entregado_at: "2026-10-09T15:00:00Z" }), undefined, ahora)).toBe(true);
+    expect(lecturaPendienteParaAviso(papel({ entregado_at: "2026-10-10T15:00:00Z" }), undefined, ahora)).toBe(false);
+  });
+  it("abierto y sin «Lo leí» también avisa: abrirlo no es dejar constancia", () => {
+    const l = { expediente_id: "d1", abierto_at: "2026-10-05T10:00:00Z", leido_at: null };
+    expect(lecturaPendienteParaAviso(papel(), l, ahora)).toBe(true);
+  });
+  it("no avisa de lo ya leído, de lo ya firmado ni de lo que no aplica", () => {
+    const leido = { expediente_id: "d1", abierto_at: "2026-10-05T10:00:00Z", leido_at: "2026-10-05T10:02:00Z" };
+    expect(lecturaPendienteParaAviso(papel(), leido, ahora)).toBe(false);
+    expect(lecturaPendienteParaAviso(papel({ firma_sancionado_confirmada_at: "2026-10-06T10:00:00Z" }), undefined, ahora)).toBe(false);
+    expect(lecturaPendienteParaAviso(papel({ medio_entrega: "digital" }), undefined, ahora)).toBe(false);
   });
 });
