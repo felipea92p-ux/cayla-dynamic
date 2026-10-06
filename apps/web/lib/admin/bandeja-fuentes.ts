@@ -2,6 +2,7 @@ import type { ClienteCayla } from "@cayla-dynamic/database";
 import {
   esRolEncargada, fechaLima, hoyLima, NIVEL_DISCIPLINARIO_LABELS, puedeGestionarCatalogos, puedeGestionarContratos,
   puedeOperarEquipo, puedeVerCasos, puedeVerPlanilla, puedeVerSaludDeAlertas, recibeAvisoDeConductaRegistrada,
+  esTipoDocumento, TIPO_DOCUMENTO_LABEL,
 } from "@cayla-dynamic/shared";
 import { etiquetaDeVia } from "../reportes";
 import { diaYMes } from "../bandeja-mia";
@@ -655,6 +656,8 @@ export function resumenValorPerfil(v: Record<string, unknown>): string {
     if (typeof val === "string" && val.startsWith("solicitud/")) {
       return `${k.replace(/^foto_dni_|_ruta$/g, "")}: imagen adjunta`;
     }
+    // 0513 · «tipo: DNI», no «tipo_documento: dni».
+    if (k === "tipo_documento" && esTipoDocumento(val)) return `tipo: ${TIPO_DOCUMENTO_LABEL[val]}`;
     return `${k}: ${typeof val === "boolean" ? (val ? "Sí" : "No") : String(val)}`;
   }).join(" · ");
 }

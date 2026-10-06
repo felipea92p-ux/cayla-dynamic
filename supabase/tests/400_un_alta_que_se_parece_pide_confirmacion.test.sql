@@ -172,38 +172,38 @@ set role authenticated;
 -- EL CASO REAL: el mismo nombre, escrito completo, cuando ya está escrito corto.
 select throws_like(
   $$ select fn_crear_persona('Marisol Aurora', 'Quispe Rivas', '00000000-0000-0000-0000-000000040000',
-                             'integrante', 'calidad_servicio', null, 'x') $$,
+                             'integrante', 'calidad_servicio', null, 'x', false, 'dni', '40000001') $$,
   'Ya hay alguien registrado que se parece: «Marisol Quispe» (está en el equipo · ZZ400 · ingresó 03/10/2026)%',
   'BLOQUEADO · dar de alta «Marisol Aurora Quispe Rivas» cuando ya está «Marisol Quispe» se niega, y dice A QUIÉN se parece');
 
 -- Quien ya salió también cuenta: se reactiva, no se vuelve a crear.
 select throws_like(
   $$ select fn_crear_persona('Elena', 'Mamani', '00000000-0000-0000-0000-000000040000',
-                             'integrante', 'calidad_servicio', null, 'x') $$,
+                             'integrante', 'calidad_servicio', null, 'x', false, 'dni', '40000002') $$,
   '%«Elena Nieves Mamani Flores» (ya salió · ZZ400 · ingresó 01/02/2025)%',
   'BLOQUEADO · quien ya salió del equipo también cuenta: se reactiva, no se registra otra vez');
 
 -- Lo que NO es la misma persona pasa sin preguntar nada.
 select lives_ok(
   $$ select fn_crear_persona('Marisol', 'Condori', '00000000-0000-0000-0000-000000040000',
-                             'integrante', 'calidad_servicio', null, 'x') $$,
+                             'integrante', 'calidad_servicio', null, 'x', false, 'dni', '40000003') $$,
   'PERMITIDO · mismo nombre de pila con otro apellido es otra persona: no avisa');
 
 select lives_ok(
   $$ select fn_crear_persona('Rosa', 'Huanca', '00000000-0000-0000-0000-000000040000',
-                             'integrante', 'calidad_servicio', null, 'x') $$,
+                             'integrante', 'calidad_servicio', null, 'x', false, 'dni', '40000004') $$,
   'PERMITIDO · un nombre que no se parece a nadie se da de alta como siempre');
 
 -- Con confirmación, pasa: los homónimos reales existen.
 select lives_ok(
   $$ select fn_crear_persona('Marisol Aurora', 'Quispe Rivas', '00000000-0000-0000-0000-000000040000',
-                             'integrante', 'calidad_servicio', null, 'x', true) $$,
+                             'integrante', 'calidad_servicio', null, 'x', true, 'dni', '40000005') $$,
   'PERMITIDO · con p_confirmo_distinta = true, quien da de alta asume que es otra persona');
 
 -- Un NULL en la confirmación NO la da por hecha: solo `true` abre la puerta.
 select throws_like(
   $$ select fn_crear_persona('Marisol Aurora', 'Quispe Rivas', '00000000-0000-0000-0000-000000040000',
-                             'integrante', 'calidad_servicio', null, 'x', null) $$,
+                             'integrante', 'calidad_servicio', null, 'x', null, 'dni', '40000006') $$,
   'Ya hay alguien registrado que se parece:%',
   'BLOQUEADO · p_confirmo_distinta = NULL se lee como «no confirmó», no como «sí»');
 
@@ -218,7 +218,7 @@ select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000400a1
 set role authenticated;
 select throws_like(
   $$ select fn_crear_persona('Marisol Aurora', 'Quispe Rivas', '00000000-0000-0000-0000-000000040000',
-                             'integrante', 'calidad_servicio', null, 'x') $$,
+                             'integrante', 'calidad_servicio', null, 'x', false, 'dni', '40000007') $$,
   'Ya hay alguien registrado que se parece:%',
   'BLOQUEADO · confirmar una vez no abre la puerta para siempre: la siguiente alta igual vuelve a preguntar');
 
@@ -229,7 +229,7 @@ do $$
 declare v_hint text; v_state text;
 begin
   perform fn_crear_persona('Elena', 'Mamani', '00000000-0000-0000-0000-000000040000',
-                           'integrante', 'calidad_servicio', null, 'x');
+                           'integrante', 'calidad_servicio', null, 'x', false, 'dni', '40000008');
 exception when others then
   get stacked diagnostics v_hint = pg_exception_hint;
   v_state := sqlstate;
@@ -245,7 +245,7 @@ select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000400a1
 set role authenticated;
 select throws_ok(
   $$ select fn_crear_persona('Marisol Aurora', 'Quispe Rivas', '00000000-0000-0000-0000-000000040000',
-                             'gerente', 'calidad_servicio', null, 'x') $$,
+                             'gerente', 'calidad_servicio', null, 'x', false, 'dni', '40000009') $$,
   'Rol inválido: gerente',
   'SIN ROMPER LO VIEJO · un rol inválido sigue dando su propio error aunque el nombre se parezca');
 
@@ -283,12 +283,12 @@ select is((select count(*)::int from pg_proc where proname = 'fn_crear_persona')
   'UNA SOLA VERSIÓN · fn_crear_persona no quedó con dos firmas (la 0297/0299 dejó dos y la llamada quedó ambigua)');
 
 select ok(
-  has_function_privilege('authenticated', 'fn_crear_persona(text,text,uuid,text,text,text,text,boolean)', 'execute')
+  has_function_privilege('authenticated', 'fn_crear_persona(text,text,uuid,text,text,text,text,boolean,text,text,boolean)', 'execute')
   and has_function_privilege('authenticated', 'fn_personas_parecidas(text,text)', 'execute'),
   'PERMISOS · quien inició sesión puede llamar a las dos funciones que usa la pantalla');
 
 select ok(
-  not has_function_privilege('anon', 'fn_crear_persona(text,text,uuid,text,text,text,text,boolean)', 'execute')
+  not has_function_privilege('anon', 'fn_crear_persona(text,text,uuid,text,text,text,text,boolean,text,text,boolean)', 'execute')
   and not has_function_privilege('anon', 'fn_personas_parecidas(text,text)', 'execute'),
   'PERMISOS · quien no inició sesión no puede llamar a ninguna de las dos');
 
