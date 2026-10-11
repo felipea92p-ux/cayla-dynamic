@@ -120,6 +120,19 @@ export function fechaCorta(iso: string | null | undefined): string {
   return `${Number(d)} ${mes} ${y}`;
 }
 
+/**
+ * "2026-11-15" → "15 nov", sin el año. Para los textos que ya hablan «de este
+ * año» —las fechas legales de pago son las mismas todos los años— y donde un
+ * «2026» al lado solo estorbaría. Por texto, igual que fechaCorta.
+ */
+export function diaYMes(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const [, m, d] = iso.split("-");
+  const mes = MESES_CORTOS[Number(m) - 1];
+  if (!mes || !d) return iso;
+  return `${Number(d)} ${mes}`;
+}
+
 const anioDe = (iso: string) => iso.slice(0, 4);
 
 export const esPracticante = (p: ProvPersona) => p.tipo_vinculo === "practicante";
@@ -234,6 +247,19 @@ export function ventanasDe(d: ProvData): Ventana[] {
     { clave: "cts_nov", beneficio: "CTS", mes: mes(d.cts_nov_pago), periodo: periodo(d.cts_nov_periodo), cierre: `${y}-10-31`, pago: d.cts_nov_pago },
     { clave: "grati_s2", beneficio: "Gratificación", mes: mes(d.grati_s2_pago), periodo: periodo(d.grati_s2_periodo), cierre: `${y}-12-31`, pago: d.grati_s2_pago },
   ];
+}
+
+/**
+ * Cuándo se paga cada beneficio, para la tarjeta del resumen: «Se paga el 15 jul
+ * y el 15 dic». Las fechas se leen de las ventanas —o sea de lo que manda la
+ * base—, no se escriben acá. La CTS «se deposita» y no «se paga»: va a la
+ * cuenta CTS de cada persona, no en efectivo ni con la planilla.
+ */
+export function cuandoSePaga(d: ProvData, beneficio: Ventana["beneficio"]): string {
+  const dias = ventanasDe(d)
+    .filter((v) => v.beneficio === beneficio)
+    .map((v) => diaYMes(v.pago));
+  return `${beneficio === "CTS" ? "Se deposita" : "Se paga"} el ${dias.join(" y el ")}`;
 }
 
 /** El 9 % pendiente que corresponde a una ventana (solo gratificación). */

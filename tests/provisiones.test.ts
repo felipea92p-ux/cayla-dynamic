@@ -4,6 +4,8 @@ import {
   COLUMNAS_CSV_ANTERIORES,
   atrasadoDelProximo,
   calendario,
+  cuandoSePaga,
+  diaYMes,
   estadoVentana,
   estadosFila,
   fechaCorta,
@@ -368,5 +370,28 @@ describe("fechaCorta", () => {
   it("formatea por texto", () => {
     expect(fechaCorta("2026-11-15")).toBe("15 nov 2026");
     expect(fechaCorta(null)).toBe("—");
+  });
+});
+
+describe("diaYMes", () => {
+  it("es la fecha corta sin el año, también por texto", () => {
+    expect(diaYMes("2026-11-15")).toBe("15 nov");
+    expect(diaYMes("2026-05-05")).toBe("5 may");
+    expect(diaYMes(null)).toBe("—");
+    expect(diaYMes("no-es-una-fecha")).toBe("no-es-una-fecha");
+  });
+});
+
+describe("cuandoSePaga — la segunda línea de cada tarjeta del resumen", () => {
+  it("la gratificación se paga en julio y diciembre, en ese orden", () => {
+    expect(cuandoSePaga(d, "Gratificación")).toBe("Se paga el 15 jul y el 15 dic");
+  });
+  it("la CTS se deposita, no se paga: mayo y noviembre", () => {
+    expect(cuandoSePaga(d, "CTS")).toBe("Se deposita el 15 may y el 15 nov");
+  });
+  it("las fechas se leen de lo que manda la base, no están escritas en el texto", () => {
+    const otro = { ...d, grati_s2_pago: "2026-12-20", cts_may_pago: "2026-05-16" };
+    expect(cuandoSePaga(otro, "Gratificación")).toBe("Se paga el 15 jul y el 20 dic");
+    expect(cuandoSePaga(otro, "CTS")).toBe("Se deposita el 16 may y el 15 nov");
   });
 });
