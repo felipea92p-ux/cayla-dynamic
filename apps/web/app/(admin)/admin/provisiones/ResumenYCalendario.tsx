@@ -3,6 +3,7 @@ import { formatSoles } from "@/lib/rangos";
 import { cx } from "@/components/ui/cx";
 import {
   calendario,
+  cuandoSePaga,
   fechaCorta,
   proximoDesembolso,
   resumen,
@@ -16,11 +17,22 @@ import {
 // Lo primero que se ve al entrar: cuánto hay por beneficio y qué sale del banco
 // y cuándo.
 //
-// CADA TARJETA DICE QUÉ ES SU NÚMERO —«saldo no pagado al corte»— y ninguna se
-// llama «total provisionado». Ese nombre se leería como lo que hay que tener en
-// el banco, y no lo es: no incluye ventanas de años anteriores que quedaron sin
-// registrar ni la CTS de noviembre–diciembre (defectos C1 y C2 de la auditoría
-// del 2026-09-15, cada uno con su migración aparte). Decidido con Felipe ese día.
+// CADA TARJETA DICE QUÉ ES SU NÚMERO —«acumulado a hoy, aún sin pagar»— y
+// ninguna se llama «total provisionado». Ese nombre se leería como lo que hay
+// que tener en el banco, y no lo es: no incluye ventanas de años anteriores que
+// quedaron sin registrar ni la CTS de noviembre–diciembre (defectos C1 y C2 de
+// la auditoría del 2026-09-15, cada uno con su migración aparte). Decidido con
+// Felipe ese día.
+//
+// La redacción se cambió el 2026-10-11 («saldo no pagado al corte» → «acumulado
+// a hoy, aún sin pagar»): «saldo» suena a lo que hay en una cuenta y «al corte»
+// a una fecha que nadie ve, porque la fecha está en la cabecera, lejos de la
+// tarjeta. La regla no cambió. Y no se dice «pendiente de pago»: en la tabla eso
+// es un estado preciso —la fecha ya pasó y falta saldo— y la tarjeta suma
+// también lo que todavía se está acumulando.
+//
+// La segunda línea de cada tarjeta dice CUÁNDO se paga. Las fechas se leen de
+// las ventanas de la base (`cuandoSePaga`), no se escriben acá.
 
 export function ResumenProvisiones({
   data,
@@ -43,9 +55,24 @@ export function ResumenProvisiones({
   return (
     <section aria-label="Resumen" className="mb-6 grid gap-3 [font-variant-numeric:tabular-nums]">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-[repeat(3,minmax(0,1fr))_minmax(0,1.35fr)]">
-        <Tarjeta etiqueta="Gratificación + 9 %" valor={r.gratificacion} detalle="Saldo no pagado al corte" />
-        <Tarjeta etiqueta="CTS" valor={r.cts} detalle="Saldo no depositado al corte" />
-        <Tarjeta etiqueta="Vacaciones" valor={r.vacaciones} detalle="Acumulado desde cada aniversario" />
+        <Tarjeta
+          etiqueta="Gratificación + 9 %"
+          valor={r.gratificacion}
+          detalle="Acumulado a hoy, aún sin pagar"
+          cuando={cuandoSePaga(data, "Gratificación")}
+        />
+        <Tarjeta
+          etiqueta="CTS"
+          valor={r.cts}
+          detalle="Acumulado a hoy, aún sin depositar"
+          cuando={cuandoSePaga(data, "CTS")}
+        />
+        <Tarjeta
+          etiqueta="Vacaciones"
+          valor={r.vacaciones}
+          detalle="Acumulado a hoy, aún sin pagar"
+          cuando="Se paga cuando cada persona las goza"
+        />
         {/* bg-tinta con text-crema, nunca text-white: en oscuro los dos tokens
             se invierten juntos y la tarjeta sigue legible (ver CLAUDE.md). */}
         <div className="flex flex-col gap-1 rounded-superficie border border-tinta bg-tinta p-4 text-crema">
@@ -90,10 +117,10 @@ export function ResumenProvisiones({
 
       <p className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-taupe">
         <span>
-          Saldo total devengado no pagado{filtrado ? " (con estos filtros)" : ""}:{" "}
+          Total acumulado, aún sin pagar{filtrado ? " (con estos filtros)" : ""}:{" "}
           <strong className="font-medium text-tinta">{formatSoles(r.total)}</strong>
         </span>
-        {r.ajustes < 0 && <span>incluye {formatSoles(r.ajustes)} de pagos de más</span>}
+        {r.ajustes < 0 && <span>ya restados {formatSoles(-r.ajustes)} pagados de más</span>}
         {vencidos > 0 && (
           <span className="text-ambar">
             {vencidos} {vencidos === 1 ? "pago por saldar" : "pagos por saldar"} (según lo registrado)
@@ -104,12 +131,27 @@ export function ResumenProvisiones({
   );
 }
 
-function Tarjeta({ etiqueta, valor, detalle }: { etiqueta: string; valor: number; detalle: string }) {
+// Dos líneas, y cada una contesta una pregunta distinta: `detalle` dice QUÉ es el
+// número y `cuando` dice CUÁNDO se paga. Antes la tarjeta tenía una sola y se
+// quedaba con la mitad del alto vacía, porque se estira hasta la de «Próximo
+// desembolso».
+function Tarjeta({
+  etiqueta,
+  valor,
+  detalle,
+  cuando,
+}: {
+  etiqueta: string;
+  valor: number;
+  detalle: string;
+  cuando: string;
+}) {
   return (
     <div className="flex flex-col gap-0.5 rounded-superficie border border-sand bg-papel p-4">
       <span className="text-xs tracking-wide text-taupe uppercase">{etiqueta}</span>
       <span className={cx("text-xl font-medium", valor < 0 && "text-pizarra")}>{formatSoles(valor)}</span>
       <span className="text-xs text-taupe">{detalle}</span>
+      <span className="mt-2 text-xs text-taupe">{cuando}</span>
     </div>
   );
 }

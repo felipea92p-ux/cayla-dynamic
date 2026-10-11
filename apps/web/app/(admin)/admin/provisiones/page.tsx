@@ -8,8 +8,8 @@
 //
 // Las decisiones, tomadas con Felipe ese día sobre demos navegables:
 //   · Resumen arriba + tabla de siete columnas + detalle en panel lateral.
-//   · Indicadores por beneficio con su nombre exacto («saldo no pagado al
-//     corte»), no un «total provisionado» que prometa más de lo que es.
+//   · Indicadores por beneficio con su nombre exacto («acumulado a hoy, aún
+//     sin pagar»), no un «total provisionado» que prometa más de lo que es.
 //   · Calendario con lo vencido primero y lo que viene como acumulado a hoy;
 //     la proyección al cierre va después, en su propia función SQL auditada.
 //   · El negativo se muestra como «pagado de más» con su origen.
