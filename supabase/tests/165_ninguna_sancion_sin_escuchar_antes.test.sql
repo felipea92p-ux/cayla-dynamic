@@ -18,6 +18,28 @@
 --   Misma razón que la 163: las pruebas que corren como dueño de la base no
 --   ven un permiso que falta, y ese fallo no da error al aplicar la migración
 --   — da una pantalla que no hace nada.
+--
+-- POR QUÉ SE VACÍA LA SEMANA DE FERIADOS ANTES DE MEDIR
+--   Las dos primeras aserciones cuentan días hábiles desde «el viernes de esta
+--   semana», y `fn_sumar_dias_habiles` salta los feriados de `feriados`, que es
+--   el calendario real sembrado hasta 2032. Con el calendario real puesto, la
+--   prueba dependía de qué semana del año la corriera el CI: si el lunes o el
+--   martes siguientes eran feriado, el plazo vencía el miércoles o el jueves
+--   y la aserción 1 fallaba sin que nada estuviera roto.
+--
+--   Medido el 2026-10-11 falseando `fn_hoy_lima()` día por día entre
+--   2026-01-12 y 2032-12-31 (2 546 fechas): fallaba en 280 (11 %), repartidas
+--   en 33 semanas — por ejemplo la del 22-jun-2026 (lunes 29-jun, San Pedro y
+--   San Pablo), la del 20-jul (martes 28 y miércoles 29, Fiestas Patrias) y la
+--   del 30-nov (martes 8 y miércoles 9 de diciembre). Se repite todos los años.
+--   Y no solo la aserción 1: en las semanas con DOS feriados seguidos también
+--   fallaba la 2.
+--
+--   Lo que se prueba aquí es la REGLA —el plazo salta el fin de semana, y
+--   salta un feriado que se declara—, no el calendario de Perú, así que la
+--   semana que se mide se deja sin feriados y el único que hay es el que la
+--   propia prueba inserta. Es el mismo aislamiento que usan las pruebas 10,
+--   115, 125 y 130.
 -- ============================================================================
 begin;
 select plan(10);
@@ -49,6 +71,15 @@ values ('00000000-0000-0000-0000-00000000e301', 'DesAdmin', 'Laboratorio',
         null, 'planilla', 'activo');
 set session_replication_role = origin;
 
+-- ── La semana que se mide, sin feriados ─────────────────────────────────────
+-- Del viernes de esta semana al viernes siguiente: todo lo que
+-- `fn_sumar_dias_habiles` puede leer al contar dos días hábiles desde ese
+-- viernes, incluso con el feriado de laboratorio de abajo. Se borra dentro de
+-- la burbuja; el rollback devuelve el calendario real.
+delete from feriados
+ where fecha between (date_trunc('week', fn_hoy_lima())::date + 4)
+                 and (date_trunc('week', fn_hoy_lima())::date + 11);
+
 -- ── 1 · El plazo salta el fin de semana ─────────────────────────────────────
 -- Desde un viernes al mediodía de Lima, dos días hábiles caen en MARTES.
 select is(
@@ -60,9 +91,12 @@ select is(
 
 -- ── 2 · Y salta los feriados ────────────────────────────────────────────────
 -- Se declara feriado el lunes siguiente: el plazo debe correrse un día más.
+-- Sin `on conflict`: la semana se vació arriba, así que este insert no puede
+-- chocar. Si alguien quita ese delete, la prueba revienta aquí; con el
+-- `do nothing` de antes, un feriado real en ese lunes hacía que el insert no
+-- hiciera nada y la aserción pasara por el feriado real, no por el declarado.
 insert into feriados (fecha, nombre)
-values ((date_trunc('week', fn_hoy_lima())::date + 7), 'Feriado de laboratorio')
-on conflict (fecha) do nothing;
+values ((date_trunc('week', fn_hoy_lima())::date + 7), 'Feriado de laboratorio');
 
 select is(
   extract(dow from (fn_sumar_dias_habiles(
