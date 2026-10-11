@@ -83,7 +83,7 @@ export function ResumenProvisiones({
         {r.ajustes < 0 && <span>incluye {formatSoles(r.ajustes)} de pagos de más</span>}
         {vencidos > 0 && (
           <span className="text-ambar">
-            {vencidos} {vencidos === 1 ? "pago vencido" : "pagos vencidos"} sin registrar completo
+            {vencidos} {vencidos === 1 ? "pago por saldar" : "pagos por saldar"} (según lo registrado)
           </span>
         )}
       </p>
@@ -118,7 +118,7 @@ export function CalendarioPagos({ data, personas }: { data: ProvData; personas: 
     <div className="grid gap-4 [font-variant-numeric:tabular-nums]">
       {cal.vencidos.length > 0 && (
         <Grupo
-          titulo="Vencidos sin pago completo registrado"
+          titulo="Se debe · la fecha de pago ya pasó"
           nota="Si ya se pagó por fuera de planilla, falta anotarlo en el libro de desembolsos: mientras no esté anotado, sigue figurando aquí."
         >
           {cal.vencidos.map((e) => (

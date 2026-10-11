@@ -285,11 +285,15 @@ export type EstadoVentana =
   | "acumulando"
   | "sin_monto";
 
+// La clave interna sigue siendo `vencido` (la usan los filtros y las pruebas),
+// pero la pantalla no lo dice así: quien la lee es quien PAGA, y para él una
+// ventana cuya fecha ya pasó no es algo «vencido» —que suena a plazo perdido
+// por otro— sino plata que se debe. Pedido por Felipe el 2026-10-10.
 export const ETIQUETA_ESTADO_VENTANA: Record<EstadoVentana, string> = {
   no_aplica: "No aplica",
   pagado_de_mas: "Pagado de más",
-  vencido: "Vencido sin pago",
-  pago_parcial: "Pago parcial · vencido",
+  vencido: "Se debe",
+  pago_parcial: "Pago parcial · se debe el resto",
   pagado: "Pagado",
   acumulando: "Acumulando",
   sin_monto: "Sin monto",
@@ -327,7 +331,7 @@ export type EstadoFila = "sin_tramo" | "vencido" | "pagado_de_mas" | "al_dia" | 
 
 export const ETIQUETA_ESTADO_FILA: Record<EstadoFila, string> = {
   sin_tramo: "Salario sin cargar",
-  vencido: "Vencido sin pago completo",
+  vencido: "Se le debe",
   pagado_de_mas: "Pagado de más",
   al_dia: "Al día",
   no_aplica: "No aplica",
