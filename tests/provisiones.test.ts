@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   COLUMNAS_CSV,
   COLUMNAS_CSV_ANTERIORES,
+  atrasadoDelProximo,
   calendario,
   estadoVentana,
   estadosFila,
@@ -10,12 +11,15 @@ import {
   filtrar,
   FILTROS_VACIOS,
   gratiConBonificacion,
+  montoConAtrasado,
   montoProximo,
   pagosDe,
   proximoDesembolso,
   resumen,
   saldoDeFila,
   subvencionDe,
+  totalAtrasadoDelProximo,
+  totalConAtrasado,
   totalProximo,
   totalesSubvenciones,
   ventanasDe,
@@ -187,6 +191,45 @@ describe("próximo desembolso", () => {
   });
   it("el cierre de la ventana es el del año de corte", () => {
     expect(proximoDesembolso(d)?.cierre).toBe("2026-10-31");
+  });
+});
+
+describe("lo atrasado que se sumaría al próximo depósito", () => {
+  it("para la CTS del 15/11 es lo que quedó de la de mayo, entero o parcial", () => {
+    expect(atrasadoDelProximo(ctsVencida, d)).toBe(67.05);
+    expect(atrasadoDelProximo(parcial, d)).toBe(256.4);
+  });
+  it("no mezcla beneficios: lo atrasado de la gratificación no engrosa el depósito de CTS", () => {
+    // Marco Salas debe S/2.84 de julio (gratificación) y tiene la CTS de mayo
+    // pagada de más: para el depósito del 15/11 no hay nada que sumar.
+    expect(atrasadoDelProximo(deMas, d)).toBe(0);
+  });
+  it("quien está al día no suma, y una practicante no tiene este número", () => {
+    expect(atrasadoDelProximo(alDia, d)).toBe(0);
+    expect(atrasadoDelProximo(practicante, d)).toBeNull();
+  });
+  it("el total del equipo es lo mismo que el calendario lista como pendiente de mayo", () => {
+    const mayo = calendario(d, equipo).vencidos.find((x) => x.ventana?.clave === "cts_may")!;
+    expect(totalAtrasadoDelProximo(equipo, d)).toBe(mayo.monto);
+    expect(totalAtrasadoDelProximo(equipo, d)).toBe(323.45);
+  });
+  it("el pago de más de una persona no achica lo atrasado de otra", () => {
+    expect(totalAtrasadoDelProximo([deMas, ctsVencida], d)).toBe(67.05);
+  });
+  it("lo que sale si se paga todo junto es el acumulado de noviembre más lo atrasado de mayo", () => {
+    expect(montoConAtrasado(parcial, d)).toBe(Math.round((266.11 + 256.4) * 100) / 100);
+    expect(totalConAtrasado(equipo, d)).toBe(Math.round((totalProximo(equipo, d)! + 323.45) * 100) / 100);
+    expect(montoConAtrasado(practicante, d)).toBeNull();
+  });
+  it("para la gratificación del 15/12 sí cuenta lo de julio, con su 9 %", () => {
+    const julio = persona({ persona_id: "k", nombre: "K", grati_s1: 100, be_s1: 9, grati_s2: 50, be_s2: 4.5 });
+    const dic = datos([julio], "2026-11-30", { fecha: "2026-12-15", tipo: "Gratificacion", ref: "grati_s2" });
+    expect(atrasadoDelProximo(julio, dic)).toBe(109);
+  });
+  it("del 16 al 31 de diciembre no inventa un monto", () => {
+    const fin = datos(equipo, "2026-12-20", { fecha: "2027-05-15", tipo: "CTS", ref: "cts_may" });
+    expect(atrasadoDelProximo(ctsVencida, fin)).toBeNull();
+    expect(totalAtrasadoDelProximo(fin.personas, fin)).toBeNull();
   });
 });
 

@@ -17,7 +17,7 @@ import Link from "next/link";
 import type { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import {
   ES_DE_MODALIDAD_FORMATIVA, TIPO_VINCULO_LABEL, hoyLima, nombreDelPeriodo, parsearMontoSoles,
-  periodoAnterior, periodoQueContiene,
+  periodoQueContiene, periodosHasta,
   type BeneficioDesembolso, type PeriodoDeBeneficio,
 } from "@cayla-dynamic/shared";
 import { formatSoles, RANGO_LABEL } from "@/lib/rangos";
@@ -89,13 +89,20 @@ function CajaConfirmar({ c, ocupado, onCancelar, onConfirmar }: {
 // `periodo` existe para lo que la fecha sola no resuelve: una CTS pagada el
 // 10/05 puede ser del periodo que empieza o el depósito atrasado del que
 // terminó. Por defecto, el periodo que contiene la fecha —lo mismo que haría la
-// liquidación con esa fecha de cese—, y el anterior a un clic.
+// liquidación con esa fecha de cese—, y los anteriores a un clic.
+//
+// Son TRES y no dos desde el 2026-10-10: el 1 de noviembre el periodo actual
+// pasa a ser nov–abr, y la CTS de mayo que no se depositó quedaba a dos
+// periodos —fuera del formulario— sin forma de anotar el depósito atrasado.
+const PERIODOS_QUE_SE_OFRECEN = 3;
+
 type AdelantoForm = {
   beneficio: BeneficioDesembolso;
   monto: string;
   fecha: string;
   nota: string;
-  periodo: "actual" | "anterior";
+  /** 0 = el que contiene la fecha, 1 = el anterior, 2 = el anterior a ese. */
+  periodo: number;
 };
 
 // CAMBIO 0467 — arranca en el beneficio que esa persona sí puede recibir. Con
@@ -104,20 +111,23 @@ type AdelantoForm = {
 // primer clic registraba lo que el navegador eligiera por su cuenta.
 const adelantoVacio = (tipoVinculo?: string | null): AdelantoForm => ({
   beneficio: tipoVinculo === "practicante" ? "subvencion_semestral" : "gratificacion",
-  monto: "", fecha: hoyLima(), nota: "", periodo: "actual",
+  monto: "", fecha: hoyLima(), nota: "", periodo: 0,
 });
 
-function periodosDelAdelanto(a: AdelantoForm): { actual: PeriodoDeBeneficio; anterior: PeriodoDeBeneficio } | null {
+function periodosDelAdelanto(a: AdelantoForm): PeriodoDeBeneficio[] | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(a.fecha)) return null;
-  const actual = periodoQueContiene(a.beneficio, a.fecha);
-  return { actual, anterior: periodoAnterior(actual) };
+  return periodosHasta(periodoQueContiene(a.beneficio, a.fecha), PERIODOS_QUE_SE_OFRECEN);
 }
 
 function periodoDelAdelanto(a: AdelantoForm): PeriodoDeBeneficio | null {
-  const p = periodosDelAdelanto(a);
-  if (!p) return null;
-  return a.periodo === "anterior" && a.beneficio !== "vacaciones" ? p.anterior : p.actual;
+  const ps = periodosDelAdelanto(a);
+  if (!ps) return null;
+  return ps[a.periodo] ?? ps[0] ?? null;
 }
+
+// Un pago hecho después de la fecha legal del periodo al que se anota no es un
+// adelanto: es un depósito atrasado, y así se le dice a quien confirma.
+const esPagoAtrasado = (p: PeriodoDeBeneficio, fecha: string) => p.pagoLegal !== null && fecha > p.pagoLegal;
 
 function Contenido({
   fila: f, periodoId, pagado, liquidada, cese, hallazgos, gc, origenes, supabase, onCambio,
@@ -274,7 +284,7 @@ function Contenido({
       donde: "adelanto",
       c: {
         texto:
-          `¿Registrar un adelanto de ${
+          `¿Registrar un ${esPagoAtrasado(periodo, adelanto.fecha) ? "pago atrasado" : "adelanto"} de ${
             adelanto.beneficio === "subvencion_semestral"
               ? "media subvención"
               : adelanto.beneficio === "descanso_practicante"
@@ -282,7 +292,7 @@ function Contenido({
                 : CLASE_LABEL[adelanto.beneficio]
           } de ${formatSoles(monto)} para ${f.nombre}, pagado el ${isoADiaMesAnio(adelanto.fecha)}?\n` +
           `Se anota como ${nombreDelPeriodo(periodo)}: la liquidación lo va a restar de esa misma ventana.`,
-        textoBoton: "Registrar adelanto",
+        textoBoton: esPagoAtrasado(periodo, adelanto.fecha) ? "Registrar pago atrasado" : "Registrar adelanto",
         accion: async () => {
           const { error } = await supabase.rpc("fn_registrar_desembolso", {
             p_persona_id: f.persona_id,
@@ -294,7 +304,7 @@ function Contenido({
             p_nota: adelanto.nota.trim() || null,
           });
           if (error) { avisar("error", mensajeDeError(error, "registrar el adelanto")); return; }
-          avisar("ok", `Adelanto de ${formatSoles(monto)} registrado. La liquidación lo va a restar sola cuando corresponda.`);
+          avisar("ok", `${esPagoAtrasado(periodo, adelanto.fecha) ? "Pago atrasado" : "Adelanto"} de ${formatSoles(monto)} registrado como ${nombreDelPeriodo(periodo)}.`);
           setMostrandoAdelanto(false);
           setAdelanto(adelantoVacio(f.tipo_vinculo));
         },
@@ -561,7 +571,7 @@ function Contenido({
         ) : (
           <div className="rounded-control border border-sand p-3">
             <p className="mb-2 text-sm text-taupe">
-              Fuera del ciclo normal (típicamente a quien cesa a mitad de semestre). No toca este periodo: la liquidación lo resta sola.
+              Fuera del ciclo normal (típicamente a quien cesa a mitad de semestre), y también para anotar un depósito atrasado de un periodo que ya pasó. No toca este periodo: la liquidación lo resta sola.
             </p>
             <div className="flex flex-wrap items-end gap-2">
               {/* CAMBIO 0467 — a una practicante no le tocan gratificación, CTS
@@ -591,11 +601,12 @@ function Contenido({
               {!ES_DE_MODALIDAD_FORMATIVA.includes(adelanto.beneficio) &&
                 adelanto.beneficio !== "vacaciones" && periodosDelAdelanto(adelanto) && (
                 <CampoSelect
-                  etiqueta="Periodo que se paga" value={adelanto.periodo}
-                  onChange={(e) => setAdelanto({ ...adelanto, periodo: e.target.value as AdelantoForm["periodo"] })}
+                  etiqueta="Periodo que se paga" value={String(adelanto.periodo)}
+                  onChange={(e) => setAdelanto({ ...adelanto, periodo: Number(e.target.value) })}
                 >
-                  <option value="actual">{nombreDelPeriodo(periodosDelAdelanto(adelanto)!.actual)}</option>
-                  <option value="anterior">{nombreDelPeriodo(periodosDelAdelanto(adelanto)!.anterior)}</option>
+                  {periodosDelAdelanto(adelanto)!.map((x, i) => (
+                    <option key={`${x.ventana}-${x.anio}`} value={i}>{nombreDelPeriodo(x)}</option>
+                  ))}
                 </CampoSelect>
               )}
             </div>
@@ -610,7 +621,7 @@ function Contenido({
             )}
             <label className="mt-2 flex flex-col gap-1 text-sm">
               <span className="text-taupe">Nota (opcional)</span>
-              <AreaTexto value={adelanto.nota} onChange={(e) => setAdelanto({ ...adelanto, nota: e.target.value })} rows={2} placeholder="ej. el motivo del adelanto" />
+              <AreaTexto value={adelanto.nota} onChange={(e) => setAdelanto({ ...adelanto, nota: e.target.value })} rows={2} placeholder="ej. el motivo del adelanto, o «depósito atrasado»" />
             </label>
             <div className="mt-2 flex justify-end gap-2">
               <Boton tamano="sm" onClick={() => setMostrandoAdelanto(false)}>Cancelar</Boton>
