@@ -6,6 +6,8 @@ import {
   fechaCorta,
   proximoDesembolso,
   resumen,
+  totalAtrasadoDelProximo,
+  totalConAtrasado,
   totalProximo,
   type ProvData,
   type ProvPersona,
@@ -34,6 +36,8 @@ export function ResumenProvisiones({
   const r = resumen(personas);
   const prox = proximoDesembolso(data);
   const montoProx = totalProximo(personas, data);
+  const atrasado = totalAtrasadoDelProximo(personas, data);
+  const todoJunto = totalConAtrasado(personas, data);
   const vencidos = calendario(data, personas).vencidos.reduce((a, v) => a + v.personas.length, 0);
 
   return (
@@ -61,6 +65,15 @@ export function ResumenProvisiones({
                   "El monto aparece el 1 de enero, cuando empieza el periodo que lo calcula."
                 )}
               </span>
+              {/* Si lo atrasado de una fecha ya pasada se paga con este depósito,
+                  esto es lo que sale del banco ese día. Es el número para decidir
+                  entre pagar ya o juntarlo con el próximo. */}
+              {atrasado !== null && atrasado > 0 && todoJunto !== null && (
+                <span className="text-sm text-crema/80">
+                  Más {formatSoles(atrasado)} de {prox.beneficio === "CTS" ? "CTS" : "gratificación"} atrasada ·
+                  todo junto, a hoy: <strong className="font-medium text-crema">{formatSoles(todoJunto)}</strong>
+                </span>
+              )}
             </>
           ) : (
             <span className="text-sm text-crema/80">No quedan desembolsos programados.</span>
@@ -118,7 +131,7 @@ export function CalendarioPagos({ data, personas }: { data: ProvData; personas: 
     <div className="grid gap-4 [font-variant-numeric:tabular-nums]">
       {cal.vencidos.length > 0 && (
         <Grupo
-          titulo="Se debe · la fecha de pago ya pasó"
+          titulo="Pendiente de pago · la fecha ya pasó"
           nota="Si ya se pagó por fuera de planilla, falta anotarlo en el libro de desembolsos: mientras no esté anotado, sigue figurando aquí."
         >
           {cal.vencidos.map((e) => (

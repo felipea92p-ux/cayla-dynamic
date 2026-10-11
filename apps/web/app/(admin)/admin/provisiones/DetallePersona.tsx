@@ -6,6 +6,7 @@ import { Estados } from "./TablaProvisiones";
 import {
   ETIQUETA_ESTADO_VENTANA,
   ETIQUETA_ORIGEN,
+  atrasadoDelProximo,
   bonificacionDe,
   devengadoVentana,
   esPracticante,
@@ -13,6 +14,7 @@ import {
   estadoVentana,
   fechaCorta,
   gratiConBonificacion,
+  montoConAtrasado,
   montoProximo,
   pagadoVentana,
   pagosDe,
@@ -201,6 +203,8 @@ export function DetallePersona({
   const ventana = (c: VentanaClave) => ventanas.find((v) => v.clave === c)!;
   const prox = proximoDesembolso(data);
   const mp = montoProximo(p, data);
+  const atrasado = atrasadoDelProximo(p, data);
+  const todoJunto = montoConAtrasado(p, data);
 
   return (
     <div className="grid gap-7 [font-variant-numeric:tabular-nums]">
@@ -240,6 +244,8 @@ export function DetallePersona({
           <p className="text-sm text-taupe">
             Próximo desembolso: {prox.beneficio} el {fechaCorta(prox.fecha)}
             {mp !== null ? ` · ${formatSoles(mp)} acumulado a hoy` : " · el monto aparece el 1 de enero"}.
+            {atrasado !== null && atrasado > 0 && todoJunto !== null &&
+              ` Con ${formatSoles(atrasado)} de ${prox.beneficio === "CTS" ? "CTS" : "gratificación"} atrasada, todo junto serían ${formatSoles(todoJunto)}.`}
           </p>
         )}
         {libro === null && (

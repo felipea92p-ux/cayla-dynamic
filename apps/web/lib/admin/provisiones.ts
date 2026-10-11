@@ -286,14 +286,14 @@ export type EstadoVentana =
   | "sin_monto";
 
 // La clave interna sigue siendo `vencido` (la usan los filtros y las pruebas),
-// pero la pantalla no lo dice así: quien la lee es quien PAGA, y para él una
-// ventana cuya fecha ya pasó no es algo «vencido» —que suena a plazo perdido
-// por otro— sino plata que se debe. Pedido por Felipe el 2026-10-10.
+// pero la pantalla no lo dice así: quien la lee es quien PAGA, y «vencido»
+// suena a un plazo que dejó pasar otro. Felipe lo pidió el 2026-10-10 y, entre
+// «Se le debe», «CAYLA debe» y «Pendiente de pago», eligió el neutro.
 export const ETIQUETA_ESTADO_VENTANA: Record<EstadoVentana, string> = {
   no_aplica: "No aplica",
   pagado_de_mas: "Pagado de más",
-  vencido: "Se debe",
-  pago_parcial: "Pago parcial · se debe el resto",
+  vencido: "Pendiente de pago",
+  pago_parcial: "Pago parcial · falta el resto",
   pagado: "Pagado",
   acumulando: "Acumulando",
   sin_monto: "Sin monto",
@@ -331,7 +331,7 @@ export type EstadoFila = "sin_tramo" | "vencido" | "pagado_de_mas" | "al_dia" | 
 
 export const ETIQUETA_ESTADO_FILA: Record<EstadoFila, string> = {
   sin_tramo: "Salario sin cargar",
-  vencido: "Se le debe",
+  vencido: "Pendiente de pago",
   pagado_de_mas: "Pagado de más",
   al_dia: "Al día",
   no_aplica: "No aplica",
@@ -408,6 +408,55 @@ export function totalProximo(personas: ProvPersona[], d: ProvData): number | nul
   const prox = proximoDesembolso(d);
   if (!prox || !prox.fiable) return null;
   return redondear(personas.reduce((a, p) => a + Math.max(montoProximo(p, d) ?? 0, 0), 0));
+}
+
+/**
+ * Lo que una persona tiene pendiente de ventanas YA PASADAS del mismo beneficio
+ * que el próximo desembolso: para la CTS del 15 de noviembre, lo que quedó de
+ * la de mayo. Es lo que se sumaría al depósito si se decide pagar todo junto.
+ *
+ * Solo cuenta saldo positivo de ventanas pendientes (`vencido` o
+ * `pago_parcial`); un pago de más en otra ventana no lo reduce, por la misma
+ * razón que `totalProximo`. Y no mezcla beneficios: la gratificación y la CTS
+ * salen por caminos distintos —la CTS al banco de cada persona—, así que lo
+ * atrasado de una no engrosa el depósito de la otra.
+ *
+ * null cuando no hay un próximo desembolso fiable (16–31 dic) o la persona no
+ * tiene estos beneficios.
+ */
+export function atrasadoDelProximo(p: ProvPersona, d: ProvData): number | null {
+  const prox = proximoDesembolso(d);
+  if (!prox || !prox.fiable || esPracticante(p)) return null;
+  let total = 0;
+  for (const v of ventanasDe(d)) {
+    if (v.beneficio !== prox.beneficio || v.clave === prox.clave) continue;
+    const e = estadoVentana(p, v, d.as_of);
+    if (e === "vencido" || e === "pago_parcial") total += saldoVentana(p, v.clave);
+  }
+  return redondear(total);
+}
+
+/** La suma de `atrasadoDelProximo` de todo el equipo visible. */
+export function totalAtrasadoDelProximo(personas: ProvPersona[], d: ProvData): number | null {
+  const prox = proximoDesembolso(d);
+  if (!prox || !prox.fiable) return null;
+  return redondear(personas.reduce((a, p) => a + Math.max(atrasadoDelProximo(p, d) ?? 0, 0), 0));
+}
+
+/** Lo acumulado a hoy del próximo desembolso MÁS lo atrasado: lo que sale si se paga todo junto. */
+export function montoConAtrasado(p: ProvPersona, d: ProvData): number | null {
+  const prox = montoProximo(p, d);
+  const atrasado = atrasadoDelProximo(p, d);
+  if (prox === null || atrasado === null) return null;
+  return redondear(prox + atrasado);
+}
+
+/** Lo mismo para todo el equipo visible: suma de positivos, sin netear pagos de más. */
+export function totalConAtrasado(personas: ProvPersona[], d: ProvData): number | null {
+  const prox = totalProximo(personas, d);
+  const atrasado = totalAtrasadoDelProximo(personas, d);
+  if (prox === null || atrasado === null) return null;
+  return redondear(prox + atrasado);
 }
 
 // ── Resumen y calendario ─────────────────────────────────────────────────────
