@@ -52,6 +52,23 @@ values ('00000000-0000-0000-0000-000000308001', 'Hilda', 'PrimeroLaLeve308',
 -- sin marca —tres faltas— y ninguno de los umbrales del art. 25-h se alcanza
 -- (hacen falta 4 consecutivas, 6 en 30 días o 16 en 180). Sin eso el generador
 -- se iría por la rama de imputación directa y no probaría la escalera.
+--
+-- «Exactamente tres» solo es cierto si ninguno de esos tres días es feriado:
+-- `fn_falta_contadores` no cuenta falta en un feriado sin turno (y hace bien, un
+-- falso positivo cuesta más que dejar pasar una falta). La tabla `feriados` es
+-- el calendario REAL, sembrado hasta 2032, así que esta prueba cambiaba de
+-- resultado según la fecha en que se corriera: cuando `hoy - 3` caía en un
+-- feriado el borrador arrancaba al día siguiente y la aserción 5 fallaba. Le
+-- tocaba a cada feriado el día `feriado + 3` —el 2026-10-11 fue por el jueves 8,
+-- Combate de Angamos—, sea cual sea el día de la semana en que cayera.
+--
+-- Por eso se vacía esa ventana, dentro de la transacción (el `rollback` del
+-- final la devuelve). Es el molde de las pruebas 10, 115, 125 o 130, solo que con
+-- la ventana relativa a `fn_hoy_lima()` y no a un mes fijo, porque acá lo que se
+-- mueve es el «hoy». Los tres días de abajo son el único tramo que el generador
+-- mira, así que no hace falta tocar nada más del calendario.
+delete from feriados where fecha between fn_hoy_lima() - 3 and fn_hoy_lima() - 1;
+
 insert into horarios_asignados
   (persona_id, vigente_desde, hora_entrada, hora_salida, almuerzo_min_minutos,
    almuerzo_max_minutos, dias_laborables, horas_semana_objetivo, horario_por_dia)
