@@ -115,6 +115,18 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-10-13-planilla-muestra-movilidad-y-educacion-en-su-columna",
+    fecha: "2026-10-13",
+    titulo: "En Planilla, la movilidad y la educación ya tienen su propia columna",
+    queMejoro:
+      "En la tabla de cada grupo —también la de Practicantes— ahora hay una columna «Movilidad» y otra «Educación», " +
+      "con su suma al pie. Antes esos dos conceptos estaban dentro del total y solo se veían al abrir a la persona, " +
+      "en «Cómo se arma su total».\n\n" +
+      "Si alguien tiene la asignación por educación registrada pero le falta cargar el comprobante, la celda lo dice " +
+      "(«sin comprobante») en vez de quedar en blanco. Pasa el cursor sobre un monto de movilidad para ver la tarifa por día.",
+    audiencia: "do",
+  },
+  {
     id: "2026-10-13-ver-el-cargo-de-cumpleanos-firmado-desde-el-sistema",
     fecha: "2026-10-13",
     titulo: "En Documentación ya se puede abrir el cargo de cumpleaños firmado desde el sistema",
