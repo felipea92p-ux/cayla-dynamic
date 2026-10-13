@@ -238,3 +238,15 @@
     .login-ojal::after { animation: none !important; }
   }
 }
+
+/* El botón «Entrar» en coral, como el de Retail (Felipe 2026-10-13). Va FUERA de `@layer`, igual que lo que ya hace ganar globals.css sobre
+   las utilidades, porque `Boton` pinta `bg-tinta` con una utilidad y una regla en capa no le ganaría. Solo toca el login: el botón primario del
+   resto de Dynamic sigue siendo tinta. `rojo-profundo` es el coral en oscuro (#e8836b) y el rojo hondo en claro (#8b2a1f); el texto es `crema`, que en
+   cada tema da contraste de sobra sobre él. Al pasar el cursor se aclara un paso, a `rojo`. */
+.login-form .login-entrar {
+  background: var(--color-rojo-profundo);
+  color: var(--color-crema);
+}
+.login-form .login-entrar:hover:not(:disabled) {
+  background: var(--color-rojo);
+}

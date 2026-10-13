@@ -148,7 +148,7 @@ export default function AdminLoginPage() {
             required
           />
           {error && <p className="text-sm text-rojo">{error}</p>}
-          <Boton type="submit" variante="primario" disabled={cargando} cargando={cargando} className="mt-2">
+          <Boton type="submit" variante="primario" disabled={cargando} cargando={cargando} className="login-entrar mt-2">
             {cargando ? "Entrando…" : "Entrar"}
           </Boton>
         </form>
