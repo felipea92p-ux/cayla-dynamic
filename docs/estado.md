@@ -6,6 +6,33 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-10-13 — Easter eggs y el colibrí sin internet · SIN SQL · SIN FUSIONAR
+
+**Qué es.** Cinco secretos pasivos y una página para cuando no hay internet,
+con el juego del colibrí (tres juegos en uno: 50 % vuelo, 40 % salto, 10 %
+flappy). El catálogo y cómo activar cada uno está en
+[`easter-eggs.md`](easter-eggs.md); allí se anotan los que vengan.
+
+**No hay migración:** todo es frontend y archivos estáticos. Fusionar el PR ES
+publicar, como siempre.
+
+**Lo que conviene saber antes de fusionar.**
+- Es el primer service worker con alcance `/` (el del terminal sigue siendo
+  `/terminal/`, y este lo ignora a propósito). **No guarda ninguna página del
+  panel**: solo tres archivos sin datos. Está probado ejecutándolo (no leyéndolo)
+  en `tests/sin-conexion.test.ts`, y se comprobó en un navegador real cortando el
+  servidor: el panel muestra el aviso, el terminal NO.
+- **Solo funciona en dispositivos que ya abrieron Dynamic una vez con internet**
+  después de este despliegue. La primera visita sin red ve el error normal.
+- Se registra solo en producción. En `pnpm dev` no hace nada, para no dejar un
+  service worker pegado a `localhost:3000`.
+
+**Pendiente.** El toque del **aniversario de CAYLA**: falta el día exacto (en
+Retail es una campaña con ventana editable, no un día). Ver el final de
+`easter-eggs.md`.
+
+---
+
 ## 2026-10-13 — Info saluda en el mes de cumpleaños, y el bono es para todo el equipo salvo prueba y contratos cortos · 0518 y 0520 PEGADAS EN PRODUCCIÓN (2026-10-13) · 0519 NEUTRALIZADA · SIN FUSIONAR
 
 **El caso.** Daniel Ruiz, practicante, cumple en octubre, y el 13 no tenía nada

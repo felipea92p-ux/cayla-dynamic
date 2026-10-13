@@ -762,6 +762,7 @@ siguiente es medir cuántos cambios notables hubo sin entrada antes de decidir.
 | Ruta | Qué es |
 |---|---|
 | `estado.md` | **Dónde estamos hoy.** Se sobrescribe, no se acumula. |
+| `easter-eggs.md` | **Los secretos del sistema** y cómo activarlos: el código Konami, «colibrí» en el buscador, los clics del login, los toques de fecha y el colibrí sin internet. Si agregas uno, se anota ahí en el mismo PR. |
 | `cerrar-el-mes-sin-pagar-dos-veces.md` | El día 28, al cerrar la planilla: qué avisa el sistema cuando alguien cesó a mitad de mes y ya cobró su liquidación, y qué apretar. |
 | `prueba-restauracion-backup.md` | Cómo comprobar, con `scripts/probar-restauracion-backup.sh`, que el respaldo de producción se puede restaurar de verdad — no solo que existe. |
 | `terminales-mac-mini.md` | Manual para dejar la Mac mini de una sede como terminal. |
