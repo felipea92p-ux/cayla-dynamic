@@ -128,6 +128,15 @@ mismo Windows probablemente reproduce el `\r`, y no arregla nada que esté mal)
 y anotarlo acá, que es lo que evita que la próxima sesión pare en seco o —peor—
 aprenda a ignorar un aviso de md5.
 
+Y desde el 2026-10-13 `donde-vive.sh` imprime también las dos variantes con
+`\r\n` —`crlf_tal_cual` y `crlf_sin_comentarios`— junto a las de siempre, y el
+cuarto desenlace: coincide una variante CRLF → mismo código pegado desde
+Windows; seguir, y declarar en la migración el md5 de PRODUCCIÓN. Se agregó
+porque ese día, antes de pegar la 0518, `fn_documentos_tablero` devolvió en
+producción `56aff7b1…` / `d138aae9…` —ninguno de los dos del script— y hubo que
+demostrar a mano, con la 0492 dentro de `begin … rollback`, que era este caso y
+no otra versión.
+
 Distinguir esta causa de la grave importa: si la diferencia **no** cuadra con el
 número de líneas ni con los comentarios, entonces sí es otra versión y hay que
 parar. Ver también `docs/estado.md`, que documenta el CRLF en disco — es el
