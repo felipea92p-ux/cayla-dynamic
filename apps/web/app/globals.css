@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./login-vuelo.css"; /* el panel de marca del login en pantalla ancha */
 
 @theme {
   /* ── Paleta CAYLA ─────────────────────────────────────────────
@@ -21,6 +22,11 @@
      CampoSelect y Boton puedan pedir border-borde-control — aplicarlo es
      trabajo de esos archivos, no de este. */
   --color-borde-control: var(--color-taupe);
+  /* Los dos colores de marca que NO cambian con el tema (mismos valores que tinta y crema en claro). Los usa solo el panel del
+     login (login-vuelo.css), que es una pieza de marca oscura en los dos temas: ahí «tinta» y «crema» se invertirían en oscuro y
+     el panel dejaría de ser oscuro. No se redefinen en ningún bloque de modo oscuro, a propósito. */
+  --color-tinta-fija: #1a1a18;
+  --color-crema-fija: #f5f0e8;
   /* Estados operativos: verdes/ámbar cálidos, apagados para convivir con la crema.
      Retunados el 2026-09-06: los valores anteriores (#5b754f, #8d6726) daban
      4.51:1 sobre crema — el límite exacto de WCAG AA, tal como se pinta el pill
