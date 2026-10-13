@@ -30,18 +30,36 @@ const TEXTO_TITULO: Record<Variante, string> = {
   informativo: "text-pizarra",
 };
 
+// Dos tamaños (decisión 9 de docs/adr/0004-diseno-unificado.md, 2026-10-13):
+// un aviso con título y explicación merece la caja grande; un recordatorio de
+// una línea, no. Hasta entonces había 32 usos de este componente y unos 59
+// avisos escritos a mano con esquinas de 8, 12 y 16 px y otro margen interior.
+//   · por defecto → caja grande: título serif, rounded-superficie, p-5.
+//   · `enLinea`    → rounded-control, px-4 py-3. El `titulo`, si llega, va como
+//                   primera palabra en negrita del mismo renglón («Sin horario:»).
 export function BannerAviso({
   titulo,
   variante = "advertencia",
+  enLinea = false,
   children,
   className,
 }: {
   /** Texto del encabezado (font-serif text-lg). Omitilo para un aviso de una sola línea sin título propio. */
   titulo?: ReactNode;
   variante?: Variante;
+  /** El aviso chico, de una o dos líneas: sin encabezado aparte. */
+  enLinea?: boolean;
   children: ReactNode;
   className?: string;
 }) {
+  if (enLinea) {
+    return (
+      <div className={cx("rounded-control border px-4 py-3 text-sm", TONOS[variante], className)}>
+        {titulo && <b className={cx("font-medium", TEXTO_TITULO[variante])}>{titulo} </b>}
+        {children}
+      </div>
+    );
+  }
   return (
     <div className={cx("rounded-superficie border p-5 text-sm", TONOS[variante], className)}>
       {titulo && <h2 className={cx("mb-1 font-serif text-lg", TEXTO_TITULO[variante])}>{titulo}</h2>}
