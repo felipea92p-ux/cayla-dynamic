@@ -10,6 +10,7 @@ import {
 import { ResumenEducacionMia } from "./educacion/resumen";
 import { BoletasMias } from "./boletas/boletas-mias";
 import { ReportesMios } from "./reportes/reportes-mios";
+import { SaludoCumpleanos } from "./saludo-cumpleanos";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Colibri } from "@/components/marca";
 import { AcusesPendientes } from "@/components/acuses-pendientes";
@@ -48,6 +49,7 @@ import { cicloVigente, type DiaTrabajado } from "@/lib/admin/ciclo-sobretiempo";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { esMemoPorFirmar, traerBandeja } from "@/lib/bandeja-mia";
 import { mostrarBonoEnInfo, puedePedirBono, traerMiBono, type MiBono } from "@/lib/mi-bono";
+import { esMesDeCumpleanos } from "@/lib/saludos-cumpleanos";
 import { esBoletaNueva } from "@/lib/boletas";
 import { contarBoletasNuevas, nombreDelPeriodo, traerMisBoletas, type FilaMiBoleta } from "@/lib/mis-boletas";
 import { contarSinLeer, traerMisReportes, type FilaMiReporte } from "@/lib/reportes";
@@ -2014,6 +2016,13 @@ export default function MioPage() {
         // DESPUÉS del ancla `#detalle` (regla de hermandad en globals.css), y
         // esta vive antes.
         <div className="entra-seccion mb-6 grid gap-3 sm:grid-cols-2">
+          {/* El mes de su cumpleaños, del día 1 al último, para TODO el mundo —
+              también para quien la base le dice `no_aplica` al bono, que es el
+              caso que se quedaba en silencio (Daniel Ruiz, oct-2026). Primero
+              de todo: es lo único de esta pantalla que pasa una vez al año. */}
+          {yo && miBono && esMesDeCumpleanos(miBono, hoyLima()) && (
+            <SaludoCumpleanos nombre={yo.nombres.split(" ")[0]} bono={miBono} hoy={hoyLima()} />
+          )}
           {/* Una boleta oficial publicada y sin abrir. Solo aparece mientras haya
               una: en cuanto se abre, `vista_at` queda escrito y esto se va. Lleva
               a «Boletas», no a `/mio/boleta` (esa es la boleta en vivo). */}
