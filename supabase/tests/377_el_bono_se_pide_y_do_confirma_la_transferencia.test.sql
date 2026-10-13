@@ -8,9 +8,9 @@
 -- Lo que defiende, en el orden del recorrido real:
 --
 --   1. QUÉ LE TOCA. `fn_mi_bono_cumpleanos` contesta igual que el tablero, más
---      lo que el tablero no sabe: que a una practicante no le corresponde.
---   2. SOLO SE PIDE CUANDO TOCA. Sin fecha, fuera de planilla, practicante o
---      antes de su mes: no pasa. En su mes: pasa, y no dos veces.
+--      lo que el tablero no sabe. (Hasta la 0518 eso incluía «a una practicante
+--      no le corresponde»; desde la 0518 sí le corresponde — ver la 413.)
+--   2. SOLO SE PIDE CUANDO TOCA. Sin fecha o antes de su mes: no pasa. En su mes: pasa, y no dos veces.
 --   3. EL PEDIDO LLEGA A DO Y NO SE APAGA SOLO. Firmar no lo borra de
 --      `fn_bonos_por_transferir`; solo la confirmación lo saca.
 --   4. LA CONFIRMACIÓN NO SE PUEDE FALSEAR. Sin fecha, futura, de otro año,
@@ -96,8 +96,8 @@ select is((select estado from fn_mi_bono_cumpleanos()), 'sin_fecha',
 select pg_temp.como('00000000-0000-0000-0000-000000377013');
 select is((select bono_estado from fn_documentos_tablero(true)), 'este_mes',
   'CONTROL · el tablero (0424) sí le calcula el bono a la practicante…');
-select is((select estado from fn_mi_bono_cumpleanos()), 'no_aplica',
-  '…pero fn_mi_bono_cumpleanos no se lo ofrece: el bono es de planilla');
+select is((select estado from fn_mi_bono_cumpleanos()), 'este_mes',
+  '…y desde la 0518 fn_mi_bono_cumpleanos contesta lo mismo: también es para ella');
 
 select pg_temp.como('00000000-0000-0000-0000-000000377014');
 select is((select estado from fn_mi_bono_cumpleanos()),
@@ -110,7 +110,10 @@ select pg_temp.como('00000000-0000-0000-0000-000000377012');
 select is(pg_temp.pudo_pedir(), false, 'PUERTA · sin fecha de nacimiento no se pide');
 
 select pg_temp.como('00000000-0000-0000-0000-000000377013');
-select is(pg_temp.pudo_pedir(), false, 'PUERTA · la practicante no lo pide aunque el tablero la liste');
+-- Desde la 0518 la practicante SÍ lo pide. No se pide aquí para no mover los
+-- conteos de DO de abajo; el recorrido entero de la practicante vive en la 413.
+select is(fn_persona_le_corresponde_bono_cumpleanos('00000000-0000-0000-0000-000000377003'), true,
+  'PUERTA · desde la 0518 la practicante también puede pedirlo (recorrido en la 413)');
 
 select pg_temp.como('00000000-0000-0000-0000-000000377014');
 select is(pg_temp.pudo_pedir(), extract(month from fn_hoy_lima()) = 12,

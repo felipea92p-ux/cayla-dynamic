@@ -8,8 +8,8 @@ import type { ClienteCayla } from "@cayla-dynamic/database";
  * contesta en UNA función, que además es la puerta del pedido. Acá solo se lee
  * esa respuesta y se decide lo que es de pantalla (cuándo mostrar la tarjeta).
  * Nadie en el frontend vuelve a mirar `bono_estado` del tablero: ese no sabe
- * que el bono es de planilla, y le ofrecería a una practicante un bono que la
- * base le niega.
+ * si ya se pidió, si va en la boleta o si se pagó. (Hasta la 0518 tampoco
+ * sabía que a una practicante se le negaba; desde la 0518 ya no se le niega.)
  */
 
 export type EstadoMiBono =
@@ -21,7 +21,7 @@ export type EstadoMiBono =
   | "pedido"
   /** Lo firmó, ya está en su boleta y el periodo todavía no se paga (0479). */
   | "en_boleta"
-  /** No está en planilla, o su cumpleaños de este año cayó antes del bono o de su ingreso. */
+  /** No está en planilla ni es practicante, o su cumpleaños de este año cayó antes del bono o de su ingreso. */
   | "no_aplica"
   /** Falta su fecha de nacimiento en la ficha. */
   | "sin_fecha"

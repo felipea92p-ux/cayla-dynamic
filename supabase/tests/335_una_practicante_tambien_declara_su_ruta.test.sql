@@ -19,7 +19,7 @@
 --      cobra movilidad (0117)— empezaría a aparecer en el tablero de
 --      Documentación, exactamente el falso positivo que el sistema entero
 --      está armado para evitar. Y el bono de cumpleaños, que esta migración
---      deja fuera a propósito, tiene que seguir rechazando a la practicante.
+--      dejó fuera a propósito — hasta que la 0518 lo abrió también.
 -- ============================================================================
 begin;
 select plan(9);
@@ -74,12 +74,14 @@ select lives_ok(
        null, false, null, 'documentos/prueba-335.jpg', null) $$,
   'REGISTRAR · admin sí puede registrar la ruta escaneada de una practicante');
 
-select throws_ok(
+-- Hasta la 0518 esto fallaba a propósito: la 0424 abrió la ruta y NO el bono.
+-- Desde la 0518 el bono también es para la practicante (decisión de Cayla,
+-- 2026-10-13), y el cargo en papel de DO contesta lo mismo que su Info.
+select lives_ok(
   $$ select fn_documento_registrar('bono', fn_hoy_lima(),
        '00000000-0000-0000-0000-000000335005', null, null,
        2026, false, null, 'documentos/prueba-335-bono.jpg', null) $$,
-  null, null,
-  'BONO INTACTO · el bono de cumpleaños sigue exigiendo en_planilla — no se abrió de paso');
+  'BONO · desde la 0518 DO también puede registrar el cargo de una practicante');
 
 -- ── 3 · Puerta propia: fn_confirmar_mi_declaracion_ruta ────────────────────
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000335011', true);

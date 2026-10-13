@@ -342,8 +342,8 @@ export interface FuentesBandeja {
   turnos: FilaTurno[];
   /**
    * Su bono de cumpleaños (0478), de `fn_mi_bono_cumpleanos`. NO del
-   * `bono_estado` del tablero: ese no sabe que el bono es de planilla y le
-   * pediría a una practicante algo que la base le niega. Opcional: sin él no
+   * `bono_estado` del tablero: ese no sabe si ya se pidió o si va en la
+   * boleta (y hasta la 0518 no sabía a quién se le negaba). Opcional: sin él no
    * se dice nada del bono.
    */
   bono?: MiBono | null;
