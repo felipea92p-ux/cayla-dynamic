@@ -1,9 +1,11 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useState, useSyncExternalStore, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Colibri } from "@/components/marca";
+import { PanelVuelo } from "@/components/login/PanelVuelo";
+import { saludoDelDia } from "@/lib/login-vuelo";
 import { ROLES_CON_PANEL, claveSirve } from "@cayla-dynamic/shared";
 import { clavePorCambiar, marcarMiClavePorCambiar } from "@/lib/admin/mi-clave";
 import { esFallaDeRed } from "@/lib/admin/mensaje-error";
@@ -12,8 +14,12 @@ import { Campo } from "@/components/ui/campo";
 import { CampoClave } from "@/components/ui/campo-clave";
 import { Boton } from "@/components/ui/boton";
 
+const sinSuscripcion = () => () => {};
+
 export default function AdminLoginPage() {
   const router = useRouter();
+  // El saludo depende de la hora: lo pone el navegador (en el servidor no se sabe cuándo se abrirá la página).
+  const saludo = useSyncExternalStore(sinSuscripcion, () => saludoDelDia(new Date()), () => null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -102,37 +108,57 @@ export default function AdminLoginPage() {
     router.replace(rol && ROLES_CON_PANEL.includes(rol as never) ? "/admin/dashboard" : "/mio");
   }
 
+  // «El vuelo» (el mismo login de CAYLA Retail): la marca a la izquierda y el formulario a la derecha desde 1024 px;
+  // en el celular, solo el formulario con la marca arriba, como siempre.
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-8 p-8">
-      <div className="flex flex-col items-center gap-4">
-        <Colibri tono="rojo" className="w-12" />
-        <div className="text-center">
-          <h1 className="font-serif text-3xl leading-none">Dynamic</h1>
-          <p className="etiqueta mt-2 text-taupe">Panel de administración · CAYLA</p>
-        </div>
-      </div>
-      <form onSubmit={entrar} className="flex w-full max-w-xs flex-col gap-3">
-        <Campo
-          type="email"
-          placeholder="correo"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-        />
-        <CampoClave
-          placeholder="contraseña"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-        />
-        {error && <p className="text-sm text-rojo">{error}</p>}
-        <Boton type="submit" variante="primario" disabled={cargando} cargando={cargando}>
-          {cargando ? "Entrando…" : "Entrar"}
-        </Boton>
-        <a href="/admin/olvide-clave" className="text-center text-sm text-taupe underline-offset-2 hover:underline">
-          ¿Olvidaste tu clave?
-        </a>
-      </form>
+    <div className="login-pagina">
+      <PanelVuelo />
+
+      <main className="login-lado">
+        <form onSubmit={entrar} className="login-form flex flex-col gap-3">
+          <div className="login-marca-chica">
+            <Colibri tono="rojo" className="w-12" />
+            <p className="mt-4 font-serif text-3xl leading-none">Dynamic</p>
+            <p className="etiqueta mt-2 text-taupe">Panel de administración · CAYLA</p>
+          </div>
+
+          <div className="mb-3">
+            <p className="login-saludo" data-listo={saludo ? "" : undefined}>
+              {saludo ?? "\u00a0"}
+            </p>
+            <h1 className="login-titulo">Entrar</h1>
+            <p className="mt-2 text-sm leading-relaxed text-taupe">
+              Con el correo y la contraseña de tu cuenta de CAYLA.
+            </p>
+          </div>
+
+          <Campo
+            etiqueta="Correo"
+            type="email"
+            autoComplete="username"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
+          <CampoClave
+            etiqueta="Contraseña"
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
+          {error && <p className="text-sm text-rojo">{error}</p>}
+          <Boton type="submit" variante="primario" disabled={cargando} cargando={cargando} className="login-entrar mt-2">
+            {cargando ? "Entrando…" : "Entrar"}
+          </Boton>
+        </form>
+
+        <p className="login-pie text-sm">
+          <a href="/admin/olvide-clave" className="text-taupe underline-offset-2 hover:underline">
+            ¿Olvidaste tu clave?
+          </a>
+        </p>
+      </main>
     </div>
   );
 }

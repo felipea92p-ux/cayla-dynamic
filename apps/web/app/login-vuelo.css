@@ -1,0 +1,252 @@
+/* ==================================================================
+   LOGIN — «El vuelo vivo». Se porta de CAYLA Retail (su `app/estilos/login.css`, PR #1041, Felipe 2026-10-13) para que quien entra a
+   Dynamic en un PC o una pantalla ancha vea la misma marca. Página: app/(admin)/admin/login/page.tsx; el panel:
+   components/login/PanelVuelo.tsx; la geometría y la hora: lib/login-vuelo.ts (con sus pruebas en tests/login-vuelo.test.ts).
+
+   Dos mitades desde 1024 px: a la izquierda la marca (el colibrí en rojo que aletea de Trujillo a su lugar cosiendo las tres
+   ciudades y tiñendo «transforma.» al pasar, y el lema); a la derecha, el formulario. Debajo de 1024 px, solo el formulario con la
+   marca arriba: el celular y la tableta en vertical se ven como siempre.
+
+   El panel es oscuro en los dos temas, como una pieza de marca (textos con `--color-crema-fija`); en oscuro pasa a papel con su
+   filo, para no fundirse con el fondo de la página. Los colores del panel se declaran como variables locales (`--lp-*`) y el tema
+   oscuro solo las redefine, en los DOS caminos que tiene Dynamic: elegido a mano (`data-tema="oscuro"`) y el del sistema.
+   Movimiento: el vuelo una sola vez (el aleteo se detiene al llegar), la onda de cada ojal, el lema y el saludo que asoman; sin rebote,
+   y con prefers-reduced-motion todo se ve terminado.
+   ================================================================== */
+
+@layer components {
+  .login-pagina {
+    display: flex;
+    min-height: 100vh;
+    min-height: 100dvh;
+    background: var(--color-crema);
+  }
+
+  /* ---------- La mitad de la marca ---------- */
+  .login-panel {
+    display: none;
+    position: relative;
+    overflow: hidden;
+    flex: 1.05 1 0%;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 56px 64px;
+    --lp-fondo: var(--color-tinta-fija);
+    --lp-filo: transparent;
+    --lp-hilo: color-mix(in srgb, var(--color-crema-fija) 35%, transparent);
+    --lp-ojal-borde: var(--color-crema-fija);
+    --lp-ojal-fondo: var(--color-tinta-fija);
+    --lp-ojal-cosido: var(--color-crema-fija);
+    background: var(--lp-fondo);
+    border-right: 1px solid var(--lp-filo);
+    color: var(--color-crema-fija);
+  }
+  @media (min-width: 64rem) {
+    .login-panel { display: flex; }
+  }
+  :root[data-tema="oscuro"] .login-panel {
+    --lp-fondo: var(--color-papel);
+    --lp-filo: var(--color-sand);
+    --lp-hilo: var(--color-taupe);
+    --lp-ojal-borde: var(--color-taupe);
+    --lp-ojal-fondo: var(--color-papel);
+    --lp-ojal-cosido: var(--color-taupe);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-tema="claro"]) .login-panel {
+      --lp-fondo: var(--color-papel);
+      --lp-filo: var(--color-sand);
+      --lp-hilo: var(--color-taupe);
+      --lp-ojal-borde: var(--color-taupe);
+      --lp-ojal-fondo: var(--color-papel);
+      --lp-ojal-cosido: var(--color-taupe);
+    }
+  }
+
+  .login-panel-marca {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+  }
+  .login-panel-marca span { font-family: var(--font-serif); font-size: 20px; letter-spacing: 0.24em; }
+  .login-panel-marca small {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: color-mix(in srgb, var(--color-crema-fija) 60%, transparent);
+  }
+
+  /* El colibrí en su lugar final; mientras vuela, el componente lo mueve con `transform` desde la punta de su cola y le dibuja el ala. */
+  .login-ave {
+    position: absolute;
+    z-index: 3;
+    overflow: visible;
+    top: 70px;
+    right: 40px;
+    width: min(330px, 44%);
+    aspect-ratio: 223 / 150;
+    fill: none;
+    stroke: var(--color-rojo);
+    stroke-width: 4;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+    transform-origin: 21.1% 97.3%; /* la cola (47,146 del lienzo de 223×150): ahí se ata el hilo */
+    will-change: transform;
+  }
+  .login-ave path { stroke-dasharray: 1; } /* con `pathLength=1`: el componente lo dibuja al aparecer */
+  /* Hasta que el componente mide, el ave no se ve en su lugar final (si no, aparecería un instante antes de salir de Trujillo). */
+  .login-panel:not([data-volando]):not([data-llego]) .login-ave { visibility: hidden; }
+  @media (prefers-reduced-motion: reduce) {
+    .login-panel .login-ave { visibility: visible; }
+  }
+
+  /* El hilo: una costura punteada que se revela detrás del ave con una máscara. */
+  .login-hilo {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
+  .login-hilo-trazo {
+    fill: none;
+    stroke: var(--lp-hilo);
+    stroke-width: 1.4;
+    stroke-dasharray: 6 7;
+  }
+  /* La máscara mide luz: lo claro deja ver el hilo. Crema fija es casi blanca y existe en los dos temas. */
+  .login-hilo-mascara {
+    fill: none;
+    stroke: var(--color-crema-fija);
+    stroke-width: 6;
+    stroke-dasharray: 0 100000;
+  }
+
+  .login-lema {
+    position: relative;
+    z-index: 2;
+    max-width: 460px;
+    font-family: var(--font-serif);
+    font-size: clamp(44px, 4.4vw, 60px);
+    font-style: italic;
+    line-height: 1.02;
+    letter-spacing: -0.01em;
+    animation: login-asoma 700ms var(--ease-salida) 300ms both;
+  }
+  /* «transforma.» se tiñe de rojo cuando el ave pasa por detrás, de derecha a izquierda (`--login-tinta`, lo mueve el componente). */
+  .login-lema em {
+    --login-tinta: 0%;
+    background: linear-gradient(270deg, var(--color-rojo) var(--login-tinta), var(--color-crema-fija) var(--login-tinta));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .login-sedes {
+    position: relative;
+    z-index: 2;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    max-width: 520px;
+  }
+  .login-sedes li { display: grid; gap: 8px; }
+  .login-sedes li:not(:first-child) { padding-left: 22px; }
+  .login-sedes li:not(:last-child) { padding-right: 22px; }
+  .login-sedes small {
+    font-size: 9.5px;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    color: color-mix(in srgb, var(--color-crema-fija) 55%, transparent);
+  }
+  .login-sedes b { font-family: var(--font-serif); font-size: 22px; font-weight: 400; }
+
+  /* Cada sede es un ojal: hueco hasta que el hilo pasa por ella. */
+  .login-ojal {
+    position: relative;
+    width: 11px;
+    height: 11px;
+    border-radius: 9999px;
+    border: 1.5px solid var(--lp-ojal-borde);
+    background: var(--lp-ojal-fondo);
+    transition: background-color 380ms var(--ease-salida), transform 380ms var(--ease-salida);
+  }
+  .login-ojal[data-cosido] { background: var(--lp-ojal-cosido); transform: scale(1.15); }
+  /* Al coserse, una onda sale del ojal una sola vez. */
+  .login-ojal::after {
+    content: "";
+    position: absolute;
+    inset: -1.5px;
+    border-radius: 9999px;
+    border: 1.5px solid var(--lp-ojal-borde);
+    opacity: 0;
+  }
+  .login-panel[data-volando]:not([data-llego]) .login-ojal[data-cosido]::after { animation: login-onda 700ms var(--ease-salida) forwards; }
+
+  /* ---------- La mitad del formulario ---------- */
+  .login-lado {
+    position: relative;
+    flex: 1 1 0%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 48px 24px 88px;
+  }
+  .login-form { width: 100%; max-width: 360px; }
+  .login-saludo {
+    min-height: 11px;
+    margin-bottom: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-taupe);
+  }
+  .login-saludo[data-listo] { animation: login-asoma 500ms var(--ease-salida) both; }
+  .login-titulo { font-family: var(--font-serif); font-size: 34px; font-weight: 400; line-height: 1.1; color: var(--color-tinta); }
+  .login-pie {
+    position: absolute;
+    bottom: 28px;
+    left: 24px;
+    right: 24px;
+    text-align: center;
+  }
+
+  /* La marca arriba del formulario, solo en el celular (en ancho la lleva el panel). */
+  .login-marca-chica { display: flex; flex-direction: column; align-items: center; margin-bottom: 36px; text-align: center; }
+  @media (min-width: 64rem) {
+    .login-marca-chica { display: none; }
+  }
+
+  @keyframes login-onda {
+    from { opacity: 0.7; transform: scale(1); }
+    to { opacity: 0; transform: scale(3.2); }
+  }
+  @keyframes login-asoma {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .login-lema,
+    .login-saludo[data-listo] { animation: none; }
+    .login-ojal { transition: none; }
+    .login-ojal::after { animation: none !important; }
+  }
+}
+
+/* El botón «Entrar» en coral, como el de Retail (Felipe 2026-10-13). Va FUERA de `@layer`, igual que lo que ya hace ganar globals.css sobre
+   las utilidades, porque `Boton` pinta `bg-tinta` con una utilidad y una regla en capa no le ganaría. Solo toca el login: el botón primario del
+   resto de Dynamic sigue siendo tinta. `rojo-profundo` es el coral en oscuro (#e8836b) y el rojo hondo en claro (#8b2a1f); el texto es `crema`, que en
+   cada tema da contraste de sobra sobre él. Al pasar el cursor se aclara un paso, a `rojo`. */
+.login-form .login-entrar {
+  background: var(--color-rojo-profundo);
+  color: var(--color-crema);
+}
+.login-form .login-entrar:hover:not(:disabled) {
+  background: var(--color-rojo);
+}
