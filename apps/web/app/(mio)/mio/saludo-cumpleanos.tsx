@@ -8,7 +8,7 @@ import { formatSoles } from "@/lib/rangos";
 import { SALUDOS_CUMPLEANOS, SALUDO_CADA_MS, saludoInicial } from "@/lib/saludos-cumpleanos";
 
 /**
- * El saludo del mes de cumpleaños, arriba de todo en el Resumen de Info.
+ * El saludo del mes de cumpleaños, arriba de todo en Info (solo el acuse va antes).
  *
  * Quien lo monta decide CUÁNDO (`esMesDeCumpleanos`); esto solo decide qué se
  * dice. El saludo es para todo el mundo; el botón de firmar, solo para quien la
@@ -37,7 +37,7 @@ export function SaludoCumpleanos({ nombre, bono, hoy }: { nombre: string; bono: 
       aria-label="Tu mes de cumpleaños"
       onMouseEnter={() => setQuieto(true)}
       onMouseLeave={() => setQuieto(false)}
-      className="relative overflow-hidden rounded-2xl border border-rojo/30 bg-papel p-5 sm:col-span-2 sm:p-6"
+      className="relative mb-6 overflow-hidden rounded-2xl border border-rojo/30 bg-papel p-5 sm:p-6"
     >
       {/* Confeti con los tokens de la casa: sigue al modo oscuro sin tocar nada. */}
       <div aria-hidden className="pointer-events-none absolute inset-0 opacity-60">

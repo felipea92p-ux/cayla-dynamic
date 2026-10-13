@@ -1940,6 +1940,16 @@ export default function MioPage() {
           que no le llega a su destinataria no prueba nada. */}
       <AcusesPendientes />
 
+      {/* El mes de su cumpleaños, del día 1 al último y en cualquier sección,
+          para TODO el mundo — también para quien la base le contestaba
+          `no_aplica` al bono, que es el caso que se quedaba en silencio
+          (Daniel Ruiz, oct-2026). Arriba y no dentro de «Resumen»: ahí quedaba
+          debajo de las novedades y de «Necesita que hagas algo», fuera de la
+          primera vista. Solo el acuse va antes, por la razón escrita arriba. */}
+      {yo && miBono && esMesDeCumpleanos(miBono, hoyLima()) && (
+        <SaludoCumpleanos nombre={yo.nombres.split(" ")[0]} bono={miBono} hoy={hoyLima()} />
+      )}
+
       <AnunciosWidget />
 
       {/* Lo que mejoró en el sistema. No pide nada: se entiende y desaparece. */}
@@ -2016,13 +2026,6 @@ export default function MioPage() {
         // DESPUÉS del ancla `#detalle` (regla de hermandad en globals.css), y
         // esta vive antes.
         <div className="entra-seccion mb-6 grid gap-3 sm:grid-cols-2">
-          {/* El mes de su cumpleaños, del día 1 al último, para TODO el mundo —
-              también para quien la base le dice `no_aplica` al bono, que es el
-              caso que se quedaba en silencio (Daniel Ruiz, oct-2026). Primero
-              de todo: es lo único de esta pantalla que pasa una vez al año. */}
-          {yo && miBono && esMesDeCumpleanos(miBono, hoyLima()) && (
-            <SaludoCumpleanos nombre={yo.nombres.split(" ")[0]} bono={miBono} hoy={hoyLima()} />
-          )}
           {/* Una boleta oficial publicada y sin abrir. Solo aparece mientras haya
               una: en cuanto se abre, `vista_at` queda escrito y esto se va. Lleva
               a «Boletas», no a `/mio/boleta` (esa es la boleta en vivo). */}

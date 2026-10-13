@@ -6,6 +6,78 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-10-13 — Info saluda en el mes de cumpleaños, y el bono es para todo el equipo salvo prueba y contratos cortos · migración 0518 · ESCRITA Y PROBADA · SIN PEGAR · SIN FUSIONAR
+
+**El caso.** Daniel Ruiz, practicante, cumple en octubre, y el 13 no tenía nada
+en su Info ni en su Bandeja mientras DO lo veía como «Bono de cumpleaños sin
+constancia firmada». Reproducido en local con un perfil igual: el tablero decía
+`este_mes` y `fn_mi_bono_cumpleanos` decía `no_aplica` — dos funciones
+contestando distinto sobre la misma persona (era el pendiente anotado abajo en
+la sección de la 0478, ahora cerrado).
+
+**Decidido por Cayla ese día:** todos firman —planilla y practicantes— salvo
+quien está en periodo de prueba (`tipo_vinculo = 'prueba'`) o tiene un
+contrato de menos de una semana (7 días con los dos extremos incluidos, leído
+de `personas.fecha_fin_contrato - fecha_ingreso + 1`; sin fecha de fin es
+indefinido y le toca). RxH y `no_trabajador` siguen fuera.
+
+**Lo que hace la 0518.** Una función nueva, `fn_persona_le_corresponde_bono_cumpleanos`,
+dice a quién le toca; la leen las TRES puertas, cada una con un `CAMBIO 0518`
+marcado sobre su versión vigente: `fn_mi_bono_cumpleanos` (0479 → Info, Bandeja
+mía, /mio/cumpleanos y la firma), `fn_documento_registrar` (0448 → el cargo en
+papel de DO) y `fn_documentos_tablero` (0492 → lo que DO ve en Documentación y
+en su Bandeja). A quien no le toca, el tablero ya no le pide nada.
+
+**Sin SQL, en el frontend:** el saludo de cumpleaños en Info
+(`app/(mio)/mio/saludo-cumpleanos.tsx`, mensajes en `lib/saludos-cumpleanos.ts`):
+aparece del día 1 al último del mes, arriba de todo —solo el acuse va antes—,
+para TODO el mundo, con 16 mensajes que rotan cada 9 s (se paran al pasar el
+mouse y con «reducir movimiento»). El botón «Firmar mi bono» solo sale cuando
+la base dice que puede (`puedePedirBono`): nunca un botón que va a fallar. La
+novedad del equipo va en el mismo PR (`2026-10-13-cumpleanos-en-info`; su
+`fecha` se corrige al día de la fusión).
+
+**Auditado.** En `BEGIN … ROLLBACK` con el Postgres local devuelto a su punto
+de partida (los tres md5 coincidían con los vigentes): con la 0518 pasan las 12
+pruebas que tocan bono o tablero (413 nueva con 19 aserciones, 377, 335, 376,
+378, 123, 129, 131, 132, 307, 334, 389); sin ella fallan solo 413, 377 y 335,
+las tres que codifican la regla nueva. La planilla de la practicante suma el
+bono y EsSalud no se mueve (para practicantes la base es siempre el piso RMV).
+Vitest de saludos y novedades en verde, typecheck en verde. Probado en el
+navegador con cuentas locales: practicante → saludo + «Firmar mi bono de
+cumpleaños · S/ 180.00»; en prueba → saludo sin botón. **La 0518 quedó
+aplicada en el Postgres local compartido.**
+
+**Antes de pegar, en este orden:**
+1. `./scripts/donde-vive.sh` de `fn_mi_bono_cumpleanos`, `fn_documento_registrar`
+   y `fn_documentos_tablero` **en el mismo mensaje en que se entrega el SQL**,
+   y los tres md5 contra producción (los de partida están en el encabezado de
+   la 0518; son del Postgres LOCAL). Si el «sin comentarios» coincide, seguir;
+   si no coincide ninguno, parar.
+2. Comprobar que ninguna rama nueva redefine ninguna de las tres después de la
+   0492 (el 2026-10-13 no había ninguna).
+3. Pegar la **0518**, mirar la fila de `migraciones_aplicadas` con `numero` Y
+   `nombre`, y recién ahí fusionar (fusionar es publicar).
+4. Correr `scripts/sql-manual/diagnostico_bono_cumpleanos_daniel.sql` (solo
+   lee) para confirmar con sus datos reales que Daniel queda en `este_mes` —
+   y que tiene firma guardada, sin la cual el botón lo manda a configurarla.
+
+**Pendientes que esto dejó a la vista, sin tocar:**
+- Los practicantes no tienen ningún documento con acuse que diga que les
+  corresponde el bono: la Política salarial los excluye a propósito (Ley
+  30709 no les alcanza, decidido el 2026-08-31) y el convenio de prácticas no
+  lo menciona. El bono es una liberalidad y no exige papel, pero hoy la regla
+  solo vive en el código. Si Cayla quiere dejarlo escrito, va en una adenda al
+  convenio o en Normas, no en una novedad.
+- Quien cumple años en prueba y pasa a planilla antes de fin de año queda en
+  `vencido` y puede pedirlo entonces (comportamiento de la 0478, no de esta
+  migración). Si debe perderse, es otra decisión.
+- El tablero no lista a quien termina contrato este mes (0161), así que esa
+  persona sigue sin poder pedir el bono desde Info aunque la regla nueva se lo
+  dé: lo registra DO en papel, como hasta hoy.
+
+---
+
 ## 2026-10-02 — El feriado posterior al cese no corresponde · migración 0505 · PEGADA Y VERIFICADA · SIN FUSIONAR
 
 **Origen:** Planilla del periodo 29-sep → 28-oct mostraba «1 feriado(s) sin salario ese día: no se pudo calcular ·
@@ -1429,12 +1501,10 @@ Postgres local compartido.
 3. Recién ahí fusionar (este PR incluye el #422; fusionar es publicar).
 
 **Pendientes que esto dejó a la vista, sin tocar:**
-- `fn_documentos_tablero` (0424) calcula `bono_estado` también a quien es
-  practicante, aunque la base le niega el bono: DO ve en su Bandeja «Bono de
-  cumpleaños sin constancia firmada» de alguien a quien no puede registrárselo.
-  Info y la Bandeja mía ya no se equivocan (usan `fn_mi_bono_cumpleanos`); el
-  arreglo de fondo es en el tablero y pide su md5 de PRODUCCIÓN antes de
-  escribir.
+- ~~`fn_documentos_tablero` (0424) calcula `bono_estado` también a quien es
+  practicante, aunque la base le niega el bono~~ — **cerrado por la 0518**
+  (2026-10-13): las tres puertas leen la misma regla, y el bono también es
+  para practicantes. Ver la sección de ese día arriba.
 - Documentación no sabe **mostrar** una constancia de bono firmada desde el
   sistema (solo abre escaneos, como la ruta antes de `abrirVerFirma`), y su
   «Subir otro» sobre ella falla por el índice único de un bono por año.
