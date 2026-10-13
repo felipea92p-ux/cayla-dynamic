@@ -6,6 +6,31 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-10-13 — El bono de cumpleaños para el practicante · migración 0519 · BORRADOR, SIN PEGAR · LEGAL SIN CONFIRMAR
+
+**Origen:** Daniel Ruiz (practicante, `en_planilla = f`) salía pendiente en la Bandeja y en «Cargos de cumpleaños»
+(el tablero, abierto a practicantes por la 0424, le daba `este_mes`), mientras `fn_mi_bono_cumpleanos` le contestaba
+`no_aplica` y `fn_documento_registrar` rechazaba su constancia. Medido en producción con su sesión. Felipe decidió
+**abrir el bono al practicante** (no cerrarlo en el tablero).
+
+**Hecho (en la rama, borrador):** `fn_persona_le_corresponde_bono` (un solo lugar para la pregunta) y las tres
+funciones la usan; el practicante **nunca va a la boleta** (queda «pedido», lo transfiere DO) — no se toca la
+planilla. Constancia con **texto propio** para practicantes (`TextoBono`, sin «trabajador» ni normas laborales).
+Prueba **414** (27): con la 0519 pasan las 27; sin los cambios de las tres funciones fallan 13.
+
+**Lo que NO está cerrado, y bloquea pegar/fusionar:**
+1. **El contador / abogado laboral** tiene que responder: ¿puede CAYLA darle un monto por cumpleaños a un practicante
+   sin que cuente como subvención ni cambie su condición formativa (Ley 28518)? ¿qué texto lleva la constancia y cómo
+   consta el pago? ¿es gasto deducible? El texto de `TextoBono` es **provisional**, lo redactó Claude.
+2. **md5 de partida de producción** de `fn_documento_registrar`, `fn_mi_bono_cumpleanos` y
+   `fn_confirmar_mi_bono_cumpleanos`: PENDIENTES. Los de la migración salen del Postgres local; el bloque 0 aborta
+   sin tocar nada si producción tiene otra versión.
+
+**Antes de eso, hoy:** Daniel sigue sin bono en el sistema, y «Registrar constancia →» en la Bandeja se rechaza
+(«no está en planilla»). Su cargo vence el 31-oct.
+
+---
+
 ## 2026-10-06 — El alta pide el documento, y cada documento dice de qué tipo es · migración 0513 · PEGADA Y VERIFICADA EN PRODUCCIÓN · SIN FUSIONAR (PR #508)
 
 **Origen:** el alta no pedía el DNI, así que el índice único de documento (0125), el único freno exacto contra
