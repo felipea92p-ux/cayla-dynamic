@@ -8,7 +8,7 @@ import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
 import { Cargando } from "@/components/cargando";
 import { Marca } from "@/components/marca";
-import { PapelBono } from "@/components/papel-bono";
+import { PapelBono, TextoBono } from "@/components/papel-bono";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { useToast } from "@/components/toast";
 import { Boton } from "@/components/ui/boton";
@@ -456,7 +456,7 @@ export default function DocumentacionPage() {
   // abrir lo firmado: el botón «Ver» solo existía para un escaneo.
   const [verBono, setVerBono] = useState<{
     persona: string; documento: string | null; monto: number | null;
-    fecha: string | null; firma: string | null;
+    fecha: string | null; firma: string | null; practicante: boolean;
   } | null>(null);
   // Las hojas que se imprimen de una vez. `null` = modo normal, una sola hoja:
   // la de la persona elegida arriba. Se llena, se imprime y se vacía; no es un
@@ -729,6 +729,7 @@ export default function DocumentacionPage() {
       monto: doc.monto_declarado,
       fecha: doc.fecha_firma ?? f.bono_firmada_el,
       firma: doc.firma_persona,
+      practicante: quien?.tipo_vinculo === "practicante",
     });
   }
 
@@ -1461,37 +1462,24 @@ export default function DocumentacionPage() {
         {tipo === "bono" && bonoMonto !== null && (
           <>
             <h2 className="mb-6 text-center font-serif text-xl">
-              Asignación por cumpleaños
+              {quien?.tipo_vinculo === "practicante" ? "Entrega por cumpleaños" : "Asignación por cumpleaños"}
             </h2>
 
-            <p className="mb-4">
-              {EMPRESA.nombre}, con RUC {EMPRESA.ruc}, hace entrega a{" "}
-              <strong>{quien ? `${quien.nombres} ${quien.apellidos}` : "—"}</strong>
-              {quien?.documento ? `, con documento de identidad ${quien.documento},` : ","}{" "}
-              de la suma de <strong>S/ {bonoMonto.toFixed(2)}</strong> con ocasión de su
-              onomástico.
-            </p>
-
-            {/* LA CLÁUSULA. No dice «gratificación extraordinaria» ni «a título de
-                liberalidad» ni «a discreción», y eso es deliberado: esas palabras
-                invocan el inciso a) del art. 19, que exige que el pago sea OCASIONAL
-                — y la Casación 28833-2022 Lima (considerando décimo sétimo) establece
-                que un pago repetitivo, incluida la periodicidad ANUAL, ya no es
-                extraordinario. Además «liberalidad» hace el gasto NO DEDUCIBLE por el
-                art. 44 inciso d) de la Ley del Impuesto a la Renta.
-                El inciso g) no pide nada de eso: solo pide la CAUSA, que es el
-                onomástico, y está nombrada literalmente en la norma. */}
-            <p className="mb-4 border-l-2 border-sand pl-4">
-              Esta asignación se otorga con ocasión del onomástico del trabajador, conforme
-              al literal g) del artículo 19 del Texto Único Ordenado del Decreto Legislativo
-              N° 650, aprobado por Decreto Supremo N° 001-97-TR. En consecuencia,{" "}
-              <strong>no constituye remuneración computable para ningún efecto legal</strong>,
-              de acuerdo con el artículo 7 del Decreto Supremo N° 003-97-TR.
-            </p>
+            {/* El cuerpo legal vive en `TextoBono`, compartido con la hoja que
+                se firma desde el sistema (`PapelBono`): escaneo y firma digital
+                tienen que acreditar exactamente la misma causa. La cláusula —y
+                por qué NO dice «liberalidad» ni «extraordinaria»— se explica
+                allí, junto con la versión para practicantes (0519). */}
+            <TextoBono
+              practicante={quien?.tipo_vinculo === "practicante"}
+              nombre={quien ? `${quien.nombres} ${quien.apellidos}` : "—"}
+              documento={quien?.documento ?? null}
+              monto={`S/ ${bonoMonto.toFixed(2)}`}
+            />
 
             <p className="mb-6 text-sm text-taupe">
-              La presente constancia acredita la entrega y su causa. Se archiva firmada por
-              el trabajador.
+              La presente constancia acredita la entrega y su causa. Se archiva firmada por{" "}
+              {quien?.tipo_vinculo === "practicante" ? "quien la recibe" : "el trabajador"}.
             </p>
 
             {/* Este papel no llevaba NINGUNA fecha, y un cargo de entrega sin fecha
@@ -2355,13 +2343,14 @@ export default function DocumentacionPage() {
                       arriba ya excluye a quien no está en planilla; este
                       desplegable se había quedado sin ese mismo filtro.
 
-                      CAMBIO 0424: para "ruta" (y solo para "ruta") también entra
-                      quien es practicante — mismo criterio que ya usan el tablero
-                      y `fn_documento_registrar` (`fn_persona_le_corresponde_movilidad`).
-                      El bono se queda exactamente como estaba: abrirlo también
-                      sería otra decisión de negocio, que nadie pidió. */}
+                      CAMBIO 0424: para "ruta" también entra quien es practicante —
+                      mismo criterio que ya usan el tablero y `fn_documento_registrar`
+                      (`fn_persona_le_corresponde_movilidad`).
+                      CAMBIO 0519: y para "bono" también — decidido por Felipe el
+                      2026-10-13, con el texto propio de practicantes (`TextoBono`).
+                      Sigue la regla de `fn_persona_le_corresponde_bono`. */}
                   {personas
-                    .filter((p) => p.en_planilla || (tipo === "ruta" && p.tipo_vinculo === "practicante"))
+                    .filter((p) => p.en_planilla || ((tipo === "ruta" || tipo === "bono") && p.tipo_vinculo === "practicante"))
                     .map((p) => (
                     <option key={p.id} value={p.id}>{p.apellidos}, {p.nombres}</option>
                   ))}
@@ -2524,6 +2513,7 @@ export default function DocumentacionPage() {
               </div>
               <div className="overflow-y-auto p-5 print:overflow-visible print:p-0">
                 <PapelBono
+                  practicante={verBono.practicante}
                   monto={verBono.monto}
                   fecha={verBono.fecha}
                   nombreOficial={verBono.persona}
