@@ -13,6 +13,7 @@ import { Fila, Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
 import { Cifra } from "@/components/ui/cifra";
 import { Filtro } from "@/components/ui/filtro";
+import { TarjetaInfo } from "@/components/ui/tarjeta-info";
 import { Menu, MenuItem } from "@/components/ui/menu";
 import {
   TZ_LIMA, cuentaEnCobertura, etiquetaDeSede, hoyLima, formatoMinutos, puedeVerTodasLasSedes,
@@ -1338,26 +1339,26 @@ export default function DashboardPage() {
             )}
 
             {prefs.kpisExtra.personal && (
-              <div className="mt-3 rounded-superficie border border-sand bg-papel p-4 sm:p-5">
-                <div className="mb-3 flex items-baseline justify-between gap-2">
-                  <span className="etiqueta text-taupe">Personal</span>
-                  <Link href="/admin/equipo" className="text-xs text-taupe hover:underline">Equipo →</Link>
-                </div>
+              <TarjetaInfo
+                className="mt-3"
+                titulo="Personal"
+                accion={<Link href="/admin/equipo" className="text-xs text-taupe hover:underline">Equipo →</Link>}
+              >
                 <div className="grid grid-cols-3 gap-2">
                   <Cifra etiqueta="Equipo que marca asistencia" valor={filas.length} />
                   <Cifra etiqueta="Ausentes hoy" valor={ausentesHoy} />
                   <Cifra etiqueta="Contratos por vencer" valor={contratos.length} tono={contratos.length > 0 ? "advertencia" : undefined} />
                 </div>
                 <p className="mt-3 text-xs text-taupe">Cuenta a quien marca asistencia: no incluye recibos por honorarios ni sueldo fijo.</p>
-              </div>
+              </TarjetaInfo>
             )}
 
             {prefs.kpisExtra.pendientes && (
-              <div className="mt-3 rounded-superficie border border-sand bg-papel p-4 sm:p-5">
-                <div className="mb-3 flex items-baseline justify-between gap-2">
-                  <span className="etiqueta text-taupe">Pendientes de acción</span>
-                  <Link href="/admin/bandeja" className="text-xs text-taupe hover:underline">Bandeja{pendientesBandeja.resumen ? ` · ${pendientesBandeja.resumen.total}` : ""} →</Link>
-                </div>
+              <TarjetaInfo
+                className="mt-3"
+                titulo="Pendientes de acción"
+                accion={<Link href="/admin/bandeja" className="text-xs text-taupe hover:underline">Bandeja{pendientesBandeja.resumen ? ` · ${pendientesBandeja.resumen.total}` : ""} →</Link>}
+              >
                 {pendientesBandeja.fallo && !pendientesBandeja.resumen ? (
                   <p className="text-sm text-ambar">No se pudieron traer los pendientes de la Bandeja. Vuelve a cargar la pantalla.</p>
                 ) : !pendientesBandeja.resumen ? (
@@ -1377,15 +1378,15 @@ export default function DashboardPage() {
                 {(pendientesBandeja.incompleto || (pendientesBandeja.fallo && pendientesBandeja.resumen)) && (
                   <p className="mt-3 text-xs text-ambar">Alguna sección de la Bandeja no respondió: este número puede estar corto.</p>
                 )}
-              </div>
+              </TarjetaInfo>
             )}
 
             {prefs.kpisExtra.casos && (
-              <div className="mt-3 rounded-superficie border border-sand bg-papel p-4 sm:p-5">
-                <div className="mb-3 flex items-baseline justify-between gap-2">
-                  <span className="etiqueta text-taupe">Casos</span>
-                  <Link href="/admin/casos" className="text-xs text-taupe hover:underline">Casos →</Link>
-                </div>
+              <TarjetaInfo
+                className="mt-3"
+                titulo="Casos"
+                accion={<Link href="/admin/casos" className="text-xs text-taupe hover:underline">Casos →</Link>}
+              >
                 {casosResumen.fallo && !casosResumen.resumen ? (
                   <p className="text-sm text-ambar">No se pudo traer el resumen de casos. Vuelve a cargar la pantalla.</p>
                 ) : !casosResumen.resumen ? (
@@ -1444,7 +1445,7 @@ export default function DashboardPage() {
                     </p>
                   </>
                 )}
-              </div>
+              </TarjetaInfo>
             )}
               </PanelColapsable>
             )}

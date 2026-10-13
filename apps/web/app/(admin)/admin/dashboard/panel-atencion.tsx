@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Boton } from "@/components/ui/boton";
+import { RotuloEstado } from "@/components/ui/rotulo";
 
 // «Requiere atención»: lo que hay que mirar hoy, en un solo lugar. Dos formas
 // del MISMO contenido, según el ancho:
@@ -49,13 +50,13 @@ function Grupos({ items }: { items: ItemAtencionVista[] }) {
     <>
       {criticos.length > 0 && (
         <div className="mt-2">
-          <div className="etiqueta text-rojo-profundo">Críticas</div>
+          <RotuloEstado tono="alerta">Críticas</RotuloEstado>
           <ul>{criticos.map((it) => <Aviso key={it.key} it={it} />)}</ul>
         </div>
       )}
       {avisos.length > 0 && (
         <div className="mt-3">
-          <div className="etiqueta text-taupe">Avisos</div>
+          <RotuloEstado tono="advertencia">Avisos</RotuloEstado>
           <ul>{avisos.map((it) => <Aviso key={it.key} it={it} />)}</ul>
         </div>
       )}
