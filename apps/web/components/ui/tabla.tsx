@@ -63,9 +63,16 @@ export function Th({ children, className }: { children?: ReactNode; className?: 
   return <th className={cx("px-4 py-2 font-normal", className)}>{children}</th>;
 }
 
-// Fila con zebra sobre --color-hueso (la superficie "hundida" agregada el
-// 2026-09-06) — no reemplaza los <tr> ya escritos a mano en cada pantalla,
-// da un patrón listo para adoptar pantalla por pantalla.
+// Fila con línea superior y resalte al pasar el cursor — no reemplaza los <tr>
+// ya escritos a mano en cada pantalla, da un patrón listo para adoptar pantalla
+// por pantalla.
+//
+// SIN franjas alternas (decisión 5 de docs/adr/0004-diseno-unificado.md,
+// 2026-10-13). Hasta entonces traía `even:bg-hueso/50`: tres señales a la vez
+// (franja, línea y resalte) para seguir una fila, cuando con las dos últimas
+// alcanza, y en modo oscuro --color-hueso es más negro que la página y la
+// franja pesa. Efecto secundario que desaparece: una franja par ya no tapa la
+// marca de «fila seleccionada» (ver el comentario de horas/page.tsx).
 //
 // Acepta los atributos de un <tr> (2026-09-15, Provisiones): una fila que abre
 // un detalle necesita su `onClick`, y sin esto la pantalla tenía que volver a
@@ -78,7 +85,7 @@ export function Fila({
   return (
     <tr
       className={cx(
-        "border-t border-sand transition-colors duration-150 even:bg-hueso/50 hover:bg-crema/60",
+        "border-t border-sand transition-colors duration-150 hover:bg-crema/60",
         className,
       )}
       {...props}

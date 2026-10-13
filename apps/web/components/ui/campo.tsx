@@ -2,8 +2,12 @@
 // pantalla escribía "rounded-lg border px-3 py-2" a mano — más de 100 veces
 // medidas en 16+ archivos, con divergencias reales (border vs border-sand,
 // con o sin bg-crema, foco visible en 2-9 de ~40 archivos nada más). El foco
-// no se declara acá: lo cubre la regla :focus-visible de globals.css para
-// cualquier control de la app.
+// lo cubre la regla :focus-visible de globals.css para cualquier control de la
+// app, con UNA excepción puesta acá (2026-10-13): `outline-offset-0`. El anillo
+// de 2 px separado 2 px del control se leía bien en un botón, pero en un campo
+// —y sobre todo en un select abierto en modo oscuro— dejaba tres marcos
+// seguidos (anillo, hueco, borde) alrededor de un fondo casi negro. Pegado al
+// borde es un solo marco.
 //
 // Retocado 2026-09-07, antes de que el Día 2 empiece a adoptarlo en masa:
 // - La etiqueta pasa de mayúsculas con tracking a caja normal, igual que las
@@ -40,7 +44,7 @@ export function Campo({
       <input
         id={id}
         className={cx(
-          "rounded-control border border-sand bg-hueso px-3 py-2 text-base text-tinta transition-colors duration-150 placeholder:text-taupe/60 sm:text-sm",
+          "rounded-control border border-sand bg-hueso px-3 py-2 text-base text-tinta transition-colors duration-150 placeholder:text-taupe/60 focus-visible:outline-offset-0 sm:text-sm",
           error && "border-rojo",
           className,
         )}
@@ -102,7 +106,7 @@ export function CampoSelect({
         <select
           id={id}
           className={cx(
-            "w-full appearance-none rounded-control border border-sand bg-hueso px-3 py-2 pr-8 text-base text-tinta transition-colors duration-150 sm:text-sm",
+            "w-full appearance-none rounded-control border border-sand bg-hueso px-3 py-2 pr-8 text-base text-tinta transition-colors duration-150 focus-visible:outline-offset-0 sm:text-sm",
             error && "border-rojo",
             className,
           )}
