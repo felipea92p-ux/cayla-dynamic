@@ -23,8 +23,9 @@ import { claveFila, sumarFilas, textoCese, type Cese, type Hallazgo } from "@/li
 import type { Fila } from "@/lib/admin/planilla/tipos";
 
 // Contadas: Persona · Sede · Rango y salario · Horas · Pago base · Feriados ·
-// Asig. familiar · Básica legal · Bonos · Descuentos · Total · (abrir).
-const COLS = 12;
+// Asig. familiar · Movilidad · Educación · Básica legal · Bonos · Descuentos ·
+// Total · (abrir).
+const COLS = 14;
 
 function rangoYSalario(f: Fila) {
   if (f.salario_ref === null) return <span className="text-rojo-profundo">Sin salario</span>;
@@ -106,6 +107,16 @@ export function TablaPlanilla({
             <Th className="text-right">Feriados</Th>
             <Th className="text-right">Asig. familiar</Th>
             <Th className="text-right">
+              <span title="Movilidad (pasajes) por los días que marcó: la tarifa de su sede × los días trabajados. Es no remunerativa solo si está supeditada a la asistencia.">
+                Movilidad
+              </span>
+            </Th>
+            <Th className="text-right">
+              <span title="Asignación por educación: se paga contra el comprobante archivado.">
+                Educación
+              </span>
+            </Th>
+            <Th className="text-right">
               <span title="Remuneración básica legal mensual: la que se declara en PLAME. Es un dato de la persona, no un monto de este periodo.">
                 Básica legal
               </span>
@@ -182,6 +193,34 @@ export function TablaPlanilla({
                   <td className="px-4 py-2 text-right tabular-nums" onClick={onAbrir ? abrir(f) : undefined}>
                     {f.asignacion_familiar > 0 ? formatSoles(f.asignacion_familiar) : <Guion />}
                   </td>
+                  <td
+                    className="px-4 py-2 text-right tabular-nums"
+                    onClick={onAbrir ? abrir(f) : undefined}
+                    title={(f.monto_movilidad ?? 0) > 0 && f.movilidad_diaria
+                      ? `${formatSoles(f.movilidad_diaria)} por día trabajado`
+                      : undefined}
+                  >
+                    {(f.monto_movilidad ?? 0) > 0 ? formatSoles(f.monto_movilidad ?? 0) : <Guion />}
+                  </td>
+                  <td
+                    className="px-4 py-2 text-right tabular-nums"
+                    onClick={onAbrir ? abrir(f) : undefined}
+                    title={(f.monto_educacion ?? 0) > 0 && f.instituciones_educacion
+                      ? f.instituciones_educacion
+                      : undefined}
+                  >
+                    {(f.monto_educacion ?? 0) > 0 ? formatSoles(f.monto_educacion ?? 0) : <Guion />}
+                    {/* Un cero con explicación, como en la boleta (0236): tiene la
+                        asignación registrada y no se le paga porque falta el papel. */}
+                    {(f.monto_educacion ?? 0) === 0 && f.educacion_sin_comprobante && (
+                      <span
+                        className="mt-1 block whitespace-nowrap text-xs text-taupe"
+                        title="Tiene la asignación registrada, pero falta cargar el comprobante: no se paga hasta tenerlo."
+                      >
+                        sin comprobante
+                      </span>
+                    )}
+                  </td>
                   <td className="px-4 py-2 text-right tabular-nums text-taupe" onClick={onAbrir ? abrir(f) : undefined}>
                     {f.sueldo_base_legal != null ? formatSoles(f.sueldo_base_legal) : <Guion />}
                   </td>
@@ -213,6 +252,8 @@ export function TablaPlanilla({
                 <td className="px-4 py-2 text-right font-medium tabular-nums">{formatSoles(t.pago_base)}</td>
                 <td className="px-4 py-2 text-right font-medium tabular-nums">{formatSoles(t.feriados)}</td>
                 <td className="px-4 py-2 text-right font-medium tabular-nums">{formatSoles(t.asignacion)}</td>
+                <td className="px-4 py-2 text-right font-medium tabular-nums">{t.movilidad > 0 ? formatSoles(t.movilidad) : <Guion />}</td>
+                <td className="px-4 py-2 text-right font-medium tabular-nums">{t.educacion > 0 ? formatSoles(t.educacion) : <Guion />}</td>
                 {/* Básica legal no se suma: es un dato por persona, no un concepto que se pague acá. */}
                 <td className="px-4 py-2" />
                 <td className="px-4 py-2 text-right font-medium tabular-nums">{t.bonos > 0 ? `+${formatSoles(t.bonos)}` : <Guion />}</td>
@@ -259,6 +300,13 @@ export function TablaPlanilla({
                         {f.sede} · {fmtHoras(f.horas_mes)}
                         {f.dias_pendientes > 0 && ` · ${f.dias_pendientes} pend.`}
                       </span>
+                      {((f.monto_movilidad ?? 0) > 0 || (f.monto_educacion ?? 0) > 0) && (
+                        <span className="block text-xs text-taupe">
+                          {(f.monto_movilidad ?? 0) > 0 && `Movilidad ${formatSoles(f.monto_movilidad ?? 0)}`}
+                          {(f.monto_movilidad ?? 0) > 0 && (f.monto_educacion ?? 0) > 0 && " · "}
+                          {(f.monto_educacion ?? 0) > 0 && `Educación ${formatSoles(f.monto_educacion ?? 0)}`}
+                        </span>
+                      )}
                     </span>
                     <span className="shrink-0 text-right font-semibold tabular-nums">{formatSoles(f.total)}</span>
                   </span>
