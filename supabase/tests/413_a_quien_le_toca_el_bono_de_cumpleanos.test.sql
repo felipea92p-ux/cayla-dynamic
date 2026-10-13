@@ -3,17 +3,18 @@
 --   npx supabase test db
 -- Lo que sí se pega vive en supabase/migrations/.
 -- ============================================================================
--- 413_a_quien_le_toca_el_bono_de_cumpleanos.test.sql — 0518
+-- 413_a_quien_le_toca_el_bono_de_cumpleanos.test.sql — 0518 + 0520
 -- ============================================================================
 -- El caso real: Daniel Ruiz, practicante, cumple en octubre, y el 2026-10-13
 -- no veía nada en su Info mientras DO lo veía pendiente. La regla, decidida
--- por Cayla ese día: todos, salvo quien está en prueba o tiene un contrato de
--- menos de una semana. Lo que defiende:
+-- por Cayla ese día y unida con la 0519 de Felipe en la 0520: todos, salvo
+-- quien está en prueba o tiene un contrato de menos de una semana; y el
+-- practicante cobra por transferencia, nunca por la boleta. Lo que defiende:
 --
 --   1. LO QUE VE DO Y LO QUE VE LA PRACTICANTE SON LO MISMO. El tablero y
 --      `fn_mi_bono_cumpleanos` contestan `este_mes`, con el monto a la vista.
---   2. LO PIDE Y ENTRA A SU BOLETA. La firma crea la constancia y la línea
---      `bono` del periodo abierto; la planilla de la practicante la suma.
+--   2. LO PIDE Y QUEDA «PEDIDO». La firma crea la constancia, NO escribe nada
+--      en la planilla, y DO lo ve en «por transferir» (0478/0519).
 --   3. NO SE COBRA DOS VECES. Una segunda firma no pasa.
 --   4. EL CARGO EN PAPEL CONTESTA IGUAL. DO puede registrárselo a otra
 --      practicante.
@@ -21,11 +22,14 @@
 --   6. CONTRATO DE MENOS DE UNA SEMANA, NO. Seis días no; siete sí (los dos
 --      extremos cuentan).
 --   7. LO QUE NO SE ABRIÓ SIGUE CERRADO. Un locador por RxH sigue sin bono.
+--
+-- Que quien está en planilla SÍ va a la boleta lo defiende la 414 (control).
 -- ============================================================================
 begin;
-select plan(19);
+select plan(20);
 
--- Un periodo que contiene hoy, y ningún otro que se le cruce.
+-- Un periodo que contiene hoy, y ningún otro que se le cruce: es la condición
+-- en que la 0479 SÍ mete el bono a la boleta — y aun así el practicante no.
 delete from periodo_grupo_pago;
 delete from periodos_planilla;
 insert into periodos_planilla (id, fecha_ini, fecha_fin)
@@ -90,25 +94,29 @@ select ok((select monto from fn_mi_bono_cumpleanos()) > 0,
   'INFO · con el monto a la vista ANTES de firmar');
 
 
--- ── 2 · Lo pide y entra a su boleta ──────────────────────────────────────
+-- ── 2 · Lo pide y queda «pedido»: DO transfiere, la planilla no se toca ───
 select lives_ok($$ select fn_confirmar_mi_bono_cumpleanos() $$,
   'FIRMA · la practicante firma su constancia');
-select is((select estado from fn_mi_bono_cumpleanos()), 'en_boleta',
-  'FIRMA · y su bono queda en su boleta, como a quien está en planilla');
+select is((select estado || ' ' || via from fn_mi_bono_cumpleanos()), 'pedido transferencia',
+  'FIRMA · queda pedido, por transferencia: nunca por la boleta (0519/0520)');
 select is(
   (select count(*)::int from movimientos_planilla
     where persona_id = '00000000-0000-0000-0000-000000413001'
-      and periodo_id = '00000000-0000-0000-0000-000000413900' and tipo = 'bono'),
-  1, 'BOLETA · una sola línea «Asignación por cumpleaños» en el periodo abierto');
+      and periodo_id = '00000000-0000-0000-0000-000000413900'),
+  0, 'BOLETA · no se escribió NADA en la planilla, con un periodo abierto de por medio');
 select is(
-  (fn_planilla_calcular_persona('00000000-0000-0000-0000-000000413001',
-                                '00000000-0000-0000-0000-000000413900') ->> 'bonos')::numeric,
-  (select monto_declarado from documentos_firmados
-    where persona_id = '00000000-0000-0000-0000-000000413001' and tipo = 'bono'),
-  'PLANILLA · la planilla de la practicante suma exactamente el monto firmado');
+  coalesce((fn_planilla_calcular_persona('00000000-0000-0000-0000-000000413001',
+                                         '00000000-0000-0000-0000-000000413900') ->> 'bonos')::numeric, 0),
+  0::numeric, 'PLANILLA · y su planilla no suma ningún bono');
+select pg_temp.como('00000000-0000-0000-0000-000000413014');
+select is(
+  (select count(*)::int from fn_bonos_por_transferir()
+    where persona_id = '00000000-0000-0000-0000-000000413001'),
+  1, 'DO · lo ve en «por transferir», que es donde se paga');
 
 
 -- ── 3 · No se cobra dos veces ────────────────────────────────────────────
+select pg_temp.como('00000000-0000-0000-0000-000000413011');
 select throws_ok($$ select fn_confirmar_mi_bono_cumpleanos() $$, null, null,
   'DOBLE · una segunda firma no pasa');
 
@@ -140,9 +148,9 @@ select throws_ok(
 
 
 -- ── 6 · Contrato de menos de una semana, no ──────────────────────────────
-select is(fn_persona_le_corresponde_bono_cumpleanos('00000000-0000-0000-0000-000000413006'), false,
+select is(fn_persona_le_corresponde_bono('00000000-0000-0000-0000-000000413006'), false,
   'CORTO · seis días de contrato: no le toca');
-select is(fn_persona_le_corresponde_bono_cumpleanos('00000000-0000-0000-0000-000000413007'), true,
+select is(fn_persona_le_corresponde_bono('00000000-0000-0000-0000-000000413007'), true,
   'CORTO · siete días de contrato, extremos incluidos: sí le toca');
 select pg_temp.como('00000000-0000-0000-0000-000000413016');
 select is((select estado from fn_mi_bono_cumpleanos()), 'no_aplica',
@@ -154,7 +162,7 @@ select throws_ok($$ select fn_confirmar_mi_bono_cumpleanos() $$, null, null,
 -- ── 7 · Lo que no se abrió sigue cerrado ─────────────────────────────────
 select pg_temp.como('00000000-0000-0000-0000-000000413013');
 select is((select estado from fn_mi_bono_cumpleanos()), 'no_aplica',
-  'RXH · un locador sigue sin bono: la 0518 abre practicantes, nada más');
+  'RXH · un locador sigue sin bono: se abrió a practicantes, nada más');
 select throws_ok($$ select fn_confirmar_mi_bono_cumpleanos() $$, null, null,
   'RXH · y no lo puede firmar');
 

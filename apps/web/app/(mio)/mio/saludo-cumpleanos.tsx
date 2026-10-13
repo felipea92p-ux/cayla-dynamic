@@ -75,7 +75,7 @@ export function SaludoCumpleanos({ nombre, bono, hoy }: { nombre: string; bono: 
           </div>
           {pedir && (
             <p className="mt-2 text-xs text-taupe">
-              Lo firmas con tu firma digital y se suma a tu boleta. Tienes todo el mes.
+              Lo firmas con tu firma digital. Tienes todo el mes.
             </p>
           )}
         </div>
