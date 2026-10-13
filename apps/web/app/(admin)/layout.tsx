@@ -1,4 +1,5 @@
 import { MarcoAdmin } from "./admin/nav";
+import { RegistrarSinConexion } from "@/components/registrar-sin-conexion";
 
 // El marco del panel (sidebar + barra superior) se monta UNA vez, acá, y no en
 // cada pantalla como hasta el 2026-09-07. Esa es la condición para que el
@@ -11,6 +12,7 @@ import { MarcoAdmin } from "./admin/nav";
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen flex-1 flex-col bg-crema text-tinta">
+      <RegistrarSinConexion />
       <MarcoAdmin>{children}</MarcoAdmin>
     </div>
   );
