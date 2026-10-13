@@ -29,7 +29,7 @@ pantallas.
 | 7 | Título de sección | Serif 18 px | `TarjetaInfo` (`titulo`) |
 | 8 | Estado vacío | Caja centrada, con una acción cuando haya un siguiente paso | `EstadoVacio` (nuevo) |
 | 9 | Avisos | Dos tamaños: con título y en línea | `BannerAviso` (`enLinea`) |
-| 10 | Filtros y pestañas | Esquina de botón (8 px), activo en tinta | `Filtro` (nuevo) |
+| 10 | Filtros y pestañas | Esquina de botón (8 px), activo en tinta; dos tamaños como `Boton` (`md` para listas, `sm` para filas de configuración) | `Filtro` (nuevo) |
 
 ### Rótulos (decisiones 11 a 14): la clase `.etiqueta` hacía cuatro trabajos
 

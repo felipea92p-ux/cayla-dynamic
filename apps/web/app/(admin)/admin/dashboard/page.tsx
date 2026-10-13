@@ -1242,11 +1242,11 @@ export default function DashboardPage() {
                 tablero, no información del día, y ocupaba una línea en cada visita. */}
             <div className={`mb-3 flex-wrap items-center gap-2 sm:flex ${personalizando ? "flex" : "hidden"}`} role="group" aria-label="Indicadores visibles">
               <span className="text-xs text-taupe">Indicadores:</span>
-              <Filtro activo disabled className="cursor-default">Asistencia</Filtro>
+              <Filtro activo disabled tamano="sm" className="cursor-default">Asistencia</Filtro>
               {KPIS_EXTRA.map((k: KpiExtra) => {
                 const activo = prefs.kpisExtra[k] === true;
                 return (
-                  <Filtro key={k} activo={activo} onClick={() => setPrefsCrudas(alternarKpiExtra(prefs, k))}>
+                  <Filtro key={k} activo={activo} tamano="sm" onClick={() => setPrefsCrudas(alternarKpiExtra(prefs, k))}>
                     {activo ? "✓ " : "+ "}{k === "pendientes" ? "Pendientes de acción" : k === "personal" ? "Personal" : "Casos"}
                   </Filtro>
                 );
