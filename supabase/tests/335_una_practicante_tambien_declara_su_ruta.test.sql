@@ -76,10 +76,7 @@ select lives_ok(
        null, false, null, 'documentos/prueba-335.jpg', null) $$,
   'REGISTRAR · admin sí puede registrar la ruta escaneada de una practicante');
 
--- Hasta la 0518 esto fallaba a propósito: la 0424 abrió la ruta y NO el bono.
--- Desde la 0518 el bono también es para la practicante (decisión de Cayla,
--- 2026-10-13), y el cargo en papel de DO contesta lo mismo que su Info.
-select lives_ok(
+select throws_ok(
   $$ select fn_documento_registrar('bono', fn_hoy_lima(),
        '00000000-0000-0000-0000-000000335002', null, null,
        2026, false, null, 'documentos/prueba-335-bono.jpg', null) $$,
