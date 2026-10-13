@@ -10,7 +10,8 @@ import type { ClienteCayla } from "@cayla-dynamic/database";
  * Nadie en el frontend vuelve a mirar `bono_estado` del tablero: ese no sabe
  * distinguir un pedido ya hecho pero todavía sin pagar de uno entregado (0478/
  * 0479): para el tablero toda constancia vigente es «entregado». Quién puede recibir el bono —en planilla o
- * practicante— lo dice la base (`fn_persona_le_corresponde_bono`, 0519).
+ * practicante, nunca en periodo de prueba ni con un contrato de menos de una semana— lo dice la base
+ * (`fn_persona_le_corresponde_bono`, 0520, que unió la 0518 y la 0519).
  */
 
 export type EstadoMiBono =
@@ -22,7 +23,7 @@ export type EstadoMiBono =
   | "pedido"
   /** Lo firmó, ya está en su boleta y el periodo todavía no se paga (0479). */
   | "en_boleta"
-  /** No le corresponde (ni en planilla ni practicante), o su cumpleaños de este año cayó antes del bono o de su ingreso. */
+  /** No le corresponde (RxH, en prueba, contrato de menos de una semana — 0520), o su cumpleaños de este año cayó antes del bono o de su ingreso. */
   | "no_aplica"
   /** Falta su fecha de nacimiento en la ficha. */
   | "sin_fecha"

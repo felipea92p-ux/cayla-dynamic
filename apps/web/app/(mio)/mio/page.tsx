@@ -9,6 +9,7 @@ import { BoletasMias } from "./boletas/boletas-mias";
 import { ReportesMios } from "./reportes/reportes-mios";
 import { CambiosMios } from "./cambios-mios";
 import { DisciplinaMia } from "./disciplina-mia";
+import { SaludoCumpleanos } from "./saludo-cumpleanos";
 import { cuantosPiden, porLeer, type CuentaMia, type DocMio } from "@/lib/mio-disciplina";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Colibri } from "@/components/marca";
@@ -48,6 +49,7 @@ import { loQueNoSePudo } from "@/lib/admin/lo-que-no-se-pudo";
 import { cicloVigente, type DiaTrabajado } from "@/lib/admin/ciclo-sobretiempo";
 import { traerBandeja } from "@/lib/bandeja-mia";
 import { mostrarBonoEnInfo, puedePedirBono, traerMiBono, type MiBono } from "@/lib/mi-bono";
+import { esMesDeCumpleanos } from "@/lib/saludos-cumpleanos";
 import { esBoletaNueva } from "@/lib/boletas";
 import { contarBoletasNuevas, nombreDelPeriodo, traerMisBoletas, type FilaMiBoleta } from "@/lib/mis-boletas";
 import { contarSinLeer, traerMisReportes, type FilaMiReporte } from "@/lib/reportes";
@@ -1823,6 +1825,16 @@ export default function MioPage() {
           salarial y a PODER PROBARLO, y el reglamento interno igual. Un acuse
           que no le llega a su destinataria no prueba nada. */}
       <AcusesPendientes />
+
+      {/* El mes de su cumpleaños, del día 1 al último y en cualquier sección,
+          para TODO el mundo — también para quien la base le contestaba
+          `no_aplica` al bono, que es el caso que se quedaba en silencio
+          (Daniel Ruiz, oct-2026). Arriba y no dentro de «Resumen»: ahí quedaba
+          debajo de las novedades y de «Necesita que hagas algo», fuera de la
+          primera vista. Solo el acuse va antes, por la razón escrita arriba. */}
+      {yo && miBono && esMesDeCumpleanos(miBono, hoyLima()) && (
+        <SaludoCumpleanos nombre={yo.nombres.split(" ")[0]} bono={miBono} hoy={hoyLima()} />
+      )}
 
       <AnunciosWidget />
 
