@@ -115,6 +115,17 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-10-13-ver-el-cargo-de-cumpleanos-firmado-desde-el-sistema",
+    fecha: "2026-10-13",
+    titulo: "En Documentación ya se puede abrir el cargo de cumpleaños firmado desde el sistema",
+    queMejoro:
+      "En «Cargos de cumpleaños», quien firmó su constancia desde «Lo mío» ahora tiene el botón «Ver». Antes su fila " +
+      "decía «Firmado» y no había dónde abrir lo firmado: «Ver» solo existía para un papel escaneado.\n\n" +
+      "Se abre la constancia con su firma y la fecha en que se firmó, y se puede imprimir o guardar como PDF. " +
+      "«Subir otro» sigue en el menú ⋯ de la fila.",
+    audiencia: "do",
+  },
+  {
     id: "2026-10-06-asistencia-de-hoy-se-ve-completa-en-el-telefono",
     fecha: "2026-10-06",
     titulo: "«Asistencia de hoy» ya se ve completa en el teléfono",
