@@ -6,6 +6,43 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-10-13 — El bono de cumpleaños para el practicante · migración 0519 · PR #524 (BORRADOR) · LEGAL SIN CONFIRMAR
+
+**Origen:** Daniel Ruiz (practicante, `en_planilla = f`) salía pendiente en la Bandeja y en «Cargos de cumpleaños»
+(el tablero, abierto a practicantes por la 0424, le daba `este_mes`), mientras `fn_mi_bono_cumpleanos` le contestaba
+`no_aplica` y `fn_documento_registrar` rechazaba su constancia. Medido en producción con su sesión. Felipe decidió
+**abrir el bono al practicante** (no cerrarlo en el tablero).
+
+**Hecho:** `fn_persona_le_corresponde_bono` (un solo lugar para la pregunta) y las tres funciones la usan; el
+practicante **nunca va a la boleta** (queda «pedido», lo transfiere DO) — no se toca la planilla. Constancia con
+**texto propio** para practicantes (`TextoBono`, sin «trabajador» ni normas laborales). md5 de partida de producción
+de las tres funciones **CONFIRMADOS** el 2026-10-13: idénticos al repo, 0 retornos. Pruebas: **414** (27) nueva; **335**
+y **377** corregidas porque fijaban la regla contraria (el único motivo por el que `db-tests` salió en rojo); todas
+pasan con la 0519. Revisión adversarial de 5 lentes (57 agentes): el SQL no cambió; sí 3 textos que le prometían al
+practicante «se suma a tu boleta» y varios comentarios viejos.
+
+**SQL entregado a Felipe el 2026-10-13** (`./scripts/dame-el-sql.sh 519`). **No sé si ya se pegó**: comprobarlo con
+`que_falta_pegar` antes de dar nada por hecho.
+
+**ORDEN: fusionar el PR ANTES de pegar la 0519** (al revés de la regla general, y a propósito). El frontend es
+compatible hacia atrás —sin la migración, un practicante sigue sin poder pedir el bono—, así que no rompe nada. Si se
+pega primero, un practicante que firme antes de que el texto nuevo esté publicado firma el texto de planilla. Si pasó,
+se ve con una consulta: bonos con `firma_persona_confirmada_at` anterior al despliegue, de personas con
+`tipo_vinculo = 'practicante'`.
+
+**Lo que NO está cerrado:**
+1. **El contador / abogado laboral:** ¿puede CAYLA darle un monto por cumpleaños a un practicante sin que cuente como
+   subvención ni cambie su condición formativa (Ley 28518)? ¿qué texto lleva la constancia y cómo consta el pago? ¿es
+   gasto deducible? El texto de `TextoBono` es **provisional**, lo redactó Claude.
+2. **Límite conocido (migración aparte):** la constancia se pinta con el `tipo_vinculo` ACTUAL, no con el de cuando
+   se firmó. Si un practicante pasa a planilla, su constancia ya firmada mostraría el texto de planilla. La solución
+   es guardar al firmar con qué texto fue (una columna en `documentos_firmados`).
+
+**Hoy, antes de pegar:** Daniel sigue sin bono en el sistema, y «Registrar constancia →» se rechaza («no está en
+planilla»). Su cargo vence el 31-oct.
+
+---
+
 ## 2026-10-06 — El alta pide el documento, y cada documento dice de qué tipo es · migración 0513 · PEGADA Y VERIFICADA EN PRODUCCIÓN · SIN FUSIONAR (PR #508)
 
 **Origen:** el alta no pedía el DNI, así que el índice único de documento (0125), el único freno exacto contra

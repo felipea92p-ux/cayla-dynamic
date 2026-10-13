@@ -8,8 +8,9 @@ import type { ClienteCayla } from "@cayla-dynamic/database";
  * contesta en UNA función, que además es la puerta del pedido. Acá solo se lee
  * esa respuesta y se decide lo que es de pantalla (cuándo mostrar la tarjeta).
  * Nadie en el frontend vuelve a mirar `bono_estado` del tablero: ese no sabe
- * que el bono es de planilla, y le ofrecería a una practicante un bono que la
- * base le niega.
+ * distinguir un pedido ya hecho pero todavía sin pagar de uno entregado (0478/
+ * 0479): para el tablero toda constancia vigente es «entregado». Quién puede recibir el bono —en planilla o
+ * practicante— lo dice la base (`fn_persona_le_corresponde_bono`, 0519).
  */
 
 export type EstadoMiBono =
@@ -21,7 +22,7 @@ export type EstadoMiBono =
   | "pedido"
   /** Lo firmó, ya está en su boleta y el periodo todavía no se paga (0479). */
   | "en_boleta"
-  /** No está en planilla, o su cumpleaños de este año cayó antes del bono o de su ingreso. */
+  /** No le corresponde (ni en planilla ni practicante), o su cumpleaños de este año cayó antes del bono o de su ingreso. */
   | "no_aplica"
   /** Falta su fecha de nacimiento en la ficha. */
   | "sin_fecha"

@@ -1579,7 +1579,7 @@ export default function MioPage() {
         detalle: `${miBono?.monto != null ? `${formatSoles(miBono.monto)}. ` : ""}${
           miBono?.estado === "vencido"
             ? "Ya pasó tu cumpleaños y todavía no lo pides: aún estás a tiempo."
-            : "Es el mes de tu cumpleaños: pídelo y se suma a tu boleta."}`,
+            : "Es el mes de tu cumpleaños: pídelo firmando tu constancia."}`,
         ir: () => router.push("/mio/cumpleanos"),
       });
     }
@@ -1992,7 +1992,7 @@ export default function MioPage() {
                           miBono.monto != null ? `: ${formatSoles(miBono.monto)}` : ""}. ¡Feliz cumpleaños!`
                     : miBono.estado === "vencido"
                       ? "Ya pasó tu cumpleaños y todavía no lo pides: aún estás a tiempo."
-                      : "Es el mes de tu cumpleaños. Pídelo firmando tu constancia y se suma a tu boleta."}
+                      : "Es el mes de tu cumpleaños. Pídelo firmando tu constancia."}
               alerta={puedePedirBono(miBono)}
               accion={
                 <Link href="/mio/cumpleanos" className="text-tinta underline underline-offset-2 hover:text-rojo-profundo">
