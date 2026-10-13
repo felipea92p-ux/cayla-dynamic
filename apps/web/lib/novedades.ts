@@ -115,6 +115,22 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-10-13-asistencia-diseno-unificado",
+    fecha: "2026-10-13",
+    titulo: "Asistencia de hoy se ve más ordenada: números, avisos y sedes con una sola forma",
+    queMejoro:
+      "Los cuatro números de arriba —trabajando ahora, tardanzas, sin marcar y sedes bajo la meta— ahora son " +
+      "casillas, y el estado de cada una lo dice un punto de color junto a su nombre, no el color del número. Lo que " +
+      "cuenta cada casilla no cambió: solo la forma de leerla. Si una casilla está en cero, ya no se puede abrir, " +
+      "porque no tiene detalle que mostrar.\n\n" +
+      "Lo mismo pasa dentro de cada sede: los recuadros «Trabajando ahora» y «En pausa» ya no se pintan de verde y " +
+      "de ámbar, llevan un punto; los avisos tienen un tamaño para los de una línea y otro para los que explican; y " +
+      "si un filtro no encuentra a nadie, aparece un botón para quitar los filtros. En el celular los cuatro " +
+      "números van en dos filas de dos y ocupan algo más de pantalla que antes. Las tablas del panel perdieron las " +
+      "franjas alternas: la fila se resalta al pasar el cursor.",
+    audiencia: "panel",
+  },
+  {
     id: "2026-10-13-agregar-marcaje-propone-lo-que-falta",
     fecha: "2026-10-13",
     titulo: "En Correcciones, «Agregar un marcaje faltante» ya propone lo que falta",
