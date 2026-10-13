@@ -12,6 +12,7 @@
  */
 
 import { useEffect, useId, useRef } from "react";
+import { useRafagaDeClics } from "@/lib/use-rafaga-de-clics";
 import {
   COLA_DEL_AVE,
   LINEA_DE_TIEMPO,
@@ -37,6 +38,8 @@ const SEDES = [
 
 export function PanelVuelo() {
   const mascaraId = `hilo-${useId().replace(/:/g, "")}`;
+  // Easter egg: cinco clics seguidos sobre el colibrí lo hacen revolotear. Ver docs/easter-eggs.md.
+  const { activo: travieso, alClic } = useRafagaDeClics();
   const panelRef = useRef<HTMLDivElement>(null);
   const aveRef = useRef<SVGSVGElement>(null);
   const alaRef = useRef<SVGPathElement>(null);
@@ -189,7 +192,7 @@ export function PanelVuelo() {
       </svg>
 
       {/* El colibrí de la marca (los trazos de IsotipoCayla); el ala son los dos primeros y aletea. */}
-      <svg ref={aveRef} className="login-ave" viewBox="0 0 223 150">
+      <svg ref={aveRef} className="login-ave" viewBox="0 0 223 150" onClick={alClic} data-travieso={travieso ? "" : undefined}>
         <path ref={alaRef} d={TRAZOS_DEL_AVE[0]} pathLength={1} />
         <path ref={alaBajoRef} d={TRAZOS_DEL_AVE[1]} pathLength={1} />
         <path d={TRAZOS_DEL_AVE[2]} pathLength={1} />

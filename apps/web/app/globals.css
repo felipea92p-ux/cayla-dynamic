@@ -493,6 +493,74 @@
   mask: url(/colibri.png) center / contain no-repeat;
 }
 
+/* ── Easter eggs del colibrí (docs/easter-eggs.md) ───────────────
+   Dos, y los dos pasivos: nada de esto se ve si nadie lo busca.
+
+   `.colibri-viajero` es el que cruza la pantalla con el código Konami: fijo,
+   encima de todo y sin recibir clics, así que nunca estorba a lo que haya
+   debajo. Cruza en 3.4 s y el componente lo retira al terminar la animación.
+   El ala (`.colibri-aleteo`) vibra con scaleY; se anima el contenedor y el
+   ala por separado para que el aleteo no dependa del trayecto.
+
+   `[data-travieso]` es el revoloteo del colibrí del login tras cinco clics.
+   Usa las propiedades `translate` y `rotate` (no `transform`) a propósito: el
+   colibrí del panel ya lleva un `transform` en línea, y las propiedades
+   individuales se SUMAN a él en vez de reemplazarlo.
+
+   Con `prefers-reduced-motion` el viajero no cruza: asoma un momento en la
+   esquina, sin moverse, y el del login simplemente no se mueve. */
+.colibri-viajero {
+  position: fixed;
+  top: 38vh;
+  left: 0;
+  z-index: 60;
+  pointer-events: none;
+  animation: colibri-cruza 3.4s ease-in-out forwards;
+}
+.colibri-aleteo {
+  transform-origin: 40% 60%;
+  animation: colibri-aleteo 0.14s ease-in-out infinite alternate;
+}
+@keyframes colibri-cruza {
+  0% { transform: translate(-12vw, 0); opacity: 0; }
+  8% { opacity: 1; }
+  25% { transform: translate(24vw, -9vh); }
+  50% { transform: translate(50vw, 5vh); }
+  75% { transform: translate(76vw, -7vh); }
+  92% { opacity: 1; }
+  100% { transform: translate(112vw, 0); opacity: 0; }
+}
+@keyframes colibri-aleteo {
+  from { transform: scaleY(1) rotate(-2deg); }
+  to { transform: scaleY(0.9) rotate(2deg); }
+}
+@keyframes colibri-asoma {
+  0%, 100% { opacity: 0; }
+  20%, 80% { opacity: 1; }
+}
+[data-travieso] {
+  animation: colibri-travieso 1.3s ease-in-out;
+}
+@keyframes colibri-travieso {
+  0%, 100% { translate: 0 0; rotate: 0deg; }
+  15% { translate: 0 -14px; rotate: -8deg; }
+  30% { translate: 6px 2px; rotate: 6deg; }
+  45% { translate: 0 -10px; rotate: -5deg; }
+  60% { translate: -4px 0; rotate: 4deg; }
+  80% { translate: 0 -4px; rotate: -2deg; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .colibri-viajero {
+    top: auto;
+    left: auto;
+    right: 24px;
+    bottom: 24px;
+    animation: colibri-asoma 2.4s ease-in-out forwards;
+  }
+  .colibri-aleteo { animation: none; }
+  [data-travieso] { animation: none; }
+}
+
 /* ── El contrato de trabajo ──────────────────────────────────────
    El contrato se inyecta con `dangerouslySetInnerHTML` desde
    `apps/web/lib/admin/contrato-texto.ts`, así que Tailwind NO lo alcanza: sus
