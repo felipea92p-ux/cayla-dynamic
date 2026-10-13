@@ -76,9 +76,11 @@ compartido puede tocarlo. `.etiqueta` sigue existiendo como clase para el sobret
 
 ## Excepciones escritas (decididas el 2026-10-13)
 
-- **Franja de cuatro números del Dashboard** (`dashboard/page.tsx`, «resumen»): **no se toca.**
-  Es un diseño de celular hecho a propósito —una fila de ~75 px en vez de un 2×2 de ~230 px— y se
-  expande para mostrar el detalle. La casilla de `Cifra` en 2×2 le devolvería un cuarto de pantalla.
+- **Franja de cuatro números del Dashboard** (`dashboard/page.tsx`, «resumen»): **era excepción y
+  dejó de serlo el mismo día.** Al ver la maqueta de toda la pantalla se eligió la versión B: casillas
+  `Cifra` en vez de la franja con divisiones. Costo asumido y medido: en celular pasa de una fila de
+  ~75 px a un 2×2 de **196 px** (casillas de 94 px). Si ese espacio hace falta de vuelta, la salida no
+  es un tamaño nuevo de `Cifra` sino reabrir esta decisión.
 - **`TileCobertura`** (Dashboard): **no se toca.** Pinta toda la caja según el significado, que la
   decisión #2 descartó para el número. Mismo asunto que la franja.
 - Si una tercera pantalla pide lo mismo (una cifra «principal» que no cabe en la casilla), no se

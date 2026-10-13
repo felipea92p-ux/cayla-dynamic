@@ -15,6 +15,9 @@
 //   · nada            → una casilla informativa (<div>)
 //   · `onClick`       → un filtro (<button aria-pressed>); `activa` la marca
 //   · `href`          → un enlace a donde se resuelve (<Link>)
+//   · `onClick` + `controla` → abre un detalle debajo (acordeón): en vez de
+//                       aria-pressed lleva aria-expanded y aria-controls, que es
+//                       lo que un lector de pantalla espera de «mostrar más».
 // Todo lo de adentro son <span>, para que sea válido dentro de un <button>.
 //
 // El número va pegado al fondo de la casilla (`mt-auto`) y la etiqueta arriba:
@@ -36,6 +39,7 @@ export function Cifra({
   tono,
   activa = false,
   onClick,
+  controla,
   href,
   className,
 }: {
@@ -49,6 +53,8 @@ export function Cifra({
   /** Solo tiene efecto con `onClick`: la casilla es el filtro que está aplicado. */
   activa?: boolean;
   onClick?: () => void;
+  /** El id de la región que esta casilla abre. Con él, `activa` significa «abierta». */
+  controla?: string;
   href?: string;
   className?: string;
 }) {
@@ -73,7 +79,12 @@ export function Cifra({
   if (href) return <Link href={href} className={caja}>{contenido}</Link>;
   if (onClick) {
     return (
-      <button type="button" aria-pressed={activa} onClick={onClick} className={cx(caja, "w-full")}>
+      <button
+        type="button"
+        {...(controla ? { "aria-expanded": activa, "aria-controls": controla } : { "aria-pressed": activa })}
+        onClick={onClick}
+        className={cx(caja, "w-full")}
+      >
         {contenido}
       </button>
     );

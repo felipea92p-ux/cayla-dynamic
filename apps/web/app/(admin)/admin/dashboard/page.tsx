@@ -884,20 +884,20 @@ export default function DashboardPage() {
   // ~70 px cada uno. El `label` completo se sigue leyendo al tocar (encabezado del
   // detalle) y en el aria-label del botón: «Sin marcar» solo, sin «y ya les tocaba
   // entrar», es la frase que acusaría a quien aún no tenía que haber llegado.
-  const resumen: { clave: ClaveResumen; label: string; corto: string; n: number; color: string; nota?: string; notaSuave?: boolean }[] = [
+  const resumen: { clave: ClaveResumen; label: string; corto: string; n: number; tono?: "alerta" | "positivo"; nota?: string; notaSuave?: boolean }[] = [
     {
       clave: "trabajando", label: "Trabajando ahora", corto: "Trabajando", n: personasDelResumen.trabajando.length,
-      color: personasDelResumen.trabajando.length > 0 ? "text-verde" : "text-tinta",
+      tono: personasDelResumen.trabajando.length > 0 ? "positivo" : undefined,
       nota: enPausaTotal > 0 ? `y ${enPausaTotal} en pausa` : undefined,
     },
-    { clave: "tardanzas", label: "Tardanzas hoy", corto: "Tardanzas", n: personasDelResumen.tardanzas.length, color: personasDelResumen.tardanzas.length > 0 ? "text-rojo" : "text-tinta" },
+    { clave: "tardanzas", label: "Tardanzas hoy", corto: "Tardanzas", n: personasDelResumen.tardanzas.length, tono: personasDelResumen.tardanzas.length > 0 ? "alerta" : undefined },
     // Tres frases distintas para lo mismo («sin marcar cuando ya debían», «sin
     // marcar y ya le tocaba», la insignia de la fila): ahora dicen lo mismo, con
     // verbo — «ya les tocaba entrar».
-    { clave: "sin_marcar", label: "Sin marcar y ya les tocaba entrar", corto: "Sin marcar", n: personasDelResumen.sin_marcar.length, color: personasDelResumen.sin_marcar.length > 0 ? "text-rojo" : "text-verde" },
+    { clave: "sin_marcar", label: "Sin marcar y ya les tocaba entrar", corto: "Sin marcar", n: personasDelResumen.sin_marcar.length, tono: personasDelResumen.sin_marcar.length > 0 ? "alerta" : "positivo" },
     // «Bajo la meta», no «bajo mínimo»: Turnos, los recuadros de cada sede y la
     // pastilla dicen «meta». «Mínimo» era una tercera palabra para lo mismo.
-    { clave: "bajo_minimo", label: "Sedes bajo la meta", corto: "Bajo meta", n: sedesBajoMinimo.length, color: sedesBajoMinimo.length > 0 ? "text-rojo" : "text-verde", nota: notaSedesQueSeMiden, notaSuave: true },
+    { clave: "bajo_minimo", label: "Sedes bajo la meta", corto: "Bajo meta", n: sedesBajoMinimo.length, tono: sedesBajoMinimo.length > 0 ? "alerta" : "positivo", nota: notaSedesQueSeMiden, notaSuave: true },
   ];
   const resumenDetalle = resumen.find((k) => k.clave === resumenAbierto) ?? null;
 
@@ -1252,50 +1252,35 @@ export default function DashboardPage() {
                 );
               })}
             </div>
-            {/* Celular: los cuatro números en UNA fila de ~75 px (antes un 2×2 de ~230 px), con
-                la etiqueta corta. El 2×2 gastaba un cuarto de pantalla en cuatro cifras. */}
+            {/* Los cuatro números son casillas <Cifra> (ADR 0004, versión B elegida el 2026-10-13):
+                número en tinta, el significado en el punto de color junto a la etiqueta. Hasta
+                entonces eran una franja con divisiones y el número pintado de verde o rojo.
+                COSTO ASUMIDO: en celular ya no caben en UNA fila de ~75 px —como se hizo a
+                propósito antes, porque el 2×2 de entonces gastaba un cuarto de pantalla—: van
+                2×2 de casillas compactas. Con punto y etiqueta, cuatro casillas de ~80 px
+                obligarían a partir «Trabajando» en dos líneas.
+                La etiqueta corta se ve en celular, pero el lector de pantalla lee SIEMPRE la
+                completa: «Sin marcar» solo, sin «y ya les tocaba entrar», es la frase que
+                acusaría a quien aún no tenía que haber llegado. Una casilla en 0 no abre nada
+                (no hay detalle que mostrar), así que no es un botón. */}
             <div className={resumenDetalle ? "mb-3" : "mb-4 sm:mb-6"}>
-            <div className="grid grid-cols-4 gap-px overflow-hidden rounded-2xl border border-sand bg-sand">
-              {resumen.map((k) => {
-                const abierto = resumenAbierto === k.clave;
-                return (
-                  <button
-                    key={k.clave}
-                    type="button"
-                    disabled={k.n === 0}
-                    aria-expanded={k.n === 0 ? undefined : abierto}
-                    aria-controls="detalle-resumen"
-                    aria-label={`${k.label}: ${k.n}${k.nota ? `, ${k.nota}` : ""}`}
-                    onClick={() => setResumenAbierto(abierto ? null : k.clave)}
-                    className={`flex flex-col justify-start py-2 pr-1.5 pl-2.5 text-left transition-colors focus-visible:outline-offset-[-3px] disabled:cursor-default sm:px-5 sm:py-4 ${abierto ? "bg-hueso" : "bg-papel enabled:hover:bg-crema"}`}
-                  >
-                    {/* <span> y no <div>: dentro de un <button> HTML solo admite
-                        contenido de frase. */}
-                    <span className="flex items-start justify-between gap-2">
-                      <span className={`font-serif text-[1.75rem] font-medium leading-none tabular-nums sm:text-4xl ${k.color}`}>{k.n}</span>
-                      {k.n > 0 && (
-                        <span aria-hidden className={`hidden text-xs sm:inline ${abierto ? "font-medium text-tinta" : "text-taupe"}`}>{abierto ? "Cerrar ↑" : "Ver ↓"}</span>
-                      )}
-                    </span>
-                    <span className="mt-1 block text-[0.6875rem] leading-tight text-taupe sm:mt-2 sm:text-sm">
-                      <span className="sm:hidden">{k.corto}</span>
-                      <span className="hidden sm:inline">{k.label}</span>
-                    </span>
-                    {/* Ámbar es «mira esto»; la nota de cuántas sedes abren solo informa. */}
-                    {k.nota && <span className={`mt-0.5 hidden text-xs sm:block ${k.notaSuave ? "text-taupe" : "font-medium text-ambar"}`}>{k.nota}</span>}
-                  </button>
-                );
-              })}
-            </div>
-            {/* Las notas («y 2 en pausa», «de 3 que se miden hoy») no caben en una casilla de 70 px,
-                pero son información que corrige una lectura: sin ellas, «Trabajando 4» en pleno
-                refrigerio parece gente que no vino. En celular van en una línea bajo la fila,
-                solo cuando existen. */}
-            {resumen.some((k) => k.nota) && (
-              <p className="mt-2 px-1 text-xs text-taupe sm:hidden">
-                {resumen.filter((k) => k.nota).map((k) => `${k.label} ${k.nota}`).join(" · ")}
-              </p>
-            )}
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {resumen.map((k) => {
+                  const abierto = resumenAbierto === k.clave;
+                  return (
+                    <Cifra
+                      key={k.clave}
+                      etiqueta={<><span aria-hidden className="sm:hidden">{k.corto}</span><span className="sr-only sm:not-sr-only">{k.label}</span></>}
+                      valor={k.n}
+                      detalle={k.nota ? <span className={k.notaSuave ? undefined : "font-medium text-ambar"}>{k.nota}</span> : undefined}
+                      tono={k.tono}
+                      activa={abierto}
+                      controla="detalle-resumen"
+                      onClick={k.n === 0 ? undefined : () => setResumenAbierto(abierto ? null : k.clave)}
+                    />
+                  );
+                })}
+              </div>
             </div>
 
             {/* DETALLE DEL NÚMERO ABIERTO. De todas las sedes a la vista, sin
