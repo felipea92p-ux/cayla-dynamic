@@ -2377,8 +2377,9 @@ export default function DocumentacionPage() {
                 </summary>
                 <p className="mt-2 text-xs text-taupe">
                   Vienen desmarcados quien firma —no declara haber recibido lo que emite—,
-                  quien no está en planilla, porque no cobra movilidad ni bono de cumpleaños,
-                  y quien termina contrato este mes. A quien termina más adelante SÍ se le
+                  quien no está en planilla —un locador no cobra movilidad ni bono de
+                  cumpleaños; a un practicante, que sí, hay que marcarlo a mano— y quien
+                  termina contrato este mes. A quien termina más adelante SÍ se le
                   entrega: hasta ese día cobra movilidad, así que hasta ese día necesita el
                   papel. Revisa la lista igual: la decisión final es tuya.
                 </p>

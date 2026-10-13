@@ -86,22 +86,31 @@
 --   · No toca `fn_documentos_tablero`: ya listaba al practicante (0424), y con
 --     esta migración esa lista deja de contradecir a las otras dos puertas.
 --   · No abre el bono a `rxh` ni `no_trabajador`: siguen fuera.
---   · No guarda el texto firmado: la constancia se pinta al mirarla, así que
---     si el vínculo cambia después (practicante → planilla) el papel cambia de
---     texto. Es el mismo límite que ya tiene el bono de planilla; se anota
---     aquí para quien lo busque.
+--   · No guarda con qué texto se firmó (LÍMITE CONOCIDO, y más serio que el de
+--     planilla). La constancia se pinta al mirarla, según el `tipo_vinculo`
+--     ACTUAL de la persona. Para planilla eso solo cambia si alguien edita el
+--     texto del código; para un practicante, si después pasa a planilla —un
+--     patrón que ya existe en este repo— su constancia ya firmada pasaría a
+--     mostrar el texto de planilla («trabajador», normas laborales), distinto
+--     del que firmó. La solución limpia es guardar al firmar con qué texto fue
+--     (una columna en `documentos_firmados`, escrita por las dos funciones que
+--     registran un bono y devuelta por `fn_documentos_listar`) y va en otra
+--     migración; no se hizo aquí para no ensanchar una migración que toca
+--     plata. Anotado en docs/estado.md.
 --   · No toca a quien ya firmó: ninguna fila cambia al pegar esto.
 --
 -- MD5 DE PARTIDA — CONFIRMADOS EN PRODUCCIÓN EL 2026-10-13
 --
 --   fn_documento_registrar            0448   5319 caracteres
+--       tal cual 5909cada… · sin comentarios 47307a09…
 --   fn_mi_bono_cumpleanos()           0479   4414 caracteres
+--       tal cual 6a9d7307… · sin comentarios 983554cf…
 --   fn_confirmar_mi_bono_cumpleanos() 0479   4645 caracteres
+--       tal cual b6706e42… · sin comentarios e796c2b3…
 --
 --   Los cuerpos se copiaron del repo, y Felipe pidió el md5 a PRODUCCIÓN en el
---   SQL Editor el mismo día: los tres coinciden, tanto el tal cual
---   (b6706e42… · 5909cada… · 6a9d7307…) como el sin comentarios (e796c2b3… ·
---   47307a09… · 983554cf…), con 0 retornos `\r`. (Se pidió DESPUÉS de escribir
+--   SQL Editor el mismo día: los tres coinciden, tanto el tal cual como el sin
+--   comentarios, con 0 retornos `\r`. (Se pidió DESPUÉS de escribir
 --   la migración y no antes, contra lo que dice CLAUDE.md; coincidió, así que
 --   no hubo daño — pero el orden correcto es el otro.) Se comprobó además que
 --   `main` no trajo migraciones sobre estas funciones desde que se escribió.

@@ -23,7 +23,10 @@ import { FirmaEditor } from "@/app/(admin)/admin/personas/[id]/FirmaEditor";
  * queda como una línea de su boleta del periodo que corre y se paga junto con
  * su planilla: no hay nadie a quien esperar. Solo si no había un periodo de
  * planilla abierto —o alguien quitó la línea— queda «pedido», y ahí sí DO lo
- * transfiere y confirma la fecha (el respaldo de la 0478). Qué le toca (y si
+ * transfiere y confirma la fecha (el respaldo de la 0478). UN PRACTICANTE
+ * (0519) NUNCA entra a la boleta: su convenio de modalidad formativa no es
+ * planilla, así que su bono queda siempre «pedido» y lo transfiere DO; esta
+ * pantalla lo dice con su propia redacción y su constancia lleva otro texto. Qué le toca (y si
  * el botón aparece) lo contesta `fn_mi_bono_cumpleanos`, la misma función que
  * el servidor usa de puerta: la pantalla no puede ofrecer un pedido que la
  * base después rechace.
@@ -38,8 +41,9 @@ import { FirmaEditor } from "@/app/(admin)/admin/personas/[id]/FirmaEditor";
  * bono se paga por transferencia (confirmado con Felipe, 2026-09-16), así
  * que no hay ningún paso previo de un admin que desbloquee esta pantalla —
  * la persona firma en cuanto le corresponde, exactamente como ya hace con
- * su declaración de ruta. La única puerta es la de siempre: en planilla,
- * activa, y sin una constancia vigente todavía este año.
+ * su declaración de ruta. La única puerta es la de siempre: en planilla (o
+ * practicante, desde la 0519), activa, y sin una constancia vigente todavía
+ * este año.
  *
  * EL MONTO NUNCA SE PIDE ACÁ. Lo calcula el servidor con el bono_onomastico
  * vigente — nunca una cifra que la persona escriba.
