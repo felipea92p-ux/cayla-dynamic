@@ -10,7 +10,8 @@
  * las dos aplicaciones se vean como una. Lo único que cambia es de dónde sale la hora: aquí, de `fecha-lima.ts`.
  */
 
-import { TZ_LIMA, horaDecimalLima } from "@cayla-dynamic/shared";
+import { TZ_LIMA, fechaLima, horaDecimalLima } from "@cayla-dynamic/shared";
+import { toqueDeFecha } from "./easter-eggs";
 
 export type Punto = { x: number; y: number };
 
@@ -233,10 +234,14 @@ export function tintaDeLaPalabra(
 
 // ---------------------------------------------------------------- el saludo
 
-/** «Buenos días · martes 13 de octubre», con la hora de Perú (no la del aparato, que puede estar mal configurado). */
+/**
+ * «Buenos días · martes 13 de octubre», con la hora de Perú (no la del aparato, que puede estar mal configurado).
+ * Dos días al año lleva un toque al final —«… · Feliz Navidad»—: ver `toqueDeFecha` y `docs/easter-eggs.md`.
+ */
 export function saludoDelDia(ahora: Date): string {
   const hora = Math.floor(horaDecimalLima(ahora));
   const saludo = hora >= 5 && hora < 12 ? "Buenos días" : hora >= 12 && hora < 19 ? "Buenas tardes" : "Buenas noches";
   const fecha = new Intl.DateTimeFormat("es-PE", { weekday: "long", day: "numeric", month: "long", timeZone: TZ_LIMA }).format(ahora);
-  return `${saludo} · ${fecha.replace(",", "")}`;
+  const toque = toqueDeFecha(fechaLima(ahora));
+  return `${saludo} · ${fecha.replace(",", "")}${toque ? ` · ${toque}` : ""}`;
 }

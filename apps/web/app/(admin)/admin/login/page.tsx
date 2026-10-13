@@ -6,6 +6,7 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Colibri } from "@/components/marca";
 import { PanelVuelo } from "@/components/login/PanelVuelo";
 import { saludoDelDia } from "@/lib/login-vuelo";
+import { useRafagaDeClics } from "@/lib/use-rafaga-de-clics";
 import { ROLES_CON_PANEL, claveSirve } from "@cayla-dynamic/shared";
 import { clavePorCambiar, marcarMiClavePorCambiar } from "@/lib/admin/mi-clave";
 import { esFallaDeRed } from "@/lib/admin/mensaje-error";
@@ -19,6 +20,8 @@ const sinSuscripcion = () => () => {};
 export default function AdminLoginPage() {
   const router = useRouter();
   // El saludo depende de la hora: lo pone el navegador (en el servidor no se sabe cuándo se abrirá la página).
+  // Easter egg: cinco clics seguidos sobre el colibrí de arriba (el del celular; en pantalla ancha es el del panel). Ver docs/easter-eggs.md.
+  const { activo: travieso, alClic } = useRafagaDeClics();
   const saludo = useSyncExternalStore(sinSuscripcion, () => saludoDelDia(new Date()), () => null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -117,7 +120,9 @@ export default function AdminLoginPage() {
       <main className="login-lado">
         <form onSubmit={entrar} className="login-form flex flex-col gap-3">
           <div className="login-marca-chica">
-            <Colibri tono="rojo" className="w-12" />
+            <div className="w-12" onClick={alClic} data-travieso={travieso ? "" : undefined}>
+              <Colibri tono="rojo" className="w-12" />
+            </div>
             <p className="mt-4 font-serif text-3xl leading-none">Dynamic</p>
             <p className="etiqueta mt-2 text-taupe">Panel de administración · CAYLA</p>
           </div>
