@@ -115,6 +115,21 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-10-13-cumpleanos-en-info",
+    fecha: "2026-10-13",
+    titulo: "En tu mes de cumpleaños, Info te saluda y te deja firmar tu bono ahí mismo",
+    queMejoro:
+      "Desde el primer día del mes de tu cumpleaños, Info abre con un saludo del equipo —dieciséis mensajes " +
+      "distintos que van cambiando— y, si te corresponde el bono de cumpleaños, con el botón para firmar tu " +
+      "constancia sin buscarla en ningún menú. Antes la tarjeta del bono quedaba abajo del Resumen, y a quien " +
+      "el sistema no le ofrecía el bono no le decía nada en su mes.\n\n" +
+      "Y el bono ya es también para quien está en prácticas: hasta hoy el sistema se lo negaba aunque " +
+      "Desarrollo Organizacional lo viera como pendiente. Quedan fuera el periodo de prueba y los contratos " +
+      "de menos de una semana. A quien está en prácticas se lo transfiere Desarrollo Organizacional: no va en " +
+      "una boleta.",
+    audiencia: "todos",
+  },
+  {
     id: "2026-10-13-planilla-muestra-movilidad-y-educacion-en-su-columna",
     fecha: "2026-10-13",
     titulo: "En Planilla, la movilidad y la educación ya tienen su propia columna",

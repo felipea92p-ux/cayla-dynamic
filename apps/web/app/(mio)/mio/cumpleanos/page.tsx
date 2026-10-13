@@ -233,7 +233,8 @@ function MiCumpleanosContenido() {
       {(!bono || bono.estado === "no_aplica") && (
         <p className="rounded-lg bg-sand/40 px-4 py-3 text-sm text-taupe">
           Este año no te corresponde el bono de cumpleaños: es para quien está en planilla o hace prácticas en
-          CAYLA, y rige desde que existe o desde tu ingreso. Si crees que es un error, avisa a Desarrollo Organizacional.
+          CAYLA —no durante el periodo de prueba ni con un contrato de menos de una semana—, y rige desde que
+          existe o desde tu ingreso. Si crees que es un error, avisa a Desarrollo Organizacional.
         </p>
       )}
       {bono?.estado === "sin_fecha" && (
