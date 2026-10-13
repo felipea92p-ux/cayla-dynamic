@@ -135,7 +135,9 @@ export function PapelBono({ practicante = false, monto, fecha, estadoPago, nombr
         {fecha ? `Firmada desde el sistema el ${fechaLarga(fecha)}.` : "Se firma desde el sistema."}
         {estadoPago && (
           estadoPago.enBoleta
-            ? " Se paga junto con su planilla, en la boleta del periodo."
+            ? (practicante
+                ? " Se abona en la boleta del periodo, como concepto aparte de la subvención."
+                : " Se paga junto con su planilla, en la boleta del periodo.")
             : estadoPago.transferidoEl
               ? ` Transferida el ${fechaLarga(estadoPago.transferidoEl)}.`
               : fecha ? " Transferencia pendiente de confirmar." : ""

@@ -8,13 +8,16 @@
 -- El caso real: Daniel Ruiz, practicante, cumple en octubre, y el 2026-10-13
 -- no veía nada en su Info mientras DO lo veía pendiente. La regla, decidida
 -- por Cayla ese día y unida con la 0519 de Felipe en la 0520: todos, salvo
--- quien está en prueba o tiene un contrato de menos de una semana; y el
--- practicante cobra por transferencia, nunca por la boleta. Lo que defiende:
+-- quien está en prueba o tiene un contrato de menos de una semana. (La 0520
+-- además mandaba al practicante por transferencia, nunca por la boleta; Felipe
+-- lo revirtió ese mismo día —«no transferir a cada rato, sino pagar al fin del
+-- periodo»— y lo hizo la 0521: su bono va a su boleta como el de cualquiera.)
+-- Lo que defiende:
 --
 --   1. LO QUE VE DO Y LO QUE VE LA PRACTICANTE SON LO MISMO. El tablero y
 --      `fn_mi_bono_cumpleanos` contestan `este_mes`, con el monto a la vista.
---   2. LO PIDE Y QUEDA «PEDIDO». La firma crea la constancia, NO escribe nada
---      en la planilla, y DO lo ve en «por transferir» (0478/0519).
+--   2. LO PIDE Y VA A SU BOLETA (0521). La firma crea la constancia y su línea
+--      de boleta, y DO ya no lo ve en «por transferir».
 --   3. NO SE COBRA DOS VECES. Una segunda firma no pasa.
 --   4. EL CARGO EN PAPEL CONTESTA IGUAL. DO puede registrárselo a otra
 --      practicante.
@@ -23,13 +26,14 @@
 --      extremos cuentan).
 --   7. LO QUE NO SE ABRIÓ SIGUE CERRADO. Un locador por RxH sigue sin bono.
 --
--- Que quien está en planilla SÍ va a la boleta lo defiende la 414 (control).
+-- El efecto del bono de un practicante sobre la planilla, y la reparación de lo
+-- que la 0520 dejó «por transferir», los defiende la 415.
 -- ============================================================================
 begin;
 select plan(20);
 
 -- Un periodo que contiene hoy, y ningún otro que se le cruce: es la condición
--- en que la 0479 SÍ mete el bono a la boleta — y aun así el practicante no.
+-- en que la 0479 SÍ mete el bono a la boleta.
 delete from periodo_grupo_pago;
 delete from periodos_planilla;
 insert into periodos_planilla (id, fecha_ini, fecha_fin)
@@ -94,25 +98,25 @@ select ok((select monto from fn_mi_bono_cumpleanos()) > 0,
   'INFO · con el monto a la vista ANTES de firmar');
 
 
--- ── 2 · Lo pide y queda «pedido»: DO transfiere, la planilla no se toca ───
+-- ── 2 · Lo pide y va a su boleta: se paga con el periodo (0521) ──────────
 select lives_ok($$ select fn_confirmar_mi_bono_cumpleanos() $$,
   'FIRMA · la practicante firma su constancia');
-select is((select estado || ' ' || via from fn_mi_bono_cumpleanos()), 'pedido transferencia',
-  'FIRMA · queda pedido, por transferencia: nunca por la boleta (0519/0520)');
+select is((select estado || ' ' || via from fn_mi_bono_cumpleanos()), 'en_boleta boleta',
+  'FIRMA · queda en su boleta: se paga con el periodo (0521)');
 select is(
   (select count(*)::int from movimientos_planilla
     where persona_id = '00000000-0000-0000-0000-000000413001'
       and periodo_id = '00000000-0000-0000-0000-000000413900'),
-  0, 'BOLETA · no se escribió NADA en la planilla, con un periodo abierto de por medio');
+  1, 'BOLETA · se escribió su línea en el periodo abierto');
 select is(
   coalesce((fn_planilla_calcular_persona('00000000-0000-0000-0000-000000413001',
                                          '00000000-0000-0000-0000-000000413900') ->> 'bonos')::numeric, 0),
-  0::numeric, 'PLANILLA · y su planilla no suma ningún bono');
+  fn_bono_monto_vigente(), 'PLANILLA · y su planilla suma el bono');
 select pg_temp.como('00000000-0000-0000-0000-000000413014');
 select is(
   (select count(*)::int from fn_bonos_por_transferir()
     where persona_id = '00000000-0000-0000-0000-000000413001'),
-  1, 'DO · lo ve en «por transferir», que es donde se paga');
+  0, 'DO · NO lo ve en «por transferir»: ya lo paga la planilla');
 
 
 -- ── 3 · No se cobra dos veces ────────────────────────────────────────────

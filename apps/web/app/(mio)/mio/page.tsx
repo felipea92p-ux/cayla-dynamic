@@ -1993,12 +1993,12 @@ export default function MioPage() {
               pie={miBono.estado === "pedido"
                 ? `Lo pediste el ${diaYMes(miBono.pedido_el!)}. Desarrollo Organizacional te lo transfiere y aquí verás la fecha.`
                 : miBono.estado === "en_boleta"
-                  ? `Ya está en tu boleta${miBono.periodo_fin ? ` del periodo que cierra el ${diaYMes(miBono.periodo_fin)}` : ""} y se paga junto con tu planilla.`
+                  ? `Ya está en tu boleta${miBono.periodo_fin ? ` del periodo que cierra el ${diaYMes(miBono.periodo_fin)}` : ""} y se paga junto con ${misDatos?.tipoVinculo === "practicante" ? "tu subvención" : "tu planilla"}.`
                   : miBono.estado === "entregado"
                     // Por la boleta no hay «día en que se transfirió»: la
                     // planilla no lo guarda por persona, solo el periodo.
                     ? miBono.via === "boleta"
-                      ? `Pagado con tu planilla${miBono.periodo_fin ? ` del periodo que cerró el ${diaYMes(miBono.periodo_fin)}` : ""}${
+                      ? `Pagado con ${misDatos?.tipoVinculo === "practicante" ? "tu subvención" : "tu planilla"}${miBono.periodo_fin ? ` del periodo que cerró el ${diaYMes(miBono.periodo_fin)}` : ""}${
                           miBono.monto != null ? `: ${formatSoles(miBono.monto)}` : ""}. ¡Feliz cumpleaños!`
                       : `${miBono.pedido_el ? "Transferido" : "Recibido"} el ${miBono.entregado_el ? diaYMes(miBono.entregado_el) : "—"}${
                           miBono.monto != null ? `: ${formatSoles(miBono.monto)}` : ""}. ¡Feliz cumpleaños!`

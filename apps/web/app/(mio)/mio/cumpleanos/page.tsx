@@ -24,9 +24,10 @@ import { FirmaEditor } from "@/app/(admin)/admin/personas/[id]/FirmaEditor";
  * su planilla: no hay nadie a quien esperar. Solo si no había un periodo de
  * planilla abierto —o alguien quitó la línea— queda «pedido», y ahí sí DO lo
  * transfiere y confirma la fecha (el respaldo de la 0478). UN PRACTICANTE
- * (0519) NUNCA entra a la boleta: su convenio de modalidad formativa no es
- * planilla, así que su bono queda siempre «pedido» y lo transfiere DO; esta
- * pantalla lo dice con su propia redacción y su constancia lleva otro texto. Qué le toca (y si
+ * entra a la boleta igual (0521): entre la 0519 y la 0520 se le transfería a
+ * mano, y Felipe lo revirtió el 2026-10-13 —«no transferir a cada rato, sino
+ * pagar al fin del periodo»—. Lo que cambia para él es la constancia, que lleva
+ * su propio texto, y que su boleta paga una «subvención», no una planilla. Qué le toca (y si
  * el botón aparece) lo contesta `fn_mi_bono_cumpleanos`, la misma función que
  * el servidor usa de puerta: la pantalla no puede ofrecer un pedido que la
  * base después rechace.
@@ -218,7 +219,7 @@ function MiCumpleanosContenido() {
       <p className="mb-6 text-sm text-taupe">
         Una asignación de {bono?.monto != null ? formatSoles(bono.monto) : "la empresa"} en el mes de tu
         cumpleaños. Se pide firmando tu constancia aquí —sin imprimir ni escanear nada—{" "}
-        {yo?.practicante ? "y Desarrollo Organizacional te lo transfiere." : "y se suma a tu boleta."}
+        y se suma a tu boleta.
       </p>
 
       {aviso && (
@@ -258,7 +259,7 @@ function MiCumpleanosContenido() {
               Lo pediste el {bono.pedido_el ? fechaLarga(bono.pedido_el) : "—"}
               {bono.monto != null && <> por {formatSoles(bono.monto)}</>}. Ya está en tu boleta
               {bono.periodo_fin ? <> del periodo que cierra el {fechaLarga(bono.periodo_fin)}</> : null} y se
-              paga junto con tu planilla.{" "}
+              paga junto con {yo?.practicante ? "tu subvención" : "tu planilla"}.{" "}
               <Link href="/mio/boleta" className="underline underline-offset-2 hover:text-rojo-profundo">
                 Ver mi boleta →
               </Link>
@@ -267,14 +268,14 @@ function MiCumpleanosContenido() {
             <p className="text-tinta">
               Lo pediste el {bono.pedido_el ? fechaLarga(bono.pedido_el) : "—"}
               {bono.monto != null && <> por {formatSoles(bono.monto)}</>}.{" "}
-              {yo?.practicante ? "Desarrollo Organizacional te lo transfiere" : "Todavía no está en ninguna boleta, así que Desarrollo Organizacional te lo transfiere"}
-              : cuando lo confirme, aquí verás la fecha.
+              Todavía no está en ninguna boleta, así que Desarrollo Organizacional te lo transfiere:
+              cuando lo confirme, aquí verás la fecha.
             </p>
           ) : bono.via === "boleta" ? (
             // No hay «día en que se transfirió»: la planilla no lo guarda por
             // persona. Se dice el periodo, que es un hecho.
             <p className="text-verde">
-              Pagado con tu planilla{bono.periodo_fin ? <> del periodo que cerró el {fechaLarga(bono.periodo_fin)}</> : null}
+              Pagado con {yo?.practicante ? "tu subvención" : "tu planilla"}{bono.periodo_fin ? <> del periodo que cerró el {fechaLarga(bono.periodo_fin)}</> : null}
               {bono.monto != null && <>: {formatSoles(bono.monto)}</>}.
             </p>
           ) : (
