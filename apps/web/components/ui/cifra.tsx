@@ -26,15 +26,8 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { cx } from "./cx";
+import { Punto, type TonoPunto } from "./punto";
 
-type Tono = "alerta" | "advertencia" | "positivo" | "informativo";
-
-const PUNTO: Record<Tono, string> = {
-  alerta: "bg-rojo",
-  advertencia: "bg-ambar",
-  positivo: "bg-verde",
-  informativo: "bg-pizarra",
-};
 
 export function Cifra({
   etiqueta,
@@ -52,7 +45,7 @@ export function Cifra({
   /** Una línea chica bajo el número («2 no lo requieren»). */
   detalle?: ReactNode;
   /** Punto de color junto a la etiqueta. Sin tono, no hay punto. */
-  tono?: Tono;
+  tono?: TonoPunto;
   /** Solo tiene efecto con `onClick`: la casilla es el filtro que está aplicado. */
   activa?: boolean;
   onClick?: () => void;
@@ -69,7 +62,7 @@ export function Cifra({
   const contenido = (
     <>
       <span className="flex items-center gap-1.5 text-xs text-taupe">
-        {tono && <span aria-hidden className={cx("size-2 shrink-0 rounded-pildora", PUNTO[tono])} />}
+        {tono && <Punto tono={tono} />}
         {etiqueta}
       </span>
       <span className="mt-auto block pt-1 font-serif text-2xl tabular-nums text-tinta">{valor}</span>

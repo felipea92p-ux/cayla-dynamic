@@ -21,10 +21,18 @@
 import type { ReactNode } from "react";
 
 export function CabeceraPagina({
+  sobretitulo,
   titulo,
   descripcion,
   accion,
 }: {
+  /**
+   * La línea chica encima del título («Planilla», «Hoja de sede»). Mayúsculas con
+   * espaciado (decisión 11 de docs/adr/0004-diseno-unificado.md, 2026-10-13):
+   * es el detalle de identidad que ya aparece en el login. Opcional: la
+   * mayoría de las pantallas no lleva.
+   */
+  sobretitulo?: string;
   titulo: string;
   descripcion?: ReactNode;
   accion?: ReactNode;
@@ -34,6 +42,7 @@ export function CabeceraPagina({
     // menos de pantalla útil en un teléfono, en las 18 pantallas que la usan.
     <div className="mb-5 flex flex-wrap items-start justify-between gap-4 sm:mb-8">
       <div>
+        {sobretitulo && <p className="etiqueta mb-1 text-taupe">{sobretitulo}</p>}
         <h1 className="font-serif text-[1.75rem] font-medium leading-tight tracking-[-0.01em] text-tinta">
           {titulo}
         </h1>
