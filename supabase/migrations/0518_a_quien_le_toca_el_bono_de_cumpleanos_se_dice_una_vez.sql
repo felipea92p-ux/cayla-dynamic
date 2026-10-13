@@ -1,16 +1,26 @@
 -- ============================================================================
--- 0518 — El bono de cumpleaños también es para quien es practicante
+-- 0518 — A quién le toca el bono de cumpleaños se dice una sola vez
 -- ============================================================================
 --
 -- QUÉ PROMETE
 --
---   Que quien es practicante (`tipo_vinculo = 'practicante'`) vea, pida y
---   firme su bono de cumpleaños igual que quien está en planilla: desde el
---   primer día del mes de su cumpleaños, desde su Info, con su firma digital,
---   y que el bono entre a su boleta como a cualquiera (0479, sin cambios).
---   Y que Desarrollo Organizacional (DO) pueda registrarle el cargo en papel.
+--   Que el bono de cumpleaños sea de TODO el equipo con contrato de trabajo o
+--   convenio de prácticas —quien está en planilla y quien es practicante—,
+--   con dos excepciones: quien está en periodo de prueba (`tipo_vinculo =
+--   'prueba'`) y quien tiene un contrato de menos de una semana. Y que esa
+--   regla viva en UN solo lugar, `fn_persona_le_corresponde_bono_cumpleanos`,
+--   y la lean las tres puertas que hoy la tenían cada una por su cuenta:
 --
---   Decidido por Cayla el 2026-10-13: «Todos deberían verlo».
+--     · `fn_mi_bono_cumpleanos`   — lo que ve la persona en su Info, en su
+--                                   Bandeja y en /mio/cumpleanos; y la puerta
+--                                   de la firma (`fn_confirmar_mi_bono_…`).
+--     · `fn_documento_registrar`  — el cargo en papel que registra DO.
+--     · `fn_documentos_tablero`   — lo que DO ve en Documentación y en su
+--                                   Bandeja («Bono sin constancia firmada»).
+--
+--   Decidido por Cayla el 2026-10-13: «todos pueden firmar, siendo
+--   practicante, en planilla, todos excepto los que tienen un contrato de
+--   menos de una semana o están en prueba».
 --
 -- EL DEFECTO, VISTO EN VIVO
 --
@@ -24,60 +34,95 @@
 --     fn_mi_bono_cumpleanos  (lo que ve él)        → no_aplica
 --     fn_mi_bono_cumpleanos  (control en planilla) → este_mes, S/ 180
 --
---   Dos funciones contestando distinto sobre la misma persona. La 0478 ya lo
---   había dejado anotado como pendiente en `docs/estado.md`; quedaba por
---   decidir hacia qué lado se cerraba. Esta migración lo cierra hacia el lado
---   del tablero: el tablero ya tenía razón con la regla nueva, y no se toca.
+--   Dos funciones contestando distinto sobre la misma persona. La causa: el
+--   tablero lista a quien le corresponde MOVILIDAD (0424: planilla o
+--   practicante) y calcula `bono_estado` a todo el que lista, mientras
+--   `fn_mi_bono_cumpleanos` y `fn_documento_registrar` exigían `en_planilla`
+--   a secas. La 0478 ya lo había dejado anotado como pendiente en
+--   `docs/estado.md`; faltaba decidir hacia qué lado se cerraba.
 --
--- DECIDÍ:     una función nueva, `fn_persona_le_corresponde_bono_cumpleanos`,
---             que dice UNA vez a quién le toca el bono, y que la lean las dos
---             puertas que hoy preguntaban `en_planilla` a secas:
---             `fn_mi_bono_cumpleanos` (Info, Bandeja mía, /mio/cumpleanos y la
---             firma, que la usa de puerta) y `fn_documento_registrar` (el cargo
---             en papel de DO).
--- DESCARTÉ:   reusar `fn_persona_le_corresponde_movilidad`, que hoy contesta
---             exactamente lo mismo. Es lo que produjo este defecto: el bono
---             vivía colgado de una pregunta de movilidad (el tablero de
---             documentos), y cuando la movilidad cambió (0424) el bono cambió a
---             medias. Son dos beneficios con dos fundamentos distintos; el día
---             que uno cambie, el otro no tiene que enterarse.
---             Y descarté cambiar `en_planilla`: es columna generada y significa
---             «se le mide asistencia y disciplina» en todo el sistema (0085).
--- SE ROMPE SI: alguien pasa a una practicante a planilla A MITAD DE AÑO
---             después de cobrar su bono: no se paga dos veces (el índice
---             único de 0157 es por persona y año, no por vínculo), así que eso
---             está cubierto. Lo que sí rompería: crear un tipo de vínculo nuevo
---             (p. ej. «locación» con otro nombre) que deba tener bono, sin
---             agregarlo aquí — se quedaría en `no_aplica` en silencio, igual que
---             Daniel. Por eso la lista vive en UNA función.
+-- LA REGLA, EN NÚMEROS
+--
+--   Le toca si `tipo_vinculo in ('planilla', 'practicante')` Y su contrato
+--   dura al menos siete días. Los días de contrato se cuentan con los dos
+--   extremos incluidos: `fecha_fin_contrato - fecha_ingreso + 1`. Un contrato
+--   del 10 al 16 de octubre son 7 días → le toca; del 10 al 15 son 6 → no.
+--   Sin `fecha_fin_contrato` (indefinido) le toca. `fecha_ingreso` es NOT
+--   NULL, así que la resta nunca da null.
+--
+--   `prueba` queda fuera aunque `en_planilla` lo incluya: `en_planilla`
+--   significa «se le mide asistencia y disciplina» (0085) y eso sigue siendo
+--   cierto para quien está en prueba; lo que NO devenga son los beneficios,
+--   decisión de Felipe del 2026-07-26 registrada en la misma 0085. Esta
+--   migración aplica al bono el mismo criterio.
+--
+-- DECIDÍ:     una función nueva que dice a quién le toca, leída por las tres
+--             puertas. Las tres se reescriben con UN cambio marcado cada una
+--             (`CAMBIO 0518`), partiendo de su versión vigente.
+-- DESCARTÉ:   (a) reusar `fn_persona_le_corresponde_movilidad`, que hoy casi
+--             contesta lo mismo. Es exactamente lo que produjo este defecto:
+--             el bono vivía colgado de una pregunta de movilidad, y cuando la
+--             movilidad cambió (0424) el bono cambió a medias. Y ya no
+--             contestan igual: la movilidad sí le toca a quien está en prueba.
+--             (b) cambiar la fórmula de `en_planilla`: es columna generada y
+--             la leen catorce lugares con el significado de la 0085.
+--             (c) medir el contrato corto en `contratos_generados` (el
+--             contrato firmado vigente): no todo el equipo tiene su contrato
+--             ahí —los anteriores al generador viven en papel—, y la 0312 ya
+--             copia la `fecha_fin` del contrato firmado a
+--             `personas.fecha_fin_contrato`. Se lee de donde ya está.
+-- SE ROMPE SI: alguien crea un tipo de vínculo nuevo que deba tener bono y no
+--             lo agrega aquí — se quedaría en `no_aplica` en silencio, igual
+--             que Daniel. Por eso la lista vive en UNA función y la prueba 413
+--             recorre los cinco vínculos. Y si DO registra un contrato corto
+--             SIN `fecha_fin_contrato`, el sistema no tiene cómo saber que es
+--             corto: lo tratará como indefinido.
+--
+-- UNA CONSECUENCIA QUE CONVIENE SABER
+--
+--   Quien cumple años estando en prueba y pasa a planilla antes de fin de
+--   año queda en `vencido` («ya cumplió este año y no lo pidió: todavía
+--   puede») y lo puede pedir entonces. No es un cambio de esta migración: es
+--   lo que la 0478 ya hacía con cualquier cumpleaños pasado. Si Cayla quiere
+--   que el bono se pierda al cumplir en prueba, es otra decisión y otra
+--   migración.
 --
 -- LO QUE SE COMPROBÓ ANTES DE ENTREGAR (dentro de BEGIN … ROLLBACK)
 --
---   Con la practicante simulada: `fn_mi_bono_cumpleanos` → este_mes con su
+--   Con una practicante simulada: `fn_mi_bono_cumpleanos` → este_mes con su
 --   monto; la firma crea la constancia y la línea `bono` en su boleta; y la
---   planilla de su periodo suma el bono a lo que cobra. Ver la prueba pgTAP
---   que acompaña a esta migración.
+--   planilla de su periodo suma el bono a lo que cobra (y EsSalud no se
+--   mueve: para practicantes la base es siempre el piso de la RMV). Con una
+--   persona en prueba y una con contrato de 6 días: las tres puertas dicen
+--   que no. Ver la prueba pgTAP 413, que corre con y sin esta migración.
 --
 -- QUÉ NO HACE, A PROPÓSITO
 --
---   · No toca `fn_documentos_tablero`: ya listaba a quien es practicante desde
---     la 0424 y ya le calculaba `bono_estado`. Con esta regla, lo que decía
---     era verdad. (Sigue colgado de `fn_persona_le_corresponde_movilidad` para
---     decidir a quién lista; hoy es el mismo conjunto. Si las dos reglas se
---     separan algún día, ahí está el lugar a mirar.)
 --   · No toca `fn_confirmar_mi_bono_cumpleanos`: su puerta ya es
 --     `fn_mi_bono_cumpleanos`, así que hereda el cambio sin reescribirse.
---   · No toca la planilla: la línea `bono` de `movimientos_planilla` ya la suma
---     para cualquier vínculo (0479).
---   · No abre el bono a un locador por RxH: no hubo pedido, y no es parte del
---     equipo con contrato de CAYLA.
+--   · No toca la planilla: la línea `bono` de `movimientos_planilla` ya la
+--     suma para cualquier vínculo (0479).
+--   · No abre el bono a un locador por RxH ni a `no_trabajador`: no son parte
+--     del equipo con contrato de CAYLA. Si Cayla también los quiere, es una
+--     línea en la función y un caso en la 413.
+--   · No cambia a quién LISTA el tablero (sigue siendo quien cobra
+--     movilidad): solo qué dice de su bono.
 --
 -- QUÉ ASUME (md5 de PARTIDA — pedirlos a PRODUCCIÓN antes de pegar)
 --
---   fn_mi_bono_cumpleanos   vigente: 0479 · local 6a9d7307f6fa7e4446da67117012736f
---                                         (sin comentarios 983554cf53130f082aeb06f5f34224e5)
---   fn_documento_registrar  vigente: 0448 · local 5909cada98bc2f879fd8f30dffeaffbe
---                                         (sin comentarios 47307a097a4fd667babdb721e5dbaf0e)
+--   Los tres md5 de abajo son del Postgres LOCAL. `donde-vive.sh` de cada
+--   función imprime la consulta para producción; si allá coincide el
+--   «sin comentarios», se sigue; si no coincide ninguno, NO se pega.
+--
+--   fn_mi_bono_cumpleanos   vigente: 0479 · 6a9d7307f6fa7e4446da67117012736f
+--                                   sin comentarios 983554cf53130f082aeb06f5f34224e5
+--   fn_documento_registrar  vigente: 0448 · 5909cada98bc2f879fd8f30dffeaffbe
+--                                   sin comentarios 47307a097a4fd667babdb721e5dbaf0e
+--   fn_documentos_tablero   vigente: 0492 · 05b59757df2ad4477cadf7a62bcfb428
+--                                   sin comentarios 92f3a7f764ed0f545cd3c2ea8fde1fe8
+--
+--   Comprobado el 2026-10-13 que ninguna rama remota redefine ninguna de las
+--   tres en una migración posterior a la 0492.
 --
 -- CONCURRENCIA
 --
@@ -86,8 +131,9 @@
 --
 -- CÓMO SE REVIERTE
 --
---   Volver a pegar `fn_mi_bono_cumpleanos` de la 0479 y `fn_documento_registrar`
---   de la 0448, y después:
+--   Volver a pegar `fn_mi_bono_cumpleanos` de la 0479, `fn_documento_registrar`
+--   de la 0448 y `fn_documentos_tablero` de la 0492 (esa última con su
+--   `drop function` delante, como está allá), y después:
 --     drop function if exists fn_persona_le_corresponde_bono_cumpleanos(uuid);
 --   Las constancias que ya hayan firmado practicantes NO se anulan al revertir:
 --   son plata que se pagó o se debe.
@@ -103,16 +149,24 @@ security definer
 set search_path = public
 as $$
   select coalesce(
-    (select en_planilla or tipo_vinculo = 'practicante' from personas where id = p_persona_id),
+    (select p.tipo_vinculo in ('planilla', 'practicante')
+            -- Días de contrato con los dos extremos incluidos: del 10 al 16
+            -- son 7. Sin fecha de fin es indefinido, y le toca.
+            and (p.fecha_fin_contrato is null
+                 or p.fecha_fin_contrato - p.fecha_ingreso + 1 >= 7)
+       from personas p
+      where p.id = p_persona_id),
     false
   );
 $$;
 
 comment on function fn_persona_le_corresponde_bono_cumpleanos(uuid) is
-  'A quién le toca el bono de cumpleaños: en planilla, o practicante (0518, '
-  'decidido por Cayla el 2026-10-13). La leen fn_mi_bono_cumpleanos y '
-  'fn_documento_registrar. Separada de fn_persona_le_corresponde_movilidad a '
-  'propósito: hoy contestan igual, pero son dos beneficios distintos.';
+  'A quién le toca el bono de cumpleaños (0518, decidido por Cayla el '
+  '2026-10-13): en planilla o practicante, nunca en periodo de prueba ni con '
+  'un contrato de menos de 7 días (extremos incluidos). La leen '
+  'fn_mi_bono_cumpleanos, fn_documento_registrar y fn_documentos_tablero. '
+  'Separada de fn_persona_le_corresponde_movilidad a propósito: son dos '
+  'beneficios distintos y ya no contestan igual (la movilidad sí es para prueba).';
 
 -- Solo la llaman funciones del propio esquema.
 revoke all on function fn_persona_le_corresponde_bono_cumpleanos(uuid) from public, anon, authenticated;
@@ -396,8 +450,131 @@ $$;
 grant execute on function fn_documento_registrar(text,date,uuid,text,numeric,integer,boolean,text,text,uuid)
   to authenticated;
 
+-- ── D · Lo que ve DO: cuerpo de la 0492, un cambio (CAMBIO 0518) ───────────
+-- Misma firma y mismas columnas que la 0492, así que alcanza con `create or
+-- replace` y no queda ninguna sobrecarga.
+create or replace function fn_documentos_tablero(p_solo_mi_fila boolean default false)
+returns table (
+  persona_id uuid, persona text, sede text, fecha_ingreso date,
+  ruta_id uuid, ruta_firmada_el date, ruta_monto numeric, ruta_negativa boolean,
+  ruta_desfasada boolean, ruta_firma_persona_confirmada_at timestamptz,
+  ruta_tarifa_vigente numeric,
+  bono_id uuid, bono_anio integer, bono_firmada_el date, bono_mes integer, bono_estado text,
+  estado text,
+  ruta_por_renovar text   -- CAMBIO 0492
+)
+language sql
+stable
+security definer
+set search_path = public
+as $function$
+  with hoy as (
+    select fn_hoy_lima()                             as dia,
+           extract(year  from fn_hoy_lima())::int    as anio,
+           extract(month from fn_hoy_lima())::int    as mes,
+           (date_trunc('month', fn_hoy_lima()) + interval '1 month - 1 day')::date
+                                                     as fin_de_mes,
+           coalesce(
+             (select min(vigente_desde) from parametros_laborales
+               where clave = 'bono_onomastico' and valor > 0),
+             '1900-01-01'::date)                     as bono_desde
+  ),
+  ruta as (
+    select distinct on (d.persona_id)
+           d.persona_id, d.id, d.fecha_firma, d.monto_declarado, d.es_negativa,
+           d.firma_persona_confirmada_at,
+           d.ruta_costo_pasaje   -- CAMBIO 0492
+    from documentos_firmados d
+    where d.tipo = 'ruta' and d.anulado_at is null
+    order by d.persona_id, d.fecha_firma desc, d.created_at desc, d.id desc
+  ),
+  bono as (
+    select distinct on (d.persona_id)
+           d.persona_id, d.id, d.anio, d.fecha_firma
+    from documentos_firmados d, hoy
+    where d.tipo = 'bono' and d.anulado_at is null and not d.es_negativa
+      and d.anio = hoy.anio
+    order by d.persona_id, d.fecha_firma desc, d.created_at desc, d.id desc
+  )
+  select
+    p.id,
+    p.nombres || ' ' || p.apellidos,
+    coalesce(s.codigo, '?'),
+    p.fecha_ingreso,
+    r.id, r.fecha_firma, r.monto_declarado, coalesce(r.es_negativa, false),
+    (r.monto_declarado is not null
+      and tar.valor is not null
+      and r.monto_declarado <> tar.valor),
+    r.firma_persona_confirmada_at,
+    tar.valor,
+    b.id, b.anio, b.fecha_firma,
+    dp.mes_nacimiento,
+    case
+      when b.id is not null            then 'ok'
+      -- ⇩ CAMBIO 0518 ⇩ La misma regla que fn_mi_bono_cumpleanos y el cargo en
+      -- papel: a quien no le toca, el tablero no le pide nada.
+      when fn_persona_le_corresponde_bono_cumpleanos(p.id) is not true then 'no_aplica'
+      -- ⇧ CAMBIO 0518 ⇧
+      when dp.mes_nacimiento is null   then 'sin_fecha'
+      when make_date(hoy.anio, dp.mes_nacimiento, 1)
+             < date_trunc('month', hoy.bono_desde)::date then 'no_aplica'
+      when make_date(hoy.anio, dp.mes_nacimiento, 1)
+             < date_trunc('month', p.fecha_ingreso)::date then 'no_aplica'
+      when dp.mes_nacimiento = hoy.mes then 'este_mes'
+      when dp.mes_nacimiento <  hoy.mes then 'vencido'
+      else                                  'proximo'
+    end,
+    case
+      when r.id is null                    then 'sin_ruta'
+      when coalesce(r.es_negativa, false)  then 'se_nego'
+      else 'ok'
+    end,
+    -- ⇩⇩⇩ CAMBIO 0492 ⇩⇩⇩ El mismo criterio que usa el candado de la firma.
+    fn_ruta_por_renovar(r.fecha_firma, r.firma_persona_confirmada_at,
+                        r.ruta_costo_pasaje, r.es_negativa)
+  from personas p
+  cross join hoy
+  left join sedes s on s.id = p.sede_base_id
+  left join ruta r on r.persona_id = p.id
+  left join bono b on b.persona_id = p.id
+  left join lateral (
+    select extract(month from d.fecha_nacimiento)::int as mes_nacimiento
+    from datos_personales d
+    where d.persona_id = p.id and d.fecha_nacimiento is not null
+  ) dp on true
+  left join lateral (
+    select pl.valor
+    from parametros_laborales pl
+    where pl.clave = 'movilidad_diaria'
+      and pl.vigente_desde <= hoy.dia
+      and (pl.vigente_hasta is null or pl.vigente_hasta >= hoy.dia)
+      and (pl.sede_codigo = s.codigo or pl.sede_codigo is null)
+    order by (pl.sede_codigo is null), pl.vigente_desde desc
+    limit 1
+  ) tar on true
+  where p.estado = 'activo'
+    and not p.cuenta_de_servicio   -- CAMBIO 0491: una cuenta de servicio (estación de retail) no es una persona
+    -- ⇩⇩⇩ CAMBIO 0424 ⇩⇩⇩ Antes: `and p.en_planilla`. Ver el encabezado de
+    -- esta migración — es la línea que dejaba a Benjamin, Fernanda y Daniel
+    -- fuera del tablero aunque ya pudieran cobrar movilidad desde la 0397.
+    and fn_persona_le_corresponde_movilidad(p.id)
+    and (p.id = fn_persona_actual_id()
+         or (not coalesce(p_solo_mi_fila, false) and fn_es_admin_o_lider() is true))
+    and p.id is distinct from (
+      select (c.valor->>'persona_id')::uuid
+      from configuracion c
+      where c.clave = 'firmante_empresa'
+    )
+    and (p.fecha_fin_contrato is null or p.fecha_fin_contrato > hoy.fin_de_mes)
+  order by (r.id is not null), p.apellidos;
+$function$;
+
+grant execute on function fn_documentos_tablero(boolean) to authenticated;
+revoke execute on function fn_documentos_tablero(boolean) from public, anon;
+
+
 insert into migraciones_aplicadas (numero, nombre)
-values (518, 'el_bono_de_cumpleanos_tambien_es_para_practicantes')
+values (518, 'a_quien_le_toca_el_bono_de_cumpleanos_se_dice_una_vez')
 on conflict (numero) do update set nombre = excluded.nombre, aplicada_at = now();
 
 notify pgrst, 'reload schema';
@@ -407,5 +584,6 @@ select
   (select count(*) from pg_proc where proname = 'fn_persona_le_corresponde_bono_cumpleanos') = 1 as tiene_regla,
   (select position('CAMBIO 0518' in prosrc) > 0 from pg_proc where proname = 'fn_mi_bono_cumpleanos')  as mi_bono_al_dia,
   (select position('CAMBIO 0518' in prosrc) > 0 from pg_proc where proname = 'fn_documento_registrar') as registrar_al_dia,
-  (select count(*) from pg_proc where proname in ('fn_mi_bono_cumpleanos', 'fn_documento_registrar')) = 2 as sin_sobrecargas,
+  (select position('CAMBIO 0518' in prosrc) > 0 from pg_proc where proname = 'fn_documentos_tablero')  as tablero_al_dia,
+  (select count(*) from pg_proc where proname in ('fn_mi_bono_cumpleanos', 'fn_documento_registrar', 'fn_documentos_tablero')) = 3 as sin_sobrecargas,
   (select numero || ' · ' || nombre from migraciones_aplicadas where numero = 518) as registro;

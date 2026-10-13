@@ -21,7 +21,7 @@ export type EstadoMiBono =
   | "pedido"
   /** Lo firmó, ya está en su boleta y el periodo todavía no se paga (0479). */
   | "en_boleta"
-  /** No está en planilla ni es practicante, o su cumpleaños de este año cayó antes del bono o de su ingreso. */
+  /** No le toca (RxH, en prueba, contrato de menos de una semana — 0518), o su cumpleaños de este año cayó antes del bono o de su ingreso. */
   | "no_aplica"
   /** Falta su fecha de nacimiento en la ficha. */
   | "sin_fecha"

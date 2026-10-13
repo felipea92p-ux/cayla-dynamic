@@ -8,8 +8,9 @@
 select
   p.nombres || ' ' || p.apellidos                          as persona,
   p.estado,                                                -- tiene que ser 'activo'
-  p.tipo_vinculo,                                          -- 'practicante' ⇒ el bono se le niega por regla (en_planilla = false)
-  p.en_planilla,                                           -- false ⇒ fn_mi_bono_cumpleanos dice 'no_aplica'
+  p.tipo_vinculo,                                          -- HASTA la 0518: 'practicante' ⇒ no_aplica. DESDE la 0518: solo 'rxh', 'prueba' y 'no_trabajador' quedan fuera
+  p.en_planilla,                                           -- HASTA la 0518: false ⇒ fn_mi_bono_cumpleanos dice 'no_aplica'
+  p.fecha_fin_contrato - p.fecha_ingreso + 1               as dias_de_contrato, -- DESDE la 0518: menos de 7 ⇒ no_aplica (null = indefinido, sí le toca)
   p.cuenta_de_servicio,                                    -- true ⇒ el tablero no lo lista
   p.auth_user_id is not null                               as tiene_login,     -- sin login no ve nada de /mio
   extract(month from d.fecha_nacimiento)::int              as mes_nacimiento,  -- null ⇒ 'sin_fecha' (Info no muestra nada)
