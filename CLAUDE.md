@@ -119,7 +119,9 @@ select proname, length(prosrc) - length(replace(prosrc, chr(13), '')) as retorno
 
 Si eso da el número de líneas del cuerpo, es esto y **no hay nada roto**: un
 `\r` antes de un salto de línea es espacio en blanco para PL/pgSQL, así que la
-función se comporta igual. Se comprobó midiendo: el archivo y el Postgres local
+función se comporta igual (la única salvedad, medida el 2026-10-13: dentro de
+un literal de texto que ocupe varias líneas el `\r` se vuelve dato; hoy ninguna
+función del repo tiene uno). Se comprobó midiendo: el archivo y el Postgres local
 coincidían byte por byte entre sí, y solo producción difería.
 
 Lo que sí queda roto es hacia adelante: **el md5 de esas tres no va a volver a
@@ -128,14 +130,17 @@ mismo Windows probablemente reproduce el `\r`, y no arregla nada que esté mal)
 y anotarlo acá, que es lo que evita que la próxima sesión pare en seco o —peor—
 aprenda a ignorar un aviso de md5.
 
-Y desde el 2026-10-13 `donde-vive.sh` imprime también las dos variantes con
-`\r\n` —`crlf_tal_cual` y `crlf_sin_comentarios`— junto a las de siempre, y el
-cuarto desenlace: coincide una variante CRLF → mismo código pegado desde
-Windows; seguir, y declarar en la migración el md5 de PRODUCCIÓN. Se agregó
-porque ese día, antes de pegar la 0518, `fn_documentos_tablero` devolvió en
-producción `56aff7b1…` / `d138aae9…` —ninguno de los dos del script— y hubo que
-demostrar a mano, con la 0492 dentro de `begin … rollback`, que era este caso y
-no otra versión.
+Y desde el 2026-10-13 `donde-vive.sh` imprime también las variantes con
+`\r\n` —`crlf_tal_cual` y `crlf_sin_comentarios`, y `sin_comentarios_y_crlf`
+para la función pegada desde Windows Y sin comentarios— junto a las de
+siempre, con su desenlace: coincide una → mismo código pegado desde Windows;
+seguir, y declarar en la migración el md5 de PRODUCCIÓN. Se agregó porque ese
+día, antes de pegar la 0518, `fn_documentos_tablero` devolvió en producción
+`56aff7b1…` / `d138aae9…` —ninguno de los dos del script— y hubo que demostrar
+a mano, con la 0492 dentro de `begin … rollback`, que era este caso y no otra
+versión. Y lo que NO lo demuestra, medido ese mismo día con la 0491 contra la
+0492: que producción tenga tantos `\r` como líneas y ningún comentario. Otra
+versión pegada igual se ve idéntica; lo prueba el md5, no el síntoma.
 
 Distinguir esta causa de la grave importa: si la diferencia **no** cuadra con el
 número de líneas ni con los comentarios, entonces sí es otra versión y hay que

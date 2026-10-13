@@ -47,9 +47,10 @@
 #   · si alguien la borró después y ya no existe;
 #   · si el Postgres local coincide con esa última — y si no, avisa de que la
 #     base está contaminada y no sirve como referencia;
-#   · los cuatro md5 de referencia del Postgres local —tal cual, sin
-#     comentarios, y esos dos mismos con \r\n— y la consulta para pedirle los
-#     suyos a producción, con los cuatro desenlaces escritos.
+#   · los cinco md5 de referencia del Postgres local —tal cual, sin
+#     comentarios, esos dos mismos con \r\n, y sin comentarios y luego con
+#     \r\n— y la consulta para pedirle los suyos a producción, con los cinco
+#     desenlaces escritos.
 
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -212,25 +213,36 @@ if [ -z "$CONT" ]; then
   exit 0
 fi
 
-# Cuatro md5 en una sola consulta: el cuerpo tal cual y el cuerpo con cada
-# salto de línea convertido en \r\n (ver «Por qué hay CUATRO md5», abajo), y de
-# cada uno de los dos su versión sin comentarios. La expresión «sin
-# comentarios» es la MISMA que la consulta de producción imprime más abajo, y
-# se escribe una sola vez: el `unnest … with ordinality` la aplica a las dos
-# variantes, así que no puede pasar que una lleve una coma que la otra no.
-SQL_MD5="select string_agg(md5(x.t) || '|' || md5(array_to_string(array(
-             select regexp_replace(l, '[[:space:]]*--.*\$', '')
-             from unnest(string_to_array(x.t, chr(10))) as l
-             where btrim(l) not like '--%'
-           ), chr(10))), '|' order by x.o)
-    from pg_proc p join pg_namespace n on n.oid = p.pronamespace,
-         unnest(array[p.prosrc, replace(p.prosrc, chr(10), chr(13)||chr(10))])
-           with ordinality as x(t, o)
-   where n.nspname = 'public' and p.proname = '$FN'
-   group by p.oid limit 1"
+# Cinco md5 en una sola consulta (ver «Por qué hay CINCO md5», abajo): el
+# cuerpo tal cual y el cuerpo con cada salto de línea convertido en \r\n, de
+# cada uno de los dos su versión sin comentarios, y la versión sin comentarios
+# convertida DESPUÉS a \r\n. La expresión «sin comentarios» es la MISMA que la
+# consulta de producción imprime más abajo, y se escribe una sola vez: el
+# `unnest … with ordinality` la aplica a las dos variantes, así que no puede
+# pasar que una lleve una coma que la otra no. Al final viaja también cuántos
+# \r tiene ya el cuerpo local, que es lo que dice si las variantes con \r\n
+# significan algo (ver el aviso de abajo).
+SQL_MD5="with f as (
+      select p.oid, p.prosrc
+        from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+       where n.nspname = 'public' and p.proname = '$FN'
+       order by p.oid limit 1
+    ), v as (
+      select x.o, x.t as cuerpo,
+             array_to_string(array(
+               select regexp_replace(l, '[[:space:]]*--.*\$', '')
+               from unnest(string_to_array(x.t, chr(10))) as l
+               where btrim(l) not like '--%'
+             ), chr(10)) as pelado
+        from f, unnest(array[f.prosrc, replace(f.prosrc, chr(10), chr(13)||chr(10))])
+                  with ordinality as x(t, o)
+    )
+    select (select string_agg(md5(cuerpo) || '|' || md5(pelado), '|' order by o) from v)
+           || '|' || (select md5(replace(pelado, chr(10), chr(13)||chr(10))) from v where o = 1)
+           || '|' || (select length(prosrc) - length(replace(prosrc, chr(13), '')) from f)"
 
 PAR=$(docker exec "$CONT" psql -U postgres -d postgres -tAc "$SQL_MD5" 2>/dev/null | tr -d ' ' || true)
-IFS='|' read -r VIVA PELADA CRLF_VIVA CRLF_PELADA <<< "$PAR" || true
+IFS='|' read -r VIVA PELADA CRLF_VIVA CRLF_PELADA PELADA_CRLF RETORNOS <<< "$PAR" || true
 
 if [ -z "$VIVA" ]; then
   echo ""
@@ -246,13 +258,28 @@ echo ""
 verde "✓ Copia el cuerpo de:  $ULTIMA"
 echo ""
 gris "  md5 de tu base local:"
-gris "    tal_cual              $VIVA"
-gris "    sin_comentarios       $PELADA"
-gris "    crlf_tal_cual         $CRLF_VIVA   ← el mismo cuerpo con \r\n, como lo deja Windows"
-gris "    crlf_sin_comentarios  $CRLF_PELADA"
+gris "    tal_cual                $VIVA"
+gris "    sin_comentarios         $PELADA"
+gris "    crlf_tal_cual           $CRLF_VIVA   ← el mismo cuerpo con \r\n, como lo deja Windows"
+gris "    crlf_sin_comentarios    $CRLF_PELADA"
+gris "    sin_comentarios_y_crlf  $PELADA_CRLF   ← sin comentarios Y pegado desde Windows"
 echo ""
 
-# ── Por qué hay CUATRO md5, y por qué hacen falta todos ─────────────────────
+# Si el cuerpo LOCAL ya trae \r, las variantes de arriba se calcularon sobre
+# \r\r\n —algo que ninguna pegada produce— y no sirven. Pasa si la base se
+# construyó desde un árbol con CRLF en disco (el caso de Windows que documenta
+# docs/estado.md); en esa base, tal_cual y sin_comentarios ya son «como lo deja
+# Windows» por sí solos.
+if [ "${RETORNOS:-0}" -gt 0 ] 2>/dev/null; then
+  ambar "⚠ Tu Postgres local YA guarda esta función con \r ($RETORNOS retornos de carro):"
+  ambar "  se construyó desde archivos con CRLF en disco (ver docs/estado.md)."
+  ambar "  Las tres variantes con \r\n de arriba están calculadas sobre \r\r\n y NO"
+  ambar "  significan nada. Aquí tal_cual y sin_comentarios ya son, de hecho,"
+  ambar "  «como lo deja Windows»: compara producción solo contra esos dos."
+  echo ""
+fi
+
+# ── Por qué hay CINCO md5, y por qué hacen falta todos ──────────────────────
 #
 # El md5 de partida se le pide a PRODUCCIÓN, no se copia de aquí — eso ya lo
 # decía el CLAUDE.md. Lo que no decía es que ese número casi nunca coincide:
@@ -266,7 +293,7 @@ echo ""
 #
 # Con el md5 sin comentarios al lado, los tres casos se separan de un vistazo.
 #
-# Y desde el 2026-10-13 son cuatro, por la tercera causa benigna que documenta
+# Y desde el 2026-10-13 son cinco, por la tercera causa benigna que documenta
 # CLAUDE.md: pegar desde Windows mete un \r por línea (pasó con la 0401). Ese
 # día, antes de pegar la 0518, producción devolvió para fn_documentos_tablero
 # 56aff7b1… / d138aae9…, que no eran ni el tal cual (05b59757…) ni el sin
@@ -277,10 +304,19 @@ echo ""
 # cual y sin comentarios, para que ese caso también se lea de un vistazo en vez
 # de parar en seco — o peor, de enseñar a ignorar un aviso de md5.
 #
-# Lo que NO cubre: una función pegada desde Windows Y sin sus comentarios a la
-# vez. Ahí puede no coincidir ninguno de los cuatro, y la salida es medir:
-# `length(prosrc) - length(replace(prosrc, chr(13), ''))` tiene que dar sus
-# líneas, y el cuerpo local sin comentarios y con \r\n tiene que dar su md5.
+# Y la quinta cubre lo que las cuatro no: una función pegada desde Windows Y
+# sin sus comentarios a la vez. Ahí producción no coincide con ninguna de las
+# cuatro, y la primera versión de este texto resolvía ese caso con un síntoma
+# que no prueba nada —«tantos \r como líneas y ningún comentario»—: la revisión
+# del mismo 2026-10-13 midió que OTRA versión pegada igual se ve idéntica (la
+# 0491 contra la 0492 de fn_documentos_tablero: mismos \r, mismos cero
+# comentarios, md5 distinto). Lo que sí lo prueba es el md5 del cuerpo local
+# sin comentarios y luego con \r\n, y eso es sin_comentarios_y_crlf.
+#
+# Y lo que las cinco dan por sentado: que el cuerpo LOCAL está en LF. Si no
+# —una base construida desde un árbol con CRLF en disco—, el script lo detecta
+# contando los \r locales y lo avisa arriba, en vez de imprimir variantes sobre
+# \r\r\n como si significaran algo.
 ambar "  PÍDESELO A PRODUCCIÓN. Pega esto en el SQL Editor (solo lee):"
 echo ""
 cat <<SQL
@@ -308,16 +344,24 @@ gris ""
 gris "   · tal_cual = $CRLF_VIVA"
 gris "     o sin_comentarios = $CRLF_PELADA"
 gris "     → MISMO CÓDIGO, pegado desde Windows: cada salto de línea llegó como"
-gris "       \r\n (el caso de la 0401 en CLAUDE.md). No hay nada roto — un \r"
-gris "       antes del salto es espacio en blanco para Postgres. Sigue, y"
+gris "       \r\n (el caso de la 0401 en CLAUDE.md). Un \r antes del salto es"
+gris "       espacio en blanco para Postgres, así que no hay nada roto — salvo"
+gris "       dentro de un literal de texto que ocupe varias líneas, donde el \r"
+gris "       se vuelve dato: si el cuerpo tiene uno, compruébalo. Sigue, y"
 gris "       declara en tu migración el md5 de PRODUCCIÓN, no el de aquí. Para"
 gris "       verlo: length(prosrc) - length(replace(prosrc, chr(13), '')) da"
 gris "       su número de líneas."
 gris ""
-gris "   · ninguno de los cuatro coincide"
+gris "   · tal_cual = $PELADA_CRLF"
+gris "     → MISMO CÓDIGO, pegado desde Windows Y sin los comentarios: las dos"
+gris "       causas benignas juntas, y vale lo mismo que arriba. Ojo: que"
+gris "       producción tenga tantos \r como líneas y ningún comentario NO lo"
+gris "       prueba por sí solo — otra versión pegada igual se ve idéntica —;"
+gris "       lo prueba este md5."
+gris ""
+gris "   · ninguno de los cinco coincide"
 gris "     → PARA. Producción tiene otra versión, y copiar de $ULTIMA la"
 gris "       revertiría en silencio. Mide dónde está la diferencia antes de"
 gris "       proponer explicaciones: length contra octet_length, un substring"
-gris "       del principio, y cuántos \r tiene — tantos como líneas y además"
-gris "       sin comentarios es Windows MÁS comentarios perdidos, no otra versión."
+gris "       del principio, y las posiciones de los marcadores «CAMBIO 00NN»."
 echo ""
