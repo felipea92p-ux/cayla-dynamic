@@ -227,6 +227,30 @@ Lo que eso significa, y hay que tenerlo presente al pedir permiso:
 Así que pedir permiso para fusionar y pedirlo para publicar son la misma
 petición. Dilo así cuando lo pidas.
 
+**Y una sesión de Claude comenta en el PR ANTES de fusionarlo.** Todas las
+sesiones trabajan con la cuenta de Felipe, así que para GitHub «lo fusionó
+Felipe» y «lo fusionó una sesión» son lo mismo. El 2026-10-06 el #505 se fusionó
+diez minutos después de abrirse y no hubo forma de saber cuál de las dos cosas
+pasó. Estaba bien hecho —por PR, con `db-tests` y `ui-tests` en verde— y aun así
+quedó sin respuesta la pregunta que importa: ¿alguien lo pidió?
+
+El comentario lleva la marca `<!-- cayla:fusion-sesion -->` y cuatro líneas:
+**Sesión** (worktree y rama), **Pidió** (quién, con sus palabras, y cuándo),
+**Pruebas** (estado de `db-tests` y `ui-tests` al fusionar) y **SQL** («no hay»,
+o qué migración se pegó antes y quién lo confirmó). Tiene que ser POSTERIOR al
+último commit del PR: un comentario de las 10:00 no avala un commit de las
+10:30, así que si empujas algo después —o traes `main` a la rama— se comenta de
+nuevo.
+
+Lo vigila `.claude/hooks/comentar-antes-de-fusionar.sh`, registrado en
+`.claude/settings.json`: frena `gh pr merge` —también con `--auto`, que es
+publicar en diferido— si falta el comentario, e imprime el formato exacto. Dos
+límites, y conviene saberlos: solo cubre a las sesiones de Claude que parten de
+una rama con este archivo (una web de GitHub o `gh api …/merge` no pasan por
+él), y si no puede leer el PR **frena**, no deja pasar. Que no lo vea un freno
+no es permiso: la regla es la de arriba, el freno solo la hace difícil de
+olvidar.
+
 **Ojo con el entorno.** El panel apunta al Supabase **local** (127.0.0.1), no a
 producción. Para diagnosticar prod, Felipe corre SELECTs en el SQL Editor. Nunca
 asumir que lo que se ve en local es lo que pasa en prod.
@@ -377,8 +401,8 @@ Quedan tres campos así de antes —`contratos` y `documentacion` ya arreglados,
 paga en su lote y no a costa de que el freno mienta.
 
 Y una sexta, del 2026-08-31: **nunca un color de Tailwind por defecto
-—`bg-white`, `amber-100`, `bg-black`, `text-slate-900`— fuera de los once
-`--color-*` de `globals.css`.** Toda la pantalla se pinta con esos once
+—`bg-white`, `amber-100`, `bg-black`, `text-slate-900`— fuera de los trece
+`--color-*` de `globals.css`.** Toda la pantalla se pinta con esos trece
 nombres (`bg-crema`, `text-tinta`, `bg-papel`…) precisamente para que el modo
 oscuro pudiera llegar redefiniéndolos, sin tocar un componente. Un color de
 Tailwind por defecto no sigue esa redefinición: se queda con su valor fijo,
@@ -394,6 +418,18 @@ y por eso se apilaba sin distinguirse sobre `sand`). Los dos se midieron
 contra la fórmula de contraste WCAG antes de aceptarse (≥4.5:1 en los pares
 que los usan) — el mismo criterio que ya exige este archivo para planilla:
 medir, no asumir.
+
+Y trece desde el 2026-10-05: `--color-azul` (en pausa por un trámite, un
+médico u otro motivo) y `--color-ceniza` (turno terminado), para el estado de
+cada integrante en el terminal. «En refrigerio» y «En pausa» compartían ámbar
+y no se distinguían, y ninguno de los once cubría un azul franco ni un gris de
+«ya terminó». Se midieron como se pintan de verdad —sobre la casilla teñida y
+como insignia sobre crema— y uno de los dos **falló la primera vez**:
+`#68645c` daba 4.27:1 como insignia, así que se oscureció a `#635f58`. El
+detalle y las cifras están junto a los tokens en `globals.css`, incluida la
+separación entre los cuatro colores del estado para quien tiene daltonismo (la
+más ajustada, verde/ceniza, es 10.6 bajo deuteranopía: por eso el color nunca
+va solo, cada estado lleva además ícono y palabra).
 
 Se midió al escribirlo: ~20 usos sueltos en 11 archivos, casi todos insignias
 de aviso (`amber-100`/`amber-800` para "sin ficha", "valor antiguo", "fuera de
@@ -666,7 +702,8 @@ art. 19 e) y f).
 
 **Un cambio que el equipo va a notar lleva su novedad en el MISMO pull
 request.** La lista vive en `apps/web/lib/novedades.ts`. Se lee en
-`/admin/anuncios`, debajo de los comunicados de DO, y en «Lo mío», donde solo
+`/admin/anuncios`, debajo de los comunicados de DO, y en el «Resumen» de «Lo
+mío» —solo ahí, no en sus otras secciones—, donde solo
 aparecen las que a esa persona le faltan por entender (las tres más recientes,
 con su primer párrafo). El encabezado del archivo dice qué va, qué no y cómo se
 escribe una entrada.

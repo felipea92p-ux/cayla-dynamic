@@ -61,6 +61,91 @@ export function determinarSiguienteAccion(marcajesHoy: MarcajeDelDia[]): Siguien
 }
 
 /**
+ * En qué punto del día está una persona — para PINTARLO, no para decidir qué
+ * marca le toca (eso sigue siendo `determinarSiguienteAccion`, y es la única que
+ * manda).
+ *
+ * Se DERIVA de los marcajes y nunca se guarda aparte: dos fuentes de verdad
+ * sobre dónde está alguien acaban contradiciéndose, y la pantalla le diría a
+ * una persona «Laborando» mientras el terminal le ofrece «Volver».
+ *
+ * Mismas ramas, en el mismo orden, que `determinarSiguienteAccion` — y por eso
+ * `tests/estado-presencia.test.ts` comprueba, secuencia por secuencia, que las
+ * dos responden lo mismo:
+ *   sin entrada         ↔ ofrece «entrada»
+ *   termino             ↔ día cerrado
+ *   refrigerio / pausa  ↔ ofrece el retorno de esa salida
+ *   laborando           ↔ ofrece elegir cómo salir
+ *
+ * «Pausa» es cualquier salida temporal que NO sea refrigerio (trámite, médico,
+ * personal, otra): el refrigerio tiene su propio estado porque es el caso más
+ * frecuente y es el que más se mira.
+ *
+ * No sabe nada del horario: «libre hoy» o «entra a las 14:00» necesitan
+ * `jornada-esperada.ts` y viven en el terminal (`lib/terminal/presencia.ts`).
+ */
+export type EstadoPresencia =
+  | { estado: "sin_entrada" }
+  | {
+      estado: "laborando";
+      /**
+       * ISO de la PRIMERA entrada del día. Se conserva aunque haya salido y vuelto:
+       * si la pantalla dijera solo «desde las 13:45» —la hora del regreso—, parecería
+       * que llegó a las 13:45, o sea tarde, y la mañana trabajada desaparecería.
+       */
+      entrada: string;
+      /**
+       * El último regreso, solo si lo ÚLTIMO que hizo fue volver de una salida.
+       * Lleva la hora de la salida de la que volvió —no solo la del regreso—: «volvió
+       * 13:45» a secas no dice de cuándo a cuándo estuvo fuera. Cada regreso se
+       * empareja con SU salida (el trámite de la tarde, no el refrigerio de la mañana).
+       * `salio` falta solo si los datos están incompletos (un regreso sin su salida).
+       */
+      regreso?: { volvio: string; salio?: string };
+    }
+  | { estado: "refrigerio"; desde: string }
+  | { estado: "pausa"; /** El tipo de la salida (`salida_tramite`…). */ motivo: TipoMarca; desde: string }
+  | { estado: "termino"; /** ISO de la salida final. */ a: string };
+
+export type ClaveEstadoPresencia = EstadoPresencia["estado"];
+
+export function estadoPresencia(marcajesHoy: MarcajeDelDia[]): EstadoPresencia {
+  const ordenados = [...marcajesHoy].sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+  const ultimo = ordenados[ordenados.length - 1];
+
+  if (!ordenados.some((m) => m.tipo === "entrada")) return { estado: "sin_entrada" };
+
+  // Igual que la máquina: CUALQUIER salida final cierra el día, no solo si es
+  // la última marca (las anuladas ya no llegan acá).
+  const final = [...ordenados].reverse().find((m) => m.tipo === "salida_final");
+  if (final) return { estado: "termino", a: final.timestamp };
+
+  if (ultimo.tipo in PARES_SALIDA_RETORNO) {
+    return ultimo.tipo === "salida_almuerzo"
+      ? { estado: "refrigerio", desde: ultimo.timestamp }
+      : { estado: "pausa", motivo: ultimo.tipo, desde: ultimo.timestamp };
+  }
+
+  // Llegó acá: tiene entrada, no cerró, y no está en una salida abierta. Lo
+  // último que hizo es la entrada misma o el regreso de una salida.
+  const entrada = ordenados.find((m) => m.tipo === "entrada")!;
+  if (ultimo.tipo === "entrada") return { estado: "laborando", entrada: entrada.timestamp };
+
+  // La salida de la que acaba de volver: la última marca ANTERIOR del tipo que
+  // este regreso cierra (`salida_tramite` ↔ `retorno_tramite`…).
+  const salidaDeEsteRegreso = Object.keys(PARES_SALIDA_RETORNO).find((k) => PARES_SALIDA_RETORNO[k] === ultimo.tipo);
+  const salio = [...ordenados]
+    .slice(0, -1)
+    .reverse()
+    .find((m) => m.tipo === salidaDeEsteRegreso);
+  return {
+    estado: "laborando",
+    entrada: entrada.timestamp,
+    regreso: salio ? { volvio: ultimo.timestamp, salio: salio.timestamp } : { volvio: ultimo.timestamp },
+  };
+}
+
+/**
  * Lo que se sabe del RITMO de una persona, para afinar la sugerencia de salida
  * más allá de la regla fija de siempre. Ambos campos son horas decimales Lima
  * (13.5 = 13:30) y pueden faltar por separado — una persona nueva puede tener

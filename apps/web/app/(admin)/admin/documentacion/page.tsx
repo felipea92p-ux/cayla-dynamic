@@ -8,6 +8,7 @@ import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
 import { Cargando } from "@/components/cargando";
 import { Marca } from "@/components/marca";
+import { PapelBono } from "@/components/papel-bono";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { useToast } from "@/components/toast";
 import { Boton } from "@/components/ui/boton";
@@ -318,6 +319,9 @@ interface DocArchivado {
   ruta_declarada: string | null;
   storage_path: string | null;
   firma_persona: string | null;
+  /** Lo que dice la constancia del bono (tipo=bono): el monto que firmó, no el
+   *  vigente hoy. En la ruta es la tarifa de su sede. */
+  monto_declarado: number | null;
   nota: string | null;
   registrado_por: string | null;
   anulado_at: string | null;
@@ -446,6 +450,14 @@ export default function DocumentacionPage() {
   // La firma de la empresa para ese visor — ver el comentario junto a
   // `fn_firma_empresa` en `cargar()`.
   const [firmaEmpresaGlobal, setFirmaEmpresaGlobal] = useState<string | null>(null);
+  // «Ver» de un cargo de cumpleaños firmado desde el sistema (0477). Mismo
+  // motivo que `verFirma`: no hay archivo en storage, la firma vive en una
+  // columna. Antes de esto, esas filas decían «Firmado» y no había forma de
+  // abrir lo firmado: el botón «Ver» solo existía para un escaneo.
+  const [verBono, setVerBono] = useState<{
+    persona: string; documento: string | null; monto: number | null;
+    fecha: string | null; firma: string | null;
+  } | null>(null);
   // Las hojas que se imprimen de una vez. `null` = modo normal, una sola hoja:
   // la de la persona elegida arriba. Se llena, se imprime y se vacía; no es un
   // modo en el que la pantalla se quede.
@@ -702,6 +714,21 @@ export default function DocumentacionPage() {
       gastoDiario: doc?.ruta_gasto_diario ?? null,
       costoTaxi: doc?.ruta_costo_taxi ?? null,
       frecuenciaTaxi: doc?.ruta_frecuencia_taxi ?? null,
+    });
+  }
+
+  /** «Ver» para un cargo de cumpleaños firmado desde el sistema. El monto y la
+   *  fecha son LOS DE LA FILA que se firmó (`monto_declarado`, `fecha_firma`),
+   *  nunca el vigente hoy: si el bono sube el año que viene, el papel de este
+   *  año tiene que seguir diciendo lo que de verdad se firmó. */
+  function abrirVerBono(f: FilaTablero, doc: DocArchivado) {
+    const quien = personas.find((p) => p.id === f.persona_id);
+    setVerBono({
+      persona: quien ? `${quien.nombres} ${quien.apellidos}` : f.persona,
+      documento: quien?.documento ?? null,
+      monto: doc.monto_declarado,
+      fecha: doc.fecha_firma ?? f.bono_firmada_el,
+      firma: doc.firma_persona,
     });
   }
 
@@ -1040,7 +1067,9 @@ export default function DocumentacionPage() {
   const doc = DOCS.find((d) => d.id === tipo)!;
 
   useTituloDocumento(
-    tipo === "politica"
+    verBono
+      ? `${verBono.persona} — Constancia del bono de cumpleaños`
+      : tipo === "politica"
       ? "Política de movilidad supeditada a asistencia — CAYLA"
       : nombre
         ? `${nombre} — Declaración de ruta de transporte`
@@ -1216,9 +1245,15 @@ export default function DocumentacionPage() {
   }
 
   function FilaAccionesBono({ f }: { f: FilaTablero }) {
+    // Firmado desde el sistema: sin archivo, pero con firma guardada.
+    const firmadoDigital = f.bono_id
+      ? documentos.find((d) => d.id === f.bono_id && d.firma_persona)
+      : undefined;
     const ver = f.bono_id && rutasDeArchivo.has(f.bono_id)
       ? () => void verDocumento(rutasDeArchivo.get(f.bono_id!)!)
-      : null;
+      : firmadoDigital
+        ? () => abrirVerBono(f, firmadoDigital)
+        : null;
     const subirEtiqueta = f.bono_estado === "ok" ? "Subir otro" : "Subir cargo";
     return (
       <div className="flex items-center justify-end gap-1.5">
@@ -2455,11 +2490,53 @@ export default function DocumentacionPage() {
             propia página: sin eso, la declaración de la segunda persona
             empezaría a media hoja de la primera y ninguna de las dos serviría
             para firmar. */}
-        {lote
+        {/* Con el visor del bono abierto, esta hoja no se monta: tapada por el
+            visor en pantalla no se nota, pero al imprimir saldría la hoja del
+            generador en vez de —o junto a— la constancia que se está viendo. */}
+        {!verBono && (lote
           ? lote.map((quien) => (
               <div key={quien.id} className="hoja-suelta">{hoja(quien)}</div>
             ))
-          : (!doc.necesitaPersona || persona) && hoja(persona)}
+          : (!doc.necesitaPersona || persona) && hoja(persona))}
+
+        {/* «Ver» de un cargo de cumpleaños firmado desde el sistema. Vive FUERA
+            del bloque de controles de arriba a propósito: ese bloque es
+            `print:hidden`, y un `display: none` en un ancestro apaga a todos sus
+            hijos sin importar lo que diga el hijo — igual que el visor de
+            contratos, que es hijo directo de <main> por esto mismo. */}
+        {verBono && (
+          <div
+            className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4 print:static print:block print:bg-transparent print:p-0"
+            onClick={() => setVerBono(null)}
+          >
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label={`Constancia del bono de cumpleaños de ${verBono.persona}`}
+              className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-flotante border border-sand bg-crema print:max-h-none print:w-auto print:max-w-none print:overflow-visible print:rounded-none print:border-0"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-3 border-b border-sand bg-sand/30 px-4 py-2 print:hidden">
+                <Boton variante="primario" onClick={() => window.print()}>
+                  Imprimir / Guardar como PDF
+                </Boton>
+                <Boton variante="enlace" onClick={() => setVerBono(null)}>Cerrar</Boton>
+              </div>
+              <div className="overflow-y-auto p-5 print:overflow-visible print:p-0">
+                <PapelBono
+                  monto={verBono.monto}
+                  fecha={verBono.fecha}
+                  nombreOficial={verBono.persona}
+                  documento={verBono.documento}
+                  firmaPersona={verBono.firma}
+                  firmaEmpresa={firmaEmpresaGlobal}
+                  firmanteNombre={firmanteNombre}
+                  firmanteCargo={firmanteCargo}
+                />
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </>
   );

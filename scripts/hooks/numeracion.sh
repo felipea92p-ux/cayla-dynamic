@@ -1,16 +1,23 @@
 #!/usr/bin/env bash
 # Freno de numeración: que dos trabajos no reclamen el mismo número.
 #
-# `#!/usr/bin/env bash` y no `#!/bin/bash` a propósito: este script usa
-# `declare -A` (mapas asociativos), que pide bash 4+, y macOS trae de fábrica
-# el bash 3.2 de 2007 en `/bin/bash` —Apple lo congeló ahí por licencia GPLv3—
-# sin planes de moverlo nunca. Con la ruta fija, este hook falla en CUALQUIER
-# Mac que no tenga instalado un bash más nuevo por su cuenta (típicamente vía
-# `brew install bash`, que lo deja en `/opt/homebrew/bin/bash`, antes que
-# `/usr/bin`/`/bin` en el PATH). `env bash` resuelve al primero que encuentre
-# ahí. Descubierto el 2026-09-08: el push de una migración real se frenó con
-# «declare: -A: invalid option» en una Mac sin bash de Homebrew — nada que ver
-# con una colisión de números, solo el intérprete equivocado.
+# TIENE QUE CORRER EN BASH 3.2. macOS trae de fábrica el de 2007 en `/bin/bash`
+# —Apple lo congeló ahí por licencia GPLv3—, y en una Mac de desarrollo sin nada
+# instalado aparte es el único que hay. Por eso este script no usa nada de bash 4+:
+# ni `declare -A` (mapas asociativos), ni `mapfile`, ni `${x,,}`.
+# `probar-numeracion.sh` lo vigila, y lo vigila aparte de los casos porque en una
+# Mac que SÍ tenga bash 5 los casos pasarían igual con `declare -A`.
+#
+# Es la misma falla dos veces, y la primera «se arregló» mal. El 2026-09-08 un
+# push de migración se frenó con «declare: -A: invalid option» —nada que ver con
+# una colisión de números— y se cambió `#!/bin/bash` por `#!/usr/bin/env bash`,
+# que solo ayuda si la Mac tiene otro bash instalado (`brew install bash`). La
+# Mac de desarrollo no lo tiene: el 2026-10-10 volvió a pasar, idéntico. Un
+# arreglo que depende de algo instalado en la máquina falla en la que no lo
+# tiene. Y se escondía bien: el bloque con `declare -A` solo corre cuando el
+# push AGREGA un archivo numerado, así que todos los demás pushes lo saltaban y
+# el hook parecía sano. `env bash` se queda —es inofensivo y deja usar un bash
+# más nuevo si lo hay—, pero ya no es lo que lo hace funcionar.
 #
 # POR QUÉ EXISTE. El 2026-08-05, en una sola jornada, hubo CUATRO choques entre
 # sesiones que trabajaban en paralelo sobre este repo:
@@ -140,20 +147,34 @@ if [ -n "$NUEVOS" ]; then
   # Medido el 2026-09-08 en este repo: 147 ramas remotas, 108 ya fusionadas y
   # nunca borradas. `--no-merged` deja el bucle en las ~40 que sí importan.
 
-  # El número de cada archivo nuevo, con expansión de bash (nada de `sed` por
-  # línea): `${mio%%_*}` corta en el primer «_», y un nombre de archivo de
-  # este repo siempre empieza por «NNNN_». `NUEVOS_POR_NUM["0402"]` guarda el
-  # nombre exacto — hace falta para distinguir «mismo número, mismo trabajo»
-  # (se ignora) de «mismo número, archivo distinto» (choque de verdad) sin
-  # volver a forkear nada. `NUMS_REGEX` deja filtrar cada rama de un tirón, en
-  # vez de traer sus 600+ archivos numerados para compararlos uno por uno.
-  declare -A NUEVOS_POR_NUM=()
+  # Lo que agrega este push, guardado de dos formas que no piden arreglos
+  # asociativos (bash 4+, ver el encabezado) y que valen igual en bash 3.2 y
+  # en zsh. Hace falta distinguir «mismo número, mismo trabajo» (se ignora) de
+  # «mismo número, archivo distinto» (choque de verdad) sin volver a forkear
+  # nada, y las dos preguntas son una expansión de bash cada una:
+  #
+  #   · `MIOS`: los nombres exactos, uno por línea y con un salto de línea
+  #     también delante y detrás. «¿este nombre es uno de los míos?» es un
+  #     `case` con `*"${NL}nombre${NL}"*`, y «¿cuál es mi archivo con este
+  #     número?» es cortar la cadena en `${NL}0402_`. El salto de línea de cada
+  #     lado es lo que impide que `0402_` case dentro de `10402_x`, o que un
+  #     nombre case como prefijo de otro más largo. Y lo entrecomillado dentro
+  #     de un `case` o de un `${x#…}` es literal, así que un nombre con `[` o
+  #     `*` no se vuelve patrón.
+  #   · `NUMS_REGEX`: solo los números. Deja filtrar cada rama de un tirón, en
+  #     vez de traer sus 600+ archivos numerados para compararlos uno por uno.
+  #     `${mio%%_*}` corta en el primer «_», y un nombre de archivo de este
+  #     repo siempre empieza por «NNNN_».
+  #
+  # Con un `declare -A` zsh tampoco era una salida: guarda las comillas dentro
+  # de la clave (`mapa["$num"]=…` crea la clave `"0402"`) y nunca la vuelve a
+  # encontrar, así que el choque se perdía sin ningún error.
+  NL=$'\n'
+  MIOS="${NL}${NUEVOS}${NL}"
   NUMS_REGEX=""
   while IFS= read -r mio; do
     [ -z "$mio" ] && continue
-    num="${mio%%_*}"
-    NUEVOS_POR_NUM["$num"]="$mio"
-    NUMS_REGEX="${NUMS_REGEX:+$NUMS_REGEX|}$num"
+    NUMS_REGEX="${NUMS_REGEX:+$NUMS_REGEX|}${mio%%_*}"
   done <<< "$NUEVOS"
 
   # Esto era, con diferencia, lo más caro de todo el hook: por cada una de las
@@ -166,9 +187,9 @@ if [ -n "$NUEVOS" ]; then
   #
   # Ahora, por rama: UN git ls-tree, UN sed, y UN grep que ya filtra solo a
   # los números que importan (`NUMS_REGEX`) — así que lo normal es que
-  # `AJENOS` salga vacío y la rama se descarte sin tocar un array. Si algo
-  # coincide, comparar el nombre exacto es una búsqueda en el array de bash
-  # (`${NUEVOS_POR_NUM[$num]}`) y un `!=` de cadenas — cero procesos nuevos.
+  # `AJENOS` salga vacío y la rama se descarte sin más. Si algo coincide,
+  # comparar el nombre exacto son dos expansiones sobre `MIOS` y un `case` —
+  # cero procesos nuevos.
   for ref in $(git branch -r --no-merged origin/main 2>/dev/null | tr -d ' '); do
     [ -z "$NUMS_REGEX" ] && break
     AJENOS=$(git ls-tree -r --name-only "$ref" -- supabase/migrations supabase/tests 2>/dev/null \
@@ -177,14 +198,18 @@ if [ -n "$NUEVOS" ]; then
 
     while IFS= read -r otro; do
       [ -z "$otro" ] && continue
+      # Mismo nombre exacto = el mismo trabajo, que ya viajó en un push anterior.
+      case "$MIOS" in *"${NL}${otro}${NL}"*) continue ;; esac
+      # Mismo número y nombre distinto = choque. `AJENOS` ya viene filtrado a
+      # MIS números, así que siempre hay un archivo mío con este número que
+      # nombrar. Sin comillas externas a propósito: lo de adentro es el patrón.
       num="${otro%%_*}"
-      mio="${NUEVOS_POR_NUM[$num]:-}"
-      # Mismo número y nombre distinto = choque. Mismo nombre = el mismo trabajo.
-      if [ -n "$mio" ] && [ "$otro" != "$mio" ]; then
-        CHOQUES="${CHOQUES}    ${num} · tuyo «${mio}»
+      antes="${NL}${num}_"
+      resto=${MIOS#*"$antes"}
+      mio=${num}_${resto%%"$NL"*}
+      CHOQUES="${CHOQUES}    ${num} · tuyo «${mio}»
          ya usado en ${ref} por «${otro}»
 "
-      fi
     done <<< "$AJENOS"
   done
 

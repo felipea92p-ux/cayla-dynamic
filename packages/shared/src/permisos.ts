@@ -259,6 +259,58 @@ export function esRolEncargada(rol: RolPosible): boolean {
 }
 
 /**
+ * ¿Puede TRAMITAR disciplina —registrar una falta, comunicar cargos, firmar,
+ * entregar— y no solo mirarla?
+ *
+ * DO siempre: tramitar no es imponer. La practicante de DO prepara y toma
+ * casos; la firma la exige la base aparte (`fn_expediente_firmante_motivo`,
+ * 0510). La líder de equipo, solo con contrato de trabajo: una líder por
+ * honorarios o en prácticas ve la pantalla, pero no ejerce poder
+ * disciplinario (RIT 2.9). Decidido el 2026-10-06.
+ *
+ * Es la única función de este archivo que pregunta algo más que el rol, y por
+ * eso recibe el vínculo aparte: el rol dice qué se abre; el vínculo, si la
+ * persona puede ejercer poder de dirección. Espeja la rama de la líder de
+ * `fn_expediente_puede_actuar` (0510). Si se desincronizan gana la base, y la
+ * pantalla muestra un error en vez de un botón — el lado seguro.
+ */
+export function puedeTramitarDisciplina(rol: RolPosible, enPlanilla: boolean | null | undefined): boolean {
+  return tiene(DO, rol) || (tiene(SOLO_ENCARGADA, rol) && enPlanilla === true);
+}
+
+/** Solo la líder DO — no Gerencia ni otros admin. Ver `recibeAvisoDeConductaRegistrada`. */
+const SOLO_LIDER_DO: readonly Rol[] = ["lider_do"];
+
+/**
+ * ¿Le llega a la Bandeja cada falta de conducta que registra una líder de
+ * equipo (0515)? Solo a la líder DO, decidido el 2026-10-06: el aviso es para
+ * quien hace Desarrollo Organizacional. Los admin —tres de ellos externos, por
+ * honorarios— lo ven en Disciplina, pero no se les empuja un aviso
+ * disciplinario de personas con las que no trabajan.
+ *
+ * Tomar el caso es otra pregunta, más ancha: `puedeAnularDocumentoDisciplinario`
+ * (DO y admin), la misma regla con la que hoy se anula un documento.
+ */
+export function recibeAvisoDeConductaRegistrada(rol: RolPosible): boolean {
+  return tiene(SOLO_LIDER_DO, rol);
+}
+
+/**
+ * ¿Le llega a la Bandeja el aviso de que nadie dejó constancia de haber leído un
+ * documento entregado en papel hace más de una semana (0516)? Solo a la líder
+ * DO, por la misma razón que `recibeAvisoDeConductaRegistrada`: es el aviso de
+ * quien hace Desarrollo Organizacional, y no se le empuja a los admin externos
+ * por honorarios un aviso disciplinario de personas con las que no trabajan.
+ *
+ * Es una función aparte y no un reuso de aquella porque la pregunta es otra: si
+ * mañana la líder de equipo también debe perseguir a quien no leyó, se cambia
+ * esta y no la otra.
+ */
+export function recibeAvisoDeLecturaPendiente(rol: RolPosible): boolean {
+  return tiene(SOLO_LIDER_DO, rol);
+}
+
+/**
  * Administra el sistema: admin o líder DO. NO es un permiso — es la pregunta
  * «¿este rol es de administración?» que necesita la cobertura para saber quién
  * hace de líder en una sede central (ver `cuentaEnCobertura`). Para decidir qué

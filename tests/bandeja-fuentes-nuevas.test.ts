@@ -224,3 +224,84 @@ describe("casos de Reportes", () => {
     expect(urgenciaCaso({ ...caso, proximo_vence_at: "2026-09-14T04:59:59Z" }, HOY).grupo).toBe("vencido");
   });
 });
+
+// ── Conducta: el aviso a DO y el aviso a la líder (0515) ────────────────────
+describe("la Bandeja avisa de lo que registra una líder y de lo que DO hace con su caso", () => {
+  const conducta = {
+    id: "doc-1", persona_id: "p-1", persona: "Andrea Torres", sede: "TRU", nivel: "amonestacion",
+    creado_at: "2026-09-14T15:00:00Z", creador: "Lucía Ramos", falta: "Trato descortés (53.2 h)",
+  };
+  const traspaso = {
+    id: "tr-1", expediente_id: "doc-1", persona_id: "p-1", persona: "Andrea Torres", sede: "TRU",
+    accion: "tomar" as const, motivo: "El hecho fue con la tienda cerrada; lo reviso con ella.", hecho_at: "2026-09-14T16:00:00Z",
+  };
+
+  it("DO ve quién registró qué, y la falta con su nombre y su cita", () => {
+    const [fila] = armarPendientes({ ...FUENTES_VACIAS, conductaRegistrada: [conducta] }, { hoy: HOY });
+    expect(fila.tipo).toBe("conducta_registrada");
+    expect(fila.titulo).toBe("Lucía Ramos registró una amonestación escrita");
+    expect(fila.detalle).toBe("Trato descortés (53.2 h)");
+    expect(fila.persona).toBe("Andrea Torres");
+  });
+  it("lleva al caso abierto, no a la lista: DO «solo visualiza» y para tomarlo tiene que verlo", () => {
+    const [fila] = armarPendientes({ ...FUENTES_VACIAS, conductaRegistrada: [conducta] }, { hoy: HOY });
+    expect(fila.ir?.href).toBe("/admin/disciplina#doc-doc-1");
+    expect(fila.modulo).toBe("disciplina");
+    expect(fila.resolucion).toBe("afuera");
+  });
+  it("la líder lee que DO tomó su caso, con el motivo de DO", () => {
+    const [fila] = armarPendientes({ ...FUENTES_VACIAS, casosTraspasados: [traspaso] }, { hoy: HOY });
+    expect(fila.tipo).toBe("caso_traspasado");
+    expect(fila.titulo).toBe("Desarrollo Organizacional tomó tu caso");
+    expect(fila.detalle).toBe("«El hecho fue con la tienda cerrada; lo reviso con ella.»");
+  });
+  it("y que se lo devolvió", () => {
+    const [fila] = armarPendientes({ ...FUENTES_VACIAS, casosTraspasados: [{ ...traspaso, accion: "devolver" }] }, { hoy: HOY });
+    expect(fila.titulo).toBe("Desarrollo Organizacional te devolvió el caso");
+  });
+  it("sin avisos, no hay filas: una Bandeja sin conducta no inventa ninguna", () => {
+    expect(armarPendientes(FUENTES_VACIAS, { hoy: HOY })).toEqual([]);
+  });
+  it("cada aviso tiene su propia clave: el mismo caso puede avisarle a DO y a la líder a la vez", () => {
+    const filas = armarPendientes({ ...FUENTES_VACIAS, conductaRegistrada: [conducta], casosTraspasados: [traspaso] }, { hoy: HOY });
+    expect(new Set(filas.map((f) => f.clave)).size).toBe(2);
+  });
+});
+
+// ── Lo entregado en papel que nadie confirmó haber leído (0516) ─────────────
+describe("la Bandeja de DO avisa de lo entregado en papel que nadie leyó", () => {
+  const pendiente = {
+    id: "doc-7", persona_id: "p-7", persona: "Andrea Torres", sede: "TRU", nivel: "amonestacion",
+    entregado_at: "2026-09-05T15:00:00Z", dias: 10, abierto: false,
+  };
+
+  it("dice cuántos días lleva y que todavía no lo abrió", () => {
+    const [fila] = armarPendientes({ ...FUENTES_VACIAS, lecturasPendientes: [pendiente] }, { hoy: HOY });
+    expect(fila.tipo).toBe("lectura_pendiente");
+    expect(fila.titulo).toBe("No dejó constancia de haber leído su amonestación escrita");
+    expect(fila.detalle).toBe("Todavía no lo abrió. Se lo entregaron hace 10 días.");
+    expect(fila.persona).toBe("Andrea Torres");
+  });
+  it("distingue al que lo abrió y no confirmó de al que ni lo abrió: DO no le dice lo mismo", () => {
+    const [fila] = armarPendientes({ ...FUENTES_VACIAS, lecturasPendientes: [{ ...pendiente, abierto: true }] }, { hoy: HOY });
+    expect(fila.detalle).toBe("Lo abrió, pero no confirmó que lo leyó. Se lo entregaron hace 10 días.");
+  });
+  it("lleva al caso abierto, que es donde DO ve la constancia", () => {
+    const [fila] = armarPendientes({ ...FUENTES_VACIAS, lecturasPendientes: [pendiente] }, { hoy: HOY });
+    expect(fila.ir?.href).toBe("/admin/disciplina#doc-doc-7");
+    expect(fila.modulo).toBe("disciplina");
+    expect(fila.resolucion).toBe("afuera");
+  });
+  it("lo resuelve la persona al leer, no DO al mirarlo: no hay marca de «nuevo»", () => {
+    const [fila] = armarPendientes({ ...FUENTES_VACIAS, lecturasPendientes: [pendiente] }, { hoy: HOY });
+    expect(fila.nuevo).toBe(false);
+  });
+  it("no se repite con la fila de «una líder registró»: cada una tiene su clave", () => {
+    const filas = armarPendientes({
+      ...FUENTES_VACIAS, lecturasPendientes: [pendiente],
+      conductaRegistrada: [{ id: "doc-7", persona_id: "p-7", persona: "Andrea Torres", sede: "TRU", nivel: "amonestacion",
+        creado_at: "2026-09-04T15:00:00Z", creador: "Lucía Ramos", falta: "Trato descortés (53.2 h)" }],
+    }, { hoy: HOY });
+    expect(new Set(filas.map((f) => f.clave)).size).toBe(2);
+  });
+});

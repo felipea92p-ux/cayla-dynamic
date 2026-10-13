@@ -16,3 +16,5 @@ export * from "./ventanas-beneficio";
 export * from "./sedes";
 export * from "./cobertura-equipo";
 export * from "./auditoria";
+export * from "./nombres";
+export * from "./documento";

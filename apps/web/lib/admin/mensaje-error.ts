@@ -80,6 +80,18 @@ const POR_CONSTRAINT: Record<string, string> = {
   // igual para cualquier otra escritura, y para el tiempo entre fusionar la
   // 0360 y pegarla en producción. Sin esto, lo que veía la encargada era
   // «conflicting key value violates exclusion constraint».
+  // La 0512: el DNI escrito dentro del nombre corto. Equipo lo frena antes con
+  // `avisoDocumentoEnNombre`; esto es para cualquier otra puerta.
+  personas_nombre_sin_documento:
+    "El nombre y el apellido corto van sin números: se ven en el terminal y en todas las listas. El DNI se guarda en Datos personales.",
+  // La 0513: tipo y número de documento van juntos y con la forma de su tipo.
+  // La pantalla lo frena antes (`errorDeDocumento`); esto es para cualquier otra puerta.
+  personas_documento_coherente:
+    "El documento no tiene la forma de su tipo: el DNI tiene 8 dígitos, el carné de extranjería de 9 a 12 y el pasaporte o PTP de 6 a 12.",
+  // El índice único de la 0125. Solo salta en una carrera —dos altas del mismo
+  // número a la vez—, porque las funciones lo miran antes y dicen de quién es.
+  idx_personas_documento_unico:
+    "Ese documento ya está registrado para otra persona. Búscala en Equipo antes de seguir.",
   horarios_sin_solape:
     "Ese rango de fechas ya tiene otro horario asignado. Elige una fecha de vigencia posterior, o corrige primero el tramo que ya existe.",
 };

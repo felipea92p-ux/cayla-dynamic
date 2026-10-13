@@ -6,7 +6,7 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-10-13 — Info saluda en el mes de cumpleaños, y el bono es para todo el equipo salvo prueba y contratos cortos · migración 0518 · ESCRITA Y PROBADA · SIN PEGAR · SIN FUSIONAR
+## 2026-10-13 — Info saluda en el mes de cumpleaños, y el bono es para todo el equipo salvo prueba y contratos cortos · migración 0518 · PEGADA EN PRODUCCIÓN (2026-10-13) · SIN FUSIONAR
 
 **El caso.** Daniel Ruiz, practicante, cumple en octubre, y el 13 no tenía nada
 en su Info ni en su Bandeja mientras DO lo veía como «Bono de cumpleaños sin
@@ -48,19 +48,25 @@ navegador con cuentas locales: practicante → saludo + «Firmar mi bono de
 cumpleaños · S/ 180.00»; en prueba → saludo sin botón. **La 0518 quedó
 aplicada en el Postgres local compartido.**
 
-**Antes de pegar, en este orden:**
-1. `./scripts/donde-vive.sh` de `fn_mi_bono_cumpleanos`, `fn_documento_registrar`
-   y `fn_documentos_tablero` **en el mismo mensaje en que se entrega el SQL**,
-   y los tres md5 contra producción (los de partida están en el encabezado de
-   la 0518; son del Postgres LOCAL). Si el «sin comentarios» coincide, seguir;
-   si no coincide ninguno, parar.
-2. Comprobar que ninguna rama nueva redefine ninguna de las tres después de la
-   0492 (el 2026-10-13 no había ninguna).
-3. Pegar la **0518**, mirar la fila de `migraciones_aplicadas` con `numero` Y
-   `nombre`, y recién ahí fusionar (fusionar es publicar).
-4. Correr `scripts/sql-manual/diagnostico_bono_cumpleanos_daniel.sql` (solo
-   lee) para confirmar con sus datos reales que Daniel queda en `este_mes` —
-   y que tiene firma guardada, sin la cual el botón lo manda a configurarla.
+**Pegada en producción el 2026-10-13**, con la comprobación entera en `true`
+y el registro `518 · a_quien_le_toca_el_bono_de_cumpleanos_se_dice_una_vez`.
+Antes de pegar se pidieron los tres md5 a producción: `fn_mi_bono_cumpleanos`
+y `fn_documento_registrar` coincidieron exactos con la partida, y
+`fn_documentos_tablero` **no coincidió con ninguno de los dos** que imprime
+`donde-vive.sh` (`56aff7b1…` / `d138aae9…`). Se pegó igual, y DESPUÉS se midió
+en el Postgres local con la 0492 dentro de `begin … rollback`:
+`md5(replace(prosrc, chr(10), chr(13)||chr(10)))` da `56aff7b1…` y la misma
+expresión «sin comentarios» sobre ese texto da `d138aae9…` — al carácter. Era
+la 0492 pegada desde Windows (la causa de la 0401, ver CLAUDE.md): **mismo
+código, nada revertido**. Lo que hay que aprender: ese desenlace no está entre
+los tres que imprime el script, y por eso parece «otra versión»; queda pedido
+que `donde-vive.sh` imprima también las dos variantes CRLF.
+
+**Queda:** fusionar el PR #526 (fusionar es publicar; el choque con `main` del
+2026-10-13 se resolvió en la rama) y correr
+`scripts/sql-manual/diagnostico_bono_cumpleanos_daniel.sql` (solo lee) para
+confirmar con sus datos reales que Daniel queda en `este_mes` y tiene firma
+guardada — sin firma, el botón lo manda a configurarla primero.
 
 **Pendientes que esto dejó a la vista, sin tocar:**
 - Los practicantes no tienen ningún documento con acuse que diga que les
@@ -75,6 +81,476 @@ aplicada en el Postgres local compartido.**
 - El tablero no lista a quien termina contrato este mes (0161), así que esa
   persona sigue sin poder pedir el bono desde Info aunque la regla nueva se lo
   dé: lo registra DO en papel, como hasta hoy.
+
+---
+
+## 2026-10-06 — El alta pide el documento, y cada documento dice de qué tipo es · migración 0513 · PEGADA Y VERIFICADA EN PRODUCCIÓN · SIN FUSIONAR (PR #508)
+
+**Origen:** el alta no pedía el DNI, así que el índice único de documento (0125), el único freno exacto contra
+registrar dos veces a la misma persona, nunca actuaba sobre un alta, y alguien llegó a escribir un DNI en el
+apellido (0512). Decidido con Felipe: obligatorio en el alta y exigido por la base; tres tipos —DNI 8 dígitos,
+carné de extranjería 9 a 12, pasaporte/PTP 6 a 12—; un documento repetido se niega diciendo quién lo tiene; el
+aviso de nombre parecido (0506) se queda como segunda red; quien no tiene documento lo propone desde «Lo mío» y lo
+aprueba DO (sin adjunto; si está repetido, no se le dice de quién).
+
+**Hecho (en la rama):** `personas.tipo_documento` + `fn_documento_forma_valida` + candado
+`personas_documento_coherente`; `fn_crear_persona` (11 args, `p_es_estacion` marca por `fn_set_cuenta_de_servicio`);
+`fn_set_documento` con el tipo OPCIONAL AL FINAL —`fn_aplicar_cambio_perfil` la llama con 3—. Pantallas: Equipo,
+Datos personales, «Lo mío › Editar», Bandeja. md5 de partida pedidos a producción: `fn_crear_persona` 50c42522…,
+`fn_set_documento` 5f0863e0…, idénticos al repo. Prueba **407** (35) y 235/400/401/221/227/317/322 ajustadas.
+
+**«Lo mío», dentro de la misma 0513:** fila `documento` en `catalogo_campos_perfil` (`solo_do`, sin adjunto),
+`fn_crear_solicitud_perfil` (valida tipo y forma; «ya tienes uno» → es de DO; un número que ya es de otra persona se
+rechaza SIN nombrarla) y `fn_aplicar_cambio_perfil` (aplica por `fn_set_documento`; si DO ya se lo cargó, la propuesta
+quedó vieja y no se aplica). Prueba **410** (16). La 322 pasa de «un solo campo solo-DO» a «exactamente esos dos».
+md5 de partida de producción: `fn_aplicar_cambio_perfil` fbcf2ac8… (6553) y `fn_crear_solicitud_perfil` 7a2f1dfe…
+(2941) — **con `\r`: 119 y 68 retornos = su número de líneas**, medido que el repo con `\r\n` da ese md5 exacto
+(la 0401 se pegó desde Windows). Benigno, pero la 0513 pegada desde la misma máquina los volverá a dejar con `\r`.
+
+**Pegada el 2026-10-06 y verificada** en el SQL Editor. md5 de partida pedidos justo antes de entregar, los cuatro
+idénticos a lo esperado (`fn_crear_persona` 50c42522… · `fn_set_documento` 5f0863e0… · `fn_crear_solicitud_perfil`
+7a2f1dfe… y `fn_aplicar_cambio_perfil` fbcf2ac8…, estas dos con sus `\r`), 1 versión de cada una, `tipo_documento`
+inexistente, 0405 y 0512 registradas. De llegada: las ocho comprobaciones en `true` y `513 · el_alta_pide_el_documento`.
+Llegada (con `\r` en las dos de «Lo mío», por pegar desde Windows): `fn_crear_persona` dbabb62a… · `fn_set_documento`
+6d70abe6… · `fn_crear_solicitud_perfil` 9d473d27… · `fn_aplicar_cambio_perfil` 4265b073….
+
+**Ojo, hasta fusionar el PR #508:** Equipo ya no puede dar de alta con la pantalla vieja (la base exige el documento y
+la pantalla vieja no lo manda): falla sin escribir nada. Fusionar publica; son dos pasos seguidos.
+
+**CI:** `db-tests` falló en las pruebas 316 y 318, que contaban 12 campos en el catálogo y ahora son 13. Las dos pasan
+con la 0513 y fallan sin ella. Lección: al sumar una fila a un catálogo, buscar TODAS las pruebas que lo cuentan, no
+solo la que uno sabe que lo toca (se había ajustado la 322 y se escapó esto).
+
+**Lo que enseñó medir:** (1) el candado dejaba pasar un tipo sin número: un `null` da «no sé» y un CHECK lo deja
+pasar → `coalesce(…, false)`. (2) Quitarle a `authenticated` el permiso de la regla habría roto TODO update directo
+a `personas` (el CHECK se evalúa con los permisos de quien escribe; desde la 0076 las funciones nacen cerradas) →
+se abre a authenticated y service_role. Los dos los cazaron pruebas antes de pegar. (3) Al medir encadenando
+migraciones, la 0501 y la 0502 traen su propio `begin/commit` y anulan el `rollback`: la base local compartida quedó
+con datos de prueba y la 0513 aplicada; se limpió y se revirtió a mano.
+
+---
+
+## 2026-10-06 — El DNI no va en el nombre · migración 0512 · PEGADA Y VERIFICADA · FUSIONADO (#503)
+
+**Origen:** una integrante apareció en todas las listas (y en el terminal de su sede) con su DNI pegado al apellido
+corto. Ningún código lo pegó: se tecleó a mano en el alta. El alta no tiene campo para el DNI, y desde la 0506 un
+nombre parecido pide confirmación; escribir el número es la forma «natural» de diferenciar a alguien. Tampoco servía
+para frenar duplicados: el índice único mira `personas.documento`, no el apellido.
+
+**Qué es:** la 0512 quita de `nombres`/`apellidos` toda secuencia de 6+ dígitos (NOTICE con a quién tocó y si tiene
+el DNI cargado aparte) y agrega el CHECK `personas_nombre_sin_documento`. Se detiene sin tocar nada si a alguien le
+quedaría el nombre vacío. Equipo frena lo mismo antes de escribir (alta y edición) con `avisoDocumentoEnNombre`
+(`packages/shared/src/nombres.ts`, misma regla), y el aviso de parecidos dice que no hace falta agregar el DNI.
+
+**Medido:** prueba **406** (8) en verde con la migración; sin ella falla 5 de 8. Siembra con un DNI inventado →
+queda «Inventada Apellido»; repegada → 0 filas. Apellido = solo el número → se detiene. `tests/nombres.test.ts` con
+los mismos casos.
+
+**Cómo quedó:** el PR se fusionó ANTES de pegar (sin daño: la pantalla frena sola). La primera pegada se detuvo
+sola —«le quedaría el apellido vacío»—: el número no iba pegado al apellido, ocupaba el campo entero (el apellido
+estaba escrito en el del nombre). Se corrigió a mano en Equipo → Editar y la segunda pegada dio
+`true | true | 512 · el_dni_no_va_en_el_nombre`. El freno de «nombre vacío» era justo para este caso: la suposición
+de dónde estaba el número era falsa y la migración no la adivinó.
+
+**Abierto:** el alta sigue sin pedir el DNI, que es el único freno determinista contra duplicados.
+
+---
+
+## 2026-10-05 — El filtro del terminal ilumina en vez de ocultar, y la pantalla se vuelve más quieta · SIN SQL · ESCRITO Y PROBADO · SIN COMMITEAR
+
+**Qué cambia (sobre el PR #495, ya publicado).** Viendo el diseño en producción se
+pidió algo más limpio: en una sede de 4 personas la leyenda era una fila de seis
+botones casi toda en cero.
+- La leyenda de botones sobre las tarjetas **se va**; en su lugar, una **píldora
+  única** fina bajo el selector de sede (`PildoraDeEstados`). Los estados con cero
+  personas no se dibujan.
+- Tocar un estado **ilumina** (borde y tono del estado) a quienes lo tienen y
+  **atenúa** al resto; ya **no oculta**. Se apaga a los 20 s (`SEGUNDOS_RESALTADO`)
+  y al tocar un nombre o cambiar de sede. Al no ocultar, desaparece todo el
+  andamiaje de «alto fijo para que el reloj no salte» y la línea «Mostrando N de M».
+- Las tarjetas son **todas iguales** (papel, borde fino); el estado vive en el
+  círculo de color de la esquina de la foto y en una línea gris con la hora.
+- **El ícono de la foto solo informa**: no filtra, y tocarlo marca como tocar
+  cualquier parte de la tarjeta (volvió a ser un solo botón). Se probó primero como
+  control y se retiró a pedido.
+- **Al pasar el mouse** por un ícono —el de la foto o el de la píldora— sale su
+  significado (`ConEtiqueta`). Solo con mouse: en una pantalla táctil el toque
+  dispara el mismo evento de «entrar» y la etiqueta quedaría pegada.
+
+**Por qué la etiqueta vive en un portal.** Una tarjeta atenuada lleva `opacity-30`
+y todo lo que cuelga de ella se atenúa con ella: justo la etiqueta del ícono de
+quien NO está iluminado es la que más falta hace leer. Medido en el navegador:
+opacidad 1 sobre una tarjeta atenuada.
+
+**Lo que se probó, y lo que NO.** Pruebas nuevas de `contarPresencias` y del orden de
+la píldora (`tests/presencia-casilla.test.ts`). En el navegador, con los
+componentes reales: la píldora ilumina, tocar el ícono de la foto abre la
+confirmación de marcar y no cambia el resaltado, la etiqueta sale con el mouse real
+(`pointerType: mouse`) y no queda pegada tras tocar. **No** se probó en una
+pantalla táctil real ni en el terminal de verdad (pide sesión de Supabase).
+
+**Deuda anotada.** Los tokens `--color-azul` y `--color-ceniza` siguen en uso (pausa
+y turno terminado) — se evaluó quitarlos con una versión «sin color» y se decidió
+dejar el color.
+
+---
+
+## 2026-10-05 — El terminal muestra en qué punto del día está cada integrante · SIN SQL · ESCRITO Y PROBADO · FUSIONADO (PR #495) Y PUBLICADO
+
+**Qué es.** En la pantalla de marcar, cada casilla dice si la persona está
+*laborando*, *en refrigerio*, *en pausa* (trámite, médico, personal, otro),
+con el *turno terminado* o *sin entrada*: ícono sobre la foto, tono de la
+casilla y una línea con la hora. Bajo el reloj hay una leyenda con el conteo de
+cada estado que también FILTRA (oculta a los demás; se quita sola a los 20 s y
+al tocar un nombre). El reloj no se tocó.
+
+**No hay migración.** El estado se DERIVA de los marcajes que el terminal ya
+cargaba, y «entra 14:00» / «Libre hoy» salen de los `horarios_asignados` que
+`sugerencias.ts` ya traía. Al ser solo frontend, **fusionar = desplegar**
+(main se publica sola): no hay nada que pegar antes.
+
+**Dónde vive.**
+- `packages/shared/src/attendance-state-machine.ts` → `estadoPresencia()`. Misma
+  lógica, rama por rama, que `determinarSiguienteAccion`; la prueba
+  `tests/estado-presencia.test.ts` las cruza sobre ~22 000 secuencias de marcas y
+  se comprobó que SÍ falla si una diverge (se rompió a propósito).
+- `apps/web/lib/terminal/presencia.ts` → `presenciaDeLaCasilla()`: lo que dice la
+  línea de cada casilla (función pura, probada en `tests/presencia-casilla.test.ts`).
+- `apps/web/app/(terminal)/terminal/marcar/presencia-visual.tsx` → colores,
+  íconos y la leyenda; `components.tsx` (casilla) y `page.tsx` (cableado).
+- `globals.css`: dos tokens nuevos, `--color-azul` y `--color-ceniza` (ver CLAUDE.md).
+
+**Tres decisiones que importan.**
+1. **Sin estado confirmado, no se pinta nada.** Si el terminal no pudo leer las
+   marcas de hoy (arranque sin red), un mapa vacío no significa «nadie entró»:
+   las casillas se ven como siempre y no hay leyenda. Pintar a todos «sin
+   entrada» sería acusar de más.
+2. **La casilla dice la hora de la ENTRADA, no la del regreso.** «Desde 13:45»
+   tras volver del refrigerio se leía como una llegada tardía. Ahora dice «entró
+   08:02» y, aparte, «salió 13:00 · volvió 13:45» (el regreso se empareja con SU
+   salida: con varias, la del trámite de la tarde y no la del refrigerio). Lo detectó quien probó el prototipo.
+3. **Pasada su hora de entrada, la casilla NO dice «debía entrar».** Dice «aún sin
+   entrada», igual que quien no tiene horario: la tardanza se mide en su reporte,
+   no en una pantalla que ve todo el equipo.
+
+**Para ver en la tienda.** Que el azul (en pausa) y el gris (turno terminado) se
+distingan bien en la pantalla real, y que 20 s de filtro sea el tiempo justo (con
+la tienda llena quizá convenga 10-15 s: es la constante `SEGUNDOS_FILTRO` de
+`page.tsx`). La pantalla de marcar ya NO tiene ningún texto de instrucción.
+
+---
+
+## 2026-10-04 — El rastro de correcciones solo lo escriben las funciones · migración 0508 · PEGADA EN PRODUCCIÓN (registro 508, sin políticas de INSERT) · PR #491 (BORRADOR) SIN FUSIONAR
+
+**LO QUE HAY QUE SABER PRIMERO (2026-10-04, medido en producción):** la 0508 **ya está pegada en producción**:
+`migraciones_aplicadas` trae **508 · `0508_el_rastro_de_correcciones_solo_lo_escriben_las_funciones`** (número Y nombre) y de
+la tabla solo quedan las tres políticas de lectura (`auditoria_select_admin_lider`, `_propia`, `_supervisor`); las dos de
+INSERT ya no existen. Por eso todo lo medido antes allí sobre esta tabla —`anon` y `authenticated` sin INSERT, UPDATE, DELETE
+ni TRUNCATE— es el estado POSTERIOR a la migración, y **no dice si el hueco existió en producción antes**: es desconocido. Dos
+versiones de esta entrada lo leyeron como «producción ya venía cerrada, probablemente por un revoke manual»; era una lectura
+sin respaldo, la misma trampa que dejó anotada la 0507 (una comprobación sin la fila del registro no distingue «antes» de
+«después»), y yo no sabía que se había pegado. Lo mismo vale para `personas` y la 0507. El hueco SÍ existe en el repo y en
+toda base construida de él (CI, local) hasta esta migración. Todo lo medido con `set role` más abajo es sobre la base
+desechable.
+
+**Origen:** al medir la 0507 (alta de personas solo por `fn_crear_persona`) salió un hueco hermano y más grave:
+`correcciones_auditoria` —el rastro de toda edición manual, del que cuelgan el expediente disciplinario y el rastro de
+planilla— aceptaba INSERT directo de cualquier admin, líder DO **o líder de equipo** (sobre alguien de su sede), con
+`corregido_por` de OTRA persona y `corregido_at` de hace semanas. **Medido** (Postgres desechable con las 483 migraciones
+de `main`, `begin … rollback`, `set role authenticated` + jwt): un `lider_do` inserta una fila a nombre de un admin y con
+fecha de hace 40 días, y pasa. UPDATE y DELETE dan 0 filas (RLS sin política: única cerradura). Y **TRUNCATE como
+`authenticated` vació la tabla entera**: RLS no gobierna TRUNCATE y los privilegios por defecto de Supabase se lo dan a 63
+de las 91 tablas de `public` (entre ellas `marcajes`, `jornadas`, `periodos_planilla`). PostgREST no expone TRUNCATE, así
+que por la API no se llega: es latente, no explotable hoy.
+
+**Qué es:** `0508_el_rastro_de_correcciones_solo_lo_escriben_las_funciones.sql` borra las dos políticas de INSERT y
+revoca INSERT, UPDATE, DELETE y TRUNCATE a `public`/`anon`/`authenticated` sobre la tabla. Solo lectura para toda sesión
+de usuario. **No reescribe ninguna función**: no hay md5 de partida y no puede revertir el trabajo de otra sesión.
+Idempotente (se repegó encima de sí misma en el desechable, sin error).
+
+**La advertencia que NO se confirmó.** Se dio por cierto que revocar el INSERT rompería el cese de quien tiene educación
+vigente, porque `fn_educacion_cerrar_al_cesar` (trigger AFTER UPDATE sobre `personas`) es la única de las 60 funciones que
+escriben la auditoría que NO es SECURITY DEFINER. Medido, no rompe nada, por dos razones independientes: (a) el trigger solo
+llega a su insert cuando cambian `estado`/`fecha_cese`, y eso solo lo puede hacer `postgres` (`fn_bloquear_cese_directo`,
+0432, lo niega a cualquier otro) — los ceses reales pasan por `fn_cesar_persona`, DEFINER, y dentro de ella el trigger
+corre como `postgres`; (b) aun con ese guardián apagado, el trigger ya moría antes, en su `update asignaciones_educacion`
+(«permission denied»: `authenticated` solo tiene SELECT ahí), con y sin la 0508. Medido de punta a punta con la migración
+puesta y la función SIN tocar: la asignación se cierra al cese y queda `educacion_cierre_por_cese`. Convertirla en DEFINER
+«por si acaso» le habría dado a su `update` el poder de saltarse RLS, para cubrir un camino que no existe.
+
+**Probado.** Prueba **402** (27 aserciones: estado, ataque desde lider_do / líder de equipo / admin / anon, UPDATE / DELETE /
+TRUNCATE, `fn_set_rol` y el cese con educación vigente siguen vivos con `corregido_por` = quien actuó, y un CONTROL que
+reabre a propósito). Sin la 0508 caen 14 (las cerraduras y el ataque) y pasan las 7 puertas oficiales; con ella, 27/27.
+**Suite pgTAP entera, A/B en el mismo desechable** (control = la 0508 revertida con SU PROPIO bloque «cómo se revierte», y
+la ACL y las 5 políticas comprobadas idénticas a `main`): 309 archivos; CON 3 520 ok / 55 not ok / 106 errores, SIN 3 506 /
+69 / 106; **0 de 308 archivos difieren aserción por aserción** (el único que cambia es el 402). 19 archivos fallan en los dos
+estados (línea base del desechable: `schema_migrations`, jwt/actas/configuración de documentos…); de esos, solo la **353**
+toca la auditoría y solo para LEERLA (cuenta filas que escriben `fn_set_horario_semanal` y `fn_corregir_horario_retroactivo`,
+ambas DEFINER de `postgres`): se rompe antes por el entorno, así que ese tramo queda cubierto por estructura y no por
+medición. En el desechable se añadió `auth.users.email_confirmed_at` y un `storage` mínimo (receta de la memoria).
+
+**Antes de pegar** (histórico: ya se pegó; el orden «pegar antes de fusionar» se cumple): tres consultas de solo lectura a producción,
+escritas en el encabezado, con su resultado esperado — (1) las DOS políticas de INSERT y los privilegios de la tabla; (2)
+que la ÚNICA función INVOKER que escribe la auditoría sea `fn_educacion_cerrar_al_cesar` y que NINGUNA actualice ni borre;
+(3) que `trg_personas_cese_solo_por_rpc` exista y esté activo (`tgenabled = 'O'`) y que `authenticated` NO pueda hacer
+UPDATE sobre `asignaciones_educacion`. Si la (2) devuelve algo más, parar: esa función dejaría de funcionar. No depende de
+la 0506 (ya en `main`, #489; su `fn_crear_persona` es DEFINER y no toca la auditoría) ni de la 0507 (ya pegada en
+producción y fusionada, #490): no toca sus funciones ni sus tablas; se probó sobre `main` + 0507 + 0508 (402, 401 y 388 pasan; suite entera con los mismos 19 archivos
+rotos de la línea base). Commiteada y subida (PR #491, borrador). **Como ya está pegada, el PR puede fusionarse cuando Felipe quiera**: no cambia
+pantallas (solo SQL, pruebas y notas), pero fusionar es publicar `main`.
+
+**Resultado en producción (2026-10-04) — TODO medido DESPUÉS de pegar la 0508.** Registro: 507 y 508 con sus nombres exactos.
+1a: la tabla tiene solo las tres políticas de lectura. B (privilegios autoritativos, con columnas): `anon` y `authenticated`
+en falso para INSERT, UPDATE, DELETE, TRUNCATE e INSERT por columna. 3a: `trg_personas_cese_solo_por_rpc` activo
+(`tgenabled = 'O'`). 3b: `authenticated` no actualiza `asignaciones_educacion`. 2a: UNA fila, `fn_educacion_cerrar_al_cesar`.
+O sea: la migración hizo en producción lo que decía, y las premisas con que se escribió (el cese con educación no depende
+del INSERT de `authenticated`) siguen cumpliéndose. **2b: vacía** (producción, 2026-10-04, captura del SQL Editor: «Success. No rows returned»): ninguna función, definer o no,
+actualiza, borra ni vacía la auditoría, así que nada dependía de esos privilegios que la 0508 revocó. No se ejercitó un cese
+real con educación vigente en producción: la evidencia es el catálogo y la prueba 402, no el uso.
+
+**Lo que ese resultado NO dice, y una divergencia menor.** La primera consulta de privilegios (`authenticated = REFERENCES,
+SELECT, TRIGGER`; `anon = REFERENCES, TRIGGER`) y la de «62 de 92 tablas con INSERT y TRUNCATE» se corrieron con la 0508 ya
+pegada, así que no dicen cómo estaba antes; la lista de las 62 SÍ trae `marcajes`, `jornadas`, `periodos_planilla`,
+`expediente_disciplinario`, `liquidacion_pagada`, `planilla_pagada_detalle`, `movimientos_planilla`, `asignaciones_salario`,
+`datos_personales`, `politica_salarial`… y no trae `correcciones_auditoria` (explicado por la 0508) ni `personas` (la 0507
+solo revoca INSERT, así que su falta de TRUNCATE no viene de ella: ACL `rwdxtm`, origen no investigado). Lo único que la 0508
+no explica es que `anon` tampoco tenga SELECT sobre la tabla (la migración no se lo quita y el repo se lo da): una divergencia
+de privilegios por defecto, sin efecto sobre la escritura.
+
+**Abierto — otras tablas con escritura directa (reportado, NO tocado; decide Felipe).** **Las seis tablas de esta lista SÍ
+están en la lista de las 62 con TRUNCATE de producción**, o sea con los privilegios por defecto; que tengan también INSERT
+para `authenticated` no se verificó tabla por tabla (62 y 62 no prueban que sean las mismas), pero es lo que cabe esperar.
+Es la parte de este informe con exposición plausible en producción, y la de más consecuencia.
+**Actualización: la 0509 (en `main`, SIN PEGAR, entrada de arriba) midió estas mismas tablas por su lado y cierra
+`rendimiento_mensual`, `terminales` y `tarifas_hora`;** `configuracion` queda como decisión de Felipe y `documentos_tipos` se
+deja (la pantalla Normas inserta directo: es la puerta oficial); `push_tokens` es solo la fila propia. Lo que sigue es el
+análisis original de esta entrada, anterior a la 0509.
+- **`rendimiento_mensual`** (el bono por rendimiento): política `for all` a admin/líder, y su guardián
+  `fn_set_rendimiento`/`fn_quitar_rendimiento` (0111) se salta. **Medido** con un periodo pagado: la función dice «La planilla
+  de ese mes ya está PAGADA» y el upsert directo del `lider_do` PASA sobre ese mismo mes, con `puesto_por` de otra persona.
+  Los CHECK de rango y la FK de etiqueta sí valen directo; lo que se salta es el candado del mes pagado y el firmante. La app
+  no la escribe directo: es la candidata natural a un tratamiento como el de la 0507.
+- **`configuracion`**: política `for all` a admin/líder. La única función que la escribe es `fn_educacion_configurar` (rangos
+  0–20 y 0–30 días), y `valor` es jsonb sin constraint: un upsert directo se salta esos rangos. Las claves que mueven plata
+  —`planilla_provisiones`, `asignacion_familiar`, `bono_puntualidad`, `movilidad_diaria`, `liquidacion_incluye_variables`— no
+  tienen guardián NI rastro (solo 3 triggers: `gerencia_general`, firmante de empresa y `tasa_afp`). Ojo: la app SÍ escribe
+  directo `apariencia_tema` (`admin/apariencia/page.tsx:75`), así que no se puede cerrar «a lo 0507» sin antes mover esa clave
+  a una función.
+- **`tarifas_hora`, `terminales`, `documentos_tipos`, `push_tokens`**: ninguna función las escribe, así que no hay guardián
+  que saltar; la decisión es si deben ser solo-RPC. `documentos_tipos` la escribe la app directo (`admin/normas/page.tsx:479`);
+  `push_tokens` está acotada a la fila propia.
+- **TRUNCATE (e INSERT) a `authenticated` en 62 de las 92 tablas de producción** (63 de 91 en el desechable; herencia de los
+  defaults de Supabase). **Medido tabla por tabla en producción (2026-10-04, TRUNCATE):** están `marcajes`, `jornadas`,
+  `periodos_planilla`, `expediente_disciplinario`, `liquidacion_pagada`, `planilla_pagada_detalle`, `movimientos_planilla`,
+  `asignaciones_salario`, `datos_personales`. No alcanzable por PostgREST: es un privilegio sin cerradura, no un hueco que se
+  ataque hoy por la API. Es decisión de Felipe si se revoca en bloque (una migración con un `revoke truncate` sobre las tablas
+  append-only) o no se toca.
+- **`respaldo_horarios_chiara_20260814` está en producción y no en el repo** (solo en `scripts/sql-manual/restituir_horario_de_chiara.sql:67`,
+  `create table … as select`, que no activa RLS ni pone grants propios): es la tabla extra que explica 92 contra 91. Está en
+  la lista de las 62, o sea con los privilegios por defecto. **Verificado en producción (2026-10-04): `relrowsecurity = true` y
+  `anon` NO la lee — no hay nada que arreglar.** Un `create table … as` no activa RLS, así que alguien se la puso (o el proyecto
+  la activa solo en tablas nuevas). Lo que NO se miró son sus políticas: con RLS y sin políticas queda cerrada para
+  `authenticated`; una política permisiva la abriría. Borrarla es decisión aparte: es dato. La primera versión de esta entrada
+  la daba por posiblemente abierta: era una suposición sin medir, y la medición la desmintió.
+
+**No probado:** nada contra producción (ninguna consulta se corrió allá); el ataque se midió con `set role` + jwt en SQL, no con
+una petición HTTP real a PostgREST (es la misma mecánica, pero no se ejecutó); los 19 archivos rotos de la línea base (acotados
+a la 353); la pantalla de Correcciones, que solo LEE la tabla (se comprobó por búsqueda en el código, no abriéndola).
+
+---
+
+
+---
+
+## 2026-10-04 — Tres tablas que solo se escriben por sus funciones · migración 0509 · ESCRITA Y PROBADA · SIN PEGAR · SIN FUSIONAR
+
+**Origen:** al cerrar la puerta de `personas` (0507) se midió que otras cinco tablas admitían INSERT directo de admin o
+líder DO, y se pidió medir cuáles tienen un guardián que esa puerta se salte. Esta es la lista, con jwt de un `lider_do`
+en el esquema completo de `main` (484 migraciones, `begin … rollback`):
+
+| Tabla | Quién escribe hoy con sesión | Guardián | Veredicto |
+|---|---|---|---|
+| `rendimiento_mensual` | nadie (ninguna pantalla llama a `fn_set_rendimiento`) | las dos funciones: rol, mes **no pagado**, catálogo | **se cierra (0509)**: el insert directo en un mes pagado PASABA |
+| `terminales` | nadie (la app solo la lee; los scripts usan `service_role`) | ninguno | **se cierra (0509)**: un `lider_do` se registró como terminal y marcó la entrada de OTRA persona, sin PIN y sin rastro |
+| `tarifas_hora` | nadie; nada la lee; 0 filas | ninguno | **se cierra (0509)**, sin consecuencia hoy |
+| `configuracion` | la app, una sola clave (`apariencia_tema`) | 3 claves con trigger (`gerencia_general`, `firmante_empresa`, `tasa_afp`); **11 sin ninguno**, incluidas las de plata | **NO se toca: decisión de Felipe** (abajo) |
+| `documentos_tipos` | la pantalla Normas inserta directo | ninguno | se deja: la puerta directa ES la oficial |
+
+**Qué es la 0509:** molde de la 0507 — quita las políticas de escritura y revoca INSERT/UPDATE/DELETE a `authenticated`,
+`anon` y `public` en las tres; conserva la lectura como estaba (en `tarifas_hora` la única política era `FOR ALL`, así que
+se repone como SELECT **antes** de quitarla). **No reescribe ninguna función → no hay md5 de partida.** Antes de tocar
+nada comprueba que ninguna función que no corra como su dueño escriba en ellas, y si la hay se niega a correr y la
+nombra (probado en los dos sentidos: se niega ante una `invoker`, deja pasar a una `definer`). La fila de
+`rendimiento_mensual` fija el porcentaje del complemento que paga el núcleo de planilla; quitarla SUBE el pago.
+
+**Antes de pegar:** una consulta de solo lectura, ya escrita en la cabecera de la migración (con la fila del registro,
+para que «antes» y «después» no se confundan). Esperado: el registro no tiene 509, una política `[*]` por tabla,
+ninguna fila en «escriben sin ser definer». Después de pegar: el `select` final da **siete** `t`, y el registro tiene
+`509 · 0509_tres_tablas_que_solo_se_escriben_por_sus_funciones`.
+
+**Cómo se ensayó (y qué NO se pudo ver):**
+- Prueba **403** (27). Sin la migración cae 15 de 27, y cada caída tiene su causa en el hueco; los 12 que pasan son los
+  de «sin romper lo viejo». Con ella, 27/27. Idempotente; el bloque «cómo se revierte» revierte de verdad.
+- Suite pgTAP entera, con y sin la 0509: 309 archivos comunes con las **mismas aserciones una a una** (3 511 → 3 538 =
+  +27 de la 403). Los mismos 19 archivos de entorno fallan de los dos lados (el desechable no los puede ejecutar bien;
+  no son evidencia sobre la 0509). Barrido estático: de 309 archivos, 23 escrituras en estas tablas y todas como
+  `postgres`. Ninguna prueba existente llamaba a `fn_set_rendimiento`: ahora tiene cobertura.
+- **No se midió producción.** Falta correr la consulta previa allá. Con `personas` coincidió con el repo; con estas tres
+  no se sabe.
+
+**`configuracion` — decisión de Felipe, no técnica:** hoy cualquier admin o líder DO puede cambiar las constantes de
+planilla (`movilidad_diaria` pasó en la medición; `planilla_provisiones`, `asignacion_familiar` y `bono_puntualidad`
+tampoco tienen trigger) sin dejar rastro. Las reglas de planilla se consideran decididas y en los hechos solo cambian por
+migración. Si esa es la intención, lo coherente es un trigger por clave como el de `gerencia_general`. No se cierra la
+tabla entera porque `apariencia_tema` se escribe legítimamente desde la app.
+
+---
+
+## 2026-10-04 — Un alta que se parece a alguien ya registrado pide confirmación · migración 0506 · PEGADA Y VERIFICADA · SIN FUSIONAR
+
+**Origen:** una persona quedó registrada dos veces en Equipo, el mismo fin de semana, una con el nombre corto y otra con
+el completo; las dos activas, con su PIN y visibles en el terminal de su sede. Ni el índice único de documento (0125)
+ni el del correo podían verlo: **el alta no captura el DNI**, y dos escrituras distintas de un nombre no chocan contra
+ninguna restricción. La causa de que se repitiera el alta, además: el formulario mostraba **Cargo y Tipo de vínculo**
+pero `crearPersona` nunca los mandaba, así que la fila nueva salía «Sin cargo» y lo natural era volver a registrarla
+(y quien elegía «Practicante» o «Recibo por honorarios» quedaba en «Planilla» sin enterarse).
+
+**Qué es:** `fn_crear_persona` se niega —`raise exception`, hint `persona_parecida`— si el nombre se parece al de alguien
+ya registrado, **activo o ya salido**, salvo que quien da de alta pase `p_confirmo_distinta = true`. La regla compara por
+palabras (sin tildes, sin partículas; campo por campo sin contradicción, campos cruzados, contención, y un tipeo de una
+letra en palabras de 5+): no avisa por compartir solo el nombre de pila ni solo un apellido. `fn_personas_parecidas` deja
+a la pantalla preguntar **a quién** se parece antes de escribir nada, y Equipo muestra un aviso con «Ver en la lista».
+Un `pg_advisory_xact_lock` pone en fila a dos altas simultáneas. El alta ya no pide Cargo ni Tipo de vínculo.
+La firma cambia de 7 a 8 argumentos: **`drop function` de la vieja**, o `create or replace` dejaría dos y la llamada
+quedaría ambigua (la 0297/0299 y la 0367).
+
+**Medido:** prueba **400** (29): 66 casos de nombres, el guardián, los permisos y una sola versión de la función; se
+comprobó que **falla** con el guardián apagado y con cuatro mutaciones (rama (c), sin NFC, confirmación NULL, sin tope).
+Dos altas simultáneas del mismo nombre dejan **1** fila con el candado y **2** sin él (dos sesiones reales). Las pruebas
+235, 250 y 159 pasan igual con y sin la migración. Revisión adversarial con verificador escéptico por hallazgo: ninguno
+bloquea; se aplicó el tope de 120 caracteres (la comparación es cuadrática), NFC, la exclusión de estaciones de retail y
+el aviso que se desplaza hasta la vista.
+
+**Pegada el 2026-10-04 y verificada** en el SQL Editor. md5 de partida (pedido a producción justo antes) `143a698a…`
+(2050 caracteres, 0 retornos, **1 versión**: idéntico a la 0300 del repositorio); de llegada: `versiones = 1`, guardián
+adentro, `anon` no puede ejecutarla, la regla responde y md5 `50c42522550d7827969efbbdc7472268`, idéntico al medido en el
+Postgres local y en una base desechable construida desde cero. **Va ANTES de fusionar el PR de la pantalla**: si el PR
+llega a `main` primero, Equipo no puede dar de alta a nadie (falla cerrado, con «falta aplicar una migración»).
+Después de pegarla: `scripts/sql-manual/pares_ya_registrados.sql` (solo lectura) para ver qué otras parejas ya están
+registradas dos veces; nadie lo había medido. Con la 0507 (la entrada de abajo) no chocan: esa no reescribe la función.
+
+**Abierto:**
+- ~~El INSERT directo a `personas` se salta todo esto~~ — **cerrado por la 0507** (entrada de abajo): sin política ni
+  privilegio de INSERT para `authenticated`, la única entrada es `fn_crear_persona`.
+- `fn_reactivar_persona` no mira si ya hay otra persona activa parecida. Y cambiar el nombre en «Editar» no pasa por
+  la regla.
+- **El alta no captura el DNI**: es el único freno determinista (el índice único), y la regla de nombres no ve a dos
+  registros que no comparten ninguna palabra (~7.5 % de las parejas en la simulación).
+- `personas.fecha_ingreso` nace con `current_date` en UTC: quien se da de alta pasadas las 19:00 de Lima queda con ingreso
+  al día siguiente.
+## 2026-10-04 — Dos nombres, cada uno en su sitio · SIN MIGRACIÓN · FUSIONADO (#492) y visto en producción
+
+**Origen:** a cada integrante se le carga «un nombre y un apellido por practicidad» (`personas.nombres/apellidos`,
+lo que se ve en el terminal) y eso confundía: el formulario de Equipo los llamaba «Nombres» y «Apellidos», como si
+fueran los del DNI. El nombre completo ya existía (`datos_personales.nombre_dni`) y Contratos, el memo y «Lo mío» ya
+lo usaban; la boleta y los papeles de cese seguían imprimiendo el corto.
+
+**Qué es:** nada de esquema. `packages/shared/src/nombres.ts` dice una vez qué nombre va en un papel
+(`nombreOficial`: el del DNI, o el corto si falta; un `nombre_dni` de puros espacios cuenta como faltante). Lo usan
+la **boleta** (admin y «Lo mío»; también el nombre del PDF), el **certificado de trabajo**, la **constancia de cese** y
+la **firma de quien certifica por CAYLA**. En Equipo los campos pasan a «Nombre corto» / «Apellido corto» con la
+aclaración de dónde va el nombre completo. **El terminal no cambia** y una prueba (`tests/nombres.test.ts`) vigila
+que nunca lea `datos_personales`. Si falta el nombre del DNI, el certificado y la constancia lo avisan en la vista
+previa (no se imprimen en silencio: una vez entregados no se corrigen).
+
+**Decidido a propósito — qué NO se tocó:** `fn_planilla_calcular` y `fn_proyeccion_periodo` siguen armando
+`'nombre'` como «nombres apellidos» (es la función de pago; la boleta lee el nombre del DNI aparte, como ya leía
+`documento`). `fn_papeles_cese` (0400) igual: su campo `nombre_completo` sigue siendo el corto y la pantalla de
+Liquidaciones lo reemplaza al cargar. Si algún día se reescribe cualquiera de las dos por otra razón, conviene
+arreglarlo en origen.
+
+**Abierto:**
+- ~~Las constancias de recepción de **Normas** y de **Política salarial** imprimen «Apellidos, Nombres» del corto.~~
+  **Resuelto en el PR siguiente** (rama `claude/constancias-nombre-completo`): la lista sigue ordenada por el
+  nombre corto de nómina —`nombre_dni` es texto libre y su orden de palabras varía de una persona a otra— y bajo
+  cada nombre figura el completo del DNI. Si falta, la pantalla lo cuenta (solo en pantalla); si la lectura
+  falla, se nombra y se apaga «Imprimir».
+- Unas diez pantallas escriben a mano `ficha?.nombre_dni || nombre` (contratos, memo, firma, movilidad, cumpleaños…).
+  Funcionan; no se migraron al helper en este lote.
+- **El dato, no el código:** `nombre_dni` se teclea a mano y nada lo compara con el DNI. Quien no tiene ficha
+  todavía (el panel de Datos personales la lista «sin ficha») imprime con el corto. Medido en producción el
+  2026-10-04: **1 de 26** activos tiene `nombre_dni` vacío.
+
+---
+
+## 2026-10-04 — El alta de una persona solo entra por fn_crear_persona · migración 0507 · PEGADA Y VERIFICADA · FUSIONADA (PR #490)
+
+**Origen:** dos revisiones independientes señalaron que la política `personas_insert_admin_lider` (0003) y el INSERT que
+la 0004 le dio a `authenticated` dejan a un admin o líder DO insertar en `personas` directo por REST, sin pasar por
+`fn_crear_persona`. La 0300 decía que esa función es «la única puerta de alta del sistema»: lo era de la app, no de la base.
+
+**Medido, y el hueco es real de punta a punta** (Postgres desechable con las 483 migraciones de `main`, `begin … rollback`,
+jwt de un `lider_do`): `fn_crear_persona(…, 'admin', …)` → «No puedes crear una persona con un rol igual o superior al
+tuyo»; el mismo admin con un `insert` directo → pasa. Atado a otra cuenta de acceso, esa cuenta entra con
+`fn_rol_actual() = admin` y usa `fn_set_rol` como admin legítimo. Los triggers de rol, sede, pensión y PIN son todos
+BEFORE UPDATE: el INSERT no los dispara. El único trigger de INSERT sobre `personas` es el de la 0490 y solo mira
+`cuenta_de_servicio` — corrige una premisa del encargo («no hay ninguno»), que salía así solo porque la base local no
+tenía la 0490.
+
+**Qué es:** la 0507 quita la política, revoca el INSERT de `personas` (a `public`, `anon` y `authenticated`) y el de la
+vista `retail.personas`, que es insertable y es la misma tabla por otro mango (hoy no sirve para dar de alta, por
+`nombres NOT NULL`; se salva solo por `security_invoker = true`). **No reescribe ninguna función → no hay md5 de partida.**
+`fn_crear_persona` sigue insertando porque es `SECURITY DEFINER` y su insert corre como su dueño. Prueba **401** (17); la
+**388** cambia de 17 a 18 (el insert directo ahora muere en el privilegio, y la mitad INSERT del trigger de la 0490 pasa
+a defenderse con `service_role`, que conserva su INSERT).
+
+**Por qué un revoke y no un trigger** (el molde de la 0296/0342/0490): ese molde existe porque en UPDATE el privilegio no
+se puede revocar sin dejar sin escribir las demás columnas. En INSERT nadie legítimo escribe directo, y lo que se puede
+borrar se borra. Un trigger «todo lo que no sea postgres» además frenaría a `service_role` (`setup-personas-prod.mjs`,
+`seed-dev.mjs`). Quién inserta hoy con sesión de usuario: **nadie** — `apps/web`, `packages/`, `cayla-retail` (seeds como
+postgres y un fixture propio) y las migraciones (las cuatro versiones de `fn_crear_persona`, todas definer) se revisaron.
+
+**Pegada el 2026-10-04 y verificada en producción** (SQL Editor). El `select` final de la propia migración dio las seis
+columnas en `true`. El registro tiene **507 · `0507_el_alta_de_una_persona_solo_entra_por_fn_crear_persona`** (el nombre
+guardado lleva el prefijo `0507_`, como la 0296 y la 0300; las anteriores a la 0505 no). Estado medido después: RLS
+activa en `personas`; `authenticated` con SELECT, UPDATE y DELETE pero **sin INSERT** (`authenticated=rwdxtm`);
+`anon` sin INSERT; **0** políticas de INSERT o ALL; `service_role` y `postgres` conservan su INSERT; una sola función
+inserta en `personas` y es `fn_crear_persona` con `prosecdef = t`. **`retail.personas` NO existe en producción** (el
+esquema `retail` sí): la parte de la vista fue un no-op ahí, y la puerta de la vista nunca estuvo abierta en producción.
+No hay md5 de partida porque no se reescribió ninguna función.
+**Fusionar es publicar `main`, pero este PR no cambia ninguna pantalla:** solo SQL, pruebas y esta nota. Ya no hay
+nada que pegar antes. **Dueño de `fn_crear_persona` verificado en producción:** `postgres`, `prosecdef = t`, y su dueño
+puede insertar en `personas` — por eso el alta por la función no se ve afectada por el revoke. Lo que NO se ejercitó es
+un alta real en producción (no se crea una persona de prueba allá); la evidencia es el catálogo, no el uso.
+
+**Cómo se ensayó (y qué NO se pudo ver):**
+- Control: la 401 SIN la migración cae 10 de 17; con ella pasa 17/17. Idempotente (se pegó dos veces) y el bloque «cómo
+  se revierte» de la cabecera revierte de verdad (se probó).
+- Suite pgTAP entera en el desechable, con y sin la 0507: 308 archivos comunes idénticos (3 427 → 3 445 aserciones =
+  +1 de la 388 y +17 de la 401). Fallan los mismos 20 archivos de los dos lados, aserción por aserción; 11 se caen por
+  `auth.users.email_confirmed_at`, que la imagen no trae — con la columna añadida corren más y siguen idénticos. Esos 20
+  no son evidencia sobre la 0507: son el límite del desechable. Lo acota un barrido estático — de 308 archivos, solo la
+  388 inserta en `personas` como `authenticated`.
+- Convive con la 0506 (rama sin fusionar) en los **dos** órdenes: 400 (29/29), 235 (5/5), 401 (17/17), 388 (18/18).
+- **Antes de pegar no se midió producción:** el hueco se midió en el esquema que construyen las migraciones, no allá, y
+  no hay forma de saber ahora si alguna vez estuvo abierto en producción (la primera consulta de comprobación se
+  corrió ya con la 0507 pegada, y se leyó mal como «producción ya venía sin el hueco»; el registro con 507 lo aclaró).
+  Tampoco se sabe si el registro de cuentas está abierto allá (`enable_signup` es un ajuste del panel de Supabase; en
+  el `config.toml` local está en `true`): si lo está, la cadena de arriba no necesita ni una cuenta cómplice previa.
+  La lección para la próxima: **una consulta de «antes de pegar» debe incluir la fila de `migraciones_aplicadas`**, o
+  su resultado no dice si es «antes» o «después».
+
+**Abierto:**
+- **`correcciones_auditoria` admite INSERT directo de admin, líder DO y líder de equipo** (0003:227/231), sin trigger.
+  Medido: un `lider_do` inserta una fila con `corregido_por` = un admin y `corregido_at` de hace 40 días, y pasa. Es la
+  tabla del rastro de toda edición manual. Ojo antes de revocar: `fn_educacion_cerrar_al_cesar` la escribe sin ser
+  `SECURITY DEFINER` (se rompería el cese). Lanzado como tarea aparte; el registro de producción ya muestra la
+  **0508** (`el_rastro_de_correcciones_solo_lo_escriben_las_funciones`), de esa otra sesión — su estado lo documenta ella.
+- Otras cinco tablas admitían INSERT directo de admin/líder (`configuracion`, `documentos_tipos`, `rendimiento_mensual`,
+  `tarifas_hora`, `terminales`; `push_tokens` es solo la fila propia y `horarios_asignados` ya tiene trigger). **Medidas
+  el 2026-10-04: ver la entrada de la 0509, arriba.**
+- `donde-vive.sh` toma el primer contenedor `supabase_db_*`; con retail y dynamic arriba toma el de retail y avisa
+  «la función no existe en el Postgres local» sin que sea cierto. No se tocó.
 
 ---
 

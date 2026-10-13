@@ -129,6 +129,246 @@ export const NOVEDADES: readonly Novedad[] = [
     audiencia: "todos",
   },
   {
+    id: "2026-10-13-ver-el-cargo-de-cumpleanos-firmado-desde-el-sistema",
+    fecha: "2026-10-13",
+    titulo: "En Documentación ya se puede abrir el cargo de cumpleaños firmado desde el sistema",
+    queMejoro:
+      "En «Cargos de cumpleaños», quien firmó su constancia desde «Lo mío» ahora tiene el botón «Ver». Antes su fila " +
+      "decía «Firmado» y no había dónde abrir lo firmado: «Ver» solo existía para un papel escaneado.\n\n" +
+      "Se abre la constancia con su firma y la fecha en que se firmó, y se puede imprimir o guardar como PDF. " +
+      "«Subir otro» sigue en el menú ⋯ de la fila.",
+    audiencia: "do",
+  },
+  {
+    id: "2026-10-06-asistencia-de-hoy-se-ve-completa-en-el-telefono",
+    fecha: "2026-10-06",
+    titulo: "«Asistencia de hoy» ya se ve completa en el teléfono",
+    queMejoro:
+      "En el teléfono, lo primero que ves ahora es lo que importa: si hay algo urgente y los cuatro números del día " +
+      "(trabajando, tardanzas, sin marcar y sedes bajo la meta), todo en la primera pantalla. Antes había que bajar " +
+      "más de una pantalla de filtros y botones para llegar al primer dato.\n\n" +
+      "El buscador queda arriba, y Sede, Estado y «Solo alertas» están en el botón «Filtros», que te dice cuántos tienes " +
+      "activos. «Personalizar» y «Ver en Google Sheets» pasaron al menú ⋯. Cada sede muestra su estado completo con una " +
+      "franja de color. Toca una cifra para ver quién es y qué cuenta exactamente. En la computadora todo sigue igual.",
+    audiencia: "panel",
+  },
+  {
+    id: "2026-10-06-el-terminal-avisa-cuando-pierde-su-vinculo",
+    fecha: "2026-10-06",
+    titulo: "El terminal avisa cuando la Mac de la sede pierde su vínculo",
+    queMejoro:
+      "Si la Mac de una sede se queda sin su vínculo con el sistema, ahora aparece una franja roja fija: «Esta Mac " +
+      "perdió su vínculo: las marcas se guardan pero NO se envían». Antes nadie se enteraba, y las marcas terminaban " +
+      "apartadas en Correcciones después de seis intentos.\n\n" +
+      "Mientras esté así, las marcas se quedan guardadas en la Mac y salen solas al volver a vincularla; ya no se " +
+      "apartan. Si ves la franja, avisa a tu líder de equipo: quien tiene las credenciales del terminal usa " +
+      "«Volver a vincular» en la misma franja.",
+    audiencia: "panel",
+  },
+  {
+    id: "2026-10-06-lo-mio-tiene-una-seccion-disciplina",
+    fecha: "2026-10-06",
+    titulo: "«Lo mío» tiene una sección nueva: Disciplina",
+    queMejoro:
+      "En Seguimiento hay una sección nueva, «Disciplina», justo antes de «Historial». Ahí ves tus documentos, " +
+      "de a 10 por página, y cómo vas este mes. Los memos que antes estaban en «Historial» ahora están en «Disciplina».\n\n" +
+      "Si te entregaron un documento en papel, ahí puedes abrirlo y dejar constancia de que lo leíste. Leerlo no es " +
+      "aceptarlo. Si no tienes nada pendiente, la sección te lo dice con un mensaje.\n\n" +
+      "En el menú, un número junto a «Disciplina» te avisa cuando hay algo por leer o por recibir.",
+    audiencia: "todos",
+  },
+  {
+    id: "2026-10-06-registrar-una-falta-desde-disciplina",
+    fecha: "2026-10-06",
+    titulo: "Desde Disciplina se puede registrar una falta de conducta",
+    queMejoro:
+      "En Disciplina hay un botón nuevo, «Registrar una falta», y el mismo botón en la ficha de cada persona. Se elige " +
+      "la falta por su nombre corto, con el texto del Reglamento a la vista; se cuenta qué pasó, cuándo y cuándo se " +
+      "supo; y queda un borrador que sigue el trámite de siempre: comunicar, firmar y entregar.\n\n" +
+      "La líder de equipo la registra para integrantes de su sede; a otra líder la registra Desarrollo Organizacional. " +
+      "Desarrollo Organizacional recibe un aviso en su Bandeja, puede tomar el caso y devolverlo con un motivo que lee " +
+      "la líder, y ve si la persona ya leyó lo que se le entregó en papel.",
+    audiencia: "panel",
+  },
+  {
+    id: "2026-10-06-lo-mio-volver-retrocede",
+    fecha: "2026-10-06",
+    titulo: "En «Lo mío», «← Volver» y «Cancelar» te devuelven a donde estabas",
+    queMejoro:
+      "Los botones «← Volver a Info», «← Tus reportes» y «Cancelar» ahora hacen lo mismo que «atrás»: te " +
+      "devuelven a donde estabas, en vez de abrir una página más. Si desde Mis días abriste tu boleta y tocas " +
+      "«← Volver a Info», regresas a Mis días, no al Resumen; y si tocas «Cancelar» al escribir un reporte y " +
+      "luego usas «atrás», ya no vuelves al formulario que acabas de cerrar.\n\n" +
+      "Si abriste la pantalla directamente, sin pasar por «Lo mío», el botón te lleva a «Lo mío» como antes.",
+    audiencia: "todos",
+  },
+  {
+    id: "2026-10-06-el-alta-pide-el-documento",
+    fecha: "2026-10-06",
+    titulo: "Dar de alta a alguien ahora pide su documento",
+    queMejoro:
+      "En Equipo, «Agregar» pide el tipo de documento (DNI, carné de extranjería o pasaporte / PTP) y su número. " +
+      "Si ese documento ya lo tiene alguien registrado, el sistema no deja crearla otra vez y dice quién es, con " +
+      "«Ver en la lista»; si ya salió, se la reactiva desde su menú. Es lo que evita registrar dos veces a la misma " +
+      "persona.\n\n" +
+      "Las estaciones de retail se dan de alta marcando «Es una estación de retail»: no llevan documento. Y en Datos " +
+      "personales, el documento se corrige eligiendo también su tipo.",
+    audiencia: "panel",
+  },
+  {
+    id: "2026-10-06-cargar-mi-documento-desde-lo-mio",
+    fecha: "2026-10-06",
+    titulo: "Si tu documento no está cargado, ahora lo cargas desde «Lo mío»",
+    queMejoro:
+      "En «Lo mío › Mis datos › Editar», si tu documento de identidad todavía no figura, puedes elegir el tipo y " +
+      "escribir el número. Lo revisa Desarrollo Organizacional antes de guardarse, porque es el número que va en tu " +
+      "contrato. Si ya está cargado, se ve como siempre y solo DO lo puede corregir.",
+    audiencia: "todos",
+  },
+  {
+    id: "2026-10-06-el-historial-se-pliega-y-se-pagina",
+    fecha: "2026-10-06",
+    titulo: "El historial de «Lo mío» se pliega, se lee mejor y ya no se corta en 20",
+    queMejoro:
+      "En «Lo mío › Historial», «Cambios a tu registro» ahora aparece cerrado y dice cuántos cambios hay. Tócalo " +
+      "para abrirlo: se ven de 10 en 10, con «Anterior» y «Siguiente». Antes solo salían los 20 más recientes y " +
+      "el resto no se podía ver.\n\n" +
+      "Un cambio de horario ya no sale como un montón de llaves y comillas: dice, por ejemplo, de lunes a viernes " +
+      "de 8:30 a 2:00 y pasa a otro horario, desde qué día y con qué motivo. Además, el contrato, la boleta, " +
+      "Movilidad y «Contar algo» ya caben en la pantalla del celular, sin cortarse por el lado.",
+    audiencia: "todos",
+  },
+  {
+    id: "2026-10-06-lo-mio-atras-vuelve-a-la-seccion",
+    fecha: "2026-10-06",
+    titulo: "En «Lo mío», «atrás» te devuelve a la sección en la que estabas",
+    queMejoro:
+      "Si abres un reporte y usas «atrás» —el botón del navegador o el gesto del teléfono—, vuelves a la lista " +
+      "de tus reportes, ya no al Resumen. Lo mismo entre secciones: si pasaste de Mis días a Boletas, «atrás» " +
+      "te devuelve a Mis días.\n\n" +
+      "Recargar la página te sigue llevando al Resumen, como hasta ahora.",
+    audiencia: "todos",
+  },
+  {
+    id: "2026-10-06-datos-personales-ordena-los-pendientes",
+    fecha: "2026-10-06",
+    titulo: "En Datos personales, los pendientes se pliegan y se recorren en orden",
+    queMejoro:
+      "La tarjeta de Pendientes ahora se pliega a una sola línea con los nombres: toca uno y se abre su ficha, lista " +
+      "para completar. La lista entera, con lo que le falta a cada persona, aparece en el espacio de la ficha cuando " +
+      "no tienes a nadie abierto.\n\n" +
+      "Al abrir una ficha pendiente, arriba dice en cuál vas («2 de 4») y tiene «Siguiente →» para pasar a la próxima. " +
+      "En la lista del equipo, «Por completar» muestra solo a quienes les falta algo. Y los filtros de sede ya no " +
+      "muestran sedes donde no hay nadie.",
+    audiencia: "panel",
+  },
+  {
+    id: "2026-10-06-el-menu-de-lo-mio-se-ordena-por-temas",
+    fecha: "2026-10-06",
+    titulo: "El menú de «Lo mío» se ordena por temas y tiene buscador",
+    queMejoro:
+      "En «Lo mío», las secciones del menú ya no van en una sola lista: están agrupadas en Asistencia, Pago, " +
+      "Documentos y Seguimiento. Puedes cerrar los grupos que no usas tocando su título, y el menú se acuerda en " +
+      "ese dispositivo. En la computadora, ⌘K (Ctrl+K en Windows) abre un buscador: escribe «sueldo», " +
+      "«vacaciones» o «memo» y te lleva a la sección.\n\n" +
+      "En el teléfono, el botón «Menú» pasó al café de la paleta, el nombre de la sección queda al centro de la " +
+      "barra y el cambio de tema está dentro del menú, junto a la ✕. Si la lista no entra en la pantalla, abajo " +
+      "aparece «Más abajo» para que sepas que hay más secciones. «Tus datos» ahora se llama «Mis datos».",
+    audiencia: "todos",
+  },
+  {
+    id: "2026-10-06-el-apoyo-educativo-terminado-se-renueva",
+    fecha: "2026-10-06",
+    titulo: "Si tu apoyo educativo terminó y sigues estudiando, ahora lo renuevas desde tu portal",
+    queMejoro:
+      "En «Lo mío › Educación», cuando tu apoyo educativo ya terminó, aparece «Sigo estudiando: renovar mi apoyo», " +
+      "con tu institución y tus datos ya llenos. Antes esa pantalla mostraba tu solicitud como aprobada y no " +
+      "ofrecía ningún botón, así que no había cómo seguir subiendo tus constancias.\n\n" +
+      "Si te rechazaron la constancia de un pago que hiciste mientras el apoyo estaba vigente, ahora puedes " +
+      "corregirla aunque el apoyo ya haya terminado. Y al pedir el apoyo, la fecha de fin pregunta por el fin de tu " +
+      "ciclo o curso, no por el de este mes: se pide una sola vez y después cada mes subes tu constancia.",
+    audiencia: "todos",
+  },
+  {
+    id: "2026-10-06-lo-mio-vuelve-a-abrir-en-resumen",
+    fecha: "2026-10-06",
+    titulo: "Al recargar «Lo mío», vuelves a tu Resumen",
+    queMejoro:
+      "Si llegabas a «Lo mío» desde un aviso de la Bandeja o desde «← Tus reportes» y luego recargabas la " +
+      "página, se volvía a abrir esa misma sección —Reportes, Boletas o Turnos— en vez del Resumen. Ahora el " +
+      "aviso te lleva a su sección una sola vez, y al recargar siempre empiezas por el Resumen, donde están tus " +
+      "vacaciones, tu periodo de pago y las novedades.",
+    audiencia: "todos",
+  },
+  {
+    id: "2026-10-05-el-terminal-ilumina-en-vez-de-ocultar",
+    fecha: "2026-10-05",
+    titulo: "En el terminal, los estados se iluminan en vez de ocultar a los demás",
+    queMejoro:
+      "En la pantalla de marcar, los botones grandes de estados que había sobre las casillas pasaron a ser una " +
+      "sola píldora fina bajo el selector de sede. Si tocas un estado, se iluminan las personas que están en él " +
+      "y las demás se atenúan, pero ninguna desaparece: todas siguen viendo su nombre para marcar.\n\n" +
+      "Los estados que nadie tiene ya no se dibujan, así que en una sede chica la píldora es muy corta. Las " +
+      "casillas son todas iguales y el estado se ve en el ícono de color de la esquina de la foto; al pasar el " +
+      "mouse por ese ícono o por la píldora aparece lo que significa. Tocar el ícono marca, igual que tocar " +
+      "cualquier parte de la casilla.",
+    audiencia: "todos",
+  },
+  {
+    id: "2026-10-05-el-terminal-muestra-en-que-punto-esta-cada-integrante",
+    fecha: "2026-10-05",
+    titulo: "El terminal muestra en qué punto del día está cada integrante",
+    queMejoro:
+      "En la pantalla de marcar, cada casilla ahora dice si la persona está laborando, en refrigerio, en pausa " +
+      "(por un trámite, una cita médica u otro motivo), con el turno terminado o sin haber entrado todavía. Se ve " +
+      "en el ícono sobre su foto, en el color de la casilla y en la línea con la hora bajo su nombre.\n\n" +
+      "Bajo el reloj hay una leyenda que cuenta cuántas personas hay en cada estado. Si tocas uno, la pantalla " +
+      "muestra solo a esas personas; vuelve sola a los 20 segundos, o al tocar «Ver todos» o cualquier nombre. " +
+      "Marcar funciona igual que siempre.\n\n" +
+      "Quien salió y volvió sigue mostrando a qué hora entró, y aparte de cuándo a cuándo estuvo fuera. Si la " +
+      "Mac no pudo confirmar el estado del día, las casillas se ven como antes, en vez de mostrar algo dudoso.",
+    audiencia: "todos",
+  },
+  {
+    id: "2026-10-04-constancias-con-nombre-completo",
+    fecha: "2026-10-04",
+    titulo: "Las constancias de Normas y de Política salarial traen el nombre completo del DNI",
+    queMejoro:
+      "En las hojas de «Constancia de entrega y difusión» —la de cada documento de Normas y la de la Política " +
+      "salarial— ahora figura, bajo cada nombre de la lista, el nombre completo tal como consta en el DNI. La " +
+      "lista sigue ordenada por apellido, como una nómina.\n\n" +
+      "Si a alguien todavía no se le cargó su nombre completo en Datos personales, la pantalla avisa cuántas " +
+      "personas faltan antes de imprimir. Si no se pudo leer ese dato, «Imprimir» queda apagado hasta recargar " +
+      "la página.",
+    audiencia: "do",
+  },
+  {
+    id: "2026-10-04-equipo-avisa-si-ya-esta-registrada",
+    fecha: "2026-10-04",
+    titulo: "Al agregar a alguien, Equipo avisa si ya está registrada",
+    queMejoro:
+      "Antes de dar de alta a una persona, Equipo revisa si ya hay alguien con un nombre parecido —aunque esté " +
+      "escrito más corto, sin tildes o con los apellidos cruzados— y lo muestra con su sede y su fecha de ingreso. " +
+      "Si es la misma, se abre desde la lista; si es otra, se confirma con un clic. Incluye a quien ya salió: " +
+      "esa persona se reactiva, no se registra de nuevo.\n\n" +
+      "El formulario de alta también cambió: ya no pide Cargo ni Tipo de vínculo, porque nunca se guardaban al " +
+      "agregar y la fila nueva salía «Sin cargo». Esos datos se completan después, con «Editar».",
+    audiencia: "do",
+  },
+  {
+    id: "2026-10-04-nombre-completo-en-los-papeles",
+    fecha: "2026-10-04",
+    titulo: "Tu boleta y tus papeles de salida llevan tu nombre completo, como en el DNI",
+    queMejoro:
+      "La boleta de pago, el certificado de trabajo y la constancia de cese ahora salen con tu nombre completo " +
+      "tal como está en tu DNI, y ya no con el nombre corto con el que apareces en el terminal. En el terminal " +
+      "sigues viéndote con el nombre corto, para encontrarte rápido.\n\n" +
+      "Si el nombre de tu DNI todavía no está cargado en Datos personales, el papel sale con el nombre corto: " +
+      "Desarrollo Organizacional lo ve en «Pendientes». En Equipo, los campos de nombre pasan a llamarse " +
+      "«Nombre corto» y «Apellido corto», para que no se confundan con el nombre legal.",
+    audiencia: "todos",
+  },
+  {
     id: "2026-10-02-horarios-sin-refrigerio",
     fecha: "2026-10-02",
     titulo: "En Horarios, un horario puede quedar sin refrigerio",

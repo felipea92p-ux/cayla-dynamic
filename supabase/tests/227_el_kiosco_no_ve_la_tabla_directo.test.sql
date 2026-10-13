@@ -35,10 +35,10 @@ insert into terminales (id, sede_id, nombre_dispositivo, activo, auth_user_id) v
 
 -- Datos INVENTADOS: ni un DNI ni un sueldo real entra en una prueba.
 insert into personas (id, nombres, apellidos, sede_base_id, pin_hash, fecha_ingreso,
-                      documento, sueldo_base_legal, tipo_vinculo, estado, auth_user_id)
+                      documento, tipo_documento, sueldo_base_legal, tipo_vinculo, estado, auth_user_id)
 values ('00000000-0000-0000-0000-000000022701', 'DeLaSede', 'Kiosco227',
         '00000000-0000-0000-0000-000000022700', 'x', '2024-01-01',
-        '99999999', 1130.00, 'planilla', 'activo', null);
+        '99999999', 'dni', 1130.00, 'planilla', 'activo', null);
 set session_replication_role = origin;
 
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000002270f', true);

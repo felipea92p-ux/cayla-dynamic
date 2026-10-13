@@ -36,6 +36,24 @@
 --   corto y no valdría nada: pasaría con el bloque comentado. Aquí se llama a
 --   la función de verdad y se exige el error. Se prueba la promesa, no la
 --   forma de cumplirla.
+--
+-- DESDE QUÉ FECHA SE PUEDE BARRER CON `fn_hoy_lima()` FALSEADO
+--   Solo desde el 2026-08-22. Los periodos de junio y agosto de 2026 son
+--   fechas FIJAS y el tercero es relativo a hoy; el archivo da por hecho que
+--   los dos fijos ya pasaron, y con un reloj real eso es siempre cierto. Con
+--   un reloj falseado a antes del 22-ago-2026 deja de serlo, y falla por dos
+--   motivos distintos que NO son un defecto del motor ni del archivo:
+--     · 2026-04-01 … 04-22 (22 días): solo cae la aserción 13. Un horario que
+--       empieza en hoy+45 queda ANTES del junio pagado, y el candado de
+--       pagado lo rechaza —con razón—.
+--     · 2026-04-23 … 08-21 (119 días, salvo el 21 y el 22 de junio): el
+--       periodo relativo (hoy+10 … hoy+39) pisa junio o agosto y el archivo
+--       entero aborta en el INSERT, con «periodos_sin_solape». El resto del
+--       archivo sale como una cascada de «transaction is aborted»; el error
+--       que importa es solo el primero.
+--   Medido el 2026-10-11, día por día: de 2026-08-22 a 2032-12-31 (2 324
+--   fechas) no falla ninguna. Por eso el CI, que corre con la fecha real, no
+--   tiene nada que temer de esto.
 -- ============================================================================
 begin;
 select plan(13);

@@ -3,21 +3,22 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  CalendarClock, CalendarDays, Car, FileSignature, GraduationCap, History, IdCard, Inbox, LayoutDashboard,
-  MessageSquareText, ReceiptText, ScrollText, Target, TreePalm, UserRound,
-} from "lucide-react";
+import { Inbox } from "lucide-react";
 import { ResumenEducacionMia } from "./educacion/resumen";
 import { BoletasMias } from "./boletas/boletas-mias";
 import { ReportesMios } from "./reportes/reportes-mios";
+import { CambiosMios } from "./cambios-mios";
+import { DisciplinaMia } from "./disciplina-mia";
 import { SaludoCumpleanos } from "./saludo-cumpleanos";
+import { cuantosPiden, porLeer, type CuentaMia, type DocMio } from "@/lib/mio-disciplina";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Colibri } from "@/components/marca";
 import { AcusesPendientes } from "@/components/acuses-pendientes";
 import { AnunciosWidget } from "@/components/anuncios-widget";
 import { NovedadesWidget } from "@/components/novedades-widget";
 import { SelectorTema } from "@/components/selector-tema";
-import { MenuDetalle, type SeccionDetalle } from "@/components/nav/menu-detalle";
+import { MenuDetalle } from "@/components/nav/menu-detalle";
+import { GRUPOS_MIO, TABS, type Tab } from "@/lib/mio-secciones";
 import { Boton } from "@/components/ui/boton";
 import { Insignia } from "@/components/ui/insignia";
 import { Campo } from "@/components/ui/campo";
@@ -35,7 +36,7 @@ import {
   urlFirmadaSolicitudPerfil, type CaraDni,
 } from "@/lib/foto-dni";
 import {
-  EMPRESA, ROLES_CON_PANEL, TZ_LIMA, hoyLima, NIVEL_DISCIPLINARIO_LABELS, formatoMinutos,
+  EMPRESA, ROLES_CON_PANEL, TZ_LIMA, hoyLima, formatoMinutos,
   ESTADO_CIVIL_LABELS, GENERO_LABELS, GRADO_INSTRUCCION_LABELS, VINCULO_DERECHOHABIENTE_LABELS,
   TIPO_VINCULO_LABEL,
 } from "@cayla-dynamic/shared";
@@ -46,14 +47,14 @@ import {
 } from "@/lib/admin/jornada-esperada";
 import { loQueNoSePudo } from "@/lib/admin/lo-que-no-se-pudo";
 import { cicloVigente, type DiaTrabajado } from "@/lib/admin/ciclo-sobretiempo";
-import { mensajeDeError } from "@/lib/admin/mensaje-error";
-import { esMemoPorFirmar, traerBandeja } from "@/lib/bandeja-mia";
+import { traerBandeja } from "@/lib/bandeja-mia";
 import { mostrarBonoEnInfo, puedePedirBono, traerMiBono, type MiBono } from "@/lib/mi-bono";
 import { esMesDeCumpleanos } from "@/lib/saludos-cumpleanos";
 import { esBoletaNueva } from "@/lib/boletas";
 import { contarBoletasNuevas, nombreDelPeriodo, traerMisBoletas, type FilaMiBoleta } from "@/lib/mis-boletas";
 import { contarSinLeer, traerMisReportes, type FilaMiReporte } from "@/lib/reportes";
 import { formatSoles } from "@/lib/rangos";
+import { direccionDeSeccion, seccionAlLlegar, seccionDeLaDireccion } from "@/lib/seccion-en-la-direccion";
 import { useRecorridoGuiado, type PasoRecorrido } from "@/lib/use-recorrido-guiado";
 
 /**
@@ -183,24 +184,6 @@ interface Revision {
   respuesta: string | null;
 }
 
-/**
- * Una corrección que alguien le aplicó a uno de sus marcajes. Vive en
- * `correcciones_auditoria` desde la 0001; `auditoria_select_propia` ya le deja
- * leer sus propias filas desde la 0003 — nadie lo mostraba, no porque faltara
- * permiso, sino porque ninguna pantalla lo pedía.
- */
-interface Correccion {
-  id: string;
-  campo_modificado: string;
-  valor_anterior: string | null;
-  valor_nuevo: string | null;
-  motivo: string;
-  corregido_at: string;
-  // Puede no haber marcaje asociado (ej. un ajuste de contrato): entonces
-  // PostgREST lo embebe como null, no como error.
-  marcajes: { tipo: string; timestamp_marca: string } | null;
-}
-
 /** Una petición suya de vacaciones. La escribe `fn_solicitar_vacaciones`. */
 interface SolicitudVacacion {
   id: string;
@@ -262,46 +245,18 @@ interface Derechohabiente {
   vidaLey: boolean;
 }
 
-/** Las diez secciones de la pantalla. Ver el comentario de `tab`. */
-type Tab =
-  | "resumen" | "dias" | "turnos" | "dni" | "datos" | "ausencias" | "contrato" | "boletas" | "movilidad" | "educacion"
-  | "firma" | "objetivos" | "reportes" | "historial";
+// Las secciones de la pantalla —cuáles son, en qué grupo va cada una, con qué
+// ícono y con qué palabras se buscan— viven en `lib/mio-secciones.ts`.
 
 /**
- * Las mismas diez, con su icono y en el orden en que se leen.
- *
- * Los iconos NO se eligieron sueltos: cada uno es el que el menú del panel
- * (`admin/nav-items.ts`) ya usa para esa misma idea — Turnos, Datos personales,
- * Ausencias, Contratos, Documentación, Objetivos —, así quien ve las dos
- * superficies reconoce la sección sin leer la etiqueta. Las cuatro que el panel
- * no tiene así: «Mis días» y «Historial», que no existen allá como pantalla,
- * «Movilidad» (0423), que allá es una sub-vista de Documentación —junto con la
- * política y el bono— y no una pantalla propia con su propio ícono, y «Tus
- * datos»: el panel junta ficha y DNI en una sola pantalla con `IdCard`, y ese
- * ícono ya lo usa acá «Mi DNI» — se le da uno propio para no repetirlo dentro
- * de la misma pantalla.
+ * Si «Lo mío» ya apareció alguna vez desde que se cargó este documento. Vive
+ * fuera del componente a propósito: tiene que sobrevivir a que la pantalla se
+ * desmonte al abrir un reporte y se vuelva a montar al volver «atrás», y
+ * volver a `false` solo con una carga de página entera. Es lo que distingue
+ * una recarga de un «atrás» que cae en la misma dirección (ver
+ * `esRecargaDeEstaDireccion`).
  */
-const SECCIONES: readonly SeccionDetalle<Tab>[] = [
-  { valor: "resumen", label: "Resumen", Icon: LayoutDashboard },
-  { valor: "dias", label: "Mis días", Icon: CalendarDays },
-  { valor: "turnos", label: "Mis turnos", Icon: CalendarClock },
-  { valor: "dni", label: "Mi DNI", Icon: IdCard },
-  { valor: "datos", label: "Tus datos", Icon: UserRound },
-  { valor: "ausencias", label: "Vacaciones y permisos", Icon: TreePalm },
-  { valor: "contrato", label: "Contrato", Icon: ScrollText },
-  // Las boletas OFICIALES del contador (0482), no la boleta en vivo de
-  // `/mio/boleta`. Icono de recibo: es lo que es, y no repite ninguno del menú.
-  { valor: "boletas", label: "Boletas", Icon: ReceiptText },
-  { valor: "movilidad", label: "Movilidad", Icon: Car },
-  // Mismo ícono que «Educación» en el menú del panel (nav-items.ts).
-  { valor: "educacion", label: "Educación", Icon: GraduationCap },
-  { valor: "firma", label: "Firma", Icon: FileSignature },
-  { valor: "objetivos", label: "Objetivos", Icon: Target },
-  // Lo que contó y en qué va (0483/0488). Va antes de Historial y no arriba:
-  // es algo que se usa de vez en cuando, no todos los días.
-  { valor: "reportes", label: "Reportes", Icon: MessageSquareText },
-  { valor: "historial", label: "Historial", Icon: History },
-];
+let mioYaAparecio = false;
 
 /**
  * El recorrido de primera vez de «Resumen» — Fase 1 (ver CLAUDE.md). Solo esta
@@ -360,20 +315,6 @@ interface MiContrato {
   fecha_firma: string | null;
 }
 
-/** Fila de `fn_mis_memos()` (0404) — ya filtrada a `estado = 'entregado'`,
- *  nunca un borrador ni uno firmado-pero-no-entregado. */
-interface MiMemo {
-  id: string;
-  correlativo: string | null;
-  tipo_causal: string;
-  nivel: string;
-  entregado_at: string | null;
-  medio_entrega: string | null;
-  firma_sancionado_confirmada_at: string | null;
-  sancionado_rechazo_firma_at: string | null;
-}
-
-const CAUSAL_LABEL_MIO: Record<string, string> = { tardanza: "Tardanzas", falta: "Faltas", conducta: "Conducta" };
 
 const MESES = [
   "enero", "febrero", "marzo", "abril", "mayo", "junio",
@@ -435,77 +376,10 @@ function hora(iso: string | null): string {
   }).format(new Date(iso));
 }
 
-/** Fecha y hora de un timestamp, en Lima: «20 ago, 1:15 p. m.». */
-function fechaYHora(iso: string): string {
-  return new Intl.DateTimeFormat("es-PE", {
-    timeZone: TZ_LIMA, day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hour12: true,
-  }).format(new Date(iso));
-}
-
 /** El día de Lima (YYYY-MM-DD) al que pertenece un timestamp — nunca el UTC
  *  crudo, que puede caer un día antes o después cerca de medianoche. */
 function fechaLimaDeMarca(iso: string): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: TZ_LIMA }).format(new Date(iso));
-}
-
-// Qué dice `campo_modificado` en `correcciones_auditoria` — vocabulario real,
-// tomado de los `insert` de las migraciones 0009/0010/0081/0084, no inventado.
-// Un campo nuevo que aparezca mañana no rompe nada: cae al fallback de abajo.
-const ETIQUETA_CAMPO: Record<string, string> = {
-  timestamp_marca: "Hora del marcaje",
-  tipo: "Tipo de marcaje",
-  marcaje_agregado: "Marcaje agregado",
-  marcaje_eliminado: "Marcaje eliminado",
-  marcaje_anulado: "Marcaje anulado",
-  marcaje_reactivado: "Marcaje reactivado",
-  auto_cierre_confirmado: "Cierre automático confirmado",
-  marca_apartada: "Un marcaje tuyo que no llegó a registrarse",
-};
-function etiquetaCampo(campo: string): string {
-  return ETIQUETA_CAMPO[campo] ?? campo.replaceAll("_", " ");
-}
-
-/**
- * ⚠ EL ERROR TÉCNICO NO SE LE ENSEÑA A LA PERSONA.
- *
- * `fn_marca_apartada_resolver` (0304) guarda en `valor_anterior` la marca Y el
- * error de Postgres que la apartó, separados por « · ». Eso está bien: DO
- * necesita ese texto para saber por qué el terminal no pudo registrarla.
- *
- * Pero esta pantalla la abre la persona desde su celular, y ahí ese texto salía
- * crudo — media pantalla de «Could not choose the best candidate function
- * between: public.fn_registrar_marcaje(p_persona_id => uuid, …)» en el sitio
- * donde esperaba leer qué pasó con su marcaje del jueves. No es una fuga: es
- * ruido que hace ilegible lo único que sí le importa. Se recorta acá, en la
- * presentación, y no en la base: el dato completo sigue donde tiene que estar.
- */
-function limpiaErrorTecnico(campo: string, valor: string | null): string | null {
-  if (campo !== "marca_apartada" || valor === null) return valor;
-  return valor.split(" · ")[0];
-}
-
-/** «repuesta» / «improcedente» dicho como se lo diría una persona a otra. */
-const RESOLUCION_APARTADA: Record<string, string> = {
-  repuesta: "se registró después, con su hora original",
-  improcedente: "se revisó y no correspondía registrarla",
-};
-// Dos formas reales de valor_anterior/valor_nuevo, tomadas de los mismos
-// insert: un timestamp a secas (`timestamp_marca`), o "tipo @ timestamp"
-// (marcaje_agregado/eliminado/anulado). Las dos traen la hora en su offset
-// crudo (+00), no en hora de Lima — reformatear es lo mismo que hace `hora()`
-// para cualquier otro timestamp de esta pantalla, no un caso aparte.
-function valorLegible(campo: string, valor: string | null): string {
-  if (valor === null) return "—";
-  if (campo === "timestamp_marca") {
-    const d = new Date(valor);
-    return Number.isNaN(d.getTime()) ? valor : fechaYHora(valor);
-  }
-  const conMarca = valor.match(/^(.+) @ (.+)$/);
-  if (conMarca) {
-    const d = new Date(conMarca[2]);
-    if (!Number.isNaN(d.getTime())) return `${conMarca[1]} · ${fechaYHora(conMarca[2])}`;
-  }
-  return valor; // "anulada", "revisada", un tipo de marcaje a secas, etc.
 }
 
 /** «2025-08-14» → «agosto de 2025». Para el «desde cuándo» del perfil. */
@@ -917,7 +791,6 @@ export default function MioPage() {
   const [periodo, setPeriodo] = useState<{ fecha_ini: string; fecha_fin: string } | null>(null);
   const [feriados, setFeriados] = useState<{ fecha: string; nombre: string }[]>([]);
   const [revisiones, setRevisiones] = useState<Map<string, Revision>>(new Map());
-  const [correcciones, setCorrecciones] = useState<Correccion[]>([]);
   // ¿Existe ya la tabla de la 0257? Mientras la migración no esté pegada,
   // PostgREST responde con error y pedir una revisión fallaría con un mensaje
   // que no significa nada para quien lo lee. Sin la tabla, ese trozo no sale.
@@ -955,6 +828,8 @@ export default function MioPage() {
    *
    * Las cuatro cifras —periodo de pago, vacaciones, próximo turno, objetivos—
    * viven por eso en «Resumen», que es la sección con la que ABRE la pantalla.
+   * Las novedades del sistema también (2026-10-06): no piden nada, así que no
+   * son «lo que te exige actuar hoy» y no tienen por qué seguirte.
    * Ese detalle es lo que sostiene la otra mitad de la regla: una acción no se
    * esconde nunca detrás de un renglón del menú, y «Pedir vacaciones» sigue
    * siendo de lo primero que se ve al entrar, sin tocar nada. Lo que cambió es
@@ -963,7 +838,7 @@ export default function MioPage() {
    * Si algún día «Resumen» deja de ser la sección inicial, esa acción queda
    * escondida y hay que sacarla de ahí antes.
    */
-  const [tab, setTab] = useState<Tab>("resumen");
+  const [tab, mostrarSeccion] = useState<Tab>("resumen");
 
   // El día abierto desde la cuadrícula. En un teléfono no hay `hover`, así que
   // sin esto los cuadritos de colores son decoración: se ve que el 12 está en
@@ -988,17 +863,50 @@ export default function MioPage() {
     void supabase.auth.getSession().then(({ data }) => setSesion(Boolean(data.session)));
   }, [supabase]);
 
-  // Deep-link: al llegar con ?tab=<sección> (ej. desde la Bandeja, al avisar
-  // de un cambio de turno) abre directo esa sección en vez de Resumen. Mismo
-  // patrón que ?fecha= en Turnos — se valida contra SECCIONES para no dejar
-  // `tab` en un valor que no exista si el enlace viene mal escrito.
+  // La sección vive en la dirección (`?tab=`), y de ahí salen tres cosas que
+  // se pidieron el 2026-10-06 y tiran en direcciones opuestas: un enlace con
+  // ?tab=<sección> —la Bandeja, «← Tus reportes»— abre esa sección; «atrás»
+  // (en el teléfono, el gesto) devuelve a la sección en la que estabas; y
+  // recargar abre SIEMPRE Resumen. La regla y sus dos trampas viven en
+  // `lib/seccion-en-la-direccion.ts`, con sus pruebas.
+  //
+  // Recargar abre Resumen porque es lo único que esta pantalla esconde detrás
+  // de una sección y no debe esconder: las novedades y «Pedir vacaciones» (ver
+  // el comentario de `tab`). Antes la recarga volvía a la última sección
+  // enlazada, y quien llegaba desde un aviso de la Bandeja no las veía más.
   useEffect(() => {
     void (() => {
-      const sp = new URLSearchParams(window.location.search);
-      const t = sp.get("tab");
-      if (t && SECCIONES.some((s) => s.valor === t)) setTab(t as Tab);
+      const carga = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
+      const { seccion, reemplazarPor } = seccionAlLlegar({
+        direccion: window.location.href,
+        carga: carga ? { tipo: carga.type, direccion: carga.name } : null,
+        primeraVez: !mioYaAparecio,
+      }, TABS, "resumen");
+      mioYaAparecio = true;
+      mostrarSeccion(seccion);
+      // `null` y no `window.history.state`: Next.js solo se entera del cambio
+      // de dirección si el estado que recibe NO trae ya el suyo.
+      if (reemplazarPor) window.history.replaceState(null, "", reemplazarPor);
     })();
+    // «Atrás» y «adelante» entre secciones no vuelven a montar la pantalla:
+    // solo cambian la dirección. Hay que leerla de nuevo.
+    const alMoverseEnElHistorial = () =>
+      mostrarSeccion(seccionDeLaDireccion(window.location.href, TABS, "resumen"));
+    window.addEventListener("popstate", alMoverseEnElHistorial);
+    return () => window.removeEventListener("popstate", alMoverseEnElHistorial);
   }, []);
+
+  /**
+   * Toda forma de cambiar de sección pasa por aquí —el menú, los botones de
+   * Resumen, los avisos de «necesita que hagas algo»—, y cada cambio es un paso
+   * del «atrás». Por eso NO se llama a `mostrarSeccion` directo desde un botón:
+   * la dirección dejaría de decir dónde estás y «atrás» te llevaría a otra parte.
+   */
+  function cambiarSeccion(valor: Tab) {
+    mostrarSeccion(valor);
+    const destino = direccionDeSeccion(window.location.href, valor, "resumen");
+    if (destino !== window.location.href) window.history.pushState(null, "", destino);
+  }
 
   async function entrar(e: FormEvent) {
     e.preventDefault();
@@ -1064,7 +972,6 @@ export default function MioPage() {
       { data: js, error: errJornadas }, { data: perd }, { data: hs, error: errHs }, { data: ts, error: errTs },
       { data: fl }, { data: objs }, { data: aus }, { data: tipos },
       { data: per }, { data: fer }, { data: revs, error: errRevs },
-      { data: corrs },
     ] = await Promise.all([
       supabase.from("jornadas")
         .select("fecha, entrada_ts, salida_final_ts, horas_trabajadas, minutos_tarde, estado")
@@ -1117,15 +1024,6 @@ export default function MioPage() {
       supabase.from("revisiones_pedidas")
         .select("fecha, comentario, atendida_at, respuesta")
         .eq("persona_id", yo.id),         // ← explícito, como todo lo de acá
-      // Igual que revisiones_pedidas: SIN filtro de fechas y con un límite fijo
-      // en vez de uno por rango. Una corrección de hace dos meses sigue siendo
-      // algo que le pasó a su marcaje; recortarla al mes que mira hoy la
-      // esconde justo del único lugar donde puede enterarse de que existió.
-      supabase.from("correcciones_auditoria")
-        .select("id, campo_modificado, valor_anterior, valor_nuevo, motivo, corregido_at, marcajes(tipo, timestamp_marca)")
-        .eq("persona_id", yo.id)          // ← explícito, como todo lo de acá
-        .order("corregido_at", { ascending: false })
-        .limit(20),
     ]);
 
     // Estas tres alimentan las tarjetas y la cuadrícula de «Tu mes». Si alguna
@@ -1158,7 +1056,6 @@ export default function MioPage() {
     // revisión y todo lo demás sigue igual. Se degrada, no se cae.
     setRevisiones(new Map(((revs as Revision[] | null) ?? []).map((r) => [r.fecha, r])));
     setPuedePedirRevision(!errRevs);
-    setCorrecciones((corrs as unknown as Correccion[] | null) ?? []);
     setCargando(false);
   }, [supabase, yo, desde, hasta]);
 
@@ -1290,50 +1187,36 @@ export default function MioPage() {
   }, [cargarMisReportes, yo?.id]);
   const reportesSinLeer = useMemo(() => (misReportes ? contarSinLeer(misReportes) : 0), [misReportes]);
 
-  // Sus propios memos disciplinarios ya entregados (0404). Aparte del bloque
-  // grande por la misma razón que `contrato`/`vacas`: depende solo de quién
-  // es. `fn_mis_memos()` ya filtra `estado = 'entregado'` del lado del
-  // servidor — nunca un borrador ni uno firmado-pero-no-entregado, que es
-  // justo lo que el comentario de cabecera de este archivo advierte que
-  // `exp_select_propia` por sí sola no evita.
-  const [misMemos, setMisMemos] = useState<MiMemo[]>([]);
-  const cargarMisMemos = useCallback(async () => {
-    if (!yo?.id) { setMisMemos([]); return; }
-    const { data } = await supabase.rpc("fn_mis_memos");
-    setMisMemos((data as MiMemo[] | null) ?? []);
+  // Su disciplina: lo entregado, lo enviado a su Info que todavía no recibió, y cómo va
+  // este mes con sus tardanzas (0516, 0517). UNA sola lectura para la sección, el contador
+  // del menú y las tarjetas del Resumen: escrita tres veces, un día el número y la lista
+  // dirían distinto. La base filtra del lado del servidor —nunca un borrador ni uno firmado
+  // y sin enviar—, que es justo lo que `exp_select_propia` por sí sola no evita (ver el
+  // comentario de cabecera de este archivo).
+  //
+  // Las dos son tolerantes por separado: si «cómo vas» falla, la lista se ve igual; si falla
+  // la lista, se dice, y no se pinta «no tienes nada» sobre algo que no se pudo mirar.
+  const [miDisciplina, setMiDisciplina] = useState<DocMio[] | null>(null);
+  const [miDisciplinaError, setMiDisciplinaError] = useState(false);
+  const [miCuenta, setMiCuenta] = useState<CuentaMia | null>(null);
+  const cargarMiDisciplina = useCallback(async () => {
+    if (!yo?.id) { setMiDisciplina(null); setMiCuenta(null); return; }
+    const [{ data, error }, { data: cuenta }] = await Promise.all([
+      supabase.rpc("fn_mi_disciplina"),
+      supabase.rpc("fn_mi_cuenta_de_tardanzas", {}),
+    ]);
+    setMiCuenta((cuenta as unknown as CuentaMia | null) ?? null);
+    if (error) { setMiDisciplinaError(true); return; }
+    setMiDisciplinaError(false);
+    setMiDisciplina(((data as unknown as { documentos?: DocMio[] } | null)?.documentos) ?? []);
   }, [supabase, yo?.id]);
   // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { void cargarMisMemos(); }, [cargarMisMemos]);
+  useEffect(() => { void cargarMiDisciplina(); }, [cargarMiDisciplina]);
 
-  // Los memos que le enviaron a su Info y todavía no recibió (0486). Aparte de
-  // `misMemos` porque son cosas distintas: estos NO están entregados todavía —
-  // solo su confirmación los entrega—, y `fn_mis_memos` no los trae a propósito.
-  const [memosPorRecibir, setMemosPorRecibir] = useState<{ id: string; enviado_a_info_at: string }[]>([]);
-  const cargarMemosPorRecibir = useCallback(async () => {
-    if (!yo?.id) { setMemosPorRecibir([]); return; }
-    const { data } = await supabase.rpc("fn_mis_memos_por_recibir");
-    setMemosPorRecibir(data ?? []);
-  }, [supabase, yo?.id]);
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { void cargarMemosPorRecibir(); }, [cargarMemosPorRecibir]);
-
-  // El criterio vive en lib/bandeja-mia.ts, que es de donde sale también el
-  // número del botón «Bandeja». Escrito dos veces, un día uno de los dos
-  // dejaría de contar los verbales y el recuadro y el número dirían distinto.
-  const memosPorFirmar = useMemo(() => misMemos.filter(esMemoPorFirmar), [misMemos]);
-
-  async function firmarMemo(id: string) {
-    const { error } = await supabase.rpc("fn_firmar_memo_como_sancionado", { p_id: id });
-    if (error) { avisar("error", mensajeDeError(error, "firmar el memo")); return; }
-    avisar("ok", "Firma guardada en el memo.");
-    void cargarMisMemos();
-  }
-  async function rechazarFirmaMemo(id: string) {
-    const { error } = await supabase.rpc("fn_rechazar_firma_memo", { p_id: id });
-    if (error) { avisar("error", mensajeDeError(error, "registrar tu respuesta")); return; }
-    avisar("ok", "Quedó anotado que prefieres no firmar digitalmente.");
-    void cargarMisMemos();
-  }
+  // Lo que le pide algo: recibir lo enviado a su Info, o leer lo entregado en papel.
+  const memosPorRecibir = useMemo(() => (miDisciplina ?? []).filter((d) => d.estado === "por_recibir"), [miDisciplina]);
+  const memosPorLeer = useMemo(() => (miDisciplina ?? []).filter(porLeer), [miDisciplina]);
+  const disciplinaPide = useMemo(() => cuantosPiden(miDisciplina ?? []), [miDisciplina]);
 
   // Sus propias solicitudes de vacaciones. Aparte del bloque grande de arriba
   // por la misma razón que `vacas`: depende solo de quién es, no del rango de
@@ -1503,7 +1386,7 @@ export default function MioPage() {
    * media altura de una sección que ya no es la que estás mirando.
    */
   function elegirSeccion(valor: Tab) {
-    setTab(valor);
+    cambiarSeccion(valor);
     requestAnimationFrame(() => {
       const el = document.getElementById("detalle");
       if (el && el.getBoundingClientRect().top < 0) {
@@ -1518,12 +1401,16 @@ export default function MioPage() {
   //
   // «Boletas» lleva el globito con las publicadas que aún no abrió: sale de la
   // misma lectura que pinta la pestaña (`misBoletas`), no de una cuenta aparte.
-  const secciones = useMemo(
-    () => SECCIONES
-      .filter((s) => s.valor !== "dni" || hayCampoDni)
-      .map((s) => (s.valor === "boletas" && boletasNuevas > 0 ? { ...s, contador: boletasNuevas } : s))
-      .map((s) => (s.valor === "reportes" && reportesSinLeer > 0 ? { ...s, contador: reportesSinLeer } : s)),
-    [hayCampoDni, boletasNuevas, reportesSinLeer],
+  const grupos = useMemo(
+    () => GRUPOS_MIO.map((g) => ({
+      ...g,
+      secciones: g.secciones
+        .filter((s) => s.valor !== "dni" || hayCampoDni)
+        .map((s) => (s.valor === "boletas" && boletasNuevas > 0 ? { ...s, contador: boletasNuevas } : s))
+        .map((s) => (s.valor === "reportes" && reportesSinLeer > 0 ? { ...s, contador: reportesSinLeer } : s))
+        .map((s) => (s.valor === "disciplina" && disciplinaPide > 0 ? { ...s, contador: disciplinaPide } : s)),
+    })),
+    [hayCampoDni, boletasNuevas, reportesSinLeer, disciplinaPide],
   );
 
   // Recorrido guiado de "Resumen", primera vez. `Boolean(yo)` y no solo `yo`:
@@ -1534,7 +1421,7 @@ export default function MioPage() {
 
   /** Desde un aviso de arriba hasta el día concreto del que habla. */
   function abrirDia(fecha: string) {
-    setTab("dias");
+    cambiarSeccion("dias");
     setDiaAbierto(fecha);
     setComentario("");
     setAvisoRevision(null);
@@ -1682,7 +1569,7 @@ export default function MioPage() {
         clave: "vacaciones",
         texto: `Tus vacaciones más antiguas vencen el ${diaYMes(vacas.vence_el)}`,
         detalle: `Te quedan ${vacas.dias_pendientes} días sin tomar. Después de esa fecha esos días ya no se pueden tomar como descanso.`,
-        ir: () => { setTab("ausencias"); irArriba(); },
+        ir: () => { cambiarSeccion("ausencias"); irArriba(); },
       });
     }
     // El bono de cumpleaños: solo cuando pedirlo es posible. Un «ya lo pediste»
@@ -1700,13 +1587,13 @@ export default function MioPage() {
     }
     // Genérica a propósito: ni el nivel ni el motivo de la sanción van acá.
     // Esta tarjeta puede verla de reojo cualquiera que pase cerca de la
-    // pantalla — el detalle recién se ve al entrar al documento mismo.
-    if (memosPorFirmar.length > 0) {
-      const n = memosPorFirmar.length;
+    // pantalla — el detalle recién se ve al abrir el documento, en Disciplina.
+    if (memosPorLeer.length > 0) {
+      const n = memosPorLeer.length;
       out.push({
         clave: "memos",
-        texto: `Tienes ${n} documento${n === 1 ? "" : "s"} por revisar y firmar`,
-        ir: () => { setTab("historial"); irArriba(); },
+        texto: `Tienes ${n} documento${n === 1 ? "" : "s"} por leer`,
+        ir: () => { cambiarSeccion("disciplina"); irArriba(); },
       });
     }
     // Uno por documento, y no «tienes N»: cada uno se abre por su cuenta y lo
@@ -1721,7 +1608,7 @@ export default function MioPage() {
     }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resumen, respondidas, pendientesRevision, vacas, memosPorFirmar, memosPorRecibir, miBono]);
+  }, [resumen, respondidas, pendientesRevision, vacas, memosPorLeer, memosPorRecibir, miBono]);
 
   const objCumplidos = objetivos.filter((o) => o.cumplido).length;
   const mesLabel = `${MESES_LARGOS[Number(hasta.slice(5, 7)) - 1].toLowerCase()} ${hasta.slice(0, 4)}`;
@@ -1766,7 +1653,10 @@ export default function MioPage() {
     // pegajosa de arriba que abre el cajón.
     <div className="flex min-h-screen flex-col bg-crema text-tinta md:flex-row">
       <MenuDetalle
-        secciones={secciones}
+        grupos={grupos}
+        // Su propia memoria de grupos cerrados, no la del panel: los dos
+        // menús tienen un «Pago» y una «Asistencia» con cosas distintas.
+        memoriaGrupos="cayla-mio-grupos-cerrados"
         activo={tab}
         onSel={elegirSeccion}
         etiqueta="Secciones de tu perfil"
@@ -1778,23 +1668,19 @@ export default function MioPage() {
         // ve: crema sobre rojo da 4.83:1 en claro y 4.70:1 en oscuro, medido
         // como se pinta. El mismo enlace vive en la tarjeta para escritorio,
         // donde esta barra no existe.
-        //
-        // El tema va a su izquierda, en el mismo grupo: es lo que hace la
-        // cabecera del panel (tema arriba a la derecha), y en teléfono la
-        // tarjeta queda bajo el pliegue, que es justo donde estaba.
-        accion={
-          <div className="flex shrink-0 items-center gap-2">
-            <SelectorTema />
-            {yo && ROLES_CON_PANEL.includes(yo.rol as never) && (
-              <Link
-                href="/admin/dashboard"
-                className="whitespace-nowrap rounded-control bg-rojo px-3 py-2 text-xs font-medium text-crema transition-colors duration-150 hover:bg-rojo-profundo active:scale-[0.97]"
-              >
-                Volver al panel
-              </Link>
-            )}
-          </div>
-        }
+        accion={yo && ROLES_CON_PANEL.includes(yo.rol as never) && (
+          <Link
+            href="/admin/dashboard"
+            className="whitespace-nowrap rounded-control bg-rojo px-3 py-2 text-xs font-medium text-crema transition-colors duration-150 hover:bg-rojo-profundo active:scale-[0.97]"
+          >
+            Volver al panel
+          </Link>
+        )}
+        // El tema estaba a la izquierda de «Volver al panel», en la barra. Desde
+        // el 2026-10-06 va en la cabecera del cajón: se cambia una vez, y en la
+        // barra le quitaba al nombre de la sección el espacio para quedar al
+        // centro. En escritorio sigue en la tarjeta, como siempre.
+        accionCajon={<SelectorTema />}
         // «Salir» vive al pie del menú —cajón en teléfono, columna en
         // escritorio— y no en la tarjeta: es donde el panel tiene «Cerrar
         // sesión». Manda a /admin/login en vez de dejar el formulario de esta
@@ -1952,8 +1838,14 @@ export default function MioPage() {
 
       <AnunciosWidget />
 
-      {/* Lo que mejoró en el sistema. No pide nada: se entiende y desaparece. */}
-      <NovedadesWidget />
+      {/* Lo que mejoró en el sistema. No pide nada: se entiende y desaparece.
+          Por eso vive SOLO en «Resumen» (2026-10-06) y no arriba de todas las
+          secciones como los acuses y los anuncios: no tiene fecha ni exige
+          actuar, así que cae en la otra mitad de la regla de `tab` — quien
+          elige «Mis turnos» pide ver sus turnos, no cuatro tarjetas sobre el
+          terminal. Una pendiente sigue esperando en «Resumen», que es la
+          sección con la que abre la pantalla. */}
+      {tab === "resumen" && <NovedadesWidget />}
 
       {aviso && <div className="mb-6 rounded-2xl border border-ambar/30 bg-ambar/[0.06] p-4 text-sm">{aviso}</div>}
 
@@ -2081,7 +1973,7 @@ export default function MioPage() {
                 : "Días pendientes de tomar."}
               alerta={(vacas.dias_para_vencer ?? 999) <= 60 && vacas.records_sin_gozar > 0}
               accion={
-                <button onClick={() => { setTab("ausencias"); irArriba(); }}
+                <button onClick={() => { cambiarSeccion("ausencias"); irArriba(); }}
                   className="text-tinta underline underline-offset-2 hover:text-rojo-profundo">
                   Pedir vacaciones →
                 </button>
@@ -2134,7 +2026,7 @@ export default function MioPage() {
               ? `Te toca ${cuando(proximos[0].fecha)}.${feriados.length > 0 ? ` Próximo feriado: ${diaYMes(feriados[0].fecha)}, ${feriados[0].nombre}.` : ""}`
               : "No hay turnos ni horario cargados para los próximos días. Si eso no es lo que esperabas, avísale a tu líder de equipo."}
             accion={
-              <button onClick={() => { setTab("turnos"); irArriba(); }}
+              <button onClick={() => { cambiarSeccion("turnos"); irArriba(); }}
                 className="text-tinta underline underline-offset-2 hover:text-rojo-profundo">
                 Ver mis próximos días →
               </button>
@@ -2150,7 +2042,7 @@ export default function MioPage() {
               ? "Los marca tu líder de equipo cuando los conversan."
               : `Todavía no tienes objetivos cargados para ${mesLabel}. Los acuerda contigo tu líder de equipo.`}
             accion={objetivos.length > 0 ? (
-              <button onClick={() => { setTab("objetivos"); irArriba(); }}
+              <button onClick={() => { cambiarSeccion("objetivos"); irArriba(); }}
                 className="text-tinta underline underline-offset-2 hover:text-rojo-profundo">
                 Verlos →
               </button>
@@ -3046,106 +2938,29 @@ export default function MioPage() {
 
           Va en la ÚLTIMA pestaña y no arriba: es lo que ya pasó y está resuelto.
           Estaba de tercera sección de la pantalla, ocupándole media vista a algo
-          que se consulta una vez al mes. */}
+          que se consulta una vez al mes.
+
+          Desde el 2026-10-06 vive en `cambios-mios.tsx`: plegado, de a 10 por
+          página y traducido con el mismo `describirCambio` del panel. Antes
+          tenía su propio traductor, que no conocía el horario y lo pintaba
+          como JSON crudo, y un tope de 20 que escondía la 21. */}
+      {/* ── DISCIPLINA ───────────────────────────────────────────────────────
+          Sus memos, el mensaje cuando no hay nada, la constancia de lectura y
+          cómo va este mes (entrega 4, 2026-10-06). Antes los memos vivían al
+          principio de «Historial», que no decía que ahí estaba la disciplina.
+          Todo vive en `disciplina-mia.tsx` y recibe los datos hechos: el menú y
+          el Resumen cuentan lo mismo que esta sección. */}
+      {tab === "disciplina" && yo && (
+        <DisciplinaMia
+          supabase={supabase} personaId={yo.id}
+          docs={miDisciplina} error={miDisciplinaError} cuenta={miCuenta}
+          onCambio={() => void cargarMiDisciplina()}
+        />
+      )}
+
       {tab === "historial" && (
         <>
-          {/* Solo visible si tiene al menos un memo entregado — nada que
-              mostrar, nada que ocupe pantalla. `fn_mis_memos()` (0404) ya
-              garantiza que nunca llegue acá un borrador. */}
-          {misMemos.length > 0 && (
-            <section className="mb-4 rounded-2xl border border-sand p-5 text-sm">
-              <h2 className="mb-1 font-serif text-lg">Tus memos disciplinarios</h2>
-              <p className="mb-3 text-taupe">
-                Los que ya te entregaron. Si te lo entregaron en papel, firmarlo acá (o dejar constancia de
-                que prefieres no hacerlo) es evidencia adicional, con su propia fecha y hora: no reemplaza el papel.
-                Si te lo enviaron a tu Info, la entrega ya quedó hecha cuando lo recibiste.
-              </p>
-              <ul className="space-y-3">
-                {misMemos.map((m) => {
-                  const puedeFirmar = ["verbal", "amonestacion", "suspension"].includes(m.nivel);
-                  const resuelto = Boolean(m.firma_sancionado_confirmada_at || m.sancionado_rechazo_firma_at);
-                  return (
-                    <li key={m.id} className="border-t border-sand pt-3 first:border-t-0 first:pt-0">
-                      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
-                        <span className="font-medium">
-                          {NIVEL_DISCIPLINARIO_LABELS[m.nivel as keyof typeof NIVEL_DISCIPLINARIO_LABELS] ?? m.nivel}
-                        </span>
-                        <span className="text-xs text-taupe">
-                          {m.entregado_at ? diaYMes(fechaLimaDeMarca(m.entregado_at)) : "—"}
-                        </span>
-                      </div>
-                      <p className="text-taupe">
-                        {CAUSAL_LABEL_MIO[m.tipo_causal] ?? m.tipo_causal}
-                        {m.correlativo ? ` · ${m.correlativo}` : ""}
-                      </p>
-                      {puedeFirmar && (
-                        <Link href={`/mio/memo/${m.id}`} className="mt-1 inline-block text-xs text-taupe underline hover:text-tinta">
-                          Ver el documento
-                        </Link>
-                      )}
-                      {m.firma_sancionado_confirmada_at && (
-                        <p className="mt-1 text-verde">
-                          Firmaste este documento el {diaYMes(fechaLimaDeMarca(m.firma_sancionado_confirmada_at))}.
-                        </p>
-                      )}
-                      {m.sancionado_rechazo_firma_at && (
-                        <p className="mt-1 text-taupe">
-                          Quedó anotado que preferiste no firmarlo digitalmente, el{" "}
-                          {diaYMes(fechaLimaDeMarca(m.sancionado_rechazo_firma_at))}.
-                        </p>
-                      )}
-                      {!resuelto && puedeFirmar && (
-                        <div className="mt-2 flex flex-wrap items-center gap-3">
-                          <Boton variante="primario" tamano="sm" onClick={() => void firmarMemo(m.id)}>Firmar</Boton>
-                          <Boton variante="enlace" className="text-xs text-taupe" onClick={() => void rechazarFirmaMemo(m.id)}>
-                            Prefiero no firmar digitalmente
-                          </Boton>
-                        </div>
-                      )}
-                      {!resuelto && !puedeFirmar && (
-                        <p className="mt-1 text-xs text-taupe">
-                          Este documento se firma en físico o vía notarial — no admite firma digital.
-                        </p>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-            </section>
-          )}
-        <section className="rounded-2xl border border-sand p-5 text-sm">
-          <h2 className="mb-1 font-serif text-lg">Correcciones a tus marcajes</h2>
-          <p className="mb-3 text-taupe">
-            Cuando alguien corrige uno de tus marcajes queda anotado acá, con el motivo. Son las 20 más recientes.
-          </p>
-          {correcciones.length === 0 ? (
-            <p className="text-taupe">Nadie ha corregido ningún marcaje tuyo.</p>
-          ) : (
-            <ul className="space-y-3">
-              {correcciones.map((c) => {
-                const antes = limpiaErrorTecnico(c.campo_modificado, c.valor_anterior);
-                const despues = c.campo_modificado === "marca_apartada"
-                  ? RESOLUCION_APARTADA[c.valor_nuevo ?? ""] ?? c.valor_nuevo
-                  : null;
-                return (
-                  <li key={c.id} className="border-t border-sand pt-3 first:border-t-0 first:pt-0">
-                    <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
-                      <span className="font-medium">{etiquetaCampo(c.campo_modificado)}</span>
-                      <span className="text-xs text-taupe">{fechaYHora(c.corregido_at)}</span>
-                    </div>
-                    <p className="text-taupe">
-                      {despues !== null
-                        ? <>{valorLegible(c.campo_modificado, antes)} · {despues}</>
-                        : <>{valorLegible(c.campo_modificado, antes)} → {valorLegible(c.campo_modificado, c.valor_nuevo)}</>}
-                      {c.marcajes && <> · marcaje del {diaYMes(fechaLimaDeMarca(c.marcajes.timestamp_marca))}</>}
-                    </p>
-                    <p className="mt-0.5 italic">«{c.motivo}»</p>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </section>
+        {yo && <CambiosMios supabase={supabase} personaId={yo.id} />}
 
         {yo && <TusUltimosPeriodos personaId={yo.id} />}
         </>

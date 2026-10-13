@@ -1,16 +1,16 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import {
   ARCHIVOS_POR_ENTREGA, ESTADO_CONSTANCIA, ESTADO_ENTREGA, ESTADO_SOLICITUD, FRECUENCIA_PAGO_LABELS,
-  MOTIVO_RECHAZO_LABELS, TIPOS_CONSTANCIA, TIPO_CONSTANCIA_LABELS, TZ_LIMA, hoyLima, problemaDeArchivo,
-  sugerirProximaFecha,
+  MOTIVO_RECHAZO_LABELS, TIPOS_CONSTANCIA, TIPO_CONSTANCIA_LABELS, TZ_LIMA, VIGENCIA_CORTA_DIAS, diasDeVigencia,
+  finDeCicloSugerido, hoyLima, problemaDeArchivo, sugerirProximaFecha,
   type EstadoConstancia, type EstadoEntrega, type EstadoSolicitud, type FrecuenciaPago, type MotivoRechazo,
   type TipoConstancia,
 } from "@cayla-dynamic/shared";
+import { EnlaceVolver } from "@/components/enlace-volver";
 import { Cargando } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
 import { Insignia } from "@/components/ui/insignia";
@@ -220,17 +220,24 @@ function EducacionContenido() {
         <p className="max-w-md rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo-profundo">
           {error} <Boton variante="enlace" onClick={() => void cargar()}>Reintentar</Boton>
         </p>
-        <Link href="/mio" className="mt-3 inline-block text-sm text-taupe hover:text-tinta hover:underline">← Volver a Info</Link>
+        <EnlaceVolver href="/mio" className="mt-3 inline-block text-sm text-taupe hover:text-tinta hover:underline">← Volver a Info</EnlaceVolver>
       </main>
     );
   }
 
   const activas = situaciones.filter((s) => s.vigencia !== "terminada");
   const anteriores = situaciones.filter((s) => s.vigencia === "terminada");
+  // De la que terminó más tarde sale la renovación: es la que la persona
+  // reconoce como «mi apoyo».
+  const ultimoTerminado = anteriores.reduce<Situacion | null>(
+    (m, s) => (!m || s.vigente_hasta > m.vigente_hasta ? s : m), null);
+  // Con algo por corregir adentro, «Estudios anteriores» nace abierto: cerrado,
+  // lo único que ella tiene que hacer quedaría escondido.
+  const anteriorPorCorregir = anteriores.some(corregibleTerminado);
 
   return (
     <main className="mx-auto w-full max-w-2xl px-4 py-6 sm:px-6">
-      <Link href="/mio" className="mb-4 inline-block text-sm text-taupe hover:text-tinta hover:underline">← Volver a Info</Link>
+      <EnlaceVolver href="/mio" className="mb-4 inline-block text-sm text-taupe hover:text-tinta hover:underline">← Volver a Info</EnlaceVolver>
       <h1 className="mb-1 font-serif text-2xl">Educación</h1>
       <p className="mb-6 text-sm text-taupe">
         El apoyo de CAYLA para tus estudios o los de tus hijos, y las constancias que lo respaldan.
@@ -245,6 +252,7 @@ function EducacionContenido() {
       {situaciones.length === 0 ? (
         <SolicitudApoyo
           solicitud={solicitud}
+          ultimoTerminado={null}
           personaId={personaId!}
           hoy={hoy}
           onCambio={async (texto) => { setAviso({ tipo: "ok", texto }); await cargar(); }}
@@ -267,6 +275,7 @@ function EducacionContenido() {
           {activas.length === 0 && (
             <SolicitudApoyo
               solicitud={solicitud}
+              ultimoTerminado={ultimoTerminado}
               personaId={personaId!}
               hoy={hoy}
               onCambio={async (texto) => { setAviso({ tipo: "ok", texto }); await cargar(); }}
@@ -274,12 +283,19 @@ function EducacionContenido() {
             />
           )}
           {anteriores.length > 0 && (
-            <details className="rounded-2xl border border-sand p-5 text-sm">
+            <details open={anteriorPorCorregir} className="rounded-2xl border border-sand p-5 text-sm">
               <summary className="cursor-pointer font-medium">Estudios anteriores ({anteriores.length})</summary>
               <div className="mt-4 flex flex-col gap-4">
                 {anteriores.map((s) => (
-                  <Historial key={s.familia_id} titulo={`${s.institucion} · hasta el ${fechaCorta(s.vigente_hasta)}`}
-                    entregas={historial[s.familia_id] ?? []} />
+                  <EstudioTerminado
+                    key={s.familia_id}
+                    situacion={s}
+                    historial={historial[s.familia_id] ?? []}
+                    personaId={personaId!}
+                    textoValido={textoValido}
+                    hoy={hoy}
+                    onCambio={async (texto) => { setAviso({ tipo: "ok", texto }); await cargar(); }}
+                  />
                 ))}
               </div>
             </details>
@@ -670,6 +686,91 @@ function ListaArchivos({ archivos }: { archivos: Entrega["archivos"] }) {
   );
 }
 
+/**
+ * ¿Le queda algo por hacer en un estudio que ya terminó? Solo una cosa: la
+ * constancia RECHAZADA de un pago hecho dentro de la vigencia.
+ */
+function corregibleTerminado(s: Situacion): boolean {
+  return s.vigencia === "terminada" && s.estado_constancia === "rechazada" && s.entrega_id !== null
+    && s.fecha_pago_constancia !== null && s.fecha_pago_constancia <= s.vigente_hasta;
+}
+
+/**
+ * Un estudio que ya terminó: su historial y una sola puerta abierta, corregir
+ * la constancia rechazada de un pago hecho DENTRO de la vigencia.
+ *
+ * Por qué esa y ninguna otra. Ese pago CAYLA ya lo acompañó con el apoyo, y la
+ * constancia es su respaldo: cerrarla al día siguiente del fin lo dejaba sin
+ * respaldo para siempre. La base ya lo aceptaba —`fn_educacion_enviar_entrega`
+ * no mira la vigencia—; el candado era solo de esta pantalla.
+ *
+ * Una constancia NUEVA, en cambio, no va aquí: un pago posterior al fin no lo
+ * acompaña este apoyo, y aprobarla le diría «Aprobada» a quien ya no lo cobra —
+ * se leería como «me lo pagan». Para seguir, está la renovación
+ * (`SolicitudApoyo`, arriba).
+ */
+function EstudioTerminado({
+  situacion: s, historial, personaId, textoValido, hoy, onCambio,
+}: {
+  situacion: Situacion;
+  historial: Entrega[];
+  personaId: string;
+  textoValido: string;
+  hoy: string;
+  onCambio: (texto: string) => Promise<void>;
+}) {
+  const [corrigiendo, setCorrigiendo] = useState(false);
+  const rechazada = corregibleTerminado(s) ? historial.find((e) => e.id === s.entrega_id) ?? null : null;
+  const enRevision = s.estado_constancia === "pendiente_revision"
+    ? historial.find((e) => e.estado === "pendiente") ?? null : null;
+
+  return (
+    <div>
+      {rechazada && (
+        <div className="mb-3 rounded-xl border border-rojo/30 bg-rojo/5 p-3">
+          <p className="font-medium text-rojo-profundo">
+            La constancia de tu pago del {fechaCorta(rechazada.fecha_pago)} no se pudo aprobar.
+          </p>
+          <p className="mt-1">
+            Motivo: {rechazada.motivo_categoria ? MOTIVO_RECHAZO_LABELS[rechazada.motivo_categoria] : "—"}
+            {rechazada.motivo_comentario && <> · «{rechazada.motivo_comentario}»</>}
+          </p>
+          <p className="mt-1 text-xs text-taupe">
+            Ese pago lo hiciste mientras tu apoyo estaba vigente, así que puedes corregirla aunque el apoyo ya haya terminado.
+          </p>
+          {!corrigiendo && (
+            <Boton variante="primario" className="mt-3 w-full sm:w-auto" onClick={() => setCorrigiendo(true)}>
+              Corregir y volver a enviar
+            </Boton>
+          )}
+        </div>
+      )}
+      {rechazada && corrigiendo && (
+        <div className="mb-3">
+          <FormularioConstancia
+            situacion={s}
+            personaId={personaId}
+            textoValido={textoValido}
+            reemplazaA={rechazada.id}
+            hoy={hoy}
+            onCancelar={() => setCorrigiendo(false)}
+            onEnviada={async () => {
+              setCorrigiendo(false);
+              await onCambio("Constancia corregida y enviada. Desarrollo Organizacional la va a revisar y te avisamos en tu Bandeja.");
+            }}
+          />
+        </div>
+      )}
+      {enRevision && (
+        <p className="mb-3 text-xs text-taupe">
+          Tu constancia del pago del {fechaCorta(enRevision.fecha_pago)} está en revisión. Te avisamos en tu Bandeja cuando termine.
+        </p>
+      )}
+      <Historial titulo={`${s.institucion} · hasta el ${fechaCorta(s.vigente_hasta)}`} entregas={historial} />
+    </div>
+  );
+}
+
 function Historial({ titulo, entregas }: { titulo: string; entregas: Entrega[] }) {
   return (
     <div>
@@ -761,18 +862,27 @@ function AvisoFin({
  * formulario que usa DO para dar de alta, sin el monto — eso lo sigue
  * calculando el sistema al aprobar. Mientras está pendiente puede verla y
  * retirarla; si la rechazan, ve el motivo y puede corregir y reenviar.
+ *
+ * Y quien lo TUVO y ya terminó, lo renueva acá. Hasta octubre de 2026 una
+ * solicitud aprobada cuyo apoyo había terminado dejaba esta tarjeta con
+ * «Aprobada» y ni un botón, mientras la tarjeta de Info mandaba aquí con
+ * «Solicitar apoyo educativo →»: dos puertas a la misma pared. Una solicitud
+ * aprobada ya no es algo vivo —el apoyo que nació de ella se ve en su estudio—,
+ * así que cuenta igual que no tener ninguna, y la tarjeta ofrece renovar con lo
+ * que ya declaró adentro.
  */
 function SolicitudApoyo({
-  solicitud, personaId, hoy, onCambio, onError,
+  solicitud, ultimoTerminado, personaId, hoy, onCambio, onError,
 }: {
   solicitud: Solicitud | null;
+  ultimoTerminado: Situacion | null;
   personaId: string;
   hoy: string;
   onCambio: (texto: string) => Promise<void>;
   onError: (texto: string) => void;
 }) {
   const supabase = useMemo(() => createAdminSupabaseClient(), []);
-  const [formulario, setFormulario] = useState(false);
+  const [formulario, setFormulario] = useState<"nueva" | "renovar" | "corregir" | null>(null);
   const [retirando, setRetirando] = useState(false);
   const [confirmarRetiro, setConfirmarRetiro] = useState(false);
 
@@ -786,20 +896,55 @@ function SolicitudApoyo({
     await onCambio("Retiraste tu solicitud. Puedes enviarla de nuevo cuando quieras.");
   }
 
-  // Sin solicitud viva (nunca pidió, o la retiró): la tarjeta vacía, o el
-  // formulario si ya lo abrió.
-  if (!solicitud || solicitud.estado === "retirada") {
-    if (formulario) {
+  // Sin solicitud viva (nunca pidió, la retiró, o ya se la aprobaron y ese
+  // apoyo terminó): renovar el último, la tarjeta vacía, o el formulario si ya
+  // lo abrió.
+  if (!solicitud || solicitud.estado === "retirada" || solicitud.estado === "aprobada") {
+    const u = ultimoTerminado;
+    if (formulario === "nueva" || (formulario === "renovar" && u)) {
+      const renovando = formulario === "renovar" && u;
       return (
         <FormularioSolicitud
           personaId={personaId}
           hoy={hoy}
-          onCancelar={() => setFormulario(false)}
+          modo={renovando ? "renovar" : "nueva"}
+          valoresIniciales={renovando ? {
+            institucion: u.institucion,
+            beneficiario: u.beneficiario === "hijo" ? "hijo" : "trabajador",
+            beneficiario_nombre: u.beneficiario_nombre,
+            // El costo no vive en la asignación: sale de lo que ella declaró
+            // la última vez, si fue para esta misma institución.
+            costo_declarado: solicitud && solicitud.institucion === u.institucion ? solicitud.costo_declarado : undefined,
+          } : undefined}
+          onCancelar={() => setFormulario(null)}
           onEnviada={async () => {
-            setFormulario(false);
+            setFormulario(null);
             await onCambio("Solicitud enviada. Desarrollo Organizacional la va a revisar y te avisamos en tu Bandeja.");
           }}
         />
+      );
+    }
+    if (u) {
+      return (
+        <section className="rounded-2xl border border-sand bg-papel p-5 text-sm">
+          <p className="text-xs font-medium uppercase tracking-wide text-taupe">Apoyo educativo terminado</p>
+          <h2 className="mt-1 font-serif text-xl">{u.institucion}</h2>
+          <p className="mt-2">
+            Tu apoyo terminó el {fechaCorta(u.vigente_hasta)}: ya no aparece en tus próximas boletas ni recibe constancias nuevas.
+          </p>
+          <p className="mt-2 text-taupe">
+            ¿Sigues estudiando? Renuévalo hasta el fin de tu ciclo. Se pide una sola vez: después, cada mes subes aquí la
+            constancia de tu pago, sin volver a pedirlo. Si ya pagaste este mes, adjunta esa constancia en la renovación.
+          </p>
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+            <Boton variante="primario" className="w-full sm:w-auto" onClick={() => setFormulario("renovar")}>
+              Sigo estudiando: renovar mi apoyo
+            </Boton>
+            <Boton variante="sutil" className="w-full sm:w-auto" onClick={() => setFormulario("nueva")}>
+              Es otro estudio
+            </Boton>
+          </div>
+        </section>
       );
     }
     return (
@@ -808,7 +953,7 @@ function SolicitudApoyo({
         <p className="mb-4 text-taupe">
           Si estudias tú o tu hijo o hija y CAYLA cubre parte del costo, pide aquí tu apoyo educativo.
         </p>
-        <Boton variante="primario" onClick={() => setFormulario(true)}>Solicitar apoyo educativo</Boton>
+        <Boton variante="primario" onClick={() => setFormulario("nueva")}>Solicitar apoyo educativo</Boton>
       </section>
     );
   }
@@ -848,18 +993,19 @@ function SolicitudApoyo({
           <div className="mt-3 rounded-xl border border-rojo/30 bg-rojo/5 p-3 text-sm">
             <p className="font-medium text-rojo-profundo">Motivo: {solicitud.motivo_rechazo}</p>
           </div>
-          <Boton variante="primario" className="mt-4" onClick={() => setFormulario(true)}>Corregir y volver a enviar</Boton>
+          <Boton variante="primario" className="mt-4" onClick={() => setFormulario("corregir")}>Corregir y volver a enviar</Boton>
         </>
       )}
 
-      {formulario && (
+      {formulario === "corregir" && (
         <FormularioSolicitud
           personaId={personaId}
           hoy={hoy}
+          modo="corregir"
           valoresIniciales={solicitud}
-          onCancelar={() => setFormulario(false)}
+          onCancelar={() => setFormulario(null)}
           onEnviada={async () => {
-            setFormulario(false);
+            setFormulario(null);
             await onCambio("Solicitud enviada. Desarrollo Organizacional la va a revisar y te avisamos en tu Bandeja.");
           }}
         />
@@ -879,12 +1025,22 @@ function SolicitudApoyo({
   );
 }
 
+type ValoresSolicitud = Partial<Pick<Solicitud,
+  "institucion" | "beneficiario" | "beneficiario_nombre" | "costo_declarado" | "vigente_desde" | "vigente_hasta" | "nota">>;
+
+const TITULO_SOLICITUD = {
+  nueva: "Solicitar apoyo educativo",
+  corregir: "Corregir y volver a enviar",
+  renovar: "Renovar mi apoyo educativo",
+} as const;
+
 function FormularioSolicitud({
-  personaId, hoy, valoresIniciales, onCancelar, onEnviada,
+  personaId, hoy, modo, valoresIniciales, onCancelar, onEnviada,
 }: {
   personaId: string;
   hoy: string;
-  valoresIniciales?: Solicitud;
+  modo: keyof typeof TITULO_SOLICITUD;
+  valoresIniciales?: ValoresSolicitud;
   onCancelar: () => void;
   onEnviada: () => Promise<void>;
 }) {
@@ -894,17 +1050,23 @@ function FormularioSolicitud({
   const [institucion, setInstitucion] = useState(valoresIniciales?.institucion ?? "");
   const [beneficiario, setBeneficiario] = useState<"trabajador" | "hijo">(valoresIniciales?.beneficiario ?? "trabajador");
   const [beneficiarioNombre, setBeneficiarioNombre] = useState(valoresIniciales?.beneficiario_nombre ?? "");
-  const [costo, setCosto] = useState(valoresIniciales ? String(valoresIniciales.costo_declarado) : "");
-  // Fecha que nace con valor, nunca vacía (CLAUDE.md, 2026-08-26).
-  const [desde, setDesde] = useState(valoresIniciales?.vigente_desde ?? hoy);
-  const [hasta, setHasta] = useState(valoresIniciales?.vigente_hasta ?? hoy);
+  const [costo, setCosto] = useState(valoresIniciales?.costo_declarado !== undefined ? String(valoresIniciales.costo_declarado) : "");
+  // Fechas que nacen con valor, nunca vacías (CLAUDE.md, 2026-08-26). El fin
+  // nace en el fin del semestre y no en hoy: ver `finDeCicloSugerido`.
+  const desdeInicial = valoresIniciales?.vigente_desde ?? hoy;
+  const [desde, setDesde] = useState(desdeInicial);
+  const [hasta, setHasta] = useState(valoresIniciales?.vigente_hasta ?? finDeCicloSugerido(desdeInicial));
+  // Un estudio de menos de un mes se pregunta una vez antes de enviar; tocar
+  // cualquiera de las dos fechas vuelve a preguntar.
+  const [avisoCorto, setAvisoCorto] = useState<number | null>(null);
+  const [cortoConfirmado, setCortoConfirmado] = useState(false);
   const [nota, setNota] = useState(valoresIniciales?.nota ?? "");
   const [archivo, setArchivo] = useState<File | null>(null);
   const [progreso, setProgreso] = useState<number | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [fallo, setFallo] = useState<string | null>(null);
 
-  async function enviar() {
+  async function enviar(aceptaCorto = false) {
     setFallo(null);
     if (institucion.trim().length < 3) { setFallo("Escribe qué institución emite el comprobante."); return; }
     const costoNum = Number(costo);
@@ -912,9 +1074,12 @@ function FormularioSolicitud({
     if (beneficiario === "hijo" && beneficiarioNombre.trim().length < 3) {
       setFallo("Escribe a nombre de quién está el comprobante."); return;
     }
-    if (!desde || !hasta) { setFallo("Indica desde y hasta cuándo vale."); return; }
+    if (!desde || !hasta) { setFallo("Indica desde cuándo y hasta cuándo dura tu estudio."); return; }
     if (hasta < desde) { setFallo("La fecha de fin es anterior a la de inicio."); return; }
+    const dias = diasDeVigencia(desde, hasta);
+    if (dias < VIGENCIA_CORTA_DIAS && !cortoConfirmado && !aceptaCorto) { setAvisoCorto(dias); return; }
 
+    setAvisoCorto(null);
     setEnviando(true);
 
     let comprobanteUrl: string | null = null;
@@ -947,9 +1112,7 @@ function FormularioSolicitud({
 
   return (
     <div className="mt-4 rounded-2xl border border-sand bg-hueso p-4 sm:p-5">
-      <h4 className="font-serif text-lg">
-        {valoresIniciales ? "Corregir y volver a enviar" : "Solicitar apoyo educativo"}
-      </h4>
+      <h4 className="font-serif text-lg">{TITULO_SOLICITUD[modo]}</h4>
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         <Campo etiqueta="Institución" value={institucion} placeholder="ej. Instituto San Ignacio"
@@ -966,11 +1129,19 @@ function FormularioSolicitud({
         <Campo etiqueta="Costo que dice el comprobante" type="number" min="0" step="0.01" inputMode="decimal"
           value={costo} onChange={(e) => setCosto(e.target.value)} disabled={enviando} />
         <Campo etiqueta="Se paga desde" type="date" value={desde}
-          onChange={(e) => setDesde(e.target.value)} disabled={enviando} />
-        <Campo etiqueta="Hasta cuándo vale" type="date" value={hasta}
-          onChange={(e) => setHasta(e.target.value)} disabled={enviando} />
+          onChange={(e) => { setDesde(e.target.value); setAvisoCorto(null); setCortoConfirmado(false); }} disabled={enviando} />
+        <Campo etiqueta="Hasta cuándo dura tu estudio" type="date" value={hasta}
+          onChange={(e) => { setHasta(e.target.value); setAvisoCorto(null); setCortoConfirmado(false); }} disabled={enviando} />
+        {/* La etiqueta vieja decía «Hasta cuándo vale», y se leía como «hasta
+            cuándo vale ESTE pago»: un apoyo pedido para todo un ciclo quedó
+            registrado por once días. */}
+        <p className="text-xs text-taupe sm:col-span-2">
+          El fin de tu ciclo, semestre o curso, no el de este mes. El apoyo se pide una sola vez; después, cada mes
+          subes la constancia de tu pago sin volver a pedirlo.
+        </p>
         <div className="flex flex-col gap-1 sm:col-span-2">
-          <Campo etiqueta="Comprobante (opcional)" type="file" accept="application/pdf,image/jpeg,image/png"
+          <Campo etiqueta={modo === "renovar" ? "Constancia de tu último pago (opcional)" : "Comprobante (opcional)"}
+            type="file" accept="application/pdf,image/jpeg,image/png"
             onChange={(e) => setArchivo(e.target.files?.[0] ?? null)} disabled={enviando} />
           <span className="text-xs text-taupe">
             Puedes enviarlo después. El monto no lo escribes tú: lo calcula Desarrollo Organizacional al aprobar,
@@ -986,9 +1157,27 @@ function FormularioSolicitud({
 
       {fallo && <p role="alert" className="mt-3 rounded-xl bg-rojo/10 px-3 py-2 text-sm text-rojo-profundo">{fallo}</p>}
 
+      {avisoCorto !== null && (
+        <div role="alert" className="mt-3 rounded-xl border border-ambar/40 bg-ambar/10 px-3 py-3 text-sm text-tinta">
+          <p>
+            Tu apoyo duraría {avisoCorto === 1 ? "un solo día" : `solo ${avisoCorto} días`}: terminaría el {fechaCorta(hasta)}.
+            Esa fecha es el fin de tu estudio, no de este mes. Si estudias más tiempo, cámbiala: el día que termina ya no
+            se pueden subir constancias nuevas.
+          </p>
+          <div className="mt-3 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Boton tamano="sm" onClick={() => setAvisoCorto(null)}>Cambiar la fecha</Boton>
+            <Boton tamano="sm" variante="secundario" onClick={() => { setCortoConfirmado(true); void enviar(true); }}>
+              Sí, mi estudio dura eso: enviar
+            </Boton>
+          </div>
+        </div>
+      )}
+
       <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
         <Boton onClick={onCancelar} disabled={enviando}>Cancelar</Boton>
-        <Boton variante="primario" cargando={enviando} onClick={() => void enviar()}>Enviar para revisión</Boton>
+        <Boton variante="primario" cargando={enviando} onClick={() => void enviar()} disabled={avisoCorto !== null}>
+          Enviar para revisión
+        </Boton>
       </div>
     </div>
   );

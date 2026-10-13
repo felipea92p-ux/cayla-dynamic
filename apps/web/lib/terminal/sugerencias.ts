@@ -1,15 +1,18 @@
 import { createTerminalSupabaseClient } from "@cayla-dynamic/database";
 import { calcularHoraMediaRefrigerio, hoyLima, type EstadisticasSugerencia } from "@cayla-dynamic/shared";
 import { esperadoDelDia, horarioVigente, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
+import { horaDecimalDeHHMM, type HorarioDeHoy } from "./presencia";
 import { topeDeRed } from "./tope-de-red";
 
 const DIAS_HISTORIAL_REFRIGERIO = 30;
 
-/** "HH:MM" (hora de reloj, ya en Lima — viene de esperadoDelDia) → decimal. */
-function horaDecimalDe(hhmm: string): number {
-  const [h, m] = hhmm.slice(0, 5).split(":").map(Number);
-  return h + (m || 0) / 60;
-}
+/**
+ * Lo que el terminal sabe de cada persona antes de que toque su nombre: el
+ * ritmo para sugerir la salida (`EstadisticasSugerencia`) y, de los MISMOS
+ * horarios ya cargados, qué le toca hoy (`HorarioDeHoy`) — para que la casilla
+ * distinga «aún no llega» de «hoy no trabaja» sin pedirle nada nuevo a la red.
+ */
+export interface EstadisticasTerminal extends EstadisticasSugerencia, HorarioDeHoy {}
 
 /**
  * El ritmo de cada persona de la sede, para afinar qué salida sugerir en el
@@ -33,8 +36,8 @@ function horaDecimalDe(hhmm: string): number {
  * pero si se nota que pesa, la resolución correcta es reusar
  * `jornadaEnCursoPorPersona`, no reinventarla acá.
  */
-export async function cargarEstadisticasSugerenciaPorPersona(): Promise<Map<string, EstadisticasSugerencia>> {
-  const mapa = new Map<string, EstadisticasSugerencia>();
+export async function cargarEstadisticasSugerenciaPorPersona(): Promise<Map<string, EstadisticasTerminal>> {
+  const mapa = new Map<string, EstadisticasTerminal>();
   if (typeof navigator === "undefined" || !navigator.onLine) return mapa;
 
   const supabase = createTerminalSupabaseClient();
@@ -101,11 +104,15 @@ export async function cargarEstadisticasSugerenciaPorPersona(): Promise<Map<stri
     const horario = horarioVigente(tramos, hoy);
     const turno = turnosPorPersona.get(personaId) ?? null;
     const esperado = esperadoDelDia(hoy, turno, horario);
-    const horaSalidaEsperada = esperado.trabaja && esperado.salida ? horaDecimalDe(esperado.salida) : null;
+    const horaSalidaEsperada = esperado.trabaja && esperado.salida ? horaDecimalDeHHMM(esperado.salida) : null;
 
     mapa.set(personaId, {
       horaMediaRefrigerio: mediasPorPersona.get(personaId) ?? null,
       horaSalidaEsperada,
+      entradaEsperada: esperado.trabaja ? esperado.entrada : null,
+      // «Sin horario» NO es «de descanso»: solo se afirma lo segundo cuando el
+      // horario o el turno de hoy lo dicen (`origen` distinto de sin_horario).
+      libreHoy: !esperado.trabaja && esperado.origen !== "sin_horario",
     });
   }
 

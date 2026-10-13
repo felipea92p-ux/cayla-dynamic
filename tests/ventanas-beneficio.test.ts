@@ -3,6 +3,7 @@ import {
   nombreDelPeriodo,
   periodoAnterior,
   periodoQueContiene,
+  periodosHasta,
   rangoDelPeriodo,
 } from "@cayla-dynamic/shared";
 
@@ -97,6 +98,35 @@ describe("periodo anterior — para lo que la fecha sola no resuelve", () => {
   it("vacaciones no tiene periodo anterior", () => {
     const v = periodoQueContiene("vacaciones", "2026-03-01");
     expect(periodoAnterior(v)).toBe(v);
+  });
+});
+
+describe("periodosHasta — el depósito atrasado no se queda fuera del formulario", () => {
+  const ventanas = (iso: string, n = 3) =>
+    periodosHasta(periodoQueContiene("cts", iso), n).map((x) => `${x.ventana} ${x.anio}`);
+
+  it("hasta el 31/10 la CTS de mayo está a un periodo de distancia", () => {
+    expect(ventanas("2026-10-10")).toEqual(["cts_nov 2026", "cts_may 2026", "cts_nov 2025"]);
+  });
+  // El caso que motivó esto: el 15/11 el periodo actual ya es nov–abr, y la CTS
+  // de mayo 2026 que no se depositó quedaría a DOS periodos. Con solo actual y
+  // anterior, el formulario ya no la ofrecía y la ventana no se podía regularizar.
+  it("el 15/11 la CTS de mayo 2026 sigue a la mano, a dos periodos", () => {
+    expect(ventanas("2026-11-15")).toEqual(["cts_may 2027", "cts_nov 2026", "cts_may 2026"]);
+  });
+  it("la gratificación alterna julio y diciembre hacia atrás", () => {
+    expect(
+      periodosHasta(periodoQueContiene("gratificacion", "2026-12-20"), 3).map((x) => `${x.ventana} ${x.anio}`),
+    ).toEqual(["grati_s2 2026", "grati_s1 2026", "grati_s2 2025"]);
+  });
+  it("el primero es siempre el que contiene la fecha", () => {
+    expect(periodosHasta(periodoQueContiene("cts", "2026-06-20"), 1)).toEqual([periodoQueContiene("cts", "2026-06-20")]);
+  });
+  it("vacaciones y modalidad formativa no tienen hacia atrás: devuelven solo el suyo", () => {
+    const vac = periodoQueContiene("vacaciones", "2026-03-01");
+    expect(periodosHasta(vac, 3)).toEqual([vac]);
+    const sub = periodoQueContiene("subvencion_semestral", "2026-06-20");
+    expect(periodosHasta(sub, 3)).toEqual([sub]);
   });
 });
 

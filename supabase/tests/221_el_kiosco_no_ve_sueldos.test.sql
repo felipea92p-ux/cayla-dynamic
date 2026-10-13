@@ -36,29 +36,29 @@ insert into terminales (id, sede_id, nombre_dispositivo, activo, auth_user_id) v
 
 -- Datos INVENTADOS: ni un DNI ni un sueldo real entra en una prueba.
 insert into personas (id, nombres, apellidos, sede_base_id, pin_hash, fecha_ingreso,
-                      documento, sueldo_base_legal, cobra_movilidad, tipo_vinculo,
+                      documento, tipo_documento, sueldo_base_legal, cobra_movilidad, tipo_vinculo,
                       estado, visible_todas_sedes, auth_user_id) values
   ('00000000-0000-0000-0000-000000022101', 'DeLaSede',  'Kiosco221',
-   '00000000-0000-0000-0000-000000022100', 'x', '2024-01-01', '00000000', 1130.00,
+   '00000000-0000-0000-0000-000000022100', 'x', '2024-01-01', '00000000', 'dni', 1130.00,
    true, 'planilla', 'activo', false, '00000000-0000-0000-0000-0000000221af'),
   ('00000000-0000-0000-0000-000000022102', 'DeAlLado',  'Kiosco221',
-   '00000000-0000-0000-0000-000000022200', 'x', '2024-01-01', '00000001', 1130.00,
+   '00000000-0000-0000-0000-000000022200', 'x', '2024-01-01', '00000001', 'dni', 1130.00,
    true, 'planilla', 'activo', false, null),
   ('00000000-0000-0000-0000-000000022103', 'Volante',   'Kiosco221',
-   '00000000-0000-0000-0000-000000022200', 'x', '2024-01-01', '00000002', 1130.00,
+   '00000000-0000-0000-0000-000000022200', 'x', '2024-01-01', '00000002', 'dni', 1130.00,
    true, 'planilla', 'activo', true,  null),
   ('00000000-0000-0000-0000-000000022105', 'Sobrante', 'Kiosco221',
-   '00000000-0000-0000-0000-000000022200', 'x', '2024-01-01', '00000004', 1130.00,
+   '00000000-0000-0000-0000-000000022200', 'x', '2024-01-01', '00000004', 'dni', 1130.00,
    true, 'planilla', 'activo', false, null);
 
 -- Quien ya cesó va aparte: `personas_cese_coherente` exige que el estado
 -- inactivo y la fecha de cese entren en la MISMA fila, no en dos pasos.
 insert into personas (id, nombres, apellidos, sede_base_id, pin_hash, fecha_ingreso,
-                      documento, sueldo_base_legal, cobra_movilidad, tipo_vinculo,
+                      documento, tipo_documento, sueldo_base_legal, cobra_movilidad, tipo_vinculo,
                       estado, visible_todas_sedes, auth_user_id,
                       fecha_cese, motivo_cese)
 values ('00000000-0000-0000-0000-000000022104', 'YaNoEsta', 'Kiosco221',
-        '00000000-0000-0000-0000-000000022100', 'x', '2024-01-01', '00000003', 1130.00,
+        '00000000-0000-0000-0000-000000022100', 'x', '2024-01-01', '00000003', 'dni', 1130.00,
         true, 'planilla', 'inactivo', false, null, '2025-01-01', 'renuncia');
 set session_replication_role = origin;
 

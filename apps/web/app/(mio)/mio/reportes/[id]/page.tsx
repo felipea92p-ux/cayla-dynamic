@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { Clock, Paperclip } from "lucide-react";
+import { EnlaceVolver } from "@/components/enlace-volver";
 import { Boton } from "@/components/ui/boton";
 import { Insignia } from "@/components/ui/insignia";
 import { AreaTexto } from "@/components/ui/area-texto";
@@ -107,9 +107,9 @@ export default function MiReporte() {
   if (ficha.estado === "error") return <main className="p-8 text-sm text-rojo">{ficha.mensaje}</main>;
   if (error) {
     return (
-      <main className="mx-auto max-w-3xl px-5 py-8 text-sm">
+      <main className="mx-auto w-full max-w-3xl px-5 py-8 text-sm">
         <p className="rounded-control bg-rojo/10 px-3 py-2 text-rojo-profundo">{error}</p>
-        <Link href="/mio?tab=reportes" className="mt-4 inline-block underline underline-offset-2">← Tus reportes</Link>
+        <EnlaceVolver href="/mio?tab=reportes" className="mt-4 inline-block underline underline-offset-2">← Tus reportes</EnlaceVolver>
       </main>
     );
   }
@@ -122,9 +122,9 @@ export default function MiReporte() {
 
   return (
     <main className="mx-auto w-full max-w-4xl flex-1 px-5 py-8 text-sm text-tinta">
-      <Link href="/mio?tab=reportes" className="mb-4 inline-block rounded-control border border-sand px-3 py-1 text-xs text-taupe hover:text-tinta">
+      <EnlaceVolver href="/mio?tab=reportes" className="mb-4 inline-block rounded-control border border-sand px-3 py-1 text-xs text-taupe hover:text-tinta">
         ← Tus reportes
-      </Link>
+      </EnlaceVolver>
 
       {params.get("nuevo") && (
         <p className="mb-4 rounded-control bg-verde/15 px-3 py-2 text-verde">

@@ -47,6 +47,8 @@ import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
 import { Menu, MenuItem } from "@/components/ui/menu";
 import { cx } from "@/components/ui/cx";
 import { FormularioCargo, MAX_BYTES_CARGO, TITULO_PAPEL } from "@/components/disciplina/formulario-cargo";
+import { ModalRegistrarFalta } from "@/components/disciplina/registrar-falta";
+import { accionDeTraspaso, casoBloqueadoParaMi, type FaltaCatalogo, type Traspaso } from "@/lib/admin/conducta";
 import { Celda, FilaCaso, ListaCasos, type Encabezado } from "@/components/disciplina/lista-casos";
 import {
   CAUSAL_LABEL, ESTADO_DOCUMENTO, ETIQUETA_PAPEL, MEDIO_ENTREGA, PanelCaso,
@@ -57,12 +59,12 @@ import { evidenciaDeDocumento, type Evidencia } from "@/lib/admin/disciplina-evi
 import {
   ETAPAS, ETAPA_LABEL, admiteEntregaAnteriorAlCese, esGradual, etapaDelBorrador, eventosDeObservacion,
   normalizarBusqueda, pendientesDeEntregado, pestanaDelDocumento, situacionFalta, situacionTardanza, ultimoDiaDeEntrega,
-  type Adjunto, type DocDisciplina, type FaltaRow, type Pestana, type SituacionDeteccion, type TardanzaRow, type TipoPapel,
+  type Adjunto, type DocDisciplina, type FaltaRow, type LecturaMemo, type Pestana, type SituacionDeteccion, type TardanzaRow, type TipoPapel,
 } from "@/lib/admin/disciplina";
 import {
   NIVEL_DISCIPLINARIO_CORTO, NIVEL_DISCIPLINARIO_LABELS, etiquetaDeSede, fechaLima, hoyLima, mesesRecientesLima, nombreDelMesLima,
   nombreDelMesLimaTitulo, primeroDeMesLima, puedeAnularDocumentoDisciplinario, puedeOperarEquipo,
-  puedeVerTodasLasSedes, rangoDelDiaLima, rangoDelMesLima,
+  puedeTramitarDisciplina, puedeVerTodasLasSedes, rangoDelDiaLima, rangoDelMesLima, recibeAvisoDeConductaRegistrada,
 } from "@cayla-dynamic/shared";
 
 // ── Constantes ───────────────────────────────────────────────────────────────
@@ -85,7 +87,7 @@ const FALTA_PAPEL: Record<TipoPapel, string> = {
   descargo: "Falta el descargo. Es el papel que prueba que la persona pudo defenderse dentro del plazo del art. 31.",
 };
 
-const COLUMNAS_DOC = "id, persona_id, tipo_causal, nivel, estado, periodo_desde, periodo_hasta, hechos, suspension_dias, suspension_desde, suspension_hasta, suspension_fechas, fecha_cese, resuelto_at, resuelto_por, resuelto_resultado, resuelto_motivo, correlativo, creado_at, creado_por, firmante_id, firmado_at, entregado_at, entregado_por, medio_entrega, entrega_testigo_nombre, enviado_a_info_at, enviado_a_info_por, cargos_comunicados_at, descargo_vence_at, descargo_acogido, descargo_valoracion, observacion";
+const COLUMNAS_DOC = "id, persona_id, tipo_causal, nivel, estado, periodo_desde, periodo_hasta, hechos, suspension_dias, suspension_desde, suspension_hasta, suspension_fechas, fecha_cese, resuelto_at, resuelto_por, resuelto_resultado, resuelto_motivo, correlativo, creado_at, creado_por, firmante_id, firmado_at, entregado_at, entregado_por, medio_entrega, entrega_testigo_nombre, enviado_a_info_at, enviado_a_info_por, cargos_comunicados_at, descargo_vence_at, descargo_acogido, descargo_valoracion, observacion, falta_rit_version, falta_numeral, falta_literal, conocido_el, tomado_por, tomado_at, firma_sancionado_confirmada_at";
 
 // Seis columnas, la segunda (sede) secundaria: en tablet se esconde y la
 // plantilla de `md` tiene cinco. Literal a propósito (ver lista-casos.tsx).
@@ -194,6 +196,12 @@ export default function DisciplinaPage() {
   const rol = yo?.rol ?? null;
   const puede = puedeOperarEquipo(rol);
   const puedeAnular = puedeAnularDocumentoDisciplinario(rol);
+  // Mirar y tramitar son dos permisos (0510): una líder por honorarios o en
+  // prácticas ve la pantalla, pero no registra, comunica ni firma (RIT 2.9).
+  const puedeTramitar = puedeTramitarDisciplina(rol, yo?.enPlanilla);
+  // Estable entre renders: el formulario de la falta lee sus datos cuando esto cambia.
+  const yoRegistra = useMemo(
+    () => (yo ? { id: yo.id, rol: yo.rol, sedeBaseId: yo.sedeBaseId, enPlanilla: yo.enPlanilla } : null), [yo]);
   const { avisar } = useToast();
   const supabase = useMemo(() => createAdminSupabaseClient(), []);
 
@@ -271,10 +279,19 @@ export default function DisciplinaPage() {
   const [motivoAnular, setMotivoAnular] = useState("");
   const [cerrandoSinEntrega, setCerrandoSinEntrega] = useState<string | null>(null);
   const [motivoCierre, setMotivoCierre] = useState("");
+  const [registrandoFalta, setRegistrandoFalta] = useState(false);
+  /** Las vueltas de cada caso entre la líder y DO (0511). Tolerante: sin ellas el caso se ve igual, sin el porqué. */
+  const [traspasos, setTraspasos] = useState<Traspaso[]>([]);
+  /** Quién abrió y quién leyó lo entregado en papel (0516). Tolerante: sin ellas el caso se ve igual, sin la constancia. */
+  const [lecturas, setLecturas] = useState<LecturaMemo[]>([]);
+  const [traspasando, setTraspasando] = useState<{ id: string; accion: "tomar" | "devolver" } | null>(null);
+  const [motivoTraspaso, setMotivoTraspaso] = useState("");
+  /** El catálogo de faltas del RIT (0510) y sus nombres cortos (0514), para nombrar la que cita cada documento de conducta. */
+  const [faltasCatalogo, setFaltasCatalogo] = useState<FaltaCatalogo[]>([]);
 
   const modalAbierto = verReglas || subiendoCargo !== null || entregandoSinPapel !== null || confirmandoCargos !== null
     || declarando !== null || valorando !== null || firmando !== null || resolviendo !== null || reabriendo !== null
-    || anulando !== null || cerrandoSinEntrega !== null;
+    || anulando !== null || cerrandoSinEntrega !== null || registrandoFalta || traspasando !== null;
 
   // ── Carga ──────────────────────────────────────────────────────────────
   const cargar = useCallback(async (): Promise<DocDisciplina[]> => {
@@ -292,7 +309,7 @@ export default function DisciplinaPage() {
       // Todos los estados: anulados y cerrados sin entrega desaparecían de la
       // pantalla y no había dónde consultarlos.
       supabase.from("expediente_disciplinario").select(COLUMNAS_DOC).order("creado_at", { ascending: false }),
-      supabase.from("personas").select("id, nombres, apellidos, estado, sede_base_id, fecha_cese").eq("cuenta_de_servicio", false),
+      supabase.from("personas").select("id, nombres, apellidos, estado, sede_base_id, fecha_cese, rol").eq("cuenta_de_servicio", false),
       supabase.from("sedes").select("id, codigo, nombre, tipo, ciudad").order("codigo"),
       supabase.from("tipos_ausencia").select("codigo, nombre"),
     ]);
@@ -321,13 +338,15 @@ export default function DisciplinaPage() {
     // El rótulo sale del tipo y la ciudad de la propia sede (etiquetaDeSede), no de una lista por código.
     const rotuloDeCodigo = new Map(sedesList.map((x) => [x.codigo, etiquetaDeSede(x)]));
     setSedes([...rotuloDeCodigo.values()].map((e) => ({ codigo: e.codigo, titulo: e.titulo, texto: e.texto })));
-    const personasList = (p ?? []) as Array<{ id: string; nombres: string; apellidos: string; estado: string; sede_base_id: string | null; fecha_cese: string | null }>;
+    const personasList = (p ?? []) as Array<{ id: string; nombres: string; apellidos: string; estado: string; sede_base_id: string | null; fecha_cese: string | null; rol: string }>;
     setPersonas(new Map(personasList.map((x) => [x.id, {
       nombre: `${x.nombres} ${x.apellidos}`,
       sede: (x.sede_base_id && codigoDeSede.get(x.sede_base_id)) || "",
       sedeRotulo: (x.sede_base_id && rotuloDeCodigo.get(codigoDeSede.get(x.sede_base_id) ?? "")?.titulo) || "",
       estado: x.estado,
       fechaCese: x.fecha_cese,
+      // Quién inició un caso decide si DO puede tomarlo (0511): solo los de una líder.
+      rol: x.rol,
     }])));
     const tipos = new Map(((ta ?? []) as { codigo: string; nombre: string }[]).map((x) => [x.codigo, x.nombre]));
     setNombresAusencia(tipos);
@@ -342,6 +361,24 @@ export default function DisciplinaPage() {
     setAdjuntos(porDoc);
     setFalloAdjuntos(!!eAdj);
     if (eAdj) avisar("error", mensajeDeError(eAdj, "cargar los cargos archivados"));
+
+    // El catálogo de faltas, tolerante: sin él un documento de conducta se ve
+    // con su número de literal en vez de su texto, pero la pantalla funciona.
+    const [{ data: cat }, { data: rot }] = await Promise.all([
+      supabase.from("faltas_catalogo").select("rit_version, numeral, literal, gravedad, texto, se_registra_a_mano"),
+      supabase.from("faltas_rotulos").select("rit_version, numeral, literal, rotulo"),
+    ]);
+    const rotulos = new Map(((rot ?? []) as Array<{ rit_version: number; numeral: string; literal: string; rotulo: string }>)
+      .map((r) => [`${Number(r.rit_version)}:${r.numeral}.${r.literal}`, r.rotulo]));
+    setFaltasCatalogo(((cat ?? []) as Array<Omit<FaltaCatalogo, "rotulo">>).map((f) => ({
+      ...f, rit_version: Number(f.rit_version), rotulo: rotulos.get(`${Number(f.rit_version)}:${f.numeral}.${f.literal}`) ?? null,
+    })));
+
+    const { data: tr } = await supabase.from("expediente_traspasos")
+      .select("id, expediente_id, accion, por, motivo, hecho_at").order("hecho_at", { ascending: false });
+    setTraspasos(Array.isArray(tr) ? (tr as unknown as Traspaso[]) : []);
+    const { data: lect } = await supabase.from("lecturas_memo").select("expediente_id, abierto_at, leido_at");
+    setLecturas(Array.isArray(lect) ? (lect as unknown as LecturaMemo[]) : []);
 
     const borradores = lista.filter((x) => x.estado === "borrador");
     const [pares, evs, { data: cfg }, { data: sc }] = await Promise.all([
@@ -380,6 +417,14 @@ export default function DisciplinaPage() {
     if (!hash) return;
     const t0 = setTimeout(() => {
       if (hash === "entregados") { setTab("entregar"); return; }
+      // `#doc-ID`: desde la ficha de una persona, al registrar una falta, el
+      // borrador se abre con su caso. Aterrizar en la lista sin él obligaría a buscarlo.
+      if (hash.startsWith("doc-")) {
+        const id = hash.slice(4);
+        const d = docs.find((x) => x.id === id);
+        if (d) { setTab(pestanaDelDocumento(d, adjuntos.get(d.id) ?? [])); setCaso({ tipo: "documento", id }); }
+        return;
+      }
       if (!hash.startsWith("tard-") && !hash.startsWith("falta-")) return;
       setTab("revision");
       setResaltado(hash);
@@ -390,7 +435,29 @@ export default function DisciplinaPage() {
     }, 0);
     const t1 = setTimeout(() => setResaltado(null), 2800);
     return () => { clearTimeout(t0); clearTimeout(t1); };
+    // `docs` y `adjuntos` ya están cargados cuando `cargando` pasa a false; no
+    // se re-ejecuta al cambiarlos, para no reabrir el caso cada vez que se recarga.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cargando]);
+
+  // Abrir el caso es lo que quita el aviso de la Bandeja (0515): a la líder DO
+  // el de «una líder registró…», a la líder el de «DO tomó tu caso». Cualquiera
+  // que sea el camino por el que se abrió —la fila, un enlace de la Bandeja, el
+  // borrador recién creado— pasa por aquí. Tolerante: si falla, el aviso sigue
+  // y no se pierde nada.
+  const idCasoAbierto = caso?.tipo === "documento" ? caso.id : null;
+  useEffect(() => {
+    if (!idCasoAbierto || cargando) return;
+    const d = docs.find((x) => x.id === idCasoAbierto);
+    if (!d) return;
+    if (d.tipo_causal === "conducta" && recibeAvisoDeConductaRegistrada(rol)) {
+      void supabase.rpc("fn_bandeja_marcar_visto", { p_tipo_item: "conducta_registrada", p_item_id: d.id });
+    }
+    const ultimo = traspasos.find((t) => t.expediente_id === d.id);
+    if (ultimo && yo && d.creado_por === yo.id) {
+      void supabase.rpc("fn_bandeja_marcar_visto", { p_tipo_item: "caso_traspasado", p_item_id: ultimo.id });
+    }
+  }, [idCasoAbierto, cargando, docs, traspasos, rol, yo, supabase]);
 
   function abrirCaso(c: CasoAbierto, e?: MouseEvent<HTMLElement>) {
     if (e) setDisparadorEl(e.currentTarget);
@@ -762,6 +829,38 @@ export default function DisciplinaPage() {
     setAnulando({ id, entregado });
   }
 
+  /**
+   * Tomar o devolver el caso que inició una líder (0511). El motivo es
+   * obligatorio y lo va a leer ella: es lo que evita que descubra por un error
+   * de «no puedes modificar esto» que su caso dejó de ser suyo.
+   */
+  function abrirTraspaso(id: string, accion: "tomar" | "devolver") {
+    setMotivoTraspaso("");
+    setTraspasando({ id, accion });
+  }
+
+  async function confirmarTraspaso() {
+    if (!traspasando) return;
+    const { id, accion } = traspasando;
+    if (motivoTraspaso.trim().length < 10) {
+      avisar("error", accion === "tomar"
+        ? "Escribe por qué tomas el caso: es lo que va a leer la líder que lo inició."
+        : "Escribe por qué devuelves el caso: es lo que va a leer la líder.");
+      return;
+    }
+    setOcupado(id);
+    const { error } = await supabase.rpc(accion === "tomar" ? "fn_expediente_tomar_caso" : "fn_expediente_devolver_caso",
+      { p_id: id, p_motivo: motivoTraspaso.trim() });
+    setOcupado(null);
+    // El mensaje de la base es el bueno: dice quién lo tiene ya, o por qué no se puede devolver.
+    if (error) { avisar("error", mensajeDeError(error)); return; }
+    setTraspasando(null);
+    await cargar();
+    avisar("ok", accion === "tomar"
+      ? "Tomaste el caso. La líder lo sigue viendo, con tu motivo, pero ya no puede modificarlo."
+      : "Le devolviste el caso a la líder, con tu motivo. Vuelve a poder trabajarlo.");
+  }
+
   async function confirmarAnular() {
     if (!anulando) return;
     const { id, entregado } = anulando;
@@ -880,7 +979,23 @@ export default function DisciplinaPage() {
     const info = infoDe(d.persona_id);
     const ocup = ocupado === d.id;
     const memo: Accion = { etiqueta: "Ver memo", alPulsar: () => router.push(`/admin/disciplina/memo/${d.id}`) };
+    // Sin poder tramitar (0510): ver sí, actuar no. Antes se dibujaban todos
+    // los botones y cada uno solo podía devolver «Sin permiso».
+    if (!puedeTramitar) return { principal: null, estado: null, menu: [memo] };
     const verPapeles: Accion[] = papeles.map((a) => ({ etiqueta: ETIQUETA_PAPEL[a.tipo] ?? "Ver papel", alPulsar: () => void verAdjunto(a.storage_path) }));
+    // Un caso que tomó DO (0511): la líder lo ve y lo lee, pero ya no lo toca.
+    // Lo mismo que el candado de la base, dicho antes de que lo intente.
+    if (casoBloqueadoParaMi(d, yo)) {
+      return { principal: null, estado: "Lo tiene Desarrollo Organizacional", menu: [memo, ...verPapeles] };
+    }
+    // Tomar y devolver el caso: de quien puede anular, que es la misma regla.
+    const traspaso = accionDeTraspaso(d, infoDe(d.creado_por ?? "")?.rol, puedeAnular);
+    const tomar: Accion[] = traspaso
+      ? [{
+          etiqueta: traspaso === "tomar" ? "Tomar el caso" : "Devolver el caso a la líder",
+          alPulsar: () => abrirTraspaso(d.id, traspaso), disabled: ocup,
+        }]
+      : [];
     const anular: Accion[] = puedeAnular
       ? [{ etiqueta: d.estado === "borrador" ? "Anular borrador" : "Anular documento", alPulsar: () => abrirAnular(d.id, d.estado === "entregado"), variante: "peligro", disabled: ocup }]
       : [];
@@ -908,6 +1023,7 @@ export default function DisciplinaPage() {
           title: desfase ? TXT_DESFASE : sinFirmante ? `Un documento de nivel ${(NIVEL_LABEL[d.nivel] ?? d.nivel).toLowerCase()} no lo puedes suscribir tú (art. 54.4 del Reglamento).` : undefined,
         };
       }
+      menu.push(...tomar);
       if (anular.length) menu.push("separador", ...anular);
       return { principal, estado, menu };
     }
@@ -937,6 +1053,7 @@ export default function DisciplinaPage() {
         estado: null,
         menu: [
           memo,
+          ...tomar,
           ...(enInfo ? [
             { etiqueta: "Copiar el aviso para ella", alPulsar: () => void copiarAvisoInfo(), disabled: ocup },
             { etiqueta: "Retirar de su Info", alPulsar: () => void retirarDeInfo(d), disabled: ocup },
@@ -965,6 +1082,7 @@ export default function DisciplinaPage() {
         if (principal) menu.push(resolver); else principal = { ...resolver, variante: "primario" };
       }
       if (principal) menu.unshift(memo); else principal = { ...memo, variante: "secundario" };
+      menu.push(...tomar);
       if (anular.length) menu.push("separador", ...anular);
       return { principal, estado: null, menu };
     }
@@ -1056,11 +1174,11 @@ export default function DisciplinaPage() {
           <Boton variante="primario" onClick={() => { setTab("borradores"); setCaso({ tipo: "documento", id: borradorExistente.id }); }}>
             Ir al borrador
           </Boton>
-        ) : (
+        ) : puedeTramitar ? (
           <Boton variante="primario" onClick={() => void generar(tipo, pid)} disabled={!s?.generable} cargando={ocupado === pid}>
             Generar borrador
           </Boton>
-        )}
+        ) : null}
         <p className="min-w-0 flex-1 basis-60 text-xs text-taupe">
           {s?.generable
             ? "Crea un borrador sin número con estas pruebas. No comunica ni firma nada todavía."
@@ -1157,6 +1275,9 @@ export default function DisciplinaPage() {
       <main className="flex-1 p-6">
         <CabeceraPagina
           titulo="Disciplina"
+          accion={puedeTramitar
+            ? <Boton variante="primario" onClick={() => setRegistrandoFalta(true)}>Registrar una falta</Boton>
+            : undefined}
           descripcion={
             <>
               Revisa incidencias que alcanzan umbrales y gestiona su trazabilidad.
@@ -1464,6 +1585,24 @@ export default function DisciplinaPage() {
           acciones={accionesPanel}
           editores={editoresPanel}
           onVerPapel={(path) => void verAdjunto(path)}
+          faltas={faltasCatalogo}
+          traspasos={traspasos}
+          lecturas={lecturas}
+        />
+
+        {/* La falta de conducta: la misma puerta que en la ficha de la persona. */}
+        <ModalRegistrarFalta
+          abierto={registrandoFalta}
+          onCerrar={() => setRegistrandoFalta(false)}
+          supabase={supabase}
+          yo={yoRegistra}
+          onRegistrado={async (id) => {
+            setRegistrandoFalta(false);
+            await cargar();
+            setTab("borradores");
+            setCaso({ tipo: "documento", id });
+            avisar("ok", "Falta registrada como borrador. Sigue el paso que indica el caso.");
+          }}
         />
 
         {/* ── Diálogos ───────────────────────────────────────────────────
@@ -1724,6 +1863,32 @@ export default function DisciplinaPage() {
                 <Boton variante="primario" onClick={() => void confirmarReabrir(reabriendo)} cargando={ocupado === reabriendo}>Volver a borrador</Boton>
               </div>
             </>
+          )}
+        </Modal>
+
+        <Modal abierto={traspasando !== null} onCerrar={() => setTraspasando(null)}
+          titulo={traspasando?.accion === "tomar" ? "Tomar este caso" : "Devolver este caso a la líder"} bloqueado={ocupado === traspasando?.id}>
+          {traspasando && (
+            <div className="grid gap-3">
+              <p className="text-sm text-taupe">
+                {traspasando.accion === "tomar"
+                  ? "Mientras lo tengas, la líder lo sigue viendo pero ya no puede comunicar cargos, firmar ni agregarle papeles. Si el documento ya se entregó, lo único que puedes hacer con él es anularlo."
+                  : "La líder vuelve a poder trabajar el caso. Si ya no está activa, no tiene el rol de líder o no está en planilla, el caso se queda contigo."}
+              </p>
+              <label htmlFor="motivo-traspaso" className="grid gap-1 text-sm">
+                {traspasando.accion === "tomar" ? "Por qué lo tomas (lo va a leer la líder)" : "Por qué se lo devuelves (lo va a leer la líder)"}
+                <AreaTexto id="motivo-traspaso" value={motivoTraspaso} onChange={(e) => setMotivoTraspaso(e.target.value)} rows={3}
+                  placeholder={traspasando.accion === "tomar"
+                    ? "ej. el hecho fue un día con la tienda cerrada; lo reviso yo con ella antes de seguir"
+                    : "ej. revisado: el hecho está bien descrito y la falta es la correcta; sigue tú"} />
+              </label>
+              <div className="flex justify-end gap-3">
+                <Boton variante="secundario" onClick={() => setTraspasando(null)} disabled={ocupado === traspasando.id}>Cancelar</Boton>
+                <Boton variante="primario" onClick={() => void confirmarTraspaso()} cargando={ocupado === traspasando.id}>
+                  {traspasando.accion === "tomar" ? "Tomar el caso" : "Devolver"}
+                </Boton>
+              </div>
+            </div>
           )}
         </Modal>
 

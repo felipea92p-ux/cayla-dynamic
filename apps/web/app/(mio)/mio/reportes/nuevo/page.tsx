@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Eye, Paperclip, X } from "lucide-react";
 import { hoyLima } from "@cayla-dynamic/shared";
+import { EnlaceVolver } from "@/components/enlace-volver";
 import { Boton } from "@/components/ui/boton";
 import { Campo, CampoCasilla, CampoSelect } from "@/components/ui/campo";
 import { AreaTexto } from "@/components/ui/area-texto";
@@ -168,9 +168,9 @@ export default function NuevoReporte() {
           <p className="etiqueta text-taupe">Reportes · Nuevo</p>
           <h1 className="mt-0.5 font-serif text-3xl leading-tight">Contar algo</h1>
         </div>
-        <Link href="/mio?tab=reportes" className="rounded-control border border-sand px-4 py-2 text-taupe hover:text-tinta">
+        <EnlaceVolver href="/mio?tab=reportes" className="rounded-control border border-sand px-4 py-2 text-taupe hover:text-tinta">
           Cancelar
-        </Link>
+        </EnlaceVolver>
       </div>
 
       {errorCarga && <p className="mb-4 rounded-control bg-rojo/10 px-3 py-2 text-rojo-profundo">{errorCarga}</p>}
