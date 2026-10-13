@@ -115,6 +115,19 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-10-13-agregar-marcaje-propone-lo-que-falta",
+    fecha: "2026-10-13",
+    titulo: "En Correcciones, «Agregar un marcaje faltante» ya propone lo que falta",
+    queMejoro:
+      "Al abrir el día de alguien, el formulario ya no arranca siempre en «Entrada · 08:00». Propone el marcaje que " +
+      "le falta a ese día —por ejemplo «Salida final» si ya tiene su entrada— y la hora que le tocaba según su " +
+      "horario. Mientras no la cambies, la etiqueta dice «Hora · según su horario».\n\n" +
+      "Revisa la hora antes de agregar: es la de su horario, no necesariamente la real. Si es hoy y todavía no llega " +
+      "su hora de salida, no se propone la salida, porque puede que siga trabajando. El tipo y la hora se cambian " +
+      "con un clic, como siempre.",
+    audiencia: "panel",
+  },
+  {
     id: "2026-10-13-cumpleanos-en-info",
     fecha: "2026-10-13",
     titulo: "En tu mes de cumpleaños, Info te saluda y te deja firmar tu bono ahí mismo",
