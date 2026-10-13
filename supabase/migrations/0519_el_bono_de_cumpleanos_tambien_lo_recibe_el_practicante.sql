@@ -2,10 +2,20 @@
 -- 0519 — El bono de cumpleaños también lo recibe el practicante
 -- ============================================================================
 --
--- ESTADO: BORRADOR — NO PEGAR ni fusionar hasta que el contador / abogado
--- laboral responda las tres preguntas de «LO QUE FALTA CONFIRMAR».
+-- ESTADO (2026-10-13): LISTA PARA PEGAR TÉCNICAMENTE; LO LEGAL SIGUE ABIERTO.
 -- Decidido por Felipe el 2026-10-13 («Opción 2: abrir el bono a practicantes»,
--- después de ver el caso de Daniel Ruiz). Lo legal NO está cerrado.
+-- después de ver el caso de Daniel Ruiz). El md5 de partida de producción ya
+-- está confirmado (ver más abajo). Lo que NO está cerrado son las tres
+-- preguntas de «LO QUE FALTA CONFIRMAR» al contador / abogado laboral: Felipe
+-- pidió el SQL antes de tenerlas, sabiendo que el texto de la constancia para
+-- practicantes (`apps/web/components/papel-bono.tsx`) es provisional.
+--
+-- ORDEN AL PEGAR: lo ideal es que el frontend con el texto nuevo (PR de esta
+-- rama) ya esté publicado ANTES de pegar esto. El frontend es compatible hacia
+-- atrás —sin la migración, un practicante sigue sin poder pedir el bono—, así
+-- que se puede fusionar primero sin romper nada. Al revés, un practicante que
+-- firme entre el pegado y la publicación firmaría el texto de planilla, que lo
+-- llama «trabajador» y cita normas laborales.
 --
 -- QUÉ PROMETE
 --
@@ -82,17 +92,22 @@
 --     aquí para quien lo busque.
 --   · No toca a quien ya firmó: ninguna fila cambia al pegar esto.
 --
--- MD5 DE PARTIDA — LOS TRES CUERPOS SE COPIARON DEL REPO, NO DE PRODUCCIÓN
+-- MD5 DE PARTIDA — CONFIRMADOS EN PRODUCCIÓN EL 2026-10-13
 --
 --   fn_documento_registrar            0448   5319 caracteres
 --   fn_mi_bono_cumpleanos()           0479   4414 caracteres
 --   fn_confirmar_mi_bono_cumpleanos() 0479   4645 caracteres
 --
---   Esos md5 salen del Postgres local con las 517 migraciones aplicadas. El de
---   PRODUCCIÓN está PENDIENTE: se pide ANTES de pegar (CLAUDE.md) y esta
---   migración lo comprueba sola en el bloque 0 — aborta sin tocar nada si
---   alguna función es otra versión. Acepta el md5 tal cual, sin comentarios, y
---   ambos sin `\r` (pegar desde Windows, 0401).
+--   Los cuerpos se copiaron del repo, y Felipe pidió el md5 a PRODUCCIÓN en el
+--   SQL Editor el mismo día: los tres coinciden, tanto el tal cual
+--   (b6706e42… · 5909cada… · 6a9d7307…) como el sin comentarios (e796c2b3… ·
+--   47307a09… · 983554cf…), con 0 retornos `\r`. (Se pidió DESPUÉS de escribir
+--   la migración y no antes, contra lo que dice CLAUDE.md; coincidió, así que
+--   no hubo daño — pero el orden correcto es el otro.) Se comprobó además que
+--   `main` no trajo migraciones sobre estas funciones desde que se escribió.
+--   El bloque 0 lo vuelve a comprobar solo al pegar y aborta sin tocar nada si
+--   alguna es otra versión; acepta el md5 tal cual, sin comentarios, y ambos
+--   sin `\r` (pegar desde Windows, 0401).
 --
 -- CÓMO SE REVIERTE
 --
