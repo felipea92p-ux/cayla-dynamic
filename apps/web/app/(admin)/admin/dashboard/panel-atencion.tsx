@@ -70,7 +70,7 @@ const ContadorCriticas = ({ n }: { n: number }) =>
 export function PanelAtencionLateral({ items, alOcultar }: { items: ItemAtencionVista[]; alOcultar: () => void }) {
   const criticas = items.filter((i) => i.tono === "critico").length;
   return (
-    <div className="rounded-2xl border border-sand bg-papel p-5">
+    <div className="rounded-superficie border border-sand bg-papel p-5">
       <div className="flex items-start justify-between gap-2">
         <h2 className="font-serif text-xl font-medium">Requiere atención<ContadorCriticas n={criticas} /></h2>
         <Boton variante="enlace" tamano="sm" onClick={alOcultar} title="Ocultar el panel y darle todo el ancho al contenido">
@@ -95,7 +95,7 @@ export function PanelAtencionBanner({ items }: { items: ItemAtencionVista[] }) {
     ? `${criticas} ${criticas === 1 ? "cosa requiere" : "cosas requieren"} atención`
     : `${items.length} ${items.length === 1 ? "aviso" : "avisos"}`;
   return (
-    <div className={`rounded-2xl border bg-papel px-3 py-2.5 sm:p-4 ${criticas > 0 ? "border-rojo/40" : "border-sand"}`} role={criticas > 0 ? "alert" : undefined}>
+    <div className={`rounded-superficie border bg-papel px-3 py-2.5 sm:p-4 ${criticas > 0 ? "border-rojo/40" : "border-sand"}`} role={criticas > 0 ? "alert" : undefined}>
       {/* Celular: toda la fila es el botón. Un «Ver» de 12 px en la esquina es
           un blanco que se falla con el pulgar. */}
       <button

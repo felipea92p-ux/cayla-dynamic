@@ -11,7 +11,10 @@ import { Insignia } from "@/components/ui/insignia";
 import { Campo, CampoCasilla, CampoSelect } from "@/components/ui/campo";
 import { Fila, Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
+import { BannerAviso } from "@/components/ui/banner-aviso";
 import { Cifra } from "@/components/ui/cifra";
+import { EstadoVacio } from "@/components/ui/estado-vacio";
+import { RotuloEstado } from "@/components/ui/rotulo";
 import { Filtro } from "@/components/ui/filtro";
 import { TarjetaInfo } from "@/components/ui/tarjeta-info";
 import { Menu, MenuItem } from "@/components/ui/menu";
@@ -334,51 +337,35 @@ function Franja({ tono }: { tono: TonoFranja }) {
   return color && <span aria-hidden className={`absolute inset-y-0 left-0 w-1 ${color}`} />;
 }
 
-// Un tile de cobertura (Operativas / Encargadas), protagonista a propósito:
-// es la pregunta que de verdad decide si hay que actuar, no un dato al pie.
+// Un tile de cobertura (Operativas / Encargadas): es la pregunta que de verdad
+// decide si hay que actuar, no un dato al pie.
 //
-// Se rellena con el color de su estado en vez de ser papel sobre papel: antes
-// la tarjeta de la sede y sus dos tiles eran el mismo tono, y lo único que
-// decía "falta gente" era el color de un número en trazo fino.
+// Es una <Cifra> (ADR 0004, 2026-10-13): número en tinta, y el estado en el punto
+// de color junto a la etiqueta y en la palabra de abajo. Hasta entonces la caja
+// entera se rellenaba con el color del estado y el número iba pintado; eso lo
+// dejó la decisión de «el color solo no comunica» (quien no distingue verde de
+// rojo lee lo mismo que los demás: «Faltan 2»).
 //
-// Dos rojos a propósito. El número es texto grande (36px), y ahí WCAG pide
-// 3:1: el rojo da 4.49:1 claro y 3.78:1 oscuro sobre este relleno, y se lee
-// ROJO. El "Faltan 2" es texto chico, pide 4.5:1, y el rojo en modo oscuro no
-// llega — va en rojo-profundo (7.03 / 5.25:1). Se probó el número también en
-// rojo-profundo y sobre el relleno cálido se leía café, no alerta.
-// El verde va al 8% y no al 10%: al 10% la etiqueta taupe baja a 4.44:1 en
-// modo oscuro.
-//
-// Fuera de horario (la sede ya cerró o aún no abre, y no queda nadie) el tile se
-// apaga a neutro y no dice «Faltan N»: la meta no se está midiendo, y un rojo ahí
-// afirmaba una falta que no existe. Ver fueraDeHorarioDeHoy.
-//
-// Ámbar y «Meta por revisar» cuando la meta no se puede cumplir aunque vengan todos
-// (`porRevisar`): ahí «Faltan 4» era cierto pero nadie podía hacer nada, y un rojo
-// que no se apaga viniendo a trabajar enseña a ignorar los rojos. Ver `gravedad`.
+// LO QUE NO CAMBIÓ, porque cada línea costó un error real:
+// · Fuera de horario (la sede ya cerró o aún no abre, y no queda nadie) el tile se
+//   apaga a neutro —sin punto— y no dice «Faltan N»: la meta no se está midiendo, y un
+//   rojo ahí afirmaba una falta que no existe. Ver fueraDeHorarioDeHoy.
+// · Ámbar y «Meta por revisar» cuando la meta no se puede cumplir aunque vengan todos
+//   (`porRevisar`): ahí «Faltan 4» era cierto pero nadie podía hacer nada, y un rojo
+//   que no se apaga viniendo a trabajar enseña a ignorar los rojos. Ver `gravedad`.
+// · Sin meta no hay estado: sin punto y sin «Faltan».
 function TileCobertura({ label, n, meta, sinMeta, tramo, fueraDeHorario = false, porRevisar = false }: { label: string; n: number; meta: number; sinMeta: boolean; tramo?: string; fueraDeHorario?: boolean; porRevisar?: boolean }) {
   const ok = !sinMeta && n >= meta;
   const sinMedir = fueraDeHorario && !sinMeta && !ok;
-  const tono = sinMeta || sinMedir
-    ? { caja: "border-sand bg-crema", numero: "text-taupe", texto: "text-taupe" }
-    : ok
-      ? { caja: "border-verde/30 bg-verde/[0.08]", numero: "text-verde", texto: "text-verde" }
-      : porRevisar
-        ? { caja: "border-ambar/30 bg-ambar/10", numero: "text-ambar", texto: "text-ambar" }
-        : { caja: "border-rojo/30 bg-rojo/10", numero: "text-rojo", texto: "text-rojo-profundo" };
+  const tono = sinMeta || sinMedir ? undefined : ok ? "positivo" : porRevisar ? "advertencia" : "alerta";
+  const detalle = sinMeta ? undefined : ok ? "Completo" : sinMedir ? "Fuera de horario" : porRevisar ? "Meta por revisar" : faltanTexto(meta - n);
   return (
-    <div className={`rounded-superficie border px-4 py-3 ${tono.caja}`}>
-      <div className="flex items-baseline gap-1.5">
-        <span className={`font-serif text-4xl font-medium leading-none tabular-nums ${tono.numero}`}>{n}</span>
-        {!sinMeta && <span className="text-lg text-taupe">/ {meta}</span>}
-      </div>
-      <div className="mt-1.5 text-xs text-taupe">
-        {label}{sinMeta ? " · sin meta" : tramo ? ` · meta ${tramo}` : ""}
-      </div>
-      {!sinMeta && (
-        <div className={`mt-1 text-sm font-semibold ${tono.texto}`}>{ok ? "Completo" : sinMedir ? "Fuera de horario" : porRevisar ? "Meta por revisar" : faltanTexto(meta - n)}</div>
-      )}
-    </div>
+    <Cifra
+      etiqueta={`${label}${sinMeta ? " · sin meta" : tramo ? ` · meta ${tramo}` : ""}`}
+      valor={<>{n}{!sinMeta && <span className="text-base text-taupe"> / {meta}</span>}</>}
+      detalle={detalle}
+      tono={tono}
+    />
   );
 }
 
@@ -1137,12 +1124,12 @@ export default function DashboardPage() {
         />
 
         {error && (
-          <div className="mb-6 rounded-2xl border border-rojo/20 bg-rojo/[0.06] px-4 py-3 text-sm text-rojo-profundo">
+          <BannerAviso enLinea variante="alerta" className="mb-6 text-rojo-profundo">
             {error}{" "}
             <Boton variante="enlace" onClick={() => void cargar()}>
               Reintentar
             </Boton>
-          </div>
+          </BannerAviso>
         )}
 
         {cargando && filas.length === 0 ? (
@@ -1163,7 +1150,7 @@ export default function DashboardPage() {
               alCambiarSoloAlertas={setSoloAlertas}
               alLimpiar={limpiarFiltros}
             />
-            <div className="mb-6 hidden flex-wrap items-end gap-3 rounded-2xl border border-sand bg-papel p-4 sm:flex">
+            <div className="mb-6 hidden flex-wrap items-end gap-3 rounded-superficie border border-sand bg-papel p-4 sm:flex">
               <div className="min-w-48 flex-1">
                 <Campo
                   etiqueta="Buscar persona"
@@ -1287,7 +1274,7 @@ export default function DashboardPage() {
                 los filtros de más arriba: el número tampoco los aplica, y si la
                 lista los aplicara, al "10" le respondería una lista de 3. */}
             {resumenDetalle && (
-              <section id="detalle-resumen" className="mb-8 rounded-2xl border border-sand bg-papel p-5">
+              <section id="detalle-resumen" className="mb-8 rounded-superficie border border-sand bg-papel p-5">
                 <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
                   <h2 className="font-serif text-xl font-medium">
                     {resumenDetalle.label} <span className="text-taupe">· {resumenDetalle.n}</span>
@@ -1441,20 +1428,19 @@ export default function DashboardPage() {
                 si turnos/horarios fallaron, ninguna sede puede calcular su alerta
                 de "sin marcajes" ni su denominador de programados hoy. */}
             {horarioEsperadoNoRespondio && (
-              <div className="mb-6 flex items-center gap-2 rounded-2xl border border-ambar/30 bg-ambar/[0.06] px-5 py-3 text-sm text-ambar">
-                <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-ambar text-[10px] font-bold text-crema">!</span>
-                No se pudo comprobar a quién le tocaba entrar hoy — la alerta de sedes sin marcajes y el conteo de &quot;programadas hoy&quot; no están disponibles ahora mismo.
-              </div>
+              <BannerAviso enLinea variante="advertencia" titulo="No se pudo comprobar a quién le tocaba entrar hoy." className="mb-6">
+                La alerta de sedes sin marcajes y el conteo de &quot;programadas hoy&quot; no están disponibles ahora mismo.
+              </BannerAviso>
             )}
 
             {sedesMostradas.length === 0 && (
-              <p className="rounded-2xl border border-sand bg-papel p-6 text-center text-sm text-taupe">
+              <EstadoVacio accion={hayFiltrosActivos ? <Boton variante="secundario" tamano="sm" onClick={limpiarFiltros}>Quitar filtros</Boton> : undefined}>
                 No encontramos personas con estos filtros.
-              </p>
+              </EstadoVacio>
             )}
 
             {sedesMostradas.length > 0 && (
-            <div className="overflow-hidden rounded-2xl border border-sand bg-papel">
+            <div className="overflow-hidden rounded-superficie border border-sand bg-papel">
             {sedesMostradas.map(({ sedeId, codigo, etiqueta }) => {
               const deSedeCompleta = filas.filter((f) => f.sedeId === sedeId);
               const deSedeMostrada = deSedeCompleta.filter(filaCoincideFiltros);
@@ -1650,10 +1636,10 @@ export default function DashboardPage() {
                   {/* El feriado sin confirmar es una PREGUNTA, no una alarma: ámbar, y dice las dos
                       salidas. El rojo de abajo queda para lo que sí es una falla. */}
                   {cob.feriadoSinConfirmar && (
-                    <div className="mb-4 rounded-2xl border border-ambar/60 bg-ambar/[0.06] px-5 py-3 text-sm text-tinta">
-                      <strong className="font-semibold">Feriado:</strong> nadie de esta sede ha marcado todavía y hoy no hay turnos armados, así que no se sabe si abre.
+                    <BannerAviso enLinea variante="advertencia" titulo="Feriado:" className="mb-4 text-tinta">
+                      nadie de esta sede ha marcado todavía y hoy no hay turnos armados, así que no se sabe si abre.
                       Si abre, arma sus turnos de hoy en Turnos; si hoy cierra, no hace falta hacer nada.
-                    </div>
+                    </BannerAviso>
                   )}
 
                   {/* La única alerta que se permite el rojo sagrado en esta pantalla,
@@ -1661,7 +1647,7 @@ export default function DashboardPage() {
                       repetimos acá, junto a la sede, para quien llegó directo a esta
                       tarjeta sin pasar por el resumen. */}
                   {cob.alertaSinEntrada && (
-                    <div className="mb-4 flex items-center gap-2 rounded-2xl border border-rojo bg-rojo/[0.06] px-5 py-3 text-sm font-semibold text-rojo-profundo">
+                    <div className="mb-4 flex items-center gap-2 rounded-superficie border border-rojo bg-rojo/[0.06] px-5 py-3 text-sm font-semibold text-rojo-profundo">
                       <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-rojo text-[10px] font-bold text-crema">!</span>
                       Sin marcajes desde las {horaAmPmDe(cob.alertaSinEntrada)} — nadie de esta sede ha marcado entrada todavía.
                     </div>
@@ -1715,9 +1701,12 @@ export default function DashboardPage() {
                   {/* Sin turnos hoy nadie marcó, así que este recuadro diría siempre «0 · Nadie está trabajando». */}
                   {!apagada && (
                   <div
-                    className={`mb-4 rounded-superficie border px-4 py-3 ${cob.trabajando.length > 0 ? "border-verde/30 bg-verde/15" : "border-sand bg-crema"}`}
+                    className="mb-4 rounded-superficie border border-sand bg-crema px-4 py-3"
                   >
-                    <div className={`etiqueta ${cob.trabajando.length > 0 ? "text-verde" : "text-taupe"}`}>Trabajando ahora · {cob.trabajando.length}</div>
+                    {/* Caja neutra y punto verde (ADR 0004, decisión 14): antes la caja entera iba
+                        rellena de verde al 15%, con la etiqueta pintada. Sin nadie trabajando no
+                        hay punto: verde sigue siendo «hay gente en piso». */}
+                    <RotuloEstado tono={cob.trabajando.length > 0 ? "positivo" : undefined}>Trabajando ahora · {cob.trabajando.length}</RotuloEstado>
                     <div className="mt-2 flex flex-wrap gap-2">
                       {cob.trabajando.length === 0 ? (
                         // Un 0 en piso es igual de 0 en un cambio de turno, tras el cierre o con
@@ -1755,8 +1744,8 @@ export default function DashboardPage() {
                       Las pastillas quedan en papel: ámbar sobre relleno ámbar daba
                       4.26:1 en modo oscuro, y sobre papel da 6.17:1. */}
                   {cob.enPausa.length > 0 && (
-                    <div className="mb-4 rounded-superficie border border-ambar/30 bg-ambar/10 px-4 py-3">
-                      <div className="etiqueta text-ambar">En pausa · {cob.enPausa.length}</div>
+                    <div className="mb-4 rounded-superficie border border-sand bg-crema px-4 py-3">
+                      <RotuloEstado tono="advertencia">En pausa · {cob.enPausa.length}</RotuloEstado>
                       {/* Quien lleva más tiempo fuera va primero: es a quien hay que
                           mirar. Cada quien dice desde cuándo y cuánto lleva —un
                           refrigerio de 40 minutos se ve distinto de un retorno que
@@ -1824,7 +1813,7 @@ export default function DashboardPage() {
                 hacerlo. Ninguna de las dos reemplaza el trámite físico. */}
             {respuestasMemo.length > 0 && panelVisible("memos") && (
               <PanelColapsable {...panelProps("memos", "Respuestas a memos", "se actualiza cada 5 min")}>
-              <div className="rounded-2xl border border-sand bg-papel p-5 pl-6">
+              <div className="rounded-superficie border border-sand bg-papel p-5 pl-6">
                 <div className="mb-2 flex items-center justify-between">
                   <span className="text-xs text-taupe">Últimos {DIAS_RESPUESTAS_MEMO} días</span>
                   <Link href="/admin/disciplina" className="text-xs font-medium text-taupe hover:underline">Ver disciplina →</Link>
@@ -1858,15 +1847,14 @@ export default function DashboardPage() {
               // calla — dice que no pudo mirar, en vez de parecer un mes tranquilo.
               if (contratosNoRespondio) {
                 return (
-                  <section className="rounded-2xl border border-ambar/30 bg-ambar/[0.06] p-5">
-                    <div className="etiqueta text-ambar">Contratos a plazo fijo · no se pudo consultar</div>
-                    <p className="mt-2 text-sm text-tinta">
+                  <BannerAviso titulo="Contratos a plazo fijo · no se pudo consultar" variante="advertencia">
+                    <p className="text-tinta">
                       No se pudo revisar qué contratos vencen o ya vencieron. El plazo del{" "}
                       <strong>artículo 77</strong> corre igual aunque esta franja no haya podido mirar.
                       Vuelve a cargar, y si sigue igual revisa{" "}
                       <Link href="/admin/equipo" className="underline">Equipo</Link>.
                     </p>
-                  </section>
+                  </BannerAviso>
                 );
               }
               const vencidos = contratos.filter((c) => c.ya_vencio);
@@ -1884,7 +1872,7 @@ export default function DashboardPage() {
                 .sort((a, b) => b[1] - a[1])[0] ?? ["", 0];
               const hayRacimo = cuantos >= 3;
               return (
-                <div className="relative overflow-hidden rounded-2xl border border-sand bg-papel p-5 pl-6">
+                <div className="relative overflow-hidden rounded-superficie border border-sand bg-papel p-5 pl-6">
                   {/* Rojo si alguien ya pasó su fecha (el art. 77 ya corrió);
                       ámbar si solo se acerca. */}
                   <Franja tono={vencidos.length > 0 ? "alerta" : "advertencia"} />
@@ -1893,7 +1881,7 @@ export default function DashboardPage() {
                     <Link href="/admin/equipo" className="text-xs font-semibold text-rojo-profundo hover:underline">Ver equipo →</Link>
                   </div>
                   {hayRacimo && (
-                    <p className="mb-2 rounded-lg bg-rojo/10 px-3 py-2 text-sm text-rojo-profundo">
+                    <p className="mb-2 rounded-control bg-rojo/10 px-3 py-2 text-sm text-rojo-profundo">
                       <strong>{cuantos} contratos vencen el mismo día</strong> ({fechaCorta(fechaRacimo)}).
                       No son {cuantos} trámites repartidos: son {cuantos} decisiones, {cuantos} redacciones
                       y {cuantos} firmas en la misma semana. Al que se pase de fecha con la persona
