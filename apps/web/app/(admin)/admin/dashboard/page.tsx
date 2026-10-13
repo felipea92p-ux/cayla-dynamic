@@ -11,6 +11,8 @@ import { Insignia } from "@/components/ui/insignia";
 import { Campo, CampoCasilla, CampoSelect } from "@/components/ui/campo";
 import { Fila, Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
+import { Cifra } from "@/components/ui/cifra";
+import { Filtro } from "@/components/ui/filtro";
 import { Menu, MenuItem } from "@/components/ui/menu";
 import {
   TZ_LIMA, cuentaEnCobertura, etiquetaDeSede, hoyLima, formatoMinutos, puedeVerTodasLasSedes,
@@ -1239,19 +1241,13 @@ export default function DashboardPage() {
                 tablero, no información del día, y ocupaba una línea en cada visita. */}
             <div className={`mb-3 flex-wrap items-center gap-2 sm:flex ${personalizando ? "flex" : "hidden"}`} role="group" aria-label="Indicadores visibles">
               <span className="text-xs text-taupe">Indicadores:</span>
-              <span className="rounded-full border border-tinta bg-tinta px-3 py-1 text-xs text-crema">Asistencia</span>
+              <Filtro activo disabled className="cursor-default">Asistencia</Filtro>
               {KPIS_EXTRA.map((k: KpiExtra) => {
                 const activo = prefs.kpisExtra[k] === true;
                 return (
-                  <button
-                    key={k}
-                    type="button"
-                    aria-pressed={activo}
-                    onClick={() => setPrefsCrudas(alternarKpiExtra(prefs, k))}
-                    className={`rounded-full border px-3 py-1 text-xs transition-colors ${activo ? "border-tinta bg-tinta text-crema" : "border-taupe text-tinta hover:bg-sand/50"}`}
-                  >
+                  <Filtro key={k} activo={activo} onClick={() => setPrefsCrudas(alternarKpiExtra(prefs, k))}>
                     {activo ? "✓ " : "+ "}{k === "pendientes" ? "Pendientes de acción" : k === "personal" ? "Personal" : "Casos"}
-                  </button>
+                  </Filtro>
                 );
               })}
             </div>
@@ -1342,22 +1338,22 @@ export default function DashboardPage() {
             )}
 
             {prefs.kpisExtra.personal && (
-              <div className="mt-3 rounded-2xl border border-sand bg-papel p-5">
+              <div className="mt-3 rounded-superficie border border-sand bg-papel p-4 sm:p-5">
                 <div className="mb-3 flex items-baseline justify-between gap-2">
                   <span className="etiqueta text-taupe">Personal</span>
                   <Link href="/admin/equipo" className="text-xs text-taupe hover:underline">Equipo →</Link>
                 </div>
-                <div className="grid grid-cols-3 gap-4">
-                  <div><span className="block font-serif text-3xl font-medium leading-none tabular-nums">{filas.length}</span><span className="mt-1 block text-xs text-taupe">Equipo que marca asistencia</span></div>
-                  <div><span className="block font-serif text-3xl font-medium leading-none tabular-nums">{ausentesHoy}</span><span className="mt-1 block text-xs text-taupe">Ausentes hoy</span></div>
-                  <div><span className={`block font-serif text-3xl font-medium leading-none tabular-nums ${contratos.length > 0 ? "text-ambar" : ""}`}>{contratos.length}</span><span className="mt-1 block text-xs text-taupe">Contratos por vencer</span></div>
+                <div className="grid grid-cols-3 gap-2">
+                  <Cifra etiqueta="Equipo que marca asistencia" valor={filas.length} />
+                  <Cifra etiqueta="Ausentes hoy" valor={ausentesHoy} />
+                  <Cifra etiqueta="Contratos por vencer" valor={contratos.length} tono={contratos.length > 0 ? "advertencia" : undefined} />
                 </div>
                 <p className="mt-3 text-xs text-taupe">Cuenta a quien marca asistencia: no incluye recibos por honorarios ni sueldo fijo.</p>
               </div>
             )}
 
             {prefs.kpisExtra.pendientes && (
-              <div className="mt-3 rounded-2xl border border-sand bg-papel p-5">
+              <div className="mt-3 rounded-superficie border border-sand bg-papel p-4 sm:p-5">
                 <div className="mb-3 flex items-baseline justify-between gap-2">
                   <span className="etiqueta text-taupe">Pendientes de acción</span>
                   <Link href="/admin/bandeja" className="text-xs text-taupe hover:underline">Bandeja{pendientesBandeja.resumen ? ` · ${pendientesBandeja.resumen.total}` : ""} →</Link>
@@ -1369,18 +1365,12 @@ export default function DashboardPage() {
                 ) : pendientesBandeja.resumen.total === 0 ? (
                   <p className="text-sm text-taupe">Nada pendiente en la Bandeja.</p>
                 ) : (
-                  <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                     {pendientesBandeja.resumen.porModulo.map((m) => (
-                      <Link key={m.clave} href={m.ruta} className="block transition-opacity hover:opacity-80">
-                        <span className="block font-serif text-3xl font-medium leading-none tabular-nums">{m.n}</span>
-                        <span className="mt-1 block text-xs text-taupe">{m.etiqueta}</span>
-                      </Link>
+                      <Cifra key={m.clave} href={m.ruta} etiqueta={m.etiqueta} valor={m.n} />
                     ))}
                     {pendientesBandeja.resumen.otros > 0 && (
-                      <Link href="/admin/bandeja" className="block transition-opacity hover:opacity-80">
-                        <span className="block font-serif text-3xl font-medium leading-none tabular-nums">{pendientesBandeja.resumen.otros}</span>
-                        <span className="mt-1 block text-xs text-taupe">Otros</span>
-                      </Link>
+                      <Cifra href="/admin/bandeja" etiqueta="Otros" valor={pendientesBandeja.resumen.otros} />
                     )}
                   </div>
                 )}
@@ -1391,7 +1381,7 @@ export default function DashboardPage() {
             )}
 
             {prefs.kpisExtra.casos && (
-              <div className="mt-3 rounded-2xl border border-sand bg-papel p-5">
+              <div className="mt-3 rounded-superficie border border-sand bg-papel p-4 sm:p-5">
                 <div className="mb-3 flex items-baseline justify-between gap-2">
                   <span className="etiqueta text-taupe">Casos</span>
                   <Link href="/admin/casos" className="text-xs text-taupe hover:underline">Casos →</Link>
@@ -1404,11 +1394,11 @@ export default function DashboardPage() {
                   <p className="text-sm text-taupe">Nada que gestionar en Casos en los últimos 6 meses.</p>
                 ) : (
                   <>
-                    <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-                      <div><span className="block font-serif text-3xl font-medium leading-none tabular-nums">{casosResumen.resumen.total}</span><span className="mt-1 block text-xs text-taupe">Últimos 6 meses</span></div>
-                      <div><span className="block font-serif text-3xl font-medium leading-none tabular-nums">{casosResumen.resumen.abiertos}</span><span className="mt-1 block text-xs text-taupe">Abiertos ahora</span></div>
-                      <div><span className={`block font-serif text-3xl font-medium leading-none tabular-nums ${casosResumen.resumen.vencidos > 0 ? "text-rojo" : ""}`}>{casosResumen.resumen.vencidos}</span><span className="mt-1 block text-xs text-taupe">Con un plazo vencido</span></div>
-                      <div><span className="block font-serif text-3xl font-medium leading-none tabular-nums">{casosResumen.resumen.cerrados}</span><span className="mt-1 block text-xs text-taupe">Cerrados</span></div>
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                      <Cifra etiqueta="Últimos 6 meses" valor={casosResumen.resumen.total} />
+                      <Cifra etiqueta="Abiertos ahora" valor={casosResumen.resumen.abiertos} />
+                      <Cifra etiqueta="Con un plazo vencido" valor={casosResumen.resumen.vencidos} tono={casosResumen.resumen.vencidos > 0 ? "alerta" : undefined} />
+                      <Cifra etiqueta="Cerrados" valor={casosResumen.resumen.cerrados} />
                     </div>
 
                     <div className="mt-4 grid gap-5 sm:grid-cols-2">
