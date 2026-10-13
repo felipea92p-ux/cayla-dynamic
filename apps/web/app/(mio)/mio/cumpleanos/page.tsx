@@ -23,7 +23,10 @@ import { FirmaEditor } from "@/app/(admin)/admin/personas/[id]/FirmaEditor";
  * queda como una línea de su boleta del periodo que corre y se paga junto con
  * su planilla: no hay nadie a quien esperar. Solo si no había un periodo de
  * planilla abierto —o alguien quitó la línea— queda «pedido», y ahí sí DO lo
- * transfiere y confirma la fecha (el respaldo de la 0478). Qué le toca (y si
+ * transfiere y confirma la fecha (el respaldo de la 0478). UN PRACTICANTE
+ * (0519) NUNCA entra a la boleta: su convenio de modalidad formativa no es
+ * planilla, así que su bono queda siempre «pedido» y lo transfiere DO; esta
+ * pantalla lo dice con su propia redacción y su constancia lleva otro texto. Qué le toca (y si
  * el botón aparece) lo contesta `fn_mi_bono_cumpleanos`, la misma función que
  * el servidor usa de puerta: la pantalla no puede ofrecer un pedido que la
  * base después rechace.
@@ -38,8 +41,9 @@ import { FirmaEditor } from "@/app/(admin)/admin/personas/[id]/FirmaEditor";
  * bono se paga por transferencia (confirmado con Felipe, 2026-09-16), así
  * que no hay ningún paso previo de un admin que desbloquee esta pantalla —
  * la persona firma en cuanto le corresponde, exactamente como ya hace con
- * su declaración de ruta. La única puerta es la de siempre: en planilla,
- * activa, y sin una constancia vigente todavía este año.
+ * su declaración de ruta. La única puerta es la de siempre: en planilla (o
+ * practicante, desde la 0519), activa, y sin una constancia vigente todavía
+ * este año.
  *
  * EL MONTO NUNCA SE PIDE ACÁ. Lo calcula el servidor con el bono_onomastico
  * vigente — nunca una cifra que la persona escriba.
@@ -55,6 +59,8 @@ interface Yo {
   id: string;
   nombreOficial: string;
   documento: string | null;
+  /** Modalidad formativa (0519): otro texto en la constancia, y su bono nunca va a la boleta. */
+  practicante: boolean;
 }
 
 function fechaLarga(iso: string): string {
@@ -102,7 +108,7 @@ function MiCumpleanosContenido() {
     }
 
     const { data: p } = await supabase
-      .from("personas").select("id, nombres, apellidos, documento").eq("auth_user_id", uid).maybeSingle();
+      .from("personas").select("id, nombres, apellidos, documento, tipo_vinculo").eq("auth_user_id", uid).maybeSingle();
     if (!p) {
       setCargando(false);
       setError("Tu cuenta todavía no está enlazada con tu ficha. Avisa a Desarrollo Organizacional.");
@@ -115,6 +121,7 @@ function MiCumpleanosContenido() {
       id: p.id as string,
       nombreOficial: (ficha?.nombre_dni as string | null) || nombre,
       documento: (p.documento as string | null) ?? null,
+      practicante: p.tipo_vinculo === "practicante",
     });
 
     const { data: cfgFirmante } = await supabase
@@ -210,8 +217,8 @@ function MiCumpleanosContenido() {
       <h1 className="mb-1 font-serif text-xl">Tu bono de cumpleaños</h1>
       <p className="mb-6 text-sm text-taupe">
         Una asignación de {bono?.monto != null ? formatSoles(bono.monto) : "la empresa"} en el mes de tu
-        cumpleaños. Se pide firmando tu constancia aquí —sin imprimir ni escanear nada— y se suma a tu
-        boleta.
+        cumpleaños. Se pide firmando tu constancia aquí —sin imprimir ni escanear nada—{" "}
+        {yo?.practicante ? "y Desarrollo Organizacional te lo transfiere." : "y se suma a tu boleta."}
       </p>
 
       {aviso && (
@@ -225,8 +232,9 @@ function MiCumpleanosContenido() {
       {/* Lo que todavía no se puede pedir: se dice por qué y qué hacer, nunca un botón que va a fallar. */}
       {(!bono || bono.estado === "no_aplica") && (
         <p className="rounded-lg bg-sand/40 px-4 py-3 text-sm text-taupe">
-          Este año no te corresponde el bono de cumpleaños: es para quien está en planilla o es practicante —no durante el
-          periodo de prueba ni con un contrato de menos de una semana—, y rige desde que existe o desde tu ingreso. Si crees que es un error, avisa a Desarrollo Organizacional.
+          Este año no te corresponde el bono de cumpleaños: es para quien está en planilla o hace prácticas en
+          CAYLA —no durante el periodo de prueba ni con un contrato de menos de una semana—, y rige desde que
+          existe o desde tu ingreso. Si crees que es un error, avisa a Desarrollo Organizacional.
         </p>
       )}
       {bono?.estado === "sin_fecha" && (
@@ -258,8 +266,9 @@ function MiCumpleanosContenido() {
           ) : bono.estado === "pedido" ? (
             <p className="text-tinta">
               Lo pediste el {bono.pedido_el ? fechaLarga(bono.pedido_el) : "—"}
-              {bono.monto != null && <> por {formatSoles(bono.monto)}</>}. Todavía no está en ninguna boleta, así
-              que Desarrollo Organizacional te lo transfiere: cuando lo confirme, aquí verás la fecha.
+              {bono.monto != null && <> por {formatSoles(bono.monto)}</>}.{" "}
+              {yo?.practicante ? "Desarrollo Organizacional te lo transfiere" : "Todavía no está en ninguna boleta, así que Desarrollo Organizacional te lo transfiere"}
+              : cuando lo confirme, aquí verás la fecha.
             </p>
           ) : bono.via === "boleta" ? (
             // No hay «día en que se transfirió»: la planilla no lo guarda por
@@ -294,6 +303,7 @@ function MiCumpleanosContenido() {
             </div>
           </div>
           <PapelBono
+            practicante={yo?.practicante ?? false}
             monto={miDocumento.monto_declarado}
             fecha={miDocumento.fecha_firma}
             estadoPago={{
@@ -326,9 +336,10 @@ function MiCumpleanosContenido() {
           )}
           <p className="mb-4 text-sm text-taupe">
             Al pedirlo firmas esta constancia. Léela: es lo que acredita que el bono es por tu cumpleaños y no
-            parte de tu sueldo.
+            parte de {yo?.practicante ? "tu subvención" : "tu sueldo"}.
           </p>
           <PapelBono
+            practicante={yo?.practicante ?? false}
             monto={bono.monto}
             fecha={null}
             estadoPago={{ transferidoEl: null, enBoleta: false }}

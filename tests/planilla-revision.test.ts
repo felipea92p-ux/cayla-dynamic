@@ -69,6 +69,34 @@ describe("grupos y totales", () => {
     ]);
     expect(t.sale_del_banco).toBeCloseTo(1000 + 920 + 130 + 102.5 + 80, 2);
   });
+
+  it("suma la movilidad y la educación de cada fila, y una base sin esas claves no da NaN", () => {
+    // La tabla de Planilla las muestra en su propia columna (la practicante las
+    // cobra desde la 0397): el pie tiene que sumar lo mismo que las filas.
+    const t = sumarFilas([
+      fila({ tipo_vinculo: "practicante", en_planilla: false, monto_movilidad: 60.5, monto_educacion: 80 }),
+      fila({ monto_movilidad: 39.5 }),
+      fila({}), // base sin la 0110 / la 0120 pegadas: no manda ninguna de las dos
+    ]);
+    expect(t.movilidad).toBeCloseTo(100, 2);
+    expect(t.educacion).toBeCloseTo(80, 2);
+    expect(sumarFilas([fila({})]).movilidad).toBe(0);
+    expect(sumarFilas([fila({})]).educacion).toBe(0);
+  });
+
+  it("las columnas de la tabla cuadran con las líneas del desglose de la persona", () => {
+    // Una sola verdad: lo que la tabla suma por columna es lo que el desglose
+    // de cada persona dice en «Movilidad» y «Educación».
+    const filas = [
+      fila({ monto_movilidad: 60, monto_educacion: 90, total: 950 }),
+      fila({ persona_id: "p2", monto_movilidad: 45.25, total: 845.25 }),
+    ];
+    const t = sumarFilas(filas);
+    const deLineas = (clave: string) =>
+      filas.reduce((a, f) => a + (desgloseDe(f).lineas.find((l) => l.clave === clave)?.monto ?? 0), 0);
+    expect(t.movilidad).toBeCloseTo(deLineas("movilidad"), 2);
+    expect(t.educacion).toBeCloseTo(deLineas("educacion"), 2);
+  });
 });
 
 describe("desglose", () => {

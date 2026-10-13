@@ -6,7 +6,7 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-10-13 — Info saluda en el mes de cumpleaños, y el bono es para todo el equipo salvo prueba y contratos cortos · migración 0518 · PEGADA EN PRODUCCIÓN (2026-10-13) · SIN FUSIONAR
+## 2026-10-13 — Info saluda en el mes de cumpleaños, y el bono es para todo el equipo salvo prueba y contratos cortos · 0518 PEGADA EN PRODUCCIÓN · 0520 (la unión con la 0519) ESCRITA Y PROBADA · SIN PEGAR · SIN FUSIONAR
 
 **El caso.** Daniel Ruiz, practicante, cumple en octubre, y el 13 no tenía nada
 en su Info ni en su Bandeja mientras DO lo veía como «Bono de cumpleaños sin
@@ -62,11 +62,37 @@ código, nada revertido**. Lo que hay que aprender: ese desenlace no está entre
 los tres que imprime el script, y por eso parece «otra versión»; queda pedido
 que `donde-vive.sh` imprima también las dos variantes CRLF.
 
-**Queda:** fusionar el PR #526 (fusionar es publicar; el choque con `main` del
-2026-10-13 se resolvió en la rama) y correr
-`scripts/sql-manual/diagnostico_bono_cumpleanos_daniel.sql` (solo lee) para
-confirmar con sus datos reales que Daniel queda en `este_mes` y tiene firma
-guardada — sin firma, el botón lo manda a configurarla primero.
+**La colisión, y la 0520 que la cierra.** Mientras esta rama se construía, otra
+sesión (con Felipe) arregló el MISMO caso con la **0519** (PR #524, fusionado
+el 2026-10-13 a las 17:30 UTC): practicante sí, pero **nunca a la boleta** (DO
+le transfiere; su subvención no es remuneración, Ley 28518 art. 47) y sin
+excluir prueba ni contratos cortos. Medido en local con las dos pruebas (413 y
+414) en cada orden de pegado: **la 0519 no se puede pegar después de la 0518**
+—su freno de md5 la rechaza—, y la foto de producción (`CAMBIO 0518` en las
+tres puertas, nada en la firma) confirmó que **solo la 0518 está pegada**. Su
+frontend sí se publicó: hoy la pantalla le dice al practicante «DO te lo
+transfiere» mientras la base lo manda a la boleta.
+
+Cayla decidió **unir las dos**. La **0520** es esa unión: una sola función
+(`fn_persona_le_corresponde_bono`, el nombre de la 0519, el cuerpo de la 0518),
+las tres puertas de la 0518 apuntando a ella, la `fn_confirmar` de la 0519 (el
+practicante queda «pedido» y DO transfiere), y la función de la 0518 retirada.
+Su freno exige exactamente el estado actual de producción. La 0519 queda en
+`scripts/hooks/no-se-pegan.txt`; **la 0518 no se vuelve a pegar** (sus
+`create or replace` devolverían las puertas a la función vieja).
+
+**Queda, en este orden:**
+1. `./scripts/dame-el-sql.sh 0520` y pegar. El freno aborta solo si producción
+   no está como la foto; la comprobación final tiene que salir toda en `true`
+   con `520 · el_bono_de_cumpleanos_una_sola_regla_y_el_practicante_cobra_por_transferencia`.
+2. Fusionar el PR #526 (fusionar es publicar).
+3. Correr `scripts/sql-manual/diagnostico_bono_cumpleanos_daniel.sql` (solo
+   lee): Daniel en `este_mes`, con firma guardada.
+4. Si algún practicante firmó entre la 0518 y la 0520, su bono está en una
+   boleta: `select p.nombres, d.fecha_firma from documentos_firmados d join
+   personas p on p.id = d.persona_id where d.tipo = 'bono' and
+   p.tipo_vinculo = 'practicante' and d.movimiento_id is not null;` — y DO
+   decide si lo deja ahí o lo quita de Planilla (vuelve a «pedido», 0479).
 
 **Pendientes que esto dejó a la vista, sin tocar:**
 - Los practicantes no tienen ningún documento con acuse que diga que les
@@ -81,6 +107,49 @@ guardada — sin firma, el botón lo manda a configurarla primero.
 - El tablero no lista a quien termina contrato este mes (0161), así que esa
   persona sigue sin poder pedir el bono desde Info aunque la regla nueva se lo
   dé: lo registra DO en papel, como hasta hoy.
+
+---
+
+> **Nota del mismo día, después:** esta 0519 **NO se pegó y ya no se puede pegar** — su freno de md5 la
+> rechaza porque la 0518 llegó antes a producción (medido en local, y confirmado con los marcadores en
+> producción). La sustituye la **0520** (sección de arriba), que une las dos decisiones. Está en
+> `scripts/hooks/no-se-pegan.txt`. Lo que sigue vigente de esta sección: el frontend (publicado) y las
+> preguntas legales abiertas.
+
+## 2026-10-13 — El bono de cumpleaños para el practicante · migración 0519 · PR #524 (BORRADOR) · LEGAL SIN CONFIRMAR
+
+**Origen:** Daniel Ruiz (practicante, `en_planilla = f`) salía pendiente en la Bandeja y en «Cargos de cumpleaños»
+(el tablero, abierto a practicantes por la 0424, le daba `este_mes`), mientras `fn_mi_bono_cumpleanos` le contestaba
+`no_aplica` y `fn_documento_registrar` rechazaba su constancia. Medido en producción con su sesión. Felipe decidió
+**abrir el bono al practicante** (no cerrarlo en el tablero).
+
+**Hecho:** `fn_persona_le_corresponde_bono` (un solo lugar para la pregunta) y las tres funciones la usan; el
+practicante **nunca va a la boleta** (queda «pedido», lo transfiere DO) — no se toca la planilla. Constancia con
+**texto propio** para practicantes (`TextoBono`, sin «trabajador» ni normas laborales). md5 de partida de producción
+de las tres funciones **CONFIRMADOS** el 2026-10-13: idénticos al repo, 0 retornos. Pruebas: **414** (27) nueva; **335**
+y **377** corregidas porque fijaban la regla contraria (el único motivo por el que `db-tests` salió en rojo); todas
+pasan con la 0519. Revisión adversarial de 5 lentes (57 agentes): el SQL no cambió; sí 3 textos que le prometían al
+practicante «se suma a tu boleta» y varios comentarios viejos.
+
+**SQL entregado a Felipe el 2026-10-13** (`./scripts/dame-el-sql.sh 519`). **No sé si ya se pegó**: comprobarlo con
+`que_falta_pegar` antes de dar nada por hecho.
+
+**ORDEN: fusionar el PR ANTES de pegar la 0519** (al revés de la regla general, y a propósito). El frontend es
+compatible hacia atrás —sin la migración, un practicante sigue sin poder pedir el bono—, así que no rompe nada. Si se
+pega primero, un practicante que firme antes de que el texto nuevo esté publicado firma el texto de planilla. Si pasó,
+se ve con una consulta: bonos con `firma_persona_confirmada_at` anterior al despliegue, de personas con
+`tipo_vinculo = 'practicante'`.
+
+**Lo que NO está cerrado:**
+1. **El contador / abogado laboral:** ¿puede CAYLA darle un monto por cumpleaños a un practicante sin que cuente como
+   subvención ni cambie su condición formativa (Ley 28518)? ¿qué texto lleva la constancia y cómo consta el pago? ¿es
+   gasto deducible? El texto de `TextoBono` es **provisional**, lo redactó Claude.
+2. **Límite conocido (migración aparte):** la constancia se pinta con el `tipo_vinculo` ACTUAL, no con el de cuando
+   se firmó. Si un practicante pasa a planilla, su constancia ya firmada mostraría el texto de planilla. La solución
+   es guardar al firmar con qué texto fue (una columna en `documentos_firmados`).
+
+**Hoy, antes de pegar:** Daniel sigue sin bono en el sistema, y «Registrar constancia →» se rechaza («no está en
+planilla»). Su cargo vence el 31-oct.
 
 ---
 

@@ -342,9 +342,9 @@ export interface FuentesBandeja {
   turnos: FilaTurno[];
   /**
    * Su bono de cumpleaños (0478), de `fn_mi_bono_cumpleanos`. NO del
-   * `bono_estado` del tablero: ese no sabe si ya se pidió o si va en la
-   * boleta (y hasta la 0518 no sabía a quién se le negaba). Opcional: sin él no
-   * se dice nada del bono.
+   * `bono_estado` del tablero: ese no distingue un pedido ya hecho pero todavía
+   * sin pagar de uno entregado (0478/0479). Opcional: sin él no se dice nada
+   * del bono.
    */
   bono?: MiBono | null;
   /** Sus boletas oficiales (0482). Opcional: sin ellas, no se dice nada de boletas. */
@@ -574,7 +574,7 @@ export function armarBandeja(fuentes: FuentesBandeja, hoy: string = hoyLima()): 
         respuesta: null,
         detalle: b.estado === "vencido"
           ? `${monto}Ya pasó tu cumpleaños y todavía no lo pides: aún estás a tiempo.`
-          : `${monto}Es el mes de tu cumpleaños. Lo pides firmando tu constancia y se suma a tu boleta.`,
+          : `${monto}Es el mes de tu cumpleaños. Lo pides firmando tu constancia.`,
         nuevo: true,
         ir: "/mio/cumpleanos",
         marcarVistoComo: null,

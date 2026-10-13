@@ -125,8 +125,21 @@ export const NOVEDADES: readonly Novedad[] = [
       "el sistema no le ofrecía el bono no le decía nada en su mes.\n\n" +
       "Y el bono ya es también para quien está en prácticas: hasta hoy el sistema se lo negaba aunque " +
       "Desarrollo Organizacional lo viera como pendiente. Quedan fuera el periodo de prueba y los contratos " +
-      "de menos de una semana.",
+      "de menos de una semana. A quien está en prácticas se lo transfiere Desarrollo Organizacional: no va en " +
+      "una boleta.",
     audiencia: "todos",
+  },
+  {
+    id: "2026-10-13-planilla-muestra-movilidad-y-educacion-en-su-columna",
+    fecha: "2026-10-13",
+    titulo: "En Planilla, la movilidad y la educación ya tienen su propia columna",
+    queMejoro:
+      "En la tabla de cada grupo —también la de Practicantes— ahora hay una columna «Movilidad» y otra «Educación», " +
+      "con su suma al pie. Antes esos dos conceptos estaban dentro del total y solo se veían al abrir a la persona, " +
+      "en «Cómo se arma su total».\n\n" +
+      "Si alguien tiene la asignación por educación registrada pero le falta cargar el comprobante, la celda lo dice " +
+      "(«sin comprobante») en vez de quedar en blanco. Pasa el cursor sobre un monto de movilidad para ver la tarifa por día.",
+    audiencia: "do",
   },
   {
     id: "2026-10-13-ver-el-cargo-de-cumpleanos-firmado-desde-el-sistema",

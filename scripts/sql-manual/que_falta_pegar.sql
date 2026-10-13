@@ -375,7 +375,8 @@ with repo(numero, nombre, nunca) as (values
     (515, 'do_se_entera_y_la_lider_tambien', false),
     (516, 'la_persona_deja_constancia_de_haber_leido', false),
     (517, 'la_persona_ve_como_va_con_sus_tardanzas', false),
-    (518, 'a_quien_le_toca_el_bono_de_cumpleanos_se_dice_una_vez', false)
+    (518, 'a_quien_le_toca_el_bono_de_cumpleanos_se_dice_una_vez', false),
+    (519, 'el_bono_de_cumpleanos_tambien_lo_recibe_el_practicante', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
