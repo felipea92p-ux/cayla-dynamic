@@ -96,6 +96,10 @@ export function registrarClic(
  */
 const TOQUES: ReadonlyArray<{ mes: number; dias: readonly number[]; texto: string }> = [
   { mes: 7, dias: [28, 29], texto: "Felices Fiestas Patrias" },
+  // El aniversario REAL de CAYLA. En Retail la campaña «Aniversario CAYLA» dura del 1 al 14 de octubre —Felipe corrió la celebración
+  // para no cruzarse con Halloween—, pero la migración que la siembra deja escrito «fecha real: 23 de octubre». Este toque va el día
+  // real, no la ventana: las fechas de la campaña viven en una tabla de Retail que se edita, y una copia aquí se quedaría vieja.
+  { mes: 10, dias: [23], texto: "Feliz aniversario CAYLA" },
   { mes: 12, dias: [24, 25], texto: "Feliz Navidad" },
 ];
 

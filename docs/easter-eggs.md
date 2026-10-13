@@ -39,7 +39,7 @@ uno.
 | 1 | Panel (cualquier pantalla) | Escribir el **código Konami** con el teclado: `↑ ↑ ↓ ↓ ← → ← → B A` | Un colibrí rojo cruza la pantalla en 3.4 s |
 | 2 | Panel, buscador (`⌘K`) | Escribir **`colibrí`** (con o sin tilde, con o sin mayúscula) y pulsar Enter | Se abre el juego del colibrí en una ventana |
 | 3 | Login | **Cinco clics seguidos** (dentro de 2 s) sobre el colibrí | El colibrí revolotea un instante |
-| 4 | Login | Entrar en **Navidad** (24 y 25 dic) o **Fiestas Patrias** (28 y 29 jul) | La línea de saludo suma «· Feliz Navidad» / «· Felices Fiestas Patrias» |
+| 4 | Login | Entrar en **Fiestas Patrias** (28 y 29 jul), el **aniversario** (23 oct) o **Navidad** (24 y 25 dic) | La línea de saludo suma «· Felices Fiestas Patrias» / «· Feliz aniversario CAYLA» / «· Feliz Navidad» |
 | 5 | Cualquier pantalla, **sin internet** | Abrir Dynamic sin conexión | Una página de aviso con el juego del colibrí (no es del todo secreta: ver abajo) |
 
 ### 1. El colibrí viajero (código Konami)
@@ -75,8 +75,8 @@ uno.
 
 ### 4. Toques de fecha en el saludo del login
 
-- **Hoy:** 24 y 25 de diciembre → «Feliz Navidad»; 28 y 29 de julio → «Felices
-  Fiestas Patrias». Se ve en la línea de saludo, por ejemplo: *Buenos días ·
+- **Hoy:** 28 y 29 de julio → «Felices Fiestas Patrias»; 23 de octubre → «Feliz
+  aniversario CAYLA»; 24 y 25 de diciembre → «Feliz Navidad». Se ve en la línea de saludo, por ejemplo: *Buenos días ·
   viernes 25 de diciembre · Feliz Navidad*.
 - **Manda el día de Lima**, no el del aparato ni el de UTC: a las 11 p. m. del
   24 en Lima sigue siendo el 24 aunque en UTC ya sea 25.
@@ -147,12 +147,11 @@ por el #2 y el #5. Cada vez que arranca una partida se sortea cuál toca:
   deja un tramo imposible. Si cambias los tiempos entre obstáculos y esa prueba
   falla, no es la prueba: es que dejaste el juego injusto.
 
-## Pendiente
+## Sobre el aniversario
 
-- **Aniversario de CAYLA.** Se pidió y no se hizo porque no hay una fecha que
-  copiar. En Retail «Aniversario CAYLA» es una **campaña con ventana de fechas
-  editable** (en la maqueta del plan de campañas, del 1 al 14 de octubre), no un
-  día. Para sumar el toque falta saber **qué día exacto** se celebra; con eso
-  es una línea en `TOQUES`. No se copió la ventana de Retail a propósito: viven
-  en una tabla de otro sistema, y una copia aquí se quedaría vieja el día que
-  alguien edite las fechas allá.
+El toque va el **23 de octubre**, el aniversario real. En Retail la campaña
+«Aniversario CAYLA» dura del 1 al 14 de octubre porque Felipe corrió la
+celebración para no cruzarse con Halloween (la migración
+`20260917230100_etiquetas_seed_comerciales_y_festividades.sql` lo deja escrito:
+«fecha real: 23 de octubre»). No se copió la ventana de la campaña: vive en una
+tabla de Retail que se edita, y una copia aquí se quedaría vieja.

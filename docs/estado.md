@@ -27,9 +27,8 @@ publicar, como siempre.
 - Se registra solo en producción. En `pnpm dev` no hace nada, para no dejar un
   service worker pegado a `localhost:3000`.
 
-**Pendiente.** El toque del **aniversario de CAYLA**: falta el día exacto (en
-Retail es una campaña con ventana editable, no un día). Ver el final de
-`easter-eggs.md`.
+**El aniversario** va el 23 de octubre (el día real; ver el final de
+`easter-eggs.md`).
 
 ---
 

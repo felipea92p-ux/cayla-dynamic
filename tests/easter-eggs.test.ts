@@ -108,15 +108,16 @@ describe("cinco clics seguidos", () => {
 });
 
 describe("toques de fecha", () => {
-  it("Fiestas Patrias el 28 y 29 de julio; Navidad el 24 y 25 de diciembre", () => {
+  it("Fiestas Patrias el 28 y 29 de julio; el aniversario el 23 de octubre; Navidad el 24 y 25 de diciembre", () => {
     expect(toqueDeFecha("2026-07-28")).toBe("Felices Fiestas Patrias");
     expect(toqueDeFecha("2026-07-29")).toBe("Felices Fiestas Patrias");
+    expect(toqueDeFecha("2026-10-23")).toBe("Feliz aniversario CAYLA");
     expect(toqueDeFecha("2026-12-24")).toBe("Feliz Navidad");
     expect(toqueDeFecha("2026-12-25")).toBe("Feliz Navidad");
   });
 
   it("cualquier otro día no lleva toque, ni el anterior ni el siguiente", () => {
-    for (const f of ["2026-07-27", "2026-07-30", "2026-12-23", "2026-12-26", "2026-10-13", "2026-01-01", "2026-02-29"]) {
+    for (const f of ["2026-07-27", "2026-07-30", "2026-12-23", "2026-12-26", "2026-10-13", "2026-10-22", "2026-10-24", "2026-01-01", "2026-02-29"]) {
       expect(toqueDeFecha(f)).toBeNull();
     }
   });
@@ -136,6 +137,10 @@ describe("el saludo del login con el toque de fecha", () => {
 
   it("en Fiestas Patrias también", () => {
     expect(saludoDelDia(lima(7, 28))).toBe("Buenos días · martes 28 de julio · Felices Fiestas Patrias");
+  });
+
+  it("el 23 de octubre, el aniversario", () => {
+    expect(saludoDelDia(lima(10, 23))).toBe("Buenos días · viernes 23 de octubre · Feliz aniversario CAYLA");
   });
 
   it("un día cualquiera queda exactamente como estaba", () => {
