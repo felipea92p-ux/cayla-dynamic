@@ -6,7 +6,7 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-10-13 — Info saluda en el mes de cumpleaños, y el bono es para todo el equipo salvo prueba y contratos cortos · 0518 PEGADA EN PRODUCCIÓN · 0520 (la unión con la 0519) ESCRITA Y PROBADA · SIN PEGAR · SIN FUSIONAR
+## 2026-10-13 — Info saluda en el mes de cumpleaños, y el bono es para todo el equipo salvo prueba y contratos cortos · 0518 y 0520 PEGADAS EN PRODUCCIÓN (2026-10-13) · 0519 NEUTRALIZADA · SIN FUSIONAR
 
 **El caso.** Daniel Ruiz, practicante, cumple en octubre, y el 13 no tenía nada
 en su Info ni en su Bandeja mientras DO lo veía como «Bono de cumpleaños sin
@@ -81,14 +81,30 @@ Su freno exige exactamente el estado actual de producción. La 0519 queda en
 `scripts/hooks/no-se-pegan.txt`; **la 0518 no se vuelve a pegar** (sus
 `create or replace` devolverían las puertas a la función vieja).
 
-**Queda, en este orden:**
-1. `./scripts/dame-el-sql.sh 0520` y pegar. El freno aborta solo si producción
-   no está como la foto; la comprobación final tiene que salir toda en `true`
-   con `520 · el_bono_de_cumpleanos_una_sola_regla_y_el_practicante_cobra_por_transferencia`.
-2. Fusionar el PR #526 (fusionar es publicar).
-3. Correr `scripts/sql-manual/diagnostico_bono_cumpleanos_daniel.sql` (solo
+**La 0520, auditada y pegada.** En `BEGIN … ROLLBACK` sobre el estado real de
+producción (la 0518): con la 0520 pasan las 13 pruebas que tocan bono o tablero
+(413 con 20 aserciones, 414 de main con 27, 377, 335, 376, 378, 123, 129, 131,
+132, 307, 334, 389); sin ella fallan solo la 413 y la 414 (la función unida no
+existe). Pegada dos veces: la segunda solo avisa. Sobre una base sin la 0518:
+su freno para sin tocar nada. **Pegada en producción el 2026-10-13** con la
+comprobación entera en `true` y el registro
+`520 · el_bono_de_cumpleanos_una_sola_regla_y_el_practicante_cobra_por_transferencia`.
+
+**La 0519, neutralizada.** Al subir la rama, `db-tests` cayó: una base desde
+cero corre 0518 → 0519 → 0520, y el freno de la 0519 abortaba la construcción
+entera («PARA. Producción no tiene el cuerpo…») — nadie habría podido levantar
+una base local con esto en `main`. La 0519 conserva su encabezado (la decisión
+de Felipe) y su fila (la prueba 122 la exige) y ya no ejecuta nada; su código
+vive en git y lo que decidía lo trae la 0520. Reproducido en local dentro de una
+transacción: 0518 → 0519 → 0520 deja exactamente el estado de producción, y las
+pruebas 413, 414, 377, 335, 376 y 378 pasan encima.
+
+**Queda:**
+1. `db-tests` y `ui-tests` en verde en el PR #526, y fusionar (fusionar es
+   publicar). Sin `--admin`.
+2. Correr `scripts/sql-manual/diagnostico_bono_cumpleanos_daniel.sql` (solo
    lee): Daniel en `este_mes`, con firma guardada.
-4. Si algún practicante firmó entre la 0518 y la 0520, su bono está en una
+3. Si alguna practicante firmó entre la 0518 y la 0520, su bono está en una
    boleta: `select p.nombres, d.fecha_firma from documentos_firmados d join
    personas p on p.id = d.persona_id where d.tipo = 'bono' and
    p.tipo_vinculo = 'practicante' and d.movimiento_id is not null;` — y DO
