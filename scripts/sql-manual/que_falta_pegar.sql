@@ -362,6 +362,7 @@ with repo(numero, nombre, nunca) as (values
     (501, 'la_rmv_sube_a_1230_y_la_escala_la_sigue', false),
     (502, 'la_subvencion_pactada_de_los_practicantes_sigue_a_la_rmv_de_1230', false),
     (503, 'el_archivo_de_la_empresa', false),
+    (504, 'los_practicantes_pasan_de_essalud_a_seguro_privado', false),
     (505, 'el_feriado_posterior_al_cese_no_corresponde', false),
     (506, 'un_alta_que_se_parece_a_alguien_pide_confirmacion', false),
     (507, 'el_alta_de_una_persona_solo_entra_por_fn_crear_persona', false),
@@ -376,7 +377,7 @@ with repo(numero, nombre, nunca) as (values
     (516, 'la_persona_deja_constancia_de_haber_leido', false),
     (517, 'la_persona_ve_como_va_con_sus_tardanzas', false),
     (518, 'a_quien_le_toca_el_bono_de_cumpleanos_se_dice_una_vez', false),
-    (519, 'el_bono_de_cumpleanos_tambien_lo_recibe_el_practicante', false),
+    (519, 'el_bono_de_cumpleanos_tambien_lo_recibe_el_practicante', true),
     (520, 'el_bono_de_cumpleanos_una_sola_regla_y_el_practicante_cobra_por_transferencia', false)
 ),
 diff as (
@@ -415,13 +416,18 @@ diff as (
 --   b) El número se anotó pero su contenido quedó SUPERADO por migraciones
 --      posteriores que sí están guardadas → NO commitear el archivo viejo, que
 --      podría crear una sobrecarga y repetir el «function is not unique» de la
---      0297/0299. Se anota el número en `huecos-conocidos.txt` con su razón.
---      Es el caso de la 0393, medido el 2026-09-08.
+--      0297/0299. Se anota en `huecos-conocidos.txt` con su razón y la marca
+--      `[sobra la fila: <nombre>]`: desde entonces sale acá como «ya
+--      explicada» y deja de contar como alarma. Es el caso de la 0393, medido
+--      el 2026-09-08.
 --
 -- Para distinguirlas hay que mirar si lo que esa migración creaba sigue vigente
--- en producción con la misma firma. Cero filas es lo normal.
+-- en producción con la misma firma. Cero filas SIN EXPLICAR es lo normal.
+explicadas(numero, nombre) as (values (393, 'cualquiera_guarda_su_propia_firma')),
 huerfanas as (
-  select a.numero, a.nombre, a.aplicada_at
+  select a.numero, a.nombre, a.aplicada_at,
+         exists (select 1 from explicadas e
+                  where e.numero = a.numero and e.nombre = a.nombre) as explicada
   from migraciones_aplicadas a
   where a.numero >= (select min(numero) from repo)
     and not exists (select 1 from repo r where r.numero = a.numero)
@@ -439,11 +445,14 @@ select * from (
 
   union all
 
-  -- Las huérfanas, una fila cada una y ANTES del resumen. Si hay alguna, es lo
-  -- único que importa de toda esta consulta.
+  -- Las huérfanas, una fila cada una y ANTES del resumen. Si hay alguna sin
+  -- explicar, es lo único que importa de toda esta consulta. Las explicadas se
+  -- siguen viendo —como las que no se pegan—, pero con su razón al lado.
   select a.numero::text,
          a.nombre,
-         '⚠️  SOBRA LA FILA — revísala (ver abajo)',
+         case when a.explicada
+              then '—   sobra la fila, ya explicada (ver scripts/hooks/huecos-conocidos.txt)'
+              else '⚠️  SOBRA LA FILA — revísala (ver abajo)' end,
          to_char(a.aplicada_at, 'DD/MM/YYYY'),
          999997
   from huerfanas a
@@ -458,13 +467,13 @@ select * from (
          (select count(*) filter (where not falta and not nunca_ira) from diff)::text || ' aplicadas · ' ||
          (select count(*) filter (where nunca_ira) from diff)::text || ' que no se pegan · ' ||
          (select count(*) from diff)::text || ' en git' ||
-         case when (select count(*) from huerfanas) > 0
-              then ' · ⚠️ ' || (select count(*) from huerfanas)::text || ' PEGADAS Y NO GUARDADAS'
+         case when (select count(*) filter (where not explicada) from huerfanas) > 0
+              then ' · ⚠️ ' || (select count(*) filter (where not explicada) from huerfanas)::text || ' PEGADAS Y NO GUARDADAS'
               else '' end,
-         -- Una huérfana manda sobre todo lo demás: que falte pegar algo es
-         -- atraso normal; que algo esté pegado y sin guardar es lo que costó
-         -- tres sustos y no avisa solo.
-         case when (select count(*) from huerfanas) > 0 then '⚠️  MIRA ARRIBA'
+         -- Una huérfana sin explicar manda sobre todo lo demás: que falte pegar
+         -- algo es atraso normal; que algo esté pegado y sin guardar es lo que
+         -- costó tres sustos y no avisa solo.
+         case when (select count(*) filter (where not explicada) from huerfanas) > 0 then '⚠️  MIRA ARRIBA'
               when (select count(*) filter (where falta) from diff) = 0
               then '✓   al día' else '❌  hay pendientes' end,
          '', 999999
