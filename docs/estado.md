@@ -6,6 +6,64 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-10-15 — Los practicantes pasan de EsSalud al seguro FOLA · migración 0504 · ESCRITA Y PROBADA · SIN PEGAR · SIN FUSIONAR
+
+**Qué es.** La planilla deja de calcular `aporte_essalud` para los practicantes
+(una línea de `fn_planilla_calcular_nucleo`), el motivo que `fn_set_tipo_vinculo`
+guarda al pasar a alguien a practicante deja de prometer EsSalud, y el convenio de
+prácticas dice «seguro privado» (Ley 28518, art. 42.8). Nada más cambia para un
+practicante: movilidad y educación siguen igual (0397 no se toca).
+
+**La póliza ya existe.** Cuatro pólizas individuales de «Seguro de Salud
+Practicantes» de Pacífico (N.º 24043264 a 24043267), emitidas el 14/10/2026, con
+vigencia **01/10/2026 → 01/01/2027** (92 días). Prima S/ 179.97 con IGV por póliza,
+unos S/ 60 al mes contra S/ 110.70 de EsSalud. Los papeles no se guardan en el
+repo (llevan nombres): viven en el correo de Felipe y con el corredor.
+
+**Lo que Felipe tiene que hacer, y no es el SQL.**
+
+| Qué | Cuándo | Si no |
+|---|---|---|
+| **Pagar las cuatro primas** (S/ 719.88 en total, contado) | **antes del 31/10/2026** | El convenio de pago dice que con 30 días de mora la cobertura se suspende, y Pacífico no responde por lo ocurrido durante la suspensión |
+| **Firmar y devolver póliza y convenio de pago** | cuanto antes | Pacífico los pide firmados; la casilla del asegurado/contratante está en blanco en los cuatro |
+| **Renovar la póliza** | **antes del 01/01/2027** | Desde ese día los practicantes quedan sin seguro, y la planilla ya no calcula EsSalud al que volver |
+| **Confirmar con el corredor el «Beneficio máximo anual»** | **antes de fusionar el PR** | La casilla está VACÍA en las cuatro pólizas y la Tabla de Beneficios no viene adjunta: el mínimo de 14 / 30 subvenciones que el convenio nuevo promete no se puede comprobar con estos papeles |
+| **Preguntarle si la póliza alcanza a la modalidad preprofesional** | **antes de fusionar el PR** | El resumen dice que cubre a quien esté en un convenio de «Formación Laboral Juvenil o Prácticas Profesionales» |
+
+**Antes de pegar la 0504 (en este orden).**
+1. Correr [`antes_de_pegar_la_0504.sql`](../scripts/sql-manual/antes_de_pegar_la_0504.sql)
+   en producción: da los md5 de las dos funciones y **quiénes son hoy los
+   practicantes**. Tienen que ser exactamente las cuatro personas de las pólizas:
+   la migración quita el EsSalud a todos los practicantes de una vez y la póliza
+   es nominal.
+2. Pedir el SQL con `./scripts/dame-el-sql.sh 504` (md5 de partida y cruce de
+   nombres ya contestados en ese mismo mensaje).
+3. **Pegarla ANTES de fusionar el PR**, porque el PR trae el texto nuevo del
+   convenio.
+
+**Un choque que se vio y quedó frenado.** La rama
+`claude/youthful-joliot-8dd9cb` (pasar a planilla pregunta desde cuándo empieza el
+vínculo laboral, SIN PR) también reescribe `fn_set_tipo_vinculo`, y le cambia la
+firma. Si cualquiera de las dos se pega primero y la otra no se rehace, la segunda
+pisaría a la primera o dejaría dos versiones con los mismos dos argumentos
+(«function is not unique», la forma de la 0297/0299). La 0504 ahora lo comprueba
+antes de tocar nada y se detiene si esa función no es la de la 0324; se probó con
+funciones de mentira dentro de `begin … rollback`: pasa con la 0324 real y frena
+con una de cinco argumentos, con una sobrecarga extra y con una de dos argumentos
+sin el marcador. La rama de «pasar a planilla» ya traía su propio freno por md5
+de la 0324, así que si la 0504 entra primero ella se detiene en vez de pisar: tendrá
+que rehacerse partiendo del cuerpo de la 0504.
+
+**Lo que no se midió en esta Mac.** El Postgres local está en la migración 338 y
+no tiene `fn_planilla_calcular_nucleo`, así que la parte de planilla de la 0504 se
+audita con `db-tests` de GitHub Actions (construye la base desde cero y corre la
+prueba 398). Auditoría anterior, del 2026-10-02 en un Postgres desechable con
+control: 398 daba 6/8 sin la migración y 8/8 con ella, y el resto de la suite era
+idéntico con y sin 0504. `fn_planilla_calcular_nucleo` sigue siendo la 0495 en
+`main`, o sea que el cuerpo del que parte no cambió.
+
+---
+
 ## 2026-10-13 — Easter eggs y el colibrí sin internet · SIN SQL · SIN FUSIONAR
 
 **Qué es.** Cinco secretos pasivos y una página para cuando no hay internet,

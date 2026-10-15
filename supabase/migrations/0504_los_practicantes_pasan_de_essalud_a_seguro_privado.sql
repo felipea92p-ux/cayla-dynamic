@@ -21,8 +21,10 @@
 --   y 30 por accidente. El art. 47 dice que el aporte a EsSalud es voluntario.
 --   La 0322 eligió EsSalud. Desde el 2026-10-02 CAYLA elige el seguro privado
 --   FOLA, por consejo del contador (Dante) —que no encuentra cómo declarar a
---   los practicantes en EsSalud—, y la prima sale más barata: ~S/ 80 al mes
---   por persona (plan 2 de Pacífico, administrativos) contra S/ 110.70.
+--   los practicantes en EsSalud—, y la prima sale más barata. Se estimó en
+--   ~S/ 80 al mes por persona (plan 2 de Pacífico, administrativos); la póliza
+--   que de verdad se emitió (2026-10-14, «Seguro de Salud Practicantes») cuesta
+--   S/ 179.97 con IGV por 92 días —unos S/ 60 al mes— contra S/ 110.70 de EsSalud.
 --
 --   DECIDÍ:     Quitar el aporte de EsSalud del cálculo de planilla.
 --   DESCARTÉ:   Dejarlo «por si acaso». Un aporte que la planilla calcula y
@@ -35,12 +37,35 @@
 --
 -- ⚠ ANTES DE PEGAR (en este orden, y se pregunta SIEMPRE a Felipe)
 --
---   1. La póliza FOLA existe, con fecha de inicio, y cubre accidentes durante
---      la práctica (el folleto de Pacífico excluye «accidentes de trabajo»:
---      confirmar por escrito con el corredor, Enrique Hamada).
---   2. El contador confirma que no hay nada que dar de baja en EsSalud.
---   3. Se vuelve a pedir el md5 de producción de las dos funciones (abajo).
---   4. Se pega ANTES de fusionar el PR con el texto nuevo del convenio.
+--   1. [LISTO 2026-10-15] La póliza FOLA existe: cuatro pólizas individuales
+--      de «Seguro de Salud Practicantes» de Pacífico (N.º 24043264 a 24043267),
+--      emitidas el 2026-10-14, vigencia 2026-10-01 → 2027-01-01 (92 días).
+--      Felipe confirmó que el corredor (Enrique Hamada) ratificó por escrito que
+--      cubre accidentes durante la práctica. El resumen de las pólizas tampoco
+--      trae la exclusión de «accidentes de trabajo» que sí traía el folleto del
+--      plan 2 de administrativos.
+--   2. [LISTO] El contador confirmó que no hay nada que dar de baja en EsSalud.
+--   3. [PENDIENTE] Cruzar quién es practicante activo HOY contra los CUATRO
+--      asegurados. Esta migración quita el EsSalud a TODOS los practicantes de
+--      una vez y la póliza es nominal: quien no esté en una de las cuatro queda
+--      sin ningún seguro (Ley 28518, art. 52.5).
+--   4. [PENDIENTE] Se vuelve a pedir el md5 de producción de las dos funciones.
+--   5. Se pega ANTES de fusionar el PR con el texto nuevo del convenio.
+--   6. [SIN VERIFICAR] Las condiciones particulares traen VACÍA la casilla
+--      «Beneficio máximo anual por persona» y la Tabla de Beneficios no viene
+--      adjunta. El mínimo de 14 / 30 subvenciones y el texto del convenio que lo
+--      promete («que alcanza también los accidentes ocurridos durante la
+--      ejecución de la práctica») se confirman con el corredor ANTES de fusionar
+--      el PR: ese papel lo firman los practicantes.
+--
+--   Dos fechas que no frenan el pegado pero sí la cobertura:
+--   · La prima vence el 2026-10-31 (contado, S/ 179.97 por póliza). El convenio
+--     de pago dice que con 30 días de mora la cobertura se suspende.
+--   · La póliza vence el 2027-01-01. Sin renovación, desde ese día los
+--     practicantes quedan sin seguro y la planilla ya no tiene EsSalud al que
+--     volver. Además la póliza cubre solo a quien esté en un convenio de
+--     «Formación Laboral Juvenil o Prácticas Profesionales»: confirmar con el
+--     corredor que alcanza a los de modalidad preprofesional.
 --
 -- QUÉ ASUME
 --
@@ -90,7 +115,26 @@
 do $freno$
 declare
   v_prosrc text;
+  v_n      int;
+  v_tipo   text;
+  v_args   int;
 begin
+  -- fn_set_tipo_vinculo: el create or replace de abajo copia la 0324, que tiene
+  -- DOS argumentos. Si otra migración le cambió la firma (la rama de «pasar a
+  -- planilla», 0518 en su rama, le agrega argumentos), esto no la reemplazaría:
+  -- crearía una SEGUNDA sobrecarga con los mismos dos argumentos y toda llamada
+  -- `fn_set_tipo_vinculo(id, tipo)` fallaría con «function is not unique» (la
+  -- forma de la 0297/0299). Se mira antes de tocar nada.
+  select count(*) into v_n from pg_proc where proname = 'fn_set_tipo_vinculo';
+  if v_n <> 1 then
+    raise exception 'PARA. fn_set_tipo_vinculo tiene % versiones (se esperaba 1, la de la 0324): pegar esta migración crearía una sobrecarga ambigua. Reconstruir desde la vigente con donde-vive.sh.', v_n;
+  end if;
+
+  select prosrc, pronargs into v_tipo, v_args from pg_proc where proname = 'fn_set_tipo_vinculo';
+  if v_args <> 2 or position('CAMBIO 0324' in v_tipo) = 0 or position('CAMBIO 0518' in v_tipo) > 0 then
+    raise exception 'PARA. fn_set_tipo_vinculo ya no es la de la 0324 (% argumentos): alguien la cambió después. Esta migración copiaría la 0324 y la revertiría en silencio. Reconstruir desde la vigente con donde-vive.sh.', v_args;
+  end if;
+
   select prosrc into v_prosrc from pg_proc where proname = 'fn_planilla_calcular_nucleo';
 
   if v_prosrc is null then
