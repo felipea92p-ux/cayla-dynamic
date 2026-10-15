@@ -24,20 +24,21 @@ repo (llevan nombres): viven en el correo de Felipe y con el corredor.
 
 | Qué | Cuándo | Si no |
 |---|---|---|
-| **Pagar las cuatro primas** (S/ 719.88 en total, contado) | **antes del 31/10/2026** | El convenio de pago dice que con 30 días de mora la cobertura se suspende, y Pacífico no responde por lo ocurrido durante la suspensión |
+| ~~**Pagar las cuatro primas** (S/ 719.88 en total, contado)~~ | ✅ **pagadas** — lo informó Felipe el 15/10/2026 (vencían el 31/10) | Con 30 días de mora la cobertura se suspende. Queda pedir las facturas, que Pacífico emite al pagar: Dante las va a necesitar |
 | **Firmar y devolver póliza y convenio de pago** | cuanto antes | Pacífico los pide firmados; la casilla del asegurado/contratante está en blanco en los cuatro |
 | **Renovar la póliza** | **antes del 01/01/2027** | Desde ese día los practicantes quedan sin seguro, y la planilla ya no calcula EsSalud al que volver |
 | **Confirmar con el corredor el «Beneficio máximo anual»** | **antes de fusionar el PR** | La casilla está VACÍA en las cuatro pólizas y la Tabla de Beneficios no viene adjunta: el mínimo de 14 / 30 subvenciones que el convenio nuevo promete no se puede comprobar con estos papeles |
-| **Preguntarle si la póliza alcanza a la modalidad preprofesional** | **antes de fusionar el PR** | El resumen dice que cubre a quien esté en un convenio de «Formación Laboral Juvenil o Prácticas Profesionales» |
+| **Preguntarle si la póliza alcanza a la modalidad preprofesional** | **antes de fusionar el PR** | El resumen dice que cubre a quien esté en un convenio de «Formación Laboral Juvenil o Prácticas Profesionales», y **dos de los cuatro asegurados son preprofesionales** (los otros dos, profesionales). Pedirlo por escrito |
 
 **Antes de pegar la 0504 (en este orden).**
-1. Correr [`antes_de_pegar_la_0504.sql`](../scripts/sql-manual/antes_de_pegar_la_0504.sql)
-   en producción: da los md5 de las dos funciones y **quiénes son hoy los
-   practicantes**. Tienen que ser exactamente las cuatro personas de las pólizas:
-   la migración quita el EsSalud a todos los practicantes de una vez y la póliza
-   es nominal.
-2. Pedir el SQL con `./scripts/dame-el-sql.sh 504` (md5 de partida y cruce de
-   nombres ya contestados en ese mismo mensaje).
+1. ✅ **Hecho el 15/10/2026.** [`antes_de_pegar_la_0504.sql`](../scripts/sql-manual/antes_de_pegar_la_0504.sql)
+   corrido en producción: `fn_planilla_calcular_nucleo` md5 `27dda408…`, 116375
+   caracteres, 0 retornos de carro (igual a la 0495 del repo); `fn_set_tipo_vinculo`
+   md5 `547088d9…`, 2610 caracteres, una sola versión (la 0324). Y los practicantes
+   no cesados son exactamente cuatro, las cuatro personas de las pólizas: la
+   migración quita el EsSalud a todos de una vez y la póliza es nominal.
+2. Pedir el SQL con `./scripts/dame-el-sql.sh 504`, volviendo a mirar `main` en
+   ese mismo mensaje (un md5 es una foto, no una garantía).
 3. **Pegarla ANTES de fusionar el PR**, porque el PR trae el texto nuevo del
    convenio.
 
@@ -61,6 +62,14 @@ prueba 398). Auditoría anterior, del 2026-10-02 en un Postgres desechable con
 control: 398 daba 6/8 sin la migración y 8/8 con ella, y el resto de la suite era
 idéntico con y sin 0504. `fn_planilla_calcular_nucleo` sigue siendo la 0495 en
 `main`, o sea que el cuerpo del que parte no cambió.
+
+**Lo que dijo `db-tests` en el primer intento (commit `d675dba8`).** Falló UNA
+aserción, la 41 de la prueba **396** (la de la 0502): afirmaba que el practicante
+genera S/ 110.70 de EsSalud, que es justo lo que la 0504 quita a propósito. Esa
+prueba entró a `main` después de que se escribió la 0504, así que la rama vieja no
+podía verla. Se ajustó a 0.00 y se dice por qué en la propia prueba. La **398**
+pasó, o sea que la migración entera se aplicó sobre una base armada desde cero,
+freno nuevo incluido.
 
 ---
 

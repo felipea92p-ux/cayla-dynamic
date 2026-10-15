@@ -45,11 +45,15 @@
 --      trae la exclusión de «accidentes de trabajo» que sí traía el folleto del
 --      plan 2 de administrativos.
 --   2. [LISTO] El contador confirmó que no hay nada que dar de baja en EsSalud.
---   3. [PENDIENTE] Cruzar quién es practicante activo HOY contra los CUATRO
+--   3. [LISTO 2026-10-15] Cruzado quién es practicante HOY contra los CUATRO
 --      asegurados. Esta migración quita el EsSalud a TODOS los practicantes de
---      una vez y la póliza es nominal: quien no esté en una de las cuatro queda
---      sin ningún seguro (Ley 28518, art. 52.5).
---   4. [PENDIENTE] Se vuelve a pedir el md5 de producción de las dos funciones.
+--      una vez y la póliza es nominal: quien no estuviera en una de las cuatro
+--      quedaría sin ningún seguro (Ley 28518, art. 52.5). Medido en producción
+--      (`scripts/sql-manual/antes_de_pegar_la_0504.sql`): hay exactamente cuatro
+--      practicantes no cesados y son las cuatro personas de las pólizas.
+--   4. [LISTO 2026-10-15] md5 de producción de las dos funciones, pedido y
+--      comparado (ver QUÉ ASUME). Se vuelve a mirar `main` en el mensaje que
+--      entrega el SQL.
 --   5. Se pega ANTES de fusionar el PR con el texto nuevo del convenio.
 --   6. [SIN VERIFICAR] Las condiciones particulares traen VACÍA la casilla
 --      «Beneficio máximo anual por persona» y la Tabla de Beneficios no viene
@@ -59,25 +63,33 @@
 --      el PR: ese papel lo firman los practicantes.
 --
 --   Dos fechas que no frenan el pegado pero sí la cobertura:
---   · La prima vence el 2026-10-31 (contado, S/ 179.97 por póliza). El convenio
---     de pago dice que con 30 días de mora la cobertura se suspende.
+--   · La prima vencía el 2026-10-31 (contado, S/ 179.97 por póliza); Felipe
+--     informó el 2026-10-15 que las cuatro están pagadas. El convenio de pago
+--     dice que con 30 días de mora la cobertura se suspende.
 --   · La póliza vence el 2027-01-01. Sin renovación, desde ese día los
 --     practicantes quedan sin seguro y la planilla ya no tiene EsSalud al que
 --     volver. Además la póliza cubre solo a quien esté en un convenio de
---     «Formación Laboral Juvenil o Prácticas Profesionales»: confirmar con el
---     corredor que alcanza a los de modalidad preprofesional.
+--     «Formación Laboral Juvenil o Prácticas Profesionales»: de los cuatro
+--     asegurados, dos son de modalidad PREPROFESIONAL y dos PROFESIONAL.
+--     Confirmar con el corredor, por escrito, que alcanza a los dos primeros.
 --
 -- QUÉ ASUME
 --
 --   · La 0495 es la versión vigente de `fn_planilla_calcular_nucleo`. Medido
---     en producción el 2026-10-02: md5 27dda4084d0efbad293c36d66a39adf7,
---     116375 caracteres, 0 retornos de carro (`\r`), el marcador «CAMBIO 0495»
---     en la posición 15443 — idéntico, byte a byte, al cuerpo de la 0495 del
---     repositorio. Ninguna migración posterior en `main` ni en las ramas
---     abiertas la redefine (la 0496 solo la llama).
---   · `fn_set_tipo_vinculo` es la de la 0324 (la última; ninguna rama la
---     redefine después). Su md5 de producción NO se midió todavía: pedirlo
---     junto con el de arriba justo antes de entregar.
+--     en producción el 2026-10-02 y vuelto a medir el 2026-10-15: md5
+--     27dda4084d0efbad293c36d66a39adf7, 116375 caracteres, 0 retornos de carro
+--     (`\r`) — idéntico, byte a byte, al cuerpo de la 0495 del repositorio. (Esta
+--     cabecera decía que el marcador «CAMBIO 0495» estaba en la posición 15443:
+--     era una errata. El cuerpo NO trae ese texto; en 15443 está «CAMBIO 0491
+--     (repuesto en la 0495)». Producción y repositorio coinciden igual.) Ninguna
+--     migración posterior en `main` ni en las ramas abiertas la redefine (la 0496
+--     solo la llama).
+--   · `fn_set_tipo_vinculo` es la de la 0324. Medida en producción el
+--     2026-10-15: UNA sola versión, de dos argumentos, md5
+--     547088d9594f6d6ec4d23428b00d6e42, 2610 caracteres, 0 retornos de carro —
+--     la misma que el Postgres local. Otra rama sin PR (la 0518 de «pasar a
+--     planilla») la reescribe con otra firma; el freno de abajo se detiene si ya
+--     no es esta.
 --   · Repegarla NO es seguro, y por eso falla a propósito: el `create or replace`
 --     de abajo copia la 0495, así que sobre una versión posterior la pisaría. El
 --     freno se detiene si la función ya trae el marcador «CAMBIO 0504». (Un
