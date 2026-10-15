@@ -6,7 +6,24 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-10-15 — Los practicantes pasan de EsSalud al seguro FOLA · migración 0504 · ESCRITA Y PROBADA · SIN PEGAR · SIN FUSIONAR
+## 2026-10-15 — Los practicantes pasan de EsSalud al seguro FOLA · migración 0504 · PEGADA Y VERIFICADA EN PRODUCCIÓN · SIN FUSIONAR (PR #532, borrador)
+
+**Pegada y verificada el 2026-10-15.** El SQL Editor devolvió el registro
+`504 · los_practicantes_pasan_de_essalud_a_seguro_privado`, y una consulta aparte,
+escrita ANTES con los valores esperados calculados sobre el archivo, dio `true` en
+las once filas: `fn_planilla_calcular_nucleo` con md5 `f1781d68…` y 116749
+caracteres, `fn_set_tipo_vinculo` con md5 `da6490ac…` y 2624 caracteres, una sola
+versión de cada una, 0 retornos de carro, y el marcador «CAMBIO 0504» en la
+planilla. Lo que eso garantiza es el texto de las dos funciones; que un practicante
+dé EsSalud 0.00 en el cálculo en vivo lo prueba la 398 en CI, y **no se midió contra
+una planilla real de producción**. Los periodos ya congelados no se recalculan.
+
+**Falta fusionar el PR, y fusionar ES publicar.** Trae el texto nuevo del convenio
+(«seguro privado», 14 / 30 subvenciones), que los practicantes firman; no se
+fusiona hasta confirmar con el corredor el «Beneficio máximo anual» y si la póliza
+alcanza a la modalidad preprofesional (ver la tabla de abajo). La prueba 396 de la
+0502 ya está ajustada en el PR; sin ese ajuste `main` quedaría con `db-tests` en
+rojo.
 
 **Qué es.** La planilla deja de calcular `aporte_essalud` para los practicantes
 (una línea de `fn_planilla_calcular_nucleo`), el motivo que `fn_set_tipo_vinculo`
@@ -37,10 +54,10 @@ repo (llevan nombres): viven en el correo de Felipe y con el corredor.
    md5 `547088d9…`, 2610 caracteres, una sola versión (la 0324). Y los practicantes
    no cesados son exactamente cuatro, las cuatro personas de las pólizas: la
    migración quita el EsSalud a todos de una vez y la póliza es nominal.
-2. Pedir el SQL con `./scripts/dame-el-sql.sh 504`, volviendo a mirar `main` en
-   ese mismo mensaje (un md5 es una foto, no una garantía).
-3. **Pegarla ANTES de fusionar el PR**, porque el PR trae el texto nuevo del
-   convenio.
+2. ✅ **Hecho el 15/10/2026.** Entregada con `./scripts/dame-el-sql.sh 504`,
+   mirando `main` en ese mismo mensaje (no se había movido).
+3. ✅ **Pegada ANTES de fusionar el PR**, como manda el orden: el PR trae el texto
+   nuevo del convenio.
 
 **Un choque que se vio y quedó frenado.** La rama
 `claude/youthful-joliot-8dd9cb` (pasar a planilla pregunta desde cuándo empieza el
@@ -54,6 +71,14 @@ con una de cinco argumentos, con una sobrecarga extra y con una de dos argumento
 sin el marcador. La rama de «pasar a planilla» ya traía su propio freno por md5
 de la 0324, así que si la 0504 entra primero ella se detiene en vez de pisar: tendrá
 que rehacerse partiendo del cuerpo de la 0504.
+
+**Y la 0504 ya entró primero.** Producción tiene desde el 15/10/2026
+`fn_set_tipo_vinculo` con md5 `da6490ac5d12722e38fcba0a2d47dea9` y 2624 caracteres.
+Quien retome la 0518 de «pasar a planilla» (`claude/youthful-joliot-8dd9cb`) tiene
+que partir de ESE cuerpo —el de la 0504, en `main` cuando se fusione—, no del de la
+0324, y cambiar su md5 de partida (hoy declara `547088d9…`, 2610 caracteres): su
+freno se detendrá, que es lo que se quiere. La única diferencia con la 0324 es la
+frase del motivo de auditoría que se guarda al pasar a alguien a practicante.
 
 **Lo que no se midió en esta Mac.** El Postgres local está en la migración 338 y
 no tiene `fn_planilla_calcular_nucleo`, así que la parte de planilla de la 0504 se
