@@ -718,99 +718,22 @@ function EducacionContenido() {
                   <Boton variante="enlace" className="text-xs" onClick={() => setConfigAbierta(true)}>Texto y plazos de las constancias</Boton>
                 </p>
 
-                {/* ── CÓMO FUNCIONA y DÓNDE ESTÁN: lo que pregunta quien llega nuevo o audita ── */}
-                <div className="mb-5 grid gap-3 lg:grid-cols-2">
-                  <details className="rounded-2xl border border-sand p-4">
-                    <summary className="cursor-pointer font-serif text-base">Cómo funciona el incentivo de educación</summary>
-                    <div className="mt-3 space-y-3 text-sm">
-                      <p>
-                        Es un apoyo para los estudios de la integrante o de sus hijos. No es remuneración mientras lo
-                        sostenga un comprobante (art. 19 f) del D.S. 001-97-TR): por eso cada pago lleva su constancia.
-                      </p>
-                      <div>
-                        <p className="font-medium">Cuánto se paga</p>
-                        <p className="text-taupe">
-                          El {COBERTURA} % del costo que dice el comprobante, con un techo mensual según el rango. Si la
-                          persona tiene varios estudios, el techo se reparte: el primero que se registró conserva su
-                          monto y el siguiente recibe lo que queda.
-                        </p>
-                      </div>
-                      <div>
-                        <p className="font-medium">Techo mensual por rango</p>
-                        {niveles.length === 0 ? (
-                          <p className="text-taupe">No hay personas activas para mostrar sus rangos.</p>
-                        ) : (
-                          <table className="mt-1 w-full max-w-sm text-sm">
-                            <thead className="text-left text-xs uppercase tracking-wide text-taupe">
-                              <tr><th className="py-1 font-medium">Rango</th><th className="py-1 font-medium">Techo</th><th className="py-1 font-medium">Personas</th></tr>
-                            </thead>
-                            <tbody>
-                              {niveles.map((n) => (
-                                <tr key={n.rango} className="border-t border-sand">
-                                  <td className="py-1">{n.rango === "—" ? "sin rango asignado" : n.rango}</td>
-                                  <td className="py-1 tabular-nums">{n.tope === null ? "sin techo cargado" : soles(n.tope)}</td>
-                                  <td className="py-1 tabular-nums">{n.personas}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        )}
-                        <p className="mt-1 text-xs text-taupe">Solo salen los rangos que hoy tienen personas activas.</p>
-                      </div>
-                      <div>
-                        <p className="font-medium">La constancia</p>
-                        <p className="text-taupe">
-                          Una por cada pago a la institución. Vence {config.plazo} días antes del cierre del periodo en
-                          que cae el pago. Se avisa a la integrante {config.avisoColab} días antes del plazo y a
-                          Desarrollo Organizacional {config.avisoDo} días antes del pago.
-                        </p>
-                      </div>
-                      <div>
-                        <p className="font-medium">Qué pasa si falta</p>
-                        <p className="text-taupe">
-                          Un apoyo empieza a pagarse cuando tiene su primera constancia aprobada. Después, aprobar o
-                          rechazar la de cada mes no cambia lo que se paga: es una alerta. Pero sin constancia el apoyo
-                          pierde su respaldo, y por eso una vencida o rechazada pide atención.
-                        </p>
-                      </div>
-                    </div>
-                  </details>
-
-                  <details className="rounded-2xl border border-sand p-4">
-                    <summary className="cursor-pointer font-serif text-base">Dónde están las constancias</summary>
-                    <div className="mt-3 space-y-3 text-sm">
-                      <div>
-                        <p className="font-medium">Los archivos</p>
-                        <p className="text-taupe">
-                          Se guardan en el almacén privado «{BUCKET_COMPROBANTES}», en la carpeta de cada persona
-                          (educacion/&lt;persona&gt;/entregas/…). No hay enlace público: se abren con sesión y un
-                          enlace que dura pocos minutos. Los ve Desarrollo Organizacional y la propia integrante.
-                        </p>
-                      </div>
-                      <div>
-                        <p className="font-medium">El registro</p>
-                        <p className="text-taupe">
-                          Cada constancia guarda quién la envió y cuándo, quién la revisó y cuándo, y el motivo si se
-                          rechazó. Desde el sistema no se edita ni se borra: si algo está mal, se envía otra, y una
-                          pendiente solo se retira y queda marcada. Se ve abriendo el estudio de cada persona.
-                        </p>
-                      </div>
-                      <p className="rounded-lg bg-hueso px-3 py-2 tabular-nums">
-                        {situaciones.length} estudios · {situaciones.reduce((t, s) => t + s.aprobadas, 0)} constancias aprobadas
-                        · {pendientes.length} por revisar
-                      </p>
-                      <div>
-                        <Boton variante="secundario" tamano="sm" cargando={exportando} onClick={() => void exportarCuadro()}>
-                          Descargar cuadro (CSV)
-                        </Boton>
-                        <p className="mt-1 text-xs text-taupe">
-                          Una fila por constancia y archivo, de todos los estudios: persona, estado, fechas, quién
-                          revisó y la ruta del archivo. Lleva datos personales: no se sube a git ni se reenvía.
-                        </p>
-                      </div>
-                    </div>
-                  </details>
+                {/* ── PESTAÑAS: en qué punto está cada persona (por la constancia) ── */}
+                <div role="group" aria-label="Grupo" className="mb-1 flex flex-wrap gap-2">
+                  {([[null, "Todos", deLaBusqueda.length] as const,
+                    ...GRUPOS_EDUCACION.map((g) => [g.clave, g.etiqueta, conteoGrupo[g.clave]] as const)]).map(([clave, etiqueta, n]) => (
+                    <button key={clave ?? "todos"} type="button" aria-pressed={grupo === clave}
+                      onClick={() => setGrupo(clave)}
+                      className={`rounded-full border px-4 py-1.5 text-sm transition-colors ${grupo === clave ? "border-tinta bg-tinta text-crema" : "border-sand bg-papel hover:border-taupe"}`}>
+                      {etiqueta} <span className="tabular-nums opacity-80">{n}</span>
+                    </button>
+                  ))}
                 </div>
+                <p className="mb-4 min-h-5 text-xs text-taupe">
+                  {grupo === null
+                    ? "Todos los estudios, con lo que pide acción primero."
+                    : GRUPOS_EDUCACION.find((g) => g.clave === grupo)?.ayuda}
+                </p>
 
                 {/* ── SOLICITUDES DE APOYO (0461): quien todavía no tiene asignación ── */}
                 {solicitudesPendientes.length > 0 && (
@@ -834,60 +757,6 @@ function EducacionContenido() {
                     </ul>
                   </div>
                 )}
-
-                {/* ── HISTORIAL DE SOLICITUDES (0461): aprobadas y rechazadas ──── */}
-                <details className="mb-5 rounded-2xl border border-sand p-4"
-                  onToggle={(e) => { if (e.currentTarget.open) void cargarHistorialSolicitudes(); }}>
-                  <summary className="cursor-pointer font-serif text-base">Historial de solicitudes de apoyo</summary>
-                  <div className="mt-3">
-                    <p className="mb-2 text-xs text-taupe">
-                      Son pedidos de apoyo resueltos, no constancias: una solicitud rechazada aquí no suma a la tarjeta
-                      «Constancias rechazadas».
-                    </p>
-                    {cargandoHistorialSol ? (
-                      <Cargando />
-                    ) : historialSolicitudes === null ? null : historialSolicitudes.length === 0 ? (
-                      <p className="text-sm text-taupe">Todavía no se resolvió ninguna solicitud.</p>
-                    ) : (
-                      <ul className="flex flex-col divide-y divide-sand text-sm">
-                        {historialSolicitudes.map((h) => {
-                          const est = ESTADO_SOLICITUD[h.estado];
-                          return (
-                            <li key={h.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
-                              <span>
-                                <span className="font-medium">{h.persona}</span>
-                                <span className="text-taupe"> · {h.institucion} · costo declarado {soles(h.costo_declarado)}</span>
-                                <span className="block text-xs text-taupe">
-                                  Pedida el {fechaCorta(h.enviada_at)}
-                                  {h.revisada_at && ` · revisada el ${fechaCorta(h.revisada_at)}`}
-                                  {h.estado === "rechazada" && h.motivo_rechazo && ` · «${h.motivo_rechazo}»`}
-                                </span>
-                              </span>
-                              <Insignia variante={est.tono}>{est.etiqueta}</Insignia>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    )}
-                  </div>
-                </details>
-
-                {/* ── PESTAÑAS: en qué punto está cada persona (por la constancia) ── */}
-                <div role="group" aria-label="Grupo" className="mb-1 flex flex-wrap gap-2">
-                  {([[null, "Todos", deLaBusqueda.length] as const,
-                    ...GRUPOS_EDUCACION.map((g) => [g.clave, g.etiqueta, conteoGrupo[g.clave]] as const)]).map(([clave, etiqueta, n]) => (
-                    <button key={clave ?? "todos"} type="button" aria-pressed={grupo === clave}
-                      onClick={() => setGrupo(clave)}
-                      className={`rounded-full border px-4 py-1.5 text-sm transition-colors ${grupo === clave ? "border-tinta bg-tinta text-crema" : "border-sand bg-papel hover:border-taupe"}`}>
-                      {etiqueta} <span className="tabular-nums opacity-80">{n}</span>
-                    </button>
-                  ))}
-                </div>
-                <p className="mb-4 min-h-5 text-xs text-taupe">
-                  {grupo === null
-                    ? "Todos los estudios, con lo que pide acción primero."
-                    : GRUPOS_EDUCACION.find((g) => g.clave === grupo)?.ayuda}
-                </p>
 
                 {/* ── FILTROS ─────────────────────────────────────────────────── */}
                 <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
@@ -1077,6 +946,137 @@ function EducacionContenido() {
                     </ul>
                   </>
                 )}
+
+                {/* ── CÓMO FUNCIONA y DÓNDE ESTÁN: lo que pregunta quien llega nuevo o audita ── */}
+                <div className="mb-5 mt-8 grid gap-3 lg:grid-cols-2">
+                  <details className="rounded-2xl border border-sand p-4">
+                    <summary className="cursor-pointer font-serif text-base">Cómo funciona el incentivo de educación</summary>
+                    <div className="mt-3 space-y-3 text-sm">
+                      <p>
+                        Es un apoyo para los estudios de la integrante o de sus hijos. No es remuneración mientras lo
+                        sostenga un comprobante (art. 19 f) del D.S. 001-97-TR): por eso cada pago lleva su constancia.
+                      </p>
+                      <div>
+                        <p className="font-medium">Cuánto se paga</p>
+                        <p className="text-taupe">
+                          El {COBERTURA} % del costo que dice el comprobante, con un techo mensual según el rango. Si la
+                          persona tiene varios estudios, el techo se reparte: el primero que se registró conserva su
+                          monto y el siguiente recibe lo que queda.
+                        </p>
+                      </div>
+                      <div>
+                        <p className="font-medium">Techo mensual por rango</p>
+                        {niveles.length === 0 ? (
+                          <p className="text-taupe">No hay personas activas para mostrar sus rangos.</p>
+                        ) : (
+                          <table className="mt-1 w-full max-w-sm text-sm">
+                            <thead className="text-left text-xs uppercase tracking-wide text-taupe">
+                              <tr><th className="py-1 font-medium">Rango</th><th className="py-1 font-medium">Techo</th><th className="py-1 font-medium">Personas</th></tr>
+                            </thead>
+                            <tbody>
+                              {niveles.map((n) => (
+                                <tr key={n.rango} className="border-t border-sand">
+                                  <td className="py-1">{n.rango === "—" ? "sin rango asignado" : n.rango}</td>
+                                  <td className="py-1 tabular-nums">{n.tope === null ? "sin techo cargado" : soles(n.tope)}</td>
+                                  <td className="py-1 tabular-nums">{n.personas}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        )}
+                        <p className="mt-1 text-xs text-taupe">Solo salen los rangos que hoy tienen personas activas.</p>
+                      </div>
+                      <div>
+                        <p className="font-medium">La constancia</p>
+                        <p className="text-taupe">
+                          Una por cada pago a la institución. Vence {config.plazo} días antes del cierre del periodo en
+                          que cae el pago. Se avisa a la integrante {config.avisoColab} días antes del plazo y a
+                          Desarrollo Organizacional {config.avisoDo} días antes del pago.
+                        </p>
+                      </div>
+                      <div>
+                        <p className="font-medium">Qué pasa si falta</p>
+                        <p className="text-taupe">
+                          Un apoyo empieza a pagarse cuando tiene su primera constancia aprobada. Después, aprobar o
+                          rechazar la de cada mes no cambia lo que se paga: es una alerta. Pero sin constancia el apoyo
+                          pierde su respaldo, y por eso una vencida o rechazada pide atención.
+                        </p>
+                      </div>
+                    </div>
+                  </details>
+
+                  <details className="rounded-2xl border border-sand p-4">
+                    <summary className="cursor-pointer font-serif text-base">Dónde están las constancias</summary>
+                    <div className="mt-3 space-y-3 text-sm">
+                      <div>
+                        <p className="font-medium">Los archivos</p>
+                        <p className="text-taupe">
+                          Se guardan en el almacén privado «{BUCKET_COMPROBANTES}», en la carpeta de cada persona
+                          (educacion/&lt;persona&gt;/entregas/…). No hay enlace público: se abren con sesión y un
+                          enlace que dura pocos minutos. Los ve Desarrollo Organizacional y la propia integrante.
+                        </p>
+                      </div>
+                      <div>
+                        <p className="font-medium">El registro</p>
+                        <p className="text-taupe">
+                          Cada constancia guarda quién la envió y cuándo, quién la revisó y cuándo, y el motivo si se
+                          rechazó. Desde el sistema no se edita ni se borra: si algo está mal, se envía otra, y una
+                          pendiente solo se retira y queda marcada. Se ve abriendo el estudio de cada persona.
+                        </p>
+                      </div>
+                      <p className="rounded-lg bg-hueso px-3 py-2 tabular-nums">
+                        {situaciones.length} estudios · {situaciones.reduce((t, s) => t + s.aprobadas, 0)} constancias aprobadas
+                        · {pendientes.length} por revisar
+                      </p>
+                      <div>
+                        <Boton variante="secundario" tamano="sm" cargando={exportando} onClick={() => void exportarCuadro()}>
+                          Descargar cuadro (CSV)
+                        </Boton>
+                        <p className="mt-1 text-xs text-taupe">
+                          Una fila por constancia y archivo, de todos los estudios: persona, estado, fechas, quién
+                          revisó y la ruta del archivo. Lleva datos personales: no se sube a git ni se reenvía.
+                        </p>
+                      </div>
+                    </div>
+                  </details>
+                </div>
+
+                {/* ── HISTORIAL DE SOLICITUDES (0461): aprobadas y rechazadas ──── */}
+                <details className="mb-5 rounded-2xl border border-sand p-4"
+                  onToggle={(e) => { if (e.currentTarget.open) void cargarHistorialSolicitudes(); }}>
+                  <summary className="cursor-pointer font-serif text-base">Historial de solicitudes de apoyo</summary>
+                  <div className="mt-3">
+                    <p className="mb-2 text-xs text-taupe">
+                      Son pedidos de apoyo resueltos, no constancias: una solicitud rechazada aquí no suma a la tarjeta
+                      «Constancias rechazadas».
+                    </p>
+                    {cargandoHistorialSol ? (
+                      <Cargando />
+                    ) : historialSolicitudes === null ? null : historialSolicitudes.length === 0 ? (
+                      <p className="text-sm text-taupe">Todavía no se resolvió ninguna solicitud.</p>
+                    ) : (
+                      <ul className="flex flex-col divide-y divide-sand text-sm">
+                        {historialSolicitudes.map((h) => {
+                          const est = ESTADO_SOLICITUD[h.estado];
+                          return (
+                            <li key={h.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                              <span>
+                                <span className="font-medium">{h.persona}</span>
+                                <span className="text-taupe"> · {h.institucion} · costo declarado {soles(h.costo_declarado)}</span>
+                                <span className="block text-xs text-taupe">
+                                  Pedida el {fechaCorta(h.enviada_at)}
+                                  {h.revisada_at && ` · revisada el ${fechaCorta(h.revisada_at)}`}
+                                  {h.estado === "rechazada" && h.motivo_rechazo && ` · «${h.motivo_rechazo}»`}
+                                </span>
+                              </span>
+                              <Insignia variante={est.tono}>{est.etiqueta}</Insignia>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </div>
+                </details>
               </>
             )}
           </>
