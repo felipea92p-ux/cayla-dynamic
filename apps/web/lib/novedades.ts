@@ -115,6 +115,22 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-10-16-educacion-por-grupos-y-cuadro-de-constancias",
+    fecha: "2026-10-16",
+    titulo: "Educación se puede ver por grupos, con quién no ha pedido nada y un cuadro de constancias",
+    queMejoro:
+      "En Educación hay pestañas debajo de las tarjetas: Al día, Por revisar, Por completar, Vencidas o rechazadas y " +
+      "Sin solicitar. Se agrupa por el estado de la constancia, no por si el apoyo se paga, y «Sin solicitar» lista a " +
+      "las personas activas que no tienen ningún apoyo ni una solicitud por revisar, con un botón para registrarles " +
+      "uno.\n\n" +
+      "Arriba hay dos paneles que se abren: «Cómo funciona», con la regla, el techo por rango y los plazos de la " +
+      "constancia, y «Dónde están las constancias», que explica dónde se guardan, qué queda registrado y permite " +
+      "descargar un cuadro (CSV) con una fila por constancia y archivo, para una auditoría. La tarjeta «Rechazadas» " +
+      "ahora se llama «Constancias rechazadas» y dice «esperando a la integrante» en vez de «atender», porque a Desarrollo " +
+      "Organizacional no le toca nada hasta que llegue la corregida; el historial aclara que cuenta solicitudes, no constancias.",
+    audiencia: "do",
+  },
+  {
     id: "2026-10-16-adjuntar-comprobante-a-solicitud-de-apoyo-educativo",
     fecha: "2026-10-16",
     titulo: "Ya puedes adjuntar el comprobante a tu solicitud de apoyo educativo después de enviarla",
