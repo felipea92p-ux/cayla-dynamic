@@ -13,7 +13,7 @@ import {
   puedeVerSaludDeAlertas, puedeExportarAsistencia, puedeAnularDocumentoDisciplinario,
   puedeTramitarDisciplina, recibeAvisoDeConductaRegistrada, recibeAvisoDeLecturaPendiente,
   puedeVerNovedad, puedeGestionarBoletas, puedeMarcarCuentaDeServicio, puedeGestionarArchivo,
-  ROLES, ROLES_CON_PANEL, ROLES_DO, ROLES_EXPORTAN_ASISTENCIA,
+  ROLES, ROLES_CON_PANEL, ROLES_DO, ROLES_EXPORTAN_ASISTENCIA, ROLES_GESTIONAN_BOLETAS,
 } from "@cayla-dynamic/shared";
 
 describe("las novedades del sistema le llegan a quien las puede usar", () => {
@@ -201,6 +201,18 @@ describe("las listas para filtrar en la base coinciden con las funciones", () =>
     for (const r of ROLES) {
       expect(puedeExportarAsistencia(r)).toBe(ROLES_EXPORTAN_ASISTENCIA.includes(r));
     }
+  });
+
+  // Mismo molde para «Boletas» (2026-10-16): el renglón del menú sale de
+  // ROLES_GESTIONAN_BOLETAS y la pantalla decide con `puedeGestionarBoletas`.
+  // La que importa es la líder de equipo: si la lista se ensanchara sin la
+  // función, vería un renglón que lleva a lo que cobra su equipo.
+  it("ROLES_GESTIONAN_BOLETAS son exactamente los que entregan las boletas oficiales", () => {
+    expect([...ROLES_GESTIONAN_BOLETAS].sort()).toEqual(["admin", "lider_do"]);
+    for (const r of ROLES) {
+      expect(puedeGestionarBoletas(r)).toBe(ROLES_GESTIONAN_BOLETAS.includes(r));
+    }
+    expect(ROLES_GESTIONAN_BOLETAS.includes("supervisor_sede")).toBe(false);
   });
 });
 
