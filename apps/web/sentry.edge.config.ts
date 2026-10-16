@@ -11,8 +11,7 @@ Sentry.init({
   // Define how likely traces are sampled. Adjust this value in production, or use tracesSampler for greater control.
   tracesSampleRate: 1,
 
-  // Enable logs to be sent to Sentry
-  enableLogs: true,
+  // Logs are sent to Sentry by default since @sentry/nextjs 11 (enableLogs was removed)
 
   dataCollection: {
     // To disable sending user data and HTTP bodies, uncomment the lines below. For more info visit:
