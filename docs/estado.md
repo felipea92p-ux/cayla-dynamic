@@ -6,7 +6,7 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-10-15 — Los practicantes pasan de EsSalud al seguro FOLA · migración 0504 · PEGADA Y VERIFICADA EN PRODUCCIÓN · SIN FUSIONAR (PR #532, borrador)
+## 2026-10-15 — Los practicantes pasan de EsSalud al seguro FOLA · migración 0504 · PEGADA Y VERIFICADA EN PRODUCCIÓN · FUSIONADA Y PUBLICADA (PR #532, 2026-10-15)
 
 **Pegada y verificada el 2026-10-15.** El SQL Editor devolvió el registro
 `504 · los_practicantes_pasan_de_essalud_a_seguro_privado`, y una consulta aparte,
@@ -18,12 +18,24 @@ planilla. Lo que eso garantiza es el texto de las dos funciones; que un practica
 dé EsSalud 0.00 en el cálculo en vivo lo prueba la 398 en CI, y **no se midió contra
 una planilla real de producción**. Los periodos ya congelados no se recalculan.
 
-**Falta fusionar el PR, y fusionar ES publicar.** Trae el texto nuevo del convenio
-(«seguro privado», 14 / 30 subvenciones), que los practicantes firman; no se
-fusiona hasta confirmar con el corredor el «Beneficio máximo anual» y si la póliza
-alcanza a la modalidad preprofesional (ver la tabla de abajo). La prueba 396 de la
-0502 ya está ajustada en el PR; sin ese ajuste `main` quedaría con `db-tests` en
-rojo.
+**Fusionado y publicado el 2026-10-15 a las 14:58 (Lima)**, después de pegar la SQL,
+como manda el orden. Fusión armada con `--auto --merge` a pedido de Felipe, sin
+`--admin`; `db-tests` y `ui-tests` en verde sobre el commit de la fusión
+(`2d73c1b0`), y ese commit publicado en producción. Desde entonces el convenio de
+prácticas que genera Contratos dice «seguro privado» (14 / 30 subvenciones, alcanza
+los accidentes de la práctica).
+
+**Hoy no cuesta nada, y queda abierto.** Felipe decidió fusionar **sin** la
+confirmación escrita del corredor, asumiendo el riesgo: el convenio ya promete lo de
+arriba, y ni el «Beneficio máximo anual» ni la cobertura de la modalidad
+preprofesional están comprobados (ver la tabla). Solo pesa si un practicante se
+enferma o se accidenta y la póliza no alcanza lo que el convenio dice: esa diferencia
+la debería LA EMPRESA.
+
+**Los cuatro firman el convenio nuevo, no una adenda** (decidido por Felipe el
+2026-10-16). Ninguno tiene un convenio firmado que diga EsSalud que haya que
+corregir, así que la rama `claude/adenda-convenio-en-info` (2026-10-02, sin PR) no
+hace falta para esto.
 
 **Qué es.** La planilla deja de calcular `aporte_essalud` para los practicantes
 (una línea de `fn_planilla_calcular_nucleo`), el motivo que `fn_set_tipo_vinculo`
@@ -42,10 +54,13 @@ repo (llevan nombres): viven en el correo de Felipe y con el corredor.
 | Qué | Cuándo | Si no |
 |---|---|---|
 | ~~**Pagar las cuatro primas** (S/ 719.88 en total, contado)~~ | ✅ **pagadas** — lo informó Felipe el 15/10/2026 (vencían el 31/10) | Con 30 días de mora la cobertura se suspende. Queda pedir las facturas, que Pacífico emite al pagar: Dante las va a necesitar |
+| ~~**Enviar a cada practicante su póliza**~~ | ✅ **enviadas** — lo informó Felipe el 16/10/2026 | Ese correo es la constancia de entrega: no borrarlo. No hace falta un cargo aparte: el convenio no promete entregar la póliza, y la firma del convenio nuevo prueba que cada uno sabe que tiene seguro |
+| **Pedir las facturas de las cuatro primas** | cuanto antes | Dante las va a necesitar |
 | **Firmar y devolver póliza y convenio de pago** | cuanto antes | Pacífico los pide firmados; la casilla del asegurado/contratante está en blanco en los cuatro |
+| **Que los cuatro firmen el convenio nuevo** | cuanto antes | Se genera desde Contratos; ya dice «seguro privado» |
 | **Renovar la póliza** | **antes del 01/01/2027** | Desde ese día los practicantes quedan sin seguro, y la planilla ya no calcula EsSalud al que volver |
-| **Confirmar con el corredor el «Beneficio máximo anual»** | **antes de fusionar el PR** | La casilla está VACÍA en las cuatro pólizas y la Tabla de Beneficios no viene adjunta: el mínimo de 14 / 30 subvenciones que el convenio nuevo promete no se puede comprobar con estos papeles |
-| **Preguntarle si la póliza alcanza a la modalidad preprofesional** | **antes de fusionar el PR** | El resumen dice que cubre a quien esté en un convenio de «Formación Laboral Juvenil o Prácticas Profesionales», y **dos de los cuatro asegurados son preprofesionales** (los otros dos, profesionales). Pedirlo por escrito |
+| **Confirmar con el corredor el «Beneficio máximo anual»** | **abierto — el convenio ya lo promete** | La casilla está VACÍA en las cuatro pólizas y la Tabla de Beneficios no viene adjunta: el mínimo de 14 / 30 subvenciones que el convenio nuevo promete no se puede comprobar con estos papeles |
+| **Preguntarle si la póliza alcanza a la modalidad preprofesional** | **abierto — el convenio ya lo promete** | El resumen dice que cubre a quien esté en un convenio de «Formación Laboral Juvenil o Prácticas Profesionales», y **dos de los cuatro asegurados son preprofesionales** (los otros dos, profesionales). Pedirlo por escrito |
 
 **Antes de pegar la 0504 (en este orden).**
 1. ✅ **Hecho el 15/10/2026.** [`antes_de_pegar_la_0504.sql`](../scripts/sql-manual/antes_de_pegar_la_0504.sql)
@@ -75,7 +90,7 @@ que rehacerse partiendo del cuerpo de la 0504.
 **Y la 0504 ya entró primero.** Producción tiene desde el 15/10/2026
 `fn_set_tipo_vinculo` con md5 `da6490ac5d12722e38fcba0a2d47dea9` y 2624 caracteres.
 Quien retome la 0518 de «pasar a planilla» (`claude/youthful-joliot-8dd9cb`) tiene
-que partir de ESE cuerpo —el de la 0504, en `main` cuando se fusione—, no del de la
+que partir de ESE cuerpo —el de la 0504, ya en `main`—, no del de la
 0324, y cambiar su md5 de partida (hoy declara `547088d9…`, 2610 caracteres): su
 freno se detendrá, que es lo que se quiere. La única diferencia con la 0324 es la
 frase del motivo de auditoría que se guarda al pasar a alguien a practicante.
