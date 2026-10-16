@@ -885,6 +885,33 @@ function SolicitudApoyo({
   const [formulario, setFormulario] = useState<"nueva" | "renovar" | "corregir" | null>(null);
   const [retirando, setRetirando] = useState(false);
   const [confirmarRetiro, setConfirmarRetiro] = useState(false);
+  // Adjuntar (o cambiar) el comprobante mientras la solicitud sigue pendiente (0522).
+  const [adjuntando, setAdjuntando] = useState(false);
+  const [archivoNuevo, setArchivoNuevo] = useState<File | null>(null);
+  const [progresoNuevo, setProgresoNuevo] = useState<number | null>(null);
+  const [subiendo, setSubiendo] = useState(false);
+
+  async function adjuntar() {
+    if (!solicitud || !archivoNuevo) return;
+    setSubiendo(true);
+    // Una carpeta nueva por subida, como en el formulario: nunca se escribe
+    // encima del archivo anterior.
+    const ext = archivoNuevo.name.split(".").pop()?.toLowerCase() ?? "bin";
+    const ruta = `educacion/${personaId}/solicitudes/${crypto.randomUUID()}/comprobante.${ext}`;
+    const errorSubida = await subirArchivoConProgreso(supabase, BUCKET_COMPROBANTES, ruta, archivoNuevo, setProgresoNuevo);
+    if (errorSubida) {
+      setSubiendo(false);
+      onError(`El comprobante no subió: ${errorSubida}`);
+      return;
+    }
+    const { error } = await supabase.rpc("fn_educacion_solicitud_adjuntar", { p_id: solicitud.id, p_ruta: ruta });
+    setSubiendo(false);
+    setProgresoNuevo(null);
+    if (error) { onError(mensajeDeError(error, "adjuntar el comprobante")); return; }
+    setAdjuntando(false);
+    setArchivoNuevo(null);
+    await onCambio("Listo: tu comprobante quedó adjunto. Desarrollo Organizacional lo verá al revisar tu solicitud.");
+  }
 
   async function retirar() {
     if (!solicitud) return;
@@ -984,7 +1011,38 @@ function SolicitudApoyo({
           <p className="mt-3 text-xs text-taupe">
             Desarrollo Organizacional la está revisando. Te avisamos en tu Bandeja cuando termine.
           </p>
-          <Boton variante="sutil" className="mt-4" onClick={() => setConfirmarRetiro(true)}>Retirar solicitud</Boton>
+
+          {!solicitud.comprobante_url && !adjuntando && (
+            <div className="mt-3 rounded-xl border border-ambar/40 bg-ambar/10 p-3 text-sm text-tinta">
+              Todavía no adjuntaste el comprobante. Sin él, Desarrollo Organizacional no puede aprobar tu solicitud:
+              adjúntalo aquí, no hace falta pedirla de nuevo.
+            </div>
+          )}
+
+          {adjuntando && (
+            <div className="mt-3 rounded-xl border border-sand bg-hueso p-3">
+              <Campo etiqueta={solicitud.comprobante_url ? "Nuevo comprobante" : "Comprobante"}
+                type="file" accept="application/pdf,image/jpeg,image/png"
+                onChange={(e) => setArchivoNuevo(e.target.files?.[0] ?? null)} disabled={subiendo} />
+              {progresoNuevo !== null && <p className="mt-1 text-xs text-taupe">Subiendo… {progresoNuevo}%</p>}
+              <div className="mt-3 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <Boton onClick={() => { setAdjuntando(false); setArchivoNuevo(null); }} disabled={subiendo}>Cancelar</Boton>
+                <Boton variante="primario" cargando={subiendo} disabled={!archivoNuevo} onClick={() => void adjuntar()}>
+                  Adjuntar
+                </Boton>
+              </div>
+            </div>
+          )}
+
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+            {!adjuntando && (
+              <Boton variante={solicitud.comprobante_url ? "sutil" : "primario"} className="w-full sm:w-auto"
+                onClick={() => setAdjuntando(true)}>
+                {solicitud.comprobante_url ? "Cambiar comprobante" : "Adjuntar comprobante"}
+              </Boton>
+            )}
+            <Boton variante="sutil" className="w-full sm:w-auto" onClick={() => setConfirmarRetiro(true)}>Retirar solicitud</Boton>
+          </div>
         </>
       )}
 
@@ -1144,7 +1202,7 @@ function FormularioSolicitud({
             type="file" accept="application/pdf,image/jpeg,image/png"
             onChange={(e) => setArchivo(e.target.files?.[0] ?? null)} disabled={enviando} />
           <span className="text-xs text-taupe">
-            Puedes enviarlo después. El monto no lo escribes tú: lo calcula Desarrollo Organizacional al aprobar,
+            Puedes adjuntarlo después, desde tu solicitud pendiente. El monto no lo escribes tú: lo calcula Desarrollo Organizacional al aprobar,
             según tu rango.
           </span>
           {progreso !== null && <span className="text-xs text-taupe">Subiendo… {progreso}%</span>}
