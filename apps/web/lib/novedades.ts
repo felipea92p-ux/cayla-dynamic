@@ -131,6 +131,18 @@ export const NOVEDADES: readonly Novedad[] = [
     audiencia: "do",
   },
   {
+    id: "2026-10-16-adjuntar-comprobante-a-solicitud-de-apoyo-educativo",
+    fecha: "2026-10-16",
+    titulo: "Ya puedes adjuntar el comprobante a tu solicitud de apoyo educativo después de enviarla",
+    queMejoro:
+      "Si enviaste tu solicitud de apoyo educativo sin el comprobante, ya no tienes que retirarla y pedirla de nuevo: " +
+      "en Lo mío, Educación, tu solicitud pendiente tiene un botón «Adjuntar comprobante». Desarrollo Organizacional " +
+      "lo ve al revisarla, y sin él no puede aprobar.\n\n" +
+      "Si te equivocaste de archivo, el mismo botón dice «Cambiar comprobante» y lo reemplaza mientras la solicitud " +
+      "siga pendiente. Una vez revisada o retirada, el comprobante ya no se cambia.",
+    audiencia: "todos",
+  },
+  {
     id: "2026-10-13-asistencia-diseno-unificado",
     fecha: "2026-10-13",
     titulo: "Asistencia de hoy se ve más ordenada: números, avisos y sedes con una sola forma",
