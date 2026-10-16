@@ -126,7 +126,8 @@ export const NOVEDADES: readonly Novedad[] = [
       "Arriba hay dos paneles que se abren: «Cómo funciona», con la regla, el techo por rango y los plazos de la " +
       "constancia, y «Dónde están las constancias», que explica dónde se guardan, qué queda registrado y permite " +
       "descargar un cuadro (CSV) con una fila por constancia y archivo, para una auditoría. La tarjeta «Rechazadas» " +
-      "ahora se llama «Constancias rechazadas» y el historial aclara que cuenta solicitudes, no constancias.",
+      "ahora se llama «Constancias rechazadas» y dice «esperando a la integrante» en vez de «atender», porque a Desarrollo " +
+      "Organizacional no le toca nada hasta que llegue la corregida; el historial aclara que cuenta solicitudes, no constancias.",
     audiencia: "do",
   },
   {

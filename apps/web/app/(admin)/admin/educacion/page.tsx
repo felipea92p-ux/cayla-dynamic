@@ -688,20 +688,26 @@ function EducacionContenido() {
 
                 {/* ── RESUMEN: solo lo accionable, y cada tarjeta filtra ────────── */}
                 <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-5">
+                  {/* Quinto dato: lo que dice la insignia cuando no es la de siempre. «Rechazadas» espera a la
+                      integrante —le toca enviar la corregida—, así que no pide «atender» a Desarrollo Organizacional. */}
                   {([
-                    ["pendientes", "Pendientes de revisión", conteo.pendientes, "informativo"],
-                    ["vencidas", "Constancias vencidas", conteo.vencidas, "alerta"],
-                    ["por_vencer", "Por vencer", conteo.por_vencer, "advertencia"],
-                    ["rechazadas", "Constancias rechazadas", conteo.rechazadas, "alerta"],
-                    ["pagos", `Pagos en ${config.avisoDo} días`, conteo.pagos, "neutral"],
-                  ] as const).map(([clave, etiqueta, n, tono]) => (
+                    ["pendientes", "Pendientes de revisión", conteo.pendientes, "informativo", null],
+                    ["vencidas", "Constancias vencidas", conteo.vencidas, "alerta", null],
+                    ["por_vencer", "Por vencer", conteo.por_vencer, "advertencia", null],
+                    ["rechazadas", "Constancias rechazadas", conteo.rechazadas, "neutral", "esperando a la integrante"],
+                    ["pagos", `Pagos en ${config.avisoDo} días`, conteo.pagos, "neutral", null],
+                  ] as const).map(([clave, etiqueta, n, tono, aviso]) => (
                     <button key={clave} type="button" aria-pressed={tarjeta === clave}
                       onClick={() => setTarjeta(tarjeta === clave ? null : clave)}
                       className={`rounded-2xl border p-4 text-left transition-colors ${tarjeta === clave ? "border-tinta bg-papel" : "border-sand bg-papel hover:border-taupe"}`}>
                       <span className="block text-xs uppercase tracking-wide text-taupe">{etiqueta}</span>
-                      <span className="mt-1 flex items-center gap-2">
+                      <span className="mt-1 flex flex-wrap items-center gap-2">
                         <span className="font-serif text-3xl tabular-nums">{n}</span>
-                        {n > 0 && tono !== "neutral" && <Insignia variante={tono} tamano="sm">{tono === "alerta" ? "atender" : tono === "advertencia" ? "pronto" : "revisar"}</Insignia>}
+                        {n > 0 && (aviso || tono !== "neutral") && (
+                          <Insignia variante={tono} tamano="sm">
+                            {aviso ?? (tono === "alerta" ? "atender" : tono === "advertencia" ? "pronto" : "revisar")}
+                          </Insignia>
+                        )}
                       </span>
                     </button>
                   ))}
