@@ -1,0 +1,278 @@
+"use client";
+
+import { useMemo } from "react";
+import { enDias } from "@/lib/admin/bandeja-urgencia";
+import { estadoParaMostrar } from "@/lib/admin/educacion-grupos";
+import { soles } from "@/lib/admin/educacion-formato";
+import {
+  casillasDeEstudio, entregasDeEstudio, etiquetaMes, familiasDe, mesDe, montoMensual,
+  type Estudio, type ResumenDeSede,
+} from "@/lib/admin/educacion-meses";
+import type { EntregaDeFamilia, Pendiente } from "@/lib/admin/educacion-tipos";
+import { fechaCorta } from "@/lib/educacion";
+import { Boton } from "@/components/ui/boton";
+import { Insignia } from "@/components/ui/insignia";
+import { CasillaMes } from "./casilla-mes";
+
+/**
+ * LA CUADRÍCULA PERSONA × MES: una fila por estudio, una columna por mes.
+ *
+ * PROMETE: que cada fila muestre, de un vistazo, la constancia que se recibió cada
+ *   mes —con su miniatura— y que un toque en una casilla abra el visor justo en esa
+ *   constancia. Con «Todas las sedes», la lista se parte en un bloque por sede con
+ *   su resumen (personas, apoyos, monto al mes y lo que pide acción).
+ * ASUME: `estudios` ya vienen filtrados y ordenados (lo que pide acción, primero),
+ *   y `meses` ya vienen de `ventanaDeMeses`.
+ * NO HACE: no carga nada ni calcula estados. Una casilla vacía es un guion, nunca una
+ *   falta: lo vencido lo dice la insignia de la fila, que viene de la base.
+ *
+ * En escritorio es una tabla con la columna de la persona fija a la izquierda, para
+ * que al desplazarse hacia los meses viejos no se pierda de quién es cada fila. En
+ * celular cada estudio es una tarjeta con su tira de meses que se desliza.
+ */
+
+const SEPARADOR_DE_COLUMNAS = "border-l border-sand";
+
+export function CuadriculaMeses({
+  estudios, meses, hayMasMeses, onVerMasMeses, mesResaltado, entregasPorFamilia, cargandoConstancias,
+  pendientes, hoy, resumenesSede, onAbrirVisor, onAbrirEstudio,
+}: {
+  estudios: Estudio[];
+  meses: string[];
+  hayMasMeses: boolean;
+  onVerMasMeses: () => void;
+  mesResaltado: string;
+  entregasPorFamilia: ReadonlyMap<string, EntregaDeFamilia[]> | null;
+  cargandoConstancias: boolean;
+  pendientes: Pendiente[];
+  hoy: string;
+  /** Con valor, la lista se parte en un bloque por sede. Sin él, una sola lista. */
+  resumenesSede: ResumenDeSede[] | null;
+  onAbrirVisor: (e: Estudio, entregaId: string | null) => void;
+  onAbrirEstudio: (e: Estudio, boton: HTMLElement) => void;
+}) {
+  const bloques = useMemo(
+    () => (resumenesSede ? resumenesSede.map((r) => ({ resumen: r, estudios: r.estudios })) : [{ resumen: null, estudios }]),
+    [resumenesSede, estudios],
+  );
+  const mesDeHoy = mesDe(hoy);
+  const primero = meses[0];
+  const ultimo = meses[meses.length - 1];
+
+  const pendienteDe = (e: Estudio): string | null => {
+    const familias = new Set(familiasDe(e));
+    return pendientes.find((p) => familias.has(p.familia_id))?.id ?? null;
+  };
+
+  const fila = (e: Estudio) => {
+    const entregas = entregasDeEstudio(e, entregasPorFamilia);
+    const casillas = casillasDeEstudio(e, entregas, meses);
+    return { e, casillas, pendiente: pendienteDe(e), cargando: cargandoConstancias && entregasPorFamilia === null };
+  };
+
+  return (
+    <div>
+      <p className="mb-2 flex flex-wrap items-center gap-x-3 text-xs text-taupe">
+        <span>
+          Constancias recibidas de <strong className="font-medium text-tinta">{etiquetaMes(primero).corto} {etiquetaMes(primero).anio}</strong>{" "}
+          a <strong className="font-medium text-tinta">{etiquetaMes(ultimo).corto} {etiquetaMes(ultimo).anio}</strong>.
+          Un guion es un mes sin constancia; las rayas, un mes en que el estudio no estaba vigente.
+        </span>
+        {hayMasMeses
+          ? <Boton variante="enlace" className="text-xs" onClick={onVerMasMeses}>Ver 6 meses anteriores</Boton>
+          : <span>Es todo el historial.</span>}
+      </p>
+
+      {/* ── ESCRITORIO Y TABLET: tabla ───────────────────────────────────── */}
+      <div className="hidden overflow-x-auto rounded-superficie border border-sand bg-papel md:block">
+        <table className="w-full text-sm">
+          <thead className="bg-papel text-left text-taupe">
+            <tr className="bg-sand/70">
+              <th className="sticky left-0 z-[1] bg-[color-mix(in_oklab,var(--color-sand)_70%,var(--color-papel))] px-4 py-2 font-normal">Persona</th>
+              <th className="px-3 py-2 font-normal">Estudio</th>
+              {meses.map((m, i) => {
+                const { corto, anio } = etiquetaMes(m);
+                const mostrarAnio = i === 0 || m.endsWith("-01");
+                return (
+                  <th key={m} scope="col" aria-current={m === mesDeHoy ? "date" : undefined}
+                    className={`w-[68px] min-w-[68px] px-0 py-2 text-center font-normal ${i === 0 ? SEPARADOR_DE_COLUMNAS : ""} ${m === mesResaltado ? "bg-hueso" : ""}`}>
+                    <span className={`block text-xs ${m === mesDeHoy ? "font-medium text-tinta" : ""}`}>{corto}</span>
+                    <span className="block h-3 text-[10px] leading-3 text-taupe/80">{mostrarAnio ? anio : ""}</span>
+                    {m === mesDeHoy && <span aria-hidden className="mx-auto mt-0.5 block h-0.5 w-5 rounded-full bg-tinta" />}
+                  </th>
+                );
+              })}
+              <th className={`px-3 py-2 font-normal ${SEPARADOR_DE_COLUMNAS}`}>Estado</th>
+              <th className="px-3 py-2"><span className="sr-only">Acciones</span></th>
+            </tr>
+          </thead>
+          {bloques.map(({ resumen, estudios: lista }) => (
+            <tbody key={resumen?.sede ?? "todas"}>
+              {resumen && (
+                <tr>
+                  <th colSpan={meses.length + 4} scope="colgroup" className="border-t border-sand bg-hueso/70 px-4 py-2 text-left font-normal">
+                    <ResumenDelBloque resumen={resumen} />
+                  </th>
+                </tr>
+              )}
+              {lista.map((e) => {
+                const f = fila(e);
+                return (
+                  <tr key={e.clave} className={`border-t border-sand transition-colors duration-150 hover:bg-crema/60 ${e.vigencia === "terminada" ? "text-taupe" : ""}`}>
+                    <td className="sticky left-0 z-[1] bg-papel px-4 py-2 align-middle">
+                      <span className="block font-medium">{e.persona}</span>
+                      <span className="block text-xs text-taupe">{e.sede} · {e.rango}</span>
+                    </td>
+                    <td className="min-w-48 px-3 py-2 align-middle">
+                      <DatosDelEstudio e={e} hoy={hoy} />
+                    </td>
+                    {f.casillas.map((c, i) => (
+                      <td key={c.mes} className={`p-0 align-middle ${i === 0 ? SEPARADOR_DE_COLUMNAS : ""}`}>
+                        <CasillaMes casilla={c} persona={e.persona} cargando={f.cargando} resaltada={c.mes === mesResaltado}
+                          alAbrir={() => onAbrirVisor(e, c.principal?.id ?? null)} />
+                      </td>
+                    ))}
+                    <td className={`px-3 py-2 align-middle ${SEPARADOR_DE_COLUMNAS}`}>
+                      <EstadoDelEstudio e={e} />
+                    </td>
+                    <td className="px-3 py-2 text-right align-middle">
+                      <Acciones e={e} pendiente={f.pendiente} onAbrirVisor={onAbrirVisor} onAbrirEstudio={onAbrirEstudio} />
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          ))}
+        </table>
+      </div>
+
+      {/* ── CELULAR: una tarjeta por estudio, con su tira de meses ────────── */}
+      <div className="flex flex-col gap-5 md:hidden">
+        {bloques.map(({ resumen, estudios: lista }) => (
+          <section key={resumen?.sede ?? "todas"} className="flex flex-col gap-3">
+            {resumen && <div className="px-1"><ResumenDelBloque resumen={resumen} /></div>}
+            <ul className="flex flex-col gap-3">
+              {lista.map((e) => {
+                const f = fila(e);
+                return (
+                  <li key={e.clave} className="rounded-superficie border border-sand bg-papel p-4 text-sm">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-medium">{e.persona}</p>
+                        <p className="text-xs text-taupe">{e.sede} · {e.rango}</p>
+                      </div>
+                      <EstadoDelEstudio e={e} compacto />
+                    </div>
+                    <div className="mt-3"><DatosDelEstudio e={e} hoy={hoy} /></div>
+                    <ul className="-mx-4 mt-3 flex snap-x gap-0 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                      {f.casillas.map((c) => {
+                        const { corto } = etiquetaMes(c.mes);
+                        return (
+                          <li key={c.mes} className="shrink-0 snap-start">
+                            <span className={`block text-center text-[11px] ${c.mes === mesDeHoy ? "font-medium text-tinta" : "text-taupe"}`}>{corto}</span>
+                            <div className="w-[64px]">
+                              <CasillaMes casilla={c} persona={e.persona} cargando={f.cargando} resaltada={c.mes === mesResaltado}
+                                alAbrir={() => onAbrirVisor(e, c.principal?.id ?? null)} />
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                    <div className="mt-3 flex gap-2">
+                    <Acciones e={e} pendiente={f.pendiente} onAbrirVisor={onAbrirVisor} onAbrirEstudio={onAbrirEstudio} ancha />
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ResumenDelBloque({ resumen: r }: { resumen: ResumenDeSede }) {
+  const partes = [
+    `${r.personas} persona${r.personas === 1 ? "" : "s"}`,
+    `${r.pagando} apoyo${r.pagando === 1 ? "" : "s"} pagándose · ${soles(r.montoMensual)} al mes`,
+  ];
+  const pide = [
+    r.porRevisar > 0 && `${r.porRevisar} por revisar`,
+    r.vencidas > 0 && `${r.vencidas} vencida${r.vencidas === 1 ? "" : "s"}`,
+    r.rechazadas > 0 && `${r.rechazadas} rechazada${r.rechazadas === 1 ? "" : "s"}`,
+  ].filter(Boolean) as string[];
+  return (
+    <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5">
+      <h3 className="font-serif text-base text-tinta">{r.sede}</h3>
+      <p className="text-xs tabular-nums text-taupe">
+        {partes.join(" · ")}
+        {pide.length > 0 && <span className="text-tinta"> · {pide.join(" · ")}</span>}
+      </p>
+    </div>
+  );
+}
+
+function DatosDelEstudio({ e, hoy }: { e: Estudio; hoy: string }) {
+  const { monto, seEstaPagando } = montoMensual(e, hoy);
+  const terminado = e.vigencia === "terminada";
+  return (
+    <>
+      <span className="block">{e.institucion}</span>
+      <span className="block text-xs tabular-nums text-taupe">
+        {e.beneficiario === "hijo" ? (e.beneficiario_nombre ?? "su hijo/a") : "ella misma"} · {soles(monto)}
+        {!terminado && (seEstaPagando ? "" : " · no se paga aún")}
+      </span>
+      <span className={`block text-xs ${e.vigencia === "por_terminar" ? "text-ambar" : "text-taupe"}`}>
+        {terminado ? `terminó el ${fechaCorta(e.hasta)}` : `hasta el ${fechaCorta(e.hasta)}`}
+        {e.tramos.length > 1 && ` · ${e.tramos.length} tramos`}
+      </span>
+    </>
+  );
+}
+
+function EstadoDelEstudio({ e, compacto = false }: { e: Estudio; compacto?: boolean }) {
+  const est = estadoParaMostrar(e);
+  const s = e.actual;
+  return (
+    <div className={compacto ? "flex flex-col items-end gap-1" : undefined}>
+      <Insignia variante={est.tono}>{est.etiqueta}</Insignia>
+      {!compacto && (
+        <>
+          {s.plazo && s.dias_para_plazo !== null && s.estado_constancia !== "al_dia" && s.estado_constancia !== "pendiente_revision" && (
+            <span className="mt-1 block text-xs text-taupe">{enDias(s.dias_para_plazo, { futuro: "Vence", pasado: "Venció" })}</span>
+          )}
+          {s.pago_proximo && s.dias_para_pago !== null && (
+            <span className="mt-1 block text-xs text-taupe">{enDias(s.dias_para_pago, { futuro: "Paga", pasado: "Pagó" })}</span>
+          )}
+          {s.aviso_fin_id && <span className="mt-1 block text-xs text-ambar">avisó que deja de pagar</span>}
+        </>
+      )}
+    </div>
+  );
+}
+
+function Acciones({
+  e, pendiente, onAbrirVisor, onAbrirEstudio, ancha = false,
+}: {
+  e: Estudio;
+  pendiente: string | null;
+  onAbrirVisor: (e: Estudio, entregaId: string | null) => void;
+  onAbrirEstudio: (e: Estudio, boton: HTMLElement) => void;
+  ancha?: boolean;
+}) {
+  return (
+    <div className={`flex gap-2 ${ancha ? "w-full" : "justify-end"}`}>
+      {pendiente && (
+        <Boton variante="primario" tamano="sm" className={ancha ? "flex-1" : "whitespace-nowrap"} onClick={() => onAbrirVisor(e, pendiente)}>
+          Revisar →
+        </Boton>
+      )}
+      <Boton variante={pendiente ? "sutil" : "secundario"} tamano="sm" className={ancha ? "flex-1" : undefined}
+        aria-label={`Abrir el estudio de ${e.persona} en ${e.institucion}`}
+        onClick={(ev) => onAbrirEstudio(e, ev.currentTarget)}>
+        Estudio
+      </Boton>
+    </div>
+  );
+}

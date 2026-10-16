@@ -6,6 +6,47 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-10-16 — Educación: cuadrícula de constancias por mes, visor sin descargar, sede y filtros · SIN SQL · SIN COMMIT · rama `claude/constancias-filtros-sede-a4201b`
+
+**No hay migración que pegar.** Todo sale de las dos funciones que ya existen
+(`fn_educacion_situacion`, `fn_educacion_entregas`). Nada está commiteado todavía.
+
+**Qué pidió Felipe y qué quedó.** «Ver las constancias sin descargar, los meses
+anteriores, el filtro y todo por sede». Decidido por él en 16 preguntas el 2026-10-16:
+visor grande sobre la misma pantalla (foto o PDF con todas sus hojas, datos y
+Aprobar/Rechazar al lado, ← → entre constancias), cuadrícula persona × mes con seis
+meses y «ver más», mes = calendario del pago, **un mes sin constancia es un guion y
+nunca una falta**, una fila por persona e institución (el Duolingo registrado dos
+veces es una línea), las cinco tarjetas siguen la sede y el mes elegidos, sin
+aprobación en lote, CSV de lo que se ve y ZIP del mes. La sede y el diseño los dejó
+a criterio de quien construyó. Quién ve la pantalla **no cambió**: solo DO y admin.
+
+**Dónde vive.** Lógica pura en `apps/web/lib/admin/educacion-meses.ts` (con
+`tests/educacion-meses.test.ts`: 44 casos) y `zip-constancias.ts`; piezas en
+`apps/web/components/educacion/`. El PDF se **dibuja** con pdf.js (`legacy`) y no se
+incrusta: Safari de iPhone solo mostraría la primera hoja de un PDF incrustado.
+Dependencias nuevas: `pdfjs-dist` y `fflate`. La aprobación/rechazo salió del panel a
+`AccionesRevision`, que usan el panel y el visor.
+
+**Qué se comprobó.** `tsc`, eslint, las 1744 pruebas y `next build` en verde. En el
+navegador, con datos simulados y archivos reales en el Storage local (la base local no
+tiene la 0450, así que NO se probó contra la base): miniaturas de foto y de PDF, el
+visor en escritorio y en celular (las dos hojas del PDF se ven), aprobar desde el
+visor con la confirmación encima, Esc que cierra solo la confirmación, el panel de
+estudio con su historial, el filtro por sede y por mes y la dirección que los guarda.
+
+**Lo que NO se comprobó.** Un iPhone real; el clic en «Descargar» (CSV y ZIP): se
+probaron los nombres de archivo y los repetidos, no la descarga misma; y los datos
+reales de producción.
+
+**Deuda a la vista.** Al entrar se hace una consulta por estudio (de a seis): con ~30
+personas no se nota; si la lista crece, conviene UNA función SQL que devuelva todo, y
+esa sí exigiría pegar antes de fusionar. El panel «Estudio» de una fila con varios
+tramos abre el tramo que habla por la fila; las constancias de los otros se ven en la
+cuadrícula y en el visor.
+
+---
+
 ## 2026-10-15 — Los practicantes pasan de EsSalud al seguro FOLA · migración 0504 · PEGADA Y VERIFICADA EN PRODUCCIÓN · FUSIONADA Y PUBLICADA (PR #532, 2026-10-15)
 
 **Pegada y verificada el 2026-10-15.** El SQL Editor devolvió el registro

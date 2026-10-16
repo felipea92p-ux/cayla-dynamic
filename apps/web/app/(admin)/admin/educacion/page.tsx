@@ -10,27 +10,40 @@ import { useToast } from "@/components/toast";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 import { abrirArchivoFirmado } from "@/lib/abrir-archivo-firmado";
 import {
-  ESTADO_CONSTANCIA, ESTADO_ENTREGA, ESTADO_SOLICITUD, FRECUENCIAS_PAGO, FRECUENCIA_PAGO_LABELS, MOTIVOS_RECHAZO,
-  MOTIVO_RECHAZO_LABELS, TIPOS_CONSTANCIA, TIPO_CONSTANCIA_LABELS, TZ_LIMA, hoyLima, problemaDeArchivo,
+  ESTADO_CONSTANCIA, ESTADO_ENTREGA, ESTADO_SOLICITUD, FRECUENCIAS_PAGO, FRECUENCIA_PAGO_LABELS,
+  MOTIVO_RECHAZO_LABELS, TIPOS_CONSTANCIA, TIPO_CONSTANCIA_LABELS, hoyLima, problemaDeArchivo,
   puedeVerPlanilla, sugerirProximaFecha,
-  type EstadoConstancia, type EstadoEntrega, type EstadoSolicitud, type FrecuenciaPago, type MotivoRechazo,
-  type TipoConstancia,
+  type EstadoSolicitud, type FrecuenciaPago, type TipoConstancia,
 } from "@cayla-dynamic/shared";
 import {
-  BUCKET_COMPROBANTES, elegido, fechaCorta, subirArchivosDeEntrega, urlDeConstancia, type ArchivoElegido,
+  BUCKET_COMPROBANTES, elegido, fechaCorta, subirArchivosDeEntrega, type ArchivoElegido,
 } from "@/lib/educacion";
-import { enDias } from "@/lib/admin/bandeja-urgencia";
 import { generarCsv, descargarCsv } from "@/lib/admin/csv";
 import {
   GRUPOS_EDUCACION, estadoParaMostrar, grupoDeEstudio, nivelesDeApoyo, personasSinSolicitar, type GrupoEducacion,
 } from "@/lib/admin/educacion-grupos";
+import {
+  CLAVES_DE_URL, FILTROS_VACIOS, MESES_INICIALES, MESES_POR_PASO, agruparEstudios, conteoTarjetas, entregaPasaFiltros,
+  entregasDeEstudio, filtrosAUrl, filtrosDeUrl, mesDe, mesLargo, mesesConConstancia, mesesEntre,
+  montoMensual, pasaFiltros, resumenPorSede, sedesDe, ventanaDeMeses, type ContextoDeFiltros, type Estudio, type Filtros,
+} from "@/lib/admin/educacion-meses";
+import { fechaHora, soles } from "@/lib/admin/educacion-formato";
+import type { Entrega, EntregaDeFamilia, Pendiente, Situacion } from "@/lib/admin/educacion-tipos";
+import { armarZip, descargarBlob, nombreLegible } from "@/lib/admin/zip-constancias";
 import { Boton } from "@/components/ui/boton";
 import { Campo, CampoSelect } from "@/components/ui/campo";
 import { AreaTexto } from "@/components/ui/area-texto";
+import { Cifra } from "@/components/ui/cifra";
+import { EstadoVacio } from "@/components/ui/estado-vacio";
 import { Insignia } from "@/components/ui/insignia";
 import { Modal } from "@/components/ui/modal";
 import { Drawer } from "@/components/ui/drawer";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
+import { BarraFiltros } from "@/components/educacion/barra-filtros";
+import { CuadriculaMeses } from "@/components/educacion/cuadricula-meses";
+import { LienzoArchivos } from "@/components/educacion/lienzo-archivos";
+import { AccionesRevision } from "@/components/educacion/revision-entrega";
+import { VisorConstancia } from "@/components/educacion/visor-constancia";
 
 // ============================================================================
 // Educación — los apoyos y las constancias que los sustentan (0450).
@@ -48,48 +61,6 @@ import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
 // SIEMPRE QUE esté sostenida por un comprobante. Aprobar o rechazar una
 // constancia NO cambia lo que se paga (decisión «solo alerta», 2026-09-15).
 // ============================================================================
-
-interface Situacion {
-  familia_id: string;
-  asignacion_id: string;
-  persona_id: string;
-  persona: string;
-  sede: string;
-  rango: string;
-  institucion: string;
-  beneficiario: string;
-  beneficiario_nombre: string | null;
-  monto: number;
-  vigente_desde: string;
-  vigente_hasta: string;
-  vigencia: "futura" | "vigente" | "por_terminar" | "terminada";
-  paga: boolean;
-  frecuencia_pago: FrecuenciaPago | null;
-  proxima_fecha_pago: string | null;
-  dias_para_pago: number | null;
-  pago_proximo: boolean;
-  estado_constancia: EstadoConstancia;
-  fecha_pago_constancia: string | null;
-  plazo: string | null;
-  dias_para_plazo: number | null;
-  entrega_id: string | null;
-  entrega_estado: EstadoEntrega | null;
-  entrega_enviada_at: string | null;
-  entrega_archivos: number | null;
-  aprobadas: number;
-  aviso_fin_id: string | null;
-  aviso_fin_motivo: string | null;
-}
-
-interface Pendiente {
-  id: string;
-  familia_id: string;
-  persona_id: string;
-  fecha_pago: string;
-  enviada_at: string;
-  archivos: number;
-  es_reenvio: boolean;
-}
 
 interface SolicitudPendiente {
   id: string;
@@ -119,26 +90,6 @@ interface SolicitudHistorial {
   enviada_at: string;
   revisada_at: string | null;
   motivo_rechazo: string | null;
-}
-
-interface Entrega {
-  id: string;
-  asignacion_id: string;
-  fecha_pago: string;
-  tipo: TipoConstancia;
-  proxima_fecha_pago: string | null;
-  nota: string | null;
-  estado: EstadoEntrega;
-  origen: "colaboradora" | "do" | "migrada";
-  enviada_at: string;
-  enviada_por: string | null;
-  revisada_at: string | null;
-  revisada_por: string | null;
-  retirada_at: string | null;
-  motivo_categoria: MotivoRechazo | null;
-  motivo_comentario: string | null;
-  reemplaza_a: string | null;
-  archivos: { id: string; ruta: string; nombre: string; tipo_mime: string | null; bytes: number | null }[];
 }
 
 /** Lo que el formulario de alta/corrección necesita y la situación no trae. */
@@ -180,24 +131,6 @@ const FORM_VACIO: Form = {
 // Respaldo si la consulta del límite falla (fn_educacion_limite_comprobante, 0154).
 const LIMITE_RESPALDO = { bytes: 10 * 1024 * 1024, tipos: "image/jpeg,image/png,application/pdf" };
 
-const soles = (n: number) =>
-  `S/ ${Number(n).toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
-const MESES_CORTOS = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "set", "oct", "nov", "dic"];
-/** "2026-09-05" → "set 2026". */
-const mesCorto = (iso: string) => `${MESES_CORTOS[Number(iso.slice(5, 7)) - 1]} ${iso.slice(0, 4)}`;
-
-function fechaHora(ts: string | null): string {
-  if (!ts) return "—";
-  const f = new Intl.DateTimeFormat("es-PE", {
-    timeZone: TZ_LIMA, day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false,
-  }).formatToParts(new Date(ts));
-  const p = (t: string) => f.find((x) => x.type === t)?.value ?? "";
-  return `${p("day")}/${p("month")}/${p("year")} · ${p("hour")}:${p("minute")}`;
-}
-
-type Tarjeta = "pendientes" | "por_vencer" | "vencidas" | "rechazadas" | "pagos";
-
 function EducacionContenido() {
   const router = useRouter();
   const params = useSearchParams();
@@ -221,18 +154,20 @@ function EducacionContenido() {
   const [cargando, setCargando] = useState(true);
   const [cargaError, setCargaError] = useState<string | null>(null);
 
-  // Filtros
-  const [tarjeta, setTarjeta] = useState<Tarjeta | null>(null);
-  const [buscar, setBuscar] = useState("");
-  const [sede, setSede] = useState("");
-  const [estado, setEstado] = useState<EstadoConstancia | "">("");
-  const [periodo, setPeriodo] = useState("");
-  const [institucion, setInstitucion] = useState("");
-  const [vigencia, setVigencia] = useState<"activas" | "terminada" | "todas">("activas");
-  const [verLiquidadas, setVerLiquidadas] = useState(false);
-  // La pestaña: null = todos los estudios. «sin_solicitar» son personas, no estudios.
-  const [grupo, setGrupo] = useState<GrupoEducacion | null>(null);
-  const [exportando, setExportando] = useState(false);
+  // Filtros: un solo objeto. Los que definen QUÉ conjunto se mira (sede, mes, estado…) viajan en
+  // la dirección, para poder pasarle a alguien «las constancias de AQP en setiembre» como un enlace.
+  const [filtros, setFiltros] = useState<Filtros>(() => filtrosDeUrl(params));
+  const cambiar = useCallback((parcial: Partial<Filtros>) => setFiltros((f) => ({ ...f, ...parcial })), []);
+  const [mesesPedidos, setMesesPedidos] = useState(MESES_INICIALES);
+  const [descargando, setDescargando] = useState(false);
+
+  // Las constancias de TODOS los estudios, para dibujar la cuadrícula de meses. null = todavía llegando.
+  const [entregasPorFamilia, setEntregasPorFamilia] = useState<Map<string, EntregaDeFamilia[]> | null>(null);
+  const [errorConstancias, setErrorConstancias] = useState<string | null>(null);
+
+  // El visor grande de constancias. `visor` se conserva al cerrar para que se vea irse con su contenido.
+  const [visor, setVisor] = useState<{ clave: string; entregaId: string | null } | null>(null);
+  const [visorAbierto, setVisorAbierto] = useState(false);
 
   // Panel lateral
   const [abierta, setAbierta] = useState<string | null>(null);
@@ -255,6 +190,31 @@ function EducacionContenido() {
   const [saldo, setSaldo] = useState<number | null | undefined>(undefined);
   const [configAbierta, setConfigAbierta] = useState(false);
 
+  // Una consulta por estudio (`fn_educacion_entregas` se pide por familia), de a seis: es la misma
+  // función que usa el panel, así que el permiso lo decide la base y no esta pantalla. Mientras
+  // llega, la cuadrícula muestra casillas en espera; al recargar tras aprobar, deja las viejas
+  // a la vista hasta que lleguen las nuevas, para que no parpadee.
+  const cargaVigente = useRef(0);
+  const cargarConstancias = useCallback(async (filas: Situacion[]) => {
+    const mia = ++cargaVigente.current;
+    const mapa = new Map<string, EntregaDeFamilia[]>();
+    const cola = [...filas];
+    let fallos = 0;
+    async function trabajador() {
+      for (let f = cola.shift(); f; f = cola.shift()) {
+        const { data, error } = await supabase.rpc("fn_educacion_entregas", { p_familia_id: f.familia_id });
+        if (error) { fallos += 1; continue; }
+        mapa.set(f.familia_id, ((data ?? []) as unknown as Entrega[]).map((e) => ({ ...e, familia_id: f.familia_id })));
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(6, Math.max(1, filas.length)) }, trabajador));
+    if (mia !== cargaVigente.current) return; // llegó una carga más nueva: esta ya es vieja
+    setEntregasPorFamilia(mapa);
+    setErrorConstancias(fallos > 0
+      ? `No se pudieron traer las constancias de ${fallos} estudio${fallos === 1 ? "" : "s"}. Lo que ves puede estar incompleto.`
+      : null);
+  }, [supabase]);
+
   const cargar = useCallback(async () => {
     const { data: sesion } = await supabase.auth.getSession();
     if (!sesion.session) { router.replace("/admin/login"); return; }
@@ -269,7 +229,9 @@ function EducacionContenido() {
       supabase.rpc("fn_personas_funciones"),
       supabase.from("configuracion").select("clave, valor").like("clave", "educacion_%"),
     ]);
-    setSituaciones((sit.data ?? []) as unknown as Situacion[]);
+    const filasSituacion = (sit.data ?? []) as unknown as Situacion[];
+    setSituaciones(filasSituacion);
+    void cargarConstancias(filasSituacion);
     setPendientes((pend.data ?? []) as unknown as Pendiente[]);
     setSolicitudesPendientes((solPend.data ?? []) as unknown as SolicitudPendiente[]);
     setAsignaciones(new Map(((lista.data ?? []) as unknown as Asignacion[]).map((a) => [a.id, a])));
@@ -288,7 +250,7 @@ function EducacionContenido() {
     });
     setCargaError(sit.error ? mensajeDeError(sit.error, "cargar educación") : null);
     setCargando(false);
-  }, [supabase, router]);
+  }, [supabase, router, cargarConstancias]);
 
   // eslint-disable-next-line react-hooks/set-state-in-effect -- cargar al montar, mismo patrón que el resto del panel.
   useEffect(() => { void cargar(); }, [cargar]);
@@ -356,67 +318,79 @@ function EducacionContenido() {
     setSolicitudAbierta(solicitudPedida);
   }, [cargando, solicitudPedida]);
 
-  // ── Resumen accionable y filtros ─────────────────────────────────────────
-  const conteo = {
-    pendientes: pendientes.length,
-    por_vencer: situaciones.filter((s) => s.estado_constancia === "por_vencer").length,
-    vencidas: situaciones.filter((s) => s.estado_constancia === "vencida").length,
-    rechazadas: situaciones.filter((s) => s.estado_constancia === "rechazada").length,
-    pagos: situaciones.filter((s) => s.pago_proximo).length,
-    sinCalendario: situaciones.filter((s) => s.estado_constancia === "sin_calendario" && s.vigencia !== "terminada").length,
-  };
-  const familiasConPendiente = new Set(pendientes.map((p) => p.familia_id));
+  // ── Estudios, filtros y conteos ──────────────────────────────────────────
+  // Una fila por PERSONA E INSTITUCIÓN: el mismo estudio registrado dos veces es una línea con sus
+  // meses seguidos. Cada tarjeta, chip y pestaña cuenta sobre las MISMAS filas que se dibujan.
+  const estudios = useMemo(() => agruparEstudios(situaciones), [situaciones]);
+  const familiasConPendiente = useMemo(() => new Set(pendientes.map((p) => p.familia_id)), [pendientes]);
+  const ctx = useMemo<ContextoDeFiltros>(
+    () => ({ liquidadas, familiasConPendiente, entregasPorFamilia, personaPedida }),
+    [liquidadas, familiasConPendiente, entregasPorFamilia, personaPedida],
+  );
+  const cargandoConstancias = entregasPorFamilia === null && situaciones.length > 0;
 
-  // Nunca una lista escrita a mano de sedes (regla #3): salen de los datos.
-  const sedes = useMemo(() => Array.from(new Set(situaciones.map((s) => s.sede))).sort(), [situaciones]);
-  const instituciones = useMemo(() => Array.from(new Set(situaciones.map((s) => s.institucion))).sort(), [situaciones]);
-  const periodos = useMemo(
-    () => Array.from(new Set(situaciones.map((s) => s.fecha_pago_constancia?.slice(0, 7)).filter(Boolean) as string[])).sort().reverse(),
-    [situaciones],
+  // Nunca una lista escrita a mano (regla #3): todo sale de los datos.
+  const sedes = useMemo(() => sedesDe(estudios), [estudios]);
+  const instituciones = useMemo(() => Array.from(new Set(estudios.map((e) => e.institucion))).sort(), [estudios]);
+  const todasLasEntregas = useMemo(
+    () => (entregasPorFamilia ? Array.from(entregasPorFamilia.values()).flat() : []),
+    [entregasPorFamilia],
+  );
+  const periodos = useMemo(() => mesesConConstancia(todasLasEntregas).reverse(), [todasLasEntregas]);
+  const revisores = useMemo(
+    () => Array.from(new Set(todasLasEntregas.map((e) => e.revisada_por).filter(Boolean) as string[])).sort(),
+    [todasLasEntregas],
   );
 
-  // Todo menos la pestaña: así cada pestaña cuenta lo que mostraría al abrirla.
-  const pasaFiltros = (s: Situacion) => {
-    if (personaPedida) return s.persona_id === personaPedida;
-    if (!verLiquidadas && liquidadas.has(s.persona_id)) return false;
-    if (tarjeta === "pendientes" && !familiasConPendiente.has(s.familia_id)) return false;
-    if (tarjeta === "por_vencer" && s.estado_constancia !== "por_vencer") return false;
-    if (tarjeta === "vencidas" && s.estado_constancia !== "vencida") return false;
-    if (tarjeta === "rechazadas" && s.estado_constancia !== "rechazada") return false;
-    if (tarjeta === "pagos" && !s.pago_proximo) return false;
-    if (buscar.trim() && !s.persona.toLowerCase().includes(buscar.trim().toLowerCase())) return false;
-    if (sede && s.sede !== sede) return false;
-    if (estado && s.estado_constancia !== estado) return false;
-    if (periodo && s.fecha_pago_constancia?.slice(0, 7) !== periodo) return false;
-    if (institucion && s.institucion !== institucion) return false;
-    if (vigencia === "activas" && s.vigencia === "terminada") return false;
-    if (vigencia === "terminada" && s.vigencia !== "terminada") return false;
-    return true;
-  };
-  const deLaBusqueda = situaciones.filter(pasaFiltros);
-  const visibles = deLaBusqueda.filter((s) => grupo === null || grupo === "sin_solicitar" || grupoDeEstudio(s) === grupo);
+  // Cada pieza se cuenta con los DEMÁS filtros puestos: «AQP 3» tiene que ser lo que aparece al tocarlo.
+  const delAlcance = estudios.filter((e) => pasaFiltros(e, filtros, ctx, ["tarjeta", "grupo"]));
+  const conteo = conteoTarjetas(delAlcance, familiasConPendiente);
+  const deLaBusqueda = estudios.filter((e) => pasaFiltros(e, filtros, ctx, ["grupo"]));
+  const visibles = deLaBusqueda.filter((e) => filtros.grupo === null || filtros.grupo === "sin_solicitar" || grupoDeEstudio(e) === filtros.grupo);
+
+  const sedesConConteo = useMemo(() => {
+    const sinSede = estudios.filter((e) => pasaFiltros(e, filtros, ctx, ["sede"]));
+    return { total: sinSede.length, porSede: sedes.map((sede) => ({ sede, n: sinSede.filter((e) => e.sede === sede).length })) };
+  }, [estudios, filtros, ctx, sedes]);
 
   // Quién no pidió nada: personas activas sin estudio ni solicitud por revisar.
-  const sinSolicitar = personasSinSolicitar(candidatos, situaciones, solicitudesPendientes, liquidadas, verLiquidadas)
-    .filter((c) => (!sede || c.sede === sede) && (!buscar.trim() || c.persona.toLowerCase().includes(buscar.trim().toLowerCase())));
+  const sinSolicitar = personasSinSolicitar(candidatos, situaciones, solicitudesPendientes, liquidadas, filtros.liquidadas)
+    .filter((c) => (!filtros.sede || c.sede === filtros.sede) && (!filtros.buscar.trim() || c.persona.toLowerCase().includes(filtros.buscar.trim().toLowerCase())));
   const conteoGrupo: Record<GrupoEducacion, number> = {
     al_dia: 0, por_revisar: 0, por_completar: 0, en_falta: 0, sin_solicitar: sinSolicitar.length,
   };
-  for (const s of deLaBusqueda) conteoGrupo[grupoDeEstudio(s)] += 1;
+  for (const e of deLaBusqueda) conteoGrupo[grupoDeEstudio(e)] += 1;
   const niveles = useMemo(() => nivelesDeApoyo(candidatos), [candidatos]);
-  // Lo que pide acción primero; después, por persona.
-  const PRIORIDAD: Record<EstadoConstancia, number> = {
-    pendiente_revision: 0, vencida: 1, por_vencer: 2, rechazada: 3, falta_enviar: 4, sin_calendario: 5, al_dia: 6,
-  };
-  visibles.sort((a, b) => PRIORIDAD[a.estado_constancia] - PRIORIDAD[b.estado_constancia] || a.persona.localeCompare(b.persona));
 
-  const hayFiltros = grupo || tarjeta || buscar || sede || estado || periodo || institucion || vigencia !== "activas" || verLiquidadas;
-  function limpiarFiltros() {
-    setGrupo(null); setTarjeta(null); setBuscar(""); setSede(""); setEstado(""); setPeriodo(""); setInstitucion("");
-    setVigencia("activas"); setVerLiquidadas(false);
-  }
+  // La línea de tiempo: seis meses y «ver más». Si se pidió un mes más viejo que la ventana, se abre hasta él.
+  const mesesConDatos = useMemo(
+    () => [...mesesConConstancia(todasLasEntregas), ...estudios.map((e) => mesDe(e.desde))],
+    [todasLasEntregas, estudios],
+  );
+  const ventana = useMemo(() => {
+    const v = ventanaDeMeses(hoy, mesesConDatos, mesesPedidos);
+    if (filtros.mes && filtros.mes < v.meses[0]) {
+      return ventanaDeMeses(hoy, mesesConDatos, mesesEntre(filtros.mes, v.meses[v.meses.length - 1]) + 1);
+    }
+    return v;
+  }, [hoy, mesesConDatos, mesesPedidos, filtros.mes]);
 
-  const totalMensual = situaciones.filter((s) => s.paga && s.vigente_desde <= hoy).reduce((t, s) => t + Number(s.monto), 0);
+  // Una sola sede elegida, o una sola con datos: no hace falta partir la lista en bloques.
+  const resumenes = useMemo(() => resumenPorSede(visibles, hoy, familiasConPendiente), [visibles, hoy, familiasConPendiente]);
+  const resumenDelAlcance = useMemo(() => resumenPorSede(delAlcance, hoy, familiasConPendiente), [delAlcance, hoy, familiasConPendiente]);
+  const totalMensual = resumenDelAlcance.reduce((t, r) => t + r.montoMensual, 0);
+  const apoyosPagandose = resumenDelAlcance.reduce((t, r) => t + r.pagando, 0);
+
+  function limpiarFiltros() { setFiltros(FILTROS_VACIOS); }
+
+  // La dirección acompaña a los filtros, sin tocar lo que otras pantallas le pasan (?persona=, ?familia=…).
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    for (const k of CLAVES_DE_URL) url.searchParams.delete(k);
+    for (const [k, v] of new URLSearchParams(filtrosAUrl(filtros))) url.searchParams.set(k, v);
+    const nueva = `${url.pathname}${url.search}`;
+    if (nueva !== `${window.location.pathname}${window.location.search}`) window.history.replaceState(null, "", nueva);
+  }, [filtros]);
 
   // ── Formulario de alta/corrección (cuerpo de la pantalla anterior) ───────
   const candidato = candidatos.find((c) => c.persona_id === form.personaId) ?? null;
@@ -595,54 +569,93 @@ function EducacionContenido() {
     </div>
   );
 
-  // ── CUADRO PARA AUDITORÍA (CSV) ──────────────────────────────────────────
-  // Una fila por constancia y archivo, de TODOS los estudios (no solo los que
-  // dejan ver los filtros): un auditor pide el cuadro entero. Las constancias
-  // se piden por estudio con la misma función que usa el panel, así que el
-  // permiso lo decide la base y no esta pantalla.
-  async function exportarCuadro() {
-    setExportando(true);
-    const respuestas = await Promise.all(situaciones.map((s) =>
-      supabase.rpc("fn_educacion_entregas", { p_familia_id: s.familia_id }).then((r) => ({ s, r }))));
-    const fallo = respuestas.find(({ r }) => r.error);
-    if (fallo?.r.error) {
-      setExportando(false);
-      avisar("error", mensajeDeError(fallo.r.error, "armar el cuadro de constancias"));
-      return;
-    }
+  // ── DESCARGAS PARA AUDITORÍA: lo que ves, no «todo el sistema» ───────────
+  // Decisión de Felipe (2026-10-16): el cuadro respeta los filtros, y el ZIP junta los papeles de
+  // la sede y el mes elegidos. Las dos usan las constancias que la pantalla YA trajo y la misma
+  // regla (`entregaPasaFiltros`) que la lista, así que lo descargado coincide con lo que se ve.
+  // Llevan datos personales: no se suben a git ni se reenvían.
+  function armarAuditoria() {
     const filas: Record<string, unknown>[] = [];
-    for (const { s, r } of respuestas) {
+    const archivos: { nombre: string; ruta: string }[] = [];
+    // El índice tiene que decir el nombre que de verdad lleva el archivo dentro del ZIP: si dos
+    // constancias del mismo día se llamaran igual, el segundo se renombra AQUÍ y no más adelante.
+    const usados = new Set<string>();
+    const unico = (n: string) => {
+      const punto = n.lastIndexOf(".");
+      let c = n;
+      for (let k = 2; usados.has(c.toLowerCase()); k++) c = punto > 0 ? `${n.slice(0, punto)} (${k})${n.slice(punto)}` : `${n} (${k})`;
+      usados.add(c.toLowerCase());
+      return c;
+    };
+    for (const e of visibles) {
       const base = {
-        persona: s.persona, sede: s.sede, rango: s.rango, institucion: s.institucion,
-        beneficiario: s.beneficiario === "hijo" ? (s.beneficiario_nombre ?? "hijo/a") : "la persona misma",
-        apoyo_mensual: Number(s.monto).toFixed(2), se_paga: s.paga ? "sí" : "no",
-        vigente_desde: s.vigente_desde, vigente_hasta: s.vigente_hasta,
-        estado_actual: estadoParaMostrar(s).etiqueta,
-        grupo: GRUPOS_EDUCACION.find((g) => g.clave === grupoDeEstudio(s))?.etiqueta ?? "",
+        persona: e.persona, sede: e.sede, rango: e.rango, institucion: e.institucion,
+        beneficiario: e.beneficiario === "hijo" ? (e.beneficiario_nombre ?? "hijo/a") : "la persona misma",
+        apoyo_mensual: montoMensual(e, hoy).monto.toFixed(2), se_paga: montoMensual(e, hoy).seEstaPagando ? "sí" : "no",
+        vigente_desde: e.desde, vigente_hasta: e.hasta,
+        estado_actual: estadoParaMostrar(e).etiqueta,
+        grupo: GRUPOS_EDUCACION.find((g) => g.clave === grupoDeEstudio(e))?.etiqueta ?? "",
       };
-      const entregas = (r.data ?? []) as unknown as Entrega[];
+      const entregas = entregasDeEstudio(e, entregasPorFamilia).filter((x) => entregaPasaFiltros(x, filtros));
       if (entregas.length === 0) { filas.push({ ...base }); continue; }
-      for (const e of entregas) {
+      for (const x of entregas) {
         const comunes = {
-          ...base, fecha_de_pago: e.fecha_pago, resultado: ESTADO_ENTREGA[e.estado].etiqueta,
-          enviada: fechaHora(e.enviada_at), revisada: fechaHora(e.revisada_at), revisada_por: e.revisada_por ?? "",
-          motivo_rechazo: e.motivo_categoria ? `${MOTIVO_RECHAZO_LABELS[e.motivo_categoria]}${e.motivo_comentario ? `: ${e.motivo_comentario}` : ""}` : "",
+          ...base, fecha_de_pago: x.fecha_pago, tipo: TIPO_CONSTANCIA_LABELS[x.tipo], resultado: ESTADO_ENTREGA[x.estado].etiqueta,
+          enviada: fechaHora(x.enviada_at), revisada: fechaHora(x.revisada_at), revisada_por: x.revisada_por ?? "",
+          motivo_rechazo: x.motivo_categoria ? `${MOTIVO_RECHAZO_LABELS[x.motivo_categoria]}${x.motivo_comentario ? `: ${x.motivo_comentario}` : ""}` : "",
         };
-        if (e.archivos.length === 0) filas.push({ ...comunes });
-        for (const a of e.archivos) filas.push({ ...comunes, archivo: a.nombre, ruta_en_el_almacen: a.ruta });
+        if (x.archivos.length === 0) filas.push({ ...comunes });
+        x.archivos.forEach((a, i) => {
+          const ext = (a.nombre.split(".").pop() ?? a.ruta.split(".").pop() ?? "bin").toLowerCase().replace(/[^a-z0-9]/g, "") || "bin";
+          const nombre = unico(nombreLegible(`${e.persona} - ${e.institucion} - ${x.fecha_pago} - ${i + 1}.${ext}`));
+          filas.push({ ...comunes, archivo: a.nombre, ruta_en_el_almacen: a.ruta, archivo_en_el_zip: x.estado === "retirada" ? "" : nombre });
+          if (x.estado !== "retirada") archivos.push({ nombre, ruta: a.ruta });
+        });
       }
     }
-    const columnas = [
-      "persona", "sede", "rango", "institucion", "beneficiario", "apoyo_mensual", "se_paga", "vigente_desde", "vigente_hasta",
-      "estado_actual", "grupo", "fecha_de_pago", "resultado", "enviada", "revisada", "revisada_por", "motivo_rechazo",
-      "archivo", "ruta_en_el_almacen",
-    ];
-    descargarCsv(`educacion-constancias-${hoy}.csv`, generarCsv(filas, columnas));
-    setExportando(false);
-    avisar("ok", `Cuadro descargado: ${filas.length} filas de ${situaciones.length} estudios.`);
+    return { filas, archivos };
+  }
+
+  const COLUMNAS_AUDITORIA = [
+    "persona", "sede", "rango", "institucion", "beneficiario", "apoyo_mensual", "se_paga", "vigente_desde", "vigente_hasta",
+    "estado_actual", "grupo", "fecha_de_pago", "tipo", "resultado", "enviada", "revisada", "revisada_por", "motivo_rechazo",
+    "archivo", "ruta_en_el_almacen", "archivo_en_el_zip",
+  ];
+
+  function descargarCuadro() {
+    if (entregasPorFamilia === null) { avisar("error", "Las constancias todavía se están trayendo. Espera un momento."); return; }
+    const { filas } = armarAuditoria();
+    descargarCsv(`educacion-constancias-${hoy}.csv`, generarCsv(filas, COLUMNAS_AUDITORIA));
+    avisar("ok", `Cuadro descargado: ${filas.length} filas de ${visibles.length} estudios.`);
+  }
+
+  const zipDisponible = Boolean(filtros.mes || filtros.desde || filtros.hasta) && entregasPorFamilia !== null;
+  async function descargarZip() {
+    if (!zipDisponible) { avisar("error", "Elige un mes (o un rango de fechas) para armar el ZIP."); return; }
+    const { filas, archivos } = armarAuditoria();
+    if (archivos.length === 0) { avisar("error", "No hay archivos de constancias en lo que ves."); return; }
+    setDescargando(true);
+    avisar("ok", `Armando el ZIP: ${archivos.length} archivo${archivos.length === 1 ? "" : "s"}…`);
+    const r = await armarZip(supabase, archivos, generarCsv(filas, COLUMNAS_AUDITORIA), () => {});
+    setDescargando(false);
+    if (!r.ok) { avisar("error", `No se armó el ZIP: ${r.error}.`); return; }
+    const cuando = filtros.mes || `${filtros.desde || "inicio"}_a_${filtros.hasta || hoy}`;
+    descargarBlob(nombreLegible(`Educación ${filtros.sede || "todas las sedes"} ${cuando}`) + ".zip", r.blob);
+    avisar("ok", `ZIP listo: ${archivos.length} archivo${archivos.length === 1 ? "" : "s"} y su índice.`);
   }
 
   const seleccion = abierta ? situaciones.find((s) => s.familia_id === abierta) ?? null : null;
+  const visorEstudio = visor ? estudios.find((e) => e.clave === visor.clave) ?? null : null;
+
+  function abrirVisor(e: Estudio, entregaId: string | null) {
+    setVisor({ clave: e.clave, entregaId });
+    setVisorAbierto(true);
+  }
+  function abrirEstudio(e: Estudio, boton: HTMLElement | null) {
+    botonQueAbrio.current = boton;
+    setEntregaFoco(null);
+    setAbierta(e.actual.familia_id);
+  }
 
   return (
     <div className="flex flex-1 flex-col">
@@ -686,59 +699,36 @@ function EducacionContenido() {
                   </div>
                 )}
 
-                {/* ── RESUMEN: solo lo accionable, y cada tarjeta filtra ────────── */}
-                <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-5">
-                  {/* Quinto dato: lo que dice la insignia cuando no es la de siempre. «Rechazadas» espera a la
-                      integrante —le toca enviar la corregida—, así que no pide «atender» a Desarrollo Organizacional. */}
+                {/* ── RESUMEN: cinco cifras que cuentan lo MISMO que se dibuja abajo ─ */}
+                {/* «Rechazadas» espera a la integrante —le toca enviar la corregida—, así que no pide
+                    «atender» a Desarrollo Organizacional. Un cero no pinta punto: callado, está bien. */}
+                <div className="mb-3 grid grid-cols-2 gap-3 lg:grid-cols-5">
                   {([
-                    ["pendientes", "Pendientes de revisión", conteo.pendientes, "informativo", null],
-                    ["vencidas", "Constancias vencidas", conteo.vencidas, "alerta", null],
-                    ["por_vencer", "Por vencer", conteo.por_vencer, "advertencia", null],
-                    ["rechazadas", "Constancias rechazadas", conteo.rechazadas, "neutral", "esperando a la integrante"],
-                    ["pagos", `Pagos en ${config.avisoDo} días`, conteo.pagos, "neutral", null],
-                  ] as const).map(([clave, etiqueta, n, tono, aviso]) => (
-                    <button key={clave} type="button" aria-pressed={tarjeta === clave}
-                      onClick={() => setTarjeta(tarjeta === clave ? null : clave)}
-                      className={`rounded-2xl border p-4 text-left transition-colors ${tarjeta === clave ? "border-tinta bg-papel" : "border-sand bg-papel hover:border-taupe"}`}>
-                      <span className="block text-xs uppercase tracking-wide text-taupe">{etiqueta}</span>
-                      <span className="mt-1 flex flex-wrap items-center gap-2">
-                        <span className="font-serif text-3xl tabular-nums">{n}</span>
-                        {n > 0 && (aviso || tono !== "neutral") && (
-                          <Insignia variante={tono} tamano="sm">
-                            {aviso ?? (tono === "alerta" ? "atender" : tono === "advertencia" ? "pronto" : "revisar")}
-                          </Insignia>
-                        )}
-                      </span>
-                    </button>
+                    ["pendientes", "Pendientes de revisión", conteo.pendientes, "informativo", undefined],
+                    ["vencidas", "Constancias vencidas", conteo.vencidas, "alerta", undefined],
+                    ["por_vencer", "Por vencer", conteo.por_vencer, "advertencia", undefined],
+                    ["rechazadas", "Constancias rechazadas", conteo.rechazadas, undefined, "esperando a la integrante"],
+                    ["pagos", `Pagos en ${config.avisoDo} días`, conteo.pagos, undefined, undefined],
+                  ] as const).map(([clave, etiqueta, n, tono, detalle]) => (
+                    <Cifra key={clave} etiqueta={etiqueta} valor={n} tono={n > 0 ? tono : undefined}
+                      detalle={n > 0 ? detalle : undefined} activa={filtros.tarjeta === clave}
+                      onClick={() => cambiar({ tarjeta: filtros.tarjeta === clave ? null : clave })} />
                   ))}
                 </div>
 
-                <p className="mb-4 text-xs text-taupe">
-                  {situaciones.filter((s) => s.paga && s.vigente_desde <= hoy).length} apoyos pagándose · suman {soles(totalMensual)} al mes
+                <p className="mb-5 text-xs text-taupe">
+                  <strong className="font-medium text-tinta">
+                    {[filtros.sede || (sedes.length > 1 ? "Todas las sedes" : sedes[0] ?? ""), filtros.mes && `pagos de ${mesLargo(filtros.mes)}`]
+                      .filter(Boolean).join(" · ")}
+                  </strong>
+                  {" · "}{apoyosPagandose} apoyo{apoyosPagandose === 1 ? "" : "s"} pagándose · suman {soles(totalMensual)} al mes
                   {conteo.sinCalendario > 0 && (
-                    <> · <Boton variante="enlace" className="text-xs" onClick={() => { limpiarFiltros(); setEstado("sin_calendario"); }}>
+                    <> · <Boton variante="enlace" className="text-xs" onClick={() => setFiltros({ ...FILTROS_VACIOS, estado: "sin_calendario" })}>
                       {conteo.sinCalendario} sin calendario de pagos
                     </Boton></>
                   )}
                   {" · "}
                   <Boton variante="enlace" className="text-xs" onClick={() => setConfigAbierta(true)}>Texto y plazos de las constancias</Boton>
-                </p>
-
-                {/* ── PESTAÑAS: en qué punto está cada persona (por la constancia) ── */}
-                <div role="group" aria-label="Grupo" className="mb-1 flex flex-wrap gap-2">
-                  {([[null, "Todos", deLaBusqueda.length] as const,
-                    ...GRUPOS_EDUCACION.map((g) => [g.clave, g.etiqueta, conteoGrupo[g.clave]] as const)]).map(([clave, etiqueta, n]) => (
-                    <button key={clave ?? "todos"} type="button" aria-pressed={grupo === clave}
-                      onClick={() => setGrupo(clave)}
-                      className={`rounded-full border px-4 py-1.5 text-sm transition-colors ${grupo === clave ? "border-tinta bg-tinta text-crema" : "border-sand bg-papel hover:border-taupe"}`}>
-                      {etiqueta} <span className="tabular-nums opacity-80">{n}</span>
-                    </button>
-                  ))}
-                </div>
-                <p className="mb-4 min-h-5 text-xs text-taupe">
-                  {grupo === null
-                    ? "Todos los estudios, con lo que pide acción primero."
-                    : GRUPOS_EDUCACION.find((g) => g.clave === grupo)?.ayuda}
                 </p>
 
                 {/* ── SOLICITUDES DE APOYO (0461): quien todavía no tiene asignación ── */}
@@ -764,50 +754,28 @@ function EducacionContenido() {
                   </div>
                 )}
 
-                {/* ── FILTROS ─────────────────────────────────────────────────── */}
-                <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
-                  <div className="sm:col-span-2 lg:col-span-2">
-                    <Campo etiqueta="Buscar persona" value={buscar} onChange={(e) => setBuscar(e.target.value)} placeholder="Nombre o apellido" />
-                  </div>
-                  <CampoSelect etiqueta="Sede" value={sede} onChange={(e) => setSede(e.target.value)}>
-                    <option value="">Todas</option>
-                    {sedes.map((s) => <option key={s} value={s}>{s}</option>)}
-                  </CampoSelect>
-                  <CampoSelect etiqueta="Estado de la constancia" value={estado} onChange={(e) => setEstado(e.target.value as EstadoConstancia | "")}>
-                    <option value="">Todos</option>
-                    {(Object.keys(ESTADO_CONSTANCIA) as EstadoConstancia[]).map((k) => <option key={k} value={k}>{ESTADO_CONSTANCIA[k].etiqueta}</option>)}
-                  </CampoSelect>
-                  <CampoSelect etiqueta="Pago" value={periodo} onChange={(e) => setPeriodo(e.target.value)}>
-                    <option value="">Todos</option>
-                    {periodos.map((p) => <option key={p} value={p}>{mesCorto(`${p}-01`)}</option>)}
-                  </CampoSelect>
-                  <CampoSelect etiqueta="Institución" value={institucion} onChange={(e) => setInstitucion(e.target.value)}>
-                    <option value="">Todas</option>
-                    {instituciones.map((i) => <option key={i} value={i}>{i}</option>)}
-                  </CampoSelect>
-                  <CampoSelect etiqueta="Beneficio" value={vigencia} onChange={(e) => setVigencia(e.target.value as typeof vigencia)}>
-                    <option value="activas">Vigentes y por empezar</option>
-                    <option value="terminada">Terminados</option>
-                    <option value="todas">Todos</option>
-                  </CampoSelect>
-                  <label className="flex items-end gap-2 pb-2 text-sm">
-                    <input type="checkbox" className="size-4 accent-tinta" checked={verLiquidadas} onChange={(e) => setVerLiquidadas(e.target.checked)} />
-                    Incluir personas ya liquidadas
-                  </label>
-                  {hayFiltros && (
-                    <div className="flex items-end pb-2">
-                      <Boton variante="enlace" onClick={limpiarFiltros}>Limpiar filtros</Boton>
-                    </div>
-                  )}
-                </div>
+                {/* ── FILTROS: sede primero, después el grupo, y las herramientas ──── */}
+                <BarraFiltros
+                  filtros={filtros} cambiar={cambiar} limpiar={limpiarFiltros}
+                  opciones={{
+                    sedes: sedesConConteo.porSede, totalSedes: sedesConConteo.total,
+                    grupos: conteoGrupo, totalGrupos: deLaBusqueda.length,
+                    meses: periodos, instituciones, revisores, cargandoConstancias,
+                  }}
+                  descargas={{ csv: descargarCuadro, zip: () => void descargarZip(), zipDisponible, ocupado: descargando }}
+                />
 
-                {grupo === "sin_solicitar" ? (
+                {errorConstancias && (
+                  <div className="mb-4 flex flex-wrap items-center gap-2 rounded-control bg-ambar/15 px-4 py-3 text-sm text-ambar">
+                    {errorConstancias} <Boton variante="enlace" onClick={() => void cargar()}>Reintentar</Boton>
+                  </div>
+                )}
+
+                {filtros.grupo === "sin_solicitar" ? (
                   sinSolicitar.length === 0 ? (
-                    <div className="max-w-3xl rounded-2xl border border-sand bg-papel px-5 py-6 text-sm text-taupe">
-                      Todas las personas activas tienen un apoyo o una solicitud en curso.
-                    </div>
+                    <EstadoVacio>Todas las personas activas tienen un apoyo o una solicitud en curso.</EstadoVacio>
                   ) : (
-                    <div className="overflow-x-auto rounded-2xl border border-sand">
+                    <div className="overflow-x-auto rounded-superficie border border-sand">
                       <table className="w-full text-sm">
                         <thead className="bg-hueso text-left text-xs uppercase tracking-wide text-taupe">
                           <tr>
@@ -837,120 +805,20 @@ function EducacionContenido() {
                     </div>
                   )
                 ) : situaciones.length === 0 ? (
-                  <div className="max-w-3xl rounded-2xl border border-sand bg-papel px-5 py-6 text-sm text-taupe">
-                    Todavía no hay ningún apoyo educativo registrado.
-                  </div>
+                  <EstadoVacio>Todavía no hay ningún apoyo educativo registrado.</EstadoVacio>
                 ) : visibles.length === 0 ? (
-                  <div className="rounded-2xl border border-sand bg-papel px-5 py-6 text-sm text-taupe">
-                    Nada coincide con estos filtros. <Boton variante="enlace" onClick={limpiarFiltros}>Limpiar filtros</Boton>
-                  </div>
+                  <EstadoVacio accion={<Boton variante="secundario" onClick={limpiarFiltros}>Limpiar filtros</Boton>}>
+                    Nada coincide con estos filtros.
+                  </EstadoVacio>
                 ) : (
-                  <>
-                    {/* ── DESKTOP Y TABLET: tabla ───────────────────────────────── */}
-                    <div className="hidden overflow-x-auto rounded-2xl border border-sand md:block">
-                      <table className="w-full text-sm">
-                        <thead className="bg-hueso text-left text-xs uppercase tracking-wide text-taupe">
-                          <tr>
-                            <th className="px-4 py-2 font-medium" rowSpan={2}>Persona</th>
-                            <th className="border-l border-sand px-4 pt-2 font-medium" colSpan={3}>Beneficio</th>
-                            <th className="border-l border-sand px-4 pt-2 font-medium" colSpan={3}>Constancia</th>
-                            <th className="px-4 py-2" rowSpan={2}><span className="sr-only">Acción</span></th>
-                          </tr>
-                          <tr className="normal-case tracking-normal">
-                            <th className="border-l border-sand px-4 pb-2 font-normal">Institución</th>
-                            <th className="px-4 pb-2 font-normal">Apoyo mensual</th>
-                            <th className="hidden px-4 pb-2 font-normal lg:table-cell">Vigencia</th>
-                            <th className="border-l border-sand px-4 pb-2 font-normal">Pago</th>
-                            <th className="hidden px-4 pb-2 font-normal lg:table-cell">Archivos</th>
-                            <th className="px-4 pb-2 font-normal">Estado</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {visibles.map((s) => {
-                            const est = estadoParaMostrar(s);
-                            const pend = pendientes.filter((p) => p.familia_id === s.familia_id);
-                            return (
-                              <tr key={s.familia_id} className={`border-t border-sand ${s.vigencia === "terminada" ? "text-taupe" : ""}`}>
-                                <td className="px-4 py-3">
-                                  <span className="font-medium">{s.persona}</span>
-                                  <span className="block text-xs text-taupe">{s.sede} · {s.rango}</span>
-                                </td>
-                                <td className="border-l border-sand px-4 py-3">
-                                  {s.institucion}
-                                  <span className="block text-xs text-taupe">
-                                    {s.beneficiario === "hijo" ? (s.beneficiario_nombre ?? "su hijo/a") : "la persona misma"}
-                                  </span>
-                                </td>
-                                <td className="px-4 py-3 tabular-nums">
-                                  {soles(s.monto)}
-                                  {s.vigencia !== "terminada" && (
-                                    <span className="block text-xs text-taupe">{s.paga ? "se paga" : "no se paga: sin comprobante"}</span>
-                                  )}
-                                </td>
-                                <td className="hidden px-4 py-3 text-xs lg:table-cell">
-                                  Desde {fechaCorta(s.vigente_desde)}
-                                  <span className={`block ${s.vigencia === "por_terminar" ? "text-ambar" : "text-taupe"}`}>
-                                    {s.vigencia === "terminada" ? `terminó el ${fechaCorta(s.vigente_hasta)}` : `hasta ${fechaCorta(s.vigente_hasta)}`}
-                                  </span>
-                                </td>
-                                <td className="border-l border-sand px-4 py-3 text-xs">
-                                  {s.fecha_pago_constancia ? fechaCorta(s.fecha_pago_constancia) : "—"}
-                                  {s.plazo && s.dias_para_plazo !== null && s.estado_constancia !== "al_dia" && s.estado_constancia !== "pendiente_revision" && (
-                                    <span className="block text-taupe">{enDias(s.dias_para_plazo, { futuro: "vence", pasado: "venció" })}</span>
-                                  )}
-                                  {s.pago_proximo && s.dias_para_pago !== null && (
-                                    <span className="block text-taupe">{enDias(s.dias_para_pago, { futuro: "Paga", pasado: "Pagó" })}</span>
-                                  )}
-                                </td>
-                                <td className="hidden px-4 py-3 text-xs lg:table-cell">
-                                  {pend.length > 0
-                                    ? `${pend.reduce((t, p) => t + p.archivos, 0)} por revisar`
-                                    : `${s.aprobadas} aprobada${s.aprobadas === 1 ? "" : "s"}`}
-                                </td>
-                                <td className="px-4 py-3">
-                                  <Insignia variante={est.tono}>{est.etiqueta}</Insignia>
-                                  {s.aviso_fin_id && <span className="mt-1 block text-xs text-ambar">avisó que deja de pagar</span>}
-                                </td>
-                                <td className="px-4 py-3 text-right">
-                                  <Boton variante={pend.length > 0 ? "primario" : "secundario"} tamano="sm"
-                                    onClick={(e) => { botonQueAbrio.current = e.currentTarget; setEntregaFoco(pend[0]?.id ?? s.entrega_id ?? null); setAbierta(s.familia_id); }}>
-                                    {pend.length > 0 ? "Revisar →" : "Constancias →"}
-                                  </Boton>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-
-                    {/* ── CELULAR: tarjetas ─────────────────────────────────────── */}
-                    <ul className="flex flex-col gap-3 md:hidden">
-                      {visibles.map((s) => {
-                        const est = estadoParaMostrar(s);
-                        const pend = pendientes.filter((p) => p.familia_id === s.familia_id);
-                        return (
-                          <li key={s.familia_id} className="rounded-2xl border border-sand bg-papel p-4 text-sm">
-                            <div className="flex items-start justify-between gap-2">
-                              <div>
-                                <p className="font-medium">{s.persona}</p>
-                                <p className="text-xs text-taupe">{s.sede} · {s.institucion}</p>
-                              </div>
-                              <Insignia variante={est.tono}>{est.etiqueta}</Insignia>
-                            </div>
-                            <dl className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                              <div><dt className="text-taupe">Apoyo mensual</dt><dd className="tabular-nums">{soles(s.monto)}</dd></div>
-                              <div><dt className="text-taupe">Pago</dt><dd>{s.fecha_pago_constancia ? fechaCorta(s.fecha_pago_constancia) : "—"}</dd></div>
-                            </dl>
-                            <Boton variante={pend.length > 0 ? "primario" : "secundario"} className="mt-3 w-full"
-                              onClick={(e) => { botonQueAbrio.current = e.currentTarget; setEntregaFoco(pend[0]?.id ?? s.entrega_id ?? null); setAbierta(s.familia_id); }}>
-                              {pend.length > 0 ? "Revisar constancia →" : "Constancias →"}
-                            </Boton>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </>
+                  <CuadriculaMeses
+                    estudios={visibles} meses={ventana.meses} hayMasMeses={ventana.hayMas}
+                    onVerMasMeses={() => setMesesPedidos((n) => Math.max(n, ventana.meses.length) + MESES_POR_PASO)}
+                    mesResaltado={filtros.mes} entregasPorFamilia={entregasPorFamilia} cargandoConstancias={cargandoConstancias}
+                    pendientes={pendientes} hoy={hoy}
+                    resumenesSede={filtros.sede === "" && resumenes.length > 1 ? resumenes : null}
+                    onAbrirVisor={abrirVisor} onAbrirEstudio={abrirEstudio}
+                  />
                 )}
 
                 {/* ── CÓMO FUNCIONA y DÓNDE ESTÁN: lo que pregunta quien llega nuevo o audita ── */}
@@ -1027,7 +895,8 @@ function EducacionContenido() {
                         <p className="text-taupe">
                           Cada constancia guarda quién la envió y cuándo, quién la revisó y cuándo, y el motivo si se
                           rechazó. Desde el sistema no se edita ni se borra: si algo está mal, se envía otra, y una
-                          pendiente solo se retira y queda marcada. Se ve abriendo el estudio de cada persona.
+                          pendiente solo se retira y queda marcada. Se ven en la cuadrícula de meses: un toque en la casilla
+                          abre el papel, con sus datos al lado.
                         </p>
                       </div>
                       <p className="rounded-lg bg-hueso px-3 py-2 tabular-nums">
@@ -1035,12 +904,12 @@ function EducacionContenido() {
                         · {pendientes.length} por revisar
                       </p>
                       <div>
-                        <Boton variante="secundario" tamano="sm" cargando={exportando} onClick={() => void exportarCuadro()}>
-                          Descargar cuadro (CSV)
-                        </Boton>
-                        <p className="mt-1 text-xs text-taupe">
-                          Una fila por constancia y archivo, de todos los estudios: persona, estado, fechas, quién
-                          revisó y la ruta del archivo. Lleva datos personales: no se sube a git ni se reenvía.
+                        <p className="font-medium">Para una auditoría</p>
+                        <p className="text-taupe">
+                          «Descargar», arriba de la lista, baja el cuadro (CSV) de lo que estás viendo —una fila por
+                          constancia y archivo: persona, estado, fechas, quién revisó y la ruta del archivo— y, si
+                          eliges un mes, un ZIP con los papeles de esa sede y ese mes. Llevan datos personales: no se
+                          suben a git ni se reenvían.
                         </p>
                       </div>
                     </div>
@@ -1127,6 +996,20 @@ function EducacionContenido() {
         <ConfigConstancias abierto={configAbierta} config={config} onCerrar={() => setConfigAbierta(false)}
           onGuardado={async () => { setConfigAbierta(false); avisar("ok", "Configuración guardada."); await cargar(); }}
           onError={(t) => avisar("error", t)} />
+
+        {visorEstudio && (
+          <VisorConstancia
+            abierto={visorAbierto}
+            estudio={visorEstudio}
+            entregas={entregasDeEstudio(visorEstudio, entregasPorFamilia)}
+            entregaId={visor?.entregaId ?? null}
+            miPersonaId={persona?.id ?? null}
+            onCerrar={() => setVisorAbierto(false)}
+            onResuelta={async (texto) => { avisar("ok", texto); await cargar(); }}
+            onError={(texto) => avisar("error", texto)}
+            onAbrirEstudio={() => { setVisorAbierto(false); abrirEstudio(visorEstudio, null); }}
+          />
+        )}
       </main>
     </div>
   );
@@ -1145,11 +1028,7 @@ function PanelEstudio({
 }) {
   const supabase = useMemo(() => createAdminSupabaseClient(), []);
   const [entregas, setEntregas] = useState<Entrega[] | null>(null);
-  const [aprobando, setAprobando] = useState<Entrega | null>(null);
-  const [rechazando, setRechazando] = useState<Entrega | null>(null);
   const [trabajando, setTrabajando] = useState(false);
-  const [categoria, setCategoria] = useState<MotivoRechazo | "">("");
-  const [comentario, setComentario] = useState("");
   const [frecuencia, setFrecuencia] = useState<FrecuenciaPago | "">(s.frecuencia_pago ?? "");
   const [proxima, setProxima] = useState(s.proxima_fecha_pago ?? "");
   const [cargandoAlNombre, setCargandoAlNombre] = useState(false);
@@ -1168,32 +1047,6 @@ function PanelEstudio({
   const pendientesDe = (entregas ?? []).filter((e) => e.estado === "pendiente");
   const enRevision = pendientesDe.find((e) => e.id === entregaFoco) ?? pendientesDe[0] ?? null;
   const esPropia = miPersonaId !== null && miPersonaId === s.persona_id;
-
-  async function aprobar() {
-    if (!aprobando) return;
-    setTrabajando(true);
-    const { error } = await supabase.rpc("fn_educacion_resolver_entrega", { p_id: aprobando.id, p_aprobar: true });
-    setTrabajando(false);
-    if (error) { onError(mensajeDeError(error, "aprobar la constancia")); return; }
-    setAprobando(null);
-    await traer();
-    await onCambio(`Constancia de ${s.persona} aprobada.`);
-  }
-
-  async function rechazar() {
-    if (!rechazando) return;
-    if (!categoria) { onError("Elige el motivo del rechazo."); return; }
-    if (comentario.trim().length < 3) { onError("Escribe qué tiene que corregir: la integrante lo va a leer."); return; }
-    setTrabajando(true);
-    const { error } = await supabase.rpc("fn_educacion_resolver_entrega", {
-      p_id: rechazando.id, p_aprobar: false, p_categoria: categoria, p_comentario: comentario.trim(),
-    });
-    setTrabajando(false);
-    if (error) { onError(mensajeDeError(error, "rechazar la constancia")); return; }
-    setRechazando(null); setCategoria(""); setComentario("");
-    await traer();
-    await onCambio(`Constancia de ${s.persona} rechazada. Le llega el motivo en su Bandeja.`);
-  }
 
   async function guardarCalendario() {
     setTrabajando(true);
@@ -1303,15 +1156,13 @@ function PanelEstudio({
               {enRevision.reemplaza_a && <div><dt className="text-xs text-taupe">Es</dt><dd>una corrección de un envío anterior</dd></div>}
             </dl>
             {enRevision.nota && <p className="mt-2 rounded-lg bg-hueso p-2 text-xs">«{enRevision.nota}»</p>}
-            <VisorArchivos archivos={enRevision.archivos} />
-            {esPropia ? (
-              <p className="mt-3 text-xs text-taupe">Es tu propia constancia: la revisa otra persona de Desarrollo Organizacional.</p>
-            ) : (
-              <div className="mt-3 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-                <Boton variante="peligro" onClick={() => setRechazando(enRevision)}>Rechazar</Boton>
-                <Boton variante="primario" onClick={() => setAprobando(enRevision)}>Aprobar</Boton>
-              </div>
-            )}
+            <div className="mt-3"><LienzoArchivos archivos={enRevision.archivos} /></div>
+            <div className="mt-3">
+              <AccionesRevision
+                entrega={enRevision} persona={s.persona} esPropia={esPropia}
+                onResuelta={async (texto) => { await traer(); await onCambio(texto); }} onError={onError}
+              />
+            </div>
             {pendientesDe.length > 1 && <p className="mt-2 text-xs text-taupe">Hay {pendientesDe.length} constancias pendientes en este estudio; se revisan de a una.</p>}
           </div>
         ) : (
@@ -1341,68 +1192,11 @@ function PanelEstudio({
         ) : (
           <ul className="divide-y divide-sand">
             {entregas.map((e) => (
-              <li key={e.id} className="py-2">
-                <details open={e.id === entregaFoco && e.estado !== "pendiente"}>
-                  <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-2">
-                    <span>Pago del {fechaCorta(e.fecha_pago)} <span className="text-taupe">· {TIPO_CONSTANCIA_LABELS[e.tipo]}{e.reemplaza_a ? " · corrección" : ""}</span></span>
-                    <Insignia variante={ESTADO_ENTREGA[e.estado].tono}>{ESTADO_ENTREGA[e.estado].etiqueta}</Insignia>
-                  </summary>
-                  <div className="mt-2 rounded-xl bg-hueso p-3 text-xs text-taupe">
-                    <p>
-                      {e.origen === "colaboradora" ? `Enviada por la integrante el ${fechaHora(e.enviada_at)}`
-                        : e.origen === "do" ? `Cargada por ${e.enviada_por ?? "Desarrollo Organizacional"} el ${fechaHora(e.enviada_at)}`
-                          : "Cargada antes de la revisión de constancias"}
-                    </p>
-                    {e.revisada_at && e.origen === "colaboradora" && <p>{e.estado === "aprobada" ? "Aprobó" : "Rechazó"} {e.revisada_por ?? "—"} el {fechaHora(e.revisada_at)}</p>}
-                    {e.retirada_at && <p>La retiró la integrante el {fechaHora(e.retirada_at)}</p>}
-                    {e.estado === "rechazada" && (
-                      <p className="mt-1 text-rojo-profundo">{e.motivo_categoria ? MOTIVO_RECHAZO_LABELS[e.motivo_categoria] : ""}{e.motivo_comentario ? `: «${e.motivo_comentario}»` : ""}</p>
-                    )}
-                    {e.estado !== "pendiente" && <VisorArchivos archivos={e.archivos} compacto />}
-                  </div>
-                </details>
-              </li>
+              <ItemHistorial key={e.id} e={e} abiertoAlInicio={e.id === entregaFoco && e.estado !== "pendiente"} />
             ))}
           </ul>
         )}
       </section>
-
-      <Modal abierto={aprobando !== null} onCerrar={() => setAprobando(null)} bloqueado={trabajando} titulo="¿Aprobar esta constancia?" ancho="sm">
-        {aprobando && (
-          <>
-            <p className="mb-4 text-sm text-taupe">
-              Pago del {fechaCorta(aprobando.fecha_pago)} de {s.persona}. Queda registrado que la aprobaste hoy, y su próximo
-              pago pasa a {aprobando.proxima_fecha_pago ? `el ${fechaCorta(aprobando.proxima_fecha_pago)}` : "sin fecha"}.
-            </p>
-            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <Boton onClick={() => setAprobando(null)} disabled={trabajando}>Cancelar</Boton>
-              <Boton variante="primario" cargando={trabajando} onClick={() => void aprobar()}>Aprobar</Boton>
-            </div>
-          </>
-        )}
-      </Modal>
-
-      <Modal abierto={rechazando !== null} onCerrar={() => setRechazando(null)} bloqueado={trabajando} titulo="Rechazar constancia" ancho="md">
-        {rechazando && (
-          <>
-            <p className="mb-3 text-sm text-taupe">{s.persona} va a leer el motivo y el comentario en su Bandeja, para corregirla.</p>
-            <CampoSelect etiqueta="Motivo *" value={categoria} onChange={(e) => setCategoria(e.target.value as MotivoRechazo | "")}>
-              <option value="">— elige el motivo —</option>
-              {MOTIVOS_RECHAZO.map((m) => <option key={m} value={m}>{MOTIVO_RECHAZO_LABELS[m]}</option>)}
-            </CampoSelect>
-            <label className="mt-3 flex flex-col gap-1 text-sm">
-              Qué tiene que corregir *
-              <AreaTexto rows={3} value={comentario} onChange={(e) => setComentario(e.target.value)}
-                placeholder="ej. la foto está cortada y no se ve el monto pagado" />
-            </label>
-            <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <Boton onClick={() => setRechazando(null)} disabled={trabajando}>Cancelar</Boton>
-              <Boton variante="peligro" cargando={trabajando} onClick={() => void rechazar()}
-                disabled={!categoria || comentario.trim().length < 3}>Rechazar constancia</Boton>
-            </div>
-          </>
-        )}
-      </Modal>
 
       <Modal abierto={cerrando} onCerrar={() => setCerrando(false)} bloqueado={trabajando} titulo="Cerrar esta asignación" ancho="sm">
         <p className="mb-4 text-sm text-taupe">
@@ -1429,63 +1223,32 @@ function PanelEstudio({
   );
 }
 
-// Los archivos de una entrega, uno a la vez, con vista previa de las fotos.
-function VisorArchivos({ archivos, compacto = false }: { archivos: Entrega["archivos"]; compacto?: boolean }) {
-  const supabase = useMemo(() => createAdminSupabaseClient(), []);
-  const [i, setI] = useState(0);
-  const [url, setUrl] = useState<string | null>(null);
-  const actual = archivos[i] ?? null;
-  const esImagen = actual ? (actual.tipo_mime ?? "").startsWith("image/") || /\.(jpe?g|png|webp)$/i.test(actual.ruta) : false;
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- un PDF no tiene vista previa: se suelta la de la foto anterior.
-    if (compacto || !actual || !esImagen) { setUrl(null); return; }
-    let vivo = true;
-    void urlDeConstancia(supabase, actual.ruta).then((u) => { if (vivo) setUrl(u); });
-    return () => { vivo = false; };
-  }, [supabase, actual, esImagen, compacto]);
-
-  if (archivos.length === 0) return <p className="mt-2 text-xs text-taupe">Sin archivos.</p>;
-
-  if (compacto) {
-    return (
-      <ul className="mt-2 flex flex-wrap gap-2">
-        {archivos.map((a, k) => (
-          <li key={a.id}>
-            <Boton variante="enlace" className="text-xs" onClick={() => void abrirArchivoFirmado(supabase, BUCKET_COMPROBANTES, a.ruta)}>
-              {a.nombre || `Archivo ${k + 1}`}
-            </Boton>
-          </li>
-        ))}
-      </ul>
-    );
-  }
-
+// Una constancia del historial: cerrada muestra su resumen; al abrirla, el papel ya dibujado.
+// Los archivos se piden recién al abrirla: un estudio con veinte constancias no baja veinte fotos al entrar.
+function ItemHistorial({ e, abiertoAlInicio }: { e: Entrega; abiertoAlInicio: boolean }) {
+  const [abierto, setAbierto] = useState(abiertoAlInicio);
   return (
-    <div className="mt-3">
-      <div className="flex items-center justify-between gap-2 text-xs text-taupe">
-        <span className="truncate">Archivo {i + 1} de {archivos.length} · {actual?.nombre}</span>
-        <span className="flex shrink-0 gap-1">
-          <Boton tamano="sm" variante="sutil" onClick={() => setI((k) => Math.max(0, k - 1))} disabled={i === 0} aria-label="Archivo anterior">←</Boton>
-          <Boton tamano="sm" variante="sutil" onClick={() => setI((k) => Math.min(archivos.length - 1, k + 1))} disabled={i === archivos.length - 1} aria-label="Archivo siguiente">→</Boton>
-        </span>
-      </div>
-      <div className="mt-2 flex min-h-48 items-center justify-center overflow-hidden rounded-xl border border-sand bg-hueso">
-        {esImagen ? (
-          url
-            // eslint-disable-next-line @next/next/no-img-element -- imagen de un bucket privado, con URL firmada
-            ? <img src={url} alt={actual?.nombre ?? "Constancia"} className="max-h-[60vh] w-auto max-w-full object-contain" />
-            : <span className="text-xs text-taupe">Cargando…</span>
-        ) : (
-          <span className="text-xs text-taupe">PDF · ábrelo para leerlo</span>
-        )}
-      </div>
-      {actual && (
-        <Boton variante="enlace" className="mt-1 text-xs" onClick={() => void abrirArchivoFirmado(supabase, BUCKET_COMPROBANTES, actual.ruta)}>
-          Abrir en una pestaña
-        </Boton>
-      )}
-    </div>
+    <li className="py-2">
+      <details open={abierto} onToggle={(ev) => setAbierto(ev.currentTarget.open)}>
+        <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-2">
+          <span>Pago del {fechaCorta(e.fecha_pago)} <span className="text-taupe">· {TIPO_CONSTANCIA_LABELS[e.tipo]}{e.reemplaza_a ? " · corrección" : ""}</span></span>
+          <Insignia variante={ESTADO_ENTREGA[e.estado].tono}>{ESTADO_ENTREGA[e.estado].etiqueta}</Insignia>
+        </summary>
+        <div className="mt-2 rounded-xl bg-hueso p-3 text-xs text-taupe">
+          <p>
+            {e.origen === "colaboradora" ? `Enviada por la integrante el ${fechaHora(e.enviada_at)}`
+              : e.origen === "do" ? `Cargada por ${e.enviada_por ?? "Desarrollo Organizacional"} el ${fechaHora(e.enviada_at)}`
+                : "Cargada antes de la revisión de constancias"}
+          </p>
+          {e.revisada_at && e.origen === "colaboradora" && <p>{e.estado === "aprobada" ? "Aprobó" : "Rechazó"} {e.revisada_por ?? "—"} el {fechaHora(e.revisada_at)}</p>}
+          {e.retirada_at && <p>La retiró la integrante el {fechaHora(e.retirada_at)}</p>}
+          {e.estado === "rechazada" && (
+            <p className="mt-1 text-rojo-profundo">{e.motivo_categoria ? MOTIVO_RECHAZO_LABELS[e.motivo_categoria] : ""}{e.motivo_comentario ? `: «${e.motivo_comentario}»` : ""}</p>
+          )}
+          {abierto && e.estado !== "pendiente" && <div className="mt-3"><LienzoArchivos archivos={e.archivos} /></div>}
+        </div>
+      </details>
+    </li>
   );
 }
 
