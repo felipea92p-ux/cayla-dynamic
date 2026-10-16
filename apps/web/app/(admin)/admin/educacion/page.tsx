@@ -22,7 +22,7 @@ import {
 import { enDias } from "@/lib/admin/bandeja-urgencia";
 import { generarCsv, descargarCsv } from "@/lib/admin/csv";
 import {
-  GRUPOS_EDUCACION, grupoDeEstudio, nivelesDeApoyo, personasSinSolicitar, type GrupoEducacion,
+  GRUPOS_EDUCACION, estadoParaMostrar, grupoDeEstudio, nivelesDeApoyo, personasSinSolicitar, type GrupoEducacion,
 } from "@/lib/admin/educacion-grupos";
 import { Boton } from "@/components/ui/boton";
 import { Campo, CampoSelect } from "@/components/ui/campo";
@@ -617,7 +617,8 @@ function EducacionContenido() {
         beneficiario: s.beneficiario === "hijo" ? (s.beneficiario_nombre ?? "hijo/a") : "la persona misma",
         apoyo_mensual: Number(s.monto).toFixed(2), se_paga: s.paga ? "sí" : "no",
         vigente_desde: s.vigente_desde, vigente_hasta: s.vigente_hasta,
-        estado_actual: ESTADO_CONSTANCIA[s.estado_constancia].etiqueta,
+        estado_actual: estadoParaMostrar(s).etiqueta,
+        grupo: GRUPOS_EDUCACION.find((g) => g.clave === grupoDeEstudio(s))?.etiqueta ?? "",
       };
       const entregas = (r.data ?? []) as unknown as Entrega[];
       if (entregas.length === 0) { filas.push({ ...base }); continue; }
@@ -633,7 +634,7 @@ function EducacionContenido() {
     }
     const columnas = [
       "persona", "sede", "rango", "institucion", "beneficiario", "apoyo_mensual", "se_paga", "vigente_desde", "vigente_hasta",
-      "estado_actual", "fecha_de_pago", "resultado", "enviada", "revisada", "revisada_por", "motivo_rechazo",
+      "estado_actual", "grupo", "fecha_de_pago", "resultado", "enviada", "revisada", "revisada_por", "motivo_rechazo",
       "archivo", "ruta_en_el_almacen",
     ];
     descargarCsv(`educacion-constancias-${hoy}.csv`, generarCsv(filas, columnas));
@@ -746,7 +747,7 @@ function EducacionContenido() {
                             <tbody>
                               {niveles.map((n) => (
                                 <tr key={n.rango} className="border-t border-sand">
-                                  <td className="py-1">{n.rango}</td>
+                                  <td className="py-1">{n.rango === "—" ? "sin rango asignado" : n.rango}</td>
                                   <td className="py-1 tabular-nums">{n.tope === null ? "sin techo cargado" : soles(n.tope)}</td>
                                   <td className="py-1 tabular-nums">{n.personas}</td>
                                 </tr>
@@ -945,7 +946,7 @@ function EducacionContenido() {
                             <tr key={c.persona_id} className="border-t border-sand">
                               <td className="px-4 py-3">
                                 <span className="font-medium">{c.persona}</span>
-                                <span className="block text-xs text-taupe">{c.sede} · {c.rango}</span>
+                                <span className="block text-xs text-taupe">{c.sede} · {c.rango === "—" ? "sin rango asignado" : c.rango}</span>
                               </td>
                               <td className="px-4 py-3 tabular-nums">{c.tope === null ? "sin techo cargado" : soles(c.tope)}</td>
                               <td className="px-4 py-3 text-right">
@@ -991,7 +992,7 @@ function EducacionContenido() {
                         </thead>
                         <tbody>
                           {visibles.map((s) => {
-                            const est = ESTADO_CONSTANCIA[s.estado_constancia];
+                            const est = estadoParaMostrar(s);
                             const pend = pendientes.filter((p) => p.familia_id === s.familia_id);
                             return (
                               <tr key={s.familia_id} className={`border-t border-sand ${s.vigencia === "terminada" ? "text-taupe" : ""}`}>
@@ -1051,7 +1052,7 @@ function EducacionContenido() {
                     {/* ── CELULAR: tarjetas ─────────────────────────────────────── */}
                     <ul className="flex flex-col gap-3 md:hidden">
                       {visibles.map((s) => {
-                        const est = ESTADO_CONSTANCIA[s.estado_constancia];
+                        const est = estadoParaMostrar(s);
                         const pend = pendientes.filter((p) => p.familia_id === s.familia_id);
                         return (
                           <li key={s.familia_id} className="rounded-2xl border border-sand bg-papel p-4 text-sm">

@@ -22,6 +22,8 @@
  * le diría a un auditor que hay respaldo donde no hay ninguno.
  */
 
+import { ESTADO_CONSTANCIA, type EstadoConstancia, type TonoEstado } from "@cayla-dynamic/shared";
+
 export type GrupoEducacion = "al_dia" | "por_revisar" | "por_completar" | "en_falta" | "sin_solicitar";
 
 export const GRUPOS_EDUCACION: { clave: GrupoEducacion; etiqueta: string; ayuda: string }[] = [
@@ -52,6 +54,19 @@ export function grupoDeEstudio(s: EstudioParaGrupo): Exclude<GrupoEducacion, "si
       // no se conoce se muestra como «por completar», nunca como «al día».
       return "por_completar";
   }
+}
+
+/**
+ * Lo que dice la insignia de un estudio. Igual que el estado de la base salvo en
+ * un caso: `al_dia` sin ninguna constancia aprobada NO se pinta «Al día», porque
+ * no hay nada que esté al día —solo que el primer pago todavía no llega—. La
+ * pestaña ya lo manda a «Por completar»; la insignia no puede contradecirla.
+ */
+export function estadoParaMostrar(s: EstudioParaGrupo): { etiqueta: string; tono: TonoEstado } {
+  if (s.estado_constancia === "al_dia" && s.aprobadas === 0) {
+    return { etiqueta: "Sin constancias aún", tono: "neutral" };
+  }
+  return ESTADO_CONSTANCIA[s.estado_constancia as EstadoConstancia] ?? { etiqueta: s.estado_constancia, tono: "neutral" };
 }
 
 export interface PersonaActiva {

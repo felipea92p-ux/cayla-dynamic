@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  grupoDeEstudio, personasSinSolicitar, nivelesDeApoyo, type PersonaActiva,
+  estadoParaMostrar, grupoDeEstudio, personasSinSolicitar, nivelesDeApoyo, type PersonaActiva,
 } from "@/lib/admin/educacion-grupos";
 
 describe("grupoDeEstudio", () => {
@@ -24,6 +24,16 @@ describe("grupoDeEstudio", () => {
 
   it("un estado desconocido nunca se presenta como al día", () => {
     expect(grupoDeEstudio({ estado_constancia: "algo_nuevo", aprobadas: 5 })).toBe("por_completar");
+  });
+});
+
+describe("estadoParaMostrar", () => {
+  it("al_dia sin constancias aprobadas no se pinta «Al día»", () => {
+    expect(estadoParaMostrar({ estado_constancia: "al_dia", aprobadas: 0 }).etiqueta).toBe("Sin constancias aún");
+  });
+  it("al_dia con una aprobada sí, y el resto conserva su etiqueta", () => {
+    expect(estadoParaMostrar({ estado_constancia: "al_dia", aprobadas: 1 }).etiqueta).toBe("Al día");
+    expect(estadoParaMostrar({ estado_constancia: "vencida", aprobadas: 0 }).etiqueta).toBe("Vencida");
   });
 });
 
