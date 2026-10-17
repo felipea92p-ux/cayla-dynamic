@@ -156,8 +156,11 @@ Sigue sirviendo solo si quienes tienen póliza entran a Lo mío: eso solo lo sab
 **Cómo se generaron los tipos.** La base local es compartida y trae migraciones de otras ramas,
 así que `gen-types` habría arrastrado cambios ajenos. Se aplicó la 0528 a una base desechable
 con el esquema `public` de la local, se generaron los tipos allí y se pegaron SOLO las seis
-tablas y las funciones nuevas. Cuando la 0528 esté en la base local, `gen-types` debe dar lo
-mismo sobre esas partes.
+tablas y las funciones nuevas. **Comprobado después contra el generador de verdad**, sobre una base
+construida desde cero con `supabase start`: los 28 bloques de seguros (6 tablas y 22 funciones) de
+`types.ts` son idénticos a los que genera `gen-types`. El resto del archivo NO coincide con esa
+base (por ejemplo, claves foráneas de `boletas` que `types.ts` no tiene): es deriva que ya traía
+la rama y no se tocó; quien regenere el archivo entero la va a ver.
 
 ---
 
