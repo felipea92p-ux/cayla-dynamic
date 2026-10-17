@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { hoyLima } from "@cayla-dynamic/shared";
+import { Cargando } from "@/components/cargando";
 import { useToast } from "@/components/toast";
 import { Boton } from "@/components/ui/boton";
 import { Insignia } from "@/components/ui/insignia";
@@ -222,7 +223,7 @@ export function MiSeguro() {
     return (
       <section className="rounded-2xl border border-sand p-5 text-sm">
         <h2 className="mb-1 font-serif text-lg">Mi seguro</h2>
-        <p className="text-taupe">Cargando…</p>
+        <Cargando texto="Cargando tu seguro…" />
       </section>
     );
   }
