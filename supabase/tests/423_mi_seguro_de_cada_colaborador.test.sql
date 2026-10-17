@@ -18,10 +18,13 @@
 -- (f) la función y Storage dicen LO MISMO: lo que `fn_mis_polizas` le muestra es
 --     exactamente lo que Storage le deja abrir, archivo por archivo; y «en qué seguro
 --     está» y «cubre hoy» dicen lo mismo que lee DO en `fn_seguros_equipo` y en
---     `fn_seguros_tablero`.
+--     `fn_seguros_tablero`, y
+-- (g) el NÚMERO de una póliza no identifica a nadie: una póliza colectiva (vida, EPS) lleva
+--     un solo número y una fila por persona —la 0528 lo permite desde su revisión
+--     independiente—, y cada una ve la suya y solo la suya.
 -- ============================================================================
 begin;
-select plan(91);
+select plan(108);
 
 -- ── Sede y personas ──────────────────────────────────────────────────────
 insert into sedes (id, codigo, nombre, activa, tipo) values
@@ -601,6 +604,97 @@ select is(
           || (select count(*) from storage.objects where bucket_id = 'polizas-seguro' and name like '5b000000-%')),
   'salud_practicantes:1:1', 'y si vuelve a ser practicante, vuelve a FOLA con lo mismo');
 reset role;
+
+-- ── I · Una póliza colectiva: el mismo número en dos personas ──────────────
+-- Un seguro de vida o una EPS suele ser UNA póliza de la empresa, con un solo número, que
+-- cubre a todos. La 0528 guarda una fila por persona y deja repetir el número ENTRE personas
+-- (el índice único lleva `persona_id`). Todo lo de esta sección es lo que se rompería si
+-- «Mi seguro» tratara el número como si fuera de una sola: Colo vería la fila de Lina, o abriría
+-- su PDF. Los archivos de esta sección llevan otro prefijo (`5b100000-`) para que ninguna
+-- cuenta de arriba, ni lo que haya en el bucket de esta base, las mueva.
+set session_replication_role = replica;
+insert into personas (id, nombres, apellidos, sede_base_id, rol, pin_hash, auth_user_id, fecha_ingreso, tipo_vinculo, cargo, practicante_modalidad, estado, cuenta_de_servicio, fecha_cese) values
+  ('00000000-0000-0000-0000-00000530a101', 'Colo', 'Mi', '00000000-0000-0000-0000-000005300001', 'integrante', 'x', '00000000-0000-0000-0000-00000530b101', '2024-01-01', 'planilla', 'Vendedor',  null, 'activo', false, null),
+  ('00000000-0000-0000-0000-00000530a102', 'Lina', 'Mi', '00000000-0000-0000-0000-000005300001', 'integrante', 'x', '00000000-0000-0000-0000-00000530b102', '2024-01-01', 'planilla', 'Vendedora', null, 'activo', false, null);
+set session_replication_role = origin;
+
+insert into storage.objects (bucket_id, name, metadata) values
+  ('polizas-seguro', '5b100000-0000-0000-0000-0000000000e3.pdf', '{"size": 310000, "mimetype": "application/pdf"}'),  -- Colo · póliza colectiva
+  ('polizas-seguro', '5b100000-0000-0000-0000-0000000000e4.pdf', '{"size": 320000, "mimetype": "application/pdf"}');  -- Lina · póliza colectiva
+
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000530b001', true);
+select set_config('t.colo',
+  fn_seguro_registrar('00000000-0000-0000-0000-00000530a101', current_setting('t.vida'), 'Rímac Seguros', 'VL-COLECTIVA',
+    fn_hoy_lima() - 30, fn_hoy_lima() + 335, 50, null, null, null, null, null, null)::text, true);
+select lives_ok(
+  $q$ select fn_seguro_registrar('00000000-0000-0000-0000-00000530a102', current_setting('t.vida'), 'Rímac Seguros', 'VL-COLECTIVA',
+        fn_hoy_lima() - 30, fn_hoy_lima() + 335, 50, null, null, null, null, null, null) $q$,
+  'DO registra la misma póliza —aseguradora, número y vigencia— a una segunda persona: es una colectiva');
+select set_config('t.lina',
+  (select id::text from polizas_seguro where persona_id = '00000000-0000-0000-0000-00000530a102' and numero_poliza = 'VL-COLECTIVA'), true);
+select fn_seguro_adjuntar(current_setting('t.colo')::uuid, 'poliza', '5b100000-0000-0000-0000-0000000000e3.pdf', 'colo.pdf');
+select fn_seguro_adjuntar(current_setting('t.lina')::uuid, 'poliza', '5b100000-0000-0000-0000-0000000000e4.pdf', 'lina.pdf');
+
+select is(
+  (select count(distinct persona_id)::int || ':' || count(distinct id)::int from polizas_seguro where numero_poliza = 'VL-COLECTIVA' and anulada_at is null),
+  '2:2', 'el mismo número está en dos filas vivas, una por persona');
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000530b101', true);
+select is((select array_agg(poliza_id) from fn_mis_polizas()), array[current_setting('t.colo')::uuid],
+  'Colo ve UNA póliza, la suya, aunque otra fila lleve el mismo número');
+select is(
+  (select array_agg(a->>'storage_path' order by a->>'storage_path') from fn_mis_polizas() f, jsonb_array_elements(f.archivos) a),
+  array['5b100000-0000-0000-0000-0000000000e3.pdf'], 'y de archivos, solo el suyo');
+select is(
+  (select array_agg(name order by name) from storage.objects where bucket_id = 'polizas-seguro' and name like '5b100000-%'),
+  array['5b100000-0000-0000-0000-0000000000e3.pdf'], 'Storage le deja abrir solo el suyo');
+select is(fn_seguro_archivo_es_mio('5b100000-0000-0000-0000-0000000000e3.pdf'), true,  'Colo: el PDF de su fila es suyo');
+select is(fn_seguro_archivo_es_mio('5b100000-0000-0000-0000-0000000000e4.pdf'), false, 'Colo: el PDF de Lina NO, aunque el número sea el mismo');
+
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000530b102', true);
+select is((select array_agg(poliza_id) from fn_mis_polizas()), array[current_setting('t.lina')::uuid],
+  'Lina ve UNA póliza, la suya');
+select is(
+  (select array_agg(a->>'storage_path' order by a->>'storage_path') from fn_mis_polizas() f, jsonb_array_elements(f.archivos) a),
+  array['5b100000-0000-0000-0000-0000000000e4.pdf'], 'y de archivos, solo el suyo');
+select is(
+  (select array_agg(name order by name) from storage.objects where bucket_id = 'polizas-seguro' and name like '5b100000-%'),
+  array['5b100000-0000-0000-0000-0000000000e4.pdf'], 'Storage le deja abrir solo el suyo');
+select is(fn_seguro_archivo_es_mio('5b100000-0000-0000-0000-0000000000e3.pdf'), false, 'Lina: el PDF de Colo NO');
+select is(fn_seguro_archivo_es_mio('5b100000-0000-0000-0000-0000000000e4.pdf'), true,  'Lina: el PDF de su fila es suyo');
+reset role;
+
+-- Las tres lecturas dicen lo mismo, para cada una (como en la sección F).
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000530b101', true);
+select is(
+  (select array_agg(storage_path order by storage_path) from polizas_seguro_archivos where fn_seguro_archivo_es_mio(storage_path)),
+  (select array_agg(a->>'storage_path' order by a->>'storage_path') from fn_mis_polizas() f, jsonb_array_elements(f.archivos) a),
+  'Colo: la función de Storage y fn_mis_polizas listan el mismo conjunto de archivos');
+set local role authenticated;
+select is(
+  (select array_agg(name order by name) from storage.objects where bucket_id = 'polizas-seguro' and name like '5b100000-%'),
+  (select array_agg(a->>'storage_path' order by a->>'storage_path') from fn_mis_polizas() f, jsonb_array_elements(f.archivos) a),
+  'Colo: y Storage le deja ver ese mismo conjunto');
+reset role;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000530b102', true);
+select is(
+  (select array_agg(storage_path order by storage_path) from polizas_seguro_archivos where fn_seguro_archivo_es_mio(storage_path)),
+  (select array_agg(a->>'storage_path' order by a->>'storage_path') from fn_mis_polizas() f, jsonb_array_elements(f.archivos) a),
+  'Lina: la función de Storage y fn_mis_polizas listan el mismo conjunto de archivos');
+set local role authenticated;
+select is(
+  (select array_agg(name order by name) from storage.objects where bucket_id = 'polizas-seguro' and name like '5b100000-%'),
+  (select array_agg(a->>'storage_path' order by a->>'storage_path') from fn_mis_polizas() f, jsonb_array_elements(f.archivos) a),
+  'Lina: y Storage le deja ver ese mismo conjunto');
+reset role;
+
+-- «Cubre hoy» de cada fila de la colectiva dice lo mismo que el tablero de DO.
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000530b001', true);
+select is(
+  (select count(*)::int from fn_seguros_tablero() t
+    where t.poliza_id in (current_setting('t.colo')::uuid, current_setting('t.lina')::uuid) and t.cubre_hoy is true),
+  2, 'DO ve las dos filas de la colectiva, y las dos cubren hoy');
 
 select * from finish();
 rollback;
