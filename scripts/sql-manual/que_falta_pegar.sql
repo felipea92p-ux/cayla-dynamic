@@ -382,6 +382,8 @@ with repo(numero, nombre, nunca) as (values
     (521, 'el_bono_del_practicante_vuelve_a_la_boleta', false),
     (522, 'la_solicitud_educativa_pendiente_recibe_su_comprobante', false),
     (524, 'un_estudio_de_educacion_no_tapa_a_otro', false),
+    (525, 'una_aprobacion_de_constancia_se_puede_revertir', false),
+    (529, 'un_pago_adelantado_cubre_varios_meses_y_el_historial_de_educacion', false),
     (531, 'la_politica_de_movilidad_se_firma_con_la_firma_del_sistema', false)
 ),
 diff as (
