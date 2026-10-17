@@ -68,8 +68,9 @@ pegó desde otra sesión con `./scripts/dame-el-sql.sh 532` (portapapeles idént
 tablero_nuevo=1 | mis_boletas_nuevo=1 | guardar_version_nuevo=1` y el registro
 `532 · las_boletas_se_firman_y_una_anulacion_se_restablece`. Duró de la fusión al pegado; no se
 reportó daño más allá de ese error en pantalla. Lo que queda por comprobar en producción es el
-recorrido real de punta a punta (una boleta propia de Felipe) y que la fusión no se arme sola:
-el PR tenía «Auto-fix» encendido.
+recorrido real de punta a punta (una boleta propia de Felipe). No consta quién fusionó: GitHub
+muestra la cuenta de Felipe, igual que cuando lo hace una sesión; la sesión que escribió esto
+había dicho que no fusionaba y que avisaba antes.
 
 **(Lo que sigue se escribió antes de pegar y fusionar; el «sin pegar» de abajo ya no es cierto.)**
 
