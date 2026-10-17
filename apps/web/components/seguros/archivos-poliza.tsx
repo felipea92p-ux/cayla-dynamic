@@ -46,7 +46,7 @@ import { abrirArchivoFirmado } from "@/lib/abrir-archivo-firmado";
 import { problemaDeArchivo, TIPOS_ARCHIVO } from "@/lib/admin/archivo";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { isoADiaMesAnio } from "@/lib/admin/planilla/formato";
-import { BUCKET_SEGUROS, etiquetaTipoArchivo, plural, TIPOS_ARCHIVO_SEGURO, type TipoArchivoSeguro } from "@/lib/admin/seguros";
+import { BUCKET_SEGUROS, etiquetaTipoArchivo, loVeLaPersona, plural, TIPOS_ARCHIVO_SEGURO, type TipoArchivoSeguro } from "@/lib/admin/seguros";
 import { adjuntarArchivoAPoliza, copiarArchivoAPoliza } from "@/lib/admin/seguros-archivos";
 import { pesoLegible } from "@/lib/reducir-imagen";
 
@@ -219,7 +219,16 @@ function Cuerpo({
 
   return (
     <>
-      <p className="mb-4 text-sm text-taupe">{titulo}. Los PDF llevan DNI y fecha de nacimiento: solo los ve Desarrollo Organizacional.</p>
+      <p className="mb-1 text-sm text-taupe">
+        {titulo}. Los PDF llevan DNI y fecha de nacimiento. La póliza y el convenio de pago los ve también la
+        persona asegurada, solo los suyos, en «Lo mío → Mi seguro»; la factura y «Otro papel» los ve solo
+        Desarrollo Organizacional.
+      </p>
+      <p className="mb-4 text-sm text-taupe">
+        {hermanas.length > 0
+          ? "Es una póliza colectiva: la póliza y el convenio de pago que subas los verá cada persona asegurada en «Lo mío» (todas, si los copias a las demás pólizas). Sube solo el papel de la póliza de la empresa, sin listas con el DNI o el sueldo de otras personas."
+          : "Sube a esta póliza solo el PDF de esta persona: si el archivo trae las pólizas de varias, ella las verá todas."}
+      </p>
       {cargando ? <Cargando /> : cargaError ? (
         <div className="mb-3 rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
           {cargaError} <Boton variante="enlace" onClick={() => void cargar()}>Reintentar</Boton>
@@ -309,6 +318,11 @@ function Cuerpo({
                   {archivo ? `${archivo.name} · ${pesoLegible(archivo.size)}` : "Un PDF o una foto, hasta 50 MB."}
                 </span>
               </label>
+              <p className="text-xs text-taupe sm:col-span-3">
+                {loVeLaPersona(tipo)
+                  ? "La persona podrá abrirlo desde «Lo mío», en «Mi seguro»."
+                  : "Solo lo ve Desarrollo Organizacional."}
+              </p>
             </div>
             {hermanas.length > 0 && tipo === "otro" && (
               <p className="mt-3 text-xs text-taupe">
@@ -321,8 +335,10 @@ function Cuerpo({
                 <span>
                   <span className="text-tinta">Guardarlo también en las otras {plural(hermanas.length, "póliza", "pólizas")} de este seguro</span>
                   <span className="block text-xs text-taupe">
-                    Es la misma póliza de la empresa —una fila por persona, con el mismo número y la misma vigencia—: el papel es uno
-                    y cada persona lo tiene en su ficha.
+                    Es la misma póliza de la empresa —una fila por persona, con el mismo número y la misma vigencia—: el papel es uno.
+                    {loVeLaPersona(tipo)
+                      ? " Cada persona lo abrirá desde «Lo mío → Mi seguro»: que no lleve datos de las demás."
+                      : " Solo lo ve Desarrollo Organizacional, en el archivo de cada póliza."}
                   </span>
                 </span>
               </label>
