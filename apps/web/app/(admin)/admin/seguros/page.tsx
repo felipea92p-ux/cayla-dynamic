@@ -21,8 +21,8 @@
 //   paga a la aseguradora. La pantalla avisa; las decisiones son de una persona.
 // ============================================================================
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { hoyLima, puedeGestionarSeguros } from "@cayla-dynamic/shared";
 import { Cargando } from "@/components/cargando";
@@ -182,7 +182,18 @@ function TarjetaPoliza({
 // ── La pantalla ─────────────────────────────────────────────────────────────
 
 export default function SegurosPage() {
+  // `useSearchParams` pide un límite de Suspense para que la página pueda prerenderse.
+  return (
+    <Suspense fallback={<main className="flex-1 p-6"><Cargando /></main>}>
+      <Seguros />
+    </Suspense>
+  );
+}
+
+function Seguros() {
   const router = useRouter();
+  // La Bandeja manda aquí con `?persona=<id>`: la pantalla abre ya parada en esa persona.
+  const soloPersona = useSearchParams().get("persona");
   const rol = useRolActual();
   const puede = puedeGestionarSeguros(rol);
   const { avisar } = useToast();
@@ -221,11 +232,12 @@ export default function SegurosPage() {
   }, [filas]);
 
   const visibles = useMemo(() => personas.filter((p) => {
+    if (soloPersona && p.personaId !== soloPersona) return false;
     if (!coincideSeguro(p, busqueda)) return false;
     if (filtro === null) return true;
     if (filtro === "papeleo") return p.polizas.some((z) => pasosPendientes(z).length > 0);
     return p.situacion === filtro;
-  }), [personas, busqueda, filtro]);
+  }), [personas, busqueda, filtro, soloPersona]);
 
   // ── Formulario ────────────────────────────────────────────────────────
   const [formAbierto, setFormAbierto] = useState(false);
@@ -360,6 +372,13 @@ export default function SegurosPage() {
                   );
                 })}
               </ul>
+
+              {soloPersona && (
+                <div className="mb-4 flex max-w-3xl flex-wrap items-center gap-3 rounded-lg bg-hueso px-4 py-3 text-sm text-tinta">
+                  <span>Mostrando solo a {personas.find((p) => p.personaId === soloPersona)?.persona ?? "esa persona"}, que es a quien lleva el aviso.</span>
+                  <Boton variante="enlace" onClick={() => router.replace("/admin/seguros")}>Ver a todos</Boton>
+                </div>
+              )}
 
               <div className="mb-4 max-w-md">
                 <Campo etiqueta="Buscar" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Nombre, número de póliza, aseguradora o sede" />

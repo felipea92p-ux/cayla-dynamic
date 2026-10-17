@@ -1,20 +1,22 @@
 import type { ClienteCayla } from "@cayla-dynamic/database";
 import {
   esRolEncargada, fechaLima, hoyLima, NIVEL_DISCIPLINARIO_LABELS, puedeGestionarCatalogos, puedeGestionarContratos,
-  puedeOperarEquipo, puedeVerCasos, puedeVerPlanilla, puedeVerSaludDeAlertas, recibeAvisoDeConductaRegistrada,
+  puedeGestionarSeguros, puedeOperarEquipo, puedeVerCasos, puedeVerPlanilla, puedeVerSaludDeAlertas, recibeAvisoDeConductaRegistrada,
   recibeAvisoDeLecturaPendiente,
   esTipoDocumento, TIPO_DOCUMENTO_LABEL,
 } from "@cayla-dynamic/shared";
 import { etiquetaDeVia } from "../reportes";
 import { diaYMes } from "../bandeja-mia";
 import { formatSoles } from "../rangos";
+import { pendientesDeSeguros, seguroPorPersona, type FilaSeguro } from "./seguros";
 import {
   etapaDelBorrador, lecturaPendienteParaAviso, pendientesDeEntregado, type Adjunto, type DocDisciplina, type LecturaMemo,
 } from "./disciplina";
 import {
   compararPendientes, conCese, documentoEducacion, ESTADOS_CONTRATO_PENDIENTE, esFeriadoParaBandeja, sumarDias,
   urgenciaBono, urgenciaCaso, urgenciaContrato, urgenciaDescargo, urgenciaDiaPorRevisar, urgenciaEducacion, urgenciaEspera,
-  urgenciaFeriado, urgenciaInicio, urgenciaLiquidacionVencida, urgenciaRecordVacaciones, urgenciaSinHorario,
+  urgenciaFeriado, urgenciaInicio, urgenciaLiquidacionVencida, urgenciaRecordVacaciones, urgenciaSeguroPapeleo,
+  urgenciaSeguroPorVencer, urgenciaSeguroSinPoliza, urgenciaSinHorario,
   type FilaContrato, type FilaFeriado, type PeriodoDePago, type Urgencia,
 } from "./bandeja-urgencia";
 
@@ -47,7 +49,7 @@ import {
 /** De qué módulo viene cada pendiente. */
 export type ModuloBandeja =
   | "contratos" | "correcciones" | "disciplina" | "documentacion" | "feriados"
-  | "educacion" | "ausencias" | "horarios" | "datos_personales" | "liquidaciones" | "casos";
+  | "educacion" | "ausencias" | "horarios" | "datos_personales" | "liquidaciones" | "casos" | "seguros";
 
 /**
  * Los módulos que la Bandeja revisa, en el orden de sus tarjetas, y quién puede
@@ -58,6 +60,9 @@ export const MODULOS_BANDEJA: readonly { clave: ModuloBandeja; etiqueta: string;
   { clave: "correcciones", etiqueta: "Correcciones", puedeVer: puedeOperarEquipo },
   { clave: "disciplina", etiqueta: "Disciplina", puedeVer: puedeOperarEquipo },
   { clave: "documentacion", etiqueta: "Documentación", puedeVer: puedeGestionarCatalogos },
+  // Los seguros de los practicantes (0528): quién no tiene póliza hoy, cuál está
+  // por vencer y qué papeleo falta. Solo DO, como la pantalla.
+  { clave: "seguros", etiqueta: "Seguros", puedeVer: puedeGestionarSeguros },
   { clave: "feriados", etiqueta: "Feriados", puedeVer: puedeGestionarCatalogos },
   { clave: "educacion", etiqueta: "Educación", puedeVer: puedeVerPlanilla },
   { clave: "ausencias", etiqueta: "Ausencias", puedeVer: puedeOperarEquipo },
@@ -342,6 +347,8 @@ export interface FuentesBandeja {
   casosTraspasados: ItemCasoTraspasado[];
   lecturasPendientes: ItemLecturaPendiente[];
   casos: ItemCaso[];
+  /** Las filas de `fn_seguros_tablero` (0528), TODAS: quién tiene hueco y qué piden se decide en `lib/admin/seguros.ts`. */
+  seguros: FilaSeguro[];
   resumenAlertas: ResumenAlertas | null;
   /**
    * Módulos con al menos una consulta que falló. La pantalla NO los pinta
@@ -356,7 +363,7 @@ export const FUENTES_VACIAS: FuentesBandeja = {
   liquidacionesVencidas: [], revisiones: [], revisionesMovilidad: [], revisionesContrato: [],
   solicitudesVacaciones: [], solicitudesPerfil: [], contratos: [], diasPorRevisar: [], marcasApartadas: [],
   periodo: null, documentos: [], bonosPorTransferir: [], feriados: [], disciplina: [], conductaRegistrada: [], casosTraspasados: [], lecturasPendientes: [],
-  casos: [], resumenAlertas: null, fallidas: [],
+  casos: [], seguros: [], resumenAlertas: null, fallidas: [],
 };
 
 /** Cuántos avisos por correo necesitan a una persona. Lo que se reintenta solo no cuenta. */
@@ -455,6 +462,10 @@ export async function traerFuentesBandeja(
       supabase.rpc("fn_feriados_laborados", { p_desde: sumarDias(hoy, -DIAS_ATRAS_FERIADOS), p_hasta: hoy }),
       "feriados", "los feriados trabajados", (xs) => { f.feriados = xs.filter(esFeriadoParaBandeja); },
     );
+  }
+
+  if (puedeGestionarSeguros(rol)) {
+    pedir<FilaSeguro>(supabase.rpc("fn_seguros_tablero"), "seguros", "los seguros", (xs) => { f.seguros = xs; });
   }
 
   if (puedeGestionarContratos(rol)) {
@@ -681,7 +692,8 @@ export type TipoItemVisto =
 export type TipoPendiente =
   | TipoItemVisto | "educacion" | "vacaciones_por_vencer" | "sin_horario" | "liquidacion_vencida"
   | "contrato" | "dia_por_revisar" | "marca_apartada" | "documento_ruta" | "documento_bono" | "bono_por_transferir"
-  | "feriado" | "disciplina" | "caso" | "conducta_registrada" | "caso_traspasado" | "lectura_pendiente";
+  | "feriado" | "disciplina" | "caso" | "conducta_registrada" | "caso_traspasado" | "lectura_pendiente"
+  | "seguro_sin_poliza" | "seguro_por_vencer" | "seguro_papeleo" | "seguro_baja";
 
 /**
  * Un pendiente, sea del tipo que sea. Quién, qué, dónde, de qué módulo, cuándo
@@ -915,6 +927,23 @@ export function armarPendientes(
       detalle: c.proximo_plazo ? `${c.proximo_plazo}${c.proximo_norma ? ` (${c.proximo_norma})` : ""}` : null,
       urgencia: urgenciaCaso(c, hoy), resolucion: "afuera",
       ir: { texto: "Abrir el caso", href: `/admin/casos/${c.id}` }, contexto: null,
+    });
+  }
+  // Seguros (0528). Quién tiene hueco y qué falta lo dice `lib/admin/seguros.ts`
+  // sobre lo que la base contestó; acá solo se pinta. «Afuera»: se resuelve en la
+  // pantalla de Seguros, que abre ya parada en esa persona.
+  for (const s of pendientesDeSeguros(seguroPorPersona(f.seguros, hoy), hoy)) {
+    const verbo = { sin_poliza: "Registrar póliza", por_vencer: "Registrar renovación", papeleo: "Completar", baja: "Ver la póliza" }[s.tipo];
+    agregar({
+      clave: `seguro_${s.clave}`, tipo: `seguro_${s.tipo}`, itemId: s.polizaId ?? s.personaId,
+      personaId: s.personaId, persona: s.persona, sede: s.sede, modulo: "seguros",
+      titulo: s.titulo, detalle: s.detalle,
+      urgencia: s.tipo === "sin_poliza" ? urgenciaSeguroSinPoliza(s.motivoHueco, s.dias)
+        : s.tipo === "por_vencer" ? urgenciaSeguroPorVencer(s.dias ?? 0, s.hasta ?? hoy)
+        : s.tipo === "papeleo" ? urgenciaSeguroPapeleo(s.prima, s.pasos)
+        : { grupo: "sin_plazo", plazo: "Pedir la baja", nota: null, orden: 0 },
+      resolucion: "afuera",
+      ir: { texto: verbo, href: `/admin/seguros?persona=${s.personaId}` }, contexto: null,
     });
   }
   for (const l of f.liquidacionesVencidas) {

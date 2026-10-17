@@ -202,6 +202,72 @@ export function urgenciaLiquidacionVencida(l: LiquidacionVencida): Urgencia {
   };
 }
 
+// ── Seguros (0528) ──────────────────────────────────────────────────────────
+// Los números salen de `lib/admin/seguros.ts` (la regla de quién tiene hueco y de
+// qué es «por vencer» vive allí, con su prueba); acá solo se ordenan.
+
+const SE_QUEDA_SIN_SEGURO = { futuro: "Se queda sin seguro", pasado: "Se quedó sin seguro" };
+const PRIMA_VENCE = { futuro: "La prima vence", pasado: "La prima venció" };
+
+/**
+ * Un practicante sin póliza que cubra hoy. El riesgo YA corre —no hay «hoy» ni
+ * «próximo» posible—, así que va a «Vencido»: una persona sin ningún seguro es
+ * infracción por sí sola (Ley 28518, art. 52.5). Entre dos huecos manda el más
+ * largo: quien nunca tuvo póliza antes que quien la perdió ayer.
+ */
+export function urgenciaSeguroSinPoliza(
+  motivo: "nunca" | "vencida" | "aun_no_empieza" | null,
+  diasDesdeQueVencio: number | null,
+): Urgencia {
+  if (motivo === "vencida" && diasDesdeQueVencio !== null) {
+    return {
+      grupo: "vencido",
+      plazo: diasDesdeQueVencio === 0 ? "Dejó de cubrir hoy" : `Dejó de cubrir hace ${diasDesdeQueVencio} día${diasDesdeQueVencio === 1 ? "" : "s"}`,
+      nota: "y hoy no tiene seguro",
+      orden: -diasDesdeQueVencio,
+    };
+  }
+  if (motivo === "aun_no_empieza") {
+    return { grupo: "vencido", plazo: "Sin seguro hoy", nota: "la póliza registrada todavía no empieza", orden: 0 };
+  }
+  return { grupo: "vencido", plazo: "Sin póliza", nota: "nunca tuvo una registrada", orden: -10_000 };
+}
+
+/** Cubierta hoy, pero se queda sin seguro en `dias` y nada empalma. `hasta` es la fecha EXCLUSIVA. */
+export function urgenciaSeguroPorVencer(dias: number, hasta: string): Urgencia {
+  return {
+    grupo: dias <= 0 ? "hoy" : "proximo",
+    plazo: enDias(dias, SE_QUEDA_SIN_SEGURO),
+    nota: `el ${diaYMes(hasta)}`,
+    orden: dias,
+  };
+}
+
+/**
+ * El papeleo de una póliza (prima, firma, factura). Manda la prima, que es lo
+ * único con plazo: con mora la cobertura se suspende sola a los 30 días
+ * (convenio de pago, cláusula quinta). Firma y factura no tienen fecha límite.
+ */
+export function urgenciaSeguroPapeleo(
+  prima: { estado: string; dias: number | null; venceEl: string | null } | null,
+  pasos: readonly string[],
+): Urgencia {
+  if (prima && pasos.includes("pagada")) {
+    const d = prima.dias ?? 0;
+    if (prima.estado === "suspendida") {
+      return { grupo: "vencido", plazo: "Cobertura suspendida", nota: "por más de 30 días de mora", orden: d };
+    }
+    if (prima.estado === "en_mora") {
+      return { grupo: "vencido", plazo: enDias(d, PRIMA_VENCE), nota: "la cobertura se suspende a los 30 días de mora", orden: d };
+    }
+    if (prima.estado === "por_vencer") {
+      return { grupo: d === 0 ? "hoy" : "proximo", plazo: enDias(d, PRIMA_VENCE), nota: prima.venceEl ? `el ${diaYMes(prima.venceEl)}` : null, orden: d };
+    }
+    return { grupo: "sin_plazo", plazo: "Prima por pagar", nota: prima.venceEl ? `vence el ${diaYMes(prima.venceEl)}` : "sin fecha de vencimiento", orden: 0 };
+  }
+  return { grupo: "sin_plazo", plazo: pasos.includes("firmada") ? "Sin firmar" : "Sin factura", nota: null, orden: 0 };
+}
+
 // ── Fuentes sumadas el 2026-09-15 (Contratos, Correcciones, Documentación,
 //    Feriados, Disciplina). Cada una se mide contra SU plazo real, nunca contra
 //    uno inventado para la Bandeja. ─────────────────────────────────────────
