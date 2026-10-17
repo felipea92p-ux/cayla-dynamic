@@ -115,6 +115,20 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-10-17-educacion-aprobadas-del-ciclo-y-rechazar-una-aprobada",
+    fecha: "2026-10-17",
+    titulo: "En Educación se puede corregir una constancia aprobada por error",
+    queMejoro:
+      "Antes, una constancia aprobada no se podía corregir. Ahora Educación tiene la sección «Aprobadas en el ciclo de " +
+      "pago»: elige un ciclo (del 29 al 28), mira a quién se aprobó y quién lo hizo, con la constancia a la vista, y " +
+      "usa «Rechazar…» con el motivo de siempre o «Otro motivo» (mínimo 3 letras, sin máximo). La integrante lo lee " +
+      "en su Bandeja y envía otra.\n\n" +
+      "El rechazo queda en el historial del estudio, con quién la aprobó, quién la rechazó después y por qué. Antes de " +
+      "confirmar, la pantalla avisa si era la única constancia aprobada de ese estudio —entonces el apoyo deja de " +
+      "pagarse hasta que se apruebe otra— y no deja rechazarla si el periodo ya se pagó con ella.",
+    audiencia: "do",
+  },
+  {
     id: "2026-10-16-el-bono-de-cumpleanos-en-practicas-va-en-la-boleta",
     fecha: "2026-10-16",
     titulo: "Si estás en prácticas, tu bono de cumpleaños va en tu boleta",

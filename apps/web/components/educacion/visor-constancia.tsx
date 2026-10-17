@@ -340,6 +340,7 @@ function Datos({
         {e.estado === "pendiente"
           ? fila("Revisión", "Espera a Desarrollo Organizacional")
           : e.revisada_at && fila("Revisión", `${e.estado === "aprobada" ? "Aprobó" : "Rechazó"} ${e.revisada_por ?? "—"}, el ${fechaHora(e.revisada_at)}`)}
+        {e.revertida_at && fila("Aprobación revertida", `La aprobó ${e.aprobada_por ?? "—"} el ${fechaHora(e.aprobada_at)}; la rechazó ${e.revisada_por ?? "—"} el ${fechaHora(e.revertida_at)}`)}
         {e.retirada_at && fila("Retirada", `La integrante, el ${fechaHora(e.retirada_at)}`)}
       </dl>
       {e.estado === "rechazada" && (

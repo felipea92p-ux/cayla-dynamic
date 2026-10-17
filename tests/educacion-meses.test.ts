@@ -28,6 +28,7 @@ function ent(over: Partial<EntregaDeFamilia> = {}): EntregaDeFamilia {
     proxima_fecha_pago: null, nota: null, estado: "aprobada", origen: "colaboradora",
     enviada_at: "2026-09-30T15:00:00Z", enviada_por: null, revisada_at: null, revisada_por: "Felipe",
     retirada_at: null, motivo_categoria: null, motivo_comentario: null, reemplaza_a: null, archivos: [],
+    aprobada_at: null, aprobada_por: null, revertida_at: null, revertida_por: null,
     ...over,
   };
 }

@@ -43,6 +43,7 @@ import { BarraFiltros } from "@/components/educacion/barra-filtros";
 import { CuadriculaMeses } from "@/components/educacion/cuadricula-meses";
 import { LienzoArchivos } from "@/components/educacion/lienzo-archivos";
 import { AccionesRevision } from "@/components/educacion/revision-entrega";
+import { AprobadasDelCiclo } from "@/components/educacion/aprobadas-del-ciclo";
 import { VisorConstancia } from "@/components/educacion/visor-constancia";
 
 // ============================================================================
@@ -807,6 +808,13 @@ function EducacionContenido() {
                   </div>
                 )}
 
+                {/* ── APROBADAS DEL CICLO (0525): a quién aprobamos y cómo se corrige un error ── */}
+                <AprobadasDelCiclo
+                  miPersonaId={persona?.id ?? null}
+                  onCambio={async (texto) => { avisar("ok", texto); await cargar(); }}
+                  onError={(texto) => avisar("error", texto)}
+                />
+
                 {/* ── FILTROS: sede primero, después el grupo, y las herramientas ──── */}
                 <BarraFiltros
                   filtros={filtros} cambiar={cambiar} limpiar={limpiarFiltros}
@@ -1296,6 +1304,9 @@ function ItemHistorial({ e, abiertoAlInicio }: { e: Entrega; abiertoAlInicio: bo
                 : "Cargada antes de la revisión de constancias"}
           </p>
           {e.revisada_at && e.origen === "colaboradora" && <p>{e.estado === "aprobada" ? "Aprobó" : "Rechazó"} {e.revisada_por ?? "—"} el {fechaHora(e.revisada_at)}</p>}
+          {e.revertida_at && (
+            <p>La aprobó {e.aprobada_por ?? "—"} el {fechaHora(e.aprobada_at)} · y se revirtió: rechazó {e.revisada_por ?? "—"} el {fechaHora(e.revertida_at)}</p>
+          )}
           {e.retirada_at && <p>La retiró la integrante el {fechaHora(e.retirada_at)}</p>}
           {e.estado === "rechazada" && (
             <p className="mt-1 text-rojo-profundo">{e.motivo_categoria ? MOTIVO_RECHAZO_LABELS[e.motivo_categoria] : ""}{e.motivo_comentario ? `: «${e.motivo_comentario}»` : ""}</p>
