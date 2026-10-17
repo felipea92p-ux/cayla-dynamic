@@ -8,7 +8,7 @@ import {
   MOTIVO_RECHAZO_LABELS, TIPOS_CONSTANCIA, TIPO_CONSTANCIA_LABELS, TZ_LIMA, VIGENCIA_CORTA_DIAS, diasDeVigencia,
   finDeCicloSugerido, hoyLima, problemaDeArchivo, sugerirProximaFecha,
   type EstadoConstancia, type EstadoEntrega, type EstadoSolicitud, type FrecuenciaPago, type MotivoRechazo,
-  type TipoConstancia,
+  type TipoConstancia, nombreDelMesLima,
 } from "@cayla-dynamic/shared";
 import { EnlaceVolver } from "@/components/enlace-volver";
 import { Cargando } from "@/components/cargando";
@@ -21,6 +21,9 @@ import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { enDias } from "@/lib/admin/bandeja-urgencia";
 import { abrirArchivoFirmado } from "@/lib/abrir-archivo-firmado";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
+import { mesDe, sumarMeses } from "@/lib/admin/educacion-meses";
+import { mesesParaLaBase, problemaDelPago, repartirPago, sumaDelPago, type Correccion } from "@/lib/educacion-adelantado";
+import { HistorialEducacion } from "@/components/educacion/historial-educacion";
 import {
   BUCKET_COMPROBANTES, elegido, fechaCorta, subirArchivosDeEntrega, type ArchivoElegido,
 } from "@/lib/educacion";
@@ -302,6 +305,13 @@ function EducacionContenido() {
           )}
         </div>
       )}
+
+      {/* Su recorrido en Educación (0529): lo que envió, qué se aprobó o rechazó y por qué. Sin nombres
+          de quién de DO lo hizo: eso lo decide la base, no esta pantalla. */}
+      <details className="mt-6 rounded-2xl border border-sand p-4">
+        <summary className="cursor-pointer font-serif text-base">Tu historial</summary>
+        <div className="mt-3"><HistorialEducacion modo="ella" /></div>
+      </details>
     </main>
   );
 }
@@ -493,6 +503,26 @@ function FormularioConstancia({
   const [proxima, setProxima] = useState<string>(sugerirProximaFecha(fechaInicial, s.frecuencia_pago) ?? "");
   const [proximaTocada, setProximaTocada] = useState(false);
   const [ultimoPago, setUltimoPago] = useState(false);
+  // Pago adelantado (0529): un solo pago que cubre varios meses. Los meses nacen llenos —del mes en
+  // que pagó a cuatro meses después— para que nada que bloquee el envío arranque vacío.
+  const [cuantos, setCuantos] = useState<"uno" | "varios">("uno");
+  const [desdeMes, setDesdeMes] = useState(mesDe(fechaInicial));
+  const [hastaMes, setHastaMes] = useState(sumarMeses(mesDe(fechaInicial), 4));
+  const [sabe, setSabe] = useState<"total" | "cada">("total");
+  const [total, setTotal] = useState("");
+  const [cada, setCada] = useState("");
+  const [correcciones, setCorrecciones] = useState<Record<string, Correccion>>({});
+  const [corrigiendo, setCorrigiendo] = useState<{ mes: string; monto: string; motivo: string } | null>(null);
+  const reparto = useMemo(
+    () => repartirPago({ desde: desdeMes, hasta: hastaMes, sabe, total: Number(total) || 0, cada: Number(cada) || 0, correcciones }),
+    [desdeMes, hastaMes, sabe, total, cada, correcciones],
+  );
+  const problemaAdelantado = cuantos === "varios" ? problemaDelPago(reparto, sabe, Number(total) || 0) : null;
+  const opcionesDeMes = useMemo(() => {
+    const r: string[] = [];
+    for (let m = sumarMeses(mesDe(hoy), -12); m <= sumarMeses(mesDe(hoy), 18); m = sumarMeses(m, 1)) r.push(m);
+    return r;
+  }, [hoy]);
   const [nota, setNota] = useState("");
   const [archivos, setArchivos] = useState<ArchivoElegido[]>([]);
   const [progreso, setProgreso] = useState<Record<string, number>>({});
@@ -541,7 +571,8 @@ function FormularioConstancia({
     if (archivos.length === 0) { setFallo({ clave: null, texto: "Agrega al menos una foto o un PDF de la constancia." }); return; }
     if (!fechaPago) { setFallo({ clave: null, texto: "Indica en qué fecha pagaste." }); return; }
     if (fechaPago > hoy) { setFallo({ clave: null, texto: "La fecha de pago no puede ser posterior a hoy: la constancia se sube después de pagar." }); return; }
-    if (!ultimoPago && proxima && proxima <= fechaPago) {
+    if (cuantos === "varios" && problemaAdelantado) { setFallo({ clave: null, texto: problemaAdelantado }); return; }
+    if (cuantos === "uno" && !ultimoPago && proxima && proxima <= fechaPago) {
       setFallo({ clave: null, texto: "Tu próximo pago tiene que ser después del que estás respaldando." });
       return;
     }
@@ -558,7 +589,16 @@ function FormularioConstancia({
       return;
     }
 
-    const { error } = await supabase.rpc("fn_educacion_enviar_entrega", {
+    const { error } = cuantos === "varios" ? await supabase.rpc("fn_educacion_enviar_adelantado", {
+      p_id: entregaId,
+      p_asignacion_id: s.asignacion_id,
+      p_fecha_pago: fechaPago,
+      p_tipo: tipo,
+      p_meses: mesesParaLaBase(reparto),
+      p_archivos: subida.archivos,
+      p_nota: nota.trim() || null,
+      p_reemplaza_a: reemplazaA,
+    }) : await supabase.rpc("fn_educacion_enviar_entrega", {
       p_id: entregaId,
       p_asignacion_id: s.asignacion_id,
       p_fecha_pago: fechaPago,
@@ -591,6 +631,90 @@ function FormularioConstancia({
           {TIPOS_CONSTANCIA.map((t) => <option key={t} value={t}>{TIPO_CONSTANCIA_LABELS[t]}</option>)}
         </CampoSelect>
         <div className="flex flex-col gap-1 sm:col-span-2">
+          <span className="text-sm text-taupe">¿Cuántos meses cubre este pago?</span>
+          <div className="grid grid-cols-2 gap-2" role="group" aria-label="Cuántos meses cubre este pago">
+            {([["uno", "Un solo mes", "Como siempre."], ["varios", "Varios meses de una vez", "Ej. de agosto a diciembre."]] as const).map(([k, t, d]) => (
+              <button key={k} type="button" aria-pressed={cuantos === k} disabled={enCurso}
+                onClick={() => { setCuantos(k); setFallo(null); }}
+                className={`rounded-xl border px-3 py-2 text-left ${cuantos === k ? "border-tinta ring-1 ring-tinta" : "border-sand"}`}>
+                <span className="block text-sm font-medium">{t}</span>
+                <span className="block text-xs text-taupe">{d}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+        {cuantos === "varios" ? (
+          <div className="flex flex-col gap-3 sm:col-span-2">
+            <div className="grid grid-cols-2 gap-3">
+              <CampoSelect etiqueta="Desde" value={desdeMes} disabled={enCurso}
+                onChange={(e) => { setDesdeMes(e.target.value); setCorrecciones({}); }}>
+                {opcionesDeMes.map((m) => <option key={m} value={m}>{nombreDelMesLima(`${m}-15`)} {m.slice(0, 4)}</option>)}
+              </CampoSelect>
+              <CampoSelect etiqueta="Hasta" value={hastaMes} disabled={enCurso}
+                onChange={(e) => { setHastaMes(e.target.value); setCorrecciones({}); }}>
+                {opcionesDeMes.map((m) => <option key={m} value={m}>{nombreDelMesLima(`${m}-15`)} {m.slice(0, 4)}</option>)}
+              </CampoSelect>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 text-sm">
+              <span className="text-taupe">¿Sabes cuánto pagaste por cada mes?</span>
+              {([["total", "Solo sé el total"], ["cada", "Sé el de cada mes"]] as const).map(([k, t]) => (
+                <button key={k} type="button" aria-pressed={sabe === k} disabled={enCurso}
+                  onClick={() => { setSabe(k); setCorrecciones({}); }}
+                  className={`rounded-full border px-3 py-1 text-xs font-medium ${sabe === k ? "border-tinta bg-tinta text-crema" : "border-sand"}`}>{t}</button>
+              ))}
+            </div>
+            {sabe === "total"
+              ? <Campo etiqueta="Total que pagaste (S/)" inputMode="decimal" value={total} onChange={(e) => setTotal(e.target.value)} disabled={enCurso} />
+              : <Campo etiqueta="Monto de cada mes (S/)" inputMode="decimal" value={cada} onChange={(e) => setCada(e.target.value)} disabled={enCurso} />}
+            <div>
+              <p className="mb-1 text-sm font-medium">El sistema sacó {reparto.length} {reparto.length === 1 ? "mes" : "meses"}:</p>
+              <table className="w-full text-sm">
+                <tbody>
+                  {reparto.map((x) => (
+                    <tr key={x.mes} className="border-t border-sand">
+                      <td className="py-1.5">
+                        {nombreDelMesLima(`${x.mes}-15`)} {x.mes.slice(0, 4)}
+                        <span className={`block text-xs ${x.origen === "manual" ? "text-ambar" : "text-taupe"}`}>
+                          {x.origen === "manual" ? `Lo corregiste: «${x.motivo}»` : x.origen === "puesto" ? "El que pusiste" : "El resto del total, repartido"}
+                        </span>
+                      </td>
+                      <td className="py-1.5 text-right tabular-nums">S/ {x.monto.toFixed(2)}</td>
+                      <td className="py-1.5 text-right">
+                        <Boton variante="sutil" tamano="sm" disabled={enCurso}
+                          onClick={() => setCorrigiendo({ mes: x.mes, monto: String(x.monto), motivo: correcciones[x.mes]?.motivo ?? "" })}>Corregir</Boton>
+                      </td>
+                    </tr>
+                  ))}
+                  <tr className="border-t border-sand font-medium"><td className="py-1.5">Suma</td><td className="py-1.5 text-right tabular-nums">S/ {sumaDelPago(reparto).toFixed(2)}</td><td /></tr>
+                </tbody>
+              </table>
+              {corrigiendo && (
+                <div className="mt-2 flex flex-col gap-2 rounded-xl border border-ambar/40 bg-ambar/10 p-3">
+                  <p className="text-sm font-medium">Corregir {nombreDelMesLima(`${corrigiendo.mes}-15`)}</p>
+                  <Campo etiqueta="Monto de ese mes (S/)" inputMode="decimal" value={corrigiendo.monto}
+                    onChange={(e) => setCorrigiendo({ ...corrigiendo, monto: e.target.value })} />
+                  <Campo etiqueta="¿Por qué lo cambias? (mínimo 3 letras)" value={corrigiendo.motivo} placeholder="ej. agosto incluía la matrícula"
+                    onChange={(e) => setCorrigiendo({ ...corrigiendo, motivo: e.target.value })} />
+                  <div className="flex justify-end gap-2">
+                    <Boton tamano="sm" onClick={() => setCorrigiendo(null)}>Cancelar</Boton>
+                    <Boton tamano="sm" variante="primario"
+                      disabled={corrigiendo.motivo.trim().length < 3 || !(Number(corrigiendo.monto) >= 0) || corrigiendo.monto === ""}
+                      onClick={() => {
+                        setCorrecciones((c) => ({ ...c, [corrigiendo.mes]: { monto: Number(corrigiendo.monto), motivo: corrigiendo.motivo.trim() } }));
+                        setCorrigiendo(null);
+                      }}>Guardar</Boton>
+                  </div>
+                </div>
+              )}
+              <p className="mt-1 text-xs text-taupe">
+                Lo que corrijas se respeta y el resto del total se reparte entre los otros meses. Desarrollo Organizacional
+                ve qué meses calculó el sistema y cuáles cambiaste tú. Aprobada, no tendrás que enviar constancia de esos meses.
+              </p>
+              {problemaAdelantado && (total || cada) && <p className="mt-1 text-xs text-rojo-profundo">{problemaAdelantado}</p>}
+            </div>
+          </div>
+        ) : (
+        <div className="flex flex-col gap-1 sm:col-span-2">
           <Campo etiqueta="¿Cuándo es tu próximo pago?" type="date" value={ultimoPago ? "" : proxima}
             onChange={(e) => { setProxima(e.target.value); setProximaTocada(true); }} disabled={enCurso || ultimoPago} />
           <label className="flex items-center gap-2 text-xs text-taupe">
@@ -600,6 +724,7 @@ function FormularioConstancia({
           </label>
           <span className="text-xs text-taupe">Si todavía no sabes la fecha, déjala vacía: Desarrollo Organizacional te la preguntará.</span>
         </div>
+        )}
       </div>
 
       {/* Dos botones grandes y no un solo campo de archivo: en el celular,

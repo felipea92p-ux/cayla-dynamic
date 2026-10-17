@@ -2,14 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
-import { MOTIVOS_RECHAZO, MOTIVO_RECHAZO_LABELS, type MotivoRechazo } from "@cayla-dynamic/shared";
+import type { MotivoRechazo } from "@cayla-dynamic/shared";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { fechaCorta } from "@/lib/educacion";
 import type { Entrega } from "@/lib/admin/educacion-tipos";
 import { Boton } from "@/components/ui/boton";
-import { CampoSelect } from "@/components/ui/campo";
-import { AreaTexto } from "@/components/ui/area-texto";
 import { Modal } from "@/components/ui/modal";
+import { rechazoIncompleto } from "@/lib/admin/educacion-ciclo";
+import { CamposDeRechazo } from "./campos-de-rechazo";
 
 /**
  * APROBAR O RECHAZAR UNA CONSTANCIA — los dos botones y sus dos confirmaciones.
@@ -59,8 +59,8 @@ export function AccionesRevision({
   }
 
   async function rechazar() {
-    if (!categoria) { onError("Elige el motivo del rechazo."); return; }
-    if (comentario.trim().length < 3) { onError("Escribe qué tiene que corregir: la integrante lo va a leer."); return; }
+    const falta = rechazoIncompleto(categoria, comentario);
+    if (falta) { onError(falta); return; }
     setTrabajando(true);
     const { error } = await supabase.rpc("fn_educacion_resolver_entrega", {
       p_id: entrega.id, p_aprobar: false, p_categoria: categoria, p_comentario: comentario.trim(),
@@ -95,19 +95,11 @@ export function AccionesRevision({
 
       <Modal abierto={rechazando} onCerrar={() => setRechazando(false)} bloqueado={trabajando} titulo="Rechazar constancia" ancho="md">
         <p className="mb-3 text-sm text-taupe">{persona} va a leer el motivo y el comentario en su Bandeja, para corregirla.</p>
-        <CampoSelect etiqueta="Motivo *" value={categoria} onChange={(e) => setCategoria(e.target.value as MotivoRechazo | "")}>
-          <option value="">— elige el motivo —</option>
-          {MOTIVOS_RECHAZO.map((m) => <option key={m} value={m}>{MOTIVO_RECHAZO_LABELS[m]}</option>)}
-        </CampoSelect>
-        <label className="mt-3 flex flex-col gap-1 text-sm">
-          Qué tiene que corregir *
-          <AreaTexto rows={3} value={comentario} onChange={(e) => setComentario(e.target.value)}
-            placeholder="ej. la foto está cortada y no se ve el monto pagado" />
-        </label>
+        <CamposDeRechazo categoria={categoria} onCategoria={setCategoria} comentario={comentario} onComentario={setComentario} />
         <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <Boton onClick={() => setRechazando(false)} disabled={trabajando}>Cancelar</Boton>
           <Boton variante="peligro" cargando={trabajando} onClick={() => void rechazar()}
-            disabled={!categoria || comentario.trim().length < 3}>Rechazar constancia</Boton>
+            disabled={rechazoIncompleto(categoria, comentario) !== null}>Rechazar constancia</Boton>
         </div>
       </Modal>
     </>

@@ -24,8 +24,9 @@ import {
 } from "@/lib/admin/educacion-grupos";
 import {
   CLAVES_DE_URL, FILTROS_VACIOS, MESES_INICIALES, MESES_POR_PASO, agruparEstudios, conteoTarjetas, entregaPasaFiltros,
-  entregasDeEstudio, filtrosAUrl, filtrosDeUrl, mesLargo, mesesConConstancia, mesesConDatosDeLaVentana,
-  montoMensual, pasaFiltros, resumenPorSede, sedesDe, ventanaParaFiltros, type ContextoDeFiltros, type Estudio, type Filtros,
+  entregasDeEstudio, filtrosAUrl, filtrosDeUrl, mesesConConstancia, mesesConDatosDeLaVentana,
+  montoMensual, pasaFiltros, resumenPorSede, sedesDe, ventanaParaFiltros, mesDe, sumarMeses,
+  type CoberturaMes, type ContextoDeFiltros, type Estudio, type Filtros,
 } from "@/lib/admin/educacion-meses";
 import { fechaHora, soles } from "@/lib/admin/educacion-formato";
 import type { Entrega, EntregaDeFamilia, Pendiente, Situacion } from "@/lib/admin/educacion-tipos";
@@ -33,7 +34,6 @@ import { armarZip, descargarBlob, extensionDeArchivo, nombreEnZip, nombreLegible
 import { Boton } from "@/components/ui/boton";
 import { Campo, CampoSelect } from "@/components/ui/campo";
 import { AreaTexto } from "@/components/ui/area-texto";
-import { Cifra } from "@/components/ui/cifra";
 import { EstadoVacio } from "@/components/ui/estado-vacio";
 import { Insignia } from "@/components/ui/insignia";
 import { Modal } from "@/components/ui/modal";
@@ -43,6 +43,8 @@ import { BarraFiltros } from "@/components/educacion/barra-filtros";
 import { CuadriculaMeses } from "@/components/educacion/cuadricula-meses";
 import { LienzoArchivos } from "@/components/educacion/lienzo-archivos";
 import { AccionesRevision } from "@/components/educacion/revision-entrega";
+import { AprobadasDelCiclo } from "@/components/educacion/aprobadas-del-ciclo";
+import { HistorialEducacion } from "@/components/educacion/historial-educacion";
 import { VisorConstancia } from "@/components/educacion/visor-constancia";
 
 // ============================================================================
@@ -159,11 +161,18 @@ function EducacionContenido() {
   const [filtros, setFiltros] = useState<Filtros>(() => filtrosDeUrl(params));
   const cambiar = useCallback((parcial: Partial<Filtros>) => setFiltros((f) => ({ ...f, ...parcial })), []);
   const [mesesPedidos, setMesesPedidos] = useState(MESES_INICIALES);
+  // Cuatro pestañas en vez de siete bloques apilados (Felipe, 2026-10-17: «más intuitivo y no tan
+  // amontonado de texto»). Lo de todos los días —las constancias— es la primera y la que se abre.
+  const [vista, setVista] = useState<Vista>(() => (VISTAS.some((v) => v.clave === params.get("vista")) ? params.get("vista") as Vista : "constancias"));
   const [descargando, setDescargando] = useState(false);
 
   // Las constancias de TODOS los estudios, para dibujar la cuadrícula de meses. null = todavía llegando.
   const [entregasPorFamilia, setEntregasPorFamilia] = useState<Map<string, EntregaDeFamilia[]> | null>(null);
   const [errorConstancias, setErrorConstancias] = useState<string | null>(null);
+  // Los meses que cubre cada pago adelantado, y lo pagado de educación por persona y mes (0529).
+  // Si fallan, la cuadrícula se ve como antes: sin franjas ni raya de apoyo pagado.
+  const [coberturas, setCoberturas] = useState<Map<string, CoberturaMes[]>>(new Map());
+  const [apoyoPagado, setApoyoPagado] = useState<Map<string, number>>(new Map());
 
   // El visor grande de constancias. `visor` se conserva al cerrar para que se vea irse con su contenido.
   const [visor, setVisor] = useState<{ clave: string; entregaId: string | null } | null>(null);
@@ -233,7 +242,7 @@ function EducacionContenido() {
     const { data: sesion } = await supabase.auth.getSession();
     if (!sesion.session) { router.replace("/admin/login"); return; }
 
-    const [sit, pend, solPend, lista, cands, lim, pf, cfg] = await Promise.all([
+    const [sit, pend, solPend, lista, cands, lim, pf, cfg, cob, apo] = await Promise.all([
       supabase.rpc("fn_educacion_situacion"),
       supabase.rpc("fn_educacion_entregas_pendientes"),
       supabase.rpc("fn_educacion_solicitudes_pendientes"),
@@ -242,7 +251,17 @@ function EducacionContenido() {
       supabase.rpc("fn_educacion_limite_comprobante"),
       supabase.rpc("fn_personas_funciones"),
       supabase.from("configuracion").select("clave, valor").like("clave", "educacion_%"),
+      supabase.rpc("fn_educacion_coberturas"),
+      supabase.rpc("fn_educacion_apoyo_pagado", { p_desde: `${sumarMeses(mesDe(hoyLima()), -24)}-01` }),
     ]);
+    const porEntrega = new Map<string, CoberturaMes[]>();
+    for (const x of (cob.data ?? []) as unknown as CoberturaMes[]) {
+      const l = porEntrega.get(x.entrega_id);
+      if (l) l.push(x); else porEntrega.set(x.entrega_id, [x]);
+    }
+    setCoberturas(porEntrega);
+    setApoyoPagado(new Map(((apo.data ?? []) as unknown as { persona_id: string; mes: string; monto: number }[])
+      .map((x) => [`${x.persona_id}|${mesDe(x.mes)}`, Number(x.monto)])));
     const filasSituacion = (sit.data ?? []) as unknown as Situacion[];
     setSituaciones(filasSituacion);
     const trayendo = cargarConstancias(filasSituacion);
@@ -366,7 +385,16 @@ function EducacionContenido() {
   const delAlcance = estudios.filter((e) => pasaFiltros(e, filtros, ctx, ["tarjeta", "grupo"]));
   const conteo = conteoTarjetas(delAlcance, familiasConPendiente);
   const deLaBusqueda = estudios.filter((e) => pasaFiltros(e, filtros, ctx, ["grupo"]));
-  const visibles = deLaBusqueda.filter((e) => filtros.grupo === null || filtros.grupo === "sin_solicitar" || grupoDeEstudio(e) === filtros.grupo);
+  // «TODOS» ES TODOS, SIN EXCEPCIÓN (Felipe, 2026-10-17): también los estudios de personas ya
+  // liquidadas, que las demás pastillas dejan fuera por defecto, y al final quienes no pidieron
+  // educación. «Estado del apoyo» ya arranca en «Todos»; si alguien lo cambia, se respeta.
+  // «Solicitaron» (la vista por defecto) muestra esos mismos estudios, sin quienes nunca pidieron.
+  const todos = filtros.grupo === null;
+  const todosLosEstudios = todos || filtros.grupo === "solicitaron";
+  const filtrosDeTodos: Filtros = { ...filtros, liquidadas: true };
+  const deTodos = estudios.filter((e) => pasaFiltros(e, filtrosDeTodos, ctx, ["grupo"]));
+  const visibles = todosLosEstudios ? deTodos
+    : deLaBusqueda.filter((e) => filtros.grupo === "sin_solicitar" || grupoDeEstudio(e) === filtros.grupo);
 
   const sedesConConteo = useMemo(() => {
     const sinSede = estudios.filter((e) => pasaFiltros(e, filtros, ctx, ["sede"]));
@@ -374,19 +402,21 @@ function EducacionContenido() {
   }, [estudios, filtros, ctx, sedes]);
 
   // Quién no pidió nada: personas activas sin estudio ni solicitud por revisar.
-  const sinSolicitar = personasSinSolicitar(candidatos, situaciones, solicitudesPendientes, liquidadas, filtros.liquidadas)
+  const sinSolicitar = personasSinSolicitar(candidatos, situaciones, solicitudesPendientes, liquidadas, todos || filtros.liquidadas)
     .filter((c) => (!filtros.sede || c.sede === filtros.sede) && (!filtros.buscar.trim() || c.persona.toLowerCase().includes(filtros.buscar.trim().toLowerCase())));
   const conteoGrupo: Record<GrupoEducacion, number> = {
-    al_dia: 0, por_revisar: 0, por_completar: 0, en_falta: 0, sin_solicitar: sinSolicitar.length,
+    solicitaron: deTodos.length, al_dia: 0, por_revisar: 0, por_completar: 0, en_falta: 0, sin_solicitar: sinSolicitar.length,
   };
   for (const e of deLaBusqueda) conteoGrupo[grupoDeEstudio(e)] += 1;
   const niveles = useMemo(() => nivelesDeApoyo(candidatos), [candidatos]);
 
   // La línea de tiempo: seis meses y «ver más». Si se pidió un mes más viejo que la ventana, se abre hasta él.
-  const mesesConDatos = useMemo(
-    () => mesesConDatosDeLaVentana(hoy, todasLasEntregas, estudios),
-    [hoy, todasLasEntregas, estudios],
-  );
+  // Un pago adelantado que cubre hasta diciembre estira la línea de tiempo hasta diciembre: los
+  // meses ya pagados no se esconden a la derecha (mismo criterio que una constancia del mes que viene).
+  const mesesConDatos = useMemo(() => {
+    const cubiertos = [...coberturas.values()].flat().map((x) => mesDe(x.mes));
+    return [...mesesConDatosDeLaVentana(hoy, todasLasEntregas, estudios), ...cubiertos];
+  }, [hoy, todasLasEntregas, estudios, coberturas]);
   const ventana = useMemo(
     () => ventanaParaFiltros(hoy, mesesConDatos, mesesPedidos, { mes: filtros.mes, desde: filtros.desde }),
     [hoy, mesesConDatos, mesesPedidos, filtros.mes, filtros.desde],
@@ -713,6 +743,9 @@ function EducacionContenido() {
       <main className="flex-1 p-4 sm:p-6">
         <CabeceraPagina
           titulo="Educación"
+          descripcion={puedeGestionar && !cargando
+            ? `${apoyosPagandose} apoyo${apoyosPagandose === 1 ? "" : "s"} pagándose · ${soles(totalMensual)} al mes`
+            : undefined}
           accion={puedeGestionar ? (
             <Boton variante="primario"
               onClick={(e) => { botonRegistrar.current = e.currentTarget; empezarAlta(); }}>
@@ -727,11 +760,6 @@ function EducacionContenido() {
           </div>
         ) : (
           <>
-            <p className="mb-5 max-w-3xl text-sm text-taupe">
-              Gestiona los apoyos educativos y las constancias que los sustentan. Aprobar o rechazar una constancia no
-              cambia lo que se paga: es el respaldo de que el apoyo no es remuneración.
-            </p>
-
             {cargaError && (
               <div className="mb-4 max-w-3xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo-profundo">
                 {cargaError} <Boton variante="enlace" onClick={() => void cargar()}>Reintentar</Boton>
@@ -750,52 +778,54 @@ function EducacionContenido() {
                   </div>
                 )}
 
-                {/* ── RESUMEN: cinco cifras que cuentan lo MISMO que se dibuja abajo ─ */}
-                {/* «Rechazadas» espera a la integrante —le toca enviar la corregida—, así que no pide
-                    «atender» a Desarrollo Organizacional. Un cero no pinta punto: callado, está bien. */}
-                <div className="mb-3 grid grid-cols-2 gap-3 lg:grid-cols-5">
-                  {([
-                    ["pendientes", "Pendientes de revisión", conteo.pendientes, "informativo", undefined],
-                    ["vencidas", "Constancias vencidas", conteo.vencidas, "alerta", undefined],
-                    ["por_vencer", "Por vencer", conteo.por_vencer, "advertencia", undefined],
-                    ["rechazadas", "Constancias rechazadas", conteo.rechazadas, undefined, "esperando a la integrante"],
-                    ["pagos", `Pagos en ${config.avisoDo} días`, conteo.pagos, undefined, undefined],
-                  ] as const).map(([clave, etiqueta, n, tono, detalle]) => (
-                    <Cifra key={clave} etiqueta={etiqueta} valor={n} tono={n > 0 ? tono : undefined}
-                      detalle={n > 0 ? detalle : undefined} activa={filtros.tarjeta === clave}
-                      onClick={() => cambiar({ tarjeta: filtros.tarjeta === clave ? null : clave })} />
-                  ))}
-                </div>
+                {/* ── PESTAÑAS ─────────────────────────────────────────────────────── */}
+                <nav aria-label="Secciones de Educación" className="-mx-4 mb-5 flex gap-1 overflow-x-auto border-b border-sand px-4 sm:mx-0 sm:px-0 [scrollbar-width:none]">
+                  {VISTAS.map((v) => {
+                    const n = v.clave === "constancias" ? conteo.pendientes + solicitudesPendientes.length : 0;
+                    return (
+                      <button key={v.clave} type="button" aria-current={vista === v.clave ? "page" : undefined}
+                        onClick={() => setVista(v.clave)}
+                        className={`-mb-px flex shrink-0 items-center gap-1.5 border-b-2 px-3 py-2 text-sm transition-colors duration-150 ${
+                          vista === v.clave ? "border-tinta font-medium text-tinta" : "border-transparent text-taupe hover:text-tinta"}`}>
+                        {v.etiqueta}
+                        {n > 0 && <span className="rounded-full bg-rojo px-1.5 text-[11px] leading-4 text-crema">{n}</span>}
+                      </button>
+                    );
+                  })}
+                </nav>
 
-                <p className="mb-5 text-xs text-taupe">
-                  <strong className="font-medium text-tinta">
-                    {[filtros.sede || (sedes.length > 1 ? "Todas las sedes" : sedes[0] ?? ""), filtros.mes && `pagos de ${mesLargo(filtros.mes)}`]
-                      .filter(Boolean).join(" · ")}
-                  </strong>
-                  {(filtros.buscar.trim() || filtros.estado || filtros.institucion || filtros.quien || filtros.tipo || filtros.revisor
-                    || filtros.desde || filtros.hasta || filtros.vigencia !== "activas") && " · con tus filtros"}
-                  {" · "}{apoyosPagandose} apoyo{apoyosPagandose === 1 ? "" : "s"} pagándose · suman {soles(totalMensual)} al mes
-                  {conteo.sinCalendario > 0 && (
-                    <> · <Boton variante="enlace" className="text-xs" onClick={() => cambiar({ estado: "sin_calendario", tarjeta: null, grupo: null })}>
+                {vista === "constancias" && (<>
+                {/* ── PARA ATENDER: solo lo que pide algo, en una línea. Un cero no se dibuja. ── */}
+                <ParaAtender
+                  items={[
+                    { clave: "pendientes", texto: `${conteo.pendientes} por revisar`, n: conteo.pendientes, tono: "pizarra" },
+                    { clave: "vencidas", texto: `${conteo.vencidas} vencida${conteo.vencidas === 1 ? "" : "s"}`, n: conteo.vencidas, tono: "rojo" },
+                    { clave: "por_vencer", texto: `${conteo.por_vencer} por vencer`, n: conteo.por_vencer, tono: "ambar" },
+                    { clave: "rechazadas", texto: `${conteo.rechazadas} rechazada${conteo.rechazadas === 1 ? "" : "s"}`, n: conteo.rechazadas, tono: "rojo" },
+                    { clave: "pagos", texto: `${conteo.pagos} pago${conteo.pagos === 1 ? "" : "s"} en ${config.avisoDo} días`, n: conteo.pagos, tono: "neutro" },
+                  ]}
+                  activa={filtros.tarjeta}
+                  alTocar={(clave) => cambiar({ tarjeta: filtros.tarjeta === clave ? null : clave as Filtros["tarjeta"] })}
+                  extra={conteo.sinCalendario > 0 ? (
+                    <button type="button" className="rounded-full border border-dashed border-taupe px-3 py-1 text-xs text-taupe hover:text-tinta"
+                      onClick={() => cambiar({ estado: "sin_calendario", tarjeta: null, grupo: "solicitaron" })}>
                       {conteo.sinCalendario} sin calendario de pagos
-                    </Boton></>
-                  )}
-                  {" · "}
-                  <Boton variante="enlace" className="text-xs" onClick={() => setConfigAbierta(true)}>Texto y plazos de las constancias</Boton>
-                </p>
+                    </button>
+                  ) : null}
+                />
 
                 {/* ── SOLICITUDES DE APOYO (0461): quien todavía no tiene asignación ── */}
                 {solicitudesPendientes.length > 0 && (
-                  <div className="mb-5 rounded-2xl border border-sand bg-hueso p-4">
-                    <h2 className="mb-2 font-serif text-base">
-                      Solicitudes de apoyo por revisar ({solicitudesPendientes.length})
+                  <div className="mb-4 rounded-2xl border border-pizarra/30 bg-pizarra/10 px-4 py-2">
+                    <h2 className="text-xs font-medium uppercase tracking-wide text-pizarra">
+                      Solicitudes de apoyo por revisar · {solicitudesPendientes.length}
                     </h2>
                     <ul className="flex flex-col divide-y divide-sand">
                       {solicitudesPendientes.map((s) => (
                         <li key={s.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
                           <span>
                             <span className="font-medium">{s.persona}</span>
-                            <span className="text-taupe"> · {s.sede} · {s.institucion} · costo declarado {soles(s.costo_declarado)}</span>
+                            <span className="text-taupe"> · {s.institucion} · {soles(s.costo_declarado)}</span>
                           </span>
                           <Boton tamano="sm" variante="primario"
                             onClick={(e) => { botonSolicitud.current = e.currentTarget; setSolicitudAbierta(s.id); }}>
@@ -812,7 +842,7 @@ function EducacionContenido() {
                   filtros={filtros} cambiar={cambiar} limpiar={limpiarFiltros}
                   opciones={{
                     sedes: sedesConConteo.porSede, totalSedes: sedesConConteo.total,
-                    grupos: conteoGrupo, totalGrupos: deLaBusqueda.length,
+                    grupos: conteoGrupo, totalGrupos: deTodos.length + sinSolicitar.length,
                     meses: periodos, instituciones, revisores, cargandoConstancias,
                   }}
                   descargas={{ csv: descargarCuadro, zip: () => void descargarZip(), zipDisponible, ocupado: descargando }}
@@ -824,59 +854,50 @@ function EducacionContenido() {
                   </div>
                 )}
 
-                {filtros.grupo === "sin_solicitar" ? (
-                  sinSolicitar.length === 0 ? (
-                    <EstadoVacio>Todas las personas activas tienen un apoyo o una solicitud en curso.</EstadoVacio>
-                  ) : (
-                    <div className="overflow-x-auto rounded-superficie border border-sand">
-                      <table className="w-full text-sm">
-                        <thead className="bg-hueso text-left text-xs uppercase tracking-wide text-taupe">
-                          <tr>
-                            <th className="px-4 py-2 font-medium">Persona</th>
-                            <th className="px-4 py-2 font-medium">Techo mensual de su rango</th>
-                            <th className="px-4 py-2"><span className="sr-only">Acción</span></th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {sinSolicitar.map((c) => (
-                            <tr key={c.persona_id} className="border-t border-sand">
-                              <td className="px-4 py-3">
-                                <span className="font-medium">{c.persona}</span>
-                                <span className="block text-xs text-taupe">{c.sede} · {c.rango === "—" ? "sin rango asignado" : c.rango}</span>
-                              </td>
-                              <td className="px-4 py-3 tabular-nums">{c.tope === null ? "sin techo cargado" : soles(c.tope)}</td>
-                              <td className="px-4 py-3 text-right">
-                                <Boton variante="secundario" tamano="sm"
-                                  onClick={(e) => { botonRegistrar.current = e.currentTarget; empezarAlta(); setForm((f) => ({ ...f, personaId: c.persona_id })); }}>
-                                  Registrar apoyo
-                                </Boton>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )
-                ) : situaciones.length === 0 ? (
+                {filtros.grupo === "sin_solicitar" && sinSolicitar.length === 0 ? (
+                  <EstadoVacio>Todas las personas activas tienen un apoyo o una solicitud en curso.</EstadoVacio>
+                ) : situaciones.length === 0 && sinSolicitar.length === 0 ? (
                   <EstadoVacio>Todavía no hay ningún apoyo educativo registrado.</EstadoVacio>
-                ) : visibles.length === 0 ? (
+                ) : visibles.length === 0 && !((todos || filtros.grupo === "sin_solicitar") && sinSolicitar.length > 0) ? (
                   <EstadoVacio accion={<Boton variante="secundario" onClick={limpiarFiltros}>Limpiar filtros</Boton>}>
                     Nada coincide con estos filtros.
                   </EstadoVacio>
                 ) : (
                   <CuadriculaMeses
-                    estudios={visibles} meses={ventana.meses} hayMasMeses={ventana.hayMas}
+                    estudios={filtros.grupo === "sin_solicitar" ? [] : visibles} meses={ventana.meses} hayMasMeses={ventana.hayMas}
                     onVerMasMeses={() => setMesesPedidos((n) => Math.max(n, ventana.meses.length) + MESES_POR_PASO)}
                     mesResaltado={filtros.mes} entregasPorFamilia={entregasPorFamilia} cargandoConstancias={cargandoConstancias}
                     familiasSinLeer={familiasSinLeer}
                     pendientes={pendientes} hoy={hoy}
                     resumenesSede={filtros.sede === "" && resumenes.length > 1 ? resumenes : null}
                     onAbrirVisor={abrirVisor} onAbrirEstudio={abrirEstudio}
+                    coberturas={coberturas} apoyoPagado={apoyoPagado}
+                    sinSolicitar={todos || filtros.grupo === "sin_solicitar" ? sinSolicitar : []}
+                    onRegistrar={(boton, personaId) => { botonRegistrar.current = boton; empezarAlta(); setForm((f) => ({ ...f, personaId })); }}
                   />
                 )}
 
+                </>)}
+
+                {vista === "aprobadas" && (
+                  <AprobadasDelCiclo
+                    plegable={false}
+                    miPersonaId={persona?.id ?? null}
+                    onCambio={async (texto) => { avisar("ok", texto); await cargar(); }}
+                    onError={(texto) => avisar("error", texto)}
+                  />
+                )}
+
+                {vista === "historial" && (<>
+                  <HistorialEducacion modo="general" />
+                </>)}
+
+                {vista === "ayuda" && (<>
+                <div className="mb-4">
+                  <Boton variante="secundario" tamano="sm" onClick={() => setConfigAbierta(true)}>Texto y plazos de las constancias</Boton>
+                </div>
                 {/* ── CÓMO FUNCIONA y DÓNDE ESTÁN: lo que pregunta quien llega nuevo o audita ── */}
-                <div className="mb-5 mt-8 grid gap-3 lg:grid-cols-2">
+                <div className="mb-5 grid gap-3 lg:grid-cols-2">
                   <details className="rounded-2xl border border-sand p-4">
                     <summary className="cursor-pointer font-serif text-base">Cómo funciona el incentivo de educación</summary>
                     <div className="mt-3 space-y-3 text-sm">
@@ -970,8 +991,11 @@ function EducacionContenido() {
                   </details>
                 </div>
 
-                {/* ── HISTORIAL DE SOLICITUDES (0461): aprobadas y rechazadas ──── */}
-                <details className="mb-5 rounded-2xl border border-sand p-4"
+                </>)}
+
+                {/* ── HISTORIAL DE SOLICITUDES (0461): aprobadas y rechazadas, debajo del general ── */}
+                {vista === "historial" && (
+                <details className="mt-6 rounded-2xl border border-sand p-4"
                   onToggle={(e) => { if (e.currentTarget.open) void cargarHistorialSolicitudes(); }}>
                   <summary className="cursor-pointer font-serif text-base">Historial de solicitudes de apoyo</summary>
                   <div className="mt-3">
@@ -1006,6 +1030,7 @@ function EducacionContenido() {
                     )}
                   </div>
                 </details>
+                )}
               </>
             )}
           </>
@@ -1063,6 +1088,8 @@ function EducacionContenido() {
             onError={(texto) => avisar("error", texto)}
             onAbrirEstudio={() => { setVisorAbierto(false); abrirEstudio(visorEstudio, null); }}
             estadoDeCarga={cargandoConstancias ? "cargando" : visorEstudio.tramos.some((t) => familiasSinLeer.has(t.familia_id)) ? "error" : "listo"}
+            coberturas={coberturas}
+            costoDeclarado={(id) => { const a = asignaciones.get(id); return a ? Number(a.costo_declarado) : null; }}
           />
         )}
       </main>
@@ -1241,7 +1268,7 @@ function PanelEstudio({
 
       {/* ── HISTORIAL ── */}
       <section>
-        <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-taupe">Historial</h3>
+        <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-taupe">Constancias</h3>
         {entregas === null ? <Cargando /> : entregas.length === 0 ? (
           <p className="text-taupe">Sin constancias todavía.</p>
         ) : (
@@ -1252,6 +1279,12 @@ function PanelEstudio({
           </ul>
         )}
       </section>
+
+      {/* ── TODO LO QUE PASÓ CON ESTA PERSONA (0529): el historial individual ── */}
+      <details className="rounded-xl border border-sand p-3">
+        <summary className="cursor-pointer text-xs font-medium uppercase tracking-wide text-taupe">Historial de {s.persona.split(" ")[0]}</summary>
+        <div className="mt-2"><HistorialEducacion modo="persona" personaId={s.persona_id} /></div>
+      </details>
 
       <Modal abierto={cerrando} onCerrar={() => setCerrando(false)} bloqueado={trabajando} titulo="Cerrar esta asignación" ancho="sm">
         <p className="mb-4 text-sm text-taupe">
@@ -1296,6 +1329,9 @@ function ItemHistorial({ e, abiertoAlInicio }: { e: Entrega; abiertoAlInicio: bo
                 : "Cargada antes de la revisión de constancias"}
           </p>
           {e.revisada_at && e.origen === "colaboradora" && <p>{e.estado === "aprobada" ? "Aprobó" : "Rechazó"} {e.revisada_por ?? "—"} el {fechaHora(e.revisada_at)}</p>}
+          {e.revertida_at && (
+            <p>La aprobó {e.aprobada_por ?? "—"} el {fechaHora(e.aprobada_at)} · y se revirtió: rechazó {e.revisada_por ?? "—"} el {fechaHora(e.revertida_at)}</p>
+          )}
           {e.retirada_at && <p>La retiró la integrante el {fechaHora(e.retirada_at)}</p>}
           {e.estado === "rechazada" && (
             <p className="mt-1 text-rojo-profundo">{e.motivo_categoria ? MOTIVO_RECHAZO_LABELS[e.motivo_categoria] : ""}{e.motivo_comentario ? `: «${e.motivo_comentario}»` : ""}</p>
@@ -1498,5 +1534,46 @@ export default function EducacionPage() {
     <Suspense fallback={<Cargando />}>
       <EducacionContenido />
     </Suspense>
+  );
+}
+
+type Vista = "constancias" | "aprobadas" | "historial" | "ayuda";
+const VISTAS: { clave: Vista; etiqueta: string }[] = [
+  { clave: "constancias", etiqueta: "Constancias" },
+  { clave: "aprobadas", etiqueta: "Aprobadas del ciclo" },
+  { clave: "historial", etiqueta: "Historial" },
+  { clave: "ayuda", etiqueta: "Cómo funciona" },
+];
+
+const TONO_ATENDER = {
+  pizarra: "border-pizarra/40 bg-pizarra/10 text-pizarra",
+  rojo: "border-rojo/30 bg-rojo/10 text-rojo-profundo",
+  ambar: "border-ambar/40 bg-ambar/15 text-ambar",
+  neutro: "border-sand bg-papel text-tinta",
+} as const;
+
+/**
+ * Lo que pide algo hoy, en UNA línea de pastillas que filtran al tocarlas. Reemplaza a las cinco
+ * tarjetas grandes: un cero no se dibuja, y si no hay nada pendiente lo dice en tres palabras.
+ */
+function ParaAtender({ items, activa, alTocar, extra }: {
+  items: { clave: string; texto: string; n: number; tono: keyof typeof TONO_ATENDER }[];
+  activa: string | null;
+  alTocar: (clave: string) => void;
+  extra: React.ReactNode;
+}) {
+  const con = items.filter((x) => x.n > 0 || x.clave === activa);
+  return (
+    <div className="mb-4 flex flex-wrap items-center gap-2">
+      <span className="text-xs font-medium uppercase tracking-wide text-taupe">Para atender</span>
+      {con.length === 0 && !extra ? <span className="text-sm text-verde">Nada pendiente</span> : con.map((x) => (
+        <button key={x.clave} type="button" aria-pressed={activa === x.clave} onClick={() => alTocar(x.clave)}
+          className={`rounded-full border px-3 py-1 text-xs font-medium tabular-nums transition-shadow duration-150 ${TONO_ATENDER[x.tono]} ${
+            activa === x.clave ? "ring-2 ring-tinta" : ""}`}>
+          {x.texto}
+        </button>
+      ))}
+      {extra}
+    </div>
   );
 }

@@ -28,6 +28,7 @@ function ent(over: Partial<EntregaDeFamilia> = {}): EntregaDeFamilia {
     proxima_fecha_pago: null, nota: null, estado: "aprobada", origen: "colaboradora",
     enviada_at: "2026-09-30T15:00:00Z", enviada_por: null, revisada_at: null, revisada_por: "Felipe",
     retirada_at: null, motivo_categoria: null, motivo_comentario: null, reemplaza_a: null, archivos: [],
+    aprobada_at: null, aprobada_por: null, revertida_at: null, revertida_por: null,
     ...over,
   };
 }
@@ -214,10 +215,10 @@ describe("pasaFiltros", () => {
     expect(pasaFiltros(e, filtros({ sede: "LIM" }), ctx(), ["sede"])).toBe(true);
   });
 
-  it("los terminados no salen con «vigentes» y sí con «todos»", () => {
+  it("los terminados salen por defecto («Estado del apoyo» arranca en «Todos») y no con «vigentes»", () => {
     const t = agruparEstudios([sit({ vigencia: "terminada" })])[0];
-    expect(pasaFiltros(t, filtros(), ctx())).toBe(false);
-    expect(pasaFiltros(t, filtros({ vigencia: "todas" }), ctx())).toBe(true);
+    expect(pasaFiltros(t, filtros(), ctx())).toBe(true);
+    expect(pasaFiltros(t, filtros({ vigencia: "activas" }), ctx())).toBe(false);
   });
 
   it("las personas ya liquidadas se ocultan salvo que se pidan", () => {
@@ -281,7 +282,7 @@ describe("pasaFiltros", () => {
   it("hayFiltros distingue lo de siempre de un filtro puesto", () => {
     expect(hayFiltros(filtros())).toBe(false);
     expect(hayFiltros(filtros({ sede: "AQP" }))).toBe(true);
-    expect(hayFiltros(filtros({ vigencia: "todas" }))).toBe(true);
+    expect(hayFiltros(filtros({ vigencia: "activas" }))).toBe(true);
   });
 });
 
@@ -448,9 +449,9 @@ describe("lo que espera revisión no se esconde por un valor que nadie eligió",
   const terminado = agruparEstudios([sit({ vigencia: "terminada", vigente_hasta: "2026-08-28", estado_constancia: "pendiente_revision" })])[0];
   const espera = ctx({ familiasConPendiente: new Set(["f1"]) });
 
-  it("un estudio terminado con una constancia por revisar sale aunque «vigentes» sea el valor por defecto", () => {
-    expect(pasaFiltros(terminado, filtros(), espera)).toBe(true);
-    expect(pasaFiltros(terminado, filtros(), ctx())).toBe(false); // sin nada que revisar, sí se oculta
+  it("un estudio terminado con una constancia por revisar sale aunque se elijan solo los «vigentes»", () => {
+    expect(pasaFiltros(terminado, filtros({ vigencia: "activas" }), espera)).toBe(true);
+    expect(pasaFiltros(terminado, filtros({ vigencia: "activas" }), ctx())).toBe(false); // sin nada que revisar, sí se oculta
   });
 
   it("una persona ya liquidada con una constancia por revisar también sale", () => {
