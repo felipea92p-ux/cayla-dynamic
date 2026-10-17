@@ -36,6 +36,49 @@ levantado contesta «no existe en el Postgres local»: no es que falte, mira otr
 
 ---
 
+## 2026-10-17 — Educación rediseñada: pago adelantado, historial y cuadrícula de íconos · migraciones 0525 y 0529 · SIN PEGAR · PR SIN FUSIONAR · rama `claude/educacion-rediseno-local`
+
+**Hay SQL, en este orden y ANTES de fusionar:** (1) la [0525](../supabase/migrations/0525_una_aprobacion_de_constancia_se_puede_revertir.sql)
+(revertir una aprobación; ver la entrada de abajo: le falta el md5 de PRODUCCIÓN de dos funciones); (2) la
+[0529](../supabase/migrations/0529_un_pago_adelantado_cubre_varios_meses_y_el_historial_de_educacion.sql) (no
+reescribe nada: solo comprobar antes que sus nombres no existan; la consulta va al final del archivo). La
+0526 (día 1) y la 0527 (calendario) son de otras ramas y no dependen de estas.
+
+**Qué pidió Felipe y qué quedó (2026-10-17).**
+- **Pago adelantado.** Quien pagó, p. ej., agosto a diciembre de una vez sube UNA constancia: desde/hasta en meses
+  calendario (ambos incluidos), el total o el monto de cada mes; el sistema reparte y ella corrige un mes con
+  motivo (≥ 3 letras; el resto del total se reparte entre los demás). DO la aprueba una vez; el calendario salta
+  al pago siguiente al último mes cubierto y no se pide constancia de esos meses. En enero se paga como siempre y
+  se pide la nueva («solo alerta»). Si el monto de un mes es menor que el costo declarado, el visor de DO avisa;
+  si un mes está mal, se rechaza la constancia entera. La constancia sola no crea el apoyo ni enciende el pago.
+- **Cuadrícula.** Un ícono por mes (aprobada, por revisar, rechazada, falta) y una raya para el apoyo (pagado
+  —de la foto de planilla, `monto_educacion`—, este mes, se pagará). Detalle con la miniatura del comprobante al
+  pasar encima; el visor al tocar. Un adelantado es una franja que une sus meses. El mes en curso va sombreado
+  («hoy»), y el rótulo de la sede queda fijo al desplazar.
+- **Pantalla de DO.** Cuatro pestañas (Constancias · Aprobadas del ciclo · Historial · Cómo funciona), «Para
+  atender» en una línea y filtros en dos filas. Se abre en **«Solicitaron»**; **«Todos»** es todo, sin excepción
+  (también terminados y personas liquidadas) y suma a quienes no pidieron como filas de su sede en la misma
+  cuadrícula. «Estado del apoyo» arranca en «Todos».
+- **Historial.** General (filtros por sede, persona, tipo y fechas; CSV), individual dentro de cada estudio, y
+  «Tu historial» en Lo mío sin nombres de DO ni sus motivos internos.
+
+**Cómo se verificó.** pgTAP [424](../supabase/tests/424_un_pago_adelantado_cubre_varios_meses.test.sql) (50) y
+[419](../supabase/tests/419_una_aprobacion_de_constancia_se_puede_revertir.test.sql) (53) en el Postgres local
+dentro de `BEGIN … ROLLBACK`; la 424 sin la 0529 falla (control). `tsc`, eslint y las 1 807+ pruebas de vitest en
+verde (nuevas: `educacion-adelantado`, `educacion-historial`, `educacion-ciclo`). En el navegador, contra la base
+local, como DO y como integrante: enviar el adelantado (reparto y corrección con motivo), revisarlo con el aviso de
+monto menor, aprobarlo (el calendario saltó), la cuadrícula, los filtros, el historial con sede y el celular.
+
+**Lo que NO se verificó.** Nada contra producción. La subida real de un archivo desde el celular (el navegador
+automático no elige archivos). **Límite conocido:** la fila de un estudio puede decir «Rechazada» aunque un
+adelantado aprobado cubra ese mes, porque `fn_educacion_situacion` elige la constancia por fecha de pago; se
+arregla al reescribir esa función, que es la que reescribe la 0526 (otra rama).
+
+**Limpieza (solo local).** La base local tiene personas «Demo», periodos y fotos de planilla de prueba, y dos
+cuentas de prueba (anotadas en `apps/web/.env.local`, que no va a git).
+
+---
+
 ## 2026-10-17 — Educación: una aprobación de constancia se puede revertir, y «Aprobadas en el ciclo de pago» · migración 0525 · SIN PEGAR · SIN FUSIONAR · rama `claude/educacion-revertir-aprobacion-constancia`
 
 **Hay SQL: la [0525](../supabase/migrations/0525_una_aprobacion_de_constancia_se_puede_revertir.sql), SIN PEGAR.

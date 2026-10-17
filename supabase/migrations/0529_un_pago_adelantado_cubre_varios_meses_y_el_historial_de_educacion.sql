@@ -3,11 +3,12 @@
 --        pagó cada mes; y Educación tiene un historial general e individual
 -- ============================================================================
 --
--- ESTADO: BORRADOR PARA VER LA PANTALLA EN LOCAL (2026-10-17). SIN PEGAR, SIN
--- AUDITAR CONTRA PRODUCCIÓN. No reescribe ninguna función existente: todo lo de
--- aquí es nuevo (columnas, una tabla, funciones y triggers propios), así que no
--- hay md5 de partida que pedir — pero sí hay que volver a correr donde-vive.sh
--- con los nombres de abajo antes de entregarla, por si otra sesión los creó.
+-- ESTADO: SIN PEGAR (2026-10-17). Se pega DESPUÉS de la 0525 y ANTES de fusionar el PR
+-- que trae sus pantallas. No reescribe ninguna función existente: todo lo de aquí es
+-- nuevo (dos columnas, una tabla, funciones y triggers propios), así que no hay md5 de
+-- partida; antes de pegar se comprueba en producción que esos nombres no existan
+-- (consulta al final). Prueba: supabase/tests/424 (50 aserciones; sin esta migración,
+-- falla).
 --
 -- QUÉ PROMETE
 --
@@ -415,3 +416,19 @@ values (529, 'un_pago_adelantado_cubre_varios_meses_y_el_historial_de_educacion'
 on conflict (numero) do update set nombre = excluded.nombre, aplicada_at = now();
 
 notify pgrst, 'reload schema';
+
+-- ── COMPROBACIÓN (un solo select; el SQL Editor corre solo el último) ────────
+-- Antes de pegar, que nada de esto exista ya en producción (todo en 0 / null):
+--   select (select count(*) from pg_proc where proname in ('fn_educacion_enviar_adelantado', 'fn_educacion_coberturas',
+--             'fn_educacion_apoyo_pagado', 'fn_educacion_historial', 'fn_educacion_cobertura_mover_calendario')) as funciones,
+--          to_regclass('public.educacion_entrega_meses') as tabla,
+--          (select count(*) from information_schema.columns where table_name = 'educacion_entregas'
+--             and column_name in ('cubre_desde', 'cubre_hasta')) as columnas;
+-- Después de pegar:
+--   select (select numero || ' · ' || nombre from migraciones_aplicadas where numero = 529) as registro,
+--          (select count(*) from pg_proc where proname in ('fn_educacion_enviar_adelantado', 'fn_educacion_coberturas',
+--             'fn_educacion_apoyo_pagado', 'fn_educacion_historial', 'fn_educacion_cobertura_mover_calendario',
+--             'fn_educacion_cobertura_calendario', 'fn_educacion_cobertura_inmutable')) as funciones_7,
+--          to_regclass('public.educacion_entrega_meses') is not null as tabla,
+--          (select count(*) from pg_trigger where tgname in ('trg_educacion_cobertura_calendario',
+--             'trg_educacion_cobertura_inmutable', 'trg_educacion_meses_inmutables')) as triggers_3;

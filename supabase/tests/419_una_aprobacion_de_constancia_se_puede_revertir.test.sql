@@ -280,22 +280,30 @@ reset role;
 
 
 -- ── 10 · Aprobadas del ciclo ────────────────────────────────────────────────
+-- El periodo de hoy: si la base ya tiene uno que cruza estas fechas, se usa ese (los periodos no
+-- se solapan); si no, se crea. Así la prueba no depende de qué periodos traiga la base.
 insert into periodos_planilla (id, fecha_ini, fecha_fin, estado)
-values ('00000000-0000-0000-0000-000000525c02', fn_hoy_lima() - 10, fn_hoy_lima() + 20, 'abierto');
+select '00000000-0000-0000-0000-000000525c02', fn_hoy_lima() - 10, fn_hoy_lima() + 20, 'abierto'
+ where not exists (select 1 from periodos_planilla
+                    where daterange(fecha_ini, fecha_fin, '[]') && daterange(fn_hoy_lima() - 10, fn_hoy_lima() + 20, '[]'));
+create function public.t419_periodo_de_hoy() returns uuid language sql stable as $f$
+  select id from periodos_planilla where fn_hoy_lima() between fecha_ini and fecha_fin order by fecha_ini, id limit 1
+$f$;
+grant execute on function public.t419_periodo_de_hoy() to authenticated;
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000525f01', true);
 
-select is((select count(*)::int from fn_educacion_aprobadas_del_periodo('00000000-0000-0000-0000-000000525c02')
+select is((select count(*)::int from fn_educacion_aprobadas_del_periodo(t419_periodo_de_hoy())
             where persona like 'Rev%'),
   3, 'CICLO · lista lo aprobado en el periodo: la de Ana, la de Bea y la de la DO');
-select is((select count(*)::int from fn_educacion_aprobadas_del_periodo('00000000-0000-0000-0000-000000525c02')
+select is((select count(*)::int from fn_educacion_aprobadas_del_periodo(t419_periodo_de_hoy())
             where entrega_id in ('00000000-0000-0000-0000-00000525e001', '00000000-0000-0000-0000-00000525e005')),
   0, 'CICLO · lo revertido ya no está');
-select is((select aprobada_por from fn_educacion_aprobadas_del_periodo('00000000-0000-0000-0000-000000525c02')
+select is((select aprobada_por from fn_educacion_aprobadas_del_periodo(t419_periodo_de_hoy())
             where entrega_id = '00000000-0000-0000-0000-00000525e002'),
   'RevDO Laboratorio', 'CICLO · dice quién la aprobó');
-select is((select apaga_pago from fn_educacion_aprobadas_del_periodo('00000000-0000-0000-0000-000000525c02')
+select is((select apaga_pago from fn_educacion_aprobadas_del_periodo(t419_periodo_de_hoy())
             where entrega_id = '00000000-0000-0000-0000-00000525e002'),
   true, 'CICLO · y que revertir esa apagaría el pago (era la única que quedó aprobada)');
 select is((select count(*)::int from fn_educacion_aprobadas_del_periodo('00000000-0000-0000-0000-000000525c01')),
