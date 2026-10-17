@@ -141,8 +141,12 @@ export function CuadriculaMeses({
             <tbody key={clave}>
               {(resumen || sede) && (
                 <tr>
-                  <th colSpan={meses.length + 4} scope="rowgroup" className="border-t border-sand bg-hueso/70 px-4 py-2 text-left font-normal">
-                    {resumen ? <ResumenDelBloque resumen={resumen} /> : <h3 className="font-serif text-base text-tinta">{sede}</h3>}
+                  <th colSpan={meses.length + 4} scope="rowgroup" className="border-t border-sand bg-hueso/70 px-0 py-2 text-left font-normal">
+                    {/* La fila de la sede cruza toda la tabla; su rótulo se queda pegado a la izquierda al
+                        desplazarse hacia los meses, igual que la columna de la persona (Felipe, 2026-10-17). */}
+                    <div className="sticky left-0 inline-block px-4">
+                      {resumen ? <ResumenDelBloque resumen={resumen} enLinea /> : <h3 className="font-serif text-base text-tinta">{sede}</h3>}
+                    </div>
                   </th>
                 </tr>
               )}
@@ -254,7 +258,7 @@ export function CuadriculaMeses({
   );
 }
 
-function ResumenDelBloque({ resumen: r }: { resumen: ResumenDeSede }) {
+function ResumenDelBloque({ resumen: r, enLinea = false }: { resumen: ResumenDeSede; enLinea?: boolean }) {
   const partes = [
     `${r.personas} persona${r.personas === 1 ? "" : "s"}`,
     `${r.pagando} apoyo${r.pagando === 1 ? "" : "s"} pagándose · ${soles(r.montoMensual)} al mes`,
@@ -265,7 +269,7 @@ function ResumenDelBloque({ resumen: r }: { resumen: ResumenDeSede }) {
     r.rechazadas > 0 && `${r.rechazadas} rechazada${r.rechazadas === 1 ? "" : "s"}`,
   ].filter(Boolean) as string[];
   return (
-    <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5">
+    <div className={enLinea ? "flex items-baseline gap-x-4 whitespace-nowrap" : "flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5"}>
       <h3 className="font-serif text-base text-tinta">{r.sede}</h3>
       <p className="text-xs tabular-nums text-taupe">
         {partes.join(" · ")}
