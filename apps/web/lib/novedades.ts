@@ -128,17 +128,18 @@ export const NOVEDADES: readonly Novedad[] = [
     audiencia: "todos",
   },
   {
-    id: "2026-10-17-seguros-quien-de-los-practicantes-tiene-seguro-hoy",
+    id: "2026-10-17-seguros-en-que-seguro-esta-cada-colaborador",
     fecha: "2026-10-17",
-    titulo: "Seguros: ya se ve qué practicante tiene seguro hoy y cuál no",
+    titulo: "Seguros: ya se ve en qué seguro está cada colaborador y a quién le falta su póliza",
     queMejoro:
-      "Hay una pantalla nueva, «Seguros», en el grupo Personas. Muestra qué practicante tiene seguro hoy, hasta " +
-      "cuándo, qué papeleo falta (prima, firma y factura) y guarda los PDF de la póliza. Si alguien no tiene una " +
-      "póliza que lo cubra, aparece primero y en rojo, y la Bandeja también lo avisa.\n\n" +
-      "Es solo para Desarrollo Organizacional y solo avisa: no cambia lo que cobra nadie. La póliza es solo de los " +
-      "practicantes; el seguro del resto del equipo sigue como estaba. El plan y el beneficio máximo quedan «sin " +
-      "confirmar» hasta que el corredor los confirme. Más adelante cada practicante podrá ver su propia póliza en " +
-      "«Lo mío».",
+      "Hay una pantalla nueva, «Seguros», en el grupo Personas. Muestra en qué seguro está cada colaborador, hasta " +
+      "cuándo está cubierto y qué papeleo falta (prima, firma y factura), y guarda los PDF de la póliza. Si a alguien " +
+      "le falta la póliza que su seguro pide, aparece primero y en rojo, y la Bandeja también lo avisa.\n\n" +
+      "Cada colaborador sigue el seguro que le toca por su vínculo, y Desarrollo Organizacional puede cambiárselo a " +
+      "una persona; cuando alguien cambia de seguro quedan pendientes la baja del anterior y el alta del nuevo. Si hay " +
+      "un seguro que el sistema no conoce, se agrega desde «Tipos de seguro». Es solo para Desarrollo Organizacional y " +
+      "solo avisa: no cambia lo que cobra nadie. El plan y el beneficio máximo quedan «sin confirmar» hasta que el " +
+      "corredor los confirme. Más adelante cada colaborador con póliza podrá ver la suya en «Lo mío».",
     audiencia: "do",
   },
   {

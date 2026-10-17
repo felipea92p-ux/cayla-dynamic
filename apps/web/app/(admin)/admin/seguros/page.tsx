@@ -1,31 +1,34 @@
 "use client";
 
 // ============================================================================
-// Seguros — la póliza FOLA, que es SOLO de los practicantes, y quién está cubierto hoy
+// Seguros — en qué seguro está cada colaborador, hasta cuándo está cubierto, y qué falta
 // ============================================================================
 // QUÉ PROMETE
-//   Que Desarrollo Organizacional vea, en un minuto, quién de los practicantes
-//   tiene seguro HOY, hasta cuándo, qué papeleo falta (prima, firma, factura) y
-//   dónde están los PDF —y, sobre todo, quién NO lo tiene—. Migración 0528.
+//   Que Desarrollo Organizacional vea, en un minuto, en qué seguro está cada
+//   colaborador, quién NO tiene la póliza que su seguro pide, a quién se le vence
+//   pronto, qué papeleo falta (prima, firma, factura), qué cambios de seguro quedan por
+//   cerrar y dónde están los PDF. Migración 0528.
+//
+// UN SEGURO POR VÍNCULO, Y DO PUEDE CAMBIÁRSELO A UNA PERSONA (Felipe, 2026-10-17)
+//   El seguro de cada persona sale solo de su vínculo (los practicantes tienen FOLA; la
+//   planilla y la prueba, EsSalud, que se paga con la planilla y Dynamic solo muestra).
+//   Cuando DO sabe que alguien está en otro, se lo cambia a esa persona. Los seguros no
+//   están escritos aquí: viven en una tabla (`seguros_tipos`) y DO agrega los que falten
+//   desde «Tipos de seguro». Cuando alguien cambia de seguro —por su vínculo o por DO—
+//   quedan dos pendientes: la baja del anterior y el alta del nuevo.
 //
 // QUÉ ASUME
-//   Que la base decide lo que importa: quién tiene que tener póliza
-//   (`es_practicante_activo`, y la fila SIN póliza de `fn_seguros_tablero`), si una
-//   póliza cubre hoy (`cubre_hoy`, con el último día EXCLUSIVO) y quién puede
-//   escribir (solo DO, por funciones). Esta pantalla solo dibuja y pide;
-//   `puedeGestionarSeguros` decide si se dibuja. La lógica de agrupar y de qué
-//   cuenta como «por vencer» vive en `lib/admin/seguros.ts`, con su prueba.
+//   Que la base decide lo que importa: en qué seguro está cada persona, quién tiene que
+//   tener póliza (`hueco`), si una póliza cubre hoy (`cubre_hoy`, con el último día
+//   EXCLUSIVO), qué pasos de un cambio siguen pendientes y quién puede escribir (solo DO,
+//   por funciones). Esta pantalla solo dibuja y pide; `puedeGestionarSeguros` decide si
+//   se dibuja. La lógica de agrupar y de qué cuenta como «por vencer» vive en
+//   `lib/admin/seguros.ts`, con su prueba.
 //
 // SOLO ALERTA
-//   Nada de aquí cambia lo que cobra o paga nadie ni toca la planilla: la prima se
-//   paga a la aseguradora. La pantalla avisa; las decisiones son de una persona.
-//
-// EL RESTO DEL EQUIPO NO ESTÁ AQUÍ, A PROPÓSITO (Felipe, 2026-10-17)
-//   FOLA es exclusiva de los practicantes: el resumen de la póliza dice que cubre
-//   al asegurado «en su calidad de practicante del contratante». El seguro de las
-//   demás personas —EsSalud, que se paga por planilla— se deja exactamente como
-//   estaba: esta pantalla no lo lista, no lo cambia y no avisa de nadie que no sea
-//   practicante. Un segundo seguro, el día que exista, entra por `producto` (0528).
+//   Nada de aquí cambia lo que cobra o paga nadie ni toca la planilla: la prima se paga
+//   a la aseguradora y EsSalud sigue como estaba. La pantalla avisa; las decisiones son
+//   de una persona.
 // ============================================================================
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
@@ -34,159 +37,38 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { hoyLima, puedeGestionarSeguros } from "@cayla-dynamic/shared";
 import { Cargando } from "@/components/cargando";
 import { ArchivosPoliza } from "@/components/seguros/archivos-poliza";
+import { CambiarSeguro } from "@/components/seguros/cambiar-seguro";
+import { FichaPersona, type AccionesFicha } from "@/components/seguros/ficha-persona";
 import { FormularioPoliza, type BaseDePoliza, type OpcionPersona } from "@/components/seguros/formulario-poliza";
 import { HistorialPoliza } from "@/components/seguros/historial-poliza";
+import { ModalPaso, type PasoPorMarcar } from "@/components/seguros/modal-paso";
+import { TiposDeSeguro } from "@/components/seguros/tipos-de-seguro";
 import { useToast } from "@/components/toast";
 import { AreaTexto } from "@/components/ui/area-texto";
 import { Boton } from "@/components/ui/boton";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
 import { Campo } from "@/components/ui/campo";
-import { Insignia } from "@/components/ui/insignia";
+import { EstadoVacio } from "@/components/ui/estado-vacio";
+import { Filtro as FiltroBoton } from "@/components/ui/filtro";
 import { Modal } from "@/components/ui/modal";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
-import { isoADiaMesAnio } from "@/lib/admin/planilla/formato";
 import { useRolActual } from "@/lib/admin/use-rol";
-import { diasEntre } from "@/lib/bandeja-mia";
-import { formatSoles } from "@/lib/rangos";
 import {
-  coincideSeguro, estadoPrima, fechaDelPaso, pasosPendientes, PASOS_SEGURO, polizasConPapeleoPendiente,
-  resumenDeSeguros, seguroPorPersona, DIAS_AVISO_RENOVACION,
-  type FilaSeguro, type PasoSeguro, type Poliza, type SeguroDePersona, type SituacionSeguro,
+  coincideSeguro, contarPorTipo, fechaDelPaso, resumenDeSeguros, seguroPorPersona, DIAS_AVISO_RENOVACION, PASOS_SEGURO,
+  type CambioSeguro, type FilaEquipoSeguro, type PasoSeguro, type Poliza, type SeguroDePersona, type SituacionSeguro, type TipoSeguro,
 } from "@/lib/admin/seguros";
 
-type Filtro = SituacionSeguro | "papeleo";
+/** Qué tarjeta de arriba filtra la lista. */
+type Filtro = SituacionSeguro | "papeleo" | "cambios";
 
-const fecha = isoADiaMesAnio;
-const plural = (n: number, uno: string, varios: string) => `${n} ${n === 1 ? uno : varios}`;
+/** Los dos valores del filtro por seguro que no son un seguro. */
+const TODOS = "todos";
+const NINGUNO = "ninguno";
 
-const MODALIDAD: Record<string, string> = { profesional: "Profesional", preprofesional: "Preprofesional" };
-
-// ── Piezas chicas ───────────────────────────────────────────────────────────
-
-function InsigniaSituacion({ p }: { p: SeguroDePersona }) {
-  switch (p.situacion) {
-    case "hueco": return <Insignia variante="alerta">Sin seguro hoy</Insignia>;
-    case "por_vencer": return <Insignia variante="advertencia">Se queda sin seguro en {plural(p.diasParaQuedarSinSeguro ?? 0, "día", "días")}</Insignia>;
-    case "baja_pendiente": return <Insignia variante="advertencia">Pedir la baja</Insignia>;
-    default: return <Insignia variante="positivo">Cubierto</Insignia>;
-  }
-}
-
-function InsigniaPrima({ z, hoy }: { z: Poliza; hoy: string }) {
-  const { estado, dias } = estadoPrima(z, hoy);
-  switch (estado) {
-    case "pagada": return <Insignia variante="positivo" tamano="sm">Pagada el {fecha(z.pagada_el!)}</Insignia>;
-    case "sin_fecha": return <Insignia variante="neutral" tamano="sm">Sin pagar · sin fecha de vencimiento</Insignia>;
-    case "al_dia": return <Insignia variante="neutral" tamano="sm">Sin pagar · vence el {fecha(z.prima_vence_el!)}</Insignia>;
-    case "por_vencer": return <Insignia variante="advertencia" tamano="sm">{dias === 0 ? "Vence hoy" : `Vence en ${plural(dias ?? 0, "día", "días")}`}</Insignia>;
-    case "en_mora": return <Insignia variante="alerta" tamano="sm">En mora hace {plural(-(dias ?? 0), "día", "días")}</Insignia>;
-    default: return <Insignia variante="alerta" tamano="sm">Cobertura suspendida por mora</Insignia>;
-  }
-}
-
-function MensajeHueco({ p, hoy }: { p: SeguroDePersona; hoy: string }) {
-  const ultima = p.polizas.find((z) => z.vigente_hasta <= hoy);
-  let texto: string;
-  if (p.motivoHueco === "aun_no_empieza") {
-    texto = `La póliza que tiene registrada empieza el ${fecha(p.empiezaEl!)}; hasta entonces no tiene seguro.`;
-  } else if (p.motivoHueco === "vencida" && ultima) {
-    const d = p.diasDesdeQueVencio ?? 0;
-    texto = `Su última póliza dejó de cubrir ${d === 0 ? "hoy" : `el ${fecha(ultima.vigente_hasta)} (hace ${plural(d, "día", "días")})`}. Hoy no tiene seguro.`;
-    if (p.empiezaEl) texto += ` La que ya está registrada empieza el ${fecha(p.empiezaEl)}.`;
-  } else {
-    texto = "Nunca tuvo una póliza registrada. Hoy no tiene ningún seguro.";
-  }
-  return (
-    <p className="rounded-lg bg-rojo/10 px-3 py-2 text-sm text-rojo-profundo">
-      <span className="font-medium">{texto}</span> No contratar el seguro de un practicante es infracción por sí sola (Ley 28518, art. 52.5).
-    </p>
-  );
-}
-
-function Sinconfirmar({ etiqueta, valor }: { etiqueta: string; valor: string | null }) {
-  return (
-    <span className="mr-4 inline-block">
-      <span className="text-taupe">{etiqueta}: </span>
-      {valor ? <span className="text-tinta">{valor}</span> : <span className="rounded bg-ambar/15 px-1.5 text-ambar">sin confirmar</span>}
-    </span>
-  );
-}
-
-// ── Una póliza ──────────────────────────────────────────────────────────────
-
-function TarjetaPoliza({
-  z, hoy, actual, onPaso, onArchivos, onHistorial, onCorregir, onAnular,
-}: {
-  z: Poliza; hoy: string; actual: boolean;
-  onPaso: (z: Poliza, paso: PasoSeguro, quitar: boolean) => void;
-  onArchivos: (z: Poliza) => void; onHistorial: (z: Poliza) => void;
-  onCorregir: (z: Poliza) => void; onAnular: (z: Poliza) => void;
-}) {
-  const dias = diasEntre(z.vigente_desde, z.vigente_hasta);
-  const faltan = diasEntre(hoy, z.vigente_hasta);
-  return (
-    <div className={`rounded-xl border px-4 py-4 ${actual ? "border-sand bg-papel" : "border-sand bg-hueso"}`}>
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className="font-medium text-tinta">
-            Póliza <span className="font-mono">{z.numero_poliza}</span>
-            <span className="font-normal text-taupe"> · {z.aseguradora}</span>
-          </p>
-          <p className="mt-0.5 text-sm text-taupe">
-            Del {fecha(z.vigente_desde)} al {fecha(z.vigente_hasta)} · {plural(dias, "día", "días")}
-            {z.cubre_hoy && <> · deja de cubrir el {fecha(z.vigente_hasta)} a las 12 M ({faltan === 1 ? "falta 1 día" : `faltan ${faltan} días`})</>}
-          </p>
-        </div>
-        <div>
-          {z.cubre_hoy ? <Insignia variante="positivo" tamano="sm">Cubre hoy</Insignia>
-            : z.vigente_desde > hoy ? <Insignia variante="informativo" tamano="sm">Empieza el {fecha(z.vigente_desde)}</Insignia>
-            : <Insignia variante="neutral" tamano="sm">Vencida</Insignia>}
-        </div>
-      </div>
-
-      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-        <span className="text-tinta">{formatSoles(z.prima_total)} <span className="text-taupe">con IGV</span></span>
-        <InsigniaPrima z={z} hoy={hoy} />
-      </div>
-
-      <p className="mt-3 text-sm leading-relaxed">
-        <Sinconfirmar etiqueta="Plan" valor={z.plan} />
-        <Sinconfirmar etiqueta="Beneficio por enfermedad" valor={z.beneficio_enfermedad !== null ? formatSoles(z.beneficio_enfermedad) : null} />
-        <Sinconfirmar etiqueta="por accidente" valor={z.beneficio_accidente !== null ? formatSoles(z.beneficio_accidente) : null} />
-        <Sinconfirmar etiqueta="Renueva sola" valor={z.renueva_sola === null ? null : z.renueva_sola ? "sí" : "no"} />
-      </p>
-
-      <ul className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
-        {PASOS_SEGURO.map((s) => {
-          const hecho = fechaDelPaso(z, s.paso);
-          return (
-            <li key={s.paso} className={`rounded-lg border px-3 py-2 text-sm ${hecho ? "border-verde/30 bg-verde/10" : "border-sand bg-hueso"}`}>
-              <p className="text-tinta">{hecho ? "✓ " : ""}{hecho ? s.hecho : s.falta}</p>
-              {hecho && <p className="text-xs text-taupe">el {fecha(hecho)}</p>}
-              <div className="mt-1 flex flex-wrap gap-x-3">
-                <Boton variante="enlace" onClick={() => onPaso(z, s.paso, false)}>{hecho ? "Cambiar la fecha" : "Marcar como hecho"}</Boton>
-                {hecho && <Boton variante="enlace" onClick={() => onPaso(z, s.paso, true)}>Quitar la marca</Boton>}
-              </div>
-            </li>
-          );
-        })}
-      </ul>
-
-      {z.nota && <p className="mt-3 text-sm text-taupe">{z.nota}</p>}
-
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        <Boton variante="primario" tamano="sm" onClick={() => onArchivos(z)}>
-          {z.archivos === 0 ? "Adjuntar PDF" : `Archivos (${z.archivos})`}
-        </Boton>
-        <Boton tamano="sm" onClick={() => onHistorial(z)}>Historial</Boton>
-        <Boton tamano="sm" onClick={() => onCorregir(z)}>Corregir datos</Boton>
-        <Boton variante="sutil" tamano="sm" onClick={() => onAnular(z)}>Anular</Boton>
-      </div>
-    </div>
-  );
-}
-
-// ── La pantalla ─────────────────────────────────────────────────────────────
+/** Lo que se está marcando: un paso del papeleo de una póliza, o un paso de un cambio de seguro. */
+type PasoAbierto =
+  | { cual: "poliza"; z: Poliza; paso: PasoSeguro; quitar: boolean }
+  | { cual: "cambio"; c: CambioSeguro; paso: "baja" | "alta"; quitar: boolean };
 
 export default function SegurosPage() {
   // `useSearchParams` pide un límite de Suspense para que la página pueda prerenderse.
@@ -207,18 +89,36 @@ function Seguros() {
   const supabase = useMemo(() => createAdminSupabaseClient(), []);
   const hoy = hoyLima();
 
-  const [filas, setFilas] = useState<FilaSeguro[]>([]);
+  const [equipo, setEquipo] = useState<FilaEquipoSeguro[]>([]);
+  const [polizas, setPolizas] = useState<Poliza[]>([]);
+  const [cambios, setCambios] = useState<CambioSeguro[]>([]);
+  const [tipos, setTipos] = useState<TipoSeguro[]>([]);
   const [cargando, setCargando] = useState(true);
   const [cargaError, setCargaError] = useState<string | null>(null);
   const [busqueda, setBusqueda] = useState("");
   const [filtro, setFiltro] = useState<Filtro | null>(null);
+  const [tipoFiltro, setTipoFiltro] = useState<string>(TODOS);
 
   const cargar = useCallback(async () => {
     const { data: sesion } = await supabase.auth.getSession();
     if (!sesion.session) { router.replace("/admin/login"); return; }
-    const { data, error } = await supabase.rpc("fn_seguros_tablero");
-    setFilas((data as FilaSeguro[] | null) ?? []);
-    setCargaError(error ? mensajeDeError(error, "cargar los seguros") : null);
+    const [e, z, c, t] = await Promise.all([
+      supabase.rpc("fn_seguros_equipo"),
+      supabase.rpc("fn_seguros_tablero"),
+      supabase.rpc("fn_seguros_cambios", { p_solo_pendientes: false }),
+      supabase.rpc("fn_seguros_tipos"),
+    ]);
+    // Las cuatro o ninguna: una pantalla con la mitad (sin las pólizas, o sin los cambios) diría «sin póliza» donde sí la hay.
+    const error = e.error ?? z.error ?? c.error ?? t.error;
+    if (error) {
+      setCargaError(mensajeDeError(error, "cargar los seguros"));
+    } else {
+      setEquipo((e.data as FilaEquipoSeguro[] | null) ?? []);
+      setPolizas((z.data as Poliza[] | null) ?? []);
+      setCambios((c.data as CambioSeguro[] | null) ?? []);
+      setTipos((t.data as TipoSeguro[] | null) ?? []);
+      setCargaError(null);
+    }
     setCargando(false);
   }, [supabase, router]);
 
@@ -227,26 +127,30 @@ function Seguros() {
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { if (puede) void cargar(); }, [puede, cargar]);
 
-  const personas = useMemo(() => seguroPorPersona(filas, hoy), [filas, hoy]);
+  const personas = useMemo(() => seguroPorPersona(equipo, polizas, cambios, hoy), [equipo, polizas, cambios, hoy]);
   const resumen = useMemo(() => resumenDeSeguros(personas), [personas]);
-  const conPapeleo = useMemo(() => polizasConPapeleoPendiente(personas), [personas]);
+  const porTipo = useMemo(() => contarPorTipo(personas, tipos), [personas, tipos]);
+  const activas = useMemo(() => personas.filter((p) => p.activa).length, [personas]);
 
-  // A quién se puede asegurar: los practicantes activos, tengan o no póliza.
-  const opciones = useMemo<OpcionPersona[]>(() => {
-    const vistos = new Map<string, OpcionPersona>();
-    for (const f of filas) if (f.es_practicante_activo && !vistos.has(f.persona_id)) vistos.set(f.persona_id, { id: f.persona_id, nombre: f.persona, sede: f.sede });
-    return [...vistos.values()].sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
-  }, [filas]);
+  // A quién se le puede registrar una póliza: las personas activas, con su seguro principal de hoy.
+  const opciones = useMemo<OpcionPersona[]>(
+    () => personas.filter((p) => p.activa)
+      .map((p) => ({ id: p.personaId, nombre: p.persona, sede: p.sede, tipoPrincipal: p.tipo?.clave ?? null }))
+      .sort((a, b) => a.nombre.localeCompare(b.nombre, "es")),
+    [personas],
+  );
 
   const visibles = useMemo(() => personas.filter((p) => {
     if (soloPersona && p.personaId !== soloPersona) return false;
     if (!coincideSeguro(p, busqueda)) return false;
+    if (tipoFiltro === NINGUNO ? p.tipo !== null : tipoFiltro !== TODOS && p.tipo?.clave !== tipoFiltro) return false;
     if (filtro === null) return true;
-    if (filtro === "papeleo") return p.polizas.some((z) => pasosPendientes(z).length > 0);
+    if (filtro === "papeleo") return p.conPapeleo.length > 0;
+    if (filtro === "cambios") return p.cambiosPendientes.length > 0;
     return p.situacion === filtro;
-  }), [personas, busqueda, filtro, soloPersona]);
+  }), [personas, busqueda, filtro, tipoFiltro, soloPersona]);
 
-  // ── Formulario ────────────────────────────────────────────────────────
+  // ── Registrar, renovar y corregir una póliza ──────────────────────────
   const [formAbierto, setFormAbierto] = useState(false);
   const [corrigiendo, setCorrigiendo] = useState<Poliza | null>(null);
   const [base, setBase] = useState<BaseDePoliza | null>(null);
@@ -255,7 +159,7 @@ function Seguros() {
   function renovar(p: SeguroDePersona) {
     const a = p.actual;
     registrar({
-      personaId: p.personaId, aseguradora: a?.aseguradora, numeroPoliza: a?.numero_poliza,
+      personaId: p.personaId, producto: p.tipo?.clave, aseguradora: a?.aseguradora, numeroPoliza: a?.numero_poliza,
       // Empieza donde termina la cobertura: si se pone el mismo día no hay hueco ni cruce.
       desde: p.cubiertoHasta ?? undefined, prima: a?.prima_total ?? null,
     });
@@ -264,33 +168,37 @@ function Seguros() {
   // ── Archivos e historial ──────────────────────────────────────────────
   const [verArchivos, setVerArchivos] = useState<{ id: string; titulo: string } | null>(null);
   const [verHistorial, setVerHistorial] = useState<{ id: string; titulo: string } | null>(null);
-  const nombreDe = (z: Poliza) => `${z.persona} · póliza ${z.numero_poliza}`;
+  const nombreDe = (z: Poliza) => `${z.persona} · ${z.producto_nombre} · póliza ${z.numero_poliza}`;
 
-  // ── Marcar un paso ────────────────────────────────────────────────────
-  const [paso, setPaso] = useState<{ z: Poliza; paso: PasoSeguro; quitar: boolean } | null>(null);
-  // Nace en HOY y no en "": la fecha bloquea el envío, y un campo así no puede arrancar vacío.
-  const [fechaPaso, setFechaPaso] = useState(hoy);
-  const [motivoPaso, setMotivoPaso] = useState("");
-  const [msgPaso, setMsgPaso] = useState<string | null>(null);
-  const [ocupadoPaso, setOcupadoPaso] = useState(false);
+  // ── Marcar un paso (del papeleo de una póliza, o de un cambio de seguro) ──
+  const [paso, setPaso] = useState<PasoAbierto | null>(null);
 
-  function abrirPaso(z: Poliza, p: PasoSeguro, quitar: boolean) {
-    setPaso({ z, paso: p, quitar }); setFechaPaso(fechaDelPaso(z, p) ?? hoy); setMotivoPaso(""); setMsgPaso(null);
-  }
-  async function confirmarPaso() {
-    if (!paso) return;
-    if (paso.quitar && motivoPaso.trim().length < 5) { setMsgPaso("Escribe el motivo (al menos 5 letras)."); return; }
-    if (!paso.quitar && !fechaPaso) { setMsgPaso("Falta la fecha."); return; }
-    setOcupadoPaso(true);
-    const { error } = await supabase.rpc("fn_seguro_marcar_paso", {
-      p_id: paso.z.poliza_id, p_paso: paso.paso, p_fecha: paso.quitar ? null : fechaPaso,
-      p_motivo: paso.quitar ? motivoPaso.trim() : null,
-    });
-    setOcupadoPaso(false);
-    if (error) { setMsgPaso(mensajeDeError(error)); return; }
+  const pasoPorMarcar = useMemo<PasoPorMarcar | null>(() => {
+    if (!paso) return null;
+    if (paso.cual === "poliza") {
+      return {
+        detalle: `${PASOS_SEGURO.find((s) => s.paso === paso.paso)?.hecho} — ${paso.z.producto_nombre}, póliza ${paso.z.numero_poliza} de ${paso.z.persona}.`,
+        quitar: paso.quitar, fechaActual: fechaDelPaso(paso.z, paso.paso), ejemploDeMotivo: "ej. Era el pago de otra póliza",
+      };
+    }
+    return {
+      detalle: `${paso.paso === "baja" ? paso.c.baja_texto : paso.c.alta_texto} — ${paso.c.persona}.`,
+      quitar: paso.quitar, fechaActual: paso.paso === "baja" ? paso.c.baja_hecha_el : paso.c.alta_hecha_el,
+      ejemploDeMotivo: "ej. Lo marqué por error: todavía no llegó la confirmación",
+    };
+  }, [paso]);
+
+  async function confirmarPaso(fecha: string | null, motivo: string): Promise<string | null> {
+    if (!paso) return null;
+    const { error } = paso.cual === "poliza"
+      ? await supabase.rpc("fn_seguro_marcar_paso", { p_id: paso.z.poliza_id, p_paso: paso.paso, p_fecha: fecha, p_motivo: fecha === null ? motivo : null })
+      : await supabase.rpc("fn_seguro_cambio_marcar", { p_id: paso.c.id, p_paso: paso.paso, p_fecha: fecha, p_nota: fecha === null ? motivo : null });
+    if (error) return mensajeDeError(error);
+    const quito = paso.quitar;
     setPaso(null);
     await cargar();
-    avisar("ok", paso.quitar ? "Marca quitada. Quedó en el historial." : "Listo.");
+    avisar("ok", quito ? "Marca quitada. Quedó anotado." : "Listo.");
+    return null;
   }
 
   // ── Anular ────────────────────────────────────────────────────────────
@@ -311,6 +219,21 @@ function Seguros() {
     avisar("ok", "Póliza anulada. No se borró: queda en su historial.");
   }
 
+  // ── Cambiar el seguro de una persona y administrar los tipos ──────────
+  const [cambiando, setCambiando] = useState<SeguroDePersona | null>(null);
+  const [tiposAbierto, setTiposAbierto] = useState(false);
+
+  const acciones: AccionesFicha = {
+    registrar, renovar,
+    cambiarSeguro: setCambiando,
+    paso: (z, p, quitar) => setPaso({ cual: "poliza", z, paso: p, quitar }),
+    pasoDeCambio: (c, p, quitar) => setPaso({ cual: "cambio", c, paso: p, quitar }),
+    archivos: (z) => setVerArchivos({ id: z.poliza_id, titulo: nombreDe(z) }),
+    historial: (z) => setVerHistorial({ id: z.poliza_id, titulo: nombreDe(z) }),
+    corregir: (z) => { setCorrigiendo(z); setBase(null); setFormAbierto(true); },
+    anular: (z) => { setAnulando(z); setMotivoAnular(""); setMsgAnular(null); },
+  };
+
   // ── Dibujo ────────────────────────────────────────────────────────────
   if (rol === null) return <main className="flex-1 p-6"><Cargando /></main>;
   if (!puede) {
@@ -324,11 +247,13 @@ function Seguros() {
   }
 
   const fichas: { clave: Filtro; titulo: string; n: number; tono: "alerta" | "advertencia" | "positivo" | "neutral" }[] = [
-    { clave: "hueco", titulo: "Sin seguro hoy", n: resumen.hueco, tono: "alerta" },
-    { clave: "por_vencer", titulo: `Se quedan sin seguro en ${DIAS_AVISO_RENOVACION} días o menos`, n: resumen.por_vencer, tono: "advertencia" },
-    { clave: "papeleo", titulo: "Pólizas con papeleo pendiente", n: conPapeleo, tono: "advertencia" },
+    { clave: "hueco", titulo: "Sin póliza vigente", n: resumen.hueco, tono: "alerta" },
+    { clave: "por_vencer", titulo: `Se quedan sin póliza en ${DIAS_AVISO_RENOVACION} días o menos`, n: resumen.por_vencer, tono: "advertencia" },
+    { clave: "cambios", titulo: "Cambios de seguro por cerrar", n: resumen.cambios, tono: "advertencia" },
+    { clave: "papeleo", titulo: "Pólizas con papeleo pendiente", n: resumen.papeleo, tono: "advertencia" },
     ...(resumen.baja_pendiente > 0 ? [{ clave: "baja_pendiente" as const, titulo: "Piden la baja", n: resumen.baja_pendiente, tono: "advertencia" as const }] : []),
     { clave: "al_dia", titulo: "Cubiertos, con margen", n: resumen.al_dia, tono: "positivo" },
+    { clave: "por_planilla", titulo: "Sin póliza que registrar", n: resumen.por_planilla, tono: "neutral" },
   ];
 
   return (
@@ -337,13 +262,23 @@ function Seguros() {
         titulo="Seguros"
         descripcion={
           <>
-            La póliza FOLA de Pacífico, que es solo de los practicantes: quién está cubierto hoy, hasta cuándo, qué
-            papeleo falta y dónde están los PDF. El seguro del resto del equipo —EsSalud, por planilla— sigue como
-            estaba: esta pantalla no lo toca. Solo la ve Desarrollo Organizacional. Nada se borra, y nada de aquí
-            cambia lo que cobra nadie: avisa, y la decisión es de una persona.
+            <p>
+              En qué seguro está cada colaborador, hasta cuándo está cubierto y qué falta para que lo esté. Cada quien sigue
+              el seguro que le toca por su vínculo —por ejemplo, FOLA para los practicantes y EsSalud para planilla— y
+              Desarrollo Organizacional puede cambiárselo a una persona.
+            </p>
+            <p className="mt-1">
+              Cuando alguien cambia de seguro quedan pendientes la baja del anterior y el alta del nuevo. Solo avisa: no
+              cambia lo que cobra nadie ni toca la planilla.
+            </p>
           </>
         }
-        accion={!cargaError && <Boton variante="primario" onClick={() => registrar(null)}>+ Registrar una póliza</Boton>}
+        accion={!cargaError && (
+          <div className="flex flex-wrap gap-2">
+            <Boton onClick={() => setTiposAbierto(true)}>Tipos de seguro</Boton>
+            <Boton variante="primario" onClick={() => registrar(null)}>+ Registrar una póliza</Boton>
+          </div>
+        )}
       />
 
       {cargaError && (
@@ -355,16 +290,13 @@ function Seguros() {
       {cargando ? <Cargando /> : !cargaError && (
         <>
           {personas.length === 0 ? (
-            <div className="max-w-2xl rounded-2xl border border-sand bg-papel px-6 py-8 text-sm text-taupe">
-              <p className="mb-2 text-tinta">Hoy no hay practicantes activos ni pólizas vigentes.</p>
-              <p>Cuando alguien pase a modalidad formativa, aparecerá aquí sin póliza hasta que la registres.</p>
-            </div>
+            <EstadoVacio>Todavía no hay colaboradores en el sistema a quienes mostrarles un seguro.</EstadoVacio>
           ) : (
             <>
               <ul className="mb-5 grid grid-cols-2 gap-3 sm:flex sm:flex-wrap">
                 {fichas.map((f) => {
                   const activa = filtro === f.clave;
-                  const color = f.n === 0 ? "text-taupe" : f.tono === "alerta" ? "text-rojo-profundo" : f.tono === "positivo" ? "text-verde" : "text-ambar";
+                  const color = f.n === 0 ? "text-taupe" : f.tono === "alerta" ? "text-rojo-profundo" : f.tono === "positivo" ? "text-verde" : f.tono === "neutral" ? "text-tinta" : "text-ambar";
                   return (
                     <li key={f.clave} className="min-w-0">
                       <button
@@ -388,75 +320,24 @@ function Seguros() {
                 </div>
               )}
 
-              <div className="mb-4 max-w-md">
-                <Campo etiqueta="Buscar" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Nombre, número de póliza, aseguradora o sede" />
+              <div className="mb-3 flex flex-wrap gap-2" role="group" aria-label="Filtrar por seguro">
+                <FiltroBoton activo={tipoFiltro === TODOS} onClick={() => setTipoFiltro(TODOS)}>Todos · {activas}</FiltroBoton>
+                {porTipo.map((t) => {
+                  const clave = t.clave ?? NINGUNO;
+                  return <FiltroBoton key={clave} activo={tipoFiltro === clave} onClick={() => setTipoFiltro(clave)}>{t.nombre} · {t.n}</FiltroBoton>;
+                })}
               </div>
 
-              {visibles.length === 0 && <p className="text-sm text-taupe">Nadie coincide con ese filtro{busqueda ? ` y con «${busqueda}»` : ""}.</p>}
+              <div className="mb-4 max-w-md">
+                <Campo etiqueta="Buscar" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Nombre, seguro, número de póliza, aseguradora o sede" />
+              </div>
 
-              <div className="space-y-4">
-                {visibles.map((p) => {
-                  const anteriores = p.polizas.filter((z) => z.poliza_id !== p.actual?.poliza_id);
-                  return (
-                    <section key={p.personaId} className="rounded-2xl border border-sand bg-papel">
-                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-sand px-5 py-3">
-                        <h2 className="font-serif text-lg text-tinta">
-                          {p.persona} <span className="font-sans text-sm text-taupe">· {p.sede}{p.modalidad && ` · ${MODALIDAD[p.modalidad] ?? p.modalidad}`}</span>
-                        </h2>
-                        <InsigniaSituacion p={p} />
-                      </div>
-                      <div className="space-y-3 px-5 py-4">
-                        {p.situacion === "hueco" && <MensajeHueco p={p} hoy={hoy} />}
-                        {p.situacion === "hueco" && (
-                          <div><Boton variante="primario" tamano="sm" onClick={() => registrar({ personaId: p.personaId })}>Registrar su póliza</Boton></div>
-                        )}
-                        {p.situacion === "por_vencer" && (
-                          <p className="rounded-lg bg-ambar/10 px-3 py-2 text-sm text-ambar">
-                            Se queda sin seguro el {fecha(p.cubiertoHasta!)} y no hay una renovación registrada que empalme.{" "}
-                            <Boton variante="enlace" onClick={() => renovar(p)}>Registrar la renovación</Boton>
-                          </p>
-                        )}
-                        {p.situacion === "baja_pendiente" && (
-                          <p className="rounded-lg bg-ambar/10 px-3 py-2 text-sm text-ambar">
-                            Ya no es practicante activo y su póliza sigue vigente: pídele la baja a la aseguradora.
-                          </p>
-                        )}
-                        {p.actual && (
-                          <TarjetaPoliza
-                            z={p.actual} hoy={hoy} actual
-                            onPaso={abrirPaso}
-                            onArchivos={(z) => setVerArchivos({ id: z.poliza_id, titulo: nombreDe(z) })}
-                            onHistorial={(z) => setVerHistorial({ id: z.poliza_id, titulo: nombreDe(z) })}
-                            onCorregir={(z) => { setCorrigiendo(z); setBase(null); setFormAbierto(true); }}
-                            onAnular={(z) => { setAnulando(z); setMotivoAnular(""); setMsgAnular(null); }}
-                          />
-                        )}
-                        {anteriores.length > 0 && (
-                          <details className="text-sm">
-                            <summary className="cursor-pointer text-taupe">{anteriores.length === 1 ? "Otra póliza registrada" : `Otras ${anteriores.length} pólizas registradas`}</summary>
-                            <div className="mt-2 space-y-3">
-                              {anteriores.map((z) => (
-                                <TarjetaPoliza
-                                  key={z.poliza_id} z={z} hoy={hoy} actual={false}
-                                  onPaso={abrirPaso}
-                                  onArchivos={(x) => setVerArchivos({ id: x.poliza_id, titulo: nombreDe(x) })}
-                                  onHistorial={(x) => setVerHistorial({ id: x.poliza_id, titulo: nombreDe(x) })}
-                                  onCorregir={(x) => { setCorrigiendo(x); setBase(null); setFormAbierto(true); }}
-                                  onAnular={(x) => { setAnulando(x); setMotivoAnular(""); setMsgAnular(null); }}
-                                />
-                              ))}
-                            </div>
-                          </details>
-                        )}
-                        {p.situacion !== "hueco" && p.situacion !== "baja_pendiente" && p.situacion !== "por_vencer" && p.cubiertoHasta && (
-                          <div>
-                            <Boton variante="enlace" onClick={() => renovar(p)}>Registrar una renovación</Boton>
-                          </div>
-                        )}
-                      </div>
-                    </section>
-                  );
-                })}
+              {visibles.length === 0 && (
+                <p className="text-sm text-taupe">Nadie coincide con ese filtro{busqueda ? ` y con «${busqueda}»` : ""}.</p>
+              )}
+
+              <div className="space-y-3">
+                {visibles.map((p) => <FichaPersona key={p.personaId} p={p} hoy={hoy} tipos={tipos} acciones={acciones} />)}
               </div>
             </>
           )}
@@ -467,6 +348,7 @@ function Seguros() {
         abierto={formAbierto}
         onCerrar={() => setFormAbierto(false)}
         supabase={supabase}
+        tipos={tipos}
         personas={opciones}
         corrigiendo={corrigiendo}
         base={base}
@@ -499,47 +381,24 @@ function Seguros() {
         titulo={verHistorial?.titulo ?? ""}
       />
 
-      {/* ── Marcar un paso ──────────────────────────────────────────────── */}
-      <Modal
-        abierto={paso !== null}
-        onCerrar={() => { if (!ocupadoPaso) setPaso(null); }}
-        bloqueado={ocupadoPaso}
-        titulo={paso ? (paso.quitar ? "Quitar la marca" : "Marcar como hecho") : undefined}
-        ancho="sm"
-      >
-        {paso && (
-          <>
-            <p className="mb-3 text-sm text-taupe">
-              {PASOS_SEGURO.find((s) => s.paso === paso.paso)?.hecho} — póliza {paso.z.numero_poliza} de {paso.z.persona}.
-            </p>
-            {paso.quitar ? (
-              <label className="flex flex-col gap-1">
-                <span className="text-sm text-taupe">Por qué se quita la marca</span>
-                <AreaTexto
-                  value={motivoPaso}
-                  onChange={(e) => { setMotivoPaso(e.target.value); setMsgPaso(null); }}
-                  placeholder="ej. Era el pago de otra póliza"
-                  className={msgPaso ? "border-rojo" : undefined}
-                />
-                {msgPaso && <span className="text-xs text-rojo">{msgPaso}</span>}
-              </label>
-            ) : (
-              <Campo
-                etiqueta="Fecha en que se hizo"
-                type="date" value={fechaPaso} max={hoy}
-                onChange={(e) => { setFechaPaso(e.target.value); setMsgPaso(null); }}
-                error={msgPaso ?? undefined}
-              />
-            )}
-            <div className="mt-4 flex justify-end gap-2">
-              <Boton onClick={() => setPaso(null)} disabled={ocupadoPaso}>Cancelar</Boton>
-              <Boton variante={paso.quitar ? "peligro" : "primario"} onClick={() => void confirmarPaso()} cargando={ocupadoPaso}>
-                {paso.quitar ? "Sí, quitar la marca" : "Guardar"}
-              </Boton>
-            </div>
-          </>
-        )}
-      </Modal>
+      <CambiarSeguro
+        persona={cambiando}
+        tipos={tipos}
+        supabase={supabase}
+        hoy={hoy}
+        onCerrar={() => setCambiando(null)}
+        onListo={(mensaje) => { setCambiando(null); void cargar(); avisar("ok", mensaje); }}
+      />
+
+      <TiposDeSeguro
+        abierto={tiposAbierto}
+        onCerrar={() => setTiposAbierto(false)}
+        supabase={supabase}
+        tipos={tipos}
+        onCambio={async (mensaje) => { await cargar(); avisar("ok", mensaje); }}
+      />
+
+      <ModalPaso paso={pasoPorMarcar} hoy={hoy} onCerrar={() => setPaso(null)} onConfirmar={confirmarPaso} />
 
       {/* ── Anular ──────────────────────────────────────────────────────── */}
       <Modal
@@ -552,9 +411,9 @@ function Seguros() {
         {anulando && (
           <>
             <p className="mb-3 text-sm text-taupe">
-              La póliza {anulando.numero_poliza} de {anulando.persona} deja de contar para la cobertura y desaparece de
-              esta lista, pero no se borra: queda anulada con tu nombre y este motivo. Úsalo solo para una póliza
-              registrada por error. Si cambió un dato, usa «Corregir datos».
+              La póliza {anulando.producto_nombre} {anulando.numero_poliza} de {anulando.persona} deja de contar para la
+              cobertura y desaparece de esta lista, pero no se borra: queda anulada con tu nombre y este motivo. Úsalo solo
+              para una póliza registrada por error. Si cambió un dato, usa «Corregir datos».
             </p>
             <label className="flex flex-col gap-1">
               <span className="text-sm text-taupe">Por qué se anula</span>
