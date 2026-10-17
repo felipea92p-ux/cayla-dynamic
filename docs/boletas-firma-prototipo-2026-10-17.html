@@ -16,7 +16,8 @@
   QUÉ DECIDIÓ FELIPE (2026-10-17):
     · firma con la que ya está guardada en Mi perfil → Firma (copia congelada),
     · firmar es obligatorio (la salida es «Entregada en papel», que ya existe),
-    · DO ve solo estado y fecha, no la imagen de la firma,
+    · (cambió el mismo día) DO ve la boleta firmada: la boleta con la firma
+      estampada y su constancia (quién, cuándo),
     · la carga sigue siendo persona por persona.
 
   Datos ficticios. Los colores son los tokens de apps/web/app/globals.css.
@@ -141,7 +142,11 @@
   /* modales dentro de la ventana de DO */
   .velo{ position:absolute; inset:0; background:rgba(0,0,0,.45); display:flex; align-items:center; justify-content:center; padding:16px; z-index:5; }
   .modal{ background:var(--color-papel); border:1px solid var(--color-sand); border-radius:16px; width:min(480px,100%); max-height:100%; overflow:auto; padding:20px; display:flex; flex-direction:column; gap:14px; }
+  .modal.ancho{ width:min(620px,100%); }
   .modal h3{ font-size:1.3rem; }
+  .sello{ border:1px solid var(--color-sand); background:var(--color-crema); border-radius:12px; padding:12px; display:flex; flex-direction:column; gap:8px; }
+  .sello b{ font-size:.7rem; letter-spacing:.05em; text-transform:uppercase; color:var(--color-verde); }
+  .sello p{ font-size:.78rem; color:var(--color-taupe); }
   .modal .sub{ color:var(--color-taupe); font-size:.86rem; }
   .modal .pie{ display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap; }
   .seg{ display:inline-flex; border:1px solid var(--color-sand); border-radius:10px; overflow:hidden; background:var(--color-crema); }
@@ -269,14 +274,14 @@
         <li><strong>«Confirmar que la recibí» se reemplaza por «Firmar».</strong> Sigue exigiendo haber abierto la boleta antes: firmar sin verla no dice nada.</li>
         <li><strong>La firma se copia en esa boleta</strong> al firmar. Si la colaboradora cambia su firma después, las boletas ya firmadas conservan la que usó ese día (mismo criterio del memo y del contrato).</li>
         <li><strong>Sin firma guardada</strong>, el sistema se la hace crear ahí mismo, una sola vez. Activa o apaga «Ya tiene su firma guardada» arriba para verlo.</li>
-        <li><strong>DO ve estado y fecha</strong>, no la imagen de la firma: «Firmada · 17 oct 2026 · 12:31 p. m.».</li>
+        <li><strong>DO ve la boleta firmada:</strong> la boleta con la constancia de firma (la firma estampada, quién y cuándo) desde «Ver boleta firmada», y la puede descargar. Pruébalo en la fila de Rosa, que ya firmó.</li>
       </ul>
     </div>
     <div class="caja">
       <h3>Lo que este prototipo NO resuelve (para decidir)</h3>
       <ul>
         <li><strong>Firmar es obligatorio.</strong> Quien no tenga cuenta, no pueda firmar o se niegue queda sin boleta recibida. La única salida es «Entregada en papel» de DO, que ya existe; el prototipo la deja visible en cada fila.</li>
-        <li><strong>DO no ve la firma.</strong> Si el contador o una inspección pide la prueba, hay que sacarla de la base. Agregar «Ver firma» después no cuesta migración nueva.</li>
+        <li><strong>Quién ve la firma.</strong> Hoy la ve DO y la propia persona. La líder de equipo no ve boletas, y por tanto tampoco firmas.</li>
         <li><strong>Reemplazar una boleta ya firmada</strong> reinicia la firma: es otro documento (regla de la 0482). No se muestra aquí.</li>
         <li><strong>No es firma digital certificada.</strong> Es constancia de recepción con fecha y hora, como el memo. Conviene que el contador confirme que le basta para dejar el papel.</li>
         <li><strong>Para llevarlo a producción</strong> haría falta una migración nueva (la firma copiada y la función que la escribe), el cambio del botón y su prueba. La migración se pega antes de fusionar.</li>
@@ -404,7 +409,8 @@
       b.push(`<button class="btn sec fino" data-act="detalle" data-id="${p.id}">Ver detalle</button>`);
       b.push(`<button class="btn sec fino" data-act="papel" data-id="${p.id}">Entregada en papel</button>`);
     } else if(v === 'firmada'){
-      b.push(`<button class="btn sec fino" data-act="detalle" data-id="${p.id}">Ver detalle</button>`);
+      b.push(`<button class="btn fino" data-act="verFirmada" data-id="${p.id}">Ver boleta firmada</button>`);
+      b.push(`<button class="btn sec fino" data-act="detalle" data-id="${p.id}">Detalle</button>`);
     }
     return b.join('');
   }
@@ -460,6 +466,17 @@
         <p class="sub">Es la salida para quien no tiene cuenta o no puede firmar en el sistema. Queda anotada la fecha de hoy.</p></div>
         <div class="pie"><button class="btn sec" data-act="cerrar">Volver</button><button class="btn" data-act="papelOk" data-id="${p.id}">Sí, la entregué en papel</button></div></div></div>`;
     }
+    if(m.t === 'firmada'){
+      return `<div class="velo"><div class="modal ancho" role="dialog" aria-label="Boleta firmada">
+        <div><h3>Boleta firmada · ${esc(p.nombre)}</h3><p class="sub">${PERIODO} · ${p.sede} · <span class="ins ok">Firmada</span></p></div>
+        <div class="hojas">${hojasHTML(p)}</div>
+        <div class="sello"><b>Constancia de firma</b>
+          ${firmaHTML(p.firma, p)}
+          <p>Firmada por ${esc(p.nombre)} el ${fmt(p.firmada)}</p>
+          <p>La firma es la copia que usó ese día: si cambia su firma después, esta boleta no cambia.</p>
+          <p>Publicada el ${fmt(p.publicada)} · abierta por primera vez el ${fmt(p.vista)}</p></div>
+        <div class="pie"><button class="btn sec" data-act="descargar">Descargar con firma</button><button class="btn" data-act="cerrar">Cerrar</button></div></div></div>`;
+    }
     if(m.t === 'detalle'){
       const v = visible(p), [txt, tono] = ETIQUETA[v];
       const ev = (si, t, f) => `<li class="${si ? 'si' : 'no'}"><div>${t}<small>${si ? fmt(f) : 'Pendiente'}</small></div></li>`;
@@ -473,7 +490,7 @@
         </ul>
         ${v === 'firmada' ? '' : `<p class="nota-caja">Mientras no firme, la boleta sigue pendiente. Si no puede firmar desde el sistema, usa «Entregada en papel».</p>`}
         <div class="pie">
-          ${v === 'firmada' ? '' : `<button class="btn sec" data-act="papel" data-id="${p.id}">Entregada en papel</button>`}
+          ${v === 'firmada' ? `<button class="btn sec" data-act="verFirmada" data-id="${p.id}">Ver boleta firmada</button>` : `<button class="btn sec" data-act="papel" data-id="${p.id}">Entregada en papel</button>`}
           <button class="btn" data-act="cerrar">Cerrar</button></div></div></div>`;
     }
     return '';
@@ -644,14 +661,14 @@
     const p = persona('c'), v = visible(p);
     const hecho = [v !== 'falta', v !== 'falta' && v !== 'borrador', v === 'vista' || v === 'firmada', v === 'firmada', v === 'firmada'];
     const ahora = hecho.findIndex((h) => !h);
-    const T = ['DO sube la boleta de Camila', 'DO la publica', 'Camila la abre', 'Camila la firma', 'DO ve «Firmada»'];
+    const T = ['DO sube la boleta de Camila', 'DO la publica', 'Camila la abre', 'Camila la firma', 'DO ve la boleta firmada'];
     $('#pasos').innerHTML = T.map((t, i) => `<li class="paso ${hecho[i] ? 'hecho' : (i === ahora ? 'ahora' : '')}"><b>Paso ${i+1}${hecho[i] ? ' · listo' : ''}</b>${t}</li>`).join('');
     const pistas = [
       'En la computadora, en la fila de <strong>Camila Rojas</strong>, pulsa <strong>«Subir boleta»</strong>. Puedes elegir un archivo tuyo o usar la boleta de ejemplo.',
       'La boleta quedó guardada pero Camila todavía no la ve. Pulsa <strong>«Publicar»</strong> en su fila.',
       'En el celular, entra a <strong>Boletas</strong> (tiene un globito) y pulsa <strong>«Ver mi boleta»</strong>. Fíjate que «Firmar» sigue apagado hasta que la abra.',
       'Camila ya la abrió. Pulsa <strong>«Firmar»</strong> y sigue los pasos (su firma aún no está guardada: la creará ahí mismo).',
-      'Mira la fila de Camila en la computadora: pasó a <strong>«Firmada»</strong> con fecha y hora, y el contador de «Esperan su firma» bajó.',
+      'En la computadora, la fila de Camila pasó a <strong>«Firmada»</strong> con fecha y hora. Pulsa <strong>«Ver boleta firmada»</strong> para ver la boleta con su firma estampada.',
       'Recorrido completo. Reinicia la demo para repetirlo, o cambia «Ver el celular como» para probar otros casos (por ejemplo Lucía, que aún no abrió la suya).',
     ];
     $('#pista').innerHTML = (ahora === -1 ? pistas[5] : pistas[ahora]);
@@ -681,6 +698,8 @@
       case 'papel': S.modal = { t:'papel', id }; break;
       case 'papelOk': { const p = persona(id); p.estado = 'papel'; p.publicada = Date.now(); S.modal = null; aviso('Anotada como entregada en papel.'); break; }
       case 'detalle': S.modal = { t:'detalle', id }; break;
+      case 'verFirmada': S.modal = { t:'firmada', id }; break;
+      case 'descargar': aviso('En la app real: baja la boleta con la constancia de firma (PDF).'); break;
       case 'cerrar': S.modal = null; break;
       // — celular —
       case 'celIr': c.pant = el.dataset.v; break;
