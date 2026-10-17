@@ -379,6 +379,7 @@ with repo(numero, nombre, nunca) as (values
     (518, 'a_quien_le_toca_el_bono_de_cumpleanos_se_dice_una_vez', false),
     (519, 'el_bono_de_cumpleanos_tambien_lo_recibe_el_practicante', true),
     (520, 'el_bono_de_cumpleanos_una_sola_regla_y_el_practicante_cobra_por_transferencia', false),
+    (521, 'el_bono_del_practicante_vuelve_a_la_boleta', false),
     (522, 'la_solicitud_educativa_pendiente_recibe_su_comprobante', false)
 ),
 diff as (
