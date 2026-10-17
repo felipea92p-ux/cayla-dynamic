@@ -203,8 +203,9 @@ export function urgenciaLiquidacionVencida(l: LiquidacionVencida): Urgencia {
 }
 
 // ── Seguros (0528) ──────────────────────────────────────────────────────────
-// Los números salen de `lib/admin/seguros.ts` (la regla de quién tiene hueco y de
-// qué es «por vencer» vive allí, con su prueba); acá solo se ordenan.
+// Los números salen de `lib/admin/seguros.ts` (la regla de quién tiene hueco, de
+// qué es «por vencer» y de qué cambios de seguro siguen pendientes vive allí, con
+// su prueba); acá solo se ordenan.
 
 // Textos CORTOS a propósito: la columna del plazo mide 11 rem, y «Se queda sin
 // seguro en 20 días» se pisaba con el botón de la fila (visto en el navegador).
@@ -212,10 +213,11 @@ const SIN_SEGURO = { futuro: "Sin seguro", pasado: "Sin seguro" };
 const PRIMA_VENCE = { futuro: "Prima vence", pasado: "Prima venció" };
 
 /**
- * Un practicante sin póliza que cubra hoy. El riesgo YA corre —no hay «hoy» ni
- * «próximo» posible—, así que va a «Vencido»: una persona sin ningún seguro es
- * infracción por sí sola (Ley 28518, art. 52.5). Entre dos huecos manda el más
- * largo: quien nunca tuvo póliza antes que quien la perdió ayer.
+ * Alguien cuyo seguro lleva póliza y no tiene ninguna que cubra hoy. El riesgo YA
+ * corre —no hay «hoy» ni «próximo» posible—, así que va a «Vencido»: una persona sin
+ * ningún seguro es infracción por sí sola (para los practicantes, Ley 28518,
+ * art. 52.5). Entre dos huecos manda el más largo: quien nunca tuvo póliza antes que
+ * quien la perdió ayer.
  */
 export function urgenciaSeguroSinPoliza(
   motivo: "nunca" | "vencida" | "aun_no_empieza" | null,
@@ -269,6 +271,22 @@ export function urgenciaSeguroPapeleo(
     return { grupo: "sin_plazo", plazo: "Prima por pagar", nota: prima.venceEl ? `vence el ${diaYMes(prima.venceEl)}` : "sin fecha de vencimiento", orden: 0 };
   }
   return { grupo: "sin_plazo", plazo: pasos.includes("firmada") ? "Sin firmar" : "Sin factura", nota: null, orden: 0 };
+}
+
+/**
+ * Un paso de un cambio de seguro (la baja del anterior, el alta del nuevo). No tiene
+ * una fecha límite que Dynamic conozca —el plazo de dar de alta o de baja depende de
+ * cada aseguradora y del contador, y no se inventa—, así que va a «Sin plazo», con lo
+ * que lleva esperando: el que lleva más días sale primero. `dias` es cuántos pasaron
+ * desde que la persona cambió de seguro (cero si fue hoy).
+ */
+export function urgenciaSeguroCambio(paso: "baja" | "alta", dias: number): Urgencia {
+  return {
+    grupo: "sin_plazo",
+    plazo: paso === "baja" ? "Pedir la baja" : "Dar de alta",
+    nota: dias === 0 ? "cambió hoy" : dias === 1 ? "cambió ayer" : `cambió hace ${dias} días`,
+    orden: -dias,
+  };
 }
 
 // ── Fuentes sumadas el 2026-09-15 (Contratos, Correcciones, Documentación,
