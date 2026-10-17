@@ -23,7 +23,7 @@
 --     retiran con motivo, y todo deja su rastro.
 -- ============================================================================
 begin;
-select plan(231);
+select plan(237);
 
 -- ── Sede y personas ──────────────────────────────────────────────────────
 insert into sedes (id, codigo, nombre, activa, tipo) values
@@ -1039,6 +1039,39 @@ select is(
 select is(
   (select count(*)::int from storage.objects where bucket_id = 'polizas-seguro' and name = '5a000000-0000-0000-0000-000000000009.pdf'),
   0, 'el huérfano sí se pudo limpiar');
+
+-- ── O2 · Con las funciones de verdad ────────────────────────────────────
+-- El disparador escucha la columna, no a quien la escribe. Las dos funciones que de verdad
+-- cambian el vínculo en producción —`fn_set_tipo_vinculo` y `fn_cesar_persona`— tienen que
+-- llevarse bien con él: un cambio que no mueve el seguro no deja nada, uno que sí lo mueve
+-- deja su cambio, y un cese con vínculo nuevo en el mismo acto tampoco (ya no está activa).
+set session_replication_role = replica;
+insert into personas (id, nombres, apellidos, sede_base_id, rol, pin_hash, auth_user_id, fecha_ingreso, tipo_vinculo, cargo, practicante_modalidad, estado, cuenta_de_servicio, fecha_cese) values
+  ('00000000-0000-0000-0000-00000528a024', 'Mara', 'Seg', '00000000-0000-0000-0000-000005280001', 'integrante', 'x', null, '2024-06-01', 'planilla', 'Vendedora',  null, 'activo', false, null),
+  ('00000000-0000-0000-0000-00000528a025', 'Nico', 'Seg', '00000000-0000-0000-0000-000005280001', 'integrante', 'x', null, '2026-03-01', 'rxh',      'Honorarios', null, 'activo', false, null);
+set session_replication_role = origin;
+
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000528b001', true);
+
+select lives_ok(
+  $$ select fn_set_tipo_vinculo('00000000-0000-0000-0000-00000528a024', 'prueba') $$,
+  'DO pasa a Mara de planilla a prueba con la función de verdad');
+select is(
+  (select count(*)::int from seguros_cambios where persona_id = '00000000-0000-0000-0000-00000528a024'),
+  0, 'planilla → prueba no mueve su seguro (los dos son EsSalud): no deja cambio');
+select lives_ok(
+  $$ select fn_set_tipo_vinculo('00000000-0000-0000-0000-00000528a025', 'planilla') $$,
+  'y pasa a Nico de honorarios a planilla');
+select is(
+  (select row(de_tipo, a_tipo, origen)::text from seguros_cambios where persona_id = '00000000-0000-0000-0000-00000528a025'),
+  row(null::text, 'essalud', 'vinculo')::text,
+  'honorarios → planilla sí lo mueve: de «sin seguro» a EsSalud, por vínculo');
+select lives_ok(
+  $$ select fn_cesar_persona('00000000-0000-0000-0000-00000528a024', fn_hoy_lima(), 'fin_contrato', 'rxh') $$,
+  'DO cesa a Mara y en el mismo acto la deja como honorarios');
+select is(
+  (select count(*)::int from seguros_cambios where persona_id = '00000000-0000-0000-0000-00000528a024'),
+  0, 'quien ya no está activa no deja cambio, aunque su vínculo cambie en el cese');
 
 -- ── P · Un fallo del registro de cambios NO frena el cambio de vínculo ───
 -- Lo último de la prueba, porque rompe la tabla de cambios a propósito. Un cambio de
