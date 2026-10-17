@@ -24,12 +24,12 @@ import {
 } from "@/lib/admin/educacion-grupos";
 import {
   CLAVES_DE_URL, FILTROS_VACIOS, MESES_INICIALES, MESES_POR_PASO, agruparEstudios, conteoTarjetas, entregaPasaFiltros,
-  entregasDeEstudio, filtrosAUrl, filtrosDeUrl, mesDe, mesLargo, mesesConConstancia, mesesEntre,
-  montoMensual, pasaFiltros, resumenPorSede, sedesDe, ventanaDeMeses, type ContextoDeFiltros, type Estudio, type Filtros,
+  entregasDeEstudio, filtrosAUrl, filtrosDeUrl, mesLargo, mesesConConstancia, mesesConDatosDeLaVentana,
+  montoMensual, pasaFiltros, resumenPorSede, sedesDe, ventanaParaFiltros, type ContextoDeFiltros, type Estudio, type Filtros,
 } from "@/lib/admin/educacion-meses";
 import { fechaHora, soles } from "@/lib/admin/educacion-formato";
 import type { Entrega, EntregaDeFamilia, Pendiente, Situacion } from "@/lib/admin/educacion-tipos";
-import { armarZip, descargarBlob, nombreLegible } from "@/lib/admin/zip-constancias";
+import { armarZip, descargarBlob, extensionDeArchivo, nombreEnZip, nombreLegible } from "@/lib/admin/zip-constancias";
 import { Boton } from "@/components/ui/boton";
 import { Campo, CampoSelect } from "@/components/ui/campo";
 import { AreaTexto } from "@/components/ui/area-texto";
@@ -194,7 +194,13 @@ function EducacionContenido() {
   // función que usa el panel, así que el permiso lo decide la base y no esta pantalla. Mientras
   // llega, la cuadrícula muestra casillas en espera; al recargar tras aprobar, deja las viejas
   // a la vista hasta que lleguen las nuevas, para que no parpadee.
+  //
+  // UNA CONSULTA QUE FALLA NO ES «SIN CONSTANCIAS». Si la de un estudio falla, se conserva lo que ya se
+  // había leído de él (aunque sea de hace un rato) y, si no había nada, queda FUERA del mapa: la
+  // cuadrícula lo dibuja como «no se pudo leer», los filtros que miran constancias no lo esconden, y
+  // el CSV y el ZIP se niegan hasta reintentar. Antes salía con guiones —«no hay»— y se exportaba así.
   const cargaVigente = useRef(0);
+  const ultimoMapa = useRef<Map<string, EntregaDeFamilia[]> | null>(null);
   const cargarConstancias = useCallback(async (filas: Situacion[]) => {
     const mia = ++cargaVigente.current;
     const mapa = new Map<string, EntregaDeFamilia[]>();
@@ -203,19 +209,27 @@ function EducacionContenido() {
     async function trabajador() {
       for (let f = cola.shift(); f; f = cola.shift()) {
         const { data, error } = await supabase.rpc("fn_educacion_entregas", { p_familia_id: f.familia_id });
-        if (error) { fallos += 1; continue; }
+        if (error) {
+          fallos += 1;
+          const previo = ultimoMapa.current?.get(f.familia_id);
+          if (previo) mapa.set(f.familia_id, previo);
+          continue;
+        }
         mapa.set(f.familia_id, ((data ?? []) as unknown as Entrega[]).map((e) => ({ ...e, familia_id: f.familia_id })));
       }
     }
     await Promise.all(Array.from({ length: Math.min(6, Math.max(1, filas.length)) }, trabajador));
     if (mia !== cargaVigente.current) return; // llegó una carga más nueva: esta ya es vieja
+    ultimoMapa.current = mapa;
     setEntregasPorFamilia(mapa);
     setErrorConstancias(fallos > 0
-      ? `No se pudieron traer las constancias de ${fallos} estudio${fallos === 1 ? "" : "s"}. Lo que ves puede estar incompleto.`
+      ? `No se pudieron traer las constancias de ${fallos} estudio${fallos === 1 ? "" : "s"}: se ven marcadas con «?» y no se puede descargar hasta reintentar.`
       : null);
   }, [supabase]);
 
-  const cargar = useCallback(async () => {
+  // `esperarConstancias`: quien acaba de aprobar o rechazar espera a que la cuadrícula ya diga lo nuevo
+  // antes de avisar «aprobada»; la carga inicial no se bloquea por las ~30 consultas.
+  const cargar = useCallback(async (esperarConstancias = false) => {
     const { data: sesion } = await supabase.auth.getSession();
     if (!sesion.session) { router.replace("/admin/login"); return; }
 
@@ -231,7 +245,8 @@ function EducacionContenido() {
     ]);
     const filasSituacion = (sit.data ?? []) as unknown as Situacion[];
     setSituaciones(filasSituacion);
-    void cargarConstancias(filasSituacion);
+    const trayendo = cargarConstancias(filasSituacion);
+    if (esperarConstancias) await trayendo;
     setPendientes((pend.data ?? []) as unknown as Pendiente[]);
     setSolicitudesPendientes((solPend.data ?? []) as unknown as SolicitudPendiente[]);
     setAsignaciones(new Map(((lista.data ?? []) as unknown as Asignacion[]).map((a) => [a.id, a])));
@@ -323,9 +338,14 @@ function EducacionContenido() {
   // meses seguidos. Cada tarjeta, chip y pestaña cuenta sobre las MISMAS filas que se dibujan.
   const estudios = useMemo(() => agruparEstudios(situaciones), [situaciones]);
   const familiasConPendiente = useMemo(() => new Set(pendientes.map((p) => p.familia_id)), [pendientes]);
+  // Los estudios que ya se intentaron leer y no están en el mapa: «no se sabe», no «sin constancias».
+  const familiasSinLeer = useMemo<ReadonlySet<string>>(
+    () => new Set(entregasPorFamilia ? situaciones.filter((x) => !entregasPorFamilia.has(x.familia_id)).map((x) => x.familia_id) : []),
+    [entregasPorFamilia, situaciones],
+  );
   const ctx = useMemo<ContextoDeFiltros>(
-    () => ({ liquidadas, familiasConPendiente, entregasPorFamilia, personaPedida }),
-    [liquidadas, familiasConPendiente, entregasPorFamilia, personaPedida],
+    () => ({ liquidadas, familiasConPendiente, entregasPorFamilia, familiasSinLeer, personaPedida }),
+    [liquidadas, familiasConPendiente, entregasPorFamilia, familiasSinLeer, personaPedida],
   );
   const cargandoConstancias = entregasPorFamilia === null && situaciones.length > 0;
 
@@ -364,16 +384,13 @@ function EducacionContenido() {
 
   // La línea de tiempo: seis meses y «ver más». Si se pidió un mes más viejo que la ventana, se abre hasta él.
   const mesesConDatos = useMemo(
-    () => [...mesesConConstancia(todasLasEntregas), ...estudios.map((e) => mesDe(e.desde))],
-    [todasLasEntregas, estudios],
+    () => mesesConDatosDeLaVentana(hoy, todasLasEntregas, estudios),
+    [hoy, todasLasEntregas, estudios],
   );
-  const ventana = useMemo(() => {
-    const v = ventanaDeMeses(hoy, mesesConDatos, mesesPedidos);
-    if (filtros.mes && filtros.mes < v.meses[0]) {
-      return ventanaDeMeses(hoy, mesesConDatos, mesesEntre(filtros.mes, v.meses[v.meses.length - 1]) + 1);
-    }
-    return v;
-  }, [hoy, mesesConDatos, mesesPedidos, filtros.mes]);
+  const ventana = useMemo(
+    () => ventanaParaFiltros(hoy, mesesConDatos, mesesPedidos, { mes: filtros.mes, desde: filtros.desde }),
+    [hoy, mesesConDatos, mesesPedidos, filtros.mes, filtros.desde],
+  );
 
   // Una sola sede elegida, o una sola con datos: no hace falta partir la lista en bloques.
   const resumenes = useMemo(() => resumenPorSede(visibles, hoy, familiasConPendiente), [visibles, hoy, familiasConPendiente]);
@@ -569,12 +586,24 @@ function EducacionContenido() {
     </div>
   );
 
-  // ── DESCARGAS PARA AUDITORÍA: lo que ves, no «todo el sistema» ───────────
+  // ── DESCARGAS PARA AUDITORÍA: lo que eliges, sin recortes que nadie eligió ─
   // Decisión de Felipe (2026-10-16): el cuadro respeta los filtros, y el ZIP junta los papeles de
   // la sede y el mes elegidos. Las dos usan las constancias que la pantalla YA trajo y la misma
   // regla (`entregaPasaFiltros`) que la lista, así que lo descargado coincide con lo que se ve.
+  //
+  // PERO «lo que se ve» NO incluye lo que la pantalla esconde POR DEFECTO: los apoyos terminados
+  // («vigentes y por empezar») y las personas ya liquidadas. Eso no lo eligió nadie, y un expediente
+  // de julio sin quien terminó el 31/07 es justo el expediente incompleto que no se nota. Tampoco
+  // cuentan la pestaña ni la tarjeta que hayan quedado puestas: son una forma de mirar, no un recorte.
+  // Si quien descarga ELIGIÓ «terminados» o «todos», eso sí se respeta.
   // Llevan datos personales: no se suben a git ni se reenvían.
-  function armarAuditoria() {
+  const incluyeOcultos = filtros.vigencia === "activas" || !filtros.liquidadas;
+  function estudiosParaAuditoria(): Estudio[] {
+    const f: Filtros = { ...filtros, vigencia: filtros.vigencia === "activas" ? "todas" : filtros.vigencia, liquidadas: true };
+    return estudios.filter((e) => pasaFiltros(e, f, ctx, ["tarjeta", "grupo"]));
+  }
+
+  function armarAuditoria(lista: Estudio[]) {
     const filas: Record<string, unknown>[] = [];
     const archivos: { nombre: string; ruta: string }[] = [];
     // El índice tiene que decir el nombre que de verdad lleva el archivo dentro del ZIP: si dos
@@ -587,11 +616,12 @@ function EducacionContenido() {
       usados.add(c.toLowerCase());
       return c;
     };
-    for (const e of visibles) {
+    for (const e of lista) {
+      const pagando = montoMensual(e, hoy);
       const base = {
         persona: e.persona, sede: e.sede, rango: e.rango, institucion: e.institucion,
         beneficiario: e.beneficiario === "hijo" ? (e.beneficiario_nombre ?? "hijo/a") : "la persona misma",
-        apoyo_mensual: montoMensual(e, hoy).monto.toFixed(2), se_paga: montoMensual(e, hoy).seEstaPagando ? "sí" : "no",
+        apoyo_mensual: pagando.monto.toFixed(2), se_paga: pagando.seEstaPagando ? "sí" : "no",
         vigente_desde: e.desde, vigente_hasta: e.hasta,
         estado_actual: estadoParaMostrar(e).etiqueta,
         grupo: GRUPOS_EDUCACION.find((g) => g.clave === grupoDeEstudio(e))?.etiqueta ?? "",
@@ -599,15 +629,21 @@ function EducacionContenido() {
       const entregas = entregasDeEstudio(e, entregasPorFamilia).filter((x) => entregaPasaFiltros(x, filtros));
       if (entregas.length === 0) { filas.push({ ...base }); continue; }
       for (const x of entregas) {
+        // El monto y la vigencia de CADA constancia son los de SU tramo —como los muestra el visor—, no los
+        // del estudio entero: si no, la fila de agosto diría el monto de octubre.
+        const tramo = e.tramos.find((t) => t.familia_id === x.familia_id) ?? e.actual;
         const comunes = {
-          ...base, fecha_de_pago: x.fecha_pago, tipo: TIPO_CONSTANCIA_LABELS[x.tipo], resultado: ESTADO_ENTREGA[x.estado].etiqueta,
+          ...base,
+          apoyo_mensual: Number(tramo.monto).toFixed(2),
+          se_paga: tramo.paga && tramo.vigente_desde <= hoy ? "sí" : "no",
+          vigente_desde: tramo.vigente_desde, vigente_hasta: tramo.vigente_hasta,
+          fecha_de_pago: x.fecha_pago, tipo: TIPO_CONSTANCIA_LABELS[x.tipo], resultado: ESTADO_ENTREGA[x.estado].etiqueta,
           enviada: fechaHora(x.enviada_at), revisada: fechaHora(x.revisada_at), revisada_por: x.revisada_por ?? "",
           motivo_rechazo: x.motivo_categoria ? `${MOTIVO_RECHAZO_LABELS[x.motivo_categoria]}${x.motivo_comentario ? `: ${x.motivo_comentario}` : ""}` : "",
         };
         if (x.archivos.length === 0) filas.push({ ...comunes });
         x.archivos.forEach((a, i) => {
-          const ext = (a.nombre.split(".").pop() ?? a.ruta.split(".").pop() ?? "bin").toLowerCase().replace(/[^a-z0-9]/g, "") || "bin";
-          const nombre = unico(nombreLegible(`${e.persona} - ${e.institucion} - ${x.fecha_pago} - ${i + 1}.${ext}`));
+          const nombre = unico(nombreEnZip(e.persona, e.institucion, x.fecha_pago, i + 1, extensionDeArchivo(a)));
           filas.push({ ...comunes, archivo: a.nombre, ruta_en_el_almacen: a.ruta, archivo_en_el_zip: x.estado === "retirada" ? "" : nombre });
           if (x.estado !== "retirada") archivos.push({ nombre, ruta: a.ruta });
         });
@@ -622,26 +658,41 @@ function EducacionContenido() {
     "archivo", "ruta_en_el_almacen", "archivo_en_el_zip",
   ];
 
-  function descargarCuadro() {
-    if (entregasPorFamilia === null) { avisar("error", "Las constancias todavía se están trayendo. Espera un momento."); return; }
-    const { filas } = armarAuditoria();
-    descargarCsv(`educacion-constancias-${hoy}.csv`, generarCsv(filas, COLUMNAS_AUDITORIA));
-    avisar("ok", `Cuadro descargado: ${filas.length} filas de ${visibles.length} estudios.`);
+  // Las constancias tienen que estar TODAS leídas: el exportador anterior abortaba ante cualquier error,
+  // y uno que sigue con las que faltan entrega filas «sin constancias» que parecen un dato.
+  function constanciasListas(): boolean {
+    if (entregasPorFamilia === null) { avisar("error", "Las constancias todavía se están trayendo. Espera un momento."); return false; }
+    if (errorConstancias) { avisar("error", "Faltan las constancias de algunos estudios: toca «Reintentar» antes de descargar."); return false; }
+    return true;
   }
 
-  const zipDisponible = Boolean(filtros.mes || filtros.desde || filtros.hasta) && entregasPorFamilia !== null;
+  function descargarCuadro() {
+    if (!constanciasListas()) return;
+    const lista = estudiosParaAuditoria();
+    const { filas } = armarAuditoria(lista);
+    descargarCsv(`educacion-constancias-${hoy}.csv`, generarCsv(filas, COLUMNAS_AUDITORIA));
+    avisar("ok", `Cuadro descargado: ${filas.length} filas de ${lista.length} estudios${incluyeOcultos ? ", incluidos los apoyos terminados y las personas liquidadas" : ""}.`);
+  }
+
+  const zipDisponible = Boolean(filtros.mes || filtros.desde || filtros.hasta) && entregasPorFamilia !== null && !errorConstancias;
   async function descargarZip() {
-    if (!zipDisponible) { avisar("error", "Elige un mes (o un rango de fechas) para armar el ZIP."); return; }
-    const { filas, archivos } = armarAuditoria();
-    if (archivos.length === 0) { avisar("error", "No hay archivos de constancias en lo que ves."); return; }
+    if (!zipDisponible) { avisar("error", errorConstancias ? "Faltan las constancias de algunos estudios: toca «Reintentar» antes de descargar." : "Elige un mes (o un rango de fechas) para armar el ZIP."); return; }
+    const lista = estudiosParaAuditoria();
+    const { filas, archivos } = armarAuditoria(lista);
+    if (archivos.length === 0) { avisar("error", "No hay archivos de constancias con estos filtros."); return; }
     setDescargando(true);
-    avisar("ok", `Armando el ZIP: ${archivos.length} archivo${archivos.length === 1 ? "" : "s"}…`);
-    const r = await armarZip(supabase, archivos, generarCsv(filas, COLUMNAS_AUDITORIA), () => {});
-    setDescargando(false);
-    if (!r.ok) { avisar("error", `No se armó el ZIP: ${r.error}.`); return; }
-    const cuando = filtros.mes || `${filtros.desde || "inicio"}_a_${filtros.hasta || hoy}`;
-    descargarBlob(nombreLegible(`Educación ${filtros.sede || "todas las sedes"} ${cuando}`) + ".zip", r.blob);
-    avisar("ok", `ZIP listo: ${archivos.length} archivo${archivos.length === 1 ? "" : "s"} y su índice.`);
+    try {
+      avisar("ok", `Armando el ZIP: ${archivos.length} archivo${archivos.length === 1 ? "" : "s"}…`);
+      const r = await armarZip(supabase, archivos, generarCsv(filas, COLUMNAS_AUDITORIA), () => {});
+      if (!r.ok) { avisar("error", `No se armó el ZIP: ${r.error}.`); return; }
+      const cuando = filtros.mes || `${filtros.desde || "inicio"}_a_${filtros.hasta || hoy}`;
+      descargarBlob(nombreLegible(`Educación ${filtros.sede || "todas las sedes"} ${cuando}`) + ".zip", r.blob);
+      avisar("ok", `ZIP listo: ${archivos.length} archivo${archivos.length === 1 ? "" : "s"} de ${lista.length} estudios y su índice${incluyeOcultos ? "; incluye apoyos terminados y personas liquidadas" : ""}.`);
+    } catch {
+      avisar("error", "No se armó el ZIP: algo falló al juntar los archivos. Prueba con menos meses o con una sola sede.");
+    } finally {
+      setDescargando(false);
+    }
   }
 
   const seleccion = abierta ? situaciones.find((s) => s.familia_id === abierta) ?? null : null;
@@ -721,9 +772,11 @@ function EducacionContenido() {
                     {[filtros.sede || (sedes.length > 1 ? "Todas las sedes" : sedes[0] ?? ""), filtros.mes && `pagos de ${mesLargo(filtros.mes)}`]
                       .filter(Boolean).join(" · ")}
                   </strong>
+                  {(filtros.buscar.trim() || filtros.estado || filtros.institucion || filtros.quien || filtros.tipo || filtros.revisor
+                    || filtros.desde || filtros.hasta || filtros.vigencia !== "activas") && " · con tus filtros"}
                   {" · "}{apoyosPagandose} apoyo{apoyosPagandose === 1 ? "" : "s"} pagándose · suman {soles(totalMensual)} al mes
                   {conteo.sinCalendario > 0 && (
-                    <> · <Boton variante="enlace" className="text-xs" onClick={() => setFiltros({ ...FILTROS_VACIOS, estado: "sin_calendario" })}>
+                    <> · <Boton variante="enlace" className="text-xs" onClick={() => cambiar({ estado: "sin_calendario", tarjeta: null, grupo: null })}>
                       {conteo.sinCalendario} sin calendario de pagos
                     </Boton></>
                   )}
@@ -815,6 +868,7 @@ function EducacionContenido() {
                     estudios={visibles} meses={ventana.meses} hayMasMeses={ventana.hayMas}
                     onVerMasMeses={() => setMesesPedidos((n) => Math.max(n, ventana.meses.length) + MESES_POR_PASO)}
                     mesResaltado={filtros.mes} entregasPorFamilia={entregasPorFamilia} cargandoConstancias={cargandoConstancias}
+                    familiasSinLeer={familiasSinLeer}
                     pendientes={pendientes} hoy={hoy}
                     resumenesSede={filtros.sede === "" && resumenes.length > 1 ? resumenes : null}
                     onAbrirVisor={abrirVisor} onAbrirEstudio={abrirEstudio}
@@ -1005,9 +1059,10 @@ function EducacionContenido() {
             entregaId={visor?.entregaId ?? null}
             miPersonaId={persona?.id ?? null}
             onCerrar={() => setVisorAbierto(false)}
-            onResuelta={async (texto) => { avisar("ok", texto); await cargar(); }}
+            onResuelta={async (texto) => { await cargar(true); avisar("ok", texto); }}
             onError={(texto) => avisar("error", texto)}
             onAbrirEstudio={() => { setVisorAbierto(false); abrirEstudio(visorEstudio, null); }}
+            estadoDeCarga={cargandoConstancias ? "cargando" : visorEstudio.tramos.some((t) => familiasSinLeer.has(t.familia_id)) ? "error" : "listo"}
           />
         )}
       </main>
@@ -1159,7 +1214,7 @@ function PanelEstudio({
             <div className="mt-3"><LienzoArchivos archivos={enRevision.archivos} /></div>
             <div className="mt-3">
               <AccionesRevision
-                entrega={enRevision} persona={s.persona} esPropia={esPropia}
+                key={enRevision.id} entrega={enRevision} persona={s.persona} esPropia={esPropia}
                 onResuelta={async (texto) => { await traer(); await onCambio(texto); }} onError={onError}
               />
             </div>

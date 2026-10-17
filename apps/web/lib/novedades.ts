@@ -121,8 +121,8 @@ export const NOVEDADES: readonly Novedad[] = [
     queMejoro:
       "La lista de Educación ahora es una cuadrícula: una fila por persona e institución, una columna por mes y, en " +
       "cada casilla, la miniatura de la constancia recibida. Un toque la abre grande —foto o PDF con todas sus hojas— " +
-      "con sus datos al lado y los botones Aprobar y Rechazar, sin otra pestaña ni descargar nada. Funciona igual en el " +
-      "celular.\n\n" +
+      "con sus datos al lado y los botones Aprobar y Rechazar, sin otra pestaña ni descargar nada. También se puede " +
+      "usar desde el celular.\n\n" +
       "La sede va arriba, con el número de estudios de cada una, y las cinco tarjetas de arriba cuentan solo lo que " +
       "estás viendo: si eliges una sede o un mes, las tarjetas y la lista dicen lo mismo. Con las flechas ← → pasas de " +
       "una constancia a otra y con Esc cierras el visor. Con «Todas», cada sede tiene su " +

@@ -57,7 +57,7 @@ const FOCUSABLES =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 export function VisorConstancia({
-  abierto, estudio, entregas, entregaId, miPersonaId, onCerrar, onResuelta, onError, onAbrirEstudio,
+  abierto, estudio, entregas, entregaId, miPersonaId, onCerrar, onResuelta, onError, onAbrirEstudio, estadoDeCarga,
 }: {
   abierto: boolean;
   estudio: Estudio;
@@ -69,19 +69,25 @@ export function VisorConstancia({
   onResuelta: (texto: string) => Promise<void>;
   onError: (texto: string) => void;
   onAbrirEstudio: () => void;
+  /**
+   * Por qué puede no haber constancias que mostrar: todavía llegan, no se pudieron leer, o de verdad no
+   * hay. «Este estudio todavía no tiene constancias» solo se dice en el último caso: decirlo en los otros
+   * dos es afirmar un hecho que no se sabe, delante de quien está por aprobar o rechazar.
+   */
+  estadoDeCarga: "cargando" | "error" | "listo";
 }) {
   const { montado, saliendo } = useSalidaAnimada(abierto, DURACION_SALIDA_MS);
   if (!montado) return null;
   return (
     <Caja
       saliendo={saliendo} estudio={estudio} entregas={entregas} entregaId={entregaId} miPersonaId={miPersonaId}
-      onCerrar={onCerrar} onResuelta={onResuelta} onError={onError} onAbrirEstudio={onAbrirEstudio}
+      onCerrar={onCerrar} onResuelta={onResuelta} onError={onError} onAbrirEstudio={onAbrirEstudio} estadoDeCarga={estadoDeCarga}
     />
   );
 }
 
 function Caja({
-  saliendo, estudio, entregas, entregaId, miPersonaId, onCerrar, onResuelta, onError, onAbrirEstudio,
+  saliendo, estudio, entregas, entregaId, miPersonaId, onCerrar, onResuelta, onError, onAbrirEstudio, estadoDeCarga,
 }: Omit<Parameters<typeof VisorConstancia>[0], "abierto"> & { saliendo: boolean }) {
   const orden = useMemo(() => entregasEnOrden(entregas), [entregas]);
   const [idActual, setIdActual] = useState<string | null>(() => entregaId ?? orden.at(-1)?.id ?? null);
@@ -89,6 +95,7 @@ function Caja({
   const [ocupado, setOcupado] = useState(false);
   const caja = useRef<HTMLDivElement>(null);
   const escenario = useRef<HTMLDivElement>(null);
+  const cuerpo = useRef<HTMLDivElement>(null);
   const ocupadoRef = useRef(false);
   useEffect(() => { ocupadoRef.current = ocupado; }, [ocupado]);
 
@@ -102,8 +109,18 @@ function Caja({
     if (destino) { setIdActual(destino.id); setZoom(1); }
   }, [orden, indice]);
 
-  // Al cambiar de constancia se vuelve al principio de la hoja.
-  useEffect(() => { escenario.current?.scrollTo({ top: 0, left: 0 }); }, [idActual]);
+  // Al cambiar de constancia se vuelve al principio de la hoja. Quien se desplaza depende del ancho: desde
+  // `lg` es el escenario (cada zona con su scroll); por debajo, el cuerpo entero. Se reinician los dos.
+  useEffect(() => {
+    cuerpo.current?.scrollTo({ top: 0, left: 0 });
+    escenario.current?.scrollTo({ top: 0, left: 0 });
+  }, [idActual]);
+
+  // Al cerrarse una confirmación (o al resolverse la constancia y desaparecer el botón que la abrió) el foco
+  // cae al <body>; se devuelve al visor para que Tab y las flechas sigan trabajando adentro.
+  useEffect(() => {
+    if (!ocupado && (document.activeElement === document.body || document.activeElement === null)) caja.current?.focus();
+  }, [ocupado]);
 
   // Foco: entra al abrir y vuelve a quien lo abrió al cerrar. La página de atrás no se desplaza.
   useEffect(() => {
@@ -119,17 +136,33 @@ function Caja({
 
   useEffect(() => {
     function alPresionar(ev: KeyboardEvent) {
-      if (ocupadoRef.current) return;
+      const hayConfirmacion = ocupadoRef.current;
+
+      // Tab: el foco no se escapa NUNCA, ni con una confirmación abierta. `Modal` no atrapa el foco, así
+      // que mientras hay una, la raíz de la trampa es esa confirmación (el último diálogo del documento) y
+      // no el visor. Y si el foco ya se cayó fuera de la raíz —al <body>—, Tab lo trae de vuelta.
+      if (ev.key === "Tab") {
+        const dialogos = document.querySelectorAll<HTMLElement>('[role="dialog"]');
+        const raiz = hayConfirmacion ? dialogos[dialogos.length - 1] : caja.current;
+        if (!raiz) return;
+        // Solo lo que se ve: «Abrir estudio» está oculto en celular y no puede ser el primero ni el último.
+        const f = Array.from(raiz.querySelectorAll<HTMLElement>(FOCUSABLES)).filter((x) => x.getClientRects().length > 0);
+        if (f.length === 0) { ev.preventDefault(); raiz.focus(); return; }
+        const activo = document.activeElement as HTMLElement | null;
+        const adentro = activo !== null && activo !== raiz && raiz.contains(activo);
+        if (!adentro) { ev.preventDefault(); (ev.shiftKey ? f[f.length - 1] : f[0]).focus(); return; }
+        if (ev.shiftKey && activo === f[0]) { ev.preventDefault(); f[f.length - 1].focus(); }
+        else if (!ev.shiftKey && activo === f[f.length - 1]) { ev.preventDefault(); f[0].focus(); }
+        return;
+      }
+
+      // Esc y las flechas: con una confirmación abierta son de la confirmación.
+      if (hayConfirmacion) return;
       const el = ev.target as HTMLElement | null;
       const escribiendo = el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement;
       if (ev.key === "Escape") { ev.preventDefault(); onCerrar(); return; }
       if (!escribiendo && ev.key === "ArrowLeft") { ev.preventDefault(); ir(-1); return; }
       if (!escribiendo && ev.key === "ArrowRight") { ev.preventDefault(); ir(1); return; }
-      if (ev.key !== "Tab" || !caja.current) return;
-      const f = Array.from(caja.current.querySelectorAll<HTMLElement>(FOCUSABLES));
-      if (f.length === 0) return;
-      if (ev.shiftKey && (document.activeElement === f[0] || document.activeElement === caja.current)) { ev.preventDefault(); f[f.length - 1].focus(); }
-      else if (!ev.shiftKey && document.activeElement === f[f.length - 1]) { ev.preventDefault(); f[0].focus(); }
     }
     document.addEventListener("keydown", alPresionar);
     return () => document.removeEventListener("keydown", alPresionar);
@@ -190,7 +223,7 @@ function Caja({
         )}
 
         {/* ── CUERPO: el papel y sus datos ───────────────────────────────── */}
-        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto lg:grid lg:grid-cols-[minmax(0,1fr)_21rem] lg:overflow-hidden">
+        <div ref={cuerpo} className="flex min-h-0 flex-1 flex-col overflow-y-auto lg:grid lg:grid-cols-[minmax(0,1fr)_21rem] lg:overflow-hidden">
           <div ref={escenario} className="min-w-0 bg-hueso lg:overflow-auto">
             {e ? (
               <>
@@ -214,7 +247,13 @@ function Caja({
                 </div>
               </>
             ) : (
-              <p className="px-6 py-20 text-center text-sm text-taupe">Este estudio todavía no tiene constancias.</p>
+              <p className="px-6 py-20 text-center text-sm text-taupe">
+                {estadoDeCarga === "cargando"
+                  ? "Trayendo las constancias de este estudio…"
+                  : estadoDeCarga === "error"
+                    ? "No se pudieron leer las constancias de este estudio. Cierra el visor y toca «Reintentar»."
+                    : "Este estudio todavía no tiene constancias."}
+              </p>
             )}
           </div>
 
@@ -224,7 +263,7 @@ function Caja({
                 {e.estado === "pendiente" && (
                   <div className="mt-5 border-t border-sand pt-4">
                     <AccionesRevision
-                      entrega={e} persona={estudio.persona} esPropia={esPropia}
+                      key={e.id} entrega={e} persona={estudio.persona} esPropia={esPropia}
                       onResuelta={onResuelta} onError={onError} onOcupado={setOcupado}
                     />
                   </div>

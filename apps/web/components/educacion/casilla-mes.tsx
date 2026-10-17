@@ -38,12 +38,17 @@ const RAYAS = {
 } as const;
 
 export function CasillaMes({
-  casilla, persona, cargando, resaltada, alAbrir,
+  casilla, persona, cargando, sinLeer, resaltada, alAbrir,
 }: {
   casilla: Casilla;
   persona: string;
   /** Las constancias todavía están llegando: no se puede decir «vacía». */
   cargando: boolean;
+  /**
+   * Las constancias de este estudio NO se pudieron leer. Una casilla sin constancia en ese caso no es
+   * «sin constancia» sino «no se sabe»: se dibuja como tal. Si hay una constancia leída antes, se ve normal.
+   */
+  sinLeer: boolean;
   resaltada: boolean;
   alAbrir: () => void;
 }) {
@@ -59,6 +64,20 @@ export function CasillaMes({
   }
 
   const e = casilla.principal;
+  if ((!e || casilla.estado === "vacia") && sinLeer) {
+    return (
+      <div className={`flex justify-center py-1 ${fondo}`}>
+        <div
+          role="img"
+          aria-label={`${corto} ${anio}: no se pudieron leer las constancias de este estudio`}
+          title="No se pudieron leer las constancias de este estudio. Usa «Reintentar» arriba."
+          className="flex h-16 w-[52px] items-center justify-center rounded-control border border-dashed border-ambar text-sm font-medium text-ambar"
+        >
+          ?
+        </div>
+      </div>
+    );
+  }
   if (!e || casilla.estado === "vacia") {
     return (
       <div className={`flex justify-center py-1 ${fondo}`}>
@@ -68,7 +87,7 @@ export function CasillaMes({
             ? `${corto} ${anio}: el estudio no estaba vigente`
             : `${corto} ${anio}: sin constancia recibida`}
           style={casilla.fueraDeVigencia ? RAYAS : undefined}
-          className={`flex h-16 w-[52px] items-center justify-center rounded-control text-sm text-taupe/70 ${
+          className={`flex h-16 w-[52px] items-center justify-center rounded-control text-sm text-taupe ${
             casilla.fueraDeVigencia ? "" : "border border-dashed border-sand"
           }`}
         >
@@ -93,7 +112,7 @@ export function CasillaMes({
         title={`${t.texto} · pago del ${fechaCorta(e.fecha_pago)}`}
         className={`group relative h-16 w-[52px] overflow-hidden rounded-control border-2 bg-hueso transition-[transform,border-color] duration-150 hover:-translate-y-0.5 motion-reduce:transition-none motion-reduce:hover:translate-y-0 ${t.borde}`}
       >
-        <Miniatura archivo={e.archivos[0] ?? null} alt="" />
+        <Miniatura key={e.archivos[0]?.id ?? "sin-archivo"} archivo={e.archivos[0] ?? null} alt="" />
         <span
           aria-hidden
           className={`absolute right-0.5 top-0.5 flex size-4 items-center justify-center rounded-full ${t.insignia}`}

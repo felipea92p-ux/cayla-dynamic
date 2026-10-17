@@ -84,22 +84,26 @@ function HojaArchivo({ archivo, ancho, ajustada }: { archivo: ArchivoDeEntrega; 
     return () => { vivo = false; };
   }, [supabase, archivo.ruta, dibujable, intento]);
 
+  // «Abrir aparte» es la salida para lo que no se pueda dibujar: un archivo de otro tipo, o uno que
+  // falló. El panel de antes abría en pestaña TODO archivo; que el visor nuevo no pueda mostrar uno
+  // no puede dejar a quien revisa sin ninguna forma de verlo.
+  const abrirAparte = (
+    <Boton tamano="sm" onClick={() => void abrirArchivoFirmado(supabase, BUCKET_COMPROBANTES, archivo.ruta)}>
+      Abrir aparte
+    </Boton>
+  );
   if (!dibujable) {
-    return (
-      <Aviso>
-        Este tipo de archivo no se puede mostrar aquí.
-        <Boton tamano="sm" onClick={() => void abrirArchivoFirmado(supabase, BUCKET_COMPROBANTES, archivo.ruta)}>
-          Abrir aparte
-        </Boton>
-      </Aviso>
-    );
+    return <Aviso>Este tipo de archivo no se puede mostrar aquí.{abrirAparte}</Aviso>;
   }
   if (url === undefined) return <Esqueleto ancho={ancho} />;
   if (url === null) {
     return (
       <Aviso>
         No se pudo cargar el archivo.
-        <Boton tamano="sm" onClick={() => setIntento((n) => n + 1)}>Reintentar</Boton>
+        <span className="flex gap-2">
+          <Boton tamano="sm" onClick={() => setIntento((n) => n + 1)}>Reintentar</Boton>
+          {abrirAparte}
+        </span>
       </Aviso>
     );
   }
@@ -174,6 +178,10 @@ function PaginaPdf({ pdf, numero, total, ancho }: { pdf: PDFDocumentProxy; numer
   const lienzo = useRef<HTMLCanvasElement>(null);
   const [cerca, setCerca] = useState(false);
   const [alto, setAlto] = useState(() => Math.round(ancho * 1.414));
+  const [fallo, setFallo] = useState(false);
+  const [intento, setIntento] = useState(0);
+  const montada = useRef(true);
+  useEffect(() => { montada.current = true; return () => { montada.current = false; }; }, []);
 
   // Se pinta cuando la hoja se acerca a la pantalla, no todas de golpe.
   useEffect(() => {
@@ -188,9 +196,13 @@ function PaginaPdf({ pdf, numero, total, ancho }: { pdf: PDFDocumentProxy; numer
     const canvas = lienzo.current;
     if (!canvas || ancho <= 0) return;
     try {
-      setAlto(await dibujarPagina(pdf, numero, canvas, ancho));
+      const alturaCss = await dibujarPagina(pdf, numero, canvas, ancho);
+      // null = llegó un pedido más nuevo (otro zoom): el que importa es ese, no este.
+      if (alturaCss !== null && montada.current) { setAlto(alturaCss); setFallo(false); }
     } catch {
-      // Una hoja que no se dibuja se queda en blanco; las demás siguen.
+      // Una hoja que no se pudo dibujar NO se deja en blanco como si fuera una hoja en blanco:
+      // quien revisa tiene que enterarse de que le falta ver algo antes de aprobar.
+      if (montada.current) setFallo(true);
     }
   }, [pdf, numero, ancho]);
 
@@ -199,11 +211,18 @@ function PaginaPdf({ pdf, numero, total, ancho }: { pdf: PDFDocumentProxy; numer
     if (!cerca) return;
     const t = window.setTimeout(() => void pintar(), 120);
     return () => window.clearTimeout(t);
-  }, [cerca, pintar]);
+  }, [cerca, pintar, intento]);
 
   return (
-    <div ref={caja} style={{ width: ancho, minHeight: alto }} className="mx-auto max-w-none rounded-control border border-sand bg-papel">
+    <div ref={caja} style={{ width: ancho, minHeight: alto }} className="relative mx-auto max-w-none rounded-control border border-sand bg-papel">
       <canvas ref={lienzo} aria-label={`Hoja ${numero} de ${total}`} role="img" className="block rounded-control" />
+      {fallo && (
+        <div role="alert" className="absolute inset-0 flex flex-col items-center justify-center gap-3 rounded-control bg-papel px-4 text-center text-sm text-taupe">
+          <FileWarning className="size-6" aria-hidden />
+          No se pudo dibujar la hoja {numero} de {total}. No la des por vista.
+          <Boton tamano="sm" onClick={() => { setFallo(false); setIntento((n) => n + 1); }}>Reintentar</Boton>
+        </div>
+      )}
     </div>
   );
 }

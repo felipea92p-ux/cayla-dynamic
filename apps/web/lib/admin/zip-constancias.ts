@@ -32,6 +32,38 @@ export function nombreLegible(texto: string): string {
   return texto.replace(/[\\/:*?"<>|\u0000-\u001f]/g, "").replace(/\s+/g, " ").trim().slice(0, 120) || "archivo";
 }
 
+const EXTENSION_POR_TIPO: Record<string, string> = { "application/pdf": "pdf", "image/jpeg": "jpg", "image/png": "png" };
+const EXTENSIONES_CONOCIDAS = new Set(["pdf", "jpg", "jpeg", "png"]);
+
+/**
+ * La extensión con que un archivo viaja en el ZIP. Sale del tipo que verificó el almacén (o de la
+ * ruta que armó el sistema), NUNCA del nombre que puso quien lo subió: ese nombre llega del navegador
+ * de la integrante tal cual, y como el sistema recomprime toda foto a JPG, «IMG_0001.HEIC» es en
+ * realidad un .jpg. Quien abra el ZIP en un expediente no debe encontrar un «.exe» o un «.html».
+ */
+export function extensionDeArchivo(a: { tipo_mime: string | null; ruta: string }): string {
+  const porTipo = a.tipo_mime ? EXTENSION_POR_TIPO[a.tipo_mime] : undefined;
+  if (porTipo) return porTipo;
+  const deLaRuta = a.ruta.match(/\.([A-Za-z0-9]{1,5})$/)?.[1]?.toLowerCase();
+  return deLaRuta && EXTENSIONES_CONOCIDAS.has(deLaRuta) ? deLaRuta : "bin";
+}
+
+const MAXIMO_DE_NOMBRE = 120;
+/** Lugar que se deja para « (NN)», el sufijo que `sinRepetidos` agrega a un nombre repetido. */
+const MARGEN_DE_REPETIDO = 6;
+
+/**
+ * El nombre de un archivo dentro del ZIP: «Persona - Institución - 2026-09-30 - 1.jpg». Cuando es
+ * demasiado largo se recorta «Persona - Institución» y NUNCA la cola —fecha, número y extensión—,
+ * que es lo que distingue una constancia de otra: cortado por el final, tres constancias de fechas
+ * distintas daban el mismo nombre y perdían hasta la extensión.
+ */
+export function nombreEnZip(persona: string, institucion: string, fechaPago: string, numero: number, extension: string): string {
+  const cola = ` - ${fechaPago} - ${numero}.${extension}`.replace(/[\\/:*?"<>|\u0000-\u001f]/g, "");
+  const cabeza = nombreLegible(`${persona} - ${institucion}`).slice(0, MAXIMO_DE_NOMBRE - cola.length - MARGEN_DE_REPETIDO).trimEnd();
+  return cabeza + cola;
+}
+
 /** Si dos archivos se llamarían igual, el segundo lleva «(2)», el tercero «(3)»… */
 export function sinRepetidos(nombres: string[]): string[] {
   const vistos = new Map<string, number>();

@@ -35,7 +35,7 @@ const SEPARADOR_DE_COLUMNAS = "border-l border-sand";
 
 export function CuadriculaMeses({
   estudios, meses, hayMasMeses, onVerMasMeses, mesResaltado, entregasPorFamilia, cargandoConstancias,
-  pendientes, hoy, resumenesSede, onAbrirVisor, onAbrirEstudio,
+  familiasSinLeer, pendientes, hoy, resumenesSede, onAbrirVisor, onAbrirEstudio,
 }: {
   estudios: Estudio[];
   meses: string[];
@@ -44,6 +44,8 @@ export function CuadriculaMeses({
   mesResaltado: string;
   entregasPorFamilia: ReadonlyMap<string, EntregaDeFamilia[]> | null;
   cargandoConstancias: boolean;
+  /** Estudios cuyas constancias no se pudieron leer: sus casillas vacías dicen «?» y no «—». */
+  familiasSinLeer: ReadonlySet<string>;
   pendientes: Pendiente[];
   hoy: string;
   /** Con valor, la lista se parte en un bloque por sede. Sin él, una sola lista. */
@@ -67,7 +69,11 @@ export function CuadriculaMeses({
   const fila = (e: Estudio) => {
     const entregas = entregasDeEstudio(e, entregasPorFamilia);
     const casillas = casillasDeEstudio(e, entregas, meses);
-    return { e, casillas, pendiente: pendienteDe(e), cargando: cargandoConstancias && entregasPorFamilia === null };
+    return {
+      e, casillas, pendiente: pendienteDe(e),
+      cargando: cargandoConstancias && entregasPorFamilia === null,
+      sinLeer: e.tramos.some((t) => familiasSinLeer.has(t.familia_id)),
+    };
   };
 
   return (
@@ -97,7 +103,7 @@ export function CuadriculaMeses({
                   <th key={m} scope="col" aria-current={m === mesDeHoy ? "date" : undefined}
                     className={`w-[68px] min-w-[68px] px-0 py-2 text-center font-normal ${i === 0 ? SEPARADOR_DE_COLUMNAS : ""} ${m === mesResaltado ? "bg-hueso" : ""}`}>
                     <span className={`block text-xs ${m === mesDeHoy ? "font-medium text-tinta" : ""}`}>{corto}</span>
-                    <span className="block h-3 text-[10px] leading-3 text-taupe/80">{mostrarAnio ? anio : ""}</span>
+                    <span className="block h-3 text-[10px] leading-3 text-taupe">{mostrarAnio ? anio : ""}</span>
                     {m === mesDeHoy && <span aria-hidden className="mx-auto mt-0.5 block h-0.5 w-5 rounded-full bg-tinta" />}
                   </th>
                 );
@@ -110,7 +116,7 @@ export function CuadriculaMeses({
             <tbody key={resumen?.sede ?? "todas"}>
               {resumen && (
                 <tr>
-                  <th colSpan={meses.length + 4} scope="colgroup" className="border-t border-sand bg-hueso/70 px-4 py-2 text-left font-normal">
+                  <th colSpan={meses.length + 4} scope="rowgroup" className="border-t border-sand bg-hueso/70 px-4 py-2 text-left font-normal">
                     <ResumenDelBloque resumen={resumen} />
                   </th>
                 </tr>
@@ -128,7 +134,7 @@ export function CuadriculaMeses({
                     </td>
                     {f.casillas.map((c, i) => (
                       <td key={c.mes} className={`p-0 align-middle ${i === 0 ? SEPARADOR_DE_COLUMNAS : ""}`}>
-                        <CasillaMes casilla={c} persona={e.persona} cargando={f.cargando} resaltada={c.mes === mesResaltado}
+                        <CasillaMes casilla={c} persona={e.persona} cargando={f.cargando} sinLeer={f.sinLeer} resaltada={c.mes === mesResaltado}
                           alAbrir={() => onAbrirVisor(e, c.principal?.id ?? null)} />
                       </td>
                     ))}
@@ -165,13 +171,14 @@ export function CuadriculaMeses({
                     </div>
                     <div className="mt-3"><DatosDelEstudio e={e} hoy={hoy} /></div>
                     <ul className="-mx-4 mt-3 flex snap-x gap-0 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                      {f.casillas.map((c) => {
-                        const { corto } = etiquetaMes(c.mes);
+                      {f.casillas.map((c, i) => {
+                        const { corto, anio } = etiquetaMes(c.mes);
                         return (
                           <li key={c.mes} className="shrink-0 snap-start">
                             <span className={`block text-center text-[11px] ${c.mes === mesDeHoy ? "font-medium text-tinta" : "text-taupe"}`}>{corto}</span>
+                            <span className="block h-3 text-center text-[10px] leading-3 text-taupe">{i === 0 || c.mes.endsWith("-01") ? anio : ""}</span>
                             <div className="w-[64px]">
-                              <CasillaMes casilla={c} persona={e.persona} cargando={f.cargando} resaltada={c.mes === mesResaltado}
+                              <CasillaMes casilla={c} persona={e.persona} cargando={f.cargando} sinLeer={f.sinLeer} resaltada={c.mes === mesResaltado}
                                 alAbrir={() => onAbrirVisor(e, c.principal?.id ?? null)} />
                             </div>
                           </li>
@@ -264,7 +271,9 @@ function Acciones({
   return (
     <div className={`flex gap-2 ${ancha ? "w-full" : "justify-end"}`}>
       {pendiente && (
-        <Boton variante="primario" tamano="sm" className={ancha ? "flex-1" : "whitespace-nowrap"} onClick={() => onAbrirVisor(e, pendiente)}>
+        <Boton variante="primario" tamano="sm" className={ancha ? "flex-1" : "whitespace-nowrap"}
+          aria-label={`Revisar la constancia pendiente de ${e.persona} en ${e.institucion}`}
+          onClick={() => onAbrirVisor(e, pendiente)}>
           Revisar →
         </Boton>
       )}

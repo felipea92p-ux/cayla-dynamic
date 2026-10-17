@@ -1,4 +1,4 @@
-import type { PDFDocumentProxy } from "pdfjs-dist";
+import type { PDFDocumentProxy, RenderTask } from "pdfjs-dist";
 import type { ClienteCayla } from "@cayla-dynamic/database";
 import { BUCKET_COMPROBANTES } from "@/lib/educacion";
 import type { ArchivoDeEntrega } from "./educacion-tipos";
@@ -72,12 +72,29 @@ type Pdfjs = typeof import("pdfjs-dist");
 let cargaPdfjs: Promise<Pdfjs> | null = null;
 
 function pdfjs(): Promise<Pdfjs> {
-  cargaPdfjs ??= import("pdfjs-dist/legacy/build/pdf.mjs").then((m) => {
-    m.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/legacy/build/pdf.worker.min.mjs", import.meta.url).toString();
-    return m;
-  });
+  if (!cargaPdfjs) {
+    cargaPdfjs = import("pdfjs-dist/legacy/build/pdf.mjs")
+      .then((m) => {
+        m.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/legacy/build/pdf.worker.min.mjs", import.meta.url).toString();
+        return m;
+      })
+      // Una carga que falló NO se queda guardada: «Reintentar» tiene que volver a pedir el archivo, no
+      // esperar la misma promesa rechazada hasta que alguien recargue la página.
+      .catch((e) => { cargaPdfjs = null; throw e; });
+  }
   return cargaPdfjs;
 }
+
+/**
+ * Dónde viven los decodificadores `wasm` de pdf.js (`public/pdfjs/wasm/`, copiados de
+ * `node_modules/pdfjs-dist/wasm/`; `tests/pdfjs-wasm.test.ts` vigila que sigan siendo los de la
+ * versión instalada). SIN ellos, un PDF escaneado en blanco y negro (JBIG2, CCITT) o con
+ * JPEG 2000 sale EN BLANCO, sin ningún error a la vista: justo lo que es una constancia que alguien
+ * escaneó en el banco. Medido el 2026-10-16 con un PDF de prueba JPEG 2000: hoja en blanco antes,
+ * hoja legible después. Tiene que ser una dirección ABSOLUTA: el worker la resuelve desde su
+ * propio archivo, no desde la página.
+ */
+const wasmUrl = (): string => `${window.location.origin}/pdfjs/wasm/`;
 
 export interface PdfAbierto {
   pdf: PDFDocumentProxy;
@@ -88,7 +105,7 @@ export interface PdfAbierto {
 /** Abre un PDF desde su URL firmada. En pdf.js 6 quien se destruye es la TAREA de carga, no el documento. */
 export async function abrirPdf(url: string): Promise<PdfAbierto> {
   const lib = await pdfjs();
-  const tarea = lib.getDocument({ url });
+  const tarea = lib.getDocument({ url, wasmUrl: wasmUrl() });
   try {
     const pdf = await tarea.promise;
     return { pdf, cerrar: () => { void tarea.destroy(); } };
@@ -98,30 +115,72 @@ export async function abrirPdf(url: string): Promise<PdfAbierto> {
   }
 }
 
+/** Un canvas de iPhone/iPad no pasa de unos 16,7 millones de píxeles: más y la hoja sale en blanco. */
+const MAX_PIXELES_DE_CANVAS = 12_000_000;
+
+/** El dibujado que está en marcha en cada canvas: pdf.js no deja dos a la vez sobre el mismo. */
+const dibujosEnCurso = new WeakMap<HTMLCanvasElement, RenderTask>();
+/** Cuál fue el último pedido de dibujo de cada canvas: el que llegue tarde con un ancho viejo se descarta. */
+const pedidos = new WeakMap<HTMLCanvasElement, number>();
+
 /**
  * Dibuja una página en un canvas a un ancho en píxeles CSS. El canvas se hace del
- * tamaño real de la pantalla (ancho × densidad de píxeles) para que el texto se lea
- * nítido, y se muestra al ancho pedido. Devuelve el alto en píxeles CSS.
+ * tamaño real de la pantalla (ancho × densidad de píxeles, con tope) para que el texto se lea
+ * nítido, y se muestra al ancho pedido.
+ *
+ * Devuelve el alto en píxeles CSS, o `null` si este dibujo quedó obsoleto porque llegó otro
+ * pedido para el mismo canvas (cambió el zoom o el ancho a media hoja): el que manda es el último.
+ * LANZA si no hay contexto 2D o si pdf.js falla: quien dibuja tiene que poder DECIR que una hoja
+ * no se pudo ver, y no dejarla en blanco como si fuera una hoja en blanco.
  */
 export async function dibujarPagina(
   pdf: PDFDocumentProxy,
   numero: number,
   canvas: HTMLCanvasElement,
   anchoCss: number,
-): Promise<number> {
+): Promise<number | null> {
+  const mio = (pedidos.get(canvas) ?? 0) + 1;
+  pedidos.set(canvas, mio);
+
   const pagina = await pdf.getPage(numero);
   const base = pagina.getViewport({ scale: 1 });
   // Tope de 2×: más densidad no se nota en una constancia y en un celular gasta memoria de más.
   const densidad = Math.min(window.devicePixelRatio || 1, 2);
-  const vista = pagina.getViewport({ scale: (anchoCss / base.width) * densidad });
+  let escala = (anchoCss / base.width) * densidad;
+  const area = base.width * escala * base.height * escala;
+  if (area > MAX_PIXELES_DE_CANVAS) escala *= Math.sqrt(MAX_PIXELES_DE_CANVAS / area);
+  const vista = pagina.getViewport({ scale: escala });
+  // El alto en pantalla sale de la proporción de la hoja, no del canvas: si el tope recortó la
+  // resolución, la hoja se sigue mostrando entera y al ancho pedido.
+  const altoCss = Math.floor((anchoCss * base.height) / base.width);
+
+  // pdf.js lanza «Cannot use the same canvas during multiple render() operations»: se cancela el
+  // dibujo anterior y se espera a que suelte el canvas antes de tocar su tamaño (que lo borra).
+  const previo = dibujosEnCurso.get(canvas);
+  if (previo) {
+    previo.cancel();
+    await previo.promise.catch(() => {});
+  }
+  if (pedidos.get(canvas) !== mio) return null;
+
   canvas.width = Math.floor(vista.width);
   canvas.height = Math.floor(vista.height);
   canvas.style.width = `${anchoCss}px`;
-  canvas.style.height = `${Math.floor(vista.height / densidad)}px`;
+  canvas.style.height = `${altoCss}px`;
   const contexto = canvas.getContext("2d");
-  if (!contexto) return 0;
-  await pagina.render({ canvas, canvasContext: contexto, viewport: vista }).promise;
-  return Math.floor(vista.height / densidad);
+  if (!contexto) throw new Error("El navegador no dio un lienzo para dibujar la hoja.");
+
+  const tarea = pagina.render({ canvas, canvasContext: contexto, viewport: vista });
+  dibujosEnCurso.set(canvas, tarea);
+  try {
+    await tarea.promise;
+  } catch (e) {
+    if ((e as { name?: string })?.name === "RenderingCancelledException") return null;
+    throw e;
+  } finally {
+    if (dibujosEnCurso.get(canvas) === tarea) dibujosEnCurso.delete(canvas);
+  }
+  return altoCss;
 }
 
 // ── Miniaturas ───────────────────────────────────────────────────────────────

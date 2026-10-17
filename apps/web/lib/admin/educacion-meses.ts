@@ -107,6 +107,40 @@ export function ventanaDeMeses(
   return { meses, hayMas: inicio > primero };
 }
 
+/**
+ * Los meses «con datos» que deciden hasta dónde llega la línea de tiempo: los de las constancias
+ * recibidas y los de INICIO de cada estudio. Un estudio que empieza en el futuro no cuenta —lo
+ * pondría como último mes y empujaría el de hoy fuera de la ventana—; solo las constancias que ya
+ * llegaron pueden estirarla hacia la derecha.
+ */
+export function mesesConDatosDeLaVentana(
+  hoy: string,
+  entregas: readonly Entrega[],
+  estudios: readonly { desde: string }[],
+): string[] {
+  const actual = mesDe(hoy);
+  return [...mesesConConstancia(entregas), ...estudios.map((e) => mesDe(e.desde)).filter((m) => m <= actual)];
+}
+
+/**
+ * La ventana, abierta hasta el mes que pida un filtro de fecha: el «mes del pago» o el «desde» del
+ * rango libre. Sin eso, quien filtra por «ago» o por «desde el 1/7» vería la lista recortada pero
+ * la cuadrícula mostrando otros seis meses, sin la columna que pidió.
+ */
+export function ventanaParaFiltros(
+  hoy: string,
+  mesesConDatos: readonly string[],
+  cuantos: number,
+  f: Pick<Filtros, "mes" | "desde">,
+): VentanaDeMeses {
+  const v = ventanaDeMeses(hoy, mesesConDatos, cuantos);
+  const pedido = f.mes || f.desde.slice(0, 7);
+  if (pedido && pedido < v.meses[0]) {
+    return ventanaDeMeses(hoy, mesesConDatos, mesesEntre(pedido, v.meses[v.meses.length - 1]) + 1);
+  }
+  return v;
+}
+
 // ── ESTUDIOS: UNA FILA POR PERSONA E INSTITUCIÓN ─────────────────────────────
 
 /** Lo que pide acción primero; después, por persona. Igual al orden de siempre. */
@@ -134,7 +168,7 @@ export interface Estudio {
   // Los tres de abajo hacen que un Estudio entre donde entra una Situación en
   // `grupoDeEstudio` y `estadoParaMostrar` (que piden `estado_constancia` y `aprobadas`).
   estado_constancia: EstadoConstancia;
-  /** Suma de todos los tramos: «al día» exige que ALGUNA vez haya habido respaldo. */
+  /** Las del tramo en curso (o del que habla, si todos terminaron): «al día» exige respaldo del tramo VIGENTE. */
   aprobadas: number;
   vigencia: Situacion["vigencia"];
   desde: string;
@@ -165,6 +199,26 @@ function tramoRepresentante(tramos: Situacion[]): Situacion {
   )[0];
 }
 
+/** Lo que un tramo YA TERMINADO sigue debiendo y no puede esconderse detrás del tramo que sigue en curso. */
+const PENDIENTE_DE_UN_TRAMO_TERMINADO = new Set<EstadoConstancia>(["pendiente_revision", "vencida", "rechazada"]);
+
+/**
+ * El estado que dice la fila. Es el del tramo que habla por ella, salvo que un tramo ya terminado
+ * tenga una constancia sin resolver —por revisar, vencida o rechazada—: eso no se esconde detrás de
+ * un «Al día» del tramo nuevo. Sin esto, la misma fila contaba en la tarjeta «Pendientes de revisión»
+ * (que mira todos los tramos) y se pintaba «Al día» y caía en otra pestaña.
+ */
+function estadoDeLaFila(tramos: Situacion[], actual: Situacion): EstadoConstancia {
+  let estado = actual.estado_constancia;
+  for (const t of tramos) {
+    if (t === actual || t.vigencia !== "terminada") continue;
+    if (PENDIENTE_DE_UN_TRAMO_TERMINADO.has(t.estado_constancia) && PRIORIDAD_ESTADO[t.estado_constancia] < PRIORIDAD_ESTADO[estado]) {
+      estado = t.estado_constancia;
+    }
+  }
+  return estado;
+}
+
 export function agruparEstudios(situaciones: readonly Situacion[]): Estudio[] {
   const porClave = new Map<string, Situacion[]>();
   for (const s of situaciones) {
@@ -178,6 +232,9 @@ export function agruparEstudios(situaciones: readonly Situacion[]): Estudio[] {
       (a, b) => a.vigente_desde.localeCompare(b.vigente_desde) || a.vigente_hasta.localeCompare(b.vigente_hasta),
     );
     const actual = tramoRepresentante(tramos);
+    // «Al día» exige que el tramo EN CURSO tenga respaldo: las constancias de un ciclo ya cerrado no
+    // tapan que el tramo nuevo todavía no tiene ninguna. Si todos terminaron, cuentan las del que habla.
+    const enCurso = tramos.filter((t) => t.vigencia !== "terminada");
     estudios.push({
       clave,
       persona_id: actual.persona_id,
@@ -189,8 +246,8 @@ export function agruparEstudios(situaciones: readonly Situacion[]): Estudio[] {
       beneficiario_nombre: actual.beneficiario_nombre,
       tramos,
       actual,
-      estado_constancia: actual.estado_constancia,
-      aprobadas: tramos.reduce((t, x) => t + x.aprobadas, 0),
+      estado_constancia: estadoDeLaFila(tramos, actual),
+      aprobadas: (enCurso.length > 0 ? enCurso : [actual]).reduce((t, x) => t + x.aprobadas, 0),
       vigencia: actual.vigencia,
       desde: tramos[0].vigente_desde,
       hasta: tramos.reduce((m, x) => (x.vigente_hasta > m ? x.vigente_hasta : m), tramos[0].vigente_hasta),
@@ -246,9 +303,12 @@ export function casillasDeEstudio(
   entregas: readonly EntregaDeFamilia[],
   meses: readonly string[],
 ): Casilla[] {
+  // Una rechazada que la integrante ya corrigió (otra constancia dice reemplazarla) no habla por su
+  // mes aunque la corrección traiga OTRA fecha de pago: quedaría en rojo para siempre.
+  const corregidas = new Set(entregas.filter(cuentaComoRecibida).map((e) => e.reemplaza_a).filter((id): id is string => !!id));
   return meses.map((mes) => {
     const delMes = entregas
-      .filter((e) => cuentaComoRecibida(e) && mesDe(e.fecha_pago) === mes)
+      .filter((e) => cuentaComoRecibida(e) && mesDe(e.fecha_pago) === mes && !(e.estado === "rechazada" && corregidas.has(e.id)))
       .sort(
         (a, b) =>
           PESO_CASILLA[a.estado] - PESO_CASILLA[b.estado] ||
@@ -316,6 +376,12 @@ export interface ContextoDeFiltros {
   familiasConPendiente: ReadonlySet<string>;
   /** null mientras las constancias todavía se están trayendo: los filtros que dependen de ellas no se aplican. */
   entregasPorFamilia: ReadonlyMap<string, EntregaDeFamilia[]> | null;
+  /**
+   * Los estudios cuyas constancias NO se pudieron leer. Ausentes del mapa no quiere decir «sin
+   * constancias»: quiere decir «no se sabe», y un estudio que no se sabe nunca se esconde por un filtro
+   * que mira constancias.
+   */
+  familiasSinLeer: ReadonlySet<string>;
   /** `?persona=<id>`: manda sobre todo lo demás (ADR 0003). */
   personaPedida: string | null;
 }
@@ -361,7 +427,11 @@ export function pasaFiltros(
 ): boolean {
   const aplica = (k: keyof Filtros) => !ignorar.includes(k);
   if (ctx.personaPedida) return e.persona_id === ctx.personaPedida;
-  if (!f.liquidadas && ctx.liquidadas.has(e.persona_id)) return false;
+  // Lo que espera la revisión de DO NUNCA se esconde por un valor que nadie eligió: ni «vigentes y por
+  // empezar» ni «sin personas liquidadas» son filtros puestos por quien mira, son lo que trae la pantalla.
+  // Si una constancia de un estudio terminado o de una persona liquidada queda esperando, tiene que verse.
+  const esperaRevision = e.tramos.some((t) => ctx.familiasConPendiente.has(t.familia_id));
+  if (!f.liquidadas && ctx.liquidadas.has(e.persona_id) && !esperaRevision) return false;
 
   if (aplica("tarjeta") && f.tarjeta) {
     const t = e.tramos;
@@ -376,7 +446,7 @@ export function pasaFiltros(
   if (aplica("estado") && f.estado && e.estado_constancia !== f.estado) return false;
   if (aplica("institucion") && f.institucion && e.institucion !== f.institucion) return false;
   if (aplica("vigencia")) {
-    if (f.vigencia === "activas" && e.vigencia === "terminada") return false;
+    if (f.vigencia === "activas" && e.vigencia === "terminada" && !esperaRevision) return false;
     if (f.vigencia === "terminada" && e.vigencia !== "terminada") return false;
   }
   if (aplica("quien") && f.quien) {
@@ -387,7 +457,8 @@ export function pasaFiltros(
 
   // Los que miran dentro de las constancias esperan a que lleguen: sin ellas no
   // se puede decir que un estudio NO cumple, así que no se esconde a nadie.
-  if (ctx.entregasPorFamilia && (["mes", "tipo", "revisor", "desde", "hasta"] as const).some((k) => aplica(k) && f[k])) {
+  const sinLeer = e.tramos.some((t) => ctx.familiasSinLeer.has(t.familia_id));
+  if (ctx.entregasPorFamilia && !sinLeer && (["mes", "tipo", "revisor", "desde", "hasta"] as const).some((k) => aplica(k) && f[k])) {
     // UNA MISMA constancia tiene que cumplirlo todo: «matrícula en setiembre» no se
     // cumple con una matrícula de agosto y una cuota de setiembre.
     const mias = entregasDeEstudio(e, ctx.entregasPorFamilia).filter(cuentaComoRecibida);

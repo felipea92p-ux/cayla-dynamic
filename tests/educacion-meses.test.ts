@@ -1,9 +1,10 @@
 import { describe, it, expect } from "vitest";
 import {
   agruparEstudios, casillasDeEstudio, conteoTarjetas, entregasEnOrden, FILTROS_VACIOS, filtrosAUrl, filtrosDeUrl,
-  hayFiltros, mesDe, mesesConConstancia, montoMensual, pasaFiltros, resumenPorSede, sedesDe, sumarMeses,
-  ventanaDeMeses, type ContextoDeFiltros, type Filtros,
+  hayFiltros, mesDe, mesesConConstancia, mesesConDatosDeLaVentana, montoMensual, pasaFiltros, resumenPorSede, sedesDe,
+  sumarMeses, ventanaDeMeses, ventanaParaFiltros, type ContextoDeFiltros, type Filtros,
 } from "@/lib/admin/educacion-meses";
+import { estadoParaMostrar, grupoDeEstudio } from "@/lib/admin/educacion-grupos";
 import type { EntregaDeFamilia, Situacion } from "@/lib/admin/educacion-tipos";
 
 const HOY = "2026-10-16";
@@ -32,7 +33,7 @@ function ent(over: Partial<EntregaDeFamilia> = {}): EntregaDeFamilia {
 }
 
 const ctx = (over: Partial<ContextoDeFiltros> = {}): ContextoDeFiltros => ({
-  liquidadas: new Set(), familiasConPendiente: new Set(), entregasPorFamilia: null, personaPedida: null, ...over,
+  liquidadas: new Set(), familiasConPendiente: new Set(), entregasPorFamilia: null, familiasSinLeer: new Set(), personaPedida: null, ...over,
 });
 const filtros = (over: Partial<Filtros> = {}): Filtros => ({ ...FILTROS_VACIOS, ...over });
 
@@ -84,7 +85,8 @@ describe("agruparEstudios — una fila por persona e institución", () => {
     const e = agruparEstudios(dos);
     expect(e).toHaveLength(1);
     expect(e[0].tramos.map((t) => t.familia_id)).toEqual(["f1", "f2"]);
-    expect(e[0].aprobadas).toBe(2);
+    // Los dos terminaron: cuentan las constancias del tramo que habla por la fila, no la suma.
+    expect(e[0].aprobadas).toBe(1);
     expect(e[0].desde).toBe("2026-08-01");
     expect(e[0].hasta).toBe("2026-09-28");
   });
@@ -336,5 +338,147 @@ describe("el enlace reproduce la pantalla", () => {
     expect(f.mes).toBe("2026-09");
     expect(f.desde).toBe("");
     expect(f.hasta).toBe("");
+  });
+});
+
+// ── Lo que encontró la revisión independiente del 2026-10-16 ─────────────────
+
+describe("el estado de la fila no esconde lo que un tramo terminado sigue debiendo", () => {
+  const terminado = (estado: Situacion["estado_constancia"]) =>
+    sit({ familia_id: "f1", vigente_desde: "2026-07-01", vigente_hasta: "2026-08-28", vigencia: "terminada", estado_constancia: estado, aprobadas: 2 });
+  const nuevo = sit({ familia_id: "f2", vigente_desde: "2026-08-29", vigente_hasta: "2026-12-31", estado_constancia: "al_dia", aprobadas: 1 });
+
+  it("una constancia por revisar de un tramo terminado hace que la fila diga «pendiente», no «al día»", () => {
+    const [e] = agruparEstudios([terminado("pendiente_revision"), nuevo]);
+    expect(e.estado_constancia).toBe("pendiente_revision");
+    expect(grupoDeEstudio(e)).toBe("por_revisar");
+  });
+
+  it("lo mismo con una vencida o una rechazada de un tramo terminado", () => {
+    expect(agruparEstudios([terminado("vencida"), nuevo])[0].estado_constancia).toBe("vencida");
+    expect(agruparEstudios([terminado("rechazada"), nuevo])[0].estado_constancia).toBe("rechazada");
+  });
+
+  it("pero un «por vencer» o un «al día» de un tramo terminado no mueve nada", () => {
+    expect(agruparEstudios([terminado("por_vencer"), nuevo])[0].estado_constancia).toBe("al_dia");
+    expect(agruparEstudios([terminado("al_dia"), nuevo])[0].estado_constancia).toBe("al_dia");
+  });
+
+  it("entre el del tramo en curso y el del terminado manda el más urgente", () => {
+    const vencidoNuevo = { ...nuevo, estado_constancia: "vencida" as const };
+    expect(agruparEstudios([terminado("rechazada"), vencidoNuevo])[0].estado_constancia).toBe("vencida");
+  });
+});
+
+describe("«al día» exige respaldo del tramo EN CURSO", () => {
+  it("las constancias de un ciclo ya cerrado no tapan que el tramo nuevo no tiene ninguna", () => {
+    const [e] = agruparEstudios([
+      sit({ familia_id: "f1", vigente_desde: "2026-07-01", vigente_hasta: "2026-08-28", vigencia: "terminada", aprobadas: 3 }),
+      sit({ familia_id: "f2", vigente_desde: "2026-08-29", vigente_hasta: "2026-12-31", estado_constancia: "al_dia", aprobadas: 0 }),
+    ]);
+    expect(e.aprobadas).toBe(0);
+    expect(grupoDeEstudio(e)).toBe("por_completar");
+    expect(estadoParaMostrar(e).etiqueta).toBe("Sin constancias aún");
+  });
+
+  it("dos registros vigentes a la vez siguen sumando", () => {
+    const [e] = agruparEstudios([sit({ familia_id: "f1", aprobadas: 1 }), sit({ familia_id: "f2", aprobadas: 2 })]);
+    expect(e.aprobadas).toBe(3);
+  });
+
+  it("si todos terminaron, cuentan las del tramo que habla por la fila", () => {
+    const [e] = agruparEstudios([
+      sit({ familia_id: "f1", vigente_desde: "2026-01-01", vigente_hasta: "2026-03-31", vigencia: "terminada", aprobadas: 5 }),
+      sit({ familia_id: "f2", vigente_desde: "2026-04-01", vigente_hasta: "2026-06-30", vigencia: "terminada", aprobadas: 2 }),
+    ]);
+    expect(e.aprobadas).toBe(2);
+  });
+});
+
+describe("una rechazada que ya tiene su corrección no queda roja para siempre", () => {
+  const [estudio] = agruparEstudios([sit({ vigente_desde: "2026-07-01" })]);
+  const meses = ["2026-08", "2026-09", "2026-10"];
+
+  it("la rechazada de agosto, corregida con un pago de setiembre, deja de hablar por agosto", () => {
+    const c = casillasDeEstudio(estudio, [
+      ent({ id: "r", fecha_pago: "2026-08-30", estado: "rechazada" }),
+      ent({ id: "n", fecha_pago: "2026-09-02", estado: "aprobada", reemplaza_a: "r" }),
+    ], meses);
+    expect(c[0].estado).toBe("vacia");
+    expect(c[1].estado).toBe("aprobada");
+  });
+
+  it("una rechazada sin corrección sí sigue hablando", () => {
+    const c = casillasDeEstudio(estudio, [ent({ id: "r", fecha_pago: "2026-08-30", estado: "rechazada" })], meses);
+    expect(c[0].estado).toBe("rechazada");
+  });
+
+  it("si la corrección también se rechazó, esa segunda sí queda", () => {
+    const c = casillasDeEstudio(estudio, [
+      ent({ id: "r", fecha_pago: "2026-08-30", estado: "rechazada" }),
+      ent({ id: "n", fecha_pago: "2026-09-02", estado: "rechazada", reemplaza_a: "r" }),
+    ], meses);
+    expect(c[0].estado).toBe("vacia");
+    expect(c[1].estado).toBe("rechazada");
+  });
+});
+
+describe("la ventana de meses no la estira un estudio que todavía no empieza", () => {
+  it("un estudio que empieza dentro de ocho meses no empuja el mes de hoy fuera de la ventana", () => {
+    const meses = mesesConDatosDeLaVentana(HOY, [ent({ fecha_pago: "2026-09-30" })], [{ desde: "2027-06-01" }, { desde: "2026-07-01" }]);
+    const v = ventanaDeMeses(HOY, meses, 6);
+    expect(v.meses.at(-1)).toBe("2026-10");
+    expect(v.meses[0]).toBe("2026-07");
+  });
+
+  it("pero una constancia que ya llegó del mes que viene sí la estira", () => {
+    const meses = mesesConDatosDeLaVentana(HOY, [ent({ fecha_pago: "2026-11-02" })], [{ desde: "2026-07-01" }]);
+    expect(ventanaDeMeses(HOY, meses, 6).meses.at(-1)).toBe("2026-11");
+  });
+
+  it("el rango libre de fechas también abre la ventana hasta su «desde»", () => {
+    const datos = ["2026-01", "2026-09"];
+    expect(ventanaParaFiltros(HOY, datos, 6, { mes: "", desde: "2026-02-10" }).meses[0]).toBe("2026-02");
+    expect(ventanaParaFiltros(HOY, datos, 6, { mes: "2026-03", desde: "" }).meses[0]).toBe("2026-03");
+    expect(ventanaParaFiltros(HOY, datos, 6, { mes: "", desde: "" }).meses[0]).toBe("2026-05");
+  });
+});
+
+describe("lo que espera revisión no se esconde por un valor que nadie eligió", () => {
+  const terminado = agruparEstudios([sit({ vigencia: "terminada", vigente_hasta: "2026-08-28", estado_constancia: "pendiente_revision" })])[0];
+  const espera = ctx({ familiasConPendiente: new Set(["f1"]) });
+
+  it("un estudio terminado con una constancia por revisar sale aunque «vigentes» sea el valor por defecto", () => {
+    expect(pasaFiltros(terminado, filtros(), espera)).toBe(true);
+    expect(pasaFiltros(terminado, filtros(), ctx())).toBe(false); // sin nada que revisar, sí se oculta
+  });
+
+  it("una persona ya liquidada con una constancia por revisar también sale", () => {
+    const c = ctx({ familiasConPendiente: new Set(["f1"]), liquidadas: new Set(["p1"]) });
+    const vigente = agruparEstudios([sit()])[0];
+    expect(pasaFiltros(vigente, filtros(), c)).toBe(true);
+    expect(pasaFiltros(vigente, filtros(), ctx({ liquidadas: new Set(["p1"]) }))).toBe(false);
+  });
+
+  it("pero si quien mira ELIGE «terminados», se respeta lo que eligió", () => {
+    const vigente = agruparEstudios([sit()])[0];
+    expect(pasaFiltros(vigente, filtros({ vigencia: "terminada" }), espera)).toBe(false);
+  });
+
+  it("las tarjetas cuentan ese pendiente", () => {
+    const todos = [terminado].filter((e) => pasaFiltros(e, filtros(), espera, ["tarjeta", "grupo"]));
+    expect(conteoTarjetas(todos, new Set(["f1"])).pendientes).toBe(1);
+  });
+});
+
+describe("un estudio cuyas constancias no se pudieron leer nunca se esconde", () => {
+  const e = agruparEstudios([sit()])[0];
+  const mapa = new Map([["f1", [] as EntregaDeFamilia[]]]);
+
+  it("con el filtro de mes, un estudio que falló no desaparece como si no tuviera constancias", () => {
+    const sinLeer = ctx({ entregasPorFamilia: mapa, familiasSinLeer: new Set(["f1"]) });
+    expect(pasaFiltros(e, filtros({ mes: "2026-09" }), sinLeer)).toBe(true);
+    // Leído y de verdad sin constancias ese mes: ahí sí se queda fuera.
+    expect(pasaFiltros(e, filtros({ mes: "2026-09" }), ctx({ entregasPorFamilia: mapa }))).toBe(false);
   });
 });

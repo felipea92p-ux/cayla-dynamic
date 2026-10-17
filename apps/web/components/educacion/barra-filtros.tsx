@@ -189,7 +189,7 @@ function FilaDeChips({ rotulo, children }: { rotulo: string; children: React.Rea
   return (
     <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3">
       <Rotulo className="sm:w-13 sm:shrink-0">{rotulo}</Rotulo>
-      <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-0.5 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">{children}</div>
+      <div role="group" aria-label={rotulo} className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-0.5 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">{children}</div>
     </div>
   );
 }
