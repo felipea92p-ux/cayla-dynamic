@@ -11,7 +11,7 @@ import {
   LayoutDashboard, Inbox, TriangleAlert, PencilLine, CalendarClock, Clock, Gauge,
   Users, IdCard, TreePalm, Gavel, ReceiptText, PiggyBank, Target, LayoutGrid, KeyRound,
   Building2, FileDown, FileText, FileSignature, CalendarCheck, Coins, Scale, GraduationCap, HandCoins,
-  BookText, UserRound, ScrollText, Megaphone, Palette, MessagesSquare, Archive,
+  BookText, UserRound, ScrollText, Megaphone, Palette, MessagesSquare, Archive, ShieldCheck,
   type LucideIcon,
 } from "lucide-react";
 import { ROLES_CON_PANEL, ROLES_DO, ROLES_EXPORTAN_ASISTENCIA } from "@cayla-dynamic/shared";
@@ -141,6 +141,15 @@ export const GRUPOS: Grupo[] = [
     { href: "/admin/datos-personales", label: "Datos personales", Icon: IdCard, roles: SEDE },
     { href: "/admin/contratos", label: "Contratos", Icon: ScrollText, roles: DO },
     { href: "/admin/documentacion", label: "Documentación", Icon: FileSignature, roles: DO },
+    // En qué seguro está cada colaborador y qué póliza le falta (0528): FOLA para
+    // los practicantes, EsSalud —por planilla— para el resto, y los que DO agregue.
+    // Va junto a Contratos y Documentación porque es el mismo tipo de cosa: un
+    // papel POR PERSONA con su estado de firma. No va en Pago aunque cueste plata:
+    // la prima se paga a la aseguradora y no pasa por la planilla. Sin contador
+    // propio: lo que pide (alguien sin póliza, una por vencer, un paso del papeleo,
+    // un cambio de seguro por cerrar) ya lo cuenta la Bandeja, y un aviso en dos
+    // sitios deja de ser aviso.
+    { href: "/admin/seguros", label: "Seguros", Icon: ShieldCheck, roles: DO },
     { href: "/admin/objetivos", label: "Objetivos", Icon: Target, roles: SEDE },
     // «Casos» (Reportes, 0483/0488; plan, decisión 21). Aquí y no en el grupo
     // «Reportes», que son informes: este nombre evita que un ítem y un grupo

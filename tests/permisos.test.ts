@@ -12,8 +12,8 @@ import {
   puedeOperarEquipo, puedeVerTodasLasSedes, puedeExportarPadron,
   puedeVerSaludDeAlertas, puedeExportarAsistencia, puedeAnularDocumentoDisciplinario,
   puedeTramitarDisciplina, recibeAvisoDeConductaRegistrada, recibeAvisoDeLecturaPendiente,
-  puedeVerNovedad, puedeGestionarBoletas, puedeMarcarCuentaDeServicio, puedeGestionarArchivo,
-  puedeEstamparFirmaDeEmpresa,
+  puedeVerNovedad, puedeGestionarBoletas, puedeMarcarCuentaDeServicio, puedeGestionarArchivo, puedeGestionarSeguros,
+  puedeExportarListaDeAsegurados, puedeEstamparFirmaDeEmpresa,
   ROLES, ROLES_CON_PANEL, ROLES_DO, ROLES_EXPORTAN_ASISTENCIA,
 } from "@cayla-dynamic/shared";
 
@@ -134,6 +134,9 @@ describe("la encargada de sede opera a su equipo, pero no ve la plata", () => {
   it("no ve el Archivo de la empresa: la constancia de un banco de datos lleva el DNI del representante (0503)", () => {
     expect(puedeGestionarArchivo("supervisor_sede")).toBe(false);
   });
+  it("no ve los seguros del equipo: el PDF de cada póliza lleva DNI y fecha de nacimiento (0528)", () => {
+    expect(puedeGestionarSeguros("supervisor_sede")).toBe(false);
+  });
   it("no crea sedes, áreas ni feriados — eso cambia el pago de las cuatro sedes", () => {
     expect(puedeGestionarCatalogos("supervisor_sede")).toBe(false);
   });
@@ -152,7 +155,7 @@ describe("la encargada de sede opera a su equipo, pero no ve la plata", () => {
 });
 
 describe("quien solo marca no entra al panel", () => {
-  for (const permiso of [puedeVerPlanilla, puedeVerIdentidad, puedeGestionarCatalogos, puedeOperarEquipo, puedeVerTodasLasSedes, puedeVerSaludDeAlertas, puedeExportarAsistencia, puedeGestionarBoletas, puedeGestionarArchivo]) {
+  for (const permiso of [puedeVerPlanilla, puedeVerIdentidad, puedeGestionarCatalogos, puedeOperarEquipo, puedeVerTodasLasSedes, puedeVerSaludDeAlertas, puedeExportarAsistencia, puedeGestionarBoletas, puedeGestionarArchivo, puedeGestionarSeguros]) {
     it(`integrante: ${permiso.name} = false`, () => {
       expect(permiso("integrante")).toBe(false);
     });
@@ -180,6 +183,9 @@ describe("DO ve todo", () => {
     it(`${rol} custodia el Archivo de la empresa (0503)`, () => {
       expect(puedeGestionarArchivo(rol)).toBe(true);
     });
+    it(`${rol} lleva los seguros del equipo (0528)`, () => {
+      expect(puedeGestionarSeguros(rol)).toBe(true);
+    });
   }
 });
 
@@ -195,6 +201,7 @@ describe("null no pasa como autorizado", () => {
       expect(puedeExportarAsistencia(raro)).toBe(false);
       expect(puedeGestionarBoletas(raro)).toBe(false);
       expect(puedeGestionarArchivo(raro)).toBe(false);
+      expect(puedeGestionarSeguros(raro)).toBe(false);
     });
   }
 });
@@ -271,5 +278,38 @@ describe("el padrón completo solo se lo lleva la dirección", () => {
     const baja = roles.filter((r) => puedeExportarPadron(r));
     expect(baja.length).toBeLessThan(ve.length);
     expect(ve).toEqual(expect.arrayContaining(baja));
+  });
+});
+
+// La lista de asegurados de un seguro lleva documento y fecha de nacimiento. Se le preguntó a Felipe
+// (2026-10-17) si el archivo era solo de la dirección, como el padrón, o también de DO, y eligió que
+// DO también: es quien trata con la aseguradora y el contador. Lo que NO se abrió es el padrón completo.
+describe("la lista de asegurados la descargan DO y la dirección (0528)", () => {
+  it("la dirección y quien lleva DO pueden descargarla", () => {
+    expect(puedeExportarListaDeAsegurados("admin")).toBe(true);
+    expect(puedeExportarListaDeAsegurados("lider_do")).toBe(true);
+  });
+
+  it("ni la líder de equipo ni una integrante", () => {
+    expect(puedeExportarListaDeAsegurados("supervisor_sede")).toBe(false);
+    expect(puedeExportarListaDeAsegurados("integrante")).toBe(false);
+  });
+
+  it("y un rol vacío, nulo o desconocido tampoco — null nunca pasa", () => {
+    for (const raro of [null, undefined, "", "contador"]) {
+      expect(puedeExportarListaDeAsegurados(raro)).toBe(false);
+    }
+  });
+
+  it("hoy dice lo mismo que gestionar los seguros: quien no ve la pantalla no se lleva el archivo", () => {
+    for (const rol of [...ROLES, null, undefined, "", "contador"]) {
+      expect(puedeExportarListaDeAsegurados(rol)).toBe(puedeGestionarSeguros(rol));
+    }
+  });
+
+  it("abrirla a DO NO abre el padrón completo: ese sigue solo para la dirección", () => {
+    expect(puedeExportarListaDeAsegurados("lider_do")).toBe(true);
+    expect(puedeExportarPadron("lider_do")).toBe(false);
+    expect(puedeExportarPadron("admin")).toBe(true);
   });
 });

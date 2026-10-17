@@ -6,6 +6,352 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-10-17 — Seguros del equipo: en qué seguro está cada colaborador (FOLA, EsSalud y los que DO agregue) · migración 0528 · SQL PEGADO Y VERIFICADO EN PRODUCCIÓN (2026-10-17) · PR #551 (BORRADOR) SIN FUSIONAR · rama `claude/fola-dynamic-implementation-252f99`
+
+**Qué es.** La pantalla `/admin/seguros` (grupo Personas, solo DO) y un módulo «Seguros» en la
+Bandeja, **para todo el equipo y no solo para los practicantes**. Cada colaborador está en un
+seguro: el que le toca por su vínculo (practicante → FOLA; planilla y prueba → EsSalud;
+honorarios y sin vínculo laboral → ninguno) o el que DO le asignó. Cuando ese seguro lleva póliza,
+la pantalla muestra su vigencia, su prima, los tres pasos del papeleo (prima pagada, póliza y
+convenio de pago firmados, factura recibida), los PDF y un historial de quién hizo qué. Lo que
+nadie miraba y ahora salta: **quién lleva póliza y hoy no tiene ninguna que cubra** (la 0504 quitó
+EsSalud a todos los practicantes de una vez y la póliza FOLA es nominal), a quién se le vence
+pronto, y **qué cambios de seguro quedan por cerrar**. **Solo alerta**: no toca la planilla, no
+cambia lo que cobra nadie; la prima se paga a la aseguradora y EsSalud sigue como estaba.
+
+**Lo que decidió Felipe (2026-10-17, con preguntas), en el orden en que lo fue diciendo:**
+1. Control para DO, vista del practicante, PDF dentro del sistema y avisos en la Bandeja;
+   pantalla «Seguros» en Personas; «Mi seguro» en Documentos de Lo mío; entrega por etapas, DO
+   primero. **Esta es la etapa 1.**
+2. «El seguro es para todos los colaboradores; FOLA es exclusivo de practicantes» y «el seguro
+   actual que tienen los empleados déjalos como está». El resumen de la póliza confirma lo primero:
+   cubre al asegurado «en su calidad de practicante del contratante» (p. 4).
+3. «Deberíamos modificar todo el módulo para que sea de seguro general y por cada colaborador
+   que cambie, ahí recién se ve en qué están: los practicantes en FOLA y los otros colaboradores
+   pueden estar ubicados en otro lado». **Eso rehízo la migración**: la primera versión era solo de
+   FOLA y se descartó entera (nunca se pegó).
+4. Qué otros seguros hay: «no se sabe con exactitud, revisar; en caso no haya uno, dejar que DO
+   agregue un seguro o tipo». → el catálogo vive en una tabla (`seguros_tipos`) y DO agrega los que
+   falten desde «Tipos de seguro». **Hoy trae dos: FOLA y EsSalud.**
+5. A quién le toca cada uno: «Automático por vínculo; DO lo cambia por persona».
+6. Cuando alguien cambia: «Lo muestra y deja dos pendientes» → la baja del seguro anterior y el
+   alta del nuevo.
+7. Con la pantalla ya hecha: «¿cómo sé qué colaboradores sí cuentan con seguro, para que el propio
+   sistema lo jale y no se tenga que rellenar los datos de nuevo?» A la pregunta de qué jalar solo,
+   marcó las cuatro opciones: una póliza para varias personas, la lista de asegurados, leer el PDF
+   de la póliza y «dejarlo así». **Las cuatro a la vez se contradicen en la última**; lo que se hizo
+   fue construir las tres primeras como ayudas AGREGADAS (el formulario de una póliza por persona
+   sigue igual, por si «dejarlo así» era lo que valía). Si en realidad no querías alguna, es quitar
+   su botón de la cabecera; ninguna toca lo que ya existía.
+8. Preguntado si el CSV de la lista de asegurados lo baja solo la dirección (como el padrón) o también DO,
+   eligió: **DO también** (`puedeExportarListaDeAsegurados`). El padrón completo sigue solo para la
+   dirección.
+
+**Cómo funciona.**
+- **`seguros_tipos`**: el catálogo. Cada seguro es *principal* (uno a la vez: FOLA, EsSalud) o va
+  *además* (una póliza adicional), y *lleva póliza* o no (EsSalud: «por planilla», nada que
+  registrar). FOLA y EsSalud son «del sistema»: no se archivan ni cambian de nombre. Un seguro que
+  agrega DO no le toca a nadie por su vínculo: se asigna persona por persona (si es principal) o se
+  le registra su póliza (si va además).
+- **El seguro principal de cada persona**: una asignación de DO vigente (`seguros_asignaciones`); si
+  no hay, el que cae sobre su vínculo; si tampoco, ninguno. La regla vive en
+  `fn_seguro_tipo_principal` y en ninguna otra parte: la pantalla pregunta (`fn_seguros_equipo`
+  trae también el que le tocaría por vínculo) y no la repite.
+- **El hueco** (quién tiene que tener póliza), escrito una vez en `fn_seguros_equipo`: la persona
+  está activa, su seguro principal lleva póliza y no tiene ninguna de ese seguro que cubra hoy.
+  EsSalud no lleva póliza: nunca es un hueco. Un seguro adicional no tapa el hueco del principal.
+- **Los cambios**: un disparador sobre `personas.tipo_vinculo` deja el cambio escrito cuando
+  cambia el seguro que le toca por su vínculo, y `fn_seguro_asignar` / `fn_seguro_volver_al_automatico`
+  cuando lo cambia DO. **No reescribe `fn_set_tipo_vinculo` ni `fn_cesar_persona`**: escucha la
+  columna, y nunca frena el cambio de vínculo (un error suyo es un aviso, no un fallo: ese cambio
+  mueve la planilla de una persona real). No registra nada de quien ya no está activa ni de quien
+  tiene una asignación vigente. Los dos pasos **se calculan al leer**: uno queda pendiente solo si la
+  persona sigue activa, nadie lo marcó y todavía tiene sentido (la baja, mientras quede una póliza
+  vigente del seguro anterior; el alta, mientras no se haya registrado la del nuevo), así que se
+  cierran solos cuando la póliza termina o se registra.
+- **En la Bandeja**: sin póliza, por vencer, papeleo (UNA fila por póliza, no tres), baja de quien se
+  fue y los dos pasos de cada cambio. El alta hacia un seguro con póliza que ya figura como «sin
+  póliza» no se repite: se funde en esa fila, que cuenta de dónde viene la persona.
+- **Para no teclear lo mismo dos veces** (punto 7). Tres botones en la cabecera, y ninguno guarda nada
+  que DO no haya revisado:
+  - **Leer PDF de póliza.** Se eligen uno o varios PDF (el corredor manda uno por persona) y pdf.js los
+    lee EN EL NAVEGADOR —el documento y la fecha de nacimiento del asegurado no salen de la
+    computadora hasta que se registra—. Cada póliza es una tarjeta editable con número, vigencia,
+    prima con IGV, cuándo vence el pago y a quién asegura; se registra con `fn_seguro_registrar` (las
+    mismas reglas del formulario) y el PDF se guarda en cada póliza. **Lo que dice el papel es una
+    PROPUESTA**: una tarjeta solo nace marcada si trae número, vigencia y prima, una persona clara,
+    NINGÚN aviso del lector y el documento del papel igual al de la ficha de esa persona. El nombre
+    propone (por palabras, sin importar el orden, con umbral de 0.85 y un margen sobre la segunda
+    candidata) y el documento comprueba: si no es el de la ficha, la tarjeta no se puede registrar; si
+    falta (en el papel, en la ficha, o la consulta falló) nace sin marcar y lo dice, pero DO puede
+    marcarla. Se adelantan los rechazos de la base —la persona no está en ese seguro, la póliza se cruza
+    con otra, un año mal tecleado—, la que ya existe sale «Ya estaba registrada», y una foto escaneada o
+    un PDF ilegible se dicen por su nombre. **La fecha final solo se da por probada cuando el papel dice
+    «AL 01/01/2027 … A LAS 12 M» (las condiciones particulares), NO el 31/12 del aviso de cobranza ni
+    del convenio**: ese es el último día cubierto y el sistema cuenta el final EXCLUSIVO; se midió sobre
+    la póliza real de FOLA. La portada y el resumen del seguro valen solo de respaldo, con un aviso que
+    dice de dónde salió la fecha. Una página que nombra dos pólizas no se le presta a ninguna, y solo se
+    reconoce a Pacífico (de otra aseguradora se lee con aviso). **Un PDF con las pólizas de varias
+    personas no se guarda en ninguna** (llevaría el documento y el nacimiento de las otras): se registran
+    y la tarjeta lo dice. Cerrar el diálogo, o elegir otros PDF, con pólizas marcadas sin registrar
+    pregunta antes.
+  - **Una póliza para varias personas** (`fn_seguro_registrar_varias`). En «Registrar una póliza»,
+    «A varias, la misma póliza»: una lista con casillas, el atajo «Las de planilla» (sale de
+    `personas.en_planilla`, no de una lista de vínculos en el navegador) y la prima POR PERSONA, con
+    «N × prima = total» a la vista. TODO O NADA: si a una no se le puede registrar, no se registra a nadie y
+    el mensaje dice con quién falló (hasta 100 por vez; el seguro y lo común a todas —aseguradora,
+    fechas, prima— se comprueban ANTES de recorrer la lista, para no culpar a la primera persona de algo que
+    es de todas); quien ya tiene una póliza de ese seguro que se cruza se deja fuera con el motivo. El PDF de una póliza colectiva se COPIA dentro del almacén a las pólizas de las demás
+    personas (cada fila tiene su propio objeto: un índice lo exige).
+  - **Lista de asegurados** (`fn_seguro_asegurados`). Quiénes están en un seguro HOY con documento,
+    nacimiento, ingreso, sede y póliza, y quién tiene datos por completar (sin documento o sin fecha de
+    nacimiento la aseguradora no emite el certificado). Reemplaza la consulta a mano de Vida Ley
+    (`scripts/sql-manual/quienes_van_al_seguro_de_vida_ley.sql`). **El CSV lo bajan DO y la dirección**
+    (`puedeExportarListaDeAsegurados`, punto 8); lleva documento y fecha de nacimiento, y la pantalla
+    recuerda compartirlo por un canal que se pueda revocar.
+
+**Lo que decidí sin preguntar, y es de Felipe cambiar:**
+- **La remuneración asegurable** —la que pide el seguro de vida— solo viaja al descargar el CSV y solo
+  si se marca la casilla: ninguna otra pantalla de seguros la lleva al navegador. (Quién baja el CSV
+  lo decidió Felipe, punto 8; la cuestión se planteó porque `puedeExportarPadron` ya distingue ver de
+  llevarse un dato con documento, y el padrón sigue solo para la dirección.)
+- **La prima de una póliza colectiva es la de cada persona** (una fila por persona): copiar el total en
+  cada fila haría que cualquier suma de primas contara la póliza diecinueve veces. El formulario muestra
+  «N × prima = total» y avisa que, si solo se tiene el total, se divida.
+- **No hay alerta de «persona en planilla sin Vida Ley».** El Seguro de Vida Ley es obligatorio para toda
+  la planilla desde el primer día (D. Leg. 688), pero `aplica_a_vinculos` solo manda en los seguros
+  principales, así que el sistema no sabe quién DEBERÍA tener un seguro que va además. Lo más cerca son
+  el atajo «Las de planilla» al registrar la póliza y la lista de asegurados. Convertirlo en un hueco
+  es una decisión de producto —¿para qué vínculos es obligatorio cada seguro?—, no de esta migración.
+- **Aviso de renovación a 45 días** (`DIAS_AVISO_RENOVACION`, `lib/admin/seguros.ts`). Número
+  elegido, no de ley: el corredor necesita días y la prima de contado de la póliza de hoy venció
+  17 días después de emitirse.
+- **`vigente_hasta` es EXCLUSIVO**: el papel dice «del 01/10/2026 al 01/01/2027, 92 días, a las
+  12 M». El 1/1 ya cuenta como sin cubrir (lado cauteloso). Una renovación que empieza ese mismo
+  día no se cruza ni deja hueco.
+- **El historial vive en su propia tabla** (`polizas_seguro_eventos`) y no en
+  `correcciones_auditoria`: esas filas las leen la ficha, Lo mío, Correcciones y el CSV, y las
+  cuatro tendrían que aprender a rotular «seguro.pagada_el».
+- **«Hasta» nace a 3 meses de «Desde»** (la póliza de hoy) y se puede mover a 6 meses o 1 año.
+- **Los avisos de un cambio no inventan un plazo**: el de dar de alta o de baja depende de cada
+  aseguradora y del contador. Van a «Sin plazo», con los días que lleva esperando.
+- **Quien se fue y ya no tiene una póliza que corra es historia**, aunque `fn_seguros_equipo` la
+  traiga: son dos consultas, y a medianoche una póliza puede vencer entre la una y la otra.
+- **«Cobertura suspendida» es una situación aparte.** Una póliza vigente por fechas cuya prima lleva
+  más de 30 días sin pagarse ya no cubre (convenio de pago, cláusula quinta), pero la base solo sabe de
+  fechas: sin esto la pantalla decía «Cubierto» de alguien que no lo está. Lo decide `estadoPrima`, no
+  SQL; va arriba de la lista, justo después de quien no tiene póliza.
+- **Una vigencia de más de diez años, o que termina a más de diez años de hoy, se rechaza** (y un
+  vencimiento de la prima a más de un año de la vigencia): un año mal tecleado (20277 por 2027) dejaba a
+  todo un lote «cubierto por siglos» y apagaba el aviso de hueco. El diez es un número elegido, no de ley.
+- **El CSV de asegurados escribe las fechas en ISO** (`2026-10-17`), como el padrón y el resto de las
+  exportaciones, y no `17/10/2026`: un `05/10/2026` se lee como 10 de mayo en un Excel en inglés, y aquí
+  cada fecha decide si alguien está cubierto.
+- **Un «otro papel» no se copia a las demás pólizas de una póliza colectiva** (la póliza, el convenio de
+  pago y la factura sí): puede ser de una sola persona. Si una copia falla se ofrece repetir solo esas.
+- **Las estaciones de Retail no entran a seguros**: `fn_seguro_registrar` y `fn_seguro_asignar` las rechazan.
+- **Una póliza colectiva se registra a cada persona con el mismo número** (un seguro de vida o una EPS
+  es una póliza de la empresa con un solo número). El índice único lleva `persona_id`: la MISMA póliza
+  a la misma persona sigue frenada. Si FOLA repitiera un número entre dos practicantes, la base ya no
+  lo frena: se vería en las dos tarjetas.
+
+**Pendiente, en este orden (Felipe).**
+1. **HECHO — la 0528 está PEGADA y VERIFICADA en producción (Felipe, 2026-10-17).** Se entregó con
+   `./scripts/dame-el-sql.sh 528` (2365 líneas, 119 302 bytes, md5 `8ccbdbfb…`, comparado con el archivo
+   de GitHub), después de volver a mirar `main` y la numeración. La consulta de «ANTES DE PEGAR» dio 0 tablas,
+   0 funciones, 0 disparadores, 0 buckets y ningún registro 528 (había 525, 527, 529, 531 y 532); y la de
+   comprobación con que termina la migración dio **6 tablas, 25 funciones, 1 disparador, 4 políticas de
+   Storage, el bucket privado, RLS en las 6, los tipos de sistema `essalud,salud_practicantes` y el registro
+   `528 · los_seguros_del_equipo_entran_al_sistema`**. No reescribe ninguna función, así que no hubo md5 de
+   partida. Lo único que toca fuera de sus tablas es **un disparador en `personas`** (después de cambiar
+   `tipo_vinculo`), y no puede frenar un cambio de vínculo.
+   **Un número que no cuadró, y por qué no importa:** `apoyo_de_3` dio 4, no 3. La consulta cuenta `pg_proc`
+   por nombre en TODOS los esquemas, y `retail.fn_hoy_lima()` vive en el mismo proyecto de Supabase. Se
+   confirmó listando las cuatro: las tres de `public` (sin argumentos) y la de `retail`. Las 25 funciones de
+   la 0528 fijan `search_path = public`, así que `fn_hoy_lima()` resuelve siempre a la de `public`. La
+   cabecera de la 0528 no se tocó después de pegarla: su consulta de «antes» solo sirve para la primera pegada.
+   Lo que falta es el PR (ver abajo) y los pasos 2 a 5.
+2. **Averiguar qué seguros tiene el resto del equipo** («revisar», dijo Felipe) y agregar los que
+   falten desde «Tipos de seguro». Mientras tanto, planilla y prueba quedan en EsSalud (por
+   planilla) y nadie recibe un aviso por ellos.
+3. **Registrar las cuatro pólizas FOLA** (N.º 24043264 a 24043267): lo más corto es «Leer PDF de póliza»
+   eligiendo los cuatro PDF a la vez (el de 24043267 se leyó entero sin avisos). Cada tarjeta nace marcada
+   solo si el documento del papel es el de la ficha de ese practicante: a quien le falte el DNI en su
+   ficha se le marca a mano, y a quien tenga otro, la tarjeta no lo deja registrar. Si alguno no se
+   entiende, el formulario de siempre. Falta adjuntar el convenio de pago y, cuando lleguen, las
+   facturas. Los papeles llevan DNI y fecha de nacimiento: no entran al repo.
+4. **Marcar los pasos que ya se hicieron**: la prima está pagada (Felipe, 15/10/2026); falta
+   firmar y devolver la póliza y el convenio de pago, y pedir las facturas.
+5. **Renovar antes del 01/01/2027.** Desde el 17/11/2026 la Bandeja avisa; la tabla de beneficios
+   dice «Renovación automática: Aplica» y esta pantalla guarda `renueva_sola` como «sin
+   confirmar» hasta que el corredor conteste.
+
+**Abierto con el corredor, y la pantalla lo deja visible.** Las condiciones particulares traen
+VACÍOS el plan y el «Beneficio máximo anual». Por precio, la póliza parece el Plan 1
+administrativo (S/ 179.97 ÷ 3 meses = S/ 60 al mes, pp. 21, 36 y 37 del PDF): S/ 16,800 por
+enfermedad y S/ 36,000 por accidente, con tope de remuneración de S/ 1,200. **Es una inferencia,
+no un dato del papel.** Con la subvención de S/ 1,230, 14 y 30 subvenciones son S/ 17,220 y
+S/ 36,900: ese plan se quedaría corto por S/ 420 y S/ 900 frente a lo que el convenio ya
+promete. Pedir por escrito el plan y el beneficio máximo, y cargarlos con «Corregir datos».
+**Lo que la pantalla NO hace** es comparar el beneficio con 14 y 30 subvenciones: pide la
+subvención de cada quien (`asignaciones_salario`) y la 0528 no la lee.
+
+**Qué se comprobó.** La 0528 aplicada **desde cero** por `supabase start` junto con todas las
+demás migraciones, sin error, y pegada otra vez encima (idempotente); y la prueba **422**
+(308 aserciones: 252 de la lógica de los seguros y 56 de «una póliza para varias personas», la lista
+de asegurados y lo que halló la segunda revisión) en verde dentro de una transacción, también partiendo de una base SIN los objetos
+de la 0528 (corriendo antes la receta de reversión de su cabecera, que así quedó probada de nuevo).
+Se probó que la prueba SABE fallar con veintidós mutaciones; las ocho últimas son de las dos funciones
+nuevas (tragarse el error del lote, quitar el `distinct`, el tope de 100, el último día inclusivo en la lista,
+la remuneración que sale aunque no se pida, la cuenta de servicio y el estado activo en la lista, y
+`en_planilla` en falso): las ocho las rompen. De las catorce primeras, las diez primeras
+mutaciones de las reglas (último día inclusivo, EsSalud como hueco, el alta que no se cierra sola,
+la baja que no se revierte, el disparador que ignora el estado o una asignación vigente o que deja
+escapar su propio error, registrar una póliza sin comprobar el seguro principal, asignar lo que
+ya toca por vínculo, y devolver el seguro efectivo como automático) y las cuatro de la revisión
+(índice sin `persona_id`, UPDATE de Storage sin la forma del nombre, sin tope de aseguradora, sin
+validar los textos de los avisos): las catorce la rompen. La segunda revisión sumó quince mutaciones
+más, entre ellas las siete que mostró que sobrevivían: todas las detecta la suite.
+`vitest` (2041 pruebas en 90 archivos, antes 1896: las nuevas son el lector de pólizas —con un texto
+sintético con la forma de la de Pacífico, de 30 pruebas a 50, con once mutaciones: diez las detecta la suite y
+la otra era código muerto—, las reglas de cada tarjeta de PDF y su cotejo de documento, la lista de asegurados y su CSV,
+la subida y la copia de archivos, el cruce de fechas y las hermanas de una póliza colectiva y el permiso de
+exportar; más las 83 de la lógica de la pantalla y las 33 de la Bandeja, incluida la que cuida que cargar una
+consulta no pise el objeto compartido de `FUENTES_VACIAS`), `tsc` y `eslint` en verde, y los frenos del push (numeración, reglas de la casa, nombre del PDF, fechas vacías,
+linter) corridos a mano sobre lo que la rama agrega: todos en 0.
+
+**Revisión independiente (dos agentes que no vieron mis conclusiones, uno para el SQL y otro para la
+pantalla; 2026-10-17).** Ninguno halló nada de gravedad alta: la lectura y la escritura están cerradas a
+quien no es DO (probado con cinco sesiones distintas —líder de equipo, integrante, DO cesada con su cuenta viva, usuario sin ficha y anónimo—, contra las seis tablas, las 23 funciones y el bucket), el disparador sobrevive
+a tres fallos inyectados, y un fuzz de 2000 escenarios y dos corridas de 1500 operaciones al azar no
+rompieron ninguna invariante. Lo que sí hallaron, y **ya está arreglado**: una póliza colectiva (vida,
+EPS) no se podía registrar a más de una persona; el disparador podía esperar por una pantalla de DO
+(ahora las funciones de tipos bloquean con `for no key update`) y las funciones de DO bloquean en un
+solo orden; la política de UPDATE de Storage dejaba renombrar un huérfano a un nombre con DNI; varios
+topes salían como un CHECK crudo; una póliza con la prima suspendida figuraba «Cubierto»; el formulario
+de póliza perdía el error del servidor si se cerraba a mitad de guardar; una asignación puesta a alguien
+de honorarios no se podía terminar; y unos conteos, un orden y unos textos que no cuadraban.
+
+**Segunda revisión, sobre las tres ayudas (otra vez dos agentes sin mis conclusiones, uno para el SQL y
+otro para la pantalla y el lector; 2026-10-17).** Del SQL: sin hallazgos altos (no hay deadlock, lote a
+medias, fuga ni pérdida de permisos al repegar). Lo que sí, y ya está arreglado: el año mal tecleado que
+dejaba a un lote «cubierto por siglos» (tope de diez años); «Con Ana falló: escribe la aseguradora» culpaba
+a la primera del lote de algo que es de todas (se comprueba antes); una estación de Retail aceptaba póliza
+y asignación y quedaba invisible; y `fn_seguros_equipo` perdía su permiso con el `drop` (ahora va junto al
+`create`). De la pantalla y el lector: la fecha final se daba por buena sin la frase que la prueba («A LAS
+12 M»), y «hasta el 31 de enero» pasaba por exclusivo; una página que nombra dos pólizas le prestaba sus
+datos a la equivocada; dos expresiones regulares con backtracking cúbico (20 000 saltos de línea tardaban
+segundos); un monto con punto de oración («179.97.») leía 17 997 soles; los nombres se comparaban por
+palabras sueltas («Rosa Díaz» se tomaba por «Díaz Rosa María»); una tarjeta con avisos nacía marcada y solo
+el nombre elegía a la persona (ahora lo comprueba el documento); un PDF con varias pólizas se guardaba en
+cada una; cerrar el diálogo perdía lo leído sin preguntar; una copia fallida de un archivo de póliza
+colectiva no se podía repetir; la lista de asegurados sin ningún seguro quedaba «Cargando» para siempre, y
+el CSV escribía `dd/mm/aaaa`. Todo está corregido y probado.
+
+**Lo que se dejó, a propósito** (cabecera de la 0528, «LÍMITES CONOCIDOS»): los pasos de un cambio
+guardan solo el último estado, sin historial de marcas como las pólizas; un cambio y su inverso el mismo
+día dejan un alta pendiente en EsSalud que DO marca y ya; y `fn_seguro_archivo_libre` la puede llamar
+cualquier sesión autenticada (solo dice si una ruta uuid está en uso). **Hallazgo ajeno, sin tocar:**
+`fn_cesar_persona` con un vínculo nuevo falla para un PRACTICANTE (no limpia `practicante_modalidad`,
+`personas_practicante_modalidad_coherente`); sin cambiar de vínculo, el cese funciona. La pantalla de
+Equipo nunca manda un vínculo nuevo al cesar, así que hoy solo se alcanza llamando a la función a mano:
+es un defecto latente, no uno que alguien esté pisando. Arreglarlo es reescribir una función con cinco
+versiones (pide `donde-vive.sh` y el md5 de producción antes de escribir): de otra migración y de otra
+sesión, y sin urgencia.
+
+**En el navegador** (2026-10-17, contra la base local con la 0528 aplicada y trece personas de
+prueba marcadas «ZZ Demo»: practicantes con y sin póliza, planilla, prueba, honorarios, dos que
+cambiaron de vínculo —el disparador dejó el cambio solo—, una a la que DO le asignó un seguro que él
+mismo agregó, y una que ya no está activa con su póliza vigente): la lista en el orden de atención,
+el catálogo de «Tipos de seguro» (agregar un seguro con sus validaciones, archivarlo con motivo),
+«Cambiar su seguro» ofreciendo solo lo que corresponde y volviendo al automático sin crear una
+asignación, cerrar un paso de un cambio con la fecha de hoy ya puesta, el formulario de póliza
+ofreciendo solo los seguros que llevan póliza y, si es el principal, solo a quien lo tiene, el
+historial, y la Bandeja con las filas de seguros y su enlace a `/admin/seguros?persona=…`.
+Escritorio, teléfono (375 px, sin desborde horizontal) y modo oscuro; las llamadas a la base
+contestaron todas 200. **A pedido de Felipe**, después: los números de arriba pasaron de tarjetas a
+botones de filtro, y estos a un solo botón «Filtros» junto al buscador (con la cuenta de los puestos)
+que abre un panel con las dos listas de opciones —situación y seguro, cada número es el de filas que
+deja ver—; lo puesto queda a la vista como chips que se quitan con un toque, y la pantalla abre limpia.
+La descripción larga de la cabecera pasó a una línea corta con un ícono ⓘ que abre «Cómo funciona
+Seguros», que además es la leyenda de cada filtro. Visto en escritorio, teléfono y oscuro.
+
+**Lo nuevo (las tres ayudas), en el navegador** (2026-10-17, misma base local):
+- **Leer PDF de póliza, con el PDF REAL de la póliza FOLA 24043267** (89 páginas, 1.7 MB): pdf.js lo leyó en el
+  navegador y la tarjeta salió completa y sin avisos —seguro FOLA propuesto, persona emparejada por su nombre,
+  vigencia 01/10/2026 → 01/01/2027 (92 días), prima 179.97, el pago vence el 31/10/2026, Pacífico Seguros,
+  nota «Emitida el 14/10/2026»—; se registró y su PDF (1 779 531 bytes) quedó en la póliza. Con cuatro PDF a
+  la vez: uno escaneado (sin texto) se dijo por su nombre, el que ya estaba registrado salió «Ya estaba
+  registrada» y no se duplicó, una persona que se cruzaba con una póliza vigente quedó en rojo y frenó el
+  botón hasta corregirla, y las dos que sí se podían se registraron con su PDF. **Probado con datos de
+  una persona real sin tocar el repo**: el texto y el PDF viven solo en el scratchpad de la sesión, y la
+  prueba del repo usa un texto sintético con la misma forma.
+- **Una póliza para varias personas**: cinco personas de la demo con una sola póliza («Seguro de vida
+  (ejemplo)», prima por persona, «5 × S/ 9.50 = S/ 47.50»); el atajo «Las de planilla» marcó las ocho de
+  planilla y prueba; quien ya tenía una póliza que se cruzaba salió deshabilitado con el motivo; y el PDF
+  subido una vez quedó en las cinco pólizas (cinco objetos distintos en el almacén, copiados dentro).
+- **Lista de asegurados**: con la cuenta de dirección, la vista previa, la casilla de remuneración y el
+  CSV (documento protegido para Excel, REVISAR con lo que falta, la remuneración solo cuando se marcó);
+  y con la cuenta convertida por un momento en líder DO, lo mismo: el botón y la casilla están, y el
+  archivo sale completo (13 filas, las 16 columnas). Antes de la decisión 8 esa vista no llevaba botón
+  y explicaba por qué; ese texto queda para quien algún día no pueda descargar.
+- **Teléfono (375 px) y modo oscuro** de las tres pantallas. Aquí apareció un defecto: con cuatro botones
+  en la cabecera, la página se salía del teléfono (680 px de ancho de contenido). Es de `CabeceraPagina`
+  (su acción es `shrink-0` y no le daba un ancho contra el cual envolver); se arregló ahí con `max-w-full`
+  y se midió de nuevo: 375.
+
+**El botón «Abrir» de un PDF**, comprobado en dos mitades: contra la API de Storage con la sesión
+de DO, la URL firmada se genera y baja el PDF (HTTP 200, `application/pdf`), y la misma petición
+sin sesión se niega. El clic mismo no se pudo probar en el navegador integrado de la app, que
+bloquea las ventanas emergentes (sale el aviso propio de la pantalla: «El navegador bloqueó la
+ventana del archivo…»); es el mismo camino que usa «Abrir» en Archivo.
+
+**Lo que NO se comprobó.** Una póliza de otra aseguradora ni de otro seguro que no sea FOLA: el lector se
+midió sobre la de Pacífico, y de otra solo se sabe que se lee con aviso. El cotejo de documento, la pregunta
+de descartar, el PDF compartido y el reintento de copias se vieron en el navegador con PDF sintéticos (datos
+inventados, ya borrados) contra la demo. Un iPhone real, ni la pantalla contra datos reales de producción: la
+0528 ya está pegada, pero el código del PR todavía no se publicó, así que nadie ha abierto `/admin/seguros`
+con datos de verdad. (`db-tests` de GitHub, la señal fiable de las pgTAP porque construye la base desde cero,
+pasó sobre el commit `0a14c028`, igual que `ui-tests`.) El
+disparador se probó con las dos funciones que de verdad cambian el vínculo —`fn_set_tipo_vinculo`
+y `fn_cesar_persona`, incluido un cese con vínculo nuevo en el mismo acto—: lo que no mueve el
+seguro no deja nada, lo que sí lo mueve deja su cambio, y quien ya no está activa no deja cambio.
+La numeración deja huecos frente a `main` (0523, 0526 y 0530): ninguno es de esta rama (la 0530 es
+la etapa 2) y se llenan cuando las suyas se fusionen. `main` ya se fusionó dentro de la rama el
+2026-10-17: la prueba 422 corrió con sus migraciones nuevas (0527, 0531, 0532, 0533) aplicadas antes, y
+en `types.ts` ganó la versión de esta rama, porque el de `main` traía una VIEJA (solo FOLA) de las
+tablas de Seguros, arrastrada por una regeneración de tipos desde la base local compartida.
+
+**El PR sigue en BORRADOR**, que mientras la 0528 no estaba pegada era a propósito y ahora es solo cautela
+(un borrador no se fusiona por error). La 0528 ya está pegada: para fusionarlo, marcarlo como listo y
+fusionar con `--merge` (fusionar publica en producción); una sesión que lo fusione deja antes el comentario
+`<!-- cayla:fusion-sesion -->`. Cuando se publique, `/admin/seguros` abrirá sobre datos reales con las tablas
+vacías: **cada practicante saldrá como hueco** (su seguro es FOLA y no tiene póliza registrada) hasta que se
+registren las pólizas (paso 3 de arriba). Eso es lo que la pantalla viene a mostrar.
+`main` volvió a moverse después de la fusión (8 commits de interfaz, PR #552, sin SQL): la rama se mezcló
+con él en una fusión de prueba (limpia, `tsc` y las 2125 pruebas en verde) sin subirla.
+
+**La etapa 2 («Mi seguro»)** vive en otra rama, `claude/elegant-mayer-3e584e` (migración 0530, prueba 423,
+la sección de Lo mío), sin PR todavía, y se construyó sobre una punta anterior de esta (`112bfcb3`):
+cuando se vaya a fusionar tendrá que traer lo que esta rama agregó después —sobre todo `en_planilla` en
+`fn_seguros_equipo` y su bloque en `types.ts`—. La 0528 ya está pegada en producción en su versión final:
+no hay que repegarla, solo traer esta rama para que el archivo sea el mismo. Lo que cada colaborador lee
+es SU póliza —de cualquier seguro— y, si está en EsSalud, que se paga por planilla. Sigue sirviendo solo si
+quienes tienen póliza entran a Lo mío: eso solo lo sabe Felipe.
+
+**Cómo se generaron los tipos.** La base local es compartida y trae migraciones de otras ramas
+(la etapa 2 ya aplicó la suya), así que `gen-types` habría arrastrado cambios ajenos. Los 28 bloques de la
+primera versión salieron del generador de entonces; los dos de las funciones nuevas
+(`fn_seguro_registrar_varias`, `fn_seguro_asegurados`) y la columna `en_planilla` de `fn_seguros_equipo` se
+agregaron a mano. **⚠️ Trampa para quien regenere `types.ts`:** el `supabase` que hay hoy (CLI 2.113.0, el que
+pide `package.json`) escribe los argumentos de TODAS las funciones sin `| null` (`p_id: string`), y el archivo
+del repo los lleva con él (`p_id: string | null`, más de 500 argumentos). Los bloques nuevos siguen el estilo del
+archivo, no el del generador de hoy: regenerar el archivo entero cambia cientos de líneas ajenas a esta
+rama y conviene hacerlo aparte, en su propio PR. El resto del archivo tampoco coincide con la base (por
+ejemplo, claves foráneas de `boletas` que `types.ts` no tiene): deriva que ya traía la rama y no se tocó.
+
+---
+
 ## 2026-10-17 — La política de movilidad se firma con la firma del sistema (0531) · SQL PEGADO Y VERIFICADO EN PRODUCCIÓN · FUSIONADO (#542) · rama `claude/politica-firma-del-sistema`
 
 **Qué cambia.** En Documentación, el panel de la política ofrece «Con la firma guardada
