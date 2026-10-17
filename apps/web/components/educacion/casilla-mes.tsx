@@ -1,41 +1,77 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, Clock, FileText, FileX, X } from "lucide-react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { AlertCircle, Check, Clock, FileText, FileX, X } from "lucide-react";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
+import { MOTIVO_RECHAZO_LABELS, TIPO_CONSTANCIA_LABELS, nombreDelMesLima } from "@cayla-dynamic/shared";
 import { esImagen, esPdf, miniaturaDePdf, urlFirmada } from "@/lib/admin/constancia-medios";
 import { etiquetaMes, type Casilla } from "@/lib/admin/educacion-meses";
+
+/** "2026-09" → "setiembre". El nombre lo da fecha-lima, el mismo que usa el resto del sistema. */
+const nombreMes = (mes: string): string => nombreDelMesLima(`${mes.slice(0, 7)}-15`);
 import type { ArchivoDeEntrega } from "@/lib/admin/educacion-tipos";
+import { soles } from "@/lib/admin/educacion-formato";
 import { fechaCorta } from "@/lib/educacion";
-import { TIPO_CONSTANCIA_LABELS } from "@cayla-dynamic/shared";
 
 /**
- * LA CASILLA DE UN MES: la constancia que se recibió, a la vista.
+ * LA CASILLA DE UN MES: un ícono, y el detalle al pasar encima.
  *
- * PROMETE: mostrar la primera hoja de la constancia del mes como miniatura, con su
- *   estado dicho tres veces —el color del borde, el ícono de la esquina y el texto
- *   para el lector de pantalla—, y abrir el visor al tocarla.
- * ASUME: `casilla` ya viene calculada por `casillasDeEstudio`; acá no se decide qué
- *   constancia habla por el mes.
- * NO HACE: no inventa faltas. Un mes sin constancia es un guion; un mes en que el
- *   estudio todavía no existía o ya había terminado es una trama de rayas, y el
- *   guion no lo acusa de nada (decisión de Felipe, 2026-10-16).
+ * PROMETE: decir el mes con UN ícono —la constancia: aprobada, por revisar, rechazada, o la que
+ *   la base dice que falta— y una raya debajo para el apoyo de ese mes (pagado, se paga, se
+ *   pagará). Un pago adelantado se ve como una franja que une sus meses. Al pasar el mouse (o
+ *   al enfocar con el teclado) sale un globo con el detalle y la miniatura del comprobante; al
+ *   tocar, se abre el visor de siempre.
+ * ASUME: `casilla` ya viene calculada por `casillasDeEstudio`; acá no se decide qué constancia
+ *   habla por el mes ni si el mes «falta»: eso lo dice la base (`pide`).
+ * NO HACE: no acusa un mes sin constancia por su cuenta: es un punto gris. Solo el mes que la
+ *   base marca como vencido o por enviar lleva el «!» (decisión de Felipe, 2026-10-16).
  *
- * Las miniaturas se piden cuando la casilla se acerca a la pantalla, no todas al
- * abrir: treinta personas por seis meses son ciento ochenta fotos.
+ * Pedido de Felipe el 2026-10-17: «que no haya tanto texto, solo un ícono y si pasas por encima
+ * que salga el detalle y que se pueda ver la imagen del comprobante». La miniatura se pide recién
+ * al abrir el globo: treinta personas por seis meses son ciento ochenta fotos.
  */
 
 const TONO = {
-  aprobada: { borde: "border-verde", insignia: "bg-verde text-crema", texto: "Aprobada", Icono: Check },
-  pendiente: { borde: "border-pizarra", insignia: "bg-pizarra text-crema", texto: "Pendiente de revisión", Icono: Clock },
-  rechazada: { borde: "border-rojo", insignia: "bg-rojo-profundo text-crema", texto: "Rechazada", Icono: X },
+  aprobada: { fondo: "bg-verde text-crema", texto: "Aprobada", Icono: Check },
+  pendiente: { fondo: "bg-pizarra text-crema", texto: "Por revisar", Icono: Clock },
+  rechazada: { fondo: "bg-rojo text-crema", texto: "Rechazada", Icono: X },
 } as const;
 
-/** Un lienzo de rayas muy suaves: «aquí no corresponde nada». Con tokens, para que siga el tema. */
-const RAYAS = {
-  backgroundImage:
-    "repeating-linear-gradient(135deg, transparent 0 5px, color-mix(in oklab, var(--color-sand) 85%, transparent) 5px 6px)",
+const APOYO_RAYA = {
+  pagado: "bg-verde",
+  este: "bg-tinta",
+  pagara: "border border-taupe bg-transparent",
+  sin: "",
 } as const;
+
+const FRANJA = {
+  aprobada: "bg-verde/15",
+  pendiente: "bg-pizarra/15",
+  rechazada: "bg-rojo/10",
+} as const;
+
+function textoApoyo(c: Casilla): string | null {
+  if (!c.apoyo) return null;
+  const mes = nombreMes(c.mes);
+  switch (c.apoyo.estado) {
+    case "pagado": return `Pagado: ${soles(c.apoyo.monto ?? 0)} de educación en la planilla de ${mes}.`;
+    case "este": return `Se paga este mes: ${soles(c.apoyo.monto ?? 0)} al cierre del periodo.`;
+    case "pagara": return `Se pagará ${soles(c.apoyo.monto ?? 0)}, si el apoyo sigue vigente.`;
+    default: return c.fueraDeVigencia ? "Sin apoyo: el estudio no estaba vigente." : "Sin apoyo este mes.";
+  }
+}
+
+function textoConstancia(c: Casilla): string {
+  const e = c.principal;
+  if (!e || c.estado === "vacia") {
+    if (c.pide) return "Falta la constancia de este mes.";
+    return c.fueraDeVigencia ? "No aplica: el estudio no estaba vigente." : "Sin constancia este mes.";
+  }
+  const t = TONO[c.estado as keyof typeof TONO];
+  const quien = e.revisada_por && c.estado !== "pendiente" ? ` por ${e.revisada_por}` : "";
+  return `${t.texto}${quien}.`;
+}
 
 export function CasillaMes({
   casilla, persona, cargando, sinLeer, resaltada, alAbrir,
@@ -54,11 +90,18 @@ export function CasillaMes({
 }) {
   const { corto, anio } = etiquetaMes(casilla.mes);
   const fondo = resaltada ? "bg-hueso" : "";
+  const boton = useRef<HTMLButtonElement>(null);
+  const idGlobo = useId();
+  const [abierto, setAbierto] = useState(false);
+  const cerrar = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const abrir = () => { if (cerrar.current) clearTimeout(cerrar.current); setAbierto(true); };
+  const soltar = () => { cerrar.current = setTimeout(() => setAbierto(false), 160); };
+  useEffect(() => () => { if (cerrar.current) clearTimeout(cerrar.current); }, []);
 
   if (cargando) {
     return (
-      <div className={`flex justify-center py-1 ${fondo}`}>
-        <div aria-hidden className="pulso-carga h-16 w-[52px] rounded-control bg-sand/70" />
+      <div className={`flex justify-center py-2 ${fondo}`}>
+        <div aria-hidden className="pulso-carga size-8 rounded-full bg-sand/70" />
       </div>
     );
   }
@@ -66,69 +109,115 @@ export function CasillaMes({
   const e = casilla.principal;
   if ((!e || casilla.estado === "vacia") && sinLeer) {
     return (
-      <div className={`flex justify-center py-1 ${fondo}`}>
-        <div
-          role="img"
-          aria-label={`${corto} ${anio}: no se pudieron leer las constancias de este estudio`}
+      <div className={`flex justify-center py-2 ${fondo}`}>
+        <div role="img" aria-label={`${corto} ${anio}: no se pudieron leer las constancias de este estudio`}
           title="No se pudieron leer las constancias de este estudio. Usa «Reintentar» arriba."
-          className="flex h-16 w-[52px] items-center justify-center rounded-control border border-dashed border-ambar text-sm font-medium text-ambar"
-        >
-          ?
-        </div>
-      </div>
-    );
-  }
-  if (!e || casilla.estado === "vacia") {
-    return (
-      <div className={`flex justify-center py-1 ${fondo}`}>
-        <div
-          role="img"
-          aria-label={casilla.fueraDeVigencia
-            ? `${corto} ${anio}: el estudio no estaba vigente`
-            : `${corto} ${anio}: sin constancia recibida`}
-          style={casilla.fueraDeVigencia ? RAYAS : undefined}
-          className={`flex h-16 w-[52px] items-center justify-center rounded-control text-sm text-taupe ${
-            casilla.fueraDeVigencia ? "" : "border border-dashed border-sand"
-          }`}
-        >
-          {casilla.fueraDeVigencia ? "" : "—"}
-        </div>
+          className="flex size-8 items-center justify-center rounded-full border border-dashed border-ambar text-sm font-medium text-ambar">?</div>
       </div>
     );
   }
 
-  const t = TONO[casilla.estado];
-  const dia = e.fecha_pago.slice(8, 10);
-  const descripcion =
-    `${persona}, ${corto} ${anio}: ${t.texto.toLowerCase()}, ${TIPO_CONSTANCIA_LABELS[e.tipo].toLowerCase()} del ${fechaCorta(e.fecha_pago)}` +
-    (casilla.otras > 0 ? `, y ${casilla.otras} más ese mes` : "") + ". Abrir constancia";
+  const vacia = !e || casilla.estado === "vacia";
+  const t = vacia ? null : TONO[casilla.estado as keyof typeof TONO];
+  const apoyo = textoApoyo(casilla);
+  const lectura = `${persona}, ${corto} ${anio}: ${textoConstancia(casilla)}${apoyo ? " " + apoyo : ""}`;
+
+  // La franja de un pago adelantado: une las casillas de sus meses, de borde a borde de la celda.
+  const franja = casilla.cobertura && !vacia ? (
+    <span aria-hidden className={`absolute top-1/2 h-8 -translate-y-1/2 ${FRANJA[casilla.estado as keyof typeof FRANJA]} ${
+      casilla.cobertura.posicion === "ini" ? "left-1/2 right-0 -ml-4 rounded-l-full"
+        : casilla.cobertura.posicion === "fin" ? "left-0 right-1/2 -mr-4 rounded-r-full" : "inset-x-0"}`} />
+  ) : null;
 
   return (
-    <div className={`flex justify-center py-1 ${fondo}`}>
+    <div className={`relative flex justify-center py-2 ${fondo} ${casilla.fueraDeVigencia ? "bg-hueso/60" : ""}`}>
+      {franja}
       <button
+        ref={boton}
         type="button"
-        onClick={alAbrir}
-        aria-label={descripcion}
-        title={`${t.texto} · pago del ${fechaCorta(e.fecha_pago)}`}
-        className={`group relative h-16 w-[52px] overflow-hidden rounded-control border-2 bg-hueso transition-[transform,border-color] duration-150 hover:-translate-y-0.5 motion-reduce:transition-none motion-reduce:hover:translate-y-0 ${t.borde}`}
+        onClick={() => { setAbierto(false); alAbrir(); }}
+        onMouseEnter={abrir} onMouseLeave={soltar} onFocus={abrir} onBlur={soltar}
+        aria-label={`${lectura} Abrir el detalle.`}
+        aria-describedby={abierto ? idGlobo : undefined}
+        className="relative z-[1] flex size-10 items-center justify-center rounded-control transition-shadow duration-150 hover:ring-2 hover:ring-tinta focus-visible:ring-2 focus-visible:ring-tinta motion-reduce:transition-none"
       >
-        <Miniatura key={e.archivos[0]?.id ?? "sin-archivo"} archivo={e.archivos[0] ?? null} alt="" />
-        <span
-          aria-hidden
-          className={`absolute right-0.5 top-0.5 flex size-4 items-center justify-center rounded-full ${t.insignia}`}
-        >
-          <t.Icono className="size-2.5" strokeWidth={3} />
-        </span>
-        {casilla.otras > 0 && (
-          <span aria-hidden className="absolute left-0.5 top-0.5 rounded-full bg-tinta px-1 text-[9px] font-medium leading-[14px] text-crema">
-            +{casilla.otras}
+        {t ? (
+          <span aria-hidden className={`flex size-6 items-center justify-center rounded-full ${t.fondo}`}>
+            <t.Icono className="size-3.5" strokeWidth={3} />
           </span>
+        ) : casilla.pide ? (
+          <AlertCircle aria-hidden className="size-6 text-ambar" strokeWidth={2.25} />
+        ) : (
+          <span aria-hidden className="size-1.5 rounded-full bg-ceniza/60" />
         )}
-        <span aria-hidden className="absolute inset-x-0 bottom-0 bg-papel/90 text-center text-[10px] leading-4 tabular-nums text-tinta">
-          {dia}
-        </span>
+        {casilla.otras > 0 && (
+          <span aria-hidden className="absolute -right-0.5 -top-0.5 rounded-full bg-tinta px-1 text-[9px] font-medium leading-[14px] text-crema">+{casilla.otras}</span>
+        )}
+        {casilla.apoyo && casilla.apoyo.estado !== "sin" && (
+          <span aria-hidden className={`absolute bottom-0.5 left-1/2 h-1 w-4 -translate-x-1/2 rounded-full ${APOYO_RAYA[casilla.apoyo.estado]}`} />
+        )}
       </button>
+      {abierto && boton.current && (
+        <Globo id={idGlobo} ancla={boton.current} onEntrar={abrir} onSalir={soltar}>
+          <p className="font-serif text-base text-tinta">{persona.split(" ")[0]} · {nombreMes(casilla.mes)} {casilla.mes.slice(0, 4)}</p>
+          <dl className="grid grid-cols-[5.5rem_1fr] gap-x-2 gap-y-1.5 text-xs">
+            <dt className="text-[10px] uppercase tracking-wide text-taupe">Constancia</dt>
+            <dd className="text-tinta">
+              {textoConstancia(casilla)}
+              {e && !vacia && (casilla.cobertura ? (
+                <span className="block text-taupe">
+                  Pago adelantado, {nombreMes(casilla.cobertura.desde)} a {nombreMes(casilla.cobertura.hasta)} {casilla.cobertura.hasta.slice(0, 4)}
+                  {" "}· pagado el {fechaCorta(e.fecha_pago)}. Este mes: {soles(casilla.cobertura.monto)} de {soles(casilla.cobertura.total)}
+                  {casilla.cobertura.origen === "manual" && casilla.cobertura.motivo ? ` (lo corrigió ella: «${casilla.cobertura.motivo}»)` : ""}.
+                </span>
+              ) : (
+                <span className="block text-taupe">{TIPO_CONSTANCIA_LABELS[e.tipo]} · pagado el {fechaCorta(e.fecha_pago)}</span>
+              ))}
+              {e && casilla.estado === "rechazada" && (
+                <span className="block text-rojo-profundo">
+                  {e.motivo_categoria ? MOTIVO_RECHAZO_LABELS[e.motivo_categoria] : "Rechazada"}{e.motivo_comentario ? `: «${e.motivo_comentario}»` : ""}
+                </span>
+              )}
+            </dd>
+            {apoyo && (<><dt className="text-[10px] uppercase tracking-wide text-taupe">Apoyo</dt><dd className="text-tinta">{apoyo}</dd></>)}
+          </dl>
+          {e && !vacia && (
+            <div className="flex items-center gap-3 border-t border-sand pt-2">
+              <span className="relative block h-20 w-16 shrink-0 overflow-hidden rounded border border-sand bg-hueso">
+                <Miniatura archivo={e.archivos[0] ?? null} alt="Miniatura del comprobante" />
+              </span>
+              <span className="text-xs text-taupe">Toca el mes para ver el comprobante completo{e.archivos.length > 1 ? ` (${e.archivos.length} hojas)` : ""}.</span>
+            </div>
+          )}
+        </Globo>
+      )}
     </div>
+  );
+}
+
+/** El globo del detalle: flota sobre la página, pegado a la casilla y sin salirse de la pantalla. */
+function Globo({ id, ancla, onEntrar, onSalir, children }: {
+  id: string; ancla: HTMLElement; onEntrar: () => void; onSalir: () => void; children: React.ReactNode;
+}) {
+  const caja = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  useEffect(() => {
+    const r = ancla.getBoundingClientRect();
+    const g = caja.current?.getBoundingClientRect();
+    const ancho = g?.width ?? 300, alto = g?.height ?? 200;
+    let x = r.left + r.width / 2 - ancho / 2;
+    x = Math.max(8, Math.min(x, window.innerWidth - ancho - 8));
+    let y = r.bottom + 8;
+    if (y + alto > window.innerHeight - 8) y = r.top - alto - 8;
+    setPos({ x, y: Math.max(8, y) });
+  }, [ancla]);
+  return createPortal(
+    <div ref={caja} id={id} role="tooltip" onMouseEnter={onEntrar} onMouseLeave={onSalir}
+      style={{ left: pos?.x ?? -9999, top: pos?.y ?? -9999 }}
+      className="fixed z-40 flex w-[300px] flex-col gap-2 rounded-superficie border border-sand bg-papel p-3 shadow-lg">
+      {children}
+    </div>,
+    document.body,
   );
 }
 

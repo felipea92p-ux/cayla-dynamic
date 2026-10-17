@@ -25,7 +25,8 @@ import {
 import {
   CLAVES_DE_URL, FILTROS_VACIOS, MESES_INICIALES, MESES_POR_PASO, agruparEstudios, conteoTarjetas, entregaPasaFiltros,
   entregasDeEstudio, filtrosAUrl, filtrosDeUrl, mesLargo, mesesConConstancia, mesesConDatosDeLaVentana,
-  montoMensual, pasaFiltros, resumenPorSede, sedesDe, ventanaParaFiltros, type ContextoDeFiltros, type Estudio, type Filtros,
+  montoMensual, pasaFiltros, resumenPorSede, sedesDe, ventanaParaFiltros, mesDe, sumarMeses,
+  type CoberturaMes, type ContextoDeFiltros, type Estudio, type Filtros,
 } from "@/lib/admin/educacion-meses";
 import { fechaHora, soles } from "@/lib/admin/educacion-formato";
 import type { Entrega, EntregaDeFamilia, Pendiente, Situacion } from "@/lib/admin/educacion-tipos";
@@ -165,6 +166,10 @@ function EducacionContenido() {
   // Las constancias de TODOS los estudios, para dibujar la cuadrícula de meses. null = todavía llegando.
   const [entregasPorFamilia, setEntregasPorFamilia] = useState<Map<string, EntregaDeFamilia[]> | null>(null);
   const [errorConstancias, setErrorConstancias] = useState<string | null>(null);
+  // Los meses que cubre cada pago adelantado, y lo pagado de educación por persona y mes (0529).
+  // Si fallan, la cuadrícula se ve como antes: sin franjas ni raya de apoyo pagado.
+  const [coberturas, setCoberturas] = useState<Map<string, CoberturaMes[]>>(new Map());
+  const [apoyoPagado, setApoyoPagado] = useState<Map<string, number>>(new Map());
 
   // El visor grande de constancias. `visor` se conserva al cerrar para que se vea irse con su contenido.
   const [visor, setVisor] = useState<{ clave: string; entregaId: string | null } | null>(null);
@@ -234,7 +239,7 @@ function EducacionContenido() {
     const { data: sesion } = await supabase.auth.getSession();
     if (!sesion.session) { router.replace("/admin/login"); return; }
 
-    const [sit, pend, solPend, lista, cands, lim, pf, cfg] = await Promise.all([
+    const [sit, pend, solPend, lista, cands, lim, pf, cfg, cob, apo] = await Promise.all([
       supabase.rpc("fn_educacion_situacion"),
       supabase.rpc("fn_educacion_entregas_pendientes"),
       supabase.rpc("fn_educacion_solicitudes_pendientes"),
@@ -243,7 +248,17 @@ function EducacionContenido() {
       supabase.rpc("fn_educacion_limite_comprobante"),
       supabase.rpc("fn_personas_funciones"),
       supabase.from("configuracion").select("clave, valor").like("clave", "educacion_%"),
+      supabase.rpc("fn_educacion_coberturas"),
+      supabase.rpc("fn_educacion_apoyo_pagado", { p_desde: `${sumarMeses(mesDe(hoyLima()), -24)}-01` }),
     ]);
+    const porEntrega = new Map<string, CoberturaMes[]>();
+    for (const x of (cob.data ?? []) as unknown as CoberturaMes[]) {
+      const l = porEntrega.get(x.entrega_id);
+      if (l) l.push(x); else porEntrega.set(x.entrega_id, [x]);
+    }
+    setCoberturas(porEntrega);
+    setApoyoPagado(new Map(((apo.data ?? []) as unknown as { persona_id: string; mes: string; monto: number }[])
+      .map((x) => [`${x.persona_id}|${mesDe(x.mes)}`, Number(x.monto)])));
     const filasSituacion = (sit.data ?? []) as unknown as Situacion[];
     setSituaciones(filasSituacion);
     const trayendo = cargarConstancias(filasSituacion);
@@ -384,10 +399,12 @@ function EducacionContenido() {
   const niveles = useMemo(() => nivelesDeApoyo(candidatos), [candidatos]);
 
   // La línea de tiempo: seis meses y «ver más». Si se pidió un mes más viejo que la ventana, se abre hasta él.
-  const mesesConDatos = useMemo(
-    () => mesesConDatosDeLaVentana(hoy, todasLasEntregas, estudios),
-    [hoy, todasLasEntregas, estudios],
-  );
+  // Un pago adelantado que cubre hasta diciembre estira la línea de tiempo hasta diciembre: los
+  // meses ya pagados no se esconden a la derecha (mismo criterio que una constancia del mes que viene).
+  const mesesConDatos = useMemo(() => {
+    const cubiertos = [...coberturas.values()].flat().map((x) => mesDe(x.mes));
+    return [...mesesConDatosDeLaVentana(hoy, todasLasEntregas, estudios), ...cubiertos];
+  }, [hoy, todasLasEntregas, estudios, coberturas]);
   const ventana = useMemo(
     () => ventanaParaFiltros(hoy, mesesConDatos, mesesPedidos, { mes: filtros.mes, desde: filtros.desde }),
     [hoy, mesesConDatos, mesesPedidos, filtros.mes, filtros.desde],
@@ -880,6 +897,7 @@ function EducacionContenido() {
                     pendientes={pendientes} hoy={hoy}
                     resumenesSede={filtros.sede === "" && resumenes.length > 1 ? resumenes : null}
                     onAbrirVisor={abrirVisor} onAbrirEstudio={abrirEstudio}
+                    coberturas={coberturas} apoyoPagado={apoyoPagado}
                   />
                 )}
 

@@ -6,8 +6,7 @@ import { estadoParaMostrar } from "@/lib/admin/educacion-grupos";
 import { soles } from "@/lib/admin/educacion-formato";
 import {
   casillasDeEstudio, entregasDeEstudio, etiquetaMes, familiasDe, mesDe, montoMensual,
-  type Estudio, type ResumenDeSede,
-} from "@/lib/admin/educacion-meses";
+  type Estudio, type ResumenDeSede, type CoberturaMes } from "@/lib/admin/educacion-meses";
 import type { EntregaDeFamilia, Pendiente } from "@/lib/admin/educacion-tipos";
 import { fechaCorta } from "@/lib/educacion";
 import { Boton } from "@/components/ui/boton";
@@ -35,7 +34,7 @@ const SEPARADOR_DE_COLUMNAS = "border-l border-sand";
 
 export function CuadriculaMeses({
   estudios, meses, hayMasMeses, onVerMasMeses, mesResaltado, entregasPorFamilia, cargandoConstancias,
-  familiasSinLeer, pendientes, hoy, resumenesSede, onAbrirVisor, onAbrirEstudio,
+  familiasSinLeer, pendientes, hoy, resumenesSede, onAbrirVisor, onAbrirEstudio, coberturas, apoyoPagado,
 }: {
   estudios: Estudio[];
   meses: string[];
@@ -52,6 +51,10 @@ export function CuadriculaMeses({
   resumenesSede: ResumenDeSede[] | null;
   onAbrirVisor: (e: Estudio, entregaId: string | null) => void;
   onAbrirEstudio: (e: Estudio, boton: HTMLElement) => void;
+  /** Los meses que cubre cada pago adelantado (0529), por id de constancia. */
+  coberturas?: ReadonlyMap<string, readonly CoberturaMes[]>;
+  /** Lo pagado de educación por persona y mes (`persona_id|AAAA-MM`). */
+  apoyoPagado?: ReadonlyMap<string, number>;
 }) {
   const bloques = useMemo(
     () => (resumenesSede ? resumenesSede.map((r) => ({ resumen: r, estudios: r.estudios })) : [{ resumen: null, estudios }]),
@@ -68,7 +71,7 @@ export function CuadriculaMeses({
 
   const fila = (e: Estudio) => {
     const entregas = entregasDeEstudio(e, entregasPorFamilia);
-    const casillas = casillasDeEstudio(e, entregas, meses);
+    const casillas = casillasDeEstudio(e, entregas, meses, { coberturas, apoyoPagado, hoy });
     return {
       e, casillas, pendiente: pendienteDe(e),
       cargando: cargandoConstancias && entregasPorFamilia === null,
@@ -82,8 +85,8 @@ export function CuadriculaMeses({
         <span>
           Constancias recibidas de <strong className="font-medium text-tinta">{etiquetaMes(primero).corto} {etiquetaMes(primero).anio}</strong>{" "}
           a <strong className="font-medium text-tinta">{etiquetaMes(ultimo).corto} {etiquetaMes(ultimo).anio}</strong>.
-          Un guion es un mes sin constancia; las rayas, un mes en que el estudio no estaba vigente.
         </span>
+        <Leyenda />
         {hayMasMeses
           ? <Boton variante="enlace" className="text-xs" onClick={onVerMasMeses}>Ver 6 meses anteriores</Boton>
           : <span>Es todo el historial.</span>}
@@ -283,5 +286,26 @@ function Acciones({
         Estudio
       </Boton>
     </div>
+  );
+}
+
+/** Cómo se lee cada mes: cinco íconos y una raya. El detalle sale al pasar encima. */
+function Leyenda() {
+  const punto = "inline-flex size-4 items-center justify-center rounded-full text-[9px] font-bold";
+  return (
+    <span className="flex w-full flex-wrap items-center gap-x-4 gap-y-1 rounded-control bg-hueso px-3 py-2">
+      <span className="inline-flex items-center gap-1.5"><span aria-hidden className={`${punto} bg-verde text-crema`}>✓</span>Aprobada</span>
+      <span className="inline-flex items-center gap-1.5"><span aria-hidden className="inline-block h-3 w-7 rounded-full bg-verde/15" />Pago adelantado</span>
+      <span className="inline-flex items-center gap-1.5"><span aria-hidden className={`${punto} bg-pizarra text-crema`}>…</span>Por revisar</span>
+      <span className="inline-flex items-center gap-1.5"><span aria-hidden className={`${punto} bg-rojo text-crema`}>✕</span>Rechazada</span>
+      <span className="inline-flex items-center gap-1.5"><span aria-hidden className={`${punto} border-2 border-ambar text-ambar`}>!</span>Falta</span>
+      <span className="inline-flex items-center gap-1.5">
+        Raya del apoyo:
+        <span aria-hidden className="inline-block h-1 w-4 rounded-full bg-verde" /> pagado
+        <span aria-hidden className="inline-block h-1 w-4 rounded-full bg-tinta" /> este mes
+        <span aria-hidden className="inline-block h-1 w-4 rounded-full border border-taupe" /> se pagará
+      </span>
+      <span>Pasa el mouse por un mes para ver el detalle; tócalo para ver el comprobante.</span>
+    </span>
   );
 }

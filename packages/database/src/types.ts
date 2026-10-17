@@ -2221,6 +2221,38 @@ export type Database = {
           },
         ]
       }
+      educacion_entrega_meses: {
+        Row: {
+          entrega_id: string
+          mes: string
+          monto: number
+          motivo: string | null
+          origen: string
+        }
+        Insert: {
+          entrega_id: string
+          mes: string
+          monto: number
+          motivo?: string | null
+          origen: string
+        }
+        Update: {
+          entrega_id?: string
+          mes?: string
+          monto?: number
+          motivo?: string | null
+          origen?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "educacion_entrega_meses_entrega_id_fkey"
+            columns: ["entrega_id"]
+            isOneToOne: false
+            referencedRelation: "educacion_entregas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       educacion_entregas: {
         Row: {
           aprobacion_revertida_at: string | null
@@ -2228,6 +2260,8 @@ export type Database = {
           aprobada_at: string | null
           aprobada_por: string | null
           asignacion_id: string
+          cubre_desde: string | null
+          cubre_hasta: string | null
           enviada_at: string
           enviada_por: string | null
           estado: string
@@ -2250,6 +2284,8 @@ export type Database = {
           aprobada_at?: string | null
           aprobada_por?: string | null
           asignacion_id: string
+          cubre_desde?: string | null
+          cubre_hasta?: string | null
           enviada_at?: string
           enviada_por?: string | null
           estado?: string
@@ -2272,6 +2308,8 @@ export type Database = {
           aprobada_at?: string | null
           aprobada_por?: string | null
           asignacion_id?: string
+          cubre_desde?: string | null
+          cubre_hasta?: string | null
           enviada_at?: string
           enviada_por?: string | null
           estado?: string
@@ -6597,6 +6635,14 @@ export type Database = {
         }
         Returns: string
       }
+      fn_educacion_apoyo_pagado: {
+        Args: { p_desde: string | null }
+        Returns: {
+          mes: string
+          monto: number
+          persona_id: string
+        }[]
+      }
       fn_educacion_aprobadas_del_periodo: {
         Args: { p_periodo_id: string | null }
         Returns: {
@@ -6663,6 +6709,17 @@ export type Database = {
         Args: { p_hasta: string | null; p_id: string | null; p_motivo?: string | null }
         Returns: undefined
       }
+      fn_educacion_coberturas: {
+        Args: never
+        Returns: {
+          entrega_id: string
+          familia_id: string
+          mes: string
+          monto: number
+          motivo: string
+          origen: string
+        }[]
+      }
       fn_educacion_configurar: {
         Args: {
           p_dias_aviso_colab: number | null
@@ -6715,6 +6772,19 @@ export type Database = {
           tipo: string
         }[]
       }
+      fn_educacion_enviar_adelantado: {
+        Args: {
+          p_archivos: Json | null
+          p_asignacion_id: string | null
+          p_fecha_pago: string | null
+          p_id: string | null
+          p_meses: Json | null
+          p_nota?: string | null
+          p_reemplaza_a?: string | null
+          p_tipo: string | null
+        }
+        Returns: string
+      }
       fn_educacion_enviar_entrega: {
         Args: {
           p_archivos: Json | null
@@ -6739,6 +6809,24 @@ export type Database = {
           p_proxima: string | null
         }
         Returns: undefined
+      }
+      fn_educacion_historial: {
+        Args: { p_desde?: string | null; p_hasta?: string | null; p_persona_id?: string | null }
+        Returns: {
+          campo: string
+          cubre_desde: string
+          cubre_hasta: string
+          entrega_id: string
+          fuente: string
+          motivo: string
+          ocurrio_at: string
+          persona: string
+          persona_id: string
+          quien: string
+          sede: string
+          valor_anterior: string
+          valor_nuevo: string
+        }[]
       }
       fn_educacion_limite_comprobante: {
         Args: never
