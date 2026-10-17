@@ -30,9 +30,13 @@
 --     fallarían recién cuando alguien abra la sección.
 --   · `fn_persona_actual_id()` resuelve la ficha de quien inició sesión
 --     (`personas.auth_user_id`) y `fn_hoy_lima()` da el día de Lima.
---   · Que DO sube a cada póliza SOLO el PDF de esa persona. La base no puede
---     comprobarlo: un PDF que juntara las pólizas de varias se lo mostraría completo a
---     cada una. La pantalla de DO lo dice al subir.
+--   · Que DO sube a cada póliza SOLO el PDF de esa persona (o, en una póliza colectiva, el
+--     papel de la póliza de la empresa, sin listas con el DNI o el sueldo de otras). La base
+--     no puede comprobarlo: un PDF que juntara datos de varias se lo mostraría completo a
+--     cada una. La pantalla de DO lo dice al subir; la casilla «guardarlo también en las
+--     otras pólizas» arranca SIN marcar, nombra a quiénes se copiaría y pide confirmar cuando
+--     el archivo es de un tipo que la persona ve (la revisión independiente midió que, con la
+--     casilla marcada y un número mal tecleado, un PDF podía llegar a la póliza de otra).
 --
 -- QUÉ VE LA PERSONA, Y QUÉ NO (decidido con Felipe, 2026-10-17)
 --
@@ -48,6 +52,10 @@
 --          renueva sola; el nombre con que DO subió cada archivo; las facturas ni los
 --          archivos «otro»; las pólizas anuladas.
 --
+--   OJO: «no ve la prima» vale para los DATOS. El PDF del convenio de pago —que sí ve— trae
+--   la prima, las cuotas y las condiciones de mora: es el papel que se le entrega, y por eso
+--   se le muestra el convenio y no la prima suelta.
+--
 --   El nombre del archivo no sale a propósito: lo escribe DO al subirlo y puede llevar
 --   nombres de personas. La pantalla rotula cada archivo por su tipo, no por lo que
 --   alguien escribió.
@@ -60,6 +68,17 @@
 --              reembolso de lo que pasó cuando sí cubría. La primera versión de esta
 --              migración pedía ser practicante HOY; se quitó cuando Felipe hizo el módulo
 --              general (2026-10-17).
+--   DECIDÍ:    QUIEN YA CESÓ Y CONSERVA SU CUENTA VIVA SIGUE VIENDO SU SEGURO Y ABRIENDO SUS
+--              PDF (Felipe, 2026-10-17, «dejarlo y documentarlo»). Es el criterio de la 0374:
+--              `fn_persona_actual_id()` «sigue devolviendo su propio id aunque esté inactiva»,
+--              y las políticas `_propia` filtran por él. Puede necesitar su póliza para un
+--              reembolso de lo que pasó cuando sí cubría, y la póliza sigue vigente hasta que la
+--              aseguradora procese la baja. Si DO quiere cortarlo, se corta la CUENTA (como con
+--              el resto de Lo mío), no esta migración. La prueba 423 lo fija (sección J).
+--   DECIDÍ:    LA CUENTA DE SERVICIO DE UN TERMINAL NO VE NADA, EN LAS TRES LECTURAS.
+--              `fn_mi_seguro` ya lo hacía; la revisión independiente midió que `fn_mis_polizas`
+--              y la política de Storage no, y que `cuenta_de_servicio` se puede marcar después
+--              sobre una ficha que ya tenía una póliza. Ahora las tres miran la misma columna.
 --   DECIDÍ:    LA REGLA DE EN QUÉ SEGURO ESTÁ ALGUIEN NO SE ESCRIBE OTRA VEZ.
 --              `fn_mi_seguro` llama a `fn_seguro_tipo_principal` (0528), la misma que
 --              usa `fn_seguros_equipo` para DO. «Cubre hoy» sí se repite —la misma cuenta,
@@ -118,7 +137,13 @@
 --
 -- ANTES DE PEGAR — UNA CONSULTA DE SOLO LECTURA A PRODUCCIÓN (SQL Editor)
 --   Esperado: la 0528 presente (6 tablas, las dos funciones de apoyo, las 4 políticas
---   de DO) y NADA de esta migración todavía.
+--   de DO) y NADA de esta migración todavía. Las dos penúltimas columnas no son de «ya está o
+--   no»: dicen QUÉ SE PUBLICA al pegar. Esta migración hace visibles, de golpe y hacia atrás,
+--   todos los PDF de póliza y de convenio de pago que DO ya subió, cada uno para la persona de
+--   esa póliza; esos PDF llevan DNI y fecha de nacimiento. Antes de pegar hay que abrirlos a ojo
+--   (o confiar en que son pocos), y la última columna señala los que pueden estar donde no deben.
+--   Los conteos de `pg_proc` van filtrados a `public`: Retail vive en el mismo proyecto
+--   (esquema `retail`) y trae nombres repetidos como `fn_hoy_lima`.
 --
 --   select
 --     (select count(*) from information_schema.tables
@@ -127,17 +152,36 @@
 --                            'polizas_seguro','polizas_seguro_archivos','polizas_seguro_eventos'))
 --                                                                    as tablas_0528_de_6,
 --     (select count(*) from pg_proc
---       where proname in ('fn_seguro_tipo_principal','fn_seguro_archivo_libre'))   as apoyo_0528_de_2,
+--       where pronamespace = 'public'::regnamespace
+--         and proname in ('fn_seguro_tipo_principal','fn_seguro_archivo_libre'))   as apoyo_0528_de_2,
 --     (select count(*) from pg_policies where schemaname = 'storage'
 --         and policyname in ('polizas_seguro_insert','polizas_seguro_select',
 --                            'polizas_seguro_update','polizas_seguro_delete')) as politicas_0528_de_4,
 --     (select count(*) from pg_proc
---       where proname in ('fn_mi_seguro','fn_mis_polizas','fn_seguro_archivo_es_mio'))
+--       where pronamespace = 'public'::regnamespace
+--         and proname in ('fn_mi_seguro','fn_mis_polizas','fn_seguro_archivo_es_mio'))
 --                                                                    as funciones_que_ya_existen,
 --     (select count(*) from pg_policies where schemaname = 'storage'
 --         and policyname = 'polizas_seguro_select_propia')           as politica_que_ya_existe,
+--     (select count(*) from polizas_seguro_archivos a join polizas_seguro z on z.id = a.poliza_id
+--       where a.tipo in ('poliza','convenio_pago') and a.retirado_at is null
+--         and z.anulada_at is null)                                  as pdf_que_se_publican,
+--     (select count(*) from (
+--        select 1
+--          from polizas_seguro_archivos a
+--          join polizas_seguro z on z.id = a.poliza_id
+--          left join storage.objects o on o.bucket_id = 'polizas-seguro' and o.name = a.storage_path
+--         where a.tipo in ('poliza','convenio_pago') and a.retirado_at is null and z.anulada_at is null
+--         group by o.metadata->>'eTag', a.bytes
+--        having count(distinct z.persona_id) > 1 and count(distinct z.numero_poliza) > 1
+--      ) x)                                                          as pdf_iguales_en_polizas_de_distinto_numero,
 --     (select string_agg(numero || ' · ' || nombre, ' | ' order by numero) from migraciones_aplicadas
 --       where numero between 526 and 532)                            as registro_526_a_532;
+--
+--   `pdf_iguales_en_polizas_de_distinto_numero` debe dar 0: es el MISMO archivo (misma huella y
+--   peso) pegado a pólizas de personas distintas con números distintos, que es lo que pasaría si
+--   un PDF con las pólizas de varias se hubiera copiado a cada una. Una póliza colectiva de verdad
+--   comparte archivo Y número, y no cuenta.
 --
 -- CÓMO SE REVIERTE (esta primero y luego la 0528, nunca al revés: la política y las
 -- funciones de aquí leen las tablas de allá)
@@ -180,6 +224,13 @@ $guarda$;
 -- tablas son de DO. Nunca devuelve null: `exists (…)` es true o false, y sin sesión o sin
 -- ficha `fn_persona_actual_id()` es null, así que la comparación no encuentra nada.
 --
+-- La cuenta de servicio de un terminal NO es una persona y no ve nada, igual que en
+-- `fn_mi_seguro` y `fn_mis_polizas` (las tres lecturas tienen que decir lo mismo). La 0528 no
+-- deja registrarle una póliza, pero `personas.cuenta_de_servicio` se puede marcar DESPUÉS sobre
+-- una ficha que ya tenía una (lo midió la revisión independiente): sin esta línea esa ficha
+-- abriría su PDF aunque `fn_mi_seguro` no le devolviera nada. `is false` y no `not`: una ficha
+-- que no aparece da null, y null no pasa.
+--
 -- No mira qué es la persona hoy (practicante, planilla…): una póliza es de quien es, aunque
 -- haya cambiado de seguro. Los dos tipos están escritos AQUÍ y en `fn_mis_polizas`; si uno
 -- cambia, el otro también: la prueba 423 compara las dos lecturas archivo por archivo.
@@ -188,6 +239,7 @@ returns boolean
 language sql stable security definer set search_path = public
 as $fn$
   select fn_persona_actual_id() is not null
+     and (select p.cuenta_de_servicio from personas p where p.id = fn_persona_actual_id()) is false
      and exists (
        select 1
          from polizas_seguro_archivos a
@@ -272,7 +324,7 @@ revoke execute on function fn_mi_seguro() from public, anon;
 -- ── 3 · Sus pólizas ──────────────────────────────────────────────────────────
 -- Una fila por póliza viva (no anulada) de quien llama, de CUALQUIER seguro —el principal,
 -- uno complementario o el que tenía antes de cambiar—, la más reciente primero. Si no tiene
--- ficha, no devuelve nada.
+-- ficha, o es la cuenta de servicio de un terminal, no devuelve nada.
 --
 -- `archivos` es un arreglo json, siempre un arreglo (vacío si no hay), con
 -- {id, tipo, storage_path, mime, bytes}, la póliza antes que el convenio de pago y dentro
@@ -299,6 +351,10 @@ declare
   v_hoy date := fn_hoy_lima();
 begin
   if v_yo is null then
+    return;
+  end if;
+  -- La cuenta de servicio no es una persona (ver `fn_mi_seguro` y el ayudante de Storage).
+  if (select p.cuenta_de_servicio from personas p where p.id = v_yo) is not false then
     return;
   end if;
 

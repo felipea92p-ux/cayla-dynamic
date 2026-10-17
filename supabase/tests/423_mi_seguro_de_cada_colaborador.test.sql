@@ -21,10 +21,12 @@
 --     `fn_seguros_tablero`, y
 -- (g) el NÚMERO de una póliza no identifica a nadie: una póliza colectiva (vida, EPS) lleva
 --     un solo número y una fila por persona —la 0528 lo permite desde su revisión
---     independiente—, y cada una ve la suya y solo la suya.
+--     independiente—, y cada una ve la suya y solo la suya, y
+-- (h) una cuenta de servicio no ve nada en NINGUNA de las tres lecturas, y quien ya cesó y
+--     conserva su cuenta viva sigue viendo lo SUYO (decisión de Felipe, 2026-10-17).
 -- ============================================================================
 begin;
-select plan(108);
+select plan(116);
 
 -- ── Sede y personas ──────────────────────────────────────────────────────
 insert into sedes (id, codigo, nombre, activa, tipo) values
@@ -695,6 +697,57 @@ select is(
   (select count(*)::int from fn_seguros_tablero() t
     where t.poliza_id in (current_setting('t.colo')::uuid, current_setting('t.lina')::uuid) and t.cubre_hoy is true),
   2, 'DO ve las dos filas de la colectiva, y las dos cubren hoy');
+
+-- ── J · La cuenta de servicio y quien ya cesó ────────────────────────────
+-- Dos decisiones que se perderían sin que nada fallara si no hubiera una aserción:
+--   · una cuenta de servicio (la estación de un terminal) no es una persona, y las TRES
+--     lecturas —fn_mi_seguro, fn_mis_polizas y la política de Storage— tienen que decirlo
+--     igual. `fn_seguro_registrar` no le deja registrar una póliza, pero la columna
+--     `cuenta_de_servicio` se puede marcar después sobre una ficha que ya tenía una, y entonces
+--     las dos últimas la dejaban ver su póliza y abrir su PDF mientras la primera no devolvía fila
+--     (lo midió la revisión independiente de la 0530);
+--   · quien cesó y conserva su cuenta viva SIGUE viendo su seguro y SUS PDF: el criterio de la
+--     0374 (`fn_persona_actual_id()` no mira el estado) y lo que Felipe decidió el 2026-10-17.
+--     Puede necesitar su póliza para un reembolso de lo que pasó cuando sí cubría.
+set session_replication_role = replica;
+insert into personas (id, nombres, apellidos, sede_base_id, rol, pin_hash, auth_user_id, fecha_ingreso, tipo_vinculo, cargo, practicante_modalidad, estado, cuenta_de_servicio, fecha_cese) values
+  ('00000000-0000-0000-0000-00000530a103', 'Esta', 'Mi', '00000000-0000-0000-0000-000005300001', 'integrante', 'x', '00000000-0000-0000-0000-00000530b103', '2024-01-01', 'planilla',    'Estación',    null,          'activo',   true,  null),
+  ('00000000-0000-0000-0000-00000530a104', 'Cesa', 'Mi', '00000000-0000-0000-0000-000005300001', 'integrante', 'x', '00000000-0000-0000-0000-00000530b104', '2026-01-01', 'practicante', 'Practicante', 'profesional', 'inactivo', false, '2026-10-12');
+set session_replication_role = origin;
+
+insert into storage.objects (bucket_id, name, metadata) values
+  ('polizas-seguro', '5b200000-0000-0000-0000-0000000000e5.pdf', '{"size": 1000, "mimetype": "application/pdf"}'),  -- la estación
+  ('polizas-seguro', '5b200000-0000-0000-0000-0000000000e6.pdf', '{"size": 1000, "mimetype": "application/pdf"}');  -- quien cesó
+
+-- Las filas, por inserción directa del dueño de la tabla: `fn_seguro_registrar` rechaza a la
+-- estación (con razón) y aquí se mide qué pasa si una fila así llegara a existir.
+insert into polizas_seguro (id, persona_id, producto, aseguradora, numero_poliza, vigente_desde, vigente_hasta, prima_total, creada_por) values
+  ('5b200000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-00000530a103', 'salud_practicantes', 'Pacífico Seguros', 'EST-1',  fn_hoy_lima() - 10, fn_hoy_lima() + 80, 100, '00000000-0000-0000-0000-00000530a001'),
+  ('5b200000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-00000530a104', 'salud_practicantes', 'Pacífico Seguros', 'CESA-1', fn_hoy_lima() - 10, fn_hoy_lima() + 80, 100, '00000000-0000-0000-0000-00000530a001');
+insert into polizas_seguro_archivos (poliza_id, tipo, storage_path, nombre_archivo, mime, bytes, subido_por) values
+  ('5b200000-0000-0000-0000-000000000001', 'poliza', '5b200000-0000-0000-0000-0000000000e5.pdf', 'estacion.pdf', 'application/pdf', 1000, '00000000-0000-0000-0000-00000530a001'),
+  ('5b200000-0000-0000-0000-000000000002', 'poliza', '5b200000-0000-0000-0000-0000000000e6.pdf', 'cesa.pdf',     'application/pdf', 1000, '00000000-0000-0000-0000-00000530a001');
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000530b103', true);
+select is((select count(*)::int from fn_mi_seguro()), 0, 'la estación: fn_mi_seguro no le devuelve fila');
+select is((select count(*)::int from fn_mis_polizas()), 0, 'la estación: fn_mis_polizas tampoco, aunque exista una póliza a su nombre');
+select is(fn_seguro_archivo_es_mio('5b200000-0000-0000-0000-0000000000e5.pdf'), false, 'la estación: ese PDF no es suyo para Storage');
+select is(
+  (select count(*)::int from storage.objects where bucket_id = 'polizas-seguro' and name like '5b200000-%'),
+  0, 'y Storage no le deja ver ni ese ni el de nadie: las tres lecturas dicen lo mismo');
+
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000530b104', true);
+select is((select count(*)::int from fn_mi_seguro()), 1, 'quien cesó con la cuenta viva: sigue viendo en qué seguro está');
+select is(
+  (select array_agg(poliza_id) from fn_mis_polizas()), array['5b200000-0000-0000-0000-000000000002'::uuid],
+  'y su póliza, y solo la suya');
+select is(fn_seguro_archivo_es_mio('5b200000-0000-0000-0000-0000000000e6.pdf'), true, 'y el PDF de esa póliza es suyo para Storage');
+select is(
+  (select array_agg(name order by name) from storage.objects where bucket_id = 'polizas-seguro' and name like '5b200000-%'),
+  array['5b200000-0000-0000-0000-0000000000e6.pdf'],
+  'Storage le deja abrir solo el suyo, no el de la estación');
+reset role;
 
 select * from finish();
 rollback;
