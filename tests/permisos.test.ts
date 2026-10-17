@@ -260,17 +260,13 @@ describe("el padrón completo solo se lo lleva la dirección", () => {
   });
 });
 
-// La lista de asegurados de un seguro lleva documento y fecha de nacimiento: la misma
-// diferencia entre ver y llevarse que el padrón. Mientras no se decida otra cosa, es solo
-// de la dirección; DO la ve en pantalla y completa lo que le falte.
-describe("la lista de asegurados solo se la lleva la dirección (0528)", () => {
-  it("la dirección sí puede descargarla", () => {
+// La lista de asegurados de un seguro lleva documento y fecha de nacimiento. Se le preguntó a Felipe
+// (2026-10-17) si el archivo era solo de la dirección, como el padrón, o también de DO, y eligió que
+// DO también: es quien trata con la aseguradora y el contador. Lo que NO se abrió es el padrón completo.
+describe("la lista de asegurados la descargan DO y la dirección (0528)", () => {
+  it("la dirección y quien lleva DO pueden descargarla", () => {
     expect(puedeExportarListaDeAsegurados("admin")).toBe(true);
-  });
-
-  it("quien lleva DO ve los seguros y NO se lleva el archivo", () => {
-    expect(puedeGestionarSeguros("lider_do")).toBe(true);
-    expect(puedeExportarListaDeAsegurados("lider_do")).toBe(false);
+    expect(puedeExportarListaDeAsegurados("lider_do")).toBe(true);
   });
 
   it("ni la líder de equipo ni una integrante", () => {
@@ -284,11 +280,15 @@ describe("la lista de asegurados solo se la lleva la dirección (0528)", () => {
     }
   });
 
-  it("es MÁS estrecho que gestionar los seguros: si alguien los iguala, esto cae", () => {
-    const roles = ["admin", "lider_do", "supervisor_sede", "integrante"];
-    const ve = roles.filter((r) => puedeGestionarSeguros(r));
-    const baja = roles.filter((r) => puedeExportarListaDeAsegurados(r));
-    expect(baja.length).toBeLessThan(ve.length);
-    expect(ve).toEqual(expect.arrayContaining(baja));
+  it("hoy dice lo mismo que gestionar los seguros: quien no ve la pantalla no se lleva el archivo", () => {
+    for (const rol of [...ROLES, null, undefined, "", "contador"]) {
+      expect(puedeExportarListaDeAsegurados(rol)).toBe(puedeGestionarSeguros(rol));
+    }
+  });
+
+  it("abrirla a DO NO abre el padrón completo: ese sigue solo para la dirección", () => {
+    expect(puedeExportarListaDeAsegurados("lider_do")).toBe(true);
+    expect(puedeExportarPadron("lider_do")).toBe(false);
+    expect(puedeExportarPadron("admin")).toBe(true);
   });
 });

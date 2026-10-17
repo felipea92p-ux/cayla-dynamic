@@ -12,9 +12,10 @@
 //
 // QUIÉN LA VE Y QUIÉN SE LA LLEVA
 //   La ve DO (la base se lo exige): ya ve el documento y la fecha de nacimiento en la ficha de cada
-//   persona. El ARCHIVO es otro permiso —ver un dato y llevárselo no son lo mismo— y es de la
-//   dirección, como el padrón (`puedeExportarListaDeAsegurados`). A DO se le explica por qué no hay
-//   botón, para que no crea que falla.
+//   persona. El ARCHIVO es otro permiso —ver un dato y llevárselo no son lo mismo—: hoy lo tienen DO y
+//   la dirección (`puedeExportarListaDeAsegurados`; Felipe, 2026-10-17: quien trata con la aseguradora y
+//   el contador es DO). Si algún día se estrecha, a quien no pueda se le explica por qué no hay botón,
+//   para que no crea que falla.
 //
 // LA REMUNERACIÓN NO VIAJA A LA PANTALLA
 //   El seguro de vida la pide («remuneración asegurable»). Solo se trae al DESCARGAR y solo si se
@@ -55,7 +56,7 @@ export function ListaDeAsegurados({
   tipos: TipoSeguro[];
   /** El seguro con el que abre (el que la pantalla tenía filtrado), si lo hay. */
   inicial: string | null;
-  /** `puedeExportarListaDeAsegurados`: solo la dirección se lleva el archivo. */
+  /** `puedeExportarListaDeAsegurados`: quién se lleva el archivo (hoy DO y la dirección). */
   puedeDescargar: boolean;
   hoy: string;
 }) {
@@ -182,7 +183,7 @@ function Cuerpo({
               checked={conRemuneracion} onChange={(e) => setConRemuneracion(e.target.checked)} disabled={descargando}
             />
           ) : (
-            <>El archivo con documento y fecha de nacimiento lo descarga la dirección, como el padrón. Aquí ves quién falta completar.</>
+            <>Tu cuenta no puede descargar el archivo con documento y fecha de nacimiento. Aquí ves quién falta completar.</>
           )}
         </div>
         <div className="flex gap-2">

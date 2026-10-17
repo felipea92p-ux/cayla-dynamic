@@ -100,7 +100,7 @@ export function AyudaDeSeguros() {
                 <dt className="font-medium text-tinta">Lista de asegurados</dt>
                 <dd className="text-taupe">
                   Quiénes están en un seguro hoy, con documento, nacimiento e ingreso, y a quién le falta algún dato: sin eso la
-                  aseguradora no emite su certificado. El archivo para el contador lo descarga la dirección.
+                  aseguradora no emite su certificado. Se puede bajar en CSV para el contador o la aseguradora.
                 </dd>
               </div>
             </dl>

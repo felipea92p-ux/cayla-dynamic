@@ -43,6 +43,9 @@ cambia lo que cobra nadie; la prima se paga a la aseguradora y EsSalud sigue com
    fue construir las tres primeras como ayudas AGREGADAS (el formulario de una póliza por persona
    sigue igual, por si «dejarlo así» era lo que valía). Si en realidad no querías alguna, es quitar
    su botón de la cabecera; ninguna toca lo que ya existía.
+8. Preguntado si el CSV de la lista de asegurados lo baja solo la dirección (como el padrón) o también DO,
+   eligió: **DO también** (`puedeExportarListaDeAsegurados`). El padrón completo sigue solo para la
+   dirección.
 
 **Cómo funciona.**
 - **`seguros_tipos`**: el catálogo. Cada seguro es *principal* (uno a la vez: FOLA, EsSalud) o va
@@ -94,16 +97,15 @@ cambia lo que cobra nadie; la prima se paga a la aseguradora y EsSalud sigue com
   - **Lista de asegurados** (`fn_seguro_asegurados`). Quiénes están en un seguro HOY con documento,
     nacimiento, ingreso, sede y póliza, y quién tiene datos por completar (sin documento o sin fecha de
     nacimiento la aseguradora no emite el certificado). Reemplaza la consulta a mano de Vida Ley
-    (`scripts/sql-manual/quienes_van_al_seguro_de_vida_ley.sql`). **El CSV lo baja solo la dirección**
-    (`puedeExportarListaDeAsegurados`, como el padrón); DO la ve en pantalla.
+    (`scripts/sql-manual/quienes_van_al_seguro_de_vida_ley.sql`). **El CSV lo bajan DO y la dirección**
+    (`puedeExportarListaDeAsegurados`, punto 8); lleva documento y fecha de nacimiento, y la pantalla
+    recuerda compartirlo por un canal que se pueda revocar.
 
 **Lo que decidí sin preguntar, y es de Felipe cambiar:**
-- **El CSV de la lista de asegurados, solo para la dirección** (no «solo DO», como lo había anunciado).
-  Encontré un precedente que no conocía: `puedeExportarPadron` ya distingue ver de llevarse un dato con
-  documento («quien lleva DO edita las fichas todos los días y no necesita descargarlas; el archivo se
-  genera para un trámite concreto y esa decisión es de dirección»). Abrirlo a DO es cambiar UNA línea de
-  `permisos.ts` (y su prueba, que se pone roja a propósito). La remuneración asegurable —la que pide el
-  seguro de vida— solo viaja al descargar y solo si se marca la casilla.
+- **La remuneración asegurable** —la que pide el seguro de vida— solo viaja al descargar el CSV y solo
+  si se marca la casilla: ninguna otra pantalla de seguros la lleva al navegador. (Quién baja el CSV
+  lo decidió Felipe, punto 8; la cuestión se planteó porque `puedeExportarPadron` ya distingue ver de
+  llevarse un dato con documento, y el padrón sigue solo para la dirección.)
 - **La prima de una póliza colectiva es la de cada persona** (una fila por persona): copiar el total en
   cada fila haría que cualquier suma de primas contara la póliza diecinueve veces. El formulario muestra
   «N × prima = total» y avisa que, si solo se tiene el total, se divida.
@@ -243,8 +245,9 @@ Seguros», que además es la leyenda de cada filtro. Visto en escritorio, teléf
   subido una vez quedó en las cinco pólizas (cinco objetos distintos en el almacén, copiados dentro).
 - **Lista de asegurados**: con la cuenta de dirección, la vista previa, la casilla de remuneración y el
   CSV (documento protegido para Excel, REVISAR con lo que falta, la remuneración solo cuando se marcó);
-  con la cuenta convertida por un momento en líder DO, la misma lista SIN botón de descarga y con la
-  explicación.
+  y con la cuenta convertida por un momento en líder DO, lo mismo: el botón y la casilla están, y el
+  archivo sale completo (13 filas, las 16 columnas). Antes de la decisión 8 esa vista no llevaba botón
+  y explicaba por qué; ese texto queda para quien algún día no pueda descargar.
 - **Teléfono (375 px) y modo oscuro** de las tres pantallas. Aquí apareció un defecto: con cuatro botones
   en la cabecera, la página se salía del teléfono (680 px de ancho de contenido). Es de `CabeceraPagina`
   (su acción es `shrink-0` y no le daba un ancho contra el cual envolver); se arregló ahí con `max-w-full`

@@ -188,9 +188,9 @@
 --              está en Vida Ley» es una sola pregunta, la que ya hace la pantalla.
 --   DECIDÍ:    La lista de asegurados la entrega a DO, que ya ve documento y nacimiento
 --              en la ficha de cada persona, y la remuneración solo si se la pide. Que la
---              lista salga del sistema en un archivo lo decide la pantalla, con el mismo
---              criterio que el padrón (`puedeExportarPadron`): ver y llevarse un dato son
---              permisos distintos.
+--              lista salga del sistema en un archivo lo decide la pantalla
+--              (`puedeExportarListaDeAsegurados`): DO y la dirección, por decisión de
+--              Felipe (2026-10-17); el padrón completo sigue solo para la dirección.
 --
 -- QUÉ NO HACE
 --
@@ -2144,7 +2144,7 @@ $fn$;
 --
 -- Esto es información personal: documento y fecha de nacimiento. La FUNCIÓN la entrega a DO
 -- (que ya las ve en la ficha de cada persona); quién puede LLEVÁRSELA en un archivo lo decide
--- la pantalla (`puedeExportarListaDeAsegurados`: solo la dirección, como el padrón). La
+-- la pantalla (`puedeExportarListaDeAsegurados`: DO y la dirección, decisión de Felipe). La
 -- remuneración (`sueldo_base_legal`, la «asegurable» del seguro de vida) solo viaja si se
 -- pide: ninguna otra pantalla de seguros la necesita.
 create or replace function fn_seguro_asegurados(

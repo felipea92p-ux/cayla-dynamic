@@ -384,17 +384,18 @@ export function puedeExportarPadron(rol: RolPosible): boolean {
  * fecha de nacimiento y de ingreso, y —si se pide— la remuneración asegurable. Es lo que el
  * contador y la aseguradora piden para emitir el certificado de cada persona.
  *
- * Mismo criterio que `puedeExportarPadron`, y por la misma razón: DO VE esos datos en la ficha
- * de cada persona y en la pantalla de Seguros, pero un CSV con el documento y la fecha de
- * nacimiento de todo un seguro sale del sistema, se reenvía y ya nadie sabe dónde está. Ver y
- * llevarse son dos permisos distintos.
+ * Quien lleva DO y la dirección. Es de Felipe (2026-10-17): se le preguntó si solo la dirección,
+ * como el padrón, o también DO, y eligió que DO también —es quien trata con la aseguradora y con
+ * el contador en el día a día, y la lista es justo lo que ellos piden—. Ver y llevarse un dato
+ * siguen siendo dos permisos distintos (por eso esto existe aparte de `puedeGestionarSeguros`),
+ * pero para ESTA lista hoy tienen la misma respuesta: un CSV con documento y fecha de nacimiento
+ * sale del sistema, y quien lo baja avisa a dónde lo manda (la pantalla se lo recuerda).
  *
- * Solo la dirección, hoy. Se nombra aparte de `puedeExportarPadron` para que abrirla algún día a
- * quien lleva DO —que es quien trata con la aseguradora en el día a día— sea una decisión de
- * ESTA lista y no arrastre el padrón completo (cuentas bancarias, direcciones) con ella.
+ * NO abre `puedeExportarPadron`: el padrón completo (cuentas bancarias, direcciones, celulares)
+ * sigue siendo solo de la dirección, y `tests/permisos.test.ts` lo vigila.
  */
 export function puedeExportarListaDeAsegurados(rol: RolPosible): boolean {
-  return tiene(SOLO_DIRECCION, rol);
+  return tiene(DO, rol);
 }
 
 /** Solo la dirección. Ver arriba por qué esto no es lo mismo que DO. */

@@ -19,7 +19,8 @@
 //
 // ES INFORMACIÓN PERSONAL: documento y fecha de nacimiento (y, si se pide, la remuneración).
 //   Que el archivo salga del sistema es otro permiso que verlo en pantalla:
-//   `puedeExportarListaDeAsegurados`, solo la dirección, como el padrón.
+//   `puedeExportarListaDeAsegurados` (hoy DO y la dirección, decisión de Felipe; el padrón completo
+//   sigue solo para la dirección).
 // ============================================================================
 import { TIPO_DOCUMENTO_LABEL, type TipoDocumento } from "@cayla-dynamic/shared";
 import { isoADiaMesAnio } from "./planilla/formato";
