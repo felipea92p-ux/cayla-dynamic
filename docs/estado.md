@@ -1807,7 +1807,13 @@ a pagarlo** — dos pasos, en ese orden.
 
 ---
 
-## 2026-09-20 — Un feriado sin turnos ya no grita en rojo: el Dashboard pregunta «¿abre hoy la sede?» · SIN SQL · SIN FUSIONAR
+## 2026-09-20 — Un feriado sin turnos ya no grita en rojo: el Dashboard pregunta «¿abre hoy la sede?» · SIN SQL · FUSIONADA (#453 → rescatada por #454)
+
+> **Corregido el 2026-09-25 al fusionar `main` en el PR #449:** decía «SIN
+> FUSIONAR». El #453 se fusionó el **21-set 09:36 de Lima**, pero sobre la rama
+> del #451 y no sobre `main`: quedó varado hasta que el **#454** lo llevó, siete
+> minutos después. O sea que el aviso de abajo —«se fusiona DESPUÉS de #451»— se
+> cumplió, y aun así hizo falta un PR de rescate. Está publicado.
 
 **No hay SQL: solo pantalla. Apilado sobre el PR #451** (la entrada de abajo): su rama es la base de
 este PR, así que **se fusiona DESPUÉS de #451**. Fusionar es publicar. **El próximo feriado es el
@@ -1873,7 +1879,12 @@ propósito hace caer alguna prueba.
 
 ---
 
-## 2026-09-20 — Un día en que la sede no tiene turnos ya no se lee como una falla · SIN SQL · SIN FUSIONAR
+## 2026-09-20 — Un día en que la sede no tiene turnos ya no se lee como una falla · SIN SQL · FUSIONADA (#451)
+
+> **Corregido el 2026-09-25 al fusionar `main` en el PR #449:** decía «SIN
+> FUSIONAR». El #451 se fusionó el **20-set 21:12 de Lima** y su rama NO se
+> borró — por eso el #452 y el #453, apilados encima, siguieron apuntando a ella
+> y su código no llegó a `main` hasta el #454.
 
 **No hay SQL: solo pantalla.** Fusionar es publicar (`main` se despliega sola). Nació de un
 domingo: el Dashboard decía «Sin meta configurada» de tres sedes que no abren, y «Cobertura
@@ -1939,7 +1950,14 @@ no hay horarios cargados).
 
 ---
 
-## 2026-09-19 — Incidencias: el lote pide confirmación y dirección sale del exceso · SIN SQL · SIN FUSIONAR
+## 2026-09-19 — Incidencias: el lote pide confirmación y dirección sale del exceso · SIN SQL · FUSIONADA (#447)
+
+> **Corregido el 2026-09-19 19:42:** decía «SIN FUSIONAR». Se fusionó a las
+> **23:33** del 19-set —y fusionar es publicar—, así que esto ya está en
+> producción. **Sigue sin verse en pantalla:** lo de abajo («conviene mirar la
+> confirmación del lote y la columna de casillas a 375 px, también en modo
+> oscuro, antes de fusionar») se quedó sin hacer y ahora se hace sobre
+> producción, no antes de publicar.
 
 **No hay SQL: solo pantalla.** Fusionar es publicar (`main` se despliega sola). Cierra lo
 que la auditoría de `/admin/incidencias` del 2026-09-19 dejó decidido y que `main` aún no
@@ -2040,7 +2058,35 @@ resto de `/mio`) conviven en estas pantallas: el repo ya estaba dividido.
 
 ---
 
-## 2026-09-19 — Anuncios cuenta qué mejora en el sistema, y «Lo mío» las muestra · MIGRACIÓN 0480 PEGADA Y VERIFICADA · SIN FUSIONAR
+## 2026-09-19 — La Tienda de Lima sabe su ciudad (0481) · PEGADA Y VERIFICADA · FUSIONADA (#439) · ⚠️ AL REVÉS DEL ORDEN
+
+**Esta entrada no existía**; se escribe el 2026-09-19 19:42, al descubrir que la
+migración estaba en producción y ningún archivo de este repo lo decía.
+
+La sede `003` («Tienda LIM») tenía `ciudad` en NULL porque nació después de la
+0279 y el formulario de /admin/sedes no pide ciudad. Sin ella, `etiquetaDeSede`
+dejaba a las dos sedes de Lima con dos formatos. Confirmado en producción:
+`ciudad = Lima`, y el registro `481 · la_tienda_de_lima_sabe_su_ciudad`.
+
+**⚠️ Se fusionó ANTES de pegarse, y es el caso real de la regla rota ese día:**
+fusionada a las **15:18:00**, pegada a las **17:07:21**. **Una hora y
+cuarenta y nueve minutos** con el código en el aire por delante de su base.
+
+No hubo daño y conviene decir por qué, para no aprender la lección equivocada:
+`etiquetaDeSede` cae al nombre de la sede cuando no hay ciudad, así que durante
+esas dos horas las dos sedes de Lima se rotularon con dos formatos — feo, no
+roto. Si la 0481 hubiera tocado plata, esas dos horas no habrían sido cosméticas.
+Es la misma ventana que la 0404 y la 0407, con mejor suerte.
+
+Y la sede **sigue inactiva a propósito**: reactivarla es un clic en /admin/sedes
+y es decisión de quien la abre, no de una migración.
+
+## 2026-09-19 — Anuncios cuenta qué mejora en el sistema, y «Lo mío» las muestra · MIGRACIÓN 0480 PEGADA Y VERIFICADA · FUSIONADA (#438) · EN EL ORDEN CORRECTO
+
+> **Corregido el 2026-09-19 19:42:** este encabezado decía «SIN FUSIONAR» y era
+> falso desde las 09:50. Pegada a las **09:40:58**, fusionada a las **09:50:42**:
+> nueve minutos y cuarenta y cuatro segundos, en el orden correcto. Confirmado en
+> producción: `480 · las_novedades_del_sistema_se_marcan_como_vistas`.
 
 **Hay SQL: la [0480](../supabase/migrations/0480_las_novedades_del_sistema_se_marcan_como_vistas.sql),
 PEGADA Y VERIFICADA en producción el 2026-09-19** (antes de fusionar, como
@@ -2114,15 +2160,34 @@ aparte de los comunicados de DO, y no como plantillas para que DO publique
 (`docs/anuncios-prototipo-2026-09-15.html`, PR #401) sigue sin decidirse: si se
 adopta, esta sección se muda con él.
 
-## 2026-09-19 — El bono de cumpleaños firmado entra a la boleta (0479) · ESCRITA, NO AUDITADA · NO PEGADA · SIN FUSIONAR
+## 2026-09-19 — El bono de cumpleaños firmado entra a la boleta (0479) · PEGADA Y VERIFICADA · FUSIONADA (#437) · EN EL ORDEN CORRECTO
 
-**Nada de esto está en producción.** La migración y el frontend están escritos y
-verificados solo hasta donde se pudo sin base: typecheck, 883 pruebas de vitest y
-análisis sintáctico del SQL con el parser de Postgres (`pglast`, incluido el
-cuerpo PL/pgSQL). **La auditoría contra Postgres local NO se hizo: Docker Desktop
-estaba colgado** (`docker info` no respondía; 500 sin parar), así que ni el SQL
-se ejecutó ni la prueba pgTAP 378 se corrió. Por la regla de la casa, esto está
-«escrito», no «listo».
+**Está en producción y verificada.** Medido en el SQL Editor el 2026-09-19 19:42:
+`documentos_firmados.movimiento_id` existe, `fn_mi_bono_cumpleanos` devuelve `via`
+y `periodo_fin`, hay **una sola versión** con ese nombre —no se repitió la
+sobrecarga duplicada de la 0297/0299— y el registro dice
+`479 · el_bono_de_cumpleanos_firmado_entra_a_la_boleta`.
+
+**Y se pegó ANTES de fusionar, que es lo que manda la regla:** pegada a las
+**09:44:06** de Lima, fusionada a las **09:45:24**. Un minuto y dieciocho segundos.
+Es la primera de las cuatro de ese día que respetó el orden.
+
+**Lo que este párrafo decía hasta el 2026-09-19 19:42, y por qué se corrige.**
+Decía «ESCRITA, NO AUDITADA · NO PEGADA · SIN FUSIONAR», y las tres eran falsas.
+Se escribió a las 08:55, cincuenta minutos antes de que la migración se pegara y
+se fusionara, y **nadie volvió a tocarlo en diez horas**. Una sesión posterior lo
+leyó, lo creyó, y levantó una alarma de plata —«producción le promete a Melany un
+bono que su base no sabe pagar»— que costó una consulta a producción para
+descartar. El archivo de estado no es documentación de cortesía: es lo primero
+que lee quien llega, y mintiendo hace exactamente el daño que existe para evitar.
+
+Lo de «NO AUDITADA» también caducó por otro camino: **`db-tests` pasó en el PR
+#437** (3 m 55 s) con la prueba pgTAP 378 dentro, contra una base de Supabase
+construida desde cero. Esa es la señal fiable que declara `CLAUDE.md`, no esta
+Mac — y llegó después de escrito el párrafo, cuando Docker seguía colgado acá.
+El bloque 0 de la migración, además, compara el md5 de las cuatro funciones
+contra la 0478 y aborta sin aplicar nada si difiere: que haya entrado prueba por
+sí solo que partió de la versión correcta.
 
 Felipe pidió que Melany pudiera firmar su cargo de cumpleaños y que, al hacerlo,
 el incentivo apareciera en su boleta. **Lo primero ya existía** desde la 0477/0478
@@ -2160,20 +2225,28 @@ Felipe eligió que DO confirmara una transferencia aparte. Con la línea en la
 boleta el bono se paga con la planilla, y esa transferencia deja de existir salvo
 como respaldo. Si Felipe prefería lo contrario, esta migración no debe pegarse.
 
-**Antes de pegar (en este orden):**
-1. Levantar Docker y correr `npx supabase test db` — la **378** (38 aserciones,
-   incluida «ella, como ella misma, ve el bono en su boleta y el total sube
-   exactamente el monto») y, como control, la 376 y la 377 (que suponen una base
-   sin periodos). Comparar contra las mismas SIN la 0479.
-2. Audit empírico de dinero, en `begin … rollback`: `fn_planilla_calcular_persona`
-   de una persona con y sin la línea — solo pueden cambiar `bonos` y `total`. Y
-   `fn_liquidacion` de la misma persona, que no debe moverse.
-3. `donde-vive.sh` de las cuatro funciones **en el mensaje en que se entrega**.
-4. Regenerar `packages/database/src/types.ts` (se editó a mano: `movimiento_id`,
-   su relación, y las dos columnas de `fn_mi_bono_cumpleanos`).
-5. **Pegar la 0479 ANTES de fusionar** (fusionar publica). El frontend tolera la
-   base vieja (`via` y `periodo_fin` son opcionales), pero la firma no entraría a
-   la boleta hasta que se pegue.
+**Esta era la lista de «antes de pegar». Ya se pegó — qué se cumplió y qué no**
+(revisado el 2026-09-19 19:42; se conserva porque dos puntos siguen abiertos):
+
+1. ✅ **La prueba 378 corrió, pero en CI, no acá.** `db-tests` pasó en el PR #437
+   (3 m 55 s) contra una base de Supabase desde cero. Es la señal fiable que
+   declara `CLAUDE.md`; lo que no se hizo fue compararla contra el control SIN la
+   0479, que es lo que distingue «lo rompí yo» de «ya venía así».
+2. ⬜ **El audit empírico de dinero NO se hizo** — Docker seguía colgado.
+   `fn_planilla_calcular_persona` con y sin la línea (solo pueden cambiar `bonos`
+   y `total`) y `fn_liquidacion`, que no debe moverse. **Sigue pendiente**, y es
+   el único punto de esta lista que toca plata: la 378 prueba que el total sube
+   exactamente el monto, pero no que nada más se haya movido.
+3. ✅ **El candado lo hizo solo, y mejor que un comando.** El bloque 0 compara el
+   md5 de las cuatro funciones contra la 0478 en la base donde se pega y aborta
+   sin aplicar nada si difiere. Entró, luego partió de la versión correcta —eso
+   es más fuerte que un `donde-vive.sh`, que mira el worktree.
+4. ⬜ **`packages/database/src/types.ts` sigue sin regenerarse con `gen-types`.**
+   Se editó a mano (`movimiento_id`, su relación, y las dos columnas de
+   `fn_mi_bono_cumpleanos`); el commit de la 0482 lo tocó después, pero nadie
+   confirmó que saliera del generador. Cuando Docker vuelva, regenerarlo y
+   comprobar que no cambia nada más que eso.
+5. ✅ **Se pegó antes de fusionar:** 09:44:06 contra 09:45:24.
 
 **Pendiente, y no es de código:** el código PLAME del cumpleaños (0203) sigue
 «por confirmar con el contador» (ver `movilidad-y-codigos-plame-para-el-contador.md`).
@@ -2187,7 +2260,13 @@ sin línea (no había periodo al firmar) solo puede cerrarse con «Ya se lo tran
 creación del siguiente periodo, el bono puede quedar en un periodo que ella ya no
 puede abrir — se paga igual, y DO lo ve en Planilla.
 
-## 2026-09-18 — Dashboard: la meta ya no se mide con la sede cerrada, y el «0 en piso» dice por qué · SIN MIGRACIÓN · SIN FUSIONAR
+## 2026-09-18 — Dashboard: la meta ya no se mide con la sede cerrada, y el «0 en piso» dice por qué · SIN MIGRACIÓN · FUSIONADA (#435)
+
+> **Corregido el 2026-09-19 19:42:** decía «SIN FUSIONAR». Se fusionó el 19-set a
+> las **00:06** y está en producción desde entonces (`fueraDeHorarioDeHoy`,
+> `desgloseProgramadas` y `coincideConFiltroDeEstado` están en `main`). Sigue en
+> pie todo lo que la entrada llama «pendiente, y no es de código»: los datos mal
+> puestos de LIM, CCO, el horario que falta en TRU y la jornada de CCO abierta.
 
 **Sin SQL: no hay nada que pegar.** Cambia `asistencia-hoy.ts`, la pantalla del
 Dashboard y sus pruebas (115 en `asistencia-hoy.test.ts`; 900 en total). Verificado
@@ -2440,7 +2519,11 @@ casa — `main` publica sola).
 
 ---
 
-## 2026-09-15 — La tarjeta de Liquidaciones de la Bandeja dejó de fallar por timeout (0474, 0475) · pegada en producción · SIN FUSIONAR
+## 2026-09-15 — La tarjeta de Liquidaciones de la Bandeja dejó de fallar por timeout (0474, 0475) · pegada en producción · FUSIONADA
+
+> **Corregido el 2026-09-19 19:42:** decía «SIN FUSIONAR». Los dos archivos están
+> en `origin/main`, así que está publicada. Estaba pegada de antes: el orden se
+> respetó.
 
 Felipe reportó el recuadro rojo en la Bandeja: «No se pudo cargar
 liquidaciones vencidas: canceling statement due to statement timeout».
@@ -2546,7 +2629,13 @@ sistema le exija comunicar nada al MTPE.
 
 ---
 
-## 2026-09-15 — Quien ingresa después ya no se cuela en un periodo anterior (0463) · SIN PEGAR · SIN FUSIONAR
+## 2026-09-15 — Quien ingresa después ya no se cuela en un periodo anterior (0463) · FUSIONADA · ⚠️ ¿PEGADA? — HAY QUE MIRARLO
+
+> **Corregido el 2026-09-19 19:42:** decía «SIN PEGAR · SIN FUSIONAR». Lo segundo
+> es falso —el archivo está en `origin/main`, o sea publicada—. **Lo primero no se
+> pudo comprobar desde el repo y es lo que importa:** si de verdad sigue sin
+> pegarse, lleva cuatro días fusionada por delante de su base. Se responde con
+> `./scripts/que-falta-pegar.sh` en el SQL Editor, mirando la fila 463.
 
 Felipe reportó, mirando `/admin/planilla`: cinco practicantes que ingresaron
 en septiembre aparecían con fila propia en los periodos de julio y agosto —
@@ -2580,7 +2669,12 @@ producción, porque la clave de servicio está rotada a propósito.
 
 ---
 
-## 2026-09-15 — Educación: la 0450 ya está pegada; nace la 0461 (colaborador pide su apoyo) · SIN PEGAR · PR #390
+## 2026-09-15 — Educación: la 0450 ya está pegada; nace la 0461 (colaborador pide su apoyo) · FUSIONADA · ⚠️ ¿PEGADA? — HAY QUE MIRARLO
+
+> **Corregido el 2026-09-19 19:42:** decía «SIN PEGAR · PR #390». La 0461 está en
+> `origin/main`, o sea publicada. **Si sigue sin pegarse**, lleva cuatro días
+> fusionada por delante de su base — y toca el apoyo educativo, que es plata.
+> Se responde con `./scripts/que-falta-pegar.sh`, mirando la fila 461.
 
 **La 0450 quedó PEGADA Y VERIFICADA este mismo día** (esta entrada reemplaza el
 aviso «SIN PEGAR · SIN PUSH» de más arriba, que quedó desactualizado apenas se
@@ -3310,7 +3404,18 @@ una comprobación que nadie había construido. Ahora el estado se llama así.
 (comprobado: no tienen fila en `migraciones_aplicadas`); la 0393 lleva la
 explicación larga de arriba. `numeracion.sh` ya dice «sin novedad».
 
-## 2026-09-07 — El freno SQL→producción deja de mirar el disco (la «mitad cara» del 🔴#0) · SIN FUSIONAR
+## 2026-09-07 — El freno SQL→producción deja de mirar el disco (la «mitad cara» del 🔴#0) · FUSIONADA (#250)
+
+> **Corregido el 2026-09-19 20:02:** decía «SIN FUSIONAR». El PR #250 se fusionó
+> el **2026-09-08 12:10 de Lima** — once días mintiendo. Comprobado en el código,
+> no en el mensaje del PR: `que-falta-pegar.sh` ya arma la lista con
+> `git ls-tree` de `origin/main` y `HEAD`, y la consulta ya trae la CTE
+> `huerfanas`.
+>
+> **La encontró el hook nuevo, no una persona.** El barrido manual de ese mismo
+> día se apoyó en los números de migración del encabezado y esta entrada no
+> lleva ninguno: es sobre un script. Vale anotarlo porque es justo el caso que
+> un par de ojos pierde y una comprobación mecánica no.
 
 [PR #250](https://github.com/felipea92p-ux/cayla-dynamic/pull/250). El
 `estado.md` lo pedía desde el 2026-08-14 y era el único freno del repo que
