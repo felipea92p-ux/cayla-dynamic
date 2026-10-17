@@ -167,18 +167,24 @@ subvención de cada quien (`asignaciones_salario`) y la 0528 no la lee.
 
 **Qué se comprobó.** La 0528 aplicada **desde cero** por `supabase start` junto con todas las
 demás migraciones, sin error, y pegada otra vez encima (idempotente); y la prueba **422**
-(252 aserciones) en verde dentro de una transacción, también partiendo de una base SIN los objetos
+(281 aserciones: 252 de la lógica de los seguros y 29 de «una póliza para varias personas» y la lista
+de asegurados) en verde dentro de una transacción, también partiendo de una base SIN los objetos
 de la 0528 (corriendo antes la receta de reversión de su cabecera, que así quedó probada de nuevo).
-Se probó que la prueba SABE fallar con catorce mutaciones; las diez primeras
+Se probó que la prueba SABE fallar con veintidós mutaciones; las ocho últimas son de las dos funciones
+nuevas (tragarse el error del lote, quitar el `distinct`, el tope de 100, el último día inclusivo en la lista,
+la remuneración que sale aunque no se pida, la cuenta de servicio y el estado activo en la lista, y
+`en_planilla` en falso): las ocho las rompen. De las catorce primeras, las diez primeras
 mutaciones de las reglas (último día inclusivo, EsSalud como hueco, el alta que no se cierra sola,
 la baja que no se revierte, el disparador que ignora el estado o una asignación vigente o que deja
 escapar su propio error, registrar una póliza sin comprobar el seguro principal, asignar lo que
 ya toca por vínculo, y devolver el seguro efectivo como automático) y las cuatro de la revisión
 (índice sin `persona_id`, UPDATE de Storage sin la forma del nombre, sin tope de aseguradora, sin
 validar los textos de los avisos): las catorce la rompen.
-`vitest` (1896 pruebas, 83 de la lógica de la pantalla y 33 de la Bandeja, incluida la que cuida
-que cargar una consulta no pise el objeto compartido de `FUENTES_VACIAS`), `tsc` y `eslint` en
-verde, y los frenos del push (numeración, reglas de la casa, nombre del PDF, fechas vacías,
+`vitest` (2001 pruebas en 90 archivos, antes 1896: las nuevas son el lector de pólizas —con un texto
+sintético con la forma de la de Pacífico—, las reglas de cada tarjeta de PDF, la lista de asegurados y su CSV,
+la subida y la copia de archivos, el cruce de fechas y las hermanas de una póliza colectiva y el permiso de
+exportar; más las 83 de la lógica de la pantalla y las 33 de la Bandeja, incluida la que cuida que cargar una
+consulta no pise el objeto compartido de `FUENTES_VACIAS`), `tsc` y `eslint` en verde, y los frenos del push (numeración, reglas de la casa, nombre del PDF, fechas vacías,
 linter) corridos a mano sobre lo que la rama agrega: todos en 0.
 
 **Revisión independiente (dos agentes que no vieron mis conclusiones, uno para el SQL y otro para la
@@ -221,6 +227,29 @@ deja ver—; lo puesto queda a la vista como chips que se quitan con un toque, y
 La descripción larga de la cabecera pasó a una línea corta con un ícono ⓘ que abre «Cómo funciona
 Seguros», que además es la leyenda de cada filtro. Visto en escritorio, teléfono y oscuro.
 
+**Lo nuevo (las tres ayudas), en el navegador** (2026-10-17, misma base local):
+- **Leer PDF de póliza, con el PDF REAL de la póliza FOLA 24043267** (89 páginas, 1.7 MB): pdf.js lo leyó en el
+  navegador y la tarjeta salió completa y sin avisos —seguro FOLA propuesto, persona emparejada por su nombre,
+  vigencia 01/10/2026 → 01/01/2027 (92 días), prima 179.97, el pago vence el 31/10/2026, Pacífico Seguros,
+  nota «Emitida el 14/10/2026»—; se registró y su PDF (1 779 531 bytes) quedó en la póliza. Con cuatro PDF a
+  la vez: uno escaneado (sin texto) se dijo por su nombre, el que ya estaba registrado salió «Ya estaba
+  registrada» y no se duplicó, una persona que se cruzaba con una póliza vigente quedó en rojo y frenó el
+  botón hasta corregirla, y las dos que sí se podían se registraron con su PDF. **Probado con datos de
+  una persona real sin tocar el repo**: el texto y el PDF viven solo en el scratchpad de la sesión, y la
+  prueba del repo usa un texto sintético con la misma forma.
+- **Una póliza para varias personas**: cinco personas de la demo con una sola póliza («Seguro de vida
+  (ejemplo)», prima por persona, «5 × S/ 9.50 = S/ 47.50»); el atajo «Las de planilla» marcó las ocho de
+  planilla y prueba; quien ya tenía una póliza que se cruzaba salió deshabilitado con el motivo; y el PDF
+  subido una vez quedó en las cinco pólizas (cinco objetos distintos en el almacén, copiados dentro).
+- **Lista de asegurados**: con la cuenta de dirección, la vista previa, la casilla de remuneración y el
+  CSV (documento protegido para Excel, REVISAR con lo que falta, la remuneración solo cuando se marcó);
+  con la cuenta convertida por un momento en líder DO, la misma lista SIN botón de descarga y con la
+  explicación.
+- **Teléfono (375 px) y modo oscuro** de las tres pantallas. Aquí apareció un defecto: con cuatro botones
+  en la cabecera, la página se salía del teléfono (680 px de ancho de contenido). Es de `CabeceraPagina`
+  (su acción es `shrink-0` y no le daba un ancho contra el cual envolver); se arregló ahí con `max-w-full`
+  y se midió de nuevo: 375.
+
 **El botón «Abrir» de un PDF**, comprobado en dos mitades: contra la API de Storage con la sesión
 de DO, la URL firmada se genera y baja el PDF (HTTP 200, `application/pdf`), y la misma petición
 sin sesión se niega. El clic mismo no se pudo probar en el navegador integrado de la app, que
@@ -240,14 +269,16 @@ y a la primera versión de la 0528; se paró y hay que rehacerla sobre esta: aho
 colaborador lee es SU póliza —de cualquier seguro— y, si está en EsSalud, que se paga por planilla.
 Sigue sirviendo solo si quienes tienen póliza entran a Lo mío: eso solo lo sabe Felipe.
 
-**Cómo se generaron los tipos.** La base local es compartida y trae migraciones de otras ramas,
-así que `gen-types` habría arrastrado cambios ajenos. Se aplicó la 0528 a una base desechable
-con el esquema `public` de la local, se generaron los tipos allí y se pegaron SOLO las seis
-tablas y las funciones nuevas. **Comprobado después contra el generador de verdad**, sobre una base
-construida desde cero con `supabase start`: los 28 bloques de seguros (6 tablas y 22 funciones) de
-`types.ts` son idénticos a los que genera `gen-types`. El resto del archivo NO coincide con esa
-base (por ejemplo, claves foráneas de `boletas` que `types.ts` no tiene): es deriva que ya traía
-la rama y no se tocó; quien regenere el archivo entero la va a ver.
+**Cómo se generaron los tipos.** La base local es compartida y trae migraciones de otras ramas
+(la etapa 2 ya aplicó la suya), así que `gen-types` habría arrastrado cambios ajenos. Los 28 bloques de la
+primera versión salieron del generador de entonces; los dos de las funciones nuevas
+(`fn_seguro_registrar_varias`, `fn_seguro_asegurados`) y la columna `en_planilla` de `fn_seguros_equipo` se
+agregaron a mano. **⚠️ Trampa para quien regenere `types.ts`:** el `supabase` que hay hoy (CLI 2.113.0, el que
+pide `package.json`) escribe los argumentos de TODAS las funciones sin `| null` (`p_id: string`), y el archivo
+del repo los lleva con él (`p_id: string | null`, más de 500 argumentos). Los bloques nuevos siguen el estilo del
+archivo, no el del generador de hoy: regenerar el archivo entero cambia cientos de líneas ajenas a esta
+rama y conviene hacerlo aparte, en su propio PR. El resto del archivo tampoco coincide con la base (por
+ejemplo, claves foráneas de `boletas` que `types.ts` no tiene): deriva que ya traía la rama y no se tocó.
 
 ---
 
