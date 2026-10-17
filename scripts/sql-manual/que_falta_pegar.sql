@@ -380,7 +380,10 @@ with repo(numero, nombre, nunca) as (values
     (519, 'el_bono_de_cumpleanos_tambien_lo_recibe_el_practicante', true),
     (520, 'el_bono_de_cumpleanos_una_sola_regla_y_el_practicante_cobra_por_transferencia', false),
     (521, 'el_bono_del_practicante_vuelve_a_la_boleta', false),
-    (522, 'la_solicitud_educativa_pendiente_recibe_su_comprobante', false)
+    (522, 'la_solicitud_educativa_pendiente_recibe_su_comprobante', false),
+    (524, 'un_estudio_de_educacion_no_tapa_a_otro', false),
+    (525, 'una_aprobacion_de_constancia_se_puede_revertir', false),
+    (529, 'un_pago_adelantado_cubre_varios_meses_y_el_historial_de_educacion', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
