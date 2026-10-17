@@ -7,6 +7,8 @@ import type { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { hoyLima } from "@cayla-dynamic/shared";
 import { Boton } from "@/components/ui/boton";
 import { Insignia } from "@/components/ui/insignia";
+import { Rotulo } from "@/components/ui/rotulo";
+import { TarjetaInfo } from "@/components/ui/tarjeta-info";
 import { useToast } from "@/components/toast";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { citaDeFalta } from "@/lib/admin/conducta";
@@ -160,8 +162,8 @@ export function DisciplinaMia({
           )}
 
           {comoVas && (
-            <section className="grid gap-2 rounded-2xl border border-sand bg-papel p-4">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-taupe">Cómo vas este mes</h3>
+            <TarjetaInfo como="section" className="grid gap-2">
+              <Rotulo como="h3">Cómo vas este mes</Rotulo>
               {comoVas.casillas && (
                 <div className="flex items-center gap-1.5" aria-hidden>
                   {Array.from({ length: comoVas.casillas.de }, (_, i) => (
@@ -171,7 +173,7 @@ export function DisciplinaMia({
               )}
               <p className="font-medium">{comoVas.titulo}</p>
               {comoVas.detalle && <p className="text-taupe">{comoVas.detalle}</p>}
-            </section>
+            </TarjetaInfo>
           )}
         </>
       )}

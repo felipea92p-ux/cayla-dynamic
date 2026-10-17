@@ -6,6 +6,7 @@ import { Cake } from "lucide-react";
 import { puedePedirBono, type MiBono } from "@/lib/mi-bono";
 import { formatSoles } from "@/lib/rangos";
 import { SALUDOS_CUMPLEANOS, SALUDO_CADA_MS, saludoInicial } from "@/lib/saludos-cumpleanos";
+import { Rotulo } from "@/components/ui/rotulo";
 
 /**
  * El saludo del mes de cumpleaños, arriba de todo en Info (solo el acuse va antes).
@@ -52,7 +53,7 @@ export function SaludoCumpleanos({ nombre, bono, hoy }: { nombre: string; bono: 
           <Cake className="h-6 w-6" aria-hidden />
         </div>
         <div className="min-w-0 flex-1">
-          <div className="etiqueta text-taupe">Tu mes de cumpleaños</div>
+          <Rotulo como="div">Tu mes de cumpleaños</Rotulo>
           <h2 className="mt-1 font-serif text-2xl leading-tight text-tinta sm:text-3xl">
             ¡Feliz cumpleaños, {nombre}!
           </h2>

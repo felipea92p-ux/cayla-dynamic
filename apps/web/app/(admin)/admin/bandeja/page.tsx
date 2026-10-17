@@ -37,7 +37,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import {
-  CalendarCheck, Clock, FileSignature, Gavel, GraduationCap, HandCoins, IdCard, Inbox, MessagesSquare, PencilLine, ScrollText, Search,
+  CalendarCheck, Clock, FileSignature, Gavel, GraduationCap, HandCoins, IdCard, Inbox, MessagesSquare, PencilLine, ScrollText, Search, ShieldCheck,
   TreePalm, type LucideIcon,
 } from "lucide-react";
 import { Cargando } from "@/components/cargando";
@@ -77,6 +77,7 @@ const ICONO_MODULO: Record<ModuloBandeja, LucideIcon> = {
   horarios: Clock,
   datos_personales: IdCard,
   liquidaciones: HandCoins,
+  seguros: ShieldCheck,
   casos: MessagesSquare,
 };
 

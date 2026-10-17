@@ -30,9 +30,10 @@ export function CabeceraPagina({
    * La línea chica encima del título («Planilla», «Hoja de sede»). Mayúsculas con
    * espaciado (decisión 11 de docs/adr/0004-diseno-unificado.md, 2026-10-13):
    * es el detalle de identidad que ya aparece en el login. Opcional: la
-   * mayoría de las pantallas no lleva.
+   * mayoría de las pantallas no lleva. Acepta un nodo y no solo texto
+   * (2026-10-17): el de un reporte lleva su código con cifras tabulares.
    */
-  sobretitulo?: string;
+  sobretitulo?: ReactNode;
   titulo: string;
   descripcion?: ReactNode;
   accion?: ReactNode;
@@ -50,7 +51,11 @@ export function CabeceraPagina({
           <div className="mt-1 max-w-2xl text-sm text-taupe">{descripcion}</div>
         )}
       </div>
-      {accion && <div className="shrink-0">{accion}</div>}
+      {/* `max-w-full` (2026-10-17): `shrink-0` solo evita que el botón se aplaste, pero también dejaba que
+          cuatro botones juntos (Seguros) midieran lo que midieran y se salieran del teléfono, aunque su propio
+          contenedor sea `flex-wrap`: no tenían un ancho contra el cual envolver. Con el tope, un grupo de botones
+          envuelve a otra fila; una acción sola, que cabe, no cambia. */}
+      {accion && <div className="max-w-full shrink-0">{accion}</div>}
     </div>
   );
 }

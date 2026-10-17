@@ -25,6 +25,7 @@ import { Campo } from "@/components/ui/campo";
 import { AreaTexto } from "@/components/ui/area-texto";
 import { Tabla, TablaEncabezado, Th, Fila } from "@/components/ui/tabla";
 import { Modal } from "@/components/ui/modal";
+import { Rotulo } from "@/components/ui/rotulo";
 import { useToast } from "@/components/toast";
 import { FirmaEditor } from "@/app/(admin)/admin/personas/[id]/FirmaEditor";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
@@ -3264,7 +3265,7 @@ function TusUltimosPeriodos({ personaId }: { personaId: string }) {
 function Tarjeta({ titulo, valor, pie }: { titulo: string; valor: string; pie?: string }) {
   return (
     <div className="rounded-2xl border border-sand px-4 py-3">
-      <div className="etiqueta text-taupe">{titulo}</div>
+      <Rotulo como="div">{titulo}</Rotulo>
       <div className="mt-1 font-serif text-2xl leading-none">{valor}</div>
       {pie && <div className="mt-1 text-[11px] text-taupe">{pie}</div>}
     </div>
@@ -3294,7 +3295,7 @@ function TarjetaClave({
   return (
     <div data-tour={dataTour} className={`flex flex-col rounded-2xl border p-4 ${
       alerta ? "border-ambar/40 bg-ambar/[0.07]" : "border-sand bg-papel"}`}>
-      <div className="etiqueta text-taupe">{titulo}</div>
+      <Rotulo como="div">{titulo}</Rotulo>
       <div className="mt-1 font-serif text-2xl leading-tight">{valor}</div>
       {pie && <p className="mt-1 flex-1 text-xs leading-relaxed text-taupe">{pie}</p>}
       {accion && <div className="mt-3 text-sm font-medium">{accion}</div>}

@@ -11,6 +11,7 @@ import { fechaLargaLima } from "@/lib/admin/planilla/formato";
 import { useToast } from "@/components/toast";
 import { Boton } from "@/components/ui/boton";
 import { Insignia } from "@/components/ui/insignia";
+import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
 import { Campo, CampoSelect } from "@/components/ui/campo";
 import { Cargando } from "@/components/cargando";
 import { cx } from "@/components/ui/cx";
@@ -113,10 +114,10 @@ export default function CasosPage() {
     <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
         <div className="mx-auto w-full max-w-5xl text-sm">
-          <h1 className="mb-1 font-serif text-2xl">Casos</h1>
-          <p className="mb-3 text-taupe">
-            Los reportes del equipo que te toca gestionar. Lo urgente primero; después, lo que vence antes.
-          </p>
+          <CabeceraPagina
+            titulo="Casos"
+            descripcion="Los reportes del equipo que te toca gestionar. Lo urgente primero; después, lo que vence antes."
+          />
           <p className="mb-5 flex items-center gap-2 text-xs text-taupe">
             <Info className="size-4" strokeWidth={1.8} aria-hidden />
             Un reporte no es una falta. Nada se sanciona desde aquí: si corresponde, se abre un expediente en Disciplina.

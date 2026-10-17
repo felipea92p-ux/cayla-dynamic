@@ -115,6 +115,25 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-10-17-seguros-en-que-seguro-esta-cada-colaborador",
+    fecha: "2026-10-17",
+    titulo: "Seguros: ya se ve en qué seguro está cada colaborador y a quién le falta su póliza",
+    queMejoro:
+      "Hay una pantalla nueva, «Seguros», en el grupo Personas. Muestra en qué seguro está cada colaborador, hasta " +
+      "cuándo está cubierto y qué papeleo falta (prima, firma y factura), y guarda los PDF de la póliza. Si a alguien " +
+      "le falta la póliza que su seguro pide, aparece primero y en rojo, y la Bandeja también lo avisa.\n\n" +
+      "Cada colaborador sigue el seguro que le toca por su vínculo, y Desarrollo Organizacional puede cambiárselo a " +
+      "una persona; cuando alguien cambia de seguro quedan pendientes la baja del anterior y el alta del nuevo. Si hay " +
+      "un seguro que el sistema no conoce, se agrega desde «Tipos de seguro». Es solo para Desarrollo Organizacional y " +
+      "solo avisa: no cambia lo que cobra nadie. El plan y el beneficio máximo quedan «sin confirmar» hasta que el " +
+      "corredor los confirme. Más adelante cada colaborador con póliza podrá ver la suya en «Lo mío».\n\n" +
+      "Para no teclear lo mismo dos veces: «Leer PDF de póliza» lee el número, la vigencia y la prima de uno o varios " +
+      "PDF y los propone para que los revises antes de registrar; una póliza de vida o de EPS se registra a todas las " +
+      "personas de una vez, con un solo PDF; y «Lista de asegurados» arma quiénes están en un seguro, con lo que piden " +
+      "el contador y la aseguradora y señalando a quien le falta un dato.",
+    audiencia: "do",
+  },
+  {
     id: "2026-10-17-la-firma-de-la-empresa-sale-sola-en-los-papeles",
     fecha: "2026-10-17",
     titulo: "La firma de la empresa sale sola en los papeles, la abra quien la abra",
