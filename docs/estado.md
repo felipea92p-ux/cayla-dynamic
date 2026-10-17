@@ -232,7 +232,8 @@ No toca `fn_planilla_calcular`.
 **Pruebas (cada una en `begin … rollback` sobre el esquema completo):** 415 nueva
 (26; sin la 0521 fallan 4), 414 y 413 ajustadas (decían «nunca por la boleta»),
 y 335, 377, 378 sin cambios y en verde. Frontend: la pantalla del practicante
-vuelve a decir «se suma a tu boleta» y «tu subvención» donde decía «planilla»;
+(Info, /mio/cumpleanos y la Bandeja mía) vuelve a decir «se suma a tu boleta» y
+«tu subvención» donde decía «planilla»;
 la constancia de practicante lleva «se abona en la boleta del periodo, como
 concepto aparte de la subvención».
 
@@ -251,6 +252,16 @@ medio, no la reinserta).
 **md5 de partida de producción — PENDIENTE de confirmar:** `fn_confirmar_mi_bono_cumpleanos`
 (0520) debe ser `4c1ce380…` tal cual / `7d430c38…` sin comentarios, 5440
 caracteres. El freno de la migración aborta sin tocar nada si no.
+
+**Límite conocido, HEREDADO de la 0479 y de cualquiera que esté en boleta (revisión
+adversarial, 2026-10-16):** anular una constancia de bono desde Documentación solo marca
+`anulado_at`; **no retira la línea de la boleta**, y como el índice único por año
+excluye las anuladas, quien firmó puede volver a firmar y quedar con DOS líneas de S/ 180
+en el mismo periodo. Hoy exige dos pasos deliberados (DO anula una firma digital y la
+persona firma otra vez), y la línea duplicada se ve en Planilla antes del cierre. **Hasta
+que se arregle en una migración aparte —que `fn_documento_anular` retire la línea cuando
+el periodo no esté pagado—, al anular un bono que ya va en boleta, DO tiene que quitar
+también la línea desde Planilla.**
 
 **Sigue abierto, y no depende de esto:** las tres preguntas al contador (Ley
 28518: ¿puede darse un monto por cumpleaños a un practicante sin que cuente como
