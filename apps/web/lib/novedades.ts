@@ -115,6 +115,20 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-10-17-educacion-el-panel-de-un-estudio-dice-que-toca-hacer",
+    fecha: "2026-10-17",
+    titulo: "El panel de un estudio en Educación dice qué toca hacer",
+    queMejoro:
+      "Al abrir un estudio en Educación, lo primero que ves es su situación en una frase: si falta definir cuándo " +
+      "toca su próximo pago, si hay una constancia por revisar o si está al día. Debajo, la última constancia " +
+      "aprobada, con el mes de la cuadrícula al que pertenece y hace cuánto fue.\n\n" +
+      "La constancia por revisar sube al inicio, la última aprobada se abre sola para ver el papel sin un clic de más, " +
+      "y cada constancia aprobada dice «cuenta para» qué mes. Así se entiende por qué un check puede no verse en la " +
+      "cuadrícula: un pago con fecha de hace más de seis meses queda fuera de los meses que se ven al abrir, y el " +
+      "panel lo avisa.",
+    audiencia: "do",
+  },
+  {
     id: "2026-10-17-seguros-en-que-seguro-esta-cada-colaborador",
     fecha: "2026-10-17",
     titulo: "Seguros: ya se ve en qué seguro está cada colaborador y a quién le falta su póliza",

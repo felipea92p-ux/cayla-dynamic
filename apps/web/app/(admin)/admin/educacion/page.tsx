@@ -26,8 +26,9 @@ import {
   CLAVES_DE_URL, FILTROS_VACIOS, MESES_INICIALES, agruparEstudios, conteoTarjetas, entregaPasaFiltros,
   entregasDeEstudio, familiasDe, filtrosAUrl, filtrosDeUrl, finTrasUnPaso, mesesConDatosDeLaVentana, mesesDeLaLinea,
   mesLargo, montoMensual, pasaFiltros, resumenPorSede, sedesDe, ventanaParaFiltros, mesDe,
-  type ContextoDeFiltros, type Estudio, type Filtros,
+  type CoberturaMes, type ContextoDeFiltros, type Estudio, type Filtros,
 } from "@/lib/admin/educacion-meses";
+import { mesesQueCuenta, resumenDelPanel, ultimaAprobada } from "@/lib/admin/educacion-panel";
 import { TODA_LA_HISTORIA, rangoDeLosFiltros, textoDelRango, type RangoDeMeses } from "@/lib/admin/educacion-carga";
 import { useConstanciasPorMeses } from "@/lib/admin/use-constancias-por-meses";
 import { fechaHora, soles } from "@/lib/admin/educacion-formato";
@@ -1066,6 +1067,7 @@ function EducacionContenido() {
               key={seleccion.familia_id}
               s={seleccion}
               entregaFoco={entregaFoco}
+              coberturas={constancias.traidas.coberturas}
               miPersonaId={persona?.id ?? null}
               onEditar={() => empezarEdicion(seleccion.asignacion_id)}
               onCambio={async (texto) => { avisar("ok", texto); await cargar(); }}
@@ -1119,12 +1121,17 @@ function EducacionContenido() {
   );
 }
 
-// ── EL PANEL DE UN ESTUDIO: beneficio, constancia por revisar, historial ────
+// ── EL PANEL DE UN ESTUDIO: situación, constancia por revisar, beneficio, historial ────
+// Lo primero que dice es qué toca hacer (`resumenDelPanel`), y debajo lo que se puede hacer: revisar lo
+// pendiente, fijar el calendario, cargar una constancia a su nombre y ver cada papel. Las frases no
+// calculan nada: ponen en palabras lo que la base ya contestó.
 function PanelEstudio({
-  s, entregaFoco, miPersonaId, onEditar, onCambio, onError,
+  s, entregaFoco, coberturas, miPersonaId, onEditar, onCambio, onError,
 }: {
   s: Situacion;
   entregaFoco: string | null;
+  /** Los meses que cubre cada constancia: para decir a qué mes de la cuadrícula pertenece. */
+  coberturas: ReadonlyMap<string, readonly CoberturaMes[]>;
   miPersonaId: string | null;
   onEditar: () => void;
   onCambio: (texto: string) => Promise<void>;
@@ -1151,6 +1158,9 @@ function PanelEstudio({
   const pendientesDe = (entregas ?? []).filter((e) => e.estado === "pendiente");
   const enRevision = pendientesDe.find((e) => e.id === entregaFoco) ?? pendientesDe[0] ?? null;
   const esPropia = miPersonaId !== null && miPersonaId === s.persona_id;
+  const resumen = resumenDelPanel(s, entregas, hoyLima(), coberturas);
+  // Sin una constancia puesta en foco, se abre la última aprobada: el papel a la vista, sin un clic de más.
+  const ultimaId = entregas ? (ultimaAprobada(entregas)?.id ?? null) : null;
 
   async function guardarCalendario() {
     setTrabajando(true);
@@ -1204,9 +1214,56 @@ function PanelEstudio({
 
   return (
     <div className="flex flex-col gap-6 text-sm">
-      {/* ── BENEFICIO ── */}
+      {/* ── SITUACIÓN: qué toca hacer, antes de cualquier formulario ── */}
+      <section className="rounded-xl border border-sand bg-papel p-3">
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="text-xs font-medium uppercase tracking-wide text-taupe">Situación</h3>
+          <Insignia variante={ESTADO_CONSTANCIA[s.estado_constancia].tono}>{ESTADO_CONSTANCIA[s.estado_constancia].etiqueta}</Insignia>
+        </div>
+        <p className="mt-2">{resumen.frase}</p>
+        {resumen.ultima && <p className="mt-2 text-taupe">{resumen.ultima}</p>}
+        {resumen.ojo && <p className="mt-2 rounded-lg bg-ambar/10 p-2 text-xs">{resumen.ojo}</p>}
+      </section>
+
+      {s.aviso_fin_id && (
+        <section className="rounded-xl border border-ambar/40 bg-ambar/10 p-3">
+          <p className="font-medium">Avisó que ya no va a pagar este estudio</p>
+          <p className="mt-1">«{s.aviso_fin_motivo}»</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Boton tamano="sm" variante="peligro" onClick={() => setCerrando(true)}>Cerrar asignación</Boton>
+            <Boton tamano="sm" variante="peligro" onClick={() => setAnulando(true)}>Anular</Boton>
+            <Boton tamano="sm" cargando={trabajando} onClick={() => void atenderAviso()}>Marcar atendido sin cerrar</Boton>
+          </div>
+        </section>
+      )}
+
+      {/* ── CONSTANCIA POR REVISAR: solo si hay una ── */}
+      {enRevision && (
+        <section>
+          <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-taupe">Por revisar</h3>
+          <div className="rounded-xl border border-sand p-3">
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
+              <div><dt className="text-xs text-taupe">Pago</dt><dd>{fechaCorta(enRevision.fecha_pago)} · {TIPO_CONSTANCIA_LABELS[enRevision.tipo]}</dd></div>
+              <div><dt className="text-xs text-taupe">Enviada</dt><dd>{fechaHora(enRevision.enviada_at)}</dd></div>
+              <div><dt className="text-xs text-taupe">Próximo pago declarado</dt><dd>{enRevision.proxima_fecha_pago ? fechaCorta(enRevision.proxima_fecha_pago) : "no lo sabe o fue el último"}</dd></div>
+              {enRevision.reemplaza_a && <div><dt className="text-xs text-taupe">Es</dt><dd>una corrección de un envío anterior</dd></div>}
+            </dl>
+            {enRevision.nota && <p className="mt-2 rounded-lg bg-hueso p-2 text-xs">«{enRevision.nota}»</p>}
+            <div className="mt-3"><LienzoArchivos archivos={enRevision.archivos} /></div>
+            <div className="mt-3">
+              <AccionesRevision
+                key={enRevision.id} entrega={enRevision} persona={s.persona} esPropia={esPropia}
+                onResuelta={async (texto) => { await traer(); await onCambio(texto); }} onError={onError}
+              />
+            </div>
+            {pendientesDe.length > 1 && <p className="mt-2 text-xs text-taupe">Hay {pendientesDe.length} constancias pendientes en este estudio; se revisan de a una.</p>}
+          </div>
+        </section>
+      )}
+
+      {/* ── BENEFICIO Y CALENDARIO ── */}
       <section>
-        <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-taupe">Beneficio</h3>
+        <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-taupe">Beneficio y calendario de pagos</h3>
         <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
           <div><dt className="text-xs text-taupe">Sede</dt><dd>{s.sede} · rango {s.rango}</dd></div>
           <div><dt className="text-xs text-taupe">Estudia</dt><dd>{s.beneficiario === "hijo" ? (s.beneficiario_nombre ?? "su hijo/a") : "La persona misma"}</dd></div>
@@ -1233,70 +1290,28 @@ function PanelEstudio({
         </div>
       </section>
 
-      {s.aviso_fin_id && (
-        <section className="rounded-xl border border-ambar/40 bg-ambar/10 p-3">
-          <p className="font-medium">Avisó que ya no va a pagar este estudio</p>
-          <p className="mt-1">«{s.aviso_fin_motivo}»</p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            <Boton tamano="sm" variante="peligro" onClick={() => setCerrando(true)}>Cerrar asignación</Boton>
-            <Boton tamano="sm" variante="peligro" onClick={() => setAnulando(true)}>Anular</Boton>
-            <Boton tamano="sm" cargando={trabajando} onClick={() => void atenderAviso()}>Marcar atendido sin cerrar</Boton>
-          </div>
-        </section>
-      )}
-
-      {/* ── CONSTANCIA POR REVISAR ── */}
+      {/* ── CONSTANCIAS: todas, y a qué mes de la cuadrícula pertenece cada aprobada ── */}
       <section>
-        <div className="mb-2 flex items-center justify-between gap-2">
-          <h3 className="text-xs font-medium uppercase tracking-wide text-taupe">Constancia</h3>
-          <Insignia variante={ESTADO_CONSTANCIA[s.estado_constancia].tono}>{ESTADO_CONSTANCIA[s.estado_constancia].etiqueta}</Insignia>
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-xs font-medium uppercase tracking-wide text-taupe">Constancias de este estudio</h3>
+          {!cargandoAlNombre && (
+            <Boton variante="enlace" className="text-xs" onClick={() => setCargandoAlNombre(true)}>
+              Cargar una constancia a su nombre
+            </Boton>
+          )}
         </div>
-        {entregas === null ? <Cargando /> : enRevision ? (
-          <div className="rounded-xl border border-sand p-3">
-            <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
-              <div><dt className="text-xs text-taupe">Pago</dt><dd>{fechaCorta(enRevision.fecha_pago)} · {TIPO_CONSTANCIA_LABELS[enRevision.tipo]}</dd></div>
-              <div><dt className="text-xs text-taupe">Enviada</dt><dd>{fechaHora(enRevision.enviada_at)}</dd></div>
-              <div><dt className="text-xs text-taupe">Próximo pago declarado</dt><dd>{enRevision.proxima_fecha_pago ? fechaCorta(enRevision.proxima_fecha_pago) : "no lo sabe o fue el último"}</dd></div>
-              {enRevision.reemplaza_a && <div><dt className="text-xs text-taupe">Es</dt><dd>una corrección de un envío anterior</dd></div>}
-            </dl>
-            {enRevision.nota && <p className="mt-2 rounded-lg bg-hueso p-2 text-xs">«{enRevision.nota}»</p>}
-            <div className="mt-3"><LienzoArchivos archivos={enRevision.archivos} /></div>
-            <div className="mt-3">
-              <AccionesRevision
-                key={enRevision.id} entrega={enRevision} persona={s.persona} esPropia={esPropia}
-                onResuelta={async (texto) => { await traer(); await onCambio(texto); }} onError={onError}
-              />
-            </div>
-            {pendientesDe.length > 1 && <p className="mt-2 text-xs text-taupe">Hay {pendientesDe.length} constancias pendientes en este estudio; se revisan de a una.</p>}
-          </div>
-        ) : (
-          <p className="text-taupe">
-            {s.estado_constancia === "rechazada"
-              ? "La última se rechazó; esperando que la integrante envíe la corregida."
-              : s.fecha_pago_constancia && s.estado_constancia !== "al_dia"
-                ? `Falta la constancia del pago del ${fechaCorta(s.fecha_pago_constancia)}${s.plazo ? `, plazo ${fechaCorta(s.plazo)}` : ""}.`
-                : "No hay constancias por revisar."}
-          </p>
-        )}
-        {!cargandoAlNombre ? (
-          <Boton variante="enlace" className="mt-2 text-xs" onClick={() => setCargandoAlNombre(true)}>
-            Cargar una constancia a su nombre
-          </Boton>
-        ) : (
+        {cargandoAlNombre && (
           <CargaAlNombre s={s} onCancelar={() => setCargandoAlNombre(false)} onError={onError}
             onListo={async () => { setCargandoAlNombre(false); await traer(); await onCambio("Constancia cargada y aprobada."); }} />
         )}
-      </section>
-
-      {/* ── HISTORIAL ── */}
-      <section>
-        <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-taupe">Constancias</h3>
         {entregas === null ? <Cargando /> : entregas.length === 0 ? (
           <p className="text-taupe">Sin constancias todavía.</p>
         ) : (
           <ul className="divide-y divide-sand">
             {entregas.map((e) => (
-              <ItemHistorial key={e.id} e={e} abiertoAlInicio={e.id === entregaFoco && e.estado !== "pendiente"} />
+              <ItemHistorial key={e.id} e={e}
+                cuentaPara={e.estado === "aprobada" ? mesesQueCuenta(e, coberturas) : null}
+                abiertoAlInicio={e.estado !== "pendiente" && e.id === (entregaFoco ?? ultimaId)} />
             ))}
           </ul>
         )}
@@ -1335,13 +1350,18 @@ function PanelEstudio({
 
 // Una constancia del historial: cerrada muestra su resumen; al abrirla, el papel ya dibujado.
 // Los archivos se piden recién al abrirla: un estudio con veinte constancias no baja veinte fotos al entrar.
-function ItemHistorial({ e, abiertoAlInicio }: { e: Entrega; abiertoAlInicio: boolean }) {
+function ItemHistorial({ e, abiertoAlInicio, cuentaPara }: {
+  e: Entrega;
+  abiertoAlInicio: boolean;
+  /** Solo una aprobada cuenta para un mes de la cuadrícula: «jun 2024», o «jul – dic 2026» si es un pago adelantado. */
+  cuentaPara: string | null;
+}) {
   const [abierto, setAbierto] = useState(abiertoAlInicio);
   return (
     <li className="py-2">
       <details open={abierto} onToggle={(ev) => setAbierto(ev.currentTarget.open)}>
         <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-2">
-          <span>Pago del {fechaCorta(e.fecha_pago)} <span className="text-taupe">· {TIPO_CONSTANCIA_LABELS[e.tipo]}{e.reemplaza_a ? " · corrección" : ""}</span></span>
+          <span>Pago del {fechaCorta(e.fecha_pago)} <span className="text-taupe">· {TIPO_CONSTANCIA_LABELS[e.tipo]}{e.reemplaza_a ? " · corrección" : ""}{cuentaPara ? ` · cuenta para ${cuentaPara}` : ""}</span></span>
           <Insignia variante={ESTADO_ENTREGA[e.estado].tono}>{ESTADO_ENTREGA[e.estado].etiqueta}</Insignia>
         </summary>
         <div className="mt-2 rounded-xl bg-hueso p-3 text-xs text-taupe">
