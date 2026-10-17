@@ -342,6 +342,12 @@ function TarjetaDePdf({
         {e.tipo === "error" && <Insignia variante="alerta">No se registró</Insignia>}
       </div>
 
+      {!registrada && !yaEsta && t.leida.avisos.length > 0 && (
+        <ul className="mt-2 space-y-0.5 rounded-lg bg-ambar/15 px-3 py-2" aria-label="Lo que conviene revisar de esta póliza">
+          {t.leida.avisos.map((a) => <li key={a} className="text-xs text-ambar">{a}</li>)}
+        </ul>
+      )}
+
       {e.tipo === "registrada" && (
         <p className={cx("mt-2 text-sm", typeof e.pdf === "object" ? "text-ambar" : "text-verde")}>
           {e.pdf === "guardado" ? "Registrada, con su PDF guardado."
@@ -382,11 +388,6 @@ function TarjetaDePdf({
         </div>
       )}
 
-      {!registrada && !yaEsta && t.leida.avisos.length > 0 && (
-        <ul className="mt-3 space-y-0.5" aria-label="Lo que conviene revisar de esta póliza">
-          {t.leida.avisos.map((a) => <li key={a} className="text-xs text-ambar">{a}</li>)}
-        </ul>
-      )}
       {errores.length > 0 && (
         <ul className="mt-3 space-y-0.5" role="alert" aria-label="Lo que impide registrar esta póliza">
           {errores.map((m) => <li key={m} className="text-xs text-rojo">{m}</li>)}
