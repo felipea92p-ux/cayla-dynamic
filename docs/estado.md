@@ -6,7 +6,7 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-10-17 — Educación: pagar antes de la fecha declarada también corre el calendario (0527) · SQL PEGADO Y VERIFICADO EN PRODUCCIÓN · COMMITEADO, SIN PR · rama `claude/clever-nobel-3cdc5c`
+## 2026-10-17 — Educación: pagar antes de la fecha declarada también corre el calendario (0527) · SQL PEGADO Y VERIFICADO EN PRODUCCIÓN · PR ABIERTO, SIN FUSIONAR · rama `claude/clever-nobel-3cdc5c`
 
 **Solo alerta; no cambia lo que cobra nadie.** Defecto desde la 0450, medido con las
 funciones de verdad: un mensual que vence el 15 de mayo, paga el 3 y declara el próximo
@@ -35,17 +35,24 @@ La sección 0 de la migración frena si la función no es esa versión.
 consulta de comprobación devolvió, en producción: 727 caracteres · md5
 `51570d948d13c3fe079ff78e2a6905e2` · marca «CAMBIO 0527» en la posición 376 · 0 retornos de
 carro · 1 sola copia de la función · registro `527 · pagar_antes_de_la_fecha_tambien_corre_el_calendario`.
-Coincide con el md5 de llegada medido en local. Falta abrir y fusionar el PR, que solo trae
-el archivo ya pegado, la prueba 421 y este texto: ningún cambio de pantalla, y ya no hay
-orden de pegado que respetar. Fusionar es publicar: se pide el OK aparte.
+Coincide con el md5 de llegada medido en local. Falta fusionar el PR, que solo trae el
+archivo ya pegado, la prueba 421 y este texto: ningún cambio de pantalla, y ya no hay orden
+de pegado que respetar. Fusionar es publicar: se pide el OK aparte.
 
-**Pendiente.** (1) ~~Pegar la 0527~~ hecho; es independiente de la 0525 y de
-la 0526 (reescribe otra función). (2) Felipe corre la consulta
-del final de la migración para saber cuántos estudios **ya** quedaron atrasados: esta
-migración no los repara (solo actúa al aprobar); DO los fija a mano. (3) Al fusionar
-la 0525 (revertir aprobación): devuelve el calendario a la fecha de PAGO, no a la
-vencida; con la 0527 un pago del 3 con vencimiento el 15 revierte al 3. Solo alerta.
-(4) Sin entrada en `novedades.ts`: no la escribí porque nadie pidió PR; decide Felipe.
+**Medido otra vez con `main` ya movido** (PR #541: 0525 y 0529 pegadas): la prueba 421 da 34
+verdes contra el esquema con 0525, 0526 y 0529 puestas, y 15 rojas en el control con la
+función de la 0450. La 0529 mueve el calendario de un pago adelantado con su propio trigger y
+no reescribe esta función; las dos se llevan bien.
+
+**Pendiente.** (1) ~~Pegar la 0527~~ hecho; es independiente de la 0526 (reescribe otra
+función). (2) Felipe corre la consulta del final de la migración para saber cuántos estudios
+**ya** quedaron atrasados: esta migración no los repara (solo actúa al aprobar); DO los fija a
+mano con `fn_educacion_fijar_calendario`. (3) Con la 0525 ya en producción, revertir la
+aprobación de un pago hecho antes de la fecha deja el calendario en la fecha de PAGO y no en
+la de vencimiento (un pago del 3 con vencimiento el 15 revierte al 3). Es lo que la 0525 hace
+con toda reversión; con la 0527 solo cambia que el pago puede ser anterior al vencimiento, y
+lo único que se adelanta es el plazo. Solo alerta; no se tocó. (4) Sin entrada en
+`novedades.ts`; decide Felipe.
 
 ---
 
