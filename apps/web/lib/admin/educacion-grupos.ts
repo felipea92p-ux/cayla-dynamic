@@ -24,9 +24,15 @@
 
 import { ESTADO_CONSTANCIA, type EstadoConstancia, type TonoEstado } from "@cayla-dynamic/shared";
 
-export type GrupoEducacion = "al_dia" | "por_revisar" | "por_completar" | "en_falta" | "sin_solicitar";
+export type GrupoEducacion = "solicitaron" | "al_dia" | "por_revisar" | "por_completar" | "en_falta" | "sin_solicitar";
 
+/**
+ * «Solicitaron» es la vista con la que se abre la pantalla (Felipe, 2026-10-17): todos los estudios de
+ * quienes pidieron apoyo, vigentes o terminados, sin mezclar a quien nunca pidió. «Todos» (sin grupo)
+ * suma además a quienes no pidieron.
+ */
 export const GRUPOS_EDUCACION: { clave: GrupoEducacion; etiqueta: string; ayuda: string }[] = [
+  { clave: "solicitaron", etiqueta: "Solicitaron", ayuda: "Quienes pidieron apoyo: todos sus estudios, vigentes, por empezar o terminados." },
   { clave: "al_dia", etiqueta: "Al día", ayuda: "Tienen constancia aprobada y su próximo pago todavía no llega." },
   { clave: "por_revisar", etiqueta: "Por revisar", ayuda: "Enviaron una constancia y espera a Desarrollo Organizacional." },
   { clave: "por_completar", etiqueta: "Por completar", ayuda: "Falta enviar la constancia (todavía con plazo), o falta definir el calendario de pagos." },
@@ -40,7 +46,7 @@ export interface EstudioParaGrupo {
 }
 
 /** El grupo de un estudio. «sin_solicitar» no sale de acá: son personas, no estudios. */
-export function grupoDeEstudio(s: EstudioParaGrupo): Exclude<GrupoEducacion, "sin_solicitar"> {
+export function grupoDeEstudio(s: EstudioParaGrupo): Exclude<GrupoEducacion, "sin_solicitar" | "solicitaron"> {
   switch (s.estado_constancia) {
     case "pendiente_revision":
       return "por_revisar";

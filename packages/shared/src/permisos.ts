@@ -121,6 +121,30 @@ export function puedeGestionarContratos(rol: RolPosible): boolean {
 }
 
 /**
+ * ¿Ve estampada, por defecto, la firma de quien firma por CAYLA
+ * (`configuracion.firmante_empresa`, hoy Felipe) en los documentos de la
+ * empresa? La Gerencia, DO y la líder de equipo: quienes abren el panel.
+ *
+ * Es PREDETERMINADA y no depende de quién tenga la sesión abierta. Antes cada
+ * pantalla comparaba «¿soy el firmante?» y, si no, dejaba la raya en blanco:
+ * con cuatro cuentas con panel, el documento salía firmado solo cuando Felipe
+ * lo abría. La firma que se estampa es SIEMPRE la del firmante configurado
+ * (`fn_firma_empresa()`, sin parámetros), nunca la de quien mira, así que el
+ * nombre impreso y la rúbrica salen de la misma fila — el defecto que la 0147
+ * cerró (la firma de una persona bajo el nombre de otra) no puede volver por
+ * aquí.
+ *
+ * Es solo qué se DIBUJA: no abre ninguna pantalla. Contratos, Documentación y
+ * Liquidaciones siguen siendo de DO por su propia regla; la líder de equipo la
+ * ve donde ya podía entrar (la política salarial, los memos de su sede). La
+ * firma la lee `fn_firma_empresa()`, que cualquier sesión puede llamar desde la
+ * 0398 — la integrante la ve en su propio contrato.
+ */
+export function puedeEstamparFirmaDeEmpresa(rol: RolPosible): boolean {
+  return tiene(DO_Y_ENCARGADA, rol);
+}
+
+/**
  * Marcar o desmarcar una ficha como cuenta de servicio (0490): una estación
  * de retail, no una persona. Marcarla la saca de la planilla, así que es de
  * DO — la misma lista que `fn_set_cuenta_de_servicio` exige en la base con

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
-import { TZ_LIMA } from "@cayla-dynamic/shared";
+import { TZ_LIMA, puedeEstamparFirmaDeEmpresa } from "@cayla-dynamic/shared";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { Cargando } from "@/components/cargando";
@@ -41,7 +41,10 @@ export default function VersionHistoricaPage() {
       const [r, ultima, f] = await Promise.all([
         supabase.from("politica_salarial").select("version, documento, publicada_at, notas").eq("version", Number(version)).maybeSingle(),
         supabase.from("politica_salarial").select("version").order("version", { ascending: false }).limit(1).maybeSingle(),
-        supabase.rpc("fn_mi_firma"),
+        // La firma de quien firma por CAYLA, no la de quien abre la versión: antes
+        // se estampaba la propia de cualquiera que la abriera, bajo el nombre del
+        // firmante del documento.
+        supabase.rpc("fn_firma_empresa"),
       ]);
       if (r.error !== null) { setError(mensajeDeError(r.error, "cargar esta versión")); setCargando(false); return; }
       if (!r.data) { setError(`No existe la versión ${version}.`); setCargando(false); return; }
@@ -81,7 +84,7 @@ export default function VersionHistoricaPage() {
       {fila.notas && <p className="mb-4 text-sm text-taupe print:hidden">Notas: {fila.notas}</p>}
 
       {doc ? (
-        <DocumentoVista doc={doc} firmaUrl={firmaUrl} />
+        <DocumentoVista doc={doc} firmaUrl={puedeEstamparFirmaDeEmpresa(persona?.rol) ? firmaUrl : null} />
       ) : (
         <article className="rounded-superficie border border-sand bg-papel p-6">
           <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed text-tinta">{fila.documento}</pre>

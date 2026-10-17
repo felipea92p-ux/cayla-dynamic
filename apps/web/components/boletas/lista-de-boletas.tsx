@@ -7,7 +7,7 @@ import { TACTIL } from "@/components/boletas/pie-de-modal";
 import { estadoVisible } from "@/lib/boletas";
 import { accionesDeFila, fechaHoraLima, resumenDelDocumento, type FilaTablero } from "@/lib/admin/boletas-pantalla";
 
-export type AccionDeBoleta = "subir" | "papel" | "ver" | "editar" | "historial" | "anular";
+export type AccionDeBoleta = "subir" | "papel" | "ver" | "editar" | "historial" | "anular" | "constancia" | "restablecer" | "anulacion";
 
 /**
  * LAS PERSONAS DE UN PERIODO Y LO QUE DO PUEDE HACER CON CADA UNA.
@@ -24,13 +24,16 @@ function Acciones({ fila, grande, onAccion }: { fila: FilaTablero; grande: boole
   const a = accionesDeFila(fila);
   const ancho = grande ? `flex-1 ${TACTIL}` : "";
   const tamano = grande ? "md" : "sm";
-  const hay = a.subir || a.papel || a.ver || a.editar || a.historial || a.anular;
+  const hay = a.subir || a.papel || a.ver || a.editar || a.historial || a.anular || a.constancia || a.restablecer || a.anulacion;
   if (!hay) return <span className="text-xs text-taupe">{estadoVisible(fila) === "sin_pago" ? "Nada que subir todavía" : "—"}</span>;
   return (
     <div className="flex flex-wrap gap-2">
       {a.subir && <Boton variante="primario" tamano={tamano} className={ancho} onClick={() => onAccion("subir", fila)}>Subir boleta</Boton>}
       {a.papel && <Boton variante="primario" tamano={tamano} className={ancho} onClick={() => onAccion("papel", fila)}>Marcar entregada en papel</Boton>}
+      {a.restablecer && <Boton variante="primario" tamano={tamano} className={ancho} onClick={() => onAccion("restablecer", fila)}>Restablecer</Boton>}
+      {a.constancia && <Boton variante="primario" tamano={tamano} className={ancho} onClick={() => onAccion("constancia", fila)}>Ver boleta firmada</Boton>}
       {a.ver && <Boton tamano={tamano} className={ancho} onClick={() => onAccion("ver", fila)}>Ver</Boton>}
+      {a.anulacion && <Boton tamano={tamano} className={ancho} onClick={() => onAccion("anulacion", fila)}>Ver anulación</Boton>}
       {a.editar && <Boton tamano={tamano} className={ancho} onClick={() => onAccion("editar", fila)}>Editar</Boton>}
       {a.historial && <Boton variante="sutil" tamano={tamano} className={ancho} onClick={() => onAccion("historial", fila)}>Historial</Boton>}
       {a.anular && <Boton variante="peligro" tamano={tamano} className={ancho} onClick={() => onAccion("anular", fila)}>Anular</Boton>}
@@ -44,7 +47,7 @@ function seguimiento(f: FilaTablero): { publicada: string; vista: string; confir
     return {
       publicada: fechaHoraLima(f.publicada_at),
       vista: f.vista_at ? fechaHoraLima(f.vista_at) : "Sin abrir",
-      confirmada: f.recibida_at ? fechaHoraLima(f.recibida_at) : "Sin confirmar",
+      confirmada: f.recibida_at ? fechaHoraLima(f.recibida_at) : "Sin firmar",
     };
   }
   return null;
@@ -81,7 +84,7 @@ export function ListaDeBoletas({ filas, onAccion }: { filas: readonly FilaTabler
             <Th>Persona</Th>
             <Th>Estado</Th>
             <Th>Documento</Th>
-            <Th>Publicada · vista · confirmada</Th>
+            <Th>Publicada · vista · firmada</Th>
             <Th>Acciones</Th>
           </TablaEncabezado>
           <tbody>
@@ -100,7 +103,9 @@ export function ListaDeBoletas({ filas, onAccion }: { filas: readonly FilaTabler
                   </td>
                   <td className="px-4 py-3 text-xs text-taupe">
                     {s ? <>{s.publicada}<br />{s.vista}<br />{s.confirmada}</>
-                      : f.estado === "papel" ? <>En papel · {fechaHoraLima(f.publicada_at)}</> : "—"}
+                      : f.estado === "papel" ? <>En papel · {fechaHoraLima(f.publicada_at)}</>
+                      : f.estado === "anulada" ? <>Anulada · {fechaHoraLima(f.anulada_at)}<br />{f.restablecible_hasta && new Date(f.restablecible_hasta) > new Date() ? "Se puede restablecer" : "Plazo de restablecer vencido"}</>
+                      : "—"}
                   </td>
                   <td className="px-4 py-3"><Acciones fila={f} grande={false} onAccion={onAccion} /></td>
                 </Fila>
@@ -130,7 +135,7 @@ export function ListaDeBoletas({ filas, onAccion }: { filas: readonly FilaTabler
                   <>
                     <Dato etiqueta="Publicada">{s.publicada}</Dato>
                     <Dato etiqueta="Vista">{s.vista}</Dato>
-                    <Dato etiqueta="Confirmada">{s.confirmada}</Dato>
+                    <Dato etiqueta="Firmada">{s.confirmada}</Dato>
                   </>
                 )}
                 {f.estado === "papel" && <Dato etiqueta="En papel">{fechaHoraLima(f.publicada_at)}</Dato>}

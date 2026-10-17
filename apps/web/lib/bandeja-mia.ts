@@ -8,7 +8,7 @@ import { traerAcusesPendientes, type AcusePendiente } from "./acuses-pendientes"
 import { ordenarContratoVigente } from "./mi-contrato";
 import { puedePedirBono, traerMiBono, type MiBono } from "./mi-bono";
 import { formatSoles } from "./rangos";
-import { esBoletaNueva } from "./boletas";
+import { esBoletaPorFirmar } from "./boletas";
 import { nombreDelPeriodo, traerMisBoletas, type FilaMiBoleta } from "./mis-boletas";
 import { fechaEnPalabras, traerMisReportes, tituloDeReporte, type FilaMiReporte } from "./reportes";
 
@@ -38,7 +38,7 @@ import { fechaEnPalabras, traerMisReportes, tituloDeReporte, type FilaMiReporte 
  *     · un memo que le enviaron a su Info y aún no recibió  (fn_mis_memos_por_recibir, 0486)
  *     · la política salarial y el RIT sin acusar     (Ley 30709)
  *     · días con el marcaje incompleto del periodo que se le va a pagar
- *     · su boleta oficial publicada y todavía sin abrir  (fn_mis_boletas, 0482)
+ *     · su boleta oficial publicada y todavía sin firmar (fn_mis_boletas, 0482/0532)
  *
  *   RESPUESTAS — lo que pidió y alguien le contestó. Eso sí caduca a los
  *   DIAS_NOVEDAD, porque no hay nada que hacer con ello:
@@ -110,7 +110,7 @@ export type OrigenBandeja =
   | "educacion"
   // Lo que depende de ti. No caduca.
   | "contrato" | "memo" | "acuse" | "marcaje" | "ruta" | "bono"
-  // Su boleta oficial publicada, sin abrir (0482). Deja de contar cuando la abre.
+  // Su boleta oficial publicada, sin firmar (0482/0532). Deja de contar cuando la firma.
   | "boleta"
   // Te lo hicieron a ti — no lo pediste, así que no hay nada "esperando" para
   // este origen — pero caduca igual que una respuesta: un turno ya guardado
@@ -317,7 +317,7 @@ export interface FilaEducacionSituacion {
  * hecho que la base ya guarda (`vista_at`), así que no hay tabla de «vistos»
  * para esto, igual que con un contrato sin firmar.
  */
-export type FilaBoletaBandeja = Pick<FilaMiBoleta, "boleta_id" | "fecha_fin" | "estado" | "vista_at" | "publicada_at">;
+export type FilaBoletaBandeja = Pick<FilaMiBoleta, "boleta_id" | "fecha_fin" | "estado" | "vista_at" | "recibida_at" | "publicada_at">;
 
 export interface FuentesBandeja {
   perfil: FilaPerfil[];
@@ -690,20 +690,24 @@ export function armarBandeja(fuentes: FuentesBandeja, hoy: string = hoyLima()): 
     }
   }
 
-  // Su boleta oficial publicada y sin abrir (0482). Cuenta hasta que la abre —
-  // `vista_at` ya está guardado—, y NO caduca a los DIAS_NOVEDAD: una boleta sin
-  // abrir a los 20 días es justo la que más hay que seguir avisando. Una por
-  // periodo, con el mes en el título: dos boletas sin abrir son dos avisos.
+  // Su boleta oficial publicada y sin firmar (0482/0532). Cuenta hasta que la
+  // firma —`recibida_at` ya está guardado—, y NO caduca a los DIAS_NOVEDAD: una
+  // boleta sin firmar a los 20 días es justo la que más hay que seguir avisando.
+  // Una por periodo, con el mes en el título: dos boletas sin firmar son dos avisos.
   for (const b of fuentes.boletas ?? []) {
-    if (!esBoletaNueva(b) || !b.boleta_id) continue;
+    if (!esBoletaPorFirmar(b) || !b.boleta_id) continue;
     pendientes.push({
       instante: b.publicada_at ? Date.parse(b.publicada_at) : 0,
       m: {
         clave: `boleta:${b.boleta_id}`, origen: "boleta", estado: "por_ver",
         fecha: b.publicada_at ? fechaLima(b.publicada_at) : hoy,
-        titulo: `Tu boleta de ${nombreDelPeriodo(b.fecha_fin, { conAnio: false, minuscula: true })} ya está disponible`,
+        titulo: b.vista_at
+          ? `Tu boleta de ${nombreDelPeriodo(b.fecha_fin, { conAnio: false, minuscula: true })} espera tu firma`
+          : `Tu boleta de ${nombreDelPeriodo(b.fecha_fin, { conAnio: false, minuscula: true })} ya está disponible`,
         respuesta: null,
-        detalle: "Es la boleta oficial que entregó el contador. Ábrela en «Boletas»; seguirá acá hasta que la abras.",
+        detalle: b.vista_at
+          ? "Ya la abriste. Fírmala en «Boletas» para darla por recibida; seguirá acá hasta que la firmes."
+          : "Es la boleta oficial que entregó el contador. Ábrela en «Boletas» y fírmala; seguirá acá hasta que la firmes.",
         nuevo: true,
         ir: "/mio?tab=boletas",
         marcarVistoComo: null,

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
-import { ROLES_DO, TZ_LIMA } from "@cayla-dynamic/shared";
+import { ROLES_DO, TZ_LIMA, puedeEstamparFirmaDeEmpresa } from "@cayla-dynamic/shared";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { Cargando } from "@/components/cargando";
@@ -341,8 +341,12 @@ export default function PoliticaSalarialPage() {
   const [cuadro, setCuadro] = useState<Cuadro | null>(null);
   const [vigente, setVigente] = useState<Vigente | null>(null);
   const [miRango, setMiRango] = useState<string | null>(null);
+  // La firma de quien firma por CAYLA (`fn_firma_empresa`), no la de quien mira:
+  // sale de la misma fila que el nombre del firmante (0147), así que la firma de
+  // una persona no cae bajo el nombre de otra. Antes solo se veía si Felipe
+  // tenía la sesión abierta; ahora la ve quien abre el panel con rol que la
+  // estampa (Gerencia, DO, líder de equipo).
   const [firmaUrl, setFirmaUrl] = useState<string | null>(null);
-  const [esFirmante, setEsFirmante] = useState(false);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
@@ -365,12 +369,10 @@ export default function PoliticaSalarialPage() {
   const cargar = useCallback(async () => {
     const supabase = createAdminSupabaseClient();
     setError(null);
-    const [c, v, f, yo, cfg, r] = await Promise.all([
+    const [c, v, f, r] = await Promise.all([
       supabase.rpc("fn_cuadro_categorias"),
       supabase.rpc("fn_politica_salarial_vigente"),
-      supabase.rpc("fn_mi_firma"),
-      supabase.rpc("fn_persona_actual_id"),
-      supabase.from("configuracion").select("valor").eq("clave", "firmante_empresa").maybeSingle(),
+      supabase.rpc("fn_firma_empresa"),
       supabase.rpc("fn_mi_rango_actual"),
     ]);
     if (c.error !== null || v.error !== null) {
@@ -381,8 +383,6 @@ export default function PoliticaSalarialPage() {
     setCuadro(c.data as unknown as Cuadro);
     setVigente(v.data as unknown as Vigente);
     setFirmaUrl(typeof f.data === "string" && f.data.startsWith("data:image") ? f.data : null);
-    const vf = (cfg.data?.valor ?? null) as { persona_id?: string } | null;
-    setEsFirmante(Boolean(vf?.persona_id) && vf?.persona_id === yo.data);
     setMiRango(typeof r.data === "string" ? r.data : null);
     setCargando(false);
   }, []);
@@ -393,12 +393,10 @@ export default function PoliticaSalarialPage() {
     (async () => {
       const supabase = createAdminSupabaseClient();
       setError(null);
-      const [c, v, f, yo, cfg, r] = await Promise.all([
+      const [c, v, f, r] = await Promise.all([
         supabase.rpc("fn_cuadro_categorias"),
         supabase.rpc("fn_politica_salarial_vigente"),
-        supabase.rpc("fn_mi_firma"),
-        supabase.rpc("fn_persona_actual_id"),
-        supabase.from("configuracion").select("valor").eq("clave", "firmante_empresa").maybeSingle(),
+        supabase.rpc("fn_firma_empresa"),
         supabase.rpc("fn_mi_rango_actual"),
       ]);
       if (cancelado.actual) return;
@@ -410,8 +408,6 @@ export default function PoliticaSalarialPage() {
       setCuadro(c.data as unknown as Cuadro);
       setVigente(v.data as unknown as Vigente);
       setFirmaUrl(typeof f.data === "string" && f.data.startsWith("data:image") ? f.data : null);
-      const vf = (cfg.data?.valor ?? null) as { persona_id?: string } | null;
-      setEsFirmante(Boolean(vf?.persona_id) && vf?.persona_id === yo.data);
       setMiRango(typeof r.data === "string" ? r.data : null);
       setCargando(false);
     })();
@@ -593,7 +589,7 @@ export default function PoliticaSalarialPage() {
             })}
 
             <footer className="mt-10 border-t border-sand pt-6 print:break-inside-avoid">
-              {firmaUrl !== null && esFirmante && (
+              {firmaUrl !== null && puedeEstamparFirmaDeEmpresa(persona?.rol) && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={firmaUrl} alt="" className="mb-1 h-16 object-contain" />
               )}

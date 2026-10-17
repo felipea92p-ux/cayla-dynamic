@@ -328,6 +328,163 @@ ejemplo, claves foráneas de `boletas` que `types.ts` no tiene): deriva que ya t
 
 ---
 
+## 2026-10-17 — La política de movilidad se firma con la firma del sistema (0531) · SQL PEGADO Y VERIFICADO EN PRODUCCIÓN · FUSIONADO (#542) · rama `claude/politica-firma-del-sistema`
+
+**Qué cambia.** En Documentación, el panel de la política ofrece «Con la firma guardada
+de …» (por defecto, si quien firma por CAYLA tiene firma en `firmas_escaneadas`) o
+«Subir el papel firmado a mano» (lo de siempre). La firma desde el sistema congela la
+hoja tal como se imprime —tarifas, cláusulas, fecha y firma— en
+`documentos_firmados.documento_html`, y «Ver documento» la muestra tal cual. La
+función `fn_politica_firmar_con_firma_empresa` no recibe ni persona ni imagen: lee la
+firma del firmante configurado y exige que sea exactamente la estampada en el HTML.
+
+**Probado.** pgTAP 425 (18/18) dentro de `begin … rollback` con la 0531 y control sin
+ella (falla). En el navegador, contra el Postgres local: firmar, ver, reemplazar (la
+anterior queda en «Versiones anteriores» con su «Ver»). Los datos de prueba se
+borraron; la 0531 quedó aplicada en el Postgres local.
+
+**Pegada.** La 0531 se pegó en producción el 2026-10-17 y su comprobación salió con
+las tres columnas en true (`columnas_puestas`, `constraint_puesto`, `funcion_creada`).
+No reescribe ninguna función: no hubo md5 de partida. El PR #542 se fusionó el
+2026-10-17 a las 15:22 (hora de Lima), con db-tests y ui-tests en verde. Se decidió que
+cualquier admin/líder DO puede firmar la política con la firma de quien firma por
+CAYLA —igual que hoy puede subir el escaneo—; si eso tiene que quedar solo para el
+firmante, es un `if v_yo <> v_firmante` en la función.
+
+---
+
+## 2026-10-17 — Educación: pagar antes de la fecha declarada también corre el calendario (0527) · SQL PEGADO Y VERIFICADO EN PRODUCCIÓN · PR ABIERTO, SIN FUSIONAR · rama `claude/clever-nobel-3cdc5c`
+
+**Solo alerta; no cambia lo que cobra nadie.** Defecto desde la 0450, medido con las
+funciones de verdad: un mensual que vence el 15 de mayo, paga el 3 y declara el próximo
+el 3 de junio. DO aprueba y el calendario **se queda en el 15**; el 24 de mayo figura
+«vencida» por un mes ya aprobado. `fn_educacion_avanzar_calendario` comparaba la fecha
+de pago contra la fecha declarada (`e.fecha_pago >= a.proxima_fecha_pago`), así que
+pagar antes nunca la alcanzaba. Pasa con todas las frecuencias.
+
+**Decisión de Felipe (2026-10-17): criterio A.** Avanza también cuando el pago cae
+desde el día 1 del MES de la fecha vigente y lo declarado es posterior (o es «último
+pago», que sigue poniendo null). Para toda frecuencia. Se descartó «solo hacia
+adelante» a secas porque pisaría la fecha que DO fijó a mano.
+`fn_educacion_fijar_calendario` no se toca. **Residuo conocido:** pagar en un mes
+ANTERIOR al de la fecha vigente (vence el 3/nov, paga el 28/oct) sigue sin mover el
+calendario; lo fija DO a mano.
+
+**Medido.** pgTAP **421**, 34 aserciones: 34 verdes con la 0527; **15 rojas** en el
+control sin ella (justo las de pagar antes y las de la vida real). Cuatro variantes
+equivocadas de la regla (solo adelante, sin exigir `N > P`, solo mensual, ventana de
+40 días) la rompen cada una por al menos una aserción. md5 de partida en **producción**
+`bd2c70bb…` · 354 caracteres, idéntico a la 0450 (medido por Felipe el 2026-10-17;
+**se vuelve a pedir justo antes de entregar**). Llegada, local: `51570d94…` · 727.
+La sección 0 de la migración frena si la función no es esa versión.
+
+**Pegada y verificada el 2026-10-17.** Felipe la pegó («Success. No rows returned») y la
+consulta de comprobación devolvió, en producción: 727 caracteres · md5
+`51570d948d13c3fe079ff78e2a6905e2` · marca «CAMBIO 0527» en la posición 376 · 0 retornos de
+carro · 1 sola copia de la función · registro `527 · pagar_antes_de_la_fecha_tambien_corre_el_calendario`.
+Coincide con el md5 de llegada medido en local. Falta fusionar el PR, que solo trae el
+archivo ya pegado, la prueba 421 y este texto: ningún cambio de pantalla, y ya no hay orden
+de pegado que respetar. Fusionar es publicar: se pide el OK aparte.
+
+**Medido otra vez con `main` ya movido** (PR #541: 0525 y 0529 pegadas): la prueba 421 da 34
+verdes contra el esquema con 0525, 0526 y 0529 puestas, y 15 rojas en el control con la
+función de la 0450. La 0529 mueve el calendario de un pago adelantado con su propio trigger y
+no reescribe esta función; las dos se llevan bien.
+
+**Pendiente.** (1) ~~Pegar la 0527~~ hecho; es independiente de la 0526 (reescribe otra
+función). (2) Felipe corre la consulta del final de la migración para saber cuántos estudios
+**ya** quedaron atrasados: esta migración no los repara (solo actúa al aprobar); DO los fija a
+mano con `fn_educacion_fijar_calendario`. (3) Con la 0525 ya en producción, revertir la
+aprobación de un pago hecho antes de la fecha deja el calendario en la fecha de PAGO y no en
+la de vencimiento (un pago del 3 con vencimiento el 15 revierte al 3). Es lo que la 0525 hace
+con toda reversión; con la 0527 solo cambia que el pago puede ser anterior al vencimiento, y
+lo único que se adelanta es el plazo. Solo alerta; no se tocó. (4) Sin entrada en
+`novedades.ts`; decide Felipe.
+
+---
+
+## 2026-10-17 — Las boletas se firman, DO las ve firmadas y puede anular y restablecer en 48 horas · migración 0532 · PEGADA Y VERIFICADA EN PRODUCCIÓN · FUSIONADA Y PUBLICADA (PR #543, 2026-10-17)
+
+**Pegada y verificada el 2026-10-17, DESPUÉS de fusionar.** El PR #543 se fusionó a las 19:59 UTC
+(14:59 en Lima) **antes de pegar la 0532**, que es justo el orden que este archivo manda no
+seguir. Mientras `main` ya estaba publicada y la migración no, firmar una boleta en producción
+respondía «El sistema no encontró esta función», y lo vio una integrante real en «Lo mío». Se
+pegó desde otra sesión con `./scripts/dame-el-sql.sh 532` (portapapeles idéntico al archivo de
+`main`), el freno de md5 pasó y la comprobación devolvió
+`funciones_nuevas_de_4=4 | columna_firma=1 | columna_estado_previo=1 | historial_con_rls=1 |
+tablero_nuevo=1 | mis_boletas_nuevo=1 | guardar_version_nuevo=1` y el registro
+`532 · las_boletas_se_firman_y_una_anulacion_se_restablece`. Duró de la fusión al pegado; no se
+reportó daño más allá de ese error en pantalla. Lo que queda por comprobar en producción es el
+recorrido real de punta a punta (una boleta propia de Felipe). No consta quién fusionó: GitHub
+muestra la cuenta de Felipe, igual que cuando lo hace una sesión; la sesión que escribió esto
+había dicho que no fusionaba y que avisaba antes.
+
+**(Lo que sigue se escribió antes de pegar y fusionar; el «sin pegar» de abajo ya no es cierto.)**
+
+**Hay SQL: la [0532](../supabase/migrations/0532_las_boletas_se_firman_y_una_anulacion_se_restablece.sql).**
+**Se pegaba ANTES de fusionar:** el código nuevo llama a `fn_boleta_firmar`, `fn_boleta_restablecer`,
+`fn_boleta_constancia` y `fn_boleta_anulaciones`, que no existen en producción hasta pegarla; con el
+código primero, «Firmar» y «Anular» devolverían un error.
+
+**Qué pidió Felipe (2026-10-17, tras ver el prototipo `docs/boletas-firma-prototipo-2026-10-17.html`).**
+Que las colaboradoras firmen su boleta desde Dynamic cuando DO la sube; que DO vea la boleta con su
+firma; y que DO pueda anular una boleta ya aprobada —viendo el nombre, la constancia y los datos para
+saber si es la correcta— y restablecerla durante 48 horas. Decidido por él: firma con la guardada en Mi
+perfil, **firmar es obligatorio** (la salida es «Entregada en papel»), carga persona por persona.
+
+**Qué hace.**
+- **Firmar:** `fn_boleta_firmar` copia en el acuse de esa versión la firma que la persona tiene guardada
+  (`firmas_escaneadas`), con fecha y hora. Exige haberla abierto. Dos pasos en pantalla, y si no tiene
+  firma la crea ahí mismo con `FirmaEditor`. «Confirmar que la recibí» se **retira**: la función sigue
+  existiendo y contesta «recarga y usa Firmar» (así una pantalla vieja no ve «función inexistente»).
+- **Recibida exige firma, y lo dice un trigger** (no un CHECK: un CHECK `not valid` se reevalúa cuando
+  `fn_boleta_partes` actualiza una fila vieja y rompería a quien ya había confirmado). Quien confirmó
+  antes queda «Confirmada», sin firma, y no se le agrega una después.
+- **DO ve la firma:** `fn_boleta_constancia`; «Ver boleta firmada» muestra la boleta y la firma copiada.
+- **Anular guarda cómo estaba** (`boletas.estado_previo`) y escribe en `boletas_anulaciones` (historial
+  que solo se agrega). `fn_boleta_restablecer` devuelve la boleta exacta, con su firma —el acuse cuelga de
+  la versión y anular no lo toca—, solo dentro de 48 horas desde `anulada_at` y solo si el grupo sigue
+  pagado. Pasado el plazo, solo «Subir boleta nueva».
+- **La persona ve «En revisión»** (`fn_mis_boletas` ahora devuelve las anuladas, sin versión ni
+  archivos) y **no se le avisa** que se anuló, ni el motivo. Supuestos míos, no decididos por Felipe:
+  que restablecer conserve la firma (no firma otra vez) y que no se le avise.
+- **El globito de «Boletas» y la Bandeja ahora cuentan lo que espera firma**, no solo lo que no se abrió.
+
+**Reescribe seis funciones y lleva su freno de md5.** `fn_boleta_guardar_version`, `fn_boleta_anular`,
+`fn_boleta_confirmar_recibo`, `fn_boletas_acuses_guardian`, `fn_boletas_tablero` (la vigente es la de la
+0491, con su `not cuenta_de_servicio`) y `fn_mis_boletas`. El bloque `0 · EL FRENO` aborta sin tocar nada
+si alguna no coincide con lo que se copió (probado: se rompió una a propósito y la migración paró). **No se
+pidió el md5 a producción antes de escribir**, como manda CLAUDE.md: el freno lo reemplaza al pegar, pero si
+el PR #450 (que modifica la propia 0482) se fusiona antes, hay que volver a medir con `donde-vive.sh`.
+Los md5 de partida son los de la base local construida de `supabase/migrations`; si producción tiene
+comentarios de menos o `\r`, el freno lo acepta (mismos desenlaces que la 0491).
+
+**Cómo se verificó.**
+- pgTAP: la nueva **426** (53 aserciones: firma, guardián, constancia, anular, restablecer, plazo de 48 h,
+  historial) y la **380** adaptada (87; «confirmar» pasó a «firmar») pasan. Se repegó la migración y es
+  idempotente. La suite completa local dio 82 de 330 archivos en rojo, **todos por datos del Postgres local**
+  (periodos `dead0c…` que chocan con `periodos_sin_solape` y con una llave foránea; 41 de los errores son
+  esa misma colisión); ninguno es de boletas y **no se corrió el control** (la misma suite sin la 0532): la
+  señal fiable es `db-tests` en CI.
+- vitest completo (1 824, 87 archivos), `tsc` y eslint de lo tocado en verde. Los tipos de `database` se
+  regeneraron con `gen-types` (el diff es grande porque el archivo llevaba atraso).
+- **En el navegador, contra el Supabase local**, con DO y una integrante de prueba: DO sube una foto, la
+  publica; la integrante la abre (el botón «Firmar» estaba apagado hasta entonces), crea su firma, firma en dos
+  pasos; DO ve «Firmada» y «Ver boleta firmada» con la firma; DO anula con motivo (el botón se enciende solo
+  con motivo y casilla del nombre; «Otro» pide 5 letras); «Ver anulación»; «Restablecer» la devuelve
+  firmada; la integrante ve «En revisión» mientras está anulada. Datos de prueba borrados al terminar.
+
+**Lo que NO se comprobó.**
+- Un celular real (la pantalla de la persona y los modales se vieron solo en el navegador de escritorio).
+- El plazo vencido en pantalla (se prueba a nivel de base y de reglas, no moviendo el reloj en el navegador).
+- «Descargar con firma»: el prototipo la mostraba y **no se construyó** (haría falta generar un PDF).
+- La entrada «Boletas» en el menú: la trae el PR #535, que la pone en **Pago, debajo de Planilla**; la
+  jefa pidió **Personas**. Pendiente de decidir cuál queda.
+- La consulta al laboralista y al contador (PR #450, `docs/consulta-boletas-de-pago.md`) sigue sin contestar:
+  esto es una constancia de recepción, no firma digital certificada.
+
+---
+
 ## 2026-10-16 — Educación: un estudio ya no tapa a otro (0524) · SQL SIN PEGAR · COMMITEADO, SIN PR · rama `claude/hungry-mirzakhani-1438df`
 
 **Hoy no cuesta nada.** Medido en producción con la regla nueva contra la de hoy sobre
@@ -355,6 +512,122 @@ aparte, medir en la boleta congelada de septiembre qué se pagó de educación a
 integrante (Duolingo tenía dos tramos; las filas de hoy no se suman entre sí).
 `donde-vive.sh` busca el primer contenedor `supabase_db_*` y con `cayla-retail`
 levantado contesta «no existe en el Postgres local»: no es que falte, mira otra base.
+
+---
+
+## 2026-10-17 — Educación rediseñada: pago adelantado, historial y cuadrícula de íconos · 0525 Y 0529 PEGADAS Y VERIFICADAS · PR #541 SIN FUSIONAR · rama `claude/educacion-rediseno`
+
+**0525 pegada y verificada en producción el 2026-10-17.** La comprobación devolvió
+`525 · una_aprobacion_de_constancia_se_puede_revertir | 4 | 3 | true | true` (registro con número y nombre,
+las 4 columnas, las 3 funciones y la marca «CAMBIO 0525» en las dos funciones reescritas). Su guarda aceptaba
+el cuerpo de la 0450 tal cual o pegado desde Windows, y pasó: producción tenía la versión esperada.
+
+**0529 pegada y verificada en producción el 2026-10-17.** La comprobación devolvió
+`529 · un_pago_adelantado_cubre_varios_meses_y_el_historial_de_educacion | 7 | true | 2 | 3` (registro con número
+y nombre, las 7 funciones, la tabla de meses, las 2 columnas de cobertura y los 3 triggers). Con las dos pegadas,
+**ya se puede fusionar el PR #541** —que es publicar—, con OK de Felipe.
+
+**Hay SQL, en este orden y ANTES de fusionar:** (1) la [0525](../supabase/migrations/0525_una_aprobacion_de_constancia_se_puede_revertir.sql)
+(revertir una aprobación; ver la entrada de abajo: le falta el md5 de PRODUCCIÓN de dos funciones); (2) la
+[0529](../supabase/migrations/0529_un_pago_adelantado_cubre_varios_meses_y_el_historial_de_educacion.sql) (no
+reescribe nada: solo comprobar antes que sus nombres no existan; la consulta va al final del archivo). La
+0526 (día 1) y la 0527 (calendario) son de otras ramas y no dependen de estas.
+
+**Qué pidió Felipe y qué quedó (2026-10-17).**
+- **Pago adelantado.** Quien pagó, p. ej., agosto a diciembre de una vez sube UNA constancia: desde/hasta en meses
+  calendario (ambos incluidos), el total o el monto de cada mes; el sistema reparte y ella corrige un mes con
+  motivo (≥ 3 letras; el resto del total se reparte entre los demás). DO la aprueba una vez; el calendario salta
+  al pago siguiente al último mes cubierto y no se pide constancia de esos meses. En enero se paga como siempre y
+  se pide la nueva («solo alerta»). Si el monto de un mes es menor que el costo declarado, el visor de DO avisa;
+  si un mes está mal, se rechaza la constancia entera. La constancia sola no crea el apoyo ni enciende el pago.
+- **Cuadrícula.** Un ícono por mes (aprobada, por revisar, rechazada, falta) y una raya para el apoyo (pagado
+  —de la foto de planilla, `monto_educacion`—, este mes, se pagará). Detalle con la miniatura del comprobante al
+  pasar encima; el visor al tocar. Un adelantado es una franja que une sus meses. El mes en curso va sombreado
+  («hoy»), y el rótulo de la sede queda fijo al desplazar.
+- **Pantalla de DO.** Cuatro pestañas (Constancias · Aprobadas del ciclo · Historial · Cómo funciona), «Para
+  atender» en una línea y filtros en dos filas. Se abre en **«Solicitaron»**; **«Todos»** es todo, sin excepción
+  (también terminados y personas liquidadas) y suma a quienes no pidieron como filas de su sede en la misma
+  cuadrícula. «Estado del apoyo» arranca en «Todos».
+- **Historial.** General (filtros por sede, persona, tipo y fechas; CSV), individual dentro de cada estudio, y
+  «Tu historial» en Lo mío sin nombres de DO ni sus motivos internos.
+
+**Cómo se verificó.** pgTAP [424](../supabase/tests/424_un_pago_adelantado_cubre_varios_meses.test.sql) (44; el encabezado de la 0529, ya pegada, dice 50 por un conteo mal hecho y no se toca) y
+[419](../supabase/tests/419_una_aprobacion_de_constancia_se_puede_revertir.test.sql) (53) en el Postgres local
+dentro de `BEGIN … ROLLBACK`; la 424 sin la 0529 falla (control). `tsc`, eslint y las 1 807+ pruebas de vitest en
+verde (nuevas: `educacion-adelantado`, `educacion-historial`, `educacion-ciclo`). En el navegador, contra la base
+local, como DO y como integrante: enviar el adelantado (reparto y corrección con motivo), revisarlo con el aviso de
+monto menor, aprobarlo (el calendario saltó), la cuadrícula, los filtros, el historial con sede y el celular.
+
+**Lo que NO se verificó.** Nada contra producción. La subida real de un archivo desde el celular (el navegador
+automático no elige archivos). **Límite conocido:** la fila de un estudio puede decir «Rechazada» aunque un
+adelantado aprobado cubra ese mes, porque `fn_educacion_situacion` elige la constancia por fecha de pago; se
+arregla al reescribir esa función, que es la que reescribe la 0526 (otra rama).
+
+**Limpieza (solo local).** La base local tiene personas «Demo», periodos y fotos de planilla de prueba, y dos
+cuentas de prueba (anotadas en `apps/web/.env.local`, que no va a git).
+
+---
+
+## 2026-10-17 — Educación: una aprobación de constancia se puede revertir, y «Aprobadas en el ciclo de pago» · migración 0525 · SIN PEGAR · SIN FUSIONAR · rama `claude/educacion-revertir-aprobacion-constancia`
+
+**Hay SQL: la [0525](../supabase/migrations/0525_una_aprobacion_de_constancia_se_puede_revertir.sql), SIN PEGAR.
+Debe pegarse ANTES de fusionar** (el botón nuevo llama funciones que todavía no existen en producción). Antes de
+entregarla hay que pedirle a producción el md5 de las dos funciones que reescribe (consulta abajo) y declararlo en su
+encabezado, que hoy dice `__PENDIENTE__`.
+
+**Qué pidió Felipe.** Alguien tenía una constancia aprobada que no debió aprobarse y no había dónde corregirlo (desde la
+0450 lo revisado no se toca: un trigger lo impide). Pidió un apartado en Educación para ver a quién se aprobó en el
+ciclo de pago, ver su constancia y rechazarla con motivos predeterminados u «otro» (mínimo 3 caracteres, sin máximo), y
+que esos rechazos salgan en el historial de Educación. Decidió (2026-10-17): revertir **apaga el pago** si era la única
+constancia aprobada del estudio y **se bloquea** si el pago ya salió con ella; el ciclo es el **periodo de planilla**
+(29 → 28), no el mes calendario.
+
+**Cómo está hecho.**
+- `fn_educacion_revertir_aprobacion(id, categoría, comentario)`: la constancia pasa de aprobada a rechazada y conserva
+  en columnas nuevas quién la aprobó y cuándo (`aprobada_*`) y quién la revirtió y cuándo (`aprobacion_revertida_*`);
+  deja su fila en `correcciones_auditoria`. Nadie revierte su propia constancia. El pago NO se toca desde ahí: el espejo
+  de la 0450 ya deja o quita el `comprobante_url` según haya o no otra constancia aprobada.
+- **La única puerta** es esa función: el trigger de la 0450 (`fn_educacion_entrega_inmutable`, reescrito) deja pasar
+  aprobada → rechazada solo si vienen juntos `current_user = 'postgres'` y la marca de reversión. Un `UPDATE` directo,
+  de quien sea, sigue negado.
+- `fn_educacion_revertir_efecto(id)` dice, antes de confirmar, si apagaría el pago y si está bloqueado; la pantalla
+  solo lo muestra. **Bloqueado = no queda otra aprobada y el grupo de la persona (`tipo_vinculo`) tiene un periodo
+  pagado DESPUÉS de aprobar esa constancia** («Reabre el periodo primero»).
+- El calendario retrocede (a la fecha de ese pago) solo si esa aprobación fue la que lo avanzó y no hay otra más
+  reciente; si no, no se mueve.
+- `fn_educacion_aprobadas_del_periodo(periodo)`: lo aprobado EN el periodo, por el día en que DO aprobó (no por el del
+  pago). `fn_educacion_entregas` gana cuatro columnas (aprobada/revertida, con nombre solo para DO).
+- Pantalla: sección «Aprobadas en el ciclo de pago» en `/admin/educacion` (plegada, carga al abrirla), con selector de
+  ciclo, «Ver constancia» en la misma fila, «Rechazar…» con el aviso del efecto sobre el pago. La constancia revertida
+  se ve en la cuadrícula (rechazada), en el visor («Aprobación revertida») y en el historial del estudio. Los campos
+  del rechazo se sacaron a `components/educacion/campos-de-rechazo.tsx` y los usan los dos rechazos (una sola copia).
+  Novedad de DO en `novedades.ts`.
+
+**Qué se comprobó.** Prueba pgTAP [419](../supabase/tests/419_una_aprobacion_de_constancia_se_puede_revertir.test.sql)
+(53 aserciones) contra el Postgres local, dentro de `BEGIN … ROLLBACK`, con la 0525 puesta: 53 verdes; **el control sin
+la 0525: rojo** en lo que debe. La migración se pega dos veces sin error (idempotente). `tsc`, eslint y las 1785
+pruebas de vitest en verde. En el navegador, con la base local y datos de prueba (Ana con otra aprobada, Bea con una
+sola, Carla con el pago ya salido): la sección carga y cambia de ciclo, «Ver constancia» muestra el papel, el botón se
+apaga con menos de 3 letras, rechazar a Ana la dejó «Rechazada» con su motivo (tarjeta, cuadrícula, visor y auditoría),
+y el caso de Carla muestra el bloqueo en rojo sin campos. También en un celular de 375 px, sin desbordes.
+
+**Qué NO se comprobó.** Nada contra producción ni contra datos reales; el caso «el grupo pagó después de aprobar» está
+medido solo con filas de prueba. La Bandeja de la integrante (que el rechazo le llegue y se lo diga bien) no se abrió en
+el navegador. No se midió cuántas constancias aprobadas hoy en producción quedarían **bloqueadas** al intentar
+revertirlas (todas las de una persona cuyo grupo ya pagó después de aprobarlas y que no tiene otra): conviene medirlo
+antes de prometer que «siempre se puede corregir».
+
+**Para Felipe, en este orden.** (1) Pegar en el SQL Editor y mandar el resultado:
+`select p.proname, md5(p.prosrc), length(p.prosrc) from pg_proc p where p.pronamespace = 'public'::regnamespace and
+p.proname in ('fn_educacion_entrega_inmutable', 'fn_educacion_entregas');` — locales (= repositorio):
+`dc4ba3e1…` · 1045 y `d4c4fe5b…` · 1126. Si producción devuelve otros (comentarios perdidos, o `\r` por Windows), se
+declaran los de producción y se agrega a la guarda de la sección 0; si no coincide ninguno, se para. (2) Pegar la 0525.
+(3) Fusionar el PR. **La regla «la constancia se pide el día 1 de cada mes»** (mensuales; plazo como hoy) quedó
+propuesta como sesión aparte: reescribe `fn_educacion_situacion`; no depende de esta migración.
+
+**Limpieza pendiente (solo local).** Para ver la pantalla se cargaron en el Postgres local de `cayla-dynamic` cuatro
+personas «Demo», tres estudios, cuatro constancias, dos periodos y una cuenta de prueba (`do-prueba@cayla.dev`);
+borrarlas exige `set session_replication_role = replica` porque las entregas no se borran.
 
 ---
 

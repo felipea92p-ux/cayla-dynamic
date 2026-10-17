@@ -381,7 +381,13 @@ with repo(numero, nombre, nunca) as (values
     (520, 'el_bono_de_cumpleanos_una_sola_regla_y_el_practicante_cobra_por_transferencia', false),
     (521, 'el_bono_del_practicante_vuelve_a_la_boleta', false),
     (522, 'la_solicitud_educativa_pendiente_recibe_su_comprobante', false),
-    (524, 'un_estudio_de_educacion_no_tapa_a_otro', false)
+    (524, 'un_estudio_de_educacion_no_tapa_a_otro', false),
+    (525, 'una_aprobacion_de_constancia_se_puede_revertir', false),
+    (527, 'pagar_antes_de_la_fecha_tambien_corre_el_calendario', false),
+    (529, 'un_pago_adelantado_cubre_varios_meses_y_el_historial_de_educacion', false),
+    (531, 'la_politica_de_movilidad_se_firma_con_la_firma_del_sistema', false),
+    (532, 'las_boletas_se_firman_y_una_anulacion_se_restablece', false),
+    (533, 'la_constancia_de_la_boleta_trae_sus_datos', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte

@@ -1,8 +1,9 @@
 import { describe, it, expect } from "vitest";
 import {
   agruparEstudios, casillasDeEstudio, conteoTarjetas, entregasEnOrden, FILTROS_VACIOS, filtrosAUrl, filtrosDeUrl,
-  hayFiltros, mesDe, mesesConConstancia, mesesConDatosDeLaVentana, montoMensual, pasaFiltros, resumenPorSede, sedesDe,
-  sumarMeses, ventanaDeMeses, ventanaParaFiltros, type ContextoDeFiltros, type Filtros,
+  finTrasUnPaso, hayFiltros, limitesDeLaLinea, mesDe, mesesConConstancia, mesesConDatosDeLaVentana, mesesDeLaLinea,
+  montoMensual, pasaFiltros, resumenPorSede, sedesDe, sumarMeses, ventanaDeMeses, ventanaParaFiltros,
+  type ContextoDeFiltros, type Filtros,
 } from "@/lib/admin/educacion-meses";
 import { estadoParaMostrar, grupoDeEstudio } from "@/lib/admin/educacion-grupos";
 import type { EntregaDeFamilia, Situacion } from "@/lib/admin/educacion-tipos";
@@ -28,6 +29,7 @@ function ent(over: Partial<EntregaDeFamilia> = {}): EntregaDeFamilia {
     proxima_fecha_pago: null, nota: null, estado: "aprobada", origen: "colaboradora",
     enviada_at: "2026-09-30T15:00:00Z", enviada_por: null, revisada_at: null, revisada_por: "Felipe",
     retirada_at: null, motivo_categoria: null, motivo_comentario: null, reemplaza_a: null, archivos: [],
+    aprobada_at: null, aprobada_por: null, revertida_at: null, revertida_por: null,
     ...over,
   };
 }
@@ -72,6 +74,66 @@ describe("meses", () => {
     const datos = ["2026-01", "2026-09"];
     expect(ventanaDeMeses(HOY, datos, 12).meses[0]).toBe("2026-01");
     expect(ventanaDeMeses(HOY, datos, 12).hayMas).toBe(false);
+  });
+});
+
+describe("la ventana se mueve hacia atrás y hacia adelante (Felipe, 2026-10-17)", () => {
+  // Datos de mayo-2025 a octubre-2026, y un adelantado que cubre hasta diciembre-2026.
+  const datos = ["2025-05", "2026-10", "2026-12"];
+  const cols = (v: { meses: string[] }) => `${v.meses[0]} → ${v.meses.at(-1)}`;
+
+  it("al abrir termina en el último mes con datos y dice que hay meses anteriores, no siguientes", () => {
+    const v = ventanaDeMeses(HOY, datos, 6);
+    expect(cols(v)).toBe("2026-07 → 2026-12");
+    expect(v.hayMas).toBe(true);
+    expect(v.haySiguientes).toBe(false);
+  });
+
+  it("«← Meses anteriores» retrocede seis, y «Meses siguientes →» vuelve exactamente a donde estaba", () => {
+    const abierta = ventanaDeMeses(HOY, datos, 6);
+    const atras = ventanaDeMeses(HOY, datos, 6, finTrasUnPaso(abierta, -1));
+    expect(cols(atras)).toBe("2026-01 → 2026-06");
+    expect(atras.haySiguientes).toBe(true);
+    const deVuelta = ventanaDeMeses(HOY, datos, 6, finTrasUnPaso(atras, 1));
+    expect(deVuelta.meses).toEqual(abierta.meses);
+    expect(deVuelta.haySiguientes).toBe(false);
+  });
+
+  it("al chocar con el primer mes con datos se corre a la derecha en vez de achicarse, y apaga «anteriores»", () => {
+    const v = ventanaDeMeses(HOY, datos, 6, "2025-07");
+    expect(cols(v)).toBe("2025-05 → 2025-10");
+    expect(v.meses).toHaveLength(6);
+    expect(v.hayMas).toBe(false);
+    expect(v.haySiguientes).toBe(true);
+  });
+
+  it("nunca pasa del último mes con datos, aunque se pida más allá", () => {
+    const v = ventanaDeMeses(HOY, datos, 6, "2027-08");
+    expect(v.meses.at(-1)).toBe("2026-12");
+    expect(v.haySiguientes).toBe(false);
+  });
+
+  it("un adelantado que cubre muy lejos no saca el mes de hoy de la ventana al abrir: se llega con «siguientes»", () => {
+    const v = ventanaDeMeses(HOY, ["2026-01", "2027-09"], 6);
+    expect(v.meses).toContain("2026-10");
+    expect(cols(v)).toBe("2026-10 → 2027-03");
+    expect(v.haySiguientes).toBe(true);
+    expect(ventanaDeMeses(HOY, ["2026-01", "2027-09"], 6, finTrasUnPaso(v, 1)).meses.at(-1)).toBe("2027-09");
+  });
+
+  it("un filtro de fecha mueve la ventana hasta su mes; si después se toca un botón, manda el botón", () => {
+    const conFiltro = ventanaParaFiltros(HOY, datos, 6, { mes: "2025-08", desde: "" });
+    expect(cols(conFiltro)).toBe("2025-08 → 2026-01");
+    const tocada = ventanaParaFiltros(HOY, datos, 6, { mes: "2025-08", desde: "" }, finTrasUnPaso(conFiltro, 1));
+    expect(cols(tocada)).toBe("2026-02 → 2026-07");
+  });
+
+  it("«Mes del pago» ofrece todos los meses de la línea de tiempo, del más reciente al más antiguo", () => {
+    expect(limitesDeLaLinea(HOY, datos)).toEqual({ primero: "2025-05", ultimo: "2026-12" });
+    const m = mesesDeLaLinea(HOY, datos);
+    expect(m[0]).toBe("2026-12");
+    expect(m.at(-1)).toBe("2025-05");
+    expect(m).toHaveLength(20);
   });
 });
 
@@ -214,10 +276,10 @@ describe("pasaFiltros", () => {
     expect(pasaFiltros(e, filtros({ sede: "LIM" }), ctx(), ["sede"])).toBe(true);
   });
 
-  it("los terminados no salen con «vigentes» y sí con «todos»", () => {
+  it("los terminados salen por defecto («Estado del apoyo» arranca en «Todos») y no con «vigentes»", () => {
     const t = agruparEstudios([sit({ vigencia: "terminada" })])[0];
-    expect(pasaFiltros(t, filtros(), ctx())).toBe(false);
-    expect(pasaFiltros(t, filtros({ vigencia: "todas" }), ctx())).toBe(true);
+    expect(pasaFiltros(t, filtros(), ctx())).toBe(true);
+    expect(pasaFiltros(t, filtros({ vigencia: "activas" }), ctx())).toBe(false);
   });
 
   it("las personas ya liquidadas se ocultan salvo que se pidan", () => {
@@ -281,7 +343,7 @@ describe("pasaFiltros", () => {
   it("hayFiltros distingue lo de siempre de un filtro puesto", () => {
     expect(hayFiltros(filtros())).toBe(false);
     expect(hayFiltros(filtros({ sede: "AQP" }))).toBe(true);
-    expect(hayFiltros(filtros({ vigencia: "todas" }))).toBe(true);
+    expect(hayFiltros(filtros({ vigencia: "activas" }))).toBe(true);
   });
 });
 
@@ -413,6 +475,12 @@ describe("una rechazada que ya tiene su corrección no queda roja para siempre",
     expect(c[0].estado).toBe("rechazada");
   });
 
+  it("la corrección puede no estar entre las constancias traídas (llegan por meses): la base avisa que la corrigieron", () => {
+    const sola = [ent({ id: "r", fecha_pago: "2026-08-30", estado: "rechazada" })];
+    expect(casillasDeEstudio(estudio, sola, meses, { corregidas: new Set(["r"]) })[0].estado).toBe("vacia");
+    expect(casillasDeEstudio(estudio, sola, meses, { corregidas: new Set(["otra"]) })[0].estado).toBe("rechazada");
+  });
+
   it("si la corrección también se rechazó, esa segunda sí queda", () => {
     const c = casillasDeEstudio(estudio, [
       ent({ id: "r", fecha_pago: "2026-08-30", estado: "rechazada" }),
@@ -448,9 +516,9 @@ describe("lo que espera revisión no se esconde por un valor que nadie eligió",
   const terminado = agruparEstudios([sit({ vigencia: "terminada", vigente_hasta: "2026-08-28", estado_constancia: "pendiente_revision" })])[0];
   const espera = ctx({ familiasConPendiente: new Set(["f1"]) });
 
-  it("un estudio terminado con una constancia por revisar sale aunque «vigentes» sea el valor por defecto", () => {
-    expect(pasaFiltros(terminado, filtros(), espera)).toBe(true);
-    expect(pasaFiltros(terminado, filtros(), ctx())).toBe(false); // sin nada que revisar, sí se oculta
+  it("un estudio terminado con una constancia por revisar sale aunque se elijan solo los «vigentes»", () => {
+    expect(pasaFiltros(terminado, filtros({ vigencia: "activas" }), espera)).toBe(true);
+    expect(pasaFiltros(terminado, filtros({ vigencia: "activas" }), ctx())).toBe(false); // sin nada que revisar, sí se oculta
   });
 
   it("una persona ya liquidada con una constancia por revisar también sale", () => {

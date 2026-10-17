@@ -6,10 +6,11 @@ import { Boton } from "@/components/ui/boton";
 import { Insignia } from "@/components/ui/insignia";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/toast";
+import { ModalFirmarBoleta } from "@/components/boletas/modal-firmar-boleta";
+import { ModalMiBoletaFirmada } from "@/components/boletas/modal-mi-boleta-firmada";
 import { VisorDeHojas } from "@/components/boletas/visor-de-hojas";
-import { esBoletaNueva, etiquetaDeHojas, extensionPorMime, type TipoBoleta } from "@/lib/boletas";
+import { esBoletaNueva, esBoletaPorFirmar, etiquetaDeHojas, extensionPorMime, type TipoBoleta } from "@/lib/boletas";
 import { hojasFirmadasDeVersion, urlDeDescarga, type HojaFirmada } from "@/lib/boletas-archivos";
-import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { fechaCorta, fechaLargaLima } from "@/lib/admin/planilla/formato";
 import {
   nombreDeArchivoDeBoleta, nombreDelPeriodo, type FilaMiBoleta,
@@ -18,8 +19,8 @@ import { pesoLegible } from "@/lib/reducir-imagen";
 
 /**
  * La pestaña «Boletas» de /mio: las boletas OFICIALES —las que entrega el
- * contador— de cada periodo pagado, para verlas, guardarlas y confirmar que
- * llegaron. NO es la boleta calculada por el sistema (`/mio/boleta`, «Cómo va tu
+ * contador— de cada periodo pagado, para verlas, guardarlas y FIRMARLAS (0532):
+ * una boleta se da por recibida firmándola, con la firma que ya tiene guardada. NO es la boleta calculada por el sistema (`/mio/boleta`, «Cómo va tu
  * pago» en el Resumen): esa muestra el periodo en curso; esta es la que vale
  * cuando el periodo ya se pagó.
  *
@@ -34,7 +35,13 @@ import { pesoLegible } from "@/lib/reducir-imagen";
  * que queda escrito prueba que se pidieron las hojas, no que se leyeron: el
  * texto de la pantalla no dice más que eso.
  *
- * LO QUE GANA LA BASE. Qué boleta es la vigente, si se puede confirmar y si la
+ * LA FIRMADA SE VE Y SE DESCARGA CON SU FIRMA (2026-10-17). Una boleta ya
+ * firmada no se abre como foto suelta: «Ver» muestra la constancia —sus datos,
+ * la boleta y su firma debajo, la misma hoja que ve DO— y «Descargar PDF» la
+ * guarda en un solo archivo (`ModalMiBoletaFirmada`). La foto suelta sigue
+ * siendo lo que se ve y se guarda ANTES de firmar.
+ *
+ * LO QUE GANA LA BASE. Qué boleta es la vigente, si se puede firmar y si la
  * persona es la dueña lo decide la base. Si algo cambió mientras la pantalla
  * estaba abierta (DO reemplazó la boleta), la base contesta con un mensaje ya
  * escrito para leerse; aquí se muestra tal cual y se recarga la lista.
@@ -68,25 +75,35 @@ export function BoletasMias({
   filas,
   error,
   onRecargar,
+  miNombre,
 }: {
   /** `null` = todavía cargando. */
   filas: FilaMiBoleta[] | null;
   /** El texto ya escrito para la persona si la lectura falló. */
   error: string | null;
-  /** Vuelve a leer `fn_mis_boletas`: se llama tras abrir, guardar o confirmar. */
+  /** Vuelve a leer `fn_mis_boletas`: se llama tras abrir, guardar o firmar. */
   onRecargar: () => Promise<void>;
+  /** El nombre con que firma: va en la hoja de la boleta firmada si la base no contesta. */
+  miNombre: string;
 }) {
   const supabase = useMemo(() => createAdminSupabaseClient(), []);
   const { avisar } = useToast();
-  // UNA sola acción a la vez: mientras una boleta se abre, se guarda o se
-  // confirma, todos los botones esperan. Dos acciones sobre la misma boleta en
-  // paralelo (guardar mientras se confirma) no aportan nada y sí confunden.
+  // UNA sola acción a la vez: mientras una boleta se abre o se guarda, todos los
+  // botones esperan. Dos acciones sobre la misma boleta en paralelo no aportan
+  // nada y sí confunden. (Firmar tiene su propio modal, con su propio estado.)
   const [ocupada, setOcupada] = useState<Ocupada>(null);
   const [visor, setVisor] = useState<{
     versionId: string; titulo: string; tipo: TipoBoleta; hojas: HojaFirmada[];
+    /** La fila tal como estaba al abrirla: si ya estaba firmada, se ve la constancia. */
+    fila: FilaMiBoleta;
+    /** Se abrió con «Descargar PDF»: la descarga arranca sola. */
+    descargar: boolean;
   } | null>(null);
 
-  const nuevas = (filas ?? []).filter(esBoletaNueva);
+  // Lo que espera su firma: publicada y sin firmar, abierta o no. «Nueva» (sin
+  // abrir) es una insignia; el aviso de arriba sigue hasta que firme.
+  const porFirmar = (filas ?? []).filter(esBoletaPorFirmar);
+  const [firmando, setFirmando] = useState<FilaMiBoleta | null>(null);
 
   /** Pide las hojas. Deja escrita la primera apertura y recarga; si falla, dice por qué. */
   async function pedirHojas(f: FilaMiBoleta, segundos: number): Promise<HojaFirmada[] | null> {
@@ -103,10 +120,11 @@ export function BoletasMias({
     return r.hojas;
   }
 
-  async function ver(f: FilaMiBoleta) {
+  /** Abre la boleta. Con `descargar`, la firmada se descarga con su firma en cuanto está lista. */
+  async function ver(f: FilaMiBoleta, descargar = false) {
     const tipo = tipoDe(f);
     if (!f.version_id || !tipo) return;
-    setOcupada(`ver:${f.version_id}`);
+    setOcupada(`${descargar ? "guardar" : "ver"}:${f.version_id}`);
     const hojas = await pedirHojas(f, 300);
     setOcupada(null);
     if (!hojas) return;
@@ -115,6 +133,8 @@ export function BoletasMias({
       titulo: `Tu boleta de ${nombreDelPeriodo(f.fecha_fin)}`,
       tipo,
       hojas,
+      fila: f,
+      descargar,
     });
   }
 
@@ -151,23 +171,10 @@ export function BoletasMias({
     }
   }
 
-  async function confirmar(f: FilaMiBoleta) {
-    if (!f.version_id) return;
-    setOcupada(`confirmar:${f.version_id}`);
-    const { error: e } = await supabase.rpc("fn_boleta_confirmar_recibo", { p_version_id: f.version_id });
-    setOcupada(null);
-    if (e) {
-      // El mensaje de la base viene escrito para leerse, incluido el de «tu
-      // boleta se actualizó»: `mensajeDeError` lo deja tal cual.
-      avisar("error", mensajeDeError(e));
-    } else {
-      avisar("ok", `Quedó anotado que recibiste tu boleta de ${nombreDelPeriodo(f.fecha_fin, { minuscula: true })}.`);
-    }
-    await onRecargar();
-  }
-
   const enModal = visor ? (filas ?? []).find((f) => f.version_id === visor.versionId) ?? null : null;
-  const puedeConfirmarEnModal = enModal !== null && enModal.estado === "publicada" && !enModal.recibida_at;
+  // Firmada (o confirmada antes de la 0532) al abrirla: se ve la constancia, no la foto suelta.
+  const visorFirmado = visor !== null && Boolean(visor.fila.recibida_at);
+  const puedeFirmarEnModal = enModal !== null && esBoletaPorFirmar(enModal);
 
   return (
     <section className="rounded-2xl border border-sand p-5 text-sm">
@@ -180,21 +187,23 @@ export function BoletasMias({
       {/* El aviso va ARRIBA de la lista: quien llega desde el globito o desde la
           Bandeja tiene que ver primero lo que vino a buscar, no buscarlo entre
           los periodos viejos. */}
-      {nuevas.length > 0 && (
+      {porFirmar.length > 0 && (
         <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-ambar/40 bg-ambar/[0.07] p-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-tinta">
-            {nuevas.length === 1
-              ? `Tu boleta de ${nombreDelPeriodo(nuevas[0].fecha_fin, { minuscula: true })} ya está disponible.`
-              : `Tienes ${nuevas.length} boletas nuevas. La más reciente es la de ${nombreDelPeriodo(nuevas[0].fecha_fin, { minuscula: true })}.`}
+            {porFirmar.length === 1
+              ? (porFirmar[0].vista_at
+                  ? `Tu boleta de ${nombreDelPeriodo(porFirmar[0].fecha_fin, { minuscula: true })} espera tu firma.`
+                  : `Tu boleta de ${nombreDelPeriodo(porFirmar[0].fecha_fin, { minuscula: true })} ya está disponible: ábrela y fírmala.`)
+              : `Tienes ${porFirmar.length} boletas por firmar. La más reciente es la de ${nombreDelPeriodo(porFirmar[0].fecha_fin, { minuscula: true })}.`}
           </p>
           <Boton
             variante="primario"
             className="min-h-11 w-full sm:w-auto"
             disabled={ocupada !== null}
-            cargando={ocupada === `ver:${nuevas[0].version_id}`}
-            onClick={() => void ver(nuevas[0])}
+            cargando={ocupada === `ver:${porFirmar[0].version_id}`}
+            onClick={() => (porFirmar[0].vista_at ? setFirmando(porFirmar[0]) : void ver(porFirmar[0]))}
           >
-            Abrir boleta
+            {porFirmar[0].vista_at ? "Firmar boleta" : "Abrir boleta"}
           </Boton>
         </div>
       )}
@@ -215,7 +224,11 @@ export function BoletasMias({
             const publicada = f.estado === "publicada" && f.version_id !== null && tipo !== null;
             const nueva = esBoletaNueva(f);
             const vista = Boolean(f.vista_at);
-            const confirmada = Boolean(f.recibida_at);
+            const recibida = Boolean(f.recibida_at);
+            // Firmada = la firma está copiada en la boleta (0532). Una confirmación
+            // de antes no la tiene y se sigue llamando «Confirmada».
+            const firmada = recibida && f.firmada;
+            const enRevision = f.estado === "anulada";
             return (
               <li key={f.periodo_id} className="rounded-2xl border border-sand bg-papel p-4">
                 <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
@@ -223,11 +236,14 @@ export function BoletasMias({
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
                       <strong className="font-serif text-base font-medium">{nombreDelPeriodo(f.fecha_fin)}</strong>
                       {publicada && nueva && <Insignia variante="contador" tamano="sm">Nueva</Insignia>}
-                      {publicada && confirmada ? (
-                        <Insignia variante="positivo" tamano="sm">Confirmada · {fechaLargaLima(f.recibida_at!)}</Insignia>
+                      {publicada && recibida ? (
+                        <Insignia variante="positivo" tamano="sm">
+                          {firmada ? "Firmada" : "Confirmada"} · {fechaLargaLima(f.recibida_at!)}
+                        </Insignia>
                       ) : publicada && vista ? (
                         <Insignia variante="informativo" tamano="sm">Vista · {fechaLargaLima(f.vista_at!)}</Insignia>
                       ) : null}
+                      {enRevision && <Insignia variante="advertencia" tamano="sm">En revisión</Insignia>}
                       {publicada && f.actualizada && <Insignia variante="advertencia" tamano="sm">Actualizada</Insignia>}
                       {f.estado === "papel" && (
                         <Insignia variante="positivo" tamano="sm">
@@ -251,7 +267,12 @@ export function BoletasMias({
                     {f.estado === "papel" && (
                       <p className="mt-2 text-taupe">Te la entregaron en papel. No hay nada que abrir aquí.</p>
                     )}
-                    {publicada && f.actualizada && !confirmada && (
+                    {enRevision && (
+                      <p className="mt-2 text-taupe">
+                        Desarrollo Organizacional está revisando tu boleta de este periodo. Te avisaremos cuando esté lista.
+                      </p>
+                    )}
+                    {publicada && f.actualizada && !recibida && (
                       <p className="mt-2 text-xs text-taupe">
                         Desarrollo Organizacional actualizó esta boleta. Ábrela para ver la versión vigente.
                       </p>
@@ -260,7 +281,7 @@ export function BoletasMias({
 
                   {publicada && (
                     // En teléfono los botones se apilan bajo el periodo y usan todo
-                    // el ancho: «Ver» y «Guardar» lado a lado, «Confirmar» debajo.
+                    // el ancho: «Ver» y «Guardar» lado a lado, «Firmar» debajo.
                     // Cada uno mide 44 px de alto, el mínimo de algo que se toca
                     // con el pulgar.
                     <div className="grid grid-cols-2 gap-2 md:flex md:shrink-0 md:flex-wrap md:justify-end">
@@ -278,29 +299,32 @@ export function BoletasMias({
                         className="min-h-11 w-full md:w-auto"
                         disabled={ocupada !== null}
                         cargando={ocupada === `guardar:${f.version_id}`}
-                        onClick={() => void guardar(f)}
+                        // Firmada: un solo PDF con la boleta y su firma. Antes de
+                        // firmar: la foto o el PDF tal como lo entregó el contador.
+                        onClick={() => void (recibida ? ver(f, true) : guardar(f))}
                       >
-                        {tipo === "pdf"
-                          ? (f.n_partes > 1 ? "Descargar PDFs" : "Descargar PDF")
-                          : (f.n_partes > 1 ? "Guardar fotos" : "Guardar foto")}
+                        {recibida
+                          ? "Descargar PDF"
+                          : tipo === "pdf"
+                            ? (f.n_partes > 1 ? "Descargar PDFs" : "Descargar PDF")
+                            : (f.n_partes > 1 ? "Guardar fotos" : "Guardar foto")}
                       </Boton>
-                      {!confirmada && (
+                      {!recibida && (
                         <Boton
                           variante="primario"
                           className="col-span-2 min-h-11 w-full md:col-span-1 md:w-auto"
-                          // Confirmar sin haberla abierto no dice nada: la
-                          // constancia sería «la recibí» sobre algo que nunca se
-                          // pidió. La base lo permitiría; la pantalla no.
+                          // Firmar sin haberla abierto no dice nada: la firma
+                          // sería sobre algo que nunca se pidió. La base lo
+                          // exige; la pantalla ni lo ofrece.
                           disabled={ocupada !== null || !vista}
-                          cargando={ocupada === `confirmar:${f.version_id}`}
-                          onClick={() => void confirmar(f)}
+                          onClick={() => setFirmando(f)}
                         >
-                          Confirmar que la recibí
+                          Firmar
                         </Boton>
                       )}
-                      {!confirmada && !vista && (
+                      {!recibida && !vista && (
                         <p className="col-span-2 text-xs text-taupe md:basis-full md:text-right">
-                          Ábrela con «Ver» para poder confirmar que la recibiste.
+                          Ábrela con «Ver» para poder firmarla.
                         </p>
                       )}
                     </div>
@@ -317,35 +341,54 @@ export function BoletasMias({
         motivo; no se discute al final del mes.
       </p>
 
+      {visor && visorFirmado && (
+        <ModalMiBoletaFirmada
+          key={visor.versionId}
+          supabase={supabase}
+          fila={visor.fila}
+          hojas={visor.hojas}
+          tipo={visor.tipo}
+          miNombre={miNombre}
+          descargarAlAbrir={visor.descargar}
+          onCerrar={() => setVisor(null)}
+        />
+      )}
+
       <Modal
-        abierto={visor !== null}
+        abierto={visor !== null && !visorFirmado}
         onCerrar={() => setVisor(null)}
         titulo={visor?.titulo}
         ancho="xl"
-        bloqueado={ocupada !== null && ocupada.startsWith("confirmar:")}
       >
-        {visor && (
+        {visor && !visorFirmado && (
           <>
             <VisorDeHojas hojas={visor.hojas} tipo={visor.tipo} />
             <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <Boton variante="secundario" className="min-h-11 w-full sm:w-auto" onClick={() => setVisor(null)}>
                 Cerrar
               </Boton>
-              {puedeConfirmarEnModal && enModal && (
+              {puedeFirmarEnModal && enModal && (
                 <Boton
                   variante="primario"
                   className="min-h-11 w-full sm:w-auto"
-                  disabled={ocupada !== null}
-                  cargando={ocupada === `confirmar:${enModal.version_id}`}
-                  onClick={() => void confirmar(enModal)}
+                  onClick={() => { setVisor(null); setFirmando(enModal); }}
                 >
-                  Confirmar que la recibí
+                  Firmar esta boleta
                 </Boton>
               )}
             </div>
           </>
         )}
       </Modal>
+
+      {firmando && (
+        <ModalFirmarBoleta
+          supabase={supabase}
+          fila={firmando}
+          onCerrar={() => setFirmando(null)}
+          onFirmada={() => { setFirmando(null); void onRecargar(); }}
+        />
+      )}
     </section>
   );
 }
