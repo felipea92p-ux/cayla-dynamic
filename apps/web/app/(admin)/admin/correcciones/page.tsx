@@ -6,7 +6,7 @@ import { Search, ChevronRight, ChevronLeft, Calendar, ArrowUpRight, PanelLeftClo
 import {
   CAMPOS_DE_MARCAJE, JORNADA_ESTADO_LABELS, MINUTOS_MAXIMOS_TARDANZA_MEDIBLE, ORIGEN_MARCA_LABELS,
   ROLES_DO, TEMA_AUDITORIA_LABELS, TIPOS_MARCA, TIPO_MARCA_LABELS, TZ_LIMA, anioLima, esCampoDeMarcaje, esRolEncargada,
-  fechaLima, formatoMinutos, hoyLima, leCorrespondeHorario, puedeOperarEquipo, rangoDelDiaLima, temaDeCampo,
+  fechaLima, formatoMinutos, horaLima, hoyLima, leCorrespondeHorario, puedeOperarEquipo, rangoDelDiaLima, temaDeCampo,
   type TipoMarca,
 } from "@cayla-dynamic/shared";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
@@ -14,6 +14,7 @@ import { usePersonaActual } from "@/lib/admin/use-rol";
 import { esperadoDelDia, esTurnoEspejoViejo, type Esperado, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
 import { describirCambio, horaTextoLima, type Auditoria } from "@/lib/admin/historial-correcciones";
 import { loQueNoSePudo } from "@/lib/admin/lo-que-no-se-pudo";
+import { horaDelHorario, tipoQueFalta } from "@/lib/admin/marcaje-faltante";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
 import { useToast } from "@/components/toast";
@@ -270,9 +271,11 @@ export default function CorreccionesPage() {
   // sobra (el caso real: un regreso que nunca ocurrió y el auto-cierre). El
   // sistema las propone marcadas, pero no las anula sin que se vean primero.
   const [anularPosteriores, setAnularPosteriores] = useState<Record<string, boolean>>({});
-  // formulario "agregar marcaje"
-  const [agregarTipo, setAgregarTipo] = useState<TipoMarca>("entrada");
-  const [agregarHora, setAgregarHora] = useState("08:00");
+  // formulario "agregar marcaje". Tipo y hora arrancan en lo que le falta al día
+  // y en la hora de su horario (marcaje-faltante.ts); aquí solo se guarda lo que
+  // la persona del panel ELIGIÓ encima. Va atado a persona y fecha (`clave`): al
+  // cambiar de día vuelve a la sugerencia sin un efecto que lo resetee.
+  const [agregarElegido, setAgregarElegido] = useState<{ clave: string; tipo?: TipoMarca; hora?: string }>({ clave: "" });
   const [agregarMotivoOtro, setAgregarMotivoOtro] = useState("");
 
   // Todo lo que se pide al abrir la pantalla. Es una función y no el cuerpo de
@@ -626,6 +629,8 @@ export default function CorreccionesPage() {
     setAccion(null);
     setMotivo("");
     setAnularPosteriores({});
+    // Agregado el marcaje, el formulario vuelve a proponer lo que falte ahora.
+    if (accion.modo === "agregar") setAgregarElegido({ clave: "" });
     await refrescar();
     avisar("ok", anuladas > 0
       ? `Corrección guardada y ${anuladas} ${anuladas === 1 ? "marca anulada" : "marcas anuladas"}. Todo queda en la auditoría.`
@@ -641,6 +646,21 @@ export default function CorreccionesPage() {
     if (esperado?.origen !== "turno" || !turnoDelDia) return false;
     return esTurnoEspejoViejo(fecha, turnoDelDia, tramosHistoricos);
   }, [esperado, turnoDelDia, tramosHistoricos, fecha]);
+  // Con qué arranca «Agregar un marcaje faltante». Lo que se muestra y lo que se
+  // manda es este mismo valor derivado, nunca dos estados que puedan separarse
+  // (la lección del campo de fecha de Safari, CLAUDE.md, 2026-08-26). Sin
+  // sugerencia, el mismo arranque de siempre: «Entrada» a las 08:00.
+  const agregarClave = `${personaId}|${fecha}`;
+  const agregarYaElegido = agregarElegido.clave === agregarClave ? agregarElegido : { clave: agregarClave };
+  const momentoAgregar = { fecha, hoy: hoyLima(), ahora: horaLima() };
+  const agregarTipo = agregarYaElegido.tipo
+    ?? tipoQueFalta(
+      marcajes.filter((m) => m.anulada_at === null).map((m) => ({ tipo: m.tipo, timestamp: m.timestamp_marca })),
+      esperado, momentoAgregar,
+    )
+    ?? "entrada";
+  const agregarHoraDelHorario = horaDelHorario(agregarTipo, esperado, momentoAgregar);
+  const agregarHora = agregarYaElegido.hora ?? agregarHoraDelHorario ?? "08:00";
   // Nombre de quién hizo cada corrección, resuelto desde la lista ya cargada
   // (evita depender de un embed de PostgREST que el schema cache puede no exponer).
   const nombrePorId = useMemo(() => new Map(personas.map((p) => [p.id, `${p.nombres} ${p.apellidos}`])), [personas]);
@@ -1351,10 +1371,17 @@ export default function CorreccionesPage() {
                   <div className="mt-4 rounded-superficie border border-sand bg-papel p-4">
                     <h3 className="mb-3 text-sm font-medium">Agregar un marcaje faltante</h3>
                     <div className="flex flex-wrap items-end gap-3">
-                      <CampoSelect etiqueta="Tipo" value={agregarTipo} onChange={(e) => setAgregarTipo(e.target.value as TipoMarca)}>
+                      <CampoSelect
+                        etiqueta="Tipo" value={agregarTipo}
+                        onChange={(e) => setAgregarElegido({ ...agregarYaElegido, tipo: e.target.value as TipoMarca })}>
                         {TIPOS_AGREGABLES.map((t) => <option key={t} value={t}>{TIPO_MARCA_LABELS[t]}</option>)}
                       </CampoSelect>
-                      <Campo etiqueta="Hora" type="time" value={agregarHora} onChange={(e) => setAgregarHora(e.target.value)} />
+                      {/* La etiqueta dice de dónde salió la hora mientras nadie la
+                          haya tocado: un valor que llega solo tiene que decirlo. */}
+                      <Campo
+                        etiqueta={agregarYaElegido.hora === undefined && agregarHoraDelHorario ? "Hora · según su horario" : "Hora"}
+                        type="time" value={agregarHora}
+                        onChange={(e) => setAgregarElegido({ ...agregarYaElegido, hora: e.target.value })} />
                       {agregarTipo === "salida_otro" && (
                         <Campo
                           etiqueta="Motivo de la salida"

@@ -6,6 +6,200 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-10-16 — Educación: cuadrícula de constancias por mes, visor sin descargar, sede y filtros · SIN SQL · COMMITEADO, SIN PR TODAVÍA · rama `claude/constancias-filtros-sede-a4201b`
+
+**No hay migración que pegar.** Todo sale de las dos funciones que ya existen
+(`fn_educacion_situacion`, `fn_educacion_entregas`). Está commiteado en la rama
+(`b1e7378a` y un segundo commit con los arreglos de la revisión de abajo); no se ha
+subido ni abierto PR.
+
+**Qué pidió Felipe y qué quedó.** «Ver las constancias sin descargar, los meses
+anteriores, el filtro y todo por sede». Decidido por él en 16 preguntas el 2026-10-16:
+visor grande sobre la misma pantalla (foto o PDF con todas sus hojas, datos y
+Aprobar/Rechazar al lado, ← → entre constancias), cuadrícula persona × mes con seis
+meses y «ver más», mes = calendario del pago, **un mes sin constancia es un guion y
+nunca una falta**, una fila por persona e institución (el Duolingo registrado dos
+veces es una línea), las cinco tarjetas siguen la sede y el mes elegidos, sin
+aprobación en lote, CSV de lo que se ve y ZIP del mes. La sede y el diseño los dejó
+a criterio de quien construyó. Quién ve la pantalla **no cambió**: solo DO y admin.
+
+**Dónde vive.** Lógica pura en `apps/web/lib/admin/educacion-meses.ts` (con
+`tests/educacion-meses.test.ts`) y `zip-constancias.ts`; piezas en
+`apps/web/components/educacion/`. El PDF se **dibuja** con pdf.js (`legacy`) y no se
+incrusta: Safari de iPhone solo mostraría la primera hoja de un PDF incrustado.
+Dependencias nuevas: `pdfjs-dist` y `fflate`. La aprobación/rechazo salió del panel a
+`AccionesRevision`, que usan el panel y el visor.
+
+**Los decodificadores de pdf.js viven en `apps/web/public/pdfjs/wasm/`.** Sin ellos,
+un PDF escaneado en blanco y negro (JBIG2) o con JPEG 2000 sale EN BLANCO en el visor,
+sin error. Se midió el 2026-10-16 con un PDF de prueba JPEG 2000: hoja en blanco antes,
+legible después. **Si se sube `pdfjs-dist`, hay que volver a copiarlos** (`cp
+apps/web/node_modules/pdfjs-dist/wasm/{jbig2,openjpeg,qcms_bg}.wasm apps/web/public/pdfjs/wasm/`):
+`tests/pdfjs-wasm.test.ts` falla en CI si no coinciden byte por byte.
+
+**Revisión independiente (2026-10-16).** Cinco revisores con lentes distintos leyeron el
+commit y 78 verificadores intentaron refutar o reproducir cada hallazgo: de 39 candidatos,
+35 confirmados, 2 discutidos y 2 descartados. Lo confirmado se arregló. Lo que más pesó:
+(1) el PDF escaneado en blanco de arriba; (2) una consulta de constancias que fallaba se
+dibujaba y se exportaba como «sin constancia» —ahora se marca «?», no esconde al estudio
+de ningún filtro y el CSV/ZIP se niegan hasta reintentar—; (3) el CSV y el ZIP de un mes
+omitían en silencio los apoyos terminados y las personas liquidadas —ya no—; (4) una
+constancia por revisar de un tramo terminado o de una persona liquidada no se veía en
+ninguna tarjeta ni pestaña —ahora **lo que espera revisión no se esconde por un filtro
+que nadie eligió**—; (5) dos dibujados a la vez sobre el mismo canvas dejaban la hoja
+mal pintada.
+
+**Qué se comprobó.** `tsc`, eslint, las pruebas y `next build` en verde. En el
+navegador, con datos simulados y archivos reales en el Storage local (la base local no
+tiene la 0450, así que NO se probó contra la base): miniaturas de foto y de PDF, el
+visor en escritorio y en celular (las dos hojas del PDF se ven), aprobar desde el
+visor con la confirmación encima, Esc que cierra solo la confirmación, el panel de
+estudio con su historial, el filtro por sede y por mes y la dirección que los guarda.
+
+**Lo que NO se comprobó.** Un iPhone real; el clic en «Descargar» (CSV y ZIP): se
+probaron los nombres de archivo, las extensiones y los repetidos, no la descarga misma;
+y los datos reales de producción.
+
+**Deuda a la vista.** Al entrar se hace una consulta por estudio (de a seis): con ~30
+personas no se nota; si la lista crece, conviene UNA función SQL que devuelva todo, y
+esa sí exigiría pegar antes de fusionar. El panel «Estudio» de una fila con varios
+tramos abre el tramo que habla por la fila; las constancias de los otros se ven en la
+cuadrícula y en el visor.
+
+---
+
+## 2026-10-15 — Los practicantes pasan de EsSalud al seguro FOLA · migración 0504 · PEGADA Y VERIFICADA EN PRODUCCIÓN · FUSIONADA Y PUBLICADA (PR #532, 2026-10-15)
+
+**Pegada y verificada el 2026-10-15.** El SQL Editor devolvió el registro
+`504 · los_practicantes_pasan_de_essalud_a_seguro_privado`, y una consulta aparte,
+escrita ANTES con los valores esperados calculados sobre el archivo, dio `true` en
+las once filas: `fn_planilla_calcular_nucleo` con md5 `f1781d68…` y 116749
+caracteres, `fn_set_tipo_vinculo` con md5 `da6490ac…` y 2624 caracteres, una sola
+versión de cada una, 0 retornos de carro, y el marcador «CAMBIO 0504» en la
+planilla. Lo que eso garantiza es el texto de las dos funciones; que un practicante
+dé EsSalud 0.00 en el cálculo en vivo lo prueba la 398 en CI, y **no se midió contra
+una planilla real de producción**. Los periodos ya congelados no se recalculan.
+
+**Fusionado y publicado el 2026-10-15 a las 14:58 (Lima)**, después de pegar la SQL,
+como manda el orden. Fusión armada con `--auto --merge` a pedido de Felipe, sin
+`--admin`; `db-tests` y `ui-tests` en verde sobre el commit de la fusión
+(`2d73c1b0`), y ese commit publicado en producción. Desde entonces el convenio de
+prácticas que genera Contratos dice «seguro privado» (14 / 30 subvenciones, alcanza
+los accidentes de la práctica).
+
+**Hoy no cuesta nada, y queda abierto.** Felipe decidió fusionar **sin** la
+confirmación escrita del corredor, asumiendo el riesgo: el convenio ya promete lo de
+arriba, y ni el «Beneficio máximo anual» ni la cobertura de la modalidad
+preprofesional están comprobados (ver la tabla). Solo pesa si un practicante se
+enferma o se accidenta y la póliza no alcanza lo que el convenio dice: esa diferencia
+la debería LA EMPRESA.
+
+**Los cuatro firman el convenio nuevo, no una adenda** (decidido por Felipe el
+2026-10-16). Ninguno tiene un convenio firmado que diga EsSalud que haya que
+corregir, así que la rama `claude/adenda-convenio-en-info` (2026-10-02, sin PR) no
+hace falta para esto.
+
+**Qué es.** La planilla deja de calcular `aporte_essalud` para los practicantes
+(una línea de `fn_planilla_calcular_nucleo`), el motivo que `fn_set_tipo_vinculo`
+guarda al pasar a alguien a practicante deja de prometer EsSalud, y el convenio de
+prácticas dice «seguro privado» (Ley 28518, art. 42.8). Nada más cambia para un
+practicante: movilidad y educación siguen igual (0397 no se toca).
+
+**La póliza ya existe.** Cuatro pólizas individuales de «Seguro de Salud
+Practicantes» de Pacífico (N.º 24043264 a 24043267), emitidas el 14/10/2026, con
+vigencia **01/10/2026 → 01/01/2027** (92 días). Prima S/ 179.97 con IGV por póliza,
+unos S/ 60 al mes contra S/ 110.70 de EsSalud. Los papeles no se guardan en el
+repo (llevan nombres): viven en el correo de Felipe y con el corredor.
+
+**Lo que Felipe tiene que hacer, y no es el SQL.**
+
+| Qué | Cuándo | Si no |
+|---|---|---|
+| ~~**Pagar las cuatro primas** (S/ 719.88 en total, contado)~~ | ✅ **pagadas** — lo informó Felipe el 15/10/2026 (vencían el 31/10) | Con 30 días de mora la cobertura se suspende. Queda pedir las facturas, que Pacífico emite al pagar: Dante las va a necesitar |
+| ~~**Enviar a cada practicante su póliza**~~ | ✅ **enviadas** — lo informó Felipe el 16/10/2026 | Ese correo es la constancia de entrega: no borrarlo. No hace falta un cargo aparte: el convenio no promete entregar la póliza, y la firma del convenio nuevo prueba que cada uno sabe que tiene seguro |
+| **Pedir las facturas de las cuatro primas** | cuanto antes | Dante las va a necesitar |
+| **Firmar y devolver póliza y convenio de pago** | cuanto antes | Pacífico los pide firmados; la casilla del asegurado/contratante está en blanco en los cuatro |
+| **Que los cuatro firmen el convenio nuevo** | cuanto antes | Se genera desde Contratos; ya dice «seguro privado» |
+| **Renovar la póliza** | **antes del 01/01/2027** | Desde ese día los practicantes quedan sin seguro, y la planilla ya no calcula EsSalud al que volver |
+| **Confirmar con el corredor el «Beneficio máximo anual»** | **abierto — el convenio ya lo promete** | La casilla está VACÍA en las cuatro pólizas y la Tabla de Beneficios no viene adjunta: el mínimo de 14 / 30 subvenciones que el convenio nuevo promete no se puede comprobar con estos papeles |
+| **Preguntarle si la póliza alcanza a la modalidad preprofesional** | **abierto — el convenio ya lo promete** | El resumen dice que cubre a quien esté en un convenio de «Formación Laboral Juvenil o Prácticas Profesionales», y **dos de los cuatro asegurados son preprofesionales** (los otros dos, profesionales). Pedirlo por escrito |
+
+**Antes de pegar la 0504 (en este orden).**
+1. ✅ **Hecho el 15/10/2026.** [`antes_de_pegar_la_0504.sql`](../scripts/sql-manual/antes_de_pegar_la_0504.sql)
+   corrido en producción: `fn_planilla_calcular_nucleo` md5 `27dda408…`, 116375
+   caracteres, 0 retornos de carro (igual a la 0495 del repo); `fn_set_tipo_vinculo`
+   md5 `547088d9…`, 2610 caracteres, una sola versión (la 0324). Y los practicantes
+   no cesados son exactamente cuatro, las cuatro personas de las pólizas: la
+   migración quita el EsSalud a todos de una vez y la póliza es nominal.
+2. ✅ **Hecho el 15/10/2026.** Entregada con `./scripts/dame-el-sql.sh 504`,
+   mirando `main` en ese mismo mensaje (no se había movido).
+3. ✅ **Pegada ANTES de fusionar el PR**, como manda el orden: el PR trae el texto
+   nuevo del convenio.
+
+**Un choque que se vio y quedó frenado.** La rama
+`claude/youthful-joliot-8dd9cb` (pasar a planilla pregunta desde cuándo empieza el
+vínculo laboral, SIN PR) también reescribe `fn_set_tipo_vinculo`, y le cambia la
+firma. Si cualquiera de las dos se pega primero y la otra no se rehace, la segunda
+pisaría a la primera o dejaría dos versiones con los mismos dos argumentos
+(«function is not unique», la forma de la 0297/0299). La 0504 ahora lo comprueba
+antes de tocar nada y se detiene si esa función no es la de la 0324; se probó con
+funciones de mentira dentro de `begin … rollback`: pasa con la 0324 real y frena
+con una de cinco argumentos, con una sobrecarga extra y con una de dos argumentos
+sin el marcador. La rama de «pasar a planilla» ya traía su propio freno por md5
+de la 0324, así que si la 0504 entra primero ella se detiene en vez de pisar: tendrá
+que rehacerse partiendo del cuerpo de la 0504.
+
+**Y la 0504 ya entró primero.** Producción tiene desde el 15/10/2026
+`fn_set_tipo_vinculo` con md5 `da6490ac5d12722e38fcba0a2d47dea9` y 2624 caracteres.
+Quien retome la 0518 de «pasar a planilla» (`claude/youthful-joliot-8dd9cb`) tiene
+que partir de ESE cuerpo —el de la 0504, ya en `main`—, no del de la
+0324, y cambiar su md5 de partida (hoy declara `547088d9…`, 2610 caracteres): su
+freno se detendrá, que es lo que se quiere. La única diferencia con la 0324 es la
+frase del motivo de auditoría que se guarda al pasar a alguien a practicante.
+
+**Lo que no se midió en esta Mac.** El Postgres local está en la migración 338 y
+no tiene `fn_planilla_calcular_nucleo`, así que la parte de planilla de la 0504 se
+audita con `db-tests` de GitHub Actions (construye la base desde cero y corre la
+prueba 398). Auditoría anterior, del 2026-10-02 en un Postgres desechable con
+control: 398 daba 6/8 sin la migración y 8/8 con ella, y el resto de la suite era
+idéntico con y sin 0504. `fn_planilla_calcular_nucleo` sigue siendo la 0495 en
+`main`, o sea que el cuerpo del que parte no cambió.
+
+**Lo que dijo `db-tests` en el primer intento (commit `d675dba8`).** Falló UNA
+aserción, la 41 de la prueba **396** (la de la 0502): afirmaba que el practicante
+genera S/ 110.70 de EsSalud, que es justo lo que la 0504 quita a propósito. Esa
+prueba entró a `main` después de que se escribió la 0504, así que la rama vieja no
+podía verla. Se ajustó a 0.00 y se dice por qué en la propia prueba. La **398**
+pasó, o sea que la migración entera se aplicó sobre una base armada desde cero,
+freno nuevo incluido.
+
+---
+
+## 2026-10-13 — Easter eggs y el colibrí sin internet · SIN SQL · SIN FUSIONAR
+
+**Qué es.** Cinco secretos pasivos y una página para cuando no hay internet,
+con el juego del colibrí (tres juegos en uno: 50 % vuelo, 40 % salto, 10 %
+flappy). El catálogo y cómo activar cada uno está en
+[`easter-eggs.md`](easter-eggs.md); allí se anotan los que vengan.
+
+**No hay migración:** todo es frontend y archivos estáticos. Fusionar el PR ES
+publicar, como siempre.
+
+**Lo que conviene saber antes de fusionar.**
+- Es el primer service worker con alcance `/` (el del terminal sigue siendo
+  `/terminal/`, y este lo ignora a propósito). **No guarda ninguna página del
+  panel**: solo tres archivos sin datos. Está probado ejecutándolo (no leyéndolo)
+  en `tests/sin-conexion.test.ts`, y se comprobó en un navegador real cortando el
+  servidor: el panel muestra el aviso, el terminal NO.
+- **Solo funciona en dispositivos que ya abrieron Dynamic una vez con internet**
+  después de este despliegue. La primera visita sin red ve el error normal.
+- Se registra solo en producción. En `pnpm dev` no hace nada, para no dejar un
+  service worker pegado a `localhost:3000`.
+
+**Pendiente.** El toque del **aniversario de CAYLA**: falta el día exacto (en
+Retail es una campaña con ventana editable, no un día). Ver el final de
+`easter-eggs.md`.
+
 ## 2026-10-13 — El bono del practicante vuelve a la boleta, y se paga al cierre del periodo · migración 0521 · ESCRITA Y PROBADA · SIN PEGAR · SIN FUSIONAR
 
 **Decisión de Felipe, el mismo día, al ver funcionando la 0520:** el pedido de

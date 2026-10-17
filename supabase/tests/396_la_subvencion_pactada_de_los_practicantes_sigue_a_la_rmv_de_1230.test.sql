@@ -32,7 +32,8 @@
 --   C · LA PLANILLA LO LEE BIEN: un practicante que marca 6.5 h los 31 días del
 --       periodo 28-sep → 28-oct cobra 3/31 × 1,130 + 28/31 × 1,230 → 1,220.32,
 --       no 1,230: tres días de septiembre al sueldo de septiembre. Y su EsSalud
---       no se mueve (piso puro, ya subió con la 0501).
+--       no aparece: desde la 0504 el practicante no genera EsSalud (antes era el
+--       piso puro, 110.70; la prueba lo afirmaba así y la 0504 lo cambió a propósito).
 --
 --   D · EL TRAMO QUE EMPIEZA EL 1-OCT: `fn_set_salario` BORRA todo tramo con
 --       vigente_desde >= la fecha. Quien ingresó HOY y cobra menos que su
@@ -429,8 +430,8 @@ select is(
   (select (f->>'aporte_essalud')::numeric
      from jsonb_array_elements(fn_planilla_calcular(date '2026-09-28', date '2026-10-28')->'filas') f
     where f->>'nombre' = 'Prac01 Lab'),
-  110.70,
-  'el EsSalud del practicante es el piso puro (9 % de 1,230) y NO lo mueve la 0502: ya había subido con la 0501');
+  0.00,
+  '0504: el practicante ya no genera EsSalud (lo cubre el seguro privado FOLA): queda en 0.00, y la 0502 tampoco lo mueve. Antes era el piso puro, 9 % de 1,230 = 110.70');
 
 -- ── Idempotencia ────────────────────────────────────────────────────────────
 select lives_ok($$

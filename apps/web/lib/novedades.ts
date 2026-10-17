@@ -115,6 +115,83 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-10-16-educacion-constancias-por-mes-y-por-sede",
+    fecha: "2026-10-16",
+    titulo: "En Educación ya se ven las constancias de cada mes, por sede, sin descargar nada",
+    queMejoro:
+      "La lista de Educación ahora es una cuadrícula: una fila por persona e institución, una columna por mes y, en " +
+      "cada casilla, la miniatura de la constancia recibida. Un toque la abre grande —foto o PDF con todas sus hojas— " +
+      "con sus datos al lado y los botones Aprobar y Rechazar, sin otra pestaña ni descargar nada. También se puede " +
+      "usar desde el celular.\n\n" +
+      "La sede va arriba, con el número de estudios de cada una, y las cinco tarjetas de arriba cuentan solo lo que " +
+      "estás viendo: si eliges una sede o un mes, las tarjetas y la lista dicen lo mismo. Con las flechas ← → pasas de " +
+      "una constancia a otra y con Esc cierras el visor. Con «Todas», cada sede tiene su " +
+      "bloque con su resumen. Un guion en un mes es un mes sin constancia, no una falta: lo vencido lo sigue diciendo la " +
+      "etiqueta de estado. Si una persona registró el mismo estudio dos veces, sale en una sola línea con sus meses " +
+      "seguidos.\n\n" +
+      "«Más filtros» suma quién estudia, el tipo de constancia, quién la revisó y un rango de fechas, y lo que eliges " +
+      "queda en la dirección: puedes guardarla o pasarla para ver lo mismo. «Descargar» baja el cuadro de lo que ves " +
+      "(CSV) y, si eliges un mes, un ZIP con las constancias de esa sede y ese mes.",
+    audiencia: "do",
+  },
+  {
+    id: "2026-10-16-educacion-por-grupos-y-cuadro-de-constancias",
+    fecha: "2026-10-16",
+    titulo: "Educación se puede ver por grupos, con quién no ha pedido nada y un cuadro de constancias",
+    queMejoro:
+      "En Educación hay pestañas debajo de las tarjetas: Al día, Por revisar, Por completar, Vencidas o rechazadas y " +
+      "Sin solicitar. Se agrupa por el estado de la constancia, no por si el apoyo se paga, y «Sin solicitar» lista a " +
+      "las personas activas que no tienen ningún apoyo ni una solicitud por revisar, con un botón para registrarles " +
+      "uno.\n\n" +
+      "Arriba hay dos paneles que se abren: «Cómo funciona», con la regla, el techo por rango y los plazos de la " +
+      "constancia, y «Dónde están las constancias», que explica dónde se guardan, qué queda registrado y permite " +
+      "descargar un cuadro (CSV) con una fila por constancia y archivo, para una auditoría. La tarjeta «Rechazadas» " +
+      "ahora se llama «Constancias rechazadas» y dice «esperando a la integrante» en vez de «atender», porque a Desarrollo " +
+      "Organizacional no le toca nada hasta que llegue la corregida; el historial aclara que cuenta solicitudes, no constancias.",
+    audiencia: "do",
+  },
+  {
+    id: "2026-10-16-adjuntar-comprobante-a-solicitud-de-apoyo-educativo",
+    fecha: "2026-10-16",
+    titulo: "Ya puedes adjuntar el comprobante a tu solicitud de apoyo educativo después de enviarla",
+    queMejoro:
+      "Si enviaste tu solicitud de apoyo educativo sin el comprobante, ya no tienes que retirarla y pedirla de nuevo: " +
+      "en Lo mío, Educación, tu solicitud pendiente tiene un botón «Adjuntar comprobante». Desarrollo Organizacional " +
+      "lo ve al revisarla, y sin él no puede aprobar.\n\n" +
+      "Si te equivocaste de archivo, el mismo botón dice «Cambiar comprobante» y lo reemplaza mientras la solicitud " +
+      "siga pendiente. Una vez revisada o retirada, el comprobante ya no se cambia.",
+    audiencia: "todos",
+  },
+  {
+    id: "2026-10-13-asistencia-diseno-unificado",
+    fecha: "2026-10-13",
+    titulo: "Asistencia de hoy se ve más ordenada: números, avisos y sedes con una sola forma",
+    queMejoro:
+      "Los cuatro números de arriba —trabajando ahora, tardanzas, sin marcar y sedes bajo la meta— ahora son " +
+      "casillas, y el estado de cada una lo dice un punto de color junto a su nombre, no el color del número. Lo que " +
+      "cuenta cada casilla no cambió: solo la forma de leerla. Si una casilla está en cero, ya no se puede abrir, " +
+      "porque no tiene detalle que mostrar.\n\n" +
+      "Lo mismo pasa dentro de cada sede: los recuadros «Trabajando ahora» y «En pausa» ya no se pintan de verde y " +
+      "de ámbar, llevan un punto; los avisos tienen un tamaño para los de una línea y otro para los que explican; y " +
+      "si un filtro no encuentra a nadie, aparece un botón para quitar los filtros. En el celular los cuatro " +
+      "números van en dos filas de dos y ocupan algo más de pantalla que antes. Las tablas del panel perdieron las " +
+      "franjas alternas: la fila se resalta al pasar el cursor.",
+    audiencia: "panel",
+  },
+  {
+    id: "2026-10-13-agregar-marcaje-propone-lo-que-falta",
+    fecha: "2026-10-13",
+    titulo: "En Correcciones, «Agregar un marcaje faltante» ya propone lo que falta",
+    queMejoro:
+      "Al abrir el día de alguien, el formulario ya no arranca siempre en «Entrada · 08:00». Propone el marcaje que " +
+      "le falta a ese día —por ejemplo «Salida final» si ya tiene su entrada— y la hora que le tocaba según su " +
+      "horario. Mientras no la cambies, la etiqueta dice «Hora · según su horario».\n\n" +
+      "Revisa la hora antes de agregar: es la de su horario, no necesariamente la real. Si es hoy y todavía no llega " +
+      "su hora de salida, no se propone la salida, porque puede que siga trabajando. El tipo y la hora se cambian " +
+      "con un clic, como siempre.",
+    audiencia: "panel",
+  },
+  {
     id: "2026-10-13-cumpleanos-en-info",
     fecha: "2026-10-13",
     titulo: "En tu mes de cumpleaños, Info te saluda y te deja firmar tu bono ahí mismo",

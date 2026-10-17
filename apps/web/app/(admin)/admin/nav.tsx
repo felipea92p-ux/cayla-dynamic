@@ -36,6 +36,7 @@ import { Marca } from "@/components/marca";
 import { AcusesPendientes } from "@/components/acuses-pendientes";
 import { BuscadorGlobal } from "@/components/buscador-global";
 import { AtajosTeclado } from "@/components/atajos-teclado";
+import { ColibriViajero } from "@/components/colibri-viajero";
 import { SelectorTema } from "@/components/selector-tema";
 import { SidebarAdmin } from "@/components/nav/sidebar-admin";
 import { CajonAdmin } from "@/components/nav/cajon-admin";
@@ -394,6 +395,7 @@ function MarcoConChrome({ pathname, children }: { pathname: string; children: Re
 
       <BuscadorGlobal grupos={grupos} abierto={buscadorAbierto} onCerrar={() => setBuscadorAbierto(false)} />
       <AtajosTeclado grupos={grupos} abierto={ayudaAbierta} setAbierto={setAyudaAbierta} />
+      <ColibriViajero />
     </div>
   );
 }

@@ -1091,11 +1091,12 @@ function documentoConvenio(d: DatosContrato): string {
     feriados no laborables debidamente subvencionados (Ley N.° 28518, artículos 42.4 y 45).</p>`,
 
     `<h3>{{N}}. SEGURO</h3>
-    <p>LA EMPRESA cubre los riesgos de enfermedad y accidentes de ${etiquetaPracticante} mediante su afiliación a EsSalud
-    (Ley N.° 28518, artículo 42.8) — decisión propia de LA EMPRESA, que no le corresponde por defecto a toda
-    modalidad formativa. De optar en su lugar por un seguro privado, la cobertura no será menor a catorce (14)
-    subvenciones mensuales en caso de enfermedad y treinta (30) en caso de accidente, conforme al artículo 43 de la
-    misma ley.</p>`,
+    <p>LA EMPRESA cubre los riesgos de enfermedad y accidentes de ${etiquetaPracticante} mediante un seguro privado
+    contratado a su cargo (Ley N.° 28518, artículo 42.8), con una cobertura no menor a catorce (14) subvenciones
+    mensuales en caso de enfermedad y treinta (30) en caso de accidente, que alcanza también los accidentes ocurridos
+    durante la ejecución de la práctica. LA EMPRESA no se acoge al régimen de prestaciones de EsSalud a favor de
+    ${etiquetaPracticante} (artículo 47 de la misma ley, que lo deja como decisión voluntaria). La prima íntegra es de
+    cargo de LA EMPRESA y no se descuenta de la subvención económica.</p>`,
 
     `<h3>{{N}}. OBLIGACIONES DE LA EMPRESA</h3>
     <p>LA EMPRESA se obliga a:</p>

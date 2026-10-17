@@ -362,6 +362,7 @@ with repo(numero, nombre, nunca) as (values
     (501, 'la_rmv_sube_a_1230_y_la_escala_la_sigue', false),
     (502, 'la_subvencion_pactada_de_los_practicantes_sigue_a_la_rmv_de_1230', false),
     (503, 'el_archivo_de_la_empresa', false),
+    (504, 'los_practicantes_pasan_de_essalud_a_seguro_privado', false),
     (505, 'el_feriado_posterior_al_cese_no_corresponde', false),
     (506, 'un_alta_que_se_parece_a_alguien_pide_confirmacion', false),
     (507, 'el_alta_de_una_persona_solo_entra_por_fn_crear_persona', false),
@@ -377,7 +378,8 @@ with repo(numero, nombre, nunca) as (values
     (517, 'la_persona_ve_como_va_con_sus_tardanzas', false),
     (518, 'a_quien_le_toca_el_bono_de_cumpleanos_se_dice_una_vez', false),
     (519, 'el_bono_de_cumpleanos_tambien_lo_recibe_el_practicante', true),
-    (520, 'el_bono_de_cumpleanos_una_sola_regla_y_el_practicante_cobra_por_transferencia', false)
+    (520, 'el_bono_de_cumpleanos_una_sola_regla_y_el_practicante_cobra_por_transferencia', false),
+    (522, 'la_solicitud_educativa_pendiente_recibe_su_comprobante', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte

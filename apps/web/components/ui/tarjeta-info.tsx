@@ -22,7 +22,10 @@ export function TarjetaInfo({
   className?: string;
 }) {
   return (
-    <div className={cx("rounded-superficie border border-sand bg-papel p-5", className)}>
+    // p-4 en celular y p-5 desde 640 px (decisión 3 de docs/adr/0004-diseno-unificado.md,
+    // 2026-10-13): en el teléfono cada tarjeta regala 8 px de ancho útil, y en
+    // escritorio respira igual que siempre.
+    <div className={cx("rounded-superficie border border-sand bg-papel p-4 sm:p-5", className)}>
       {titulo && (
         <div className="mb-2 flex items-baseline justify-between gap-2">
           <h2 className="font-serif text-lg">{titulo}</h2>
