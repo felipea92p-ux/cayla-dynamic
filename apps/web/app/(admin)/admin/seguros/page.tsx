@@ -35,7 +35,7 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { SlidersHorizontal, X } from "lucide-react";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
-import { hoyLima, puedeGestionarSeguros } from "@cayla-dynamic/shared";
+import { hoyLima, puedeExportarListaDeAsegurados, puedeGestionarSeguros } from "@cayla-dynamic/shared";
 import { Cargando } from "@/components/cargando";
 import { ArchivosPoliza, type PolizaHermana } from "@/components/seguros/archivos-poliza";
 import { AyudaDeSeguros } from "@/components/seguros/ayuda-de-seguros";
@@ -43,6 +43,7 @@ import { CambiarSeguro } from "@/components/seguros/cambiar-seguro";
 import { FichaPersona, type AccionesFicha } from "@/components/seguros/ficha-persona";
 import { FormularioPoliza, type BaseDePoliza, type OpcionPersona } from "@/components/seguros/formulario-poliza";
 import { HistorialPoliza } from "@/components/seguros/historial-poliza";
+import { ListaDeAsegurados } from "@/components/seguros/lista-de-asegurados";
 import { ModalPaso, type PasoPorMarcar } from "@/components/seguros/modal-paso";
 import { TiposDeSeguro } from "@/components/seguros/tipos-de-seguro";
 import { useToast } from "@/components/toast";
@@ -257,6 +258,7 @@ function Seguros() {
   // ── Cambiar el seguro de una persona y administrar los tipos ──────────
   const [cambiando, setCambiando] = useState<SeguroDePersona | null>(null);
   const [tiposAbierto, setTiposAbierto] = useState(false);
+  const [listaAbierta, setListaAbierta] = useState(false);
 
   const acciones: AccionesFicha = {
     registrar, renovar,
@@ -311,6 +313,7 @@ function Seguros() {
         }
         accion={!cargaError && (
           <div className="flex flex-wrap gap-2">
+            <Boton onClick={() => setListaAbierta(true)}>Lista de asegurados</Boton>
             <Boton onClick={() => setTiposAbierto(true)}>Tipos de seguro</Boton>
             <Boton variante="primario" onClick={() => registrar(null)}>+ Registrar una póliza</Boton>
           </div>
@@ -462,6 +465,16 @@ function Seguros() {
         hoy={hoy}
         onCerrar={() => setCambiando(null)}
         onListo={(mensaje) => { setCambiando(null); void cargar(); avisar("ok", mensaje); }}
+      />
+
+      <ListaDeAsegurados
+        abierto={listaAbierta}
+        onCerrar={() => setListaAbierta(false)}
+        supabase={supabase}
+        tipos={tipos}
+        inicial={tipoFiltro !== TODOS && tipoFiltro !== NINGUNO ? tipoFiltro : null}
+        puedeDescargar={puedeExportarListaDeAsegurados(rol)}
+        hoy={hoy}
       />
 
       <TiposDeSeguro
