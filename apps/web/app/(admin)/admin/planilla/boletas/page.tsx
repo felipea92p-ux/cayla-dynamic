@@ -29,14 +29,17 @@ import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
 import { Campo, CampoSelect } from "@/components/ui/campo";
 import { EditorDeBoleta } from "@/components/boletas/editor-de-boleta";
 import { ListaDeBoletas, type AccionDeBoleta } from "@/components/boletas/lista-de-boletas";
-import { ModalAnularBoleta, ModalMarcarPapel } from "@/components/boletas/modales-de-confirmacion";
+import { ModalMarcarPapel } from "@/components/boletas/modales-de-confirmacion";
+import { ModalAnularBoleta } from "@/components/boletas/modal-anular-boleta";
+import { ModalConstanciaBoleta } from "@/components/boletas/modal-constancia-boleta";
+import { ModalRestablecerBoleta } from "@/components/boletas/modal-restablecer-boleta";
 import { ModalHistorialBoleta, type VersionDeBoleta } from "@/components/boletas/modal-historial-boleta";
 import { ModalPublicarBoletas } from "@/components/boletas/modal-publicar-boletas";
 import { ModalVerBoleta } from "@/components/boletas/modal-ver-boleta";
 import { TACTIL } from "@/components/boletas/pie-de-modal";
 import { ETIQUETA_ESTADO, contarTablero, estadoVisible, type EstadoVisible, type TipoBoleta } from "@/lib/boletas";
 import {
-  ESTADOS_DEL_FILTRO, borradoresDelTablero, etiquetaDePeriodo, filtrarTablero, nombreDePeriodo,
+  ESTADOS_DEL_FILTRO, accionesDeFila, borradoresDelTablero, etiquetaDePeriodo, filtrarTablero, nombreDePeriodo,
   periodoInicial, sedesDelTablero, type FilaTablero,
 } from "@/lib/admin/boletas-pantalla";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
@@ -48,7 +51,10 @@ type Modal =
   | { t: "publicar"; borradores: FilaTablero[] }
   | { t: "historial"; fila: FilaTablero }
   | { t: "anular"; fila: FilaTablero }
-  | { t: "papel"; fila: FilaTablero };
+  | { t: "papel"; fila: FilaTablero }
+  | { t: "constancia"; fila: FilaTablero }
+  | { t: "anulacion"; fila: FilaTablero }
+  | { t: "restablecer"; fila: FilaTablero };
 
 type Visor = { versionId: string; tipo: TipoBoleta; titulo: string; textoCerrar: string };
 
@@ -143,6 +149,9 @@ function PantallaBoletas() {
     else if (accion === "papel") setModal({ t: "papel", fila: f });
     else if (accion === "historial") setModal({ t: "historial", fila: f });
     else if (accion === "anular") setModal({ t: "anular", fila: f });
+    else if (accion === "constancia") setModal({ t: "constancia", fila: f });
+    else if (accion === "anulacion") setModal({ t: "anulacion", fila: f });
+    else if (accion === "restablecer") setModal({ t: "restablecer", fila: f });
     else if (accion === "ver" && f.version_id) {
       abrirVisor({
         versionId: f.version_id,
@@ -254,7 +263,7 @@ function PantallaBoletas() {
                     <Cifra valor={`${contadores.conBoleta} de ${contadores.total}`} etiqueta="con su boleta" />
                     <Cifra valor={String(contadores.sinPublicar)} etiqueta="subidas sin publicar" />
                     <Cifra valor={String(contadores.faltan)} etiqueta="faltan por subir" />
-                    <Cifra valor={String(contadores.confirmadas)} etiqueta="confirmaron su recepción" />
+                    <Cifra valor={String(contadores.firmadas)} etiqueta="firmaron su boleta" />
                   </div>
 
                   <div className="flex flex-col gap-3 rounded-superficie bg-hueso px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
@@ -338,8 +347,40 @@ function PantallaBoletas() {
           onCerrar={() => setModal(null)}
         />
       )}
+      {modal?.t === "constancia" && (
+        <ModalConstanciaBoleta
+          key={modal.fila.persona_id}
+          supabase={supabase}
+          modo="constancia"
+          fila={modal.fila}
+          nombreDelPeriodo={nombreDelPeriodo}
+          onCerrar={() => setModal(null)}
+          onAnular={() => setModal({ t: "anular", fila: modal.fila })}
+        />
+      )}
+      {modal?.t === "anulacion" && (
+        <ModalConstanciaBoleta
+          key={modal.fila.persona_id}
+          supabase={supabase}
+          modo="anulacion"
+          fila={modal.fila}
+          nombreDelPeriodo={nombreDelPeriodo}
+          onCerrar={() => setModal(null)}
+          onRestablecer={accionesDeFila(modal.fila).restablecer ? () => setModal({ t: "restablecer", fila: modal.fila }) : undefined}
+        />
+      )}
+      {modal?.t === "restablecer" && (
+        <ModalRestablecerBoleta
+          supabase={supabase}
+          fila={modal.fila}
+          nombreDelPeriodo={nombreDelPeriodo}
+          onCerrar={() => setModal(null)}
+          onRestablecida={terminarYRecargar}
+        />
+      )}
       {modal?.t === "anular" && (
         <ModalAnularBoleta
+          key={modal.fila.persona_id}
           supabase={supabase}
           fila={modal.fila}
           nombreDelPeriodo={nombreDelPeriodo}

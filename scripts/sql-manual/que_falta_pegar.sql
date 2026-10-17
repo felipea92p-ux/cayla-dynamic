@@ -383,7 +383,8 @@ with repo(numero, nombre, nunca) as (values
     (522, 'la_solicitud_educativa_pendiente_recibe_su_comprobante', false),
     (524, 'un_estudio_de_educacion_no_tapa_a_otro', false),
     (525, 'una_aprobacion_de_constancia_se_puede_revertir', false),
-    (529, 'un_pago_adelantado_cubre_varios_meses_y_el_historial_de_educacion', false)
+    (529, 'un_pago_adelantado_cubre_varios_meses_y_el_historial_de_educacion', false),
+    (532, 'las_boletas_se_firman_y_una_anulacion_se_restablece', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
