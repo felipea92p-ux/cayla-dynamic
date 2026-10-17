@@ -1,0 +1,852 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Educación rediseñada — prototipo</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap">
+<!--
+  Prototipo del rediseño de Educación (2026-10-17). Cuatro piezas que se tocan:
+
+    1. La cuadrícula dice, mes por mes, DOS cosas con ícono y palabra: la constancia
+       (aprobada, por revisar, rechazada, falta) y el apoyo (pagado en planilla, se
+       paga este mes, se pagará, sin apoyo). La «rayita» desaparece.
+    2. Los filtros arrancan en «Con apoyo este mes». «Terminados» y «Sin solicitar»
+       quedan aparte y no se mezclan con quien recibe apoyo.
+    3. Pago adelantado: una constancia cubre varios meses. La colaboradora pone desde
+       / hasta y el monto de cada mes o el total; el sistema reparte por meses
+       calendario y ella corrige un mes con motivo. DO aprueba UNA vez.
+    4. Historial general (todo lo que pasó) e individual (una persona), con los
+       mismos hechos; la colaboradora ve el suyo sin nombres de DO.
+
+  Decisiones de Felipe del 2026-10-17: meses calendario incluidos; en enero se paga y
+  se pide la nueva constancia (no cambia la planilla); si el monto por mes es menor
+  que el costo declarado, se avisa a DO; si un mes está mal, se rechaza la constancia
+  entera. Los filtros y el historial siguen la recomendación (no se respondieron).
+
+  Datos ficticios. «Hoy» es el 17 de octubre de 2026. Colores: tokens de globals.css.
+  No es código de la app y no toca ninguna base.
+-->
+<style>
+  :root{
+    --color-crema:#f5f0e8; --color-papel:#fbf8f2; --color-tinta:#1a1a18;
+    --color-rojo:#b8412d; --color-rojo-profundo:#8b2a1f; --color-sand:#e8e0d0; --color-taupe:#805c4c;
+    --color-hueso:#eae1d2; --color-pizarra:#4c5d6e; --color-verde:#48603f;
+    --color-ambar:#74501a; --color-azul:#2f5f9e; --color-ceniza:#635f58;
+    --font-sans:'DM Sans', ui-sans-serif, system-ui, sans-serif;
+    --font-serif:'EB Garamond', ui-serif, Georgia, "Times New Roman", serif;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --color-crema:#1c1a16; --color-papel:#26221d; --color-tinta:#ede7db;
+      --color-rojo:#d4634a; --color-rojo-profundo:#e8836b; --color-sand:#332e27; --color-taupe:#ab9080;
+      --color-hueso:#15110d; --color-pizarra:#9db0c2; --color-verde:#8fae80;
+      --color-ambar:#c99a4a; --color-azul:#9bbbe8; --color-ceniza:#aaa59b;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"]{
+    --color-crema:#1c1a16; --color-papel:#26221d; --color-tinta:#ede7db;
+    --color-rojo:#d4634a; --color-rojo-profundo:#e8836b; --color-sand:#332e27; --color-taupe:#ab9080;
+    --color-hueso:#15110d; --color-pizarra:#9db0c2; --color-verde:#8fae80;
+    --color-ambar:#c99a4a; --color-azul:#9bbbe8; --color-ceniza:#aaa59b;
+    color-scheme: dark;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; }
+  body{ background:var(--color-crema); color:var(--color-tinta); font-family:var(--font-sans); font-size:14.5px; line-height:1.5; padding:24px 16px 72px; }
+  .page{ max-width:1240px; margin-inline:auto; display:flex; flex-direction:column; gap:20px; }
+  h1,h2,h3,h4{ font-family:var(--font-serif); font-weight:600; margin:0; text-wrap:balance; }
+  p{ margin:0; }
+  button,input,select,textarea{ font-family:inherit; font-size:inherit; color:inherit; }
+  button{ cursor:pointer; }
+  :focus-visible{ outline:2px solid var(--color-rojo); outline-offset:2px; }
+  .oculto{ display:none !important; }
+
+  .masthead{ display:flex; flex-wrap:wrap; justify-content:space-between; gap:16px; align-items:flex-start; }
+  .masthead h1{ font-size:1.9rem; margin:10px 0 6px; }
+  .masthead p{ color:var(--color-taupe); max-width:72ch; }
+  .badge-demo{ display:inline-flex; font-size:.72rem; font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:var(--color-pizarra);
+    background:color-mix(in oklab, var(--color-pizarra) 14%, var(--color-papel)); border:1px solid color-mix(in oklab, var(--color-pizarra) 35%, transparent); padding:5px 10px; border-radius:100px; }
+
+  /* navegación del prototipo */
+  .vistas{ display:flex; flex-wrap:wrap; gap:8px; }
+  .vista-btn{ border:1px solid var(--color-sand); background:var(--color-papel); border-radius:12px; padding:9px 14px; text-align:left; display:flex; flex-direction:column; gap:1px; min-width:200px; }
+  .vista-btn b{ font-size:.66rem; letter-spacing:.06em; text-transform:uppercase; color:var(--color-taupe); }
+  .vista-btn span{ font-weight:600; font-size:.9rem; }
+  .vista-btn[aria-pressed="true"]{ border-color:var(--color-tinta); box-shadow:inset 0 0 0 1px var(--color-tinta); }
+  .recorrido{ background:var(--color-papel); border:1px solid var(--color-sand); border-radius:14px; padding:12px 14px; font-size:.88rem; color:var(--color-taupe); display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .recorrido strong{ color:var(--color-tinta); }
+  .recorrido .pasos{ display:flex; gap:6px; flex-wrap:wrap; }
+  .recorrido .p{ font-size:.72rem; font-weight:700; padding:3px 9px; border-radius:100px; background:var(--color-hueso); color:var(--color-taupe); }
+  .recorrido .p.hecho{ background:color-mix(in oklab, var(--color-verde) 16%, var(--color-papel)); color:var(--color-verde); }
+  .recorrido .p.ahora{ background:var(--color-tinta); color:var(--color-crema); }
+
+  /* superficies comunes */
+  .panel{ background:var(--color-papel); border:1px solid var(--color-sand); border-radius:16px; padding:18px; display:flex; flex-direction:column; gap:14px; }
+  .cab h2{ font-size:1.55rem; } .cab p{ color:var(--color-taupe); font-size:.86rem; margin-top:2px; }
+  .btn{ border:1px solid var(--color-tinta); background:var(--color-tinta); color:var(--color-crema); border-radius:10px; padding:7px 13px; font-weight:600; font-size:.82rem; min-height:36px; }
+  .btn.sec{ background:transparent; color:var(--color-tinta); border-color:var(--color-taupe); }
+  .btn.rojo{ background:var(--color-rojo); border-color:var(--color-rojo); color:#fff; }
+  .btn.peligro{ background:transparent; color:var(--color-rojo-profundo); border-color:color-mix(in oklab, var(--color-rojo) 50%, var(--color-sand)); }
+  .btn.fino{ min-height:30px; padding:4px 10px; font-size:.78rem; }
+  .btn.grande{ min-height:48px; width:100%; font-size:.98rem; border-radius:12px; }
+  .btn[disabled]{ opacity:.45; cursor:not-allowed; }
+  .ins{ display:inline-flex; align-items:center; gap:6px; font-size:.74rem; font-weight:600; padding:3px 9px; border-radius:100px; white-space:nowrap; }
+  .ins.ok{ color:var(--color-verde); background:color-mix(in oklab, var(--color-verde) 15%, var(--color-papel)); }
+  .ins.info{ color:var(--color-pizarra); background:color-mix(in oklab, var(--color-pizarra) 15%, var(--color-papel)); }
+  .ins.aviso{ color:var(--color-ambar); background:color-mix(in oklab, var(--color-ambar) 15%, var(--color-papel)); }
+  .ins.alerta{ color:var(--color-rojo-profundo); background:color-mix(in oklab, var(--color-rojo) 10%, var(--color-papel)); }
+  .ins.neutro{ color:var(--color-ceniza); background:color-mix(in oklab, var(--color-ceniza) 12%, var(--color-papel)); }
+  .campo{ display:flex; flex-direction:column; gap:4px; font-size:.84rem; color:var(--color-taupe); }
+  .campo input,.campo select,.campo textarea{ background:var(--color-hueso); border:1px solid var(--color-taupe); border-radius:10px; padding:8px 10px; color:var(--color-tinta); }
+  .seg{ display:inline-flex; flex-wrap:wrap; border:1px solid var(--color-sand); border-radius:10px; overflow:hidden; background:var(--color-crema); }
+  .seg button{ border:0; background:none; padding:7px 12px; font-size:.82rem; font-weight:600; color:var(--color-taupe); }
+  .seg button[aria-pressed="true"]{ background:var(--color-tinta); color:var(--color-crema); }
+  .aviso-caja{ border-radius:10px; padding:9px 12px; font-size:.84rem; }
+  .aviso-caja.ok{ background:color-mix(in oklab, var(--color-verde) 12%, var(--color-papel)); color:var(--color-verde); }
+  .aviso-caja.aviso{ background:color-mix(in oklab, var(--color-ambar) 14%, var(--color-papel)); color:var(--color-ambar); }
+  .aviso-caja.neutro{ background:var(--color-hueso); color:var(--color-taupe); }
+  .aviso-caja.alerta{ background:color-mix(in oklab, var(--color-rojo) 10%, var(--color-papel)); color:var(--color-rojo-profundo); }
+
+  /* ── 1 · filtros y cuadrícula ── */
+  .pestanas{ display:flex; flex-wrap:wrap; gap:6px; }
+  .pestana{ border:1px solid var(--color-sand); background:var(--color-crema); border-radius:100px; padding:6px 13px; font-size:.82rem; font-weight:600; color:var(--color-taupe); }
+  .pestana b{ font-weight:600; margin-left:4px; color:var(--color-tinta); }
+  .pestana[aria-pressed="true"]{ background:var(--color-tinta); color:var(--color-crema); border-color:var(--color-tinta); }
+  .pestana[aria-pressed="true"] b{ color:var(--color-crema); }
+  .pestana.aparte{ border-style:dashed; }
+  .fila-filtros{ display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end; }
+  .leyenda{ display:flex; flex-wrap:wrap; gap:6px 16px; font-size:.76rem; color:var(--color-taupe); background:var(--color-hueso); border-radius:12px; padding:9px 12px; }
+  .leyenda span{ display:inline-flex; align-items:center; gap:5px; }
+  .grid-wrap{ overflow-x:auto; border:1px solid var(--color-sand); border-radius:14px; background:var(--color-papel); }
+  table.grid{ border-collapse:separate; border-spacing:0; width:100%; min-width:900px; }
+  .grid th{ background:var(--color-hueso); font-size:.7rem; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:var(--color-taupe); padding:8px 6px; text-align:center; position:sticky; top:0; }
+  .grid th:first-child,.grid td:first-child{ text-align:left; padding-left:14px; position:sticky; left:0; background:inherit; z-index:1; }
+  .grid th.hoy{ color:var(--color-tinta); box-shadow:inset 0 -2px 0 var(--color-rojo); }
+  .grid td{ border-top:1px solid var(--color-sand); padding:7px 4px; vertical-align:middle; background:var(--color-papel); }
+  .grid td.quien{ min-width:200px; }
+  .grid .nom{ font-weight:600; } .grid .nom small{ display:block; font-weight:400; color:var(--color-taupe); font-size:.74rem; }
+  /* Una casilla = un ícono. La raya de abajo dice el apoyo; el detalle sale al pasar encima. */
+  .grid td.mes{ padding:8px 0; text-align:center; position:relative; }
+  .ic{ width:40px; height:40px; border-radius:12px; border:1px solid transparent; background:transparent; display:inline-grid; place-items:center; position:relative; z-index:1; padding:0; }
+  .ic:hover,.ic:focus-visible{ box-shadow:0 0 0 2px var(--color-tinta); }
+  .ic .g{ width:24px; height:24px; border-radius:50%; display:grid; place-items:center; font-size:.8rem; font-weight:700; line-height:1; }
+  .g.aprobada,.g.cubierto{ background:var(--color-verde); color:var(--color-papel); }
+  .g.pendiente{ background:var(--color-pizarra); color:var(--color-papel); }
+  .g.rechazada{ background:var(--color-rojo); color:#fff; }
+  .g.falta{ border:2px solid var(--color-ambar); color:var(--color-ambar); }
+  .g.nada{ color:var(--color-ceniza); font-size:1.1rem; }
+  /* el apoyo: una raya corta debajo del ícono */
+  .ic::after{ content:""; position:absolute; left:11px; right:11px; bottom:3px; height:3px; border-radius:3px; }
+  .ic.ap-pagado::after{ background:var(--color-verde); }
+  .ic.ap-este::after{ background:var(--color-tinta); }
+  .ic.ap-pagara::after{ background:transparent; box-shadow:inset 0 0 0 1px var(--color-taupe); height:4px; bottom:2px; }
+  /* un pago adelantado: una franja que une sus meses */
+  td.mes.tramo::before{ content:""; position:absolute; top:50%; height:30px; transform:translateY(-50%); left:0; right:0; background:color-mix(in oklab, var(--color-verde) 14%, transparent); }
+  td.mes.tramo.ini::before{ left:50%; border-radius:15px 0 0 15px; margin-left:-20px; }
+  td.mes.tramo.fin::before{ right:50%; border-radius:0 15px 15px 0; margin-right:-20px; }
+  td.mes.tramo.pend::before{ background:color-mix(in oklab, var(--color-pizarra) 12%, transparent); }
+  td.mes.tramo.rech::before{ background:color-mix(in oklab, var(--color-rojo) 10%, transparent); }
+  .grid td.mes.fuera{ background:color-mix(in oklab, var(--color-hueso) 50%, var(--color-papel)); }
+
+  /* el globo del detalle */
+  .globo{ position:fixed; z-index:30; width:290px; background:var(--color-papel); border:1px solid var(--color-sand); border-radius:14px; box-shadow:0 10px 30px rgba(0,0,0,.18); padding:12px; display:flex; flex-direction:column; gap:8px; font-size:.82rem; }
+  .globo h4{ font-family:var(--font-serif); font-size:1.02rem; }
+  .globo .fila-g{ display:grid; grid-template-columns:78px 1fr; gap:6px; }
+  .globo .fila-g dt{ font-size:.66rem; letter-spacing:.05em; text-transform:uppercase; color:var(--color-taupe); padding-top:2px; }
+  .globo .fila-g dd{ margin:0; }
+  .globo .mini{ display:flex; gap:10px; align-items:center; border-top:1px solid var(--color-sand); padding-top:8px; }
+  .globo .mini img{ width:64px; height:84px; object-fit:cover; border:1px solid var(--color-sand); border-radius:6px; background:#fff; }
+  /* el comprobante en grande */
+  .visor{ background:var(--color-papel); border-radius:16px; width:min(860px,100%); max-height:92vh; overflow:auto; display:grid; grid-template-columns:minmax(0,1.2fr) minmax(0,1fr); }
+  @media (max-width:760px){ .visor{ grid-template-columns:1fr; } }
+  .visor .hoja{ background:var(--color-hueso); padding:16px; display:flex; justify-content:center; align-items:flex-start; }
+  .visor .hoja img{ width:100%; max-width:420px; border-radius:6px; border:1px solid var(--color-sand); background:#fff; }
+  .visor .lado{ padding:18px; display:flex; flex-direction:column; gap:10px; }
+  .estado-col{ min-width:150px; padding-right:10px !important; }
+
+  /* listas de terminados y sin solicitar */
+  .lista{ list-style:none; margin:0; padding:0; border:1px solid var(--color-sand); border-radius:14px; background:var(--color-papel); }
+  .lista li{ display:flex; flex-wrap:wrap; justify-content:space-between; gap:8px; align-items:center; padding:11px 14px; border-top:1px solid var(--color-sand); }
+  .lista li:first-child{ border-top:0; }
+  .lista small{ color:var(--color-taupe); }
+
+  /* ── 2 · celular ── */
+  .dos{ display:grid; grid-template-columns:392px minmax(0,1fr); gap:22px; align-items:start; }
+  @media (max-width:1000px){ .dos{ grid-template-columns:1fr; } .phone{ margin-inline:auto; } }
+  .phone{ width:392px; max-width:100%; border:10px solid var(--color-tinta); border-radius:42px; background:var(--color-crema); overflow:hidden; height:780px; display:flex; flex-direction:column; position:relative; }
+  :root[data-theme="dark"] .phone{ border-color:var(--color-sand); }
+  .phone .barra{ height:28px; flex:none; display:flex; justify-content:space-between; align-items:center; padding:6px 22px 0; font-size:.7rem; font-weight:700; }
+  .phone .top{ padding:8px 16px 8px; border-bottom:1px solid var(--color-sand); background:var(--color-papel); flex:none; }
+  .phone .top small{ color:var(--color-taupe); font-size:.74rem; } .phone .top h3{ font-size:1.25rem; }
+  .phone .cuerpo{ flex:1; overflow:auto; padding:14px 16px 18px; display:flex; flex-direction:column; gap:12px; }
+  .phone .base{ flex:none; padding:10px 16px 14px; border-top:1px solid var(--color-sand); background:var(--color-papel); display:flex; flex-direction:column; gap:6px; }
+  .opcion{ display:flex; gap:10px; align-items:flex-start; border:1px solid var(--color-sand); background:var(--color-papel); border-radius:12px; padding:10px 12px; text-align:left; width:100%; }
+  .opcion[aria-pressed="true"]{ border-color:var(--color-tinta); box-shadow:inset 0 0 0 1px var(--color-tinta); }
+  .opcion .r{ width:18px; height:18px; border-radius:50%; border:2px solid var(--color-taupe); flex:none; margin-top:2px; }
+  .opcion[aria-pressed="true"] .r{ border:5px solid var(--color-tinta); }
+  .opcion strong{ display:block; font-size:.9rem; } .opcion span{ font-size:.78rem; color:var(--color-taupe); }
+  .meses-tabla{ width:100%; border-collapse:collapse; font-size:.84rem; }
+  .meses-tabla td,.meses-tabla th{ padding:7px 6px; border-top:1px solid var(--color-sand); text-align:left; }
+  .meses-tabla th{ font-size:.68rem; letter-spacing:.05em; text-transform:uppercase; color:var(--color-taupe); border-top:0; }
+  .meses-tabla td.n{ text-align:right; font-variant-numeric:tabular-nums; }
+  .meses-tabla .origen{ font-size:.7rem; color:var(--color-taupe); display:block; }
+  .meses-tabla .origen.manual{ color:var(--color-ambar); }
+  .doble{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .explica{ display:flex; flex-direction:column; gap:10px; }
+  .explica li{ margin-bottom:6px; }
+
+  /* ── 3 · revisión de DO ── */
+  .revision{ display:grid; grid-template-columns:minmax(0,1.1fr) minmax(0,1fr); gap:0; border:1px solid var(--color-sand); border-radius:16px; overflow:hidden; background:var(--color-papel); }
+  @media (max-width:860px){ .revision{ grid-template-columns:1fr; } }
+  .revision .papel{ background:var(--color-hueso); padding:18px; display:flex; align-items:flex-start; justify-content:center; }
+  .revision .datos{ padding:18px; display:flex; flex-direction:column; gap:12px; }
+  .recibo{ width:min(360px,100%); background:#fff; color:#1a1a18; border:1px solid #d9d2c3; border-radius:6px; padding:16px; font-size:.78rem; display:flex; flex-direction:column; gap:8px; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+  .recibo .t{ display:flex; justify-content:space-between; border-bottom:2px solid #1a1a18; padding-bottom:6px; } .recibo .t b{ font-family:var(--font-serif); font-size:1.1rem; }
+  .recibo table{ width:100%; border-collapse:collapse; } .recibo td{ padding:3px 0; border-bottom:1px dotted #cfc8b8; } .recibo td:last-child{ text-align:right; }
+  .recibo .tot{ display:flex; justify-content:space-between; font-weight:700; border-top:2px solid #1a1a18; padding-top:6px; }
+  .recibo .ej{ color:#9a3b2a; font-size:.66rem; text-align:center; text-transform:uppercase; letter-spacing:.06em; }
+  dl.d{ margin:0; display:flex; flex-direction:column; gap:8px; } dl.d dt{ font-size:.68rem; letter-spacing:.05em; text-transform:uppercase; color:var(--color-taupe); } dl.d dd{ margin:0; font-size:.88rem; }
+
+  /* ── 4 · historial ── */
+  .hist{ display:grid; grid-template-columns:minmax(0,1.3fr) minmax(0,1fr); gap:18px; align-items:start; }
+  @media (max-width:960px){ .hist{ grid-template-columns:1fr; } }
+  .eventos{ list-style:none; margin:0; padding:0; }
+  .eventos li{ display:grid; grid-template-columns:92px 26px minmax(0,1fr); gap:10px; padding:10px 0; border-top:1px solid var(--color-sand); align-items:start; }
+  .eventos li:first-child{ border-top:0; }
+  .eventos .f{ font-size:.74rem; color:var(--color-taupe); font-variant-numeric:tabular-nums; }
+  .eventos .ico{ width:24px; height:24px; border-radius:50%; display:grid; place-items:center; font-size:.72rem; font-weight:700; }
+  .ico.ok{ background:color-mix(in oklab, var(--color-verde) 18%, var(--color-papel)); color:var(--color-verde); }
+  .ico.info{ background:color-mix(in oklab, var(--color-pizarra) 18%, var(--color-papel)); color:var(--color-pizarra); }
+  .ico.alerta{ background:color-mix(in oklab, var(--color-rojo) 14%, var(--color-papel)); color:var(--color-rojo-profundo); }
+  .ico.aviso{ background:color-mix(in oklab, var(--color-ambar) 16%, var(--color-papel)); color:var(--color-ambar); }
+  .ico.neutro{ background:var(--color-hueso); color:var(--color-ceniza); }
+  .eventos .t{ font-size:.88rem; } .eventos .t b{ font-weight:600; } .eventos .t small{ display:block; color:var(--color-taupe); font-size:.78rem; }
+  .eventos .t .boton-persona{ border:0; background:none; padding:0; color:var(--color-tinta); font-weight:600; text-decoration:underline; text-decoration-color:var(--color-sand); text-underline-offset:3px; }
+  .notas{ display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  @media (max-width:860px){ .notas{ grid-template-columns:1fr; } }
+  .notas ul{ margin:0; padding-left:18px; display:flex; flex-direction:column; gap:6px; font-size:.88rem; }
+  .toast{ position:fixed; left:50%; bottom:22px; transform:translateX(-50%); background:var(--color-tinta); color:var(--color-crema); padding:10px 16px; border-radius:12px; font-size:.86rem; z-index:50; box-shadow:0 6px 24px rgba(0,0,0,.25); max-width:90vw; }
+  .velo{ position:fixed; inset:0; background:rgba(0,0,0,.45); display:flex; align-items:center; justify-content:center; padding:16px; z-index:40; }
+  .modal{ background:var(--color-papel); border:1px solid var(--color-sand); border-radius:16px; width:min(480px,100%); padding:20px; display:flex; flex-direction:column; gap:12px; }
+  .modal h3{ font-size:1.3rem; } .modal .pie{ display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header class="masthead">
+    <div>
+      <span class="badge-demo">Prototipo · datos ficticios · hoy es 17/10/2026</span>
+      <h1>Educación, rediseñada</h1>
+      <p>Cuatro cambios que se tocan: la cuadrícula dice mes por mes si hay constancia y si se apoyó; los filtros arrancan en quien recibe apoyo; una constancia puede cubrir varios meses (pago adelantado); y el historial se ve general o por persona. Todo lo que hagas en una vista aparece en las otras.</p>
+    </div>
+    <button class="btn sec" id="btnReset">Reiniciar demo</button>
+  </header>
+
+  <nav class="vistas" aria-label="Vistas del prototipo">
+    <button class="vista-btn" data-vista="cuadricula"><b>1 · DO, computadora</b><span>Cuadrícula y filtros</span></button>
+    <button class="vista-btn" data-vista="envio"><b>2 · Colaboradora, celular</b><span>Envía un pago adelantado</span></button>
+    <button class="vista-btn" data-vista="revision"><b>3 · DO, computadora</b><span>Revisa el pago adelantado</span></button>
+    <button class="vista-btn" data-vista="historial"><b>4 · DO y colaboradora</b><span>Historial general e individual</span></button>
+  </nav>
+
+  <div class="recorrido" id="recorrido"></div>
+
+  <section id="v-cuadricula"></section>
+  <section id="v-envio" class="oculto"></section>
+  <section id="v-revision" class="oculto"></section>
+  <section id="v-historial" class="oculto"></section>
+
+  <section class="notas">
+    <div class="panel">
+      <h3>Lo que ya existe y no cambia</h3>
+      <ul>
+        <li><strong>El pago ya es automático.</strong> La planilla paga el apoyo cada periodo mientras esté vigente y tenga una constancia aprobada (0524). Aprobar el pago adelantado una vez no cambia eso: lo que cambia es que el sistema deja de pedir constancia en los meses ya cubiertos.</li>
+        <li><strong>«Pagado» sale de la foto de la planilla</strong> (<code>monto_educacion</code> de cada periodo cerrado). «Se paga este mes» y «se pagará» son una proyección con la vigencia y la constancia aprobada de hoy.</li>
+        <li><strong>En enero</strong> el apoyo sigue pagándose y el día 1 se pide la constancia nueva («solo alerta», decisión del 2026-09-15).</li>
+      </ul>
+    </div>
+    <div class="panel">
+      <h3>Lo que hay que decidir o medir antes de construir</h3>
+      <ul>
+        <li><strong>Choca con la regla del día 1</strong> (migración 0526, otra sesión): «¿este mes ya tiene constancia?» tiene que mirar también los meses cubiertos. Ya se le avisó a esa sesión.</li>
+        <li><strong>La captura de «Todos» no llegó.</strong> El prototipo supone que el problema es mezclar quien recibe apoyo con terminados y sin solicitar; si es otro, hay que verlo con datos reales.</li>
+        <li><strong>Costo de construirlo:</strong> una migración (cobertura desde/hasta en la constancia, una tabla de meses con monto y motivo, la función del historial) con su prueba, y tres pantallas. Se pega antes de fusionar.</li>
+        <li>Si un mes cubierto queda fuera de la vigencia del apoyo, la pantalla de DO lo dice al revisar (pagó diciembre pero el apoyo termina en noviembre).</li>
+        <li><strong>Decidido por Felipe (2026-10-17): si alguien sube un pago de varios meses y NO tiene apoyo registrado</strong>, se abre su solicitud de apoyo con las fechas ya llenas; si algo está mal, DO puede editarlas, dando un motivo. La constancia sola no crea el apoyo ni enciende el pago.</li>
+      </ul>
+    </div>
+  </section>
+</div>
+
+<div id="modal"></div>
+<div class="toast oculto" id="toast" role="status"></div>
+
+<script>
+(() => {
+  /* ───────── utilidades ───────── */
+  const $ = (s) => document.querySelector(s);
+  const esc = (t) => String(t ?? '').replace(/[&<>"]/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
+  const MES = ['ene','feb','mar','abr','may','jun','jul','ago','set','oct','nov','dic'];
+  const MES_L = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','setiembre','octubre','noviembre','diciembre'];
+  const HOY = '2026-10'; const HOY_DIA = '17/10/2026';
+  const mesCorto = (m) => MES[+m.slice(5,7)-1];
+  const mesLargo = (m) => `${MES_L[+m.slice(5,7)-1]} ${m.slice(0,4)}`;
+  const sumar = (m, n) => { const d = new Date(Date.UTC(+m.slice(0,4), +m.slice(5,7)-1+n, 1)); return d.toISOString().slice(0,7); };
+  const entre = (a, b) => { const r = []; for (let m = a; m <= b; m = sumar(m, 1)) r.push(m); return r; };
+  const soles = (n) => 'S/ ' + Number(n).toLocaleString('es-PE', { minimumFractionDigits:2, maximumFractionDigits:2 });
+  let tT; const aviso = (t) => { const x = $('#toast'); x.textContent = t; x.classList.remove('oculto'); clearTimeout(tT); tT = setTimeout(() => x.classList.add('oculto'), 2800); };
+  const MESES_GRID = entre('2026-06', '2027-01');
+  const MOTIVOS = { ilegible:'No se lee', no_corresponde_al_pago:'No corresponde a ese pago', a_nombre_de_otra_persona:'Está a nombre de otra persona', faltan_paginas_o_datos:'Faltan páginas o datos', otra_institucion:'No es de la institución registrada', otro:'Otro motivo' };
+
+  /* ───────── datos ───────── */
+  let S;
+  function reiniciar(){
+    S = {
+      vista: 'cuadricula', pestana: 'con_apoyo', sede: '', buscar: '',
+      estudios: [
+        { id:'cam', persona:'Camila Rojas Vega', sede:'TRU', inst:'UPN · Administración', quien:'ella misma', frecuencia:'mensual', apoyo:90, costo:120,
+          vig:['2026-07','2027-03'], pagaDesde:'2026-07',
+          constancias:[ { id:'cam-jul', meses:['2026-07'], estado:'aprobada', tipo:'Pensión o cuota mensual', fecha:'15/07/2026', monto:120, reviso:'Jorge (DO)' } ] },
+        { id:'luc', persona:'Lucía Paredes Soto', sede:'LIM', inst:'Británico · Inglés', quien:'ella misma', frecuencia:'mensual', apoyo:90, costo:130,
+          vig:['2026-06','2026-12'], pagaDesde:'2026-06',
+          constancias:['06','07','08','09'].map((m) => ({ id:'luc-'+m, meses:['2026-'+m], estado:'aprobada', tipo:'Pensión o cuota mensual', fecha:'15/'+m+'/2026', monto:130, reviso:'Jorge (DO)' }))
+            .concat([{ id:'luc-10', meses:['2026-10'], estado:'pendiente', tipo:'Pensión o cuota mensual', fecha:'15/10/2026', monto:130 }]) },
+        { id:'ros', persona:'Rosa Huamán Lara', sede:'CCO', inst:'Colegio San José · Mateo (hijo)', quien:'su hijo', frecuencia:'ciclo', apoyo:120, costo:400,
+          vig:['2026-08','2026-12'], pagaDesde:'2026-08',
+          constancias:[ { id:'ros-ago', meses:entre('2026-08','2026-12'), estado:'aprobada', tipo:'Pago del ciclo', fecha:'05/08/2026', monto:2000, reviso:'Jorge (DO)', reparto:entre('2026-08','2026-12').map((m) => ({ mes:m, monto:400, origen:'calculado' })) } ] },
+        { id:'bea', persona:'Bea Torres Lima', sede:'LIM', inst:'Cibertec · Diseño', quien:'ella misma', frecuencia:'mensual', apoyo:90, costo:150,
+          vig:['2026-06','2027-02'], pagaDesde:'2026-06',
+          constancias:[ { id:'bea-jun', meses:['2026-06'], estado:'aprobada', tipo:'Pensión o cuota mensual', fecha:'10/06/2026', monto:150, reviso:'Valeria (DO)' },
+                        { id:'bea-jul', meses:['2026-07'], estado:'aprobada', tipo:'Pensión o cuota mensual', fecha:'10/07/2026', monto:150, reviso:'Valeria (DO)' },
+                        { id:'bea-ago', meses:['2026-08'], estado:'aprobada', tipo:'Pensión o cuota mensual', fecha:'10/08/2026', monto:150, reviso:'Valeria (DO)' },
+                        { id:'bea-sep', meses:['2026-09'], estado:'rechazada', tipo:'Pensión o cuota mensual', fecha:'10/09/2026', monto:150, reviso:'Jorge (DO)', motivo:'ilegible', comentario:'La foto salió borrosa y no se ve el monto' } ] },
+        { id:'mar', persona:'Marta Quispe Díaz', sede:'AQP', inst:'Senati · Curso de costura', quien:'ella misma', frecuencia:'unico', apoyo:150, costo:200,
+          vig:['2026-06','2026-07'], pagaDesde:'2026-06',
+          constancias:[ { id:'mar-jun', meses:['2026-06'], estado:'aprobada', tipo:'Curso o taller', fecha:'03/06/2026', monto:200, reviso:'Valeria (DO)' } ] },
+      ],
+      sinSolicitar: [
+        { persona:'Ana Flores Tapia', sede:'TRU' }, { persona:'Diego Salas Ruiz', sede:'LIM' }, { persona:'Gaby Chávez Paz', sede:'AQP' },
+      ],
+      historial: [
+        { f:'2026-06-02 10:12', p:'Lucía Paredes Soto', e:'Británico · Inglés', tipo:'alta', t:'Apoyo registrado', d:'S/ 90 al mes · 75 % de S/ 130 · de junio a diciembre', quien:'Valeria (DO)', ico:'+', tono:'info' },
+        { f:'2026-06-10 09:40', p:'Bea Torres Lima', e:'Cibertec · Diseño', tipo:'alta', t:'Apoyo registrado', d:'S/ 90 al mes · de junio a febrero', quien:'Valeria (DO)', ico:'+', tono:'info' },
+        { f:'2026-07-03 16:20', p:'Camila Rojas Vega', e:'UPN · Administración', tipo:'solicitud', t:'Pidió su apoyo', tElla:'Pediste tu apoyo', d:'Costo declarado S/ 120 al mes', quien:'la integrante', ico:'?', tono:'info' },
+        { f:'2026-07-04 11:05', p:'Camila Rojas Vega', e:'UPN · Administración', tipo:'alta', t:'Solicitud aprobada · apoyo registrado', tElla:'Tu solicitud se aprobó', d:'S/ 90 al mes · de julio a marzo', quien:'Valeria (DO)', ico:'+', tono:'info' },
+        { f:'2026-07-18 12:30', p:'Camila Rojas Vega', e:'UPN · Administración', tipo:'aprobada', t:'Constancia aprobada', tElla:'Tu constancia se aprobó', d:'Pago de julio', quien:'Jorge (DO)', ico:'✓', tono:'ok' },
+        { f:'2026-07-31 18:00', p:'Marta Quispe Díaz', e:'Senati · Curso de costura', tipo:'cierre', t:'Apoyo cerrado', d:'Terminó el curso: último mes julio', quien:'Valeria (DO)', ico:'■', tono:'neutro' },
+        { f:'2026-08-06 10:00', p:'Rosa Huamán Lara', e:'Colegio San José · Mateo', tipo:'aprobada', t:'Pago adelantado aprobado', d:'Cubre agosto a diciembre (5 meses)', quien:'Jorge (DO)', ico:'✓', tono:'ok' },
+        { f:'2026-09-14 09:15', p:'Bea Torres Lima', e:'Cibertec · Diseño', tipo:'rechazada', t:'Constancia rechazada', d:'«No se lee»: la foto salió borrosa y no se ve el monto', quien:'Jorge (DO)', ico:'✕', tono:'alerta' },
+        { f:'2026-09-20 17:42', p:'Lucía Paredes Soto', e:'Británico · Inglés', tipo:'revertida', t:'Aprobación revertida', d:'La aprobó Jorge (DO) el 16/09; «No corresponde a ese pago»: era el recibo de agosto. Volvió a enviar la de setiembre y se aprobó.', tElla:'Tu constancia aprobada pasó a rechazada', dElla:'«No corresponde a ese pago»: era el recibo de agosto. Enviaste la de setiembre y se aprobó.', quien:'Valeria (DO)', ico:'↺', tono:'aviso' },
+        { f:'2026-10-15 20:03', p:'Lucía Paredes Soto', e:'Británico · Inglés', tipo:'enviada', t:'Envió su constancia', d:'Pago de octubre · espera revisión', quien:'la integrante', ico:'↑', tono:'info' },
+      ],
+      // El envío de Camila (vista 2)
+      envio: { modo:'varios', desde:'2026-08', hasta:'2026-12', fechaPago:'2026-08-15', sabe:'total', total:'600', porMes:{}, editando:null, motivoTmp:'', montoTmp:'', archivo:false, enviado:false },
+      revisado: null,           // null | 'aprobada' | 'rechazada'
+      histFiltro: { persona:'', tipo:'', comoElla:false },
+      modal: null,
+    };
+    render();
+  }
+
+  /* ───────── reglas de la cuadrícula ───────── */
+  // ¿Qué constancia habla por el mes? (la más reciente, pendiente > aprobada > rechazada)
+  function constanciaDelMes(e, m){
+    const del = e.constancias.filter((c) => c.meses.includes(m));
+    const peso = { pendiente:0, aprobada:1, rechazada:2 };
+    return del.sort((a, b) => peso[a.estado] - peso[b.estado])[0] ?? null;
+  }
+  const vigenteEn = (e, m) => e.vig[0] <= m && m <= e.vig[1];
+  // El estado de la constancia de un mes, con su ícono y su palabra.
+  function celdaConstancia(e, m){
+    if (!vigenteEn(e, m)) return { cls:'nada', i:'', txt:'No aplica' };
+    const c = constanciaDelMes(e, m);
+    if (c){
+      if (c.estado === 'aprobada') return c.meses.length > 1 ? { cls:'adelantado', i:'✓', txt:'Cubierto' } : { cls:'aprobada', i:'✓', txt:'Aprobada' };
+      if (c.estado === 'pendiente') return { cls:'pendiente', i:'⏳', txt:c.meses.length > 1 ? 'Por revisar ↔' : 'Por revisar' };
+      return { cls:'rechazada', i:'✕', txt:'Rechazada' };
+    }
+    // Sin constancia: solo se pide a los mensuales, y desde el día 1 de ese mes (regla 0526).
+    if (e.frecuencia === 'mensual' && m <= HOY) return { cls:'falta', i:'!', txt:'Falta' };
+    return { cls:'nada', i:'', txt:m > HOY ? 'Aún no' : 'No se pide' };
+  }
+  // ¿Se apoyó ese mes? Pasado = foto de la planilla; hoy y después = proyección.
+  function celdaApoyo(e, m){
+    if (!vigenteEn(e, m) || m < e.pagaDesde) return { cls:'sin', i:'', txt:'Sin apoyo' };
+    if (m < HOY) return { cls:'pagado', i:'S/', txt:'Pagado ' + e.apoyo };
+    if (m === HOY) return { cls:'este', i:'S/', txt:'Se paga ' + e.apoyo };
+    return { cls:'pagara', i:'S/', txt:'Se pagará' };
+  }
+  function estadoEstudio(e){
+    if (e.vig[1] < HOY) return { txt:'Terminado', tono:'neutro', grupo:'terminados' };
+    if (e.constancias.some((c) => c.estado === 'pendiente')) return { txt:'Por revisar', tono:'info', grupo:'por_revisar' };
+    const ult = e.constancias.slice(-1)[0];
+    if (ult && ult.estado === 'rechazada') return { txt:'Rechazada', tono:'alerta', grupo:'falta' };
+    const faltan = entre(e.vig[0], HOY).filter((m) => celdaConstancia(e, m).cls === 'falta');
+    if (faltan.length) return { txt:`Falta ${faltan.length === 1 ? mesLargo(faltan[0]).split(' ')[0] : faltan.length + ' meses'}`, tono:'aviso', grupo:'falta' };
+    return { txt:'Al día', tono:'ok', grupo:'al_dia' };
+  }
+
+  /* ───────── vista 1 · cuadrícula ───────── */
+  function renderCuadricula(){
+    const vivos = S.estudios.filter((e) => vigenteEn(e, HOY));
+    const cuentas = {
+      con_apoyo: vivos.length,
+      por_revisar: vivos.filter((e) => estadoEstudio(e).grupo === 'por_revisar').length,
+      falta: vivos.filter((e) => estadoEstudio(e).grupo === 'falta').length,
+      al_dia: vivos.filter((e) => estadoEstudio(e).grupo === 'al_dia').length,
+      terminados: S.estudios.filter((e) => e.vig[1] < HOY).length,
+      sin_solicitar: S.sinSolicitar.length,
+    };
+    const PEST = [
+      ['con_apoyo', 'Con apoyo en octubre'], ['por_revisar', 'Por revisar'], ['falta', 'Les falta constancia'], ['al_dia', 'Al día'],
+    ];
+    let filas = S.pestana === 'terminados' ? S.estudios.filter((e) => e.vig[1] < HOY)
+      : S.pestana === 'con_apoyo' ? vivos : vivos.filter((e) => estadoEstudio(e).grupo === S.pestana);
+    if (S.sede) filas = filas.filter((e) => e.sede === S.sede);
+    if (S.buscar.trim()) filas = filas.filter((e) => e.persona.toLowerCase().includes(S.buscar.trim().toLowerCase()));
+
+    let cuerpo;
+    if (S.pestana === 'sin_solicitar'){
+      const l = S.sinSolicitar.filter((p) => !S.sede || p.sede === S.sede);
+      cuerpo = `<p class="aviso-caja neutro">Personas activas que no tienen ningún apoyo ni una solicitud por revisar. No están en la cuadrícula porque no hay nada que respaldar.</p>
+        <ul class="lista">${l.map((p) => `<li><span><b>${esc(p.persona)}</b> <small>· ${p.sede}</small></span><span class="ins neutro">Sin solicitar</span></li>`).join('')}</ul>`;
+    } else if (filas.length === 0){
+      cuerpo = `<p class="aviso-caja neutro">Nadie con esos filtros.</p>`;
+    } else {
+      cuerpo = `<div class="grid-wrap"><table class="grid">
+        <thead><tr><th>Persona y estudio</th>${MESES_GRID.map((m) => `<th class="${m === HOY ? 'hoy' : ''}">${mesCorto(m)}${m.slice(5) === '01' || m === MESES_GRID[0] ? '<br><span style="font-weight:400">' + m.slice(0,4) + '</span>' : ''}</th>`).join('')}<th>Estado</th></tr></thead>
+        <tbody>${filas.map((e) => {
+          const est = estadoEstudio(e);
+          return `<tr><td class="quien"><div class="nom">${esc(e.persona)}<small>${e.sede} · ${esc(e.inst)} · ${e.frecuencia === 'mensual' ? 'mensual' : e.frecuencia === 'ciclo' ? 'por ciclo' : 'pago único'}</small><small>Apoyo ${soles(e.apoyo)} al mes</small></div></td>
+            ${MESES_GRID.map((m) => {
+              const c = celdaConstancia(e, m), a = celdaApoyo(e, m), k = constanciaDelMes(e, m);
+              const RELOJ = '<svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 4.6V8l2.4 1.6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+              const glifo = { aprobada:'✓', adelantado:'✓', pendiente:RELOJ, rechazada:'✕', falta:'!', nada:'·' }[c.cls];
+              const clase = c.cls === 'adelantado' ? 'cubierto' : c.cls;
+              let tramo = '';
+              if (k && k.meses.length > 1){
+                tramo = 'tramo' + (k.meses[0] === m ? ' ini' : '') + (k.meses[k.meses.length - 1] === m ? ' fin' : '')
+                  + (k.estado === 'pendiente' ? ' pend' : k.estado === 'rechazada' ? ' rech' : '');
+              }
+              const lectura = `${mesLargo(m)}: constancia ${c.txt.toLowerCase()}; apoyo ${a.txt.toLowerCase()}`;
+              return `<td class="mes ${tramo} ${vigenteEn(e, m) ? '' : 'fuera'}"><button class="ic ap-${a.cls}" data-act="verMes" data-e="${e.id}" data-m="${m}" aria-label="${esc(lectura)}. Abrir el detalle">
+                <span class="g ${clase}" aria-hidden="true">${glifo}</span></button></td>`;
+            }).join('')}
+            <td class="estado-col"><span class="ins ${est.tono}">${est.txt}</span></td></tr>`;
+        }).join('')}</tbody></table></div>`;
+    }
+
+    $('#v-cuadricula').innerHTML = `<div class="panel">
+      <div class="cab"><h2>Educación</h2><p>Hoy 17/10/2026. Arranca en quien recibe apoyo este mes: quien terminó o nunca pidió va aparte.</p></div>
+      <div class="pestanas" role="group" aria-label="Qué mostrar">
+        ${PEST.map(([k, t]) => `<button class="pestana" aria-pressed="${S.pestana === k}" data-act="pestana" data-v="${k}">${t}<b>${cuentas[k]}</b></button>`).join('')}
+        <button class="pestana aparte" aria-pressed="${S.pestana === 'terminados'}" data-act="pestana" data-v="terminados">Terminados<b>${cuentas.terminados}</b></button>
+        <button class="pestana aparte" aria-pressed="${S.pestana === 'sin_solicitar'}" data-act="pestana" data-v="sin_solicitar">Sin solicitar<b>${cuentas.sin_solicitar}</b></button>
+      </div>
+      <div class="fila-filtros">
+        <label class="campo">Sede<select data-act="sede">${['', 'TRU', 'LIM', 'AQP', 'CCO'].map((s) => `<option value="${s}" ${S.sede === s ? 'selected' : ''}>${s || 'Todas las sedes'}</option>`).join('')}</select></label>
+        <label class="campo">Buscar persona<input data-act="buscar" value="${esc(S.buscar)}" placeholder="Nombre o apellido"></label>
+      </div>
+      <div class="leyenda" aria-label="Cómo leer cada mes">
+        <span><span class="g aprobada" style="width:18px;height:18px;border-radius:50%;display:inline-grid;place-items:center;font-size:.65rem">✓</span> Constancia aprobada</span>
+        <span><span style="display:inline-block;width:34px;height:14px;border-radius:7px;background:color-mix(in oklab, var(--color-verde) 18%, transparent)"></span> Pago adelantado (varios meses)</span>
+        <span><span class="g pendiente" style="width:18px;height:18px;border-radius:50%;display:inline-grid;place-items:center"><svg width="11" height="11" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 4.6V8l2.4 1.6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span> Por revisar</span>
+        <span><span class="g rechazada" style="width:18px;height:18px;border-radius:50%;display:inline-grid;place-items:center;font-size:.65rem">✕</span> Rechazada</span>
+        <span><span class="g falta" style="width:18px;height:18px;border-radius:50%;display:inline-grid;place-items:center;font-size:.65rem">!</span> Falta</span>
+        <span>Raya debajo: <b style="color:var(--color-verde)">━</b> apoyo pagado · <b>━</b> se paga este mes · <b style="color:var(--color-taupe)">▭</b> se pagará · sin raya, sin apoyo</span>
+        <span>Pasa el mouse por un mes para ver el detalle; tócalo para ver el comprobante.</span>
+      </div>
+      ${cuerpo}
+    </div>`;
+  }
+
+  /* ───────── vista 2 · el envío de la colaboradora ───────── */
+  function repartir(){
+    const v = S.envio;
+    const meses = v.modo === 'varios' && v.desde && v.hasta && v.desde <= v.hasta ? entre(v.desde, v.hasta) : [v.desde];
+    // Lo que ella corrigió a mano se respeta; el resto del total se reparte entre los meses que
+    // no tocó, y los céntimos que sobran van al último de ellos: así la suma da siempre el total.
+    const libres = meses.filter((m) => !v.porMes[m]);
+    const fijado = meses.reduce((t, m) => t + (v.porMes[m] ? Math.round(v.porMes[m].monto * 100) : 0), 0);
+    const centimos = Math.max(0, Math.round((Number(v.total) || 0) * 100) - fijado);
+    const n = libres.length || 1;
+    const base = Math.floor(centimos / n), resto = centimos - base * n;
+    return meses.map((m) => {
+      const manual = v.porMes[m];
+      if (manual) return { mes:m, monto:manual.monto, origen:'manual', motivo:manual.motivo };
+      if (v.sabe === 'cada' && v.porMes['__cada']) return { mes:m, monto:Number(v.porMes['__cada']), origen:'cada' };
+      return { mes:m, monto:(base + (m === libres[libres.length - 1] ? resto : 0)) / 100, origen:'calculado' };
+    });
+  }
+  function renderEnvio(){
+    const v = S.envio, cam = S.estudios.find((e) => e.id === 'cam');
+    const reparto = repartir();
+    const suma = reparto.reduce((t, x) => t + Number(x.monto), 0);
+    const descuadre = v.modo === 'varios' && v.sabe === 'total' && Math.abs(suma - (Number(v.total) || 0)) > 0.004;
+    const opcionesMes = entre('2026-06', '2027-03').map((m) => `<option value="${m}">${mesLargo(m)}</option>`).join('');
+    const sel = (campo, val) => opcionesMes.replace(`value="${val}"`, `value="${val}" selected`);
+    let cuerpo, base;
+    if (v.enviado){
+      const est = S.revisado === 'aprobada' ? ['ok', 'Aprobada: agosto a diciembre quedan cubiertos. No tienes que enviar nada más hasta enero.']
+        : S.revisado === 'rechazada' ? ['alerta', 'Rechazada: ' + (S.rechazo?.texto ?? '') + ' Corrige y vuelve a enviarla.']
+        : ['info', 'Enviada. Desarrollo Organizacional la revisa una sola vez para los ' + reparto.length + ' meses.'];
+      cuerpo = `<div class="aviso-caja ${est[0] === 'info' ? 'neutro' : est[0]}">${esc(est[1])}</div>
+        <table class="meses-tabla"><thead><tr><th>Mes</th><th style="text-align:right">Pagaste</th><th>Estado</th></tr></thead><tbody>
+        ${reparto.map((x) => `<tr><td>${mesLargo(x.mes)}</td><td class="n">${soles(x.monto)}</td><td><span class="ins ${S.revisado === 'aprobada' ? 'ok' : S.revisado === 'rechazada' ? 'alerta' : 'info'}">${S.revisado === 'aprobada' ? '✓ Cubierto' : S.revisado === 'rechazada' ? 'Rechazada' : 'Por revisar'}</span></td></tr>`).join('')}
+        </tbody></table>`;
+      base = S.revisado === 'rechazada' ? `<button class="btn grande" data-act="reenviar">Corregir y volver a enviar</button>` : `<small style="text-align:center;color:var(--color-taupe)">Puedes ver esto en Lo mío → Educación.</small>`;
+    } else {
+      cuerpo = `
+        <p style="color:var(--color-taupe);font-size:.84rem">${esc(cam.inst)} · apoyo ${soles(cam.apoyo)} al mes</p>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <button class="opcion" aria-pressed="${v.modo === 'uno'}" data-act="modo" data-v="uno"><span class="r"></span><span><strong>Pagué un solo mes</strong><span>Como siempre: una constancia por pago.</span></span></button>
+          <button class="opcion" aria-pressed="${v.modo === 'varios'}" data-act="modo" data-v="varios"><span class="r"></span><span><strong>Pagué varios meses de una vez</strong><span>Por ejemplo, de agosto a diciembre con un solo pago.</span></span></button>
+        </div>
+        ${v.modo === 'varios' ? `
+          <div class="doble">
+            <label class="campo">Desde<select data-act="desde">${sel('desde', v.desde)}</select></label>
+            <label class="campo">Hasta<select data-act="hasta">${sel('hasta', v.hasta)}</select></label>
+          </div>` : `<label class="campo">Mes que pagaste<select data-act="desde">${sel('desde', v.desde)}</select></label>`}
+        <label class="campo">Día en que pagaste<input type="date" data-act="fechaPago" value="${v.fechaPago}"></label>
+        ${v.modo === 'varios' ? `
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <span style="font-size:.84rem;color:var(--color-taupe)">¿Sabes cuánto pagaste por cada mes?</span>
+            <div class="seg" role="group"><button aria-pressed="${v.sabe === 'total'}" data-act="sabe" data-v="total">Solo sé el total</button><button aria-pressed="${v.sabe === 'cada'}" data-act="sabe" data-v="cada">Sé el de cada mes</button></div>
+          </div>
+          ${v.sabe === 'total' ? `<label class="campo">Total que pagaste (S/)<input inputmode="decimal" data-act="total" value="${esc(v.total)}"></label>`
+            : `<label class="campo">Monto de cada mes (S/)<input inputmode="decimal" data-act="cada" value="${esc(v.porMes['__cada'] ?? '')}" placeholder="ej. 120"></label>`}
+          <div>
+            <p style="font-size:.84rem;font-weight:600;margin-bottom:4px">El sistema sacó ${reparto.length} ${reparto.length === 1 ? 'mes' : 'meses'}:</p>
+            <table class="meses-tabla"><thead><tr><th>Mes</th><th style="text-align:right">Monto</th><th></th></tr></thead><tbody>
+              ${reparto.map((x) => `<tr><td>${mesLargo(x.mes)}<span class="origen ${x.origen === 'manual' ? 'manual' : ''}">${x.origen === 'manual' ? 'corregido por ti: «' + esc(x.motivo) + '»' : x.origen === 'cada' ? 'el que pusiste' : 'el resto, repartido'}</span></td><td class="n">${soles(x.monto)}</td><td style="text-align:right"><button class="btn sec fino" data-act="editarMes" data-v="${x.mes}">Corregir</button></td></tr>`).join('')}
+              <tr><td><b>Suma</b></td><td class="n"><b>${soles(suma)}</b></td><td></td></tr>
+            </tbody></table>
+            ${descuadre ? `<p class="aviso-caja alerta" style="margin-top:6px">Los meses que corregiste suman más (${soles(suma)}) que el total que pagaste (${soles(Number(v.total) || 0)}). Revisa los montos.</p>` : `<p style="font-size:.76rem;color:var(--color-taupe);margin-top:4px">Lo que corrijas se respeta y el resto del total se reparte entre los otros meses.</p>`}
+          </div>` : `<label class="campo">Monto que pagaste (S/)<input inputmode="decimal" data-act="total" value="${esc(v.total)}"></label>`}
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <span style="font-size:.84rem;color:var(--color-taupe)">Foto o PDF del recibo</span>
+          ${v.archivo ? `<div class="aviso-caja ok">recibo-upn.jpg · listo</div>` : `<button class="btn sec" data-act="archivo">Elegir foto o PDF…</button>`}
+        </div>`;
+      const listo = v.archivo && reparto.length > 0 && suma > 0 && !descuadre && v.desde <= (v.modo === 'varios' ? v.hasta : v.desde);
+      base = `<button class="btn rojo grande" data-act="enviar" ${listo ? '' : 'disabled'}>Enviar constancia</button>
+        <small style="text-align:center;color:var(--color-taupe)">${listo ? 'DO la revisa una sola vez.' : 'Falta el recibo o un monto.'}</small>`;
+    }
+    $('#v-envio').innerHTML = `<div class="dos">
+      <div class="phone">
+        <div class="barra"><span>12:30</span><span>●●● 5G</span></div>
+        <div class="top"><small>Lo mío · Educación</small><h3>${v.enviado ? 'Tu constancia' : 'Enviar constancia'}</h3></div>
+        <div class="cuerpo">${cuerpo}</div>
+        <div class="base">${base}</div>
+      </div>
+      <div class="panel explica">
+        <h3>Cómo funciona el pago adelantado</h3>
+        <ul style="margin:0;padding-left:18px;font-size:.9rem">
+          <li><strong>Ella pone desde y hasta</strong> en meses, y el día en que pagó. El sistema cuenta los meses calendario, ambos incluidos: agosto a diciembre son 5.</li>
+          <li><strong>Si solo sabe el total</strong>, se divide entre los meses; los céntimos que sobran van al último mes, para que la suma dé exacto. <strong>Si sabe cada monto</strong>, lo pone.</li>
+          <li><strong>«Corregir» un mes pide motivo</strong> (mínimo 3 letras). DO ve qué meses los calculó el sistema y cuáles cambió ella, con su motivo.</li>
+          <li><strong>Se envía una sola constancia</strong> con un solo recibo. DO la aprueba o la rechaza entera: si un mes está mal, se rechaza con motivo y ella la corrige.</li>
+          <li><strong>Aprobada</strong>, los 5 meses quedan con ✓ y el sistema no le pide constancia de setiembre a diciembre. El apoyo se sigue pagando cada mes por planilla, sin que DO apruebe nada más. En enero se le pide la nueva.</li>
+        </ul>
+        <p class="aviso-caja neutro">Prueba: cambia «Hasta», escribe otro total, o corrige un mes. Después envíala y pasa a la vista 3.</p>
+      </div>
+    </div>`;
+  }
+
+  /* ───────── vista 3 · DO revisa ───────── */
+  function renderRevision(){
+    const v = S.envio, cam = S.estudios.find((e) => e.id === 'cam');
+    if (!v.enviado){
+      $('#v-revision').innerHTML = `<div class="panel"><h3>Todavía no hay nada que revisar</h3><p style="color:var(--color-taupe)">Primero Camila tiene que enviar su pago adelantado (vista 2).</p><div><button class="btn" data-act="vista" data-v="envio">Ir a la vista 2</button></div></div>`;
+      return;
+    }
+    const reparto = repartir();
+    const suma = reparto.reduce((t, x) => t + Number(x.monto), 0);
+    const menores = reparto.filter((x) => Number(x.monto) < cam.costo);
+    const fuera = reparto.filter((x) => !vigenteEn(cam, x.mes));
+    const manuales = reparto.filter((x) => x.origen === 'manual');
+    const fecha = v.fechaPago.split('-').reverse().join('/');
+    $('#v-revision').innerHTML = `<div class="revision">
+      <div class="papel"><div class="recibo">
+        <div class="t"><b>UPN</b><span>Recibo de pago</span></div>
+        <div><b>Camila Rojas Vega</b><br><span style="color:#6b6558">Administración · pagado el ${fecha}</span></div>
+        <table>${reparto.map((x) => `<tr><td>Pensión ${mesLargo(x.mes)}</td><td>${soles(x.monto)}</td></tr>`).join('')}</table>
+        <div class="tot"><span>Total pagado</span><span>${soles(suma)}</span></div>
+        <p class="ej">Recibo de ejemplo · ficticio</p>
+      </div></div>
+      <div class="datos">
+        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+          <span class="ins ${S.revisado === 'aprobada' ? 'ok' : S.revisado === 'rechazada' ? 'alerta' : 'info'}">${S.revisado === 'aprobada' ? 'Aprobada' : S.revisado === 'rechazada' ? 'Rechazada' : 'Por revisar'}</span>
+          <span class="ins neutro">Pago adelantado · ${reparto.length} meses</span>
+        </div>
+        <dl class="d">
+          <div><dt>Quién y qué</dt><dd>Camila Rojas Vega · TRU · ${esc(cam.inst)}</dd></div>
+          <div><dt>Cubre</dt><dd>${mesLargo(reparto[0].mes)} a ${mesLargo(reparto[reparto.length - 1].mes)} · pagó ${soles(suma)} el ${fecha}</dd></div>
+          <div><dt>Apoyo registrado</dt><dd>${soles(cam.apoyo)} al mes · 75 % de un costo declarado de ${soles(cam.costo)} · vigente de ${mesLargo(cam.vig[0])} a ${mesLargo(cam.vig[1])}</dd></div>
+        </dl>
+        <table class="meses-tabla"><thead><tr><th>Mes</th><th style="text-align:right">Pagó</th><th>De dónde sale</th></tr></thead><tbody>
+          ${reparto.map((x) => `<tr><td>${mesLargo(x.mes)}</td><td class="n">${soles(x.monto)}</td><td><span class="origen ${x.origen === 'manual' ? 'manual' : ''}" style="font-size:.78rem">${x.origen === 'manual' ? 'Lo corrigió ella: «' + esc(x.motivo) + '»' : x.origen === 'cada' ? 'Lo puso ella' : 'Calculado por el sistema'}</span></td></tr>`).join('')}
+        </tbody></table>
+        ${menores.length ? `<p class="aviso-caja aviso">En ${menores.map((x) => mesLargo(x.mes).split(' ')[0]).join(', ')} pagó menos que el costo declarado (${soles(cam.costo)}). Con el apoyo de ${soles(cam.apoyo)}, el apoyo sería más del 75 % de lo que pagó. Aprobar no cambia el pago: si corresponde, corrige el apoyo aparte.</p>` : `<p class="aviso-caja ok">Cada mes pagó al menos el costo declarado (${soles(cam.costo)}): el apoyo de ${soles(cam.apoyo)} sigue siendo el 75 % o menos.</p>`}
+        ${fuera.length ? `<p class="aviso-caja aviso">${fuera.map((x) => mesLargo(x.mes)).join(', ')} queda fuera de la vigencia del apoyo: se cubre como constancia, pero ese mes no se paga apoyo.</p>` : ''}
+        ${manuales.length ? `<p class="aviso-caja neutro">Ella corrigió ${manuales.length} ${manuales.length === 1 ? 'mes' : 'meses'} a mano; el motivo está en la tabla.</p>` : ''}
+        <p class="aviso-caja neutro">Aprobar una vez cubre los ${reparto.length} meses: el sistema deja de pedirle constancia hasta ${mesLargo(sumar(reparto[reparto.length - 1].mes, 1))}. El apoyo ya se paga cada mes por planilla; esto no lo cambia.</p>
+        ${S.revisado ? `<div><button class="btn sec" data-act="vista" data-v="cuadricula">Ver la cuadrícula</button> <button class="btn sec" data-act="vista" data-v="historial">Ver el historial</button></div>` : `
+          <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
+            <button class="btn peligro" data-act="rechazarAbrir">Rechazar…</button>
+            <button class="btn" data-act="aprobar">Aprobar los ${reparto.length} meses</button>
+          </div>`}
+      </div>
+    </div>`;
+  }
+
+  /* ───────── vista 4 · historial ───────── */
+  const TIPOS = { solicitud:'Solicitudes', alta:'Altas y cambios del apoyo', enviada:'Constancias enviadas', aprobada:'Aprobadas', rechazada:'Rechazadas', revertida:'Aprobaciones revertidas', cierre:'Cierres' };
+  function renderHistorial(){
+    const h = S.histFiltro;
+    const todos = [...S.historial].sort((a, b) => b.f.localeCompare(a.f));
+    const generales = todos.filter((x) => (!h.tipo || x.tipo === h.tipo));
+    const personas = [...new Set(S.historial.map((x) => x.p))].sort();
+    const individual = h.persona ? todos.filter((x) => x.p === h.persona) : [];
+    const fecha = (f) => { const [d, t] = f.split(' '); return d.split('-').reverse().join('/') + '<br>' + t; };
+    const fila = (x, conPersona, comoElla) => `<li><span class="f">${fecha(x.f)}</span><span class="ico ${x.tono}" aria-hidden="true">${x.ico}</span>
+      <span class="t">${conPersona ? `<button class="boton-persona" data-act="verPersona" data-v="${esc(x.p)}">${esc(x.p)}</button> · ` : ''}<b>${esc(comoElla ? (x.tElla ?? x.t) : x.t)}</b>
+      <small>${esc(x.e)} · ${esc(comoElla ? (x.dElla ?? x.d) : x.d)}</small>
+      ${comoElla ? '' : `<small>Por ${esc(x.quien)}</small>`}</span></li>`;
+    $('#v-historial').innerHTML = `<div class="hist">
+      <div class="panel">
+        <div class="cab"><h2>Historial general</h2><p>Todo lo que pasó en Educación, de todas las personas. Un solo lugar para una auditoría.</p></div>
+        <div class="fila-filtros">
+          <label class="campo">Tipo de hecho<select data-act="histTipo"><option value="">Todos</option>${Object.entries(TIPOS).map(([k, t]) => `<option value="${k}" ${h.tipo === k ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
+          <label class="campo">Desde<input type="date" value="2026-06-01"></label>
+          <label class="campo">Hasta<input type="date" value="2026-10-17"></label>
+          <button class="btn sec" data-act="csv">Descargar CSV</button>
+        </div>
+        <ul class="eventos">${generales.map((x) => fila(x, true, false)).join('') || '<li><span></span><span></span><span class="t">Nada con ese filtro.</span></li>'}</ul>
+      </div>
+      <div class="panel">
+        <div class="cab"><h2>Historial de una persona</h2><p>Los mismos hechos, de una sola persona. Vive dentro de cada estudio y en su ficha; y ella ve el suyo en Lo mío.</p></div>
+        <label class="campo">Persona<select data-act="histPersona"><option value="">— elige —</option>${personas.map((p) => `<option ${h.persona === p ? 'selected' : ''}>${esc(p)}</option>`).join('')}</select></label>
+        ${h.persona ? `<div class="seg" role="group"><button aria-pressed="${!h.comoElla}" data-act="comoElla" data-v="no">Como lo ve DO</button><button aria-pressed="${h.comoElla}" data-act="comoElla" data-v="si">Como lo ve ella</button></div>
+          ${h.comoElla ? `<p class="aviso-caja neutro">En Lo mío no aparecen los nombres de quién de DO aprobó o rechazó: solo qué pasó, cuándo y por qué.</p>` : ''}
+          <ul class="eventos">${individual.map((x) => fila(x, false, h.comoElla)).join('')}</ul>` : `<p class="aviso-caja neutro">Elige una persona, o toca un nombre en el historial general.</p>`}
+      </div>
+    </div>`;
+  }
+
+  /* ───────── recorrido y render ───────── */
+  function renderRecorrido(){
+    const v = S.envio;
+    const pasos = [['Camila envía su pago adelantado', v.enviado], ['DO lo revisa una vez', !!S.revisado], ['La cuadrícula muestra ago–dic', S.revisado === 'aprobada'], ['El historial lo cuenta', S.revisado === 'aprobada']];
+    const ahora = pasos.findIndex((p) => !p[1]);
+    const pista = !v.enviado ? 'Ve a la <strong>vista 2</strong>: Camila pagó de agosto a diciembre de una vez.'
+      : !S.revisado ? 'Ve a la <strong>vista 3</strong>: DO revisa los 5 meses en una sola constancia.'
+      : S.revisado === 'rechazada' ? 'DO la rechazó: en la <strong>vista 2</strong> Camila ve el motivo y la corrige.'
+      : 'Mira la <strong>vista 1</strong> (Camila: agosto a diciembre con ✓) y la <strong>vista 4</strong> (el historial).';
+    $('#recorrido').innerHTML = `<span class="pasos">${pasos.map((p, i) => `<span class="p ${p[1] ? 'hecho' : i === ahora ? 'ahora' : ''}">${i + 1}. ${p[0]}</span>`).join('')}</span><span>${pista}</span>`;
+  }
+  function render(){
+    document.querySelectorAll('[data-vista]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.vista === S.vista)));
+    ['cuadricula', 'envio', 'revision', 'historial'].forEach((v) => $('#v-' + v).classList.toggle('oculto', v !== S.vista));
+    renderRecorrido();
+    if (S.vista === 'cuadricula') renderCuadricula();
+    if (S.vista === 'envio') renderEnvio();
+    if (S.vista === 'revision') renderRevision();
+    if (S.vista === 'historial') renderHistorial();
+    renderModal();
+  }
+
+
+  /* ───────── el detalle de un mes: globo al pasar, visor al tocar ───────── */
+  // El comprobante de ejemplo, dibujado como imagen (en la app es la foto o el PDF que subió).
+  function reciboSVG(e, k){
+    const filas = (k.reparto ?? k.meses.map((m) => ({ mes:m, monto:k.monto }))).map((x, i) =>
+      `<text x="24" y="${178 + i * 26}" font-size="14">Pensión ${mesLargo(x.mes)}</text><text x="296" y="${178 + i * 26}" font-size="14" text-anchor="end">${soles(x.monto)}</text>`).join('');
+    const alto = 250 + (k.reparto ?? k.meses).length * 26;
+    const inst = e.inst.split(' · ')[0];
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="${alto}" font-family="Georgia, serif" fill="#1a1a18">
+      <rect width="320" height="${alto}" fill="#ffffff"/><rect x="0.5" y="0.5" width="319" height="${alto - 1}" fill="none" stroke="#d9d2c3"/>
+      <text x="24" y="44" font-size="22" font-weight="700">${esc(inst)}</text><text x="296" y="44" font-size="12" text-anchor="end" fill="#6b6558">Recibo de pago</text>
+      <line x1="24" y1="58" x2="296" y2="58" stroke="#1a1a18" stroke-width="2"/>
+      <text x="24" y="90" font-size="14" font-weight="700">${esc(e.persona)}</text>
+      <text x="24" y="112" font-size="12" fill="#6b6558">Pagado el ${esc(k.fecha)} · ${esc(k.tipo)}</text>
+      <line x1="24" y1="150" x2="296" y2="150" stroke="#cfc8b8" stroke-dasharray="3 3"/>${filas}
+      <line x1="24" y1="${alto - 70}" x2="296" y2="${alto - 70}" stroke="#1a1a18" stroke-width="2"/>
+      <text x="24" y="${alto - 46}" font-size="15" font-weight="700">Total pagado</text><text x="296" y="${alto - 46}" font-size="15" font-weight="700" text-anchor="end">${soles(k.monto)}</text>
+      <text x="160" y="${alto - 18}" font-size="10" text-anchor="middle" fill="#9a3b2a" letter-spacing="1">RECIBO DE EJEMPLO · FICTICIO</text></svg>`;
+    return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  }
+  function detalleMes(e, m){
+    const c = celdaConstancia(e, m), a = celdaApoyo(e, m), k = constanciaDelMes(e, m);
+    const ESTADO = { aprobada:'Aprobada', pendiente:'Por revisar', rechazada:'Rechazada' };
+    let constancia;
+    if (k){
+      const parte = k.reparto?.find((x) => x.mes === m);
+      const corto = (x) => MES_L[+x.slice(5, 7) - 1];
+      constancia = `<b>${ESTADO[k.estado]}</b>${k.reviso && k.estado !== 'pendiente' ? ' por ' + esc(k.reviso) : ''}`
+        + (k.meses.length > 1
+          ? `<br>Pago adelantado, ${corto(k.meses[0])} a ${corto(k.meses[k.meses.length - 1])} · pagado el ${esc(k.fecha)}<br>Este mes: ${soles(parte?.monto ?? k.monto / k.meses.length)} de ${soles(k.monto)}${parte?.origen === 'manual' ? ` (lo corrigió ella: «${esc(parte.motivo)}»)` : ''}`
+          : `<br>${esc(k.tipo)} · ${soles(k.monto)} · pagado el ${esc(k.fecha)}`)
+        + (k.estado === 'rechazada' ? `<br><span style="color:var(--color-rojo-profundo)">«${esc(MOTIVOS[k.motivo] ?? 'Rechazada')}»: ${esc(k.comentario ?? '')}</span>` : '');
+    } else {
+      constancia = c.cls === 'falta' ? '<b>Falta</b>: se pide desde el día 1 de este mes.'
+        : c.txt === 'No aplica' ? 'El apoyo no estaba vigente este mes.'
+        : c.txt === 'Aún no' ? 'Todavía no llega este mes: se pedirá el día 1.'
+        : 'Este estudio no paga todos los meses: no se pide.';
+    }
+    const apoyo = a.cls === 'pagado' ? `<b>Pagado</b>: ${soles(e.apoyo)} en la planilla de ${mesLargo(m).split(' ')[0]}`
+      : a.cls === 'este' ? `<b>Se paga este mes</b>: ${soles(e.apoyo)} al cierre del periodo`
+      : a.cls === 'pagara' ? `<b>Se pagará</b> ${soles(e.apoyo)}, si el apoyo sigue vigente`
+      : '<b>Sin apoyo</b> este mes';
+    return { k, constancia, apoyo };
+  }
+  const globo = document.createElement('div');
+  globo.className = 'globo oculto'; globo.setAttribute('role', 'tooltip'); document.body.appendChild(globo);
+  let ocultarT = null;
+  function mostrarGlobo(btn){
+    clearTimeout(ocultarT);
+    const e = S.estudios.find((x) => x.id === btn.dataset.e), m = btn.dataset.m;
+    const d = detalleMes(e, m);
+    globo.innerHTML = `<h4>${esc(e.persona.split(' ')[0])} · ${mesLargo(m)}</h4>
+      <dl class="fila-g"><dt>Constancia</dt><dd>${d.constancia}</dd><dt>Apoyo</dt><dd>${d.apoyo}</dd></dl>
+      ${d.k ? `<div class="mini"><img src="${reciboSVG(e, d.k)}" alt="Miniatura del comprobante"><button class="btn sec fino" data-act="verMes" data-e="${e.id}" data-m="${m}">Ver comprobante</button></div>` : ''}`;
+    globo.classList.remove('oculto');
+    const r = btn.getBoundingClientRect(), g = globo.getBoundingClientRect();
+    let x = r.left + r.width / 2 - g.width / 2, y = r.bottom + 8;
+    x = Math.max(8, Math.min(x, window.innerWidth - g.width - 8));
+    if (y + g.height > window.innerHeight - 8) y = r.top - g.height - 8;
+    globo.style.left = x + 'px'; globo.style.top = Math.max(8, y) + 'px';
+  }
+  function ocultarGlobo(){ ocultarT = setTimeout(() => globo.classList.add('oculto'), 180); }
+  document.addEventListener('mouseover', (ev) => { const b = ev.target.closest('.ic'); if (b) mostrarGlobo(b); else if (ev.target.closest('.globo')) clearTimeout(ocultarT); });
+  document.addEventListener('mouseout', (ev) => { if (ev.target.closest('.ic') || ev.target.closest('.globo')) ocultarGlobo(); });
+  document.addEventListener('focusin', (ev) => { const b = ev.target.closest('.ic'); if (b) mostrarGlobo(b); });
+  document.addEventListener('focusout', (ev) => { if (ev.target.closest('.ic')) ocultarGlobo(); });
+  document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape'){ globo.classList.add('oculto'); if (S.modal){ S.modal = null; render(); } } });
+
+  /* ───────── modales ───────── */
+  function renderModal(){
+    const m = S.modal;
+    if (!m){ $('#modal').innerHTML = ''; return; }
+    if (m.t === 'visor'){
+      const e = S.estudios.find((x) => x.id === m.e), d = detalleMes(e, m.m);
+      $('#modal').innerHTML = `<div class="velo" data-act="cerrarFondo"><div class="visor" role="dialog" aria-label="Comprobante de ${esc(e.persona)}">
+        <div class="hoja">${d.k ? `<img src="${reciboSVG(e, d.k)}" alt="Comprobante">` : `<p style="color:var(--color-taupe);padding:40px 10px">Este mes no tiene comprobante.</p>`}</div>
+        <div class="lado">
+          <h3>${esc(e.persona)}</h3><p style="color:var(--color-taupe);font-size:.84rem">${esc(e.inst)} · ${mesLargo(m.m)}</p>
+          <dl class="d"><div><dt>Constancia</dt><dd>${d.constancia}</dd></div><div><dt>Apoyo</dt><dd>${d.apoyo}</dd></div></dl>
+          ${d.k && d.k.estado === 'pendiente' ? `<p class="aviso-caja neutro">Por revisar: en la app, aquí mismo van Aprobar y Rechazar.</p>` : ''}
+          <div class="pie" style="margin-top:auto"><button class="btn" data-act="cerrarModal">Cerrar</button></div>
+        </div></div></div>`;
+      return;
+    }
+    if (m.t === 'editarMes'){
+      const ok = m.monto !== '' && Number(m.monto) >= 0 && m.motivo.trim().length >= 3;
+      $('#modal').innerHTML = `<div class="velo"><div class="modal" role="dialog" aria-label="Corregir un mes">
+        <h3>Corregir ${mesLargo(m.mes)}</h3>
+        <p style="color:var(--color-taupe);font-size:.86rem">Si el sistema sacó un monto que no es, pon el correcto. DO va a ver que lo cambiaste tú y por qué.</p>
+        <label class="campo">Monto de ${mesLargo(m.mes).split(' ')[0]} (S/)<input id="mMonto" inputmode="decimal" value="${esc(m.monto)}"></label>
+        <label class="campo">¿Por qué lo cambias? *<textarea id="mMotivo" rows="3" placeholder="ej. agosto incluía la matrícula">${esc(m.motivo)}</textarea><small>Mínimo 3 letras.</small></label>
+        <div class="pie"><button class="btn sec" data-act="cerrarModal">Cancelar</button><button class="btn" data-act="guardarMes" ${ok ? '' : 'disabled'}>Guardar</button></div>
+      </div></div>`;
+    }
+    if (m.t === 'rechazar'){
+      const ok = m.cat && m.texto.trim().length >= 3;
+      $('#modal').innerHTML = `<div class="velo"><div class="modal" role="dialog" aria-label="Rechazar">
+        <h3>Rechazar el pago adelantado</h3>
+        <p style="color:var(--color-taupe);font-size:.86rem">Se rechaza la constancia entera. Camila lee el motivo en su Bandeja, corrige los meses y la vuelve a enviar.</p>
+        <label class="campo">Motivo *<select id="rCat"><option value="">— elige el motivo —</option>${Object.entries(MOTIVOS).map(([k, t]) => `<option value="${k}" ${m.cat === k ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
+        <label class="campo">Qué tiene que corregir *<textarea id="rTexto" rows="3" placeholder="ej. el recibo no incluye diciembre">${esc(m.texto)}</textarea><small>Mínimo 3 letras; escribe lo que haga falta.</small></label>
+        <div class="pie"><button class="btn sec" data-act="cerrarModal">Cancelar</button><button class="btn rojo" data-act="rechazar" ${ok ? '' : 'disabled'}>Rechazar constancia</button></div>
+      </div></div>`;
+    }
+  }
+
+  /* ───────── acciones ───────── */
+  const AHORA = () => '2026-10-17 ' + new Date().toTimeString().slice(0, 5);
+  document.addEventListener('click', (ev) => {
+    const el = ev.target.closest('[data-act],[data-vista]'); if (!el) return;
+    if (el.dataset.vista){ S.vista = el.dataset.vista; render(); return; }
+    const a = el.dataset.act, v = el.dataset.v, e = S.envio;
+    switch (a){
+      case 'vista': S.vista = v; break;
+      case 'pestana': S.pestana = v; break;
+      case 'modo': e.modo = v; e.porMes = {}; if (v === 'uno') e.hasta = e.desde; else if (e.hasta === e.desde) e.hasta = '2026-12'; break;
+      case 'sabe': e.sabe = v; e.porMes = {}; break;
+      case 'archivo': e.archivo = true; break;
+      case 'editarMes': { const r = repartir().find((x) => x.mes === v); S.modal = { t:'editarMes', mes:v, monto:String(r.monto), motivo:'' }; break; }
+      case 'guardarMes': e.porMes[S.modal.mes] = { monto:Number(S.modal.monto), motivo:S.modal.motivo.trim() }; S.modal = null; aviso('Mes corregido. DO verá tu motivo.'); break;
+      case 'cerrarModal': S.modal = null; break;
+      case 'enviar': {
+        e.enviado = true; S.revisado = null;
+        const r = repartir();
+        const cam = S.estudios.find((x) => x.id === 'cam');
+        cam.constancias = cam.constancias.filter((c) => c.id !== 'cam-adel');
+        cam.constancias.push({ id:'cam-adel', meses:r.map((x) => x.mes), estado:'pendiente', tipo:'Pago adelantado', fecha:e.fechaPago.split('-').reverse().join('/'), monto:r.reduce((t, x) => t + Number(x.monto), 0), reparto:r });
+        S.historial.push({ f:AHORA(), p:'Camila Rojas Vega', e:'UPN · Administración', tipo:'enviada', t:'Envió un pago adelantado', tElla:'Enviaste un pago adelantado', d:`Cubre ${mesLargo(r[0].mes)} a ${mesLargo(r[r.length - 1].mes)} (${r.length} meses) · ${soles(r.reduce((t, x) => t + Number(x.monto), 0))}${r.some((x) => x.origen === 'manual') ? ' · corrigió ' + r.filter((x) => x.origen === 'manual').length + ' mes(es) a mano' : ''}`, quien:'la integrante', ico:'↑', tono:'info' });
+        aviso('Enviada. DO la revisa una sola vez.'); break;
+      }
+      case 'reenviar': e.enviado = false; S.revisado = null; S.rechazo = null; break;
+      case 'aprobar': {
+        S.revisado = 'aprobada';
+        const cam = S.estudios.find((x) => x.id === 'cam');
+        { const c = cam.constancias.find((x) => x.id === 'cam-adel'); c.estado = 'aprobada'; c.reviso = 'Jorge (DO)'; }
+        const r = repartir();
+        S.historial.push({ f:AHORA(), p:'Camila Rojas Vega', e:'UPN · Administración', tipo:'aprobada', t:'Pago adelantado aprobado', d:`Cubre ${mesLargo(r[0].mes)} a ${mesLargo(r[r.length - 1].mes)} (${r.length} meses): no se le pide constancia hasta ${mesLargo(sumar(r[r.length - 1].mes, 1))}`, tElla:'Tu pago adelantado se aprobó', dElla:`Cubre ${mesLargo(r[0].mes)} a ${mesLargo(r[r.length - 1].mes)}: no tienes que enviar constancia hasta ${mesLargo(sumar(r[r.length - 1].mes, 1))}`, quien:'Jorge (DO)', ico:'✓', tono:'ok' });
+        aviso('Aprobada: los ' + r.length + ' meses quedan cubiertos.'); break;
+      }
+      case 'rechazarAbrir': S.modal = { t:'rechazar', cat:'', texto:'' }; break;
+      case 'rechazar': {
+        S.revisado = 'rechazada';
+        S.rechazo = { texto:`«${MOTIVOS[S.modal.cat]}»: ${S.modal.texto.trim()}.` };
+        const cam = S.estudios.find((x) => x.id === 'cam');
+        { const c = cam.constancias.find((x) => x.id === 'cam-adel'); c.estado = 'rechazada'; c.reviso = 'Jorge (DO)'; c.motivo = S.modal.cat; c.comentario = S.modal.texto.trim(); }
+        S.historial.push({ f:AHORA(), p:'Camila Rojas Vega', e:'UPN · Administración', tipo:'rechazada', t:'Pago adelantado rechazado', tElla:'Tu pago adelantado se rechazó: corrígelo y envíalo otra vez', d:`«${MOTIVOS[S.modal.cat]}»: ${S.modal.texto.trim()}`, quien:'Jorge (DO)', ico:'✕', tono:'alerta' });
+        S.modal = null; aviso('Rechazada. Camila la corrige y la reenvía.'); break;
+      }
+      case 'verPersona': S.histFiltro.persona = v; S.histFiltro.comoElla = false; break;
+      case 'comoElla': S.histFiltro.comoElla = v === 'si'; break;
+      case 'verMes': globo.classList.add('oculto'); S.modal = { t:'visor', e:el.dataset.e, m:el.dataset.m }; break;
+      case 'cerrarFondo': if (ev.target !== el) return; S.modal = null; break;
+      case 'csv': aviso('En la app real baja un CSV con lo que estás viendo.'); return;
+      default: return;
+    }
+    render();
+  });
+  document.addEventListener('input', (ev) => {
+    const el = ev.target, e = S.envio;
+    if (el.id === 'mMonto'){ S.modal.monto = el.value; actualizarBotonModal(); return; }
+    if (el.id === 'mMotivo'){ S.modal.motivo = el.value; actualizarBotonModal(); return; }
+    if (el.id === 'rTexto'){ S.modal.texto = el.value; actualizarBotonModal(); return; }
+    const a = el.dataset.act;
+    if (a === 'buscar'){ S.buscar = el.value; renderCuadricula(); const i = document.querySelector('[data-act="buscar"]'); i.focus(); i.setSelectionRange(i.value.length, i.value.length); }
+    if (a === 'total'){ e.total = el.value; renderEnvio(); refoco('total'); }
+    if (a === 'cada'){ e.porMes['__cada'] = el.value; renderEnvio(); refoco('cada'); }
+  });
+  function refoco(act){ const i = document.querySelector(`[data-act="${act}"]`); if (i){ i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }
+  function actualizarBotonModal(){
+    const m = S.modal; const b = document.querySelector('[data-act="guardarMes"],[data-act="rechazar"]'); if (!b) return;
+    const ok = m.t === 'editarMes' ? (m.monto !== '' && Number(m.monto) >= 0 && m.motivo.trim().length >= 3) : (m.cat && m.texto.trim().length >= 3);
+    b.disabled = !ok;
+  }
+  document.addEventListener('change', (ev) => {
+    const el = ev.target, e = S.envio, a = el.dataset.act;
+    if (el.id === 'rCat'){ S.modal.cat = el.value; actualizarBotonModal(); return; }
+    if (a === 'sede'){ S.sede = el.value; }
+    else if (a === 'desde'){ e.desde = el.value; if (e.modo === 'uno' || e.hasta < e.desde) e.hasta = e.desde; e.porMes = {}; }
+    else if (a === 'hasta'){ e.hasta = el.value; e.porMes = {}; }
+    else if (a === 'fechaPago'){ e.fechaPago = el.value || e.fechaPago; }
+    else if (a === 'histTipo'){ S.histFiltro.tipo = el.value; }
+    else if (a === 'histPersona'){ S.histFiltro.persona = el.value; S.histFiltro.comoElla = false; }
+    else return;
+    render();
+  });
+  $('#btnReset').addEventListener('click', () => { reiniciar(); aviso('Demo reiniciada.'); });
+  reiniciar();
+})();
+</script>
+</body>
+</html>

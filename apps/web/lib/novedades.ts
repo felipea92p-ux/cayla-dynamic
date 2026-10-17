@@ -115,6 +115,46 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-10-17-educacion-pagar-varios-meses-de-una-vez",
+    fecha: "2026-10-17",
+    titulo: "Si pagaste varios meses de tus estudios de una vez, súbelo una sola vez",
+    queMejoro:
+      "Al subir tu constancia en Educación ahora puedes elegir «Varios meses de una vez»: pones desde qué mes " +
+      "hasta qué mes pagaste y el total (o lo de cada mes), y el sistema reparte los meses. Si un mes no es así, " +
+      "lo corriges y escribes por qué. Desarrollo Organizacional la revisa una sola vez y no tendrás que enviar " +
+      "constancia de esos meses.\n\n" +
+      "También tienes «Tu historial», con todo lo que enviaste y lo que se aprobó o se rechazó, y por qué.",
+    audiencia: "todos",
+  },
+  {
+    id: "2026-10-17-educacion-en-pestanas-con-iconos-por-mes",
+    fecha: "2026-10-17",
+    titulo: "Educación se ordena en pestañas y cada mes se lee con un ícono",
+    queMejoro:
+      "Educación tiene cuatro pestañas: Constancias, Aprobadas del ciclo, Historial y Cómo funciona. En la " +
+      "cuadrícula cada mes es un ícono —aprobada, por revisar, rechazada o falta— con una raya que dice si ese " +
+      "mes se pagó el apoyo; al pasar el mouse sale el detalle con la miniatura del comprobante, y el mes en curso " +
+      "va sombreado.\n\n" +
+      "Se abre en «Solicitaron» (quienes pidieron apoyo); «Todos» suma a quienes no pidieron. Un pago de varios " +
+      "meses se ve como una franja y se aprueba una sola vez. El Historial junta todo lo que pasó, por sede, " +
+      "persona y fechas, con CSV.",
+    audiencia: "do",
+  },
+  {
+    id: "2026-10-17-educacion-aprobadas-del-ciclo-y-rechazar-una-aprobada",
+    fecha: "2026-10-17",
+    titulo: "En Educación se puede corregir una constancia aprobada por error",
+    queMejoro:
+      "Antes, una constancia aprobada no se podía corregir. Ahora Educación tiene la sección «Aprobadas en el ciclo de " +
+      "pago»: elige un ciclo (del 29 al 28), mira a quién se aprobó y quién lo hizo, con la constancia a la vista, y " +
+      "usa «Rechazar…» con el motivo de siempre o «Otro motivo» (mínimo 3 letras, sin máximo). La integrante lo lee " +
+      "en su Bandeja y envía otra.\n\n" +
+      "El rechazo queda en el historial del estudio, con quién la aprobó, quién la rechazó después y por qué. Antes de " +
+      "confirmar, la pantalla avisa si era la única constancia aprobada de ese estudio —entonces el apoyo deja de " +
+      "pagarse hasta que se apruebe otra— y no deja rechazarla si el periodo ya se pagó con ella.",
+    audiencia: "do",
+  },
+  {
     id: "2026-10-16-boletas-en-el-menu",
     fecha: "2026-10-16",
     titulo: "Las boletas oficiales ya tienen su propio lugar en el menú",

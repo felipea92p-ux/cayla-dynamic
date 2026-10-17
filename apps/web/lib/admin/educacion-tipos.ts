@@ -86,6 +86,38 @@ export interface Entrega {
   motivo_comentario: string | null;
   reemplaza_a: string | null;
   archivos: ArchivoDeEntrega[];
+  /**
+   * Solo una aprobación REVERTIDA (0525) las trae llenas: quién aprobó y cuándo, y quién
+   * la revirtió y cuándo. Mientras tanto `revisada_*` ya dice quién la rechazó.
+   * Para la integrante vienen sin nombre: solo ve que se revirtió.
+   */
+  aprobada_at: string | null;
+  aprobada_por: string | null;
+  revertida_at: string | null;
+  revertida_por: string | null;
+}
+
+/** Una fila de `fn_educacion_aprobadas_del_periodo` (0525): lo aprobado en un ciclo. */
+export interface AprobadaDelCiclo {
+  entrega_id: string;
+  familia_id: string;
+  persona_id: string;
+  persona: string;
+  sede: string;
+  institucion: string;
+  beneficiario_nombre: string | null;
+  fecha_pago: string;
+  tipo: TipoConstancia;
+  origen: "colaboradora" | "do" | "migrada";
+  aprobada_at: string;
+  aprobada_por: string | null;
+  archivos: ArchivoDeEntrega[];
+  /** Revertirla dejaría el apoyo sin ninguna constancia aprobada: el pago se apaga. */
+  apaga_pago: boolean;
+  /** El pago ya salió con ella: no se puede revertir sin reabrir el periodo. */
+  bloqueada: boolean;
+  /** El texto que la pantalla le muestra a DO antes de confirmar. */
+  aviso: string;
 }
 
 /** Una constancia con el estudio al que pertenece: `fn_educacion_entregas` se pide por familia. */
