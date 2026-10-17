@@ -6,7 +6,7 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-10-17 — La política de movilidad se firma con la firma del sistema (0531) · SQL SIN PEGAR · PR ABIERTO, SIN FUSIONAR · rama `claude/politica-firma-del-sistema`
+## 2026-10-17 — La política de movilidad se firma con la firma del sistema (0531) · SQL PEGADO Y VERIFICADO EN PRODUCCIÓN · PR ABIERTO, SIN FUSIONAR · rama `claude/politica-firma-del-sistema`
 
 **Qué cambia.** En Documentación, el panel de la política ofrece «Con la firma guardada
 de …» (por defecto, si quien firma por CAYLA tiene firma en `firmas_escaneadas`) o
@@ -21,11 +21,128 @@ ella (falla). En el navegador, contra el Postgres local: firmar, ver, reemplazar
 anterior queda en «Versiones anteriores» con su «Ver»). Los datos de prueba se
 borraron; la 0531 quedó aplicada en el Postgres local.
 
-**Pendiente.** Pegar la 0531 ANTES de fusionar (crea una función nueva y agrega dos
-columnas: no reescribe ninguna función, no hay md5 de partida). Se decidió que
+**Pegada.** La 0531 se pegó en producción el 2026-10-17 y su comprobación salió con
+las tres columnas en true (`columnas_puestas`, `constraint_puesto`, `funcion_creada`).
+No reescribe ninguna función: no hubo md5 de partida. Falta fusionar el PR. Se decidió que
 cualquier admin/líder DO puede firmar la política con la firma de quien firma por
 CAYLA —igual que hoy puede subir el escaneo—; si eso tiene que quedar solo para el
 firmante, es un `if v_yo <> v_firmante` en la función.
+
+---
+
+## 2026-10-17 — Educación: pagar antes de la fecha declarada también corre el calendario (0527) · SQL PEGADO Y VERIFICADO EN PRODUCCIÓN · PR ABIERTO, SIN FUSIONAR · rama `claude/clever-nobel-3cdc5c`
+
+**Solo alerta; no cambia lo que cobra nadie.** Defecto desde la 0450, medido con las
+funciones de verdad: un mensual que vence el 15 de mayo, paga el 3 y declara el próximo
+el 3 de junio. DO aprueba y el calendario **se queda en el 15**; el 24 de mayo figura
+«vencida» por un mes ya aprobado. `fn_educacion_avanzar_calendario` comparaba la fecha
+de pago contra la fecha declarada (`e.fecha_pago >= a.proxima_fecha_pago`), así que
+pagar antes nunca la alcanzaba. Pasa con todas las frecuencias.
+
+**Decisión de Felipe (2026-10-17): criterio A.** Avanza también cuando el pago cae
+desde el día 1 del MES de la fecha vigente y lo declarado es posterior (o es «último
+pago», que sigue poniendo null). Para toda frecuencia. Se descartó «solo hacia
+adelante» a secas porque pisaría la fecha que DO fijó a mano.
+`fn_educacion_fijar_calendario` no se toca. **Residuo conocido:** pagar en un mes
+ANTERIOR al de la fecha vigente (vence el 3/nov, paga el 28/oct) sigue sin mover el
+calendario; lo fija DO a mano.
+
+**Medido.** pgTAP **421**, 34 aserciones: 34 verdes con la 0527; **15 rojas** en el
+control sin ella (justo las de pagar antes y las de la vida real). Cuatro variantes
+equivocadas de la regla (solo adelante, sin exigir `N > P`, solo mensual, ventana de
+40 días) la rompen cada una por al menos una aserción. md5 de partida en **producción**
+`bd2c70bb…` · 354 caracteres, idéntico a la 0450 (medido por Felipe el 2026-10-17;
+**se vuelve a pedir justo antes de entregar**). Llegada, local: `51570d94…` · 727.
+La sección 0 de la migración frena si la función no es esa versión.
+
+**Pegada y verificada el 2026-10-17.** Felipe la pegó («Success. No rows returned») y la
+consulta de comprobación devolvió, en producción: 727 caracteres · md5
+`51570d948d13c3fe079ff78e2a6905e2` · marca «CAMBIO 0527» en la posición 376 · 0 retornos de
+carro · 1 sola copia de la función · registro `527 · pagar_antes_de_la_fecha_tambien_corre_el_calendario`.
+Coincide con el md5 de llegada medido en local. Falta fusionar el PR, que solo trae el
+archivo ya pegado, la prueba 421 y este texto: ningún cambio de pantalla, y ya no hay orden
+de pegado que respetar. Fusionar es publicar: se pide el OK aparte.
+
+**Medido otra vez con `main` ya movido** (PR #541: 0525 y 0529 pegadas): la prueba 421 da 34
+verdes contra el esquema con 0525, 0526 y 0529 puestas, y 15 rojas en el control con la
+función de la 0450. La 0529 mueve el calendario de un pago adelantado con su propio trigger y
+no reescribe esta función; las dos se llevan bien.
+
+**Pendiente.** (1) ~~Pegar la 0527~~ hecho; es independiente de la 0526 (reescribe otra
+función). (2) Felipe corre la consulta del final de la migración para saber cuántos estudios
+**ya** quedaron atrasados: esta migración no los repara (solo actúa al aprobar); DO los fija a
+mano con `fn_educacion_fijar_calendario`. (3) Con la 0525 ya en producción, revertir la
+aprobación de un pago hecho antes de la fecha deja el calendario en la fecha de PAGO y no en
+la de vencimiento (un pago del 3 con vencimiento el 15 revierte al 3). Es lo que la 0525 hace
+con toda reversión; con la 0527 solo cambia que el pago puede ser anterior al vencimiento, y
+lo único que se adelanta es el plazo. Solo alerta; no se tocó. (4) Sin entrada en
+`novedades.ts`; decide Felipe.
+
+---
+
+## 2026-10-17 — Las boletas se firman, DO las ve firmadas y puede anular y restablecer en 48 horas · migración 0532 · SQL SIN PEGAR · COMMITEADO, SIN PR · rama `claude/nice-kapitsa-b7482a`
+
+**Hay SQL: la [0532](../supabase/migrations/0532_las_boletas_se_firman_y_una_anulacion_se_restablece.sql), sin pegar.**
+**Se pega ANTES de fusionar:** el código nuevo llama a `fn_boleta_firmar`, `fn_boleta_restablecer`,
+`fn_boleta_constancia` y `fn_boleta_anulaciones`, que no existen en producción hasta pegarla; con el
+código primero, «Firmar» y «Anular» devolverían un error.
+
+**Qué pidió Felipe (2026-10-17, tras ver el prototipo `docs/boletas-firma-prototipo-2026-10-17.html`).**
+Que las colaboradoras firmen su boleta desde Dynamic cuando DO la sube; que DO vea la boleta con su
+firma; y que DO pueda anular una boleta ya aprobada —viendo el nombre, la constancia y los datos para
+saber si es la correcta— y restablecerla durante 48 horas. Decidido por él: firma con la guardada en Mi
+perfil, **firmar es obligatorio** (la salida es «Entregada en papel»), carga persona por persona.
+
+**Qué hace.**
+- **Firmar:** `fn_boleta_firmar` copia en el acuse de esa versión la firma que la persona tiene guardada
+  (`firmas_escaneadas`), con fecha y hora. Exige haberla abierto. Dos pasos en pantalla, y si no tiene
+  firma la crea ahí mismo con `FirmaEditor`. «Confirmar que la recibí» se **retira**: la función sigue
+  existiendo y contesta «recarga y usa Firmar» (así una pantalla vieja no ve «función inexistente»).
+- **Recibida exige firma, y lo dice un trigger** (no un CHECK: un CHECK `not valid` se reevalúa cuando
+  `fn_boleta_partes` actualiza una fila vieja y rompería a quien ya había confirmado). Quien confirmó
+  antes queda «Confirmada», sin firma, y no se le agrega una después.
+- **DO ve la firma:** `fn_boleta_constancia`; «Ver boleta firmada» muestra la boleta y la firma copiada.
+- **Anular guarda cómo estaba** (`boletas.estado_previo`) y escribe en `boletas_anulaciones` (historial
+  que solo se agrega). `fn_boleta_restablecer` devuelve la boleta exacta, con su firma —el acuse cuelga de
+  la versión y anular no lo toca—, solo dentro de 48 horas desde `anulada_at` y solo si el grupo sigue
+  pagado. Pasado el plazo, solo «Subir boleta nueva».
+- **La persona ve «En revisión»** (`fn_mis_boletas` ahora devuelve las anuladas, sin versión ni
+  archivos) y **no se le avisa** que se anuló, ni el motivo. Supuestos míos, no decididos por Felipe:
+  que restablecer conserve la firma (no firma otra vez) y que no se le avise.
+- **El globito de «Boletas» y la Bandeja ahora cuentan lo que espera firma**, no solo lo que no se abrió.
+
+**Reescribe seis funciones y lleva su freno de md5.** `fn_boleta_guardar_version`, `fn_boleta_anular`,
+`fn_boleta_confirmar_recibo`, `fn_boletas_acuses_guardian`, `fn_boletas_tablero` (la vigente es la de la
+0491, con su `not cuenta_de_servicio`) y `fn_mis_boletas`. El bloque `0 · EL FRENO` aborta sin tocar nada
+si alguna no coincide con lo que se copió (probado: se rompió una a propósito y la migración paró). **No se
+pidió el md5 a producción antes de escribir**, como manda CLAUDE.md: el freno lo reemplaza al pegar, pero si
+el PR #450 (que modifica la propia 0482) se fusiona antes, hay que volver a medir con `donde-vive.sh`.
+Los md5 de partida son los de la base local construida de `supabase/migrations`; si producción tiene
+comentarios de menos o `\r`, el freno lo acepta (mismos desenlaces que la 0491).
+
+**Cómo se verificó.**
+- pgTAP: la nueva **426** (53 aserciones: firma, guardián, constancia, anular, restablecer, plazo de 48 h,
+  historial) y la **380** adaptada (87; «confirmar» pasó a «firmar») pasan. Se repegó la migración y es
+  idempotente. La suite completa local dio 82 de 330 archivos en rojo, **todos por datos del Postgres local**
+  (periodos `dead0c…` que chocan con `periodos_sin_solape` y con una llave foránea; 41 de los errores son
+  esa misma colisión); ninguno es de boletas y **no se corrió el control** (la misma suite sin la 0532): la
+  señal fiable es `db-tests` en CI.
+- vitest completo (1 824, 87 archivos), `tsc` y eslint de lo tocado en verde. Los tipos de `database` se
+  regeneraron con `gen-types` (el diff es grande porque el archivo llevaba atraso).
+- **En el navegador, contra el Supabase local**, con DO y una integrante de prueba: DO sube una foto, la
+  publica; la integrante la abre (el botón «Firmar» estaba apagado hasta entonces), crea su firma, firma en dos
+  pasos; DO ve «Firmada» y «Ver boleta firmada» con la firma; DO anula con motivo (el botón se enciende solo
+  con motivo y casilla del nombre; «Otro» pide 5 letras); «Ver anulación»; «Restablecer» la devuelve
+  firmada; la integrante ve «En revisión» mientras está anulada. Datos de prueba borrados al terminar.
+
+**Lo que NO se comprobó.**
+- Un celular real (la pantalla de la persona y los modales se vieron solo en el navegador de escritorio).
+- El plazo vencido en pantalla (se prueba a nivel de base y de reglas, no moviendo el reloj en el navegador).
+- «Descargar con firma»: el prototipo la mostraba y **no se construyó** (haría falta generar un PDF).
+- La entrada «Boletas» en el menú: la trae el PR #535, que la pone en **Pago, debajo de Planilla**; la
+  jefa pidió **Personas**. Pendiente de decidir cuál queda.
+- La consulta al laboralista y al contador (PR #450, `docs/consulta-boletas-de-pago.md`) sigue sin contestar:
+  esto es una constancia de recepción, no firma digital certificada.
 
 ---
 

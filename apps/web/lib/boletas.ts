@@ -41,26 +41,30 @@ export type TipoBoleta = "imagen" | "pdf";
 export type EstadoBoletaBase = "falta" | "borrador" | "publicada" | "papel" | "anulada";
 
 /**
- * El estado con el que se DIBUJA. «vista» y «confirmada» no son estados de la
- * base: salen de las dos fechas del acuse de la versión vigente.
+ * El estado con el que se DIBUJA. «vista», «firmada» y «confirmada» no son
+ * estados de la base: salen del acuse de la versión vigente. Desde la 0532 una
+ * boleta se da por recibida FIRMÁNDOLA («firmada»); «confirmada» es lo que
+ * quedó de quien confirmó antes, sin firma.
  * «sin_pago» = el grupo de esa persona todavía no está pagado en ese periodo:
  * no hay nada que subir.
  */
 export type EstadoVisible =
-  | "sin_pago" | "falta" | "borrador" | "publicada" | "vista" | "confirmada" | "papel" | "anulada";
+  | "sin_pago" | "falta" | "borrador" | "publicada" | "vista" | "firmada" | "confirmada" | "papel" | "anulada";
 
 export type FilaDeEstado = {
   estado: string | null;
   grupo_pagado?: boolean | null;
   vista_at?: string | null;
   recibida_at?: string | null;
+  /** La imagen de la firma está en el acuse (0532). Una confirmación vieja no la tiene. */
+  firmada?: boolean | null;
 };
 
 export function estadoVisible(f: FilaDeEstado): EstadoVisible {
   const base = (f.estado ?? "falta") as EstadoBoletaBase;
   if (base === "falta") return f.grupo_pagado === false ? "sin_pago" : "falta";
   if (base === "publicada") {
-    if (f.recibida_at) return "confirmada";
+    if (f.recibida_at) return f.firmada ? "firmada" : "confirmada";
     if (f.vista_at) return "vista";
     return "publicada";
   }
@@ -74,7 +78,8 @@ export const ETIQUETA_ESTADO: Record<EstadoVisible, { texto: string; tono: "neut
   borrador:   { texto: "Subida · sin publicar",  tono: "info" },
   publicada:  { texto: "Publicada · sin abrir",  tono: "aviso" },
   vista:      { texto: "Vista",                  tono: "info" },
-  confirmada: { texto: "Confirmada",             tono: "ok" },
+  firmada:    { texto: "Firmada",               tono: "ok" },
+  confirmada: { texto: "Confirmada · sin firma", tono: "ok" },
   papel:      { texto: "Entregada en papel",     tono: "ok" },
   anulada:    { texto: "Anulada",                tono: "neutro" },
 };
@@ -180,18 +185,18 @@ export function rutaDeHoja(periodoId: string, personaId: string, extension: stri
 
 export type ContadoresTablero = {
   total: number;
-  conBoleta: number;     // publicada, vista, confirmada o entregada en papel
+  conBoleta: number;     // publicada, vista, firmada o entregada en papel
   sinPublicar: number;   // borrador
   faltan: number;        // falta o anulada, con el grupo ya pagado
-  confirmadas: number;
+  firmadas: number;      // firmó su boleta (o confirmó antes de que hubiera firma)
 };
 
 export function contarTablero(filas: readonly FilaDeEstado[]): ContadoresTablero {
-  const c: ContadoresTablero = { total: filas.length, conBoleta: 0, sinPublicar: 0, faltan: 0, confirmadas: 0 };
+  const c: ContadoresTablero = { total: filas.length, conBoleta: 0, sinPublicar: 0, faltan: 0, firmadas: 0 };
   for (const f of filas) {
     const e = estadoVisible(f);
-    if (e === "publicada" || e === "vista" || e === "confirmada" || e === "papel") c.conBoleta++;
-    if (e === "confirmada") c.confirmadas++;
+    if (e === "publicada" || e === "vista" || e === "firmada" || e === "confirmada" || e === "papel") c.conBoleta++;
+    if (e === "firmada" || e === "confirmada") c.firmadas++;
     if (e === "borrador") c.sinPublicar++;
     if (e === "falta" || e === "anulada") c.faltan++;
   }
@@ -203,4 +208,62 @@ export function contarTablero(filas: readonly FilaDeEstado[]): ContadoresTablero
 /** ¿Esta fila de `fn_mis_boletas` es una boleta nueva —publicada y aún sin abrir—? */
 export function esBoletaNueva(f: { estado: string | null; vista_at: string | null }): boolean {
   return f.estado === "publicada" && !f.vista_at;
+}
+
+// ── Anular y restablecer (0532) ─────────────────────────────────────────────
+
+/** Cuánto dura el plazo para restablecer una anulación. La base lo mide con su reloj. */
+export const HORAS_PARA_RESTABLECER = 48;
+
+/**
+ * Los motivos que DO elige al anular, más «otro». Se guarda el TEXTO del motivo,
+ * no la clave: la base exige al menos 5 letras y lo muestra tal cual en el
+ * historial, junto a quién anuló y cuándo.
+ */
+export const MOTIVOS_DE_ANULACION = [
+  { clave: "otra_persona", texto: "Se subió la boleta de otra persona" },
+  { clave: "otro_periodo", texto: "Es de otro periodo" },
+  { clave: "datos", texto: "Los montos o datos están mal (el contador la corrige)" },
+  { clave: "ilegible", texto: "El archivo no se lee bien" },
+  { clave: "error", texto: "Se publicó por error" },
+  { clave: "otro", texto: "Otro motivo…" },
+] as const;
+
+export type ClaveMotivo = (typeof MOTIVOS_DE_ANULACION)[number]["clave"];
+
+export const LETRAS_MINIMAS_DEL_MOTIVO = 5;
+
+/**
+ * El motivo que se manda a la base, o `null` si todavía no se puede anular:
+ * falta elegir uno, o eligió «Otro» y escribió menos de 5 letras. Espeja
+ * `fn_boleta_anular` (0482/0532), que repite la comprobación y gana.
+ */
+export function motivoDeAnulacion(clave: ClaveMotivo | "", otro: string): string | null {
+  const m = MOTIVOS_DE_ANULACION.find((x) => x.clave === clave);
+  if (!m) return null;
+  if (m.clave !== "otro") return m.texto;
+  const texto = otro.trim();
+  return texto.length >= LETRAS_MINIMAS_DEL_MOTIVO ? texto : null;
+}
+
+/** ¿Se puede restablecer todavía? `hasta` es `restablecible_hasta` de la base (null = no se puede). */
+export function sePuedeRestablecer(hasta: string | null | undefined, ahora: Date = new Date()): boolean {
+  return Boolean(hasta) && ahora.getTime() < new Date(hasta as string).getTime();
+}
+
+/** «47 h 12 min» que le quedan; cadena vacía si el plazo ya pasó. */
+export function tiempoParaRestablecer(hasta: string | null | undefined, ahora: Date = new Date()): string {
+  if (!hasta) return "";
+  const ms = new Date(hasta).getTime() - ahora.getTime();
+  if (ms <= 0) return "";
+  const h = Math.floor(ms / 3_600_000);
+  const m = Math.floor((ms % 3_600_000) / 60_000);
+  return `${h} h ${String(m).padStart(2, "0")} min`;
+}
+
+// ── La firma (0532) ─────────────────────────────────────────────────────────
+
+/** ¿Esta fila de `fn_mis_boletas` espera la firma? Publicada, vigente y sin firmar. */
+export function esBoletaPorFirmar(f: { estado: string | null; recibida_at: string | null }): boolean {
+  return f.estado === "publicada" && !f.recibida_at;
 }

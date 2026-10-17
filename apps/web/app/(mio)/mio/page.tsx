@@ -50,8 +50,8 @@ import { cicloVigente, type DiaTrabajado } from "@/lib/admin/ciclo-sobretiempo";
 import { traerBandeja } from "@/lib/bandeja-mia";
 import { mostrarBonoEnInfo, puedePedirBono, traerMiBono, type MiBono } from "@/lib/mi-bono";
 import { esMesDeCumpleanos } from "@/lib/saludos-cumpleanos";
-import { esBoletaNueva } from "@/lib/boletas";
-import { contarBoletasNuevas, nombreDelPeriodo, traerMisBoletas, type FilaMiBoleta } from "@/lib/mis-boletas";
+import { esBoletaPorFirmar } from "@/lib/boletas";
+import { contarBoletasPorFirmar, nombreDelPeriodo, traerMisBoletas, type FilaMiBoleta } from "@/lib/mis-boletas";
 import { contarSinLeer, traerMisReportes, type FilaMiReporte } from "@/lib/reportes";
 import { formatSoles } from "@/lib/rangos";
 import { direccionDeSeccion, seccionAlLlegar, seccionDeLaDireccion } from "@/lib/seccion-en-la-direccion";
@@ -1168,7 +1168,7 @@ export default function MioPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void cargarMisBoletas();
   }, [cargarMisBoletas, yo?.id]);
-  const boletasNuevas = useMemo(() => (misBoletas ? contarBoletasNuevas(misBoletas) : 0), [misBoletas]);
+  const boletasPorFirmar = useMemo(() => (misBoletas ? contarBoletasPorFirmar(misBoletas) : 0), [misBoletas]);
 
   // Sus reportes (0488): igual que las boletas, se leen aquí y no en la
   // pestaña, para que el globito del menú se vea antes de abrirla.
@@ -1399,18 +1399,18 @@ export default function MioPage() {
   // migración no esté pegada, esa sección no se ofrece (mismo criterio que ya
   // usaba la pestaña).
   //
-  // «Boletas» lleva el globito con las publicadas que aún no abrió: sale de la
+  // «Boletas» lleva el globito con las publicadas que aún no firmó: sale de la
   // misma lectura que pinta la pestaña (`misBoletas`), no de una cuenta aparte.
   const grupos = useMemo(
     () => GRUPOS_MIO.map((g) => ({
       ...g,
       secciones: g.secciones
         .filter((s) => s.valor !== "dni" || hayCampoDni)
-        .map((s) => (s.valor === "boletas" && boletasNuevas > 0 ? { ...s, contador: boletasNuevas } : s))
+        .map((s) => (s.valor === "boletas" && boletasPorFirmar > 0 ? { ...s, contador: boletasPorFirmar } : s))
         .map((s) => (s.valor === "reportes" && reportesSinLeer > 0 ? { ...s, contador: reportesSinLeer } : s))
         .map((s) => (s.valor === "disciplina" && disciplinaPide > 0 ? { ...s, contador: disciplinaPide } : s)),
     })),
-    [hayCampoDni, boletasNuevas, reportesSinLeer, disciplinaPide],
+    [hayCampoDni, boletasPorFirmar, reportesSinLeer, disciplinaPide],
   );
 
   // Recorrido guiado de "Resumen", primera vez. `Boolean(yo)` y no solo `yo`:
@@ -1918,15 +1918,19 @@ export default function MioPage() {
         // DESPUÉS del ancla `#detalle` (regla de hermandad en globals.css), y
         // esta vive antes.
         <div className="entra-seccion mb-6 grid gap-3 sm:grid-cols-2">
-          {/* Una boleta oficial publicada y sin abrir. Solo aparece mientras haya
-              una: en cuanto se abre, `vista_at` queda escrito y esto se va. Lleva
-              a «Boletas», no a `/mio/boleta` (esa es la boleta en vivo). */}
-          {boletasNuevas > 0 && misBoletas && (
+          {/* Una boleta oficial publicada y sin firmar. Solo aparece mientras haya
+              una: en cuanto se firma (0532), esto se va. Lleva a «Boletas», no a
+              `/mio/boleta` (esa es la boleta en vivo). */}
+          {boletasPorFirmar > 0 && misBoletas && (
             <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-2xl border border-ambar/40 bg-ambar/[0.07] p-4 text-sm sm:col-span-2">
               <p className="text-tinta">
-                {boletasNuevas === 1
-                  ? `Tu boleta de ${nombreDelPeriodo(misBoletas.find(esBoletaNueva)!.fecha_fin, { minuscula: true })} ya está disponible.`
-                  : `Tienes ${boletasNuevas} boletas nuevas.`}
+                {boletasPorFirmar === 1
+                  ? (() => {
+                      const f = misBoletas.find(esBoletaPorFirmar)!;
+                      const mes = nombreDelPeriodo(f.fecha_fin, { minuscula: true });
+                      return f.vista_at ? `Tu boleta de ${mes} espera tu firma.` : `Tu boleta de ${mes} ya está disponible: ábrela y fírmala.`;
+                    })()
+                  : `Tienes ${boletasPorFirmar} boletas por firmar.`}
               </p>
               <button onClick={() => elegirSeccion("boletas")}
                 className="min-h-11 text-tinta underline underline-offset-2 hover:text-rojo-profundo">
