@@ -1,6 +1,6 @@
 import {
   CalendarClock, CalendarDays, Car, FileSignature, Gavel, GraduationCap, History, IdCard, LayoutDashboard,
-  MessageSquareText, ReceiptText, ScrollText, Target, TreePalm, UserRound,
+  MessageSquareText, ReceiptText, ScrollText, ShieldCheck, Target, TreePalm, UserRound,
 } from "lucide-react";
 import type { GrupoDetalle } from "./secciones-de-menu";
 
@@ -8,13 +8,13 @@ import type { GrupoDetalle } from "./secciones-de-menu";
 // Las secciones de «Lo mío» (/mio), en el orden y los grupos en que se leen.
 // ============================================================================
 
-/** Las quince secciones de la pantalla. Ver el comentario de `tab` en mio/page.tsx. */
+/** Las dieciséis secciones de la pantalla. Ver el comentario de `tab` en mio/page.tsx. */
 export type Tab =
-  | "resumen" | "dias" | "turnos" | "dni" | "datos" | "ausencias" | "contrato" | "boletas" | "movilidad" | "educacion"
-  | "firma" | "objetivos" | "reportes" | "disciplina" | "historial";
+  | "resumen" | "dias" | "turnos" | "dni" | "seguro" | "datos" | "ausencias" | "contrato" | "boletas" | "movilidad"
+  | "educacion" | "firma" | "objetivos" | "reportes" | "disciplina" | "historial";
 
 /**
- * Las quince, agrupadas.
+ * Las dieciséis, agrupadas.
  *
  * LOS GRUPOS (2026-10-06). Hasta ese día eran una sola lista, en el orden en que
  * se fueron agregando: «Mi DNI» y «Tus datos» quedaban entre «Mis turnos» y
@@ -34,6 +34,11 @@ export type Tab =
  *     con un prototipo (`docs/disciplina-mio-prototipo-2026-10-06.html`).
  *     El ícono es el de «Disciplina» en el menú del panel.
  *   · «Resumen» va solo y sin título, arriba: es donde se aterriza.
+ *   · «Mi seguro» (2026-10-17, migración 0530) va en Documentos, junto a Contrato,
+ *     Firma y Mi DNI: lo que se viene a buscar es el PDF de su póliza. Es la única
+ *     sección que NO es para todo el mundo: solo la ven quienes están en prácticas
+ *     (FOLA es exclusiva de ellos), y la pantalla la quita del menú y del buscador
+ *     al armar los grupos, como «Mi DNI» cuando la base no tiene dónde guardarlo.
  *
  * Los grupos se pueden cerrar, como en el panel, y cada dispositivo se acuerda
  * de cuáles cerró (ver `useGruposCerrados`, con su propia memoria).
@@ -77,6 +82,9 @@ export const GRUPOS_MIO: readonly GrupoDetalle<Tab>[] = [
     { valor: "contrato", label: "Contrato", Icon: ScrollText },
     { valor: "firma", label: "Firma", Icon: FileSignature, alias: ["firmar"] },
     { valor: "dni", label: "Mi DNI", Icon: IdCard, alias: ["documento de identidad"] },
+    // Solo practicantes. Los alias son lo que alguien escribiría sin saber cómo se llama: «fola»
+    // es el nombre del producto, «pacífico» la aseguradora, «clínica» a donde va a usarlo.
+    { valor: "seguro", label: "Mi seguro", Icon: ShieldCheck, alias: ["póliza", "fola", "seguro", "salud", "clínica", "pacífico"] },
     { valor: "datos", label: "Mis datos", Icon: UserRound, alias: ["cuenta", "banco", "celular", "dirección", "emergencia", "ficha"] },
   ] },
   { label: "Seguimiento", secciones: [
@@ -91,7 +99,7 @@ export const GRUPOS_MIO: readonly GrupoDetalle<Tab>[] = [
   ] },
 ];
 
-/** Las quince, en el orden del menú. */
+/** Las dieciséis, en el orden del menú. */
 export const TABS: readonly Tab[] = GRUPOS_MIO.flatMap((g) => g.secciones.map((s) => s.valor));
 
 /** Si un texto que llegó de fuera (un `?tab=` de un enlace) es una sección que existe. */

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Inbox } from "lucide-react";
 import { ResumenEducacionMia } from "./educacion/resumen";
+import { MiSeguro } from "./seguro/mi-seguro";
 import { BoletasMias } from "./boletas/boletas-mias";
 import { ReportesMios } from "./reportes/reportes-mios";
 import { CambiosMios } from "./cambios-mios";
@@ -1401,16 +1402,22 @@ export default function MioPage() {
   //
   // «Boletas» lleva el globito con las publicadas que aún no abrió: sale de la
   // misma lectura que pinta la pestaña (`misBoletas`), no de una cuenta aparte.
+  //
+  // «Mi seguro» (0530) es solo de quienes están en prácticas: FOLA es exclusiva de
+  // ellos. Mientras la ficha no llega (`misDatos` null) tampoco se ofrece, igual
+  // que «Mi DNI» mientras no se sabe si hay dónde guardarlo.
+  const esPracticante = misDatos?.tipoVinculo === "practicante";
   const grupos = useMemo(
     () => GRUPOS_MIO.map((g) => ({
       ...g,
       secciones: g.secciones
         .filter((s) => s.valor !== "dni" || hayCampoDni)
+        .filter((s) => s.valor !== "seguro" || esPracticante)
         .map((s) => (s.valor === "boletas" && boletasNuevas > 0 ? { ...s, contador: boletasNuevas } : s))
         .map((s) => (s.valor === "reportes" && reportesSinLeer > 0 ? { ...s, contador: reportesSinLeer } : s))
         .map((s) => (s.valor === "disciplina" && disciplinaPide > 0 ? { ...s, contador: disciplinaPide } : s)),
     })),
-    [hayCampoDni, boletasNuevas, reportesSinLeer, disciplinaPide],
+    [hayCampoDni, esPracticante, boletasNuevas, reportesSinLeer, disciplinaPide],
   );
 
   // Recorrido guiado de "Resumen", primera vez. `Boolean(yo)` y no solo `yo`:
@@ -1936,7 +1943,7 @@ export default function MioPage() {
           )}
           {/* El periodo de pago. Sin montos: la boleta vive en su propia pantalla
               porque es un documento que se imprime, y el print de esta imprimiría
-              las quince secciones de arriba con él. */}
+              las dieciséis secciones de arriba con él. */}
           {periodo && estadoDelPeriodo ? (
             <TarjetaClave
               dataTour="mio-resumen-periodo"
@@ -2805,6 +2812,15 @@ export default function MioPage() {
             </div>
           )}
         </section>
+      )}
+
+      {/* ── MI SEGURO (0530) ─────────────────────────────────────────────────
+          La póliza FOLA de quien está en prácticas. El componente vive aparte,
+          como Educación, y pide sus datos cuando se abre. `esPracticante` es
+          null mientras la ficha no llegó, para no decirle «esto no es para ti» a
+          quien sí lo es. */}
+      {tab === "seguro" && (
+        <MiSeguro esPracticante={misDatos ? misDatos.tipoVinculo === "practicante" : null} />
       )}
 
       {/* ── BOLETAS (0482) ───────────────────────────────────────────────────

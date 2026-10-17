@@ -16,12 +16,12 @@ import { GRUPOS_MIO, TABS, esTab, type Tab } from "@/lib/mio-secciones";
 import { buscarSecciones, type GrupoDetalle } from "@/lib/secciones-de-menu";
 
 const TODAS: Tab[] = [
-  "resumen", "dias", "turnos", "dni", "datos", "ausencias", "contrato", "boletas", "movilidad", "educacion",
+  "resumen", "dias", "turnos", "dni", "seguro", "datos", "ausencias", "contrato", "boletas", "movilidad", "educacion",
   "firma", "objetivos", "reportes", "disciplina", "historial",
 ];
 
 describe("cada sección vive en un grupo, y en uno solo", () => {
-  it("están las quince, ni una más ni una menos", () => {
+  it("están las dieciséis, ni una más ni una menos", () => {
     expect([...TABS].sort()).toEqual([...TODAS].sort());
   });
 
@@ -65,6 +65,16 @@ describe("cada sección vive en un grupo, y en uno solo", () => {
     expect(buscarSecciones(GRUPOS_MIO, "correcciones")[0]?.seccion.valor).toBe("historial");
   });
 
+  it("«Mi seguro» va en Documentos, junto a Contrato, Firma y Mi DNI, con el ícono del escudo", () => {
+    const documentos = GRUPOS_MIO.find((g) => g.label === "Documentos")!;
+    const valores = documentos.secciones.map((s) => s.valor);
+    expect(valores).toEqual(expect.arrayContaining(["contrato", "firma", "dni", "seguro"]));
+    const seguro = documentos.secciones.find((s) => s.valor === "seguro")!;
+    expect(seguro.label).toBe("Mi seguro");
+    // lucide-react es dependencia de apps/web, no de la raíz: se lee el nombre del ícono, no el ícono.
+    expect((seguro.Icon as { displayName?: string }).displayName).toBe("ShieldCheck");
+  });
+
   it("el menú habla en primera persona: «Mis datos», ya no «Tus datos»", () => {
     const etiquetas = GRUPOS_MIO.flatMap((g) => g.secciones.map((s) => s.label));
     expect(etiquetas).toContain("Mis datos");
@@ -75,6 +85,7 @@ describe("cada sección vive en un grupo, y en uno solo", () => {
 describe("un ?tab= que llega de un enlace", () => {
   it("se acepta si es una sección que existe", () => {
     expect(esTab("boletas")).toBe(true);
+    expect(esTab("seguro")).toBe(true);
   });
 
   it("se rechaza si viene mal escrito, o con el nombre que se ve y no el valor", () => {
@@ -87,7 +98,7 @@ describe("un ?tab= que llega de un enlace", () => {
 describe("el buscador (⌘K) encuentra lo que alguien escribiría", () => {
   const primera = (q: string) => buscarSecciones(GRUPOS_MIO, q)[0]?.seccion.valor;
 
-  it("sin nada escrito, las quince y en el orden del menú: abrirlo sirve para hojear", () => {
+  it("sin nada escrito, las dieciséis y en el orden del menú: abrirlo sirve para hojear", () => {
     expect(buscarSecciones(GRUPOS_MIO, "").map((r) => r.seccion.valor)).toEqual([...TABS]);
     expect(buscarSecciones(GRUPOS_MIO, "   ")).toHaveLength(TABS.length);
   });
@@ -104,6 +115,12 @@ describe("el buscador (⌘K) encuentra lo que alguien escribiría", () => {
     ["ruta", "movilidad"],
     ["banco", "datos"],
     ["dni", "dni"],
+    // «Mi seguro»: lo que alguien escribe sin saber cómo se llama la sección.
+    ["poliza", "seguro"],
+    ["fola", "seguro"],
+    ["pacifico", "seguro"],
+    ["clinica", "seguro"],
+    ["salud", "seguro"],
   ];
   for (const [escrito, seccion] of CASOS) {
     it(`«${escrito}» lleva a ${seccion}`, () => {
@@ -137,6 +154,16 @@ describe("el buscador (⌘K) encuentra lo que alguien escribiría", () => {
 
   it("lo que no existe no trae nada, en vez de traer cualquier cosa", () => {
     expect(buscarSecciones(GRUPOS_MIO, "zzzz")).toEqual([]);
+  });
+
+  it("«Mi seguro» es solo de practicantes: si la pantalla la quita, el buscador tampoco la ofrece", () => {
+    // /mio arma los grupos sin ella para quien no está en prácticas (`esPracticante`).
+    const sinSeguro: GrupoDetalle<Tab>[] = GRUPOS_MIO.map((g) => ({
+      ...g, secciones: g.secciones.filter((s) => s.valor !== "seguro"),
+    }));
+    for (const q of ["poliza", "fola", "pacifico", "seguro"]) {
+      expect(buscarSecciones(sinSeguro, q).map((r) => r.seccion.valor), q).not.toContain("seguro");
+    }
   });
 
   it("no inventa secciones: solo devuelve las que le pasan (una sección oculta no se busca)", () => {
