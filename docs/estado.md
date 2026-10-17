@@ -6,6 +6,78 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-10-17 — Seguros: la póliza FOLA entra a Dynamic, etapa 1 (DO) · migración 0528 · SQL SIN PEGAR · COMMITEADO, SIN PR · rama `claude/fola-dynamic-implementation-252f99`
+
+**Qué es.** La pantalla `/admin/seguros` (grupo Personas, solo DO) y un módulo «Seguros» en
+la Bandeja. Una póliza por persona con número, vigencia, prima, plan y beneficios (opcionales,
+«sin confirmar» mientras estén vacíos), los tres pasos del papeleo (prima pagada, póliza y
+convenio de pago firmados, factura recibida), los PDF y un historial de quién hizo qué. Lo que
+la pantalla nombra y nadie miraba: **qué practicante activo no tiene una póliza que cubra
+HOY** (la 0504 quitó EsSalud a todos de una vez y la póliza es nominal), y qué póliza se queda
+sin seguro pronto. **Solo alerta**: no toca la planilla; la prima se paga a la aseguradora.
+
+**Lo que decidió Felipe (2026-10-17, con preguntas):** control para DO, vista del practicante,
+PDF dentro del sistema y avisos en la Bandeja; pantalla «Seguros» en Personas; «Mi seguro» en
+Documentos de Lo mío; y entrega por etapas, DO primero. **Esta es la etapa 1.** La etapa 2
+(`fn_mi_seguro` y la lectura de cada practicante sobre SU póliza y su PDF) no está empezada, y
+solo sirve si los cuatro tienen cuenta y entran a Lo mío: eso solo lo sabe Felipe.
+
+**Lo que decidí sin preguntar, y es de Felipe cambiar:**
+- **Aviso de renovación a 45 días** (`DIAS_AVISO_RENOVACION`, `lib/admin/seguros.ts`). Número
+  elegido, no de ley: el corredor necesita días y la prima de contado de la póliza de hoy venció
+  17 días después de emitirse.
+- **`vigente_hasta` es EXCLUSIVO**: el papel dice «del 01/10/2026 al 01/01/2027, 92 días, a las
+  12 M». El 1/1 ya cuenta como sin cubrir (lado cauteloso). Una renovación que empieza ese mismo
+  día no se cruza ni deja hueco.
+- **El historial vive en su propia tabla** (`polizas_seguro_eventos`) y no en
+  `correcciones_auditoria`: esas filas las leen la ficha, Lo mío, Correcciones y el CSV, y las
+  cuatro tendrían que aprender a rotular «seguro.pagada_el».
+- **«Hasta» nace a 3 meses de «Desde»** (la póliza de hoy) y se puede mover a 6 meses o 1 año.
+
+**Pendiente, en este orden (Felipe).**
+1. **Pegar la 0528** (`./scripts/dame-el-sql.sh 528`, y la consulta de «ANTES DE PEGAR» de su
+   cabecera, que espera 0 tablas y 0 funciones previas; el número libre y `main` se vuelven a
+   pedir en el mensaje que entrega el SQL). No reescribe ninguna función, así que no hay md5 de
+   partida. **Antes de fusionar el PR**, como siempre.
+2. **Registrar las cuatro pólizas** (N.º 24043264 a 24043267) desde la pantalla, con los datos
+   del papel, y adjuntar los PDF: póliza, convenio de pago y, cuando lleguen, las facturas. Los
+   papeles llevan DNI y fecha de nacimiento: no entran al repo.
+3. **Marcar los pasos que ya se hicieron**: la prima está pagada (Felipe, 15/10/2026); falta
+   firmar y devolver la póliza y el convenio de pago, y pedir las facturas.
+4. **Renovar antes del 01/01/2027.** Desde el 17/11/2026 la Bandeja avisa; la tabla de beneficios
+   dice «Renovación automática: Aplica» y esta pantalla guarda `renueva_sola` como «sin
+   confirmar» hasta que el corredor conteste.
+
+**Abierto con el corredor, y la pantalla lo deja visible.** Las condiciones particulares traen
+VACÍOS el plan y el «Beneficio máximo anual». Por precio, la póliza parece el Plan 1
+administrativo (S/ 179.97 ÷ 3 meses = S/ 60 al mes, pp. 21, 36 y 37 del PDF): S/ 16,800 por
+enfermedad y S/ 36,000 por accidente, con tope de remuneración de S/ 1,200. **Es una inferencia,
+no un dato del papel.** Con la subvención de S/ 1,230, 14 y 30 subvenciones son S/ 17,220 y
+S/ 36,900: ese plan se quedaría corto por S/ 420 y S/ 900 frente a lo que el convenio ya
+promete. Pedir por escrito el plan y el beneficio máximo, y cargarlos con «Corregir datos».
+**Lo que la pantalla NO hace** es comparar el beneficio con 14 y 30 subvenciones: pide la
+subvención de cada quien (`asignaciones_salario`) y la 0528 no la lee.
+
+**Qué se comprobó.** La 0528 aplicada en una transacción sobre el Postgres local y la prueba
+**422** (102 aserciones) en verde dentro de ella. Se probó que la prueba SABE fallar con tres
+mutaciones de la regla (último día inclusivo, hueco sin filtro de practicante, tablero sin
+guardia de DO): las tres la rompen. `vitest` (1838 pruebas), `tsc` y `eslint` en verde. Lo
+nuevo en vitest: `seguros.test.ts` (lógica pura, con una mutación del empalme de renovaciones
+que la rompe), `bandeja-seguros.test.ts`, y el permiso y el menú en las pruebas que ya existían.
+
+**Lo que NO se comprobó.** La pantalla en un navegador ni el flujo de subir un PDF a Storage de
+verdad (la prueba 422 simula Storage con filas en `storage.objects`); `db-tests` de GitHub
+(construye la base desde cero: es la señal fiable de las pgTAP, no esta Mac); ni nada contra
+datos reales de producción.
+
+**Cómo se generaron los tipos.** La base local es compartida y trae migraciones de otras ramas,
+así que `gen-types` habría arrastrado cambios ajenos. Se aplicó la 0528 a una base desechable
+con el esquema `public` de la local, se generaron los tipos allí y se pegaron SOLO las tres
+tablas y las diez funciones nuevas (367 líneas agregadas, ninguna cambiada). Cuando la 0528 esté
+en la base local, `gen-types` debe dar lo mismo sobre esas partes.
+
+---
+
 ## 2026-10-16 — Educación: un estudio ya no tapa a otro (0524) · SQL SIN PEGAR · COMMITEADO, SIN PR · rama `claude/hungry-mirzakhani-1438df`
 
 **Hoy no cuesta nada.** Medido en producción con la regla nueva contra la de hoy sobre

@@ -115,6 +115,19 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-10-17-seguros-quien-de-los-practicantes-tiene-seguro-hoy",
+    fecha: "2026-10-17",
+    titulo: "Seguros: ya se ve qué practicante tiene seguro hoy y cuál no",
+    queMejoro:
+      "Hay una pantalla nueva, «Seguros», en el grupo Personas. Muestra qué practicante tiene seguro hoy, hasta " +
+      "cuándo, qué papeleo falta (prima, firma y factura) y guarda los PDF de la póliza. Si alguien no tiene una " +
+      "póliza que lo cubra, aparece primero y en rojo, y la Bandeja también lo avisa.\n\n" +
+      "Es solo para Desarrollo Organizacional y solo avisa: no cambia lo que cobra nadie. El plan y el beneficio " +
+      "máximo quedan «sin confirmar» hasta que el corredor los confirme. Más adelante cada practicante podrá ver su " +
+      "propia póliza en «Lo mío».",
+    audiencia: "do",
+  },
+  {
     id: "2026-10-16-el-bono-de-cumpleanos-en-practicas-va-en-la-boleta",
     fecha: "2026-10-16",
     titulo: "Si estás en prácticas, tu bono de cumpleaños va en tu boleta",
