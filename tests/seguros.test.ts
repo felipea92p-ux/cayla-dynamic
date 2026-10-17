@@ -15,7 +15,7 @@
 import { describe, it, expect } from "vitest";
 import {
   coincideSeguro, contarPorTipo, cubiertoHasta, estadoPrima, etiquetaTipoArchivo, etiquetaVinculo,
-  fechaDelPaso, origenDelCambio, pasosDelCambio, pasosPendientes, pendientesDeSeguros,
+  fechaDelPaso, origenDelCambio, pasosDelCambio, pasosPendientes, pendientesDeSeguros, polizaQueSeCruza,
   resumenDelCambio, resumenDeSeguros, seguroPorPersona, sumarMeses,
   DIAS_AVISO_PRIMA, DIAS_AVISO_RENOVACION, DIAS_DE_GRACIA_PRIMA,
   type CambioSeguro, type FilaEquipoSeguro, type Poliza,
@@ -26,7 +26,7 @@ const HOY = "2026-10-17";
 /** Una persona tal como la devuelve `fn_seguros_equipo`: por defecto, una practicante en FOLA que hoy cubre. */
 function persona(o: Partial<FilaEquipoSeguro> = {}): FilaEquipoSeguro {
   return {
-    persona_id: "p1", persona: "Ana Prueba", sede: "TRU", tipo_vinculo: "practicante", practicante_modalidad: "profesional",
+    persona_id: "p1", persona: "Ana Prueba", sede: "TRU", tipo_vinculo: "practicante", practicante_modalidad: "profesional", en_planilla: false,
     activa: true, tipo: "salud_practicantes", tipo_nombre: "FOLA", origen: "vinculo",
     asignacion_id: null, asignacion_desde: null, asignacion_motivo: null,
     tipo_automatico: "salud_practicantes", tipo_automatico_nombre: "FOLA",
@@ -45,7 +45,7 @@ const sinCobertura = (o: Partial<FilaEquipoSeguro> = {}) => persona({ cubre_hoy:
 
 /** Una integrante de planilla: su seguro es EsSalud, que se paga con la planilla y no lleva póliza. */
 const deLaPlanilla = (o: Partial<FilaEquipoSeguro> = {}) => persona({
-  persona_id: "p2", persona: "Beto Planilla", tipo_vinculo: "planilla", practicante_modalidad: null,
+  persona_id: "p2", persona: "Beto Planilla", tipo_vinculo: "planilla", practicante_modalidad: null, en_planilla: true,
   tipo: "essalud", tipo_nombre: "EsSalud", tipo_automatico: "essalud", tipo_automatico_nombre: "EsSalud",
   con_poliza: false, cubre_hoy: null, hueco: false, ...o,
 });
@@ -220,7 +220,7 @@ describe("en qué seguro está cada colaborador, y a quién le falta póliza", (
 
   it("quien no tiene un seguro que le toque (honorarios, sin vínculo laboral) queda «sin seguro»", () => {
     const [p] = una([persona({
-      persona_id: "p3", tipo_vinculo: "rxh", practicante_modalidad: null, ...SIN_SEGURO,
+      persona_id: "p3", tipo_vinculo: "rxh", practicante_modalidad: null, en_planilla: false, ...SIN_SEGURO,
     })]);
     expect(p.situacion).toBe("sin_seguro");
     expect(p.tipo).toBeNull();
@@ -656,5 +656,47 @@ describe("los papeles de una póliza", () => {
     expect(etiquetaTipoArchivo("factura")).toBe("Factura");
     expect(etiquetaTipoArchivo("otro")).toBe("Otro papel");
     expect(etiquetaTipoArchivo("raro")).toBe("raro");
+  });
+});
+
+describe("registrar la misma póliza a varias personas: a quién la base le va a rechazar", () => {
+  const viva = poliza({ persona_id: "p1", producto: "vida_ley", vigente_desde: "2026-10-01", vigente_hasta: "2027-10-01" });
+
+  it("una póliza del mismo seguro que se cruza con las fechas es un cruce", () => {
+    expect(polizaQueSeCruza([viva], "p1", "vida_ley", "2026-12-01", "2027-12-01")).toBe(viva);
+    expect(polizaQueSeCruza([viva], "p1", "vida_ley", "2026-01-01", "2026-10-02")).toBe(viva);
+    expect(polizaQueSeCruza([viva], "p1", "vida_ley", "2026-11-01", "2026-12-01")).toBe(viva);
+  });
+
+  it("el último día es EXCLUSIVO: la que empieza el día en que otra termina no se cruza (así se renueva)", () => {
+    expect(polizaQueSeCruza([viva], "p1", "vida_ley", "2027-10-01", "2028-10-01")).toBeNull();
+    expect(polizaQueSeCruza([viva], "p1", "vida_ley", "2025-10-01", "2026-10-01")).toBeNull();
+    // Un día de más a cualquiera de los dos lados sí se cruza.
+    expect(polizaQueSeCruza([viva], "p1", "vida_ley", "2027-09-30", "2028-10-01")).toBe(viva);
+    expect(polizaQueSeCruza([viva], "p1", "vida_ley", "2025-10-01", "2026-10-02")).toBe(viva);
+  });
+
+  it("solo cuenta la misma persona y el mismo seguro", () => {
+    expect(polizaQueSeCruza([viva], "p2", "vida_ley", "2026-12-01", "2027-12-01")).toBeNull();
+    expect(polizaQueSeCruza([viva], "p1", "eps", "2026-12-01", "2027-12-01")).toBeNull();
+  });
+
+  it("fechas incompletas o al revés no cruzan con nada: de eso se queja el formulario", () => {
+    expect(polizaQueSeCruza([viva], "p1", "vida_ley", "", "2027-12-01")).toBeNull();
+    expect(polizaQueSeCruza([viva], "p1", "vida_ley", "2026-12-01", "")).toBeNull();
+    expect(polizaQueSeCruza([viva], "p1", "vida_ley", "2027-12-01", "2026-12-01")).toBeNull();
+    expect(polizaQueSeCruza([viva], "p1", "vida_ley", "2026-12-01", "2026-12-01")).toBeNull();
+  });
+});
+
+describe("quién está en planilla lo dice la base, no el navegador", () => {
+  it("la persona lleva `en_planilla` tal como llegó, sin deducirlo de su vínculo", () => {
+    const [practicante] = seguroPorPersona([persona()], [poliza()], [], HOY);
+    const [planilla] = seguroPorPersona([deLaPlanilla()], [], [], HOY);
+    expect(practicante.enPlanilla).toBe(false);
+    expect(planilla.enPlanilla).toBe(true);
+    // Si la base dijera otra cosa de un vínculo, manda la base.
+    const [raro] = seguroPorPersona([persona({ tipo_vinculo: "planilla", en_planilla: false })], [poliza()], [], HOY);
+    expect(raro.enPlanilla).toBe(false);
   });
 });

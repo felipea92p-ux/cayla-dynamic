@@ -378,6 +378,25 @@ export function puedeExportarPadron(rol: RolPosible): boolean {
   return tiene(SOLO_DIRECCION, rol);
 }
 
+/**
+ * Sacar del sistema, en un archivo, la lista de quiénes están asegurados en un seguro
+ * (`/admin/seguros` → «Lista de asegurados», migración 0528): apellidos y nombres, documento,
+ * fecha de nacimiento y de ingreso, y —si se pide— la remuneración asegurable. Es lo que el
+ * contador y la aseguradora piden para emitir el certificado de cada persona.
+ *
+ * Mismo criterio que `puedeExportarPadron`, y por la misma razón: DO VE esos datos en la ficha
+ * de cada persona y en la pantalla de Seguros, pero un CSV con el documento y la fecha de
+ * nacimiento de todo un seguro sale del sistema, se reenvía y ya nadie sabe dónde está. Ver y
+ * llevarse son dos permisos distintos.
+ *
+ * Solo la dirección, hoy. Se nombra aparte de `puedeExportarPadron` para que abrirla algún día a
+ * quien lleva DO —que es quien trata con la aseguradora en el día a día— sea una decisión de
+ * ESTA lista y no arrastre el padrón completo (cuentas bancarias, direcciones) con ella.
+ */
+export function puedeExportarListaDeAsegurados(rol: RolPosible): boolean {
+  return tiene(SOLO_DIRECCION, rol);
+}
+
 /** Solo la dirección. Ver arriba por qué esto no es lo mismo que DO. */
 const SOLO_DIRECCION: readonly Rol[] = ["admin"];
 

@@ -8848,6 +8848,28 @@ export type Database = {
           tipo: string
         }[]
       }
+      fn_seguro_asegurados: {
+        Args: { p_con_remuneracion?: boolean | null; p_producto: string | null }
+        Returns: {
+          activa: boolean
+          apellidos: string
+          aseguradora: string
+          documento: string
+          fecha_ingreso: string
+          fecha_nacimiento: string
+          nombre_segun_dni: string
+          nombres: string
+          numero_poliza: string
+          persona_id: string
+          poliza_id: string
+          remuneracion: number
+          sede: string
+          tipo_documento: string
+          tipo_vinculo: string
+          vigente_desde: string
+          vigente_hasta: string
+        }[]
+      }
       fn_seguro_asignar: {
         Args: {
           p_desde: string | null
@@ -8931,6 +8953,27 @@ export type Database = {
         }
         Returns: string
       }
+      fn_seguro_registrar_varias: {
+        Args: {
+          p_aseguradora: string | null
+          p_beneficio_accidente: number | null
+          p_beneficio_enfermedad: number | null
+          p_nota: string | null
+          p_numero_poliza: string | null
+          p_personas: string[] | null
+          p_plan: string | null
+          p_prima_total: number | null
+          p_prima_vence_el: string | null
+          p_producto: string | null
+          p_renueva_sola: boolean | null
+          p_vigente_desde: string | null
+          p_vigente_hasta: string | null
+        }
+        Returns: {
+          persona_id: string
+          poliza_id: string
+        }[]
+      }
       fn_seguro_retirar_archivo: {
         Args: { p_id: string | null; p_motivo: string | null }
         Returns: undefined
@@ -9009,6 +9052,7 @@ export type Database = {
           asignacion_motivo: string
           con_poliza: boolean
           cubre_hoy: boolean
+          en_planilla: boolean
           hueco: boolean
           origen: string
           persona: string

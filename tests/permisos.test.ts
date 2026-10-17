@@ -13,6 +13,7 @@ import {
   puedeVerSaludDeAlertas, puedeExportarAsistencia, puedeAnularDocumentoDisciplinario,
   puedeTramitarDisciplina, recibeAvisoDeConductaRegistrada, recibeAvisoDeLecturaPendiente,
   puedeVerNovedad, puedeGestionarBoletas, puedeMarcarCuentaDeServicio, puedeGestionarArchivo, puedeGestionarSeguros,
+  puedeExportarListaDeAsegurados,
   ROLES, ROLES_CON_PANEL, ROLES_DO, ROLES_EXPORTAN_ASISTENCIA,
 } from "@cayla-dynamic/shared";
 
@@ -254,6 +255,39 @@ describe("el padrón completo solo se lo lleva la dirección", () => {
     const roles = ["admin", "lider_do", "supervisor_sede", "integrante"];
     const ve = roles.filter((r) => puedeVerIdentidad(r));
     const baja = roles.filter((r) => puedeExportarPadron(r));
+    expect(baja.length).toBeLessThan(ve.length);
+    expect(ve).toEqual(expect.arrayContaining(baja));
+  });
+});
+
+// La lista de asegurados de un seguro lleva documento y fecha de nacimiento: la misma
+// diferencia entre ver y llevarse que el padrón. Mientras no se decida otra cosa, es solo
+// de la dirección; DO la ve en pantalla y completa lo que le falte.
+describe("la lista de asegurados solo se la lleva la dirección (0528)", () => {
+  it("la dirección sí puede descargarla", () => {
+    expect(puedeExportarListaDeAsegurados("admin")).toBe(true);
+  });
+
+  it("quien lleva DO ve los seguros y NO se lleva el archivo", () => {
+    expect(puedeGestionarSeguros("lider_do")).toBe(true);
+    expect(puedeExportarListaDeAsegurados("lider_do")).toBe(false);
+  });
+
+  it("ni la líder de equipo ni una integrante", () => {
+    expect(puedeExportarListaDeAsegurados("supervisor_sede")).toBe(false);
+    expect(puedeExportarListaDeAsegurados("integrante")).toBe(false);
+  });
+
+  it("y un rol vacío, nulo o desconocido tampoco — null nunca pasa", () => {
+    for (const raro of [null, undefined, "", "contador"]) {
+      expect(puedeExportarListaDeAsegurados(raro)).toBe(false);
+    }
+  });
+
+  it("es MÁS estrecho que gestionar los seguros: si alguien los iguala, esto cae", () => {
+    const roles = ["admin", "lider_do", "supervisor_sede", "integrante"];
+    const ve = roles.filter((r) => puedeGestionarSeguros(r));
+    const baja = roles.filter((r) => puedeExportarListaDeAsegurados(r));
     expect(baja.length).toBeLessThan(ve.length);
     expect(ve).toEqual(expect.arrayContaining(baja));
   });

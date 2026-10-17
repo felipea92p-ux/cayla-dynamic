@@ -38,6 +38,23 @@
 --   Es la ETAPA 1: solo Desarrollo Organizacional ve y escribe. La etapa 2 —«Mi
 --   seguro» en Lo mío— agrega después la lectura de cada persona sobre SU seguro.
 --
+-- LO QUE SE AGREGÓ DESPUÉS, A PEDIDO (Felipe, 2026-10-17: «cómo sé qué colaboradores sí
+-- cuentan con seguro, para que el propio sistema lo jale y no se tenga que rellenar los
+-- datos de nuevo»). Tres cosas, y las tres reutilizan las reglas de arriba en vez de
+-- escribir otras:
+--     UNA PÓLIZA PARA VARIAS PERSONAS  (fn_seguro_registrar_varias) el seguro de vida o la
+--                                          EPS es UNA póliza con un solo número: se
+--                                          registra a todos de una vez, todo o nada.
+--     LA LISTA DE ASEGURADOS           (fn_seguro_asegurados) quién está en un seguro, con
+--                                          documento, nacimiento e ingreso, lista para
+--                                          el contador y la aseguradora.
+--     LEER EL PDF DE LA PÓLIZA         no toca la base: el navegador lee el PDF y llena el
+--                                          formulario, que sigue llamando a
+--                                          `fn_seguro_registrar`. Nada se guarda sin que
+--                                          DO lo revise.
+--   Y `fn_seguros_equipo` devuelve ahora `en_planilla` (la columna generada de personas)
+--   para marcar «las de planilla» sin escribir en el navegador qué vínculos cuentan.
+--
 -- LO QUE DECIDIÓ FELIPE (2026-10-17, en sus palabras)
 --
 --   «El seguro actual que tienen los empleados déjalos como está» y «modificar todo
@@ -112,6 +129,8 @@
 --   · una póliza de un seguro que no tiene póliza (EsSalud) .... la función
 --   · una póliza de un seguro principal que la persona no tiene .. la función: se le
 --       cambia el seguro primero (no se registra FOLA a alguien de planilla)
+--   · un lote de pólizas colectivas a medias («19 personas» en la pantalla y 12 en la
+--       base) .... `fn_seguro_registrar_varias` es todo o nada: si una falla, ninguna queda
 --   · un complementario sin póliza o con vínculos automáticos .. check
 --   · dos asignaciones de la misma persona que se pisan ........ la función + índice
 --       único de la abierta
@@ -158,6 +177,20 @@
 --              de planilla (CLAUDE.md: «nunca copies el cuerpo sin preguntar cuál es
 --              la vigente»; aquí no hay cuerpo que copiar). Ya hay otro disparador
 --              `AFTER UPDATE` sobre `personas` (`trg_educacion_cerrar_al_cesar`).
+--   DECIDÍ:    Una póliza colectiva sigue siendo UNA FILA POR PERSONA (el modelo que ya
+--              admitía el índice), y la prima de cada fila es lo que cuesta ESA persona.
+--              Quien solo tiene el total de la póliza lo divide antes (la pantalla lo
+--              muestra y suma «N × prima = total»). Copiar el total en cada fila haría
+--              que cualquier suma de primas contara la póliza diecinueve veces.
+--   DESCARTÉ:  Una tabla aparte de «pólizas colectivas» con la lista de sus asegurados:
+--              habría dos formas de saber quién está cubierto (la fila de la persona y la
+--              lista de la póliza) y se desfasarían. Con una fila por persona, «quién
+--              está en Vida Ley» es una sola pregunta, la que ya hace la pantalla.
+--   DECIDÍ:    La lista de asegurados la entrega a DO, que ya ve documento y nacimiento
+--              en la ficha de cada persona, y la remuneración solo si se la pide. Que la
+--              lista salga del sistema en un archivo lo decide la pantalla, con el mismo
+--              criterio que el padrón (`puedeExportarPadron`): ver y llevarse un dato son
+--              permisos distintos.
 --
 -- QUÉ NO HACE
 --
@@ -169,6 +202,14 @@
 --     cada quien (`asignaciones_salario`), que esta migración no lee.
 --   · No habla con Pacífico ni con el contador: que una póliza exista o que un alta
 --     se haya confirmado lo dice quien lo marca.
+--   · No sabe QUIÉN DEBERÍA tener un seguro complementario. El Seguro de Vida Ley es
+--     obligatorio para toda la planilla desde el primer día (D. Leg. 688), pero
+--     `aplica_a_vinculos` solo manda en los seguros PRINCIPALES: para un complementario,
+--     estar en él es tener su póliza vigente. No hay una alerta «persona en planilla sin
+--     Vida Ley»; lo más cerca son el atajo «las de planilla» al registrar la póliza
+--     colectiva (marca a quien aún no la tiene) y la lista de asegurados, que dice a
+--     quién cubre la póliza hoy. Convertirlo en un hueco es una decisión de producto
+--     (¿para qué vínculos es obligatorio cada seguro?), no de esta migración.
 --   · Ninguna función existente se reescribe → no hay md5 de partida. Lo único que
 --     toca algo existente es el disparador nuevo sobre `personas`.
 --
@@ -239,6 +280,7 @@
 --     fn_seguro_tipo_crear(text, text, boolean, boolean, text, text),
 --     fn_seguro_tipo_editar(text, text, text, text, text), fn_seguro_tipo_activar(text, boolean, text),
 --     fn_seguro_registrar(uuid, text, text, text, date, date, numeric, date, text, numeric, numeric, boolean, text),
+--     fn_seguro_registrar_varias(uuid[], text, text, text, date, date, numeric, date, text, numeric, numeric, boolean, text),
 --     fn_seguro_corregir(uuid, text, text, date, date, numeric, date, text, numeric, numeric, boolean, text, text),
 --     fn_seguro_marcar_paso(uuid, text, date, text), fn_seguro_anular(uuid, text),
 --     fn_seguro_adjuntar(uuid, text, text, text), fn_seguro_retirar_archivo(uuid, text),
@@ -247,7 +289,8 @@
 --     fn_seguro_asignar(uuid, text, date, text), fn_seguro_volver_al_automatico(uuid, date, text),
 --     fn_seguro_cambio_marcar(uuid, text, date, text),
 --     fn_seguros_tipos(), fn_seguros_equipo(), fn_seguros_tablero(),
---     fn_seguros_cambios(uuid, boolean), fn_seguro_historial(uuid), fn_seguro_archivos(uuid);
+--     fn_seguros_cambios(uuid, boolean), fn_seguro_historial(uuid), fn_seguro_archivos(uuid),
+--     fn_seguro_asegurados(text, boolean);
 --   drop table seguros_cambios, seguros_asignaciones,
 --              polizas_seguro_eventos, polizas_seguro_archivos, polizas_seguro, seguros_tipos;
 --   -- Los PDF se borran por la API o el panel de Storage ANTES de correr esto
@@ -1010,6 +1053,80 @@ begin
 end;
 $fn$;
 
+-- ── 9b · La misma póliza, a varias personas de una vez ───────────────────────
+-- Un seguro de vida o una EPS suele ser UNA póliza de la empresa con un solo número que
+-- cubre a todos: escribirla persona por persona es teclear lo mismo diecinueve veces
+-- (Felipe, 2026-10-17: «que el propio sistema lo jale y no se tenga que rellenar los
+-- datos de nuevo»). Esta función NO tiene reglas propias: llama a `fn_seguro_registrar`
+-- una vez por persona, así que el tipo, el seguro principal, los topes y el cruce de
+-- fechas se comprueban con la MISMA regla que cuando se registra una sola.
+--
+--   · TODO O NADA. Si a una persona no se le puede registrar (ya tiene una póliza que se
+--     cruza, está inactiva, su seguro principal es otro…), no se registra a NADIE y el
+--     mensaje dice con quién falló. Un lote a medias es lo peor: «19 personas» en la
+--     pantalla y 12 en la base, sin que nadie sepa cuáles.
+--   · Las personas se recorren en el MISMO orden siempre (por id) y sin repetir: dos DO
+--     registrando lotes que comparten gente se esperan en fila en vez de abrazarse (el
+--     orden de bloqueo del módulo es primero la persona; ver `fn_seguro_registrar`).
+--   · La prima es la de CADA fila: quien la escribe pone lo que cuesta por persona. Si
+--     solo tiene el total de la póliza, lo divide antes (la pantalla lo muestra).
+--   · Tope de 100 personas por llamada: la empresa tiene unas treinta; más es un error
+--     de selección, y cada persona abre un bloqueo.
+create or replace function fn_seguro_registrar_varias(
+  p_personas             uuid[],
+  p_producto             text,
+  p_aseguradora          text,
+  p_numero_poliza        text,
+  p_vigente_desde        date,
+  p_vigente_hasta        date,
+  p_prima_total          numeric,
+  p_prima_vence_el       date,
+  p_plan                 text,
+  p_beneficio_enfermedad numeric,
+  p_beneficio_accidente  numeric,
+  p_renueva_sola         boolean,
+  p_nota                 text
+)
+returns table (persona_id uuid, poliza_id uuid)
+language plpgsql security definer set search_path = public
+as $fn$
+declare
+  v_orden  uuid[];
+  v_p      uuid;
+  v_id     uuid;
+  v_nombre text;
+begin
+  if fn_es_admin_o_lider() is not true then
+    raise exception 'Solo Desarrollo Organizacional puede registrar pólizas de seguro.';
+  end if;
+
+  select array_agg(x order by x) into v_orden
+    from (select distinct u.x from unnest(coalesce(p_personas, '{}'::uuid[])) as u(x) where u.x is not null) q;
+  if v_orden is null then
+    raise exception 'Elige al menos a una persona.';
+  end if;
+  if cardinality(v_orden) > 100 then
+    raise exception 'Son demasiadas personas de una vez (máximo 100). Registra la póliza por tandas.';
+  end if;
+
+  foreach v_p in array v_orden loop
+    begin
+      v_id := fn_seguro_registrar(v_p, p_producto, p_aseguradora, p_numero_poliza, p_vigente_desde,
+                                  p_vigente_hasta, p_prima_total, p_prima_vence_el, p_plan,
+                                  p_beneficio_enfermedad, p_beneficio_accidente, p_renueva_sola, p_nota);
+    exception when raise_exception then
+      -- Solo los mensajes que la propia función escribe para una persona (P0001). Cualquier otro
+      -- error —un permiso, un tiempo de espera— sube tal cual, sin disfrazarlo de «falló con Ana».
+      select btrim(pe.nombres || ' ' || pe.apellidos) into v_nombre from personas pe where pe.id = v_p;
+      raise exception 'No se registró la póliza a nadie. Con % falló: %', coalesce(v_nombre, 'una persona'), sqlerrm;
+    end;
+    persona_id := v_p;
+    poliza_id  := v_id;
+    return next;
+  end loop;
+end;
+$fn$;
+
 -- ── 10 · Corregir los datos de una póliza ─────────────────────────────────────
 -- La pantalla manda TODOS los campos; la función solo escribe lo que cambió y
 -- deja dicho qué era antes. La persona no se cambia: se anula y se registra otra.
@@ -1724,13 +1841,23 @@ $fn$;
 -- `tipo_automatico` es el que le toca por su vínculo AUNQUE una asignación de DO mande
 -- hoy (entonces `tipo` y `tipo_automatico` difieren). Se devuelve para que la pantalla
 -- ofrezca «volver al automático» con su nombre sin repetir la regla de `fn_seguro_tipo_por_vinculo`.
-create or replace function fn_seguros_equipo()
+--
+-- `en_planilla` es la columna GENERADA de `personas` (planilla y prueba), tal cual: la
+-- pantalla la usa para marcar «las de planilla» al registrar una póliza colectiva sin
+-- escribir otra vez, en el navegador, qué vínculos cuentan.
+--
+-- El `drop` es para quien haya corrido una versión anterior de esta migración: Postgres no
+-- deja cambiar las columnas de una función con `create or replace`. Los permisos se vuelven
+-- a dar al final (sección 17).
+drop function if exists fn_seguros_equipo();
+create function fn_seguros_equipo()
 returns table (
   persona_id             uuid,
   persona                text,
   sede                   text,
   tipo_vinculo           text,
   practicante_modalidad  text,
+  en_planilla            boolean,
   activa                 boolean,
   tipo                   text,
   tipo_nombre            text,
@@ -1759,6 +1886,7 @@ begin
          coalesce(s.codigo, '?'),
          p.tipo_vinculo,
          p.practicante_modalidad,
+         p.en_planilla,
          (p.estado = 'activo'),
          ef.clave,
          t.nombre,
@@ -2001,9 +2129,90 @@ begin
 end;
 $fn$;
 
+-- La lista de asegurados de UN seguro, con lo que la aseguradora y el contador piden para
+-- emitir el certificado de cada persona —apellidos y nombres, documento, fecha de
+-- nacimiento, fecha de ingreso— para no volver a escribirlo (el molde son las consultas de
+-- `scripts/sql-manual/quienes_van_al_seguro_de_vida_ley.sql`, que esto reemplaza).
+--
+-- QUIÉN ESTÁ EN UN SEGURO, escrito UNA vez:
+--   · en uno PRINCIPAL (FOLA, EsSalud…): las personas activas cuyo seguro principal de hoy es
+--     ese —con o sin póliza: la que no la tiene todavía es justo la que hay que pedir— y
+--     además quien conserva una póliza vigente de ese tipo aunque ya no esté activa (su baja
+--     sigue pendiente, y la aseguradora la sigue cubriendo);
+--   · en uno COMPLEMENTARIO (vida, EPS): las personas con una póliza vigente de ese tipo.
+-- Nunca una cuenta de servicio.
+--
+-- Esto es información personal: documento y fecha de nacimiento. La FUNCIÓN la entrega a DO
+-- (que ya las ve en la ficha de cada persona); quién puede LLEVÁRSELA en un archivo lo decide
+-- la pantalla (`puedeExportarListaDeAsegurados`: solo la dirección, como el padrón). La
+-- remuneración (`sueldo_base_legal`, la «asegurable» del seguro de vida) solo viaja si se
+-- pide: ninguna otra pantalla de seguros la necesita.
+create or replace function fn_seguro_asegurados(
+  p_producto         text,
+  p_con_remuneracion boolean default false
+)
+returns table (
+  persona_id        uuid,
+  apellidos         text,
+  nombres           text,
+  nombre_segun_dni  text,
+  tipo_documento    text,
+  documento         text,
+  fecha_nacimiento  date,
+  fecha_ingreso     date,
+  sede              text,
+  tipo_vinculo      text,
+  activa            boolean,
+  remuneracion      numeric,
+  poliza_id         uuid,
+  numero_poliza     text,
+  aseguradora       text,
+  vigente_desde     date,
+  vigente_hasta     date
+)
+language plpgsql stable security definer set search_path = public
+as $fn$
+declare
+  v_hoy date := fn_hoy_lima();
+  v_t   seguros_tipos%rowtype;
+begin
+  if fn_es_admin_o_lider() is not true then
+    raise exception 'Solo Desarrollo Organizacional ve quiénes están asegurados.';
+  end if;
+
+  select * into v_t from seguros_tipos t where t.clave = p_producto;
+  if not found then
+    raise exception 'Ese tipo de seguro no existe.';
+  end if;
+
+  return query
+  select p.id, p.apellidos, p.nombres, dp.nombre_dni, p.tipo_documento, p.documento, dp.fecha_nacimiento,
+         p.fecha_ingreso, coalesce(s.codigo, '?'), p.tipo_vinculo, (p.estado = 'activo'),
+         case when coalesce(p_con_remuneracion, false) then p.sueldo_base_legal end,
+         z.id, z.numero_poliza, z.aseguradora, z.vigente_desde, z.vigente_hasta
+    from personas p
+    left join datos_personales dp on dp.persona_id = p.id
+    left join sedes s on s.id = p.sede_base_id
+    left join lateral (
+      select zz.id, zz.numero_poliza, zz.aseguradora, zz.vigente_desde, zz.vigente_hasta
+        from polizas_seguro zz
+       where zz.persona_id = p.id and zz.producto = p_producto and zz.anulada_at is null
+         and v_hoy >= zz.vigente_desde and v_hoy < zz.vigente_hasta
+       -- Dos que cubren el mismo día no pueden existir (la función lo impide); el orden es el ancla.
+       order by zz.vigente_desde desc, zz.id desc
+       limit 1
+    ) z on true
+   where not p.cuenta_de_servicio
+     and (z.id is not null
+          or (p.estado = 'activo' and v_t.principal and fn_seguro_tipo_principal(p.id, v_hoy) = p_producto))
+   -- `id` como ancla del orden: dos personas con el mismo nombre no empatan al azar.
+   order by p.apellidos, p.nombres, p.id;
+end;
+$fn$;
+
 -- ── 17 · Quién puede llamar qué ──────────────────────────────────────────────
 -- Desde la 0076 ninguna función nace con EXECUTE para nadie: sin estos grants la
--- pantalla queda vacía sin dar error (0204). Diecinueve las llama quien inició
+-- pantalla queda vacía sin dar error (0204). Veintiuna las llama quien inició
 -- sesión (y adentro cada una pregunta si es DO). Las cuatro de apoyo y el
 -- disparador no las llama nadie desde fuera: corren porque las que las usan son
 -- SECURITY DEFINER de la misma dueña.
@@ -2012,6 +2221,7 @@ grant execute on function
   fn_seguro_tipo_editar(text, text, text, text, text),
   fn_seguro_tipo_activar(text, boolean, text),
   fn_seguro_registrar(uuid, text, text, text, date, date, numeric, date, text, numeric, numeric, boolean, text),
+  fn_seguro_registrar_varias(uuid[], text, text, text, date, date, numeric, date, text, numeric, numeric, boolean, text),
   fn_seguro_corregir(uuid, text, text, date, date, numeric, date, text, numeric, numeric, boolean, text, text),
   fn_seguro_marcar_paso(uuid, text, date, text),
   fn_seguro_anular(uuid, text),
@@ -2026,13 +2236,15 @@ grant execute on function
   fn_seguros_tablero(),
   fn_seguros_cambios(uuid, boolean),
   fn_seguro_historial(uuid),
-  fn_seguro_archivos(uuid)
+  fn_seguro_archivos(uuid),
+  fn_seguro_asegurados(text, boolean)
 to authenticated;
 revoke execute on function
   fn_seguro_tipo_crear(text, text, boolean, boolean, text, text),
   fn_seguro_tipo_editar(text, text, text, text, text),
   fn_seguro_tipo_activar(text, boolean, text),
   fn_seguro_registrar(uuid, text, text, text, date, date, numeric, date, text, numeric, numeric, boolean, text),
+  fn_seguro_registrar_varias(uuid[], text, text, text, date, date, numeric, date, text, numeric, numeric, boolean, text),
   fn_seguro_corregir(uuid, text, text, date, date, numeric, date, text, numeric, numeric, boolean, text, text),
   fn_seguro_marcar_paso(uuid, text, date, text),
   fn_seguro_anular(uuid, text),
@@ -2047,7 +2259,8 @@ revoke execute on function
   fn_seguros_tablero(),
   fn_seguros_cambios(uuid, boolean),
   fn_seguro_historial(uuid),
-  fn_seguro_archivos(uuid)
+  fn_seguro_archivos(uuid),
+  fn_seguro_asegurados(text, boolean)
 from public, anon;
 
 revoke execute on function
@@ -2075,9 +2288,11 @@ select
      'fn_seguro_anular','fn_seguro_adjuntar','fn_seguro_retirar_archivo','fn_seguro_archivo_libre',
      'fn_seguro_datos_validos','fn_seguro_asignar','fn_seguro_volver_al_automatico','fn_seguro_cambio_marcar',
      'fn_seguros_tipos','fn_seguros_equipo','fn_seguros_tablero','fn_seguros_cambios',
-     'fn_seguro_historial','fn_seguro_archivos','fn_trg_seguros_cambio_de_vinculo')) as funciones_de_23,
+     'fn_seguro_historial','fn_seguro_archivos','fn_trg_seguros_cambio_de_vinculo',
+     'fn_seguro_registrar_varias','fn_seguro_asegurados')) as funciones_de_25,
   (select count(*) from pg_trigger where tgname = 'trg_seguros_cambio_de_vinculo' and not tgisinternal) as disparador_de_1,
-  (select count(*) from pg_policies where schemaname = 'storage' and policyname like 'polizas\_seguro\_%') as politicas_storage_de_4,
+  (select count(*) from pg_policies where schemaname = 'storage'
+      and policyname in ('polizas_seguro_insert','polizas_seguro_select','polizas_seguro_update','polizas_seguro_delete')) as politicas_storage_de_4,
   (select count(*) from storage.buckets where id = 'polizas-seguro' and public is false) as bucket_privado,
   (select count(*) from pg_class where relname in ('seguros_tipos','seguros_asignaciones','seguros_cambios',
       'polizas_seguro','polizas_seguro_archivos','polizas_seguro_eventos') and relrowsecurity) as rls_activa_en_6,

@@ -54,6 +54,8 @@ export interface FilaEquipoSeguro {
   sede: string;
   tipo_vinculo: string;
   practicante_modalidad: string | null;
+  /** La columna GENERADA de `personas` (planilla y prueba), tal como la calcula la base: aquí no se vuelve a decidir qué vínculos cuentan. */
+  en_planilla: boolean;
   activa: boolean;
   tipo: string | null;
   tipo_nombre: string | null;
@@ -275,6 +277,8 @@ export interface SeguroDePersona {
   sede: string;
   vinculo: string;
   modalidad: string | null;
+  /** Viene de la base (`personas.en_planilla`); sirve para el atajo «las de planilla» al registrar una póliza colectiva. */
+  enPlanilla: boolean;
   activa: boolean;
   situacion: SituacionSeguro;
   /** Su seguro principal de hoy, o null si no aplica. */
@@ -416,7 +420,7 @@ export function seguroPorPersona(
 
     return {
       personaId: f.persona_id, persona: f.persona, sede: f.sede, vinculo: f.tipo_vinculo, modalidad: f.practicante_modalidad,
-      activa: f.activa, situacion,
+      enPlanilla: f.en_planilla, activa: f.activa, situacion,
       tipo: f.tipo && f.tipo_nombre ? { clave: f.tipo, nombre: f.tipo_nombre } : null,
       origen: f.origen,
       asignacion: f.asignacion_id && f.asignacion_desde ? { id: f.asignacion_id, desde: f.asignacion_desde, motivo: f.asignacion_motivo ?? "" } : null,
@@ -643,6 +647,27 @@ export function pendientesDeSeguros(
     }
   }
   return items;
+}
+
+// ── Registrar la misma póliza a varias personas ─────────────────────────────
+
+/**
+ * La póliza viva del MISMO seguro que esta persona ya tiene y que se cruza con `[desde, hasta)`,
+ * o null. Es lo que la base comprueba al registrar (`fn_seguro_registrar`); aquí solo adelanta el
+ * aviso para no ofrecer a quien la base va a rechazar —y porque en un lote una sola persona que se
+ * cruce detiene a todas—. El último día es EXCLUSIVO: una que empieza el día en que otra termina
+ * no se cruza, que es como se renueva. Dos fechas incompletas o al revés no cruzan con nada: de
+ * eso se queja el formulario, no esta función.
+ */
+export function polizaQueSeCruza<T extends Pick<Poliza, "persona_id" | "producto" | "vigente_desde" | "vigente_hasta">>(
+  polizas: readonly T[],
+  personaId: string,
+  producto: string,
+  desde: string,
+  hasta: string,
+): T | null {
+  if (!desde || !hasta || hasta <= desde) return null;
+  return polizas.find((z) => z.persona_id === personaId && z.producto === producto && z.vigente_desde < hasta && desde < z.vigente_hasta) ?? null;
 }
 
 // ── Buscar ──────────────────────────────────────────────────────────────────

@@ -24,7 +24,7 @@
 --     seguro guardan solo el último estado: ver «LÍMITES CONOCIDOS» en la 0528.)
 -- ============================================================================
 begin;
-select plan(252);
+select plan(281);
 
 -- ── Sede y personas ──────────────────────────────────────────────────────
 insert into sedes (id, codigo, nombre, activa, tipo) values
@@ -66,8 +66,9 @@ select is(
   1, 'el bucket existe, es privado y limita a 50 MB por archivo');
 
 select is(
-  (select count(*)::int from pg_policies where schemaname = 'storage' and policyname like 'polizas\_seguro\_%'),
-  4, 'Storage tiene sus cuatro políticas (insert, select, update, delete)');
+  (select count(*)::int from pg_policies where schemaname = 'storage'
+      and policyname in ('polizas_seguro_insert', 'polizas_seguro_select', 'polizas_seguro_update', 'polizas_seguro_delete')),
+  4, 'Storage tiene sus cuatro políticas (insert, select, update, delete) — las de esta migración; la etapa 2 agrega la suya aparte');
 
 select is(
   (select count(*)::int from pg_class
@@ -90,8 +91,8 @@ select is(
                         'fn_seguro_retirar_archivo','fn_seguro_archivo_libre','fn_seguro_asignar',
                         'fn_seguro_volver_al_automatico','fn_seguro_cambio_marcar','fn_seguros_tipos',
                         'fn_seguros_equipo','fn_seguros_tablero','fn_seguros_cambios','fn_seguro_historial',
-                        'fn_seguro_archivos')),
-  19, 'y las diecinueve las puede llamar quien sí inició sesión (un grant faltante fallaría en silencio)');
+                        'fn_seguro_archivos','fn_seguro_registrar_varias','fn_seguro_asegurados')),
+  21, 'y las veintiuna las puede llamar quien sí inició sesión (un grant faltante fallaría en silencio)');
 
 select is(
   (select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
@@ -1147,6 +1148,178 @@ select throws_ok(
 select lives_ok(
   $$ select fn_seguro_tipo_crear('Otro seguro', null, false, true, '   ', '') $$,
   'un texto vacío o en blanco se acepta: el sistema arma uno con el nombre del seguro');
+
+-- ── O4 · Una póliza para varias personas, y la lista de asegurados ──────
+-- Una póliza de vida o de EPS es UNA, con un solo número, que cubre a todos: se registra a
+-- todos de una vez, TODO O NADA, y con las mismas reglas que a una sola persona (la función
+-- llama a `fn_seguro_registrar` una vez por cada una). Lo que no puede pasar es un lote a
+-- medias —«19 personas» en la pantalla y 12 en la base— ni un mensaje que no diga con quién
+-- falló. Y la lista de asegurados dice quién está en un seguro HOY, con lo que el contador
+-- y la aseguradora piden, sin que nadie vuelva a escribirlo.
+set session_replication_role = replica;
+insert into personas (id, nombres, apellidos, sede_base_id, rol, pin_hash, auth_user_id, fecha_ingreso, tipo_vinculo, cargo, practicante_modalidad, estado, cuenta_de_servicio, fecha_cese) values
+  ('00000000-0000-0000-0000-00000528a028', 'Quique', 'Seg', '00000000-0000-0000-0000-000005280001', 'integrante', 'x', null, '2024-06-01', 'planilla',    'Vendedora', null,         'activo', false, null),
+  ('00000000-0000-0000-0000-00000528a029', 'Rosa',   'Seg', '00000000-0000-0000-0000-000005280001', 'integrante', 'x', null, '2024-06-01', 'planilla',    'Vendedora', null,         'activo', false, null),
+  ('00000000-0000-0000-0000-00000528a030', 'Sara',   'Seg', '00000000-0000-0000-0000-000005280001', 'integrante', 'x', null, '2026-10-01', 'prueba',      'Vendedora', null,         'activo', false, null),
+  ('00000000-0000-0000-0000-00000528a031', 'Tito',   'Seg', '00000000-0000-0000-0000-000005280001', 'integrante', 'x', null, '2024-06-01', 'planilla',    'Vendedor',  null,         'activo', false, null),
+  ('00000000-0000-0000-0000-00000528a032', 'Uri',    'Seg', '00000000-0000-0000-0000-000005280001', 'integrante', 'x', null, '2024-06-01', 'planilla',    'Vendedor',  null,         'activo', false, null),
+  ('00000000-0000-0000-0000-00000528a033', 'Vera',   'Seg', '00000000-0000-0000-0000-000005280001', 'integrante', 'x', null, '2024-06-01', 'planilla',    'Vendedora', null,         'activo', false, null),
+  ('00000000-0000-0000-0000-00000528a034', 'Wanda',  'Seg', '00000000-0000-0000-0000-000005280001', 'integrante', 'x', null, '2026-10-01', 'practicante', 'Practicante', 'profesional', 'activo', false, null),
+  ('00000000-0000-0000-0000-00000528a035', 'Yuri',   'Seg', '00000000-0000-0000-0000-000005280001', 'integrante', 'x', null, '2024-06-01', 'planilla',    'Vendedora', null,         'activo', false, null),
+  -- Una estación de retail con vínculo de planilla: no es una persona y no entra a ninguna lista.
+  ('00000000-0000-0000-0000-00000528a036', 'Zeta',   'Seg', '00000000-0000-0000-0000-000005280001', 'integrante', 'x', null, '2024-06-01', 'planilla',    'Estación',  null,         'activo', true,  null);
+update personas set documento = '40000028', tipo_documento = 'dni', sueldo_base_legal = 1130
+ where id = '00000000-0000-0000-0000-00000528a028';
+set session_replication_role = origin;
+insert into datos_personales (persona_id, nombre_dni, fecha_nacimiento)
+values ('00000000-0000-0000-0000-00000528a028', 'SEG QUIQUE', '1990-05-17');
+
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000528b001', true);
+
+select lives_ok(
+  $$ select fn_seguro_registrar('00000000-0000-0000-0000-00000528a033', 'vida_ley', 'La Positiva', 'VL-VERA',
+       fn_hoy_lima() - 10, fn_hoy_lima() + 355, 8, null, null, null, null, null, null) $$,
+  'Vera ya tiene una póliza de vida: será la que haga fallar el lote de más abajo');
+
+select is(
+  (select count(*)::int from fn_seguro_registrar_varias(
+     array['00000000-0000-0000-0000-00000528a028', '00000000-0000-0000-0000-00000528a029',
+           '00000000-0000-0000-0000-00000528a030', '00000000-0000-0000-0000-00000528a028']::uuid[],
+     'vida_ley', 'La Positiva', 'VL-LOTE', fn_hoy_lima() - 10, fn_hoy_lima() + 355, 9.5, null, null, null, null, null, 'Lote de prueba')),
+  3, 'una póliza para varias personas: cuatro ids con uno repetido registran a tres, una vez cada una');
+select is(
+  (select count(*)::int from polizas_seguro
+    where numero_poliza = 'VL-LOTE' and anulada_at is null and producto = 'vida_ley' and prima_total = 9.5),
+  3, 'quedan tres filas vivas con el mismo número, cada una con la prima de esa persona');
+select is(
+  (select count(*)::int from polizas_seguro_eventos e join polizas_seguro z on z.id = e.poliza_id
+    where z.numero_poliza = 'VL-LOTE' and e.evento = 'registrada'),
+  3, 'y cada una dejó su propio evento «registrada»: el historial de cada persona está completo');
+
+select throws_ok(
+  $$ select * from fn_seguro_registrar_varias(
+       array['00000000-0000-0000-0000-00000528a032', '00000000-0000-0000-0000-00000528a033']::uuid[],
+       'vida_ley', 'La Positiva', 'VL-ZZ', fn_hoy_lima() - 10, fn_hoy_lima() + 355, 9.5, null, null, null, null, null, null) $$,
+  'P0001',
+  'No se registró la póliza a nadie. Con Vera Seg falló: Esa persona ya tiene una póliza de Vida Ley que se cruza con esas fechas. Si la anterior estaba mal, anúlala primero.',
+  'si a una persona no se le puede registrar, no se registra a nadie, y el mensaje dice con quién falló');
+select is(
+  (select count(*)::int from polizas_seguro where numero_poliza = 'VL-ZZ'),
+  0, 'y Uri, que iba antes en la lista y sí se podía, tampoco quedó registrado: todo o nada');
+
+select throws_like(
+  $$ select * from fn_seguro_registrar_varias(array['00000000-0000-0000-0000-00000528a028']::uuid[],
+       'vida_ley', 'La Positiva', 'VL-LOTE', fn_hoy_lima() - 10, fn_hoy_lima() + 355, 9.5, null, null, null, null, null, null) $$,
+  'No se registró la póliza a nadie. Con Quique Seg falló: Esa persona ya tiene una póliza de Vida Ley que se cruza%',
+  'repetir el mismo lote no duplica nada: la segunda vez se detiene en la primera persona que ya lo tiene');
+select is(
+  (select count(*)::int from polizas_seguro where numero_poliza = 'VL-LOTE' and anulada_at is null),
+  3, 'siguen siendo tres');
+
+select throws_like(
+  $$ select * from fn_seguro_registrar_varias(array['00000000-0000-0000-0000-00000528a028']::uuid[],
+       'salud_practicantes', 'Pacífico', '24043200', fn_hoy_lima(), fn_hoy_lima() + 92, 179.97, null, null, null, null, null, null) $$,
+  'No se registró la póliza a nadie. Con Quique Seg falló: El seguro principal de esa persona hoy es EsSalud%',
+  'el seguro principal se comprueba por persona: a alguien de planilla no se le registra una póliza FOLA ni en un lote');
+select throws_like(
+  $$ select * from fn_seguro_registrar_varias(array['00000000-0000-0000-0000-00000528a028']::uuid[],
+       'essalud', 'Pacífico', '1234', fn_hoy_lima(), fn_hoy_lima() + 30, 0, null, null, null, null, null, null) $$,
+  'No se registró la póliza a nadie. Con Quique Seg falló: Ese seguro es «por planilla»%',
+  'EsSalud no lleva póliza, tampoco en un lote');
+select throws_ok(
+  $$ select * from fn_seguro_registrar_varias(array['00000000-0000-0000-0000-00000528a013']::uuid[],
+       'vida_ley', 'La Positiva', 'VL-C', fn_hoy_lima(), fn_hoy_lima() + 30, 0, null, null, null, null, null, null) $$,
+  'P0001', 'No se registró la póliza a nadie. Con Carla Seg falló: Esa persona está inactiva.',
+  'una persona inactiva detiene el lote y dice cuál es');
+select throws_ok(
+  $$ select * from fn_seguro_registrar_varias(array['00000000-0000-0000-0000-0000deadbeef']::uuid[],
+       'vida_ley', 'La Positiva', 'VL-C', fn_hoy_lima(), fn_hoy_lima() + 30, 0, null, null, null, null, null, null) $$,
+  'P0001', 'No se registró la póliza a nadie. Con una persona falló: Esa persona no existe.',
+  'un id que no existe también: sin nombre que decir, dice «una persona»');
+select throws_ok(
+  $$ select * from fn_seguro_registrar_varias(array[]::uuid[],
+       'vida_ley', 'La Positiva', 'VL-C', fn_hoy_lima(), fn_hoy_lima() + 30, 0, null, null, null, null, null, null) $$,
+  'P0001', 'Elige al menos a una persona.', 'una lista vacía no registra nada');
+select throws_ok(
+  $$ select * from fn_seguro_registrar_varias(null,
+       'vida_ley', 'La Positiva', 'VL-C', fn_hoy_lima(), fn_hoy_lima() + 30, 0, null, null, null, null, null, null) $$,
+  'P0001', 'Elige al menos a una persona.', 'ni una lista nula');
+select throws_ok(
+  $$ select * from fn_seguro_registrar_varias((select array_agg(gen_random_uuid()) from generate_series(1, 101)),
+       'vida_ley', 'La Positiva', 'VL-C', fn_hoy_lima(), fn_hoy_lima() + 30, 0, null, null, null, null, null, null) $$,
+  'P0001', 'Son demasiadas personas de una vez (máximo 100). Registra la póliza por tandas.',
+  'más de cien a la vez es un error de selección, no un lote');
+
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000528b004', true);
+select throws_ok(
+  $$ select * from fn_seguro_registrar_varias(array['00000000-0000-0000-0000-00000528a028']::uuid[],
+       'vida_ley', 'La Positiva', 'VL-X', fn_hoy_lima(), fn_hoy_lima() + 30, 0, null, null, null, null, null, null) $$,
+  'P0001', 'Solo Desarrollo Organizacional puede registrar pólizas de seguro.', 'una integrante no registra un lote');
+select throws_ok(
+  $$ select * from fn_seguro_asegurados('vida_ley') $$,
+  'P0001', 'Solo Desarrollo Organizacional ve quiénes están asegurados.', 'ni ve la lista de asegurados');
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000528b001', true);
+
+select is(
+  (select string_agg(persona_id::text || '=' || en_planilla::text, ',' order by persona_id) from fn_seguros_equipo()
+    where persona_id in ('00000000-0000-0000-0000-00000528a028', '00000000-0000-0000-0000-00000528a030', '00000000-0000-0000-0000-00000528a034')),
+  '00000000-0000-0000-0000-00000528a028=true,00000000-0000-0000-0000-00000528a030=true,00000000-0000-0000-0000-00000528a034=false',
+  'el equipo dice quién está en planilla tal como lo calcula la base: planilla y prueba sí, practicante no');
+
+-- La lista de asegurados.
+select lives_ok(
+  $$ select fn_seguro_registrar('00000000-0000-0000-0000-00000528a031', 'vida_ley', 'La Positiva', 'VL-TITO',
+       fn_hoy_lima() - 10, fn_hoy_lima() + 355, 8, null, null, null, null, null, null) $$,
+  'Tito tiene su póliza de vida (y más abajo deja de estar activo)');
+select lives_ok(
+  $$ select fn_seguro_registrar('00000000-0000-0000-0000-00000528a035', 'vida_ley', 'La Positiva', 'VL-YURI',
+       fn_hoy_lima() - 100, fn_hoy_lima(), 8, null, null, null, null, null, null) $$,
+  'Yuri tuvo una póliza de vida que terminó hoy: el último día ya no cubre');
+set session_replication_role = replica;
+update personas set estado = 'inactivo', fecha_cese = fn_hoy_lima() where id = '00000000-0000-0000-0000-00000528a031';
+set session_replication_role = origin;
+
+select is(
+  (select string_agg(persona_id::text, ',' order by persona_id) from fn_seguro_asegurados('vida_ley')
+    where persona_id in ('00000000-0000-0000-0000-00000528a028', '00000000-0000-0000-0000-00000528a029', '00000000-0000-0000-0000-00000528a030',
+                         '00000000-0000-0000-0000-00000528a031', '00000000-0000-0000-0000-00000528a032', '00000000-0000-0000-0000-00000528a035')),
+  '00000000-0000-0000-0000-00000528a028,00000000-0000-0000-0000-00000528a029,00000000-0000-0000-0000-00000528a030,00000000-0000-0000-0000-00000528a031',
+  'la lista de un seguro de vida trae a quien tiene su póliza vigente hoy —también a Tito, ya inactivo— y no a quien no la tiene ni a quien terminó hoy');
+select is(
+  (select row(apellidos, nombres, nombre_segun_dni, tipo_documento, documento, fecha_nacimiento, fecha_ingreso, sede,
+              tipo_vinculo, activa, remuneracion, numero_poliza, aseguradora)::text
+     from fn_seguro_asegurados('vida_ley') where persona_id = '00000000-0000-0000-0000-00000528a028'),
+  row('Seg', 'Quique', 'SEG QUIQUE', 'dni', '40000028', '1990-05-17'::date, '2024-06-01'::date, 'ZZB28',
+      'planilla', true, null::numeric, 'VL-LOTE', 'La Positiva')::text,
+  'cada fila trae lo que el certificado pide —documento, nacimiento, ingreso, sede, su póliza— y NO la remuneración si no se pidió');
+select is(
+  (select remuneracion from fn_seguro_asegurados('vida_ley', true) where persona_id = '00000000-0000-0000-0000-00000528a028'),
+  1130::numeric, 'la remuneración asegurable viaja solo si se la pide');
+select is(
+  (select activa from fn_seguro_asegurados('vida_ley') where persona_id = '00000000-0000-0000-0000-00000528a031'),
+  false, 'y dice quién ya no está activa: es la baja que hay que pedir a la aseguradora');
+select is(
+  (select row(documento, fecha_nacimiento)::text from fn_seguro_asegurados('vida_ley') where persona_id = '00000000-0000-0000-0000-00000528a029'),
+  row(null::text, null::date)::text,
+  'a quien le falta el documento o el nacimiento sale con el hueco a la vista, no se omite ni se inventa');
+
+select is(
+  (select string_agg(persona_id::text, ',' order by persona_id) from fn_seguro_asegurados('essalud')
+    where persona_id in ('00000000-0000-0000-0000-00000528a032', '00000000-0000-0000-0000-00000528a017',
+                         '00000000-0000-0000-0000-00000528a034', '00000000-0000-0000-0000-00000528a036', '00000000-0000-0000-0000-00000528a031')),
+  '00000000-0000-0000-0000-00000528a032',
+  'la lista de EsSalud (por planilla, sin póliza) trae a quien está en planilla y no a honorarios, practicantes, cuentas de servicio ni inactivos');
+select is(
+  (select row(poliza_id, numero_poliza)::text from fn_seguro_asegurados('essalud') where persona_id = '00000000-0000-0000-0000-00000528a032'),
+  row(null::uuid, null::text)::text, 'y sin póliza que mostrar: EsSalud no la lleva');
+select is(
+  (select string_agg(persona_id::text, ',' order by persona_id) from fn_seguro_asegurados('salud_practicantes')
+    where persona_id in ('00000000-0000-0000-0000-00000528a034', '00000000-0000-0000-0000-00000528a028', '00000000-0000-0000-0000-00000528a013')),
+  '00000000-0000-0000-0000-00000528a034',
+  'la lista de un seguro principal con póliza trae a quien lo tiene aunque aún no tenga póliza: es justo a quien hay que pedírsela');
+select throws_ok(
+  $$ select * from fn_seguro_asegurados('no_existe') $$,
+  'P0001', 'Ese tipo de seguro no existe.', 'un seguro que no existe dice que no existe');
 
 -- ── P · Un fallo del registro de cambios NO frena el cambio de vínculo ───
 -- Lo último de la prueba, porque rompe la tabla de cambios a propósito. Un cambio de
