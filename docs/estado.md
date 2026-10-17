@@ -9,19 +9,34 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 ## 2026-10-17 — Seguros, etapa 2: «Mi seguro» en Lo mío, para TODO el equipo · migración 0530 · SQL SIN PEGAR · COMMITEADO, SIN PR · rama `claude/elegant-mayer-3e584e` (encima de la etapa 1)
 
 **Qué es.** Cada colaborador ve SU seguro en `/mio` → Documentos → «Mi seguro»: en cuál está hoy;
-si lleva póliza, su número, la aseguradora, hasta cuándo la cubre, el plan y el máximo anual **solo
+si lleva póliza, su número, la aseguradora, hasta cuándo es vigente, el plan y el máximo anual **solo
 si el corredor ya los confirmó**, y el PDF de su póliza y de su convenio de pago para **abrir o
 descargar**. Quien está en EsSalud ve el nombre y que **se paga por planilla y no lleva póliza**;
 quien no tiene seguro principal (honorarios) ve que no tiene uno asignado. Se ven las pólizas de
 CUALQUIER seguro, también las del que tenía antes de cambiar. El «Cómo usar tu seguro» sale solo
-para el seguro que lo tiene (hoy FOLA) y solo mientras su póliza cubre. Las secciones de Lo mío
-pasan a dieciséis.
+para el seguro que lo tiene (hoy FOLA) y solo mientras su póliza está vigente. Las secciones de Lo
+mío pasan a dieciséis.
 
 **Su historia, para que nadie la repita.** Se construyó primero acotada a los practicantes, sobre
 la primera 0528 (solo FOLA). Cuando Felipe hizo general el módulo, esa versión se descartó entera
 —nunca se pegó— y se rehízo sobre la 0528 nueva. Lo que cambió, y por qué importa: la puerta pasó
 de «hoy soy practicante» a **«es MI póliza»**. Con «hoy soy practicante», quien pasa de FOLA a
 EsSalud perdería el PDF de una póliza que sigue vigente hasta que la aseguradora procese la baja.
+
+**Traída la punta nueva de la etapa 1 (`112bfcb3`, merge `91d9c583`, también 2026-10-17).** La
+revisión independiente de la etapa 1 movió dos cosas que me tocan, y ninguna cambió una firma:
+- **El número de una póliza ya no identifica a una persona.** El índice único lleva ahora
+  `persona_id`: una póliza colectiva (vida, EPS) puede repetir aseguradora, número y vigencia entre
+  personas distintas. `fn_mi_seguro` y `fn_mis_polizas` nunca emparejaron por número —todo es por
+  `poliza_id` y `persona_id`—, y ahora la **423 lo prueba** (sección I, 17 aserciones): dos personas
+  con la MISMA póliza ven una cada una, con solo su archivo, en las tres lecturas. Tres mutaciones
+  que emparejan por número la rompen. (Una renovación que conserva el número también repite
+  número dentro de una persona; tampoco se confunde.)
+- **La cobertura puede estar «suspendida»** (póliza vigente por fechas, prima sin pagar más de 30
+  días). La calcula la pantalla de DO con `estadoPrima`; la base no lo sabe. Por eso la tarjeta de
+  «Mi seguro» ya no dice «cubierto» (ver abajo).
+- El resto (bloqueos `for no key update`, límites de largo, la política de UPDATE de Storage) no me
+  toca. Mi única edición a un archivo de la etapa 1 sigue siendo la aserción #2 de la 422.
 
 **Qué toca.**
 - **0530**: `fn_mi_seguro()` (UNA fila: su seguro principal de hoy, llamando a
@@ -46,12 +61,18 @@ qué se le dice a quien está en EsSalud (ver abajo).
 - **Para EsSalud la pantalla dice solo lo que la base sabe:** «Tu seguro es EsSalud. Se paga por
   planilla y no lleva póliza.» No se inventó ninguna explicación de EsSalud. **Texto provisional:
   lo decide Felipe.**
-- **«Al día» es que la póliza está vigente, no que la prima esté pagada.** La persona no ve el
-  papeleo de DO: ni la prima, ni si está pagada, firmada o con factura. Si Pacífico suspendiera la
-  cobertura por mora (30 días), la pantalla seguiría diciendo «al día»; la mora ya sale en rojo en la
-  Bandeja de DO. Decirle «tu seguro está suspendido» por una marca que DO todavía no hizo sería una
-  falsa alarma sobre su salud. Si Felipe prefiere avisarle, se agrega una columna a `fn_mi_seguro`
-  (la prueba 423 fija las listas de columnas a propósito).
+- **La tarjeta habla de la PÓLIZA, no de que la persona «esté cubierta».** Dice «Vigente», «Tu póliza
+  va hasta el… a las 12 M» y cierra con «Si la aseguradora te dice otra cosa, avisa a Desarrollo
+  Organizacional». Motivo: la cobertura puede estar suspendida por mora (la prima lleva más de 30 días
+  sin pagarse; convenio de pago, cláusula quinta) y eso la persona no lo ve —no sale la prima ni el
+  papeleo de DO—, ni la base lo sabe (`cubre_hoy` es solo de fechas). Decirle «tu póliza cubre» a
+  quien la tiene suspendida es mandarla a una clínica a que se lo nieguen; decirle «suspendida» por un
+  pago que DO todavía no marcó sería una falsa alarma sobre su salud. El cierre sirve para los dos
+  casos sin acusar a nadie. `tests/mi-seguro.test.ts` fija que DO dice «suspendida» y la persona
+  «vigente», y que ningún texto de la tarjeta contiene «cubre», «cubierto» ni «cobertura». **Si
+  Felipe prefiere avisarle de la suspensión:** una columna más en `fn_mi_seguro` y repetir en SQL la
+  regla de los 30 días, que hoy vive solo en TypeScript (`estadoPrima`); la 423 fija las listas de
+  columnas a propósito.
 - **El plan y el máximo anual aparecen en cuanto DO los carga** («Corregir datos»); mientras estén
   vacíos no se pinta ni un «pendiente».
 - Ve el **convenio de pago** además de la póliza; la factura y «otro papel» son solo de DO.
@@ -73,36 +94,47 @@ qué se le dice a quien está en EsSalud (ver abajo).
 3. **El texto de EsSalud** (arriba) y la revisión de la guía de FOLA contra el PDF.
 4. Con una cuenta real, apretar «Abrir» en un navegador de verdad y en un iPhone.
 5. La novedad lleva fecha 2026-10-17: si el PR se fusiona otro día, corregirla antes.
+6. Si la sesión de la etapa 1 vuelve a mover su punta (hoy `112bfcb3`), traerla con otro merge y
+   repetir la 423 y la 422 antes de entregar el SQL: la 0530 depende de la 0528 y se escribió contra
+   esa versión.
 
 **Qué se comprobó.** La 0530 aplicada en una transacción sobre el Postgres local y la prueba **423**
-(91 aserciones) en verde dentro de ella: practicante, otra practicante, planilla, honorarios, DO, una
+(108 aserciones) en verde dentro de ella: practicante, otra practicante, planilla, honorarios, DO, una
 asignación de DO, un seguro complementario, quien ya cambió de seguro (conserva su póliza y su PDF),
 la cuenta de servicio y las sesiones sin ficha o sin identidad. Fija las dos listas de columnas,
 compara **archivo por archivo** lo que lista `fn_mis_polizas` con lo que Storage deja abrir, y
 compara «en qué seguro está», «si lo cubre hoy» y «cubre hoy» de cada póliza con lo que lee DO
-(`fn_seguros_equipo`, `fn_seguros_tablero`). Se probó que SABE fallar con diecisiete mutaciones de la
-migración —factura, archivo retirado, archivo de otra persona o póliza anulada visibles; la puerta de
+(`fn_seguros_equipo`, `fn_seguros_tablero`), y —sección I— que dos personas con la misma póliza
+colectiva no se mezclan. Se probó que SABE fallar con veinte mutaciones de la migración, las tres de
+emparejar por número incluidas —factura, archivo retirado, archivo de otra persona o póliza anulada visibles; la puerta de
 «hoy soy practicante» vuelta a poner en Storage o en `fn_mis_polizas`; todas las pólizas en vez de las
 propias; una columna de más en cada función; el convenio antes que la póliza; el último día inclusivo
 en las dos; «cubre» de una póliza de otro seguro; la cuenta de servicio con fila; `cubre_hoy` para
-EsSalud; el seguro automático escrito a mano en vez de `fn_seguro_tipo_principal`—: las diecisiete la
+EsSalud; el seguro automático escrito a mano en vez de `fn_seguro_tipo_principal`—: las veinte la
 rompen. La migración se puede aplicar dos veces. Las pruebas 250, 92 y 108 siguen en verde. La **422**
-(237 aserciones) pasa con la 0530 aplicada salvo la #226, que falla igual SIN ella (ver abajo).
-`vitest` (1961 pruebas, 87 archivos; diez mutaciones de `lib/mi-seguro.ts` las rompen), `tsc` y `eslint`
-de lo tocado en verde (`page.tsx` conserva dos errores `set-state-in-effect` que ya tenía `main`).
+(252 aserciones, la de la punta nueva) pasa con la 0530 aplicada salvo la #226, que falla igual SIN
+ella (ver abajo). `vitest` (1981 pruebas, 87 archivos; dieciséis mutaciones de `lib/mi-seguro.ts` las
+rompen), `tsc` y `eslint` de lo tocado en verde (`page.tsx` conserva dos errores `set-state-in-effect` que ya tenía `main`).
 Los guardias del push (numeración, reglas de la casa, nombre del PDF, fechas vacías, linter) corridos
 a mano sobre lo que esta rama agrega encima de la etapa 1: todos en 0.
 
 **En el navegador** (2026-10-17, contra la base local con la 0530 aplicada y datos «ZZMiSeguro» con
 ids `…0000fc…`, que se borraron al terminar junto con la migración; la demo de la sesión madre
 quedó intacta):
-- *Practicante en FOLA:* «Al día», su póliza con sus dos PDF (no la factura), la guía de uso.
+- *Practicante en FOLA:* «Vigente — Tu póliza está vigente», su póliza con sus dos PDF (no la
+  factura), la guía de uso.
 - *Dani, de planilla con una póliza FOLA que le quedó:* «Por planilla — Tu seguro es EsSalud», su
   póliza FOLA en «Tus pólizas» con su PDF, y la guía de FOLA porque esa póliza cubre hoy. «Descargar»
   baja `Poliza-FOLA-<número>.pdf`.
 - *Practicante sin póliza FOLA pero con una de otro seguro:* «Todavía no tienes una póliza
   registrada», la póliza de vida en «Tus pólizas» y NINGUNA guía de FOLA.
 - *Honorarios:* «No tienes un seguro asignado en el sistema».
+- *Segunda vuelta, ya con la punta nueva de la etapa 1 y el texto «vigente»:* la misma practicante con
+  su póliza a 76 días («Vigente»), a 20 días («Vence en 20 días — Tu póliza va hasta el 06/11/2026…») y
+  terminada hace 9 días («Sin póliza vigente — … terminó el 08/10/2026 (hace 9 días)», sin la guía de
+  FOLA). `fn_mi_seguro` y `fn_mis_polizas` contestan 200; el servidor, sin errores. En la consola salió
+  UN «429 Too Many Requests» de un recurso que no es de esta sección (ni esas dos llamadas ni Storage);
+  no se identificó cuál es.
 - A 375 px sin desborde horizontal y con botones de 44 px; consola y servidor sin errores.
 - *Como DO:* el panel de archivos con el texto nuevo y el aviso que cambia con el tipo.
 - *Contra el Storage real, con `curl`:* cada persona firma solo los archivos de SUS pólizas de tipo
@@ -117,6 +149,10 @@ Mac); nada contra datos reales de producción; ningún PDF real (los de prueba p
 esta Mac la 422 falla en la #226 («DO ve los cuatro») mientras la base local compartida tenga los PDF
 de la demo en el mismo bucket; falla igual sin la 0530 (se corrió el control) y en CI el bucket está
 vacío.
+
+**Un límite pequeño que se dejó:** una renovación que conserva el número de la póliza (la etapa 1 lo
+permite) se baja con el mismo nombre, `Poliza-FOLA-<número>.pdf`, y el navegador le pone «(1)» a la
+segunda. No pierde nada; si molesta, el nombre puede llevar el año de inicio de la vigencia.
 
 **Cómo se generaron los tipos.** Igual que en la etapa 1: una base desechable con el esquema `public`
 de la local, la 0530 aplicada allí, `supabase gen types --db-url` y pegadas SOLO las tres funciones
