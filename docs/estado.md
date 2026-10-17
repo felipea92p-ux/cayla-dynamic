@@ -202,7 +202,7 @@ Retail es una campaña con ventana editable, no un día). Ver el final de
 
 ---
 
-## 2026-10-13 — El bono del practicante vuelve a la boleta, y se paga al cierre del periodo · migración 0521 · ESCRITA Y PROBADA · SIN PEGAR · SIN FUSIONAR
+## 2026-10-13 — El bono del practicante vuelve a la boleta, y se paga al cierre del periodo · migración 0521 · PEGADA Y VERIFICADA EN PRODUCCIÓN (2026-10-16) · PR #539 PENDIENTE DE FUSIONAR
 
 **Decisión de Felipe, el mismo día, al ver funcionando la 0520:** el pedido de
 Daniel Ruiz salió en la Bandeja «S/ 180.00 por transferir» y lo rechazó —«no
@@ -237,10 +237,23 @@ y 335, 377, 378 sin cambios y en verde. Frontend: la pantalla del practicante
 la constancia de practicante lleva «se abona en la boleta del periodo, como
 concepto aparte de la subvención».
 
-**ORDEN: pegar la 0521 PRIMERO y fusionar el PR después** (la regla general). El
-frontend del PR promete «se suma a tu boleta» al practicante y trae una novedad
-que corrige la anterior; si se fusiona antes de pegar, un practicante que firme
-en el medio queda «por transferir» mientras la pantalla le dice «boleta».
+**PEGADA el 2026-10-16, ANTES de fusionar el PR** (la regla general). El frontend
+del PR promete «se suma a tu boleta» al practicante y trae una novedad que corrige
+la anterior; por eso va después de pegar. Con el freno de la propia migración (que
+comprobó el md5 de partida y abortaba sin tocar nada si no coincidía), la respuesta
+del SQL Editor fue `firma_sin_excepcion = t`, `sin_sobrecarga = t`,
+**`practicantes_con_bono_en_boleta = 1`**, `practicantes_aun_por_transferir = 0` y el
+registro `521 · el_bono_del_practicante_vuelve_a_la_boleta`.
+
+**Verificada en producción** con una consulta de ocho filas, todas iguales a lo
+calculado antes en local: `fn_confirmar_mi_bono_cumpleanos` `b7a826e9…` tal cual /
+`e796c2b3…` sin comentarios (el mismo código que la 0479, sin la excepción: solo
+cambiaron los comentarios) / 5236 caracteres / 0 retornos; lleva `CAMBIO 0521` y no
+tiene `v_practicante`; `authenticated` puede ejecutar la firma y NO la reparación;
+`fn_mi_bono_cumpleanos` (`d35c7d75…`, 4726) y `fn_documento_registrar` (`2d78559a…`,
+5567) no cambiaron. **Daniel Ruiz tiene su línea «Asignación por cumpleaños» de
+S/ 180.00 en la boleta del periodo que cierra el 2026-10-28, atada a su constancia, y
+ningún practicante tiene dos líneas en el mismo periodo.**
 
 **NO REPEGAR la 0518 ni la 0520 después de la 0521:** la 0520 recrearía
 `fn_confirmar_mi_bono_cumpleanos` con la excepción del practicante y revertiría
@@ -249,9 +262,10 @@ archivo corre). El traslado de la 0521 sí se protege solo: corre únicamente la
 primera pegada (medido: pegar dos veces, con una línea quitada por DO en el
 medio, no la reinserta).
 
-**md5 de partida de producción — PENDIENTE de confirmar:** `fn_confirmar_mi_bono_cumpleanos`
-(0520) debe ser `4c1ce380…` tal cual / `7d430c38…` sin comentarios, 5440
-caracteres. El freno de la migración aborta sin tocar nada si no.
+**md5 de partida de producción:** `fn_confirmar_mi_bono_cumpleanos` (0520) era
+`4c1ce380…` tal cual / `7d430c38…` sin comentarios, 5440 caracteres. No se pidió antes
+de entregar —Felipe pidió el SQL directamente—; lo comprobó el freno de la migración
+al pegar, y habría abortado sin tocar nada si no coincidía.
 
 **Límite conocido, HEREDADO de la 0479 y de cualquiera que esté en boleta (revisión
 adversarial, 2026-10-16):** anular una constancia de bono desde Documentación solo marca
