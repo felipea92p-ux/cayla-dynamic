@@ -6,6 +6,56 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-10-17 — Educación: pagar antes de la fecha declarada también corre el calendario (0527) · SQL PEGADO Y VERIFICADO EN PRODUCCIÓN · PR ABIERTO, SIN FUSIONAR · rama `claude/clever-nobel-3cdc5c`
+
+**Solo alerta; no cambia lo que cobra nadie.** Defecto desde la 0450, medido con las
+funciones de verdad: un mensual que vence el 15 de mayo, paga el 3 y declara el próximo
+el 3 de junio. DO aprueba y el calendario **se queda en el 15**; el 24 de mayo figura
+«vencida» por un mes ya aprobado. `fn_educacion_avanzar_calendario` comparaba la fecha
+de pago contra la fecha declarada (`e.fecha_pago >= a.proxima_fecha_pago`), así que
+pagar antes nunca la alcanzaba. Pasa con todas las frecuencias.
+
+**Decisión de Felipe (2026-10-17): criterio A.** Avanza también cuando el pago cae
+desde el día 1 del MES de la fecha vigente y lo declarado es posterior (o es «último
+pago», que sigue poniendo null). Para toda frecuencia. Se descartó «solo hacia
+adelante» a secas porque pisaría la fecha que DO fijó a mano.
+`fn_educacion_fijar_calendario` no se toca. **Residuo conocido:** pagar en un mes
+ANTERIOR al de la fecha vigente (vence el 3/nov, paga el 28/oct) sigue sin mover el
+calendario; lo fija DO a mano.
+
+**Medido.** pgTAP **421**, 34 aserciones: 34 verdes con la 0527; **15 rojas** en el
+control sin ella (justo las de pagar antes y las de la vida real). Cuatro variantes
+equivocadas de la regla (solo adelante, sin exigir `N > P`, solo mensual, ventana de
+40 días) la rompen cada una por al menos una aserción. md5 de partida en **producción**
+`bd2c70bb…` · 354 caracteres, idéntico a la 0450 (medido por Felipe el 2026-10-17;
+**se vuelve a pedir justo antes de entregar**). Llegada, local: `51570d94…` · 727.
+La sección 0 de la migración frena si la función no es esa versión.
+
+**Pegada y verificada el 2026-10-17.** Felipe la pegó («Success. No rows returned») y la
+consulta de comprobación devolvió, en producción: 727 caracteres · md5
+`51570d948d13c3fe079ff78e2a6905e2` · marca «CAMBIO 0527» en la posición 376 · 0 retornos de
+carro · 1 sola copia de la función · registro `527 · pagar_antes_de_la_fecha_tambien_corre_el_calendario`.
+Coincide con el md5 de llegada medido en local. Falta fusionar el PR, que solo trae el
+archivo ya pegado, la prueba 421 y este texto: ningún cambio de pantalla, y ya no hay orden
+de pegado que respetar. Fusionar es publicar: se pide el OK aparte.
+
+**Medido otra vez con `main` ya movido** (PR #541: 0525 y 0529 pegadas): la prueba 421 da 34
+verdes contra el esquema con 0525, 0526 y 0529 puestas, y 15 rojas en el control con la
+función de la 0450. La 0529 mueve el calendario de un pago adelantado con su propio trigger y
+no reescribe esta función; las dos se llevan bien.
+
+**Pendiente.** (1) ~~Pegar la 0527~~ hecho; es independiente de la 0526 (reescribe otra
+función). (2) Felipe corre la consulta del final de la migración para saber cuántos estudios
+**ya** quedaron atrasados: esta migración no los repara (solo actúa al aprobar); DO los fija a
+mano con `fn_educacion_fijar_calendario`. (3) Con la 0525 ya en producción, revertir la
+aprobación de un pago hecho antes de la fecha deja el calendario en la fecha de PAGO y no en
+la de vencimiento (un pago del 3 con vencimiento el 15 revierte al 3). Es lo que la 0525 hace
+con toda reversión; con la 0527 solo cambia que el pago puede ser anterior al vencimiento, y
+lo único que se adelanta es el plazo. Solo alerta; no se tocó. (4) Sin entrada en
+`novedades.ts`; decide Felipe.
+
+---
+
 ## 2026-10-17 — Las boletas se firman, DO las ve firmadas y puede anular y restablecer en 48 horas · migración 0532 · SQL SIN PEGAR · COMMITEADO, SIN PR · rama `claude/nice-kapitsa-b7482a`
 
 **Hay SQL: la [0532](../supabase/migrations/0532_las_boletas_se_firman_y_una_anulacion_se_restablece.sql), sin pegar.**
