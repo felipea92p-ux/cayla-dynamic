@@ -187,7 +187,9 @@
 --     Solo dice si una ruta (un uuid) está en uso por alguna póliza.
 --   · Fuera de esta migración, y sin tocarlo: `fn_cesar_persona` con un vínculo nuevo
 --     falla para un PRACTICANTE, porque no limpia `practicante_modalidad`
---     (`personas_practicante_modalidad_coherente`). Sin cambiar de vínculo, el cese funciona.
+--     (`personas_practicante_modalidad_coherente`). Sin cambiar de vínculo, el cese funciona,
+--     y la pantalla de Equipo nunca manda un vínculo nuevo al cesar: hoy solo se alcanza
+--     llamando a la función a mano.
 --
 -- SE ROMPE SI
 --

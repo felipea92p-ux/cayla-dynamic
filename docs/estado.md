@@ -149,8 +149,11 @@ guardan solo el último estado, sin historial de marcas como las pólizas; un ca
 día dejan un alta pendiente en EsSalud que DO marca y ya; y `fn_seguro_archivo_libre` la puede llamar
 cualquier sesión autenticada (solo dice si una ruta uuid está en uso). **Hallazgo ajeno, sin tocar:**
 `fn_cesar_persona` con un vínculo nuevo falla para un PRACTICANTE (no limpia `practicante_modalidad`,
-`personas_practicante_modalidad_coherente`); sin cambiar de vínculo, el cese funciona. Es de otra
-migración y de otra sesión.
+`personas_practicante_modalidad_coherente`); sin cambiar de vínculo, el cese funciona. La pantalla de
+Equipo nunca manda un vínculo nuevo al cesar, así que hoy solo se alcanza llamando a la función a mano:
+es un defecto latente, no uno que alguien esté pisando. Arreglarlo es reescribir una función con cinco
+versiones (pide `donde-vive.sh` y el md5 de producción antes de escribir): de otra migración y de otra
+sesión, y sin urgencia.
 
 **En el navegador** (2026-10-17, contra la base local con la 0528 aplicada y trece personas de
 prueba marcadas «ZZ Demo»: practicantes con y sin póliza, planilla, prueba, honorarios, dos que
