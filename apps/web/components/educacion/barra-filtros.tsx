@@ -39,9 +39,9 @@ const COMO_QUIEN: { valor: QuienEstudia; etiqueta: string }[] = [
 ];
 
 const COMO_VIGENCIA: { valor: VigenciaFiltro; etiqueta: string }[] = [
+  { valor: "todas", etiqueta: "Todos" },
   { valor: "activas", etiqueta: "Vigentes y por empezar" },
   { valor: "terminada", etiqueta: "Terminados" },
-  { valor: "todas", etiqueta: "Todos" },
 ];
 
 export interface OpcionesDeBarra {
@@ -108,7 +108,7 @@ export function BarraFiltros({
 
       {/* ── EN QUÉ PUNTO ESTÁ CADA UNO: la ayuda de cada pastilla va en su globo, no en una línea aparte ── */}
       <div role="group" aria-label="Mostrar" className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-0.5 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 [scrollbar-width:none]">
-        <Filtro activo={filtros.grupo === null} onClick={() => cambiar({ grupo: null })} title="Todos los estudios, con lo que pide acción primero.">
+        <Filtro activo={filtros.grupo === null} onClick={() => cambiar({ grupo: null })} title="Todas las personas activas: quienes pidieron apoyo, con todos sus estudios, y quienes no.">
           Todos <Cuenta n={opciones.totalGrupos} />
         </Filtro>
         {GRUPOS_EDUCACION.filter((g) => g.clave !== "sin_solicitar").map((g) => (
@@ -159,7 +159,10 @@ export function BarraFiltros({
             {COMO_VIGENCIA.map((o) => <option key={o.valor} value={o.valor}>{o.etiqueta}</option>)}
           </CampoSelect>
           <div className="flex items-end pb-2">
-            <CampoCasilla etiqueta="Incluir personas ya liquidadas" checked={filtros.liquidadas}
+            {/* Con «Todos» elegido ya salen también quienes se liquidaron: la casilla lo dice en vez de mentir. */}
+            <CampoCasilla etiqueta={filtros.grupo === null || filtros.grupo === "solicitaron" ? "Incluye a quienes ya se liquidaron" : "Incluir personas ya liquidadas"}
+              checked={filtros.grupo === null || filtros.grupo === "solicitaron" || filtros.liquidadas}
+              disabled={filtros.grupo === null || filtros.grupo === "solicitaron"}
               onChange={(e) => cambiar({ liquidadas: e.target.checked })} />
           </div>
           {opciones.cargandoConstancias && (

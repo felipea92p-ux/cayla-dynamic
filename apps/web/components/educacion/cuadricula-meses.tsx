@@ -32,9 +32,13 @@ import { CasillaMes } from "./casilla-mes";
 
 const SEPARADOR_DE_COLUMNAS = "border-l border-sand";
 
+/** Una persona activa sin estudio ni solicitud (`personasSinSolicitar`). */
+export interface PersonaSinSolicitar { persona_id: string; persona: string; sede: string; rango: string }
+
 export function CuadriculaMeses({
   estudios, meses, hayMasMeses, onVerMasMeses, mesResaltado, entregasPorFamilia, cargandoConstancias,
   familiasSinLeer, pendientes, hoy, resumenesSede, onAbrirVisor, onAbrirEstudio, coberturas, apoyoPagado,
+  sinSolicitar = [], onRegistrar,
 }: {
   estudios: Estudio[];
   meses: string[];
@@ -55,11 +59,26 @@ export function CuadriculaMeses({
   coberturas?: ReadonlyMap<string, readonly CoberturaMes[]>;
   /** Lo pagado de educación por persona y mes (`persona_id|AAAA-MM`). */
   apoyoPagado?: ReadonlyMap<string, number>;
+  /**
+   * Personas activas que no pidieron educación. Van en la MISMA cuadrícula, como una fila más de su
+   * sede y sin meses que mirar, no en una tabla aparte (Felipe, 2026-10-17).
+   */
+  sinSolicitar?: readonly PersonaSinSolicitar[];
+  onRegistrar?: (boton: HTMLElement, personaId: string) => void;
 }) {
-  const bloques = useMemo(
-    () => (resumenesSede ? resumenesSede.map((r) => ({ resumen: r, estudios: r.estudios })) : [{ resumen: null, estudios }]),
-    [resumenesSede, estudios],
-  );
+  const bloques = useMemo(() => {
+    if (!resumenesSede) return [{ clave: "todas", sede: null as string | null, resumen: null as ResumenDeSede | null, estudios, sinSol: sinSolicitar }];
+    const lista = resumenesSede.map((r) => ({
+      clave: r.sede, sede: r.sede as string | null, resumen: r as ResumenDeSede | null, estudios: r.estudios,
+      sinSol: sinSolicitar.filter((p) => p.sede === r.sede),
+    }));
+    // Una sede donde nadie tiene estudio también sale, con su gente sin solicitar.
+    const conBloque = new Set(resumenesSede.map((r) => r.sede));
+    for (const sede of Array.from(new Set(sinSolicitar.map((p) => p.sede))).sort()) {
+      if (!conBloque.has(sede)) lista.push({ clave: sede, sede, resumen: null, estudios: [], sinSol: sinSolicitar.filter((p) => p.sede === sede) });
+    }
+    return lista;
+  }, [resumenesSede, estudios, sinSolicitar]);
   const mesDeHoy = mesDe(hoy);
 
   const pendienteDe = (e: Estudio): string | null => {
@@ -107,12 +126,12 @@ export function CuadriculaMeses({
               <th className="px-3 py-2"><span className="sr-only">Acciones</span></th>
             </tr>
           </thead>
-          {bloques.map(({ resumen, estudios: lista }) => (
-            <tbody key={resumen?.sede ?? "todas"}>
-              {resumen && (
+          {bloques.map(({ clave, sede, resumen, estudios: lista, sinSol }) => (
+            <tbody key={clave}>
+              {(resumen || sede) && (
                 <tr>
                   <th colSpan={meses.length + 4} scope="rowgroup" className="border-t border-sand bg-hueso/70 px-4 py-2 text-left font-normal">
-                    <ResumenDelBloque resumen={resumen} />
+                    {resumen ? <ResumenDelBloque resumen={resumen} /> : <h3 className="font-serif text-base text-tinta">{sede}</h3>}
                   </th>
                 </tr>
               )}
@@ -142,6 +161,24 @@ export function CuadriculaMeses({
                   </tr>
                 );
               })}
+              {sinSol.map((p) => (
+                <tr key={`sin-${p.persona_id}`} className="border-t border-sand text-taupe">
+                  <td className="sticky left-0 z-[1] bg-papel px-4 py-2 align-middle">
+                    <span className="block font-medium text-tinta">{p.persona}</span>
+                    <span className="block text-xs">{p.sede}{p.rango && p.rango !== "—" ? ` · ${p.rango}` : ""}</span>
+                  </td>
+                  <td className="px-3 py-2 align-middle text-xs">No pidió apoyo</td>
+                  {meses.map((m, i) => (
+                    <td key={m} className={`p-0 align-middle ${i === 0 ? SEPARADOR_DE_COLUMNAS : ""}`}>
+                      <div className="flex justify-center py-2"><span aria-hidden className="size-1 rounded-full bg-ceniza/30" /></div>
+                    </td>
+                  ))}
+                  <td className={`px-3 py-2 align-middle ${SEPARADOR_DE_COLUMNAS}`}><Insignia variante="neutral">Sin solicitar</Insignia></td>
+                  <td className="px-3 py-2 text-right align-middle">
+                    {onRegistrar && <Boton variante="sutil" tamano="sm" className="whitespace-nowrap" onClick={(ev) => onRegistrar(ev.currentTarget, p.persona_id)}>Registrar apoyo</Boton>}
+                  </td>
+                </tr>
+              ))}
             </tbody>
           ))}
         </table>
@@ -149,9 +186,10 @@ export function CuadriculaMeses({
 
       {/* ── CELULAR: una tarjeta por estudio, con su tira de meses ────────── */}
       <div className="flex flex-col gap-5 md:hidden">
-        {bloques.map(({ resumen, estudios: lista }) => (
-          <section key={resumen?.sede ?? "todas"} className="flex flex-col gap-3">
-            {resumen && <div className="px-1"><ResumenDelBloque resumen={resumen} /></div>}
+        {bloques.map(({ clave, sede, resumen, estudios: lista, sinSol }) => (
+          <section key={clave} className="flex flex-col gap-3">
+            {resumen ? <div className="px-1"><ResumenDelBloque resumen={resumen} /></div>
+              : sede ? <h3 className="px-1 font-serif text-base text-tinta">{sede}</h3> : null}
             <ul className="flex flex-col gap-3">
               {lista.map((e) => {
                 const f = fila(e);
@@ -186,6 +224,15 @@ export function CuadriculaMeses({
                   </li>
                 );
               })}
+              {sinSol.map((p) => (
+                <li key={`sin-${p.persona_id}`} className="flex items-center justify-between gap-2 rounded-superficie border border-dashed border-sand px-4 py-3 text-sm">
+                  <span className="min-w-0">
+                    <span className="block font-medium">{p.persona}</span>
+                    <span className="block text-xs text-taupe">Sin solicitar</span>
+                  </span>
+                  {onRegistrar && <Boton variante="sutil" tamano="sm" onClick={(ev) => onRegistrar(ev.currentTarget, p.persona_id)}>Registrar apoyo</Boton>}
+                </li>
+              ))}
             </ul>
           </section>
         ))}

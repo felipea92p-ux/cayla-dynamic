@@ -453,9 +453,11 @@ export interface Filtros {
   grupo: GrupoEducacion | null;
 }
 
+// «Estado del apoyo» arranca en «Todos» (Felipe, 2026-10-17): lo que se ve al entrar es todo, y quien
+// quiere solo los vigentes o solo los terminados lo elige en «Filtros».
 export const FILTROS_VACIOS: Filtros = {
-  buscar: "", sede: "", mes: "", estado: "", institucion: "", vigencia: "activas", liquidadas: false,
-  quien: "", tipo: "", revisor: "", desde: "", hasta: "", tarjeta: null, grupo: null,
+  buscar: "", sede: "", mes: "", estado: "", institucion: "", vigencia: "todas", liquidadas: false,
+  quien: "", tipo: "", revisor: "", desde: "", hasta: "", tarjeta: null, grupo: "solicitaron",
 };
 
 export interface ContextoDeFiltros {
@@ -552,7 +554,7 @@ export function pasaFiltros(
     if (!mias.some((x) => entregaPasaFiltros(x, f, ignorar))) return false;
   }
 
-  if (aplica("grupo") && f.grupo && f.grupo !== "sin_solicitar" && grupoDeEstudio(e) !== f.grupo) return false;
+  if (aplica("grupo") && f.grupo && f.grupo !== "sin_solicitar" && f.grupo !== "solicitaron" && grupoDeEstudio(e) !== f.grupo) return false;
   return true;
 }
 
@@ -647,7 +649,7 @@ const CLAVES_EN_URL = [
 export const CLAVES_DE_URL: readonly string[] = [...CLAVES_EN_URL, "liquidadas"];
 
 const ESTADOS_VALIDOS = ["pendiente_revision", "rechazada", "sin_calendario", "al_dia", "vencida", "por_vencer", "falta_enviar"];
-const GRUPOS_VALIDOS = ["al_dia", "por_revisar", "por_completar", "en_falta", "sin_solicitar"];
+const GRUPOS_VALIDOS = ["solicitaron", "al_dia", "por_revisar", "por_completar", "en_falta", "sin_solicitar"];
 
 export function filtrosAUrl(f: Filtros): string {
   const p = new URLSearchParams();
@@ -655,6 +657,7 @@ export function filtrosAUrl(f: Filtros): string {
     const v = f[k];
     if (v && v !== FILTROS_VACIOS[k]) p.set(k, String(v));
   }
+  if (f.grupo === null) p.set("grupo", "todos");
   if (f.liquidadas) p.set("liquidadas", "1");
   return p.toString();
 }
@@ -669,7 +672,7 @@ export function filtrosDeUrl(p: { get(k: string): string | null }): Filtros {
   f.estado = ESTADOS_VALIDOS.includes(estado) ? (estado as EstadoConstancia) : "";
   f.institucion = p.get("institucion") ?? "";
   const vig = p.get("vigencia");
-  f.vigencia = vig === "terminada" || vig === "todas" ? vig : "activas";
+  f.vigencia = vig === "terminada" || vig === "activas" ? vig : "todas";
   const quien = p.get("quien");
   f.quien = quien === "hijo" || quien === "trabajador" ? quien : "";
   const tipo = p.get("tipo") ?? "";
@@ -681,7 +684,7 @@ export function filtrosDeUrl(p: { get(k: string): string | null }): Filtros {
   // `mes` y el rango libre son excluyentes: si el enlace trae los dos, manda el mes.
   if (f.mes) { f.desde = ""; f.hasta = ""; }
   const grupo = p.get("grupo") ?? "";
-  f.grupo = GRUPOS_VALIDOS.includes(grupo) ? (grupo as GrupoEducacion) : null;
+  f.grupo = grupo === "todos" ? null : GRUPOS_VALIDOS.includes(grupo) ? (grupo as GrupoEducacion) : FILTROS_VACIOS.grupo;
   f.liquidadas = p.get("liquidadas") === "1";
   return f;
 }

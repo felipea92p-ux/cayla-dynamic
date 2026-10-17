@@ -385,7 +385,16 @@ function EducacionContenido() {
   const delAlcance = estudios.filter((e) => pasaFiltros(e, filtros, ctx, ["tarjeta", "grupo"]));
   const conteo = conteoTarjetas(delAlcance, familiasConPendiente);
   const deLaBusqueda = estudios.filter((e) => pasaFiltros(e, filtros, ctx, ["grupo"]));
-  const visibles = deLaBusqueda.filter((e) => filtros.grupo === null || filtros.grupo === "sin_solicitar" || grupoDeEstudio(e) === filtros.grupo);
+  // «TODOS» ES TODOS, SIN EXCEPCIÓN (Felipe, 2026-10-17): también los estudios de personas ya
+  // liquidadas, que las demás pastillas dejan fuera por defecto, y al final quienes no pidieron
+  // educación. «Estado del apoyo» ya arranca en «Todos»; si alguien lo cambia, se respeta.
+  // «Solicitaron» (la vista por defecto) muestra esos mismos estudios, sin quienes nunca pidieron.
+  const todos = filtros.grupo === null;
+  const todosLosEstudios = todos || filtros.grupo === "solicitaron";
+  const filtrosDeTodos: Filtros = { ...filtros, liquidadas: true };
+  const deTodos = estudios.filter((e) => pasaFiltros(e, filtrosDeTodos, ctx, ["grupo"]));
+  const visibles = todosLosEstudios ? deTodos
+    : deLaBusqueda.filter((e) => filtros.grupo === "sin_solicitar" || grupoDeEstudio(e) === filtros.grupo);
 
   const sedesConConteo = useMemo(() => {
     const sinSede = estudios.filter((e) => pasaFiltros(e, filtros, ctx, ["sede"]));
@@ -393,10 +402,10 @@ function EducacionContenido() {
   }, [estudios, filtros, ctx, sedes]);
 
   // Quién no pidió nada: personas activas sin estudio ni solicitud por revisar.
-  const sinSolicitar = personasSinSolicitar(candidatos, situaciones, solicitudesPendientes, liquidadas, filtros.liquidadas)
+  const sinSolicitar = personasSinSolicitar(candidatos, situaciones, solicitudesPendientes, liquidadas, todos || filtros.liquidadas)
     .filter((c) => (!filtros.sede || c.sede === filtros.sede) && (!filtros.buscar.trim() || c.persona.toLowerCase().includes(filtros.buscar.trim().toLowerCase())));
   const conteoGrupo: Record<GrupoEducacion, number> = {
-    al_dia: 0, por_revisar: 0, por_completar: 0, en_falta: 0, sin_solicitar: sinSolicitar.length,
+    solicitaron: deTodos.length, al_dia: 0, por_revisar: 0, por_completar: 0, en_falta: 0, sin_solicitar: sinSolicitar.length,
   };
   for (const e of deLaBusqueda) conteoGrupo[grupoDeEstudio(e)] += 1;
   const niveles = useMemo(() => nivelesDeApoyo(candidatos), [candidatos]);
@@ -799,7 +808,7 @@ function EducacionContenido() {
                   alTocar={(clave) => cambiar({ tarjeta: filtros.tarjeta === clave ? null : clave as Filtros["tarjeta"] })}
                   extra={conteo.sinCalendario > 0 ? (
                     <button type="button" className="rounded-full border border-dashed border-taupe px-3 py-1 text-xs text-taupe hover:text-tinta"
-                      onClick={() => cambiar({ estado: "sin_calendario", tarjeta: null, grupo: null })}>
+                      onClick={() => cambiar({ estado: "sin_calendario", tarjeta: null, grupo: "solicitaron" })}>
                       {conteo.sinCalendario} sin calendario de pagos
                     </button>
                   ) : null}
@@ -833,7 +842,7 @@ function EducacionContenido() {
                   filtros={filtros} cambiar={cambiar} limpiar={limpiarFiltros}
                   opciones={{
                     sedes: sedesConConteo.porSede, totalSedes: sedesConConteo.total,
-                    grupos: conteoGrupo, totalGrupos: deLaBusqueda.length,
+                    grupos: conteoGrupo, totalGrupos: deTodos.length + sinSolicitar.length,
                     meses: periodos, instituciones, revisores, cargandoConstancias,
                   }}
                   descargas={{ csv: descargarCuadro, zip: () => void descargarZip(), zipDisponible, ocupado: descargando }}
@@ -845,48 +854,17 @@ function EducacionContenido() {
                   </div>
                 )}
 
-                {filtros.grupo === "sin_solicitar" ? (
-                  sinSolicitar.length === 0 ? (
-                    <EstadoVacio>Todas las personas activas tienen un apoyo o una solicitud en curso.</EstadoVacio>
-                  ) : (
-                    <div className="overflow-x-auto rounded-superficie border border-sand">
-                      <table className="w-full text-sm">
-                        <thead className="bg-hueso text-left text-xs uppercase tracking-wide text-taupe">
-                          <tr>
-                            <th className="px-4 py-2 font-medium">Persona</th>
-                            <th className="px-4 py-2 font-medium">Techo mensual de su rango</th>
-                            <th className="px-4 py-2"><span className="sr-only">Acción</span></th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {sinSolicitar.map((c) => (
-                            <tr key={c.persona_id} className="border-t border-sand">
-                              <td className="px-4 py-3">
-                                <span className="font-medium">{c.persona}</span>
-                                <span className="block text-xs text-taupe">{c.sede} · {c.rango === "—" ? "sin rango asignado" : c.rango}</span>
-                              </td>
-                              <td className="px-4 py-3 tabular-nums">{c.tope === null ? "sin techo cargado" : soles(c.tope)}</td>
-                              <td className="px-4 py-3 text-right">
-                                <Boton variante="secundario" tamano="sm"
-                                  onClick={(e) => { botonRegistrar.current = e.currentTarget; empezarAlta(); setForm((f) => ({ ...f, personaId: c.persona_id })); }}>
-                                  Registrar apoyo
-                                </Boton>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )
-                ) : situaciones.length === 0 ? (
+                {filtros.grupo === "sin_solicitar" && sinSolicitar.length === 0 ? (
+                  <EstadoVacio>Todas las personas activas tienen un apoyo o una solicitud en curso.</EstadoVacio>
+                ) : situaciones.length === 0 && sinSolicitar.length === 0 ? (
                   <EstadoVacio>Todavía no hay ningún apoyo educativo registrado.</EstadoVacio>
-                ) : visibles.length === 0 ? (
+                ) : visibles.length === 0 && !((todos || filtros.grupo === "sin_solicitar") && sinSolicitar.length > 0) ? (
                   <EstadoVacio accion={<Boton variante="secundario" onClick={limpiarFiltros}>Limpiar filtros</Boton>}>
                     Nada coincide con estos filtros.
                   </EstadoVacio>
                 ) : (
                   <CuadriculaMeses
-                    estudios={visibles} meses={ventana.meses} hayMasMeses={ventana.hayMas}
+                    estudios={filtros.grupo === "sin_solicitar" ? [] : visibles} meses={ventana.meses} hayMasMeses={ventana.hayMas}
                     onVerMasMeses={() => setMesesPedidos((n) => Math.max(n, ventana.meses.length) + MESES_POR_PASO)}
                     mesResaltado={filtros.mes} entregasPorFamilia={entregasPorFamilia} cargandoConstancias={cargandoConstancias}
                     familiasSinLeer={familiasSinLeer}
@@ -894,6 +872,8 @@ function EducacionContenido() {
                     resumenesSede={filtros.sede === "" && resumenes.length > 1 ? resumenes : null}
                     onAbrirVisor={abrirVisor} onAbrirEstudio={abrirEstudio}
                     coberturas={coberturas} apoyoPagado={apoyoPagado}
+                    sinSolicitar={todos || filtros.grupo === "sin_solicitar" ? sinSolicitar : []}
+                    onRegistrar={(boton, personaId) => { botonRegistrar.current = boton; empezarAlta(); setForm((f) => ({ ...f, personaId })); }}
                   />
                 )}
 
