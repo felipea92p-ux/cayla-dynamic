@@ -16,6 +16,8 @@
   QUÉ DECIDIÓ FELIPE (2026-10-17):
     · firma con la que ya está guardada en Mi perfil → Firma (copia congelada),
     · firmar es obligatorio (la salida es «Entregada en papel», que ya existe),
+    · DO puede anular una boleta ya aprobada y restablecerla dentro de 48 h
+      (decisión del mismo día, tras ver el prototipo),
     · (cambió el mismo día) DO ve la boleta firmada: la boleta con la firma
       estampada y su constancia (quién, cuándo),
     · la carga sigue siendo persona por persona.
@@ -143,6 +145,14 @@
   .velo{ position:absolute; inset:0; background:rgba(0,0,0,.45); display:flex; align-items:center; justify-content:center; padding:16px; z-index:5; }
   .modal{ background:var(--color-papel); border:1px solid var(--color-sand); border-radius:16px; width:min(480px,100%); max-height:100%; overflow:auto; padding:20px; display:flex; flex-direction:column; gap:14px; }
   .modal.ancho{ width:min(620px,100%); }
+  .datos{ display:grid; grid-template-columns:1fr 1fr; gap:8px 14px; margin:0; background:var(--color-crema); border:1px solid var(--color-sand); border-radius:12px; padding:10px 12px; font-size:.82rem; }
+  .datos dt{ color:var(--color-taupe); font-size:.68rem; text-transform:uppercase; letter-spacing:.04em; }
+  .datos dd{ margin:0; font-weight:600; }
+  .previa{ max-height:210px; overflow:auto; border:1px solid var(--color-sand); border-radius:10px; padding:8px; background:var(--color-crema); }
+  .alerta-caja{ border:1px solid var(--color-rojo); background:color-mix(in oklab, var(--color-rojo) 8%, var(--color-papel)); border-radius:10px; padding:10px 12px; font-size:.82rem; }
+  .campo{ width:100%; border:1px solid var(--color-taupe); border-radius:10px; padding:8px 10px; background:var(--color-crema); }
+  .lbl{ font-size:.74rem; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--color-taupe); }
+  .marca{ font-size:.7rem; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--color-rojo); }
   .modal h3{ font-size:1.3rem; }
   .sello{ border:1px solid var(--color-sand); background:var(--color-crema); border-radius:12px; padding:12px; display:flex; flex-direction:column; gap:8px; }
   .sello b{ font-size:.7rem; letter-spacing:.05em; text-transform:uppercase; color:var(--color-verde); }
@@ -246,6 +256,9 @@
         <select class="sel" id="selPersona" aria-label="Ver el celular como"></select>
       </label>
       <label class="chk"><input type="checkbox" id="chkFirma"> Ya tiene su firma guardada</label>
+      <span class="chk" id="relojTxt">Reloj de la demo: hoy</span>
+      <button class="btn sec" data-act="reloj" data-h="24">Adelantar 24 h</button>
+      <button class="btn sec" data-act="reloj" data-h="49">Adelantar 49 h</button>
       <button class="btn sec" id="btnReset">Reiniciar demo</button>
     </div>
   </header>
@@ -274,6 +287,8 @@
         <li><strong>«Confirmar que la recibí» se reemplaza por «Firmar».</strong> Sigue exigiendo haber abierto la boleta antes: firmar sin verla no dice nada.</li>
         <li><strong>La firma se copia en esa boleta</strong> al firmar. Si la colaboradora cambia su firma después, las boletas ya firmadas conservan la que usó ese día (mismo criterio del memo y del contrato).</li>
         <li><strong>Sin firma guardada</strong>, el sistema se la hace crear ahí mismo, una sola vez. Activa o apaga «Ya tiene su firma guardada» arriba para verlo.</li>
+        <li><strong>DO puede anular una boleta ya aprobada</strong> («Anular» en la fila). El modal muestra el nombre, la sede, el periodo, las fechas, la boleta y la constancia de firma, para comprobar que es la correcta; pide un motivo (lista o «Otro», mínimo 5 letras) y un check con el nombre de la persona.</li>
+        <li><strong>Se puede restablecer durante 48 h.</strong> «Adelantar 49 h» (arriba) muestra el plazo vencido. La boleta de Julia ya está anulada: pruébala.</li>
         <li><strong>DO ve la boleta firmada:</strong> la boleta con la constancia de firma (la firma estampada, quién y cuándo) desde «Ver boleta firmada», y la puede descargar. Pruébalo en la fila de Rosa, que ya firmó.</li>
       </ul>
     </div>
@@ -282,6 +297,10 @@
       <ul>
         <li><strong>Firmar es obligatorio.</strong> Quien no tenga cuenta, no pueda firmar o se niegue queda sin boleta recibida. La única salida es «Entregada en papel» de DO, que ya existe; el prototipo la deja visible en cada fila.</li>
         <li><strong>Quién ve la firma.</strong> Hoy la ve DO y la propia persona. La líder de equipo no ve boletas, y por tanto tampoco firmas.</li>
+        <li><strong>Al restablecer, la firma vuelve intacta</strong> (supuesto mío): la persona no tiene que firmar otra vez, porque el documento es el mismo. Si prefieres que firme de nuevo, es un cambio de una línea.</li>
+        <li><strong>La persona ve «En revisión», sin motivo</strong> y sin aviso de que se anuló. ¿Quieres que se le avise?</li>
+        <li><strong>Pasadas las 48 h</strong> ya no se restablece: solo «Subir boleta nueva». La anulación queda en el historial.</li>
+        <li><strong>En producción</strong> ya existe «anular» (migración 0482: motivo de 5 letras, deja rastro) pero es definitivo y no muestra la constancia. Restablecer exige guardar el estado previo y una función nueva con el tope de 48 h.</li>
         <li><strong>Reemplazar una boleta ya firmada</strong> reinicia la firma: es otro documento (regla de la 0482). No se muestra aquí.</li>
         <li><strong>No es firma digital certificada.</strong> Es constancia de recepción con fecha y hora, como el memo. Conviene que el contador confirme que le basta para dejar el papel.</li>
         <li><strong>Para llevarlo a producción</strong> haría falta una migración nueva (la firma copiada y la función que la escribe), el cambio del botón y su prueba. La migración se pega antes de fusionar.</li>
@@ -319,7 +338,17 @@
     vista:     ['Abierta · sin firmar',  'info'],
     firmada:   ['Firmada',               'ok'],
     papel:     ['Entregada en papel',    'ok'],
+    anulada:   ['Anulada',               'neutro'],
   };
+  const VENTANA = 48*3600*1000;   // plazo para restablecer una anulación
+  const MOTIVOS = [
+    ['otra_persona', 'Se subió la boleta de otra persona'],
+    ['otro_periodo', 'Es de otro periodo'],
+    ['datos',        'Los montos o datos están mal (el contador la corrige)'],
+    ['ilegible',     'El archivo no se lee bien'],
+    ['error',        'Se publicó por error'],
+    ['otro',         'Otro motivo…'],
+  ];
   let toastT;
   function aviso(txt){
     const t = $('#toast'); t.textContent = txt; t.classList.remove('oculto');
@@ -328,8 +357,10 @@
 
   /* ───────── estado ───────── */
   let S, ultimaPant = null;
+  const ahora = () => Date.now() + (S ? S.off : 0);
   function reiniciar(){
     const t = Date.now(), h = 3600*1000, d = 24*h;
+    const jPrev = { estado:'publicada', hojas:[{ nombre:'boleta-ejemplo.jpg', tipo:'imagen', url:null, kb:412 }], subida:t-3*d, publicada:t-3*d+h, vista:t-2*d, firmada:t-2*d+h, firma:{ tipo:'tipografica', estilo:'clasica' } };
     const ej = [{ nombre:'boleta-ejemplo.jpg', tipo:'imagen', url:null, kb:412 }];
     S = {
       foco: 'c',
@@ -338,22 +369,40 @@
         { id:'l', nombre:'Lucía Paredes Soto',  sede:'LIM', conCuenta:true,  estado:'publicada', hojas:ej, subida:t-2*d, publicada:t-2*d+h, vista:null, firmada:null, firma:null },
         { id:'m', nombre:'Marta Quispe Díaz',   sede:'AQP', conCuenta:true,  estado:'publicada', hojas:ej, subida:t-2*d, publicada:t-2*d+h, vista:t-d, firmada:null, firma:null },
         { id:'r', nombre:'Rosa Huamán Lara',    sede:'CCO', conCuenta:true,  estado:'publicada', hojas:ej, subida:t-2*d, publicada:t-2*d+h, vista:t-d-3*h, firmada:t-d-2*h, firma:{ tipo:'tipografica', estilo:'elegante' } },
+        { id:'j', nombre:'Julia Ramos Cueva',   sede:'LIM', conCuenta:true,  estado:'anulada',   hojas:jPrev.hojas, subida:jPrev.subida, publicada:jPrev.publicada, vista:null, firmada:null, firma:null,
+          anulada:{ at:t-20*h, motivo:'Se subió la boleta de otra persona', prev:jPrev },
+          hist:[{ t:t-20*h, txt:'Anulada por DO · Se subió la boleta de otra persona' }] },
         { id:'a', nombre:'Ana Flores Tapia',    sede:'TRU', conCuenta:false, estado:'papel',     hojas:[], subida:null, publicada:t-d, vista:null, firmada:null, firma:null },
       ],
       // La firma guardada en «Mi perfil → Firma» de cada una.
-      guardada: { c:null, l:{tipo:'tipografica',estilo:'a_mano'}, m:{tipo:'tipografica',estilo:'clasica'}, r:{tipo:'tipografica',estilo:'elegante'}, a:null },
+      guardada: { j:{tipo:'tipografica',estilo:'clasica'}, c:null, l:{tipo:'tipografica',estilo:'a_mano'}, m:{tipo:'tipografica',estilo:'clasica'}, r:{tipo:'tipografica',estilo:'elegante'}, a:null },
       cel: { pant:'resumen', hoja:null, paso:0, metodo:'escribir', estiloSel:'elegante', trazo:false },
-      modal: null,         // { t:'subir'|'publicar'|'papel'|'detalle', id }
+      off: 0,              // adelanto del reloj de la demo, en ms
+      anular: { motivo:'', texto:'', ok:false },
+      modal: null,         // { t:'subir'|'publicar'|'papel'|'detalle'|'firmada'|'anular'|'restablecer'|'anulada', id }
       borrador: { tipo:'imagen', hojas:[] },
     };
     render();
   }
   const persona = (id) => S.personas.find((p) => p.id === id);
   function visible(p){
+    if(p.estado === 'anulada') return 'anulada';
     if(p.estado === 'publicada') return p.firmada ? 'firmada' : (p.vista ? 'vista' : 'publicada');
     return p.estado;
   }
   const iniciales = (p) => p.nombre.split(' ')[0];
+  // La boleta tal como estaba antes de anularse (para mostrarla y para restablecerla).
+  const origen = (p) => p.anulada ? Object.assign({}, p, p.anulada.prev) : p;
+  const restablecible = (p) => !!p.anulada && (ahora() - p.anulada.at) < VENTANA;
+  function quedan(p){
+    const ms = VENTANA - (ahora() - p.anulada.at); if(ms <= 0) return '';
+    const h = Math.floor(ms / 3600000), m = Math.floor((ms % 3600000) / 60000);
+    return `${h} h ${String(m).padStart(2,'0')} min`;
+  }
+  function anularValido(){
+    const a = S.anular; if(!a.motivo || !a.ok) return false;
+    return a.motivo !== 'otro' || a.texto.trim().length >= 5;
+  }
 
   /* ───────── la boleta (papel) ───────── */
   function hojaEjemplo(p){
@@ -387,12 +436,13 @@
 
   /* ───────── PANEL DE DO ───────── */
   function contar(){
-    const c = { falta:0, borrador:0, espera:0, firmada:0 };
+    const c = { falta:0, borrador:0, espera:0, firmada:0, anuladas:0 };
     S.personas.forEach((p) => {
       const v = visible(p);
       if(v === 'falta') c.falta++;
       else if(v === 'borrador') c.borrador++;
       else if(v === 'publicada' || v === 'vista') c.espera++;
+      else if(v === 'anulada') c.anuladas++;
       else c.firmada++;
     });
     return c;
@@ -407,10 +457,14 @@
       b.push(`<button class="btn sec fino" data-act="subir" data-id="${p.id}">Editar</button>`);
     } else if(v === 'publicada' || v === 'vista'){
       b.push(`<button class="btn sec fino" data-act="detalle" data-id="${p.id}">Ver detalle</button>`);
-      b.push(`<button class="btn sec fino" data-act="papel" data-id="${p.id}">Entregada en papel</button>`);
+      b.push(`<button class="btn sec fino" data-act="anular" data-id="${p.id}">Anular</button>`);
     } else if(v === 'firmada'){
       b.push(`<button class="btn fino" data-act="verFirmada" data-id="${p.id}">Ver boleta firmada</button>`);
-      b.push(`<button class="btn sec fino" data-act="detalle" data-id="${p.id}">Detalle</button>`);
+      b.push(`<button class="btn sec fino" data-act="anular" data-id="${p.id}">Anular</button>`);
+    } else if(v === 'anulada'){
+      if(restablecible(p)) b.push(`<button class="btn rojo fino" data-act="restablecer" data-id="${p.id}">Restablecer</button>`);
+      else b.push(`<button class="btn fino" data-act="subir" data-id="${p.id}">Subir boleta nueva</button>`);
+      b.push(`<button class="btn sec fino" data-act="verAnulacion" data-id="${p.id}">Ver anulación</button>`);
     }
     return b.join('');
   }
@@ -421,6 +475,7 @@
     else if(v === 'vista') fecha = `<small>Abierta ${fmt(p.vista)}</small>`;
     else if(v === 'publicada') fecha = `<small>Publicada ${fmt(p.publicada)}</small>`;
     else if(v === 'papel') fecha = `<small>${fmt(p.publicada)}</small>`;
+    else if(v === 'anulada') fecha = `<small>${restablecible(p) ? 'Se puede restablecer: quedan ' + quedan(p) : 'Plazo de 48 h vencido'}</small>`;
     return `<div class="fila ${p.id === S.foco ? 'foco' : ''}">
       <div class="nom">${esc(p.nombre)}${p.conCuenta ? '' : '<small>Sin cuenta en el sistema</small>'}</div>
       <div class="sed">${p.sede}</div>
@@ -475,7 +530,61 @@
           <p>Firmada por ${esc(p.nombre)} el ${fmt(p.firmada)}</p>
           <p>La firma es la copia que usó ese día: si cambia su firma después, esta boleta no cambia.</p>
           <p>Publicada el ${fmt(p.publicada)} · abierta por primera vez el ${fmt(p.vista)}</p></div>
-        <div class="pie"><button class="btn sec" data-act="descargar">Descargar con firma</button><button class="btn" data-act="cerrar">Cerrar</button></div></div></div>`;
+        <div class="pie"><button class="btn sec" data-act="anular" data-id="${p.id}">Anular</button><button class="btn sec" data-act="descargar">Descargar con firma</button><button class="btn" data-act="cerrar">Cerrar</button></div></div></div>`;
+    }
+    if(m.t === 'anular'){
+      const q = p, a = S.anular, firmada = !!q.firmada;
+      const hasta = fmt(ahora() + VENTANA);
+      return `<div class="velo"><div class="modal ancho" role="dialog" aria-label="Anular boleta">
+        <div><span class="marca">Anular boleta</span><h3>${esc(p.nombre)} · ${PERIODO}</h3>
+          <p class="sub">Revisa que sea la persona y la boleta correctas antes de anular.</p></div>
+        <dl class="datos">
+          <div><dt>Persona</dt><dd>${esc(p.nombre)}</dd></div><div><dt>Sede</dt><dd>${p.sede}</dd></div>
+          <div><dt>Periodo</dt><dd>${PERIODO} · 29 ago – 28 sep</dd></div><div><dt>Estado ahora</dt><dd>${ETIQUETA[visible(p)][0]}</dd></div>
+          <div><dt>Subida por DO</dt><dd>${fmt(p.subida)}</dd></div><div><dt>Publicada</dt><dd>${fmt(p.publicada)}</dd></div>
+          <div><dt>Abierta por ${esc(iniciales(p))}</dt><dd>${fmt(p.vista)}</dd></div><div><dt>Firmada</dt><dd>${fmt(p.firmada)}</dd></div>
+        </dl>
+        <div><p class="lbl" style="margin-bottom:6px">La boleta</p><div class="previa">${hojasHTML(p)}</div></div>
+        ${firmada
+          ? `<div class="sello"><b>Constancia de firma</b>${firmaHTML(p.firma, p)}<p>Firmada por ${esc(p.nombre)} el ${fmt(p.firmada)}</p></div>`
+          : `<p class="nota-caja">Todavía no firmó: no hay constancia de firma.</p>`}
+        <div><label class="lbl" for="anMotivo">Motivo (queda anotado junto a la boleta)</label>
+          <select class="campo" id="anMotivo" style="margin-top:6px"><option value="">Elige un motivo…</option>
+            ${MOTIVOS.map(([k, t]) => `<option value="${k}" ${a.motivo===k?'selected':''}>${t}</option>`).join('')}</select>
+          ${a.motivo === 'otro' ? `<textarea class="campo" id="anTexto" rows="2" placeholder="Escribe el motivo (mínimo 5 letras)" style="margin-top:8px">${esc(a.texto)}</textarea>
+            <p class="sub" id="anCont" style="margin-top:4px"></p>` : ''}</div>
+        <div class="alerta-caja">Qué pasa al anular: ${esc(iniciales(p))} deja de ver la boleta en «Lo mío» y ve que está en revisión.
+          ${firmada ? 'Su firma queda guardada: no se pierde.' : ''}
+          <strong>Tienes 48 horas para restablecerla (hasta el ${hasta}).</strong> Pasado ese plazo, hay que subir una boleta nueva.</div>
+        <label class="chk" style="align-self:flex-start"><input type="checkbox" id="anOk" ${a.ok?'checked':''}> Confirmo que es la boleta de ${esc(p.nombre)} · ${PERIODO}</label>
+        <div class="pie"><button class="btn sec" data-act="cerrar">Cancelar</button>
+          <button class="btn rojo" id="btnAnular" data-act="anularOk" data-id="${p.id}" ${anularValido()?'':'disabled'}>Anular boleta</button></div></div></div>`;
+    }
+    if(m.t === 'restablecer'){
+      const q = origen(p), v = q.firmada ? 'firmada' : (q.vista ? 'vista' : 'publicada');
+      return `<div class="velo"><div class="modal" role="dialog" aria-label="Restablecer boleta">
+        <div><span class="marca" style="color:var(--color-verde)">Restablecer</span><h3>¿Restablecer la boleta de ${esc(p.nombre)}?</h3>
+          <p class="sub">${PERIODO} · ${p.sede}</p></div>
+        <dl class="datos">
+          <div><dt>Se anuló</dt><dd>${fmt(p.anulada.at)}</dd></div><div><dt>Quedan para restablecer</dt><dd>${quedan(p)}</dd></div>
+          <div style="grid-column:1/-1"><dt>Motivo de la anulación</dt><dd>${esc(p.anulada.motivo)}</dd></div>
+        </dl>
+        <p class="nota-caja">Vuelve exactamente como estaba: <strong>${ETIQUETA[v][0]}</strong>${q.firmada ? ` el ${fmt(q.firmada)}, con su firma intacta` : ''}. ${esc(iniciales(p))} la vuelve a ver en «Lo mío». Queda anotado en el historial que se anuló y se restableció.</p>
+        <div class="pie"><button class="btn sec" data-act="cerrar">Volver</button><button class="btn rojo" data-act="restablecerOk" data-id="${p.id}">Restablecer boleta</button></div></div></div>`;
+    }
+    if(m.t === 'anulada'){
+      const q = origen(p), ok = restablecible(p);
+      return `<div class="velo"><div class="modal ancho" role="dialog" aria-label="Boleta anulada">
+        <div><span class="marca">Boleta anulada</span><h3>${esc(p.nombre)} · ${PERIODO}</h3>
+          <p class="sub">${p.sede} · <span class="ins neutro">Anulada</span> ${ok ? '· se puede restablecer: quedan ' + quedan(p) : '· plazo de 48 h vencido'}</p></div>
+        <dl class="datos">
+          <div><dt>Anulada</dt><dd>${fmt(p.anulada.at)}</dd></div><div><dt>Por</dt><dd>DO</dd></div>
+          <div style="grid-column:1/-1"><dt>Motivo</dt><dd>${esc(p.anulada.motivo)}</dd></div></dl>
+        <div><p class="lbl" style="margin-bottom:6px">Lo que se anuló</p><div class="previa">${hojasHTML(q)}</div></div>
+        ${q.firmada ? `<div class="sello"><b>Constancia de firma (se conserva)</b>${firmaHTML(q.firma, p)}<p>Firmada por ${esc(p.nombre)} el ${fmt(q.firmada)}</p></div>` : ''}
+        <ul class="linea">${(p.hist || []).map((h) => `<li class="si"><div>${esc(h.txt)}<small>${fmt(h.t)}</small></div></li>`).join('')}</ul>
+        <div class="pie">${ok ? `<button class="btn rojo" data-act="restablecer" data-id="${p.id}">Restablecer</button>` : `<button class="btn" data-act="subir" data-id="${p.id}">Subir boleta nueva</button>`}
+          <button class="btn sec" data-act="cerrar">Cerrar</button></div></div></div>`;
     }
     if(m.t === 'detalle'){
       const v = visible(p), [txt, tono] = ETIQUETA[v];
@@ -487,10 +596,12 @@
           ${ev(!!p.publicada, 'Publicada', p.publicada)}
           ${ev(!!p.vista, 'Abierta por ' + esc(iniciales(p)) + ' por primera vez', p.vista)}
           ${ev(!!p.firmada, 'Firmada por ' + esc(iniciales(p)), p.firmada)}
+          ${(p.hist || []).map((h) => `<li class="si"><div>${esc(h.txt)}<small>${fmt(h.t)}</small></div></li>`).join('')}
         </ul>
         ${v === 'firmada' ? '' : `<p class="nota-caja">Mientras no firme, la boleta sigue pendiente. Si no puede firmar desde el sistema, usa «Entregada en papel».</p>`}
         <div class="pie">
           ${v === 'firmada' ? `<button class="btn sec" data-act="verFirmada" data-id="${p.id}">Ver boleta firmada</button>` : `<button class="btn sec" data-act="papel" data-id="${p.id}">Entregada en papel</button>`}
+          <button class="btn sec" data-act="anular" data-id="${p.id}">Anular</button>
           <button class="btn" data-act="cerrar">Cerrar</button></div></div></div>`;
     }
     return '';
@@ -514,6 +625,7 @@
             <div class="cifra ${c.espera ? 'hot' : ''}"><b>${c.espera}</b><span>Esperan su firma</span></div>
             <div class="cifra"><b>${c.firmada}</b><span>Firmadas o en papel</span></div>
           </div>
+          ${c.anuladas ? `<p class="sub" style="color:var(--color-taupe);font-size:.8rem">${c.anuladas} boleta${c.anuladas>1?'s':''} anulada${c.anuladas>1?'s':''} · no cuenta${c.anuladas>1?'n':''} en las cifras de arriba.</p>` : ''}
           <div class="tabla" role="table" aria-label="Boletas del periodo">
             <div class="fila cab-t" role="row"><div>Persona</div><div>Sede</div><div>Estado</div><div></div></div>
             ${S.personas.map(filaDO).join('')}
@@ -615,6 +727,8 @@
               ${p.firmada ? '' : `<button class="btn grande" data-act="celIrFirmar" ${p.vista ? '' : 'disabled'}>Firmar</button>
               <p class="sub">${p.vista ? 'Ya la abriste: puedes firmarla.' : 'Ábrela con «Ver mi boleta» para poder firmarla.'}</p>`}
             </div></div>`;
+      } else if(p.estado === 'anulada'){
+        cuerpo = `<div class="tarjeta"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><h4>${PERIODO}</h4><span class="ins aviso">En revisión</span></div><p class="sub">Desarrollo Organizacional está revisando tu boleta. Te avisaremos cuando esté lista.</p></div>`;
       } else if(p.estado === 'papel'){
         cuerpo = `<div class="tarjeta"><h4>${PERIODO}</h4><p class="sub">Tu boleta se te entregó en papel el ${fmt(p.publicada)}</p></div>`;
       } else {
@@ -669,7 +783,7 @@
       'En el celular, entra a <strong>Boletas</strong> (tiene un globito) y pulsa <strong>«Ver mi boleta»</strong>. Fíjate que «Firmar» sigue apagado hasta que la abra.',
       'Camila ya la abrió. Pulsa <strong>«Firmar»</strong> y sigue los pasos (su firma aún no está guardada: la creará ahí mismo).',
       'En la computadora, la fila de Camila pasó a <strong>«Firmada»</strong> con fecha y hora. Pulsa <strong>«Ver boleta firmada»</strong> para ver la boleta con su firma estampada.',
-      'Recorrido completo. Reinicia la demo para repetirlo, o cambia «Ver el celular como» para probar otros casos (por ejemplo Lucía, que aún no abrió la suya).',
+      'Recorrido completo. Ahora prueba <strong>anular</strong>: en la fila de Camila o de Rosa pulsa «Anular». La de <strong>Julia</strong> ya está anulada hace 20 h: pulsa «Restablecer». Con «Adelantar 49 h» verás qué pasa cuando vence el plazo.',
     ];
     $('#pista').innerHTML = (ahora === -1 ? pistas[5] : pistas[ahora]);
   }
@@ -678,6 +792,7 @@
     const sel = $('#selPersona'), actual = sel.value || S.foco;
     sel.innerHTML = S.personas.filter((p) => p.conCuenta).map((p) => `<option value="${p.id}" ${p.id === actual ? 'selected' : ''}>${esc(p.nombre)} · ${p.sede}</option>`).join('');
     $('#chkFirma').checked = !!S.guardada[sel.value];
+    $('#relojTxt').textContent = S.off ? 'Reloj de la demo: +' + Math.round(S.off/3600000) + ' h' : 'Reloj de la demo: hoy';
     renderDO(); renderCel(); renderRecorrido();
   }
 
@@ -692,24 +807,43 @@
       case 'tipo': S.borrador = { tipo: el.dataset.v, hojas: [] }; break;
       case 'ejemplo': S.borrador.hojas.push({ nombre:'boleta-ejemplo.' + (S.borrador.tipo === 'pdf' ? 'pdf' : 'jpg'), tipo:S.borrador.tipo, url:null, kb:412 }); break;
       case 'quitarHoja': S.borrador.hojas.splice(+el.dataset.i, 1); break;
-      case 'guardar': { const p = persona(S.modal.id); p.hojas = S.borrador.hojas; p.estado = 'borrador'; p.subida = Date.now(); S.modal = null; aviso('Boleta guardada. ' + iniciales(p) + ' todavía no la ve.'); break; }
+      case 'guardar': { const p = persona(S.modal.id); p.hojas = S.borrador.hojas; p.estado = 'borrador'; p.anulada = null; p.vista = null; p.firmada = null; p.firma = null; p.publicada = null; p.subida = ahora(); S.modal = null; aviso('Boleta guardada. ' + iniciales(p) + ' todavía no la ve.'); break; }
       case 'publicar': S.modal = { t:'publicar', id }; break;
-      case 'publicarOk': { const p = persona(id); p.estado = 'publicada'; p.publicada = Date.now(); S.modal = null; aviso('Publicada. ' + iniciales(p) + ' recibió el aviso.'); break; }
+      case 'publicarOk': { const p = persona(id); p.estado = 'publicada'; p.publicada = ahora(); S.modal = null; aviso('Publicada. ' + iniciales(p) + ' recibió el aviso.'); break; }
       case 'papel': S.modal = { t:'papel', id }; break;
-      case 'papelOk': { const p = persona(id); p.estado = 'papel'; p.publicada = Date.now(); S.modal = null; aviso('Anotada como entregada en papel.'); break; }
+      case 'papelOk': { const p = persona(id); p.estado = 'papel'; p.publicada = ahora(); S.modal = null; aviso('Anotada como entregada en papel.'); break; }
       case 'detalle': S.modal = { t:'detalle', id }; break;
       case 'verFirmada': S.modal = { t:'firmada', id }; break;
       case 'descargar': aviso('En la app real: baja la boleta con la constancia de firma (PDF).'); break;
+      case 'anular': S.anular = { motivo:'', texto:'', ok:false }; S.modal = { t:'anular', id }; break;
+      case 'anularOk': {
+        if(!anularValido()) return;
+        const p = persona(id), a = S.anular;
+        const motivo = a.motivo === 'otro' ? a.texto.trim() : MOTIVOS.find((m) => m[0] === a.motivo)[1];
+        p.anulada = { at: ahora(), motivo, prev: { estado:p.estado, hojas:p.hojas, subida:p.subida, publicada:p.publicada, vista:p.vista, firmada:p.firmada, firma:p.firma } };
+        p.hist = (p.hist || []).concat([{ t: ahora(), txt:'Anulada por DO · ' + motivo }]);
+        p.estado = 'anulada'; p.vista = null; p.firmada = null; p.firma = null;
+        S.modal = null; aviso('Boleta de ' + iniciales(p) + ' anulada. Puedes restablecerla durante 48 h.'); break;
+      }
+      case 'restablecer': S.modal = { t:'restablecer', id }; break;
+      case 'restablecerOk': {
+        const p = persona(id); if(!restablecible(p)){ S.modal = null; aviso('El plazo de 48 h ya venció.'); break; }
+        Object.assign(p, p.anulada.prev); p.anulada = null;
+        p.hist = (p.hist || []).concat([{ t: ahora(), txt:'Restablecida por DO' }]);
+        S.modal = null; aviso('Boleta restablecida: ' + iniciales(p) + ' la vuelve a ver.'); break;
+      }
+      case 'verAnulacion': S.modal = { t:'anulada', id }; break;
+      case 'reloj': S.off += (+el.dataset.h) * 3600 * 1000; aviso('Reloj adelantado ' + el.dataset.h + ' h.'); break;
       case 'cerrar': S.modal = null; break;
       // — celular —
       case 'celIr': c.pant = el.dataset.v; break;
-      case 'celVer': c.vuelve = 'boletas'; c.pant = 'visor'; if(!yo.vista){ yo.vista = Date.now(); aviso('Primera apertura anotada: ya puede firmarla.'); } break;
+      case 'celVer': c.vuelve = 'boletas'; c.pant = 'visor'; if(!yo.vista){ yo.vista = ahora(); aviso('Primera apertura anotada: ya puede firmarla.'); } break;
       case 'celVolver': c.pant = c.vuelve || 'boletas'; c.paso = 0; break;
       case 'celIrFirmar': if(!yo.vista) break; c.vuelve = 'boletas'; c.pant = 'firmar'; c.paso = 0; break;
       case 'celVerOtraVez': c.pant = 'visor'; break;
       case 'celFirmar1': c.paso = 1; break;
       case 'celFirmar0': c.paso = 0; break;
-      case 'celFirmarOk': yo.firmada = Date.now(); yo.firma = JSON.parse(JSON.stringify(S.guardada[yo.id])); c.pant = 'hecho'; c.paso = 0; break;
+      case 'celFirmarOk': yo.firmada = ahora(); yo.firma = JSON.parse(JSON.stringify(S.guardada[yo.id])); c.pant = 'hecho'; c.paso = 0; break;
       case 'metodo': c.metodo = el.dataset.v; c.trazo = false; break;
       case 'estilo': c.estiloSel = el.dataset.v; break;
       case 'limpiar': c.trazo = false; break;
@@ -734,6 +868,8 @@
       });
       render();
     }
+    if(e.target.id === 'anMotivo'){ S.anular.motivo = e.target.value; render(); const t = $('#anTexto'); if(t) t.focus(); actualizarAnular(); }
+    if(e.target.id === 'anOk'){ S.anular.ok = e.target.checked; actualizarAnular(); }
     if(e.target.id === 'selPersona'){ S.foco = e.target.value; S.cel = { pant:'resumen', paso:0, metodo:'escribir', estiloSel:'elegante', trazo:false }; render(); }
     if(e.target.id === 'chkFirma'){
       const id = $('#selPersona').value;
@@ -741,6 +877,11 @@
       render();
     }
   });
+  function actualizarAnular(){
+    const b = $('#btnAnular'); if(b) b.disabled = !anularValido();
+    const c = $('#anCont'); if(c){ const n = S.anular.texto.trim().length; c.textContent = n >= 5 ? n + ' letras' : n + ' de 5 letras como mínimo'; }
+  }
+  document.addEventListener('input', (e) => { if(e.target.id === 'anTexto'){ S.anular.texto = e.target.value; actualizarAnular(); } });
   $('#btnReset').addEventListener('click', () => { $('#selPersona').value = ''; reiniciar(); aviso('Demo reiniciada.'); });
 
   reiniciar();
