@@ -12,6 +12,7 @@ import { Boton } from "@/components/ui/boton";
 import { Insignia } from "@/components/ui/insignia";
 import { BannerAviso } from "@/components/ui/banner-aviso";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
+import { TarjetaInfo } from "@/components/ui/tarjeta-info";
 import { Modal } from "@/components/ui/modal";
 import { Tabla, TablaEncabezado, Th, Fila } from "@/components/ui/tabla";
 import { SubnavPoliticaSalarial } from "../_subnav";
@@ -206,15 +207,14 @@ export default function VersionesPoliticaSalarialPage() {
       {error !== null && <p className="mb-4 rounded-control border border-rojo/30 bg-rojo/10 px-4 py-3 text-sm text-rojo">{error}</p>}
       {aviso !== null && <p className="mb-4 rounded-control border border-verde/25 bg-verde/10 px-4 py-3 text-sm text-verde">{aviso}</p>}
 
-      <section className="mb-8 rounded-superficie border border-sand bg-papel p-5">
-        <h2 className="mb-2 font-serif text-lg text-tinta">Publicar</h2>
+      <TarjetaInfo como="section" titulo="Publicar" className="mb-8">
         <p className="mb-4 text-sm text-taupe">
           {ultima ? `Hoy hay ${versiones.length} ${versiones.length === 1 ? "versión publicada" : "versiones publicadas"}, la vigente es la ${ultima.version}.` : "Todavía no se publicó ninguna versión."}
         </p>
         <Boton variante="primario" onClick={() => void abrirModal()} disabled={!docVivo}>
           {ultima ? "Publicar" : "Publicar la primera versión"}
         </Boton>
-      </section>
+      </TarjetaInfo>
 
       <Modal abierto={modalAbierto} onCerrar={() => setModalAbierto(false)} titulo="Publicar política salarial" bloqueado={publicando}>
         {contenidoCambio === null ? (
@@ -271,8 +271,7 @@ export default function VersionesPoliticaSalarialPage() {
       </section>
 
       {versiones.length >= 2 && (
-        <section className="rounded-superficie border border-sand bg-papel p-5">
-          <h2 className="mb-3 font-serif text-lg text-tinta">Qué cambió entre dos versiones</h2>
+        <TarjetaInfo como="section" titulo="Qué cambió entre dos versiones">
           <div className="mb-4 flex flex-wrap items-center gap-3">
             <select value={compIzq ?? ""} onChange={(e) => setCompIzq(Number(e.target.value))} className="rounded-control border border-sand bg-hueso px-3 py-2 text-sm text-tinta">
               {versiones.map((v) => <option key={v.version} value={v.version}>v{v.version}</option>)}
@@ -292,7 +291,7 @@ export default function VersionesPoliticaSalarialPage() {
               </ul>
             )
           )}
-        </section>
+        </TarjetaInfo>
       )}
     </main>
   );

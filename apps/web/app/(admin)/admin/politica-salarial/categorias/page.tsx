@@ -12,6 +12,7 @@ import { Campo } from "@/components/ui/campo";
 import { AreaTexto } from "@/components/ui/area-texto";
 import { Modal } from "@/components/ui/modal";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
+import { TarjetaInfo } from "@/components/ui/tarjeta-info";
 import { SubnavPoliticaSalarial } from "../_subnav";
 import { NOMBRE_RANGO, categoriasFueraDeOrden, type CategoriaCuadro, type Cuadro } from "@/lib/politica-salarial";
 
@@ -142,7 +143,7 @@ export default function CategoriasPoliticaSalarialPage() {
 
       <div className="flex flex-col gap-3">
         {cuadro?.categorias.map((c) => (
-          <div key={c.rango} className="flex flex-wrap items-start justify-between gap-4 rounded-superficie border border-sand bg-papel p-4">
+          <TarjetaInfo key={c.rango} className="flex flex-wrap items-start justify-between gap-4">
             <div className="min-w-0 flex-1">
               <div className="font-serif text-lg text-tinta">{NOMBRE_RANGO[c.rango] ?? c.rango}</div>
               <p className="mt-1 text-sm text-taupe">{c.proposito || "Sin propósito escrito."}</p>
@@ -152,7 +153,7 @@ export default function CategoriasPoliticaSalarialPage() {
               )}
             </div>
             <Boton variante="secundario" tamano="sm" onClick={() => setEditando(aFormulario(c))}>Editar</Boton>
-          </div>
+          </TarjetaInfo>
         ))}
       </div>
 
