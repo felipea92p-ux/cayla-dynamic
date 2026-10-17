@@ -181,9 +181,10 @@
   .tarjeta .sub{ font-size:.8rem; color:var(--color-taupe); }
   .aviso-boleta{ border-color:var(--color-rojo); background:color-mix(in oklab, var(--color-rojo) 7%, var(--color-papel)); }
   .gris{ opacity:.55; }
-  .sheet{ position:absolute; inset:0; background:var(--color-crema); display:flex; flex-direction:column; z-index:4; animation:sube .22s ease-out; }
+  .sheet{ position:absolute; inset:0; background:var(--color-crema); display:flex; flex-direction:column; z-index:4; }
+  .sheet.anim{ animation:sube .22s ease-out; }
   @keyframes sube{ from{ transform:translateY(24px); opacity:0; } to{ transform:none; opacity:1; } }
-  @media (prefers-reduced-motion: reduce){ .sheet{ animation:none; } }
+  @media (prefers-reduced-motion: reduce){ .sheet.anim{ animation:none; } }
   .sheet .top{ display:flex; align-items:center; gap:10px; padding:34px 14px 10px; border-bottom:1px solid var(--color-sand); background:var(--color-papel); flex:none; }
   .sheet .top button{ border:0; background:none; font-weight:600; color:var(--color-taupe); padding:8px; min-height:44px; }
   .sheet .top b{ font-family:var(--font-serif); font-size:1.1rem; }
@@ -321,7 +322,7 @@
   }
 
   /* ───────── estado ───────── */
-  let S;
+  let S, ultimaPant = null;
   function reiniciar(){
     const t = Date.now(), h = 3600*1000, d = 24*h;
     const ej = [{ nombre:'boleta-ejemplo.jpg', tipo:'imagen', url:null, kb:412 }];
@@ -583,7 +584,7 @@
         ${porFirmar ? `<div class="tarjeta aviso-boleta"><h4>Tu boleta de ${PERIODO} está lista</h4>
             <p class="sub">Ábrela y fírmala para darla por recibida.</p>
             <button class="btn rojo" data-act="celIr" data-v="boletas">Ir a mis boletas</button></div>` : ''}
-        ${lista && p.firmada ? `<div class="tarjeta"><h4>Boleta de ${PERIODO}</h4><p class="sub">La firmaste el ${fmt(p.firmada)}.</p></div>` : ''}
+        ${lista && p.firmada ? `<div class="tarjeta"><h4>Boleta de ${PERIODO}</h4><p class="sub">La firmaste el ${fmt(p.firmada)}</p></div>` : ''}
         <div class="tarjeta gris"><h4>Mi día</h4><p class="sub">Entrada 8:58 a. m. · Refrigerio 1:00 p. m.</p></div>
         <div class="tarjeta gris"><h4>Mis vacaciones</h4><p class="sub">12 días disponibles.</p></div>`;
     } else if(c.pant === 'boletas'){
@@ -598,7 +599,7 @@
               <p class="sub">${p.vista ? 'Ya la abriste: puedes firmarla.' : 'Ábrela con «Ver mi boleta» para poder firmarla.'}</p>`}
             </div></div>`;
       } else if(p.estado === 'papel'){
-        cuerpo = `<div class="tarjeta"><h4>${PERIODO}</h4><p class="sub">Tu boleta se te entregó en papel el ${fmt(p.publicada)}.</p></div>`;
+        cuerpo = `<div class="tarjeta"><h4>${PERIODO}</h4><p class="sub">Tu boleta se te entregó en papel el ${fmt(p.publicada)}</p></div>`;
       } else {
         cuerpo = `<div class="tarjeta"><h4>Todavía no hay boletas</h4><p class="sub">Cuando Desarrollo Organizacional publique tu boleta de ${PERIODO}, aparecerá aquí y te llegará un aviso.</p></div>`;
       }
@@ -607,6 +608,7 @@
     }
     const globo = porFirmar ? `<span class="globito">1</span>` : '';
     let sheet = '';
+    const abre = c.pant !== ultimaPant; ultimaPant = c.pant;   // la hoja solo se desliza al abrirse, no en cada clic
     if(c.pant === 'visor') sheet = sheetVisor(p);
     else if(c.pant === 'firmar') sheet = sheetFirmar(p);
     else if(c.pant === 'hecho') sheet = sheetHecho(p);
@@ -619,7 +621,7 @@
         <button data-act="celIr" data-v="resumen" ${pantBase==='resumen'?'aria-current="page"':''}>Resumen</button>
         <button data-act="celIr" data-v="boletas" ${pantBase==='boletas'?'aria-current="page"':''}>Boletas${globo}</button>
         <button data-act="celIr" data-v="bandeja" ${pantBase==='bandeja'?'aria-current="page"':''}>Bandeja</button>
-      </nav>${sheet}`;
+      </nav>${abre ? sheet.replace('class="sheet"','class="sheet anim"') : sheet}`;
     bindLienzo();
   }
 
