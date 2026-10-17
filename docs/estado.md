@@ -23,7 +23,31 @@ la primera 0528 (solo FOLA). Cuando Felipe hizo general el módulo, esa versión
 de «hoy soy practicante» a **«es MI póliza»**. Con «hoy soy practicante», quien pasa de FOLA a
 EsSalud perdería el PDF de una póliza que sigue vigente hasta que la aseguradora procese la baja.
 
-**Traída la punta nueva de la etapa 1 (`112bfcb3`, merge `91d9c583`, también 2026-10-17).** La
+**Traída la etapa 1 YA PUBLICADA (2026-10-17, por la tarde).** La rama se rehízo sobre `main` —la 0528
+final está pegada en producción y fusionada, PR #551— trayendo la rama de esta etapa encima: tres
+conflictos y ninguno de fondo.
+- `archivos-poliza.tsx`: se juntan los imports. Y se reconcilian dos textos que se contradecían: la
+  etapa 1 dejó una casilla «guardarlo también en las otras pólizas» que decía que el papel es uno y que
+  cada persona lo tiene en su ficha, y esta etapa hace que cada persona abra en «Lo mío» la póliza y el
+  convenio de SU póliza. **Cruce que importa:** en una póliza colectiva, copiar el PDF a todas las
+  pólizas lo pone al alcance de todas las personas aseguradas. Por eso ahora, en una póliza colectiva,
+  el aviso dice que cada persona verá lo que se suba como póliza o convenio de pago (todas, si se
+  copia a las demás) y que no lleve listas con el DNI o el sueldo de otras personas; y la casilla dice,
+  según el tipo, si cada persona lo abrirá o solo DO. «Otro papel» sigue sin copiarse.
+- La 422: gana la de `main` (la misma aserción #2, con su descripción al día). La #226, que fallaba en
+  esta Mac mientras la base local compartida tuviera los PDF de la demo en el bucket, ya no falla: la
+  422 de `main` cuenta solo sus propios archivos, y así se corrió.
+- `estado.md`: queda esta entrada arriba y la de la etapa 1 debajo; se quita el párrafo que decía que
+  esta etapa vivía en otra rama.
+Después se trajo `main` otra vez (PR #554: el freno de la «receta suelta»), que frenó el push por un
+«Cargando…» escrito a mano en `mi-seguro.tsx`; ahora usa `<Cargando />`.
+**Con la 0528 FINAL, la 0530 y las migraciones nuevas de `main` (0527, 0531, 0532 y 0533) aplicadas
+desde cero, en una transacción que se revierte: 422 = 308/308 y 423 = 108/108**, sin errores; `tsc` y
+las 2210 pruebas de `vitest` en verde; y los frenos del push, todos. «Mi seguro» se vio otra vez en el
+navegador contra la 0528 final (practicante con póliza vigente y una futura, EsSalud sin póliza,
+planilla con una póliza FOLA que le quedó; «Descargar» firma y baja `Poliza-FOLA-<número>.pdf`).
+
+**Antes, con la punta de entonces (`112bfcb3`, merge `91d9c583`, también 2026-10-17).** La
 revisión independiente de la etapa 1 movió dos cosas que me tocan, y ninguna cambió una firma:
 - **El número de una póliza ya no identifica a una persona.** El índice único lleva ahora
   `persona_id`: una póliza colectiva (vida, EPS) puede repetir aseguradora, número y vigencia entre
@@ -85,18 +109,19 @@ qué se le dice a quien está en EsSalud (ver abajo).
   el nombre de la persona). En pantalla se rotula por su tipo, no por el nombre con que DO lo subió.
 
 **Pendiente, en este orden (Felipe).**
-1. **Pegar la 0528 y DESPUÉS la 0530**, las dos **antes de fusionar** los PR. `./scripts/dame-el-sql.sh 530`
-   (el número libre y `main` se vuelven a pedir en el mensaje que entrega el SQL; la 530 y la 423
-   estaban libres al escribir esto). La consulta de «ANTES DE PEGAR» de la cabecera espera la 0528
-   presente y nada de la 0530.
+1. **Pegar la 0530 ANTES de fusionar el PR** (la 0528 ya está pegada y fusionada, PR #551).
+   `./scripts/dame-el-sql.sh 530` (el número libre y `main` se vuelven a pedir en el mensaje que entrega
+   el SQL; la 0530 es el hueco entre la 0529 y la 0531, y la prueba 423 estaba libre). La consulta de
+   «ANTES DE PEGAR» de la cabecera espera la 0528 presente y nada de la 0530; **Retail vive en el mismo
+   proyecto (esquema `retail`)**, así que cualquier conteo de `pg_proc` por nombre puede traer una fila de más.
 2. **Subir a cada póliza solo el PDF de esa persona.** Si el archivo junta varias pólizas, cada
    persona vería el DNI y la fecha de nacimiento de las otras, y la base no puede comprobarlo.
 3. **El texto de EsSalud** (arriba) y la revisión de la guía de FOLA contra el PDF.
 4. Con una cuenta real, apretar «Abrir» en un navegador de verdad y en un iPhone.
 5. La novedad lleva fecha 2026-10-17: si el PR se fusiona otro día, corregirla antes.
-6. Si la sesión de la etapa 1 vuelve a mover su punta (hoy `112bfcb3`), traerla con otro merge y
-   repetir la 423 y la 422 antes de entregar el SQL: la 0530 depende de la 0528 y se escribió contra
-   esa versión.
+6. La etapa 1 ya no se mueve (está fusionada y publicada): la 0530 se probó contra la 0528 que de
+   verdad está en producción. Lo que sí puede moverse es `main`: antes de entregar el SQL, volver a mirar
+   `git fetch` y la numeración, como siempre.
 
 **Qué se comprobó.** La 0530 aplicada en una transacción sobre el Postgres local y la prueba **423**
 (108 aserciones) en verde dentro de ella: practicante, otra practicante, planilla, honorarios, DO, una
@@ -111,10 +136,11 @@ emparejar por número incluidas —factura, archivo retirado, archivo de otra pe
 propias; una columna de más en cada función; el convenio antes que la póliza; el último día inclusivo
 en las dos; «cubre» de una póliza de otro seguro; la cuenta de servicio con fila; `cubre_hoy` para
 EsSalud; el seguro automático escrito a mano en vez de `fn_seguro_tipo_principal`—: las veinte la
-rompen. La migración se puede aplicar dos veces. Las pruebas 250, 92 y 108 siguen en verde. La **422**
-(252 aserciones, la de la punta nueva) pasa con la 0530 aplicada salvo la #226, que falla igual SIN
-ella (ver abajo). `vitest` (1981 pruebas, 87 archivos; dieciséis mutaciones de `lib/mi-seguro.ts` las
-rompen), `tsc` y `eslint` de lo tocado en verde (`page.tsx` conserva dos errores `set-state-in-effect` que ya tenía `main`).
+rompen. La migración se puede aplicar dos veces. Las pruebas 250, 92 y 108 siguen en verde. (Con la
+punta de entonces la **422** tenía 252 aserciones y pasaba con la 0530 aplicada salvo la #226; con la
+etapa 1 final, arriba, pasan las 308.) `vitest` (dieciséis mutaciones de `lib/mi-seguro.ts` las
+rompen; hoy 2210 pruebas en 95 archivos), `tsc` y `eslint` de lo tocado en verde (`page.tsx` conserva dos
+errores `set-state-in-effect` que ya tenía `main`).
 Los guardias del push (numeración, reglas de la casa, nombre del PDF, fechas vacías, linter) corridos
 a mano sobre lo que esta rama agrega encima de la etapa 1: todos en 0.
 
