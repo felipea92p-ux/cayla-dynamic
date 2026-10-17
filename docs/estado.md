@@ -36,6 +36,13 @@ cambia lo que cobra nadie; la prima se paga a la aseguradora y EsSalud sigue com
 5. A quién le toca cada uno: «Automático por vínculo; DO lo cambia por persona».
 6. Cuando alguien cambia: «Lo muestra y deja dos pendientes» → la baja del seguro anterior y el
    alta del nuevo.
+7. Con la pantalla ya hecha: «¿cómo sé qué colaboradores sí cuentan con seguro, para que el propio
+   sistema lo jale y no se tenga que rellenar los datos de nuevo?» A la pregunta de qué jalar solo,
+   marcó las cuatro opciones: una póliza para varias personas, la lista de asegurados, leer el PDF
+   de la póliza y «dejarlo así». **Las cuatro a la vez se contradicen en la última**; lo que se hizo
+   fue construir las tres primeras como ayudas AGREGADAS (el formulario de una póliza por persona
+   sigue igual, por si «dejarlo así» era lo que valía). Si en realidad no querías alguna, es quitar
+   su botón de la cabecera; ninguna toca lo que ya existía.
 
 **Cómo funciona.**
 - **`seguros_tipos`**: el catálogo. Cada seguro es *principal* (uno a la vez: FOLA, EsSalud) o va
@@ -62,8 +69,49 @@ cambia lo que cobra nadie; la prima se paga a la aseguradora y EsSalud sigue com
 - **En la Bandeja**: sin póliza, por vencer, papeleo (UNA fila por póliza, no tres), baja de quien se
   fue y los dos pasos de cada cambio. El alta hacia un seguro con póliza que ya figura como «sin
   póliza» no se repite: se funde en esa fila, que cuenta de dónde viene la persona.
+- **Para no teclear lo mismo dos veces** (punto 7). Tres botones en la cabecera, y ninguno guarda nada
+  que DO no haya revisado:
+  - **Leer PDF de póliza.** Se eligen uno o varios PDF (el corredor manda uno por persona) y pdf.js los
+    lee EN EL NAVEGADOR —el documento y la fecha de nacimiento del asegurado no salen de la
+    computadora hasta que se registra—. Cada póliza es una tarjeta editable con número, vigencia,
+    prima con IGV, cuándo vence el pago y a quién asegura; se registra con `fn_seguro_registrar` (las
+    mismas reglas del formulario) y el PDF se guarda en cada póliza. Lo que dice el papel es una
+    PROPUESTA: solo nace seleccionada la que trae número, vigencia y prima y una persona clara (el nombre
+    del papel se compara por palabras, sin importar el orden, y con un margen sobre la segunda
+    candidata). Se adelantan los rechazos de la base —la persona no está en ese seguro, la póliza se
+    cruza con otra—, la que ya existe sale «Ya estaba registrada», y una foto escaneada o un PDF
+    ilegible se dicen por su nombre. **La fecha final es la que dice «AL 01/01/2027 … A LAS 12 M» (la
+    portada y las condiciones), NO el 31/12 del aviso de cobranza y el convenio**: ese es el último día
+    cubierto y el sistema cuenta el final EXCLUSIVO; se midió sobre la póliza real de FOLA y por eso el
+    lector solo usa las dos primeras formas.
+  - **Una póliza para varias personas** (`fn_seguro_registrar_varias`). En «Registrar una póliza»,
+    «A varias, la misma póliza»: una lista con casillas, el atajo «Las de planilla» (sale de
+    `personas.en_planilla`, no de una lista de vínculos en el navegador) y la prima POR PERSONA, con
+    «N × prima = total» a la vista. TODO O NADA: si a una no se le puede registrar, no se registra a nadie y
+    el mensaje dice con quién falló; quien ya tiene una póliza de ese seguro que se cruza se deja fuera con
+    el motivo. El PDF de una póliza colectiva se COPIA dentro del almacén a las pólizas de las demás
+    personas (cada fila tiene su propio objeto: un índice lo exige).
+  - **Lista de asegurados** (`fn_seguro_asegurados`). Quiénes están en un seguro HOY con documento,
+    nacimiento, ingreso, sede y póliza, y quién tiene datos por completar (sin documento o sin fecha de
+    nacimiento la aseguradora no emite el certificado). Reemplaza la consulta a mano de Vida Ley
+    (`scripts/sql-manual/quienes_van_al_seguro_de_vida_ley.sql`). **El CSV lo baja solo la dirección**
+    (`puedeExportarListaDeAsegurados`, como el padrón); DO la ve en pantalla.
 
 **Lo que decidí sin preguntar, y es de Felipe cambiar:**
+- **El CSV de la lista de asegurados, solo para la dirección** (no «solo DO», como lo había anunciado).
+  Encontré un precedente que no conocía: `puedeExportarPadron` ya distingue ver de llevarse un dato con
+  documento («quien lleva DO edita las fichas todos los días y no necesita descargarlas; el archivo se
+  genera para un trámite concreto y esa decisión es de dirección»). Abrirlo a DO es cambiar UNA línea de
+  `permisos.ts` (y su prueba, que se pone roja a propósito). La remuneración asegurable —la que pide el
+  seguro de vida— solo viaja al descargar y solo si se marca la casilla.
+- **La prima de una póliza colectiva es la de cada persona** (una fila por persona): copiar el total en
+  cada fila haría que cualquier suma de primas contara la póliza diecinueve veces. El formulario muestra
+  «N × prima = total» y avisa que, si solo se tiene el total, se divida.
+- **No hay alerta de «persona en planilla sin Vida Ley».** El Seguro de Vida Ley es obligatorio para toda
+  la planilla desde el primer día (D. Leg. 688), pero `aplica_a_vinculos` solo manda en los seguros
+  principales, así que el sistema no sabe quién DEBERÍA tener un seguro que va además. Lo más cerca son
+  el atajo «Las de planilla» al registrar la póliza y la lista de asegurados. Convertirlo en un hueco
+  es una decisión de producto —¿para qué vínculos es obligatorio cada seguro?—, no de esta migración.
 - **Aviso de renovación a 45 días** (`DIAS_AVISO_RENOVACION`, `lib/admin/seguros.ts`). Número
   elegido, no de ley: el corredor necesita días y la prima de contado de la póliza de hoy venció
   17 días después de emitirse.
@@ -97,9 +145,10 @@ cambia lo que cobra nadie; la prima se paga a la aseguradora y EsSalud sigue com
 2. **Averiguar qué seguros tiene el resto del equipo** («revisar», dijo Felipe) y agregar los que
    falten desde «Tipos de seguro». Mientras tanto, planilla y prueba quedan en EsSalud (por
    planilla) y nadie recibe un aviso por ellos.
-3. **Registrar las cuatro pólizas FOLA** (N.º 24043264 a 24043267) desde la pantalla, con los datos
-   del papel, y adjuntar los PDF: póliza, convenio de pago y, cuando lleguen, las facturas. Los
-   papeles llevan DNI y fecha de nacimiento: no entran al repo.
+3. **Registrar las cuatro pólizas FOLA** (N.º 24043264 a 24043267): lo más corto es «Leer PDF de póliza»
+   eligiendo los cuatro PDF a la vez (el de 24043267 se leyó entero sin avisos); si alguno no se
+   entiende, el formulario de siempre. Falta adjuntar el convenio de pago y, cuando lleguen, las
+   facturas. Los papeles llevan DNI y fecha de nacimiento: no entran al repo.
 4. **Marcar los pasos que ya se hicieron**: la prima está pagada (Felipe, 15/10/2026); falta
    firmar y devolver la póliza y el convenio de pago, y pedir las facturas.
 5. **Renovar antes del 01/01/2027.** Desde el 17/11/2026 la Bandeja avisa; la tabla de beneficios

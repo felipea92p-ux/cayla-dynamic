@@ -50,7 +50,11 @@ export function CabeceraPagina({
           <div className="mt-1 max-w-2xl text-sm text-taupe">{descripcion}</div>
         )}
       </div>
-      {accion && <div className="shrink-0">{accion}</div>}
+      {/* `max-w-full` (2026-10-17): `shrink-0` solo evita que el botón se aplaste, pero también dejaba que
+          cuatro botones juntos (Seguros) midieran lo que midieran y se salieran del teléfono, aunque su propio
+          contenedor sea `flex-wrap`: no tenían un ancho contra el cual envolver. Con el tope, un grupo de botones
+          envuelve a otra fila; una acción sola, que cabe, no cambia. */}
+      {accion && <div className="max-w-full shrink-0">{accion}</div>}
     </div>
   );
 }

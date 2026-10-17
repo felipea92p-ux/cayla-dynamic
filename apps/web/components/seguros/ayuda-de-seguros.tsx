@@ -78,6 +78,35 @@ export function AyudaDeSeguros() {
           </section>
 
           <section>
+            <h3 className="mb-1 font-serif text-base text-tinta">Para no teclear lo mismo dos veces</h3>
+            <dl className="space-y-2">
+              <div>
+                <dt className="font-medium text-tinta">Leer PDF de póliza</dt>
+                <dd className="text-taupe">
+                  Elige el PDF de la póliza —o varios, uno por persona— y el sistema lee el número, la vigencia, la prima y a quién
+                  asegura. Tú lo revisas y lo registras, y el PDF se guarda en la póliza. Hoy entiende las pólizas de Pacífico; si un
+                  PDF no se entiende (una foto escaneada, otra aseguradora), lo dice y se registra a mano.
+                </dd>
+              </div>
+              <div>
+                <dt className="font-medium text-tinta">Una póliza para varias personas</dt>
+                <dd className="text-taupe">
+                  En «Registrar una póliza», «A varias, la misma póliza»: se marcan las personas (con el atajo «Las de planilla») y
+                  se registra a todas de una vez, con un solo PDF. La prima es la de cada persona. Si a una no se le puede
+                  registrar, no se registra a nadie.
+                </dd>
+              </div>
+              <div>
+                <dt className="font-medium text-tinta">Lista de asegurados</dt>
+                <dd className="text-taupe">
+                  Quiénes están en un seguro hoy, con documento, nacimiento e ingreso, y a quién le falta algún dato: sin eso la
+                  aseguradora no emite su certificado. El archivo para el contador lo descarga la dirección.
+                </dd>
+              </div>
+            </dl>
+          </section>
+
+          <section>
             <h3 className="mb-1 font-serif text-base text-tinta">Qué no hace</h3>
             <p className="text-taupe">
               Solo avisa. No cambia lo que cobra nadie ni toca la planilla: la prima se paga a la aseguradora y EsSalud
