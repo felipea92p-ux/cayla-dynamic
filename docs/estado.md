@@ -71,14 +71,27 @@ subvención de cada quien (`asignaciones_salario`) y la 0528 no la lee.
 **Qué se comprobó.** La 0528 aplicada en una transacción sobre el Postgres local y la prueba
 **422** (102 aserciones) en verde dentro de ella. Se probó que la prueba SABE fallar con tres
 mutaciones de la regla (último día inclusivo, hueco sin filtro de practicante, tablero sin
-guardia de DO): las tres la rompen. `vitest` (1838 pruebas), `tsc` y `eslint` en verde. Lo
-nuevo en vitest: `seguros.test.ts` (lógica pura, con una mutación del empalme de renovaciones
-que la rompe), `bandeja-seguros.test.ts`, y el permiso y el menú en las pruebas que ya existían.
+guardia de DO): las tres la rompen. `vitest` (1839 pruebas), `tsc` y `eslint` en verde, y los
+cinco guardias del push (numeración, reglas de la casa, nombre del PDF, fechas vacías, linter)
+corridos a mano sobre lo que la rama agrega frente a `main`: todos en 0.
 
-**Lo que NO se comprobó.** La pantalla en un navegador ni el flujo de subir un PDF a Storage de
-verdad (la prueba 422 simula Storage con filas en `storage.objects`); `db-tests` de GitHub
-(construye la base desde cero: es la señal fiable de las pgTAP, no esta Mac); ni nada contra
-datos reales de producción.
+**En el navegador** (2026-10-17, contra la base local con la 0528 aplicada y datos de prueba
+marcados «ZZ», que se borraron al terminar junto con la migración): registrar una póliza,
+preparar una renovación que arranca donde termina la anterior (y la persona sale del aviso de
+«por vencer»), subir un PDF al Storage de verdad (la ruta queda `<uuid>.pdf` y el nombre solo
+como dato; el peso y el tipo salen de Storage), marcar la prima, **quitarla pidiendo motivo**
+(sin motivo la pantalla se niega), corregir el plan viendo en el historial qué decía antes, el
+historial en orden, la Bandeja con el módulo «Seguros» y su enlace a `/admin/seguros?persona=…`,
+que abre parado en esa persona. Escritorio, teléfono (375 px, sin desborde horizontal) y modo
+oscuro; sin errores en la consola ni en el servidor. Eso encontró tres defectos que se
+arreglaron: el plazo de la Bandeja se pisaba con el botón de la fila, las tarjetas del resumen
+iban en una sola columna en el teléfono, y la receta de reversión de la cabecera fallaba
+(las políticas de Storage dependen de una función, así que se borran antes).
+
+**Lo que NO se comprobó.** El botón «Abrir» de un PDF (la URL firmada); un iPhone real;
+`db-tests` de GitHub (construye la base desde cero: es la señal fiable de las pgTAP, no esta
+Mac); ni nada contra datos reales de producción. La numeración deja un hueco de 0525 a 0527
+frente a `main`: son de otras ramas (Educación) y se llena cuando ellas se fusionen.
 
 **Cómo se generaron los tipos.** La base local es compartida y trae migraciones de otras ramas,
 así que `gen-types` habría arrastrado cambios ajenos. Se aplicó la 0528 a una base desechable
