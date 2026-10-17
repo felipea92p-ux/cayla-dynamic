@@ -4,14 +4,17 @@ import { useEffect, useState } from "react";
 import type { ClienteCayla } from "@cayla-dynamic/database";
 import { Modal } from "@/components/ui/modal";
 import { Boton } from "@/components/ui/boton";
+import { ImprimibleAparte, useImprimirAparte } from "@/components/ui/imprimible-aparte";
 import { Cargando } from "@/components/cargando";
 import { ConstanciaDeFirma, useConstancia } from "@/components/boletas/constancia-de-firma";
+import { HojaConstanciaBoleta, useDatosDeConstancia, usePaginasDeBoleta } from "@/components/boletas/hoja-constancia-boleta";
 import { InsigniaDeEstado } from "@/components/boletas/insignia-de-estado";
 import { PieDeModal, TACTIL } from "@/components/boletas/pie-de-modal";
 import { VisorDeHojas } from "@/components/boletas/visor-de-hojas";
 import { estadoVisible, tiempoParaRestablecer, type TipoBoleta } from "@/lib/boletas";
 import { hojasFirmadasDeVersion, type HojaFirmada } from "@/lib/boletas-archivos";
 import { fechaHoraLima, type FilaTablero } from "@/lib/admin/boletas-pantalla";
+import type { PeriodoInfo } from "@/lib/admin/planilla/tipos";
 
 type Anulacion = {
   id: string;
@@ -25,8 +28,11 @@ type Anulacion = {
 /**
  * LA BOLETA CON SU CONSTANCIA, PARA DO (0532). Dos usos de la misma pieza:
  *
- *  · «Ver boleta firmada»: la boleta y, debajo, la firma que la persona copió en
- *    ella, quién y cuándo. Es lo que DO le muestra al contador si pide la prueba.
+ *  · «Ver boleta firmada»: una sola hoja —la constancia de recepción— con quién
+ *    es (nombre y DNI), el periodo, la fecha de pago, cuándo firmó, la boleta y,
+ *    debajo, la firma que copió en ella (`HojaConstanciaBoleta`, 2026-10-17).
+ *    Es lo que DO le muestra al contador si pide la prueba, y «Descargar PDF» la
+ *    guarda tal cual: la boleta y la firma en el mismo archivo.
  *  · «Ver anulación»: lo que se anuló —la misma boleta y su constancia, que se
  *    conservan— con el motivo y el historial de anulaciones y restablecimientos.
  *
@@ -35,11 +41,13 @@ type Anulacion = {
  * recibiendo.
  */
 export function ModalConstanciaBoleta({
-  supabase, modo, fila, nombreDelPeriodo, onCerrar, onAnular, onRestablecer,
+  supabase, modo, fila, periodo, nombreDelPeriodo, onCerrar, onAnular, onRestablecer,
 }: {
   supabase: ClienteCayla;
   modo: "constancia" | "anulacion";
   fila: FilaTablero;
+  /** Para las fechas del periodo y su fecha de pago en la hoja. */
+  periodo: PeriodoInfo | null;
   nombreDelPeriodo: string;
   onCerrar: () => void;
   /** Solo en «constancia»: abre el modal de anular sobre esta boleta. */
@@ -74,6 +82,38 @@ export function ModalConstanciaBoleta({
 
   const titulo = modo === "constancia" ? "Boleta firmada" : "Boleta anulada";
   const queda = tiempoParaRestablecer(fila.restablecible_hasta);
+
+  // ── La hoja de la constancia (solo en «constancia») ────────────────────────
+  const tipo = (fila.tipo ?? "imagen") as TipoBoleta;
+  const enConstancia = modo === "constancia";
+  const { datos, aviso: avisoDatos } = useDatosDeConstancia(supabase, {
+    activo: enConstancia, personaId: fila.persona_id, periodoId: periodo?.id ?? null, grupo: fila.tipo_vinculo,
+  });
+  const { paginas, error: errorPaginas } = usePaginasDeBoleta(enConstancia ? hojas : null, tipo);
+  // La hora de «generada» se fija al abrir: la hoja de la pantalla y la que se
+  // imprime tienen que decir lo mismo.
+  const [generadaAt] = useState(() => new Date().toISOString());
+  const { copia, preparando, imprimir } = useImprimirAparte(
+    enConstancia ? `${fila.nombre} — Boleta firmada ${nombreDelPeriodo}` : null,
+  );
+
+  const hoja = (enPapel: boolean) => constancia && (
+    <HojaConstanciaBoleta
+      nombreFicha={fila.nombre}
+      sede={fila.sede_codigo}
+      cargo={fila.cargo}
+      periodo={{ nombre: nombreDelPeriodo, desde: periodo?.fecha_ini ?? null, hasta: periodo?.fecha_fin ?? null }}
+      version={fila.version_n}
+      datos={datos}
+      constancia={constancia}
+      paginas={paginas}
+      errorPaginas={errorPaginas}
+      pdfs={tipo === "pdf" ? (hojas ?? []).map((h) => h.url) : []}
+      generadaAt={generadaAt}
+      enPapel={enPapel}
+    />
+  );
+  const listaParaDescargar = constancia !== null && datos !== null && (paginas !== null || errorPaginas !== null);
 
   return (
     <Modal abierto onCerrar={onCerrar} titulo={titulo} ancho="xl">
@@ -111,7 +151,21 @@ export function ModalConstanciaBoleta({
         </div>
       )}
 
-      {fila.version_id ? (
+      {enConstancia && fila.version_id ? (
+        errorHojas || errorConstancia ? (
+          <p role="alert" className="rounded-control bg-rojo/10 px-3 py-2 text-sm text-rojo-profundo">
+            {errorHojas ?? `No pudimos leer la constancia: ${errorConstancia}`}
+          </p>
+        ) : hojas === null || constancia === null ? (
+          <Cargando texto="Abriendo la boleta…" />
+        ) : (
+          <>
+            {avisoDatos && <p role="alert" className="mb-3 rounded-control bg-ambar/10 px-3 py-2 text-sm text-ambar">{avisoDatos}</p>}
+            {hoja(false)}
+            <ImprimibleAparte ref={copia}>{hoja(true)}</ImprimibleAparte>
+          </>
+        )
+      ) : fila.version_id ? (
         <>
           <p className="mb-1 text-xs font-medium uppercase tracking-wide text-taupe">
             {modo === "anulacion" ? "Lo que se anuló" : "La boleta"}
@@ -135,6 +189,17 @@ export function ModalConstanciaBoleta({
         <Boton className={TACTIL} onClick={onCerrar}>Cerrar</Boton>
         {modo === "constancia" && onAnular && (
           <Boton variante="peligro" className={TACTIL} onClick={onAnular}>Anular</Boton>
+        )}
+        {enConstancia && fila.version_id && (
+          <Boton
+            variante="primario"
+            className={TACTIL}
+            disabled={!listaParaDescargar}
+            cargando={preparando}
+            onClick={() => void imprimir()}
+          >
+            Descargar PDF
+          </Boton>
         )}
         {modo === "anulacion" && onRestablecer && (
           <Boton variante="primario" className={TACTIL} onClick={onRestablecer}>Restablecer</Boton>

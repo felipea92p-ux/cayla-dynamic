@@ -118,15 +118,20 @@ export function accionesDeFila(f: FilaTablero, ahora: Date = new Date()): Accion
     case "publicada":
     case "vista":
     case "firmada":
-    case "confirmada":
+    case "confirmada": {
+      const constancia = (e === "firmada" || e === "confirmada") && f.version_id !== null;
       return {
         ...NADA,
-        ver: f.version_id !== null,
+        // Una boleta firmada se mira CON su firma (2026-10-17): «Ver» a secas la
+        // mostraba sola, sin la firma ni quién y cuándo, junto a otro botón que
+        // sí la mostraba. Ahí el único es «Ver boleta firmada».
+        ver: f.version_id !== null && !constancia,
         editar: f.version_id !== null,
         historial: f.boleta_id !== null,
         anular: f.estado === "publicada",
-        constancia: (e === "firmada" || e === "confirmada") && f.version_id !== null,
+        constancia,
       };
+    }
   }
 }
 
