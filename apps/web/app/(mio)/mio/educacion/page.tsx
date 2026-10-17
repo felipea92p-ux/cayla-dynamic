@@ -17,6 +17,9 @@ import { Insignia } from "@/components/ui/insignia";
 import { Campo, CampoSelect } from "@/components/ui/campo";
 import { AreaTexto } from "@/components/ui/area-texto";
 import { Modal } from "@/components/ui/modal";
+import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
+import { Rotulo } from "@/components/ui/rotulo";
+import { TarjetaInfo } from "@/components/ui/tarjeta-info";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { enDias } from "@/lib/admin/bandeja-urgencia";
 import { abrirArchivoFirmado } from "@/lib/abrir-archivo-firmado";
@@ -241,10 +244,10 @@ function EducacionContenido() {
   return (
     <main className="mx-auto w-full max-w-2xl px-4 py-6 sm:px-6">
       <EnlaceVolver href="/mio" className="mb-4 inline-block text-sm text-taupe hover:text-tinta hover:underline">← Volver a Info</EnlaceVolver>
-      <h1 className="mb-1 font-serif text-2xl">Educación</h1>
-      <p className="mb-6 text-sm text-taupe">
-        El apoyo de CAYLA para tus estudios o los de tus hijos, y las constancias que lo respaldan.
-      </p>
+      <CabeceraPagina
+        titulo="Educación"
+        descripcion="El apoyo de CAYLA para tus estudios o los de tus hijos, y las constancias que lo respaldan."
+      />
 
       {aviso && (
         <p role="status" className={`mb-4 rounded-xl px-4 py-3 text-sm ${aviso.tipo === "ok" ? "bg-verde/10 text-verde" : "bg-rojo/10 text-rojo-profundo"}`}>
@@ -619,7 +622,7 @@ function FormularioConstancia({
   const enCurso = enviando;
 
   return (
-    <div className="mt-4 rounded-2xl border border-sand bg-papel p-4 sm:p-5">
+    <TarjetaInfo className="mt-4">
       <h4 className="font-serif text-lg">{reemplazaA ? "Enviar la constancia corregida" : "Subir constancia"}</h4>
 
       {textoValido && <p className="mt-2 rounded-xl bg-hueso p-3 text-xs leading-relaxed text-tinta">{textoValido}</p>}
@@ -784,7 +787,7 @@ function FormularioConstancia({
           {fallo && archivos.some((a) => a.subido) ? "Reintentar" : "Enviar para revisión"}
         </Boton>
       </div>
-    </div>
+    </TarjetaInfo>
   );
 }
 
@@ -1078,8 +1081,8 @@ function SolicitudApoyo({
     }
     if (u) {
       return (
-        <section className="rounded-2xl border border-sand bg-papel p-5 text-sm">
-          <p className="text-xs font-medium uppercase tracking-wide text-taupe">Apoyo educativo terminado</p>
+        <TarjetaInfo como="section" className="text-sm">
+          <Rotulo>Apoyo educativo terminado</Rotulo>
           <h2 className="mt-1 font-serif text-xl">{u.institucion}</h2>
           <p className="mt-2">
             Tu apoyo terminó el {fechaCorta(u.vigente_hasta)}: ya no aparece en tus próximas boletas ni recibe constancias nuevas.
@@ -1096,28 +1099,28 @@ function SolicitudApoyo({
               Es otro estudio
             </Boton>
           </div>
-        </section>
+        </TarjetaInfo>
       );
     }
     return (
-      <section className="rounded-2xl border border-sand bg-papel p-5 text-sm">
-        <h2 className="mb-1 font-serif text-lg">No tienes una asignación educativa activa</h2>
+      <TarjetaInfo como="section" titulo="No tienes una asignación educativa activa" className="text-sm">
         <p className="mb-4 text-taupe">
           Si estudias tú o tu hijo o hija y CAYLA cubre parte del costo, pide aquí tu apoyo educativo.
         </p>
         <Boton variante="primario" onClick={() => setFormulario("nueva")}>Solicitar apoyo educativo</Boton>
-      </section>
+      </TarjetaInfo>
     );
   }
 
   const estado = ESTADO_SOLICITUD[solicitud.estado];
 
   return (
-    <section className="rounded-2xl border border-sand bg-papel p-5 text-sm">
-      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="font-serif text-lg">{solicitud.institucion}</h2>
-        <Insignia variante={estado.tono}>{estado.etiqueta}</Insignia>
-      </div>
+    <TarjetaInfo
+      como="section"
+      titulo={solicitud.institucion}
+      accion={<Insignia variante={estado.tono}>{estado.etiqueta}</Insignia>}
+      className="text-sm"
+    >
       <p className="text-taupe">
         Pediste este apoyo el {fechaCorta(solicitud.enviada_at)} · costo declarado {soles(solicitud.costo_declarado)}
       </p>
@@ -1204,7 +1207,7 @@ function SolicitudApoyo({
           <Boton variante="peligro" cargando={retirando} onClick={() => void retirar()}>Retirar solicitud</Boton>
         </div>
       </Modal>
-    </section>
+    </TarjetaInfo>
   );
 }
 

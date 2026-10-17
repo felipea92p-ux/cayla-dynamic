@@ -8,6 +8,7 @@ import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { Cargando } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
 import { AreaTexto } from "@/components/ui/area-texto";
+import { TarjetaInfo } from "@/components/ui/tarjeta-info";
 import { abrirArchivoFirmado } from "@/lib/abrir-archivo-firmado";
 import { MARCADOR_FIRMA_EMPRESA, MARCADOR_FIRMA_PERSONA } from "@/lib/admin/contrato-texto";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
@@ -288,8 +289,7 @@ function MiContratoContenido() {
           mano ni subir ningún escaneo (0430, mismo criterio que Movilidad).
           Desarrollo Organizacional conserva la vía del escaneo como
           respaldo para quien no pueda autoservirse desde aquí. */}
-      <div className="mb-4 rounded-lg border border-sand bg-papel p-4 print:hidden">
-        <h2 className="mb-1 font-serif text-base">Tu firma</h2>
+      <TarjetaInfo titulo="Tu firma" className="mb-4 print:hidden">
         <p className="mb-3 text-xs text-taupe">
           Al confirmar, tu firma queda estampada en el documento de abajo, junto a la de la empresa, y el
           contrato queda firmado.
@@ -332,7 +332,7 @@ function MiContratoContenido() {
                 : "Firmar este contrato"}
           </button>
         </div>
-      </div>
+      </TarjetaInfo>
 
       {/* ── ¿ALGO ESTÁ MAL? (0427) ─────────────────────────────────────────
           Mismo mecanismo que «¿Algo cambió?» en /mio/movilidad, pero SIN su

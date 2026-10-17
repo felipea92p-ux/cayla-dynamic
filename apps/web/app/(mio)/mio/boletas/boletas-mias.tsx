@@ -5,6 +5,7 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Boton } from "@/components/ui/boton";
 import { Insignia } from "@/components/ui/insignia";
 import { Modal } from "@/components/ui/modal";
+import { TarjetaInfo } from "@/components/ui/tarjeta-info";
 import { useToast } from "@/components/toast";
 import { ModalFirmarBoleta } from "@/components/boletas/modal-firmar-boleta";
 import { ModalMiBoletaFirmada } from "@/components/boletas/modal-mi-boleta-firmada";
@@ -230,7 +231,7 @@ export function BoletasMias({
             const firmada = recibida && f.firmada;
             const enRevision = f.estado === "anulada";
             return (
-              <li key={f.periodo_id} className="rounded-2xl border border-sand bg-papel p-4">
+              <TarjetaInfo como="li" key={f.periodo_id}>
                 <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
@@ -330,7 +331,7 @@ export function BoletasMias({
                     </div>
                   )}
                 </div>
-              </li>
+              </TarjetaInfo>
             );
           })}
         </ul>
