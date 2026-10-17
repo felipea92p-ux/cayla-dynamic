@@ -50,6 +50,7 @@ export function HistorialEducacion({
   const supabase = useMemo(() => createAdminSupabaseClient(), []);
   const [filas, setFilas] = useState<HechoEducacion[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [sede, setSede] = useState("");
   const [persona, setPersona] = useState("");
   const [tipo, setTipo] = useState<TipoHecho | "">("");
   // Las fechas arrancan llenas (regla de CLAUDE.md): los últimos seis meses, hasta hoy.
@@ -73,23 +74,38 @@ export function HistorialEducacion({
   useEffect(() => { void cargar(); }, [cargar]);
 
   const dichas = useMemo(() => (filas ?? []).map((h) => ({ h, d: decirHecho(h, vista) })), [filas, vista]);
+  // Las sedes salen de los hechos mismos (regla #3: nada escrito a mano); la lista de personas sigue
+  // a la sede elegida, para no ofrecer a alguien que no va a aparecer.
+  const sedes = useMemo(() => Array.from(new Set((filas ?? []).map((h) => h.sede))).sort(), [filas]);
   const personas = useMemo(
-    () => Array.from(new Map((filas ?? []).map((h) => [h.persona_id, h.persona])).entries()).sort((a, b) => a[1].localeCompare(b[1])),
-    [filas],
+    () => Array.from(new Map((filas ?? []).filter((h) => !sede || h.sede === sede).map((h) => [h.persona_id, h.persona])).entries())
+      .sort((a, b) => a[1].localeCompare(b[1])),
+    [filas, sede],
   );
-  const visibles = dichas.filter(({ h, d }) => (!persona || h.persona_id === persona) && (!tipo || d.tipo === tipo));
+  const visibles = dichas.filter(({ h, d }) =>
+    (!sede || h.sede === sede) && (!persona || h.persona_id === persona) && (!tipo || d.tipo === tipo));
 
   function descargar() {
     const csv = generarCsv(visibles.map(({ h, d }) => ({
       fecha: fechaHora(h.ocurrio_at), persona: h.persona, sede: h.sede, hecho: d.titulo, detalle: d.detalle ?? "", quien: h.quien ?? "",
     })), ["fecha", "persona", "sede", "hecho", "detalle", "quien"]);
-    descargarCsv(`historial-educacion-${desde}-a-${hasta}.csv`, csv);
+    descargarCsv(`historial-educacion${sede ? `-${sede}` : ""}-${desde}-a-${hasta}.csv`, csv);
   }
 
   return (
     <div className="flex flex-col gap-3">
       {modo === "general" && (
         <div className="flex flex-wrap items-end gap-3">
+          <div className="min-w-36">
+            <CampoSelect etiqueta="Sede" value={sede} onChange={(e) => {
+              setSede(e.target.value);
+              // Si la persona elegida no es de esa sede, se suelta: si no, la lista quedaría vacía sin razón visible.
+              if (persona && !(filas ?? []).some((h) => h.persona_id === persona && (!e.target.value || h.sede === e.target.value))) setPersona("");
+            }}>
+              <option value="">Todas</option>
+              {sedes.map((x) => <option key={x} value={x}>{x}</option>)}
+            </CampoSelect>
+          </div>
           <div className="min-w-48">
             <CampoSelect etiqueta="Persona" value={persona} onChange={(e) => setPersona(e.target.value)}>
               <option value="">Todas</option>
