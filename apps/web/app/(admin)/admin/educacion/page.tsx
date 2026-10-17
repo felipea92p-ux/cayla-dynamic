@@ -11,8 +11,8 @@ import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 import { abrirArchivoFirmado } from "@/lib/abrir-archivo-firmado";
 import {
   ESTADO_CONSTANCIA, ESTADO_ENTREGA, ESTADO_SOLICITUD, FRECUENCIAS_PAGO, FRECUENCIA_PAGO_LABELS,
-  MOTIVO_RECHAZO_LABELS, TIPOS_CONSTANCIA, TIPO_CONSTANCIA_LABELS, hoyLima, problemaDeArchivo,
-  puedeVerPlanilla, sugerirProximaFecha,
+  MOTIVO_RECHAZO_LABELS, TIPOS_CONSTANCIA, TIPO_CONSTANCIA_LABELS, constanciaPedidaAntesDelPago, hoyLima,
+  problemaDeArchivo, puedeVerPlanilla, sugerirProximaFecha,
   type EstadoSolicitud, type FrecuenciaPago, type TipoConstancia,
 } from "@cayla-dynamic/shared";
 import {
@@ -1225,7 +1225,10 @@ function PanelEstudio({
             {s.estado_constancia === "rechazada"
               ? "La última se rechazó; esperando que la integrante envíe la corregida."
               : s.fecha_pago_constancia && s.estado_constancia !== "al_dia"
-                ? `Falta la constancia del pago del ${fechaCorta(s.fecha_pago_constancia)}${s.plazo ? `, plazo ${fechaCorta(s.plazo)}` : ""}.`
+                ? (constanciaPedidaAntesDelPago(s, hoyLima())
+                    // 0526: el apoyo mensual la pide desde el día 1; el pago todavía no llega.
+                    ? `Se pidió la constancia de este mes: el pago es el ${fechaCorta(s.fecha_pago_constancia)}${s.plazo ? `, plazo ${fechaCorta(s.plazo)}` : ""}.`
+                    : `Falta la constancia del pago del ${fechaCorta(s.fecha_pago_constancia)}${s.plazo ? `, plazo ${fechaCorta(s.plazo)}` : ""}.`)
                 : "No hay constancias por revisar."}
           </p>
         )}

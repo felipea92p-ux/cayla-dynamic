@@ -115,6 +115,18 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-10-17-la-constancia-mensual-se-pide-desde-el-dia-1",
+    fecha: "2026-10-17",
+    titulo: "Si tu apoyo educativo es mensual, la constancia se te pide desde el día 1 del mes",
+    queMejoro:
+      "Si tu apoyo educativo se paga cada mes, desde el día 1 te aparece en tu Bandeja y en Lo mío, Educación, que " +
+      "toca la constancia de ese mes, aunque tu institución cobre más tarde. Súbela cuando pagues: el plazo sigue " +
+      "siendo el de siempre, unos cinco días antes del cierre del periodo, y ahí mismo ves la fecha exacta.\n\n" +
+      "Si tu apoyo es por ciclo, de pago único o de otra frecuencia, no cambia nada: tu constancia se sigue pidiendo " +
+      "en la fecha de tu pago. Y la revisión no cambia lo que cobras: la constancia es el respaldo de tu apoyo.",
+    audiencia: "todos",
+  },
+  {
     id: "2026-10-16-el-bono-de-cumpleanos-en-practicas-va-en-la-boleta",
     fecha: "2026-10-16",
     titulo: "Si estás en prácticas, tu bono de cumpleaños va en tu boleta",

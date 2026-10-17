@@ -6,6 +6,61 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-10-17 — Educación: la constancia de un apoyo mensual se pide desde el día 1 · migración 0526 · SIN PEGAR · SIN FUSIONAR · rama `claude/agitated-nightingale-7e118e`
+
+**Hay SQL: la [0526](../supabase/migrations/0526_la_constancia_mensual_se_pide_desde_el_dia_1.sql), SIN PEGAR.**
+Es una función de LECTURA (`fn_educacion_situacion`): no toca planilla, ni el espejo, ni la 0524 ni la 0525. Si el
+código llega a producción antes que ella, no se rompe nada: simplemente el pedido sigue abriéndose el día del pago.
+Aun así se pega ANTES de fusionar, como toda migración. Antes de entregarla hay que pedirle a producción el md5 de la
+función (consulta abajo); el encabezado de la migración lo declara `PENDIENTE`.
+
+**Qué pidió Felipe (2026-10-17).** Que la constancia se pida el 1 de cada mes. Decidió: el día 1 se ABRE el pedido de
+la constancia del mes y se avisa; el plazo sigue siendo el de hoy (`fn_educacion_plazo`: 5 días antes del cierre del
+periodo, ≈ día 23); vale SOLO para apoyos de frecuencia `mensual`.
+
+**Cómo está hecho.** Un estudio mensual pide su constancia desde el día 1 cuando su próximo pago declarado cae en ESTE
+mes y todavía no llega, cae dentro de la vigencia, el estudio ya empezó y este mes no tiene una constancia APROBADA
+(mes calendario de Lima, como la cuadrícula). Sale por la escalera de siempre: `falta_enviar` y, en la última semana,
+`por_vencer`; nunca `vencida`. `fecha_pago_constancia` es el pago declarado y el plazo es `fn_educacion_plazo` de esa
+fecha, así que un pago del 28 conserva su plazo del 23 del mes siguiente. **No se usó «día 1 a secas con plazo del día
+1»** porque daba falsos positivos medidos (pago tardío, estudio recién empezado, «último pago» ya declarado); el detalle
+está en el encabezado de la migración. Las pantallas no calculan nada: leen el estado. Lo único que cambió en ellas es
+el texto cuando el pago aún no llega (`constanciaPedidaAntesDelPago`, en `packages/shared`): «Este mes toca la
+constancia de tu pago del 15» en el portal, en la tarjeta de DO y en la Bandeja de la integrante, en vez de «Tu pago
+del 15 necesita su constancia», que diría que ya pagó. El número rojo del menú de DO y su Bandeja no se inflan: cuentan
+`vencida` y `sin_calendario`, no `falta_enviar`. Novedad de «todos» en `novedades.ts`.
+
+**Qué se comprobó.** Prueba pgTAP [420](../supabase/tests/420_la_constancia_mensual_se_pide_desde_el_dia_1.test.sql)
+(45 aserciones, reloj fijado en 2031 dentro de la transacción) contra el Postgres local en `BEGIN … ROLLBACK`: 45
+verdes con la 0526; **el control sin ella: 9 rojas, exactamente las del comportamiento nuevo**, y las 36 de «lo que no
+cambia» siguen verdes. Comparación 0450 contra 0526 sobre 23 casos × 5 fechas (115 filas): cambian 14, todas de
+`al_dia` a `falta_enviar`/`por_vencer`, y en las 115 NINGUNA otra columna cambia. Incluye el ciclo entero con las
+funciones de verdad (envía, DO aprueba, el calendario avanza, el 1.º del mes siguiente se abre). `tsc`, eslint y las
+1782 pruebas de vitest en verde.
+
+**Qué NO se comprobó.** Nada contra producción ni contra datos reales. No se midió cuántos estudios mensuales cambiarían
+de `al_dia` a `falta_enviar` el próximo día 1 (sale de contar en producción los mensuales con el próximo pago en el mes
+corriente). No se abrió el portal ni la Bandeja en el navegador: los textos nuevos están cubiertos por vitest, no vistos.
+
+**Hueco que la 0526 deja anotado y NO arregla (preexistente, desde la 0450).** Pagar ANTES de la fecha declarada no
+corre el calendario: `fn_educacion_avanzar_calendario` solo avanza si la fecha de pago de la constancia aprobada es
+`>=` la próxima fecha vigente. Medido con las funciones de verdad: declara el 15, paga y sube el 3, DO aprueba → el
+calendario se queda en el 15; el 20 de mayo figura `por_vencer` y el 1.º de junio `vencida`, para un mes que ya está
+aprobado. Pasa con todas las frecuencias; la 0526 no lo empeora (mientras el mes está aprobado sigue `al_dia`), pero
+pedir la constancia desde el día 1 vuelve más probable que alguien pague antes de su fecha. Arreglarlo toca OTRA función
+(`fn_educacion_avanzar_calendario`) y es un cambio de reglas del calendario: propuesto como sesión aparte.
+
+**Para Felipe, en este orden.** (1) Pegar en el SQL Editor y mandar el resultado (solo lee):
+`select md5(p.prosrc) as tal_cual, md5(array_to_string(array(select regexp_replace(l, '[[:space:]]*--.*$', '') from
+unnest(string_to_array(p.prosrc, chr(10))) as l where btrim(l) not like '--%'), chr(10))) as sin_comentarios,
+length(p.prosrc) as caracteres from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname =
+'public' and p.proname = 'fn_educacion_situacion';` — el del repositorio (la 0450) es `f0ddaf5b…` · 4006. Si coincide
+`tal_cual` o `sin_comentarios`, se sigue (declarando el de producción); si no coincide ninguno, se PARA. (2) Pegar la
+0526; después `position('CAMBIO 0526' in prosrc)` debe dar 52 y el md5 `666483bf…` · 6112 (o el CRLF/sin comentarios
+equivalente). (3) Fusionar el PR.
+
+---
+
 ## 2026-10-16 — Educación: un estudio ya no tapa a otro (0524) · SQL SIN PEGAR · COMMITEADO, SIN PR · rama `claude/hungry-mirzakhani-1438df`
 
 **Hoy no cuesta nada.** Medido en producción con la regla nueva contra la de hoy sobre

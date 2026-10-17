@@ -110,6 +110,33 @@ describe("armarBandeja · constancias de estudios", () => {
     expect(b.pendientes[0].nuevo).toBe(true);
   });
 
+  // 0526: el apoyo mensual pide la constancia del mes desde el día 1, con el pago todavía por venir.
+  it("una constancia pedida antes del pago no dice que ya pagó, y pide algo igual", () => {
+    const hoy = HOY;
+    const futuro = "2026-09-28"; // un pago de este mismo mes (HOY es el 8), todavía por venir
+    const b = armarBandeja({
+      ...VACIO,
+      educacionSituacion: [estudio({ estado_constancia: "falta_enviar", fecha_pago_constancia: futuro, plazo: futuro })],
+    }, hoy);
+    expect(b.pendientes).toHaveLength(1);
+    expect(b.pendientes[0].titulo).toBe("Este mes toca la constancia de tu pago a UPN");
+    expect(b.pendientes[0].detalle).toContain("Pagas el");
+    expect(b.pendientes[0].detalle).not.toContain("Pago del");
+    // «cuándo lo pediste» no puede ser una fecha que no llegó.
+    expect(b.pendientes[0].fecha).toBe(hoy);
+    expect(b.pendientes[0].nuevo).toBe(true);
+  });
+
+  it("la que ya pagó y falta la constancia sigue diciendo «Pago del»", () => {
+    const b = armarBandeja({
+      ...VACIO,
+      educacionSituacion: [estudio({ estado_constancia: "falta_enviar", fecha_pago_constancia: "2026-05-05", plazo: "2026-05-22" })],
+    }, HOY);
+    expect(b.pendientes[0].titulo).toBe("Sube la constancia de tu pago a UPN");
+    expect(b.pendientes[0].detalle).toContain("Pago del");
+    expect(b.pendientes[0].fecha).toBe("2026-05-05");
+  });
+
   it("al día o pendiente de revisión no le piden nada", () => {
     const b = armarBandeja({
       ...VACIO,

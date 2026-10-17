@@ -93,6 +93,24 @@ export function constanciaPideAlgoALaIntegrante(estado: EstadoConstancia): boole
 }
 
 /**
+ * ¿Se pide la constancia de un pago que TODAVÍA no llega? Desde la 0526 un apoyo
+ * mensual la pide desde el día 1 del mes aunque la institución cobre el 15: el
+ * estado es «falta_enviar» (o «por_vencer») y `fecha_pago_constancia` es una
+ * fecha futura. «Tu pago del 15 necesita su constancia» diría que ya pagó, y
+ * hasta que pague no hay nada que subir: la pantalla lo cuenta distinto.
+ *
+ * Es solo una pregunta sobre lo que ya contestó la base; el estado sigue siendo
+ * suyo. ISO contra ISO: comparar texto es comparar fechas.
+ */
+export function constanciaPedidaAntesDelPago(
+  s: { estado_constancia: EstadoConstancia; fecha_pago_constancia: string | null },
+  hoy: string,
+): boolean {
+  return (s.estado_constancia === "falta_enviar" || s.estado_constancia === "por_vencer")
+    && s.fecha_pago_constancia !== null && s.fecha_pago_constancia > hoy;
+}
+
+/**
  * Lo que pide una integrante que todavía no tiene un apoyo educativo (0461):
  * el mismo formulario que usa DO para dar de alta, pero sin el monto —eso lo
  * sigue calculando el sistema al aprobar—. Espejo de

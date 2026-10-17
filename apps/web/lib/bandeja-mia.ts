@@ -1,6 +1,6 @@
 import type { ClienteCayla } from "@cayla-dynamic/database";
 import {
-  MOTIVO_RECHAZO_LABELS, constanciaPideAlgoALaIntegrante, fechaLima, hoyLima,
+  MOTIVO_RECHAZO_LABELS, constanciaPedidaAntesDelPago, constanciaPideAlgoALaIntegrante, fechaLima, hoyLima,
   type EstadoConstancia, type MotivoRechazo,
 } from "@cayla-dynamic/shared";
 import { loQueNoSePudo } from "./admin/lo-que-no-se-pudo";
@@ -1065,18 +1065,25 @@ export function armarBandeja(fuentes: FuentesBandeja, hoy: string = hoyLima()): 
     // Un rechazo reciente ya está arriba como respuesta, con su motivo y su
     // enlace: contarlo también como pendiente sería avisar dos veces de lo mismo.
     if (s.estado_constancia === "rechazada" && rechazoReciente.has(s.familia_id)) continue;
-    const pago = s.fecha_pago_constancia ? `Pago del ${diaYMes(s.fecha_pago_constancia)}. ` : "";
+    // 0526: un apoyo mensual la pide desde el día 1 del mes, con el pago todavía por venir. «Pago
+    // del 15» diría que ya pagó, y «hace N días» no se cuenta contra una fecha que no llegó.
+    const anticipada = constanciaPedidaAntesDelPago(s, hoy);
+    const pago = s.fecha_pago_constancia
+      ? `${anticipada ? "Pagas el" : "Pago del"} ${diaYMes(s.fecha_pago_constancia)}. `
+      : "";
     const plazo = s.plazo ? `Tienes hasta el ${diaYMes(s.plazo)}. ` : "";
     pendientes.push({
       instante: s.plazo ? Date.parse(`${s.plazo}T00:00:00Z`) : 0,
       m: {
         clave: `educacion-constancia:${s.familia_id}`, origen: "educacion", estado: "por_arreglar",
-        fecha: s.fecha_pago_constancia ?? hoy,
+        fecha: s.fecha_pago_constancia && !anticipada ? s.fecha_pago_constancia : hoy,
         titulo: s.estado_constancia === "rechazada"
           ? `Corrige la constancia de ${s.institucion}`
           : s.estado_constancia === "vencida"
             ? `Pasó el plazo de tu constancia de ${s.institucion}`
-            : `Sube la constancia de tu pago a ${s.institucion}`,
+            : anticipada
+              ? `Este mes toca la constancia de tu pago a ${s.institucion}`
+              : `Sube la constancia de tu pago a ${s.institucion}`,
         respuesta: null,
         detalle: `${pago}${plazo}Es el respaldo de tu apoyo educativo; subirla no cambia lo que cobras.`,
         nuevo: true,

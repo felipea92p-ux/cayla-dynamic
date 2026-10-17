@@ -6,7 +6,7 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import {
   ARCHIVOS_POR_ENTREGA, ESTADO_CONSTANCIA, ESTADO_ENTREGA, ESTADO_SOLICITUD, FRECUENCIA_PAGO_LABELS,
   MOTIVO_RECHAZO_LABELS, TIPOS_CONSTANCIA, TIPO_CONSTANCIA_LABELS, TZ_LIMA, VIGENCIA_CORTA_DIAS, diasDeVigencia,
-  finDeCicloSugerido, hoyLima, problemaDeArchivo, sugerirProximaFecha,
+  constanciaPedidaAntesDelPago, finDeCicloSugerido, hoyLima, problemaDeArchivo, sugerirProximaFecha,
   type EstadoConstancia, type EstadoEntrega, type EstadoSolicitud, type FrecuenciaPago, type MotivoRechazo,
   type TipoConstancia,
 } from "@cayla-dynamic/shared";
@@ -134,6 +134,11 @@ function fraseDeConstancia(s: Situacion, hoy: string): string {
       return `Tu pago del ${fechaCorta(s.fecha_pago_constancia)} todavía no tiene su constancia y el plazo pasó. Súbela cuanto antes.`;
     case "por_vencer":
     case "falta_enviar":
+      // 0526: un apoyo mensual pide la constancia desde el día 1 del mes. Si el pago todavía no
+      // llega, decir «tu pago del 15 necesita su constancia» sería decir que ya pagó.
+      if (constanciaPedidaAntesDelPago(s, hoy)) {
+        return `Este mes toca la constancia de tu pago del ${fechaCorta(s.fecha_pago_constancia)}. Cuando pagues, súbela aquí.${plazo}`;
+      }
       return `Tu pago del ${fechaCorta(s.fecha_pago_constancia)} necesita su constancia.${plazo}`;
     case "al_dia":
       return s.proxima_fecha_pago && s.proxima_fecha_pago > hoy

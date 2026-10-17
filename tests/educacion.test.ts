@@ -4,7 +4,7 @@
 import { describe, it, expect } from "vitest";
 import {
   ESTADO_CONSTANCIA, MOTIVOS_RECHAZO, MOTIVO_RECHAZO_LABELS, TIPOS_CONSTANCIA, TIPO_CONSTANCIA_LABELS,
-  VIGENCIA_CORTA_DIAS, constanciaPideAlgoALaIntegrante, diasDeVigencia, finDeCicloSugerido,
+  VIGENCIA_CORTA_DIAS, constanciaPedidaAntesDelPago, constanciaPideAlgoALaIntegrante, diasDeVigencia, finDeCicloSugerido,
   nombreDeArchivoSeguro, problemaDeArchivo, sugerirProximaFecha,
 } from "@cayla-dynamic/shared";
 
@@ -99,5 +99,31 @@ describe("catálogos", () => {
     expect(constanciaPideAlgoALaIntegrante("pendiente_revision")).toBe(false);
     expect(constanciaPideAlgoALaIntegrante("al_dia")).toBe(false);
     expect(constanciaPideAlgoALaIntegrante("por_vencer")).toBe(true);
+  });
+});
+
+// 0526: un apoyo mensual pide la constancia del mes desde el día 1, aunque el
+// pago caiga después. Las pantallas necesitan distinguir «pagaste el 15 y falta
+// la constancia» de «este mes toca la del pago del 15, que todavía no llega».
+describe("constanciaPedidaAntesDelPago", () => {
+  const hoy = "2031-05-03";
+  it("pide algo con un pago por venir: falta enviar o por vencer, con fecha futura", () => {
+    expect(constanciaPedidaAntesDelPago({ estado_constancia: "falta_enviar", fecha_pago_constancia: "2031-05-15" }, hoy)).toBe(true);
+    expect(constanciaPedidaAntesDelPago({ estado_constancia: "por_vencer", fecha_pago_constancia: "2031-05-20" }, hoy)).toBe(true);
+  });
+  it("el pago de hoy o de antes es el caso de siempre: ya pagó", () => {
+    expect(constanciaPedidaAntesDelPago({ estado_constancia: "falta_enviar", fecha_pago_constancia: "2031-05-03" }, hoy)).toBe(false);
+    expect(constanciaPedidaAntesDelPago({ estado_constancia: "por_vencer", fecha_pago_constancia: "2031-04-28" }, hoy)).toBe(false);
+  });
+  it("lo vencido, lo rechazado y lo pendiente no son «antes del pago», aunque traigan una fecha", () => {
+    for (const estado of ["vencida", "rechazada", "pendiente_revision", "al_dia", "sin_calendario"] as const) {
+      expect(constanciaPedidaAntesDelPago({ estado_constancia: estado, fecha_pago_constancia: "2031-05-15" }, hoy)).toBe(false);
+    }
+  });
+  it("sin fecha no hay de qué hablar", () => {
+    expect(constanciaPedidaAntesDelPago({ estado_constancia: "falta_enviar", fecha_pago_constancia: null }, hoy)).toBe(false);
+  });
+  it("un pedido anticipado SÍ le pide algo a la integrante (aparece en su Bandeja)", () => {
+    expect(constanciaPideAlgoALaIntegrante("falta_enviar")).toBe(true);
   });
 });
