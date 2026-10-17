@@ -3,7 +3,7 @@
 --   npx supabase test db
 -- Lo que sí se pega vive en supabase/migrations/.
 -- ============================================================================
--- 414_el_bono_de_cumpleanos_tambien_lo_recibe_el_practicante.test.sql — 0519
+-- 414_el_bono_de_cumpleanos_tambien_lo_recibe_el_practicante.test.sql — 0519/0521
 -- ============================================================================
 -- Lo que defiende:
 --
@@ -12,19 +12,20 @@
 --   2. TRES PUERTAS, UNA RESPUESTA. El caso de Daniel Ruiz (2026-10-13): el
 --      tablero decía «este_mes», `fn_mi_bono_cumpleanos` decía «no_aplica» y
 --      el registro en papel lo rechazaba. Ahora las tres coinciden.
---   3. EL PRACTICANTE PIDE Y NUNCA VA A LA BOLETA. Firma, queda «pedido» por
---      transferencia, no se escribe NADA en la planilla, DO lo ve por
---      transferir y lo confirma.
---   4. LA PLANILLA SIGUE IGUAL. El de planilla, en las mismas condiciones, sí
---      va a su boleta (CONTROL: sin esto, el «no hay línea» del practicante
---      podría ser un periodo mal puesto).
+--   3. EL PRACTICANTE PIDE Y VA A SU BOLETA (0521). Hasta la 0520 firmaba y
+--      quedaba «pedido» por transferencia; Felipe lo revirtió el 2026-10-13
+--      («no transferir a cada rato, sino pagar al fin del periodo»). Ahora la
+--      firma crea su línea de boleta y DO ya no lo ve por transferir. El efecto
+--      sobre la planilla se mide en la prueba 415.
+--   4. LA PLANILLA SIGUE IGUAL. El de planilla, en las mismas condiciones, va a
+--      su boleta igual que el practicante.
 --   5. EL LOCADOR SIGUE FUERA. No ve el bono, no puede pedirlo y DO no le
 --      puede registrar una constancia.
 --   6. EL PAPEL TAMBIÉN. DO registra la constancia en papel de un practicante.
 --
--- QUÉ NO SE PRUEBA AQUÍ. Lo que `fn_planilla_calcular` haría con un bono de
--- practicante en boleta: no se prueba porque NO SE HACE — ese camino se cerró a
--- propósito (ver el encabezado de la 0519).
+-- QUÉ SE PRUEBA EN OTRO ARCHIVO. Lo que `fn_planilla_calcular` hace con un bono
+-- de practicante en boleta, y la reparación de lo que la 0520 dejó «por
+-- transferir»: prueba 415.
 --
 -- Supone una base sin periodos de planilla (la de CI, construida desde cero):
 -- por eso empieza borrándolos. En una base de desarrollo con periodos reales,
@@ -114,39 +115,44 @@ select is(
   'PUERTA 2 · coinciden: una fila, un estado');
 
 
--- ── 3 · EL PRACTICANTE PIDE Y NUNCA VA A LA BOLETA ───────────────────────
+-- ── 3 · EL PRACTICANTE PIDE Y VA A SU BOLETA (0521) ──────────────────────
 select is(pg_temp.pudo_pedir(), true, 'PEDIDO · el practicante firma su constancia');
-select is((select estado from fn_mi_bono_cumpleanos()), 'pedido',
-  'ESTADO · queda «pedido»: lo transfiere DO');
-select is((select via from fn_mi_bono_cumpleanos()), 'transferencia',
-  'ESTADO · y la vía es la transferencia, no la boleta');
+select is((select estado from fn_mi_bono_cumpleanos()), 'en_boleta',
+  'ESTADO · queda «en_boleta»: se paga con el periodo, nadie lo transfiere');
+select is((select via from fn_mi_bono_cumpleanos()), 'boleta',
+  'ESTADO · y la vía es la boleta');
 select is(
   (select movimiento_id from documentos_firmados
     where persona_id = '00000000-0000-0000-0000-000000414001' and tipo = 'bono'),
-  null::uuid,
-  'BOLETA · la constancia no queda atada a ninguna línea');
+  (select id from movimientos_planilla
+    where persona_id = '00000000-0000-0000-0000-000000414001' and tipo = 'bono'),
+  'BOLETA · la constancia queda atada a SU línea de boleta');
 select is(
   (select count(*) from movimientos_planilla
-    where persona_id = '00000000-0000-0000-0000-000000414001'),
-  0::bigint,
-  'BOLETA · y no se escribió NADA en la planilla, con un periodo abierto de por medio');
+    where persona_id = '00000000-0000-0000-0000-000000414001'
+      and periodo_id = '00000000-0000-0000-0000-0000000414a1'
+      and tipo = 'bono' and concepto = 'Asignación por cumpleaños'
+      and monto = fn_bono_monto_vigente()),
+  1::bigint,
+  'BOLETA · una sola línea, en el periodo que corre, con el monto vigente');
 
 select pg_temp.como('00000000-0000-0000-0000-000000414015');
 select is(
   (select count(*) from fn_bonos_por_transferir()
     where persona_id = '00000000-0000-0000-0000-000000414001'),
-  1::bigint,
-  'DO · lo ve en «por transferir»');
-select lives_ok(
+  0::bigint,
+  'DO · NO lo ve en «por transferir»: ya lo paga la planilla');
+select throws_ok(
   $$ select fn_confirmar_entrega_bono(
        (select id from documentos_firmados
          where persona_id = '00000000-0000-0000-0000-000000414001' and tipo = 'bono'),
        fn_hoy_lima()) $$,
-  'DO · confirma «ya lo transferí»');
+  null, null,
+  'DO · «ya lo transferí» sobre un bono que va en boleta se rechaza: sería pagarlo dos veces');
 
 select pg_temp.como('00000000-0000-0000-0000-000000414011');
-select is((select estado || ' ' || via from fn_mi_bono_cumpleanos()), 'entregado transferencia',
-  'ENTREGADO · el practicante lo ve entregado, por transferencia');
+select is((select monto from fn_mi_bono_cumpleanos()), fn_bono_monto_vigente(),
+  'MONTO · lo que ve el practicante en su pantalla es el monto de su línea');
 
 
 -- ── 4 · LA PLANILLA SIGUE IGUAL (control) ────────────────────────────────
@@ -207,8 +213,8 @@ select is(
   (select count(*) from correcciones_auditoria
     where persona_id = '00000000-0000-0000-0000-000000414001'
       and campo_modificado = 'bono_en_boleta'),
-  0::bigint,
-  'AUDITORÍA · y NO deja rastro de «bono en boleta», porque no entró a ninguna');
+  1::bigint,
+  'AUDITORÍA · y deja el rastro de «bono en boleta» que lo ata a su periodo');
 
 select * from finish();
 rollback;

@@ -127,6 +127,65 @@ export const NOVEDADES: readonly Novedad[] = [
     audiencia: "do",
   },
   {
+    id: "2026-10-16-el-bono-de-cumpleanos-en-practicas-va-en-la-boleta",
+    fecha: "2026-10-16",
+    titulo: "Si estás en prácticas, tu bono de cumpleaños va en tu boleta",
+    queMejoro:
+      "Tu bono de cumpleaños ahora entra a tu boleta del periodo y se paga al cierre, igual que al resto del " +
+      "equipo. Es una corrección: una novedad anterior decía que a quien está en prácticas se lo transfería " +
+      "Desarrollo Organizacional y que no iba en una boleta, y ya no es así.\n\n" +
+      "Si ya habías pedido tu bono, no tienes que hacer nada.",
+    audiencia: "todos",
+  },
+  {
+    id: "2026-10-16-educacion-constancias-por-mes-y-por-sede",
+    fecha: "2026-10-16",
+    titulo: "En Educación ya se ven las constancias de cada mes, por sede, sin descargar nada",
+    queMejoro:
+      "La lista de Educación ahora es una cuadrícula: una fila por persona e institución, una columna por mes y, en " +
+      "cada casilla, la miniatura de la constancia recibida. Un toque la abre grande —foto o PDF con todas sus hojas— " +
+      "con sus datos al lado y los botones Aprobar y Rechazar, sin otra pestaña ni descargar nada. También se puede " +
+      "usar desde el celular.\n\n" +
+      "La sede va arriba, con el número de estudios de cada una, y las cinco tarjetas de arriba cuentan solo lo que " +
+      "estás viendo: si eliges una sede o un mes, las tarjetas y la lista dicen lo mismo. Con las flechas ← → pasas de " +
+      "una constancia a otra y con Esc cierras el visor. Con «Todas», cada sede tiene su " +
+      "bloque con su resumen. Un guion en un mes es un mes sin constancia, no una falta: lo vencido lo sigue diciendo la " +
+      "etiqueta de estado. Si una persona registró el mismo estudio dos veces, sale en una sola línea con sus meses " +
+      "seguidos.\n\n" +
+      "«Más filtros» suma quién estudia, el tipo de constancia, quién la revisó y un rango de fechas, y lo que eliges " +
+      "queda en la dirección: puedes guardarla o pasarla para ver lo mismo. «Descargar» baja el cuadro de lo que ves " +
+      "(CSV) y, si eliges un mes, un ZIP con las constancias de esa sede y ese mes.",
+    audiencia: "do",
+  },
+  {
+    id: "2026-10-16-educacion-por-grupos-y-cuadro-de-constancias",
+    fecha: "2026-10-16",
+    titulo: "Educación se puede ver por grupos, con quién no ha pedido nada y un cuadro de constancias",
+    queMejoro:
+      "En Educación hay pestañas debajo de las tarjetas: Al día, Por revisar, Por completar, Vencidas o rechazadas y " +
+      "Sin solicitar. Se agrupa por el estado de la constancia, no por si el apoyo se paga, y «Sin solicitar» lista a " +
+      "las personas activas que no tienen ningún apoyo ni una solicitud por revisar, con un botón para registrarles " +
+      "uno.\n\n" +
+      "Arriba hay dos paneles que se abren: «Cómo funciona», con la regla, el techo por rango y los plazos de la " +
+      "constancia, y «Dónde están las constancias», que explica dónde se guardan, qué queda registrado y permite " +
+      "descargar un cuadro (CSV) con una fila por constancia y archivo, para una auditoría. La tarjeta «Rechazadas» " +
+      "ahora se llama «Constancias rechazadas» y dice «esperando a la integrante» en vez de «atender», porque a Desarrollo " +
+      "Organizacional no le toca nada hasta que llegue la corregida; el historial aclara que cuenta solicitudes, no constancias.",
+    audiencia: "do",
+  },
+  {
+    id: "2026-10-16-adjuntar-comprobante-a-solicitud-de-apoyo-educativo",
+    fecha: "2026-10-16",
+    titulo: "Ya puedes adjuntar el comprobante a tu solicitud de apoyo educativo después de enviarla",
+    queMejoro:
+      "Si enviaste tu solicitud de apoyo educativo sin el comprobante, ya no tienes que retirarla y pedirla de nuevo: " +
+      "en Lo mío, Educación, tu solicitud pendiente tiene un botón «Adjuntar comprobante». Desarrollo Organizacional " +
+      "lo ve al revisarla, y sin él no puede aprobar.\n\n" +
+      "Si te equivocaste de archivo, el mismo botón dice «Cambiar comprobante» y lo reemplaza mientras la solicitud " +
+      "siga pendiente. Una vez revisada o retirada, el comprobante ya no se cambia.",
+    audiencia: "todos",
+  },
+  {
     id: "2026-10-13-asistencia-diseno-unificado",
     fecha: "2026-10-13",
     titulo: "Asistencia de hoy se ve más ordenada: números, avisos y sedes con una sola forma",

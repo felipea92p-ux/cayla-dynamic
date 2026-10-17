@@ -6,7 +6,99 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-10-15 — Los practicantes pasan de EsSalud al seguro FOLA · migración 0504 · PEGADA Y VERIFICADA EN PRODUCCIÓN · SIN FUSIONAR (PR #532, borrador)
+## 2026-10-16 — Educación: un estudio ya no tapa a otro (0524) · SQL SIN PEGAR · COMMITEADO, SIN PR · rama `claude/hungry-mirzakhani-1438df`
+
+**Hoy no cuesta nada.** Medido en producción con la regla nueva contra la de hoy sobre
+los tres últimos periodos: a nadie le cambia el pago. Es una regla frágil que se
+endereza antes del próximo caso, no una plata mal pagada.
+
+**El defecto.** La regla de la 0233 usaba UN día de referencia por persona. Si el
+único estudio vigente el primer día del periodo se acababa ahí, todo lo que empezaba
+después quedaba sin pagar (Duolingo hasta 28/09, Pop in colors e Italo desde 10/10:
+boleta de S/104.25 donde tocaban S/165). **0524** da a cada estudio su propio día de
+referencia. Mismo estudio = misma `familia_id`, o mismo beneficiario (y mismo hijo) con
+la misma institución o con ciclos contiguos. El cuerpo vive en
+`fn_planilla_calcular_nucleo` (la vigente era la **0504**, no la 0397: el envoltorio de
+786 caracteres no paga nada).
+
+**Decisión de negocio que revierte la 0233:** un estudio que empieza a mitad de periodo
+cobra el mes completo ese periodo aunque la persona ya tuviera otro. Límite conocido
+(documentado en la cabecera): dos ciclos del mismo beneficiario con instituciones
+distintas, no contiguos y en un mismo periodo, se cobran los dos; en producción no hay
+ninguno hoy.
+
+**Pendiente.** Pegar la 0524 (md5 de partida de producción `f1781d68…`, 116 749
+caracteres, medido el 2026-10-16; **se vuelve a pedir justo antes de entregar**) y,
+aparte, medir en la boleta congelada de septiembre qué se pagó de educación a esa
+integrante (Duolingo tenía dos tramos; las filas de hoy no se suman entre sí).
+`donde-vive.sh` busca el primer contenedor `supabase_db_*` y con `cayla-retail`
+levantado contesta «no existe en el Postgres local»: no es que falte, mira otra base.
+
+---
+
+## 2026-10-16 — Educación: cuadrícula de constancias por mes, visor sin descargar, sede y filtros · SIN SQL · COMMITEADO, SIN PR TODAVÍA · rama `claude/constancias-filtros-sede-a4201b`
+
+**No hay migración que pegar.** Todo sale de las dos funciones que ya existen
+(`fn_educacion_situacion`, `fn_educacion_entregas`). Está commiteado en la rama
+(`b1e7378a` y un segundo commit con los arreglos de la revisión de abajo); no se ha
+subido ni abierto PR.
+
+**Qué pidió Felipe y qué quedó.** «Ver las constancias sin descargar, los meses
+anteriores, el filtro y todo por sede». Decidido por él en 16 preguntas el 2026-10-16:
+visor grande sobre la misma pantalla (foto o PDF con todas sus hojas, datos y
+Aprobar/Rechazar al lado, ← → entre constancias), cuadrícula persona × mes con seis
+meses y «ver más», mes = calendario del pago, **un mes sin constancia es un guion y
+nunca una falta**, una fila por persona e institución (el Duolingo registrado dos
+veces es una línea), las cinco tarjetas siguen la sede y el mes elegidos, sin
+aprobación en lote, CSV de lo que se ve y ZIP del mes. La sede y el diseño los dejó
+a criterio de quien construyó. Quién ve la pantalla **no cambió**: solo DO y admin.
+
+**Dónde vive.** Lógica pura en `apps/web/lib/admin/educacion-meses.ts` (con
+`tests/educacion-meses.test.ts`) y `zip-constancias.ts`; piezas en
+`apps/web/components/educacion/`. El PDF se **dibuja** con pdf.js (`legacy`) y no se
+incrusta: Safari de iPhone solo mostraría la primera hoja de un PDF incrustado.
+Dependencias nuevas: `pdfjs-dist` y `fflate`. La aprobación/rechazo salió del panel a
+`AccionesRevision`, que usan el panel y el visor.
+
+**Los decodificadores de pdf.js viven en `apps/web/public/pdfjs/wasm/`.** Sin ellos,
+un PDF escaneado en blanco y negro (JBIG2) o con JPEG 2000 sale EN BLANCO en el visor,
+sin error. Se midió el 2026-10-16 con un PDF de prueba JPEG 2000: hoja en blanco antes,
+legible después. **Si se sube `pdfjs-dist`, hay que volver a copiarlos** (`cp
+apps/web/node_modules/pdfjs-dist/wasm/{jbig2,openjpeg,qcms_bg}.wasm apps/web/public/pdfjs/wasm/`):
+`tests/pdfjs-wasm.test.ts` falla en CI si no coinciden byte por byte.
+
+**Revisión independiente (2026-10-16).** Cinco revisores con lentes distintos leyeron el
+commit y 78 verificadores intentaron refutar o reproducir cada hallazgo: de 39 candidatos,
+35 confirmados, 2 discutidos y 2 descartados. Lo confirmado se arregló. Lo que más pesó:
+(1) el PDF escaneado en blanco de arriba; (2) una consulta de constancias que fallaba se
+dibujaba y se exportaba como «sin constancia» —ahora se marca «?», no esconde al estudio
+de ningún filtro y el CSV/ZIP se niegan hasta reintentar—; (3) el CSV y el ZIP de un mes
+omitían en silencio los apoyos terminados y las personas liquidadas —ya no—; (4) una
+constancia por revisar de un tramo terminado o de una persona liquidada no se veía en
+ninguna tarjeta ni pestaña —ahora **lo que espera revisión no se esconde por un filtro
+que nadie eligió**—; (5) dos dibujados a la vez sobre el mismo canvas dejaban la hoja
+mal pintada.
+
+**Qué se comprobó.** `tsc`, eslint, las pruebas y `next build` en verde. En el
+navegador, con datos simulados y archivos reales en el Storage local (la base local no
+tiene la 0450, así que NO se probó contra la base): miniaturas de foto y de PDF, el
+visor en escritorio y en celular (las dos hojas del PDF se ven), aprobar desde el
+visor con la confirmación encima, Esc que cierra solo la confirmación, el panel de
+estudio con su historial, el filtro por sede y por mes y la dirección que los guarda.
+
+**Lo que NO se comprobó.** Un iPhone real; el clic en «Descargar» (CSV y ZIP): se
+probaron los nombres de archivo, las extensiones y los repetidos, no la descarga misma;
+y los datos reales de producción.
+
+**Deuda a la vista.** Al entrar se hace una consulta por estudio (de a seis): con ~30
+personas no se nota; si la lista crece, conviene UNA función SQL que devuelva todo, y
+esa sí exigiría pegar antes de fusionar. El panel «Estudio» de una fila con varios
+tramos abre el tramo que habla por la fila; las constancias de los otros se ven en la
+cuadrícula y en el visor.
+
+---
+
+## 2026-10-15 — Los practicantes pasan de EsSalud al seguro FOLA · migración 0504 · PEGADA Y VERIFICADA EN PRODUCCIÓN · FUSIONADA Y PUBLICADA (PR #532, 2026-10-15)
 
 **Pegada y verificada el 2026-10-15.** El SQL Editor devolvió el registro
 `504 · los_practicantes_pasan_de_essalud_a_seguro_privado`, y una consulta aparte,
@@ -18,12 +110,24 @@ planilla. Lo que eso garantiza es el texto de las dos funciones; que un practica
 dé EsSalud 0.00 en el cálculo en vivo lo prueba la 398 en CI, y **no se midió contra
 una planilla real de producción**. Los periodos ya congelados no se recalculan.
 
-**Falta fusionar el PR, y fusionar ES publicar.** Trae el texto nuevo del convenio
-(«seguro privado», 14 / 30 subvenciones), que los practicantes firman; no se
-fusiona hasta confirmar con el corredor el «Beneficio máximo anual» y si la póliza
-alcanza a la modalidad preprofesional (ver la tabla de abajo). La prueba 396 de la
-0502 ya está ajustada en el PR; sin ese ajuste `main` quedaría con `db-tests` en
-rojo.
+**Fusionado y publicado el 2026-10-15 a las 14:58 (Lima)**, después de pegar la SQL,
+como manda el orden. Fusión armada con `--auto --merge` a pedido de Felipe, sin
+`--admin`; `db-tests` y `ui-tests` en verde sobre el commit de la fusión
+(`2d73c1b0`), y ese commit publicado en producción. Desde entonces el convenio de
+prácticas que genera Contratos dice «seguro privado» (14 / 30 subvenciones, alcanza
+los accidentes de la práctica).
+
+**Hoy no cuesta nada, y queda abierto.** Felipe decidió fusionar **sin** la
+confirmación escrita del corredor, asumiendo el riesgo: el convenio ya promete lo de
+arriba, y ni el «Beneficio máximo anual» ni la cobertura de la modalidad
+preprofesional están comprobados (ver la tabla). Solo pesa si un practicante se
+enferma o se accidenta y la póliza no alcanza lo que el convenio dice: esa diferencia
+la debería LA EMPRESA.
+
+**Los cuatro firman el convenio nuevo, no una adenda** (decidido por Felipe el
+2026-10-16). Ninguno tiene un convenio firmado que diga EsSalud que haya que
+corregir, así que la rama `claude/adenda-convenio-en-info` (2026-10-02, sin PR) no
+hace falta para esto.
 
 **Qué es.** La planilla deja de calcular `aporte_essalud` para los practicantes
 (una línea de `fn_planilla_calcular_nucleo`), el motivo que `fn_set_tipo_vinculo`
@@ -42,10 +146,13 @@ repo (llevan nombres): viven en el correo de Felipe y con el corredor.
 | Qué | Cuándo | Si no |
 |---|---|---|
 | ~~**Pagar las cuatro primas** (S/ 719.88 en total, contado)~~ | ✅ **pagadas** — lo informó Felipe el 15/10/2026 (vencían el 31/10) | Con 30 días de mora la cobertura se suspende. Queda pedir las facturas, que Pacífico emite al pagar: Dante las va a necesitar |
+| ~~**Enviar a cada practicante su póliza**~~ | ✅ **enviadas** — lo informó Felipe el 16/10/2026 | Ese correo es la constancia de entrega: no borrarlo. No hace falta un cargo aparte: el convenio no promete entregar la póliza, y la firma del convenio nuevo prueba que cada uno sabe que tiene seguro |
+| **Pedir las facturas de las cuatro primas** | cuanto antes | Dante las va a necesitar |
 | **Firmar y devolver póliza y convenio de pago** | cuanto antes | Pacífico los pide firmados; la casilla del asegurado/contratante está en blanco en los cuatro |
+| **Que los cuatro firmen el convenio nuevo** | cuanto antes | Se genera desde Contratos; ya dice «seguro privado» |
 | **Renovar la póliza** | **antes del 01/01/2027** | Desde ese día los practicantes quedan sin seguro, y la planilla ya no calcula EsSalud al que volver |
-| **Confirmar con el corredor el «Beneficio máximo anual»** | **antes de fusionar el PR** | La casilla está VACÍA en las cuatro pólizas y la Tabla de Beneficios no viene adjunta: el mínimo de 14 / 30 subvenciones que el convenio nuevo promete no se puede comprobar con estos papeles |
-| **Preguntarle si la póliza alcanza a la modalidad preprofesional** | **antes de fusionar el PR** | El resumen dice que cubre a quien esté en un convenio de «Formación Laboral Juvenil o Prácticas Profesionales», y **dos de los cuatro asegurados son preprofesionales** (los otros dos, profesionales). Pedirlo por escrito |
+| **Confirmar con el corredor el «Beneficio máximo anual»** | **abierto — el convenio ya lo promete** | La casilla está VACÍA en las cuatro pólizas y la Tabla de Beneficios no viene adjunta: el mínimo de 14 / 30 subvenciones que el convenio nuevo promete no se puede comprobar con estos papeles |
+| **Preguntarle si la póliza alcanza a la modalidad preprofesional** | **abierto — el convenio ya lo promete** | El resumen dice que cubre a quien esté en un convenio de «Formación Laboral Juvenil o Prácticas Profesionales», y **dos de los cuatro asegurados son preprofesionales** (los otros dos, profesionales). Pedirlo por escrito |
 
 **Antes de pegar la 0504 (en este orden).**
 1. ✅ **Hecho el 15/10/2026.** [`antes_de_pegar_la_0504.sql`](../scripts/sql-manual/antes_de_pegar_la_0504.sql)
@@ -75,7 +182,7 @@ que rehacerse partiendo del cuerpo de la 0504.
 **Y la 0504 ya entró primero.** Producción tiene desde el 15/10/2026
 `fn_set_tipo_vinculo` con md5 `da6490ac5d12722e38fcba0a2d47dea9` y 2624 caracteres.
 Quien retome la 0518 de «pasar a planilla» (`claude/youthful-joliot-8dd9cb`) tiene
-que partir de ESE cuerpo —el de la 0504, en `main` cuando se fusione—, no del de la
+que partir de ESE cuerpo —el de la 0504, ya en `main`—, no del de la
 0324, y cambiar su md5 de partida (hoy declara `547088d9…`, 2610 caracteres): su
 freno se detendrá, que es lo que se quiere. La única diferencia con la 0324 es la
 frase del motivo de auditoría que se guarda al pasar a alguien a practicante.
@@ -122,6 +229,89 @@ publicar, como siempre.
 **Pendiente.** El toque del **aniversario de CAYLA**: falta el día exacto (en
 Retail es una campaña con ventana editable, no un día). Ver el final de
 `easter-eggs.md`.
+
+---
+
+## 2026-10-13 — El bono del practicante vuelve a la boleta, y se paga al cierre del periodo · migración 0521 · PEGADA Y VERIFICADA EN PRODUCCIÓN (2026-10-16) · PR #539 PENDIENTE DE FUSIONAR
+
+**Decisión de Felipe, el mismo día, al ver funcionando la 0520:** el pedido de
+Daniel Ruiz salió en la Bandeja «S/ 180.00 por transferir» y lo rechazó —«no
+transferir a cada rato, sino pagar al fin del periodo»—. Revierte la regla de la
+0519/0520 (el practicante nunca va a la boleta). La 0518 y la 0520 siguen
+pegadas; esto va ENCIMA de la 0520.
+
+**Antes de escribir, se midió** (planilla vigente, un practicante y un integrante
+de planilla en las mismas condiciones, bono de S/ 180 en cada boleta; repetido el
+2026-10-16 con la 0504 ya en la base): el total del practicante sube de 714.64 a
+894.64, exactamente S/ 180, igual que el de planilla; su EsSalud queda en 0.00
+antes y después (la 0504 se lo quitó; antes de ella eran 110.70 y tampoco se
+movía) y AFP no cambia; la **retención de 4.ª sigue en 0** (su guarda es `rxh`).
+Lo único que se mueve es el campo informativo `retencion_4ta_base`, y se mueve
+IGUAL en el de planilla: es un número que se muestra, no un descuento. El temor de la 0520 («la planilla le
+arma base de retención de cuarta con el bono dentro») es cierto como campo y no
+tiene efecto sobre lo que cobra. Prueba **415**.
+
+**Qué hace la 0521:** `fn_confirmar_mi_bono_cumpleanos` pierde la excepción del
+practicante (un bloque, marca `CAMBIO 0521`), y
+`fn_bono_pasar_pedidos_de_practicantes_a_boleta()` —no concedida a nadie, la corre
+la migración— pasa a la boleta del periodo abierto lo que la 0520 dejó «por
+transferir»: solo practicantes activos, sin transferencia ya confirmada, con
+periodo no pagado; idempotente. No toca el respaldo legítimo de los de planilla.
+No toca `fn_planilla_calcular`.
+
+**Pruebas (cada una en `begin … rollback` sobre el esquema completo):** 415 nueva
+(26; sin la 0521 fallan 4), 414 y 413 ajustadas (decían «nunca por la boleta»),
+y 335, 377, 378 sin cambios y en verde. Frontend: la pantalla del practicante
+(Info, /mio/cumpleanos y la Bandeja mía) vuelve a decir «se suma a tu boleta» y
+«tu subvención» donde decía «planilla»;
+la constancia de practicante lleva «se abona en la boleta del periodo, como
+concepto aparte de la subvención».
+
+**PEGADA el 2026-10-16, ANTES de fusionar el PR** (la regla general). El frontend
+del PR promete «se suma a tu boleta» al practicante y trae una novedad que corrige
+la anterior; por eso va después de pegar. Con el freno de la propia migración (que
+comprobó el md5 de partida y abortaba sin tocar nada si no coincidía), la respuesta
+del SQL Editor fue `firma_sin_excepcion = t`, `sin_sobrecarga = t`,
+**`practicantes_con_bono_en_boleta = 1`**, `practicantes_aun_por_transferir = 0` y el
+registro `521 · el_bono_del_practicante_vuelve_a_la_boleta`.
+
+**Verificada en producción** con una consulta de ocho filas, todas iguales a lo
+calculado antes en local: `fn_confirmar_mi_bono_cumpleanos` `b7a826e9…` tal cual /
+`e796c2b3…` sin comentarios (el mismo código que la 0479, sin la excepción: solo
+cambiaron los comentarios) / 5236 caracteres / 0 retornos; lleva `CAMBIO 0521` y no
+tiene `v_practicante`; `authenticated` puede ejecutar la firma y NO la reparación;
+`fn_mi_bono_cumpleanos` (`d35c7d75…`, 4726) y `fn_documento_registrar` (`2d78559a…`,
+5567) no cambiaron. **Daniel Ruiz tiene su línea «Asignación por cumpleaños» de
+S/ 180.00 en la boleta del periodo que cierra el 2026-10-28, atada a su constancia, y
+ningún practicante tiene dos líneas en el mismo periodo.**
+
+**NO REPEGAR la 0518 ni la 0520 después de la 0521:** la 0520 recrearía
+`fn_confirmar_mi_bono_cumpleanos` con la excepción del practicante y revertiría
+esta migración en silencio (su freno salta con el registro 520 y el resto del
+archivo corre). El traslado de la 0521 sí se protege solo: corre únicamente la
+primera pegada (medido: pegar dos veces, con una línea quitada por DO en el
+medio, no la reinserta).
+
+**md5 de partida de producción:** `fn_confirmar_mi_bono_cumpleanos` (0520) era
+`4c1ce380…` tal cual / `7d430c38…` sin comentarios, 5440 caracteres. No se pidió antes
+de entregar —Felipe pidió el SQL directamente—; lo comprobó el freno de la migración
+al pegar, y habría abortado sin tocar nada si no coincidía.
+
+**Límite conocido, HEREDADO de la 0479 y de cualquiera que esté en boleta (revisión
+adversarial, 2026-10-16):** anular una constancia de bono desde Documentación solo marca
+`anulado_at`; **no retira la línea de la boleta**, y como el índice único por año
+excluye las anuladas, quien firmó puede volver a firmar y quedar con DOS líneas de S/ 180
+en el mismo periodo. Hoy exige dos pasos deliberados (DO anula una firma digital y la
+persona firma otra vez), y la línea duplicada se ve en Planilla antes del cierre. **Hasta
+que se arregle en una migración aparte —que `fn_documento_anular` retire la línea cuando
+el periodo no esté pagado—, al anular un bono que ya va en boleta, DO tiene que quitar
+también la línea desde Planilla.**
+
+**Sigue abierto, y no depende de esto:** las tres preguntas al contador (Ley
+28518: ¿puede darse un monto por cumpleaños a un practicante sin que cuente como
+subvención?, ¿qué texto y cómo consta?, ¿deducible?). El texto de `TextoBono` para
+practicantes es **provisional**. Y el límite de que la constancia se pinta con el
+vínculo ACTUAL, no con el de cuando se firmó (necesita una columna).
 
 ---
 
@@ -250,41 +440,6 @@ pruebas 413, 414, 377, 335, 376 y 378 pasan encima.
 > producción). La sustituye la **0520** (sección de arriba), que une las dos decisiones. Está en
 > `scripts/hooks/no-se-pegan.txt`. Lo que sigue vigente de esta sección: el frontend (publicado) y las
 > preguntas legales abiertas.
-
-## 2026-10-13 — El bono de cumpleaños para el practicante · migración 0519 · PR #524 (BORRADOR) · LEGAL SIN CONFIRMAR
-
-**Origen:** Daniel Ruiz (practicante, `en_planilla = f`) salía pendiente en la Bandeja y en «Cargos de cumpleaños»
-(el tablero, abierto a practicantes por la 0424, le daba `este_mes`), mientras `fn_mi_bono_cumpleanos` le contestaba
-`no_aplica` y `fn_documento_registrar` rechazaba su constancia. Medido en producción con su sesión. Felipe decidió
-**abrir el bono al practicante** (no cerrarlo en el tablero).
-
-**Hecho:** `fn_persona_le_corresponde_bono` (un solo lugar para la pregunta) y las tres funciones la usan; el
-practicante **nunca va a la boleta** (queda «pedido», lo transfiere DO) — no se toca la planilla. Constancia con
-**texto propio** para practicantes (`TextoBono`, sin «trabajador» ni normas laborales). md5 de partida de producción
-de las tres funciones **CONFIRMADOS** el 2026-10-13: idénticos al repo, 0 retornos. Pruebas: **414** (27) nueva; **335**
-y **377** corregidas porque fijaban la regla contraria (el único motivo por el que `db-tests` salió en rojo); todas
-pasan con la 0519. Revisión adversarial de 5 lentes (57 agentes): el SQL no cambió; sí 3 textos que le prometían al
-practicante «se suma a tu boleta» y varios comentarios viejos.
-
-**SQL entregado a Felipe el 2026-10-13** (`./scripts/dame-el-sql.sh 519`). **No sé si ya se pegó**: comprobarlo con
-`que_falta_pegar` antes de dar nada por hecho.
-
-**ORDEN: fusionar el PR ANTES de pegar la 0519** (al revés de la regla general, y a propósito). El frontend es
-compatible hacia atrás —sin la migración, un practicante sigue sin poder pedir el bono—, así que no rompe nada. Si se
-pega primero, un practicante que firme antes de que el texto nuevo esté publicado firma el texto de planilla. Si pasó,
-se ve con una consulta: bonos con `firma_persona_confirmada_at` anterior al despliegue, de personas con
-`tipo_vinculo = 'practicante'`.
-
-**Lo que NO está cerrado:**
-1. **El contador / abogado laboral:** ¿puede CAYLA darle un monto por cumpleaños a un practicante sin que cuente como
-   subvención ni cambie su condición formativa (Ley 28518)? ¿qué texto lleva la constancia y cómo consta el pago? ¿es
-   gasto deducible? El texto de `TextoBono` es **provisional**, lo redactó Claude.
-2. **Límite conocido (migración aparte):** la constancia se pinta con el `tipo_vinculo` ACTUAL, no con el de cuando
-   se firmó. Si un practicante pasa a planilla, su constancia ya firmada mostraría el texto de planilla. La solución
-   es guardar al firmar con qué texto fue (una columna en `documentos_firmados`).
-
-**Hoy, antes de pegar:** Daniel sigue sin bono en el sistema, y «Registrar constancia →» se rechaza («no está en
-planilla»). Su cargo vence el 31-oct.
 
 ---
 

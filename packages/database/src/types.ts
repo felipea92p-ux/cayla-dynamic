@@ -6881,6 +6881,10 @@ export type Database = {
         }
         Returns: string
       }
+      fn_educacion_solicitud_adjuntar: {
+        Args: { p_id: string | null; p_ruta: string | null }
+        Returns: undefined
+      }
       fn_educacion_solicitudes_pendientes: {
         Args: never
         Returns: {
