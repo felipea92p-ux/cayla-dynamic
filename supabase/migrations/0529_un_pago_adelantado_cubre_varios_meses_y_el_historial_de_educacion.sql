@@ -6,9 +6,9 @@
 -- ESTADO: SIN PEGAR (2026-10-17). Se pega DESPUÉS de la 0525 y ANTES de fusionar el PR
 -- que trae sus pantallas. No reescribe ninguna función existente: todo lo de aquí es
 -- nuevo (dos columnas, una tabla, funciones y triggers propios), así que no hay md5 de
--- partida; antes de pegar se comprueba en producción que esos nombres no existan
--- (consulta al final). Prueba: supabase/tests/424 (50 aserciones; sin esta migración,
--- falla).
+-- partida. La sección 0 comprueba sola que esos nombres no existan todavía (si
+-- existen sin la 0529 registrada, PARA). Prueba: supabase/tests/424 (50 aserciones;
+-- sin esta migración, falla).
 --
 -- QUÉ PROMETE
 --
@@ -67,6 +67,29 @@
 --   drop table if exists educacion_entrega_meses;
 --   alter table educacion_entregas drop column if exists cubre_hasta, drop column if exists cubre_desde;
 -- ============================================================================
+
+
+-- ── 0 · Comprobar ANTES de tocar nada ───────────────────────────────────────
+-- Todo lo de esta migración es nuevo. Si alguna de sus funciones o su tabla ya existe en esta base
+-- y la 0529 NO está registrada, alguien creó algo con el mismo nombre por otro camino: pegar esto lo
+-- pisaría en silencio (el accidente de la 0297 y la 0299). Entonces no se aplica NADA. Repegar la
+-- 0529 ya registrada sí pasa: es idempotente.
+do $$
+declare v_hay text;
+begin
+  if exists (select 1 from migraciones_aplicadas where numero = 529) then return; end if;
+  select string_agg(x, ', ') into v_hay from (
+    select p.proname::text as x from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+     where n.nspname = 'public' and p.proname in ('fn_educacion_enviar_adelantado', 'fn_educacion_coberturas',
+       'fn_educacion_apoyo_pagado', 'fn_educacion_historial', 'fn_educacion_cobertura_mover_calendario',
+       'fn_educacion_cobertura_calendario', 'fn_educacion_cobertura_inmutable')
+    union all
+    select 'tabla educacion_entrega_meses' where to_regclass('public.educacion_entrega_meses') is not null
+  ) t;
+  if v_hay is not null then
+    raise exception '0529 · PARA. Ya existe en esta base: %. La 0529 no está registrada, así que eso lo creó otro camino. No se aplicó nada. Compruébalo con ./scripts/donde-vive.sh.', v_hay;
+  end if;
+end $$;
 
 
 -- ── A · Qué meses cubre una constancia ──────────────────────────────────────
