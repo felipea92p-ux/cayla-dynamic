@@ -78,7 +78,23 @@
 --   `fn_hoy_lima()` fijado en una fecha de 2031 y periodos 29→28 sembrados. La
 --   misma fixture con la función de la 0450 (control) y con esta migración:
 --
---@@TABLA@@
+--     hoy (2031)  apoyo mensual…                             0450 (control)   0526
+--     ----------  -----------------------------------------  ---------------  ------------------------------
+--     3 mayo      con el pago el 15                          al_dia           falta_enviar · plazo 23/05
+--     3 mayo      con el pago el 28 (plazo corrido a junio)  al_dia           falta_enviar · plazo 23/06
+--     17 mayo     con el pago el 20                          al_dia           por_vencer · plazo 23/05
+--     24 mayo     que empezó el 20, primer pago el 25        al_dia           falta_enviar · plazo 23/06
+--     31 mayo     con el pago el 10 de junio                 al_dia           al_dia (todavía no es día 1)
+--     1 junio     con el pago el 10 de junio                 al_dia           falta_enviar · plazo 23/06
+--
+--   Sin cambio, con el mismo estado, fecha y plazo: ciclo, pago único, otra
+--   frecuencia, frecuencia sin decir, el pago del mes siguiente, sin próxima
+--   fecha, mes con constancia aprobada, pendiente, rechazada, estudio que termina
+--   antes de su pago, estudio programado, el pago de hoy y el vencido de siempre.
+--
+--   Medido sobre 23 casos × 5 fechas = 115 filas: cambian 14, todas de 'al_dia' a
+--   'falta_enviar' (13) o 'por_vencer' (1). En las 115, NINGUNA otra columna de la
+--   función cambia —ni `fecha_pago_constancia`, ni `plazo`, ni `dias_para_plazo`—.
 --
 --   Todo lo que no es «mensual con el pago de este mes por venir» da EXACTAMENTE
 --   lo mismo que antes (estado, fecha y plazo): las demás frecuencias, el pago
@@ -108,7 +124,9 @@
 --
 --   md5 de llegada, medido en el Postgres local aplicando este archivo dentro de
 --   BEGIN … ROLLBACK, con el número ya definitivo:
---     @@LLEGADA@@
+--     --       md5(prosrc)           666483bf3f09bff2e03f8ecb25e4aab2 · 6 112 caracteres
+--       sin comentarios       fac577c9fc6afe13cd75a99ed3bf6477
+--       position('CAMBIO 0526' in prosrc) = 52 · 0 retornos de carro
 --   Si producción da otro con la misma longitud, mira
 --   `position('CAMBIO 0526' in prosrc)`; si la diferencia es el número de líneas,
 --   es el `\r` de pegar desde Windows y no hay nada roto (ver CLAUDE.md).
