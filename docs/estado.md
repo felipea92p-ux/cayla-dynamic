@@ -88,7 +88,13 @@ arreglaron: el plazo de la Bandeja se pisaba con el botón de la fila, las tarje
 iban en una sola columna en el teléfono, y la receta de reversión de la cabecera fallaba
 (las políticas de Storage dependen de una función, así que se borran antes).
 
-**Lo que NO se comprobó.** El botón «Abrir» de un PDF (la URL firmada); un iPhone real;
+**El botón «Abrir» de un PDF**, comprobado en dos mitades: contra la API de Storage con la sesión
+de DO, la URL firmada se genera y baja el PDF (HTTP 200, `application/pdf`), y la misma petición
+sin sesión se niega. El clic mismo no se pudo probar en el navegador integrado de la app, que
+bloquea las ventanas emergentes (sale el aviso propio de la pantalla: «El navegador bloqueó la
+ventana del archivo…»); es el mismo camino que usa «Abrir» en Archivo.
+
+**Lo que NO se comprobó.** Un iPhone real;
 `db-tests` de GitHub (construye la base desde cero: es la señal fiable de las pgTAP, no esta
 Mac); ni nada contra datos reales de producción. La numeración deja un hueco de 0525 a 0527
 frente a `main`: son de otras ramas (Educación) y se llena cuando ellas se fusionen.
