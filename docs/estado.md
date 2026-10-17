@@ -108,8 +108,11 @@ promete. Pedir por escrito el plan y el beneficio máximo, y cargarlos con «Cor
 **Lo que la pantalla NO hace** es comparar el beneficio con 14 y 30 subvenciones: pide la
 subvención de cada quien (`asignaciones_salario`) y la 0528 no la lee.
 
-**Qué se comprobó.** La 0528 aplicada en una transacción sobre el Postgres local y la prueba
-**422** (231 aserciones) en verde dentro de ella. Se probó que la prueba SABE fallar con diez
+**Qué se comprobó.** La 0528 aplicada **desde cero** por `supabase start` junto con todas las
+demás migraciones, sin error, y pegada otra vez encima (idempotente); y la prueba **422**
+(237 aserciones) en verde dentro de una transacción, también partiendo de una base SIN los objetos
+de la 0528 (corriendo antes la receta de reversión de su cabecera, que así quedó probada de nuevo).
+Se probó que la prueba SABE fallar con diez
 mutaciones de las reglas (último día inclusivo, EsSalud como hueco, el alta que no se cierra sola,
 la baja que no se revierte, el disparador que ignora el estado o una asignación vigente o que deja
 escapar su propio error, registrar una póliza sin comprobar el seguro principal, asignar lo que
@@ -139,10 +142,11 @@ ventana del archivo…»); es el mismo camino que usa «Abrir» en Archivo.
 
 **Lo que NO se comprobó.** Un iPhone real; `db-tests` de GitHub (construye la base desde cero: es
 la señal fiable de las pgTAP, no esta Mac); ni nada contra datos reales de producción. El
-disparador se probó cambiando la columna `tipo_vinculo` directamente; con `fn_set_tipo_vinculo` y
-`fn_cesar_persona` de verdad hay que mirarlo la primera vez que se use en producción (la 0528 no
-las toca, y el disparador no puede frenarlas). La numeración deja huecos frente a `main` (0526,
-0527 y de la 0530 en adelante): son de otras ramas y se llenan cuando ellas se fusionen.
+disparador se probó con las dos funciones que de verdad cambian el vínculo —`fn_set_tipo_vinculo`
+y `fn_cesar_persona`, incluido un cese con vínculo nuevo en el mismo acto—: lo que no mueve el
+seguro no deja nada, lo que sí lo mueve deja su cambio, y quien ya no está activa no deja cambio.
+La numeración deja huecos frente a `main` (0526, 0527 y de la 0530 en adelante): son de otras
+ramas y se llenan cuando ellas se fusionen.
 
 **La etapa 2 («Mi seguro»)** no está construida. Quien la empezó la tenía acotada a los practicantes
 y a la primera versión de la 0528; se paró y hay que rehacerla sobre esta: ahora lo que cada
