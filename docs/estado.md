@@ -6,7 +6,7 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-10-17 — Seguros del equipo: en qué seguro está cada colaborador (FOLA, EsSalud y los que DO agregue) · migración 0528 · SQL SIN PEGAR · COMMITEADO, SIN PR · rama `claude/fola-dynamic-implementation-252f99`
+## 2026-10-17 — Seguros del equipo: en qué seguro está cada colaborador (FOLA, EsSalud y los que DO agregue) · migración 0528 · SQL SIN PEGAR · PR #551 (BORRADOR) SIN FUSIONAR · rama `claude/fola-dynamic-implementation-252f99`
 
 **Qué es.** La pantalla `/admin/seguros` (grupo Personas, solo DO) y un módulo «Seguros» en la
 Bandeja, **para todo el equipo y no solo para los practicantes**. Cada colaborador está en un
@@ -305,8 +305,15 @@ la señal fiable de las pgTAP, no esta Mac); ni nada contra datos reales de prod
 disparador se probó con las dos funciones que de verdad cambian el vínculo —`fn_set_tipo_vinculo`
 y `fn_cesar_persona`, incluido un cese con vínculo nuevo en el mismo acto—: lo que no mueve el
 seguro no deja nada, lo que sí lo mueve deja su cambio, y quien ya no está activa no deja cambio.
-La numeración deja huecos frente a `main` (0526, 0527 y de la 0530 en adelante): son de otras
-ramas y se llenan cuando ellas se fusionen.
+La numeración deja huecos frente a `main` (0523, 0526 y 0530): ninguno es de esta rama (la 0530 es
+la etapa 2) y se llenan cuando las suyas se fusionen. `main` ya se fusionó dentro de la rama el
+2026-10-17: la prueba 422 corrió con sus migraciones nuevas (0527, 0531, 0532, 0533) aplicadas antes, y
+en `types.ts` ganó la versión de esta rama, porque el de `main` traía una VIEJA (solo FOLA) de las
+tablas de Seguros, arrastrada por una regeneración de tipos desde la base local compartida.
+
+**El PR está en BORRADOR a propósito**: la 0528 se pega ANTES de fusionar, y mientras no esté pegada no
+es fusionable. Para fusionarlo: pegar la 0528, marcar el PR como listo y fusionar con `--merge` (fusionar
+publica en producción); una sesión que lo fusione deja antes el comentario `<!-- cayla:fusion-sesion -->`.
 
 **La etapa 2 («Mi seguro»)** vive en otra rama, `claude/elegant-mayer-3e584e` (migración 0530, prueba 423,
 la sección de Lo mío), sin PR todavía, y se construyó sobre una punta anterior de esta (`112bfcb3`):
