@@ -68,8 +68,12 @@ INTERESES   0.00
 I.G.V.   27.45
 PRIMA COMERCIAL + INT. + I.G.V.   ${total}   SOLES
 Emitida en Lima, a los 14 días del mes de Octubre del 2026
+PACÍFICO COMPAÑÍA DE SEGUROS Y REASEGUROS
 Pág. 1 de 1`;
 
+// OJO: en el PDF real la razón social de Pacífico va en OTRAS páginas de la misma póliza (el convenio y la carta de
+// la portada), no en las condiciones particulares. Aquí va en las condiciones para que una prueba que lee solo esa
+// página no se llene del aviso «no reconocí la aseguradora»; las pruebas de ese aviso la quitan.
 const RELLENO = `Condiciones generales. El asegurado podrá solicitar la cobertura al crédito o por reembolso en cualquier clínica de la red.
 La vigencia de la cobertura se rige por lo pactado. Póliza adecuada a la ley 29946 y sus normas reglamentarias.`;
 
@@ -110,11 +114,12 @@ describe("leer una póliza de Pacífico", () => {
     expect(p).toBeUndefined();
   });
 
-  it("si faltan las condiciones, la portada da la vigencia", () => {
+  it("si faltan las condiciones, la portada da la vigencia, pero CON AVISO: no dice «a las 12 M»", () => {
     const [p] = leerPolizas([PORTADA("99000001"), AVISO(ANA[0], ANA[1], ANA[2]), CONVENIO("99000001")]);
     expect(p.desde).toBe("2026-11-01");
     expect(p.hasta).toBe("2027-02-01");
-    expect(p.avisos).toEqual([]);
+    expect(p.avisos).toHaveLength(1);
+    expect(p.avisos[0]).toMatch(/salió de la portada, que no dice «a las 12 M»/);
   });
 
   it("y si faltan las dos, sirve la forma en palabras del resumen informativo", () => {
@@ -141,7 +146,7 @@ describe("leer una póliza de Pacífico", () => {
   });
 
   it("una vigencia que termina antes de empezar se lee, pero avisa", () => {
-    const [p] = leerPolizas([CONDICIONES(...ANA, "01/03/2027   AL   01/02/2027")]);
+    const [p] = leerPolizas([CONDICIONES(...ANA, "01/03/2027   AL   01/02/2027   A LAS 12 M")]);
     expect(p.avisos).toContain("La vigencia que leí termina antes de empezar: revisa las fechas.");
   });
 });
@@ -291,3 +296,155 @@ describe("a qué persona corresponde un nombre del papel", () => {
     expect(emparejarPersona("PEREZ GOMEZ ANA MARIA", [])).toBeNull();
   });
 });
+
+// ── Lo que halló la revisión independiente ───────────────────────────────────
+
+describe("la fecha final solo se da por buena con prueba", () => {
+  it("«AL 31/12/2026 A LAS 24 HORAS» no es la forma probada: sin otra fuente, la vigencia queda sin leer", () => {
+    const texto = CONDICIONES(...ANA, "01/10/2026   AL   31/12/2026   A LAS 24 HORAS");
+    expect(leerPolizas([texto])).toEqual([]);
+  });
+
+  it("sin «A LAS 12 M» tampoco cuenta la forma de las condiciones aunque traiga los días", () => {
+    expect(leerPolizas([CONDICIONES(...ANA, "01/10/2026   AL   31/12/2026   92 DIAS")])).toEqual([]);
+  });
+
+  it("con una portada de respaldo, se lee la portada y se AVISA de dónde salió la fecha final", () => {
+    const [p] = leerPolizas([PORTADA("99000001", "01/10/2026 - 31/12/2026"), CONDICIONES(...ANA, "01/10/2026   AL   31/12/2026   A LAS 24 HORAS")]);
+    expect(p.hasta).toBe("2026-12-31");
+    expect(p.avisos.some((a) => /salió de la portada/.test(a))).toBe(true);
+  });
+
+  it("el resumen «hasta el 31 de Enero» puede ser inclusivo: se lee, con aviso", () => {
+    const resumen = "Vigencia del seguro: desde el 01 de Noviembre del 2026 hasta el 31 de Enero del 2027\nPóliza N° 99000001";
+    const [p] = leerPolizas([resumen]);
+    expect(p.hasta).toBe("2027-01-31");
+    expect(p.avisos.some((a) => /salió del resumen del seguro, que no dice «a las 12 M»/.test(a))).toBe(true);
+  });
+
+  it("«Setiembre» es septiembre: así lo escribe medio Perú", () => {
+    const resumen = "Vigencia del seguro: desde el 01 de Setiembre del 2026 hasta el 01 de Diciembre del 2026\nPóliza N° 99000001";
+    const [p] = leerPolizas([resumen]);
+    expect(p.desde).toBe("2026-09-01");
+    const [q] = leerPolizas([CONDICIONES(...ANA).replace("Octubre del 2026", "Setiembre del 2026")]);
+    expect(q.emitidaEl).toBe("2026-09-14");
+  });
+});
+
+describe("solo se reconoce a Pacífico, y por lo que de verdad dice su papel", () => {
+  const OTRA = (n: string) => `Póliza N° ${n}
+Fecha de vigencia: 01/01/2026 - 31/12/2026
+Asegurado : ROJAS QUISPE ELENA 900000099
+Rímac Seguros`;
+
+  it("una póliza de otra aseguradora se lee, SIN aseguradora y con aviso: se revisa cada dato", () => {
+    const [p] = leerPolizas([OTRA("55500001")]);
+    expect(p.aseguradora).toBeNull();
+    expect(p.avisos.some((a) => /No reconocí la aseguradora/.test(a))).toBe(true);
+  });
+
+  it("la palabra «Pacífico» suelta en una cláusula no rotula la póliza como de Pacífico", () => {
+    const [p] = leerPolizas([`${OTRA("55500001")}\nLa cobertura rige en el océano Pacífico y en el Pacífico Sur.`]);
+    expect(p.aseguradora).toBeNull();
+  });
+
+  it("la razón social del convenio y la carta de la portada sí", () => {
+    const [p] = leerPolizas([PORTADA("99000001"), CONDICIONES(...ANA)]);
+    expect(p.aseguradora).toBe("Pacífico Seguros");
+    const [q] = leerPolizas([`${OTRA("55500002")}\nPACÍFICO COMPAÑÍA DE SEGUROS Y REASEGUROS`]);
+    expect(q.aseguradora).toBe("Pacífico Seguros");
+  });
+});
+
+describe("una página que nombra dos pólizas no se le presta a ninguna", () => {
+  it("una renovación que cita la anterior no crea una póliza fantasma con los datos de la nueva", () => {
+    const renovacion = `CONDICIONES PARTICULARES DE LA POLIZA
+SEGURO DE SALUD PRACTICANTES   Póliza No. 99000002
+Esta póliza renueva a la Póliza N° 99000001
+VIGENCIA   : 01/11/2026   AL   01/02/2027   92 DIAS   A LAS 12 M
+ASEGURADO   : RAMOS DIAZ BETO LUIS   900000002
+PRIMA COMERCIAL + INT. + I.G.V.   179.97   SOLES`;
+    const lista = leerPolizas([PORTADA("99000002"), AVISO("99000002", "RAMOS DIAZ BETO LUIS", "900000002"), renovacion]);
+    expect(lista.map((p) => p.numero)).toEqual(["99000002"]);
+    // Y la que sí es, lee del resto de sus páginas, no de la que cita a otra.
+    expect(lista[0].asegurado?.nombre).toBe("RAMOS DIAZ BETO LUIS");
+  });
+
+  it("un aviso que lista varias pólizas no le da a una el asegurado de la otra", () => {
+    const lista = `AVISO DE COBRANZA
+Póliza : 99000001   ANA
+Póliza : 99000002   BETO
+Asegurado : PEREZ GOMEZ ANA MARIA   900000001
+PRIMA COMERCIAL + INT. + I.G.V.   999.00   SOLES`;
+    const r = leerPolizas([lista, ...pdfDe("99000001", "PEREZ GOMEZ ANA MARIA", "900000001"), ...pdfDe("99000002", "RAMOS DIAZ BETO LUIS", "900000002")]);
+    expect(r.map((p) => [p.numero, p.asegurado?.nombre, p.prima])).toEqual([
+      ["99000001", "PEREZ GOMEZ ANA MARIA", 179.97],
+      ["99000002", "RAMOS DIAZ BETO LUIS", 179.97],
+    ]);
+  });
+
+  it("un número no se confunde con otro más largo que lo contiene", () => {
+    const largo = CONDICIONES("990000012", "RAMOS DIAZ BETO LUIS", "900000002");
+    const [corto, otro] = leerPolizas([PORTADA("99000001"), largo]);
+    expect(corto.numero).toBe("99000001");
+    expect(corto.asegurado).toBeNull();
+    expect(otro.numero).toBe("990000012");
+    expect(otro.asegurado?.nombre).toBe("RAMOS DIAZ BETO LUIS");
+  });
+
+  it("dos pólizas del mismo PDF con el mismo asegurado, fechas y prima se marcan: suele ser la misma leída dos veces", () => {
+    const r = leerPolizas([...pdfDe("99000001", "PEREZ GOMEZ ANA MARIA", "900000001"), ...pdfDe("99000009", "PEREZ GOMEZ ANA MARIA", "900000001")]);
+    expect(r).toHaveLength(2);
+    for (const p of r) expect(p.avisos.some((a) => /el mismo asegurado, las mismas fechas y la misma prima/.test(a))).toBe(true);
+  });
+
+  it("dos pólizas de personas distintas con las mismas fechas y prima NO se marcan: es lo normal en FOLA", () => {
+    const r = leerPolizas([...pdfDe("99000001", "PEREZ GOMEZ ANA MARIA", "900000001"), ...pdfDe("99000002", "RAMOS DIAZ BETO LUIS", "900000002")]);
+    for (const p of r) expect(p.avisos).toEqual([]);
+  });
+});
+
+describe("el lector no se congela con texto raro", () => {
+  it("miles de saltos de línea tras «Póliza» o «Asegurado:» se leen en una fracción de segundo", () => {
+    const antes = performance.now();
+    leerPolizas([`Póliza${"\n".repeat(20000)}x`, `Asegurado:${"\n".repeat(20000)}x`, `Póliza N°${" ".repeat(20000)}x`]);
+    expect(performance.now() - antes).toBeLessThan(500);
+  });
+
+  it("un monto con punto o coma de oración al final sigue siendo ese monto", () => {
+    expect(montoDeTexto("179.97.")).toBe(179.97);
+    expect(montoDeTexto("179.97,")).toBe(179.97);
+    expect(montoDeTexto("1,179.")).toBe(1179);
+    const [p] = leerPolizas([PORTADA("99000001"), CONVENIO("99000001", undefined, "179.97.")]);
+    expect(p.prima).toBe(179.97);
+  });
+});
+
+describe("un nombre del papel y las personas que se le parecen", () => {
+  it("«Rosa Díaz» NO se toma por «Díaz Rosa María»: faltar una de tres da 0.80 y no alcanza", () => {
+    expect(emparejarPersona("DIAZ ROSA MARIA", [{ id: "r", nombre: "Rosa Díaz" }])).toBeNull();
+  });
+
+  it("los apellidos repetidos cuentan dos veces: «García García Juan» no es «Juan Carlos García»", () => {
+    expect(emparejarPersona("GARCIA GARCIA JUAN", [{ id: "j", nombre: "Juan Carlos García" }])).toBeNull();
+    expect(emparejarPersona("QUISPE QUISPE ANA", [{ id: "a", nombre: "Ana Quispe Mamani" }])).toBeNull();
+    // Y el nombre completo con sus dos apellidos repetidos sí.
+    expect(emparejarPersona("GARCIA GARCIA JUAN", [{ id: "j", nombre: "Juan García García" }])?.persona.id).toBe("j");
+  });
+
+  it("«San Martín Pérez Juan» no se toma por «Juan Pérez»", () => {
+    expect(emparejarPersona("SAN MARTIN PEREZ JUAN", [{ id: "j", nombre: "Juan Pérez" }])).toBeNull();
+  });
+
+  it("faltar una palabra de tres (0.86) sí alcanza", () => {
+    expect(emparejarPersona("PEREZ GOMEZ ANA", [{ id: "a", nombre: "Ana María Pérez Gómez" }])?.persona.id).toBe("a");
+  });
+
+  it("dos candidatas a menos de 0.1 de distancia no se desempatan; a 0.1 o más, gana la mejor", () => {
+    const cerca = [{ id: "x", nombre: "Ana María Luisa Alva Ríos" }, { id: "y", nombre: "Ana María Luisa Alva Ríos Soto" }];
+    expect(emparejarPersona("ALVA RIOS ANA MARIA LUISA", cerca)).toBeNull();
+    const lejos = [{ id: "x", nombre: "Ana Pérez Gómez" }, { id: "y", nombre: "Ana María Pérez Gómez" }];
+    expect(emparejarPersona("PEREZ GOMEZ ANA", lejos)?.persona.id).toBe("x");
+  });
+});
+
