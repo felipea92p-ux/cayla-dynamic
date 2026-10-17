@@ -22,7 +22,7 @@ import {
 function asegurado(o: Partial<Asegurado> = {}): Asegurado {
   return {
     persona_id: "p1", apellidos: "Prueba Lopez", nombres: "Ana", nombre_segun_dni: "PRUEBA LOPEZ ANA",
-    tipo_documento: "dni", documento: "08817189", fecha_nacimiento: "1990-05-17", fecha_ingreso: "2024-06-01",
+    tipo_documento: "dni", documento: "00012345", fecha_nacimiento: "1990-05-17", fecha_ingreso: "2024-06-01",
     sede: "TRU", tipo_vinculo: "planilla", activa: true, remuneracion: null,
     poliza_id: "z1", numero_poliza: "VL-001", aseguradora: "La Positiva", vigente_desde: "2026-10-01", vigente_hasta: "2027-10-01",
     ...o,
@@ -133,9 +133,9 @@ describe("el archivo", () => {
   });
 
   it("el DNI con cero adelante sale protegido como texto en el CSV: Excel no le come el cero", () => {
-    const filas = filasDeLista([asegurado({ documento: "08817189" })], false);
+    const filas = filasDeLista([asegurado({ documento: "00012345" })], false);
     const csv = generarCsv(filas, columnasDeLista(false));
-    expect(csv).toContain('"=""08817189"""');
+    expect(csv).toContain('"=""00012345"""');
     expect(csv.split("\n")[0]).toBe(columnasDeLista(false).join(","));
   });
 

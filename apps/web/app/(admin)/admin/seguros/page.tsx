@@ -43,6 +43,7 @@ import { CambiarSeguro } from "@/components/seguros/cambiar-seguro";
 import { FichaPersona, type AccionesFicha } from "@/components/seguros/ficha-persona";
 import { FormularioPoliza, type BaseDePoliza, type OpcionPersona } from "@/components/seguros/formulario-poliza";
 import { HistorialPoliza } from "@/components/seguros/historial-poliza";
+import { LeerPdfDePoliza } from "@/components/seguros/leer-pdf-de-poliza";
 import { ListaDeAsegurados } from "@/components/seguros/lista-de-asegurados";
 import { ModalPaso, type PasoPorMarcar } from "@/components/seguros/modal-paso";
 import { TiposDeSeguro } from "@/components/seguros/tipos-de-seguro";
@@ -259,6 +260,7 @@ function Seguros() {
   const [cambiando, setCambiando] = useState<SeguroDePersona | null>(null);
   const [tiposAbierto, setTiposAbierto] = useState(false);
   const [listaAbierta, setListaAbierta] = useState(false);
+  const [leerAbierto, setLeerAbierto] = useState(false);
 
   const acciones: AccionesFicha = {
     registrar, renovar,
@@ -313,6 +315,7 @@ function Seguros() {
         }
         accion={!cargaError && (
           <div className="flex flex-wrap gap-2">
+            <Boton onClick={() => setLeerAbierto(true)}>Leer PDF de póliza</Boton>
             <Boton onClick={() => setListaAbierta(true)}>Lista de asegurados</Boton>
             <Boton onClick={() => setTiposAbierto(true)}>Tipos de seguro</Boton>
             <Boton variante="primario" onClick={() => registrar(null)}>+ Registrar una póliza</Boton>
@@ -465,6 +468,20 @@ function Seguros() {
         hoy={hoy}
         onCerrar={() => setCambiando(null)}
         onListo={(mensaje) => { setCambiando(null); void cargar(); avisar("ok", mensaje); }}
+      />
+
+      <LeerPdfDePoliza
+        abierto={leerAbierto}
+        onCerrar={() => setLeerAbierto(false)}
+        supabase={supabase}
+        tipos={tipos}
+        personas={opciones}
+        polizas={polizas}
+        hoy={hoy}
+        onRegistradas={async (cuantas) => {
+          await cargar();
+          if (cuantas > 0) avisar("ok", `${plural(cuantas, "póliza registrada", "pólizas registradas")}.`);
+        }}
       />
 
       <ListaDeAsegurados

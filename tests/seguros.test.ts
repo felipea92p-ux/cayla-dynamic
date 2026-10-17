@@ -15,7 +15,7 @@
 import { describe, it, expect } from "vitest";
 import {
   coincideSeguro, contarPorTipo, cubiertoHasta, estadoPrima, etiquetaTipoArchivo, etiquetaVinculo,
-  fechaDelPaso, hermanasDe, origenDelCambio, pasosDelCambio, pasosPendientes, pendientesDeSeguros, polizaQueSeCruza,
+  fechaDelPaso, hermanasDe, numeroDeTexto, origenDelCambio, pasosDelCambio, pasosPendientes, pendientesDeSeguros, personasParaPoliza, polizaQueSeCruza,
   resumenDelCambio, resumenDeSeguros, seguroPorPersona, sumarMeses,
   DIAS_AVISO_PRIMA, DIAS_AVISO_RENOVACION, DIAS_DE_GRACIA_PRIMA,
   type CambioSeguro, type FilaEquipoSeguro, type Poliza,
@@ -738,5 +738,46 @@ describe("las otras pólizas de la misma póliza colectiva", () => {
 
   it("una póliza sola no tiene hermanas", () => {
     expect(hermanasDe(ana, [ana])).toEqual([]);
+  });
+});
+
+describe("a quién se le ofrece una póliza de un seguro", () => {
+  const personas = [
+    { id: "a", tipoPrincipal: "salud_practicantes" },
+    { id: "b", tipoPrincipal: "essalud" },
+    { id: "c", tipoPrincipal: null },
+  ];
+  const tipos = [
+    { clave: "salud_practicantes", principal: true },
+    { clave: "essalud", principal: true },
+    { clave: "vida_ley", principal: false },
+  ];
+
+  it("si es el seguro PRINCIPAL, solo a quien lo tiene hoy: a alguien de planilla no se le registra FOLA", () => {
+    expect(personasParaPoliza("salud_practicantes", tipos, personas).map((p) => p.id)).toEqual(["a"]);
+  });
+
+  it("si va además del principal, a cualquiera, también a quien no tiene seguro principal (honorarios)", () => {
+    expect(personasParaPoliza("vida_ley", tipos, personas).map((p) => p.id)).toEqual(["a", "b", "c"]);
+  });
+
+  it("sin seguro elegido, o uno que ya no está en el catálogo, no se filtra nada: la base decide", () => {
+    expect(personasParaPoliza("", tipos, personas)).toHaveLength(3);
+    expect(personasParaPoliza("otro", tipos, personas)).toHaveLength(3);
+  });
+
+  it("no devuelve la misma lista: quien la modifique no toca la de la pantalla", () => {
+    expect(personasParaPoliza("vida_ley", tipos, personas)).not.toBe(personas);
+  });
+});
+
+describe("el número que alguien escribió en un campo", () => {
+  it("«179,97» y «179.97» son lo mismo; vacío o texto, nada", () => {
+    expect(numeroDeTexto("179,97")).toBe(179.97);
+    expect(numeroDeTexto(" 179.97 ")).toBe(179.97);
+    expect(numeroDeTexto("0")).toBe(0);
+    expect(numeroDeTexto("")).toBeNull();
+    expect(numeroDeTexto("   ")).toBeNull();
+    expect(numeroDeTexto("abc")).toBeNull();
   });
 });

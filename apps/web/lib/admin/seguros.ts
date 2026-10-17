@@ -188,6 +188,14 @@ export function sumarMeses(fecha: string, meses: number): string {
 
 // ── La prima ────────────────────────────────────────────────────────────────
 
+/** «179,97» o «179.97» → 179.97; vacío o texto → null. Es el número de un campo que alguien escribió. */
+export function numeroDeTexto(texto: string): number | null {
+  const t = texto.trim().replace(",", ".");
+  if (t === "") return null;
+  const n = Number(t);
+  return Number.isFinite(n) ? n : null;
+}
+
 export type EstadoPrima = "pagada" | "sin_fecha" | "al_dia" | "por_vencer" | "en_mora" | "suspendida";
 
 /**
@@ -647,6 +655,24 @@ export function pendientesDeSeguros(
     }
   }
   return items;
+}
+
+// ── A quién se le registra una póliza ───────────────────────────────────────
+
+/**
+ * A quién se le ofrece una póliza de este seguro. Si es el PRINCIPAL de la persona, solo a quien lo tiene hoy
+ * (a alguien de planilla no se le registra una póliza FOLA: primero se le cambia el seguro; la base lo rechaza
+ * si no). Si va además del principal, a cualquiera. Es la misma regla para el formulario, la lista de varias
+ * personas y la lectura de PDF: escrita una vez.
+ */
+export function personasParaPoliza<P extends { tipoPrincipal: string | null }>(
+  producto: string,
+  tipos: readonly Pick<TipoSeguro, "clave" | "principal">[],
+  personas: readonly P[],
+): P[] {
+  const t = tipos.find((x) => x.clave === producto);
+  if (!t || !t.principal) return [...personas];
+  return personas.filter((p) => p.tipoPrincipal === producto);
 }
 
 // ── Registrar la misma póliza a varias personas ─────────────────────────────

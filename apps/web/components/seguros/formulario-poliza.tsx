@@ -50,7 +50,10 @@ import { cx } from "@/components/ui/cx";
 import { Modal } from "@/components/ui/modal";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { isoADiaMesAnio } from "@/lib/admin/planilla/formato";
-import { etiquetaVinculo, plural, polizaQueSeCruza, sumarMeses, type Poliza, type TipoSeguro } from "@/lib/admin/seguros";
+import {
+  etiquetaVinculo, numeroDeTexto as numero, personasParaPoliza as personasDe, plural, polizaQueSeCruza, sumarMeses,
+  type Poliza, type TipoSeguro,
+} from "@/lib/admin/seguros";
 import { formatSoles } from "@/lib/rangos";
 import { sinTildes } from "@/lib/sin-tildes";
 import { AvisoDeError } from "./aviso-de-error";
@@ -105,13 +108,6 @@ function conPoliza(tipos: TipoSeguro[], soloAdemas = false): TipoSeguro[] {
   return tipos.filter((t) => t.activo && t.con_poliza && (!soloAdemas || !t.principal));
 }
 
-/** A quién se le ofrece una póliza de este seguro: si es el principal, a quien lo tiene; si va además, a todos. */
-function personasDe(producto: string, tipos: TipoSeguro[], personas: OpcionPersona[]): OpcionPersona[] {
-  const t = tipos.find((x) => x.clave === producto);
-  if (!t || !t.principal) return personas;
-  return personas.filter((p) => p.tipoPrincipal === producto);
-}
-
 function formInicial(corrigiendo: Poliza | null, base: BaseDePoliza | null, tipos: TipoSeguro[], personas: OpcionPersona[]): Form {
   if (corrigiendo) {
     return {
@@ -139,14 +135,6 @@ function formInicial(corrigiendo: Poliza | null, base: BaseDePoliza | null, tipo
     desde, hasta: sumarMeses(desde, 3), prima: base?.prima != null ? String(base.prima) : "", primaVence: "",
     plan: "", benEnfermedad: "", benAccidente: "", renueva: "", nota: "", motivo: "",
   };
-}
-
-/** «179,97» o «179.97» → 179.97; vacío o texto → null. */
-function numero(texto: string): number | null {
-  const t = texto.trim().replace(",", ".");
-  if (t === "") return null;
-  const n = Number(t);
-  return Number.isFinite(n) ? n : null;
 }
 
 function erroresDe(f: Form, corrigiendo: boolean, modo: Modo, nElegidas: number): Partial<Record<keyof Form, string>> {
