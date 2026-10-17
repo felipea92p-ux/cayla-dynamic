@@ -165,7 +165,7 @@ function Cuerpo({
 
   // ── Qué se puede registrar ────────────────────────────────────────────
   const lote = tarjetas ?? [];
-  const contexto = { producto, tipos, personas, polizas, lote };
+  const contexto = { hoy, producto, tipos, personas, polizas, lote };
   const vista = lote.map((t) => {
     const registrada = t.estado.tipo === "registrada";
     const yaEsta = !registrada && yaRegistrada(t, producto, polizas);

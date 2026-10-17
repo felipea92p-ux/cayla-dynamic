@@ -51,7 +51,7 @@ import { Modal } from "@/components/ui/modal";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { isoADiaMesAnio } from "@/lib/admin/planilla/formato";
 import {
-  etiquetaVinculo, numeroDeTexto as numero, personasParaPoliza as personasDe, plural, polizaQueSeCruza, sumarMeses,
+  etiquetaVinculo, fechasSospechosas, numeroDeTexto as numero, personasParaPoliza as personasDe, plural, polizaQueSeCruza, sumarMeses,
   type Poliza, type TipoSeguro,
 } from "@/lib/admin/seguros";
 import { formatSoles } from "@/lib/rangos";
@@ -137,7 +137,7 @@ function formInicial(corrigiendo: Poliza | null, base: BaseDePoliza | null, tipo
   };
 }
 
-function erroresDe(f: Form, corrigiendo: boolean, modo: Modo, nElegidas: number): Partial<Record<keyof Form, string>> {
+function erroresDe(f: Form, corrigiendo: boolean, modo: Modo, nElegidas: number, hoy: string): Partial<Record<keyof Form, string>> {
   const e: Partial<Record<keyof Form, string>> = {};
   if (!f.producto) e.producto = "Elige el seguro.";
   if (modo === "una" && !f.personaId) e.personaId = "Elige a quién asegura.";
@@ -147,6 +147,10 @@ function erroresDe(f: Form, corrigiendo: boolean, modo: Modo, nElegidas: number)
   if (!f.desde) e.desde = "Falta la fecha de inicio.";
   if (!f.hasta) e.hasta = "Falta la fecha en que termina.";
   else if (f.desde && f.hasta <= f.desde) e.hasta = "Tiene que terminar después de empezar.";
+  // Un año mal tecleado (20277) no es una póliza: lo dice la base, y aquí se dice antes y junto al campo.
+  const sospechas = fechasSospechosas(f, hoy);
+  if (sospechas.vigencia && !e.hasta) e.hasta = sospechas.vigencia;
+  if (sospechas.primaVence) e.primaVence = sospechas.primaVence;
   const prima = numero(f.prima);
   if (f.prima.trim() === "") e.prima = "Escribe la prima total (con IGV).";
   else if (prima === null || prima < 0) e.prima = "La prima tiene que ser un monto, 0 o más.";
@@ -233,7 +237,7 @@ function Cuerpo({
   }
   const efectivas = modo === "varias" ? candidatas.filter((p) => elegidas.has(p.id) && !cruces.has(p.id)) : [];
 
-  const errores = erroresDe(f, corrigiendo !== null, modo, efectivas.length);
+  const errores = erroresDe(f, corrigiendo !== null, modo, efectivas.length, hoyLima());
   const dias = f.desde && f.hasta && f.hasta > f.desde
     ? Math.round((Date.parse(f.hasta) - Date.parse(f.desde)) / 86_400_000)
     : null;
@@ -389,7 +393,7 @@ function Cuerpo({
           {modo === "varias" && <TotalDeLaPoliza n={efectivas.length} prima={numero(f.prima)} />}
         </div>
         <div>
-          <Campo etiqueta="La prima vence el (opcional)" type="date" value={f.primaVence} onChange={(e) => setF({ ...f, primaVence: e.target.value })} />
+          <Campo etiqueta="La prima vence el (opcional)" type="date" value={f.primaVence} onChange={(e) => setF({ ...f, primaVence: e.target.value })} error={mostrar("primaVence")} />
           <span className="mt-1 block text-xs text-taupe">Si la póliza tiene convenio de pago, con 30 días de mora desde esa fecha la cobertura se suspende sola.</span>
         </div>
 

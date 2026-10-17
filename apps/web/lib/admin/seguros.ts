@@ -186,6 +186,36 @@ export function sumarMeses(fecha: string, meses: number): string {
   return new Date(Date.UTC(destino.getUTCFullYear(), destino.getUTCMonth(), Math.min(d, ultimo))).toISOString().slice(0, 10);
 }
 
+/** Lo más que dura una póliza, en días: diez años. El mismo número que `fn_seguro_datos_validos` (0528). */
+export const MAX_DIAS_DE_VIGENCIA = 3660;
+/** Cuánto puede quedar el día en que vence la prima fuera de la vigencia, a cada lado. Igual que la base. */
+export const MAX_DIAS_DE_PRIMA_FUERA = 365;
+export const AVISO_VIGENCIA_LARGA = "La vigencia no puede pasar de 10 años: revisa el año.";
+export const AVISO_PRIMA_FUERA = "El día en que vence la prima no cuadra con la vigencia: revisa el año.";
+
+/**
+ * Las fechas que no son de una póliza sino de un año mal tecleado (20277 por 2027): una vigencia de más de
+ * diez años, una que termina a más de diez años de HOY, o un vencimiento de la prima a más de un año de la
+ * vigencia. La base rechaza exactamente lo mismo (`fn_seguro_datos_validos`); esto solo lo dice ANTES de
+ * enviar, junto al campo. Fechas incompletas o al revés no son de aquí: de eso se queja el formulario.
+ */
+export function fechasSospechosas(
+  f: { desde: string; hasta: string; primaVence?: string },
+  hoy: string,
+): { vigencia?: string; primaVence?: string } {
+  const salida: { vigencia?: string; primaVence?: string } = {};
+  const demasiado = (dias: number) => dias > MAX_DIAS_DE_VIGENCIA;
+  if (f.desde && f.hasta && diasEntre(f.desde, f.hasta) > 0
+      && (demasiado(diasEntre(f.desde, f.hasta)) || demasiado(diasEntre(hoy, f.hasta)))) {
+    salida.vigencia = AVISO_VIGENCIA_LARGA;
+  }
+  if (f.primaVence && f.desde && f.hasta && !salida.vigencia && diasEntre(f.desde, f.hasta) > 0
+      && (diasEntre(f.primaVence, f.desde) > MAX_DIAS_DE_PRIMA_FUERA || diasEntre(f.hasta, f.primaVence) > MAX_DIAS_DE_PRIMA_FUERA)) {
+    salida.primaVence = AVISO_PRIMA_FUERA;
+  }
+  return salida;
+}
+
 // ── La prima ────────────────────────────────────────────────────────────────
 
 /** «179,97» o «179.97» → 179.97; vacío o texto → null. Es el número de un campo que alguien escribió. */

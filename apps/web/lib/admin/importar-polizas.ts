@@ -24,7 +24,7 @@
 import type { PolizaLeida } from "./leer-poliza";
 import { emparejarPersona } from "./leer-poliza";
 import { isoADiaMesAnio } from "./planilla/formato";
-import { numeroDeTexto, polizaQueSeCruza, sumarMeses, type Poliza, type TipoSeguro } from "./seguros";
+import { fechasSospechosas, numeroDeTexto, polizaQueSeCruza, sumarMeses, type Poliza, type TipoSeguro } from "./seguros";
 
 /** Lo mínimo que hace falta saber de una persona para proponérsela a un papel. */
 export interface PersonaParaEmparejar { id: string; nombre: string; tipoPrincipal: string | null }
@@ -122,6 +122,8 @@ export function yaRegistrada(
 }
 
 export interface ContextoDeTarjeta {
+  /** Hoy (Lima): una vigencia que termina a más de diez años de hoy es un año mal tecleado. */
+  hoy: string;
   producto: string;
   tipos: readonly Pick<TipoSeguro, "clave" | "nombre" | "principal">[];
   personas: readonly PersonaParaEmparejar[];
@@ -147,6 +149,10 @@ export function erroresDeTarjeta(t: TarjetaDePoliza<{ name: string }>, ctx: Cont
   if (t.numero.trim().length < 3) e.push("Escribe el número de la póliza.");
   if (!t.desde || !t.hasta) e.push("Faltan las fechas de la vigencia.");
   else if (t.hasta <= t.desde) e.push("La vigencia tiene que terminar después de empezar.");
+  // Lo mismo que rechaza la base: un año mal tecleado no es una póliza (y un PDF raro puede traerlo).
+  const sospechas = fechasSospechosas({ desde: t.desde, hasta: t.hasta, primaVence: t.primaVence }, ctx.hoy);
+  if (sospechas.vigencia) e.push(sospechas.vigencia);
+  if (sospechas.primaVence) e.push(sospechas.primaVence);
   const prima = numeroDeTexto(t.prima);
   if (t.prima.trim() === "") e.push("Escribe la prima total (con IGV).");
   else if (prima === null || prima < 0) e.push("La prima tiene que ser un monto, 0 o más.");

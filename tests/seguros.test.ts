@@ -15,7 +15,7 @@
 import { describe, it, expect } from "vitest";
 import {
   coincideSeguro, contarPorTipo, cubiertoHasta, estadoPrima, etiquetaTipoArchivo, etiquetaVinculo,
-  fechaDelPaso, hermanasDe, numeroDeTexto, origenDelCambio, pasosDelCambio, pasosPendientes, pendientesDeSeguros, personasParaPoliza, polizaQueSeCruza,
+  fechaDelPaso, fechasSospechosas, hermanasDe, numeroDeTexto, origenDelCambio, pasosDelCambio, pasosPendientes, pendientesDeSeguros, personasParaPoliza, polizaQueSeCruza,
   resumenDelCambio, resumenDeSeguros, seguroPorPersona, sumarMeses,
   DIAS_AVISO_PRIMA, DIAS_AVISO_RENOVACION, DIAS_DE_GRACIA_PRIMA,
   type CambioSeguro, type FilaEquipoSeguro, type Poliza,
@@ -781,3 +781,53 @@ describe("el número que alguien escribió en un campo", () => {
     expect(numeroDeTexto("abc")).toBeNull();
   });
 });
+
+describe("las fechas que son un año mal tecleado y no una póliza", () => {
+  // La base rechaza lo mismo (`fn_seguro_datos_validos`): diez años de vigencia, diez años desde hoy y un
+  // año de la prima a cada lado de la vigencia. Aquí solo se dice antes y junto al campo.
+  it("una vigencia normal, de tres meses o de un año, no es sospechosa", () => {
+    expect(fechasSospechosas({ desde: "2026-10-17", hasta: "2027-01-17" }, HOY)).toEqual({});
+    expect(fechasSospechosas({ desde: "2026-10-17", hasta: "2027-10-17" }, HOY)).toEqual({});
+  });
+
+  it("escribir 20277 por 2027 sí lo es", () => {
+    expect(fechasSospechosas({ desde: "2026-10-17", hasta: "20277-01-10" }, HOY).vigencia).toBe("La vigencia no puede pasar de 10 años: revisa el año.");
+  });
+
+  it("diez años justos (3660 días) todavía pasa; un día más, no", () => {
+    expect(fechasSospechosas({ desde: HOY, hasta: "2036-10-24" }, HOY)).toEqual({});
+    expect(fechasSospechosas({ desde: HOY, hasta: "2036-10-25" }, HOY).vigencia).toBeDefined();
+  });
+
+  it("una póliza que EMPIEZA en un futuro lejano también: el final se compara con hoy, no solo con el inicio", () => {
+    expect(fechasSospechosas({ desde: "2045-01-01", hasta: "2045-04-01" }, HOY).vigencia).toBeDefined();
+  });
+
+  it("una que empezó hace mucho no se avisa aquí: no deja a nadie cubierto, y no es de este tecleo", () => {
+    expect(fechasSospechosas({ desde: "2015-01-01", hasta: "2015-04-01" }, HOY)).toEqual({});
+  });
+
+  it("fechas incompletas o al revés no son de aquí: de eso se queja el formulario", () => {
+    expect(fechasSospechosas({ desde: "", hasta: "20277-01-10" }, HOY)).toEqual({});
+    expect(fechasSospechosas({ desde: "2026-10-17", hasta: "" }, HOY)).toEqual({});
+    expect(fechasSospechosas({ desde: "2027-10-17", hasta: "2026-10-17" }, HOY)).toEqual({});
+  });
+
+  it("el vencimiento de la prima: dentro de un año de la vigencia, no; más lejos, sí", () => {
+    const base = { desde: "2026-10-01", hasta: "2027-01-01" };
+    expect(fechasSospechosas({ ...base, primaVence: "2026-10-31" }, HOY)).toEqual({});
+    expect(fechasSospechosas({ ...base, primaVence: "2025-10-01" }, HOY)).toEqual({});
+    expect(fechasSospechosas({ ...base, primaVence: "2028-01-01" }, HOY)).toEqual({});
+    expect(fechasSospechosas({ ...base, primaVence: "2025-09-30" }, HOY).primaVence).toBeDefined();
+    expect(fechasSospechosas({ ...base, primaVence: "2028-01-02" }, HOY).primaVence).toBeDefined();
+    expect(fechasSospechosas({ ...base, primaVence: "20266-10-31" }, HOY).primaVence).toBeDefined();
+    expect(fechasSospechosas({ ...base, primaVence: "" }, HOY)).toEqual({});
+  });
+
+  it("si la vigencia ya es el problema, no se agrega un segundo aviso sobre la prima", () => {
+    const r = fechasSospechosas({ desde: "2026-10-01", hasta: "20277-01-01", primaVence: "2026-10-31" }, HOY);
+    expect(r.vigencia).toBeDefined();
+    expect(r.primaVence).toBeUndefined();
+  });
+});
+

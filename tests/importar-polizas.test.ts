@@ -44,7 +44,7 @@ const archivo = { name: "Cayla, Ana, FOLA 99000001.pdf" };
 const tarjeta = (l: PolizaLeida = leida(), personas = PERSONAS) => tarjetaDeLectura(archivo, 0, 0, l, personas, HOY);
 
 function ctx(o: Partial<ContextoDeTarjeta> = {}): ContextoDeTarjeta {
-  return { producto: "salud_practicantes", tipos: TIPOS, personas: PERSONAS, polizas: [], lote: [], ...o };
+  return { hoy: HOY, producto: "salud_practicantes", tipos: TIPOS, personas: PERSONAS, polizas: [], lote: [], ...o };
 }
 
 describe("armar una tarjeta con lo que leyó el lector", () => {
@@ -191,6 +191,21 @@ describe("qué impide registrar una tarjeta", () => {
     // Una que no se va a registrar (sin seleccionar) o que ya se registró no frena a nadie.
     expect(erroresDeTarjeta(t, ctx({ lote: [t, { ...hermana, incluir: false }] }))).toEqual([]);
     expect(erroresDeTarjeta(t, ctx({ lote: [t, { ...hermana, estado: { tipo: "registrada", pdf: "guardado" } }] }))).toEqual([]);
+  });
+
+  it("un año mal tecleado no es una póliza: la tarjeta lo dice antes de que la base lo rechace", () => {
+    expect(erroresDeTarjeta({ ...tarjeta(), hasta: "20277-01-10" }, ctx())).toEqual(["La vigencia no puede pasar de 10 años: revisa el año."]);
+    // Diez años justos todavía es una vigencia; un día más ya no.
+    expect(erroresDeTarjeta({ ...tarjeta(), desde: HOY, hasta: "2036-10-24" }, ctx())).toEqual([]);
+    expect(erroresDeTarjeta({ ...tarjeta(), desde: HOY, hasta: "2036-10-25" }, ctx())).toEqual(["La vigencia no puede pasar de 10 años: revisa el año."]);
+  });
+
+  it("el vencimiento de la prima a años de la vigencia también es un tecleo", () => {
+    expect(erroresDeTarjeta({ ...tarjeta(), primaVence: "20266-10-31" }, ctx())).toEqual(["El día en que vence la prima no cuadra con la vigencia: revisa el año."]);
+    expect(erroresDeTarjeta({ ...tarjeta(), primaVence: "2028-06-01" }, ctx())).toEqual(["El día en que vence la prima no cuadra con la vigencia: revisa el año."]);
+    // El del convenio real (dentro de la vigencia) y uno un poco antes o después, sí.
+    expect(erroresDeTarjeta({ ...tarjeta(), primaVence: "2026-11-30" }, ctx())).toEqual([]);
+    expect(erroresDeTarjeta({ ...tarjeta(), primaVence: "2026-05-01" }, ctx())).toEqual([]);
   });
 
   it("sin seguro elegido todavía no se comprueba nada que dependa de él", () => {

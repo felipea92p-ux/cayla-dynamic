@@ -118,6 +118,8 @@
 -- ESTADOS QUE NUNCA DEBEN EXISTIR (y qué los hace imposibles)
 --
 --   · una póliza que termina antes de empezar ................ check
+--   · una vigencia de siglos (un año mal tecleado: 20277) o una prima que vence años fuera de
+--       ella .... la función: tope de diez años y de un año a cada lado (un lote lo multiplicaría)
 --   · dos pólizas vivas del MISMO tipo de la misma persona que se pisan .. la función,
 --       con la fila de la persona bloqueada (al registrar Y al corregir)
 --       (rango `[desde, hasta)`: una que empieza el día que otra termina no se pisa,
@@ -231,6 +233,17 @@
 --     (`personas_practicante_modalidad_coherente`). Sin cambiar de vínculo, el cese funciona,
 --     y la pantalla de Equipo nunca manda un vínculo nuevo al cesar: hoy solo se alcanza
 --     llamando a la función a mano.
+--   · El PDF de una póliza colectiva se guarda UNA VEZ POR PERSONA: la pantalla lo copia dentro del
+--     almacén a la póliza de cada una (un índice único exige un objeto por fila). Con treinta
+--     personas son treinta copias del mismo papel.
+--   · `fn_seguro_asegurados` entrega documento y fecha de nacimiento a DO (que ya los ve en la ficha
+--     de cada persona) y que el CSV lo bajen DO y la dirección es una decisión de la PANTALLA, no de
+--     la base: quien pueda ver la lista puede llamar la función por la consola del navegador. Igual
+--     que `puedeExportarPadron`; ver y llevarse un dato son permisos distintos, pero solo el primero
+--     lo hace cumplir Postgres.
+--   · Un lote retiene el `share` del tipo de seguro mientras espera a la persona siguiente. No hay
+--     ciclo (ver `fn_seguro_registrar`), pero no se probó con dos sesiones a la vez: esa garantía es
+--     por análisis, no por prueba.
 --
 -- SE ROMPE SI
 --
@@ -723,6 +736,20 @@ begin
   if p_vigente_hasta <= p_vigente_desde then
     raise exception 'La vigencia tiene que terminar después de empezar.';
   end if;
+  -- Un año mal tecleado (20277 por 2027) dejaría a la persona «cubierta» por siglos y apagaría el aviso
+  -- de hueco; en un lote, a todas a la vez. Una póliza de seguro dura meses, a lo sumo unos pocos años:
+  -- más de diez es un error de tecleo, no una póliza. El final también se compara con HOY: una que
+  -- empieza en el 2060 tampoco existe.
+  if p_vigente_hasta > p_vigente_desde + 3660 or p_vigente_hasta > fn_hoy_lima() + 3660 then
+    raise exception 'La vigencia no puede pasar de 10 años: revisa el año.';
+  end if;
+  -- Lo mismo con el día en que vence la prima: de él depende que una póliza se dé por suspendida o
+  -- «al día», y un año de más la dejaría «al día» para siempre. Generoso (un año a cada lado de la
+  -- vigencia) para no tropezar con un convenio de pago raro; solo caza el tecleo.
+  if p_prima_vence_el is not null
+     and (p_prima_vence_el < p_vigente_desde - 365 or p_prima_vence_el > p_vigente_hasta + 365) then
+    raise exception 'El día en que vence la prima no cuadra con la vigencia: revisa el año.';
+  end if;
   if p_prima_total is null or p_prima_total < 0 then
     raise exception 'Escribe la prima total (con IGV); puede ser 0 si no hay que pagar.';
   end if;
@@ -992,14 +1019,22 @@ begin
   -- vez se ordenan, y la segunda ve la póliza de la primera al comprobar el solape.
   -- `for no key update`: se ordenan entre sí sin frenar a quien solo apunta a la persona
   -- con una clave foránea (un marcaje, el disparador). ORDEN DE BLOQUEO de todo el
-  -- módulo: primero la persona, después lo suyo (póliza, asignación); el tipo se lee con
-  -- `for share` y nunca se espera por nada estando bloqueado.
+  -- módulo: primero la persona, después lo suyo (póliza, asignación) y el tipo al final, con
+  -- `for share`. No hay ciclo porque ninguna función pide el tipo para ESCRIBIRLO (`for no key
+  -- update`: `fn_seguro_tipo_editar` y `_activar`) teniendo una persona bloqueada. Un lote retiene
+  -- el `share` del tipo mientras espera a la persona siguiente: quien edite el tipo espera al lote,
+  -- nunca al revés.
   select * into v_p from personas p where p.id = p_persona_id for no key update;
   if not found then
     raise exception 'Esa persona no existe.';
   end if;
   if v_p.estado is distinct from 'activo' then
     raise exception 'Esa persona está inactiva.';
+  end if;
+  -- Una estación de retail no es una persona (0490): ni `fn_seguros_equipo` ni la lista de asegurados la
+  -- muestran, así que una póliza suya quedaría pagada e invisible.
+  if v_p.cuenta_de_servicio then
+    raise exception 'Esa ficha es una estación de retail, no una persona: no se le registra una póliza.';
   end if;
 
   select * into v_t from seguros_tipos t where t.clave = p_producto for share;
@@ -1065,6 +1100,11 @@ $fn$;
 --     cruza, está inactiva, su seguro principal es otro…), no se registra a NADIE y el
 --     mensaje dice con quién falló. Un lote a medias es lo peor: «19 personas» en la
 --     pantalla y 12 en la base, sin que nadie sepa cuáles.
+--   · «Con Ana falló» solo se dice por lo que es DE ANA (ya tiene una póliza que se cruza, está
+--     inactiva, su seguro principal es otro…). Lo que es de todas —el seguro, la aseguradora, las
+--     fechas, la prima— se comprueba ANTES del lote y se dice a secas: si no, el error de un año
+--     mal tecleado se le echaría a la primera de la lista. `fn_seguro_registrar` lo vuelve a
+--     comprobar por cada persona (no cuesta nada, y no hay otra puerta).
 --   · Las personas se recorren en el MISMO orden siempre (por id) y sin repetir: dos DO
 --     registrando lotes que comparten gente se esperan en fila en vez de abrazarse (el
 --     orden de bloqueo del módulo es primero la persona; ver `fn_seguro_registrar`).
@@ -1095,6 +1135,7 @@ declare
   v_p      uuid;
   v_id     uuid;
   v_nombre text;
+  v_t      seguros_tipos%rowtype;
 begin
   if fn_es_admin_o_lider() is not true then
     raise exception 'Solo Desarrollo Organizacional puede registrar pólizas de seguro.';
@@ -1109,6 +1150,20 @@ begin
     raise exception 'Son demasiadas personas de una vez (máximo 100). Registra la póliza por tandas.';
   end if;
 
+  select * into v_t from seguros_tipos t where t.clave = p_producto;
+  if not found then
+    raise exception 'Ese tipo de seguro no existe.';
+  end if;
+  if not v_t.activo then
+    raise exception 'Ese tipo de seguro está archivado.';
+  end if;
+  if not v_t.con_poliza then
+    raise exception 'Ese seguro es «por planilla»: no tiene póliza que registrar.';
+  end if;
+  perform fn_seguro_datos_validos(p_aseguradora, p_numero_poliza, p_vigente_desde, p_vigente_hasta,
+                                  p_prima_total, p_prima_vence_el, p_plan,
+                                  p_beneficio_enfermedad, p_beneficio_accidente, p_nota);
+
   foreach v_p in array v_orden loop
     begin
       v_id := fn_seguro_registrar(v_p, p_producto, p_aseguradora, p_numero_poliza, p_vigente_desde,
@@ -1118,7 +1173,7 @@ begin
       -- Solo los mensajes que la propia función escribe para una persona (P0001). Cualquier otro
       -- error —un permiso, un tiempo de espera— sube tal cual, sin disfrazarlo de «falló con Ana».
       select btrim(pe.nombres || ' ' || pe.apellidos) into v_nombre from personas pe where pe.id = v_p;
-      raise exception 'No se registró la póliza a nadie. Con % falló: %', coalesce(v_nombre, 'una persona'), sqlerrm;
+      raise exception 'No se registró la póliza a nadie. Con % falló: %', coalesce(v_nombre, 'una de las personas elegidas'), sqlerrm;
     end;
     persona_id := v_p;
     poliza_id  := v_id;
@@ -1532,6 +1587,9 @@ begin
   if v_p.estado is distinct from 'activo' then
     raise exception 'Esa persona está inactiva.';
   end if;
+  if v_p.cuenta_de_servicio then
+    raise exception 'Esa ficha es una estación de retail, no una persona: no se le asigna un seguro.';
+  end if;
 
   select * into v_t from seguros_tipos t where t.clave = p_tipo for share;
   if not found then
@@ -1922,6 +1980,12 @@ begin
 end;
 $fn$;
 
+-- El permiso, aquí mismo y no solo en la sección 17: a esta función se le hace `drop` y se vuelve a
+-- crear (cambió de columnas), y un `drop` se lleva sus permisos. Quien pegue solo lo seleccionado no
+-- debe dejar la pantalla vacía y sin error (0204).
+grant execute on function fn_seguros_equipo() to authenticated;
+revoke execute on function fn_seguros_equipo() from public, anon;
+
 
 -- Todas las pólizas vivas (no anuladas), de cualquier tipo, con su persona y su tipo.
 -- `cubre_hoy` ya resuelto, con el último día EXCLUSIVO.
@@ -2132,7 +2196,8 @@ $fn$;
 -- La lista de asegurados de UN seguro, con lo que la aseguradora y el contador piden para
 -- emitir el certificado de cada persona —apellidos y nombres, documento, fecha de
 -- nacimiento, fecha de ingreso— para no volver a escribirlo (el molde son las consultas de
--- `scripts/sql-manual/quienes_van_al_seguro_de_vida_ley.sql`, que esto reemplaza).
+-- `scripts/sql-manual/quienes_van_al_seguro_de_vida_ley.sql`). Responde quién ESTÁ cubierto (las
+-- pólizas registradas); quién DEBERÍA estar (todo `en_planilla`) sigue siendo esa consulta.
 --
 -- QUIÉN ESTÁ EN UN SEGURO, escrito UNA vez:
 --   · en uno PRINCIPAL (FOLA, EsSalud…): las personas activas cuyo seguro principal de hoy es
