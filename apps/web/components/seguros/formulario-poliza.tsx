@@ -118,8 +118,8 @@ export function FormularioPoliza({
   /** La póliza que se corrige, o null si es una nueva. */
   corrigiendo: Poliza | null;
   base: BaseDePoliza | null;
-  /** Recibe el id de la póliza y si es nueva (para abrir sus archivos). */
-  onGuardado: (polizaId: string, nueva: boolean) => void;
+  /** Recibe el id de la póliza, si es nueva y cómo nombrarla («Ana Prueba · póliza 24043267»), para abrir sus archivos. */
+  onGuardado: (polizaId: string, nueva: boolean, titulo: string) => void;
 }) {
   return (
     <Modal
@@ -159,6 +159,8 @@ function Cuerpo({
     setF((a) => ({ ...a, hasta: sumarMeses(a.desde, meses) }));
   }
 
+  const nombrarPoliza = () => `${personas.find((p) => p.id === f.personaId)?.nombre ?? "Póliza"} · póliza ${f.numero.trim()}`;
+
   async function guardar() {
     setIntento(true); setMensaje(null);
     if (Object.keys(errores).length > 0) return;
@@ -174,13 +176,13 @@ function Cuerpo({
       const { error } = await supabase.rpc("fn_seguro_corregir", { p_id: corrigiendo.poliza_id, ...comunes, p_motivo: f.motivo.trim() });
       setGuardando(false);
       if (error) { setMensaje(mensajeDeError(error, "guardar")); return; }
-      onGuardado(corrigiendo.poliza_id, false);
+      onGuardado(corrigiendo.poliza_id, false, nombrarPoliza());
       return;
     }
     const { data, error } = await supabase.rpc("fn_seguro_registrar", { p_persona_id: f.personaId, ...comunes });
     setGuardando(false);
     if (error || typeof data !== "string") { setMensaje(mensajeDeError(error, "guardar")); return; }
-    onGuardado(data, true);
+    onGuardado(data, true, nombrarPoliza());
   }
 
   const mostrar = <K extends keyof Form>(k: K) => (intento ? errores[k] : undefined);

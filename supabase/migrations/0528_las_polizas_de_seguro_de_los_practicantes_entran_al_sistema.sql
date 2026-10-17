@@ -95,6 +95,13 @@
 --
 -- QUÉ NO HACE
 --
+--   · No toca el seguro del resto del equipo. FOLA es exclusiva de los
+--     practicantes —el resumen informativo de la póliza dice que cubre al
+--     asegurado «en su calidad de practicante del contratante»— y el seguro de
+--     las demás personas (EsSalud, por planilla) se deja EXACTAMENTE como está, por
+--     decisión de Felipe (2026-10-17). Por eso `fn_seguro_registrar` solo acepta a
+--     un practicante, el hueco solo se declara para practicantes, y esta migración
+--     no lee ni escribe `aporte_essalud` ni ninguna columna de planilla.
 --   · No avisa a la persona ni le muestra nada: es la etapa 2.
 --   · No compara el beneficio máximo con las 14 y 30 subvenciones que el convenio
 --     promete (Ley 28518, art. 42.8): para eso hace falta la subvención pactada de
@@ -133,20 +140,31 @@
 --     (select string_agg(numero || ' · ' || nombre, ' | ' order by numero) from migraciones_aplicadas
 --       where numero between 524 and 530)                    as registro_524_a_530;
 --
--- CÓMO SE REVIERTE
+-- CÓMO SE REVIERTE (en ESTE orden: las políticas de Storage dependen de
+-- `fn_seguro_archivo_libre`, así que van antes que las funciones — se probó
+-- corriéndola de verdad el 2026-10-17; escrita al revés, falla)
+--   begin;
+--   select set_config('storage.allow_delete_query', 'true', true);
+--   drop policy if exists polizas_seguro_insert on storage.objects;
+--   drop policy if exists polizas_seguro_select on storage.objects;
+--   drop policy if exists polizas_seguro_update on storage.objects;
+--   drop policy if exists polizas_seguro_delete on storage.objects;
 --   drop function if exists
 --     fn_seguro_registrar(uuid, text, text, date, date, numeric, date, text, numeric, numeric, boolean, text),
 --     fn_seguro_corregir(uuid, text, text, date, date, numeric, date, text, numeric, numeric, boolean, text, text),
 --     fn_seguro_marcar_paso(uuid, text, date, text), fn_seguro_anular(uuid, text),
 --     fn_seguro_adjuntar(uuid, text, text, text), fn_seguro_retirar_archivo(uuid, text),
---     fn_seguro_archivo_libre(text), fn_seguro_datos_validos(text, text, date, date, numeric, date, text, numeric, numeric, text),
+--     fn_seguro_archivo_libre(text),
+--     fn_seguro_datos_validos(text, text, date, date, numeric, date, text, numeric, numeric, text),
 --     fn_seguros_tablero(), fn_seguro_historial(uuid), fn_seguro_archivos(uuid);
---   drop policy polizas_seguro_insert/select/update/delete on storage.objects;
 --   drop table polizas_seguro_eventos, polizas_seguro_archivos, polizas_seguro;
---   delete from storage.objects where bucket_id = 'polizas-seguro';  -- vaciar antes
+--   delete from storage.objects where bucket_id = 'polizas-seguro';  -- los PDF, antes del bucket
 --   delete from storage.buckets where id = 'polizas-seguro';
---   Nada de planilla, asistencia ni pago lee estas tablas: revertir solo quita la
---   pantalla. Ojo: borrarlas destruye el registro de quién marcó cada paso.
+--   delete from migraciones_aplicadas where numero = 528;
+--   commit;
+--   Nada de planilla, asistencia ni pago lee estas tablas: revertir solo quita
+--   la pantalla. Ojo: borrarlas destruye el registro de quién marcó cada paso y
+--   los PDF de las pólizas.
 --
 -- CÓMO SE COMPRUEBA QUE QUEDÓ BIEN
 --   La consulta del final, que va la última porque el SQL Editor solo muestra el

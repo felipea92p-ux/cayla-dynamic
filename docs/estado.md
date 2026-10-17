@@ -22,6 +22,16 @@ Documentos de Lo mío; y entrega por etapas, DO primero. **Esta es la etapa 1.**
 (`fn_mi_seguro` y la lectura de cada practicante sobre SU póliza y su PDF) no está empezada, y
 solo sirve si los cuatro tienen cuenta y entran a Lo mío: eso solo lo sabe Felipe.
 
+**Decidido por Felipe a mitad de la construcción (2026-10-17):** «el seguro es para todos los
+colaboradores, creo que FOLA es exclusivo de practicantes» y «el seguro actual que tienen los
+empleados déjalos como está». El resumen de la póliza confirma lo primero: cubre al asegurado «en
+su calidad de practicante del contratante» (p. 4). Así que **FOLA es solo de practicantes** y **el
+seguro del resto del equipo (EsSalud, por planilla) no se toca**: la pantalla no lo lista, no lo
+cambia y no avisa de nadie que no sea practicante (salvo pedir la baja de la póliza de quien
+dejó de serlo). Esta migración no lee ni escribe nada de planilla. Un segundo seguro, el día que
+exista, entra por `producto` (hoy un solo valor, `salud_practicantes`); no se construyó un
+catálogo porque no hay ningún otro seguro que registrar.
+
 **Lo que decidí sin preguntar, y es de Felipe cambiar:**
 - **Aviso de renovación a 45 días** (`DIAS_AVISO_RENOVACION`, `lib/admin/seguros.ts`). Número
   elegido, no de ley: el corredor necesita días y la prima de contado de la póliza de hoy venció

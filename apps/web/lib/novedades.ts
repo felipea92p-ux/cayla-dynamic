@@ -122,9 +122,10 @@ export const NOVEDADES: readonly Novedad[] = [
       "Hay una pantalla nueva, «Seguros», en el grupo Personas. Muestra qué practicante tiene seguro hoy, hasta " +
       "cuándo, qué papeleo falta (prima, firma y factura) y guarda los PDF de la póliza. Si alguien no tiene una " +
       "póliza que lo cubra, aparece primero y en rojo, y la Bandeja también lo avisa.\n\n" +
-      "Es solo para Desarrollo Organizacional y solo avisa: no cambia lo que cobra nadie. El plan y el beneficio " +
-      "máximo quedan «sin confirmar» hasta que el corredor los confirme. Más adelante cada practicante podrá ver su " +
-      "propia póliza en «Lo mío».",
+      "Es solo para Desarrollo Organizacional y solo avisa: no cambia lo que cobra nadie. La póliza es solo de los " +
+      "practicantes; el seguro del resto del equipo sigue como estaba. El plan y el beneficio máximo quedan «sin " +
+      "confirmar» hasta que el corredor los confirme. Más adelante cada practicante podrá ver su propia póliza en " +
+      "«Lo mío».",
     audiencia: "do",
   },
   {

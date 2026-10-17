@@ -206,8 +206,10 @@ export function urgenciaLiquidacionVencida(l: LiquidacionVencida): Urgencia {
 // Los números salen de `lib/admin/seguros.ts` (la regla de quién tiene hueco y de
 // qué es «por vencer» vive allí, con su prueba); acá solo se ordenan.
 
-const SE_QUEDA_SIN_SEGURO = { futuro: "Se queda sin seguro", pasado: "Se quedó sin seguro" };
-const PRIMA_VENCE = { futuro: "La prima vence", pasado: "La prima venció" };
+// Textos CORTOS a propósito: la columna del plazo mide 11 rem, y «Se queda sin
+// seguro en 20 días» se pisaba con el botón de la fila (visto en el navegador).
+const SIN_SEGURO = { futuro: "Sin seguro", pasado: "Sin seguro" };
+const PRIMA_VENCE = { futuro: "Prima vence", pasado: "Prima venció" };
 
 /**
  * Un practicante sin póliza que cubra hoy. El riesgo YA corre —no hay «hoy» ni
@@ -222,8 +224,8 @@ export function urgenciaSeguroSinPoliza(
   if (motivo === "vencida" && diasDesdeQueVencio !== null) {
     return {
       grupo: "vencido",
-      plazo: diasDesdeQueVencio === 0 ? "Dejó de cubrir hoy" : `Dejó de cubrir hace ${diasDesdeQueVencio} día${diasDesdeQueVencio === 1 ? "" : "s"}`,
-      nota: "y hoy no tiene seguro",
+      plazo: diasDesdeQueVencio === 0 ? "Sin seguro desde hoy" : `Sin seguro hace ${diasDesdeQueVencio} día${diasDesdeQueVencio === 1 ? "" : "s"}`,
+      nota: "su póliza ya no cubre",
       orden: -diasDesdeQueVencio,
     };
   }
@@ -237,7 +239,7 @@ export function urgenciaSeguroSinPoliza(
 export function urgenciaSeguroPorVencer(dias: number, hasta: string): Urgencia {
   return {
     grupo: dias <= 0 ? "hoy" : "proximo",
-    plazo: enDias(dias, SE_QUEDA_SIN_SEGURO),
+    plazo: enDias(dias, SIN_SEGURO),
     nota: `el ${diaYMes(hasta)}`,
     orden: dias,
   };
@@ -258,7 +260,8 @@ export function urgenciaSeguroPapeleo(
       return { grupo: "vencido", plazo: "Cobertura suspendida", nota: "por más de 30 días de mora", orden: d };
     }
     if (prima.estado === "en_mora") {
-      return { grupo: "vencido", plazo: enDias(d, PRIMA_VENCE), nota: "la cobertura se suspende a los 30 días de mora", orden: d };
+      const mora = -d;
+      return { grupo: "vencido", plazo: `En mora hace ${mora} día${mora === 1 ? "" : "s"}`, nota: "la cobertura se suspende a los 30 días de mora", orden: d };
     }
     if (prima.estado === "por_vencer") {
       return { grupo: d === 0 ? "hoy" : "proximo", plazo: enDias(d, PRIMA_VENCE), nota: prima.venceEl ? `el ${diaYMes(prima.venceEl)}` : null, orden: d };

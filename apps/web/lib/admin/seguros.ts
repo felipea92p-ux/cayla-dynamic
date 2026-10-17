@@ -8,6 +8,11 @@
 //   a la Bandeja. Sin React ni Supabase: se prueba con vitest
 //   (`tests/seguros.test.ts`).
 //
+// SOLO PRACTICANTES (Felipe, 2026-10-17)
+//   FOLA es exclusiva de los practicantes y el seguro del resto del equipo
+//   (EsSalud, por planilla) se deja como está: nada de aquí lista, mide ni avisa
+//   de quien no sea practicante, salvo para pedir la baja de su póliza si dejó de serlo.
+//
 // QUÉ NO DECIDE
 //   Quién tiene que tener póliza ni si una póliza cubre HOY. Eso lo dice la base
 //   (`es_practicante_activo`, `cubre_hoy` y la fila sin póliza); aquí solo se

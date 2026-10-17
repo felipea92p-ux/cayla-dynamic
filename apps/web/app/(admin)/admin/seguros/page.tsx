@@ -1,7 +1,7 @@
 "use client";
 
 // ============================================================================
-// Seguros — la póliza de salud de los practicantes (FOLA) y quién está cubierto hoy
+// Seguros — la póliza FOLA, que es SOLO de los practicantes, y quién está cubierto hoy
 // ============================================================================
 // QUÉ PROMETE
 //   Que Desarrollo Organizacional vea, en un minuto, quién de los practicantes
@@ -19,6 +19,13 @@
 // SOLO ALERTA
 //   Nada de aquí cambia lo que cobra o paga nadie ni toca la planilla: la prima se
 //   paga a la aseguradora. La pantalla avisa; las decisiones son de una persona.
+//
+// EL RESTO DEL EQUIPO NO ESTÁ AQUÍ, A PROPÓSITO (Felipe, 2026-10-17)
+//   FOLA es exclusiva de los practicantes: el resumen de la póliza dice que cubre
+//   al asegurado «en su calidad de practicante del contratante». El seguro de las
+//   demás personas —EsSalud, que se paga por planilla— se deja exactamente como
+//   estaba: esta pantalla no lo lista, no lo cambia y no avisa de nadie que no sea
+//   practicante. Un segundo seguro, el día que exista, entra por `producto` (0528).
 // ============================================================================
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
@@ -330,9 +337,10 @@ function Seguros() {
         titulo="Seguros"
         descripcion={
           <>
-            El seguro de salud de los practicantes (la póliza FOLA de Pacífico, que reemplazó a EsSalud): quién está
-            cubierto hoy, hasta cuándo, qué papeleo falta y dónde están los PDF. Solo lo ve Desarrollo Organizacional.
-            Nada se borra, y nada de aquí cambia lo que cobra nadie: avisa, y la decisión es de una persona.
+            La póliza FOLA de Pacífico, que es solo de los practicantes: quién está cubierto hoy, hasta cuándo, qué
+            papeleo falta y dónde están los PDF. El seguro del resto del equipo —EsSalud, por planilla— sigue como
+            estaba: esta pantalla no lo toca. Solo la ve Desarrollo Organizacional. Nada se borra, y nada de aquí
+            cambia lo que cobra nadie: avisa, y la decisión es de una persona.
           </>
         }
         accion={!cargaError && <Boton variante="primario" onClick={() => registrar(null)}>+ Registrar una póliza</Boton>}
@@ -353,20 +361,20 @@ function Seguros() {
             </div>
           ) : (
             <>
-              <ul className="mb-5 flex flex-wrap gap-3">
+              <ul className="mb-5 grid grid-cols-2 gap-3 sm:flex sm:flex-wrap">
                 {fichas.map((f) => {
                   const activa = filtro === f.clave;
                   const color = f.n === 0 ? "text-taupe" : f.tono === "alerta" ? "text-rojo-profundo" : f.tono === "positivo" ? "text-verde" : "text-ambar";
                   return (
-                    <li key={f.clave}>
+                    <li key={f.clave} className="min-w-0">
                       <button
                         type="button"
                         aria-pressed={activa}
                         onClick={() => setFiltro(activa ? null : f.clave)}
-                        className={`min-w-36 rounded-2xl border px-4 py-3 text-left transition-colors ${activa ? "border-tinta bg-papel" : "border-sand bg-papel hover:border-taupe"}`}
+                        className={`h-full w-full rounded-2xl border px-4 py-3 text-left transition-colors sm:w-auto sm:min-w-36 ${activa ? "border-tinta bg-papel" : "border-sand bg-papel hover:border-taupe"}`}
                       >
                         <span className={`block font-serif text-2xl ${color}`}>{f.n}</span>
-                        <span className="block max-w-44 text-xs text-taupe">{f.titulo}</span>
+                        <span className="block text-xs text-taupe sm:max-w-44">{f.titulo}</span>
                       </button>
                     </li>
                   );
@@ -462,12 +470,12 @@ function Seguros() {
         personas={opciones}
         corrigiendo={corrigiendo}
         base={base}
-        onGuardado={async (id, nueva) => {
+        onGuardado={async (id, nueva, titulo) => {
           setFormAbierto(false);
           await cargar();
           if (nueva) {
             avisar("ok", "Póliza registrada. Adjunta ahora el PDF de la póliza y el convenio de pago.");
-            setVerArchivos({ id, titulo: "Póliza recién registrada" });
+            setVerArchivos({ id, titulo });
           } else {
             avisar("ok", "Corrección guardada. El historial dice qué decía antes.");
           }

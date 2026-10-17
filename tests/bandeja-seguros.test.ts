@@ -59,13 +59,13 @@ describe("quién entra a la Bandeja por sus seguros", () => {
     const vencida = fila({ vigente_hasta: "2026-10-16", cubre_hoy: false });
     const [p] = armar([hueco(), vencida]);
     expect(p.titulo).toBe("Su póliza venció y no tiene seguro");
-    expect(p.urgencia.plazo).toBe("Dejó de cubrir hace 1 día");
+    expect(p.urgencia.plazo).toBe("Sin seguro hace 1 día");
   });
 
   it("cubierta pero por vencer entra con la fecha en que se queda sin seguro", () => {
     const [p] = armar([fila({ vigente_hasta: "2026-11-20" })]);
     expect(p).toMatchObject({ tipo: "seguro_por_vencer", titulo: "Se queda sin seguro pronto" });
-    expect(p.urgencia).toMatchObject({ grupo: "proximo", plazo: "Se queda sin seguro en 34 días", nota: "el 20 de noviembre" });
+    expect(p.urgencia).toMatchObject({ grupo: "proximo", plazo: "Sin seguro en 34 días", nota: "el 20 de noviembre" });
     expect(p.ir?.texto).toBe("Registrar renovación");
   });
 
@@ -95,6 +95,19 @@ describe("quién entra a la Bandeja por sus seguros", () => {
 });
 
 describe("la urgencia de cada cosa", () => {
+  it("ningún texto de plazo pasa de 24 letras: la columna es angosta y el texto se pisaba con el botón", () => {
+    const textos = [
+      urgenciaSeguroSinPoliza("nunca", null).plazo, urgenciaSeguroSinPoliza("vencida", 0).plazo,
+      urgenciaSeguroSinPoliza("vencida", 100).plazo, urgenciaSeguroSinPoliza("aun_no_empieza", null).plazo,
+      urgenciaSeguroPorVencer(45, "2026-12-01").plazo, urgenciaSeguroPorVencer(0, "2026-12-01").plazo,
+      urgenciaSeguroPapeleo({ estado: "en_mora", dias: -29, venceEl: null }, ["pagada"]).plazo,
+      urgenciaSeguroPapeleo({ estado: "suspendida", dias: -90, venceEl: null }, ["pagada"]).plazo,
+      urgenciaSeguroPapeleo({ estado: "por_vencer", dias: 7, venceEl: null }, ["pagada"]).plazo,
+      urgenciaSeguroPapeleo({ estado: "al_dia", dias: 20, venceEl: null }, ["pagada"]).plazo,
+    ];
+    for (const t of textos) expect(t.length, t).toBeLessThanOrEqual(24);
+  });
+
   it("quien nunca tuvo póliza va antes que quien la perdió hace una semana, y esa antes que la de ayer", () => {
     const nunca = urgenciaSeguroSinPoliza("nunca", null);
     const semana = urgenciaSeguroSinPoliza("vencida", 7);
@@ -109,14 +122,14 @@ describe("la urgencia de cada cosa", () => {
   });
 
   it("por vencer: mañana sigue siendo «próximo» (hoy ya sería un hueco)", () => {
-    expect(urgenciaSeguroPorVencer(1, "2026-10-18")).toMatchObject({ grupo: "proximo", plazo: "Se queda sin seguro mañana" });
+    expect(urgenciaSeguroPorVencer(1, "2026-10-18")).toMatchObject({ grupo: "proximo", plazo: "Sin seguro mañana" });
   });
 
   it("la prima en mora y la suspendida son «Vencido»; la que vence esta semana, «Próximos»", () => {
-    expect(urgenciaSeguroPapeleo({ estado: "en_mora", dias: -3, venceEl: "2026-10-14" }, ["pagada"])).toMatchObject({ grupo: "vencido", plazo: "La prima venció hace 3 días" });
+    expect(urgenciaSeguroPapeleo({ estado: "en_mora", dias: -3, venceEl: "2026-10-14" }, ["pagada"])).toMatchObject({ grupo: "vencido", plazo: "En mora hace 3 días" });
     expect(urgenciaSeguroPapeleo({ estado: "suspendida", dias: -40, venceEl: "2026-09-07" }, ["pagada"])).toMatchObject({ grupo: "vencido", plazo: "Cobertura suspendida" });
-    expect(urgenciaSeguroPapeleo({ estado: "por_vencer", dias: 4, venceEl: "2026-10-21" }, ["pagada"])).toMatchObject({ grupo: "proximo", plazo: "La prima vence en 4 días" });
-    expect(urgenciaSeguroPapeleo({ estado: "por_vencer", dias: 0, venceEl: HOY }, ["pagada"])).toMatchObject({ grupo: "hoy", plazo: "La prima vence hoy" });
+    expect(urgenciaSeguroPapeleo({ estado: "por_vencer", dias: 4, venceEl: "2026-10-21" }, ["pagada"])).toMatchObject({ grupo: "proximo", plazo: "Prima vence en 4 días" });
+    expect(urgenciaSeguroPapeleo({ estado: "por_vencer", dias: 0, venceEl: HOY }, ["pagada"])).toMatchObject({ grupo: "hoy", plazo: "Prima vence hoy" });
   });
 
   it("la mora pesa más cuanto más vieja: orden más bajo primero", () => {
