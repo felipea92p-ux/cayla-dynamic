@@ -174,7 +174,7 @@ export function EditorDeBoleta({
     for (const f of lista) {
       const mime = tipoDeArchivo(f.name, f.type);
       if (esFoto) {
-        if (!mime.startsWith("image/")) { problema = `«${f.name}» no es una foto. Sube una imagen (JPG, PNG o HEIC).`; continue; }
+        if (!mime.startsWith("image/")) { problema = `«${f.name}» no es una foto. Sube un JPG o un PNG (un HEIC solo se abre en Safari; en computadora, guárdalo como JPG).`; continue; }
         if (f.size > TOPE_ARCHIVO_BYTES) { problema = `«${f.name}» pesa más de 50 MB. Tómala de nuevo con menos resolución.`; continue; }
         try {
           const blob = await comprimirImagen(f, LADO_MAYOR_FOTO_PX, CALIDAD_JPEG_FOTO, 0);
