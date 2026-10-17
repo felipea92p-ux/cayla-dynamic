@@ -4,7 +4,7 @@
 -- QUÉ PROMETE
 --
 --   Que cada colaborador vea, en «Lo mío», SU seguro: en cuál está hoy y, si ese seguro
---   lleva póliza, la póliza —número, aseguradora, hasta cuándo la cubre— y el PDF de su
+--   lleva póliza, la póliza —número, aseguradora, hasta cuándo es vigente— y el PDF de su
 --   póliza y de su convenio de pago, para abrir o descargar. Sin que por eso pueda ver
 --   NADA de las demás personas: ni su seguro, ni su póliza, ni sus PDF.
 --
@@ -65,11 +65,18 @@
 --              usa `fn_seguros_equipo` para DO. «Cubre hoy» sí se repite —la misma cuenta,
 --              con el último día EXCLUSIVO—, y la prueba 423 compara las dos respuestas
 --              persona por persona.
---   DECIDÍ:    «AL DÍA» ES QUE LA PÓLIZA ESTÁ VIGENTE, no que la prima esté pagada. La
---              cobertura puede suspenderse por mora (convenio de pago, cláusula quinta),
---              pero decirle a alguien «tu seguro está suspendido» por una marca que DO
---              todavía no hizo es una falsa alarma sobre su salud, y la mora ya sale en
---              rojo en la Bandeja de DO. Si Felipe prefiere avisarle, se agrega una columna.
+--   DECIDÍ:    LA PERSONA NO VE LA MORA, Y POR ESO SU PANTALLA NO DICE «CUBIERTO».
+--              `cubre_hoy` es solo de fechas, igual que en `fn_seguros_equipo`. La cobertura
+--              puede suspenderse sola si la prima lleva más de 30 días sin pagarse (convenio
+--              de pago, cláusula quinta): la pantalla de DO lo calcula con `estadoPrima` y
+--              lo llama «suspendida». Aquí no sale la prima ni su estado, así que la pantalla
+--              habla de la PÓLIZA («vigente», «va hasta») y nunca de que la persona «esté
+--              cubierta», y cierra con «si la aseguradora te dice otra cosa, avisa a
+--              Desarrollo Organizacional». Decirle «tu seguro está suspendido» por una marca
+--              que DO todavía no hizo sería una falsa alarma sobre su salud; decirle
+--              «estás cubierta» cuando no lo está, mandarla a una clínica a que se lo
+--              nieguen. Si Felipe prefiere avisarle, hace falta una columna más en
+--              `fn_mi_seguro` y repetir en SQL la regla de los 30 días de `estadoPrima`.
 --   DECIDÍ:    UN SEGURO SIN PÓLIZA NO DICE MÁS QUE LO QUE LA BASE SABE. Para EsSalud la
 --              función devuelve el nombre y `con_poliza = false`, y nada de texto: lo que
 --              se le explica a la persona lo decide Felipe, no esta migración.
@@ -218,8 +225,9 @@ create policy polizas_seguro_select_propia on storage.objects
 --   tipo_nombre  cómo se llama («FOLA», «EsSalud»).
 --   con_poliza   false = «por planilla» (EsSalud): no hay póliza que ver. Tampoco hay
 --                póliza si no le corresponde ningún seguro.
---   cubre_hoy    solo si su seguro lleva póliza: si alguna de ese tipo la cubre hoy. null
---                si no lleva. Es el MISMO cálculo de `fn_seguros_equipo` (0528).
+--   cubre_hoy    solo si su seguro lleva póliza: si alguna de ese tipo está vigente hoy
+--                (solo fechas, el último día NO cuenta). null si no lleva. Es el MISMO
+--                cálculo de `fn_seguros_equipo` (0528), que tampoco sabe de mora.
 create or replace function fn_mi_seguro()
 returns table (
   tipo        text,

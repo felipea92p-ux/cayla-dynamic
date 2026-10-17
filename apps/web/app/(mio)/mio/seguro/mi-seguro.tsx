@@ -1,17 +1,17 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { hoyLima } from "@cayla-dynamic/shared";
 import { useToast } from "@/components/toast";
 import { Boton } from "@/components/ui/boton";
 import { Insignia } from "@/components/ui/insignia";
 import { abrirArchivoFirmado } from "@/lib/abrir-archivo-firmado";
-import { BUCKET_SEGUROS, plural } from "@/lib/admin/seguros";
+import { BUCKET_SEGUROS } from "@/lib/admin/seguros";
 import { isoADiaMesAnio } from "@/lib/admin/planilla/formato";
 import {
   datosConfirmados, enlaceTelefono, guiasQueAplican, nombreDeDescarga, resolverMiSeguro, rotuloDeArchivo,
-  traerMiSeguro, type ArchivoMio, type GuiaDeUso, type MiSeguro as MiSeguroCalculado, type PolizaMia,
+  textoDelResumen, traerMiSeguro, type ArchivoMio, type GuiaDeUso, type MiSeguro as MiSeguroCalculado, type PolizaMia,
   type SeguroPrincipal,
 } from "@/lib/mi-seguro";
 import { descargarArchivoDeSeguro } from "@/lib/mi-seguro-archivos";
@@ -36,9 +36,11 @@ import { pesoLegible } from "@/lib/reducir-imagen";
  *
  * LO QUE NO MUESTRA, A PROPÓSITO. El plan y el «máximo anual» mientras el corredor no los
  * confirme (la base manda null y aquí no se pinta ni un «pendiente»), y nada del papeleo de DO:
- * ni la prima, ni si está pagada o firmada. «Al día» es que la póliza está vigente, no que la
- * prima esté al corriente. Un seguro «suspendido» porque DO aún no marcó un pago sería una falsa
- * alarma sobre su salud.
+ * ni la prima, ni si está pagada o firmada. Por eso la pantalla habla de la PÓLIZA —«vigente»,
+ * «va hasta»— y no dice que la persona «esté cubierta»: la cobertura puede estar suspendida por
+ * mora (prima sin pagar más de 30 días) y eso la persona no lo ve. Un seguro «suspendido»
+ * porque DO aún no marcó un pago sería una falsa alarma sobre su salud; uno «cubierto» que no lo
+ * está, una negativa en la clínica. El texto está en `textoDelResumen` (`lib/mi-seguro.ts`).
  *
  * EL TEXTO DE «CÓMO USAR» es un resumen de la póliza, no la póliza: lo dice y manda al PDF. Hoy
  * solo existe el de FOLA. Vive en `lib/mi-seguro.ts`.
@@ -49,59 +51,15 @@ const fecha = isoADiaMesAnio;
 // ── Piezas ──────────────────────────────────────────────────────────────────
 
 function Resumen({ seguro }: { seguro: MiSeguroCalculado }) {
-  const nombre = seguro.tipo?.nombre ?? "";
-  let insignia: ReactNode;
-  let titulo: string;
-  let detalle: string;
-
-  switch (seguro.situacion) {
-    case "sin_seguro":
-      insignia = <Insignia variante="neutral">Sin seguro asignado</Insignia>;
-      titulo = "No tienes un seguro asignado en el sistema";
-      detalle = "Si crees que debería haber uno, avisa a Desarrollo Organizacional.";
-      break;
-    case "por_planilla":
-      insignia = <Insignia variante="neutral">Por planilla</Insignia>;
-      titulo = `Tu seguro es ${nombre}`;
-      detalle = "Se paga por planilla y no lleva póliza.";
-      break;
-    case "hueco":
-      insignia = <Insignia variante="alerta">Sin póliza vigente</Insignia>;
-      if (seguro.motivoHueco === "nunca") {
-        titulo = "Todavía no tienes una póliza registrada";
-        detalle = `Tu seguro es ${nombre} y lleva póliza. Cuando Desarrollo Organizacional la registre, aquí vas a ver su número y tu PDF. Si crees que ya deberías tenerla, avísales.`;
-      } else if (seguro.motivoHueco === "aun_no_empieza") {
-        titulo = "Hoy no tienes una póliza vigente registrada";
-        detalle = `La póliza de ${nombre} que está registrada a tu nombre empieza el ${fecha(seguro.empiezaEl!)}. Hasta entonces, avisa a Desarrollo Organizacional para que lo revise.`;
-      } else {
-        titulo = "Hoy no tienes una póliza vigente registrada";
-        detalle =
-          `Tu última póliza de ${nombre} dejó de cubrir el ${fecha(seguro.vencioEl!)}` +
-          `${seguro.diasDesdeQueVencio ? ` (hace ${plural(seguro.diasDesdeQueVencio, "día", "días")})` : ""}.` +
-          `${seguro.empiezaEl ? ` La que ya está registrada empieza el ${fecha(seguro.empiezaEl)}.` : ""}` +
-          " Avisa a Desarrollo Organizacional para que lo revise.";
-      }
-      break;
-    case "por_vencer":
-      insignia = <Insignia variante="advertencia">Vence en {plural(seguro.diasParaQuedarSinSeguro ?? 0, "día", "días")}</Insignia>;
-      titulo = "Tu póliza vence pronto";
-      detalle = `Tu seguro es ${nombre}. Deja de cubrir el ${fecha(seguro.cubiertoHasta!)} a las 12 M y todavía no hay otra registrada que siga. Si se acerca la fecha y no la ves aquí, avisa a Desarrollo Organizacional.`;
-      break;
-    default:
-      insignia = <Insignia variante="positivo">Al día</Insignia>;
-      titulo = "Tu seguro está al día";
-      detalle = `Tu seguro es ${nombre}. Tu póliza cubre hasta el ${fecha(seguro.cubiertoHasta!)} a las 12 M.${
-        seguro.cubiertoHasta !== seguro.actual?.vigente_hasta ? " Ya está registrada la renovación que sigue." : ""
-      }`;
-  }
-
+  // El texto vive en `lib/mi-seguro.ts` para poder probar lo que NO dice (nunca «cubierto»).
+  const t = textoDelResumen(seguro, fecha);
   return (
     <div className="rounded-xl border border-sand bg-papel px-4 py-4">
       <div className="flex flex-wrap items-center gap-2">
-        {insignia}
-        <p className="font-medium text-tinta">{titulo}</p>
+        <Insignia variante={t.variante}>{t.insignia}</Insignia>
+        <p className="font-medium text-tinta">{t.titulo}</p>
       </div>
-      <p className="mt-2 text-taupe">{detalle}</p>
+      <p className="mt-2 text-taupe">{t.detalle}</p>
     </div>
   );
 }

@@ -18,11 +18,12 @@
 // QUÉ NO DECIDE
 //   Si una póliza cubre HOY: lo dice la base (`cubre_hoy`), con el mismo cálculo del tablero
 //   de DO. Si esto lo recalculara, la persona y DO leerían dos respuestas a «¿tengo seguro
-//   hoy?». Tampoco dice si la prima está pagada ni si la cobertura está suspendida por mora:
-//   esos datos no salen de la base hacia la persona (ver la cabecera de la 0530), y «al día»
-//   aquí es que la póliza está vigente. Y un seguro SIN póliza (EsSalud) no se explica: lo
-//   que se le dice a la persona lo decide Felipe, y por ahora es lo que la base sabe —el
-//   nombre y que va por planilla—.
+//   hoy?». Tampoco dice si la prima está pagada ni si la cobertura está suspendida por mora
+//   (DO lo calcula con `estadoPrima`: más de 30 días sin pagar la prima): esos datos no salen
+//   de la base hacia la persona (ver la cabecera de la 0530). Por eso `textoDelResumen`
+//   habla de la PÓLIZA —«vigente», «va hasta»— y nunca de que la persona «esté cubierta».
+//   Y un seguro SIN póliza (EsSalud) no se explica: lo que se le dice a la persona lo decide
+//   Felipe, y por ahora es lo que la base sabe —el nombre y que va por planilla—.
 //
 // POR QUÉ SE PARECE A `seguroPorPersona`
 //   `lib/admin/seguros.ts` hace esta misma cuenta para el tablero de DO, sobre muchas
@@ -33,7 +34,7 @@
 // ============================================================================
 import type { ClienteCayla } from "@cayla-dynamic/database";
 import { diasEntre } from "./bandeja-mia";
-import { cubiertoHasta, DIAS_AVISO_RENOVACION, loVeLaPersona, type MotivoHueco } from "./admin/seguros";
+import { cubiertoHasta, DIAS_AVISO_RENOVACION, loVeLaPersona, plural, type MotivoHueco } from "./admin/seguros";
 
 export type TipoArchivoMio = "poliza" | "convenio_pago";
 
@@ -134,9 +135,10 @@ export async function traerMiSeguro(
 // ── Cómo está su seguro hoy ─────────────────────────────────────────────────
 
 /**
- * al_dia ........ su seguro principal lleva póliza y hoy lo cubre una, con margen (o con una
- *                 renovación que empalma).
- * por_vencer .... cubierta hoy, pero se queda sin póliza en `DIAS_AVISO_RENOVACION` días o
+ * al_dia ........ su seguro principal lleva póliza y hoy tiene una vigente, con margen (o con
+ *                 una renovación que empalma). «Vigente» es por fechas: la persona no ve la
+ *                 prima, así que no puede saber si la cobertura se suspendió por mora.
+ * por_vencer .... vigente hoy, pero se queda sin póliza en `DIAS_AVISO_RENOVACION` días o
  *                 menos y no hay una renovación registrada que siga.
  * hueco ......... su seguro principal lleva póliza y hoy no lo cubre ninguna (`motivoHueco`
  *                 dice si nunca tuvo una, si venció o si la registrada aún no empieza).
@@ -221,6 +223,98 @@ export function resolverMiSeguro(
     empiezaEl: motivoHueco === "vencida" || motivoHueco === "aun_no_empieza" ? proxima?.vigente_desde ?? null : null,
     resto: todas.filter((z) => z.poliza_id !== actual?.poliza_id),
   };
+}
+
+// ── Lo que dice la tarjeta de arriba ────────────────────────────────────────
+
+export type VarianteResumen = "neutral" | "alerta" | "advertencia" | "positivo";
+
+export interface TextoResumen {
+  variante: VarianteResumen;
+  /** Lo que dice la insignia. */
+  insignia: string;
+  titulo: string;
+  detalle: string;
+}
+
+/** El cierre de las dos frases que hablan de una vigencia. Sirve igual para una suspensión, una baja o un error de fechas. */
+const SI_NO_CUADRA = "Si la aseguradora te dice otra cosa, avisa a Desarrollo Organizacional.";
+
+/**
+ * Lo que dice la tarjeta de arriba de «Mi seguro». Vive aquí y no en la pantalla para poder
+ * probar lo que NO debe decir.
+ *
+ * NUNCA AFIRMA COBERTURA. Habla de la PÓLIZA y de sus fechas («vigente», «va hasta»), no de
+ * que la persona «esté cubierta». La base sabe si una póliza está vigente por fechas
+ * (`cubre_hoy`), pero no si la cobertura se suspendió sola porque la prima lleva más de 30 días
+ * sin pagarse (convenio de pago, cláusula quinta): eso lo calcula la pantalla de DO con
+ * `estadoPrima`, y a la persona no le llega ni la prima ni su estado. Decirle «tu póliza cubre»
+ * a quien tiene la cobertura suspendida es mandarla a una clínica a que se lo nieguen. Por eso
+ * las frases con fecha cierran con «si la aseguradora te dice otra cosa, avisa a Desarrollo
+ * Organizacional», sin acusar a nadie de lo que la pantalla no sabe.
+ *
+ * `fecha` formatea un `YYYY-MM-DD` para leerse («17 de octubre de 2026»); se recibe para que
+ * esto no dependa de nada de la pantalla.
+ */
+export function textoDelResumen(seguro: MiSeguro, fecha: (iso: string) => string): TextoResumen {
+  const nombre = seguro.tipo?.nombre ?? "";
+  const hasta = seguro.cubiertoHasta ? fecha(seguro.cubiertoHasta) : null;
+
+  switch (seguro.situacion) {
+    case "sin_seguro":
+      return {
+        variante: "neutral", insignia: "Sin seguro asignado",
+        titulo: "No tienes un seguro asignado en el sistema",
+        detalle: "Si crees que debería haber uno, avisa a Desarrollo Organizacional.",
+      };
+    case "por_planilla":
+      return {
+        variante: "neutral", insignia: "Por planilla",
+        titulo: `Tu seguro es ${nombre}`,
+        detalle: "Se paga por planilla y no lleva póliza.",
+      };
+    case "hueco": {
+      const base = { variante: "alerta" as const, insignia: "Sin póliza vigente" };
+      if (seguro.motivoHueco === "nunca") {
+        return {
+          ...base, titulo: "Todavía no tienes una póliza registrada",
+          detalle: `Tu seguro es ${nombre} y lleva póliza. Cuando Desarrollo Organizacional la registre, aquí vas a ver su número y tu PDF. Si crees que ya deberías tenerla, avísales.`,
+        };
+      }
+      if (seguro.motivoHueco === "aun_no_empieza") {
+        return {
+          ...base, titulo: "Hoy no tienes una póliza vigente registrada",
+          detalle: `La póliza de ${nombre} que está registrada a tu nombre empieza el ${seguro.empiezaEl ? fecha(seguro.empiezaEl) : "—"}. Hasta entonces, avisa a Desarrollo Organizacional para que lo revise.`,
+        };
+      }
+      const hace = seguro.diasDesdeQueVencio ? ` (hace ${plural(seguro.diasDesdeQueVencio, "día", "días")})` : "";
+      return {
+        ...base, titulo: "Hoy no tienes una póliza vigente registrada",
+        detalle:
+          `Tu última póliza de ${nombre} terminó el ${seguro.vencioEl ? fecha(seguro.vencioEl) : "—"}${hace}.` +
+          `${seguro.empiezaEl ? ` La que ya está registrada empieza el ${fecha(seguro.empiezaEl)}.` : ""}` +
+          " Avisa a Desarrollo Organizacional para que lo revise.",
+      };
+    }
+    case "por_vencer":
+      return {
+        variante: "advertencia",
+        insignia: `Vence en ${plural(seguro.diasParaQuedarSinSeguro ?? 0, "día", "días")}`,
+        titulo: "Tu póliza vence pronto",
+        detalle:
+          `Tu seguro es ${nombre}. Tu póliza va hasta el ${hasta ?? "—"} a las 12 M y todavía no hay otra registrada que siga. ` +
+          "Si se acerca la fecha y no la ves aquí, o si la aseguradora te dice otra cosa, avisa a Desarrollo Organizacional.",
+      };
+    default:
+      return {
+        variante: "positivo", insignia: "Vigente",
+        titulo: "Tu póliza está vigente",
+        detalle:
+          `Tu seguro es ${nombre}. Tu póliza va hasta el ${hasta ?? "—"} a las 12 M.` +
+          `${seguro.cubiertoHasta !== seguro.actual?.vigente_hasta ? " Ya está registrada la renovación que sigue." : ""}` +
+          ` ${SI_NO_CUADRA}`,
+      };
+  }
 }
 
 // ── Lo que la póliza ya tiene confirmado ────────────────────────────────────

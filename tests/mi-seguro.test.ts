@@ -9,6 +9,10 @@
 //   · que la cuenta dé lo MISMO que la del tablero de DO para las mismas pólizas (son dos
 //     respuestas a «¿esta persona tiene seguro hoy?» y no pueden diferir),
 //   · que un dato sin confirmar (plan, beneficio máximo) NO se pinte,
+//   · que la tarjeta de arriba hable de la PÓLIZA —«vigente», «va hasta»— y nunca diga que la
+//     persona «está cubierta»: la cobertura puede estar suspendida por mora y la persona no lo ve,
+//   · que dos pólizas con el MISMO número (una colectiva, o una renovación que lo conserva) no se
+//     confundan: nada se identifica por el número, todo por `poliza_id`,
 //   · que el archivo no se rotule ni se nombre con nada que escribió otra persona, y
 //   · que el texto fijo no prometa cifras, que solo aparezca para el seguro de quien es y
 //     mientras la póliza cubre, y que el enlace de llamar marque el número que dice.
@@ -25,7 +29,7 @@ import {
 } from "@/lib/admin/seguros";
 import {
   GUIAS_DE_USO, archivosDe, datosConfirmados, enlaceTelefono, guiasQueAplican, leerPolizasMias, nombreDeDescarga,
-  resolverMiSeguro, rotuloDeArchivo, traerMiSeguro,
+  resolverMiSeguro, rotuloDeArchivo, textoDelResumen, traerMiSeguro,
   type ArchivoMio, type PolizaMia, type SeguroPrincipal,
 } from "@/lib/mi-seguro";
 
@@ -253,6 +257,22 @@ describe("cómo está su seguro hoy", () => {
     expect(r.resto.map((p) => p.numero_poliza)).toEqual(["VL-0002"]);
   });
 
+  it("dos pólizas con el MISMO número no se confunden: una renovación que lo conserva, o una colectiva", () => {
+    // La renovación automática puede conservar el número y cambiar la vigencia; una póliza de vida
+    // o de EPS lleva un solo número para todos. Todo se distingue por `poliza_id`.
+    const vieja = poliza({ poliza_id: "z1", numero_poliza: "24043267", vigente_desde: "2026-07-01", vigente_hasta: "2026-11-01" });
+    const nueva = poliza({ poliza_id: "z2", numero_poliza: "24043267", vigente_desde: "2026-11-01", vigente_hasta: "2027-02-01" });
+    const r = resolverMiSeguro(FOLA, [vieja, nueva], HOY);
+    expect(r.actual?.poliza_id).toBe("z1");                               // la que cubre hoy, no «la del número»
+    expect(r.resto.map((z) => z.poliza_id)).toEqual(["z2"]);              // y la renovación sigue siendo otra
+    expect(r.cubiertoHasta).toBe("2027-02-01");
+
+    const colectivaA = poliza({ poliza_id: "c1", producto: "vida_ley", producto_nombre: "Vida Ley", numero_poliza: "VL-0001" });
+    const colectivaB = poliza({ poliza_id: "c2", producto: "vida_ley", producto_nombre: "Vida Ley", numero_poliza: "VL-0001", vigente_desde: "2026-06-01", vigente_hasta: "2026-10-01" });
+    const otras = resolverMiSeguro(ESSALUD, [colectivaA, colectivaB], HOY);
+    expect(otras.otras.map((z) => z.poliza_id)).toEqual(["c1", "c2"]);    // las dos, y en orden de fecha
+  });
+
   it("el orden de las filas no cambia la respuesta", () => {
     const a = poliza({ poliza_id: "z1", vigente_desde: "2026-07-01", vigente_hasta: "2026-10-01" });
     const b = poliza({ poliza_id: "z2", vigente_desde: "2026-10-01", vigente_hasta: "2027-01-01" });
@@ -346,6 +366,138 @@ describe("la cuenta de la persona coincide con la del tablero de DO", () => {
       expect(mia.otras.map((z) => z.poliza_id)).toEqual(deDo.otras.map((z) => z.poliza_id));
     });
   }
+});
+
+describe("lo que dice la tarjeta de arriba", () => {
+  const dmy = (iso: string) => iso.split("-").reverse().join("/");
+  const vieja = poliza({ poliza_id: "z1", vigente_desde: "2026-07-01", vigente_hasta: "2026-11-01" });
+  const nueva = poliza({ poliza_id: "z2", numero_poliza: "24043277", vigente_desde: "2026-11-01", vigente_hasta: "2027-02-01" });
+
+  const ESCENARIOS: Array<[string, SeguroPrincipal, PolizaMia[]]> = [
+    ["al día, con margen", FOLA, [poliza()]],
+    ["al día, con una renovación que empalma", FOLA, [vieja, nueva]],
+    ["por vencer", FOLA, [poliza({ vigente_hasta: "2026-12-01" })]],
+    ["por vencer, a 1 día", FOLA, [poliza({ vigente_hasta: "2026-10-18" })]],
+    ["sin póliza, nunca tuvo", FOLA_SIN_COBERTURA, []],
+    ["sin póliza, la registrada aún no empieza", FOLA_SIN_COBERTURA, [poliza({ vigente_desde: "2026-10-20", vigente_hasta: "2027-01-20" })]],
+    ["sin póliza, la última venció", FOLA_SIN_COBERTURA, [poliza({ vigente_desde: "2026-07-08", vigente_hasta: "2026-10-08" })]],
+    ["sin póliza, venció y hay otra que empieza", FOLA_SIN_COBERTURA, [
+      poliza({ poliza_id: "z1", vigente_desde: "2026-06-01", vigente_hasta: "2026-10-10" }),
+      poliza({ poliza_id: "z2", vigente_desde: "2026-10-24", vigente_hasta: "2027-01-24" })]],
+    ["EsSalud, por planilla", ESSALUD, []],
+    ["sin seguro principal", NINGUNO, []],
+  ];
+  const textos = ESCENARIOS.map(([nombre, principal, polizas]) => ({ nombre, t: textoDelResumen(resolverMiSeguro(principal, polizas, HOY), dmy) }));
+
+  it("NUNCA afirma que la persona esté cubierta: habla de la póliza y de sus fechas", () => {
+    // La base no sabe si la cobertura se suspendió por mora; decir «cubre» sería mandarla a una clínica a que se lo nieguen.
+    for (const { nombre, t } of textos) {
+      expect(`${t.insignia} ${t.titulo} ${t.detalle}`, nombre).not.toMatch(/cubr|cobertura|cubiert/i);
+    }
+  });
+
+  it("todas las fechas salen formateadas, ninguna en crudo", () => {
+    for (const { nombre, t } of textos) expect(`${t.titulo} ${t.detalle}`, nombre).not.toMatch(/\d{4}-\d{2}-\d{2}/);
+  });
+
+  it("usa el vocabulario de la casa", () => {
+    for (const { nombre, t } of textos) {
+      expect(`${t.insignia} ${t.titulo} ${t.detalle}`, nombre).not.toMatch(/empleado|RRHH|sucursal|\bjefe|supervisor|encargad|\bcliente/i);
+    }
+  });
+
+  it("vigente: dice hasta cuándo y a qué hora, y manda a Desarrollo Organizacional si la aseguradora dice otra cosa", () => {
+    const t = textos[0].t;
+    expect(t.variante).toBe("positivo");
+    expect(t.insignia).toBe("Vigente");
+    expect(t.titulo).toBe("Tu póliza está vigente");
+    expect(t.detalle).toBe(
+      "Tu seguro es FOLA. Tu póliza va hasta el 01/01/2027 a las 12 M. Si la aseguradora te dice otra cosa, avisa a Desarrollo Organizacional.");
+  });
+
+  it("vigente con una renovación que empalma: lo dice y cuenta hasta donde llega la cadena", () => {
+    const t = textos[1].t;
+    expect(t.detalle).toContain("va hasta el 01/02/2027 a las 12 M.");
+    expect(t.detalle).toContain("Ya está registrada la renovación que sigue.");
+  });
+
+  it("por vencer: cuenta los días, dice hasta cuándo y avisa", () => {
+    expect(textos[2].t.variante).toBe("advertencia");
+    expect(textos[2].t.insignia).toBe("Vence en 45 días");
+    expect(textos[2].t.detalle).toContain("va hasta el 01/12/2026 a las 12 M y todavía no hay otra registrada que siga.");
+    expect(textos[2].t.detalle).toContain("avisa a Desarrollo Organizacional");
+    expect(textos[3].t.insignia).toBe("Vence en 1 día");
+  });
+
+  it("sin póliza: alerta, y cada motivo dice lo suyo", () => {
+    const [nunca, aunNo, vencida, vencidaYOtra] = textos.slice(4, 8).map((x) => x.t);
+    for (const t of [nunca, aunNo, vencida, vencidaYOtra]) {
+      expect(t.variante).toBe("alerta");
+      expect(t.insignia).toBe("Sin póliza vigente");
+    }
+    expect(nunca.titulo).toBe("Todavía no tienes una póliza registrada");
+    expect(aunNo.detalle).toContain("empieza el 20/10/2026");
+    expect(vencida.detalle).toContain("terminó el 08/10/2026 (hace 9 días).");
+    expect(vencida.detalle).not.toContain("empieza el");
+    expect(vencidaYOtra.detalle).toContain("terminó el 10/10/2026 (hace 7 días).");
+    expect(vencidaYOtra.detalle).toContain("La que ya está registrada empieza el 24/10/2026.");
+  });
+
+  it("EsSalud y quien no tiene seguro principal: solo lo que la base sabe, sin explicar de más", () => {
+    // El texto de EsSalud lo decide Felipe; si cambia, cambia aquí a propósito.
+    expect(textos[8].t).toEqual({
+      variante: "neutral", insignia: "Por planilla", titulo: "Tu seguro es EsSalud", detalle: "Se paga por planilla y no lleva póliza.",
+    });
+    expect(textos[9].t).toEqual({
+      variante: "neutral", insignia: "Sin seguro asignado", titulo: "No tienes un seguro asignado en el sistema",
+      detalle: "Si crees que debería haber uno, avisa a Desarrollo Organizacional.",
+    });
+  });
+});
+
+// ── Lo único en que DO y la persona NO dicen lo mismo, y es a propósito ─────
+// La etapa 1 distingue la cobertura «suspendida»: la póliza figura vigente por fechas pero la prima
+// lleva más de 30 días sin pagarse y, por el convenio de pago, se suspendió sola. La base no lo sabe
+// (`cubre_hoy` es solo de fechas) y a la persona no le llega la prima. Esta prueba fija que (1) la
+// divergencia existe, para que nadie la «arregle» sin querer, y (2) la tarjeta de la persona no
+// afirma cobertura en ese caso.
+describe("la cobertura suspendida por mora: DO la ve y la persona no, así que la persona no lee «cubierta»", () => {
+  const hoy = "2026-10-17";
+  const z = poliza({ poliza_id: "z1", vigente_desde: "2026-09-01", vigente_hasta: "2027-01-01" }, hoy);
+  const deDO = (primaVenceEl: string | null, pagadaEl: string | null): PolizaDeDO => ({
+    persona_id: "p1", persona: "Ana Prueba", sede: "TRU", persona_activa: true,
+    producto: z.producto, producto_nombre: z.producto_nombre, producto_principal: true,
+    poliza_id: z.poliza_id, aseguradora: z.aseguradora, numero_poliza: z.numero_poliza,
+    vigente_desde: z.vigente_desde, vigente_hasta: z.vigente_hasta, cubre_hoy: z.cubre_hoy,
+    prima_total: 179.97, prima_vence_el: primaVenceEl, plan: null, beneficio_enfermedad: null,
+    beneficio_accidente: null, renueva_sola: null, pagada_el: pagadaEl, firmada_el: null,
+    factura_recibida_el: null, nota: null, archivos: 0, creada_at: "2026-10-14T15:00:00Z",
+  });
+  const equipo: FilaEquipoSeguro = {
+    persona_id: "p1", persona: "Ana Prueba", sede: "TRU", tipo_vinculo: "practicante", practicante_modalidad: null, activa: true,
+    tipo: "salud_practicantes", tipo_nombre: "FOLA", origen: "vinculo",
+    asignacion_id: null, asignacion_desde: null, asignacion_motivo: null,
+    tipo_automatico: "salud_practicantes", tipo_automatico_nombre: "FOLA",
+    con_poliza: true, cubre_hoy: true, hueco: false,
+  };
+
+  it("con la prima 77 días vencida y sin pagar, DO dice «suspendida»; la persona, vigente, y sin decir «cubierta»", () => {
+    const [enDO] = seguroPorPersona([equipo], [deDO("2026-08-01", null)], [], hoy);
+    expect(enDO.situacion).toBe("suspendida");
+
+    const mia = resolverMiSeguro(FOLA, [z], hoy);
+    expect(mia.situacion).toBe("al_dia");          // lo que la persona puede saber: la póliza está vigente
+    const t = textoDelResumen(mia, (d) => d);
+    expect(`${t.insignia} ${t.titulo} ${t.detalle}`).not.toMatch(/cubr|cobertura|cubiert/i);
+    expect(t.detalle).toContain("Si la aseguradora te dice otra cosa, avisa a Desarrollo Organizacional.");
+  });
+
+  it("con la prima pagada, o sin fecha, o dentro de los 30 días de gracia, DO y la persona coinciden", () => {
+    for (const [vence, pagada] of [["2026-08-01", "2026-08-05"], [null, null], ["2026-09-20", null]] as const) {
+      const [enDO] = seguroPorPersona([equipo], [deDO(vence, pagada)], [], hoy);
+      expect(enDO.situacion, `vence=${vence} pagada=${pagada}`).toBe(resolverMiSeguro(FOLA, [z], hoy).situacion);
+    }
+  });
 });
 
 describe("lo que ya está confirmado, y solo eso", () => {
