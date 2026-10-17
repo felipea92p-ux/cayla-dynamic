@@ -115,6 +115,32 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-10-17-tu-boleta-de-pago-se-firma-desde-dynamic",
+    fecha: "2026-10-17",
+    titulo: "Tu boleta de pago ahora se firma desde Dynamic",
+    queMejoro:
+      "Cuando Desarrollo Organizacional publica tu boleta, la abres en «Boletas» y la firmas ahí mismo con la firma " +
+      "que ya tienes guardada en tu perfil. Si todavía no tienes una, la creas en ese momento, una sola vez. " +
+      "Ya no hace falta firmar un papel.\n\n" +
+      "«Firmar» se enciende cuando abres la boleta, y te pide una segunda confirmación antes de quedar firmada. " +
+      "Tu firma queda copiada en esa boleta con la fecha y la hora: si más adelante cambias tu firma, las boletas " +
+      "que ya firmaste no cambian. Si no puedes firmar desde el sistema, avisa a Desarrollo Organizacional.",
+    audiencia: "todos",
+  },
+  {
+    id: "2026-10-17-do-anula-una-boleta-y-la-restablece-en-48-horas",
+    fecha: "2026-10-17",
+    titulo: "Anular una boleta de pago ahora se puede deshacer durante 48 horas",
+    queMejoro:
+      "Al anular una boleta ya publicada, la pantalla te muestra a quién y qué estás anulando: el nombre, la sede, " +
+      "el periodo, las fechas, la boleta y su constancia de firma. Eliges un motivo de la lista (o escribes otro, de " +
+      "al menos 5 letras) y marcas que es la persona correcta.\n\n" +
+      "Si te equivocaste, «Restablecer» la devuelve exactamente como estaba, con su firma, durante 48 horas. Pasado " +
+      "ese plazo hay que subir una boleta nueva. En «Ver boleta firmada» ves la boleta con la firma de la persona, " +
+      "quién y cuándo firmó. La persona ve «En revisión» mientras tanto.",
+    audiencia: "do",
+  },
+  {
     id: "2026-10-17-educacion-pagar-varios-meses-de-una-vez",
     fecha: "2026-10-17",
     titulo: "Si pagaste varios meses de tus estudios de una vez, súbelo una sola vez",
