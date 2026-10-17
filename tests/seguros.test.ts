@@ -12,7 +12,7 @@
 import { describe, it, expect } from "vitest";
 import {
   coincideSeguro, cubiertoHasta, estadoPrima, pasosPendientes, pendientesDeSeguros,
-  polizasConPapeleoPendiente, resumenDeSeguros, seguroPorPersona,
+  polizasConPapeleoPendiente, resumenDeSeguros, seguroPorPersona, sumarMeses,
   DIAS_AVISO_PRIMA, DIAS_AVISO_RENOVACION, DIAS_DE_GRACIA_PRIMA,
   type FilaSeguro,
 } from "@/lib/admin/seguros";
@@ -37,6 +37,18 @@ function hueco(o: Partial<FilaSeguro> = {}): FilaSeguro {
     cubre_hoy: false, prima_total: null, prima_vence_el: null, archivos: 0, creada_at: null, ...o,
   });
 }
+
+describe("sumar meses: la vigencia por defecto de una póliza nueva", () => {
+  it("tres meses desde el 1 de octubre llegan al 1 de enero: los 92 días de la póliza de hoy", () => {
+    expect(sumarMeses("2026-10-01", 3)).toBe("2027-01-01");
+  });
+  it("un año entero", () => { expect(sumarMeses("2027-01-01", 12)).toBe("2028-01-01"); });
+  it("el día se recorta al último del mes de llegada, no salta al siguiente", () => {
+    expect(sumarMeses("2026-01-31", 1)).toBe("2026-02-28");
+    expect(sumarMeses("2028-01-31", 1)).toBe("2028-02-29");
+  });
+  it("cruza el año", () => { expect(sumarMeses("2026-11-15", 3)).toBe("2027-02-15"); });
+});
 
 describe("la prima: vence el día indicado, y el día siguiente ya es mora", () => {
   it("pagada es pagada, aunque la fecha de vencimiento ya pasó", () => {

@@ -94,6 +94,20 @@ export function etiquetaTipoArchivo(t: string): string {
   return TIPOS_ARCHIVO_SEGURO.find((x) => x.valor === t)?.etiqueta ?? t;
 }
 
+// ── Fechas ──────────────────────────────────────────────────────────────────
+
+/**
+ * `2026-10-01` + 3 meses → `2027-01-01`. El día se recorta al último del mes de
+ * llegada (31 de enero + 1 mes = 28 de febrero) en vez de saltar al siguiente.
+ * Por partes y en UTC: sin el huso del navegador.
+ */
+export function sumarMeses(fecha: string, meses: number): string {
+  const [y, m, d] = fecha.split("-").map(Number);
+  const destino = new Date(Date.UTC(y, m - 1 + meses, 1));
+  const ultimo = new Date(Date.UTC(destino.getUTCFullYear(), destino.getUTCMonth() + 1, 0)).getUTCDate();
+  return new Date(Date.UTC(destino.getUTCFullYear(), destino.getUTCMonth(), Math.min(d, ultimo))).toISOString().slice(0, 10);
+}
+
 // ── La prima ────────────────────────────────────────────────────────────────
 
 export type EstadoPrima = "pagada" | "sin_fecha" | "al_dia" | "por_vencer" | "en_mora" | "suspendida";
