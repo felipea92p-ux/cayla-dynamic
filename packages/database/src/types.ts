@@ -8019,16 +8019,10 @@ export type Database = {
       fn_mi_seguro: {
         Args: never
         Returns: {
-          archivos: Json
-          aseguradora: string
-          beneficio_accidente: number
-          beneficio_enfermedad: number
+          con_poliza: boolean
           cubre_hoy: boolean
-          numero_poliza: string
-          plan: string
-          poliza_id: string
-          vigente_desde: string
-          vigente_hasta: string
+          tipo: string
+          tipo_nombre: string
         }[]
       }
       fn_mis_boletas: {
@@ -8078,6 +8072,23 @@ export type Database = {
         Returns: {
           enviado_a_info_at: string
           id: string
+        }[]
+      }
+      fn_mis_polizas: {
+        Args: never
+        Returns: {
+          archivos: Json
+          aseguradora: string
+          beneficio_accidente: number
+          beneficio_enfermedad: number
+          cubre_hoy: boolean
+          numero_poliza: string
+          plan: string
+          poliza_id: string
+          producto: string
+          producto_nombre: string
+          vigente_desde: string
+          vigente_hasta: string
         }[]
       }
       fn_mis_solicitudes_perfil: {

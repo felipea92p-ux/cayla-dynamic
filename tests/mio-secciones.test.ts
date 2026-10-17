@@ -121,6 +121,7 @@ describe("el buscador (⌘K) encuentra lo que alguien escribiría", () => {
     ["pacifico", "seguro"],
     ["clinica", "seguro"],
     ["salud", "seguro"],
+    ["essalud", "seguro"],
   ];
   for (const [escrito, seccion] of CASOS) {
     it(`«${escrito}» lleva a ${seccion}`, () => {
@@ -156,14 +157,14 @@ describe("el buscador (⌘K) encuentra lo que alguien escribiría", () => {
     expect(buscarSecciones(GRUPOS_MIO, "zzzz")).toEqual([]);
   });
 
-  it("«Mi seguro» es solo de practicantes: si la pantalla la quita, el buscador tampoco la ofrece", () => {
-    // /mio arma los grupos sin ella para quien no está en prácticas (`esPracticante`).
-    const sinSeguro: GrupoDetalle<Tab>[] = GRUPOS_MIO.map((g) => ({
-      ...g, secciones: g.secciones.filter((s) => s.valor !== "seguro"),
-    }));
-    for (const q of ["poliza", "fola", "pacifico", "seguro"]) {
-      expect(buscarSecciones(sinSeguro, q).map((r) => r.seccion.valor), q).not.toContain("seguro");
-    }
+  it("«Mi seguro» es de todo el equipo: no hay nada en el catálogo que la reserve a un vínculo", () => {
+    // Nació acotada a los practicantes (FOLA) y se abrió cuando el módulo de Seguros pasó a ser
+    // general: cada colaborador ve el suyo. Si alguien la vuelve a esconder para algunos, esta
+    // sección dejaría de existir para ellos sin que ninguna prueba de menú lo note.
+    const seccion = GRUPOS_MIO.flatMap((g) => g.secciones).find((s) => s.valor === "seguro")!;
+    expect(Object.keys(seccion).sort()).toEqual(["Icon", "alias", "label", "valor"]);
+    expect(buscarSecciones(GRUPOS_MIO, "essalud").map((r) => r.seccion.valor)).toContain("seguro");
+    expect(buscarSecciones(GRUPOS_MIO, "fola").map((r) => r.seccion.valor)).toContain("seguro");
   });
 
   it("no inventa secciones: solo devuelve las que le pasan (una sección oculta no se busca)", () => {

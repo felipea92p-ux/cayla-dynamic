@@ -1402,22 +1402,16 @@ export default function MioPage() {
   //
   // «Boletas» lleva el globito con las publicadas que aún no abrió: sale de la
   // misma lectura que pinta la pestaña (`misBoletas`), no de una cuenta aparte.
-  //
-  // «Mi seguro» (0530) es solo de quienes están en prácticas: FOLA es exclusiva de
-  // ellos. Mientras la ficha no llega (`misDatos` null) tampoco se ofrece, igual
-  // que «Mi DNI» mientras no se sabe si hay dónde guardarlo.
-  const esPracticante = misDatos?.tipoVinculo === "practicante";
   const grupos = useMemo(
     () => GRUPOS_MIO.map((g) => ({
       ...g,
       secciones: g.secciones
         .filter((s) => s.valor !== "dni" || hayCampoDni)
-        .filter((s) => s.valor !== "seguro" || esPracticante)
         .map((s) => (s.valor === "boletas" && boletasNuevas > 0 ? { ...s, contador: boletasNuevas } : s))
         .map((s) => (s.valor === "reportes" && reportesSinLeer > 0 ? { ...s, contador: reportesSinLeer } : s))
         .map((s) => (s.valor === "disciplina" && disciplinaPide > 0 ? { ...s, contador: disciplinaPide } : s)),
     })),
-    [hayCampoDni, esPracticante, boletasNuevas, reportesSinLeer, disciplinaPide],
+    [hayCampoDni, boletasNuevas, reportesSinLeer, disciplinaPide],
   );
 
   // Recorrido guiado de "Resumen", primera vez. `Boolean(yo)` y no solo `yo`:
@@ -2815,13 +2809,10 @@ export default function MioPage() {
       )}
 
       {/* ── MI SEGURO (0530) ─────────────────────────────────────────────────
-          La póliza FOLA de quien está en prácticas. El componente vive aparte,
-          como Educación, y pide sus datos cuando se abre. `esPracticante` es
-          null mientras la ficha no llegó, para no decirle «esto no es para ti» a
-          quien sí lo es. */}
-      {tab === "seguro" && (
-        <MiSeguro esPracticante={misDatos ? misDatos.tipoVinculo === "practicante" : null} />
-      )}
+          En qué seguro está cada colaborador y, si lleva póliza, la póliza y sus
+          PDF. Es de todo el equipo: no se filtra por vínculo. El componente vive
+          aparte, como Educación, y pide sus datos cuando se abre. */}
+      {tab === "seguro" && <MiSeguro />}
 
       {/* ── BOLETAS (0482) ───────────────────────────────────────────────────
           Las boletas oficiales del contador, por periodo pagado. NO es

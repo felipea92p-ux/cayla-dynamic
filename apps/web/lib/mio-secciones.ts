@@ -35,10 +35,10 @@ export type Tab =
  *     El ícono es el de «Disciplina» en el menú del panel.
  *   · «Resumen» va solo y sin título, arriba: es donde se aterriza.
  *   · «Mi seguro» (2026-10-17, migración 0530) va en Documentos, junto a Contrato,
- *     Firma y Mi DNI: lo que se viene a buscar es el PDF de su póliza. Es la única
- *     sección que NO es para todo el mundo: solo la ven quienes están en prácticas
- *     (FOLA es exclusiva de ellos), y la pantalla la quita del menú y del buscador
- *     al armar los grupos, como «Mi DNI» cuando la base no tiene dónde guardarlo.
+ *     Firma y Mi DNI: lo que se viene a buscar es el PDF de su póliza. Es de TODO el
+ *     equipo: cada quien ve el suyo —FOLA con su póliza, EsSalud por planilla…— y la
+ *     base decide qué ve cada persona. Nació acotada a los practicantes y se abrió
+ *     cuando Felipe hizo general el módulo de Seguros.
  *
  * Los grupos se pueden cerrar, como en el panel, y cada dispositivo se acuerda
  * de cuáles cerró (ver `useGruposCerrados`, con su propia memoria).
@@ -82,9 +82,9 @@ export const GRUPOS_MIO: readonly GrupoDetalle<Tab>[] = [
     { valor: "contrato", label: "Contrato", Icon: ScrollText },
     { valor: "firma", label: "Firma", Icon: FileSignature, alias: ["firmar"] },
     { valor: "dni", label: "Mi DNI", Icon: IdCard, alias: ["documento de identidad"] },
-    // Solo practicantes. Los alias son lo que alguien escribiría sin saber cómo se llama: «fola»
-    // es el nombre del producto, «pacífico» la aseguradora, «clínica» a donde va a usarlo.
-    { valor: "seguro", label: "Mi seguro", Icon: ShieldCheck, alias: ["póliza", "fola", "seguro", "salud", "clínica", "pacífico"] },
+    // Los alias son lo que alguien escribiría sin saber cómo se llama: «fola» y «essalud» son los
+    // seguros de hoy, «pacífico» la aseguradora de FOLA, «clínica» a donde va a usarlo.
+    { valor: "seguro", label: "Mi seguro", Icon: ShieldCheck, alias: ["póliza", "fola", "essalud", "seguro", "salud", "clínica", "pacífico"] },
     { valor: "datos", label: "Mis datos", Icon: UserRound, alias: ["cuenta", "banco", "celular", "dirección", "emergencia", "ficha"] },
   ] },
   { label: "Seguimiento", secciones: [
