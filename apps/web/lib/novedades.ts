@@ -115,6 +115,19 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-10-17-la-firma-de-la-empresa-sale-sola-en-los-papeles",
+    fecha: "2026-10-17",
+    titulo: "La firma de la empresa sale sola en los papeles, la abra quien la abra",
+    queMejoro:
+      "Los contratos, las hojas de Documentación (declaración de ruta, política de movilidad y cargo del bono), " +
+      "el certificado de trabajo y la constancia de cese de Liquidaciones, y la Política salarial llevan ahora la " +
+      "firma guardada de quien firma por CAYLA, sin que esa persona tenga que abrirlos. Antes, si el papel lo abría " +
+      "otra cuenta, la línea de firma salía en blanco.\n\n" +
+      "Si quien firma por CAYLA todavía no guardó su firma en «Mi firma», el papel sale con la línea en blanco para " +
+      "firmar a mano, y la pantalla lo avisa antes de imprimir.",
+    audiencia: "panel",
+  },
+  {
     id: "2026-10-17-educacion-meses-anteriores-y-siguientes",
     fecha: "2026-10-17",
     titulo: "En Educación ahora se avanza y se retrocede por los meses",

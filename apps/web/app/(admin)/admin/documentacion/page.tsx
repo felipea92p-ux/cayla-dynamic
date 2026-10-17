@@ -22,7 +22,7 @@ import { Menu, MenuItem } from "@/components/ui/menu";
 import { Modal } from "@/components/ui/modal";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 import { abrirArchivoFirmado } from "@/lib/abrir-archivo-firmado";
-import { EMPRESA, hoyLima, rangoDelMesLima, puedeGestionarCatalogos } from "@cayla-dynamic/shared";
+import { EMPRESA, hoyLima, rangoDelMesLima, puedeEstamparFirmaDeEmpresa, puedeGestionarCatalogos } from "@cayla-dynamic/shared";
 
 // Documentación de CAYLA: eliges el documento y la persona, y sale listo para
 // imprimir y firmar con sus datos ya puestos.
@@ -373,10 +373,6 @@ export default function DocumentacionPage() {
   // propósito: el caso normal es que lo reciba todo el equipo, así que una
   // persona nueva entra sola en la lista sin que nadie tenga que acordarse.
   const [excluidos, setExcluidos] = useState<Set<string>>(new Set());
-  const [firmaUrl, setFirmaUrl] = useState<string | null>(null);
-  // ¿Quien tiene la sesión abierta es quien firma por CAYLA? Hoy hay cuatro
-  // cuentas admin y una sola persona firma los documentos de la empresa.
-  const [esFirmante, setEsFirmante] = useState(false);
   // El nombre y el cargo que se imprimen. Salen de la ficha de esa persona
   // (0147) y no de un texto escrito acá: así el nombre impreso y la firma
   // estampada no pueden ser de dos personas distintas. Arrancan con la
@@ -1089,6 +1085,15 @@ export default function DocumentacionPage() {
     for (const [id, fecha] of porVencer) if (fecha <= finDeMes) fuera.add(id);
     const { data: yo } = await supabase.rpc("fn_persona_actual_id");
     if (typeof yo === "string") fuera.add(yo);
+    // Y quien firma por CAYLA, aunque el documento lo imprima otra cuenta: desde
+    // que la firma de la empresa se estampa por defecto (no solo cuando el
+    // firmante tiene la sesión abierta), «quien imprime» ya no es «quien firma».
+    // Quien firma el documento no puede además declarar haberlo recibido.
+    const { data: cfgFirmante } = await supabase
+      .from("configuracion").select("valor").eq("clave", "firmante_empresa").maybeSingle();
+    const vf = (cfgFirmante?.valor ?? null) as { persona_id?: string; cargo?: string } | null;
+    const firmanteId = vf?.persona_id ?? null;
+    if (firmanteId) fuera.add(firmanteId);
     setExcluidos(fuera);
 
     // QUIÉN FIRMA POR CAYLA. Sale de `configuracion` desde la 0147, guardado
@@ -1101,27 +1106,22 @@ export default function DocumentacionPage() {
     // Si la fila no está —la 0147 sin pegar todavía— se queda la constante de
     // siempre y la raya sale en blanco. El documento nunca deja de imprimirse
     // por no poder leer un parámetro; mismo criterio que la tarifa de movilidad.
-    const { data: cfgFirmante } = await supabase
-      .from("configuracion").select("valor").eq("clave", "firmante_empresa").maybeSingle();
-    const vf = (cfgFirmante?.valor ?? null) as { persona_id?: string; cargo?: string } | null;
-    const firmanteId = vf?.persona_id ?? null;
+    // (`vf` y `firmanteId` se leyeron más arriba, para dejar fuera de «quién lo
+    // recibe» a quien firma.)
     // El trigger de la 0147 garantiza que esa persona está activa, así que tiene
     // que estar en `lista` — que son las activas.
     const fichaFirmante = firmanteId ? lista.find((p) => p.id === firmanteId) : undefined;
     if (fichaFirmante) setFirmanteNombre(`${fichaFirmante.apellidos} ${fichaFirmante.nombres}`);
     if (vf?.cargo) setFirmanteCargo(vf.cargo);
-    setEsFirmante(Boolean(firmanteId) && firmanteId === yo);
 
-    // La firma escaneada de quien está imprimiendo. Si no tiene, el documento
-    // sale con la línea en blanco para firmar a mano, como hasta ahora.
-    const { data: fu } = await supabase.rpc("fn_mi_firma");
-    setFirmaUrl(typeof fu === "string" && fu.startsWith("data:image") ? fu : null);
-
-    // La firma de la empresa, para el «Ver» de una firma digital — a
-    // diferencia de `firmaUrl` (la de quien imprime, condicionada a que SEA
-    // el firmante), esta se muestra siempre: el documento ya está firmado, y
-    // quien lo mira no es quien lo firmó por CAYLA. Mismo criterio que ya usa
-    // /mio/contrato y /mio/movilidad.
+    // La firma de la empresa: la de quien firma por CAYLA, no la de quien
+    // imprime. Sirve para las dos cosas: el «Ver» de una firma digital (el
+    // documento ya está firmado y quien lo mira no es quien lo firmó) y la
+    // línea de firma de las hojas que se imprimen aquí — antes esta última se
+    // estampaba solo si el firmante tenía la sesión abierta, y con otra cuenta
+    // salía la raya en blanco. Mismo criterio que /mio/contrato y /mio/movilidad.
+    // Si todavía no tiene firma guardada, la hoja sale con la línea en blanco
+    // para firmar a mano, como siempre.
     const { data: fe } = await supabase.rpc("fn_firma_empresa");
     setFirmaEmpresaGlobal((fe as string | null) ?? null);
 
@@ -1149,11 +1149,13 @@ export default function DocumentacionPage() {
   const persona = personas.find((p) => p.id === personaId);
   const nombre = persona ? `${persona.nombres} ${persona.apellidos}` : "";
 
-  // La rúbrica que de verdad se imprime. Hacen falta las dos cosas: tener firma
-  // cargada Y ser quien la línea nombra. Si falta cualquiera de las dos el
+  // La rúbrica que de verdad se imprime: la de quien firma por CAYLA, por
+  // defecto, para quien abre el panel con un rol que la estampa. Siempre sale
+  // del mismo firmante que da el nombre bajo la raya, así que la firma de una
+  // persona no cae bajo el nombre de otra. Si el firmante aún no la guardó el
   // documento sale con la raya en blanco, que es como salía antes — nunca se
   // rompe, solo deja de estamparse.
-  const firmaEstampada = esFirmante ? firmaUrl : null;
+  const firmaEstampada = puedeEstamparFirmaDeEmpresa(rol) ? firmaEmpresaGlobal : null;
   const doc = DOCS.find((d) => d.id === tipo)!;
 
   useTituloDocumento(
@@ -2618,16 +2620,16 @@ export default function DocumentacionPage() {
 
             {/* QUÉ VA A SALIR EN LA LÍNEA DE FIRMA, antes de gastar papel.
                 Sin este aviso el estampado falla en silencio: quien imprime ve la
-                raya en blanco y no tiene forma de saber si es porque no cargó su
-                firma, porque no es la persona que el documento nombra, o porque la
+                raya en blanco y no tiene forma de saber si es porque el firmante
+                no guardó su firma, porque su rol no la estampa, o porque la
                 pantalla está rota. Las tres se ven idénticas en el papel. */}
             {!cargando && (
               <p className="mt-3 text-xs text-taupe">
                 {firmaEstampada
-                  ? `Tu firma escaneada saldrá impresa en la línea de ${firmanteCargo}.`
-                  : esFirmante
-                    ? "No tienes una firma escaneada cargada: el documento sale con la línea en blanco para firmar a mano."
-                    : `La línea de firma dice ${firmanteNombre}, y esa no es tu cuenta: el documento sale con la raya en blanco. La firma de una persona no se estampa bajo el nombre de otra.`}
+                  ? `La firma guardada de ${firmanteNombre} saldrá impresa en la línea de ${firmanteCargo}.`
+                  : firmaEmpresaGlobal
+                    ? "Tu rol no estampa la firma de la empresa: el documento sale con la raya en blanco."
+                    : `${firmanteNombre} todavía no tiene su firma guardada en «Mi firma»: el documento sale con la línea en blanco para firmar a mano.`}
               </p>
             )}
 
