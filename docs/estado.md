@@ -6,6 +6,41 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-10-17 — Educación: pagar antes de la fecha declarada también corre el calendario (0527) · SQL SIN PEGAR · COMMITEADO, SIN PR · rama `claude/clever-nobel-3cdc5c`
+
+**Solo alerta; no cambia lo que cobra nadie.** Defecto desde la 0450, medido con las
+funciones de verdad: un mensual que vence el 15 de mayo, paga el 3 y declara el próximo
+el 3 de junio. DO aprueba y el calendario **se queda en el 15**; el 24 de mayo figura
+«vencida» por un mes ya aprobado. `fn_educacion_avanzar_calendario` comparaba la fecha
+de pago contra la fecha declarada (`e.fecha_pago >= a.proxima_fecha_pago`), así que
+pagar antes nunca la alcanzaba. Pasa con todas las frecuencias.
+
+**Decisión de Felipe (2026-10-17): criterio A.** Avanza también cuando el pago cae
+desde el día 1 del MES de la fecha vigente y lo declarado es posterior (o es «último
+pago», que sigue poniendo null). Para toda frecuencia. Se descartó «solo hacia
+adelante» a secas porque pisaría la fecha que DO fijó a mano.
+`fn_educacion_fijar_calendario` no se toca. **Residuo conocido:** pagar en un mes
+ANTERIOR al de la fecha vigente (vence el 3/nov, paga el 28/oct) sigue sin mover el
+calendario; lo fija DO a mano.
+
+**Medido.** pgTAP **421**, 34 aserciones: 34 verdes con la 0527; **15 rojas** en el
+control sin ella (justo las de pagar antes y las de la vida real). Cuatro variantes
+equivocadas de la regla (solo adelante, sin exigir `N > P`, solo mensual, ventana de
+40 días) la rompen cada una por al menos una aserción. md5 de partida en **producción**
+`bd2c70bb…` · 354 caracteres, idéntico a la 0450 (medido por Felipe el 2026-10-17;
+**se vuelve a pedir justo antes de entregar**). Llegada, local: `51570d94…` · 727.
+La sección 0 de la migración frena si la función no es esa versión.
+
+**Pendiente.** (1) Pegar la 0527 ANTES de fusionar; es independiente de la 0525 y de
+la 0526 (reescribe otra función), el orden no importa. (2) Felipe corre la consulta
+del final de la migración para saber cuántos estudios **ya** quedaron atrasados: esta
+migración no los repara (solo actúa al aprobar); DO los fija a mano. (3) Al fusionar
+la 0525 (revertir aprobación): devuelve el calendario a la fecha de PAGO, no a la
+vencida; con la 0527 un pago del 3 con vencimiento el 15 revierte al 3. Solo alerta.
+(4) Sin entrada en `novedades.ts`: no la escribí porque nadie pidió PR; decide Felipe.
+
+---
+
 ## 2026-10-16 — Educación: un estudio ya no tapa a otro (0524) · SQL SIN PEGAR · COMMITEADO, SIN PR · rama `claude/hungry-mirzakhani-1438df`
 
 **Hoy no cuesta nada.** Medido en producción con la regla nueva contra la de hoy sobre
