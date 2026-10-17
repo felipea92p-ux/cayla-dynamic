@@ -8,6 +8,7 @@ import { hoyLima } from "@cayla-dynamic/shared";
 import { EnlaceVolver } from "@/components/enlace-volver";
 import { Cargando, SinDatos } from "@/components/cargando";
 import { Insignia } from "@/components/ui/insignia";
+import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
 import {
   DIAS_NOVEDAD, diaYMes, traerBandeja,
   type Bandeja, type EstadoBandeja, type MensajeBandeja,
@@ -205,11 +206,12 @@ export default function MiBandejaPage() {
         ← Volver a Info
       </EnlaceVolver>
 
-      <h1 className="mt-3 font-serif text-2xl">Bandeja</h1>
-      <p className="mt-1 mb-6 text-sm text-taupe">
-        Lo que te falta hacer y lo que te respondieron: tu contrato, los documentos por firmar, tus
-        cambios de ficha, tus vacaciones y tus pedidos de revisar un día.
-      </p>
+      <div className="mt-3">
+        <CabeceraPagina
+          titulo="Bandeja"
+          descripcion="Lo que te falta hacer y lo que te respondieron: tu contrato, los documentos por firmar, tus cambios de ficha, tus vacaciones y tus pedidos de revisar un día."
+        />
+      </div>
 
       {cargando && <Cargando texto="Cargando tu bandeja…" />}
 
