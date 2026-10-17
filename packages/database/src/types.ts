@@ -4531,7 +4531,7 @@ export type Database = {
           plan?: string | null
           prima_total: number
           prima_vence_el?: string | null
-          producto?: string
+          producto: string
           renueva_sola?: boolean | null
           vigente_desde: string
           vigente_hasta: string
@@ -4602,6 +4602,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "terminal_roster"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "polizas_seguro_producto_fkey"
+            columns: ["producto"]
+            isOneToOne: false
+            referencedRelation: "seguros_tipos"
+            referencedColumns: ["clave"]
           },
         ]
       }
@@ -5067,6 +5074,292 @@ export type Database = {
             columns: ["solicitud_id"]
             isOneToOne: true
             referencedRelation: "solicitudes_cambio_perfil"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      seguros_asignaciones: {
+        Row: {
+          cerrada_motivo: string | null
+          cerrada_por: string | null
+          creada_at: string
+          creada_por: string
+          desde: string
+          hasta: string | null
+          id: string
+          motivo: string
+          persona_id: string
+          tipo: string
+        }
+        Insert: {
+          cerrada_motivo?: string | null
+          cerrada_por?: string | null
+          creada_at?: string
+          creada_por: string
+          desde: string
+          hasta?: string | null
+          id?: string
+          motivo: string
+          persona_id: string
+          tipo: string
+        }
+        Update: {
+          cerrada_motivo?: string | null
+          cerrada_por?: string | null
+          creada_at?: string
+          creada_por?: string
+          desde?: string
+          hasta?: string | null
+          id?: string
+          motivo?: string
+          persona_id?: string
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "seguros_asignaciones_cerrada_por_fkey"
+            columns: ["cerrada_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "seguros_asignaciones_cerrada_por_fkey"
+            columns: ["cerrada_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "seguros_asignaciones_creada_por_fkey"
+            columns: ["creada_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "seguros_asignaciones_creada_por_fkey"
+            columns: ["creada_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "seguros_asignaciones_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "seguros_asignaciones_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "seguros_asignaciones_tipo_fkey"
+            columns: ["tipo"]
+            isOneToOne: false
+            referencedRelation: "seguros_tipos"
+            referencedColumns: ["clave"]
+          },
+        ]
+      }
+      seguros_cambios: {
+        Row: {
+          a_tipo: string | null
+          alta_hecha_el: string | null
+          alta_hecha_por: string | null
+          alta_nota: string | null
+          baja_hecha_el: string | null
+          baja_hecha_por: string | null
+          baja_nota: string | null
+          creado_at: string
+          de_tipo: string | null
+          detalle: string | null
+          fecha: string
+          id: string
+          origen: string
+          persona_id: string
+          vinculo_antes: string | null
+          vinculo_despues: string | null
+        }
+        Insert: {
+          a_tipo?: string | null
+          alta_hecha_el?: string | null
+          alta_hecha_por?: string | null
+          alta_nota?: string | null
+          baja_hecha_el?: string | null
+          baja_hecha_por?: string | null
+          baja_nota?: string | null
+          creado_at?: string
+          de_tipo?: string | null
+          detalle?: string | null
+          fecha: string
+          id?: string
+          origen: string
+          persona_id: string
+          vinculo_antes?: string | null
+          vinculo_despues?: string | null
+        }
+        Update: {
+          a_tipo?: string | null
+          alta_hecha_el?: string | null
+          alta_hecha_por?: string | null
+          alta_nota?: string | null
+          baja_hecha_el?: string | null
+          baja_hecha_por?: string | null
+          baja_nota?: string | null
+          creado_at?: string
+          de_tipo?: string | null
+          detalle?: string | null
+          fecha?: string
+          id?: string
+          origen?: string
+          persona_id?: string
+          vinculo_antes?: string | null
+          vinculo_despues?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "seguros_cambios_a_tipo_fkey"
+            columns: ["a_tipo"]
+            isOneToOne: false
+            referencedRelation: "seguros_tipos"
+            referencedColumns: ["clave"]
+          },
+          {
+            foreignKeyName: "seguros_cambios_alta_hecha_por_fkey"
+            columns: ["alta_hecha_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "seguros_cambios_alta_hecha_por_fkey"
+            columns: ["alta_hecha_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "seguros_cambios_baja_hecha_por_fkey"
+            columns: ["baja_hecha_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "seguros_cambios_baja_hecha_por_fkey"
+            columns: ["baja_hecha_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "seguros_cambios_de_tipo_fkey"
+            columns: ["de_tipo"]
+            isOneToOne: false
+            referencedRelation: "seguros_tipos"
+            referencedColumns: ["clave"]
+          },
+          {
+            foreignKeyName: "seguros_cambios_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "seguros_cambios_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      seguros_tipos: {
+        Row: {
+          activo: boolean
+          aplica_a_vinculos: string[]
+          archivado_at: string | null
+          archivado_motivo: string | null
+          archivado_por: string | null
+          clave: string
+          con_poliza: boolean
+          creado_at: string
+          creado_por: string | null
+          de_sistema: boolean
+          descripcion: string | null
+          nombre: string
+          principal: boolean
+          texto_alta: string | null
+          texto_baja: string | null
+        }
+        Insert: {
+          activo?: boolean
+          aplica_a_vinculos?: string[]
+          archivado_at?: string | null
+          archivado_motivo?: string | null
+          archivado_por?: string | null
+          clave: string
+          con_poliza: boolean
+          creado_at?: string
+          creado_por?: string | null
+          de_sistema?: boolean
+          descripcion?: string | null
+          nombre: string
+          principal: boolean
+          texto_alta?: string | null
+          texto_baja?: string | null
+        }
+        Update: {
+          activo?: boolean
+          aplica_a_vinculos?: string[]
+          archivado_at?: string | null
+          archivado_motivo?: string | null
+          archivado_por?: string | null
+          clave?: string
+          con_poliza?: boolean
+          creado_at?: string
+          creado_por?: string | null
+          de_sistema?: boolean
+          descripcion?: string | null
+          nombre?: string
+          principal?: boolean
+          texto_alta?: string | null
+          texto_baja?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "seguros_tipos_archivado_por_fkey"
+            columns: ["archivado_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "seguros_tipos_archivado_por_fkey"
+            columns: ["archivado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "seguros_tipos_creado_por_fkey"
+            columns: ["creado_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "seguros_tipos_creado_por_fkey"
+            columns: ["creado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
             referencedColumns: ["id"]
           },
         ]
@@ -8555,6 +8848,19 @@ export type Database = {
           tipo: string
         }[]
       }
+      fn_seguro_asignar: {
+        Args: {
+          p_desde: string | null
+          p_motivo: string | null
+          p_persona_id: string | null
+          p_tipo: string | null
+        }
+        Returns: string
+      }
+      fn_seguro_cambio_marcar: {
+        Args: { p_fecha: string | null; p_id: string | null; p_nota?: string | null; p_paso: string | null }
+        Returns: undefined
+      }
       fn_seguro_corregir: {
         Args: {
           p_aseguradora: string | null
@@ -8568,6 +8874,21 @@ export type Database = {
           p_prima_total: number | null
           p_prima_vence_el: string | null
           p_renueva_sola: boolean | null
+          p_vigente_desde: string | null
+          p_vigente_hasta: string | null
+        }
+        Returns: undefined
+      }
+      fn_seguro_datos_validos: {
+        Args: {
+          p_aseguradora: string | null
+          p_beneficio_accidente: number | null
+          p_beneficio_enfermedad: number | null
+          p_nota: string | null
+          p_numero_poliza: string | null
+          p_plan: string | null
+          p_prima_total: number | null
+          p_prima_vence_el: string | null
           p_vigente_desde: string | null
           p_vigente_hasta: string | null
         }
@@ -8603,6 +8924,7 @@ export type Database = {
           p_plan: string | null
           p_prima_total: number | null
           p_prima_vence_el: string | null
+          p_producto: string | null
           p_renueva_sola: boolean | null
           p_vigente_desde: string | null
           p_vigente_hasta: string | null
@@ -8613,6 +8935,91 @@ export type Database = {
         Args: { p_id: string | null; p_motivo: string | null }
         Returns: undefined
       }
+      fn_seguro_tipo_activar: {
+        Args: { p_activo: boolean | null; p_clave: string | null; p_motivo: string | null }
+        Returns: undefined
+      }
+      fn_seguro_tipo_crear: {
+        Args: {
+          p_con_poliza: boolean | null
+          p_descripcion: string | null
+          p_nombre: string | null
+          p_principal: boolean | null
+          p_texto_alta: string | null
+          p_texto_baja: string | null
+        }
+        Returns: string
+      }
+      fn_seguro_tipo_editar: {
+        Args: {
+          p_clave: string | null
+          p_descripcion: string | null
+          p_nombre: string | null
+          p_texto_alta: string | null
+          p_texto_baja: string | null
+        }
+        Returns: undefined
+      }
+      fn_seguro_tipo_por_vinculo: {
+        Args: { p_vinculo: string | null }
+        Returns: string
+      }
+      fn_seguro_tipo_principal: {
+        Args: { p_fecha: string | null; p_persona_id: string | null }
+        Returns: string
+      }
+      fn_seguro_volver_al_automatico: {
+        Args: { p_asignacion_id: string | null; p_hasta: string | null; p_motivo: string | null }
+        Returns: undefined
+      }
+      fn_seguros_cambios: {
+        Args: { p_persona_id?: string | null; p_solo_pendientes?: boolean | null }
+        Returns: {
+          a_nombre: string
+          a_tipo: string
+          alta_hecha_el: string
+          alta_nota: string
+          alta_pendiente: boolean
+          alta_texto: string
+          baja_hecha_el: string
+          baja_nota: string
+          baja_pendiente: boolean
+          baja_texto: string
+          creado_at: string
+          de_nombre: string
+          de_tipo: string
+          detalle: string
+          fecha: string
+          id: string
+          origen: string
+          persona: string
+          persona_activa: boolean
+          persona_id: string
+          sede: string
+          vinculo_antes: string
+          vinculo_despues: string
+        }[]
+      }
+      fn_seguros_equipo: {
+        Args: never
+        Returns: {
+          activa: boolean
+          asignacion_desde: string
+          asignacion_id: string
+          asignacion_motivo: string
+          con_poliza: boolean
+          cubre_hoy: boolean
+          hueco: boolean
+          origen: string
+          persona: string
+          persona_id: string
+          practicante_modalidad: string
+          sede: string
+          tipo: string
+          tipo_nombre: string
+          tipo_vinculo: string
+        }[]
+      }
       fn_seguros_tablero: {
         Args: never
         Returns: {
@@ -8622,23 +9029,43 @@ export type Database = {
           beneficio_enfermedad: number
           creada_at: string
           cubre_hoy: boolean
-          es_practicante_activo: boolean
           factura_recibida_el: string
           firmada_el: string
           nota: string
           numero_poliza: string
           pagada_el: string
           persona: string
+          persona_activa: boolean
           persona_id: string
           plan: string
           poliza_id: string
-          practicante_modalidad: string
           prima_total: number
           prima_vence_el: string
+          producto: string
+          producto_nombre: string
+          producto_principal: boolean
           renueva_sola: boolean
           sede: string
           vigente_desde: string
           vigente_hasta: string
+        }[]
+      }
+      fn_seguros_tipos: {
+        Args: never
+        Returns: {
+          activo: boolean
+          aplica_a_vinculos: string[]
+          archivado_motivo: string
+          clave: string
+          con_poliza: boolean
+          de_sistema: boolean
+          descripcion: string
+          nombre: string
+          personas: number
+          polizas_vigentes: number
+          principal: boolean
+          texto_alta: string
+          texto_baja: string
         }[]
       }
       fn_set_cargo: {
