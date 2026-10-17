@@ -6,7 +6,7 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-10-17 — Seguros del equipo: en qué seguro está cada colaborador (FOLA, EsSalud y los que DO agregue) · migración 0528 · SQL SIN PEGAR · PR #551 (BORRADOR) SIN FUSIONAR · rama `claude/fola-dynamic-implementation-252f99`
+## 2026-10-17 — Seguros del equipo: en qué seguro está cada colaborador (FOLA, EsSalud y los que DO agregue) · migración 0528 · SQL PEGADO Y VERIFICADO EN PRODUCCIÓN (2026-10-17) · PR #551 (BORRADOR) SIN FUSIONAR · rama `claude/fola-dynamic-implementation-252f99`
 
 **Qué es.** La pantalla `/admin/seguros` (grupo Personas, solo DO) y un módulo «Seguros» en la
 Bandeja, **para todo el equipo y no solo para los practicantes**. Cada colaborador está en un
@@ -156,12 +156,21 @@ cambia lo que cobra nadie; la prima se paga a la aseguradora y EsSalud sigue com
   lo frena: se vería en las dos tarjetas.
 
 **Pendiente, en este orden (Felipe).**
-1. **Pegar la 0528** (`./scripts/dame-el-sql.sh 528`, y la consulta de «ANTES DE PEGAR» de su
-   cabecera, que espera 0 tablas y 0 funciones previas; el número libre y `main` se vuelven a
-   pedir en el mensaje que entrega el SQL). No reescribe ninguna función, así que no hay md5 de
-   partida. Lo único que toca fuera de sus tablas es **un disparador en `personas`** (después de
-   cambiar `tipo_vinculo`), y no puede frenar un cambio de vínculo. **Antes de fusionar el PR**,
-   como siempre.
+1. **HECHO — la 0528 está PEGADA y VERIFICADA en producción (Felipe, 2026-10-17).** Se entregó con
+   `./scripts/dame-el-sql.sh 528` (2365 líneas, 119 302 bytes, md5 `8ccbdbfb…`, comparado con el archivo
+   de GitHub), después de volver a mirar `main` y la numeración. La consulta de «ANTES DE PEGAR» dio 0 tablas,
+   0 funciones, 0 disparadores, 0 buckets y ningún registro 528 (había 525, 527, 529, 531 y 532); y la de
+   comprobación con que termina la migración dio **6 tablas, 25 funciones, 1 disparador, 4 políticas de
+   Storage, el bucket privado, RLS en las 6, los tipos de sistema `essalud,salud_practicantes` y el registro
+   `528 · los_seguros_del_equipo_entran_al_sistema`**. No reescribe ninguna función, así que no hubo md5 de
+   partida. Lo único que toca fuera de sus tablas es **un disparador en `personas`** (después de cambiar
+   `tipo_vinculo`), y no puede frenar un cambio de vínculo.
+   **Un número que no cuadró, y por qué no importa:** `apoyo_de_3` dio 4, no 3. La consulta cuenta `pg_proc`
+   por nombre en TODOS los esquemas, y `retail.fn_hoy_lima()` vive en el mismo proyecto de Supabase. Se
+   confirmó listando las cuatro: las tres de `public` (sin argumentos) y la de `retail`. Las 25 funciones de
+   la 0528 fijan `search_path = public`, así que `fn_hoy_lima()` resuelve siempre a la de `public`. La
+   cabecera de la 0528 no se tocó después de pegarla: su consulta de «antes» solo sirve para la primera pegada.
+   Lo que falta es el PR (ver abajo) y los pasos 2 a 5.
 2. **Averiguar qué seguros tiene el resto del equipo** («revisar», dijo Felipe) y agregar los que
    falten desde «Tipos de seguro». Mientras tanto, planilla y prueba quedan en EsSalud (por
    planilla) y nadie recibe un aviso por ellos.
@@ -300,8 +309,10 @@ ventana del archivo…»); es el mismo camino que usa «Abrir» en Archivo.
 **Lo que NO se comprobó.** Una póliza de otra aseguradora ni de otro seguro que no sea FOLA: el lector se
 midió sobre la de Pacífico, y de otra solo se sabe que se lee con aviso. El cotejo de documento, la pregunta
 de descartar, el PDF compartido y el reintento de copias se vieron en el navegador con PDF sintéticos (datos
-inventados, ya borrados) contra la demo. Un iPhone real; `db-tests` de GitHub (construye la base desde cero: es
-la señal fiable de las pgTAP, no esta Mac); ni nada contra datos reales de producción. El
+inventados, ya borrados) contra la demo. Un iPhone real, ni la pantalla contra datos reales de producción: la
+0528 ya está pegada, pero el código del PR todavía no se publicó, así que nadie ha abierto `/admin/seguros`
+con datos de verdad. (`db-tests` de GitHub, la señal fiable de las pgTAP porque construye la base desde cero,
+pasó sobre el commit `0a14c028`, igual que `ui-tests`.) El
 disparador se probó con las dos funciones que de verdad cambian el vínculo —`fn_set_tipo_vinculo`
 y `fn_cesar_persona`, incluido un cese con vínculo nuevo en el mismo acto—: lo que no mueve el
 seguro no deja nada, lo que sí lo mueve deja su cambio, y quien ya no está activa no deja cambio.
@@ -311,14 +322,20 @@ la etapa 2) y se llenan cuando las suyas se fusionen. `main` ya se fusionó dent
 en `types.ts` ganó la versión de esta rama, porque el de `main` traía una VIEJA (solo FOLA) de las
 tablas de Seguros, arrastrada por una regeneración de tipos desde la base local compartida.
 
-**El PR está en BORRADOR a propósito**: la 0528 se pega ANTES de fusionar, y mientras no esté pegada no
-es fusionable. Para fusionarlo: pegar la 0528, marcar el PR como listo y fusionar con `--merge` (fusionar
-publica en producción); una sesión que lo fusione deja antes el comentario `<!-- cayla:fusion-sesion -->`.
+**El PR sigue en BORRADOR**, que mientras la 0528 no estaba pegada era a propósito y ahora es solo cautela
+(un borrador no se fusiona por error). La 0528 ya está pegada: para fusionarlo, marcarlo como listo y
+fusionar con `--merge` (fusionar publica en producción); una sesión que lo fusione deja antes el comentario
+`<!-- cayla:fusion-sesion -->`. Cuando se publique, `/admin/seguros` abrirá sobre datos reales con las tablas
+vacías: **cada practicante saldrá como hueco** (su seguro es FOLA y no tiene póliza registrada) hasta que se
+registren las pólizas (paso 3 de arriba). Eso es lo que la pantalla viene a mostrar.
+`main` volvió a moverse después de la fusión (8 commits de interfaz, PR #552, sin SQL): la rama se mezcló
+con él en una fusión de prueba (limpia, `tsc` y las 2125 pruebas en verde) sin subirla.
 
 **La etapa 2 («Mi seguro»)** vive en otra rama, `claude/elegant-mayer-3e584e` (migración 0530, prueba 423,
 la sección de Lo mío), sin PR todavía, y se construyó sobre una punta anterior de esta (`112bfcb3`):
 cuando se vaya a fusionar tendrá que traer lo que esta rama agregó después —sobre todo `en_planilla` en
-`fn_seguros_equipo` y su bloque en `types.ts`— y repegar la 0528 ya corregida. Lo que cada colaborador lee
+`fn_seguros_equipo` y su bloque en `types.ts`—. La 0528 ya está pegada en producción en su versión final:
+no hay que repegarla, solo traer esta rama para que el archivo sea el mismo. Lo que cada colaborador lee
 es SU póliza —de cualquier seguro— y, si está en EsSalud, que se paga por planilla. Sigue sirviendo solo si
 quienes tienen póliza entran a Lo mío: eso solo lo sabe Felipe.
 
