@@ -63,7 +63,7 @@ function Resumen({ seguro }: { seguro: MiSeguroCalculado }) {
     case "por_planilla":
       insignia = <Insignia variante="neutral">Por planilla</Insignia>;
       titulo = `Tu seguro es ${nombre}`;
-      detalle = "Se paga por planilla: no hay una póliza que ver aquí.";
+      detalle = "Se paga por planilla y no lleva póliza.";
       break;
     case "hueco":
       insignia = <Insignia variante="alerta">Sin póliza vigente</Insignia>;
