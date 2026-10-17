@@ -32,6 +32,13 @@ import { CasillaMes } from "./casilla-mes";
 
 const SEPARADOR_DE_COLUMNAS = "border-l border-sand";
 
+/**
+ * La columna del mes en curso va sombreada de arriba abajo y su cabecera dice «hoy» (Felipe,
+ * 2026-10-17: «que muestre en qué mes estamos»). Un tinte de `tinta` muy bajo: sigue el tema claro
+ * y oscuro sin un color nuevo, y no compite con el `bg-hueso` del mes que se elige en Filtros.
+ */
+const COLUMNA_DE_HOY = "bg-tinta/[0.045]";
+
 /** Una persona activa sin estudio ni solicitud (`personasSinSolicitar`). */
 export interface PersonaSinSolicitar { persona_id: string; persona: string; sede: string; rango: string }
 
@@ -115,10 +122,14 @@ export function CuadriculaMeses({
                 const mostrarAnio = i === 0 || m.endsWith("-01");
                 return (
                   <th key={m} scope="col" aria-current={m === mesDeHoy ? "date" : undefined}
-                    className={`w-[68px] min-w-[68px] px-0 py-2 text-center font-normal ${i === 0 ? SEPARADOR_DE_COLUMNAS : ""} ${m === mesResaltado ? "bg-hueso" : ""}`}>
+                    className={`w-[68px] min-w-[68px] px-0 py-2 text-center font-normal ${i === 0 ? SEPARADOR_DE_COLUMNAS : ""} ${
+                      m === mesResaltado ? "bg-hueso" : m === mesDeHoy ? COLUMNA_DE_HOY : ""}`}>
                     <span className={`block text-xs ${m === mesDeHoy ? "font-medium text-tinta" : ""}`}>{corto}</span>
-                    <span className="block h-3 text-[10px] leading-3 text-taupe">{mostrarAnio ? anio : ""}</span>
-                    {m === mesDeHoy && <span aria-hidden className="mx-auto mt-0.5 block h-0.5 w-5 rounded-full bg-tinta" />}
+                    {m === mesDeHoy ? (
+                      <span className="mx-auto mt-0.5 block w-fit rounded-full bg-tinta px-1.5 text-[9px] font-medium uppercase leading-[14px] tracking-wide text-crema">hoy</span>
+                    ) : (
+                      <span className="block h-3 text-[10px] leading-3 text-taupe">{mostrarAnio ? anio : ""}</span>
+                    )}
                   </th>
                 );
               })}
@@ -147,7 +158,7 @@ export function CuadriculaMeses({
                       <DatosDelEstudio e={e} hoy={hoy} />
                     </td>
                     {f.casillas.map((c, i) => (
-                      <td key={c.mes} className={`p-0 align-middle ${i === 0 ? SEPARADOR_DE_COLUMNAS : ""}`}>
+                      <td key={c.mes} className={`p-0 align-middle ${i === 0 ? SEPARADOR_DE_COLUMNAS : ""} ${c.mes === mesDeHoy && c.mes !== mesResaltado ? COLUMNA_DE_HOY : ""}`}>
                         <CasillaMes casilla={c} persona={e.persona} cargando={f.cargando} sinLeer={f.sinLeer} resaltada={c.mes === mesResaltado}
                           alAbrir={() => onAbrirVisor(e, c.principal?.id ?? null)} />
                       </td>
@@ -169,7 +180,7 @@ export function CuadriculaMeses({
                   </td>
                   <td className="px-3 py-2 align-middle text-xs">No pidió apoyo</td>
                   {meses.map((m, i) => (
-                    <td key={m} className={`p-0 align-middle ${i === 0 ? SEPARADOR_DE_COLUMNAS : ""}`}>
+                    <td key={m} className={`p-0 align-middle ${i === 0 ? SEPARADOR_DE_COLUMNAS : ""} ${m === mesDeHoy ? COLUMNA_DE_HOY : ""}`}>
                       <div className="flex justify-center py-2"><span aria-hidden className="size-1 rounded-full bg-ceniza/30" /></div>
                     </td>
                   ))}
@@ -209,8 +220,10 @@ export function CuadriculaMeses({
                         return (
                           <li key={c.mes} className="shrink-0 snap-start">
                             <span className={`block text-center text-[11px] ${c.mes === mesDeHoy ? "font-medium text-tinta" : "text-taupe"}`}>{corto}</span>
-                            <span className="block h-3 text-center text-[10px] leading-3 text-taupe">{i === 0 || c.mes.endsWith("-01") ? anio : ""}</span>
-                            <div className="w-[64px]">
+                            {c.mes === mesDeHoy
+                              ? <span className="mx-auto block w-fit rounded-full bg-tinta px-1.5 text-[9px] font-medium uppercase leading-3 text-crema">hoy</span>
+                              : <span className="block h-3 text-center text-[10px] leading-3 text-taupe">{i === 0 || c.mes.endsWith("-01") ? anio : ""}</span>}
+                            <div className={`w-[64px] rounded-control ${c.mes === mesDeHoy ? COLUMNA_DE_HOY : ""}`}>
                               <CasillaMes casilla={c} persona={e.persona} cargando={f.cargando} sinLeer={f.sinLeer} resaltada={c.mes === mesResaltado}
                                 alAbrir={() => onAbrirVisor(e, c.principal?.id ?? null)} />
                             </div>
