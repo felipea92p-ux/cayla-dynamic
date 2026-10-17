@@ -166,9 +166,11 @@ ofreciendo solo los seguros que llevan póliza y, si es el principal, solo a qui
 historial, y la Bandeja con las filas de seguros y su enlace a `/admin/seguros?persona=…`.
 Escritorio, teléfono (375 px, sin desborde horizontal) y modo oscuro; las llamadas a la base
 contestaron todas 200. **A pedido de Felipe**, después: los números de arriba pasaron de tarjetas a
-botones de filtro, como los de por seguro (dos filas, situación y seguro; cada número es el de filas
-que deja ver), y la descripción larga de la cabecera a una línea corta con un ícono ⓘ que abre
-«Cómo funciona Seguros», que además es la leyenda de cada filtro. Visto en escritorio, teléfono y oscuro.
+botones de filtro, y estos a un solo botón «Filtros» junto al buscador (con la cuenta de los puestos)
+que abre un panel con las dos listas de opciones —situación y seguro, cada número es el de filas que
+deja ver—; lo puesto queda a la vista como chips que se quitan con un toque, y la pantalla abre limpia.
+La descripción larga de la cabecera pasó a una línea corta con un ícono ⓘ que abre «Cómo funciona
+Seguros», que además es la leyenda de cada filtro. Visto en escritorio, teléfono y oscuro.
 
 **El botón «Abrir» de un PDF**, comprobado en dos mitades: contra la API de Storage con la sesión
 de DO, la URL firmada se genera y baja el PDF (HTTP 200, `application/pdf`), y la misma petición

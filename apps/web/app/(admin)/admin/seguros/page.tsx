@@ -33,6 +33,7 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { SlidersHorizontal, X } from "lucide-react";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { hoyLima, puedeGestionarSeguros } from "@cayla-dynamic/shared";
 import { Cargando } from "@/components/cargando";
@@ -52,6 +53,7 @@ import { Campo } from "@/components/ui/campo";
 import { EstadoVacio } from "@/components/ui/estado-vacio";
 import { Filtro as FiltroBoton } from "@/components/ui/filtro";
 import { Modal } from "@/components/ui/modal";
+import { Rotulo } from "@/components/ui/rotulo";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { useRolActual } from "@/lib/admin/use-rol";
 import {
@@ -74,6 +76,21 @@ const NINGUNO = "*ninguno";
 type PasoAbierto =
   | { cual: "poliza"; z: Poliza; paso: PasoSeguro; quitar: boolean }
   | { cual: "cambio"; c: CambioSeguro; paso: "baja" | "alta"; quitar: boolean };
+
+/** Un filtro puesto, a la vista aunque el panel esté cerrado: se quita con un toque. */
+function FiltroPuesto({ etiqueta, onQuitar }: { etiqueta: string; onQuitar: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onQuitar}
+      aria-label={`Quitar el filtro: ${etiqueta}`}
+      className="inline-flex items-center gap-1.5 rounded-control border border-tinta bg-tinta px-3 py-1 text-xs font-medium text-crema"
+    >
+      {etiqueta}
+      <X className="size-3" aria-hidden />
+    </button>
+  );
+}
 
 export default function SegurosPage() {
   // `useSearchParams` pide un límite de Suspense para que la página pueda prerenderse.
@@ -103,6 +120,8 @@ function Seguros() {
   const [busqueda, setBusqueda] = useState("");
   const [filtro, setFiltro] = useState<Filtro | null>(null);
   const [tipoFiltro, setTipoFiltro] = useState<string>(TODOS);
+  // Los filtros viven detrás de un botón y la pantalla abre limpia, sin filas de botones encima de la lista.
+  const [filtrosAbiertos, setFiltrosAbiertos] = useState(false);
 
   const cargar = useCallback(async () => {
     const { data: sesion } = await supabase.auth.getSession();
@@ -270,6 +289,11 @@ function Seguros() {
     { clave: "por_planilla", etiqueta: "Sin póliza que registrar", n: resumen.por_planilla },
   ];
 
+  const etiquetaDeSituacion = situaciones.find((f) => f.clave === filtroVigente)?.etiqueta ?? null;
+  const etiquetaDeSeguro = tipoFiltro === TODOS ? null : tipoFiltro === NINGUNO ? "Sin seguro (no aplica)" : porTipo.find((t) => t.clave === tipoFiltro)?.nombre ?? tipoFiltro;
+  const nFiltros = (etiquetaDeSituacion ? 1 : 0) + (etiquetaDeSeguro ? 1 : 0);
+  const limpiarFiltros = () => { setFiltro(null); setTipoFiltro(TODOS); };
+
   return (
     <main className="flex-1 p-6">
       <CabeceraPagina
@@ -311,28 +335,58 @@ function Seguros() {
                 </div>
               )}
 
-              <div className="mb-3 flex flex-wrap gap-2" role="group" aria-label="Filtrar por situación">
-                {situaciones.map((f) => {
-                  const activa = filtroVigente === f.clave;
-                  return (
-                    <FiltroBoton key={f.clave} activo={activa} onClick={() => setFiltro(activa ? null : f.clave)}>
-                      {f.etiqueta} · {f.n}
-                    </FiltroBoton>
-                  );
-                })}
+              <div className="mb-3 flex flex-wrap items-end gap-3">
+                <div className="min-w-44 max-w-md flex-1 basis-40">
+                  <Campo etiqueta="Buscar" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Nombre, seguro, número de póliza, aseguradora o sede" />
+                </div>
+                <Boton
+                  variante="secundario" aria-expanded={filtrosAbiertos} aria-controls="filtros-de-seguros"
+                  onClick={() => setFiltrosAbiertos((a) => !a)} className="inline-flex items-center gap-1.5"
+                >
+                  <SlidersHorizontal className="size-4" aria-hidden />
+                  Filtros{nFiltros > 0 && <span className="rounded-full bg-tinta px-1.5 text-[11px] leading-4 text-crema">{nFiltros}</span>}
+                </Boton>
               </div>
 
-              <div className="mb-3 flex flex-wrap gap-2" role="group" aria-label="Filtrar por seguro">
-                <FiltroBoton activo={tipoFiltro === TODOS} onClick={() => setTipoFiltro(TODOS)}>Todos · {personas.length}</FiltroBoton>
-                {porTipo.map((t) => {
-                  const clave = t.clave ?? NINGUNO;
-                  return <FiltroBoton key={clave} activo={tipoFiltro === clave} onClick={() => setTipoFiltro(clave)}>{t.nombre} · {t.n}</FiltroBoton>;
-                })}
-              </div>
+              {nFiltros > 0 && (
+                <div className="mb-3 flex flex-wrap items-center gap-2">
+                  {etiquetaDeSituacion && <FiltroPuesto etiqueta={etiquetaDeSituacion} onQuitar={() => setFiltro(null)} />}
+                  {etiquetaDeSeguro && <FiltroPuesto etiqueta={etiquetaDeSeguro} onQuitar={() => setTipoFiltro(TODOS)} />}
+                  <Boton variante="enlace" className="text-sm" onClick={limpiarFiltros}>Limpiar filtros</Boton>
+                </div>
+              )}
 
-              <div className="mb-4 max-w-md">
-                <Campo etiqueta="Buscar" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Nombre, seguro, número de póliza, aseguradora o sede" />
-              </div>
+              {filtrosAbiertos && (
+                <div id="filtros-de-seguros" className="mb-4 space-y-4 rounded-superficie border border-sand bg-papel p-4">
+                  <div>
+                    <Rotulo className="mb-2">Situación</Rotulo>
+                    <div role="group" aria-label="Filtrar por situación" className="flex flex-wrap gap-2">
+                      {situaciones.map((f) => {
+                        const activa = filtroVigente === f.clave;
+                        return (
+                          <FiltroBoton key={f.clave} activo={activa} onClick={() => setFiltro(activa ? null : f.clave)}>
+                            {f.etiqueta} · {f.n}
+                          </FiltroBoton>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <div>
+                    <Rotulo className="mb-2">Seguro</Rotulo>
+                    <div role="group" aria-label="Filtrar por seguro" className="flex flex-wrap gap-2">
+                      <FiltroBoton activo={tipoFiltro === TODOS} onClick={() => setTipoFiltro(TODOS)}>Todos · {personas.length}</FiltroBoton>
+                      {porTipo.map((t) => {
+                        const clave = t.clave ?? NINGUNO;
+                        return <FiltroBoton key={clave} activo={tipoFiltro === clave} onClick={() => setTipoFiltro(clave)}>{t.nombre} · {t.n}</FiltroBoton>;
+                      })}
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-4 text-sm">
+                    {nFiltros > 0 && <Boton variante="enlace" onClick={limpiarFiltros}>Limpiar filtros</Boton>}
+                    <Boton variante="enlace" onClick={() => setFiltrosAbiertos(false)}>Cerrar</Boton>
+                  </div>
+                </div>
+              )}
 
               {visibles.length === 0 && (!soloPersona || personaDelAviso) && (
                 <p className="text-sm text-taupe">Nadie coincide con ese filtro{busqueda ? ` y con «${busqueda}»` : ""}.</p>
