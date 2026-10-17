@@ -101,10 +101,14 @@
 -- ESTADOS QUE NUNCA DEBEN EXISTIR (y qué los hace imposibles)
 --
 --   · una póliza que termina antes de empezar ................ check
---   · dos pólizas vivas del MISMO tipo de la misma persona que se pisan .. la función
+--   · dos pólizas vivas del MISMO tipo de la misma persona que se pisan .. la función,
+--       con la fila de la persona bloqueada (al registrar Y al corregir)
 --       (rango `[desde, hasta)`: una que empieza el día que otra termina no se pisa,
 --       que es como se renueva)
---   · el mismo número con la misma vigencia dos veces .......... índice único parcial
+--   · la misma póliza (aseguradora, número y vigencia) dos veces a la MISMA persona ..
+--       índice único parcial. Entre personas distintas SÍ se repite, a propósito: un
+--       seguro de vida o una EPS suele ser UNA póliza colectiva de la empresa, con un
+--       solo número, que cubre a todos (una fila por persona)
 --   · una póliza de un seguro que no tiene póliza (EsSalud) .... la función
 --   · una póliza de un seguro principal que la persona no tiene .. la función: se le
 --       cambia el seguro primero (no se registra FOLA a alguien de planilla)
@@ -119,7 +123,11 @@
 --       Y sin privilegio (molde de la 0507/0509: aquí nadie legítimo escribe directo)
 --   · que un fallo del registro de cambios frene un cambio de vínculo .. el disparador
 --       atrapa su propio error y solo avisa (un warning): el seguro es secundario
---       frente a la planilla, que no puede quedar bloqueada por esto
+--       frente a la planilla, que no puede quedar bloqueada por esto. Tampoco espera por
+--       los tipos: las funciones que editan o archivan un tipo lo bloquean con
+--       `for no key update`, que no frena la clave foránea del disparador. Lo único
+--       que no se atrapa es una sentencia que Postgres cancela por tiempo
+--       (`statement_timeout`, 57014): eso no es un error, es un corte.
 --
 -- LO QUE DECIDÍ, Y LO QUE DESCARTÉ
 --
@@ -163,6 +171,23 @@
 --     se haya confirmado lo dice quien lo marca.
 --   · Ninguna función existente se reescribe → no hay md5 de partida. Lo único que
 --     toca algo existente es el disparador nuevo sobre `personas`.
+--
+-- LÍMITES CONOCIDOS (medidos en una revisión independiente, 2026-10-17; ninguno toca pago)
+--
+--   · Los pasos de un CAMBIO guardan solo el último estado: marcar, quitar la marca (con
+--     motivo, que queda en `*_nota`) y volver a marcar deja una sola fila con quien lo
+--     hizo al final. Las pólizas sí llevan historial (`polizas_seguro_eventos`); los
+--     cambios, no.
+--   · Un cambio y su inverso el MISMO día (un vínculo cambiado por error y devuelto, una
+--     asignación deshecha) dejan dos cambios. Los pasos de un seguro CON póliza se cierran
+--     solos; el alta en un seguro SIN póliza (EsSalud) del segundo queda pidiendo marcarse
+--     aunque la persona nunca salió de él: DO la marca con la fecha y ya.
+--   · `fn_seguro_archivo_libre` la puede llamar cualquier sesión autenticada: las
+--     políticas de Storage corren con los permisos de quien consulta y la necesitan.
+--     Solo dice si una ruta (un uuid) está en uso por alguna póliza.
+--   · Fuera de esta migración, y sin tocarlo: `fn_cesar_persona` con un vínculo nuevo
+--     falla para un PRACTICANTE, porque no limpia `practicante_modalidad`
+--     (`personas_practicante_modalidad_coherente`). Sin cambiar de vínculo, el cese funciona.
 --
 -- SE ROMPE SI
 --
@@ -368,10 +393,15 @@ comment on column polizas_seguro.plan is
 comment on column polizas_seguro.renueva_sola is
   'null = sin confirmar. La tabla de beneficios de FOLA dice «Renovación automática: Aplica».';
 
--- El mismo número con la misma vigencia, una sola vez entre las vivas. La
--- renovación automática puede conservar el número: cambia la vigencia.
-create unique index if not exists idx_polizas_seguro_numero_vigencia
-  on polizas_seguro (aseguradora, numero_poliza, vigente_desde) where anulada_at is null;
+-- La misma póliza (aseguradora, número y fecha de inicio), una sola vez entre las vivas
+-- DE CADA PERSONA. Entre personas distintas puede repetirse: una póliza colectiva (vida,
+-- EPS) lleva un solo número y cubre a todos. FOLA es individual, pero la base no puede
+-- saber qué seguro agrega DO mañana. La renovación automática puede conservar el
+-- número: cambia la vigencia. (La primera versión de este índice no llevaba `persona_id`;
+-- se quita por si alguna base local la alcanzó a crear.)
+drop index if exists idx_polizas_seguro_numero_vigencia;
+create unique index if not exists idx_polizas_seguro_persona_numero_vigencia
+  on polizas_seguro (persona_id, aseguradora, numero_poliza, vigente_desde) where anulada_at is null;
 create index if not exists idx_polizas_seguro_persona on polizas_seguro (persona_id, vigente_desde desc);
 create index if not exists idx_polizas_seguro_producto on polizas_seguro (producto);
 
@@ -562,7 +592,10 @@ create policy polizas_seguro_select on storage.objects
 create policy polizas_seguro_update on storage.objects
   for update to authenticated
   using      (bucket_id = 'polizas-seguro' and fn_es_admin_o_lider() is true and fn_seguro_archivo_libre(name))
-  with check (bucket_id = 'polizas-seguro' and fn_es_admin_o_lider() is true and fn_seguro_archivo_libre(name));
+  -- El mismo nombre que exige el insert: sin esto, un huérfano se podía renombrar a
+  -- «Nombre Apellido DNI.pdf» o a una ruta con carpetas.
+  with check (bucket_id = 'polizas-seguro' and fn_es_admin_o_lider() is true and fn_seguro_archivo_libre(name)
+              and name ~ '^[0-9a-f-]{36}\.[a-z0-9]{2,5}$');
 
 create policy polizas_seguro_delete on storage.objects
   for delete to authenticated
@@ -630,8 +663,14 @@ begin
   if p_aseguradora is null or char_length(btrim(p_aseguradora)) < 2 then
     raise exception 'Escribe la aseguradora.';
   end if;
+  if char_length(btrim(p_aseguradora)) > 120 then
+    raise exception 'El nombre de la aseguradora es demasiado largo (máximo 120 letras).';
+  end if;
   if p_numero_poliza is null or char_length(btrim(p_numero_poliza)) < 3 then
     raise exception 'Escribe el número de la póliza.';
+  end if;
+  if char_length(btrim(p_numero_poliza)) > 40 then
+    raise exception 'El número de la póliza es demasiado largo (máximo 40 letras).';
   end if;
   if p_vigente_desde is null or p_vigente_hasta is null then
     raise exception 'Faltan las fechas de la vigencia.';
@@ -642,11 +681,17 @@ begin
   if p_prima_total is null or p_prima_total < 0 then
     raise exception 'Escribe la prima total (con IGV); puede ser 0 si no hay que pagar.';
   end if;
+  if p_prima_total >= 100000000 then
+    raise exception 'La prima total es demasiado grande: revisa el monto.';
+  end if;
   if p_beneficio_enfermedad is not null and p_beneficio_enfermedad <= 0 then
     raise exception 'El beneficio máximo por enfermedad tiene que ser mayor que 0, o quedar vacío si no está confirmado.';
   end if;
   if p_beneficio_accidente is not null and p_beneficio_accidente <= 0 then
     raise exception 'El beneficio máximo por accidente tiene que ser mayor que 0, o quedar vacío si no está confirmado.';
+  end if;
+  if p_beneficio_enfermedad >= 10000000000 or p_beneficio_accidente >= 10000000000 then
+    raise exception 'El beneficio máximo es demasiado grande: revisa el monto.';
   end if;
   if p_plan is not null and btrim(p_plan) <> '' and char_length(btrim(p_plan)) > 60 then
     raise exception 'El plan es demasiado largo (máximo 60 letras).';
@@ -701,6 +746,12 @@ begin
   end if;
   if p_descripcion is not null and char_length(p_descripcion) > 500 then
     raise exception 'La descripción es demasiado larga (máximo 500 letras).';
+  end if;
+  if p_texto_alta is not null and btrim(p_texto_alta) <> '' and char_length(btrim(p_texto_alta)) not between 3 and 200 then
+    raise exception 'Lo que dice el aviso de alta tiene que tener entre 3 y 200 letras (o quedar vacío).';
+  end if;
+  if p_texto_baja is not null and btrim(p_texto_baja) <> '' and char_length(btrim(p_texto_baja)) not between 3 and 200 then
+    raise exception 'Lo que dice el aviso de baja tiene que tener entre 3 y 200 letras (o quedar vacío).';
   end if;
 
   -- La clave sale del nombre: minúsculas, sin tildes, con guiones bajos. Si ya existe
@@ -758,7 +809,10 @@ begin
     raise exception 'Tu cuenta todavía no está enlazada con tu ficha.';
   end if;
 
-  select * into v_t from seguros_tipos t where t.clave = p_clave for update;
+  -- `for no key update` y no `for update`: ordena a los DO entre sí, pero no frena la clave
+  -- foránea que toma el disparador de `personas` al escribir un cambio de seguro (un cambio
+  -- de vínculo nunca debe esperar por esta pantalla).
+  select * into v_t from seguros_tipos t where t.clave = p_clave for no key update;
   if not found then
     raise exception 'Ese tipo de seguro no existe.';
   end if;
@@ -770,6 +824,12 @@ begin
   end if;
   if p_descripcion is not null and char_length(p_descripcion) > 500 then
     raise exception 'La descripción es demasiado larga (máximo 500 letras).';
+  end if;
+  if p_texto_alta is not null and btrim(p_texto_alta) <> '' and char_length(btrim(p_texto_alta)) not between 3 and 200 then
+    raise exception 'Lo que dice el aviso de alta tiene que tener entre 3 y 200 letras (o quedar vacío).';
+  end if;
+  if p_texto_baja is not null and btrim(p_texto_baja) <> '' and char_length(btrim(p_texto_baja)) not between 3 and 200 then
+    raise exception 'Lo que dice el aviso de baja tiene que tener entre 3 y 200 letras (o quedar vacío).';
   end if;
 
   begin
@@ -807,7 +867,10 @@ begin
     raise exception 'Falta decir si se archiva o se vuelve a activar.';
   end if;
 
-  select * into v_t from seguros_tipos t where t.clave = p_clave for update;
+  -- `for no key update`: ver `fn_seguro_tipo_editar`. Quien registra una póliza o asigna este
+  -- seguro lo lee con `for share`, que SÍ choca con esto: o ve el seguro todavía activo y su
+  -- póliza cuenta en las comprobaciones de abajo, o espera y lo ve ya archivado.
+  select * into v_t from seguros_tipos t where t.clave = p_clave for no key update;
   if not found then
     raise exception 'Ese tipo de seguro no existe.';
   end if;
@@ -882,7 +945,11 @@ begin
 
   -- La fila de la persona se bloquea: dos DO registrando a la misma persona a la
   -- vez se ordenan, y la segunda ve la póliza de la primera al comprobar el solape.
-  select * into v_p from personas p where p.id = p_persona_id for update;
+  -- `for no key update`: se ordenan entre sí sin frenar a quien solo apunta a la persona
+  -- con una clave foránea (un marcaje, el disparador). ORDEN DE BLOQUEO de todo el
+  -- módulo: primero la persona, después lo suyo (póliza, asignación); el tipo se lee con
+  -- `for share` y nunca se espera por nada estando bloqueado.
+  select * into v_p from personas p where p.id = p_persona_id for no key update;
   if not found then
     raise exception 'Esa persona no existe.';
   end if;
@@ -890,7 +957,7 @@ begin
     raise exception 'Esa persona está inactiva.';
   end if;
 
-  select * into v_t from seguros_tipos t where t.clave = p_producto;
+  select * into v_t from seguros_tipos t where t.clave = p_producto for share;
   if not found then
     raise exception 'Ese tipo de seguro no existe.';
   end if;
@@ -928,7 +995,7 @@ begin
        p_beneficio_accidente, p_renueva_sola, nullif(btrim(p_nota), ''), v_quien)
     returning id into v_id;
   exception when unique_violation then
-    raise exception 'Ya hay una póliza viva con ese número y esa fecha de inicio.';
+    raise exception 'Esa persona ya tiene una póliza viva con ese número y esa fecha de inicio.';
   end;
 
   insert into polizas_seguro_eventos (poliza_id, evento, detalle, hecho_por)
@@ -964,6 +1031,7 @@ language plpgsql security definer set search_path = public
 as $fn$
 declare
   v_quien   uuid := fn_persona_actual_id();
+  v_persona uuid;
   v_a       polizas_seguro%rowtype;
   v_cambios text := '';
   v_asegur  text := btrim(p_aseguradora);
@@ -982,10 +1050,15 @@ begin
     raise exception 'Escribe el motivo (al menos 5 letras): queda anotado en el historial de la póliza.';
   end if;
 
-  select * into v_a from polizas_seguro z where z.id = p_id for update;
+  -- Primero la persona y después la póliza, el mismo orden que `fn_seguro_registrar`: sin
+  -- esto, un `corregir` y un `registrar` a la vez comprobarían el cruce de fechas cada uno
+  -- con el estado viejo del otro y podrían dejar dos pólizas vivas que se pisan.
+  select z.persona_id into v_persona from polizas_seguro z where z.id = p_id;
   if not found then
     raise exception 'Esa póliza no existe.';
   end if;
+  perform 1 from personas p where p.id = v_persona for no key update;
+  select * into v_a from polizas_seguro z where z.id = p_id for update;
   if v_a.anulada_at is not null then
     raise exception 'Esa póliza está anulada: no se corrige.';
   end if;
@@ -1059,7 +1132,7 @@ begin
            nota = v_nota
      where id = p_id;
   exception when unique_violation then
-    raise exception 'Ya hay una póliza viva con ese número y esa fecha de inicio.';
+    raise exception 'Esa persona ya tiene una póliza viva con ese número y esa fecha de inicio.';
   end;
 
   insert into polizas_seguro_eventos (poliza_id, evento, detalle, motivo, hecho_por)
@@ -1331,8 +1404,9 @@ begin
     raise exception 'La fecha no puede ser posterior a hoy.';
   end if;
 
-  -- La fila de la persona se bloquea: dos DO cambiándole el seguro a la vez se ordenan.
-  select * into v_p from personas p where p.id = p_persona_id for update;
+  -- La fila de la persona se bloquea: dos DO cambiándole el seguro a la vez se ordenan
+  -- (`for no key update`, y el mismo orden de bloqueo que `fn_seguro_registrar`).
+  select * into v_p from personas p where p.id = p_persona_id for no key update;
   if not found then
     raise exception 'Esa persona no existe.';
   end if;
@@ -1340,7 +1414,7 @@ begin
     raise exception 'Esa persona está inactiva.';
   end if;
 
-  select * into v_t from seguros_tipos t where t.clave = p_tipo;
+  select * into v_t from seguros_tipos t where t.clave = p_tipo for share;
   if not found then
     raise exception 'Ese tipo de seguro no existe.';
   end if;
@@ -1408,6 +1482,7 @@ declare
   v_quien   uuid := fn_persona_actual_id();
   v_hoy     date := fn_hoy_lima();
   v_a       seguros_asignaciones%rowtype;
+  v_persona uuid;
   v_hasta   date := coalesce(p_hasta, fn_hoy_lima());
   v_antes   text;
   v_despues text;
@@ -1422,10 +1497,15 @@ begin
     raise exception 'Escribe el motivo (al menos 5 letras): queda anotado en el historial de su seguro.';
   end if;
 
-  select * into v_a from seguros_asignaciones a where a.id = p_asignacion_id for update;
+  -- El mismo orden que `fn_seguro_asignar`: primero la persona y después su asignación.
+  -- (Se lee sin bloquear solo para saber de quién es; con el orden al revés, dos DO
+  -- tocando a la misma persona a la vez podían cruzarse y Postgres abortaba a uno.)
+  select a.persona_id into v_persona from seguros_asignaciones a where a.id = p_asignacion_id;
   if not found then
     raise exception 'Esa asignación no existe.';
   end if;
+  perform 1 from personas p where p.id = v_persona for no key update;
+  select * into v_a from seguros_asignaciones a where a.id = p_asignacion_id for update;
   if v_a.hasta is not null then
     raise exception 'Esa asignación ya terminó.';
   end if;
@@ -1435,8 +1515,6 @@ begin
   if v_hasta < v_a.desde then
     raise exception 'No puede terminar antes de empezar (empezó el %).', to_char(v_a.desde, 'DD/MM/YYYY');
   end if;
-
-  perform 1 from personas p where p.id = v_a.persona_id for update;
 
   v_antes := fn_seguro_tipo_principal(v_a.persona_id, v_hoy);
 
