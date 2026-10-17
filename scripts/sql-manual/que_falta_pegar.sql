@@ -381,7 +381,8 @@ with repo(numero, nombre, nunca) as (values
     (520, 'el_bono_de_cumpleanos_una_sola_regla_y_el_practicante_cobra_por_transferencia', false),
     (521, 'el_bono_del_practicante_vuelve_a_la_boleta', false),
     (522, 'la_solicitud_educativa_pendiente_recibe_su_comprobante', false),
-    (524, 'un_estudio_de_educacion_no_tapa_a_otro', false)
+    (524, 'un_estudio_de_educacion_no_tapa_a_otro', false),
+    (531, 'la_politica_de_movilidad_se_firma_con_la_firma_del_sistema', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
