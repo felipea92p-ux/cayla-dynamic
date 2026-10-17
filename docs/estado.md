@@ -36,12 +36,17 @@ levantado contesta «no existe en el Postgres local»: no es que falte, mira otr
 
 ---
 
-## 2026-10-17 — Educación rediseñada: pago adelantado, historial y cuadrícula de íconos · 0525 PEGADA Y VERIFICADA · 0529 SIN PEGAR · PR #541 SIN FUSIONAR · rama `claude/educacion-rediseno`
+## 2026-10-17 — Educación rediseñada: pago adelantado, historial y cuadrícula de íconos · 0525 Y 0529 PEGADAS Y VERIFICADAS · PR #541 SIN FUSIONAR · rama `claude/educacion-rediseno`
 
 **0525 pegada y verificada en producción el 2026-10-17.** La comprobación devolvió
 `525 · una_aprobacion_de_constancia_se_puede_revertir | 4 | 3 | true | true` (registro con número y nombre,
 las 4 columnas, las 3 funciones y la marca «CAMBIO 0525» en las dos funciones reescritas). Su guarda aceptaba
 el cuerpo de la 0450 tal cual o pegado desde Windows, y pasó: producción tenía la versión esperada.
+
+**0529 pegada y verificada en producción el 2026-10-17.** La comprobación devolvió
+`529 · un_pago_adelantado_cubre_varios_meses_y_el_historial_de_educacion | 7 | true | 2 | 3` (registro con número
+y nombre, las 7 funciones, la tabla de meses, las 2 columnas de cobertura y los 3 triggers). Con las dos pegadas,
+**ya se puede fusionar el PR #541** —que es publicar—, con OK de Felipe.
 
 **Hay SQL, en este orden y ANTES de fusionar:** (1) la [0525](../supabase/migrations/0525_una_aprobacion_de_constancia_se_puede_revertir.sql)
 (revertir una aprobación; ver la entrada de abajo: le falta el md5 de PRODUCCIÓN de dos funciones); (2) la
