@@ -134,7 +134,7 @@ linter) corridos a mano sobre lo que la rama agrega: todos en 0.
 
 **Revisión independiente (dos agentes que no vieron mis conclusiones, uno para el SQL y otro para la
 pantalla; 2026-10-17).** Ninguno halló nada de gravedad alta: la lectura y la escritura están cerradas a
-quien no es DO (probado con seis roles distintos, el bucket y las 23 funciones), el disparador sobrevive
+quien no es DO (probado con cinco sesiones distintas —líder de equipo, integrante, DO cesada con su cuenta viva, usuario sin ficha y anónimo—, contra las seis tablas, las 23 funciones y el bucket), el disparador sobrevive
 a tres fallos inyectados, y un fuzz de 2000 escenarios y dos corridas de 1500 operaciones al azar no
 rompieron ninguna invariante. Lo que sí hallaron, y **ya está arreglado**: una póliza colectiva (vida,
 EPS) no se podía registrar a más de una persona; el disparador podía esperar por una pantalla de DO
