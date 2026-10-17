@@ -840,6 +840,42 @@
   }
 }
 
+/* ── Un documento que se imprime solo, desde un modal (2026-10-17) ──
+   `ImprimibleAparte` (components/ui/imprimible-aparte.tsx) cuelga una copia
+   del documento directo de <body>. En pantalla no se ve; al imprimir es lo
+   ÚNICO que sale. Lo usa la boleta firmada: vive en un modal, y el modal
+   recortaría lo impreso a su propio alto. `:has()` hace que la regla solo
+   exista mientras esa copia está montada: el resto de las pantallas imprime
+   como siempre. */
+.imprimible-aparte {
+  display: none;
+}
+
+@media print {
+  body:has(> .imprimible-aparte) > :not(.imprimible-aparte) {
+    display: none !important;
+  }
+
+  .imprimible-aparte {
+    display: block;
+  }
+
+  /* La firma nunca queda sola en la página siguiente, lejos del documento
+     que firma: una firma suelta no prueba nada. */
+  .constancia-boleta .bloque-firma {
+    break-inside: avoid;
+    break-before: avoid;
+  }
+
+  .constancia-boleta .pagina-boleta {
+    break-inside: avoid;
+  }
+
+  .constancia-boleta .rotulo-boleta {
+    break-after: avoid;
+  }
+}
+
 /* ── Recorrido guiado (driver.js) ─────────────────────────────────────────
    driver.js trae su propio CSS con `all: unset` — sin esto se ve como el
    demo por defecto de la librería: recuadro blanco, botones grises, cero
