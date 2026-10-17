@@ -128,21 +128,43 @@
   .grid td{ border-top:1px solid var(--color-sand); padding:7px 4px; vertical-align:middle; background:var(--color-papel); }
   .grid td.quien{ min-width:200px; }
   .grid .nom{ font-weight:600; } .grid .nom small{ display:block; font-weight:400; color:var(--color-taupe); font-size:.74rem; }
-  .cel{ display:flex; flex-direction:column; align-items:stretch; gap:3px; width:96px; margin:auto; border:1px solid var(--color-sand); border-radius:10px; padding:5px 6px; background:var(--color-crema); text-align:left; }
-  .cel.fuera{ background:transparent; border-style:dashed; opacity:.75; }
-  .cel .c, .cel .a{ font-size:.7rem; font-weight:600; display:flex; align-items:center; gap:4px; white-space:nowrap; line-height:1.25; }
-  .cel .c .i, .cel .a .i{ width:15px; height:15px; border-radius:50%; display:inline-grid; place-items:center; font-size:.62rem; flex:none; }
-  .c.aprobada{ color:var(--color-verde); } .c.aprobada .i{ background:var(--color-verde); color:var(--color-papel); }
-  .c.adelantado{ color:var(--color-verde); } .c.adelantado .i{ background:var(--color-verde); color:var(--color-papel); }
-  .c.pendiente{ color:var(--color-pizarra); } .c.pendiente .i{ background:var(--color-pizarra); color:var(--color-papel); }
-  .c.rechazada{ color:var(--color-rojo-profundo); } .c.rechazada .i{ background:var(--color-rojo); color:#fff; }
-  .c.falta{ color:var(--color-ambar); } .c.falta .i{ border:1.5px solid var(--color-ambar); }
-  .c.nada{ color:var(--color-ceniza); font-weight:500; }
-  .a.pagado{ color:var(--color-verde); } .a.pagado .i{ border:1.5px solid var(--color-verde); }
-  .a.este{ color:var(--color-tinta); } .a.este .i{ border:1.5px solid var(--color-tinta); }
-  .a.pagara{ color:var(--color-taupe); } .a.pagara .i{ border:1.5px dashed var(--color-taupe); }
-  .a.sin{ color:var(--color-ceniza); font-weight:500; }
-  .cel.cubierta{ border-color:color-mix(in oklab, var(--color-verde) 45%, var(--color-sand)); background:color-mix(in oklab, var(--color-verde) 6%, var(--color-crema)); }
+  /* Una casilla = un ícono. La raya de abajo dice el apoyo; el detalle sale al pasar encima. */
+  .grid td.mes{ padding:8px 0; text-align:center; position:relative; }
+  .ic{ width:40px; height:40px; border-radius:12px; border:1px solid transparent; background:transparent; display:inline-grid; place-items:center; position:relative; z-index:1; padding:0; }
+  .ic:hover,.ic:focus-visible{ box-shadow:0 0 0 2px var(--color-tinta); }
+  .ic .g{ width:24px; height:24px; border-radius:50%; display:grid; place-items:center; font-size:.8rem; font-weight:700; line-height:1; }
+  .g.aprobada,.g.cubierto{ background:var(--color-verde); color:var(--color-papel); }
+  .g.pendiente{ background:var(--color-pizarra); color:var(--color-papel); }
+  .g.rechazada{ background:var(--color-rojo); color:#fff; }
+  .g.falta{ border:2px solid var(--color-ambar); color:var(--color-ambar); }
+  .g.nada{ color:var(--color-ceniza); font-size:1.1rem; }
+  /* el apoyo: una raya corta debajo del ícono */
+  .ic::after{ content:""; position:absolute; left:11px; right:11px; bottom:3px; height:3px; border-radius:3px; }
+  .ic.ap-pagado::after{ background:var(--color-verde); }
+  .ic.ap-este::after{ background:var(--color-tinta); }
+  .ic.ap-pagara::after{ background:transparent; box-shadow:inset 0 0 0 1px var(--color-taupe); height:4px; bottom:2px; }
+  /* un pago adelantado: una franja que une sus meses */
+  td.mes.tramo::before{ content:""; position:absolute; top:50%; height:30px; transform:translateY(-50%); left:0; right:0; background:color-mix(in oklab, var(--color-verde) 14%, transparent); }
+  td.mes.tramo.ini::before{ left:50%; border-radius:15px 0 0 15px; margin-left:-20px; }
+  td.mes.tramo.fin::before{ right:50%; border-radius:0 15px 15px 0; margin-right:-20px; }
+  td.mes.tramo.pend::before{ background:color-mix(in oklab, var(--color-pizarra) 12%, transparent); }
+  td.mes.tramo.rech::before{ background:color-mix(in oklab, var(--color-rojo) 10%, transparent); }
+  .grid td.mes.fuera{ background:color-mix(in oklab, var(--color-hueso) 50%, var(--color-papel)); }
+
+  /* el globo del detalle */
+  .globo{ position:fixed; z-index:30; width:290px; background:var(--color-papel); border:1px solid var(--color-sand); border-radius:14px; box-shadow:0 10px 30px rgba(0,0,0,.18); padding:12px; display:flex; flex-direction:column; gap:8px; font-size:.82rem; }
+  .globo h4{ font-family:var(--font-serif); font-size:1.02rem; }
+  .globo .fila-g{ display:grid; grid-template-columns:78px 1fr; gap:6px; }
+  .globo .fila-g dt{ font-size:.66rem; letter-spacing:.05em; text-transform:uppercase; color:var(--color-taupe); padding-top:2px; }
+  .globo .fila-g dd{ margin:0; }
+  .globo .mini{ display:flex; gap:10px; align-items:center; border-top:1px solid var(--color-sand); padding-top:8px; }
+  .globo .mini img{ width:64px; height:84px; object-fit:cover; border:1px solid var(--color-sand); border-radius:6px; background:#fff; }
+  /* el comprobante en grande */
+  .visor{ background:var(--color-papel); border-radius:16px; width:min(860px,100%); max-height:92vh; overflow:auto; display:grid; grid-template-columns:minmax(0,1.2fr) minmax(0,1fr); }
+  @media (max-width:760px){ .visor{ grid-template-columns:1fr; } }
+  .visor .hoja{ background:var(--color-hueso); padding:16px; display:flex; justify-content:center; align-items:flex-start; }
+  .visor .hoja img{ width:100%; max-width:420px; border-radius:6px; border:1px solid var(--color-sand); background:#fff; }
+  .visor .lado{ padding:18px; display:flex; flex-direction:column; gap:10px; }
   .estado-col{ min-width:150px; padding-right:10px !important; }
 
   /* listas de terminados y sin solicitar */
@@ -287,23 +309,23 @@
       estudios: [
         { id:'cam', persona:'Camila Rojas Vega', sede:'TRU', inst:'UPN · Administración', quien:'ella misma', frecuencia:'mensual', apoyo:90, costo:120,
           vig:['2026-07','2027-03'], pagaDesde:'2026-07',
-          constancias:[ { id:'cam-jul', meses:['2026-07'], estado:'aprobada', tipo:'Pensión o cuota mensual', fecha:'15/07/2026' } ] },
+          constancias:[ { id:'cam-jul', meses:['2026-07'], estado:'aprobada', tipo:'Pensión o cuota mensual', fecha:'15/07/2026', monto:120, reviso:'Jorge (DO)' } ] },
         { id:'luc', persona:'Lucía Paredes Soto', sede:'LIM', inst:'Británico · Inglés', quien:'ella misma', frecuencia:'mensual', apoyo:90, costo:130,
           vig:['2026-06','2026-12'], pagaDesde:'2026-06',
-          constancias:['06','07','08','09'].map((m) => ({ id:'luc-'+m, meses:['2026-'+m], estado:'aprobada', tipo:'Pensión o cuota mensual', fecha:'15/'+m+'/2026' }))
-            .concat([{ id:'luc-10', meses:['2026-10'], estado:'pendiente', tipo:'Pensión o cuota mensual', fecha:'15/10/2026' }]) },
+          constancias:['06','07','08','09'].map((m) => ({ id:'luc-'+m, meses:['2026-'+m], estado:'aprobada', tipo:'Pensión o cuota mensual', fecha:'15/'+m+'/2026', monto:130, reviso:'Jorge (DO)' }))
+            .concat([{ id:'luc-10', meses:['2026-10'], estado:'pendiente', tipo:'Pensión o cuota mensual', fecha:'15/10/2026', monto:130 }]) },
         { id:'ros', persona:'Rosa Huamán Lara', sede:'CCO', inst:'Colegio San José · Mateo (hijo)', quien:'su hijo', frecuencia:'ciclo', apoyo:120, costo:400,
           vig:['2026-08','2026-12'], pagaDesde:'2026-08',
-          constancias:[ { id:'ros-ago', meses:entre('2026-08','2026-12'), estado:'aprobada', tipo:'Pago del ciclo', fecha:'05/08/2026', adelantado:true } ] },
+          constancias:[ { id:'ros-ago', meses:entre('2026-08','2026-12'), estado:'aprobada', tipo:'Pago del ciclo', fecha:'05/08/2026', monto:2000, reviso:'Jorge (DO)', reparto:entre('2026-08','2026-12').map((m) => ({ mes:m, monto:400, origen:'calculado' })) } ] },
         { id:'bea', persona:'Bea Torres Lima', sede:'LIM', inst:'Cibertec · Diseño', quien:'ella misma', frecuencia:'mensual', apoyo:90, costo:150,
           vig:['2026-06','2027-02'], pagaDesde:'2026-06',
-          constancias:[ { id:'bea-jun', meses:['2026-06'], estado:'aprobada', tipo:'Pensión o cuota mensual', fecha:'10/06/2026' },
-                        { id:'bea-jul', meses:['2026-07'], estado:'aprobada', tipo:'Pensión o cuota mensual', fecha:'10/07/2026' },
-                        { id:'bea-ago', meses:['2026-08'], estado:'aprobada', tipo:'Pensión o cuota mensual', fecha:'10/08/2026' },
-                        { id:'bea-sep', meses:['2026-09'], estado:'rechazada', tipo:'Pensión o cuota mensual', fecha:'10/09/2026', motivo:'ilegible', comentario:'La foto salió borrosa y no se ve el monto' } ] },
+          constancias:[ { id:'bea-jun', meses:['2026-06'], estado:'aprobada', tipo:'Pensión o cuota mensual', fecha:'10/06/2026', monto:150, reviso:'Valeria (DO)' },
+                        { id:'bea-jul', meses:['2026-07'], estado:'aprobada', tipo:'Pensión o cuota mensual', fecha:'10/07/2026', monto:150, reviso:'Valeria (DO)' },
+                        { id:'bea-ago', meses:['2026-08'], estado:'aprobada', tipo:'Pensión o cuota mensual', fecha:'10/08/2026', monto:150, reviso:'Valeria (DO)' },
+                        { id:'bea-sep', meses:['2026-09'], estado:'rechazada', tipo:'Pensión o cuota mensual', fecha:'10/09/2026', monto:150, reviso:'Jorge (DO)', motivo:'ilegible', comentario:'La foto salió borrosa y no se ve el monto' } ] },
         { id:'mar', persona:'Marta Quispe Díaz', sede:'AQP', inst:'Senati · Curso de costura', quien:'ella misma', frecuencia:'unico', apoyo:150, costo:200,
           vig:['2026-06','2026-07'], pagaDesde:'2026-06',
-          constancias:[ { id:'mar-jun', meses:['2026-06'], estado:'aprobada', tipo:'Curso o taller', fecha:'03/06/2026' } ] },
+          constancias:[ { id:'mar-jun', meses:['2026-06'], estado:'aprobada', tipo:'Curso o taller', fecha:'03/06/2026', monto:200, reviso:'Valeria (DO)' } ] },
       ],
       sinSolicitar: [
         { persona:'Ana Flores Tapia', sede:'TRU' }, { persona:'Diego Salas Ruiz', sede:'LIM' }, { persona:'Gaby Chávez Paz', sede:'AQP' },
@@ -400,13 +422,18 @@
           const est = estadoEstudio(e);
           return `<tr><td class="quien"><div class="nom">${esc(e.persona)}<small>${e.sede} · ${esc(e.inst)} · ${e.frecuencia === 'mensual' ? 'mensual' : e.frecuencia === 'ciclo' ? 'por ciclo' : 'pago único'}</small><small>Apoyo ${soles(e.apoyo)} al mes</small></div></td>
             ${MESES_GRID.map((m) => {
-              const c = celdaConstancia(e, m), a = celdaApoyo(e, m);
-              const cub = constanciaDelMes(e, m)?.meses.length > 1 && constanciaDelMes(e, m)?.estado === 'aprobada';
+              const c = celdaConstancia(e, m), a = celdaApoyo(e, m), k = constanciaDelMes(e, m);
+              const RELOJ = '<svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 4.6V8l2.4 1.6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+              const glifo = { aprobada:'✓', adelantado:'✓', pendiente:RELOJ, rechazada:'✕', falta:'!', nada:'·' }[c.cls];
+              const clase = c.cls === 'adelantado' ? 'cubierto' : c.cls;
+              let tramo = '';
+              if (k && k.meses.length > 1){
+                tramo = 'tramo' + (k.meses[0] === m ? ' ini' : '') + (k.meses[k.meses.length - 1] === m ? ' fin' : '')
+                  + (k.estado === 'pendiente' ? ' pend' : k.estado === 'rechazada' ? ' rech' : '');
+              }
               const lectura = `${mesLargo(m)}: constancia ${c.txt.toLowerCase()}; apoyo ${a.txt.toLowerCase()}`;
-              return `<td><div class="cel ${vigenteEn(e, m) ? '' : 'fuera'} ${cub ? 'cubierta' : ''}" role="img" aria-label="${esc(lectura)}" title="${esc(lectura)}">
-                <span class="c ${c.cls}">${c.i ? `<span class="i" aria-hidden="true">${c.i}</span>` : ''}${c.txt}</span>
-                <span class="a ${a.cls}">${a.i ? `<span class="i" aria-hidden="true" style="font-size:.5rem">${a.i}</span>` : ''}${a.txt}</span>
-              </div></td>`;
+              return `<td class="mes ${tramo} ${vigenteEn(e, m) ? '' : 'fuera'}"><button class="ic ap-${a.cls}" data-act="verMes" data-e="${e.id}" data-m="${m}" aria-label="${esc(lectura)}. Abrir el detalle">
+                <span class="g ${clase}" aria-hidden="true">${glifo}</span></button></td>`;
             }).join('')}
             <td class="estado-col"><span class="ins ${est.tono}">${est.txt}</span></td></tr>`;
         }).join('')}</tbody></table></div>`;
@@ -424,12 +451,13 @@
         <label class="campo">Buscar persona<input data-act="buscar" value="${esc(S.buscar)}" placeholder="Nombre o apellido"></label>
       </div>
       <div class="leyenda" aria-label="Cómo leer cada mes">
-        <span><b>Arriba, la constancia:</b></span>
-        <span class="c aprobada" style="display:inline-flex;gap:4px;font-weight:600"><span class="i" style="width:15px;height:15px;border-radius:50%;display:inline-grid;place-items:center;font-size:.6rem;background:var(--color-verde);color:var(--color-papel)">✓</span>Aprobada o cubierta</span>
-        <span class="c pendiente" style="font-weight:600">⏳ Por revisar</span>
-        <span class="c rechazada" style="font-weight:600">✕ Rechazada</span>
-        <span class="c falta" style="font-weight:600">! Falta (desde el día 1)</span>
-        <span><b>Abajo, el apoyo:</b> Pagado (planilla cerrada) · Se paga este mes · Se pagará · Sin apoyo</span>
+        <span><span class="g aprobada" style="width:18px;height:18px;border-radius:50%;display:inline-grid;place-items:center;font-size:.65rem">✓</span> Constancia aprobada</span>
+        <span><span style="display:inline-block;width:34px;height:14px;border-radius:7px;background:color-mix(in oklab, var(--color-verde) 18%, transparent)"></span> Pago adelantado (varios meses)</span>
+        <span><span class="g pendiente" style="width:18px;height:18px;border-radius:50%;display:inline-grid;place-items:center"><svg width="11" height="11" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 4.6V8l2.4 1.6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span> Por revisar</span>
+        <span><span class="g rechazada" style="width:18px;height:18px;border-radius:50%;display:inline-grid;place-items:center;font-size:.65rem">✕</span> Rechazada</span>
+        <span><span class="g falta" style="width:18px;height:18px;border-radius:50%;display:inline-grid;place-items:center;font-size:.65rem">!</span> Falta</span>
+        <span>Raya debajo: <b style="color:var(--color-verde)">━</b> apoyo pagado · <b>━</b> se paga este mes · <b style="color:var(--color-taupe)">▭</b> se pagará · sin raya, sin apoyo</span>
+        <span>Pasa el mouse por un mes para ver el detalle; tócalo para ver el comprobante.</span>
       </div>
       ${cuerpo}
     </div>`;
@@ -630,10 +658,90 @@
     renderModal();
   }
 
+
+  /* ───────── el detalle de un mes: globo al pasar, visor al tocar ───────── */
+  // El comprobante de ejemplo, dibujado como imagen (en la app es la foto o el PDF que subió).
+  function reciboSVG(e, k){
+    const filas = (k.reparto ?? k.meses.map((m) => ({ mes:m, monto:k.monto }))).map((x, i) =>
+      `<text x="24" y="${178 + i * 26}" font-size="14">Pensión ${mesLargo(x.mes)}</text><text x="296" y="${178 + i * 26}" font-size="14" text-anchor="end">${soles(x.monto)}</text>`).join('');
+    const alto = 250 + (k.reparto ?? k.meses).length * 26;
+    const inst = e.inst.split(' · ')[0];
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="${alto}" font-family="Georgia, serif" fill="#1a1a18">
+      <rect width="320" height="${alto}" fill="#ffffff"/><rect x="0.5" y="0.5" width="319" height="${alto - 1}" fill="none" stroke="#d9d2c3"/>
+      <text x="24" y="44" font-size="22" font-weight="700">${esc(inst)}</text><text x="296" y="44" font-size="12" text-anchor="end" fill="#6b6558">Recibo de pago</text>
+      <line x1="24" y1="58" x2="296" y2="58" stroke="#1a1a18" stroke-width="2"/>
+      <text x="24" y="90" font-size="14" font-weight="700">${esc(e.persona)}</text>
+      <text x="24" y="112" font-size="12" fill="#6b6558">Pagado el ${esc(k.fecha)} · ${esc(k.tipo)}</text>
+      <line x1="24" y1="150" x2="296" y2="150" stroke="#cfc8b8" stroke-dasharray="3 3"/>${filas}
+      <line x1="24" y1="${alto - 70}" x2="296" y2="${alto - 70}" stroke="#1a1a18" stroke-width="2"/>
+      <text x="24" y="${alto - 46}" font-size="15" font-weight="700">Total pagado</text><text x="296" y="${alto - 46}" font-size="15" font-weight="700" text-anchor="end">${soles(k.monto)}</text>
+      <text x="160" y="${alto - 18}" font-size="10" text-anchor="middle" fill="#9a3b2a" letter-spacing="1">RECIBO DE EJEMPLO · FICTICIO</text></svg>`;
+    return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  }
+  function detalleMes(e, m){
+    const c = celdaConstancia(e, m), a = celdaApoyo(e, m), k = constanciaDelMes(e, m);
+    const ESTADO = { aprobada:'Aprobada', pendiente:'Por revisar', rechazada:'Rechazada' };
+    let constancia;
+    if (k){
+      const parte = k.reparto?.find((x) => x.mes === m);
+      const corto = (x) => MES_L[+x.slice(5, 7) - 1];
+      constancia = `<b>${ESTADO[k.estado]}</b>${k.reviso && k.estado !== 'pendiente' ? ' por ' + esc(k.reviso) : ''}`
+        + (k.meses.length > 1
+          ? `<br>Pago adelantado, ${corto(k.meses[0])} a ${corto(k.meses[k.meses.length - 1])} · pagado el ${esc(k.fecha)}<br>Este mes: ${soles(parte?.monto ?? k.monto / k.meses.length)} de ${soles(k.monto)}${parte?.origen === 'manual' ? ` (lo corrigió ella: «${esc(parte.motivo)}»)` : ''}`
+          : `<br>${esc(k.tipo)} · ${soles(k.monto)} · pagado el ${esc(k.fecha)}`)
+        + (k.estado === 'rechazada' ? `<br><span style="color:var(--color-rojo-profundo)">«${esc(MOTIVOS[k.motivo] ?? 'Rechazada')}»: ${esc(k.comentario ?? '')}</span>` : '');
+    } else {
+      constancia = c.cls === 'falta' ? '<b>Falta</b>: se pide desde el día 1 de este mes.'
+        : c.txt === 'No aplica' ? 'El apoyo no estaba vigente este mes.'
+        : c.txt === 'Aún no' ? 'Todavía no llega este mes: se pedirá el día 1.'
+        : 'Este estudio no paga todos los meses: no se pide.';
+    }
+    const apoyo = a.cls === 'pagado' ? `<b>Pagado</b>: ${soles(e.apoyo)} en la planilla de ${mesLargo(m).split(' ')[0]}`
+      : a.cls === 'este' ? `<b>Se paga este mes</b>: ${soles(e.apoyo)} al cierre del periodo`
+      : a.cls === 'pagara' ? `<b>Se pagará</b> ${soles(e.apoyo)}, si el apoyo sigue vigente`
+      : '<b>Sin apoyo</b> este mes';
+    return { k, constancia, apoyo };
+  }
+  const globo = document.createElement('div');
+  globo.className = 'globo oculto'; globo.setAttribute('role', 'tooltip'); document.body.appendChild(globo);
+  let ocultarT = null;
+  function mostrarGlobo(btn){
+    clearTimeout(ocultarT);
+    const e = S.estudios.find((x) => x.id === btn.dataset.e), m = btn.dataset.m;
+    const d = detalleMes(e, m);
+    globo.innerHTML = `<h4>${esc(e.persona.split(' ')[0])} · ${mesLargo(m)}</h4>
+      <dl class="fila-g"><dt>Constancia</dt><dd>${d.constancia}</dd><dt>Apoyo</dt><dd>${d.apoyo}</dd></dl>
+      ${d.k ? `<div class="mini"><img src="${reciboSVG(e, d.k)}" alt="Miniatura del comprobante"><button class="btn sec fino" data-act="verMes" data-e="${e.id}" data-m="${m}">Ver comprobante</button></div>` : ''}`;
+    globo.classList.remove('oculto');
+    const r = btn.getBoundingClientRect(), g = globo.getBoundingClientRect();
+    let x = r.left + r.width / 2 - g.width / 2, y = r.bottom + 8;
+    x = Math.max(8, Math.min(x, window.innerWidth - g.width - 8));
+    if (y + g.height > window.innerHeight - 8) y = r.top - g.height - 8;
+    globo.style.left = x + 'px'; globo.style.top = Math.max(8, y) + 'px';
+  }
+  function ocultarGlobo(){ ocultarT = setTimeout(() => globo.classList.add('oculto'), 180); }
+  document.addEventListener('mouseover', (ev) => { const b = ev.target.closest('.ic'); if (b) mostrarGlobo(b); else if (ev.target.closest('.globo')) clearTimeout(ocultarT); });
+  document.addEventListener('mouseout', (ev) => { if (ev.target.closest('.ic') || ev.target.closest('.globo')) ocultarGlobo(); });
+  document.addEventListener('focusin', (ev) => { const b = ev.target.closest('.ic'); if (b) mostrarGlobo(b); });
+  document.addEventListener('focusout', (ev) => { if (ev.target.closest('.ic')) ocultarGlobo(); });
+  document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape'){ globo.classList.add('oculto'); if (S.modal){ S.modal = null; render(); } } });
+
   /* ───────── modales ───────── */
   function renderModal(){
     const m = S.modal;
     if (!m){ $('#modal').innerHTML = ''; return; }
+    if (m.t === 'visor'){
+      const e = S.estudios.find((x) => x.id === m.e), d = detalleMes(e, m.m);
+      $('#modal').innerHTML = `<div class="velo" data-act="cerrarFondo"><div class="visor" role="dialog" aria-label="Comprobante de ${esc(e.persona)}">
+        <div class="hoja">${d.k ? `<img src="${reciboSVG(e, d.k)}" alt="Comprobante">` : `<p style="color:var(--color-taupe);padding:40px 10px">Este mes no tiene comprobante.</p>`}</div>
+        <div class="lado">
+          <h3>${esc(e.persona)}</h3><p style="color:var(--color-taupe);font-size:.84rem">${esc(e.inst)} · ${mesLargo(m.m)}</p>
+          <dl class="d"><div><dt>Constancia</dt><dd>${d.constancia}</dd></div><div><dt>Apoyo</dt><dd>${d.apoyo}</dd></div></dl>
+          ${d.k && d.k.estado === 'pendiente' ? `<p class="aviso-caja neutro">Por revisar: en la app, aquí mismo van Aprobar y Rechazar.</p>` : ''}
+          <div class="pie" style="margin-top:auto"><button class="btn" data-act="cerrarModal">Cerrar</button></div>
+        </div></div></div>`;
+      return;
+    }
     if (m.t === 'editarMes'){
       const ok = m.monto !== '' && Number(m.monto) >= 0 && m.motivo.trim().length >= 3;
       $('#modal').innerHTML = `<div class="velo"><div class="modal" role="dialog" aria-label="Corregir un mes">
@@ -676,7 +784,7 @@
         const r = repartir();
         const cam = S.estudios.find((x) => x.id === 'cam');
         cam.constancias = cam.constancias.filter((c) => c.id !== 'cam-adel');
-        cam.constancias.push({ id:'cam-adel', meses:r.map((x) => x.mes), estado:'pendiente', tipo:'Pago adelantado', fecha:e.fechaPago });
+        cam.constancias.push({ id:'cam-adel', meses:r.map((x) => x.mes), estado:'pendiente', tipo:'Pago adelantado', fecha:e.fechaPago.split('-').reverse().join('/'), monto:r.reduce((t, x) => t + Number(x.monto), 0), reparto:r });
         S.historial.push({ f:AHORA(), p:'Camila Rojas Vega', e:'UPN · Administración', tipo:'enviada', t:'Envió un pago adelantado', tElla:'Enviaste un pago adelantado', d:`Cubre ${mesLargo(r[0].mes)} a ${mesLargo(r[r.length - 1].mes)} (${r.length} meses) · ${soles(r.reduce((t, x) => t + Number(x.monto), 0))}${r.some((x) => x.origen === 'manual') ? ' · corrigió ' + r.filter((x) => x.origen === 'manual').length + ' mes(es) a mano' : ''}`, quien:'la integrante', ico:'↑', tono:'info' });
         aviso('Enviada. DO la revisa una sola vez.'); break;
       }
@@ -684,7 +792,7 @@
       case 'aprobar': {
         S.revisado = 'aprobada';
         const cam = S.estudios.find((x) => x.id === 'cam');
-        cam.constancias.find((c) => c.id === 'cam-adel').estado = 'aprobada';
+        { const c = cam.constancias.find((x) => x.id === 'cam-adel'); c.estado = 'aprobada'; c.reviso = 'Jorge (DO)'; }
         const r = repartir();
         S.historial.push({ f:AHORA(), p:'Camila Rojas Vega', e:'UPN · Administración', tipo:'aprobada', t:'Pago adelantado aprobado', d:`Cubre ${mesLargo(r[0].mes)} a ${mesLargo(r[r.length - 1].mes)} (${r.length} meses): no se le pide constancia hasta ${mesLargo(sumar(r[r.length - 1].mes, 1))}`, tElla:'Tu pago adelantado se aprobó', dElla:`Cubre ${mesLargo(r[0].mes)} a ${mesLargo(r[r.length - 1].mes)}: no tienes que enviar constancia hasta ${mesLargo(sumar(r[r.length - 1].mes, 1))}`, quien:'Jorge (DO)', ico:'✓', tono:'ok' });
         aviso('Aprobada: los ' + r.length + ' meses quedan cubiertos.'); break;
@@ -694,12 +802,14 @@
         S.revisado = 'rechazada';
         S.rechazo = { texto:`«${MOTIVOS[S.modal.cat]}»: ${S.modal.texto.trim()}.` };
         const cam = S.estudios.find((x) => x.id === 'cam');
-        cam.constancias.find((c) => c.id === 'cam-adel').estado = 'rechazada';
+        { const c = cam.constancias.find((x) => x.id === 'cam-adel'); c.estado = 'rechazada'; c.reviso = 'Jorge (DO)'; c.motivo = S.modal.cat; c.comentario = S.modal.texto.trim(); }
         S.historial.push({ f:AHORA(), p:'Camila Rojas Vega', e:'UPN · Administración', tipo:'rechazada', t:'Pago adelantado rechazado', tElla:'Tu pago adelantado se rechazó: corrígelo y envíalo otra vez', d:`«${MOTIVOS[S.modal.cat]}»: ${S.modal.texto.trim()}`, quien:'Jorge (DO)', ico:'✕', tono:'alerta' });
         S.modal = null; aviso('Rechazada. Camila la corrige y la reenvía.'); break;
       }
       case 'verPersona': S.histFiltro.persona = v; S.histFiltro.comoElla = false; break;
       case 'comoElla': S.histFiltro.comoElla = v === 'si'; break;
+      case 'verMes': globo.classList.add('oculto'); S.modal = { t:'visor', e:el.dataset.e, m:el.dataset.m }; break;
+      case 'cerrarFondo': if (ev.target !== el) return; S.modal = null; break;
       case 'csv': aviso('En la app real baja un CSV con lo que estás viendo.'); return;
       default: return;
     }
