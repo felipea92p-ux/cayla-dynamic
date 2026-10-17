@@ -78,21 +78,30 @@ cambia lo que cobra nadie; la prima se paga a la aseguradora y EsSalud sigue com
     lee EN EL NAVEGADOR —el documento y la fecha de nacimiento del asegurado no salen de la
     computadora hasta que se registra—. Cada póliza es una tarjeta editable con número, vigencia,
     prima con IGV, cuándo vence el pago y a quién asegura; se registra con `fn_seguro_registrar` (las
-    mismas reglas del formulario) y el PDF se guarda en cada póliza. Lo que dice el papel es una
-    PROPUESTA: solo nace seleccionada la que trae número, vigencia y prima y una persona clara (el nombre
-    del papel se compara por palabras, sin importar el orden, y con un margen sobre la segunda
-    candidata). Se adelantan los rechazos de la base —la persona no está en ese seguro, la póliza se
-    cruza con otra—, la que ya existe sale «Ya estaba registrada», y una foto escaneada o un PDF
-    ilegible se dicen por su nombre. **La fecha final es la que dice «AL 01/01/2027 … A LAS 12 M» (la
-    portada y las condiciones), NO el 31/12 del aviso de cobranza y el convenio**: ese es el último día
-    cubierto y el sistema cuenta el final EXCLUSIVO; se midió sobre la póliza real de FOLA y por eso el
-    lector solo usa las dos primeras formas.
+    mismas reglas del formulario) y el PDF se guarda en cada póliza. **Lo que dice el papel es una
+    PROPUESTA**: una tarjeta solo nace marcada si trae número, vigencia y prima, una persona clara,
+    NINGÚN aviso del lector y el documento del papel igual al de la ficha de esa persona. El nombre
+    propone (por palabras, sin importar el orden, con umbral de 0.85 y un margen sobre la segunda
+    candidata) y el documento comprueba: si no es el de la ficha, la tarjeta no se puede registrar; si
+    falta (en el papel, en la ficha, o la consulta falló) nace sin marcar y lo dice, pero DO puede
+    marcarla. Se adelantan los rechazos de la base —la persona no está en ese seguro, la póliza se cruza
+    con otra, un año mal tecleado—, la que ya existe sale «Ya estaba registrada», y una foto escaneada o
+    un PDF ilegible se dicen por su nombre. **La fecha final solo se da por probada cuando el papel dice
+    «AL 01/01/2027 … A LAS 12 M» (las condiciones particulares), NO el 31/12 del aviso de cobranza ni
+    del convenio**: ese es el último día cubierto y el sistema cuenta el final EXCLUSIVO; se midió sobre
+    la póliza real de FOLA. La portada y el resumen del seguro valen solo de respaldo, con un aviso que
+    dice de dónde salió la fecha. Una página que nombra dos pólizas no se le presta a ninguna, y solo se
+    reconoce a Pacífico (de otra aseguradora se lee con aviso). **Un PDF con las pólizas de varias
+    personas no se guarda en ninguna** (llevaría el documento y el nacimiento de las otras): se registran
+    y la tarjeta lo dice. Cerrar el diálogo, o elegir otros PDF, con pólizas marcadas sin registrar
+    pregunta antes.
   - **Una póliza para varias personas** (`fn_seguro_registrar_varias`). En «Registrar una póliza»,
     «A varias, la misma póliza»: una lista con casillas, el atajo «Las de planilla» (sale de
     `personas.en_planilla`, no de una lista de vínculos en el navegador) y la prima POR PERSONA, con
     «N × prima = total» a la vista. TODO O NADA: si a una no se le puede registrar, no se registra a nadie y
-    el mensaje dice con quién falló; quien ya tiene una póliza de ese seguro que se cruza se deja fuera con
-    el motivo. El PDF de una póliza colectiva se COPIA dentro del almacén a las pólizas de las demás
+    el mensaje dice con quién falló (hasta 100 por vez; el seguro y lo común a todas —aseguradora,
+    fechas, prima— se comprueban ANTES de recorrer la lista, para no culpar a la primera persona de algo que
+    es de todas); quien ya tiene una póliza de ese seguro que se cruza se deja fuera con el motivo. El PDF de una póliza colectiva se COPIA dentro del almacén a las pólizas de las demás
     personas (cada fila tiene su propio objeto: un índice lo exige).
   - **Lista de asegurados** (`fn_seguro_asegurados`). Quiénes están en un seguro HOY con documento,
     nacimiento, ingreso, sede y póliza, y quién tiene datos por completar (sin documento o sin fecha de
@@ -132,6 +141,15 @@ cambia lo que cobra nadie; la prima se paga a la aseguradora y EsSalud sigue com
   más de 30 días sin pagarse ya no cubre (convenio de pago, cláusula quinta), pero la base solo sabe de
   fechas: sin esto la pantalla decía «Cubierto» de alguien que no lo está. Lo decide `estadoPrima`, no
   SQL; va arriba de la lista, justo después de quien no tiene póliza.
+- **Una vigencia de más de diez años, o que termina a más de diez años de hoy, se rechaza** (y un
+  vencimiento de la prima a más de un año de la vigencia): un año mal tecleado (20277 por 2027) dejaba a
+  todo un lote «cubierto por siglos» y apagaba el aviso de hueco. El diez es un número elegido, no de ley.
+- **El CSV de asegurados escribe las fechas en ISO** (`2026-10-17`), como el padrón y el resto de las
+  exportaciones, y no `17/10/2026`: un `05/10/2026` se lee como 10 de mayo en un Excel en inglés, y aquí
+  cada fecha decide si alguien está cubierto.
+- **Un «otro papel» no se copia a las demás pólizas de una póliza colectiva** (la póliza, el convenio de
+  pago y la factura sí): puede ser de una sola persona. Si una copia falla se ofrece repetir solo esas.
+- **Las estaciones de Retail no entran a seguros**: `fn_seguro_registrar` y `fn_seguro_asignar` las rechazan.
 - **Una póliza colectiva se registra a cada persona con el mismo número** (un seguro de vida o una EPS
   es una póliza de la empresa con un solo número). El índice único lleva `persona_id`: la MISMA póliza
   a la misma persona sigue frenada. Si FOLA repitiera un número entre dos practicantes, la base ya no
@@ -148,7 +166,9 @@ cambia lo que cobra nadie; la prima se paga a la aseguradora y EsSalud sigue com
    falten desde «Tipos de seguro». Mientras tanto, planilla y prueba quedan en EsSalud (por
    planilla) y nadie recibe un aviso por ellos.
 3. **Registrar las cuatro pólizas FOLA** (N.º 24043264 a 24043267): lo más corto es «Leer PDF de póliza»
-   eligiendo los cuatro PDF a la vez (el de 24043267 se leyó entero sin avisos); si alguno no se
+   eligiendo los cuatro PDF a la vez (el de 24043267 se leyó entero sin avisos). Cada tarjeta nace marcada
+   solo si el documento del papel es el de la ficha de ese practicante: a quien le falte el DNI en su
+   ficha se le marca a mano, y a quien tenga otro, la tarjeta no lo deja registrar. Si alguno no se
    entiende, el formulario de siempre. Falta adjuntar el convenio de pago y, cuando lleguen, las
    facturas. Los papeles llevan DNI y fecha de nacimiento: no entran al repo.
 4. **Marcar los pasos que ya se hicieron**: la prima está pagada (Felipe, 15/10/2026); falta
@@ -169,8 +189,8 @@ subvención de cada quien (`asignaciones_salario`) y la 0528 no la lee.
 
 **Qué se comprobó.** La 0528 aplicada **desde cero** por `supabase start` junto con todas las
 demás migraciones, sin error, y pegada otra vez encima (idempotente); y la prueba **422**
-(281 aserciones: 252 de la lógica de los seguros y 29 de «una póliza para varias personas» y la lista
-de asegurados) en verde dentro de una transacción, también partiendo de una base SIN los objetos
+(308 aserciones: 252 de la lógica de los seguros y 56 de «una póliza para varias personas», la lista
+de asegurados y lo que halló la segunda revisión) en verde dentro de una transacción, también partiendo de una base SIN los objetos
 de la 0528 (corriendo antes la receta de reversión de su cabecera, que así quedó probada de nuevo).
 Se probó que la prueba SABE fallar con veintidós mutaciones; las ocho últimas son de las dos funciones
 nuevas (tragarse el error del lote, quitar el `distinct`, el tope de 100, el último día inclusivo en la lista,
@@ -181,9 +201,11 @@ la baja que no se revierte, el disparador que ignora el estado o una asignación
 escapar su propio error, registrar una póliza sin comprobar el seguro principal, asignar lo que
 ya toca por vínculo, y devolver el seguro efectivo como automático) y las cuatro de la revisión
 (índice sin `persona_id`, UPDATE de Storage sin la forma del nombre, sin tope de aseguradora, sin
-validar los textos de los avisos): las catorce la rompen.
-`vitest` (2001 pruebas en 90 archivos, antes 1896: las nuevas son el lector de pólizas —con un texto
-sintético con la forma de la de Pacífico—, las reglas de cada tarjeta de PDF, la lista de asegurados y su CSV,
+validar los textos de los avisos): las catorce la rompen. La segunda revisión sumó quince mutaciones
+más, entre ellas las siete que mostró que sobrevivían: todas las detecta la suite.
+`vitest` (2041 pruebas en 90 archivos, antes 1896: las nuevas son el lector de pólizas —con un texto
+sintético con la forma de la de Pacífico, de 30 pruebas a 50, con once mutaciones: diez las detecta la suite y
+la otra era código muerto—, las reglas de cada tarjeta de PDF y su cotejo de documento, la lista de asegurados y su CSV,
 la subida y la copia de archivos, el cruce de fechas y las hermanas de una póliza colectiva y el permiso de
 exportar; más las 83 de la lógica de la pantalla y las 33 de la Bandeja, incluida la que cuida que cargar una
 consulta no pise el objeto compartido de `FUENTES_VACIAS`), `tsc` y `eslint` en verde, y los frenos del push (numeración, reglas de la casa, nombre del PDF, fechas vacías,
@@ -200,6 +222,22 @@ solo orden; la política de UPDATE de Storage dejaba renombrar un huérfano a un
 topes salían como un CHECK crudo; una póliza con la prima suspendida figuraba «Cubierto»; el formulario
 de póliza perdía el error del servidor si se cerraba a mitad de guardar; una asignación puesta a alguien
 de honorarios no se podía terminar; y unos conteos, un orden y unos textos que no cuadraban.
+
+**Segunda revisión, sobre las tres ayudas (otra vez dos agentes sin mis conclusiones, uno para el SQL y
+otro para la pantalla y el lector; 2026-10-17).** Del SQL: sin hallazgos altos (no hay deadlock, lote a
+medias, fuga ni pérdida de permisos al repegar). Lo que sí, y ya está arreglado: el año mal tecleado que
+dejaba a un lote «cubierto por siglos» (tope de diez años); «Con Ana falló: escribe la aseguradora» culpaba
+a la primera del lote de algo que es de todas (se comprueba antes); una estación de Retail aceptaba póliza
+y asignación y quedaba invisible; y `fn_seguros_equipo` perdía su permiso con el `drop` (ahora va junto al
+`create`). De la pantalla y el lector: la fecha final se daba por buena sin la frase que la prueba («A LAS
+12 M»), y «hasta el 31 de enero» pasaba por exclusivo; una página que nombra dos pólizas le prestaba sus
+datos a la equivocada; dos expresiones regulares con backtracking cúbico (20 000 saltos de línea tardaban
+segundos); un monto con punto de oración («179.97.») leía 17 997 soles; los nombres se comparaban por
+palabras sueltas («Rosa Díaz» se tomaba por «Díaz Rosa María»); una tarjeta con avisos nacía marcada y solo
+el nombre elegía a la persona (ahora lo comprueba el documento); un PDF con varias pólizas se guardaba en
+cada una; cerrar el diálogo perdía lo leído sin preguntar; una copia fallida de un archivo de póliza
+colectiva no se podía repetir; la lista de asegurados sin ningún seguro quedaba «Cargando» para siempre, y
+el CSV escribía `dd/mm/aaaa`. Todo está corregido y probado.
 
 **Lo que se dejó, a propósito** (cabecera de la 0528, «LÍMITES CONOCIDOS»): los pasos de un cambio
 guardan solo el último estado, sin historial de marcas como las pólizas; un cambio y su inverso el mismo
@@ -259,7 +297,10 @@ sin sesión se niega. El clic mismo no se pudo probar en el navegador integrado 
 bloquea las ventanas emergentes (sale el aviso propio de la pantalla: «El navegador bloqueó la
 ventana del archivo…»); es el mismo camino que usa «Abrir» en Archivo.
 
-**Lo que NO se comprobó.** Un iPhone real; `db-tests` de GitHub (construye la base desde cero: es
+**Lo que NO se comprobó.** Una póliza de otra aseguradora ni de otro seguro que no sea FOLA: el lector se
+midió sobre la de Pacífico, y de otra solo se sabe que se lee con aviso. El cotejo de documento, la pregunta
+de descartar, el PDF compartido y el reintento de copias se vieron en el navegador con PDF sintéticos (datos
+inventados, ya borrados) contra la demo. Un iPhone real; `db-tests` de GitHub (construye la base desde cero: es
 la señal fiable de las pgTAP, no esta Mac); ni nada contra datos reales de producción. El
 disparador se probó con las dos funciones que de verdad cambian el vínculo —`fn_set_tipo_vinculo`
 y `fn_cesar_persona`, incluido un cese con vínculo nuevo en el mismo acto—: lo que no mueve el
@@ -267,10 +308,12 @@ seguro no deja nada, lo que sí lo mueve deja su cambio, y quien ya no está act
 La numeración deja huecos frente a `main` (0526, 0527 y de la 0530 en adelante): son de otras
 ramas y se llenan cuando ellas se fusionen.
 
-**La etapa 2 («Mi seguro»)** no está construida. Quien la empezó la tenía acotada a los practicantes
-y a la primera versión de la 0528; se paró y hay que rehacerla sobre esta: ahora lo que cada
-colaborador lee es SU póliza —de cualquier seguro— y, si está en EsSalud, que se paga por planilla.
-Sigue sirviendo solo si quienes tienen póliza entran a Lo mío: eso solo lo sabe Felipe.
+**La etapa 2 («Mi seguro»)** vive en otra rama, `claude/elegant-mayer-3e584e` (migración 0530, prueba 423,
+la sección de Lo mío), sin PR todavía, y se construyó sobre una punta anterior de esta (`112bfcb3`):
+cuando se vaya a fusionar tendrá que traer lo que esta rama agregó después —sobre todo `en_planilla` en
+`fn_seguros_equipo` y su bloque en `types.ts`— y repegar la 0528 ya corregida. Lo que cada colaborador lee
+es SU póliza —de cualquier seguro— y, si está en EsSalud, que se paga por planilla. Sigue sirviendo solo si
+quienes tienen póliza entran a Lo mío: eso solo lo sabe Felipe.
 
 **Cómo se generaron los tipos.** La base local es compartida y trae migraciones de otras ramas
 (la etapa 2 ya aplicó la suya), así que `gen-types` habría arrastrado cambios ajenos. Los 28 bloques de la
