@@ -61,8 +61,11 @@
 --   · md5 de PARTIDA de las dos funciones que se reescriben. LOCAL (= repositorio,
 --     0450): fn_educacion_entrega_inmutable dc4ba3e15e995ad1e249a5660cfcca5d ·
 --     1045 caracteres; fn_educacion_entregas d4c4fe5bfbcbd5c35112aa4a5a5bfdd1 ·
---     1126. PRODUCCIÓN: __PENDIENTE__ (se pide ANTES de entregar, ver la consulta
---     al final). La sección 0 frena si cualquiera de las dos no es la esperada.
+--     1126. Sus variantes pegadas desde Windows (\r\n): 1ac7fc1069cb615e575133ab20687fd9 y
+--     da5a3e20484c423c984ed7fb0fb3895f (los cuerpos no traen comentarios, así que no hay
+--     variante «sin comentarios»). PRODUCCIÓN: no medido antes de entregar (2026-10-17, a
+--     pedido de Felipe); la sección 0 compara contra esas cuatro y, si producción tiene
+--     cualquier otra versión, PARA sin aplicar nada.
 --   · Las funciones de pago por grupo (0323): `periodo_grupo_pago.grupo` =
 --     `personas.tipo_vinculo`, y una fila `estado = 'pagado'` con su `pagado_at`.
 --   · fn_es_admin_o_lider, fn_persona_actual_id (0078) y que el espejo de la 0450
@@ -105,7 +108,9 @@ begin
     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'public' and p.proname = 'fn_educacion_entrega_inmutable';
   -- Si ya está esta migración puesta, el cuerpo lleva su marca: repegar es seguro.
-  if v_md5 is distinct from 'dc4ba3e15e995ad1e249a5660cfcca5d'
+  -- Se acepta el cuerpo de la 0450 tal cual o pegado desde Windows (cada salto como \r\n): es el mismo
+  -- código (ver CLAUDE.md, la 0401). Sus comentarios no cambian nada: el cuerpo no trae ninguno.
+  if v_md5 not in ('dc4ba3e15e995ad1e249a5660cfcca5d', '1ac7fc1069cb615e575133ab20687fd9')
      and not exists (select 1 from pg_proc p where p.proname = 'fn_educacion_entrega_inmutable'
                         and p.prosrc like '%CAMBIO 0525%') then
     raise exception '0525 · PARA. fn_educacion_entrega_inmutable en esta base es % (% caracteres), se esperaba dc4ba3e15e995ad1e249a5660cfcca5d (1045). No se aplicó nada. Compruébalo con ./scripts/donde-vive.sh fn_educacion_entrega_inmutable.', v_md5, v_len;
@@ -114,7 +119,7 @@ begin
   select md5(p.prosrc), length(p.prosrc) into v_md5, v_len
     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'public' and p.proname = 'fn_educacion_entregas';
-  if v_md5 is distinct from 'd4c4fe5bfbcbd5c35112aa4a5a5bfdd1'
+  if v_md5 not in ('d4c4fe5bfbcbd5c35112aa4a5a5bfdd1', 'da5a3e20484c423c984ed7fb0fb3895f')
      and not exists (select 1 from pg_proc p where p.proname = 'fn_educacion_entregas'
                         and p.prosrc like '%CAMBIO 0525%') then
     raise exception '0525 · PARA. fn_educacion_entregas en esta base es % (% caracteres), se esperaba d4c4fe5bfbcbd5c35112aa4a5a5bfdd1 (1126). No se aplicó nada. Compruébalo con ./scripts/donde-vive.sh fn_educacion_entregas.', v_md5, v_len;
