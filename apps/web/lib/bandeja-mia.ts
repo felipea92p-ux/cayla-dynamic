@@ -347,6 +347,12 @@ export interface FuentesBandeja {
    * del bono.
    */
   bono?: MiBono | null;
+  /**
+   * Está en modalidad formativa (`tipo_vinculo = 'practicante'`). Solo cambia la
+   * palabra con la que se nombra lo que cobra: su boleta paga una «subvención»,
+   * no una planilla (0521). Opcional: sin él se asume que no.
+   */
+  practicante?: boolean;
   /** Sus boletas oficiales (0482). Opcional: sin ellas, no se dice nada de boletas. */
   boletas?: FilaBoletaBandeja[];
   /** Sus reportes (0488), de `fn_reportes_mios`. Opcional: sin ellos, no se dice nada de reportes. */
@@ -942,7 +948,8 @@ export function armarBandeja(fuentes: FuentesBandeja, hoy: string = hoyLima()): 
         titulo: "Tu bono de cumpleaños va en tu boleta",
         respuesta: null,
         detalle: `Lo pediste ${haceCuanto(pedidoEl, hoy)}. ${b.monto !== null ? `${formatSoles(b.monto)} ya ` : "Ya "}está en tu boleta${
-          b.periodo_fin ? ` del periodo que cierra el ${diaYMes(b.periodo_fin)}` : ""} y se paga junto con tu planilla.`,
+          b.periodo_fin ? ` del periodo que cierra el ${diaYMes(b.periodo_fin)}` : ""} y se paga junto con ${
+          fuentes.practicante ? "tu subvención" : "tu planilla"}.`,
         nuevo: false,
         ir: "/mio/cumpleanos",
         marcarVistoComo: null,
@@ -957,7 +964,7 @@ export function armarBandeja(fuentes: FuentesBandeja, hoy: string = hoyLima()): 
       instante: Date.parse(`${periodoFin}T00:00:00Z`),
       m: {
         clave: `bono:${b.documento_id}`, origen: "bono", estado: "atendido", fecha: periodoFin,
-        titulo: "Tu bono de cumpleaños se pagó con tu planilla",
+        titulo: `Tu bono de cumpleaños se pagó con ${fuentes.practicante ? "tu subvención" : "tu planilla"}`,
         respuesta: null,
         detalle: `${b.monto !== null ? `${formatSoles(b.monto)} · ` : ""}en tu boleta del periodo que cerró el ${diaYMes(periodoFin)}.`,
         nuevo: false,
@@ -1148,7 +1155,7 @@ export async function traerBandeja(
   hoy: string = hoyLima(),
 ): Promise<{ bandeja: Bandeja; noSePudo: string[] }> {
   const [perfil, catalogo, vacaciones, revisiones, contrato, memos, acuses, periodo, movilidad, revisionesMovilidad, turnos,
-    educacionEntregas, educacionSituacion, vistos, bono, boletas, memosPorRecibir, reportes] =
+    educacionEntregas, educacionSituacion, vistos, bono, boletas, memosPorRecibir, reportes, ficha] =
     await Promise.all([
     supabase.from("solicitudes_cambio_perfil")
       .select("id, campo, estado, creada_at, resuelta_at, motivo")
@@ -1234,6 +1241,10 @@ export async function traerBandeja(
     supabase.rpc("fn_mis_memos_por_recibir"),
     // Sus reportes (0488). Igual: `fn_reportes_mios` contesta solo por quien pregunta.
     traerMisReportes(supabase),
+    // Su vínculo (0521): solo para nombrar bien lo que cobra. Falla suave: sin él
+    // se dice «planilla», que es lo que decía antes — y NO entra en `noSePudo`,
+    // por lo mismo que las etiquetas del catálogo.
+    supabase.from("personas").select("tipo_vinculo").eq("id", personaId).maybeSingle(),
   ]);
 
   // Las jornadas del periodo, solo si hay periodo abierto. Va en su propia
@@ -1274,6 +1285,7 @@ export async function traerBandeja(
     educacionSituacion: ((educacionSituacion.data ?? []) as unknown as FilaEducacionSituacion[])
       .filter((s) => s.persona_id === personaId),
     bono: bono.bono,
+    practicante: (ficha.data as { tipo_vinculo?: string } | null)?.tipo_vinculo === "practicante",
     boletas: boletas.filas,
     reportes: reportes.filas,
     vistos: new Set(

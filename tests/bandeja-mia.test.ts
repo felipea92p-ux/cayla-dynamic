@@ -744,6 +744,32 @@ describe("armarBandeja · bono de cumpleaños", () => {
     expect(b.avisos).toBe(0);
   });
 
+  it("practicante (0521): el bono va en su boleta y se nombra «subvención», nunca «planilla»", () => {
+    const b = armarBandeja({
+      ...VACIO, practicante: true,
+      bono: bono({
+        estado: "en_boleta", documento_id: "d1", pedido_el: "2026-09-06",
+        via: "boleta", periodo_fin: "2026-09-28",
+      }),
+    }, HOY);
+    expect(b.esperando).toHaveLength(1);
+    expect(b.esperando[0].detalle).toContain("tu subvención");
+    expect(b.esperando[0].detalle).not.toContain("planilla");
+    expect(b.esperando[0].detalle).not.toContain("transfer");
+  });
+
+  it("practicante, ya pagado: la respuesta tampoco dice «planilla»", () => {
+    const b = armarBandeja({
+      ...VACIO, practicante: true,
+      bono: bono({
+        estado: "entregado", documento_id: "d1", pedido_el: "2026-09-06",
+        entregado_el: null, via: "boleta", periodo_fin: "2026-09-28",
+      }),
+    }, HOY);
+    const r = b.respuestas.find((m) => m.origen === "bono");
+    expect(r?.titulo).toBe("Tu bono de cumpleaños se pagó con tu subvención");
+  });
+
   it("en la boleta, sin periodo_fin (base anterior a la 0479): no se rompe ni inventa fecha", () => {
     const b = armarBandeja({
       ...VACIO, bono: bono({ estado: "en_boleta", documento_id: "d1", pedido_el: "2026-09-06" }),

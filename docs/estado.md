@@ -202,6 +202,89 @@ Retail es una campaña con ventana editable, no un día). Ver el final de
 
 ---
 
+## 2026-10-13 — El bono del practicante vuelve a la boleta, y se paga al cierre del periodo · migración 0521 · PEGADA Y VERIFICADA EN PRODUCCIÓN (2026-10-16) · PR #539 PENDIENTE DE FUSIONAR
+
+**Decisión de Felipe, el mismo día, al ver funcionando la 0520:** el pedido de
+Daniel Ruiz salió en la Bandeja «S/ 180.00 por transferir» y lo rechazó —«no
+transferir a cada rato, sino pagar al fin del periodo»—. Revierte la regla de la
+0519/0520 (el practicante nunca va a la boleta). La 0518 y la 0520 siguen
+pegadas; esto va ENCIMA de la 0520.
+
+**Antes de escribir, se midió** (planilla vigente, un practicante y un integrante
+de planilla en las mismas condiciones, bono de S/ 180 en cada boleta; repetido el
+2026-10-16 con la 0504 ya en la base): el total del practicante sube de 714.64 a
+894.64, exactamente S/ 180, igual que el de planilla; su EsSalud queda en 0.00
+antes y después (la 0504 se lo quitó; antes de ella eran 110.70 y tampoco se
+movía) y AFP no cambia; la **retención de 4.ª sigue en 0** (su guarda es `rxh`).
+Lo único que se mueve es el campo informativo `retencion_4ta_base`, y se mueve
+IGUAL en el de planilla: es un número que se muestra, no un descuento. El temor de la 0520 («la planilla le
+arma base de retención de cuarta con el bono dentro») es cierto como campo y no
+tiene efecto sobre lo que cobra. Prueba **415**.
+
+**Qué hace la 0521:** `fn_confirmar_mi_bono_cumpleanos` pierde la excepción del
+practicante (un bloque, marca `CAMBIO 0521`), y
+`fn_bono_pasar_pedidos_de_practicantes_a_boleta()` —no concedida a nadie, la corre
+la migración— pasa a la boleta del periodo abierto lo que la 0520 dejó «por
+transferir»: solo practicantes activos, sin transferencia ya confirmada, con
+periodo no pagado; idempotente. No toca el respaldo legítimo de los de planilla.
+No toca `fn_planilla_calcular`.
+
+**Pruebas (cada una en `begin … rollback` sobre el esquema completo):** 415 nueva
+(26; sin la 0521 fallan 4), 414 y 413 ajustadas (decían «nunca por la boleta»),
+y 335, 377, 378 sin cambios y en verde. Frontend: la pantalla del practicante
+(Info, /mio/cumpleanos y la Bandeja mía) vuelve a decir «se suma a tu boleta» y
+«tu subvención» donde decía «planilla»;
+la constancia de practicante lleva «se abona en la boleta del periodo, como
+concepto aparte de la subvención».
+
+**PEGADA el 2026-10-16, ANTES de fusionar el PR** (la regla general). El frontend
+del PR promete «se suma a tu boleta» al practicante y trae una novedad que corrige
+la anterior; por eso va después de pegar. Con el freno de la propia migración (que
+comprobó el md5 de partida y abortaba sin tocar nada si no coincidía), la respuesta
+del SQL Editor fue `firma_sin_excepcion = t`, `sin_sobrecarga = t`,
+**`practicantes_con_bono_en_boleta = 1`**, `practicantes_aun_por_transferir = 0` y el
+registro `521 · el_bono_del_practicante_vuelve_a_la_boleta`.
+
+**Verificada en producción** con una consulta de ocho filas, todas iguales a lo
+calculado antes en local: `fn_confirmar_mi_bono_cumpleanos` `b7a826e9…` tal cual /
+`e796c2b3…` sin comentarios (el mismo código que la 0479, sin la excepción: solo
+cambiaron los comentarios) / 5236 caracteres / 0 retornos; lleva `CAMBIO 0521` y no
+tiene `v_practicante`; `authenticated` puede ejecutar la firma y NO la reparación;
+`fn_mi_bono_cumpleanos` (`d35c7d75…`, 4726) y `fn_documento_registrar` (`2d78559a…`,
+5567) no cambiaron. **Daniel Ruiz tiene su línea «Asignación por cumpleaños» de
+S/ 180.00 en la boleta del periodo que cierra el 2026-10-28, atada a su constancia, y
+ningún practicante tiene dos líneas en el mismo periodo.**
+
+**NO REPEGAR la 0518 ni la 0520 después de la 0521:** la 0520 recrearía
+`fn_confirmar_mi_bono_cumpleanos` con la excepción del practicante y revertiría
+esta migración en silencio (su freno salta con el registro 520 y el resto del
+archivo corre). El traslado de la 0521 sí se protege solo: corre únicamente la
+primera pegada (medido: pegar dos veces, con una línea quitada por DO en el
+medio, no la reinserta).
+
+**md5 de partida de producción:** `fn_confirmar_mi_bono_cumpleanos` (0520) era
+`4c1ce380…` tal cual / `7d430c38…` sin comentarios, 5440 caracteres. No se pidió antes
+de entregar —Felipe pidió el SQL directamente—; lo comprobó el freno de la migración
+al pegar, y habría abortado sin tocar nada si no coincidía.
+
+**Límite conocido, HEREDADO de la 0479 y de cualquiera que esté en boleta (revisión
+adversarial, 2026-10-16):** anular una constancia de bono desde Documentación solo marca
+`anulado_at`; **no retira la línea de la boleta**, y como el índice único por año
+excluye las anuladas, quien firmó puede volver a firmar y quedar con DOS líneas de S/ 180
+en el mismo periodo. Hoy exige dos pasos deliberados (DO anula una firma digital y la
+persona firma otra vez), y la línea duplicada se ve en Planilla antes del cierre. **Hasta
+que se arregle en una migración aparte —que `fn_documento_anular` retire la línea cuando
+el periodo no esté pagado—, al anular un bono que ya va en boleta, DO tiene que quitar
+también la línea desde Planilla.**
+
+**Sigue abierto, y no depende de esto:** las tres preguntas al contador (Ley
+28518: ¿puede darse un monto por cumpleaños a un practicante sin que cuente como
+subvención?, ¿qué texto y cómo consta?, ¿deducible?). El texto de `TextoBono` para
+practicantes es **provisional**. Y el límite de que la constancia se pinta con el
+vínculo ACTUAL, no con el de cuando se firmó (necesita una columna).
+
+---
+
 ## 2026-10-13 — Info saluda en el mes de cumpleaños, y el bono es para todo el equipo salvo prueba y contratos cortos · 0518 y 0520 PEGADAS EN PRODUCCIÓN (2026-10-13) · 0519 NEUTRALIZADA · SIN FUSIONAR
 
 **El caso.** Daniel Ruiz, practicante, cumple en octubre, y el 13 no tenía nada
@@ -327,41 +410,6 @@ pruebas 413, 414, 377, 335, 376 y 378 pasan encima.
 > producción). La sustituye la **0520** (sección de arriba), que une las dos decisiones. Está en
 > `scripts/hooks/no-se-pegan.txt`. Lo que sigue vigente de esta sección: el frontend (publicado) y las
 > preguntas legales abiertas.
-
-## 2026-10-13 — El bono de cumpleaños para el practicante · migración 0519 · PR #524 (BORRADOR) · LEGAL SIN CONFIRMAR
-
-**Origen:** Daniel Ruiz (practicante, `en_planilla = f`) salía pendiente en la Bandeja y en «Cargos de cumpleaños»
-(el tablero, abierto a practicantes por la 0424, le daba `este_mes`), mientras `fn_mi_bono_cumpleanos` le contestaba
-`no_aplica` y `fn_documento_registrar` rechazaba su constancia. Medido en producción con su sesión. Felipe decidió
-**abrir el bono al practicante** (no cerrarlo en el tablero).
-
-**Hecho:** `fn_persona_le_corresponde_bono` (un solo lugar para la pregunta) y las tres funciones la usan; el
-practicante **nunca va a la boleta** (queda «pedido», lo transfiere DO) — no se toca la planilla. Constancia con
-**texto propio** para practicantes (`TextoBono`, sin «trabajador» ni normas laborales). md5 de partida de producción
-de las tres funciones **CONFIRMADOS** el 2026-10-13: idénticos al repo, 0 retornos. Pruebas: **414** (27) nueva; **335**
-y **377** corregidas porque fijaban la regla contraria (el único motivo por el que `db-tests` salió en rojo); todas
-pasan con la 0519. Revisión adversarial de 5 lentes (57 agentes): el SQL no cambió; sí 3 textos que le prometían al
-practicante «se suma a tu boleta» y varios comentarios viejos.
-
-**SQL entregado a Felipe el 2026-10-13** (`./scripts/dame-el-sql.sh 519`). **No sé si ya se pegó**: comprobarlo con
-`que_falta_pegar` antes de dar nada por hecho.
-
-**ORDEN: fusionar el PR ANTES de pegar la 0519** (al revés de la regla general, y a propósito). El frontend es
-compatible hacia atrás —sin la migración, un practicante sigue sin poder pedir el bono—, así que no rompe nada. Si se
-pega primero, un practicante que firme antes de que el texto nuevo esté publicado firma el texto de planilla. Si pasó,
-se ve con una consulta: bonos con `firma_persona_confirmada_at` anterior al despliegue, de personas con
-`tipo_vinculo = 'practicante'`.
-
-**Lo que NO está cerrado:**
-1. **El contador / abogado laboral:** ¿puede CAYLA darle un monto por cumpleaños a un practicante sin que cuente como
-   subvención ni cambie su condición formativa (Ley 28518)? ¿qué texto lleva la constancia y cómo consta el pago? ¿es
-   gasto deducible? El texto de `TextoBono` es **provisional**, lo redactó Claude.
-2. **Límite conocido (migración aparte):** la constancia se pinta con el `tipo_vinculo` ACTUAL, no con el de cuando
-   se firmó. Si un practicante pasa a planilla, su constancia ya firmada mostraría el texto de planilla. La solución
-   es guardar al firmar con qué texto fue (una columna en `documentos_firmados`).
-
-**Hoy, antes de pegar:** Daniel sigue sin bono en el sistema, y «Registrar constancia →» se rechaza («no está en
-planilla»). Su cargo vence el 31-oct.
 
 ---
 

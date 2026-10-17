@@ -115,6 +115,17 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-10-16-el-bono-de-cumpleanos-en-practicas-va-en-la-boleta",
+    fecha: "2026-10-16",
+    titulo: "Si estás en prácticas, tu bono de cumpleaños va en tu boleta",
+    queMejoro:
+      "Tu bono de cumpleaños ahora entra a tu boleta del periodo y se paga al cierre, igual que al resto del " +
+      "equipo. Es una corrección: una novedad anterior decía que a quien está en prácticas se lo transfería " +
+      "Desarrollo Organizacional y que no iba en una boleta, y ya no es así.\n\n" +
+      "Si ya habías pedido tu bono, no tienes que hacer nada.",
+    audiencia: "todos",
+  },
+  {
     id: "2026-10-16-educacion-constancias-por-mes-y-por-sede",
     fecha: "2026-10-16",
     titulo: "En Educación ya se ven las constancias de cada mes, por sede, sin descargar nada",
