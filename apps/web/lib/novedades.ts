@@ -115,6 +115,26 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-10-16-educacion-constancias-por-mes-y-por-sede",
+    fecha: "2026-10-16",
+    titulo: "En Educación ya se ven las constancias de cada mes, por sede, sin descargar nada",
+    queMejoro:
+      "La lista de Educación ahora es una cuadrícula: una fila por persona e institución, una columna por mes y, en " +
+      "cada casilla, la miniatura de la constancia recibida. Un toque la abre grande —foto o PDF con todas sus hojas— " +
+      "con sus datos al lado y los botones Aprobar y Rechazar, sin otra pestaña ni descargar nada. También se puede " +
+      "usar desde el celular.\n\n" +
+      "La sede va arriba, con el número de estudios de cada una, y las cinco tarjetas de arriba cuentan solo lo que " +
+      "estás viendo: si eliges una sede o un mes, las tarjetas y la lista dicen lo mismo. Con las flechas ← → pasas de " +
+      "una constancia a otra y con Esc cierras el visor. Con «Todas», cada sede tiene su " +
+      "bloque con su resumen. Un guion en un mes es un mes sin constancia, no una falta: lo vencido lo sigue diciendo la " +
+      "etiqueta de estado. Si una persona registró el mismo estudio dos veces, sale en una sola línea con sus meses " +
+      "seguidos.\n\n" +
+      "«Más filtros» suma quién estudia, el tipo de constancia, quién la revisó y un rango de fechas, y lo que eliges " +
+      "queda en la dirección: puedes guardarla o pasarla para ver lo mismo. «Descargar» baja el cuadro de lo que ves " +
+      "(CSV) y, si eliges un mes, un ZIP con las constancias de esa sede y ese mes.",
+    audiencia: "do",
+  },
+  {
     id: "2026-10-16-educacion-por-grupos-y-cuadro-de-constancias",
     fecha: "2026-10-16",
     titulo: "Educación se puede ver por grupos, con quién no ha pedido nada y un cuadro de constancias",
