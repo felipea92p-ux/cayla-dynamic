@@ -30,9 +30,10 @@ export function CabeceraPagina({
    * La línea chica encima del título («Planilla», «Hoja de sede»). Mayúsculas con
    * espaciado (decisión 11 de docs/adr/0004-diseno-unificado.md, 2026-10-13):
    * es el detalle de identidad que ya aparece en el login. Opcional: la
-   * mayoría de las pantallas no lleva.
+   * mayoría de las pantallas no lleva. Acepta un nodo y no solo texto
+   * (2026-10-17): el de un reporte lleva su código con cifras tabulares.
    */
-  sobretitulo?: string;
+  sobretitulo?: ReactNode;
   titulo: string;
   descripcion?: ReactNode;
   accion?: ReactNode;

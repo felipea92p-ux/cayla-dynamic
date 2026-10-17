@@ -13,6 +13,8 @@ import { Campo } from "@/components/ui/campo";
 import { Insignia } from "@/components/ui/insignia";
 import { BannerAviso } from "@/components/ui/banner-aviso";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
+import { Rotulo } from "@/components/ui/rotulo";
+import { TarjetaInfo } from "@/components/ui/tarjeta-info";
 import { cx } from "@/components/ui/cx";
 import { SubnavPoliticaSalarial } from "./_subnav";
 import { BloqueVista } from "./_documento-vista";
@@ -196,8 +198,8 @@ function MatrizCategorias({ cats, esDO }: { cats: CategoriaCuadro[]; esDO: boole
       )}
 
       {/* Comparador */}
-      <div className="rounded-superficie border border-sand bg-papel p-4">
-        <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-taupe">Comparar dos categorías</div>
+      <TarjetaInfo>
+        <Rotulo como="div" className="mb-3">Comparar dos categorías</Rotulo>
         <div className="mb-4 flex flex-wrap items-center gap-3">
           <select value={izq} onChange={(e) => setIzq(e.target.value)} className="rounded-control border border-sand bg-hueso px-3 py-2 text-sm text-tinta">
             {cats.map((c) => <option key={c.rango} value={c.rango}>{NOMBRE_RANGO[c.rango] ?? c.rango}</option>)}
@@ -220,7 +222,7 @@ function MatrizCategorias({ cats, esDO }: { cats: CategoriaCuadro[]; esDO: boole
             </div>
           ))}
         </div>
-      </div>
+      </TarjetaInfo>
     </div>
   );
 }
@@ -598,8 +600,7 @@ export default function PoliticaSalarialPage() {
             </footer>
 
             {vigente !== null && vigente.publicada && (
-              <section className="mt-8 rounded-superficie border border-sand bg-papel p-5 print:hidden">
-                <h2 className="mb-2 text-base font-semibold text-tinta">Constancia de haber recibido este documento</h2>
+              <TarjetaInfo como="section" titulo="Constancia de haber recibido este documento" className="mt-8 print:hidden">
                 {vigente.mi_acuse !== null ? (
                   <p className="text-sm text-tinta">
                     Dejaste constancia el {fechaHora(vigente.mi_acuse.acusado_at)} como <strong>{vigente.mi_acuse.nombre}</strong>. No hace falta hacer nada más hasta que se publique una versión nueva.
@@ -615,7 +616,7 @@ export default function PoliticaSalarialPage() {
                     </div>
                   </>
                 )}
-              </section>
+              </TarjetaInfo>
             )}
           </div>
         </div>

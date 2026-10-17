@@ -8,6 +8,8 @@ import { Cargando } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
 import { Campo, CampoSelect } from "@/components/ui/campo";
 import { Insignia } from "@/components/ui/insignia";
+import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
+import { TarjetaInfo } from "@/components/ui/tarjeta-info";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 import {
@@ -429,33 +431,37 @@ function MiEditarContenido() {
 
   return (
     <main className="mx-auto min-h-screen w-full max-w-3xl bg-crema px-5 py-8 text-tinta">
-      <div className="mb-1 flex flex-wrap items-baseline justify-between gap-3">
-        <div>
-          <EnlaceVolver href="/mio" className="text-sm text-taupe hover:text-tinta hover:underline">
-            ← Volver a Info
-          </EnlaceVolver>
-          <h1 className="mt-1 font-serif text-2xl">{yo.nombres} {yo.apellidos}</h1>
-          {yo.sede && <p className="text-xs text-taupe">{yo.sede}</p>}
-        </div>
-        {editando ? (
-          <div className="flex items-center gap-3">
-            <Boton variante="secundario" onClick={cancelarEdicion} disabled={guardando}>
-              Cancelar
+      <EnlaceVolver href="/mio" className="mb-2 inline-block text-sm text-taupe hover:text-tinta hover:underline">
+        ← Volver a Info
+      </EnlaceVolver>
+      <CabeceraPagina
+        titulo={`${yo.nombres} ${yo.apellidos}`}
+        descripcion={
+          <>
+            {yo.sede && <p className="text-xs">{yo.sede}</p>}
+            <p className="mt-1 max-w-lg">
+              Los cambios se piden, no se aplican solos: los revisa {yo.sede ? "tu líder de equipo o " : ""}Desarrollo Organizacional
+              antes de que se apliquen.
+            </p>
+          </>
+        }
+        accion={
+          editando ? (
+            <div className="flex items-center gap-3">
+              <Boton variante="secundario" onClick={cancelarEdicion} disabled={guardando}>
+                Cancelar
+              </Boton>
+              <Boton variante="primario" onClick={() => void guardarCambios()} disabled={guardando || !hayAlgunCambio}>
+                {guardando ? "Guardando…" : "Guardar cambios"}
+              </Boton>
+            </div>
+          ) : (
+            <Boton variante="secundario" tamano="sm" onClick={entrarAEditar}>
+              Editar
             </Boton>
-            <Boton variante="primario" onClick={() => void guardarCambios()} disabled={guardando || !hayAlgunCambio}>
-              {guardando ? "Guardando…" : "Guardar cambios"}
-            </Boton>
-          </div>
-        ) : (
-          <Boton variante="secundario" tamano="sm" onClick={entrarAEditar}>
-            Editar
-          </Boton>
-        )}
-      </div>
-      <p className="mb-5 text-sm text-taupe">
-        Los cambios se piden, no se aplican solos: los revisa {yo.sede ? "tu líder de equipo o " : ""}Desarrollo Organizacional
-        antes de que se apliquen.
-      </p>
+          )
+        }
+      />
 
       {aviso && (
         <p className={`mb-4 rounded-lg px-4 py-3 text-sm ${aviso.tipo === "ok" ? "bg-verde/10 text-verde" : "bg-rojo/10 text-rojo"}`}>
@@ -463,7 +469,7 @@ function MiEditarContenido() {
         </p>
       )}
 
-      <div className="space-y-4 rounded-2xl border border-sand bg-papel p-5">
+      <TarjetaInfo className="space-y-4">
         <section>
           <p className="mb-2 text-[11px] uppercase tracking-wider text-taupe">Identidad</p>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -650,11 +656,10 @@ function MiEditarContenido() {
             {ficha?.discapacidad && campoFijo("N.° de certificado CONADIS", ficha.discapacidad_conadis ?? "—")}
           </div>
         </section>
-      </div>
+      </TarjetaInfo>
 
       {misSolicitudesPerfil.length > 0 && (
-        <section className="mt-5 rounded-2xl border border-sand bg-papel p-5 text-sm">
-          <h2 className="mb-3 font-serif text-lg">Tus pedidos de cambio</h2>
+        <TarjetaInfo como="section" titulo="Tus pedidos de cambio" className="mt-5 text-sm">
           <ul className="space-y-2 text-xs">
             {misSolicitudesPerfil.map((s) => (
               <li key={s.id} className="flex flex-wrap items-baseline justify-between gap-2 border-t border-sand pt-2 first:border-t-0 first:pt-0">
@@ -674,7 +679,7 @@ function MiEditarContenido() {
               </li>
             ))}
           </ul>
-        </section>
+        </TarjetaInfo>
       )}
     </main>
   );

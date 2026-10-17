@@ -8,6 +8,7 @@ import { EnlaceVolver } from "@/components/enlace-volver";
 import { Cargando } from "@/components/cargando";
 import { Marca } from "@/components/marca";
 import { Boton } from "@/components/ui/boton";
+import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
 import { AreaTexto } from "@/components/ui/area-texto";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
@@ -383,11 +384,10 @@ function MiMovilidadContenido() {
       <EnlaceVolver href="/mio" className="mb-4 inline-block text-sm text-taupe hover:text-tinta hover:underline">
         ← Volver a Info
       </EnlaceVolver>
-      <h1 className="mb-1 font-serif text-xl">Declaración de ruta y gasto de transporte</h1>
-      <p className="mb-6 text-sm text-taupe">
-        Es el papel que sostiene que tu movilidad no paga impuestos ni descuentos (D.S. 001-97-TR, art. 19 e).
-        Firmarla acá la reemplaza por completo: no hace falta imprimir, firmar a mano ni escanear nada.
-      </p>
+      <CabeceraPagina
+        titulo="Declaración de ruta y gasto de transporte"
+        descripcion="Es el papel que sostiene que tu movilidad no paga impuestos ni descuentos (D.S. 001-97-TR, art. 19 e). Firmarla acá la reemplaza por completo: no hace falta imprimir, firmar a mano ni escanear nada."
+      />
 
       {declaracion === null ? (
         <p className="rounded-lg bg-sand/40 px-4 py-3 text-sm text-taupe">

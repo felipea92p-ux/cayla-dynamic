@@ -8,6 +8,7 @@ import { EnlaceVolver } from "@/components/enlace-volver";
 import { Cargando } from "@/components/cargando";
 import { PapelBono } from "@/components/papel-bono";
 import { Boton } from "@/components/ui/boton";
+import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { nombreDelMes } from "@/lib/bandeja-mia";
@@ -215,12 +216,16 @@ function MiCumpleanosContenido() {
       <EnlaceVolver href="/mio" className="mb-4 inline-block text-sm text-taupe hover:text-tinta hover:underline">
         ← Volver a Info
       </EnlaceVolver>
-      <h1 className="mb-1 font-serif text-xl">Tu bono de cumpleaños</h1>
-      <p className="mb-6 text-sm text-taupe">
-        Una asignación de {bono?.monto != null ? formatSoles(bono.monto) : "la empresa"} en el mes de tu
-        cumpleaños. Se pide firmando tu constancia aquí —sin imprimir ni escanear nada—{" "}
-        y se suma a tu boleta.
-      </p>
+      <CabeceraPagina
+        titulo="Tu bono de cumpleaños"
+        descripcion={
+          <>
+            Una asignación de {bono?.monto != null ? formatSoles(bono.monto) : "la empresa"} en el mes de tu
+            cumpleaños. Se pide firmando tu constancia aquí —sin imprimir ni escanear nada—{" "}
+            y se suma a tu boleta.
+          </>
+        }
+      />
 
       {aviso && (
         <p className={`mb-4 rounded-lg px-4 py-3 text-sm ${

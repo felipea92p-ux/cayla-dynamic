@@ -21,6 +21,10 @@ import { AreaTexto } from "@/components/ui/area-texto";
 import { Insignia } from "@/components/ui/insignia";
 import { Modal } from "@/components/ui/modal";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
+import { Cifra } from "@/components/ui/cifra";
+import { EstadoVacio } from "@/components/ui/estado-vacio";
+import { Fila, Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
+import { TarjetaInfo } from "@/components/ui/tarjeta-info";
 import { Search, X } from "lucide-react";
 
 // ============================================================================
@@ -899,14 +903,12 @@ function NormasPageContenido() {
               {cargando ? (
                 <Cargando texto="Cargando los documentos…" />
               ) : docs.length === 0 ? (
-                <p className="rounded-superficie border border-sand bg-papel px-4 py-6 text-sm text-taupe">
+                <EstadoVacio>
                   Todavía no hay ningún documento publicado.
                   {puedeGestionar && " Publica el primero con «+ Nueva versión»."}
-                </p>
+                </EstadoVacio>
               ) : docsFiltrados.length === 0 ? (
-                <p className="rounded-superficie border border-sand bg-papel px-4 py-6 text-sm text-taupe">
-                  Ningún documento coincide con la búsqueda o los filtros.
-                </p>
+                <EstadoVacio>Ningún documento coincide con la búsqueda o los filtros.</EstadoVacio>
               ) : (
                 <div className="space-y-8">
                   <GrupoDocumentos titulo="Documentos principales" docs={principales} puedeGestionar={puedeGestionar}
@@ -951,9 +953,7 @@ function NormasPageContenido() {
               {versionesCargando ? (
                 <Cargando texto="Cargando las versiones…" />
               ) : gruposVersiones.length === 0 ? (
-                <p className="rounded-superficie border border-sand bg-papel px-4 py-6 text-sm text-taupe">
-                  Ninguna versión coincide con los filtros.
-                </p>
+                <EstadoVacio>Ninguna versión coincide con los filtros.</EstadoVacio>
               ) : (
                 <div className="space-y-8">
                   {gruposVersiones.map((g) => (
@@ -1042,9 +1042,7 @@ function NormasPageContenido() {
               {historialCargando ? (
                 <Cargando texto="Reuniendo tu historial…" />
               ) : misConstancias.length === 0 ? (
-                <p className="rounded-superficie border border-sand bg-papel px-4 py-6 text-sm text-taupe">
-                  Todavía no has dejado ninguna constancia.
-                </p>
+                <EstadoVacio>Todavía no has dejado ninguna constancia.</EstadoVacio>
               ) : (
                 <div className="divide-y divide-sand rounded-superficie border border-sand bg-papel px-4">
                   {misConstancias.map((m) => (
@@ -1253,12 +1251,7 @@ function BotonTab({ activo, onClick, children }: { activo: boolean; onClick: () 
 
 function TileResumen({ numero, etiqueta, alerta }: { numero: number | null; etiqueta: string; alerta?: boolean }) {
   return (
-    <div className="rounded-superficie border border-sand bg-papel px-4 py-3">
-      <div className={`font-serif text-2xl font-medium tabular-nums ${alerta ? "text-rojo-profundo" : "text-tinta"}`}>
-        {numero === null ? "—" : numero}
-      </div>
-      <div className="mt-0.5 text-xs text-taupe">{etiqueta}</div>
-    </div>
+    <Cifra etiqueta={etiqueta} valor={numero === null ? "—" : numero} tono={alerta ? "alerta" : undefined} />
   );
 }
 
@@ -1285,7 +1278,7 @@ function GrupoDocumentos({
       <TituloGrupo texto={titulo} />
       <div className="space-y-3">
         {docs.map((d) => (
-          <div key={d.documento_id} id={`doc-${d.documento_id}`} className="rounded-superficie border border-sand bg-papel p-4">
+          <TarjetaInfo key={d.documento_id} id={`doc-${d.documento_id}`}>
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <h3 className="font-serif text-lg text-tinta">{d.titulo}</h3>
@@ -1309,7 +1302,7 @@ function GrupoDocumentos({
                 Descargar PDF
               </a>
             </div>
-          </div>
+          </TarjetaInfo>
         ))}
       </div>
     </div>
@@ -1476,9 +1469,7 @@ function ConstanciasTab({
 }) {
   if (docsConAcuse.length === 0) {
     return (
-      <p className="rounded-superficie border border-sand bg-papel px-4 py-6 text-sm text-taupe">
-        Ningún documento pide constancia todavía.
-      </p>
+      <EstadoVacio>Ningún documento pide constancia todavía.</EstadoVacio>
     );
   }
 
@@ -1544,91 +1535,87 @@ function ConstanciasTab({
             <Boton variante="secundario" tamano="sm" onClick={onExportar}>Exportar CSV</Boton>
           </div>
 
-          <div className="overflow-x-auto rounded-superficie border border-sand bg-papel">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-sand bg-sand/40 text-left text-xs text-taupe">
-                  <th className="px-3 py-2 font-normal">Persona</th>
-                  <th className="px-3 py-2 font-normal">Sede</th>
-                  <th className="px-3 py-2 font-normal">Estado</th>
-                  <th className="px-3 py-2 font-normal">Fecha</th>
-                  <th className="px-3 py-2 font-normal" />
-                </tr>
-              </thead>
-              <tbody>
-                {filas.map((f) => (
-                  <Fragment key={f.persona_id}>
-                    <tr className="border-b border-sand odd:bg-hueso/40 align-top">
-                      <td className="px-3 py-2">{f.nombre}{!f.tiene_cuenta && <Insignia atenuada className="ml-2">sin cuenta</Insignia>}</td>
-                      <td className="px-3 py-2 text-taupe">{f.sede}</td>
-                      <td className="px-3 py-2">
-                        {f.acusado_at !== null
-                          ? <Insignia variante="positivo">Constancia registrada</Insignia>
-                          : <Insignia variante="advertencia">Pendiente de constancia</Insignia>}
-                      </td>
-                      <td className="px-3 py-2 text-taupe">
-                        {f.acusado_at ? <>{selloLima(f.acusado_at)} · {f.via === "papel" ? "en papel" : "desde el sistema"}</> : "—"}
-                      </td>
-                      <td className="px-3 py-2 text-right text-xs">
-                        {f.acusado_at === null ? (
-                          <button onClick={() => onRegistrarPapel(f.persona_id, f.nombre)} className="text-rojo-profundo hover:underline">
-                            registrar en papel
-                          </button>
-                        ) : f.via === "papel" && f.storage_path ? (
-                          <button onClick={() => onVerCargo(f.storage_path!)} className="text-rojo-profundo hover:underline">ver cargo</button>
-                        ) : null}
+          <Tabla>
+            <TablaEncabezado>
+              <Th>Persona</Th>
+              <Th>Sede</Th>
+              <Th>Estado</Th>
+              <Th>Fecha</Th>
+              <Th />
+            </TablaEncabezado>
+            <tbody>
+              {filas.map((f) => (
+                <Fragment key={f.persona_id}>
+                  <Fila className="align-top">
+                    <td className="px-4 py-2">{f.nombre}{!f.tiene_cuenta && <Insignia atenuada className="ml-2">sin cuenta</Insignia>}</td>
+                    <td className="px-4 py-2 text-taupe">{f.sede}</td>
+                    <td className="px-4 py-2">
+                      {f.acusado_at !== null
+                        ? <Insignia variante="positivo">Constancia registrada</Insignia>
+                        : <Insignia variante="advertencia">Pendiente de constancia</Insignia>}
+                    </td>
+                    <td className="px-4 py-2 text-taupe">
+                      {f.acusado_at ? <>{selloLima(f.acusado_at)} · {f.via === "papel" ? "en papel" : "desde el sistema"}</> : "—"}
+                    </td>
+                    <td className="px-4 py-2 text-right text-xs">
+                      {f.acusado_at === null ? (
+                        <button onClick={() => onRegistrarPapel(f.persona_id, f.nombre)} className="text-rojo-profundo hover:underline">
+                          registrar en papel
+                        </button>
+                      ) : f.via === "papel" && f.storage_path ? (
+                        <button onClick={() => onVerCargo(f.storage_path!)} className="text-rojo-profundo hover:underline">ver cargo</button>
+                      ) : null}
+                    </td>
+                  </Fila>
+                  {papelPara?.persona === f.persona_id && (
+                    <tr>
+                      <td colSpan={5} className="bg-sand/20 px-3 py-3">
+                        <p className="mb-2 text-xs text-taupe">
+                          Constancia en papel de <strong>{papelPara.nombre}</strong>. Sin el escaneo del cargo firmado
+                          no se registra: aquí la constancia es la prueba.
+                        </p>
+                        {msgPapel && (
+                          <p role="alert" className="mb-2 rounded border border-rojo/30 bg-rojo/10 px-2 py-1.5 text-xs text-rojo">{msgPapel}</p>
+                        )}
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          <label className="flex flex-col gap-1 text-xs">
+                            Cargo firmado
+                            <input ref={refCargo} type="file" accept={TIPOS_CARGO} onChange={(e) => onArchivo(e.target.files?.[0] ?? null)}
+                              className={`rounded-control border bg-hueso px-3 py-2 text-sm file:mr-2 file:rounded file:border-0 file:bg-sand file:px-2 file:py-0.5 file:text-xs ${msgPapel ? "border-rojo" : "border-sand"}`} />
+                            {archivo && (
+                              <span className="text-[11px] text-taupe">{archivo.name} · {(archivo.size / 1048576).toFixed(1)} MB</span>
+                            )}
+                          </label>
+                          <Campo etiqueta="Fecha de recepción" type="date" value={fechaPapel} max={hoyLima()} onChange={(e) => onFechaPapel(e.target.value)} />
+                          <div className="sm:col-span-2">
+                            <Campo etiqueta="Nota (opcional)" value={notaPapel} onChange={(e) => onNotaPapel(e.target.value)}
+                              placeholder="ej. entregado en la tienda, con su líder de equipo presente" />
+                          </div>
+                        </div>
+                        {progreso !== null && (
+                          <div className="mt-2">
+                            <div className="h-1.5 w-full overflow-hidden rounded-pildora bg-sand">
+                              <div className="h-full bg-tinta transition-[width] duration-200" style={{ width: `${progreso}%` }} />
+                            </div>
+                            <span className="text-xs text-taupe">Subiendo — {progreso}%</span>
+                          </div>
+                        )}
+                        <div className="mt-2 flex items-center gap-2">
+                          <Boton variante="primario" tamano="sm" onClick={onGuardarPapel} disabled={ocupadoPapel}>
+                            {progreso !== null ? `Subiendo… ${progreso}%` : "Registrar constancia"}
+                          </Boton>
+                          <Boton variante="secundario" tamano="sm" onClick={onCancelarPapel}>Cancelar</Boton>
+                        </div>
                       </td>
                     </tr>
-                    {papelPara?.persona === f.persona_id && (
-                      <tr>
-                        <td colSpan={5} className="bg-sand/20 px-3 py-3">
-                          <p className="mb-2 text-xs text-taupe">
-                            Constancia en papel de <strong>{papelPara.nombre}</strong>. Sin el escaneo del cargo firmado
-                            no se registra: aquí la constancia es la prueba.
-                          </p>
-                          {msgPapel && (
-                            <p role="alert" className="mb-2 rounded border border-rojo/30 bg-rojo/10 px-2 py-1.5 text-xs text-rojo">{msgPapel}</p>
-                          )}
-                          <div className="grid gap-2 sm:grid-cols-2">
-                            <label className="flex flex-col gap-1 text-xs">
-                              Cargo firmado
-                              <input ref={refCargo} type="file" accept={TIPOS_CARGO} onChange={(e) => onArchivo(e.target.files?.[0] ?? null)}
-                                className={`rounded-control border bg-hueso px-3 py-2 text-sm file:mr-2 file:rounded file:border-0 file:bg-sand file:px-2 file:py-0.5 file:text-xs ${msgPapel ? "border-rojo" : "border-sand"}`} />
-                              {archivo && (
-                                <span className="text-[11px] text-taupe">{archivo.name} · {(archivo.size / 1048576).toFixed(1)} MB</span>
-                              )}
-                            </label>
-                            <Campo etiqueta="Fecha de recepción" type="date" value={fechaPapel} max={hoyLima()} onChange={(e) => onFechaPapel(e.target.value)} />
-                            <div className="sm:col-span-2">
-                              <Campo etiqueta="Nota (opcional)" value={notaPapel} onChange={(e) => onNotaPapel(e.target.value)}
-                                placeholder="ej. entregado en la tienda, con su líder de equipo presente" />
-                            </div>
-                          </div>
-                          {progreso !== null && (
-                            <div className="mt-2">
-                              <div className="h-1.5 w-full overflow-hidden rounded-pildora bg-sand">
-                                <div className="h-full bg-tinta transition-[width] duration-200" style={{ width: `${progreso}%` }} />
-                              </div>
-                              <span className="text-xs text-taupe">Subiendo — {progreso}%</span>
-                            </div>
-                          )}
-                          <div className="mt-2 flex items-center gap-2">
-                            <Boton variante="primario" tamano="sm" onClick={onGuardarPapel} disabled={ocupadoPapel}>
-                              {progreso !== null ? `Subiendo… ${progreso}%` : "Registrar constancia"}
-                            </Boton>
-                            <Boton variante="secundario" tamano="sm" onClick={onCancelarPapel}>Cancelar</Boton>
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </Fragment>
-                ))}
-                {filas.length === 0 && (
-                  <tr><td colSpan={5} className="px-3 py-6 text-center text-taupe">Nadie coincide con la búsqueda o los filtros.</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+                  )}
+                </Fragment>
+              ))}
+              {filas.length === 0 && (
+                <tr><td colSpan={5} className="px-3 py-6 text-center text-taupe">Nadie coincide con la búsqueda o los filtros.</td></tr>
+              )}
+            </tbody>
+          </Tabla>
         </>
       )}
     </div>

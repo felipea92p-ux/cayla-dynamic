@@ -13,6 +13,9 @@ import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 import { useToast } from "@/components/toast";
 import { Boton } from "@/components/ui/boton";
 import { Insignia } from "@/components/ui/insignia";
+import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
+import { Rotulo } from "@/components/ui/rotulo";
+import { TarjetaInfo } from "@/components/ui/tarjeta-info";
 import { Campo, CampoCasilla, CampoSelect } from "@/components/ui/campo";
 import { AreaTexto } from "@/components/ui/area-texto";
 import { Cargando } from "@/components/cargando";
@@ -166,22 +169,24 @@ export default function FichaCaso() {
           <Link href="/admin/casos" className="mb-4 inline-block rounded-control border border-sand px-3 py-1 text-xs text-taupe hover:text-tinta">
             ← Casos
           </Link>
-          <div className="mb-2 flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <p className="etiqueta text-taupe">{etiquetaDeVia(d.via, d.tipo)} · {d.sede_codigo} · <span className="tabular-nums">{d.codigo}</span></p>
-              <h1 className="mt-0.5 font-serif text-2xl">{tituloDeReporte(d.tipo, d.via)}</h1>
-              <p className="mt-1 text-taupe">
+          <CabeceraPagina
+            sobretitulo={<>{etiquetaDeVia(d.via, d.tipo)} · {d.sede_codigo} · <span className="tabular-nums">{d.codigo}</span></>}
+            titulo={tituloDeReporte(d.tipo, d.via)}
+            descripcion={
+              <>
                 De {d.autora ?? "—"} (confidencial)
                 {involucradas.length > 0 && <> · sobre {involucradas.map((p) => p.nombre).join(", ")}</>}
                 {testigos.length > 0 && <> · testigos: {testigos.map((p) => p.nombre).join(", ")}</>}
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {d.urgente && <Insignia variante="alerta">Urgente</Insignia>}
-              <Insignia variante={estado.variante}>{estado.texto}</Insignia>
-              {d.gestiona && <Insignia variante="neutral" punto={false}>Lo lleva {LLEVA[d.gestiona] ?? d.gestiona}</Insignia>}
-            </div>
-          </div>
+              </>
+            }
+            accion={
+              <div className="flex flex-wrap gap-1.5">
+                {d.urgente && <Insignia variante="alerta">Urgente</Insignia>}
+                <Insignia variante={estado.variante}>{estado.texto}</Insignia>
+                {d.gestiona && <Insignia variante="neutral" punto={false}>Lo lleva {LLEVA[d.gestiona] ?? d.gestiona}</Insignia>}
+              </div>
+            }
+          />
           <p className="mb-5 flex items-center gap-2 text-xs text-taupe">
             <Info className="size-4" strokeWidth={1.8} aria-hidden />
             Abrir esta ficha queda registrado (44.13){lecturas > 1 ? ` · se abrió ${lecturas} veces` : ""}. Un reporte no es una falta.
@@ -189,8 +194,8 @@ export default function FichaCaso() {
 
           <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
             <div className="grid gap-4">
-              <section className="rounded-superficie border border-sand bg-papel p-5">
-                <p className="etiqueta mb-1.5 text-taupe">Lo reportado · {fechaLargaLima(d.fecha_hecho + "T12:00:00-05:00")}</p>
+              <TarjetaInfo como="section">
+                <Rotulo className="mb-1.5">Lo reportado · {fechaLargaLima(d.fecha_hecho + "T12:00:00-05:00")}</Rotulo>
                 <p className="whitespace-pre-line">{d.relato}</p>
                 {d.espera && <p className="mt-2 text-xs text-taupe">Espera: <strong className="font-medium text-tinta">{ESPERA[d.espera] ?? d.espera}</strong></p>}
                 {adjuntos.length > 0 && (
@@ -204,16 +209,16 @@ export default function FichaCaso() {
                     ))}
                   </ul>
                 )}
-              </section>
+              </TarjetaInfo>
 
               {d.cierre_texto && (
-                <section className="rounded-superficie border border-sand bg-papel p-5">
-                  <p className="etiqueta mb-1.5 text-taupe">Cierre · {d.cerrado_at ? fechaLargaLima(d.cerrado_at) : ""}</p>
+                <TarjetaInfo como="section">
+                  <Rotulo className="mb-1.5">Cierre · {d.cerrado_at ? fechaLargaLima(d.cerrado_at) : ""}</Rotulo>
                   <p className="whitespace-pre-line border-l-[3px] border-verde pl-3.5">{d.cierre_texto}</p>
                   {d.cierre_resultado && (
                     <p className="mt-2 text-xs text-taupe">Resultado: {RESULTADOS_CIERRE.find((r) => r.valor === d.cierre_resultado)?.texto ?? d.cierre_resultado}</p>
                   )}
-                </section>
+                </TarjetaInfo>
               )}
 
               <Conversacion hilo={hilo} puedeAvisar={acc.avisarFecha}
@@ -233,8 +238,8 @@ export default function FichaCaso() {
             </div>
 
             <aside className="grid gap-3">
-              <section className="rounded-superficie border border-sand bg-papel p-4">
-                <p className="etiqueta mb-2 text-taupe">Plazos del Reglamento</p>
+              <TarjetaInfo como="section">
+                <Rotulo className="mb-2">Plazos del Reglamento</Rotulo>
                 <ul className="grid gap-2">
                   {vivos.map((p) => {
                     const hecho = !!p.cumplido_at;
@@ -258,10 +263,10 @@ export default function FichaCaso() {
                     );
                   })}
                 </ul>
-              </section>
+              </TarjetaInfo>
 
-              <section className="rounded-superficie border border-sand bg-papel p-4">
-                <p className="etiqueta mb-2 text-taupe">Acciones</p>
+              <TarjetaInfo como="section">
+                <Rotulo className="mb-2">Acciones</Rotulo>
                 <div className="flex flex-wrap gap-1.5">
                   {acc.enRevision && <Boton tamano="sm" disabled={ocupada} onClick={() => void hacer("ponerlo en revisión", supabase.rpc("fn_reporte_en_revision", { p_reporte: id }), "En revisión.")}>Poner en revisión</Boton>}
                   {acc.anotar && <Boton tamano="sm" onClick={() => setPanel(panel === "accion" ? null : "accion")}>Registrar acción</Boton>}
@@ -310,11 +315,11 @@ export default function FichaCaso() {
                     boton="Cerrar el caso" ocupada={ocupada}
                     onEnviar={(v, t) => hacer("cerrar el caso", supabase.rpc("fn_reporte_cerrar", { p_reporte: id, p_resultado: v, p_texto: t }), "Caso cerrado.")} />
                 )}
-              </section>
+              </TarjetaInfo>
 
               {medidas.length > 0 && (
-                <section className="rounded-superficie border border-sand bg-papel p-4">
-                  <p className="etiqueta mb-2 text-taupe">Medidas</p>
+                <TarjetaInfo como="section">
+                  <Rotulo className="mb-2">Medidas</Rotulo>
                   <ul className="grid gap-2 text-xs">
                     {medidas.map((m) => (
                       <li key={m.id}>
@@ -323,11 +328,11 @@ export default function FichaCaso() {
                       </li>
                     ))}
                   </ul>
-                </section>
+                </TarjetaInfo>
               )}
 
-              <section className="rounded-superficie border border-sand bg-papel p-4">
-                <p className="etiqueta mb-2 text-taupe">Qué se hizo</p>
+              <TarjetaInfo como="section">
+                <Rotulo className="mb-2">Qué se hizo</Rotulo>
                 <ol className="grid gap-2 text-xs">
                   {eventos.filter((e) => e.tipo !== "lectura").map((e) => (
                     <li key={e.id} className="grid grid-cols-[10px_1fr] gap-2">
@@ -343,7 +348,7 @@ export default function FichaCaso() {
                     </li>
                   ))}
                 </ol>
-              </section>
+              </TarjetaInfo>
             </aside>
           </div>
         </div>
@@ -368,8 +373,7 @@ function Conversacion({ hilo, puedeAvisar, onEnviar, onAdjuntar, ocupada }: {
     return new Date(Date.UTC(a, m - 1, dd + 14)).toISOString().slice(0, 10);
   });
   return (
-    <section className="rounded-superficie border border-sand bg-papel p-5">
-      <h2 className="mb-3 font-serif text-lg">Conversación</h2>
+    <TarjetaInfo como="section" titulo="Conversación">
       <div className="grid gap-3">
         {hilo.length === 0 && <p className="text-taupe">Todavía nadie escribió. La primera respuesta pone el caso en revisión.</p>}
         {hilo.map((m) => (
@@ -412,7 +416,7 @@ function Conversacion({ hilo, puedeAvisar, onEnviar, onAdjuntar, ocupada }: {
           </Boton>
         </div>
       </div>
-    </section>
+    </TarjetaInfo>
   );
 }
 
