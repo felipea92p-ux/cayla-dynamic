@@ -179,15 +179,16 @@ export function puedeGestionarArchivo(rol: RolPosible): boolean {
 }
 
 /**
- * Ver y llevar los seguros del equipo (`/admin/seguros`, migración 0528): hoy
- * la póliza FOLA de los practicantes, con su vigencia, su prima, sus pasos de
- * papeleo y sus PDF. Solo DO: el PDF de cada póliza lleva DNI y fecha de
- * nacimiento del asegurado.
+ * Ver y llevar los seguros del equipo (`/admin/seguros`, migración 0528): en qué
+ * seguro está cada colaborador, las pólizas de los que llevan póliza (FOLA para los
+ * practicantes, y los que DO agregue) con su vigencia, su prima, sus pasos de
+ * papeleo y sus PDF, y los cambios de seguro por cerrar. Solo DO: el PDF de cada
+ * póliza lleva DNI y fecha de nacimiento del asegurado.
  *
  * Se nombra aparte de `puedeGestionarArchivo` porque es otra pregunta: aquello
  * es papel DE LA EMPRESA ante una autoridad, esto es el seguro de CADA PERSONA.
- * La etapa 2 le dará a cada practicante la lectura de SU póliza («Mi seguro»);
- * esa lectura no pasa por acá, que es solo la de quien administra.
+ * La etapa 2 le dará a cada colaborador con póliza la lectura de SU póliza
+ * («Mi seguro»); esa lectura no pasa por acá, que es solo la de quien administra.
  *
  * La base decide de verdad (`fn_es_admin_o_lider()` en cada `fn_seguro_*` y en
  * las políticas del bucket); esto solo decide si se DIBUJA la pantalla.

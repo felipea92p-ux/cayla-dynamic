@@ -264,7 +264,8 @@ function Cuerpo({
           <CampoSelect
             etiqueta="A quién asegura"
             value={f.personaId}
-            disabled={corrigiendo !== null}
+            // Sin seguro elegido no se sabe a quién se puede ofrecer (el principal solo va a quien lo tiene).
+            disabled={corrigiendo !== null || (f.producto === "" && f.personaId === "")}
             onChange={(e) => setF({ ...f, personaId: e.target.value })}
             error={mostrar("personaId")}
           >
