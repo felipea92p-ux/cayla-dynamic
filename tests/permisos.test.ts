@@ -12,7 +12,7 @@ import {
   puedeOperarEquipo, puedeVerTodasLasSedes, puedeExportarPadron,
   puedeVerSaludDeAlertas, puedeExportarAsistencia, puedeAnularDocumentoDisciplinario,
   puedeTramitarDisciplina, recibeAvisoDeConductaRegistrada, recibeAvisoDeLecturaPendiente,
-  puedeVerNovedad, puedeGestionarBoletas, puedeMarcarCuentaDeServicio, puedeGestionarArchivo,
+  puedeVerNovedad, puedeGestionarBoletas, puedeMarcarCuentaDeServicio, puedeGestionarArchivo, puedeGestionarSeguros,
   ROLES, ROLES_CON_PANEL, ROLES_DO, ROLES_EXPORTAN_ASISTENCIA,
 } from "@cayla-dynamic/shared";
 
@@ -112,6 +112,9 @@ describe("la encargada de sede opera a su equipo, pero no ve la plata", () => {
   it("no ve el Archivo de la empresa: la constancia de un banco de datos lleva el DNI del representante (0503)", () => {
     expect(puedeGestionarArchivo("supervisor_sede")).toBe(false);
   });
+  it("no ve los seguros del equipo: el PDF de cada póliza lleva DNI y fecha de nacimiento (0528)", () => {
+    expect(puedeGestionarSeguros("supervisor_sede")).toBe(false);
+  });
   it("no crea sedes, áreas ni feriados — eso cambia el pago de las cuatro sedes", () => {
     expect(puedeGestionarCatalogos("supervisor_sede")).toBe(false);
   });
@@ -130,7 +133,7 @@ describe("la encargada de sede opera a su equipo, pero no ve la plata", () => {
 });
 
 describe("quien solo marca no entra al panel", () => {
-  for (const permiso of [puedeVerPlanilla, puedeVerIdentidad, puedeGestionarCatalogos, puedeOperarEquipo, puedeVerTodasLasSedes, puedeVerSaludDeAlertas, puedeExportarAsistencia, puedeGestionarBoletas, puedeGestionarArchivo]) {
+  for (const permiso of [puedeVerPlanilla, puedeVerIdentidad, puedeGestionarCatalogos, puedeOperarEquipo, puedeVerTodasLasSedes, puedeVerSaludDeAlertas, puedeExportarAsistencia, puedeGestionarBoletas, puedeGestionarArchivo, puedeGestionarSeguros]) {
     it(`integrante: ${permiso.name} = false`, () => {
       expect(permiso("integrante")).toBe(false);
     });
@@ -158,6 +161,9 @@ describe("DO ve todo", () => {
     it(`${rol} custodia el Archivo de la empresa (0503)`, () => {
       expect(puedeGestionarArchivo(rol)).toBe(true);
     });
+    it(`${rol} lleva los seguros del equipo (0528)`, () => {
+      expect(puedeGestionarSeguros(rol)).toBe(true);
+    });
   }
 });
 
@@ -173,6 +179,7 @@ describe("null no pasa como autorizado", () => {
       expect(puedeExportarAsistencia(raro)).toBe(false);
       expect(puedeGestionarBoletas(raro)).toBe(false);
       expect(puedeGestionarArchivo(raro)).toBe(false);
+      expect(puedeGestionarSeguros(raro)).toBe(false);
     });
   }
 });

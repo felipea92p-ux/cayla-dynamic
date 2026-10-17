@@ -179,6 +179,24 @@ export function puedeGestionarArchivo(rol: RolPosible): boolean {
 }
 
 /**
+ * Ver y llevar los seguros del equipo (`/admin/seguros`, migración 0528): hoy
+ * la póliza FOLA de los practicantes, con su vigencia, su prima, sus pasos de
+ * papeleo y sus PDF. Solo DO: el PDF de cada póliza lleva DNI y fecha de
+ * nacimiento del asegurado.
+ *
+ * Se nombra aparte de `puedeGestionarArchivo` porque es otra pregunta: aquello
+ * es papel DE LA EMPRESA ante una autoridad, esto es el seguro de CADA PERSONA.
+ * La etapa 2 le dará a cada practicante la lectura de SU póliza («Mi seguro»);
+ * esa lectura no pasa por acá, que es solo la de quien administra.
+ *
+ * La base decide de verdad (`fn_es_admin_o_lider()` en cada `fn_seguro_*` y en
+ * las políticas del bucket); esto solo decide si se DIBUJA la pantalla.
+ */
+export function puedeGestionarSeguros(rol: RolPosible): boolean {
+  return tiene(DO, rol);
+}
+
+/**
  * A quién le llega una novedad del sistema (`apps/web/lib/novedades.ts`):
  *
  *   todos — cualquiera con cuenta, integrantes incluidas.
