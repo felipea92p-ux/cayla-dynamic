@@ -791,6 +791,18 @@ export const NOVEDADES: readonly Novedad[] = [
     audiencia: "todos",
   },
   {
+    id: "2026-09-27-desempeno-no-acusa-a-quien-esta-trabajando",
+    fecha: "2026-09-27",
+    titulo: "Desempeño ya no marca «por revisar» a quien está en su turno",
+    queMejoro:
+      "Mirado a mediodía, Desempeño contaba como «marcaje sin cerrar» a todas las personas que estaban trabajando, y además les cargaba las horas de hoy como si ya las debieran. " +
+      "Ahora el día de hoy se pinta con un contorno verde («hoy, en su jornada») y entra en las cuentas recién cuando se marca la salida.\n\n" +
+      "Las horas se comparan solo con los días que tenían horario o turno cargado; lo trabajado antes de tener horario se dice aparte, en vez de inflar el total. " +
+      "El recuadro «Turnos sin cargar» pasa a llamarse «Medidas sin turno», ya no incluye lo que ya se justificó y deja de ir en rojo: habla de lo que falta cargar en Turnos, no de las personas. " +
+      "Y el recuadro «Personas» y la nota del pie cuentan con los mismos filtros de sede y área que la tabla.",
+    audiencia: "panel",
+  },
+  {
     id: "2026-09-20-dashboard-feriado-sin-turnos-pregunta",
     fecha: "2026-09-20",
     titulo: "Un feriado sin turnos ya no sale en rojo: el Dashboard pregunta si la sede abre",
