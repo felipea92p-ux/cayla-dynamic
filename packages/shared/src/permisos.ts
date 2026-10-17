@@ -203,6 +203,25 @@ export function puedeGestionarArchivo(rol: RolPosible): boolean {
 }
 
 /**
+ * Ver y llevar los seguros del equipo (`/admin/seguros`, migración 0528): en qué
+ * seguro está cada colaborador, las pólizas de los que llevan póliza (FOLA para los
+ * practicantes, y los que DO agregue) con su vigencia, su prima, sus pasos de
+ * papeleo y sus PDF, y los cambios de seguro por cerrar. Solo DO: el PDF de cada
+ * póliza lleva DNI y fecha de nacimiento del asegurado.
+ *
+ * Se nombra aparte de `puedeGestionarArchivo` porque es otra pregunta: aquello
+ * es papel DE LA EMPRESA ante una autoridad, esto es el seguro de CADA PERSONA.
+ * La etapa 2 le dará a cada colaborador con póliza la lectura de SU póliza
+ * («Mi seguro»); esa lectura no pasa por acá, que es solo la de quien administra.
+ *
+ * La base decide de verdad (`fn_es_admin_o_lider()` en cada `fn_seguro_*` y en
+ * las políticas del bucket); esto solo decide si se DIBUJA la pantalla.
+ */
+export function puedeGestionarSeguros(rol: RolPosible): boolean {
+  return tiene(DO, rol);
+}
+
+/**
  * A quién le llega una novedad del sistema (`apps/web/lib/novedades.ts`):
  *
  *   todos — cualquiera con cuenta, integrantes incluidas.
@@ -381,6 +400,26 @@ export function puedeVerTodasLasSedes(rol: RolPosible): boolean {
  */
 export function puedeExportarPadron(rol: RolPosible): boolean {
   return tiene(SOLO_DIRECCION, rol);
+}
+
+/**
+ * Sacar del sistema, en un archivo, la lista de quiénes están asegurados en un seguro
+ * (`/admin/seguros` → «Lista de asegurados», migración 0528): apellidos y nombres, documento,
+ * fecha de nacimiento y de ingreso, y —si se pide— la remuneración asegurable. Es lo que el
+ * contador y la aseguradora piden para emitir el certificado de cada persona.
+ *
+ * Quien lleva DO y la dirección. Es de Felipe (2026-10-17): se le preguntó si solo la dirección,
+ * como el padrón, o también DO, y eligió que DO también —es quien trata con la aseguradora y con
+ * el contador en el día a día, y la lista es justo lo que ellos piden—. Ver y llevarse un dato
+ * siguen siendo dos permisos distintos (por eso esto existe aparte de `puedeGestionarSeguros`),
+ * pero para ESTA lista hoy tienen la misma respuesta: un CSV con documento y fecha de nacimiento
+ * sale del sistema, y quien lo baja avisa a dónde lo manda (la pantalla se lo recuerda).
+ *
+ * NO abre `puedeExportarPadron`: el padrón completo (cuentas bancarias, direcciones, celulares)
+ * sigue siendo solo de la dirección, y `tests/permisos.test.ts` lo vigila.
+ */
+export function puedeExportarListaDeAsegurados(rol: RolPosible): boolean {
+  return tiene(DO, rol);
 }
 
 /** Solo la dirección. Ver arriba por qué esto no es lo mismo que DO. */

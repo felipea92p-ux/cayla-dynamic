@@ -154,10 +154,13 @@ describe("la lista y las categorías", () => {
     expect(filas.find((p) => p.tipo === "contrato")?.ir?.href).toBe("/admin/contratos?persona=c");
   });
 
-  it("la encargada ve sus seis módulos; DO ve los once", () => {
+  it("la encargada ve sus seis módulos; DO ve los doce", () => {
     // «casos» (Reportes, 0488) entra para las dos: la base decide qué casos ve cada una.
     expect(modulosDeLaBandeja("supervisor_sede")).toEqual(["correcciones", "disciplina", "ausencias", "horarios", "datos_personales", "casos"]);
-    expect(modulosDeLaBandeja("admin")).toHaveLength(11);
+    expect(modulosDeLaBandeja("admin")).toHaveLength(12);
+    // «seguros» (0528) es solo de DO: el PDF de cada póliza lleva DNI.
+    expect(modulosDeLaBandeja("admin")).toContain("seguros");
+    expect(modulosDeLaBandeja("supervisor_sede")).not.toContain("seguros");
     expect(modulosDeLaBandeja("integrante")).toEqual([]);
   });
 });

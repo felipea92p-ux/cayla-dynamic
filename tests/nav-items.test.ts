@@ -62,9 +62,9 @@ describe("la lista no tiene agujeros", () => {
     }
   });
 
-  it("son ocho grupos y treinta y dos pantallas", () => {
+  it("son ocho grupos y treinta y tres pantallas", () => {
     expect(GRUPOS).toHaveLength(8);
-    expect(TODOS).toHaveLength(32);
+    expect(TODOS).toHaveLength(33);
   });
 
   it("solo el primer grupo va sin título — los otros siete se anuncian", () => {
@@ -141,6 +141,11 @@ describe("dónde quedó cada renglón después de reagrupar", () => {
   it("«Archivo» vive en Empresa y solo lo ve DO: guarda papeles con el DNI del representante (0503)", () => {
     expect(grupoDe("/admin/archivo")).toBe("Empresa");
     expect(TODOS.find((i) => i.href === "/admin/archivo")?.roles).toBe(ROLES_DO);
+  });
+
+  it("«Seguros» vive en Personas, junto a los demás papeles por persona, y solo lo ve DO: el PDF lleva DNI (0528)", () => {
+    expect(grupoDe("/admin/seguros")).toBe("Personas");
+    expect(TODOS.find((i) => i.href === "/admin/seguros")?.roles).toBe(ROLES_DO);
   });
 
   it("la cabecera sin título son las tres pantallas de mirar a diario", () => {
