@@ -32,6 +32,13 @@ import { Modal } from "@/components/ui/modal";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { isoADiaMesAnio } from "@/lib/admin/planilla/formato";
 import type { SeguroDePersona, TipoSeguro } from "@/lib/admin/seguros";
+import { AvisoDeError } from "./aviso-de-error";
+
+/**
+ * El valor de «volver a no tener seguro»: es lo que le toca a quien tiene una asignación y cuyo
+ * vínculo no lleva uno (honorarios, sin vínculo laboral). No es la clave de ningún seguro.
+ */
+const NINGUNO = "*ninguno";
 
 export function CambiarSeguro({
   persona, tipos, supabase, hoy, onCerrar, onListo,
@@ -73,14 +80,18 @@ function Cuerpo({
 }) {
   // A qué otro seguro puede pasar: los principales y vivos, menos el que ya tiene.
   const opciones = tipos.filter((t) => t.principal && t.activo && t.clave !== persona.tipo?.clave);
-  const [tipo, setTipo] = useState(opciones.length === 1 ? opciones[0].clave : "");
+  // Adonde vuelve con «volver al automático»: el seguro que le toca por su vínculo, o «ninguno» si
+  // su vínculo no lleva uno. Sin esto, una asignación puesta a alguien de honorarios no se podía terminar.
+  const alAutomatico = persona.asignacion ? (persona.automatico?.clave ?? NINGUNO) : null;
+  const hayOpciones = opciones.length > 0 || alAutomatico === NINGUNO;
+  const [tipo, setTipo] = useState(opciones.length === 1 && alAutomatico !== NINGUNO ? opciones[0].clave : "");
   const [desde, setDesde] = useState(hoy);
   const [motivo, setMotivo] = useState("");
   const [intento, setIntento] = useState(false);
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
 
-  const vuelveAlAutomatico = persona.asignacion !== null && tipo !== "" && tipo === persona.automatico?.clave;
+  const vuelveAlAutomatico = alAutomatico !== null && tipo !== "" && tipo === alAutomatico;
   const errores = {
     tipo: tipo === "" ? "Elige el seguro." : undefined,
     desde: !desde ? "Falta la fecha desde la que rige." : undefined,
@@ -98,8 +109,9 @@ function Cuerpo({
       : await supabase.rpc("fn_seguro_asignar", { p_persona_id: persona.personaId, p_tipo: tipo, p_desde: desde, p_motivo: motivo.trim() });
     setOcupado(false); onOcupado(false);
     if (error) { setMensaje(mensajeDeError(error, "guardar")); return; }
-    const nuevo = opciones.find((t) => t.clave === tipo)?.nombre ?? "el seguro nuevo";
-    onListo(`${persona.persona} pasa a ${nuevo}. Quedaron pendientes la baja del anterior y el alta del nuevo.`);
+    const nuevo = tipo === NINGUNO ? "sin seguro de la empresa" : opciones.find((t) => t.clave === tipo)?.nombre ?? "el seguro nuevo";
+    // No se promete qué pasos quedaron: según de dónde venga y adónde vaya, puede haber baja, alta, las dos o ninguna.
+    onListo(`${persona.persona} pasa a ${nuevo}. Lo que falte por cerrar —la baja del anterior, el alta del nuevo— queda en su ficha y en la Bandeja.`);
   }
 
   return (
@@ -111,13 +123,13 @@ function Cuerpo({
           : persona.tipo ? <> — el que le toca por su vínculo.</> : <> — su vínculo no lleva un seguro de la empresa.</>}
       </p>
 
-      {opciones.length === 0 ? (
+      {!hayOpciones ? (
         <p className="rounded-lg bg-hueso px-3 py-2 text-sm text-taupe">
           No hay otro seguro principal al que pasarla. Si tiene uno que el sistema no conoce, agrégalo desde «Tipos de seguro».
         </p>
       ) : (
         <>
-          {mensaje && <p role="alert" className="mb-3 rounded border border-rojo/30 bg-rojo/10 px-3 py-2 text-sm text-rojo">{mensaje}</p>}
+          {mensaje && <AvisoDeError mensaje={mensaje} />}
           <div className="space-y-3">
             <CampoSelect etiqueta="Pasa a" value={tipo} onChange={(e) => { setTipo(e.target.value); setMensaje(null); }} error={ver("tipo")}>
               <option value="">Elige el seguro</option>
@@ -126,10 +138,11 @@ function Cuerpo({
                   {t.nombre}{t.clave === persona.automatico?.clave ? " — el que le toca por su vínculo" : ""}
                 </option>
               ))}
+              {alAutomatico === NINGUNO && <option value={NINGUNO}>Ninguno — su vínculo no lleva un seguro de la empresa</option>}
             </CampoSelect>
             {vuelveAlAutomatico && (
               <p className="rounded-lg bg-hueso px-3 py-2 text-xs text-taupe">
-                Es el que le toca por su vínculo: no se le asigna, se termina la asignación de DO y vuelve a seguirlo.
+                Es lo que le toca por su vínculo: no se le asigna, se termina la asignación de DO y vuelve a seguirlo.
               </p>
             )}
             <Campo etiqueta="Desde cuándo rige" type="date" value={desde} max={hoy} onChange={(e) => setDesde(e.target.value)} error={ver("desde")} />
@@ -145,15 +158,15 @@ function Cuerpo({
             </label>
           </div>
           <p className="mt-3 text-xs text-taupe">
-            Esto deja dos pendientes: pedir la baja del seguro anterior y dar de alta el nuevo. Dynamic no avisa solo a la
-            aseguradora ni al contador: los cierras tú, aquí, cuando lo hagas.
+            Quedan pendientes, según corresponda, la baja del seguro anterior y el alta del nuevo. Dynamic no avisa solo a
+            la aseguradora ni al contador: los cierras tú, aquí, cuando lo hagas.
           </p>
         </>
       )}
 
       <div className="mt-5 flex justify-end gap-2">
         <Boton onClick={onCerrar} disabled={ocupado}>Cancelar</Boton>
-        {opciones.length > 0 && (
+        {hayOpciones && (
           <Boton variante="primario" onClick={() => void guardar()} cargando={ocupado}>
             {vuelveAlAutomatico ? "Volver al automático" : "Cambiar el seguro"}
           </Boton>

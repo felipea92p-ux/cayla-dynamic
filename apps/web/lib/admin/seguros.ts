@@ -251,6 +251,11 @@ export function pasosDelCambio(c: CambioSeguro): { paso: "baja" | "alta"; texto:
  * hueco ........... su seguro principal lleva póliza y no tiene ninguna que cubra HOY.
  *                   El caso caro: una persona sin ningún seguro (Ley 28518, art. 52.5,
  *                   para los practicantes).
+ * suspendida ...... cubre por fechas, pero la prima lleva más de 30 días sin pagarse y la
+ *                   cobertura se suspendió sola (convenio de pago, cláusula quinta): hoy no
+ *                   cubre aunque la póliza figure vigente. La base no lo sabe —`cubre_hoy` es
+ *                   solo de fechas—; `estadoPrima` sí. Sin esto, la pantalla diría «Cubierto»
+ *                   de alguien que no lo está.
  * por_vencer ...... cubierta hoy, pero se queda sin seguro en `DIAS_AVISO_RENOVACION`
  *                   días o menos y no hay una renovación que empalme.
  * al_dia .......... su seguro principal lleva póliza y está cubierta, con margen.
@@ -260,7 +265,7 @@ export function pasosDelCambio(c: CambioSeguro): { paso: "baja" | "alta"; texto:
  * baja_pendiente .. ya no está activa y conserva una póliza vigente: hay que pedirle la
  *                   baja a la aseguradora.
  */
-export type SituacionSeguro = "hueco" | "por_vencer" | "al_dia" | "por_planilla" | "sin_seguro" | "baja_pendiente";
+export type SituacionSeguro = "hueco" | "suspendida" | "por_vencer" | "al_dia" | "por_planilla" | "sin_seguro" | "baja_pendiente";
 
 export type MotivoHueco = "nunca" | "vencida" | "aun_no_empieza";
 
@@ -326,15 +331,32 @@ function agrupar<T>(xs: readonly T[], clave: (x: T) => string): Map<string, T[]>
   return m;
 }
 
-/** Qué tan arriba va una persona en la lista: lo que pide algo primero, y entre eso lo más serio. */
+/**
+ * Qué tan arriba va una persona en la lista: lo que ya corre un riesgo primero (sin póliza,
+ * cobertura suspendida), después lo que lo correrá pronto, después lo que espera una gestión
+ * sin fecha (cambios, bajas, papeleo). El mismo criterio de la Bandeja: un plazo de días pesa
+ * más que un paso sin plazo.
+ */
 function rangoDeAtencion(p: SeguroDePersona): number {
   if (p.situacion === "hueco") return 0;
-  if (p.cambiosPendientes.length > 0) return 1;
+  if (p.situacion === "suspendida") return 1;
   if (p.situacion === "por_vencer") return 2;
-  if (p.situacion === "baja_pendiente") return 3;
-  if (p.conPapeleo.length > 0) return 4;
-  if (p.situacion === "sin_seguro") return 6;
-  return 5;
+  if (p.cambiosPendientes.length > 0) return 3;
+  if (p.situacion === "baja_pendiente") return 4;
+  if (p.conPapeleo.length > 0) return 5;
+  if (p.situacion === "sin_seguro") return 7;
+  return 6;
+}
+
+/**
+ * Entre dos huecos, el más grave primero —el mismo orden que la Bandeja—: quien nunca tuvo póliza,
+ * después quien lleva más días sin ella, y al final a quien ya le espera una que todavía no empieza.
+ */
+function gravedadDelHueco(p: SeguroDePersona): number {
+  if (p.situacion !== "hueco") return 0;
+  if (p.motivoHueco === "nunca") return -1_000_000;
+  if (p.motivoHueco === "vencida") return -(p.diasDesdeQueVencio ?? 0);
+  return 0;
 }
 
 /**
@@ -381,6 +403,7 @@ export function seguroPorPersona(
     else if (f.tipo === null) situacion = "sin_seguro";
     else if (!f.con_poliza) situacion = "por_planilla";
     else if (f.hueco) situacion = "hueco";
+    else if (cubre && estadoPrima(cubre, hoy).estado === "suspendida") situacion = "suspendida";
     else if (dias !== null && dias <= DIAS_AVISO_RENOVACION) situacion = "por_vencer";
     else situacion = "al_dia";
 
@@ -411,6 +434,7 @@ export function seguroPorPersona(
 
   return personas.sort(
     (a, b) => rangoDeAtencion(a) - rangoDeAtencion(b)
+      || gravedadDelHueco(a) - gravedadDelHueco(b)
       || compararDias(a.diasParaQuedarSinSeguro, b.diasParaQuedarSinSeguro)
       || a.persona.localeCompare(b.persona, "es")
       || a.personaId.localeCompare(b.personaId),
@@ -427,6 +451,7 @@ function compararDias(a: number | null, b: number | null): number {
 
 export interface ResumenSeguros {
   hueco: number;
+  suspendida: number;
   por_vencer: number;
   baja_pendiente: number;
   al_dia: number;
@@ -440,7 +465,7 @@ export interface ResumenSeguros {
 
 /** Los totales de las tarjetas de arriba. Una persona cuenta UNA vez por situación. */
 export function resumenDeSeguros(personas: readonly SeguroDePersona[]): ResumenSeguros {
-  const r: ResumenSeguros = { hueco: 0, por_vencer: 0, baja_pendiente: 0, al_dia: 0, por_planilla: 0, sin_seguro: 0, cambios: 0, papeleo: 0 };
+  const r: ResumenSeguros = { hueco: 0, suspendida: 0, por_vencer: 0, baja_pendiente: 0, al_dia: 0, por_planilla: 0, sin_seguro: 0, cambios: 0, papeleo: 0 };
   for (const p of personas) {
     r[p.situacion] += 1;
     r.cambios += p.cambiosPendientes.length;
@@ -452,6 +477,8 @@ export function resumenDeSeguros(personas: readonly SeguroDePersona[]): ResumenS
 /**
  * Cuánta gente hay en cada tipo, en el orden del catálogo, más «Sin seguro» (no aplica)
  * al final. Los tipos sin nadie salen igual: que el filtro exista aunque hoy esté vacío.
+ * Cuenta a TODAS las filas de la lista, también a quien ya no está activa pero conserva una
+ * póliza: el número del filtro y las filas que deja ver tienen que coincidir.
  */
 export function contarPorTipo(
   personas: readonly SeguroDePersona[],
@@ -459,7 +486,6 @@ export function contarPorTipo(
 ): { clave: string | null; nombre: string; n: number }[] {
   const cuenta = new Map<string | null, number>();
   for (const p of personas) {
-    if (!p.activa) continue;
     cuenta.set(p.tipo?.clave ?? null, (cuenta.get(p.tipo?.clave ?? null) ?? 0) + 1);
   }
   const salida = tipos
@@ -521,7 +547,19 @@ export interface PendienteSeguro {
  * El papeleo solo cuenta para quien está activa o tiene la póliza vigente; una persona que
  * se fue hace meses no vuelve a la Bandeja por una factura vieja.
  */
-export function pendientesDeSeguros(personas: readonly SeguroDePersona[], hoy: string): PendienteSeguro[] {
+export function pendientesDeSeguros(
+  personas: readonly SeguroDePersona[],
+  hoy: string,
+  opciones: {
+    /**
+     * Las pólizas no se pudieron leer (una de las consultas falló): el hueco sigue siendo real
+     * —lo dice `fn_seguros_equipo`—, pero NO se sabe si nunca tuvo póliza o si le venció, y
+     * decirlo sería inventar la razón.
+     */
+    sinDetalleDePolizas?: boolean;
+  } = {},
+): PendienteSeguro[] {
+  const sinDetalle = opciones.sinDetalleDePolizas === true;
   const items: PendienteSeguro[] = [];
   const vacio = { polizaId: null, cambioId: null, detalle: null, motivoHueco: null, dias: null, prima: null, pasos: [] as PasoSeguro[], hasta: null };
 
@@ -536,14 +574,16 @@ export function pendientesDeSeguros(personas: readonly SeguroDePersona[], hoy: s
     if (p.situacion === "hueco") {
       items.push({
         ...vacio, ...base, tipo: "sin_poliza", clave: `sin_poliza:${p.personaId}`,
-        titulo: p.motivoHueco === "nunca" ? `Sin póliza de ${nombre}`
+        titulo: sinDetalle ? `Sin póliza vigente de ${nombre}`
+          : p.motivoHueco === "nunca" ? `Sin póliza de ${nombre}`
           : p.motivoHueco === "aun_no_empieza" ? `Hoy no tiene póliza de ${nombre} que cubra`
           : `Su póliza de ${nombre} venció y no tiene seguro`,
         detalle: [
           cambioDelHueco ? `Cambió el ${diaYMes(cambioDelHueco.fecha)}: ${resumenDelCambio(cambioDelHueco)}` : null,
-          p.empiezaEl ? `La que ya está registrada empieza el ${diaYMes(p.empiezaEl)}` : null,
+          sinDetalle ? "No se pudieron leer sus pólizas: míralas en Seguros"
+            : p.empiezaEl ? `La que ya está registrada empieza el ${diaYMes(p.empiezaEl)}` : null,
         ].filter(Boolean).join(" · ") || null,
-        motivoHueco: p.motivoHueco, dias: p.diasDesdeQueVencio,
+        motivoHueco: sinDetalle ? null : p.motivoHueco, dias: sinDetalle ? null : p.diasDesdeQueVencio,
       });
     } else if (p.situacion === "por_vencer" && p.cubiertoHasta) {
       items.push({
@@ -561,7 +601,9 @@ export function pendientesDeSeguros(personas: readonly SeguroDePersona[], hoy: s
         titulo: z
           ? `Ya no está activa y ${z.cubre_hoy ? `su póliza de ${z.producto_nombre} sigue vigente` : `tiene una póliza de ${z.producto_nombre} por empezar`}`
           : "Ya no está activa y conserva una póliza",
-        detalle: "Pedir la baja a la aseguradora",
+        // La póliza sigue «viva» hasta su `vigente_hasta`: la fila se va cuando termina o cuando DO
+        // corrige esa fecha al día en que la aseguradora la dio de baja.
+        detalle: "Pedir la baja a la aseguradora; cuando la confirme, corregir la fecha en que termina la póliza",
         polizaId: z?.poliza_id ?? null,
       });
     }

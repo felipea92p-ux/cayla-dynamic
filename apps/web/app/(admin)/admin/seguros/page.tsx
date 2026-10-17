@@ -61,9 +61,13 @@ import {
 /** Qué tarjeta de arriba filtra la lista. */
 type Filtro = SituacionSeguro | "papeleo" | "cambios";
 
-/** Los dos valores del filtro por seguro que no son un seguro. */
-const TODOS = "todos";
-const NINGUNO = "ninguno";
+/**
+ * Los dos valores del filtro por seguro que no son un seguro. Llevan «*»: las claves de los
+ * seguros salen del nombre en minúsculas, cifras y guiones bajos (`fn_seguro_tipo_crear`),
+ * así que un seguro que DO llame «Todos» o «Ninguno» no puede chocar con ellos.
+ */
+const TODOS = "*todos";
+const NINGUNO = "*ninguno";
 
 /** Lo que se está marcando: un paso del papeleo de una póliza, o un paso de un cambio de seguro. */
 type PasoAbierto =
@@ -129,8 +133,8 @@ function Seguros() {
 
   const personas = useMemo(() => seguroPorPersona(equipo, polizas, cambios, hoy), [equipo, polizas, cambios, hoy]);
   const resumen = useMemo(() => resumenDeSeguros(personas), [personas]);
+  const personaDelAviso = useMemo(() => (soloPersona ? personas.find((p) => p.personaId === soloPersona) ?? null : null), [personas, soloPersona]);
   const porTipo = useMemo(() => contarPorTipo(personas, tipos), [personas, tipos]);
-  const activas = useMemo(() => personas.filter((p) => p.activa).length, [personas]);
 
   // A quién se le puede registrar una póliza: las personas activas, con su seguro principal de hoy.
   const opciones = useMemo<OpcionPersona[]>(
@@ -140,15 +144,21 @@ function Seguros() {
     [personas],
   );
 
+  // Las tarjetas «Piden la baja» y «Cobertura suspendida» solo existen mientras hay alguien: si se
+  // corrige el último caso con ese filtro puesto, el filtro se suelta solo (sin esto la lista quedaba
+  // vacía, diciendo «nadie coincide», con ninguna tarjeta marcada).
+  const filtroVigente = (filtro === "baja_pendiente" && resumen.baja_pendiente === 0) || (filtro === "suspendida" && resumen.suspendida === 0)
+    ? null : filtro;
+
   const visibles = useMemo(() => personas.filter((p) => {
     if (soloPersona && p.personaId !== soloPersona) return false;
     if (!coincideSeguro(p, busqueda)) return false;
     if (tipoFiltro === NINGUNO ? p.tipo !== null : tipoFiltro !== TODOS && p.tipo?.clave !== tipoFiltro) return false;
-    if (filtro === null) return true;
-    if (filtro === "papeleo") return p.conPapeleo.length > 0;
-    if (filtro === "cambios") return p.cambiosPendientes.length > 0;
-    return p.situacion === filtro;
-  }), [personas, busqueda, filtro, tipoFiltro, soloPersona]);
+    if (filtroVigente === null) return true;
+    if (filtroVigente === "papeleo") return p.conPapeleo.length > 0;
+    if (filtroVigente === "cambios") return p.cambiosPendientes.length > 0;
+    return p.situacion === filtroVigente;
+  }), [personas, busqueda, filtroVigente, tipoFiltro, soloPersona]);
 
   // ── Registrar, renovar y corregir una póliza ──────────────────────────
   const [formAbierto, setFormAbierto] = useState(false);
@@ -248,6 +258,7 @@ function Seguros() {
 
   const fichas: { clave: Filtro; titulo: string; n: number; tono: "alerta" | "advertencia" | "positivo" | "neutral" }[] = [
     { clave: "hueco", titulo: "Sin póliza vigente", n: resumen.hueco, tono: "alerta" },
+    ...(resumen.suspendida > 0 ? [{ clave: "suspendida" as const, titulo: "Cobertura suspendida por mora", n: resumen.suspendida, tono: "alerta" as const }] : []),
     { clave: "por_vencer", titulo: `Se quedan sin póliza en ${DIAS_AVISO_RENOVACION} días o menos`, n: resumen.por_vencer, tono: "advertencia" },
     { clave: "cambios", titulo: "Cambios de seguro por cerrar", n: resumen.cambios, tono: "advertencia" },
     { clave: "papeleo", titulo: "Pólizas con papeleo pendiente", n: resumen.papeleo, tono: "advertencia" },
@@ -295,7 +306,7 @@ function Seguros() {
             <>
               <ul className="mb-5 grid grid-cols-2 gap-3 sm:flex sm:flex-wrap">
                 {fichas.map((f) => {
-                  const activa = filtro === f.clave;
+                  const activa = filtroVigente === f.clave;
                   const color = f.n === 0 ? "text-taupe" : f.tono === "alerta" ? "text-rojo-profundo" : f.tono === "positivo" ? "text-verde" : f.tono === "neutral" ? "text-tinta" : "text-ambar";
                   return (
                     <li key={f.clave} className="min-w-0">
@@ -315,13 +326,17 @@ function Seguros() {
 
               {soloPersona && (
                 <div className="mb-4 flex max-w-3xl flex-wrap items-center gap-3 rounded-lg bg-hueso px-4 py-3 text-sm text-tinta">
-                  <span>Mostrando solo a {personas.find((p) => p.personaId === soloPersona)?.persona ?? "esa persona"}, que es a quien lleva el aviso.</span>
+                  <span>
+                    {personaDelAviso
+                      ? `Mostrando solo a ${personaDelAviso.persona}, que es a quien lleva el aviso.`
+                      : "Esa persona ya no aparece en Seguros: no tiene un seguro ni una póliza vigente que mostrar."}
+                  </span>
                   <Boton variante="enlace" onClick={() => router.replace("/admin/seguros")}>Ver a todos</Boton>
                 </div>
               )}
 
               <div className="mb-3 flex flex-wrap gap-2" role="group" aria-label="Filtrar por seguro">
-                <FiltroBoton activo={tipoFiltro === TODOS} onClick={() => setTipoFiltro(TODOS)}>Todos · {activas}</FiltroBoton>
+                <FiltroBoton activo={tipoFiltro === TODOS} onClick={() => setTipoFiltro(TODOS)}>Todos · {personas.length}</FiltroBoton>
                 {porTipo.map((t) => {
                   const clave = t.clave ?? NINGUNO;
                   return <FiltroBoton key={clave} activo={tipoFiltro === clave} onClick={() => setTipoFiltro(clave)}>{t.nombre} · {t.n}</FiltroBoton>;
@@ -332,7 +347,7 @@ function Seguros() {
                 <Campo etiqueta="Buscar" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Nombre, seguro, número de póliza, aseguradora o sede" />
               </div>
 
-              {visibles.length === 0 && (
+              {visibles.length === 0 && (!soloPersona || personaDelAviso) && (
                 <p className="text-sm text-taupe">Nadie coincide con ese filtro{busqueda ? ` y con «${busqueda}»` : ""}.</p>
               )}
 

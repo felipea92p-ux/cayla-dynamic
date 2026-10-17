@@ -28,6 +28,7 @@ import { Insignia } from "@/components/ui/insignia";
 import { Modal } from "@/components/ui/modal";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { etiquetaVinculo, plural, type TipoSeguro } from "@/lib/admin/seguros";
+import { AvisoDeError } from "./aviso-de-error";
 
 type Vista =
   | { cual: "lista" }
@@ -134,7 +135,7 @@ function Cuerpo({
         exactitud cuáles tienen los demás, y lo decide Desarrollo Organizacional. Un seguro nuevo no le toca a nadie por su
         vínculo; se asigna persona por persona.
       </p>
-      {mensaje && <p role="alert" className="mb-3 rounded border border-rojo/30 bg-rojo/10 px-3 py-2 text-sm text-rojo">{mensaje}</p>}
+      {mensaje && <AvisoDeError mensaje={mensaje} />}
       <ul className="space-y-3">
         {tipos.map((t) => (
           <li key={t.clave} className={`rounded-xl border border-sand px-4 py-3 ${t.activo ? "bg-papel" : "bg-hueso"}`}>
@@ -157,13 +158,13 @@ function Cuerpo({
             </p>
             {t.archivado_motivo && <p className="mt-1 text-xs text-taupe">Archivado: {t.archivado_motivo}</p>}
             <div className="mt-2 flex flex-wrap gap-2">
-              <Boton tamano="sm" onClick={() => { setMensaje(null); setVista({ cual: "editar", t }); }}>Editar</Boton>
+              <Boton tamano="sm" aria-label={`Editar ${t.nombre}`} onClick={() => { setMensaje(null); setVista({ cual: "editar", t }); }}>Editar</Boton>
               {!t.de_sistema && t.activo && (
-                <Boton variante="sutil" tamano="sm" onClick={() => { setMensaje(null); setVista({ cual: "archivar", t }); }}>Archivar</Boton>
+                <Boton variante="sutil" tamano="sm" aria-label={`Archivar ${t.nombre}`} onClick={() => { setMensaje(null); setVista({ cual: "archivar", t }); }}>Archivar</Boton>
               )}
               {!t.de_sistema && !t.activo && (
                 <Boton
-                  variante="sutil" tamano="sm" disabled={ocupado}
+                  variante="sutil" tamano="sm" disabled={ocupado} aria-label={`Volver a activar ${t.nombre}`}
                   onClick={() => void escribir(
                     () => supabase.rpc("fn_seguro_tipo_activar", { p_clave: t.clave, p_activo: true, p_motivo: null }),
                     `Seguro «${t.nombre}» activo otra vez.`,
@@ -232,6 +233,9 @@ function FormularioTipo({
     nombre: nombre.trim().length < 2 ? "Escribe cómo se llama el seguro (al menos 2 letras)." : nombre.trim().length > 80 ? "Máximo 80 letras." : undefined,
     descripcion: descripcion.length > 500 ? "Máximo 500 letras." : undefined,
     uso: !tipo && uso === "" ? "Elige cómo se usa este seguro." : undefined,
+    // Vacío vale (el sistema arma el texto con el nombre); escrito, entre 3 y 200 letras como en la base.
+    textoAlta: textoAlta.trim() !== "" && (textoAlta.trim().length < 3 || textoAlta.trim().length > 200) ? "Entre 3 y 200 letras, o déjalo vacío." : undefined,
+    textoBaja: textoBaja.trim() !== "" && (textoBaja.trim().length < 3 || textoBaja.trim().length > 200) ? "Entre 3 y 200 letras, o déjalo vacío." : undefined,
   };
   const ver = <K extends keyof typeof errores>(k: K) => (intento ? errores[k] : undefined);
 
@@ -255,7 +259,7 @@ function FormularioTipo({
           ? "Cambia cómo se llama o lo que dicen sus avisos. Si es principal, si lleva póliza y a quién le toca no se cambian: cambiaría lo que significa cada fila que ya existe."
           : "Agrega un seguro que el sistema no conocía."}
       </p>
-      {mensaje && <p role="alert" className="mb-3 rounded border border-rojo/30 bg-rojo/10 px-3 py-2 text-sm text-rojo">{mensaje}</p>}
+      {mensaje && <AvisoDeError mensaje={mensaje} />}
       <div className="space-y-3">
         <div>
           <Campo
@@ -274,7 +278,7 @@ function FormularioTipo({
           <fieldset className="space-y-2">
             <legend className="mb-1 text-sm text-taupe">Cómo se usa</legend>
             <Opcion valor="principal_con_poliza" actual={uso} onElegir={setUso} titulo="Es el seguro principal de la persona y lleva póliza">
-              Uno a la vez, como FOLA. Se asigna persona por persona; sin una póliza que cubra hoy, aparece como «sin seguro».
+              Uno a la vez, como FOLA. Se asigna persona por persona; sin una póliza que cubra hoy, aparece como «sin póliza vigente».
             </Opcion>
             <Opcion valor="principal_sin_poliza" actual={uso} onElegir={setUso} titulo="Es el seguro principal y se paga con la planilla (sin póliza)">
               Como EsSalud: Dynamic solo lo muestra y deja pendientes la baja y el alta; no hay póliza que registrar.
@@ -290,8 +294,8 @@ function FormularioTipo({
           <p className="mb-1 text-sm text-tinta">Qué dicen los avisos cuando alguien cambia de seguro (opcional)</p>
           <p className="mb-3 text-xs text-taupe">Si los dejas vacíos, el sistema escribe uno con el nombre del seguro.</p>
           <div className="grid grid-cols-1 gap-3">
-            <Campo etiqueta="Al darle de alta" value={textoAlta} onChange={(e) => setTextoAlta(e.target.value)} placeholder="ej. Registrar su póliza y avisarle al corredor" />
-            <Campo etiqueta="Al darle de baja" value={textoBaja} onChange={(e) => setTextoBaja(e.target.value)} placeholder="ej. Pedirle a la aseguradora la baja de su póliza" />
+            <Campo etiqueta="Al darle de alta" value={textoAlta} onChange={(e) => setTextoAlta(e.target.value)} placeholder="ej. Registrar su póliza y avisarle al corredor" error={ver("textoAlta")} />
+            <Campo etiqueta="Al darle de baja" value={textoBaja} onChange={(e) => setTextoBaja(e.target.value)} placeholder="ej. Pedirle a la aseguradora la baja de su póliza" error={ver("textoBaja")} />
           </div>
         </div>
       </div>
@@ -324,7 +328,7 @@ function Archivar({
         asignaciones y sus cambios siguen en el historial. Si todavía hay pólizas vigentes o gente asignada a este seguro,
         la base no deja archivarlo.
       </p>
-      {mensaje && <p role="alert" className="mb-3 rounded border border-rojo/30 bg-rojo/10 px-3 py-2 text-sm text-rojo">{mensaje}</p>}
+      {mensaje && <AvisoDeError mensaje={mensaje} />}
       <label className="flex flex-col gap-1">
         <span className="text-sm text-taupe">Por qué se archiva</span>
         <AreaTexto value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="ej. La empresa dejó de ofrecerlo" className={error ? "border-rojo" : undefined} />

@@ -36,6 +36,7 @@ import { Campo, CampoSelect } from "@/components/ui/campo";
 import { Modal } from "@/components/ui/modal";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { sumarMeses, type Poliza, type TipoSeguro } from "@/lib/admin/seguros";
+import { AvisoDeError } from "./aviso-de-error";
 
 /** A quién se le puede registrar una póliza: una persona activa y su seguro principal de hoy. */
 export interface OpcionPersona { id: string; nombre: string; sede: string; tipoPrincipal: string | null }
@@ -44,6 +45,8 @@ export interface OpcionPersona { id: string; nombre: string; sede: string; tipoP
 export interface BaseDePoliza {
   personaId?: string;
   producto?: string;
+  /** «Registrar otro seguro»: ofrece solo los que van ADEMÁS del principal (el principal de la persona ya tiene su botón). */
+  soloAdemas?: boolean;
   aseguradora?: string;
   numeroPoliza?: string;
   desde?: string;
@@ -69,9 +72,9 @@ interface Form {
 
 const ASEGURADORA_POR_DEFECTO = "Pacífico Seguros";
 
-/** Los seguros a los que se les puede registrar una póliza hoy. */
-function conPoliza(tipos: TipoSeguro[]): TipoSeguro[] {
-  return tipos.filter((t) => t.activo && t.con_poliza);
+/** Los seguros a los que se les puede registrar una póliza hoy (con `soloAdemas`, solo los que van además del principal). */
+function conPoliza(tipos: TipoSeguro[], soloAdemas = false): TipoSeguro[] {
+  return tipos.filter((t) => t.activo && t.con_poliza && (!soloAdemas || !t.principal));
 }
 
 /** A quién se le ofrece una póliza de este seguro: si es el principal, a quien lo tiene; si va además, a todos. */
@@ -94,7 +97,7 @@ function formInicial(corrigiendo: Poliza | null, base: BaseDePoliza | null, tipo
       nota: corrigiendo.nota ?? "", motivo: "",
     };
   }
-  const ofrecidos = conPoliza(tipos);
+  const ofrecidos = conPoliza(tipos, base?.soloAdemas);
   // El seguro: el que dice quien abre; si no, el único que hay; si no, el principal de la persona (si lleva póliza).
   const delPersona = base?.personaId ? personas.find((p) => p.id === base.personaId)?.tipoPrincipal ?? null : null;
   const producto = base?.producto
@@ -154,23 +157,32 @@ export function FormularioPoliza({
   /** Recibe el id de la póliza, si es nueva y cómo nombrarla («Ana Prueba · FOLA · póliza 24043267»), para abrir sus archivos. */
   onGuardado: (polizaId: string, nueva: boolean, titulo: string) => void;
 }) {
+  // Mientras guarda, ni Esc ni un clic en el velo cierran el diálogo: si la base contestara un
+  // error con el formulario ya desmontado, no quedaría ni el aviso ni lo escrito.
+  const [guardando, setGuardando] = useState(false);
   return (
     <Modal
       abierto={abierto}
-      onCerrar={onCerrar}
-      titulo={corrigiendo ? "Corregir una póliza" : base?.desde ? "Registrar una renovación" : "Registrar una póliza"}
+      onCerrar={() => { if (!guardando) onCerrar(); }}
+      bloqueado={guardando}
+      titulo={corrigiendo ? "Corregir una póliza" : base?.soloAdemas ? "Registrar otro seguro" : base?.desde ? "Registrar una renovación" : "Registrar una póliza"}
       ancho="lg"
     >
       {/* Se monta de nuevo cada vez que se abre: así el formulario nace con los
           valores de ESA póliza o de ESA persona, sin un efecto que los copie. */}
-      {abierto && <Cuerpo onCerrar={onCerrar} supabase={supabase} tipos={tipos} personas={personas} corrigiendo={corrigiendo} base={base} onGuardado={onGuardado} />}
+      {abierto && (
+        <Cuerpo
+          onCerrar={onCerrar} supabase={supabase} tipos={tipos} personas={personas}
+          corrigiendo={corrigiendo} base={base} onGuardado={onGuardado} onGuardando={setGuardando}
+        />
+      )}
     </Modal>
   );
 }
 
 function Cuerpo({
-  onCerrar, supabase, tipos, personas, corrigiendo, base, onGuardado,
-}: Omit<Parameters<typeof FormularioPoliza>[0], "abierto">) {
+  onCerrar, supabase, tipos, personas, corrigiendo, base, onGuardado, onGuardando,
+}: Omit<Parameters<typeof FormularioPoliza>[0], "abierto"> & { onGuardando: (guardando: boolean) => void }) {
   const [f, setF] = useState<Form>(() => formInicial(corrigiendo, base, tipos, personas));
   // «Hasta» sigue a «Desde» mientras nadie lo toque.
   const [hastaTocado, setHastaTocado] = useState(corrigiendo !== null);
@@ -183,7 +195,7 @@ function Cuerpo({
     ? Math.round((Date.parse(f.hasta) - Date.parse(f.desde)) / 86_400_000)
     : null;
 
-  const ofrecidos = conPoliza(tipos);
+  const ofrecidos = conPoliza(tipos, base?.soloAdemas);
   const tipo = tipos.find((t) => t.clave === f.producto);
   const candidatas = f.producto ? personasDe(f.producto, tipos, personas) : personas;
   // Al corregir, la persona no cambia —aunque ya no esté activa—: su única opción es la de la póliza.
@@ -211,7 +223,7 @@ function Cuerpo({
   async function guardar() {
     setIntento(true); setMensaje(null);
     if (Object.keys(errores).length > 0) return;
-    setGuardando(true);
+    setGuardando(true); onGuardando(true);
     const comunes = {
       p_aseguradora: f.aseguradora.trim(), p_numero_poliza: f.numero.trim(),
       p_vigente_desde: f.desde, p_vigente_hasta: f.hasta, p_prima_total: numero(f.prima)!,
@@ -221,13 +233,13 @@ function Cuerpo({
     };
     if (corrigiendo) {
       const { error } = await supabase.rpc("fn_seguro_corregir", { p_id: corrigiendo.poliza_id, ...comunes, p_motivo: f.motivo.trim() });
-      setGuardando(false);
+      setGuardando(false); onGuardando(false);
       if (error) { setMensaje(mensajeDeError(error, "guardar")); return; }
       onGuardado(corrigiendo.poliza_id, false, nombrarPoliza());
       return;
     }
     const { data, error } = await supabase.rpc("fn_seguro_registrar", { p_persona_id: f.personaId, p_producto: f.producto, ...comunes });
-    setGuardando(false);
+    setGuardando(false); onGuardando(false);
     if (error || typeof data !== "string") { setMensaje(mensajeDeError(error, "guardar")); return; }
     onGuardado(data, true, nombrarPoliza());
   }
@@ -241,9 +253,7 @@ function Cuerpo({
           Corregir cambia los datos de esta póliza, no la reemplaza: el historial guarda qué decía antes cada campo y por qué lo cambiaste.
         </p>
       )}
-      {mensaje && (
-        <p role="alert" className="mb-3 rounded border border-rojo/30 bg-rojo/10 px-3 py-2 text-sm text-rojo">{mensaje}</p>
-      )}
+      {mensaje && <AvisoDeError mensaje={mensaje} />}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
           <CampoSelect

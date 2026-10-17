@@ -187,6 +187,7 @@ describe("la urgencia de cada cosa", () => {
     const textos = [
       urgenciaSeguroSinPoliza("nunca", null).plazo, urgenciaSeguroSinPoliza("vencida", 0).plazo,
       urgenciaSeguroSinPoliza("vencida", 100).plazo, urgenciaSeguroSinPoliza("aun_no_empieza", null).plazo,
+      urgenciaSeguroSinPoliza("nunca", null).plazo, urgenciaSeguroSinPoliza(null, null).plazo,
       urgenciaSeguroPorVencer(45, "2026-12-01").plazo, urgenciaSeguroPorVencer(0, "2026-12-01").plazo,
       urgenciaSeguroPapeleo({ estado: "en_mora", dias: -29, venceEl: null }, ["pagada"]).plazo,
       urgenciaSeguroPapeleo({ estado: "suspendida", dias: -90, venceEl: null }, ["pagada"]).plazo,
@@ -204,6 +205,11 @@ describe("la urgencia de cada cosa", () => {
     expect([nunca, semana, ayer].every((u) => u.grupo === "vencido")).toBe(true);
     expect(nunca.orden).toBeLessThan(semana.orden);
     expect(semana.orden).toBeLessThan(ayer.orden);
+  });
+
+  it("si no se leyeron las pólizas, la fila lo dice en vez de afirmar que «nunca tuvo una registrada»", () => {
+    expect(urgenciaSeguroSinPoliza(null, null)).toMatchObject({ grupo: "vencido", plazo: "Sin póliza vigente", nota: "no se leyeron sus pólizas" });
+    expect(urgenciaSeguroSinPoliza("nunca", null)).toMatchObject({ plazo: "Sin póliza", nota: "nunca tuvo una registrada" });
   });
 
   it("la póliza que ya está registrada pero todavía no empieza sigue siendo «sin seguro hoy»", () => {
@@ -306,6 +312,18 @@ describe("de dónde se traen los seguros", () => {
     expect(avisos).toEqual(["las pólizas de seguro"]);
     expect(f.seguros.equipo).toEqual(equipo);
     expect(f.seguros.polizas).toEqual([]);
+  });
+
+  it("y el hueco real de quien no se pudo mirar la lista de pólizas sale SIN inventar la razón", async () => {
+    const equipo = [sinCobertura()];
+    const { supabase } = cliente({
+      fn_seguros_equipo: { data: equipo }, fn_seguros_tablero: { data: null, error: { message: "boom" } },
+    });
+    const f = await traerFuentesBandeja(supabase, "admin", () => {}, HOY);
+    const [p] = armarPendientes(f, { hoy: HOY });
+    expect(p).toMatchObject({ tipo: "seguro_sin_poliza", titulo: "Sin póliza vigente de FOLA" });
+    expect(p.urgencia).toMatchObject({ grupo: "vencido", plazo: "Sin póliza vigente" });
+    expect(p.detalle).toContain("No se pudieron leer sus pólizas");
   });
 
   it("una consulta que falla nunca inventa un hueco: sin pólizas, quien está al día no se vuelve «sin póliza»", () => {
