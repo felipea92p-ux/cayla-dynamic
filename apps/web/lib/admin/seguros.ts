@@ -159,6 +159,11 @@ export function etiquetaTipoArchivo(t: string): string {
   return TIPOS_ARCHIVO_SEGURO.find((x) => x.valor === t)?.etiqueta ?? t;
 }
 
+/** «1 día», «3 días». */
+export function plural(n: number, uno: string, varios: string): string {
+  return `${n} ${n === 1 ? uno : varios}`;
+}
+
 /** «Practicantes», «Planilla»… tal como los llama el resto del sistema; un vínculo desconocido se escribe tal cual. */
 export function etiquetaVinculo(v: string | null | undefined): string {
   if (!v) return "—";
