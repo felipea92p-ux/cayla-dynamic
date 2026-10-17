@@ -72,7 +72,7 @@ compartido puede tocarlo. `.etiqueta` sigue existiendo como clase para el sobret
   (ver «Fuera de la decisión»): se vuelve a abrir la #1 en vez de agregarle un tamaño a `Cifra`.
 - El punto de color se usa solo, sin que la etiqueta diga lo mismo con palabras.
 - Alguien agrega una tarjeta, cifra o filtro escrito a mano porque el componente «casi sirve»: el
-  componente se corrige, no se copia (el freno en el push está pendiente, PR aparte).
+  componente se corrige, no se copia (el freno en el push lo vigila desde el 2026-10-17).
 
 ## Excepciones escritas (decididas el 2026-10-13)
 
@@ -94,9 +94,28 @@ compartido puede tocarlo. `.etiqueta` sigue existiendo como clase para el sobret
   el contraste sobre cada relleno antes de tocarlos; no entraron en el piloto.
 - **Incidencias** (franja segmentada con número de 36 px): pasa a `Cifra` con la migración de esa
   pantalla; se anota aquí porque es el cambio visual más grande de la familia.
-- Un segundo barrido de familias que el primer inventario pudo no ver (pestañas, avisos
-  emergentes, estados de carga, cajones) antes de poner el freno en el push: un freno sobre un
-  inventario incompleto bloquea lo equivocado.
+- **Pestañas: ¿`Filtro` o una pieza propia?** Sin decidir, y sin freno mientras tanto. La decisión
+  10 las unió con los filtros, pero de las cinco `tablist` del panel cuatro son pestañas
+  *subrayadas* (Ausencias, Disciplina, Personas, Planilla) y solo una es un segmentado
+  (Provisiones): `Filtro` —esquina de botón, activo en tinta— no es el destino de las cuatro. Hay
+  que elegir entre darle a `Filtro` una segunda cara o construir `Pestanas`; mientras no se elija,
+  el freno no puede mandar a nadie a ningún lado.
+
+### El segundo barrido (hecho el 2026-10-17, antes de poner el freno)
+
+Se buscaron las cuatro familias que el primer inventario pudo no ver. El resultado, y qué decidió
+sobre el freno (`scripts/hooks/receta-suelta.sh`):
+
+| Familia | Qué había | Freno |
+|---|---|---|
+| Estados de carga | `components/cargando.tsx` (desde el 27-jul; fuera de `ui`, por eso el ADR no lo vio): 36 usos de `<Cargando />` contra 20 «Cargando…» a mano, 5 dentro de un `Suspense` | **Entra** |
+| Cajones | `Drawer` y `HojaInferior` existen; a mano, uno por la derecha (Horas) y dos del menú por la izquierda | **Entra** el de la derecha; el del menú es otra cosa |
+| Avisos emergentes | `useToast()` ya es el único; ningún aviso `fixed bottom-` suelto fuera de él | No entra: sin deuda. Lo que antes eran banners de resultado cae en `BannerAviso` |
+| Pestañas | 4 subrayadas y 1 segmentado; sin pieza destino | **No entra** hasta decidirlo (arriba) |
+| Esqueletos de carga | Cero `animate-pulse` en el panel | No entra: sin deuda |
+
+Fuera del alcance de este freno, a propósito: `Insignia` y `Modal` (anteriores al ADR) y la escala
+de radios (`rounded-lg`/`rounded-xl`).
 
 ## Orden de trabajo
 
@@ -107,6 +126,11 @@ compartido puede tocarlo. `.etiqueta` sigue existiendo como clase para el sobret
    grupos «Críticas» y «Avisos» del panel de atención.
 2. **Freno en el push** (PR aparte, justo después): que un push no pueda agregar la receta suelta
    de tarjeta, cifra o filtro. Solo mira lo que el push agrega, como `reglas-de-la-casa`.
+   **Hecho el 2026-10-17:** `scripts/hooks/receta-suelta.sh`, enganchado en `pre-push`, con su
+   prueba (`probar-receta-suelta.sh`) y explicado en «La red de seguridad» del `CLAUDE.md`. Cubre
+   nueve familias —las tres de arriba más aviso, rótulo, título, fila/encabezado de tabla, estado
+   de carga y cajón— y trae una salida con motivo (`receta-propia:`) para la caja que de verdad no
+   es ninguna pieza. «El componente casi sirve» no es esa salida: es corregir el componente.
 3. **Migración por pantalla**, las más vistas primero, un PR cada una. Horarios (#456) y Turnos
    (#455) tienen PR abiertos: se migran cuando se fusionen.
 

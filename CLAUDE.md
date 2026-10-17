@@ -885,6 +885,69 @@ existente. Mismo criterio en lo demás: solo los archivos que el push toca
 —hoy no queda ninguno con este defecto, así que no hay deuda vieja que
 pagar—, y bloquea, no avisa.
 
+**Y desde el 2026-10-17, que un push no pueda volver a escribir a mano una pieza
+que ya tiene componente** (`scripts/hooks/receta-suelta.sh`, paso 2 del
+[ADR 0004](docs/adr/0004-diseno-unificado.md)). El ADR decidió una sola forma
+para cada pieza del panel y la puso en `apps/web/components/ui`; cuatro días
+después ya había siete archivos nuevos con la tarjeta escrita a mano
+(`components/educacion/*`, `components/boletas/hoja-constancia-boleta.tsx`).
+Nadie lo hizo mal a propósito: la pantalla de al lado trae la receta vieja y
+copiarla cuesta menos. Es la historia de `rol === "admin"` otra vez.
+
+Busca nueve recetas y bloquea cuando el push **suma** una: tarjeta
+(`rounded-superficie border border-sand bg-papel` → `<TarjetaInfo>`, `<EstadoVacio>`
+o `<Tabla>`), cifra (→ `<Cifra>`), filtro (`<button aria-pressed>`, o un botón que
+se enciende con `bg-tinta text-crema` → `<Filtro>`), aviso (borde y fondo del
+mismo color → `<BannerAviso>`), la clase `etiqueta` (→ `<Rotulo>` y compañía),
+`<h1>` de pantalla (→ `<CabeceraPagina>`), encabezado/fila de tabla (→
+`<TablaEncabezado>`, `<Fila>`), «Cargando…» como texto (→ `<Cargando />`) y el
+cajón por la derecha (→ `<Drawer>`). Exentos: `components/ui`, el terminal, y los
+papeles que se imprimen (una clase `print:` exime la tarjeta y el aviso; la clase
+`hoja` en el archivo exime cifra, rótulo y tabla). Al 2026-10-17 quedaban **270 recetas en 82
+archivos**: `RECETA_TODO=1 RECETA_RESUMEN=1 python3 scripts/hooks/receta-suelta.py`
+las recuenta sin frenar nada.
+
+Cuatro cosas que conviene saber antes de que frene tu push:
+
+- **Solo cuenta lo que se SUMA.** Se compara por *hunk*: si una línea que ya tenía
+  la receta solo cambió (un hotfix que toca el `className` de una tarjeta vieja),
+  no cuenta. Quitar tarjetas viejas, migrar una pantalla o renombrar un archivo
+  tampoco. Lo que sí: un archivo nuevo, una receta donde no había, y mover una
+  tarjeta de un archivo a otro (cuenta como nueva).
+- **La salida legítima no es `--no-verify`.** Una caja que de verdad no es la
+  pieza —un `<details>`, un acordeón— se declara en esa línea o en una de las dos
+  de arriba: `{/* receta-propia: es un <details> y TarjetaInfo no puede serlo */}`.
+  El motivo es obligatorio y se busca con grep. No sirve para «el componente casi
+  sirve»: eso se arregla en el componente, que es el punto del ADR.
+- **No ve todo.** Una receta partida en dos cadenas de un `cx()`, un borde
+  condicional o un `<Link>` con forma de tarjeta se le escapan. Es un escáner de
+  cadenas y etiquetas, no un compilador, y está dicho en su cabecera.
+- **Sin Python 3 avisa y deja pasar**, como `lint-de-lo-nuevo.sh`.
+
+**Qué familias entran y cuáles no** salió de un segundo barrido (2026-10-17) que
+el ADR pedía antes de poner el freno —«un freno sobre un inventario incompleto
+bloquea lo equivocado»—. *Entran* los estados de carga (`components/cargando.tsx`
+existe desde el 27-jul y no está en `ui`, así que el ADR no lo vio: 36 usos del
+componente contra 20 «Cargando…» a mano) y el cajón derecho. *No entran* los
+avisos emergentes (`useToast()` ya es el único: ningún aviso `fixed bottom-` suelto fuera de él) ni
+los esqueletos (cero `animate-pulse`). Y las **pestañas no entran por una razón
+que es una decisión abierta, no un descuido**: el ADR las unió a los filtros, pero
+cuatro de las cinco `tablist` del panel son pestañas *subrayadas* (la quinta es un
+segmentado) y `<Filtro>` no es el destino de las cuatro; bloquear sin destino es bloquear lo equivocado. Queda en el
+ADR como pendiente. Tampoco `<Insignia>` ni `<Modal>` (anteriores al ADR) ni la
+escala de radios (`rounded-lg`/`rounded-xl` es otra regla).
+
+Medido contra la historia antes de entregarlo (cada merge simulado como un push):
+de los últimos 30 merges habrían frenado **6** (los 4 del rediseño de Educación,
+las modales de Boletas y el rótulo del saludo de cumpleaños, todos sumando recetas
+de verdad); de los últimos 30 commits sueltos, **1**; de los últimos 150 merges
+(15-sep → 17-oct), **36**, y de 175 hallazgos solo 9 eran código movido de sitio.
+La migración de cinco secciones (#552, que quitó 71 recetas) pasa. Su prueba es
+`scripts/hooks/probar-receta-suelta.sh`: 36 casos —18 que **deben bloquear**,
+11 que deben pasar, 5 de hunk y 2 de entorno— con cada intérprete (177
+comprobaciones). Y se confirmó rompiendo el hook a propósito de ocho maneras
+distintas: la prueba se puso en rojo las ocho veces.
+
 **Y hay una cosa que ese hook arregla solo, en vez de pedírtela.** La consulta
 `scripts/sql-manual/que_falta_pegar.sql` lleva dentro la lista de migraciones del
 repo, así que cada migración nueva la deja corta. Si la encuentra vieja, **la
