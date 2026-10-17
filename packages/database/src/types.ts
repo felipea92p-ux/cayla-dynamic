@@ -4487,6 +4487,257 @@ export type Database = {
           },
         ]
       }
+      polizas_seguro: {
+        Row: {
+          anulada_at: string | null
+          anulada_motivo: string | null
+          anulada_por: string | null
+          aseguradora: string
+          beneficio_accidente: number | null
+          beneficio_enfermedad: number | null
+          creada_at: string
+          creada_por: string
+          factura_recibida_el: string | null
+          firmada_el: string | null
+          id: string
+          nota: string | null
+          numero_poliza: string
+          pagada_el: string | null
+          persona_id: string
+          plan: string | null
+          prima_total: number
+          prima_vence_el: string | null
+          producto: string
+          renueva_sola: boolean | null
+          vigente_desde: string
+          vigente_hasta: string
+        }
+        Insert: {
+          anulada_at?: string | null
+          anulada_motivo?: string | null
+          anulada_por?: string | null
+          aseguradora: string
+          beneficio_accidente?: number | null
+          beneficio_enfermedad?: number | null
+          creada_at?: string
+          creada_por: string
+          factura_recibida_el?: string | null
+          firmada_el?: string | null
+          id?: string
+          nota?: string | null
+          numero_poliza: string
+          pagada_el?: string | null
+          persona_id: string
+          plan?: string | null
+          prima_total: number
+          prima_vence_el?: string | null
+          producto?: string
+          renueva_sola?: boolean | null
+          vigente_desde: string
+          vigente_hasta: string
+        }
+        Update: {
+          anulada_at?: string | null
+          anulada_motivo?: string | null
+          anulada_por?: string | null
+          aseguradora?: string
+          beneficio_accidente?: number | null
+          beneficio_enfermedad?: number | null
+          creada_at?: string
+          creada_por?: string
+          factura_recibida_el?: string | null
+          firmada_el?: string | null
+          id?: string
+          nota?: string | null
+          numero_poliza?: string
+          pagada_el?: string | null
+          persona_id?: string
+          plan?: string | null
+          prima_total?: number
+          prima_vence_el?: string | null
+          producto?: string
+          renueva_sola?: boolean | null
+          vigente_desde?: string
+          vigente_hasta?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "polizas_seguro_anulada_por_fkey"
+            columns: ["anulada_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "polizas_seguro_anulada_por_fkey"
+            columns: ["anulada_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "polizas_seguro_creada_por_fkey"
+            columns: ["creada_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "polizas_seguro_creada_por_fkey"
+            columns: ["creada_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "polizas_seguro_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "polizas_seguro_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      polizas_seguro_archivos: {
+        Row: {
+          bytes: number
+          id: string
+          mime: string
+          nombre_archivo: string
+          poliza_id: string
+          retirado_at: string | null
+          retirado_motivo: string | null
+          retirado_por: string | null
+          storage_path: string
+          subido_at: string
+          subido_por: string
+          tipo: string
+        }
+        Insert: {
+          bytes: number
+          id?: string
+          mime: string
+          nombre_archivo: string
+          poliza_id: string
+          retirado_at?: string | null
+          retirado_motivo?: string | null
+          retirado_por?: string | null
+          storage_path: string
+          subido_at?: string
+          subido_por: string
+          tipo: string
+        }
+        Update: {
+          bytes?: number
+          id?: string
+          mime?: string
+          nombre_archivo?: string
+          poliza_id?: string
+          retirado_at?: string | null
+          retirado_motivo?: string | null
+          retirado_por?: string | null
+          storage_path?: string
+          subido_at?: string
+          subido_por?: string
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "polizas_seguro_archivos_poliza_id_fkey"
+            columns: ["poliza_id"]
+            isOneToOne: false
+            referencedRelation: "polizas_seguro"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "polizas_seguro_archivos_retirado_por_fkey"
+            columns: ["retirado_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "polizas_seguro_archivos_retirado_por_fkey"
+            columns: ["retirado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "polizas_seguro_archivos_subido_por_fkey"
+            columns: ["subido_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "polizas_seguro_archivos_subido_por_fkey"
+            columns: ["subido_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      polizas_seguro_eventos: {
+        Row: {
+          detalle: string
+          evento: string
+          hecho_at: string
+          hecho_por: string
+          id: string
+          motivo: string | null
+          poliza_id: string
+        }
+        Insert: {
+          detalle: string
+          evento: string
+          hecho_at?: string
+          hecho_por: string
+          id?: string
+          motivo?: string | null
+          poliza_id: string
+        }
+        Update: {
+          detalle?: string
+          evento?: string
+          hecho_at?: string
+          hecho_por?: string
+          id?: string
+          motivo?: string | null
+          poliza_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "polizas_seguro_eventos_hecho_por_fkey"
+            columns: ["hecho_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "polizas_seguro_eventos_hecho_por_fkey"
+            columns: ["hecho_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "polizas_seguro_eventos_poliza_id_fkey"
+            columns: ["poliza_id"]
+            isOneToOne: false
+            referencedRelation: "polizas_seguro"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       push_tokens: {
         Row: {
           activo: boolean
@@ -8274,6 +8525,122 @@ export type Database = {
       }
       fn_sede_actual_persona: { Args: never; Returns: string }
       fn_sede_actual_terminal: { Args: never; Returns: string }
+      fn_seguro_adjuntar: {
+        Args: {
+          p_nombre_archivo: string | null
+          p_poliza_id: string | null
+          p_storage_path: string | null
+          p_tipo: string | null
+        }
+        Returns: string
+      }
+      fn_seguro_anular: {
+        Args: { p_id: string | null; p_motivo: string | null }
+        Returns: undefined
+      }
+      fn_seguro_archivo_libre: { Args: { p_path: string | null }; Returns: boolean }
+      fn_seguro_archivos: {
+        Args: { p_poliza_id: string | null }
+        Returns: {
+          bytes: number
+          id: string
+          mime: string
+          nombre_archivo: string
+          retirado_at: string
+          retirado_motivo: string
+          retirado_por_nombre: string
+          storage_path: string
+          subido_at: string
+          subido_por_nombre: string
+          tipo: string
+        }[]
+      }
+      fn_seguro_corregir: {
+        Args: {
+          p_aseguradora: string | null
+          p_beneficio_accidente: number | null
+          p_beneficio_enfermedad: number | null
+          p_id: string | null
+          p_motivo: string | null
+          p_nota: string | null
+          p_numero_poliza: string | null
+          p_plan: string | null
+          p_prima_total: number | null
+          p_prima_vence_el: string | null
+          p_renueva_sola: boolean | null
+          p_vigente_desde: string | null
+          p_vigente_hasta: string | null
+        }
+        Returns: undefined
+      }
+      fn_seguro_historial: {
+        Args: { p_id: string | null }
+        Returns: {
+          detalle: string
+          evento: string
+          hecho_at: string
+          hecho_por: string
+          motivo: string
+        }[]
+      }
+      fn_seguro_marcar_paso: {
+        Args: {
+          p_fecha: string | null
+          p_id: string | null
+          p_motivo?: string | null
+          p_paso: string | null
+        }
+        Returns: undefined
+      }
+      fn_seguro_registrar: {
+        Args: {
+          p_aseguradora: string | null
+          p_beneficio_accidente: number | null
+          p_beneficio_enfermedad: number | null
+          p_nota: string | null
+          p_numero_poliza: string | null
+          p_persona_id: string | null
+          p_plan: string | null
+          p_prima_total: number | null
+          p_prima_vence_el: string | null
+          p_renueva_sola: boolean | null
+          p_vigente_desde: string | null
+          p_vigente_hasta: string | null
+        }
+        Returns: string
+      }
+      fn_seguro_retirar_archivo: {
+        Args: { p_id: string | null; p_motivo: string | null }
+        Returns: undefined
+      }
+      fn_seguros_tablero: {
+        Args: never
+        Returns: {
+          archivos: number
+          aseguradora: string
+          beneficio_accidente: number
+          beneficio_enfermedad: number
+          creada_at: string
+          cubre_hoy: boolean
+          es_practicante_activo: boolean
+          factura_recibida_el: string
+          firmada_el: string
+          nota: string
+          numero_poliza: string
+          pagada_el: string
+          persona: string
+          persona_id: string
+          plan: string
+          poliza_id: string
+          practicante_modalidad: string
+          prima_total: number
+          prima_vence_el: string
+          renueva_sola: boolean
+          sede: string
+          vigente_desde: string
+          vigente_hasta: string
+        }[]
+      }
       fn_set_cargo: {
         Args: { p_cargo: string | null; p_persona_id: string | null }
         Returns: undefined
