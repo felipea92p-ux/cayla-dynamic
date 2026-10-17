@@ -11,8 +11,9 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 **Hay SQL: la [0526](../supabase/migrations/0526_la_constancia_mensual_se_pide_desde_el_dia_1.sql), SIN PEGAR.**
 Es una función de LECTURA (`fn_educacion_situacion`): no toca planilla, ni el espejo, ni la 0524 ni la 0525. Si el
 código llega a producción antes que ella, no se rompe nada: simplemente el pedido sigue abriéndose el día del pago.
-Aun así se pega ANTES de fusionar, como toda migración. Antes de entregarla hay que pedirle a producción el md5 de la
-función (consulta abajo); el encabezado de la migración lo declara `PENDIENTE`.
+Aun así se pega ANTES de fusionar, como toda migración. El md5 de producción de la función se midió el 2026-10-17
+(`f0ddaf5b…` · 4006, idéntico a la 0450, declarado en el encabezado); si pasa tiempo antes de pegar, se vuelve a pedir
+con la consulta de abajo.
 
 **Qué pidió Felipe (2026-10-17).** Que la constancia se pida el 1 de cada mes. Decidió: el día 1 se ABRE el pedido de
 la constancia del mes y se avisa; el plazo sigue siendo el de hoy (`fn_educacion_plazo`: 5 días antes del cierre del

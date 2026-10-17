@@ -118,9 +118,12 @@
 --
 --   md5 de partida del repositorio (la 0450, Postgres local, 4 006 caracteres):
 --     tal_cual            f0ddaf5bdd6a9b998a75a1fcdcaa2ab6
---   md5 de partida en PRODUCCIÓN: ►►► PENDIENTE ◄◄◄ — la pide Felipe con la
---   consulta del mensaje de entrega, que se corre ANTES de pegar y se vuelve a
---   pedir al entregar (un md5 es una foto, no una garantía).
+--   md5 de partida medido en PRODUCCIÓN el 2026-10-17 (SQL Editor, antes de pegar):
+--     tal_cual            f0ddaf5bdd6a9b998a75a1fcdcaa2ab6 · 4 006 caracteres
+--     sin_comentarios     f0ddaf5bdd6a9b998a75a1fcdcaa2ab6
+--   Coincide con el del repositorio, comentarios incluidos: producción tiene
+--   exactamente la 0450. Un md5 es una foto, no una garantía: si pasa tiempo
+--   entre esta medición y pegar, se vuelve a pedir.
 --
 --   md5 de llegada, medido en el Postgres local aplicando este archivo dentro de
 --   BEGIN … ROLLBACK, con el número ya definitivo:
