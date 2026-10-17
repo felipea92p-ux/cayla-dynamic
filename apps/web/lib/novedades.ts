@@ -275,6 +275,18 @@ export const NOVEDADES: readonly Novedad[] = [
     audiencia: "do",
   },
   {
+    id: "2026-10-16-boletas-en-el-menu",
+    fecha: "2026-10-16",
+    titulo: "Las boletas oficiales ya tienen su propio lugar en el menú",
+    queMejoro:
+      "En el menú de la izquierda, dentro de «Pago», hay un renglón nuevo: «Boletas», justo debajo de Planilla. " +
+      "Lleva directo a la pantalla donde se suben, se revisan y se publican las boletas que entrega el contador, y " +
+      "abre en el último periodo pagado. También la encuentras escribiendo «boletas» en el buscador (⌘K).\n\n" +
+      "El botón «Boletas del periodo» dentro de Planilla sigue donde estaba y lleva al mismo sitio, ya con el " +
+      "periodo que tengas elegido.",
+    audiencia: "do",
+  },
+  {
     id: "2026-10-16-el-bono-de-cumpleanos-en-practicas-va-en-la-boleta",
     fecha: "2026-10-16",
     titulo: "Si estás en prácticas, tu bono de cumpleaños va en tu boleta",
@@ -791,6 +803,18 @@ export const NOVEDADES: readonly Novedad[] = [
       "Ahora, debajo del monto, aparece la fecha de cada feriado pagado con las horas trabajadas y las horas proporcionales que lo componen.\n\n" +
       "El total no cambia: es la misma cifra de siempre, ahora explicada para que puedas comprobarla sin preguntar.",
     audiencia: "todos",
+  },
+  {
+    id: "2026-09-27-desempeno-no-acusa-a-quien-esta-trabajando",
+    fecha: "2026-09-27",
+    titulo: "Desempeño ya no marca «por revisar» a quien está en su turno",
+    queMejoro:
+      "Mirado a mediodía, Desempeño contaba como «marcaje sin cerrar» a todas las personas que estaban trabajando, y además les cargaba las horas de hoy como si ya las debieran. " +
+      "Ahora el día de hoy se pinta con un contorno verde («hoy, en su jornada») y entra en las cuentas recién cuando se marca la salida.\n\n" +
+      "Las horas se comparan solo con los días que tenían horario o turno cargado; lo trabajado antes de tener horario se dice aparte, en vez de inflar el total. " +
+      "El recuadro «Turnos sin cargar» pasa a llamarse «Medidas sin turno», ya no incluye lo que ya se justificó y deja de ir en rojo: habla de lo que falta cargar en Turnos, no de las personas. " +
+      "Y el recuadro «Personas» y la nota del pie cuentan con los mismos filtros de sede y área que la tabla.",
+    audiencia: "panel",
   },
   {
     id: "2026-09-20-dashboard-feriado-sin-turnos-pregunta",

@@ -6,7 +6,7 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-10-17 — Seguros del equipo: en qué seguro está cada colaborador (FOLA, EsSalud y los que DO agregue) · migración 0528 · SQL PEGADO Y VERIFICADO EN PRODUCCIÓN (2026-10-17) · PR #551 (BORRADOR) SIN FUSIONAR · rama `claude/fola-dynamic-implementation-252f99`
+## 2026-10-17 — Seguros del equipo: en qué seguro está cada colaborador (FOLA, EsSalud y los que DO agregue) · migración 0528 · SQL PEGADO Y VERIFICADO EN PRODUCCIÓN (2026-10-17) · FUSIONADO Y PUBLICADO (PR #551, 2026-10-17) · rama `claude/fola-dynamic-implementation-252f99`
 
 **Qué es.** La pantalla `/admin/seguros` (grupo Personas, solo DO) y un módulo «Seguros» en la
 Bandeja, **para todo el equipo y no solo para los practicantes**. Cada colaborador está en un
@@ -322,14 +322,18 @@ la etapa 2) y se llenan cuando las suyas se fusionen. `main` ya se fusionó dent
 en `types.ts` ganó la versión de esta rama, porque el de `main` traía una VIEJA (solo FOLA) de las
 tablas de Seguros, arrastrada por una regeneración de tipos desde la base local compartida.
 
-**El PR sigue en BORRADOR**, que mientras la 0528 no estaba pegada era a propósito y ahora es solo cautela
-(un borrador no se fusiona por error). La 0528 ya está pegada: para fusionarlo, marcarlo como listo y
-fusionar con `--merge` (fusionar publica en producción); una sesión que lo fusione deja antes el comentario
-`<!-- cayla:fusion-sesion -->`. Cuando se publique, `/admin/seguros` abrirá sobre datos reales con las tablas
-vacías: **cada practicante saldrá como hueco** (su seguro es FOLA y no tiene póliza registrada) hasta que se
-registren las pólizas (paso 3 de arriba). Eso es lo que la pantalla viene a mostrar.
-`main` volvió a moverse después de la fusión (8 commits de interfaz, PR #552, sin SQL): la rama se mezcló
-con él en una fusión de prueba (limpia, `tsc` y las 2125 pruebas en verde) sin subirla.
+**FUSIONADO Y PUBLICADO el 2026-10-17 (PR #551).** Felipe lo pidió con la 0528 ya pegada y sabiendo que
+fusionar publica: una sesión sacó el PR de borrador, dejó el comentario `<!-- cayla:fusion-sesion -->` y armó
+la fusión con `--merge --auto`; GitHub la hizo a las 18:15 (hora de Lima), commit de fusión `48bedb5a`, justo
+cuando terminó `db-tests` (✓ 5 min 22 s, igual que `ui-tests` ✓ 1 min 7 s sobre `5ac6a396`). Vercel publicó a
+las 18:16 y `/admin/seguros` existe en producción (200; una ruta inexistente da 404). **Lo que ve DO desde
+entonces:** `/admin/seguros` abre sobre las tablas vacías, así que **cada practicante sale como hueco** (su
+seguro es FOLA y no tiene póliza registrada) hasta que se registren las pólizas (paso 3 de arriba). Eso es lo
+que la pantalla viene a mostrar. Cuando se fusionó, `main` traía 8 commits de interfaz (PR #552, sin SQL) que
+la rama no tenía: se probó la mezcla antes (limpia, `tsc` y las 2125 pruebas en verde). Si una de las tres
+consultas de Seguros fallara en producción, por cómo está escrito `pedir` en `lib/admin/bandeja-fuentes.ts` la
+fuente se marca «fallida» y solo ese módulo se queda sin datos, no la Bandeja entera (leído en el código, no
+probado con un fallo real en producción).
 
 **La etapa 2 («Mi seguro»)** vive en otra rama, `claude/elegant-mayer-3e584e` (migración 0530, prueba 423,
 la sección de Lo mío), sin PR todavía, y se construyó sobre una punta anterior de esta (`112bfcb3`):
