@@ -482,5 +482,15 @@ export const ROLES_CON_PANEL: readonly Rol[] = DO_Y_ENCARGADA;
  */
 export const ROLES_EXPORTAN_ASISTENCIA: readonly Rol[] = DO_Y_ENCARGADA;
 
+/**
+ * Quiénes ven el renglón «Boletas» del menú (2026-10-16). Es la lista de
+ * `puedeGestionarBoletas`, por la misma razón que `ROLES_EXPORTAN_ASISTENCIA`:
+ * el menú filtra por lista y la pantalla decide con la función. Hoy es DO, igual
+ * que `ROLES_DO`, pero se nombra aparte para que el día que la entrega de
+ * boletas se abra o se cierre a otro rol, el renglón se mueva con ella y no con
+ * Planilla. `tests/permisos.test.ts` se pone rojo si las dos dejan de coincidir.
+ */
+export const ROLES_GESTIONAN_BOLETAS: readonly Rol[] = DO;
+
 /** Los roles de DO, para filtrar listas (p. ej. "a quién puedo corregirle el marcaje"). */
 export const ROLES_DO: readonly string[] = DO;

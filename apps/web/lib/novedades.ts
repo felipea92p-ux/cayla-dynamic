@@ -261,6 +261,18 @@ export const NOVEDADES: readonly Novedad[] = [
     audiencia: "do",
   },
   {
+    id: "2026-10-16-boletas-en-el-menu",
+    fecha: "2026-10-16",
+    titulo: "Las boletas oficiales ya tienen su propio lugar en el menú",
+    queMejoro:
+      "En el menú de la izquierda, dentro de «Pago», hay un renglón nuevo: «Boletas», justo debajo de Planilla. " +
+      "Lleva directo a la pantalla donde se suben, se revisan y se publican las boletas que entrega el contador, y " +
+      "abre en el último periodo pagado. También la encuentras escribiendo «boletas» en el buscador (⌘K).\n\n" +
+      "El botón «Boletas del periodo» dentro de Planilla sigue donde estaba y lleva al mismo sitio, ya con el " +
+      "periodo que tengas elegido.",
+    audiencia: "do",
+  },
+  {
     id: "2026-10-16-el-bono-de-cumpleanos-en-practicas-va-en-la-boleta",
     fecha: "2026-10-16",
     titulo: "Si estás en prácticas, tu bono de cumpleaños va en tu boleta",
