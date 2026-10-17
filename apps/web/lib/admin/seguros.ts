@@ -61,6 +61,9 @@ export interface FilaEquipoSeguro {
   asignacion_id: string | null;
   asignacion_desde: string | null;
   asignacion_motivo: string | null;
+  /** El que le toca por su vínculo, aunque hoy mande una asignación de DO. Lo dice la base: la pantalla no repite la regla. */
+  tipo_automatico: string | null;
+  tipo_automatico_nombre: string | null;
   con_poliza: boolean;
   cubre_hoy: boolean | null;
   hueco: boolean;
@@ -268,6 +271,8 @@ export interface SeguroDePersona {
   tipo: { clave: string; nombre: string } | null;
   origen: "vinculo" | "asignacion" | null;
   asignacion: { id: string; desde: string; motivo: string } | null;
+  /** El que le tocaría por su vínculo. Si hay asignación, es adonde vuelve con «volver al automático». */
+  automatico: { clave: string; nombre: string } | null;
   /** ¿Su seguro principal lleva póliza? */
   conPoliza: boolean;
   /** Las pólizas de su seguro principal, la más reciente primero. */
@@ -387,6 +392,7 @@ export function seguroPorPersona(
       tipo: f.tipo && f.tipo_nombre ? { clave: f.tipo, nombre: f.tipo_nombre } : null,
       origen: f.origen,
       asignacion: f.asignacion_id && f.asignacion_desde ? { id: f.asignacion_id, desde: f.asignacion_desde, motivo: f.asignacion_motivo ?? "" } : null,
+      automatico: f.tipo_automatico && f.tipo_automatico_nombre ? { clave: f.tipo_automatico, nombre: f.tipo_automatico_nombre } : null,
       conPoliza: f.con_poliza, polizasPrincipales: principales, otras, actual,
       cubiertoHasta: hasta, diasParaQuedarSinSeguro: dias, motivoHueco,
       diasDesdeQueVencio: motivoHueco === "vencida" && ultimaVencida ? diasEntre(ultimaVencida.vigente_hasta, hoy) : null,

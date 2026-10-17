@@ -1640,23 +1640,29 @@ $fn$;
 -- `hueco` es la regla de quién tiene que tener póliza, escrita UNA vez: la persona está
 -- activa, su seguro principal lleva póliza y no tiene ninguna de ese tipo que cubra hoy.
 -- EsSalud no lleva póliza: nunca es un hueco.
+--
+-- `tipo_automatico` es el que le toca por su vínculo AUNQUE una asignación de DO mande
+-- hoy (entonces `tipo` y `tipo_automatico` difieren). Se devuelve para que la pantalla
+-- ofrezca «volver al automático» con su nombre sin repetir la regla de `fn_seguro_tipo_por_vinculo`.
 create or replace function fn_seguros_equipo()
 returns table (
-  persona_id            uuid,
-  persona               text,
-  sede                  text,
-  tipo_vinculo          text,
-  practicante_modalidad text,
-  activa                boolean,
-  tipo                  text,
-  tipo_nombre           text,
-  origen                text,
-  asignacion_id         uuid,
-  asignacion_desde      date,
-  asignacion_motivo     text,
-  con_poliza            boolean,
-  cubre_hoy             boolean,
-  hueco                 boolean
+  persona_id             uuid,
+  persona                text,
+  sede                   text,
+  tipo_vinculo           text,
+  practicante_modalidad  text,
+  activa                 boolean,
+  tipo                   text,
+  tipo_nombre            text,
+  origen                 text,
+  asignacion_id          uuid,
+  asignacion_desde       date,
+  asignacion_motivo      text,
+  tipo_automatico        text,
+  tipo_automatico_nombre text,
+  con_poliza             boolean,
+  cubre_hoy              boolean,
+  hueco                  boolean
 )
 language plpgsql stable security definer set search_path = public
 as $fn$
@@ -1681,6 +1687,8 @@ begin
          a.id,
          a.desde,
          a.motivo,
+         au.clave,
+         ta.nombre,
          coalesce(t.con_poliza, false),
          case when t.con_poliza then cob.cubre end,
          (p.estado = 'activo' and coalesce(t.con_poliza, false) and not coalesce(cob.cubre, false))
@@ -1688,6 +1696,8 @@ begin
     left join sedes s on s.id = p.sede_base_id
     left join lateral (select fn_seguro_tipo_principal(p.id, v_hoy) as clave) ef on true
     left join seguros_tipos t on t.clave = ef.clave
+    left join lateral (select fn_seguro_tipo_por_vinculo(p.tipo_vinculo) as clave) au on true
+    left join seguros_tipos ta on ta.clave = au.clave
     left join seguros_asignaciones a
            on a.persona_id = p.id and a.desde <= v_hoy and (a.hasta is null or v_hoy < a.hasta)
     left join lateral (

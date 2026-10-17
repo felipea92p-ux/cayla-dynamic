@@ -35,13 +35,15 @@ function persona(o: Partial<FilaEquipoSeguro> = {}): FilaEquipoSeguro {
     persona_id: "p1", persona: "Ana Prueba", sede: "TRU", tipo_vinculo: "practicante", practicante_modalidad: "profesional",
     activa: true, tipo: "salud_practicantes", tipo_nombre: "FOLA", origen: "vinculo",
     asignacion_id: null, asignacion_desde: null, asignacion_motivo: null,
+    tipo_automatico: "salud_practicantes", tipo_automatico_nombre: "FOLA",
     con_poliza: true, cubre_hoy: true, hueco: false, ...o,
   };
 }
 const sinCobertura = (o: Partial<FilaEquipoSeguro> = {}) => persona({ cubre_hoy: false, hueco: true, ...o });
 const deLaPlanilla = (o: Partial<FilaEquipoSeguro> = {}) => persona({
   persona_id: "p2", persona: "Beto Planilla", tipo_vinculo: "planilla", practicante_modalidad: null,
-  tipo: "essalud", tipo_nombre: "EsSalud", con_poliza: false, cubre_hoy: null, hueco: false, ...o,
+  tipo: "essalud", tipo_nombre: "EsSalud", tipo_automatico: "essalud", tipo_automatico_nombre: "EsSalud",
+  con_poliza: false, cubre_hoy: null, hueco: false, ...o,
 });
 
 /** Una póliza con todo el papeleo hecho, para que solo hable lo que cada prueba toca. */

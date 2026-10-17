@@ -29,9 +29,16 @@ function persona(o: Partial<FilaEquipoSeguro> = {}): FilaEquipoSeguro {
     persona_id: "p1", persona: "Ana Prueba", sede: "TRU", tipo_vinculo: "practicante", practicante_modalidad: "profesional",
     activa: true, tipo: "salud_practicantes", tipo_nombre: "FOLA", origen: "vinculo",
     asignacion_id: null, asignacion_desde: null, asignacion_motivo: null,
+    tipo_automatico: "salud_practicantes", tipo_automatico_nombre: "FOLA",
     con_poliza: true, cubre_hoy: true, hueco: false, ...o,
   };
 }
+
+/** A quien no le toca ningún seguro de la empresa (honorarios): ni principal, ni automático. */
+const SIN_SEGURO = {
+  tipo: null, tipo_nombre: null, origen: null, tipo_automatico: null, tipo_automatico_nombre: null,
+  con_poliza: false, cubre_hoy: null, hueco: false,
+} as const;
 
 /** Quien lleva póliza y hoy no tiene ninguna que cubra. */
 const sinCobertura = (o: Partial<FilaEquipoSeguro> = {}) => persona({ cubre_hoy: false, hueco: true, ...o });
@@ -39,7 +46,8 @@ const sinCobertura = (o: Partial<FilaEquipoSeguro> = {}) => persona({ cubre_hoy:
 /** Una integrante de planilla: su seguro es EsSalud, que se paga con la planilla y no lleva póliza. */
 const deLaPlanilla = (o: Partial<FilaEquipoSeguro> = {}) => persona({
   persona_id: "p2", persona: "Beto Planilla", tipo_vinculo: "planilla", practicante_modalidad: null,
-  tipo: "essalud", tipo_nombre: "EsSalud", con_poliza: false, cubre_hoy: null, hueco: false, ...o,
+  tipo: "essalud", tipo_nombre: "EsSalud", tipo_automatico: "essalud", tipo_automatico_nombre: "EsSalud",
+  con_poliza: false, cubre_hoy: null, hueco: false, ...o,
 });
 
 /** Una póliza tal como la devuelve `fn_seguros_tablero`: por defecto la de hoy, con los tres pasos pendientes. */
@@ -211,8 +219,7 @@ describe("en qué seguro está cada colaborador, y a quién le falta póliza", (
 
   it("quien no tiene un seguro que le toque (honorarios, sin vínculo laboral) queda «sin seguro»", () => {
     const [p] = una([persona({
-      persona_id: "p3", tipo_vinculo: "rxh", practicante_modalidad: null, tipo: null, tipo_nombre: null, origen: null,
-      con_poliza: false, cubre_hoy: null, hueco: false,
+      persona_id: "p3", tipo_vinculo: "rxh", practicante_modalidad: null, ...SIN_SEGURO,
     })]);
     expect(p.situacion).toBe("sin_seguro");
     expect(p.tipo).toBeNull();
@@ -274,9 +281,21 @@ describe("en qué seguro está cada colaborador, y a quién le falta póliza", (
   it("una asignación de DO se lee tal cual la manda la base", () => {
     const [p] = una([persona({
       origen: "asignacion", asignacion_id: "a1", asignacion_desde: "2026-10-10", asignacion_motivo: "Cotizó con otro corredor",
+      tipo_automatico: "essalud", tipo_automatico_nombre: "EsSalud",
     })], [poliza(completa)]);
     expect(p.origen).toBe("asignacion");
     expect(p.asignacion).toEqual({ id: "a1", desde: "2026-10-10", motivo: "Cotizó con otro corredor" });
+  });
+
+  it("y dice también cuál le toca por su vínculo, que es adonde vuelve con «volver al automático»", () => {
+    const [p] = una([persona({
+      origen: "asignacion", asignacion_id: "a1", asignacion_desde: "2026-10-10", asignacion_motivo: "Cotizó con otro corredor",
+      tipo_automatico: "essalud", tipo_automatico_nombre: "EsSalud",
+    })], [poliza(completa)]);
+    expect(p.tipo?.nombre).toBe("FOLA");
+    expect(p.automatico).toEqual({ clave: "essalud", nombre: "EsSalud" });
+    expect(una([persona()])[0].automatico).toEqual({ clave: "salud_practicantes", nombre: "FOLA" });
+    expect(una([persona({ ...SIN_SEGURO })])[0].automatico).toBeNull();
   });
 
   describe("el orden de la lista", () => {
@@ -287,7 +306,7 @@ describe("en qué seguro está cada colaborador, y a quién le falta póliza", (
         persona({ persona_id: "c", persona: "Carla" }),
         persona({ persona_id: "d", persona: "Dani", activa: false }),
         deLaPlanilla({ persona_id: "e", persona: "Eva" }),
-        persona({ persona_id: "f", persona: "Fito", tipo: null, tipo_nombre: null, origen: null, con_poliza: false, cubre_hoy: null }),
+        persona({ persona_id: "f", persona: "Fito", ...SIN_SEGURO }),
         persona({ persona_id: "g", persona: "Gina" }),
         persona({ persona_id: "h", persona: "Hugo" }),
       ],
@@ -332,7 +351,7 @@ describe("cuánta gente hay en cada seguro", () => {
     persona({ persona_id: "a" }),
     deLaPlanilla({ persona_id: "b", persona: "Beto" }),
     deLaPlanilla({ persona_id: "c", persona: "Cora" }),
-    persona({ persona_id: "d", persona: "Dani", tipo: null, tipo_nombre: null, origen: null, con_poliza: false, cubre_hoy: null }),
+    persona({ persona_id: "d", persona: "Dani", ...SIN_SEGURO }),
     persona({ persona_id: "e", persona: "Eva", activa: false }),
   ]);
 
@@ -415,7 +434,7 @@ describe("lo que entra a la Bandeja", () => {
   });
 
   it("EsSalud y quien no tiene seguro no piden nada: no hay póliza que registrar", () => {
-    expect(pendientes([deLaPlanilla(), persona({ persona_id: "p3", tipo: null, tipo_nombre: null, origen: null, con_poliza: false, cubre_hoy: null })])).toEqual([]);
+    expect(pendientes([deLaPlanilla(), persona({ persona_id: "p3", ...SIN_SEGURO })])).toEqual([]);
   });
 
   it("el papeleo es UNA fila por póliza con lo que falta junto, no tres", () => {

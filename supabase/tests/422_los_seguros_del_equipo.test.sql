@@ -23,7 +23,7 @@
 --     retiran con motivo, y todo deja su rastro.
 -- ============================================================================
 begin;
-select plan(226);
+select plan(231);
 
 -- ── Sede y personas ──────────────────────────────────────────────────────
 insert into sedes (id, codigo, nombre, activa, tipo) values
@@ -301,6 +301,19 @@ select is(
     where persona_id = '00000000-0000-0000-0000-00000528a017'),
   row(null::text, null::text, false)::text,
   'la de honorarios no tiene tipo ni hueco: no aplica');
+select is(
+  (select row(tipo_automatico, tipo_automatico_nombre)::text from fn_seguros_equipo()
+    where persona_id = '00000000-0000-0000-0000-00000528a014'),
+  row('essalud', 'EsSalud')::text,
+  'el seguro automático de alguien de planilla es EsSalud, con su nombre listo para la pantalla');
+select is(
+  (select row(tipo_automatico, tipo_automatico_nombre)::text from fn_seguros_equipo()
+    where persona_id = '00000000-0000-0000-0000-00000528a011'),
+  row('salud_practicantes', 'FOLA')::text, 'el de un practicante, FOLA');
+select is(
+  (select row(tipo_automatico, tipo_automatico_nombre)::text from fn_seguros_equipo()
+    where persona_id = '00000000-0000-0000-0000-00000528a017'),
+  row(null::text, null::text)::text, 'y a honorarios no le toca ninguno por su vínculo');
 select is(
   (select count(*)::int from fn_seguros_equipo()
     where persona_id in ('00000000-0000-0000-0000-00000528a013', '00000000-0000-0000-0000-00000528a015')),
@@ -679,6 +692,11 @@ select is(
   (select asignacion_id from fn_seguros_equipo() where persona_id = '00000000-0000-0000-0000-00000528a014'),
   current_setting('t.asig1')::uuid, 'y apunta a la asignación');
 select is(
+  (select row(tipo, tipo_automatico, tipo_automatico_nombre)::text from fn_seguros_equipo()
+    where persona_id = '00000000-0000-0000-0000-00000528a014'),
+  row('sis', 'essalud', 'EsSalud')::text,
+  'con una asignación vigente la fila sigue diciendo cuál le toca por su vínculo (EsSalud), aunque hoy esté en el SIS');
+select is(
   (select count(*)::int from seguros_cambios
     where persona_id = '00000000-0000-0000-0000-00000528a014' and de_tipo = 'essalud' and a_tipo = 'sis'
       and origen = 'asignacion' and detalle = 'Está en el SIS por un convenio'),
@@ -748,6 +766,9 @@ select is(
   (select row(tipo, origen, asignacion_id)::text from fn_seguros_equipo() where persona_id = '00000000-0000-0000-0000-00000528a014'),
   row('essalud', 'vinculo', null::uuid)::text,
   'su fila vuelve a EsSalud «por vínculo»');
+select is(
+  (select tipo = tipo_automatico from fn_seguros_equipo() where persona_id = '00000000-0000-0000-0000-00000528a014'),
+  true, 'y al volver al automático, lo que tiene y lo que le toca son lo mismo');
 select is(
   (select row(hasta, cerrada_motivo)::text from seguros_asignaciones where id = current_setting('t.asig2')::uuid),
   row(fn_hoy_lima(), 'Vuelve a su seguro por vínculo')::text,

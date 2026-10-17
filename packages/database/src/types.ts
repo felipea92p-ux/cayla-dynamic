@@ -9016,6 +9016,8 @@ export type Database = {
           practicante_modalidad: string
           sede: string
           tipo: string
+          tipo_automatico: string
+          tipo_automatico_nombre: string
           tipo_nombre: string
           tipo_vinculo: string
         }[]
