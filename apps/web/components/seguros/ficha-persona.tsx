@@ -49,6 +49,7 @@ export interface AccionesFicha {
 function InsigniaSituacion({ p }: { p: SeguroDePersona }) {
   switch (p.situacion) {
     case "hueco": return <Insignia variante="alerta">Sin póliza vigente</Insignia>;
+    case "suspendida": return <Insignia variante="alerta">Cobertura suspendida</Insignia>;
     case "por_vencer": return <Insignia variante="advertencia">Se queda sin póliza en {plural(p.diasParaQuedarSinSeguro ?? 0, "día", "días")}</Insignia>;
     case "baja_pendiente": return <Insignia variante="advertencia">Pedir la baja</Insignia>;
     case "por_planilla": return <Insignia variante="neutral">Sin póliza que registrar</Insignia>;
@@ -122,7 +123,7 @@ export function FichaPersona({
         <div className="flex flex-wrap items-center gap-2">
           <InsigniaSituacion p={p} />
           {p.activa && <Boton tamano="sm" onClick={() => acciones.cambiarSeguro(p)}>Cambiar su seguro</Boton>}
-          {p.activa && hayAdemas && <Boton variante="sutil" tamano="sm" onClick={() => acciones.registrar({ personaId: p.personaId })}>Registrar otro seguro</Boton>}
+          {p.activa && hayAdemas && <Boton variante="sutil" tamano="sm" onClick={() => acciones.registrar({ personaId: p.personaId, soloAdemas: true })}>Registrar otro seguro</Boton>}
         </div>
       </section>
     );
@@ -165,6 +166,12 @@ export function FichaPersona({
             </Boton>
           </div>
         )}
+        {p.situacion === "suspendida" && (
+          <p className="rounded-lg bg-rojo/10 px-3 py-2 text-sm text-rojo-profundo">
+            <span className="font-medium">La póliza figura vigente por sus fechas, pero la prima lleva más de 30 días sin pagarse y la cobertura se suspendió sola.</span>{" "}
+            Hoy no cubre: paga la prima (convenio de pago, cláusula quinta) y márcala abajo.
+          </p>
+        )}
         {p.situacion === "por_vencer" && p.cubiertoHasta && (
           <p className="rounded-lg bg-ambar/10 px-3 py-2 text-sm text-ambar">
             Se queda sin póliza vigente el {fecha(p.cubiertoHasta)} y no hay una renovación registrada que empalme.{" "}
@@ -173,7 +180,8 @@ export function FichaPersona({
         )}
         {p.situacion === "baja_pendiente" && (
           <p className="rounded-lg bg-ambar/10 px-3 py-2 text-sm text-ambar">
-            Ya no está activa y su póliza sigue vigente: pídele la baja a la aseguradora.
+            Ya no está activa y su póliza sigue vigente: pídele la baja a la aseguradora y, cuando la confirme,
+            corrige la fecha en que termina la póliza («Corregir datos») para que deje de avisar.
           </p>
         )}
 
@@ -198,7 +206,7 @@ export function FichaPersona({
               <Boton variante="enlace" onClick={() => acciones.renovar(p)}>Registrar una renovación</Boton>
             )}
             {hayAdemas && (
-              <Boton variante="enlace" onClick={() => acciones.registrar({ personaId: p.personaId })}>Registrar otro seguro</Boton>
+              <Boton variante="enlace" onClick={() => acciones.registrar({ personaId: p.personaId, soloAdemas: true })}>Registrar otro seguro</Boton>
             )}
           </div>
         )}

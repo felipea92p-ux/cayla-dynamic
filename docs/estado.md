@@ -196,6 +196,14 @@ cambia lo que cobra nadie; la prima se paga a la aseguradora y EsSalud sigue com
   aseguradora y del contador. Van a «Sin plazo», con los días que lleva esperando.
 - **Quien se fue y ya no tiene una póliza que corra es historia**, aunque `fn_seguros_equipo` la
   traiga: son dos consultas, y a medianoche una póliza puede vencer entre la una y la otra.
+- **«Cobertura suspendida» es una situación aparte.** Una póliza vigente por fechas cuya prima lleva
+  más de 30 días sin pagarse ya no cubre (convenio de pago, cláusula quinta), pero la base solo sabe de
+  fechas: sin esto la pantalla decía «Cubierto» de alguien que no lo está. Lo decide `estadoPrima`, no
+  SQL; va arriba de la lista, justo después de quien no tiene póliza.
+- **Una póliza colectiva se registra a cada persona con el mismo número** (un seguro de vida o una EPS
+  es una póliza de la empresa con un solo número). El índice único lleva `persona_id`: la MISMA póliza
+  a la misma persona sigue frenada. Si FOLA repitiera un número entre dos practicantes, la base ya no
+  lo frena: se vería en las dos tarjetas.
 
 **Pendiente, en este orden (Felipe).**
 1. **Pegar la 0528** (`./scripts/dame-el-sql.sh 528`, y la consulta de «ANTES DE PEGAR» de su
@@ -228,17 +236,42 @@ subvención de cada quien (`asignaciones_salario`) y la 0528 no la lee.
 
 **Qué se comprobó.** La 0528 aplicada **desde cero** por `supabase start` junto con todas las
 demás migraciones, sin error, y pegada otra vez encima (idempotente); y la prueba **422**
-(237 aserciones) en verde dentro de una transacción, también partiendo de una base SIN los objetos
+(252 aserciones) en verde dentro de una transacción, también partiendo de una base SIN los objetos
 de la 0528 (corriendo antes la receta de reversión de su cabecera, que así quedó probada de nuevo).
-Se probó que la prueba SABE fallar con diez
+Se probó que la prueba SABE fallar con catorce mutaciones; las diez primeras
 mutaciones de las reglas (último día inclusivo, EsSalud como hueco, el alta que no se cierra sola,
 la baja que no se revierte, el disparador que ignora el estado o una asignación vigente o que deja
 escapar su propio error, registrar una póliza sin comprobar el seguro principal, asignar lo que
-ya toca por vínculo, y devolver el seguro efectivo como automático): las diez la rompen.
-`vitest` (1887 pruebas, 76 de la lógica de la pantalla y 31 de la Bandeja, incluida la que cuida
+ya toca por vínculo, y devolver el seguro efectivo como automático) y las cuatro de la revisión
+(índice sin `persona_id`, UPDATE de Storage sin la forma del nombre, sin tope de aseguradora, sin
+validar los textos de los avisos): las catorce la rompen.
+`vitest` (1896 pruebas, 83 de la lógica de la pantalla y 33 de la Bandeja, incluida la que cuida
 que cargar una consulta no pise el objeto compartido de `FUENTES_VACIAS`), `tsc` y `eslint` en
 verde, y los frenos del push (numeración, reglas de la casa, nombre del PDF, fechas vacías,
 linter) corridos a mano sobre lo que la rama agrega: todos en 0.
+
+**Revisión independiente (dos agentes que no vieron mis conclusiones, uno para el SQL y otro para la
+pantalla; 2026-10-17).** Ninguno halló nada de gravedad alta: la lectura y la escritura están cerradas a
+quien no es DO (probado con cinco sesiones distintas —líder de equipo, integrante, DO cesada con su cuenta viva, usuario sin ficha y anónimo—, contra las seis tablas, las 23 funciones y el bucket), el disparador sobrevive
+a tres fallos inyectados, y un fuzz de 2000 escenarios y dos corridas de 1500 operaciones al azar no
+rompieron ninguna invariante. Lo que sí hallaron, y **ya está arreglado**: una póliza colectiva (vida,
+EPS) no se podía registrar a más de una persona; el disparador podía esperar por una pantalla de DO
+(ahora las funciones de tipos bloquean con `for no key update`) y las funciones de DO bloquean en un
+solo orden; la política de UPDATE de Storage dejaba renombrar un huérfano a un nombre con DNI; varios
+topes salían como un CHECK crudo; una póliza con la prima suspendida figuraba «Cubierto»; el formulario
+de póliza perdía el error del servidor si se cerraba a mitad de guardar; una asignación puesta a alguien
+de honorarios no se podía terminar; y unos conteos, un orden y unos textos que no cuadraban.
+
+**Lo que se dejó, a propósito** (cabecera de la 0528, «LÍMITES CONOCIDOS»): los pasos de un cambio
+guardan solo el último estado, sin historial de marcas como las pólizas; un cambio y su inverso el mismo
+día dejan un alta pendiente en EsSalud que DO marca y ya; y `fn_seguro_archivo_libre` la puede llamar
+cualquier sesión autenticada (solo dice si una ruta uuid está en uso). **Hallazgo ajeno, sin tocar:**
+`fn_cesar_persona` con un vínculo nuevo falla para un PRACTICANTE (no limpia `practicante_modalidad`,
+`personas_practicante_modalidad_coherente`); sin cambiar de vínculo, el cese funciona. La pantalla de
+Equipo nunca manda un vínculo nuevo al cesar, así que hoy solo se alcanza llamando a la función a mano:
+es un defecto latente, no uno que alguien esté pisando. Arreglarlo es reescribir una función con cinco
+versiones (pide `donde-vive.sh` y el md5 de producción antes de escribir): de otra migración y de otra
+sesión, y sin urgencia.
 
 **En el navegador** (2026-10-17, contra la base local con la 0528 aplicada y trece personas de
 prueba marcadas «ZZ Demo»: practicantes con y sin póliza, planilla, prueba, honorarios, dos que

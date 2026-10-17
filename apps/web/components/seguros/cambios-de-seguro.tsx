@@ -42,8 +42,8 @@ function PasoDeCambio({
         <span className="text-tinta">✓ {texto}</span>
         <span className="text-taupe"> — hecho el {fecha(hechaEl)}</span>
         <span className="ml-3 inline-flex flex-wrap gap-x-3">
-          <Boton variante="enlace" onClick={onMarcar}>Cambiar la fecha</Boton>
-          <Boton variante="enlace" onClick={onQuitar}>Quitar la marca</Boton>
+          <Boton variante="enlace" aria-label={`Cambiar la fecha: ${texto}`} onClick={onMarcar}>Cambiar la fecha</Boton>
+          <Boton variante="enlace" aria-label={`Quitar la marca: ${texto}`} onClick={onQuitar}>Quitar la marca</Boton>
         </span>
         {nota && <span className="block text-xs text-taupe">{nota}</span>}
       </li>
@@ -53,7 +53,7 @@ function PasoDeCambio({
     return (
       <li className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
         <span className="text-tinta">{texto}</span>
-        <Boton variante="enlace" onClick={onMarcar}>Marcar como hecho</Boton>
+        <Boton variante="enlace" aria-label={`Marcar como hecho: ${texto}`} onClick={onMarcar}>Marcar como hecho</Boton>
       </li>
     );
   }

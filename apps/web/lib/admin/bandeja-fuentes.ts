@@ -948,7 +948,9 @@ export function armarPendientes(
   // Seguros (0528). Quién tiene hueco, qué falta y qué cambios siguen pendientes lo dice
   // `lib/admin/seguros.ts` sobre lo que la base contestó; acá solo se pinta. «Afuera»: se
   // resuelve en la pantalla de Seguros, que abre ya parada en esa persona.
-  for (const s of pendientesDeSeguros(seguroPorPersona(f.seguros.equipo, f.seguros.polizas, f.seguros.cambios, hoy), hoy)) {
+  // Si el módulo falló (alguna de sus tres consultas), el hueco sigue valiendo pero su razón no se sabe.
+  const sinDetalleDePolizas = f.fallidas.includes("seguros");
+  for (const s of pendientesDeSeguros(seguroPorPersona(f.seguros.equipo, f.seguros.polizas, f.seguros.cambios, hoy), hoy, { sinDetalleDePolizas })) {
     const verbo = {
       sin_poliza: "Registrar póliza", por_vencer: "Registrar renovación", papeleo: "Completar", baja: "Ver la póliza",
       cambio_baja: "Marcar la baja", cambio_alta: "Marcar el alta",

@@ -102,8 +102,8 @@ export function TarjetaPoliza({
               <p className="text-tinta">{hecho ? "✓ " : ""}{hecho ? s.hecho : s.falta}</p>
               {hecho && <p className="text-xs text-taupe">el {fecha(hecho)}</p>}
               <div className="mt-1 flex flex-wrap gap-x-3">
-                <Boton variante="enlace" onClick={() => onPaso(z, s.paso, false)}>{hecho ? "Cambiar la fecha" : "Marcar como hecho"}</Boton>
-                {hecho && <Boton variante="enlace" onClick={() => onPaso(z, s.paso, true)}>Quitar la marca</Boton>}
+                <Boton variante="enlace" aria-label={`${hecho ? "Cambiar la fecha de" : "Marcar como hecho"}: ${s.etiqueta.toLowerCase()} de la póliza ${z.numero_poliza}`} onClick={() => onPaso(z, s.paso, false)}>{hecho ? "Cambiar la fecha" : "Marcar como hecho"}</Boton>
+                {hecho && <Boton variante="enlace" aria-label={`Quitar la marca de ${s.etiqueta.toLowerCase()} de la póliza ${z.numero_poliza}`} onClick={() => onPaso(z, s.paso, true)}>Quitar la marca</Boton>}
               </div>
             </li>
           );

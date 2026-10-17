@@ -179,8 +179,9 @@ describe("en qué seguro está cada colaborador, y a quién le falta póliza", (
   });
 
   it("con la renovación ya registrada y empalmando, deja de estar por vencer", () => {
+    // Con la prima pagada: lo que se prueba es la renovación, no la mora (a esa fecha, sin pagar, la cobertura estaría suspendida).
     const renov = poliza({ poliza_id: "z2", vigente_desde: "2027-01-01", vigente_hasta: "2027-04-02", cubre_hoy: false });
-    const [p] = una([persona()], [poliza(), renov], [], "2026-12-20");
+    const [p] = una([persona()], [poliza(completa), renov], [], "2026-12-20");
     expect(p.situacion).toBe("al_dia");
     expect(p.cubiertoHasta).toBe("2027-04-02");
   });
@@ -322,15 +323,71 @@ describe("en qué seguro está cada colaborador, y a quién le falta póliza", (
 
     it("primero lo que pide algo, lo más serio antes; después lo que está en orden", () => {
       expect(todas().map((p) => `${p.persona}:${p.situacion}`)).toEqual([
-        "Beto:hueco", "Gina:al_dia", "Carla:por_vencer", "Dani:baja_pendiente", "Hugo:al_dia",
+        "Beto:hueco", "Carla:por_vencer", "Gina:al_dia", "Dani:baja_pendiente", "Hugo:al_dia",
         "Alba:al_dia", "Eva:por_planilla", "Fito:sin_seguro",
       ]);
     });
 
     it("las tarjetas cuentan a cada persona UNA vez, y los cambios y el papeleo por separado", () => {
       expect(resumenDeSeguros(todas())).toEqual({
-        hueco: 1, por_vencer: 1, baja_pendiente: 1, al_dia: 3, por_planilla: 1, sin_seguro: 1, cambios: 1, papeleo: 1,
+        hueco: 1, suspendida: 0, por_vencer: 1, baja_pendiente: 1, al_dia: 3, por_planilla: 1, sin_seguro: 1, cambios: 1, papeleo: 1,
       });
+    });
+  });
+
+  describe("la cobertura suspendida por mora", () => {
+    // Una póliza vigente por FECHAS cuya prima lleva más de 30 días sin pagarse ya no cubre: el
+    // convenio de pago suspende la cobertura sola. La base no lo sabe (`cubre_hoy` es de fechas).
+    const enMora = (venceEl: string, extra: Partial<Poliza> = {}) => poliza({ prima_vence_el: venceEl, vigente_hasta: "2027-06-01", ...extra });
+
+    it("con la prima sin pagar y más de 30 días vencida, NO figura «al día»: queda suspendida", () => {
+      const [p] = una([persona()], [enMora("2026-09-01")]);
+      expect(p.situacion).toBe("suspendida");
+      expect(p.motivoHueco).toBeNull();
+    });
+    it("con exactamente 30 días de mora todavía cubre (la suspensión empieza al día 31)", () => {
+      expect(una([persona()], [enMora("2026-09-17")])[0].situacion).toBe("al_dia");
+      expect(una([persona()], [enMora("2026-09-16")])[0].situacion).toBe("suspendida");
+    });
+    it("con la prima pagada nunca se suspende, por vieja que sea la fecha", () => {
+      expect(una([persona()], [enMora("2026-01-01", { pagada_el: "2026-10-15" })])[0].situacion).toBe("al_dia");
+    });
+    it("va justo después de quien no tiene póliza y antes de lo que se vence pronto", () => {
+      const filas = [
+        persona({ persona_id: "a", persona: "Alba" }),
+        persona({ persona_id: "b", persona: "Beto" }),
+        sinCobertura({ persona_id: "c", persona: "Carla" }),
+      ];
+      const polizas = [
+        enMora("2026-09-01", { persona_id: "a", poliza_id: "za", vigente_hasta: "2026-11-20" }),
+        enMora("2026-09-01", { persona_id: "b", poliza_id: "zb" }),
+        poliza({ ...completa, persona_id: "d", poliza_id: "zd" }),
+      ];
+      expect(una(filas, polizas).map((p) => `${p.persona}:${p.situacion}`)).toEqual(["Carla:hueco", "Alba:suspendida", "Beto:suspendida"]);
+    });
+    it("la tarjeta de arriba la cuenta aparte, y a la Bandeja le basta la fila del papeleo (la prima sin pagar)", () => {
+      const personas = una([persona()], [enMora("2026-09-01")]);
+      expect(resumenDeSeguros(personas)).toMatchObject({ suspendida: 1, al_dia: 0, hueco: 0 });
+      const items = pendientesDeSeguros(personas, HOY);
+      expect(items.map((i) => i.tipo)).toEqual(["papeleo"]);
+      expect(items[0].prima?.estado).toBe("suspendida");
+    });
+  });
+
+  describe("entre varios huecos, el más grave primero (el mismo orden de la Bandeja)", () => {
+    it("quien nunca tuvo póliza, después quien lleva más días sin ella, y al final a quien ya le espera una", () => {
+      const filas = [
+        sinCobertura({ persona_id: "a", persona: "Alba" }),
+        sinCobertura({ persona_id: "m", persona: "Mara" }),
+        sinCobertura({ persona_id: "p", persona: "Pía" }),
+        sinCobertura({ persona_id: "z", persona: "Zoe" }),
+      ];
+      const polizas = [
+        poliza({ ...completa, persona_id: "a", poliza_id: "za", vigente_hasta: "2026-10-16", cubre_hoy: false }),
+        poliza({ ...completa, persona_id: "m", poliza_id: "zm", vigente_hasta: "2026-10-07", cubre_hoy: false }),
+        poliza({ ...completa, persona_id: "p", poliza_id: "zp", vigente_desde: "2026-11-01", vigente_hasta: "2027-02-01", cubre_hoy: false }),
+      ];
+      expect(una(filas, polizas).map((p) => p.persona)).toEqual(["Zoe", "Mara", "Alba", "Pía"]);
     });
   });
 
@@ -363,8 +420,14 @@ describe("cuánta gente hay en cada seguro", () => {
     ]);
   });
 
-  it("quien ya no está activa no cuenta: el filtro habla de cómo está el equipo hoy", () => {
-    expect(contarPorTipo(gente(), tipos).find((t) => t.clave === "salud_practicantes")!.n).toBe(1);
+  it("cuenta TODAS las filas de la lista, también a quien ya no está activa pero conserva una póliza: el número y las filas coinciden", () => {
+    // Eva ya no está activa y su póliza FOLA sigue vigente: sale en la lista (pide la baja) y en el filtro.
+    const personas = una(
+      [persona({ persona_id: "a" }), persona({ persona_id: "e", persona: "Eva", activa: false })],
+      [poliza({ ...completa, persona_id: "e", poliza_id: "ze", persona_activa: false })],
+    );
+    expect(personas).toHaveLength(2);
+    expect(contarPorTipo(personas, tipos).find((t) => t.clave === "salud_practicantes")!.n).toBe(2);
   });
 
   it("un tipo archivado que todavía tiene gente sigue saliendo: nadie queda sin filtro", () => {
@@ -479,6 +542,19 @@ describe("lo que entra a la Bandeja", () => {
     const items = pendientes([persona({ activa: false })], [poliza(completa)]);
     expect(items).toHaveLength(1);
     expect(items[0]).toMatchObject({ tipo: "baja", clave: "baja:p1", polizaId: "z1", titulo: "Ya no está activa y su póliza de FOLA sigue vigente" });
+    // La fila se va cuando la póliza termina o cuando DO corrige su fecha de fin: el aviso lo dice.
+    expect(items[0].detalle).toContain("corregir la fecha en que termina la póliza");
+  });
+
+  it("si las pólizas no se pudieron leer, el hueco sigue pero NO inventa que «nunca tuvo una»", () => {
+    const vencida = poliza({ ...completa, vigente_hasta: "2026-10-10", cubre_hoy: false });
+    const conLista = pendientesDeSeguros(seguroPorPersona([sinCobertura()], [vencida], [], HOY), HOY)[0];
+    expect(conLista).toMatchObject({ titulo: "Su póliza de FOLA venció y no tiene seguro", motivoHueco: "vencida", dias: 7 });
+    const sinLista = pendientesDeSeguros(seguroPorPersona([sinCobertura()], [], [], HOY), HOY, { sinDetalleDePolizas: true })[0];
+    expect(sinLista).toMatchObject({
+      tipo: "sin_poliza", clave: "sin_poliza:p1", titulo: "Sin póliza vigente de FOLA", motivoHueco: null, dias: null,
+      detalle: "No se pudieron leer sus pólizas: míralas en Seguros",
+    });
   });
 
   it("si la póliza de quien se fue todavía no empieza, también hay que darla de baja, y el aviso lo dice", () => {

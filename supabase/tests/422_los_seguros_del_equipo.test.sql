@@ -20,10 +20,11 @@
 -- (f) un fallo del registro de cambios JAMÁS frene un cambio de vínculo (eso mueve la
 --     planilla de una persona real), y
 -- (g) nada se borra: tipo, póliza, paso o archivo se archivan, anulan, desmarcan o
---     retiran con motivo, y todo deja su rastro.
+--     retiran con motivo, y las pólizas dejan su historial. (Los pasos de un CAMBIO de
+--     seguro guardan solo el último estado: ver «LÍMITES CONOCIDOS» en la 0528.)
 -- ============================================================================
 begin;
-select plan(237);
+select plan(252);
 
 -- ── Sede y personas ──────────────────────────────────────────────────────
 insert into sedes (id, codigo, nombre, activa, tipo) values
@@ -1034,6 +1035,14 @@ select throws_ok(
 delete from storage.objects where bucket_id = 'polizas-seguro' and name = '5a000000-0000-0000-0000-000000000001.pdf';
 update storage.objects set metadata = '{"size": 1, "mimetype": "application/pdf"}'
  where bucket_id = 'polizas-seguro' and name = '5a000000-0000-0000-0000-000000000001.pdf';
+select throws_ok(
+  $$ update storage.objects set name = 'Maria Perez DNI 45678901.pdf'
+      where bucket_id = 'polizas-seguro' and name = '5a000000-0000-0000-0000-000000000009.pdf' $$,
+  '42501', null, 'DO no renombra un archivo huérfano a un nombre con DNI');
+select throws_ok(
+  $$ update storage.objects set name = 'carpeta/5a000000-0000-0000-0000-00000000000a.pdf'
+      where bucket_id = 'polizas-seguro' and name = '5a000000-0000-0000-0000-000000000009.pdf' $$,
+  '42501', null, 'ni a una ruta con carpetas');
 delete from storage.objects where bucket_id = 'polizas-seguro' and name = '5a000000-0000-0000-0000-000000000009.pdf';
 reset role;
 
@@ -1076,6 +1085,72 @@ select lives_ok(
 select is(
   (select count(*)::int from seguros_cambios where persona_id = '00000000-0000-0000-0000-00000528a024'),
   0, 'quien ya no está activa no deja cambio, aunque su vínculo cambie en el cese');
+
+-- ── O3 · Pólizas colectivas, topes con mensaje legible y textos de los avisos ──
+-- Un seguro de vida o una EPS suele ser UNA póliza de la empresa con un solo número, que
+-- cubre a todos: se registra una fila por persona con el mismo número y la misma vigencia.
+-- Lo que no puede pasar es la MISMA póliza dos veces a una misma persona.
+set session_replication_role = replica;
+insert into personas (id, nombres, apellidos, sede_base_id, rol, pin_hash, auth_user_id, fecha_ingreso, tipo_vinculo, cargo, practicante_modalidad, estado, cuenta_de_servicio, fecha_cese) values
+  ('00000000-0000-0000-0000-00000528a026', 'Olga', 'Seg', '00000000-0000-0000-0000-000005280001', 'integrante', 'x', null, '2024-06-01', 'planilla', 'Vendedora', null, 'activo', false, null),
+  ('00000000-0000-0000-0000-00000528a027', 'Pepe', 'Seg', '00000000-0000-0000-0000-000005280001', 'integrante', 'x', null, '2024-06-01', 'planilla', 'Vendedor',  null, 'activo', false, null);
+set session_replication_role = origin;
+
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000528b001', true);
+
+select lives_ok(
+  $$ select fn_seguro_registrar('00000000-0000-0000-0000-00000528a026', 'vida_ley', 'Rímac Seguros', 'VL-COLECTIVA',
+       fn_hoy_lima() - 30, fn_hoy_lima() + 335, 0, null, null, null, null, null, null) $$,
+  'la póliza colectiva de vida se registra a la primera persona');
+select lives_ok(
+  $$ select fn_seguro_registrar('00000000-0000-0000-0000-00000528a027', 'vida_ley', 'Rímac Seguros', 'VL-COLECTIVA',
+       fn_hoy_lima() - 30, fn_hoy_lima() + 335, 0, null, null, null, null, null, null) $$,
+  'y a una segunda, con el mismo número y la misma vigencia: es la misma póliza de la empresa');
+select is(
+  (select count(*)::int from polizas_seguro where numero_poliza = 'VL-COLECTIVA' and anulada_at is null),
+  2, 'quedan dos filas vivas, una por persona');
+select throws_ok(
+  $$ select fn_seguro_registrar('00000000-0000-0000-0000-00000528a026', 'vida_ley', 'Rímac Seguros', 'VL-COLECTIVA',
+       fn_hoy_lima() - 30, fn_hoy_lima() + 335, 0, null, null, null, null, null, null) $$,
+  'P0001', 'Esa persona ya tiene una póliza de Vida Ley que se cruza con esas fechas. Si la anterior estaba mal, anúlala primero.',
+  'pero la MISMA póliza no se registra dos veces a la misma persona');
+select throws_ok(
+  $$ insert into polizas_seguro (persona_id, producto, aseguradora, numero_poliza, vigente_desde, vigente_hasta, prima_total, creada_por)
+     values ('00000000-0000-0000-0000-00000528a026', 'eps', 'Rímac Seguros', 'VL-COLECTIVA',
+             fn_hoy_lima() - 30, fn_hoy_lima() + 335, 0, '00000000-0000-0000-0000-00000528a001') $$,
+  '23505', null, 'y el índice la frena aunque se cambie el tipo: la función no es la única barrera');
+
+select throws_ok(
+  $$ select fn_seguro_registrar('00000000-0000-0000-0000-00000528a026', 'vida_ley', repeat('x', 121), 'VL-9',
+       fn_hoy_lima() - 30, fn_hoy_lima() + 335, 0, null, null, null, null, null, null) $$,
+  'P0001', 'El nombre de la aseguradora es demasiado largo (máximo 120 letras).',
+  'una aseguradora de más de 120 letras dice qué pasa, no vuelca un CHECK con la fila entera');
+select throws_ok(
+  $$ select fn_seguro_registrar('00000000-0000-0000-0000-00000528a026', 'vida_ley', 'Rímac Seguros', repeat('9', 41),
+       fn_hoy_lima() - 30, fn_hoy_lima() + 335, 0, null, null, null, null, null, null) $$,
+  'P0001', 'El número de la póliza es demasiado largo (máximo 40 letras).', 'igual el número de la póliza');
+select throws_ok(
+  $$ select fn_seguro_registrar('00000000-0000-0000-0000-00000528a026', 'vida_ley', 'Rímac Seguros', 'VL-9',
+       fn_hoy_lima() - 30, fn_hoy_lima() + 335, 100000000, null, null, null, null, null, null) $$,
+  'P0001', 'La prima total es demasiado grande: revisa el monto.', 'una prima que no cabe en la columna dice «revisa el monto», no «numeric field overflow»');
+select throws_ok(
+  $$ select fn_seguro_registrar('00000000-0000-0000-0000-00000528a026', 'vida_ley', 'Rímac Seguros', 'VL-9',
+       fn_hoy_lima() - 30, fn_hoy_lima() + 335, 0, null, null, 10000000000, null, null, null) $$,
+  'P0001', 'El beneficio máximo es demasiado grande: revisa el monto.', 'y un beneficio que no cabe');
+
+select throws_ok(
+  $$ select fn_seguro_tipo_crear('Otro seguro', null, false, true, 'ab', null) $$,
+  'P0001', 'Lo que dice el aviso de alta tiene que tener entre 3 y 200 letras (o quedar vacío).',
+  'el texto del aviso de alta de un seguro nuevo tiene su largo, con mensaje legible');
+select throws_ok(
+  $$ select fn_seguro_tipo_crear('Otro seguro', null, false, true, null, repeat('x', 201)) $$,
+  'P0001', 'Lo que dice el aviso de baja tiene que tener entre 3 y 200 letras (o quedar vacío).', 'igual el de baja');
+select throws_ok(
+  $$ select fn_seguro_tipo_editar('eps', 'EPS Pacífico', null, 'ab', null) $$,
+  'P0001', 'Lo que dice el aviso de alta tiene que tener entre 3 y 200 letras (o quedar vacío).', 'y al editar un seguro');
+select lives_ok(
+  $$ select fn_seguro_tipo_crear('Otro seguro', null, false, true, '   ', '') $$,
+  'un texto vacío o en blanco se acepta: el sistema arma uno con el nombre del seguro');
 
 -- ── P · Un fallo del registro de cambios NO frena el cambio de vínculo ───
 -- Lo último de la prueba, porque rompe la tabla de cambios a propósito. Un cambio de

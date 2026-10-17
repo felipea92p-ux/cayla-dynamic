@@ -220,6 +220,7 @@ const PRIMA_VENCE = { futuro: "Prima vence", pasado: "Prima venció" };
  * quien la perdió ayer.
  */
 export function urgenciaSeguroSinPoliza(
+  /** null = no se pudieron leer sus pólizas: el hueco es real, la razón no se sabe. */
   motivo: "nunca" | "vencida" | "aun_no_empieza" | null,
   diasDesdeQueVencio: number | null,
 ): Urgencia {
@@ -234,7 +235,11 @@ export function urgenciaSeguroSinPoliza(
   if (motivo === "aun_no_empieza") {
     return { grupo: "vencido", plazo: "Sin seguro hoy", nota: "la póliza registrada todavía no empieza", orden: 0 };
   }
-  return { grupo: "vencido", plazo: "Sin póliza", nota: "nunca tuvo una registrada", orden: -10_000 };
+  if (motivo === "nunca") {
+    return { grupo: "vencido", plazo: "Sin póliza", nota: "nunca tuvo una registrada", orden: -10_000 };
+  }
+  // Sin la lista de pólizas no se sabe hace cuánto: tan arriba como «nunca», que es el caso más grave.
+  return { grupo: "vencido", plazo: "Sin póliza vigente", nota: "no se leyeron sus pólizas", orden: -10_000 };
 }
 
 /** Cubierta hoy, pero se queda sin seguro en `dias` y nada empalma. `hasta` es la fecha EXCLUSIVA. */
