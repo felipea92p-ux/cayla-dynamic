@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import type { ClienteCayla } from "@cayla-dynamic/database";
-import { EMPRESA, fechaLima, horaLima } from "@cayla-dynamic/shared";
+import type { ClienteCayla, Database } from "@cayla-dynamic/database";
+import { EMPRESA, TIPO_DOCUMENTO_LABEL, esTipoDocumento, fechaLima, horaLima } from "@cayla-dynamic/shared";
 import type { Constancia } from "@/components/boletas/constancia-de-firma";
 import type { TipoBoleta } from "@/lib/boletas";
 import type { HojaFirmada } from "@/lib/boletas-archivos";
@@ -30,7 +30,8 @@ import { isoADiaMesAnio } from "@/lib/admin/planilla/formato";
  *
  * Se dibuja dos veces con los mismos datos: en el modal (`enPapel` falso) y en
  * la copia que se imprime (`enPapel`). Por eso no carga nada por su cuenta: lo
- * que necesita lo traen `useDatosDeConstancia` y `usePaginasDeBoleta`.
+ * que necesita lo traen `useDatosDeConstancia` y `usePaginasDeBoleta`, y quien
+ * la arma entera —para DO y para la persona— es `useConstanciaDescargable`.
  */
 
 export type PaginaDeBoleta = {
@@ -42,57 +43,68 @@ export type PaginaDeBoleta = {
 };
 
 export type DatosDeConstancia = {
+  /** El nombre de la ficha (nombres y apellidos). */
+  nombre: string;
   /** Como figura en su DNI (`datos_personales.nombre_dni`); `null` si DO no lo registró. */
   nombreDni: string | null;
   documento: string | null;
+  /** `dni`, `ce` o `pasaporte` (0513). */
   tipoDocumento: string | null;
-  /** Cuándo se marcó pagado el grupo de pago de la persona en ese periodo. */
+  sede: string | null;
+  cargo: string | null;
+  /** Cuándo se pagó el grupo de la persona (planilla, RxH…) en ese periodo. */
   pagadoAt: string | null;
+  /** `false` si la base no contestó y la hoja se armó con lo que la pantalla ya sabía. */
+  completos: boolean;
 };
 
+type FilaDeDatos = Database["public"]["Functions"]["fn_boleta_datos_de_constancia"]["Returns"][number];
+
 /**
- * El DNI, el nombre del DNI y la fecha de pago de una persona en un periodo.
- * `datos` es `null` mientras carga. Si algo no se pudo leer, el campo queda en
- * `null` y `aviso` dice cuál: la hoja se puede mirar igual, pero no se presenta
- * un «—» como si el dato no existiera cuando en realidad no se pudo leer.
+ * Lo que la hoja dice de la persona, de `fn_boleta_datos_de_constancia` (0533).
+ * DO y la persona preguntan a la MISMA función, así «qué dice la constancia de
+ * Ana» tiene una sola respuesta. `datos` es `null` mientras carga; con
+ * `versionId` en `null` no pide nada.
+ *
+ * Si la base no contesta, la hoja se arma con `respaldo` —lo que la pantalla ya
+ * sabe— y `aviso` lo dice: un «—» no se presenta como si el dato no existiera
+ * cuando en realidad no se pudo leer. Y así no se descarga (`completos`).
  */
 export function useDatosDeConstancia(
   supabase: ClienteCayla,
-  q: { activo: boolean; personaId: string; periodoId: string | null; grupo: string },
-) {
-  const { activo, personaId, periodoId, grupo } = q;
-  const [datos, setDatos] = useState<DatosDeConstancia | null>(null);
-  const [aviso, setAviso] = useState<string | null>(null);
+  versionId: string | null,
+  respaldo: { nombre: string; sede: string | null; cargo: string | null },
+): { datos: DatosDeConstancia | null; aviso: string | null } {
+  const [leido, setLeido] = useState<{ fila: FilaDeDatos | null } | null>(null);
 
   useEffect(() => {
-    if (!activo) return;
+    if (!versionId) return;
     let vigente = true;
-    void Promise.all([
-      supabase.from("personas").select("documento, tipo_documento").eq("id", personaId).maybeSingle(),
-      supabase.from("datos_personales").select("nombre_dni").eq("persona_id", personaId).maybeSingle(),
-      periodoId
-        ? supabase.from("periodo_grupo_pago").select("pagado_at")
-            .eq("periodo_id", periodoId).eq("grupo", grupo).eq("estado", "pagado").maybeSingle()
-        : Promise.resolve({ data: null, error: null }),
-    ]).then(([p, dp, pago]) => {
-      if (!vigente) return;
-      const faltan = [
-        p.error && "el DNI",
-        dp.error && "el nombre del DNI",
-        pago.error && "la fecha de pago",
-      ].filter(Boolean);
-      setAviso(faltan.length > 0 ? `No pudimos leer ${faltan.join(", ")}: en la hoja sale «—».` : null);
-      setDatos({
-        nombreDni: dp.data?.nombre_dni ?? null,
-        documento: p.data?.documento ?? null,
-        tipoDocumento: p.data?.tipo_documento ?? null,
-        pagadoAt: pago.data?.pagado_at ?? null,
-      });
+    void supabase.rpc("fn_boleta_datos_de_constancia", { p_version_id: versionId }).then(({ data, error }) => {
+      if (vigente) setLeido({ fila: error ? null : (data ?? [])[0] ?? null });
     });
     return () => { vigente = false; };
-  }, [supabase, activo, personaId, periodoId, grupo]);
+  }, [supabase, versionId]);
 
-  return { datos, aviso };
+  if (leido === null) return { datos: null, aviso: null };
+  const f = leido.fila;
+  if (f) {
+    return {
+      datos: {
+        nombre: f.nombre, nombreDni: f.nombre_dni ?? null, documento: f.documento ?? null,
+        tipoDocumento: f.tipo_documento ?? null, sede: f.sede_codigo ?? null, cargo: f.cargo ?? null,
+        pagadoAt: f.pagado_at ?? null, completos: true,
+      },
+      aviso: null,
+    };
+  }
+  return {
+    datos: {
+      nombre: respaldo.nombre, nombreDni: null, documento: null, tipoDocumento: null,
+      sede: respaldo.sede, cargo: respaldo.cargo, pagadoAt: null, completos: false,
+    },
+    aviso: "No pudimos leer el documento de identidad ni la fecha de pago, y sin ellos la hoja no se descarga. Ciérrala y vuelve a abrirla en un momento.",
+  };
 }
 
 /** Tope de páginas por PDF: una boleta tiene una o dos; más es un archivo equivocado. */
@@ -170,16 +182,11 @@ function Dato({ etiqueta, children, ancho = false }: { etiqueta: string; childre
 }
 
 export function HojaConstanciaBoleta({
-  nombreFicha, sede, cargo, periodo, version, datos, constancia, paginas, errorPaginas, pdfs, generadaAt, enPapel = false,
+  periodo, version, datos, constancia, paginas, errorPaginas, pdfs, generadaAt, enPapel = false,
 }: {
-  /** El nombre de la ficha; si DO registró el del DNI, se usa ese. */
-  nombreFicha: string;
-  sede: string;
-  cargo: string | null;
   periodo: { nombre: string; desde: string | null; hasta: string | null };
   version: number | null;
-  /** `null` mientras carga. */
-  datos: DatosDeConstancia | null;
+  datos: DatosDeConstancia;
   constancia: Constancia;
   /** `null` mientras se preparan. */
   paginas: readonly PaginaDeBoleta[] | null;
@@ -190,10 +197,12 @@ export function HojaConstanciaBoleta({
   /** La copia que se imprime: sin enlaces, sin avisos de pantalla y con las fotos a la medida de una A4. */
   enPapel?: boolean;
 }) {
-  const nombre = datos?.nombreDni?.trim() || nombreFicha;
-  const tipoDoc = datos?.tipoDocumento?.trim() || "DNI";
-  const documento = datos === null ? "…" : datos.documento?.trim() || "—";
-  const pagado = datos === null ? "…" : datos.pagadoAt ? fechaYHora(datos.pagadoAt).fecha : "Sin registrar";
+  // El nombre que firma es el del DNI, no el de uso diario (ver FirmaEditor).
+  const nombre = datos.nombreDni?.trim() || datos.nombre;
+  const tipoDoc = esTipoDocumento(datos.tipoDocumento) ? TIPO_DOCUMENTO_LABEL[datos.tipoDocumento] : "DNI";
+  const documento = datos.documento?.trim() || "—";
+  // «Sin registrar» solo si la base CONTESTÓ que no hay fecha; si no contestó, no se sabe.
+  const pagado = datos.pagadoAt ? fechaYHora(datos.pagadoAt).fecha : datos.completos ? "Sin registrar" : "—";
   const recibida = constancia.recibida_at ? fechaYHora(constancia.recibida_at) : null;
   const generada = fechaYHora(generadaAt);
   const vista = constancia.vista_at ? fechaYHora(constancia.vista_at) : null;
@@ -218,7 +227,7 @@ export function HojaConstanciaBoleta({
       <dl className="grid grid-cols-2 gap-x-6 gap-y-3 py-4 text-sm sm:grid-cols-3">
         <Dato etiqueta="Integrante" ancho>{nombre}</Dato>
         <Dato etiqueta={tipoDoc}>{documento}</Dato>
-        <Dato etiqueta="Sede">{sede}{cargo ? ` · ${cargo}` : ""}</Dato>
+        <Dato etiqueta="Sede">{datos.sede ?? "—"}{datos.cargo ? ` · ${datos.cargo}` : ""}</Dato>
         <Dato etiqueta="Periodo">
           {periodo.desde && periodo.hasta ? `${isoADiaMesAnio(periodo.desde)} al ${isoADiaMesAnio(periodo.hasta)}` : periodo.nombre}
         </Dato>

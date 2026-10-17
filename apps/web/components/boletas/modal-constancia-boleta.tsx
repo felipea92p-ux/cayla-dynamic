@@ -4,10 +4,9 @@ import { useEffect, useState } from "react";
 import type { ClienteCayla } from "@cayla-dynamic/database";
 import { Modal } from "@/components/ui/modal";
 import { Boton } from "@/components/ui/boton";
-import { ImprimibleAparte, useImprimirAparte } from "@/components/ui/imprimible-aparte";
 import { Cargando } from "@/components/cargando";
 import { ConstanciaDeFirma, useConstancia } from "@/components/boletas/constancia-de-firma";
-import { HojaConstanciaBoleta, useDatosDeConstancia, usePaginasDeBoleta } from "@/components/boletas/hoja-constancia-boleta";
+import { useConstanciaDescargable } from "@/components/boletas/constancia-descargable";
 import { InsigniaDeEstado } from "@/components/boletas/insignia-de-estado";
 import { PieDeModal, TACTIL } from "@/components/boletas/pie-de-modal";
 import { VisorDeHojas } from "@/components/boletas/visor-de-hojas";
@@ -46,7 +45,7 @@ export function ModalConstanciaBoleta({
   supabase: ClienteCayla;
   modo: "constancia" | "anulacion";
   fila: FilaTablero;
-  /** Para las fechas del periodo y su fecha de pago en la hoja. */
+  /** Para las fechas del periodo en la hoja. */
   periodo: PeriodoInfo | null;
   nombreDelPeriodo: string;
   onCerrar: () => void;
@@ -55,7 +54,8 @@ export function ModalConstanciaBoleta({
   /** Solo en «anulación», mientras corre el plazo. */
   onRestablecer?: () => void;
 }) {
-  const { constancia, error: errorConstancia } = useConstancia(supabase, fila.version_id);
+  // En «constancia» la firma la pide useConstanciaDescargable, con la hoja.
+  const { constancia, error: errorConstancia } = useConstancia(supabase, modo === "anulacion" ? fila.version_id : null);
   const [hojas, setHojas] = useState<HojaFirmada[] | null>(null);
   const [errorHojas, setErrorHojas] = useState<string | null>(null);
   const [anulaciones, setAnulaciones] = useState<Anulacion[] | null>(null);
@@ -84,36 +84,17 @@ export function ModalConstanciaBoleta({
   const queda = tiempoParaRestablecer(fila.restablecible_hasta);
 
   // ── La hoja de la constancia (solo en «constancia») ────────────────────────
-  const tipo = (fila.tipo ?? "imagen") as TipoBoleta;
   const enConstancia = modo === "constancia";
-  const { datos, aviso: avisoDatos } = useDatosDeConstancia(supabase, {
-    activo: enConstancia, personaId: fila.persona_id, periodoId: periodo?.id ?? null, grupo: fila.tipo_vinculo,
+  const hojaFirmada = useConstanciaDescargable({
+    supabase,
+    versionId: enConstancia ? fila.version_id : null,
+    hojas,
+    tipo: (fila.tipo ?? "imagen") as TipoBoleta,
+    periodo: { nombre: nombreDelPeriodo, desde: periodo?.fecha_ini ?? null, hasta: periodo?.fecha_fin ?? null },
+    version: fila.version_n,
+    respaldo: { nombre: fila.nombre, sede: fila.sede_codigo, cargo: fila.cargo },
+    nombreDelPdf: `${fila.nombre} — Boleta firmada ${nombreDelPeriodo}`,
   });
-  const { paginas, error: errorPaginas } = usePaginasDeBoleta(enConstancia ? hojas : null, tipo);
-  // La hora de «generada» se fija al abrir: la hoja de la pantalla y la que se
-  // imprime tienen que decir lo mismo.
-  const [generadaAt] = useState(() => new Date().toISOString());
-  const { copia, preparando, imprimir } = useImprimirAparte(
-    enConstancia ? `${fila.nombre} — Boleta firmada ${nombreDelPeriodo}` : null,
-  );
-
-  const hoja = (enPapel: boolean) => constancia && (
-    <HojaConstanciaBoleta
-      nombreFicha={fila.nombre}
-      sede={fila.sede_codigo}
-      cargo={fila.cargo}
-      periodo={{ nombre: nombreDelPeriodo, desde: periodo?.fecha_ini ?? null, hasta: periodo?.fecha_fin ?? null }}
-      version={fila.version_n}
-      datos={datos}
-      constancia={constancia}
-      paginas={paginas}
-      errorPaginas={errorPaginas}
-      pdfs={tipo === "pdf" ? (hojas ?? []).map((h) => h.url) : []}
-      generadaAt={generadaAt}
-      enPapel={enPapel}
-    />
-  );
-  const listaParaDescargar = constancia !== null && datos !== null && (paginas !== null || errorPaginas !== null);
 
   return (
     <Modal abierto onCerrar={onCerrar} titulo={titulo} ancho="xl">
@@ -152,19 +133,9 @@ export function ModalConstanciaBoleta({
       )}
 
       {enConstancia && fila.version_id ? (
-        errorHojas || errorConstancia ? (
-          <p role="alert" className="rounded-control bg-rojo/10 px-3 py-2 text-sm text-rojo-profundo">
-            {errorHojas ?? `No pudimos leer la constancia: ${errorConstancia}`}
-          </p>
-        ) : hojas === null || constancia === null ? (
-          <Cargando texto="Abriendo la boleta…" />
-        ) : (
-          <>
-            {avisoDatos && <p role="alert" className="mb-3 rounded-control bg-ambar/10 px-3 py-2 text-sm text-ambar">{avisoDatos}</p>}
-            {hoja(false)}
-            <ImprimibleAparte ref={copia}>{hoja(true)}</ImprimibleAparte>
-          </>
-        )
+        errorHojas ? (
+          <p role="alert" className="rounded-control bg-rojo/10 px-3 py-2 text-sm text-rojo-profundo">{errorHojas}</p>
+        ) : hojaFirmada.contenido
       ) : fila.version_id ? (
         <>
           <p className="mb-1 text-xs font-medium uppercase tracking-wide text-taupe">
@@ -194,9 +165,9 @@ export function ModalConstanciaBoleta({
           <Boton
             variante="primario"
             className={TACTIL}
-            disabled={!listaParaDescargar}
-            cargando={preparando}
-            onClick={() => void imprimir()}
+            disabled={!hojaFirmada.lista}
+            cargando={hojaFirmada.preparando}
+            onClick={() => void hojaFirmada.descargar()}
           >
             Descargar PDF
           </Boton>
