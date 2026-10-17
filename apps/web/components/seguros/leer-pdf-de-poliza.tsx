@@ -120,31 +120,38 @@ function Cuerpo({
 
     const nuevas: Tarjeta[] = [];
     const fallidos: { archivo: string; motivo: string }[] = [];
-    for (let i = 0; i < elegidos.length; i++) {
-      const f = elegidos[i];
-      const problema = problemaDeArchivo(f);
-      if (problema) fallidos.push({ archivo: f.name, motivo: problema });
-      else {
-        const lectura = await textoDeLasPaginas(f);
-        if (!lectura.ok) fallidos.push({ archivo: f.name, motivo: lectura.motivo });
-        else {
-          const leidas = leerPolizas(lectura.paginas);
-          if (leidas.length === 0) {
-            fallidos.push({
-              archivo: f.name,
-              motivo: lectura.paginas.every((p) => p.trim() === "")
-                ? "No tiene texto que se pueda leer (¿es una foto escaneada?). Regístrala a mano."
-                : "No encontré en él los datos de una póliza. Regístrala a mano.",
-            });
-          } else {
-            leidas.forEach((l, n) => nuevas.push(tarjetaDeLectura(f, i, n, l, personas, hoy)));
+    try {
+      for (let i = 0; i < elegidos.length; i++) {
+        const f = elegidos[i];
+        try {
+          const problema = problemaDeArchivo(f);
+          if (problema) fallidos.push({ archivo: f.name, motivo: problema });
+          else {
+            const lectura = await textoDeLasPaginas(f);
+            if (!lectura.ok) fallidos.push({ archivo: f.name, motivo: lectura.motivo });
+            else {
+              const leidas = leerPolizas(lectura.paginas);
+              if (leidas.length === 0) {
+                fallidos.push({
+                  archivo: f.name,
+                  motivo: lectura.paginas.every((p) => p.trim() === "")
+                    ? "No tiene texto que se pueda leer (¿es una foto escaneada?). Regístrala a mano."
+                    : "No encontré en él los datos de una póliza. Regístrala a mano.",
+                });
+              } else {
+                leidas.forEach((l, n) => nuevas.push(tarjetaDeLectura(f, i, n, l, personas, hoy)));
+              }
+            }
           }
+        } catch {
+          // Un PDF raro no puede tirar el lote ni dejar el diálogo bloqueado: se dice por su nombre y sigue el siguiente.
+          fallidos.push({ archivo: f.name, motivo: "No se pudo leer. Regístrala a mano." });
         }
+        setLeyendo({ hechas: i + 1, total: elegidos.length });
       }
-      setLeyendo({ hechas: i + 1, total: elegidos.length });
+    } finally {
+      setLeyendo(null); onOcupado(false);
     }
-
-    setLeyendo(null); onOcupado(false);
     setSinLeer(fallidos);
     setTarjetas(nuevas);
     setProducto((actual) => actual || productoSugerido(nuevas, personas, tipos));
@@ -175,30 +182,34 @@ function Cuerpo({
   async function registrar() {
     setAviso(null); setRegistrando(true); onOcupado(true);
     let hechas = 0;
-    for (const { t, errores, registrada, yaEsta } of vista) {
-      if (!t.incluir || registrada || yaEsta || errores.length > 0) continue;
-      const { data, error } = await supabase.rpc("fn_seguro_registrar", {
-        p_persona_id: t.personaId, p_producto: producto,
-        p_aseguradora: t.aseguradora.trim(), p_numero_poliza: t.numero.trim(),
-        p_vigente_desde: t.desde, p_vigente_hasta: t.hasta, p_prima_total: numeroDeTexto(t.prima)!,
-        p_prima_vence_el: t.primaVence || null, p_plan: null, p_beneficio_enfermedad: null, p_beneficio_accidente: null,
-        p_renueva_sola: null, p_nota: t.nota.trim() || null,
-      });
-      if (error || typeof data !== "string") {
-        cambiar(t.clave, { estado: { tipo: "error", mensaje: mensajeDeError(error, "guardar") } });
-        continue;
+    try {
+      for (const { t, errores, registrada, yaEsta } of vista) {
+        if (!t.incluir || registrada || yaEsta || errores.length > 0) continue;
+        const { data, error } = await supabase.rpc("fn_seguro_registrar", {
+          p_persona_id: t.personaId, p_producto: producto,
+          p_aseguradora: t.aseguradora.trim(), p_numero_poliza: t.numero.trim(),
+          p_vigente_desde: t.desde, p_vigente_hasta: t.hasta, p_prima_total: numeroDeTexto(t.prima)!,
+          p_prima_vence_el: t.primaVence || null, p_plan: null, p_beneficio_enfermedad: null, p_beneficio_accidente: null,
+          p_renueva_sola: null, p_nota: t.nota.trim() || null,
+        });
+        if (error || typeof data !== "string") {
+          cambiar(t.clave, { estado: { tipo: "error", mensaje: mensajeDeError(error, "guardar") } });
+          continue;
+        }
+        hechas += 1;
+        let estado: EstadoDeTarjeta;
+        if (!guardarPdf) estado = { tipo: "registrada", pdf: "omitido" };
+        else {
+          const subido = await adjuntarArchivoAPoliza(supabase, data, "poliza", t.archivo);
+          estado = { tipo: "registrada", pdf: subido.ok ? "guardado" : { error: subido.error } };
+        }
+        cambiar(t.clave, { estado });
       }
-      hechas += 1;
-      let estado: EstadoDeTarjeta;
-      if (!guardarPdf) estado = { tipo: "registrada", pdf: "omitido" };
-      else {
-        const subido = await adjuntarArchivoAPoliza(supabase, data, "poliza", t.archivo);
-        estado = { tipo: "registrada", pdf: subido.ok ? "guardado" : { error: subido.error } };
-      }
-      cambiar(t.clave, { estado });
+    } finally {
+      // Pase lo que pase se desbloquea el diálogo, y la pantalla recarga con lo que SÍ quedó registrado.
+      setRegistrando(false); onOcupado(false);
+      await onRegistradas(hechas);
     }
-    setRegistrando(false); onOcupado(false);
-    await onRegistradas(hechas);
   }
 
   return (
