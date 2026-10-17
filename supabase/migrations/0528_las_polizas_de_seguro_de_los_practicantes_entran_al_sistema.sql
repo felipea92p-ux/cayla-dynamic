@@ -158,7 +158,10 @@
 --     fn_seguro_datos_validos(text, text, date, date, numeric, date, text, numeric, numeric, text),
 --     fn_seguros_tablero(), fn_seguro_historial(uuid), fn_seguro_archivos(uuid);
 --   drop table polizas_seguro_eventos, polizas_seguro_archivos, polizas_seguro;
---   delete from storage.objects where bucket_id = 'polizas-seguro';  -- los PDF, antes del bucket
+--   -- Los PDF se borran por la API o el panel de Storage ANTES de correr esto
+--   -- (cada borrado quita fila y archivo). Borrar las filas de storage.objects por
+--   -- SQL deja los archivos huérfanos en el almacén, y eso no se ve en ninguna lista.
+--   delete from storage.objects where bucket_id = 'polizas-seguro';  -- red de seguridad: debería dar 0 filas
 --   delete from storage.buckets where id = 'polizas-seguro';
 --   delete from migraciones_aplicadas where numero = 528;
 --   commit;
