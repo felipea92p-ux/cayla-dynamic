@@ -478,9 +478,14 @@ function Seguros() {
         personas={opciones}
         polizas={polizas}
         hoy={hoy}
-        onRegistradas={async (cuantas) => {
+        onRegistradas={async (cuantas, fallaron) => {
           await cargar();
-          if (cuantas > 0) avisar("ok", `${plural(cuantas, "póliza registrada", "pólizas registradas")}.`);
+          // Un solo aviso: si algunas quedaron y otras no, se dice de las dos (la tarjeta de cada una explica por qué).
+          const partes = [
+            ...(cuantas > 0 ? [plural(cuantas, "póliza registrada", "pólizas registradas")] : []),
+            ...(fallaron > 0 ? [`${plural(fallaron, "no se pudo registrar", "no se pudieron registrar")} (cada tarjeta dice por qué)`] : []),
+          ];
+          if (partes.length > 0) avisar(fallaron > 0 ? "error" : "ok", `${partes.join("; ")}.`);
         }}
       />
 

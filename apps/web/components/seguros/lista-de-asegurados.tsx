@@ -113,15 +113,21 @@ function Cuerpo({
   async function descargar() {
     if (!filas || filas.length === 0) return;
     setDescargando(true); onOcupado(true);
-    // Se vuelve a pedir AL DESCARGAR: el archivo sale con lo de ahora, y la remuneración viaja solo si se pidió.
-    const { data, error: e } = await supabase.rpc("fn_seguro_asegurados", { p_producto: clave, p_con_remuneracion: conRemuneracion });
-    setDescargando(false); onOcupado(false);
-    if (e) { avisar("error", mensajeDeError(e, "descargar la lista")); return; }
-    const lista = (data as Asegurado[] | null) ?? [];
-    descargarCsv(nombreDeArchivoDeLista(clave, hoy), generarCsv(filasDeLista(lista, conRemuneracion), columnasDeLista(conRemuneracion)));
-    const faltan = resumenDeLista(lista, conRemuneracion).incompletas;
-    avisar("ok", `Descargadas ${plural(lista.length, "persona", "personas")}${faltan > 0 ? `; a ${faltan} les falta algún dato (columna REVISAR)` : ""}. `
-      + "Lleva documento y fecha de nacimiento: compártelo por un canal que puedas revocar y bórralo al terminar.");
+    try {
+      // Se vuelve a pedir AL DESCARGAR: el archivo sale con lo de ahora, y la remuneración viaja solo si se pidió.
+      const { data, error: e } = await supabase.rpc("fn_seguro_asegurados", { p_producto: clave, p_con_remuneracion: conRemuneracion });
+      if (e) { avisar("error", mensajeDeError(e, "descargar la lista")); return; }
+      const lista = (data as Asegurado[] | null) ?? [];
+      descargarCsv(nombreDeArchivoDeLista(clave, hoy), generarCsv(filasDeLista(lista, conRemuneracion), columnasDeLista(conRemuneracion)));
+      const faltan = resumenDeLista(lista, conRemuneracion).incompletas;
+      avisar("ok", `Descargadas ${plural(lista.length, "persona", "personas")}${faltan > 0 ? `; a ${faltan} les falta algún dato (columna REVISAR)` : ""}. `
+        + "Lleva documento y fecha de nacimiento: compártelo por un canal que puedas revocar y bórralo al terminar.");
+    } catch {
+      avisar("error", "No se pudo armar el archivo. Vuelve a intentarlo.");
+    } finally {
+      // Pase lo que pase se desbloquea el diálogo: si no, no se podría ni cerrar.
+      setDescargando(false); onOcupado(false);
+    }
   }
 
   return (
@@ -131,20 +137,26 @@ function Cuerpo({
         Es información personal.
       </p>
 
-      <div className="mb-3 max-w-md">
-        <CampoSelect etiqueta="Seguro" value={clave} onChange={(e) => cambiarSeguro(e.target.value)}>
-          {opciones.map((t) => <option key={t.clave} value={t.clave}>{t.nombre}{t.principal ? "" : " (va además del principal)"}</option>)}
-        </CampoSelect>
-        {tipo && (
-          <span className="mt-1 block text-xs text-taupe">
-            {tipo.principal
-              ? `Las personas activas cuyo seguro es ${tipo.nombre}${tipo.con_poliza ? " (tengan ya su póliza o no)" : ""}, y quien conserva una póliza vigente.`
-              : `Las personas con una póliza vigente de ${tipo.nombre}.`}
-          </span>
-        )}
-      </div>
+      {opciones.length === 0 ? (
+        <p className="rounded-lg bg-hueso px-3 py-3 text-sm text-taupe">
+          Todavía no hay ningún seguro en el sistema: créalos primero en «Seguros» y vuelve aquí.
+        </p>
+      ) : (
+        <div className="mb-3 max-w-md">
+          <CampoSelect etiqueta="Seguro" value={clave} onChange={(e) => cambiarSeguro(e.target.value)}>
+            {opciones.map((t) => <option key={t.clave} value={t.clave}>{t.nombre}{t.principal ? "" : " (va además del principal)"}</option>)}
+          </CampoSelect>
+          {tipo && (
+            <span className="mt-1 block text-xs text-taupe">
+              {tipo.principal
+                ? `Las personas activas cuyo seguro es ${tipo.nombre}${tipo.con_poliza ? " (tengan ya su póliza o no)" : ""}, y quien conserva una póliza vigente.`
+                : `Las personas con una póliza vigente de ${tipo.nombre}.`}
+            </span>
+          )}
+        </div>
+      )}
 
-      {error ? (
+      {opciones.length === 0 ? null : error ? (
         <div className="mb-3">
           <AvisoDeError mensaje={error} />
           <Boton variante="enlace" onClick={reintentar}>Reintentar</Boton>

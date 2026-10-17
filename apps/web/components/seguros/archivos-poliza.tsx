@@ -17,7 +17,14 @@
 //   Un seguro de vida o una EPS es UNA póliza con una fila por persona, y el PDF es uno. Si esta
 //   póliza tiene otras (`hermanas`), junto a «Guardar» hay una casilla, marcada: guardar el archivo
 //   también en las demás. Se COPIA dentro del almacén —no se vuelve a subir—, una vez por póliza, y
-//   si alguna falla se dice cuáles, sin deshacer las que sí quedaron.
+//   si alguna falla se dice cuáles, sin deshacer las que sí quedaron, y se ofrece repetir SOLO esas
+//   (el archivo ya está en el almacén: no hay que volver a elegirlo ni a subirlo).
+//
+//   «OTRO PAPEL» NO SE COPIA
+//   La póliza, el convenio de pago y la factura son de la póliza de la empresa, y son los mismos para
+//   todas. Un «otro papel» puede ser de UNA persona (un certificado, una carta): copiarlo a las demás
+//   le pondría a cada una un papel ajeno, con datos que no le corresponden. Para ese tipo no hay casilla
+//   y el archivo se guarda solo aquí.
 //
 // POR QUÉ LA RUTA NO LLEVA EL NOMBRE
 //   El PDF de una póliza se llama «Apellidos, Nombres, FOLA 24043267.pdf»: lleva
@@ -112,36 +119,75 @@ function Cuerpo({
   // En la póliza colectiva el papel es uno: por defecto se guarda también en las demás.
   const [tambien, setTambien] = useState(true);
   const [copiando, setCopiando] = useState<{ hechas: number; total: number } | null>(null);
+  // Las copias que fallaron, con lo necesario para repetirlas sin volver a subir nada.
+  const [faltanCopias, setFaltanCopias] = useState<{
+    ruta: string; tipo: TipoArchivoSeguro; nombre: string; total: number; faltan: PolizaHermana[];
+  } | null>(null);
+  // Un «otro papel» puede ser de una sola persona: no se reparte (ver el encabezado).
+  const seReparte = hermanas.length > 0 && tipo !== "otro";
+
+  /** Copia el archivo ya guardado a cada destino, una por una; devuelve a las que NO llegó. */
+  async function copiarEn(ruta: string, deQueTipo: TipoArchivoSeguro, nombre: string, destinos: PolizaHermana[]): Promise<PolizaHermana[]> {
+    const fallaron: PolizaHermana[] = [];
+    for (let i = 0; i < destinos.length; i++) {
+      setCopiando({ hechas: i, total: destinos.length });
+      const fallo = await copiarArchivoAPoliza(supabase, ruta, destinos[i].id, deQueTipo, nombre);
+      if (fallo) fallaron.push(destinos[i]);
+    }
+    return fallaron;
+  }
 
   async function subir() {
-    setMsg(null);
+    setMsg(null); setFaltanCopias(null);
     if (!archivo) { setMsg("Elige el archivo: un PDF o una foto."); return; }
     const problema = problemaDeArchivo(archivo);
     if (problema) { setMsg(problema); return; }
 
     setSubiendo(true); onOcupado(true);
-    const subido = await adjuntarArchivoAPoliza(supabase, polizaId, tipo, archivo, setProgreso);
-    setProgreso(null);
-    if (!subido.ok) { setSubiendo(false); onOcupado(false); setMsg(subido.error); return; }
-
-    // En las demás pólizas de la misma póliza colectiva: una por una, y las que fallen se dicen.
-    const sinCopia: string[] = [];
-    const aCopiar = tambien ? hermanas : [];
-    for (let i = 0; i < aCopiar.length; i++) {
-      setCopiando({ hechas: i, total: aCopiar.length });
-      const fallo = await copiarArchivoAPoliza(supabase, subido.ruta, aCopiar[i].id, tipo, archivo.name);
-      if (fallo) sinCopia.push(aCopiar[i].titulo);
+    // Pase lo que pase —un fallo de red a medias incluido— el diálogo se desbloquea al salir.
+    let resultado: { ruta: string; aCopiar: PolizaHermana[]; fallaron: PolizaHermana[] } | null = null;
+    try {
+      const subido = await adjuntarArchivoAPoliza(supabase, polizaId, tipo, archivo, setProgreso);
+      if (!subido.ok) { setMsg(subido.error); return; }
+      // En las demás pólizas de la misma póliza colectiva: una por una, y las que fallen se dicen.
+      const aCopiar = seReparte && tambien ? hermanas : [];
+      resultado = { ruta: subido.ruta, aCopiar, fallaron: await copiarEn(subido.ruta, tipo, archivo.name, aCopiar) };
+    } catch {
+      setMsg("Algo falló al guardar el archivo. Revisa abajo si quedó, y vuelve a intentarlo.");
+    } finally {
+      setProgreso(null); setCopiando(null); setSubiendo(false); onOcupado(false);
     }
-    setCopiando(null);
 
-    setSubiendo(false); onOcupado(false);
+    // Con la póliza ya cambiada (o sin saber si cambió) la lista se recarga siempre.
     setArchivo(null); setClaveInput((n) => n + 1);
     await cargar();
     onCambio();
-    if (sinCopia.length > 0) {
-      setMsg(`El archivo quedó en esta póliza y en ${aCopiar.length - sinCopia.length} de las otras ${aCopiar.length}, pero no en: ${sinCopia.join(", ")}. Ábrelas y súbelo ahí.`);
+    if (!resultado) return;
+    if (resultado.fallaron.length > 0) {
+      setFaltanCopias({ ruta: resultado.ruta, tipo, nombre: archivo.name, total: resultado.aCopiar.length, faltan: resultado.fallaron });
     } else {
-      avisar("ok", aCopiar.length > 0 ? `Archivo guardado en esta póliza y en las otras ${aCopiar.length}.` : "Archivo guardado.");
+      avisar("ok", resultado.aCopiar.length > 0 ? `Archivo guardado en esta póliza y en las otras ${resultado.aCopiar.length}.` : "Archivo guardado.");
+    }
+  }
+
+  /** Repite la copia SOLO en las pólizas a las que no llegó: el archivo ya está en el almacén. */
+  async function repetirCopias() {
+    if (!faltanCopias) return;
+    setSubiendo(true); onOcupado(true);
+    let quedan: PolizaHermana[] = faltanCopias.faltan;
+    try {
+      quedan = await copiarEn(faltanCopias.ruta, faltanCopias.tipo, faltanCopias.nombre, faltanCopias.faltan);
+    } catch {
+      setMsg("Algo falló al copiar el archivo. Vuelve a intentarlo.");
+    } finally {
+      setCopiando(null); setSubiendo(false); onOcupado(false);
+    }
+    onCambio();
+    if (quedan.length === 0) {
+      setFaltanCopias(null);
+      avisar("ok", `El archivo quedó también en ${plural(faltanCopias.faltan.length, "póliza más", "pólizas más")}.`);
+    } else {
+      setFaltanCopias({ ...faltanCopias, faltan: quedan });
     }
   }
 
@@ -228,6 +274,21 @@ function Cuerpo({
             </ul>
           )}
 
+          {faltanCopias && (
+            <div role="alert" className="mb-3 rounded-lg border border-ambar/40 bg-ambar/15 px-4 py-3 text-sm text-ambar">
+              <p>
+                El archivo quedó en esta póliza y en {faltanCopias.total - faltanCopias.faltan.length} de las otras {faltanCopias.total},
+                pero no en: {faltanCopias.faltan.map((h) => h.titulo).join(", ")}.
+              </p>
+              <p className="mt-1 text-xs">Si cierras esto sin repetirlo, ábrelas una por una y súbelo ahí.</p>
+              <div className="mt-2 flex justify-end">
+                <Boton tamano="sm" onClick={() => void repetirCopias()} cargando={subiendo} disabled={subiendo}>
+                  Guardarlo en {faltanCopias.faltan.length === 1 ? "esa póliza" : "esas pólizas"}
+                </Boton>
+              </div>
+            </div>
+          )}
+
           <div className="rounded-xl border border-sand bg-hueso px-4 py-4">
             <p className="mb-3 text-sm text-tinta">Subir un archivo</p>
             {msg && <p role="alert" className="mb-3 rounded border border-rojo/30 bg-rojo/10 px-3 py-2 text-sm text-rojo">{msg}</p>}
@@ -249,7 +310,12 @@ function Cuerpo({
                 </span>
               </label>
             </div>
-            {hermanas.length > 0 && (
+            {hermanas.length > 0 && tipo === "otro" && (
+              <p className="mt-3 text-xs text-taupe">
+                Un «otro papel» se guarda solo en esta póliza: puede ser de una sola persona, y copiarlo a las demás le pondría a cada una un papel ajeno.
+              </p>
+            )}
+            {seReparte && (
               <label className="mt-3 flex items-start gap-2 text-sm">
                 <input type="checkbox" className="mt-0.5 size-4 shrink-0 accent-tinta" checked={tambien} onChange={(e) => setTambien(e.target.checked)} disabled={subiendo} />
                 <span>

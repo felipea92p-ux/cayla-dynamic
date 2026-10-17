@@ -8,7 +8,8 @@
 //   · que la remuneración solo esté en el archivo si se la pidió (es plata por persona);
 //   · que el documento viaje como TEXTO: un DNI con cero adelante, en Excel, pierde el
 //     cero y el número llega mal al contador (lección del 2026-08-10, `csv.ts`);
-//   · que las fechas salgan como las escribe el papel de la aseguradora.
+//   · que las fechas salgan en ISO (año-mes-día), como el padrón: dd/mm/aaaa se lee al revés en un
+//     Excel en inglés, y aquí una fecha decide si alguien está cubierto.
 // Quién está en un seguro lo dice la base, no esto: acá solo se da forma a lo que llega.
 // ============================================================================
 import { describe, it, expect } from "vitest";
@@ -106,12 +107,12 @@ describe("el archivo", () => {
     expect(fila["Remuneración asegurable"]).toBe("1130.00");
   });
 
-  it("las fechas salen día/mes/año y el tipo de documento con su nombre", () => {
+  it("las fechas salen en ISO, que ningún Excel lee al revés, y el tipo de documento con su nombre", () => {
     const [fila] = filasDeLista([asegurado({ tipo_documento: "ce", documento: "144858518" })], false);
-    expect(fila["Fecha de nacimiento"]).toBe("17/05/1990");
-    expect(fila["Fecha de ingreso"]).toBe("01/06/2024");
-    expect(fila["Vigente desde"]).toBe("01/10/2026");
-    expect(fila["Vigente hasta"]).toBe("01/10/2027");
+    expect(fila["Fecha de nacimiento"]).toBe("1990-05-17");
+    expect(fila["Fecha de ingreso"]).toBe("2024-06-01");
+    expect(fila["Vigente desde"]).toBe("2026-10-01");
+    expect(fila["Vigente hasta"]).toBe("2027-10-01");
     expect(fila["Tipo de documento"]).toBe("Carné de extranjería");
     expect(fila["Vínculo"]).toBe("Planilla");
   });

@@ -23,7 +23,6 @@
 //   sigue solo para la dirección).
 // ============================================================================
 import { TIPO_DOCUMENTO_LABEL, type TipoDocumento } from "@cayla-dynamic/shared";
-import { isoADiaMesAnio } from "./planilla/formato";
 import { etiquetaVinculo } from "./seguros";
 
 /** Una fila de `fn_seguro_asegurados` (0528). */
@@ -97,7 +96,6 @@ export function etiquetaDeDocumento(tipo: string | null): string {
   return TIPO_DOCUMENTO_LABEL[tipo as TipoDocumento] ?? tipo;
 }
 
-const dia = (iso: string | null) => (iso ? isoADiaMesAnio(iso) : "");
 
 /** Las columnas del archivo, en este orden. La remuneración solo está si se la pidió. */
 export function columnasDeLista(conRemuneracion: boolean): string[] {
@@ -111,9 +109,10 @@ export function columnasDeLista(conRemuneracion: boolean): string[] {
 
 /**
  * Las filas del CSV. `REVISAR` dice qué le falta a cada una —como el padrón—: una columna que falta
- * se pasa por alto, una vacía se ve y se llena. Las fechas van como las escribe el papel de la
- * aseguradora (día/mes/año). El documento viaja como texto: `generarCsv` lo protege de que Excel
- * le coma el cero de adelante.
+ * se pasa por alto, una vacía se ve y se llena. Las fechas van en ISO (2026-10-17), como el padrón y
+ * el resto de las exportaciones: «05/10/2026» se lee como 10 de mayo en una computadora con Excel en
+ * inglés, y aquí cada fecha decide si una persona está cubierta. El documento viaja como texto:
+ * `generarCsv` lo protege de que Excel le coma el cero de adelante.
  */
 export function filasDeLista(filas: readonly Asegurado[], conRemuneracion: boolean): Record<string, unknown>[] {
   return filas.map((a) => ({
@@ -122,16 +121,16 @@ export function filasDeLista(filas: readonly Asegurado[], conRemuneracion: boole
     "Nombre según DNI": a.nombre_segun_dni ?? "",
     "Tipo de documento": etiquetaDeDocumento(a.tipo_documento),
     "Documento": a.documento ?? "",
-    "Fecha de nacimiento": dia(a.fecha_nacimiento),
-    "Fecha de ingreso": dia(a.fecha_ingreso),
+    "Fecha de nacimiento": a.fecha_nacimiento ?? "",
+    "Fecha de ingreso": a.fecha_ingreso ?? "",
     "Sede": a.sede,
     "Vínculo": etiquetaVinculo(a.tipo_vinculo),
     "Situación": a.activa ? "Activa" : "Ya no está activa: pedir la baja",
     ...(conRemuneracion ? { "Remuneración asegurable": a.remuneracion == null ? "" : a.remuneracion.toFixed(2) } : {}),
     "Póliza": a.numero_poliza ?? "",
     "Aseguradora": a.aseguradora ?? "",
-    "Vigente desde": dia(a.vigente_desde),
-    "Vigente hasta": dia(a.vigente_hasta),
+    "Vigente desde": a.vigente_desde ?? "",
+    "Vigente hasta": a.vigente_hasta ?? "",
     "REVISAR": datosQueFaltan(a, conRemuneracion).map((d) => `falta ${ETIQUETA_DATO_FALTANTE[d]}`).join(" · "),
   }));
 }

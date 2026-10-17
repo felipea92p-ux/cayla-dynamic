@@ -84,8 +84,11 @@ export function AyudaDeSeguros() {
                 <dt className="font-medium text-tinta">Leer PDF de póliza</dt>
                 <dd className="text-taupe">
                   Elige el PDF de la póliza —o varios, uno por persona— y el sistema lee el número, la vigencia, la prima y a quién
-                  asegura. Tú lo revisas y lo registras, y el PDF se guarda en la póliza. Hoy entiende las pólizas de Pacífico; si un
-                  PDF no se entiende (una foto escaneada, otra aseguradora), lo dice y se registra a mano.
+                  asegura, y comprueba que el documento del papel sea el de la ficha de esa persona. Lo leído es una propuesta: solo
+                  viene marcada la póliza completa, de una persona clara, con el documento que coincide y sin avisos; las demás las
+                  marcas tú después de revisarlas. Al registrar, el PDF se guarda en la póliza (si un mismo PDF trae las pólizas de
+                  varias personas no se guarda en ninguna, porque llevaría los datos de las demás). Hoy entiende las pólizas de
+                  Pacífico; si un PDF no se entiende (una foto escaneada, otra aseguradora), lo dice y se registra a mano.
                 </dd>
               </div>
               <div>
@@ -100,7 +103,8 @@ export function AyudaDeSeguros() {
                 <dt className="font-medium text-tinta">Lista de asegurados</dt>
                 <dd className="text-taupe">
                   Quiénes están en un seguro hoy, con documento, nacimiento e ingreso, y a quién le falta algún dato: sin eso la
-                  aseguradora no emite su certificado. Se puede bajar en CSV para el contador o la aseguradora.
+                  aseguradora no emite su certificado. DO y la dirección pueden bajarlo en CSV para el contador o la aseguradora;
+                  lleva documento y fecha de nacimiento, así que se comparte con cuidado.
                 </dd>
               </div>
             </dl>

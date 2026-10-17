@@ -14,8 +14,20 @@
 //
 // UNA TARJETA ES UNA PROPUESTA
 //   Nada de lo leído se registra sin que DO lo mire. Una tarjeta nace SELECCIONADA solo si el papel trajo
-//   número, vigencia y prima, y si la persona se pudo proponer con claridad; si no, nace sin seleccionar y
-//   dice qué falta.
+//   número, vigencia y prima; la persona se pudo proponer con claridad; el lector NO dejó ningún aviso; y el
+//   DOCUMENTO del asegurado en el papel es el de la ficha de esa persona. Si algo de eso falla, nace sin
+//   seleccionar y dice qué: una póliza con un aviso la tiene que marcar alguien que ya leyó el aviso.
+//
+// EL DOCUMENTO ES LA LLAVE, EL NOMBRE ES LA PISTA
+//   Por el nombre se PROPONE a una persona (puede haber dos «Ana Pérez»); por el documento se COMPRUEBA. Si el
+//   documento del papel no es el de la ficha de la persona elegida, la tarjeta no se puede registrar (equivocar
+//   de persona es registrarle a otra su seguro): o es otra persona, o hay un error en el papel o en la ficha, y
+//   en cualquiera de los tres casos alguien tiene que mirarlo. Sin ficha que cotejar —la consulta falló o la
+//   ficha no tiene documento— se avisa y no se deja lista, pero DO puede marcarla.
+//
+// UN PDF CON VARIAS PÓLIZAS NO SE GUARDA EN CADA UNA
+//   Un archivo con las pólizas de cuatro personas lleva el documento y la fecha de nacimiento de las otras tres.
+//   Su PDF no se adjunta a ninguna de ellas por defecto; se dice en la tarjeta.
 //
 // LAS FECHAS NACEN CON VALOR (CLAUDE.md, regla del 2026-08-26: un campo de fecha cuyo vacío bloquea el envío
 //   no puede arrancar en «»). Si el papel no trae una fecha, la tarjeta nace con «hoy» y «tres meses después»
@@ -29,8 +41,44 @@ import { fechasSospechosas, numeroDeTexto, polizaQueSeCruza, sumarMeses, type Po
 /** Lo mínimo que hace falta saber de una persona para proponérsela a un papel. */
 export interface PersonaParaEmparejar { id: string; nombre: string; tipoPrincipal: string | null }
 
-/** Qué pasó con el PDF de una póliza ya registrada: se guardó, no se pidió guardarlo, o falló (la póliza sí quedó). */
-export type PdfDeTarjeta = "guardado" | "omitido" | { error: string };
+/**
+ * Qué pasó con el PDF de una póliza ya registrada: se guardó, no se pidió guardarlo, no se guardó porque trae las
+ * pólizas de varias personas, o falló (la póliza sí quedó).
+ */
+export type PdfDeTarjeta = "guardado" | "omitido" | "compartido" | { error: string };
+
+/** Lo que se necesita de la ficha de una persona para comprobar que es la del papel. */
+export interface FichaDeDocumento { documento: string | null }
+
+/**
+ * El documento del papel contra el de la ficha:
+ *   coincide ................ el mismo, sin importar guiones, mayúsculas ni ceros de adelante («08817189» y «8817189»);
+ *   distinto ................ otro: o es otra persona, o hay un error en el papel o en la ficha;
+ *   sin_documento_en_ficha .. la ficha no lo tiene: no hay con qué comprobar;
+ *   sin_documento_en_papel .. el lector no lo encontró;
+ *   no_comprobado ........... no se pudo consultar las fichas.
+ */
+export type Cotejo = "coincide" | "distinto" | "sin_documento_en_ficha" | "sin_documento_en_papel" | "no_comprobado";
+
+const normalizarDocumento = (d: string) => d.toUpperCase().replace(/[^A-Z0-9]/g, "").replace(/^0+(?=[A-Z0-9])/, "");
+
+export function cotejarDocumento(papel: string | null | undefined, ficha: string | null | undefined, comprobable = true): Cotejo {
+  if (!comprobable) return "no_comprobado";
+  const delPapel = papel ? normalizarDocumento(papel) : "";
+  if (delPapel === "") return "sin_documento_en_papel";
+  const deLaFicha = ficha ? normalizarDocumento(ficha) : "";
+  if (deLaFicha === "") return "sin_documento_en_ficha";
+  return delPapel === deLaFicha ? "coincide" : "distinto";
+}
+
+/** El cotejo de una tarjeta con la persona elegida, o null si todavía no hay persona. */
+export function cotejoDeTarjeta(
+  t: Pick<TarjetaDePoliza<{ name: string }>, "personaId" | "leida">,
+  fichas: ReadonlyMap<string, FichaDeDocumento> | null,
+): Cotejo | null {
+  if (!t.personaId) return null;
+  return cotejarDocumento(t.leida.asegurado?.documento, fichas?.get(t.personaId)?.documento ?? null, fichas !== null);
+}
 
 export type EstadoDeTarjeta =
   | { tipo: "pendiente" }
@@ -53,27 +101,38 @@ export interface TarjetaDePoliza<A extends { name: string } = File> {
   primaVence: string;
   aseguradora: string;
   nota: string;
+  /** Cuántas pólizas trajo el archivo de donde salió: si son varias, su PDF no se guarda en ninguna. */
+  polizasDelArchivo: number;
   estado: EstadoDeTarjeta;
 }
 
-/** La tarjeta de la póliza `n` que se leyó del archivo número `posicion` de los que se eligieron. */
+/**
+ * La tarjeta de la póliza `n` que se leyó del archivo número `posicion` de los que se eligieron, que trajo
+ * `delArchivo` pólizas. `fichas` es el documento de cada persona, para comprobar que es la del papel (null si no se
+ * pudo consultar).
+ */
 export function tarjetaDeLectura<A extends { name: string }>(
   archivo: A,
   posicion: number,
   n: number,
+  delArchivo: number,
   leida: PolizaLeida,
   personas: readonly PersonaParaEmparejar[],
   hoy: string,
+  fichas: ReadonlyMap<string, FichaDeDocumento> | null,
 ): TarjetaDePoliza<A> {
   const sugerida = leida.asegurado ? emparejarPersona(leida.asegurado.nombre, personas)?.persona.id ?? "" : "";
   const desde = leida.desde ?? hoy;
   const hasta = leida.hasta ?? sumarMeses(desde, 3);
   const completa = leida.numero.trim().length >= 3 && leida.desde !== null && leida.hasta !== null && leida.prima !== null;
+  const cotejo = cotejoDeTarjeta({ personaId: sugerida, leida }, fichas);
   return {
     clave: `${posicion}:${n}`,
     archivo,
     leida,
-    incluir: completa && sugerida !== "",
+    // Solo nace lista si TODO cuadra: datos completos, persona clara, sin un solo aviso del lector y con el
+    // documento del papel igual al de la ficha. Cualquier otra cosa la marca una persona que ya la miró.
+    incluir: completa && sugerida !== "" && leida.avisos.length === 0 && cotejo === "coincide",
     personaId: sugerida,
     numero: leida.numero,
     desde,
@@ -82,6 +141,7 @@ export function tarjetaDeLectura<A extends { name: string }>(
     primaVence: leida.primaVenceEl ?? "",
     aseguradora: leida.aseguradora ?? "",
     nota: leida.emitidaEl ? `Emitida el ${isoADiaMesAnio(leida.emitidaEl)}` : "",
+    polizasDelArchivo: delArchivo,
     estado: { tipo: "pendiente" },
   };
 }
@@ -127,6 +187,8 @@ export interface ContextoDeTarjeta {
   producto: string;
   tipos: readonly Pick<TipoSeguro, "clave" | "nombre" | "principal">[];
   personas: readonly PersonaParaEmparejar[];
+  /** El documento de cada persona; null = no se pudo consultar (no se puede comprobar, y se avisa). */
+  fichas: ReadonlyMap<string, FichaDeDocumento> | null;
   polizas: readonly Pick<Poliza, "persona_id" | "producto" | "vigente_desde" | "vigente_hasta">[];
   /** Las demás tarjetas del lote: dos de la misma persona que se cruzan se detendrían una a la otra. */
   lote: readonly Pick<TarjetaDePoliza<{ name: string }>, "clave" | "incluir" | "personaId" | "desde" | "hasta" | "estado">[];
@@ -143,8 +205,17 @@ export function erroresDeTarjeta(t: TarjetaDePoliza<{ name: string }>, ctx: Cont
   const tipo = ctx.tipos.find((x) => x.clave === ctx.producto);
 
   if (!t.personaId) e.push("Elige a quién asegura.");
-  else if (tipo?.principal && persona && persona.tipoPrincipal !== ctx.producto) {
-    e.push(`Su seguro hoy es otro: no se le registra una póliza de ${tipo.nombre}. Si debe cambiar, cámbiale el seguro primero.`);
+  else {
+    if (tipo?.principal && persona && persona.tipoPrincipal !== ctx.producto) {
+      e.push(`Su seguro hoy es otro: no se le registra una póliza de ${tipo.nombre}. Si debe cambiar, cámbiale el seguro primero.`);
+    }
+    // Equivocar de persona es registrarle a otra su seguro: el documento del papel tiene que ser el de su ficha.
+    if (cotejoDeTarjeta(t, ctx.fichas) === "distinto") {
+      e.push(
+        `El documento del papel (${t.leida.asegurado?.documento}) no es el de la ficha de esta persona (${ctx.fichas?.get(t.personaId)?.documento}): `
+        + "revisa que sea la persona correcta, o corrige el documento en su ficha.",
+      );
+    }
   }
   if (t.numero.trim().length < 3) e.push("Escribe el número de la póliza.");
   if (!t.desde || !t.hasta) e.push("Faltan las fechas de la vigencia.");

@@ -22,7 +22,8 @@ import { abrirPdf, type PdfAbierto } from "./constancia-medios";
 /** Un tope contra un PDF absurdo: las pólizas de seguros rondan las 100 páginas (la de FOLA, 89). */
 const MAX_PAGINAS = 400;
 
-export type LecturaDePdf = { ok: true; paginas: string[] } | { ok: false; motivo: string };
+/** `truncado`: el PDF tenía más páginas que `MAX_PAGINAS` y solo se leyeron las primeras: se le dice a quien lo subió. */
+export type LecturaDePdf = { ok: true; paginas: string[]; truncado: boolean } | { ok: false; motivo: string };
 
 /**
  * El texto de cada página. Los trozos de texto se separan con un espacio, o con un salto donde pdf.js dice
@@ -40,7 +41,7 @@ export async function textoDeLasPaginas(archivo: File): Promise<LecturaDePdf> {
       const contenido = await pagina.getTextContent();
       paginas.push(contenido.items.map((it) => ("str" in it ? it.str + (it.hasEOL ? "\n" : " ") : "")).join(""));
     }
-    return { ok: true, paginas };
+    return { ok: true, paginas, truncado: abierto.pdf.numPages > MAX_PAGINAS };
   } catch (e) {
     // pdf.js nombra el caso que sí se puede explicar: un PDF protegido con clave.
     const nombre = (e as { name?: string } | null)?.name;
