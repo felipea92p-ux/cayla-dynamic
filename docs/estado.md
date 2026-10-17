@@ -200,6 +200,8 @@ publicar, como siempre.
 Retail es una campaña con ventana editable, no un día). Ver el final de
 `easter-eggs.md`.
 
+---
+
 ## 2026-10-13 — El bono del practicante vuelve a la boleta, y se paga al cierre del periodo · migración 0521 · ESCRITA Y PROBADA · SIN PEGAR · SIN FUSIONAR
 
 **Decisión de Felipe, el mismo día, al ver funcionando la 0520:** el pedido de
@@ -209,11 +211,13 @@ transferir a cada rato, sino pagar al fin del periodo»—. Revierte la regla de
 pegadas; esto va ENCIMA de la 0520.
 
 **Antes de escribir, se midió** (planilla vigente, un practicante y un integrante
-de planilla en las mismas condiciones, bono de S/ 180 en cada boleta): el total
-sube exactamente S/ 180 en los dos; EsSalud, su base y AFP no cambian; la
-**retención de 4.ª sigue en 0** (su guarda es `rxh`). Lo único que se mueve es el
-campo informativo `retencion_4ta_base`, y se mueve IGUAL en el de planilla: es
-un número que se muestra, no un descuento. El temor de la 0520 («la planilla le
+de planilla en las mismas condiciones, bono de S/ 180 en cada boleta; repetido el
+2026-10-16 con la 0504 ya en la base): el total del practicante sube de 714.64 a
+894.64, exactamente S/ 180, igual que el de planilla; su EsSalud queda en 0.00
+antes y después (la 0504 se lo quitó; antes de ella eran 110.70 y tampoco se
+movía) y AFP no cambia; la **retención de 4.ª sigue en 0** (su guarda es `rxh`).
+Lo único que se mueve es el campo informativo `retencion_4ta_base`, y se mueve
+IGUAL en el de planilla: es un número que se muestra, no un descuento. El temor de la 0520 («la planilla le
 arma base de retención de cuarta con el bono dentro») es cierto como campo y no
 tiene efecto sobre lo que cobra. Prueba **415**.
 
@@ -231,6 +235,18 @@ y 335, 377, 378 sin cambios y en verde. Frontend: la pantalla del practicante
 vuelve a decir «se suma a tu boleta» y «tu subvención» donde decía «planilla»;
 la constancia de practicante lleva «se abona en la boleta del periodo, como
 concepto aparte de la subvención».
+
+**ORDEN: pegar la 0521 PRIMERO y fusionar el PR después** (la regla general). El
+frontend del PR promete «se suma a tu boleta» al practicante y trae una novedad
+que corrige la anterior; si se fusiona antes de pegar, un practicante que firme
+en el medio queda «por transferir» mientras la pantalla le dice «boleta».
+
+**NO REPEGAR la 0518 ni la 0520 después de la 0521:** la 0520 recrearía
+`fn_confirmar_mi_bono_cumpleanos` con la excepción del practicante y revertiría
+esta migración en silencio (su freno salta con el registro 520 y el resto del
+archivo corre). El traslado de la 0521 sí se protege solo: corre únicamente la
+primera pegada (medido: pegar dos veces, con una línea quitada por DO en el
+medio, no la reinserta).
 
 **md5 de partida de producción — PENDIENTE de confirmar:** `fn_confirmar_mi_bono_cumpleanos`
 (0520) debe ser `4c1ce380…` tal cual / `7d430c38…` sin comentarios, 5440

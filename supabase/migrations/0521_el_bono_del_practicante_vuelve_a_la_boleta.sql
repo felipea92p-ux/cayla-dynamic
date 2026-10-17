@@ -26,18 +26,29 @@
 --   Lo que faltaba —auditar qué hace la planilla— se midió ANTES de escribir
 --   esto, contra la planilla vigente, con un practicante y un integrante de
 --   planilla en las mismas condiciones (S/ 1,800, mismas jornadas, mismo
---   periodo) y un bono de S/ 180 en cada boleta:
+--   periodo) y un bono de S/ 180 en cada boleta. Se midió dos veces: el
+--   2026-10-13 y de nuevo el 2026-10-16, ya con la 0504 (que le quitó el
+--   EsSalud al practicante) en la base. Lo medido el 2026-10-16:
+--
+--                          practicante          integrante de planilla
+--     total                714.64 → 894.64      839.30 → 1,019.30     (+180.00 en los dos)
+--     EsSalud                0.00 → 0.00        110.70 → 110.70       (0504: el practicante ya no genera)
+--     base de EsSalud     1,230.00 → 1,230.00   1,230.00 → 1,230.00
+--     AFP/ONP                0.00 → 0.00          0.00 → 0.00
+--     retención de 4.ª          0 → 0                0 → 0
+--     retencion_4ta_base   714.64 → 894.64      714.64 → 894.64       (campo informativo)
 --
 --     · el total sube EXACTAMENTE S/ 180.00 en los dos;
---     · EsSalud no cambia (110.70; su base sigue siendo el piso, 1,230);
+--     · EsSalud no cambia: antes de la 0504 el practicante tenía 110.70 y
+--       tampoco se movía; ahora tiene 0.00 y tampoco;
 --     · AFP/ONP no cambia (0.00);
 --     · la RETENCIÓN de 4.ª sigue en 0: su guarda es `tipo_vinculo = 'rxh'` y un
 --       practicante nunca la cumple. Lo único que cambia es el campo
---       informativo `retencion_4ta_base` (643.18 → 823.18), y cambia IGUAL en
---       el integrante de planilla — es un número que se muestra, no un
---       descuento. Este es el hallazgo que la 0520 temía («la planilla le arma
---       base de retención de cuarta con el bono dentro»): es cierto como campo
---       y no tiene efecto sobre lo que cobra.
+--       informativo `retencion_4ta_base`, y cambia IGUAL en el integrante de
+--       planilla — es un número que se muestra, no un descuento. Este es el
+--       hallazgo que la 0520 temía («la planilla le arma base de retención de
+--       cuarta con el bono dentro»): es cierto como campo y no tiene efecto
+--       sobre lo que cobra.
 --
 --   La boleta ya pinta las líneas `bono` de cualquiera (boleta-hoja.tsx), así
 --   que no se toca ninguna pantalla de la boleta.
@@ -52,8 +63,8 @@
 --      firmada desde el sistema, sin transferencia confirmada (si ya se
 --      transfirió, pagarlo otra vez sería pagarlo dos veces) y con un periodo
 --      que no esté ya pagado para su grupo. Idempotente: pegar la migración dos
---      veces mueve cada bono una sola vez. No se concede a nadie: solo la
---      corre el dueño al pegar esto (es plata).
+--      veces mueve cada bono una sola vez —y solo corre la primera pegada—. No
+--      se concede a nadie: solo la corre el dueño al pegar esto (es plata).
 --
 -- QUÉ NO HACE, A PROPÓSITO
 --
@@ -64,6 +75,22 @@
 --   · No cambia quién puede recibir el bono (la regla de la 0520) ni el texto de
 --     la constancia.
 --   · Un bono ya transferido (`entrega_confirmada_el`) no se mueve.
+--
+-- SE ROMPE SI
+--
+--   · Alguien REPEGA la 0520 después de esta. Su freno ve el 520 registrado y
+--     salta la comprobación, pero el resto del archivo corre: recrearía
+--     `fn_confirmar_mi_bono_cumpleanos` con la excepción del practicante y
+--     revertiría ESTA migración en silencio. La 0520 ya está pegada y no se
+--     vuelve a pegar (lo mismo vale para la 0518). Anotado en docs/estado.md.
+--   · Alguien REPEGA esta migración. La reescritura de la función es la misma y
+--     no hace daño; el traslado de bonos NO se repite (ver el bloque C): solo
+--     corre la primera vez, porque si DO quitó una línea de la boleta —por
+--     ejemplo porque ya transfirió el dinero y todavía no marcó «ya lo
+--     transferí»— repetirlo la reinsertaría y se pagaría dos veces.
+--   · Una migración posterior reescribe `fn_confirmar_mi_bono_cumpleanos` y
+--     alguien repega esta: la revertiría. Mismo límite que cualquier
+--     migración de este repo; se anota para quien lo busque.
 --
 -- QUÉ ASUME
 --
@@ -86,7 +113,7 @@
 --   no debe pagarse, DO la quita desde Planilla y la constancia vuelve a
 --   «pedido» y a la lista por transferir (0479).
 --
--- Idempotente: se puede pegar dos veces.
+-- Idempotente: se puede pegar dos veces (el traslado corre solo la primera).
 -- ============================================================================
 
 
@@ -332,10 +359,17 @@ grant execute on function fn_confirmar_mi_bono_cumpleanos() to authenticated;
 revoke execute on function fn_confirmar_mi_bono_cumpleanos() from public, anon;
 
 
--- ── C · Y se aplica a lo ya pedido ──────────────────────────────────────────
+-- ── C · Y se aplica a lo ya pedido — SOLO LA PRIMERA VEZ ────────────────────
+-- El registro de la 0521 se escribe al final de esta migración, así que en la
+-- primera pegada aún no existe y aquí SÍ corre; en una repegada ya existe y no
+-- se repite. Ver «SE ROMPE SI».
 do $mover$
 begin
-  perform fn_bono_pasar_pedidos_de_practicantes_a_boleta();
+  if not exists (select 1 from migraciones_aplicadas
+                  where numero = 521
+                    and nombre = 'el_bono_del_practicante_vuelve_a_la_boleta') then
+    perform fn_bono_pasar_pedidos_de_practicantes_a_boleta();
+  end if;
 end
 $mover$;
 
