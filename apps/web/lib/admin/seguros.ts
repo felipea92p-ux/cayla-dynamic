@@ -99,6 +99,19 @@ export function etiquetaTipoArchivo(t: string): string {
   return TIPOS_ARCHIVO_SEGURO.find((x) => x.valor === t)?.etiqueta ?? t;
 }
 
+/**
+ * Qué archivos de una póliza abre TAMBIÉN la practicante, desde «Mi seguro» en Lo
+ * mío (0530). Los demás —la factura y «otro»— son papel de DO. Es la MISMA lista
+ * que escribe la 0530 dos veces (`fn_mi_seguro` y `fn_seguro_archivo_es_mio`);
+ * `tests/mi-seguro.test.ts` la compara con el SQL, para que esta pantalla no le
+ * prometa a DO una visibilidad que la base no da.
+ */
+export const TIPOS_QUE_VE_LA_PRACTICANTE: readonly TipoArchivoSeguro[] = ["poliza", "convenio_pago"];
+
+export function loVeLaPracticante(tipo: string): boolean {
+  return (TIPOS_QUE_VE_LA_PRACTICANTE as readonly string[]).includes(tipo);
+}
+
 // ── Fechas ──────────────────────────────────────────────────────────────────
 
 /**

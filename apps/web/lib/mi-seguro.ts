@@ -32,7 +32,7 @@
 // ============================================================================
 import type { ClienteCayla } from "@cayla-dynamic/database";
 import { diasEntre } from "./bandeja-mia";
-import { cubiertoHasta, DIAS_AVISO_RENOVACION } from "./admin/seguros";
+import { cubiertoHasta, DIAS_AVISO_RENOVACION, loVeLaPracticante } from "./admin/seguros";
 
 export type TipoArchivoMio = "poliza" | "convenio_pago";
 
@@ -79,11 +79,11 @@ export function archivosDe(valor: unknown): ArchivoMio[] {
   for (const x of valor) {
     if (!x || typeof x !== "object") continue;
     const a = x as Record<string, unknown>;
-    if (a.tipo !== "poliza" && a.tipo !== "convenio_pago") continue;
+    if (typeof a.tipo !== "string" || !loVeLaPracticante(a.tipo)) continue;
     if (typeof a.id !== "string" || typeof a.storage_path !== "string") continue;
     salida.push({
       id: a.id,
-      tipo: a.tipo,
+      tipo: a.tipo as TipoArchivoMio,
       storage_path: a.storage_path,
       mime: typeof a.mime === "string" ? a.mime : "application/pdf",
       bytes: typeof a.bytes === "number" ? a.bytes : 0,

@@ -115,6 +115,19 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-10-17-mi-seguro-cada-practicante-ve-su-poliza",
+    fecha: "2026-10-17",
+    titulo: "Si estás en prácticas, ya puedes ver tu seguro en «Lo mío»",
+    queMejoro:
+      "En «Lo mío» hay una sección nueva, «Mi seguro», en el grupo Documentos. Ahí ves el número de tu póliza y " +
+      "hasta cuándo te cubre, y puedes abrir o descargar el PDF de tu póliza y de tu convenio de pago. Solo la ven " +
+      "quienes están en prácticas.\n\n" +
+      "También te cuenta cómo usar el seguro —la atención al crédito con tu DNI en la red de Pacífico, la carta de " +
+      "garantía si te van a hospitalizar, el médico a domicilio y el reembolso— y lo que no cubre. Es un resumen: lo " +
+      "que vale es tu póliza en PDF. Si no ves tu póliza o la fecha no cuadra, avisa a Desarrollo Organizacional.",
+    audiencia: "todos",
+  },
+  {
     id: "2026-10-17-seguros-quien-de-los-practicantes-tiene-seguro-hoy",
     fecha: "2026-10-17",
     titulo: "Seguros: ya se ve qué practicante tiene seguro hoy y cuál no",

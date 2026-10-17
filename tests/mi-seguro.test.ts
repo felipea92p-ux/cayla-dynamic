@@ -14,9 +14,13 @@
 // Quién ve la sección y qué trae cada fila lo decide la base (pgTAP, prueba 423);
 // aquí se comprueba que la pantalla lea eso sin reinterpretarlo.
 // ============================================================================
+import { readdirSync, readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, it, expect } from "vitest";
 import type { ClienteCayla } from "@cayla-dynamic/database";
-import { seguroPorPersona, type FilaSeguro } from "@/lib/admin/seguros";
+import {
+  loVeLaPracticante, seguroPorPersona, TIPOS_ARCHIVO_SEGURO, TIPOS_QUE_VE_LA_PRACTICANTE, type FilaSeguro,
+} from "@/lib/admin/seguros";
 import {
   COMO_USARLO, NO_CUBRE, TELEFONOS_PACIFICO, archivosDe, datosConfirmados, enlaceTelefono, leerPolizasMias,
   nombreDeDescarga, resolverMiSeguro, rotuloDeArchivo, traerMiSeguro,
@@ -348,6 +352,30 @@ describe("el texto fijo de «cómo usarlo»", () => {
       expect(p.titulo.trim()).not.toBe("");
       expect(p.texto.trim()).not.toBe("");
     }
+  });
+});
+
+describe("qué archivos de una póliza ve también la practicante", () => {
+  it("de los cuatro tipos, la póliza y el convenio de pago sí; la factura y «otro», no", () => {
+    expect(TIPOS_ARCHIVO_SEGURO.map((t) => `${t.valor}:${loVeLaPracticante(t.valor)}`)).toEqual([
+      "poliza:true", "convenio_pago:true", "factura:false", "otro:false",
+    ]);
+    expect(loVeLaPracticante("algo-nuevo")).toBe(false);
+  });
+
+  // La lista vive en TRES sitios que no se pueden comparar en el compilador: las dos
+  // funciones de la 0530 (SQL) y esta pantalla de DO (TypeScript). Si una cambia sola,
+  // DO leería «la practicante lo ve» sobre un archivo que la base no le da, o al revés.
+  it("la lista de TypeScript es la misma que la 0530 escribe en sus dos funciones", () => {
+    const carpeta = path.resolve(import.meta.dirname, "../supabase/migrations");
+    const archivo = readdirSync(carpeta).find((f) => f.startsWith("0530_"));
+    expect(archivo, "la 0530 tiene que existir").toBeDefined();
+    const sql = readFileSync(path.join(carpeta, archivo!), "utf8");
+    const listas = [...sql.matchAll(/a\.tipo in \(([^)]*)\)/g)].map((m) =>
+      m[1].split(",").map((x) => x.trim().replace(/'/g, "")).sort());
+    // Una en `fn_seguro_archivo_es_mio` (la política de Storage) y otra en `fn_mi_seguro`.
+    expect(listas).toHaveLength(2);
+    for (const l of listas) expect(l).toEqual([...TIPOS_QUE_VE_LA_PRACTICANTE].sort());
   });
 });
 

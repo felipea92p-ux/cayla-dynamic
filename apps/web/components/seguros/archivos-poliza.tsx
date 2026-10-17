@@ -32,7 +32,7 @@ import { abrirArchivoFirmado } from "@/lib/abrir-archivo-firmado";
 import { problemaDeArchivo, rutaNuevaArchivo, TIPOS_ARCHIVO } from "@/lib/admin/archivo";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { isoADiaMesAnio } from "@/lib/admin/planilla/formato";
-import { BUCKET_SEGUROS, etiquetaTipoArchivo, TIPOS_ARCHIVO_SEGURO, type TipoArchivoSeguro } from "@/lib/admin/seguros";
+import { BUCKET_SEGUROS, etiquetaTipoArchivo, loVeLaPracticante, TIPOS_ARCHIVO_SEGURO, type TipoArchivoSeguro } from "@/lib/admin/seguros";
 import { pesoLegible } from "@/lib/reducir-imagen";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 
@@ -149,7 +149,14 @@ function Cuerpo({
 
   return (
     <>
-      <p className="mb-4 text-sm text-taupe">{titulo}. Los PDF llevan DNI y fecha de nacimiento: solo los ve Desarrollo Organizacional.</p>
+      <p className="mb-1 text-sm text-taupe">
+        {titulo}. Los PDF llevan DNI y fecha de nacimiento. La póliza y el convenio de pago los ve también la
+        practicante, solo los suyos, en «Lo mío → Mi seguro»; la factura y «Otro papel» los ve solo Desarrollo
+        Organizacional.
+      </p>
+      <p className="mb-4 text-sm text-taupe">
+        Sube a esta póliza solo el PDF de esta persona: si el archivo trae las pólizas de varias, ella las verá todas.
+      </p>
       {cargando ? <Cargando /> : cargaError ? (
         <div className="mb-3 rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
           {cargaError} <Boton variante="enlace" onClick={() => void cargar()}>Reintentar</Boton>
@@ -224,6 +231,11 @@ function Cuerpo({
                   {archivo ? `${archivo.name} · ${pesoLegible(archivo.size)}` : "Un PDF o una foto, hasta 50 MB."}
                 </span>
               </label>
+              <p className="text-xs text-taupe sm:col-span-3">
+                {loVeLaPracticante(tipo)
+                  ? "La practicante podrá abrirlo desde «Lo mío», en «Mi seguro»."
+                  : "Solo lo ve Desarrollo Organizacional."}
+              </p>
             </div>
             {progreso !== null && (
               <div className="mt-3">
