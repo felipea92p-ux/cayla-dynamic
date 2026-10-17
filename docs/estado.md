@@ -1939,6 +1939,58 @@ no hay horarios cargados).
 
 ---
 
+## 2026-09-19 — Boletas oficiales: los archivos no tenían respaldo, y quedan la consulta y la prueba real escritas · SIN SQL · SIN FUSIONAR
+
+**No hay SQL: solo un script, dos documentos y dos textos.** Sale de revisar la 0482
+(boletas oficiales) contra el código, no de una falla en producción.
+
+**El hallazgo que importa.** Los archivos de las boletas viven solo en el bucket
+«boletas»; la base guarda quién publicó y cuándo confirmó cada persona, pero no el
+documento. La guía de restauración cubre `--schema=public` y deja `storage` fuera a
+propósito, y por lo que se sabe de Supabase su respaldo diario de la base tampoco lo
+incluye (**confirmarlo en la consola del plan**). Si Storage pierde un archivo, la
+constancia queda apuntando a nada y el archivo no se puede regenerar.
+
+- [`scripts/respaldar-boletas.sh`](../scripts/respaldar-boletas.sh) baja el bucket a
+  una carpeta fuera del repo, comprueba el conteo contra lo que Storage lista y deja un
+  manifiesto sha256. Sección nueva en
+  [`prueba-restauracion-backup.md`](prueba-restauracion-backup.md). **Se probó con un
+  CLI de mentira (10 casos: copia incompleta, descarga que falla, bucket vacío,
+  destino dentro de git, manifiesto que detecta una alteración). NO se corrió contra el
+  CLI real ni contra producción:** el formato de `storage ls -r` es lo primero que
+  puede no coincidir, y si pasa falla en voz alta. Nadie ha hecho la primera copia
+  real, ni probado restaurar un archivo.
+- La 0482 decía «si Storage no responde, la persona sigue viendo lo ya publicado»:
+  falso, los archivos están en Storage. Corregido el comentario del encabezado (no
+  cambia ninguna función; no hay nada que repegar).
+- El aviso del editor ofrecía «HEIC» y en Chrome un HEIC falla. Ahora lo dice.
+- [`consulta-boletas-de-pago.md`](consulta-boletas-de-pago.md): 8 preguntas al
+  laboralista (plazo de entrega, validez de la entrega electrónica, conservación,
+  cesados, entrega equivocada…) y 5 al contador. Sin normas citadas de memoria.
+- [`probar-las-boletas-oficiales.md`](probar-las-boletas-oficiales.md): recorrido A–H
+  con una boleta propia de un periodo ya pagado.
+
+**Lo que se propuso y NO se hizo, y por qué:** el aviso por correo (Resend existe,
+pero su código avisa que sin `RESEND_FROM` verificado solo llega al dueño de la
+cuenta: comprobar el dominio primero); el cruce con el neto del contador y un canal de
+«tengo una observación» (los dos piden SQL nuevo); la carga por lote (depende de cómo
+entrega el contador, pregunta A); el aviso en la Bandeja de DO de «sin abrir hace más de
+3 días».
+
+**Pendiente, por orden:** (1) la primera prueba real (guía de arriba), sigue siendo lo
+primero; (2) la primera copia real con el script; (3) enviar la consulta.
+
+**Aparte, y de planilla:** [`hallazgos-abiertos.md`](hallazgos-abiertos.md) daba por
+abiertos cinco defectos 🔴 de la tabla del 05-set que ya tienen migración (0416, 0417,
+0418, 0419) y cuatro viñetas más (0283, 0278, 0346, el CSV rehecho el 15-set). Quedan
+tachados **como cerrados en el código, no en producción**: lo que falta es confirmar
+con la línea PLANILLA de `que_falta_pegar.sql` que producción corre la versión vigente
+del núcleo (la 0463 trae la 0416, 0417 y 0418), y aparte que estén la 0419
+(`fn_feriados_laborados`), la 0278/0283 (truncas) y la 0346 (`fn_grati_cts_periodo`).
+Una lista armada solo con esa tabla se equivocó en casi todo.
+
+---
+
 ## 2026-09-19 — Incidencias: el lote pide confirmación y dirección sale del exceso · SIN SQL · SIN FUSIONAR
 
 **No hay SQL: solo pantalla.** Fusionar es publicar (`main` se despliega sola). Cierra lo
