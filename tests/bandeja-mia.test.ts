@@ -857,7 +857,7 @@ describe("mostrarBonoEnInfo", () => {
 describe("armarBandeja · boleta oficial (0482)", () => {
   const boleta = (x: Partial<FilaBoletaBandeja>): FilaBoletaBandeja => ({
     boleta_id: "b1", fecha_fin: "2026-08-28", estado: "publicada",
-    vista_at: null, publicada_at: enLima("2026-09-05"), ...x,
+    vista_at: null, recibida_at: null, publicada_at: enLima("2026-09-05"), ...x,
   });
 
   it("publicada y sin abrir es un pendiente que cuenta, con su mes y su enlace", () => {
@@ -878,10 +878,23 @@ describe("armarBandeja · boleta oficial (0482)", () => {
     expect(b.pendientes[0].titulo).toBe("Tu boleta de septiembre ya está disponible");
   });
 
-  it("abierta (vista_at escrito) deja de contar", () => {
+  it("abierta pero sin firmar SIGUE contando (0532), con otro título", () => {
     const b = armarBandeja({ ...VACIO, boletas: [boleta({ vista_at: enLima("2026-09-06") })] }, HOY);
+    expect(b.pendientes).toHaveLength(1);
+    expect(b.pendientes[0].titulo).toBe("Tu boleta de agosto espera tu firma");
+    expect(b.pendientes[0].detalle).toContain("Fírmala en «Boletas»");
+    expect(b.avisos).toBe(1);
+  });
+
+  it("firmada (recibida_at escrito) deja de contar", () => {
+    const b = armarBandeja({ ...VACIO, boletas: [boleta({ vista_at: enLima("2026-09-06"), recibida_at: enLima("2026-09-07") })] }, HOY);
     expect(b.pendientes).toHaveLength(0);
     expect(b.avisos).toBe(0);
+  });
+
+  it("anulada («en revisión») no le pide nada: no hay nada que firmar", () => {
+    const b = armarBandeja({ ...VACIO, boletas: [boleta({ estado: "anulada" })] }, HOY);
+    expect(b.pendientes).toHaveLength(0);
   });
 
   it("sin publicar (estado null) o entregada en papel no le piden nada", () => {

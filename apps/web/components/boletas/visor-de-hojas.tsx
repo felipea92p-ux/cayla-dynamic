@@ -15,7 +15,14 @@ import type { HojaFirmada } from "@/lib/boletas-archivos";
  *
  * FOTOS: se apilan, con «Hoja 2 de 3»; tocar una la amplía —una foto de un papel
  * en un celular no se lee sin acercarla— y volver a tocar la devuelve a su tamaño.
- * El contenedor de la foto hace scroll propio cuando está ampliada.
+ *
+ * SIN AMPLIAR, LA HOJA SE VE ENTERA (2026-10-17). Antes la foto iba a lo ancho
+ * dentro de una caja de `max-h-[68vh]` con scroll propio: un scroll dentro del
+ * scroll del modal. En una Mac la barra de esa caja no se ve hasta que se mueve,
+ * así que la boleta parecía cortada por la mitad y lo de abajo —el total, la
+ * firma del contador— no se veía. Ahora la foto entra completa en la pantalla;
+ * ampliada, el modal es el único que desplaza hacia abajo, y la caja solo
+ * desplaza a los lados.
  * PDF: cada uno es una tarjeta con «Abrir PDF» en una pestaña nueva. No se
  * incrusta: el visor de PDF de un celular suele mostrar solo la primera página,
  * y una boleta que se ve a medias es peor que una que se abre aparte.
@@ -51,7 +58,7 @@ export function VisorDeHojas({ hojas, tipo }: { hojas: readonly HojaFirmada[]; t
               </a>
             </div>
           ) : (
-            <div className="max-h-[68vh] overflow-auto rounded-xl border border-sand bg-hueso">
+            <div className="overflow-x-auto rounded-xl border border-sand bg-hueso">
               <button
                 type="button"
                 onClick={() => setAmpliada(ampliada === i ? null : i)}
@@ -62,7 +69,9 @@ export function VisorDeHojas({ hojas, tipo }: { hojas: readonly HojaFirmada[]; t
                 <img
                   src={h.url}
                   alt={total > 1 ? `Hoja ${i + 1} de ${total} de la boleta` : "Boleta"}
-                  className={ampliada === i ? "block h-auto w-[190%] max-w-none cursor-zoom-out" : "block h-auto w-full cursor-zoom-in"}
+                  className={ampliada === i
+                    ? "block h-auto w-[190%] max-w-none cursor-zoom-out"
+                    : "mx-auto block h-auto max-h-[60vh] w-auto max-w-full cursor-zoom-in"}
                 />
               </button>
             </div>

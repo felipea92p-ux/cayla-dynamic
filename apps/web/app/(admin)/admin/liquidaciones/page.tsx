@@ -10,7 +10,7 @@ import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { generarCsv, descargarCsv } from "@/lib/admin/csv";
 import { formatSoles } from "@/lib/rangos";
-import { EMPRESA, hoyLima, nombreCorto, nombreOficial, puedeVerPlanilla, usaNombreDelDni } from "@cayla-dynamic/shared";
+import { EMPRESA, hoyLima, nombreCorto, nombreOficial, puedeEstamparFirmaDeEmpresa, puedeVerPlanilla, usaNombreDelDni } from "@cayla-dynamic/shared";
 import { Boton } from "@/components/ui/boton";
 import { Campo } from "@/components/ui/campo";
 import { CampoSelect } from "@/components/ui/campo";
@@ -205,7 +205,9 @@ export default function LiquidacionesPage() {
   const [nota, setNota] = useState("");
   const [miFirma, setMiFirma] = useState<string | null>(null);
   const [firmanteEmpresa, setFirmanteEmpresa] = useState<FirmanteEmpresa | null>(null);
-  const [esFirmanteEmpresa, setEsFirmanteEmpresa] = useState(false);
+  // La firma de QUIEN FIRMA POR CAYLA (`fn_firma_empresa`, 0398), no la de quien
+  // tenga la sesión abierta. `miFirma` queda para la hoja de la liquidación.
+  const [firmaEmpresa, setFirmaEmpresa] = useState<string | null>(null);
 
   // Confirmaciones que antes eran window.confirm()/window.prompt(): Felipe
   // aprobó migrar todos los diálogos nativos del panel al Modal compartido
@@ -276,9 +278,9 @@ export default function LiquidacionesPage() {
   // solo mostrar una firma sin nombre debajo.
   useEffect(() => {
     void (async () => {
-      const [cfg, yo] = await Promise.all([
+      const [cfg, fe] = await Promise.all([
         supabase.from("configuracion").select("valor").eq("clave", "firmante_empresa").maybeSingle(),
-        supabase.rpc("fn_persona_actual_id"),
+        supabase.rpc("fn_firma_empresa"),
       ]);
       const cfgValor = (cfg.data as { valor: { persona_id?: string; cargo?: string } } | null)?.valor;
       if (!cfgValor?.persona_id) return;
@@ -307,12 +309,13 @@ export default function LiquidacionesPage() {
         cargo: cfgValor.cargo ?? "Gerencia General",
         personaId: cfgValor.persona_id,
       });
-      // La firma escaneada SOLO se estampa si quien tiene la sesión abierta es
-      // la misma persona designada como firmante — igual que Contratos
-      // (`esFirmante`). Sin este candado, cualquier líder que abra el
-      // documento estamparía SU PROPIA firma debajo del nombre de otra
-      // persona: el papel quedaría firmado por alguien que nunca lo firmó.
-      setEsFirmanteEmpresa(Boolean(yo.data) && yo.data === cfgValor.persona_id);
+      // La firma que se estampa es SIEMPRE la de la persona designada como
+      // firmante, no la de quien tiene la sesión abierta: `fn_firma_empresa` no
+      // recibe parámetros y sale de la misma fila que el nombre impreso, así
+      // que nadie estampa SU PROPIA firma debajo del nombre de otra persona.
+      // Antes solo se estampaba si el firmante tenía la sesión abierta; con otra
+      // cuenta el certificado salía sin firma.
+      setFirmaEmpresa(typeof fe.data === "string" && fe.data.startsWith("data:image") ? fe.data : null);
     })();
   }, [supabase]);
 
@@ -783,13 +786,13 @@ export default function LiquidacionesPage() {
                 {modalAbierto === "certificado" && papelesCese && (
                   <HojaCertificado
                     p={papelesCese} apreciacion={apreciacion} firmante={firmanteEmpresa}
-                    firma={esFirmanteEmpresa ? miFirma : null}
+                    firma={puedeEstamparFirmaDeEmpresa(rol) ? firmaEmpresa : null}
                   />
                 )}
                 {modalAbierto === "constancia" && papelesCese && (
                   <HojaConstancia
                     p={papelesCese} detalle={detalle} firmante={firmanteEmpresa}
-                    firma={esFirmanteEmpresa ? miFirma : null}
+                    firma={puedeEstamparFirmaDeEmpresa(rol) ? firmaEmpresa : null}
                   />
                 )}
               </div>
@@ -1299,8 +1302,8 @@ function Identidad({ p }: { p: PapelesCese }) {
 
 // El bloque de firma de los dos documentos que salen hacia afuera: el nombre y
 // el cargo de quien certifica van SIEMPRE (es lo que hace válido el papel ante
-// un tercero); la imagen de la firma solo si quien tiene la sesión abierta es
-// esa misma persona (`firma`, ya resuelto por el llamador con `esFirmanteEmpresa`).
+// un tercero); la imagen de la firma es la del firmante configurado (`firma`,
+// que el llamador lee con `fn_firma_empresa`), sin importar quién abre el papel.
 function FirmaEmpresa({ firmante, firma }: { firmante: FirmanteEmpresa | null; firma: string | null }) {
   return (
     <div className="text-center text-xs">

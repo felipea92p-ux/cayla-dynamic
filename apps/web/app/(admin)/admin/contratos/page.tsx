@@ -18,7 +18,7 @@ import { vigentesAl } from "@/lib/admin/parametro-vigente";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 import { abrirArchivoFirmado } from "@/lib/abrir-archivo-firmado";
 import { useToast } from "@/components/toast";
-import { hoyLima, maximoSemanalPracticante, puedeGestionarContratos } from "@cayla-dynamic/shared";
+import { hoyLima, maximoSemanalPracticante, puedeEstamparFirmaDeEmpresa, puedeGestionarContratos } from "@cayla-dynamic/shared";
 import {
   construirContrato,
   formatearFecha,
@@ -473,12 +473,13 @@ export default function ContratosPage() {
   const [ritVersion, setRitVersion] = useState<string | null>(null);
   const [ritFecha, setRitFecha] = useState<string | null>(null);
   const [firmante, setFirmante] = useState(FIRMANTE_POR_DEFECTO);
-  // La firma escaneada de QUIEN ESTÁ USANDO EL PANEL. `fn_mi_firma()` no puede
-  // devolver la de otra persona, y eso es deliberado (0076/0147): estampar la
-  // firma de Felipe desde la sesión de alguien más es justo lo que esas
-  // migraciones existen para impedir.
+  // La firma escaneada de QUIEN FIRMA POR CAYLA (`fn_firma_empresa`, 0398), no
+  // la de quien tenga la sesión abierta. Es la misma fila que da el nombre
+  // impreso (`firmante_empresa`, 0147), así que el nombre y la rúbrica no
+  // pueden contradecirse aunque el contrato lo abra DO o la Gerencia: nunca sale
+  // la firma de una persona bajo el nombre de otra. Antes se estampaba solo si
+  // quien miraba ERA el firmante, y para el resto salía la raya en blanco.
   const [firmaUrl, setFirmaUrl] = useState<string | null>(null);
-  const [esFirmante, setEsFirmante] = useState(false);
   const [contratos, setContratos] = useState<ContratoFila[]>([]);
   // `fn_contratos_listar` no filtra por `estado`: el historial de quien ya
   // cesó se queda en `contratos_generados` a propósito (no se borra), pero el
@@ -817,7 +818,7 @@ export default function ContratosPage() {
     }
 
     const hoy = hoyLima();
-    const [ps, ss, dp, sal, params, rit, ctr, tab, cfg, fichas, firma, yo] = await Promise.all([
+    const [ps, ss, dp, sal, params, rit, ctr, tab, cfg, fichas, firma] = await Promise.all([
       // Sin `.eq("en_planilla", true)`: una practicante también genera un
       // documento acá (su convenio, 0333) aunque `en_planilla` le salga
       // false. Se filtra en el cliente por `en_planilla || tipo_vinculo ===
@@ -865,9 +866,9 @@ export default function ContratosPage() {
       // tiene por qué estar en planilla —puede ser accionista— y buscarlo en la
       // lista del desplegable lo dejaría sin nombre ni DNI en el contrato.
       supabase.from("personas").select("id, nombres, apellidos, documento").eq("estado", "activo").eq("cuenta_de_servicio", false),
-      // Mi propia firma escaneada. Solo la mía: fn_mi_firma no acepta parámetros.
-      supabase.rpc("fn_mi_firma"),
-      supabase.rpc("fn_persona_actual_id"),
+      // La firma escaneada de quien firma por CAYLA. No recibe parámetros: nadie
+      // puede pedir «la firma de fulano», solo la del firmante configurado.
+      supabase.rpc("fn_firma_empresa"),
     ]);
 
     setPersonas(
@@ -891,9 +892,8 @@ export default function ContratosPage() {
       cargo: cfgValor?.cargo ?? FIRMANTE_POR_DEFECTO.cargo,
     });
 
-    const miFirma = typeof firma.data === "string" ? firma.data : null;
-    setFirmaUrl(miFirma?.startsWith("data:image") ? miFirma : null);
-    setEsFirmante(Boolean(firmanteId) && firmanteId === (yo.data as string | null));
+    const firmaEmpresa = typeof firma.data === "string" ? firma.data : null;
+    setFirmaUrl(firmaEmpresa?.startsWith("data:image") ? firmaEmpresa : null);
 
     const paramsData = vigentesAl((params.data as Parametro[]) ?? [], hoy);
     setMovilidadTarifas(paramsData.filter((p) => p.clave === "movilidad_diaria"));
@@ -2312,10 +2312,11 @@ export default function ContratosPage() {
   // borrador en algo que parece un documento ya firmado. Acá solo se reemplaza
   // el marcador para la vista y la impresión.
   //
-  // Y solo si quien está usando el panel ES el firmante configurado: `fn_mi_firma`
-  // devuelve únicamente la firma propia, así que no hay forma —ni la debe haber—
-  // de estampar la de otra persona.
-  const puedeEstampar = esFirmante && Boolean(firmaUrl);
+  // Y siempre la del firmante configurado, no la de quien mira: `fn_firma_empresa`
+  // no recibe parámetros, así que no hay forma —ni la debe haber— de estampar la
+  // de otra persona. Se estampa por defecto a quien abre el panel con el rol que
+  // corresponde (Gerencia, DO, líder de equipo).
+  const puedeEstampar = puedeEstamparFirmaDeEmpresa(rol) && Boolean(firmaUrl);
   // La del colaborador (0402) es distinta: no depende de quién mira el panel,
   // sino de si ESE contrato puntual ya tiene una firma confirmada congelada.
   // Por eso recibe la imagen como parámetro en vez de leerla de un estado
@@ -3073,9 +3074,9 @@ export default function ContratosPage() {
                                 ? "sin firmante configurado — cárgalo en Documentación"
                                 : puedeEstampar
                                   ? `se estampa la de ${firmante.nombre}`
-                                  : esFirmante
-                                    ? "no tienes firma escaneada cargada — saldrá la raya en blanco"
-                                    : `la firma es de ${firmante.nombre}; solo esa persona puede estamparla, saldrá la raya en blanco`}
+                                  : firmaUrl
+                                    ? "tu rol no estampa la firma de la empresa — saldrá la raya en blanco"
+                                    : `${firmante.nombre} todavía no tiene su firma guardada en «Mi firma» — saldrá la raya en blanco`}
                             </dd>
                           </div>
                         </dl>

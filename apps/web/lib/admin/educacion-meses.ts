@@ -3,16 +3,17 @@
  *
  * PROMETE: contestar, sin tocar la base ni el navegador, cuatro preguntas que la
  *   pantalla de Educación se hace a cada rato:
- *     1. ¿Qué meses se dibujan? (los últimos N, terminando en el mes que
- *        corresponde, con «ver más» hacia atrás)
+ *     1. ¿Qué meses se dibujan? (seis, terminando en el mes que corresponde, y
+ *        de seis en seis hacia atrás y hacia adelante)
  *     2. ¿Cuál es la fila de cada persona? Una por PERSONA E INSTITUCIÓN: si el
  *        mismo estudio se registró dos veces —el caso real de Duolingo, del 01/08
  *        al 28/08 y del 29/08 al 28/09—, es UNA línea con sus meses seguidos.
  *     3. ¿Qué dice cada casilla de la cuadrícula? La constancia que RECIBIÓ ese mes.
  *     4. ¿Qué filas pasan los filtros, y cuánto suma cada sede?
- * ASUME: las filas de `fn_educacion_situacion` (una por estudio) y las de
- *   `fn_educacion_entregas` (una por constancia). Las dos ya vienen filtradas por
- *   permiso desde la base: acá nadie decide quién ve qué.
+ * ASUME: las filas de `fn_educacion_situacion` (una por estudio) y las constancias
+ *   (una por constancia), que `educacion-carga.ts` trae POR MESES y no toda la
+ *   historia de una vez. Las dos ya vienen filtradas por permiso desde la base: acá
+ *   nadie decide quién ve qué.
  * NO HACE: no calcula el estado de ninguna constancia —lo contesta la base—, no
  *   toca lo que se paga y no escribe nada.
  *
@@ -70,7 +71,7 @@ export const mesLargo = (mes: string): string => {
   return `${e.corto} ${e.anio}`;
 };
 
-/** Cuántos meses se dibujan al abrir, y cuántos se suman con «ver más». */
+/** Cuántos meses se dibujan, y cuántos se avanza o retrocede con cada botón. */
 export const MESES_INICIALES = 6;
 export const MESES_POR_PASO = 6;
 /** Una cuadrícula de una o dos columnas no se lee como una línea de tiempo. */
@@ -79,33 +80,76 @@ const MESES_MINIMOS = 3;
 export interface VentanaDeMeses {
   /** De más antiguo a más reciente: así se lee una línea de tiempo. */
   meses: string[];
-  /** Hay meses anteriores con datos que todavía no se dibujan. */
+  /** Hay meses anteriores con datos que todavía no se dibujan («← Meses anteriores»). */
   hayMas: boolean;
+  /**
+   * Hay meses POSTERIORES con datos que no se dibujan («Meses siguientes →»): un pago adelantado que
+   * cubre más allá de la ventana, o la vuelta después de haber retrocedido.
+   */
+  haySiguientes: boolean;
+}
+
+/** Hasta dónde llega la línea de tiempo: del primer mes con datos al último, y siempre con el de hoy adentro. */
+export function limitesDeLaLinea(hoy: string, mesesConDatos: readonly string[]): { primero: string; ultimo: string } {
+  const actual = mesDe(hoy);
+  return {
+    primero: mesesConDatos.reduce((m, x) => (x < m ? x : m), actual),
+    ultimo: mesesConDatos.reduce((m, x) => (x > m ? x : m), actual),
+  };
+}
+
+/** Todos los meses de la línea de tiempo, del más reciente al más antiguo: lo que se puede elegir en «Mes del pago». */
+export function mesesDeLaLinea(hoy: string, mesesConDatos: readonly string[]): string[] {
+  const { primero, ultimo } = limitesDeLaLinea(hoy, mesesConDatos);
+  const meses: string[] = [];
+  for (let m = ultimo; m >= primero; m = sumarMeses(m, -1)) meses.push(m);
+  return meses;
 }
 
 /**
- * Los meses que se dibujan. Terminan en el mes de hoy, o en el último mes con
- * constancia si es posterior (alguien ya envió el pago del mes que viene: no se
- * esconde a la derecha). Empiezan `cuantos` meses antes, pero nunca antes del
- * primer mes con datos —seis columnas casi vacías son ruido— y nunca menos de
- * `MESES_MINIMOS`.
+ * Los meses que se dibujan: `cuantos` columnas que terminan en `fin`.
+ *
+ * Sin `fin` —como se abre la pantalla— terminan en el último mes con constancia si es posterior al de hoy
+ * (alguien ya envió el pago del mes que viene, o un adelantado cubre hasta diciembre: no se esconde a la
+ * derecha), pero nunca tan lejos que el mes de hoy se salga de la ventana: lo que queda más allá se
+ * alcanza con «Meses siguientes →».
+ *
+ * Con `fin` —quien tocó un botón— la ventana se mueve sin salirse de la línea de tiempo: nunca después
+ * del último mes con datos ni antes del primero. Si choca con el primero, se corre hacia la derecha en
+ * vez de achicarse: seis columnas casi vacías son ruido, pero tres meses donde caben seis también.
+ * Y nunca menos de `MESES_MINIMOS`.
  */
 export function ventanaDeMeses(
   hoy: string,
   mesesConDatos: readonly string[],
   cuantos: number,
+  fin: string | null = null,
 ): VentanaDeMeses {
   const actual = mesDe(hoy);
-  const ultimo = mesesConDatos.reduce((m, x) => (x > m ? x : m), actual);
-  const primero = mesesConDatos.reduce((m, x) => (x < m ? x : m), actual);
-  const piso = sumarMeses(ultimo, -(Math.max(cuantos, MESES_MINIMOS) - 1));
-  let inicio = piso > primero ? piso : primero;
-  const minimo = sumarMeses(ultimo, -(MESES_MINIMOS - 1));
+  const { primero, ultimo } = limitesDeLaLinea(hoy, mesesConDatos);
+  const ancho = Math.max(cuantos, MESES_MINIMOS);
+  const natural = ultimo < sumarMeses(actual, ancho - 1) ? ultimo : sumarMeses(actual, ancho - 1);
+  let hasta = fin ?? natural;
+  if (hasta > ultimo) hasta = ultimo;
+  let inicio = sumarMeses(hasta, -(ancho - 1));
+  if (inicio < primero) {
+    inicio = primero;
+    const lleno = sumarMeses(primero, ancho - 1);
+    hasta = lleno < ultimo ? lleno : ultimo;
+  }
+  const minimo = sumarMeses(hasta, -(MESES_MINIMOS - 1));
   if (inicio > minimo) inicio = minimo;
   const meses: string[] = [];
-  for (let m = inicio; m <= ultimo; m = sumarMeses(m, 1)) meses.push(m);
-  return { meses, hayMas: inicio > primero };
+  for (let m = inicio; m <= hasta; m = sumarMeses(m, 1)) meses.push(m);
+  return { meses, hayMas: inicio > primero, haySiguientes: hasta < ultimo };
 }
+
+/**
+ * Dónde termina la ventana después de tocar «← Meses anteriores» (`-1`) o «Meses siguientes →» (`+1`):
+ * `MESES_POR_PASO` meses más allá del último que se ve. Los bordes los pone `ventanaDeMeses`.
+ */
+export const finTrasUnPaso = (v: VentanaDeMeses, sentido: -1 | 1): string =>
+  sumarMeses(v.meses[v.meses.length - 1], sentido * MESES_POR_PASO);
 
 /**
  * Los meses «con datos» que deciden hasta dónde llega la línea de tiempo: los de las constancias
@@ -123,21 +167,27 @@ export function mesesConDatosDeLaVentana(
 }
 
 /**
- * La ventana, abierta hasta el mes que pida un filtro de fecha: el «mes del pago» o el «desde» del
- * rango libre. Sin eso, quien filtra por «ago» o por «desde el 1/7» vería la lista recortada pero
- * la cuadrícula mostrando otros seis meses, sin la columna que pidió.
+ * La ventana, movida hasta el mes que pida un filtro de fecha: el «mes del pago» o el «desde» del
+ * rango libre, como primera columna. Sin eso, quien filtra por «ago» o por «desde el 1/7» vería la
+ * lista recortada pero la cuadrícula mostrando otros seis meses, sin la columna que pidió.
+ *
+ * Si quien mira ya tocó un botón (`fin`), manda el botón: lo tocó después de poner el filtro. Por eso
+ * la pantalla olvida `fin` cada vez que cambia el mes o el «desde».
  */
 export function ventanaParaFiltros(
   hoy: string,
   mesesConDatos: readonly string[],
   cuantos: number,
   f: Pick<Filtros, "mes" | "desde">,
+  fin: string | null = null,
 ): VentanaDeMeses {
-  const v = ventanaDeMeses(hoy, mesesConDatos, cuantos);
+  const v = ventanaDeMeses(hoy, mesesConDatos, cuantos, fin);
+  if (fin) return v;
   const pedido = f.mes || f.desde.slice(0, 7);
   if (pedido && pedido < v.meses[0]) {
-    return ventanaDeMeses(hoy, mesesConDatos, mesesEntre(pedido, v.meses[v.meses.length - 1]) + 1);
+    return ventanaDeMeses(hoy, mesesConDatos, cuantos, sumarMeses(pedido, v.meses.length - 1));
   }
+  if (pedido && pedido > v.meses[v.meses.length - 1]) return ventanaDeMeses(hoy, mesesConDatos, cuantos, pedido);
   return v;
 }
 
@@ -306,6 +356,12 @@ export interface ExtrasDeCasillas {
   apoyoPagado?: ReadonlyMap<string, number>;
   /** Sin `hoy` no se calcula el apoyo. */
   hoy?: string;
+  /**
+   * Las rechazadas que otra constancia (no retirada) dice reemplazar, aunque esa otra no esté entre las
+   * que se trajeron: las constancias llegan por meses, y la corrección de una rechazada de marzo puede
+   * traer fecha de abril. La base lo contesta con cada fila (`educacion-carga.ts`).
+   */
+  corregidas?: ReadonlySet<string>;
 }
 
 export interface Casilla {
@@ -372,6 +428,7 @@ export function casillasDeEstudio(
   // Una rechazada que la integrante ya corrigió (otra constancia dice reemplazarla) no habla por su
   // mes aunque la corrección traiga OTRA fecha de pago: quedaría en rojo para siempre.
   const corregidas = new Set(entregas.filter(cuentaComoRecibida).map((e) => e.reemplaza_a).filter((id): id is string => !!id));
+  for (const id of extras.corregidas ?? []) corregidas.add(id);
   const mesQuePide = PIDE.has(estudio.actual.estado_constancia) && estudio.actual.fecha_pago_constancia
     ? mesDe(estudio.actual.fecha_pago_constancia) : null;
   return meses.map((mes) => {

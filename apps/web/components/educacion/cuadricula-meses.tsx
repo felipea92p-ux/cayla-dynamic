@@ -1,11 +1,13 @@
 "use client";
 
 import { useMemo } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import type { EstadoDeCarga } from "@/lib/admin/use-constancias-por-meses";
 import { enDias } from "@/lib/admin/bandeja-urgencia";
 import { estadoParaMostrar } from "@/lib/admin/educacion-grupos";
 import { soles } from "@/lib/admin/educacion-formato";
 import {
-  casillasDeEstudio, entregasDeEstudio, etiquetaMes, familiasDe, mesDe, montoMensual,
+  casillasDeEstudio, entregasDeEstudio, etiquetaMes, familiasDe, mesDe, mesLargo, montoMensual,
   type Estudio, type ResumenDeSede, type CoberturaMes } from "@/lib/admin/educacion-meses";
 import type { EntregaDeFamilia, Pendiente } from "@/lib/admin/educacion-tipos";
 import { fechaCorta } from "@/lib/educacion";
@@ -21,9 +23,12 @@ import { CasillaMes } from "./casilla-mes";
  *   constancia. Con «Todas las sedes», la lista se parte en un bloque por sede con
  *   su resumen (personas, apoyos, monto al mes y lo que pide acción).
  * ASUME: `estudios` ya vienen filtrados y ordenados (lo que pide acción, primero),
- *   y `meses` ya vienen de `ventanaDeMeses`.
+ *   y `meses` ya vienen de `ventanaDeMeses`. Las constancias llegan POR MESES: cada
+ *   columna dice si ya llegó (`estadoDelMes`), y mientras no, sus casillas esperan.
  * NO HACE: no carga nada ni calcula estados. Una casilla vacía es un guion, nunca una
- *   falta: lo vencido lo dice la insignia de la fila, que viene de la base.
+ *   falta: lo vencido lo dice la insignia de la fila, que viene de la base. Los botones
+ *   «← Meses anteriores» y «Meses siguientes →» solo avisan: quien trae los meses es la
+ *   pantalla.
  *
  * En escritorio es una tabla con la columna de la persona fija a la izquierda, para
  * que al desplazarse hacia los meses viejos no se pierda de quién es cada fila. En
@@ -43,19 +48,23 @@ const COLUMNA_DE_HOY = "bg-tinta/[0.045]";
 export interface PersonaSinSolicitar { persona_id: string; persona: string; sede: string; rango: string }
 
 export function CuadriculaMeses({
-  estudios, meses, hayMasMeses, onVerMasMeses, mesResaltado, entregasPorFamilia, cargandoConstancias,
-  familiasSinLeer, pendientes, hoy, resumenesSede, onAbrirVisor, onAbrirEstudio, coberturas, apoyoPagado,
+  estudios, meses, hayAnteriores, onAnteriores, haySiguientes, onSiguientes, mesResaltado, entregasPorFamilia,
+  estadoDelMes, corregidas, pendientes, hoy, resumenesSede, onAbrirVisor, onAbrirEstudio, coberturas, apoyoPagado,
   sinSolicitar = [], onRegistrar,
 }: {
   estudios: Estudio[];
   meses: string[];
-  hayMasMeses: boolean;
-  onVerMasMeses: () => void;
+  hayAnteriores: boolean;
+  onAnteriores: () => void;
+  haySiguientes: boolean;
+  onSiguientes: () => void;
   mesResaltado: string;
-  entregasPorFamilia: ReadonlyMap<string, EntregaDeFamilia[]> | null;
-  cargandoConstancias: boolean;
-  /** Estudios cuyas constancias no se pudieron leer: sus casillas vacías dicen «?» y no «—». */
-  familiasSinLeer: ReadonlySet<string>;
+  /** Las constancias ya traídas, por estudio: no toda la historia, sino los meses que se pidieron. */
+  entregasPorFamilia: ReadonlyMap<string, EntregaDeFamilia[]>;
+  /** Si las constancias de cada mes ya llegaron: «cargando» espera, «error» dibuja «?» en vez de «—». */
+  estadoDelMes: (mes: string) => EstadoDeCarga;
+  /** Las rechazadas que una constancia de otro mes (quizá no traído) ya corrigió. */
+  corregidas?: ReadonlySet<string>;
   pendientes: Pendiente[];
   hoy: string;
   /** Con valor, la lista se parte en un bloque por sede. Sin él, una sola lista. */
@@ -93,21 +102,34 @@ export function CuadriculaMeses({
     return pendientes.find((p) => familias.has(p.familia_id))?.id ?? null;
   };
 
+  const estados = useMemo(() => new Map(meses.map((m) => [m, estadoDelMes(m)])), [meses, estadoDelMes]);
   const fila = (e: Estudio) => {
     const entregas = entregasDeEstudio(e, entregasPorFamilia);
-    const casillas = casillasDeEstudio(e, entregas, meses, { coberturas, apoyoPagado, hoy });
-    return {
-      e, casillas, pendiente: pendienteDe(e),
-      cargando: cargandoConstancias && entregasPorFamilia === null,
-      sinLeer: e.tramos.some((t) => familiasSinLeer.has(t.familia_id)),
-    };
+    const casillas = casillasDeEstudio(e, entregas, meses, { coberturas, apoyoPagado, hoy, corregidas });
+    return { e, casillas, pendiente: pendienteDe(e) };
   };
+  const cargandoMes = (mes: string) => estados.get(mes) === "cargando";
+  const sinLeerMes = (mes: string) => estados.get(mes) === "error";
+  const primero = meses[0], ultimo = meses[meses.length - 1];
 
   return (
     <div>
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs text-taupe">
         <Leyenda />
-        {hayMasMeses && <Boton variante="enlace" className="text-xs" onClick={onVerMasMeses}>← Meses anteriores</Boton>}
+        {(hayAnteriores || haySiguientes) && (
+          // Los dos siempre juntos y en el mismo lugar: el que no puede moverse se apaga en vez de
+          // desaparecer, para que el otro no salte bajo el dedo de quien va y vuelve.
+          <nav aria-label="Moverse por los meses" className="flex items-center gap-4">
+            <Boton variante="enlace" className="inline-flex items-center gap-0.5 text-xs" disabled={!hayAnteriores}
+              onClick={onAnteriores} aria-label={`Meses anteriores a ${mesLargo(primero)}`}>
+              <ChevronLeft aria-hidden className="size-3.5" />Meses anteriores
+            </Boton>
+            <Boton variante="enlace" className="inline-flex items-center gap-0.5 text-xs" disabled={!haySiguientes}
+              onClick={onSiguientes} aria-label={`Meses siguientes a ${mesLargo(ultimo)}`}>
+              Meses siguientes<ChevronRight aria-hidden className="size-3.5" />
+            </Boton>
+          </nav>
+        )}
       </div>
 
       {/* ── ESCRITORIO Y TABLET: tabla ───────────────────────────────────── */}
@@ -163,7 +185,7 @@ export function CuadriculaMeses({
                     </td>
                     {f.casillas.map((c, i) => (
                       <td key={c.mes} className={`p-0 align-middle ${i === 0 ? SEPARADOR_DE_COLUMNAS : ""} ${c.mes === mesDeHoy && c.mes !== mesResaltado ? COLUMNA_DE_HOY : ""}`}>
-                        <CasillaMes casilla={c} persona={e.persona} cargando={f.cargando} sinLeer={f.sinLeer} resaltada={c.mes === mesResaltado}
+                        <CasillaMes casilla={c} persona={e.persona} cargando={cargandoMes(c.mes)} sinLeer={sinLeerMes(c.mes)} resaltada={c.mes === mesResaltado}
                           alAbrir={() => onAbrirVisor(e, c.principal?.id ?? null)} />
                       </td>
                     ))}
@@ -228,7 +250,7 @@ export function CuadriculaMeses({
                               ? <span className="mx-auto block w-fit rounded-full bg-tinta px-1.5 text-[9px] font-medium uppercase leading-3 text-crema">hoy</span>
                               : <span className="block h-3 text-center text-[10px] leading-3 text-taupe">{i === 0 || c.mes.endsWith("-01") ? anio : ""}</span>}
                             <div className={`w-[64px] rounded-control ${c.mes === mesDeHoy ? COLUMNA_DE_HOY : ""}`}>
-                              <CasillaMes casilla={c} persona={e.persona} cargando={f.cargando} sinLeer={f.sinLeer} resaltada={c.mes === mesResaltado}
+                              <CasillaMes casilla={c} persona={e.persona} cargando={cargandoMes(c.mes)} sinLeer={sinLeerMes(c.mes)} resaltada={c.mes === mesResaltado}
                                 alAbrir={() => onAbrirVisor(e, c.principal?.id ?? null)} />
                             </div>
                           </li>

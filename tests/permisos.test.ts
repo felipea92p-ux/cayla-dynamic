@@ -13,8 +13,30 @@ import {
   puedeVerSaludDeAlertas, puedeExportarAsistencia, puedeAnularDocumentoDisciplinario,
   puedeTramitarDisciplina, recibeAvisoDeConductaRegistrada, recibeAvisoDeLecturaPendiente,
   puedeVerNovedad, puedeGestionarBoletas, puedeMarcarCuentaDeServicio, puedeGestionarArchivo,
+  puedeEstamparFirmaDeEmpresa,
   ROLES, ROLES_CON_PANEL, ROLES_DO, ROLES_EXPORTAN_ASISTENCIA, ROLES_GESTIONAN_BOLETAS,
 } from "@cayla-dynamic/shared";
+
+describe("la firma de quien firma por CAYLA se estampa por defecto, a quien abre el panel", () => {
+  it("Gerencia, DO y la líder de equipo: exactamente los roles con panel", () => {
+    for (const rol of ROLES) {
+      expect(puedeEstamparFirmaDeEmpresa(rol)).toBe((ROLES_CON_PANEL as readonly string[]).includes(rol));
+    }
+    expect(puedeEstamparFirmaDeEmpresa("admin")).toBe(true);
+    expect(puedeEstamparFirmaDeEmpresa("lider_do")).toBe(true);
+    expect(puedeEstamparFirmaDeEmpresa("supervisor_sede")).toBe(true);
+  });
+
+  it("quien solo marca no la ve estampada", () => {
+    expect(puedeEstamparFirmaDeEmpresa("integrante")).toBe(false);
+  });
+
+  it("sin rol, vacío o desconocido: null nunca pasa", () => {
+    for (const rol of [null, undefined, "", "contador"]) {
+      expect(puedeEstamparFirmaDeEmpresa(rol)).toBe(false);
+    }
+  });
+});
 
 describe("las novedades del sistema le llegan a quien las puede usar", () => {
   it("«panel» sigue exactamente la lista de quienes ven el panel — si esa cambia, esta cae", () => {

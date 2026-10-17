@@ -115,6 +115,93 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-10-17-la-firma-de-la-empresa-sale-sola-en-los-papeles",
+    fecha: "2026-10-17",
+    titulo: "La firma de la empresa sale sola en los papeles, la abra quien la abra",
+    queMejoro:
+      "Los contratos, las hojas de Documentación (declaración de ruta, política de movilidad y cargo del bono), " +
+      "el certificado de trabajo y la constancia de cese de Liquidaciones, y la Política salarial llevan ahora la " +
+      "firma guardada de quien firma por CAYLA, sin que esa persona tenga que abrirlos. Antes, si el papel lo abría " +
+      "otra cuenta, la línea de firma salía en blanco.\n\n" +
+      "Si quien firma por CAYLA todavía no guardó su firma en «Mi firma», el papel sale con la línea en blanco para " +
+      "firmar a mano, y la pantalla lo avisa antes de imprimir.",
+    audiencia: "panel",
+  },
+  {
+    id: "2026-10-17-tu-boleta-firmada-se-descarga-con-tu-firma",
+    fecha: "2026-10-17",
+    titulo: "Tu boleta firmada se ve y se descarga con tu firma",
+    queMejoro:
+      "En «Boletas», una boleta que ya firmaste se abre como una sola hoja: tus datos, la fecha de pago, la boleta " +
+      "y, debajo, tu firma con la fecha y la hora. «Descargar PDF» la guarda así, en un solo archivo: si tu " +
+      "teléfono o computadora te pregunta, elige «Guardar como PDF».\n\n" +
+      "Antes de firmarla, la boleta se sigue viendo y guardando tal como la entregó el contador.",
+    audiencia: "todos",
+  },
+  {
+    id: "2026-10-17-la-boleta-firmada-se-descarga-con-su-firma",
+    fecha: "2026-10-17",
+    titulo: "«Ver boleta firmada» ahora es una sola hoja que se descarga en PDF",
+    queMejoro:
+      "En Planilla → Boletas, «Ver boleta firmada» muestra la constancia de recepción: nombre y documento de la " +
+      "persona, sede, periodo, fecha de pago, fecha y hora de la firma, la boleta y, debajo, la firma. «Descargar " +
+      "PDF» la guarda en un solo archivo, lista para el contador o para el archivo.\n\n" +
+      "Además, la foto de una boleta ya no se ve cortada: entra entera en la pantalla y se amplía con un toque. Y " +
+      "una boleta firmada ya no tiene «Ver» a secas: se mira siempre con su firma.",
+    audiencia: "do",
+  },
+  {
+    id: "2026-10-17-educacion-meses-anteriores-y-siguientes",
+    fecha: "2026-10-17",
+    titulo: "En Educación ahora se avanza y se retrocede por los meses",
+    queMejoro:
+      "La cuadrícula de constancias tiene «← Meses anteriores» y «Meses siguientes →», de seis en seis: puedes " +
+      "ir al pasado y volver sin recargar la pantalla, y llegar a los meses que cubre un pago adelantado más allá " +
+      "de lo que se ve al abrir.\n\n" +
+      "La pantalla trae solo los meses que estás mirando y pide los demás cuando te mueves, así abre más rápido " +
+      "aunque haya mucha gente. Mientras un mes llega, sus casillas esperan; si no se pudo traer, se ven con «?» " +
+      "y arriba aparece «Reintentar».",
+    audiencia: "do",
+  },
+  {
+    id: "2026-10-17-la-politica-de-movilidad-se-firma-desde-el-sistema",
+    fecha: "2026-10-17",
+    titulo: "La política de movilidad ya se firma desde Documentación, sin escanear",
+    queMejoro:
+      "Al abrir «Firmar la política» en Documentación, la política se puede firmar con la firma que el sistema ya " +
+      "tiene guardada de quien firma por CAYLA: la misma que sale en los contratos. No hay que imprimirla, firmarla " +
+      "a mano ni escanearla. Se guarda tal como sale impresa ese día, con la firma y la fecha, y «Ver documento» la " +
+      "muestra igual aunque después cambien las tarifas.\n\n" +
+      "Subir el papel firmado a mano sigue siendo posible, en la misma pantalla. Vale la más reciente de las dos.",
+    audiencia: "do",
+  },
+  {
+    id: "2026-10-17-tu-boleta-de-pago-se-firma-desde-dynamic",
+    fecha: "2026-10-17",
+    titulo: "Tu boleta de pago ahora se firma desde Dynamic",
+    queMejoro:
+      "Cuando Desarrollo Organizacional publica tu boleta, la abres en «Boletas» y la firmas ahí mismo con la firma " +
+      "que ya tienes guardada en tu perfil. Si todavía no tienes una, la creas en ese momento, una sola vez. " +
+      "Ya no hace falta firmar un papel.\n\n" +
+      "«Firmar» se enciende cuando abres la boleta, y te pide una segunda confirmación antes de quedar firmada. " +
+      "Tu firma queda copiada en esa boleta con la fecha y la hora: si más adelante cambias tu firma, las boletas " +
+      "que ya firmaste no cambian. Si no puedes firmar desde el sistema, avisa a Desarrollo Organizacional.",
+    audiencia: "todos",
+  },
+  {
+    id: "2026-10-17-do-anula-una-boleta-y-la-restablece-en-48-horas",
+    fecha: "2026-10-17",
+    titulo: "Anular una boleta de pago ahora se puede deshacer durante 48 horas",
+    queMejoro:
+      "Al anular una boleta ya publicada, la pantalla te muestra a quién y qué estás anulando: el nombre, la sede, " +
+      "el periodo, las fechas, la boleta y su constancia de firma. Eliges un motivo de la lista (o escribes otro, de " +
+      "al menos 5 letras) y marcas que es la persona correcta.\n\n" +
+      "Si te equivocaste, «Restablecer» la devuelve exactamente como estaba, con su firma, durante 48 horas. Pasado " +
+      "ese plazo hay que subir una boleta nueva. En «Ver boleta firmada» ves la boleta con la firma de la persona, " +
+      "quién y cuándo firmó. La persona ve «En revisión» mientras tanto.",
+    audiencia: "do",
+  },
+  {
     id: "2026-10-17-educacion-pagar-varios-meses-de-una-vez",
     fecha: "2026-10-17",
     titulo: "Si pagaste varios meses de tus estudios de una vez, súbelo una sola vez",
