@@ -90,12 +90,13 @@ export function CasillaMes({
 }) {
   const { corto, anio } = etiquetaMes(casilla.mes);
   const fondo = resaltada ? "bg-hueso" : "";
-  const boton = useRef<HTMLButtonElement>(null);
   const idGlobo = useId();
-  const [abierto, setAbierto] = useState(false);
+  // La casilla a la que se pega el globo; null = cerrado. Se guarda al entrar (evento), no se lee de una ref al dibujar.
+  const [ancla, setAncla] = useState<HTMLElement | null>(null);
   const cerrar = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const abrir = () => { if (cerrar.current) clearTimeout(cerrar.current); setAbierto(true); };
-  const soltar = () => { cerrar.current = setTimeout(() => setAbierto(false), 160); };
+  const seguir = () => { if (cerrar.current) clearTimeout(cerrar.current); };
+  const abrir = (el: HTMLElement) => { seguir(); setAncla(el); };
+  const soltar = () => { cerrar.current = setTimeout(() => setAncla(null), 160); };
   useEffect(() => () => { if (cerrar.current) clearTimeout(cerrar.current); }, []);
 
   if (cargando) {
@@ -133,12 +134,12 @@ export function CasillaMes({
     <div className={`relative flex justify-center py-2 ${fondo} ${casilla.fueraDeVigencia ? "bg-hueso/60" : ""}`}>
       {franja}
       <button
-        ref={boton}
         type="button"
-        onClick={() => { setAbierto(false); alAbrir(); }}
-        onMouseEnter={abrir} onMouseLeave={soltar} onFocus={abrir} onBlur={soltar}
+        onClick={() => { setAncla(null); alAbrir(); }}
+        onMouseEnter={(ev) => abrir(ev.currentTarget)} onMouseLeave={soltar}
+        onFocus={(ev) => abrir(ev.currentTarget)} onBlur={soltar}
         aria-label={`${lectura} Abrir el detalle.`}
-        aria-describedby={abierto ? idGlobo : undefined}
+        aria-describedby={ancla ? idGlobo : undefined}
         className="relative z-[1] flex size-10 items-center justify-center rounded-control transition-shadow duration-150 hover:ring-2 hover:ring-tinta focus-visible:ring-2 focus-visible:ring-tinta motion-reduce:transition-none"
       >
         {t ? (
@@ -157,8 +158,8 @@ export function CasillaMes({
           <span aria-hidden className={`absolute bottom-0.5 left-1/2 h-1 w-4 -translate-x-1/2 rounded-full ${APOYO_RAYA[casilla.apoyo.estado]}`} />
         )}
       </button>
-      {abierto && boton.current && (
-        <Globo id={idGlobo} ancla={boton.current} onEntrar={abrir} onSalir={soltar}>
+      {ancla && (
+        <Globo id={idGlobo} ancla={ancla} onEntrar={seguir} onSalir={soltar}>
           <p className="font-serif text-base text-tinta">{persona.split(" ")[0]} · {nombreMes(casilla.mes)} {casilla.mes.slice(0, 4)}</p>
           <dl className="grid grid-cols-[5.5rem_1fr] gap-x-2 gap-y-1.5 text-xs">
             <dt className="text-[10px] uppercase tracking-wide text-taupe">Constancia</dt>

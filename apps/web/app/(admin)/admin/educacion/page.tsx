@@ -45,6 +45,7 @@ import { CuadriculaMeses } from "@/components/educacion/cuadricula-meses";
 import { LienzoArchivos } from "@/components/educacion/lienzo-archivos";
 import { AccionesRevision } from "@/components/educacion/revision-entrega";
 import { AprobadasDelCiclo } from "@/components/educacion/aprobadas-del-ciclo";
+import { HistorialEducacion } from "@/components/educacion/historial-educacion";
 import { VisorConstancia } from "@/components/educacion/visor-constancia";
 
 // ============================================================================
@@ -996,6 +997,9 @@ function EducacionContenido() {
                   </details>
                 </div>
 
+                {/* ── HISTORIAL DE EDUCACIÓN (0529): todo lo que pasó, de todas las personas ── */}
+                <HistorialGeneral />
+
                 {/* ── HISTORIAL DE SOLICITUDES (0461): aprobadas y rechazadas ──── */}
                 <details className="mb-5 rounded-2xl border border-sand p-4"
                   onToggle={(e) => { if (e.currentTarget.open) void cargarHistorialSolicitudes(); }}>
@@ -1089,6 +1093,8 @@ function EducacionContenido() {
             onError={(texto) => avisar("error", texto)}
             onAbrirEstudio={() => { setVisorAbierto(false); abrirEstudio(visorEstudio, null); }}
             estadoDeCarga={cargandoConstancias ? "cargando" : visorEstudio.tramos.some((t) => familiasSinLeer.has(t.familia_id)) ? "error" : "listo"}
+            coberturas={coberturas}
+            costoDeclarado={(id) => { const a = asignaciones.get(id); return a ? Number(a.costo_declarado) : null; }}
           />
         )}
       </main>
@@ -1267,7 +1273,7 @@ function PanelEstudio({
 
       {/* ── HISTORIAL ── */}
       <section>
-        <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-taupe">Historial</h3>
+        <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-taupe">Constancias</h3>
         {entregas === null ? <Cargando /> : entregas.length === 0 ? (
           <p className="text-taupe">Sin constancias todavía.</p>
         ) : (
@@ -1278,6 +1284,12 @@ function PanelEstudio({
           </ul>
         )}
       </section>
+
+      {/* ── TODO LO QUE PASÓ CON ESTA PERSONA (0529): el historial individual ── */}
+      <details className="rounded-xl border border-sand p-3">
+        <summary className="cursor-pointer text-xs font-medium uppercase tracking-wide text-taupe">Historial de {s.persona.split(" ")[0]}</summary>
+        <div className="mt-2"><HistorialEducacion modo="persona" personaId={s.persona_id} /></div>
+      </details>
 
       <Modal abierto={cerrando} onCerrar={() => setCerrando(false)} bloqueado={trabajando} titulo="Cerrar esta asignación" ancho="sm">
         <p className="mb-4 text-sm text-taupe">
@@ -1527,5 +1539,19 @@ export default function EducacionPage() {
     <Suspense fallback={<Cargando />}>
       <EducacionContenido />
     </Suspense>
+  );
+}
+
+// El historial general va plegado y se monta recién al abrirlo: no se pide nada que nadie miró.
+function HistorialGeneral() {
+  const [abierto, setAbierto] = useState(false);
+  return (
+    <details className="mb-5 rounded-2xl border border-sand p-4" onToggle={(e) => setAbierto(e.currentTarget.open)}>
+      <summary className="cursor-pointer font-serif text-base">
+        Historial de Educación
+        <span className="block font-sans text-xs text-taupe">Todo lo que pasó, de todas las personas: solicitudes, apoyos, constancias, aprobaciones y rechazos.</span>
+      </summary>
+      {abierto && <div className="mt-3"><HistorialEducacion modo="general" /></div>}
+    </details>
   );
 }

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronLeft, ChevronRight, Clock, Undo2, X, ZoomIn, ZoomOut } from "lucide-react";
 import { ESTADO_ENTREGA, MOTIVO_RECHAZO_LABELS, TIPO_CONSTANCIA_LABELS } from "@cayla-dynamic/shared";
-import { entregasEnOrden, etiquetaMes, mesDe, type Estudio } from "@/lib/admin/educacion-meses";
+import { entregasEnOrden, etiquetaMes, mesDe, type CoberturaMes, type Estudio } from "@/lib/admin/educacion-meses";
 import { fechaHora, soles } from "@/lib/admin/educacion-formato";
 import type { EntregaDeFamilia } from "@/lib/admin/educacion-tipos";
 import { fechaCorta } from "@/lib/educacion";
@@ -58,6 +58,7 @@ const FOCUSABLES =
 
 export function VisorConstancia({
   abierto, estudio, entregas, entregaId, miPersonaId, onCerrar, onResuelta, onError, onAbrirEstudio, estadoDeCarga,
+  coberturas, costoDeclarado,
 }: {
   abierto: boolean;
   estudio: Estudio;
@@ -75,6 +76,10 @@ export function VisorConstancia({
    * dos es afirmar un hecho que no se sabe, delante de quien está por aprobar o rechazar.
    */
   estadoDeCarga: "cargando" | "error" | "listo";
+  /** Los meses que cubre cada pago adelantado (0529), por id de constancia. */
+  coberturas?: ReadonlyMap<string, readonly CoberturaMes[]>;
+  /** El costo mensual declarado al registrar el apoyo, para avisar si un mes pagó menos. */
+  costoDeclarado?: (asignacionId: string) => number | null;
 }) {
   const { montado, saliendo } = useSalidaAnimada(abierto, DURACION_SALIDA_MS);
   if (!montado) return null;
@@ -82,12 +87,14 @@ export function VisorConstancia({
     <Caja
       saliendo={saliendo} estudio={estudio} entregas={entregas} entregaId={entregaId} miPersonaId={miPersonaId}
       onCerrar={onCerrar} onResuelta={onResuelta} onError={onError} onAbrirEstudio={onAbrirEstudio} estadoDeCarga={estadoDeCarga}
+      coberturas={coberturas} costoDeclarado={costoDeclarado}
     />
   );
 }
 
 function Caja({
   saliendo, estudio, entregas, entregaId, miPersonaId, onCerrar, onResuelta, onError, onAbrirEstudio, estadoDeCarga,
+  coberturas, costoDeclarado,
 }: Omit<Parameters<typeof VisorConstancia>[0], "abierto"> & { saliendo: boolean }) {
   const orden = useMemo(() => entregasEnOrden(entregas), [entregas]);
   const [idActual, setIdActual] = useState<string | null>(() => entregaId ?? orden.at(-1)?.id ?? null);
@@ -259,7 +266,8 @@ function Caja({
 
           <aside aria-label="Datos de la constancia" className="border-t border-sand bg-papel p-4 sm:p-5 lg:overflow-y-auto lg:border-l lg:border-t-0">
             {e ? (
-              <Datos entrega={e} tramo={tramo} estudio={estudio}>
+              <Datos entrega={e} tramo={tramo} estudio={estudio}
+                meses={coberturas?.get(e.id) ?? null} costo={costoDeclarado?.(e.asignacion_id) ?? null}>
                 {e.estado === "pendiente" && (
                   <div className="mt-5 border-t border-sand pt-4">
                     <AccionesRevision
@@ -311,8 +319,11 @@ function ChipConstancia({ entrega, activa, alTocar }: { entrega: EntregaDeFamili
 }
 
 function Datos({
-  entrega: e, tramo, estudio, children,
-}: { entrega: EntregaDeFamilia; tramo: Estudio["actual"]; estudio: Estudio; children?: React.ReactNode }) {
+  entrega: e, tramo, estudio, meses = null, costo = null, children,
+}: {
+  entrega: EntregaDeFamilia; tramo: Estudio["actual"]; estudio: Estudio;
+  meses?: readonly CoberturaMes[] | null; costo?: number | null; children?: React.ReactNode;
+}) {
   const est = ESTADO_ENTREGA[e.estado];
   const fila = (etiqueta: string, valor: React.ReactNode) => (
     <div><dt><Rotulo>{etiqueta}</Rotulo></dt><dd className="mt-0.5 text-sm text-tinta">{valor}</dd></div>
@@ -343,6 +354,7 @@ function Datos({
         {e.revertida_at && fila("Aprobación revertida", `La aprobó ${e.aprobada_por ?? "—"} el ${fechaHora(e.aprobada_at)}; la rechazó ${e.revisada_por ?? "—"} el ${fechaHora(e.revertida_at)}`)}
         {e.retirada_at && fila("Retirada", `La integrante, el ${fechaHora(e.retirada_at)}`)}
       </dl>
+      {meses && meses.length > 0 && <MesesDelPago meses={meses} costo={costo} tramo={tramo} />}
       {e.estado === "rechazada" && (
         <p className="rounded-control bg-rojo/10 px-3 py-2 text-sm text-rojo-profundo">
           <strong className="font-medium">{e.motivo_categoria ? MOTIVO_RECHAZO_LABELS[e.motivo_categoria] : "Rechazada"}</strong>
@@ -359,3 +371,49 @@ function Datos({
     </div>
   );
 }
+
+/**
+ * LOS MESES DE UN PAGO ADELANTADO (0529): qué parte del pago es cada mes, si lo calculó el sistema o lo
+ * corrigió ella (con su motivo), y dos avisos para quien revisa: un mes que pagó menos que el costo
+ * declarado, y un mes que cae fuera de la vigencia del apoyo. Avisan; no deciden (Felipe, 2026-10-17).
+ */
+function MesesDelPago({ meses, costo, tramo }: { meses: readonly CoberturaMes[]; costo: number | null; tramo: Estudio["actual"] }) {
+  const total = meses.reduce((t, x) => t + Number(x.monto), 0);
+  const menores = costo !== null ? meses.filter((x) => Number(x.monto) < costo) : [];
+  const fuera = meses.filter((x) => mesDe(x.mes) < mesDe(tramo.vigente_desde) || mesDe(x.mes) > mesDe(tramo.vigente_hasta));
+  const nombre = (m: string) => `${MESES_LARGOS[Number(m.slice(5, 7)) - 1]} ${m.slice(0, 4)}`;
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-xs font-medium uppercase tracking-wide text-taupe">Pago adelantado · {meses.length} meses · {soles(total)}</p>
+      <table className="w-full text-sm">
+        <tbody>
+          {meses.map((x) => (
+            <tr key={x.mes} className="border-t border-sand">
+              <td className="py-1">
+                {nombre(x.mes)}
+                <span className={`block text-xs ${x.origen === "manual" ? "text-ambar" : "text-taupe"}`}>
+                  {x.origen === "manual" ? `Lo corrigió ella: «${x.motivo}»` : x.origen === "puesto" ? "Lo puso ella" : "Calculado por el sistema"}
+                </span>
+              </td>
+              <td className="py-1 text-right tabular-nums">{soles(Number(x.monto))}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {menores.length > 0 && costo !== null && (
+        <p className="rounded-control bg-ambar/15 px-3 py-2 text-xs text-ambar">
+          En {menores.map((x) => nombre(x.mes).split(" ")[0]).join(", ")} pagó menos que el costo declarado ({soles(costo)}).
+          Con un apoyo de {soles(tramo.monto)}, el apoyo sería más del 75 % de lo que pagó. Aprobar no cambia el pago: si corresponde, corrige el apoyo aparte.
+        </p>
+      )}
+      {fuera.length > 0 && (
+        <p className="rounded-control bg-ambar/15 px-3 py-2 text-xs text-ambar">
+          {fuera.map((x) => nombre(x.mes)).join(", ")} queda fuera de la vigencia del apoyo: se cubre como constancia, pero ese mes no se paga apoyo.
+        </p>
+      )}
+      <p className="text-xs text-taupe">Aprobar una vez cubre todos estos meses: no se le pedirá constancia de ellos.</p>
+    </div>
+  );
+}
+
+const MESES_LARGOS = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "setiembre", "octubre", "noviembre", "diciembre"];
