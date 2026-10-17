@@ -6,6 +6,36 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-10-16 — Educación: un estudio ya no tapa a otro (0524) · SQL SIN PEGAR · COMMITEADO, SIN PR · rama `claude/hungry-mirzakhani-1438df`
+
+**Hoy no cuesta nada.** Medido en producción con la regla nueva contra la de hoy sobre
+los tres últimos periodos: a nadie le cambia el pago. Es una regla frágil que se
+endereza antes del próximo caso, no una plata mal pagada.
+
+**El defecto.** La regla de la 0233 usaba UN día de referencia por persona. Si el
+único estudio vigente el primer día del periodo se acababa ahí, todo lo que empezaba
+después quedaba sin pagar (Duolingo hasta 28/09, Pop in colors e Italo desde 10/10:
+boleta de S/104.25 donde tocaban S/165). **0524** da a cada estudio su propio día de
+referencia. Mismo estudio = misma `familia_id`, o mismo beneficiario (y mismo hijo) con
+la misma institución o con ciclos contiguos. El cuerpo vive en
+`fn_planilla_calcular_nucleo` (la vigente era la **0504**, no la 0397: el envoltorio de
+786 caracteres no paga nada).
+
+**Decisión de negocio que revierte la 0233:** un estudio que empieza a mitad de periodo
+cobra el mes completo ese periodo aunque la persona ya tuviera otro. Límite conocido
+(documentado en la cabecera): dos ciclos del mismo beneficiario con instituciones
+distintas, no contiguos y en un mismo periodo, se cobran los dos; en producción no hay
+ninguno hoy.
+
+**Pendiente.** Pegar la 0524 (md5 de partida de producción `f1781d68…`, 116 749
+caracteres, medido el 2026-10-16; **se vuelve a pedir justo antes de entregar**) y,
+aparte, medir en la boleta congelada de septiembre qué se pagó de educación a esa
+integrante (Duolingo tenía dos tramos; las filas de hoy no se suman entre sí).
+`donde-vive.sh` busca el primer contenedor `supabase_db_*` y con `cayla-retail`
+levantado contesta «no existe en el Postgres local»: no es que falte, mira otra base.
+
+---
+
 ## 2026-10-16 — Educación: cuadrícula de constancias por mes, visor sin descargar, sede y filtros · SIN SQL · COMMITEADO, SIN PR TODAVÍA · rama `claude/constancias-filtros-sede-a4201b`
 
 **No hay migración que pegar.** Todo sale de las dos funciones que ya existen
