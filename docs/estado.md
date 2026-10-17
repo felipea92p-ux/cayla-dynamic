@@ -6,6 +6,29 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-10-17 — La política de movilidad se firma con la firma del sistema (0531) · SQL SIN PEGAR · PR ABIERTO, SIN FUSIONAR · rama `claude/politica-firma-del-sistema`
+
+**Qué cambia.** En Documentación, el panel de la política ofrece «Con la firma guardada
+de …» (por defecto, si quien firma por CAYLA tiene firma en `firmas_escaneadas`) o
+«Subir el papel firmado a mano» (lo de siempre). La firma desde el sistema congela la
+hoja tal como se imprime —tarifas, cláusulas, fecha y firma— en
+`documentos_firmados.documento_html`, y «Ver documento» la muestra tal cual. La
+función `fn_politica_firmar_con_firma_empresa` no recibe ni persona ni imagen: lee la
+firma del firmante configurado y exige que sea exactamente la estampada en el HTML.
+
+**Probado.** pgTAP 425 (18/18) dentro de `begin … rollback` con la 0531 y control sin
+ella (falla). En el navegador, contra el Postgres local: firmar, ver, reemplazar (la
+anterior queda en «Versiones anteriores» con su «Ver»). Los datos de prueba se
+borraron; la 0531 quedó aplicada en el Postgres local.
+
+**Pendiente.** Pegar la 0531 ANTES de fusionar (crea una función nueva y agrega dos
+columnas: no reescribe ninguna función, no hay md5 de partida). Se decidió que
+cualquier admin/líder DO puede firmar la política con la firma de quien firma por
+CAYLA —igual que hoy puede subir el escaneo—; si eso tiene que quedar solo para el
+firmante, es un `if v_yo <> v_firmante` en la función.
+
+---
+
 ## 2026-10-16 — Educación: un estudio ya no tapa a otro (0524) · SQL SIN PEGAR · COMMITEADO, SIN PR · rama `claude/hungry-mirzakhani-1438df`
 
 **Hoy no cuesta nada.** Medido en producción con la regla nueva contra la de hoy sobre

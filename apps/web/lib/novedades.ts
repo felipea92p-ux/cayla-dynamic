@@ -115,6 +115,18 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-10-17-la-politica-de-movilidad-se-firma-desde-el-sistema",
+    fecha: "2026-10-17",
+    titulo: "La política de movilidad ya se firma desde Documentación, sin escanear",
+    queMejoro:
+      "Al abrir «Firmar la política» en Documentación, la política se puede firmar con la firma que el sistema ya " +
+      "tiene guardada de quien firma por CAYLA: la misma que sale en los contratos. No hay que imprimirla, firmarla " +
+      "a mano ni escanearla. Se guarda tal como sale impresa ese día, con la firma y la fecha, y «Ver documento» la " +
+      "muestra igual aunque después cambien las tarifas.\n\n" +
+      "Subir el papel firmado a mano sigue siendo posible, en la misma pantalla. Vale la más reciente de las dos.",
+    audiencia: "do",
+  },
+  {
     id: "2026-10-16-el-bono-de-cumpleanos-en-practicas-va-en-la-boleta",
     fecha: "2026-10-16",
     titulo: "Si estás en prácticas, tu bono de cumpleaños va en tu boleta",

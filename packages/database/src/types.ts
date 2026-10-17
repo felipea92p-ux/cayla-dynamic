@@ -1824,6 +1824,7 @@ export type Database = {
           anulado_motivo: string | null
           anulado_por: string | null
           created_at: string
+          documento_html: string | null
           entrega_confirmada_at: string | null
           entrega_confirmada_el: string | null
           entrega_confirmada_por: string | null
@@ -1833,6 +1834,7 @@ export type Database = {
           firma_persona_confirmada_at: string | null
           firma_persona_ip: string | null
           firma_persona_user_agent: string | null
+          firmante_empresa_id: string | null
           id: string
           monto_declarado: number | null
           movimiento_id: string | null
@@ -1858,6 +1860,7 @@ export type Database = {
           anulado_motivo?: string | null
           anulado_por?: string | null
           created_at?: string
+          documento_html?: string | null
           entrega_confirmada_at?: string | null
           entrega_confirmada_el?: string | null
           entrega_confirmada_por?: string | null
@@ -1867,6 +1870,7 @@ export type Database = {
           firma_persona_confirmada_at?: string | null
           firma_persona_ip?: string | null
           firma_persona_user_agent?: string | null
+          firmante_empresa_id?: string | null
           id?: string
           monto_declarado?: number | null
           movimiento_id?: string | null
@@ -1892,6 +1896,7 @@ export type Database = {
           anulado_motivo?: string | null
           anulado_por?: string | null
           created_at?: string
+          documento_html?: string | null
           entrega_confirmada_at?: string | null
           entrega_confirmada_el?: string | null
           entrega_confirmada_por?: string | null
@@ -1901,6 +1906,7 @@ export type Database = {
           firma_persona_confirmada_at?: string | null
           firma_persona_ip?: string | null
           firma_persona_user_agent?: string | null
+          firmante_empresa_id?: string | null
           id?: string
           monto_declarado?: number | null
           movimiento_id?: string | null
@@ -1930,6 +1936,20 @@ export type Database = {
           {
             foreignKeyName: "documentos_firmados_anulado_por_fkey"
             columns: ["anulado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documentos_firmados_firmante_empresa_id_fkey"
+            columns: ["firmante_empresa_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documentos_firmados_firmante_empresa_id_fkey"
+            columns: ["firmante_empresa_id"]
             isOneToOne: false
             referencedRelation: "terminal_roster"
             referencedColumns: ["id"]
@@ -7738,6 +7758,14 @@ export type Database = {
         Returns: Json
       }
       fn_poblacion_obligada: { Args: never; Returns: string[] }
+      fn_politica_firmar_con_firma_empresa: {
+        Args: {
+          p_documento_html: string | null
+          p_fecha_firma: string | null
+          p_nota?: string | null
+        }
+        Returns: string
+      }
       fn_politica_salarial_vigente: { Args: never; Returns: Json }
       fn_provisiones: {
         Args: { p_as_of?: string | null; p_salario_asof?: string | null }
