@@ -6,8 +6,7 @@ import { estadoParaMostrar } from "@/lib/admin/educacion-grupos";
 import { soles } from "@/lib/admin/educacion-formato";
 import {
   casillasDeEstudio, entregasDeEstudio, etiquetaMes, familiasDe, mesDe, montoMensual,
-  type Estudio, type ResumenDeSede,
-} from "@/lib/admin/educacion-meses";
+  type Estudio, type ResumenDeSede, type CoberturaMes } from "@/lib/admin/educacion-meses";
 import type { EntregaDeFamilia, Pendiente } from "@/lib/admin/educacion-tipos";
 import { fechaCorta } from "@/lib/educacion";
 import { Boton } from "@/components/ui/boton";
@@ -33,9 +32,20 @@ import { CasillaMes } from "./casilla-mes";
 
 const SEPARADOR_DE_COLUMNAS = "border-l border-sand";
 
+/**
+ * La columna del mes en curso va sombreada de arriba abajo y su cabecera dice «hoy» (Felipe,
+ * 2026-10-17: «que muestre en qué mes estamos»). Un tinte de `tinta` muy bajo: sigue el tema claro
+ * y oscuro sin un color nuevo, y no compite con el `bg-hueso` del mes que se elige en Filtros.
+ */
+const COLUMNA_DE_HOY = "bg-tinta/[0.045]";
+
+/** Una persona activa sin estudio ni solicitud (`personasSinSolicitar`). */
+export interface PersonaSinSolicitar { persona_id: string; persona: string; sede: string; rango: string }
+
 export function CuadriculaMeses({
   estudios, meses, hayMasMeses, onVerMasMeses, mesResaltado, entregasPorFamilia, cargandoConstancias,
-  familiasSinLeer, pendientes, hoy, resumenesSede, onAbrirVisor, onAbrirEstudio,
+  familiasSinLeer, pendientes, hoy, resumenesSede, onAbrirVisor, onAbrirEstudio, coberturas, apoyoPagado,
+  sinSolicitar = [], onRegistrar,
 }: {
   estudios: Estudio[];
   meses: string[];
@@ -52,14 +62,31 @@ export function CuadriculaMeses({
   resumenesSede: ResumenDeSede[] | null;
   onAbrirVisor: (e: Estudio, entregaId: string | null) => void;
   onAbrirEstudio: (e: Estudio, boton: HTMLElement) => void;
+  /** Los meses que cubre cada pago adelantado (0529), por id de constancia. */
+  coberturas?: ReadonlyMap<string, readonly CoberturaMes[]>;
+  /** Lo pagado de educación por persona y mes (`persona_id|AAAA-MM`). */
+  apoyoPagado?: ReadonlyMap<string, number>;
+  /**
+   * Personas activas que no pidieron educación. Van en la MISMA cuadrícula, como una fila más de su
+   * sede y sin meses que mirar, no en una tabla aparte (Felipe, 2026-10-17).
+   */
+  sinSolicitar?: readonly PersonaSinSolicitar[];
+  onRegistrar?: (boton: HTMLElement, personaId: string) => void;
 }) {
-  const bloques = useMemo(
-    () => (resumenesSede ? resumenesSede.map((r) => ({ resumen: r, estudios: r.estudios })) : [{ resumen: null, estudios }]),
-    [resumenesSede, estudios],
-  );
+  const bloques = useMemo(() => {
+    if (!resumenesSede) return [{ clave: "todas", sede: null as string | null, resumen: null as ResumenDeSede | null, estudios, sinSol: sinSolicitar }];
+    const lista = resumenesSede.map((r) => ({
+      clave: r.sede, sede: r.sede as string | null, resumen: r as ResumenDeSede | null, estudios: r.estudios,
+      sinSol: sinSolicitar.filter((p) => p.sede === r.sede),
+    }));
+    // Una sede donde nadie tiene estudio también sale, con su gente sin solicitar.
+    const conBloque = new Set(resumenesSede.map((r) => r.sede));
+    for (const sede of Array.from(new Set(sinSolicitar.map((p) => p.sede))).sort()) {
+      if (!conBloque.has(sede)) lista.push({ clave: sede, sede, resumen: null, estudios: [], sinSol: sinSolicitar.filter((p) => p.sede === sede) });
+    }
+    return lista;
+  }, [resumenesSede, estudios, sinSolicitar]);
   const mesDeHoy = mesDe(hoy);
-  const primero = meses[0];
-  const ultimo = meses[meses.length - 1];
 
   const pendienteDe = (e: Estudio): string | null => {
     const familias = new Set(familiasDe(e));
@@ -68,7 +95,7 @@ export function CuadriculaMeses({
 
   const fila = (e: Estudio) => {
     const entregas = entregasDeEstudio(e, entregasPorFamilia);
-    const casillas = casillasDeEstudio(e, entregas, meses);
+    const casillas = casillasDeEstudio(e, entregas, meses, { coberturas, apoyoPagado, hoy });
     return {
       e, casillas, pendiente: pendienteDe(e),
       cargando: cargandoConstancias && entregasPorFamilia === null,
@@ -78,16 +105,10 @@ export function CuadriculaMeses({
 
   return (
     <div>
-      <p className="mb-2 flex flex-wrap items-center gap-x-3 text-xs text-taupe">
-        <span>
-          Constancias recibidas de <strong className="font-medium text-tinta">{etiquetaMes(primero).corto} {etiquetaMes(primero).anio}</strong>{" "}
-          a <strong className="font-medium text-tinta">{etiquetaMes(ultimo).corto} {etiquetaMes(ultimo).anio}</strong>.
-          Un guion es un mes sin constancia; las rayas, un mes en que el estudio no estaba vigente.
-        </span>
-        {hayMasMeses
-          ? <Boton variante="enlace" className="text-xs" onClick={onVerMasMeses}>Ver 6 meses anteriores</Boton>
-          : <span>Es todo el historial.</span>}
-      </p>
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs text-taupe">
+        <Leyenda />
+        {hayMasMeses && <Boton variante="enlace" className="text-xs" onClick={onVerMasMeses}>← Meses anteriores</Boton>}
+      </div>
 
       {/* ── ESCRITORIO Y TABLET: tabla ───────────────────────────────────── */}
       <div className="hidden overflow-x-auto rounded-superficie border border-sand bg-papel md:block">
@@ -101,10 +122,14 @@ export function CuadriculaMeses({
                 const mostrarAnio = i === 0 || m.endsWith("-01");
                 return (
                   <th key={m} scope="col" aria-current={m === mesDeHoy ? "date" : undefined}
-                    className={`w-[68px] min-w-[68px] px-0 py-2 text-center font-normal ${i === 0 ? SEPARADOR_DE_COLUMNAS : ""} ${m === mesResaltado ? "bg-hueso" : ""}`}>
+                    className={`w-[68px] min-w-[68px] px-0 py-2 text-center font-normal ${i === 0 ? SEPARADOR_DE_COLUMNAS : ""} ${
+                      m === mesResaltado ? "bg-hueso" : m === mesDeHoy ? COLUMNA_DE_HOY : ""}`}>
                     <span className={`block text-xs ${m === mesDeHoy ? "font-medium text-tinta" : ""}`}>{corto}</span>
-                    <span className="block h-3 text-[10px] leading-3 text-taupe">{mostrarAnio ? anio : ""}</span>
-                    {m === mesDeHoy && <span aria-hidden className="mx-auto mt-0.5 block h-0.5 w-5 rounded-full bg-tinta" />}
+                    {m === mesDeHoy ? (
+                      <span className="mx-auto mt-0.5 block w-fit rounded-full bg-tinta px-1.5 text-[9px] font-medium uppercase leading-[14px] tracking-wide text-crema">hoy</span>
+                    ) : (
+                      <span className="block h-3 text-[10px] leading-3 text-taupe">{mostrarAnio ? anio : ""}</span>
+                    )}
                   </th>
                 );
               })}
@@ -112,12 +137,16 @@ export function CuadriculaMeses({
               <th className="px-3 py-2"><span className="sr-only">Acciones</span></th>
             </tr>
           </thead>
-          {bloques.map(({ resumen, estudios: lista }) => (
-            <tbody key={resumen?.sede ?? "todas"}>
-              {resumen && (
+          {bloques.map(({ clave, sede, resumen, estudios: lista, sinSol }) => (
+            <tbody key={clave}>
+              {(resumen || sede) && (
                 <tr>
-                  <th colSpan={meses.length + 4} scope="rowgroup" className="border-t border-sand bg-hueso/70 px-4 py-2 text-left font-normal">
-                    <ResumenDelBloque resumen={resumen} />
+                  <th colSpan={meses.length + 4} scope="rowgroup" className="border-t border-sand bg-hueso/70 px-0 py-2 text-left font-normal">
+                    {/* La fila de la sede cruza toda la tabla; su rótulo se queda pegado a la izquierda al
+                        desplazarse hacia los meses, igual que la columna de la persona (Felipe, 2026-10-17). */}
+                    <div className="sticky left-0 inline-block px-4">
+                      {resumen ? <ResumenDelBloque resumen={resumen} enLinea /> : <h3 className="font-serif text-base text-tinta">{sede}</h3>}
+                    </div>
                   </th>
                 </tr>
               )}
@@ -127,13 +156,13 @@ export function CuadriculaMeses({
                   <tr key={e.clave} className={`border-t border-sand transition-colors duration-150 hover:bg-crema/60 ${e.vigencia === "terminada" ? "text-taupe" : ""}`}>
                     <td className="sticky left-0 z-[1] bg-papel px-4 py-2 align-middle">
                       <span className="block font-medium">{e.persona}</span>
-                      <span className="block text-xs text-taupe">{e.sede} · {e.rango}</span>
+                      <span className="block text-xs text-taupe">{e.sede}{e.rango && e.rango !== "—" ? ` · ${e.rango}` : ""}</span>
                     </td>
                     <td className="min-w-48 px-3 py-2 align-middle">
                       <DatosDelEstudio e={e} hoy={hoy} />
                     </td>
                     {f.casillas.map((c, i) => (
-                      <td key={c.mes} className={`p-0 align-middle ${i === 0 ? SEPARADOR_DE_COLUMNAS : ""}`}>
+                      <td key={c.mes} className={`p-0 align-middle ${i === 0 ? SEPARADOR_DE_COLUMNAS : ""} ${c.mes === mesDeHoy && c.mes !== mesResaltado ? COLUMNA_DE_HOY : ""}`}>
                         <CasillaMes casilla={c} persona={e.persona} cargando={f.cargando} sinLeer={f.sinLeer} resaltada={c.mes === mesResaltado}
                           alAbrir={() => onAbrirVisor(e, c.principal?.id ?? null)} />
                       </td>
@@ -147,6 +176,24 @@ export function CuadriculaMeses({
                   </tr>
                 );
               })}
+              {sinSol.map((p) => (
+                <tr key={`sin-${p.persona_id}`} className="border-t border-sand text-taupe">
+                  <td className="sticky left-0 z-[1] bg-papel px-4 py-2 align-middle">
+                    <span className="block font-medium text-tinta">{p.persona}</span>
+                    <span className="block text-xs">{p.sede}{p.rango && p.rango !== "—" ? ` · ${p.rango}` : ""}</span>
+                  </td>
+                  <td className="px-3 py-2 align-middle text-xs">No pidió apoyo</td>
+                  {meses.map((m, i) => (
+                    <td key={m} className={`p-0 align-middle ${i === 0 ? SEPARADOR_DE_COLUMNAS : ""} ${m === mesDeHoy ? COLUMNA_DE_HOY : ""}`}>
+                      <div className="flex justify-center py-2"><span aria-hidden className="size-1 rounded-full bg-ceniza/30" /></div>
+                    </td>
+                  ))}
+                  <td className={`px-3 py-2 align-middle ${SEPARADOR_DE_COLUMNAS}`}><Insignia variante="neutral">Sin solicitar</Insignia></td>
+                  <td className="px-3 py-2 text-right align-middle">
+                    {onRegistrar && <Boton variante="sutil" tamano="sm" className="whitespace-nowrap" onClick={(ev) => onRegistrar(ev.currentTarget, p.persona_id)}>Registrar apoyo</Boton>}
+                  </td>
+                </tr>
+              ))}
             </tbody>
           ))}
         </table>
@@ -154,9 +201,10 @@ export function CuadriculaMeses({
 
       {/* ── CELULAR: una tarjeta por estudio, con su tira de meses ────────── */}
       <div className="flex flex-col gap-5 md:hidden">
-        {bloques.map(({ resumen, estudios: lista }) => (
-          <section key={resumen?.sede ?? "todas"} className="flex flex-col gap-3">
-            {resumen && <div className="px-1"><ResumenDelBloque resumen={resumen} /></div>}
+        {bloques.map(({ clave, sede, resumen, estudios: lista, sinSol }) => (
+          <section key={clave} className="flex flex-col gap-3">
+            {resumen ? <div className="px-1"><ResumenDelBloque resumen={resumen} /></div>
+              : sede ? <h3 className="px-1 font-serif text-base text-tinta">{sede}</h3> : null}
             <ul className="flex flex-col gap-3">
               {lista.map((e) => {
                 const f = fila(e);
@@ -165,7 +213,7 @@ export function CuadriculaMeses({
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <p className="font-medium">{e.persona}</p>
-                        <p className="text-xs text-taupe">{e.sede} · {e.rango}</p>
+                        <p className="text-xs text-taupe">{e.sede}{e.rango && e.rango !== "—" ? ` · ${e.rango}` : ""}</p>
                       </div>
                       <EstadoDelEstudio e={e} compacto />
                     </div>
@@ -176,8 +224,10 @@ export function CuadriculaMeses({
                         return (
                           <li key={c.mes} className="shrink-0 snap-start">
                             <span className={`block text-center text-[11px] ${c.mes === mesDeHoy ? "font-medium text-tinta" : "text-taupe"}`}>{corto}</span>
-                            <span className="block h-3 text-center text-[10px] leading-3 text-taupe">{i === 0 || c.mes.endsWith("-01") ? anio : ""}</span>
-                            <div className="w-[64px]">
+                            {c.mes === mesDeHoy
+                              ? <span className="mx-auto block w-fit rounded-full bg-tinta px-1.5 text-[9px] font-medium uppercase leading-3 text-crema">hoy</span>
+                              : <span className="block h-3 text-center text-[10px] leading-3 text-taupe">{i === 0 || c.mes.endsWith("-01") ? anio : ""}</span>}
+                            <div className={`w-[64px] rounded-control ${c.mes === mesDeHoy ? COLUMNA_DE_HOY : ""}`}>
                               <CasillaMes casilla={c} persona={e.persona} cargando={f.cargando} sinLeer={f.sinLeer} resaltada={c.mes === mesResaltado}
                                 alAbrir={() => onAbrirVisor(e, c.principal?.id ?? null)} />
                             </div>
@@ -191,6 +241,15 @@ export function CuadriculaMeses({
                   </li>
                 );
               })}
+              {sinSol.map((p) => (
+                <li key={`sin-${p.persona_id}`} className="flex items-center justify-between gap-2 rounded-superficie border border-dashed border-sand px-4 py-3 text-sm">
+                  <span className="min-w-0">
+                    <span className="block font-medium">{p.persona}</span>
+                    <span className="block text-xs text-taupe">Sin solicitar</span>
+                  </span>
+                  {onRegistrar && <Boton variante="sutil" tamano="sm" onClick={(ev) => onRegistrar(ev.currentTarget, p.persona_id)}>Registrar apoyo</Boton>}
+                </li>
+              ))}
             </ul>
           </section>
         ))}
@@ -199,7 +258,7 @@ export function CuadriculaMeses({
   );
 }
 
-function ResumenDelBloque({ resumen: r }: { resumen: ResumenDeSede }) {
+function ResumenDelBloque({ resumen: r, enLinea = false }: { resumen: ResumenDeSede; enLinea?: boolean }) {
   const partes = [
     `${r.personas} persona${r.personas === 1 ? "" : "s"}`,
     `${r.pagando} apoyo${r.pagando === 1 ? "" : "s"} pagándose · ${soles(r.montoMensual)} al mes`,
@@ -210,7 +269,7 @@ function ResumenDelBloque({ resumen: r }: { resumen: ResumenDeSede }) {
     r.rechazadas > 0 && `${r.rechazadas} rechazada${r.rechazadas === 1 ? "" : "s"}`,
   ].filter(Boolean) as string[];
   return (
-    <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5">
+    <div className={enLinea ? "flex items-baseline gap-x-4 whitespace-nowrap" : "flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5"}>
       <h3 className="font-serif text-base text-tinta">{r.sede}</h3>
       <p className="text-xs tabular-nums text-taupe">
         {partes.join(" · ")}
@@ -223,16 +282,15 @@ function ResumenDelBloque({ resumen: r }: { resumen: ResumenDeSede }) {
 function DatosDelEstudio({ e, hoy }: { e: Estudio; hoy: string }) {
   const { monto, seEstaPagando } = montoMensual(e, hoy);
   const terminado = e.vigencia === "terminada";
+  // Dos líneas y no tres (2026-10-17): la institución, y el monto con hasta cuándo. Para quién
+  // estudia solo se dice si es un hijo o hija: «ella misma» es lo normal y no hace falta repetirlo.
   return (
     <>
       <span className="block">{e.institucion}</span>
       <span className="block text-xs tabular-nums text-taupe">
-        {e.beneficiario === "hijo" ? (e.beneficiario_nombre ?? "su hijo/a") : "ella misma"} · {soles(monto)}
-        {!terminado && (seEstaPagando ? "" : " · no se paga aún")}
-      </span>
-      <span className={`block text-xs ${e.vigencia === "por_terminar" ? "text-ambar" : "text-taupe"}`}>
-        {terminado ? `terminó el ${fechaCorta(e.hasta)}` : `hasta el ${fechaCorta(e.hasta)}`}
-        {e.tramos.length > 1 && ` · ${e.tramos.length} tramos`}
+        {soles(monto)} · {terminado ? `terminó ${fechaCorta(e.hasta)}` : `hasta ${fechaCorta(e.hasta)}`}
+        {e.beneficiario === "hijo" && ` · ${e.beneficiario_nombre ?? "su hijo/a"}`}
+        {!terminado && !seEstaPagando && <span className="ml-1 rounded-full bg-sand px-1.5 text-[10px] text-tinta">aún no se paga</span>}
       </span>
     </>
   );
@@ -283,5 +341,28 @@ function Acciones({
         Estudio
       </Boton>
     </div>
+  );
+}
+
+/**
+ * Cómo se lee cada mes, en una línea: cinco íconos con una palabra y la raya del apoyo. El detalle
+ * de cada mes sale al pasar encima; por eso aquí no va ninguna frase (Felipe, 2026-10-17).
+ */
+function Leyenda() {
+  const punto = "inline-flex size-4 items-center justify-center rounded-full text-[9px] font-bold";
+  return (
+    <span className="flex flex-wrap items-center gap-x-3 gap-y-1" aria-label="Cómo leer cada mes">
+      <span className="inline-flex items-center gap-1"><span aria-hidden className={`${punto} bg-verde text-crema`}>✓</span>Aprobada</span>
+      <span className="inline-flex items-center gap-1"><span aria-hidden className="inline-block h-3 w-6 rounded-full bg-verde/15" />Adelantado</span>
+      <span className="inline-flex items-center gap-1"><span aria-hidden className={`${punto} bg-pizarra text-crema`}>…</span>Por revisar</span>
+      <span className="inline-flex items-center gap-1"><span aria-hidden className={`${punto} bg-rojo text-crema`}>✕</span>Rechazada</span>
+      <span className="inline-flex items-center gap-1"><span aria-hidden className={`${punto} border-2 border-ambar text-ambar`}>!</span>Falta</span>
+      <span className="inline-flex items-center gap-1" title="La raya debajo del ícono: verde, pagado; negra, se paga este mes; hueca, se pagará.">
+        <span aria-hidden className="inline-block h-1 w-3 rounded-full bg-verde" />
+        <span aria-hidden className="inline-block h-1 w-3 rounded-full bg-tinta" />
+        <span aria-hidden className="inline-block h-1 w-3 rounded-full border border-taupe" />
+        Apoyo
+      </span>
+    </span>
   );
 }

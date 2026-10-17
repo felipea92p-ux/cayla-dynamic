@@ -281,6 +281,33 @@ export function montoMensual(e: Estudio, hoy: string): { monto: number; seEstaPa
 
 export type EstadoCasilla = "pendiente" | "aprobada" | "rechazada" | "vacia";
 
+/** Un mes que cubre una constancia de pago adelantado (`fn_educacion_coberturas`, 0529). */
+export interface CoberturaMes {
+  entrega_id: string;
+  familia_id: string;
+  /** Día 1 del mes: "2026-08-01". */
+  mes: string;
+  monto: number;
+  origen: "calculado" | "puesto" | "manual";
+  motivo: string | null;
+}
+
+/**
+ * El apoyo de ese mes. «pagado» sale de la foto de la planilla cerrada (0096); «este» y «pagara»
+ * son una proyección con la vigencia y el `paga` de hoy; «sin», que ese mes no hay apoyo.
+ */
+export type EstadoApoyo = "pagado" | "este" | "pagara" | "sin";
+
+/** Lo que la cuadrícula sabe además de las constancias. Todo opcional: sin ello, la casilla es la de antes. */
+export interface ExtrasDeCasillas {
+  /** Los meses cubiertos, por id de constancia. */
+  coberturas?: ReadonlyMap<string, readonly CoberturaMes[]>;
+  /** Lo pagado de educación por persona y mes (`persona_id|AAAA-MM`), de `fn_educacion_apoyo_pagado`. */
+  apoyoPagado?: ReadonlyMap<string, number>;
+  /** Sin `hoy` no se calcula el apoyo. */
+  hoy?: string;
+}
+
 export interface Casilla {
   mes: string;
   /** La constancia que habla por el mes; null si no se recibió ninguna. */
@@ -290,6 +317,18 @@ export interface Casilla {
   otras: number;
   /** El estudio no existía todavía ese mes, o ya había terminado. Un hecho de fechas, no una falta. */
   fueraDeVigencia: boolean;
+  /** Si la constancia que habla por el mes es un pago adelantado: qué parte de él es este mes. */
+  cobertura: {
+    desde: string; hasta: string; monto: number; total: number;
+    origen: CoberturaMes["origen"]; motivo: string | null; posicion: "ini" | "medio" | "fin";
+  } | null;
+  /** El apoyo de ese mes; null si la pantalla no lo pidió. */
+  apoyo: { estado: EstadoApoyo; monto: number | null } | null;
+  /**
+   * Este es EL mes que la base dice que falta (vencida, por vencer o por enviar). Solo uno por
+   * estudio, y solo si la base lo dice: un mes sin constancia no se acusa por su cuenta.
+   */
+  pide: boolean;
 }
 
 /** Pendiente pide acción, aprobada es la que respalda el mes, rechazada es la última opción. */
@@ -298,29 +337,77 @@ const PESO_CASILLA: Record<string, number> = { pendiente: 0, aprobada: 1, rechaz
 /** Las constancias retiradas por la integrante no cuentan como recibidas. */
 const cuentaComoRecibida = (e: Entrega): boolean => e.estado !== "retirada";
 
+const PIDE: ReadonlySet<string> = new Set(["falta_enviar", "por_vencer", "vencida"]);
+
+/**
+ * Los meses de los que habla una constancia: los que cubre, si es un pago adelantado; si no, el
+ * de su fecha de pago. Un pago hecho el 28 de julio que cubre agosto a diciembre no habla de julio.
+ */
+export function mesesDeLaEntrega(e: Entrega, coberturas?: ReadonlyMap<string, readonly CoberturaMes[]>): string[] {
+  const c = coberturas?.get(e.id);
+  if (c && c.length > 0) return c.map((x) => mesDe(x.mes));
+  return [mesDe(e.fecha_pago)];
+}
+
+function apoyoDelMes(estudio: Estudio, mes: string, extras: ExtrasDeCasillas): Casilla["apoyo"] {
+  if (!extras.hoy) return null;
+  const mesHoy = mesDe(extras.hoy);
+  const vigentes = estudio.tramos.filter((t) => mesDe(t.vigente_desde) <= mes && mesDe(t.vigente_hasta) >= mes);
+  if (mes < mesHoy) {
+    const monto = extras.apoyoPagado?.get(`${estudio.persona_id}|${mes}`) ?? 0;
+    return monto > 0 ? { estado: "pagado", monto } : { estado: "sin", monto: null };
+  }
+  const pagando = vigentes.filter((t) => t.paga);
+  if (pagando.length === 0) return { estado: "sin", monto: null };
+  const monto = pagando.reduce((t, x) => t + Number(x.monto), 0);
+  return { estado: mes === mesHoy ? "este" : "pagara", monto };
+}
+
 export function casillasDeEstudio(
   estudio: Estudio,
   entregas: readonly EntregaDeFamilia[],
   meses: readonly string[],
+  extras: ExtrasDeCasillas = {},
 ): Casilla[] {
   // Una rechazada que la integrante ya corrigió (otra constancia dice reemplazarla) no habla por su
   // mes aunque la corrección traiga OTRA fecha de pago: quedaría en rojo para siempre.
   const corregidas = new Set(entregas.filter(cuentaComoRecibida).map((e) => e.reemplaza_a).filter((id): id is string => !!id));
+  const mesQuePide = PIDE.has(estudio.actual.estado_constancia) && estudio.actual.fecha_pago_constancia
+    ? mesDe(estudio.actual.fecha_pago_constancia) : null;
   return meses.map((mes) => {
     const delMes = entregas
-      .filter((e) => cuentaComoRecibida(e) && mesDe(e.fecha_pago) === mes && !(e.estado === "rechazada" && corregidas.has(e.id)))
+      .filter((e) => cuentaComoRecibida(e) && mesesDeLaEntrega(e, extras.coberturas).includes(mes)
+        && !(e.estado === "rechazada" && corregidas.has(e.id)))
       .sort(
         (a, b) =>
           PESO_CASILLA[a.estado] - PESO_CASILLA[b.estado] ||
           b.enviada_at.localeCompare(a.enviada_at) || b.id.localeCompare(a.id),
       );
     const principal = delMes[0] ?? null;
+    const filas = principal ? extras.coberturas?.get(principal.id) : undefined;
+    let cobertura: Casilla["cobertura"] = null;
+    if (principal && filas && filas.length > 0) {
+      const esta = filas.find((x) => mesDe(x.mes) === mes);
+      const desde = mesDe(filas[0].mes), hasta = mesDe(filas[filas.length - 1].mes);
+      cobertura = {
+        desde, hasta,
+        monto: Number(esta?.monto ?? 0),
+        total: filas.reduce((t, x) => t + Number(x.monto), 0),
+        origen: esta?.origen ?? "calculado",
+        motivo: esta?.motivo ?? null,
+        posicion: mes === desde ? "ini" : mes === hasta ? "fin" : "medio",
+      };
+    }
+    const estado: EstadoCasilla = principal ? (principal.estado as EstadoCasilla) : "vacia";
     return {
       mes,
       principal,
-      estado: principal ? (principal.estado as EstadoCasilla) : "vacia",
+      estado,
       otras: Math.max(0, delMes.length - 1),
       fueraDeVigencia: !estudio.tramos.some((t) => mesDe(t.vigente_desde) <= mes && mesDe(t.vigente_hasta) >= mes),
+      cobertura,
+      apoyo: apoyoDelMes(estudio, mes, extras),
+      pide: estado === "vacia" && mes === mesQuePide,
     };
   });
 }
@@ -366,9 +453,11 @@ export interface Filtros {
   grupo: GrupoEducacion | null;
 }
 
+// «Estado del apoyo» arranca en «Todos» (Felipe, 2026-10-17): lo que se ve al entrar es todo, y quien
+// quiere solo los vigentes o solo los terminados lo elige en «Filtros».
 export const FILTROS_VACIOS: Filtros = {
-  buscar: "", sede: "", mes: "", estado: "", institucion: "", vigencia: "activas", liquidadas: false,
-  quien: "", tipo: "", revisor: "", desde: "", hasta: "", tarjeta: null, grupo: null,
+  buscar: "", sede: "", mes: "", estado: "", institucion: "", vigencia: "todas", liquidadas: false,
+  quien: "", tipo: "", revisor: "", desde: "", hasta: "", tarjeta: null, grupo: "solicitaron",
 };
 
 export interface ContextoDeFiltros {
@@ -465,7 +554,7 @@ export function pasaFiltros(
     if (!mias.some((x) => entregaPasaFiltros(x, f, ignorar))) return false;
   }
 
-  if (aplica("grupo") && f.grupo && f.grupo !== "sin_solicitar" && grupoDeEstudio(e) !== f.grupo) return false;
+  if (aplica("grupo") && f.grupo && f.grupo !== "sin_solicitar" && f.grupo !== "solicitaron" && grupoDeEstudio(e) !== f.grupo) return false;
   return true;
 }
 
@@ -560,7 +649,7 @@ const CLAVES_EN_URL = [
 export const CLAVES_DE_URL: readonly string[] = [...CLAVES_EN_URL, "liquidadas"];
 
 const ESTADOS_VALIDOS = ["pendiente_revision", "rechazada", "sin_calendario", "al_dia", "vencida", "por_vencer", "falta_enviar"];
-const GRUPOS_VALIDOS = ["al_dia", "por_revisar", "por_completar", "en_falta", "sin_solicitar"];
+const GRUPOS_VALIDOS = ["solicitaron", "al_dia", "por_revisar", "por_completar", "en_falta", "sin_solicitar"];
 
 export function filtrosAUrl(f: Filtros): string {
   const p = new URLSearchParams();
@@ -568,6 +657,7 @@ export function filtrosAUrl(f: Filtros): string {
     const v = f[k];
     if (v && v !== FILTROS_VACIOS[k]) p.set(k, String(v));
   }
+  if (f.grupo === null) p.set("grupo", "todos");
   if (f.liquidadas) p.set("liquidadas", "1");
   return p.toString();
 }
@@ -582,7 +672,7 @@ export function filtrosDeUrl(p: { get(k: string): string | null }): Filtros {
   f.estado = ESTADOS_VALIDOS.includes(estado) ? (estado as EstadoConstancia) : "";
   f.institucion = p.get("institucion") ?? "";
   const vig = p.get("vigencia");
-  f.vigencia = vig === "terminada" || vig === "todas" ? vig : "activas";
+  f.vigencia = vig === "terminada" || vig === "activas" ? vig : "todas";
   const quien = p.get("quien");
   f.quien = quien === "hijo" || quien === "trabajador" ? quien : "";
   const tipo = p.get("tipo") ?? "";
@@ -594,7 +684,7 @@ export function filtrosDeUrl(p: { get(k: string): string | null }): Filtros {
   // `mes` y el rango libre son excluyentes: si el enlace trae los dos, manda el mes.
   if (f.mes) { f.desde = ""; f.hasta = ""; }
   const grupo = p.get("grupo") ?? "";
-  f.grupo = GRUPOS_VALIDOS.includes(grupo) ? (grupo as GrupoEducacion) : null;
+  f.grupo = grupo === "todos" ? null : GRUPOS_VALIDOS.includes(grupo) ? (grupo as GrupoEducacion) : FILTROS_VACIOS.grupo;
   f.liquidadas = p.get("liquidadas") === "1";
   return f;
 }

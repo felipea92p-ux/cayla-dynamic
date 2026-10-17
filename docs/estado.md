@@ -79,6 +79,122 @@ levantado contesta «no existe en el Postgres local»: no es que falte, mira otr
 
 ---
 
+## 2026-10-17 — Educación rediseñada: pago adelantado, historial y cuadrícula de íconos · 0525 Y 0529 PEGADAS Y VERIFICADAS · PR #541 SIN FUSIONAR · rama `claude/educacion-rediseno`
+
+**0525 pegada y verificada en producción el 2026-10-17.** La comprobación devolvió
+`525 · una_aprobacion_de_constancia_se_puede_revertir | 4 | 3 | true | true` (registro con número y nombre,
+las 4 columnas, las 3 funciones y la marca «CAMBIO 0525» en las dos funciones reescritas). Su guarda aceptaba
+el cuerpo de la 0450 tal cual o pegado desde Windows, y pasó: producción tenía la versión esperada.
+
+**0529 pegada y verificada en producción el 2026-10-17.** La comprobación devolvió
+`529 · un_pago_adelantado_cubre_varios_meses_y_el_historial_de_educacion | 7 | true | 2 | 3` (registro con número
+y nombre, las 7 funciones, la tabla de meses, las 2 columnas de cobertura y los 3 triggers). Con las dos pegadas,
+**ya se puede fusionar el PR #541** —que es publicar—, con OK de Felipe.
+
+**Hay SQL, en este orden y ANTES de fusionar:** (1) la [0525](../supabase/migrations/0525_una_aprobacion_de_constancia_se_puede_revertir.sql)
+(revertir una aprobación; ver la entrada de abajo: le falta el md5 de PRODUCCIÓN de dos funciones); (2) la
+[0529](../supabase/migrations/0529_un_pago_adelantado_cubre_varios_meses_y_el_historial_de_educacion.sql) (no
+reescribe nada: solo comprobar antes que sus nombres no existan; la consulta va al final del archivo). La
+0526 (día 1) y la 0527 (calendario) son de otras ramas y no dependen de estas.
+
+**Qué pidió Felipe y qué quedó (2026-10-17).**
+- **Pago adelantado.** Quien pagó, p. ej., agosto a diciembre de una vez sube UNA constancia: desde/hasta en meses
+  calendario (ambos incluidos), el total o el monto de cada mes; el sistema reparte y ella corrige un mes con
+  motivo (≥ 3 letras; el resto del total se reparte entre los demás). DO la aprueba una vez; el calendario salta
+  al pago siguiente al último mes cubierto y no se pide constancia de esos meses. En enero se paga como siempre y
+  se pide la nueva («solo alerta»). Si el monto de un mes es menor que el costo declarado, el visor de DO avisa;
+  si un mes está mal, se rechaza la constancia entera. La constancia sola no crea el apoyo ni enciende el pago.
+- **Cuadrícula.** Un ícono por mes (aprobada, por revisar, rechazada, falta) y una raya para el apoyo (pagado
+  —de la foto de planilla, `monto_educacion`—, este mes, se pagará). Detalle con la miniatura del comprobante al
+  pasar encima; el visor al tocar. Un adelantado es una franja que une sus meses. El mes en curso va sombreado
+  («hoy»), y el rótulo de la sede queda fijo al desplazar.
+- **Pantalla de DO.** Cuatro pestañas (Constancias · Aprobadas del ciclo · Historial · Cómo funciona), «Para
+  atender» en una línea y filtros en dos filas. Se abre en **«Solicitaron»**; **«Todos»** es todo, sin excepción
+  (también terminados y personas liquidadas) y suma a quienes no pidieron como filas de su sede en la misma
+  cuadrícula. «Estado del apoyo» arranca en «Todos».
+- **Historial.** General (filtros por sede, persona, tipo y fechas; CSV), individual dentro de cada estudio, y
+  «Tu historial» en Lo mío sin nombres de DO ni sus motivos internos.
+
+**Cómo se verificó.** pgTAP [424](../supabase/tests/424_un_pago_adelantado_cubre_varios_meses.test.sql) (44; el encabezado de la 0529, ya pegada, dice 50 por un conteo mal hecho y no se toca) y
+[419](../supabase/tests/419_una_aprobacion_de_constancia_se_puede_revertir.test.sql) (53) en el Postgres local
+dentro de `BEGIN … ROLLBACK`; la 424 sin la 0529 falla (control). `tsc`, eslint y las 1 807+ pruebas de vitest en
+verde (nuevas: `educacion-adelantado`, `educacion-historial`, `educacion-ciclo`). En el navegador, contra la base
+local, como DO y como integrante: enviar el adelantado (reparto y corrección con motivo), revisarlo con el aviso de
+monto menor, aprobarlo (el calendario saltó), la cuadrícula, los filtros, el historial con sede y el celular.
+
+**Lo que NO se verificó.** Nada contra producción. La subida real de un archivo desde el celular (el navegador
+automático no elige archivos). **Límite conocido:** la fila de un estudio puede decir «Rechazada» aunque un
+adelantado aprobado cubra ese mes, porque `fn_educacion_situacion` elige la constancia por fecha de pago; se
+arregla al reescribir esa función, que es la que reescribe la 0526 (otra rama).
+
+**Limpieza (solo local).** La base local tiene personas «Demo», periodos y fotos de planilla de prueba, y dos
+cuentas de prueba (anotadas en `apps/web/.env.local`, que no va a git).
+
+---
+
+## 2026-10-17 — Educación: una aprobación de constancia se puede revertir, y «Aprobadas en el ciclo de pago» · migración 0525 · SIN PEGAR · SIN FUSIONAR · rama `claude/educacion-revertir-aprobacion-constancia`
+
+**Hay SQL: la [0525](../supabase/migrations/0525_una_aprobacion_de_constancia_se_puede_revertir.sql), SIN PEGAR.
+Debe pegarse ANTES de fusionar** (el botón nuevo llama funciones que todavía no existen en producción). Antes de
+entregarla hay que pedirle a producción el md5 de las dos funciones que reescribe (consulta abajo) y declararlo en su
+encabezado, que hoy dice `__PENDIENTE__`.
+
+**Qué pidió Felipe.** Alguien tenía una constancia aprobada que no debió aprobarse y no había dónde corregirlo (desde la
+0450 lo revisado no se toca: un trigger lo impide). Pidió un apartado en Educación para ver a quién se aprobó en el
+ciclo de pago, ver su constancia y rechazarla con motivos predeterminados u «otro» (mínimo 3 caracteres, sin máximo), y
+que esos rechazos salgan en el historial de Educación. Decidió (2026-10-17): revertir **apaga el pago** si era la única
+constancia aprobada del estudio y **se bloquea** si el pago ya salió con ella; el ciclo es el **periodo de planilla**
+(29 → 28), no el mes calendario.
+
+**Cómo está hecho.**
+- `fn_educacion_revertir_aprobacion(id, categoría, comentario)`: la constancia pasa de aprobada a rechazada y conserva
+  en columnas nuevas quién la aprobó y cuándo (`aprobada_*`) y quién la revirtió y cuándo (`aprobacion_revertida_*`);
+  deja su fila en `correcciones_auditoria`. Nadie revierte su propia constancia. El pago NO se toca desde ahí: el espejo
+  de la 0450 ya deja o quita el `comprobante_url` según haya o no otra constancia aprobada.
+- **La única puerta** es esa función: el trigger de la 0450 (`fn_educacion_entrega_inmutable`, reescrito) deja pasar
+  aprobada → rechazada solo si vienen juntos `current_user = 'postgres'` y la marca de reversión. Un `UPDATE` directo,
+  de quien sea, sigue negado.
+- `fn_educacion_revertir_efecto(id)` dice, antes de confirmar, si apagaría el pago y si está bloqueado; la pantalla
+  solo lo muestra. **Bloqueado = no queda otra aprobada y el grupo de la persona (`tipo_vinculo`) tiene un periodo
+  pagado DESPUÉS de aprobar esa constancia** («Reabre el periodo primero»).
+- El calendario retrocede (a la fecha de ese pago) solo si esa aprobación fue la que lo avanzó y no hay otra más
+  reciente; si no, no se mueve.
+- `fn_educacion_aprobadas_del_periodo(periodo)`: lo aprobado EN el periodo, por el día en que DO aprobó (no por el del
+  pago). `fn_educacion_entregas` gana cuatro columnas (aprobada/revertida, con nombre solo para DO).
+- Pantalla: sección «Aprobadas en el ciclo de pago» en `/admin/educacion` (plegada, carga al abrirla), con selector de
+  ciclo, «Ver constancia» en la misma fila, «Rechazar…» con el aviso del efecto sobre el pago. La constancia revertida
+  se ve en la cuadrícula (rechazada), en el visor («Aprobación revertida») y en el historial del estudio. Los campos
+  del rechazo se sacaron a `components/educacion/campos-de-rechazo.tsx` y los usan los dos rechazos (una sola copia).
+  Novedad de DO en `novedades.ts`.
+
+**Qué se comprobó.** Prueba pgTAP [419](../supabase/tests/419_una_aprobacion_de_constancia_se_puede_revertir.test.sql)
+(53 aserciones) contra el Postgres local, dentro de `BEGIN … ROLLBACK`, con la 0525 puesta: 53 verdes; **el control sin
+la 0525: rojo** en lo que debe. La migración se pega dos veces sin error (idempotente). `tsc`, eslint y las 1785
+pruebas de vitest en verde. En el navegador, con la base local y datos de prueba (Ana con otra aprobada, Bea con una
+sola, Carla con el pago ya salido): la sección carga y cambia de ciclo, «Ver constancia» muestra el papel, el botón se
+apaga con menos de 3 letras, rechazar a Ana la dejó «Rechazada» con su motivo (tarjeta, cuadrícula, visor y auditoría),
+y el caso de Carla muestra el bloqueo en rojo sin campos. También en un celular de 375 px, sin desbordes.
+
+**Qué NO se comprobó.** Nada contra producción ni contra datos reales; el caso «el grupo pagó después de aprobar» está
+medido solo con filas de prueba. La Bandeja de la integrante (que el rechazo le llegue y se lo diga bien) no se abrió en
+el navegador. No se midió cuántas constancias aprobadas hoy en producción quedarían **bloqueadas** al intentar
+revertirlas (todas las de una persona cuyo grupo ya pagó después de aprobarlas y que no tiene otra): conviene medirlo
+antes de prometer que «siempre se puede corregir».
+
+**Para Felipe, en este orden.** (1) Pegar en el SQL Editor y mandar el resultado:
+`select p.proname, md5(p.prosrc), length(p.prosrc) from pg_proc p where p.pronamespace = 'public'::regnamespace and
+p.proname in ('fn_educacion_entrega_inmutable', 'fn_educacion_entregas');` — locales (= repositorio):
+`dc4ba3e1…` · 1045 y `d4c4fe5b…` · 1126. Si producción devuelve otros (comentarios perdidos, o `\r` por Windows), se
+declaran los de producción y se agrega a la guarda de la sección 0; si no coincide ninguno, se para. (2) Pegar la 0525.
+(3) Fusionar el PR. **La regla «la constancia se pide el día 1 de cada mes»** (mensuales; plazo como hoy) quedó
+propuesta como sesión aparte: reescribe `fn_educacion_situacion`; no depende de esta migración.
+
+**Limpieza pendiente (solo local).** Para ver la pantalla se cargaron en el Postgres local de `cayla-dynamic` cuatro
+personas «Demo», tres estudios, cuatro constancias, dos periodos y una cuenta de prueba (`do-prueba@cayla.dev`);
+borrarlas exige `set session_replication_role = replica` porque las entregas no se borran.
+
+---
+
 ## 2026-10-16 — Educación: cuadrícula de constancias por mes, visor sin descargar, sede y filtros · SIN SQL · COMMITEADO, SIN PR TODAVÍA · rama `claude/constancias-filtros-sede-a4201b`
 
 **No hay migración que pegar.** Todo sale de las dos funciones que ya existen
