@@ -37,6 +37,7 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { hoyLima, puedeGestionarSeguros } from "@cayla-dynamic/shared";
 import { Cargando } from "@/components/cargando";
 import { ArchivosPoliza } from "@/components/seguros/archivos-poliza";
+import { AyudaDeSeguros } from "@/components/seguros/ayuda-de-seguros";
 import { CambiarSeguro } from "@/components/seguros/cambiar-seguro";
 import { FichaPersona, type AccionesFicha } from "@/components/seguros/ficha-persona";
 import { FormularioPoliza, type BaseDePoliza, type OpcionPersona } from "@/components/seguros/formulario-poliza";
@@ -58,7 +59,7 @@ import {
   type CambioSeguro, type FilaEquipoSeguro, type PasoSeguro, type Poliza, type SeguroDePersona, type SituacionSeguro, type TipoSeguro,
 } from "@/lib/admin/seguros";
 
-/** Qué tarjeta de arriba filtra la lista. */
+/** Qué botón de situación filtra la lista. */
 type Filtro = SituacionSeguro | "papeleo" | "cambios";
 
 /**
@@ -144,9 +145,9 @@ function Seguros() {
     [personas],
   );
 
-  // Las tarjetas «Piden la baja» y «Cobertura suspendida» solo existen mientras hay alguien: si se
+  // Los botones «Piden la baja» y «Cobertura suspendida» solo existen mientras hay alguien: si se
   // corrige el último caso con ese filtro puesto, el filtro se suelta solo (sin esto la lista quedaba
-  // vacía, diciendo «nadie coincide», con ninguna tarjeta marcada).
+  // vacía, diciendo «nadie coincide», con ningún botón marcado).
   const filtroVigente = (filtro === "baja_pendiente" && resumen.baja_pendiente === 0) || (filtro === "suspendida" && resumen.suspendida === 0)
     ? null : filtro;
 
@@ -256,15 +257,17 @@ function Seguros() {
     );
   }
 
-  const fichas: { clave: Filtro; titulo: string; n: number; tono: "alerta" | "advertencia" | "positivo" | "neutral" }[] = [
-    { clave: "hueco", titulo: "Sin póliza vigente", n: resumen.hueco, tono: "alerta" },
-    ...(resumen.suspendida > 0 ? [{ clave: "suspendida" as const, titulo: "Cobertura suspendida por mora", n: resumen.suspendida, tono: "alerta" as const }] : []),
-    { clave: "por_vencer", titulo: `Se quedan sin póliza en ${DIAS_AVISO_RENOVACION} días o menos`, n: resumen.por_vencer, tono: "advertencia" },
-    { clave: "cambios", titulo: "Cambios de seguro por cerrar", n: resumen.cambios, tono: "advertencia" },
-    { clave: "papeleo", titulo: "Pólizas con papeleo pendiente", n: resumen.papeleo, tono: "advertencia" },
-    ...(resumen.baja_pendiente > 0 ? [{ clave: "baja_pendiente" as const, titulo: "Piden la baja", n: resumen.baja_pendiente, tono: "advertencia" as const }] : []),
-    { clave: "al_dia", titulo: "Cubiertos, con margen", n: resumen.al_dia, tono: "positivo" },
-    { clave: "por_planilla", titulo: "Sin póliza que registrar", n: resumen.por_planilla, tono: "neutral" },
+  // Los filtros de situación, en el orden de lo más serio a lo menos. El número es el de FILAS que
+  // deja ver: una persona cuenta una vez. Qué quiere decir cada uno está en la ayuda del título.
+  const situaciones: { clave: Filtro; etiqueta: string; n: number }[] = [
+    { clave: "hueco", etiqueta: "Sin póliza vigente", n: resumen.hueco },
+    ...(resumen.suspendida > 0 ? [{ clave: "suspendida" as const, etiqueta: "Cobertura suspendida", n: resumen.suspendida }] : []),
+    { clave: "por_vencer", etiqueta: `Por vencer (${DIAS_AVISO_RENOVACION} días)`, n: resumen.por_vencer },
+    { clave: "cambios", etiqueta: "Cambios por cerrar", n: resumen.cambios },
+    { clave: "papeleo", etiqueta: "Papeleo pendiente", n: resumen.papeleo },
+    ...(resumen.baja_pendiente > 0 ? [{ clave: "baja_pendiente" as const, etiqueta: "Piden la baja", n: resumen.baja_pendiente }] : []),
+    { clave: "al_dia", etiqueta: "Cubiertos", n: resumen.al_dia },
+    { clave: "por_planilla", etiqueta: "Sin póliza que registrar", n: resumen.por_planilla },
   ];
 
   return (
@@ -273,15 +276,8 @@ function Seguros() {
         titulo="Seguros"
         descripcion={
           <>
-            <p>
-              En qué seguro está cada colaborador, hasta cuándo está cubierto y qué falta para que lo esté. Cada quien sigue
-              el seguro que le toca por su vínculo —por ejemplo, FOLA para los practicantes y EsSalud para planilla— y
-              Desarrollo Organizacional puede cambiárselo a una persona.
-            </p>
-            <p className="mt-1">
-              Cuando alguien cambia de seguro quedan pendientes la baja del anterior y el alta del nuevo. Solo avisa: no
-              cambia lo que cobra nadie ni toca la planilla.
-            </p>
+            En qué seguro está cada colaborador y qué falta para que esté cubierto.
+            <AyudaDeSeguros />
           </>
         }
         accion={!cargaError && (
@@ -304,26 +300,6 @@ function Seguros() {
             <EstadoVacio>Todavía no hay colaboradores en el sistema a quienes mostrarles un seguro.</EstadoVacio>
           ) : (
             <>
-              <ul className="mb-5 grid grid-cols-2 gap-3 sm:flex sm:flex-wrap">
-                {fichas.map((f) => {
-                  const activa = filtroVigente === f.clave;
-                  const color = f.n === 0 ? "text-taupe" : f.tono === "alerta" ? "text-rojo-profundo" : f.tono === "positivo" ? "text-verde" : f.tono === "neutral" ? "text-tinta" : "text-ambar";
-                  return (
-                    <li key={f.clave} className="min-w-0">
-                      <button
-                        type="button"
-                        aria-pressed={activa}
-                        onClick={() => setFiltro(activa ? null : f.clave)}
-                        className={`h-full w-full rounded-2xl border px-4 py-3 text-left transition-colors sm:w-auto sm:min-w-36 ${activa ? "border-tinta bg-papel" : "border-sand bg-papel hover:border-taupe"}`}
-                      >
-                        <span className={`block font-serif text-2xl ${color}`}>{f.n}</span>
-                        <span className="block text-xs text-taupe sm:max-w-44">{f.titulo}</span>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-
               {soloPersona && (
                 <div className="mb-4 flex max-w-3xl flex-wrap items-center gap-3 rounded-lg bg-hueso px-4 py-3 text-sm text-tinta">
                   <span>
@@ -334,6 +310,17 @@ function Seguros() {
                   <Boton variante="enlace" onClick={() => router.replace("/admin/seguros")}>Ver a todos</Boton>
                 </div>
               )}
+
+              <div className="mb-3 flex flex-wrap gap-2" role="group" aria-label="Filtrar por situación">
+                {situaciones.map((f) => {
+                  const activa = filtroVigente === f.clave;
+                  return (
+                    <FiltroBoton key={f.clave} activo={activa} onClick={() => setFiltro(activa ? null : f.clave)}>
+                      {f.etiqueta} · {f.n}
+                    </FiltroBoton>
+                  );
+                })}
+              </div>
 
               <div className="mb-3 flex flex-wrap gap-2" role="group" aria-label="Filtrar por seguro">
                 <FiltroBoton activo={tipoFiltro === TODOS} onClick={() => setTipoFiltro(TODOS)}>Todos · {personas.length}</FiltroBoton>

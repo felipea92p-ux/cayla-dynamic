@@ -165,7 +165,10 @@ asignación, cerrar un paso de un cambio con la fecha de hoy ya puesta, el formu
 ofreciendo solo los seguros que llevan póliza y, si es el principal, solo a quien lo tiene, el
 historial, y la Bandeja con las filas de seguros y su enlace a `/admin/seguros?persona=…`.
 Escritorio, teléfono (375 px, sin desborde horizontal) y modo oscuro; las llamadas a la base
-contestaron todas 200.
+contestaron todas 200. **A pedido de Felipe**, después: los números de arriba pasaron de tarjetas a
+botones de filtro, como los de por seguro (dos filas, situación y seguro; cada número es el de filas
+que deja ver), y la descripción larga de la cabecera a una línea corta con un ícono ⓘ que abre
+«Cómo funciona Seguros», que además es la leyenda de cada filtro. Visto en escritorio, teléfono y oscuro.
 
 **El botón «Abrir» de un PDF**, comprobado en dos mitades: contra la API de Storage con la sesión
 de DO, la URL firmada se genera y baja el PDF (HTTP 200, `application/pdf`), y la misma petición

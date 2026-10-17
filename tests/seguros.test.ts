@@ -391,9 +391,15 @@ describe("en qué seguro está cada colaborador, y a quién le falta póliza", (
     });
   });
 
-  it("el papeleo se cuenta por póliza, no por persona", () => {
-    const dos = una([persona()], [poliza({ poliza_id: "z1" }), poliza({ poliza_id: "z2", producto: "vida_ley", producto_nombre: "Vida Ley", producto_principal: false })]);
-    expect(resumenDeSeguros(dos).papeleo).toBe(2);
+  it("una persona con varias pólizas o varios cambios pendientes cuenta UNA vez: el número del botón es el de filas que deja ver", () => {
+    const dos = una(
+      [persona()],
+      [poliza({ poliza_id: "z1" }), poliza({ poliza_id: "z2", producto: "vida_ley", producto_nombre: "Vida Ley", producto_principal: false })],
+      [cambio({ id: "c1" }), cambio({ id: "c2", fecha: "2026-10-16", creado_at: "2026-10-16T09:00:00Z" })],
+    );
+    expect(dos[0].conPapeleo).toHaveLength(2);
+    expect(dos[0].cambiosPendientes).toHaveLength(2);
+    expect(resumenDeSeguros(dos)).toMatchObject({ papeleo: 1, cambios: 1 });
   });
 });
 

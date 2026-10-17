@@ -457,19 +457,22 @@ export interface ResumenSeguros {
   al_dia: number;
   por_planilla: number;
   sin_seguro: number;
-  /** Cambios de seguro que todavía piden algún paso (uno por cambio, no por paso). */
+  /** Personas con algún cambio de seguro que todavía pide un paso. */
   cambios: number;
-  /** Pólizas con un paso del papeleo sin hacer. */
+  /** Personas con alguna póliza con un paso del papeleo sin hacer. */
   papeleo: number;
 }
 
-/** Los totales de las tarjetas de arriba. Una persona cuenta UNA vez por situación. */
+/**
+ * Los números de los botones de filtro. Todos cuentan PERSONAS, una vez cada una: el número de un
+ * botón es el de filas que deja ver al apretarlo (que no digan 3 y la lista muestre 2).
+ */
 export function resumenDeSeguros(personas: readonly SeguroDePersona[]): ResumenSeguros {
   const r: ResumenSeguros = { hueco: 0, suspendida: 0, por_vencer: 0, baja_pendiente: 0, al_dia: 0, por_planilla: 0, sin_seguro: 0, cambios: 0, papeleo: 0 };
   for (const p of personas) {
     r[p.situacion] += 1;
-    r.cambios += p.cambiosPendientes.length;
-    r.papeleo += p.conPapeleo.length;
+    if (p.cambiosPendientes.length > 0) r.cambios += 1;
+    if (p.conPapeleo.length > 0) r.papeleo += 1;
   }
   return r;
 }
