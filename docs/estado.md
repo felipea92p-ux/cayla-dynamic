@@ -56,10 +56,26 @@ lo único que se adelanta es el plazo. Solo alerta; no se tocó. (4) Sin entrada
 
 ---
 
-## 2026-10-17 — Las boletas se firman, DO las ve firmadas y puede anular y restablecer en 48 horas · migración 0532 · SQL SIN PEGAR · COMMITEADO, SIN PR · rama `claude/nice-kapitsa-b7482a`
+## 2026-10-17 — Las boletas se firman, DO las ve firmadas y puede anular y restablecer en 48 horas · migración 0532 · PEGADA Y VERIFICADA EN PRODUCCIÓN · FUSIONADA Y PUBLICADA (PR #543, 2026-10-17)
 
-**Hay SQL: la [0532](../supabase/migrations/0532_las_boletas_se_firman_y_una_anulacion_se_restablece.sql), sin pegar.**
-**Se pega ANTES de fusionar:** el código nuevo llama a `fn_boleta_firmar`, `fn_boleta_restablecer`,
+**Pegada y verificada el 2026-10-17, DESPUÉS de fusionar.** El PR #543 se fusionó a las 19:59 UTC
+(14:59 en Lima) **antes de pegar la 0532**, que es justo el orden que este archivo manda no
+seguir. Mientras `main` ya estaba publicada y la migración no, firmar una boleta en producción
+respondía «El sistema no encontró esta función», y lo vio una integrante real en «Lo mío». Se
+pegó desde otra sesión con `./scripts/dame-el-sql.sh 532` (portapapeles idéntico al archivo de
+`main`), el freno de md5 pasó y la comprobación devolvió
+`funciones_nuevas_de_4=4 | columna_firma=1 | columna_estado_previo=1 | historial_con_rls=1 |
+tablero_nuevo=1 | mis_boletas_nuevo=1 | guardar_version_nuevo=1` y el registro
+`532 · las_boletas_se_firman_y_una_anulacion_se_restablece`. Duró de la fusión al pegado; no se
+reportó daño más allá de ese error en pantalla. Lo que queda por comprobar en producción es el
+recorrido real de punta a punta (una boleta propia de Felipe). No consta quién fusionó: GitHub
+muestra la cuenta de Felipe, igual que cuando lo hace una sesión; la sesión que escribió esto
+había dicho que no fusionaba y que avisaba antes.
+
+**(Lo que sigue se escribió antes de pegar y fusionar; el «sin pegar» de abajo ya no es cierto.)**
+
+**Hay SQL: la [0532](../supabase/migrations/0532_las_boletas_se_firman_y_una_anulacion_se_restablece.sql).**
+**Se pegaba ANTES de fusionar:** el código nuevo llama a `fn_boleta_firmar`, `fn_boleta_restablecer`,
 `fn_boleta_constancia` y `fn_boleta_anulaciones`, que no existen en producción hasta pegarla; con el
 código primero, «Firmar» y «Anular» devolverían un error.
 
