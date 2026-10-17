@@ -486,8 +486,10 @@ reset role;
 
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000528b001', true);
 set local role authenticated;
+-- Solo los de esta prueba (`5a…`): la base local es compartida y puede traer en el
+-- mismo bucket los PDF de pruebas hechas en el navegador por otra sesión.
 select is(
-  (select count(*)::int from storage.objects where bucket_id = 'polizas-seguro'),
+  (select count(*)::int from storage.objects where bucket_id = 'polizas-seguro' and name like '5a000000-%'),
   4, 'DO ve los cuatro');
 select throws_ok(
   $$ insert into storage.objects (bucket_id, name, metadata)

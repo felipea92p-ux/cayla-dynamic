@@ -72,8 +72,9 @@ mutaciones —factura visible, archivo retirado visible, archivo de otra persona
 visible, sin «solo practicantes» en Storage, sin «solo practicantes» en la función, todas las
 pólizas en vez de las propias, una columna de más, el convenio antes que la póliza y el último
 día inclusivo—: las diez la rompen. La migración se puede aplicar dos veces. Las pruebas 250, 92 y
-108 siguen en verde con la 0530. En la **422** (etapa 1) cambió una aserción: contaba «todo lo
-que empieza con `polizas_seguro_`» (4) y ahora nombra las cuatro de DO; la 423 cuenta las cinco.
+108 siguen en verde con la 0530. En la **422** (etapa 1) cambiaron dos aserciones: una contaba «todo
+lo que empieza con `polizas_seguro_`» (4) y ahora nombra las cuatro de DO (la 423 cuenta las
+cinco); la otra contaba todos los archivos del bucket y ahora solo los de su prueba.
 `vitest` (1892 pruebas, 87 archivos), `tsc` y `eslint` de lo nuevo en verde (`page.tsx` conserva
 dos errores `set-state-in-effect` que ya tenía `main`).
 
@@ -96,9 +97,9 @@ dos errores `set-state-in-effect` que ya tenía `main`).
 emergentes, igual que en las demás pantallas que abren un PDF; lo que sí se vio es que la firma
 del archivo propio sale 200. Un iPhone real; `db-tests` de GitHub (la señal fiable de las pgTAP,
 no esta Mac); nada contra datos reales de producción; ningún PDF real (los de prueba pesaban
-~600 bytes). En esta Mac la 422 falla en la aserción 99 («DO ve los cuatro») porque el bucket de
-la base local compartida trae tres PDF de otra sesión; falla igual sin mis cambios (se corrió el
-control) y en CI el bucket está vacío.
+~600 bytes). En esta Mac la 422 fallaba en la aserción 99 («DO ve los cuatro») porque el bucket
+de la base local compartida trae tres PDF de otra sesión; fallaba igual sin mis cambios (se corrió
+el control), en CI el bucket está vacío, y ahora cuenta solo los archivos de su propia prueba.
 
 **Cómo se generaron los tipos.** Igual que en la etapa 1: una base desechable con el esquema
 `public` de la local, la 0530 aplicada allí, `supabase gen types --db-url` y pegadas SOLO las dos
