@@ -95,7 +95,7 @@ export function ModalConstanciaBoleta({
           </dl>
           {anulaciones === null ? (
             <Cargando texto="Trayendo el historial…" />
-          ) : anulaciones.length > 0 && (
+          ) : (anulaciones.length > 1 || anulaciones.some((x) => x.restablecida_at)) && (
             <ul className="space-y-2 text-sm">
               {anulaciones.map((a) => (
                 <li key={a.id} className="rounded-xl border border-sand px-4 py-2">
