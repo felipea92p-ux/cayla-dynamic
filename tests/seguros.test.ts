@@ -15,7 +15,7 @@
 import { describe, it, expect } from "vitest";
 import {
   coincideSeguro, contarPorTipo, cubiertoHasta, estadoPrima, etiquetaTipoArchivo, etiquetaVinculo,
-  fechaDelPaso, origenDelCambio, pasosDelCambio, pasosPendientes, pendientesDeSeguros, polizaQueSeCruza,
+  fechaDelPaso, hermanasDe, origenDelCambio, pasosDelCambio, pasosPendientes, pendientesDeSeguros, polizaQueSeCruza,
   resumenDelCambio, resumenDeSeguros, seguroPorPersona, sumarMeses,
   DIAS_AVISO_PRIMA, DIAS_AVISO_RENOVACION, DIAS_DE_GRACIA_PRIMA,
   type CambioSeguro, type FilaEquipoSeguro, type Poliza,
@@ -698,5 +698,45 @@ describe("quién está en planilla lo dice la base, no el navegador", () => {
     // Si la base dijera otra cosa de un vínculo, manda la base.
     const [raro] = seguroPorPersona([persona({ tipo_vinculo: "planilla", en_planilla: false })], [poliza()], [], HOY);
     expect(raro.enPlanilla).toBe(false);
+  });
+});
+
+describe("las otras pólizas de la misma póliza colectiva", () => {
+  const colectiva = (persona_id: string, o: Partial<Poliza> = {}) => poliza({
+    persona_id, persona: `Persona ${persona_id}`, poliza_id: `z-${persona_id}`,
+    producto: "vida_ley", producto_nombre: "Vida Ley", aseguradora: "La Positiva", numero_poliza: "VL-001",
+    vigente_desde: "2026-10-01", vigente_hasta: "2027-10-01", ...o,
+  });
+  const ana = colectiva("a");
+
+  it("son las de otras personas con el mismo seguro, aseguradora, número y vigencia", () => {
+    const todas = [ana, colectiva("b"), colectiva("c")];
+    expect(hermanasDe(ana, todas).map((z) => z.persona_id)).toEqual(["b", "c"]);
+  });
+
+  it("no incluye a la propia póliza ni otra de la misma persona", () => {
+    const otraDeAna = colectiva("a", { poliza_id: "z-a2", vigente_desde: "2027-10-01", vigente_hasta: "2028-10-01" });
+    expect(hermanasDe(ana, [ana, otraDeAna])).toEqual([]);
+    // Ni siquiera con idénticos datos: una persona no se hermana consigo misma.
+    expect(hermanasDe(ana, [ana, colectiva("a", { poliza_id: "z-a3" })])).toEqual([]);
+  });
+
+  it("una fila corregida —otra fecha, otro número— deja de ser la misma póliza", () => {
+    expect(hermanasDe(ana, [ana, colectiva("b", { vigente_hasta: "2027-09-30" })])).toEqual([]);
+    expect(hermanasDe(ana, [ana, colectiva("b", { vigente_desde: "2026-10-02" })])).toEqual([]);
+    expect(hermanasDe(ana, [ana, colectiva("b", { numero_poliza: "VL-002" })])).toEqual([]);
+    expect(hermanasDe(ana, [ana, colectiva("b", { aseguradora: "Rímac Seguros" })])).toEqual([]);
+  });
+
+  it("otro seguro con el mismo número no se mezcla", () => {
+    expect(hermanasDe(ana, [ana, colectiva("b", { producto: "eps", producto_nombre: "EPS" })])).toEqual([]);
+  });
+
+  it("un espacio de más o una mayúscula en el número no las separa", () => {
+    expect(hermanasDe(ana, [ana, colectiva("b", { numero_poliza: " vl-001 ", aseguradora: "la positiva" })]).map((z) => z.persona_id)).toEqual(["b"]);
+  });
+
+  it("una póliza sola no tiene hermanas", () => {
+    expect(hermanasDe(ana, [ana])).toEqual([]);
   });
 });

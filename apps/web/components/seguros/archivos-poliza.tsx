@@ -10,7 +10,14 @@
 // EL ARCHIVO VA PRIMERO (el molde de Archivo, 0503)
 //   Se sube al bucket y recién después se registra. Si Storage cae, no queda
 //   ninguna fila; si el registro falla después de subir, se intenta borrar el
-//   huérfano (la política lo permite porque nadie lo usa).
+//   huérfano (la política lo permite porque nadie lo usa). Eso vive en
+//   `lib/admin/seguros-archivos.ts`, que comparte con la lectura de PDF.
+//
+// LA PÓLIZA COLECTIVA TIENE UN SOLO PAPEL
+//   Un seguro de vida o una EPS es UNA póliza con una fila por persona, y el PDF es uno. Si esta
+//   póliza tiene otras (`hermanas`), junto a «Guardar» hay una casilla, marcada: guardar el archivo
+//   también en las demás. Se COPIA dentro del almacén —no se vuelve a subir—, una vez por póliza, y
+//   si alguna falla se dice cuáles, sin deshacer las que sí quedaron.
 //
 // POR QUÉ LA RUTA NO LLEVA EL NOMBRE
 //   El PDF de una póliza se llama «Apellidos, Nombres, FOLA 24043267.pdf»: lleva
@@ -29,12 +36,12 @@ import { CampoSelect } from "@/components/ui/campo";
 import { Insignia } from "@/components/ui/insignia";
 import { Modal } from "@/components/ui/modal";
 import { abrirArchivoFirmado } from "@/lib/abrir-archivo-firmado";
-import { problemaDeArchivo, rutaNuevaArchivo, TIPOS_ARCHIVO } from "@/lib/admin/archivo";
+import { problemaDeArchivo, TIPOS_ARCHIVO } from "@/lib/admin/archivo";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { isoADiaMesAnio } from "@/lib/admin/planilla/formato";
-import { BUCKET_SEGUROS, etiquetaTipoArchivo, TIPOS_ARCHIVO_SEGURO, type TipoArchivoSeguro } from "@/lib/admin/seguros";
+import { BUCKET_SEGUROS, etiquetaTipoArchivo, plural, TIPOS_ARCHIVO_SEGURO, type TipoArchivoSeguro } from "@/lib/admin/seguros";
+import { adjuntarArchivoAPoliza, copiarArchivoAPoliza } from "@/lib/admin/seguros-archivos";
 import { pesoLegible } from "@/lib/reducir-imagen";
-import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 
 interface ArchivoDePoliza {
   id: string; tipo: string; storage_path: string; nombre_archivo: string; mime: string; bytes: number;
@@ -44,8 +51,11 @@ interface ArchivoDePoliza {
 
 const dia = (ts: string) => isoADiaMesAnio(fechaLima(ts));
 
+/** Otra póliza de la misma póliza colectiva: su id y cómo nombrarla en un aviso (la persona). */
+export interface PolizaHermana { id: string; titulo: string }
+
 export function ArchivosPoliza({
-  abierto, onCerrar, supabase, polizaId, titulo, onCambio,
+  abierto, onCerrar, supabase, polizaId, titulo, hermanas = [], onCambio,
 }: {
   abierto: boolean;
   onCerrar: () => void;
@@ -53,19 +63,29 @@ export function ArchivosPoliza({
   polizaId: string | null;
   /** «Ana Prueba · póliza 24043267». */
   titulo: string;
+  /** Las otras pólizas de la misma póliza colectiva: el archivo puede guardarse también en ellas. */
+  hermanas?: PolizaHermana[];
   /** Avisa a la pantalla que cambió algo, para que recargue sus contadores. */
   onCambio: () => void;
 }) {
+  // Mientras sube o copia, ni Esc ni un clic en el velo cierran el diálogo: se perdería el aviso de qué
+  // pólizas quedaron sin el archivo.
+  const [ocupado, setOcupado] = useState(false);
   return (
-    <Modal abierto={abierto && polizaId !== null} onCerrar={onCerrar} titulo="Archivos de la póliza" ancho="lg">
-      {abierto && polizaId && <Cuerpo supabase={supabase} polizaId={polizaId} titulo={titulo} onCambio={onCambio} onCerrar={onCerrar} />}
+    <Modal abierto={abierto && polizaId !== null} onCerrar={() => { if (!ocupado) onCerrar(); }} bloqueado={ocupado} titulo="Archivos de la póliza" ancho="lg">
+      {abierto && polizaId && (
+        <Cuerpo supabase={supabase} polizaId={polizaId} titulo={titulo} hermanas={hermanas} onCambio={onCambio} onCerrar={onCerrar} onOcupado={setOcupado} />
+      )}
     </Modal>
   );
 }
 
 function Cuerpo({
-  supabase, polizaId, titulo, onCambio, onCerrar,
-}: { supabase: ClienteCayla; polizaId: string; titulo: string; onCambio: () => void; onCerrar: () => void }) {
+  supabase, polizaId, titulo, hermanas, onCambio, onCerrar, onOcupado,
+}: {
+  supabase: ClienteCayla; polizaId: string; titulo: string; hermanas: PolizaHermana[];
+  onCambio: () => void; onCerrar: () => void; onOcupado: (ocupado: boolean) => void;
+}) {
   const { avisar } = useToast();
   const [archivos, setArchivos] = useState<ArchivoDePoliza[]>([]);
   const [cargando, setCargando] = useState(true);
@@ -89,6 +109,9 @@ function Cuerpo({
   const [msg, setMsg] = useState<string | null>(null);
   const [progreso, setProgreso] = useState<number | null>(null);
   const [subiendo, setSubiendo] = useState(false);
+  // En la póliza colectiva el papel es uno: por defecto se guarda también en las demás.
+  const [tambien, setTambien] = useState(true);
+  const [copiando, setCopiando] = useState<{ hechas: number; total: number } | null>(null);
 
   async function subir() {
     setMsg(null);
@@ -96,29 +119,30 @@ function Cuerpo({
     const problema = problemaDeArchivo(archivo);
     if (problema) { setMsg(problema); return; }
 
-    setSubiendo(true);
-    const ruta = rutaNuevaArchivo(archivo.name, archivo.type, crypto.randomUUID());
-    setProgreso(0);
-    const fallo = await subirArchivoConProgreso(supabase, BUCKET_SEGUROS, ruta, archivo, setProgreso);
+    setSubiendo(true); onOcupado(true);
+    const subido = await adjuntarArchivoAPoliza(supabase, polizaId, tipo, archivo, setProgreso);
     setProgreso(null);
-    if (fallo) { setSubiendo(false); setMsg(`El archivo no subió (${fallo}). Vuelve a intentarlo.`); return; }
+    if (!subido.ok) { setSubiendo(false); onOcupado(false); setMsg(subido.error); return; }
 
-    const { error } = await supabase.rpc("fn_seguro_adjuntar", {
-      p_poliza_id: polizaId, p_tipo: tipo, p_storage_path: ruta, p_nombre_archivo: archivo.name,
-    });
-    if (error) {
-      // Subió y no se registró: se limpia el huérfano; si no se puede, queda
-      // suelto sin hacer daño (nadie lo ve ni lo usa).
-      await supabase.storage.from(BUCKET_SEGUROS).remove([ruta]);
-      setSubiendo(false);
-      setMsg(mensajeDeError(error, "guardar"));
-      return;
+    // En las demás pólizas de la misma póliza colectiva: una por una, y las que fallen se dicen.
+    const sinCopia: string[] = [];
+    const aCopiar = tambien ? hermanas : [];
+    for (let i = 0; i < aCopiar.length; i++) {
+      setCopiando({ hechas: i, total: aCopiar.length });
+      const fallo = await copiarArchivoAPoliza(supabase, subido.ruta, aCopiar[i].id, tipo, archivo.name);
+      if (fallo) sinCopia.push(aCopiar[i].titulo);
     }
-    setSubiendo(false);
+    setCopiando(null);
+
+    setSubiendo(false); onOcupado(false);
     setArchivo(null); setClaveInput((n) => n + 1);
     await cargar();
     onCambio();
-    avisar("ok", "Archivo guardado.");
+    if (sinCopia.length > 0) {
+      setMsg(`El archivo quedó en esta póliza y en ${aCopiar.length - sinCopia.length} de las otras ${aCopiar.length}, pero no en: ${sinCopia.join(", ")}. Ábrelas y súbelo ahí.`);
+    } else {
+      avisar("ok", aCopiar.length > 0 ? `Archivo guardado en esta póliza y en las otras ${aCopiar.length}.` : "Archivo guardado.");
+    }
   }
 
   // ── Retirar ───────────────────────────────────────────────────────────
@@ -225,6 +249,21 @@ function Cuerpo({
                 </span>
               </label>
             </div>
+            {hermanas.length > 0 && (
+              <label className="mt-3 flex items-start gap-2 text-sm">
+                <input type="checkbox" className="mt-0.5 size-4 shrink-0 accent-tinta" checked={tambien} onChange={(e) => setTambien(e.target.checked)} disabled={subiendo} />
+                <span>
+                  <span className="text-tinta">Guardarlo también en las otras {plural(hermanas.length, "póliza", "pólizas")} de este seguro</span>
+                  <span className="block text-xs text-taupe">
+                    Es la misma póliza de la empresa —una fila por persona, con el mismo número y la misma vigencia—: el papel es uno
+                    y cada persona lo tiene en su ficha.
+                  </span>
+                </span>
+              </label>
+            )}
+            {copiando && (
+              <p className="mt-3 text-xs text-taupe" role="status">Guardándolo en las demás pólizas… {copiando.hechas} de {copiando.total}</p>
+            )}
             {progreso !== null && (
               <div className="mt-3">
                 <div className="h-1.5 w-full overflow-hidden rounded-pildora bg-sand">

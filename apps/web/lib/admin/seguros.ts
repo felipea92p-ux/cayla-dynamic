@@ -670,6 +670,23 @@ export function polizaQueSeCruza<T extends Pick<Poliza, "persona_id" | "producto
   return polizas.find((z) => z.persona_id === personaId && z.producto === producto && z.vigente_desde < hasta && desde < z.vigente_hasta) ?? null;
 }
 
+/**
+ * Las OTRAS pólizas de la misma póliza colectiva: mismo seguro, misma aseguradora, mismo número y la
+ * misma vigencia, de otras personas. Una póliza de vida o una EPS es una sola de la empresa con una fila
+ * por persona (`fn_seguro_registrar_varias`), y el papel que la respalda es uno: subirlo a una la deja en
+ * todas. Si a una persona se le corrigió una fecha o el número, deja de ser «la misma» y no entra.
+ */
+export function hermanasDe<T extends Pick<Poliza, "poliza_id" | "persona_id" | "producto" | "aseguradora" | "numero_poliza" | "vigente_desde" | "vigente_hasta">>(
+  z: Pick<T, "poliza_id" | "persona_id" | "producto" | "aseguradora" | "numero_poliza" | "vigente_desde" | "vigente_hasta">,
+  polizas: readonly T[],
+): T[] {
+  const igual = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+  return polizas.filter((o) =>
+    o.poliza_id !== z.poliza_id && o.persona_id !== z.persona_id && o.producto === z.producto
+    && igual(o.aseguradora, z.aseguradora) && igual(o.numero_poliza, z.numero_poliza)
+    && o.vigente_desde === z.vigente_desde && o.vigente_hasta === z.vigente_hasta);
+}
+
 // ── Buscar ──────────────────────────────────────────────────────────────────
 
 /** ¿La persona coincide con lo que se escribió en el buscador? Sin tildes ni mayúsculas. */

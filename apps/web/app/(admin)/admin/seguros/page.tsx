@@ -37,7 +37,7 @@ import { SlidersHorizontal, X } from "lucide-react";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { hoyLima, puedeGestionarSeguros } from "@cayla-dynamic/shared";
 import { Cargando } from "@/components/cargando";
-import { ArchivosPoliza } from "@/components/seguros/archivos-poliza";
+import { ArchivosPoliza, type PolizaHermana } from "@/components/seguros/archivos-poliza";
 import { AyudaDeSeguros } from "@/components/seguros/ayuda-de-seguros";
 import { CambiarSeguro } from "@/components/seguros/cambiar-seguro";
 import { FichaPersona, type AccionesFicha } from "@/components/seguros/ficha-persona";
@@ -57,7 +57,7 @@ import { Rotulo } from "@/components/ui/rotulo";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { useRolActual } from "@/lib/admin/use-rol";
 import {
-  coincideSeguro, contarPorTipo, fechaDelPaso, resumenDeSeguros, seguroPorPersona, DIAS_AVISO_RENOVACION, PASOS_SEGURO,
+  coincideSeguro, contarPorTipo, fechaDelPaso, hermanasDe, plural, resumenDeSeguros, seguroPorPersona, DIAS_AVISO_RENOVACION, PASOS_SEGURO,
   type CambioSeguro, type FilaEquipoSeguro, type PasoSeguro, type Poliza, type SeguroDePersona, type SituacionSeguro, type TipoSeguro,
 } from "@/lib/admin/seguros";
 
@@ -159,7 +159,7 @@ function Seguros() {
   // A quién se le puede registrar una póliza: las personas activas, con su seguro principal de hoy.
   const opciones = useMemo<OpcionPersona[]>(
     () => personas.filter((p) => p.activa)
-      .map((p) => ({ id: p.personaId, nombre: p.persona, sede: p.sede, tipoPrincipal: p.tipo?.clave ?? null }))
+      .map((p) => ({ id: p.personaId, nombre: p.persona, sede: p.sede, tipoPrincipal: p.tipo?.clave ?? null, enPlanilla: p.enPlanilla, vinculo: p.vinculo }))
       .sort((a, b) => a.nombre.localeCompare(b.nombre, "es")),
     [personas],
   );
@@ -197,6 +197,11 @@ function Seguros() {
 
   // ── Archivos e historial ──────────────────────────────────────────────
   const [verArchivos, setVerArchivos] = useState<{ id: string; titulo: string } | null>(null);
+  // Las otras pólizas de la misma póliza colectiva: el archivo que se suba puede guardarse también en ellas.
+  const hermanasDelArchivo = useMemo<PolizaHermana[]>(() => {
+    const z = verArchivos ? polizas.find((x) => x.poliza_id === verArchivos.id) : undefined;
+    return z ? hermanasDe(z, polizas).map((h) => ({ id: h.poliza_id, titulo: h.persona })) : [];
+  }, [verArchivos, polizas]);
   const [verHistorial, setVerHistorial] = useState<{ id: string; titulo: string } | null>(null);
   const nombreDe = (z: Poliza) => `${z.persona} · ${z.producto_nombre} · póliza ${z.numero_poliza}`;
 
@@ -406,6 +411,7 @@ function Seguros() {
         supabase={supabase}
         tipos={tipos}
         personas={opciones}
+        polizas={polizas}
         corrigiendo={corrigiendo}
         base={base}
         onGuardado={async (id, nueva, titulo) => {
@@ -418,6 +424,17 @@ function Seguros() {
             avisar("ok", "Corrección guardada. El historial dice qué decía antes.");
           }
         }}
+        onGuardadoVarias={async (registradas, resumen) => {
+          setFormAbierto(false);
+          await cargar();
+          // El PDF es uno solo para todas: se abre el de la primera persona (por nombre) y desde ahí se
+          // guarda también en las demás (`hermanas`).
+          const primera = [...registradas]
+            .map((r) => ({ ...r, nombre: opciones.find((o) => o.id === r.persona_id)?.nombre ?? "" }))
+            .sort((a, b) => a.nombre.localeCompare(b.nombre, "es") || a.persona_id.localeCompare(b.persona_id))[0];
+          avisar("ok", `Póliza ${resumen.numero} (${resumen.seguro}) registrada a ${plural(registradas.length, "persona", "personas")}. Adjunta ahora el PDF: se guarda en todas.`);
+          if (primera) setVerArchivos({ id: primera.poliza_id, titulo: `${primera.nombre} · ${resumen.seguro} · póliza ${resumen.numero}` });
+        }}
       />
 
       <ArchivosPoliza
@@ -426,6 +443,7 @@ function Seguros() {
         supabase={supabase}
         polizaId={verArchivos?.id ?? null}
         titulo={verArchivos?.titulo ?? ""}
+        hermanas={hermanasDelArchivo}
         onCambio={() => void cargar()}
       />
 

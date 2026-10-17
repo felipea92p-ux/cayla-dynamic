@@ -22,9 +22,21 @@
 //   bloquea el envío no puede arrancar vacío. «Hasta» sigue a «Desde» mientras
 //   nadie lo toque, y tres botones lo mueven a 3 meses, 6 meses o un año.
 //
+// UNA PÓLIZA PARA VARIAS PERSONAS (Felipe, 2026-10-17: «que el propio sistema lo jale y no se
+//   tenga que rellenar los datos de nuevo»). Un seguro de vida o una EPS es UNA póliza con un
+//   solo número que cubre a todos: en vez de teclearla persona por persona, se eligen las
+//   personas en una lista (con el atajo «las de planilla») y se registra a todas de una vez
+//   con `fn_seguro_registrar_varias`. TODO O NADA: si a una no se le puede registrar, no se
+//   registra a nadie y el mensaje dice con quién falló. La lista ya deja fuera, con el motivo
+//   a la vista, a quien tiene una póliza de ese seguro que se cruza con las fechas: la base
+//   rechazaría el lote entero por esa sola persona.
+//   La PRIMA es la de CADA persona (una fila por persona): el formulario suma «N × prima» para
+//   que se vea el total de la póliza y no se escriba el total en cada fila.
+//
 // QUÉ NO HACE
 //   No decide si la póliza se cruza con otra: eso lo decide la base y su mensaje se
-//   muestra tal cual.
+//   muestra tal cual. (La lista de varias personas solo ADELANTA ese aviso para no ofrecer
+//   a quien se sabe que no se puede.)
 // ============================================================================
 
 import { useState } from "react";
@@ -33,13 +45,29 @@ import { hoyLima } from "@cayla-dynamic/shared";
 import { AreaTexto } from "@/components/ui/area-texto";
 import { Boton } from "@/components/ui/boton";
 import { Campo, CampoSelect } from "@/components/ui/campo";
+import { Filtro } from "@/components/ui/filtro";
+import { cx } from "@/components/ui/cx";
 import { Modal } from "@/components/ui/modal";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
-import { sumarMeses, type Poliza, type TipoSeguro } from "@/lib/admin/seguros";
+import { isoADiaMesAnio } from "@/lib/admin/planilla/formato";
+import { etiquetaVinculo, plural, polizaQueSeCruza, sumarMeses, type Poliza, type TipoSeguro } from "@/lib/admin/seguros";
+import { formatSoles } from "@/lib/rangos";
+import { sinTildes } from "@/lib/sin-tildes";
 import { AvisoDeError } from "./aviso-de-error";
 
 /** A quién se le puede registrar una póliza: una persona activa y su seguro principal de hoy. */
-export interface OpcionPersona { id: string; nombre: string; sede: string; tipoPrincipal: string | null }
+export interface OpcionPersona {
+  id: string; nombre: string; sede: string; tipoPrincipal: string | null;
+  /** Tal como la base la calcula (planilla y prueba): el atajo «las de planilla» no deduce nada. */
+  enPlanilla: boolean;
+  /** `personas.tipo_vinculo`, para rotular a cada quien en la lista. */
+  vinculo: string;
+}
+
+/** Lo que devuelve `fn_seguro_registrar_varias`: una póliza por persona. */
+export interface PolizaRegistrada { persona_id: string; poliza_id: string }
+
+type Modo = "una" | "varias";
 
 /** Lo que una pantalla puede adelantar al abrir: renovar copia aseguradora, número y prima. */
 export interface BaseDePoliza {
@@ -121,10 +149,11 @@ function numero(texto: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-function erroresDe(f: Form, corrigiendo: boolean): Partial<Record<keyof Form, string>> {
+function erroresDe(f: Form, corrigiendo: boolean, modo: Modo, nElegidas: number): Partial<Record<keyof Form, string>> {
   const e: Partial<Record<keyof Form, string>> = {};
   if (!f.producto) e.producto = "Elige el seguro.";
-  if (!f.personaId) e.personaId = "Elige a quién asegura.";
+  if (modo === "una" && !f.personaId) e.personaId = "Elige a quién asegura.";
+  if (modo === "varias" && nElegidas === 0) e.personaId = "Elige al menos a una persona.";
   if (f.aseguradora.trim().length < 2) e.aseguradora = "Escribe la aseguradora.";
   if (f.numero.trim().length < 3) e.numero = "Escribe el número de la póliza.";
   if (!f.desde) e.desde = "Falta la fecha de inicio.";
@@ -142,7 +171,7 @@ function erroresDe(f: Form, corrigiendo: boolean): Partial<Record<keyof Form, st
 }
 
 export function FormularioPoliza({
-  abierto, onCerrar, supabase, tipos, personas, corrigiendo, base, onGuardado,
+  abierto, onCerrar, supabase, tipos, personas, polizas, corrigiendo, base, onGuardado, onGuardadoVarias,
 }: {
   abierto: boolean;
   onCerrar: () => void;
@@ -151,11 +180,15 @@ export function FormularioPoliza({
   tipos: TipoSeguro[];
   /** A quién se puede asegurar: las personas activas, con su seguro principal de hoy. */
   personas: OpcionPersona[];
+  /** Las pólizas vivas: con ellas la lista de «varias personas» deja fuera, con el motivo, a quien se cruzaría. */
+  polizas: Poliza[];
   /** La póliza que se corrige, o null si es una nueva. */
   corrigiendo: Poliza | null;
   base: BaseDePoliza | null;
   /** Recibe el id de la póliza, si es nueva y cómo nombrarla («Ana Prueba · FOLA · póliza 24043267»), para abrir sus archivos. */
   onGuardado: (polizaId: string, nueva: boolean, titulo: string) => void;
+  /** La misma póliza registrada a varias personas: una fila por cada una, y de qué seguro y número es (para los avisos). */
+  onGuardadoVarias: (registradas: PolizaRegistrada[], resumen: { seguro: string; numero: string }) => void;
 }) {
   // Mientras guarda, ni Esc ni un clic en el velo cierran el diálogo: si la base contestara un
   // error con el formulario ya desmontado, no quedaría ni el aviso ni lo escrito.
@@ -172,8 +205,9 @@ export function FormularioPoliza({
           valores de ESA póliza o de ESA persona, sin un efecto que los copie. */}
       {abierto && (
         <Cuerpo
-          onCerrar={onCerrar} supabase={supabase} tipos={tipos} personas={personas}
-          corrigiendo={corrigiendo} base={base} onGuardado={onGuardado} onGuardando={setGuardando}
+          onCerrar={onCerrar} supabase={supabase} tipos={tipos} personas={personas} polizas={polizas}
+          corrigiendo={corrigiendo} base={base} onGuardado={onGuardado} onGuardadoVarias={onGuardadoVarias}
+          onGuardando={setGuardando}
         />
       )}
     </Modal>
@@ -181,32 +215,55 @@ export function FormularioPoliza({
 }
 
 function Cuerpo({
-  onCerrar, supabase, tipos, personas, corrigiendo, base, onGuardado, onGuardando,
+  onCerrar, supabase, tipos, personas, polizas, corrigiendo, base, onGuardado, onGuardadoVarias, onGuardando,
 }: Omit<Parameters<typeof FormularioPoliza>[0], "abierto"> & { onGuardando: (guardando: boolean) => void }) {
   const [f, setF] = useState<Form>(() => formInicial(corrigiendo, base, tipos, personas));
+  // «Varias personas» solo para una póliza NUEVA y sin una persona ya elegida: renovar, registrar otro
+  // seguro a alguien o corregir son siempre de una persona.
+  const puedeVarias = corrigiendo === null && !base?.personaId;
+  const [modo, setModo] = useState<Modo>("una");
+  const [elegidas, setElegidas] = useState<ReadonlySet<string>>(() => new Set());
+  const [buscar, setBuscar] = useState("");
   // «Hasta» sigue a «Desde» mientras nadie lo toque.
   const [hastaTocado, setHastaTocado] = useState(corrigiendo !== null);
   const [intento, setIntento] = useState(false);
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
 
-  const errores = erroresDe(f, corrigiendo !== null);
+  const ofrecidos = conPoliza(tipos, base?.soloAdemas);
+  const tipo = tipos.find((t) => t.clave === f.producto);
+  const candidatas = f.producto ? personasDe(f.producto, tipos, personas) : personas;
+
+  // En «varias»: quién se cruza con las fechas de hoy del formulario, y quién queda de verdad elegida
+  // (las que se cruzan se ignoran aunque estén marcadas: la base rechazaría el lote entero por ellas).
+  const cruces = new Map<string, Poliza>();
+  if (modo === "varias" && f.producto) {
+    for (const p of candidatas) {
+      const z = polizaQueSeCruza(polizas, p.id, f.producto, f.desde, f.hasta);
+      if (z) cruces.set(p.id, z);
+    }
+  }
+  const efectivas = modo === "varias" ? candidatas.filter((p) => elegidas.has(p.id) && !cruces.has(p.id)) : [];
+
+  const errores = erroresDe(f, corrigiendo !== null, modo, efectivas.length);
   const dias = f.desde && f.hasta && f.hasta > f.desde
     ? Math.round((Date.parse(f.hasta) - Date.parse(f.desde)) / 86_400_000)
     : null;
 
-  const ofrecidos = conPoliza(tipos, base?.soloAdemas);
-  const tipo = tipos.find((t) => t.clave === f.producto);
-  const candidatas = f.producto ? personasDe(f.producto, tipos, personas) : personas;
   // Al corregir, la persona no cambia —aunque ya no esté activa—: su única opción es la de la póliza.
   const opcionesDePersona: OpcionPersona[] = corrigiendo
-    ? [{ id: corrigiendo.persona_id, nombre: corrigiendo.persona, sede: corrigiendo.sede, tipoPrincipal: null }]
+    ? [{ id: corrigiendo.persona_id, nombre: corrigiendo.persona, sede: corrigiendo.sede, tipoPrincipal: null, enPlanilla: false, vinculo: "" }]
     : candidatas;
 
   function cambiarProducto(producto: string) {
     // Si la persona elegida no tiene este seguro como principal, se suelta: la base no le aceptaría la póliza.
     const sigue = !producto || personasDe(producto, tipos, personas).some((p) => p.id === f.personaId);
     setF((a) => ({ ...a, producto, personaId: sigue ? a.personaId : "" }));
+    setElegidas(new Set());
+  }
+  function marcar(ids: Iterable<string>) { setElegidas(new Set(ids)); }
+  function alternar(id: string, marcada: boolean) {
+    setElegidas((a) => { const n = new Set(a); if (marcada) n.add(id); else n.delete(id); return n; });
   }
   function cambiarDesde(desde: string) {
     setF((a) => ({ ...a, desde, hasta: hastaTocado || !desde ? a.hasta : sumarMeses(desde, 3) }));
@@ -238,6 +295,15 @@ function Cuerpo({
       onGuardado(corrigiendo.poliza_id, false, nombrarPoliza());
       return;
     }
+    if (modo === "varias") {
+      const { data, error } = await supabase.rpc("fn_seguro_registrar_varias", {
+        p_personas: efectivas.map((p) => p.id), p_producto: f.producto, ...comunes,
+      });
+      setGuardando(false); onGuardando(false);
+      if (error || !Array.isArray(data) || data.length === 0) { setMensaje(mensajeDeError(error, "guardar")); return; }
+      onGuardadoVarias(data, { seguro: tipo?.nombre ?? "seguro", numero: f.numero.trim() });
+      return;
+    }
     const { data, error } = await supabase.rpc("fn_seguro_registrar", { p_persona_id: f.personaId, p_producto: f.producto, ...comunes });
     setGuardando(false); onGuardando(false);
     if (error || typeof data !== "string") { setMensaje(mensajeDeError(error, "guardar")); return; }
@@ -255,6 +321,12 @@ function Cuerpo({
       )}
       {mensaje && <AvisoDeError mensaje={mensaje} />}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {puedeVarias && (
+          <div className="flex flex-wrap items-center gap-2 sm:col-span-2" role="group" aria-label="A cuántas personas se les registra">
+            <Filtro activo={modo === "una"} onClick={() => setModo("una")}>A una persona</Filtro>
+            <Filtro activo={modo === "varias"} onClick={() => setModo("varias")}>A varias, la misma póliza</Filtro>
+          </div>
+        )}
         <div>
           <CampoSelect
             etiqueta="Seguro"
@@ -270,6 +342,12 @@ function Cuerpo({
           </CampoSelect>
           {corrigiendo && <span className="mt-1 block text-xs text-taupe">El seguro no se cambia: si está mal, anula la póliza y registra otra.</span>}
         </div>
+        {modo === "varias" ? (
+          <p className="self-end text-xs text-taupe">
+            Un seguro de vida o una EPS suele ser UNA póliza con un solo número que cubre a todos. Se registra a todas las
+            personas que elijas de una vez; si a una no se le puede registrar, no se registra a nadie.
+          </p>
+        ) : (
         <div>
           <CampoSelect
             etiqueta="A quién asegura"
@@ -289,6 +367,14 @@ function Cuerpo({
             </span>
           )}
         </div>
+        )}
+        {modo === "varias" && (
+          <ListaDeQuienes
+            producto={f.producto} tipo={tipo} candidatas={candidatas} cruces={cruces} elegidas={elegidas}
+            efectivas={efectivas.length} buscar={buscar} onBuscar={setBuscar} onMarcar={marcar} onAlternar={alternar}
+            error={mostrar("personaId")}
+          />
+        )}
         <Campo etiqueta="Aseguradora" value={f.aseguradora} onChange={(e) => setF({ ...f, aseguradora: e.target.value })} error={mostrar("aseguradora")} />
         <Campo etiqueta="Número de póliza" value={f.numero} onChange={(e) => setF({ ...f, numero: e.target.value })} placeholder="ej. 24043267" error={mostrar("numero")} />
         <Campo etiqueta="Vigente desde" type="date" value={f.desde} onChange={(e) => cambiarDesde(e.target.value)} error={mostrar("desde")} />
@@ -308,7 +394,11 @@ function Cuerpo({
           </div>
         </div>
         <div>
-          <Campo etiqueta="Prima total (con IGV), en soles" inputMode="decimal" value={f.prima} onChange={(e) => setF({ ...f, prima: e.target.value })} placeholder="ej. 179.97" error={mostrar("prima")} />
+          <Campo
+            etiqueta={modo === "varias" ? "Prima de CADA persona (con IGV), en soles" : "Prima total (con IGV), en soles"}
+            inputMode="decimal" value={f.prima} onChange={(e) => setF({ ...f, prima: e.target.value })} placeholder="ej. 179.97" error={mostrar("prima")}
+          />
+          {modo === "varias" && <TotalDeLaPoliza n={efectivas.length} prima={numero(f.prima)} />}
         </div>
         <div>
           <Campo etiqueta="La prima vence el (opcional)" type="date" value={f.primaVence} onChange={(e) => setF({ ...f, primaVence: e.target.value })} />
@@ -353,9 +443,110 @@ function Cuerpo({
       <div className="mt-5 flex justify-end gap-2">
         <Boton onClick={onCerrar} disabled={guardando}>Cancelar</Boton>
         <Boton variante="primario" onClick={() => void guardar()} cargando={guardando}>
-          {corrigiendo ? "Guardar la corrección" : "Registrar la póliza"}
+          {corrigiendo ? "Guardar la corrección" : modo === "varias" ? `Registrar la póliza a ${plural(efectivas.length, "persona", "personas")}` : "Registrar la póliza"}
         </Boton>
       </div>
     </>
+  );
+}
+
+/**
+ * «19 × S/ 8.95 = S/ 170.05»: el total de la póliza, a la vista. La prima de cada fila es la de ESA persona;
+ * sin esta línea es fácil escribir el total de la póliza en cada una y que cualquier suma cuente la póliza
+ * diecinueve veces.
+ */
+function TotalDeLaPoliza({ n, prima }: { n: number; prima: number | null }) {
+  const ayuda = "Si solo tienes el total de la póliza, divídelo entre las personas.";
+  if (n === 0 || prima === null || prima < 0) return <span className="mt-1 block text-xs text-taupe">Lo que cuesta cada una. {ayuda}</span>;
+  return (
+    <span className="mt-1 block text-xs text-taupe">
+      {n} × {formatSoles(prima)} = <span className="text-tinta">{formatSoles(Math.round(prima * n * 100) / 100)}</span> en total. {ayuda}
+    </span>
+  );
+}
+
+/**
+ * La lista de personas de una póliza para varias. Solo ofrece a quien la base le aceptaría el seguro (si es el
+ * principal de la persona, a quien lo tiene hoy) y deja a la vista —sin permitir marcarla— a quien ya tiene una
+ * póliza de ese seguro que se cruza con las fechas: por esa sola persona la base rechazaría el lote entero.
+ */
+function ListaDeQuienes({
+  producto, tipo, candidatas, cruces, elegidas, efectivas, buscar, onBuscar, onMarcar, onAlternar, error,
+}: {
+  producto: string;
+  tipo: TipoSeguro | undefined;
+  candidatas: OpcionPersona[];
+  cruces: ReadonlyMap<string, Poliza>;
+  elegidas: ReadonlySet<string>;
+  efectivas: number;
+  buscar: string;
+  onBuscar: (texto: string) => void;
+  onMarcar: (ids: string[]) => void;
+  onAlternar: (id: string, marcada: boolean) => void;
+  error: string | undefined;
+}) {
+  const q = sinTildes(buscar.trim());
+  const visibles = q ? candidatas.filter((p) => sinTildes(`${p.nombre} ${p.sede} ${etiquetaVinculo(p.vinculo)}`).includes(q)) : candidatas;
+  const libres = candidatas.filter((p) => !cruces.has(p.id));
+  const deLaPlanilla = libres.filter((p) => p.enPlanilla);
+
+  return (
+    <div className="sm:col-span-2">
+      <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
+        <span className="text-sm text-taupe">A quiénes asegura</span>
+        {producto && candidatas.length > 0 && (
+          <span className="text-xs text-taupe" aria-live="polite">{efectivas} de {candidatas.length} elegidas</span>
+        )}
+      </div>
+      {!producto ? (
+        <p className="rounded-lg bg-hueso px-3 py-2 text-sm text-taupe">Elige primero el seguro: según cuál sea, se ofrece a unas personas o a otras.</p>
+      ) : candidatas.length === 0 ? (
+        <p className="rounded-lg bg-hueso px-3 py-2 text-sm text-ambar">
+          {tipo?.principal
+            ? `Hoy nadie está en ${tipo.nombre}. Para registrarle una póliza a alguien, primero cámbiale el seguro desde su tarjeta («Cambiar su seguro»).`
+            : "No hay personas activas a quienes asegurar."}
+        </p>
+      ) : (
+        <div className={cx("rounded-lg border", error ? "border-rojo" : "border-sand")}>
+          <div className="flex flex-wrap items-center gap-2 border-b border-sand p-2">
+            <div className="min-w-40 flex-1">
+              <Campo value={buscar} onChange={(e) => onBuscar(e.target.value)} placeholder="Buscar por nombre, sede o vínculo" aria-label="Buscar a quién asegura" className="w-full" />
+            </div>
+            <Boton tamano="sm" variante="sutil" onClick={() => onMarcar(deLaPlanilla.map((p) => p.id))} disabled={deLaPlanilla.length === 0}>
+              Las de planilla ({deLaPlanilla.length})
+            </Boton>
+            <Boton tamano="sm" variante="sutil" onClick={() => onMarcar(libres.map((p) => p.id))} disabled={libres.length === 0}>Todas</Boton>
+            <Boton tamano="sm" variante="sutil" onClick={() => onMarcar([])} disabled={efectivas === 0}>Ninguna</Boton>
+          </div>
+          <ul className="max-h-64 divide-y divide-sand/60 overflow-y-auto" aria-label="Personas a las que se les registra la póliza">
+            {visibles.map((p) => {
+              const cruce = cruces.get(p.id);
+              return (
+                <li key={p.id}>
+                  <label className={cx("flex items-start gap-2 px-3 py-2 text-sm", cruce ? "cursor-not-allowed opacity-70" : "cursor-pointer hover:bg-sand/30")}>
+                    <input
+                      type="checkbox" className="mt-0.5 size-4 shrink-0 accent-tinta"
+                      checked={elegidas.has(p.id) && !cruce} disabled={Boolean(cruce)}
+                      onChange={(e) => onAlternar(p.id, e.target.checked)}
+                    />
+                    <span className="min-w-0">
+                      <span className="text-tinta">{p.nombre}</span>
+                      <span className="text-taupe"> · {p.sede} · {etiquetaVinculo(p.vinculo)}</span>
+                      {cruce && (
+                        <span className="block text-xs text-ambar">
+                          Ya tiene una póliza de este seguro del {isoADiaMesAnio(cruce.vigente_desde)} al {isoADiaMesAnio(cruce.vigente_hasta)} que se cruza con estas fechas.
+                        </span>
+                      )}
+                    </span>
+                  </label>
+                </li>
+              );
+            })}
+            {visibles.length === 0 && <li className="px-3 py-3 text-sm text-taupe">Nadie coincide con «{buscar.trim()}».</li>}
+          </ul>
+        </div>
+      )}
+      {error && <span className="mt-1 block text-xs text-rojo">{error}</span>}
+    </div>
   );
 }
