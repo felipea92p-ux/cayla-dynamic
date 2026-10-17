@@ -6,7 +6,7 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-10-17 — Educación: pagar antes de la fecha declarada también corre el calendario (0527) · SQL SIN PEGAR · COMMITEADO, SIN PR · rama `claude/clever-nobel-3cdc5c`
+## 2026-10-17 — Educación: pagar antes de la fecha declarada también corre el calendario (0527) · SQL PEGADO Y VERIFICADO EN PRODUCCIÓN · COMMITEADO, SIN PR · rama `claude/clever-nobel-3cdc5c`
 
 **Solo alerta; no cambia lo que cobra nadie.** Defecto desde la 0450, medido con las
 funciones de verdad: un mensual que vence el 15 de mayo, paga el 3 y declara el próximo
@@ -31,8 +31,16 @@ equivocadas de la regla (solo adelante, sin exigir `N > P`, solo mensual, ventan
 **se vuelve a pedir justo antes de entregar**). Llegada, local: `51570d94…` · 727.
 La sección 0 de la migración frena si la función no es esa versión.
 
-**Pendiente.** (1) Pegar la 0527 ANTES de fusionar; es independiente de la 0525 y de
-la 0526 (reescribe otra función), el orden no importa. (2) Felipe corre la consulta
+**Pegada y verificada el 2026-10-17.** Felipe la pegó («Success. No rows returned») y la
+consulta de comprobación devolvió, en producción: 727 caracteres · md5
+`51570d948d13c3fe079ff78e2a6905e2` · marca «CAMBIO 0527» en la posición 376 · 0 retornos de
+carro · 1 sola copia de la función · registro `527 · pagar_antes_de_la_fecha_tambien_corre_el_calendario`.
+Coincide con el md5 de llegada medido en local. Falta abrir y fusionar el PR, que solo trae
+el archivo ya pegado, la prueba 421 y este texto: ningún cambio de pantalla, y ya no hay
+orden de pegado que respetar. Fusionar es publicar: se pide el OK aparte.
+
+**Pendiente.** (1) ~~Pegar la 0527~~ hecho; es independiente de la 0525 y de
+la 0526 (reescribe otra función). (2) Felipe corre la consulta
 del final de la migración para saber cuántos estudios **ya** quedaron atrasados: esta
 migración no los repara (solo actúa al aprobar); DO los fija a mano. (3) Al fusionar
 la 0525 (revertir aprobación): devuelve el calendario a la fecha de PAGO, no a la
