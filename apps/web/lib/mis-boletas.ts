@@ -1,6 +1,6 @@
 import type { ClienteCayla } from "@cayla-dynamic/database";
 import { MESES_LARGO } from "./admin/planilla/formato";
-import { esBoletaNueva } from "./boletas";
+import { esBoletaNueva, esBoletaPorFirmar } from "./boletas";
 
 /**
  * LAS BOLETAS OFICIALES DE UNA PERSONA — lo que «Lo mío» y la Bandeja comparten.
@@ -28,7 +28,7 @@ export interface FilaMiBoleta {
   fecha_ini: string;
   fecha_fin: string;
   boleta_id: string | null;
-  /** null = pagado pero sin publicar; 'publicada' | 'papel' en los demás casos. */
+  /** null = pagado pero sin publicar; 'publicada' | 'papel' | 'anulada' (en revisión) en los demás casos. */
   estado: string | null;
   version_id: string | null;
   version_n: number | null;
@@ -40,6 +40,8 @@ export interface FilaMiBoleta {
   publicada_at: string | null;
   vista_at: string | null;
   recibida_at: string | null;
+  /** La firma está copiada en la boleta (0532). Una confirmación anterior no la tiene. */
+  firmada: boolean;
 }
 
 export async function traerMisBoletas(
@@ -53,6 +55,15 @@ export async function traerMisBoletas(
 /** Cuántas boletas están publicadas y todavía sin abrir. */
 export function contarBoletasNuevas(filas: readonly Pick<FilaMiBoleta, "estado" | "vista_at">[]): number {
   return filas.filter(esBoletaNueva).length;
+}
+
+/**
+ * Cuántas boletas esperan su firma: publicadas y todavía sin firmar, abiertas o no.
+ * Es lo que cuenta el globito de /mio y la Bandeja desde la 0532: una boleta que se
+ * abrió pero no se firmó sigue siendo algo que depende de la persona.
+ */
+export function contarBoletasPorFirmar(filas: readonly Pick<FilaMiBoleta, "estado" | "recibida_at">[]): number {
+  return filas.filter(esBoletaPorFirmar).length;
 }
 
 /**
