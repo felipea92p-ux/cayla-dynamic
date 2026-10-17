@@ -72,7 +72,7 @@ reescribe nada: solo comprobar antes que sus nombres no existan; la consulta va 
 - **Historial.** General (filtros por sede, persona, tipo y fechas; CSV), individual dentro de cada estudio, y
   «Tu historial» en Lo mío sin nombres de DO ni sus motivos internos.
 
-**Cómo se verificó.** pgTAP [424](../supabase/tests/424_un_pago_adelantado_cubre_varios_meses.test.sql) (50) y
+**Cómo se verificó.** pgTAP [424](../supabase/tests/424_un_pago_adelantado_cubre_varios_meses.test.sql) (44; el encabezado de la 0529, ya pegada, dice 50 por un conteo mal hecho y no se toca) y
 [419](../supabase/tests/419_una_aprobacion_de_constancia_se_puede_revertir.test.sql) (53) en el Postgres local
 dentro de `BEGIN … ROLLBACK`; la 424 sin la 0529 falla (control). `tsc`, eslint y las 1 807+ pruebas de vitest en
 verde (nuevas: `educacion-adelantado`, `educacion-historial`, `educacion-ciclo`). En el navegador, contra la base

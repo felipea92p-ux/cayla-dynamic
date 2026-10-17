@@ -17,7 +17,7 @@
 -- (31 de enero): una fecha fija del pasado no caduca.
 -- ============================================================================
 begin;
-select plan(50);
+select plan(44);
 
 -- ── Semilla ─────────────────────────────────────────────────────────────────
 insert into sedes (id, codigo, nombre, activa)
