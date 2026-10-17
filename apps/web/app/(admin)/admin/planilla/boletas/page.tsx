@@ -353,6 +353,7 @@ function PantallaBoletas() {
           supabase={supabase}
           modo="constancia"
           fila={modal.fila}
+          periodo={periodoActual}
           nombreDelPeriodo={nombreDelPeriodo}
           onCerrar={() => setModal(null)}
           onAnular={() => setModal({ t: "anular", fila: modal.fila })}
@@ -364,6 +365,7 @@ function PantallaBoletas() {
           supabase={supabase}
           modo="anulacion"
           fila={modal.fila}
+          periodo={periodoActual}
           nombreDelPeriodo={nombreDelPeriodo}
           onCerrar={() => setModal(null)}
           onRestablecer={accionesDeFila(modal.fila).restablecer ? () => setModal({ t: "restablecer", fila: modal.fila }) : undefined}

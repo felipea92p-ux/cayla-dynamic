@@ -70,9 +70,18 @@ describe("accionesDeFila", () => {
     expect(accionesDeFila(conBoleta("borrador"))).toMatchObject({ ver: true, editar: true, historial: true, anular: false });
   });
 
-  it("publicada, vista o confirmada: todas, con anular", () => {
-    for (const extra of [{}, { vista_at: "2026-09-02T15:00:00Z" }, { vista_at: "2026-09-02T15:00:00Z", recibida_at: "2026-09-02T16:00:00Z" }]) {
+  it("publicada o vista: todas, con anular", () => {
+    for (const extra of [{}, { vista_at: "2026-09-02T15:00:00Z" }]) {
       expect(accionesDeFila(conBoleta("publicada", extra))).toMatchObject({ ver: true, editar: true, historial: true, anular: true });
+    }
+  });
+
+  it("firmada o confirmada: se mira con su firma, no con «Ver» a secas", () => {
+    const recibida = { vista_at: "2026-09-02T15:00:00Z", recibida_at: "2026-09-02T16:00:00Z" };
+    for (const extra of [recibida, { ...recibida, firmada: true }]) {
+      expect(accionesDeFila(conBoleta("publicada", extra))).toMatchObject({
+        constancia: true, ver: false, editar: true, historial: true, anular: true,
+      });
     }
   });
 

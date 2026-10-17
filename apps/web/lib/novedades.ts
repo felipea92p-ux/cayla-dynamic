@@ -115,6 +115,29 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-10-17-tu-boleta-firmada-se-descarga-con-tu-firma",
+    fecha: "2026-10-17",
+    titulo: "Tu boleta firmada se ve y se descarga con tu firma",
+    queMejoro:
+      "En «Boletas», una boleta que ya firmaste se abre como una sola hoja: tus datos, la fecha de pago, la boleta " +
+      "y, debajo, tu firma con la fecha y la hora. «Descargar PDF» la guarda así, en un solo archivo: si tu " +
+      "teléfono o computadora te pregunta, elige «Guardar como PDF».\n\n" +
+      "Antes de firmarla, la boleta se sigue viendo y guardando tal como la entregó el contador.",
+    audiencia: "todos",
+  },
+  {
+    id: "2026-10-17-la-boleta-firmada-se-descarga-con-su-firma",
+    fecha: "2026-10-17",
+    titulo: "«Ver boleta firmada» ahora es una sola hoja que se descarga en PDF",
+    queMejoro:
+      "En Planilla → Boletas, «Ver boleta firmada» muestra la constancia de recepción: nombre y documento de la " +
+      "persona, sede, periodo, fecha de pago, fecha y hora de la firma, la boleta y, debajo, la firma. «Descargar " +
+      "PDF» la guarda en un solo archivo, lista para el contador o para el archivo.\n\n" +
+      "Además, la foto de una boleta ya no se ve cortada: entra entera en la pantalla y se amplía con un toque. Y " +
+      "una boleta firmada ya no tiene «Ver» a secas: se mira siempre con su firma.",
+    audiencia: "do",
+  },
+  {
     id: "2026-10-17-educacion-meses-anteriores-y-siguientes",
     fecha: "2026-10-17",
     titulo: "En Educación ahora se avanza y se retrocede por los meses",

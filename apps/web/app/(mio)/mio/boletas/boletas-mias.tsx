@@ -7,6 +7,7 @@ import { Insignia } from "@/components/ui/insignia";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/toast";
 import { ModalFirmarBoleta } from "@/components/boletas/modal-firmar-boleta";
+import { ModalMiBoletaFirmada } from "@/components/boletas/modal-mi-boleta-firmada";
 import { VisorDeHojas } from "@/components/boletas/visor-de-hojas";
 import { esBoletaNueva, esBoletaPorFirmar, etiquetaDeHojas, extensionPorMime, type TipoBoleta } from "@/lib/boletas";
 import { hojasFirmadasDeVersion, urlDeDescarga, type HojaFirmada } from "@/lib/boletas-archivos";
@@ -33,6 +34,12 @@ import { pesoLegible } from "@/lib/reducir-imagen";
  * piden SIEMPRE con `hojasFirmadasDeVersion`, nunca firmando la ruta a mano. Lo
  * que queda escrito prueba que se pidieron las hojas, no que se leyeron: el
  * texto de la pantalla no dice más que eso.
+ *
+ * LA FIRMADA SE VE Y SE DESCARGA CON SU FIRMA (2026-10-17). Una boleta ya
+ * firmada no se abre como foto suelta: «Ver» muestra la constancia —sus datos,
+ * la boleta y su firma debajo, la misma hoja que ve DO— y «Descargar PDF» la
+ * guarda en un solo archivo (`ModalMiBoletaFirmada`). La foto suelta sigue
+ * siendo lo que se ve y se guarda ANTES de firmar.
  *
  * LO QUE GANA LA BASE. Qué boleta es la vigente, si se puede firmar y si la
  * persona es la dueña lo decide la base. Si algo cambió mientras la pantalla
@@ -68,6 +75,7 @@ export function BoletasMias({
   filas,
   error,
   onRecargar,
+  miNombre,
 }: {
   /** `null` = todavía cargando. */
   filas: FilaMiBoleta[] | null;
@@ -75,6 +83,8 @@ export function BoletasMias({
   error: string | null;
   /** Vuelve a leer `fn_mis_boletas`: se llama tras abrir, guardar o firmar. */
   onRecargar: () => Promise<void>;
+  /** El nombre con que firma: va en la hoja de la boleta firmada si la base no contesta. */
+  miNombre: string;
 }) {
   const supabase = useMemo(() => createAdminSupabaseClient(), []);
   const { avisar } = useToast();
@@ -84,6 +94,10 @@ export function BoletasMias({
   const [ocupada, setOcupada] = useState<Ocupada>(null);
   const [visor, setVisor] = useState<{
     versionId: string; titulo: string; tipo: TipoBoleta; hojas: HojaFirmada[];
+    /** La fila tal como estaba al abrirla: si ya estaba firmada, se ve la constancia. */
+    fila: FilaMiBoleta;
+    /** Se abrió con «Descargar PDF»: la descarga arranca sola. */
+    descargar: boolean;
   } | null>(null);
 
   // Lo que espera su firma: publicada y sin firmar, abierta o no. «Nueva» (sin
@@ -106,10 +120,11 @@ export function BoletasMias({
     return r.hojas;
   }
 
-  async function ver(f: FilaMiBoleta) {
+  /** Abre la boleta. Con `descargar`, la firmada se descarga con su firma en cuanto está lista. */
+  async function ver(f: FilaMiBoleta, descargar = false) {
     const tipo = tipoDe(f);
     if (!f.version_id || !tipo) return;
-    setOcupada(`ver:${f.version_id}`);
+    setOcupada(`${descargar ? "guardar" : "ver"}:${f.version_id}`);
     const hojas = await pedirHojas(f, 300);
     setOcupada(null);
     if (!hojas) return;
@@ -118,6 +133,8 @@ export function BoletasMias({
       titulo: `Tu boleta de ${nombreDelPeriodo(f.fecha_fin)}`,
       tipo,
       hojas,
+      fila: f,
+      descargar,
     });
   }
 
@@ -155,6 +172,8 @@ export function BoletasMias({
   }
 
   const enModal = visor ? (filas ?? []).find((f) => f.version_id === visor.versionId) ?? null : null;
+  // Firmada (o confirmada antes de la 0532) al abrirla: se ve la constancia, no la foto suelta.
+  const visorFirmado = visor !== null && Boolean(visor.fila.recibida_at);
   const puedeFirmarEnModal = enModal !== null && esBoletaPorFirmar(enModal);
 
   return (
@@ -280,11 +299,15 @@ export function BoletasMias({
                         className="min-h-11 w-full md:w-auto"
                         disabled={ocupada !== null}
                         cargando={ocupada === `guardar:${f.version_id}`}
-                        onClick={() => void guardar(f)}
+                        // Firmada: un solo PDF con la boleta y su firma. Antes de
+                        // firmar: la foto o el PDF tal como lo entregó el contador.
+                        onClick={() => void (recibida ? ver(f, true) : guardar(f))}
                       >
-                        {tipo === "pdf"
-                          ? (f.n_partes > 1 ? "Descargar PDFs" : "Descargar PDF")
-                          : (f.n_partes > 1 ? "Guardar fotos" : "Guardar foto")}
+                        {recibida
+                          ? "Descargar PDF"
+                          : tipo === "pdf"
+                            ? (f.n_partes > 1 ? "Descargar PDFs" : "Descargar PDF")
+                            : (f.n_partes > 1 ? "Guardar fotos" : "Guardar foto")}
                       </Boton>
                       {!recibida && (
                         <Boton
@@ -318,13 +341,26 @@ export function BoletasMias({
         motivo; no se discute al final del mes.
       </p>
 
+      {visor && visorFirmado && (
+        <ModalMiBoletaFirmada
+          key={visor.versionId}
+          supabase={supabase}
+          fila={visor.fila}
+          hojas={visor.hojas}
+          tipo={visor.tipo}
+          miNombre={miNombre}
+          descargarAlAbrir={visor.descargar}
+          onCerrar={() => setVisor(null)}
+        />
+      )}
+
       <Modal
-        abierto={visor !== null}
+        abierto={visor !== null && !visorFirmado}
         onCerrar={() => setVisor(null)}
         titulo={visor?.titulo}
         ancho="xl"
       >
-        {visor && (
+        {visor && !visorFirmado && (
           <>
             <VisorDeHojas hojas={visor.hojas} tipo={visor.tipo} />
             <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">

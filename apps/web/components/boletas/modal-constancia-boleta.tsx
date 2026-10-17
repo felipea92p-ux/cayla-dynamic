@@ -6,12 +6,14 @@ import { Modal } from "@/components/ui/modal";
 import { Boton } from "@/components/ui/boton";
 import { Cargando } from "@/components/cargando";
 import { ConstanciaDeFirma, useConstancia } from "@/components/boletas/constancia-de-firma";
+import { useConstanciaDescargable } from "@/components/boletas/constancia-descargable";
 import { InsigniaDeEstado } from "@/components/boletas/insignia-de-estado";
 import { PieDeModal, TACTIL } from "@/components/boletas/pie-de-modal";
 import { VisorDeHojas } from "@/components/boletas/visor-de-hojas";
 import { estadoVisible, tiempoParaRestablecer, type TipoBoleta } from "@/lib/boletas";
 import { hojasFirmadasDeVersion, type HojaFirmada } from "@/lib/boletas-archivos";
 import { fechaHoraLima, type FilaTablero } from "@/lib/admin/boletas-pantalla";
+import type { PeriodoInfo } from "@/lib/admin/planilla/tipos";
 
 type Anulacion = {
   id: string;
@@ -25,8 +27,11 @@ type Anulacion = {
 /**
  * LA BOLETA CON SU CONSTANCIA, PARA DO (0532). Dos usos de la misma pieza:
  *
- *  · «Ver boleta firmada»: la boleta y, debajo, la firma que la persona copió en
- *    ella, quién y cuándo. Es lo que DO le muestra al contador si pide la prueba.
+ *  · «Ver boleta firmada»: una sola hoja —la constancia de recepción— con quién
+ *    es (nombre y DNI), el periodo, la fecha de pago, cuándo firmó, la boleta y,
+ *    debajo, la firma que copió en ella (`HojaConstanciaBoleta`, 2026-10-17).
+ *    Es lo que DO le muestra al contador si pide la prueba, y «Descargar PDF» la
+ *    guarda tal cual: la boleta y la firma en el mismo archivo.
  *  · «Ver anulación»: lo que se anuló —la misma boleta y su constancia, que se
  *    conservan— con el motivo y el historial de anulaciones y restablecimientos.
  *
@@ -35,11 +40,13 @@ type Anulacion = {
  * recibiendo.
  */
 export function ModalConstanciaBoleta({
-  supabase, modo, fila, nombreDelPeriodo, onCerrar, onAnular, onRestablecer,
+  supabase, modo, fila, periodo, nombreDelPeriodo, onCerrar, onAnular, onRestablecer,
 }: {
   supabase: ClienteCayla;
   modo: "constancia" | "anulacion";
   fila: FilaTablero;
+  /** Para las fechas del periodo en la hoja. */
+  periodo: PeriodoInfo | null;
   nombreDelPeriodo: string;
   onCerrar: () => void;
   /** Solo en «constancia»: abre el modal de anular sobre esta boleta. */
@@ -47,7 +54,8 @@ export function ModalConstanciaBoleta({
   /** Solo en «anulación», mientras corre el plazo. */
   onRestablecer?: () => void;
 }) {
-  const { constancia, error: errorConstancia } = useConstancia(supabase, fila.version_id);
+  // En «constancia» la firma la pide useConstanciaDescargable, con la hoja.
+  const { constancia, error: errorConstancia } = useConstancia(supabase, modo === "anulacion" ? fila.version_id : null);
   const [hojas, setHojas] = useState<HojaFirmada[] | null>(null);
   const [errorHojas, setErrorHojas] = useState<string | null>(null);
   const [anulaciones, setAnulaciones] = useState<Anulacion[] | null>(null);
@@ -74,6 +82,19 @@ export function ModalConstanciaBoleta({
 
   const titulo = modo === "constancia" ? "Boleta firmada" : "Boleta anulada";
   const queda = tiempoParaRestablecer(fila.restablecible_hasta);
+
+  // ── La hoja de la constancia (solo en «constancia») ────────────────────────
+  const enConstancia = modo === "constancia";
+  const hojaFirmada = useConstanciaDescargable({
+    supabase,
+    versionId: enConstancia ? fila.version_id : null,
+    hojas,
+    tipo: (fila.tipo ?? "imagen") as TipoBoleta,
+    periodo: { nombre: nombreDelPeriodo, desde: periodo?.fecha_ini ?? null, hasta: periodo?.fecha_fin ?? null },
+    version: fila.version_n,
+    respaldo: { nombre: fila.nombre, sede: fila.sede_codigo, cargo: fila.cargo },
+    nombreDelPdf: `${fila.nombre} — Boleta firmada ${nombreDelPeriodo}`,
+  });
 
   return (
     <Modal abierto onCerrar={onCerrar} titulo={titulo} ancho="xl">
@@ -111,7 +132,11 @@ export function ModalConstanciaBoleta({
         </div>
       )}
 
-      {fila.version_id ? (
+      {enConstancia && fila.version_id ? (
+        errorHojas ? (
+          <p role="alert" className="rounded-control bg-rojo/10 px-3 py-2 text-sm text-rojo-profundo">{errorHojas}</p>
+        ) : hojaFirmada.contenido
+      ) : fila.version_id ? (
         <>
           <p className="mb-1 text-xs font-medium uppercase tracking-wide text-taupe">
             {modo === "anulacion" ? "Lo que se anuló" : "La boleta"}
@@ -135,6 +160,17 @@ export function ModalConstanciaBoleta({
         <Boton className={TACTIL} onClick={onCerrar}>Cerrar</Boton>
         {modo === "constancia" && onAnular && (
           <Boton variante="peligro" className={TACTIL} onClick={onAnular}>Anular</Boton>
+        )}
+        {enConstancia && fila.version_id && (
+          <Boton
+            variante="primario"
+            className={TACTIL}
+            disabled={!hojaFirmada.lista}
+            cargando={hojaFirmada.preparando}
+            onClick={() => void hojaFirmada.descargar()}
+          >
+            Descargar PDF
+          </Boton>
         )}
         {modo === "anulacion" && onRestablecer && (
           <Boton variante="primario" className={TACTIL} onClick={onRestablecer}>Restablecer</Boton>

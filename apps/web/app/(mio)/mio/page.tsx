@@ -2817,7 +2817,7 @@ export default function MioPage() {
           aparte, como Educación, y pinta la lectura de `fn_mis_boletas` que esta
           pantalla ya trajo para el globito del menú. */}
       {tab === "boletas" && (
-        <BoletasMias filas={misBoletas} error={misBoletasError} onRecargar={cargarMisBoletas} />
+        <BoletasMias filas={misBoletas} error={misBoletasError} onRecargar={cargarMisBoletas} miNombre={yo?.nombreOficial ?? ""} />
       )}
 
       {tab === "reportes" && <ReportesMios filas={misReportes} error={misReportesError} />}

@@ -7079,6 +7079,18 @@ export type Database = {
           vista_at: string
         }[]
       }
+      fn_boleta_datos_de_constancia: {
+        Args: { p_version_id: string | null }
+        Returns: {
+          cargo: string
+          documento: string
+          nombre: string
+          nombre_dni: string
+          pagado_at: string
+          sede_codigo: string
+          tipo_documento: string
+        }[]
+      }
       fn_boleta_firmar: { Args: { p_version_id: string | null }; Returns: undefined }
       fn_boleta_guardar_version: {
         Args: {
