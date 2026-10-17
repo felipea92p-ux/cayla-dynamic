@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { TIPO_CONSTANCIA_LABELS, type MotivoRechazo } from "@cayla-dynamic/shared";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
@@ -36,9 +36,11 @@ import { CamposDeRechazo } from "./campos-de-rechazo";
  * bloquea si el periodo ya se pagó con ella.
  */
 export function AprobadasDelCiclo({
-  miPersonaId, onCambio, onError,
+  miPersonaId, onCambio, onError, plegable = true,
 }: {
   miPersonaId: string | null;
+  /** Plegada (se abre a pedido) o a la vista, como cuando tiene su propia pestaña. */
+  plegable?: boolean;
   /** Avisa cuando la base ya revirtió: quien la montó recarga el resto de la pantalla. */
   onCambio: (texto: string) => void | Promise<void>;
   onError: (texto: string) => void;
@@ -102,22 +104,12 @@ export function AprobadasDelCiclo({
 
   const ciclo = periodos?.find((p) => p.id === cicloId) ?? null;
 
-  return (
-    <details className="mb-5 rounded-2xl border border-sand bg-papel p-4" open={abierta}
-      onToggle={(e) => {
-        const abre = e.currentTarget.open;
-        setAbierta(abre);
-        if (abre && periodos === null) void iniciar();
-      }}>
-      <summary className="cursor-pointer font-serif text-base">
-        Aprobadas en el ciclo de pago
-        {filas !== null && <span className="ml-2 text-sm text-taupe">· {filas.length}</span>}
-        <span className="block font-sans text-xs text-taupe">
-          A quién aprobamos, su constancia a la vista, y rechazar la que no debió aprobarse.
-        </span>
-      </summary>
+  // A la vista (en su pestaña) se carga al montarse; plegada, al abrirla.
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- cargar al montar, mismo patrón que el resto del panel.
+  useEffect(() => { if (!plegable && periodos === null) void iniciar(); }, [plegable, periodos, iniciar]);
 
-      <div className="mt-3">
+  const cuerpo = (
+      <div className={plegable ? "mt-3" : ""}>
         {periodos !== null && periodos.length > 0 && (
           <div className="mb-3 max-w-sm">
             <CampoSelect etiqueta="Ciclo de pago" value={cicloId ?? ""}
@@ -143,8 +135,7 @@ export function AprobadasDelCiclo({
           <>
             {ciclo && (
               <p className="mb-2 text-xs text-taupe">
-                Lo que Desarrollo Organizacional aprobó entre el {fechaCorta(ciclo.fecha_ini)} y el {fechaCorta(ciclo.fecha_fin)}.
-                Una aprobación rechazada ya no aparece aquí: queda en el historial del estudio.
+                Lo aprobado entre el {fechaCorta(ciclo.fecha_ini)} y el {fechaCorta(ciclo.fecha_fin)}. Si rechazas una, pasa al historial.
               </p>
             )}
             <ul className="flex flex-col divide-y divide-sand text-sm">
@@ -188,7 +179,9 @@ export function AprobadasDelCiclo({
           </>
         )}
       </div>
+  );
 
+  const modal = (
       <Modal abierto={revirtiendo !== null} onCerrar={cerrarRechazo} bloqueado={trabajando}
         titulo="Rechazar una constancia ya aprobada" ancho="md">
         {revirtiendo && (
@@ -215,6 +208,25 @@ export function AprobadasDelCiclo({
           </>
         )}
       </Modal>
+  );
+
+  if (!plegable) return <section>{cuerpo}{modal}</section>;
+  return (
+    <details className="mb-5 rounded-2xl border border-sand bg-papel p-4" open={abierta}
+      onToggle={(e) => {
+        const abre = e.currentTarget.open;
+        setAbierta(abre);
+        if (abre && periodos === null) void iniciar();
+      }}>
+      <summary className="cursor-pointer font-serif text-base">
+        Aprobadas en el ciclo de pago
+        {filas !== null && <span className="ml-2 text-sm text-taupe">· {filas.length}</span>}
+        <span className="block font-sans text-xs text-taupe">
+          A quién aprobamos, su constancia a la vista, y rechazar la que no debió aprobarse.
+        </span>
+      </summary>
+      {cuerpo}
+      {modal}
     </details>
   );
 }

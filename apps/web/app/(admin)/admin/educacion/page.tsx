@@ -24,7 +24,7 @@ import {
 } from "@/lib/admin/educacion-grupos";
 import {
   CLAVES_DE_URL, FILTROS_VACIOS, MESES_INICIALES, MESES_POR_PASO, agruparEstudios, conteoTarjetas, entregaPasaFiltros,
-  entregasDeEstudio, filtrosAUrl, filtrosDeUrl, mesLargo, mesesConConstancia, mesesConDatosDeLaVentana,
+  entregasDeEstudio, filtrosAUrl, filtrosDeUrl, mesesConConstancia, mesesConDatosDeLaVentana,
   montoMensual, pasaFiltros, resumenPorSede, sedesDe, ventanaParaFiltros, mesDe, sumarMeses,
   type CoberturaMes, type ContextoDeFiltros, type Estudio, type Filtros,
 } from "@/lib/admin/educacion-meses";
@@ -34,7 +34,6 @@ import { armarZip, descargarBlob, extensionDeArchivo, nombreEnZip, nombreLegible
 import { Boton } from "@/components/ui/boton";
 import { Campo, CampoSelect } from "@/components/ui/campo";
 import { AreaTexto } from "@/components/ui/area-texto";
-import { Cifra } from "@/components/ui/cifra";
 import { EstadoVacio } from "@/components/ui/estado-vacio";
 import { Insignia } from "@/components/ui/insignia";
 import { Modal } from "@/components/ui/modal";
@@ -162,6 +161,9 @@ function EducacionContenido() {
   const [filtros, setFiltros] = useState<Filtros>(() => filtrosDeUrl(params));
   const cambiar = useCallback((parcial: Partial<Filtros>) => setFiltros((f) => ({ ...f, ...parcial })), []);
   const [mesesPedidos, setMesesPedidos] = useState(MESES_INICIALES);
+  // Cuatro pestañas en vez de siete bloques apilados (Felipe, 2026-10-17: «más intuitivo y no tan
+  // amontonado de texto»). Lo de todos los días —las constancias— es la primera y la que se abre.
+  const [vista, setVista] = useState<Vista>(() => (VISTAS.some((v) => v.clave === params.get("vista")) ? params.get("vista") as Vista : "constancias"));
   const [descargando, setDescargando] = useState(false);
 
   // Las constancias de TODOS los estudios, para dibujar la cuadrícula de meses. null = todavía llegando.
@@ -732,6 +734,9 @@ function EducacionContenido() {
       <main className="flex-1 p-4 sm:p-6">
         <CabeceraPagina
           titulo="Educación"
+          descripcion={puedeGestionar && !cargando
+            ? `${apoyosPagandose} apoyo${apoyosPagandose === 1 ? "" : "s"} pagándose · ${soles(totalMensual)} al mes`
+            : undefined}
           accion={puedeGestionar ? (
             <Boton variante="primario"
               onClick={(e) => { botonRegistrar.current = e.currentTarget; empezarAlta(); }}>
@@ -746,11 +751,6 @@ function EducacionContenido() {
           </div>
         ) : (
           <>
-            <p className="mb-5 max-w-3xl text-sm text-taupe">
-              Gestiona los apoyos educativos y las constancias que los sustentan. Aprobar o rechazar una constancia no
-              cambia lo que se paga: es el respaldo de que el apoyo no es remuneración.
-            </p>
-
             {cargaError && (
               <div className="mb-4 max-w-3xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo-profundo">
                 {cargaError} <Boton variante="enlace" onClick={() => void cargar()}>Reintentar</Boton>
@@ -769,52 +769,54 @@ function EducacionContenido() {
                   </div>
                 )}
 
-                {/* ── RESUMEN: cinco cifras que cuentan lo MISMO que se dibuja abajo ─ */}
-                {/* «Rechazadas» espera a la integrante —le toca enviar la corregida—, así que no pide
-                    «atender» a Desarrollo Organizacional. Un cero no pinta punto: callado, está bien. */}
-                <div className="mb-3 grid grid-cols-2 gap-3 lg:grid-cols-5">
-                  {([
-                    ["pendientes", "Pendientes de revisión", conteo.pendientes, "informativo", undefined],
-                    ["vencidas", "Constancias vencidas", conteo.vencidas, "alerta", undefined],
-                    ["por_vencer", "Por vencer", conteo.por_vencer, "advertencia", undefined],
-                    ["rechazadas", "Constancias rechazadas", conteo.rechazadas, undefined, "esperando a la integrante"],
-                    ["pagos", `Pagos en ${config.avisoDo} días`, conteo.pagos, undefined, undefined],
-                  ] as const).map(([clave, etiqueta, n, tono, detalle]) => (
-                    <Cifra key={clave} etiqueta={etiqueta} valor={n} tono={n > 0 ? tono : undefined}
-                      detalle={n > 0 ? detalle : undefined} activa={filtros.tarjeta === clave}
-                      onClick={() => cambiar({ tarjeta: filtros.tarjeta === clave ? null : clave })} />
-                  ))}
-                </div>
+                {/* ── PESTAÑAS ─────────────────────────────────────────────────────── */}
+                <nav aria-label="Secciones de Educación" className="-mx-4 mb-5 flex gap-1 overflow-x-auto border-b border-sand px-4 sm:mx-0 sm:px-0 [scrollbar-width:none]">
+                  {VISTAS.map((v) => {
+                    const n = v.clave === "constancias" ? conteo.pendientes + solicitudesPendientes.length : 0;
+                    return (
+                      <button key={v.clave} type="button" aria-current={vista === v.clave ? "page" : undefined}
+                        onClick={() => setVista(v.clave)}
+                        className={`-mb-px flex shrink-0 items-center gap-1.5 border-b-2 px-3 py-2 text-sm transition-colors duration-150 ${
+                          vista === v.clave ? "border-tinta font-medium text-tinta" : "border-transparent text-taupe hover:text-tinta"}`}>
+                        {v.etiqueta}
+                        {n > 0 && <span className="rounded-full bg-rojo px-1.5 text-[11px] leading-4 text-crema">{n}</span>}
+                      </button>
+                    );
+                  })}
+                </nav>
 
-                <p className="mb-5 text-xs text-taupe">
-                  <strong className="font-medium text-tinta">
-                    {[filtros.sede || (sedes.length > 1 ? "Todas las sedes" : sedes[0] ?? ""), filtros.mes && `pagos de ${mesLargo(filtros.mes)}`]
-                      .filter(Boolean).join(" · ")}
-                  </strong>
-                  {(filtros.buscar.trim() || filtros.estado || filtros.institucion || filtros.quien || filtros.tipo || filtros.revisor
-                    || filtros.desde || filtros.hasta || filtros.vigencia !== "activas") && " · con tus filtros"}
-                  {" · "}{apoyosPagandose} apoyo{apoyosPagandose === 1 ? "" : "s"} pagándose · suman {soles(totalMensual)} al mes
-                  {conteo.sinCalendario > 0 && (
-                    <> · <Boton variante="enlace" className="text-xs" onClick={() => cambiar({ estado: "sin_calendario", tarjeta: null, grupo: null })}>
+                {vista === "constancias" && (<>
+                {/* ── PARA ATENDER: solo lo que pide algo, en una línea. Un cero no se dibuja. ── */}
+                <ParaAtender
+                  items={[
+                    { clave: "pendientes", texto: `${conteo.pendientes} por revisar`, n: conteo.pendientes, tono: "pizarra" },
+                    { clave: "vencidas", texto: `${conteo.vencidas} vencida${conteo.vencidas === 1 ? "" : "s"}`, n: conteo.vencidas, tono: "rojo" },
+                    { clave: "por_vencer", texto: `${conteo.por_vencer} por vencer`, n: conteo.por_vencer, tono: "ambar" },
+                    { clave: "rechazadas", texto: `${conteo.rechazadas} rechazada${conteo.rechazadas === 1 ? "" : "s"}`, n: conteo.rechazadas, tono: "rojo" },
+                    { clave: "pagos", texto: `${conteo.pagos} pago${conteo.pagos === 1 ? "" : "s"} en ${config.avisoDo} días`, n: conteo.pagos, tono: "neutro" },
+                  ]}
+                  activa={filtros.tarjeta}
+                  alTocar={(clave) => cambiar({ tarjeta: filtros.tarjeta === clave ? null : clave as Filtros["tarjeta"] })}
+                  extra={conteo.sinCalendario > 0 ? (
+                    <button type="button" className="rounded-full border border-dashed border-taupe px-3 py-1 text-xs text-taupe hover:text-tinta"
+                      onClick={() => cambiar({ estado: "sin_calendario", tarjeta: null, grupo: null })}>
                       {conteo.sinCalendario} sin calendario de pagos
-                    </Boton></>
-                  )}
-                  {" · "}
-                  <Boton variante="enlace" className="text-xs" onClick={() => setConfigAbierta(true)}>Texto y plazos de las constancias</Boton>
-                </p>
+                    </button>
+                  ) : null}
+                />
 
                 {/* ── SOLICITUDES DE APOYO (0461): quien todavía no tiene asignación ── */}
                 {solicitudesPendientes.length > 0 && (
-                  <div className="mb-5 rounded-2xl border border-sand bg-hueso p-4">
-                    <h2 className="mb-2 font-serif text-base">
-                      Solicitudes de apoyo por revisar ({solicitudesPendientes.length})
+                  <div className="mb-4 rounded-2xl border border-pizarra/30 bg-pizarra/10 px-4 py-2">
+                    <h2 className="text-xs font-medium uppercase tracking-wide text-pizarra">
+                      Solicitudes de apoyo por revisar · {solicitudesPendientes.length}
                     </h2>
                     <ul className="flex flex-col divide-y divide-sand">
                       {solicitudesPendientes.map((s) => (
                         <li key={s.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
                           <span>
                             <span className="font-medium">{s.persona}</span>
-                            <span className="text-taupe"> · {s.sede} · {s.institucion} · costo declarado {soles(s.costo_declarado)}</span>
+                            <span className="text-taupe"> · {s.institucion} · {soles(s.costo_declarado)}</span>
                           </span>
                           <Boton tamano="sm" variante="primario"
                             onClick={(e) => { botonSolicitud.current = e.currentTarget; setSolicitudAbierta(s.id); }}>
@@ -825,13 +827,6 @@ function EducacionContenido() {
                     </ul>
                   </div>
                 )}
-
-                {/* ── APROBADAS DEL CICLO (0525): a quién aprobamos y cómo se corrige un error ── */}
-                <AprobadasDelCiclo
-                  miPersonaId={persona?.id ?? null}
-                  onCambio={async (texto) => { avisar("ok", texto); await cargar(); }}
-                  onError={(texto) => avisar("error", texto)}
-                />
 
                 {/* ── FILTROS: sede primero, después el grupo, y las herramientas ──── */}
                 <BarraFiltros
@@ -902,8 +897,27 @@ function EducacionContenido() {
                   />
                 )}
 
+                </>)}
+
+                {vista === "aprobadas" && (
+                  <AprobadasDelCiclo
+                    plegable={false}
+                    miPersonaId={persona?.id ?? null}
+                    onCambio={async (texto) => { avisar("ok", texto); await cargar(); }}
+                    onError={(texto) => avisar("error", texto)}
+                  />
+                )}
+
+                {vista === "historial" && (<>
+                  <HistorialEducacion modo="general" />
+                </>)}
+
+                {vista === "ayuda" && (<>
+                <div className="mb-4">
+                  <Boton variante="secundario" tamano="sm" onClick={() => setConfigAbierta(true)}>Texto y plazos de las constancias</Boton>
+                </div>
                 {/* ── CÓMO FUNCIONA y DÓNDE ESTÁN: lo que pregunta quien llega nuevo o audita ── */}
-                <div className="mb-5 mt-8 grid gap-3 lg:grid-cols-2">
+                <div className="mb-5 grid gap-3 lg:grid-cols-2">
                   <details className="rounded-2xl border border-sand p-4">
                     <summary className="cursor-pointer font-serif text-base">Cómo funciona el incentivo de educación</summary>
                     <div className="mt-3 space-y-3 text-sm">
@@ -997,11 +1011,11 @@ function EducacionContenido() {
                   </details>
                 </div>
 
-                {/* ── HISTORIAL DE EDUCACIÓN (0529): todo lo que pasó, de todas las personas ── */}
-                <HistorialGeneral />
+                </>)}
 
-                {/* ── HISTORIAL DE SOLICITUDES (0461): aprobadas y rechazadas ──── */}
-                <details className="mb-5 rounded-2xl border border-sand p-4"
+                {/* ── HISTORIAL DE SOLICITUDES (0461): aprobadas y rechazadas, debajo del general ── */}
+                {vista === "historial" && (
+                <details className="mt-6 rounded-2xl border border-sand p-4"
                   onToggle={(e) => { if (e.currentTarget.open) void cargarHistorialSolicitudes(); }}>
                   <summary className="cursor-pointer font-serif text-base">Historial de solicitudes de apoyo</summary>
                   <div className="mt-3">
@@ -1036,6 +1050,7 @@ function EducacionContenido() {
                     )}
                   </div>
                 </details>
+                )}
               </>
             )}
           </>
@@ -1542,16 +1557,43 @@ export default function EducacionPage() {
   );
 }
 
-// El historial general va plegado y se monta recién al abrirlo: no se pide nada que nadie miró.
-function HistorialGeneral() {
-  const [abierto, setAbierto] = useState(false);
+type Vista = "constancias" | "aprobadas" | "historial" | "ayuda";
+const VISTAS: { clave: Vista; etiqueta: string }[] = [
+  { clave: "constancias", etiqueta: "Constancias" },
+  { clave: "aprobadas", etiqueta: "Aprobadas del ciclo" },
+  { clave: "historial", etiqueta: "Historial" },
+  { clave: "ayuda", etiqueta: "Cómo funciona" },
+];
+
+const TONO_ATENDER = {
+  pizarra: "border-pizarra/40 bg-pizarra/10 text-pizarra",
+  rojo: "border-rojo/30 bg-rojo/10 text-rojo-profundo",
+  ambar: "border-ambar/40 bg-ambar/15 text-ambar",
+  neutro: "border-sand bg-papel text-tinta",
+} as const;
+
+/**
+ * Lo que pide algo hoy, en UNA línea de pastillas que filtran al tocarlas. Reemplaza a las cinco
+ * tarjetas grandes: un cero no se dibuja, y si no hay nada pendiente lo dice en tres palabras.
+ */
+function ParaAtender({ items, activa, alTocar, extra }: {
+  items: { clave: string; texto: string; n: number; tono: keyof typeof TONO_ATENDER }[];
+  activa: string | null;
+  alTocar: (clave: string) => void;
+  extra: React.ReactNode;
+}) {
+  const con = items.filter((x) => x.n > 0 || x.clave === activa);
   return (
-    <details className="mb-5 rounded-2xl border border-sand p-4" onToggle={(e) => setAbierto(e.currentTarget.open)}>
-      <summary className="cursor-pointer font-serif text-base">
-        Historial de Educación
-        <span className="block font-sans text-xs text-taupe">Todo lo que pasó, de todas las personas: solicitudes, apoyos, constancias, aprobaciones y rechazos.</span>
-      </summary>
-      {abierto && <div className="mt-3"><HistorialEducacion modo="general" /></div>}
-    </details>
+    <div className="mb-4 flex flex-wrap items-center gap-2">
+      <span className="text-xs font-medium uppercase tracking-wide text-taupe">Para atender</span>
+      {con.length === 0 && !extra ? <span className="text-sm text-verde">Nada pendiente</span> : con.map((x) => (
+        <button key={x.clave} type="button" aria-pressed={activa === x.clave} onClick={() => alTocar(x.clave)}
+          className={`rounded-full border px-3 py-1 text-xs font-medium tabular-nums transition-shadow duration-150 ${TONO_ATENDER[x.tono]} ${
+            activa === x.clave ? "ring-2 ring-tinta" : ""}`}>
+          {x.texto}
+        </button>
+      ))}
+      {extra}
+    </div>
   );
 }
