@@ -78,11 +78,11 @@ export function CasillaMes({
 }: {
   casilla: Casilla;
   persona: string;
-  /** Las constancias todavía están llegando: no se puede decir «vacía». */
+  /** Las constancias de este mes todavía están llegando: no se puede decir «vacía». */
   cargando: boolean;
   /**
-   * Las constancias de este estudio NO se pudieron leer. Una casilla sin constancia en ese caso no es
-   * «sin constancia» sino «no se sabe»: se dibuja como tal. Si hay una constancia leída antes, se ve normal.
+   * Las constancias de este mes NO se pudieron leer (llegan por meses). Una casilla sin constancia en ese
+   * caso no es «sin constancia» sino «no se sabe»: se dibuja como tal. Si hay una leída antes, se ve normal.
    */
   sinLeer: boolean;
   resaltada: boolean;
@@ -111,8 +111,8 @@ export function CasillaMes({
   if ((!e || casilla.estado === "vacia") && sinLeer) {
     return (
       <div className={`flex justify-center py-2 ${fondo}`}>
-        <div role="img" aria-label={`${corto} ${anio}: no se pudieron leer las constancias de este estudio`}
-          title="No se pudieron leer las constancias de este estudio. Usa «Reintentar» arriba."
+        <div role="img" aria-label={`${corto} ${anio}: no se pudieron leer las constancias de este mes`}
+          title="No se pudieron leer las constancias de este mes. Usa «Reintentar» arriba."
           className="flex size-8 items-center justify-center rounded-full border border-dashed border-ambar text-sm font-medium text-ambar">?</div>
       </div>
     );

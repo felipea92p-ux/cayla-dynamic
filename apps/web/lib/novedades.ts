@@ -115,6 +115,19 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-10-17-educacion-meses-anteriores-y-siguientes",
+    fecha: "2026-10-17",
+    titulo: "En Educación ahora se avanza y se retrocede por los meses",
+    queMejoro:
+      "La cuadrícula de constancias tiene «← Meses anteriores» y «Meses siguientes →», de seis en seis: puedes " +
+      "ir al pasado y volver sin recargar la pantalla, y llegar a los meses que cubre un pago adelantado más allá " +
+      "de lo que se ve al abrir.\n\n" +
+      "La pantalla trae solo los meses que estás mirando y pide los demás cuando te mueves, así abre más rápido " +
+      "aunque haya mucha gente. Mientras un mes llega, sus casillas esperan; si no se pudo traer, se ven con «?» " +
+      "y arriba aparece «Reintentar».",
+    audiencia: "do",
+  },
+  {
     id: "2026-10-17-tu-boleta-de-pago-se-firma-desde-dynamic",
     fecha: "2026-10-17",
     titulo: "Tu boleta de pago ahora se firma desde Dynamic",
