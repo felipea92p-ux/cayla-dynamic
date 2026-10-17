@@ -38,7 +38,9 @@
 #   cajon    fixed inset-y-0 right-0                            → <Drawer>
 #
 # El detalle de cada receta —qué tokens, qué se exime y por qué— está en
-# receta-suelta.py. La deuda, hoy: 119 + 18 + 29 + 79 + 36 + 18 + 21 + 20 + 1.
+# receta-suelta.py. La deuda, el 2026-10-17 y ya con la migración de Lo mío,
+# Personas, Casos, Normas y Política salarial dentro (#552), en ese orden:
+# 69 + 16 + 29 + 79 + 20 + 16 + 20 + 20 + 1 = 270 recetas en 82 archivos.
 #
 # EL SEGUNDO BARRIDO (lo que el ADR pidió antes de poner el freno: «un freno
 # sobre un inventario incompleto bloquea lo equivocado»). Se buscaron cuatro
@@ -57,11 +59,11 @@
 #     `fixed bottom-` suelto fuera de él. Lo que antes eran banners de resultado
 #     ya cae en la familia banner.
 #   · PESTAÑAS — NO ENTRA. El ADR las unió con los filtros (decisión 10) pero
-#     las 4 tablist del panel son pestañas SUBRAYADAS (ausencias, disciplina,
-#     personas/[id], planilla) y solo 1 es un segmentado: <Filtro> no es el
-#     destino de ninguna de las 4. Bloquear sin destino es bloquear lo
-#     equivocado. Falta una decisión: ¿<Filtro> con otra cara, o una
-#     <Pestanas>? Queda en el ADR como pendiente.
+#     de las 5 tablist del panel, 4 son pestañas SUBRAYADAS (ausencias,
+#     disciplina, personas/[id], planilla) y solo 1 es un segmentado
+#     (provisiones): <Filtro> no es el destino de las 4. Bloquear sin destino
+#     es bloquear lo equivocado. Falta una decisión: ¿<Filtro> con otra cara,
+#     o una <Pestanas>? Queda en el ADR como pendiente.
 #
 # Y lo que se dejó fuera adrede:
 #   · <Insignia> y <Modal>: son anteriores al ADR; ampliar es barato si se pide.
@@ -71,11 +73,12 @@
 #   · el terminal y components/ui: ADR 0004, «el terminal queda fuera».
 #   · components/cargando.tsx y components/toast.tsx: son la casa de dos recetas.
 #
-# SOLO LO QUE EL PUSH AGREGA, y esa es la razón de que sirva. Hay 166 tarjetas
-# a mano en 61 archivos y 241 <button> a mano: exigirlos frenaría todos los
-# push, incluidos los que no tienen nada que ver, y en una semana se estaría
-# usando --no-verify por costumbre. Es la lección de numeracion.sh,
-# reglas-de-la-casa.sh y lint-de-lo-nuevo.sh, que llevan escrita en su cabecera.
+# SOLO LO QUE EL PUSH AGREGA, y esa es la razón de que sirva. Quedan 270 recetas
+# a mano (y, contadas con un criterio más ancho, 166 tarjetas en 61 archivos y
+# 241 <button>): exigirlas frenaría todos los push, incluidos los que no tienen
+# nada que ver, y en una semana se estaría usando --no-verify por costumbre. Es
+# la lección de numeracion.sh, reglas-de-la-casa.sh y lint-de-lo-nuevo.sh, que
+# llevan escrita en su cabecera.
 #
 # Y «agrega» quiere decir MÁS recetas, no una línea distinta. Se compara por
 # hunk del diff: si una línea que ya tenía la receta solo cambió (un hotfix que
@@ -84,6 +87,18 @@
 # escribió es un freno que se salta. Lo que SÍ cuenta: un archivo nuevo, y una
 # receta que aparece donde no había ninguna. Lo que no ve: mover una tarjeta de
 # un archivo a otro cuenta como nueva (se dice con receta-propia: o se migra).
+#
+# MEDIDO CONTRA LA HISTORIA (2026-10-17): cada merge de main simulado como un push
+# contra su primer padre, con  LINT_BASE="$sha^1" RECETA_HEAD="$sha" ./receta-suelta.sh
+#   · los últimos 30 merges: 6 habrían frenado (20 %). Los 6 sumaban recetas
+#     de verdad —los 4 del rediseño de Educación, las modales de Boletas y la
+#     tarjeta de cumpleaños—; ninguno era un arreglo.
+#   · los últimos 30 commits sueltos: 1 (las modales de Boletas).
+#   · los últimos 150 merges (15-sep → 17-oct): 36 (24 %). De 175 hallazgos,
+#     9 (5 %) eran código MOVIDO a otro archivo, no escrito: ese es el falso
+#     positivo que se acepta y que se resuelve con `receta-propia:` o migrando.
+#     Comparar por hunk sacó a 3 pushes que solo tocaban una línea vieja.
+#   · el #552 (la migración de cinco secciones, que quitó 71 recetas) pasa.
 #
 # BLOQUEA, no avisa: esto habla de lo que SALE hacia GitHub, no de lo que hay a
 # medio escribir en el disco; lee cada archivo de git (HEAD:ruta), nunca del

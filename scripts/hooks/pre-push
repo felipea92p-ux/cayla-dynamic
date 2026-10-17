@@ -114,7 +114,7 @@ echo "→ fechas que arrancan vacías…"
 # la tarjeta escrita a mano: la pantalla de al lado tiene la receta vieja y
 # copiarla es lo que menos cuesta. Mismo patrón que "rol" y "America/Lima".
 #
-# Solo juzga lo que el push AGREGA: hay 166 tarjetas a mano en 61 archivos y
+# Solo juzga lo que el push AGREGA: quedan 270 recetas a mano en 82 archivos y
 # frenar por ellas volvería este freno un trámite. Una línea vieja que solo
 # cambió tampoco cuenta; ver su cabecera para esa y para la salida legítima
 # (`receta-propia: <motivo>`). Bloquea. Su prueba: probar-receta-suelta.sh.
