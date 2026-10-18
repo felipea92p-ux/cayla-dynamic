@@ -5,15 +5,17 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { hoyLima } from "@cayla-dynamic/shared";
 import { Cargando } from "@/components/cargando";
 import { useToast } from "@/components/toast";
+import { BannerAviso } from "@/components/ui/banner-aviso";
 import { Boton } from "@/components/ui/boton";
 import { Insignia } from "@/components/ui/insignia";
+import { TarjetaInfo } from "@/components/ui/tarjeta-info";
 import { abrirArchivoFirmado } from "@/lib/abrir-archivo-firmado";
 import { BUCKET_SEGUROS } from "@/lib/admin/seguros";
 import { isoADiaMesAnio } from "@/lib/admin/planilla/formato";
 import {
   datosConfirmados, enlaceTelefono, guiasQueAplican, nombreDeDescarga, resolverMiSeguro, rotuloDeArchivo,
-  textoDelResumen, traerMiSeguro, type ArchivoMio, type GuiaDeUso, type MiSeguro as MiSeguroCalculado, type PolizaMia,
-  type SeguroPrincipal,
+  SI_NO_CUADRA, textoDelResumen, traerMiSeguro, type ArchivoMio, type GuiaQueAplica, type MiSeguro as MiSeguroCalculado,
+  type PolizaMia, type SeguroPrincipal,
 } from "@/lib/mi-seguro";
 import { descargarArchivoDeSeguro } from "@/lib/mi-seguro-archivos";
 import { formatSoles } from "@/lib/rangos";
@@ -26,14 +28,14 @@ import { pesoLegible } from "@/lib/reducir-imagen";
  * solo cuando se abre.
  *
  * ES DE TODO EL EQUIPO (Felipe, 2026-10-17). Cada colaborador ve el suyo: FOLA con su póliza,
- * EsSalud «por planilla», el que DO le asigne. La puerta es «es MI póliza», no «hoy estoy en ese
- * seguro»: quien cambió de seguro conserva las pólizas del anterior y sus PDF. Lo que cada
- * persona puede ver lo decide la base (`fn_mi_seguro`, `fn_mis_polizas` y la política de
- * Storage de la 0530); esta pantalla solo dibuja.
+ * EsSalud «lo gestiona la empresa con la planilla», el que DO le asigne. La puerta es «es MI
+ * póliza», no «hoy estoy en ese seguro»: quien cambió de seguro conserva las pólizas del anterior y
+ * sus PDF. Lo que cada persona puede ver lo decide la base (`fn_mi_seguro`, `fn_mis_polizas` y la
+ * política de Storage de la 0530); esta pantalla solo dibuja.
  *
  * UN SEGURO SIN PÓLIZA NO SE EXPLICA. Para EsSalud la pantalla dice solo lo que la base sabe: el
- * nombre del seguro y que va por planilla, sin póliza que ver. El texto final lo decide Felipe,
- * y no se inventan explicaciones de lo que no se tiene a mano.
+ * nombre del seguro y que lo gestiona la empresa con la planilla, sin póliza ni PDF. El texto lo
+ * eligió Felipe; no se inventan explicaciones de lo que no se tiene a mano.
  *
  * LO QUE NO MUESTRA, A PROPÓSITO. El plan y el «máximo anual» mientras el corredor no los
  * confirme (la base manda null y aquí no se pinta ni un «pendiente»), y nada del papeleo de DO:
@@ -73,8 +75,11 @@ function TarjetaPoliza({
   onDescargar: (p: PolizaMia, a: ArchivoMio) => void;
 }) {
   const datos = datosConfirmados(p, formatSoles);
+  // Todas las tarjetas van sobre `bg-papel`: las insignias de estado se midieron sobre crema y papel, y
+  // sobre `hueso` («Vigente» 4.40:1, «Empieza el…» 4.28:1) quedaban bajo el 4.5:1 de WCAG AA. La actual se
+  // distingue por su borde, no por el fondo.
   return (
-    <div className={`rounded-xl border border-sand px-4 py-4 ${esActual ? "bg-papel" : "bg-hueso"}`}>
+    <div className={`rounded-xl border bg-papel px-4 py-4 ${esActual ? "border-tinta/30" : "border-sand"}`}>
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="font-medium text-tinta">
@@ -84,11 +89,12 @@ function TarjetaPoliza({
             <span className="font-normal text-taupe"> · {p.aseguradora}</span>
           </p>
           <p className="mt-0.5 text-taupe">
-            Del {fecha(p.vigente_desde)} al {fecha(p.vigente_hasta)}, hasta las 12 M
+            Del {fecha(p.vigente_desde)} al {fecha(p.vigente_hasta)}, hasta las 12 del mediodía
           </p>
         </div>
         {p.cubre_hoy ? <Insignia variante="positivo" tamano="sm">Vigente</Insignia>
           : p.vigente_desde > hoy ? <Insignia variante="informativo" tamano="sm">Empieza el {fecha(p.vigente_desde)}</Insignia>
+          : p.vigente_hasta === hoy ? <Insignia variante="advertencia" tamano="sm">Termina hoy</Insignia>
           : <Insignia variante="neutral" tamano="sm">Vencida</Insignia>}
       </div>
 
@@ -105,27 +111,30 @@ function TarjetaPoliza({
 
       {p.archivos.length > 0 ? (
         <>
-          <ul className="mt-3 divide-y divide-sand border-t border-sand">
-            {p.archivos.map((a) => (
-              <li key={a.id} className="flex flex-col gap-2 py-2 sm:flex-row sm:items-center sm:justify-between">
-                <span className="min-w-0 text-tinta">
-                  {rotuloDeArchivo(a, p.archivos)}
-                  {a.bytes > 0 && <span className="text-taupe"> · {pesoLegible(a.bytes)}</span>}
-                </span>
-                <span className="grid grid-cols-2 gap-2 sm:flex sm:shrink-0">
-                  <Boton variante="secundario" className="min-h-11 w-full sm:w-auto"
-                    cargando={ocupada === `abrir:${a.id}`} disabled={ocupada !== null}
-                    onClick={() => onAbrir(a)}>
-                    Abrir
-                  </Boton>
-                  <Boton variante="secundario" className="min-h-11 w-full sm:w-auto"
-                    cargando={ocupada === `descargar:${a.id}`} disabled={ocupada !== null}
-                    onClick={() => onDescargar(p, a)}>
-                    Descargar
-                  </Boton>
-                </span>
-              </li>
-            ))}
+          <ul className="mt-3 divide-y divide-sand border-t border-sand" aria-busy={ocupada !== null}>
+            {p.archivos.map((a) => {
+              const rotulo = rotuloDeArchivo(a, p.archivos);
+              return (
+                <li key={a.id} className="flex flex-col gap-2 py-2 sm:flex-row sm:items-center sm:justify-between">
+                  <span className="min-w-0 text-tinta">
+                    {rotulo}
+                    {a.bytes > 0 && <span className="text-taupe"> · {pesoLegible(a.bytes)}</span>}
+                  </span>
+                  <span className="grid grid-cols-2 gap-2 sm:flex sm:shrink-0">
+                    <Boton variante="secundario" className="min-h-11 w-full sm:w-auto" aria-label={`Abrir ${rotulo}`}
+                      cargando={ocupada === `abrir:${a.id}`} disabled={ocupada !== null}
+                      onClick={() => onAbrir(a)}>
+                      Abrir
+                    </Boton>
+                    <Boton variante="secundario" className="min-h-11 w-full sm:w-auto" aria-label={`Descargar ${rotulo}`}
+                      cargando={ocupada === `descargar:${a.id}`} disabled={ocupada !== null}
+                      onClick={() => onDescargar(p, a)}>
+                      Descargar
+                    </Boton>
+                  </span>
+                </li>
+              );
+            })}
           </ul>
           <p className="mt-1 text-xs text-taupe">
             El PDF lleva tus datos personales. Si lo descargas en un equipo que no es solo tuyo, bórralo después.
@@ -142,10 +151,18 @@ function TarjetaPoliza({
   );
 }
 
-function ComoUsarlo({ nombre, guia }: { nombre: string; guia: GuiaDeUso }) {
+function ComoUsarlo({ g, nombrePrincipal }: { g: GuiaQueAplica; nombrePrincipal: string | null }) {
+  const { guia } = g;
   return (
-    <section className="rounded-2xl border border-sand p-5 text-sm">
-      <h2 className="mb-1 font-serif text-lg">Cómo usar tu seguro ({nombre})</h2>
+    <TarjetaInfo como="section" titulo={`Cómo usar tu póliza ${g.nombre}`} className="text-sm">
+      {/* Con un seguro principal distinto (pasó de FOLA a EsSalud y la póliza sigue vigente hasta la baja) no se
+          muestran dos «tu seguro» sin explicar. */}
+      {!g.esPrincipal && (
+        <p className="mb-2 text-taupe">
+          {nombrePrincipal ? `Tu seguro principal ahora es ${nombrePrincipal}. ` : ""}
+          Esta póliza sigue registrada hasta que {guia.aseguradora} procese la baja.
+        </p>
+      )}
       <ul className="mt-3 space-y-3">
         {guia.pasos.map((paso) => (
           <li key={paso.clave}>
@@ -156,12 +173,10 @@ function ComoUsarlo({ nombre, guia }: { nombre: string; guia: GuiaDeUso }) {
         {guia.telefonos.length > 0 && (
           <li>
             <p className="font-medium text-tinta">Teléfonos de {guia.aseguradora}</p>
-            <p className="text-taupe">
-              {guia.telefonos.map((t, i) => (
-                <span key={t}>
-                  {i > 0 && " · "}
-                  <a href={enlaceTelefono(t)} className="text-tinta underline underline-offset-2 hover:text-rojo-profundo">{t}</a>
-                </span>
+            {/* Cada número es un blanco para el dedo: sin altura propia quedaba en ~20 px, bajo los 44 del resto. */}
+            <p className="flex flex-wrap gap-x-4 text-taupe">
+              {guia.telefonos.map((t) => (
+                <a key={t} href={enlaceTelefono(t)} className="inline-flex min-h-11 items-center text-tinta underline underline-offset-2 hover:text-rojo-profundo">{t}</a>
               ))}
             </p>
           </li>
@@ -170,7 +185,7 @@ function ComoUsarlo({ nombre, guia }: { nombre: string; guia: GuiaDeUso }) {
 
       {guia.noCubre.length > 0 && (
         <>
-          <h3 className="mb-1 mt-5 font-medium text-tinta">Lo que esta póliza no cubre</h3>
+          <h3 className="mb-1 mt-5 font-medium text-tinta">Algunas cosas que NO cubre (no es la lista completa)</h3>
           <ul className="list-disc space-y-0.5 pl-5 text-taupe">
             {guia.noCubre.map((x) => <li key={x}>{x}</li>)}
           </ul>
@@ -179,9 +194,9 @@ function ComoUsarlo({ nombre, guia }: { nombre: string; guia: GuiaDeUso }) {
 
       <p className="mt-5 border-t border-sand pt-3 text-xs text-taupe">
         Esto es un resumen. Lo que vale es tu póliza en PDF; si tienes dudas, llama a {guia.aseguradora} o pregunta
-        a Desarrollo Organizacional.
+        a Desarrollo Organizacional. {SI_NO_CUADRA}
       </p>
-    </section>
+    </TarjetaInfo>
   );
 }
 
@@ -191,6 +206,8 @@ export function MiSeguro() {
   const supabase = useMemo(() => createAdminSupabaseClient(), []);
   const { avisar } = useToast();
   const [carga, setCarga] = useState<{ principal: SeguroPrincipal | null; polizas: PolizaMia[]; error: string | null } | null>(null);
+  // Cambiarlo vuelve a pedir los datos: el «Reintentar» del error de lectura.
+  const [intento, setIntento] = useState(0);
   // UNA sola acción a la vez: mientras un archivo se abre o se baja, los demás botones esperan.
   const [ocupada, setOcupada] = useState<string | null>(null);
 
@@ -198,41 +215,59 @@ export function MiSeguro() {
     let vivo = true;
     void traerMiSeguro(supabase).then((r) => { if (vivo) setCarga(r); });
     return () => { vivo = false; };
-  }, [supabase]);
+  }, [supabase, intento]);
 
   const hoy = hoyLima();
   const seguro = useMemo(() => (carga ? resolverMiSeguro(carga.principal, carga.polizas, hoy) : null), [carga, hoy]);
 
   async function abrir(a: ArchivoMio) {
     setOcupada(`abrir:${a.id}`);
-    // `abrirArchivoFirmado` abre la pestaña ANTES de esperar la firma, dentro del clic: ver el
-    // comentario de ese archivo.
-    const fallo = await abrirArchivoFirmado(supabase, BUCKET_SEGUROS, a.storage_path, 120);
-    setOcupada(null);
-    if (fallo) avisar("error", fallo);
+    try {
+      // `abrirArchivoFirmado` abre la pestaña ANTES de esperar la firma, dentro del clic: ver el
+      // comentario de ese archivo.
+      const fallo = await abrirArchivoFirmado(supabase, BUCKET_SEGUROS, a.storage_path, 120);
+      if (fallo) avisar("error", fallo);
+    } catch {
+      avisar("error", "No se pudo abrir el archivo. Vuelve a intentarlo.");
+    } finally {
+      setOcupada(null);
+    }
   }
 
   async function descargar(p: PolizaMia, a: ArchivoMio) {
     setOcupada(`descargar:${a.id}`);
-    const fallo = await descargarArchivoDeSeguro(supabase, a.storage_path, nombreDeDescarga(a, p));
-    setOcupada(null);
-    if (fallo) avisar("error", fallo);
+    try {
+      const nombre = nombreDeDescarga(a, p);
+      const fallo = await descargarArchivoDeSeguro(supabase, a.storage_path, nombre);
+      // Sin este aviso la persona no sabe si bajó, y toca dos veces.
+      if (fallo) avisar("error", fallo);
+      else avisar("ok", `Descargando «${nombre}»: búscalo en tus descargas.`);
+    } catch {
+      avisar("error", "No pudimos descargar el archivo. Vuelve a intentarlo.");
+    } finally {
+      setOcupada(null);
+    }
   }
 
   if (!carga || !seguro) {
     return (
-      <section className="rounded-2xl border border-sand p-5 text-sm">
-        <h2 className="mb-1 font-serif text-lg">Mi seguro</h2>
+      <TarjetaInfo como="section" titulo="Mi seguro" className="text-sm">
         <Cargando texto="Cargando tu seguro…" />
-      </section>
+      </TarjetaInfo>
     );
   }
   if (carga.error) {
     return (
-      <section className="rounded-2xl border border-sand p-5 text-sm">
-        <h2 className="mb-1 font-serif text-lg">Mi seguro</h2>
-        <p className="text-taupe">{carga.error}</p>
-      </section>
+      <TarjetaInfo como="section" titulo="Mi seguro" className="text-sm">
+        <div role="alert">
+          <BannerAviso variante="alerta" enLinea>{carga.error}</BannerAviso>
+        </div>
+        <div className="mt-3">
+          <Boton variante="secundario" className="min-h-11" onClick={() => { setCarga(null); setIntento((n) => n + 1); }}>
+            Reintentar
+          </Boton>
+        </div>
+      </TarjetaInfo>
     );
   }
 
@@ -240,26 +275,25 @@ export function MiSeguro() {
     <TarjetaPoliza key={p.poliza_id} p={p} hoy={hoy} esActual={esActual} ocupada={ocupada}
       onAbrir={(a) => void abrir(a)} onDescargar={(x, a) => void descargar(x, a)} />
   );
-  const guias = guiasQueAplican(carga.polizas);
+  const guias = guiasQueAplican(carga.polizas, carga.principal?.tipo ?? null);
 
   return (
     <div className="space-y-4">
-      <section className="rounded-2xl border border-sand p-5 text-sm">
-        <h2 className="mb-1 font-serif text-lg">Mi seguro</h2>
+      <TarjetaInfo como="section" titulo="Mi seguro" className="text-sm">
         <p className="mb-4 text-taupe">En qué seguro estás y, si lleva póliza, lo que necesitas de ella.</p>
         <div className="space-y-3">
           <Resumen seguro={seguro} />
           {seguro.actual && poliza(seguro.actual, true)}
           {seguro.resto.length > 0 && (
             <>
-              <h3 className="pt-2 font-medium text-tinta">{seguro.actual ? "Otras pólizas" : "Tus pólizas"}</h3>
+              <h3 className="pt-2 font-medium text-tinta">{seguro.actual ? "Otras pólizas registradas" : "Tus pólizas"}</h3>
               {seguro.resto.map((p) => poliza(p, false))}
             </>
           )}
         </div>
-      </section>
+      </TarjetaInfo>
 
-      {guias.map((g) => <ComoUsarlo key={g.clave} nombre={g.nombre} guia={g.guia} />)}
+      {guias.map((g) => <ComoUsarlo key={g.clave} g={g} nombrePrincipal={seguro.tipo?.nombre ?? null} />)}
     </div>
   );
 }

@@ -39,7 +39,7 @@ import { Cargando } from "@/components/cargando";
 import { useToast } from "@/components/toast";
 import { AreaTexto } from "@/components/ui/area-texto";
 import { Boton } from "@/components/ui/boton";
-import { CampoSelect } from "@/components/ui/campo";
+import { CampoCasilla, CampoSelect } from "@/components/ui/campo";
 import { Insignia } from "@/components/ui/insignia";
 import { Modal } from "@/components/ui/modal";
 import { abrirArchivoFirmado } from "@/lib/abrir-archivo-firmado";
@@ -60,6 +60,12 @@ const dia = (ts: string) => isoADiaMesAnio(fechaLima(ts));
 
 /** Otra póliza de la misma póliza colectiva: su id y cómo nombrarla en un aviso (la persona). */
 export interface PolizaHermana { id: string; titulo: string }
+
+/** «Ana, Beto, Carla y 3 más»: a quiénes llegaría (o llegó) una copia, para que quien sube lo vea antes y después. */
+function nombresDe(hermanas: readonly PolizaHermana[], max = 6): string {
+  const nombres = hermanas.map((h) => h.titulo);
+  return nombres.length <= max ? nombres.join(", ") : `${nombres.slice(0, max).join(", ")} y ${nombres.length - max} más`;
+}
 
 export function ArchivosPoliza({
   abierto, onCerrar, supabase, polizaId, titulo, hermanas = [], onCambio,
@@ -116,8 +122,13 @@ function Cuerpo({
   const [msg, setMsg] = useState<string | null>(null);
   const [progreso, setProgreso] = useState<number | null>(null);
   const [subiendo, setSubiendo] = useState(false);
-  // En la póliza colectiva el papel es uno: por defecto se guarda también en las demás.
-  const [tambien, setTambien] = useState(true);
+  // En la póliza colectiva el papel es uno, pero copiarlo a las demás lo decide quien lo sube y nace SIN
+  // marcar: con un número mal tecleado una póliza individual puede parecer «hermana» de la de otra persona
+  // (misma aseguradora, número y fechas), y un PDF copiado ahí lo abriría esa persona en «Lo mío». Lo midió
+  // la revisión independiente de la 0530.
+  const [tambien, setTambien] = useState(false);
+  // Si el archivo lo va a ver cada persona, quien lo sube confirma que no lleva datos de las demás.
+  const [confirmado, setConfirmado] = useState(false);
   const [copiando, setCopiando] = useState<{ hechas: number; total: number } | null>(null);
   // Las copias que fallaron, con lo necesario para repetirlas sin volver a subir nada.
   const [faltanCopias, setFaltanCopias] = useState<{
@@ -125,6 +136,7 @@ function Cuerpo({
   } | null>(null);
   // Un «otro papel» puede ser de una sola persona: no se reparte (ver el encabezado).
   const seReparte = hermanas.length > 0 && tipo !== "otro";
+  const hayQueConfirmar = seReparte && tambien && loVeLaPersona(tipo);
 
   /** Copia el archivo ya guardado a cada destino, una por una; devuelve a las que NO llegó. */
   async function copiarEn(ruta: string, deQueTipo: TipoArchivoSeguro, nombre: string, destinos: PolizaHermana[]): Promise<PolizaHermana[]> {
@@ -142,6 +154,10 @@ function Cuerpo({
     if (!archivo) { setMsg("Elige el archivo: un PDF o una foto."); return; }
     const problema = problemaDeArchivo(archivo);
     if (problema) { setMsg(problema); return; }
+    if (hayQueConfirmar && !confirmado) {
+      setMsg(`Marca la confirmación de abajo: ${plural(hermanas.length, "persona más podrá", "personas más podrán")} abrir este archivo desde «Lo mío».`);
+      return;
+    }
 
     setSubiendo(true); onOcupado(true);
     // Pase lo que pase —un fallo de red a medias incluido— el diálogo se desbloquea al salir.
@@ -159,14 +175,17 @@ function Cuerpo({
     }
 
     // Con la póliza ya cambiada (o sin saber si cambió) la lista se recarga siempre.
-    setArchivo(null); setClaveInput((n) => n + 1);
+    // La copia a las demás pólizas se decide en cada archivo: vuelve a nacer sin marcar.
+    setArchivo(null); setClaveInput((n) => n + 1); setTambien(false); setConfirmado(false);
     await cargar();
     onCambio();
     if (!resultado) return;
     if (resultado.fallaron.length > 0) {
       setFaltanCopias({ ruta: resultado.ruta, tipo, nombre: archivo.name, total: resultado.aCopiar.length, faltan: resultado.fallaron });
     } else {
-      avisar("ok", resultado.aCopiar.length > 0 ? `Archivo guardado en esta póliza y en las otras ${resultado.aCopiar.length}.` : "Archivo guardado.");
+      avisar("ok", resultado.aCopiar.length > 0
+        ? `Archivo guardado en esta póliza y en ${plural(resultado.aCopiar.length, "póliza más", "pólizas más")}: ${nombresDe(resultado.aCopiar)}.`
+        : "Archivo guardado.");
     }
   }
 
@@ -262,6 +281,12 @@ function Cuerpo({
                   </div>
                   {retirando === a.id && (
                     <div className="mt-3 border-t border-sand pt-3">
+                      {(loVeLaPersona(a.tipo) || hermanas.length > 0) && (
+                        <p className="mb-2 text-xs text-taupe">
+                          {loVeLaPersona(a.tipo) ? "La persona deja de verlo en «Lo mío». " : ""}
+                          {hermanas.length > 0 ? "Retirar es de una póliza a la vez: si lo copiaste a las otras pólizas, retíralo también en cada una." : ""}
+                        </p>
+                      )}
                       <label className="flex flex-col gap-1">
                         <span className="text-sm text-taupe">Por qué se retira</span>
                         <AreaTexto
@@ -302,7 +327,7 @@ function Cuerpo({
             <p className="mb-3 text-sm text-tinta">Subir un archivo</p>
             {msg && <p role="alert" className="mb-3 rounded border border-rojo/30 bg-rojo/10 px-3 py-2 text-sm text-rojo">{msg}</p>}
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <CampoSelect etiqueta="Qué es" value={tipo} onChange={(e) => setTipo(e.target.value as TipoArchivoSeguro)}>
+              <CampoSelect etiqueta="Qué es" value={tipo} onChange={(e) => { setTipo(e.target.value as TipoArchivoSeguro); setConfirmado(false); setMsg(null); }}>
                 {TIPOS_ARCHIVO_SEGURO.map((t) => <option key={t.valor} value={t.valor}>{t.etiqueta}</option>)}
               </CampoSelect>
               <label className="flex min-w-0 flex-col gap-1 sm:col-span-2">
@@ -320,8 +345,9 @@ function Cuerpo({
               </label>
               <p className="text-xs text-taupe sm:col-span-3">
                 {loVeLaPersona(tipo)
-                  ? "La persona podrá abrirlo desde «Lo mío», en «Mi seguro»."
+                  ? "La persona podrá abrirlo desde «Lo mío», en «Mi seguro», si tiene cuenta."
                   : "Solo lo ve Desarrollo Organizacional."}
+                {tipo === "convenio_pago" && " Si el convenio nombra a varias personas, no lo subas a la póliza de una sola."}
               </p>
             </div>
             {hermanas.length > 0 && tipo === "otro" && (
@@ -331,10 +357,11 @@ function Cuerpo({
             )}
             {seReparte && (
               <label className="mt-3 flex items-start gap-2 text-sm">
-                <input type="checkbox" className="mt-0.5 size-4 shrink-0 accent-tinta" checked={tambien} onChange={(e) => setTambien(e.target.checked)} disabled={subiendo} />
+                <input type="checkbox" className="mt-0.5 size-4 shrink-0 accent-tinta" checked={tambien} onChange={(e) => { setTambien(e.target.checked); setConfirmado(false); setMsg(null); }} disabled={subiendo} />
                 <span>
                   <span className="text-tinta">Guardarlo también en las otras {plural(hermanas.length, "póliza", "pólizas")} de este seguro</span>
                   <span className="block text-xs text-taupe">
+                    Se copiaría a: {nombresDe(hermanas)}.
                     Es la misma póliza de la empresa —una fila por persona, con el mismo número y la misma vigencia—: el papel es uno.
                     {loVeLaPersona(tipo)
                       ? " Cada persona lo abrirá desde «Lo mío → Mi seguro»: que no lleve datos de las demás."
@@ -342,6 +369,14 @@ function Cuerpo({
                   </span>
                 </span>
               </label>
+            )}
+            {hayQueConfirmar && (
+              <div className="mt-2 rounded-lg bg-ambar/15 px-3 py-2">
+                <CampoCasilla
+                  etiqueta={`Confirmo que este archivo no lleva datos de otras personas —su DNI, su fecha de nacimiento ni su sueldo—: lo abrirá cada una de las ${hermanas.length + 1} desde «Lo mío».`}
+                  checked={confirmado} onChange={(e) => { setConfirmado(e.target.checked); setMsg(null); }} disabled={subiendo}
+                />
+              </div>
             )}
             {copiando && (
               <p className="mt-3 text-xs text-taupe" role="status">Guardándolo en las demás pólizas… {copiando.hechas} de {copiando.total}</p>

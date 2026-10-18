@@ -2,7 +2,7 @@ import type { ClienteCayla } from "@cayla-dynamic/database";
 import { BUCKET_SEGUROS } from "./admin/seguros";
 
 /**
- * GUARDAR UN PAPEL DE LA PÓLIZA EN EL EQUIPO DE LA PRACTICANTE.
+ * GUARDAR UN PAPEL DE LA PÓLIZA EN EL EQUIPO DE QUIEN LO PIDE.
  *
  * PROMETE: firma la dirección del archivo por `segundos` segundos con la orden de
  *   descargarlo con ese nombre, y dispara la descarga. Devuelve `null` si lo

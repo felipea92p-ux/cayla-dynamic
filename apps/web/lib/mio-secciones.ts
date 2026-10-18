@@ -84,7 +84,7 @@ export const GRUPOS_MIO: readonly GrupoDetalle<Tab>[] = [
     { valor: "dni", label: "Mi DNI", Icon: IdCard, alias: ["documento de identidad"] },
     // Los alias son lo que alguien escribiría sin saber cómo se llama: «fola» y «essalud» son los
     // seguros de hoy, «pacífico» la aseguradora de FOLA, «clínica» a donde va a usarlo.
-    { valor: "seguro", label: "Mi seguro", Icon: ShieldCheck, alias: ["póliza", "fola", "essalud", "seguro", "salud", "clínica", "pacífico"] },
+    { valor: "seguro", label: "Mi seguro", Icon: ShieldCheck, alias: ["póliza", "fola", "essalud", "seguro", "salud", "clínica", "pacífico", "vida ley", "seguro de vida", "eps"] },
     { valor: "datos", label: "Mis datos", Icon: UserRound, alias: ["cuenta", "banco", "celular", "dirección", "emergencia", "ficha"] },
   ] },
   { label: "Seguimiento", secciones: [

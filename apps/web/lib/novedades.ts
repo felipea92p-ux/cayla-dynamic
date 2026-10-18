@@ -121,7 +121,7 @@ export const NOVEDADES: readonly Novedad[] = [
     queMejoro:
       "En «Lo mío» hay una sección nueva, «Mi seguro», en el grupo Documentos. Dice en qué seguro estás. Si el " +
       "tuyo lleva póliza, ves su número y hasta cuándo es vigente, y puedes abrir o descargar el PDF de tu póliza y de " +
-      "tu convenio de pago. Si se paga por planilla, como EsSalud, ahí lo dice y no hay póliza que ver.\n\n" +
+      "tu convenio de pago. Si lo gestiona la empresa con la planilla, como EsSalud, ahí lo dice y no hay póliza que ver.\n\n" +
       "Si estás en FOLA, también te cuenta cómo usar el seguro —la atención al crédito con tu DNI en la red de " +
       "Pacífico, la carta de garantía si te van a hospitalizar, el médico a domicilio y el reembolso— y lo que no " +
       "cubre. Es un resumen: lo que vale es tu póliza en PDF. Si no ves tu póliza o la fecha no cuadra, avisa a " +

@@ -28,8 +28,8 @@ import {
   type FilaEquipoSeguro, type Poliza as PolizaDeDO,
 } from "@/lib/admin/seguros";
 import {
-  GUIAS_DE_USO, archivosDe, datosConfirmados, enlaceTelefono, guiasQueAplican, leerPolizasMias, nombreDeDescarga,
-  resolverMiSeguro, rotuloDeArchivo, textoDelResumen, traerMiSeguro,
+  DIAS_AVISO_PERSONA, GUIAS_DE_USO, SI_NO_CUADRA, archivosDe, datosConfirmados, enlaceTelefono, guiasQueAplican, leerPolizasMias,
+  nombreDeDescarga, resolverMiSeguro, rotuloDeArchivo, textoDelResumen, traerMiSeguro,
   type ArchivoMio, type PolizaMia, type SeguroPrincipal,
 } from "@/lib/mi-seguro";
 
@@ -165,11 +165,43 @@ describe("cómo está su seguro hoy", () => {
     expect(r.empiezaEl).toBeNull();
   });
 
-  it("se avisa a los 45 días y no a los 46", () => {
-    // hasta = HOY + 45 → por vencer; HOY + 46 → al día.
-    expect(resolverMiSeguro(FOLA, [poliza({ vigente_hasta: "2026-12-01" })], HOY).situacion).toBe("por_vencer");   // 45 días
-    expect(resolverMiSeguro(FOLA, [poliza({ vigente_hasta: "2026-12-02" })], HOY).situacion).toBe("al_dia");        // 46 días
-    expect(resolverMiSeguro(FOLA, [poliza({ vigente_hasta: "2026-12-01" })], HOY).diasParaQuedarSinSeguro).toBe(45);
+  it("a la persona se le avisa a los 15 días y no a los 16 (DO, a los 45: es a propósito)", () => {
+    expect(DIAS_AVISO_PERSONA).toBe(15);
+    // hasta = HOY + 15 → por vencer; HOY + 16 → al día.
+    expect(resolverMiSeguro(FOLA, [poliza({ vigente_hasta: "2026-11-01" })], HOY).situacion).toBe("por_vencer");   // 15 días
+    expect(resolverMiSeguro(FOLA, [poliza({ vigente_hasta: "2026-11-02" })], HOY).situacion).toBe("al_dia");        // 16 días
+    expect(resolverMiSeguro(FOLA, [poliza({ vigente_hasta: "2026-11-01" })], HOY).diasParaQuedarSinSeguro).toBe(15);
+    // A los 45 días DO ya avisa; la persona todavía no: con una póliza de 92 días el ámbar salía la mitad del tiempo.
+    expect(resolverMiSeguro(FOLA, [poliza({ vigente_hasta: "2026-12-01" })], HOY).situacion).toBe("al_dia");
+  });
+
+  it("el orden en que llegan las filas no cambia nada, ni siquiera con dos pólizas que empiezan el mismo día", () => {
+    const a = poliza({ poliza_id: "za", numero_poliza: "A-1", vigente_desde: "2026-10-01", vigente_hasta: "2027-01-01" });
+    const b = poliza({ poliza_id: "zb", numero_poliza: "B-1", vigente_desde: "2026-10-01", vigente_hasta: "2027-01-01" });
+    const uno = resolverMiSeguro(FOLA, [a, b], HOY);
+    const otro = resolverMiSeguro(FOLA, [b, a], HOY);
+    expect(otro.actual?.poliza_id).toBe(uno.actual?.poliza_id);
+    expect(otro.resto.map((z) => z.poliza_id)).toEqual(uno.resto.map((z) => z.poliza_id));
+    expect(otro.principales.map((z) => z.poliza_id)).toEqual(uno.principales.map((z) => z.poliza_id));
+  });
+
+  it("si la base dice que hoy no lo cubre, manda la base aunque una póliza parezca cubrir", () => {
+    // `cubre_hoy` es de la base (el mismo cálculo que ve DO); las pólizas solo cuentan cuánto falta.
+    const r = resolverMiSeguro(FOLA_SIN_COBERTURA, [poliza()], HOY);
+    expect(r.situacion).toBe("hueco");
+  });
+
+  it("una renovación que empieza después de un hueco lo cuenta: cuándo empieza y cuántos días quedan sin póliza", () => {
+    const vieja = poliza({ poliza_id: "z1", vigente_desde: "2026-10-01", vigente_hasta: "2026-11-01" });
+    const nueva = poliza({ poliza_id: "z2", vigente_desde: "2026-11-05", vigente_hasta: "2027-02-05" });
+    const r = resolverMiSeguro(FOLA, [vieja, nueva], HOY);
+    expect(r.empiezaDespuesEl).toBe("2026-11-05");
+    expect(r.diasSinPoliza).toBe(4);
+    // Y una que empalma NO deja hueco.
+    const empalma = poliza({ poliza_id: "z2", vigente_desde: "2026-11-01", vigente_hasta: "2027-02-01" });
+    const e = resolverMiSeguro(FOLA, [vieja, empalma], HOY);
+    expect(e.empiezaDespuesEl).toBeNull();
+    expect(e.diasSinPoliza).toBeNull();
   });
 
   it("una renovación que empalma no la deja «por vencer» ni sin seguro: cuenta hasta donde llega la cadena", () => {
@@ -317,7 +349,9 @@ describe("la cuenta de la persona coincide con la del tablero de DO", () => {
 
   const ESCENARIOS: Array<[string, string, SeguroPrincipal, Array<Partial<PolizaMia>>]> = [
     ["una póliza lejos de vencer", "2026-10-17", FOLA, [{ poliza_id: "z1", vigente_desde: "2026-10-01", vigente_hasta: "2027-01-01" }]],
-    ["a 45 días de vencer", "2026-10-17", FOLA, [{ poliza_id: "z1", vigente_desde: "2026-08-01", vigente_hasta: "2026-12-01" }]],
+    ["a 15 días de vencer", "2026-10-17", FOLA, [{ poliza_id: "z1", vigente_desde: "2026-08-01", vigente_hasta: "2026-11-01" }]],
+    ["a 16 días de vencer", "2026-10-17", FOLA, [{ poliza_id: "z1", vigente_desde: "2026-08-01", vigente_hasta: "2026-11-02" }]],
+    ["a 45 días de vencer (DO ya avisa; la persona todavía no)", "2026-10-17", FOLA, [{ poliza_id: "z1", vigente_desde: "2026-08-01", vigente_hasta: "2026-12-01" }]],
     ["a 46 días de vencer", "2026-10-17", FOLA, [{ poliza_id: "z1", vigente_desde: "2026-08-01", vigente_hasta: "2026-12-02" }]],
     ["vence mañana", "2026-10-17", FOLA, [{ poliza_id: "z1", vigente_desde: "2026-07-18", vigente_hasta: "2026-10-18" }]],
     ["terminó hoy", "2026-10-17", FOLA, [{ poliza_id: "z1", vigente_desde: "2026-07-17", vigente_hasta: "2026-10-17" }]],
@@ -355,7 +389,9 @@ describe("la cuenta de la persona coincide con la del tablero de DO", () => {
       const [deDo] = seguroPorPersona([comoEquipoDeDO(principal, polizas)], polizas.map(comoPolizaDeDO), [], hoy);
 
       expect(deDo, "el tablero tiene que devolver a la persona").toBeDefined();
-      expect(mia.situacion).toBe(deDo.situacion);
+      // La ÚNICA diferencia a propósito: DO avisa de un vencimiento a los 45 días y la persona a los 15.
+      const esperada = deDo.situacion === "por_vencer" && (deDo.diasParaQuedarSinSeguro ?? 0) > DIAS_AVISO_PERSONA ? "al_dia" : deDo.situacion;
+      expect(mia.situacion).toBe(esperada);
       expect(mia.cubiertoHasta).toBe(deDo.cubiertoHasta);
       expect(mia.diasParaQuedarSinSeguro).toBe(deDo.diasParaQuedarSinSeguro);
       expect(mia.diasDesdeQueVencio).toBe(deDo.diasDesdeQueVencio);
@@ -376,7 +412,7 @@ describe("lo que dice la tarjeta de arriba", () => {
   const ESCENARIOS: Array<[string, SeguroPrincipal, PolizaMia[]]> = [
     ["al día, con margen", FOLA, [poliza()]],
     ["al día, con una renovación que empalma", FOLA, [vieja, nueva]],
-    ["por vencer", FOLA, [poliza({ vigente_hasta: "2026-12-01" })]],
+    ["por vencer", FOLA, [poliza({ vigente_hasta: "2026-11-01" })]],
     ["por vencer, a 1 día", FOLA, [poliza({ vigente_hasta: "2026-10-18" })]],
     ["sin póliza, nunca tuvo", FOLA_SIN_COBERTURA, []],
     ["sin póliza, la registrada aún no empieza", FOLA_SIN_COBERTURA, [poliza({ vigente_desde: "2026-10-20", vigente_hasta: "2027-01-20" })]],
@@ -386,6 +422,14 @@ describe("lo que dice la tarjeta de arriba", () => {
       poliza({ poliza_id: "z2", vigente_desde: "2026-10-24", vigente_hasta: "2027-01-24" })]],
     ["EsSalud, por planilla", ESSALUD, []],
     ["sin seguro principal", NINGUNO, []],
+    // Los de abajo se agregaron después: los índices de arriba no se mueven.
+    ["termina hoy, sin otra que siga", FOLA_SIN_COBERTURA, [poliza({ vigente_desde: "2026-07-17", vigente_hasta: "2026-10-17" })]],
+    ["por vencer, y la que sigue empieza después de un hueco", FOLA, [
+      poliza({ poliza_id: "z1", vigente_desde: "2026-07-01", vigente_hasta: "2026-11-01" }),
+      poliza({ poliza_id: "z2", vigente_desde: "2026-11-05", vigente_hasta: "2027-02-05" })]],
+    ["al día, y la que sigue empieza después de un hueco", FOLA, [
+      poliza({ poliza_id: "z1", vigente_desde: "2026-07-01", vigente_hasta: "2026-12-01" }),
+      poliza({ poliza_id: "z2", vigente_desde: "2026-12-05", vigente_hasta: "2027-03-05" })]],
   ];
   const textos = ESCENARIOS.map(([nombre, principal, polizas]) => ({ nombre, t: textoDelResumen(resolverMiSeguro(principal, polizas, HOY), dmy) }));
 
@@ -412,30 +456,35 @@ describe("lo que dice la tarjeta de arriba", () => {
     expect(t.insignia).toBe("Vigente");
     expect(t.titulo).toBe("Tu póliza está vigente");
     expect(t.detalle).toBe(
-      "Tu seguro es FOLA. Tu póliza va hasta el 01/01/2027 a las 12 M. Si la aseguradora te dice otra cosa, avisa a Desarrollo Organizacional.");
+      "Tu seguro es FOLA. Tu póliza va hasta el 01/01/2027 a las 12 del mediodía. Si la aseguradora te dice otra cosa, avisa a Desarrollo Organizacional.");
   });
 
   it("vigente con una renovación que empalma: lo dice y cuenta hasta donde llega la cadena", () => {
     const t = textos[1].t;
-    expect(t.detalle).toContain("va hasta el 01/02/2027 a las 12 M.");
+    expect(t.detalle).toContain("va hasta el 01/02/2027 a las 12 del mediodía.");
     expect(t.detalle).toContain("Ya está registrada la renovación que sigue.");
   });
 
   it("por vencer: cuenta los días, dice hasta cuándo y avisa", () => {
     expect(textos[2].t.variante).toBe("advertencia");
-    expect(textos[2].t.insignia).toBe("Vence en 45 días");
-    expect(textos[2].t.detalle).toContain("va hasta el 01/12/2026 a las 12 M y todavía no hay otra registrada que siga.");
+    expect(textos[2].t.insignia).toBe("Vence en 15 días");
+    expect(textos[2].t.detalle).toContain("va hasta el 01/11/2026 a las 12 del mediodía. Todavía no hay otra registrada que siga.");
     expect(textos[2].t.detalle).toContain("avisa a Desarrollo Organizacional");
     expect(textos[3].t.insignia).toBe("Vence en 1 día");
   });
 
-  it("sin póliza: alerta, y cada motivo dice lo suyo", () => {
+  it("sin póliza: alerta, y cada motivo dice lo suyo; si NUNCA hubo una, es un aviso ámbar y no una alarma", () => {
     const [nunca, aunNo, vencida, vencidaYOtra] = textos.slice(4, 8).map((x) => x.t);
-    for (const t of [nunca, aunNo, vencida, vencidaYOtra]) {
+    for (const t of [aunNo, vencida, vencidaYOtra]) {
       expect(t.variante).toBe("alerta");
       expect(t.insignia).toBe("Sin póliza vigente");
     }
+    // Lo único que el sistema sabe es que DO todavía no la registró: no se le pinta de rojo a quien no hizo nada mal.
+    expect(nunca.variante).toBe("advertencia");
+    expect(nunca.insignia).toBe("Sin póliza registrada");
     expect(nunca.titulo).toBe("Todavía no tienes una póliza registrada");
+    expect(nunca.detalle).toContain("avisa a Desarrollo Organizacional");
+    expect(nunca.detalle).not.toMatch(/avísales/);
     expect(aunNo.detalle).toContain("empieza el 20/10/2026");
     expect(vencida.detalle).toContain("terminó el 08/10/2026 (hace 9 días).");
     expect(vencida.detalle).not.toContain("empieza el");
@@ -444,14 +493,38 @@ describe("lo que dice la tarjeta de arriba", () => {
   });
 
   it("EsSalud y quien no tiene seguro principal: solo lo que la base sabe, sin explicar de más", () => {
-    // El texto de EsSalud lo decide Felipe; si cambia, cambia aquí a propósito.
+    // El texto de EsSalud lo eligió Felipe (2026-10-17): «se paga por planilla» se leía como un descuento.
     expect(textos[8].t).toEqual({
-      variante: "neutral", insignia: "Por planilla", titulo: "Tu seguro es EsSalud", detalle: "Se paga por planilla y no lleva póliza.",
+      variante: "neutral", insignia: "Por planilla", titulo: "Tu seguro es EsSalud",
+      detalle: "La empresa lo gestiona con la planilla; no hay póliza ni PDF.",
     });
     expect(textos[9].t).toEqual({
       variante: "neutral", insignia: "Sin seguro asignado", titulo: "No tienes un seguro asignado en el sistema",
       detalle: "Si crees que debería haber uno, avisa a Desarrollo Organizacional.",
     });
+  });
+
+  it("el último día no dice «terminó»: la póliza todavía cubre hasta las 12 del mediodía", () => {
+    const t = textos[10].t;
+    expect(t.variante).toBe("advertencia");
+    expect(t.insignia).toBe("Termina hoy");
+    expect(t.titulo).toBe("Tu póliza termina hoy");
+    expect(t.detalle).toContain("va hasta hoy a las 12 del mediodía");
+    expect(`${t.titulo} ${t.detalle}`).not.toMatch(/terminó|hace \d/);
+  });
+
+  it("si la renovación empieza después de un hueco, lo dice con sus días, también cuando todavía no urge", () => {
+    expect(textos[11].t.insignia).toBe("Vence en 15 días");
+    expect(textos[11].t.detalle).toContain("La que ya está registrada empieza el 05/11/2026: entre una y otra quedan 4 días sin póliza.");
+    expect(textos[11].t.detalle).not.toContain("Todavía no hay otra registrada que siga");
+    expect(textos[12].t.insignia).toBe("Vigente");
+    expect(textos[12].t.detalle).toContain("La que ya está registrada empieza el 05/12/2026: entre una y otra quedan 4 días sin póliza.");
+  });
+
+  it("nadie escribe «12 M» ni «avísales» a la persona: ni la jerga del papel ni un verbo que no concuerda", () => {
+    for (const { nombre, t } of textos) {
+      expect(`${t.insignia} ${t.titulo} ${t.detalle}`, nombre).not.toMatch(/\b12 M\b|avísales/);
+    }
   });
 });
 
@@ -560,6 +633,13 @@ describe("cómo se rotula y se nombra un archivo", () => {
     expect(nombreDeDescarga(archivo(), { ...fola, numero_poliza: "///" })).toBe("Poliza-FOLA-sin-numero.pdf");
   });
 
+  it("la extensión de la ruta solo se usa si parece una: nunca un pedazo de ruta", () => {
+    expect(nombreDeDescarga(archivo({ mime: "application/x-raro", storage_path: "5b0000/abc" }), fola)).toBe("Poliza-FOLA-24043267.pdf");
+    expect(nombreDeDescarga(archivo({ mime: "application/x-raro", storage_path: "abc.p/df" }), fola)).toBe("Poliza-FOLA-24043267.pdf");
+    expect(nombreDeDescarga(archivo({ mime: "application/x-raro", storage_path: "abc.toolongext" }), fola)).toBe("Poliza-FOLA-24043267.pdf");
+    expect(nombreDeDescarga(archivo({ mime: "application/x-raro", storage_path: "abc.png" }), fola)).toBe("Poliza-FOLA-24043267.png");
+  });
+
   it("nada en el nombre se parece a una persona: solo el seguro y el número de póliza", () => {
     const n = nombreDeDescarga(archivo({ storage_path: "5b000000-0000-0000-0000-0000000000a1.pdf" }), fola);
     expect(n).toMatch(/^[A-Za-z0-9-]+\.[a-z0-9]+$/);
@@ -641,6 +721,24 @@ describe("el texto fijo de «cómo usar»", () => {
       const dos = [poliza({ poliza_id: "z1" }), poliza({ poliza_id: "z2", numero_poliza: "24043277" })];
       expect(guiasQueAplican(dos)).toHaveLength(1);
     });
+
+    it("dice si es su seguro principal de hoy: quien ya está en EsSalud ve la guía de FOLA con su explicación, no como «tu seguro»", () => {
+      expect(guiasQueAplican([poliza()], "salud_practicantes")[0].esPrincipal).toBe(true);
+      expect(guiasQueAplican([poliza()], "essalud")[0].esPrincipal).toBe(false);
+      expect(guiasQueAplican([poliza()], null)[0].esPrincipal).toBe(false);
+    });
+
+    it("el nombre de un seguro lo crea DO: uno llamado «constructor» no encuentra la guía de otro objeto", () => {
+      for (const clave of ["constructor", "__proto__", "toString", "hasOwnProperty"]) {
+        const rara = poliza({ poliza_id: "r1", producto: clave, producto_nombre: "Raro" });
+        expect(() => guiasQueAplican([rara])).not.toThrow();
+        expect(guiasQueAplican([rara])).toEqual([]);
+      }
+    });
+
+    it("la frase que cierra las guías es la misma que cierra las fechas", () => {
+      expect(SI_NO_CUADRA).toBe("Si la aseguradora te dice otra cosa, avisa a Desarrollo Organizacional.");
+    });
   });
 });
 
@@ -662,7 +760,8 @@ describe("qué archivos de una póliza ve también la persona", () => {
   // ve» sobre un archivo que la base no le da, o al revés.
   it("la lista de TypeScript es la misma que la 0530 escribe en sus dos funciones", () => {
     expect(archivo0530(), "la 0530 tiene que existir").toBeDefined();
-    const sql = readFileSync(path.join(carpeta, archivo0530()!), "utf8");
+    // Sin comentarios: la consulta de «antes de pegar» de la cabecera también escribe esa lista.
+    const sql = sqlSinComentarios();
     const listas = [...sql.matchAll(/a\.tipo in \(([^)]*)\)/g)].map((m) =>
       m[1].split(",").map((x) => x.trim().replace(/'/g, "")).sort());
     // Una en `fn_seguro_archivo_es_mio` (la política de Storage) y otra en `fn_mis_polizas`.

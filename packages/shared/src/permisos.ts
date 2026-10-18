@@ -211,8 +211,8 @@ export function puedeGestionarArchivo(rol: RolPosible): boolean {
  *
  * Se nombra aparte de `puedeGestionarArchivo` porque es otra pregunta: aquello
  * es papel DE LA EMPRESA ante una autoridad, esto es el seguro de CADA PERSONA.
- * La etapa 2 le dará a cada colaborador con póliza la lectura de SU póliza
- * («Mi seguro»); esa lectura no pasa por acá, que es solo la de quien administra.
+ * Cada colaborador lee SU seguro y SUS pólizas en «Lo mío → Mi seguro» (0530);
+ * esa lectura no pasa por acá, que es solo la de quien administra.
  *
  * La base decide de verdad (`fn_es_admin_o_lider()` en cada `fn_seguro_*` y en
  * las políticas del bucket); esto solo decide si se DIBUJA la pantalla.

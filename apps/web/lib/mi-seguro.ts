@@ -22,19 +22,29 @@
 //   (DO lo calcula con `estadoPrima`: más de 30 días sin pagar la prima): esos datos no salen
 //   de la base hacia la persona (ver la cabecera de la 0530). Por eso `textoDelResumen`
 //   habla de la PÓLIZA —«vigente», «va hasta»— y nunca de que la persona «esté cubierta».
-//   Y un seguro SIN póliza (EsSalud) no se explica: lo que se le dice a la persona lo decide
-//   Felipe, y por ahora es lo que la base sabe —el nombre y que va por planilla—.
+//   Y un seguro SIN póliza (EsSalud) no se explica más de lo que la base sabe: el nombre y que la
+//   empresa lo gestiona con la planilla (el texto lo eligió Felipe, 2026-10-17: «se paga por
+//   planilla» se leía como un descuento).
 //
 // POR QUÉ SE PARECE A `seguroPorPersona`
 //   `lib/admin/seguros.ts` hace esta misma cuenta para el tablero de DO, sobre muchas
 //   personas y con sus datos internos. Aquí es sobre una sola y sin ellos. Las dos tienen
 //   que dar la misma respuesta para las mismas pólizas, y `tests/mi-seguro.test.ts` las
-//   compara con una batería de casos. Se reutilizan las piezas que no cambian
-//   (`cubiertoHasta`, `DIAS_AVISO_RENOVACION`) en vez de escribirlas otra vez.
+//   compara con una batería de casos. Se reutiliza la pieza que no cambia (`cubiertoHasta`) en vez
+//   de escribirla otra vez. Lo único que a propósito NO coincide es CUÁNDO se avisa de un
+//   vencimiento: DO a los 45 días (`DIAS_AVISO_RENOVACION`), la persona a los 15 (`DIAS_AVISO_PERSONA`).
 // ============================================================================
 import type { ClienteCayla } from "@cayla-dynamic/database";
 import { diasEntre } from "./bandeja-mia";
-import { cubiertoHasta, DIAS_AVISO_RENOVACION, loVeLaPersona, plural, type MotivoHueco } from "./admin/seguros";
+import { cubiertoHasta, loVeLaPersona, plural, type MotivoHueco } from "./admin/seguros";
+
+/**
+ * Cuántos días antes de que termine la póliza se le avisa a la PERSONA. No es el de DO
+ * (`DIAS_AVISO_RENOVACION`, 45): DO necesita semanas para renovar con el corredor, y la persona no
+ * puede hacer nada con un aviso tan temprano —con una póliza de 92 días el ámbar salía casi la mitad
+ * del tiempo—. Quince bastan para que mire si la renovación ya está registrada.
+ */
+export const DIAS_AVISO_PERSONA = 15;
 
 export type TipoArchivoMio = "poliza" | "convenio_pago";
 
@@ -68,7 +78,7 @@ export interface PolizaMia {
   aseguradora: string;
   numero_poliza: string;
   vigente_desde: string;
-  /** EXCLUSIVO: la póliza cubre hasta las 12 M de este día. */
+  /** EXCLUSIVO: la póliza cubre hasta las 12 del mediodía de este día. */
   vigente_hasta: string;
   cubre_hoy: boolean;
   /** null = el corredor todavía no lo confirmó. */
@@ -138,7 +148,7 @@ export async function traerMiSeguro(
  * al_dia ........ su seguro principal lleva póliza y hoy tiene una vigente, con margen (o con
  *                 una renovación que empalma). «Vigente» es por fechas: la persona no ve la
  *                 prima, así que no puede saber si la cobertura se suspendió por mora.
- * por_vencer .... vigente hoy, pero se queda sin póliza en `DIAS_AVISO_RENOVACION` días o
+ * por_vencer .... vigente hoy, pero se queda sin póliza en `DIAS_AVISO_PERSONA` días o
  *                 menos y no hay una renovación registrada que siga.
  * hueco ......... su seguro principal lleva póliza y hoy no lo cubre ninguna (`motivoHueco`
  *                 dice si nunca tuvo una, si venció o si la registrada aún no empieza).
@@ -173,6 +183,12 @@ export interface MiSeguro {
   vencioEl: string | null;
   /** Si el hueco espera una póliza que ya está registrada: cuándo empieza. */
   empiezaEl: string | null;
+  /**
+   * Si hoy tiene póliza pero la que ya está registrada para después empieza DESPUÉS de donde llega la
+   * cobertura continua: cuándo empieza. Entre una y otra hay un hueco, y `diasSinPoliza` lo cuenta.
+   */
+  empiezaDespuesEl: string | null;
+  diasSinPoliza: number | null;
   /** Todas sus pólizas menos `actual`, la más reciente primero: lo que se dibuja debajo. */
   resto: PolizaMia[];
 }
@@ -209,8 +225,13 @@ export function resolverMiSeguro(
   else if (!conPoliza) situacion = "por_planilla";
   // «Lo cubre hoy» lo dice la base; las pólizas solo cuentan cuánto falta.
   else if (principal?.cubre_hoy !== true) situacion = "hueco";
-  else if (dias !== null && dias <= DIAS_AVISO_RENOVACION) situacion = "por_vencer";
+  else if (dias !== null && dias <= DIAS_AVISO_PERSONA) situacion = "por_vencer";
   else situacion = "al_dia";
+
+  // Una póliza ya registrada que empieza después de donde llega la cobertura continua.
+  const despues = hasta
+    ? principales.filter((z) => z.vigente_desde > hasta).sort((a, b) => a.vigente_desde.localeCompare(b.vigente_desde))[0] ?? null
+    : null;
 
   let motivoHueco: MotivoHueco | null = null;
   if (situacion === "hueco") motivoHueco = ultimaVencida ? "vencida" : proxima ? "aun_no_empieza" : "nunca";
@@ -221,6 +242,8 @@ export function resolverMiSeguro(
     diasDesdeQueVencio: motivoHueco === "vencida" && ultimaVencida ? diasEntre(ultimaVencida.vigente_hasta, hoy) : null,
     vencioEl: motivoHueco === "vencida" && ultimaVencida ? ultimaVencida.vigente_hasta : null,
     empiezaEl: motivoHueco === "vencida" || motivoHueco === "aun_no_empieza" ? proxima?.vigente_desde ?? null : null,
+    empiezaDespuesEl: despues?.vigente_desde ?? null,
+    diasSinPoliza: despues && hasta ? diasEntre(hasta, despues.vigente_desde) : null,
     resto: todas.filter((z) => z.poliza_id !== actual?.poliza_id),
   };
 }
@@ -237,8 +260,16 @@ export interface TextoResumen {
   detalle: string;
 }
 
-/** El cierre de las dos frases que hablan de una vigencia. Sirve igual para una suspensión, una baja o un error de fechas. */
-const SI_NO_CUADRA = "Si la aseguradora te dice otra cosa, avisa a Desarrollo Organizacional.";
+/** El cierre de las frases que hablan de una vigencia. Sirve igual para una suspensión, una baja o un error de fechas. */
+export const SI_NO_CUADRA = "Si la aseguradora te dice otra cosa, avisa a Desarrollo Organizacional.";
+
+/** «La que ya está registrada empieza el 05/11: entre una y otra quedan 4 días sin póliza.» */
+function textoDelHueco(seguro: MiSeguro, fecha: (iso: string) => string): string {
+  if (!seguro.empiezaDespuesEl) return "";
+  const dias = seguro.diasSinPoliza ?? 0;
+  return `La que ya está registrada empieza el ${fecha(seguro.empiezaDespuesEl)}` +
+    `${dias > 0 ? `: entre una y otra quedan ${plural(dias, "día", "días")} sin póliza` : ""}.`;
+}
 
 /**
  * Lo que dice la tarjeta de arriba de «Mi seguro». Vive aquí y no en la pantalla para poder
@@ -253,8 +284,8 @@ const SI_NO_CUADRA = "Si la aseguradora te dice otra cosa, avisa a Desarrollo Or
  * las frases con fecha cierran con «si la aseguradora te dice otra cosa, avisa a Desarrollo
  * Organizacional», sin acusar a nadie de lo que la pantalla no sabe.
  *
- * `fecha` formatea un `YYYY-MM-DD` para leerse («17 de octubre de 2026»); se recibe para que
- * esto no dependa de nada de la pantalla.
+ * `fecha` formatea un `YYYY-MM-DD` para leerse («17/10/2026»); se recibe para que esto no dependa
+ * de nada de la pantalla.
  */
 export function textoDelResumen(seguro: MiSeguro, fecha: (iso: string) => string): TextoResumen {
   const nombre = seguro.tipo?.nombre ?? "";
@@ -271,20 +302,31 @@ export function textoDelResumen(seguro: MiSeguro, fecha: (iso: string) => string
       return {
         variante: "neutral", insignia: "Por planilla",
         titulo: `Tu seguro es ${nombre}`,
-        detalle: "Se paga por planilla y no lleva póliza.",
+        detalle: "La empresa lo gestiona con la planilla; no hay póliza ni PDF.",
       };
     case "hueco": {
       const base = { variante: "alerta" as const, insignia: "Sin póliza vigente" };
       if (seguro.motivoHueco === "nunca") {
+        // Lo único que el sistema sabe es que DO todavía no la registró: no es una alarma.
         return {
-          ...base, titulo: "Todavía no tienes una póliza registrada",
-          detalle: `Tu seguro es ${nombre} y lleva póliza. Cuando Desarrollo Organizacional la registre, aquí vas a ver su número y tu PDF. Si crees que ya deberías tenerla, avísales.`,
+          variante: "advertencia", insignia: "Sin póliza registrada", titulo: "Todavía no tienes una póliza registrada",
+          detalle: `Tu seguro es ${nombre} y lleva póliza. Cuando Desarrollo Organizacional la registre, aquí vas a ver su número y tu PDF. Si crees que ya deberías tenerla, avisa a Desarrollo Organizacional.`,
         };
       }
       if (seguro.motivoHueco === "aun_no_empieza") {
         return {
           ...base, titulo: "Hoy no tienes una póliza vigente registrada",
           detalle: `La póliza de ${nombre} que está registrada a tu nombre empieza el ${seguro.empiezaEl ? fecha(seguro.empiezaEl) : "—"}. Hasta entonces, avisa a Desarrollo Organizacional para que lo revise.`,
+        };
+      }
+      // El último día la póliza todavía cubre hasta las 12 del mediodía: decir «terminó» sería falso.
+      if (seguro.diasDesdeQueVencio === 0) {
+        return {
+          variante: "advertencia", insignia: "Termina hoy", titulo: "Tu póliza termina hoy",
+          detalle:
+            `Tu póliza de ${nombre} va hasta hoy a las 12 del mediodía.` +
+            `${seguro.empiezaEl ? ` La que ya está registrada empieza el ${fecha(seguro.empiezaEl)}.` : ""}` +
+            " Avisa a Desarrollo Organizacional para que lo revise.",
         };
       }
       const hace = seguro.diasDesdeQueVencio ? ` (hace ${plural(seguro.diasDesdeQueVencio, "día", "días")})` : "";
@@ -302,7 +344,8 @@ export function textoDelResumen(seguro: MiSeguro, fecha: (iso: string) => string
         insignia: `Vence en ${plural(seguro.diasParaQuedarSinSeguro ?? 0, "día", "días")}`,
         titulo: "Tu póliza vence pronto",
         detalle:
-          `Tu seguro es ${nombre}. Tu póliza va hasta el ${hasta ?? "—"} a las 12 M y todavía no hay otra registrada que siga. ` +
+          `Tu seguro es ${nombre}. Tu póliza va hasta el ${hasta ?? "—"} a las 12 del mediodía.` +
+          `${seguro.empiezaDespuesEl ? ` ${textoDelHueco(seguro, fecha)}` : " Todavía no hay otra registrada que siga."} ` +
           "Si se acerca la fecha y no la ves aquí, o si la aseguradora te dice otra cosa, avisa a Desarrollo Organizacional.",
       };
     default:
@@ -310,8 +353,10 @@ export function textoDelResumen(seguro: MiSeguro, fecha: (iso: string) => string
         variante: "positivo", insignia: "Vigente",
         titulo: "Tu póliza está vigente",
         detalle:
-          `Tu seguro es ${nombre}. Tu póliza va hasta el ${hasta ?? "—"} a las 12 M.` +
-          `${seguro.cubiertoHasta !== seguro.actual?.vigente_hasta ? " Ya está registrada la renovación que sigue." : ""}` +
+          `Tu seguro es ${nombre}. Tu póliza va hasta el ${hasta ?? "—"} a las 12 del mediodía.` +
+          `${seguro.empiezaDespuesEl
+            ? ` ${textoDelHueco(seguro, fecha)}`
+            : seguro.cubiertoHasta !== seguro.actual?.vigente_hasta ? " Ya está registrada la renovación que sigue." : ""}` +
           ` ${SI_NO_CUADRA}`,
       };
   }
@@ -383,7 +428,9 @@ export function nombreDeDescarga(
 ): string {
   const seguro = paraNombreDeArchivo(poliza.producto_nombre) || "Seguro";
   const numero = paraNombreDeArchivo(poliza.numero_poliza) || "sin-numero";
-  const extension = EXTENSION_POR_MIME[archivo.mime] ?? archivo.storage_path.split(".").pop() ?? "pdf";
+  // La extensión del mime; si no la conocemos, la de la ruta SOLO si parece una (letras y cifras): nunca un pedazo de ruta.
+  const delRuta = archivo.storage_path.split(".").pop() ?? "";
+  const extension = EXTENSION_POR_MIME[archivo.mime] ?? (/^[a-z0-9]{2,5}$/.test(delRuta) ? delRuta : "pdf");
   return `${archivo.tipo === "poliza" ? "Poliza" : "Convenio-de-pago"}-${seguro}-${numero}.${extension}`;
 }
 
@@ -453,17 +500,30 @@ export const GUIAS_DE_USO: Readonly<Record<string, GuiaDeUso>> = {
   },
 };
 
+export interface GuiaQueAplica {
+  clave: string;
+  nombre: string;
+  guia: GuiaDeUso;
+  /**
+   * ¿Es el seguro principal de la persona hoy? Si no —pasó de FOLA a EsSalud y la póliza sigue vigente
+   * hasta que la aseguradora procese la baja—, la pantalla lo dice junto a la guía para no mostrar dos
+   * «tu seguro» distintos sin explicación.
+   */
+  esPrincipal: boolean;
+}
+
 /**
  * Las guías de uso que le sirven HOY a esta persona: una por cada seguro del que tiene una póliza
  * que cubre hoy y del que hay guía. Una póliza vencida o que aún no empieza no se usa, así que
- * no se explica cómo usarla.
+ * no se explica cómo usarla. `principal` es la clave de su seguro principal de hoy (o null).
  */
-export function guiasQueAplican(polizas: readonly PolizaMia[]): { clave: string; nombre: string; guia: GuiaDeUso }[] {
-  const salida: { clave: string; nombre: string; guia: GuiaDeUso }[] = [];
+export function guiasQueAplican(polizas: readonly PolizaMia[], principal: string | null = null): GuiaQueAplica[] {
+  const salida: GuiaQueAplica[] = [];
   for (const z of polizas) {
     if (!z.cubre_hoy || salida.some((g) => g.clave === z.producto)) continue;
-    const guia = GUIAS_DE_USO[z.producto];
-    if (guia) salida.push({ clave: z.producto, nombre: z.producto_nombre, guia });
+    // `hasOwn`: la clave la crea DO, y un seguro llamado «constructor» no puede encontrar la guía de otro objeto.
+    if (!Object.hasOwn(GUIAS_DE_USO, z.producto)) continue;
+    salida.push({ clave: z.producto, nombre: z.producto_nombre, guia: GUIAS_DE_USO[z.producto], esPrincipal: z.producto === principal });
   }
   return salida;
 }
