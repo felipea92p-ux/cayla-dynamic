@@ -24,6 +24,7 @@ export function ParaAtender({
   alTocar,
   extra,
   titulo = "Para atender",
+  compacta = false,
 }: {
   items: { clave: string; texto: string; n: number; tono: TonoParaAtender }[];
   /** La pastilla que está filtrando ahora; se muestra aunque su cuenta haya bajado a cero. */
@@ -32,11 +33,13 @@ export function ParaAtender({
   extra?: ReactNode;
   /** «Para atender» casi siempre; «Para decidir» donde lo pendiente son decisiones (Turnos), no trámites. */
   titulo?: string;
+  /** Dentro de otra franja (Planilla): sin rótulo ni margen inferior; la franja ya dice de qué habla. */
+  compacta?: boolean;
 }) {
   const con = items.filter((x) => x.n > 0 || x.clave === activa);
   return (
-    <div className="mb-4 flex flex-wrap items-center gap-2">
-      <span className="text-xs font-medium uppercase tracking-wide text-taupe">{titulo}</span>
+    <div className={`${compacta ? "" : "mb-4 "}flex flex-wrap items-center gap-2`}>
+      {!compacta && <span className="text-xs font-medium uppercase tracking-wide text-taupe">{titulo}</span>}
       {con.length === 0 && !extra ? <span className="text-sm text-verde">Nada pendiente</span> : con.map((x) => (
         <button key={x.clave} type="button" aria-pressed={activa === x.clave} onClick={() => alTocar(x.clave)}
           className={`rounded-full border px-3 py-1 text-xs font-medium tabular-nums transition-shadow duration-150 ${TONO[x.tono]} ${
