@@ -1338,7 +1338,7 @@ export default function TurnosPage() {
                 const abrirChip = puedeVer ? (id: string) => abrir(id, iso) : undefined;
                 const campoMeta = (tramo: "manana" | "tarde") => esAdmin ? (
                   <>
-                    <span>de</span>
+                    <span>{(tramo === "manana" ? (metas.get(dia) ?? 0) : (metasTarde.get(dia) ?? 0)) > 0 ? "de" : "· meta:"}</span>
                     <input type="number" min={0} aria-label={`Meta de la ${tramo === "manana" ? "mañana" : "tarde"}`}
                       value={tramo === "manana" ? (metas.get(dia) ?? 0) : (metasTarde.get(dia) ?? 0)}
                       title={`meta de la ${tramo === "manana" ? "mañana" : "tarde"} de todos los ${DIAS_PLURAL[dia]}`}
@@ -1381,7 +1381,7 @@ export default function TurnosPage() {
                           titulo="Líderes" subtitulo="meta plana, todo el día" {...t.lideres} gente={lideresChips} onAbrir={abrirChip}
                           metaEditable={esAdmin ? (
                             <>
-                              <span>de</span>
+                              <span>{(metasEncargadas.get(dia) ?? 0) > 0 ? "de" : "· meta:"}</span>
                               <input type="number" min={0} aria-label="Meta de líderes" value={metasEncargadas.get(dia) ?? 0}
                                 title={`meta de líderes de todos los ${DIAS_PLURAL[dia]}`}
                                 onChange={(e) => editarMetaEncargadas(dia, e.target.value)} onBlur={(e) => comprometerMetaEncargadas(dia, e.target.value)}
