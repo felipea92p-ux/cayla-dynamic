@@ -14,6 +14,9 @@ import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
 import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 import { BannerAviso } from "@/components/ui/banner-aviso";
 import { Boton } from "@/components/ui/boton";
+import { BotonIcono } from "@/components/ui/boton-icono";
+import { Pestanas } from "@/components/ui/pestanas";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { ParaAtender } from "@/components/ui/para-atender";
 import { TarjetaInfo } from "@/components/ui/tarjeta-info";
 import { Campo, CampoSelect } from "@/components/ui/campo";
@@ -1047,49 +1050,57 @@ export default function TurnosPage() {
               ]}
             />
           }
-          accion={
-          <div className="flex items-center gap-2">
-            <div className="flex rounded-lg border border-sand p-0.5 text-sm">
-              {([["dia", "Día"], ["semana", "Semana"], ["integrada", "Integrada"]] as const).map(([v, txt]) => (
-                <button key={v} onClick={() => setVista(v)}
-                  className={`rounded px-3 py-1.5 transition-colors ${vista === v ? "bg-tinta text-crema" : "text-taupe hover:bg-sand/40"}`}>
-                  {txt}
-                </button>
-              ))}
-            </div>
+                />
+
+        {/* LOS CONTROLES, en una sola fila bajo la cabecera: las tres vistas a la izquierda como pestañas (son la
+            misma semana vista de otra manera) y, a la derecha, sede, semana y copiar. */}
+        <div className="mb-5 flex flex-wrap items-end justify-between gap-x-4 gap-y-2 border-b border-sand">
+          <Pestanas
+            etiqueta="Vistas de Turnos"
+            className="mb-0 border-b-0"
+            pestanas={[
+              { clave: "dia", texto: "Día" },
+              { clave: "semana", texto: "Semana" },
+              { clave: "integrada", texto: "Integrada" },
+            ]}
+            activa={vista}
+            alElegir={setVista}
+          />
+          <div className="flex flex-wrap items-center gap-2 pb-2">
             {esAdmin && (
-              <select value={sedeSel} onChange={(e) => setSedeSel(e.target.value)} className="rounded-lg border border-sand bg-crema px-3 py-2 text-sm">
-                {/* El nombre, no el código: quien arma turnos piensa en
-                    "Tienda LIM", no en "003". */}
-                {sedes.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
-              </select>
+              <div className="w-44">
+                {/* El nombre, no el código: quien arma turnos piensa en «Tienda LIM», no en «003». */}
+                <CampoSelect tamano="sm" aria-label="Sede" value={sedeSel} onChange={(e) => setSedeSel(e.target.value)}>
+                  {sedes.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+                </CampoSelect>
+              </div>
             )}
             <div className="flex items-center gap-1">
-              <Boton variante="secundario" disabled={cargando} onClick={() => setLunes(addDays(lunes, -7))}>←</Boton>
-              <Boton variante="secundario" disabled={cargando} onClick={() => setLunes(lunesDeLaSemana(hoyLima()))}>Hoy</Boton>
-              <Boton variante="secundario" disabled={cargando} onClick={() => setLunes(addDays(lunes, 7))}>→</Boton>
+              <BotonIcono etiqueta="Semana anterior" icono={<ChevronLeft aria-hidden />} disabled={cargando} onClick={() => setLunes(addDays(lunes, -7))} />
+              <span className="min-w-28 text-center text-xs tabular-nums text-taupe">
+                {etiquetaDia(lunes).num} – {etiquetaDia(addDays(lunes, 6)).num}
+              </span>
+              <BotonIcono etiqueta="Semana siguiente" icono={<ChevronRight aria-hidden />} disabled={cargando} onClick={() => setLunes(addDays(lunes, 7))} />
+              <Boton variante="secundario" tamano="sm" disabled={cargando} onClick={() => setLunes(lunesDeLaSemana(hoyLima()))}>Hoy</Boton>
             </div>
-            {/* Solo aparece si de verdad hay algo que copiar — un botón que
-                nunca hace nada enseña a ignorarlo. El número es un techo
-                ("hasta N"): fn_copiar_semana_anterior salta los días que esta
-                semana ya tiene editados a mano, así que lo que se aplique de
-                verdad puede ser menos. */}
+            {/* Solo aparece si de verdad hay algo que copiar — un botón que nunca hace nada enseña a ignorarlo. El
+                número es un techo («hasta N»): fn_copiar_semana_anterior salta los días que esta semana ya tiene
+                editados a mano, así que lo que se aplique de verdad puede ser menos. */}
             {puedeVer && !cargando && Boolean(copiarDisponibles) && (
               confirmarCopiar ? (
-                <div className="flex items-center gap-2 rounded-lg border border-ambar/40 bg-ambar/[0.06] px-2.5 py-1.5 text-xs">
-                  <span className="text-ambar">¿Copiar hasta {copiarDisponibles} turno{copiarDisponibles === 1 ? "" : "s"} de la semana pasada?</span>
+                <BannerAviso enLinea className="flex flex-wrap items-center gap-2 !py-1.5 text-xs">
+                  <span>¿Copiar hasta {copiarDisponibles} turno{copiarDisponibles === 1 ? "" : "s"} de la semana pasada?</span>
                   <Boton variante="primario" tamano="sm" disabled={copiando} cargando={copiando} onClick={() => void copiarSemanaAnterior()}>Sí, copiar</Boton>
                   <Boton variante="secundario" tamano="sm" disabled={copiando} onClick={() => setConfirmarCopiar(false)}>Cancelar</Boton>
-                </div>
+                </BannerAviso>
               ) : (
-                <Boton variante="secundario" onClick={() => setConfirmarCopiar(true)}>
+                <Boton variante="secundario" tamano="sm" onClick={() => setConfirmarCopiar(true)}>
                   Copiar semana anterior
                 </Boton>
               )
             )}
           </div>
-          }
-        />
+        </div>
 
         {funcionesFallo && !cargando && (
           <div className="mb-4 max-w-2xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
