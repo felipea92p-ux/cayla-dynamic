@@ -68,11 +68,14 @@ import { Boton } from "@/components/ui/boton";
 import { Tabla, TablaEncabezado, Th, Fila as FilaTabla } from "@/components/ui/tabla";
 import { BannerAviso } from "@/components/ui/banner-aviso";
 import { Cifra } from "@/components/ui/cifra";
+import { Filtro } from "@/components/ui/filtro";
+import { Menu, MenuItem } from "@/components/ui/menu";
+import { ParaAtender } from "@/components/ui/para-atender";
 import { cx } from "@/components/ui/cx";
 import { Drawer } from "@/components/ui/drawer";
 import { TarjetaInfo } from "@/components/ui/tarjeta-info";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
-import { X, Search } from "lucide-react";
+import { X, Search, SlidersHorizontal, ChevronDown, Download } from "lucide-react";
 
 // Por encima de esto la cuadrícula deja de ayudar y empieza a colgar el
 // navegador: 30 personas × 365 días son once mil cuadritos. Se apaga y se dice.
@@ -208,7 +211,7 @@ interface Fila {
   // Mismo total de arriba, partido en dos (fn_ausencias_resumen, 0443): lo
   // que CAYLA paga —por ley o por decisión propia— y lo que no. No es
   // "grave" contra "leve": descanso médico y maternidad están adentro de
-  // ausenciasDiasPagados, protegidos por ley — ver el Tile de abajo.
+  // ausenciasDiasPagados, protegidos por ley — ver el resumen de la cabecera.
   ausenciasDiasPagados: number;
   ausenciasDiasNoPagados: number;
   ausenciasRegistros: number;
@@ -639,16 +642,6 @@ function DetallePersona({ f, meta, anio, mes, mesEnCurso, sel, onDia }: {
 // "alerta" (rojo) es para lo que ya es grave; "aviso" (ámbar) para lo que hay
 // que mirar — el mismo corte que usa la fila, para que la tarjeta y la tabla
 // no pinten el mismo dato de dos colores.
-function Tile({ label, valor, pie, tono = "neutral" }: { label: string; valor: string; pie?: string; tono?: "neutral" | "aviso" | "alerta" }) {
-  return (
-    <div className="rounded-xl border border-sand bg-papel px-4 py-3">
-      <div className="text-xs uppercase tracking-wide text-taupe">{label}</div>
-      <div className={`mt-1 text-2xl font-semibold [font-variant-numeric:tabular-nums] ${valor === "0" ? "" : tono === "alerta" ? "text-rojo" : tono === "aviso" ? "text-ambar" : ""}`}>{valor}</div>
-      {pie && <div className="text-xs text-taupe">{pie}</div>}
-    </div>
-  );
-}
-
 function DesempenoContenido() {
   const router = useRouter();
   const { avisar } = useToast();
@@ -675,6 +668,9 @@ function DesempenoContenido() {
   const [fBusca, setFBusca] = useState("");
   const [verInactivas, setVerInactivas] = useFiltroGuardado("horas.verInactivas", false);
   const [orden, setOrden] = useState<Orden>({ col: "atencion", asc: true });
+  // «Para atender»: qué pastilla está filtrando la tabla, y si el panel de «Filtros» está abierto.
+  const [foco, setFoco] = useState<"faltas" | "tardanzas" | "revisar" | "sin_turno" | null>(null);
+  const [masFiltros, setMasFiltros] = useState(false);
 
   // El día abierto. Es lo único que esta pantalla «selecciona».
   const [sel, setSel] = useState<{ personaId: string; fecha: string } | null>(null);
@@ -990,7 +986,7 @@ function DesempenoContenido() {
     p.activa && !p.conAlgo && (!fSede || p.sede === fSede) && (!fArea || p.area === fArea)).length,
   [personasTodas, fSede, fArea]);
 
-  const vista = useMemo(() => {
+  const vistaBase = useMemo(() => {
     const q = plano(fBusca.trim());
     return filas
       .filter((f) => verInactivas || f.activa)
@@ -1000,26 +996,40 @@ function DesempenoContenido() {
       .sort((a, b) => comparar(a, b, orden.col, orden.asc));
   }, [filas, verInactivas, fSede, fArea, fBusca, orden]);
 
+  // Los totales (y por tanto las cuentas de «Para atender») se miden SIN la pastilla puesta: si
+  // tocar «3 tardanzas» dejara la cuenta en lo que muestra la tabla, la pastilla cambiaría de
+  // número al tocarla.
+  const vista = useMemo(() => {
+    if (!foco) return vistaBase;
+    const pasa: Record<NonNullable<typeof foco>, (f: Fila) => boolean> = {
+      faltas: (f) => f.faltas > 0,
+      tardanzas: (f) => f.tardanzas > 0,
+      revisar: (f) => porRevisar(f) > 0,
+      sin_turno: (f) => f.tardanzasSospechosas > 0,
+    };
+    return vistaBase.filter(pasa[foco]);
+  }, [vistaBase, foco]);
+
   const totales = useMemo(() => ({
-    horas: vista.reduce((s, f) => s + f.horasReales, 0),
+    horas: vistaBase.reduce((s, f) => s + f.horasReales, 0),
     // Lo que se compara con `esperadas` son solo las horas de días que tenían
     // horario o turno. Antes se comparaba el total, y el recuadro decía
     // «163 h de 90 h que tocaban» cuando el 90 era el horario de UNA de tres
     // personas, o «11 888 h de 4 675 h» en el año cuando los horarios se
     // cargaron a mitad de año. Un total que suma manzanas comparadas con nada.
     // Lo que no tenía contra qué medirse se dice aparte, no se esconde.
-    horasConReferencia: vista.reduce((s, f) => s + f.horasConReferencia, 0),
-    agregadas: vista.reduce((s, f) => s + f.horasAgregadas, 0),
-    esperadas: vista.reduce((s, f) => s + f.horasEsperadas, 0),
-    tardanzas: vista.reduce((s, f) => s + f.tardanzas, 0),
-    peor: vista.reduce((m, f) => Math.max(m, f.peorTardanza), 0),
-    sospechosas: vista.reduce((s, f) => s + f.tardanzasSospechosas, 0),
-    faltas: vista.reduce((s, f) => s + f.faltas, 0),
-    porRevisar: vista.reduce((s, f) => s + porRevisar(f), 0),
-    ausenciasDias: vista.reduce((s, f) => s + f.ausenciasDias, 0),
-    ausenciasDiasPagados: vista.reduce((s, f) => s + f.ausenciasDiasPagados, 0),
-    ausenciasDiasNoPagados: vista.reduce((s, f) => s + f.ausenciasDiasNoPagados, 0),
-  }), [vista]);
+    horasConReferencia: vistaBase.reduce((s, f) => s + f.horasConReferencia, 0),
+    agregadas: vistaBase.reduce((s, f) => s + f.horasAgregadas, 0),
+    esperadas: vistaBase.reduce((s, f) => s + f.horasEsperadas, 0),
+    tardanzas: vistaBase.reduce((s, f) => s + f.tardanzas, 0),
+    peor: vistaBase.reduce((m, f) => Math.max(m, f.peorTardanza), 0),
+    sospechosas: vistaBase.reduce((s, f) => s + f.tardanzasSospechosas, 0),
+    faltas: vistaBase.reduce((s, f) => s + f.faltas, 0),
+    porRevisar: vistaBase.reduce((s, f) => s + porRevisar(f), 0),
+    ausenciasDias: vistaBase.reduce((s, f) => s + f.ausenciasDias, 0),
+    ausenciasDiasPagados: vistaBase.reduce((s, f) => s + f.ausenciasDiasPagados, 0),
+    ausenciasDiasNoPagados: vistaBase.reduce((s, f) => s + f.ausenciasDiasNoPagados, 0),
+  }), [vistaBase]);
 
   const filaSel = useMemo(() => (sel ? filas.find((f) => f.personaId === sel.personaId) ?? null : null), [filas, sel]);
   const diaSel = useMemo(() => (sel && filaSel ? filaSel.dias.find((d) => d.fecha === sel.fecha) ?? null : null), [filaSel, sel]);
@@ -1086,7 +1096,7 @@ function DesempenoContenido() {
       faltas: f.faltas,
       por_revisar: porRevisar(f),
       ausencias_dias: f.ausenciasDias,
-      // Mismo split que el Tile de arriba (0443): quien lleva esto a
+      // Mismo split que el resumen de la cabecera (0443): quien lleva esto a
       // contabilidad necesita distinguir lo que paga de lo que no, no solo el
       // total — es justo lo que el total mezclaba antes.
       ausencias_dias_pagados: f.ausenciasDiasPagados,
@@ -1136,117 +1146,112 @@ function DesempenoContenido() {
     await cargar();
   }
 
+  // Una línea que dice cómo va el equipo; las cuatro pastillas de abajo dicen qué hacer.
+  const horasTxt = totales.esperadas === 0
+    ? `${totales.horas.toFixed(0)} h trabajadas`
+    : `${totales.horasConReferencia.toFixed(0)} h de ${totales.esperadas.toFixed(0)} h que tocaban`;
+  const resumen = [
+    horasTxt,
+    `${vistaBase.length} persona${vistaBase.length === 1 ? "" : "s"}`,
+    totales.ausenciasDias > 0 ? `${totales.ausenciasDias} d de ausencia (${totales.ausenciasDiasPagados} pagados)` : null,
+  ].filter(Boolean).join(" · ");
+  const esPreset = (p: "semana" | "mes" | "mesPasado" | "anio") => {
+    const r = rango(p);
+    return r.desde === desde && r.hasta === hasta;
+  };
+  // Lo que «Filtros» guarda: área, inactivas y un rango que no es ninguna de las pastillas.
+  const rangoLibre = !(["semana", "mes", "mesPasado", "anio"] as const).some(esPreset)
+    && !(periodo && desde === periodo.fecha_ini && hasta === periodo.fecha_fin);
+  const enMasFiltros = [fArea, verInactivas, rangoLibre].filter(Boolean).length;
+
   return (
     <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
-        <CabeceraPagina
-          titulo="Desempeño del equipo"
-          descripcion="Toca una fila y su desempeño se abre debajo. Cada cuadrito es un día: tócalo para ver qué pasó y resolverlo ahí mismo."
-          accion={
-            <div className="flex flex-wrap items-end gap-3">
-              <div className="flex gap-1 rounded-lg border p-1 text-sm">
-                {/* La más usada primero: es lo que una encargada mira el lunes
-                    por la mañana, y antes había que armarla a mano con los dos
-                    calendarios.
-                    Nativos a propósito: esto es un control segmentado (varias
-                    opciones dentro de un mismo marco), no un botón suelto —
-                    <Boton> siempre trae su propio padding/tamaño y forzarlo acá
-                    rompería el marco compartido "rounded-lg border p-1". */}
-                <button onClick={() => aplicarPreset("semana")} className="rounded-md px-2.5 py-1 hover:bg-sand/60">Esta semana</button>
-                <button onClick={() => aplicarPreset("mes")} className="rounded-md px-2.5 py-1 hover:bg-sand/60">Este mes</button>
-                <button onClick={() => aplicarPreset("mesPasado")} className="rounded-md px-2.5 py-1 hover:bg-sand/60">Mes pasado</button>
-                {periodo && (
-                  <button onClick={() => { setDesde(periodo.fecha_ini); setHasta(periodo.fecha_fin); }}
-                    className="rounded-md px-2.5 py-1 hover:bg-sand/60"
-                    title={`Periodo en curso: ${periodo.fecha_ini} a ${periodo.fecha_fin}`}>
-                    Periodo de planilla
-                  </button>
-                )}
-                <button onClick={() => aplicarPreset("anio")} className="rounded-md px-2.5 py-1 hover:bg-sand/60">Todo el año</button>
-              </div>
-              <Campo etiqueta="Desde" type="date" value={desde} onChange={(e) => setDesde(e.target.value)} />
-              <Campo etiqueta="Hasta" type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} />
-            </div>
-          }
+        <CabeceraPagina titulo="Desempeño del equipo" descripcion={resumen} />
+
+        {/* ── PARA ATENDER: lo que pide una decisión, en una línea (como Educación). Un cero no se dibuja. ── */}
+        <ParaAtender
+          items={[
+            { clave: "faltas", texto: `${totales.faltas} falta${totales.faltas === 1 ? "" : "s"}`, n: totales.faltas, tono: "rojo" },
+            { clave: "tardanzas", texto: `${totales.tardanzas} tardanza${totales.tardanzas === 1 ? "" : "s"}${totales.peor > 0 ? ` · la peor, ${formatoMinutos(totales.peor)}` : ""}`, n: totales.tardanzas, tono: totales.peor >= TARDANZA_SERIA_MIN ? "rojo" : "ambar" },
+            { clave: "revisar", texto: `${totales.porRevisar} por revisar`, n: totales.porRevisar, tono: "pizarra" },
+            // Neutral y no en rojo: no es un dato sobre las personas sino sobre lo que falta cargar en Turnos.
+            { clave: "sin_turno", texto: `${totales.sospechosas} medida${totales.sospechosas === 1 ? "" : "s"} sin turno`, n: totales.sospechosas, tono: "neutro" },
+          ]}
+          activa={foco}
+          alTocar={(clave) => setFoco((f) => (f === clave ? null : clave as NonNullable<typeof foco>))}
         />
 
-        <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-sand bg-papel px-4 py-3 text-sm">
-          <div className="relative">
+        {/* ── BÚSQUEDA: sede a la vista, lo demás plegado en «Filtros» ── */}
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <div className="relative min-w-48 flex-1 basis-56">
             <Search size={15} strokeWidth={1.8} aria-hidden className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-taupe" />
-            <Campo value={fBusca} onChange={(e) => setFBusca(e.target.value)} placeholder="Buscar por nombre…"
-              aria-label="Buscar por nombre" className="w-52 pl-8" />
+            <Campo value={fBusca} onChange={(e) => setFBusca(e.target.value)} placeholder="Buscar persona"
+              aria-label="Buscar por nombre" className="pl-8" />
           </div>
-          <CampoSelect etiqueta="Sede" value={fSede} onChange={(e) => setFSede(e.target.value)}>
-            <option value="">Todas</option>
-            {sedes.map((s) => <option key={s} value={s}>{s}</option>)}
-          </CampoSelect>
-          <CampoSelect etiqueta="Área" value={fArea} onChange={(e) => setFArea(e.target.value)}>
-            <option value="">Todas</option>
-            {areasPresentes.map((a) => <option key={a} value={a}>{areaNombre(areas, a)}</option>)}
-          </CampoSelect>
-          <CampoCasilla
-            etiqueta="Incluir inactivas"
-            checked={verInactivas}
-            onChange={(e) => setVerInactivas(e.target.checked)}
-            title="Su historial sostiene los reportes de periodos pasados."
-          />
-          <div className="ml-auto flex items-center gap-4">
-            {vista.length > 0 && (
-              <Boton variante="enlace" className="text-taupe hover:text-tinta" onClick={exportarVista}>
-                Exportar CSV
-              </Boton>
-            )}
-            {orden.col !== "atencion" && (
-              <Boton variante="enlace" className="text-taupe hover:text-tinta" onClick={() => setOrden({ col: "atencion", asc: true })}>
-                Volver al orden por atención
-              </Boton>
-            )}
-            {hayFiltro && (
-              <Boton variante="enlace" className="text-taupe hover:text-tinta"
-                onClick={() => { setFSede(""); setFArea(""); setFBusca(""); setVerInactivas(false); }}>
-                Quitar filtros
-              </Boton>
-            )}
+          <div className="w-full sm:w-44">
+            <CampoSelect aria-label="Sede" value={fSede} onChange={(e) => setFSede(e.target.value)}>
+              <option value="">Todas las sedes</option>
+              {sedes.map((s) => <option key={s} value={s}>{s}</option>)}
+            </CampoSelect>
           </div>
+          <Boton variante="secundario" aria-expanded={masFiltros} aria-controls="mas-filtros-desempeno"
+            onClick={() => setMasFiltros((a) => !a)} className="inline-flex items-center gap-1.5">
+            <SlidersHorizontal className="size-4" aria-hidden />
+            Filtros{enMasFiltros > 0 && <span className="rounded-full bg-tinta px-1.5 text-[11px] leading-4 text-crema">{enMasFiltros}</span>}
+            <ChevronDown className={`size-4 transition-transform duration-150 motion-reduce:transition-none ${masFiltros ? "rotate-180" : ""}`} aria-hidden />
+          </Boton>
+          {vista.length > 0 && (
+            <Boton variante="secundario" aria-label="Exportar lo que ves (CSV)" title="Exportar lo que ves (CSV)" onClick={exportarVista}
+              className="inline-flex items-center gap-1.5">
+              <Download className="size-4" aria-hidden />
+            </Boton>
+          )}
+          {(hayFiltro || foco) && (
+            <Boton variante="enlace" onClick={() => { setFSede(""); setFArea(""); setFBusca(""); setVerInactivas(false); setFoco(null); }}>
+              Limpiar
+            </Boton>
+          )}
         </div>
 
-        <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-7">
-          <Tile label="Horas del periodo"
-            valor={`${(totales.esperadas === 0 ? totales.horas : totales.horasConReferencia).toFixed(0)} h`}
-            pie={
-              totales.esperadas === 0
-                ? "nadie tiene horario cargado: no hay con qué comparar"
-                : `de ${totales.esperadas.toFixed(0)} h que tocaban` +
-                  (totales.horas - totales.horasConReferencia >= 0.5
-                    ? ` · además ${(totales.horas - totales.horasConReferencia).toFixed(0)} h en días sin horario cargado`
-                    : "")
-            } />
-          <Tile label="Faltas" valor={String(totales.faltas)} tono="alerta" pie="le tocaba y no marcó" />
-          <Tile label="Tardanzas" valor={String(totales.tardanzas)}
-            tono={totales.peor >= TARDANZA_SERIA_MIN ? "alerta" : "aviso"}
-            pie={totales.peor > 0 ? `la peor, ${formatoMinutos(totales.peor)}` : undefined} />
-          {/* Neutral y no en rojo: no es un dato sobre las personas sino sobre
-              lo que falta cargar en Turnos. */}
-          <Tile label="Medidas sin turno" valor={String(totales.sospechosas)}
-            pie="días con tardanza o salida anticipada, medidos contra el horario base" />
-          <Tile label="Por revisar" valor={String(totales.porRevisar)} tono="aviso"
-            pie="marcajes sin cerrar de días que ya terminaron" />
-          {/* El total se abre en dos cifras con el mismo peso visual
-              (0443/auditoría de Ausencias): "pagados" mezcla descanso médico
-              y maternidad —protegidos por ley— con licencias que CAYLA
-              concedió a propósito; no es un número de alarma, es
-              información. "No pagados" es el que puede alimentar el aviso de
-              patrón en Ausencias ("para mirar, no para sancionar"). */}
-          <Tile label="Ausencias" valor={`${totales.ausenciasDias} d`}
-            pie={
-              totales.ausenciasDias === 0
-                ? "nadie en el periodo"
-                : `${totales.ausenciasDiasNoPagados} no pagados · ${totales.ausenciasDiasPagados} pagados`
-            } />
-          <Tile label="Personas" valor={String(vista.length)}
-            pie={sinActividad > 0
-              ? `y ${sinActividad} activa${sinActividad === 1 ? "" : "s"} sin nada en el rango`
-              : "todas las activas tienen actividad"} />
+        {masFiltros && (
+          <div id="mas-filtros-desempeno" className="mb-3 grid gap-3 rounded-superficie border border-sand bg-papel p-4 sm:grid-cols-2 lg:grid-cols-4">
+            <CampoSelect etiqueta="Área" value={fArea} onChange={(e) => setFArea(e.target.value)}>
+              <option value="">Todas</option>
+              {areasPresentes.map((a) => <option key={a} value={a}>{areaNombre(areas, a)}</option>)}
+            </CampoSelect>
+            <Campo etiqueta="Desde" type="date" value={desde} onChange={(e) => setDesde(e.target.value)} />
+            <Campo etiqueta="Hasta" type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} />
+            <div className="flex flex-col justify-end gap-2">
+              <CampoCasilla
+                etiqueta="Incluir inactivas"
+                checked={verInactivas}
+                onChange={(e) => setVerInactivas(e.target.checked)}
+                title="Su historial sostiene los reportes de periodos pasados."
+              />
+              {orden.col !== "atencion" && (
+                <Boton variante="enlace" className="self-start text-taupe hover:text-tinta" onClick={() => setOrden({ col: "atencion", asc: true })}>
+                  Volver al orden por atención
+                </Boton>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── EL PERIODO: lo que se toca todo el día, a la vista. La más usada primero: es lo que una líder
+            mira el lunes. Lunes a domingo, no a sábado: en Trujillo se trabaja domingo. ── */}
+        <div role="group" aria-label="Periodo" className="-mx-4 mb-5 flex gap-2 overflow-x-auto px-4 pb-0.5 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 [scrollbar-width:none]">
+          {([["semana", "Esta semana"], ["mes", "Este mes"], ["mesPasado", "Mes pasado"]] as const).map(([clave, texto]) => (
+            <Filtro key={clave} activo={esPreset(clave)} onClick={() => aplicarPreset(clave)}>{texto}</Filtro>
+          ))}
+          {periodo && (
+            <Filtro activo={desde === periodo.fecha_ini && hasta === periodo.fecha_fin}
+              onClick={() => { setDesde(periodo.fecha_ini); setHasta(periodo.fecha_fin); }}
+              title={`Periodo en curso: ${periodo.fecha_ini} a ${periodo.fecha_fin}`}>
+              Periodo de planilla
+            </Filtro>
+          )}
+          <Filtro activo={esPreset("anio")} onClick={() => aplicarPreset("anio")}>Todo el año</Filtro>
         </div>
 
         {error && (
@@ -1410,6 +1415,9 @@ function DesempenoContenido() {
               </tbody>
             </Tabla>
 
+            {/* La leyenda y la explicación del cálculo se guardan: se leen una vez, no cada vez que se entra. */}
+            <details className="mt-4 text-sm">
+              <summary className="cursor-pointer text-taupe hover:text-tinta">Cómo leer esta tabla</summary>
             <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-taupe">
               <span className="font-medium text-tinta">Cada cuadrito, un día:</span>
               <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] bg-verde" /> trabajó</span>
@@ -1422,6 +1430,23 @@ function DesempenoContenido() {
               <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] bg-sand" /> descanso</span>
               <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] bg-taupe/70" /> le tocaba, sin marcaje y sin motivo</span>
             </div>
+            <p className="mt-4 max-w-3xl text-xs text-taupe">
+              Ordenado por lo que necesita atención: faltas, después la <strong>peor</strong> tardanza del periodo
+              (no cuántas), después los marcajes por revisar. «Días» y «horas» van contra lo que le tocaba según su
+              horario y sus turnos, contando solo los días que ya terminaron —hoy entra al marcar la salida— y{" "}
+              <strong>sin los días con motivo registrado</strong>: quien estuvo de vacaciones no debe las horas de
+              sus vacaciones. Los días en que no tenía horario ni turno cargado no se comparan con nada: se dicen aparte. Las tardanzas con motivo registrado no cuentan, y las
+              faltas las calcula la base: no es falta el día de vacaciones, el de descanso sustitutorio por feriado,
+              el de suspensión ni el que tiene justificación.
+              {hayObjetivos && <> Los objetivos son los de <strong>{mesObjetivos.toLowerCase()}</strong>: son mensuales, no siguen al rango{mesObjetivosEnCurso ? ", y como el mes no terminó ninguno se pinta en rojo" : ""}.</>}
+              {totales.agregadas > 0 && (
+                <> Este rango incluye <strong>{totales.agregadas.toFixed(0)} h de registros históricos de 2025</strong> —
+                el total de un mes guardado en una sola fecha, porque entonces no había marcaje diario. La planilla
+                los usó para CTS y gratificación, pero no son días: quedan fuera de las horas de arriba y de la
+                cuadrícula, que compara contra lo que tocaba día a día.</>
+              )}
+                </p>
+            </details>
           </>
         )}
 
@@ -1433,27 +1458,13 @@ function DesempenoContenido() {
           </p>
         )}
 
-        <p className="mt-4 max-w-3xl text-xs text-taupe">
-          Ordenado por lo que necesita atención: faltas, después la <strong>peor</strong> tardanza del periodo
-          (no cuántas), después los marcajes por revisar. «Días» y «horas» van contra lo que le tocaba según su
-          horario y sus turnos, contando solo los días que ya terminaron —hoy entra al marcar la salida— y{" "}
-          <strong>sin los días con motivo registrado</strong>: quien estuvo de vacaciones no debe las horas de
-          sus vacaciones. Los días en que no tenía horario ni turno cargado no se comparan con nada: se dicen aparte. Las tardanzas con motivo registrado no cuentan, y las
-          faltas las calcula la base: no es falta el día de vacaciones, el de descanso sustitutorio por feriado,
-          el de suspensión ni el que tiene justificación.
-          {hayObjetivos && <> Los objetivos son los de <strong>{mesObjetivos.toLowerCase()}</strong>: son mensuales, no siguen al rango{mesObjetivosEnCurso ? ", y como el mes no terminó ninguno se pinta en rojo" : ""}.</>}
-          {totales.agregadas > 0 && (
-            <> Este rango incluye <strong>{totales.agregadas.toFixed(0)} h de registros históricos de 2025</strong> —
-            el total de un mes guardado en una sola fecha, porque entonces no había marcaje diario. La planilla
-            los usó para CTS y gratificación, pero no son días: quedan fuera de las horas de arriba y de la
-            cuadrícula, que compara contra lo que tocaba día a día.</>
-          )}
-          {sinActividad > 0 && (
-            <> Hay <strong>{sinActividad} persona{sinActividad === 1 ? "" : "s"} activa{sinActividad === 1 ? "" : "s"}</strong>
+        {sinActividad > 0 && (
+          <p className="mt-4 text-xs text-taupe">
+            Hay <strong>{sinActividad} persona{sinActividad === 1 ? "" : "s"} activa{sinActividad === 1 ? "" : "s"}</strong>
             {fSede || fArea ? " con estos filtros" : ""} sin nada que mostrar en este rango (ingreso posterior o sin
-            horario cargado); no salen en la tabla.</>
-          )}
-        </p>
+            horario cargado): no salen en la tabla.
+          </p>
+        )}
       </main>
 
       {/* ── El día ─────────────────────────────────────────────────────────── */}
