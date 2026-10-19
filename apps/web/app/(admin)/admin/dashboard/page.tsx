@@ -17,6 +17,8 @@ import { Cifra } from "@/components/ui/cifra";
 import { EstadoVacio } from "@/components/ui/estado-vacio";
 import { RotuloEstado } from "@/components/ui/rotulo";
 import { PanelRightOpen, TriangleAlert, X } from "lucide-react";
+import { Pestanas } from "@/components/ui/pestanas";
+import { PanelTendencias } from "@/components/tendencias/panel-tendencias";
 import { BotonIcono } from "@/components/ui/boton-icono";
 import { Filtro } from "@/components/ui/filtro";
 import { TarjetaInfo } from "@/components/ui/tarjeta-info";
@@ -400,6 +402,7 @@ export default function DashboardPage() {
   const [metasPorSede, setMetasPorSede] = useState<Map<string, MetaSede>>(new Map());
   const [actualizado, setActualizado] = useState<string>("");
   const [cargando, setCargando] = useState(true);
+  const [vistaDash, setVistaDash] = useState<"hoy" | "tendencias">("hoy");
   const [error, setError] = useState<string | null>(null);
   const [discTard, setDiscTard] = useState<TardRow[]>([]);
   const [discFaltas, setDiscFaltas] = useState<FaltaRow[]>([]);
@@ -824,6 +827,9 @@ export default function DashboardPage() {
     .map((s) => ({ sedeId: s.id, codigo: s.codigo, etiqueta: etiquetaDeSede(s) }))
     .filter((s) => !yo || esAdmin || s.sedeId === yo.sedeBaseId);
 
+  // El nombre con que se dice una sede en las tendencias («Taller · Lima»), a partir de su código.
+  const nombreDeSede = (codigo: string) => sedesDeAlcance.find((s) => s.codigo === codigo)?.etiqueta.texto ?? codigo;
+
   // Cobertura de cada sede, calculada una sola vez y reutilizada para ordenar,
   // para el resumen global y para cada tarjeta.
   //
@@ -1129,6 +1135,19 @@ export default function DashboardPage() {
           }
         />
 
+        {/* Hoy | Tendencias (2026-10-19): lo de hoy se refresca cada 30 s; la historia se pide una vez, al abrir
+            su pestaña, y no entra en ese refresco. */}
+        <Pestanas
+          etiqueta="Secciones del Dashboard"
+          pestanas={[{ clave: "hoy", texto: "Hoy" }, { clave: "tendencias", texto: "Tendencias" }] as const}
+          activa={vistaDash}
+          alElegir={setVistaDash}
+        />
+
+        {vistaDash === "tendencias" ? (
+          <PanelTendencias rol={yo?.rol ?? null} nombreDeSede={nombreDeSede} />
+        ) : (
+          <>
         {error && (
           <BannerAviso enLinea variante="alerta" className="mb-6 text-rojo-profundo">
             {error}{" "}
@@ -1950,6 +1969,8 @@ export default function DashboardPage() {
                 </aside>
               )}
             </div>
+          </>
+        )}
           </>
         )}
       </main>
