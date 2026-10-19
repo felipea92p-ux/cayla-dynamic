@@ -8,7 +8,7 @@
 //   tenía su propia versión, con un `rol === "supervisor_sede"` suelto.
 //
 // LA REGLA
-//   OPERATIVA  = su área es operativa  O  es practicante.
+//   OPERATIVA  = su área es operativa  O  es practicante  O  está de prueba.
 //   LÍDER      = rol de encargada  O  la marca `es_encargada_piso` (0040)
 //                O  (es administrador  Y  la sede es de tipo `central`).
 //
@@ -18,6 +18,17 @@
 //   área y sí tapa el hueco de piso. Antes se decidía solo por el ÁREA de la
 //   persona, y los cuatro practicantes de OTRU —áreas de oficina— daban «0 de 4»
 //   aunque estuvieran trabajando.
+//
+// POR QUÉ QUIEN ESTÁ DE PRUEBA TAMBIÉN CUENTA
+//   Mismo razonamiento, decidido por Felipe el 2026-10-19: quien hace sus tres
+//   días de prueba (0536) está en piso trabajando y tapa el hueco igual que un
+//   practicante. Sin esto, en OTRU el Dashboard decía «Trabajando ahora · 3» y
+//   «2 / 4 operativas» a la vez, sin explicar la diferencia: quien estaba de
+//   prueba —vínculo `prueba`, área de oficina— no contaba en ningún lado.
+//   Lo que se sabe y se acepta: en una tienda, alguien de prueba para un puesto
+//   de oficina contaría como operativo esos días. La prueba dura tres días
+//   trabajados y el sistema no guarda para qué puesto se le prueba, así que no
+//   hay con qué distinguirlo sin inventar un dato.
 //
 // POR QUÉ EL ADMINISTRADOR SOLO CUENTA EN UNA CENTRAL
 //   En CCO manda un administrador y no hay a quién más contar como líder. Pero
@@ -51,12 +62,17 @@ export interface CuentaEnCobertura {
   lider: boolean;
 }
 
+/** Vínculos que cuentan como operativos aunque su área sea de oficina. La
+ * verdad de qué vínculos existen está en el CHECK de `personas.tipo_vinculo`
+ * (0322); esto solo dice cuáles de ellos tapan el hueco de piso. */
+const VINCULOS_QUE_TAPAN_PISO: ReadonlySet<string> = new Set(["practicante", "prueba"]);
+
 export function cuentaEnCobertura(
   p: PersonaParaCobertura,
   sedeTipo: string | null | undefined,
 ): CuentaEnCobertura {
   return {
-    operativa: p.areaOperativa || p.tipoVinculo === "practicante",
+    operativa: p.areaOperativa || VINCULOS_QUE_TAPAN_PISO.has(p.tipoVinculo ?? ""),
     lider:
       esRolEncargada(p.rol) ||
       p.esEncargadaPiso ||
