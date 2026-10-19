@@ -12,6 +12,9 @@ import { CambiosMios } from "./cambios-mios";
 import { DisciplinaMia, PASOS_GUIA_DISCIPLINA } from "./disciplina-mia";
 import { PASOS_GUIA_AUSENCIAS, PASOS_GUIA_DIAS, PASOS_GUIA_TURNOS } from "./guias-de-asistencia";
 import { PASOS_GUIA_BOLETAS, PASOS_GUIA_EDUCACION, PASOS_GUIA_MOVILIDAD } from "./guias-de-pago";
+import {
+  PASOS_GUIA_CONTRATO, PASOS_GUIA_DATOS, PASOS_GUIA_DNI, PASOS_GUIA_FIRMA, PASOS_GUIA_SEGURO,
+} from "./guias-de-documentos";
 import { SaludoCumpleanos } from "./saludo-cumpleanos";
 import { cuantosPiden, porLeer, type CuentaMia, type DocMio } from "@/lib/mio-disciplina";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
@@ -302,6 +305,11 @@ const PASOS_TOUR_RESUMEN: readonly PasoRecorrido[] = [
 const SIN_GUIA: readonly PasoRecorrido[] = [];
 const GUIAS_POR_SECCION: Partial<Record<Tab, readonly PasoRecorrido[]>> = {
   resumen: PASOS_TOUR_RESUMEN,
+  contrato: PASOS_GUIA_CONTRATO,
+  firma: PASOS_GUIA_FIRMA,
+  dni: PASOS_GUIA_DNI,
+  seguro: PASOS_GUIA_SEGURO,
+  datos: PASOS_GUIA_DATOS,
   boletas: PASOS_GUIA_BOLETAS,
   movilidad: PASOS_GUIA_MOVILIDAD,
   educacion: PASOS_GUIA_EDUCACION,
@@ -1834,7 +1842,7 @@ export default function MioPage() {
               </Link>
             )}
             {yo && (
-              <Link href="/mio/editar"
+              <Link href="/mio/editar" data-tour="mio-editar-datos"
                 className="flex items-center justify-center whitespace-nowrap rounded-control border border-sand px-3 py-2 text-sm text-tinta transition-colors hover:bg-hueso">
                 Editar datos
               </Link>
@@ -2415,7 +2423,7 @@ export default function MioPage() {
           pestaña promete—, y nadie entendería por qué su encargada sigue viendo
           la anterior. */}
       {tab === "dni" && hayCampoDni && (
-        <section className="rounded-2xl border border-sand p-5">
+        <section data-tour="mio-dni-seccion" className="rounded-2xl border border-sand p-5">
           <h2 className="mb-1 font-serif text-lg">Tu DNI</h2>
           {/* Quién las ve NO es una frase de relleno: es una promesa sobre un
               documento de identidad, y tiene que decir la verdad. Decía «solo
@@ -2448,7 +2456,7 @@ export default function MioPage() {
           )}
 
           <form onSubmit={(e) => void enviarDni(e)}>
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div data-tour="mio-dni-caras" className="grid gap-3 sm:grid-cols-2">
               {CARAS_DNI.map((cara) => {
                 const elegido = dniElegido[cara.clave];
                 const urlGuardada = dniUrls[cara.clave];
@@ -2511,7 +2519,7 @@ export default function MioPage() {
                 se lee acá es lo que se guarda como constancia, palabra por
                 palabra — por eso el texto es una constante y no se arma en el
                 JSX. */}
-            <label className="mt-4 flex items-start gap-2 rounded-xl border border-sand bg-hueso p-3 text-xs leading-relaxed text-tinta">
+            <label data-tour="mio-dni-autorizacion" className="mt-4 flex items-start gap-2 rounded-xl border border-sand bg-hueso p-3 text-xs leading-relaxed text-tinta">
               <input
                 type="checkbox"
                 checked={aceptoDatos}
@@ -2564,7 +2572,7 @@ export default function MioPage() {
           0399 — no se construye el formulario de propuesta acá sin que
           Felipe lo pida. */}
       {tab === "datos" && (
-        <section className="rounded-2xl border border-sand p-5 text-sm">
+        <section data-tour="mio-datos-seccion" className="rounded-2xl border border-sand p-5 text-sm">
           <h2 className="mb-1 font-serif text-lg">Tus datos</h2>
           <p className="mb-4 text-taupe">
             Lo que Desarrollo Organizacional tiene registrado de ti. Si algo está mal o falta, avísales — esta
@@ -2573,7 +2581,7 @@ export default function MioPage() {
           {!misDatos ? (
             <p className="text-taupe">Cargando…</p>
           ) : (
-            <div className="space-y-5">
+            <div data-tour="mio-datos-bloques" className="space-y-5">
               <div>
                 <h3 className="mb-2 text-xs font-medium tracking-wide text-taupe uppercase">Identidad</h3>
                 <dl className="grid gap-x-4 gap-y-2 sm:grid-cols-3">
@@ -2807,7 +2815,7 @@ export default function MioPage() {
           Solo dice si tiene uno y lleva a verlo. El documento en sí —que se
           imprime— vive en /mio/contrato, mismo criterio que la boleta. */}
       {tab === "contrato" && (
-        <section className="rounded-2xl border border-sand p-5 text-sm">
+        <section data-tour="mio-contrato-seccion" className="rounded-2xl border border-sand p-5 text-sm">
           <h2 className="mb-1 font-serif text-lg">Tu contrato</h2>
           {!contratoCargado ? (
             <p className="text-taupe">Cargando…</p>
@@ -2833,7 +2841,7 @@ export default function MioPage() {
                   : "Pendiente de firma."}
               </p>
               <Link
-                href="/mio/contrato"
+                href="/mio/contrato" data-tour="mio-contrato-ver"
                 className="mt-3 inline-block text-tinta underline underline-offset-2 hover:text-rojo-profundo"
               >
                 Ver mi contrato →
@@ -2915,14 +2923,16 @@ export default function MioPage() {
           anticipación — en cuanto DO genere el contrato, la firma ya está
           lista sin que haga falta volver a hacer nada. */}
       {tab === "firma" && (
-        <section className="rounded-2xl border border-sand p-5">
+        <section data-tour="mio-firma-seccion" className="rounded-2xl border border-sand p-5">
           <h2 className="mb-1 font-serif text-lg">Mi firma</h2>
           <p className="mb-3 text-sm text-taupe">
             Aparecerá en tu contrato de trabajo, en tu propio apartado. Si además firmas documentos por la
             empresa (memos, política salarial), es la misma firma la que se usa ahí.
           </p>
           {yo ? (
-            <FirmaEditor supabase={supabase} nombreOficial={yo.nombreOficial} avisar={avisar} />
+            <div data-tour="mio-firma-editor">
+              <FirmaEditor supabase={supabase} nombreOficial={yo.nombreOficial} avisar={avisar} />
+            </div>
           ) : (
             <p className="text-sm text-taupe">Cargando…</p>
           )}

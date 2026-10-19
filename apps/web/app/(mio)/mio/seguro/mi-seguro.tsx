@@ -75,7 +75,7 @@ function ArchivosDeLaPoliza({
   }
   return (
     <>
-      <ul className="mt-3 divide-y divide-sand border-t border-sand" aria-busy={ocupada !== null}>
+      <ul data-tour="mio-seguro-archivos" className="mt-3 divide-y divide-sand border-t border-sand" aria-busy={ocupada !== null}>
         {p.archivos.map((a) => {
           const rotulo = rotuloDeArchivo(a, p.archivos);
           const principal = destacar && a.tipo === "poliza";
@@ -130,7 +130,7 @@ function CarnePoliza({
 }) {
   const datos = datosConfirmados(p, formatSoles);
   return (
-    <section aria-label="Tu póliza" className="rounded-xl border border-tinta/30 bg-papel px-4 py-4">
+    <section aria-label="Tu póliza" data-tour="mio-seguro-principal" className="rounded-xl border border-tinta/30 bg-papel px-4 py-4">
       <div className="flex items-start justify-between gap-2">
         <p className="text-base font-medium text-tinta">{p.producto_nombre}</p>
         <Insignia variante={resumen.variante} tamano="sm">{resumen.insignia}</Insignia>
@@ -259,7 +259,7 @@ function TarjetaPoliza({
 function ComoUsarlo({ g, nombrePrincipal, sinTelefonos }: { g: GuiaQueAplica; nombrePrincipal: string | null; sinTelefonos: boolean }) {
   const { guia } = g;
   return (
-    <TarjetaInfo como="section" titulo={`Cómo usar tu póliza ${g.nombre}`} className="text-sm">
+    <TarjetaInfo como="section" titulo={`Cómo usar tu póliza ${g.nombre}`} className="text-sm" data-tour="mio-seguro-como-usarlo">
       {/* Con un seguro principal distinto (pasó de FOLA a EsSalud y la póliza sigue vigente hasta la baja) no se
           muestran dos «tu seguro» sin explicar. */}
       {!g.esPrincipal && (
@@ -408,7 +408,7 @@ export function MiSeguro() {
           ocupada={ocupada} onAbrir={(a) => void abrir(a)} onDescargar={(x, a) => void descargar(x, a)}
           onCopiar={(n) => void copiar(n)} />
       ) : (
-        <TarjetaInfo como="section" titulo="Mi seguro" className="text-sm">
+        <TarjetaInfo como="section" titulo="Mi seguro" className="text-sm" data-tour="mio-seguro-principal">
           <div className="space-y-3">
             <Resumen seguro={seguro} />
             {seguro.actual && poliza(seguro.actual, true)}
