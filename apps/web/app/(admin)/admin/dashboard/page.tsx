@@ -1147,7 +1147,7 @@ export default function DashboardPage() {
                 lo suyo con su texto—, sin caja alrededor, y los controles a 13 px y 32 px de alto en vez de
                 14 px y 36. «Solo alertas» deja de ser una casilla suelta y pasa a ser un filtro, como los de
                 Educación; va sobre una tarjeta (papel) para separarse del fondo de la página. Los campos usan `tamano="sm"` (el mismo vocabulario que Boton y Filtro). */}
-            <TarjetaInfo className="mb-5 hidden flex-wrap items-center gap-2 p-2 sm:flex sm:p-2">
+            <TarjetaInfo className="mb-5 hidden flex-wrap items-center gap-2 sm:flex sm:p-4">
               <div className="min-w-48 flex-1">
                 <Campo
                   tamano="sm"
