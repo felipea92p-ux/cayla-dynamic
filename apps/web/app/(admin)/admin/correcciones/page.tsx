@@ -22,6 +22,7 @@ import { Boton } from "@/components/ui/boton";
 import { BannerAviso } from "@/components/ui/banner-aviso";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
 import { Filtro } from "@/components/ui/filtro";
+import { ParaAtender } from "@/components/ui/para-atender";
 import { Rotulo } from "@/components/ui/rotulo";
 import { TarjetaInfo } from "@/components/ui/tarjeta-info";
 import { Campo, CampoSelect } from "@/components/ui/campo";
@@ -246,6 +247,7 @@ export default function CorreccionesPage() {
   // Días sellados por el sistema (secuencia imposible). Sin esta lista el sello
   // sería inútil: nadie va a revisar persona por persona adivinando cuál quedó mal.
   const [porRevisar, setPorRevisar] = useState<DiaPorRevisar[]>([]);
+  const [atencionElegida, setAtencionElegida] = useState<string | undefined>(undefined);
   // Marcas que el terminal no logró enviar y apartó (0304). Hasta esa migración
   // vivían en el IndexedDB de una Mac mini y nadie podía verlas desde acá.
   const [apartadas, setApartadas] = useState<MarcaApartada[]>([]);
@@ -721,6 +723,61 @@ export default function CorreccionesPage() {
     );
   }
 
+  // Tres bandas, no una — y esta es la razón (mig. 0384).
+  //
+  // Hasta hoy había una sola, titulada "quedó con una secuencia
+  // imposible", y se pintaba para CUALQUIER día que la base devolviera.
+  // Pero `fn_dias_por_revisar` devuelve todo día con una marca en
+  // 'pendiente_revision', y a esa columna la escriben tres cosas que no
+  // se parecen en nada. La consecuencia real, vista en producción el
+  // 2026-09-06: un día cuya única pendiente era confirmar la hora del
+  // auto-cierre se anunciaba como secuencia imposible, y al abrirlo la
+  // MISMA pantalla decía lo contrario dos centímetros más abajo.
+  //
+  // Y como el auto-cierre corre todas las noches, esa banda se llenaba
+  // sola de días sanos bajo un titular de alarma. El daño no es el
+  // texto: es que el día que una marca llegue de verdad fuera de orden
+  // va a estar enterrada entre ellos y se leerá como más de lo mismo.
+  //
+  // Un día de un periodo ya pagado no tiene acción posible
+  // (fn_anular_marcaje lo rechaza), así que no entra a ninguna banda:
+  // Felipe pidió que dejara de estorbar la vista. Sigue existiendo en
+  // fn_dias_por_revisar por si algún día hace falta un historial.
+  const accionables = porRevisar.filter((d) => !d.periodo_pagado);
+  // `motivo` null = base sin la 0384 todavía. Se trata como el caso
+  // grave, que es el único que no se puede dejar de avisar.
+  const rotos    = accionables.filter((d) => d.motivo === "secuencia_imposible" || d.motivo == null);
+  const cerrados = accionables.filter((d) => d.motivo === "auto_cierre_sin_confirmar");
+  const sellados = accionables.filter((d) => d.motivo === "sello_sin_levantar");
+
+  // Abre el día de verdad. El efecto de arriba se encarga de cargarlo.
+  const abrir = (d: DiaPorRevisar) => {
+    setPersonaId(d.persona_id);
+    setFecha(d.fecha);
+    setCargado(false);
+  };
+  const lista = (dias: DiaPorRevisar[], hover: string) => (
+    <ul className="flex flex-col">
+      {dias.map((d) => (
+        <li key={`${d.persona_id}-${d.fecha}`}>
+          <button
+            onClick={() => abrir(d)}
+            className={`w-full rounded-lg px-3 py-2 text-left text-sm transition-colors ${hover}`}
+          >
+            <span className="font-medium text-tinta">{d.nombre}</span>
+            <span className="text-taupe"> · {d.sede} · {d.fecha}</span>
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+
+
+  // Qué lista está abierta bajo «Para atender». `undefined` = nadie eligió todavía: se abre la más
+  // grave que tenga algo. `""` = quien usa la pantalla la cerró a propósito.
+  const primeraConAlgo = apartadas.length > 0 ? "apartadas" : rotos.length > 0 ? "rotos" : cerrados.length > 0 ? "cerrados" : sellados.length > 0 ? "sellados" : "";
+  const atencion = atencionElegida ?? primeraConAlgo;
+
   return (
     <div className="flex flex-1 flex-col">
       <div className="px-4 pt-5 md:px-6">
@@ -742,10 +799,24 @@ export default function CorreccionesPage() {
           </BannerAviso>
         )}
 
+        {/* «Para atender» (como Educación): lo que pide una decisión, en una línea. Tocar una pastilla abre
+            su lista debajo. Si hay algo, se abre solo el más grave: nadie debería tener que adivinar que
+            hay marcas que no llegaron a registrarse. */}
+        <ParaAtender
+          items={[
+            { clave: "apartadas", texto: `${apartadas.length} marca${apartadas.length === 1 ? "" : "s"} sin registrar`, n: apartadas.length, tono: "rojo" },
+            { clave: "rotos", texto: `${rotos.length} día${rotos.length === 1 ? "" : "s"} desordenado${rotos.length === 1 ? "" : "s"}`, n: rotos.length, tono: "ambar" },
+            { clave: "cerrados", texto: `${cerrados.length} salida${cerrados.length === 1 ? "" : "s"} por confirmar`, n: cerrados.length, tono: "pizarra" },
+            { clave: "sellados", texto: `${sellados.length} ya cuadra${sellados.length === 1 ? "" : "n"}`, n: sellados.length, tono: "neutro" },
+          ]}
+          activa={atencion || null}
+          alTocar={(clave) => setAtencionElegida(atencion === clave ? "" : clave)}
+        />
+
         {/* Va ARRIBA de los días por revisar: aquellos son días que existen y
             están desordenados; estas son marcas que NO existen todavía. Si nadie
             las repone, ese día se paga como si la persona no hubiera venido. */}
-        {apartadas.length > 0 && (
+        {atencion === "apartadas" && apartadas.length > 0 && (
           <BannerAviso
             variante="alerta"
             className="mb-6 max-w-3xl"
@@ -800,120 +871,66 @@ export default function CorreccionesPage() {
           </BannerAviso>
         )}
 
-        {(() => {
-          // Tres bandas, no una — y esta es la razón (mig. 0384).
-          //
-          // Hasta hoy había una sola, titulada "quedó con una secuencia
-          // imposible", y se pintaba para CUALQUIER día que la base devolviera.
-          // Pero `fn_dias_por_revisar` devuelve todo día con una marca en
-          // 'pendiente_revision', y a esa columna la escriben tres cosas que no
-          // se parecen en nada. La consecuencia real, vista en producción el
-          // 2026-09-06: un día cuya única pendiente era confirmar la hora del
-          // auto-cierre se anunciaba como secuencia imposible, y al abrirlo la
-          // MISMA pantalla decía lo contrario dos centímetros más abajo.
-          //
-          // Y como el auto-cierre corre todas las noches, esa banda se llenaba
-          // sola de días sanos bajo un titular de alarma. El daño no es el
-          // texto: es que el día que una marca llegue de verdad fuera de orden
-          // va a estar enterrada entre ellos y se leerá como más de lo mismo.
-          //
-          // Un día de un periodo ya pagado no tiene acción posible
-          // (fn_anular_marcaje lo rechaza), así que no entra a ninguna banda:
-          // Felipe pidió que dejara de estorbar la vista. Sigue existiendo en
-          // fn_dias_por_revisar por si algún día hace falta un historial.
-          const accionables = porRevisar.filter((d) => !d.periodo_pagado);
-          // `motivo` null = base sin la 0384 todavía. Se trata como el caso
-          // grave, que es el único que no se puede dejar de avisar.
-          const rotos    = accionables.filter((d) => d.motivo === "secuencia_imposible" || d.motivo == null);
-          const cerrados = accionables.filter((d) => d.motivo === "auto_cierre_sin_confirmar");
-          const sellados = accionables.filter((d) => d.motivo === "sello_sin_levantar");
+        {porRevisar.length >= LIMITE_DIAS_POR_REVISAR && atencion !== "apartadas" && (
+          <p className="mb-4 max-w-3xl text-xs text-taupe">
+            Se muestran los {LIMITE_DIAS_POR_REVISAR} días más recientes: puede haber más atrás. Al resolver estos, aparecen los siguientes.
+          </p>
+        )}
+        
+        {/* 1 · El día está roto de verdad. Es el único que pide trabajo. */}
+        {atencion === "rotos" && rotos.length > 0 && (
+          <BannerAviso
+            variante="advertencia"
+            className="mb-6 max-w-3xl"
+            titulo={rotos.length === 1
+              ? "1 día quedó con una secuencia imposible"
+              : `${rotos.length} días quedaron con una secuencia imposible`}
+          >
+            <p className="mb-3 text-taupe">
+              Por ejemplo, dos salidas seguidas sin retorno entre medio. Ocurre cuando la
+              terminal pierde señal y una marca llega tarde. No se perdió nada: solo hay que
+              ordenar el día. Toca uno para abrirlo.
+            </p>
+            {lista(rotos, "hover:bg-ambar/10")}
+          </BannerAviso>
+        )}
 
-          // Abre el día de verdad. El efecto de arriba se encarga de cargarlo.
-          const abrir = (d: DiaPorRevisar) => {
-            setPersonaId(d.persona_id);
-            setFecha(d.fecha);
-            setCargado(false);
-          };
-          const lista = (dias: DiaPorRevisar[], hover: string) => (
-            <ul className="flex flex-col">
-              {dias.map((d) => (
-                <li key={`${d.persona_id}-${d.fecha}`}>
-                  <button
-                    onClick={() => abrir(d)}
-                    className={`w-full rounded-lg px-3 py-2 text-left text-sm transition-colors ${hover}`}
-                  >
-                    <span className="font-medium text-tinta">{d.nombre}</span>
-                    <span className="text-taupe"> · {d.sede} · {d.fecha}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          );
+        {/* 2 · El día cuadra; falta decir si la hora que inventó el robot vale. */}
+        {atencion === "cerrados" && cerrados.length > 0 && (
+          <BannerAviso
+            variante="informativo"
+            className="mb-6 max-w-3xl"
+            titulo={cerrados.length === 1
+              ? "1 día espera que confirmes la hora de salida"
+              : `${cerrados.length} días esperan que confirmes la hora de salida`}
+          >
+            <p className="mb-3 text-taupe">
+              Nadie marcó la salida y el auto-cierre nocturno puso una hora. La secuencia de
+              esos días está bien; lo único pendiente es decir si esa hora es la buena.
+              Mientras siga sin confirmar, el día no mide salida anticipada ni tiempo
+              adicional. Toca uno para abrirlo.
+            </p>
+            {lista(cerrados, "hover:bg-pizarra/10")}
+          </BannerAviso>
+        )}
 
-          return (
-            <>
-              {porRevisar.length >= LIMITE_DIAS_POR_REVISAR && (
-                <p className="mb-4 max-w-3xl text-xs text-taupe">
-                  Se muestran los {LIMITE_DIAS_POR_REVISAR} días más recientes: puede haber más atrás. Al resolver estos, aparecen los siguientes.
-                </p>
-              )}
-              {/* 1 · El día está roto de verdad. Es el único que pide trabajo. */}
-              {rotos.length > 0 && (
-                <BannerAviso
-                  variante="advertencia"
-                  className="mb-6 max-w-3xl"
-                  titulo={rotos.length === 1
-                    ? "1 día quedó con una secuencia imposible"
-                    : `${rotos.length} días quedaron con una secuencia imposible`}
-                >
-                  <p className="mb-3 text-taupe">
-                    Por ejemplo, dos salidas seguidas sin retorno entre medio. Ocurre cuando la
-                    terminal pierde señal y una marca llega tarde. No se perdió nada: solo hay que
-                    ordenar el día. Toca uno para abrirlo.
-                  </p>
-                  {lista(rotos, "hover:bg-ambar/10")}
-                </BannerAviso>
-              )}
-
-              {/* 2 · El día cuadra; falta decir si la hora que inventó el robot vale. */}
-              {cerrados.length > 0 && (
-                <BannerAviso
-                  variante="informativo"
-                  className="mb-6 max-w-3xl"
-                  titulo={cerrados.length === 1
-                    ? "1 día espera que confirmes la hora de salida"
-                    : `${cerrados.length} días esperan que confirmes la hora de salida`}
-                >
-                  <p className="mb-3 text-taupe">
-                    Nadie marcó la salida y el auto-cierre nocturno puso una hora. La secuencia de
-                    esos días está bien; lo único pendiente es decir si esa hora es la buena.
-                    Mientras siga sin confirmar, el día no mide salida anticipada ni tiempo
-                    adicional. Toca uno para abrirlo.
-                  </p>
-                  {lista(cerrados, "hover:bg-pizarra/10")}
-                </BannerAviso>
-              )}
-
-              {/* 3 · Ya no hay nada que hacer, y aun así siguen marcados. */}
-              {sellados.length > 0 && (
-                <BannerAviso
-                  variante="neutral"
-                  className="mb-6 max-w-3xl"
-                  titulo={sellados.length === 1
-                    ? "1 día quedó marcado y ya cuadra"
-                    : `${sellados.length} días quedaron marcados y ya cuadran`}
-                >
-                  <p className="mb-3 text-taupe">
-                    No hay nada que corregir: su secuencia es correcta. La marca quedó señalada
-                    cuando el día estuvo roto, y la marca que llegó después a arreglarlo no levantó
-                    esa señal. Sale de la lista en cuanto se corrija cualquier cosa de ese día.
-                  </p>
-                  {lista(sellados, "hover:bg-sand/40")}
-                </BannerAviso>
-              )}
-            </>
-          );
-        })()}
+        {/* 3 · Ya no hay nada que hacer, y aun así siguen marcados. */}
+        {atencion === "sellados" && sellados.length > 0 && (
+          <BannerAviso
+            variante="neutral"
+            className="mb-6 max-w-3xl"
+            titulo={sellados.length === 1
+              ? "1 día quedó marcado y ya cuadra"
+              : `${sellados.length} días quedaron marcados y ya cuadran`}
+          >
+            <p className="mb-3 text-taupe">
+              No hay nada que corregir: su secuencia es correcta. La marca quedó señalada
+              cuando el día estuvo roto, y la marca que llegó después a arreglarlo no levantó
+              esa señal. Sale de la lista en cuanto se corrija cualquier cosa de ese día.
+            </p>
+            {lista(sellados, "hover:bg-sand/40")}
+          </BannerAviso>
+        )}
       </div>
 
       {/* Split view: filtro + lista de personas a la izquierda, el día abierto a
