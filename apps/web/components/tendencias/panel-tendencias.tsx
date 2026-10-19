@@ -132,7 +132,12 @@ export function PanelTendencias({ rol, sedes }: { rol: string | null; sedes: { c
     return columnasDeCosto(por, (enCurso?.[0] as { fecha_ini: string; fecha_fin: string } | undefined) ?? null);
   });
 
-  const sedesVisibles = sedes.map((s) => s.codigo);
+  // Un botón por sede QUE TIENE días medidos; las que no, no son un botón muerto sino una línea que lo dice
+  // («Sin días medidos en este periodo: …»), para que nadie crea que la sede no existe. En producción (medido
+  // el 2026-10-19) Central y Oficina Trujillo sí tienen gente medible; una sede con 0 —«003»— queda en la línea.
+  const conDatos = new Set(asist.cargando || asist.error !== null ? [] : asist.datos.map((f) => f.sede_codigo));
+  const sedesVisibles = asist.cargando || asist.error !== null ? [] : sedes.filter((s) => conDatos.has(s.codigo) || s.codigo === sede).map((s) => s.codigo);
+  const sedesSinDatos = asist.cargando || asist.error !== null ? [] : sedes.filter((s) => !conDatos.has(s.codigo) && s.codigo !== sede);
   const filtradas = useMemo(() => (asist.cargando || asist.error !== null ? [] : asist.datos.filter((f) => !sede || f.sede_codigo === sede)), [asist, sede]);
 
   const SIN_DIAS_DE_SEDE = "Esta sede no tiene días medidos en el periodo. No se mide a quien cobra sueldo fijo, por recibo o es personal de dirección, ni a quien no tiene horario cargado.";
@@ -149,6 +154,9 @@ export function PanelTendencias({ rol, sedes }: { rol: string | null; sedes: { c
           </>
         )}
       </div>
+      {sedesSinDatos.length > 0 && (
+        <p className="-mt-2 text-xs text-taupe">Sin días medidos en este periodo: {sedesSinDatos.map((s) => s.nombre).join(", ")}.</p>
+      )}
 
       <Seccion
         titulo="Asistencia sobre lo esperado"
