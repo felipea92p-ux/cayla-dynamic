@@ -21,6 +21,8 @@ import { Campo, CampoSelect } from "@/components/ui/campo";
 import { Modal } from "@/components/ui/modal";
 import { BotonIcono } from "@/components/ui/boton-icono";
 import { Insignia } from "@/components/ui/insignia";
+import { sinTildes } from "@/lib/admin/sin-tildes";
+import { SelectorPersona, type OpcionPersona } from "./selector-persona";
 import { Menu, MenuItem } from "@/components/ui/menu";
 import { ChevronDown, ChevronUp, Eye, EyeOff } from "lucide-react";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
@@ -78,13 +80,6 @@ const MAX_BYTES = 50 * 1024 * 1024;
 // dentro de una frase: ahí un salto de línea no significa nada y solo estorba.
 function unaLinea(texto: string): string {
   return texto.replace(/\s+/g, " ").trim();
-}
-
-// Buscar «Gutierrez» tiene que encontrar a «Gutiérrez»: quien escribe con prisa
-// no pone la tilde, y media plantilla lleva una en el apellido. Mismo
-// normalizador que /admin/horas y que el buscador global.
-function sinTildes(t: string): string {
-  return t.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
 }
 
 function sumarDias(iso: string, n: number): string {
@@ -2159,6 +2154,25 @@ export default function ContratosPage() {
   const nBanda = (b: Banda) => tablero.filter((f) => bandaDe(f) === b).length;
   const nParaAtender = tablero.filter((f) => bandaDe(f) !== "al_dia").length;
   const nArt77 = cuenta("desnaturalizado");
+  // Para el selector del generador: cada persona con la situación de su contrato (la del tablero), para poder
+  // buscar «a quién le falta» y no solo «cómo se llama».
+  const opcionesPersona: OpcionPersona[] = personas.map((p) => {
+    const f = tablero.find((x) => x.persona_id === p.id);
+    const banda = f ? bandaDe(f) : null;
+    return {
+      id: p.id,
+      nombre: `${p.apellidos}, ${p.nombres}`,
+      sede: f?.sede ?? null,
+      tipoTexto: f?.tipo ? (TIPO_CONTRATO[f.tipo] ?? f.tipo) : null,
+      situacionTexto: !f
+        ? "Sin registrar"
+        : f.estado === "sin_contrato" && f.fecha_fin_contrato !== null
+          ? "En papel"
+          : (ETIQUETA_CORTA[f.estado] ?? f.estado),
+      situacionVariante: f ? variantePorEstado(f.estado) : "informativo",
+      situacion: !f || banda === "sin_contrato" ? "sin_contrato" : banda === "al_dia" ? "al_dia" : "atender",
+    };
+  });
   // La lista ya está mostrando solo a quienes pasaron el plazo: el ojo pasa a «quitar el filtro».
   const soloArt77 = bandaElegida === "paso" && filtroEstado === "pendientes";
 
@@ -2522,24 +2536,15 @@ export default function ContratosPage() {
                 {/* PASO — PERSONA Y DOCUMENTO */}
                 {pasoActual === "persona" && (
                   <>
-                    <CampoSelect
-                      id="generador-persona"
-                      etiqueta="Persona"
-                      className="disabled:bg-crema disabled:text-taupe"
+                    <SelectorPersona
+                      opciones={opcionesPersona}
                       value={personaId}
                       // Un borrador es de quien es. Cambiarle la persona no
                       // sería corregirlo, sería otro documento — y para eso
                       // está generar.
                       disabled={editando !== null}
-                      onChange={(e) => setPersonaId(e.target.value)}
-                    >
-                      <option value="">— elegir —</option>
-                      {personas.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.apellidos}, {p.nombres}
-                        </option>
-                      ))}
-                    </CampoSelect>
+                      onChange={setPersonaId}
+                    />
 
                     {persona?.tipo_vinculo === "practicante" ? (
                       // Una practicante solo tiene un documento posible — no
