@@ -5,6 +5,7 @@ import Link from "next/link";
 import { BannerAviso } from "@/components/ui/banner-aviso";
 import { ChevronDown, PanelRightClose } from "lucide-react";
 import { BotonIcono } from "@/components/ui/boton-icono";
+import { TarjetaInfo } from "@/components/ui/tarjeta-info";
 import { RotuloEstado } from "@/components/ui/rotulo";
 
 // «Requiere atención»: lo que hay que mirar hoy, en un solo lugar. Dos formas
@@ -72,13 +73,12 @@ const ContadorCriticas = ({ n }: { n: number }) =>
 export function PanelAtencionLateral({ items, alOcultar }: { items: ItemAtencionVista[]; alOcultar: () => void }) {
   const criticas = items.filter((i) => i.tono === "critico").length;
   return (
-    <div className="rounded-superficie border border-sand bg-papel p-5">
-      <div className="flex items-start justify-between gap-2">
-        <h2 className="font-serif text-xl font-medium">Requiere atención<ContadorCriticas n={criticas} /></h2>
-        <BotonIcono etiqueta="Ocultar el panel y darle todo el ancho al contenido" icono={<PanelRightClose aria-hidden />} onClick={alOcultar} />
-      </div>
-      {items.length === 0 ? <p className="mt-2 text-sm text-taupe">Nada pendiente ahora mismo.</p> : <Grupos items={items} />}
-    </div>
+    <TarjetaInfo
+      titulo={<>Requiere atención<ContadorCriticas n={criticas} /></>}
+      accion={<BotonIcono etiqueta="Ocultar el panel y darle todo el ancho al contenido" icono={<PanelRightClose aria-hidden />} onClick={alOcultar} />}
+    >
+      {items.length === 0 ? <p className="text-sm text-taupe">Nada pendiente ahora mismo.</p> : <Grupos items={items} />}
+    </TarjetaInfo>
   );
 }
 
