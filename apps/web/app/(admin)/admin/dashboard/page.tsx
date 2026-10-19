@@ -8,7 +8,7 @@ import { parseAreas, esOperativaEn, AREA_DEFAULT, type Area } from "@/lib/areas"
 import { Cargando } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
 import { Insignia } from "@/components/ui/insignia";
-import { Campo, CampoCasilla, CampoSelect } from "@/components/ui/campo";
+import { Campo, CampoSelect } from "@/components/ui/campo";
 import { Fila, Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
 import { AyudaPantalla } from "@/components/ui/ayuda-pantalla";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
@@ -1064,13 +1064,25 @@ export default function DashboardPage() {
             </>
           }
           accion={
-            <>
-            {/* Celular: «Personalizar» y «Ver en Google Sheets» pasan a un menú ⋯. Eran dos
-                controles que compiten con el título y que casi nadie toca desde el teléfono
-                (lo personalizado se guarda por navegador). El aviso de que Disciplina, memos y
-                contratos se refrescan cada 5 min también vive aquí: el «en vivo» de arriba no
-                los incluye y ese matiz no se pierde, solo se mueve. */}
-            <div className="sm:hidden">
+            // UN solo menú ⋯ en todos los anchos (2026-10-19). Antes el escritorio mostraba dos controles
+            // —«Personalizar» y «Ver en Google Sheets»— que casi nadie toca más de una vez por semana y que
+            // competían con el título; el celular ya los guardaba aquí. Lo único que sale del menú es lo que
+            // está pasando AHORA: «Listo» mientras se personaliza, y «Alertas» si se ocultó su panel. El
+            // matiz de los refrescos (30 s / 5 min) ya vive en el ⓘ del título, no hace falta repetirlo.
+            <div className="flex flex-wrap items-center gap-2">
+              {prefs.alertasOcultas && (
+                <span className="hidden xl:block">
+                  <Boton variante="secundario" tamano="sm" onClick={() => setPrefsCrudas(alternarAlertas(prefs))}>
+                    ⟨ Alertas
+                    {itemsAtencion.some((it) => it.tono === "critico") && (
+                      <span className="ml-1.5 rounded-full bg-rojo px-2 py-0.5 text-crema">{itemsAtencion.filter((it) => it.tono === "critico").length}</span>
+                    )}
+                  </Boton>
+                </span>
+              )}
+              {personalizando && (
+                <Boton variante="primario" tamano="sm" aria-pressed onClick={() => setPersonalizando(false)}>Listo</Boton>
+              )}
               <Menu trigger={({ abierto, alternar }) => (
                 <button
                   type="button"
@@ -1078,7 +1090,7 @@ export default function DashboardPage() {
                   aria-haspopup="menu"
                   aria-expanded={abierto}
                   aria-label="Más opciones"
-                  className="flex size-10 items-center justify-center rounded-full border border-sand bg-papel text-xl leading-none text-tinta transition-colors hover:border-taupe/40 hover:bg-sand/50 active:scale-[0.97]"
+                  className="flex size-10 items-center justify-center rounded-full border border-sand bg-papel text-xl leading-none text-tinta transition-colors hover:border-taupe/40 hover:bg-sand/50 active:scale-[0.97] sm:size-9"
                 >
                   ⋯
                 </button>
@@ -1095,35 +1107,8 @@ export default function DashboardPage() {
                 >
                   Ver en Google Sheets ↗
                 </a>
-                <div className="mt-1 w-64 border-t border-sand px-3 py-2 text-xs text-taupe">
-                  Esta pantalla se refresca cada 30 s. Disciplina, memos y contratos, cada 5 minutos.
-                </div>
               </Menu>
             </div>
-            <div className="hidden flex-wrap items-center gap-3 sm:flex">
-              {prefs.alertasOcultas && (
-                <span className="hidden xl:block">
-                  <Boton variante="secundario" tamano="sm" onClick={() => setPrefsCrudas(alternarAlertas(prefs))}>
-                    ⟨ Alertas
-                    {itemsAtencion.some((it) => it.tono === "critico") && (
-                      <span className="ml-1.5 rounded-full bg-rojo px-2 py-0.5 text-crema">{itemsAtencion.filter((it) => it.tono === "critico").length}</span>
-                    )}
-                  </Boton>
-                </span>
-              )}
-              <Boton variante={personalizando ? "primario" : "secundario"} tamano="sm" aria-pressed={personalizando} onClick={() => setPersonalizando((v) => !v)}>
-                {personalizando ? "Listo" : "Personalizar"}
-              </Boton>
-              <a
-                href={URL_SHEET_ASISTENCIA}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm text-taupe underline underline-offset-4 transition-colors hover:text-tinta"
-              >
-                Ver en Google Sheets ↗
-              </a>
-            </div>
-            </>
           }
         />
 
@@ -1154,32 +1139,33 @@ export default function DashboardPage() {
               alCambiarSoloAlertas={setSoloAlertas}
               alLimpiar={limpiarFiltros}
             />
-            <div className="mb-6 hidden flex-wrap items-end gap-3 rounded-superficie border border-sand bg-papel p-4 sm:flex">
+            {/* Barra de escritorio compacta (2026-10-19): sin rótulos —el buscador y los desplegables ya dicen
+                lo suyo con su texto—, sin caja alrededor, y los controles a 13 px y 32 px de alto en vez de
+                14 px y 36. «Solo alertas» deja de ser una casilla suelta y pasa a ser un filtro, como los de
+                Educación. Los campos usan `tamano="sm"` (el mismo vocabulario que Boton y Filtro). */}
+            <div className="mb-5 hidden flex-wrap items-center gap-2 sm:flex">
               <div className="min-w-48 flex-1">
                 <Campo
-                  etiqueta="Buscar persona"
-                  placeholder="Nombre…"
+                  tamano="sm"
+                  aria-label="Buscar persona"
+                  placeholder="Buscar persona"
                   value={busqueda}
                   onChange={(e) => setBusqueda(e.target.value)}
                 />
               </div>
               {sedes.length > 1 && (
-                <CampoSelect etiqueta="Sede" value={sedeFiltro} onChange={(e) => setSedeFiltro(e.target.value)} className="min-w-32">
-                  <option value="todas">Todas</option>
+                <CampoSelect tamano="sm" aria-label="Sede" value={sedeFiltro} onChange={(e) => setSedeFiltro(e.target.value)} className="min-w-36">
+                  <option value="todas">Todas las sedes</option>
                   {sedes.map((s) => <option key={s.sedeId} value={s.codigo}>{s.etiqueta.texto}</option>)}
                 </CampoSelect>
               )}
-              <CampoSelect etiqueta="Estado" value={estadoFiltro} onChange={(e) => setEstadoFiltro(e.target.value)} className="min-w-36">
-                <option value="todos">Todos</option>
+              <CampoSelect tamano="sm" aria-label="Estado" value={estadoFiltro} onChange={(e) => setEstadoFiltro(e.target.value)} className="min-w-36">
+                <option value="todos">Todos los estados</option>
                 {OPCIONES_FILTRO_ESTADO.map((o) => <option key={o.valor} value={o.valor}>{o.etiqueta}</option>)}
               </CampoSelect>
-              <div className="pb-2">
-                <CampoCasilla etiqueta="Solo alertas" checked={soloAlertas} onChange={(e) => setSoloAlertas(e.target.checked)} />
-              </div>
+              <Filtro tamano="sm" activo={soloAlertas} onClick={() => setSoloAlertas(!soloAlertas)}>Solo alertas</Filtro>
               {hayFiltrosActivos && (
-                <Boton variante="enlace" tamano="sm" className="pb-2.5" onClick={limpiarFiltros}>
-                  Limpiar filtros
-                </Boton>
+                <Boton variante="enlace" tamano="sm" onClick={limpiarFiltros}>Limpiar</Boton>
               )}
             </div>
 
