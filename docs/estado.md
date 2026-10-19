@@ -208,7 +208,7 @@ nuevas (`fn_mi_seguro`, `fn_mis_polizas`, `fn_seguro_archivo_es_mio`). La base d
 
 ---
 
-## 2026-10-19 — La prueba de tres días · etapa 1 (la base) · migraciones 0535 y 0536 · SIN PEGAR NI FUSIONAR · rama `claude/trial-period-contract-flow-3b095c`
+## 2026-10-19 — La prueba de tres días · etapas 1 y 2 (la base y la planilla) · migraciones 0535, 0536 y 0537 · SIN PEGAR NI FUSIONAR · rama `claude/trial-period-contract-flow-3b095c`
 
 **Qué es.** Quien está de prueba no tiene contrato: trabaja **tres días** (de jornada cerrada, no de
 calendario) y recién después se le hace contrato. Durante la prueba se marca **«no apto»** (se le
@@ -220,11 +220,11 @@ confirmación de DO, y solo sobre la gente de su sede. Fecha de baja = el últim
 «si se retira, no se le paga» (objeción dicha: es una deuda remunerativa reclamable y sin hoja
 firmada no hay prueba de que la conocía — se decidió igual); aviso del plazo con alerta a DO y
 etiqueta en el terminal, **sin** hoja firmada; el pase a Planilla es al **firmarse el contrato**;
-la asignación familiar solo cuenta si recibe contrato — si no pasa la prueba, solo lo trabajado
-(**interpretación de Claude, pendiente de confirmar:** mientras la prueba siga abierta al cerrar el
-periodo, tampoco se paga).
+**la asignación familiar solo se paga cuando hay contrato**: quien no pasa la prueba cobra solo lo
+trabajado, y mientras la prueba siga abierta al cerrar el periodo tampoco (objeción dicha: la
+asignación es un derecho del trabajador con hijos, Ley 25129).
 
-**Qué hay en esta rama (2 commits, en este orden a propósito: primero el refactor, luego el cambio).**
+**Qué hay en esta rama (3 migraciones; el refactor va primero a propósito).**
 - **0535 — refactor sin cambio de comportamiento.** `fn_cesar_persona` queda como guardia (admin y
   líder DO) y delega en `fn_cese_aplicar`, interna. Hace falta porque `fn_es_admin_o_lider()` solo
   reconoce `admin` y `lider_do`: una líder de equipo siempre rebotaría. La prueba 135 se mudó al núcleo.
@@ -232,20 +232,40 @@ periodo, tampoco se paga).
   `fn_prueba_cerrar` (única puerta: resultado + motivo + quién + baja, todo o nada),
   `fn_pruebas_abiertas`, `fn_prueba_puede_actuar`, y un trigger sobre `personas` que abre la prueba
   al entrar en vínculo «Prueba» y la cierra al salir (`contratada` / `cesada`). «Se retiró» cierra como
-  `renuncia` y «no apto» como `fin_periodo_prueba`.
-- `puedeDecidirPrueba` en `permisos.ts`, y las pruebas `tests/permisos.test.ts` y pgTAP **429** (49
-  comprobaciones; se verificó que se pone roja con 3 roturas provocadas).
+  `renuncia` y «no apto» como `fin_periodo_prueba`. No cambia lo que se paga.
+- **0537 — la planilla.** Reescribe `fn_planilla_calcular_nucleo` (copia de la **0524**, con tres
+  ediciones marcadas `CAMBIO 0537`): (1) **quien se retiró en prueba no entra a la lista de personas**
+  del cálculo — sin fila no hay horas, asignación, pensión ni nada plano que olvidar; solo mientras siga
+  inactiva (si la reactivan, se le paga: el defecto seguro es pagar); (2) una columna `cobra_asignacion`
+  (`con_hijos` y vínculo distinto de «prueba») que leen los 8 usos de pago de la asignación. `con_hijos`
+  no se toca. **Tiene una guardia**: se niega a pegar si `pruebas` no existe o si el md5 de la función
+  de esa base no es el de la 0524 (acepta sin comentarios y con `\r\n`).
+- `puedeDecidirPrueba` en `permisos.ts`, y las pruebas `tests/permisos.test.ts`, pgTAP **429** (49) y
+  **430** (19).
 
-**⚠ Esta etapa NO cambia lo que se paga.** `retirado` queda registrado pero la planilla sigue pagando
-las horas y la asignación familiar entera. Por eso **ninguna pantalla debe ofrecer «Se retiró» hasta
-que la etapa de planilla (0537) esté pegada**. Plan de esa etapa (medido leyendo
-`fn_planilla_calcular_nucleo`, 0524): excluir de la lista de personas del núcleo a quien se retiró
-(una condición, candidato D) y que `con_hijos` de quien no pasa la prueba no cobre asignación (una
-columna en la CTE `personas`, de la que cuelgan los ~15 usos). Hay que auditarlo en `begin … rollback`.
+**Lo que se midió (clon, 2026-10-19).** Antes de la 0537, una persona de prueba con hijos y UN día de
+6,5 h cobraba S/ 41,00 de horas + S/ 123,00 de asignación; con tres días, S/ 123,00 + S/ 123,00. Con la
+0537, comparando viejo contra nuevo fila por fila: «no apto» pasa de neto S/ 215,32 a S/ 108,31 y «prueba
+abierta» de S/ 179,22 a S/ 72,21 (solo cambian `asignacion_familiar`, `descuento_afp` y `total`); quien se
+retiró desaparece; la gente de planilla, quien pasó a planilla y quien no tiene hijos **no se mueven**; y
+sobre los datos que ya tiene la base, siete ventanas 29..28 dan JSON **idéntico**. La 430 se pone roja con 4
+roturas provocadas (no excluir al retirado; asignación para todos; asignación apagada para todos; volver a
+la 0524).
 
-**Antes de pegar.** Pedir otra vez a producción el md5 de `fn_cesar_persona` (el 2026-10-19 era
-`c069848683a331a0f1acb133e2e10932`, igual al de la 0415) y comprobar `select count(*) from pg_proc where
-proname = 'fn_cese_aplicar'` = 1 antes de la 0536. **Pegar la 0535 y después la 0536**; ambas antes de fusionar.
+**Antes de pegar (en este orden, todo ANTES de fusionar).**
+1. Pedir a producción el md5 de `fn_cesar_persona` (el 2026-10-19 era `c069848683a331a0f1acb133e2e10932`)
+   y el de `fn_planilla_calcular_nucleo`. **El de la planilla está PENDIENTE:** la guardia de la 0537 lo
+   comprueba al pegar, pero conviene saberlo antes. La consulta con `md5(prosrc)` y `sin_comentarios` la imprime
+   `./scripts/donde-vive.sh fn_planilla_calcular_nucleo`; el esperado es `11425cad…`
+   (tal cual) o `62c6e4f5…` (sin comentarios). Si la línea PLANILLA de `que_falta_pegar.sql` dice que
+   producción no tiene la 0524, hay que pegar la 0524 antes.
+2. Pegar **0535**, comprobar `select count(*) from pg_proc where proname = 'fn_cese_aplicar'` = 1, pegar
+   **0536**, pegar **0537**. Volver a pedir los md5 en el mensaje en que se entregue el SQL.
+
+**⚠ Todavía sin pantallas.** Con la 0537 pegada, la base ya hace lo decidido; pero ninguna pantalla
+llama a `fn_prueba_cerrar` ni muestra `fn_pruebas_abiertas`. Sigue funcionando el cese de siempre, y
+cesar a alguien en vínculo «Prueba» por la puerta general lo deja como `cesada` (sin decidir si fue «no
+apto» o «se retiró») y **sí se le paga lo trabajado** — solo «se retiró» desde `fn_prueba_cerrar` lo excluye.
 
 **Medido en producción el 2026-10-19:** 2 personas activas en «Prueba» (se abren solas al pegar la 0536);
 de 14 salidas de prueba, 8 se fueron antes de completar 3 días (≈45 h en total desde fines de julio),
@@ -255,13 +275,15 @@ de 14 salidas de prueba, 8 se fueron antes de completar 3 días (≈45 h en tota
 407, 409, 504, 513–517, 519, 521, 522, 524, 525, 527, 529, 531–533) y el md5 que imprime `donde-vive.sh`
 es el de esa base, no el del repo; producción coincide con los ARCHIVOS. Para no tocar la base compartida
 se probó en un **clon desechable** (`docker run` de la misma imagen, esquema y datos copiados con `pg_dump`
-de solo lectura): 135, 296, 177, 298 y la 429 en verde; la suite completa da las mismas 70 pruebas en
+de solo lectura): 135, 296, 177, 298, 429 y 430 en verde; la suite completa da las mismas 70 pruebas en
 rojo con y sin estas migraciones (artefactos del clon, no del cambio).
 
-**Falta (etapas siguientes):** 0537 planilla; pantalla Contratos → Nuevo documento → Prueba (fotos del
-DNI; nombres y número ya vienen de Equipo), banda «falta contrato» y fila en la Bandeja, botones; etiqueta
-«Prueba · X de 3» en terminal, Equipo, Horas, Planilla y Horarios; entrada en `novedades.ts`; regenerar
-`types.ts` cuando la base local tenga la migración.
+**Falta (etapas siguientes):** pantalla Contratos → Nuevo documento → Prueba (fotos del DNI; nombres y
+número ya vienen de Equipo), banda «falta contrato» y fila en la Bandeja, botones de cierre (con la
+consecuencia en soles en la confirmación); etiqueta «Prueba · X de 3» en terminal, Equipo, Horas, Planilla y
+Horarios; que la pantalla de Planilla/Pruebas muestre «se retiró · N h no pagadas» (quien se retira ya no
+sale en Planilla); «Hacer contrato» → pasar a Planilla al firmarse; entrada en `novedades.ts` (sin reglas de
+pago ni montos); regenerar `types.ts` cuando la base local tenga las migraciones.
 
 ---
 

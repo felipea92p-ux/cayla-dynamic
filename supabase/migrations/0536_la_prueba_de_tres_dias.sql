@@ -105,6 +105,9 @@
 --   drop table if exists pruebas;      -- solo si aún no hay cierres que conservar
 --   Ninguna persona cambia: `personas` no se toca. Los ceses ya hechos por
 --   `fn_prueba_cerrar` quedan hechos (son ceses normales, con su rastro).
+--   ⚠ Si la 0537 ya está pegada, revertirla PRIMERO (volver al cuerpo de la 0524):
+--   desde la 0537 el cálculo de la planilla LEE `pruebas`, y borrar la tabla con
+--   ella puesta hace fallar la planilla de todo el equipo.
 --
 -- CÓMO SE COMPRUEBA QUE ENTRÓ
 --   El `select` del final, y la prueba pgTAP 429.
