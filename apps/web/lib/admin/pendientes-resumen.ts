@@ -19,6 +19,8 @@ export const RUTA_MODULO: Record<ModuloBandeja, string> = {
   liquidaciones: "/admin/liquidaciones",
   seguros: "/admin/seguros",
   casos: "/admin/casos",
+  // Las pruebas de tres días se atienden en la Bandeja (la líder de equipo no abre Contratos).
+  pruebas: "/admin/bandeja",
 };
 
 export interface PendientesDeUnModulo {

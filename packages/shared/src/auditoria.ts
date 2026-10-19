@@ -46,6 +46,8 @@ export const TEMA_AUDITORIA_LABELS: Record<TemaAuditoria, string> = {
 const PREFIJOS: readonly (readonly [string, TemaAuditoria])[] = [
   ["personas.", "persona"],
   ["datos_personales.", "persona"],
+  // El resultado de una prueba de tres días (0536): una decisión sobre la persona.
+  ["pruebas.", "persona"],
   ["asignaciones_regimen_pension.", "persona"],
   ["turnos.", "horario"],
   ["horarios_asignados", "horario"],
@@ -95,6 +97,7 @@ const ROTULOS: Record<string, string> = {
   "turnos.horario": "Turno cambiado",
   horarios_asignados: "Horario cambiado",
   organos_titulo_x: "Nombramiento para investigar el Título X",
+  "pruebas.resultado": "Prueba de tres días cerrada",
 };
 
 /** El nombre en español de un campo; si no lo conoce, el crudo sin guiones bajos. */

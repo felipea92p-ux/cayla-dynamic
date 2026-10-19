@@ -37,6 +37,7 @@ import { descargarCsv, generarCsv } from "@/lib/admin/csv";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { Boton } from "@/components/ui/boton";
 import { Insignia } from "@/components/ui/insignia";
+import { usePruebasPorPersona } from "@/components/pruebas/etiqueta-prueba";
 import { Modal } from "@/components/ui/modal";
 import { Menu, MenuItem } from "@/components/ui/menu";
 import { BannerAviso } from "@/components/ui/banner-aviso";
@@ -118,6 +119,7 @@ function Cifra({ etiqueta, valor, detalle }: { etiqueta: string; valor: string; 
 }
 
 export default function PlanillaPage() {
+  const pruebas = usePruebasPorPersona();
   const router = useRouter();
   const rol = useRolActual();
   const puedeVer = puedeVerPlanilla(rol);
@@ -1052,6 +1054,7 @@ export default function PlanillaPage() {
                 filtrado={filtrado}
                 hallazgos={hallazgos}
                 ceses={ceses}
+                pruebas={pruebas}
                 onAbrir={(f, el) => { disparadorPersona.current = el; setFilaAbiertaClave(claveFila(f)); }}
               />
 

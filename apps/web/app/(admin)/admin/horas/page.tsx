@@ -63,6 +63,7 @@ import {
   type Esperado, type EstadoDia, type HorarioTramo, type JornadaDelDia, type TurnoDia,
 } from "@/lib/admin/jornada-esperada";
 import { Insignia } from "@/components/ui/insignia";
+import { EtiquetaPrueba, usePruebasPorPersona } from "@/components/pruebas/etiqueta-prueba";
 import { Campo, CampoSelect, CampoCasilla } from "@/components/ui/campo";
 import { Boton } from "@/components/ui/boton";
 import { Tabla, TablaEncabezado, Th, Fila as FilaTabla } from "@/components/ui/tabla";
@@ -645,6 +646,7 @@ function DetallePersona({ f, meta, anio, mes, mesEnCurso, sel, onDia }: {
 // que mirar — el mismo corte que usa la fila, para que la tarjeta y la tabla
 // no pinten el mismo dato de dos colores.
 function DesempenoContenido() {
+  const pruebas = usePruebasPorPersona();
   const router = useRouter();
   const { avisar } = useToast();
   const searchParams = useSearchParams();
@@ -1362,6 +1364,7 @@ function DesempenoContenido() {
                       <td className={`sticky left-0 z-[1] whitespace-nowrap px-3 py-1.5 ${abierta === f.personaId ? "bg-crema" : "bg-papel group-hover:bg-crema/60"}`}>
                         <span aria-hidden className="mr-1.5 inline-block w-2 text-taupe">{abierta === f.personaId ? "▾" : "▸"}</span>
                         {f.nombre}
+                        {f.activa && <EtiquetaPrueba fila={pruebas.get(f.personaId)} className="ml-2" />}
                         {!f.activa && <Insignia atenuada tamano="sm" punto={false} className="ml-2">inactiva</Insignia>}
                         <div className="text-[11px] text-taupe">
                           {f.area ? areaCorto(areas, f.area) : "sin área"}

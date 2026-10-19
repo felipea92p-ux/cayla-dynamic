@@ -229,6 +229,95 @@ nuevas (`fn_mi_seguro`, `fn_mis_polizas`, `fn_seguro_archivo_es_mio`). La base d
 
 ---
 
+## 2026-10-19 — La prueba de tres días · base, planilla, pantallas y terminal · migraciones 0535–0539 · SIN PEGAR NI FUSIONAR · rama `claude/trial-period-contract-flow-3b095c`
+
+**Qué es.** Quien está de prueba no tiene contrato: trabaja **tres días** (de jornada cerrada, no de
+calendario) y recién después se le hace contrato. Durante la prueba se marca **«no apto»** (se le
+paga lo trabajado) o **«se retiró»** (no se le paga); si pasan los tres días y nadie decide, alerta a
+DO y la persona sigue marcando. Decide DO, administración o la líder de equipo **sola**, sin
+confirmación de DO, y solo sobre la gente de su sede. Fecha de baja = el último día trabajado.
+
+**Lo que decidió Felipe (2026-10-19, con preguntas):** reusar el vínculo «Prueba» que ya existe;
+«si se retira, no se le paga» (objeción dicha: es una deuda remunerativa reclamable y sin hoja
+firmada no hay prueba de que la conocía — se decidió igual); aviso del plazo con alerta a DO y
+etiqueta en el terminal, **sin** hoja firmada; el pase a Planilla es al **firmarse el contrato**;
+**la asignación familiar solo se paga cuando hay contrato** (objeción dicha: derecho del trabajador
+con hijos, Ley 25129); la líder decide en la **Bandeja** (Contratos solo lo abre DO); el pase a
+Planilla es una **casilla marcada** al registrar la firma; **Equipo** pide «no apto / se retiró» al
+registrar la salida de alguien de prueba; y «DO, líder o los que tienen más cargo pueden subir el DNI».
+
+**Qué hay en esta rama (el refactor va primero a propósito).**
+- **0535 — refactor sin cambio de comportamiento.** `fn_cesar_persona` queda como guardia (admin y
+  líder DO) y delega en `fn_cese_aplicar`, interna. Hace falta porque `fn_es_admin_o_lider()` solo
+  reconoce `admin` y `lider_do`: una líder de equipo siempre rebotaría. La prueba 135 se mudó al núcleo.
+- **0536 — la prueba.** Tabla `pruebas` (los días se **derivan**, no se guardan), `fn_prueba_cerrar` (única
+  puerta: resultado + motivo + quién + baja, todo o nada; «se retiró» cierra como `renuncia` y «no apto»
+  como `fin_periodo_prueba`), `fn_pruebas_abiertas` (días, situación, horas marcadas y si ya tiene el DNI),
+  `fn_prueba_puede_actuar` y un trigger sobre `personas` que abre/cierra la prueba al cambiar vínculo o estado.
+- **0537 — la planilla.** Reescribe `fn_planilla_calcular_nucleo` (copia de la **0524**, con marcas
+  `CAMBIO 0537`): quien se retiró en prueba **no entra a la lista de personas** (solo mientras siga inactiva) y
+  la asignación familiar la lee una columna `cobra_asignacion` (`con_hijos` y vínculo distinto de «prueba»).
+  Guardia: se niega a pegar si falta la 0536 o si la función de esa base no es la de la 0524 (md5).
+- **0538 — el DNI de quien está de prueba.** `fn_prueba_cargar_dni` crea la solicitud `foto_dni` a nombre
+  de esa persona (sin cuenta) y la aprueba en el acto con `fn_resolver_solicitud_perfil`; **guarda además la
+  constancia de consentimiento (Ley 29733)** a nombre de la persona, diciendo quién la declaró y con qué texto;
+  `fn_solicitud_perfil_puede_escribir` (0399) gana una rama para quien puede actuar sobre esa prueba (la lectura
+  no se toca); `fn_pruebas_cierres_recientes` (los cierres de las últimas 48 h, para que DO se entere).
+- **0539 — el terminal.** `terminal_roster` gana `prueba_dias` y `prueba_plazo` (NULL para el resto) a través
+  de `fn_terminal_prueba_dias`, que solo contesta por la gente de la sede de ese terminal (**una vista ejecuta
+  las funciones con los permisos de quien consulta**: darle al terminal `fn_prueba_dias_trabajados` le habría
+  dejado contar jornadas de cualquiera). Las pruebas 221 y 302 —que fijaban «seis columnas y ni una más»— se
+  actualizaron a ocho a propósito; la aserción de «nada sensible» no se tocó.
+- **Pantallas.** Bandeja: módulo «Pruebas» (DO y líder) con el panel para decidir y el DNI; el «sin contrato»
+  de Contratos se calla para quien está de prueba. Contratos: Nuevo documento muestra la prueba en vez de las
+  tarjetas de tipo, el tablero la rotula «Prueba · 2 de 3», y «Subir contrato firmado» trae «Pasar a Planilla»
+  marcada. Equipo: etiqueta y «Registrar salida» por el panel. Etiqueta también en Horas, Horarios y Planilla.
+  Terminal: «Prueba · 1 de 3» junto al nombre. Novedad en `novedades.ts` (sin reglas de pago).
+- **Código compartido:** `puedeDecidirPrueba` (`permisos.ts`), `situacionDePrueba` y `etiquetaDePrueba`
+  (`packages/shared/src/pruebas.ts`, las usa también el kiosco), `lib/admin/pruebas.ts`, `components/pruebas/*`.
+- **Pruebas:** pgTAP 429 (52), 430 (19), 431 (33), 432 (14); vitest `pruebas`, `bandeja-pruebas`, `roster-prueba`,
+  `permisos`. Todas verificadas con roturas provocadas.
+
+**Lo que se midió.** Antes de la 0537, una persona de prueba con hijos y UN día de 6,5 h cobraba S/ 41,00 de
+horas + S/ 123,00 de asignación; con tres días, S/ 123,00 + S/ 123,00. Con la 0537, viejo contra nuevo fila por
+fila: «no apto» pasa de neto S/ 215,32 a S/ 108,31 y «prueba abierta» de S/ 179,22 a S/ 72,21; quien se retiró
+desaparece; planilla, quien pasó a planilla y quien no tiene hijos **no se mueven**; y siete ventanas 29..28 sobre
+los datos de la base dan JSON **idéntico**.
+
+**Antes de pegar (en este orden, todo ANTES de fusionar).**
+1. **Medido en producción el 2026-10-19:** `fn_cesar_persona` es la de la 0415 (`c0698486…`), pero
+   `fn_planilla_calcular_nucleo` es la de la **0504** (`f1781d68…`, 116 749 caracteres): **la 0524 no está pegada**.
+   La 0537 copia la 0524 y su guardia se niega a pegar sobre otra cosa: **pegar la 0524 ANTES de la 0537** (su
+   encabezado dice que a nadie le cambia el pago). Mirar también `./scripts/que-falta-pegar.sh`.
+2. **Medido en producción el 2026-10-19 (segunda consulta de Felipe):** `fn_solicitud_perfil_puede_escribir` tiene md5
+   `f1a28aac…` = la 0399 pegada con `\r\n` (la 0538 acepta esa variante: pegar desde Windows, ver CLAUDE.md);
+   `terminal_roster` tiene las seis columnas de la 0490 (la 0539 las espera); y la planilla **no** trae la 0524
+   (confirmado por segunda vez). Volver a pedir los md5 en el mensaje en que se entregue el SQL.
+3. Pegar **0524** (si falta), **0535**, comprobar `select count(*) from pg_proc where proname = 'fn_cese_aplicar'` = 1,
+   **0536**, **0537**, **0538**, **0539**. Y solo entonces fusionar. Cada una se niega a entrar si falta su antecesora.
+
+**Qué NO está hecho (y por qué).**
+- **«Se retiró» y quien ya figura en Planilla:** quien se retira desaparece de la pantalla de Planilla (a propósito:
+  sin fila no hay nada que pagar); DO lo ve en la Bandeja 48 h y en el módulo Pruebas. Un aviso fijo en Planilla
+  («se retiró · N h no pagadas») queda para después.
+- **El pase a Planilla son dos llamadas** (registrar la firma y `fn_set_tipo_vinculo`), no una: si la segunda falla
+  la firma queda y se dice claro; no se tocó `fn_contrato_registrar` (13 argumentos). La Bandeja sigue mostrando
+  la prueba como «toca decidir», así que no se pierde.
+- **Cerrar una prueba con la jornada abierta** (la persona sigue adentro): el cese ocurre igual y la jornada la
+  cierra el auto-cierre de siempre; no se agregó una regla nueva.
+- **La constancia de consentimiento es una DECLARACIÓN** de quien registra, no la firma de la persona.
+- **Hoja de condiciones firmada** (que la persona conozca la regla de retiro): Felipe eligió no tenerla.
+
+**Cómo se probó (y un aviso).** El Postgres local de esta Mac está **18 migraciones atrasado** y el md5 que imprime
+`donde-vive.sh` es el de esa base, no el del repo; producción coincide con los ARCHIVOS. No se tocó la base
+compartida: se probó en **clones desechables** (`docker run` de la misma imagen, esquema y datos copiados con
+`pg_dump` de solo lectura). La suite completa (335 archivos) da las mismas 66 pruebas en rojo con y sin estas
+migraciones —artefactos del clon—; las únicas diferencias son las pruebas que se actualizaron o añadieron. Las
+pantallas se verificaron en el navegador contra un clon (PostgREST apuntando al clon + sesiones fabricadas), con DO
+y con una líder de equipo.
+
+---
+
 ## 2026-10-17 — Seguros del equipo: en qué seguro está cada colaborador (FOLA, EsSalud y los que DO agregue) · migración 0528 · SQL PEGADO Y VERIFICADO EN PRODUCCIÓN (2026-10-17) · FUSIONADO Y PUBLICADO (PR #551, 2026-10-17) · rama `claude/fola-dynamic-implementation-252f99`
 
 **Qué es.** La pantalla `/admin/seguros` (grupo Personas, solo DO) y un módulo «Seguros» en la

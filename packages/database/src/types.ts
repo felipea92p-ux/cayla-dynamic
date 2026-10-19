@@ -5175,6 +5175,71 @@ export type Database = {
           },
         ]
       }
+      pruebas: {
+        Row: {
+          cerrada_at: string | null
+          cerrada_fecha: string | null
+          cerrada_por: string | null
+          creada_at: string
+          id: string
+          inicio: string
+          motivo: string | null
+          persona_id: string
+          resultado: string
+        }
+        Insert: {
+          cerrada_at?: string | null
+          cerrada_fecha?: string | null
+          cerrada_por?: string | null
+          creada_at?: string
+          id?: string
+          inicio: string
+          motivo?: string | null
+          persona_id: string
+          resultado?: string
+        }
+        Update: {
+          cerrada_at?: string | null
+          cerrada_fecha?: string | null
+          cerrada_por?: string | null
+          creada_at?: string
+          id?: string
+          inicio?: string
+          motivo?: string | null
+          persona_id?: string
+          resultado?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pruebas_cerrada_por_fkey"
+            columns: ["cerrada_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pruebas_cerrada_por_fkey"
+            columns: ["cerrada_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pruebas_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pruebas_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       push_tokens: {
         Row: {
           activo: boolean
@@ -6785,6 +6850,8 @@ export type Database = {
           foto_url: string | null
           id: string | null
           nombres: string | null
+          prueba_dias: number | null
+          prueba_plazo: number | null
           sede_codigo: string | null
           sede_nombre: string | null
         }
@@ -7555,6 +7622,16 @@ export type Database = {
           p_motivo: string | null
           p_persona_id: string | null
           p_tipo_vinculo?: string | null
+        }
+        Returns: undefined
+      }
+      fn_cese_aplicar: {
+        Args: {
+          p_actor: string | null
+          p_fecha_cese: string | null
+          p_motivo: string | null
+          p_persona_id: string | null
+          p_tipo_vinculo: string | null
         }
         Returns: undefined
       }
@@ -9375,6 +9452,64 @@ export type Database = {
         Args: { p_anio: number | null; p_mes: number | null }
         Returns: Json
       }
+      fn_prueba_cargar_dni: {
+        Args: { p_anverso: string | null; p_consentimiento: string | null; p_persona_id: string | null; p_reverso: string | null }
+        Returns: string
+      }
+      fn_prueba_cerrar: {
+        Args: {
+          p_fecha_cese?: string | null
+          p_motivo: string | null
+          p_persona_id: string | null
+          p_resultado: string | null
+        }
+        Returns: string
+      }
+      fn_prueba_dias_plazo: { Args: never; Returns: number }
+      fn_prueba_dias_trabajados: {
+        Args: { p_desde: string | null; p_hasta?: string | null; p_persona_id: string | null }
+        Returns: number
+      }
+      fn_prueba_puede_actuar: {
+        Args: { p_persona_id: string | null }
+        Returns: boolean
+      }
+      fn_pruebas_abiertas: {
+        Args: never
+        Returns: {
+          apellidos: string
+          dias_plazo: number
+          dias_trabajados: number
+          dni_cargado: boolean
+          horas_marcadas: number
+          inicio: string
+          nombres: string
+          persona_id: string
+          prueba_id: string
+          registrada: boolean
+          sede_codigo: string
+          sede_id: string
+          situacion: string
+          ultima_jornada: string
+        }[]
+      }
+      fn_pruebas_cierres_recientes: {
+        Args: { p_horas?: number | null }
+        Returns: {
+          apellidos: string
+          cerrada_at: string
+          cerrada_fecha: string
+          decidida_por: string
+          dias_trabajados: number
+          horas_marcadas: number
+          motivo: string
+          nombres: string
+          persona_id: string
+          prueba_id: string
+          resultado: string
+          sede_codigo: string
+        }[]
+      }
       fn_publicar_anuncio: {
         Args: { p_cuerpo: string | null; p_sede_id?: string | null; p_titulo: string | null }
         Returns: string
@@ -10604,6 +10739,10 @@ export type Database = {
           ultima_fecha: string
           umbral: string
         }[]
+      }
+      fn_terminal_prueba_dias: {
+        Args: { p_persona_id: string | null }
+        Returns: number
       }
       fn_tipeo_de_una_letra: {
         Args: { p_a: string | null; p_b: string | null }
