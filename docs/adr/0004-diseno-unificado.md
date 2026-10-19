@@ -104,7 +104,8 @@ compartido puede tocarlo. `.etiqueta` sigue existiendo como clase para el sobret
   el contraste sobre cada relleno antes de tocarlos; no entraron en el piloto.
 - **Incidencias** (franja segmentada con número de 36 px): pasa a `Cifra` con la migración de esa
   pantalla; se anota aquí porque es el cambio visual más grande de la familia.
-- **Pestañas: ¿`Filtro` o una pieza propia?** Sin decidir, y sin freno mientras tanto. La decisión
+- **Pestañas: ¿`Filtro` o una pieza propia?** **Resuelto el 2026-10-19: pieza propia, `<Pestanas>`** (subrayada, `aria-current`; una pestaña cambia de qué se habla y un filtro qué se ve de lo mismo). Educación y el Dashboard ya la usan; quedan Ausencias, Disciplina, Personas y Planilla, que la adoptan al migrarse, y Provisiones (segmentado) se queda con `Filtro`. Lo que sigue es el texto original de la duda, tal como se escribió:
+  Sin decidir, y sin freno mientras tanto. La decisión
   10 las unió con los filtros, pero de las cinco `tablist` del panel cuatro son pestañas
   *subrayadas* (Ausencias, Disciplina, Personas, Planilla) y solo una es un segmentado
   (Provisiones): `Filtro` —esquina de botón, activo en tinta— no es el destino de las cuatro. Hay
