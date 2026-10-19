@@ -6,7 +6,7 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-10-17 — Seguros, etapa 2: «Mi seguro» en Lo mío, para TODO el equipo · migración 0530 · SQL PEGADO Y VERIFICADO EN PRODUCCIÓN (2026-10-19) · PR #555 EN BORRADOR (sin fusionar) · rama `claude/seguros-module-analysis-redesign-70bbe4` (rescata `claude/seguros-etapa-2-mi-seguro`, antes `elegant-mayer-3e584e`)
+## 2026-10-17 — Seguros, etapa 2: «Mi seguro» en Lo mío, para TODO el equipo · migración 0530 · SQL PEGADO Y VERIFICADO EN PRODUCCIÓN (2026-10-19) · FUSIONADO Y PUBLICADO (PR #555, 2026-10-19) · rama `claude/seguros-module-analysis-redesign-70bbe4` (rescató `claude/seguros-etapa-2-mi-seguro`, antes `elegant-mayer-3e584e`)
 
 **Qué es.** Cada colaborador ve SU seguro en `/mio` → Documentos → «Mi seguro»: en cuál está hoy;
 si lleva póliza, su número, la aseguradora, hasta cuándo es vigente, el plan y el máximo anual **solo
@@ -38,6 +38,22 @@ mío pasan a dieciséis.
 - **Decidido por Felipe (2026-10-19):** rescatar esta rama en vez de rehacerla; la mora se mantiene neutral (la persona
   no ve «suspendida»); el texto de EsSalud sale de fuentes oficiales y lo valida él con el contador; la alerta de
   Vida Ley / SCTR espera la respuesta del contador.
+
+**FUSIONADO Y PUBLICADO el 2026-10-19 (PR #555).** Felipe pidió fusionar («fusiona») después de que la sesión le preguntara
+sí o no. La fusión se hizo a las 12:43 (hora de Lima), commit `cfbd009f`, con `--merge` y sin `--auto`; `db-tests` y
+`ui-tests` estaban en verde sobre el último commit (`f6b46ea3`) y `main` no se había movido. Vercel marcó el despliegue
+de producción de ese commit como `success` a las 12:44. **No se abrió «Mi seguro» con una cuenta real en producción:**
+que `/admin/seguros` y `/mio` respondan 200 no lo prueba, porque ya existían.
+- **Por qué se fusionó antes de que DO cargue las pólizas.** DO las sube por el sistema, y con la 0530 pegada la
+  pantalla de producción de ese momento decía «solo los ve Desarrollo Organizacional» (ya falso: la póliza y el
+  convenio los ve también la persona), dejaba la casilla «guardarlo también en las otras pólizas» marcada por defecto
+  y no pedía confirmar. Con un número tecleado dos veces en dos pólizas FOLA, un PDF con DNI se habría copiado a la
+  póliza de otra persona. La pantalla de este PR trae los avisos, la casilla sin marcar y la confirmación.
+- **Lo que ve el equipo desde ya:** cada practicante lee «Todavía no tienes una póliza registrada» hasta que DO cargue la
+  suya (no es una alarma); quien está en EsSalud lee que se paga por planilla y no lleva póliza. El texto «Cómo usar
+  EsSalud» NO está publicado.
+- **Quién lo ve y lo carga:** solo `admin` y `lider_do` (DO y sus superiores); los líderes de equipo no ven nada de
+  seguros. Todo lo que se agrega o se edita pasa por el sistema, no por SQL.
 
 **Su historia, para que nadie la repita.** Se construyó primero acotada a los practicantes, sobre
 la primera 0528 (solo FOLA). Cuando Felipe hizo general el módulo, esa versión se descartó entera
@@ -136,11 +152,16 @@ qué se le dice a quien está en EsSalud (ver abajo).
    el SQL; la 0530 es el hueco entre la 0529 y la 0531, y la prueba 423 estaba libre). La consulta de
    «ANTES DE PEGAR» de la cabecera espera la 0528 presente y nada de la 0530; **Retail vive en el mismo
    proyecto (esquema `retail`)**, así que cualquier conteo de `pg_proc` por nombre puede traer una fila de más.
-2. **Subir a cada póliza solo el PDF de esa persona.** Si el archivo junta varias pólizas, cada
-   persona vería el DNI y la fecha de nacimiento de las otras, y la base no puede comprobarlo.
+2. **DO sube las pólizas por el sistema, un PDF por persona** (la casilla de copiar a las otras pólizas, sin marcar). Si el
+   archivo junta varias pólizas, cada persona vería el DNI y la fecha de nacimiento de las otras, y la base no puede
+   comprobarlo. **Al terminar, la consulta de control** (la de «ANTES DE PEGAR» de la 0530): la columna
+   `pdf_iguales_en_polizas_de_distinto_numero` debe dar 0. Esto sigue pendiente.
 3. **El texto de EsSalud** (en borrador, validado por Felipe y el contador; ver arriba). La guía de FOLA ya se revisó contra el PDF; falta que la corredora confirme el nombre «Pacífico Asiste».
-4. Con una cuenta real, apretar «Abrir» en un navegador de verdad y en un iPhone.
-5. La novedad lleva fecha 2026-10-19: si el PR se fusiona otro día, corregirla antes.
+4. Con una cuenta real (de preferencia una practicante, ya con su póliza cargada), apretar «Abrir» y «Copiar» en un iPhone y en un navegador de verdad. Tampoco se probó en producción.
+5. ~~La novedad lleva fecha 2026-10-19~~ Se fusionó ese mismo día: la fecha es la correcta.
+   Otros pendientes que no bloquean: la alerta de Vida Ley / SCTR espera al contador; y los números reales de las cuatro
+   pólizas siguen escritos en la cabecera de la 0504, en pruebas y en comentarios (datos de personas con nombre; el repo pide
+   dejarlos fuera de git, y no se tocó).
 6. La etapa 1 ya no se mueve (está fusionada y publicada): la 0530 se probó contra la 0528 que de
    verdad está en producción. Lo que sí puede moverse es `main`: antes de entregar el SQL, volver a mirar
    `git fetch` y la numeración, como siempre.
