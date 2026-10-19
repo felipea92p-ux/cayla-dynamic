@@ -196,8 +196,9 @@ export function NombreGrid({
             <button
               key={persona.id}
               onClick={() => onSeleccionar(persona)}
-              className={`${TILE} flex flex-col items-center gap-2 px-4 py-5 font-serif text-xl`}
+              className={`${TILE} ${claseDePrueba(persona)} flex flex-col items-center gap-2 px-4 py-5 font-serif text-xl`}
             >
+              <CintaDePrueba persona={persona} />
               <AvatarPersona persona={persona} />
               <span>
                 {persona.nombres} {persona.apellidos}
@@ -221,10 +222,11 @@ export function NombreGrid({
             // ícono de la foto y, al pasar el mouse, su etiqueta—, así que quien
             // usa lector de pantalla lo escucha acá completo.
             aria-label={`${nombre}${textoDePrueba(persona) ? `, ${textoDePrueba(persona)}` : ""}: ${etiqueta}, ${pres.detalle}${pres.detalle2 ? `, ${pres.detalle2}` : ""}`}
-            className={`${CAJA_PRESENCIA} ${encendida ? estilo.iluminada : REPOSO_PRESENCIA} ${
+            className={`${CAJA_PRESENCIA} ${claseDePrueba(persona)} ${encendida ? estilo.iluminada : REPOSO_PRESENCIA} ${
               atenuada ? "opacity-30" : ""
             } flex flex-col items-center gap-1 px-3 pb-4 pt-5 text-center font-serif text-xl`}
           >
+            <CintaDePrueba persona={persona} />
             <AvatarPersona persona={persona} presencia={estilo} etiqueta={etiqueta} />
             <span className={estilo.apagada ? "text-taupe" : undefined}>{nombre}</span>
             <EtiquetaDePrueba persona={persona} />
@@ -243,23 +245,50 @@ function textoDePrueba(persona: RosterEntry): string | null {
   return etiquetaDePrueba({ dias_trabajados: persona.pruebaDias, dias_plazo: persona.pruebaPlazo }).texto;
 }
 
-const TONO_PRUEBA = {
-  informativo: "bg-pizarra/15 text-pizarra",
-  advertencia: "bg-ambar/15 text-ambar",
-  alerta: "bg-rojo/10 text-rojo-profundo",
-} as const;
+/** ¿Está de prueba? Las dos columnas vienen juntas o no vienen (0539). */
+function enPrueba(persona: RosterEntry): boolean {
+  return typeof persona.pruebaDias === "number" && typeof persona.pruebaPlazo === "number";
+}
 
 /**
- * La etiqueta de prueba junto al nombre (0539): quien marca ve, de un vistazo, que esa persona está
- * de prueba y en qué día va. Solo INFORMA: marcar sigue siendo tocar la casilla, sin pedir nada más.
- * No importa `Insignia` a propósito —el kiosco no carga los componentes del panel—; las tres tintas
- * son las mismas de esa pieza.
+ * Quien está de prueba se distingue por DOS señales que no dependen del color: el borde de su tarjeta es
+ * punteado y lleva una cinta «En prueba» (`CintaDePrueba`). El color solo refuerza. Las tarjetas necesitan
+ * `relative` para anclar la cinta.
+ */
+function claseDePrueba(persona: RosterEntry): string {
+  return enPrueba(persona) ? "relative border-dashed" : "";
+}
+
+/**
+ * La cinta sobre el borde de la tarjeta. Usa `tinta` sobre `crema`, que se invierten juntas en el modo
+ * oscuro (15.4:1 en claro, 14.1:1 en oscuro). Es decorativa para el lector de pantalla: el aria-label de la
+ * tarjeta ya dice «Prueba · 2 de 3».
+ */
+function CintaDePrueba({ persona }: { persona: RosterEntry }) {
+  if (!enPrueba(persona)) return null;
+  return (
+    <span
+      aria-hidden
+      className="absolute -top-2.5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-pildora bg-tinta px-3 py-0.5 font-sans text-xs font-medium text-crema"
+    >
+      En prueba
+    </span>
+  );
+}
+
+/**
+ * La píldora junto al nombre (0539): «Prueba · 2 de 3». Es SIEMPRE del mismo color (pizarra sólida, 6.0:1 en
+ * claro y 7.8:1 en oscuro): el avance lo dice el texto, no el tono. Ningún estado de presencia se pinta como
+ * una píldora llena, así que no se confunde con el azul de la pausa ni con el ámbar del refrigerio. Y no usa
+ * rojo ni ámbar a propósito: la pantalla está a la vista de todo el equipo, y «ya se pasó el plazo» es una
+ * decisión de Desarrollo Organizacional que se ve en el panel, no un color que se le pone a una persona
+ * delante de sus compañeras. Solo INFORMA: marcar sigue siendo tocar la casilla, sin pedir nada más.
  */
 function EtiquetaDePrueba({ persona }: { persona: RosterEntry }) {
   if (typeof persona.pruebaDias !== "number" || typeof persona.pruebaPlazo !== "number") return null;
   const e = etiquetaDePrueba({ dias_trabajados: persona.pruebaDias, dias_plazo: persona.pruebaPlazo });
   return (
-    <span className={`rounded-pildora px-2 py-0.5 font-sans text-xs font-medium ${TONO_PRUEBA[e.variante]}`}>
+    <span className="rounded-pildora bg-pizarra px-2 py-0.5 font-sans text-xs font-medium text-crema">
       {e.texto}
     </span>
   );
