@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import {
   Accessibility,
   BadgeInfo,
-  ChevronDown,
   ChevronLeft,
   CircleDollarSign,
   CreditCard,
@@ -32,6 +31,11 @@ import { Boton } from "@/components/ui/boton";
 import { Campo, CampoSelect } from "@/components/ui/campo";
 import { Insignia } from "@/components/ui/insignia";
 import { Modal } from "@/components/ui/modal";
+import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
+import { AyudaPantalla } from "@/components/ui/ayuda-pantalla";
+import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
+import { ParaAtender } from "@/components/ui/para-atender";
+import { TarjetaInfo } from "@/components/ui/tarjeta-info";
 
 interface Persona {
   id: string; nombres: string; apellidos: string; documento: string | null;
@@ -1046,111 +1050,102 @@ export default function DatosPersonalesPage() {
   return (
     <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
-        <div className="mb-1 flex flex-wrap items-baseline justify-between gap-3">
-          <h1 className="font-serif text-2xl">Datos personales</h1>
-          {/* Solo dirección: un CSV sale del sistema y ya nadie sabe dónde queda.
-              Ver `puedeExportarPadron` para por qué esto es más estrecho que ver
-              las mismas fichas en pantalla. Variante "sutil" a propósito: es una
-              acción de baja frecuencia y no debe competir con el título. */}
-          {puedeExportarPadron(rol) && personas.length > 0 && (
-            <Boton
-              variante="sutil"
-              tamano="sm"
-              onClick={exportarPadron}
-              className="no-print"
-              title="Padrón completo para el contador: incluye DNI, dirección y cuentas bancarias"
-            >
-              Descargar padrón para el contador (CSV)
-            </Boton>
-          )}
-        </div>
-        <p className="mb-5 max-w-2xl text-sm text-taupe">
-          Mantén actualizada la información personal necesaria para gestión y planilla.
-          <Ayuda texto="Datos sensibles — visibles solo para Desarrollo Organizacional, tu líder de equipo y cada persona sobre sí misma." />
-        </p>
+        <CabeceraPagina
+          sobretitulo={sobretituloDeHoy("Personas")}
+          titulo="Datos personales"
+          descripcion="Mantén actualizada la información personal necesaria para gestión y planilla."
+          ayuda={
+            <AyudaPantalla
+              titulo="Cómo funcionan los datos personales"
+              intro="Datos sensibles: los ven solo Desarrollo Organizacional, tu líder de equipo y cada persona sobre sí misma."
+              secciones={[
+                { titulo: "Por completar", texto: "Son los datos que el contador necesita para el T-Registro. Sin ellos no se puede declarar a esa persona ni pagarle por transferencia." },
+                { titulo: "Editar", texto: "Cada ficha arranca en solo lectura: «Editar perfil» es el único paso que la habilita, y salir con algo sin guardar pide confirmación." },
+              ]}
+            />
+          }
+          // Solo dirección: un CSV sale del sistema y ya nadie sabe dónde queda. Ver `puedeExportarPadron` para por qué esto
+          // es más estrecho que ver las mismas fichas en pantalla. Variante «sutil» a propósito: es una acción de baja
+          // frecuencia y no debe competir con el título.
+          accion={
+            puedeExportarPadron(rol) && personas.length > 0 ? (
+              <Boton
+                variante="sutil"
+                tamano="sm"
+                onClick={exportarPadron}
+                className="no-print"
+                title="Padrón completo para el contador: incluye DNI, dirección y cuentas bancarias"
+              >
+                Descargar padrón para el contador (CSV)
+              </Boton>
+            ) : undefined
+          }
+        />
 
-        {/* ── Pendientes, arriba de todo ────────────────────────────────────
-            Solo se listan las fichas incompletas. Cuando estén todas al día
-            este bloque desaparece, y esa ausencia ES la señal de que está
-            cerrado — un contador «21 de 21» ocuparía sitio para no decir nada.
+        {/* ── Por completar, arriba de todo ────────────────────────────────
+            Solo se listan las fichas incompletas. Cuando estén todas al día esto desaparece, y esa ausencia ES la señal de
+            que está cerrado — un contador «21 de 21» ocuparía sitio para no decir nada.
 
-            Plegada (por defecto) es UNA línea: la cuenta y los nombres como
-            accesos directos. Está para que la cola siga a la vista mientras
-            se revisa la ficha de alguien que ya está al día; la lista entera,
-            con qué le falta a cada una, vive en la ficha vacía («Por
-            completar», más abajo). Desplegada ocupa todo el ancho en dos
-            columnas — antes era una tarjeta a 3/4 de ancho que empujaba el
-            equipo hacia abajo y dejaba vacía la mitad derecha.
-            "Revisar →" y cada nombre llevan al mismo sitio: esa ficha, ya
-            editable, con el primer campo que falta destacado (`revisar`). */}
+            Es la misma franja «Para atender» de las demás pantallas: la pastilla despliega la lista entera (con qué le falta
+            a cada una) y, plegada, deja los primeros nombres como accesos directos. Está para que la cola siga a la vista
+            mientras se revisa la ficha de alguien que ya está al día. «Revisar →» y cada nombre llevan al mismo sitio: esa
+            ficha, ya editable, con el primer campo que falta destacado (`revisar`). */}
         {!cargando && incompletas.length > 0 && (
-          <section className="mb-5 rounded-superficie border border-sand bg-papel px-4 py-2.5" aria-label="Pendientes">
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-              <span className="flex items-center gap-1">
-                <h2 className="font-serif text-base">
-                  <button
-                    onClick={() => setPendientesPlegado((v) => !v)}
-                    aria-expanded={!pendientesPlegado}
-                    aria-controls="pendientes-lista"
-                    className="-ml-1 flex items-center gap-1 rounded-control px-1 py-0.5 transition-colors hover:bg-sand/50"
-                  >
-                    <ChevronDown size={15} strokeWidth={2} aria-hidden
-                      className={`text-taupe transition-transform motion-reduce:transition-none ${pendientesPlegado ? "-rotate-90" : ""}`} />
-                    Pendientes
-                  </button>
-                </h2>
-                <Ayuda texto="Son los datos que el contador necesita para el T-Registro. Sin ellos no se puede declarar a esa persona ni pagarle por transferencia." />
-              </span>
-              <span className="text-xs text-taupe">
-                {incompletas.length === 1 ? "1 ficha requiere información" : `${incompletas.length} fichas requieren información`}
-                {pendientesPlegado && ":"}
-              </span>
-              {/* Plegada: hasta seis nombres y «+N más», que despliega. Con
-                  quince pendientes, quince chips serían tres líneas — justo
-                  lo que plegar existe para evitar. */}
-              {pendientesPlegado && (
-                <ul className="flex flex-wrap items-center gap-1.5">
-                  {incompletas.slice(0, 6).map((x) => (
-                    <li key={x.p.id}>
+          <>
+            <ParaAtender
+              items={[{ clave: "pendientes", texto: `${incompletas.length} ${incompletas.length === 1 ? "ficha" : "fichas"} por completar`, n: incompletas.length, tono: "ambar" }]}
+              // Sin nadie elegido, la cola entera ya está en el panel grande de la derecha («Por completar»): repetirla aquí
+              // en nombres y en lista era tres veces lo mismo. Ahí la pastilla filtra el listado del equipo; con una ficha
+              // abierta, en cambio, despliega la cola y deja los primeros nombres a mano.
+              activa={sel ? (pendientesPlegado ? null : "pendientes") : verPendientes ? "pendientes" : null}
+              alTocar={() => (sel ? setPendientesPlegado((v) => !v) : setSoloPendientes(!verPendientes))}
+              extra={
+                sel && pendientesPlegado ? (
+                  <ul className="flex flex-wrap items-center gap-1.5">
+                    {incompletas.slice(0, 6).map((x) => (
+                      <li key={x.p.id}>
+                        <button
+                          onClick={() => revisar(x)}
+                          title={`Revisar la ficha de ${x.p.nombres} ${x.p.apellidos}`}
+                          className={`inline-flex items-center gap-1 rounded-pildora border bg-crema px-2.5 py-0.5 text-xs transition-colors hover:border-taupe ${sel === x.p.id ? "border-tinta" : "border-sand"}`}
+                        >
+                          {x.avisos.length > 0 && <TriangleAlert size={12} strokeWidth={1.8} className="text-ambar" aria-label="tiene datos que se contradicen" />}
+                          {x.p.nombres.split(" ")[0]} {x.p.apellidos.split(" ")[0]}
+                        </button>
+                      </li>
+                    ))}
+                    {incompletas.length > 6 && (
+                      <li>
+                        <button onClick={() => setPendientesPlegado(false)} className="text-xs text-taupe underline decoration-dotted underline-offset-2 hover:text-tinta">
+                          +{incompletas.length - 6} más
+                        </button>
+                      </li>
+                    )}
+                  </ul>
+                ) : undefined
+              }
+            />
+            {sel && !pendientesPlegado && (
+              <TarjetaInfo className="mb-5" aria-label="Fichas por completar">
+                <ul id="pendientes-lista" className={`grid gap-x-8 lg:grid-cols-2 ${incompletas.length > 8 ? "max-h-64 overflow-y-auto" : ""}`}>
+                  {incompletas.map((x) => (
+                    <li key={x.p.id} className="flex items-center justify-between gap-x-3 border-t border-sand/70 py-2 text-sm first:border-0 lg:[&:nth-child(2)]:border-0">
+                      <div className="min-w-0">
+                        <span className="mr-2 font-medium">{x.p.nombres} {x.p.apellidos}</span>
+                        {detallePendiente(x)}
+                      </div>
                       <button
                         onClick={() => revisar(x)}
-                        title={`Revisar la ficha de ${x.p.nombres} ${x.p.apellidos}`}
-                        className={`inline-flex items-center gap-1 rounded-pildora border bg-crema px-2.5 py-0.5 text-xs transition-colors hover:border-taupe ${sel === x.p.id ? "border-tinta" : "border-sand"}`}
+                        className="shrink-0 text-xs underline decoration-dotted underline-offset-2 hover:text-tinta"
                       >
-                        {x.avisos.length > 0 && <TriangleAlert size={12} strokeWidth={1.8} className="text-ambar" aria-label="tiene datos que se contradicen" />}
-                        {x.p.nombres.split(" ")[0]} {x.p.apellidos.split(" ")[0]}
+                        Revisar →
                       </button>
                     </li>
                   ))}
-                  {incompletas.length > 6 && (
-                    <li>
-                      <button onClick={() => setPendientesPlegado(false)} className="text-xs text-taupe underline decoration-dotted underline-offset-2 hover:text-tinta">
-                        +{incompletas.length - 6} más
-                      </button>
-                    </li>
-                  )}
                 </ul>
-              )}
-            </div>
-            {!pendientesPlegado && (
-              <ul id="pendientes-lista" className={`mt-1 grid gap-x-8 lg:grid-cols-2 ${incompletas.length > 8 ? "max-h-64 overflow-y-auto" : ""}`}>
-                {incompletas.map((x) => (
-                  <li key={x.p.id} className="flex items-center justify-between gap-x-3 border-t border-sand/70 py-2 text-sm">
-                    <div className="min-w-0">
-                      <span className="mr-2 font-medium">{x.p.nombres} {x.p.apellidos}</span>
-                      {detallePendiente(x)}
-                    </div>
-                    <button
-                      onClick={() => revisar(x)}
-                      className="shrink-0 text-xs underline decoration-dotted underline-offset-2 hover:text-tinta"
-                    >
-                      Revisar →
-                    </button>
-                  </li>
-                ))}
-              </ul>
+              </TarjetaInfo>
             )}
-          </section>
+          </>
         )}
 
         {/* Sin columna fija para "Equipo" cuando está colapsado: si el

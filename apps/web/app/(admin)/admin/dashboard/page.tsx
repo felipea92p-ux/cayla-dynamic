@@ -254,6 +254,11 @@ function TablaPersonas({ filas, linkCorregir, ahoraDecimal, conSede = false }: {
                 <td className="whitespace-nowrap px-4 py-2.5">
                   {f.minutosTarde === null || f.minutosTarde === 0 ? (
                     <span className="text-taupe/40">—</span>
+                  ) : f.tardanzaLevantada ? (
+                    // Levantada por fuerza mayor: igual que en Correcciones, el tiempo se tacha y se dice por qué.
+                    <Link href={linkCorregir(f.personaId)} className="text-taupe underline decoration-sand underline-offset-2 transition-colors hover:text-tinta">
+                      <s>{formatoMinutos(f.minutosTarde)}</s> · levantada
+                    </Link>
                   ) : (
                     <Link href={linkCorregir(f.personaId)} className="font-semibold text-rojo-profundo underline decoration-rojo/30 underline-offset-2 transition-colors hover:decoration-rojo">
                       {formatoMinutos(f.minutosTarde)} tarde
@@ -295,6 +300,10 @@ function TablaPersonas({ filas, linkCorregir, ahoraDecimal, conSede = false }: {
               <span>
                 {f.minutosTarde === null || f.minutosTarde === 0 ? (
                   <span className="text-taupe/40">—</span>
+                ) : f.tardanzaLevantada ? (
+                  <Link href={linkCorregir(f.personaId)} className="text-taupe underline decoration-sand underline-offset-2">
+                    <s>{formatoMinutos(f.minutosTarde)}</s> · levantada
+                  </Link>
                 ) : (
                   <Link href={linkCorregir(f.personaId)} className="font-semibold text-rojo-profundo underline decoration-rojo/30 underline-offset-2">
                     {formatoMinutos(f.minutosTarde)}
@@ -601,6 +610,9 @@ export default function DashboardPage() {
       // dispararse aunque corresponda — y sin la bandera, se apagaría sin aviso.
       { data: turnosHoy, error: errTurnos },
       { data: horariosVigentes, error: errHorarios },
+      // Tardanzas de hoy que DO ya levantó (fuerza mayor): se tachan en la fila y no cuentan como tardanza.
+      // Si la consulta falla cae a «ninguna levantada»: la tardanza se ve como antes, nunca se esconde una.
+      { data: levantadasHoy },
       // ¿Hoy es feriado? Solo SUAVIZA una alarma (ver `esFeriadoSinTurno`), así que si la
       // consulta falla no hace falta bandera: cae a «no es feriado» y la alarma vuelve a ser
       // la roja de siempre. Una duda cae hacia la alarma, no hacia el silencio.
@@ -641,6 +653,7 @@ export default function DashboardPage() {
         .select("persona_id, hora_entrada, hora_salida, dias_laborables, horario_por_dia, almuerzo_min_minutos, vigente_desde, vigente_hasta")
         .lte("vigente_desde", hoy)
         .or(`vigente_hasta.is.null,vigente_hasta.gte.${hoy}`),
+      supabase.from("tardanzas_justificadas").select("persona_id").eq("fecha", hoy),
       traerSiEsFeriado(supabase, hoy),
     ]);
 
@@ -686,6 +699,7 @@ export default function DashboardPage() {
     );
 
     const jornadaPorPersona = new Map((jornadas ?? []).map((j: any) => [j.persona_id, j]));
+    const levantadasSet = new Set(((levantadasHoy as { persona_id: string }[] | null) ?? []).map((x) => x.persona_id));
     // Solo llegan filas con minutos > 0 y la fecha es fija (hoy), así que basta persona_id → minutos.
     // Si la RPC falla, extras es null y el map queda vacío (sin badge, la página no se rompe).
     const salidaTempranaPorPersona = new Map(
@@ -752,6 +766,7 @@ export default function DashboardPage() {
         feriadoSinTurnoHoy: esFeriadoSinTurno(feriadoHoy.esFeriado && !errTurnos && !errHorarios, esperado),
         salidaFinal: j?.salida_final_ts ?? null,
         minutosTarde: j?.minutos_tarde ?? null,
+        tardanzaLevantada: levantadasSet.has(p.id),
         salidaTemprana: salidaTempranaPorPersona.get(p.id) ?? null,
         enPausaSinRetorno: j?.tiene_salida_no_retornada ?? false,
         esOperativa: cuenta.operativa,
@@ -1033,7 +1048,7 @@ export default function DashboardPage() {
 
   return (
     <div className="flex flex-1 flex-col">
-      <main className="flex-1 p-4 sm:p-8">
+      <main className="flex-1 p-4 pt-6 sm:p-6">
         <CabeceraPagina
           titulo="Asistencia de hoy"
           descripcion={

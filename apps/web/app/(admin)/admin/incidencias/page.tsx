@@ -504,7 +504,7 @@ function IncidenciasContenido() {
 
   return (
     <div className="flex flex-1 flex-col">
-      <main className="flex flex-1 flex-col gap-6 p-6">
+      <main className="flex flex-1 flex-col p-6">
         <CabeceraPagina
           sobretitulo={sobretituloDeHoy("Asistencia")}
           titulo="Incidencias"
@@ -527,6 +527,9 @@ function IncidenciasContenido() {
           }
         />
 
+        {/* El contenido va en su propia columna: la cabecera ya trae su margen inferior, y un `gap` en el <main> lo sumaba
+            (32 + 24 px) y separaba el título de todo lo demás. */}
+        <div className="flex flex-col gap-4">
         {(revisiones.length > 0 || practicantesSobreTope.length > 0) && (
           <ParaAtender
             items={[
@@ -640,17 +643,17 @@ function IncidenciasContenido() {
           {masFiltros && (
             <div id="incidencias-mas-filtros" className="flex flex-col gap-3 rounded-superficie border border-sand bg-papel p-4">
               <div className="grid gap-3 sm:grid-cols-2">
-                <CampoSelect id="incidencias-tipo" etiqueta="Tipo de incidencia" value={tipoFiltro} onChange={(e) => setTipoFiltro(e.target.value as TipoIncidencia | "")}>
+                <CampoSelect tamano="sm" id="incidencias-tipo" etiqueta="Tipo de incidencia" value={tipoFiltro} onChange={(e) => setTipoFiltro(e.target.value as TipoIncidencia | "")}>
                   <option value="">Todos los tipos</option>
                   {tiposPresentes.map((t) => <option key={t} value={t}>{NOMBRE_TIPO[t]}</option>)}
                 </CampoSelect>
-                <CampoSelect id="incidencias-estado" etiqueta="Estado" value={estadoFiltro} onChange={(e) => setEstadoFiltro(e.target.value as FiltroEstado)}>
+                <CampoSelect tamano="sm" id="incidencias-estado" etiqueta="Estado" value={estadoFiltro} onChange={(e) => setEstadoFiltro(e.target.value as FiltroEstado)}>
                   <option value="por_revisar">Por revisar</option>
                   <option value="resueltas">Ya resueltas</option>
                   <option value="todas">Todas</option>
                 </CampoSelect>
               </div>
-              <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                 <div role="group" aria-label="Periodo" className="flex flex-wrap gap-1.5">
                   {PERIODOS.map((p) => (
                     <Filtro key={p.clave} tamano="sm" activo={periodo === p.clave} onClick={() => elegirPeriodo(p.clave)}>
@@ -658,11 +661,14 @@ function IncidenciasContenido() {
                     </Filtro>
                   ))}
                 </div>
-                <div className="flex items-end gap-2">
-                  {/* Nunca vacíos: sin fecha no hay consulta. Un borrado se ignora. */}
-                  <Campo id="incidencias-desde" etiqueta="Desde" type="date" value={desde} max={hasta}
+                {/* Desde y Hasta en una línea con su rótulo al lado, no encima: apilados sumaban una fila entera de alto.
+                    Nunca vacíos: sin fecha no hay consulta. Un borrado se ignora. */}
+                <div className="flex items-center gap-2 text-xs text-taupe">
+                  <label htmlFor="incidencias-desde">Desde</label>
+                  <Campo tamano="sm" id="incidencias-desde" type="date" value={desde} max={hasta} className="w-36"
                     onChange={(e) => { if (e.target.value) { setDesde(e.target.value); setPeriodo("libre"); } }} />
-                  <Campo id="incidencias-hasta" etiqueta="Hasta" type="date" value={hasta} min={desde}
+                  <label htmlFor="incidencias-hasta">Hasta</label>
+                  <Campo tamano="sm" id="incidencias-hasta" type="date" value={hasta} min={desde} className="w-36"
                     onChange={(e) => { if (e.target.value) { setHasta(e.target.value); setPeriodo("libre"); } }} />
                 </div>
               </div>
@@ -1049,6 +1055,7 @@ function IncidenciasContenido() {
             </div>
           )}
         </Modal>
+        </div>
       </main>
     </div>
   );

@@ -52,6 +52,8 @@ export interface FilaPersona {
   entrada: string | null;
   salidaFinal: string | null;
   minutosTarde: number | null;
+  /** DO levantó la tardanza de hoy (fuerza mayor, `tardanzas_justificadas`): se tacha y NO cuenta como tardanza. Ausente = no levantada. */
+  tardanzaLevantada?: boolean;
   salidaTemprana: number | null;
   enPausaSinRetorno: boolean;
   esOperativa: boolean; // cuenta contra la meta de operativas
@@ -127,7 +129,8 @@ export function enPausaAhora(estado: string): boolean {
   return estado === "en_pausa";
 }
 export function llegoTarde(f: FilaPersona): boolean {
-  return (f.minutosTarde ?? 0) > 0;
+  // Una tardanza levantada ya no es tardanza: contarla en «Tardanzas hoy» sería acusar a quien DO ya perdonó.
+  return (f.minutosTarde ?? 0) > 0 && !f.tardanzaLevantada;
 }
 // Sin marcar, sin ausencia que lo cubra, y con la hora de entrada (más el
 // margen) ya pasada. Quien aún no entra o descansa hoy NO cuenta.

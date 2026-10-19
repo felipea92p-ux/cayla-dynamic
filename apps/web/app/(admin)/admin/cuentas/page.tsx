@@ -13,6 +13,8 @@ import { useToast } from "@/components/toast";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { guardarMiClave } from "@/lib/admin/mi-clave";
 import { REQUISITOS_CLAVE, problemasDeClave, puedeGestionarCatalogos } from "@cayla-dynamic/shared";
+import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
+import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 
 interface Cuenta {
   id: string;
@@ -297,7 +299,7 @@ export default function CuentasPage() {
     return (
       <div className="flex flex-1 flex-col">
         <main className="flex-1 p-6">
-          <h1 className="mb-1 font-serif text-2xl">Mi cuenta</h1>
+          <CabeceraPagina sobretitulo={sobretituloDeHoy("Configuración")} titulo="Mi cuenta" descripcion="Cambia tu contraseña." />
           <SeccionMiClave {...{ nueva, setNueva, confirma, setConfirma, guardandoMia, cambiarMiClave }} />
         </main>
       </div>
@@ -307,8 +309,11 @@ export default function CuentasPage() {
   return (
     <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
-        <h1 className="mb-1 font-serif text-2xl">Cuentas</h1>
-        <p className="mb-6 text-sm text-taupe">Cambia tu contraseña y gestiona los accesos del equipo al panel.</p>
+        <CabeceraPagina
+          sobretitulo={sobretituloDeHoy("Configuración")}
+          titulo="Cuentas"
+          descripcion="Cambia tu contraseña y gestiona los accesos del equipo al panel."
+        />
 
         <SeccionMiClave {...{ nueva, setNueva, confirma, setConfirma, guardandoMia, cambiarMiClave }} />
 

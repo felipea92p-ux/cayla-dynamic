@@ -128,6 +128,21 @@ export const NOVEDADES: readonly Novedad[] = [
     audiencia: "todos",
   },
   {
+    id: "2026-10-19-turnos-por-tramos-y-correcciones-con-semana",
+    fecha: "2026-10-19",
+    titulo: "Turnos habla de «mañana y tarde», y Correcciones muestra la semana",
+    queMejoro:
+      "En Turnos, cada día se lee como se pone la meta: «Mañana 2 de 3 · falta 1», «Tarde completo», con quién está en cada " +
+      "tramo, y ahí mismo cambias la meta. Arriba, «Para decidir» junta los turnos que no coinciden con el horario base y a " +
+      "quién se acerca a las 48 horas. La hora por hora queda detrás de «Ver hora por hora».\n\n" +
+      "En Correcciones, arriba de cada persona está su semana con una frase corta por día («8 h 03», «25 min tarde», «Sin " +
+      "jornada»): tocas un día y lo abres sin usar el calendario. Con pantalla ancha, el historial queda a la derecha.\n\n" +
+      "Una tardanza que ya se levantó por fuerza mayor sale tachada también en el Dashboard y deja de contar como tardanza " +
+      "ahí. Y Datos personales, Feriados, Costos, Sedes, Áreas, Anuncios, Cuentas, Hoja de sede, Exportar, Disciplina y Casos " +
+      "estrenan la misma cabecera de siempre, con su ⓘ de ayuda.",
+    audiencia: "panel",
+  },
+  {
     id: "2026-10-19-quien-esta-de-prueba-cuenta-en-la-cobertura",
     fecha: "2026-10-19",
     titulo: "Quien está de prueba ya cuenta en la cobertura de su sede",
@@ -148,6 +163,22 @@ export const NOVEDADES: readonly Novedad[] = [
       "Además, el terminal revisa la lista cada minuto: quien se suma al equipo, o pasa de prueba a planilla, aparece en " +
       "la pantalla de la sede sin que nadie la recargue.",
     audiencia: "todos",
+  },
+  {
+    id: "2026-10-19-planilla-y-las-pantallas-de-dinero-con-una-sola-cabecera",
+    fecha: "2026-10-19",
+    titulo: "Planilla y las pantallas de dinero comparten cabecera, ayuda «ⓘ» y «Para atender»",
+    queMejoro:
+      "En Planilla, arriba del detalle hay una franja «Para cerrar»: dice qué frena el pago y cuál es el paso que toca " +
+      "—resolver lo que frena, cerrar un grupo o ir a Boletas—, con un solo botón principal. Cada grupo sigue " +
+      "pagándose por su cuenta y su estado se ve en una fila de pastillas. Las boletas siguen a la vista junto al selector " +
+      "de periodo.\n\n" +
+      "Boletas, Liquidaciones, Provisiones, Costos, Bandeja, Objetivos y Normas se ordenan igual que Educación: el " +
+      "título con su «ⓘ» (ahí quedó la explicación larga, que antes ocupaba la pantalla), los avisos como pastillas " +
+      "que filtran, y los filtros en una sola fila. En Liquidaciones, Objetivos y Normas lo que espera una acción " +
+      "—vencidas, observaciones, constancias pendientes— aparece arriba y al tocarlo lleva a la lista.\n\n" +
+      "No cambió ningún cálculo ni ninguna regla: es la misma información, con menos texto encima.",
+    audiencia: "panel",
   },
   {
     id: "2026-10-19-la-prueba-de-tres-dias-se-ve-y-se-decide",
