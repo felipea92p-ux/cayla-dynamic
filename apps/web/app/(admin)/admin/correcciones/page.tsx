@@ -32,6 +32,7 @@ import { AreaTexto } from "@/components/ui/area-texto";
 import { Insignia } from "@/components/ui/insignia";
 import { Modal } from "@/components/ui/modal";
 import { Tabla, TablaEncabezado, Th, Fila } from "@/components/ui/tabla";
+import { SemanaDePersona } from "./semana-persona";
 
 
 // "HH:MM" en hora Lima para el input de tipo time
@@ -782,7 +783,7 @@ export default function CorreccionesPage() {
 
   return (
     <div className="flex flex-1 flex-col">
-      <div className="px-4 pt-5 md:px-6">
+      <div className="px-4 pt-6 md:px-6">
         <CabeceraPagina
           sobretitulo={sobretituloDeHoy("Asistencia")}
           titulo="Corregir marcajes"
@@ -1065,8 +1066,10 @@ export default function CorreccionesPage() {
               <p className="text-sm text-taupe">Elige a alguien de la lista para ver y corregir sus marcajes.</p>
             </div>
           ) : (
-            <div className="max-w-3xl">
-              <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+            // `@container`: lo que cabe lo decide el ancho de ESTA columna, no el de la ventana. Con el equipo abierto
+            // el día tiene ~1000 px y el historial cabe al lado; con poco espacio baja, como siempre.
+            <div className="@container">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                 <h2 className="font-serif text-xl text-tinta">
                   {personaSel.nombres} {personaSel.apellidos}
                 </h2>
@@ -1080,6 +1083,14 @@ export default function CorreccionesPage() {
                   />
                 </label>
               </div>
+
+              <SemanaDePersona
+                personaId={personaId}
+                fecha={fecha}
+                hoy={hoyLima()}
+                refresco={`${jornada?.horas_trabajadas ?? ""}|${jornada?.minutos_tarde ?? ""}|${levTardanza ? 1 : 0}|${marcajes.length}`}
+                onElegir={(iso) => { setFecha(iso); setCargado(false); }}
+              />
 
               {!cargado ? (
                 diaError ? (
@@ -1146,10 +1157,15 @@ export default function CorreccionesPage() {
                     </BannerAviso>
                   )}
 
+                  {/* DOS COLUMNAS cuando el día tiene ancho (≥ 56 rem): el día a la izquierda y su historial a la derecha,
+                      fijo al bajar. Sin ese ancho —equipo abierto en una pantalla chica, o celular— el historial queda
+                      debajo, como siempre. */}
+                  <div className="grid gap-4 @4xl:grid-cols-[minmax(0,1.55fr)_minmax(20rem,1fr)] @4xl:items-start">
+                  <div className="@container min-w-0">
                   {/* Cuatro tarjetas de resumen — Estado, Horas, Tardanza (con su
                       levantar/quitar intacto) y Entrada esperada (con su enlace a
                       Turnos, aprobado en la auditoría del 2026-09-14). */}
-                  <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+                  <div className="mb-5 grid grid-cols-2 gap-3 @2xl:grid-cols-4">
                     <TarjetaResumen etiqueta="Estado">
                       {jornada ? (JORNADA_ESTADO_LABELS[jornada.estado] ?? jornada.estado) : "Sin jornada"}
                     </TarjetaResumen>
@@ -1432,13 +1448,15 @@ export default function CorreccionesPage() {
                     </div>
                   </TarjetaInfo>
 
+                  </div>
+                  <div className="min-w-0 @4xl:sticky @4xl:top-0 @4xl:max-h-[calc(100vh-7rem)] @4xl:overflow-y-auto">
                   {/* Historial de correcciones: el motivo de cada cambio, quién y cuándo.
                       Es donde se LEE la auditoría que cada corrección va guardando.
                       Lo que NO viene de una RPC de esta pantalla (hoy, cambios de
                       turno hechos desde Turnos) lleva su propia insignia "otro
                       sistema": responde "qué le tocaba trabajar", no "qué marcó" —
                       aprobado en la segunda ronda de la auditoría, 2026-09-14. */}
-                  <TarjetaInfo className="mt-4 overflow-hidden p-0 sm:p-0">
+                  <TarjetaInfo className="mt-4 overflow-hidden p-0 sm:p-0 @4xl:mt-0">
                     <div className="flex flex-wrap items-center justify-between gap-2 border-b border-sand px-4 py-2.5">
                       <h3 className="text-sm font-medium">
                         Historial de correcciones · {personaSel.nombres} {personaSel.apellidos}
@@ -1509,6 +1527,8 @@ export default function CorreccionesPage() {
                       </div>
                     )}
                   </TarjetaInfo>
+                  </div>
+                  </div>
                 </>
               )}
             </div>

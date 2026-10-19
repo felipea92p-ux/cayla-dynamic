@@ -8,6 +8,9 @@ import { hoyLima, puedeExportarAsistencia, rangoDelDiaLima, TIPO_MARCA_LABELS, t
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { Boton } from "@/components/ui/boton";
 import { Campo } from "@/components/ui/campo";
+import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
+import { AyudaPantalla } from "@/components/ui/ayuda-pantalla";
+import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 
 interface JornadaFila {
   fecha: string;
@@ -371,14 +374,29 @@ export default function ExportarPage() {
 
   return (
     <div className="flex flex-1 flex-col">
-      <div className="flex flex-1 flex-col items-center justify-center gap-6 p-6">
-        <h1 className="font-serif text-2xl">Exportar (CSV)</h1>
+      <main className="flex-1 p-6">
+        <CabeceraPagina
+          sobretitulo={sobretituloDeHoy("Reportes")}
+          titulo="Exportar (CSV)"
+          descripcion="Descarga la asistencia en un archivo que se abre con Excel o Google Sheets."
+          ayuda={
+            <AyudaPantalla
+              titulo="Qué se exporta"
+              intro="Incluye a todas las personas y sedes visibles para tu rol."
+              secciones={[
+                { titulo: "Jornadas (resumen)", texto: "Un renglón por persona y día: lo que el sistema calculó." },
+                { titulo: "Marcajes y correcciones", texto: "«Marcajes» y «Correcciones de auditoría» son el respaldo crudo del sistema: cada marca tal como quedó, y cada corrección con quién la hizo y por qué. Es lo que pide una inspección para comprobar que nada se editó fuera de este rastro." },
+              ]}
+            />
+          }
+        />
+        <div className="flex max-w-3xl flex-col gap-6">
         <div className="flex flex-wrap items-end gap-3">
           <Campo etiqueta="Desde" type="date" value={desde} onChange={(e) => setDesde(e.target.value)} />
           <Campo etiqueta="Hasta" type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} />
         </div>
 
-        <div className="flex flex-wrap items-center justify-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <Boton
             variante="primario"
             tamano="lg"
@@ -429,16 +447,8 @@ export default function ExportarPage() {
           </p>
         )}
 
-        <p className="max-w-md text-center text-xs text-taupe">
-          Incluye a todas las personas y sedes visibles para tu rol. Ábrelo directamente con Excel o
-          Google Sheets.
-        </p>
-        <p className="max-w-md text-center text-xs text-taupe">
-          «Marcajes» y «Correcciones de auditoría» son el respaldo crudo del sistema — cada marca tal
-          como quedó, y cada corrección con quién la hizo y por qué. Es lo que pide una inspección para
-          comprobar que nada se editó fuera de este rastro.
-        </p>
-      </div>
+        </div>
+      </main>
     </div>
   );
 }

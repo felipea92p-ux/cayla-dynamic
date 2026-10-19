@@ -25,6 +25,9 @@ import { useToast } from "@/components/toast";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { NovedadesDelSistema } from "@/components/novedades-del-sistema";
 import { puedeGestionarAnuncios } from "@cayla-dynamic/shared";
+import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
+import { AyudaPantalla } from "@/components/ui/ayuda-pantalla";
+import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 
 interface Sede { id: string; codigo: string; nombre: string; }
 
@@ -132,13 +135,21 @@ export default function AnunciosPage() {
   return (
     <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
-        <h1 className="mb-1 font-serif text-2xl">Anuncios</h1>
-        <p className="mb-5 max-w-2xl text-sm text-taupe">
-          Comunicados de Desarrollo Organizacional al equipo — cierre de planilla,
-          feriados, política nueva. Quedan aquí para que se puedan volver a
-          encontrar, a diferencia de un chat. Más abajo, las novedades del
-          sistema: qué mejoró en Dynamic y por qué te sirve.
-        </p>
+        <CabeceraPagina
+          sobretitulo={sobretituloDeHoy("Publicaciones")}
+          titulo="Anuncios"
+          descripcion="Los comunicados de Desarrollo Organizacional al equipo, y las novedades del sistema."
+          ayuda={
+            <AyudaPantalla
+              titulo="Qué hay en Anuncios"
+              intro="Comunicados de Desarrollo Organizacional al equipo: cierre de planilla, feriados, política nueva."
+              secciones={[
+                { titulo: "Por qué están aquí", texto: "Quedan para que se puedan volver a encontrar, a diferencia de un chat." },
+                { titulo: "Novedades del sistema", texto: "Más abajo: qué mejoró en Dynamic y por qué te sirve." },
+              ]}
+            />
+          }
+        />
 
         {/* Con permiso para publicar, el formulario va fijo a un lado y la
             lista ocupa el resto del ancho — como un compositor de correo, no

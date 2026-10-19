@@ -18,6 +18,8 @@ import { traerPausasAbiertas } from "@/lib/admin/pausas-abiertas";
 import { diaDeLaSedeDe, type DiaDeLaSede, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
 import { coberturaDeHoyApagada, hojaIncluyeHoy, textoCoberturaApagada, textoMetaDeHoy } from "@/lib/admin/cobertura-hoja-sede";
 import { traerSiEsFeriado } from "@/lib/admin/feriado-de-hoy";
+import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
+import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 
 const CORTE_TARDE = 14.25; // mismo corte mañana/tarde que Turnos/Dashboard
 
@@ -397,14 +399,15 @@ function ReporteSedeContenido() {
 
   return (
     <div className="flex flex-1 flex-col">
-      <main className="flex-1 p-6 sm:p-8 print:p-0">
+      <main className="flex-1 p-6 print:p-0">
         {/* Controles — no salen en el PDF */}
-        <div className="mb-6 flex flex-wrap items-end justify-between gap-4 print:hidden">
-          <div>
-            <h1 className="font-serif text-2xl leading-tight">Hoja de sede</h1>
-            <p className="mt-1 text-sm text-taupe">El estado de una sede en una página: hoy, el periodo elegido y lo que necesita atención.</p>
-          </div>
-          <div className="flex flex-wrap items-end gap-3">
+        <div className="print:hidden">
+          <CabeceraPagina
+            sobretitulo={sobretituloDeHoy("Reportes")}
+            titulo="Hoja de sede"
+            descripcion="El estado de una sede en una página: hoy, el periodo elegido y lo que necesita atención."
+            accion={
+            <div className="flex flex-wrap items-end gap-3">
             <CampoSelect
               etiqueta="Sede"
               value={sedeId}
@@ -439,6 +442,8 @@ function ReporteSedeContenido() {
               Descargar PDF
             </Boton>
           </div>
+            }
+          />
         </div>
 
         {/* El aviso SÍ se imprime — no lleva `no-print` a propósito. Si alguien
