@@ -364,6 +364,7 @@ function TileCobertura({ label, n, meta, sinMeta, tramo, fueraDeHorario = false,
   const detalle = sinMeta ? undefined : ok ? "Completo" : sinMedir ? "Fuera de horario" : porRevisar ? "Meta por revisar" : faltanTexto(meta - n);
   return (
     <Cifra
+      tamano="sm"
       etiqueta={`${label}${sinMeta ? " · sin meta" : tramo ? ` · meta ${tramo}` : ""}`}
       valor={<>{n}{!sinMeta && <span className="text-base text-taupe"> / {meta}</span>}</>}
       detalle={detalle}
@@ -1250,6 +1251,7 @@ export default function DashboardPage() {
                   const abierto = resumenAbierto === k.clave;
                   return (
                     <Cifra
+      tamano="sm"
                       key={k.clave}
                       etiqueta={<><span aria-hidden className="sm:hidden">{k.corto}</span><span className="sr-only sm:not-sr-only">{k.label}</span></>}
                       valor={k.n}
@@ -1311,9 +1313,9 @@ export default function DashboardPage() {
                 accion={<Link href="/admin/equipo" className="text-xs text-taupe hover:underline">Equipo →</Link>}
               >
                 <div className="grid grid-cols-3 gap-2">
-                  <Cifra etiqueta="Equipo que marca asistencia" valor={filas.length} />
-                  <Cifra etiqueta="Ausentes hoy" valor={ausentesHoy} />
-                  <Cifra etiqueta="Contratos por vencer" valor={contratos.length} tono={contratos.length > 0 ? "advertencia" : undefined} />
+                  <Cifra tamano="sm" etiqueta="Equipo que marca asistencia" valor={filas.length} />
+                  <Cifra tamano="sm" etiqueta="Ausentes hoy" valor={ausentesHoy} />
+                  <Cifra tamano="sm" etiqueta="Contratos por vencer" valor={contratos.length} tono={contratos.length > 0 ? "advertencia" : undefined} />
                 </div>
                 <p className="mt-3 text-xs text-taupe">Cuenta a quien marca asistencia: no incluye recibos por honorarios ni sueldo fijo.</p>
               </TarjetaInfo>
@@ -1334,10 +1336,10 @@ export default function DashboardPage() {
                 ) : (
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                     {pendientesBandeja.resumen.porModulo.map((m) => (
-                      <Cifra key={m.clave} href={m.ruta} etiqueta={m.etiqueta} valor={m.n} />
+                      <Cifra tamano="sm" key={m.clave} href={m.ruta} etiqueta={m.etiqueta} valor={m.n} />
                     ))}
                     {pendientesBandeja.resumen.otros > 0 && (
-                      <Cifra href="/admin/bandeja" etiqueta="Otros" valor={pendientesBandeja.resumen.otros} />
+                      <Cifra tamano="sm" href="/admin/bandeja" etiqueta="Otros" valor={pendientesBandeja.resumen.otros} />
                     )}
                   </div>
                 )}
@@ -1362,10 +1364,10 @@ export default function DashboardPage() {
                 ) : (
                   <>
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                      <Cifra etiqueta="Últimos 6 meses" valor={casosResumen.resumen.total} />
-                      <Cifra etiqueta="Abiertos ahora" valor={casosResumen.resumen.abiertos} />
-                      <Cifra etiqueta="Con un plazo vencido" valor={casosResumen.resumen.vencidos} tono={casosResumen.resumen.vencidos > 0 ? "alerta" : undefined} />
-                      <Cifra etiqueta="Cerrados" valor={casosResumen.resumen.cerrados} />
+                      <Cifra tamano="sm" etiqueta="Últimos 6 meses" valor={casosResumen.resumen.total} />
+                      <Cifra tamano="sm" etiqueta="Abiertos ahora" valor={casosResumen.resumen.abiertos} />
+                      <Cifra tamano="sm" etiqueta="Con un plazo vencido" valor={casosResumen.resumen.vencidos} tono={casosResumen.resumen.vencidos > 0 ? "alerta" : undefined} />
+                      <Cifra tamano="sm" etiqueta="Cerrados" valor={casosResumen.resumen.cerrados} />
                     </div>
 
                     <div className="mt-4 grid gap-5 sm:grid-cols-2">

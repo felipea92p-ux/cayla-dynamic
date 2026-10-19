@@ -86,6 +86,16 @@ compartido puede tocarlo. `.etiqueta` sigue existiendo como clase para el sobret
 - Si una tercera pantalla pide lo mismo (una cifra «principal» que no cabe en la casilla), no se
   le agrega un tamaño a `Cifra`: se abre esta decisión de nuevo.
 
+## Cambios posteriores (2026-10-19)
+
+- **`Cifra` gana `tamano="sm"`**: una fila (etiqueta a la izquierda, número a la derecha), de ~92 px de alto a ~48. Lo pidió
+  Felipe para el resumen del Dashboard, que ocupaba demasiado antes de llegar al contenido. El número sigue serif y en
+  tinta; no es el «tamaño más grande» que esta decisión se reservaba reabrir, sino un tamaño más chico. Hoy lo usa solo el
+  Dashboard: otra pantalla que lo pida lo usa, no escribe su propia casilla.
+- **`Campo` y `CampoSelect` ganan `tamano="sm"`** (py-1.5, 12 px), mismo vocabulario que `Boton` y `Filtro`.
+- **`BotonIcono`** (nuevo): botón de un solo ícono con etiqueta obligatoria y `activo` para filtros. **`AyudaPantalla` /
+  `BotonAyuda`**: el ⓘ al final de la descripción de `CabeceraPagina`; el sobretítulo lleva raya.
+
 ## Pendiente
 
 - **Rótulos sobre cajas teñidas** («Trabajando ahora», «En pausa», el aviso de contratos del
