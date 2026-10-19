@@ -20,3 +20,4 @@ export * from "./nombres";
 export * from "./documento";
 export * from "./pruebas";
 export * from "./capa-activa";
+export * from "./terminos";
