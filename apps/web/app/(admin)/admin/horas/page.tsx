@@ -1111,9 +1111,8 @@ function DesempenoContenido() {
       volverFoco.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     }
     setSel({ personaId, fecha });
-    // Abrir un día desde la cuadrícula despliega también su desempeño: el día
-    // se entiende mirando los de alrededor, no solo.
-    setAbierta(personaId);
+    // Antes, abrir un día desplegaba también el desempeño de la persona DENTRO de la tabla. Con el cajón de la persona eso
+    // abriría dos cajones a la vez por un solo toque: el día se abre solo; el detalle de la persona, desde su fila o tarjeta.
     setMotivo(""); setObs("");
   }, []);
   const cerrarDia = useCallback(() => {
@@ -1335,10 +1334,6 @@ function DesempenoContenido() {
               {OPCIONES_ORDEN.map((o) => <option key={o.col} value={o.col}>Ordenar: {o.texto}</option>)}
             </CampoSelect>
           </div>
-          <div className="flex gap-1" role="group" aria-label="Cómo ver la lista">
-            <BotonIcono tamano="md" etiqueta="Ver como tabla" icono={<Table2 aria-hidden />} activo={forma === "tabla"} onClick={() => setForma("tabla")} />
-            <BotonIcono tamano="md" etiqueta="Ver como tarjetas" icono={<LayoutGrid aria-hidden />} activo={forma === "tarjetas"} onClick={() => setForma("tarjetas")} />
-          </div>
           <Boton variante="secundario" aria-expanded={masFiltros} aria-controls="mas-filtros-desempeno"
             onClick={() => setMasFiltros((a) => !a)} className="inline-flex items-center gap-1.5">
             <SlidersHorizontal className="size-4" aria-hidden />
@@ -1396,6 +1391,11 @@ function DesempenoContenido() {
             </Filtro>
           )}
           <Filtro activo={esPreset("anio")} onClick={() => aplicarPreset("anio")}>Todo el año</Filtro>
+          {/* Cómo se ve la lista, pegado al rango: son los dos controles de «qué miro y cómo». */}
+          <div className="ml-1 flex shrink-0 items-center gap-1 border-l border-sand pl-3" role="group" aria-label="Cómo ver la lista">
+            <BotonIcono tamano="md" etiqueta="Ver como tabla" icono={<Table2 aria-hidden />} activo={forma === "tabla"} onClick={() => setForma("tabla")} />
+            <BotonIcono tamano="md" etiqueta="Ver como tarjetas" icono={<LayoutGrid aria-hidden />} activo={forma === "tarjetas"} onClick={() => setForma("tarjetas")} />
+          </div>
         </div>
 
         {error && (
