@@ -115,6 +115,28 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-10-19-quien-esta-de-prueba-cuenta-en-la-cobertura",
+    fecha: "2026-10-19",
+    titulo: "Quien está de prueba ya cuenta en la cobertura de su sede",
+    queMejoro:
+      "En el Dashboard, en Turnos y en el Reporte de sede, quien está haciendo sus días de prueba ahora cuenta como " +
+      "personal operativo en piso, igual que un practicante. Antes podía salir «Trabajando ahora · 3» y a la vez " +
+      "«2 / 4 operativas»: la persona de prueba estaba trabajando pero no sumaba a la meta.",
+    audiencia: "panel",
+  },
+  {
+    id: "2026-10-19-en-el-terminal-quien-esta-de-prueba-se-distingue-y-la-lista-se-actualiza-sola",
+    fecha: "2026-10-19",
+    titulo: "En el terminal, quien está de prueba se distingue y la lista se actualiza sola",
+    queMejoro:
+      "En el terminal de marcaje, quien está de prueba ahora tiene la tarjeta con borde punteado, una cinta «En prueba» " +
+      "arriba y su avance, «Prueba · 2 de 3», en una píldora. Es siempre del mismo color: el avance lo dice el texto, y " +
+      "ya no se confunde con los colores de «en pausa» ni de «refrigerio».\n\n" +
+      "Además, el terminal revisa la lista cada minuto: quien se suma al equipo, o pasa de prueba a planilla, aparece en " +
+      "la pantalla de la sede sin que nadie la recargue.",
+    audiencia: "todos",
+  },
+  {
     id: "2026-10-19-planilla-y-las-pantallas-de-dinero-con-una-sola-cabecera",
     fecha: "2026-10-19",
     titulo: "Planilla y las pantallas de dinero comparten cabecera, ayuda «ⓘ» y «Para atender»",
