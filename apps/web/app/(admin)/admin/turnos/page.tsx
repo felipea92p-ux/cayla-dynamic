@@ -729,10 +729,10 @@ export default function TurnosPage() {
     setMetasTarde(new Map(((m as any[]) ?? []).map((x) => [x.dia_semana, x.meta_tarde ?? x.meta ?? 0])));
     setMetasEncargadas(new Map(((m as any[]) ?? []).map((x) => [x.dia_semana, x.meta_encargadas ?? 0])));
     setCargando(false);
-  }, [supabase, sedeSel, lunes, avisar]);
+    // `recarga` no se lee dentro: está en las dependencias para que pedir una recarga haga correr el efecto que ya llama a cargar().
+  }, [supabase, sedeSel, lunes, avisar, recarga]);
 
   useEffect(() => { void cargar(); }, [cargar]);
-  useEffect(() => { if (recarga > 0) void cargar(); }, [recarga]); // eslint-disable-line react-hooks/exhaustive-deps -- solo cuando se pide; el cambio de `cargar` ya lo cubre el efecto de arriba
 
   // Cuenta rápida de la semana anterior, solo para el botón — no filtra por
   // "ya tiene turno en el destino" ni por persona activa (eso lo decide
