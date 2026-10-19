@@ -6,6 +6,47 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-10-19 — Términos primero, guía después, en «Lo mío» · migración 0540 · SQL PEGADO Y VERIFICADO EN PRODUCCIÓN (2026-10-19) · FUSIONADO Y PUBLICADO (PR #561, 2026-10-19) · rama `claude/dynamic-terms-conditions-modules-44a3d3`
+
+**Qué es.** La guía de primera vez (driver.js) arrancaba sola, sin condiciones, y antes o a la vez que
+cualquier otra cosa que se le pide a la persona. Ahora una sola función (`capaActiva`, en
+`packages/shared`) decide qué le toca a la persona al abrir un módulo —términos de uso, términos del
+módulo o guía— y **nunca dos a la vez**. Las dieciséis secciones de «Lo mío» tienen su guía: aro suave,
+dos o tres pasos, «Omitir», y «Ver guía de esta pantalla» en la cabecera de Info.
+
+**Lo que ya se ve hoy:** las guías (con su novedad en `novedades.ts`). **Lo que NO se ve todavía, a
+propósito:** los términos. Los diecisiete textos de `packages/shared/src/terminos.ts` están en
+`borrador`, y un borrador es invisible para la pantalla: no se muestra y no bloquea nada. Para que uno
+salga hay que cambiar su `estado` a «aprobado» con quién y cuándo, y pegar su huella en
+`tests/terminos.test.ts`.
+
+**Decidido (Felipe, 2026-10-19):** bloquean solo los términos de uso y los módulos con casilla. Cinco
+piden casilla (términos de uso, Vacaciones y permisos, Firma, Mis datos, Reportes); cuatro ya tienen su
+propia constancia y solo apuntan a ella (Boletas, Mi DNI, Movilidad, Disciplina); el resto es un aviso.
+
+**Pendiente, en este orden.**
+1. **DO y el laboralista leen los textos.** Se corrigieron seis que prometían lo que su pantalla no hace
+   (Vacaciones y permisos, Disciplina, Movilidad, Educación, Mis datos, Objetivos), pero ninguno lo ha leído
+   un humano de DO. Ojo con dos: el de Movilidad ya no dice «carácter no remunerativo conforme al pacto»
+   (no se pudo comprobar contra la pantalla) y puede que el laboralista lo quiera de vuelta; y Disciplina no
+   menciona un descargo porque la pantalla no tiene dónde presentarlo.
+2. ~~**Pegar la 0540**~~ **HECHO el 2026-10-19.** Se pegó DESPUÉS de fusionar el PR —el orden de CLAUDE.md es
+   el contrario—, y no pasó nada porque con todos los textos en borrador el código no consulta la base. El SQL
+   Editor devolvió «Success», y la consulta de control dio: registro «540 · las_aceptaciones_de_terminos_por_modulo»,
+   las tres funciones (`fn_aceptaciones_terminos_inmutable`, `fn_aceptar_terminos`,
+   `fn_mis_aceptaciones_terminos`), 1 trigger de inmutabilidad, 2 políticas y 0 filas; `authenticated` no puede
+   insertar directo y `anon` no puede ni leer la tabla. El script la copió con el md5 del archivo y GitHub
+   coincidentes, y el portapapeles se comparó aparte con el locale UTF-8 (136 acentos intactos).
+3. **Aprobar los textos de a uno, empezando por «general».** Hasta entonces nadie ve ni acepta nada.
+
+**Probado.** La 0540 con su prueba 433 (28 aserciones) en un clon desechable, con ocho sesiones aceptando
+la misma versión a la vez (una dice true, siete false, una fila); `types.ts` comparado contra los tipos
+generados de verdad con la 0540 aplicada. La prueba 433 también dio verde en `db-tests` de GitHub, sobre
+una base construida desde cero. **No probado:** el flujo completo de aceptar un texto contra la 0540 en
+producción (nadie ha aceptado nada: no hay texto aprobado), «Tus últimos periodos» de Historial, y el panel
+de vista previa de la app no dispara `requestAnimationFrame` (las guías se vieron con esa función
+sustituida; en un navegador normal debería verse igual).
+
 ## 2026-10-17 — Seguros, etapa 2: «Mi seguro» en Lo mío, para TODO el equipo · migración 0530 · SQL PEGADO Y VERIFICADO EN PRODUCCIÓN (2026-10-19) · FUSIONADO Y PUBLICADO (PR #555, 2026-10-19) · rama `claude/seguros-module-analysis-redesign-70bbe4` (rescató `claude/seguros-etapa-2-mi-seguro`, antes `elegant-mayer-3e584e`)
 
 **Qué es.** Cada colaborador ve SU seguro en `/mio` → Documentos → «Mi seguro»: en cuál está hoy;
@@ -229,7 +270,7 @@ nuevas (`fn_mi_seguro`, `fn_mis_polizas`, `fn_seguro_archivo_es_mio`). La base d
 
 ---
 
-## 2026-10-19 — La prueba de tres días · base, planilla, pantallas y terminal · migraciones 0535–0539 · SIN PEGAR NI FUSIONAR · rama `claude/trial-period-contract-flow-3b095c`
+## 2026-10-19 — La prueba de tres días · base, planilla, pantallas y terminal · migraciones 0535–0539 · SQL PEGADO Y VERIFICADO EN PRODUCCIÓN (2026-10-19) · FUSIONADO Y PUBLICADO (PR #557, 2026-10-19) — con la 0537–0539 pegadas DESPUÉS de fusionar · rama `claude/trial-period-contract-flow-3b095c`
 
 **Qué es.** Quien está de prueba no tiene contrato: trabaja **tres días** (de jornada cerrada, no de
 calendario) y recién después se le hace contrato. Durante la prueba se marca **«no apto»** (se le
@@ -284,17 +325,27 @@ fila: «no apto» pasa de neto S/ 215,32 a S/ 108,31 y «prueba abierta» de S/ 
 desaparece; planilla, quien pasó a planilla y quien no tiene hijos **no se mueven**; y siete ventanas 29..28 sobre
 los datos de la base dan JSON **idéntico**.
 
-**Antes de pegar (en este orden, todo ANTES de fusionar).**
-1. **Medido en producción el 2026-10-19:** `fn_cesar_persona` es la de la 0415 (`c0698486…`), pero
-   `fn_planilla_calcular_nucleo` es la de la **0504** (`f1781d68…`, 116 749 caracteres): **la 0524 no está pegada**.
-   La 0537 copia la 0524 y su guardia se niega a pegar sobre otra cosa: **pegar la 0524 ANTES de la 0537** (su
-   encabezado dice que a nadie le cambia el pago). Mirar también `./scripts/que-falta-pegar.sh`.
-2. **Medido en producción el 2026-10-19 (segunda consulta de Felipe):** `fn_solicitud_perfil_puede_escribir` tiene md5
-   `f1a28aac…` = la 0399 pegada con `\r\n` (la 0538 acepta esa variante: pegar desde Windows, ver CLAUDE.md);
-   `terminal_roster` tiene las seis columnas de la 0490 (la 0539 las espera); y la planilla **no** trae la 0524
-   (confirmado por segunda vez). Volver a pedir los md5 en el mensaje en que se entregue el SQL.
-3. Pegar **0524** (si falta), **0535**, comprobar `select count(*) from pg_proc where proname = 'fn_cese_aplicar'` = 1,
-   **0536**, **0537**, **0538**, **0539**. Y solo entonces fusionar. Cada una se niega a entrar si falta su antecesora.
+**Cómo se pegó — y el orden se rompió (2026-10-19, horas de Lima).**
+1. **0524, 0535 y 0536** se pegaron a las 15:07, 15:11 y 15:16 (`migraciones_aplicadas`).
+2. **El PR #557 se fusionó a las 15:28 con la 0537, la 0538 y la 0539 SIN pegar**, aunque su descripción
+   abría con «⛔ No fusionar todavía». No tiene el comentario `cayla:fusion-sesion`: no pasó por el freno de
+   `comentar-antes-de-fusionar.sh`, y no queda dicho quién lo pidió.
+3. **Lo que se vio en producción** durante esa ventana: la Bandeja de DO mostraba el aviso rojo «No se pudo
+   cargar los cierres de pruebas: El sistema no encontró esta función» y el módulo Pruebas en «No se pudo
+   cargar» (`fn_pruebas_cierres_recientes`, 0538, contestaba `PGRST202`). Subir el DNI de quien está de prueba
+   también habría fallado (`fn_prueba_cargar_dni`, 0538). **El terminal siguió marcando**: `roster.ts` vuelve a
+   pedir la lista sin `prueba_dias`/`prueba_plazo` cuando la vista no las tiene. Y la planilla calculaba **sin**
+   la 0537 —quien se retira en prueba habría cobrado—; no se cerró ningún periodo en esa ventana.
+4. **Antes de pegar lo que faltaba**, una consulta de Felipe que repite las tres guardias dio todo en verde:
+   `fn_planilla_calcular_nucleo` con md5 `11425cad…` (la 0524 tal cual, 119 895 caracteres, una sola versión),
+   `fn_solicitud_perfil_puede_escribir` con `f1a28aac…` (la 0399 con `\r\n`), `terminal_roster` con las seis
+   columnas de la 0490, `security_invoker = false`, delegando en `fn_persona_marca_en_sede` y excluyendo las
+   cuentas de servicio; y la 0536 presente. Ninguna rama redefine esas funciones después de la 0537–0539.
+5. **0537, 0538 y 0539 pegadas esa misma tarde, de a una**, cada una con `dame-el-sql.sh` (portapapeles idéntico
+   al archivo y a `origin/main`, locale UTF-8). Controles: 0537 → `CAMBIO 0537` presente, 1 versión, registro con
+   su nombre; 0538 → `fn_pruebas_cierres_recientes` y `fn_prueba_cargar_dni` existen, `CAMBIO 0538` en el permiso
+   del bucket, registro con su nombre, y **el aviso de la Bandeja dejó de salir**; 0539 → `true, true, true`
+   (ocho columnas, `authenticated` la lee, `anon` no). `migraciones_aplicadas` tiene de la 535 a la 540 con sus nombres.
 
 **Qué NO está hecho (y por qué).**
 - **«Se retiró» y quien ya figura en Planilla:** quien se retira desaparece de la pantalla de Planilla (a propósito:
@@ -821,7 +872,7 @@ comentarios de menos o `\r`, el freno lo acepta (mismos desenlaces que la 0491).
 
 ---
 
-## 2026-10-16 — Educación: un estudio ya no tapa a otro (0524) · SQL SIN PEGAR · COMMITEADO, SIN PR · rama `claude/hungry-mirzakhani-1438df`
+## 2026-10-16 — Educación: un estudio ya no tapa a otro (0524) · SQL PEGADO EN PRODUCCIÓN (2026-10-19, 15:07) · EN `main` · rama `claude/hungry-mirzakhani-1438df`
 
 **Hoy no cuesta nada.** Medido en producción con la regla nueva contra la de hoy sobre
 los tres últimos periodos: a nadie le cambia el pago. Es una regla frágil que se
@@ -842,8 +893,8 @@ cobra el mes completo ese periodo aunque la persona ya tuviera otro. Límite con
 distintas, no contiguos y en un mismo periodo, se cobran los dos; en producción no hay
 ninguno hoy.
 
-**Pendiente.** Pegar la 0524 (md5 de partida de producción `f1781d68…`, 116 749
-caracteres, medido el 2026-10-16; **se vuelve a pedir justo antes de entregar**) y,
+**Pendiente.** ~~Pegar la 0524~~ **HECHO el 2026-10-19 a las 15:07**, como paso previo de la prueba de tres
+días (la 0537 la exige): el 19 por la tarde producción devolvió `11425cad…`, el md5 de la 0524 tal cual. Queda,
 aparte, medir en la boleta congelada de septiembre qué se pagó de educación a esa
 integrante (Duolingo tenía dos tramos; las filas de hoy no se suman entre sí).
 `donde-vive.sh` busca el primer contenedor `supabase_db_*` y con `cayla-retail`

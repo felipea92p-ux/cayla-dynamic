@@ -115,6 +115,86 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-10-19-documentacion-y-ausencias-mas-claras",
+    fecha: "2026-10-19",
+    titulo: "Documentación y Ausencias se ven más claras, y Ausencias tiene calendario",
+    queMejoro:
+      "En Documentación, lo que falta ahora está arriba en «Para atender» —la política de movilidad, quién no ha " +
+      "firmado, quién se negó y los cargos de cumpleaños— y cada documento tiene su pestaña. Subir un papel abre un " +
+      "cajón al costado en vez de empujar la página.\n\n" +
+      "En Ausencias, los avisos de vacaciones por vencer, cupo de EsSalud y patrón de ausencias pasan a pastillas que " +
+      "filtran la lista, y cada fila muestra solo la acción que le toca (aprobar, ver o adjuntar el documento); lo demás " +
+      "está en «•••». Además hay una vista nueva, «Calendario»: un renglón por persona y una casilla por día del mes, con " +
+      "lo pendiente de aprobar rayado. Tocas una barra y vas a la lista de esa persona.",
+    audiencia: "panel",
+  },
+  {
+    id: "2026-10-19-cada-seccion-de-lo-mio-tiene-una-guia-corta",
+    fecha: "2026-10-19",
+    titulo: "Cada sección de «Lo mío» tiene una guía corta, y la puedes volver a ver",
+    queMejoro:
+      "Al abrir por primera vez una sección de «Lo mío» —Resumen, Mis días, Boletas, Mi seguro y las demás— aparece " +
+      "una guía de dos o tres pasos. Un aro rojo señala lo importante y el resto de la pantalla casi no se oscurece, " +
+      "así que se sigue leyendo lo que hay detrás. La puedes seguir, omitir con «Omitir» o cerrar con la X: no vuelve " +
+      "sola a salir.\n\n" +
+      "Si la quieres de nuevo, el enlace «Ver guía de esta pantalla» está debajo de tu nombre, arriba de la pantalla, en " +
+      "cada sección que tiene guía. La de Resumen pasó de siete pasos a tres.",
+    audiencia: "todos",
+  },
+  {
+    id: "2026-10-19-turnos-por-tramos-y-correcciones-con-semana",
+    fecha: "2026-10-19",
+    titulo: "Turnos habla de «mañana y tarde», y Correcciones muestra la semana",
+    queMejoro:
+      "En Turnos, cada día se lee como se pone la meta: «Mañana 2 de 3 · falta 1», «Tarde completo», con quién está en cada " +
+      "tramo, y ahí mismo cambias la meta. Arriba, «Para decidir» junta los turnos que no coinciden con el horario base y a " +
+      "quién se acerca a las 48 horas. La hora por hora queda detrás de «Ver hora por hora».\n\n" +
+      "En Correcciones, arriba de cada persona está su semana con una frase corta por día («8 h 03», «25 min tarde», «Sin " +
+      "jornada»): tocas un día y lo abres sin usar el calendario. Con pantalla ancha, el historial queda a la derecha.\n\n" +
+      "Una tardanza que ya se levantó por fuerza mayor sale tachada también en el Dashboard y deja de contar como tardanza " +
+      "ahí. Y Datos personales, Feriados, Costos, Sedes, Áreas, Anuncios, Cuentas, Hoja de sede, Exportar, Disciplina y Casos " +
+      "estrenan la misma cabecera de siempre, con su ⓘ de ayuda.",
+    audiencia: "panel",
+  },
+  {
+    id: "2026-10-19-quien-esta-de-prueba-cuenta-en-la-cobertura",
+    fecha: "2026-10-19",
+    titulo: "Quien está de prueba ya cuenta en la cobertura de su sede",
+    queMejoro:
+      "En el Dashboard, en Turnos y en el Reporte de sede, quien está haciendo sus días de prueba ahora cuenta como " +
+      "personal operativo en piso, igual que un practicante. Antes podía salir «Trabajando ahora · 3» y a la vez " +
+      "«2 / 4 operativas»: la persona de prueba estaba trabajando pero no sumaba a la meta.",
+    audiencia: "panel",
+  },
+  {
+    id: "2026-10-19-en-el-terminal-quien-esta-de-prueba-se-distingue-y-la-lista-se-actualiza-sola",
+    fecha: "2026-10-19",
+    titulo: "En el terminal, quien está de prueba se distingue y la lista se actualiza sola",
+    queMejoro:
+      "En el terminal de marcaje, quien está de prueba ahora tiene la tarjeta con borde punteado, una cinta «En prueba» " +
+      "arriba y su avance, «Prueba · 2 de 3», en una píldora. Es siempre del mismo color: el avance lo dice el texto, y " +
+      "ya no se confunde con los colores de «en pausa» ni de «refrigerio».\n\n" +
+      "Además, el terminal revisa la lista cada minuto: quien se suma al equipo, o pasa de prueba a planilla, aparece en " +
+      "la pantalla de la sede sin que nadie la recargue.",
+    audiencia: "todos",
+  },
+  {
+    id: "2026-10-19-planilla-y-las-pantallas-de-dinero-con-una-sola-cabecera",
+    fecha: "2026-10-19",
+    titulo: "Planilla y las pantallas de dinero comparten cabecera, ayuda «ⓘ» y «Para atender»",
+    queMejoro:
+      "En Planilla, arriba del detalle hay una franja «Para cerrar»: dice qué frena el pago y cuál es el paso que toca " +
+      "—resolver lo que frena, cerrar un grupo o ir a Boletas—, con un solo botón principal. Cada grupo sigue " +
+      "pagándose por su cuenta y su estado se ve en una fila de pastillas. Las boletas siguen a la vista junto al selector " +
+      "de periodo.\n\n" +
+      "Boletas, Liquidaciones, Provisiones, Costos, Bandeja, Objetivos y Normas se ordenan igual que Educación: el " +
+      "título con su «ⓘ» (ahí quedó la explicación larga, que antes ocupaba la pantalla), los avisos como pastillas " +
+      "que filtran, y los filtros en una sola fila. En Liquidaciones, Objetivos y Normas lo que espera una acción " +
+      "—vencidas, observaciones, constancias pendientes— aparece arriba y al tocarlo lleva a la lista.\n\n" +
+      "No cambió ningún cálculo ni ninguna regla: es la misma información, con menos texto encima.",
+    audiencia: "panel",
+  },
+  {
     id: "2026-10-19-la-prueba-de-tres-dias-se-ve-y-se-decide",
     fecha: "2026-10-19",
     titulo: "La prueba de tres días: se ve en todo el sistema y se decide desde la Bandeja",

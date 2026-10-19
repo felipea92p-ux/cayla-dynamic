@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ausencias — prototipo</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600&family=DM+Sans:wght@400;500;600;700&display=swap">
+<!--
+  Prototipo (2026-10-19): cuatro formas de ordenar «Ausencias». NO es código de la app. Datos ficticios: los mismos casos
+  que la base local de prueba (vacaciones, descanso médico con y sin certificado, permisos repetidos, dos pendientes de
+  aprobar, una anulada).
+
+  Lo que hay hoy (inventario):
+    · una tarjeta «Impacto por colaborador» (vacaciones por vencer, cupo de EsSalud, patrón de ausencias) que ocupa un
+      bloque entero aun cuando dice «sin alertas»;
+    · filtros con rótulo encima (Desde, Hasta, Estado) y un contador suelto de «pendientes de aprobar»;
+    · pestañas Activos / Cesados escritas a mano;
+    · una tabla de seis columnas cuya celda «Tipo» mezcla nombre, etiqueta de pago, motivo y datos del documento;
+    · acciones apiladas (Aprobar / Anular / Adjuntar documento) en cada fila.
+
+  Lo que NO cambia en ninguna variante:
+    · un día registrado aquí deja de contar como falta injustificada y no alimenta el expediente;
+    · solo se paga lo que la ley obliga (descanso médico con documento, maternidad, vacaciones, duelo directo) o lo que
+      CAYLA decide; el tipo lo dice;
+    · nada se borra: anular pide motivo (≥ 4 letras) y queda en el historial;
+    · no se registra ni se anula nada en un periodo de planilla ya pagado;
+    · el patrón de ausencias es para conversar, nunca para sancionar solo con ese dato;
+    · el color nunca va solo: cada estado lleva palabra o símbolo.
+-->
+<style>
+  :root{
+    --color-crema:#f5f0e8; --color-papel:#fbf8f2; --color-tinta:#1a1a18; --color-rojo:#b8412d; --color-rojo-profundo:#8b2a1f;
+    --color-sand:#e8e0d0; --color-taupe:#805c4c; --color-hueso:#eae1d2; --color-pizarra:#4c5d6e; --color-verde:#48603f;
+    --color-ambar:#74501a; --color-ceniza:#635f58; --color-azul:#2f5f9e;
+    --font-sans:'DM Sans',ui-sans-serif,system-ui,sans-serif; --font-serif:'EB Garamond',ui-serif,Georgia,serif; color-scheme:light;
+  }
+  :root[data-theme="dark"]{
+    --color-crema:#1c1a16; --color-papel:#26221d; --color-tinta:#ede7db; --color-rojo:#d4634a; --color-rojo-profundo:#e8836b;
+    --color-sand:#332e27; --color-taupe:#ab9080; --color-hueso:#15110d; --color-pizarra:#9db0c2; --color-verde:#8fae80;
+    --color-ambar:#c99a4a; --color-ceniza:#aaa59b; --color-azul:#9bbbe8; color-scheme:dark;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--color-crema);color:var(--color-tinta);font:14.5px/1.5 var(--font-sans)}
+  h1,h2,h3{font-family:var(--font-serif);font-weight:500;margin:0}
+  button,input,select{font:inherit;color:inherit}
+  button{cursor:pointer}
+  p{margin:0}
+  .proto{position:sticky;top:0;z-index:60;background:var(--color-papel);border-bottom:1px solid var(--color-sand);padding:8px 16px;display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center}
+  .vbtn{border:1px solid var(--color-sand);background:var(--color-crema);border-radius:10px;padding:6px 11px;font-weight:600;font-size:.82rem;display:inline-flex;gap:7px;align-items:center}
+  .vbtn b{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:6px;background:var(--color-hueso);color:var(--color-taupe);font-size:.76rem}
+  .vbtn[aria-pressed="true"]{background:var(--color-tinta);color:var(--color-crema);border-color:var(--color-tinta)}
+  .vbtn[aria-pressed="true"] b{background:var(--color-crema);color:var(--color-tinta)}
+  .vbtn small{font-weight:500;opacity:.8}
+  .ctl{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-left:auto;font-size:.78rem;color:var(--color-taupe)}
+  .seg{display:inline-flex;border:1px solid var(--color-sand);border-radius:8px;overflow:hidden;background:var(--color-papel)}
+  .seg button{border:0;background:none;padding:5px 11px;font-size:.8rem;font-weight:600;color:var(--color-taupe)}
+  .seg button[aria-pressed="true"]{background:var(--color-tinta);color:var(--color-crema)}
+  .lema{max-width:1240px;margin:10px auto 0;padding:0 16px;color:var(--color-taupe);font-size:.86rem}
+  .lema strong{color:var(--color-tinta)}
+  .marco{margin:12px auto 0;border:1px dashed var(--color-sand);border-radius:12px;padding:20px 24px 40px;background:var(--color-crema);position:relative;min-height:560px;overflow:hidden}
+  .cab{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}
+  .cab .sob{font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--color-taupe);display:flex;gap:12px;align-items:center;margin-bottom:6px}
+  .cab .sob::before{content:"";width:36px;height:1px;background:var(--color-taupe)}
+  .cab h1{font-size:1.75rem;line-height:1.15}
+  .cab p{color:var(--color-taupe);font-size:.9rem;margin-top:3px}
+  .i{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:99px;border:1px solid var(--color-taupe);color:var(--color-taupe);font-size:.78rem;vertical-align:middle;margin-left:6px;background:none}
+  .btn{border:1px solid var(--color-tinta);background:var(--color-tinta);color:var(--color-crema);border-radius:8px;padding:6px 13px;font-weight:600;font-size:.82rem}
+  .btn.sec{background:transparent;color:var(--color-tinta);border-color:var(--color-taupe)}
+  .btn.sutil{background:transparent;border-color:transparent;color:var(--color-taupe)}
+  .btn.fino{padding:2px 10px;font-size:.76rem}
+  .campo{background:var(--color-hueso);border:1px solid transparent;border-radius:8px;padding:6px 10px;min-width:110px}
+  .chip{display:inline-flex;align-items:center;gap:5px;font-size:.72rem;font-weight:600;padding:2px 9px;border-radius:999px;background:color-mix(in oklab,var(--c) 14%,var(--color-papel));color:var(--c);white-space:nowrap}
+  .c-ok{--c:var(--color-verde)} .c-al{--c:var(--color-rojo-profundo)} .c-am{--c:var(--color-ambar)} .c-pi{--c:var(--color-pizarra)} .c-ce{--c:var(--color-ceniza)} .c-az{--c:var(--color-azul)}
+  .para{display:flex;gap:8px;align-items:center;margin:14px 0;flex-wrap:wrap}
+  .para .rot{text-transform:uppercase;letter-spacing:.07em;font-weight:600;color:var(--color-taupe);font-size:.72rem}
+  .pa{display:inline-flex;align-items:center;gap:6px;border-radius:999px;border:1px solid;padding:5px 12px;font-size:.78rem;font-weight:600;background:var(--color-papel)}
+  .pa.rojo{border-color:color-mix(in oklab,var(--color-rojo) 30%,transparent);background:color-mix(in oklab,var(--color-rojo) 10%,var(--color-papel));color:var(--color-rojo-profundo)}
+  .pa.ambar{border-color:color-mix(in oklab,var(--color-ambar) 40%,transparent);background:color-mix(in oklab,var(--color-ambar) 15%,var(--color-papel));color:var(--color-ambar)}
+  .pa.pizarra{border-color:color-mix(in oklab,var(--color-pizarra) 40%,transparent);background:color-mix(in oklab,var(--color-pizarra) 10%,var(--color-papel));color:var(--color-pizarra)}
+  .pa[aria-pressed="true"]{box-shadow:0 0 0 2px var(--color-tinta)}
+  .tabs{display:flex;gap:4px;border-bottom:1px solid var(--color-sand);margin-bottom:12px}
+  .tabs button{border:0;background:none;border-bottom:2px solid transparent;margin-bottom:-1px;padding:8px 12px;color:var(--color-taupe);display:inline-flex;gap:6px;align-items:center}
+  .tabs button[aria-pressed="true"]{border-color:var(--color-tinta);color:var(--color-tinta);font-weight:600}
+  .card{background:var(--color-papel);border:1px solid var(--color-sand);border-radius:16px;overflow:hidden}
+  .card .in{padding:14px 16px}
+  .muted{color:var(--color-taupe);font-size:.8rem}
+  table.t{border-collapse:collapse;width:100%;font-size:.84rem}
+  table.t th,table.t td{padding:8px 12px;border-bottom:1px solid var(--color-sand);text-align:left;vertical-align:middle}
+  table.t th{font-size:.72rem;color:var(--color-taupe);font-weight:600;background:var(--color-hueso)}
+  table.t tr.anul td{opacity:.55} table.t tr.anul .nom{text-decoration:line-through}
+  .barra{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0 0 12px}
+  .fila{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--color-sand)}
+  .fila:last-child{border-bottom:0}
+  .fila .n{font-weight:500} .fila .s{font-size:.76rem;color:var(--color-taupe)}
+  .grupo h3{font-size:1.1rem;margin:16px 0 6px;display:flex;gap:8px;align-items:baseline}
+  .grupo h3 small{font:400 .78rem var(--font-sans);color:var(--color-taupe)}
+  /* calendario */
+  .cal{display:grid;grid-template-columns:150px repeat(31,minmax(0,1fr));gap:1px;font-size:.66rem}
+  .cal .h{color:var(--color-taupe);text-align:center;padding:2px 0}
+  .cal .h.fin{color:var(--color-rojo-profundo)} .cal .h.hoy{color:var(--color-tinta);font-weight:700;border-bottom:2px solid var(--color-rojo)}
+  .cal .p{padding:5px 6px 5px 0;font-size:.78rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center}
+  .cal .d{height:26px;background:color-mix(in oklab,var(--color-sand) 40%,transparent)}
+  .cal .d.b{background:color-mix(in oklab,var(--c) 55%,var(--color-papel))}
+  .cal .d.pend{background:repeating-linear-gradient(135deg,color-mix(in oklab,var(--c) 55%,var(--color-papel)) 0 3px,var(--color-papel) 3px 6px);outline:1px dashed var(--c);outline-offset:-1px}
+  .tarj{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  .tarj .card .in{padding:12px 14px}
+  .drawer{position:absolute;top:0;right:0;bottom:0;width:min(400px,100%);background:var(--color-papel);border-left:1px solid var(--color-sand);box-shadow:-12px 0 30px rgba(0,0,0,.12);padding:18px;z-index:30;overflow:auto;border-radius:0 12px 12px 0}
+  .drawer h3{font-size:1.2rem;margin-bottom:4px}
+  .drawer label{display:block;margin-top:10px;font-size:.8rem;color:var(--color-taupe)}
+  .nota{max-width:1240px;margin:18px auto 0;padding:0 16px}
+  .nota details{background:var(--color-papel);border:1px solid var(--color-sand);border-radius:12px;padding:10px 14px;margin-bottom:8px}
+  .nota summary{cursor:pointer;font-weight:600}
+  .nota ul{margin:8px 0 0;padding-left:18px;color:var(--color-taupe)}
+  @media (max-width:760px){ .marco{padding:14px} .tarj{grid-template-columns:1fr} .cal{grid-template-columns:90px repeat(31,minmax(0,1fr))} }
+</style>
+</head>
+<body>
+<div class="proto">
+  <strong style="font-family:var(--font-serif);font-size:1.05rem">Ausencias · 4 formas</strong>
+  <div id="vars" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+  <div class="ctl">
+    <span class="seg" role="group" aria-label="Ancho"><button data-w="1180">Escritorio</button><button data-w="420">Celular</button></span>
+    <button class="vbtn" id="tema">Modo oscuro</button>
+  </div>
+</div>
+<p class="lema" id="lema"></p>
+<div class="marco" id="marco"></div>
+<div class="nota" id="nota"></div>
+
+<script>
+const S={v:'A',w:1180,tema:false,aten:'',estado:'',persona:'activos',abierto:null};
+const TIPOS={lic:{n:'Licencia con goce de haber',pago:'se paga · política CAYLA',c:'c-az'},med:{n:'Descanso médico (con documento)',pago:'se paga · ley',c:'c-pi'},per:{n:'Permiso personal',pago:'',c:'c-ce'},vac:{n:'Vacaciones',pago:'se paga · ley',c:'c-ok'},cum:{n:'Cumpleaños',pago:'',c:'c-am'}};
+// persona, sede, tipo, desde, hasta, días, estado(pend|vig|anul), nota, extra
+const A_=[
+ ['Bruno Integrante','TRU','lic','26/10','27/10',2,'pend','Pendiente de aprobar',''],
+ ['Carla Integrante','TRU','med','20/10','22/10',3,'pend','Dr. Paz · CMP 99881 · 19/10','doc'],
+ ['Elena Integrante','LIM','per','16/10','16/10',1,'vig','Permiso personal (3.ª vez en 30 días)',''],
+ ['Franco Supervisor','AQP','med','14/10','16/10',3,'vig','Gripe fuerte · Dra. Rojas · CMP 12345','adj'],
+ ['Elena Integrante','LIM','per','09/10','09/10',1,'vig','',''],
+ ['ZZ Demo Planilla','TRU','cum','08/10','08/10',1,'anul','Se registró a la persona equivocada',''],
+ ['Ana Supervisora','TRU','vac','05/10','09/10',5,'vig','Vacaciones programadas',''],
+ ['Elena Integrante','LIM','per','02/10','02/10',1,'vig','',''],
+ ['Gaby Integrante','AQP','per','01/10','01/10',1,'vig','Trámite personal',''],
+ ['Diego Supervisor','LIM','med','14/09','12/10',29,'vig','Cirugía · sin certificado','']];
+const nPend=A_.filter(a=>a[6]==='pend').length;
+const IMPACTO=[['Diego Supervisor','LIM',['EsSalud: 29/20 d · sin certificado'],'ambar'],['Elena Integrante','LIM',['3× «Permiso personal» en 30 d (para conversar)'],'neutro']];
+const cab=()=>`<div class="cab"><div><div class="sob">Asistencia · lunes, 19 de octubre</div><h1>Ausencias<button class="i" title="Cómo funcionan las ausencias">i</button></h1><p>Cada día que alguien no vino, y por qué. Un día registrado aquí no cuenta como falta injustificada.</p></div><div><button class="btn">+ Registrar ausencia</button></div></div>`;
+const paraAtender=()=>`<div class="para"><span class="rot">Para atender</span><button class="pa pizarra" data-aten="pend" aria-pressed="${S.aten==='pend'}">${nPend} pendientes de aprobar</button><button class="pa ambar" data-aten="essalud" aria-pressed="${S.aten==='essalud'}">1 sin certificado (EsSalud)</button><button class="pa" style="border-color:var(--color-sand)" data-aten="patron" aria-pressed="${S.aten==='patron'}">1 patrón de ausencias</button></div>`;
+const chipEst=a=>a[6]==='pend'?'<span class="chip c-pi">○ pendiente de aprobar</span>':a[6]==='anul'?'<span class="chip c-ce">anulada</span>':'<span class="chip c-ok">✓ vigente</span>';
+const acc=a=>a[6]==='pend'?'<button class="btn fino" data-sub="aprobar '+a[0]+'">Aprobar</button>':a[8]==='adj'?'<button class="btn sec fino">Adjuntar documento</button>':a[6]==='anul'?'':'';
+const menu='<button class="btn sutil fino">•••</button>';
+const filtradas=()=>A_.filter(a=>(!S.estado||a[6]===S.estado)&&(S.aten!=='pend'||a[6]==='pend')&&(S.aten!=='essalud'||a[0].startsWith('Diego'))&&(S.aten!=='patron'||a[0].startsWith('Elena')));
+const drawer=()=>S.abierto?`<aside class="drawer" role="dialog"><div style="display:flex;justify-content:space-between"><h3>${S.abierto.split(' ')[0]==='aprobar'?'Aprobar ausencia':'Registrar ausencia'}</h3><button class="btn sutil fino" data-cerrar>✕</button></div><p class="muted">${S.abierto}</p><label>Persona<input class="campo" style="width:100%" value="Bruno Integrante"></label><label>Tipo<select class="campo" style="width:100%"><option>Licencia con goce de haber</option></select></label><label>Desde / hasta<input class="campo" style="width:100%" value="26/10/2026 → 27/10/2026"></label><label>Motivo<input class="campo" style="width:100%" placeholder="Obligatorio para aprobar o anular"></label><div style="margin-top:14px;display:flex;gap:8px"><button class="btn" data-cerrar>Guardar</button><button class="btn sec" data-cerrar>Cancelar</button></div></aside>`:'';
+
+/* A · Para atender + tabla compacta */
+const A={t:'Para atender + tabla compacta',
+ lema:'<strong>A · Para atender + tabla compacta.</strong> «Impacto por colaborador» se vuelve una franja de pastillas que filtran; los filtros se juntan en una sola línea; una fila tiene UNA acción visible y el resto va en «•••». «Activos / Cesados» pasan a pestañas del sistema.',
+ r:()=>cab()+paraAtender()+`<div class="barra"><input class="campo" placeholder="Buscar persona…"><select class="campo" data-estado><option value="">Todos los estados</option><option value="pend" ${S.estado==='pend'?'selected':''}>Pendientes de aprobar</option><option value="vig" ${S.estado==='vig'?'selected':''}>Vigentes</option><option value="anul" ${S.estado==='anul'?'selected':''}>Anuladas</option></select><span class="muted">Desde</span><input class="campo" style="min-width:0;width:120px" value="19/04/2026"><span class="muted">hasta</span><input class="campo" style="min-width:0;width:120px" value="19/04/2027">${S.aten||S.estado?'<button class="btn sutil fino" data-lim>Limpiar</button>':''}</div>
+  <div class="tabs"><button data-p="activos" aria-pressed="${S.persona==='activos'}">Activos · 10</button><button data-p="cesados" aria-pressed="${S.persona==='cesados'}">Cesados · 0</button></div>
+  <div class="card"><table class="t"><tr><th>Persona</th><th>Tipo</th><th>Fechas</th><th style="text-align:right">Días</th><th>Estado</th><th></th></tr>${filtradas().map(a=>`<tr class="${a[6]==='anul'?'anul':''}"><td><span class="nom">${a[0]}</span><div class="muted">${a[1]}</div></td><td>${TIPOS[a[2]].n}${TIPOS[a[2]].pago?` <span class="chip c-ce" style="margin-left:4px">${TIPOS[a[2]].pago}</span>`:''}${a[7]?`<div class="muted">${a[7]}</div>`:''}</td><td class="muted">${a[3]} → ${a[4]}</td><td style="text-align:right">${a[5]}</td><td>${chipEst(a)}</td><td style="text-align:right;white-space:nowrap">${acc(a)} ${menu}</td></tr>`).join('')}</table></div>`+drawer(),
+ gana:['El impacto deja de ocupar un bloque cuando no hay nada: es una pastilla, y solo si hay algo.','Filtros en una línea; «Pendientes de aprobar» es la pastilla, no un contador suelto.','Una acción por fila y el resto en «•••»: la fila se lee de un vistazo.','Lo mismo que Equipo, Contratos y Documentación.'],
+ paga:['«Impacto por colaborador» ya no muestra a la persona con su detalle (solo se ve al tocar la pastilla).','El rango de fechas queda siempre en la barra aunque casi nunca se toque (se puede plegar bajo «Filtros»).']};
+
+/* B · calendario del mes */
+const dias=Array.from({length:31},(_,i)=>i+1);
+const B={t:'Calendario del mes',
+ lema:'<strong>B · Calendario.</strong> Las ausencias son fechas: un renglón por persona y una casilla por día de octubre. Se ven los cruces («¿quién falta el jueves?») y las pendientes de aprobar, rayadas. Tocar una barra abre su detalle.',
+ r:()=>{const pers=[...new Set(A_.map(a=>a[0]))];const dd=s=>+s.split('/')[0];
+  return cab()+paraAtender()+`<div class="card"><div class="in"><div class="cal"><div></div>${dias.map(d=>{const dow=new Date(2026,9,d).getDay();return `<div class="h ${dow===0||dow===6?'fin':''} ${d===19?'hoy':''}">${d}</div>`}).join('')}${pers.map(p=>`<div class="p">${p}</div>${dias.map(d=>{const a=A_.find(x=>x[0]===p&&x[3].split('/')[1]==='10'&&d>=dd(x[3])&&d<=dd(x[4]))||A_.find(x=>x[0]===p&&x[3].split('/')[1]==='09'&&d<=dd(x[4]));return a&&a[6]!=='anul'?`<div class="d ${a[6]==='pend'?'pend':'b'}" style="--c:var(--color-${a[2]==='med'?'pizarra':a[2]==='vac'?'verde':a[2]==='lic'?'azul':'taupe'})" title="${TIPOS[a[2]].n} · ${a[3]}–${a[4]}"></div>`:'<div class="d"></div>'}).join('')}`).join('')}</div>
+  <p class="muted" style="margin-top:10px"><span class="chip c-pi">descanso médico</span> <span class="chip c-ok">vacaciones</span> <span class="chip c-az">licencia con goce</span> <span class="chip c-ce">permiso</span> · rayado = pendiente de aprobar · las anuladas no se dibujan (están en la lista).</p></div></div>
+  <p class="muted" style="margin-top:10px">Debajo seguiría la lista completa para quien necesite el detalle de cada fila.</p>`},
+ gana:['Se ve de un golpe quién falta cada día y dónde se cruzan dos personas del mismo equipo.','Lo pendiente de aprobar se distingue sin leer.','Es la forma natural de pensar una ausencia: en el calendario.'],
+ paga:['Pide un dibujo más que mantener (y probarlo en modo oscuro).','Con 30 personas son 30 renglones: hace falta filtrar por sede.','No reemplaza a la lista: las acciones (aprobar, anular) siguen viviendo ahí.']};
+
+/* C · por estado */
+const C={t:'Por estado',
+ lema:'<strong>C · Por estado.</strong> Bandas de lo que pide acción a lo que ya pasó: «Por aprobar», «Para conversar» (EsSalud, patrón), «Hoy y próximos días», «Ya pasadas», y las anuladas plegadas. Cada fila trae su botón.',
+ r:()=>cab()+`<div class="para"><span class="rot">Para atender</span><span class="muted">${nPend+2} cosas por resolver</span></div>
+  <div class="grupo"><h3>Por aprobar <small>${nPend}</small></h3><div class="card">${A_.filter(a=>a[6]==='pend').map(a=>`<div class="fila"><div><div class="n">${a[0]} <span class="muted">· ${a[1]}</span></div><div class="s">${TIPOS[a[2]].n} · ${a[3]} → ${a[4]} · ${a[5]} d${a[8]==='doc'?' · con documento':''}</div></div><div style="display:flex;gap:6px"><button class="btn fino" data-sub="aprobar ${a[0]}">Aprobar</button>${menu}</div></div>`).join('')}</div></div>
+  <div class="grupo"><h3>Para conversar <small>nunca para sancionar solo con este dato</small></h3><div class="card">${IMPACTO.map(i=>`<div class="fila"><div><div class="n">${i[0]} <span class="muted">· ${i[1]}</span></div><div class="s">${i[2].join(' · ')}</div></div><button class="btn sec fino">Ver sus ausencias</button></div>`).join('')}</div></div>
+  <div class="grupo"><h3>Vigentes y recientes <small>${A_.filter(a=>a[6]==='vig').length}</small></h3><div class="card">${A_.filter(a=>a[6]==='vig').map(a=>`<div class="fila"><div><div class="n">${a[0]}</div><div class="s">${TIPOS[a[2]].n}${TIPOS[a[2]].pago?' · '+TIPOS[a[2]].pago:''} · ${a[3]} → ${a[4]} · ${a[5]} d${a[7]?' · '+a[7]:''}</div></div><div style="display:flex;gap:6px">${acc(a)}${menu}</div></div>`).join('')}</div></div>
+  <details class="grupo" style="margin-top:14px"><summary style="cursor:pointer;font-family:var(--font-serif);font-size:1.1rem">Anuladas <small class="muted" style="font-family:var(--font-sans)"> · 1</small></summary><div class="card" style="margin-top:8px">${A_.filter(a=>a[6]==='anul').map(a=>`<div class="fila"><div><div class="n" style="text-decoration:line-through">${a[0]}</div><div class="s">${TIPOS[a[2]].n} · ${a[3]} · «${a[7]}»</div></div></div>`).join('')}</div></details>`+drawer(),
+ gana:['Lo que pide acción está arriba y no hay que filtrar para encontrarlo.','Las alertas de EsSalud y de patrón quedan en su sitio: «para conversar».','Cabe en celular tal cual (cero tabla de seis columnas).'],
+ paga:['Se pierde la tabla ordenada por persona y fechas para quien audita.','Pide decidir qué es «reciente» y qué es «ya pasada» (una ventana de 30 días).']};
+
+/* D · por persona */
+const D={t:'Por persona',
+ lema:'<strong>D · Por persona.</strong> Una tarjeta por colaborador con sus ausencias y su impacto juntos (vacaciones, EsSalud, patrón). Responde «¿cómo está Elena?» sin cruzar una tabla con una tarjeta aparte.',
+ r:()=>{const pers=[...new Set(A_.map(a=>a[0]))];return cab()+paraAtender()+`<div class="tarj">${pers.map(p=>{const as=A_.filter(a=>a[0]===p);const imp=IMPACTO.find(i=>i[0]===p);return `<div class="card"><div class="in"><div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline"><strong style="font-family:var(--font-serif);font-size:1.05rem">${p}</strong><span class="muted">${as[0][1]}</span></div>${imp?`<div style="margin:6px 0"><span class="chip c-am">▲ ${imp[2][0]}</span></div>`:''}${as.map(a=>`<div style="display:flex;justify-content:space-between;gap:8px;align-items:center;margin-top:8px;padding-top:8px;border-top:1px solid var(--color-sand)"><div><div>${TIPOS[a[2]].n}</div><div class="s muted">${a[3]} → ${a[4]} · ${a[5]} d</div></div><div style="display:flex;gap:6px;align-items:center">${chipEst(a)}${a[6]==='pend'?'<button class="btn fino" data-sub="aprobar '+p+'">Aprobar</button>':''}</div></div>`).join('')}</div></div>`}).join('')}</div>`+drawer()},
+ gana:['Todo lo de una persona junto: ausencias, EsSalud, patrón.','Lo pendiente de aprobar se ve donde corresponde, sin buscarlo.','Se lee bien en celular (tarjetas).'],
+ paga:['Para ver «todas las licencias del mes» hay que recorrer tarjetas: no es una lista cronológica.','Con 30 personas son 30 tarjetas (se necesita buscador y filtro de sede).']};
+
+const V={A,B,C,D};
+function render(){
+  document.getElementById('vars').innerHTML=Object.entries(V).map(([k,v])=>`<button class="vbtn" data-v="${k}" aria-pressed="${S.v===k}"><b>${k}</b>${v.t}${k==='A'?' <small>recomendada</small>':''}</button>`).join('');
+  document.getElementById('lema').innerHTML=V[S.v].lema;
+  const m=document.getElementById('marco'); m.style.maxWidth=S.w+'px'; m.innerHTML=V[S.v].r();
+  document.querySelectorAll('[data-w]').forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.w===S.w)));
+  const x=V[S.v];
+  document.getElementById('nota').innerHTML=`<details open><summary>Qué gana y qué paga la variante ${S.v}</summary><p style="margin-top:8px"><strong>Gana</strong></p><ul>${x.gana.map(i=>`<li>${i}</li>`).join('')}</ul><p style="margin-top:8px"><strong>Paga</strong></p><ul>${x.paga.map(i=>`<li>${i}</li>`).join('')}</ul></details><details><summary>Lo que ninguna variante cambia</summary><ul><li>Un día registrado aquí no cuenta como falta injustificada ni alimenta el expediente.</li><li>Solo se paga lo que la ley obliga o lo que CAYLA decide; el tipo lo dice.</li><li>Nada se borra: anular pide motivo y queda en el historial. No se registra ni anula dentro de un periodo pagado.</li><li>El patrón de ausencias es para conversar, nunca para sancionar solo con ese dato.</li></ul></details>`;
+}
+document.addEventListener('change',e=>{if(e.target.matches('[data-estado]')){S.estado=e.target.value;render()}});
+document.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+  if(b.dataset.v){S.v=b.dataset.v;S.abierto=null;render()} else if(b.dataset.w){S.w=+b.dataset.w;render()}
+  else if(b.dataset.aten){S.aten=S.aten===b.dataset.aten?'':b.dataset.aten;render()} else if(b.dataset.p){S.persona=b.dataset.p;render()}
+  else if(b.hasAttribute('data-lim')){S.aten='';S.estado='';render()}
+  else if(b.dataset.sub){S.abierto=b.dataset.sub;render()} else if(b.hasAttribute('data-cerrar')){S.abierto=null;render()}
+  else if(b.id==='tema'){S.tema=!S.tema;document.documentElement.dataset.theme=S.tema?'dark':'light';b.textContent=S.tema?'Modo claro':'Modo oscuro'}});
+render();
+</script>
+</body>
+</html>

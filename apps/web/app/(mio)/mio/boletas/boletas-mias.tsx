@@ -178,7 +178,7 @@ export function BoletasMias({
   const puedeFirmarEnModal = enModal !== null && esBoletaPorFirmar(enModal);
 
   return (
-    <section className="rounded-2xl border border-sand p-5 text-sm">
+    <section data-tour="mio-boletas-seccion" className="rounded-2xl border border-sand p-5 text-sm">
       <h2 className="mb-1 font-serif text-lg">Boletas emitidas</h2>
       <p className="mb-4 text-taupe">
         Son las boletas oficiales que entrega el contador, una por periodo pagado. El cálculo del periodo
@@ -189,7 +189,7 @@ export function BoletasMias({
           Bandeja tiene que ver primero lo que vino a buscar, no buscarlo entre
           los periodos viejos. */}
       {porFirmar.length > 0 && (
-        <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-ambar/40 bg-ambar/[0.07] p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div data-tour="mio-boletas-por-firmar" className="mb-4 flex flex-col gap-3 rounded-2xl border border-ambar/40 bg-ambar/[0.07] p-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-tinta">
             {porFirmar.length === 1
               ? (porFirmar[0].vista_at
@@ -219,7 +219,7 @@ export function BoletasMias({
           Todavía no hay un periodo pagado con boleta para ti. Cuando se pague uno, aparecerá aquí.
         </p>
       ) : (
-        <ul className="flex flex-col gap-3">
+        <ul data-tour="mio-boletas-lista" className="flex flex-col gap-3">
           {filas.map((f) => {
             const tipo = tipoDe(f);
             const publicada = f.estado === "publicada" && f.version_id !== null && tipo !== null;

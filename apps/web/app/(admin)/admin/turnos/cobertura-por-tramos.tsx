@@ -132,3 +132,39 @@ export function TarjetaGrupo({ titulo, nota, gente, onAbrir, vacio }: { titulo: 
     </TarjetaInfo>
   );
 }
+
+/** El campo de la meta de un tramo: «de [3] todos los lunes». Vive aquí, como pieza, para que quien lo usa no llame una función que arrastre los guardados al render. */
+export function CampoMeta({
+  valor,
+  etiqueta,
+  titulo,
+  cuando,
+  onCambio,
+  onSalir,
+}: {
+  valor: number;
+  etiqueta: string;
+  titulo: string;
+  /** «todos los lunes»: la meta es por día de la semana, no por fecha. */
+  cuando: string;
+  onCambio: (v: string) => void;
+  onSalir: (v: string) => void;
+}) {
+  return (
+    <>
+      {/* Sin meta no se lee «de 0»: se lee «meta: [ ]» (y la tarjeta dice «N personas con turno»). */}
+      <span>{valor > 0 ? "de" : "· meta:"}</span>
+      <input
+        type="number"
+        min={0}
+        aria-label={etiqueta}
+        title={titulo}
+        value={valor}
+        onChange={(e) => onCambio(e.target.value)}
+        onBlur={(e) => onSalir(e.target.value)}
+        className="w-12 rounded border border-sand bg-crema px-1 py-0.5 text-center text-sm text-tinta"
+      />
+      <span className="text-xs">{cuando}</span>
+    </>
+  );
+}
