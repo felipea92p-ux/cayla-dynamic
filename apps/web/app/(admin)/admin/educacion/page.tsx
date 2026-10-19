@@ -43,6 +43,7 @@ import { Modal } from "@/components/ui/modal";
 import { Drawer } from "@/components/ui/drawer";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
 import { BarraFiltros } from "@/components/educacion/barra-filtros";
+import { ParaAtender } from "@/components/ui/para-atender";
 import { CuadriculaMeses } from "@/components/educacion/cuadricula-meses";
 import { LienzoArchivos } from "@/components/educacion/lienzo-archivos";
 import { AccionesRevision } from "@/components/educacion/revision-entrega";
@@ -1587,35 +1588,3 @@ const VISTAS: { clave: Vista; etiqueta: string }[] = [
   { clave: "ayuda", etiqueta: "Cómo funciona" },
 ];
 
-const TONO_ATENDER = {
-  pizarra: "border-pizarra/40 bg-pizarra/10 text-pizarra",
-  rojo: "border-rojo/30 bg-rojo/10 text-rojo-profundo",
-  ambar: "border-ambar/40 bg-ambar/15 text-ambar",
-  neutro: "border-sand bg-papel text-tinta",
-} as const;
-
-/**
- * Lo que pide algo hoy, en UNA línea de pastillas que filtran al tocarlas. Reemplaza a las cinco
- * tarjetas grandes: un cero no se dibuja, y si no hay nada pendiente lo dice en tres palabras.
- */
-function ParaAtender({ items, activa, alTocar, extra }: {
-  items: { clave: string; texto: string; n: number; tono: keyof typeof TONO_ATENDER }[];
-  activa: string | null;
-  alTocar: (clave: string) => void;
-  extra: React.ReactNode;
-}) {
-  const con = items.filter((x) => x.n > 0 || x.clave === activa);
-  return (
-    <div className="mb-4 flex flex-wrap items-center gap-2">
-      <span className="text-xs font-medium uppercase tracking-wide text-taupe">Para atender</span>
-      {con.length === 0 && !extra ? <span className="text-sm text-verde">Nada pendiente</span> : con.map((x) => (
-        <button key={x.clave} type="button" aria-pressed={activa === x.clave} onClick={() => alTocar(x.clave)}
-          className={`rounded-full border px-3 py-1 text-xs font-medium tabular-nums transition-shadow duration-150 ${TONO_ATENDER[x.tono]} ${
-            activa === x.clave ? "ring-2 ring-tinta" : ""}`}>
-          {x.texto}
-        </button>
-      ))}
-      {extra}
-    </div>
-  );
-}
