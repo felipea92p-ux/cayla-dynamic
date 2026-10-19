@@ -66,6 +66,7 @@ import { Insignia } from "@/components/ui/insignia";
 import { EtiquetaPrueba, usePruebasPorPersona } from "@/components/pruebas/etiqueta-prueba";
 import { Campo, CampoSelect, CampoCasilla } from "@/components/ui/campo";
 import { Boton } from "@/components/ui/boton";
+import { BotonIcono } from "@/components/ui/boton-icono";
 import { Tabla, TablaEncabezado, Th, Fila as FilaTabla } from "@/components/ui/tabla";
 import { BannerAviso } from "@/components/ui/banner-aviso";
 import { AyudaPantalla } from "@/components/ui/ayuda-pantalla";
@@ -78,7 +79,7 @@ import { Drawer } from "@/components/ui/drawer";
 import { TarjetaInfo } from "@/components/ui/tarjeta-info";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
 import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
-import { X, Search, SlidersHorizontal, ChevronDown, Download } from "lucide-react";
+import { X, Search, SlidersHorizontal, ChevronDown, Download, Table2, LayoutGrid } from "lucide-react";
 
 // Por encima de esto la cuadrícula deja de ayudar y empieza a colgar el
 // navegador: 30 personas × 365 días son once mil cuadritos. Se apaga y se dice.
@@ -426,12 +427,69 @@ function medidoContra(d: Dia): { texto: string; sospechoso: boolean } {
 // El desempeño de una persona, abierto DEBAJO de su fila. Va debajo y no en
 // otra pantalla ni tapando la tabla: así siguen a la vista las demás filas para
 // comparar, y no se pierden ni los filtros ni el periodo.
-function DetallePersona({ f, meta, anio, mes, mesEnCurso, sel, onDia }: {
+// «Atención»: lo que de esta persona hay que mirar, en pastillas con su palabra (nunca un número suelto). Reemplaza a las
+// columnas Tardanzas / Faltas / Revisar / Ausencias / Objetivos: se lee por exclusión, y «al día» dice que no hay nada.
+function PastillasAtencion({ f, hayObjetivos, mesEnCurso }: { f: Fila; hayObjetivos: boolean; mesEnCurso: boolean }) {
+  const rev = porRevisar(f);
+  const hayAlgo = f.tardanzas > 0 || f.faltas > 0 || rev > 0 || f.ausenciasDias > 0;
+  return (
+    <span className="flex flex-wrap items-center gap-1.5">
+      {!f.tieneHorario && (
+        <Link href="/admin/horarios" onClick={(e) => e.stopPropagation()} title="No tiene horario ni turnos cargados: no hay contra qué medirla. Ir a Horarios →">
+          <Insignia variante="advertencia" tamano="sm">sin horario</Insignia>
+        </Link>
+      )}
+      {f.tardanzas > 0 && (
+        <Insignia variante={f.peorTardanza >= TARDANZA_SERIA_MIN ? "alerta" : "advertencia"} tamano="sm">
+          {f.tardanzas} tardanza{f.tardanzas === 1 ? "" : "s"} · peor {formatoMinutos(f.peorTardanza)}
+        </Insignia>
+      )}
+      {f.faltas > 0 && <Insignia variante="alerta" tamano="sm">{f.faltas} falta{f.faltas === 1 ? "" : "s"}</Insignia>}
+      {rev > 0 && <Insignia variante="informativo" tamano="sm">{rev} por revisar</Insignia>}
+      {f.ausenciasDias > 0 && (
+        <span title={desgloseAusencias(f.ausenciasPorTipo)}><Insignia variante="neutral" tamano="sm">{f.ausenciasDias} d de ausencia</Insignia></span>
+      )}
+      {hayObjetivos && f.objTotal > 0 && (
+        <Insignia variante={objPct(f) < 0.3 && !mesEnCurso ? "alerta" : "neutral"} tamano="sm">objetivos {f.objCumplidos}/{f.objTotal}</Insignia>
+      )}
+      {!hayAlgo && f.tieneHorario && <Insignia variante="positivo" tamano="sm">al día</Insignia>}
+    </span>
+  );
+}
+
+// Las horas trabajadas contra las que tocaban, con una barra: la mitad de lo que decían «Días» y «Horas» en dos columnas.
+function HorasConBarra({ f }: { f: Fila }) {
+  const real = f.tieneHorario ? f.horasConReferencia : f.horasReales;
+  const pct = f.tieneHorario && f.horasEsperadas > 0 ? Math.min(100, Math.round((real / f.horasEsperadas) * 100)) : null;
+  return (
+    <div className="min-w-28">
+      <div className="whitespace-nowrap">
+        <span className="font-medium tabular-nums">{real.toFixed(1)}</span>
+        {f.tieneHorario && <span className="text-taupe"> de {f.horasEsperadas.toFixed(1)} h</span>}
+        {!f.tieneHorario && <span className="text-taupe"> h</span>}
+      </div>
+      {pct !== null && (
+        <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-hueso" aria-hidden>
+          <i className={cx("block h-full", real < f.horasEsperadas ? "bg-ambar/65" : "bg-verde/65")} style={{ width: `${pct}%` }} />
+        </div>
+      )}
+      {f.tieneHorario && f.horasReales - f.horasConReferencia >= 0.05 && (
+        <div className="mt-0.5 text-[11px] text-taupe" title="Horas de días en que no tenía horario ni turno cargado: no hay contra qué compararlas.">
+          +{(f.horasReales - f.horasConReferencia).toFixed(1)} h sin horario
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DetallePersona({ f, meta, anio, mes, mesEnCurso, sel, onDia, enCajon = false }: {
   f: Fila; meta: number;
   anio: number; mes: number;   // el mes de «hasta»: los objetivos son mensuales
   mesEnCurso: boolean;         // ese mes todavía no terminó: nada se pinta en rojo
   sel: { personaId: string; fecha: string } | null;
   onDia: (personaId: string, fecha: string) => void;
+  /** Dentro del cajón de la persona (no desplegado en la tabla): sin la raya y el fondo del desplegable. */
+  enCajon?: boolean;
 }) {
   const mesLabel = `${MESES[mes - 1].toLowerCase()} ${anio}`;
   const sig = mes === 12 ? { anio: anio + 1, mes: 1 } : { anio, mes: mes + 1 };
@@ -452,8 +510,8 @@ function DetallePersona({ f, meta, anio, mes, mesEnCurso, sel, onDia }: {
   const sinTurnoConNovedad = diasSospechosos.length;
 
   return (
-    <div className="space-y-4 border-t-2 border-tinta/15 bg-crema/60 px-4 py-5">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+    <div className={enCajon ? "space-y-4" : "space-y-4 border-t-2 border-tinta/15 bg-crema/60 px-4 py-5"}>
+      <div className={enCajon ? "grid grid-cols-2 gap-3 sm:grid-cols-3" : "grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6"}>
         {[
           { label: "Total del periodo", valor: fmtHoras(f.horasReales) },
           { label: "Días trabajados", valor: f.diasEsperados ? `${f.diasTrabajadosConReferencia} de ${f.diasEsperados}` : String(f.diasTrabajados) },
@@ -679,8 +737,12 @@ function DesempenoContenido() {
   // El día abierto. Es lo único que esta pantalla «selecciona».
   const [sel, setSel] = useState<{ personaId: string; fecha: string } | null>(null);
   const volverFoco = useRef<HTMLElement | null>(null);
+  // Quién tenía el foco cuando se abrió el cajón de una persona: al cerrarlo, vuelve ahí.
+  const volverFocoPersona = useRef<HTMLElement | null>(null);
   // Qué persona tiene su desempeño abierto debajo de su fila.
   const [abierta, setAbierta] = useState<string | null>(null);
+  // Cómo se ve la lista: tabla compacta o tarjetas. Es una preferencia de vista, se acuerda por navegador.
+  const [forma, setForma] = useFiltroGuardado<"tabla" | "tarjetas">("desempeno.forma", "tabla");
   const enlaceUsado = useRef(false);
   const [motivo, setMotivo] = useState("");
   const [obs, setObs] = useState("");
@@ -1168,6 +1230,38 @@ function DesempenoContenido() {
     && !(periodo && desde === periodo.fecha_ini && hasta === periodo.fecha_fin);
   const enMasFiltros = [fArea, verInactivas, rangoLibre].filter(Boolean).length;
 
+  // La franja de días de una persona: un cuadrito por día. «fijo» para la tabla (18 px cada uno, alineados con la cabecera);
+  // «flex» para la tarjeta, donde los días se reparten el ancho. Tocar un día NO abre el detalle de la persona: abre el del día.
+  const franja = (f: Fila, ancho: "fijo" | "flex") => (
+    <div className="flex">
+      {f.dias.map((d) => (
+        <div key={d.fecha} className={ancho === "fijo" ? "w-[18px] shrink-0 px-[1px]" : "min-w-[6px] flex-1 px-[0.5px]"}>
+          <button
+            onClick={(e) => { e.stopPropagation(); abrirDia(f.personaId, d.fecha); }}
+            title={explicarDia(d, f.nombre)}
+            aria-label={explicarDia(d, f.nombre)}
+            className={`block h-5 w-full rounded-[3px] transition-transform hover:scale-125 ${colorDia(d)} ${
+              sel?.personaId === f.personaId && sel?.fecha === d.fecha ? "ring-2 ring-tinta ring-offset-1" : ""}`}
+          />
+        </div>
+      ))}
+    </div>
+  );
+  const filaAbierta = abierta ? filas.find((x) => x.personaId === abierta) ?? null : null;
+  // Cada opción de «Ordenar»: la columna y si arranca ascendente (los textos y la atención) o descendente (los números).
+  const OPCIONES_ORDEN: { col: Columna; texto: string }[] = [
+    { col: "atencion", texto: "Atención (lo más grave primero)" },
+    { col: "nombre", texto: "Nombre" },
+    { col: "sede", texto: "Sede" },
+    { col: "horas", texto: "Horas contra las que tocaban" },
+    { col: "asistencia", texto: "Días trabajados" },
+    { col: "tardanzas", texto: "Tardanzas" },
+    { col: "faltas", texto: "Faltas" },
+    { col: "revisar", texto: "Por revisar" },
+    ...(hayAusencias ? [{ col: "ausencias" as Columna, texto: "Ausencias" }] : []),
+    ...(hayObjetivos ? [{ col: "objetivos" as Columna, texto: "Objetivos" }] : []),
+  ];
+
   return (
     <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
@@ -1234,6 +1328,16 @@ function DesempenoContenido() {
               <option value="">Todas las sedes</option>
               {sedes.map((s) => <option key={s} value={s}>{s}</option>)}
             </CampoSelect>
+          </div>
+          <div className="w-full sm:w-56">
+            <CampoSelect aria-label="Ordenar por" value={orden.col}
+              onChange={(e) => { const col = e.target.value as Columna; setOrden({ col, asc: col === "nombre" || col === "sede" || col === "atencion" }); }}>
+              {OPCIONES_ORDEN.map((o) => <option key={o.col} value={o.col}>Ordenar: {o.texto}</option>)}
+            </CampoSelect>
+          </div>
+          <div className="flex gap-1" role="group" aria-label="Cómo ver la lista">
+            <BotonIcono tamano="md" etiqueta="Ver como tabla" icono={<Table2 aria-hidden />} activo={forma === "tabla"} onClick={() => setForma("tabla")} />
+            <BotonIcono tamano="md" etiqueta="Ver como tarjetas" icono={<LayoutGrid aria-hidden />} activo={forma === "tarjetas"} onClick={() => setForma("tarjetas")} />
           </div>
           <Boton variante="secundario" aria-expanded={masFiltros} aria-controls="mas-filtros-desempeno"
             onClick={() => setMasFiltros((a) => !a)} className="inline-flex items-center gap-1.5">
@@ -1303,7 +1407,7 @@ function DesempenoContenido() {
         {desde > hasta && <p className="mb-4 text-sm text-rojo">El «desde» es posterior al «hasta».</p>}
         {cargando && (
           <EsqueletoTabla
-            anchos={["w-36", "w-16", "w-14", "w-14", "w-14", "w-12", "w-16", ...(hayAusencias ? ["w-14"] : []), ...(hayObjetivos ? ["w-14"] : [])]}
+            anchos={["w-36", "w-24", "w-48"]}
             franjaFinal={hayCuadricula ? Math.min(fechas.length, 16) : undefined}
           />
         )}
@@ -1313,150 +1417,79 @@ function DesempenoContenido() {
         )}
 
         {vista.length > 0 && (
-          <>
-            {/* alturaMaxima: sin esto <TablaEncabezado> no ancla a nada — ver
-                su propio comentario en components/ui/tabla.tsx — y con listas
-                largas se pierde de vista qué columna es cuál al bajar. Las
-                filas siguen escritas a mano y no con <Fila>: llevan su propia
-                columna "Nombre" pegada al borde para el arrastre horizontal,
-                que <Fila> no resuelve. */}
+          forma === "tabla" ? (
+            /* Tabla compacta: persona, horas con barra, «Atención» en pastillas y la franja de días. Tocar una fila abre el cajón
+               de la persona (antes se desplegaba DENTRO de la tabla, que además se desplaza de lado). */
             <Tabla className="[font-variant-numeric:tabular-nums]" alturaMaxima="70vh">
               <TablaEncabezado>
-                  <ThOrdenable col="nombre" orden={orden} setOrden={setOrden} sticky>Nombre</ThOrdenable>
-                  <ThOrdenable col="sede" orden={orden} setOrden={setOrden}>Sede</ThOrdenable>
-                  <ThOrdenable col="asistencia" orden={orden} setOrden={setOrden} num title="Días trabajados de los que le tocaban">Días</ThOrdenable>
-                  <ThOrdenable col="horas" orden={orden} setOrden={setOrden} num title="Horas trabajadas de las que le tocaban">Horas</ThOrdenable>
-                  <ThOrdenable col="tardanzas" orden={orden} setOrden={setOrden} num title="Cuántas, y la peor del periodo">Tardanzas</ThOrdenable>
-                  <ThOrdenable col="faltas" orden={orden} setOrden={setOrden} num>Faltas</ThOrdenable>
-                  <ThOrdenable col="revisar" orden={orden} setOrden={setOrden} num>Revisar</ThOrdenable>
-                  {hayAusencias && <ThOrdenable col="ausencias" orden={orden} setOrden={setOrden} num title="Días de ausencia en el periodo (vacaciones, descanso médico, permisos…)">Ausencias</ThOrdenable>}
-                  {hayObjetivos && <ThOrdenable col="objetivos" orden={orden} setOrden={setOrden} num>Objetivos</ThOrdenable>}
-                  {hayCuadricula && (
-                    <th className="px-3 py-1 text-left font-normal">
-                      <div className="flex">
-                        {fechas.map((f) => {
-                          const dw = dowDe(f);
-                          return (
-                            <div key={f} className={`w-[18px] shrink-0 text-center text-[9px] leading-tight ${dw === 0 ? "text-rojo/60" : ""}`}>
-                              <div>{LETRA_DIA[dw]}</div>
-                              <div className="text-taupe">{Number(f.slice(8, 10))}</div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </th>
-                  )}
+                <ThOrdenable col="nombre" orden={orden} setOrden={setOrden} sticky>Persona</ThOrdenable>
+                <ThOrdenable col="horas" orden={orden} setOrden={setOrden} title="Horas trabajadas de las que le tocaban">Horas</ThOrdenable>
+                <ThOrdenable col="atencion" orden={orden} setOrden={setOrden} title="Faltas primero, después la peor tardanza, después lo por revisar">Atención</ThOrdenable>
+                {hayCuadricula && (
+                  <th className="px-3 py-1 text-left font-normal">
+                    <div className="flex">
+                      {fechas.map((fe) => {
+                        const dw = dowDe(fe);
+                        return (
+                          <div key={fe} className={`w-[18px] shrink-0 text-center text-[9px] leading-tight ${dw === 0 ? "text-rojo/60" : ""}`}>
+                            <div>{LETRA_DIA[dw]}</div>
+                            <div className="text-taupe">{Number(fe.slice(8, 10))}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </th>
+                )}
               </TablaEncabezado>
               <tbody>
                 {vista.map((f) => (
-                    <Fragment key={f.personaId}>
-                    <tr
-                      onClick={() => setAbierta((a) => (a === f.personaId ? null : f.personaId))}
-                      // Sin `title`: el aviso nativo de toda la fila se abría encima
-                      // de la celda que se estaba leyendo. La flecha ▸/▾ ya lo dice.
-                      className={`group cursor-pointer border-t align-middle hover:bg-crema/60 ${abierta === f.personaId ? "bg-crema" : ""}`}>
-                      {/* Ancla de la fila: sticky para que arrastrar en horizontal —el
-                          caso normal en un teléfono, con hasta ~62 columnas de
-                          cuadrícula— no pierda de vista de quién es. Fondo propio
-                          (papel o crema, el mismo que ya traía la fila): una celda
-                          sticky pinta su propia capa, y sin esto se transparenta al
-                          pasar por debajo de las columnas que siguen desplazándose. */}
-                      <td className={`sticky left-0 z-[1] whitespace-nowrap px-3 py-1.5 ${abierta === f.personaId ? "bg-crema" : "bg-papel group-hover:bg-crema/60"}`}>
-                        <span aria-hidden className="mr-1.5 inline-block w-2 text-taupe">{abierta === f.personaId ? "▾" : "▸"}</span>
+                  <tr key={f.personaId} onClick={(e) => { volverFocoPersona.current = e.currentTarget; setAbierta(f.personaId); }}
+                    className={`group cursor-pointer border-t align-middle hover:bg-crema/60 ${abierta === f.personaId ? "bg-crema" : ""}`}>
+                    <td className={`sticky left-0 z-[1] px-3 py-2 ${abierta === f.personaId ? "bg-crema" : "bg-papel group-hover:bg-crema/60"}`}>
+                      <div className="whitespace-nowrap">
                         {f.nombre}
                         {f.activa && <EtiquetaPrueba fila={pruebas.get(f.personaId)} className="ml-2" />}
                         {!f.activa && <Insignia atenuada tamano="sm" punto={false} className="ml-2">inactiva</Insignia>}
-                        <div className="text-[11px] text-taupe">
-                          {f.area ? areaCorto(areas, f.area) : "sin área"}
-                          {f.fechaIngreso && <> · {antiguedad(f.fechaIngreso, hasta)}</>}
-                        </div>
-                      </td>
-                      <td className="px-3 py-1.5 text-taupe">{f.sede}</td>
-                      <td className="px-3 py-1.5 text-right"
-                        title={f.tieneHorario && f.diasTrabajados > f.diasTrabajadosConReferencia
-                          ? `Además trabajó ${f.diasTrabajados - f.diasTrabajadosConReferencia} día(s) sin horario cargado, que no se comparan.`
-                          : undefined}>
-                        {f.tieneHorario ? f.diasTrabajadosConReferencia : f.diasTrabajados}
-                        {f.tieneHorario
-                          ? <span className="text-taupe/60"> / {f.diasEsperados}</span>
-                          : <Link href="/admin/horarios" onClick={(e) => e.stopPropagation()}
-                              className="text-ambar hover:underline"
-                              title="No tiene horario ni turnos cargados: no hay contra qué medirla. Ir a Horarios →">
-                              {" "}· sin horario
-                            </Link>}
-                      </td>
-                      <td className="px-3 py-1.5 text-right">
-                        <span className="font-medium">{(f.tieneHorario ? f.horasConReferencia : f.horasReales).toFixed(1)}</span>
-                        {f.tieneHorario && <span className="text-taupe/60"> / {f.horasEsperadas.toFixed(1)}</span>}
-                        {f.tieneHorario && f.horasReales - f.horasConReferencia >= 0.05 && (
-                          <div className="text-[11px] text-taupe" title="Horas de días en que no tenía horario ni turno cargado: no hay contra qué compararlas.">
-                            +{(f.horasReales - f.horasConReferencia).toFixed(1)} sin horario
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-3 py-1.5 text-right">
-                        {f.tardanzas === 0
-                          ? <span className="text-taupe/50">—</span>
-                          : <span className={f.peorTardanza >= TARDANZA_SERIA_MIN ? "text-rojo" : "text-ambar"}>
-                              {f.tardanzas}<span className="text-taupe/60"> · peor {formatoMinutos(f.peorTardanza)}</span>
-                            </span>}
-                      </td>
-                      <td className="px-3 py-1.5 text-right">
-                        {f.faltas > 0 ? <span className="font-medium text-rojo">{f.faltas}</span> : <span className="text-taupe/50">—</span>}
-                      </td>
-                      <td className="px-3 py-1.5 text-right">
-                        {porRevisar(f) > 0 ? <span className="text-ambar">{porRevisar(f)}</span> : <span className="text-taupe/50">—</span>}
-                      </td>
-                      {hayAusencias && (
-                        <td className="px-3 py-1.5 text-right" title={desgloseAusencias(f.ausenciasPorTipo)}>
-                          {f.ausenciasDias > 0 ? <span>{f.ausenciasDias} d</span> : <span className="text-taupe/50">—</span>}
-                        </td>
-                      )}
-                      {hayObjetivos && (
-                        <td className="px-3 py-1.5 text-right">
-                          {f.objTotal === 0 ? <span className="text-taupe/40">—</span>
-                            : <span className={objPct(f) < 0.3 && !mesObjetivosEnCurso ? "text-rojo" : ""}>{f.objCumplidos}/{f.objTotal}</span>}
-                        </td>
-                      )}
-                      {hayCuadricula && (
-                        <td className="px-3 py-1.5">
-                          <div className="flex">
-                            {f.dias.map((d) => (
-                              <div key={d.fecha} className="w-[18px] shrink-0 px-[1px]">
-                                <button
-                                  onClick={() => abrirDia(f.personaId, d.fecha)}
-                                  title={explicarDia(d, f.nombre)}
-                                  aria-label={explicarDia(d, f.nombre)}
-                                  className={`block h-5 w-full rounded-[3px] transition-transform hover:scale-125 ${colorDia(d)} ${
-                                    sel?.personaId === f.personaId && sel?.fecha === d.fecha ? "ring-2 ring-tinta ring-offset-1" : ""}`}
-                                />
-                              </div>
-                            ))}
-                          </div>
-                        </td>
-                      )}
-                    </tr>
-                    {abierta === f.personaId && (
-                      <tr>
-                        <td colSpan={7 + (hayAusencias ? 1 : 0) + (hayObjetivos ? 1 : 0) + (hayCuadricula ? 1 : 0)} className="p-0">
-                          <DetallePersona
-                            f={f}
-                            meta={f.diasEsperados > 0 ? f.horasEsperadas / f.diasEsperados : 0}
-                            anio={Number(hasta.slice(0, 4))}
-                            mes={Number(hasta.slice(5, 7))}
-                            mesEnCurso={mesObjetivosEnCurso}
-                            sel={sel}
-                            onDia={abrirDia}
-                          />
-                        </td>
-                      </tr>
-                    )}
-                    </Fragment>
-                  ))}
+                      </div>
+                      <div className="whitespace-nowrap text-[11px] text-taupe">
+                        {f.sede} · {f.area ? areaCorto(areas, f.area) : "sin área"}
+                        {f.fechaIngreso && <> · {antiguedad(f.fechaIngreso, hasta)}</>}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2"><HorasConBarra f={f} /></td>
+                    <td className="px-3 py-2"><PastillasAtencion f={f} hayObjetivos={hayObjetivos} mesEnCurso={mesObjetivosEnCurso} /></td>
+                    {hayCuadricula && <td className="px-3 py-2">{franja(f, "fijo")}</td>}
+                  </tr>
+                ))}
               </tbody>
             </Tabla>
-
-          </>
+          ) : (
+            /* Tarjetas: una por persona, para mirar el estado de todo el equipo de un vistazo (no para comparar columnas). */
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {vista.map((f) => (
+                <TarjetaInfo key={f.personaId} className="flex flex-col gap-3">
+                  <button type="button" onClick={(e) => { volverFocoPersona.current = e.currentTarget; setAbierta(f.personaId); }} className="block w-full rounded-control text-left" aria-label={`Ver el detalle de ${f.nombre}`}>
+                    <span className="flex items-start justify-between gap-3">
+                      <span className="min-w-0">
+                        <span className="block font-medium">
+                          {f.nombre}
+                          {f.activa && <EtiquetaPrueba fila={pruebas.get(f.personaId)} className="ml-2" />}
+                          {!f.activa && <Insignia atenuada tamano="sm" punto={false} className="ml-2">inactiva</Insignia>}
+                        </span>
+                        <span className="block text-xs text-taupe">
+                          {f.sede} · {f.area ? areaCorto(areas, f.area) : "sin área"}
+                          {f.fechaIngreso && <> · {antiguedad(f.fechaIngreso, hasta)}</>}
+                        </span>
+                      </span>
+                      <span className="shrink-0 text-right"><HorasConBarra f={f} /></span>
+                    </span>
+                    <span className="mt-3 block"><PastillasAtencion f={f} hayObjetivos={hayObjetivos} mesEnCurso={mesObjetivosEnCurso} /></span>
+                  </button>
+                  {hayCuadricula && franja(f, "flex")}
+                </TarjetaInfo>
+              ))}
+            </div>
+          )
         )}
 
         {vista.length > 0 && !hayCuadricula && (
@@ -1475,6 +1508,22 @@ function DesempenoContenido() {
           </p>
         )}
       </main>
+
+      {/* ── La persona: lo que antes se desplegaba dentro de la tabla ─────────── */}
+      <Drawer abierto={filaAbierta !== null} onCerrar={() => setAbierta(null)} titulo={filaAbierta ? filaAbierta.nombre : undefined} ancho="amplio" volverElFocoA={volverFocoPersona}>
+        {filaAbierta && (
+          <DetallePersona
+            f={filaAbierta}
+            meta={filaAbierta.diasEsperados > 0 ? filaAbierta.horasEsperadas / filaAbierta.diasEsperados : 0}
+            anio={Number(hasta.slice(0, 4))}
+            mes={Number(hasta.slice(5, 7))}
+            mesEnCurso={mesObjetivosEnCurso}
+            sel={sel}
+            onDia={abrirDia}
+            enCajon
+          />
+        )}
+      </Drawer>
 
       {/* ── El día ─────────────────────────────────────────────────────────── */}
       <Drawer
