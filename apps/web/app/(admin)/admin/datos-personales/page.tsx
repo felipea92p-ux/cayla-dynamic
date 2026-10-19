@@ -1094,10 +1094,13 @@ export default function DatosPersonalesPage() {
           <>
             <ParaAtender
               items={[{ clave: "pendientes", texto: `${incompletas.length} ${incompletas.length === 1 ? "ficha" : "fichas"} por completar`, n: incompletas.length, tono: "ambar" }]}
-              activa={pendientesPlegado ? null : "pendientes"}
-              alTocar={() => setPendientesPlegado((v) => !v)}
+              // Sin nadie elegido, la cola entera ya está en el panel grande de la derecha («Por completar»): repetirla aquí
+              // en nombres y en lista era tres veces lo mismo. Ahí la pastilla filtra el listado del equipo; con una ficha
+              // abierta, en cambio, despliega la cola y deja los primeros nombres a mano.
+              activa={sel ? (pendientesPlegado ? null : "pendientes") : verPendientes ? "pendientes" : null}
+              alTocar={() => (sel ? setPendientesPlegado((v) => !v) : setSoloPendientes(!verPendientes))}
               extra={
-                pendientesPlegado ? (
+                sel && pendientesPlegado ? (
                   <ul className="flex flex-wrap items-center gap-1.5">
                     {incompletas.slice(0, 6).map((x) => (
                       <li key={x.p.id}>
@@ -1122,7 +1125,7 @@ export default function DatosPersonalesPage() {
                 ) : undefined
               }
             />
-            {!pendientesPlegado && (
+            {sel && !pendientesPlegado && (
               <TarjetaInfo className="mb-5" aria-label="Fichas por completar">
                 <ul id="pendientes-lista" className={`grid gap-x-8 lg:grid-cols-2 ${incompletas.length > 8 ? "max-h-64 overflow-y-auto" : ""}`}>
                   {incompletas.map((x) => (
