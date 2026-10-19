@@ -10,6 +10,7 @@ import { Boton } from "@/components/ui/boton";
 import { Insignia } from "@/components/ui/insignia";
 import { Campo, CampoCasilla, CampoSelect } from "@/components/ui/campo";
 import { Fila, Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
+import { AyudaPantalla } from "@/components/ui/ayuda-pantalla";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
 import { BannerAviso } from "@/components/ui/banner-aviso";
 import { Cifra } from "@/components/ui/cifra";
@@ -1039,16 +1040,10 @@ export default function DashboardPage() {
                     {/* Celular: una línea («… · en vivo · 05:59 p. m.»). Los segundos y el «se
                         refresca cada 30s» siguen en el menú ⋯ y en el escritorio; la fecha se queda
                         siempre, por la razón de arriba. */}
-                    <span className="hidden sm:inline">{fechaConDia(hoy)} · en vivo · actualizado {actualizado} · se refresca cada 30s</span>
-                    <span className="sm:hidden">{fechaConDia(hoy)} · en vivo · {actualizado.replace(/^(\d{1,2}:\d{2}):\d{2}/, "$1")}</span>
+                    <span>{fechaConDia(hoy)} · en vivo · {actualizado.replace(/^(\d{1,2}:\d{2}):\d{2}/, "$1")}</span>
                   </>
                 )}
               </div>
-              {/* Honesto sobre el alcance real de "en vivo": Disciplina y Contratos
-                  no van en el mismo refresco de 30s (cambian una vez al día, no
-                  cada medio minuto) — decirlo evita la promesa que el título de
-                  arriba no cumple para esas dos franjas. */}
-              <div className="mt-0.5 hidden text-taupe sm:block">Disciplina, memos y contratos se actualizan cada 5 minutos.</div>
               {/* Aviso discreto, no un banner: alguien de vacaciones podría verse como
                   "sin marcar" mientras esta consulta no responda. Menos grave que
                   Contratos o la alerta de sede — por eso no interrumpe la pantalla. */}
@@ -1058,6 +1053,17 @@ export default function DashboardPage() {
                 </div>
               )}
             </>
+          }
+          ayuda={
+            <AyudaPantalla
+              titulo="Qué tan «en vivo» es esta pantalla"
+              intro="Los números de asistencia se leen de las marcas del terminal."
+              secciones={[
+                { titulo: "Cada 30 segundos", texto: <>Esta pantalla se refresca sola; la última vez fue a las {actualizado}. Si un refresco falla, el aviso deja de decir «en vivo» y muestra de qué hora son los datos.</> },
+                { titulo: "Cada 5 minutos", texto: "Disciplina, memos y contratos: cambian una vez al día, no cada medio minuto, así que van en un refresco aparte." },
+                { titulo: "La fecha", texto: "Siempre se muestra, porque «hoy» sin fecha no dice de qué día son los números cuando alguien guarda una captura." },
+              ]}
+            />
           }
           accion={
             <>

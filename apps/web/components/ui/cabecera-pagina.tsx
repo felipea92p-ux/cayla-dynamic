@@ -38,8 +38,7 @@ export function CabeceraPagina({
   titulo: string;
   descripcion?: ReactNode;
   /**
-   * El «ⓘ» que abre el detalle de cómo se usa la pantalla (`<AyudaPantalla>`), pegado al final de
-   * la descripción. Regla (2026-10-19): la descripción cabe en UNA línea y dice para qué sirve y
+   * El «ⓘ» que abre el detalle de cómo se usa la pantalla (`<AyudaPantalla>`), al lado del título. Regla (2026-10-19): la descripción cabe en UNA línea y dice para qué sirve y
    * qué se toca primero; el resto va en la ayuda.
    */
   ayuda?: ReactNode;
@@ -51,14 +50,14 @@ export function CabeceraPagina({
     <div className="mb-5 flex flex-wrap items-start justify-between gap-4 sm:mb-8">
       <div>
         {sobretitulo && <p className="etiqueta mb-1 text-taupe">{sobretitulo}</p>}
-        <h1 className="font-serif text-[1.75rem] font-medium leading-tight tracking-[-0.01em] text-tinta">
-          {titulo}
-        </h1>
-        {(descripcion || ayuda) && (
-          <div className="mt-1 flex max-w-2xl items-start gap-1.5 text-sm text-taupe">
-            {descripcion && <div className="min-w-0">{descripcion}</div>}
-            {ayuda}
-          </div>
+        <div className="flex items-center gap-2">
+          <h1 className="font-serif text-[1.75rem] font-medium leading-tight tracking-[-0.01em] text-tinta">
+            {titulo}
+          </h1>
+          {ayuda}
+        </div>
+        {descripcion && (
+          <div className="mt-1 max-w-2xl text-sm text-taupe">{descripcion}</div>
         )}
       </div>
       {/* `max-w-full` (2026-10-17): `shrink-0` solo evita que el botón se aplaste, pero también dejaba que

@@ -10,12 +10,14 @@
 // primero; todo lo demás va aquí. El formato de la ventana es el de «Reglas y umbrales» de
 // Disciplina (término a la izquierda, explicación a la derecha, y la referencia legal debajo).
 //
-// El botón es un botón de verdad (lector de pantalla, teclado, y se ve en el celular donde un
+// Va AL LADO DEL TÍTULO (posición C de docs/ayuda-posicion-prototipo-2026-10-19.html): siempre en el
+// mismo sitio sin importar cuánto mida la descripción. El botón es un botón de verdad (lector de pantalla, teclado, y se ve en el celular donde un
 // `title` no existe) y el nombre accesible dice a qué pantalla pertenece la ayuda.
 
 import { useState, type ReactNode } from "react";
 import { Info } from "lucide-react";
 import { Boton } from "./boton";
+import { cx } from "./cx";
 import { Modal } from "./modal";
 
 export type SeccionAyuda = {
@@ -24,6 +26,33 @@ export type SeccionAyuda = {
   /** La fuente, en una línea chica: «RIT 19.2», «Ley 28518, art. 30». */
   referencia?: string;
 };
+
+/**
+ * El botón ⓘ solo, para las pantallas que ya tienen su propia ventana de ayuda (Disciplina,
+ * Objetivos, Seguros): hasta el 2026-10-19 cada una dibujaba el suyo —un enlace «Ver reglas y
+ * umbrales», un botón con icono y texto en rojo, un anillo de 24 px— y ninguna se parecía.
+ *
+ * Anillo fino de 18 px (trazo 1.6), el que eligió Felipe entre siete dibujos en
+ * docs/ayuda-icono-prototipo-2026-10-19.html. El dibujo es chico a propósito —no compite con el
+ * título—, pero el área de toque es de 32 px.
+ */
+export function BotonAyuda({ onClick, etiqueta, className }: { onClick: () => void; etiqueta: string; className?: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={etiqueta}
+      title={etiqueta}
+      aria-haspopup="dialog"
+      className={cx(
+        "mt-0.5 inline-flex size-8 shrink-0 items-center justify-center rounded-pildora text-taupe transition-colors duration-150 hover:bg-sand/60 hover:text-tinta",
+        className,
+      )}
+    >
+      <Info className="size-[18px]" strokeWidth={1.6} aria-hidden />
+    </button>
+  );
+}
 
 export function AyudaPantalla({
   titulo,
@@ -42,15 +71,7 @@ export function AyudaPantalla({
   const [abierta, setAbierta] = useState(false);
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setAbierta(true)}
-        aria-label={titulo}
-        aria-haspopup="dialog"
-        className="-my-1 inline-flex size-8 shrink-0 items-center justify-center rounded-pildora text-taupe transition-colors duration-150 hover:bg-sand/40 hover:text-tinta"
-      >
-        <Info className="size-5" strokeWidth={1.6} aria-hidden />
-      </button>
+      <BotonAyuda etiqueta={titulo} onClick={() => setAbierta(true)} />
       <Modal abierto={abierta} onCerrar={() => setAbierta(false)} titulo={titulo} ancho="lg">
         <div className="grid gap-4 text-sm">
           {intro && <p className="text-taupe">{intro}</p>}
