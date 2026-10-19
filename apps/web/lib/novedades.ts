@@ -115,6 +115,21 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-10-19-turnos-por-tramos-y-correcciones-con-semana",
+    fecha: "2026-10-19",
+    titulo: "Turnos habla de «mañana y tarde», y Correcciones muestra la semana",
+    queMejoro:
+      "En Turnos, cada día se lee como se pone la meta: «Mañana 2 de 3 · falta 1», «Tarde completo», con quién está en cada " +
+      "tramo, y ahí mismo cambias la meta. Arriba, «Para decidir» junta los turnos que no coinciden con el horario base y a " +
+      "quién se acerca a las 48 horas. La hora por hora queda detrás de «Ver hora por hora».\n\n" +
+      "En Correcciones, arriba de cada persona está su semana con una frase corta por día («8 h 03», «25 min tarde», «Sin " +
+      "jornada»): tocas un día y lo abres sin usar el calendario. Con pantalla ancha, el historial queda a la derecha.\n\n" +
+      "Una tardanza que ya se levantó por fuerza mayor sale tachada también en el Dashboard y deja de contar como tardanza " +
+      "ahí. Y Datos personales, Feriados, Costos, Sedes, Áreas, Anuncios, Cuentas, Hoja de sede, Exportar, Disciplina y Casos " +
+      "estrenan la misma cabecera de siempre, con su ⓘ de ayuda.",
+    audiencia: "panel",
+  },
+  {
     id: "2026-10-19-quien-esta-de-prueba-cuenta-en-la-cobertura",
     fecha: "2026-10-19",
     titulo: "Quien está de prueba ya cuenta en la cobertura de su sede",
