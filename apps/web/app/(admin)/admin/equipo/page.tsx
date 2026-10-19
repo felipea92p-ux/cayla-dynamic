@@ -72,39 +72,6 @@ function generarPin(): string {
   return pin;
 }
 
-/**
- * Copiar sin depender de que `navigator.clipboard` exista.
- *
- * La API moderna no está fuera de HTTPS (o localhost) y puede rechazar sin
- * permiso; el respaldo es el `textarea` de toda la vida. Devuelve si se copió
- * de verdad, porque un botón que dice «Copiado» sin haber copiado es peor que
- * uno que falla: quien lo lee cierra el panel y pierde el PIN.
- */
-async function copiarAlPortapapeles(texto: string): Promise<boolean> {
-  try {
-    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(texto);
-      return true;
-    }
-  } catch {
-    // sigue al respaldo
-  }
-  try {
-    const campo = document.createElement("textarea");
-    campo.value = texto;
-    campo.setAttribute("readonly", "");
-    campo.style.position = "fixed";
-    campo.style.opacity = "0";
-    document.body.appendChild(campo);
-    campo.select();
-    const ok = document.execCommand("copy");
-    document.body.removeChild(campo);
-    return ok;
-  } catch {
-    return false;
-  }
-}
-
 interface Sede {
   id: string;
   codigo: string;
@@ -285,19 +252,10 @@ export default function EquipoPage() {
   // y salida— viven en el mismo <Drawer> lateral (0428): flota encima de la
   // tabla en vez de empujarla hacia abajo, así que no hace falta desplazar la
   // pantalla hasta él como sí hacía falta cuando se abrían arriba, en línea.
-  // EL PIN NO VA POR UN TOAST, y esto no es una preferencia de forma.
-  //
-  // Un aviso «ok» se apaga solo a los 4,5 segundos (DURACION_OK_MS, en
-  // components/toast.tsx), y ahí dentro iba el único ejemplar de cuatro dígitos
-  // que el sistema muestra en su vida, con un texto que decía «anótalo ahora, no
-  // se vuelve a mostrar». No alcanza para leerlo, entenderlo y escribirlo, y si
-  // se pierde hay que regenerarlo — lo que invalida el PIN que esa persona ya
-  // tenía. Así que vive en un panel que NO se cierra solo: se cierra cuando
-  // alguien dice que ya lo tiene.
-  //
-  // El temporizador del toast no se toca: gobierna todos los avisos del panel.
-  const [pinNuevo, setPinNuevo] = useState<{ nombre: string; pin: string } | null>(null);
-  const [pinCopiado, setPinCopiado] = useState(false);
+  // El PIN se retiró de esta pantalla (2026-10-19, decisión de Felipe): el terminal de marcaje ya no lo usa
+  // (0375). Ni el alta lo muestra ni existe «Nuevo PIN». La base TODAVÍA exige un `pin_hash` al crear a alguien
+  // (`fn_crear_persona`), así que el alta sigue mandando uno al azar que nadie ve; quitar esa columna es otra
+  // migración, no de esta pantalla.
   const [ceseId, setCeseId] = useState<string | null>(null);
   const [ceseForm, setCeseForm] = useState<{ fecha: string; motivo: MotivoCese | "" }>({ fecha: "", motivo: "" });
   const [guardandoCese, setGuardandoCese] = useState(false);
@@ -644,7 +602,7 @@ export default function EquipoPage() {
   // angosta y "Editar" siempre visible al lado, cinco botones sueltos no
   // cabían sin romper a dos líneas en pantallas medianas.
   //
-  // Nuevo PIN / Registrar salida / Reactivar exigen `puedeEscribir` (admin o
+  // Registrar salida / Reactivar exigen `puedeEscribir` (admin o
   // líder DO) — a una encargada de sede esas RPC la rechazan siempre. Si
   // ninguna de las dos familias de permiso aplica, el menú entero no tiene
   // nada que ofrecer y no se dibuja: un "•••" que abre a un menú vacío es
@@ -668,9 +626,6 @@ export default function EquipoPage() {
           <MenuItem onClick={() => empezarSalario(p)}>{sal ? "Editar salario" : "Asignar salario"}</MenuItem>
         )}
         {puedeSalarios && <MenuItem onClick={() => void verHistorial(p)}>Historial de salario</MenuItem>}
-        {/* Solo a quien está activa: desde la 0364 el servidor rechaza
-            regenerar el PIN de una persona inactiva. */}
-        {puedeEscribir && p.estado === "activo" && <MenuItem onClick={() => void regenerarPin(p)}>Nuevo PIN</MenuItem>}
         {puedeEscribir && (p.estado === "activo" ? (
           // «Registrar salida» y no «Desactivar»: lo que se hace es anotar
           // un hecho con su fecha y su motivo, no apagar un interruptor.
@@ -729,8 +684,8 @@ export default function EquipoPage() {
         return;
       }
     }
-    const pin = generarPin();
-    const pinHash = await bcrypt.hash(pin, 10);
+    // La base exige un pin_hash; nadie lo ve ni lo usa (ver el comentario de arriba).
+    const pinHash = await bcrypt.hash(generarPin(), 10);
     // Alta por RPC: el insert REST falla entero (PGRST204) si el payload trae "funcion".
     const { data: creada, error } = await supabase.rpc("fn_crear_persona", {
       p_nombres: form.nombres.trim(),
@@ -776,10 +731,6 @@ export default function EquipoPage() {
       avisar("error", mensajeDeError(error, "crear"));
       return;
     }
-    // El PIN se muestra UNA sola vez, y por eso NO viaja en este aviso: va al
-    // panel de abajo, que no se apaga solo. Lo que quede acá es lo que sí puede
-    // desaparecer a los pocos segundos sin que se pierda nada — el «agregada» y,
-    // si toca, la advertencia de la asignación familiar.
     const nombreCorto = `${form.nombres.trim()} ${form.apellidos.trim()}`;
     let texto = `${nombreCorto} agregado(a).`;
     let tipoAviso: "ok" | "error" = "ok";
@@ -789,8 +740,7 @@ export default function EquipoPage() {
         ? await supabase.rpc("fn_set_con_hijos", { p_persona_id: nuevaId, p_con_hijos: true })
         : { error: { message: "no se recibió el id de la persona" } };
       if (errorHijos) {
-        // Aviso en ROJO para que la falla no pase desapercibida. El PIN ya no
-        // depende de este mensaje: está en su panel, se muestre este aviso o no.
+        // Aviso en ROJO para que la falla no pase desapercibida.
         tipoAviso = "error";
         texto += ` OJO: la asignación familiar no se pudo activar (${errorHijos.message}) — márcala editando a la persona.`;
       }
@@ -798,25 +748,8 @@ export default function EquipoPage() {
     setGuardando(false);
     setMostrandoAlta(false);
     setForm(FORM_VACIO);
-    // Antes de `cargar()`: el PIN tiene que estar en pantalla ya, no cuando
-    // termine de releerse el equipo entero.
-    mostrarPin(nombreCorto, pin);
     await cargar();
     avisar(tipoAviso, texto);
-  }
-
-  function mostrarPin(nombre: string, pin: string) {
-    setPinCopiado(false);
-    setPinNuevo({ nombre, pin });
-  }
-
-  async function copiarPin() {
-    if (!pinNuevo) return;
-    if (await copiarAlPortapapeles(pinNuevo.pin)) {
-      setPinCopiado(true);
-      return;
-    }
-    avisar("error", "No se pudo copiar al portapapeles. Anótalo a mano: el PIN sigue en pantalla hasta que cierres el panel.");
   }
 
   async function guardarEdicion() {
@@ -1152,21 +1085,6 @@ export default function EquipoPage() {
     const p = reactivarPendiente;
     setReactivarPendiente(null);
     await reactivar(p);
-  }
-
-  // El PIN nace en el servidor (0364): `fn_regenerar_pin` genera los cuatro
-  // dígitos, los hashea con bcrypt en Postgres y devuelve el PIN en claro UNA
-  // sola vez. Antes se hasheaba acá y se escribía `pin_hash` por REST directo,
-  // con la RLS como único freno; hoy un update directo a esa columna lo corta
-  // un trigger, así que este es el único camino.
-  async function regenerarPin(p: Persona) {
-    const supabase = createAdminSupabaseClient();
-    const { data: pin, error } = await supabase.rpc("fn_regenerar_pin", { p_persona_id: p.id });
-    if (error || !pin) {
-      avisar("error", error ? mensajeDeError(error, "regenerar el PIN") : "No se recibió el PIN nuevo. Vuelve a intentarlo.");
-      return;
-    }
-    mostrarPin(`${p.nombres} ${p.apellidos}`, pin);
   }
 
   function empezarEdicion(p: Persona, boton?: HTMLElement | null) {
@@ -1840,7 +1758,7 @@ export default function EquipoPage() {
             disabled={guardando}
             cargando={guardando}
           >
-            {modo === "alta" ? "Agregar (genera PIN)" : "Guardar cambios"}
+            {modo === "alta" ? "Agregar" : "Guardar cambios"}
           </Boton>
         )}
       </div>
@@ -1979,35 +1897,6 @@ export default function EquipoPage() {
     );
   };
 
-  // El PIN recién generado. Vive en el mismo Drawer que los demás paneles de
-  // esta pantalla, pero con una diferencia que NO se negocia: `bloqueado` va
-  // siempre en `true` mientras haya un PIN puesto, sin importar si algo más se
-  // está guardando. Es el único panel de la pantalla cuyo motivo entero es que
-  // no se pierda de vista — un Escape sin querer, o un clic afuera por error,
-  // no pueden cerrarlo. Solo lo cierra el botón «Ya lo tengo».
-  const panelPin = () => (
-    // `role="status"` porque este panel reemplazó a un aviso que sí se
-    // anunciaba: sin él, quien navega con lector de pantalla oye desaparecer
-    // «X agregado(a)» y nada le dice que el PIN quedó en un panel — el único
-    // de la pantalla cuyo motivo entero es que no se pierda de vista.
-    <div role="status" aria-live="polite">
-      <p className="font-serif text-6xl tracking-[0.25em] tabular-nums text-tinta">{pinNuevo?.pin}</p>
-      <div className="mt-4 flex flex-wrap items-center gap-3">
-        <Boton variante="primario" onClick={() => void copiarPin()}>
-          {pinCopiado ? "Copiado" : "Copiar"}
-        </Boton>
-        <Boton variante="secundario" onClick={() => setPinNuevo(null)}>
-          Ya lo tengo — cerrar
-        </Boton>
-      </div>
-      <p className="mt-3 text-xs text-taupe">
-        Este panel no se cierra solo, así que tómate el tiempo de anotarlo y entrégalo en privado. Es la
-        única vez que el sistema muestra estos cuatro dígitos: si se pierden hay que generar otros, y el
-        PIN anterior de esta persona deja de servir.
-      </p>
-    </div>
-  );
-
   const panelHistorial = () => (
     <div className="flex flex-col gap-4">
       {hist.length === 0 ? (
@@ -2051,22 +1940,17 @@ export default function EquipoPage() {
     </div>
   );
 
-  // Cuál de los seis paneles de esta pantalla ocupa el Drawer, y cómo se
-  // cierra cada uno. El PIN manda sobre todo lo demás (ver panelPin): si está
-  // puesto, cerrar significa "ya lo tengo" y nada más — nunca un Escape o un
-  // clic afuera sin querer.
+  // Cuál de los cinco paneles de esta pantalla ocupa el Drawer, y cómo se cierra cada uno.
   function cerrarPanelLateral() {
-    if (pinNuevo) { setPinNuevo(null); return; }
     cerrarFormulario();
     setSalEditId(null);
     setHistId(null);
     setCeseId(null);
   }
   const drawerAbierto =
-    pinNuevo !== null || mostrandoAlta || editandoId !== null ||
+    mostrandoAlta || editandoId !== null ||
     (puedeSalarios && salEditId !== null) || (puedeSalarios && histId !== null) || ceseId !== null;
   const tituloDrawer = (() => {
-    if (pinNuevo) return `PIN de ${pinNuevo.nombre}`;
     if (mostrandoAlta) return "Agregar persona";
     const nombreDe = (id: string | null) => {
       const p = personas.find((x) => x.id === id);
@@ -2113,33 +1997,29 @@ export default function EquipoPage() {
         )}
 
         {/* Los seis paneles de esta pantalla —alta, edición, salario,
-            historial, PIN y cese— viven en el mismo panel lateral (0428), no
+            historial y cese— viven en el mismo panel lateral (0428), no
             empujando la tabla hacia abajo. Antes hacía falta desplazar la
             pantalla hasta un panel que podía abrirse fuera de la vista; un
             panel que flota encima no tiene ese problema, esté donde esté el
-            scroll de la tabla. `bloqueado` mientras se guarda algo, y SIEMPRE
-            mientras haya un PIN puesto (ver panelPin) — ese no se cierra con
-            un Escape ni un clic afuera por accidente. */}
+            scroll de la tabla. `bloqueado` mientras se guarda algo. */}
         <Drawer
           abierto={drawerAbierto}
           onCerrar={cerrarPanelLateral}
-          bloqueado={pinNuevo !== null || guardando || guardandoSal || guardandoCese}
+          bloqueado={guardando || guardandoSal || guardandoCese}
           titulo={tituloDrawer}
           volverElFocoA={focoAlAbrir}
         >
-          {pinNuevo
-            ? panelPin()
-            : mostrandoAlta
-              ? formulario("alta")
-              : editandoId
-                ? formulario("edicion")
-                : puedeSalarios && salEditId
-                  ? editorSalario()
-                  : puedeSalarios && histId
-                    ? panelHistorial()
-                    : ceseId
-                      ? editorCese()
-                      : null}
+          {mostrandoAlta
+            ? formulario("alta")
+            : editandoId
+              ? formulario("edicion")
+              : puedeSalarios && salEditId
+                ? editorSalario()
+                : puedeSalarios && histId
+                  ? panelHistorial()
+                  : ceseId
+                    ? editorCese()
+                    : null}
         </Drawer>
 
         {/* Las tarjetas, y cada una es un filtro (mismo patrón que ya usan
