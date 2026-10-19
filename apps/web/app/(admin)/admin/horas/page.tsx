@@ -48,7 +48,7 @@ import { Fragment, Suspense, useCallback, useEffect, useMemo, useRef, useState }
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
-import { EsqueletoTabla } from "@/components/cargando";
+import { Cargando, EsqueletoTabla } from "@/components/cargando";
 import { useToast } from "@/components/toast";
 import { traerTodo } from "@/lib/admin/traer-todo";
 import { descargarCsv, generarCsv } from "@/lib/admin/csv";
@@ -65,7 +65,12 @@ import {
 import { Insignia } from "@/components/ui/insignia";
 import { Campo, CampoSelect, CampoCasilla } from "@/components/ui/campo";
 import { Boton } from "@/components/ui/boton";
-import { Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
+import { Tabla, TablaEncabezado, Th, Fila as FilaTabla } from "@/components/ui/tabla";
+import { BannerAviso } from "@/components/ui/banner-aviso";
+import { Cifra } from "@/components/ui/cifra";
+import { cx } from "@/components/ui/cx";
+import { Drawer } from "@/components/ui/drawer";
+import { TarjetaInfo } from "@/components/ui/tarjeta-info";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
 import { X, Search } from "lucide-react";
 
@@ -451,24 +456,21 @@ function DetallePersona({ f, meta, anio, mes, mesEnCurso, sel, onDia }: {
           { label: "Salidas anticipadas", valor: String(f.salidasTempranas) },
           { label: "Tiempo adicional", valor: f.horasExtra > 0 ? fmtHoras(f.horasExtra) : "—" },
         ].map((c) => (
-          <div key={c.label} className="rounded-2xl border border-sand bg-papel px-4 py-3">
-            <div className="text-xs uppercase tracking-wide text-taupe">{c.label}</div>
-            <div className="mt-1 font-serif text-xl">{c.valor}</div>
-          </div>
+          <Cifra key={c.label} etiqueta={c.label} valor={c.valor} />
         ))}
       </div>
 
       {/* Los dos avisos que separan «problema de la persona» de «problema de
           datos». El segundo es el que evita conversaciones injustas. */}
       {f.diasConMotivo > 0 && (
-        <p className="rounded-lg bg-sand/50 px-3 py-2 text-xs">
+        <BannerAviso enLinea variante="neutral" className="text-xs">
           Además tuvo <strong>{f.diasConMotivo} día{f.diasConMotivo === 1 ? "" : "s"} con motivo registrado</strong>{" "}
           ({fmtHoras(f.horasConMotivo)}): vacaciones, permiso, descanso médico, suspensión o descanso sustitutorio.
           No cuentan como falta y <strong>tampoco entran en las horas que le tocaban</strong>.
-        </p>
+        </BannerAviso>
       )}
       {sinTurnoConNovedad > 0 && (
-        <p className="rounded-lg bg-ambar/10 px-3 py-2 text-xs">
+        <BannerAviso enLinea className="text-xs">
           <strong>{sinTurnoConNovedad} de sus días con tardanza o salida anticipada se midieron contra su horario
           base</strong>, porque ese día no había turno cargado en Turnos. Si en la práctica rotó de turno, esos
           minutos dicen más de lo que falta registrar que de la persona — mira la columna «medido contra» antes
@@ -476,7 +478,7 @@ function DetallePersona({ f, meta, anio, mes, mesEnCurso, sel, onDia }: {
           <Link href={`/admin/turnos?fecha=${diasSospechosos[0].fecha}`} className="text-rojo underline">
             Ir a Turnos, en la semana del {fechaLarga(diasSospechosos[0].fecha)} →
           </Link>
-        </p>
+        </BannerAviso>
       )}
 
       {/* Del total de `ausencias` en el rango, sin pasar por la cascada de
@@ -484,13 +486,16 @@ function DetallePersona({ f, meta, anio, mes, mesEnCurso, sel, onDia }: {
           arriba: ese cuenta solo días que le tocaba trabajar, este cuenta
           cualquier día de la ausencia, caiga o no en su horario. */}
       {f.ausenciasDias > 0 && (
-        <div className="rounded-2xl border border-sand bg-papel p-4">
-          <h3 className="mb-2 font-serif text-lg">
-            Ausencias del periodo
-            <span className="ml-2 text-sm font-normal text-taupe">
-              · {f.ausenciasDias} día{f.ausenciasDias === 1 ? "" : "s"} en {f.ausenciasRegistros} registro{f.ausenciasRegistros === 1 ? "" : "s"}
-            </span>
-          </h3>
+        <TarjetaInfo
+          titulo={
+            <>
+              Ausencias del periodo
+              <span className="ml-2 font-sans text-sm font-normal text-taupe">
+                · {f.ausenciasDias} día{f.ausenciasDias === 1 ? "" : "s"} en {f.ausenciasRegistros} registro{f.ausenciasRegistros === 1 ? "" : "s"}
+              </span>
+            </>
+          }
+        >
           <ul className="space-y-1 text-sm">
             {Object.entries(f.ausenciasPorTipo).map(([tipo, dias]) => (
               <li key={tipo} className="flex justify-between gap-4">
@@ -502,32 +507,34 @@ function DetallePersona({ f, meta, anio, mes, mesEnCurso, sel, onDia }: {
           <Link href="/admin/ausencias" className="mt-2 inline-block text-xs text-rojo hover:underline">
             Ver el detalle en Ausencias →
           </Link>
-        </div>
+        </TarjetaInfo>
       )}
 
-      <div className="rounded-2xl border border-sand bg-papel p-4">
-        <h3 className="mb-3 font-serif text-lg">
-          Horas por día
-          {meta > 0 && <span className="ml-2 text-sm font-normal text-taupe">· su jornada son {fmtHoras(meta)}</span>}
-        </h3>
+      <TarjetaInfo
+        titulo={
+          <>
+            Horas por día
+            {meta > 0 && <span className="ml-2 font-sans text-sm font-normal text-taupe">· su jornada son {fmtHoras(meta)}</span>}
+          </>
+        }
+      >
         <GraficoHoras dias={grafico} meta={meta} />
-      </div>
+      </TarjetaInfo>
 
       {/* Los objetivos son MENSUALES: no siguen al rango de fechas, y por eso
           el título lleva el mes escrito. Acá van de solo lectura —marcarlos
           cumplidos es de /admin/objetivos, que además re-valida quién puede—
           pero los dos enlaces llegan con la persona y el mes ya elegidos. */}
-      <div className="rounded-2xl border border-sand bg-papel p-4">
-        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-          <h3 className="font-serif text-lg">Objetivos de {mesLabel}</h3>
-          {f.objTotal > 0 && (
-            <span className="flex items-center gap-2 text-sm">
-              <span className="text-taupe">{f.objCumplidos}/{f.objTotal} cumplidos</span>
-              {/* Sin color que premie: desde la 0171 los objetivos no pagan. */}
-              <Insignia atenuada punto={false}>{nivel.etiqueta}</Insignia>
-            </span>
-          )}
-        </div>
+      <TarjetaInfo
+        titulo={`Objetivos de ${mesLabel}`}
+        accion={f.objTotal > 0 ? (
+          <span className="flex items-center gap-2 text-sm">
+            <span className="text-taupe">{f.objCumplidos}/{f.objTotal} cumplidos</span>
+            {/* Sin color que premie: desde la 0171 los objetivos no pagan. */}
+            <Insignia atenuada punto={false}>{nivel.etiqueta}</Insignia>
+          </span>
+        ) : undefined}
+      >
 
         {f.objTotal === 0 ? (
           <p className="text-sm text-taupe">
@@ -557,7 +564,7 @@ function DetallePersona({ f, meta, anio, mes, mesEnCurso, sel, onDia }: {
           <Link href={objUrl(anio, mes)} className="text-rojo hover:underline">Editar los de {mesLabel} →</Link>
           <Link href={objUrl(sig.anio, sig.mes)} className="text-rojo hover:underline">Preparar los de {sigLabel} →</Link>
         </div>
-      </div>
+      </TarjetaInfo>
 
       <Tabla className="[font-variant-numeric:tabular-nums]">
         <TablaEncabezado>
@@ -578,14 +585,12 @@ function DetallePersona({ f, meta, anio, mes, mesEnCurso, sel, onDia }: {
             const mc = medidoContra(d);
             const activa = sel?.personaId === f.personaId && sel?.fecha === d.fecha;
             return (
-              // <tr> nativo y no <Fila>: <Fila> trae su propia zebra
-              // (even:bg-hueso/50), y esa pseudoclase pesa más que un
-              // "bg-crema" suelto — en una fila par, la marca de "día
-              // abierto" quedaría tapada por la zebra. Mismo criterio que
-              // reporte-sede/page.tsx, que por eso tampoco usa <Fila> acá.
-              <tr key={d.fecha}
+              // <Fila> desde 2026-10-19: la zebra que obligaba a usar un <tr>
+              // nativo se quitó (ADR 0004, decisión 5), así que la marca de
+              // «día abierto» ya no la tapa nada.
+              <FilaTabla key={d.fecha}
                 onClick={() => onDia(f.personaId, d.fecha)}
-                className={`cursor-pointer border-t border-sand transition-colors hover:bg-crema ${activa ? "bg-crema" : ""}`}
+                className={cx("cursor-pointer", activa && "bg-crema")}
                 title="Abrir este día">
                 <td className="px-4 py-2 capitalize">{fechaLarga(d.fecha)}</td>
                 <td className="px-4 py-2">{horaLima(d.entradaTs)}</td>
@@ -616,7 +621,7 @@ function DetallePersona({ f, meta, anio, mes, mesEnCurso, sel, onDia }: {
                   {d.estado === "extra" && <Insignia variante="positivo" punto={false}>en su descanso</Insignia>}
                   {d.agregado && <Insignia atenuada punto={false}>histórico 2025</Insignia>}
                 </td>
-              </tr>
+              </FilaTabla>
             );
           })}
         </tbody>
@@ -673,6 +678,7 @@ function DesempenoContenido() {
 
   // El día abierto. Es lo único que esta pantalla «selecciona».
   const [sel, setSel] = useState<{ personaId: string; fecha: string } | null>(null);
+  const volverFoco = useRef<HTMLElement | null>(null);
   // Qué persona tiene su desempeño abierto debajo de su fila.
   const [abierta, setAbierta] = useState<string | null>(null);
   const enlaceUsado = useRef(false);
@@ -1022,6 +1028,12 @@ function DesempenoContenido() {
   // efecto que mire `sel`: un efecto que solo existe para resetear estado es
   // una cascada de renders y una regla que el linter marca con razón.
   const abrirDia = useCallback((personaId: string, fecha: string) => {
+    // Al cerrar el cajón el foco vuelve a la celda o fila que lo abrió. Con ←/→
+    // se llama a esta misma función desde adentro del cajón: ahí NO se
+    // sobrescribe, o el foco volvería al botón de «Cerrar» que ya no existe.
+    if (!document.querySelector('[role="dialog"]')?.contains(document.activeElement)) {
+      volverFoco.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    }
     setSel({ personaId, fecha });
     // Abrir un día desde la cuadrícula despliega también su desempeño: el día
     // se entiende mirando los de alrededor, no solo.
@@ -1445,24 +1457,22 @@ function DesempenoContenido() {
       </main>
 
       {/* ── El día ─────────────────────────────────────────────────────────── */}
-      {sel && filaSel && diaSel && (
-        <>
-          <div onClick={cerrarDia} className="fixed inset-0 z-40 bg-black/40" aria-hidden />
-          <aside role="dialog" aria-label={`${filaSel.nombre}, ${fechaLarga(diaSel.fecha)}`}
-            className="fixed inset-y-0 right-0 z-50 w-full max-w-[460px] overflow-y-auto border-l border-sand bg-crema shadow-xl">
-            <div className="sticky top-0 flex items-start justify-between gap-4 border-b border-sand bg-crema px-5 py-4">
-              <div>
-                <h2 className="font-serif text-xl capitalize">{fechaLarga(diaSel.fecha)}</h2>
-                <p className="text-sm text-taupe">{filaSel.nombre} · Sede {filaSel.sede}</p>
+      <Drawer
+        abierto={Boolean(sel && filaSel && diaSel)}
+        onCerrar={cerrarDia}
+        titulo={filaSel && diaSel ? fechaLarga(diaSel.fecha).replace(/^./, (c) => c.toUpperCase()) : undefined}
+        volverElFocoA={volverFoco}
+      >
+        {sel && filaSel && diaSel && (
+            <div className="space-y-4 text-sm">
+              <div className="-mt-2 flex items-start justify-between gap-4">
+                <p className="text-taupe">{filaSel.nombre} · Sede {filaSel.sede}</p>
+                <button onClick={cerrarDia} aria-label="Cerrar" className="rounded-lg border border-sand p-1.5 text-taupe hover:text-tinta">
+                  <X size={18} strokeWidth={1.8} />
+                </button>
               </div>
-              <button onClick={cerrarDia} aria-label="Cerrar" className="rounded-lg border border-sand p-1.5 text-taupe hover:text-tinta">
-                <X size={18} strokeWidth={1.8} />
-              </button>
-            </div>
 
-            <div className="space-y-4 p-5 text-sm">
-              <div className="rounded-2xl border border-sand bg-papel p-4">
-                <h3 className="mb-2 font-serif text-lg">Qué pasó</h3>
+              <TarjetaInfo titulo="Qué pasó">
                 <dl className="space-y-1.5">
                   <div className="flex justify-between gap-4">
                     <dt className="text-taupe">Le tocaba</dt>
@@ -1504,43 +1514,40 @@ function DesempenoContenido() {
                   )}
                 </dl>
                 {diaSel.estado === "falta" && (
-                  <p className="mt-3 rounded-lg bg-rojo/10 px-3 py-2 text-rojo">Le tocaba trabajar y no hay ningún marcaje.</p>
+                  <BannerAviso enLinea variante="alerta" className="mt-3">Le tocaba trabajar y no hay ningún marcaje.</BannerAviso>
                 )}
                 {diaSel.estado === "justificada" && (
-                  <p className="mt-3 rounded-lg bg-sand/60 px-3 py-2">
+                  <BannerAviso enLinea variante="neutral" className="mt-3">
                     No marcó, y no cuenta como falta: {MOTIVO_NO_FALTA[diaSel.faltaMotivo ?? ""] ?? etiqueta(MOTIVOS_FALTA, diaSel.faltaMotivo) ?? "justificada"}.
-                  </p>
+                  </BannerAviso>
                 )}
                 {diaSel.enCurso && (
-                  <p className="mt-3 rounded-lg bg-sand/60 px-3 py-2">
+                  <BannerAviso enLinea variante="neutral" className="mt-3">
                     Está en su jornada. Las horas de hoy se calculan al marcar la salida; hasta entonces este día
                     no cuenta ni en lo trabajado ni en lo que le tocaba.
-                  </p>
+                  </BannerAviso>
                 )}
                 {diaSel.estado === "revisar" && !diaSel.enCurso && (
-                  <p className="mt-3 rounded-lg bg-ambar/10 px-3 py-2">
+                  <BannerAviso enLinea className="mt-3">
                     {diaSel.jornadaEstado === "auto_cerrada_pendiente"
                       ? "El sistema cerró este día automáticamente porque nadie marcó la salida."
                       : "Falta la marca de salida, así que las horas de este día no se pueden calcular."}
-                  </p>
+                  </BannerAviso>
                 )}
                 {diaSel.levantada && (
-                  <p className="mt-3 rounded-lg bg-sand/60 px-3 py-2">
+                  <BannerAviso enLinea variante="neutral" className="mt-3">
                     Tardanza justificada: {etiqueta(MOTIVOS_TARDANZA, diaSel.levantada)}. La hora real no se tocó.
-                  </p>
+                  </BannerAviso>
                 )}
                 {diaSel.estado === "extra" && (
-                  <p className="mt-3 rounded-lg bg-verde/10 px-3 py-2">Trabajó en un día que su horario marca como descanso.</p>
+                  <BannerAviso enLinea variante="positivo" className="mt-3">Trabajó en un día que su horario marca como descanso.</BannerAviso>
                 )}
-              </div>
+              </TarjetaInfo>
 
               {/* Justificar. Va por las mismas RPC que Incidencias — no hay una
                   segunda forma de perdonar un día en este sistema. */}
               {((diaSel.minutosTarde ?? 0) > 0 && !diaSel.levantada) || diaSel.estado === "falta" ? (
-                <div className="rounded-2xl border border-sand bg-papel p-4">
-                  <h3 className="mb-1 font-serif text-lg">
-                    {diaSel.estado === "falta" ? "Justificar la falta" : "Justificar la tardanza"}
-                  </h3>
+                <TarjetaInfo titulo={diaSel.estado === "falta" ? "Justificar la falta" : "Justificar la tardanza"}>
                   <p className="mb-3 text-xs text-taupe">
                     Queda registrado con su motivo y sale del conteo. Dynamic avisa; la decisión es tuya.
                   </p>
@@ -1569,7 +1576,7 @@ function DesempenoContenido() {
                       </>
                     );
                   })()}
-                </div>
+                </TarjetaInfo>
               ) : null}
 
               {diaSel.estado === "justificada" && !MOTIVO_NO_FALTA[diaSel.faltaMotivo ?? ""] && (
@@ -1602,16 +1609,15 @@ function DesempenoContenido() {
                 </div>
               </div>
             </div>
-          </aside>
-        </>
-      )}
+        )}
+      </Drawer>
     </div>
   );
 }
 
 export default function DesempenoEquipoPage() {
   return (
-    <Suspense fallback={<main className="p-6"><p className="text-sm text-taupe">Cargando…</p></main>}>
+    <Suspense fallback={<main className="p-6"><Cargando /></main>}>
       <DesempenoContenido />
     </Suspense>
   );

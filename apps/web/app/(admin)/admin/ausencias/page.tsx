@@ -30,6 +30,8 @@ import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Cargando } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
+import { BannerAviso } from "@/components/ui/banner-aviso";
+import { TarjetaInfo } from "@/components/ui/tarjeta-info";
 import { Insignia } from "@/components/ui/insignia";
 import { Tabla, TablaEncabezado, Th, Fila } from "@/components/ui/tabla";
 import { Campo, CampoSelect } from "@/components/ui/campo";
@@ -922,30 +924,29 @@ export default function AusenciasPage() {
             banner: son tres fuentes distintas y una puede fallar sin que
             fallen las otras dos. */}
         {errorPorVencer && (
-          <div className="mb-3 max-w-3xl rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo-profundo">
+          <BannerAviso enLinea role="alert" variante="alerta" className="mb-3 max-w-3xl">
             {errorPorVencer} — esto no quiere decir que nadie tenga vacaciones por vencer, solo que
             el aviso no se pudo calcular. Es el único de esta pantalla con fecha límite legal (art. 23,
             D. Leg. 713): conviene revisar a mano mientras no cargue.{" "}
             <Boton variante="enlace" onClick={() => void cargar()}>Reintentar</Boton>
-          </div>
+          </BannerAviso>
         )}
         {errorAlertas && (
-          <div className="mb-3 max-w-3xl rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo-profundo">
+          <BannerAviso enLinea role="alert" variante="alerta" className="mb-3 max-w-3xl">
             {errorAlertas} — esto no quiere decir que nadie tenga un patrón de ausencias, solo que
             el aviso no se pudo calcular.{" "}
             <Boton variante="enlace" onClick={() => void cargar()}>Reintentar</Boton>
-          </div>
+          </BannerAviso>
         )}
         {errorSubsidio && (
-          <div className="mb-3 max-w-3xl rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo-profundo">
+          <BannerAviso enLinea role="alert" variante="alerta" className="mb-3 max-w-3xl">
             {errorSubsidio} — esto no quiere decir que nadie tenga descanso médico pendiente de reembolso,
             solo que el aviso no se pudo calcular.{" "}
             <Boton variante="enlace" onClick={() => void cargar()}>Reintentar</Boton>
-          </div>
+          </BannerAviso>
         )}
 
-        <div className="mb-6 max-w-3xl rounded-superficie border border-sand bg-papel p-5">
-          <h2 className="mb-1 font-serif text-lg">Impacto por colaborador</h2>
+        <TarjetaInfo className="mb-6 max-w-3xl" titulo="Impacto por colaborador">
           {impactoPorPersona.length === 0 ? (
             <p className="text-sm text-taupe">Sin alertas activas hoy — vacaciones al día, dentro del cupo de EsSalud y sin patrón de ausencias que revisar.</p>
           ) : (
@@ -987,7 +988,7 @@ export default function AusenciasPage() {
               </p>
             </>
           )}
-        </div>
+        </TarjetaInfo>
 
         {/* Rango, estado y pestaña de persona. El filtro de estado existe
             porque la única fila que pide una acción en esta pantalla —
