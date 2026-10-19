@@ -208,6 +208,63 @@ nuevas (`fn_mi_seguro`, `fn_mis_polizas`, `fn_seguro_archivo_es_mio`). La base d
 
 ---
 
+## 2026-10-19 — La prueba de tres días · etapa 1 (la base) · migraciones 0535 y 0536 · SIN PEGAR NI FUSIONAR · rama `claude/trial-period-contract-flow-3b095c`
+
+**Qué es.** Quien está de prueba no tiene contrato: trabaja **tres días** (de jornada cerrada, no de
+calendario) y recién después se le hace contrato. Durante la prueba se marca **«no apto»** (se le
+paga lo trabajado) o **«se retiró»** (no se le paga); si pasan los tres días y nadie decide, alerta a
+DO y la persona sigue marcando. Decide DO, administración o la líder de equipo **sola**, sin
+confirmación de DO, y solo sobre la gente de su sede. Fecha de baja = el último día trabajado.
+
+**Lo que decidió Felipe (2026-10-19, con preguntas):** reusar el vínculo «Prueba» que ya existe;
+«si se retira, no se le paga» (objeción dicha: es una deuda remunerativa reclamable y sin hoja
+firmada no hay prueba de que la conocía — se decidió igual); aviso del plazo con alerta a DO y
+etiqueta en el terminal, **sin** hoja firmada; el pase a Planilla es al **firmarse el contrato**;
+la asignación familiar solo cuenta si recibe contrato — si no pasa la prueba, solo lo trabajado
+(**interpretación de Claude, pendiente de confirmar:** mientras la prueba siga abierta al cerrar el
+periodo, tampoco se paga).
+
+**Qué hay en esta rama (2 commits, en este orden a propósito: primero el refactor, luego el cambio).**
+- **0535 — refactor sin cambio de comportamiento.** `fn_cesar_persona` queda como guardia (admin y
+  líder DO) y delega en `fn_cese_aplicar`, interna. Hace falta porque `fn_es_admin_o_lider()` solo
+  reconoce `admin` y `lider_do`: una líder de equipo siempre rebotaría. La prueba 135 se mudó al núcleo.
+- **0536 — la prueba.** Tabla `pruebas` (una por prueba; los días se **derivan**, no se guardan),
+  `fn_prueba_cerrar` (única puerta: resultado + motivo + quién + baja, todo o nada),
+  `fn_pruebas_abiertas`, `fn_prueba_puede_actuar`, y un trigger sobre `personas` que abre la prueba
+  al entrar en vínculo «Prueba» y la cierra al salir (`contratada` / `cesada`). «Se retiró» cierra como
+  `renuncia` y «no apto» como `fin_periodo_prueba`.
+- `puedeDecidirPrueba` en `permisos.ts`, y las pruebas `tests/permisos.test.ts` y pgTAP **429** (49
+  comprobaciones; se verificó que se pone roja con 3 roturas provocadas).
+
+**⚠ Esta etapa NO cambia lo que se paga.** `retirado` queda registrado pero la planilla sigue pagando
+las horas y la asignación familiar entera. Por eso **ninguna pantalla debe ofrecer «Se retiró» hasta
+que la etapa de planilla (0537) esté pegada**. Plan de esa etapa (medido leyendo
+`fn_planilla_calcular_nucleo`, 0524): excluir de la lista de personas del núcleo a quien se retiró
+(una condición, candidato D) y que `con_hijos` de quien no pasa la prueba no cobre asignación (una
+columna en la CTE `personas`, de la que cuelgan los ~15 usos). Hay que auditarlo en `begin … rollback`.
+
+**Antes de pegar.** Pedir otra vez a producción el md5 de `fn_cesar_persona` (el 2026-10-19 era
+`c069848683a331a0f1acb133e2e10932`, igual al de la 0415) y comprobar `select count(*) from pg_proc where
+proname = 'fn_cese_aplicar'` = 1 antes de la 0536. **Pegar la 0535 y después la 0536**; ambas antes de fusionar.
+
+**Medido en producción el 2026-10-19:** 2 personas activas en «Prueba» (se abren solas al pegar la 0536);
+de 14 salidas de prueba, 8 se fueron antes de completar 3 días (≈45 h en total desde fines de julio),
+3 pasaron de 3 días (4, 4 y 9 jornadas) y **ninguna** quedó como `renuncia`.
+
+**Cómo se probó (y un aviso):** el Postgres local de esta Mac está **18 migraciones atrasado** (le faltan
+407, 409, 504, 513–517, 519, 521, 522, 524, 525, 527, 529, 531–533) y el md5 que imprime `donde-vive.sh`
+es el de esa base, no el del repo; producción coincide con los ARCHIVOS. Para no tocar la base compartida
+se probó en un **clon desechable** (`docker run` de la misma imagen, esquema y datos copiados con `pg_dump`
+de solo lectura): 135, 296, 177, 298 y la 429 en verde; la suite completa da las mismas 70 pruebas en
+rojo con y sin estas migraciones (artefactos del clon, no del cambio).
+
+**Falta (etapas siguientes):** 0537 planilla; pantalla Contratos → Nuevo documento → Prueba (fotos del
+DNI; nombres y número ya vienen de Equipo), banda «falta contrato» y fila en la Bandeja, botones; etiqueta
+«Prueba · X de 3» en terminal, Equipo, Horas, Planilla y Horarios; entrada en `novedades.ts`; regenerar
+`types.ts` cuando la base local tenga la migración.
+
+---
+
 ## 2026-10-17 — Seguros del equipo: en qué seguro está cada colaborador (FOLA, EsSalud y los que DO agregue) · migración 0528 · SQL PEGADO Y VERIFICADO EN PRODUCCIÓN (2026-10-17) · FUSIONADO Y PUBLICADO (PR #551, 2026-10-17) · rama `claude/fola-dynamic-implementation-252f99`
 
 **Qué es.** La pantalla `/admin/seguros` (grupo Personas, solo DO) y un módulo «Seguros» en la
