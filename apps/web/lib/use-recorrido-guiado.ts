@@ -154,22 +154,27 @@ function lanzarRecorrido(tourId: string, pasos: readonly PasoRecorrido[]): () =>
 }
 
 /**
- * Lanza el recorrido la primera vez que `activo` pasa a `true`, y nunca más
- * si la persona marcó "no volver a mostrar". Un `useRef` evita que ir y
+ * Lanza el recorrido la primera vez que `activo` pasa a `true`, y nunca más si
+ * la persona ya lo vio (ver arriba qué cuenta). Un `useRef` evita que ir y
  * volver a la misma pestaña dentro de la misma visita lo repita — "primera
  * vez" es por carga de página, no por cada clic de menú.
+ *
+ * La memoria de «ya corrió en esta visita» es POR RECORRIDO (`tourId`), no una
+ * sola para el hook: «Lo mío» lo llama con una sección distinta cada vez que
+ * se cambia de pestaña, y con una sola marca el recorrido de la primera
+ * sección vista habría dejado sin recorrido a todas las demás.
  *
  * Devuelve `iniciar()`: lo lanza ahora mismo, aunque ya lo haya visto —para
  * un botón «Ver guía»—. Si hay uno en pantalla, lo reemplaza en vez de apilar
  * dos.
  */
 export function useRecorridoGuiado(tourId: string, pasos: readonly PasoRecorrido[], activo: boolean) {
-  const yaCorrioRef = useRef(false);
+  const yaCorrieronRef = useRef<Set<string>>(new Set());
   const apagarRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
-    if (!activo || yaCorrioRef.current || pasos.length === 0) return;
-    yaCorrioRef.current = true;
+    if (!activo || pasos.length === 0 || yaCorrieronRef.current.has(tourId)) return;
+    yaCorrieronRef.current.add(tourId);
 
     if (yaLoMarcoComoVisto(tourId)) return;
 

@@ -291,6 +291,18 @@ const PASOS_TOUR_RESUMEN: readonly PasoRecorrido[] = [
 ];
 
 /**
+ * Qué secciones tienen guía, y cuál. Una sección que no está aquí no tiene guía
+ * y `usePuertaDeModulo` lo sabe (no hay capa de guía que esperar). Se agregan de
+ * a una, cada una con sus propios pasos y sus anclas `data-tour`; el
+ * identificador del recorrido es `mio-<sección>`, que para Resumen es
+ * `mio-resumen`, la llave que ya existe en los navegadores.
+ */
+const SIN_GUIA: readonly PasoRecorrido[] = [];
+const GUIAS_POR_SECCION: Partial<Record<Tab, readonly PasoRecorrido[]>> = {
+  resumen: PASOS_TOUR_RESUMEN,
+};
+
+/**
  * Lo mínimo para saber si tiene contrato y a dónde llevarla a verlo. El texto
  * completo (`documento_html`) NO se pide acá — vive en `/mio/contrato`, su
  * propia pantalla, con el mismo criterio que la boleta: es un documento que
@@ -1413,9 +1425,10 @@ export default function MioPage() {
   // `capaActiva` dice que le toca — es decir, cuando ya no hay unos términos por
   // delante. Con todos los textos en borrador (hoy) no los hay y esto es
   // exactamente lo de antes. Ver lib/use-puerta-de-modulo.ts.
-  const puerta = usePuertaDeModulo(tab, tab === "resumen", Boolean(yo));
+  const pasosDeGuia = GUIAS_POR_SECCION[tab] ?? SIN_GUIA;
+  const puerta = usePuertaDeModulo(tab, pasosDeGuia.length > 0, Boolean(yo));
   const { iniciar: verGuia } = useRecorridoGuiado(
-    "mio-resumen", PASOS_TOUR_RESUMEN, tab === "resumen" && Boolean(yo) && puerta.capa === "guia",
+    `mio-${tab}`, pasosDeGuia, Boolean(yo) && puerta.capa === "guia",
   );
 
   /** Desde un aviso de arriba hasta el día concreto del que habla. */
