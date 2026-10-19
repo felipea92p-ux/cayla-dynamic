@@ -9,6 +9,7 @@ import { Cargando, SinDatos } from "@/components/cargando";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
 import { useToast } from "@/components/toast";
+import { AyudaPantalla } from "@/components/ui/ayuda-pantalla";
 import { Boton } from "@/components/ui/boton";
 import { Campo, CampoSelect } from "@/components/ui/campo";
 import { Insignia } from "@/components/ui/insignia";
@@ -1037,14 +1038,20 @@ export default function TurnosPage() {
       <main className="flex-1 p-6">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="mb-1 font-serif text-2xl">Turnos y cobertura</h1>
-            <p className="max-w-2xl text-sm text-taupe">
-              Arma la semana por sede. Toca la fila de una persona en un día para poner su turno o marcar
-              descanso. La meta tiene dos tramos: mañana y tarde (el corte es 14:15) — la franja de abajo
-              de cada día compara la gente de cada hora contra la meta de su tramo. La cobertura solo
-              cuenta a las áreas operativas de sede: quien trabaja en otra área se ve en ámbar, con su
-              área al lado, y no suma.
-            </p>
+            <h1 className="mb-1 font-serif text-[1.75rem] font-medium leading-tight tracking-[-0.01em] text-tinta">Turnos y cobertura</h1>
+            <div className="flex max-w-2xl items-start gap-1.5 text-sm text-taupe">
+              <p>Arma la semana por sede: toca a una persona en un día para poner su turno o marcar descanso.</p>
+              <AyudaPantalla
+                titulo="Cómo funcionan los turnos y la cobertura"
+                intro="Un turno puntual manda sobre el horario base de esa persona ese día, y de él depende si se le cuenta tardanza o falta."
+                secciones={[
+                  { titulo: "Poner un turno", texto: "Toca la fila de una persona en un día: eliges su hora de entrada y salida, o la marcas de descanso." },
+                  { titulo: "La meta", texto: "Tiene dos tramos: mañana y tarde (el corte es 14:15). La franja de abajo de cada día compara la gente de cada hora contra la meta de su tramo." },
+                  { titulo: "Quién suma", texto: "La cobertura solo cuenta a las áreas operativas de sede. Quien trabaja en otra área se ve en ámbar, con su área al lado, y no suma." },
+                  { titulo: "Las tres vistas", texto: "Día muestra la barra de cada persona; Semana, la silueta de cobertura de cada día; Integrada, la semana hora por hora." },
+                ]}
+              />
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <div className="flex rounded-lg border border-sand p-0.5 text-sm">

@@ -35,6 +35,7 @@ import { esRolEncargada, etiquetaDeSede, hoyLima, puedeVerTodasLasSedes } from "
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { Cargando, EsqueletoSecciones } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
+import { AyudaPantalla } from "@/components/ui/ayuda-pantalla";
 import { BannerAviso } from "@/components/ui/banner-aviso";
 import { ParaAtender } from "@/components/ui/para-atender";
 import { EstadoVacio } from "@/components/ui/estado-vacio";
@@ -148,7 +149,6 @@ function IncidenciasContenido() {
   const [estadoFiltro, setEstadoFiltro] = useState<FiltroEstado>("por_revisar");
   const [categoria, setCategoria] = useState<Categoria | "">("");
   const [plegadas, setPlegadas] = useState<Set<string>>(new Set());
-  const [mostrarReglas, setMostrarReglas] = useState(false);
   // «Para atender»: qué lista está abierta. `undefined` = nadie eligió: se abre la primera con algo.
   const [atencionElegida, setAtencionElegida] = useState<string | undefined>(undefined);
   const [masFiltros, setMasFiltros] = useState(false);
@@ -506,31 +506,24 @@ function IncidenciasContenido() {
       <main className="flex flex-1 flex-col gap-6 p-6">
         <CabeceraPagina
           titulo="Incidencias"
-          descripcion={<>{fechaCorta(desde)} – {fechaCorta(hasta)} · Dynamic detecta y avisa; la decisión es tuya.</>}
-          accion={
-            <Boton variante="enlace" className="text-sm text-taupe" aria-expanded={mostrarReglas} onClick={() => setMostrarReglas((x) => !x)}>
-              ⓘ Cómo se detectan
-            </Boton>
+          descripcion={<>{fechaCorta(desde)} – {fechaCorta(hasta)} · Revisa lo que el sistema detectó. Detecta y avisa; la decisión es tuya.</>}
+          ayuda={
+            <AyudaPantalla
+              titulo="Cómo se detectan las incidencias"
+              intro="Dynamic mira las marcas y los horarios y avisa lo que no cuadra. Avisar no es sancionar: cada caso lo decide una persona."
+              secciones={REGLAS_EN_ORDEN.map((r) => ({
+                titulo: r.titulo,
+                texto: r.tipos.map((t) => <span key={t} className="block">{REGLA[t]}</span>),
+              }))}
+            >
+              <p className="border-t border-sand pt-3 text-xs text-taupe">
+                <strong className="font-medium text-tinta">Sobre el periodo:</strong> Desde y Hasta filtran las faltas y los
+                cierres del día. Patrones, excesos de jornada, días sin descanso y déficit de líderes se miden sobre
+                ventanas fijas desde hoy, porque describen la situación actual de la persona, no un rango histórico.
+              </p>
+            </AyudaPantalla>
           }
         />
-
-        {mostrarReglas && (
-          <TarjetaInfo como="section" className="-mt-4">
-            <dl className="grid gap-x-8 gap-y-4 text-sm md:grid-cols-2">
-              {REGLAS_EN_ORDEN.map((r) => (
-                <div key={r.titulo} className="flex flex-col gap-1">
-                  <dt className="font-medium text-tinta">{r.titulo}</dt>
-                  {r.tipos.map((t) => <dd key={t} className="leading-relaxed text-taupe">{REGLA[t]}</dd>)}
-                </div>
-              ))}
-            </dl>
-            <p className="mt-4 border-t border-sand pt-3 text-xs text-taupe">
-              <strong className="font-medium text-tinta">Sobre el periodo:</strong> Desde y Hasta filtran las faltas y los
-              cierres del día. Patrones, excesos de jornada, días sin descanso y déficit de líderes se miden sobre
-              ventanas fijas desde hoy, porque describen la situación actual de la persona, no un rango histórico.
-            </p>
-          </TarjetaInfo>
-        )}
 
         {(revisiones.length > 0 || practicantesSobreTope.length > 0) && (
           <ParaAtender

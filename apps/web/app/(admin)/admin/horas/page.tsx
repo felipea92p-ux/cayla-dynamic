@@ -67,6 +67,7 @@ import { Campo, CampoSelect, CampoCasilla } from "@/components/ui/campo";
 import { Boton } from "@/components/ui/boton";
 import { Tabla, TablaEncabezado, Th, Fila as FilaTabla } from "@/components/ui/tabla";
 import { BannerAviso } from "@/components/ui/banner-aviso";
+import { AyudaPantalla } from "@/components/ui/ayuda-pantalla";
 import { Cifra } from "@/components/ui/cifra";
 import { Filtro } from "@/components/ui/filtro";
 import { Menu, MenuItem } from "@/components/ui/menu";
@@ -1167,7 +1168,42 @@ function DesempenoContenido() {
   return (
     <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
-        <CabeceraPagina titulo="Desempeño del equipo" descripcion={resumen} />
+        <CabeceraPagina
+          titulo="Desempeño del equipo"
+          descripcion={<>Toca una fila para ver sus días · {resumen}</>}
+          ayuda={
+            <AyudaPantalla titulo="Cómo leer el desempeño" intro="Cada fila es una persona y cada cuadrito, un día: tócalo para ver qué pasó y resolverlo ahí mismo.">
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-taupe">
+              <span className="font-medium text-tinta">Cada cuadrito, un día:</span>
+              <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] bg-verde" /> trabajó</span>
+              <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] bg-ambar/65" /><i className="inline-block size-3 rounded-[3px] bg-ambar" /><i className="inline-block size-3 rounded-[3px] bg-ambar ring-2 ring-inset ring-rojo-profundo" /> tardanza (más marcado, más tarde)</span>
+              <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] bg-rojo" /> falta</span>
+              <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] bg-rojo/75" /> no marcó, con motivo</span>
+              <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] border border-dashed border-taupe bg-papel" /> marcaje por revisar</span>
+              <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] border-2 border-verde bg-papel" /> hoy, en su jornada</span>
+              <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] bg-verde/45 ring-1 ring-inset ring-verde" /> trabajó en su descanso</span>
+              <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] bg-sand" /> descanso</span>
+              <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] bg-taupe/70" /> le tocaba, sin marcaje y sin motivo</span>
+            </div>
+              <p className="mt-4 max-w-3xl text-xs text-taupe">
+              Ordenado por lo que necesita atención: faltas, después la <strong>peor</strong> tardanza del periodo
+              (no cuántas), después los marcajes por revisar. «Días» y «horas» van contra lo que le tocaba según su
+              horario y sus turnos, contando solo los días que ya terminaron —hoy entra al marcar la salida— y{" "}
+              <strong>sin los días con motivo registrado</strong>: quien estuvo de vacaciones no debe las horas de
+              sus vacaciones. Los días en que no tenía horario ni turno cargado no se comparan con nada: se dicen aparte. Las tardanzas con motivo registrado no cuentan, y las
+              faltas las calcula la base: no es falta el día de vacaciones, el de descanso sustitutorio por feriado,
+              el de suspensión ni el que tiene justificación.
+              {hayObjetivos && <> Los objetivos son los de <strong>{mesObjetivos.toLowerCase()}</strong>: son mensuales, no siguen al rango{mesObjetivosEnCurso ? ", y como el mes no terminó ninguno se pinta en rojo" : ""}.</>}
+              {totales.agregadas > 0 && (
+                <> Este rango incluye <strong>{totales.agregadas.toFixed(0)} h de registros históricos de 2025</strong> —
+                el total de un mes guardado en una sola fecha, porque entonces no había marcaje diario. La planilla
+                los usó para CTS y gratificación, pero no son días: quedan fuera de las horas de arriba y de la
+                cuadrícula, que compara contra lo que tocaba día a día.</>
+              )}
+                </p>
+            </AyudaPantalla>
+          }
+        />
 
         {/* ── PARA ATENDER: lo que pide una decisión, en una línea (como Educación). Un cero no se dibuja. ── */}
         <ParaAtender
@@ -1415,38 +1451,6 @@ function DesempenoContenido() {
               </tbody>
             </Tabla>
 
-            {/* La leyenda y la explicación del cálculo se guardan: se leen una vez, no cada vez que se entra. */}
-            <details className="mt-4 text-sm">
-              <summary className="cursor-pointer text-taupe hover:text-tinta">Cómo leer esta tabla</summary>
-            <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-taupe">
-              <span className="font-medium text-tinta">Cada cuadrito, un día:</span>
-              <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] bg-verde" /> trabajó</span>
-              <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] bg-ambar/65" /><i className="inline-block size-3 rounded-[3px] bg-ambar" /><i className="inline-block size-3 rounded-[3px] bg-ambar ring-2 ring-inset ring-rojo-profundo" /> tardanza (más marcado, más tarde)</span>
-              <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] bg-rojo" /> falta</span>
-              <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] bg-rojo/75" /> no marcó, con motivo</span>
-              <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] border border-dashed border-taupe bg-papel" /> marcaje por revisar</span>
-              <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] border-2 border-verde bg-papel" /> hoy, en su jornada</span>
-              <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] bg-verde/45 ring-1 ring-inset ring-verde" /> trabajó en su descanso</span>
-              <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] bg-sand" /> descanso</span>
-              <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] bg-taupe/70" /> le tocaba, sin marcaje y sin motivo</span>
-            </div>
-            <p className="mt-4 max-w-3xl text-xs text-taupe">
-              Ordenado por lo que necesita atención: faltas, después la <strong>peor</strong> tardanza del periodo
-              (no cuántas), después los marcajes por revisar. «Días» y «horas» van contra lo que le tocaba según su
-              horario y sus turnos, contando solo los días que ya terminaron —hoy entra al marcar la salida— y{" "}
-              <strong>sin los días con motivo registrado</strong>: quien estuvo de vacaciones no debe las horas de
-              sus vacaciones. Los días en que no tenía horario ni turno cargado no se comparan con nada: se dicen aparte. Las tardanzas con motivo registrado no cuentan, y las
-              faltas las calcula la base: no es falta el día de vacaciones, el de descanso sustitutorio por feriado,
-              el de suspensión ni el que tiene justificación.
-              {hayObjetivos && <> Los objetivos son los de <strong>{mesObjetivos.toLowerCase()}</strong>: son mensuales, no siguen al rango{mesObjetivosEnCurso ? ", y como el mes no terminó ninguno se pinta en rojo" : ""}.</>}
-              {totales.agregadas > 0 && (
-                <> Este rango incluye <strong>{totales.agregadas.toFixed(0)} h de registros históricos de 2025</strong> —
-                el total de un mes guardado en una sola fecha, porque entonces no había marcaje diario. La planilla
-                los usó para CTS y gratificación, pero no son días: quedan fuera de las horas de arriba y de la
-                cuadrícula, que compara contra lo que tocaba día a día.</>
-              )}
-                </p>
-            </details>
           </>
         )}
 

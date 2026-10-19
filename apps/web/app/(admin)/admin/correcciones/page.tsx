@@ -19,6 +19,7 @@ import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
 import { useToast } from "@/components/toast";
 import { Boton } from "@/components/ui/boton";
+import { AyudaPantalla } from "@/components/ui/ayuda-pantalla";
 import { BannerAviso } from "@/components/ui/banner-aviso";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
 import { Filtro } from "@/components/ui/filtro";
@@ -783,7 +784,20 @@ export default function CorreccionesPage() {
       <div className="px-4 pt-5 md:px-6">
         <CabeceraPagina
           titulo="Corregir marcajes"
-          descripcion="Ajusta la hora de entrada/salida, agrega un marcaje olvidado o elimina un duplicado. Cada cambio pide un motivo y queda registrado (quién, qué y cuándo)."
+          descripcion="Corrige una hora, agrega una marca olvidada o anula un duplicado. Cada cambio pide un motivo."
+          ayuda={
+            <AyudaPantalla
+              titulo="Cómo funciona Corregir marcajes"
+              intro="Aquí se arregla lo que el terminal no pudo resolver solo. Nada se borra: toda corrección queda con quién, qué y cuándo."
+              secciones={[
+                { titulo: "Elegir el día", texto: "Busca a la persona en la lista de la izquierda y abre el día. Si llegaste desde Incidencias o Desempeño, el día ya viene abierto." },
+                { titulo: "Qué puedes hacer", texto: "Cambiar la hora o el tipo de una marca, agregar una marca olvidada, anular una que sobra (se puede deshacer) y confirmar la salida que puso el sistema." },
+                { titulo: "Para atender", texto: "Las pastillas de arriba son lo que pide una decisión: marcas que el terminal apartó sin registrar, días con la secuencia desordenada y salidas puestas por el cierre nocturno que nadie confirmó. Toca una para ver su lista." },
+                { titulo: "Marcas sin registrar", texto: "La persona sí marcó pero la marca no llegó. Mientras no se repone, ese día se paga como si no hubiera venido: es lo primero que conviene mirar." },
+                { titulo: "Periodo pagado", texto: "Un día de un periodo ya pagado no se puede corregir sin reabrirlo primero." },
+              ]}
+            />
+          }
         />
       </div>
 

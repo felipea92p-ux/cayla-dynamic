@@ -30,6 +30,7 @@ import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Cargando } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
+import { AyudaPantalla } from "@/components/ui/ayuda-pantalla";
 import { BannerAviso } from "@/components/ui/banner-aviso";
 import { TarjetaInfo } from "@/components/ui/tarjeta-info";
 import { Insignia } from "@/components/ui/insignia";
@@ -905,14 +906,18 @@ export default function AusenciasPage() {
       <main className="flex-1 p-6">
         <CabeceraPagina
           titulo="Ausencias"
-          descripcion={
-            <>
-              Todos los días que alguien no vino, y por qué — vacaciones incluidas. Un día registrado aquí{" "}
-              <strong className="font-medium">deja de contar como falta injustificada</strong> y no alimenta el
-              expediente disciplinario. En CAYLA solo se paga lo que la ley obliga —descanso médico con
-              documento, maternidad, vacaciones y el duelo de un familiar directo— o lo que la empresa decide
-              conceder aparte (licencia con goce).
-            </>
+          descripcion="Cada día que alguien no vino, y por qué. Un día registrado aquí no cuenta como falta injustificada."
+          ayuda={
+            <AyudaPantalla
+              titulo="Cómo funcionan las ausencias"
+              intro="Aquí se registran los días que alguien no vino, vacaciones incluidas. Nada se borra: una ausencia se anula con motivo y queda en el historial."
+              secciones={[
+                { titulo: "Qué cambia", texto: <>Un día registrado aquí <strong className="font-medium text-tinta">deja de contar como falta injustificada</strong> y no alimenta el expediente disciplinario.</> },
+                { titulo: "Qué se paga", texto: "En CAYLA solo se paga lo que la ley obliga —descanso médico con documento, maternidad, vacaciones y el duelo de un familiar directo— o lo que la empresa decide conceder aparte (licencia con goce)." },
+                { titulo: "Impacto", texto: "La tarjeta «Impacto por colaborador» avisa vacaciones por vencer, el cupo de EsSalud y patrones de ausencias. El patrón es para conversar, nunca para sancionar solo con ese dato." },
+                { titulo: "Periodo pagado", texto: "No se puede registrar ni anular nada dentro de un periodo de planilla ya pagado: hay que reabrirlo primero." },
+              ]}
+            />
           }
           accion={<Boton variante="primario" onClick={abrirRegistro}>+ Registrar ausencia</Boton>}
         />

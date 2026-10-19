@@ -9,6 +9,7 @@ import { Cargando } from "@/components/cargando";
 import { useToast } from "@/components/toast";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { Boton } from "@/components/ui/boton";
+import { AyudaPantalla } from "@/components/ui/ayuda-pantalla";
 import { BannerAviso } from "@/components/ui/banner-aviso";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
 import { Cifra } from "@/components/ui/cifra";
@@ -828,21 +829,18 @@ export default function HorariosPage() {
       <main className="flex-1 p-6">
         <CabeceraPagina
           titulo="Horarios base"
-          descripcion={
-            <span className="flex items-start gap-1.5">
-              <span>
-                Define la jornada semanal y descansos de cada colaborador. Los cambios conservan el historial y pueden
-                aplicarse desde una fecha determinada.
-              </span>
-              <button
-                type="button"
-                title="El horario de cada persona puede tener una hora distinta por día (martes 8:00, miércoles 14:00…), con su refrigerio, y se repite cada semana. La hora de entrada define la tardanza."
-                aria-label="Más información sobre cómo funciona el horario"
-                className="mt-0.5 shrink-0 text-taupe hover:text-tinta"
-              >
-                ⓘ
-              </button>
-            </span>
+          descripcion="Jornada semanal y descansos de cada colaborador. Un cambio conserva el historial."
+          ayuda={
+            <AyudaPantalla
+              titulo="Cómo funcionan los horarios base"
+              intro="El horario base es lo que le toca a cada persona una semana normal. Un turno puntual de la pantalla Turnos manda sobre él, solo ese día."
+              secciones={[
+                { titulo: "Cada día", texto: "Puede tener una hora distinta (martes 8:00, miércoles 14:00…), con su refrigerio, y se repite cada semana." },
+                { titulo: "Tardanza", texto: "La hora de entrada define la tardanza: sin horario no hay contra qué medir y ese día no cuenta tardanza ni falta." },
+                { titulo: "Cambiar", texto: "Un cambio puede aplicarse desde una fecha determinada y conserva el historial. «Corregir días ya trabajados» reabre lo que se midió con el horario anterior." },
+                { titulo: "Sin horario", texto: "Quien lo necesita sale arriba en rojo. No lo requieren quienes cobran por recibo o son personal de dirección." },
+              ]}
+            />
           }
         />
 
