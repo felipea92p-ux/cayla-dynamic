@@ -11,6 +11,7 @@ import { ReportesMios } from "./reportes/reportes-mios";
 import { CambiosMios } from "./cambios-mios";
 import { DisciplinaMia, PASOS_GUIA_DISCIPLINA } from "./disciplina-mia";
 import { PASOS_GUIA_AUSENCIAS, PASOS_GUIA_DIAS, PASOS_GUIA_TURNOS } from "./guias-de-asistencia";
+import { PASOS_GUIA_BOLETAS, PASOS_GUIA_EDUCACION, PASOS_GUIA_MOVILIDAD } from "./guias-de-pago";
 import { SaludoCumpleanos } from "./saludo-cumpleanos";
 import { cuantosPiden, porLeer, type CuentaMia, type DocMio } from "@/lib/mio-disciplina";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
@@ -301,6 +302,9 @@ const PASOS_TOUR_RESUMEN: readonly PasoRecorrido[] = [
 const SIN_GUIA: readonly PasoRecorrido[] = [];
 const GUIAS_POR_SECCION: Partial<Record<Tab, readonly PasoRecorrido[]>> = {
   resumen: PASOS_TOUR_RESUMEN,
+  boletas: PASOS_GUIA_BOLETAS,
+  movilidad: PASOS_GUIA_MOVILIDAD,
+  educacion: PASOS_GUIA_EDUCACION,
   dias: PASOS_GUIA_DIAS,
   turnos: PASOS_GUIA_TURNOS,
   ausencias: PASOS_GUIA_AUSENCIAS,
@@ -2861,7 +2865,7 @@ export default function MioPage() {
           El formulario en sí vive en /mio/movilidad, mismo criterio que el
           contrato de arriba. */}
       {tab === "movilidad" && (
-        <section className="rounded-2xl border border-sand p-5 text-sm">
+        <section data-tour="mio-movilidad-seccion" className="rounded-2xl border border-sand p-5 text-sm">
           <h2 className="mb-1 font-serif text-lg">Tu declaración de ruta</h2>
           {!miMovilidadCargada ? (
             <p className="text-taupe">Cargando…</p>
@@ -2886,7 +2890,7 @@ export default function MioPage() {
                       : "Todavía te falta firmarla."}
               </p>
               <Link
-                href="/mio/movilidad"
+                href="/mio/movilidad" data-tour="mio-movilidad-ir"
                 className="mt-3 inline-block text-tinta underline underline-offset-2 hover:text-rojo-profundo"
               >
                 Ir a mi declaración de ruta →
