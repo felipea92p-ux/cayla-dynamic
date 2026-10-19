@@ -21,6 +21,8 @@ import { Tabla, TablaEncabezado, Th, Fila as FilaTabla } from "@/components/ui/t
 import { fechaCorta, feriadoNoCorresponde, fmtHoras } from "@/lib/admin/planilla/formato";
 import { claveFila, sumarFilas, textoCese, type Cese, type Hallazgo } from "@/lib/admin/planilla/revision";
 import type { Fila } from "@/lib/admin/planilla/tipos";
+import { EtiquetaPrueba } from "@/components/pruebas/etiqueta-prueba";
+import type { FilaPrueba } from "@/lib/admin/pruebas";
 
 // Contadas: Persona · Sede · Rango y salario · Horas · Pago base · Feriados ·
 // Asig. familiar · Movilidad · Educación · Básica legal · Bonos · Descuentos ·
@@ -68,6 +70,7 @@ export function TablaPlanilla({
   simulacion = false,
   hallazgos,
   ceses,
+  pruebas,
   onAbrir,
 }: {
   /** Las filas que se ven (ya filtradas). */
@@ -80,6 +83,8 @@ export function TablaPlanilla({
   simulacion?: boolean;
   hallazgos?: Map<string, Hallazgo[]>;
   ceses?: Map<string, Cese>;
+  /** Quién está de prueba y en qué día va (0536): la etiqueta «Prueba · 2 de 3» junto al nombre. */
+  pruebas?: Map<string, FilaPrueba>;
   onAbrir?: (f: Fila, disparador: HTMLElement) => void;
 }) {
   const t = useMemo(() => sumarFilas(filas), [filas]);
@@ -153,6 +158,7 @@ export function TablaPlanilla({
                     ) : (
                       <span className="font-medium">{f.nombre}</span>
                     )}
+                    <EtiquetaPrueba fila={pruebas?.get(f.persona_id)} className="ml-2" />
                     <InsigniasPersona hallazgos={hs} cese={cese} />
                   </td>
                   <td className="px-4 py-2" onClick={onAbrir ? abrir(f) : undefined}>{f.sede}</td>
@@ -295,7 +301,7 @@ export function TablaPlanilla({
                 <>
                   <span className="flex items-start justify-between gap-3">
                     <span className="min-w-0">
-                      <span className="block font-medium text-tinta">{f.nombre}</span>
+                      <span className="block font-medium text-tinta">{f.nombre}<EtiquetaPrueba fila={pruebas?.get(f.persona_id)} className="ml-2" /></span>
                       <span className="block text-xs text-taupe">
                         {f.sede} · {fmtHoras(f.horas_mes)}
                         {f.dias_pendientes > 0 && ` · ${f.dias_pendientes} pend.`}

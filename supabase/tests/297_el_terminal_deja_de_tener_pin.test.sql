@@ -43,14 +43,17 @@ select is_empty(
   'SIN EL HASH · terminal_roster ya no expone pin_hash');
 
 -- SEIS desde la 0381, que agregó `foto_url` para que la grilla del terminal
--- pinte la foto junto al nombre. Lo que esta aserción defiende es lo mismo: que
--- el `drop`+`create` de esta migración no devolviera `pin_hash` ni colara nada
--- de más — el conteo es la forma de verlo sin nombrar columna por columna.
+-- pinte la foto junto al nombre; OCHO desde la 0539, que agregó `prueba_dias` y
+-- `prueba_plazo` para la etiqueta «Prueba · 2 de 3». Lo que esta aserción defiende
+-- es lo mismo: que el `drop`+`create` de esta migración no devolviera `pin_hash` ni
+-- colara nada de más — el conteo es la forma de verlo sin nombrar columna por
+-- columna, y SUBE A PROPÓSITO: cada columna nueva obliga a que alguien la mire aquí
+-- (las dos de la 0539 son números sueltos, sin DNI ni sueldo; la 432 lo comprueba).
 select is(
   (select count(*)::int from information_schema.columns
     where table_name = 'terminal_roster'),
-  6,
-  'SEIS COLUMNAS · id, nombres, apellidos, foto_url y las dos de la sede');
+  8,
+  'OCHO COLUMNAS · id, nombres, apellidos, foto_url, las dos de la sede y las dos de la prueba');
 
 -- ── 5-7 · Lo que el drop+create pudo llevarse ───────────────────────────────
 -- Estas tres son el motivo por el que esta prueba existe. Ninguna falla al

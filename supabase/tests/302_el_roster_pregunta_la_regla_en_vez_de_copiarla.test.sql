@@ -126,8 +126,8 @@ select is(
   (select string_agg(attname, ',' order by attnum) from pg_attribute
     where attrelid = 'public.terminal_roster'::regclass
       and attnum > 0 and not attisdropped),
-  'id,nombres,apellidos,foto_url,sede_codigo,sede_nombre',
-  'COLUMNAS · las seis de la 0381, con foto_url conservada por la 0382');
+  'id,nombres,apellidos,foto_url,sede_codigo,sede_nombre,prueba_dias,prueba_plazo',
+  'COLUMNAS · las seis de la 0381 —con foto_url conservada por la 0382— y, al final, las dos de la prueba (0539)');
 
 -- La 0375 existe para que el hash NO viaje al navegador. Que la 0382 reescriba
 -- la vista es exactamente la ocasión de devolverlo sin querer.

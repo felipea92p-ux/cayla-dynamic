@@ -1,11 +1,12 @@
 import type { ClienteCayla } from "@cayla-dynamic/database";
 import {
-  esRolEncargada, fechaLima, hoyLima, NIVEL_DISCIPLINARIO_LABELS, puedeGestionarCatalogos, puedeGestionarContratos,
+  esRolEncargada, fechaLima, hoyLima, NIVEL_DISCIPLINARIO_LABELS, puedeDecidirPrueba, puedeGestionarCatalogos, puedeGestionarContratos,
   puedeGestionarSeguros, puedeOperarEquipo, puedeVerCasos, puedeVerPlanilla, puedeVerSaludDeAlertas, recibeAvisoDeConductaRegistrada,
   recibeAvisoDeLecturaPendiente,
   esTipoDocumento, TIPO_DOCUMENTO_LABEL,
 } from "@cayla-dynamic/shared";
 import { etiquetaDeVia } from "../reportes";
+import { nombreDe, resumenDeCierre, textoDelDia, type CierrePrueba, type FilaPrueba } from "./pruebas";
 import { diaYMes } from "../bandeja-mia";
 import { formatSoles } from "../rangos";
 import { pendientesDeSeguros, seguroPorPersona, type CambioSeguro, type FilaEquipoSeguro, type Poliza } from "./seguros";
@@ -15,7 +16,7 @@ import {
 import {
   compararPendientes, conCese, documentoEducacion, ESTADOS_CONTRATO_PENDIENTE, esFeriadoParaBandeja, sumarDias,
   urgenciaBono, urgenciaCaso, urgenciaContrato, urgenciaDescargo, urgenciaDiaPorRevisar, urgenciaEducacion, urgenciaEspera,
-  urgenciaFeriado, urgenciaInicio, urgenciaLiquidacionVencida, urgenciaRecordVacaciones, urgenciaSeguroCambio,
+  urgenciaCierrePrueba, urgenciaFeriado, urgenciaInicio, urgenciaLiquidacionVencida, urgenciaPrueba, urgenciaRecordVacaciones, urgenciaSeguroCambio,
   urgenciaSeguroPapeleo, urgenciaSeguroPorVencer, urgenciaSeguroSinPoliza, urgenciaSinHorario,
   type FilaContrato, type FilaFeriado, type PeriodoDePago, type Urgencia,
 } from "./bandeja-urgencia";
@@ -49,7 +50,7 @@ import {
 /** De qué módulo viene cada pendiente. */
 export type ModuloBandeja =
   | "contratos" | "correcciones" | "disciplina" | "documentacion" | "feriados"
-  | "educacion" | "ausencias" | "horarios" | "datos_personales" | "liquidaciones" | "casos" | "seguros";
+  | "educacion" | "ausencias" | "horarios" | "datos_personales" | "liquidaciones" | "casos" | "seguros" | "pruebas";
 
 /**
  * Los módulos que la Bandeja revisa, en el orden de sus tarjetas, y quién puede
@@ -57,6 +58,9 @@ export type ModuloBandeja =
  */
 export const MODULOS_BANDEJA: readonly { clave: ModuloBandeja; etiqueta: string; puedeVer: (rol: string | null | undefined) => boolean }[] = [
   { clave: "contratos", etiqueta: "Contratos", puedeVer: puedeGestionarContratos },
+  // La prueba de tres días (0536): DO, administración y la líder de equipo, que no abre
+  // Contratos. Cada una ve lo de su alcance (la base lo decide con `fn_prueba_puede_actuar`).
+  { clave: "pruebas", etiqueta: "Pruebas", puedeVer: puedeDecidirPrueba },
   { clave: "correcciones", etiqueta: "Correcciones", puedeVer: puedeOperarEquipo },
   { clave: "disciplina", etiqueta: "Disciplina", puedeVer: puedeOperarEquipo },
   { clave: "documentacion", etiqueta: "Documentación", puedeVer: puedeGestionarCatalogos },
@@ -357,6 +361,10 @@ export interface FuentesBandeja {
   casosTraspasados: ItemCasoTraspasado[];
   lecturasPendientes: ItemLecturaPendiente[];
   casos: ItemCaso[];
+  /** Las pruebas de tres días abiertas (`fn_pruebas_abiertas`, 0536). */
+  pruebas: FilaPrueba[];
+  /** Las que se cerraron hace poco, para que DO se entere (`fn_pruebas_cierres_recientes`, 0538). */
+  cierresPruebas: CierrePrueba[];
   /** Lo que contestan las tres consultas de seguros (0528), TAL CUAL: quién tiene hueco y qué piden se decide en `lib/admin/seguros.ts`. */
   seguros: FuentesSeguros;
   resumenAlertas: ResumenAlertas | null;
@@ -373,7 +381,7 @@ export const FUENTES_VACIAS: FuentesBandeja = {
   liquidacionesVencidas: [], revisiones: [], revisionesMovilidad: [], revisionesContrato: [],
   solicitudesVacaciones: [], solicitudesPerfil: [], contratos: [], diasPorRevisar: [], marcasApartadas: [],
   periodo: null, documentos: [], bonosPorTransferir: [], feriados: [], disciplina: [], conductaRegistrada: [], casosTraspasados: [], lecturasPendientes: [],
-  casos: [], seguros: { equipo: [], polizas: [], cambios: [] }, resumenAlertas: null, fallidas: [],
+  casos: [], seguros: { equipo: [], polizas: [], cambios: [] }, pruebas: [], cierresPruebas: [], resumenAlertas: null, fallidas: [],
 };
 
 /** Cuántos avisos por correo necesitan a una persona. Lo que se reintenta solo no cuenta. */
@@ -430,6 +438,16 @@ export async function traerFuentesBandeja(
     pedir<FilaEducacionBandeja>(supabase.rpc("fn_educacion_situacion"), "educacion", "educación", (xs) => { f.educacion = xs.filter(esEducacionParaSaber); });
     pedir<ItemSolicitudVacacion>(supabase.rpc("fn_solicitudes_vacaciones", { p_solo_pendientes: true }), "ausencias", "solicitudes de vacaciones", (xs) => { f.solicitudesVacaciones = xs; });
     pedir<ItemLiquidacion>(supabase.rpc("fn_liquidaciones_vencidas_bandeja"), "liquidaciones", "liquidaciones vencidas", (xs) => { f.liquidacionesVencidas = xs.filter(esLiquidacionParaBandeja); });
+  }
+
+  if (puedeDecidirPrueba(rol)) {
+    pedir<FilaPrueba>(supabase.rpc("fn_pruebas_abiertas"), "pruebas", "las pruebas de tres días", (xs) => { f.pruebas = xs; });
+  }
+  // Los cierres recientes son para ENTERARSE: DO ve cada «no apto» y cada «se retiró» que
+  // una líder decidió sola (decidido con Felipe el 2026-10-19). La líder no se avisa a sí
+  // misma. Se usa el mismo permiso que ve plata porque «se retiró» deja horas sin pagar.
+  if (puedeVerPlanilla(rol)) {
+    pedir<CierrePrueba>(supabase.rpc("fn_pruebas_cierres_recientes", { p_horas: 48 }), "pruebas", "los cierres de pruebas", (xs) => { f.cierresPruebas = xs; });
   }
 
   if (puedeVerCasos(rol)) {
@@ -709,7 +727,8 @@ export type TipoPendiente =
   | TipoItemVisto | "educacion" | "vacaciones_por_vencer" | "sin_horario" | "liquidacion_vencida"
   | "contrato" | "dia_por_revisar" | "marca_apartada" | "documento_ruta" | "documento_bono" | "bono_por_transferir"
   | "feriado" | "disciplina" | "caso" | "conducta_registrada" | "caso_traspasado" | "lectura_pendiente"
-  | "seguro_sin_poliza" | "seguro_por_vencer" | "seguro_papeleo" | "seguro_baja" | "seguro_cambio_baja" | "seguro_cambio_alta";
+  | "seguro_sin_poliza" | "seguro_por_vencer" | "seguro_papeleo" | "seguro_baja" | "seguro_cambio_baja" | "seguro_cambio_alta"
+  | "prueba" | "prueba_cierre";
 
 /**
  * Un pendiente, sea del tipo que sea. Quién, qué, dónde, de qué módulo, cuándo
@@ -979,8 +998,33 @@ export function armarPendientes(
       ir: { texto: "Revisar", href: `/admin/liquidaciones?persona=${l.persona_id}` }, contexto: null,
     });
   }
+  // Quien está de prueba no «le falta un contrato»: la prueba EXISTE para no hacérselo
+  // todavía. Esa fila la cuenta la prueba (que además trae el botón de hacerlo cuando
+  // completa el plazo), así que el «sin contrato» de Contratos se calla para ella —y solo
+  // ese estado: un borrador sin firmar o un vencido siguen siendo pendientes de verdad.
+  const enPrueba = new Set(f.pruebas.map((x) => x.persona_id));
+  for (const p of f.pruebas) {
+    const sinDni = p.dni_cargado ? "" : " · falta el DNI";
+    agregar({
+      clave: `prueba:${p.persona_id}`, tipo: "prueba", itemId: p.persona_id, personaId: p.persona_id,
+      persona: nombreDe(p), sede: p.sede_codigo ?? "—", modulo: "pruebas",
+      titulo: "Prueba de tres días",
+      detalle: `${textoDelDia(p)}${sinDni}`,
+      urgencia: urgenciaPrueba(p), resolucion: "aqui", ir: null, contexto: null,
+    });
+  }
+  for (const c of f.cierresPruebas) {
+    agregar({
+      clave: `prueba_cierre:${c.prueba_id}`, tipo: "prueba_cierre", itemId: c.prueba_id, personaId: c.persona_id,
+      persona: nombreDe(c), sede: c.sede_codigo ?? "—", modulo: "pruebas",
+      titulo: c.resultado === "retirado" ? "Se retiró en su prueba" : "No fue apto en su prueba",
+      detalle: resumenDeCierre(c),
+      urgencia: urgenciaCierrePrueba(c), resolucion: "aqui", ir: null, contexto: null,
+    });
+  }
   for (const c of f.contratos) {
     const t = textoContrato(c);
+    if (c.estado === "sin_contrato" && enPrueba.has(c.persona_id)) continue;
     agregar({
       clave: `contrato:${c.persona_id}`, tipo: "contrato", itemId: c.persona_id, personaId: c.persona_id,
       persona: c.persona, sede: c.sede ?? "—", modulo: "contratos",

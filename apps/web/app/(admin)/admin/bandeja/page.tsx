@@ -37,8 +37,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import {
-  CalendarCheck, Clock, FileSignature, Gavel, GraduationCap, HandCoins, IdCard, Inbox, MessagesSquare, PencilLine, ScrollText, Search, ShieldCheck,
-  TreePalm, type LucideIcon,
+  CalendarCheck, Clock, FileSignature, Gavel, GraduationCap, HandCoins, Hourglass, IdCard, Inbox, MessagesSquare, PencilLine, ScrollText, Search,
+  ShieldCheck, TreePalm, type LucideIcon,
 } from "lucide-react";
 import { Cargando } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
@@ -59,6 +59,8 @@ import {
   resumenValorPerfil, traerFuentesBandeja, type FuentesBandeja, type ModuloBandeja, type Pendiente, type TipoItemVisto,
 } from "@/lib/admin/bandeja-fuentes";
 import { hoyLima, puedeOperarEquipo, puedeVerIdentidad, puedeVerPlanilla, puedeVerTodasLasSedes } from "@cayla-dynamic/shared";
+import { PanelPrueba } from "@/components/pruebas/panel-prueba";
+import { textoDeHoras } from "@/lib/admin/pruebas";
 import { resumenNormasPendientes, type ResumenNormas } from "@/lib/admin/bandeja-equipo";
 
 const CLAVE_SEDE_FILTRO = "bandeja_sede_filtro";
@@ -79,6 +81,7 @@ const ICONO_MODULO: Record<ModuloBandeja, LucideIcon> = {
   liquidaciones: HandCoins,
   seguros: ShieldCheck,
   casos: MessagesSquare,
+  pruebas: Hourglass,
 };
 
 // Columnas de la fila en ancho completo. Literal, no armado: Tailwind solo ve
@@ -421,6 +424,38 @@ export default function BandejaPage() {
       <Link href={p.contexto.href} className="text-sm text-rojo hover:underline">{p.contexto.texto} →</Link>
     );
 
+    // La prueba de tres días (0536): el MISMO panel que usa Contratos, para que la líder de
+    // equipo —que no abre Contratos— pueda decidir sobre su gente desde aquí.
+    if (p.tipo === "prueba") {
+      const prueba = fuentes.pruebas.find((x) => x.persona_id === p.itemId);
+      if (!prueba) return null;
+      return (
+        <PanelPrueba
+          fila={prueba} supabase={createAdminSupabaseClient()} rol={rol}
+          alCambiar={() => { setAbierta(null); void cargar(); }}
+        />
+      );
+    }
+    if (p.tipo === "prueba_cierre") {
+      const cierre = fuentes.cierresPruebas.find((x) => x.prueba_id === p.itemId);
+      if (!cierre) return null;
+      return (
+        <div className="flex flex-col gap-1 text-sm">
+          <p>
+            «{cierre.motivo}» · {cierre.decidida_por ? `decidió ${cierre.decidida_por}` : "decidió una persona que ya no figura"}
+            {" "}el {diaLima(cierre.cerrada_at)}
+          </p>
+          <p className="text-taupe">
+            Último día trabajado: {diaYMes(cierre.cerrada_fecha)} · {cierre.dias_trabajados} {cierre.dias_trabajados === 1 ? "día" : "días"} ·
+            {" "}{textoDeHoras(cierre.horas_marcadas)} marcadas{cierre.resultado === "retirado" ? ", que no se pagan" : ", que se pagan"}.
+          </p>
+          <p className="text-xs text-taupe">
+            Si fue un error, se corrige reactivando a la persona desde Equipo: queda rastro de quién y cuándo.
+          </p>
+        </div>
+      );
+    }
+
     if (p.tipo === "revision" || p.tipo === "revision_movilidad" || p.tipo === "revision_contrato") {
       return (
         <div className="flex flex-col gap-2">
@@ -518,6 +553,8 @@ export default function BandejaPage() {
     const verbo = soloVer ? "Ver"
       : p.tipo === "solicitud_vacacion" || p.tipo === "solicitud_perfil" ? "Resolver"
       : p.tipo === "bono_por_transferir" ? "Confirmar"
+      : p.tipo === "prueba" ? "Decidir"
+      : p.tipo === "prueba_cierre" ? "Ver"
       : "Atender";
     return (
       <li

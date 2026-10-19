@@ -13,7 +13,7 @@ import {
   puedeVerSaludDeAlertas, puedeExportarAsistencia, puedeAnularDocumentoDisciplinario,
   puedeTramitarDisciplina, recibeAvisoDeConductaRegistrada, recibeAvisoDeLecturaPendiente,
   puedeVerNovedad, puedeGestionarBoletas, puedeMarcarCuentaDeServicio, puedeGestionarArchivo, puedeGestionarSeguros,
-  puedeExportarListaDeAsegurados, puedeEstamparFirmaDeEmpresa,
+  puedeExportarListaDeAsegurados, puedeEstamparFirmaDeEmpresa, puedeDecidirPrueba,
   ROLES, ROLES_CON_PANEL, ROLES_DO, ROLES_EXPORTAN_ASISTENCIA, ROLES_GESTIONAN_BOLETAS,
 } from "@cayla-dynamic/shared";
 
@@ -323,5 +323,28 @@ describe("la lista de asegurados la descargan DO y la dirección (0528)", () => 
     expect(puedeExportarListaDeAsegurados("lider_do")).toBe(true);
     expect(puedeExportarPadron("lider_do")).toBe(false);
     expect(puedeExportarPadron("admin")).toBe(true);
+  });
+});
+
+// Decide DO, administración o la líder de equipo — sola. El alcance por sede lo
+// aplica la base; aquí solo se decide si se DIBUJAN los botones.
+describe("cerrar la prueba de tres días (0536)", () => {
+  it("la dirección, quien lleva DO y la líder de equipo pueden", () => {
+    expect(puedeDecidirPrueba("admin")).toBe(true);
+    expect(puedeDecidirPrueba("lider_do")).toBe(true);
+    expect(puedeDecidirPrueba("supervisor_sede")).toBe(true);
+  });
+
+  it("una integrante no, ni un rol vacío, nulo o desconocido — null nunca pasa", () => {
+    expect(puedeDecidirPrueba("integrante")).toBe(false);
+    for (const raro of [null, undefined, "", "contador"]) {
+      expect(puedeDecidirPrueba(raro)).toBe(false);
+    }
+  });
+
+  it("hoy coincide con quien opera el equipo, pero es otra pregunta: decidir deja a alguien sin pago", () => {
+    for (const rol of [...ROLES, null, undefined, "", "contador"]) {
+      expect(puedeDecidirPrueba(rol)).toBe(puedeOperarEquipo(rol));
+    }
   });
 });
