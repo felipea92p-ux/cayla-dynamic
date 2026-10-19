@@ -16,7 +16,7 @@ import { isoADiaMesAnio } from "@/lib/admin/planilla/formato";
 import {
   datosConfirmados, enlaceTelefono, guiasQueAplican, nombreDeDescarga, resolverMiSeguro, resumenSoloRepite, rotuloDeArchivo,
   SI_NO_CUADRA, textoDelResumen, traerMiSeguro, type ArchivoMio, type GuiaQueAplica, type MiSeguro as MiSeguroCalculado,
-  type PolizaMia, type SeguroPrincipal, type TextoResumen,
+  type PolizaMia, type SeguroPrincipal, type TelefonoDeUso, type TextoResumen,
 } from "@/lib/mi-seguro";
 import { descargarArchivoDeSeguro } from "@/lib/mi-seguro-archivos";
 import { formatSoles } from "@/lib/rangos";
@@ -123,7 +123,7 @@ function CarnePoliza({
   p, hasta, resumen, repite, telefonos, aseguradora, ocupada, onAbrir, onDescargar, onCopiar,
 }: {
   p: PolizaMia; hasta: string; resumen: TextoResumen; repite: boolean;
-  telefonos: readonly string[]; aseguradora: string; ocupada: string | null;
+  telefonos: readonly TelefonoDeUso[]; aseguradora: string; ocupada: string | null;
   onAbrir: (a: ArchivoMio) => void;
   onDescargar: (p: PolizaMia, a: ArchivoMio) => void;
   onCopiar: (numero: string) => void;
@@ -168,12 +168,16 @@ function CarnePoliza({
       {telefonos.length > 0 && (
         <div className="mt-2">
           <Rotulo>Llamar a {aseguradora}</Rotulo>
-          {/* Cada número es un blanco para el dedo: sin altura propia quedaba en ~20 px, bajo los 44 del resto. */}
-          <p className="flex flex-wrap gap-x-5">
+          {/* Cada número es un blanco para el dedo: sin altura propia quedaba en ~20 px, bajo los 44 del resto.
+              La póliza distingue los dos teléfonos, y ahí está lo que sirve cada uno. */}
+          <ul>
             {telefonos.map((t) => (
-              <a key={t} href={enlaceTelefono(t)} className="inline-flex min-h-11 items-center text-tinta underline underline-offset-2 hover:text-rojo-profundo">{t}</a>
+              <li key={t.numero} className="flex flex-wrap items-center gap-x-3">
+                <a href={enlaceTelefono(t.numero)} className="inline-flex min-h-11 items-center font-medium text-tinta underline underline-offset-2 hover:text-rojo-profundo">{t.numero}</a>
+                <span className="min-w-0 text-xs text-taupe">{t.uso}</span>
+              </li>
             ))}
-          </p>
+          </ul>
         </div>
       )}
 
@@ -275,11 +279,14 @@ function ComoUsarlo({ g, nombrePrincipal, sinTelefonos }: { g: GuiaQueAplica; no
           <li>
             <p className="font-medium text-tinta">Teléfonos de {guia.aseguradora}</p>
             {/* Cada número es un blanco para el dedo: sin altura propia quedaba en ~20 px, bajo los 44 del resto. */}
-            <p className="flex flex-wrap gap-x-4 text-taupe">
+            <ul className="text-taupe">
               {guia.telefonos.map((t) => (
-                <a key={t} href={enlaceTelefono(t)} className="inline-flex min-h-11 items-center text-tinta underline underline-offset-2 hover:text-rojo-profundo">{t}</a>
+                <li key={t.numero} className="flex flex-wrap items-center gap-x-3">
+                  <a href={enlaceTelefono(t.numero)} className="inline-flex min-h-11 items-center font-medium text-tinta underline underline-offset-2 hover:text-rojo-profundo">{t.numero}</a>
+                  <span className="min-w-0 text-xs">{t.uso}</span>
+                </li>
               ))}
-            </p>
+            </ul>
           </li>
         )}
       </ul>

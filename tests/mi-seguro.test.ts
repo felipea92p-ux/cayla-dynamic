@@ -655,14 +655,45 @@ describe("el texto fijo de «cómo usar»", () => {
     expect(guia.aseguradora).toBe("Pacífico");
   });
 
-  it("lleva lo que el resumen de la póliza dice, y lo dice con las cifras del resumen", () => {
-    expect(todoElTexto).toMatch(/DNI/);
+  it("lleva lo que la póliza dice, y lo dice con las cifras de la póliza", () => {
+    expect(todoElTexto).toMatch(/documento de identidad/);
     expect(todoElTexto).toMatch(/carta de garantía/i);
     expect(todoElTexto).toMatch(/3 días útiles/);
     expect(todoElTexto).toMatch(/Pacífico Asiste/);
-    expect(todoElTexto).toMatch(/90 días/);
-    expect(todoElTexto).toMatch(/originales/);
-    expect(guia.telefonos).toEqual(["(01) 415-1515", "(01) 513-5000"]);
+    expect(todoElTexto).toMatch(/90 días calendario/);
+    expect(todoElTexto).toMatch(/original/);
+    expect(guia.telefonos.map((t) => t.numero)).toEqual(["(01) 415-1515", "(01) 513-5000"]);
+  });
+
+  it("lo primero es la emergencia, con el plazo de 24 horas para avisar a Pacífico", () => {
+    // Revisión contra la póliza (2026-10-19): el máximo para dar el aviso y contar con la cobertura son 24 horas.
+    expect(guia.pasos[0].clave).toBe("emergencia");
+    expect(guia.pasos[0].texto).toMatch(/24 horas/);
+  });
+
+  it("no dice que la atención es gratis ni que «basta» con el documento: en la red se paga deducible y coaseguro", () => {
+    expect(todoElTexto).not.toMatch(/basta|gratis|sin costo/i);
+    const credito = guia.pasos.find((p) => p.clave === "credito")!;
+    expect(credito.texto).toMatch(/deducible/);
+    expect(credito.texto).toMatch(/coaseguro/);
+  });
+
+  it("el reembolso es para lo de fuera de la red y no promete devolver todo lo pagado", () => {
+    const r = guia.pasos.find((p) => p.clave === "reembolso")!;
+    expect(r.titulo).toMatch(/fuera de la red/);
+    expect(r.texto).toMatch(/tarifario/);
+    expect(r.texto).toMatch(/menos de lo que pagaste/);
+  });
+
+  it("avisa que el seguro dura lo que el convenio de prácticas", () => {
+    expect(guia.pasos.at(-1)?.clave).toBe("convenio");
+    expect(guia.pasos.at(-1)?.texto).toMatch(/convenio/);
+  });
+
+  it("cada teléfono dice para qué sirve: la póliza distingue la Central de Emergencias del Call Center", () => {
+    for (const t of guia.telefonos) expect(t.uso.trim().length).toBeGreaterThan(5);
+    expect(guia.telefonos[0].uso).toMatch(/Emergencias/);
+    expect(guia.telefonos[1].uso).toMatch(/Call Center/);
   });
 
   it("dice lo que NO cubre: gestación, odontología salvo accidente, salud mental y preexistencias", () => {
@@ -671,13 +702,19 @@ describe("el texto fijo de «cómo usar»", () => {
     expect(x).toMatch(/Odontología, salvo por accidente/);
     expect(x).toMatch(/Salud mental/);
     expect(x).toMatch(/Preexistencias/);
-    expect(guia.noCubre).toHaveLength(4);
+    // Y las dos que la póliza trae y la primera versión omitía.
+    expect(x).toMatch(/congénitas/);
+    expect(x).toMatch(/Cirugía estética/);
+    expect(guia.noCubre).toHaveLength(6);
   });
 
-  it("no promete cifras: ni soles, ni «subvenciones», ni más números que los dos plazos del resumen", () => {
+  it("no promete cifras: ni soles, ni «subvenciones», ni más números que los plazos y horarios de la póliza", () => {
     expect(todoElTexto).not.toMatch(/S\/|soles|subvenci/i);
-    const numeros = (todoElTexto.match(/\d+/g) ?? []).sort();
-    expect(numeros).toEqual(["3", "90"]);
+    // 3 días útiles (carta de garantía), 24 horas (aviso de emergencia y atención en Lima), de 8 a 20 horas
+    // (médico a domicilio en provincias) y 90 días (reembolso). Un monto —el deducible, el coaseguro— no va:
+    // cambia con la red de cada clínica y la póliza no dice en cuál está cada una.
+    const numeros = [...new Set(todoElTexto.match(/\d+/g) ?? [])].sort();
+    expect(numeros).toEqual(["20", "24", "3", "8", "90"]);
   });
 
   it("habla como el resto del sistema: nada de «empleado», «sucursal», «RRHH» ni «cliente»", () => {
@@ -792,7 +829,7 @@ describe("el enlace para llamar", () => {
   });
 
   it("los dos teléfonos del texto producen un enlace de 7 cifras después del código de Lima", () => {
-    for (const t of GUIAS_DE_USO.salud_practicantes.telefonos) expect(enlaceTelefono(t)).toMatch(/^tel:\+511\d{7}$/);
+    for (const t of GUIAS_DE_USO.salud_practicantes.telefonos) expect(enlaceTelefono(t.numero)).toMatch(/^tel:\+511\d{7}$/);
   });
 });
 

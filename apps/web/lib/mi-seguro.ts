@@ -469,49 +469,107 @@ export interface PasoDeUso {
   texto: string;
 }
 
+/** Un teléfono de la aseguradora con lo que sirve para cada cosa: la póliza distingue los dos. */
+export interface TelefonoDeUso {
+  numero: string;
+  uso: string;
+}
+
 export interface GuiaDeUso {
   /** De quién son los teléfonos: «Pacífico». */
   aseguradora: string;
+  /** En el orden en que se necesitan: primero lo urgente. */
   pasos: readonly PasoDeUso[];
-  /** Los teléfonos tal cual. No se les asigna un uso (cuál es cuál) porque la nota de donde salen no lo distingue. */
-  telefonos: readonly string[];
-  /** Lo que la póliza no cubre. */
+  telefonos: readonly TelefonoDeUso[];
+  /** Algunas cosas que la póliza no cubre (no es la lista completa). */
   noCubre: readonly string[];
 }
 
+/**
+ * Cómo se usa cada seguro con póliza. Hoy solo FOLA.
+ *
+ * REVISADA CONTRA LA PÓLIZA (2026-10-19, «Resumen informativo» y tabla de beneficios del PDF de una
+ * póliza FOLA de Pacífico). Lo que cambió respecto del resumen anterior, y por qué importa:
+ *   · Primero la EMERGENCIA, con el plazo de 24 horas para avisar a Pacífico: la póliza dice que ese
+ *     es el máximo para dar el aviso y contar con la cobertura. La guía anterior solo decía «avísale
+ *     apenas sepas la fecha», que es para una operación programada.
+ *   · «Atención al crédito» ya no dice «basta con mostrar tu DNI»: en la red se paga un deducible fijo
+ *     y un coaseguro que dependen de la red de la clínica. NO se escriben montos: no sabemos en qué red
+ *     está cada clínica, y una cifra equivocada es peor que mandar a la tabla de beneficios.
+ *   · El reembolso es para la atención FUERA de la red, se liquida por el tarifario de Pacífico (puede
+ *     devolver menos de lo pagado) y no todo va en original (los resultados, en copia).
+ *   · El seguro dura lo que el convenio de prácticas: la póliza cubre «en su calidad de practicante».
+ *   · Los dos teléfonos tienen uso propio en la póliza, y ahora se rotulan.
+ * El plan y el beneficio máximo siguen SIN decirse: el campo está vacío en la póliza.
+ * Va por la clave del seguro; el día que haga falta una segunda guía, lo sano es una columna en
+ * `seguros_tipos` (ver docs/estado.md).
+ */
 export const GUIAS_DE_USO: Readonly<Record<string, GuiaDeUso>> = {
   salud_practicantes: {
     aseguradora: "Pacífico",
     pasos: [
       {
+        clave: "emergencia",
+        titulo: "Si es una emergencia",
+        texto:
+          "Llama a la Central de Emergencias y Asistencia de Pacífico (su teléfono está en esta pantalla) o ve a una " +
+          "clínica de la red con tu documento de identidad. Para contar con la cobertura, el aviso a Pacífico tiene que " +
+          "darse dentro de las 24 horas de ocurrida la emergencia. Hasta que te estabilicen no hay deducible ni " +
+          "coaseguro; después se aplican los de siempre.",
+      },
+      {
         clave: "credito",
-        titulo: "Atención al crédito",
-        texto: "En la red de Pacífico, la atención es al crédito: basta con mostrar tu DNI.",
+        titulo: "Atención en la red de Pacífico",
+        texto:
+          "En una clínica de la red, muestra tu documento de identidad y paga solo el deducible y el porcentaje " +
+          "(coaseguro) que te toque según la red a la que pertenezca esa clínica. Los montos están en la tabla de " +
+          "beneficios de tu póliza.",
       },
       {
         clave: "hospitalizacion",
-        titulo: "Si te van a hospitalizar",
+        titulo: "Si te van a hospitalizar o a operar",
         texto:
-          "Hace falta una carta de garantía de Pacífico. El proveedor (la clínica) la solicita con 3 días útiles " +
-          "de anticipación, salvo en una emergencia: avísale apenas sepas la fecha.",
+          "La clínica pide a Pacífico una carta de garantía, con un mínimo de 3 días útiles de anticipación (en una " +
+          "emergencia no hace falta). Pacífico la da solo si esa atención está cubierta, y la clínica te avisa si salió. " +
+          "Avisa a la clínica apenas sepas la fecha.",
       },
       {
         clave: "domicilio",
         titulo: "Médico a domicilio",
-        texto: "Para un médico a domicilio, usa Pacífico Asiste.",
+        texto:
+          "Llama a la Central de Emergencias y Asistencia de Pacífico (Pacífico Asiste). Solo llega a las zonas que " +
+          "Pacífico define, que figuran en tu póliza. En Lima atienden las 24 horas; en provincias, de 8 a 20 horas y " +
+          "solo medicina general. La visita lleva un deducible. En provincias, una emergencia grave a domicilio se paga " +
+          "primero y se pide reembolso.",
       },
       {
         clave: "reembolso",
-        titulo: "Si pagaste tú una atención cubierta",
-        texto: "Puedes pedir el reembolso dentro de 90 días, presentando los documentos originales.",
+        titulo: "Si te atendiste fuera de la red",
+        texto:
+          "Pagas tú y luego pides el reembolso a Pacífico dentro de 90 días calendario desde la atención. Pacífico paga " +
+          "según su tarifario, con deducible y coaseguro: puede devolverte menos de lo que pagaste. Lleva la solicitud " +
+          "firmada por tu médico, y en original las facturas o recibos, la receta y la orden de exámenes; de los " +
+          "resultados, copia.",
+      },
+      {
+        clave: "convenio",
+        titulo: "Cuánto dura tu seguro",
+        texto:
+          "Tu seguro vale mientras formes parte de un convenio de prácticas vigente. Si el convenio termina, el seguro " +
+          "también.",
       },
     ],
-    telefonos: ["(01) 415-1515", "(01) 513-5000"],
+    telefonos: [
+      { numero: "(01) 415-1515", uso: "Emergencias, ambulancia, médico a domicilio y dudas sobre cómo pedir tu atención" },
+      { numero: "(01) 513-5000", uso: "Call Center de Pacífico" },
+    ],
     noCubre: [
-      "Gestación",
-      "Odontología, salvo por accidente",
+      "Gestación, parto y cesárea",
+      "Odontología, salvo por accidente (y sin prótesis)",
       "Salud mental",
-      "Preexistencias: lo que ya tenías antes de entrar a la póliza",
+      "Preexistencias: lo que ya tenías antes de entrar a la póliza, salvo que ya lo cubriera una póliza anterior de otra aseguradora del país",
+      "Enfermedades congénitas",
+      "Cirugía estética, salvo por un accidente cubierto",
     ],
   },
 };
