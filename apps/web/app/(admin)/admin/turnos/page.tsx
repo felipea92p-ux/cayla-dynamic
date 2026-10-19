@@ -1065,11 +1065,14 @@ export default function TurnosPage() {
                 />
 
         {/* LOS CONTROLES, en una sola fila bajo la cabecera: las tres vistas a la izquierda como pestañas (son la
-            misma semana vista de otra manera) y, a la derecha, sede, semana y copiar. */}
+            misma semana vista de otra manera) y, a la derecha, sede, semana y copiar.
+            La raya de la pestaña activa tiene que caer SOBRE la línea de la fila (2026-10-19): flotaba 20 px
+            encima porque el "mb-0" no le ganaba al "mb-5" de <Pestanas> (lo arregla cx), y `self-stretch` la
+            estira a la altura de los controles para que su texto quede centrado con ellos. */}
         <div className="mb-5 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-sand">
           <Pestanas
             etiqueta="Vistas de Turnos"
-            className="mb-0 border-b-0"
+            className="mb-0 self-stretch border-b-0"
             pestanas={[
               { clave: "dia", texto: "Día" },
               { clave: "semana", texto: "Semana" },
