@@ -43,6 +43,7 @@ import { Filtro } from "@/components/ui/filtro";
 import { TarjetaInfo } from "@/components/ui/tarjeta-info";
 import { Campo, CampoSelect } from "@/components/ui/campo";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
+import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 import { Insignia } from "@/components/ui/insignia";
 import { Modal } from "@/components/ui/modal";
 import { Tabla, TablaEncabezado, Th, Fila } from "@/components/ui/tabla";
@@ -505,6 +506,7 @@ function IncidenciasContenido() {
     <div className="flex flex-1 flex-col">
       <main className="flex flex-1 flex-col gap-6 p-6">
         <CabeceraPagina
+          sobretitulo={sobretituloDeHoy("Asistencia")}
           titulo="Incidencias"
           descripcion={<>{fechaCorta(desde)} – {fechaCorta(hasta)} · Revisa lo que el sistema detectó. Detecta y avisa; la decisión es tuya.</>}
           ayuda={

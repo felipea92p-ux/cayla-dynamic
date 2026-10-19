@@ -1041,6 +1041,15 @@ export default function DashboardPage() {
                         refresca cada 30s» siguen en el menú ⋯ y en el escritorio; la fecha se queda
                         siempre, por la razón de arriba. */}
                     <span>{fechaConDia(hoy)} · en vivo · {actualizado.replace(/^(\d{1,2}:\d{2}):\d{2}/, "$1")}</span>
+                    <AyudaPantalla
+              titulo="Qué tan «en vivo» es esta pantalla"
+              intro="Los números de asistencia se leen de las marcas del terminal."
+              secciones={[
+                { titulo: "Cada 30 segundos", texto: <>Esta pantalla se refresca sola; la última vez fue a las {actualizado}. Si un refresco falla, el aviso deja de decir «en vivo» y muestra de qué hora son los datos.</> },
+                { titulo: "Cada 5 minutos", texto: "Disciplina, memos y contratos: cambian una vez al día, no cada medio minuto, así que van en un refresco aparte." },
+                { titulo: "La fecha", texto: "Siempre se muestra, porque «hoy» sin fecha no dice de qué día son los números cuando alguien guarda una captura." },
+              ]}
+            />
                   </>
                 )}
               </div>
@@ -1053,17 +1062,6 @@ export default function DashboardPage() {
                 </div>
               )}
             </>
-          }
-          ayuda={
-            <AyudaPantalla
-              titulo="Qué tan «en vivo» es esta pantalla"
-              intro="Los números de asistencia se leen de las marcas del terminal."
-              secciones={[
-                { titulo: "Cada 30 segundos", texto: <>Esta pantalla se refresca sola; la última vez fue a las {actualizado}. Si un refresco falla, el aviso deja de decir «en vivo» y muestra de qué hora son los datos.</> },
-                { titulo: "Cada 5 minutos", texto: "Disciplina, memos y contratos: cambian una vez al día, no cada medio minuto, así que van en un refresco aparte." },
-                { titulo: "La fecha", texto: "Siempre se muestra, porque «hoy» sin fecha no dice de qué día son los números cuando alguien guarda una captura." },
-              ]}
-            />
           }
           accion={
             <>

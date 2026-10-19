@@ -10,8 +10,7 @@
 // primero; todo lo demás va aquí. El formato de la ventana es el de «Reglas y umbrales» de
 // Disciplina (término a la izquierda, explicación a la derecha, y la referencia legal debajo).
 //
-// Va AL LADO DEL TÍTULO (posición C de docs/ayuda-posicion-prototipo-2026-10-19.html): siempre en el
-// mismo sitio sin importar cuánto mida la descripción. El botón es un botón de verdad (lector de pantalla, teclado, y se ve en el celular donde un
+// Va AL FINAL de la descripción, como en Retail (docs/ayuda-retail-prototipo-2026-10-19.html). El botón es un botón de verdad (lector de pantalla, teclado, y se ve en el celular donde un
 // `title` no existe) y el nombre accesible dice a qué pantalla pertenece la ayuda.
 
 import { useState, type ReactNode } from "react";
@@ -45,7 +44,7 @@ export function BotonAyuda({ onClick, etiqueta, className }: { onClick: () => vo
       title={etiqueta}
       aria-haspopup="dialog"
       className={cx(
-        "mt-0.5 inline-flex size-8 shrink-0 items-center justify-center rounded-pildora text-taupe transition-colors duration-150 hover:bg-sand/60 hover:text-tinta",
+        "-my-2 inline-flex size-8 shrink-0 items-center justify-center rounded-pildora text-taupe transition-colors duration-150 hover:bg-sand/60 hover:text-tinta",
         className,
       )}
     >

@@ -38,7 +38,7 @@ export function CabeceraPagina({
   titulo: string;
   descripcion?: ReactNode;
   /**
-   * El «ⓘ» que abre el detalle de cómo se usa la pantalla (`<AyudaPantalla>`), al lado del título. Regla (2026-10-19): la descripción cabe en UNA línea y dice para qué sirve y
+   * El «ⓘ» que abre el detalle de cómo se usa la pantalla (`<AyudaPantalla>`), al final de la descripción. Regla (2026-10-19): la descripción cabe en UNA línea y dice para qué sirve y
    * qué se toca primero; el resto va en la ayuda.
    */
   ayuda?: ReactNode;
@@ -49,15 +49,24 @@ export function CabeceraPagina({
     // menos de pantalla útil en un teléfono, en las 18 pantallas que la usan.
     <div className="mb-5 flex flex-wrap items-start justify-between gap-4 sm:mb-8">
       <div>
-        {sobretitulo && <p className="etiqueta mb-1 text-taupe">{sobretitulo}</p>}
-        <div className="flex items-center gap-2">
-          <h1 className="font-serif text-[1.75rem] font-medium leading-tight tracking-[-0.01em] text-tinta">
-            {titulo}
-          </h1>
-          {ayuda}
-        </div>
-        {descripcion && (
-          <div className="mt-1 max-w-2xl text-sm text-taupe">{descripcion}</div>
+        {/* La raya delante es la de Retail (2026-10-19): marca el sobretítulo como encabezado de sección. */}
+        {sobretitulo && (
+          <p className="etiqueta mb-1.5 flex items-center gap-3.5 text-taupe">
+            <span aria-hidden className="h-px w-9 shrink-0 bg-taupe" />
+            {sobretitulo}
+          </p>
+        )}
+        <h1 className="font-serif text-[1.75rem] font-medium leading-tight tracking-[-0.01em] text-tinta">
+          {titulo}
+        </h1>
+        {(descripcion || ayuda) && (
+          // El ⓘ va AL FINAL de la descripción, pegado a su última palabra (2026-10-19): así lo hace
+          // Retail y así se lee como parte de la frase. Con `align-middle` y márgenes negativos no
+          // agranda la línea aunque su área de toque sea de 32 px.
+          <div className="mt-1 max-w-2xl text-sm text-taupe">
+            {descripcion}
+            {ayuda && <span className="ml-1 inline-block align-middle">{ayuda}</span>}
+          </div>
         )}
       </div>
       {/* `max-w-full` (2026-10-17): `shrink-0` solo evita que el botón se aplaste, pero también dejaba que

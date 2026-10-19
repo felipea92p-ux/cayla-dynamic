@@ -76,6 +76,7 @@ import { cx } from "@/components/ui/cx";
 import { Drawer } from "@/components/ui/drawer";
 import { TarjetaInfo } from "@/components/ui/tarjeta-info";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
+import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 import { X, Search, SlidersHorizontal, ChevronDown, Download } from "lucide-react";
 
 // Por encima de esto la cuadrícula deja de ayudar y empieza a colgar el
@@ -1169,6 +1170,7 @@ function DesempenoContenido() {
     <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
         <CabeceraPagina
+          sobretitulo={sobretituloDeHoy("Asistencia")}
           titulo="Desempeño del equipo"
           descripcion={<>Toca una fila para ver sus días · {resumen}</>}
           ayuda={

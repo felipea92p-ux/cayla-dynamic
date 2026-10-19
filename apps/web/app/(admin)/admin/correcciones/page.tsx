@@ -22,6 +22,7 @@ import { Boton } from "@/components/ui/boton";
 import { AyudaPantalla } from "@/components/ui/ayuda-pantalla";
 import { BannerAviso } from "@/components/ui/banner-aviso";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
+import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 import { Filtro } from "@/components/ui/filtro";
 import { ParaAtender } from "@/components/ui/para-atender";
 import { Rotulo } from "@/components/ui/rotulo";
@@ -783,6 +784,7 @@ export default function CorreccionesPage() {
     <div className="flex flex-1 flex-col">
       <div className="px-4 pt-5 md:px-6">
         <CabeceraPagina
+          sobretitulo={sobretituloDeHoy("Asistencia")}
           titulo="Corregir marcajes"
           descripcion="Corrige una hora, agrega una marca olvidada o anula un duplicado. Cada cambio pide un motivo."
           ayuda={

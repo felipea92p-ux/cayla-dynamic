@@ -12,6 +12,7 @@ import { Boton } from "@/components/ui/boton";
 import { AyudaPantalla } from "@/components/ui/ayuda-pantalla";
 import { BannerAviso } from "@/components/ui/banner-aviso";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
+import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 import { Cifra } from "@/components/ui/cifra";
 import { Filtro } from "@/components/ui/filtro";
 import { Campo, CampoSelect, CampoCasilla } from "@/components/ui/campo";
@@ -828,6 +829,7 @@ export default function HorariosPage() {
     <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
         <CabeceraPagina
+          sobretitulo={sobretituloDeHoy("Asistencia")}
           titulo="Horarios base"
           descripcion="Jornada semanal y descansos de cada colaborador. Un cambio conserva el historial."
           ayuda={
