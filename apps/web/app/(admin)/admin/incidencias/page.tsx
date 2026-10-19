@@ -29,14 +29,14 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Search, SlidersHorizontal } from "lucide-react";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { esRolEncargada, etiquetaDeSede, hoyLima, puedeVerTodasLasSedes } from "@cayla-dynamic/shared";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { Cargando, EsqueletoSecciones } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
 import { BannerAviso } from "@/components/ui/banner-aviso";
-import { Cifra } from "@/components/ui/cifra";
+import { ParaAtender } from "@/components/ui/para-atender";
 import { EstadoVacio } from "@/components/ui/estado-vacio";
 import { Filtro } from "@/components/ui/filtro";
 import { TarjetaInfo } from "@/components/ui/tarjeta-info";
@@ -149,6 +149,9 @@ function IncidenciasContenido() {
   const [categoria, setCategoria] = useState<Categoria | "">("");
   const [plegadas, setPlegadas] = useState<Set<string>>(new Set());
   const [mostrarReglas, setMostrarReglas] = useState(false);
+  // «Para atender»: qué lista está abierta. `undefined` = nadie eligió: se abre la primera con algo.
+  const [atencionElegida, setAtencionElegida] = useState<string | undefined>(undefined);
+  const [masFiltros, setMasFiltros] = useState(false);
   const [mostrarHistorial, setMostrarHistorial] = useState(false);
 
   const [seleccion, setSeleccion] = useState<Set<string>>(new Set());
@@ -492,6 +495,10 @@ function IncidenciasContenido() {
     setPeriodo(p); setDesde(d); setHasta(h);
   }
 
+  const primeraConAlgo = revisiones.length > 0 ? "revisiones" : practicantesSobreTope.length > 0 ? "convenios" : "";
+  const atencion = atencionElegida ?? primeraConAlgo;
+  const enMasFiltros = [tipoFiltro !== "", estadoFiltro !== "por_revisar", periodo !== "30"].filter(Boolean).length;
+
   const nombreFiltro = personaFiltro ? alcance.find((i) => i.personaId === personaFiltro)?.nombre ?? null : null;
 
   return (
@@ -499,7 +506,7 @@ function IncidenciasContenido() {
       <main className="flex flex-1 flex-col gap-6 p-6">
         <CabeceraPagina
           titulo="Incidencias"
-          descripcion="Revisa anomalías de asistencia y corrige únicamente lo que corresponda. Dynamic detecta y avisa; la decisión es tuya."
+          descripcion={<>{fechaCorta(desde)} – {fechaCorta(hasta)} · Dynamic detecta y avisa; la decisión es tuya.</>}
           accion={
             <Boton variante="enlace" className="text-sm text-taupe" aria-expanded={mostrarReglas} onClick={() => setMostrarReglas((x) => !x)}>
               ⓘ Cómo se detectan
@@ -525,10 +532,21 @@ function IncidenciasContenido() {
           </TarjetaInfo>
         )}
 
+        {(revisiones.length > 0 || practicantesSobreTope.length > 0) && (
+          <ParaAtender
+            items={[
+              { clave: "revisiones", texto: `${revisiones.length} revisión${revisiones.length === 1 ? "" : "es"} pedida${revisiones.length === 1 ? "" : "s"} por el equipo`, n: revisiones.length, tono: "pizarra" },
+              { clave: "convenios", texto: `${practicantesSobreTope.length} convenio${practicantesSobreTope.length === 1 ? "" : "s"} en el tope de 12 meses`, n: practicantesSobreTope.length, tono: "ambar" },
+            ]}
+            activa={atencion || null}
+            alTocar={(clave) => setAtencionElegida(atencion === clave ? "" : clave)}
+          />
+        )}
+
         {/* ── Lo que tu equipo pidió revisar ────────────────────────────
             Primero, y no por orden alfabético: es la única lista que no generó
             el sistema, sino una persona que estuvo ahí ese día. */}
-        {revisiones.length > 0 && (
+        {atencion === "revisiones" && revisiones.length > 0 && (
           <TarjetaInfo como="section" titulo={<>Tu equipo pidió revisar {revisiones.length} día{revisiones.length === 1 ? "" : "s"}</>}>
             <p className="mb-4 text-sm text-taupe">
               Lo escribieron desde «Lo mío». Corrige el día en Correcciones si hace falta y cierra acá diciendo en qué
@@ -565,7 +583,7 @@ function IncidenciasContenido() {
         )}
 
         {/* Tope de 12 meses del convenio de prácticas: se revisa en Contratos. */}
-        {practicantesSobreTope.length > 0 && (
+        {atencion === "convenios" && practicantesSobreTope.length > 0 && (
           <BannerAviso
             variante="advertencia"
             titulo={<>{practicantesSobreTope.length} convenio{practicantesSobreTope.length === 1 ? "" : "s"} de prácticas en el tope de 12 meses</>}
@@ -590,88 +608,99 @@ function IncidenciasContenido() {
           </BannerAviso>
         )}
 
-        {/* ── Resumen: cuántos y de qué ──────────────────────────────────── */}
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-          <Cifra
-            className="col-span-2 md:col-span-1"
-            etiqueta="Por revisar"
-            valor={cargando ? "—" : porRevisar.length}
-            detalle={
-              (!cargando && (resueltas > 0 || carga.duras.length > 0)) ? (
-                <>
-                  {resueltas > 0 && <>{resueltas} ya resuelta{resueltas === 1 ? "" : "s"}</>}
-                  {resueltas > 0 && carga.duras.length > 0 && " · "}
-                  {carga.duras.length > 0 && "incompleto"}
-                </>
-              ) : undefined
-            }
-            activa={categoria === "" && estadoFiltro === "por_revisar"}
-            onClick={() => { setCategoria(""); setEstadoFiltro("por_revisar"); }}
-          />
-          {CATEGORIAS.map((c) => {
-            const n = porRevisar.filter((i) => i.categoria === c.clave).length;
-            const activa = categoria === c.clave;
-            const sinComprobar = !cargando && carga.categoriasSinComprobar.has(c.clave);
-            return (
-              <Cifra
-                key={c.clave}
-                etiqueta={c.etiqueta}
-                valor={cargando || carga.categoriasSinComprobar.has(c.clave) ? "—" : n}
-                detalle={sinComprobar ? "sin comprobar" : undefined}
-                activa={activa}
-                onClick={() => { setCategoria(activa ? "" : c.clave); if (!activa) setEstadoFiltro("por_revisar"); }}
-              />
-            );
-          })}
-        </div>
-
-        {/* ── Filtros ───────────────────────────────────────────────────── */}
+        {/* ── Buscar y filtrar: lo que se toca todo el día a la vista, lo demás plegado ── */}
         <div className="flex flex-col gap-3">
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,2fr)_repeat(3,minmax(0,1fr))]">
-            <Campo
-              id="incidencias-buscar"
-              type="search"
-              aria-label="Buscar persona"
-              placeholder="Buscar persona…"
-              value={busca}
-              onChange={(e) => setBusca(e.target.value)}
-            />
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative min-w-48 flex-1 basis-56">
+              <Search size={15} strokeWidth={1.8} aria-hidden className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-taupe" />
+              <Campo
+                id="incidencias-buscar"
+                type="search"
+                aria-label="Buscar persona"
+                placeholder="Buscar persona"
+                value={busca}
+                onChange={(e) => setBusca(e.target.value)}
+                className="pl-8"
+              />
+            </div>
             {veTodas && (
-              <CampoSelect id="incidencias-sede" aria-label="Sede" value={sedeFiltro} onChange={(e) => setSedeFiltro(e.target.value)}>
-                <option value="">Todas las sedes</option>
-                {sedesDelFiltro.map((s) => (
-                  <option key={s} value={s}>{sedePorCodigo.get(s)?.texto ?? s}</option>
-                ))}
-              </CampoSelect>
+              <div className="w-full sm:w-44">
+                <CampoSelect id="incidencias-sede" aria-label="Sede" value={sedeFiltro} onChange={(e) => setSedeFiltro(e.target.value)}>
+                  <option value="">Todas las sedes</option>
+                  {sedesDelFiltro.map((s) => (
+                    <option key={s} value={s}>{sedePorCodigo.get(s)?.texto ?? s}</option>
+                  ))}
+                </CampoSelect>
+              </div>
             )}
-            <CampoSelect id="incidencias-tipo" aria-label="Tipo de incidencia" value={tipoFiltro} onChange={(e) => setTipoFiltro(e.target.value as TipoIncidencia | "")}>
-              <option value="">Todos los tipos</option>
-              {tiposPresentes.map((t) => <option key={t} value={t}>{NOMBRE_TIPO[t]}</option>)}
-            </CampoSelect>
-            <CampoSelect id="incidencias-estado" aria-label="Estado" value={estadoFiltro} onChange={(e) => setEstadoFiltro(e.target.value as FiltroEstado)}>
-              <option value="por_revisar">Por revisar</option>
-              <option value="resueltas">Ya resueltas</option>
-              <option value="todas">Todas</option>
-            </CampoSelect>
+            <Boton variante="secundario" aria-expanded={masFiltros} aria-controls="incidencias-mas-filtros"
+              onClick={() => setMasFiltros((a) => !a)} className="inline-flex items-center gap-1.5">
+              <SlidersHorizontal className="size-4" aria-hidden />
+              Filtros{enMasFiltros > 0 && <span className="rounded-full bg-tinta px-1.5 text-[11px] leading-4 text-crema">{enMasFiltros}</span>}
+              <ChevronDown className={cx("size-4 transition-transform duration-150 motion-reduce:transition-none", masFiltros && "rotate-180")} aria-hidden />
+            </Boton>
+            {hayFiltros && <Boton variante="enlace" onClick={limpiarFiltros}>Limpiar</Boton>}
           </div>
 
-          <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
-            <div role="group" aria-label="Periodo" className="flex flex-wrap gap-1.5">
-              {PERIODOS.map((p) => (
-                <Filtro key={p.clave} activo={periodo === p.clave} onClick={() => elegirPeriodo(p.clave)}>
-                  {p.etiqueta}
+          {masFiltros && (
+            <div id="incidencias-mas-filtros" className="flex flex-col gap-3 rounded-superficie border border-sand bg-papel p-4">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <CampoSelect id="incidencias-tipo" etiqueta="Tipo de incidencia" value={tipoFiltro} onChange={(e) => setTipoFiltro(e.target.value as TipoIncidencia | "")}>
+                  <option value="">Todos los tipos</option>
+                  {tiposPresentes.map((t) => <option key={t} value={t}>{NOMBRE_TIPO[t]}</option>)}
+                </CampoSelect>
+                <CampoSelect id="incidencias-estado" etiqueta="Estado" value={estadoFiltro} onChange={(e) => setEstadoFiltro(e.target.value as FiltroEstado)}>
+                  <option value="por_revisar">Por revisar</option>
+                  <option value="resueltas">Ya resueltas</option>
+                  <option value="todas">Todas</option>
+                </CampoSelect>
+              </div>
+              <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
+                <div role="group" aria-label="Periodo" className="flex flex-wrap gap-1.5">
+                  {PERIODOS.map((p) => (
+                    <Filtro key={p.clave} tamano="sm" activo={periodo === p.clave} onClick={() => elegirPeriodo(p.clave)}>
+                      {p.etiqueta}
+                    </Filtro>
+                  ))}
+                </div>
+                <div className="flex items-end gap-2">
+                  {/* Nunca vacíos: sin fecha no hay consulta. Un borrado se ignora. */}
+                  <Campo id="incidencias-desde" etiqueta="Desde" type="date" value={desde} max={hasta}
+                    onChange={(e) => { if (e.target.value) { setDesde(e.target.value); setPeriodo("libre"); } }} />
+                  <Campo id="incidencias-hasta" etiqueta="Hasta" type="date" value={hasta} min={desde}
+                    onChange={(e) => { if (e.target.value) { setHasta(e.target.value); setPeriodo("libre"); } }} />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── Qué se mira: cuántos y de qué. Cada chip cuenta lo que mostraría al tocarlo. ── */}
+          <div role="group" aria-label="Categoría" className="-mx-6 flex gap-2 overflow-x-auto px-6 pb-0.5 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 [scrollbar-width:none]">
+            <Filtro
+              activo={categoria === "" && estadoFiltro === "por_revisar"}
+              onClick={() => { setCategoria(""); setEstadoFiltro("por_revisar"); }}
+              title={!cargando && carga.duras.length > 0 ? "Incompleto: hay fuentes que no se pudieron comprobar." : undefined}
+            >
+              Por revisar <span className="tabular-nums text-[0.8em] opacity-70">{cargando ? "—" : porRevisar.length}</span>
+              {!cargando && carga.duras.length > 0 && <span className="ml-1 text-[0.8em] opacity-70">· incompleto</span>}
+            </Filtro>
+            {CATEGORIAS.map((c) => {
+              const n = porRevisar.filter((i) => i.categoria === c.clave).length;
+              const activa = categoria === c.clave;
+              const sinComprobar = !cargando && carga.categoriasSinComprobar.has(c.clave);
+              return (
+                <Filtro key={c.clave} activo={activa}
+                  onClick={() => { setCategoria(activa ? "" : c.clave); if (!activa) setEstadoFiltro("por_revisar"); }}>
+                  {c.etiqueta} <span className="tabular-nums text-[0.8em] opacity-70">{cargando || sinComprobar ? "—" : n}</span>
+                  {sinComprobar && <span className="ml-1 text-[0.8em] opacity-70">· sin comprobar</span>}
                 </Filtro>
-              ))}
-            </div>
-            <div className="flex items-end gap-2">
-              {/* Nunca vacíos: sin fecha no hay consulta. Un borrado se ignora. */}
-              <Campo id="incidencias-desde" etiqueta="Desde" type="date" value={desde} max={hasta}
-                onChange={(e) => { if (e.target.value) { setDesde(e.target.value); setPeriodo("libre"); } }} />
-              <Campo id="incidencias-hasta" etiqueta="Hasta" type="date" value={hasta} min={desde}
-                onChange={(e) => { if (e.target.value) { setHasta(e.target.value); setPeriodo("libre"); } }} />
-            </div>
-            {hayFiltros && (
-              <Boton variante="enlace" className="pb-2 text-sm text-taupe" onClick={limpiarFiltros}>Limpiar filtros</Boton>
+              );
+            })}
+            {!cargando && resueltas > 0 && (
+              <Filtro activo={estadoFiltro === "resueltas"} className="border-dashed"
+                onClick={() => { setCategoria(""); setEstadoFiltro(estadoFiltro === "resueltas" ? "por_revisar" : "resueltas"); }}>
+                Ya resueltas <span className="tabular-nums text-[0.8em] opacity-70">{resueltas}</span>
+              </Filtro>
             )}
           </div>
         </div>
