@@ -14,6 +14,9 @@ import { useToast } from "@/components/toast";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 import { hoyLima, puedeGestionarCatalogos } from "@cayla-dynamic/shared";
+import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
+import { AyudaPantalla } from "@/components/ui/ayuda-pantalla";
+import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 
 // Fechas planas (sin hora): se formatean en UTC para que no se corran un día.
 function fechaCorta(iso: string): string {
@@ -430,13 +433,20 @@ export default function FeriadosPage() {
     <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
         <div className="mx-auto w-full max-w-5xl">
-        <h1 className="mb-1 font-serif text-2xl">Feriados laborados</h1>
-        <p className="mb-5 text-sm text-taupe">
-          Quien trabaja un feriado cobra <strong>triple</strong>, salvo que se le dé un{" "}
-          <strong>día libre a cambio</strong>. Registrar aquí ese día libre hace dos cosas: quita la
-          sobretasa de la planilla del periodo, y evita que ese día le salga como{" "}
-          <strong>falta injustificada</strong> por no marcar.
-        </p>
+        <CabeceraPagina
+          sobretitulo={sobretituloDeHoy("Pago")}
+          titulo="Feriados laborados"
+          descripcion="Quien trabaja un feriado cobra triple, salvo que se le dé un día libre a cambio: aquí se registra ese día libre."
+          ayuda={
+            <AyudaPantalla
+              titulo="Cómo funcionan los feriados laborados"
+              intro="Quien trabaja un feriado cobra triple, salvo que se le dé un día libre a cambio."
+              secciones={[
+                { titulo: "Qué hace registrar el día libre", texto: "Dos cosas: quita la sobretasa de la planilla del periodo, y evita que ese día le salga como falta injustificada por no marcar." },
+              ]}
+            />
+          }
+        />
 
         {/* Registrar por lotes */}
         <div className="mb-6 rounded-superficie border border-sand bg-papel p-5">
