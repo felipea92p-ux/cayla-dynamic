@@ -1048,7 +1048,7 @@ export default function DashboardPage() {
 
   return (
     <div className="flex flex-1 flex-col">
-      <main className="flex-1 p-4 sm:p-8">
+      <main className="flex-1 p-4 pt-6 sm:p-6">
         <CabeceraPagina
           titulo="Asistencia de hoy"
           descripcion={

@@ -783,7 +783,7 @@ export default function CorreccionesPage() {
 
   return (
     <div className="flex flex-1 flex-col">
-      <div className="px-4 pt-5 md:px-6">
+      <div className="px-4 pt-6 md:px-6">
         <CabeceraPagina
           sobretitulo={sobretituloDeHoy("Asistencia")}
           titulo="Corregir marcajes"
