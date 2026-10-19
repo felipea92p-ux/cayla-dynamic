@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { hoyLima } from "@cayla-dynamic/shared";
+import type { PasoRecorrido } from "@/lib/use-recorrido-guiado";
 import { Boton } from "@/components/ui/boton";
 import { Insignia } from "@/components/ui/insignia";
 import { Rotulo } from "@/components/ui/rotulo";
@@ -51,10 +52,32 @@ interface Detalle {
 
 type Cliente = ReturnType<typeof createAdminSupabaseClient>;
 
+/**
+ * La guía de primera vez de «Disciplina» (2026-10-19). Tres pasos, y el primero
+ * es la cabecera a propósito: es lo ÚNICO de esta pantalla que existe siempre.
+ * Los documentos y «Cómo vas este mes» aparecen solo si hay algo que mostrar, y
+ * una guía que no encuentra ninguno de los tres se cerraría sola dándose por
+ * vista —sin haberle dicho nada a quien la abre por primera vez con la
+ * pantalla vacía—. Con la cabecera, siempre hay algo que explicar.
+ *
+ * Los textos son de aquí y no de `terminos.ts`: explican la pantalla, no
+ * piden aceptar nada. Y dicen lo que la pantalla de verdad hace —abrir un
+ * documento, dar la constancia de lectura—, no lo que haría otra: esta sección
+ * no tiene hoy dónde presentar un descargo.
+ */
+export const PASOS_GUIA_DISCIPLINA: readonly PasoRecorrido[] = [
+  { selector: '[data-tour="mio-disciplina-header"]', titulo: "Tu legajo",
+    texto: "Aquí ves lo que consta de ti —los documentos que te entregaron— y cómo vas este mes con tus tardanzas. Si no hay nada, también te lo decimos." },
+  { selector: '[data-tour="mio-disciplina-documentos"]', titulo: "Tus documentos",
+    texto: "Lo que pide algo de ti va primero. «Leer el documento» abre lo que pasó; leerlo deja constancia de que lo leíste, no de que estés de acuerdo." },
+  { selector: '[data-tour="mio-disciplina-comovas"]', titulo: "Cómo vas este mes",
+    texto: "Tus tardanzas del mes, para que sepas dónde estás. Contarlas no es sancionar: eso lo decide una persona, conversando contigo." },
+];
+
 const SIN_DETALLE = "No se pudo abrir el documento ahora. Vuelve a intentarlo en un rato; si sigue, avisa a tu líder de equipo.";
 
 export function DisciplinaMia({
-  supabase, personaId, docs, error, cuenta, onCambio,
+  supabase, personaId, docs, error, cuenta, onCambio, onVerGuia,
 }: {
   supabase: Cliente;
   personaId: string;
@@ -64,6 +87,8 @@ export function DisciplinaMia({
   cuenta: CuentaMia | null;
   /** Recargar la lista (y con ella el menú y el Resumen) después de leer o firmar. */
   onCambio: () => void;
+  /** Vuelve a lanzar la guía de esta pantalla. */
+  onVerGuia?: () => void;
 }) {
   const { avisar } = useToast();
   const [pagina, setPagina] = useState(0);
@@ -118,9 +143,15 @@ export function DisciplinaMia({
 
   return (
     <div className="grid gap-4 text-sm">
-      <header>
+      <header data-tour="mio-disciplina-header">
         <h2 className="font-serif text-lg">Disciplina</h2>
         <p className="text-taupe">Lo que consta en tu legajo y cómo vas este mes.</p>
+        {onVerGuia && (
+          <button type="button" onClick={onVerGuia}
+            className="mt-1 text-xs text-taupe underline underline-offset-2 transition-colors hover:text-tinta">
+            Ver guía de esta pantalla
+          </button>
+        )}
       </header>
 
       {error ? (
@@ -140,7 +171,7 @@ export function DisciplinaMia({
           )}
 
           {pag.items.length > 0 && (
-            <ul className="grid gap-3">
+            <ul data-tour="mio-disciplina-documentos" className="grid gap-3">
               {pag.items.map((d) => (
                 <li key={d.id}>
                   <TarjetaDoc
@@ -162,7 +193,7 @@ export function DisciplinaMia({
           )}
 
           {comoVas && (
-            <TarjetaInfo como="section" className="grid gap-2">
+            <TarjetaInfo como="section" className="grid gap-2" data-tour="mio-disciplina-comovas">
               <Rotulo como="h3">Cómo vas este mes</Rotulo>
               {comoVas.casillas && (
                 <div className="flex items-center gap-1.5" aria-hidden>

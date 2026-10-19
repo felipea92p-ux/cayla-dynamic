@@ -9,7 +9,7 @@ import { MiSeguro } from "./seguro/mi-seguro";
 import { BoletasMias } from "./boletas/boletas-mias";
 import { ReportesMios } from "./reportes/reportes-mios";
 import { CambiosMios } from "./cambios-mios";
-import { DisciplinaMia } from "./disciplina-mia";
+import { DisciplinaMia, PASOS_GUIA_DISCIPLINA } from "./disciplina-mia";
 import { SaludoCumpleanos } from "./saludo-cumpleanos";
 import { cuantosPiden, porLeer, type CuentaMia, type DocMio } from "@/lib/mio-disciplina";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
@@ -300,6 +300,7 @@ const PASOS_TOUR_RESUMEN: readonly PasoRecorrido[] = [
 const SIN_GUIA: readonly PasoRecorrido[] = [];
 const GUIAS_POR_SECCION: Partial<Record<Tab, readonly PasoRecorrido[]>> = {
   resumen: PASOS_TOUR_RESUMEN,
+  disciplina: PASOS_GUIA_DISCIPLINA,
 };
 
 /**
@@ -1748,8 +1749,10 @@ export default function MioPage() {
                 </p>
               )}
               {/* Para quien omitió la guía y la quiere de nuevo. Un texto y no un botón:
-                  es una ayuda, no una acción de esta pantalla. */}
-              {yo && (
+                  es una ayuda, no una acción de esta pantalla. Solo en Resumen: esta
+                  cabecera se ve en todas las secciones, y `verGuia` lanza la de la sección
+                  que se está mirando —cada una trae su propio enlace—. */}
+              {yo && tab === "resumen" && (
                 <button type="button" onClick={verGuia}
                   className="mt-1 text-xs text-taupe underline underline-offset-2 transition-colors hover:text-tinta">
                   Ver guía de esta pantalla
@@ -2985,7 +2988,7 @@ export default function MioPage() {
         <DisciplinaMia
           supabase={supabase} personaId={yo.id}
           docs={miDisciplina} error={miDisciplinaError} cuenta={miCuenta}
-          onCambio={() => void cargarMiDisciplina()}
+          onCambio={() => void cargarMiDisciplina()} onVerGuia={verGuia}
         />
       )}
 
