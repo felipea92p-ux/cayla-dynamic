@@ -115,6 +115,23 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-10-19-la-prueba-de-tres-dias-se-ve-y-se-decide",
+    fecha: "2026-10-19",
+    titulo: "La prueba de tres días: se ve en todo el sistema y se decide desde la Bandeja",
+    queMejoro:
+      "Quien está de prueba ahora lleva una etiqueta, «Prueba · 2 de 3», junto a su nombre: en el terminal de marcaje, " +
+      "en Equipo, en Horas, en Horarios y en Planilla. Los días son los que ya trabajó, no los del calendario. No se le " +
+      "hace contrato todavía: en Contratos, «Nuevo documento» muestra su prueba, donde se suben las dos caras de su DNI, " +
+      "y el contrato se hace cuando completa sus tres días.\n\n" +
+      "En la Bandeja hay un módulo nuevo, «Pruebas», para Desarrollo Organizacional y para las líderes de equipo, que " +
+      "ven a su gente. Cada prueba dice cuántos días lleva y qué toca: si ya completó el plazo, decidir; si lo pasó y nadie " +
+      "decidió, aparece en rojo. Ahí mismo se marca «No fue apto» o «Se retiró», y cada botón explica qué pasa antes de " +
+      "confirmar. En Equipo, «Registrar salida» de alguien que está de prueba abre ese mismo panel.\n\n" +
+      "Cuando el contrato queda firmado, «Subir contrato firmado» ofrece pasar a la persona de «Prueba» a «Planilla» en el " +
+      "mismo paso. Desarrollo Organizacional ve además lo que se cerró en las últimas 48 horas, y quién lo decidió.",
+    audiencia: "panel",
+  },
+  {
     id: "2026-10-19-mi-seguro-cada-colaborador-ve-el-suyo",
     fecha: "2026-10-19",
     titulo: "Ya puedes ver tu seguro en «Lo mío»",

@@ -137,22 +137,22 @@ insert into jornadas (persona_id, fecha, sede_id, horas_trabajadas, estado, entr
 select lives_ok(
   $$ select fn_prueba_cerrar('00000000-0000-0000-0000-000000431d04', 'retirado', 'Dijo que no volvía') $$,
   'CIERRES · la líder cierra una prueba');
-select is((select count(*)::int from fn_pruebas_cierres_recientes()), 1,
+select is((select count(*)::int from fn_pruebas_cierres_recientes() where persona_id::text like '00000000-0000-0000-0000-000000431%'), 1,
   'CIERRES · y ella misma ve su cierre');
-select is((select decidida_por || '/' || resultado || '/' || horas_marcadas::text from fn_pruebas_cierres_recientes()),
+select is((select decidida_por || '/' || resultado || '/' || horas_marcadas::text from fn_pruebas_cierres_recientes() where persona_id::text like '00000000-0000-0000-0000-000000431%'),
   'LiderUno Lab/retirado/5.50', 'CIERRES · con quién lo decidió y las horas que quedaron marcadas (las de «se retiró» no se pagan)');
 
 select pg_temp.como('00000000-0000-0000-0000-000000431c03');   -- la líder de la OTRA sede
-select is((select count(*)::int from fn_pruebas_cierres_recientes()), 0,
+select is((select count(*)::int from fn_pruebas_cierres_recientes() where persona_id::text like '00000000-0000-0000-0000-000000431%'), 0,
   'CIERRES · la líder de otra sede no los ve');
 
 select pg_temp.como('00000000-0000-0000-0000-000000431c01');   -- la admin
-select is((select count(*)::int from fn_pruebas_cierres_recientes()), 1,
+select is((select count(*)::int from fn_pruebas_cierres_recientes() where persona_id::text like '00000000-0000-0000-0000-000000431%'), 1,
   'CIERRES · administración ve los de todas las sedes');
 update pruebas set cerrada_at = now() - interval '3 days' where persona_id = '00000000-0000-0000-0000-000000431d04';
-select is((select count(*)::int from fn_pruebas_cierres_recientes(48)), 0,
+select is((select count(*)::int from fn_pruebas_cierres_recientes(48) where persona_id::text like '00000000-0000-0000-0000-000000431%'), 0,
   'CIERRES · pasadas las 48 horas ya no salen');
-select is((select count(*)::int from fn_pruebas_cierres_recientes(120)), 1,
+select is((select count(*)::int from fn_pruebas_cierres_recientes(120) where persona_id::text like '00000000-0000-0000-0000-000000431%'), 1,
   'CIERRES · pero sí si se piden más horas');
 select ok(not has_function_privilege('anon', 'fn_pruebas_cierres_recientes(integer)', 'execute')
           and not has_function_privilege('anon', 'fn_prueba_cargar_dni(uuid, text, text, text)', 'execute'),
