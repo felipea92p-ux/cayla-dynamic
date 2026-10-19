@@ -253,14 +253,14 @@ roturas provocadas (no excluir al retirado; asignación para todos; asignación 
 la 0524).
 
 **Antes de pegar (en este orden, todo ANTES de fusionar).**
-1. Pedir a producción el md5 de `fn_cesar_persona` (el 2026-10-19 era `c069848683a331a0f1acb133e2e10932`)
-   y el de `fn_planilla_calcular_nucleo`. **El de la planilla está PENDIENTE:** la guardia de la 0537 lo
-   comprueba al pegar, pero conviene saberlo antes. La consulta con `md5(prosrc)` y `sin_comentarios` la imprime
-   `./scripts/donde-vive.sh fn_planilla_calcular_nucleo`; el esperado es `11425cad…`
-   (tal cual) o `62c6e4f5…` (sin comentarios). Si la línea PLANILLA de `que_falta_pegar.sql` dice que
-   producción no tiene la 0524, hay que pegar la 0524 antes.
-2. Pegar **0535**, comprobar `select count(*) from pg_proc where proname = 'fn_cese_aplicar'` = 1, pegar
-   **0536**, pegar **0537**. Volver a pedir los md5 en el mensaje en que se entregue el SQL.
+1. **Medido en producción el 2026-10-19:** `fn_cesar_persona` es la de la 0415
+   (`c0698486…`, igual al repo), pero `fn_planilla_calcular_nucleo` es la de la **0504** (`f1781d68…`,
+   116 749 caracteres): **la 0524 no está pegada**. La 0537 copia la 0524, y su guardia se niega a pegar
+   sobre otra cosa. **Hay que pegar la 0524 ANTES de la 0537** (su encabezado dice que a nadie le cambia el
+   pago; es la del día de referencia de educación). Mirar también `./scripts/que-falta-pegar.sh`, por si falta
+   algo más. Y volver a pedir los md5 en el mensaje en que se entregue el SQL.
+2. Pegar **0524** (si sigue faltando), **0535**, comprobar `select count(*) from pg_proc where proname =
+   'fn_cese_aplicar'` = 1, pegar **0536**, pegar **0537**. Volver a pedir los md5 en el mensaje en que se entregue el SQL.
 
 **⚠ Todavía sin pantallas.** Con la 0537 pegada, la base ya hace lo decidido; pero ninguna pantalla
 llama a `fn_prueba_cerrar` ni muestra `fn_pruebas_abiertas`. Sigue funcionando el cese de siempre, y

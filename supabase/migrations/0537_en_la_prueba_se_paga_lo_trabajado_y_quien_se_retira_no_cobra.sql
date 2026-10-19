@@ -48,6 +48,13 @@
 --         \r\n tal cual ......... 8293458b4c5a0e12c24b00eb22a304d3
 --         \r\n sin comentarios .. 2f87e20b3ab884b50c21ee749d36df95
 --   · `pruebas.cerrada_fecha` es el último día trabajado de quien se retiró.
+--   · ⚠ MEDIDO EN PRODUCCIÓN el 2026-10-19: la función de allá es la de la **0504**
+--     (md5 f1781d68a87190ee75937eafc3f6facc, 116 749 caracteres, 0 retornos de
+--     carro, sin la marca CAMBIO 0524). Es decir: **la 0524 está en el repositorio
+--     pero NO está pegada en producción**. Esta migración copia la 0524, así que la
+--     guardia de abajo se NEGARÁ a pegarla hasta que se pegue la 0524 primero. La
+--     0524 se mide a sí misma como neutra («a NADIE le cambia el pago», 2026-10-16):
+--     solo cambia qué día de referencia usa cada fila de educación.
 --
 -- QUÉ NO HACE
 --   · No toca `fn_planilla_calcular` (el envoltorio) ni `fn_planilla_congelar`: los
