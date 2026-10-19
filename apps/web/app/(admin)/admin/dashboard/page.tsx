@@ -16,6 +16,8 @@ import { BannerAviso } from "@/components/ui/banner-aviso";
 import { Cifra } from "@/components/ui/cifra";
 import { EstadoVacio } from "@/components/ui/estado-vacio";
 import { RotuloEstado } from "@/components/ui/rotulo";
+import { PanelRightOpen } from "lucide-react";
+import { BotonIcono } from "@/components/ui/boton-icono";
 import { Filtro } from "@/components/ui/filtro";
 import { TarjetaInfo } from "@/components/ui/tarjeta-info";
 import { Menu, MenuItem } from "@/components/ui/menu";
@@ -1072,12 +1074,13 @@ export default function DashboardPage() {
             <div className="flex flex-wrap items-center gap-2">
               {prefs.alertasOcultas && (
                 <span className="hidden xl:block">
-                  <Boton variante="secundario" tamano="sm" onClick={() => setPrefsCrudas(alternarAlertas(prefs))}>
-                    ⟨ Alertas
-                    {itemsAtencion.some((it) => it.tono === "critico") && (
-                      <span className="ml-1.5 rounded-full bg-rojo px-2 py-0.5 text-crema">{itemsAtencion.filter((it) => it.tono === "critico").length}</span>
-                    )}
-                  </Boton>
+                  <BotonIcono
+                    tamano="md"
+                    etiqueta="Mostrar el panel de alertas"
+                    icono={<PanelRightOpen aria-hidden />}
+                    contador={itemsAtencion.filter((it) => it.tono === "critico").length}
+                    onClick={() => setPrefsCrudas(alternarAlertas(prefs))}
+                  />
                 </span>
               )}
               {personalizando && (
