@@ -65,7 +65,15 @@ export function CabeceraPagina({
           // agranda la línea aunque su área de toque sea de 32 px.
           <div className="mt-1 max-w-2xl text-sm text-taupe">
             {descripcion}
-            {ayuda && <span className="ml-1 inline-block align-middle">{ayuda}</span>}
+            {/* U+2060 (unión de palabras) pegado al ⓘ: si la descripción ocupa más de una línea, el ícono NUNCA queda
+                solo en su renglón —se lleva consigo la última palabra—. Pasó en Desempeño (2026-10-19): el texto
+                llenaba la línea y el ⓘ caía solo debajo, sin nada a su costado. */}
+            {ayuda && (
+              <>
+                <span aria-hidden>{"\u2060"}</span>
+                <span className="ml-1 inline-block align-middle">{ayuda}</span>
+              </>
+            )}
           </div>
         )}
       </div>
