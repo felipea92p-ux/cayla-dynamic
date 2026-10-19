@@ -22,7 +22,7 @@ import { Modal } from "@/components/ui/modal";
 import { BotonIcono } from "@/components/ui/boton-icono";
 import { Insignia } from "@/components/ui/insignia";
 import { Menu, MenuItem } from "@/components/ui/menu";
-import { ChevronDown, ChevronUp, Eye } from "lucide-react";
+import { ChevronDown, ChevronUp, Eye, EyeOff } from "lucide-react";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { vigentesAl } from "@/lib/admin/parametro-vigente";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
@@ -2159,6 +2159,8 @@ export default function ContratosPage() {
   const nBanda = (b: Banda) => tablero.filter((f) => bandaDe(f) === b).length;
   const nParaAtender = tablero.filter((f) => bandaDe(f) !== "al_dia").length;
   const nArt77 = cuenta("desnaturalizado");
+  // La lista ya está mostrando solo a quienes pasaron el plazo: el ojo pasa a «quitar el filtro».
+  const soloArt77 = bandaElegida === "paso" && filtroEstado === "pendientes";
 
   // Las sedes que de verdad aparecen, para el desplegable. Se leen del tablero
   // y no de una lista escrita a mano: la regla de la casa es que una lista de
@@ -3312,10 +3314,15 @@ export default function ContratosPage() {
                     </b>
                   </p>
                   <div className="flex shrink-0 items-center gap-1.5">
+                    {/* Ojo = «mostrarme quiénes»; ojo tachado = «ya lo estoy viendo, quitar el filtro». */}
                     <BotonIcono
-                      etiqueta="Ver quiénes"
-                      icono={<Eye aria-hidden />}
-                      onClick={() => { setFiltroEstado("pendientes"); setBandaElegida("paso"); }}
+                      etiqueta={soloArt77 ? "Quitar el filtro" : "Ver quiénes"}
+                      icono={soloArt77 ? <EyeOff aria-hidden /> : <Eye aria-hidden />}
+                      onClick={() => {
+                        if (soloArt77) { setBandaElegida(null); return; }
+                        setFiltroEstado("pendientes");
+                        setBandaElegida("paso");
+                      }}
                     />
                     <BotonIcono
                       etiqueta={art77Abierto ? "Ocultar por qué importa" : "Por qué importa"}
