@@ -7,12 +7,20 @@ import { useRolActual } from "@/lib/admin/use-rol";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { Cargando } from "@/components/cargando";
 import { AreaTexto } from "@/components/ui/area-texto";
+import { AyudaPantalla } from "@/components/ui/ayuda-pantalla";
+import { BannerAviso } from "@/components/ui/banner-aviso";
 import { Boton } from "@/components/ui/boton";
+import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
+import { EstadoVacio } from "@/components/ui/estado-vacio";
+import { ParaAtender } from "@/components/ui/para-atender";
+import { Pestanas } from "@/components/ui/pestanas";
+import { TarjetaInfo } from "@/components/ui/tarjeta-info";
+import { bandaDe, ORDEN_BANDAS, racimoDeVencimientos, TEXTO_BANDA, type Banda } from "@/lib/admin/contratos-bandas";
+import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 import { Campo, CampoSelect } from "@/components/ui/campo";
 import { Modal } from "@/components/ui/modal";
 import { Insignia } from "@/components/ui/insignia";
 import { Menu, MenuItem } from "@/components/ui/menu";
-import { TablaEncabezado, Th } from "@/components/ui/tabla";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { vigentesAl } from "@/lib/admin/parametro-vigente";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
@@ -29,7 +37,6 @@ import {
   tipoQueCorresponde,
   type DatosContrato,
 } from "@/lib/admin/contrato-texto";
-import { Search } from "lucide-react";
 
 // Generador de contratos: se elige a la persona, el sistema jala lo que ya
 // sabe de ella (DNI, sueldo vigente, horario, sede) y arma el contrato
@@ -294,26 +301,6 @@ const DESCRIPCION_TIPO: Record<string, string> = {
  * avisa de nada: el `rojo` de esta paleta es el acento sagrado, con un máximo
  * de usos por vista.
  */
-/** Los estados que se resuelven generando un contrato; el resto, abriendo el suyo. */
-const NECESITA_CONTRATO = new Set(["sin_contrato", "vencido", "por_vencer", "desnaturalizado"]);
-
-/**
- * Las pestañas de la pantalla principal. Cada `clave` es o bien un valor real
- * de `filtroEstado` que ya existía ("pendientes", "todos", "sin_firmar"), o
- * uno de los dos sentinelas nuevos que solo reagrupan del lado del cliente
- * ("vigentes" = ok + sin_vencimiento; "archivados" = cambia la fuente de
- * datos a los contratos anulados). Ninguna pestaña inventa un estado que
- * `fn_contratos_tablero` no entregue ya.
- */
-const TABS: { clave: string; etiqueta: string }[] = [
-  { clave: "todos", etiqueta: "Todos" },
-  { clave: "pendientes", etiqueta: "Requieren atención" },
-  { clave: "vigentes", etiqueta: "Vigentes" },
-  { clave: "sin_firmar", etiqueta: "Pendientes de firma" },
-  { clave: "archivados", etiqueta: "Archivados" },
-];
-
-
 /**
  * El nombre CORTO de cada estado, para la insignia de la tabla.
  *
@@ -418,6 +405,33 @@ function variantePorEstado(estado: string): "neutral" | "alerta" | "advertencia"
  * campo nuevo uno de los dos se queda sin reponerlo, y el formulario arrastra
  * al documento siguiente lo que quedó del anterior.
  */
+/** Una fila de la lista por urgencia: quién, qué documento y vigencia, cuánto falta, su estado y su acción. */
+function FilaContrato({ v }: {
+  v: { persona: string; documento: string; vigencia: string; sede: string | null; estadoLabel: string; estadoVariante: "neutral" | "alerta" | "advertencia" | "positivo" | "informativo";
+       vence: string; venceAlerta: boolean; titulo: string; onClickRow: () => void; acciones: React.ReactNode };
+}) {
+  const detalle = [v.documento !== "—" ? v.documento : null, v.vigencia !== "—" ? v.vigencia : null, v.sede].filter(Boolean).join(" · ");
+  return (
+    <li
+      onClick={v.onClickRow}
+      title={v.titulo}
+      className="flex cursor-pointer flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-4 py-3 transition-colors duration-150 hover:bg-crema/60"
+    >
+      <div className="min-w-0">
+        <p className="truncate font-medium text-tinta">{v.persona}</p>
+        <p className="truncate text-xs text-taupe">{detalle}</p>
+      </div>
+      <div className="flex shrink-0 items-center gap-2">
+        {v.vence !== "—" && (
+          <span className={v.venceAlerta ? "text-xs font-medium text-rojo-profundo" : "text-xs text-taupe"}>{v.vence}</span>
+        )}
+        <Insignia variante={v.estadoVariante} tamano="sm">{v.estadoLabel}</Insignia>
+        <span onClick={(e) => e.stopPropagation()}>{v.acciones}</span>
+      </div>
+    </li>
+  );
+}
+
 function camposIniciales(p: Persona, sedeNombre: string, sedeCiudad: string | null): DatosFormulario {
   return {
     cargo: p.cargo ?? "",
@@ -493,6 +507,11 @@ export default function ContratosPage() {
   // y con veinte venciendo el mismo día, «¿a quién le falta?» es la pregunta
   // que hay que poder hacer. Ver migración 0287.
   const [tablero, setTablero] = useState<FilaTablero[]>([]);
+  // ¿Falló la lectura del tablero o del historial? Distinto de «no hay nada»: sin esto, un error se veía como una
+  // lista vacía y contadores en cero —y con ellos desaparecía el aviso del art. 77, justo lo que NO puede callarse—.
+  // El Dashboard ya hacía lo mismo con `contratosNoRespondio`.
+  const [falloTablero, setFalloTablero] = useState(false);
+  const [falloHistorial, setFalloHistorial] = useState(false);
 
   const [personaId, setPersonaId] = useState("");
   const [tipo, setTipo] = useState<"nuevo" | "renovacion" | "adendum" | "convenio_practicas" | "indefinido">(
@@ -619,6 +638,8 @@ export default function ContratosPage() {
   // leer el tablero y lee los contratos anulados). Ninguno inventa un estado
   // nuevo del lado del servidor — solo reagrupan, del lado del cliente,
   // estados que `fn_contratos_tablero` ya entrega.
+  // Qué banda de urgencia se está mirando (la elige una pastilla de «Para atender»); `null` = todas.
+  const [bandaElegida, setBandaElegida] = useState<Banda | null>(null);
   const [filtroEstado, setFiltroEstado] = useState<"pendientes" | "todos" | "vigentes" | "archivados" | string>(
     "pendientes",
   );
@@ -912,6 +933,8 @@ export default function ContratosPage() {
     setRitVersion(ritFila ? String(ritFila.etiqueta_version ?? ritFila.version) : null);
     setRitFecha(ritFila ? formatearFecha(ritFila.vigente_desde) : null);
 
+    setFalloHistorial(!!ctr.error);
+    setFalloTablero(!!tab.error);
     setContratos((ctr.data as ContratoFila[]) ?? []);
     setTablero((tab.data as FilaTablero[]) ?? []);
     if (!personaUrlAplicada.current) {
@@ -2019,7 +2042,8 @@ export default function ContratosPage() {
     setBusca("");
     setFiltroSede("");
     setFiltroTipo("");
-    setFiltroEstado("todos");
+    setFiltroEstado("pendientes");
+    setBandaElegida(null);
   }
 
   // Escape cierra el modal del documento, igual que en `components/ui/modal`.
@@ -2093,12 +2117,11 @@ export default function ContratosPage() {
   // escaneo — un contrato puede estar firmado por autoservicio digital sin
   // ningún PDF subido. Llamarlo "archivo firmado" habría sido más confuso que
   // el texto que reemplaza, no más claro.
-  const contadores: { clave: string; etiqueta: string; n: number; grave: boolean }[] = [
-    { clave: "desnaturalizado", etiqueta: "Riesgo de continuidad", n: cuenta("desnaturalizado"), grave: true },
-    { clave: "sin_firmar", etiqueta: "Pendientes de firma", n: cuenta("sin_firmar"), grave: false },
-    { clave: "vencido", etiqueta: "Vencidos", n: cuenta("vencido"), grave: true },
-    { clave: "por_vencer", etiqueta: "Vencen en 30 días", n: cuenta("por_vencer"), grave: false },
-  ];
+  // «Para atender»: cuántos hay en cada banda de urgencia, sobre el tablero ENTERO (no sobre lo filtrado: es el
+  // estado del mes, no de la búsqueda). Cada pastilla filtra la lista a esa banda.
+  const nBanda = (b: Banda) => tablero.filter((f) => bandaDe(f) === b).length;
+  const nParaAtender = tablero.filter((f) => bandaDe(f) !== "al_dia").length;
+  const nArt77 = cuenta("desnaturalizado");
 
   // Las sedes que de verdad aparecen, para el desplegable. Se leen del tablero
   // y no de una lista escrita a mano: la regla de la casa es que una lista de
@@ -2129,10 +2152,13 @@ export default function ContratosPage() {
     .filter((f) => filtroTipo === "" || f.tipo === filtroTipo)
     .filter((f) => {
       if (filtroEstado === "todos") return true;
-      if (filtroEstado === "pendientes") return f.estado !== "ok";
-      if (filtroEstado === "vigentes") return f.estado === "ok" || f.estado === "sin_vencimiento";
+      // «Para atender» y «Al día» se reparten TODO el tablero por banda (ver contratos-bandas.ts): «en papel» es
+      // historia, no urgencia, así que ya no infla lo que pide atención.
+      if (filtroEstado === "pendientes") return bandaDe(f) !== "al_dia";
+      if (filtroEstado === "vigentes") return bandaDe(f) === "al_dia";
       return f.estado === filtroEstado;
     })
+    .filter((f) => bandaElegida === null || bandaDe(f) === bandaElegida)
     // Lo urgente arriba: primero lo grave, después por cuántos días quedan.
     .sort((a, b) => {
       const g = Number(ESTADO_TABLERO[b.estado]?.grave ?? false) - Number(ESTADO_TABLERO[a.estado]?.grave ?? false);
@@ -2172,6 +2198,10 @@ export default function ContratosPage() {
           sede: c.sede,
           estadoLabel: "Anulado",
           estadoVariante: "informativo" as const,
+          banda: null as Banda | null,
+          vence: "—",
+          venceAlerta: false,
+          fechaFin: null as string | null,
           titulo: c.anulado_motivo ? `Anulado: ${c.anulado_motivo}` : "Anulado",
           onClickRow: () => setDetalleId(c.id),
           acciones: accionesContrato(c),
@@ -2240,6 +2270,11 @@ export default function ContratosPage() {
             sede: f.sede,
             estadoLabel,
             estadoVariante: variantePorEstado(f.estado),
+            banda: bandaDe(f) as Banda | null,
+            // «hace 6 días» / «en 9 días»: la urgencia a simple vista, ahora a la vista en la fila y no en un title.
+            vence: v.texto,
+            venceAlerta: v.alerta,
+            fechaFin: f.fecha_fin_contrato,
             titulo: v.texto === "—" ? e.texto : `${e.texto} · vence ${v.texto}`,
             onClickRow,
             acciones: contrato ? (
@@ -3173,18 +3208,26 @@ export default function ContratosPage() {
           )}
 
       <div className="mx-auto max-w-6xl space-y-6 print:hidden">
-        <header className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h1 className="font-serif text-2xl">Contratos</h1>
-            <p className="text-sm text-taupe">Gestiona contratos, renovaciones, convenios y documentos firmados.</p>
-          </div>
-          {/* Abre el generador como pantalla propia (`generadorAbierto`),
-              superpuesta al listado — ver el bloque justo dentro de
-              `<main>`, arriba de este `<div>`. */}
-          <Boton variante="primario" onClick={irAlGenerador} className="shrink-0">
-            + Nuevo documento
-          </Boton>
-        </header>
+        <CabeceraPagina
+          sobretitulo={sobretituloDeHoy("Personas")}
+          titulo="Contratos"
+          descripcion="Quién necesita un contrato, una renovación o una firma, de lo más urgente a lo que está al día."
+          ayuda={
+            <AyudaPantalla
+              titulo="Cómo funciona Contratos"
+              intro="Cada persona está en la banda que le toca según su contrato; la lista va de lo más urgente a lo que está al día. Abrir una fila muestra su documento."
+              secciones={[
+                { titulo: "Ya pasó el plazo", texto: "El contrato terminó y la persona sigue marcando asistencia. Pasada la fecha con la persona todavía trabajando, el art. 77 del D. Leg. 728 lo vuelve indefinido por ley, sin que nadie lo decida. Es lo único en rojo." },
+                { titulo: "Vence pronto", texto: "Termina en los próximos 60 días (la misma ventana que usa Equipo). Si varios vencen el mismo día, la pantalla lo dice: son decisiones, redacciones y firmas en la misma semana." },
+                { titulo: "Falta firma o copia", texto: "El contrato existe pero no está firmado (ni escaneado ni confirmado por la persona), o falta entregarle su copia." },
+                { titulo: "Sin contrato registrado", texto: "No hay ni documento ni fecha de fin anotada: no se sabe de ningún contrato." },
+                { titulo: "Al día", texto: "Vigentes, sin vencimiento, y los firmados en papel antes de que existiera el generador (marcados «En papel»): son historia, no urgencia." },
+                { titulo: "Quién entra", texto: "Desarrollo Organizacional y dirección; firma por CAYLA quien está configurado como firmante. Una líder de equipo no tiene esta pantalla." },
+              ]}
+            />
+          }
+          accion={<Boton variante="primario" onClick={irAlGenerador}>+ Nuevo documento</Boton>}
+        />
 
         {/* Antes el generador vivía en medio de esta columna, entre el
             listado y el archivo — con la Fase 2 pasó a ser su propia
@@ -3200,248 +3243,128 @@ export default function ContratosPage() {
             {/* El buscador vive DENTRO de la barra de filtros compacta, más
                 abajo (rediseño) — filtra las mismas dos fuentes que antes
                 (tablero y archivo), sin tildes. */}
-            {/* LOS CUATRO INDICADORES, Y CADA UNO ES UN FILTRO.
-                Un número que no se puede abrir obliga a adivinar qué filtro lo
-                reproduce. Pulsar uno deja la tabla con exactamente esas filas.
-                Solo el primero lleva rojo: es el único que cuesta plata. */}
-            {tablero.length > 0 && (
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                {contadores.map((c) => {
-                  const activo = filtroEstado === c.clave;
-                  return (
-                    <button
-                      key={c.clave}
-                      onClick={() => setFiltroEstado(activo ? "pendientes" : c.clave)}
-                      aria-pressed={activo}
-                      className={`rounded-2xl border p-3 text-left transition-colors ${
-                        c.grave && c.n > 0 ? "border-rojo" : activo ? "border-taupe" : "border-sand"
-                      } ${activo ? "bg-hueso" : "bg-papel hover:bg-hueso"}`}
-                    >
-                      <span
-                        className={`flex items-center gap-1 text-xs ${c.grave && c.n > 0 ? "text-rojo" : "text-taupe"}`}
-                      >
-                        {c.etiqueta}
-                        {/* Explica "riesgo de continuidad" sin gastar sitio en
-                            la tarjeta: hover en escritorio (title nativo) y
-                            toque en celular abren el mismo texto — un toque
-                            además activa el filtro, que es lo esperable
-                            cuando se pulsa una tarjeta entera. */}
-                        {c.clave === "desnaturalizado" && (
-                          <span title={EXPLICACION_ART_77} className="cursor-help text-taupe/80">
-                            ⓘ
-                          </span>
-                        )}
-                      </span>
-                      <span
-                        className={`block font-serif text-2xl tabular-nums ${c.grave && c.n > 0 ? "text-rojo" : "text-tinta"}`}
-                      >
-                        {c.n}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
+            {/* Un fallo de lectura NO se ve como «nada pendiente»: el plazo del art. 77 corre igual aunque esta lista
+                no haya podido mirar. */}
+            {falloTablero && (
+              <BannerAviso role="alert" variante="alerta" titulo="No se pudieron consultar los contratos">
+                <p className="mb-2">
+                  Esto no significa que no haya nada pendiente: significa que no se pudo mirar. El plazo del{" "}
+                  <strong>artículo 77</strong> corre igual aunque esta lista no haya podido revisarlo.
+                </p>
+                <Boton variante="secundario" tamano="sm" onClick={() => void cargar()}>Reintentar</Boton>
+              </BannerAviso>
+            )}
+            {falloHistorial && !falloTablero && (
+              <BannerAviso enLinea role="alert">
+                No se pudo traer el historial de documentos: la lista de personas sí cargó, pero «Archivados» y las acciones de cada fila pueden estar incompletas.{" "}
+                <Boton variante="enlace" onClick={() => void cargar()}>Reintentar</Boton>
+              </BannerAviso>
             )}
 
-            {/* BARRA DE FILTROS COMPACTA: buscar + sede + tipo + estado, en una
-                sola agrupación en vez de selects sueltos ocupando cada uno su
-                propia fila. El tipo se lee de lo que ya hay en pantalla, la
-                sede también — ninguno es una lista escrita a mano. */}
-            {tablero.length > 0 && (
-              <div className="space-y-2 rounded-2xl border border-sand bg-papel p-3">
-                <div className="relative">
-                  <Search
-                    size={15}
-                    strokeWidth={1.8}
-                    aria-hidden
-                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-taupe"
+            {/* EL ART. 77 va primero y con título cuando existe: es lo único que cuesta plata (la persona que sigue
+                marcando después de su vencimiento queda con vínculo indefinido POR LEY). */}
+            {nArt77 > 0 && (
+              <BannerAviso
+                variante="alerta"
+                titulo={`${nArt77} ${nArt77 === 1 ? "persona siguió" : "personas siguieron"} marcando después de vencer su contrato`}
+              >
+                <p className="mb-2">{EXPLICACION_ART_77}</p>
+                <Boton variante="secundario" tamano="sm" onClick={() => { setFiltroEstado("pendientes"); setBandaElegida("paso"); }}>
+                  Ver quiénes
+                </Boton>
+              </BannerAviso>
+            )}
+
+            {!falloTablero && tablero.length > 0 && (
+              <>
+                <Pestanas
+                  etiqueta="Secciones de Contratos"
+                  pestanas={[
+                    { clave: "pendientes", texto: "Para atender", aviso: nParaAtender },
+                    { clave: "vigentes", texto: "Al día" },
+                    { clave: "archivados", texto: "Archivados" },
+                  ]}
+                  activa={filtroEstado === "vigentes" || filtroEstado === "archivados" ? filtroEstado : "pendientes"}
+                  alElegir={(clave) => { setFiltroEstado(clave); setBandaElegida(null); }}
+                />
+
+                {(filtroEstado === "pendientes" || filtroEstado === "todos") && (
+                  <ParaAtender
+                    items={[
+                      { clave: "paso", texto: `${nBanda("paso")} ya pasó el plazo`, n: nBanda("paso"), tono: "rojo" },
+                      { clave: "pronto", texto: `${nBanda("pronto")} vence${nBanda("pronto") === 1 ? "" : "n"} pronto`, n: nBanda("pronto"), tono: "ambar" },
+                      { clave: "firma", texto: `${nBanda("firma")} falta${nBanda("firma") === 1 ? "" : "n"} firma o copia`, n: nBanda("firma"), tono: "pizarra" },
+                      { clave: "sin_contrato", texto: `${nBanda("sin_contrato")} sin contrato`, n: nBanda("sin_contrato"), tono: "neutro" },
+                    ]}
+                    activa={bandaElegida}
+                    alTocar={(clave) => setBandaElegida(bandaElegida === clave ? null : (clave as Banda))}
                   />
-                  <input
-                    value={busca}
-                    onChange={(e) => setBusca(e.target.value)}
-                    placeholder="Buscar por nombre…"
-                    aria-label="Buscar por nombre o sede"
-                    className="w-full rounded-control border border-sand bg-hueso py-2 pl-9 pr-9 text-base placeholder:text-taupe/60 sm:text-sm"
-                  />
-                  {busca && (
-                    <button
-                      onClick={() => setBusca("")}
-                      aria-label="Limpiar búsqueda"
-                      className="absolute right-2 top-1/2 -translate-y-1/2 px-1 leading-none text-taupe hover:text-tinta"
-                    >
-                      ×
-                    </button>
-                  )}
-                </div>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                  <CampoSelect value={filtroSede} onChange={(e) => setFiltroSede(e.target.value)} aria-label="Filtrar por sede">
-                    <option value="">Todas las sedes</option>
-                    {sedesEnTablero.map((sd) => (
-                      <option key={sd} value={sd}>
-                        {sd}
-                      </option>
-                    ))}
-                  </CampoSelect>
-                  <CampoSelect value={filtroTipo} onChange={(e) => setFiltroTipo(e.target.value)} aria-label="Filtrar por tipo">
-                    <option value="">Todos los tipos</option>
-                    {tiposEnDatos.map((t) => (
-                      <option key={t} value={t}>
-                        {TIPO_CONTRATO[t] ?? t}
-                      </option>
-                    ))}
-                  </CampoSelect>
-                  <div className="col-span-2 sm:col-span-1">
-                    <CampoSelect
-                      value={filtroEstado}
-                      onChange={(e) => setFiltroEstado(e.target.value)}
-                      aria-label="Filtrar por estado"
-                    >
-                      <option value="pendientes">Necesitan atención</option>
-                      <option value="todos">Todos los estados</option>
-                      {Object.keys(ESTADO_TABLERO).map((e) => (
-                        <option key={e} value={e}>
-                          {ESTADO_TABLERO[e].texto}
-                        </option>
-                      ))}
-                      {/* Los dos sentinelas que solo activan las pestañas
-                          (ver TABS): se listan acá también para que este
-                          desplegable no muestre "Necesitan atención" por
-                          defecto cuando en realidad está en "Vigentes" o
-                          "Archivados" — un <select> sin ninguna opción que
-                          calce con su valor cae a la primera de la lista. */}
-                      <option value="vigentes">Vigentes (ok + sin vencimiento)</option>
-                      <option value="archivados">Archivados (anulados)</option>
+                )}
+
+                {/* Filtros compactos, sin rótulos y con campos «sm». La sede y el tipo se leen de lo que ya hay en
+                    pantalla, no de una lista escrita a mano. */}
+                <TarjetaInfo className="flex flex-wrap items-center gap-2 p-3 sm:p-3">
+                  <div className="min-w-48 flex-1">
+                    <Campo tamano="sm" aria-label="Buscar por nombre o sede" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar persona" />
+                  </div>
+                  <div className="w-full sm:w-44">
+                    <CampoSelect tamano="sm" value={filtroSede} onChange={(e) => setFiltroSede(e.target.value)} aria-label="Filtrar por sede">
+                      <option value="">Todas las sedes</option>
+                      {sedesEnTablero.map((sd) => (<option key={sd} value={sd}>{sd}</option>))}
                     </CampoSelect>
                   </div>
-                </div>
-                {(busca || filtroSede || filtroTipo || filtroEstado !== "pendientes") && (
-                  <button
-                    className="text-xs text-taupe underline underline-offset-2 hover:text-tinta"
-                    onClick={limpiarFiltros}
-                  >
-                    × Limpiar filtros
-                  </button>
-                )}
-              </div>
-            )}
+                  <div className="w-full sm:w-48">
+                    <CampoSelect tamano="sm" value={filtroTipo} onChange={(e) => setFiltroTipo(e.target.value)} aria-label="Filtrar por tipo">
+                      <option value="">Todos los tipos</option>
+                      {tiposEnDatos.map((t) => (<option key={t} value={t}>{TIPO_CONTRATO[t] ?? t}</option>))}
+                    </CampoSelect>
+                  </div>
+                  {(busca || filtroSede || filtroTipo || bandaElegida !== null || (filtroEstado !== "pendientes" && filtroEstado !== "vigentes" && filtroEstado !== "archivados")) && (
+                    <Boton variante="enlace" className="text-xs text-taupe" onClick={limpiarFiltros}>Limpiar</Boton>
+                  )}
+                </TarjetaInfo>
 
-            {/* TABS: reagrupan del lado del cliente estados que
-                `fn_contratos_tablero` ya entrega (ver filasVista) — ninguno es
-                un estado nuevo del servidor. */}
-            {tablero.length > 0 && (
-              <div className="flex gap-1 overflow-x-auto border-b border-sand">
-                {TABS.map((t) => {
-                  const activo = filtroEstado === t.clave;
-                  return (
-                    <button
-                      key={t.clave}
-                      onClick={() => setFiltroEstado(t.clave)}
-                      aria-pressed={activo}
-                      className={`shrink-0 whitespace-nowrap border-b-2 px-3 py-2 text-sm transition-colors ${
-                        activo ? "border-tinta font-medium text-tinta" : "border-transparent text-taupe hover:text-tinta"
-                      }`}
-                    >
-                      {t.etiqueta}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* LA TABLA COMPACTA. Une lo que antes eran dos listas separadas
-                —el tablero (quién necesita un documento) y el archivo (los ya
-                generados)— en una sola fila por persona/documento, con las
-                acciones detrás de "•••" en vez de enlaces sueltos. Quien
-                todavía no tiene contrato sigue viéndose acá (columna Estado
-                dice "Sin registrar", o "En papel" si ya tiene uno firmado
-                antes de este generador — ver `estadoLabel` — y la acción es
-                "Generar"): esa visibilidad es la razón de ser de esta
-                pantalla y no se pierde al comprimir la tabla. */}
-            {tablero.length > 0 && (
-              <div className="rounded-2xl border border-sand bg-papel">
-                {/* Escritorio: tabla completa. En celular, tarjetas apiladas
-                    más abajo — mismos datos, sin scroll horizontal.
-                    La columna de Acciones subió de 7% a 14%: con "Generar"
-                    puesto (el texto más largo que le toca, con su padding de
-                    <Boton tamano="sm">) el 7% se quedaba corto y el botón
-                    salía cortado contra el borde de la tarjeta. */}
-                <div className="hidden sm:block">
-                  <table className="w-full table-fixed text-sm">
-                    <TablaEncabezado>
-                      <Th className="w-[26%] text-xs">Persona</Th>
-                      <Th className="w-[18%] text-xs">Documento</Th>
-                      <Th className="w-[19%] text-xs">Vigencia</Th>
-                      <Th className="w-[10%] text-xs">Sede</Th>
-                      <Th className="w-[13%] text-xs">Estado</Th>
-                      <Th className="w-[14%] text-xs" />
-                    </TablaEncabezado>
-                    <tbody>
-                      {filasVista.map((v) => (
-                        <tr
-                          key={v.key}
-                          onClick={v.onClickRow}
-                          title={v.titulo}
-                          className="cursor-pointer border-t border-sand transition-colors duration-150 even:bg-hueso/50 hover:bg-crema/60"
-                        >
-                          <td className="truncate px-3 py-2.5">{v.persona}</td>
-                          <td className="truncate px-2 py-2.5 text-taupe">{v.documento}</td>
-                          <td className="truncate px-2 py-2.5 text-taupe tabular-nums">{v.vigencia}</td>
-                          <td className="truncate px-2 py-2.5 text-taupe">{v.sede}</td>
-                          <td className="px-2 py-2.5">
-                            <Insignia variante={v.estadoVariante} tamano="sm">
-                              {v.estadoLabel}
-                            </Insignia>
-                          </td>
-                          <td className="whitespace-nowrap px-2 py-2.5 text-right">{v.acciones}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Celular: la misma fila, apilada en una tarjeta. */}
-                <div className="flex flex-col divide-y divide-sand sm:hidden">
-                  {filasVista.map((v) => (
-                    <div key={v.key} onClick={v.onClickRow} title={v.titulo} className="cursor-pointer px-3 py-2.5">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="truncate font-medium">{v.persona}</p>
-                          <p className="truncate text-xs text-taupe">{v.documento}</p>
-                        </div>
-                        <Insignia variante={v.estadoVariante} tamano="sm" className="shrink-0">
-                          {v.estadoLabel}
-                        </Insignia>
-                      </div>
-                      <div className="mt-1 flex items-center justify-between gap-2 text-xs text-taupe">
-                        <span className="truncate">
-                          {v.vigencia !== "—" && `${v.vigencia} · `}
-                          {v.sede}
-                        </span>
-                        <span onClick={(e) => e.stopPropagation()}>{v.acciones}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {filasVista.length === 0 && (
-                  <p className="px-3 py-8 text-center text-sm text-taupe">
+                {filasVista.length === 0 ? (
+                  <EstadoVacio accion={(busca || filtroSede || filtroTipo || bandaElegida !== null)
+                    ? <Boton variante="secundario" tamano="sm" onClick={limpiarFiltros}>Limpiar filtros</Boton>
+                    : undefined}>
                     {filtroEstado === "archivados"
                       ? "No hay documentos archivados todavía."
-                      : "No encontramos contratos con estos filtros."}
-                    {(busca || filtroSede || filtroTipo || filtroEstado !== "pendientes") && (
-                      <>
-                        {" "}
-                        <button
-                          className="underline underline-offset-2 hover:text-tinta"
-                          onClick={limpiarFiltros}
-                        >
-                          Limpiar filtros
-                        </button>
-                      </>
-                    )}
-                  </p>
+                      : filtroEstado === "pendientes" && !(busca || filtroSede || filtroTipo || bandaElegida !== null)
+                        ? "Todo al día: no hay contratos que atender."
+                        : "No encontramos contratos con estos filtros."}
+                  </EstadoVacio>
+                ) : filtroEstado === "archivados" ? (
+                  <TarjetaInfo className="overflow-hidden p-0 sm:p-0">
+                    <ul className="divide-y divide-sand">{filasVista.map((v) => <FilaContrato key={v.key} v={v} />)}</ul>
+                  </TarjetaInfo>
+                ) : (
+                  <div className="grid gap-5">
+                    {ORDEN_BANDAS.filter((b) => filasVista.some((v) => v.banda === b)).map((b) => {
+                      const dentro = filasVista.filter((v) => v.banda === b);
+                      const racimo = b === "pronto" ? racimoDeVencimientos(dentro.map((v) => v.fechaFin)) : null;
+                      return (
+                        <section key={b} aria-label={TEXTO_BANDA[b].titulo}>
+                          <h2 className="mb-1 flex flex-wrap items-baseline gap-2 font-serif text-lg">
+                            {TEXTO_BANDA[b].titulo}
+                            <span className="font-sans text-xs font-normal text-taupe">{dentro.length} {dentro.length === 1 ? "persona" : "personas"}</span>
+                          </h2>
+                          <p className="mb-2 text-xs text-taupe">{TEXTO_BANDA[b].ayuda}</p>
+                          {racimo && (
+                            <BannerAviso enLinea className="mb-2">
+                              <strong>{racimo.cuantos} contratos vencen el mismo día</strong> ({formatearFecha(racimo.fecha)}): son {racimo.cuantos} decisiones,
+                              redacciones y firmas en la misma semana.
+                            </BannerAviso>
+                          )}
+                          <TarjetaInfo className="overflow-hidden p-0 sm:p-0">
+                            <ul className="divide-y divide-sand">{dentro.map((v) => <FilaContrato key={v.key} v={v} />)}</ul>
+                          </TarjetaInfo>
+                        </section>
+                      );
+                    })}
+                  </div>
                 )}
-              </div>
+              </>
             )}
           </div>
 
