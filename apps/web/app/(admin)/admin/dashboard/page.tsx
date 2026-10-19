@@ -1167,7 +1167,8 @@ export default function DashboardPage() {
                 {OPCIONES_FILTRO_ESTADO.map((o) => <option key={o.valor} value={o.valor}>{o.etiqueta}</option>)}
               </CampoSelect>
               <BotonIcono tamano="md" etiqueta="Solo alertas" icono={<TriangleAlert aria-hidden />} activo={soloAlertas} onClick={() => setSoloAlertas(!soloAlertas)} />
-              {hayFiltrosActivos && (
+              {/* «Limpiar» solo cuando hay algo MÁS que el ícono de alertas: ese se apaga tocándolo otra vez. */}
+              {(busqueda !== "" || estadoFiltro !== "todos" || sedeFiltro !== "todas") && (
                 <Boton variante="enlace" tamano="sm" onClick={limpiarFiltros}>Limpiar</Boton>
               )}
             </div>
