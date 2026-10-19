@@ -1779,13 +1779,13 @@ export default function DashboardPage() {
                         <TablaPersonas filas={deSedeMostrada} linkCorregir={linkCorregir} ahoraDecimal={ahoraDecimal} />
                       )}
                       {!hayFiltrosDeContenido && (
-                        <Boton variante="enlace" tamano="sm" className="mt-3" onClick={() => setDetalleAbierto((s) => ({ ...s, [sedeId]: false }))}>
+                        <Boton variante="enlace" className="mt-3 text-xs text-taupe hover:text-tinta" onClick={() => setDetalleAbierto((s) => ({ ...s, [sedeId]: false }))}>
                           Ocultar detalle ↑
                         </Boton>
                       )}
                     </>
                   ) : (
-                    <Boton variante="enlace" tamano="sm" onClick={() => setDetalleAbierto((s) => ({ ...s, [sedeId]: true }))}>
+                    <Boton variante="enlace" className="text-xs text-taupe hover:text-tinta" onClick={() => setDetalleAbierto((s) => ({ ...s, [sedeId]: true }))}>
                       {/* «del equipo», como la frase de arriba («10 de las 12 personas del
                           equipo»): el detalle lista a todo el equipo, no solo a quien le tocaba hoy. */}
                       Ver detalle ↓ ({deSedeCompleta.length} persona{deSedeCompleta.length === 1 ? "" : "s"} del equipo)
