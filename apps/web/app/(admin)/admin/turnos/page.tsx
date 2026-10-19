@@ -29,7 +29,7 @@ import { diaDeLaSedeDe, esperadoDelDia, esTurnoEspejoViejo, horarioVigente, type
 import { cicloVigente, type DiaTrabajado } from "@/lib/admin/ciclo-sobretiempo";
 import { colorCobertura, etiquetaCobertura, etiquetaSedeSinTurnos, type TonoCobertura } from "@/lib/admin/cobertura-turnos";
 import { resumenDeLideres, resumenDelTramo, type ResumenTramo, type TurnoDecimal } from "@/lib/admin/cobertura-tramos";
-import { InsigniaTramo, Medidor, TarjetaGrupo, TarjetaTramo, type PersonaDelDia } from "./cobertura-por-tramos";
+import { CampoMeta, InsigniaTramo, Medidor, TarjetaGrupo, TarjetaTramo, type PersonaDelDia } from "./cobertura-por-tramos";
 
 // ── Fechas (todo en ISO yyyy-mm-dd, semana de lunes a domingo) ──────────────
 function parseISO(iso: string): Date {
@@ -647,6 +647,8 @@ export default function TurnosPage() {
   const diaActivo = diaSel && dias.includes(diaSel) ? diaSel : (dias.includes(hoyLima()) ? hoyLima() : dias[0]);
   const supabase = useMemo(() => createAdminSupabaseClient(), []);
   const reqId = useRef(0); // "última carga gana": descarta respuestas fuera de orden
+  // Pedir una recarga sin llamar a `cargar` desde un manejador de pantalla: así lo que se dibuja no arrastra la lectura de `reqId`.
+  const [recarga, setRecarga] = useState(0);
 
   // Deep-link: al llegar con ?fecha=<YYYY-MM-DD> (desde Incidencias, ej. déficit
   // de encargadas), salta directo a la semana de esa fecha.
@@ -730,6 +732,7 @@ export default function TurnosPage() {
   }, [supabase, sedeSel, lunes, avisar]);
 
   useEffect(() => { void cargar(); }, [cargar]);
+  useEffect(() => { if (recarga > 0) void cargar(); }, [recarga]); // eslint-disable-line react-hooks/exhaustive-deps -- solo cuando se pide; el cambio de `cargar` ya lo cubre el efecto de arriba
 
   // Cuenta rápida de la semana anterior, solo para el botón — no filtra por
   // "ya tiene turno en el destino" ni por persona activa (eso lo decide
@@ -1019,7 +1022,7 @@ export default function TurnosPage() {
       p_sede_id: sedeSel, p_dia_semana: dia,
       p_meta_manana: metas.get(dia) ?? 0, p_meta_tarde: metasTarde.get(dia) ?? 0,
     });
-    if (error) { avisar("error", mensajeDeError(error, "guardar la meta")); await cargar(); }
+    if (error) { avisar("error", mensajeDeError(error, "guardar la meta")); setRecarga((n) => n + 1); }
   }
 
   function editarMetaEncargadas(dia: number, valor: string) {
@@ -1029,7 +1032,7 @@ export default function TurnosPage() {
   async function comprometerMetaEncargadas(dia: number, valor: string) {
     const meta = Math.max(0, Math.round(Number(valor) || 0));
     const { error } = await supabase.rpc("fn_set_meta_encargadas", { p_sede_id: sedeSel, p_dia_semana: dia, p_meta: meta });
-    if (error) { avisar("error", mensajeDeError(error, "guardar la meta de líderes")); await cargar(); }
+    if (error) { avisar("error", mensajeDeError(error, "guardar la meta de líderes")); setRecarga((n) => n + 1); }
   }
 
   if (rol !== null && !puedeVer) {
@@ -1347,15 +1350,14 @@ export default function TurnosPage() {
                 const opsTrabajan = trabajan.filter(esOperativa);
                 const abrirChip = puedeVer ? (id: string) => abrir(id, iso) : undefined;
                 const campoMeta = (tramo: "manana" | "tarde") => esAdmin ? (
-                  <>
-                    <span>de</span>
-                    <input type="number" min={0} aria-label={`Meta de la ${tramo === "manana" ? "mañana" : "tarde"}`}
-                      value={tramo === "manana" ? (metas.get(dia) ?? 0) : (metasTarde.get(dia) ?? 0)}
-                      title={`meta de la ${tramo === "manana" ? "mañana" : "tarde"} de todos los ${DIAS_PLURAL[dia]}`}
-                      onChange={(e) => editarMeta(dia, tramo, e.target.value)} onBlur={() => comprometerMeta(dia)}
-                      className="w-12 rounded border border-sand bg-crema px-1 py-0.5 text-center text-sm text-tinta" />
-                    <span className="text-xs">todos los {DIAS_PLURAL[dia]}</span>
-                  </>
+                  <CampoMeta
+                    valor={tramo === "manana" ? (metas.get(dia) ?? 0) : (metasTarde.get(dia) ?? 0)}
+                    etiqueta={`Meta de la ${tramo === "manana" ? "mañana" : "tarde"}`}
+                    titulo={`meta de la ${tramo === "manana" ? "mañana" : "tarde"} de todos los ${DIAS_PLURAL[dia]}`}
+                    cuando={`todos los ${DIAS_PLURAL[dia]}`}
+                    onCambio={(v) => editarMeta(dia, tramo, v)}
+                    onSalir={() => comprometerMeta(dia)}
+                  />
                 ) : undefined;
                 const lideresChips = t.lideres.n > 0 ? deLaMeta(t.idsLideres).map((p) => personaDelDia(p, iso)) : [];
                 const libres = personas.filter((p) => { const c = celda(p.id, iso); return c.tipo === "descanso" || c.tipo === "libre"; }).map((p) => personaDelDia(p, iso));
@@ -1390,14 +1392,14 @@ export default function TurnosPage() {
                         <TarjetaTramo
                           titulo="Líderes" subtitulo="meta plana, todo el día" {...t.lideres} gente={lideresChips} onAbrir={abrirChip}
                           metaEditable={esAdmin ? (
-                            <>
-                              <span>de</span>
-                              <input type="number" min={0} aria-label="Meta de líderes" value={metasEncargadas.get(dia) ?? 0}
-                                title={`meta de líderes de todos los ${DIAS_PLURAL[dia]}`}
-                                onChange={(e) => editarMetaEncargadas(dia, e.target.value)} onBlur={(e) => comprometerMetaEncargadas(dia, e.target.value)}
-                                className="w-12 rounded border border-sand bg-crema px-1 py-0.5 text-center text-sm text-tinta" />
-                              <span className="text-xs">todos los {DIAS_PLURAL[dia]}</span>
-                            </>
+                            <CampoMeta
+                              valor={metasEncargadas.get(dia) ?? 0}
+                              etiqueta="Meta de líderes"
+                              titulo={`meta de líderes de todos los ${DIAS_PLURAL[dia]}`}
+                              cuando={`todos los ${DIAS_PLURAL[dia]}`}
+                              onCambio={(v) => editarMetaEncargadas(dia, v)}
+                              onSalir={(v) => comprometerMetaEncargadas(dia, v)}
+                            />
                           ) : undefined}
                         />
                         {sug && (
