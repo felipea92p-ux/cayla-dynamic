@@ -268,9 +268,10 @@ los datos de la base dan JSON **idéntico**.
    `fn_planilla_calcular_nucleo` es la de la **0504** (`f1781d68…`, 116 749 caracteres): **la 0524 no está pegada**.
    La 0537 copia la 0524 y su guardia se niega a pegar sobre otra cosa: **pegar la 0524 ANTES de la 0537** (su
    encabezado dice que a nadie le cambia el pago). Mirar también `./scripts/que-falta-pegar.sh`.
-2. **Pedir a producción el md5 de `fn_solicitud_perfil_puede_escribir`** (la 0538 espera `6a37a709…`, o `f1a28aac…`
-   con `\r\n`; tiene guardia) y comprobar que `terminal_roster` tenga las seis columnas de la 0490 (la 0539 también
-   se guarda). Volver a pedir todos los md5 en el mensaje en que se entregue el SQL.
+2. **Medido en producción el 2026-10-19 (segunda consulta de Felipe):** `fn_solicitud_perfil_puede_escribir` tiene md5
+   `f1a28aac…` = la 0399 pegada con `\r\n` (la 0538 acepta esa variante: pegar desde Windows, ver CLAUDE.md);
+   `terminal_roster` tiene las seis columnas de la 0490 (la 0539 las espera); y la planilla **no** trae la 0524
+   (confirmado por segunda vez). Volver a pedir los md5 en el mensaje en que se entregue el SQL.
 3. Pegar **0524** (si falta), **0535**, comprobar `select count(*) from pg_proc where proname = 'fn_cese_aplicar'` = 1,
    **0536**, **0537**, **0538**, **0539**. Y solo entonces fusionar. Cada una se niega a entrar si falta su antecesora.
 

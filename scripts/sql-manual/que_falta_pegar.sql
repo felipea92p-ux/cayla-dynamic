@@ -377,7 +377,7 @@ with repo(numero, nombre, nunca) as (values
     (516, 'la_persona_deja_constancia_de_haber_leido', false),
     (517, 'la_persona_ve_como_va_con_sus_tardanzas', false),
     (518, 'a_quien_le_toca_el_bono_de_cumpleanos_se_dice_una_vez', false),
-    (519, 'el_bono_de_cumpleanos_tambien_lo_recibe_el_practicante', false),
+    (519, 'el_bono_de_cumpleanos_tambien_lo_recibe_el_practicante', true),
     (520, 'el_bono_de_cumpleanos_una_sola_regla_y_el_practicante_cobra_por_transferencia', false),
     (521, 'el_bono_del_practicante_vuelve_a_la_boleta', false),
     (522, 'la_solicitud_educativa_pendiente_recibe_su_comprobante', false),
@@ -389,7 +389,12 @@ with repo(numero, nombre, nunca) as (values
     (530, 'mi_seguro_cada_colaborador_ve_su_seguro_y_abre_sus_pdf', false),
     (531, 'la_politica_de_movilidad_se_firma_con_la_firma_del_sistema', false),
     (532, 'las_boletas_se_firman_y_una_anulacion_se_restablece', false),
-    (533, 'la_constancia_de_la_boleta_trae_sus_datos', false)
+    (533, 'la_constancia_de_la_boleta_trae_sus_datos', false),
+    (535, 'el_cese_separa_quien_puede_pedirlo_de_como_se_hace', false),
+    (536, 'la_prueba_de_tres_dias', false),
+    (537, 'en_la_prueba_se_paga_lo_trabajado_y_quien_se_retira_no_cobra', false),
+    (538, 'el_dni_de_quien_esta_de_prueba_lo_sube_quien_lo_registra', false),
+    (539, 'el_terminal_sabe_quien_esta_de_prueba', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
@@ -427,13 +432,18 @@ diff as (
 --   b) El número se anotó pero su contenido quedó SUPERADO por migraciones
 --      posteriores que sí están guardadas → NO commitear el archivo viejo, que
 --      podría crear una sobrecarga y repetir el «function is not unique» de la
---      0297/0299. Se anota el número en `huecos-conocidos.txt` con su razón.
---      Es el caso de la 0393, medido el 2026-09-08.
+--      0297/0299. Se anota en `huecos-conocidos.txt` con su razón y la marca
+--      `[sobra la fila: <nombre>]`: desde entonces sale acá como «ya
+--      explicada» y deja de contar como alarma. Es el caso de la 0393, medido
+--      el 2026-09-08.
 --
 -- Para distinguirlas hay que mirar si lo que esa migración creaba sigue vigente
--- en producción con la misma firma. Cero filas es lo normal.
+-- en producción con la misma firma. Cero filas SIN EXPLICAR es lo normal.
+explicadas(numero, nombre) as (values (393, 'cualquiera_guarda_su_propia_firma')),
 huerfanas as (
-  select a.numero, a.nombre, a.aplicada_at
+  select a.numero, a.nombre, a.aplicada_at,
+         exists (select 1 from explicadas e
+                  where e.numero = a.numero and e.nombre = a.nombre) as explicada
   from migraciones_aplicadas a
   where a.numero >= (select min(numero) from repo)
     and not exists (select 1 from repo r where r.numero = a.numero)
@@ -451,11 +461,14 @@ select * from (
 
   union all
 
-  -- Las huérfanas, una fila cada una y ANTES del resumen. Si hay alguna, es lo
-  -- único que importa de toda esta consulta.
+  -- Las huérfanas, una fila cada una y ANTES del resumen. Si hay alguna sin
+  -- explicar, es lo único que importa de toda esta consulta. Las explicadas se
+  -- siguen viendo —como las que no se pegan—, pero con su razón al lado.
   select a.numero::text,
          a.nombre,
-         '⚠️  SOBRA LA FILA — revísala (ver abajo)',
+         case when a.explicada
+              then '—   sobra la fila, ya explicada (ver scripts/hooks/huecos-conocidos.txt)'
+              else '⚠️  SOBRA LA FILA — revísala (ver abajo)' end,
          to_char(a.aplicada_at, 'DD/MM/YYYY'),
          999997
   from huerfanas a
@@ -470,13 +483,13 @@ select * from (
          (select count(*) filter (where not falta and not nunca_ira) from diff)::text || ' aplicadas · ' ||
          (select count(*) filter (where nunca_ira) from diff)::text || ' que no se pegan · ' ||
          (select count(*) from diff)::text || ' en git' ||
-         case when (select count(*) from huerfanas) > 0
-              then ' · ⚠️ ' || (select count(*) from huerfanas)::text || ' PEGADAS Y NO GUARDADAS'
+         case when (select count(*) filter (where not explicada) from huerfanas) > 0
+              then ' · ⚠️ ' || (select count(*) filter (where not explicada) from huerfanas)::text || ' PEGADAS Y NO GUARDADAS'
               else '' end,
-         -- Una huérfana manda sobre todo lo demás: que falte pegar algo es
-         -- atraso normal; que algo esté pegado y sin guardar es lo que costó
-         -- tres sustos y no avisa solo.
-         case when (select count(*) from huerfanas) > 0 then '⚠️  MIRA ARRIBA'
+         -- Una huérfana sin explicar manda sobre todo lo demás: que falte pegar
+         -- algo es atraso normal; que algo esté pegado y sin guardar es lo que
+         -- costó tres sustos y no avisa solo.
+         case when (select count(*) filter (where not explicada) from huerfanas) > 0 then '⚠️  MIRA ARRIBA'
               when (select count(*) filter (where falta) from diff) = 0
               then '✓   al día' else '❌  hay pendientes' end,
          '', 999999
