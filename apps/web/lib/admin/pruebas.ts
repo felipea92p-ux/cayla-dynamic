@@ -37,6 +37,8 @@ export interface FilaPrueba {
   /** false = el trigger no pudo abrirle su fila; `fn_prueba_cerrar` se la crea al vuelo. */
   registrada: boolean;
   horas_marcadas: number;
+  /** Ya tiene las dos caras del DNI guardadas. */
+  dni_cargado: boolean;
 }
 
 /** Una fila de `fn_pruebas_cierres_recientes` (0538). */

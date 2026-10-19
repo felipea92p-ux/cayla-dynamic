@@ -19,7 +19,7 @@
 --     líder DO — la 0535 la partió en dos sin aflojarla.
 -- ============================================================================
 begin;
-select plan(50);
+select plan(52);
 
 insert into sedes (id, codigo, nombre, activa) values
   ('00000000-0000-0000-0000-000000429a01', 'ZZPR1', 'Sede de laboratorio 1', true),
@@ -117,6 +117,15 @@ select is(
 select is(
   (select horas_marcadas from fn_pruebas_abiertas() where persona_id = '00000000-0000-0000-0000-000000429d01'),
   12::numeric, 'DÍAS · y dice cuántas horas lleva marcadas: lo que está en juego al decidir');
+
+select is(
+  (select dni_cargado from fn_pruebas_abiertas() where persona_id = '00000000-0000-0000-0000-000000429d01'),
+  false, 'DNI · sin las fotos, la fila dice que falta el DNI');
+insert into datos_personales (persona_id, foto_dni_anverso_ruta, foto_dni_reverso_ruta)
+values ('00000000-0000-0000-0000-000000429d01', 'solicitud/x/a.jpg', 'solicitud/x/b.jpg');
+select is(
+  (select dni_cargado from fn_pruebas_abiertas() where persona_id = '00000000-0000-0000-0000-000000429d01'),
+  true, 'DNI · con las dos caras guardadas, dice que ya está');
 
 select pg_temp.jornada('00000000-0000-0000-0000-000000429d02', '2026-10-02', 'cerrada');
 select pg_temp.jornada('00000000-0000-0000-0000-000000429d02', '2026-10-03', 'cerrada');

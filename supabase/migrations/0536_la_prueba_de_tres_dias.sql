@@ -252,7 +252,8 @@ returns table (
   situacion       text,
   ultima_jornada  date,
   registrada      boolean,
-  horas_marcadas  numeric
+  horas_marcadas  numeric,
+  dni_cargado     boolean
 )
 language sql
 stable
@@ -273,7 +274,13 @@ as $$
               else 'vencida' end,
          d.ultima,
          pr.id is not null,
-         d.horas
+         d.horas,
+         -- ¿Ya tiene las dos caras del DNI? Lo único que se le pide a quien está de
+         -- prueba, además de su nombre y su número (que ya vienen de Equipo, 0513).
+         exists (select 1 from datos_personales dp
+                  where dp.persona_id = p.id
+                    and dp.foto_dni_anverso_ruta is not null
+                    and dp.foto_dni_reverso_ruta is not null)
     from personas p
     left join sedes s  on s.id = p.sede_base_id
     left join pruebas pr on pr.persona_id = p.id and pr.resultado = 'en_curso'
@@ -305,7 +312,7 @@ grant  execute on function fn_pruebas_abiertas() to authenticated;
 
 comment on function fn_pruebas_abiertas() is
   'Las personas activas en vínculo «Prueba» que quien llama puede ver, con su día de prueba, su situación '
-  '(en_curso · cumplida · vencida) y las horas que llevan marcadas. Primero las vencidas (0536).';
+  '(en_curso · cumplida · vencida), las horas que llevan marcadas y si ya tienen las dos caras del DNI. Primero las vencidas (0536).';
 
 -- ── 6 · Cerrar la prueba: la única puerta ───────────────────────────────────
 -- Todo o nada: el resultado y la baja se escriben juntos o no se escribe nada.

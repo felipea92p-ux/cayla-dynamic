@@ -16,7 +16,7 @@ function fila(o: Partial<FilaPrueba> = {}): FilaPrueba {
   return {
     prueba_id: "p1", persona_id: "x1", nombres: "Mariel", apellidos: "Sarmiento", sede_id: "s1", sede_codigo: "TRU",
     inicio: "2026-10-16", dias_trabajados: 1, dias_plazo: 3, situacion: "en_curso", ultima_jornada: "2026-10-16",
-    registrada: true, horas_marcadas: 5.35, ...o,
+    registrada: true, horas_marcadas: 5.35, dni_cargado: false, ...o,
   };
 }
 

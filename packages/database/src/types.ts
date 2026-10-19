@@ -9467,6 +9467,7 @@ export type Database = {
           apellidos: string
           dias_plazo: number
           dias_trabajados: number
+          dni_cargado: boolean
           horas_marcadas: number
           inicio: string
           nombres: string
