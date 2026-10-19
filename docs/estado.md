@@ -240,6 +240,14 @@ asignación es un derecho del trabajador con hijos, Ley 25129).
   (`con_hijos` y vínculo distinto de «prueba») que leen los 8 usos de pago de la asignación. `con_hijos`
   no se toca. **Tiene una guardia**: se niega a pegar si `pruebas` no existe o si el md5 de la función
   de esa base no es el de la 0524 (acepta sin comentarios y con `\r\n`).
+- **0538 — el DNI de quien está de prueba.** Decidido el 2026-10-19: «DO, líder o los que tienen más cargo
+  pueden subir el DNI por su cuenta» (la persona de prueba no tiene cuenta). `fn_prueba_cargar_dni` crea la
+  solicitud `foto_dni` **a nombre de esa persona** y la aprueba en el acto con `fn_resolver_solicitud_perfil`
+  (que ya deja resolver a la líder de la sede): una sola forma de guardar un DNI, con su congelado, historial y
+  auditoría. `fn_solicitud_perfil_puede_escribir` (0399) gana una rama para quien puede actuar sobre la prueba
+  de esa persona (la lectura no se toca). Y `fn_pruebas_cierres_recientes` (los cierres de las últimas 48 h,
+  con quién decidió: la mitigación de que la líder decida sola). **Guardia** con el md5 de la 0399 (`6a37a709…`);
+  **hay que pedir a producción el md5 de `fn_solicitud_perfil_puede_escribir`** antes de pegarla. Prueba pgTAP **431** (30).
 - `puedeDecidirPrueba` en `permisos.ts`, y las pruebas `tests/permisos.test.ts`, pgTAP **429** (49) y
   **430** (19).
 
@@ -260,7 +268,7 @@ la 0524).
    pago; es la del día de referencia de educación). Mirar también `./scripts/que-falta-pegar.sh`, por si falta
    algo más. Y volver a pedir los md5 en el mensaje en que se entregue el SQL.
 2. Pegar **0524** (si sigue faltando), **0535**, comprobar `select count(*) from pg_proc where proname =
-   'fn_cese_aplicar'` = 1, pegar **0536**, pegar **0537**. Volver a pedir los md5 en el mensaje en que se entregue el SQL.
+   'fn_cese_aplicar'` = 1, pegar **0536**, pegar **0537**, pegar **0538**. Volver a pedir los md5 en el mensaje en que se entregue el SQL.
 
 **⚠ Todavía sin pantallas.** Con la 0537 pegada, la base ya hace lo decidido; pero ninguna pantalla
 llama a `fn_prueba_cerrar` ni muestra `fn_pruebas_abiertas`. Sigue funcionando el cese de siempre, y
