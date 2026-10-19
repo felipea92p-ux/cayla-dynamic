@@ -7121,11 +7121,7 @@ export type Database = {
         Returns: undefined
       }
       fn_aceptar_terminos: {
-        Args: {
-          p_modulo: string | null
-          p_texto: string | null
-          p_version: number | null
-        }
+        Args: { p_modulo: string | null; p_texto: string | null; p_version: number | null }
         Returns: boolean
       }
       fn_acta_descanso: { Args: { p_referencia: string | null }; Returns: string }
