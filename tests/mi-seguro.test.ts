@@ -29,7 +29,7 @@ import {
 } from "@/lib/admin/seguros";
 import {
   DIAS_AVISO_PERSONA, GUIAS_DE_USO, SI_NO_CUADRA, archivosDe, datosConfirmados, enlaceTelefono, guiasQueAplican, leerPolizasMias,
-  nombreDeDescarga, resolverMiSeguro, rotuloDeArchivo, textoDelResumen, traerMiSeguro,
+  nombreDeDescarga, resolverMiSeguro, resumenSoloRepite, rotuloDeArchivo, textoDelResumen, traerMiSeguro,
   type ArchivoMio, type PolizaMia, type SeguroPrincipal,
 } from "@/lib/mi-seguro";
 
@@ -793,5 +793,56 @@ describe("el enlace para llamar", () => {
 
   it("los dos teléfonos del texto producen un enlace de 7 cifras después del código de Lima", () => {
     for (const t of GUIAS_DE_USO.salud_practicantes.telefonos) expect(enlaceTelefono(t)).toMatch(/^tel:\+511\d{7}$/);
+  });
+});
+
+describe("cuándo la tarjeta de la póliza ya dice todo lo del resumen", () => {
+  // La tarjeta de la póliza vigente muestra «Vigente» y hasta cuándo; el resumen de arriba solo se omite
+  // cuando no tiene nada más que contar. Si se omitiera de más, la persona no leería que su póliza vence
+  // pronto o que hay un hueco entre dos pólizas.
+  it("una póliza vigente y sola: el resumen solo repetiría la vigencia", () => {
+    expect(resumenSoloRepite(resolverMiSeguro(FOLA, [poliza()], HOY))).toBe(true);
+  });
+
+  it("si vence pronto, el resumen se muestra: es lo que la persona tiene que leer", () => {
+    const venceEn = "2026-10-27";
+    expect(resumenSoloRepite(resolverMiSeguro(FOLA, [poliza({ vigente_hasta: venceEn })], HOY))).toBe(false);
+  });
+
+  it("si hay otra registrada que empieza después y deja un hueco, el resumen se muestra", () => {
+    const seguro = resolverMiSeguro(FOLA, [poliza(), poliza({ poliza_id: "z2", vigente_desde: "2027-01-10", vigente_hasta: "2027-04-10" })], HOY);
+    expect(seguro.empiezaDespuesEl).not.toBeNull();
+    expect(resumenSoloRepite(seguro)).toBe(false);
+  });
+
+  it("si la renovación empalma, la cobertura llega más lejos que esta póliza y el resumen se muestra", () => {
+    const seguro = resolverMiSeguro(FOLA, [poliza(), poliza({ poliza_id: "z2", vigente_desde: "2027-01-01", vigente_hasta: "2027-04-01" })], HOY);
+    expect(seguro.cubiertoHasta).toBe("2027-04-01");
+    expect(resumenSoloRepite(seguro)).toBe(false);
+  });
+
+  it("sin póliza vigente (hueco, EsSalud, sin seguro) nunca repite: no hay tarjeta de póliza vigente que lo diga", () => {
+    expect(resumenSoloRepite(resolverMiSeguro(FOLA_SIN_COBERTURA, [], HOY))).toBe(false);
+    expect(resumenSoloRepite(resolverMiSeguro(FOLA_SIN_COBERTURA, [poliza({ vigente_hasta: "2026-10-10" })], HOY))).toBe(false);
+    expect(resumenSoloRepite(resolverMiSeguro(ESSALUD, [], HOY))).toBe(false);
+    expect(resumenSoloRepite(resolverMiSeguro(NINGUNO, [], HOY))).toBe(false);
+  });
+});
+
+describe("la tarjeta de la póliza nunca dice que la persona «está cubierta»", () => {
+  // `textoDelResumen` ya lo cuida; el rediseño del 2026-10-19 agregó texto propio en la tarjeta de la póliza
+  // vigente (`CarnePoliza`). Se lee solo esa pieza, sin comentarios y sin identificadores. La guía de uso
+  // sí habla de lo que la póliza «NO cubre»: es lo que el producto excluye, no una promesa a la persona.
+  it("el texto que se pinta no usa «cubre», «cubierto» ni «cobertura»", () => {
+    const todo = readFileSync(path.join(__dirname, "..", "apps/web/app/(mio)/mio/seguro/mi-seguro.tsx"), "utf8");
+    const ini = todo.indexOf("function CarnePoliza(");
+    const fin = todo.indexOf("function Resumen(");
+    expect(ini).toBeGreaterThan(-1);
+    expect(fin).toBeGreaterThan(ini);
+    const fuente = todo.slice(ini, fin);
+    const sinComentarios = fuente.replace(/\/\*[\s\S]*?\*\//g, "").split("\n").filter((l) => !l.trimStart().startsWith("//")).join("\n");
+    // Solo el texto entre comillas y el de las etiquetas JSX: los nombres como `cubre_hoy` o `cubiertoHasta` son código.
+    const textos = [...sinComentarios.matchAll(/"([^"]*)"|>([^<>{}]+)</g)].map((m) => m[1] ?? m[2] ?? "");
+    for (const t of textos) expect(t).not.toMatch(/\bcubr[eio]|\bcubiert|cobertura/i);
   });
 });

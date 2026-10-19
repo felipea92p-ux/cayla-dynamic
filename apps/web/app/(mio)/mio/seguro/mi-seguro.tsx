@@ -8,14 +8,15 @@ import { useToast } from "@/components/toast";
 import { BannerAviso } from "@/components/ui/banner-aviso";
 import { Boton } from "@/components/ui/boton";
 import { Insignia } from "@/components/ui/insignia";
+import { Rotulo } from "@/components/ui/rotulo";
 import { TarjetaInfo } from "@/components/ui/tarjeta-info";
 import { abrirArchivoFirmado } from "@/lib/abrir-archivo-firmado";
 import { BUCKET_SEGUROS } from "@/lib/admin/seguros";
 import { isoADiaMesAnio } from "@/lib/admin/planilla/formato";
 import {
-  datosConfirmados, enlaceTelefono, guiasQueAplican, nombreDeDescarga, resolverMiSeguro, rotuloDeArchivo,
+  datosConfirmados, enlaceTelefono, guiasQueAplican, nombreDeDescarga, resolverMiSeguro, resumenSoloRepite, rotuloDeArchivo,
   SI_NO_CUADRA, textoDelResumen, traerMiSeguro, type ArchivoMio, type GuiaQueAplica, type MiSeguro as MiSeguroCalculado,
-  type PolizaMia, type SeguroPrincipal,
+  type PolizaMia, type SeguroPrincipal, type TextoResumen,
 } from "@/lib/mi-seguro";
 import { descargarArchivoDeSeguro } from "@/lib/mi-seguro-archivos";
 import { formatSoles } from "@/lib/rangos";
@@ -52,6 +53,142 @@ import { pesoLegible } from "@/lib/reducir-imagen";
 const fecha = isoADiaMesAnio;
 
 // ── Piezas ──────────────────────────────────────────────────────────────────
+
+/**
+ * Los PDF de una póliza: abrir y descargar. `destacar` pinta «Abrir» de la póliza como el botón
+ * principal de la pantalla —en la clínica es lo que se viene a buscar—; las demás tarjetas no
+ * compiten con él.
+ */
+function ArchivosDeLaPoliza({
+  p, ocupada, onAbrir, onDescargar, avisarSiFalta, destacar,
+}: {
+  p: PolizaMia; ocupada: string | null; avisarSiFalta: boolean; destacar: boolean;
+  onAbrir: (a: ArchivoMio) => void;
+  onDescargar: (p: PolizaMia, a: ArchivoMio) => void;
+}) {
+  if (p.archivos.length === 0) {
+    return avisarSiFalta ? (
+      <p className="mt-3 text-taupe">
+        El PDF de esta póliza todavía no está cargado. Pídeselo a Desarrollo Organizacional.
+      </p>
+    ) : null;
+  }
+  return (
+    <>
+      <ul className="mt-3 divide-y divide-sand border-t border-sand" aria-busy={ocupada !== null}>
+        {p.archivos.map((a) => {
+          const rotulo = rotuloDeArchivo(a, p.archivos);
+          const principal = destacar && a.tipo === "poliza";
+          return (
+            <li key={a.id} className="flex flex-col gap-2 py-2 sm:flex-row sm:items-center sm:justify-between">
+              <span className="min-w-0 text-tinta">
+                {rotulo}
+                {a.bytes > 0 && <span className="text-taupe"> · {pesoLegible(a.bytes)}</span>}
+              </span>
+              <span className="grid grid-cols-2 gap-2 sm:flex sm:shrink-0">
+                <Boton variante={principal ? "primario" : "secundario"} className="min-h-11 w-full sm:w-auto"
+                  aria-label={`Abrir ${rotulo}`}
+                  cargando={ocupada === `abrir:${a.id}`} disabled={ocupada !== null}
+                  onClick={() => onAbrir(a)}>
+                  Abrir
+                </Boton>
+                <Boton variante="secundario" className="min-h-11 w-full sm:w-auto" aria-label={`Descargar ${rotulo}`}
+                  cargando={ocupada === `descargar:${a.id}`} disabled={ocupada !== null}
+                  onClick={() => onDescargar(p, a)}>
+                  Descargar
+                </Boton>
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+      <p className="mt-1 text-xs text-taupe">
+        El PDF lleva tus datos personales. Si lo descargas en un equipo que no es solo tuyo, bórralo después.
+      </p>
+    </>
+  );
+}
+
+/**
+ * LA PÓLIZA QUE CUBRE HOY, PRIMERO (rediseño 2026-10-19). Es lo que la colaboradora viene a buscar,
+ * a menudo de pie en la recepción de una clínica con la carta de garantía en la mano: el número en
+ * grande y copiable, hasta cuándo es vigente, el PDF a un toque y el teléfono de la aseguradora.
+ * Antes el número iba en 14 px dentro de una frase, el primer botón quedaba en el borde de la
+ * pantalla y el resumen de arriba repetía la misma vigencia. Esta tarjeta solo se usa cuando hay
+ * una póliza vigente; sin ella (EsSalud, sin póliza, vencida) sigue el resumen de siempre.
+ *
+ * No dice que la persona «esté cubierta»: ver el comentario de la sección sobre la mora.
+ */
+function CarnePoliza({
+  p, hasta, resumen, repite, telefonos, aseguradora, ocupada, onAbrir, onDescargar, onCopiar,
+}: {
+  p: PolizaMia; hasta: string; resumen: TextoResumen; repite: boolean;
+  telefonos: readonly string[]; aseguradora: string; ocupada: string | null;
+  onAbrir: (a: ArchivoMio) => void;
+  onDescargar: (p: PolizaMia, a: ArchivoMio) => void;
+  onCopiar: (numero: string) => void;
+}) {
+  const datos = datosConfirmados(p, formatSoles);
+  return (
+    <section aria-label="Tu póliza" className="rounded-xl border border-tinta/30 bg-papel px-4 py-4">
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-base font-medium text-tinta">{p.producto_nombre}</p>
+        <Insignia variante={resumen.variante} tamano="sm">{resumen.insignia}</Insignia>
+      </div>
+
+      <Rotulo className="mt-4">Número de póliza</Rotulo>
+      <div className="mt-1 flex items-center justify-between gap-3">
+        <p className="min-w-0 break-all font-mono text-2xl font-medium tracking-wide text-tinta select-all">{p.numero_poliza}</p>
+        <Boton variante="secundario" className="min-h-11 shrink-0" aria-label={`Copiar el número de póliza ${p.numero_poliza}`}
+          onClick={() => onCopiar(p.numero_poliza)}>
+          Copiar
+        </Boton>
+      </div>
+      <p className="mt-1 text-taupe">{p.aseguradora}</p>
+
+      <p className="mt-3 text-tinta">
+        Vigente hasta el <span className="font-medium">{fecha(hasta)}</span>
+        <span className="text-taupe"> a las 12 del mediodía</span>
+      </p>
+
+      {datos.length > 0 && (
+        <dl className="mt-2 flex flex-wrap gap-x-5 gap-y-1">
+          {datos.map((d) => (
+            <div key={d.etiqueta}>
+              <dt className="inline text-taupe">{d.etiqueta}: </dt>
+              <dd className="inline text-tinta">{d.valor}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+
+      <ArchivosDeLaPoliza p={p} ocupada={ocupada} onAbrir={onAbrir} onDescargar={onDescargar}
+        avisarSiFalta destacar />
+
+      {telefonos.length > 0 && (
+        <div className="mt-2">
+          <Rotulo>Llamar a {aseguradora}</Rotulo>
+          {/* Cada número es un blanco para el dedo: sin altura propia quedaba en ~20 px, bajo los 44 del resto. */}
+          <p className="flex flex-wrap gap-x-5">
+            {telefonos.map((t) => (
+              <a key={t} href={enlaceTelefono(t)} className="inline-flex min-h-11 items-center text-tinta underline underline-offset-2 hover:text-rojo-profundo">{t}</a>
+            ))}
+          </p>
+        </div>
+      )}
+
+      {/* Si el resumen solo repetía la vigencia, de su frase queda lo que no está arriba: a quién avisar si no cuadra. */}
+      {repite ? (
+        <p className="mt-2 border-t border-sand pt-3 text-xs text-taupe">{SI_NO_CUADRA}</p>
+      ) : (
+        <div className="mt-3 border-t border-sand pt-3">
+          <p className="font-medium text-tinta">{resumen.titulo}</p>
+          <p className="mt-1 text-taupe">{resumen.detalle}</p>
+        </div>
+      )}
+    </section>
+  );
+}
 
 function Resumen({ seguro }: { seguro: MiSeguroCalculado }) {
   // El texto vive en `lib/mi-seguro.ts` para poder probar lo que NO dice (nunca «cubierto»).
@@ -109,49 +246,13 @@ function TarjetaPoliza({
         </dl>
       )}
 
-      {p.archivos.length > 0 ? (
-        <>
-          <ul className="mt-3 divide-y divide-sand border-t border-sand" aria-busy={ocupada !== null}>
-            {p.archivos.map((a) => {
-              const rotulo = rotuloDeArchivo(a, p.archivos);
-              return (
-                <li key={a.id} className="flex flex-col gap-2 py-2 sm:flex-row sm:items-center sm:justify-between">
-                  <span className="min-w-0 text-tinta">
-                    {rotulo}
-                    {a.bytes > 0 && <span className="text-taupe"> · {pesoLegible(a.bytes)}</span>}
-                  </span>
-                  <span className="grid grid-cols-2 gap-2 sm:flex sm:shrink-0">
-                    <Boton variante="secundario" className="min-h-11 w-full sm:w-auto" aria-label={`Abrir ${rotulo}`}
-                      cargando={ocupada === `abrir:${a.id}`} disabled={ocupada !== null}
-                      onClick={() => onAbrir(a)}>
-                      Abrir
-                    </Boton>
-                    <Boton variante="secundario" className="min-h-11 w-full sm:w-auto" aria-label={`Descargar ${rotulo}`}
-                      cargando={ocupada === `descargar:${a.id}`} disabled={ocupada !== null}
-                      onClick={() => onDescargar(p, a)}>
-                      Descargar
-                    </Boton>
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
-          <p className="mt-1 text-xs text-taupe">
-            El PDF lleva tus datos personales. Si lo descargas en un equipo que no es solo tuyo, bórralo después.
-          </p>
-        </>
-      ) : (
-        esActual && (
-          <p className="mt-3 text-taupe">
-            El PDF de esta póliza todavía no está cargado. Pídeselo a Desarrollo Organizacional.
-          </p>
-        )
-      )}
+      <ArchivosDeLaPoliza p={p} ocupada={ocupada} onAbrir={onAbrir} onDescargar={onDescargar}
+        avisarSiFalta={esActual} destacar={false} />
     </div>
   );
 }
 
-function ComoUsarlo({ g, nombrePrincipal }: { g: GuiaQueAplica; nombrePrincipal: string | null }) {
+function ComoUsarlo({ g, nombrePrincipal, sinTelefonos }: { g: GuiaQueAplica; nombrePrincipal: string | null; sinTelefonos: boolean }) {
   const { guia } = g;
   return (
     <TarjetaInfo como="section" titulo={`Cómo usar tu póliza ${g.nombre}`} className="text-sm">
@@ -170,7 +271,7 @@ function ComoUsarlo({ g, nombrePrincipal }: { g: GuiaQueAplica; nombrePrincipal:
             <p className="text-taupe">{paso.texto}</p>
           </li>
         ))}
-        {guia.telefonos.length > 0 && (
+        {!sinTelefonos && guia.telefonos.length > 0 && (
           <li>
             <p className="font-medium text-tinta">Teléfonos de {guia.aseguradora}</p>
             {/* Cada número es un blanco para el dedo: sin altura propia quedaba en ~20 px, bajo los 44 del resto. */}
@@ -234,6 +335,17 @@ export function MiSeguro() {
     }
   }
 
+  // El número se copia para pegarlo en el portal de la clínica o dictarlo sin leerlo mal. Si el navegador no deja
+  // (iPhone sin permiso, página sin HTTPS), el número está en `select-all`: un toque largo lo selecciona.
+  async function copiar(numero: string) {
+    try {
+      await navigator.clipboard.writeText(numero);
+      avisar("ok", "Número de póliza copiado.");
+    } catch {
+      avisar("error", "No se pudo copiar. Mantén apretado el número para copiarlo.");
+    }
+  }
+
   async function descargar(p: PolizaMia, a: ArchivoMio) {
     setOcupada(`descargar:${a.id}`);
     try {
@@ -276,24 +388,39 @@ export function MiSeguro() {
       onAbrir={(a) => void abrir(a)} onDescargar={(x, a) => void descargar(x, a)} />
   );
   const guias = guiasQueAplican(carga.polizas, carga.principal?.tipo ?? null);
+  const resumen = textoDelResumen(seguro, fecha);
+  // Con una póliza vigente va primero SU tarjeta; sin ella, el resumen de siempre.
+  const vigente = seguro.actual !== null && seguro.actual.cubre_hoy && seguro.cubiertoHasta !== null ? seguro.actual : null;
+  const guiaDeLaVigente = vigente ? guias.find((g) => g.clave === vigente.producto) : undefined;
 
   return (
     <div className="space-y-4">
-      <TarjetaInfo como="section" titulo="Mi seguro" className="text-sm">
-        <p className="mb-4 text-taupe">En qué seguro estás y, si lleva póliza, lo que necesitas de ella.</p>
-        <div className="space-y-3">
-          <Resumen seguro={seguro} />
-          {seguro.actual && poliza(seguro.actual, true)}
-          {seguro.resto.length > 0 && (
-            <>
-              <h3 className="pt-2 font-medium text-tinta">{seguro.actual ? "Otras pólizas registradas" : "Tus pólizas"}</h3>
-              {seguro.resto.map((p) => poliza(p, false))}
-            </>
-          )}
-        </div>
-      </TarjetaInfo>
+      {vigente && seguro.cubiertoHasta ? (
+        <CarnePoliza p={vigente} hasta={seguro.cubiertoHasta} resumen={resumen} repite={resumenSoloRepite(seguro)}
+          telefonos={guiaDeLaVigente?.guia.telefonos ?? []} aseguradora={guiaDeLaVigente?.guia.aseguradora ?? vigente.aseguradora}
+          ocupada={ocupada} onAbrir={(a) => void abrir(a)} onDescargar={(x, a) => void descargar(x, a)}
+          onCopiar={(n) => void copiar(n)} />
+      ) : (
+        <TarjetaInfo como="section" titulo="Mi seguro" className="text-sm">
+          <div className="space-y-3">
+            <Resumen seguro={seguro} />
+            {seguro.actual && poliza(seguro.actual, true)}
+          </div>
+        </TarjetaInfo>
+      )}
 
-      {guias.map((g) => <ComoUsarlo key={g.clave} g={g} nombrePrincipal={seguro.tipo?.nombre ?? null} />)}
+      {/* La guía va justo debajo de la póliza: es lo que sigue a «tengo mi número». */}
+      {guias.map((g) => (
+        <ComoUsarlo key={g.clave} g={g} nombrePrincipal={seguro.tipo?.nombre ?? null}
+          // Los teléfonos ya van en la tarjeta de su póliza, arriba: no se repiten.
+          sinTelefonos={vigente !== null && g.clave === vigente.producto} />
+      ))}
+
+      {seguro.resto.length > 0 && (
+        <TarjetaInfo como="section" titulo={seguro.actual ? "Otras pólizas registradas" : "Tus pólizas"} className="text-sm">
+          <div className="space-y-3">{seguro.resto.map((p) => poliza(p, false))}</div>
+        </TarjetaInfo>
+      )}
     </div>
   );
 }

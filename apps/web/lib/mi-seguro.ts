@@ -362,6 +362,22 @@ export function textoDelResumen(seguro: MiSeguro, fecha: (iso: string) => string
   }
 }
 
+/**
+ * ¿El resumen de arriba solo repite lo que la tarjeta de la póliza ya muestra? Pasa cuando la póliza
+ * vigente es la única que cuenta: no vence pronto, no hay otra registrada que empiece después ni una
+ * renovación que alargue la cobertura. En ese caso la pantalla deja «Vigente» y la fecha en la tarjeta
+ * y de la frase del resumen conserva solo lo que no está en otro lado (`SI_NO_CUADRA`). Con cualquier
+ * otra situación —vence pronto, un hueco entre pólizas, una renovación— el resumen se muestra entero:
+ * es lo que la persona tiene que leer.
+ */
+export function resumenSoloRepite(seguro: MiSeguro): boolean {
+  return seguro.situacion === "al_dia"
+    && seguro.actual !== null
+    && seguro.actual.cubre_hoy
+    && seguro.empiezaDespuesEl === null
+    && seguro.cubiertoHasta === seguro.actual.vigente_hasta;
+}
+
 // ── Lo que la póliza ya tiene confirmado ────────────────────────────────────
 
 export interface DatoConfirmado {
