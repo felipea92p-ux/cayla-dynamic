@@ -9,6 +9,11 @@
 //               MUESTRA, aquello es lo que queda PROBADO.
 //
 // ⚠ TODOS LOS TEXTOS DE HOY SON BORRADOR, y es lo que manda en este archivo.
+// (2026-10-19: antes de este pull request se contrastó cada texto con lo que su
+// pantalla de «Lo mío» HACE, y se corrigieron seis que prometían otra cosa —
+// Vacaciones y permisos, Disciplina, Movilidad, Educación, Mis datos y
+// Objetivos—. Eso arregla lo que dicen; no los vuelve aprobables: falta que los
+// lean Desarrollo Organizacional y el laboralista.)
 // Los redactó una sesión de desarrollo para poder armar la pantalla; ninguno lo
 // ha leído Desarrollo Organizacional ni el laboralista. Una aceptación guarda
 // «lo que la persona leyó»: salir con un texto sin validar deja una constancia
@@ -31,7 +36,7 @@
 //   · `aviso`             — un «Entendido» sin constancia. Se puede dejar para
 //                           después: no hay nada que acordar, solo algo que saber.
 //   · `constancia_propia` — el módulo YA guarda lo que la persona acepta por su
-//                           cuenta (el DNI, el pacto de movilidad, la lectura de
+//                           cuenta (el DNI, la declaración de ruta de Movilidad, la lectura de
 //                           un memo, la firma de la boleta). Aquí solo se avisa
 //                           y se apunta a esa constancia; una casilla nueva sería
 //                           una SEGUNDA fuente para el mismo hecho.
@@ -116,13 +121,15 @@ export const TERMINOS: readonly TerminosModulo[] = [
   {
     modulo: "ausencias", titulo: "Vacaciones y permisos", peso: "aceptacion", version: 1, estado: "borrador",
     puntos: [
-      "Tus solicitudes quedan registradas con fecha y hora.",
-      "Un descanso médico se respalda con su documento.",
-      "Las vacaciones se coordinan con tu líder de equipo.",
+      "Aquí puedes pedir tus vacaciones: eliges el rango y avisas.",
+      "Las vacaciones las aprueba Desarrollo Organizacional, no tu líder de equipo.",
+      "Tus permisos y descansos médicos los registra quien corresponde: aquí ves lo que consta y si falta algún documento.",
     ],
     texto:
-      "Las solicitudes de vacaciones, permisos y descansos médicos se registran y pueden ser consultadas por " +
-      "Desarrollo Organizacional y por tu líder de equipo. Al enviarlas confirmas que la información es verídica.",
+      "En esta sección puedes pedir vacaciones: la solicitud queda registrada con su fecha y hora y la resuelve " +
+      "Desarrollo Organizacional. Los permisos y los descansos médicos los registran las personas autorizadas; aquí ves " +
+      "lo que consta de ti y si falta algún documento de respaldo. Al enviar una solicitud confirmas que la " +
+      "información es verídica.",
   },
   {
     modulo: "boletas", titulo: "Boletas", peso: "constancia_propia", version: 1, estado: "borrador",
@@ -138,26 +145,27 @@ export const TERMINOS: readonly TerminosModulo[] = [
   },
   {
     modulo: "movilidad", titulo: "Movilidad", peso: "constancia_propia", version: 1, estado: "borrador",
-    apuntaA: "el pacto de movilidad que firmas",
+    apuntaA: "la firma de tu declaración de ruta",
     puntos: [
-      "La movilidad es un apoyo condicionado a que asistas.",
-      "No forma parte de tu remuneración computable.",
-      "Lo que aceptas es el pacto de movilidad que firmas, no esta pantalla.",
+      "Esta es tu declaración de ruta y gasto de transporte: dice si ya la firmaste, si toca renovarla o si te falta.",
+      "Lo que se te paga lo calcula el sistema con la tarifa de tu sede; tú no escribes ningún monto.",
+      "Lo que dejas por escrito es la firma de la declaración, no esta pantalla.",
     ],
     texto:
-      "La movilidad diaria está supeditada a la asistencia y tiene carácter no remunerativo conforme al pacto " +
-      "firmado. El consentimiento vale por ese pacto, que tiene su propia constancia; este aviso solo lo recuerda.",
+      "La declaración de ruta y gasto de transporte se firma en pantalla, con el mismo valor que el escaneo. El monto " +
+      "lo calcula el sistema con la tarifa vigente de tu sede. La firma deja su propia constancia; este aviso solo la " +
+      "anticipa.",
   },
   {
     modulo: "educacion", titulo: "Educación", peso: "aviso", version: 1, estado: "borrador",
     puntos: [
-      "El bono de educación se otorga contra comprobante.",
-      "Sube solo comprobantes tuyos o de tus hijos/as.",
-      "Revisamos cada envío y te decimos si se aprueba o por qué no.",
+      "Aquí ves el estado de la constancia de estudios de cada apoyo educativo.",
+      "Desde aquí vas a donde subes tu constancia, renuevas el apoyo o lo solicitas.",
+      "Si tu apoyo terminó, te lo decimos y te llevamos a renovarlo.",
     ],
     texto:
-      "Los comprobantes cargados se usan únicamente para evaluar el bono. Se te informa el resultado y, si se " +
-      "rechaza, el motivo.",
+      "Cada apoyo educativo tiene su constancia de estudios, con un plazo. El estado te dice si está al día, por vencer " +
+      "o falta enviarla. Las constancias que subes sirven para comprobar tus estudios.",
   },
   {
     modulo: "contrato", titulo: "Contrato", peso: "aviso", version: 1, estado: "borrador",
@@ -191,7 +199,7 @@ export const TERMINOS: readonly TerminosModulo[] = [
     ],
     texto:
       "El consentimiento para tratar los datos de tu DNI se pide en el momento de enviarlas y se guarda palabra por " +
-      "palabra (migración 0404). Este aviso solo lo anticipa; no pide una segunda aceptación.",
+      "palabra. Este aviso solo lo anticipa; no pide una segunda aceptación.",
   },
   {
     modulo: "seguro", titulo: "Mi seguro", peso: "aviso", version: 1, estado: "borrador",
@@ -208,7 +216,7 @@ export const TERMINOS: readonly TerminosModulo[] = [
     puntos: [
       "Dynamic guarda tus datos personales para tu contrato, tu pago y tu seguridad.",
       "Solo los ven quienes deben por su función.",
-      "Puedes pedir corregirlos cuando cambien.",
+      "Esta pantalla solo se lee. Para cambiar tu celular, dirección, contacto de emergencia, estado civil, grado de instrucción, hijos a cargo o cuenta bancaria usa «Editar datos»; lo demás lo corrige Desarrollo Organizacional.",
     ],
     texto:
       "Tratamiento de datos personales conforme a la Ley N.° 29733: finalidad, conservación y derechos de acceso, " +
@@ -217,13 +225,13 @@ export const TERMINOS: readonly TerminosModulo[] = [
   {
     modulo: "objetivos", titulo: "Objetivos", peso: "aviso", version: 1, estado: "borrador",
     puntos: [
-      "Tus objetivos los conversa contigo tu líder de equipo.",
-      "Aquí solo ves el avance.",
-      "Un objetivo no cumplido no es, por sí solo, una falta.",
+      "Tus objetivos los acuerda y los marca tu líder de equipo.",
+      "Aquí solo ves el avance: no se marcan desde esta pantalla.",
+      "Los objetivos son un acompañamiento y no influyen en tu pago.",
     ],
     texto:
-      "Los objetivos son una herramienta de acompañamiento. Su cumplimiento puede influir en el plus por objetivos " +
-      "según la política vigente.",
+      "Los objetivos son una herramienta de acompañamiento: los acuerda contigo tu líder de equipo y los marca cuando " +
+      "los conversan. No influyen en tu pago.",
   },
   {
     modulo: "reportes", titulo: "Reportes", peso: "aceptacion", version: 1, estado: "borrador",
@@ -238,16 +246,16 @@ export const TERMINOS: readonly TerminosModulo[] = [
   },
   {
     modulo: "disciplina", titulo: "Disciplina", peso: "constancia_propia", version: 1, estado: "borrador",
-    apuntaA: "la constancia de lectura que queda al abrir cada memo",
+    apuntaA: "la constancia que queda al abrir un documento y al marcar «Lo leí»",
     puntos: [
-      "Aquí ves tus memos y cómo vas con tus tardanzas.",
-      "Abrir un memo deja constancia de que lo leíste, no de que estés de acuerdo.",
-      "Puedes presentar tu descargo.",
+      "Aquí ves los documentos que te entregaron y cómo vas este mes con tus tardanzas.",
+      "Abrir un documento y marcar «Lo leí» deja constancia de que lo leíste, no de que estés de acuerdo.",
+      "Dynamic avisa las tardanzas; nunca sanciona solo: lo decide una persona.",
     ],
     texto:
-      "La constancia de lectura registra fecha y hora de apertura del memo. No implica conformidad. Tienes derecho a " +
-      "presentar tus descargos en el plazo indicado en cada documento. Esa constancia ya existe en cada memo; este " +
-      "aviso solo la explica.",
+      "La constancia de lectura registra la fecha y la hora en que abriste el documento y, si la das, la de «Lo leí». " +
+      "No implica conformidad ni cambia el estado del documento. Esa constancia ya existe en cada documento; este aviso " +
+      "solo la explica.",
   },
   {
     modulo: "historial", titulo: "Historial", peso: "aviso", version: 1, estado: "borrador",
