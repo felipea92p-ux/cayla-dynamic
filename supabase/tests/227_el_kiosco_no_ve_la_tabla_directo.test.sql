@@ -7,7 +7,7 @@
 -- 227_el_kiosco_no_ve_la_tabla_directo.test.sql
 -- ============================================================================
 -- Defiende la 0291. La prueba 221 ya defiende `terminal_roster` —la vista con
--- seis columnas que el terminal SÍ debe ver— pero nunca preguntó por la tabla
+-- ocho columnas que el terminal SÍ debe ver (seis hasta la 0539)— pero nunca preguntó por la tabla
 -- de abajo. Y ahí seguía viva `personas_select_terminal_roster` (la 0008):
 -- RLS filtra filas, no columnas, así que esa policy dejaba leer la FILA
 -- entera con un `select * from personas` — documento y sueldo_base_legal
