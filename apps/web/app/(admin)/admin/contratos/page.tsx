@@ -2034,6 +2034,39 @@ export default function ContratosPage() {
   }
 
   /**
+   * El botón visible de cada fila de la lista por urgencia: la acción que ESA banda pide, para no
+   * esconderla en el menú «•••» (que sigue teniendo lo demás). Ninguna es acción nueva: «Renovar» abre
+   * el mismo generador que «Generar», con la persona y el tipo ya puestos; «Subir firmado» y
+   * «Copia entregada» son las funciones de siempre. Las filas «al día» no llevan botón: no hay nada
+   * que hacer hoy.
+   */
+  function accionPrincipal(estado: string, personaIdFila: string, c: ContratoFila, tipoFila: typeof tipo) {
+    const boton = (texto: string, alTocar: () => void) => (
+      <Boton variante="sutil" tamano="sm" onClick={(ev) => { ev.stopPropagation(); alTocar(); }}>
+        {texto}
+      </Boton>
+    );
+    const alGenerador = () => {
+      setPersonaId(personaIdFila);
+      setTipo(tipoFila === "nuevo" ? "renovacion" : tipoFila);
+      irAlGenerador();
+    };
+    switch (estado) {
+      case "desnaturalizado":
+      case "vencido":
+        return boton("Regularizar", alGenerador);
+      case "por_vencer":
+        return boton("Renovar", alGenerador);
+      case "sin_firmar":
+        return boton("Subir firmado", () => abrirSubida(c.id));
+      case "tramite_pendiente":
+        return boton("Copia entregada", () => void marcarTramite(c.id, "copia"));
+      default:
+        return null;
+    }
+  }
+
+  /**
    * "+ Nuevo documento" y "Generar" (cuando alguien del tablero no tiene
    * contrato todavía) llevan los dos al mismo sitio: el generador, mostrado
    * como su propia pantalla — ver `generadorAbierto`.
@@ -2282,7 +2315,10 @@ export default function ContratosPage() {
             titulo: v.texto === "—" ? e.texto : `${e.texto} · vence ${v.texto}`,
             onClickRow,
             acciones: contrato ? (
-              accionesContrato(contrato)
+              <span className="inline-flex items-center gap-1">
+                {accionPrincipal(f.estado, f.persona_id, contrato, tipoFila)}
+                {accionesContrato(contrato)}
+              </span>
             ) : (
               <Boton
                 variante="sutil"
