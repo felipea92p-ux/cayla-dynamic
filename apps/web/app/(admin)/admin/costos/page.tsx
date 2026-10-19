@@ -37,6 +37,9 @@ import { useRolActual } from "@/lib/admin/use-rol";
 import { formatSoles } from "@/lib/rangos";
 import { descargarCsv, generarCsv } from "@/lib/admin/csv";
 import { puedeVerPlanilla } from "@cayla-dynamic/shared";
+import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
+import { AyudaPantalla } from "@/components/ui/ayuda-pantalla";
+import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 
 const MESES = [
   "enero", "febrero", "marzo", "abril", "mayo", "junio",
@@ -288,29 +291,36 @@ export default function CostosPage() {
   return (
     <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-          <h1 className="font-serif text-2xl">Costos del equipo</h1>
-          <div className="flex items-end gap-3">
-            <CampoSelect
-              etiqueta="Año"
-              value={anio ?? ""}
-              onChange={(e) => setAnio(Number(e.target.value))}
-              disabled={anios.length === 0}
-            >
-              {anios.map((y) => (<option key={y} value={y}>{y}</option>))}
-            </CampoSelect>
-            <Boton variante="primario" onClick={descargarCsvCostos} disabled={!data || data.por_persona.length === 0}>
-              Descargar CSV
-            </Boton>
-          </div>
-        </div>
-
-        <p className="mb-4 max-w-3xl text-xs text-taupe">
-          Solo aparecen los periodos ya <strong className="font-medium">marcados como pagados</strong>: su
-          desglose quedó congelado y ya no cambia. Lo que todavía está abierto se ve en Planilla, y es una
-          proyección, no un costo. Los periodos de CAYLA no son meses calendario, así que cada fila es{" "}
-          <strong className="font-medium">un periodo</strong>, no un mes.
-        </p>
+        <CabeceraPagina
+          sobretitulo={sobretituloDeHoy("Pago")}
+          titulo="Costos del equipo"
+          descripcion="Lo que costó el equipo en los periodos ya pagados, por persona y por periodo."
+          ayuda={
+            <AyudaPantalla
+              titulo="Qué muestran los costos"
+              intro="Solo aparecen los periodos ya marcados como pagados: su desglose quedó congelado y ya no cambia."
+              secciones={[
+                { titulo: "Lo que sigue abierto", texto: "Se ve en Planilla, y es una proyección, no un costo." },
+                { titulo: "Cada fila es un periodo", texto: "Los periodos de CAYLA no son meses calendario (van del 29 al 28), así que cada fila es un periodo, no un mes." },
+              ]}
+            />
+          }
+          accion={
+            <div className="flex items-end gap-3">
+              <CampoSelect
+                etiqueta="Año"
+                value={anio ?? ""}
+                onChange={(e) => setAnio(Number(e.target.value))}
+                disabled={anios.length === 0}
+              >
+                {anios.map((y) => (<option key={y} value={y}>{y}</option>))}
+              </CampoSelect>
+              <Boton variante="primario" onClick={descargarCsvCostos} disabled={!data || data.por_persona.length === 0}>
+                Descargar CSV
+              </Boton>
+            </div>
+          }
+        />
 
         {error && (
           <div className="mb-4 max-w-3xl rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo">
