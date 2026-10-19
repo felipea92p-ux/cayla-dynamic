@@ -16,7 +16,7 @@ import { BannerAviso } from "@/components/ui/banner-aviso";
 import { Cifra } from "@/components/ui/cifra";
 import { EstadoVacio } from "@/components/ui/estado-vacio";
 import { RotuloEstado } from "@/components/ui/rotulo";
-import { PanelRightOpen, TriangleAlert } from "lucide-react";
+import { PanelRightOpen, TriangleAlert, X } from "lucide-react";
 import { BotonIcono } from "@/components/ui/boton-icono";
 import { Filtro } from "@/components/ui/filtro";
 import { TarjetaInfo } from "@/components/ui/tarjeta-info";
@@ -1270,15 +1270,13 @@ export default function DashboardPage() {
                 los filtros de más arriba: el número tampoco los aplica, y si la
                 lista los aplicara, al "10" le respondería una lista de 3. */}
             {resumenDetalle && (
-              <section id="detalle-resumen" className="mb-8 rounded-superficie border border-sand bg-papel p-5">
-                <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-                  <h2 className="font-serif text-xl font-medium">
-                    {resumenDetalle.label} <span className="text-taupe">· {resumenDetalle.n}</span>
-                  </h2>
-                  <Boton variante="enlace" tamano="sm" onClick={() => setResumenAbierto(null)}>
-                    Cerrar ↑
-                  </Boton>
-                </div>
+              <TarjetaInfo
+                como="section"
+                id="detalle-resumen"
+                className="mb-8"
+                titulo={<>{resumenDetalle.label} <span className="text-taupe">· {resumenDetalle.n}</span></>}
+                accion={<BotonIcono etiqueta="Cerrar el detalle" icono={<X aria-hidden />} onClick={() => setResumenAbierto(null)} />}
+              >
                 {resumenDetalle.clave === "bajo_minimo" ? (
                   // Sedes, no personas: el detalle es qué le falta a cada una, y
                   // un enlace a su tarjeta de más abajo, que ya tiene todo.
@@ -1303,7 +1301,7 @@ export default function DashboardPage() {
                 ) : (
                   <TablaPersonas filas={personasDelResumen[resumenDetalle.clave]} linkCorregir={linkCorregir} ahoraDecimal={ahoraDecimal} conSede />
                 )}
-              </section>
+                            </TarjetaInfo>
             )}
 
             {prefs.kpisExtra.personal && (
