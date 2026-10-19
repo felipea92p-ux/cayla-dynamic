@@ -1,0 +1,1084 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cabecera, ayuda y dinero — prototipo</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap">
+<!--
+  Prototipo «Cabecera, ayuda y dinero» (2026-10-19). Cuatro temas, tres variantes cada uno.
+
+  NO es código de la app y no toca ninguna base. Datos 100 % ficticios. Nada de lo que se aprieta aquí
+  cambia un cálculo, cierra un periodo ni publica una boleta: cada acción de dinero termina en un aviso
+  «esto es una maqueta».
+
+  Lo que NINGUNA variante cambia (CLAUDE.md):
+    · Lo que registra el sistema alimenta el pago: una advertencia que protege plata o una obligación legal
+      se ve EN EL MOMENTO de actuar, nunca solo dentro de un ⓘ.
+    · Dynamic avisa, nunca sanciona solo.
+    · Cada acción de dinero (cerrar un grupo, publicar boletas) pide una confirmación visible y dice que no se paga dos veces.
+    · El color nunca va solo: cada estado lleva palabra o ícono. El número de una Cifra siempre va en tinta.
+    · Solo tokens de globals.css, claro y oscuro.
+
+  Las alturas que muestra la maqueta ("alto de la cabecera: N px") son las de ESTA maqueta, medidas en vivo en tu
+  navegador; no son las de la app real.
+-->
+<style>
+  :root{
+    --color-crema:#f5f0e8; --color-papel:#fbf8f2; --color-tinta:#1a1a18;
+    --color-rojo:#b8412d; --color-rojo-profundo:#8b2a1f; --color-sand:#e8e0d0; --color-taupe:#805c4c;
+    --color-hueso:#eae1d2; --color-pizarra:#4c5d6e; --color-verde:#48603f;
+    --color-ambar:#74501a; --color-azul:#2f5f9e; --color-ceniza:#635f58;
+    --font-sans:'DM Sans', ui-sans-serif, system-ui, sans-serif;
+    --font-serif:'EB Garamond', ui-serif, Georgia, "Times New Roman", serif;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --color-crema:#1c1a16; --color-papel:#26221d; --color-tinta:#ede7db;
+      --color-rojo:#d4634a; --color-rojo-profundo:#e8836b; --color-sand:#332e27; --color-taupe:#ab9080;
+      --color-hueso:#15110d; --color-pizarra:#9db0c2; --color-verde:#8fae80;
+      --color-ambar:#c99a4a; --color-azul:#9bbbe8; --color-ceniza:#aaa59b;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"]{
+    --color-crema:#1c1a16; --color-papel:#26221d; --color-tinta:#ede7db;
+    --color-rojo:#d4634a; --color-rojo-profundo:#e8836b; --color-sand:#332e27; --color-taupe:#ab9080;
+    --color-hueso:#15110d; --color-pizarra:#9db0c2; --color-verde:#8fae80;
+    --color-ambar:#c99a4a; --color-azul:#9bbbe8; --color-ceniza:#aaa59b;
+    color-scheme: dark;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; max-width:100%; overflow-x:hidden; }
+  body{ background:var(--color-crema); color:var(--color-tinta); font-family:var(--font-sans); font-size:14.5px; line-height:1.5; }
+  h1,h2,h3,h4{ font-family:var(--font-serif); font-weight:600; margin:0; text-wrap:balance; }
+  p{ margin:0; }
+  button,input,select,textarea{ font-family:inherit; font-size:inherit; color:inherit; }
+  button{ cursor:pointer; }
+  a{ color:inherit; }
+  :focus-visible{ outline:2px solid var(--color-rojo); outline-offset:2px; }
+  .sr{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
+  svg.i{ width:1em; height:1em; flex:none; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; vertical-align:-.12em; }
+  .muted{ color:var(--color-taupe); }
+
+  /* ══ barra del prototipo (no es parte de la pantalla) ══ */
+  .proto{ z-index:50; background:var(--color-papel); border-bottom:1px solid var(--color-sand); }
+  @media (min-width:1100px){ .proto{ position:sticky; top:0; } }
+  .proto .fila1{ padding:8px 16px; display:flex; flex-wrap:wrap; gap:8px 14px; align-items:center; }
+  .proto .fila2{ padding:6px 16px 8px; border-top:1px solid var(--color-sand); display:flex; flex-wrap:wrap; gap:8px 12px; align-items:center; background:color-mix(in oklab, var(--color-hueso) 55%, var(--color-papel)); }
+  .demo-badge{ font-size:.7rem; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:var(--color-pizarra); background:color-mix(in oklab, var(--color-pizarra) 14%, var(--color-papel)); border:1px solid color-mix(in oklab, var(--color-pizarra) 35%, transparent); padding:3px 9px; border-radius:100px; white-space:nowrap; }
+  .tabs{ display:flex; flex-wrap:wrap; gap:4px; }
+  .tabs button{ border:1px solid transparent; background:none; border-radius:10px; padding:7px 13px; font-weight:600; font-size:.88rem; color:var(--color-taupe); min-height:38px; }
+  .tabs button:hover{ background:var(--color-hueso); color:var(--color-tinta); }
+  .tabs button[aria-selected="true"]{ background:var(--color-tinta); color:var(--color-crema); }
+  .tabs button small{ font-weight:500; opacity:.75; margin-left:5px; }
+  .ctl{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-left:auto; font-size:.78rem; color:var(--color-taupe); }
+  .ctl label{ display:inline-flex; gap:6px; align-items:center; }
+  .ctl select, .sel{ background:var(--color-hueso); border:1px solid var(--color-sand); border-radius:8px; padding:4px 8px; color:var(--color-tinta); }
+  .vars{ display:flex; flex-wrap:wrap; gap:6px; }
+  .vbtn{ border:1px solid var(--color-sand); background:var(--color-crema); border-radius:10px; padding:5px 11px 5px 6px; font-weight:600; font-size:.82rem; display:inline-flex; gap:7px; align-items:center; min-height:34px; text-align:left; }
+  .vbtn b{ display:inline-grid; place-items:center; min-width:22px; height:22px; padding:0 4px; border-radius:6px; background:var(--color-hueso); color:var(--color-taupe); font-size:.76rem; }
+  .vbtn[aria-pressed="true"]{ background:var(--color-tinta); color:var(--color-crema); border-color:var(--color-tinta); }
+  .vbtn[aria-pressed="true"] b{ background:var(--color-crema); color:var(--color-tinta); }
+  .vbtn .rec{ font-size:.66rem; font-weight:700; letter-spacing:.03em; text-transform:uppercase; padding:1px 6px; border-radius:100px; background:color-mix(in oklab, var(--color-verde) 18%, var(--color-papel)); color:var(--color-verde); white-space:nowrap; }
+  .vbtn[aria-pressed="true"] .rec{ background:var(--color-crema); color:var(--color-verde); }
+  .vbtn.ref{ border-style:dashed; color:var(--color-taupe); }
+  .vbtn.ref[aria-pressed="true"]{ color:var(--color-crema); }
+  .caso{ display:inline-flex; border:1px solid var(--color-sand); border-radius:8px; overflow:hidden; background:var(--color-papel); flex-wrap:wrap; }
+  .caso button{ border:0; background:none; padding:5px 11px; font-size:.8rem; font-weight:600; color:var(--color-taupe); min-height:32px; }
+  .caso button[aria-pressed="true"]{ background:var(--color-tinta); color:var(--color-crema); }
+  .rotc{ font-size:.72rem; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--color-taupe); }
+  .lema{ padding:12px 16px 0; max-width:1240px; margin-inline:auto; color:var(--color-taupe); font-size:.86rem; }
+  .lema strong{ color:var(--color-tinta); }
+
+  /* ══ la «pantalla» simulada ══ */
+  .page{ max-width:1240px; margin-inline:auto; padding:14px 16px 80px; display:flex; flex-direction:column; gap:16px; }
+  .marco-top{ display:flex; flex-wrap:wrap; gap:6px 12px; align-items:center; justify-content:space-between; font-size:.76rem; color:var(--color-taupe); }
+  .alto{ font-variant-numeric:tabular-nums; background:var(--color-hueso); border-radius:100px; padding:2px 10px; }
+  .pantalla{ container-type:inline-size; container-name:pan; border:1px solid var(--color-sand); border-radius:20px; padding:24px; background:var(--color-crema); display:flex; flex-direction:column; gap:16px; box-shadow:0 1px 0 var(--color-sand); }
+  .pantalla.cel{ width:375px; max-width:100%; margin-inline:auto; padding:16px; }
+  .pantalla > *{ min-width:0; }
+
+  /* CabeceraPagina */
+  .cab{ display:flex; flex-wrap:wrap; justify-content:space-between; align-items:flex-start; gap:12px 16px; }
+  .cab-l{ min-width:0; flex:1 1 320px; }
+  .cab h1{ font-size:1.75rem; font-weight:500; line-height:1.15; letter-spacing:-.01em; }
+  .sobre{ font-size:.72rem; font-weight:600; letter-spacing:.14em; text-transform:uppercase; color:var(--color-taupe); margin-bottom:4px; }
+  .desc{ margin-top:4px; display:flex; align-items:flex-start; gap:6px; max-width:42rem; font-size:.875rem; color:var(--color-taupe); }
+  .desc .dtxt{ min-width:0; }
+  .cab .acc{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; max-width:100%; }
+  .tt{ display:flex; gap:14px; align-items:center; }
+  .av{ width:56px; height:56px; border-radius:50%; background:color-mix(in oklab, var(--color-rojo) 12%, var(--color-papel)); color:var(--color-rojo); display:grid; place-items:center; font-family:var(--font-serif); font-size:1.5rem; flex:none; }
+  .ayb{ margin:-4px 0; width:32px; height:32px; flex:none; border:0; background:none; border-radius:999px; color:var(--color-taupe); display:inline-grid; place-items:center; font-size:1.25rem; }
+  .ayb:hover{ background:color-mix(in oklab, var(--color-sand) 60%, transparent); color:var(--color-tinta); }
+  /* miga y volver */
+  .miga{ display:flex; flex-wrap:wrap; align-items:center; gap:0 2px; font-size:.78rem; color:var(--color-taupe); margin-bottom:2px; }
+  .miga a, .miga button.lk{ color:var(--color-taupe); text-decoration:underline; text-underline-offset:3px; padding:7px 4px; min-height:32px; display:inline-flex; align-items:center; background:none; border:0; cursor:pointer; }
+  .miga a:hover, .miga button.lk:hover{ color:var(--color-tinta); }
+  .miga .sep{ opacity:.7; padding:0 1px; }
+  .miga [aria-current]{ color:var(--color-tinta); font-weight:500; padding:7px 4px; }
+  .volver{ display:inline-flex; align-items:center; gap:4px; border:1px solid var(--color-sand); background:var(--color-papel); border-radius:8px; padding:4px 12px 4px 8px; font-size:.78rem; color:var(--color-taupe); min-height:34px; margin-bottom:8px; }
+  .volver:hover{ color:var(--color-tinta); border-color:var(--color-taupe); }
+  .volver-txt{ background:none; border:0; padding:6px 0; font-size:.88rem; color:var(--color-taupe); margin-bottom:6px; }
+  .mvolver{ display:inline-flex; align-items:center; gap:2px; flex:none; background:var(--color-papel); border:1px solid var(--color-sand); border-radius:999px; padding:2px 10px 2px 6px; font-size:.78rem; font-weight:600; color:var(--color-taupe); min-height:28px; margin-right:2px; }
+  .mvolver:hover{ color:var(--color-tinta); border-color:var(--color-taupe); }
+  .dsep{ opacity:.6; }
+  .pantalla > .volver, .pantalla > .volver-txt{ align-self:flex-start; margin-bottom:-8px; }
+
+  /* botones, insignias, avisos */
+  .btn{ border:1px solid var(--color-tinta); background:var(--color-tinta); color:var(--color-crema); border-radius:8px; padding:7px 14px; font-weight:600; font-size:.84rem; min-height:38px; display:inline-flex; align-items:center; gap:6px; white-space:nowrap; }
+  .btn.sec{ background:var(--color-papel); color:var(--color-tinta); border-color:var(--color-taupe); }
+  .btn.sutil{ background:transparent; color:var(--color-taupe); border-color:transparent; }
+  .btn.peligro{ background:transparent; color:var(--color-rojo-profundo); border-color:color-mix(in oklab, var(--color-rojo) 50%, var(--color-sand)); }
+  .btn.fino{ min-height:32px; padding:3px 10px; font-size:.78rem; }
+  .btn[disabled]{ opacity:.45; cursor:not-allowed; }
+  .lnk{ background:none; border:0; padding:6px 0; color:var(--color-rojo-profundo); text-decoration:underline; text-underline-offset:3px; font-weight:600; font-size:inherit; text-align:left; cursor:pointer; }
+  .lnk.sob{ color:var(--color-tinta); }
+  .ins{ display:inline-flex; align-items:center; gap:5px; font-size:.72rem; font-weight:600; padding:2px 9px; border-radius:100px; white-space:nowrap; }
+  .ins::before{ content:""; width:6px; height:6px; border-radius:50%; background:currentColor; flex:none; }
+  .ins.aviso{ color:var(--color-ambar); background:color-mix(in oklab, var(--color-ambar) 15%, var(--color-papel)); }
+  .ins.alerta{ color:var(--color-rojo-profundo); background:color-mix(in oklab, var(--color-rojo) 10%, var(--color-papel)); }
+  .ins.neutro{ color:var(--color-ceniza); background:color-mix(in oklab, var(--color-ceniza) 12%, var(--color-papel)); }
+  .ins.ok{ color:var(--color-verde); background:color-mix(in oklab, var(--color-verde) 15%, var(--color-papel)); }
+  .ins.info{ color:var(--color-pizarra); background:color-mix(in oklab, var(--color-pizarra) 15%, var(--color-papel)); }
+  .ins.sinp::before{ display:none; }
+  .banner{ border-radius:8px; border:1px solid; padding:10px 14px; font-size:.86rem; display:flex; flex-wrap:wrap; gap:8px 10px; align-items:flex-start; }
+  .banner .ico{ margin-top:3px; font-size:1rem; }
+  .banner .bx{ min-width:0; flex:1 1 220px; }
+  .banner b{ font-weight:700; }
+  .banner.alerta{ border-color:color-mix(in oklab, var(--color-rojo) 30%, transparent); background:color-mix(in oklab, var(--color-rojo) 6%, var(--color-papel)); } .banner.alerta b, .banner.alerta .ico{ color:var(--color-rojo-profundo); }
+  .banner.ambar{ border-color:color-mix(in oklab, var(--color-ambar) 40%, transparent); background:color-mix(in oklab, var(--color-ambar) 7%, var(--color-papel)); } .banner.ambar b, .banner.ambar .ico{ color:var(--color-ambar); }
+  .banner.info{ border-color:color-mix(in oklab, var(--color-pizarra) 30%, transparent); background:color-mix(in oklab, var(--color-pizarra) 6%, var(--color-papel)); } .banner.info b, .banner.info .ico{ color:var(--color-pizarra); }
+  .banner.ok{ border-color:color-mix(in oklab, var(--color-verde) 30%, transparent); background:color-mix(in oklab, var(--color-verde) 6%, var(--color-papel)); } .banner.ok b, .banner.ok .ico{ color:var(--color-verde); }
+  .banner.neutro{ border-color:var(--color-sand); background:color-mix(in oklab, var(--color-sand) 25%, var(--color-papel)); } .banner.neutro .ico{ color:var(--color-taupe); }
+  .banner .tail{ margin-left:auto; flex:none; }
+  .tarj{ background:var(--color-papel); border:1px solid var(--color-sand); border-radius:16px; padding:16px; }
+  .tarj > h3{ font-size:1.12rem; margin-bottom:8px; }
+  .pt{ width:8px; height:8px; border-radius:50%; flex:none; display:inline-block; }
+  .pt.alerta{ background:var(--color-rojo); } .pt.advertencia{ background:var(--color-ambar); } .pt.positivo{ background:var(--color-verde); } .pt.informativo{ background:var(--color-pizarra); }
+
+  /* ParaAtender */
+  .atender{ display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+  .atender .rot{ font-size:.72rem; font-weight:600; text-transform:uppercase; letter-spacing:.07em; color:var(--color-taupe); }
+  .atender .nada{ font-size:.86rem; color:var(--color-verde); display:inline-flex; gap:6px; align-items:center; }
+  .pa{ display:inline-flex; align-items:center; gap:6px; border-radius:999px; border:1px solid var(--color-sand); padding:6px 13px; font-size:.78rem; font-weight:600; font-variant-numeric:tabular-nums; background:var(--color-papel); color:var(--color-tinta); min-height:32px; }
+  .pa.rojo{ border-color:color-mix(in oklab, var(--color-rojo) 30%, transparent); background:color-mix(in oklab, var(--color-rojo) 10%, var(--color-papel)); color:var(--color-rojo-profundo); }
+  .pa.ambar{ border-color:color-mix(in oklab, var(--color-ambar) 40%, transparent); background:color-mix(in oklab, var(--color-ambar) 15%, var(--color-papel)); color:var(--color-ambar); }
+  .pa.pizarra{ border-color:color-mix(in oklab, var(--color-pizarra) 40%, transparent); background:color-mix(in oklab, var(--color-pizarra) 10%, var(--color-papel)); color:var(--color-pizarra); }
+  .pa[aria-pressed="true"]{ box-shadow:0 0 0 2px var(--color-tinta); }
+  .franja-b{ background:var(--color-papel); border:1px solid var(--color-sand); border-radius:16px; padding:10px 14px; }
+  .franja-b .tot{ margin-left:auto; text-align:right; line-height:1.2; }
+  .franja-b .tot small{ display:block; font-size:.72rem; color:var(--color-taupe); }
+  .franja-b .tot .tl{ display:flex; gap:6px; align-items:center; justify-content:flex-end; font-size:.72rem; color:var(--color-taupe); }
+  .franja-b .tot b{ font-family:var(--font-serif); font-size:1.5rem; font-weight:600; font-variant-numeric:tabular-nums; color:var(--color-tinta); }
+
+  /* Cifra */
+  .cifras{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
+  .cifras.c4{ grid-template-columns:repeat(4,minmax(0,1fr)); }
+  .cifra{ display:flex; flex-direction:column; border:1px solid var(--color-sand); background:var(--color-papel); border-radius:16px; padding:12px; text-align:left; }
+  .cifra .et{ display:flex; gap:6px; align-items:center; font-size:.76rem; color:var(--color-taupe); }
+  .cifra .v{ margin-top:auto; padding-top:4px; font-family:var(--font-serif); font-size:1.5rem; font-variant-numeric:tabular-nums; color:var(--color-tinta); line-height:1.2; }
+  .cifra .v.pintado{ color:var(--color-rojo); }
+  .cifra .v.pintado.ambar{ color:var(--color-ambar); }
+  .cifra .det{ font-size:.76rem; color:var(--color-taupe); }
+  .cifra .mk{ font-size:.66rem; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--color-rojo-profundo); }
+  button.cifra:hover{ background:var(--color-hueso); }
+
+  /* pasos */
+  .pasos{ list-style:none; margin:0; padding:0; display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; counter-reset:p; }
+  .paso{ border:1px solid var(--color-sand); background:var(--color-papel); border-radius:14px; padding:10px 12px; display:grid; grid-template-columns:auto 1fr; gap:0 10px; align-items:start; min-width:0; }
+  .paso .nm{ width:26px; height:26px; border-radius:50%; display:grid; place-items:center; font-size:.78rem; font-weight:700; border:1.5px solid var(--color-taupe); color:var(--color-taupe); grid-row:1 / span 2; background:var(--color-crema); }
+  .paso .pt1{ font-weight:700; font-size:.88rem; line-height:1.25; }
+  .paso .pd{ font-size:.76rem; color:var(--color-taupe); grid-column:2; }
+  .paso.hecho .nm{ background:var(--color-verde); border-color:var(--color-verde); color:var(--color-crema); }
+  .paso.ahora{ border-color:var(--color-tinta); box-shadow:inset 0 0 0 1px var(--color-tinta); background:var(--color-hueso); }
+  .paso.ahora .nm{ background:var(--color-tinta); border-color:var(--color-tinta); color:var(--color-crema); }
+  .paso.luego{ opacity:.78; }
+  .paso .est{ font-size:.66rem; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--color-taupe); grid-column:2; }
+  .paso.ahora .est{ color:var(--color-tinta); } .paso.hecho .est{ color:var(--color-verde); }
+
+  /* contexto (lo que queda debajo de la cabecera) */
+  .ctx-tabs{ display:flex; flex-wrap:wrap; gap:2px; border-bottom:1px solid var(--color-sand); }
+  .ctx-tabs span{ padding:8px 12px; font-size:.84rem; color:var(--color-taupe); border-bottom:2px solid transparent; margin-bottom:-1px; display:inline-flex; gap:5px; align-items:center; }
+  .ctx-tabs span.on{ color:var(--color-tinta); font-weight:600; border-color:var(--color-tinta); }
+  .stub{ border:1px dashed var(--color-taupe); border-radius:14px; padding:12px 14px; display:flex; flex-direction:column; gap:8px; background:color-mix(in oklab, var(--color-papel) 70%, transparent); }
+  .stub .lb{ font-size:.7rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--color-taupe); }
+  .stub .bar{ height:10px; border-radius:6px; background:var(--color-sand); }
+  .stub .w40{ width:40%; } .stub .w60{ width:60%; } .stub .w80{ width:80%; } .stub .w30{ width:30%; }
+  .req{ background:var(--color-papel); border:1px solid var(--color-sand); border-radius:16px; padding:12px 16px; }
+  .req h3{ font-size:1.05rem; margin-bottom:6px; }
+  .req ul{ list-style:none; margin:0; padding:0; }
+  .req li{ display:flex; flex-wrap:wrap; gap:4px 10px; align-items:center; padding:7px 0; border-top:1px solid var(--color-sand); font-size:.86rem; }
+  .req li .q{ font-weight:600; }
+  .req li .r{ color:var(--color-taupe); flex:1 1 180px; }
+
+  /* tabla de la pantalla simulada */
+  .tbl-s{ width:100%; border-collapse:collapse; font-size:.86rem; background:var(--color-papel); }
+  .tbl-s th{ text-align:left; font-size:.7rem; letter-spacing:.05em; text-transform:uppercase; color:var(--color-taupe); padding:9px 12px; background:var(--color-hueso); font-weight:600; }
+  .tbl-s td{ padding:10px 12px; border-top:1px solid var(--color-sand); vertical-align:middle; }
+  .tbl-s tr.fila{ cursor:pointer; } .tbl-s tr.fila:hover td{ background:var(--color-hueso); }
+  .tw-s{ border:1px solid var(--color-sand); border-radius:16px; overflow:hidden; background:var(--color-papel); }
+  .chiprow{ display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+  .vt{ display:flex; flex-wrap:wrap; gap:4px 8px; align-items:center; font-size:.84rem; color:var(--color-taupe); }
+  .vt .vl{ font-weight:600; }
+  .vt a, .vt button{ background:none; border:0; padding:6px 2px; color:var(--color-rojo-profundo); text-decoration:underline; text-underline-offset:3px; font-weight:600; min-height:32px; }
+  .vt .sepp{ opacity:.5; }
+  .chipctx{ display:inline-flex; align-items:center; gap:5px; border:1px solid color-mix(in oklab, var(--color-pizarra) 40%, transparent); background:color-mix(in oklab, var(--color-pizarra) 9%, var(--color-papel)); color:var(--color-pizarra); border-radius:8px; padding:5px 11px; min-height:32px; font-size:.78rem; font-weight:700; white-space:nowrap; }
+  .chipctx:hover{ background:color-mix(in oklab, var(--color-pizarra) 18%, var(--color-papel)); }
+  .cards4{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }
+  .mini{ border:1px solid var(--color-sand); background:var(--color-papel); border-radius:14px; padding:10px 12px; display:flex; flex-direction:column; gap:3px; min-width:0; }
+  .mini .et{ font-size:.74rem; color:var(--color-taupe); } .mini .v{ font-family:var(--font-serif); font-size:1.3rem; line-height:1.2; }
+  .foot-hoy{ font-size:.75rem; color:var(--color-taupe); max-width:48rem; }
+  .foot-1{ font-size:.75rem; color:var(--color-taupe); display:flex; gap:8px; align-items:baseline; max-width:100%; }
+  .foot-1 .tx{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
+  .candado{ display:inline-flex; align-items:center; gap:5px; font-size:.74rem; font-weight:700; color:var(--color-ambar); background:color-mix(in oklab, var(--color-ambar) 14%, var(--color-papel)); border:1px solid color-mix(in oklab, var(--color-ambar) 40%, transparent); border-radius:8px; padding:3px 9px; white-space:nowrap; }
+  .fila-ac{ display:flex; flex-wrap:wrap; gap:6px; align-items:center; justify-content:flex-end; }
+  .campo{ display:flex; flex-direction:column; gap:4px; font-size:.82rem; color:var(--color-taupe); }
+  .campo input, .campo textarea{ background:var(--color-hueso); border:1px solid var(--color-taupe); border-radius:8px; padding:8px 10px; color:var(--color-tinta); min-height:40px; width:100%; }
+  .dos{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+
+  /* modal y cajón */
+  .vel{ position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:60; }
+  .modal{ position:fixed; z-index:61; left:50%; top:50%; transform:translate(-50%,-50%); width:min(560px, calc(100% - 24px)); max-height:calc(100dvh - 24px); overflow:auto; background:var(--color-papel); border:1px solid var(--color-sand); border-radius:20px; box-shadow:0 20px 60px rgba(0,0,0,.35); padding:20px; display:flex; flex-direction:column; gap:14px; }
+  .modal > header{ display:flex; justify-content:space-between; gap:12px; align-items:flex-start; }
+  .modal > header h2{ font-size:1.35rem; line-height:1.2; font-weight:500; }
+  .x{ border:1px solid var(--color-sand); background:var(--color-crema); border-radius:8px; width:36px; height:36px; display:grid; place-items:center; flex:none; }
+  .modal dl{ margin:0; display:grid; gap:12px; font-size:.88rem; }
+  .modal dl > div{ display:grid; gap:2px 16px; border-top:1px solid var(--color-sand); padding-top:12px; grid-template-columns:8rem 1fr; }
+  .modal dt{ font-weight:600; } .modal dd{ margin:0; color:var(--color-taupe); }
+  .modal dd .ref{ display:block; font-size:.76rem; margin-top:2px; }
+  .modal .pie{ display:flex; justify-content:flex-end; gap:8px; flex-wrap:wrap; }
+  .rel-l{ list-style:none; margin:0; padding:0; display:grid; gap:2px; }
+  .rel-l li{ display:grid; grid-template-columns:1fr; gap:0; }
+  .rel-l button{ text-align:left; background:none; border:0; border-radius:8px; padding:6px 8px; margin:0 -8px; }
+  .rel-l button:hover{ background:var(--color-hueso); }
+  .rel-l b{ color:var(--color-rojo-profundo); text-decoration:underline; text-underline-offset:3px; }
+  .rel-l span{ display:block; color:var(--color-taupe); font-size:.84rem; }
+  .cajon{ position:fixed; top:0; right:0; bottom:0; width:min(450px,100%); background:var(--color-papel); border-left:1px solid var(--color-sand); z-index:61; display:flex; flex-direction:column; box-shadow:-12px 0 40px rgba(0,0,0,.25); animation:entra .18s ease-out; }
+  @keyframes entra{ from{ transform:translateX(26px); opacity:0; } to{ transform:none; opacity:1; } }
+  @media (prefers-reduced-motion: reduce){ .cajon{ animation:none; } }
+  .cajon > header{ padding:16px 18px 12px; border-bottom:1px solid var(--color-sand); display:flex; justify-content:space-between; gap:12px; align-items:flex-start; }
+  .cajon > header h3{ font-size:1.3rem; line-height:1.15; } .cajon > header small{ color:var(--color-taupe); display:block; }
+  .cajon .cuerpo{ overflow:auto; padding:14px 18px 20px; flex:1; display:flex; flex-direction:column; gap:12px; }
+  .toast{ position:fixed; left:50%; bottom:18px; transform:translateX(-50%); z-index:80; background:var(--color-tinta); color:var(--color-crema); padding:10px 14px; border-radius:12px; font-size:.86rem; max-width:min(560px, calc(100% - 24px)); box-shadow:0 8px 28px rgba(0,0,0,.3); display:flex; gap:12px; align-items:center; }
+  .toast.err{ background:var(--color-rojo-profundo); color:var(--color-crema); }
+  .toast button{ background:none; border:1px solid color-mix(in oklab, var(--color-crema) 50%, transparent); color:var(--color-crema); border-radius:8px; padding:3px 10px; font-weight:700; }
+  .chk{ display:flex; gap:10px; align-items:flex-start; font-size:.88rem; padding:10px 12px; border:1px solid var(--color-sand); border-radius:12px; background:var(--color-crema); }
+  .chk input{ width:20px; height:20px; margin-top:1px; accent-color:var(--color-tinta); flex:none; }
+  .resumen-cierre{ display:grid; gap:0; font-size:.88rem; border:1px solid var(--color-sand); border-radius:12px; overflow:hidden; }
+  .resumen-cierre > div{ display:flex; justify-content:space-between; gap:12px; padding:8px 12px; border-top:1px solid var(--color-sand); }
+  .resumen-cierre > div:first-child{ border-top:0; }
+  .resumen-cierre b{ font-variant-numeric:tabular-nums; }
+
+  /* ══ debajo de la pantalla: tablas y notas ══ */
+  .seccion{ background:var(--color-papel); border:1px solid var(--color-sand); border-radius:16px; padding:16px 18px; }
+  .seccion > h2{ font-size:1.25rem; font-weight:600; margin-bottom:4px; }
+  .seccion > p.sub{ color:var(--color-taupe); font-size:.86rem; margin-bottom:10px; max-width:60rem; }
+  table.tb{ border-collapse:collapse; width:100%; font-size:.82rem; }
+  table.tb th{ text-align:left; font-size:.68rem; text-transform:uppercase; letter-spacing:.05em; color:var(--color-taupe); padding:6px 8px; border-bottom:1px solid var(--color-sand); background:var(--color-papel); }
+  table.tb td{ border-top:1px solid var(--color-sand); padding:7px 8px; vertical-align:top; }
+  table.tb code{ background:var(--color-hueso); padding:1px 5px; border-radius:5px; font-size:.84em; word-break:break-word; }
+  .etq{ display:inline-block; font-size:.66rem; font-weight:700; text-transform:uppercase; letter-spacing:.04em; padding:1px 8px; border-radius:100px; white-space:nowrap; }
+  .etq.inf{ background:color-mix(in oklab, var(--color-pizarra) 15%, var(--color-papel)); color:var(--color-pizarra); }
+  .etq.adv{ background:color-mix(in oklab, var(--color-rojo) 10%, var(--color-papel)); color:var(--color-rojo-profundo); }
+  .etq.mix{ background:color-mix(in oklab, var(--color-ambar) 15%, var(--color-papel)); color:var(--color-ambar); }
+  .etq.n5{ background:var(--color-rojo-profundo); color:var(--color-crema); } .etq.n4{ background:color-mix(in oklab, var(--color-rojo) 18%, var(--color-papel)); color:var(--color-rojo-profundo); }
+  .etq.n3{ background:color-mix(in oklab, var(--color-ambar) 18%, var(--color-papel)); color:var(--color-ambar); } .etq.n2{ background:color-mix(in oklab, var(--color-pizarra) 15%, var(--color-papel)); color:var(--color-pizarra); }
+  .etq.n1{ background:color-mix(in oklab, var(--color-ceniza) 14%, var(--color-papel)); color:var(--color-ceniza); }
+  .notas{ display:flex; flex-direction:column; gap:10px; }
+  .notas details{ background:var(--color-papel); border:1px solid var(--color-sand); border-radius:14px; }
+  .notas summary{ cursor:pointer; padding:12px 16px; font-weight:700; font-family:var(--font-serif); font-size:1.12rem; }
+  .notas .in{ padding:0 18px 16px; display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:14px 24px; }
+  .notas h4{ font-family:var(--font-sans); font-size:.72rem; letter-spacing:.07em; text-transform:uppercase; color:var(--color-taupe); margin-bottom:4px; }
+  .notas ul{ margin:0; padding-left:18px; display:flex; flex-direction:column; gap:4px; font-size:.86rem; }
+  .notas .ancho{ grid-column:1 / -1; }
+  .notas .dec{ font-size:.86rem; display:grid; gap:4px; }
+  .notas .dec b{ font-size:.7rem; letter-spacing:.06em; text-transform:uppercase; color:var(--color-taupe); margin-right:6px; }
+  .notas code{ background:var(--color-hueso); padding:1px 5px; border-radius:5px; font-size:.84em; }
+
+  /* ══ responsivo de la pantalla simulada (por el ancho de la pantalla, no del navegador) ══ */
+  @container pan (max-width:600px){
+    .cab h1{ font-size:1.5rem; }
+    .cifras, .cifras.c4{ grid-template-columns:1fr; gap:8px; }
+    .cifra{ display:grid; grid-template-columns:1fr auto; grid-template-areas:"et v" "det v"; align-items:center; padding:10px 12px; gap:0 12px; }
+    .cifra .et{ grid-area:et; } .cifra .v{ grid-area:v; margin:0; padding:0; font-size:1.35rem; } .cifra .det{ grid-area:det; }
+    .cifra .mk{ grid-area:det; }
+    .pasos{ grid-template-columns:1fr; gap:6px; }
+    .paso{ padding:8px 10px; }
+    .franja-b .tot{ margin-left:0; width:100%; text-align:left; border-top:1px solid var(--color-sand); padding-top:8px; display:flex; align-items:baseline; justify-content:space-between; gap:8px; flex-wrap:wrap; }
+    .franja-b .tot .tl{ justify-content:flex-start; }
+    .cards4{ grid-template-columns:1fr 1fr; }
+    .dos{ grid-template-columns:1fr; }
+    .tbl-s .oc{ display:none; }
+    .tbl-s th, .tbl-s td{ padding:9px 8px; }
+  }
+  @media (max-width:760px){
+    .proto{ position:static; }
+    .tabs{ width:100%; }
+    .tabs button small{ display:none; }
+    .ctl{ margin-left:0; }
+  }
+  @media (max-width:640px){
+    .proto .fila1, .proto .fila2{ padding-inline:12px; }
+    .page{ padding:12px 10px 70px; }
+    .pantalla{ padding:6px 2px 10px; border:0; background:transparent; box-shadow:none; border-radius:0; gap:14px; }
+    .lema{ padding-inline:12px; }
+    .modal dl > div{ grid-template-columns:1fr; }
+    .seccion{ padding:14px 12px; }
+    table.tb thead{ display:none; }
+    table.tb, table.tb tbody, table.tb tr, table.tb td{ display:block; width:100%; }
+    table.tb tr{ border-top:1px solid var(--color-sand); padding:8px 0; }
+    table.tb td{ border:0; padding:3px 4px; }
+    table.tb td[data-l]::before{ content:attr(data-l); display:block; font-size:.64rem; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--color-taupe); }
+  }
+</style>
+</head>
+<body>
+<style>
+  @container pan (max-width:600px){
+    .apilada thead{ display:none; } .apilada, .apilada tbody, .apilada tr, .apilada td{ display:block; width:100%; }
+    .apilada tr{ padding:10px 12px; border-top:1px solid var(--color-sand); } .apilada tr:first-child{ border-top:0; }
+    .apilada td{ border:0 !important; padding:2px 0 !important; } .apilada .fila-ac{ justify-content:flex-start; margin-top:6px; }
+    .cab .acc{ width:100%; } .cab .acc .sel{ flex:1 1 100%; }
+    .cab-l{ flex-basis:100%; }
+  }
+  .sel.g{ min-height:38px; padding:6px 10px; }
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/></symbol>
+    <symbol id="i-alerta" viewBox="0 0 24 24"><path d="m21.7 18-8-14a2 2 0 0 0-3.5 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3Z"/><path d="M12 9v4M12 17h.01"/></symbol>
+    <symbol id="i-ok" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+    <symbol id="i-reloj" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="i-candado" viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol>
+    <symbol id="i-izq" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
+    <symbol id="i-der" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+    <symbol id="i-ext" viewBox="0 0 24 24"><path d="M7 17 17 7M8 7h9v9"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+    <symbol id="i-mas" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></symbol>
+    <symbol id="i-recibo" viewBox="0 0 24 24"><path d="M4 2v20l3-2 3 2 3-2 3 2 3-2V2l-3 2-3-2-3 2-3-2Z"/><path d="M8 8h8M8 12h8"/></symbol>
+    <symbol id="i-flecha" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+  </defs>
+</svg>
+
+<div class="proto" id="proto">
+  <div class="fila1">
+    <span class="demo-badge">Maqueta · datos ficticios</span>
+    <div class="tabs" role="tablist" aria-label="Temas" id="tabs"></div>
+    <div class="ctl">
+      <label>Tema
+        <select id="selTema"><option value="auto">Automático</option><option value="light">Claro</option><option value="dark">Oscuro</option></select>
+      </label>
+      <label>Ancho
+        <select id="selAncho"><option value="esc">Escritorio</option><option value="cel">Celular (375 px)</option></select>
+      </label>
+    </div>
+  </div>
+  <div class="fila2" id="fila2"></div>
+</div>
+
+<div class="lema" id="lema"></div>
+<div class="page" id="app"></div>
+<div id="capa"></div>
+<div id="toast-capa"></div>
+
+<script>
+(() => {
+/* ═════════ utilidades ═════════ */
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const ic = (n, c = '') => `<svg class="i ${c}" aria-hidden="true"><use href="#i-${n}"/></svg>`;
+const sol = (n) => 'S/ ' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const nav = (txt, label, cls = 'lnk') => `<button class="${cls}" data-act="nav" data-n="${txt}">${label ?? txt}</button>`;
+
+/* ═════════ estado ═════════ */
+const S = {
+  tab: 'sub',
+  v: { sub: 'A', rel: 'A', nota: 'A', din: 'B' },
+  caso: { sub: 'boletas', rel: 'horas', nota: 'ausencias', din: 'planilla' },
+  desde: 'Equipo', est: 'frenan', personaCorr: 'carla',
+  modal: null, drawer: null, cel: false,
+};
+
+const TABS = {
+  sub: { n: 'Subpantallas', s: 'miga de pan',
+    vars: [['H', 'Hoy', 'ref'], ['A', 'Miga clicable sobre el título', 'rec'], ['B', 'Flecha volver + sobretítulo'], ['C', 'Miga en la línea de descripción']],
+    casos: [['boletas', 'Boletas de pago'], ['persona', 'Ficha de una persona'], ['caso', 'Caso de Hostigamiento']],
+    lema: '<strong>Pregunta:</strong> ¿cómo sabe una integrante, una líder o DO en qué subpantalla está y cómo vuelve, sin llenar la cabecera? Compara las tres con los tres casos reales.' },
+  rel: { n: 'Relacionadas', s: 'ver la conexión',
+    vars: [['A', 'ⓘ «Relacionadas» + enlace donde ocurre', 'rec'], ['B', 'Fila «Ver también»'], ['C', 'Chips de contexto']],
+    casos: [['horas', 'Desempeño del equipo'], ['corr', 'Corregir marcajes']],
+    lema: '<strong>Pregunta:</strong> estas pantallas mandan a otra pestaña (Turnos, Horarios, Correcciones…). ¿Cómo se hace visible esa conexión <em>sin</em> llenar la cabecera? Toca una fila, un enlace o el ⓘ.' },
+  nota: { n: 'Notas al pie', s: 'info vs. advertencia',
+    vars: [['H', 'Hoy', 'ref'], ['A', 'Info al ⓘ, advertencia junto a la acción', 'rec'], ['B', 'Todo, a una línea'], ['C', 'Todo al ⓘ (el riesgo)']],
+    casos: [['ausencias', 'Ausencias (periodo pagado)'], ['horarios', 'Horarios (nuevo horario)']],
+    lema: '<strong>Pregunta:</strong> ¿qué nota larga es solo <em>información</em> (cabe en el ⓘ) y cuál <em>protege plata o una obligación legal</em> (debe verse al actuar)? Prueba «Anular» en Carla, cuyo periodo ya está pagado.' },
+  din: { n: 'Dinero', s: 'franja compacta',
+    vars: [['H', 'Hoy', 'ref'], ['A', 'Tres cifras'], ['B', 'Franja «Para cerrar»', 'rec'], ['C', 'Pasos del cierre']],
+    casos: [['planilla', 'Planilla'], ['boletas', 'Boletas'], ['liq', 'Liquidaciones'], ['prov', 'Provisiones'], ['costos', 'Costos'], ['edu', 'Educación']],
+    lema: '<strong>Pregunta:</strong> ¿qué decide plata y debe verse primero (estado del periodo, qué falta cerrar, qué <em>bloquea</em>, el total) y qué se pliega al ⓘ? El mismo patrón en seis pantallas. Cambia el estado del mes.' },
+};
+
+/* ═════════ ayudas (ventana del ⓘ) ═════════ */
+const AY = {
+  boletas: { titulo: 'Cómo funcionan las boletas de pago', intro: 'La boleta oficial la entrega el contador al cerrar el periodo. Aquí se sube, se revisa y se publica; recién ahí la ve la persona.',
+    sec: [['Subir', 'Un archivo por persona, cuando el grupo ya se pagó. Mientras tanto la persona ve en «Lo mío» cómo va su pago.'], ['Publicar', 'La persona no la ve hasta que la publiques. Revisa antes de publicar.'], ['Firma', 'La persona acusa recibo desde «Lo mío»; aquí ves quién ya firmó.']] },
+  persona: { titulo: 'Cómo se lee esta ficha', intro: 'Todo lo registrado de una persona en un solo lugar. Esta pantalla solo lee: para editar, usa Equipo.',
+    sec: [['PDF', '«Incluir sueldo en el PDF» solo aparece para quien tiene permiso de ver sueldos.'], ['Días', 'Cada día con novedad enlaza a Corregir marcajes.']] },
+  caso: { titulo: 'Cómo se lleva un caso', intro: 'Aquí se lleva el reporte de una integrante, con confidencialidad. Un reporte no es una falta.',
+    sec: [['Registro', 'Cada vez que alguien abre esta ficha queda registrado (44.13).'], ['Quién lo lleva', 'Se indica arriba («Lo lleva DO»). Dynamic avisa; nunca decide por nadie.']] },
+  desempeno: { titulo: 'Cómo leer el desempeño', intro: 'Cada fila es una persona y cada cuadrito, un día: tócalo para ver qué pasó y resolverlo ahí mismo.',
+    sec: [['Orden', 'Primero lo que necesita atención: faltas, la peor tardanza del periodo y los marcajes por revisar.'], ['Medido contra', 'Lo que le tocaba según su horario y sus turnos, sin los días con motivo registrado. Quien estuvo de vacaciones no debe esas horas.'], ['Faltas', 'Las calcula la base: no es falta un día de vacaciones, de suspensión ni uno justificado.']],
+    rel: [['Corregir marcajes', 'Cuando una hora está mal o falta una marca. Abre el día ya elegido.', 'Corregir marcajes'], ['Incidencias', 'Todo lo que el sistema detectó de esa persona.', 'Incidencias'], ['Turnos', 'Qué le tocaba trabajar un día puntual. El turno manda sobre el horario base.', 'Turnos'], ['Horarios', 'La jornada de una semana normal. Sin horario no hay contra qué medir.', 'Horarios'], ['Ausencias', 'Los días con motivo (vacaciones, descanso médico…).', 'Ausencias'], ['Ficha de la persona', 'Todo su expediente en un solo lugar.', 'Ficha']] },
+  correcciones: { titulo: 'Cómo funciona Corregir marcajes', intro: 'Aquí se arregla lo que el terminal no pudo resolver solo. Nada se borra: toda corrección queda con quién, qué y cuándo.',
+    sec: [['Elegir el día', 'Busca a la persona en la lista y abre el día. Si llegaste desde Incidencias o Desempeño, el día ya viene abierto.'], ['Motivo', 'Cada cambio pide un motivo.']],
+    rel: [['Turnos', 'De dónde sale la hora esperada cuando hay un turno puntual.', 'Turnos'], ['Horarios', 'El horario base. Sin horario vigente ese día no cuenta tardanza.', 'Horarios'], ['Incidencias', 'Lo que el sistema detectó y llegó acá para corregirse.', 'Incidencias'], ['Desempeño', 'El resumen del equipo, de donde suelen venir los días por revisar.', 'Desempeño']] },
+  horarios: { titulo: 'Cómo funcionan los horarios base', intro: 'El horario base es lo que le toca a cada persona una semana normal. Un turno puntual de Turnos manda sobre él, solo ese día.',
+    sec: [['Cada día', 'Puede tener una hora distinta (martes 8:00, miércoles 14:00…), con su refrigerio, y se repite cada semana.'], ['Refrigerio', 'Va en minutos. 0 = sin refrigerio.']] },
+  planilla: { titulo: 'Cómo funciona la planilla del periodo', intro: 'Cada grupo se paga por su cuenta. Al pagar un grupo se congela su desglose; reabrirlo exige un motivo.',
+    sec: [['Base full-time', '201.5 h = 6.5 h × 31 días. Con esta cifra se calcula el valor de la hora del periodo.'], ['Feriados', '8 oct · Combate de Angamos.'], ['Frenan el pago', 'Casos que impiden cerrar el grupo (por ejemplo, un día con la salida puesta por el sistema y sin confirmar). Avisan: conviene mirarlos. Informan: nada que hacer.'], ['No se paga dos veces', 'Si alguien cesó a mitad de mes y ya cobró su liquidación, el cierre se frena y te lo dice. Usa «Ya le pagué aparte».']] },
+  liq: { titulo: 'Cómo se calcula el plazo', intro: 'La ley da 48 horas desde el cese para pagar (art. 4 del D.S. 001-97-TR): el último día trabajado más dos días de calendario, sin excepción por fin de semana o feriado.',
+    sec: [['Al pagar', 'La cifra se congela. Si después el cálculo cambia, el sistema lo dice y no mueve el número.'], ['Diferencias', 'Cuando el cálculo de hoy ya no coincide con lo pagado.']] },
+  prov: { titulo: 'Cómo se calculan las provisiones', intro: 'Es lo que la empresa debe tener reservado por beneficios que todavía no pagó. No es un pago: es un acumulado.',
+    sec: [['Factores', 'Gratificación 8.33 %, CTS 4.17 %, vacaciones 4.17 %.'], ['Sin tramo de salario', 'Un cero puede ser «aún no devengó» o «nadie le cargó el tramo». Se cuenta aparte para no buscarlo en la tabla.']] },
+  costos: { titulo: 'Cómo leer los costos', intro: 'Solo aparecen los periodos ya marcados como pagados: su desglose quedó congelado. Lo que sigue abierto se ve en Planilla y es una proyección, no un costo.',
+    sec: [['Un periodo, no un mes', 'Los periodos de CAYLA no son meses calendario.'], ['Comparar', 'Por persona y por hora, no por el total.'], ['Reconstruido', 'Un periodo anterior a que el sistema guardara la foto muestra la cifra de hoy, no la transferida.']] },
+  edu: { titulo: 'Cómo funcionan los apoyos educativos', intro: 'Solo Desarrollo Organizacional los gestiona. Cada apoyo tiene su calendario de pagos y sus constancias.',
+    sec: [['Por revisar', 'Constancias y solicitudes que esperan una decisión.'], ['Vencidas', 'Constancias cuya fecha ya pasó.']] },
+  ausencias: { titulo: 'Cómo funcionan las ausencias', intro: 'Aquí se registran los días que alguien no vino, vacaciones incluidas.',
+    sec: [['Qué cambia', 'Un día registrado aquí deja de contar como falta injustificada y no alimenta el expediente disciplinario.'], ['Qué se paga', 'Solo lo que la ley obliga (descanso médico con documento, maternidad, vacaciones, duelo) o lo que la empresa concede aparte.'], ['Impacto', 'La tarjeta «Impacto por colaborador» avisa vacaciones por vencer y patrones. El patrón es para conversar, nunca para sancionar solo con ese dato.']] },
+};
+
+/* ═════════ piezas (espejo de components/ui) ═════════ */
+const ayb = (k) => `<button class="ayb" type="button" data-act="ayuda" data-k="${k}" aria-label="${AY[k].titulo}" aria-haspopup="dialog">${ic('info')}</button>`;
+function cab(o) {
+  const desc = (o.desc || o.ayuda)
+    ? `<div class="desc">${o.descPre || ''}<span class="dtxt">${o.desc || ''}</span>${o.ayuda ? ayb(o.ayuda) : ''}</div>` : '';
+  const ttl = `<div style="min-width:0"><h1>${o.titulo}</h1>${desc}</div>`;
+  return `<header class="cab">
+    <div class="cab-l">${o.volver || ''}${o.miga || ''}${o.sobre ? `<p class="sobre">${o.sobre}</p>` : ''}
+      ${o.av ? `<div class="tt"><span class="av" aria-hidden="true">${o.av}</span>${ttl}</div>` : ttl}</div>
+    ${o.acc ? `<div class="acc">${o.acc}</div>` : ''}
+  </header>`;
+}
+const miga = (items) => `<nav class="miga" aria-label="Ubicación">${items.map((x, i) => i < items.length - 1
+  ? `<button class="lk" type="button" data-act="nav" data-n="${x}">${x}</button><span class="sep" aria-hidden="true">›</span>`
+  : `<span aria-current="page">${x}</span>`).join('')}</nav>`;
+const volver = (txt) => `<button class="volver" type="button" data-act="nav" data-n="${txt}">${ic('izq')}${txt}</button>`;
+const mvolver = (txt) => `<button class="mvolver" type="button" data-act="nav" data-n="${txt}">${ic('izq')}${txt}</button><span class="dsep" aria-hidden="true">·</span>`;
+const btn = (t, o = {}) => `<button class="btn ${o.k || ''} ${o.fino ? 'fino' : ''}" type="button" ${o.dis ? 'disabled' : ''} data-act="${o.act || 'nav'}" data-n="${o.n || t}" ${o.d || ''}>${o.ico ? ic(o.ico) : ''}${t}</button>`;
+const ins = (t, tono = 'neutro', sinp = false) => `<span class="ins ${tono}${sinp ? ' sinp' : ''}">${t}</span>`;
+const banner = (tono, ico, html, tail = '') => `<div class="banner ${tono}" role="note">${ico ? `<span class="ico">${ic(ico)}</span>` : ''}<div class="bx">${html}</div>${tail ? `<div class="tail">${tail}</div>` : ''}</div>`;
+const punto = (t) => `<span class="pt ${t}" aria-hidden="true"></span>`;
+const cifra = (c) => `<div class="cifra"><span class="et">${c.tono ? punto(c.tono) : ''}${c.et}</span><span class="v${c.pintado ? ' pintado ' + c.pintado : ''}">${c.v}</span>${c.det ? `<span class="det">${c.det}</span>` : ''}${c.mk ? `<span class="mk">${c.mk}</span>` : ''}</div>`;
+const stub = (lb, lines = 3) => `<div class="stub"><span class="lb">${lb}</span>${['w80', 'w60', 'w40'].slice(0, lines).map((w) => `<div class="bar ${w}"></div>`).join('')}</div>`;
+const menuBtn = () => `<button class="btn sec" type="button" data-act="nav" data-n="Más acciones" aria-label="Más acciones">${ic('mas')}</button>`;
+const pil = (p) => `<button class="pa ${p.tono}" type="button" aria-pressed="false" data-act="nav" data-n="${p.nav || 'Filtra la lista: ' + p.t}">${p.t}</button>`;
+
+/* ═════════ marco de la pantalla simulada ═════════ */
+function marco(inner, { etiqueta = 'Pantalla simulada', extra = '', medir = 'cab' } = {}) {
+  return `<div class="marco-top"><span>${etiqueta}${extra}</span><span class="alto" id="alto" aria-live="polite" data-medir="${medir}"></span></div>
+  <div class="pantalla${S.cel ? ' cel' : ''}" id="pantalla">${inner}</div>`;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   TEMA 1 · SUBPANTALLAS
+   ═══════════════════════════════════════════════════════════════ */
+function vistaSub() {
+  const v = S.v.sub, c = S.caso.sub;
+  const d = S.desde;
+  let h = '', extra = '', cuerpo = '';
+  if (c === 'boletas') {
+    cuerpo = `<div class="cards4">${['Con su boleta · 18 de 24', 'Sin publicar · 6', 'Faltan por subir · 6', 'Firmaron · 9'].map((t) => `<div class="mini"><span class="et">${t.split(' · ')[0]}</span><span class="v">${t.split(' · ')[1]}</span></div>`).join('')}</div>${stub('El resto de la pantalla: filtros y lista de boletas')}`;
+    const base = { titulo: 'Boletas de pago' };
+    if (v === 'H') h = cab({ ...base, miga: miga(['Planilla', 'Boletas']), desc: 'La boleta oficial de cada persona, por periodo. Se sube, se revisa y recién entonces se publica.' });
+    if (v === 'A') h = cab({ ...base, miga: miga(['Planilla', 'Boletas de pago']), desc: 'Sube, revisa y publica la boleta oficial de cada persona.', ayuda: 'boletas' });
+    if (v === 'B') h = cab({ ...base, volver: volver('Planilla'), sobre: 'Planilla · Octubre 2026', desc: 'Sube, revisa y publica la boleta oficial de cada persona.', ayuda: 'boletas' });
+    if (v === 'C') h = cab({ ...base, descPre: mvolver('Planilla'), desc: 'Sube, revisa y publica cada boleta.', ayuda: 'boletas' });
+  }
+  if (c === 'persona') {
+    extra = ` · llegaste desde <select class="sel" id="selDesde" aria-label="De dónde llegaste a la ficha">${['Equipo', 'Desempeño', 'Incidencias'].map((x) => `<option ${x === d ? 'selected' : ''}>${x}</option>`).join('')}</select>`;
+    cuerpo = `<div class="cards4">${[['Marcas del periodo', '21'], ['Tardanzas', '2'], ['Faltas', '0'], ['Vacaciones', '8 días']].map((x) => `<div class="mini"><span class="et">${x[0]}</span><span class="v">${x[1]}</span></div>`).join('')}</div>${stub('El resto de la ficha: horario, ausencias, documentos')}`;
+    const acc = btn('Descargar PDF', { k: '', fino: false }) + menuBtn();
+    const base = { titulo: 'Carla Rojas', av: 'CR', acc };
+    const descA = 'Líder de equipo · Tienda TRU · ingresó el 3 mar 2023';
+    if (v === 'H') h = `<button class="volver-txt" type="button" data-act="nav" data-n="Volver (retrocede en el historial)">← Volver</button>` + cab({ ...base, desc: `${descA} ${ins('sueldo fijo', 'neutro', true)}<br><span style="font-size:.78rem">DNI ••••••••</span>` });
+    if (v === 'A') h = cab({ ...base, miga: miga([d, 'Carla Rojas']), desc: descA, ayuda: 'persona' });
+    if (v === 'B') h = cab({ ...base, volver: volver(d), sobre: 'Ficha de integrante', desc: descA, ayuda: 'persona' });
+    if (v === 'C') h = cab({ ...base, descPre: mvolver(d), desc: 'Líder de equipo · Tienda TRU · ingresó 3 mar 2023', ayuda: 'persona' });
+  }
+  if (c === 'caso') {
+    const acc = ins('Urgente', 'alerta') + ins('En revisión', 'info') + ins('Lo lleva DO', 'neutro', true);
+    cuerpo = banner('info', 'info', 'Abrir esta ficha queda registrado (44.13) · se abrió 3 veces. Un reporte no es una falta.') +
+      stub('Lo reportado · 14 oct 2026', 3) + stub('Seguimiento', 2);
+    const base = { titulo: 'Reporte de hostigamiento', acc };
+    if (v === 'H') h = volver('Casos') + cab({ ...base, sobre: 'Canal de integrantes · TRU · HOS-0012', desc: 'De Elena Paz (confidencial) · sobre Diego Mora · testigos: Gaby Ríos' });
+    if (v === 'A') h = cab({ ...base, miga: miga(['Casos', 'HOS-0012']), desc: 'Canal de integrantes · TRU · reporte de Elena Paz (confidencial)', ayuda: 'caso' });
+    if (v === 'B') h = cab({ ...base, volver: volver('Casos'), sobre: 'Canal de integrantes · TRU · HOS-0012', desc: 'Reporte de Elena Paz (confidencial) · sobre Diego Mora', ayuda: 'caso' });
+    if (v === 'C') h = cab({ ...base, descPre: mvolver('Casos'), desc: 'HOS-0012 · TRU · reporte de Elena Paz (confidencial)', ayuda: 'caso' });
+  }
+  return marco(h + cuerpo, { extra, etiqueta: 'Pantalla simulada · ' + TABS.sub.casos.find((x) => x[0] === c)[1] }) + inventarioSub() + notasHTML();
+}
+
+function inventarioSub() {
+  const R = [
+    ['planilla/boletas', 'Miga escrita a mano («Planilla › Boletas», <code>nav aria-label="Ubicación"</code>). La única.', 'Planilla › Boletas de pago', 'Hijo estricto: se llega siempre desde Planilla.'],
+    ['planilla/boleta', 'Enlace «← Volver a Planilla» en una barra que no se imprime.', 'Planilla › Boleta de Carla Rojas', 'Es un papel (<code>print:hidden</code> en la barra). La miga también tiene que llevarlo.'],
+    ['personas/[id]', 'Botón «← Volver» con <code>router.back()</code>.', '<em>Depende de dónde vengas</em>: Equipo, Desempeño, Incidencias, el buscador', 'Se alcanza desde 5 sitios. Una miga fija diría «Equipo» aunque vengas de Desempeño: ver nota.'],
+    ['casos/[id]', 'Enlace «← Casos» + <code>sobretitulo</code> con tipo · sede · código.', 'Casos › HOS-0012', 'El sobretítulo ya hace de miga a medias; sus datos pasan a la descripción.'],
+    ['disciplina/memo/[id]', 'Botón «← Volver a Disciplina» (<code>router.push</code>).', 'Disciplina › Memo de Bruno Salas', 'Es un papel que se imprime. Misma regla que la boleta.'],
+    ['normas/[id]/constancias', 'Botón «Volver» junto a «Imprimir» (<code>router.push</code>), sin decir a dónde.', 'Normas › Constancias', 'Hoja <code>.hoja</code> imprimible.'],
+    ['politica-salarial/versiones/[version]', '«Volver» y «Volver a Versiones» (dos textos en el mismo archivo).', 'Política salarial › Versiones › Versión 7', 'La única de tres niveles.'],
+    ['politica-salarial/{categorias, versiones, constancias}', 'NO son subpantallas: son 4 pestañas hermanas (<code>_subnav.tsx</code>).', '<strong>Sin miga.</strong> Las pestañas ya dicen dónde estás.', 'Una miga aquí mentiría: Versiones no cuelga de Documento vigente.'],
+  ];
+  return `<section class="seccion" aria-label="Inventario de subpantallas"><h2>Subpantallas que hoy no dicen dónde están</h2>
+    <p class="sub">Leído del código (solo su cabecera). Hay <strong>cinco formas distintas de «volver»</strong> y tres vocabularios («Volver», «Volver a X», «← X»). Solo Boletas tiene miga.</p>
+    <table class="tb"><thead><tr><th>Ruta</th><th>Cómo vuelve hoy</th><th>Miga propuesta</th><th>Ojo</th></tr></thead><tbody>
+    ${R.map((r) => `<tr><td data-l="Ruta"><code>${r[0]}</code></td><td data-l="Hoy">${r[1]}</td><td data-l="Miga propuesta">${r[2]}</td><td data-l="Ojo">${r[3]}</td></tr>`).join('')}
+    </tbody></table></section>`;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   TEMA 2 · RELACIONADAS
+   ═══════════════════════════════════════════════════════════════ */
+const verTambien = (items) => `<nav class="vt" aria-label="Ver también"><span class="vl">Ver también:</span>${items.map((x, i) => `${i ? '<span class="sepp" aria-hidden="true">·</span>' : ''}<button type="button" data-act="nav" data-n="${x}">${x}</button>`).join('')}</nav>`;
+const chipCtx = (t, n) => `<button class="chipctx" type="button" data-act="nav" data-n="${n || t}">${t} ${ic('flecha')}</button>`;
+
+function vistaRel() { return S.caso.rel === 'horas' ? relHoras() : relCorr(); }
+
+function relHoras() {
+  const v = S.v.rel;
+  const head = cab({ titulo: 'Desempeño del equipo', desc: 'Toca una fila para ver sus días · 18 personas · 2 por revisar', ayuda: 'desempeno' });
+  const sinH = v === 'A' ? nav('Horarios · cargar el horario de Elena', 'sin horario · cargar en Horarios →', 'lnk')
+    : v === 'C' ? chipCtx('Cargar en Horarios', 'Horarios · cargar el horario de Elena')
+    : `<button class="lnk" type="button" style="font-weight:400;color:var(--color-ambar)" data-act="nav" data-n="Horarios (hoy solo lo dice un title, invisible en celular)">· sin horario</button>`;
+  const tabla = `<div class="tw-s"><table class="tbl-s"><thead><tr><th>Persona</th><th class="oc">Sede</th><th>Faltas</th><th>Peor tardanza</th><th>Días</th></tr></thead><tbody>
+    <tr class="fila" tabindex="0" data-act="drawer" data-w="carla"><td><b>Carla Rojas</b></td><td class="oc">TRU</td><td>0</td><td>12 min</td><td>${ins('1 por revisar', 'aviso')}</td></tr>
+    <tr class="fila" tabindex="0" data-act="drawer" data-w="bruno"><td><b>Bruno Salas</b></td><td class="oc">LIM</td><td>1</td><td>—</td><td>19 / 21</td></tr>
+    <tr class="fila" tabindex="0" data-act="drawer" data-w="elena"><td><b>Elena Paz</b></td><td class="oc">AQP</td><td>0</td><td>—</td><td data-stop="1">0 ${sinH}</td></tr>
+  </tbody></table></div>`;
+  return marco(head + (v === 'B' ? verTambien(['Corregir marcajes', 'Incidencias', 'Turnos', 'Horarios']) : '') + tabla + stub('Más filas y la leyenda de cuadritos'), { etiqueta: 'Pantalla simulada · Desempeño del equipo' }) + mapaRel() + notasHTML();
+}
+
+function drawerHTML(w) {
+  const v = S.v.rel;
+  const P = { carla: ['Carla Rojas', 'mié 14 oct · Tienda TRU'], bruno: ['Bruno Salas', 'vie 16 oct · Taller LIM'], elena: ['Elena Paz', 'jue 15 oct · Tienda AQP'] }[w];
+  const rev = w === 'carla';
+  const avisoTxt = '<b>2 de sus días con tardanza se midieron contra su horario base</b>, porque ese día no había turno cargado en Turnos. Si rotó de turno, esos minutos dicen más de lo que falta registrar que de la persona.';
+  const aviso = w === 'carla'
+    ? (v === 'C'
+      ? banner('ambar', 'alerta', avisoTxt, chipCtx('Revisar en Turnos', 'Turnos · semana del 12 oct'))
+      : banner('ambar', 'alerta', avisoTxt + ' ' + nav('Turnos · semana del 12 oct', 'Ir a Turnos, en la semana del 12 de octubre →')))
+    : '';
+  const estado = rev ? `${ins('Por revisar', 'aviso')} <span class="muted">Falta la hora de salida</span>` : `${ins('Todo en orden', 'ok')}`;
+  const ctx = v === 'C' ? `<div class="chiprow" role="group" aria-label="Relacionado con este día"><span class="rotc">Relacionado</span>${chipCtx('Incidencias', 'Incidencias · de ' + P[0])}${chipCtx('Turnos', 'Turnos · semana del día')}${chipCtx('Ficha', 'Ficha de ' + P[0])}</div>` : '';
+  const acciones = v === 'C'
+    ? (rev ? btn('Abrir este día en Correcciones →', { n: 'Corregir marcajes · ' + P[0] + ' · 14 oct' }) : '')
+    : `${rev ? btn('Abrir este día en Correcciones →', { n: 'Corregir marcajes · ' + P[0] + ' · 14 oct' }) : nav('Corregir marcajes · ' + P[0], 'Abrir este día en Correcciones →')}
+       <div style="display:flex;flex-direction:column;gap:0">${nav('Incidencias · de ' + P[0], 'Ver sus incidencias →')}${nav('Ficha de ' + P[0], 'Abrir su ficha →')}</div>`;
+  return `<div class="vel" data-act="cerrar"></div><aside class="cajon" role="dialog" aria-modal="true" aria-label="Día de ${P[0]}">
+    <header><div><h3>${P[0]}</h3><small>${P[1]}</small></div><button class="x" type="button" data-act="cerrar" aria-label="Cerrar">${ic('x')}</button></header>
+    <div class="cuerpo">
+      <div class="chiprow">${estado}</div>
+      <div class="mini"><span class="et">Entrada · esperada</span><span class="v" style="font-size:1.1rem">08:02 <span class="muted" style="font-size:.8rem">· 08:00 horario base</span></span></div>
+      ${aviso}${ctx}
+      <div style="display:flex;flex-direction:column;gap:6px;border-top:1px solid var(--color-sand);padding-top:12px">${acciones}</div>
+    </div></aside>`;
+}
+
+function relCorr() {
+  const v = S.v.rel, p = S.personaCorr;
+  const head = cab({ titulo: 'Corregir marcajes', desc: 'Corrige una hora, agrega una marca olvidada o anula un duplicado.', ayuda: 'correcciones' });
+  const sel = `<div class="chiprow"><span class="muted">Persona:</span><select class="sel g" id="selPers" aria-label="Persona"><option value="carla" ${p === 'carla' ? 'selected' : ''}>Carla Rojas · turno puntual viejo</option><option value="elena" ${p === 'elena' ? 'selected' : ''}>Elena Paz · sin horario</option></select><span class="muted">· mié 14 oct</span></div>`;
+  let aviso;
+  if (p === 'carla') {
+    const tx = '<b>Ojo: este turno coincide con un horario que esta persona ya no tiene.</b> Puede ser un espejo viejo que quedó desactualizado cuando cambió su horario base. ';
+    aviso = v === 'A' ? banner('ambar', 'alerta', tx + nav('Turnos · 14 oct', 'Revísalo en Turnos →'))
+      : v === 'C' ? banner('ambar', 'alerta', tx, chipCtx('Revisar en Turnos', 'Turnos · 14 oct'))
+      : banner('ambar', 'alerta', tx + 'Revísalo en Turnos.<span class="muted"> (hoy: texto sin enlace)</span>');
+  } else {
+    const tx = '<b>Esta persona no tiene horario vigente para esa fecha.</b> Sin horario no hay contra qué medir: ese día no cuenta tardanza, ni salida anticipada, ni tiempo adicional, aunque tenga horas marcadas. ';
+    aviso = v === 'A' ? banner('ambar', 'alerta', tx + nav('Horarios · Elena Paz', 'Cargarlo en Horarios →'))
+      : v === 'C' ? banner('ambar', 'alerta', tx, chipCtx('Cargar en Horarios', 'Horarios · Elena Paz'))
+      : banner('ambar', 'alerta', tx + 'Se carga en Horarios.<span class="muted"> (hoy: texto sin enlace)</span>');
+  }
+  const tarj = `<div class="cards4">
+    <div class="mini"><span class="et">Estado</span><span class="v" style="font-size:1.05rem">${ins('Por revisar', 'aviso')}</span></div>
+    <div class="mini"><span class="et">Horas</span><span class="v">7 h 45 min</span></div>
+    <div class="mini"><span class="et">Tardanza</span><span class="v">12 min</span></div>
+    <div class="mini"><span class="et">Entrada esperada</span><span class="v">${p === 'carla' ? '08:00' : '—'}</span>
+      ${p === 'carla' ? `<span>${ins('Turno puntual', 'aviso')}</span>${nav('Turnos · 14 oct', 'Ver en Turnos ↗', 'lnk')}` : '<span class="muted" style="font-size:.76rem">sin horario</span>'}</div></div>`;
+  return marco(head + (v === 'B' ? verTambien(['Turnos', 'Horarios', 'Incidencias', 'Desempeño']) : '') + sel + aviso + tarj + stub('Marcas del día, corrección y motivo'), { etiqueta: 'Pantalla simulada · Corregir marcajes' }) + mapaRel() + notasHTML();
+}
+
+function mapaRel() {
+  const R = [
+    ['Desempeño', 'Correcciones', 'Botón «Abrir este día…» en el cajón del día', '<span class="etq inf">Visible</span> con persona y fecha'],
+    ['Desempeño', 'Incidencias, Ficha', 'Dos enlaces de texto al pie del cajón', '<span class="etq inf">Visible</span>'],
+    ['Desempeño', 'Turnos', 'Aviso «se midieron contra su horario base» con enlace', '<span class="etq inf">Visible</span> solo si hay días sin turno'],
+    ['Desempeño', 'Horarios', 'Enlace «· sin horario» en la celda de Días', '<span class="etq adv">Escondido</span>: lo que explica a dónde va es un <code>title</code> (no existe en el iPad ni en el celular)'],
+    ['Desempeño', 'Ausencias, Objetivos', 'Enlaces dentro de tarjetas', '<span class="etq inf">Visible</span>'],
+    ['Correcciones', 'Turnos', '«Ver en Turnos ↗» junto a «Entrada esperada»', '<span class="etq mix">Solo si</span> el origen es un turno puntual'],
+    ['Correcciones', 'Turnos', 'Aviso de turno espejo: «Revísalo en Turnos»', '<span class="etq adv">Sin enlace</span>: es texto plano'],
+    ['Correcciones', 'Horarios', 'Aviso sin horario: «Se carga en Horarios»', '<span class="etq adv">Sin enlace</span>: es texto plano'],
+    ['Incidencias', 'Correcciones', 'Enlace por incidencia', '<span class="etq inf">Visible</span>'],
+    ['Incidencias', 'Turnos', '«Es un aviso de la sede: se resuelve en Turnos.»', '<span class="etq adv">Sin enlace</span>: es texto plano'],
+    ['Horarios', 'Turnos', 'Mensaje tras guardar: «revísalos en la pantalla de Turnos»', '<span class="etq adv">Sin enlace</span>: va en un aviso que desaparece'],
+  ];
+  return `<section class="seccion" aria-label="Mapa de conexiones"><h2>Cómo se conectan hoy (leído del código)</h2>
+    <p class="sub">La conexión existe casi siempre; lo que falla es que a veces es <strong>texto plano</strong> o un <code>title</code>. Por eso la variante A empieza por arreglar eso, antes de agregar nada a la cabecera.</p>
+    <table class="tb"><thead><tr><th>Desde</th><th>Hacia</th><th>Cómo se ve hoy</th><th>Estado</th></tr></thead><tbody>
+    ${R.map((r) => `<tr><td data-l="Desde"><b>${r[0]}</b></td><td data-l="Hacia">${r[1]}</td><td data-l="Cómo se ve hoy">${r[2]}</td><td data-l="Estado">${r[3]}</td></tr>`).join('')}
+    </tbody></table></section>`;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   TEMA 3 · NOTAS AL PIE
+   ═══════════════════════════════════════════════════════════════ */
+const AUS = [
+  { id: 'b', n: 'Bruno Salas', t: 'Descanso médico', f: '12–14 oct', est: ['ok', 'Aprobada'], pago: false },
+  { id: 'c', n: 'Carla Rojas', t: 'Vacaciones', f: '3–7 set', est: ['ok', 'Aprobada'], pago: true, per: 'Setiembre' },
+  { id: 'e', n: 'Elena Paz', t: 'Licencia con goce', f: '20 oct', est: ['aviso', 'Pendiente'], pago: false },
+];
+const FOOT_AUS = 'Una ausencia no se borra: se anula con motivo y queda en el historial. Y no se puede registrar ni anular nada dentro de un periodo de planilla ya pagado — para eso hay que reabrirlo primero, igual que con todo lo demás que toca plata.';
+const FOOT_HOR = 'Un horario nuevo rige desde hoy en adelante. No se puede fechar hacia atrás: eso recalcularía tardanzas de días ya juzgados con el horario que de verdad regía entonces. Si el cambio ocurrió de verdad hace unos días y recién se registra, cierra esto y usa <b>Corregir días ya trabajados</b> — enseña antes qué jornadas cambiarían.';
+
+function vistaNota() { return S.caso.nota === 'ausencias' ? notaAus() : notaHor(); }
+
+function notaAus() {
+  const v = S.v.nota;
+  const head = cab({ titulo: 'Ausencias', desc: 'Cada día que alguien no vino, y por qué.', ayuda: 'ausencias', acc: btn('+ Registrar ausencia', { n: 'Registrar ausencia' }) });
+  const filas = AUS.map((a) => {
+    let ac;
+    if (v === 'A' && a.pago) ac = `<span class="candado">${ic('candado')}${a.per} ya pagado</span>${nav('Planilla · reabrir ' + a.per, 'Reabrir en Planilla →')}`;
+    else ac = (a.est[1] === 'Pendiente' ? btn('Aprobar', { k: 'sec fino', n: 'Aprobar (maqueta)' }) : '') + btn('Anular', { k: 'peligro fino', act: 'anular', d: `data-id="${a.id}"` });
+    return `<tr><td><b>${a.n}</b></td><td>${a.t}</td><td class="oc">${a.f}</td><td>${ins(a.est[1], a.est[0])}</td><td><div class="fila-ac">${ac}</div></td></tr>`;
+  }).join('');
+  const tabla = `<div class="tw-s"><table class="tbl-s apilada"><thead><tr><th>Persona</th><th>Tipo</th><th class="oc">Fechas</th><th>Estado</th><th></th></tr></thead><tbody>${filas}</tbody></table></div>`;
+  const pie = v === 'H' ? `<p class="foot-hoy">${FOOT_AUS}</p>`
+    : v === 'B' ? `<div class="foot-1"><span class="tx">${FOOT_AUS}</span><button class="lnk" type="button" data-act="ayuda" data-k="ausencias" style="white-space:nowrap">Ver más</button></div>` : '';
+  return marco(head + tabla + pie, { etiqueta: 'Pantalla simulada · Ausencias' }) + clasificacionNotas() + notasHTML();
+}
+
+function notaHor() {
+  const v = S.v.nota;
+  const head = cab({ titulo: 'Horarios base', desc: 'Jornada semanal y descansos de cada colaborador.', ayuda: 'horarios' });
+  const aviso = v === 'H' ? `<p class="foot-hoy">${FOOT_HOR}</p>`
+    : v === 'A' ? banner('ambar', 'candado', '<b>Rige desde hoy y no se puede fechar hacia atrás.</b> ¿El cambio fue hace unos días? Cierra y usa «Corregir días ya trabajados».', nav('Corregir días ya trabajados', 'Ir →'))
+    : v === 'B' ? `<div class="foot-1"><span class="tx">${FOOT_HOR.replace(/<\/?b>/g, '')}</span><button class="lnk" type="button" data-act="ayuda" data-k="horarios" style="white-space:nowrap">Ver más</button></div>` : '';
+  const card = `<div class="tarj"><h3>Nuevo horario · Carla Rojas</h3>
+    <div class="dos"><label class="campo">Entrada<input value="08:00" aria-label="Entrada"></label><label class="campo">Salida<input value="17:00" aria-label="Salida"></label></div>
+    <div class="dos" style="margin-top:10px"><label class="campo">Refrigerio ${v === 'A' ? '(minutos · 0 = sin refrigerio)' : '(min)'}<input value="60"></label>
+      <label class="campo">Vigente desde<input value="${v === 'A' ? 'Hoy, mié 21 oct' : 'Hoy'}" disabled></label></div>
+    <div style="margin-top:12px;display:grid;gap:10px">${aviso}<div class="fila-ac">${btn('Cancelar', { k: 'sec' })}${btn('Guardar horario', { act: 'guardar-h' })}</div></div></div>`;
+  return marco(head + card, { etiqueta: 'Pantalla simulada · Horarios base (ventana «Nuevo horario»)' }) + clasificacionNotas() + notasHTML();
+}
+
+const CLAS = [
+  ['Ausencias', '«Una ausencia no se borra: se anula con motivo y queda en el historial.»', 'inf', 'Al ⓘ. Ya está allí: hoy está dicha dos veces.', 'ausencias:1230'],
+  ['Ausencias', '«…no se puede registrar ni anular nada dentro de un periodo de planilla ya pagado.»', 'adv', 'Candado junto a «Anular» y a «+ Registrar»: protege plata ya pagada.', 'ausencias:1231'],
+  ['Horarios', '«Un horario nuevo rige desde hoy… no se puede fechar hacia atrás.»', 'adv', 'Aviso corto encima de «Guardar»: recalcularía tardanzas de días ya juzgados.', 'horarios:1154'],
+  ['Horarios', '«La columna angosta es el refrigerio en minutos (0 = sin refrigerio).»', 'inf', 'Rótulo de la columna: no necesita ni ⓘ.', 'horarios:356'],
+  ['Horarios', '«Entra a las 14:00, ya pasada la hora de almuerzo… esas horas sí cuentan en su jornada.»', 'mix', 'Se queda junto a su botón «Poner sin refrigerio» (ya está bien puesta).', 'horarios:277'],
+  ['Desempeño', '«Ordenado por lo que necesita atención… quien estuvo de vacaciones no debe las horas…»', 'inf', 'Al ⓘ. Es el párrafo más largo del panel.', 'horas:1188'],
+  ['Desempeño', '«La cuadrícula solo se dibuja hasta N días… acorta las fechas.»', 'adv', 'Una línea donde falta la cuadrícula: avisa lo que NO estás viendo.', 'horas:1458'],
+  ['Desempeño', '«Hay N personas activas sin nada que mostrar… no salen en la tabla.»', 'adv', 'Pastilla «Para atender»: una persona omitida en silencio es un falso negativo.', 'horas:1466'],
+  ['Turnos', '«Cada barra es el rango de entrada–salida… el mapa de calor cuenta solo áreas operativas.»', 'inf', 'Al ⓘ o a la leyenda.', 'turnos:1519'],
+  ['Correcciones', '«Se muestran los 200 días más recientes: puede haber más atrás.»', 'adv', 'Se queda, a una línea: un recorte silencioso hace creer que no hay más.', 'correcciones:889'],
+  ['Normas', '«Solo ves tu propio historial. La política salarial tiene su propio seguimiento.»', 'inf', 'Al ⓘ.', 'normas:1059'],
+  ['Normas', '«…se guarda congelado: un acuse de hoy seguirá apuntando a las palabras que se mostraron hoy.»', 'adv', 'Junto a «Publicar»: es una obligación legal (el acuse).', 'normas:1089'],
+  ['Costos', '«Solo aparecen los periodos ya marcados como pagados… es una proyección, no un costo.»', 'mix', 'La etiqueta de la cifra lo dice («Costo real · periodos pagados») y el detalle al ⓘ.', 'costos:308'],
+  ['Costos', '«Compara por persona y por hora, no por el total.»', 'inf', 'Al ⓘ.', 'costos:460'],
+  ['Costos', 'Banner ámbar «…desglose reconstruido… su cifra es la de hoy, no la transferida.»', 'adv', 'Se queda como aviso: cambia cómo se lee una cifra de dinero.', 'costos:339'],
+  ['Feriados', '«PENDIENTE: la planilla sigue pagando la sobretasa… OTORGADO: quita la sobretasa.»', 'adv', 'Se queda bajo el selector de estado: es el efecto en el pago.', 'feriados:547'],
+  ['Feriados', '«Cada feriado se compensa con un día libre… se declaran de a pares.»', 'inf', 'Ayuda del campo (ya está allí).', 'feriados:527'],
+  ['Liquidaciones', '«Conforme al numeral 59.6 a) del RIT y al D.S. 001-96-TR» (10 px, al pie del papel)', 'inf', 'Se queda: es la referencia del documento impreso, no de la pantalla.', 'liquidaciones:1385'],
+  ['Liquidaciones', 'Aviso del periodo (<code>d.aviso_periodo</code>, viene de la base)', 'adv', 'Se queda sobre la tabla del detalle.', 'liquidaciones:1086'],
+  ['Incidencias', '«Sobre el periodo: Desde y Hasta filtran las faltas y los cierres del día…»', 'inf', 'Ya vive en el ⓘ. Es el ejemplo de cómo debe quedar.', 'incidencias:519'],
+  ['Casos', '«Abrir esta ficha queda registrado (44.13)… Un reporte no es una falta.»', 'adv', 'Se queda visible: avisa a quien abre que su acto queda registrado.', 'casos/[id]:192'],
+  ['Boletas', '«La persona no la ve hasta que publiques.»', 'adv', 'Junto a «Publicar N boletas» (ya está bien puesta).', 'boletas:272'],
+  ['Planilla', '«Base full-time: 201.5 h (6.5 h × 31 días) · feriados: 8 oct…»', 'inf', 'Al ⓘ.', 'planilla:776'],
+  ['Planilla', '«Abierto: las cifras se recalculan con las horas registradas hasta que se confirme el pago.»', 'mix', 'Se queda, a una línea, en la barra del grupo.', 'planilla:~960'],
+];
+function clasificacionNotas() {
+  const n = (t) => CLAS.filter((r) => r[2] === t).length;
+  const E = { inf: '<span class="etq inf">Información</span>', adv: '<span class="etq adv">Advertencia</span>', mix: '<span class="etq mix">Mixta</span>' };
+  return `<section class="seccion" aria-label="Clasificación de las notas"><h2>Las notas reales, clasificadas</h2>
+    <p class="sub">${CLAS.length} notas leídas del código: <strong>${n('inf')} información</strong> (pueden ir al ⓘ), <strong>${n('adv')} advertencias</strong> (protegen plata, un plazo legal o evitan creer que no hay nada más) y <strong>${n('mix')} mixtas</strong>. La regla para decidir: <em>si la persona puede actuar mal sin haberla leído, es advertencia y va junto a la acción.</em></p>
+    <table class="tb"><thead><tr><th>Pantalla</th><th>Qué dice</th><th>Tipo</th><th>Dónde debe vivir</th><th>Archivo:línea</th></tr></thead><tbody>
+    ${CLAS.map((r) => `<tr><td data-l="Pantalla"><b>${r[0]}</b></td><td data-l="Qué dice">${r[1]}</td><td data-l="Tipo">${E[r[2]]}</td><td data-l="Dónde debe vivir">${r[3]}</td><td data-l="Archivo"><code>${r[4]}</code></td></tr>`).join('')}
+    </tbody></table></section>`;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   TEMA 4 · DINERO
+   ═══════════════════════════════════════════════════════════════ */
+const GR = [['Planilla', 24, 38400], ['Practicantes', 3, 3300], ['Prueba', 2, 2600], ['Honorarios · RxH', 1, 1800]];
+const PLE = {
+  encurso: { n: 'En curso · día 22 de 31', lect: ['Abierto', 'info'], linea: 'en curso · día 22 de 31', bl: 2, av: 3, inf: 5, pag: [0, 0, 0, 0], etTot: 'Total proyectado', des: 0 },
+  frenan: { n: 'Terminó · 2 frenan el cierre', lect: ['Por cerrar', 'aviso'], linea: 'terminó el 28 oct', bl: 2, av: 3, inf: 5, pag: [0, 0, 0, 0], etTot: 'Total proyectado', des: 0 },
+  listo: { n: 'Terminó · listo (1 grupo ya pagado)', lect: ['Por cerrar', 'aviso'], linea: 'terminó el 28 oct', bl: 0, av: 3, inf: 5, pag: [0, 1, 0, 0], etTot: 'Total proyectado', des: 0 },
+  pagado: { n: 'Pagado (con un pago que ya no cuadra)', lect: ['Pagado', 'ok'], linea: 'pagado el 29 oct', bl: 0, av: 0, inf: 2, pag: [1, 1, 1, 1], etTot: 'Total pagado', des: 1 },
+};
+const TOT = 46100, BANCO = 41900;
+
+function dPlanilla() {
+  const E = PLE[S.est], pg = E.pag.filter(Boolean).length, sin = 4 - pg;
+  const cifras = [
+    { et: 'Estado del cierre', v: `${pg} de 4 grupos`, det: pg === 4 ? 'pagados' : (E.bl ? 'pagados · hay quien frena' : `pagados · faltan ${sin}`), tono: pg === 4 ? 'positivo' : E.bl ? 'alerta' : S.est === 'encurso' ? 'informativo' : 'advertencia' },
+    { et: E.etTot, v: sol(TOT), det: 'sale de la cuenta ' + sol(BANCO) },
+    { et: 'Frenan el pago', v: String(E.bl), det: E.bl ? 'personas · resuélvelas antes de cerrar' : 'nada frena el cierre', tono: E.bl ? 'alerta' : 'positivo' },
+  ];
+  const pills = [];
+  if (E.bl) pills.push({ t: `${E.bl} ${E.bl === 1 ? 'frena' : 'frenan'} el pago`, tono: 'rojo', nav: 'Baja a «Requiere atención», solo los que frenan' });
+  if (E.av) pills.push({ t: `${E.av} avisos`, tono: 'ambar', nav: 'Baja a «Requiere atención», solo los avisos' });
+  if (E.des) pills.push({ t: `${E.des} pago ya no cuadra`, tono: 'ambar', nav: 'Baja al aviso «ya está pagado, pero su desglose dejó de coincidir»' });
+  if (sin) pills.push({ t: `${sin} ${sin === 1 ? 'grupo por pagar' : 'grupos por pagar'}`, tono: 'neutro', nav: 'Va a la pestaña del primer grupo sin pagar' });
+  const act = E.bl ? 0 : pg === 4 ? 3 : pg > 0 ? 2 : 1;
+  const P = [['Resolver lo que frena', E.bl ? `${E.bl} personas` : 'nada pendiente'], ['Revisar el total', sol(TOT)], ['Cerrar cada grupo', `${pg} de 4 pagados`], ['Publicar boletas', 'cuando el grupo se paga']];
+  return {
+    cifras, pills, rot: 'Para cerrar', tot: { et: E.etTot, v: sol(TOT), det: 'sale de la cuenta ' + sol(BANCO), tono: null },
+    pasos: P.map((p, i) => ({ t: p[0], d: p[1], e: i < act ? 'hecho' : i === act ? 'ahora' : 'luego' })),
+    grupos: GR.map((g, i) => [g[0], E.pag[i]]),
+  };
+}
+const PLAN_OTROS = {
+  boletas: () => ({
+    cifras: [{ et: 'Con su boleta', v: '18 de 24', det: '9 ya la firmaron', tono: 'informativo' }, { et: 'Subidas sin publicar', v: '6', det: 'la persona aún no las ve', tono: 'advertencia' }, { et: 'Faltan por subir', v: '6', det: 'grupos ya pagados', tono: 'advertencia' }],
+    pills: [{ t: '6 sin publicar', tono: 'ambar' }, { t: '6 faltan por subir', tono: 'ambar' }], rot: 'Para publicar',
+    tot: { et: 'Con su boleta', v: '18 de 24', det: '9 ya firmaron', tono: 'informativo' },
+    pasos: [{ t: 'Subir las que faltan', d: '6 personas', e: 'ahora' }, { t: 'Revisar cada una', d: '6 sin publicar', e: 'luego' }, { t: 'Publicar', d: 'la persona la ve', e: 'luego' }, { t: 'Firma de la persona', d: '9 de 24', e: 'luego' }], grupos: null,
+  }),
+  liq: () => ({
+    cifras: [{ et: 'Por pagar', v: sol(11130), det: '6 liquidaciones', tono: 'informativo' }, { et: 'Vencidas', v: '2', det: sol(3150) + ' · pasaron las 48 h', tono: 'alerta' }, { et: 'Con diferencias', v: '3', det: 'el cálculo cambió después de pagar', tono: 'advertencia' }],
+    pills: [{ t: '2 vencidas · ' + sol(3150), tono: 'rojo' }, { t: '1 vence en 24 h', tono: 'ambar' }, { t: '3 con diferencias', tono: 'ambar' }], rot: 'Para atender',
+    tot: { et: 'Por pagar', v: sol(11130), det: '6 liquidaciones', tono: 'informativo' },
+    pasos: [{ t: 'Pagar las vencidas', d: '2 · ' + sol(3150), e: 'ahora' }, { t: 'Pagar las pendientes', d: '4 · ' + sol(7980), e: 'luego' }, { t: 'Revisar diferencias', d: '3 liquidaciones', e: 'luego' }, { t: 'Entregar papeles de salida', d: 'al pagar cada una', e: 'luego' }], grupos: null,
+  }),
+  prov: () => ({
+    cifras: [{ et: 'Reservado hoy', v: sol(36900), det: 'gratificación, CTS y vacaciones', tono: 'informativo' }, { et: 'Próximo desembolso', v: '15 nov', det: 'CTS · ' + sol(9600) + ' · en 25 días', tono: 'informativo' }, { et: 'Sin tramo de salario', v: '2', det: 'personas · su reserva sale corta', tono: 'alerta' }],
+    pills: [{ t: '2 sin tramo de salario', tono: 'rojo' }, { t: '1 desembolso en 30 días', tono: 'pizarra' }], rot: 'Para atender',
+    tot: { et: 'Reservado hoy', v: sol(36900), det: 'al 21 oct', tono: 'informativo' },
+    pasos: [{ t: 'Hoy · 21 oct', d: 'Reservado ' + sol(36900), e: 'ahora' }, { t: '15 nov', d: 'CTS · ' + sol(9600), e: 'luego' }, { t: '15 dic', d: 'Gratificación + 9 % · ' + sol(18200), e: 'luego' }, { t: 'Cuando se gocen', d: 'Vacaciones · ' + sol(9100), e: 'luego' }], grupos: null,
+  }),
+  costos: () => ({
+    cifras: [{ et: 'Costo real del año', v: sol(412300), det: '9 periodos pagados', tono: 'informativo' }, { et: 'Se transfirió', v: sol(356800), det: '+ provisiones ' + sol(55500) }, { et: 'Desglose reconstruido', v: '1', det: 'periodo · su cifra es la de hoy, no la transferida', tono: 'advertencia' }],
+    pills: [{ t: '1 periodo con desglose reconstruido', tono: 'ambar' }], rot: 'Para atender',
+    tot: { et: 'Costo real del año (periodos pagados)', v: sol(412300), det: '9 periodos pagados', tono: 'informativo' },
+    pasos: [{ t: 'Pagados', d: '9 periodos · ya cuentan', e: 'hecho' }, { t: 'Octubre 2026', d: 'proyección: todavía no es costo', e: 'ahora' }, { t: 'Por venir', d: '3 periodos', e: 'luego' }], grupos: null,
+  }),
+  edu: () => ({
+    cifras: [{ et: 'Pagándose ahora', v: '10 apoyos', det: sol(1335) + ' al mes', tono: 'positivo' }, { et: 'Por revisar', v: '2', det: 'constancias y solicitudes', tono: 'informativo' }, { et: 'Vencidas', v: '1', det: 'constancia con fecha pasada', tono: 'alerta' }],
+    pills: [{ t: '2 por revisar', tono: 'pizarra' }, { t: '1 vencida', tono: 'rojo' }, { t: '1 por vencer', tono: 'ambar' }, { t: '3 pagos en 30 días', tono: 'neutro' }], rot: 'Para atender',
+    tot: { et: 'Al mes', v: sol(1335), det: '10 apoyos pagándose', tono: 'positivo' },
+    pasos: [{ t: 'Hoy', d: '10 apoyos · ' + sol(1335) + ' al mes', e: 'ahora' }, { t: 'Antes del 28 oct', d: '3 pagos', e: 'luego' }, { t: 'Antes del 28 nov', d: 'siguiente corte', e: 'luego' }], grupos: null,
+  }),
+};
+const CAB_DIN = {
+  boletas: (hoy) => cab({ miga: miga(['Planilla', 'Boletas']), titulo: 'Boletas de pago', desc: hoy ? 'La boleta oficial de cada persona, por periodo. Se sube, se revisa y recién entonces se publica.' : 'Octubre 2026 · sube, revisa y publica cada boleta.', ayuda: hoy ? null : 'boletas', acc: btn('Publicar 6 boletas', { act: 'publicar' }) }),
+  liq: (hoy) => cab({ titulo: 'Liquidaciones', desc: hoy ? 'Controla pagos de cese, plazos y diferencias posteriores. <span style="color:var(--color-rojo);text-decoration:underline dotted">ⓘ Cómo se calcula el plazo</span>' : 'Pagos de cese, plazo de 48 h y diferencias.', ayuda: hoy ? null : 'liq', acc: btn('Exportar CSV', { k: 'sec' }) }),
+  prov: (hoy) => cab({ titulo: 'Provisiones', desc: hoy ? 'Obligaciones laborales acumuladas y próximos desembolsos. <span class="ins sinp neutro">Al 21 oct</span> <span style="color:var(--color-rojo);text-decoration:underline dotted">ⓘ Cómo se calculan las provisiones</span>' : 'Lo reservado hoy y los próximos desembolsos.', ayuda: hoy ? null : 'prov', acc: btn('Descargar CSV', { k: 'sec' }) }),
+  costos: (hoy) => cab({ titulo: 'Costos del equipo', desc: hoy ? '' : 'Lo que costó de verdad cada periodo ya pagado.', ayuda: hoy ? null : 'costos', acc: `<select class="sel g" aria-label="Año"><option>2026</option></select>` + btn('Descargar CSV') }),
+  edu: (hoy) => cab({ titulo: 'Educación', desc: hoy ? '10 apoyos pagándose · S/ 1,335.00 al mes' : 'Apoyos educativos y sus pagos del mes.', ayuda: hoy ? null : 'edu', acc: btn('+ Registrar asignación') }),
+};
+const HOY_CARDS = {
+  boletas: [{ et: 'con su boleta', v: '18 de 24' }, { et: 'subidas sin publicar', v: '6' }, { et: 'faltan por subir', v: '6' }, { et: 'firmaron su boleta', v: '9' }],
+  liq: [{ et: 'Pendientes', v: '4' }, { et: 'Vencidas', v: '2', det: sol(3150), pintado: 'rojo', mk: 'número pintado de rojo' }, { et: 'Pagadas', v: '11' }, { et: 'Con diferencias', v: '3', pintado: 'ambar', mk: 'número pintado de ámbar' }],
+  prov: [{ et: 'Gratificación + 9 %', v: sol(18200), det: 'Acumulado a hoy, aún sin pagar' }, { et: 'CTS', v: sol(9600), det: 'Acumulado a hoy, aún sin depositar' }, { et: 'Vacaciones', v: sol(9100), det: 'Acumulado a hoy, aún sin pagar' }, { et: 'Próximo desembolso', v: '15 nov · CTS', det: sol(9600) }],
+  costos: [{ et: 'Costo real del año', v: sol(412300) }, { et: 'Se transfirió', v: sol(356800) }, { et: 'Provisiones devengadas', v: sol(55500) }, { et: 'Salió del banco', v: sol(371000), det: '+ pensión, EsSalud y 4ta' }],
+  edu: null,
+};
+
+function franja(v, D) {
+  if (v === 'A') return `<section class="cifras" aria-label="Resumen">${D.cifras.map(cifra).join('')}</section>` +
+    (D.grupos ? `<div class="chiprow" aria-label="Estado de pago por grupo">${D.grupos.map((g) => g[1] ? ins(`${ic('ok')} ${g[0]} pagado`, 'ok', true) : ins(`${g[0]} pendiente`, 'neutro', true)).join('')}</div>` : '');
+  if (v === 'B') {
+    const p = D.pills.length ? D.pills.map(pil).join('') : `<span class="nada">${ic('ok')} Nada pendiente</span>`;
+    return `<section class="atender franja-b" aria-label="${D.rot}"><span class="rot">${D.rot}</span>${p}
+      <div class="tot"><span class="tl">${D.tot.tono ? punto(D.tot.tono) : ''}${D.tot.et}</span><b>${D.tot.v}</b><small>${D.tot.det}</small></div></section>`;
+  }
+  const est = { hecho: 'Hecho', ahora: 'Ahora', luego: 'Luego' };
+  return `<ol class="pasos" aria-label="Pasos">${D.pasos.map((p, i) => `<li class="paso ${p.e}" ${p.e === 'ahora' ? 'aria-current="step"' : ''}><span class="nm" aria-hidden="true">${p.e === 'hecho' ? ic('ok') : i + 1}</span><span class="pt1">${p.t}</span><span class="est">${est[p.e]}</span><span class="pd">${p.d}</span></li>`).join('')}</ol>` +
+    (D.grupos ? `<div class="chiprow">${D.grupos.map((g) => g[1] ? ins(`${ic('ok')} ${g[0]} pagado`, 'ok', true) : ins(`${g[0]} pendiente`, 'neutro', true)).join('')}</div>` : '');
+}
+
+function ctxPlanilla(E) {
+  const H = [];
+  if (E.bl >= 1) H.push(['Bruno Salas', 'Un día con la salida puesta por el sistema, sin confirmar', 'alerta', 'Frena el pago']);
+  if (E.bl >= 2) H.push(['Elena Paz', 'Sin tramo de salario vigente', 'alerta', 'Frena el pago']);
+  if (E.av >= 1) H.push(['Diego Mora', 'Marcó 3 días sin horario cargado', 'aviso', 'Avisa']);
+  if (E.des) H.push(['Bruno Salas', `Lo pagado (${sol(1500)}) ya no coincide con lo de hoy (${sol(1562.5)}, +${sol(62.5)})`, 'aviso', 'Avisa']);
+  const masAv = Math.max(0, E.av - (E.av >= 1 ? 1 : 0)), n2 = masAv + E.inf;
+  const req = `<div class="req" id="req"><h3>Requiere atención</h3><ul>${H.map((h) => `<li><span class="q">${h[0]}</span>${ins(h[3], h[2])}<span class="r">${h[1]}</span></li>`).join('')}
+    <li><span class="r muted">${n2 > 0 ? `y ${n2} más entre avisos e informativos` : 'nada más'}</span></li></ul></div>`;
+  const pg = E.pag;
+  const tabs = `<div class="ctx-tabs" aria-hidden="true">${GR.map((g, i) => `<span class="${i === 0 ? 'on' : ''}">${g[0]} (${g[1]})${pg[i] ? ' ' + ic('ok') : ''}</span>`).join('')}</div>`;
+  const barra = `<div class="tarj" style="padding:10px 14px;display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px 12px;align-items:center;border-top-left-radius:0;border-top-right-radius:0;margin-top:-17px">
+    <div style="min-width:0"><b>«Planilla» · 24 personas · ${sol(38400)}</b><br><span class="muted" style="font-size:.78rem">${pg[0] ? 'Pagado el 29 oct: lo transferido no cambia al corregir.' : 'Abierto: las cifras se recalculan con las horas registradas hasta que se confirme el pago.'}</span></div>
+    ${pg[0] ? btn('Reabrir «Planilla»…', { k: 'sec', n: 'Reabrir «Planilla» (pide motivo)' }) : btn('Revisar cierre de «Planilla» →', { act: 'cierre' })}</div>`;
+  const aviso = E.des ? banner('ambar', 'alerta', '<b>«Planilla» ya está pagado, pero su desglose dejó de coincidir con los datos de hoy.</b> Lo transferido no cambió: cambió lo que el sistema calcularía ahora.', btn('Recalcular y volver a pagar…', { k: 'sec fino', n: 'Volver a pagar (pide motivo)' })) : '';
+  return req + aviso + tabs + barra;
+}
+
+function vistaDin() {
+  const v = S.v.din, c = S.caso.din;
+  let inner = '', extra = '', medir = 'cab';
+  if (c === 'planilla') {
+    const E = PLE[S.est];
+    extra = ` · estado del mes <select class="sel" id="selEst" aria-label="Estado del mes">${Object.entries(PLE).map(([k, e]) => `<option value="${k}" ${k === S.est ? 'selected' : ''}>${e.n}</option>`).join('')}</select>`;
+    const periodo = `<select class="sel g" aria-label="Periodo"><option>Octubre 2026</option></select>`;
+    const linea = `28 sep → 28 oct · 31 días · ${ins(E.lect[0], E.lect[1])} ${E.linea}`;
+    let h;
+    if (v === 'H') {
+      const pillsG = GR.map((g, i) => `<li><span class="pa" style="font-weight:500">${g[0]} ${E.pag[i] ? `<span style="color:var(--color-verde);display:inline-flex;gap:3px;align-items:center">${ic('ok')}pagado</span>` : '<span class="muted">pendiente</span>'}</span></li>`).join('');
+      h = cab({ sobre: 'Planilla', titulo: 'Octubre 2026', desc: linea, acc: periodo + btn('+ Nuevo periodo', { k: 'sec' }) + btn('Boletas del periodo', { ico: 'recibo', n: 'Boletas del periodo' }) + menuBtn() }) +
+        `<ul class="chiprow" style="list-style:none;margin:0;padding:0" aria-label="Estado de pago por grupo">${pillsG}</ul>
+         <p class="foot-hoy">Base full-time: 201.5 h (6.5 h × 31 días) · feriados: 8 oct Combate de Angamos</p>
+         <section class="cifras c4" aria-label="Resumen del periodo">${[
+           { et: E.etTot + ' del periodo', v: sol(TOT), det: 'Sale de la cuenta ' + sol(BANCO) },
+           { et: 'Personas en el periodo', v: '30', det: 'todas activas' },
+           { et: 'Horas registradas', v: '4,860.5 h', det: S.est === 'encurso' ? 'hasta hoy · día 22 de 31' : 'del periodo' },
+           { et: 'Personas por resolver', v: String(E.bl + E.av), det: E.bl ? `${E.bl} frenan el pago` : E.av ? 'ninguna frena el pago' : 'nada pendiente' },
+         ].map(cifra).join('')}</section>`;
+    } else {
+      const D = dPlanilla();
+      const prim = E.pag.every(Boolean) ? btn('Boletas del periodo', { ico: 'recibo', n: 'Boletas del periodo' }) : btn('Revisar cierre →', { act: 'cierre' });
+      h = cab({ sobre: 'Planilla', titulo: 'Octubre 2026', desc: linea, ayuda: 'planilla', acc: periodo + btn('+ Nuevo periodo', { k: 'sec' }) + prim + menuBtn() }) + franja(v, D);
+    }
+    inner = `<div class="medir" data-medirbox style="display:flex;flex-direction:column;gap:16px"><div data-medirhead style="display:flex;flex-direction:column;gap:16px">${h}</div>${ctxPlanilla(E)}</div>` + stub('La tabla de personas del grupo', 3);
+    medir = 'bloque';
+  } else {
+    const hoy = v === 'H';
+    const D = PLAN_OTROS[c] ? PLAN_OTROS[c]() : null;
+    let cuerpoHoy = '';
+    if (hoy) {
+      if (c === 'edu') cuerpoHoy = `<section class="atender" aria-label="Para atender"><span class="rot">Para atender</span>${PLAN_OTROS.edu().pills.map(pil).join('')}</section>`;
+      else cuerpoHoy = `<section class="cifras c4" aria-label="Resumen">${HOY_CARDS[c].map(cifra).join('')}</section>`;
+    }
+    const franjaH = hoy ? cuerpoHoy : franja(v, D);
+    const aviso = hoy && c === 'prov' ? banner('alerta', 'alerta', '<b>2 personas sin tramo de salario vigente:</b> sus reservas salen cortas o en cero, no porque no les toque.') : '';
+    const avisoC = hoy && c === 'costos' ? banner('ambar', 'alerta', 'Un periodo de este año tiene el desglose reconstruido en vez de congelado el día del pago. Su cifra es la de hoy, no necesariamente la que se transfirió.') + `<p class="foot-hoy">Solo aparecen los periodos ya marcados como pagados: su desglose quedó congelado y ya no cambia. Lo que todavía está abierto se ve en Planilla, y es una proyección, no un costo. Los periodos de CAYLA no son meses calendario, así que cada fila es un periodo, no un mes.</p>` : '';
+    inner = `<div class="medir" data-medirbox style="display:flex;flex-direction:column;gap:16px">${CAB_DIN[c](hoy)}${avisoC}${franjaH}${aviso}</div>` + stub('Lo que sigue: pestañas, filtros y tabla', 3);
+    medir = 'bloque';
+  }
+  return marco(inner, { extra, etiqueta: 'Pantalla simulada · ' + TABS.din.casos.find((x) => x[0] === c)[1], medir }) + inventarioDin() + notasHTML();
+}
+
+function inventarioDin() {
+  const N = (n) => `<span class="etq n${n}">${n} de 5</span>`;
+  const R = [
+    ['Planilla', 'El pago mensual de ~30 personas, por grupo. Cerrar un grupo congela su desglose.', 'Pastillas por grupo, línea de base y feriados, 4 cifras, «Requiere atención» (frena · avisa · informa), «Qué cambió», avisos de periodos vencidos y de desvío tras pagar.', '≈ 680 px · ≈ 1 100 px en celular', 'Esconder lo que <b>frena</b> el pago: se cierra mal, o se descubre después de transferir.', 5],
+    ['Liquidaciones', 'Pago de cese con plazo legal de 48 h; resta lo que la planilla ya transfirió.', '4 cifras (el número se pinta de rojo/ámbar), pestañas Pendientes · Vencidas · Pagadas, aviso del vínculo «prueba».', '≈ 310 px · ≈ 490 px', 'Una <b>vencida</b> vive solo en su pestaña: pasarse del plazo cuesta.', 5],
+    ['Boletas', 'Lo que cada persona ve como su pago oficial. Publicar la hace visible.', 'Migas a mano, 4 cifras (una función <code>Cifra</code> local), barra «Hay N sin publicar».', '≈ 340 px', 'Publicar la boleta equivocada: la persona la ve.', 4],
+    ['Feriados', 'Cambia lo que se paga (sobretasa del 100 %) y si el día libre cuenta como falta.', 'h1 a mano, formulario largo; el efecto de cada estado en una nota de 1 línea.', '≈ 260 px', 'OTORGADO sin acta firmada: la sobretasa se quita sin respaldo.', 4],
+    ['Política salarial', 'Los montos por categoría; publicar una versión pide acuse de cada persona.', 'Versión, insignia Vigente/Desactualizada, constancias 12/30, 4 pestañas.', '≈ 220 px', 'No ver que está <b>desactualizada</b>: acuses sobre un texto viejo.', 4],
+    ['Ausencias · Horarios · Correcciones', 'No muestran plata, pero lo que se hace aquí cambia el pago (vacaciones pagadas, tardanza descontada).', 'Ver el tema «Notas al pie».', '—', 'Una advertencia al pie, o dentro del ⓘ, no se ve al actuar.', 4],
+    ['Provisiones', 'Reservas de gratificación + 9 %, CTS y vacaciones; próximo desembolso.', '4 tarjetas, banner «sin tramo de salario», acordeón «Cómo se calculan».', '≈ 370 px · ≈ 700 px', 'Un cero que miente: la reserva sale corta y nadie lo ve.', 3],
+    ['Costos', 'No mueve plata: mide el costo real de los periodos ya pagados.', 'h1 a mano, nota de 3 líneas, banner de reconstruidos, 5 casillas escritas a mano.', '≈ 290 px', 'Leer una proyección como costo; una cifra reconstruida ≠ la transferida.', 3],
+    ['Educación', 'Apoyos que se pagan cada mes (10 · S/ 1,335.00 al mes).', 'Monto en la descripción, «Para atender» de 5 pastillas, solicitudes por revisar. <b>Ya sigue el patrón.</b>', '≈ 290 px', 'Pagos próximos sin ver. Es el modelo a copiar.', 3],
+    ['Objetivos', 'El plus por objetivos cumplidos entra al pago.', 'Cumplimiento por mes, sin montos en la cabecera.', 'no estimado', 'Cumplidos sin cargar = plus sin pagar.', 3],
+    ['Seguros', 'Primas (se pagan fuera de planilla); cobertura de cada integrante.', '«Para atender» de situaciones, sin montos.', 'no estimado', 'Un hueco de cobertura no es plata, es riesgo.', 2],
+    ['Dashboard', 'Casi nada: cuenta personas «en planilla», sin montos.', 'Cifras de equipo y alertas.', 'no aplica', 'Solo un enlace a Planilla si algo frena el cierre.', 1],
+  ];
+  return `<section class="seccion" aria-label="Inventario de pantallas de dinero"><h2>Pantallas de dinero, por cuánto cuidado piden</h2>
+    <p class="sub">Leído del código. El espacio es una <strong>estimación</strong> de lo que ocupa antes del contenido (no se midió en la app: sin <code>.env.local</code> el panel no se levanta). Para Planilla, la maqueta de arriba sí mide cada variante en vivo.</p>
+    <table class="tb"><thead><tr><th>Pantalla</th><th>Qué plata mueve</th><th>Qué muestra hoy</th><th>Antes del contenido</th><th>Riesgo si se esconde</th><th>Cuidado</th></tr></thead><tbody>
+    ${R.map((r) => `<tr><td data-l="Pantalla"><b>${r[0]}</b></td><td data-l="Plata">${r[1]}</td><td data-l="Hoy">${r[2]}</td><td data-l="Espacio">${r[3]}</td><td data-l="Riesgo">${r[4]}</td><td data-l="Cuidado">${N(r[5])}</td></tr>`).join('')}
+    </tbody></table></section>`;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   NOTAS (panel plegado)
+   ═══════════════════════════════════════════════════════════════ */
+const NV = {
+  sub: {
+    H: { t: 'Hoy (referencia)', gana: ['No hay nada que construir.'], paga: ['Cinco formas distintas de «volver» y tres vocabularios; solo Boletas dice dónde está.', 'La ficha vuelve con <code>router.back()</code>: nada en pantalla dice a dónde.'], rompe: ['Una integrante que llega por el buscador a un caso o a una ficha no sabe cuál es su pantalla madre.'] },
+    A: { t: 'A · Miga clicable sobre el título', gana: ['Dice dónde estás <b>y</b> a dónde subir, con un toque en el nombre del padre.', 'Una sola forma para todas las subpantallas con padre fijo (Boletas, Memo, Constancias, Versión).', 'El sobretítulo en mayúsculas queda libre: la miga ocupa su sitio, no se suma.'], paga: ['Una fila de ≈ 30 px sobre el título (la que hoy ya paga Boletas) y un prop nuevo: <code>miga=[{texto, href?}]</code> en <code>CabeceraPagina</code>.', 'Hay que decidir el padre de cada pantalla. En la <b>ficha</b> cambia según desde dónde llegaste (cámbialo arriba): hace falta un <code>?desde=</code> o la miga miente.', 'En Casos, tipo · sede · código dejan de ir en el sobretítulo y pasan a la descripción.'], rompe: ['Alguien abre una ficha desde el buscador global (que no manda <code>?desde=</code>) y la miga dice «Equipo ›»: hay que fijar un padre por defecto honesto.', 'La miga sale impresa en una hoja (boleta, memo, constancias): lleva <code>print:hidden</code> como hoy lo lleva la barra de «volver».', 'El último eslabón es largo en celular («Memo de Bruno Salas»): se trunca, no se parte.'] },
+    B: { t: 'B · Flecha «volver» + sobretítulo', gana: ['Un solo toque grande (34 px) con la palabra del padre; es lo que Casos ya hace hoy, sin aprendizaje.', 'Sirve a quien llegó por el buscador: «volver» retrocede de verdad (<code>EnlaceVolver</code> de «Lo mío» ya compara el destino con la página anterior).'], paga: ['Dos filas sobre el título (volver + sobretítulo) en vez de una.', 'Solo nombra al padre inmediato: no dice «Política salarial › Versiones › Versión 7».', 'El sobretítulo en mayúsculas compite con el título en celular.'], rompe: ['Si «volver» retrocede por historial pero la etiqueta dice «Equipo» y vienes de Desempeño, la etiqueta miente. Hay que usar el nombre real de la pantalla anterior, no una fija.'] },
+    C: { t: 'C · Miga dentro de la línea de descripción', gana: ['Cero filas extra: es la que menos altura gasta.', 'La descripción sigue siendo lo primero que se lee debajo del título.'], paga: ['La descripción deja de ser <b>una</b> línea en celular: se parte en dos y el ⓘ salta de renglón.', 'Mezcla navegación con texto descriptivo: el ojo no reconoce la pastilla como un enlace.'], rompe: ['En 375 px la pastilla y la frase compiten por el ancho; el ⓘ, que es lo que la regla de «una línea» quería destacar, se vuelve difícil de encontrar.'] },
+  },
+  rel: {
+    A: { t: 'A · «Relacionadas» en el ⓘ + el enlace donde ocurre el problema', gana: ['La cabecera <b>no cambia</b>: cero filas nuevas.', 'El enlace aparece junto al problema, con la persona y la fecha ya puestas (lo que Desempeño hace hoy hacia Correcciones).', 'El ⓘ contesta «¿y adónde más puedo ir?» una sola vez, para quien lo busca.'], paga: ['Arreglar cinco sitios donde la conexión es texto plano o un <code>title</code> (tabla de abajo): ese es el trabajo real.', 'Una sección «Relacionadas» por pantalla, escrita a mano: si Turnos cambia de nombre, hay que tocar varias ventanas.'], rompe: ['Quien nunca abre el ⓘ no descubre que existe Horarios hasta que le toque el problema. Es aceptable: en ese momento sí lo ve, en el aviso.'] },
+    B: { t: 'B · Fila «Ver también» bajo la descripción', gana: ['Siempre visible, en un solo lugar y con una sola forma.'], paga: ['Una fila más en la cabecera de toda pantalla que conecte con otra.', 'En Desempeño son 5 destinos: la fila se vuelve un segundo menú, y el menú lateral ya existe.', 'Los destinos no llevan contexto (qué persona, qué fecha): llevan a la pantalla, no al problema.'], rompe: ['Se vuelve ruido: tras la tercera vez nadie la mira. En Correcciones son 4 enlaces para 2 destinos reales (Turnos y Horarios).'] },
+    C: { t: 'C · Chips de contexto', gana: ['El destino sale en el momento del problema, con forma de botón y con contexto.', 'Se ve en el iPad y el celular (un <code>title</code> allí no existe).'], paga: ['Un componente nuevo (<code>ChipContexto</code>); hoy los enlaces son texto, <code>&lt;Boton variante="enlace"&gt;</code> o <code>&lt;a&gt;</code>.', 'Más color pizarra en el cajón, que compite con las insignias de estado.'], rompe: ['Con un botón primario y tres chips en el cajón, la acción principal se diluye. La maqueta quita el chip de Correcciones porque ya es el botón primario; hay que mantener ese criterio.'] },
+  },
+  nota: {
+    H: { t: 'Hoy (referencia)', gana: ['Todo está dicho.'], paga: ['Ausencias lo dice <b>dos veces</b>: en el ⓘ («Periodo pagado») y en el pie.', 'La advertencia de periodo pagado se descubre <b>después</b> de escribir el motivo, por el error del servidor: la pantalla no sabe si el periodo está pagado.'], rompe: ['Quien no baja al pie, o no abre el ⓘ, intenta anular y recién ahí se entera.'] },
+    A: { t: 'A · Información al ⓘ, advertencia junto a la acción', gana: ['El pie desaparece (menos texto) y lo que protege plata aparece <b>donde se actúa</b>.', 'El candado explica por qué no se puede, en vez de dejar un botón que falla.', 'En Horarios, el aviso queda pegado al botón «Guardar».'], paga: ['Para dibujar el candado la pantalla tiene que <b>saber</b> si la fecha cae en un periodo pagado: hoy no lo sabe, solo el servidor responde con un error. Es una consulta más (o un campo en la lista).', 'Si no se quiere pagar eso, la versión mínima de A es un aviso corto dentro de las ventanas «Anular» y «Registrar», que sí se ven al actuar.'], rompe: ['El candado dice «Setiembre ya pagado» y alguien reabre el periodo en Planilla sin querer: reabrir ya pide motivo y lo registra, pero conviene que el enlace no sea un botón primario.'] },
+    B: { t: 'B · Dejar todo, pero a una línea', gana: ['Cambia casi nada: la nota sigue en el mismo lugar y no se pierde.'], paga: ['Una línea truncada con «…» no se lee: lo que se corta es justo el final, que es donde está «periodo ya pagado».', 'Mantiene la nota duplicada con el ⓘ.'], rompe: ['El truncado esconde lo que más importa: la parte crítica queda en el «Ver más».'] },
+    C: { t: 'C · Todo al ⓘ (para ver el riesgo)', gana: ['La pantalla queda limpia.'], paga: ['El costo es pagado por la persona: escribe el motivo, aprieta «Anular» y recién entonces ve el error.'], rompe: ['Anular a Carla (periodo de setiembre pagado) da el error después de gastar su tiempo. En Horarios no hay nada junto a «Guardar» que diga que no se puede fechar hacia atrás. <b>Esconder una advertencia no la quita: la mueve al momento del error.</b>'] },
+  },
+  din: {
+    H: { t: 'Hoy (referencia)', gana: ['Todo está a la vista.'], paga: ['Pastillas por grupo <b>y</b> pestañas por grupo (con ✓): lo mismo dicho dos veces.', 'Cuatro cifras, panel de atención y «Qué cambió» antes de la tabla: el total y lo que frena el cierre compiten con horas y personas.', 'El botón primario del encabezado es «Boletas del periodo» aunque el periodo no esté pagado (y la propia pantalla de Boletas dice «todavía no está pagado»); el cierre vive en una barra bajo las pestañas.'], rompe: ['En celular, lo que frena el cierre queda a ≈ 1 000 px; se descubre al intentar cerrar.'] },
+    A: { t: 'A · Tres cifras', gana: ['Estado del cierre, total y lo que frena, en <code>Cifra</code> con punto de color y palabra: el patrón del Dashboard.', 'Reemplaza las 4 cifras actuales (personas y horas pasan al detalle).'], paga: ['Tres cajas ocupan más alto que una fila de pastillas (ver «alto» arriba).', 'La cifra «Frenan el pago» es un número con punto: no dice <b>qué hacer</b>; hay que tocar para ir a la lista.'], rompe: ['Si «frenan el pago» vale 0 y hay avisos, parece que no hay nada que mirar; los avisos quedan fuera de la franja.'] },
+    B: { t: 'B · Franja «Para cerrar» (la que se recomienda)', gana: ['Reutiliza <code>ParaAtender</code>, ya decidido para Asistencia y Educación: <b>un solo vocabulario</b> para «lo que falta resolver».', 'Una fila: lo que frena (rojo, con palabra), los avisos, los grupos por pagar y el total a la derecha. Es la que menos alto ocupa.', 'Las pastillas por grupo se van: las pestañas ya las repiten con ✓.', 'En celular el total baja a una segunda línea, bajo las pastillas.'], paga: ['Hay que mover «Boletas del periodo» al menú «…» mientras el periodo no esté pagado, y poner «Revisar cierre» como primario (es una decisión de producto).', 'La pastilla tiene que llevar al panel «Requiere atención» filtrado; hoy no hay ese vínculo.'], rompe: ['Si el rojo se usa para cualquier cosa, deja de significar «esto frena el pago». La regla: rojo = frena; ámbar = avisa; nada más.'] },
+    C: { t: 'C · Pasos del cierre', gana: ['Dice <b>qué sigue</b>, en palabras: la mejor para quien cierra por primera vez.', 'Cada paso lleva número, ícono de hecho y palabra «Ahora».'], paga: ['Es la que más espacio gasta y no se generaliza: solo Planilla, Boletas y Liquidaciones tienen un proceso; en Provisiones, Costos y Educación se degrada a una línea de tiempo.', 'Introduce un orden (resolver → revisar → cerrar → boletas) que el sistema hoy no impone: hay que decidir si es una guía o una obligación.'], rompe: ['Si alguien cierra un grupo saltándose el paso «Revisar el total», la guía mintió. La confirmación del cierre sigue siendo la que protege.'] },
+  },
+};
+const EXTRA = {
+  sub: () => [
+    ['Decisión', `<div class="dec"><div><b>Decidí</b>A como regla, con la ficha leyendo un <code>?desde=</code> (Equipo, Desempeño, Incidencias).</div><div><b>Descarté</b>B como regla única: suma dos filas (volver + sobretítulo) y el sobretítulo en mayúsculas compite con el título. C: en 375 px la descripción deja de ser una línea.</div><div><b>Se rompe si</b>alguien abre una ficha desde el buscador, que no manda <code>?desde=</code>: la miga debe caer en un padre por defecto honesto («Equipo») y nunca inventar el camino.</div></div>`],
+    ['Contrato en tres líneas', `<ul><li><code>CabeceraPagina</code> recibe <code>miga: {texto, href?}[]</code>; el último eslabón no es enlace y lleva <code>aria-current="page"</code>.</li><li>Si hay miga, reemplaza al sobretítulo; lo que decía el sobretítulo pasa a la descripción.</li><li>Todo va con <code>print:hidden</code>: nunca sale en un papel.</li></ul>`],
+    ['Objeción', `<p>La miga y el «volver» responden preguntas distintas: <i>dónde vive esta pantalla</i> y <i>de dónde vine</i>. Para Boletas son lo mismo; para la ficha de una persona (se abre desde cinco sitios) no. Poner una miga fija ahí sería la forma elegante de mentir. Por eso la recomendación es A <b>con padre dinámico</b>, no A a secas.</p>`],
+    ['Política salarial: no es una subpantalla', `<p>Categorías, Versiones y Constancias son pestañas hermanas (<code>_subnav.tsx</code>), no hijas. Solo <code>versiones/[version]</code> es hija (de tres niveles). Hoy esa ruta usa un <code>&lt;h1&gt;</code> a mano de <code>text-xl</code> y dos textos distintos para volver («Volver» / «Volver a Versiones»).</p>`],
+  ],
+  rel: () => [
+    ['Objeción', `<p>Casi toda la conexión <b>ya existe</b>. Lo que falla es que cuatro de ellas son texto plano o un <code>title</code> (tabla de abajo). Antes de diseñar una fila «Ver también», se arreglan esas cuatro: es más barato y es lo que la gente pierde. La fila B se justifica solo si, tras eso, sigue habiendo gente que no encuentra Turnos.</p>`],
+    ['Lo que A no resuelve', `<p>Una integrante que no entiende por qué Correcciones muestra «Turno puntual». Eso es un problema de palabras, no de enlaces: se atiende en el ⓘ de Correcciones, no con otra cabecera.</p>`],
+  ],
+  nota: () => [
+    ['La regla para decidir', `<p><b>Si la persona puede actuar mal sin haberla leído, es advertencia y va junto a la acción.</b> Si leerla solo la ayuda a entender, es información y va al ⓘ. Una nota mixta se parte en dos: la mitad que protege se queda.</p>`],
+    ['Hallazgo del código', `<p>La pantalla de Ausencias no sabe si una fecha cae en un periodo pagado: lo averigua el servidor al rechazar. Mientras no lo sepa, la advertencia solo puede vivir como texto (en la ventana «Anular») y no como candado. Lo mismo vale para «+ Registrar ausencia».</p>`],
+  ],
+  din: () => [
+    ['Qué se pliega al ⓘ y adónde', `<table class="tb"><thead><tr><th>Hoy en la cabecera</th><th>Pasa a</th></tr></thead><tbody>
+      <tr><td data-l="Hoy">Base full-time · 201.5 h (6.5 h × 31 días)</td><td data-l="Pasa a">ⓘ «Cómo funciona la planilla»: es información; no decide a quién se le paga</td></tr>
+      <tr><td data-l="Hoy">Feriados: 8 oct Combate de Angamos</td><td data-l="Pasa a">ⓘ (y el menú «Feriados del año…» que ya existe)</td></tr>
+      <tr><td data-l="Hoy">Pastillas por grupo (4)</td><td data-l="Pasa a">Las pestañas ya las repiten con ✓; la franja dice «N grupos por pagar»</td></tr>
+      <tr><td data-l="Hoy">Cifras «Personas» y «Horas»</td><td data-l="Pasa a">Detalle del total / ⓘ</td></tr>
+      <tr><td data-l="Hoy">«Boletas del periodo» (primario)</td><td data-l="Pasa a">Menú «…» hasta que un grupo esté pagado; el primario es «Revisar cierre»</td></tr>
+      <tr><td data-l="Se queda">Estado del periodo · qué frena · total · aviso de pago que ya no cuadra</td><td data-l="Se queda">Visible siempre</td></tr></tbody></table>`],
+    ['Lo que ninguna variante cambia', `<ul><li>Ningún cálculo, ningún criterio de «frena / avisa / informa»: la maqueta solo cambia dónde se ven.</li><li>Cerrar un grupo y publicar boletas siguen pasando por una ventana de confirmación que dice <b>«no se paga dos veces»</b> y exige marcar una casilla. El botón queda desactivado con una razón escrita.</li><li>El número de una <code>Cifra</code> va siempre en tinta; el significado es el punto + la palabra.</li></ul>`],
+    ['Objeción', `<p>El encabezado de Planilla hoy tiene como botón primario <b>«Boletas del periodo»</b>, pero esas boletas «se suben cuando el periodo cierra». El paso siguiente real casi siempre es cerrar, y el cierre vive en una barra bajo las pestañas, más abajo. En las variantes A, B y C el primario cambia según el estado del mes (pruébalo con el selector): es la decisión de producto que más pesa y no la pediste.</p>`],
+    ['Hallazgos del código que no son de diseño', `<ul><li><b>Liquidaciones</b> pinta de rojo y ámbar el <i>número</i> de <code>ResumenCifra</code>, lo que el ADR 0004 (decisión 2) descartó; la cifra «Vencidas» solo existe como número, y las vencidas viven en su pestaña.</li><li><b>Boletas</b> define una función <code>Cifra</code> local, distinta de <code>components/ui/cifra</code>. <b>Costos</b> y <b>Feriados</b> escriben su <code>&lt;h1&gt;</code> a mano; <b>Costos</b> escribe 5 casillas a mano.</li><li>El ⓘ tiene <b>cuatro formas</b> fuera de <code>AyudaPantalla</code>: <code>&lt;details&gt;</code> en Liquidaciones, acordeón en Provisiones, botón + modal en Objetivos y <code>AyudaDeSeguros</code>.</li><li>Las pastillas de estado por grupo de Planilla duplican la información de las pestañas.</li></ul>`],
+  ],
+};
+function notasHTML() {
+  const v = S.v[S.tab], d = NV[S.tab][v];
+  const li = (a) => a.map((x) => `<li>${x}</li>`).join('');
+  const ex = EXTRA[S.tab]().map((e) => `<details><summary>${e[0]}</summary><div class="in"><div class="ancho">${e[1]}</div></div></details>`).join('');
+  return `<section class="notas" aria-label="Notas"><details><summary>Notas de la variante · ${d.t}: qué gana, qué paga, qué se rompe si</summary><div class="in">
+    <div><h4>Qué gana</h4><ul>${li(d.gana)}</ul></div><div><h4>Qué paga</h4><ul>${li(d.paga)}</ul></div><div><h4>Se rompe si</h4><ul>${li(d.rompe)}</ul></div></div></details>${ex}</section>`;
+}
+
+/* ═════════ ventanas ═════════ */
+function shell(titulo, cuerpo, pie) {
+  return `<div class="vel" data-act="cerrar-modal"></div><div class="modal" role="dialog" aria-modal="true" aria-label="${titulo}"><header><h2>${titulo}</h2><button class="x" type="button" data-act="cerrar-modal" aria-label="Cerrar">${ic('x')}</button></header>${cuerpo}<div class="pie">${pie}</div></div>`;
+}
+function ayudaDe(k) {
+  const a = JSON.parse(JSON.stringify(AY[k])), v = S.v[S.tab];
+  if (S.tab === 'rel' && v === 'A' && a.rel) a.relOn = true;
+  if (S.tab === 'nota' && k === 'ausencias') {
+    const ps = 'No se puede registrar ni anular nada dentro de un periodo de planilla ya pagado: hay que reabrirlo primero, igual que con todo lo demás que toca plata.';
+    if (v === 'H') a.sec.push(['Periodo pagado', ps]);
+    if (v === 'A') a.sec.push(['No se borra', 'Una ausencia no se borra: se anula con motivo y queda en el historial.']);
+    if (v === 'B' || v === 'C') a.sec.push(['No se borra', 'Una ausencia no se borra: se anula con motivo y queda en el historial.'], ['Periodo pagado', ps]);
+  }
+  if (S.tab === 'nota' && k === 'horarios' && (v === 'B' || v === 'C')) a.sec.push(['Vigente desde', FOOT_HOR.replace(/<\/?b>/g, '')]);
+  return a;
+}
+function modalAyuda(k) {
+  const a = ayudaDe(k);
+  const rel = a.relOn ? `<div><dt>Relacionadas</dt><dd><ul class="rel-l">${a.rel.map((r) => `<li><button type="button" data-act="nav" data-n="${r[2]}"><b>${r[0]}</b><span>${r[1]}</span></button></li>`).join('')}</ul></dd></div>` : '';
+  return shell(a.titulo, `<p class="muted" style="font-size:.9rem">${a.intro}</p><dl>${a.sec.map((s) => `<div><dt>${s[0]}</dt><dd>${s[1]}</dd></div>`).join('')}${rel}</dl>`, `<button class="btn" type="button" data-act="cerrar-modal">Entendido</button>`);
+}
+function modalAnular(id) {
+  const a = AUS.find((x) => x.id === id);
+  return shell('Anular ausencia', `<p class="muted" style="font-size:.9rem">Vas a anular «${a.t}» de ${a.n} (${a.f}). No se borra: queda en el historial con el motivo.</p>
+    <label class="campo">¿Por qué se anula? (obligatorio)<textarea id="motivo" rows="2" placeholder="ej. se registró el tipo equivocado"></textarea></label>`,
+    `<button class="btn sec" type="button" data-act="cerrar-modal">Cancelar</button><button class="btn peligro" type="button" data-act="anular-ok" data-id="${id}">Anular</button>`);
+}
+function modalCierre() {
+  const E = PLE[S.est], bl = E.bl > 0;
+  const cuerpo = `<div class="resumen-cierre"><div><span>Personas</span><b>24</b></div><div><span>Total del grupo «Planilla»</span><b>${sol(38400)}</b></div><div><span>Sale de la cuenta</span><b>${sol(34100)}</b></div></div>
+    ${bl ? banner('alerta', 'alerta', `<b>${E.bl} personas frenan el pago.</b> Resuélvelas primero: hasta entonces el cierre no se puede confirmar.`) : ''}
+    ${S.est === 'encurso' ? banner('ambar', 'reloj', '<b>El periodo aún no termina</b> (día 22 de 31): las cifras seguirán cambiando hasta el 28 oct.') : ''}
+    ${banner('ambar', 'candado', '<b>No se paga dos veces.</b> Al confirmar se congela el desglose de «Planilla». Quien cesó este mes y ya cobró su liquidación no se transfiere otra vez: usa «Ya le pagué aparte». Para corregir después hay que reabrir el grupo, con motivo.')}
+    <label class="chk"><input type="checkbox" id="chkOk" ${bl ? 'disabled' : ''}><span>Revisé el total de <b>${sol(38400)}</b> y entiendo que no se vuelve a pagar este mes.</span></label>
+    ${bl ? '<p class="muted" style="font-size:.8rem">«Confirmar cierre» está desactivado porque hay personas que frenan el pago.</p>' : ''}`;
+  return shell('Revisar cierre de «Planilla»', cuerpo, `<button class="btn sec" type="button" data-act="cerrar-modal">Cancelar</button><button class="btn" type="button" id="btnCierre" data-act="cierre-ok" disabled>Confirmar cierre</button>`);
+}
+function modalPublicar() {
+  const cuerpo = `<div class="resumen-cierre"><div><span>Periodo</span><b>Octubre 2026</b></div><div><span>Boletas a publicar</span><b>6</b></div></div>
+    ${banner('info', 'info', 'La persona no ve su boleta hasta que la publiques. Al publicar, la ve.')}
+    ${banner('ambar', 'candado', '<b>Revisa antes.</b> Cada boleta debe ser de su persona y de este periodo.')}
+    <label class="chk"><input type="checkbox" id="chkOk"><span>Revisé las 6 boletas: cada una corresponde a su persona y a Octubre 2026.</span></label>`;
+  return shell('Publicar 6 boletas', cuerpo, `<button class="btn sec" type="button" data-act="cerrar-modal">Cancelar</button><button class="btn" type="button" id="btnCierre" data-act="publicar-ok" disabled>Publicar 6 boletas</button>`);
+}
+let tt;
+function toast(txt, err) {
+  clearTimeout(tt);
+  $('#toast-capa').innerHTML = `<div class="toast${err ? ' err' : ''}" role="status"><span>${txt}</span><button type="button" data-act="cerrar-toast">Cerrar</button></div>`;
+  tt = setTimeout(() => { $('#toast-capa').innerHTML = ''; }, 6000);
+}
+
+/* ═════════ render ═════════ */
+function render() {
+  $('#tabs').innerHTML = Object.entries(TABS).map(([k, t]) => `<button type="button" role="tab" aria-selected="${k === S.tab}" data-tab="${k}">${t.n}<small>${t.s}</small></button>`).join('');
+  const T = TABS[S.tab];
+  $('#fila2').innerHTML = `<span class="rotc">Variante</span><div class="vars" role="group" aria-label="Variantes">${T.vars.map((x) => `<button type="button" class="vbtn${x[2] === 'ref' ? ' ref' : ''}" data-var="${x[0]}" aria-pressed="${S.v[S.tab] === x[0]}">${x[2] === 'ref' ? '<b>•</b>' : `<b>${x[0]}</b>`}${x[1]}${x[2] === 'rec' ? ' <span class="rec">★ recomendada</span>' : ''}</button>`).join('')}</div>
+    <span class="rotc">Caso</span><div class="caso" role="group" aria-label="Casos">${T.casos.map((x) => `<button type="button" data-caso="${x[0]}" aria-pressed="${S.caso[S.tab] === x[0]}">${x[1]}</button>`).join('')}</div>`;
+  $('#lema').innerHTML = T.lema;
+  $('#app').innerHTML = { sub: vistaSub, rel: vistaRel, nota: vistaNota, din: vistaDin }[S.tab]();
+  renderCapa();
+  medir();
+}
+function renderCapa() {
+  let h = '';
+  if (S.drawer) h += drawerHTML(S.drawer);
+  if (S.modal) {
+    const m = S.modal;
+    h += m.t === 'ayuda' ? modalAyuda(m.k) : m.t === 'anular' ? modalAnular(m.id) : m.t === 'cierre' ? modalCierre() : m.t === 'publicar' ? modalPublicar() : '';
+  }
+  $('#capa').innerHTML = h;
+  const f = $('#capa .modal [data-act="cerrar-modal"].x, #capa .cajon .x'); if (f) f.focus();
+}
+function medir() {
+  const el = $('#alto'); if (!el) return;
+  requestAnimationFrame(() => {
+    const p = $('#pantalla'); let h = 0, txt = '';
+    if (S.tab === 'sub') { const c = p.querySelector('.cab'); h = c.getBoundingClientRect().bottom - p.firstElementChild.getBoundingClientRect().top; txt = `Alto de la cabecera en esta maqueta: ${Math.round(h)} px`; }
+    else if (S.tab === 'din') { const b = p.querySelector('[data-medirbox]'); h = b.getBoundingClientRect().height; const hd = p.querySelector('[data-medirhead]'); txt = hd ? `Cabecera + franja: ${Math.round(hd.getBoundingClientRect().height)} px · hasta que empieza la tabla: ${Math.round(h)} px (en esta maqueta)` : `Cabecera + franja: ${Math.round(h)} px (en esta maqueta)`; }
+    else { el.style.display = 'none'; return; }
+    el.style.display = ''; el.textContent = txt;
+  });
+}
+
+/* ═════════ eventos ═════════ */
+document.addEventListener('click', (e) => {
+  let b;
+  if ((b = e.target.closest('[data-tab]'))) { S.tab = b.dataset.tab; S.modal = S.drawer = null; render(); window.scrollTo({ top: 0 }); return; }
+  if ((b = e.target.closest('[data-var]'))) { S.v[S.tab] = b.dataset.var; S.modal = S.drawer = null; render(); return; }
+  if ((b = e.target.closest('[data-caso]'))) { S.caso[S.tab] = b.dataset.caso; S.modal = S.drawer = null; render(); return; }
+  const el = e.target.closest('[data-act]'); if (!el) return;
+  const a = el.dataset.act;
+  if (a === 'nav') { if (S.modal && S.modal.t === 'ayuda') S.modal = null; S.drawer = null; renderCapa(); toast(`Maqueta: aquí se abriría «${el.dataset.n}».`); return; }
+  if (a === 'ayuda') { S.modal = { t: 'ayuda', k: el.dataset.k }; renderCapa(); return; }
+  if (a === 'cerrar-modal') { S.modal = null; renderCapa(); return; }
+  if (a === 'cerrar') { S.drawer = null; renderCapa(); return; }
+  if (a === 'cerrar-toast') { $('#toast-capa').innerHTML = ''; return; }
+  if (a === 'drawer') { S.drawer = el.dataset.w; renderCapa(); return; }
+  if (a === 'anular') { S.modal = { t: 'anular', id: el.dataset.id }; renderCapa(); return; }
+  if (a === 'anular-ok') {
+    const m = $('#motivo').value.trim(); if (!m) { $('#motivo').focus(); toast('Escribe el motivo: es obligatorio.', true); return; }
+    const x = AUS.find((r) => r.id === el.dataset.id); S.modal = null; renderCapa();
+    if (x.pago) toast(`No se pudo anular la ausencia: el periodo de ${x.per} ya está pagado. Reábrelo primero en Planilla. <i>(mensaje de ejemplo)</i>`, true);
+    else toast('Maqueta: la ausencia se anularía. No se guardó nada.');
+    return;
+  }
+  if (a === 'guardar-h') { toast('Maqueta: el horario se guardaría desde hoy. No se guardó nada.'); return; }
+  if (a === 'cierre') { S.modal = { t: 'cierre' }; renderCapa(); return; }
+  if (a === 'publicar') { S.modal = { t: 'publicar' }; renderCapa(); return; }
+  if (a === 'cierre-ok' || a === 'publicar-ok') { S.modal = null; renderCapa(); toast('Maqueta: no se cerró ni se publicó nada, y no se pagó a nadie.'); return; }
+});
+document.addEventListener('change', (e) => {
+  const t = e.target;
+  if (t.id === 'selTema') { if (t.value === 'auto') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', t.value); return; }
+  if (t.id === 'selAncho') { S.cel = t.value === 'cel'; render(); return; }
+  if (t.id === 'selDesde') { S.desde = t.value; render(); return; }
+  if (t.id === 'selEst') { S.est = t.value; render(); return; }
+  if (t.id === 'selPers') { S.personaCorr = t.value; render(); return; }
+  if (t.id === 'chkOk') { const b = $('#btnCierre'); if (b) b.disabled = !t.checked; }
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') { if (S.modal) { S.modal = null; renderCapa(); } else if (S.drawer) { S.drawer = null; renderCapa(); } }
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('tr[data-act="drawer"]')) { e.preventDefault(); e.target.click(); }
+});
+window.addEventListener('resize', medir);
+render();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>El dibujo del ⓘ — prototipo</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;1,400;1,500&family=DM+Sans:wght@400;500;600&display=swap">
+<!--
+  Prototipo (2026-10-19), segunda ronda: la posición ya está elegida (C, al lado del título) y lo
+  que no convenció fue el DIBUJO del ícono: un anillo de trazo fino que se pierde junto a un título
+  serif grande. Siete tratamientos, cada uno con tres títulos reales, en reposo y con el cursor
+  encima, en claro y en oscuro. NO es código de la app. Tokens de globals.css.
+  Todos miden 32 px de área de toque; lo que cambia es el dibujo.
+-->
+<style>
+  :root{--crema:#f5f0e8;--papel:#fbf8f2;--tinta:#1a1a18;--sand:#e8e0d0;--taupe:#805c4c;--hueso:#eae1d2;--rojo:#b8412d;
+    --sans:'DM Sans',system-ui,sans-serif;--serif:'EB Garamond',Georgia,serif;color-scheme:light}
+  :root[data-t="oscuro"]{--crema:#1c1a16;--papel:#26221d;--tinta:#ede7db;--sand:#332e27;--taupe:#ab9080;--hueso:#15110d;--rojo:#d4634a;color-scheme:dark}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--crema);color:var(--tinta);font:15px/1.5 var(--sans)}
+  .barra{position:sticky;top:0;z-index:5;display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 20px;background:var(--papel);border-bottom:1px solid var(--sand)}
+  .barra b{font:500 18px var(--serif)} .barra button{font:inherit;border:1px solid var(--sand);background:var(--crema);color:var(--tinta);border-radius:8px;padding:5px 12px;cursor:pointer}
+  main{max-width:1100px;margin:0 auto;padding:24px 20px 80px}
+  .var{margin:0 0 28px;border:1px solid var(--sand);border-radius:16px;background:var(--papel);overflow:hidden}
+  .var>header{padding:12px 20px;border-bottom:1px solid var(--sand);display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+  .var h2{margin:0;font:500 19px var(--serif)} .rec{font-size:12px;background:var(--tinta);color:var(--crema);border-radius:99px;padding:1px 10px}
+  .pq{flex-basis:100%;color:var(--taupe);font-size:13px}
+  .muestras{display:grid;gap:14px;padding:18px 20px;grid-template-columns:repeat(3,minmax(0,1fr))}
+  @media(max-width:1100px){.muestras{grid-template-columns:1fr}}
+  .lienzo{background:var(--crema);border-radius:12px;padding:20px 22px}
+  .tit{display:flex;align-items:center;gap:8px}
+  h1{margin:0;font:500 1.75rem/1.15 var(--serif);letter-spacing:-.01em}
+  .desc{color:var(--taupe);font-size:14px;margin-top:4px}
+  .notas{padding:0 20px 16px;font-size:13px;color:var(--taupe)} .notas b{color:var(--tinta)}
+  /* base del botón: 32 px de toque, el dibujo adentro */
+  .b{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border:0;background:none;padding:0;cursor:pointer;color:var(--taupe);border-radius:99px;transition:background .15s,color .15s,transform .15s;margin-top:3px}
+  .b:focus-visible{outline:2px solid var(--tinta);outline-offset:2px}
+  .b svg{display:block;fill:none;stroke:currentColor}
+  .b .g{font-family:var(--serif);font-style:italic;font-weight:500;line-height:1}
+  /* 1 · anillo fino (el de ahora) */
+  .v1 svg{width:18px;height:18px;stroke-width:1.6} .v1:hover{background:color-mix(in srgb,var(--sand) 60%,transparent);color:var(--tinta)}
+  /* 2 · anillo más grande y firme */
+  .v2{color:var(--tinta)} .v2 svg{width:23px;height:23px;stroke-width:1.9;opacity:.7} .v2:hover svg{opacity:1}
+  .v2:hover{background:color-mix(in srgb,var(--sand) 60%,transparent)}
+  /* 3 · disco suave con i serif cursiva */
+  .v3{width:30px;height:30px;background:var(--sand);color:var(--taupe)} .v3 .g{font-size:23px;transform:translateY(-1px)} .v3:hover{background:var(--taupe);color:var(--crema)}
+  /* 4 · disco sólido, la i en el color del fondo */
+  .v4{width:24px;height:24px;margin-top:5px;background:var(--taupe);color:var(--crema)} .v4 .g{font-size:16px;font-style:normal;font-family:var(--sans);font-weight:600;font-size:13px} .v4:hover{background:var(--tinta)}
+  /* 5 · signo de pregunta en anillo */
+  .v5 svg{width:22px;height:22px;stroke-width:1.7} .v5:hover{background:color-mix(in srgb,var(--sand) 60%,transparent);color:var(--tinta)}
+  /* 6 · i serif cursiva en anillo, a la medida del título */
+  .v6{width:30px;height:30px;border:1.5px solid var(--taupe)} .v6 .g{font-size:24px;transform:translateY(-1px)} .v6:hover{background:var(--taupe);color:var(--crema)}
+  /* 7 · botón redondeado como los de la app */
+  .v7{width:30px;height:30px;border-radius:8px;border:1px solid var(--sand);background:var(--papel);color:var(--taupe)} .v7 .g{font-size:23px;transform:translateY(-1px)} .v7:hover{border-color:var(--taupe);color:var(--tinta)}
+  .velo{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;align-items:center;justify-content:center;z-index:20;padding:16px}.velo.on{display:flex}
+  .modal{background:var(--papel);border-radius:16px;max-width:28rem;width:100%;padding:22px 24px}.modal h3{margin:0 0 8px;font:500 20px var(--serif)}.modal p{margin:0 0 14px;color:var(--taupe);font-size:14px}
+  .modal button{font:inherit;float:right;border:0;background:var(--tinta);color:var(--crema);border-radius:8px;padding:8px 16px;cursor:pointer}
+</style>
+</head>
+<body>
+<div class="barra"><b>El dibujo del ⓘ</b><span style="color:var(--taupe);font-size:13px">Posición C (al lado del título). Pasa el cursor por encima para ver el estado activo; toca para abrir la ventana.</span><button id="tema" style="margin-left:auto">Modo oscuro</button></div>
+<main id="raiz"></main>
+<div class="velo" id="velo" onclick="if(event.target===this)cerrar()"><div class="modal" role="dialog" aria-modal="true"><h3 id="mt"></h3><p>Aquí iría el detalle de cómo se usa la pantalla.</p><button onclick="cerrar()">Entendido</button><div style="clear:both"></div></div></div>
+<script>
+const ANILLO='<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M12 11v5.5M12 7.8v.01" stroke-linecap="round"/></svg>';
+const PREG='<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M9.6 9.4a2.5 2.5 0 1 1 3.6 2.2c-.7.4-1.2.9-1.2 1.7M12 16.6v.01" stroke-linecap="round"/></svg>';
+const G='<span class="g" aria-hidden="true">i</span>';
+const T=['Ausencias','Desempeño del equipo','Horarios base'];
+const D=['Cada día que alguien no vino, y por qué.','Toca una fila para ver sus días · 626 h de 726 h','Jornada semanal y descansos de cada colaborador.'];
+const V=[
+ {c:'v1',n:'1 · Anillo fino (el de ahora)',h:ANILLO,q:'18 px, trazo 1.6. Es el que no convenció: junto a un título de 28 px se ve pequeño y pálido.'},
+ {c:'v2',n:'2 · Anillo más grande y firme',h:ANILLO,rec:false,q:'23 px, trazo 1.9, en color tinta al 70 %. Mismo dibujo, a la escala del título.'},
+ {c:'v3',n:'3 · Disco suave con una «i» serif cursiva',h:G,rec:true,q:'Fondo sand, la i en la letra de los títulos. Se ve como parte de la marca, no como un ícono genérico; al pasar el cursor se llena.'},
+ {c:'v4',n:'4 · Disco sólido pequeño',h:G.replace('class="g"','class="g"'),q:'24 px, taupe con la i en crema. El más visible; también el que más llama la atención en cada cabecera.'},
+ {c:'v5',n:'5 · Signo de pregunta en anillo',h:PREG,q:'Dice «ayuda» sin ambigüedad. Menos formal: una pregunta pide una respuesta, y aquí es una explicación.'},
+ {c:'v6',n:'6 · Anillo con «i» serif cursiva',h:G,q:'Contorno firme a la medida del título, con la letra de la marca; vacío en reposo y relleno al pasar el cursor.'},
+ {c:'v7',n:'7 · Botón redondeado, como los de la app',h:G,q:'Misma esquina que los botones y filtros (8 px): se lee como algo que se toca.'},
+];
+const raiz=document.getElementById('raiz');
+V.forEach(v=>{
+ const m=T.map((t,i)=>`<div class="lienzo"><div class="tit"><h1>${t}</h1><button class="b ${v.c}" aria-label="Cómo funciona ${t}" onclick="abrir('${t}')">${v.h}</button></div><div class="desc">${D[i]}</div></div>`).join('');
+ raiz.insertAdjacentHTML('beforeend',`<section class="var"><header><h2>${v.n}</h2>${v.rec?'<span class="rec">recomendada</span>':''}<span class="pq">${v.q}</span></header><div class="muestras">${m}</div></section>`);
+});
+function abrir(t){document.getElementById('mt').textContent='Cómo funciona: '+t;document.getElementById('velo').classList.add('on')}
+function cerrar(){document.getElementById('velo').classList.remove('on')}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')cerrar()});
+document.getElementById('tema').onclick=function(){const r=document.documentElement;const o=r.dataset.t==='oscuro';r.dataset.t=o?'':'oscuro';this.textContent=o?'Modo oscuro':'Modo claro'};
+</script>
+</body></html>

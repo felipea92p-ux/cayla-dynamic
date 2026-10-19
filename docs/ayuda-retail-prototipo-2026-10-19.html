@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>El ⓘ al estilo Retail — prototipo</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600&family=DM+Sans:wght@400;500;600&display=swap">
+<!--
+  Prototipo (2026-10-19), tercera ronda. Felipe mostró la cabecera de «Productos» de Retail: línea
+  y sobretítulo en mayúsculas («TIENDA TRU · LUNES, 19 DE OCTUBRE · 11:00»), título grande, descripción
+  y, al final de la descripción, un círculo con borde y un signo dentro. Aquí se prueba ESE dibujo
+  —círculo con contorno visible, signo adentro— en cuatro formas, junto a lo que ya se eligió
+  (anillo fino al lado del título). NO es código de la app. Tokens de globals.css, claro y oscuro.
+-->
+<style>
+  :root{--crema:#f5f0e8;--papel:#fbf8f2;--tinta:#1a1a18;--sand:#e8e0d0;--taupe:#805c4c;--hueso:#eae1d2;
+    --sans:'DM Sans',system-ui,sans-serif;--serif:'EB Garamond',Georgia,serif;color-scheme:light}
+  :root[data-t="oscuro"]{--crema:#1c1a16;--papel:#26221d;--tinta:#ede7db;--sand:#332e27;--taupe:#ab9080;--hueso:#15110d;color-scheme:dark}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--crema);color:var(--tinta);font:15px/1.5 var(--sans)}
+  .barra{position:sticky;top:0;z-index:5;display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 20px;background:var(--papel);border-bottom:1px solid var(--sand)}
+  .barra b{font:500 18px var(--serif)} .barra button{font:inherit;border:1px solid var(--sand);background:var(--crema);color:var(--tinta);border-radius:8px;padding:5px 12px;cursor:pointer}
+  main{max-width:1000px;margin:0 auto;padding:24px 20px 80px}
+  .var{margin:0 0 28px;border:1px solid var(--sand);border-radius:16px;background:var(--papel);overflow:hidden}
+  .var>header{padding:12px 20px;border-bottom:1px solid var(--sand);display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+  .var h2{margin:0;font:500 19px var(--serif)} .rec{font-size:12px;background:var(--tinta);color:var(--crema);border-radius:99px;padding:1px 10px}
+  .pq{flex-basis:100%;color:var(--taupe);font-size:13px}
+  .muestras{display:grid;gap:14px;padding:18px 20px;grid-template-columns:minmax(0,1fr) 340px}
+  @media(max-width:900px){.muestras{grid-template-columns:1fr}}
+  .lienzo{background:var(--crema);border-radius:12px;padding:20px 22px}
+  .lienzo + .lienzo{margin-top:14px}
+  .sobre{display:flex;align-items:center;gap:14px;margin:0 0 8px;font-size:12.5px;font-weight:500;letter-spacing:.2em;text-transform:uppercase;color:var(--taupe)}
+  .sobre::before{content:"";width:36px;height:1px;background:var(--taupe);flex:none}
+  h1{margin:0;font:500 1.75rem/1.15 var(--serif);letter-spacing:-.01em}
+  .tit{display:flex;align-items:center;gap:8px}
+  .desc{color:var(--taupe);font-size:14px;margin-top:4px;max-width:34rem}
+  .notas{padding:0 20px 16px;font-size:13px;color:var(--taupe)} .notas b{color:var(--tinta)}
+  /* el círculo de Retail: contorno visible y signo adentro */
+  .r{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:99px;border:1px solid color-mix(in srgb,var(--taupe) 55%,transparent);background:none;color:var(--taupe);font:600 13px/1 var(--sans);cursor:pointer;padding:0;vertical-align:-5px;margin-left:6px;transition:background .15s,color .15s,border-color .15s}
+  .r:hover{background:var(--taupe);color:var(--crema);border-color:var(--taupe)}
+  .r:focus-visible{outline:2px solid var(--tinta);outline-offset:2px}
+  .r.i{font:italic 500 17px/1 var(--serif)}
+  .r.t{margin-left:0;vertical-align:baseline;margin-top:3px;width:26px;height:26px}
+  .r.fino{border:0;width:30px;height:30px}
+  .r.fino svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.6}
+  .r.fino:hover{background:color-mix(in srgb,var(--sand) 60%,transparent);color:var(--tinta)}
+  .velo{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;align-items:center;justify-content:center;z-index:20;padding:16px}.velo.on{display:flex}
+  .modal{background:var(--papel);border-radius:16px;max-width:28rem;width:100%;padding:22px 24px}.modal h3{margin:0 0 8px;font:500 20px var(--serif)}.modal p{margin:0 0 14px;color:var(--taupe);font-size:14px}
+  .modal button{font:inherit;float:right;border:0;background:var(--tinta);color:var(--crema);border-radius:8px;padding:8px 16px;cursor:pointer}
+</style>
+</head>
+<body>
+<div class="barra"><b>El ⓘ al estilo Retail</b><span style="color:var(--taupe);font-size:13px">Pasa el cursor sobre el círculo; tócalo para abrir la ventana.</span><button id="tema" style="margin-left:auto">Modo oscuro</button></div>
+<main id="raiz"></main>
+<div class="velo" id="velo" onclick="if(event.target===this)cerrar()"><div class="modal" role="dialog" aria-modal="true"><h3 id="mt"></h3><p>Aquí iría el detalle de cómo se usa la pantalla.</p><button onclick="cerrar()">Entendido</button><div style="clear:both"></div></div></div>
+<script>
+const FINO='<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M12 11v5.5M12 7.8v.01" stroke-linecap="round"/></svg>';
+const M=[
+ {t:'Ausencias',d:'Cada día que alguien no vino, y por qué. Un día registrado aquí no cuenta como falta injustificada.',s:'Asistencia · Lunes, 19 de octubre'},
+ {t:'Desempeño del equipo',d:'Toca una fila para ver sus días · 626 h de 726 h que tocaban · 8 personas · 9 d de ausencia (8 pagados)',s:'Asistencia · Octubre 2026'},
+];
+const b=(c,t,glifo)=>`<button class="r ${c}" aria-label="Cómo funciona ${t}" onclick="abrir('${t}')">${glifo}</button>`;
+const V=[
+ {n:'1 · Como Retail: círculo con «!» al final de la descripción',q:'Tal cual la captura: círculo con contorno visible (24 px) y un signo de exclamación, pegado a la última palabra.',nota:'<b>Gana:</b> el contorno se ve a la escala del texto y se lee como botón. <b>Paga:</b> «!» suele significar advertencia, no ayuda; si la pantalla tiene avisos reales, se confunden. En celular se va con la última palabra.',
+  f:(m)=>`<h1>${m.t}</h1><div class="desc">${m.d}${b('','Ayuda','!').replace('Ayuda',m.t)}</div>`},
+ {n:'2 · Círculo con «i» (la letra de los títulos) al final de la descripción',q:'El mismo círculo de Retail, pero con una «i» serif cursiva: dice «información», no «cuidado».',rec:true,nota:'<b>Gana:</b> contorno visible como Retail y el significado correcto. <b>Paga:</b> lo mismo que 1 en celular: sigue a la última palabra.',
+  f:(m)=>`<h1>${m.t}</h1><div class="desc">${m.d}${b('i',m.t,'i')}</div>`},
+ {n:'3 · Círculo con «i» al lado del título (posición ya elegida)',q:'El círculo de Retail llevado a la posición C. Reemplaza al anillo fino, con contorno y glifo.',nota:'<b>Gana:</b> posición fija. <b>Paga:</b> es el ícono más pesado junto a un título; en las pantallas con muchas acciones a la derecha, se junta con ellas.',
+  f:(m)=>`<div class="tit"><h1>${m.t}</h1>${b('i t',m.t,'i')}</div><div class="desc">${m.d}</div>`},
+ {n:'4 · Sobretítulo con raya, como Retail + círculo al final',q:'Incluye la línea y el sobretítulo en mayúsculas de la captura («SEDE · FECHA»), que en Dynamic ya existe como `sobretitulo` de CabeceraPagina.',nota:'<b>Gana:</b> la fecha o la sección quedan siempre a la vista, y la cabecera se parece a la de Retail. <b>Paga:</b> una línea más sobre cada título; hoy solo unas 9 pantallas usan sobretítulo.',
+  f:(m)=>`<div class="sobre">${m.s}</div><h1>${m.t}</h1><div class="desc">${m.d}${b('i',m.t,'i')}</div>`},
+ {n:'Referencia · El anillo fino al lado del título (lo que está implementado hoy)',q:'Para comparar contra lo anterior.',nota:'<b>Gana:</b> discreto. <b>Paga:</b> sin contorno, junto a un título de 28 px se ve pálido; es lo que te hizo pedir otra cosa.',
+  f:(m)=>`<div class="tit"><h1>${m.t}</h1>${b('fino',m.t,FINO)}</div><div class="desc">${m.d}</div>`},
+];
+const raiz=document.getElementById('raiz');
+V.forEach(v=>{
+ const l=M.map(m=>`<div class="lienzo">${v.f(m)}</div>`).join('');
+ raiz.insertAdjacentHTML('beforeend',`<section class="var"><header><h2>${v.n}</h2>${v.rec?'<span class="rec">recomendada</span>':''}<span class="pq">${v.q}</span></header><div class="muestras"><div>${l}</div><div class="lienzo">${v.f(M[0])}</div></div><div class="notas">${v.nota}</div></section>`);
+});
+function abrir(t){document.getElementById('mt').textContent='Cómo funciona: '+t;document.getElementById('velo').classList.add('on')}
+function cerrar(){document.getElementById('velo').classList.remove('on')}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')cerrar()});
+document.getElementById('tema').onclick=function(){const r=document.documentElement;const o=r.dataset.t==='oscuro';r.dataset.t=o?'':'oscuro';this.textContent=o?'Modo oscuro':'Modo claro'};
+</script>
+</body></html>
