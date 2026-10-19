@@ -31,6 +31,12 @@ import { BUCKET_SOLICITUDES_PERFIL, CARAS_DNI, comprimirFotoDni, rutaNuevaCaraDn
 
 type Elegida = { archivo: File; vista: string } | null;
 
+/** La ayuda de `CARAS_DNI` habla de «tu foto», que es lo que lee quien sube su propio DNI. Aquí lo sube otra persona. */
+const AYUDA_DE_CARA: Record<CaraDni, string> = {
+  anverso: "El lado de la foto",
+  reverso: "El lado de la dirección",
+};
+
 export function FormularioDniPrueba({
   supabase, personaId, nombre, diasPlazo, yaCargado, alGuardar,
 }: {
@@ -128,7 +134,7 @@ export function FormularioDniPrueba({
             <div key={cara.clave} className="flex flex-col gap-2 rounded-control border border-sand p-3">
               <div>
                 <div className="text-sm font-medium">{cara.etiqueta}</div>
-                <div className="text-xs text-taupe">{cara.ayuda}</div>
+                <div className="text-xs text-taupe">{AYUDA_DE_CARA[cara.clave]}</div>
               </div>
               {elegida ? (
                 // eslint-disable-next-line @next/next/no-img-element -- vista previa local de un archivo recién elegido
