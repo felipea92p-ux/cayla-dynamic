@@ -12,7 +12,10 @@ import { useToast } from "@/components/toast";
 import { AyudaPantalla } from "@/components/ui/ayuda-pantalla";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
 import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
+import { BannerAviso } from "@/components/ui/banner-aviso";
 import { Boton } from "@/components/ui/boton";
+import { ParaAtender } from "@/components/ui/para-atender";
+import { TarjetaInfo } from "@/components/ui/tarjeta-info";
 import { Campo, CampoSelect } from "@/components/ui/campo";
 import { Insignia } from "@/components/ui/insignia";
 import { Modal } from "@/components/ui/modal";
@@ -247,11 +250,19 @@ const DESCANSO_MINIMO_HORAS = 12;
 // TypeScript en ciclo-sobretiempo.ts para poder avisar antes de que la
 // planilla lo cuente. Solo lee `jornadas`; no decide ni adelanta cuánto se
 // va a pagar, eso lo sigue diciendo la planilla.
-function AlertaSobretiempo({ sedeSel }: { sedeSel: string }) {
+function AlertaSobretiempo({ sedeSel, abierto, onConteo }: {
+  sedeSel: string;
+  /** El detalle se abre desde «Para decidir», no desde un encabezado propio. */
+  abierto: boolean;
+  onConteo: (n: number | null, grave: boolean) => void;
+}) {
   const supabase = useMemo(() => createAdminSupabaseClient(), []);
   const [filas, setFilas] = useState<{ personaId: string; nombre: string; ciclo: NonNullable<ReturnType<typeof cicloVigente>> }[] | null>(null);
   const [error, setError] = useState(false);
-  const [abierto, setAbierto] = useState(true);
+
+  useEffect(() => {
+    onConteo(filas === null ? null : filas.length, Boolean(filas?.some((f) => f.ciclo.horas >= 48)));
+  }, [filas, onConteo]);
 
   useEffect(() => {
     if (!sedeSel) return;
@@ -298,54 +309,43 @@ function AlertaSobretiempo({ sedeSel }: { sedeSel: string }) {
   }, [sedeSel, supabase]);
 
   if (error) {
-    return <div className="mb-4 max-w-2xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">No se pudo calcular el sobretiempo del ciclo vigente.</div>;
+    return <BannerAviso enLinea role="alert" variante="alerta" className="mb-4">No se pudo calcular el sobretiempo del ciclo vigente.</BannerAviso>;
   }
-  if (filas === null) return null; // cargando en silencio
-  if (filas.length === 0) {
-    return (
-      <div className="mb-4 flex max-w-2xl items-center gap-2 rounded-lg border border-verde/25 bg-verde/[0.06] px-4 py-2.5 text-sm text-verde">
-        <span>✓</span> Nadie está cerca del tope de 48 h de su ciclo vigente.
-      </div>
-    );
-  }
+  // Cargando, o nadie cerca del tope: la franja «Para decidir» lo dice; aquí no hay nada que dibujar.
+  if (filas === null || filas.length === 0 || !abierto) return null;
   const algunoEnExceso = filas.some((f) => f.ciclo.horas >= 48);
   return (
-    <div className={`mb-4 max-w-2xl overflow-hidden rounded-2xl border ${algunoEnExceso ? "border-rojo/40 bg-rojo/[0.06]" : "border-ambar/40 bg-ambar/[0.06]"}`}>
-      <button onClick={() => setAbierto((a) => !a)} className="flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left text-sm">
-        <span className={`font-medium ${algunoEnExceso ? "text-rojo" : "text-ambar"}`}>
-          {filas.length} persona{filas.length === 1 ? "" : "s"} cerca o sobre las 48 h de su ciclo vigente
-        </span>
-        <span className="shrink-0 text-xs text-taupe">{abierto ? "ocultar" : "ver"}</span>
-      </button>
-      {abierto && (
-        <>
-          <ul className={`divide-y border-t ${algunoEnExceso ? "divide-rojo/15 border-rojo/20" : "divide-ambar/15 border-ambar/20"}`}>
-            {filas.map((f) => (
-              <li key={f.personaId} className="flex items-center justify-between gap-3 px-4 py-2 text-sm">
-                <span>{f.nombre}</span>
-                <span className={`tabular-nums font-medium ${f.ciclo.horas >= 48 ? "text-rojo" : "text-ambar"}`}>
-                  {f.ciclo.horas.toFixed(1)}/48 h · día {f.ciclo.dia} de 7
-                </span>
-              </li>
-            ))}
-          </ul>
-          <p className={`border-t px-4 py-2 text-xs text-taupe ${algunoEnExceso ? "border-rojo/20" : "border-ambar/20"}`}>
-            Ciclo de 7 días desde que empezó su racha sin descanso — no es la semana calendario. Reorganiza el turno de quien esté más arriba antes de que siga sumando.
-          </p>
-        </>
-      )}
-    </div>
+    <TarjetaInfo className="mb-4 overflow-hidden p-0 sm:p-0">
+      <ul className="divide-y divide-sand">
+        {filas.map((f) => (
+          <li key={f.personaId} className="flex items-center justify-between gap-3 px-4 py-2 text-sm">
+            <span>{f.nombre}</span>
+            <span className={`tabular-nums font-medium ${f.ciclo.horas >= 48 ? "text-rojo" : "text-ambar"}`}>
+              {f.ciclo.horas.toFixed(1)}/48 h · día {f.ciclo.dia} de 7
+            </span>
+          </li>
+        ))}
+      </ul>
+      <p className={`border-t border-sand px-4 py-2 text-xs ${algunoEnExceso ? "text-rojo-profundo" : "text-taupe"}`}>
+        Ciclo de 7 días desde que empezó su racha sin descanso — no es la semana calendario. Reorganiza el turno de quien esté más arriba antes de que siga sumando.
+      </p>
+    </TarjetaInfo>
   );
 }
 
-function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso: string) => void }) {
+function RevisionTurnos({ sedeSel, onIrADia, abierto, onConteo }: {
+  sedeSel: string;
+  onIrADia: (iso: string) => void;
+  /** El detalle se abre desde «Para decidir», no desde un encabezado propio. */
+  abierto: boolean;
+  onConteo: (n: number | null, espejos: number) => void;
+}) {
   const supabase = useMemo(() => createAdminSupabaseClient(), []);
   const [divs, setDivs] = useState<Divergencia[] | null>(null);
   // Turnos de días en que la persona aún no tenía horario base: no hay contra
   // qué compararlos, así que no son divergencias, solo se cuentan.
   const [sinBase, setSinBase] = useState(0);
   const [error, setError] = useState(false);
-  const [abierto, setAbierto] = useState(true);
   const [procesando, setProcesando] = useState<string | null>(null); // clave de fila, o "bulk"
   const [confirmarBulk, setConfirmarBulk] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
@@ -426,6 +426,9 @@ function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso
   }, [sedeSel, supabase]);
 
   useEffect(() => { void cargar(); }, [cargar]);
+  useEffect(() => {
+    onConteo(divs === null ? null : divs.length, divs?.filter((d) => d.espejo).length ?? 0);
+  }, [divs, onConteo]);
 
   // Quitar el turno puntual ⇒ ese día vuelve a regir el horario base. La RPC
   // recalcula la jornada de esa fecha (y el candado bloquea periodos pagados).
@@ -523,47 +526,31 @@ function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso
   }
 
   if (error) {
-    return <div className="mb-4 max-w-2xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">No se pudo revisar los turnos contra el horario base.</div>;
+    return <BannerAviso enLinea role="alert" variante="alerta" className="mb-4">No se pudo revisar los turnos contra el horario base.</BannerAviso>;
   }
-  if (divs === null) return null; // cargando en silencio (no estorba la vista principal)
+  // Cargando, o todo coincide: la franja «Para decidir» lo dice; aquí no hay nada que dibujar.
+  if (divs === null || divs.length === 0) return null;
   const notaSinBase = sinBase > 0 && (
     <>
       {sinBase} turno{sinBase === 1 ? "" : "s"} {sinBase === 1 ? "cae" : "caen"} en días en que esa persona aún no tenía horario base.
       Ahí el turno es lo único que dice a qué hora le tocaba entrar, así que no hay nada que comparar ni que quitar.
     </>
   );
-  if (divs.length === 0) {
-    return (
-      <div className="mb-4 max-w-2xl rounded-lg border border-verde/25 bg-verde/[0.06] px-4 py-2.5 text-sm text-verde">
-        <div className="flex items-center gap-2">
-          <span>✓</span> Todos los turnos desde que empezó el periodo de planilla abierto coinciden con el horario base.
-        </div>
-        {notaSinBase && <p className="mt-1 text-xs text-taupe">{notaSinBase}</p>}
-      </div>
-    );
-  }
   const espejos = divs.filter((d) => d.espejo);
+  if (!abierto) return null;
   return (
-    <div className="mb-4 max-w-2xl overflow-hidden rounded-2xl border border-ambar/40 bg-ambar/[0.06]">
-      <button onClick={() => setAbierto((a) => !a)} className="flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left text-sm">
-        <span className="font-medium text-ambar">
-          {divs.length} turno{divs.length === 1 ? "" : "s"} no coincide{divs.length === 1 ? "" : "n"} con el horario base
-          {espejos.length > 0 && <span className="font-normal text-rojo"> · {espejos.length} probable{espejos.length === 1 ? "" : "s"} espejo viejo</span>}
-        </span>
-        <span className="shrink-0 text-xs text-taupe">{abierto ? "ocultar" : "ver"}</span>
-      </button>
-      {abierto && (
-        <div className="border-t border-ambar/20">
+    <TarjetaInfo className="mb-4 overflow-hidden p-0 sm:p-0">
+        <div>
           <p className="px-4 py-2 text-xs leading-relaxed text-taupe">
             El turno del día manda sobre el horario base. Decide cuál de los dos tiene la razón:{" "}
             <strong className="text-tinta">Hacer permanente</strong> = la hora del turno pasa a ser su horario base desde esa fecha (úsalo si de verdad le cambiaron el horario).{" "}
             <strong className="text-tinta">Usar el horario base</strong> = descarta el turno y vuelve a su horario (úsalo si el turno quedó viejo).{" "}
             Nada se borra solo: tú decides fila por fila.
           </p>
-          {notaSinBase && <p className="border-t border-ambar/20 px-4 py-2 text-xs leading-relaxed text-taupe">{notaSinBase}</p>}
+          {notaSinBase && <p className="border-t border-sand px-4 py-2 text-xs leading-relaxed text-taupe">{notaSinBase}</p>}
 
           {espejos.length > 0 && (
-            <div className="border-t border-ambar/20 px-4 py-2">
+            <div className="border-t border-sand px-4 py-2">
               {confirmarBulk ? (
                 <div className="flex flex-wrap items-center gap-2 text-xs">
                   <span className="text-rojo">Se quitarán {espejos.length} turnos y se recalcularán esas jornadas. ¿Confirmas?</span>
@@ -583,9 +570,9 @@ function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso
             </div>
           )}
 
-          {aviso && <div className="border-t border-ambar/20 bg-rojo/10 px-4 py-2 text-xs text-rojo">{aviso}</div>}
+          {aviso && <div className="border-t border-sand bg-rojo/10 px-4 py-2 text-xs text-rojo">{aviso}</div>}
 
-          <ul className="divide-y divide-ambar/15 border-t border-ambar/20">
+          <ul className="max-h-96 divide-y divide-sand overflow-y-auto border-t border-sand">
             {divs.map((d, i) => {
               const { abr, num } = etiquetaDia(d.fecha);
               const clave = `${d.personaId}-${d.fecha}-${i}`;
@@ -603,22 +590,19 @@ function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso
                     {d.espejo
                       ? <Insignia variante="alerta" tamano="sm">probable espejo viejo</Insignia>
                       : <Insignia variante="neutral" atenuada tamano="sm">excepción a propósito</Insignia>}
-                    <button onClick={() => hacerPermanente(d, clave)} disabled={procesando !== null}
-                      className="rounded border border-tinta/30 bg-tinta/5 px-2 py-0.5 text-[11px] font-medium hover:bg-tinta/10 disabled:opacity-40">
-                      {procesando === clave ? "Aplicando…" : "Hacer permanente"}
-                    </button>
-                    <button onClick={() => usarHorarioBase(d, clave)} disabled={procesando !== null}
-                      className="rounded border px-2 py-0.5 text-[11px] text-taupe hover:bg-sand/40 disabled:opacity-40">
+                    <Boton variante="secundario" tamano="sm" onClick={() => hacerPermanente(d, clave)} disabled={procesando !== null} cargando={procesando === clave}>
+                      Hacer permanente
+                    </Boton>
+                    <Boton variante="sutil" tamano="sm" onClick={() => usarHorarioBase(d, clave)} disabled={procesando !== null}>
                       Usar el horario base
-                    </button>
+                    </Boton>
                   </div>
                 </li>
               );
             })}
           </ul>
         </div>
-      )}
-    </div>
+    </TarjetaInfo>
   );
 }
 
@@ -634,6 +618,15 @@ export default function TurnosPage() {
   // Se acuerda de la última vez (useFiltroGuardado); la semana que se mira no
   // —`lunes`, abajo— porque persistirla mostraría la semana pasada al volver.
   const [sedeSel, setSedeSel] = useFiltroGuardado("turnos.sede", "");
+  // «Para decidir»: cuántos hay de cada cosa (null = todavía cargando) y cuál detalle está abierto. Arranca
+  // cerrado: la pantalla es la semana, y esto es lo que se mira antes de armarla.
+  const [nBase, setNBase] = useState<number | null>(null);
+  const [nEspejos, setNEspejos] = useState(0);
+  const [nTope, setNTope] = useState<number | null>(null);
+  const [topeGrave, setTopeGrave] = useState(false);
+  const [decidirAbierto, setDecidirAbierto] = useState<"base" | "tope" | null>(null);
+  const conteoBase = useCallback((n: number | null, espejos: number) => { setNBase(n); setNEspejos(espejos); }, []);
+  const conteoTope = useCallback((n: number | null, grave: boolean) => { setNTope(n); setTopeGrave(grave); }, []);
   const [lunes, setLunes] = useState<string>(() => lunesDeLaSemana(hoyLima()));
   // Tres vistas: Día = detalle por persona de un día · Semana = siluetas resumen
   // por día · Integrada = la sábana hora×día de toda la semana (quién cubre cada
@@ -1105,8 +1098,26 @@ export default function TurnosPage() {
           </div>
         )}
 
-        {sedeSel && <AlertaSobretiempo sedeSel={sedeSel} />}
-        {sedeSel && <RevisionTurnos sedeSel={sedeSel} onIrADia={irARevisar} />}
+        {/* PARA DECIDIR: lo que pide una decisión antes de armar la semana, en una línea. Mientras carga no se
+            dice «nada pendiente»: sería tranquilizar sin haber mirado. */}
+        {sedeSel && nBase !== null && nTope !== null && (
+          <ParaAtender
+            titulo="Para decidir"
+            items={[
+              {
+                clave: "base",
+                texto: `${nBase} turno${nBase === 1 ? "" : "s"} distinto${nBase === 1 ? "" : "s"} al horario base${nEspejos > 0 ? ` · ${nEspejos} espejo${nEspejos === 1 ? "" : "s"} viejo${nEspejos === 1 ? "" : "s"}` : ""}`,
+                n: nBase,
+                tono: "ambar",
+              },
+              { clave: "tope", texto: `${nTope} cerca o sobre las 48 h`, n: nTope, tono: topeGrave ? "rojo" : "ambar" },
+            ]}
+            activa={decidirAbierto}
+            alTocar={(clave) => setDecidirAbierto(decidirAbierto === clave ? null : (clave as "base" | "tope"))}
+          />
+        )}
+        {sedeSel && <AlertaSobretiempo sedeSel={sedeSel} abierto={decidirAbierto === "tope"} onConteo={conteoTope} />}
+        {sedeSel && <RevisionTurnos sedeSel={sedeSel} onIrADia={irARevisar} abierto={decidirAbierto === "base"} onConteo={conteoBase} />}
 
         {cargando ? <Cargando /> : vista === "semana" ? (
           <div className="space-y-6">
