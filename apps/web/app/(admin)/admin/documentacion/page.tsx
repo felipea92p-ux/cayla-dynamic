@@ -20,6 +20,11 @@ import { BannerAviso } from "@/components/ui/banner-aviso";
 import { Insignia } from "@/components/ui/insignia";
 import { Menu, MenuItem } from "@/components/ui/menu";
 import { Modal } from "@/components/ui/modal";
+import { Drawer } from "@/components/ui/drawer";
+import { AyudaPantalla } from "@/components/ui/ayuda-pantalla";
+import { ParaAtender } from "@/components/ui/para-atender";
+import { Pestanas } from "@/components/ui/pestanas";
+import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 import { abrirArchivoFirmado } from "@/lib/abrir-archivo-firmado";
 import { EMPRESA, hoyLima, rangoDelMesLima, puedeEstamparFirmaDeEmpresa, puedeGestionarCatalogos } from "@cayla-dynamic/shared";
@@ -423,7 +428,6 @@ export default function DocumentacionPage() {
   const [notaDoc, setNotaDoc] = useState("");
   const [progresoDoc, setProgresoDoc] = useState<number | null>(null);
   const [guardandoDoc, setGuardandoDoc] = useState(false);
-  const panelRef = useRef<HTMLDivElement>(null);
 
   // «Ver» de una firma digital: no hay archivo que abrir —el texto y la firma
   // viven en columnas, no en storage— así que se arma el mismo documento con
@@ -489,7 +493,10 @@ export default function DocumentacionPage() {
   // que cada recarga tras subir un papel vuelva a pisar lo que se escribió.
   const personaUrlAplicada = useRef(false);
   const [generarAbierto, setGenerarAbierto] = useState(false);
-  const bonoRef = useRef<HTMLDivElement>(null);
+  // Qué documento se está mirando: una pestaña por familia (ruta, cargo de cumpleaños, política de la empresa).
+  const [pestana, setPestana] = useState<"rutas" | "cumples" | "politica">("rutas");
+  // A quién devolverle el foco al cerrar el cajón de subida: el botón que lo abrió.
+  const volverFocoSubida = useRef<HTMLElement | null>(null);
   const previewRef = useRef<HTMLDivElement>(null);
 
   // LA TARIFA QUE LE TOCA A UNA PERSONA. Primero la fila de SU sede; si su sede
@@ -626,10 +633,8 @@ export default function DocumentacionPage() {
     // el único valor que el propio sistema iba a marcar en rojo.
     setFechaFirma(que === "politica" ? fechaDeLaPolitica : hoyLima());
     setModoPolitica(firmaEmpresaGlobal ? "sistema" : "archivo");
-    // El formulario es uno solo y vive arriba; el botón que lo abre puede estar
-    // veinte filas más abajo. Sin esto, quien hace clic en la última fila no ve
-    // que pasó nada y vuelve a hacer clic.
-    setTimeout(() => panelRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 30);
+    // El formulario es un cajón por la derecha: se ve sin importar qué tan abajo estaba el botón que lo abrió.
+    volverFocoSubida.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   }
 
   /** id → dónde está su archivo. Derivado, para no guardar dos veces la verdad. */
@@ -1285,14 +1290,6 @@ export default function DocumentacionPage() {
     return coincideBusqueda(f.persona);
   });
 
-  function alternarFiltroEstado(v: "pendientes" | "firmados" | "negativas") {
-    setFiltroEstado((prev) => (prev === v ? "todos" : v));
-  }
-
-  function irAPendientesEspeciales() {
-    bonoRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
-
   // Una sola pareja de componentes decide qué botón va de primario y cuáles
   // van al menú "···" — así la fila nunca vuelve a mostrar cuatro acciones
   // sueltas, ni acá ni el día que se agregue una quinta. Cada `onClick` se
@@ -1785,38 +1782,58 @@ export default function DocumentacionPage() {
         {/* Controles — no se imprimen */}
         <div className="mb-6 print:hidden">
           <CabeceraPagina
+            sobretitulo={sobretituloDeHoy("Personas")}
             titulo="Documentación"
-            descripcion="Gestiona documentos, firmas y pendientes de cada colaborador."
+            descripcion="Quién firmó qué y a quién le falta: movilidad, cargos de cumpleaños y la política de la empresa."
+            ayuda={
+              <AyudaPantalla
+                titulo="Cómo funciona Documentación"
+                intro="Hay tres documentos distintos, cada uno con su pestaña. Lo que pide atención hoy está arriba, en «Para atender»."
+                secciones={[
+                  { titulo: "Declaraciones de ruta", texto: "Cada persona declara su ruta y el monto de su movilidad. Sin esa declaración firmada, el monto deja de ser no remunerativo. Una negativa a firmar deja constancia, pero NO habilita el pago de movilidad." },
+                  { titulo: "Cargos de cumpleaños", texto: "El cargo del bono de onomástico se entrega una vez al año. Aquí aparece en el mes del cumpleaños; si se pasa el mes sin cargo, queda marcado." },
+                  { titulo: "Política de movilidad", texto: "Es un solo documento para toda la empresa y lo firma quien firma por CAYLA. Va fechado el día en que empezó a pagarse movilidad: una política firmada después de los primeros pagos queda por escrito como tardía." },
+                  { titulo: "Anular no borra", texto: "Un documento anulado se queda en el historial con quién lo anuló, cuándo y por qué." },
+                ]}
+              />
+            }
             accion={<Boton variante="primario" onClick={() => setGenerarAbierto(true)}>+ Generar documento</Boton>}
           />
 
-          {/* ── Indicadores, que funcionan como filtro de la tabla de abajo ──
-              Clic en un número filtra la misma tabla en vez de abrir una
-              bandeja aparte: la misma persona no aparece nunca en dos listas
-              distintas de esta pantalla. */}
-          <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <button type="button" onClick={() => alternarFiltroEstado("pendientes")}
-              className={`rounded-control border p-3 text-left transition-colors duration-150 ${filtroEstado === "pendientes" ? "border-rojo bg-rojo/5" : "border-sand hover:bg-sand/30"}`}>
-              <div className="text-2xl font-medium text-tinta">{totalPendientes}</div>
-              <div className="text-xs text-taupe">Pendientes de firma</div>
-            </button>
-            <button type="button" onClick={() => alternarFiltroEstado("firmados")}
-              className={`rounded-control border p-3 text-left transition-colors duration-150 ${filtroEstado === "firmados" ? "border-verde bg-verde/5" : "border-sand hover:bg-sand/30"}`}>
-              <div className="text-2xl font-medium text-tinta">{totalFirmados}</div>
-              <div className="text-xs text-taupe">Firmados</div>
-            </button>
-            <button type="button" onClick={() => alternarFiltroEstado("negativas")}
-              className={`rounded-control border p-3 text-left transition-colors duration-150 ${filtroEstado === "negativas" ? "border-rojo bg-rojo/5" : "border-sand hover:bg-sand/30"}`}>
-              <div className="text-2xl font-medium text-tinta">{totalNegativas}</div>
-              <div className="text-xs text-taupe">Negativas</div>
-            </button>
-            <button type="button" onClick={irAPendientesEspeciales}
-              className="rounded-control border border-sand p-3 text-left transition-colors duration-150 hover:bg-sand/30">
-              <div className="text-2xl font-medium text-tinta">{bonoPendientes.length}</div>
-              <div className="text-xs text-taupe">Pendientes especiales</div>
-            </button>
-          </div>
+          {/* PARA ATENDER: lo que pide una decisión, en una línea, y cada pastilla lleva a su pestaña. Reemplaza las cuatro
+              cifras (que repetían lo que dice la tabla) y el aviso rojo de la política, que ocupaba media pantalla. */}
+          {(tablero.length > 0 || politica) && (
+            <ParaAtender
+              items={[
+                ...(politica && !politica.cargada ? [{ clave: "politica", texto: "Falta la política de movilidad", n: 1, tono: "rojo" as const }] : []),
+                ...(politica && politica.cargada && politica.llego_tarde ? [{ clave: "politica", texto: "Política firmada después del primer pago", n: 1, tono: "ambar" as const }] : []),
+                { clave: "pendientes", texto: `${totalPendientes} sin firmar`, n: totalPendientes, tono: "pizarra" as const },
+                { clave: "negativas", texto: `${totalNegativas} ${totalNegativas === 1 ? "se negó" : "se negaron"} a firmar`, n: totalNegativas, tono: "rojo" as const },
+                { clave: "cumples", texto: `${bonoPendientes.length} ${bonoPendientes.length === 1 ? "cargo" : "cargos"} de cumpleaños`, n: bonoPendientes.length, tono: "ambar" as const },
+              ]}
+              activa={pestana === "politica" ? "politica" : pestana === "cumples" ? "cumples" : filtroEstado === "pendientes" ? "pendientes" : filtroEstado === "negativas" ? "negativas" : null}
+              alTocar={(clave) => {
+                if (clave === "politica") { setPestana("politica"); return; }
+                if (clave === "cumples") { setPestana("cumples"); return; }
+                setPestana("rutas");
+                setFiltroEstado((prev) => (prev === clave ? "todos" : (clave as "pendientes" | "negativas")));
+              }}
+            />
+          )}
 
+          <Pestanas
+            etiqueta="Documentos"
+            pestanas={[
+              { clave: "rutas" as const, texto: "Declaraciones de ruta", aviso: totalPendientes + totalNegativas },
+              { clave: "cumples" as const, texto: "Cargos de cumpleaños", aviso: bonoPendientes.length },
+              { clave: "politica" as const, texto: "Política de movilidad", aviso: politica && (!politica.cargada || politica.llego_tarde) ? 1 : 0 },
+            ]}
+            activa={pestana}
+            alElegir={setPestana}
+          />
+
+          {pestana === "politica" && (
+            <>
           {/* ── La política de empresa ──────────────────────────────────────
               Va arriba y en rojo porque su ausencia afecta a las 22 personas a
               la vez, no a una. Y porque el error caro —firmarla DESPUÉS de haber
@@ -1922,6 +1939,39 @@ export default function DocumentacionPage() {
                 </div>
               </dl>
             </TarjetaInfo>
+          )}
+
+          {/* ── El historial ─────────────────────────────────────────────────
+              Existía desde la 0157 y no se veía: cada reemplazo dejaba su fila y
+              nadie la leía nunca. Se enseña porque responde la única pregunta que
+              importa el día que alguien discuta un pago de movilidad — qué papel
+              regía entonces, quién lo registró y por qué dejó de regir. */}
+          {politicasAnteriores.length > 0 && (
+            <details className="mb-6 rounded-control border border-sand px-3 py-2 text-sm">
+              <summary className="cursor-pointer text-xs text-taupe">
+                Versiones anteriores de la política ({politicasAnteriores.length})
+              </summary>
+              <ul className="mt-2 space-y-2">
+                {politicasAnteriores.map((d) => (
+                  <li key={d.id} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-t border-sand pt-2 text-xs">
+                    <span className="text-tinta">
+                      Firmada el <strong>{d.fecha_firma ? fechaLarga(d.fecha_firma) : "—"}</strong>
+                    </span>
+                    {d.registrado_por && <span className="text-taupe">la registró {d.registrado_por}</span>}
+                    <span className="text-taupe">· {d.anulado_motivo ?? "sin motivo anotado"}</span>
+                    {d.storage_path && (
+                      <Boton variante="enlace" onClick={() => void verDocumento(d.storage_path!)}>Ver</Boton>
+                    )}
+                    {!d.storage_path && d.firma_persona && (
+                      <Boton variante="enlace" onClick={() => void abrirVerPolitica(d.id, d.fecha_firma)}>Ver</Boton>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+
+            </>
           )}
 
           {/* El motivo es obligatorio y no es burocracia: sin él, el historial se
@@ -2107,67 +2157,6 @@ export default function DocumentacionPage() {
             </div>
           )}
 
-          {/* ── El historial ─────────────────────────────────────────────────
-              Existía desde la 0157 y no se veía: cada reemplazo dejaba su fila y
-              nadie la leía nunca. Se enseña porque responde la única pregunta que
-              importa el día que alguien discuta un pago de movilidad — qué papel
-              regía entonces, quién lo registró y por qué dejó de regir. */}
-          {politicasAnteriores.length > 0 && (
-            <details className="mb-6 rounded-control border border-sand px-3 py-2 text-sm">
-              <summary className="cursor-pointer text-xs text-taupe">
-                Versiones anteriores de la política ({politicasAnteriores.length})
-              </summary>
-              <ul className="mt-2 space-y-2">
-                {politicasAnteriores.map((d) => (
-                  <li key={d.id} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-t border-sand pt-2 text-xs">
-                    <span className="text-tinta">
-                      Firmada el <strong>{d.fecha_firma ? fechaLarga(d.fecha_firma) : "—"}</strong>
-                    </span>
-                    {d.registrado_por && <span className="text-taupe">la registró {d.registrado_por}</span>}
-                    <span className="text-taupe">· {d.anulado_motivo ?? "sin motivo anotado"}</span>
-                    {d.storage_path && (
-                      <Boton variante="enlace" onClick={() => void verDocumento(d.storage_path!)}>Ver</Boton>
-                    )}
-                    {!d.storage_path && d.firma_persona && (
-                      <Boton variante="enlace" onClick={() => void abrirVerPolitica(d.id, d.fecha_firma)}>Ver</Boton>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </details>
-          )}
-
-          {/* ── Pendientes especiales (el bono del mes) ─────────────────────
-              El cargo del onomástico se olvida por calendario, no por descuido:
-              se entrega una vez al año y en diciembre nadie recuerda si alguien
-              firmó en agosto. Por eso el aviso es del MES, no de la persona —
-              y cada nombre es una tarea con su acción lista, no un párrafo. */}
-          {bonoPendientes.length > 0 && (
-            <TarjetaInfo titulo="Pendientes especiales" className="mb-6">
-              {bonoMonto === null && (
-                <p className="mb-3 rounded-control bg-rojo/[0.06] px-3 py-2 text-xs text-rojo-profundo">
-                  Falta fijar el monto del bono en parámetros laborales (<code>bono_onomastico</code>):
-                  hasta entonces ninguna constancia se puede emitir.
-                </p>
-              )}
-              <ul className="divide-y divide-sand">
-                {bonoPendientes.map((f) => (
-                  <li key={f.persona_id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
-                    <div>
-                      <span className="text-tinta">{f.persona}</span>{" "}
-                      <span className="text-taupe">
-                        {f.bono_estado === "este_mes"
-                          ? "· cargo de cumpleaños pendiente"
-                          : `· cumplió en ${MES_LARGO[(f.bono_mes ?? 1) - 1]} y no hay cargo`}
-                      </span>
-                    </div>
-                    <Boton variante="enlace" onClick={() => abrirSubida("bono", f.persona_id)}>Resolver →</Boton>
-                  </li>
-                ))}
-              </ul>
-            </TarjetaInfo>
-          )}
-
           {/* ── El panel de subida ──────────────────────────────────────────
               Uno solo para los tres documentos, y fuera del tablero. Estaba
               dentro, y por eso la política —que se sube desde el aviso de
@@ -2175,8 +2164,9 @@ export default function DocumentacionPage() {
               tablero venga vacío. Un formulario que existe pero no se ve es
               peor que uno que falta: quien lo usa cree que hizo clic mal. */}
           {subiendo && (
-            <div ref={panelRef} className="mb-6 rounded-control border border-sand bg-sand/20 p-4">
-              <h3 className="mb-1 text-sm font-medium">
+            <Drawer abierto onCerrar={() => setSubiendo(null)} bloqueado={guardandoDoc} volverElFocoA={volverFocoSubida}>
+            <div>
+              <h3 className="mb-1 font-serif text-lg">
                 {subiendo.negativa
                   ? "Registrar una negativa a firmar"
                   : subiendo.que === "politica" && modoPolitica === "sistema"
@@ -2314,10 +2304,11 @@ export default function DocumentacionPage() {
                 </Boton>
               </div>
             </div>
+            </Drawer>
           )}
 
           {/* ── Declaraciones de ruta — la sección central ───────────────── */}
-          {tablero.length > 0 && (
+          {pestana === "rutas" && tablero.length > 0 && (
             <div className="mb-8">
               <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
                 <h2 className="font-serif text-lg">Declaraciones de ruta</h2>
@@ -2331,6 +2322,13 @@ export default function DocumentacionPage() {
                 <CampoSelect etiqueta="Sede" value={filtroSede} onChange={(e) => setFiltroSede(e.target.value)} className="w-40">
                   <option value="todas">Todas</option>
                   {sedesEnTablero.map((s) => <option key={s} value={s}>{s}</option>)}
+                </CampoSelect>
+                {/* Los «Firmados» ya no son una cifra arriba (no piden nada): se ven con este filtro. */}
+                <CampoSelect etiqueta="Estado" value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value as typeof filtroEstado)} className="w-44">
+                  <option value="todos">Todos</option>
+                  <option value="pendientes">Sin firmar</option>
+                  <option value="firmados">Firmados</option>
+                  <option value="negativas">Se negaron</option>
                 </CampoSelect>
                 {(filtroSede !== "todas" || busca.trim() !== "" || filtroEstado !== "todos") && (
                   <Boton variante="enlace" onClick={() => { setFiltroSede("todas"); setBusca(""); setFiltroEstado("todos"); }}>
@@ -2430,8 +2428,15 @@ export default function DocumentacionPage() {
               completas con «cumple en octubre» repetido no informaban: el
               90% del año la respuesta es «nada que hacer», y una lista que
               casi siempre dice eso deja de leerse. */}
-          {tablero.length > 0 && (
-            <div ref={bonoRef} className="mb-8">
+          {pestana === "cumples" && tablero.length > 0 && (
+            <div className="mb-8">
+              {/* Venía dentro de la tarjeta «Pendientes especiales», que repetía esta misma lista: el aviso se queda, la tarjeta no. */}
+              {bonoMonto === null && bonoPendientes.length > 0 && (
+                <BannerAviso variante="alerta" enLinea className="mb-3">
+                  Falta fijar el monto del bono en parámetros laborales (<code>bono_onomastico</code>): hasta entonces
+                  ninguna constancia se puede emitir.
+                </BannerAviso>
+              )}
               <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
                 <h2 className="font-serif text-lg">Cargos de cumpleaños</h2>
                 {bonoPendientes.length > 0 && (
@@ -2468,7 +2473,7 @@ export default function DocumentacionPage() {
                             ) : f.bono_estado === "este_mes" ? (
                               <Insignia variante="advertencia">Cumple este mes</Insignia>
                             ) : (
-                              <Insignia variante="alerta">Sin cargo</Insignia>
+                              <Insignia variante="alerta">Sin cargo · cumplió en {MES_LARGO[(f.bono_mes ?? 1) - 1]}</Insignia>
                             )}
                           </td>
                           <td className="px-4 py-2 text-taupe">
@@ -2496,7 +2501,7 @@ export default function DocumentacionPage() {
                         ) : f.bono_estado === "este_mes" ? (
                           <Insignia variante="advertencia">Cumple este mes</Insignia>
                         ) : (
-                          <Insignia variante="alerta">Sin cargo</Insignia>
+                          <Insignia variante="alerta">Sin cargo · cumplió en {MES_LARGO[(f.bono_mes ?? 1) - 1]}</Insignia>
                         )}
                       </div>
                       <div className="mt-2 flex justify-end">
