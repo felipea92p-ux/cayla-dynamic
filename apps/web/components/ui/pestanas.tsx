@@ -15,6 +15,7 @@ export function Pestanas<T extends string>({
   pestanas,
   activa,
   alElegir,
+  enBarra = false,
   className,
 }: {
   /** El nombre del grupo para el lector de pantalla: «Secciones del Dashboard». */
@@ -22,12 +23,21 @@ export function Pestanas<T extends string>({
   pestanas: readonly { clave: T; texto: ReactNode; aviso?: number }[];
   activa: T;
   alElegir: (clave: T) => void;
+  /**
+   * Las pestañas van DENTRO de una barra con otros controles (Turnos: pestañas a la izquierda, sede y semana a la
+   * derecha): la barra pone la línea de abajo y el margen, así que acá no se dibujan. Con la raya y el margen
+   * propios, las pestañas quedaban 20 px más arriba que lo que tenían al lado.
+   */
+  enBarra?: boolean;
   className?: string;
 }) {
   return (
     <nav
       aria-label={etiqueta}
-      className={cx("-mx-4 mb-5 flex gap-1 overflow-x-auto border-b border-sand px-4 sm:mx-0 sm:px-0 [scrollbar-width:none]", className)}
+      className={cx(
+        enBarra ? "flex gap-1 overflow-x-auto [scrollbar-width:none]" : "-mx-4 mb-5 flex gap-1 overflow-x-auto border-b border-sand px-4 sm:mx-0 sm:px-0 [scrollbar-width:none]",
+        className,
+      )}
     >
       {pestanas.map((p) => (
         <button

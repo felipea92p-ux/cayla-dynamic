@@ -1063,10 +1063,10 @@ export default function TurnosPage() {
 
         {/* LOS CONTROLES, en una sola fila bajo la cabecera: las tres vistas a la izquierda como pestañas (son la
             misma semana vista de otra manera) y, a la derecha, sede, semana y copiar. */}
-        <div className="mb-5 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-sand">
+        <div className="mb-5 flex flex-wrap items-stretch justify-between gap-x-4 gap-y-1 border-b border-sand">
           <Pestanas
             etiqueta="Vistas de Turnos"
-            className="mb-0 border-b-0"
+            enBarra
             pestanas={[
               { clave: "dia", texto: "Día" },
               { clave: "semana", texto: "Semana" },
@@ -1075,7 +1075,7 @@ export default function TurnosPage() {
             activa={vista}
             alElegir={setVista}
           />
-          <div className="flex flex-wrap items-center gap-2 py-1">
+          <div className="flex flex-wrap items-center gap-2 self-center">
             {esAdmin && (
               <div className="w-44">
                 {/* El nombre, no el código: quien arma turnos piensa en «Tienda LIM», no en «003». */}
