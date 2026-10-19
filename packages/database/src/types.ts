@@ -9032,6 +9032,15 @@ export type Database = {
       }
       fn_mi_memo: { Args: { p_id: string | null }; Returns: Json }
       fn_mi_rango_actual: { Args: never; Returns: string }
+      fn_mi_seguro: {
+        Args: never
+        Returns: {
+          con_poliza: boolean
+          cubre_hoy: boolean
+          tipo: string
+          tipo_nombre: string
+        }[]
+      }
       fn_mis_boletas: {
         Args: never
         Returns: {
@@ -9080,6 +9089,23 @@ export type Database = {
         Returns: {
           enviado_a_info_at: string
           id: string
+        }[]
+      }
+      fn_mis_polizas: {
+        Args: never
+        Returns: {
+          archivos: Json
+          aseguradora: string
+          beneficio_accidente: number
+          beneficio_enfermedad: number
+          cubre_hoy: boolean
+          numero_poliza: string
+          plan: string
+          poliza_id: string
+          producto: string
+          producto_nombre: string
+          vigente_desde: string
+          vigente_hasta: string
         }[]
       }
       fn_mis_solicitudes_perfil: {
@@ -9933,6 +9959,7 @@ export type Database = {
         Args: { p_id: string | null; p_motivo: string | null }
         Returns: undefined
       }
+      fn_seguro_archivo_es_mio: { Args: { p_path: string | null }; Returns: boolean }
       fn_seguro_archivo_libre: { Args: { p_path: string | null }; Returns: boolean }
       fn_seguro_archivos: {
         Args: { p_poliza_id: string | null }
