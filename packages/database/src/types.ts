@@ -6850,6 +6850,8 @@ export type Database = {
           foto_url: string | null
           id: string | null
           nombres: string | null
+          prueba_dias: number | null
+          prueba_plazo: number | null
           sede_codigo: string | null
           sede_nombre: string | null
         }
@@ -10726,6 +10728,10 @@ export type Database = {
           ultima_fecha: string
           umbral: string
         }[]
+      }
+      fn_terminal_prueba_dias: {
+        Args: { p_persona_id: string | null }
+        Returns: number
       }
       fn_tipeo_de_una_letra: {
         Args: { p_a: string | null; p_b: string | null }

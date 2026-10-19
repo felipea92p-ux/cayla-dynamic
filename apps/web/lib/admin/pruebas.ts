@@ -18,9 +18,11 @@
  * paga y cuántas horas son.
  */
 
-import { EMPRESA } from "@cayla-dynamic/shared";
+import { EMPRESA, etiquetaDePrueba, situacionDePrueba, type SituacionPrueba } from "@cayla-dynamic/shared";
 
-export type SituacionPrueba = "en_curso" | "cumplida" | "vencida";
+// La situación y la etiqueta viven en `packages/shared` (las usa también el terminal de marcaje);
+// se re-exportan aquí para que el panel siga importándolas de un solo sitio.
+export { etiquetaDePrueba, type SituacionPrueba };
 export type ResultadoCierre = "no_apto" | "retirado";
 
 /** Una fila de `fn_pruebas_abiertas` (0536). */
@@ -81,29 +83,9 @@ export function textoDeHoras(horas: number): string {
   return `${String(redondeado).replace(".", ",")} h`;
 }
 
-/**
- * La situación de una fila. Se confía en la que dijo la base; solo si llega algo
- * que no se conoce se vuelve a derivar de los días — nunca se inventa una ausencia.
- */
+/** La situación de una fila de `fn_pruebas_abiertas`: ver `situacionDePrueba` en `packages/shared`. */
 export function situacionDe(f: Pick<FilaPrueba, "situacion" | "dias_trabajados" | "dias_plazo">): SituacionPrueba {
-  if (f.situacion === "en_curso" || f.situacion === "cumplida" || f.situacion === "vencida") return f.situacion;
-  if (f.dias_trabajados > f.dias_plazo) return "vencida";
-  if (f.dias_trabajados === f.dias_plazo) return "cumplida";
-  return "en_curso";
-}
-
-/**
- * La etiqueta corta que acompaña a una persona de prueba en todo el sistema:
- * «Prueba · 2 de 3». Pasada la prueba dice cuántos días lleva; el color sube de
- * informativo (en curso) a advertencia (toca decidir) y a alerta (se pasó el plazo).
- */
-export function etiquetaDePrueba(
-  f: Pick<FilaPrueba, "situacion" | "dias_trabajados" | "dias_plazo">,
-): { texto: string; variante: "informativo" | "advertencia" | "alerta" } {
-  const s = situacionDe(f);
-  if (s === "en_curso") return { texto: `Prueba · ${f.dias_trabajados} de ${f.dias_plazo}`, variante: "informativo" };
-  if (s === "cumplida") return { texto: `Prueba · ${f.dias_plazo} de ${f.dias_plazo}`, variante: "advertencia" };
-  return { texto: `Prueba · ${f.dias_trabajados} días`, variante: "alerta" };
+  return situacionDePrueba(f);
 }
 
 /** La frase completa de una fila, para el detalle: qué lleva y qué toca. */
