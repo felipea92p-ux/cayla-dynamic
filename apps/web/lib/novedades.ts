@@ -115,6 +115,20 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-10-19-documentacion-y-ausencias-mas-claras",
+    fecha: "2026-10-19",
+    titulo: "Documentación y Ausencias se ven más claras, y Ausencias tiene calendario",
+    queMejoro:
+      "En Documentación, lo que falta ahora está arriba en «Para atender» —la política de movilidad, quién no ha " +
+      "firmado, quién se negó y los cargos de cumpleaños— y cada documento tiene su pestaña. Subir un papel abre un " +
+      "cajón al costado en vez de empujar la página.\n\n" +
+      "En Ausencias, los avisos de vacaciones por vencer, cupo de EsSalud y patrón de ausencias pasan a pastillas que " +
+      "filtran la lista, y cada fila muestra solo la acción que le toca (aprobar, ver o adjuntar el documento); lo demás " +
+      "está en «•••». Además hay una vista nueva, «Calendario»: un renglón por persona y una casilla por día del mes, con " +
+      "lo pendiente de aprobar rayado. Tocas una barra y vas a la lista de esa persona.",
+    audiencia: "panel",
+  },
+  {
     id: "2026-10-19-cada-seccion-de-lo-mio-tiene-una-guia-corta",
     fecha: "2026-10-19",
     titulo: "Cada sección de «Lo mío» tiene una guía corta, y la puedes volver a ver",
