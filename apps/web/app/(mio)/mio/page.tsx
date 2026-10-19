@@ -9,7 +9,13 @@ import { MiSeguro } from "./seguro/mi-seguro";
 import { BoletasMias } from "./boletas/boletas-mias";
 import { ReportesMios } from "./reportes/reportes-mios";
 import { CambiosMios } from "./cambios-mios";
-import { DisciplinaMia } from "./disciplina-mia";
+import { DisciplinaMia, PASOS_GUIA_DISCIPLINA } from "./disciplina-mia";
+import { PASOS_GUIA_AUSENCIAS, PASOS_GUIA_DIAS, PASOS_GUIA_TURNOS } from "./guias-de-asistencia";
+import { PASOS_GUIA_BOLETAS, PASOS_GUIA_EDUCACION, PASOS_GUIA_MOVILIDAD } from "./guias-de-pago";
+import {
+  PASOS_GUIA_CONTRATO, PASOS_GUIA_DATOS, PASOS_GUIA_DNI, PASOS_GUIA_FIRMA, PASOS_GUIA_SEGURO,
+} from "./guias-de-documentos";
+import { PASOS_GUIA_HISTORIAL, PASOS_GUIA_OBJETIVOS, PASOS_GUIA_REPORTES } from "./guias-de-seguimiento";
 import { SaludoCumpleanos } from "./saludo-cumpleanos";
 import { cuantosPiden, porLeer, type CuentaMia, type DocMio } from "@/lib/mio-disciplina";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
@@ -58,6 +64,8 @@ import { contarSinLeer, traerMisReportes, type FilaMiReporte } from "@/lib/repor
 import { formatSoles } from "@/lib/rangos";
 import { direccionDeSeccion, seccionAlLlegar, seccionDeLaDireccion } from "@/lib/seccion-en-la-direccion";
 import { useRecorridoGuiado, type PasoRecorrido } from "@/lib/use-recorrido-guiado";
+import { usePuertaDeModulo } from "@/lib/use-puerta-de-modulo";
+import { PuertaDeModuloVista } from "@/components/mio/puerta-de-modulo";
 
 /**
  * «Lo mío» — lo que cada persona ve de sí misma.
@@ -261,45 +269,59 @@ interface Derechohabiente {
 let mioYaAparecio = false;
 
 /**
- * El recorrido de primera vez de «Resumen» — Fase 1 (ver CLAUDE.md). Solo esta
- * pestaña: las otras ocho quedan para cuando se sepa si el patrón funciona.
+ * El recorrido de primera vez de «Resumen»: tres pasos (2026-10-19).
  *
- * En el mismo orden en que las tarjetas aparecen en pantalla. Tres de los
- * siete pasos (`mio-resumen-pago`, `-semana`, `-vacaciones`) apuntan a
- * tarjetas que no siempre existen —piden sus propios datos, o dependen de que
- * haya vacaciones pendientes—: `useRecorridoGuiado` los salta solos si no
- * aparecen a tiempo, no hace falta condicionarlos acá.
+ * Eran siete —información, periodo, pago, semana, vacaciones, turno y
+ * objetivos—, y de esos tres apuntaban a tarjetas que no siempre existen
+ * (`-pago`, `-semana`, `-vacaciones`): el contador saltaba de «3 de 7» a «6 de
+ * 7» en una cuenta nueva y se leía como un error. Un recorrido de siete pasos
+ * sobre una pantalla que se explica sola era, además, lo más pesado del
+ * sistema para una persona que acaba de aceptar unos términos.
  *
- * Dos cosas decididas a propósito el 2026-09-12, después de verlo saltar del
- * paso 3 al 6 en una cuenta con menos de un mes (sin ciclo de semana cerrado
- * ni vacaciones que le apliquen todavía) — para que una sesión futura no lo
- * lea como un bug y lo "arregle":
- * - El contador "Paso X de Y" no se recalcula para ocultar el salto. Hacerlo
- *   bien exigiría esperar a que las tarjetas lentas carguen ANTES de arrancar
- *   el recorrido, retrasando el inicio para todo el mundo, no solo para quien
- *   tiene menos tarjetas. El salto es cosmético, no un error.
- * - "Tu semana" y "Tus vacaciones" no se sacan del recorrido ni se explican
- *   por adelantado con una tarjeta que no existe: no le sirven a quien
- *   todavía no las tiene, y explicarlas antes de tiempo confunde más de lo
- *   que ayuda. Si la persona no marca "no volver a mostrar", el recorrido se
- *   las muestra solo el día que le aparezcan de verdad.
+ * Se dejaron los tres que la pantalla NO dice por sí sola: de quién es lo que
+ * ve, que el pago es un estimado y no la boleta, y qué le toca trabajar. Las
+ * demás tarjetas siguen con su ancla `data-tour` por si el recorrido crece; no
+ * cuestan nada, y quitarlas sería deshacer trabajo para volver a hacerlo.
+ *
+ * `-pago` sigue pudiendo no existir (pide sus propios datos): `useRecorridoGuiado`
+ * lo salta solo si no aparece a tiempo, y ahora el contador es de tres, así
+ * que un salto se nota poco. Quien quiera repetirlo tiene «Ver guía».
  */
 const PASOS_TOUR_RESUMEN: readonly PasoRecorrido[] = [
   { selector: '[data-tour="mio-resumen-header"]', titulo: "Tu información",
     texto: "Tu nombre, tu cargo y tu sede. Si algo está mal, corrígelo desde «Editar datos»." },
-  { selector: '[data-tour="mio-resumen-periodo"]', titulo: "Tu periodo de pago",
-    texto: "Cuándo cierra tu periodo actual y si te falta algún día por revisar." },
   { selector: '[data-tour="mio-resumen-pago"]', titulo: "Cómo va tu pago",
     texto: "Un estimado en vivo, con lo marcado hasta hoy. No es tu boleta final hasta que cierre el periodo." },
-  { selector: '[data-tour="mio-resumen-semana"]', titulo: "Tu semana",
-    texto: "Cuántas horas llevas trabajadas en tu semana actual." },
-  { selector: '[data-tour="mio-resumen-vacaciones"]', titulo: "Tus vacaciones",
-    texto: "Tus días pendientes, y si alguno está por vencer." },
   { selector: '[data-tour="mio-resumen-turno"]', titulo: "Tu próximo turno",
     texto: "Tu horario y el próximo feriado que le toca a tu sede." },
-  { selector: '[data-tour="mio-resumen-objetivos"]', titulo: "Tus objetivos",
-    texto: "Los conversa contigo tu líder de equipo. Aquí solo ves el avance." },
 ];
+
+/**
+ * Qué secciones tienen guía, y cuál. Una sección que no está aquí no tiene guía
+ * y `usePuertaDeModulo` lo sabe (no hay capa de guía que esperar). Se agregan de
+ * a una, cada una con sus propios pasos y sus anclas `data-tour`; el
+ * identificador del recorrido es `mio-<sección>`, que para Resumen es
+ * `mio-resumen`, la llave que ya existe en los navegadores.
+ */
+const SIN_GUIA: readonly PasoRecorrido[] = [];
+const GUIAS_POR_SECCION: Partial<Record<Tab, readonly PasoRecorrido[]>> = {
+  resumen: PASOS_TOUR_RESUMEN,
+  objetivos: PASOS_GUIA_OBJETIVOS,
+  reportes: PASOS_GUIA_REPORTES,
+  historial: PASOS_GUIA_HISTORIAL,
+  contrato: PASOS_GUIA_CONTRATO,
+  firma: PASOS_GUIA_FIRMA,
+  dni: PASOS_GUIA_DNI,
+  seguro: PASOS_GUIA_SEGURO,
+  datos: PASOS_GUIA_DATOS,
+  boletas: PASOS_GUIA_BOLETAS,
+  movilidad: PASOS_GUIA_MOVILIDAD,
+  educacion: PASOS_GUIA_EDUCACION,
+  dias: PASOS_GUIA_DIAS,
+  turnos: PASOS_GUIA_TURNOS,
+  ausencias: PASOS_GUIA_AUSENCIAS,
+  disciplina: PASOS_GUIA_DISCIPLINA,
+};
 
 /**
  * Lo mínimo para saber si tiene contrato y a dónde llevarla a verlo. El texto
@@ -1419,7 +1441,16 @@ export default function MioPage() {
   // el hook solo necesita saber SI ya hay una persona cargada, no memorizar el
   // objeto entero — comparado por referencia, `yo` cambia en cada refetch
   // aunque los datos sean los mismos, y reiniciaría el efecto sin motivo.
-  useRecorridoGuiado("mio-resumen", PASOS_TOUR_RESUMEN, tab === "resumen" && Boolean(yo));
+  //
+  // «Términos primero, guía después» (2026-10-19): la guía solo arranca cuando
+  // `capaActiva` dice que le toca — es decir, cuando ya no hay unos términos por
+  // delante. Con todos los textos en borrador (hoy) no los hay y esto es
+  // exactamente lo de antes. Ver lib/use-puerta-de-modulo.ts.
+  const pasosDeGuia = GUIAS_POR_SECCION[tab] ?? SIN_GUIA;
+  const puerta = usePuertaDeModulo(tab, pasosDeGuia.length > 0, Boolean(yo));
+  const { iniciar: verGuia } = useRecorridoGuiado(
+    `mio-${tab}`, pasosDeGuia, Boolean(yo) && puerta.capa === "guia",
+  );
 
   /** Desde un aviso de arriba hasta el día concreto del que habla. */
   function abrirDia(fecha: string) {
@@ -1737,6 +1768,16 @@ export default function MioPage() {
                   En CAYLA desde {mesYAnio(yo.fechaIngreso)} · {antiguedad(yo.fechaIngreso)}
                 </p>
               )}
+              {/* Para quien omitió la guía y la quiere de nuevo. Un texto y no un botón:
+                  es una ayuda, no una acción de esta pantalla. Es el ÚNICO enlace de «Ver
+                  guía»: esta cabecera se ve en todas las secciones, `verGuia` lanza la de
+                  la que se está mirando, y en una sección sin guía no sale. */}
+              {yo && pasosDeGuia.length > 0 && (
+                <button type="button" onClick={verGuia}
+                  className="mt-1 text-xs text-taupe underline underline-offset-2 transition-colors hover:text-tinta">
+                  Ver guía de esta pantalla
+                </button>
+              )}
             </div>
           </div>
 
@@ -1805,7 +1846,7 @@ export default function MioPage() {
               </Link>
             )}
             {yo && (
-              <Link href="/mio/editar"
+              <Link href="/mio/editar" data-tour="mio-editar-datos"
                 className="flex items-center justify-center whitespace-nowrap rounded-control border border-sand px-3 py-2 text-sm text-tinta transition-colors hover:bg-hueso">
                 Editar datos
               </Link>
@@ -1827,6 +1868,7 @@ export default function MioPage() {
           salarial y a PODER PROBARLO, y el reglamento interno igual. Un acuse
           que no le llega a su destinataria no prueba nada. */}
       <AcusesPendientes />
+      <PuertaDeModuloVista puerta={puerta} onSalir={() => cambiarSeccion("resumen")} />
 
       {/* El mes de su cumpleaños, del día 1 al último y en cualquier sección,
           para TODO el mundo — también para quien la base le contestaba
@@ -2091,7 +2133,7 @@ export default function MioPage() {
               está porque es el tramo con el que se le paga —del 29 al 28, leído
               de la base y nunca calculado— y es contra el que va a querer cuadrar
               su boleta. */}
-          <section className="mb-5 flex flex-wrap items-end gap-3 rounded-2xl border border-sand px-4 py-3">
+          <section data-tour="mio-dias-filtro" className="mb-5 flex flex-wrap items-end gap-3 rounded-2xl border border-sand px-4 py-3">
             <Campo etiqueta="Desde" type="date" value={desde} max={hasta} onChange={(e) => setDesde(e.target.value)} />
             <Campo etiqueta="Hasta" type="date" value={hasta} min={desde} max={hoyLima()} onChange={(e) => setHasta(e.target.value)} />
             <div className="flex flex-wrap gap-2">
@@ -2113,7 +2155,7 @@ export default function MioPage() {
               No se pudieron calcular tus días y horas de este rango — ver el aviso de arriba.
             </div>
           ) : (
-            <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div data-tour="mio-dias-cifras" className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
               <Tarjeta titulo="Días trabajados" valor={String(resumen.trabajados)}
                 pie={resumen.diasEsperados > 0 ? `de ${resumen.diasEsperados} que te tocaban` : "sin horario cargado"} />
               <Tarjeta titulo="Total de horas" valor={comoReloj(resumen.total)}
@@ -2130,7 +2172,7 @@ export default function MioPage() {
               Un cuadrito por día, con los MISMOS colores que ve su encargada. Que
               las dos vean el mismo día del mismo color es lo que les deja hablar
               de él sin traducirse la una a la otra. */}
-          <section className="mb-5 rounded-2xl border border-sand p-5">
+          <section data-tour="mio-dias-mes" className="mb-5 rounded-2xl border border-sand p-5">
             <h2 className="mb-3 font-serif text-lg">Tu mes</h2>
             {cargando ? <p className="text-sm text-taupe">Cargando…</p>
               : noSePudo.length > 0 ? (
@@ -2343,7 +2385,7 @@ export default function MioPage() {
 
       {/* ── MIS TURNOS ───────────────────────────────────────────────────── */}
       {tab === "turnos" && (
-        <section className="rounded-2xl border border-sand p-5">
+        <section data-tour="mio-turnos-seccion" className="rounded-2xl border border-sand p-5">
           <h2 className="mb-1 font-serif text-lg">Cuándo te toca</h2>
           <p className="mb-3 text-sm text-taupe">Tus próximos días de trabajo, de hoy en adelante.</p>
           {proximos.length === 0 ? (
@@ -2351,7 +2393,7 @@ export default function MioPage() {
               No hay turnos ni horario cargados para los próximos días. Si eso no es lo que esperabas, avísale a tu líder de equipo.
             </p>
           ) : (
-            <ul className="flex flex-wrap gap-2">
+            <ul data-tour="mio-turnos-proximos" className="flex flex-wrap gap-2">
               {proximos.map(({ fecha, esperado }) => (
                 <li key={fecha}
                   className={`rounded-xl border px-3 py-2 ${fecha === hoyLima() ? "border-tinta bg-papel" : "border-sand"}`}>
@@ -2363,7 +2405,7 @@ export default function MioPage() {
             </ul>
           )}
           {feriados.length > 0 && (
-            <ul className="mt-4 space-y-1 border-t border-sand pt-3 text-sm">
+            <ul data-tour="mio-turnos-feriados" className="mt-4 space-y-1 border-t border-sand pt-3 text-sm">
               {feriados.map((f) => (
                 <li key={f.fecha} className="text-taupe">
                   Feriado: <strong className="text-tinta">{diaYMes(f.fecha)}</strong>, {f.nombre}.
@@ -2385,7 +2427,7 @@ export default function MioPage() {
           pestaña promete—, y nadie entendería por qué su encargada sigue viendo
           la anterior. */}
       {tab === "dni" && hayCampoDni && (
-        <section className="rounded-2xl border border-sand p-5">
+        <section data-tour="mio-dni-seccion" className="rounded-2xl border border-sand p-5">
           <h2 className="mb-1 font-serif text-lg">Tu DNI</h2>
           {/* Quién las ve NO es una frase de relleno: es una promesa sobre un
               documento de identidad, y tiene que decir la verdad. Decía «solo
@@ -2418,7 +2460,7 @@ export default function MioPage() {
           )}
 
           <form onSubmit={(e) => void enviarDni(e)}>
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div data-tour="mio-dni-caras" className="grid gap-3 sm:grid-cols-2">
               {CARAS_DNI.map((cara) => {
                 const elegido = dniElegido[cara.clave];
                 const urlGuardada = dniUrls[cara.clave];
@@ -2481,7 +2523,7 @@ export default function MioPage() {
                 se lee acá es lo que se guarda como constancia, palabra por
                 palabra — por eso el texto es una constante y no se arma en el
                 JSX. */}
-            <label className="mt-4 flex items-start gap-2 rounded-xl border border-sand bg-hueso p-3 text-xs leading-relaxed text-tinta">
+            <label data-tour="mio-dni-autorizacion" className="mt-4 flex items-start gap-2 rounded-xl border border-sand bg-hueso p-3 text-xs leading-relaxed text-tinta">
               <input
                 type="checkbox"
                 checked={aceptoDatos}
@@ -2534,7 +2576,7 @@ export default function MioPage() {
           0399 — no se construye el formulario de propuesta acá sin que
           Felipe lo pida. */}
       {tab === "datos" && (
-        <section className="rounded-2xl border border-sand p-5 text-sm">
+        <section data-tour="mio-datos-seccion" className="rounded-2xl border border-sand p-5 text-sm">
           <h2 className="mb-1 font-serif text-lg">Tus datos</h2>
           <p className="mb-4 text-taupe">
             Lo que Desarrollo Organizacional tiene registrado de ti. Si algo está mal o falta, avísales — esta
@@ -2543,7 +2585,7 @@ export default function MioPage() {
           {!misDatos ? (
             <p className="text-taupe">Cargando…</p>
           ) : (
-            <div className="space-y-5">
+            <div data-tour="mio-datos-bloques" className="space-y-5">
               <div>
                 <h3 className="mb-2 text-xs font-medium tracking-wide text-taupe uppercase">Identidad</h3>
                 <dl className="grid gap-x-4 gap-y-2 sm:grid-cols-3">
@@ -2667,7 +2709,7 @@ export default function MioPage() {
               empresa debe una indemnización (art. 23 del D. Leg. 713) y la persona
               se quedó sin su descanso — que es lo que de verdad importa acá. */}
           {vacas ? (
-            <section className="mb-5 rounded-2xl border border-sand p-5 text-sm">
+            <section data-tour="mio-ausencias-pedir" className="mb-5 rounded-2xl border border-sand p-5 text-sm">
               <h2 className="mb-3 font-serif text-lg">Pedir vacaciones</h2>
               <p className="mb-3 text-taupe">
                 Tienes <strong className="text-tinta">{vacas.dias_pendientes} días</strong> pendientes. Elige el rango y avisa —tu
@@ -2727,7 +2769,7 @@ export default function MioPage() {
               )}
             </section>
           ) : (
-            <section className="mb-5 rounded-2xl border border-sand p-5 text-sm text-taupe">
+            <section data-tour="mio-ausencias-pedir" className="mb-5 rounded-2xl border border-sand p-5 text-sm text-taupe">
               Todavía no te corresponden vacaciones. Se acumulan por año trabajado; si crees que ya te tocan,
               avísale a Desarrollo Organizacional.
             </section>
@@ -2737,7 +2779,7 @@ export default function MioPage() {
               «El descanso médico que presenté, ¿quedó registrado?» es una pregunta
               que hoy se responde preguntando. Y el aviso del documento que falta la
               protege a ella: sin documento, ese permiso no cuenta igual. */}
-          <section className="rounded-2xl border border-sand p-5">
+          <section data-tour="mio-ausencias-lista" className="rounded-2xl border border-sand p-5">
             {/* Incluye las vacaciones: la vista `vacaciones` no es otra tabla,
                 es un SELECT sobre `ausencias` con tipo='vacaciones'. Consultarla
                 aparte traería las mismas filas dos veces. */}
@@ -2777,7 +2819,7 @@ export default function MioPage() {
           Solo dice si tiene uno y lleva a verlo. El documento en sí —que se
           imprime— vive en /mio/contrato, mismo criterio que la boleta. */}
       {tab === "contrato" && (
-        <section className="rounded-2xl border border-sand p-5 text-sm">
+        <section data-tour="mio-contrato-seccion" className="rounded-2xl border border-sand p-5 text-sm">
           <h2 className="mb-1 font-serif text-lg">Tu contrato</h2>
           {!contratoCargado ? (
             <p className="text-taupe">Cargando…</p>
@@ -2803,7 +2845,7 @@ export default function MioPage() {
                   : "Pendiente de firma."}
               </p>
               <Link
-                href="/mio/contrato"
+                href="/mio/contrato" data-tour="mio-contrato-ver"
                 className="mt-3 inline-block text-tinta underline underline-offset-2 hover:text-rojo-profundo"
               >
                 Ver mi contrato →
@@ -2835,7 +2877,7 @@ export default function MioPage() {
           El formulario en sí vive en /mio/movilidad, mismo criterio que el
           contrato de arriba. */}
       {tab === "movilidad" && (
-        <section className="rounded-2xl border border-sand p-5 text-sm">
+        <section data-tour="mio-movilidad-seccion" className="rounded-2xl border border-sand p-5 text-sm">
           <h2 className="mb-1 font-serif text-lg">Tu declaración de ruta</h2>
           {!miMovilidadCargada ? (
             <p className="text-taupe">Cargando…</p>
@@ -2860,7 +2902,7 @@ export default function MioPage() {
                       : "Todavía te falta firmarla."}
               </p>
               <Link
-                href="/mio/movilidad"
+                href="/mio/movilidad" data-tour="mio-movilidad-ir"
                 className="mt-3 inline-block text-tinta underline underline-offset-2 hover:text-rojo-profundo"
               >
                 Ir a mi declaración de ruta →
@@ -2885,14 +2927,16 @@ export default function MioPage() {
           anticipación — en cuanto DO genere el contrato, la firma ya está
           lista sin que haga falta volver a hacer nada. */}
       {tab === "firma" && (
-        <section className="rounded-2xl border border-sand p-5">
+        <section data-tour="mio-firma-seccion" className="rounded-2xl border border-sand p-5">
           <h2 className="mb-1 font-serif text-lg">Mi firma</h2>
           <p className="mb-3 text-sm text-taupe">
             Aparecerá en tu contrato de trabajo, en tu propio apartado. Si además firmas documentos por la
             empresa (memos, política salarial), es la misma firma la que se usa ahí.
           </p>
           {yo ? (
-            <FirmaEditor supabase={supabase} nombreOficial={yo.nombreOficial} avisar={avisar} />
+            <div data-tour="mio-firma-editor">
+              <FirmaEditor supabase={supabase} nombreOficial={yo.nombreOficial} avisar={avisar} />
+            </div>
           ) : (
             <p className="text-sm text-taupe">Cargando…</p>
           )}
@@ -2904,7 +2948,7 @@ export default function MioPage() {
           razón por la que valen. Sin lenguaje de premio — desde la 0171 los
           objetivos NO pagan, así que nada de «plus» ni de verde de recompensa. */}
       {tab === "objetivos" && (
-        <section className="rounded-2xl border border-sand p-5">
+        <section data-tour="mio-objetivos-seccion" className="rounded-2xl border border-sand p-5">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <h2 className="font-serif text-lg">Tus objetivos de {mesLabel}</h2>
             {objetivos.length > 0 && (
@@ -2921,7 +2965,7 @@ export default function MioPage() {
                 <div className="h-full rounded-full bg-verde"
                   style={{ width: `${Math.round((objCumplidos / objetivos.length) * 100)}%` }} />
               </div>
-              <ul className="space-y-1.5 text-sm">
+              <ul data-tour="mio-objetivos-lista" className="space-y-1.5 text-sm">
                 {objetivos.map((o) => (
                   <li key={o.id} className="flex items-start gap-2">
                     <span className={o.cumplido ? "text-verde" : "text-taupe/50"}>{o.cumplido ? "✓" : "○"}</span>
@@ -3242,7 +3286,7 @@ function TusUltimosPeriodos({ personaId }: { personaId: string }) {
   if (!periodos || periodos.length < 2) return null;   // una tendencia necesita al menos dos puntos
 
   return (
-    <section className="mt-5 rounded-2xl border border-sand p-5 text-sm">
+    <section data-tour="mio-historial-periodos" className="mt-5 rounded-2xl border border-sand p-5 text-sm">
       <h2 className="mb-1 font-serif text-lg">Tus últimos periodos</h2>
       <p className="mb-3 text-taupe">
         Sin montos: un periodo ya cerrado puede tener su foto de pago desactualizada — para eso está tu boleta.

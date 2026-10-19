@@ -82,7 +82,7 @@ export function CambiosMios({
   const ultima = Math.min((pagina + 1) * POR_PAGINA, total ?? 0);
 
   return (
-    <details className="group rounded-2xl border border-sand text-sm">
+    <details data-tour="mio-historial-cambios" className="group rounded-2xl border border-sand text-sm">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-5 [&::-webkit-details-marker]:hidden">
         <span className="min-w-0">
           <span className="block font-serif text-lg">Cambios a tu registro</span>
