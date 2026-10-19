@@ -10,6 +10,7 @@ import { BoletasMias } from "./boletas/boletas-mias";
 import { ReportesMios } from "./reportes/reportes-mios";
 import { CambiosMios } from "./cambios-mios";
 import { DisciplinaMia, PASOS_GUIA_DISCIPLINA } from "./disciplina-mia";
+import { PASOS_GUIA_AUSENCIAS, PASOS_GUIA_DIAS, PASOS_GUIA_TURNOS } from "./guias-de-asistencia";
 import { SaludoCumpleanos } from "./saludo-cumpleanos";
 import { cuantosPiden, porLeer, type CuentaMia, type DocMio } from "@/lib/mio-disciplina";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
@@ -300,6 +301,9 @@ const PASOS_TOUR_RESUMEN: readonly PasoRecorrido[] = [
 const SIN_GUIA: readonly PasoRecorrido[] = [];
 const GUIAS_POR_SECCION: Partial<Record<Tab, readonly PasoRecorrido[]>> = {
   resumen: PASOS_TOUR_RESUMEN,
+  dias: PASOS_GUIA_DIAS,
+  turnos: PASOS_GUIA_TURNOS,
+  ausencias: PASOS_GUIA_AUSENCIAS,
   disciplina: PASOS_GUIA_DISCIPLINA,
 };
 
@@ -1749,10 +1753,10 @@ export default function MioPage() {
                 </p>
               )}
               {/* Para quien omitió la guía y la quiere de nuevo. Un texto y no un botón:
-                  es una ayuda, no una acción de esta pantalla. Solo en Resumen: esta
-                  cabecera se ve en todas las secciones, y `verGuia` lanza la de la sección
-                  que se está mirando —cada una trae su propio enlace—. */}
-              {yo && tab === "resumen" && (
+                  es una ayuda, no una acción de esta pantalla. Es el ÚNICO enlace de «Ver
+                  guía»: esta cabecera se ve en todas las secciones, `verGuia` lanza la de
+                  la que se está mirando, y en una sección sin guía no sale. */}
+              {yo && pasosDeGuia.length > 0 && (
                 <button type="button" onClick={verGuia}
                   className="mt-1 text-xs text-taupe underline underline-offset-2 transition-colors hover:text-tinta">
                   Ver guía de esta pantalla
@@ -2113,7 +2117,7 @@ export default function MioPage() {
               está porque es el tramo con el que se le paga —del 29 al 28, leído
               de la base y nunca calculado— y es contra el que va a querer cuadrar
               su boleta. */}
-          <section className="mb-5 flex flex-wrap items-end gap-3 rounded-2xl border border-sand px-4 py-3">
+          <section data-tour="mio-dias-filtro" className="mb-5 flex flex-wrap items-end gap-3 rounded-2xl border border-sand px-4 py-3">
             <Campo etiqueta="Desde" type="date" value={desde} max={hasta} onChange={(e) => setDesde(e.target.value)} />
             <Campo etiqueta="Hasta" type="date" value={hasta} min={desde} max={hoyLima()} onChange={(e) => setHasta(e.target.value)} />
             <div className="flex flex-wrap gap-2">
@@ -2135,7 +2139,7 @@ export default function MioPage() {
               No se pudieron calcular tus días y horas de este rango — ver el aviso de arriba.
             </div>
           ) : (
-            <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div data-tour="mio-dias-cifras" className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
               <Tarjeta titulo="Días trabajados" valor={String(resumen.trabajados)}
                 pie={resumen.diasEsperados > 0 ? `de ${resumen.diasEsperados} que te tocaban` : "sin horario cargado"} />
               <Tarjeta titulo="Total de horas" valor={comoReloj(resumen.total)}
@@ -2152,7 +2156,7 @@ export default function MioPage() {
               Un cuadrito por día, con los MISMOS colores que ve su encargada. Que
               las dos vean el mismo día del mismo color es lo que les deja hablar
               de él sin traducirse la una a la otra. */}
-          <section className="mb-5 rounded-2xl border border-sand p-5">
+          <section data-tour="mio-dias-mes" className="mb-5 rounded-2xl border border-sand p-5">
             <h2 className="mb-3 font-serif text-lg">Tu mes</h2>
             {cargando ? <p className="text-sm text-taupe">Cargando…</p>
               : noSePudo.length > 0 ? (
@@ -2365,7 +2369,7 @@ export default function MioPage() {
 
       {/* ── MIS TURNOS ───────────────────────────────────────────────────── */}
       {tab === "turnos" && (
-        <section className="rounded-2xl border border-sand p-5">
+        <section data-tour="mio-turnos-seccion" className="rounded-2xl border border-sand p-5">
           <h2 className="mb-1 font-serif text-lg">Cuándo te toca</h2>
           <p className="mb-3 text-sm text-taupe">Tus próximos días de trabajo, de hoy en adelante.</p>
           {proximos.length === 0 ? (
@@ -2373,7 +2377,7 @@ export default function MioPage() {
               No hay turnos ni horario cargados para los próximos días. Si eso no es lo que esperabas, avísale a tu líder de equipo.
             </p>
           ) : (
-            <ul className="flex flex-wrap gap-2">
+            <ul data-tour="mio-turnos-proximos" className="flex flex-wrap gap-2">
               {proximos.map(({ fecha, esperado }) => (
                 <li key={fecha}
                   className={`rounded-xl border px-3 py-2 ${fecha === hoyLima() ? "border-tinta bg-papel" : "border-sand"}`}>
@@ -2385,7 +2389,7 @@ export default function MioPage() {
             </ul>
           )}
           {feriados.length > 0 && (
-            <ul className="mt-4 space-y-1 border-t border-sand pt-3 text-sm">
+            <ul data-tour="mio-turnos-feriados" className="mt-4 space-y-1 border-t border-sand pt-3 text-sm">
               {feriados.map((f) => (
                 <li key={f.fecha} className="text-taupe">
                   Feriado: <strong className="text-tinta">{diaYMes(f.fecha)}</strong>, {f.nombre}.
@@ -2689,7 +2693,7 @@ export default function MioPage() {
               empresa debe una indemnización (art. 23 del D. Leg. 713) y la persona
               se quedó sin su descanso — que es lo que de verdad importa acá. */}
           {vacas ? (
-            <section className="mb-5 rounded-2xl border border-sand p-5 text-sm">
+            <section data-tour="mio-ausencias-pedir" className="mb-5 rounded-2xl border border-sand p-5 text-sm">
               <h2 className="mb-3 font-serif text-lg">Pedir vacaciones</h2>
               <p className="mb-3 text-taupe">
                 Tienes <strong className="text-tinta">{vacas.dias_pendientes} días</strong> pendientes. Elige el rango y avisa —tu
@@ -2749,7 +2753,7 @@ export default function MioPage() {
               )}
             </section>
           ) : (
-            <section className="mb-5 rounded-2xl border border-sand p-5 text-sm text-taupe">
+            <section data-tour="mio-ausencias-pedir" className="mb-5 rounded-2xl border border-sand p-5 text-sm text-taupe">
               Todavía no te corresponden vacaciones. Se acumulan por año trabajado; si crees que ya te tocan,
               avísale a Desarrollo Organizacional.
             </section>
@@ -2759,7 +2763,7 @@ export default function MioPage() {
               «El descanso médico que presenté, ¿quedó registrado?» es una pregunta
               que hoy se responde preguntando. Y el aviso del documento que falta la
               protege a ella: sin documento, ese permiso no cuenta igual. */}
-          <section className="rounded-2xl border border-sand p-5">
+          <section data-tour="mio-ausencias-lista" className="rounded-2xl border border-sand p-5">
             {/* Incluye las vacaciones: la vista `vacaciones` no es otra tabla,
                 es un SELECT sobre `ausencias` con tipo='vacaciones'. Consultarla
                 aparte traería las mismas filas dos veces. */}
@@ -2988,7 +2992,7 @@ export default function MioPage() {
         <DisciplinaMia
           supabase={supabase} personaId={yo.id}
           docs={miDisciplina} error={miDisciplinaError} cuenta={miCuenta}
-          onCambio={() => void cargarMiDisciplina()} onVerGuia={verGuia}
+          onCambio={() => void cargarMiDisciplina()}
         />
       )}
 

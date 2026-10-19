@@ -77,7 +77,7 @@ export const PASOS_GUIA_DISCIPLINA: readonly PasoRecorrido[] = [
 const SIN_DETALLE = "No se pudo abrir el documento ahora. Vuelve a intentarlo en un rato; si sigue, avisa a tu líder de equipo.";
 
 export function DisciplinaMia({
-  supabase, personaId, docs, error, cuenta, onCambio, onVerGuia,
+  supabase, personaId, docs, error, cuenta, onCambio,
 }: {
   supabase: Cliente;
   personaId: string;
@@ -87,8 +87,6 @@ export function DisciplinaMia({
   cuenta: CuentaMia | null;
   /** Recargar la lista (y con ella el menú y el Resumen) después de leer o firmar. */
   onCambio: () => void;
-  /** Vuelve a lanzar la guía de esta pantalla. */
-  onVerGuia?: () => void;
 }) {
   const { avisar } = useToast();
   const [pagina, setPagina] = useState(0);
@@ -146,12 +144,6 @@ export function DisciplinaMia({
       <header data-tour="mio-disciplina-header">
         <h2 className="font-serif text-lg">Disciplina</h2>
         <p className="text-taupe">Lo que consta en tu legajo y cómo vas este mes.</p>
-        {onVerGuia && (
-          <button type="button" onClick={onVerGuia}
-            className="mt-1 text-xs text-taupe underline underline-offset-2 transition-colors hover:text-tinta">
-            Ver guía de esta pantalla
-          </button>
-        )}
       </header>
 
       {error ? (
