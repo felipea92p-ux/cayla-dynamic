@@ -35,11 +35,16 @@ import { esRolEncargada, etiquetaDeSede, hoyLima, puedeVerTodasLasSedes } from "
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { Cargando, EsqueletoSecciones } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
+import { BannerAviso } from "@/components/ui/banner-aviso";
+import { Cifra } from "@/components/ui/cifra";
+import { EstadoVacio } from "@/components/ui/estado-vacio";
+import { Filtro } from "@/components/ui/filtro";
+import { TarjetaInfo } from "@/components/ui/tarjeta-info";
 import { Campo, CampoSelect } from "@/components/ui/campo";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
 import { Insignia } from "@/components/ui/insignia";
 import { Modal } from "@/components/ui/modal";
-import { TablaEncabezado, Th } from "@/components/ui/tabla";
+import { Tabla, TablaEncabezado, Th, Fila } from "@/components/ui/tabla";
 import { cx } from "@/components/ui/cx";
 import { traerTodo } from "@/lib/admin/traer-todo";
 import { crearCargaVigente } from "@/lib/admin/carga-vigente";
@@ -503,7 +508,7 @@ function IncidenciasContenido() {
         />
 
         {mostrarReglas && (
-          <section className="-mt-4 rounded-superficie border border-sand bg-papel p-5">
+          <TarjetaInfo como="section" className="-mt-4">
             <dl className="grid gap-x-8 gap-y-4 text-sm md:grid-cols-2">
               {REGLAS_EN_ORDEN.map((r) => (
                 <div key={r.titulo} className="flex flex-col gap-1">
@@ -517,15 +522,14 @@ function IncidenciasContenido() {
               cierres del día. Patrones, excesos de jornada, días sin descanso y déficit de líderes se miden sobre
               ventanas fijas desde hoy, porque describen la situación actual de la persona, no un rango histórico.
             </p>
-          </section>
+          </TarjetaInfo>
         )}
 
         {/* ── Lo que tu equipo pidió revisar ────────────────────────────
             Primero, y no por orden alfabético: es la única lista que no generó
             el sistema, sino una persona que estuvo ahí ese día. */}
         {revisiones.length > 0 && (
-          <section className="rounded-superficie border border-tinta/25 bg-papel p-5">
-            <h2 className="mb-1 font-serif text-lg">Tu equipo pidió revisar {revisiones.length} día{revisiones.length === 1 ? "" : "s"}</h2>
+          <TarjetaInfo como="section" titulo={<>Tu equipo pidió revisar {revisiones.length} día{revisiones.length === 1 ? "" : "s"}</>}>
             <p className="mb-4 text-sm text-taupe">
               Lo escribieron desde «Lo mío». Corrige el día en Correcciones si hace falta y cierra acá diciendo en qué
               quedó: esa respuesta la va a leer la persona.
@@ -557,16 +561,16 @@ function IncidenciasContenido() {
                 </li>
               ))}
             </ul>
-          </section>
+          </TarjetaInfo>
         )}
 
         {/* Tope de 12 meses del convenio de prácticas: se revisa en Contratos. */}
         {practicantesSobreTope.length > 0 && (
-          <section className="rounded-superficie border border-ambar/40 bg-ambar/5 p-5">
-            <h2 className="mb-1 font-serif text-lg">
-              {practicantesSobreTope.length} convenio{practicantesSobreTope.length === 1 ? "" : "s"} de prácticas en el tope de 12 meses
-            </h2>
-            <p className="mb-3 text-sm text-taupe">
+          <BannerAviso
+            variante="advertencia"
+            titulo={<>{practicantesSobreTope.length} convenio{practicantesSobreTope.length === 1 ? "" : "s"} de prácticas en el tope de 12 meses</>}
+          >
+            <p className="mb-3 text-taupe">
               Ley 28518, art. 30: pasado el tope, la relación arriesga considerarse desnaturalizada, aunque siga
               viniendo con normalidad. Se revisa en Contratos, no acá.
             </p>
@@ -583,49 +587,40 @@ function IncidenciasContenido() {
                 </li>
               ))}
             </ul>
-          </section>
+          </BannerAviso>
         )}
 
         {/* ── Resumen: cuántos y de qué ──────────────────────────────────── */}
-        <div className="grid grid-cols-2 overflow-hidden rounded-superficie border border-sand bg-papel md:grid-cols-5">
-          <button
-            type="button"
-            aria-pressed={categoria === "" && estadoFiltro === "por_revisar"}
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+          <Cifra
+            className="col-span-2 md:col-span-1"
+            etiqueta="Por revisar"
+            valor={cargando ? "—" : porRevisar.length}
+            detalle={
+              (!cargando && (resueltas > 0 || carga.duras.length > 0)) ? (
+                <>
+                  {resueltas > 0 && <>{resueltas} ya resuelta{resueltas === 1 ? "" : "s"}</>}
+                  {resueltas > 0 && carga.duras.length > 0 && " · "}
+                  {carga.duras.length > 0 && "incompleto"}
+                </>
+              ) : undefined
+            }
+            activa={categoria === "" && estadoFiltro === "por_revisar"}
             onClick={() => { setCategoria(""); setEstadoFiltro("por_revisar"); }}
-            className={cx(
-              "col-span-2 flex flex-col items-start gap-1 border-b border-sand px-5 py-4 text-left transition-colors md:col-span-1 md:border-b-0",
-              categoria === "" && estadoFiltro === "por_revisar" ? "bg-hueso" : "hover:bg-crema/60",
-            )}
-          >
-            <span className="font-serif text-4xl leading-none tabular-nums text-tinta">{cargando ? "—" : porRevisar.length}</span>
-            <span className="text-sm text-taupe">
-              por revisar{!cargando && resueltas > 0 && <> · {resueltas} ya resuelta{resueltas === 1 ? "" : "s"}</>}
-              {!cargando && carga.duras.length > 0 && <> · incompleto</>}
-            </span>
-          </button>
-          {CATEGORIAS.map((c, idx) => {
+          />
+          {CATEGORIAS.map((c) => {
             const n = porRevisar.filter((i) => i.categoria === c.clave).length;
             const activa = categoria === c.clave;
+            const sinComprobar = !cargando && carga.categoriasSinComprobar.has(c.clave);
             return (
-              <button
+              <Cifra
                 key={c.clave}
-                type="button"
-                aria-pressed={activa}
+                etiqueta={c.etiqueta}
+                valor={cargando || carga.categoriasSinComprobar.has(c.clave) ? "—" : n}
+                detalle={sinComprobar ? "sin comprobar" : undefined}
+                activa={activa}
                 onClick={() => { setCategoria(activa ? "" : c.clave); if (!activa) setEstadoFiltro("por_revisar"); }}
-                className={cx(
-                  "flex flex-col items-start gap-1 border-sand px-5 py-4 text-left transition-colors md:border-l",
-                  idx % 2 === 1 && "border-l",
-                  idx < 2 && "border-b md:border-b-0",
-                  activa ? "bg-hueso" : "hover:bg-crema/60",
-                )}
-              >
-                <span className="font-serif text-3xl leading-none tabular-nums text-tinta">
-                  {cargando || carga.categoriasSinComprobar.has(c.clave) ? "—" : n}
-                </span>
-                <span className="text-sm text-taupe">
-                  {c.etiqueta}{!cargando && carga.categoriasSinComprobar.has(c.clave) && <> · sin comprobar</>}
-                </span>
-              </button>
+              />
             );
           })}
         </div>
@@ -663,18 +658,9 @@ function IncidenciasContenido() {
           <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
             <div role="group" aria-label="Periodo" className="flex flex-wrap gap-1.5">
               {PERIODOS.map((p) => (
-                <button
-                  key={p.clave}
-                  type="button"
-                  aria-pressed={periodo === p.clave}
-                  onClick={() => elegirPeriodo(p.clave)}
-                  className={cx(
-                    "rounded-pildora border px-3 py-1.5 text-sm transition-colors",
-                    periodo === p.clave ? "border-tinta bg-tinta text-crema" : "border-sand text-taupe hover:text-tinta",
-                  )}
-                >
+                <Filtro key={p.clave} activo={periodo === p.clave} onClick={() => elegirPeriodo(p.clave)}>
                   {p.etiqueta}
-                </button>
+                </Filtro>
               ))}
             </div>
             <div className="flex items-end gap-2">
@@ -691,56 +677,58 @@ function IncidenciasContenido() {
         </div>
 
         {personaFiltro && (
-          <div className="flex flex-wrap items-center justify-between gap-2 rounded-control border border-sand bg-papel px-4 py-2.5 text-sm">
-            <span>
-              {nombreFiltro
-                ? <>Mostrando solo las incidencias de <strong>{nombreFiltro}</strong>.</>
-                : "La persona seleccionada no tiene incidencias en este periodo."}
-            </span>
-            <Boton variante="enlace" className="shrink-0" onClick={() => router.push("/admin/incidencias")}>Ver todas →</Boton>
-          </div>
+          <BannerAviso enLinea variante="neutral">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span>
+                {nombreFiltro
+                  ? <>Mostrando solo las incidencias de <strong>{nombreFiltro}</strong>.</>
+                  : "La persona seleccionada no tiene incidencias en este periodo."}
+              </span>
+              <Boton variante="enlace" className="shrink-0" onClick={() => router.push("/admin/incidencias")}>Ver todas →</Boton>
+            </div>
+          </BannerAviso>
         )}
 
         {error && (
-          <div className="rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo-profundo">
+          <BannerAviso enLinea role="alert" variante="alerta">
             No se pudieron cargar las incidencias: {error}{" "}
             <Boton variante="enlace" onClick={() => void cargar()}>Reintentar</Boton>
-          </div>
+          </BannerAviso>
         )}
         {avisoLevantadas && (
-          <div className="rounded-control border border-ambar/30 bg-ambar/10 px-4 py-3 text-sm">
+          <BannerAviso enLinea>
             {avisoLevantadas}{" "}
             <Boton variante="enlace" onClick={() => void cargar()}>Reintentar</Boton>
-          </div>
+          </BannerAviso>
         )}
         {carga.faltantes.length > 0 && (
-          <div className="rounded-control border border-ambar/30 bg-ambar/10 px-4 py-3 text-sm">
-            <strong className="font-medium">No se pudo comprobar {enFrase(carga.faltantes)}.</strong>{" "}
+          <BannerAviso enLinea titulo={<>No se pudo comprobar {enFrase(carga.faltantes)}.</>}>
             {carga.duras.length > 0 && "Eso no significa que no haya nada. "}
             <Boton variante="enlace" onClick={() => void cargar()}>Reintentar</Boton>
-          </div>
+          </BannerAviso>
         )}
         {errorAccion && (
-          <div className="flex items-start gap-3 rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo-profundo">
-            <span className="flex-1">{errorAccion}</span>
-            <Boton variante="enlace" className="shrink-0" onClick={() => setErrorAccion(null)}>Entendido</Boton>
-          </div>
+          <BannerAviso enLinea role="alert" variante="alerta">
+            <div className="flex items-start gap-3">
+              <span className="flex-1">{errorAccion}</span>
+              <Boton variante="enlace" className="shrink-0" onClick={() => setErrorAccion(null)}>Entendido</Boton>
+            </div>
+          </BannerAviso>
         )}
 
         {cargando && incidencias.length === 0 && <EsqueletoSecciones anchos={["w-32", "w-24", "w-40", "w-12", "w-12", "w-20"]} />}
 
         {!cargando && !error && visibles.length === 0 && (
-          <div className="flex flex-col items-center gap-2 rounded-superficie border border-sand bg-papel px-6 py-10 text-center">
-            {/* «Todo revisado» afirma que se comprobó. Si una fuente dura falló, no se comprobó. */}
-            <p className="font-serif text-xl text-tinta">
-              {carga.duras.length > 0
-                ? `No se pudo comprobar ${enFrase(carga.duras)}.`
-                : hayFiltros ? "No hay incidencias con estos filtros." : "Todo revisado en este periodo."}
-            </p>
-            {hayFiltros
-              ? <Boton variante="enlace" className="text-sm text-taupe" onClick={limpiarFiltros}>Limpiar filtros</Boton>
-              : resueltas > 0 && <p className="text-sm text-taupe">Hay {resueltas} ya resuelta{resueltas === 1 ? "" : "s"}: elige «Ya resueltas» en Estado para verlas.</p>}
-          </div>
+          // «Todo revisado» afirma que se comprobó. Si una fuente dura falló, no se comprobó.
+          <EstadoVacio
+            accion={hayFiltros
+              ? <Boton variante="secundario" tamano="sm" onClick={limpiarFiltros}>Limpiar filtros</Boton>
+              : resueltas > 0 ? <p className="text-xs">Hay {resueltas} ya resuelta{resueltas === 1 ? "" : "s"}: elige «Ya resueltas» en Estado para verlas.</p> : undefined}
+          >
+            {carga.duras.length > 0
+              ? `No se pudo comprobar ${enFrase(carga.duras)}.`
+              : hayFiltros ? "No hay incidencias con estos filtros." : "Todo revisado en este periodo."}
+          </EstadoVacio>
         )}
 
         {/* ── Casos, por sede ────────────────────────────────────────────── */}
@@ -753,7 +741,7 @@ function IncidenciasContenido() {
             const elegidos = loteables.filter((i) => seleccion.has(i.clave));
             const idBloque = `incidencias-sede-${sede}`;
             return (
-              <section key={sede} className="overflow-clip rounded-superficie border border-sand bg-papel">
+              <TarjetaInfo como="section" key={sede} className="overflow-clip p-0 sm:p-0">
                 <h2>
                   <button
                     type="button"
@@ -818,13 +806,13 @@ function IncidenciasContenido() {
                           {casos.map((i) => {
                             const accion = accionDe(i);
                             return (
-                              <tr
+                              <Fila
                                 key={i.clave}
                                 tabIndex={0}
                                 aria-label={`${i.nombre}, ${i.titulo}, ${fechaCorta(i.fecha)}`}
                                 onClick={(e) => abrir(i, e.currentTarget)}
                                 onKeyDown={(e) => { if (e.key === "Enter" && e.target === e.currentTarget) abrir(i, e.currentTarget); }}
-                                className="cursor-pointer border-t border-sand transition-colors duration-150 hover:bg-crema/60 focus-visible:bg-crema/60"
+                                className="cursor-pointer focus-visible:bg-crema/60"
                               >
                                 {loteables.length > 0 && (
                                   <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
@@ -869,7 +857,7 @@ function IncidenciasContenido() {
                                     </Boton>
                                   )}
                                 </td>
-                              </tr>
+                              </Fila>
                             );
                           })}
                         </tbody>
@@ -925,7 +913,7 @@ function IncidenciasContenido() {
                     </ul>
                   </div>
                 )}
-              </section>
+              </TarjetaInfo>
             );
           })}
         </div>
@@ -941,8 +929,7 @@ function IncidenciasContenido() {
               {mostrarHistorial ? "Ocultar historial de vistos buenos" : `Ver historial de vistos buenos (${historial.length})`}
             </Boton>
             {mostrarHistorial && (
-              <div className="overflow-x-auto rounded-superficie border border-sand bg-papel">
-                <table className="w-full text-sm">
+              <Tabla>
                   <TablaEncabezado>
                     <Th>Persona</Th>
                     <Th>Fecha</Th>
@@ -952,7 +939,7 @@ function IncidenciasContenido() {
                   </TablaEncabezado>
                   <tbody>
                     {historial.map((h, idx) => (
-                      <tr key={`${h.persona_id}-${h.fecha}-${h.tipo}-${h.aceptado_at}-${idx}`} className="border-t border-sand">
+                      <Fila key={`${h.persona_id}-${h.fecha}-${h.tipo}-${h.aceptado_at}-${idx}`}>
                         <td className="px-4 py-2.5">
                           {`${h.personas?.nombres ?? ""} ${h.personas?.apellidos ?? ""}`.trim()}
                           <span className="text-taupe"> · {h.personas?.sedes?.codigo ?? "?"}</span>
@@ -976,11 +963,10 @@ function IncidenciasContenido() {
                             <Insignia variante="positivo">Vigente</Insignia>
                           )}
                         </td>
-                      </tr>
+                      </Fila>
                     ))}
                   </tbody>
-                </table>
-              </div>
+              </Tabla>
             )}
           </section>
         )}
