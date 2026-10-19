@@ -65,6 +65,9 @@ select is(
   (select count(*)::int from storage.buckets where id = 'polizas-seguro' and public is false and file_size_limit = 52428800),
   1, 'el bucket existe, es privado y limita a 50 MB por archivo');
 
+-- Las cuatro de DO, por nombre. Contar todo lo que empieza con `polizas_seguro_` dejó de
+-- servir con la 0530, que suma una de lectura propia para cada persona (la prueba 423
+-- cuenta las cinco y comprueba que esa sea solo de lectura).
 select is(
   (select count(*)::int from pg_policies where schemaname = 'storage'
       and policyname in ('polizas_seguro_insert', 'polizas_seguro_select', 'polizas_seguro_update', 'polizas_seguro_delete')),

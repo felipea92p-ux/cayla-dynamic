@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Inbox } from "lucide-react";
 import { ResumenEducacionMia } from "./educacion/resumen";
+import { MiSeguro } from "./seguro/mi-seguro";
 import { BoletasMias } from "./boletas/boletas-mias";
 import { ReportesMios } from "./reportes/reportes-mios";
 import { CambiosMios } from "./cambios-mios";
@@ -1941,7 +1942,7 @@ export default function MioPage() {
           )}
           {/* El periodo de pago. Sin montos: la boleta vive en su propia pantalla
               porque es un documento que se imprime, y el print de esta imprimiría
-              las quince secciones de arriba con él. */}
+              las dieciséis secciones de arriba con él. */}
           {periodo && estadoDelPeriodo ? (
             <TarjetaClave
               dataTour="mio-resumen-periodo"
@@ -2811,6 +2812,12 @@ export default function MioPage() {
           )}
         </section>
       )}
+
+      {/* ── MI SEGURO (0530) ─────────────────────────────────────────────────
+          En qué seguro está cada colaborador y, si lleva póliza, la póliza y sus
+          PDF. Es de todo el equipo: no se filtra por vínculo. El componente vive
+          aparte, como Educación, y pide sus datos cuando se abre. */}
+      {tab === "seguro" && <MiSeguro />}
 
       {/* ── BOLETAS (0482) ───────────────────────────────────────────────────
           Las boletas oficiales del contador, por periodo pagado. NO es
