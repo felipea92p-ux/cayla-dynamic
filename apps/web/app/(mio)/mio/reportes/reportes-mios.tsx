@@ -35,7 +35,7 @@ export function ReportesMios({ filas, error }: { filas: FilaMiReporte[] | null; 
   return (
     <section className="text-sm">
       <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
-        <div>
+        <div data-tour="mio-reportes-seccion">
           <h2 className="font-serif text-lg">Tus reportes</h2>
           <p className="mt-1 max-w-xl text-taupe">
             Cuéntanos algo que pasó con el equipo, con la empresa o con una clienta, propón una mejora o hazle una
@@ -44,7 +44,7 @@ export function ReportesMios({ filas, error }: { filas: FilaMiReporte[] | null; 
           </p>
         </div>
         <Link
-          href="/mio/reportes/nuevo"
+          href="/mio/reportes/nuevo" data-tour="mio-reportes-nuevo"
           className="rounded-control bg-tinta px-4 py-2 text-sm font-medium text-crema active:scale-[0.98]"
         >
           + Nuevo reporte
@@ -62,7 +62,7 @@ export function ReportesMios({ filas, error }: { filas: FilaMiReporte[] | null; 
       )}
 
       {filas && filas.length > 0 && (
-        <ul className="grid gap-2.5">
+        <ul data-tour="mio-reportes-lista" className="grid gap-2.5">
           {filas.map((f) => {
             const estado = etiquetaDeEstado(f.estado);
             return (
