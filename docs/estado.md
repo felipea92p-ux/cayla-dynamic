@@ -6,6 +6,186 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-10-17 — Seguros, etapa 2: «Mi seguro» en Lo mío, para TODO el equipo · migración 0530 · SQL SIN PEGAR · COMMITEADO, SIN PR · rama `claude/elegant-mayer-3e584e` (encima de la etapa 1)
+
+**Qué es.** Cada colaborador ve SU seguro en `/mio` → Documentos → «Mi seguro»: en cuál está hoy;
+si lleva póliza, su número, la aseguradora, hasta cuándo es vigente, el plan y el máximo anual **solo
+si el corredor ya los confirmó**, y el PDF de su póliza y de su convenio de pago para **abrir o
+descargar**. Quien está en EsSalud ve el nombre y que **se paga por planilla y no lleva póliza**;
+quien no tiene seguro principal (honorarios) ve que no tiene uno asignado. Se ven las pólizas de
+CUALQUIER seguro, también las del que tenía antes de cambiar. El «Cómo usar tu seguro» sale solo
+para el seguro que lo tiene (hoy FOLA) y solo mientras su póliza está vigente. Las secciones de Lo
+mío pasan a dieciséis.
+
+**Su historia, para que nadie la repita.** Se construyó primero acotada a los practicantes, sobre
+la primera 0528 (solo FOLA). Cuando Felipe hizo general el módulo, esa versión se descartó entera
+—nunca se pegó— y se rehízo sobre la 0528 nueva. Lo que cambió, y por qué importa: la puerta pasó
+de «hoy soy practicante» a **«es MI póliza»**. Con «hoy soy practicante», quien pasa de FOLA a
+EsSalud perdería el PDF de una póliza que sigue vigente hasta que la aseguradora procese la baja.
+
+**Traída la etapa 1 YA PUBLICADA (2026-10-17, por la tarde).** La rama se rehízo sobre `main` —la 0528
+final está pegada en producción y fusionada, PR #551— trayendo la rama de esta etapa encima: tres
+conflictos y ninguno de fondo.
+- `archivos-poliza.tsx`: se juntan los imports. Y se reconcilian dos textos que se contradecían: la
+  etapa 1 dejó una casilla «guardarlo también en las otras pólizas» que decía que el papel es uno y que
+  cada persona lo tiene en su ficha, y esta etapa hace que cada persona abra en «Lo mío» la póliza y el
+  convenio de SU póliza. **Cruce que importa:** en una póliza colectiva, copiar el PDF a todas las
+  pólizas lo pone al alcance de todas las personas aseguradas. Por eso ahora, en una póliza colectiva,
+  el aviso dice que cada persona verá lo que se suba como póliza o convenio de pago (todas, si se
+  copia a las demás) y que no lleve listas con el DNI o el sueldo de otras personas; y la casilla dice,
+  según el tipo, si cada persona lo abrirá o solo DO. «Otro papel» sigue sin copiarse.
+- La 422: gana la de `main` (la misma aserción #2, con su descripción al día). La #226, que fallaba en
+  esta Mac mientras la base local compartida tuviera los PDF de la demo en el bucket, ya no falla: la
+  422 de `main` cuenta solo sus propios archivos, y así se corrió.
+- `estado.md`: queda esta entrada arriba y la de la etapa 1 debajo; se quita el párrafo que decía que
+  esta etapa vivía en otra rama.
+Después se trajo `main` otra vez (PR #554: el freno de la «receta suelta»), que frenó el push por un
+«Cargando…» escrito a mano en `mi-seguro.tsx`; ahora usa `<Cargando />`.
+**Con la 0528 FINAL, la 0530 y las migraciones nuevas de `main` (0527, 0531, 0532 y 0533) aplicadas
+desde cero, en una transacción que se revierte: 422 = 308/308 y 423 = 108/108**, sin errores; `tsc` y
+las 2210 pruebas de `vitest` en verde; y los frenos del push, todos. «Mi seguro» se vio otra vez en el
+navegador contra la 0528 final (practicante con póliza vigente y una futura, EsSalud sin póliza,
+planilla con una póliza FOLA que le quedó; «Descargar» firma y baja `Poliza-FOLA-<número>.pdf`).
+
+**Antes, con la punta de entonces (`112bfcb3`, merge `91d9c583`, también 2026-10-17).** La
+revisión independiente de la etapa 1 movió dos cosas que me tocan, y ninguna cambió una firma:
+- **El número de una póliza ya no identifica a una persona.** El índice único lleva ahora
+  `persona_id`: una póliza colectiva (vida, EPS) puede repetir aseguradora, número y vigencia entre
+  personas distintas. `fn_mi_seguro` y `fn_mis_polizas` nunca emparejaron por número —todo es por
+  `poliza_id` y `persona_id`—, y ahora la **423 lo prueba** (sección I, 17 aserciones): dos personas
+  con la MISMA póliza ven una cada una, con solo su archivo, en las tres lecturas. Tres mutaciones
+  que emparejan por número la rompen. (Una renovación que conserva el número también repite
+  número dentro de una persona; tampoco se confunde.)
+- **La cobertura puede estar «suspendida»** (póliza vigente por fechas, prima sin pagar más de 30
+  días). La calcula la pantalla de DO con `estadoPrima`; la base no lo sabe. Por eso la tarjeta de
+  «Mi seguro» ya no dice «cubierto» (ver abajo).
+- El resto (bloqueos `for no key update`, límites de largo, la política de UPDATE de Storage) no me
+  toca. Mi única edición a un archivo de la etapa 1 sigue siendo la aserción #2 de la 422.
+
+**Qué toca.**
+- **0530**: `fn_mi_seguro()` (UNA fila: su seguro principal de hoy, llamando a
+  `fn_seguro_tipo_principal` de la 0528, sin repetir la regla), `fn_mis_polizas()` (sus pólizas con
+  los archivos que puede ver) y `fn_seguro_archivo_es_mio(text)` con UNA política de lectura en
+  Storage (`polizas_seguro_select_propia`). Las cuatro políticas de DO y `fn_seguro_archivo_libre` no
+  se tocan. No reescribe ninguna función: no hay md5 de partida. Se detiene sola, antes de tocar
+  nada, si la 0528 no está pegada. **No devuelve** la descripción del seguro (DO la edita y puede
+  llevar notas), ni la prima, ni el papeleo, ni la nota, ni el historial, ni los cambios de seguro,
+  ni el nombre con que DO subió cada archivo.
+- La pantalla (`app/(mio)/mio/seguro/mi-seguro.tsx`) y su lógica (`lib/mi-seguro.ts`).
+- **En la etapa 1:** el panel de archivos de DO decía «solo los ve Desarrollo Organizacional» sobre
+  los PDF, y con la 0530 dejó de ser cierto; ahora dice qué ve la persona, avisa al elegir el tipo
+  de archivo y pide subir a cada póliza solo el PDF de esa persona. Y una aserción de la 422 (la
+  que contaba «todo lo que empieza con `polizas_seguro_`», 4) nombra ahora las cuatro de DO.
+
+**Lo que decidió Felipe (2026-10-17):** los cuatro practicantes tienen cuenta y entran a Lo mío;
+pueden **abrir y descargar** su PDF; el módulo es de todo el equipo. **Decide él y está pendiente:**
+qué se le dice a quien está en EsSalud (ver abajo).
+
+**Lo que decidí sin preguntar, y es de Felipe cambiar:**
+- **Para EsSalud la pantalla dice solo lo que la base sabe:** «Tu seguro es EsSalud. Se paga por
+  planilla y no lleva póliza.» No se inventó ninguna explicación de EsSalud. **Texto provisional:
+  lo decide Felipe.**
+- **La tarjeta habla de la PÓLIZA, no de que la persona «esté cubierta».** Dice «Vigente», «Tu póliza
+  va hasta el… a las 12 M» y cierra con «Si la aseguradora te dice otra cosa, avisa a Desarrollo
+  Organizacional». Motivo: la cobertura puede estar suspendida por mora (la prima lleva más de 30 días
+  sin pagarse; convenio de pago, cláusula quinta) y eso la persona no lo ve —no sale la prima ni el
+  papeleo de DO—, ni la base lo sabe (`cubre_hoy` es solo de fechas). Decirle «tu póliza cubre» a
+  quien la tiene suspendida es mandarla a una clínica a que se lo nieguen; decirle «suspendida» por un
+  pago que DO todavía no marcó sería una falsa alarma sobre su salud. El cierre sirve para los dos
+  casos sin acusar a nadie. `tests/mi-seguro.test.ts` fija que DO dice «suspendida» y la persona
+  «vigente», y que ningún texto de la tarjeta contiene «cubre», «cubierto» ni «cobertura». **Si
+  Felipe prefiere avisarle de la suspensión:** una columna más en `fn_mi_seguro` y repetir en SQL la
+  regla de los 30 días, que hoy vive solo en TypeScript (`estadoPrima`); la 423 fija las listas de
+  columnas a propósito.
+- **El plan y el máximo anual aparecen en cuanto DO los carga** («Corregir datos»); mientras estén
+  vacíos no se pinta ni un «pendiente».
+- Ve el **convenio de pago** además de la póliza; la factura y «otro papel» son solo de DO.
+- **El texto de «Cómo usar tu seguro» salió del resumen que pasó la sesión de la etapa 1, no del
+  PDF** (esta sesión no lo tuvo). **Revisarlo contra las páginas 2 a 5 antes de que lo lean:** sobre
+  todo la carta de garantía («3 días útiles, salvo emergencia») y el reembolso («dentro de 90 días»,
+  sin decir desde cuándo). Va por la clave del seguro (`salud_practicantes`) en `lib/mi-seguro.ts`; el
+  día que haga falta una segunda guía, lo sano es una columna en `seguros_tipos`.
+- El archivo que se baja se llama `Poliza-FOLA-<número>.pdf` (el nombre del seguro y el número, sin
+  el nombre de la persona). En pantalla se rotula por su tipo, no por el nombre con que DO lo subió.
+
+**Pendiente, en este orden (Felipe).**
+1. **Pegar la 0530 ANTES de fusionar el PR** (la 0528 ya está pegada y fusionada, PR #551).
+   `./scripts/dame-el-sql.sh 530` (el número libre y `main` se vuelven a pedir en el mensaje que entrega
+   el SQL; la 0530 es el hueco entre la 0529 y la 0531, y la prueba 423 estaba libre). La consulta de
+   «ANTES DE PEGAR» de la cabecera espera la 0528 presente y nada de la 0530; **Retail vive en el mismo
+   proyecto (esquema `retail`)**, así que cualquier conteo de `pg_proc` por nombre puede traer una fila de más.
+2. **Subir a cada póliza solo el PDF de esa persona.** Si el archivo junta varias pólizas, cada
+   persona vería el DNI y la fecha de nacimiento de las otras, y la base no puede comprobarlo.
+3. **El texto de EsSalud** (arriba) y la revisión de la guía de FOLA contra el PDF.
+4. Con una cuenta real, apretar «Abrir» en un navegador de verdad y en un iPhone.
+5. La novedad lleva fecha 2026-10-17: si el PR se fusiona otro día, corregirla antes.
+6. La etapa 1 ya no se mueve (está fusionada y publicada): la 0530 se probó contra la 0528 que de
+   verdad está en producción. Lo que sí puede moverse es `main`: antes de entregar el SQL, volver a mirar
+   `git fetch` y la numeración, como siempre.
+
+**Qué se comprobó.** La 0530 aplicada en una transacción sobre el Postgres local y la prueba **423**
+(108 aserciones) en verde dentro de ella: practicante, otra practicante, planilla, honorarios, DO, una
+asignación de DO, un seguro complementario, quien ya cambió de seguro (conserva su póliza y su PDF),
+la cuenta de servicio y las sesiones sin ficha o sin identidad. Fija las dos listas de columnas,
+compara **archivo por archivo** lo que lista `fn_mis_polizas` con lo que Storage deja abrir, y
+compara «en qué seguro está», «si lo cubre hoy» y «cubre hoy» de cada póliza con lo que lee DO
+(`fn_seguros_equipo`, `fn_seguros_tablero`), y —sección I— que dos personas con la misma póliza
+colectiva no se mezclan. Se probó que SABE fallar con veinte mutaciones de la migración, las tres de
+emparejar por número incluidas —factura, archivo retirado, archivo de otra persona o póliza anulada visibles; la puerta de
+«hoy soy practicante» vuelta a poner en Storage o en `fn_mis_polizas`; todas las pólizas en vez de las
+propias; una columna de más en cada función; el convenio antes que la póliza; el último día inclusivo
+en las dos; «cubre» de una póliza de otro seguro; la cuenta de servicio con fila; `cubre_hoy` para
+EsSalud; el seguro automático escrito a mano en vez de `fn_seguro_tipo_principal`—: las veinte la
+rompen. La migración se puede aplicar dos veces. Las pruebas 250, 92 y 108 siguen en verde. (Con la
+punta de entonces la **422** tenía 252 aserciones y pasaba con la 0530 aplicada salvo la #226; con la
+etapa 1 final, arriba, pasan las 308.) `vitest` (dieciséis mutaciones de `lib/mi-seguro.ts` las
+rompen; hoy 2210 pruebas en 95 archivos), `tsc` y `eslint` de lo tocado en verde (`page.tsx` conserva dos
+errores `set-state-in-effect` que ya tenía `main`).
+Los guardias del push (numeración, reglas de la casa, nombre del PDF, fechas vacías, linter) corridos
+a mano sobre lo que esta rama agrega encima de la etapa 1: todos en 0.
+
+**En el navegador** (2026-10-17, contra la base local con la 0530 aplicada y datos «ZZMiSeguro» con
+ids `…0000fc…`, que se borraron al terminar junto con la migración; la demo de la sesión madre
+quedó intacta):
+- *Practicante en FOLA:* «Vigente — Tu póliza está vigente», su póliza con sus dos PDF (no la
+  factura), la guía de uso.
+- *Dani, de planilla con una póliza FOLA que le quedó:* «Por planilla — Tu seguro es EsSalud», su
+  póliza FOLA en «Tus pólizas» con su PDF, y la guía de FOLA porque esa póliza cubre hoy. «Descargar»
+  baja `Poliza-FOLA-<número>.pdf`.
+- *Practicante sin póliza FOLA pero con una de otro seguro:* «Todavía no tienes una póliza
+  registrada», la póliza de vida en «Tus pólizas» y NINGUNA guía de FOLA.
+- *Honorarios:* «No tienes un seguro asignado en el sistema».
+- *Segunda vuelta, ya con la punta nueva de la etapa 1 y el texto «vigente»:* la misma practicante con
+  su póliza a 76 días («Vigente»), a 20 días («Vence en 20 días — Tu póliza va hasta el 06/11/2026…») y
+  terminada hace 9 días («Sin póliza vigente — … terminó el 08/10/2026 (hace 9 días)», sin la guía de
+  FOLA). `fn_mi_seguro` y `fn_mis_polizas` contestan 200; el servidor, sin errores. En la consola salió
+  UN «429 Too Many Requests» de un recurso que no es de esta sección (ni esas dos llamadas ni Storage);
+  no se identificó cuál es.
+- A 375 px sin desborde horizontal y con botones de 44 px; consola y servidor sin errores.
+- *Como DO:* el panel de archivos con el texto nuevo y el aviso que cambia con el tipo.
+- *Contra el Storage real, con `curl`:* cada persona firma solo los archivos de SUS pólizas de tipo
+  póliza o convenio (200); la factura, lo de otra persona, uno que no existe, y quien no inició
+  sesión, 400. Dani, ya en EsSalud, firma su póliza FOLA; quien está en planilla sin pólizas, nada.
+
+**Lo que NO se comprobó.** El botón **«Abrir»**: el navegador integrado de la app bloquea
+`window.open` (devuelve `null` con cualquier página), así que ahí sale el aviso de ventanas
+emergentes, igual que en las demás pantallas que abren un PDF; lo que sí se vio es que la firma del
+archivo propio sale 200. Un iPhone real; `db-tests` de GitHub (la señal fiable de las pgTAP, no esta
+Mac); nada contra datos reales de producción; ningún PDF real (los de prueba pesaban ~600 bytes). En
+esta Mac la 422 falla en la #226 («DO ve los cuatro») mientras la base local compartida tenga los PDF
+de la demo en el mismo bucket; falla igual sin la 0530 (se corrió el control) y en CI el bucket está
+vacío.
+
+**Un límite pequeño que se dejó:** una renovación que conserva el número de la póliza (la etapa 1 lo
+permite) se baja con el mismo nombre, `Poliza-FOLA-<número>.pdf`, y el navegador le pone «(1)» a la
+segunda. No pierde nada; si molesta, el nombre puede llevar el año de inicio de la vigencia.
+
+**Cómo se generaron los tipos.** Igual que en la etapa 1: una base desechable con el esquema `public`
+de la local, la 0530 aplicada allí, `supabase gen types --db-url` y pegadas SOLO las tres funciones
+nuevas (`fn_mi_seguro`, `fn_mis_polizas`, `fn_seguro_archivo_es_mio`). La base desechable se borró.
+
+---
+
 ## 2026-10-17 — Seguros del equipo: en qué seguro está cada colaborador (FOLA, EsSalud y los que DO agregue) · migración 0528 · SQL PEGADO Y VERIFICADO EN PRODUCCIÓN (2026-10-17) · FUSIONADO Y PUBLICADO (PR #551, 2026-10-17) · rama `claude/fola-dynamic-implementation-252f99`
 
 **Qué es.** La pantalla `/admin/seguros` (grupo Personas, solo DO) y un módulo «Seguros» en la
@@ -335,13 +515,9 @@ consultas de Seguros fallara en producción, por cómo está escrito `pedir` en 
 fuente se marca «fallida» y solo ese módulo se queda sin datos, no la Bandeja entera (leído en el código, no
 probado con un fallo real en producción).
 
-**La etapa 2 («Mi seguro»)** vive en otra rama, `claude/elegant-mayer-3e584e` (migración 0530, prueba 423,
-la sección de Lo mío), sin PR todavía, y se construyó sobre una punta anterior de esta (`112bfcb3`):
-cuando se vaya a fusionar tendrá que traer lo que esta rama agregó después —sobre todo `en_planilla` en
-`fn_seguros_equipo` y su bloque en `types.ts`—. La 0528 ya está pegada en producción en su versión final:
-no hay que repegarla, solo traer esta rama para que el archivo sea el mismo. Lo que cada colaborador lee
-es SU póliza —de cualquier seguro— y, si está en EsSalud, que se paga por planilla. Sigue sirviendo solo si
-quienes tienen póliza entran a Lo mío: eso solo lo sabe Felipe.
+**La etapa 2 («Mi seguro»)** está rehecha sobre esta, en la entrada de arriba (0530): cada
+colaborador lee SU seguro y SUS pólizas —de cualquier seguro— y, si está en EsSalud, que se paga por
+planilla. Felipe confirmó que los cuatro practicantes tienen cuenta y entran a Lo mío.
 
 **Cómo se generaron los tipos.** La base local es compartida y trae migraciones de otras ramas
 (la etapa 2 ya aplicó la suya), así que `gen-types` habría arrastrado cambios ajenos. Los 28 bloques de la
