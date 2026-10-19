@@ -6,7 +6,7 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-10-17 — Seguros, etapa 2: «Mi seguro» en Lo mío, para TODO el equipo · migración 0530 · SQL SIN PEGAR · COMMITEADO, SIN PR · rama `claude/elegant-mayer-3e584e` (encima de la etapa 1)
+## 2026-10-17 — Seguros, etapa 2: «Mi seguro» en Lo mío, para TODO el equipo · migración 0530 · SQL SIN PEGAR · PR EN BORRADOR (sin fusionar) · rama `claude/seguros-module-analysis-redesign-70bbe4` (rescata `claude/seguros-etapa-2-mi-seguro`, antes `elegant-mayer-3e584e`)
 
 **Qué es.** Cada colaborador ve SU seguro en `/mio` → Documentos → «Mi seguro»: en cuál está hoy;
 si lleva póliza, su número, la aseguradora, hasta cuándo es vigente, el plan y el máximo anual **solo
@@ -16,6 +16,28 @@ quien no tiene seguro principal (honorarios) ve que no tiene uno asignado. Se ve
 CUALQUIER seguro, también las del que tenía antes de cambiar. El «Cómo usar tu seguro» sale solo
 para el seguro que lo tiene (hoy FOLA) y solo mientras su póliza está vigente. Las secciones de Lo
 mío pasan a dieciséis.
+
+**Rediseño y guía corregida (2026-10-19, esta rama).** Sin SQL nuevo: la 0530 es la misma.
+- **La póliza vigente va primero.** Se midió en 375 px con una practicante de prueba: el número iba en 14 px dentro de
+  una frase, el primer botón de PDF quedaba en y=803 de 812 y el resumen repetía la vigencia de la tarjeta. Ahora es
+  una tarjeta con el número en 24 px y botón «Copiar», «Abrir» como botón principal (y=630), los teléfonos de la
+  aseguradora con su uso, y debajo «Cómo usar». Sin póliza vigente (EsSalud, hueco, sin seguro) queda el resumen de
+  siempre. `resumenSoloRepite` (`lib/mi-seguro.ts`) decide cuándo el resumen se omite. La tarjeta con la foto y el
+  nombre de «Lo mío» ocupa ~250 px arriba y no se tocó (otra rama reordena `/mio`).
+- **La guía de FOLA se cotejó con el PDF de una póliza** y se corrigió: la emergencia va primero con el plazo de
+  24 horas para avisar a Pacífico (p.25 del PDF); la atención en la red lleva deducible y coaseguro (ya no dice «basta
+  con el DNI»; NO se escriben montos porque no sabemos en qué red está cada clínica); el reembolso es para lo de fuera
+  de la red y se liquida por el tarifario; el seguro dura lo que el convenio de prácticas; los dos teléfonos se rotulan.
+  La póliza sigue sin decir el plan ni el máximo anual: la pantalla no los muestra.
+- **Por confirmar con la corredora:** que «Pacífico Asiste» sea la Central de Emergencias y Asistencia (415-1515); lo
+  dedujo la sesión, el resumen de la póliza no trae el número.
+- **El texto para quien está en EsSalud** quedó en borrador con la fuente de cada frase (la mayoría de las páginas de
+  EsSalud se leyeron por resumen y hay que cotejarlas; `gob.pe` bloquea el lector). **No está en el código**: lo validan
+  Felipe y el contador. Además guarda una pregunta para el contador: si todas las personas de planilla y de prueba
+  figuran activas en EsSalud.
+- **Decidido por Felipe (2026-10-19):** rescatar esta rama en vez de rehacerla; la mora se mantiene neutral (la persona
+  no ve «suspendida»); el texto de EsSalud sale de fuentes oficiales y lo valida él con el contador; la alerta de
+  Vida Ley / SCTR espera la respuesta del contador.
 
 **Su historia, para que nadie la repita.** Se construyó primero acotada a los practicantes, sobre
 la primera 0528 (solo FOLA). Cuando Felipe hizo general el módulo, esa versión se descartó entera
@@ -116,9 +138,9 @@ qué se le dice a quien está en EsSalud (ver abajo).
    proyecto (esquema `retail`)**, así que cualquier conteo de `pg_proc` por nombre puede traer una fila de más.
 2. **Subir a cada póliza solo el PDF de esa persona.** Si el archivo junta varias pólizas, cada
    persona vería el DNI y la fecha de nacimiento de las otras, y la base no puede comprobarlo.
-3. **El texto de EsSalud** (arriba) y la revisión de la guía de FOLA contra el PDF.
+3. **El texto de EsSalud** (en borrador, validado por Felipe y el contador; ver arriba). La guía de FOLA ya se revisó contra el PDF; falta que la corredora confirme el nombre «Pacífico Asiste».
 4. Con una cuenta real, apretar «Abrir» en un navegador de verdad y en un iPhone.
-5. La novedad lleva fecha 2026-10-17: si el PR se fusiona otro día, corregirla antes.
+5. La novedad lleva fecha 2026-10-19: si el PR se fusiona otro día, corregirla antes.
 6. La etapa 1 ya no se mueve (está fusionada y publicada): la 0530 se probó contra la 0528 que de
    verdad está en producción. Lo que sí puede moverse es `main`: antes de entregar el SQL, volver a mirar
    `git fetch` y la numeración, como siempre.
