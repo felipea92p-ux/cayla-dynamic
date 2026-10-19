@@ -42,7 +42,10 @@ import { Boton } from "@/components/ui/boton";
 import { Insignia } from "@/components/ui/insignia";
 import { Modal } from "@/components/ui/modal";
 import { AreaTexto } from "@/components/ui/area-texto";
-import { Campo } from "@/components/ui/campo";
+import { Campo, CampoSelect } from "@/components/ui/campo";
+import { ParaAtender } from "@/components/ui/para-atender";
+import { Pestanas } from "@/components/ui/pestanas";
+import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
 import { BotonAyuda } from "@/components/ui/ayuda-pantalla";
 import { Menu, MenuItem } from "@/components/ui/menu";
@@ -146,21 +149,6 @@ function PasosBorrador({ etapa }: { etapa: (typeof ETAPAS)[number] }) {
       </span>
       <span className="text-xs">{ETAPA_LABEL[etapa]}</span>
     </span>
-  );
-}
-
-function TabBtn({ valor, tab, setTab, cuenta, urgente, children }: {
-  // `null` = no se pudo leer. Un «0» sobre datos que no se leyeron se lee como un hecho.
-  valor: Pestana; tab: Pestana; setTab: (t: Pestana) => void; cuenta: number | null; urgente?: boolean; children: ReactNode;
-}) {
-  return (
-    <button type="button" role="tab" id={`tab-${valor}`} title={cuenta === null ? "No se pudo leer" : undefined} aria-selected={tab === valor} aria-controls={`panel-${valor}`}
-      onClick={() => setTab(valor)}
-      className={cx("-mb-px inline-flex items-center gap-2 whitespace-nowrap border-b-2 px-3 py-2 text-sm transition-colors",
-        tab === valor ? "border-rojo font-medium text-tinta" : "border-transparent text-taupe hover:text-tinta")}>
-      {children}
-      <Insignia variante={urgente && cuenta !== null && cuenta > 0 ? "contador" : "neutral"} tamano="sm" punto={false} className="tabular-nums">{cuenta ?? "?"}</Insignia>
-    </button>
   );
 }
 
@@ -1263,11 +1251,7 @@ export default function DisciplinaPage() {
   // decir 0 mientras lo que espera —un borrador por trabajar— está en otra pestaña; quien la abre
   // por primera vez no tiene cómo saberlo. Con un fallo de lectura no se afirma nada: un «no hay
   // nada» construido sobre datos que no se pudieron leer se leería como un hecho.
-  const porHacer: Array<{ tab: Pestana; texto: string }> = [];
   const nRevision = alcanzaron.length, nBorradores = borradores.length, nEntregar = porEntregar.length;
-  if (nRevision > 0) porHacer.push({ tab: "revision", texto: `${nRevision} caso${nRevision === 1 ? "" : "s"} por revisar` });
-  if (nBorradores > 0) porHacer.push({ tab: "borradores", texto: `${nBorradores} borrador${nBorradores === 1 ? "" : "es"} por trabajar` });
-  if (nEntregar > 0) porHacer.push({ tab: "entregar", texto: `${nEntregar} documento${nEntregar === 1 ? "" : "s"} por entregar o cerrar` });
   const puedeResumir = !cargando && !falloTard && !falloFaltas && !falloDocs && !falloPersonas && !falloAdjuntos && !hayFiltro;
 
   // ── Render ─────────────────────────────────────────────────────────────
@@ -1275,6 +1259,7 @@ export default function DisciplinaPage() {
     <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
         <CabeceraPagina
+          sobretitulo={sobretituloDeHoy("Personas")}
           titulo="Disciplina"
           accion={puedeTramitar
             ? <Boton variante="primario" onClick={() => setRegistrandoFalta(true)}>Registrar una falta</Boton>
@@ -1283,66 +1268,74 @@ export default function DisciplinaPage() {
           ayuda={<BotonAyuda etiqueta="Ver reglas y umbrales" onClick={() => setVerReglas(true)} />}
         />
 
-        {/* Filtros */}
-        <div className="-mt-4 mb-5 flex flex-wrap items-end gap-3">
-          <label htmlFor="f-mes" className="grid gap-1 text-xs text-taupe">
-            Mes de tardanzas
-            <select id="f-mes" value={mesTard} onChange={(e) => setMesTard(e.target.value)}
-              className="rounded-control border border-sand bg-hueso px-2.5 py-1.5 text-sm text-tinta">
-              {mesesRecientesLima().map((m) => (
-                <option key={m} value={m}>
-                  {nombreDelMesLimaTitulo(m)} {m.slice(0, 4)}{m === primeroDeMesLima() ? " · en curso" : ""}
-                </option>
-              ))}
-            </select>
+        {/* Filtros, compactos y en una fila. El mes lleva su rótulo al lado porque su texto («Octubre 2026 · en curso») solo no dice de qué es. */}
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <label htmlFor="f-mes" className="flex items-center gap-2 text-xs text-taupe">
+            Tardanzas de
+            <span className="block w-48">
+              <CampoSelect tamano="sm" id="f-mes" value={mesTard} onChange={(e) => setMesTard(e.target.value)}>
+                {mesesRecientesLima().map((m) => (
+                  <option key={m} value={m}>
+                    {nombreDelMesLimaTitulo(m)} {m.slice(0, 4)}{m === primeroDeMesLima() ? " · en curso" : ""}
+                  </option>
+                ))}
+              </CampoSelect>
+            </span>
           </label>
-          <label htmlFor="f-persona" className="grid min-w-0 flex-1 basis-56 gap-1 text-xs text-taupe">
-            Persona
-            <input id="f-persona" type="search" value={busqueda} onChange={(e) => setBusqueda(e.target.value)}
-              placeholder="Buscar por nombre"
-              className="rounded-control border border-sand bg-hueso px-2.5 py-1.5 text-sm text-tinta placeholder:text-taupe" />
-          </label>
+          <div className="min-w-48 flex-1 basis-56">
+            <Campo tamano="sm" id="f-persona" type="search" aria-label="Buscar persona por nombre" value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)} placeholder="Buscar persona" />
+          </div>
           {puedeVerTodasLasSedes(rol) && sedes.length > 1 && (
-            <label htmlFor="f-sede" className="grid gap-1 text-xs text-taupe">
-              Sede
-              <select id="f-sede" value={sedeFiltro} onChange={(e) => setSedeFiltro(e.target.value)}
-                className="rounded-control border border-sand bg-hueso px-2.5 py-1.5 text-sm text-tinta">
-                <option value="">Todas</option>
+            <div className="w-full sm:w-40">
+              <CampoSelect tamano="sm" id="f-sede" aria-label="Sede" value={sedeFiltro} onChange={(e) => setSedeFiltro(e.target.value)}>
+                <option value="">Todas las sedes</option>
                 {sedes.map((x) => <option key={x.codigo} value={x.codigo}>{x.texto}</option>)}
-              </select>
-            </label>
+              </CampoSelect>
+            </div>
           )}
         </div>
 
+        {/* «Para hoy»: lo que espera una decisión, con un toque a su pestaña. Con un fallo de lectura o un filtro puesto no se afirma nada. */}
         {puedeResumir && (
-          <p className="mb-3 flex flex-wrap items-baseline gap-x-2 text-sm text-taupe">
-            <span className="font-medium text-tinta">Para hoy:</span>
-            {porHacer.length === 0
-              ? <span>nada por hacer aquí.</span>
-              : porHacer.map((x, i) => (
-                  <span key={x.tab}>
-                    {i > 0 && <span aria-hidden>· </span>}
-                    <Boton variante="enlace" className="text-sm text-tinta" onClick={() => setTab(x.tab)}>{x.texto}</Boton>
-                  </span>
-                ))}
-          </p>
+          <ParaAtender
+            titulo="Para hoy"
+            items={[
+              { clave: "revision", texto: `${nRevision} caso${nRevision === 1 ? "" : "s"} por revisar`, n: nRevision, tono: "rojo" },
+              { clave: "borradores", texto: `${nBorradores} borrador${nBorradores === 1 ? "" : "es"} por trabajar`, n: nBorradores, tono: "ambar" },
+              { clave: "entregar", texto: `${nEntregar} documento${nEntregar === 1 ? "" : "s"} por entregar o cerrar`, n: nEntregar, tono: "ambar" },
+            ]}
+            activa={null}
+            alTocar={(clave) => setTab(clave as Pestana)}
+          />
         )}
 
-        {/* Pestañas */}
-        {/* En el celular las cuatro van en 2 × 2 y no en una franja que se
-            desliza: «Por entregar» y «Historial» quedaban fuera de la pantalla,
-            y una pestaña con contador que no se ve es un aviso que no llega. */}
-        <div role="tablist" aria-label="Etapas de Disciplina" className="mb-5 grid grid-cols-2 gap-x-1 border-b border-sand sm:flex sm:gap-1">
-          <TabBtn valor="revision" tab={tab} setTab={setTab} cuenta={conteo.revision} urgente>Requieren revisión</TabBtn>
-          <TabBtn valor="borradores" tab={tab} setTab={setTab} cuenta={conteo.borradores}>Borradores</TabBtn>
-          <TabBtn valor="entregar" tab={tab} setTab={setTab} cuenta={conteo.entregar} urgente>Por entregar</TabBtn>
-          <TabBtn valor="historial" tab={tab} setTab={setTab} cuenta={conteo.historial}>Historial</TabBtn>
-        </div>
+        {/* Pestañas. El contador va dentro del texto —y no como aviso suelto— para conservar su «?» cuando la cuenta no se pudo leer:
+            un «0» sobre datos que no se leyeron se lee como un hecho. En el celular la franja se desliza; lo urgente ya está arriba en «Para hoy». */}
+        <Pestanas
+          etiqueta="Etapas de Disciplina"
+          activa={tab}
+          alElegir={setTab}
+          pestanas={([
+            ["revision", "Requieren revisión", true],
+            ["borradores", "Borradores", false],
+            ["entregar", "Por entregar", true],
+            ["historial", "Historial", false],
+          ] as const).map(([clave, texto, urgente]) => ({
+            clave,
+            texto: (
+              <>
+                {texto}
+                <Insignia variante={urgente && conteo[clave] !== null && conteo[clave]! > 0 ? "contador" : "neutral"} tamano="sm" punto={false} className="tabular-nums">{conteo[clave] ?? "?"}</Insignia>
+              </>
+            ),
+          }))}
+        />
 
         {cargando && docs.length === 0 && tardanzas.length === 0 ? (
           <Cargando />
         ) : (
-          <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
+          <div>
             {/* ── Requieren revisión ─────────────────────────────────── */}
             {tab === "revision" && (
               <>
