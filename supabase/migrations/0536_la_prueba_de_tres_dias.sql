@@ -237,7 +237,8 @@ comment on function fn_prueba_dias_trabajados(uuid, date, date) is
 -- líder (las de su sede). Incluye a quien está en vínculo «Prueba» pero no tiene
 -- fila (`registrada = false`): el trigger nunca frena un cambio, así que esa
 -- persona no se puede quedar sin aparecer.
-create or replace function fn_pruebas_abiertas()
+drop function if exists fn_pruebas_abiertas();
+create function fn_pruebas_abiertas()
 returns table (
   prueba_id       uuid,
   persona_id      uuid,
@@ -250,7 +251,8 @@ returns table (
   dias_plazo      integer,
   situacion       text,
   ultima_jornada  date,
-  registrada      boolean
+  registrada      boolean,
+  horas_marcadas  numeric
 )
 language sql
 stable
@@ -270,7 +272,8 @@ as $$
               when d.dias = fn_prueba_dias_plazo() then 'cumplida'
               else 'vencida' end,
          d.ultima,
-         pr.id is not null
+         pr.id is not null,
+         d.horas
     from personas p
     left join sedes s  on s.id = p.sede_base_id
     left join pruebas pr on pr.persona_id = p.id and pr.resultado = 'en_curso'
@@ -279,7 +282,12 @@ as $$
              (select max(j.fecha) from jornadas j
                where j.persona_id = p.id
                  and j.fecha >= coalesce(pr.inicio, p.fecha_ingreso)
-                 and j.entrada_ts is not null) as ultima
+                 and j.entrada_ts is not null) as ultima,
+             -- Las horas marcadas desde que empezó: lo que está en juego en «no apto»
+             -- (se paga) y en «se retiró» (no se paga). La confirmación las dice.
+             coalesce((select sum(j.horas_trabajadas) from jornadas j
+                        where j.persona_id = p.id
+                          and j.fecha >= coalesce(pr.inicio, p.fecha_ingreso)), 0) as horas
     ) d
    where p.estado = 'activo'
      and p.tipo_vinculo = 'prueba'
@@ -296,8 +304,8 @@ revoke execute on function fn_pruebas_abiertas() from public, anon;
 grant  execute on function fn_pruebas_abiertas() to authenticated;
 
 comment on function fn_pruebas_abiertas() is
-  'Las personas activas en vínculo «Prueba» que quien llama puede ver, con su día de prueba y su situación '
-  '(en_curso · cumplida · vencida). Primero las vencidas (0536).';
+  'Las personas activas en vínculo «Prueba» que quien llama puede ver, con su día de prueba, su situación '
+  '(en_curso · cumplida · vencida) y las horas que llevan marcadas. Primero las vencidas (0536).';
 
 -- ── 6 · Cerrar la prueba: la única puerta ───────────────────────────────────
 -- Todo o nada: el resultado y la baja se escriben juntos o no se escribe nada.

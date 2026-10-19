@@ -19,7 +19,7 @@
 --     líder DO — la 0535 la partió en dos sin aflojarla.
 -- ============================================================================
 begin;
-select plan(49);
+select plan(50);
 
 insert into sedes (id, codigo, nombre, activa) values
   ('00000000-0000-0000-0000-000000429a01', 'ZZPR1', 'Sede de laboratorio 1', true),
@@ -113,6 +113,10 @@ select is(
 select is(
   (select dias_plazo from fn_pruebas_abiertas() where persona_id = '00000000-0000-0000-0000-000000429d01'),
   3, 'DÍAS · el plazo sale de una sola función (tres)');
+
+select is(
+  (select horas_marcadas from fn_pruebas_abiertas() where persona_id = '00000000-0000-0000-0000-000000429d01'),
+  12::numeric, 'DÍAS · y dice cuántas horas lleva marcadas: lo que está en juego al decidir');
 
 select pg_temp.jornada('00000000-0000-0000-0000-000000429d02', '2026-10-02', 'cerrada');
 select pg_temp.jornada('00000000-0000-0000-0000-000000429d02', '2026-10-03', 'cerrada');

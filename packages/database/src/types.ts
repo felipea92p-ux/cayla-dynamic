@@ -9467,6 +9467,7 @@ export type Database = {
           apellidos: string
           dias_plazo: number
           dias_trabajados: number
+          horas_marcadas: number
           inicio: string
           nombres: string
           persona_id: string
