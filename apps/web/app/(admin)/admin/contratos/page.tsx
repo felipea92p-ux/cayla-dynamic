@@ -19,8 +19,10 @@ import { bandaDe, ORDEN_BANDAS, racimoDeVencimientos, TEXTO_BANDA, type Banda } 
 import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 import { Campo, CampoSelect } from "@/components/ui/campo";
 import { Modal } from "@/components/ui/modal";
+import { BotonIcono } from "@/components/ui/boton-icono";
 import { Insignia } from "@/components/ui/insignia";
 import { Menu, MenuItem } from "@/components/ui/menu";
+import { ChevronDown, ChevronUp, Eye } from "lucide-react";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { vigentesAl } from "@/lib/admin/parametro-vigente";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
@@ -640,6 +642,8 @@ export default function ContratosPage() {
   // estados que `fn_contratos_tablero` ya entrega.
   // Qué banda de urgencia se está mirando (la elige una pastilla de «Para atender»); `null` = todas.
   const [bandaElegida, setBandaElegida] = useState<Banda | null>(null);
+  // El aviso del art. 77 arranca en una línea; la explicación legal se abre a pedido.
+  const [art77Abierto, setArt77Abierto] = useState(false);
   const [filtroEstado, setFiltroEstado] = useState<"pendientes" | "todos" | "vigentes" | "archivados" | string>(
     "pendientes",
   );
@@ -3264,14 +3268,28 @@ export default function ContratosPage() {
             {/* EL ART. 77 va primero y con título cuando existe: es lo único que cuesta plata (la persona que sigue
                 marcando después de su vencimiento queda con vínculo indefinido POR LEY). */}
             {nArt77 > 0 && (
-              <BannerAviso
-                variante="alerta"
-                titulo={`${nArt77} ${nArt77 === 1 ? "persona siguió" : "personas siguieron"} marcando después de vencer su contrato`}
-              >
-                <p className="mb-2">{EXPLICACION_ART_77}</p>
-                <Boton variante="secundario" tamano="sm" onClick={() => { setFiltroEstado("pendientes"); setBandaElegida("paso"); }}>
-                  Ver quiénes
-                </Boton>
+              <BannerAviso enLinea variante="alerta">
+                <div className="flex items-center justify-between gap-3">
+                  <p>
+                    <b className="font-medium text-rojo-profundo">
+                      {nArt77} {nArt77 === 1 ? "persona siguió" : "personas siguieron"} marcando después de vencer su contrato
+                    </b>
+                  </p>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    <BotonIcono
+                      etiqueta="Ver quiénes"
+                      icono={<Eye aria-hidden />}
+                      onClick={() => { setFiltroEstado("pendientes"); setBandaElegida("paso"); }}
+                    />
+                    <BotonIcono
+                      etiqueta={art77Abierto ? "Ocultar por qué importa" : "Por qué importa"}
+                      icono={art77Abierto ? <ChevronUp aria-hidden /> : <ChevronDown aria-hidden />}
+                      aria-expanded={art77Abierto}
+                      onClick={() => setArt77Abierto(!art77Abierto)}
+                    />
+                  </div>
+                </div>
+                {art77Abierto && <p className="mt-2">{EXPLICACION_ART_77}</p>}
               </BannerAviso>
             )}
 
