@@ -58,6 +58,8 @@ import { contarSinLeer, traerMisReportes, type FilaMiReporte } from "@/lib/repor
 import { formatSoles } from "@/lib/rangos";
 import { direccionDeSeccion, seccionAlLlegar, seccionDeLaDireccion } from "@/lib/seccion-en-la-direccion";
 import { useRecorridoGuiado, type PasoRecorrido } from "@/lib/use-recorrido-guiado";
+import { usePuertaDeModulo } from "@/lib/use-puerta-de-modulo";
+import { PuertaDeModuloVista } from "@/components/mio/puerta-de-modulo";
 
 /**
  * «Lo mío» — lo que cada persona ve de sí misma.
@@ -1419,7 +1421,13 @@ export default function MioPage() {
   // el hook solo necesita saber SI ya hay una persona cargada, no memorizar el
   // objeto entero — comparado por referencia, `yo` cambia en cada refetch
   // aunque los datos sean los mismos, y reiniciaría el efecto sin motivo.
-  useRecorridoGuiado("mio-resumen", PASOS_TOUR_RESUMEN, tab === "resumen" && Boolean(yo));
+  //
+  // «Términos primero, guía después» (2026-10-19): la guía solo arranca cuando
+  // `capaActiva` dice que le toca — es decir, cuando ya no hay unos términos por
+  // delante. Con todos los textos en borrador (hoy) no los hay y esto es
+  // exactamente lo de antes. Ver lib/use-puerta-de-modulo.ts.
+  const puerta = usePuertaDeModulo(tab, tab === "resumen", Boolean(yo));
+  useRecorridoGuiado("mio-resumen", PASOS_TOUR_RESUMEN, tab === "resumen" && Boolean(yo) && puerta.capa === "guia");
 
   /** Desde un aviso de arriba hasta el día concreto del que habla. */
   function abrirDia(fecha: string) {
@@ -1827,6 +1835,7 @@ export default function MioPage() {
           salarial y a PODER PROBARLO, y el reglamento interno igual. Un acuse
           que no le llega a su destinataria no prueba nada. */}
       <AcusesPendientes />
+      <PuertaDeModuloVista puerta={puerta} onSalir={() => cambiarSeccion("resumen")} />
 
       {/* El mes de su cumpleaños, del día 1 al último y en cualquier sección,
           para TODO el mundo — también para quien la base le contestaba
