@@ -42,8 +42,10 @@ import {
 } from "lucide-react";
 import { Cargando } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
-import { Campo } from "@/components/ui/campo";
+import { AyudaPantalla } from "@/components/ui/ayuda-pantalla";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
+import { Campo, CampoSelect } from "@/components/ui/campo";
+import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 import { cx } from "@/components/ui/cx";
 import { useToast } from "@/components/toast";
 import { usePersonaActual } from "@/lib/admin/use-rol";
@@ -87,7 +89,6 @@ const ICONO_MODULO: Record<ModuloBandeja, LucideIcon> = {
 // Columnas de la fila en ancho completo. Literal, no armado: Tailwind solo ve
 // clases que aparecen enteras en el código.
 const COLUMNAS = "@3xl:grid-cols-[minmax(9rem,1.1fr)_minmax(14rem,2.4fr)_9.5rem_11rem_minmax(8rem,auto)]";
-const SELECT = "rounded-control border border-sand bg-hueso px-3 py-2 text-base text-tinta sm:text-sm";
 
 /** El grupo también se dice con FORMA, no solo con color: cuadro lleno, medio círculo, anillo, raya. */
 function MarcaGrupo({ grupo }: { grupo: GrupoUrgencia }) {
@@ -141,15 +142,15 @@ function TarjetaCategoria({
       title={alDia ? `${etiqueta}: nada pendiente` : activa ? "Ver todo" : `Ver solo ${etiqueta}`}
       onClick={onClick}
       className={cx(
-        "grid grid-cols-[auto_1fr_auto] items-center gap-x-2 rounded-control border px-3 py-2 text-left transition-colors duration-150",
+        "flex items-center gap-2 rounded-control border px-3 py-1.5 text-left transition-colors duration-150",
         activa ? "border-tinta bg-papel ring-1 ring-tinta"
           : alDia ? "border-dashed border-sand hover:border-taupe/60"
           : "border-sand bg-papel hover:border-taupe/60",
       )}
     >
-      <Icon className="row-span-2 size-4 text-taupe" aria-hidden />
-      <span className="truncate text-sm font-medium text-tinta">{etiqueta}</span>
-      <span className={cx("row-span-2 text-xl font-medium tabular-nums", alDia ? "text-taupe" : "text-tinta")}>{fallo ? "—" : n}</span>
+      <Icon className="size-4 shrink-0 text-taupe" aria-hidden />
+      <span className="text-sm font-medium text-tinta">{etiqueta}</span>
+      <span className={cx("text-base font-medium tabular-nums", alDia ? "text-taupe" : "text-tinta")}>{fallo ? "—" : n}</span>
       <span className={cx("text-xs",
         fallo ? "font-medium text-rojo-profundo"
           : alDia ? "text-verde"
@@ -633,7 +634,23 @@ export default function BandejaPage() {
   return (
     <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
-        <CabeceraPagina titulo="Bandeja" descripcion="Todo lo que requiere tu atención, en un solo lugar." />
+        <CabeceraPagina
+          sobretitulo={sobretituloDeHoy("Pendientes")}
+          titulo="Bandeja"
+          descripcion="Todo lo que requiere tu atención, en un solo lugar."
+          ayuda={
+            <AyudaPantalla
+              titulo="Cómo funciona la Bandeja"
+              intro="Junta lo que cada módulo ya sabe que necesita a una persona. No inventa un criterio nuevo de «pendiente»: si algo se arregla en su módulo, a la próxima carga ya no está."
+              secciones={[
+                { titulo: "Las casillas de arriba", texto: "Una por módulo, también las que están en cero («Al día»): así se distingue «Contratos está al día» de «Contratos no se revisa aquí». Tocar una filtra la lista." },
+                { titulo: "Si un módulo no cargó", texto: "Su casilla dice «No se pudo cargar» en rojo. No se pinta «Al día» sobre un hueco: que no se pudiera mirar no significa que no haya nada." },
+                { titulo: "La lista", texto: "Va por urgencia: Vencido (ya pasó el plazo o el riesgo corre), Hoy, Próximos y Sin plazo. Cada fila dice si se resuelve aquí mismo o en su módulo." },
+                { titulo: "Qué ves", texto: "Los líderes de equipo ven solo lo de su sede; Desarrollo Organizacional y dirección, todas." },
+              ]}
+            />
+          }
+        />
 
         {/* Enlace compacto, no una sección: esto no se resuelve aquí —se
             resuelve dejando constancia en Normas—, así que no le corresponde
@@ -661,7 +678,7 @@ export default function BandejaPage() {
                 {modulos.length} módulo{modulos.length === 1 ? "" : "s"} · {alDia} al día
               </span>
             </div>
-            <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-[repeat(auto-fill,minmax(10.5rem,1fr))]">
+            <div className="mt-2 flex flex-wrap gap-2">
               <TarjetaCategoria
                 id="categoria-todo" etiqueta="Todo" Icon={Inbox}
                 n={paraTarjetas.length} vencidos={vencidosTotal}
@@ -687,44 +704,49 @@ export default function BandejaPage() {
 
             {/* ── Buscar y filtrar ─────────────────────────────────────── */}
             <div className="mt-4 flex flex-wrap items-center gap-2 border-b border-sand pb-3">
-              <label className="flex min-w-48 flex-1 items-center gap-2 rounded-control border border-sand bg-hueso px-3 focus-within:border-taupe focus-within:ring-2 focus-within:ring-rojo/30">
-                <Search className="size-4 shrink-0 text-taupe" aria-hidden />
-                <input
+              <div className="relative min-w-48 flex-1">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-taupe" aria-hidden />
+                <Campo
                   id="bandeja-buscar"
+                  tamano="sm"
                   type="search"
                   value={busca}
                   onChange={(e) => setBusca(e.target.value)}
                   placeholder="Buscar persona o pendiente…"
                   aria-label="Buscar persona o pendiente"
-                  className="w-full bg-transparent py-2 text-base text-tinta outline-none placeholder:text-taupe/60 sm:text-sm"
+                  className="pl-8"
                 />
-              </label>
+              </div>
               {puedeTodasLasSedes && (
-                <select
-                  id="bandeja-sede"
-                  aria-label="Sede"
-                  value={sedeEfectiva ?? ""}
-                  onChange={(e) => elegirSedeFiltro(e.target.value || null)}
-                  className={SELECT}
-                >
-                  <option value="">Todas las sedes · {porSedeSinSede.length}</option>
-                  {opcionesSede.map((s) => (
-                    <option key={s.codigo} value={s.codigo}>
-                      {s.codigo}{s.nombre ? ` — ${s.nombre}` : ""} · {porSedeSinSede.filter((p) => p.sede === s.codigo).length}
-                    </option>
-                  ))}
-                </select>
+                <div className="w-full sm:w-56">
+                  <CampoSelect
+                    id="bandeja-sede"
+                    tamano="sm"
+                    aria-label="Sede"
+                    value={sedeEfectiva ?? ""}
+                    onChange={(e) => elegirSedeFiltro(e.target.value || null)}
+                  >
+                    <option value="">Todas las sedes · {porSedeSinSede.length}</option>
+                    {opcionesSede.map((s) => (
+                      <option key={s.codigo} value={s.codigo}>
+                        {s.codigo}{s.nombre ? ` — ${s.nombre}` : ""} · {porSedeSinSede.filter((p) => p.sede === s.codigo).length}
+                      </option>
+                    ))}
+                  </CampoSelect>
+                </div>
               )}
-              <select
-                id="bandeja-urgencia"
-                aria-label="Urgencia"
-                value={grupoFiltro ?? ""}
-                onChange={(e) => setGrupoFiltro((e.target.value || null) as GrupoUrgencia | null)}
-                className={SELECT}
-              >
-                <option value="">Toda urgencia</option>
-                {GRUPOS_URGENCIA.map((g) => <option key={g.clave} value={g.clave}>{g.etiqueta}</option>)}
-              </select>
+              <div className="w-full sm:w-44">
+                <CampoSelect
+                  id="bandeja-urgencia"
+                  tamano="sm"
+                  aria-label="Urgencia"
+                  value={grupoFiltro ?? ""}
+                  onChange={(e) => setGrupoFiltro((e.target.value || null) as GrupoUrgencia | null)}
+                >
+                  <option value="">Toda urgencia</option>
+                  {GRUPOS_URGENCIA.map((g) => <option key={g.clave} value={g.clave}>{g.etiqueta}</option>)}
+                </CampoSelect>
+              </div>
               {!puedeTodasLasSedes && <span className="text-xs text-taupe">Ves solo lo de tu sede.</span>}
               {hayFiltros && <Boton variante="enlace" onClick={limpiarFiltros} className="text-sm text-rojo">Limpiar filtros</Boton>}
             </div>

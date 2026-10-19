@@ -18,7 +18,11 @@ import { AreaTexto } from "@/components/ui/area-texto";
 import { Modal } from "@/components/ui/modal";
 import { Insignia } from "@/components/ui/insignia";
 import { BannerAviso } from "@/components/ui/banner-aviso";
+import { AyudaPantalla } from "@/components/ui/ayuda-pantalla";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
+import { ParaAtender } from "@/components/ui/para-atender";
+import { Pestanas } from "@/components/ui/pestanas";
+import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 import { Tabla, TablaEncabezado, Th, Fila } from "@/components/ui/tabla";
 
 // Liquidación por cese. La ley da 48 HORAS desde el cese para pagar (art. 4 del
@@ -552,22 +556,19 @@ export default function LiquidacionesPage() {
       <main className="flex-1 p-6 print:p-0">
         <div className="print:hidden">
           <CabeceraPagina
+            sobretitulo={sobretituloDeHoy("Pago")}
             titulo="Liquidaciones"
-            descripcion={
-              <>
-                Controla pagos de cese, plazos y diferencias posteriores.{" "}
-                <details className="mt-1 inline-block align-top text-xs">
-                  <summary className="inline cursor-pointer text-rojo underline decoration-dotted">
-                    ⓘ Cómo se calcula el plazo
-                  </summary>
-                  <p className="mt-2 max-w-xl text-taupe">
-                    La ley da <strong>48 horas</strong> desde el cese para pagar (art. 4 del D.S. 001-97-TR):
-                    el último día trabajado más dos días de calendario, sin excepción por fin de semana o
-                    feriado. Al marcar una liquidación como pagada, la cifra se congela: si después el
-                    cálculo cambia, el sistema lo dice y no mueve el número.
-                  </p>
-                </details>
-              </>
+            descripcion="Controla pagos de cese, plazos y diferencias posteriores."
+            ayuda={
+              <AyudaPantalla
+                titulo="Cómo se calcula el plazo"
+                intro="La ley da 48 horas desde el cese para pagar la liquidación."
+                secciones={[
+                  { titulo: "El plazo", texto: "Es el último día trabajado más dos días de calendario, sin excepción por fin de semana o feriado (art. 4 del D.S. 001-97-TR)." },
+                  { titulo: "Al marcar como pagada", texto: "La cifra se congela: si después el cálculo cambia, el sistema lo dice y no mueve el número." },
+                  { titulo: "Vencidas", texto: "Pasado el plazo sin pagar, la liquidación pasa a «Vencidas». Si ya se pagó por fuera, falta anotarlo para que deje de figurar." },
+                ]}
+              />
             }
             accion={
               <Boton variante="secundario" tamano="sm" onClick={exportarCsv} disabled={listaActiva.length === 0}>
@@ -577,9 +578,9 @@ export default function LiquidacionesPage() {
           />
 
           {cargaError && (
-            <p className="mb-4 rounded-control border border-rojo bg-rojo/5 p-3 text-sm text-rojo">
+            <BannerAviso role="alert" variante="alerta" enLinea className="mb-4">
               No se pudo leer la lista: {cargaError}
-            </p>
+            </BannerAviso>
           )}
 
           {/* ── El aviso del vínculo «prueba» ────────────────────────────────
@@ -587,44 +588,44 @@ export default function LiquidacionesPage() {
               esta es la pantalla que habla de beneficios. Solo aparece cuando ya
               pasó el mes: antes no cuesta nada y avisar sería ruido. */}
           {avisoUrgente.map((a) => (
-            <div key={a.persona_id} className="mb-4 rounded-control border border-rojo bg-rojo/5 p-3 text-sm">
-              <strong className="text-rojo">{a.persona} lleva {a.dias} días como «prueba».</strong>{" "}
+            <BannerAviso key={a.persona_id} variante="alerta" enLinea titulo={`${a.persona} lleva ${a.dias} días como «prueba».`} className="mb-4">
               {a.aviso}
-            </div>
+            </BannerAviso>
           ))}
 
-          {/* ── Resumen (Decisión I) ───────────────────────────────────────── */}
-          <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <ResumenCifra etiqueta="Pendientes" valor={enPlazo.length} />
-            <ResumenCifra
-              etiqueta="Vencidas"
-              valor={vencidas.length}
-              sub={vencidas.length > 0 ? formatSoles(vencidas.reduce((a, p) => a + p.total, 0)) : undefined}
-              tono={vencidas.length > 0 ? "rojo" : undefined}
-            />
-            <ResumenCifra etiqueta="Pagadas" valor={pagadas.length} />
-            <ResumenCifra
-              etiqueta="Con diferencias"
-              valor={conDiferenciasReales}
-              tono={conDiferenciasReales > 0 ? "ambar" : undefined}
-            />
-          </div>
+          {/* ── Para atender (Decisión I): lo vencido y lo que difiere va primero; tocar una pastilla abre su pestaña ── */}
+          <ParaAtender
+            items={[
+              {
+                clave: "vencidas",
+                texto: `${vencidas.length} ${vencidas.length === 1 ? "vencida" : "vencidas"}${vencidas.length > 0 ? ` · ${formatSoles(vencidas.reduce((a, p) => a + p.total, 0))}` : ""}`,
+                n: vencidas.length,
+                tono: "rojo",
+              },
+              { clave: "diferencias", texto: `${conDiferenciasReales} con diferencias`, n: conDiferenciasReales, tono: "ambar" },
+              { clave: "pendientes", texto: `${enPlazo.length} en plazo`, n: enPlazo.length, tono: "pizarra" },
+            ]}
+            activa={tab === "vencidas" ? "vencidas" : tab === "pagadas" && soloConDiferencias ? "diferencias" : null}
+            alTocar={(clave) => {
+              if (clave === "diferencias") { setTab("pagadas"); setSoloConDiferencias(true); return; }
+              setSoloConDiferencias(false);
+              setTab(clave === "vencidas" ? "vencidas" : "pendientes");
+            }}
+          />
 
-          {/* ── Búsqueda y filtros ────────────────────────────────────────── */}
-          <div className="mb-4 flex flex-wrap items-end gap-3">
-            <Campo
-              etiqueta="Buscar persona"
-              value={busqueda}
-              onChange={(e) => setBusqueda(e.target.value)}
-              placeholder="nombre o apellido"
-              className="w-56"
-            />
-            <CampoSelect etiqueta="Sede" value={filtroSede} onChange={(e) => setFiltroSede(e.target.value)} className="w-40">
-              <option value="">Todas</option>
-              {sedes.map((sd) => <option key={sd.id} value={sd.codigo}>{sd.codigo} — {sd.nombre}</option>)}
-            </CampoSelect>
+          {/* ── Búsqueda y filtros, en una fila y sin rótulos encima ───────── */}
+          <div className="mb-4 flex flex-wrap items-center gap-2">
+            <div className="min-w-48 flex-1 sm:max-w-xs">
+              <Campo tamano="sm" aria-label="Buscar persona" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Buscar por nombre o apellido" />
+            </div>
+            <div className="w-full sm:w-52">
+              <CampoSelect tamano="sm" aria-label="Sede" value={filtroSede} onChange={(e) => setFiltroSede(e.target.value)}>
+                <option value="">Todas las sedes</option>
+                {sedes.map((sd) => <option key={sd.id} value={sd.codigo}>{sd.codigo} — {sd.nombre}</option>)}
+              </CampoSelect>
+            </div>
             {tab === "pagadas" && (
-              <label className="flex items-center gap-2 pb-2 text-sm">
+              <label className="flex items-center gap-2 text-sm">
                 <input
                   type="checkbox"
                   className="size-4 accent-tinta"
@@ -635,24 +636,23 @@ export default function LiquidacionesPage() {
               </label>
             )}
             {hayFiltrosActivos && (
-              <button className="pb-2 text-sm text-taupe underline" onClick={limpiarFiltros}>
+              <Boton variante="enlace" className="text-sm text-taupe" onClick={limpiarFiltros}>
                 Limpiar filtros
-              </button>
+              </Boton>
             )}
           </div>
 
-          {/* ── Tabs por estado (Decisión I y II: vencidas solo en su tab) ──── */}
-          <div className="mb-4 flex gap-1 border-b border-sand">
-            <PestanaTab activa={tab === "pendientes"} onClick={() => setTab("pendientes")}>
-              Pendientes <Insignia tamano="sm" variante="neutral">{enPlazo.length}</Insignia>
-            </PestanaTab>
-            <PestanaTab activa={tab === "vencidas"} onClick={() => setTab("vencidas")}>
-              Vencidas <Insignia tamano="sm" variante={vencidas.length > 0 ? "alerta" : "neutral"}>{vencidas.length}</Insignia>
-            </PestanaTab>
-            <PestanaTab activa={tab === "pagadas"} onClick={() => setTab("pagadas")}>
-              Pagadas <Insignia tamano="sm" variante="neutral">{pagadas.length}</Insignia>
-            </PestanaTab>
-          </div>
+          {/* ── Pestañas por estado (Decisión I y II: vencidas solo en su pestaña) ── */}
+          <Pestanas
+            etiqueta="Estado de las liquidaciones"
+            pestanas={[
+              { clave: "pendientes", texto: `Pendientes · ${enPlazo.length}` },
+              { clave: "vencidas", texto: "Vencidas", aviso: vencidas.length },
+              { clave: "pagadas", texto: `Pagadas · ${pagadas.length}` },
+            ]}
+            activa={tab}
+            alElegir={(t) => setTab(t as typeof tab)}
+          />
 
           {tab === "pendientes" && (
             <SeccionTabla
@@ -889,36 +889,6 @@ export default function LiquidacionesPage() {
         )}
       </Modal>
     </div>
-  );
-}
-
-function ResumenCifra({
-  etiqueta, valor, sub, tono,
-}: { etiqueta: string; valor: number; sub?: string; tono?: "rojo" | "ambar" }) {
-  return (
-    <div className="rounded-control bg-hueso px-4 py-3">
-      <p className={
-        tono === "rojo" ? "font-serif text-2xl text-rojo" : tono === "ambar" ? "font-serif text-2xl text-ambar" : "font-serif text-2xl text-tinta"
-      }>
-        {valor}
-      </p>
-      <p className="text-xs tracking-wide text-taupe uppercase">{etiqueta}</p>
-      {sub && <p className={tono === "rojo" ? "text-xs text-rojo" : "text-xs text-taupe"}>{sub}</p>}
-    </div>
-  );
-}
-
-function PestanaTab({ activa, onClick, children }: { activa: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      onClick={onClick}
-      className={
-        "flex items-center gap-2 border-b-2 px-3 py-2 text-sm font-medium " +
-        (activa ? "border-rojo text-tinta" : "border-transparent text-taupe hover:text-tinta")
-      }
-    >
-      {children}
-    </button>
   );
 }
 
