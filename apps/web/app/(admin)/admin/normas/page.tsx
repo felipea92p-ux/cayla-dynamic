@@ -16,12 +16,15 @@ import { ROLES_DO, TZ_LIMA, hoyLima } from "@cayla-dynamic/shared";
 import { Documento } from "@/components/documento";
 import { bloquesDe } from "@/lib/admin/markdown-documento";
 import { Boton } from "@/components/ui/boton";
-import { Campo } from "@/components/ui/campo";
+import { Campo, CampoSelect } from "@/components/ui/campo";
 import { AreaTexto } from "@/components/ui/area-texto";
 import { Insignia } from "@/components/ui/insignia";
 import { Modal } from "@/components/ui/modal";
+import { AyudaPantalla } from "@/components/ui/ayuda-pantalla";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
-import { Cifra } from "@/components/ui/cifra";
+import { ParaAtender } from "@/components/ui/para-atender";
+import { Pestanas } from "@/components/ui/pestanas";
+import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 import { EstadoVacio } from "@/components/ui/estado-vacio";
 import { Fila, Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
 import { TarjetaInfo } from "@/components/ui/tarjeta-info";
@@ -839,60 +842,83 @@ function NormasPageContenido() {
   return (
     <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
-        <div className="mx-auto w-full max-w-5xl">
+        <div className="w-full">
           <CabeceraPagina
+            sobretitulo={sobretituloDeHoy("Publicaciones")}
             titulo="Normas"
             descripcion="Los documentos que rigen para todo el equipo. Aquí se leen, y aquí queda la constancia de que se recibieron."
+            ayuda={
+              <AyudaPantalla
+                titulo="Cómo funcionan las normas"
+                intro="Aquí viven los documentos que rigen para todo el equipo. Se leen aquí, y aquí queda la constancia de que se recibieron."
+                secciones={[
+                  { titulo: "Vigentes", texto: "La versión que hoy rige de cada documento, en tres grupos: principales, complementarios y formatos. Abrir uno muestra su texto." },
+                  { titulo: "Constancia de recepción", texto: "Los documentos que la requieren piden que cada persona deje constancia de haberlos recibido; lo que falta se cuenta como «constancias pendientes»." },
+                  { titulo: "Versiones", texto: "Quien gestiona las normas publica una versión nueva con «+ Nueva versión»; la anterior queda en el historial." },
+                  { titulo: "Mi historial", texto: "Quien no gestiona las normas ve aquí lo que ya recibió y cuándo." },
+                ]}
+              />
+            }
             accion={puedeGestionar && (
               <Boton variante="primario" onClick={abrirPublicar}>+ Nueva versión</Boton>
             )}
           />
 
-          {/* ── Tabs ── */}
-          <div className="mb-5 flex gap-1 border-b border-sand text-sm">
-            <BotonTab activo={tab === "vigentes"} onClick={() => setTab("vigentes")}>Vigentes</BotonTab>
-            {puedeGestionar ? (
-              <>
-                <BotonTab activo={tab === "versiones"} onClick={() => setTab("versiones")}>Versiones</BotonTab>
-                <BotonTab activo={tab === "constancias"} onClick={() => setTab("constancias")}>Constancias</BotonTab>
-              </>
-            ) : yo !== null && (
-              <BotonTab activo={tab === "historial"} onClick={() => setTab("historial")}>Mi historial</BotonTab>
-            )}
-          </div>
+          {/* ── Pestañas ── */}
+          <Pestanas
+            etiqueta="Secciones de Normas"
+            pestanas={
+              puedeGestionar
+                ? [{ clave: "vigentes", texto: "Vigentes" }, { clave: "versiones", texto: "Versiones" }, { clave: "constancias", texto: "Constancias", aviso: constanciasPendientes }]
+                : yo !== null
+                  ? [{ clave: "vigentes", texto: "Vigentes" }, { clave: "historial", texto: "Mi historial" }]
+                  : [{ clave: "vigentes", texto: "Vigentes" }]
+            }
+            activa={tab}
+            alElegir={(t) => setTab(t as typeof tab)}
+          />
 
           {tab === "vigentes" && (
             <>
-              {/* ── Resumen ── */}
-              <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                <TileResumen numero={docs.length} etiqueta="Documentos vigentes" />
-                <TileResumen numero={constanciasPendientes} etiqueta="Constancias pendientes" alerta={constanciasPendientes > 0} />
-                <TileResumen numero={versionesCount} etiqueta="Versiones publicadas" />
-                <TileResumen numero={docs.filter((d) => d.requiere_acuse).length} etiqueta="Requieren recepción" />
-              </div>
+              {/* ── Resumen: lo que falta, en una línea ── */}
+              {puedeGestionar && (
+                <ParaAtender
+                  items={[{ clave: "constancias", texto: `${constanciasPendientes} constancias pendientes`, n: constanciasPendientes, tono: "ambar" }]}
+                  activa={null}
+                  alTocar={() => setTab("constancias")}
+                />
+              )}
+              <p className="-mt-2 mb-4 text-xs text-taupe">
+                {docs.length} {docs.length === 1 ? "documento vigente" : "documentos vigentes"}
+                {" · "}{versionesCount === null ? "—" : versionesCount} versiones publicadas
+                {" · "}{docs.filter((d) => d.requiere_acuse).length} requieren recepción
+              </p>
 
               {/* ── Buscador y filtros ── */}
               <div className="mb-5 flex flex-wrap items-center gap-2">
-                <label className="flex min-w-48 flex-1 items-center gap-2 rounded-control border border-sand bg-hueso px-3 focus-within:border-taupe focus-within:ring-2 focus-within:ring-rojo/30">
-                  <Search className="size-4 shrink-0 text-taupe" aria-hidden />
-                  <input
-                    type="search" value={busqueda} onChange={(e) => setBusqueda(e.target.value)}
-                    placeholder="Buscar por nombre o contenido…" aria-label="Buscar documento"
-                    className="w-full bg-transparent py-2 text-base text-tinta outline-none placeholder:text-taupe/60 sm:text-sm"
+                <div className="relative min-w-48 flex-1">
+                  <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-taupe" aria-hidden />
+                  <Campo
+                    tamano="sm" type="search" value={busqueda} onChange={(e) => setBusqueda(e.target.value)}
+                    placeholder="Buscar por nombre o contenido…" aria-label="Buscar documento" className="pl-8"
                   />
-                </label>
-                <select aria-label="Tipo" value={filtroTipo} onChange={(e) => setFiltroTipo(e.target.value as Categoria | "")} className={SELECT}>
-                  <option value="">Tipo · todos</option>
-                  <option value="principal">Principal</option>
-                  <option value="complementario">Complementario</option>
-                  <option value="formato">Formato</option>
-                </select>
-                <select aria-label="Requiere constancia" value={filtroConstancia}
-                  onChange={(e) => setFiltroConstancia(e.target.value as "" | "si" | "no")} className={SELECT}>
-                  <option value="">Constancia · todas</option>
-                  <option value="si">Requiere constancia</option>
-                  <option value="no">No requiere</option>
-                </select>
+                </div>
+                <div className="w-full sm:w-44">
+                  <CampoSelect tamano="sm" aria-label="Tipo" value={filtroTipo} onChange={(e) => setFiltroTipo(e.target.value as Categoria | "")}>
+                    <option value="">Tipo · todos</option>
+                    <option value="principal">Principal</option>
+                    <option value="complementario">Complementario</option>
+                    <option value="formato">Formato</option>
+                  </CampoSelect>
+                </div>
+                <div className="w-full sm:w-52">
+                  <CampoSelect tamano="sm" aria-label="Requiere constancia" value={filtroConstancia}
+                    onChange={(e) => setFiltroConstancia(e.target.value as "" | "si" | "no")}>
+                    <option value="">Constancia · todas</option>
+                    <option value="si">Requiere constancia</option>
+                    <option value="no">No requiere</option>
+                  </CampoSelect>
+                </div>
                 {(busqueda || filtroTipo || filtroConstancia) && (
                   <Boton variante="sutil" tamano="sm" onClick={() => { setBusqueda(""); setFiltroTipo(""); setFiltroConstancia(""); }}>
                     Limpiar filtros
@@ -1238,22 +1264,6 @@ function NormasPageContenido() {
 // ============================================================================
 // Piezas de presentación
 // ============================================================================
-
-function BotonTab({ activo, onClick, children }: { activo: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button onClick={onClick}
-      className={`-mb-px border-b-2 px-3 py-2 font-medium transition-colors duration-150 ${
-        activo ? "border-rojo text-tinta" : "border-transparent text-taupe hover:text-tinta"}`}>
-      {children}
-    </button>
-  );
-}
-
-function TileResumen({ numero, etiqueta, alerta }: { numero: number | null; etiqueta: string; alerta?: boolean }) {
-  return (
-    <Cifra etiqueta={etiqueta} valor={numero === null ? "—" : numero} tono={alerta ? "alerta" : undefined} />
-  );
-}
 
 function TituloGrupo({ texto }: { texto: string }) {
   return (
