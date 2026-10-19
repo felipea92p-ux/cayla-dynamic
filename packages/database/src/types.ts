@@ -34,6 +34,48 @@ export type Database = {
   }
   public: {
     Tables: {
+      aceptaciones_terminos: {
+        Row: {
+          aceptado_at: string
+          id: string
+          modulo: string
+          persona_id: string
+          texto: string
+          version: number
+        }
+        Insert: {
+          aceptado_at?: string
+          id?: string
+          modulo: string
+          persona_id: string
+          texto: string
+          version: number
+        }
+        Update: {
+          aceptado_at?: string
+          id?: string
+          modulo?: string
+          persona_id?: string
+          texto?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "aceptaciones_terminos_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "aceptaciones_terminos_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       actas_descanso_sustitutorio: {
         Row: {
           archivo_base64: string | null
@@ -7078,6 +7120,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      fn_aceptar_terminos: {
+        Args: { p_modulo: string | null; p_texto: string | null; p_version: number | null }
+        Returns: boolean
+      }
       fn_acta_descanso: { Args: { p_referencia: string | null }; Returns: string }
       fn_acta_descanso_ubicacion: {
         Args: { p_referencia: string | null }
@@ -9116,6 +9162,14 @@ export type Database = {
           cubre_hoy: boolean
           tipo: string
           tipo_nombre: string
+        }[]
+      }
+      fn_mis_aceptaciones_terminos: {
+        Args: never
+        Returns: {
+          aceptado_at: string
+          modulo: string
+          version: number
         }[]
       }
       fn_mis_boletas: {

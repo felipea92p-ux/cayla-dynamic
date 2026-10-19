@@ -65,7 +65,7 @@ export function ResumenEducacionMia() {
   }, []);
 
   return (
-    <section className="rounded-2xl border border-sand p-5 text-sm">
+    <section data-tour="mio-educacion-seccion" className="rounded-2xl border border-sand p-5 text-sm">
       <h2 className="mb-1 font-serif text-lg">Educación</h2>
       {filas === null ? (
         <p className="text-taupe">Cargando…</p>
@@ -76,7 +76,7 @@ export function ResumenEducacionMia() {
           <p className="text-taupe">
             Tu apoyo en {terminado.institucion} terminó el {fechaCorta(terminado.vigente_hasta)}.
           </p>
-          <Link href="/mio/educacion"
+          <Link href="/mio/educacion" data-tour="mio-educacion-ir"
             className="mt-3 inline-block text-tinta underline underline-offset-2 hover:text-rojo-profundo">
             {renovacionEnRevision ? "Tu solicitud está en revisión →" : "¿Sigues estudiando? Renuévalo →"}
           </Link>
@@ -84,7 +84,7 @@ export function ResumenEducacionMia() {
       ) : filas.length === 0 ? (
         <>
           <p className="text-taupe">No tienes una asignación educativa activa.</p>
-          <Link href="/mio/educacion"
+          <Link href="/mio/educacion" data-tour="mio-educacion-ir"
             className="mt-3 inline-block text-tinta underline underline-offset-2 hover:text-rojo-profundo">
             Solicitar apoyo educativo →
           </Link>
@@ -107,7 +107,7 @@ export function ResumenEducacionMia() {
               );
             })}
           </ul>
-          <Link href="/mio/educacion"
+          <Link href="/mio/educacion" data-tour="mio-educacion-ir"
             className="mt-3 inline-block text-tinta underline underline-offset-2 hover:text-rojo-profundo">
             Ir a mis constancias →
           </Link>

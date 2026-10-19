@@ -1,0 +1,506 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maqueta · Términos y guía en Lo mío</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=EB+Garamond:wght@500;600&display=swap" rel="stylesheet">
+<style>
+/* Maqueta interactiva — NO es código de producción. Los colores son los trece tokens de globals.css. */
+:root{
+  --crema:#f5f0e8; --papel:#fbf8f2; --tinta:#1a1a18; --rojo:#b8412d; --rojo-p:#8b2a1f; --sand:#e8e0d0;
+  --taupe:#805c4c; --verde:#48603f; --ambar:#74501a; --hueso:#eae1d2; --pizarra:#4c5d6e; --azul:#2f5f9e; --ceniza:#635f58;
+  --sans:"DM Sans",ui-sans-serif,system-ui,sans-serif; --serif:"EB Garamond",ui-serif,Georgia,serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-tema="claro"]){
+    --crema:#1c1a16; --papel:#26221d; --tinta:#ede7db; --rojo:#d4634a; --rojo-p:#e8836b; --sand:#332e27;
+    --taupe:#ab9080; --verde:#8fae80; --ambar:#c99a4a; --hueso:#15110d; --pizarra:#9db0c2; --azul:#9bbbe8; --ceniza:#aaa59b;
+  }
+}
+:root[data-tema="oscuro"]{
+  --crema:#1c1a16; --papel:#26221d; --tinta:#ede7db; --rojo:#d4634a; --rojo-p:#e8836b; --sand:#332e27;
+  --taupe:#ab9080; --verde:#8fae80; --ambar:#c99a4a; --hueso:#15110d; --pizarra:#9db0c2; --azul:#9bbbe8; --ceniza:#aaa59b;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--crema);color:var(--tinta);font-family:var(--sans);font-size:15px;line-height:1.5}
+button{font:inherit;color:inherit;cursor:pointer}
+.wrap{max-width:1180px;margin:0 auto;padding:20px 16px 48px}
+h1{font-family:var(--serif);font-weight:600;font-size:28px;margin:0 0 4px}
+.sub{color:var(--taupe);margin:0 0 16px;max-width:70ch}
+
+/* barra de control de la maqueta */
+.ctl{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;background:var(--papel);border:1px solid var(--sand);border-radius:16px;padding:10px 12px;margin-bottom:12px}
+.seg{display:inline-flex;background:var(--hueso);border-radius:12px;padding:3px}
+.seg button{border:0;background:transparent;padding:7px 14px;border-radius:9px;font-weight:600;font-size:14px;color:var(--taupe)}
+.seg button[aria-pressed="true"]{background:var(--tinta);color:var(--crema)}
+.ghost{border:1px solid var(--taupe);background:transparent;border-radius:10px;padding:7px 12px;font-size:14px;font-weight:500}
+.ghost:hover{background:var(--sand)}
+.prog{margin-left:auto;font-size:13px;color:var(--taupe);display:flex;align-items:center;gap:8px}
+.prog .barra{width:120px;height:6px;border-radius:99px;background:var(--sand);overflow:hidden}
+.prog .barra i{display:block;height:100%;background:var(--verde);width:0;transition:width .3s}
+.aviso{font-size:13.5px;border:1px solid var(--sand);background:var(--hueso);border-radius:12px;padding:9px 12px;margin-bottom:12px;color:var(--tinta)}
+.aviso.mal{border-color:var(--rojo);background:color-mix(in srgb,var(--rojo) 9%,var(--papel))}
+
+/* el marco de la app */
+.app{position:relative;display:flex;height:min(740px,82vh);min-height:520px;border:1px solid var(--sand);border-radius:20px;overflow:hidden;background:var(--crema)}
+.menu{width:232px;flex:none;border-right:1px solid var(--sand);background:var(--papel);overflow-y:auto;padding:12px 10px}
+.menu .gt{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--taupe);font-weight:600;margin:12px 8px 4px}
+.menu .gt:first-child{margin-top:2px}
+.it{display:flex;align-items:center;gap:9px;width:100%;border:0;background:transparent;text-align:left;padding:8px 8px;border-radius:10px;font-size:14px}
+.it:hover{background:var(--sand)}
+.it[aria-current="true"]{background:var(--tinta);color:var(--crema)}
+.it .ic{width:18px;height:18px;flex:none;opacity:.85}
+.it .lb{flex:1;min-width:0}
+.est{width:16px;height:16px;border-radius:99px;flex:none;display:grid;place-items:center;font-size:10px;font-weight:700}
+.est.pend{border:1.5px dashed var(--taupe)}
+.est.med{background:var(--ambar);color:#fff}
+.est.ok{background:var(--verde);color:#fff}
+.it[aria-current="true"] .est.pend{border-color:var(--crema)}
+
+.main{position:relative;flex:1;min-width:0;display:flex;flex-direction:column}
+.mh{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;padding:14px 20px;border-bottom:1px solid var(--sand);background:var(--crema)}
+.mh h2{font-family:var(--serif);font-size:24px;font-weight:600;margin:0}
+.mh .ayuda{margin-left:auto;display:flex;gap:6px}
+.mini{border:1px solid var(--sand);background:var(--papel);border-radius:99px;padding:5px 11px;font-size:13px;color:var(--taupe)}
+.mini:hover{background:var(--sand);color:var(--tinta)}
+.paso{display:flex;gap:6px;align-items:center;font-size:12.5px;color:var(--taupe)}
+.paso span{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:99px;border:1px solid var(--sand);background:var(--papel)}
+.paso span.on{border-color:var(--tinta);color:var(--tinta);font-weight:600}
+.paso span.hecho{background:color-mix(in srgb,var(--verde) 14%,var(--papel));border-color:transparent;color:var(--verde)}
+.paso b{font-weight:700}
+.cuerpo{flex:1;overflow-y:auto;padding:18px 20px 80px}
+.rej{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.card{background:var(--papel);border:1px solid var(--sand);border-radius:16px;padding:16px;min-height:120px}
+.card h3{margin:0 0 2px;font-size:15px}
+.card p{margin:0 0 12px;font-size:13px;color:var(--taupe)}
+.sk{height:9px;border-radius:99px;background:var(--sand);margin:8px 0}
+.sk.w1{width:92%}.sk.w2{width:70%}.sk.w3{width:48%}
+.pill{display:inline-block;font-size:12px;font-weight:600;border-radius:99px;padding:2px 9px;background:color-mix(in srgb,var(--verde) 15%,var(--papel));color:var(--verde)}
+.card.ancho{grid-column:1/-1}
+
+/* capas */
+.capa{position:absolute;inset:0;pointer-events:none;z-index:20}
+.capa>*{pointer-events:auto}
+.velo{position:absolute;inset:0;display:grid;place-items:center;padding:16px;overflow-y:auto}
+.velo.suave{background:color-mix(in srgb,var(--tinta) 38%,transparent);backdrop-filter:blur(2px)}
+.velo.duro{background:rgba(0,0,0,.6)}
+.hoja{width:min(520px,100%);background:var(--papel);border:1px solid var(--sand);border-radius:20px;padding:22px;box-shadow:0 18px 50px rgba(0,0,0,.22);max-height:100%;overflow-y:auto}
+.hoja .ey{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--rojo-p);font-weight:700;margin:0 0 4px}
+.hoja h3{font-family:var(--serif);font-size:26px;font-weight:600;margin:0 0 4px;line-height:1.15}
+.hoja .lead{color:var(--taupe);margin:0 0 14px;font-size:14px}
+.pts{list-style:none;margin:0 0 12px;padding:0;display:grid;gap:9px}
+.pts li{display:flex;gap:10px;align-items:flex-start;font-size:14.5px}
+.pts li i{flex:none;width:22px;height:22px;border-radius:99px;background:var(--sand);display:grid;place-items:center;font-style:normal;font-size:12px;font-weight:700;color:var(--taupe);margin-top:1px}
+details.full{border:1px solid var(--sand);border-radius:12px;padding:8px 12px;margin-bottom:14px;background:var(--crema);font-size:13.5px}
+details.full summary{cursor:pointer;font-weight:600;color:var(--taupe)}
+details.full p{margin:8px 0 2px;color:var(--tinta)}
+.nota-v{font-size:12px;color:var(--taupe);margin:6px 0 0}
+.chk{display:flex;gap:10px;align-items:flex-start;border:1.5px solid var(--taupe);border-radius:12px;padding:10px 12px;margin-bottom:14px;cursor:pointer;font-size:14.5px;background:var(--crema)}
+.chk input{width:20px;height:20px;margin:1px 0 0;accent-color:var(--tinta);flex:none}
+.acc{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;align-items:center}
+.prim{border:0;background:var(--tinta);color:var(--crema);border-radius:12px;padding:11px 20px;font-weight:600;font-size:15px}
+.prim[disabled]{opacity:.35;cursor:not-allowed}
+.sec{border:0;background:transparent;color:var(--taupe);padding:10px 8px;font-size:14px;text-decoration:underline;text-underline-offset:3px}
+.tag{display:inline-block;font-size:11.5px;font-weight:600;border-radius:99px;padding:2px 9px;margin-left:6px;vertical-align:middle}
+.tag.acepta{background:color-mix(in srgb,var(--rojo) 13%,var(--papel));color:var(--rojo-p)}
+.tag.aviso{background:var(--sand);color:var(--taupe)}
+
+/* guía ligera: sin velo, solo un aro y una tarjeta chica */
+.aro{position:absolute;border:2px solid var(--rojo);border-radius:14px;pointer-events:none;z-index:21;transition:all .25s ease;box-shadow:0 0 0 4px color-mix(in srgb,var(--rojo) 14%,transparent)}
+.aro::after{content:"";position:absolute;top:-6px;right:-6px;width:12px;height:12px;border-radius:99px;background:var(--rojo);animation:lat 1.6s infinite}
+@keyframes lat{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--rojo) 50%,transparent)}70%{box-shadow:0 0 0 10px transparent}100%{box-shadow:0 0 0 0 transparent}}
+@media (prefers-reduced-motion:reduce){.aro::after{animation:none}.aro{transition:none}}
+.tip{position:absolute;z-index:22;width:min(280px,calc(100% - 24px));background:var(--papel);border:1px solid var(--tinta);border-radius:14px;padding:12px 14px;box-shadow:0 8px 24px rgba(0,0,0,.16);transition:top .25s ease,left .25s ease}
+.tip h4{margin:0 0 2px;font-size:14.5px}
+.tip p{margin:0 0 10px;font-size:13.5px;color:var(--taupe)}
+.tip .pie{display:flex;align-items:center;gap:8px;justify-content:space-between}
+.tip .pie small{color:var(--taupe);font-size:12px}
+.tip .prim{padding:6px 14px;font-size:13.5px;border-radius:10px}
+.tip .sec{padding:6px 4px;font-size:13px}
+
+/* "Hoy": driver.js oscuro + términos a la vez */
+.pop-hoy{position:absolute;z-index:40;background:#fff;color:#1a1a18;border-radius:10px;padding:14px;width:min(300px,calc(100% - 24px));box-shadow:0 10px 40px rgba(0,0,0,.5)}
+.pop-hoy h4{margin:0 0 4px;font-size:15px}.pop-hoy p{margin:0 0 10px;font-size:13.5px;color:#444}
+.pop-hoy label{display:flex;gap:6px;font-size:12.5px;color:#444;margin-bottom:8px}
+.pop-hoy .pie{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:#666}
+.pop-hoy button{background:#1a1a18;color:#fff;border:0;border-radius:6px;padding:6px 12px;font-size:13px}
+.hoy-tag{position:absolute;z-index:50;left:50%;top:12px;transform:translateX(-50%);background:var(--rojo);color:#fff;border-radius:99px;padding:6px 14px;font-size:13px;font-weight:600;box-shadow:0 4px 16px rgba(0,0,0,.3);white-space:nowrap}
+
+.gen{width:100%;height:100%;background:var(--crema);display:grid;place-items:center;padding:16px;overflow-y:auto}
+
+/* notas debajo */
+.notas{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:16px}
+.nota{background:var(--papel);border:1px solid var(--sand);border-radius:16px;padding:14px 16px;font-size:14px}
+.nota b{display:block;font-family:var(--serif);font-size:18px;margin-bottom:4px}
+.nota p{margin:0;color:var(--taupe)}
+.tabla{width:100%;border-collapse:collapse;font-size:13.5px;margin-top:6px}
+.tabla th,.tabla td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--sand);vertical-align:top}
+.tabla th{background:var(--sand);font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--taupe)}
+
+@media (max-width:820px){
+  .app{flex-direction:column;height:auto;min-height:0}
+  .menu{width:auto;border-right:0;border-bottom:1px solid var(--sand);display:flex;gap:6px;overflow-x:auto;padding:8px}
+  .menu .gt{display:none}
+  .it{width:auto;white-space:nowrap;border:1px solid var(--sand)}
+  .main{height:640px}
+  .rej{grid-template-columns:1fr}
+  .notas{grid-template-columns:1fr}
+  .prog{margin-left:0;width:100%}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Términos y guía en «Lo mío»</h1>
+  <p class="sub">Maqueta interactiva. Compara cómo sale hoy (todo encima, a la vez) con la propuesta: primero los términos, después una guía liviana, módulo por módulo. Prueba entrando a varios módulos del menú.</p>
+
+  <div class="ctl">
+    <div class="seg" role="group" aria-label="Versión">
+      <button id="b-hoy" aria-pressed="false">Hoy</button>
+      <button id="b-prop" aria-pressed="true">Propuesta</button>
+    </div>
+    <button class="ghost" id="reiniciar">↺ Entrar como integrante nueva</button>
+    <button class="ghost" id="tema" aria-label="Cambiar entre claro y oscuro">◐ Tema</button>
+    <div class="prog" aria-live="polite"><span id="prog-t">0 de 16 módulos listos</span><span class="barra"><i id="prog-b"></i></span></div>
+  </div>
+  <div class="aviso" id="aviso"></div>
+
+  <div class="app" id="app">
+    <nav class="menu" id="menu" aria-label="Secciones de Lo mío"></nav>
+    <main class="main" id="main">
+      <header class="mh" id="mh"></header>
+      <section class="cuerpo" id="cuerpo"></section>
+      <div class="capa" id="capa"></div>
+    </main>
+  </div>
+
+  <div class="notas">
+    <div class="nota"><b>1 · Orden</b><p>Los términos van primero y bloquean el módulo hasta que se aceptan. La guía no puede arrancar antes: hoy son dos capas peleando por la misma pantalla.</p></div>
+    <div class="nota"><b>2 · Peso visual</b><p>Sin velo negro y sin siete pasos. Un aro suave, una tarjeta chica y, como máximo, tres consejos por módulo. «Omitir» siempre a la vista.</p></div>
+    <div class="nota"><b>3 · Recuperable</b><p>Cada módulo guarda «Ver términos» y «Ver guía» en su cabecera. Nada se pierde por cerrar una vez.</p></div>
+  </div>
+
+  <div class="nota" style="margin-top:12px">
+    <b>Qué lleva cada módulo</b>
+    <p>«Con aceptación» = casilla obligatoria y constancia guardada con versión. «Aviso» = un botón «Entendido» (sin casilla), porque no hay nada que acordar, solo algo que saber.</p>
+    <table class="tabla" id="tabla"></table>
+  </div>
+</div>
+
+<script>
+/* ───────────── Contenido (texto de ejemplo: lo revisa DO / el laboralista antes de producción) ───────────── */
+var I = {
+  resumen:'M3 3h7v9H3zM14 3h7v5h-7zM14 12h7v9h-7zM3 16h7v5H3z',
+  dias:'M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z',
+  turnos:'M12 6v6l4 2M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z',
+  ausencias:'M12 22V12M12 12C12 7 8 4 4 4c0 5 3 8 8 8zM12 12c0-5 4-8 8-8 0 5-3 8-8 8z',
+  boletas:'M6 2h12v20l-3-2-3 2-3-2-3 2zM9 8h6M9 12h6',
+  movilidad:'M3 13l2-6h14l2 6M3 13v5h2M21 13v5h-2M7 18h10M3 13h18',
+  educacion:'M2 9l10-5 10 5-10 5zM6 11v5c3 2 9 2 12 0v-5',
+  contrato:'M6 2h9l5 5v15H6zM14 2v6h6M9 13h8M9 17h8',
+  firma:'M3 17c3-6 5-6 6-2s3 3 5-1 4-2 7 0M3 21h18',
+  dni:'M3 5h18v14H3zM8 11a2 2 0 1 0 0-.01M5 16c1-2 5-2 6 0M14 9h5M14 13h5',
+  seguro:'M12 2l8 3v6c0 5-3.5 9-8 11-4.5-2-8-6-8-11V5zM9 12l2 2 4-4',
+  datos:'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21c1-5 15-5 16 0',
+  objetivos:'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10zM12 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2z',
+  reportes:'M4 4h16v12H8l-4 4z',
+  disciplina:'M14 4l6 6M4 20l9-9M11 7l5 5M9 9l6-6 5 5-6 6',
+  historial:'M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5M12 8v5l3 2'
+};
+
+/* acepta = casilla obligatoria. tips = máximo 3, cada uno apunta a una tarjeta (índice) del módulo. */
+var GRUPOS = [
+ {l:'',m:['resumen']},
+ {l:'Asistencia',m:['dias','turnos','ausencias']},
+ {l:'Pago',m:['boletas','movilidad','educacion']},
+ {l:'Documentos',m:['contrato','firma','dni','seguro','datos']},
+ {l:'Seguimiento',m:['objetivos','reportes','disciplina','historial']}
+];
+var M = {
+ resumen:{n:'Resumen',acepta:false,
+  pts:['Lo que ves aquí es un estimado de tu periodo, no tu boleta final.','Se calcula con tus marcajes hasta hoy.','Si algo no cuadra, avísale a tu líder de equipo.'],
+  full:'El Resumen muestra información calculada en vivo a partir de tus marcajes, turnos y ausencias. Los montos y fechas pueden cambiar hasta el cierre del periodo. Solo tu boleta oficial tiene valor de pago.',
+  cards:[['Tu información','Nombre, cargo y sede'],['Tu periodo de pago','Cierra el 28'],['Cómo va tu pago','Estimado en vivo'],['Tu próximo turno','Horario y feriados']],
+  tips:[[0,'Tu información','Si algo está mal, corrígelo desde «Editar datos».'],[2,'Cómo va tu pago','Es un estimado. La boleta final llega al cerrar el periodo.'],[3,'Tu próximo turno','Tu horario y el próximo feriado de tu sede.']]},
+ dias:{n:'Mis días',acepta:false,
+  pts:['Tus marcajes son el registro de tu asistencia.','Dynamic avisa tardanzas y faltas; nunca sanciona solo, siempre decide una persona.','Si un marcaje está mal, puedes pedir que se corrija, con un motivo.'],
+  full:'Los marcajes se conservan y no se borran: una corrección queda registrada junto con quién la hizo y por qué. Una tardanza registrada no es una sanción; cualquier medida disciplinaria requiere conversación y constancia.',
+  cards:[['Calendario del periodo','Un día, un color'],['Tardanzas y faltas','Lo que se cuenta este periodo'],['Pedir corrección','Cuando un marcaje no es correcto']],
+  tips:[[0,'Tu calendario','Cada día muestra cómo quedó. Toca uno para ver sus marcajes.'],[1,'Tardanzas y faltas','Aquí ves lo que se cuenta y por qué.'],[2,'¿Algo mal?','Pide la corrección con un motivo; queda registrada.']]},
+ turnos:{n:'Mis turnos',acepta:false,
+  pts:['Tu turno es el horario que tu líder de equipo te asigna.','Un cambio de turno se avisa con anticipación.','Los feriados de tu sede aparecen aquí.'],
+  full:'Los turnos pueden ser modificados por tu líder de equipo respetando la jornada máxima legal y el aviso que corresponda. Ver un turno aquí no reemplaza la comunicación directa con tu líder.',
+  cards:[['Esta semana','Tus turnos'],['Próxima semana','Si ya está publicada'],['Feriados de tu sede','Próximas fechas']],
+  tips:[[0,'Tu semana','Cada día dice a qué hora entras y sales.'],[2,'Feriados','Los de tu sede, para que los tengas presentes.']]},
+ ausencias:{n:'Vacaciones y permisos',acepta:true,
+  pts:['Tus solicitudes quedan registradas con fecha y hora.','Un descanso médico se respalda con su documento.','Las vacaciones se coordinan con tu líder de equipo.'],
+  full:'Las solicitudes de vacaciones, permisos y descansos médicos se registran y pueden ser consultadas por Desarrollo Organizacional y por tu líder de equipo. Al enviarlas confirmas que la información es verídica.',
+  cards:[['Tus días pendientes','Vacaciones'],['Solicitar','Vacaciones, permiso o descanso médico'],['Tus solicitudes','Estado de cada una']],
+  tips:[[0,'Tus días','Cuántos días tienes y si alguno está por vencer.'],[1,'Solicitar','Elige el tipo; el sistema te pide solo lo necesario.']]},
+ boletas:{n:'Boletas',acepta:false,
+  pts:['Aquí están tus boletas oficiales.','La boleta es un documento personal: no la compartas.','Si ves un error, avisa a Desarrollo Organizacional antes de firmar.'],
+  full:'Las boletas oficiales las emite el contador. Contienen datos remunerativos personales y solo tú, y quienes por su función deban verlas, tienen acceso.',
+  cards:[['Boleta del periodo','Oficial, del contador'],['Boletas anteriores','Historial'],['Firmar','Constancia de recepción']],
+  tips:[[0,'Tu boleta','Ábrela, descárgala o imprímela.'],[2,'Firmar','Al firmar confirmas que la recibiste.']]},
+ movilidad:{n:'Movilidad',acepta:true,
+  pts:['La movilidad es un apoyo condicionado a que asistas.','No forma parte de tu remuneración computable.','Aceptas las condiciones del pacto de movilidad.'],
+  full:'La movilidad diaria está supeditada a la asistencia y tiene carácter no remunerativo conforme al pacto firmado. Aceptar estas condiciones deja constancia con fecha, hora y versión del texto.',
+  cards:[['Tu movilidad','Cómo se calcula'],['Tu pacto','Estado de firma'],['Ruta','Tu trayecto declarado']],
+  tips:[[0,'Cómo se calcula','Depende de los días que asistes.'],[1,'Tu pacto','Aquí ves si ya lo firmaste.']]},
+ educacion:{n:'Educación',acepta:false,
+  pts:['El bono de educación se otorga contra comprobante.','Sube solo comprobantes tuyos o de tus hijos/as.','Revisamos cada envío y te decimos si se aprueba o por qué no.'],
+  full:'Los comprobantes cargados se usan únicamente para evaluar el bono. Se te informa el resultado y, si se rechaza, el motivo.',
+  cards:[['Tu bono','Estado'],['Enviar comprobante','Foto o PDF'],['Tus envíos','Aprobados y rechazados']],
+  tips:[[1,'Enviar comprobante','Foto o PDF, legible y completo.'],[2,'Tus envíos','Aquí ves qué se aprobó y qué no.']]},
+ contrato:{n:'Contrato',acepta:false,
+  pts:['Aquí lees tu contrato vigente.','Leerlo no es firmarlo: la firma es otro paso, en «Firma».','Puedes imprimirlo o guardarlo.'],
+  full:'El contrato es un documento legal entre tú y la empresa. Esta pantalla solo lo muestra; la firma se deja en su propia sección con la constancia correspondiente.',
+  cards:[['Tu contrato vigente','Tipo y fechas'],['Historial de contratos','Los anteriores'],['Firmar','Va a «Firma»']],
+  tips:[[0,'Tu contrato','Léelo completo antes de firmar.'],[2,'¿Listo?','La firma se hace en la sección «Firma».']]},
+ firma:{n:'Firma',acepta:true,
+  pts:['Tu firma dibujada se usa para firmar tus documentos.','Tiene valor de aceptación de su contenido.','Solo tú puedes usarla; si crees que alguien la usó, avisa de inmediato.'],
+  full:'La firma registrada se asocia a tu persona y se estampa en los documentos que firmes desde Dynamic. Cada uso deja constancia con fecha y hora.',
+  cards:[['Tu firma','Dibújala una vez'],['Documentos por firmar','Pendientes'],['Documentos firmados','Con su constancia']],
+  tips:[[0,'Tu firma','Dibújala con el dedo o el mouse; puedes rehacerla.'],[1,'Por firmar','Aquí aparecen los que esperan tu firma.']]},
+ dni:{n:'Mi DNI',acepta:true,ya:true,
+  pts:['Se piden las fotos de tu DNI (anverso y reverso).','Sirven para verificar tu identidad y dejar constancia de lo que aceptas.','Tienes derechos sobre estos datos (Ley N.° 29733).'],
+  full:'Hoy este consentimiento ya existe dentro del módulo (migración 0404) y se guarda palabra por palabra. En la propuesta se mueve a la entrada del módulo en vez de aparecer al final, con la misma constancia.',
+  cards:[['Foto del anverso','Cara con tu foto'],['Foto del reverso','Cara con tu firma'],['Estado','Pendiente de revisión']],
+  tips:[[0,'Fotos claras','Con buena luz, sin reflejos, el documento completo.'],[2,'Estado','Te avisamos cuando se revise.']]},
+ seguro:{n:'Mi seguro',acepta:false,
+  pts:['Aquí está el PDF de tu póliza.','Tu seguro depende de tu tipo de contrato.','Para usarlo, lleva tu DNI y la póliza.'],
+  full:'La información de la póliza la administra Desarrollo Organizacional. Cada integrante ve únicamente la suya.',
+  cards:[['Tu póliza','PDF'],['Cobertura','Qué incluye'],['Cómo usarlo','Pasos']],
+  tips:[[0,'Tu póliza','Descárgala para tenerla en el celular.'],[2,'Cómo usarlo','Qué llevar a la clínica.']]},
+ datos:{n:'Mis datos',acepta:true,
+  pts:['Dynamic guarda tus datos personales para tu contrato, tu pago y tu seguridad.','Solo los ven quienes deben por su función.','Puedes pedir corregirlos cuando cambien.'],
+  full:'Tratamiento de datos personales conforme a la Ley N.° 29733: finalidad, conservación y derechos de acceso, rectificación, cancelación y oposición. Para ejercerlos, escribe a Desarrollo Organizacional.',
+  cards:[['Cuenta bancaria','Para tu pago'],['Contacto','Celular y dirección'],['Emergencia','A quién avisar']],
+  tips:[[0,'Cuenta bancaria','Donde recibes tu pago. Revísala bien.'],[2,'Emergencia','Alguien a quien podamos llamar.']]},
+ objetivos:{n:'Objetivos',acepta:false,
+  pts:['Tus objetivos los conversa contigo tu líder de equipo.','Aquí solo ves el avance.','Un objetivo no cumplido no es, por sí solo, una falta.'],
+  full:'Los objetivos son una herramienta de acompañamiento. Su cumplimiento puede influir en el plus por objetivos según la política vigente.',
+  cards:[['Objetivo del periodo','Avance'],['Objetivos anteriores','Historial']],
+  tips:[[0,'Tu avance','Se actualiza cuando tu líder lo carga.']]},
+ reportes:{n:'Reportes',acepta:true,
+  pts:['Aquí puedes contar algo que quieras que se atienda.','Se trata con reserva: lo ve quien lo debe gestionar.','Escribe hechos, no suposiciones.'],
+  full:'Los reportes pueden contener información sensible sobre terceros. Se tratan con confidencialidad y se gestionan por las personas autorizadas. Un reporte hecho de mala fe puede tener consecuencias.',
+  cards:[['Nuevo reporte','Cuéntanos'],['Tus reportes','En qué va cada uno']],
+  tips:[[0,'Nuevo reporte','Escribe qué pasó, cuándo y dónde.'],[1,'Seguimiento','Aquí ves el estado de lo que contaste.']]},
+ disciplina:{n:'Disciplina',acepta:true,
+  pts:['Aquí ves tus memos y cómo vas con tus tardanzas.','Abrir un memo deja constancia de que lo leíste, no de que estés de acuerdo.','Puedes presentar tu descargo.'],
+  full:'La constancia de lectura registra fecha y hora de apertura del memo. No implica conformidad. Tienes derecho a presentar tus descargos en el plazo indicado en cada documento.',
+  cards:[['Tus memos','Si los hay'],['Cómo vas este mes','Tardanzas'],['Presentar descargo','Si corresponde']],
+  tips:[[1,'Cómo vas','Para que sepas dónde estás antes de que se llegue a algo.'],[2,'Descargo','Tu versión también queda por escrito.']]},
+ historial:{n:'Historial',acepta:false,
+  pts:['Aquí ves cada corrección que se hizo a tus marcajes.','Cada una dice quién la hizo y por qué.','Es solo de lectura.'],
+  full:'El historial es un registro de auditoría. No puede modificarse desde esta pantalla.',
+  cards:[['Correcciones','Cronología'],['Cambios en tus datos','Quién y cuándo']],
+  tips:[[0,'Correcciones','Cada línea es un cambio con su motivo.']]}
+};
+var ORDEN = [].concat.apply([], GRUPOS.map(function(g){return g.m}));
+var TERMS_GENERALES = {
+  pts:['Dynamic registra tus marcajes, ausencias y pagos: de ahí sale tu pago.','Dynamic avisa, nunca sanciona solo. Las decisiones las toman personas.','Tus datos personales los ven solo quienes deben, por su función.','Puedes ver, corregir y pedir información sobre tus datos (Ley N.° 29733).'],
+  full:'Texto completo de los términos generales de uso de Dynamic. En la versión real lo redacta Desarrollo Organizacional con el laboralista; aquí es un texto de muestra. Cada aceptación se guarda con tu nombre, fecha, hora y número de versión.'
+};
+
+/* ───────────── Estado ───────────── */
+var modo = 'prop';
+var S = {general:false, terms:{}, guia:{}};
+var actual = 'resumen';
+var tipI = 0;
+var $ = function(id){return document.getElementById(id)};
+function cargar(){ try{ var r=localStorage.getItem('maqueta-tyc-guia'); if(r){var o=JSON.parse(r); if(o&&o.terms) S=o;} }catch(e){} }
+function guardar(){ try{ localStorage.setItem('maqueta-tyc-guia',JSON.stringify(S)); }catch(e){} }
+function listo(m){ return !!(S.terms[m] && S.guia[m]); }
+function estado(m){ return listo(m)?'ok':(S.terms[m]||S.guia[m])?'med':'pend'; }
+function svg(m,c){ return '<svg class="'+(c||'ic')+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="'+I[m]+'"/></svg>'; }
+function esc(s){ return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]}); }
+
+/* ───────────── Dibujo ───────────── */
+function dibujarMenu(){
+  var h='';
+  GRUPOS.forEach(function(g){
+    if(g.l) h+='<div class="gt">'+esc(g.l)+'</div>';
+    g.m.forEach(function(m){
+      var e=estado(m), mark=e==='ok'?'✓':e==='med'?'•':'';
+      h+='<button class="it" data-m="'+m+'" '+(m===actual?'aria-current="true"':'')+'>'+svg(m)+'<span class="lb">'+esc(M[m].n)+'</span><span class="est '+e+'" title="'+(e==='ok'?'Listo':e==='med'?'A medias':'Por ver')+'">'+mark+'</span></button>';
+    });
+  });
+  $('menu').innerHTML=h;
+  var n=ORDEN.filter(listo).length;
+  $('prog-t').textContent=n+' de 16 módulos listos';
+  $('prog-b').style.width=(n/16*100)+'%';
+}
+function dibujarCabecera(){
+  var m=M[actual], t=S.terms[actual], g=S.guia[actual];
+  var paso = modo==='prop'
+    ? '<div class="paso" aria-label="Pasos de este módulo"><span class="'+(t?'hecho':'on')+'"><b>1</b> Términos'+(t?' ✓':'')+'</span><span class="'+(g?'hecho':(t?'on':''))+'"><b>2</b> Guía'+(g?' ✓':'')+'</span></div>'
+    : '';
+  var ay = modo==='prop' ? '<div class="ayuda">'+(t?'<button class="mini" id="ver-t">Ver términos</button>':'')+(t?'<button class="mini" id="ver-g">Ver guía</button>':'')+'</div>' : '';
+  $('mh').innerHTML='<h2>'+esc(m.n)+'</h2>'+paso+ay;
+}
+function dibujarCuerpo(){
+  var m=M[actual], h='<div class="rej">';
+  m.cards.forEach(function(c,i){
+    var ancho = (m.cards.length%2===1 && i===m.cards.length-1 && m.cards.length>2)?' ancho':'';
+    h+='<div class="card'+ancho+'" data-t="'+i+'"><h3>'+esc(c[0])+'</h3><p>'+esc(c[1])+'</p><div class="sk w1"></div><div class="sk w2"></div>'+(i===0?'<span class="pill">Al día</span>':'<div class="sk w3"></div>')+'</div>';
+  });
+  $('cuerpo').innerHTML=h+'</div>';
+}
+function limpiarCapa(){ $('capa').innerHTML=''; }
+
+/* ----- Propuesta ----- */
+function hojaTerminos(id, gen){
+  var d = gen ? {n:'Dynamic',acepta:true,pts:TERMS_GENERALES.pts,full:TERMS_GENERALES.full} : M[id];
+  var pts=d.pts.map(function(p,i){return '<li><i>'+(i+1)+'</i><span>'+esc(p)+'</span></li>'}).join('');
+  var acepta=d.acepta;
+  var tag = acepta?'<span class="tag acepta">Con aceptación</span>':'<span class="tag aviso">Aviso</span>';
+  var ey = gen ? 'Antes de empezar' : 'Antes de entrar a este módulo';
+  var tit = gen ? 'Términos de uso de Dynamic' : d.n;
+  var lead = gen ? 'Léelos con calma: son cuatro ideas. Lo aceptas una sola vez.' : 'Lo esencial, en una mirada.';
+  var ya = d.ya?'<p class="nota-v">Hoy este consentimiento ya existe al final del módulo; aquí se movería a la entrada, con la misma constancia.</p>':'';
+  return '<div class="hoja" role="dialog" aria-modal="true" aria-label="'+esc(tit)+'">'+
+    '<p class="ey">'+ey+tag+'</p><h3>'+esc(tit)+'</h3><p class="lead">'+lead+'</p>'+
+    '<ul class="pts">'+pts+'</ul>'+
+    '<details class="full"><summary>Ver el texto completo</summary><p>'+esc(d.full)+'</p><p class="nota-v">Versión 1 · octubre 2026 · texto de muestra</p></details>'+ya+
+    (acepta?'<label class="chk"><input type="checkbox" id="ck"><span>He leído y acepto'+(gen?' los términos de uso.':' lo de este módulo.')+'</span></label>':'')+
+    '<div class="acc">'+(gen?'':'<button class="sec" id="t-despues">Ahora no</button>')+'<button class="prim" id="t-ok" '+(acepta?'disabled':'')+'>'+(acepta?'Aceptar y continuar':'Entendido')+'</button></div></div>';
+}
+function mostrarTerminos(id){
+  limpiarCapa();
+  $('capa').innerHTML='<div class="velo suave">'+hojaTerminos(id,false)+'</div>';
+  ligarTerminos(function(){ S.terms[id]=true; guardar(); dibujarMenu(); dibujarCabecera(); setTimeout(function(){ empezarGuia(id); },200); },
+    function(){ limpiarCapa(); });
+}
+function mostrarGeneral(){
+  $('app').querySelector('.gen') && $('app').querySelector('.gen').remove();
+  var g=document.createElement('div'); g.className='gen'; g.id='gen'; g.style.cssText='position:absolute;inset:0;z-index:30';
+  g.innerHTML=hojaTerminos(null,true);
+  $('app').appendChild(g);
+  ligarTerminos(function(){ S.general=true; guardar(); g.remove(); abrir(actual); }, null, g);
+}
+function ligarTerminos(ok, despues, raiz){
+  var r=raiz||$('capa'), ck=r.querySelector('#ck'), b=r.querySelector('#t-ok');
+  if(ck) ck.addEventListener('change',function(){ b.disabled=!ck.checked; });
+  b.addEventListener('click',ok);
+  var d=r.querySelector('#t-despues'); if(d&&despues) d.addEventListener('click',despues);
+}
+function empezarGuia(id){
+  tipI=0; limpiarCapa(); pintarTip(id);
+}
+function pintarTip(id){
+  var tips=M[id].tips, t=tips[tipI];
+  var el=document.querySelector('[data-t="'+t[0]+'"]'); if(!el){ return cerrarGuia(id); }
+  el.scrollIntoView({block:'nearest'});
+  var main=$('main').getBoundingClientRect(), r=el.getBoundingClientRect();
+  var cap=$('capa'); cap.innerHTML='';
+  var aro=document.createElement('div'); aro.className='aro';
+  aro.style.cssText='top:'+(r.top-main.top-4)+'px;left:'+(r.left-main.left-4)+'px;width:'+(r.width+8)+'px;height:'+(r.height+8)+'px';
+  cap.appendChild(aro);
+  var tip=document.createElement('div'); tip.className='tip'; tip.setAttribute('role','dialog'); tip.setAttribute('aria-label','Guía');
+  var ultimo = tipI===tips.length-1;
+  tip.innerHTML='<h4>'+esc(t[1])+'</h4><p>'+esc(t[2])+'</p><div class="pie"><button class="sec" id="g-omitir">Omitir</button><small>'+(tipI+1)+' de '+tips.length+'</small><button class="prim" id="g-sig">'+(ultimo?'Listo':'Siguiente')+'</button></div>';
+  cap.appendChild(tip);
+  var tw=Math.min(280,main.width-24), th=tip.offsetHeight;
+  var left=Math.max(12,Math.min(r.left-main.left, main.width-tw-12));
+  var top=r.bottom-main.top+12;
+  if(top+th>main.height-8) top=Math.max(8,r.top-main.top-th-12);
+  tip.style.left=left+'px'; tip.style.top=top+'px';
+  tip.querySelector('#g-sig').addEventListener('click',function(){ if(ultimo) cerrarGuia(id); else { tipI++; pintarTip(id); } });
+  tip.querySelector('#g-omitir').addEventListener('click',function(){ cerrarGuia(id); });
+  tip.querySelector('#g-sig').focus({preventScroll:true});
+}
+function cerrarGuia(id){ S.guia[id]=true; guardar(); limpiarCapa(); dibujarMenu(); dibujarCabecera(); }
+
+/* ----- Hoy: lo que pasa ahora (todo a la vez) ----- */
+function mostrarHoy(id){
+  limpiarCapa();
+  var m=M[id], tips=m.tips; tipI=0;
+  function pintar(){
+    var t=tips[tipI], el=document.querySelector('[data-t="'+t[0]+'"]');
+    var main=$('main').getBoundingClientRect(), r=el.getBoundingClientRect();
+    var cap=$('capa');
+    cap.innerHTML='<div class="velo duro">'+hojaTerminos(id,false).replace('class="hoja"','class="hoja" style="opacity:.96"')+'</div>'+
+      '<div class="hoy-tag">⚠ Dos capas a la vez: la guía tapa los términos</div>';
+    var pop=document.createElement('div'); pop.className='pop-hoy';
+    pop.innerHTML='<h4>'+esc(t[1])+'</h4><p>'+esc(t[2])+'</p><label><input type="checkbox"> No volver a mostrar este recorrido</label><div class="pie"><span>Paso '+(tipI+1)+' de '+tips.length+'</span><button id="h-sig">'+(tipI===tips.length-1?'Entendido':'Siguiente')+'</button></div>';
+    cap.appendChild(pop);
+    var tw=Math.min(300,main.width-24);
+    var left=Math.max(12,Math.min(r.left-main.left+10, main.width-tw-12));
+    var top=Math.min(Math.max(70,r.bottom-main.top-40), main.height-pop.offsetHeight-12);
+    pop.style.left=left+'px'; pop.style.top=top+'px';
+    pop.querySelector('#h-sig').addEventListener('click',function(){
+      if(tipI<tips.length-1){ tipI++; pintar(); } else { S.terms[id]=true; S.guia[id]=true; guardar(); limpiarCapa(); dibujarMenu(); dibujarCabecera(); }
+    });
+    var ck=cap.querySelector('#ck'), b=cap.querySelector('#t-ok');
+    if(ck) ck.addEventListener('change',function(){ b.disabled=!ck.checked; });
+    if(b) b.addEventListener('click',function(){ S.terms[id]=true; guardar(); dibujarMenu(); });
+  }
+  pintar();
+}
+
+/* ----- Entrada a un módulo ----- */
+function abrir(id){
+  actual=id; limpiarCapa(); dibujarMenu(); dibujarCabecera(); dibujarCuerpo();
+  if(modo==='hoy'){ if(!listo(id)) setTimeout(function(){ mostrarHoy(id); },80); return; }
+  if(!S.general){ mostrarGeneral(); return; }
+  if(!S.terms[id]) return mostrarTerminos(id);
+  if(!S.guia[id]) return empezarGuia(id);
+}
+
+/* ───────────── Eventos ───────────── */
+$('menu').addEventListener('click',function(e){ var b=e.target.closest('.it'); if(b) abrir(b.dataset.m); });
+$('mh').addEventListener('click',function(e){
+  if(e.target.id==='ver-t'){ mostrarTerminosSoloLectura(); }
+  if(e.target.id==='ver-g'){ empezarGuia(actual); }
+});
+function mostrarTerminosSoloLectura(){
+  var id=actual; limpiarCapa();
+  var d=M[id];
+  $('capa').innerHTML='<div class="velo suave">'+hojaTerminos(id,false).replace(/<label class="chk">.*?<\/label>/,'').replace('Aceptar y continuar','Cerrar').replace('Entendido','Cerrar').replace(' disabled','').replace('<button class="sec" id="t-despues">Ahora no</button>','')+'</div>';
+  $('capa').querySelector('#t-ok').addEventListener('click',limpiarCapa);
+  var ey=$('capa').querySelector('.ey'); if(ey) ey.innerHTML='Ya los aceptaste · '+(d.acepta?'con constancia':'aviso');
+}
+function setModo(m){
+  modo=m; $('b-hoy').setAttribute('aria-pressed',m==='hoy'); $('b-prop').setAttribute('aria-pressed',m==='prop');
+  $('aviso').className='aviso'+(m==='hoy'?' mal':'');
+  $('aviso').innerHTML = m==='hoy'
+    ? '<b>Hoy:</b> al entrar, la guía oscura y los términos aparecen a la vez, uno encima del otro. La persona no sabe cuál leer primero y la guía deja el fondo casi negro.'
+    : '<b>Propuesta:</b> 1) términos de uso, una sola vez · 2) términos del módulo · 3) guía liviana de hasta tres consejos. Cada paso espera al anterior.';
+  reiniciar(true);
+}
+function reiniciar(sinConfirmar){
+  S={general:false,terms:{},guia:{}}; guardar();
+  var g=$('gen'); if(g) g.remove();
+  abrir(actual);
+}
+$('b-hoy').addEventListener('click',function(){ setModo('hoy'); });
+$('b-prop').addEventListener('click',function(){ setModo('prop'); });
+$('reiniciar').addEventListener('click',function(){ reiniciar(); });
+$('tema').addEventListener('click',function(){
+  var r=document.documentElement, oscuro = r.dataset.tema==='oscuro' || (r.dataset.tema!=='claro' && matchMedia('(prefers-color-scheme: dark)').matches);
+  r.dataset.tema = oscuro?'claro':'oscuro';
+  if($('capa').children.length && modo==='prop' && !S.guia[actual] && S.terms[actual]) pintarTip(actual);
+});
+window.addEventListener('resize',function(){ if(modo==='prop' && S.terms[actual] && !S.guia[actual] && $('capa').querySelector('.tip')) pintarTip(actual); });
+document.addEventListener('keydown',function(e){
+  if(e.key==='Escape' && $('capa').querySelector('.tip')) cerrarGuia(actual);
+});
+
+/* tabla resumen */
+(function(){
+  var h='<tr><th>Módulo</th><th>Tipo</th><th>Consejos</th></tr>';
+  ORDEN.forEach(function(m){ var d=M[m]; h+='<tr><td>'+esc(d.n)+'</td><td>'+(d.acepta?'<span class="tag acepta" style="margin:0">Con aceptación</span>':'<span class="tag aviso" style="margin:0">Aviso</span>')+'</td><td>'+d.tips.length+'</td></tr>'; });
+  $('tabla').innerHTML=h;
+})();
+
+/* arranque: siempre como integrante nueva, para que la maqueta cuente la historia desde el principio */
+S={general:false,terms:{},guia:{}};
+setModo('prop');
+</script>
+</body>
+</html>

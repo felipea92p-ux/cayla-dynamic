@@ -115,6 +115,19 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-10-19-cada-seccion-de-lo-mio-tiene-una-guia-corta",
+    fecha: "2026-10-19",
+    titulo: "Cada sección de «Lo mío» tiene una guía corta, y la puedes volver a ver",
+    queMejoro:
+      "Al abrir por primera vez una sección de «Lo mío» —Resumen, Mis días, Boletas, Mi seguro y las demás— aparece " +
+      "una guía de dos o tres pasos. Un aro rojo señala lo importante y el resto de la pantalla casi no se oscurece, " +
+      "así que se sigue leyendo lo que hay detrás. La puedes seguir, omitir con «Omitir» o cerrar con la X: no vuelve " +
+      "sola a salir.\n\n" +
+      "Si la quieres de nuevo, el enlace «Ver guía de esta pantalla» está debajo de tu nombre, arriba de la pantalla, en " +
+      "cada sección que tiene guía. La de Resumen pasó de siete pasos a tres.",
+    audiencia: "todos",
+  },
+  {
     id: "2026-10-19-turnos-por-tramos-y-correcciones-con-semana",
     fecha: "2026-10-19",
     titulo: "Turnos habla de «mañana y tarde», y Correcciones muestra la semana",
