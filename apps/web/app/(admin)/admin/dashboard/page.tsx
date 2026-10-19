@@ -69,6 +69,19 @@ const DIAS_RESPUESTAS_MEMO = 14;
 
 // Día de la semana (0=domingo … 6=sábado) de un ISO — misma convención que
 // metas_cobertura.dia_semana en Turnos.
+/**
+ * Lleva la vista a un elemento DESPUÉS de que React pinte el cambio (dos cuadros: el primero monta, el
+ * segundo ya tiene su lugar). Se usa al abrir un detalle —«start», para que la tabla quede en pantalla
+ * sin que quien mira baje— y al cerrarlo —«center», para volver a lo que estaba mirando antes de
+ * desplegarlo—. Sin animación si la persona pidió menos movimiento.
+ */
+function irA(id: string, block: "start" | "center") {
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    const reducido = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    document.getElementById(id)?.scrollIntoView({ behavior: reducido ? "auto" : "smooth", block });
+  }));
+}
+
 function diaSemanaDe(iso: string): number {
   const [y, m, d] = iso.split("-").map(Number);
   return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
@@ -1246,7 +1259,7 @@ export default function DashboardPage() {
                 acusaría a quien aún no tenía que haber llegado. Una casilla en 0 no abre nada
                 (no hay detalle que mostrar), así que no es un botón. */}
             <div className={resumenDetalle ? "mb-3" : "mb-4 sm:mb-6"}>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <div id="resumen-casillas" className="scroll-mt-24 grid grid-cols-2 gap-2 sm:grid-cols-4">
                 {resumen.map((k) => {
                   const abierto = resumenAbierto === k.clave;
                   return (
@@ -1259,7 +1272,7 @@ export default function DashboardPage() {
                       tono={k.tono}
                       activa={abierto}
                       controla="detalle-resumen"
-                      onClick={k.n === 0 ? undefined : () => setResumenAbierto(abierto ? null : k.clave)}
+                      onClick={k.n === 0 ? undefined : () => { setResumenAbierto(abierto ? null : k.clave); irA(abierto ? "resumen-casillas" : "detalle-resumen", abierto ? "center" : "start"); }}
                     />
                   );
                 })}
@@ -1273,9 +1286,9 @@ export default function DashboardPage() {
               <TarjetaInfo
                 como="section"
                 id="detalle-resumen"
-                className="mb-8"
+                className="mb-8 scroll-mt-24"
                 titulo={<>{resumenDetalle.label} <span className="text-taupe">· {resumenDetalle.n}</span></>}
-                accion={<BotonIcono etiqueta="Cerrar el detalle" icono={<X aria-hidden />} onClick={() => setResumenAbierto(null)} />}
+                accion={<BotonIcono etiqueta="Cerrar el detalle" icono={<X aria-hidden />} onClick={() => { setResumenAbierto(null); irA("resumen-casillas", "center"); }} />}
               >
                 {resumenDetalle.clave === "bajo_minimo" ? (
                   // Sedes, no personas: el detalle es qué le falta a cada una, y
@@ -1772,20 +1785,20 @@ export default function DashboardPage() {
                   )}
 
                   {tablaVisible ? (
-                    <>
+                    <div id={`detalle-sede-${codigo}`} className="scroll-mt-24">
                       {deSedeMostrada.length === 0 ? (
                         <p className="text-sm text-taupe">No encontramos personas con estos filtros en esta sede.</p>
                       ) : (
                         <TablaPersonas filas={deSedeMostrada} linkCorregir={linkCorregir} ahoraDecimal={ahoraDecimal} />
                       )}
                       {!hayFiltrosDeContenido && (
-                        <Boton variante="enlace" className="mt-3 text-xs text-taupe hover:text-tinta" onClick={() => setDetalleAbierto((s) => ({ ...s, [sedeId]: false }))}>
+                        <Boton variante="enlace" className="mt-3 text-xs text-taupe hover:text-tinta" onClick={() => { setDetalleAbierto((s) => ({ ...s, [sedeId]: false })); irA(`sede-${codigo}`, "center"); }}>
                           Ocultar detalle ↑
                         </Boton>
                       )}
-                    </>
+                    </div>
                   ) : (
-                    <Boton variante="enlace" className="text-xs text-taupe hover:text-tinta" onClick={() => setDetalleAbierto((s) => ({ ...s, [sedeId]: true }))}>
+                    <Boton variante="enlace" className="text-xs text-taupe hover:text-tinta" onClick={() => { setDetalleAbierto((s) => ({ ...s, [sedeId]: true })); irA(`detalle-sede-${codigo}`, "start"); }}>
                       {/* «del equipo», como la frase de arriba («10 de las 12 personas del
                           equipo»): el detalle lista a todo el equipo, no solo a quien le tocaba hoy. */}
                       Ver detalle ↓ ({deSedeCompleta.length} persona{deSedeCompleta.length === 1 ? "" : "s"} del equipo)
