@@ -18,6 +18,8 @@
  * paga y cuántas horas son.
  */
 
+import { EMPRESA } from "@cayla-dynamic/shared";
+
 export type SituacionPrueba = "en_curso" | "cumplida" | "vencida";
 export type ResultadoCierre = "no_apto" | "retirado";
 
@@ -179,4 +181,23 @@ export function resumenDeCierre(c: CierrePrueba): string {
   return c.resultado === "retirado"
     ? `Se retiró${quien} · ${dias} sin pagar`
     : `No fue apto${quien} · ${dias} a pagar`;
+}
+
+/**
+ * El texto de la constancia de consentimiento (Ley N.° 29733) que declara quien
+ * sube el DNI de otra persona. Va en tercera persona porque la base antepone
+ * «Constancia declarada por <quién> al registrar la prueba, en presencia de la
+ * persona:». Lo que se guarda es EXACTAMENTE lo que se mostró en la casilla.
+ *
+ * El plazo viene de la fila (`dias_plazo`), no se escribe aquí: si algún día
+ * cambia de tres días, la constancia no queda diciendo otra cosa.
+ */
+export function textoConsentimientoDni(nombre: string, diasPlazo: number): string {
+  return (
+    `${nombre} entregó su Documento Nacional de Identidad (DNI) en persona y autorizó a ${EMPRESA.nombre} ` +
+    `(RUC ${EMPRESA.ruc}) a tratarlo, junto con sus demás datos personales, con la finalidad de verificar su ` +
+    `identidad durante su prueba de ${diasPlazo} días y, si continúa, dejar constancia de su contrato. Estos datos ` +
+    `se incorporarán al banco de datos personales de ${EMPRESA.nombre}. Su entrega es necesaria para continuar ` +
+    `el proceso. Puede ejercer sus derechos de acceso, rectificación, cancelación y oposición escribiendo a info@cayla.pe.`
+  );
 }

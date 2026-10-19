@@ -8,7 +8,7 @@
 import { describe, it, expect } from "vitest";
 import {
   consecuenciaDelCierre, etiquetaDePrueba, mensajeDeCierre, motivoValido, nombreDe, ordenarPruebas,
-  puedeHacerContrato, resumenDeCierre, situacionDe, textoDeHoras, textoDelDia,
+  puedeHacerContrato, resumenDeCierre, situacionDe, textoConsentimientoDni, textoDeHoras, textoDelDia,
   type CierrePrueba, type FilaPrueba,
 } from "@/lib/admin/pruebas";
 
@@ -175,5 +175,23 @@ describe("los cierres recientes", () => {
 describe("nombres", () => {
   it("junta nombres y apellidos", () => {
     expect(nombreDe({ nombres: "Rufina", apellidos: "Inca" })).toBe("Rufina Inca");
+  });
+});
+
+describe("la constancia de consentimiento del DNI", () => {
+  it("nombra a la persona, a la empresa y la finalidad, y alcanza el mínimo que exige la base (50 letras)", () => {
+    const t = textoConsentimientoDni("Mariel Sarmiento", 3);
+    expect(t).toContain("Mariel Sarmiento");
+    expect(t).toContain("CAYLA S.A.C.");
+    expect(t).toContain("verificar su identidad");
+    expect(t.trim().length).toBeGreaterThanOrEqual(50);
+  });
+
+  it("el plazo sale del argumento, no está escrito a mano", () => {
+    expect(textoConsentimientoDni("A B", 5)).toContain("prueba de 5 días");
+  });
+
+  it("dice cómo ejercer los derechos de acceso, rectificación, cancelación y oposición", () => {
+    expect(textoConsentimientoDni("A B", 3)).toContain("acceso, rectificación, cancelación y oposición");
   });
 });
