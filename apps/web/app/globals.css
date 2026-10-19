@@ -918,6 +918,7 @@
   color: var(--color-tinta);
 }
 .recorrido-cayla .driver-popover-progress-text {
+  white-space: nowrap;
   font-size: var(--text-nano);
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -952,17 +953,27 @@
 .recorrido-cayla .driver-popover-arrow {
   border-color: var(--color-papel);
 }
-.recorrido-checkbox {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.4rem;
-  margin-top: 0.7rem;
-  font-size: var(--text-micro);
-  line-height: 1.4;
+/* El aro que señala lo que se explica. El velo es casi transparente (ver
+   `overlayOpacity` en use-recorrido-guiado.ts), así que esto es lo que dice
+   «mira aquí». driver.js le pone esta clase al elemento activo. */
+.driver-active-element {
+  outline: 2px solid var(--color-rojo);
+  outline-offset: 4px;
+}
+/* «Omitir»: un texto, no un botón más. Va a la izquierda del pie, lejos de
+   «Siguiente», para que no se confunda con avanzar. */
+.recorrido-cayla .recorrido-omitir {
+  margin-right: auto;
+  border: 0;
+  background: transparent;
+  padding: 0.4rem 0.25rem;
+  font-size: 0.8rem;
   color: var(--color-taupe);
+  text-decoration: underline;
+  text-underline-offset: 3px;
   cursor: pointer;
 }
-.recorrido-checkbox input {
-  margin-top: 0.2rem;
-  accent-color: var(--color-pizarra);
+.recorrido-cayla .recorrido-omitir:hover,
+.recorrido-cayla .recorrido-omitir:focus {
+  color: var(--color-tinta);
 }

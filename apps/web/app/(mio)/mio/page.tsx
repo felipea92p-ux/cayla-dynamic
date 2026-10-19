@@ -263,44 +263,31 @@ interface Derechohabiente {
 let mioYaAparecio = false;
 
 /**
- * El recorrido de primera vez de «Resumen» — Fase 1 (ver CLAUDE.md). Solo esta
- * pestaña: las otras ocho quedan para cuando se sepa si el patrón funciona.
+ * El recorrido de primera vez de «Resumen»: tres pasos (2026-10-19).
  *
- * En el mismo orden en que las tarjetas aparecen en pantalla. Tres de los
- * siete pasos (`mio-resumen-pago`, `-semana`, `-vacaciones`) apuntan a
- * tarjetas que no siempre existen —piden sus propios datos, o dependen de que
- * haya vacaciones pendientes—: `useRecorridoGuiado` los salta solos si no
- * aparecen a tiempo, no hace falta condicionarlos acá.
+ * Eran siete —información, periodo, pago, semana, vacaciones, turno y
+ * objetivos—, y de esos tres apuntaban a tarjetas que no siempre existen
+ * (`-pago`, `-semana`, `-vacaciones`): el contador saltaba de «3 de 7» a «6 de
+ * 7» en una cuenta nueva y se leía como un error. Un recorrido de siete pasos
+ * sobre una pantalla que se explica sola era, además, lo más pesado del
+ * sistema para una persona que acaba de aceptar unos términos.
  *
- * Dos cosas decididas a propósito el 2026-09-12, después de verlo saltar del
- * paso 3 al 6 en una cuenta con menos de un mes (sin ciclo de semana cerrado
- * ni vacaciones que le apliquen todavía) — para que una sesión futura no lo
- * lea como un bug y lo "arregle":
- * - El contador "Paso X de Y" no se recalcula para ocultar el salto. Hacerlo
- *   bien exigiría esperar a que las tarjetas lentas carguen ANTES de arrancar
- *   el recorrido, retrasando el inicio para todo el mundo, no solo para quien
- *   tiene menos tarjetas. El salto es cosmético, no un error.
- * - "Tu semana" y "Tus vacaciones" no se sacan del recorrido ni se explican
- *   por adelantado con una tarjeta que no existe: no le sirven a quien
- *   todavía no las tiene, y explicarlas antes de tiempo confunde más de lo
- *   que ayuda. Si la persona no marca "no volver a mostrar", el recorrido se
- *   las muestra solo el día que le aparezcan de verdad.
+ * Se dejaron los tres que la pantalla NO dice por sí sola: de quién es lo que
+ * ve, que el pago es un estimado y no la boleta, y qué le toca trabajar. Las
+ * demás tarjetas siguen con su ancla `data-tour` por si el recorrido crece; no
+ * cuestan nada, y quitarlas sería deshacer trabajo para volver a hacerlo.
+ *
+ * `-pago` sigue pudiendo no existir (pide sus propios datos): `useRecorridoGuiado`
+ * lo salta solo si no aparece a tiempo, y ahora el contador es de tres, así
+ * que un salto se nota poco. Quien quiera repetirlo tiene «Ver guía».
  */
 const PASOS_TOUR_RESUMEN: readonly PasoRecorrido[] = [
   { selector: '[data-tour="mio-resumen-header"]', titulo: "Tu información",
     texto: "Tu nombre, tu cargo y tu sede. Si algo está mal, corrígelo desde «Editar datos»." },
-  { selector: '[data-tour="mio-resumen-periodo"]', titulo: "Tu periodo de pago",
-    texto: "Cuándo cierra tu periodo actual y si te falta algún día por revisar." },
   { selector: '[data-tour="mio-resumen-pago"]', titulo: "Cómo va tu pago",
     texto: "Un estimado en vivo, con lo marcado hasta hoy. No es tu boleta final hasta que cierre el periodo." },
-  { selector: '[data-tour="mio-resumen-semana"]', titulo: "Tu semana",
-    texto: "Cuántas horas llevas trabajadas en tu semana actual." },
-  { selector: '[data-tour="mio-resumen-vacaciones"]', titulo: "Tus vacaciones",
-    texto: "Tus días pendientes, y si alguno está por vencer." },
   { selector: '[data-tour="mio-resumen-turno"]', titulo: "Tu próximo turno",
     texto: "Tu horario y el próximo feriado que le toca a tu sede." },
-  { selector: '[data-tour="mio-resumen-objetivos"]', titulo: "Tus objetivos",
-    texto: "Los conversa contigo tu líder de equipo. Aquí solo ves el avance." },
 ];
 
 /**
@@ -1427,7 +1414,9 @@ export default function MioPage() {
   // delante. Con todos los textos en borrador (hoy) no los hay y esto es
   // exactamente lo de antes. Ver lib/use-puerta-de-modulo.ts.
   const puerta = usePuertaDeModulo(tab, tab === "resumen", Boolean(yo));
-  useRecorridoGuiado("mio-resumen", PASOS_TOUR_RESUMEN, tab === "resumen" && Boolean(yo) && puerta.capa === "guia");
+  const { iniciar: verGuia } = useRecorridoGuiado(
+    "mio-resumen", PASOS_TOUR_RESUMEN, tab === "resumen" && Boolean(yo) && puerta.capa === "guia",
+  );
 
   /** Desde un aviso de arriba hasta el día concreto del que habla. */
   function abrirDia(fecha: string) {
@@ -1744,6 +1733,14 @@ export default function MioPage() {
                 <p className="mt-0.5 text-xs text-taupe">
                   En CAYLA desde {mesYAnio(yo.fechaIngreso)} · {antiguedad(yo.fechaIngreso)}
                 </p>
+              )}
+              {/* Para quien omitió la guía y la quiere de nuevo. Un texto y no un botón:
+                  es una ayuda, no una acción de esta pantalla. */}
+              {yo && (
+                <button type="button" onClick={verGuia}
+                  className="mt-1 text-xs text-taupe underline underline-offset-2 transition-colors hover:text-tinta">
+                  Ver guía de esta pantalla
+                </button>
               )}
             </div>
           </div>
