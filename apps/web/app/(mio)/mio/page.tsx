@@ -15,6 +15,7 @@ import { PASOS_GUIA_BOLETAS, PASOS_GUIA_EDUCACION, PASOS_GUIA_MOVILIDAD } from "
 import {
   PASOS_GUIA_CONTRATO, PASOS_GUIA_DATOS, PASOS_GUIA_DNI, PASOS_GUIA_FIRMA, PASOS_GUIA_SEGURO,
 } from "./guias-de-documentos";
+import { PASOS_GUIA_HISTORIAL, PASOS_GUIA_OBJETIVOS, PASOS_GUIA_REPORTES } from "./guias-de-seguimiento";
 import { SaludoCumpleanos } from "./saludo-cumpleanos";
 import { cuantosPiden, porLeer, type CuentaMia, type DocMio } from "@/lib/mio-disciplina";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
@@ -305,6 +306,9 @@ const PASOS_TOUR_RESUMEN: readonly PasoRecorrido[] = [
 const SIN_GUIA: readonly PasoRecorrido[] = [];
 const GUIAS_POR_SECCION: Partial<Record<Tab, readonly PasoRecorrido[]>> = {
   resumen: PASOS_TOUR_RESUMEN,
+  objetivos: PASOS_GUIA_OBJETIVOS,
+  reportes: PASOS_GUIA_REPORTES,
+  historial: PASOS_GUIA_HISTORIAL,
   contrato: PASOS_GUIA_CONTRATO,
   firma: PASOS_GUIA_FIRMA,
   dni: PASOS_GUIA_DNI,
@@ -2944,7 +2948,7 @@ export default function MioPage() {
           razón por la que valen. Sin lenguaje de premio — desde la 0171 los
           objetivos NO pagan, así que nada de «plus» ni de verde de recompensa. */}
       {tab === "objetivos" && (
-        <section className="rounded-2xl border border-sand p-5">
+        <section data-tour="mio-objetivos-seccion" className="rounded-2xl border border-sand p-5">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <h2 className="font-serif text-lg">Tus objetivos de {mesLabel}</h2>
             {objetivos.length > 0 && (
@@ -2961,7 +2965,7 @@ export default function MioPage() {
                 <div className="h-full rounded-full bg-verde"
                   style={{ width: `${Math.round((objCumplidos / objetivos.length) * 100)}%` }} />
               </div>
-              <ul className="space-y-1.5 text-sm">
+              <ul data-tour="mio-objetivos-lista" className="space-y-1.5 text-sm">
                 {objetivos.map((o) => (
                   <li key={o.id} className="flex items-start gap-2">
                     <span className={o.cumplido ? "text-verde" : "text-taupe/50"}>{o.cumplido ? "✓" : "○"}</span>
@@ -3282,7 +3286,7 @@ function TusUltimosPeriodos({ personaId }: { personaId: string }) {
   if (!periodos || periodos.length < 2) return null;   // una tendencia necesita al menos dos puntos
 
   return (
-    <section className="mt-5 rounded-2xl border border-sand p-5 text-sm">
+    <section data-tour="mio-historial-periodos" className="mt-5 rounded-2xl border border-sand p-5 text-sm">
       <h2 className="mb-1 font-serif text-lg">Tus últimos periodos</h2>
       <p className="mb-3 text-taupe">
         Sin montos: un periodo ya cerrado puede tener su foto de pago desactualizada — para eso está tu boleta.
