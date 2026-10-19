@@ -20,8 +20,15 @@
 // (sin vacaciones pendientes, RxH sin sueldo fijo): un paso que no aparece en
 // 1.2s se salta solo, en vez de que el recorrido se quede buscando algo que
 // nunca llega.
+//
+// Dos cosas viven separadas a propósito (2026-10-19, primer paso de «términos
+// primero, guía después»): CUÁNDO se lanza un recorrido —el efecto del hook— y
+// CÓMO se lanza —`lanzarRecorrido`—. Antes eran lo mismo y un botón «Ver guía»
+// no tenía por dónde entrar: el único camino era que `activo` pasara a `true`
+// por primera vez. Ahora el hook devuelve `iniciar()`, que salta la marca de
+// «ya lo vio» y lo lanza a pedido; el comportamiento automático no cambió.
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { driver, type DriveStep } from "driver.js";
 import "driver.js/dist/driver.css";
 
@@ -41,86 +48,117 @@ function claveDe(tourId: string) {
   return `cayla-recorrido-${tourId}`;
 }
 
+/** Si la persona ya marcó «no volver a mostrar» este recorrido en este navegador. */
+function yaLoMarcoComoVisto(tourId: string): boolean {
+  try {
+    return localStorage.getItem(claveDe(tourId)) === "1";
+  } catch {
+    // Sin localStorage (modo privado, cuota llena) no hay cómo recordar la
+    // elección — se muestra igual: es preferible a no mostrarlo nunca por
+    // un error de lectura que no tiene nada que ver con la persona.
+    return false;
+  }
+}
+
+/**
+ * Arma y lanza el recorrido. No decide SI corresponde mostrarlo —eso es de
+ * quien llama—: solo lo muestra. Devuelve cómo apagarlo.
+ */
+function lanzarRecorrido(tourId: string, pasos: readonly PasoRecorrido[]): () => void {
+  const clave = claveDe(tourId);
+  let noMostrarDeNuevo = false;
+  const sinAnimacion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  const pasosDriver: DriveStep[] = pasos.map((p) => ({
+    element: p.selector,
+    popover: { title: p.titulo, description: p.texto, side: p.lado ?? "bottom", align: "start" },
+  }));
+
+  const instancia = driver({
+    steps: pasosDriver,
+    animate: !sinAnimacion,
+    showProgress: true,
+    progressText: "Paso {{current}} de {{total}}",
+    nextBtnText: "Siguiente",
+    prevBtnText: "Anterior",
+    doneBtnText: "Entendido",
+    popoverClass: "recorrido-cayla",
+    overlayColor: "#000000",
+    overlayOpacity: 0.6,
+    stageRadius: 16,
+    stagePadding: 6,
+    smoothScroll: true,
+    disableActiveInteraction: true, // que el tour no se convierta en un clic accidental a "Ver mi boleta"
+    overlayClickBehavior: "close",
+    skipMissingElement: true,
+    waitForElement: 1200,
+    onPopoverRender: (popover) => {
+      popover.nextButton.classList.add("recorrido-btn-primario");
+
+      // El checkbox se reconstruye en cada paso (driver.js rearma el
+      // popover entero), así que el estado "marcado" vive en la variable
+      // de arriba, no en el DOM — sin esto, marcarlo en el paso 2 se
+      // olvidaba al llegar al paso 3.
+      const etiqueta = document.createElement("label");
+      etiqueta.className = "recorrido-checkbox";
+      const casilla = document.createElement("input");
+      casilla.type = "checkbox";
+      casilla.checked = noMostrarDeNuevo;
+      casilla.addEventListener("change", () => { noMostrarDeNuevo = casilla.checked; });
+      etiqueta.appendChild(casilla);
+      etiqueta.appendChild(document.createTextNode("No volver a mostrar este recorrido"));
+      popover.wrapper.insertBefore(etiqueta, popover.footer);
+    },
+    onDestroyed: () => {
+      if (!noMostrarDeNuevo) return;
+      try {
+        localStorage.setItem(clave, "1");
+      } catch {
+        // Igual que arriba: si no se puede guardar, se repite la próxima
+        // vez — no es un dato que se pueda perder de verdad, es una ayuda.
+      }
+    },
+  });
+
+  instancia.drive();
+  return () => instancia.destroy();
+}
+
 /**
  * Lanza el recorrido la primera vez que `activo` pasa a `true`, y nunca más
  * si la persona marcó "no volver a mostrar". Un `useRef` evita que ir y
  * volver a la misma pestaña dentro de la misma visita lo repita — "primera
  * vez" es por carga de página, no por cada clic de menú.
+ *
+ * Devuelve `iniciar()`: lo lanza ahora mismo, aunque ya lo haya visto —para
+ * un botón «Ver guía»—. Si hay uno en pantalla, lo reemplaza en vez de apilar
+ * dos.
  */
 export function useRecorridoGuiado(tourId: string, pasos: readonly PasoRecorrido[], activo: boolean) {
   const yaCorrioRef = useRef(false);
+  const apagarRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     if (!activo || yaCorrioRef.current || pasos.length === 0) return;
     yaCorrioRef.current = true;
 
-    const clave = claveDe(tourId);
-    try {
-      if (localStorage.getItem(clave) === "1") return;
-    } catch {
-      // Sin localStorage (modo privado, cuota llena) no hay cómo recordar la
-      // elección — se muestra igual: es preferible a no mostrarlo nunca por
-      // un error de lectura que no tiene nada que ver con la persona.
-    }
+    if (yaLoMarcoComoVisto(tourId)) return;
 
-    let noMostrarDeNuevo = false;
-    const sinAnimacion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-    const pasosDriver: DriveStep[] = pasos.map((p) => ({
-      element: p.selector,
-      popover: { title: p.titulo, description: p.texto, side: p.lado ?? "bottom", align: "start" },
-    }));
-
-    const instancia = driver({
-      steps: pasosDriver,
-      animate: !sinAnimacion,
-      showProgress: true,
-      progressText: "Paso {{current}} de {{total}}",
-      nextBtnText: "Siguiente",
-      prevBtnText: "Anterior",
-      doneBtnText: "Entendido",
-      popoverClass: "recorrido-cayla",
-      overlayColor: "#000000",
-      overlayOpacity: 0.6,
-      stageRadius: 16,
-      stagePadding: 6,
-      smoothScroll: true,
-      disableActiveInteraction: true, // que el tour no se convierta en un clic accidental a "Ver mi boleta"
-      overlayClickBehavior: "close",
-      skipMissingElement: true,
-      waitForElement: 1200,
-      onPopoverRender: (popover) => {
-        popover.nextButton.classList.add("recorrido-btn-primario");
-
-        // El checkbox se reconstruye en cada paso (driver.js rearma el
-        // popover entero), así que el estado "marcado" vive en la variable
-        // de arriba, no en el DOM — sin esto, marcarlo en el paso 2 se
-        // olvidaba al llegar al paso 3.
-        const etiqueta = document.createElement("label");
-        etiqueta.className = "recorrido-checkbox";
-        const casilla = document.createElement("input");
-        casilla.type = "checkbox";
-        casilla.checked = noMostrarDeNuevo;
-        casilla.addEventListener("change", () => { noMostrarDeNuevo = casilla.checked; });
-        etiqueta.appendChild(casilla);
-        etiqueta.appendChild(document.createTextNode("No volver a mostrar este recorrido"));
-        popover.wrapper.insertBefore(etiqueta, popover.footer);
-      },
-      onDestroyed: () => {
-        if (!noMostrarDeNuevo) return;
-        try {
-          localStorage.setItem(clave, "1");
-        } catch {
-          // Igual que arriba: si no se puede guardar, se repite la próxima
-          // vez — no es un dato que se pueda perder de verdad, es una ayuda.
-        }
-      },
-    });
-
-    instancia.drive();
-    return () => instancia.destroy();
+    apagarRef.current = lanzarRecorrido(tourId, pasos);
+    return () => {
+      apagarRef.current?.();
+      apagarRef.current = null;
+    };
     // `pasos` es una constante de módulo en quien llama (mismo patrón que
     // `SECCIONES`): su identidad no cambia entre renders, así que no hace
     // falta más que declararla acá para el lint de dependencias.
   }, [activo, tourId, pasos]);
+
+  const iniciar = useCallback(() => {
+    if (pasos.length === 0) return;
+    apagarRef.current?.();
+    apagarRef.current = lanzarRecorrido(tourId, pasos);
+  }, [tourId, pasos]);
+
+  return { iniciar };
 }
