@@ -24,7 +24,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Check, MoreHorizontal, ReceiptText, Search } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, MoreHorizontal, ReceiptText, Search } from "lucide-react";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import {
   TIPOS_VINCULO, TIPO_VINCULO_LABEL, hoyLima, puedeVerPlanilla, type TipoVinculo,
@@ -35,7 +35,14 @@ import { useRolActual } from "@/lib/admin/use-rol";
 import { formatSoles } from "@/lib/rangos";
 import { descargarCsv, generarCsv } from "@/lib/admin/csv";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
+import { AyudaPantalla } from "@/components/ui/ayuda-pantalla";
 import { Boton } from "@/components/ui/boton";
+import { BotonIcono } from "@/components/ui/boton-icono";
+import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
+import { ParaAtender } from "@/components/ui/para-atender";
+import { TarjetaInfo } from "@/components/ui/tarjeta-info";
+import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
+import { accionPrincipalDelPeriodo } from "@/lib/admin/planilla/accion-principal";
 import { Insignia } from "@/components/ui/insignia";
 import { usePruebasPorPersona } from "@/components/pruebas/etiqueta-prueba";
 import { Modal } from "@/components/ui/modal";
@@ -107,17 +114,6 @@ interface DatosDelPeriodo {
   historial: Reversa[] | null;
 }
 
-// Una tarjeta del resumen: una cifra y su «de cuánto» (criterio de auditoría de pantallas, pregunta 3).
-function Cifra({ etiqueta, valor, detalle }: { etiqueta: string; valor: string; detalle?: string }) {
-  return (
-    <div className="rounded-superficie border border-sand bg-papel px-4 py-3">
-      <p className="text-xs text-taupe">{etiqueta}</p>
-      <p className="mt-0.5 font-serif text-xl tabular-nums text-tinta">{valor}</p>
-      {detalle && <p className="mt-0.5 text-xs text-taupe">{detalle}</p>}
-    </div>
-  );
-}
-
 export default function PlanillaPage() {
   const pruebas = usePruebasPorPersona();
   const router = useRouter();
@@ -180,6 +176,8 @@ export default function PlanillaPage() {
 
   // ── Acciones con diálogo ───────────────────────────────────────────────────
   const [revisandoGrupo, setRevisandoGrupo] = useState<TipoVinculo | null>(null);
+  // El detalle de «qué frena / qué revisar» arranca plegado: la franja de arriba ya dice cuántos hay y cuál frena el pago.
+  const [atencionAbierta, setAtencionAbierta] = useState(false);
   const [reabrirModal, setReabrirModal] = useState<TipoVinculo | null>(null);
   const [reabrirMotivo, setReabrirMotivo] = useState("");
   const [repagoModal, setRepagoModal] = useState(false);
@@ -673,119 +671,88 @@ export default function PlanillaPage() {
   const personasDe = (sev: (s: Hallazgo["severidad"]) => boolean) =>
     new Set(hallazgosAgrupados.filter((h) => sev(h.severidad)).flatMap((h) => h.personas.map((p) => p.persona_id))).size;
   const personasFrenan = personasDe((s) => s === "bloquea");
-  const personasPorResolver = personasDe((s) => s !== "informa");
   const historialGrupo = (historial ?? []).filter((r) => (r.grupo ?? "planilla") === tab);
   const filasRevisando = revisandoGrupo ? porGrupo.get(revisandoGrupo) ?? [] : [];
 
+  // La acción grande de la franja depende de cómo va el mes (ver accion-principal.ts).
+  const accion = accionPrincipalDelPeriodo({ personasFrenan, grupos, grupoDeLaPestana: tab });
+  const personasRevisar = personasDe((s) => s === "revisar");
+  const verAtencion = () => {
+    setAtencionAbierta(true);
+    setTimeout(() => document.getElementById("planilla-atencion")?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
+  };
+
   return (
-    <main className="flex-1 space-y-6 p-4 sm:p-6">
-      {/* ── Cabecera ───────────────────────────────────────────────────────── */}
-      <header className="space-y-3">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="etiqueta text-taupe">Planilla</p>
-            <h1 className="font-serif text-[1.75rem] font-medium leading-tight tracking-[-0.01em] text-tinta">
-              {periodoActual ? nombrePeriodo(periodoActual) : "Planilla"}
-            </h1>
-            {periodoActual && lectura && (
-              <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-taupe">
-                <span>{fechaCorta(periodoActual.fecha_ini)} → {fechaCorta(periodoActual.fecha_fin)}</span>
-                {proy && <span>{proy.dias} días</span>}
-                <Insignia variante={LECTURA[lectura].variante}>{LECTURA[lectura].texto}</Insignia>
-                {avance?.estado === "en_curso" && <span>en curso · día {avance.transcurridos} de {avance.dias}</span>}
-              </p>
-            )}
+    <main className="flex-1 p-4 pt-6 sm:p-6">
+      <CabeceraPagina
+        sobretitulo={sobretituloDeHoy("Pago")}
+        titulo="Planilla"
+        descripcion="El pago del periodo, por grupo: lo que falta resolver y lo que se cierra."
+        ayuda={
+          <AyudaPantalla
+            titulo="Cómo funciona la planilla"
+            intro="La planilla se calcula con lo que el sistema ya registró (marcajes, horarios, ausencias) y se paga por grupo: cerrar «Planilla» no cierra «Prueba»."
+            secciones={[
+              { titulo: "La franja de arriba", texto: "Dice el total del periodo, en qué estado va y cuántas personas tienen algo por resolver. Lo que FRENA el pago va siempre en rojo; el resto, «por revisar», no impide pagar pero conviene mirarlo antes." },
+              { titulo: "El botón grande", texto: "Cambia según el mes: si algo frena el pago, te lleva a resolverlo; si nada frena, abre la revisión de cierre del grupo que falta; cuando todo está pagado, abre las boletas." },
+              { titulo: "Cerrar un grupo", texto: "«Revisar cierre» muestra lo que se va a pagar y pide confirmación. Un grupo pagado queda como copia congelada; reabrirlo exige un motivo y queda registrado." },
+              { titulo: "El periodo", texto: "Va del día siguiente al último cierre hasta la fecha de cierre que se elija (entre 20 y 46 días). Se lee de la tabla de periodos, nunca se asume el mes calendario." },
+            ]}
+          />
+        }
+      />
+      <div className="space-y-6">
+      {periodos && periodos.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          {/* En celular ocupa el ancho entero: el nombre del periodo no puede leerse cortado. */}
+          <div className="w-full sm:w-auto">
+            <CampoSelect aria-label="Periodo" value={periodoSel ?? ""} onChange={(e) => elegirPeriodo(e.target.value)} className="sm:max-w-[19rem]">
+              {periodos.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {etiquetaPeriodo(p)}{p.estado === "pagado" ? " · pagado" : p.fecha_fin < hoy ? " · sin pagar" : ""}
+                </option>
+              ))}
+            </CampoSelect>
           </div>
-          {periodos && periodos.length > 0 && (
-            <div className="flex flex-wrap items-center gap-2">
-              {/* En celular ocupa el ancho entero: el nombre del periodo no puede leerse cortado. */}
-              <div className="w-full sm:w-auto">
-              <CampoSelect aria-label="Periodo" value={periodoSel ?? ""} onChange={(e) => elegirPeriodo(e.target.value)} className="sm:max-w-[19rem]">
-                {periodos.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {etiquetaPeriodo(p)}{p.estado === "pagado" ? " · pagado" : p.fecha_fin < hoy ? " · sin pagar" : ""}
-                  </option>
-                ))}
-              </CampoSelect>
-              </div>
-              <Boton onClick={abrirNuevo}>+ Nuevo periodo</Boton>
-              {/* La entrada a las boletas oficiales (0482). Es un botón de verdad y
-                  no un enlace de texto: es un módulo de uso mensual y estaba tan
-                  discreto que se preguntó dónde estaba. Mismo trazo que el
-                  primario de `Boton`, pero como <Link> porque navega. */}
-              {periodoSel && (
-                <Link
-                  href={`/admin/planilla/boletas?periodo=${periodoSel}`}
-                  className="inline-flex items-center gap-2 rounded-control bg-tinta px-4 py-2 text-sm font-medium text-crema transition-colors duration-150 hover:bg-rojo-profundo active:scale-[0.98]"
-                >
-                  <ReceiptText size={16} aria-hidden />
-                  Boletas del periodo
-                </Link>
-              )}
-              <Menu
-                trigger={({ abierto, alternar }) => (
-                  <Boton
-                    aria-label="Más acciones"
-                    aria-haspopup="menu"
-                    aria-expanded={abierto}
-                    onClick={(e) => { disparadorMenu.current = e.currentTarget; alternar(); }}
-                    className="px-2.5"
-                  >
-                    <MoreHorizontal size={16} aria-hidden />
-                  </Boton>
-                )}
+          <Boton onClick={abrirNuevo}>+ Nuevo periodo</Boton>
+          <Menu
+            trigger={({ abierto, alternar }) => (
+              <Boton
+                aria-label="Más acciones"
+                aria-haspopup="menu"
+                aria-expanded={abierto}
+                onClick={(e) => { disparadorMenu.current = e.currentTarget; alternar(); }}
+                className="px-2.5"
               >
-                {/* El CSV vivía como botón suelto junto al periodo: es una acción de
-                    uso ocasional y ocupaba el sitio de lo que se usa cada mes. Al
-                    menú con la misma condición de siempre: sin proyección, cargando
-                    o sin filas no hay nada que descargar. */}
-                <MenuItem onClick={descargarCsvPlanilla} disabled={!proy || cargando || filasTodas.length === 0}>
-                  Descargar CSV
-                  <span className="block text-xs text-taupe">Todos los grupos y partidas del periodo, sin filtros</span>
-                </MenuItem>
-                <MenuItem onClick={() => setFeriadosAbierto(true)}>Feriados del año…</MenuItem>
-                {puedeEliminar && (
-                  <MenuItem variante="peligro" onClick={() => { setEliminarTexto(""); setEliminarModal(true); }}>
-                    Eliminar este periodo…
-                  </MenuItem>
-                )}
-              </Menu>
-            </div>
-          )}
+                <MoreHorizontal size={16} aria-hidden />
+              </Boton>
+            )}
+          >
+            {/* Las boletas oficiales (0482) ya no son siempre el botón grande: solo lo son cuando el periodo está pagado.
+                Mientras tanto se llega desde aquí. */}
+            {periodoSel && accion?.tipo !== "boletas" && (
+              <MenuItem onClick={() => router.push(`/admin/planilla/boletas?periodo=${periodoSel}`)}>
+                Boletas del periodo
+                <span className="block text-xs text-taupe">La boleta oficial llega después de pagar</span>
+              </MenuItem>
+            )}
+            {/* El CSV vivía como botón suelto junto al periodo: es una acción de
+                uso ocasional y ocupaba el sitio de lo que se usa cada mes. Al
+                menú con la misma condición de siempre: sin proyección, cargando
+                o sin filas no hay nada que descargar. */}
+            <MenuItem onClick={descargarCsvPlanilla} disabled={!proy || cargando || filasTodas.length === 0}>
+              Descargar CSV
+              <span className="block text-xs text-taupe">Todos los grupos y partidas del periodo, sin filtros</span>
+            </MenuItem>
+            <MenuItem onClick={() => setFeriadosAbierto(true)}>Feriados del año…</MenuItem>
+            {puedeEliminar && (
+              <MenuItem variante="peligro" onClick={() => { setEliminarTexto(""); setEliminarModal(true); }}>
+                Eliminar este periodo…
+              </MenuItem>
+            )}
+          </Menu>
         </div>
-
-        {/* Estado por grupo: en la base cada grupo se paga por su cuenta (0323). */}
-        {grupos && proy && (
-          <ul className="flex flex-wrap gap-2 text-xs" aria-label="Estado de pago por grupo">
-            {grupos.filter((g) => g.personas > 0).map((g) => (
-              <li key={g.grupo}>
-                <button
-                  type="button"
-                  onClick={() => setTablaTab(g.grupo)}
-                  className="inline-flex items-center gap-1.5 rounded-pildora border border-sand bg-papel px-2.5 py-1 hover:bg-sand/40"
-                >
-                  <span className="font-medium text-tinta">{TIPO_VINCULO_LABEL[g.grupo]}</span>
-                  {g.estado === "pagado"
-                    ? <span className="inline-flex items-center gap-1 text-verde"><Check size={12} aria-hidden />pagado{g.pagado_at ? ` ${fechaLargaLima(g.pagado_at)}` : ""}</span>
-                    : <span className="text-taupe">pendiente</span>}
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-
-        {proy && (
-          <p className="text-xs text-taupe">
-            <span title="Las horas de un periodo completo a jornada de 6.5 h diarias: con esta cifra se calcula el valor de la hora del periodo.">
-              Base full-time: {fmtHoras(proy.base_horas)} (6.5 h × {proy.dias} días)
-            </span>
-            {" · "}
-            {proy.feriados.length === 0
-              ? "sin feriados en este periodo"
-              : `feriados: ${proy.feriados.map((f) => `${fechaCorta(f.fecha)} ${f.nombre}`).join(" · ")}`}
-          </p>
-        )}
-      </header>
+      )}
 
       {errorPeriodos && (
         <BannerAviso variante="alerta">
@@ -866,38 +833,79 @@ export default function PlanillaPage() {
 
           {proy && periodoActual && (
             <>
-              {/* ── Resumen: siempre el periodo completo ──────────────────── */}
-              <section aria-label="Resumen del periodo" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-                <Cifra
-                  etiqueta={lectura === "pagado" ? "Total pagado del periodo" : "Total proyectado del periodo"}
-                  valor={formatSoles(totalesPeriodo.total)}
-                  detalle={`Sale de la cuenta ${formatSoles(totalesPeriodo.sale_del_banco)}`}
+              {/* ── La franja «Para cerrar»: estado, total, qué frena y qué hacer, en UNA fila ── */}
+              <TarjetaInfo className="flex flex-wrap items-center gap-x-4 gap-y-3" aria-label="Resumen del periodo">
+                <div>
+                  <p className="text-xs text-taupe">{lectura === "pagado" ? "Total pagado del periodo" : "Total proyectado del periodo"}</p>
+                  <p className="font-serif text-2xl leading-none tabular-nums text-tinta">{formatSoles(totalesPeriodo.total)}</p>
+                </div>
+                {lectura && (
+                  <span className="flex flex-wrap items-center gap-2 text-sm text-taupe">
+                    <Insignia variante={LECTURA[lectura].variante}>{LECTURA[lectura].texto}</Insignia>
+                    {avance?.estado === "en_curso" && <span>en curso · día {avance.transcurridos} de {avance.dias}</span>}
+                  </span>
+                )}
+                <ParaAtender
+                  compacta
+                  items={[
+                    { clave: "frena", texto: `▲ ${personasFrenan} ${personasFrenan === 1 ? "frena" : "frenan"} el pago`, n: personasFrenan, tono: "rojo" },
+                    { clave: "revisar", texto: `${personasRevisar} por revisar`, n: personasRevisar, tono: "ambar" },
+                    { clave: "grati", texto: "Gratificación o CTS pendiente", n: pendientesGratiCts ? 1 : 0, tono: "ambar" },
+                  ]}
+                  activa={atencionAbierta ? (personasFrenan > 0 ? "frena" : personasRevisar > 0 ? "revisar" : pendientesGratiCts ? "grati" : null) : null}
+                  alTocar={() => (atencionAbierta ? setAtencionAbierta(false) : verAtencion())}
                 />
-                <Cifra
-                  etiqueta="Personas en el periodo"
-                  valor={String(totalesPeriodo.personas)}
-                  detalle={cesaron(filasTodas) > 0 ? `${cesaron(filasTodas)} cesaron o están inactivas` : "todas activas"}
+                <BotonIcono
+                  etiqueta={atencionAbierta ? "Ocultar el detalle del periodo" : "Ver el detalle del periodo"}
+                  icono={atencionAbierta ? <ChevronUp aria-hidden /> : <ChevronDown aria-hidden />}
+                  aria-expanded={atencionAbierta}
+                  aria-controls="planilla-atencion"
+                  onClick={() => setAtencionAbierta((a) => !a)}
                 />
-                <Cifra
-                  etiqueta="Horas registradas"
-                  valor={fmtHoras(totalesPeriodo.horas)}
-                  detalle={avance?.estado === "en_curso" ? `hasta hoy · día ${avance.transcurridos} de ${avance.dias}` : "del periodo"}
-                />
-                <Cifra
-                  etiqueta="Personas por resolver"
-                  valor={String(personasPorResolver)}
-                  detalle={personasFrenan > 0
-                    ? `${personasFrenan} ${personasFrenan === 1 ? "frena" : "frenan"} el pago`
-                    : personasPorResolver > 0 ? "ninguna frena el pago" : "nada pendiente"}
-                />
-              </section>
+                {/* La acción que toca AHORA según cómo va el mes (accion-principal.ts). Sin acción mientras carga. */}
+                <span className="ml-auto">
+                  {accion?.tipo === "resolver" && (
+                    <Boton variante="primario" onClick={verAtencion}>Resolver lo que frena ({accion.frenan})</Boton>
+                  )}
+                  {accion?.tipo === "cerrar" && (
+                    <Boton variante="primario" disabled={cargando} onClick={() => { setTablaTab(accion.grupo); setRevisandoGrupo(accion.grupo); }}>
+                      Revisar cierre de «{TIPO_VINCULO_LABEL[accion.grupo]}» →
+                    </Boton>
+                  )}
+                  {accion?.tipo === "boletas" && periodoSel && (
+                    <Link
+                      href={`/admin/planilla/boletas?periodo=${periodoSel}`}
+                      className="inline-flex items-center gap-2 rounded-control bg-tinta px-4 py-2 text-sm font-medium text-crema transition-colors duration-150 hover:bg-rojo-profundo active:scale-[0.98]"
+                    >
+                      <ReceiptText size={16} aria-hidden />
+                      Boletas del periodo
+                    </Link>
+                  )}
+                </span>
+              </TarjetaInfo>
+              {/* El contexto del periodo, en una línea gris: lo que antes eran tres cifras y una nota. */}
+              <p className="text-xs text-taupe">
+                {totalesPeriodo.personas} {totalesPeriodo.personas === 1 ? "persona" : "personas"}
+                {cesaron(filasTodas) > 0 ? ` (${cesaron(filasTodas)} cesaron o están inactivas)` : ""}
+                {" · "}{fmtHoras(totalesPeriodo.horas)}{avance?.estado === "en_curso" ? " hasta hoy" : ""}
+                {" · "}sale de la cuenta {formatSoles(totalesPeriodo.sale_del_banco)}
+                {" · "}
+                <span title="Las horas de un periodo completo a jornada de 6.5 h diarias: con esta cifra se calcula el valor de la hora del periodo.">
+                  base full-time {fmtHoras(proy.base_horas)} (6.5 h × {proy.dias} días)
+                </span>
+                {" · "}
+                {proy.feriados.length === 0
+                  ? "sin feriados en este periodo"
+                  : `feriados: ${proy.feriados.map((f) => `${fechaCorta(f.fecha)} ${f.nombre}`).join(" · ")}`}
+              </p>
 
-              {/* ── Requiere atención + comparación ───────────────────────── */}
-              <div className="grid gap-4 xl:grid-cols-[3fr_2fr]">
-                <RequiereAtencion
-                  hallazgos={hallazgosAgrupados}
-                  grupoActivo={tab}
-                  onAbrirPersona={abrirPersonaPorId}
+              {/* ── El detalle: qué frena, qué revisar, qué cambió. Plegado hasta que se pide. ───────── */}
+              {atencionAbierta && (
+                <div id="planilla-atencion" className="grid scroll-mt-4 gap-4 xl:grid-cols-[3fr_2fr]">
+                  <RequiereAtencion
+                    hallazgos={hallazgosAgrupados}
+                    grupoActivo={tab}
+                    onAbrirPersona={abrirPersonaPorId}
                   extra={pendientesGratiCts ? (
                     <div className="mb-2 rounded-control bg-ambar/10 px-3 py-2 text-sm">
                       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -920,9 +928,10 @@ export default function PlanillaPage() {
                       )}
                     </div>
                   ) : undefined}
-                />
-                {avance && <QueCambio variacion={variacion} avance={avance} fechaFin={proy.fecha_fin} />}
-              </div>
+                  />
+                  {avance && <QueCambio variacion={variacion} avance={avance} fechaFin={proy.fecha_fin} />}
+                </div>
+              )}
 
               {/* ── Pestañas por grupo, con conteos del periodo completo ─── */}
               <div>
@@ -1276,6 +1285,7 @@ export default function PlanillaPage() {
           </div>
         )}
       </Modal>
+      </div>
     </main>
   );
 }
