@@ -402,6 +402,25 @@ function variantePorEstado(estado: string): "neutral" | "alerta" | "advertencia"
  * campo nuevo uno de los dos se queda sin reponerlo, y el formulario arrastra
  * al documento siguiente lo que quedó del anterior.
  */
+type ClavePrincipal = "renovar" | "subir" | "copia";
+
+/** Qué botón visible lleva la fila según su estado (nada si no hay nada que hacer hoy). Pura: no toca estado. */
+function principalDe(estado: string): { clave: ClavePrincipal; texto: string } | null {
+  switch (estado) {
+    case "desnaturalizado":
+    case "vencido":
+      return { clave: "renovar", texto: "Regularizar" };
+    case "por_vencer":
+      return { clave: "renovar", texto: "Renovar" };
+    case "sin_firmar":
+      return { clave: "subir", texto: "Subir firmado" };
+    case "tramite_pendiente":
+      return { clave: "copia", texto: "Copia entregada" };
+    default:
+      return null;
+  }
+}
+
 /** Una fila de la lista por urgencia: quién, qué documento y vigencia, cuánto falta, su estado y su acción. */
 function FilaContrato({ v }: {
   v: { persona: string; documento: string; vigencia: string; sede: string | null; estadoLabel: string; estadoVariante: "neutral" | "alerta" | "advertencia" | "positivo" | "informativo";
@@ -2033,31 +2052,17 @@ export default function ContratosPage() {
    * esconderla en el menú «•••» (que sigue teniendo lo demás). Ninguna es acción nueva: «Renovar» abre
    * el mismo generador que «Generar», con la persona y el tipo ya puestos; «Subir firmado» y
    * «Copia entregada» son las funciones de siempre. Las filas «al día» no llevan botón: no hay nada
-   * que hacer hoy.
+   * que hacer hoy. `principalDe` (arriba, pura) dice cuál toca; esta la ejecuta.
    */
-  function accionPrincipal(estado: string, personaIdFila: string, c: ContratoFila, tipoFila: typeof tipo) {
-    const boton = (texto: string, alTocar: () => void) => (
-      <Boton variante="sutil" tamano="sm" onClick={(ev) => { ev.stopPropagation(); alTocar(); }}>
-        {texto}
-      </Boton>
-    );
-    const alGenerador = () => {
+  function ejecutarPrincipal(clave: ClavePrincipal, personaIdFila: string, c: ContratoFila, tipoFila: typeof tipo) {
+    if (clave === "renovar") {
       setPersonaId(personaIdFila);
       setTipo(tipoFila === "nuevo" ? "renovacion" : tipoFila);
       irAlGenerador();
-    };
-    switch (estado) {
-      case "desnaturalizado":
-      case "vencido":
-        return boton("Regularizar", alGenerador);
-      case "por_vencer":
-        return boton("Renovar", alGenerador);
-      case "sin_firmar":
-        return boton("Subir firmado", () => abrirSubida(c.id));
-      case "tramite_pendiente":
-        return boton("Copia entregada", () => void marcarTramite(c.id, "copia"));
-      default:
-        return null;
+    } else if (clave === "subir") {
+      abrirSubida(c.id);
+    } else {
+      void marcarTramite(c.id, "copia");
     }
   }
 
@@ -2332,7 +2337,18 @@ export default function ContratosPage() {
             onClickRow,
             acciones: contrato ? (
               <span className="inline-flex items-center gap-1">
-                {accionPrincipal(f.estado, f.persona_id, contrato, tipoFila)}
+                {principalDe(f.estado) && (
+                  <Boton
+                    variante="sutil"
+                    tamano="sm"
+                    onClick={(ev) => {
+                      ev.stopPropagation();
+                      ejecutarPrincipal(principalDe(f.estado)!.clave, f.persona_id, contrato, tipoFila);
+                    }}
+                  >
+                    {principalDe(f.estado)!.texto}
+                  </Boton>
+                )}
                 {accionesContrato(contrato)}
               </span>
             ) : (
@@ -2349,30 +2365,6 @@ export default function ContratosPage() {
             ),
           };
         });
-
-  // El archivo, agrupado por persona y en el orden en que ya vienen (el más
-  // reciente primero). `Map` y no un objeto: conserva el orden de inserción,
-  // que es el que decide la consulta.
-  //
-  // SIN `useMemo`, y a propósito: este bloque vive DESPUÉS de los `return`
-  // de «cargando» y «sin permiso», así que un hook acá se salta en esos
-  // renders y React revienta con el error 310 —«más hooks que en el render
-  // anterior»—, que es lo que pasó al probarlo. Agrupar veinte filas no
-  // cuesta nada; el hook sí.
-  const porPersona = (() => {
-    const m = new Map<string, ContratoFila[]>();
-    for (const c of contratos) {
-      // Quien ya cesó no aparece: su historial sigue en la base, pero esta
-      // pantalla es para gestionar contratos de quien sigue en la empresa.
-      if (!personasActivasIds.has(c.persona_id)) continue;
-      const previo = m.get(c.persona);
-      if (previo) previo.push(c);
-      else m.set(c.persona, [c]);
-    }
-    return [...m.entries()];
-  })();
-
-  const porPersonaVisible = porPersona.filter(([nombre]) => coincide(nombre));
 
   // UN SOLO SITIO DONDE SE VE UN CONTRATO: el visor de "Ver / imprimir".
   //
@@ -3434,155 +3426,6 @@ export default function ContratosPage() {
               </>
             )}
           </div>
-
-          {/* HISTORIAL COMPLETO, PLEGADO POR DEFECTO (rediseño).
-              La tabla compacta de arriba ya muestra el documento VIGENTE de
-              cada persona — el que importa para decidir hoy. Esto es lo que
-              queda atrás: convenios y contratos anteriores ya reemplazados
-              por uno nuevo, con quién los generó y cuándo se corrigieron. Es
-              información secundaria a propósito (spec §24: "no debe competir
-              con estado, tipo y vigencia"), así que arranca cerrada. */}
-          <details className="min-w-0 space-y-3">
-            <summary className="cursor-pointer list-none font-serif text-lg marker:content-['']">
-              Historial completo por persona
-              {porPersona.length > 0 && (
-                <span className="text-taupe">
-                  {" "}
-                  · {filtro ? `${porPersonaVisible.length} de ${porPersona.length}` : porPersona.length}
-                </span>
-              )}
-            </summary>
-
-            {contratos.length === 0 && (
-              <p className="text-sm text-taupe">Todavía no se generó ningún contrato.</p>
-            )}
-            {contratos.length > 0 && porPersonaVisible.length === 0 && (
-              <p className="text-sm text-taupe">Nada del archivo coincide con «{busca.trim()}».</p>
-            )}
-
-            {/* AGRUPADO POR PERSONA, Y LOS ANULADOS PLEGADOS.
-                La tabla plana repetía el nombre completo en cada fila —cuatro
-                veces para la misma persona— y daba a tres pruebas anuladas el
-                mismo peso visual que al contrato de verdad. Lo que importa de
-                cada persona es UNO: el vigente. Lo demás es historia, y la
-                historia se guarda, no se exhibe. */}
-            {porPersonaVisible.map(([nombre, filas]) => {
-              const vivos = filas.filter((c) => !c.anulado_at);
-              const anulados = filas.filter((c) => c.anulado_at);
-              return (
-                <article key={nombre} className="rounded-lg border border-sand bg-papel p-4">
-                  <h3 className="mb-2 font-medium">{nombre}</h3>
-
-                  {vivos.map((c) => (
-                    <div key={c.id} className="space-y-1 border-t border-sand/60 pt-2 first:border-0 first:pt-0">
-                      <div className="flex flex-wrap items-baseline gap-x-3 text-sm">
-                        <span>
-                          {formatearFecha(c.fecha_inicio)} –{" "}
-                          {c.fecha_fin ? formatearFecha(c.fecha_fin) : "indeterminado"}
-                        </span>
-                        <span className="text-xs text-taupe">{TIPO_CONTRATO[c.tipo] ?? c.tipo}</span>
-                        {/* CAMBIO (0430): "firmado" es `fecha_firma`, no
-                            `storage_path` — un contrato puede estar firmado
-                            por autoservicio digital sin ningún escaneo. */}
-                        <span className={c.fecha_firma ? "text-xs text-verde" : "text-xs text-taupe"}>
-                          {c.fecha_firma ? `firmado el ${formatearFecha(c.fecha_firma)}` : "pendiente de firma"}
-                        </span>
-                        {c.firma_persona_confirmada_at && (
-                          <span className="text-xs text-taupe">
-                            firma digital confirmada el {formatearFecha(c.firma_persona_confirmada_at.slice(0, 10))}
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Solo mientras falte: confirmar en cada fila lo que ya
-                          se hizo llena la pantalla de recibos. Comunicar el
-                          contrato a la Autoridad de Trabajo ya no es un
-                          trámite de nadie (0470, D. Leg. 1246) — lo único que
-                          puede faltar acá es la copia. */}
-                      {c.fecha_firma && !c.copia_entregada_at && (
-                        <p className="text-xs text-taupe">
-                          Falta entregar copia a {c.tipo === "convenio_practicas" ? "la practicante" : "la colaboradora"}
-                        </p>
-                      )}
-
-                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-                        <Boton variante="enlace" onClick={() => abrirGenerado(c.id)}>
-                          Ver / imprimir
-                        </Boton>
-                        {/* Editar solo mientras sea un borrador. Una vez
-                            firmado —con escaneo o por autoservicio digital
-                            (0430)— manda lo que se firmó: se corrige con un
-                            adendum o se anula, nunca reescribiendo por detrás
-                            lo que ya se firmó. */}
-                        {!c.fecha_firma && (
-                          <Boton variante="enlace" onClick={() => empezarEdicion(c)}>
-                            Editar
-                          </Boton>
-                        )}
-                        {/* "Subir escaneo" sigue disponible aunque ya esté
-                            firmado por autoservicio digital: DO puede seguir
-                            adjuntando uno de respaldo (0430) — solo deja de
-                            ofrecerse cuando YA hay un escaneo guardado. */}
-                        {!c.storage_path && (
-                          <Boton variante="enlace" onClick={() => abrirSubida(c.id)}>
-                            {c.fecha_firma ? "Adjuntar escaneo de respaldo" : "Subir contrato firmado"}
-                          </Boton>
-                        )}
-                        {c.storage_path && (
-                          <Boton variante="enlace" onClick={() => verDocumento(c.storage_path!)}>
-                            Ver escaneo
-                          </Boton>
-                        )}
-                        {c.fecha_firma && !c.copia_entregada_at && (
-                          <Boton variante="enlace" onClick={() => marcarTramite(c.id, "copia")}>
-                            Marcar copia entregada
-                          </Boton>
-                        )}
-                        {/* Anular va al final y en taupe: es destructivo, no
-                            urgente. En rojo junto a acciones inofensivas se
-                            pulsa por error, y el rojo de esta paleta está
-                            reservado para lo que de verdad avisa. Se queda como
-                            <button> nativo: su hover (taupe → rojo) no es el que
-                            trae <Boton variante="enlace"> (hover:text-taupe), y
-                            forzar los dos hover en la misma clase deja el color
-                            final librado al orden de generación de Tailwind. */}
-                        <button className="ml-auto text-taupe underline underline-offset-2 hover:text-rojo" onClick={() => setAnulando(c.id)}>
-                          Anular
-                        </button>
-                      </div>
-                      <p className="text-xs text-taupe">
-                        Generado el {formatearFecha(c.generado_at.slice(0, 10))}
-                        {c.generado_por && ` por ${c.generado_por}`}
-                        {/* Que un documento cambió después de generarse se dice,
-                            no se deduce del archivo de auditoría. */}
-                        {c.editado_at &&
-                          ` · editado el ${formatearFecha(c.editado_at.slice(0, 10))}${c.editado_por ? ` por ${c.editado_por}` : ""}`}
-                      </p>
-                    </div>
-                  ))}
-
-                  {anulados.length > 0 && (
-                    <details className="mt-2 border-t border-sand/60 pt-2 text-xs text-taupe">
-                      <summary className="cursor-pointer">
-                        {anulados.length === 1 ? "1 anulado" : `${anulados.length} anulados`}
-                      </summary>
-                      <ul className="mt-1 space-y-1">
-                        {anulados.map((c) => (
-                          <li key={c.id} className="flex flex-wrap items-baseline gap-x-3">
-                            <span>{formatearFecha(c.generado_at.slice(0, 10))}</span>
-                            <span className="min-w-0 flex-1 truncate">{c.anulado_motivo}</span>
-                            <button className="underline underline-offset-2 hover:text-tinta" onClick={() => abrirGenerado(c.id)}>
-                              Ver
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    </details>
-                  )}
-                </article>
-              );
-            })}
-          </details>
         </div>
 
         {/* LOS DOS PANELES DE ACCIÓN SON MODALES desde que la pantalla se
@@ -3836,6 +3679,50 @@ export default function ContratosPage() {
                       ))}
                     </ul>
                   </div>
+
+                  {/* EL HISTORIAL DE LA PERSONA, aquí y no en una sección aparte: «Ver historial» en el menú de una
+                      fila es una pregunta sobre ESA persona, así que lo anterior —renovaciones, convenios, anulados— se
+                      lista debajo y se abre con un toque. Antes vivía en un bloque plegado con todas las personas juntas. */}
+                  {(() => {
+                    const delaPersona = contratos
+                      .filter((x) => x.persona_id === c.persona_id)
+                      .sort((x, y) => y.generado_at.localeCompare(x.generado_at));
+                    if (delaPersona.length < 2) return null;
+                    return (
+                      <div className="mb-4 border-t border-sand pt-3">
+                        <p className="mb-2 font-serif text-base">Todos sus documentos · {delaPersona.length}</p>
+                        <ul className="divide-y divide-sand/60">
+                          {delaPersona.map((x) => {
+                            const actual = x.id === c.id;
+                            return (
+                              <li key={x.id}>
+                                <button
+                                  type="button"
+                                  disabled={actual}
+                                  onClick={() => setDetalleId(x.id)}
+                                  className="flex w-full flex-wrap items-baseline justify-between gap-x-3 py-1.5 text-left text-sm enabled:hover:bg-crema/60 disabled:cursor-default"
+                                >
+                                  <span className={actual ? "font-medium" : ""}>
+                                    {TIPO_CONTRATO[x.tipo] ?? x.tipo} ·{" "}
+                                    {formatearFecha(x.fecha_inicio)} – {x.fecha_fin ? formatearFecha(x.fecha_fin) : "indeterminado"}
+                                  </span>
+                                  <span className="text-xs text-taupe">
+                                    {actual
+                                      ? "este"
+                                      : x.anulado_at
+                                        ? "anulado"
+                                        : x.fecha_firma
+                                          ? "firmado"
+                                          : "sin firmar"}
+                                  </span>
+                                </button>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    );
+                  })()}
 
                   <div className="flex flex-wrap items-center gap-2 border-t border-sand pt-3">
                     {/* CAMBIO (0430): "editable" es "sin firmar" (fecha_firma),
