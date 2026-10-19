@@ -83,12 +83,11 @@ export function PanelAtencionLateral({ items, alOcultar }: { items: ItemAtencion
 }
 
 export function PanelAtencionBanner({ items }: { items: ItemAtencionVista[] }) {
-  // En celular nace PLEGADO: queda una línea con el rojo y el conteo, y el
-  // detalle se abre con un toque. En tablet y escritorio nace abierto, como
-  // siempre. Se decide al montar y no con CSS porque `abierto` también manda el
-  // texto del botón y el aria-expanded. Es seguro leer `window` aquí: este
-  // banner solo se monta cuando el Dashboard ya cargó, nunca en el servidor.
-  const [abierto, setAbierto] = useState(() => typeof window === "undefined" || !window.matchMedia("(max-width: 639px)").matches);
+  // Nace PLEGADO en todos los anchos (2026-10-19, pedido de Felipe): queda una línea con el punto rojo y
+  // el conteo, y el detalle se abre con un toque. Antes solo el celular nacía así y en escritorio el aviso
+  // abierto empujaba el resumen fuera de la pantalla. Lo que se conserva: el rojo, el conteo y el
+  // `role="alert"` siguen a la vista, así que plegado no es lo mismo que oculto.
+  const [abierto, setAbierto] = useState(false);
   const criticas = items.filter((i) => i.tono === "critico").length;
   if (items.length === 0) return null;
   const titulo = criticas > 0
