@@ -1878,22 +1878,33 @@ export default function DashboardPage() {
               const [fechaRacimo, cuantos] = [...porFecha.entries()]
                 .sort((a, b) => b[1] - a[1])[0] ?? ["", 0];
               const hayRacimo = cuantos >= 3;
+              // Los que vencen EL MISMO día se agrupan en una sola línea con sus nombres como pastillas:
+              // diecisiete renglones idénticos («vence en 73 días · 31 de diciembre») eran el aviso
+              // repetido diecisiete veces, y empujaban todo lo demás fuera de la pantalla. Las
+              // fechas distintas siguen separadas, de la más cercana a la más lejana.
+              const grupos = [...porVencer.reduce((m, c) => {
+                const g = m.get(c.fecha_fin_contrato) ?? [];
+                g.push(c); m.set(c.fecha_fin_contrato, g);
+                return m;
+              }, new Map<string, ContratoRow[]>()).entries()].sort((x, y) => (x[0] < y[0] ? -1 : 1));
               return (
-                <div className="relative overflow-hidden rounded-superficie border border-sand bg-papel p-5 pl-6">
+                <TarjetaInfo className="relative overflow-hidden pl-6 sm:pl-7">
                   {/* Rojo si alguien ya pasó su fecha (el art. 77 ya corrió);
                       ámbar si solo se acerca. */}
                   <Franja tono={vencidos.length > 0 ? "alerta" : "advertencia"} />
-                  <div className="mb-2 flex items-center justify-between">
-                    <span />
-                    <Link href="/admin/equipo" className="text-xs font-semibold text-rojo-profundo hover:underline">Ver equipo →</Link>
+                  <div className="mb-2 flex items-center justify-between gap-3 text-xs text-taupe">
+                    <span>
+                      {vencidos.length > 0 && <>{vencidos.length} ya venci{vencidos.length === 1 ? "ó" : "eron"}{porVencer.length > 0 ? " · " : ""}</>}
+                      {porVencer.length > 0 && <>{porVencer.length} por vencer</>}
+                    </span>
+                    <Link href="/admin/equipo" className="font-medium text-rojo-profundo hover:underline">Ver equipo →</Link>
                   </div>
                   {hayRacimo && (
-                    <p className="mb-2 rounded-control bg-rojo/10 px-3 py-2 text-sm text-rojo-profundo">
-                      <strong>{cuantos} contratos vencen el mismo día</strong> ({fechaCorta(fechaRacimo)}).
-                      No son {cuantos} trámites repartidos: son {cuantos} decisiones, {cuantos} redacciones
-                      y {cuantos} firmas en la misma semana. Al que se pase de fecha con la persona
-                      todavía trabajando, el <strong>art. 77</strong> lo vuelve indefinido solo.
-                    </p>
+                    <BannerAviso enLinea variante="alerta" className="mb-2">
+                      <strong>{cuantos} contratos vencen el mismo día</strong> ({fechaCorta(fechaRacimo)}): {cuantos} decisiones,
+                      redacciones y firmas la misma semana. Pasada la fecha con la persona todavía trabajando,
+                      el <strong>art. 77</strong> lo vuelve indefinido solo.
+                    </BannerAviso>
                   )}
                   {vencidos.map((c) => (
                     <div key={c.persona_id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-sand/60 py-2 text-sm">
@@ -1906,22 +1917,27 @@ export default function DashboardPage() {
                       <span className="text-xs font-semibold text-rojo-profundo">renovar o registrar su salida →</span>
                     </div>
                   ))}
-                  {porVencer.map((c) => (
-                    <div key={c.persona_id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-sand/60 py-2 text-sm">
-                      <span>
-                        <strong>{c.nombre}</strong> <span className="text-taupe">· {c.sede}</span>
-                        <Insignia variante="advertencia" className="ml-2">
-                          {enCuantos(c.dias_restantes)} · {fechaCorta(c.fecha_fin_contrato)}
-                        </Insignia>
-                      </span>
+                  {grupos.map(([fecha, lista]) => (
+                    <div key={fecha} className="border-t border-sand/60 py-2.5 first:border-t-0">
+                      <p className="mb-1.5 text-sm">
+                        <strong>{enCuantos(lista[0].dias_restantes)}</strong>{" "}
+                        <span className="text-taupe">· {fechaCorta(fecha)} · {lista.length} {lista.length === 1 ? "persona" : "personas"}</span>
+                      </p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {lista.map((c) => (
+                          <Insignia key={c.persona_id} atenuada punto={false}>
+                            {c.nombre} <span className="text-taupe">· {c.sede}</span>
+                          </Insignia>
+                        ))}
+                      </div>
                     </div>
                   ))}
-                  <p className="border-t border-sand/60 pt-2.5 text-xs text-taupe">
+                  <p className="border-t border-sand/60 pt-2 text-xs text-taupe">
                     {vencidos.length > 0
                       ? "Mientras siga de alta sigue marcando, sigue cobrando y sigue acumulando gratificación, CTS y vacaciones. Anotar la fecha no da de baja a nadie: eso se decide y se registra a mano."
                       : "La fecha es lo previsto, no un hecho. Un contrato puede renovarse: esto solo avisa antes de que llegue el día."}
                   </p>
-                </div>
+                </TarjetaInfo>
               );
             })()}
               </PanelColapsable>
