@@ -36,6 +36,15 @@
 //    CampoSelect: misma familia de prefijo, otra propiedad CSS por completo)
 //    y "text-taupe" no se cruza con "text-xs" (tamaño, no color).
 //
+//  - Margen y grosor de borde (2026-10-19): mismo criterio que el relleno,
+//    por eje o por lado exacto. Se sumaron cuando Turnos le pasó
+//    "mb-0 border-b-0" a <Pestanas> (que trae "mb-5 border-b") para meterla
+//    en una fila con los controles: el borde se apagó por suerte y el margen
+//    no — "mb-5" sale después que "mb-0" en la hoja —, y la raya de la
+//    pestaña activa quedó flotando 20 px sobre la línea de la fila. "-mx-4"
+//    cuenta como "mx" (el signo no cambia la propiedad) y "border-sand" no
+//    es grosor: solo "border", "border-b", "border-b-0", "border-2"…
+//
 // Lo que esto NO resuelve, a propósito: si la base trae una variante
 // estructural — el "even:bg-hueso/50" de la zebra en <Fila> (tabla.tsx) — y
 // quien llama pasa un "bg-rojo/10" sin variante para resaltar una fila
@@ -49,7 +58,10 @@
 type ClaseCx = string | false | null | undefined;
 
 const RAICES_RELLENO = new Set(["p", "px", "py", "pt", "pr", "pb", "pl", "ps", "pe"]);
-const LADOS_RADIO = new Set(["t", "r", "b", "l", "s", "e", "tl", "tr", "bl", "br", "ss", "se", "es", "ee"]);
+const RAICES_MARGEN = new Set(["m", "mx", "my", "mt", "mr", "mb", "ml", "ms", "me"]);
+// "border", "border-b", "border-b-0", "border-2": grosor. "border-sand" (color) no entra.
+const RE_BORDE_GROSOR = /^border(?:-([trblxyse]))?(?:-\d+)?$/;
+const LADOS_RADIO =new Set(["t", "r", "b", "l", "s", "e", "tl", "tr", "bl", "br", "ss", "se", "es", "ee"]);
 
 // Los once --color-* de globals.css. El orden de la alternancia no importa:
 // el "$" al final exige que no quede nada después del nombre salvo un
@@ -66,6 +78,14 @@ function familiaDe(base: string): string | null {
   const guionRaiz = base.indexOf("-");
   const raiz = guionRaiz === -1 ? base : base.slice(0, guionRaiz);
   if (RAICES_RELLENO.has(raiz)) return `relleno:${raiz}`;
+
+  const sinSigno = base.startsWith("-") ? base.slice(1) : base;
+  const guionMargen = sinSigno.indexOf("-");
+  const raizMargen = guionMargen === -1 ? sinSigno : sinSigno.slice(0, guionMargen);
+  if (RAICES_MARGEN.has(raizMargen) && guionMargen !== -1) return `margen:${raizMargen}`;
+
+  const borde = RE_BORDE_GROSOR.exec(base);
+  if (borde) return `borde-grosor:${borde[1] ?? "todos"}`;
 
   if (base === "rounded") return "radio:todos";
   if (base.startsWith("rounded-")) {
