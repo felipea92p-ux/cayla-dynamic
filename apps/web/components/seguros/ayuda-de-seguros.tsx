@@ -14,8 +14,8 @@
 // ============================================================================
 
 import { useState } from "react";
-import { Info } from "lucide-react";
 import { Boton } from "@/components/ui/boton";
+import { BotonAyuda } from "@/components/ui/ayuda-pantalla";
 import { Modal } from "@/components/ui/modal";
 import { DIAS_AVISO_RENOVACION, DIAS_DE_GRACIA_PRIMA } from "@/lib/admin/seguros";
 
@@ -35,15 +35,7 @@ export function AyudaDeSeguros() {
   const [abierta, setAbierta] = useState(false);
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setAbierta(true)}
-        aria-label="Cómo funciona Seguros"
-        title="Cómo funciona Seguros"
-        className="ml-1.5 inline-flex size-6 items-center justify-center rounded-full border border-sand align-middle text-taupe transition-colors duration-150 hover:border-taupe hover:text-tinta"
-      >
-        <Info className="size-3.5" strokeWidth={1.8} aria-hidden />
-      </button>
+      <BotonAyuda etiqueta="Cómo funciona Seguros" onClick={() => setAbierta(true)} />
 
       <Modal abierto={abierta} onCerrar={() => setAbierta(false)} titulo="Cómo funciona Seguros" ancho="lg">
         <div className="space-y-5 text-sm">

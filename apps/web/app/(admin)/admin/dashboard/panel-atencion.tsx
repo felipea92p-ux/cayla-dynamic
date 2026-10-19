@@ -2,7 +2,10 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Boton } from "@/components/ui/boton";
+import { BannerAviso } from "@/components/ui/banner-aviso";
+import { ChevronDown, PanelRightClose } from "lucide-react";
+import { BotonIcono } from "@/components/ui/boton-icono";
+import { TarjetaInfo } from "@/components/ui/tarjeta-info";
 import { RotuloEstado } from "@/components/ui/rotulo";
 
 // «Requiere atención»: lo que hay que mirar hoy, en un solo lugar. Dos formas
@@ -70,32 +73,31 @@ const ContadorCriticas = ({ n }: { n: number }) =>
 export function PanelAtencionLateral({ items, alOcultar }: { items: ItemAtencionVista[]; alOcultar: () => void }) {
   const criticas = items.filter((i) => i.tono === "critico").length;
   return (
-    <div className="rounded-superficie border border-sand bg-papel p-5">
-      <div className="flex items-start justify-between gap-2">
-        <h2 className="font-serif text-xl font-medium">Requiere atención<ContadorCriticas n={criticas} /></h2>
-        <Boton variante="enlace" tamano="sm" onClick={alOcultar} title="Ocultar el panel y darle todo el ancho al contenido">
-          Ocultar ⟩
-        </Boton>
-      </div>
-      {items.length === 0 ? <p className="mt-2 text-sm text-taupe">Nada pendiente ahora mismo.</p> : <Grupos items={items} />}
-    </div>
+    <TarjetaInfo
+      titulo={<>Requiere atención<ContadorCriticas n={criticas} /></>}
+      accion={<BotonIcono etiqueta="Ocultar el panel y darle todo el ancho al contenido" icono={<PanelRightClose aria-hidden />} onClick={alOcultar} />}
+    >
+      {items.length === 0 ? <p className="text-sm text-taupe">Nada pendiente ahora mismo.</p> : <Grupos items={items} />}
+    </TarjetaInfo>
   );
 }
 
 export function PanelAtencionBanner({ items }: { items: ItemAtencionVista[] }) {
-  // En celular nace PLEGADO: queda una línea con el rojo y el conteo, y el
-  // detalle se abre con un toque. En tablet y escritorio nace abierto, como
-  // siempre. Se decide al montar y no con CSS porque `abierto` también manda el
-  // texto del botón y el aria-expanded. Es seguro leer `window` aquí: este
-  // banner solo se monta cuando el Dashboard ya cargó, nunca en el servidor.
-  const [abierto, setAbierto] = useState(() => typeof window === "undefined" || !window.matchMedia("(max-width: 639px)").matches);
+  // Nace PLEGADO en todos los anchos (2026-10-19, pedido de Felipe): queda una línea con el punto rojo y
+  // el conteo, y el detalle se abre con un toque. Antes solo el celular nacía así y en escritorio el aviso
+  // abierto empujaba el resumen fuera de la pantalla. Lo que se conserva: el rojo, el conteo y el
+  // `role="alert"` siguen a la vista, así que plegado no es lo mismo que oculto.
+  const [abierto, setAbierto] = useState(false);
   const criticas = items.filter((i) => i.tono === "critico").length;
   if (items.length === 0) return null;
   const titulo = criticas > 0
     ? `${criticas} ${criticas === 1 ? "cosa requiere" : "cosas requieren"} atención`
     : `${items.length} ${items.length === 1 ? "aviso" : "avisos"}`;
+  // Una sola línea cuando está plegado (2026-10-19): el aviso es del tamaño de lo que dice. Es un
+  // <BannerAviso enLinea> —la forma de aviso chica del ADR 0004— y no una caja propia con título serif,
+  // y su «Ver / Ocultar» es un botón «sm» como los demás, no un enlace subrayado de 16 px.
   return (
-    <div className={`rounded-superficie border bg-papel px-3 py-2.5 sm:p-4 ${criticas > 0 ? "border-rojo/40" : "border-sand"}`} role={criticas > 0 ? "alert" : undefined}>
+    <BannerAviso enLinea variante={criticas > 0 ? "alerta" : "advertencia"} role={criticas > 0 ? "alert" : undefined}>
       {/* Celular: toda la fila es el botón. Un «Ver» de 12 px en la esquina es
           un blanco que se falla con el pulgar. */}
       <button
@@ -108,15 +110,21 @@ export function PanelAtencionBanner({ items }: { items: ItemAtencionVista[] }) {
         <span className={`flex-1 text-sm font-medium ${criticas > 0 ? "text-rojo-profundo" : "text-tinta"}`}>{titulo}</span>
         <span aria-hidden className="text-taupe">{abierto ? "▴" : "▾"}</span>
       </button>
-      <div className="hidden flex-wrap items-center justify-between gap-2 sm:flex">
-        <h2 className={`font-serif text-lg font-medium ${criticas > 0 ? "text-rojo-profundo" : "text-tinta"}`}>
-          {criticas > 0 ? `${titulo} inmediata` : titulo}
-        </h2>
-        <Boton variante="enlace" tamano="sm" onClick={() => setAbierto((a) => !a)} aria-expanded={abierto}>
-          {abierto ? "Ocultar" : "Ver"}
-        </Boton>
+      <div className="hidden items-center justify-between gap-3 sm:flex">
+        <span className="flex items-center gap-2">
+          <span aria-hidden className={`size-2 shrink-0 rounded-full ${criticas > 0 ? "bg-rojo" : "bg-ambar"}`} />
+          <span className={`font-medium ${criticas > 0 ? "text-rojo-profundo" : "text-tinta"}`}>
+            {criticas > 0 ? `${titulo} inmediata` : titulo}
+          </span>
+        </span>
+        <BotonIcono
+          etiqueta={abierto ? "Ocultar el detalle" : "Ver el detalle"}
+          icono={<ChevronDown aria-hidden className={abierto ? "rotate-180" : ""} />}
+          onClick={() => setAbierto((a) => !a)}
+          aria-expanded={abierto}
+        />
       </div>
       {abierto && <Grupos items={items} />}
-    </div>
+    </BannerAviso>
   );
 }

@@ -30,12 +30,16 @@ import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Cargando } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
+import { AyudaPantalla } from "@/components/ui/ayuda-pantalla";
+import { BannerAviso } from "@/components/ui/banner-aviso";
+import { TarjetaInfo } from "@/components/ui/tarjeta-info";
 import { Insignia } from "@/components/ui/insignia";
 import { Tabla, TablaEncabezado, Th, Fila } from "@/components/ui/tabla";
 import { Campo, CampoSelect } from "@/components/ui/campo";
 import { AreaTexto } from "@/components/ui/area-texto";
 import { Modal } from "@/components/ui/modal";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
+import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
 import { hoyLima, puedeOperarEquipo, puedeVerTodasLasSedes } from "@cayla-dynamic/shared";
@@ -902,15 +906,20 @@ export default function AusenciasPage() {
     <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
         <CabeceraPagina
+          sobretitulo={sobretituloDeHoy("Asistencia")}
           titulo="Ausencias"
-          descripcion={
-            <>
-              Todos los días que alguien no vino, y por qué — vacaciones incluidas. Un día registrado aquí{" "}
-              <strong className="font-medium">deja de contar como falta injustificada</strong> y no alimenta el
-              expediente disciplinario. En CAYLA solo se paga lo que la ley obliga —descanso médico con
-              documento, maternidad, vacaciones y el duelo de un familiar directo— o lo que la empresa decide
-              conceder aparte (licencia con goce).
-            </>
+          descripcion="Cada día que alguien no vino, y por qué. Un día registrado aquí no cuenta como falta injustificada."
+          ayuda={
+            <AyudaPantalla
+              titulo="Cómo funcionan las ausencias"
+              intro="Aquí se registran los días que alguien no vino, vacaciones incluidas. Nada se borra: una ausencia se anula con motivo y queda en el historial."
+              secciones={[
+                { titulo: "Qué cambia", texto: <>Un día registrado aquí <strong className="font-medium text-tinta">deja de contar como falta injustificada</strong> y no alimenta el expediente disciplinario.</> },
+                { titulo: "Qué se paga", texto: "En CAYLA solo se paga lo que la ley obliga —descanso médico con documento, maternidad, vacaciones y el duelo de un familiar directo— o lo que la empresa decide conceder aparte (licencia con goce)." },
+                { titulo: "Impacto", texto: "La tarjeta «Impacto por colaborador» avisa vacaciones por vencer, el cupo de EsSalud y patrones de ausencias. El patrón es para conversar, nunca para sancionar solo con ese dato." },
+                { titulo: "Periodo pagado", texto: "No se puede registrar ni anular nada dentro de un periodo de planilla ya pagado: hay que reabrirlo primero." },
+              ]}
+            />
           }
           accion={<Boton variante="primario" onClick={abrirRegistro}>+ Registrar ausencia</Boton>}
         />
@@ -922,30 +931,29 @@ export default function AusenciasPage() {
             banner: son tres fuentes distintas y una puede fallar sin que
             fallen las otras dos. */}
         {errorPorVencer && (
-          <div className="mb-3 max-w-3xl rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo-profundo">
+          <BannerAviso enLinea role="alert" variante="alerta" className="mb-3 max-w-3xl">
             {errorPorVencer} — esto no quiere decir que nadie tenga vacaciones por vencer, solo que
             el aviso no se pudo calcular. Es el único de esta pantalla con fecha límite legal (art. 23,
             D. Leg. 713): conviene revisar a mano mientras no cargue.{" "}
             <Boton variante="enlace" onClick={() => void cargar()}>Reintentar</Boton>
-          </div>
+          </BannerAviso>
         )}
         {errorAlertas && (
-          <div className="mb-3 max-w-3xl rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo-profundo">
+          <BannerAviso enLinea role="alert" variante="alerta" className="mb-3 max-w-3xl">
             {errorAlertas} — esto no quiere decir que nadie tenga un patrón de ausencias, solo que
             el aviso no se pudo calcular.{" "}
             <Boton variante="enlace" onClick={() => void cargar()}>Reintentar</Boton>
-          </div>
+          </BannerAviso>
         )}
         {errorSubsidio && (
-          <div className="mb-3 max-w-3xl rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo-profundo">
+          <BannerAviso enLinea role="alert" variante="alerta" className="mb-3 max-w-3xl">
             {errorSubsidio} — esto no quiere decir que nadie tenga descanso médico pendiente de reembolso,
             solo que el aviso no se pudo calcular.{" "}
             <Boton variante="enlace" onClick={() => void cargar()}>Reintentar</Boton>
-          </div>
+          </BannerAviso>
         )}
 
-        <div className="mb-6 max-w-3xl rounded-superficie border border-sand bg-papel p-5">
-          <h2 className="mb-1 font-serif text-lg">Impacto por colaborador</h2>
+        <TarjetaInfo className="mb-6 max-w-3xl" titulo="Impacto por colaborador">
           {impactoPorPersona.length === 0 ? (
             <p className="text-sm text-taupe">Sin alertas activas hoy — vacaciones al día, dentro del cupo de EsSalud y sin patrón de ausencias que revisar.</p>
           ) : (
@@ -987,7 +995,7 @@ export default function AusenciasPage() {
               </p>
             </>
           )}
-        </div>
+        </TarjetaInfo>
 
         {/* Rango, estado y pestaña de persona. El filtro de estado existe
             porque la única fila que pide una acción en esta pantalla —

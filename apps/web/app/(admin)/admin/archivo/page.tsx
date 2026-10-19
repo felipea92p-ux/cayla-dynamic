@@ -29,6 +29,7 @@ import { Cargando } from "@/components/cargando";
 import { useToast } from "@/components/toast";
 import { AreaTexto } from "@/components/ui/area-texto";
 import { Boton } from "@/components/ui/boton";
+import { AyudaPantalla } from "@/components/ui/ayuda-pantalla";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
 import { Campo, CampoSelect } from "@/components/ui/campo";
 import { Insignia } from "@/components/ui/insignia";
@@ -250,12 +251,16 @@ export default function ArchivoPage() {
     <main className="flex-1 p-6">
       <CabeceraPagina
         titulo="Archivo de la empresa"
-        descripcion={
-          <>
-            Los papeles que CAYLA presenta o recibe de una autoridad —inscripciones, licencias,
-            constancias—, para tenerlos a la mano en una inspección. Solo los ve Desarrollo
-            Organizacional. Nada se borra: corregir un papel deja el anterior en su historial.
-          </>
+        descripcion="Los papeles que CAYLA presenta o recibe de una autoridad, a la mano para una inspección."
+        ayuda={
+          <AyudaPantalla
+            titulo="Cómo funciona el Archivo de la empresa"
+            intro="Inscripciones, licencias y constancias: lo que una autoridad pide ver el día de una inspección."
+            secciones={[
+              { titulo: "Quién lo ve", texto: "Solo Desarrollo Organizacional. No es una pantalla para el equipo." },
+              { titulo: "Nada se borra", texto: "Corregir un papel deja el anterior en su historial: lo que se mostró a una autoridad siempre se puede volver a ver." },
+            ]}
+          />
         }
         accion={!cargaError && <Boton variante="primario" onClick={abrirNuevo}>+ Subir un papel</Boton>}
       />

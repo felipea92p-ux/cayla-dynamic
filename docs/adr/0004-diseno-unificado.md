@@ -86,6 +86,16 @@ compartido puede tocarlo. `.etiqueta` sigue existiendo como clase para el sobret
 - Si una tercera pantalla pide lo mismo (una cifra «principal» que no cabe en la casilla), no se
   le agrega un tamaño a `Cifra`: se abre esta decisión de nuevo.
 
+## Cambios posteriores (2026-10-19)
+
+- **`Cifra` gana `tamano="sm"`**: una fila (etiqueta a la izquierda, número a la derecha), de ~92 px de alto a ~48. Lo pidió
+  Felipe para el resumen del Dashboard, que ocupaba demasiado antes de llegar al contenido. El número sigue serif y en
+  tinta; no es el «tamaño más grande» que esta decisión se reservaba reabrir, sino un tamaño más chico. Hoy lo usa solo el
+  Dashboard: otra pantalla que lo pida lo usa, no escribe su propia casilla.
+- **`Campo` y `CampoSelect` ganan `tamano="sm"`** (py-1.5, 12 px), mismo vocabulario que `Boton` y `Filtro`.
+- **`BotonIcono`** (nuevo): botón de un solo ícono con etiqueta obligatoria y `activo` para filtros. **`AyudaPantalla` /
+  `BotonAyuda`**: el ⓘ al final de la descripción de `CabeceraPagina`; el sobretítulo lleva raya.
+
 ## Pendiente
 
 - **Rótulos sobre cajas teñidas** («Trabajando ahora», «En pausa», el aviso de contratos del
@@ -94,7 +104,8 @@ compartido puede tocarlo. `.etiqueta` sigue existiendo como clase para el sobret
   el contraste sobre cada relleno antes de tocarlos; no entraron en el piloto.
 - **Incidencias** (franja segmentada con número de 36 px): pasa a `Cifra` con la migración de esa
   pantalla; se anota aquí porque es el cambio visual más grande de la familia.
-- **Pestañas: ¿`Filtro` o una pieza propia?** Sin decidir, y sin freno mientras tanto. La decisión
+- **Pestañas: ¿`Filtro` o una pieza propia?** **Resuelto el 2026-10-19: pieza propia, `<Pestanas>`** (subrayada, `aria-current`; una pestaña cambia de qué se habla y un filtro qué se ve de lo mismo). Educación y el Dashboard ya la usan; quedan Ausencias, Disciplina, Personas y Planilla, que la adoptan al migrarse, y Provisiones (segmentado) se queda con `Filtro`. Lo que sigue es el texto original de la duda, tal como se escribió:
+  Sin decidir, y sin freno mientras tanto. La decisión
   10 las unió con los filtros, pero de las cinco `tablist` del panel cuatro son pestañas
   *subrayadas* (Ausencias, Disciplina, Personas, Planilla) y solo una es un segmentado
   (Provisiones): `Filtro` —esquina de botón, activo en tinta— no es el destino de las cuatro. Hay

@@ -9,6 +9,12 @@ import { Cargando } from "@/components/cargando";
 import { useToast } from "@/components/toast";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { Boton } from "@/components/ui/boton";
+import { AyudaPantalla } from "@/components/ui/ayuda-pantalla";
+import { BannerAviso } from "@/components/ui/banner-aviso";
+import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
+import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
+import { Cifra } from "@/components/ui/cifra";
+import { Filtro } from "@/components/ui/filtro";
 import { Campo, CampoSelect, CampoCasilla } from "@/components/ui/campo";
 import { AreaTexto } from "@/components/ui/area-texto";
 import { Tabla, TablaEncabezado, Th, Fila } from "@/components/ui/tabla";
@@ -312,10 +318,9 @@ function GrillaHorario({ f }: { f: FormularioHorario }) {
               {DIAS.map((d) => {
                 const on = f.dias.includes(d.v);
                 return (
-                  <button key={d.v} type="button" onClick={() => f.toggleDia(d.v)}
-                    className={`h-9 w-9 rounded-control border text-sm ${on ? "border-tinta bg-tinta text-crema" : "border-sand text-taupe hover:bg-sand/40"}`}>
+                  <Filtro key={d.v} activo={on} onClick={() => f.toggleDia(d.v)} className="size-9 px-0 py-0">
                     {d.l}
-                  </button>
+                  </Filtro>
                 );
               })}
             </div>
@@ -331,10 +336,9 @@ function GrillaHorario({ f }: { f: FormularioHorario }) {
               const activo = dd !== undefined;
               return (
                 <div key={d.v} className="flex flex-wrap items-center gap-1.5">
-                  <button type="button" onClick={() => f.toggleDiaPorDia(d.v)}
-                    className={`h-8 w-14 shrink-0 rounded-control border text-xs capitalize ${activo ? "border-tinta bg-tinta text-crema" : "border-sand text-taupe hover:bg-sand/40"}`}>
+                  <Filtro tamano="sm" activo={activo} onClick={() => f.toggleDiaPorDia(d.v)} className="h-8 w-14 px-0 py-0 capitalize">
                     {NOMBRE_DIA[d.v].slice(0, 3)}
-                  </button>
+                  </Filtro>
                   {activo ? (
                     <>
                       <input type="time" value={dd.e} onChange={(e) => f.setCampoPorDia(d.v, "e", e.target.value)} className="w-[90px] rounded-control border px-1.5 py-1 text-sm" />
@@ -376,9 +380,6 @@ function SemanaMini({ a }: { a: ReturnType<typeof analizar> }) {
     </div>
   );
 }
-
-const TILE_CLASE = (activo: boolean) =>
-  `rounded-2xl border p-3 text-left transition-colors ${activo ? "border-taupe bg-hueso" : "border-sand bg-papel hover:bg-hueso"}`;
 
 export default function HorariosPage() {
   const router = useRouter();
@@ -827,45 +828,36 @@ export default function HorariosPage() {
   return (
     <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
-        <h1 className="mb-1 font-serif text-2xl">Horarios base</h1>
-        <div className="mb-5 flex max-w-2xl items-start gap-1.5">
-          <p className="text-sm text-taupe">
-            Define la jornada semanal y descansos de cada colaborador. Los cambios conservan el historial y pueden
-            aplicarse desde una fecha determinada.
-          </p>
-          <button
-            type="button"
-            title="El horario de cada persona puede tener una hora distinta por día (martes 8:00, miércoles 14:00…), con su refrigerio, y se repite cada semana. La hora de entrada define la tardanza."
-            aria-label="Más información sobre cómo funciona el horario"
-            className="mt-0.5 shrink-0 text-taupe hover:text-tinta"
-          >
-            ⓘ
-          </button>
-        </div>
+        <CabeceraPagina
+          sobretitulo={sobretituloDeHoy("Asistencia")}
+          titulo="Horarios base"
+          descripcion="Jornada semanal y descansos de cada colaborador. Un cambio conserva el historial."
+          ayuda={
+            <AyudaPantalla
+              titulo="Cómo funcionan los horarios base"
+              intro="El horario base es lo que le toca a cada persona una semana normal. Un turno puntual de la pantalla Turnos manda sobre él, solo ese día."
+              secciones={[
+                { titulo: "Cada día", texto: "Puede tener una hora distinta (martes 8:00, miércoles 14:00…), con su refrigerio, y se repite cada semana." },
+                { titulo: "Tardanza", texto: "La hora de entrada define la tardanza: sin horario no hay contra qué medir y ese día no cuenta tardanza ni falta." },
+                { titulo: "Cambiar", texto: "Un cambio puede aplicarse desde una fecha determinada y conserva el historial. «Corregir días ya trabajados» reabre lo que se midió con el horario anterior." },
+                { titulo: "Sin horario", texto: "Quien lo necesita sale arriba en rojo. No lo requieren quienes cobran por recibo o son personal de dirección." },
+              ]}
+            />
+          }
+        />
 
         {!cargando && personas.length > 0 && (
           <>
             {/* ── Resumen: sirve para actuar, cada tile es también un filtro ── */}
-            <div className="mb-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
-              <button type="button" onClick={limpiarFiltros} className={TILE_CLASE(sinFiltrosDeEstado)}>
-                <span className="block text-xs text-taupe">Total</span>
-                <span className="block font-serif text-2xl tabular-nums text-tinta">{totalPersonas}</span>
-              </button>
-              <button type="button" onClick={() => toggleEstado("con_horario")} className={TILE_CLASE(filtroEstado === "con_horario")}>
-                <span className="block text-xs text-taupe">Con horario</span>
-                <span className="block font-serif text-2xl tabular-nums text-verde">{conHorarioHoy}</span>
-              </button>
-              <button type="button" onClick={() => toggleEstado("sin_horario")} className={TILE_CLASE(filtroEstado === "sin_horario")}>
-                <span className="block text-xs text-taupe">Sin horario</span>
-                <span className="block font-serif text-2xl tabular-nums text-rojo">{sinHorarioHoy}</span>
-                {noRequierenHorario > 0 && (
-                  <span className="block text-xs text-taupe">{noRequierenHorario} no lo requiere{noRequierenHorario === 1 ? "" : "n"}</span>
-                )}
-              </button>
-              <button type="button" onClick={() => setSoloProgramados((v) => !v)} className={TILE_CLASE(soloProgramados)}>
-                <span className="block text-xs text-taupe">Programados</span>
-                <span className="block font-serif text-2xl tabular-nums text-pizarra">{programadosCount}</span>
-              </button>
+            <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <Cifra etiqueta="Total" valor={totalPersonas} activa={sinFiltrosDeEstado} onClick={limpiarFiltros} />
+              <Cifra etiqueta="Con horario" tono="positivo" valor={conHorarioHoy} activa={filtroEstado === "con_horario"} onClick={() => toggleEstado("con_horario")} />
+              <Cifra
+                etiqueta="Sin horario" tono="alerta" valor={sinHorarioHoy}
+                detalle={noRequierenHorario > 0 ? `${noRequierenHorario} no lo requiere${noRequierenHorario === 1 ? "" : "n"}` : undefined}
+                activa={filtroEstado === "sin_horario"} onClick={() => toggleEstado("sin_horario")}
+              />
+              <Cifra etiqueta="Programados" tono="informativo" valor={programadosCount} activa={soloProgramados} onClick={() => setSoloProgramados((v) => !v)} />
             </div>
 
             {/* ── Buscador y filtros ── */}
@@ -920,11 +912,11 @@ export default function HorariosPage() {
             se calcule (auditoría 2026-09-14). Compacta: nombres clicables en
             vez de un botón "Asignar" por persona. */}
         {!cargando && sinHorarioLista.length > 0 && (
-          <div className="mb-6 rounded-control border border-rojo/30 bg-rojo/10 px-4 py-3">
-            <p className="mb-1.5 text-sm font-medium text-rojo-profundo">
-              ⚠ {sinHorarioLista.length} persona{sinHorarioLista.length === 1 ? "" : "s"} necesita{sinHorarioLista.length === 1 ? "" : "n"} horario
-            </p>
-            <div className="flex flex-wrap gap-x-1 gap-y-1 text-sm">
+          <BannerAviso
+            enLinea variante="alerta" className="mb-6"
+            titulo={<>{sinHorarioLista.length} persona{sinHorarioLista.length === 1 ? "" : "s"} necesita{sinHorarioLista.length === 1 ? "" : "n"} horario</>}
+          >
+            <div className="mt-1.5 flex flex-wrap gap-x-1 gap-y-1">
               {sinHorarioLista.map((p, i) => (
                 <span key={p.id}>
                   <button type="button" onClick={(e) => abrirEdicion(p, e.currentTarget)} className="text-tinta underline decoration-rojo/40 underline-offset-2 hover:text-rojo-profundo">
@@ -934,7 +926,7 @@ export default function HorariosPage() {
                 </span>
               ))}
             </div>
-          </div>
+          </BannerAviso>
         )}
 
         {cargando ? <Cargando /> : porSede.length === 0 ? (
@@ -1050,11 +1042,11 @@ export default function HorariosPage() {
                             </td>
                           </Fila>
                           {expandida && a && (
-                            <tr className="border-t border-sand bg-hueso/50">
+                            <Fila className="bg-hueso/50 hover:bg-hueso/50">
                               <td colSpan={7} className="px-4 py-3">
                                 <SemanaMini a={a} />
                               </td>
-                            </tr>
+                            </Fila>
                           )}
                         </Fragment>
                       );

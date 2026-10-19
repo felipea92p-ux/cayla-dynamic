@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Info, Lock, MoreHorizontal } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Lock, MoreHorizontal } from "lucide-react";
 import { Cargando } from "@/components/cargando";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import {
@@ -26,6 +26,7 @@ import { Campo, CampoCasilla, CampoSelect } from "@/components/ui/campo";
 import { AreaTexto } from "@/components/ui/area-texto";
 import { TarjetaInfo } from "@/components/ui/tarjeta-info";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
+import { BotonAyuda } from "@/components/ui/ayuda-pantalla";
 import { BannerAviso } from "@/components/ui/banner-aviso";
 import { Tabla, TablaEncabezado, Th, Fila } from "@/components/ui/tabla";
 
@@ -734,17 +735,8 @@ function ObjetivosContenido() {
         <div className="mx-auto w-full max-w-5xl">
           <CabeceraPagina
             titulo="Objetivos"
-            descripcion={
-              <>
-                Define y da seguimiento a los compromisos mensuales del equipo.{" "}
-                <button
-                  onClick={() => setInfoAbierto(true)}
-                  className="inline-flex items-center gap-1 align-middle text-rojo hover:underline"
-                >
-                  <Info size={13} aria-hidden /> Cómo funcionan los objetivos
-                </button>
-              </>
-            }
+            descripcion="Define y da seguimiento a los compromisos mensuales del equipo."
+            ayuda={<BotonAyuda etiqueta="Cómo funcionan los objetivos" onClick={() => setInfoAbierto(true)} />}
           />
 
           {/* Periodo: contexto global — navegación mes a mes, y salto directo. */}

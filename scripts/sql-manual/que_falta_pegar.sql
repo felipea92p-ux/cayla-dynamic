@@ -389,7 +389,8 @@ with repo(numero, nombre, nunca) as (values
     (530, 'mi_seguro_cada_colaborador_ve_su_seguro_y_abre_sus_pdf', false),
     (531, 'la_politica_de_movilidad_se_firma_con_la_firma_del_sistema', false),
     (532, 'las_boletas_se_firman_y_una_anulacion_se_restablece', false),
-    (533, 'la_constancia_de_la_boleta_trae_sus_datos', false)
+    (533, 'la_constancia_de_la_boleta_trae_sus_datos', false),
+    (534, 'la_asistencia_por_sede_y_semana', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte

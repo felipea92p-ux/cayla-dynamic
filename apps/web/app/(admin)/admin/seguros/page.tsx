@@ -307,12 +307,8 @@ function Seguros() {
     <main className="flex-1 p-6">
       <CabeceraPagina
         titulo="Seguros"
-        descripcion={
-          <>
-            En qué seguro está cada colaborador y qué falta para que esté cubierto.
-            <AyudaDeSeguros />
-          </>
-        }
+        descripcion="En qué seguro está cada colaborador y qué falta para que esté cubierto."
+        ayuda={<AyudaDeSeguros />}
         accion={!cargaError && (
           <div className="flex flex-wrap gap-2">
             <Boton onClick={() => setLeerAbierto(true)}>Leer PDF de póliza</Boton>
