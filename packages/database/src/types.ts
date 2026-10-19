@@ -9440,7 +9440,7 @@ export type Database = {
         Returns: Json
       }
       fn_prueba_cargar_dni: {
-        Args: { p_anverso: string | null; p_persona_id: string | null; p_reverso: string | null }
+        Args: { p_anverso: string | null; p_consentimiento: string | null; p_persona_id: string | null; p_reverso: string | null }
         Returns: string
       }
       fn_prueba_cerrar: {

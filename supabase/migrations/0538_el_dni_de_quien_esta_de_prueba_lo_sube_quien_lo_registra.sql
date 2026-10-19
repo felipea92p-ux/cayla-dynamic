@@ -45,11 +45,19 @@
 --
 -- QUÉ NO HACE
 --   · No toca `fn_crear_solicitud_perfil` ni `fn_resolver_solicitud_perfil`.
+--   · No sustituye la constancia de consentimiento: la GUARDA. «Lo mío» registra la
+--     aceptación de quien sube su propio DNI; aquí sube otra persona, así que la
+--     constancia se guarda a nombre de la persona de prueba y dice quién declaró
+--     que se la dieron y con qué texto exacto (`consentimientos_datos_personales`,
+--     0404). Sin ese texto —50 letras como mínimo, la misma regla de la 0404— la
+--     función se niega: un DNI recolectado sin constancia es justo lo que la Ley
+--     N.° 29733 no admite. Es una DECLARACIÓN de quien registra, no la firma de la
+--     persona; si algún día hace falta la firma, es otra pieza.
 --   · No cambia el DNI de quien no está de prueba: esos siguen por «Lo mío» y la
 --     aprobación de siempre.
 --
 -- CÓMO SE REVIERTE
---   drop function if exists fn_prueba_cargar_dni(uuid, text, text);
+--   drop function if exists fn_prueba_cargar_dni(uuid, text, text, text);
 --   drop function if exists fn_pruebas_cierres_recientes(integer);
 --   Y pegar de nuevo el cuerpo de `fn_solicitud_perfil_puede_escribir` de
 --   `0399_el_colaborador_propone_do_aprueba.sql`. Las fotos ya cargadas quedan
@@ -118,7 +126,7 @@ end;
 $function$;
 
 -- ── 2 · Cargar el DNI de otra persona, por la misma puerta ──────────────────
-create or replace function fn_prueba_cargar_dni(p_persona_id uuid, p_anverso text, p_reverso text)
+create or replace function fn_prueba_cargar_dni(p_persona_id uuid, p_anverso text, p_reverso text, p_consentimiento text)
 returns uuid
 language plpgsql
 security definer
@@ -131,6 +139,7 @@ declare
   v_reverso  text := nullif(btrim(coalesce(p_reverso, '')), '');
   v_prefijo  text;
   v_id       uuid;
+  v_quien    text;
 begin
   if fn_prueba_puede_actuar(p_persona_id) is not true then
     raise exception 'No puedes cargar el DNI de esta persona.';
@@ -160,6 +169,20 @@ begin
     raise exception 'Los archivos no están en la carpeta de esa persona.';
   end if;
 
+  -- LA CONSTANCIA DE CONSENTIMIENTO, ANTES DE LA SOLICITUD (Ley N.° 29733, art. 5:
+  -- se pide al recolectar el dato). «Lo mío» la guarda a nombre de quien sube su
+  -- propio DNI; aquí sube OTRA persona, así que la constancia se guarda a nombre de
+  -- la persona de prueba y dice QUIÉN declaró que se la dieron, con el texto exacto.
+  -- Mismo mínimo que `fn_registrar_mi_consentimiento` (0404): no puede ser vacía.
+  if length(btrim(coalesce(p_consentimiento, ''))) < 50 then
+    raise exception 'Falta la constancia de que la persona autorizó el tratamiento de su DNI: el texto llegó vacío o incompleto.';
+  end if;
+  select nombres || ' ' || apellidos into v_quien from personas where id = v_actor;
+  insert into consentimientos_datos_personales (persona_id, finalidad, texto)
+  values (p_persona_id, 'foto_dni',
+          'Constancia declarada por ' || coalesce(v_quien, 'quien registra') || ' al registrar la prueba, '
+          || 'en presencia de la persona: ' || btrim(p_consentimiento));
+
   -- Reemplaza la pendiente anterior del mismo campo, como la puerta de siempre.
   update solicitudes_cambio_perfil
      set estado = 'reemplazada', resuelta_at = now(), resuelta_por = v_actor
@@ -180,12 +203,13 @@ begin
 end;
 $$;
 
-revoke execute on function fn_prueba_cargar_dni(uuid, text, text) from public, anon;
-grant  execute on function fn_prueba_cargar_dni(uuid, text, text) to authenticated;
+revoke execute on function fn_prueba_cargar_dni(uuid, text, text, text) from public, anon;
+grant  execute on function fn_prueba_cargar_dni(uuid, text, text, text) to authenticated;
 
-comment on function fn_prueba_cargar_dni(uuid, text, text) is
+comment on function fn_prueba_cargar_dni(uuid, text, text, text) is
   'Sube las dos caras del DNI de alguien que está de prueba y no tiene cuenta (0538). Crea la solicitud foto_dni a su nombre y la aprueba en el acto '
-  'con fn_resolver_solicitud_perfil: mismo bucket, mismo congelado y mismo historial que un DNI de «Lo mío». Puede DO, administración y la líder de SU sede.';
+  'con fn_resolver_solicitud_perfil: mismo bucket, mismo congelado y mismo historial que un DNI de «Lo mío». Puede DO, administración y la líder de SU sede. '
+  'Guarda además la constancia de consentimiento (Ley 29733) a nombre de la persona, diciendo quién la declaró.';
 
 -- ── 3 · Quién cerró pruebas hace poco ───────────────────────────────────────
 -- La mitigación de que una líder decida sola: DO ve cada «no apto» y cada «se
@@ -245,9 +269,9 @@ comment on function fn_pruebas_cierres_recientes(integer) is
 select
   case
     when (select prosrc from pg_proc where proname = 'fn_solicitud_perfil_puede_escribir') like '%CAMBIO 0538%'
-     and to_regprocedure('fn_prueba_cargar_dni(uuid, text, text)') is not null
+     and to_regprocedure('fn_prueba_cargar_dni(uuid, text, text, text)') is not null
      and to_regprocedure('fn_pruebas_cierres_recientes(integer)') is not null
-     and has_function_privilege('authenticated', 'fn_prueba_cargar_dni(uuid, text, text)', 'execute')
+     and has_function_privilege('authenticated', 'fn_prueba_cargar_dni(uuid, text, text, text)', 'execute')
       then '✅ quien registra la prueba puede subir el DNI, y se ven los cierres recientes'
     else '❌ no entró completo'
   end as resultado;

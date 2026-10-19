@@ -17,7 +17,7 @@
 --   · Quién cerró pruebas hace poco se ve (y solo lo ve quien puede actuar).
 -- ============================================================================
 begin;
-select plan(30);
+select plan(33);
 
 insert into sedes (id, codigo, nombre, activa) values
   ('00000000-0000-0000-0000-000000431a01', 'ZZDN1', 'Sede de laboratorio 1', true),
@@ -72,23 +72,23 @@ select ok(fn_solicitud_perfil_puede_leer('solicitud/00000000-0000-0000-0000-0000
   'LEER · y no los de otra sede');
 -- ── 3 · Cargar el DNI de quien está de prueba ───────────────────────────────
 select throws_like(
-  $$ select fn_prueba_cargar_dni('00000000-0000-0000-0000-000000431d02', 'solicitud/00000000-0000-0000-0000-000000431d02/a.jpg', 'solicitud/00000000-0000-0000-0000-000000431d02/b.jpg') $$,
+  $$ select fn_prueba_cargar_dni('00000000-0000-0000-0000-000000431d02', 'solicitud/00000000-0000-0000-0000-000000431d02/a.jpg', 'solicitud/00000000-0000-0000-0000-000000431d02/b.jpg', 'La persona me entregó su DNI en mano y autorizó a la empresa a tratarlo para verificar su identidad.') $$,
   '%No puedes cargar%', 'CARGAR · la líder no carga el DNI de otra sede');
 select throws_like(
-  $$ select fn_prueba_cargar_dni('00000000-0000-0000-0000-000000431d03', 'solicitud/00000000-0000-0000-0000-000000431d03/a.jpg', 'solicitud/00000000-0000-0000-0000-000000431d03/b.jpg') $$,
+  $$ select fn_prueba_cargar_dni('00000000-0000-0000-0000-000000431d03', 'solicitud/00000000-0000-0000-0000-000000431d03/a.jpg', 'solicitud/00000000-0000-0000-0000-000000431d03/b.jpg', 'La persona me entregó su DNI en mano y autorizó a la empresa a tratarlo para verificar su identidad.') $$,
   '%solo para quien está de prueba%', 'CARGAR · ni el de alguien de planilla de su sede');
 select throws_like(
-  $$ select fn_prueba_cargar_dni('00000000-0000-0000-0000-000000431d01', 'solicitud/00000000-0000-0000-0000-000000431d01/a.jpg', null) $$,
+  $$ select fn_prueba_cargar_dni('00000000-0000-0000-0000-000000431d01', 'solicitud/00000000-0000-0000-0000-000000431d01/a.jpg', null, 'La persona me entregó su DNI en mano y autorizó a la empresa a tratarlo para verificar su identidad.') $$,
   '%las dos caras%', 'CARGAR · hacen falta las dos caras');
 select throws_like(
-  $$ select fn_prueba_cargar_dni('00000000-0000-0000-0000-000000431d01', 'solicitud/00000000-0000-0000-0000-000000431d01/a.jpg', 'solicitud/00000000-0000-0000-0000-000000431d01/a.jpg') $$,
+  $$ select fn_prueba_cargar_dni('00000000-0000-0000-0000-000000431d01', 'solicitud/00000000-0000-0000-0000-000000431d01/a.jpg', 'solicitud/00000000-0000-0000-0000-000000431d01/a.jpg', 'La persona me entregó su DNI en mano y autorizó a la empresa a tratarlo para verificar su identidad.') $$,
   '%la misma imagen%', 'CARGAR · el anverso y el reverso no pueden ser la misma imagen');
 select throws_like(
-  $$ select fn_prueba_cargar_dni('00000000-0000-0000-0000-000000431d01', 'solicitud/00000000-0000-0000-0000-000000431d02/a.jpg', 'solicitud/00000000-0000-0000-0000-000000431d02/b.jpg') $$,
+  $$ select fn_prueba_cargar_dni('00000000-0000-0000-0000-000000431d01', 'solicitud/00000000-0000-0000-0000-000000431d02/a.jpg', 'solicitud/00000000-0000-0000-0000-000000431d02/b.jpg', 'La persona me entregó su DNI en mano y autorizó a la empresa a tratarlo para verificar su identidad.') $$,
   '%carpeta de esa persona%', 'CARGAR · los archivos tienen que estar en la carpeta de ESA persona, no en la de otra');
 
 select lives_ok(
-  $$ select fn_prueba_cargar_dni('00000000-0000-0000-0000-000000431d01', 'solicitud/00000000-0000-0000-0000-000000431d01/dni-anverso-1.jpg', 'solicitud/00000000-0000-0000-0000-000000431d01/dni-reverso-1.jpg') $$,
+  $$ select fn_prueba_cargar_dni('00000000-0000-0000-0000-000000431d01', 'solicitud/00000000-0000-0000-0000-000000431d01/dni-anverso-1.jpg', 'solicitud/00000000-0000-0000-0000-000000431d01/dni-reverso-1.jpg', 'La persona me entregó su DNI en mano y autorizó a la empresa a tratarlo para verificar su identidad.') $$,
   'CARGAR · la líder carga las dos caras de alguien de prueba de su sede');
 select is(
   (select foto_dni_anverso_ruta || ' | ' || foto_dni_reverso_ruta from datos_personales where persona_id = '00000000-0000-0000-0000-000000431d01'),
@@ -102,12 +102,24 @@ select is(
     where persona_id = '00000000-0000-0000-0000-000000431d01' and campo_modificado = 'datos_personales.foto_dni'
       and corregido_por = '00000000-0000-0000-0000-000000431b02'),
   1, 'CARGAR · y deja su fila de auditoría');
+select is(
+  (select count(*)::int from consentimientos_datos_personales
+    where persona_id = '00000000-0000-0000-0000-000000431d01' and finalidad = 'foto_dni'
+      and texto like 'Constancia declarada por LiderUno Lab al registrar la prueba%'
+      and texto like '%autorizó a la empresa a tratarlo%'),
+  1, 'CONSENTIMIENTO · queda a nombre de la persona, diciendo quién lo declaró y con qué texto exacto (Ley 29733)');
+select throws_like(
+  $$ select fn_prueba_cargar_dni('00000000-0000-0000-0000-000000431d01', 'solicitud/00000000-0000-0000-0000-000000431d01/x.jpg', 'solicitud/00000000-0000-0000-0000-000000431d01/y.jpg', null) $$,
+  '%constancia%', 'CONSENTIMIENTO · sin la constancia no se carga el DNI');
+select throws_like(
+  $$ select fn_prueba_cargar_dni('00000000-0000-0000-0000-000000431d01', 'solicitud/00000000-0000-0000-0000-000000431d01/x.jpg', 'solicitud/00000000-0000-0000-0000-000000431d01/y.jpg', 'sí') $$,
+  '%constancia%', 'CONSENTIMIENTO · ni con una constancia de dos letras');
 select ok(fn_solicitud_perfil_ruta_congelada('solicitud/00000000-0000-0000-0000-000000431d01/dni-anverso-1.jpg'),
   'CARGAR · lo aprobado queda congelado: nadie lo pisa');
 
 -- Una segunda carga NO pisa la anterior: es otra solicitud, con otro nombre de archivo.
 select lives_ok(
-  $$ select fn_prueba_cargar_dni('00000000-0000-0000-0000-000000431d01', 'solicitud/00000000-0000-0000-0000-000000431d01/dni-anverso-2.jpg', 'solicitud/00000000-0000-0000-0000-000000431d01/dni-reverso-2.jpg') $$,
+  $$ select fn_prueba_cargar_dni('00000000-0000-0000-0000-000000431d01', 'solicitud/00000000-0000-0000-0000-000000431d01/dni-anverso-2.jpg', 'solicitud/00000000-0000-0000-0000-000000431d01/dni-reverso-2.jpg', 'La persona me entregó su DNI en mano y autorizó a la empresa a tratarlo para verificar su identidad.') $$,
   'CARGAR · se puede volver a cargar (foto borrosa): es otra solicitud');
 select is(
   (select foto_dni_anverso_ruta from datos_personales where persona_id = '00000000-0000-0000-0000-000000431d01'),
@@ -115,7 +127,7 @@ select is(
 
 select pg_temp.como('00000000-0000-0000-0000-000000431c04');   -- un integrante
 select throws_like(
-  $$ select fn_prueba_cargar_dni('00000000-0000-0000-0000-000000431d01', 'solicitud/00000000-0000-0000-0000-000000431d01/a.jpg', 'solicitud/00000000-0000-0000-0000-000000431d01/b.jpg') $$,
+  $$ select fn_prueba_cargar_dni('00000000-0000-0000-0000-000000431d01', 'solicitud/00000000-0000-0000-0000-000000431d01/a.jpg', 'solicitud/00000000-0000-0000-0000-000000431d01/b.jpg', 'La persona me entregó su DNI en mano y autorizó a la empresa a tratarlo para verificar su identidad.') $$,
   '%No puedes cargar%', 'CARGAR · un integrante no puede');
 
 -- ── 4 · Quién cerró pruebas hace poco ───────────────────────────────────────
@@ -143,7 +155,7 @@ select is((select count(*)::int from fn_pruebas_cierres_recientes(48)), 0,
 select is((select count(*)::int from fn_pruebas_cierres_recientes(120)), 1,
   'CIERRES · pero sí si se piden más horas');
 select ok(not has_function_privilege('anon', 'fn_pruebas_cierres_recientes(integer)', 'execute')
-          and not has_function_privilege('anon', 'fn_prueba_cargar_dni(uuid, text, text)', 'execute'),
+          and not has_function_privilege('anon', 'fn_prueba_cargar_dni(uuid, text, text, text)', 'execute'),
   'SEGURIDAD · sin sesión no se ejecuta ninguna de las dos');
 
 select * from finish();
