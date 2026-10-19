@@ -24,6 +24,7 @@ import {
   fechaCorta,
   fueraDeHorarioDeHoy,
   horaCortaLima,
+  llegoTarde,
   loQueFalta,
   diaDeLaSemanaEnPlural,
   metaDelDiaTexto,
@@ -1344,5 +1345,24 @@ describe("textoEquipoDelDia en un feriado sin confirmar — «por horario», no 
       expect(textoEquipoDelDia(p, e, false)).toBe(textoEquipoDelDia(p, e));
     }
     expect(textoEquipoDelDia(3, 3)).toBe("Hoy les tocaba trabajar a las 3 personas del equipo.");
+  });
+});
+
+describe("llegoTarde: una tardanza levantada ya no es tardanza", () => {
+  it("llegó 30 min tarde y nadie la levantó: cuenta", () => {
+    expect(llegoTarde(fila({ minutosTarde: 30 }))).toBe(true);
+  });
+
+  it("llegó 30 min tarde pero DO la levantó (fuerza mayor): NO cuenta, aunque los minutos sigan guardados", () => {
+    expect(llegoTarde(fila({ minutosTarde: 30, tardanzaLevantada: true }))).toBe(false);
+  });
+
+  it("sin minutos de tardanza no cuenta, levantada o no", () => {
+    expect(llegoTarde(fila({ minutosTarde: 0 }))).toBe(false);
+    expect(llegoTarde(fila({ minutosTarde: null, tardanzaLevantada: true }))).toBe(false);
+  });
+
+  it("una fila que nunca trae el dato (ausente) se comporta como siempre", () => {
+    expect(llegoTarde(fila({ minutosTarde: 5 }))).toBe(true);
   });
 });
