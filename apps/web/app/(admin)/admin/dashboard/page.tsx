@@ -827,9 +827,6 @@ export default function DashboardPage() {
     .map((s) => ({ sedeId: s.id, codigo: s.codigo, etiqueta: etiquetaDeSede(s) }))
     .filter((s) => !yo || esAdmin || s.sedeId === yo.sedeBaseId);
 
-  // El nombre con que se dice una sede en las tendencias («Taller · Lima»), a partir de su código.
-  const nombreDeSede = (codigo: string) => sedesDeAlcance.find((s) => s.codigo === codigo)?.etiqueta.texto ?? codigo;
-
   // Cobertura de cada sede, calculada una sola vez y reutilizada para ordenar,
   // para el resumen global y para cada tarjeta.
   //
@@ -1145,7 +1142,7 @@ export default function DashboardPage() {
         />
 
         {vistaDash === "tendencias" ? (
-          <PanelTendencias rol={yo?.rol ?? null} nombreDeSede={nombreDeSede} />
+          <PanelTendencias rol={yo?.rol ?? null} sedes={sedesDeAlcance.map((s) => ({ codigo: s.codigo, nombre: s.etiqueta.texto }))} />
         ) : (
           <>
         {error && (

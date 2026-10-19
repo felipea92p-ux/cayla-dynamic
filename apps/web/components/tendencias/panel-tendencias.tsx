@@ -89,7 +89,11 @@ function Cuerpo<T>({ estado, reintentar, vacio, hijos }: {
   return sinDatos ? <EstadoVacio>{sinDatos}</EstadoVacio> : <>{hijos(estado.datos)}</>;
 }
 
-export function PanelTendencias({ rol, nombreDeSede }: { rol: string | null; nombreDeSede: (codigo: string) => string }) {
+export function PanelTendencias({ rol, sedes }: { rol: string | null; sedes: { codigo: string; nombre: string }[] }) {
+  // Las sedes salen de la TABLA `sedes` (la que ve quien mira), no de lo que devolvió la función: una sede sin
+  // días medidos —por ejemplo Central, si su equipo es de sueldo fijo o de dirección— tiene que seguir
+  // en la lista y DECIR por qué está vacía, no desaparecer como si no existiera.
+  const nombreDeSede = (codigo: string) => sedes.find((s) => s.codigo === codigo)?.nombre ?? codigo;
   const supabase = useMemo(() => createAdminSupabaseClient(), []);
   const hoy = hoyLima();
   const verPlanilla = puedeVerPlanilla(rol as Parameters<typeof puedeVerPlanilla>[0]);
@@ -128,9 +132,10 @@ export function PanelTendencias({ rol, nombreDeSede }: { rol: string | null; nom
     return columnasDeCosto(por, (enCurso?.[0] as { fecha_ini: string; fecha_fin: string } | undefined) ?? null);
   });
 
-  const sedesVisibles = useMemo(() => (asist.cargando || asist.error !== null ? [] : [...new Set(asist.datos.map((f) => f.sede_codigo))].sort()), [asist]);
+  const sedesVisibles = sedes.map((s) => s.codigo);
   const filtradas = useMemo(() => (asist.cargando || asist.error !== null ? [] : asist.datos.filter((f) => !sede || f.sede_codigo === sede)), [asist, sede]);
 
+  const SIN_DIAS_DE_SEDE = "Esta sede no tiene días medidos en el periodo. No se mide a quien cobra sueldo fijo, por recibo o es personal de dirección, ni a quien no tiene horario cargado.";
   return (
     <div className="grid gap-4">
       {/* ── Qué periodo y qué sede: lo que se toca, a la vista ── */}
@@ -151,7 +156,7 @@ export function PanelTendencias({ rol, nombreDeSede }: { rol: string | null; nom
         nota={<>Cuenta los días que tocaba trabajar, sin vacaciones, descansos, feriados ni días con motivo; no incluye a quien cobra por recibo, tiene sueldo fijo o es personal de dirección. Cada sede cuenta a su gente de hoy. La semana en curso va hueca porque no terminó.</>}
       >
         <Cuerpo estado={asist} reintentar={reintentarAsist}
-          vacio={() => (asistenciaSemanal(filtradas, hoy, sede).every((p) => p.pct === null) ? "Todavía no hay semanas completas que mostrar en este periodo." : null)}
+          vacio={() => (asistenciaSemanal(filtradas, hoy, sede).every((p) => p.pct === null) ? (sede ? SIN_DIAS_DE_SEDE : "Todavía no hay semanas completas que mostrar en este periodo.") : null)}
           hijos={() => {
             const puntos = asistenciaSemanal(filtradas, hoy, sede);
             const piso = pisoDeLinea(puntos);
@@ -168,7 +173,7 @@ export function PanelTendencias({ rol, nombreDeSede }: { rol: string | null; nom
         nota="Mide solo los días en que el sistema guardó con qué horario se midió la jornada, así que la historia empieza más tarde que la de asistencia. Nunca por persona."
       >
         <Cuerpo estado={asist} reintentar={reintentarAsist}
-          vacio={() => (llegadaPorSede(filtradas).length === 0 ? "Todavía no hay llegadas medidas en este periodo." : null)}
+          vacio={() => (llegadaPorSede(filtradas).length === 0 ? (sede ? SIN_DIAS_DE_SEDE : "Todavía no hay llegadas medidas en este periodo.") : null)}
           hijos={() => <LlegadaPorSede sedes={llegadaPorSede(filtradas)} nombreDe={nombreDeSede} />} />
       </Seccion>
 
@@ -178,7 +183,7 @@ export function PanelTendencias({ rol, nombreDeSede }: { rol: string | null; nom
         nota="Tarde = 5 minutos o más después de la hora. «·» = pocas llegadas para decir algo; «–» = nadie de la sede trabajó ese día. Es para organizar el día, no para señalar a alguien."
       >
         <Cuerpo estado={asist} reintentar={reintentarAsist}
-          vacio={() => (calorTardanza(filtradas).length === 0 ? "Todavía no hay llegadas medidas en este periodo." : null)}
+          vacio={() => (calorTardanza(filtradas).length === 0 ? (sede ? SIN_DIAS_DE_SEDE : "Todavía no hay llegadas medidas en este periodo.") : null)}
           hijos={() => <CalorTardanza filas={calorTardanza(filtradas)} nombreDe={nombreDeSede} />} />
       </Seccion>
 
