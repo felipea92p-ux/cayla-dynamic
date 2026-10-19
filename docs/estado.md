@@ -6,7 +6,7 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-10-17 — Seguros, etapa 2: «Mi seguro» en Lo mío, para TODO el equipo · migración 0530 · SQL SIN PEGAR · PR EN BORRADOR (sin fusionar) · rama `claude/seguros-module-analysis-redesign-70bbe4` (rescata `claude/seguros-etapa-2-mi-seguro`, antes `elegant-mayer-3e584e`)
+## 2026-10-17 — Seguros, etapa 2: «Mi seguro» en Lo mío, para TODO el equipo · migración 0530 · SQL PEGADO Y VERIFICADO EN PRODUCCIÓN (2026-10-19) · PR #555 EN BORRADOR (sin fusionar) · rama `claude/seguros-module-analysis-redesign-70bbe4` (rescata `claude/seguros-etapa-2-mi-seguro`, antes `elegant-mayer-3e584e`)
 
 **Qué es.** Cada colaborador ve SU seguro en `/mio` → Documentos → «Mi seguro»: en cuál está hoy;
 si lleva póliza, su número, la aseguradora, hasta cuándo es vigente, el plan y el máximo anual **solo
@@ -131,7 +131,7 @@ qué se le dice a quien está en EsSalud (ver abajo).
   el nombre de la persona). En pantalla se rotula por su tipo, no por el nombre con que DO lo subió.
 
 **Pendiente, en este orden (Felipe).**
-1. **Pegar la 0530 ANTES de fusionar el PR** (la 0528 ya está pegada y fusionada, PR #551).
+1. ~~**Pegar la 0530 ANTES de fusionar el PR**~~ **HECHO el 2026-10-19:** Felipe la pegó y el SQL Editor devolvió lo esperado (3 funciones, 1 política de lectura, 5 de Storage, `authenticated` la llama, `anon` no, registro «530 · mi_seguro_cada_colaborador_ve_su_seguro_y_abre_sus_pdf»). Antes se volvió a mirar `main` y la numeración, y el md5 del portapapeles coincidió con el archivo y con GitHub. (La 0528 ya estaba pegada y fusionada, PR #551.)
    `./scripts/dame-el-sql.sh 530` (el número libre y `main` se vuelven a pedir en el mensaje que entrega
    el SQL; la 0530 es el hueco entre la 0529 y la 0531, y la prueba 423 estaba libre). La consulta de
    «ANTES DE PEGAR» de la cabecera espera la 0528 presente y nada de la 0530; **Retail vive en el mismo
