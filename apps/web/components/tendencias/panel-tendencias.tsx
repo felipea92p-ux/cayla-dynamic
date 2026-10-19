@@ -11,7 +11,7 @@
 //   Casos, solo quien `fn_ve_casos` deja; costo de planilla, solo quien `puedeVerPlanilla` — y para quien no,
 //   NI SIQUIERA se llama a la RPC (un líder de sede no debe ver sueldos).
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { hoyLima, mesesRecientesLima, puedeVerPlanilla } from "@cayla-dynamic/shared";
 import { BannerAviso } from "@/components/ui/banner-aviso";
@@ -34,19 +34,19 @@ type Estado<T> = { cargando: true } | { cargando: false; error: string } | { car
 function useConsulta<T>(activa: boolean, clave: string, pedir: () => Promise<T>): [Estado<T>, () => void] {
   const [estado, setEstado] = useState<Estado<T>>({ cargando: true });
   const [intento, setIntento] = useState(0);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const pedirEstable = useCallback(pedir, [clave]);
   useEffect(() => {
     if (!activa) return;
     let vivo = true;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setEstado({ cargando: true });
-    pedirEstable().then(
+    pedir().then(
       (datos) => { if (vivo) setEstado({ cargando: false, error: null, datos }); },
       (e: unknown) => { if (vivo) setEstado({ cargando: false, error: e instanceof Error ? e.message : "No se pudo consultar." }); },
     );
     return () => { vivo = false; };
-  }, [activa, pedirEstable, intento]);
+    // `pedir` cambia de identidad en cada render; lo que decide pedir de nuevo es `clave` (periodo, sede…).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activa, clave, intento]);
   return [estado, () => setIntento((n) => n + 1)];
 }
 
