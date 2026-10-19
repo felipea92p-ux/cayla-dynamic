@@ -3300,9 +3300,10 @@ export default function ContratosPage() {
                   pestanas={[
                     { clave: "pendientes", texto: "Para atender", aviso: nParaAtender },
                     { clave: "vigentes", texto: "Al día" },
+                    { clave: "todos", texto: "Todos" },
                     { clave: "archivados", texto: "Archivados" },
                   ]}
-                  activa={filtroEstado === "vigentes" || filtroEstado === "archivados" ? filtroEstado : "pendientes"}
+                  activa={filtroEstado === "sin_firmar" ? "pendientes" : filtroEstado}
                   alElegir={(clave) => { setFiltroEstado(clave); setBandaElegida(null); }}
                 />
 
@@ -3337,7 +3338,7 @@ export default function ContratosPage() {
                       {tiposEnDatos.map((t) => (<option key={t} value={t}>{TIPO_CONTRATO[t] ?? t}</option>))}
                     </CampoSelect>
                   </div>
-                  {(busca || filtroSede || filtroTipo || bandaElegida !== null || (filtroEstado !== "pendientes" && filtroEstado !== "vigentes" && filtroEstado !== "archivados")) && (
+                  {(busca || filtroSede || filtroTipo || bandaElegida !== null || filtroEstado === "sin_firmar") && (
                     <Boton variante="enlace" className="text-xs text-taupe" onClick={limpiarFiltros}>Limpiar</Boton>
                   )}
                 </TarjetaInfo>
