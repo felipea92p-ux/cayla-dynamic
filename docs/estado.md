@@ -6,6 +6,40 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-10-19 — Términos primero, guía después, en «Lo mío» · migración 0540 · SIN PEGAR NI FUSIONAR · rama `claude/dynamic-terms-conditions-modules-44a3d3`
+
+**Qué es.** La guía de primera vez (driver.js) arrancaba sola, sin condiciones, y antes o a la vez que
+cualquier otra cosa que se le pide a la persona. Ahora una sola función (`capaActiva`, en
+`packages/shared`) decide qué le toca a la persona al abrir un módulo —términos de uso, términos del
+módulo o guía— y **nunca dos a la vez**. Las dieciséis secciones de «Lo mío» tienen su guía: aro suave,
+dos o tres pasos, «Omitir», y «Ver guía de esta pantalla» en la cabecera de Info.
+
+**Lo que ya se ve hoy:** las guías (con su novedad en `novedades.ts`). **Lo que NO se ve todavía, a
+propósito:** los términos. Los diecisiete textos de `packages/shared/src/terminos.ts` están en
+`borrador`, y un borrador es invisible para la pantalla: no se muestra y no bloquea nada. Para que uno
+salga hay que cambiar su `estado` a «aprobado» con quién y cuándo, y pegar su huella en
+`tests/terminos.test.ts`.
+
+**Decidido (Felipe, 2026-10-19):** bloquean solo los términos de uso y los módulos con casilla. Cinco
+piden casilla (términos de uso, Vacaciones y permisos, Firma, Mis datos, Reportes); cuatro ya tienen su
+propia constancia y solo apuntan a ella (Boletas, Mi DNI, Movilidad, Disciplina); el resto es un aviso.
+
+**Pendiente, en este orden.**
+1. **DO y el laboralista leen los textos.** Se corrigieron seis que prometían lo que su pantalla no hace
+   (Vacaciones y permisos, Disciplina, Movilidad, Educación, Mis datos, Objetivos), pero ninguno lo ha leído
+   un humano de DO. Ojo con dos: el de Movilidad ya no dice «carácter no remunerativo conforme al pacto»
+   (no se pudo comprobar contra la pantalla) y puede que el laboralista lo quiera de vuelta; y Disciplina no
+   menciona un descargo porque la pantalla no tiene dónde presentarlo.
+2. **Pegar la 0540 ANTES de fusionar el PR** (`./scripts/dame-el-sql.sh 540`). Si el código llegara primero
+   no se rompe nada: sin poder leer las aceptaciones no se pide ni se guía. No reescribe ninguna función.
+3. Aprobar los textos de a uno, empezando por «general».
+
+**Probado.** La 0540 con su prueba 433 (28 aserciones) en un clon desechable, con ocho sesiones aceptando
+la misma versión a la vez (una dice true, siete false, una fila); `types.ts` comparado contra los tipos
+generados de verdad con la 0540 aplicada. **No probado:** la prueba 433 en `db-tests` de GitHub, el flujo
+con la 0540 en producción, y el panel de vista previa de la app no dispara `requestAnimationFrame` (las
+guías se vieron con esa función sustituida; en un navegador normal debería verse igual).
+
 ## 2026-10-17 — Seguros, etapa 2: «Mi seguro» en Lo mío, para TODO el equipo · migración 0530 · SQL PEGADO Y VERIFICADO EN PRODUCCIÓN (2026-10-19) · FUSIONADO Y PUBLICADO (PR #555, 2026-10-19) · rama `claude/seguros-module-analysis-redesign-70bbe4` (rescató `claude/seguros-etapa-2-mi-seguro`, antes `elegant-mayer-3e584e`)
 
 **Qué es.** Cada colaborador ve SU seguro en `/mio` → Documentos → «Mi seguro»: en cuál está hoy;
