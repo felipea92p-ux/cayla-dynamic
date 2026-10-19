@@ -21,6 +21,7 @@ import { Insignia } from "@/components/ui/insignia";
 import { Menu, MenuItem } from "@/components/ui/menu";
 import { Modal } from "@/components/ui/modal";
 import { Drawer } from "@/components/ui/drawer";
+import { ImprimibleAparte, useImprimirAparte } from "@/components/ui/imprimible-aparte";
 import { AyudaPantalla } from "@/components/ui/ayuda-pantalla";
 import { ParaAtender } from "@/components/ui/para-atender";
 import { Pestanas } from "@/components/ui/pestanas";
@@ -447,6 +448,10 @@ export default function DocumentacionPage() {
     costoPasaje: number | null; gastoDiario: number | null;
     costoTaxi: number | null; frecuenciaTaxi: number | null;
   } | null>(null);
+  // El nombre con que el navegador propone guardar el PDF, y la copia que se imprime aparte del modal.
+  const { copia: copiaFirma, preparando: preparandoFirma, imprimir: imprimirFirma } = useImprimirAparte(
+    verFirma ? `Declaración de ruta — ${verFirma.persona}` : null,
+  );
   // La firma de la empresa para ese visor — ver el comentario junto a
   // `fn_firma_empresa` en `cargar()`.
   const [firmaEmpresaGlobal, setFirmaEmpresaGlobal] = useState<string | null>(null);
@@ -1775,6 +1780,121 @@ export default function DocumentacionPage() {
     );
   }
 
+  /** La declaración de ruta firmada, tal cual quedó: la misma hoja en el modal y en la copia que se imprime. */
+  function hojaDeFirma(v: NonNullable<typeof verFirma>) {
+    return (
+                    <div className="hoja rounded-lg border border-sand p-8 text-sm leading-relaxed print:rounded-none print:border-0 print:p-0">
+                      <div className="mb-6 flex items-start justify-between border-b border-sand pb-4">
+                        <Marca tono="tinta" isotipo="rojo" />
+                        <div className="text-right text-xs text-taupe">
+                          <p>{EMPRESA.nombre}</p>
+                          <p>RUC {EMPRESA.ruc}</p>
+                        </div>
+                      </div>
+
+                      <h2 className="mb-6 text-center font-serif text-xl">
+                        Declaración de ruta y gasto de transporte
+                      </h2>
+
+                      <p className="mb-4">
+                        Yo, <strong>{v.persona}</strong>, con documento de identidad N.º{" "}
+                        <strong>{v.documento ?? "—"}</strong>, que desempeño el cargo de{" "}
+                        <strong>{v.funcion ?? "—"}</strong> en la sede{" "}
+                        <strong>{v.sedeNombre}</strong> de {EMPRESA.nombre}, declaro lo siguiente respecto de
+                        mi traslado diario entre mi domicilio y mi centro de labores:
+                      </p>
+
+                      {v.distrito ? (
+                        // Lista numerada (0429): las piezas se guardaron aparte
+                        // al firmar, así que se arma la MISMA estructura que ya
+                        // ve la persona al firmar en /mio/movilidad — nunca un
+                        // segundo intento de decir lo mismo con otra forma.
+                        <>
+                          <ol className="mb-6 list-decimal space-y-2 pl-6">
+                            <li>
+                              Reside en el distrito de <strong>{v.distrito}</strong>, provincia de{" "}
+                              <strong>{v.provincia}</strong>.
+                            </li>
+                            <li>
+                              Para llegar a su centro de labores utiliza <strong>{v.mediosIda}</strong>{" "}
+                              medio(s) de transporte por tramo, y de regreso{" "}
+                              <strong>{v.mediosVuelta}</strong>.
+                            </li>
+                            {/* Pasaje y taxi (0489): solo si se declararon —
+                                lo firmado antes no los tenía. */}
+                            {v.costoPasaje !== null && (
+                              <>
+                                <li>
+                                  El costo de cada pasaje es de S/{" "}
+                                  <strong>{Number(v.costoPasaje).toFixed(2)}</strong>, de modo que su gasto
+                                  diario habitual de ida y vuelta asciende a S/{" "}
+                                  <strong>{Number(v.gastoDiario ?? 0).toFixed(2)}</strong>.
+                                </li>
+                                <li>
+                                  {v.costoTaxi !== null ? (
+                                    <>
+                                      Según el horario de su turno, en ocasiones debe utilizar taxi u otro medio
+                                      particular, cuyo costo por viaje asciende aproximadamente a S/{" "}
+                                      <strong>{Number(v.costoTaxi).toFixed(2)}</strong>. Esto ocurre
+                                      alrededor de <strong>{v.frecuenciaTaxi}</strong> veces por semana.
+                                    </>
+                                  ) : (
+                                    <>No utiliza taxi ni otro medio particular para este traslado.</>
+                                  )}
+                                </li>
+                              </>
+                            )}
+                            <li>
+                              Declara que la información consignada es veraz, y se compromete a informar a{" "}
+                              {EMPRESA.nombre} si cambia de domicilio o de ruta habitual.
+                            </li>
+                          </ol>
+                          <p className="mb-6">
+                            Toma conocimiento de que {EMPRESA.nombre} le otorga una asignación por movilidad de{" "}
+                            <strong>
+                              S/ {v.tarifa !== null ? v.tarifa.toFixed(2) : "—"} por día
+                              efectivamente asistido
+                            </strong>
+                            , destinada a cubrir dicho traslado; que se abona únicamente por los días en que
+                            asiste a laborar, no correspondiendo en caso de inasistencia, licencia o descanso; y
+                            que este concepto <strong>no tiene carácter remunerativo</strong>, conforme al
+                            artículo 19 inciso e) del Decreto Supremo N.º 001-97-TR.
+                          </p>
+                        </>
+                      ) : v.texto ? (
+                        // Firmada antes de la 0429: esas cuatro columnas no
+                        // existían ese día, así que se muestra el texto real
+                        // que se firmó, tal cual — no se inventa una lista con
+                        // datos que no se guardaron por separado.
+                        <p className="mb-6">{v.texto}</p>
+                      ) : (
+                        <p className="mb-6 text-taupe">No se guardó el texto de esta declaración.</p>
+                      )}
+
+                      <p className="mb-10 text-xs text-taupe">
+                        Suscrito en {v.sedeNombre}
+                        {v.fecha && <>, el {fechaLarga(v.fecha)}</>}.
+                      </p>
+
+                      <div className="grid grid-cols-2 gap-10 pt-6">
+                        <BloqueFirma
+                          imagen={v.firma}
+                          nombre={v.persona}
+                          pie={`DNI ${v.documento ?? "—————"} · el/la declarante`}
+                        />
+                        <BloqueFirma
+                          imagen={firmaEmpresaGlobal}
+                          nombre={firmanteNombre}
+                          pie={`${firmanteCargo} · ${EMPRESA.nombre}`}
+                        />
+                      </div>
+                      <p className="mt-6 text-center text-xs text-taupe">
+                        Firma digital, confirmada desde el sistema{v.fecha && <> el {fechaLarga(v.fecha)}</>}.
+                      </p>
+                    </div>
+    );
+  }
+
   return (
     <>
 
@@ -1980,42 +2100,33 @@ export default function DocumentacionPage() {
               Modal de verdad (no un panel dentro de la página): a pedido de Felipe,
               para que anular pida una confirmación aparte y no un clic más en medio
               de una tabla larga. Mismo patrón que ya usa admin/contratos. */}
-          {anulando && (
-            <div
-              className="fixed inset-0 z-30 flex items-center justify-center bg-black/40 p-4"
-              onClick={() => setAnulando(null)}
-            >
-              <div
-                role="dialog"
-                aria-modal="true"
-                aria-label="Anular documento"
-                className="w-full max-w-md rounded-flotante border border-rojo/40 bg-papel p-4 text-sm"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="font-medium text-rojo">
-                  {anulando.etiqueta
-                    ? `¿Seguro que quieres anular la firma de ${anulando.etiqueta}?`
-                    : "¿Seguro que quieres anular este documento?"}
-                </div>
-                <p className="mt-1 text-xs text-taupe">
+          <Modal
+            abierto={anulando !== null}
+            onCerrar={() => setAnulando(null)}
+            titulo={anulando?.etiqueta ? `¿Seguro que quieres anular la firma de ${anulando.etiqueta}?` : "¿Seguro que quieres anular este documento?"}
+            ancho="sm"
+          >
+            {anulando && (
+              <>
+                <p className="text-sm text-taupe">
                   No se borra: queda guardado en el historial con tu nombre, la hora y este motivo.
                 </p>
                 <div className="mt-3">
-                  <Campo value={anulando.motivo}
+                  <Campo etiqueta="Motivo" value={anulando.motivo}
                     onChange={(e) => setAnulando({ ...anulando, motivo: e.target.value })}
                     placeholder="ej. se subió el escaneo equivocado" />
                 </div>
-                <div className="mt-3 flex items-center gap-2">
-                  <Boton variante="peligro" tamano="sm"
+                <div className="mt-4 flex justify-end gap-2">
+                  <Boton variante="secundario" onClick={() => setAnulando(null)}>Cancelar</Boton>
+                  <Boton variante="peligro"
                     onClick={() => void anularDocumento(anulando.id, anulando.motivo.trim())}
                     disabled={anulando.motivo.trim().length < 4}>
                     Sí, anular
                   </Boton>
-                  <Boton variante="enlace" onClick={() => setAnulando(null)}>Cancelar</Boton>
                 </div>
-              </div>
-            </div>
-          )}
+              </>
+            )}
+          </Modal>
 
           {/* «Ver» de una firma digital — el documento tal cual quedó
               firmado, con el mismo membrete que ya usa `hoja()` al imprimir
@@ -2023,139 +2134,24 @@ export default function DocumentacionPage() {
               Imprimir, y el papel adentro). A diferencia de `hoja()`, acá NO
               hay rayas en blanco: todo son los datos reales de ESTA
               declaración ya firmada. */}
-          {verFirma && (
-            <div
-              className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4 print:static print:block print:bg-transparent print:p-0"
-              onClick={() => setVerFirma(null)}
-            >
-              <div
-                role="dialog"
-                aria-modal="true"
-                aria-label={`Declaración de ruta de ${verFirma.persona}`}
-                className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-flotante border border-sand bg-crema print:max-h-none print:w-auto print:max-w-none print:overflow-visible print:rounded-none print:border-0"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="flex items-center gap-3 border-b border-sand bg-sand/30 px-4 py-2 print:hidden">
-                  <Boton variante="primario" onClick={() => window.print()}>
-                    Imprimir / Guardar como PDF
-                  </Boton>
-                  <Boton variante="enlace" onClick={() => setVerFirma(null)}>Cerrar</Boton>
+          <Modal
+            abierto={verFirma !== null}
+            onCerrar={() => setVerFirma(null)}
+            titulo={verFirma ? `Declaración de ruta de ${verFirma.persona}` : undefined}
+            ancho="xl"
+          >
+            {verFirma && (
+              <>
+                {hojaDeFirma(verFirma)}
+                {/* Una copia suelta para el papel: el modal recortaría lo impreso a su propio alto. */}
+                <ImprimibleAparte ref={copiaFirma}>{hojaDeFirma(verFirma)}</ImprimibleAparte>
+                <div className="mt-4 flex justify-end gap-2">
+                  <Boton variante="secundario" onClick={() => setVerFirma(null)}>Cerrar</Boton>
+                  <Boton variante="primario" cargando={preparandoFirma} onClick={() => void imprimirFirma()}>Descargar PDF</Boton>
                 </div>
-
-                <div className="overflow-y-auto p-5 print:overflow-visible print:p-0">
-                  <div className="hoja rounded-lg border border-sand p-8 text-sm leading-relaxed print:rounded-none print:border-0 print:p-0">
-                    <div className="mb-6 flex items-start justify-between border-b border-sand pb-4">
-                      <Marca tono="tinta" isotipo="rojo" />
-                      <div className="text-right text-xs text-taupe">
-                        <p>{EMPRESA.nombre}</p>
-                        <p>RUC {EMPRESA.ruc}</p>
-                      </div>
-                    </div>
-
-                    <h2 className="mb-6 text-center font-serif text-xl">
-                      Declaración de ruta y gasto de transporte
-                    </h2>
-
-                    <p className="mb-4">
-                      Yo, <strong>{verFirma.persona}</strong>, con documento de identidad N.º{" "}
-                      <strong>{verFirma.documento ?? "—"}</strong>, que desempeño el cargo de{" "}
-                      <strong>{verFirma.funcion ?? "—"}</strong> en la sede{" "}
-                      <strong>{verFirma.sedeNombre}</strong> de {EMPRESA.nombre}, declaro lo siguiente respecto de
-                      mi traslado diario entre mi domicilio y mi centro de labores:
-                    </p>
-
-                    {verFirma.distrito ? (
-                      // Lista numerada (0429): las piezas se guardaron aparte
-                      // al firmar, así que se arma la MISMA estructura que ya
-                      // ve la persona al firmar en /mio/movilidad — nunca un
-                      // segundo intento de decir lo mismo con otra forma.
-                      <>
-                        <ol className="mb-6 list-decimal space-y-2 pl-6">
-                          <li>
-                            Reside en el distrito de <strong>{verFirma.distrito}</strong>, provincia de{" "}
-                            <strong>{verFirma.provincia}</strong>.
-                          </li>
-                          <li>
-                            Para llegar a su centro de labores utiliza <strong>{verFirma.mediosIda}</strong>{" "}
-                            medio(s) de transporte por tramo, y de regreso{" "}
-                            <strong>{verFirma.mediosVuelta}</strong>.
-                          </li>
-                          {/* Pasaje y taxi (0489): solo si se declararon —
-                              lo firmado antes no los tenía. */}
-                          {verFirma.costoPasaje !== null && (
-                            <>
-                              <li>
-                                El costo de cada pasaje es de S/{" "}
-                                <strong>{Number(verFirma.costoPasaje).toFixed(2)}</strong>, de modo que su gasto
-                                diario habitual de ida y vuelta asciende a S/{" "}
-                                <strong>{Number(verFirma.gastoDiario ?? 0).toFixed(2)}</strong>.
-                              </li>
-                              <li>
-                                {verFirma.costoTaxi !== null ? (
-                                  <>
-                                    Según el horario de su turno, en ocasiones debe utilizar taxi u otro medio
-                                    particular, cuyo costo por viaje asciende aproximadamente a S/{" "}
-                                    <strong>{Number(verFirma.costoTaxi).toFixed(2)}</strong>. Esto ocurre
-                                    alrededor de <strong>{verFirma.frecuenciaTaxi}</strong> veces por semana.
-                                  </>
-                                ) : (
-                                  <>No utiliza taxi ni otro medio particular para este traslado.</>
-                                )}
-                              </li>
-                            </>
-                          )}
-                          <li>
-                            Declara que la información consignada es veraz, y se compromete a informar a{" "}
-                            {EMPRESA.nombre} si cambia de domicilio o de ruta habitual.
-                          </li>
-                        </ol>
-                        <p className="mb-6">
-                          Toma conocimiento de que {EMPRESA.nombre} le otorga una asignación por movilidad de{" "}
-                          <strong>
-                            S/ {verFirma.tarifa !== null ? verFirma.tarifa.toFixed(2) : "—"} por día
-                            efectivamente asistido
-                          </strong>
-                          , destinada a cubrir dicho traslado; que se abona únicamente por los días en que
-                          asiste a laborar, no correspondiendo en caso de inasistencia, licencia o descanso; y
-                          que este concepto <strong>no tiene carácter remunerativo</strong>, conforme al
-                          artículo 19 inciso e) del Decreto Supremo N.º 001-97-TR.
-                        </p>
-                      </>
-                    ) : verFirma.texto ? (
-                      // Firmada antes de la 0429: esas cuatro columnas no
-                      // existían ese día, así que se muestra el texto real
-                      // que se firmó, tal cual — no se inventa una lista con
-                      // datos que no se guardaron por separado.
-                      <p className="mb-6">{verFirma.texto}</p>
-                    ) : (
-                      <p className="mb-6 text-taupe">No se guardó el texto de esta declaración.</p>
-                    )}
-
-                    <p className="mb-10 text-xs text-taupe">
-                      Suscrito en {verFirma.sedeNombre}
-                      {verFirma.fecha && <>, el {fechaLarga(verFirma.fecha)}</>}.
-                    </p>
-
-                    <div className="grid grid-cols-2 gap-10 pt-6">
-                      <BloqueFirma
-                        imagen={verFirma.firma}
-                        nombre={verFirma.persona}
-                        pie={`DNI ${verFirma.documento ?? "—————"} · el/la declarante`}
-                      />
-                      <BloqueFirma
-                        imagen={firmaEmpresaGlobal}
-                        nombre={firmanteNombre}
-                        pie={`${firmanteCargo} · ${EMPRESA.nombre}`}
-                      />
-                    </div>
-                    <p className="mt-6 text-center text-xs text-taupe">
-                      Firma digital, confirmada desde el sistema{verFirma.fecha && <> el {fechaLarga(verFirma.fecha)}</>}.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
+              </>
+            )}
+          </Modal>
 
           {/* ── El panel de subida ──────────────────────────────────────────
               Uno solo para los tres documentos, y fuera del tablero. Estaba
