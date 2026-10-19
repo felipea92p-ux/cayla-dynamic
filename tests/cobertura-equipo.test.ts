@@ -19,6 +19,22 @@ describe("cuentaEnCobertura — operativa", () => {
     }
   });
 
+  it("quien está de prueba en un área de oficina cuenta como operativo (Robert Cabrera en OTRU, 2026-10-19)", () => {
+    for (const tipo of ["tienda", "taller", "central"]) {
+      expect(cuentaEnCobertura(persona({ tipoVinculo: "prueba" }), tipo).operativa).toBe(true);
+    }
+  });
+
+  it("RxH, no trabajador o vínculo vacío en un área de oficina NO cuentan como operativos", () => {
+    for (const tipoVinculo of ["rxh", "no_trabajador", null, undefined, ""]) {
+      expect(cuentaEnCobertura(persona({ tipoVinculo }), "central").operativa).toBe(false);
+    }
+  });
+
+  it("estar de prueba no hace líder a nadie", () => {
+    expect(cuentaEnCobertura(persona({ tipoVinculo: "prueba" }), "central").lider).toBe(false);
+  });
+
   it("quien no es practicante sigue contando solo si su área es operativa", () => {
     expect(cuentaEnCobertura(persona({ areaOperativa: true }), "tienda").operativa).toBe(true);
     expect(cuentaEnCobertura(persona({ areaOperativa: false }), "tienda").operativa).toBe(false);
