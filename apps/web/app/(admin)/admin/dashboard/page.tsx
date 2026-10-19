@@ -1146,8 +1146,8 @@ export default function DashboardPage() {
             {/* Barra de escritorio compacta (2026-10-19): sin rótulos —el buscador y los desplegables ya dicen
                 lo suyo con su texto—, sin caja alrededor, y los controles a 13 px y 32 px de alto en vez de
                 14 px y 36. «Solo alertas» deja de ser una casilla suelta y pasa a ser un filtro, como los de
-                Educación. Los campos usan `tamano="sm"` (el mismo vocabulario que Boton y Filtro). */}
-            <div className="mb-5 hidden flex-wrap items-center gap-2 sm:flex">
+                Educación; va sobre una tarjeta (papel) para separarse del fondo de la página. Los campos usan `tamano="sm"` (el mismo vocabulario que Boton y Filtro). */}
+            <TarjetaInfo className="mb-5 hidden flex-wrap items-center gap-2 p-2 sm:flex sm:p-2">
               <div className="min-w-48 flex-1">
                 <Campo
                   tamano="sm"
@@ -1172,7 +1172,7 @@ export default function DashboardPage() {
               {(busqueda !== "" || estadoFiltro !== "todos" || sedeFiltro !== "todas") && (
                 <Boton variante="enlace" tamano="sm" onClick={limpiarFiltros}>Limpiar</Boton>
               )}
-            </div>
+            </TarjetaInfo>
 
             <div className={prefs.alertasOcultas ? "" : "xl:grid xl:grid-cols-[minmax(0,1fr)_20rem] xl:items-start xl:gap-6"}>
               {/* Los paneles van en una columna flex y se ordenan con `order`: el
