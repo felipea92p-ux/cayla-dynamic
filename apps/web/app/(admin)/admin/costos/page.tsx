@@ -42,6 +42,9 @@ import { useRolActual } from "@/lib/admin/use-rol";
 import { formatSoles } from "@/lib/rangos";
 import { descargarCsv, generarCsv } from "@/lib/admin/csv";
 import { puedeVerPlanilla } from "@cayla-dynamic/shared";
+import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
+import { AyudaPantalla } from "@/components/ui/ayuda-pantalla";
+import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 
 const MESES = [
   "enero", "febrero", "marzo", "abril", "mayo", "junio",

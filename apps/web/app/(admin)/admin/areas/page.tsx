@@ -15,6 +15,8 @@ import { type Area, AREA_DEFAULT, parseAreas, slugDeNombre } from "@/lib/areas";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { puedeGestionarCatalogos } from "@cayla-dynamic/shared";
 import { useToast } from "@/components/toast";
+import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
+import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 
 interface FormArea {
   nombre: string;
@@ -187,12 +189,16 @@ export default function AreasPage() {
   return (
     <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
-        <div className="mb-4 flex items-center justify-between">
-          <h1 className="font-serif text-2xl">Áreas</h1>
-          {puedeGestionar && edicionHabilitada && !mostrandoAlta && !editandoCodigo && (
-            <Boton variante="primario" onClick={empezarAlta}>+ Agregar área</Boton>
-          )}
-        </div>
+        <CabeceraPagina
+          sobretitulo={sobretituloDeHoy("Empresa")}
+          titulo="Áreas"
+          descripcion="Las áreas de trabajo y cuáles cuentan como operativas para la cobertura."
+          accion={
+            puedeGestionar && edicionHabilitada && !mostrandoAlta && !editandoCodigo ? (
+              <Boton variante="primario" onClick={empezarAlta}>+ Agregar área</Boton>
+            ) : undefined
+          }
+        />
 
         {rol === null ? (
           <Cargando />

@@ -20,12 +20,16 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { ParaAtender } from "@/components/ui/para-atender";
 import { TarjetaInfo } from "@/components/ui/tarjeta-info";
 import { Campo, CampoSelect } from "@/components/ui/campo";
+import { Filtro } from "@/components/ui/filtro";
 import { Insignia } from "@/components/ui/insignia";
 import { Modal } from "@/components/ui/modal";
+import { cx } from "@/components/ui/cx";
 import { cuentaEnCobertura, hoyLima, puedeOperarEquipo, puedeVerTodasLasSedes } from "@cayla-dynamic/shared";
 import { diaDeLaSedeDe, esperadoDelDia, esTurnoEspejoViejo, horarioVigente, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
 import { cicloVigente, type DiaTrabajado } from "@/lib/admin/ciclo-sobretiempo";
 import { colorCobertura, etiquetaCobertura, etiquetaSedeSinTurnos, type TonoCobertura } from "@/lib/admin/cobertura-turnos";
+import { resumenDeLideres, resumenDelTramo, type ResumenTramo, type TurnoDecimal } from "@/lib/admin/cobertura-tramos";
+import { CampoMeta, InsigniaTramo, Medidor, TarjetaGrupo, TarjetaTramo, type PersonaDelDia } from "./cobertura-por-tramos";
 
 // ── Fechas (todo en ISO yyyy-mm-dd, semana de lunes a domingo) ──────────────
 function parseISO(iso: string): Date {
@@ -114,48 +118,6 @@ function gradienteCoberturaBanda(horas: number[], metaMan: number, metaTar: numb
   const col = (i: number) => colorCobertura(horas[i], metaDeHora(hi0 + i, metaMan, metaTar));
   const paradas = horas.map((_, i) => `${col(i)} ${((i + 0.5) / n) * 100}%`);
   return `linear-gradient(to right, ${col(0)} 0%, ${paradas.join(", ")}, ${col(n - 1)} 100%)`;
-}
-
-// ── Silueta del día (Vista Semana): la forma de cuánta gente hay por hora ────
-// 3 tonos: verde = cubierto (bajo la meta), rojo = falta (hueco), ámbar = sobra
-// (por encima de la meta). La meta es una línea escalonada (sube en la tarde).
-const SIL_W = 100, SIL_BASE = 46, SIL_TOP = 6;
-function siluetaSVG(cov: number[], metaArr: number[], maxY: number) {
-  const n = cov.length;
-  const yF = (v: number) => SIL_BASE - (v / maxY) * (SIL_BASE - SIL_TOP);
-  const xF = (i: number) => (i / (n - 1)) * SIL_W;
-  const mn = (i: number) => Math.min(cov[i], metaArr[i]);
-  const mx = (i: number) => Math.max(cov[i], metaArr[i]);
-  // La meta / falta / sobra solo aplican en la VENTANA operativa (de la primera
-  // a la última franja con gente), igual que el cálculo — así no se pinta rojo
-  // antes de abrir ni después de cerrar.
-  const nz = cov.map((v, i) => (v > 0 ? i : -1)).filter((i) => i >= 0);
-  const i0 = nz.length ? nz[0] : 0, i1 = nz.length ? nz[nz.length - 1] : -1;
-  const hayVentana = i1 >= i0;
-  // verde: desde el piso hasta lo cubierto (min de cobertura y meta), todo el día
-  let green = `M ${xF(0)} ${SIL_BASE}`;
-  for (let i = 0; i < n; i++) green += ` L ${xF(i).toFixed(1)} ${yF(mn(i)).toFixed(1)}`;
-  green += ` L ${xF(n - 1)} ${SIL_BASE} Z`;
-  let deficit = "", surplus = "", metaLine = "";
-  if (hayVentana) {
-    let dTop = "", dBot = "", sTop = "", sBot = "", mL = "";
-    for (let i = i0; i <= i1; i++) {
-      const px = xF(i).toFixed(1);
-      dTop += (i === i0 ? "M " : " L ") + `${px} ${yF(metaArr[i]).toFixed(1)}`;
-      sTop += (i === i0 ? "M " : " L ") + `${px} ${yF(mx(i)).toFixed(1)}`;
-      mL += (i === i0 ? "M " : " L ") + `${px} ${yF(metaArr[i]).toFixed(1)}`;
-    }
-    for (let i = i1; i >= i0; i--) {
-      dBot += ` L ${xF(i).toFixed(1)} ${yF(mn(i)).toFixed(1)}`;
-      sBot += ` L ${xF(i).toFixed(1)} ${yF(metaArr[i]).toFixed(1)}`;
-    }
-    deficit = dTop + dBot + " Z";
-    surplus = sTop + sBot + " Z";
-    metaLine = mL;
-  }
-  let line = "";
-  for (let i = 0; i < n; i++) line += (i ? " L " : "M ") + `${xF(i).toFixed(1)} ${yF(cov[i]).toFixed(1)}`;
-  return { green, deficit, surplus, metaLine, line };
 }
 
 // Resumen de OPERATIVAS: promedio de qué tan lleno corriste vs la meta del tramo
@@ -639,12 +601,13 @@ export default function TurnosPage() {
   // Panel de la Vista Integrada: al tocar una celda (una franja de un día) se
   // abre mostrando quién cubre esa media hora, con acceso a editar por persona.
   const [panel, setPanel] = useState<{ fecha: string; franjaIdx: number } | null>(null);
-  // Clic en una celda de Vista Semana → salta a Vista Día y hace scroll a ese
-  // día específico (se limpia solo después de saltar, para no repetir el
-  // scroll si luego el usuario navega manualmente dentro de Vista Día).
-  const [diaFoco, setDiaFoco] = useState<string | null>(null);
+  // El día que se mira en la vista Día (uno a la vez: «mañana y tarde» de ese día). Se guarda como fecha; si la semana
+  // cambia y esa fecha ya no está en ella, se cae a hoy (o al lunes) sin necesitar un efecto que lo corrija.
+  const [diaSel, setDiaSel] = useState<string | null>(null);
+  // Abierto/cerrado de «hora por hora», que además trae el campo de las metas.
+  const [detalleHora, setDetalleHora] = useState(false);
   function irADia(iso: string) {
-    setDiaFoco(iso);
+    setDiaSel(iso);
     setVista("dia");
   }
   // Desde el diagnóstico: salta a la semana Y al día del turno a revisar.
@@ -652,12 +615,6 @@ export default function TurnosPage() {
     setLunes(lunesDeLaSemana(iso));
     irADia(iso);
   }
-  useEffect(() => {
-    if (vista !== "dia" || !diaFoco) return;
-    const el = document.getElementById(`turnos-dia-${diaFoco}`);
-    el?.scrollIntoView({ behavior: "smooth", block: "start" });
-    setDiaFoco(null);
-  }, [vista, diaFoco]);
 
   const [personas, setPersonas] = useState<Persona[]>([]);
   const [areas, setAreas] = useState<Area[]>(AREAS_FALLBACK);
@@ -687,8 +644,11 @@ export default function TurnosPage() {
   const [cicloEdit, setCicloEdit] = useState<ReturnType<typeof cicloVigente>>(null);
 
   const dias = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(lunes, i)), [lunes]);
+  const diaActivo = diaSel && dias.includes(diaSel) ? diaSel : (dias.includes(hoyLima()) ? hoyLima() : dias[0]);
   const supabase = useMemo(() => createAdminSupabaseClient(), []);
   const reqId = useRef(0); // "última carga gana": descarta respuestas fuera de orden
+  // Pedir una recarga sin llamar a `cargar` desde un manejador de pantalla: así lo que se dibuja no arrastra la lectura de `reqId`.
+  const [recarga, setRecarga] = useState(0);
 
   // Deep-link: al llegar con ?fecha=<YYYY-MM-DD> (desde Incidencias, ej. déficit
   // de encargadas), salta directo a la semana de esa fecha.
@@ -769,7 +729,8 @@ export default function TurnosPage() {
     setMetasTarde(new Map(((m as any[]) ?? []).map((x) => [x.dia_semana, x.meta_tarde ?? x.meta ?? 0])));
     setMetasEncargadas(new Map(((m as any[]) ?? []).map((x) => [x.dia_semana, x.meta_encargadas ?? 0])));
     setCargando(false);
-  }, [supabase, sedeSel, lunes, avisar]);
+    // `recarga` no se lee dentro: está en las dependencias para que pedir una recarga haga correr el efecto que ya llama a cargar().
+  }, [supabase, sedeSel, lunes, avisar, recarga]);
 
   useEffect(() => { void cargar(); }, [cargar]);
 
@@ -881,6 +842,57 @@ export default function TurnosPage() {
     (fecha: string) => coberturaPorFranja(fecha, HORA_INICIO, HORA_FIN - HORA_INICIO, 1, esOperativa),
     [coberturaPorFranja, esOperativa],
   );
+  // ── «Mañana y tarde»: la cobertura de un día dicha en dos tramos (ver lib/admin/cobertura-tramos.ts) ──
+  const turnosDecimalesDe = (iso: string, filtro: (p: Persona) => boolean): TurnoDecimal[] =>
+    personas.filter(filtro).flatMap((p) => {
+      const c = celda(p.id, iso);
+      if (c.tipo !== "turno" && c.tipo !== "default") return [];
+      return [{ id: p.id, entrada: horaADecimal(c.entrada), salida: c.salida ? horaADecimal(c.salida) : HORA_FIN }];
+    });
+  const tramosDelDia = (iso: string) => {
+    const dia = diaSemana(iso);
+    const ops = turnosDecimalesDe(iso, esOperativa);
+    const lid = turnosDecimalesDe(iso, esEncargada);
+    return {
+      manana: resumenDelTramo({ turnos: ops, tramo: "manana", meta: metas.get(dia) ?? 0, inicioDia: HORA_INICIO, finDia: HORA_FIN }),
+      tarde: resumenDelTramo({ turnos: ops, tramo: "tarde", meta: metasTarde.get(dia) ?? 0, inicioDia: HORA_INICIO, finDia: HORA_FIN }),
+      lideres: resumenDeLideres(lid.length, metasEncargadas.get(dia) ?? 0),
+      idsLideres: new Set(lid.map((t) => t.id)),
+    };
+  };
+  const personaDelDia = (p: Persona, iso: string): PersonaDelDia => {
+    const c = celda(p.id, iso);
+    const detalle = c.tipo === "turno" || c.tipo === "default" ? `${c.entrada.slice(0, 5)}–${c.salida ? c.salida.slice(0, 5) : "…"}` : c.tipo === "descanso" ? "descanso" : "sin turno";
+    return { id: p.id, nombre: `${p.nombres} ${p.apellidos}`, detalle, aparte: !esOperativa(p) && !esEncargada(p) ? areaCorto(areas, p.funcion) : undefined };
+  };
+  const nombrePersona = (id: string) => personas.find((x) => x.id === id);
+  // Un símbolo por día para el selector: lo que importa a primera vista, con su palabra.
+  const simboloDelDia = (iso: string): { s: string; t: string } => {
+    if (sedeSinTurnosEn(iso)) return { s: "–", t: "sin turnos" };
+    const t = tramosDelDia(iso);
+    const e = [t.manana.estado, t.tarde.estado];
+    if (e.includes("falta") || e.includes("con_huecos") || t.lideres.estado === "falta") return { s: "▲", t: "falta gente" };
+    if (e.includes("sobra")) return { s: "●", t: "sobra gente" };
+    if (e.every((x) => x === "sin_meta") && t.lideres.estado === "sin_meta") return { s: "·", t: "sin meta" };
+    return { s: "✓", t: "cubierto" };
+  };
+  // La sugerencia de siempre (redistribuir / falta personal), con el candidato concreto a mover.
+  const sugerenciaDe = (iso: string): string | null => {
+    const dia = diaSemana(iso);
+    const r = resumenOperativas(coberturaPorFranja(iso, HORA_INICIO_SEMANA, N_FRANJAS_SEMANA, 0.5, esOperativa), metas.get(dia) ?? 0, metasTarde.get(dia) ?? 0, HORA_INICIO_SEMANA, 0.5);
+    if (!r.sug) return null;
+    let candidato = "";
+    const operativas = personas.filter(esOperativa);
+    if (r.redistribuir === "adelantar") {
+      const c = operativas.find((p) => { const cel = celda(p.id, iso); return (cel.tipo === "turno" || cel.tipo === "default") && horaADecimal(cel.entrada) >= CORTE_TARDE; });
+      if (c) candidato = ` Ej. adelanta a ${c.nombres}.`;
+    } else if (r.redistribuir === "retrasar") {
+      const c = operativas.find((p) => { const cel = celda(p.id, iso); return (cel.tipo === "turno" || cel.tipo === "default") && cel.salida !== null && cel.salida !== undefined && horaADecimal(cel.salida) <= CORTE_TARDE + 1; });
+      if (c) candidato = ` Ej. retrasa la salida de ${c.nombres}.`;
+    }
+    return `${r.redistribuir ? "↔" : "＋"} ${r.sug}${candidato}`;
+  };
+
   // Quiénes (según `filtro`) cubren una franja de 30 min concreta de un día —
   // para el panel de la Vista Integrada. Mismo criterio de solape que la cuenta.
   const personasEnFranja = useCallback((fecha: string, franjaIdx: number, filtro: (p: Persona) => boolean): Persona[] => {
@@ -1010,7 +1022,7 @@ export default function TurnosPage() {
       p_sede_id: sedeSel, p_dia_semana: dia,
       p_meta_manana: metas.get(dia) ?? 0, p_meta_tarde: metasTarde.get(dia) ?? 0,
     });
-    if (error) { avisar("error", mensajeDeError(error, "guardar la meta")); await cargar(); }
+    if (error) { avisar("error", mensajeDeError(error, "guardar la meta")); setRecarga((n) => n + 1); }
   }
 
   function editarMetaEncargadas(dia: number, valor: string) {
@@ -1020,7 +1032,7 @@ export default function TurnosPage() {
   async function comprometerMetaEncargadas(dia: number, valor: string) {
     const meta = Math.max(0, Math.round(Number(valor) || 0));
     const { error } = await supabase.rpc("fn_set_meta_encargadas", { p_sede_id: sedeSel, p_dia_semana: dia, p_meta: meta });
-    if (error) { avisar("error", mensajeDeError(error, "guardar la meta de líderes")); await cargar(); }
+    if (error) { avisar("error", mensajeDeError(error, "guardar la meta de líderes")); setRecarga((n) => n + 1); }
   }
 
   if (rol !== null && !puedeVer) {
@@ -1131,98 +1143,70 @@ export default function TurnosPage() {
         {sedeSel && <RevisionTurnos sedeSel={sedeSel} onIrADia={irARevisar} abierto={decidirAbierto === "base"} onConteo={conteoBase} />}
 
         {cargando ? <Cargando /> : vista === "semana" ? (
-          <div className="space-y-6">
-            {([
-              { titulo: "Cobertura (áreas operativas)", tipo: "op", filtro: esOperativa },
-              { titulo: "Líderes de equipo", tipo: "enc", filtro: esEncargada },
-            ] as const).map(({ titulo, tipo, filtro }) => {
-              const covPorDia = dias.map((iso) => coberturaPorFranja(iso, HORA_INICIO_SEMANA, N_FRANJAS_SEMANA, 0.5, filtro));
-              // meta por franja de cada día: operativas cambia mañana/tarde; encargadas es plana.
-              const metaArrDe = (dia: number): number[] =>
-                tipo === "op"
-                  ? Array.from({ length: N_FRANJAS_SEMANA }, (_, i) => metaDeHora(HORA_INICIO_SEMANA + i * 0.5, metas.get(dia) ?? 0, metasTarde.get(dia) ?? 0))
-                  : Array.from({ length: N_FRANJAS_SEMANA }, () => metasEncargadas.get(dia) ?? 0);
-              // Escala vertical propia de CADA tabla (si la de encargadas usara la
-              // meta de operativas, sus siluetas de meta 2 saldrían aplastadas).
-              const metaMax = Math.max(0, ...dias.map((iso) => {
-                const dia = diaSemana(iso);
-                return tipo === "op"
-                  ? Math.max(metas.get(dia) ?? 0, metasTarde.get(dia) ?? 0)
-                  : metasEncargadas.get(dia) ?? 0;
-              }));
-              const maxY = Math.max(tipo === "op" ? 6 : 3, ...covPorDia.flat(), metaMax + 1);
+          (() => {
+            // ── Vista Semana: la semana en dos filas —mañana y tarde— y siete columnas ──────────────────
+            const porDia = dias.map((iso) => ({ iso, sin: sedeSinTurnosEn(iso), t: tramosDelDia(iso), sug: sugerenciaDe(iso) }));
+            const celdaTramo = (d: (typeof porDia)[number], tr: "manana" | "tarde") => {
+              if (d.sin) return <span className="text-xs text-taupe">{d.sin.texto}</span>;
+              const r: ResumenTramo = d.t[tr];
               return (
-                <div key={titulo}>
-                  <h2 className="font-serif text-lg">{titulo}</h2>
-                  <p className="mb-2 text-xs text-taupe">
-                    {tipo === "op"
-                      ? "Verde = cubierto · rojo = falta · ámbar = sobra (la meta sube en la tarde, línea punteada). Abajo: qué tan lleno corriste vs tu meta, en promedio del día."
-                      : "Abajo: qué tan lleno corriste vs tu meta de líderes, en promedio del día (1 de 2 = 50%)."}
+                <button type="button" onClick={() => irADia(d.iso)} className="flex w-full flex-col items-start gap-1 rounded-control p-1 text-left transition-colors duration-150 hover:bg-crema/70">
+                  <Medidor n={r.n} meta={r.meta} estado={r.estado} />
+                  <span className="text-xs tabular-nums">
+                    <strong>{r.n}</strong>{r.meta > 0 ? ` de ${r.meta}` : " · sin meta"}
+                  </span>
+                  {r.estado !== "sin_meta" && r.estado !== "completo" && <InsigniaTramo estado={r.estado} faltan={r.faltan} sobran={r.sobran} />}
+                </button>
+              );
+            };
+            return (
+              <div className="space-y-4">
+                <TarjetaInfo className="overflow-x-auto">
+                  <div className="grid min-w-[720px] grid-cols-[4.5rem_repeat(7,minmax(0,1fr))] items-start gap-x-2 gap-y-3">
+                    <span />
+                    {porDia.map((d) => {
+                      const { abr, num } = etiquetaDia(d.iso);
+                      const hoy = d.iso === hoyLima();
+                      return (
+                        <button key={d.iso} type="button" onClick={() => irADia(d.iso)} className={cx("rounded-control px-1 py-1 text-left transition-colors duration-150 hover:bg-crema/70", hoy && "ring-1 ring-tinta")}>
+                          <span className="font-serif">{abr}</span> <span className="text-xs text-taupe">{num}</span>
+                        </button>
+                      );
+                    })}
+                    <span className="pt-1 text-xs font-medium text-taupe">Mañana</span>
+                    {porDia.map((d) => <div key={d.iso}>{celdaTramo(d, "manana")}</div>)}
+                    <span className="pt-1 text-xs font-medium text-taupe">Tarde</span>
+                    {porDia.map((d) => <div key={d.iso}>{celdaTramo(d, "tarde")}</div>)}
+                    <span className="pt-1 text-xs font-medium text-taupe">Líder</span>
+                    {porDia.map((d) => (
+                      <div key={d.iso} className="p-1">
+                        {d.sin ? <span className="text-xs text-taupe">—</span> : <InsigniaTramo estado={d.t.lideres.estado === "completo" ? "completo" : d.t.lideres.estado} faltan={d.t.lideres.faltan} sobran={d.t.lideres.sobran} />}
+                      </div>
+                    ))}
+                  </div>
+                  <p className="mt-4 text-xs text-taupe">
+                    Cada cuadrito es una persona; con meta, los vacíos son las que faltan. Mañana es hasta las 14:15 y tarde desde las 14:15. Toca un día para ver quién y arreglarlo.
                   </p>
-                  <div className="overflow-x-auto">
-                    <div className="grid min-w-[640px] grid-cols-7 gap-2">
-                      {dias.map((iso, di) => {
-                        const { abr, num } = etiquetaDia(iso);
-                        const hoy = iso === hoyLima();
-                        const dia = diaSemana(iso);
-                        const cov = covPorDia[di];
-                        const metaArr = metaArrDe(dia);
-                        const s = siluetaSVG(cov, metaArr, maxY);
-                        const r = tipo === "op"
-                          ? resumenOperativas(cov, metas.get(dia) ?? 0, metasTarde.get(dia) ?? 0, HORA_INICIO_SEMANA, 0.5)
-                          : { ...resumenEncargadas(cov, metasEncargadas.get(dia) ?? 0), supHoras: 0, sug: null as string | null, redistribuir: null };
-                        // Con meta puesta pero NADIE programado, el día no está "cerrado":
-                        // alguien olvidó armar los turnos — eso se avisa en rojo, no en gris.
-                        // Si a nadie de la sede le toca Y las tres metas son 0, el día
-                        // simplemente no se labora: una palabra gris, en vez de la frase
-                        // del grupo (que suena a falla un domingo de Central).
-                        const metaDia = tipo === "op"
-                          ? Math.max(metas.get(dia) ?? 0, metasTarde.get(dia) ?? 0)
-                          : metasEncargadas.get(dia) ?? 0;
-                        const et = sedeSinTurnosEn(iso) ?? etiquetaCobertura({
-                          quien: tipo === "op" ? "operativas" : "lideres",
-                          hayGente: r.hayGente, sinMeta: r.sinMeta, hayMeta: metaDia > 0, pct: r.pct,
-                        });
+                </TarjetaInfo>
+                {porDia.some((d) => d.sug) && (
+                  <TarjetaInfo titulo="Para mirar">
+                    <ul className="space-y-1.5 text-sm">
+                      {porDia.filter((d) => d.sug).map((d) => {
+                        const { abr, num } = etiquetaDia(d.iso);
                         return (
-                          <button key={iso} onClick={() => irADia(iso)}
-                            className={`rounded-lg border p-2 text-center transition-opacity hover:opacity-80 ${hoy ? "border-tinta" : "border-sand"}`}
-                            title={r.sug ?? undefined}>
-                            <div className={`mb-1 text-sm ${hoy ? "text-tinta" : ""}`}>
-                              <span className="font-serif">{abr}</span> <span className="text-xs text-taupe">{num}</span>
-                            </div>
-                            <svg viewBox={`0 0 ${SIL_W} 52`} width="100%" preserveAspectRatio="none" className="block h-12">
-                              <path d={s.green} style={{ fill: "var(--color-verde)", fillOpacity: 0.18 }} />
-                              <path d={s.deficit} style={{ fill: "var(--color-rojo)", fillOpacity: 0.32 }} />
-                              {tipo === "op" && <path d={s.surplus} style={{ fill: "var(--color-ambar)", fillOpacity: 0.55 }} />}
-                              <path d={s.metaLine} fill="none" style={{ stroke: "var(--color-taupe)", strokeWidth: 1, strokeDasharray: "3 2" }} />
-                              <path d={s.line} fill="none" style={{ stroke: "var(--color-verde)", strokeWidth: 1.6, strokeLinejoin: "round" }} />
-                            </svg>
-                            <div className="mt-1.5 flex h-4 items-center justify-center text-xs">
-                              {/* Medido: text-taupe/60 sobre crema da 2.4:1 (falla 4.5:1
-                                  AA) — el token sin diluir da 5.2:1 claro y 5.8:1 oscuro. */}
-                              <span className={et.tono === "neutro" ? "text-[11px]" : "font-medium"} style={{ color: colorDeTono(et.tono, r.pct) }}>
-                                {et.texto}
-                              </span>
-                            </div>
-                            {/* Aviso corto: redistribuir (ámbar) o falta personal (rojo) */}
-                            <div className="flex h-3 items-center justify-center">
-                              {r.redistribuir ? (
-                                <span className="text-[10px] text-ambar">↔ reparte turnos</span>
-                              ) : r.sug ? (
-                                <span className="text-[10px] text-rojo">+ falta personal</span>
-                              ) : r.supHoras > 0 ? (
-                                <span className="text-[10px] text-taupe">sobra {r.supHoras}h</span>
-                              ) : null}
-                            </div>
-                          </button>
+                          <li key={d.iso}>
+                            <button type="button" onClick={() => irADia(d.iso)} className="text-left hover:underline">
+                              <strong>{abr} {num}</strong> · {d.sug}
+                            </button>
+                          </li>
                         );
                       })}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                    </ul>
+                  </TarjetaInfo>
+                )}
+              </div>
+            );
+          })()
         ) : vista === "integrada" ? (
           (() => {
             // ── Vista Integrada: la sábana hora×día de toda la semana ──────────
@@ -1350,11 +1334,89 @@ export default function TurnosPage() {
             );
           })()
         ) : (
-          <div className="overflow-x-auto">
-            <div className="min-w-[700px] space-y-4">
-              {personas.length === 0 ? (
-                <SinDatos texto="Todavía no hay nadie asignado a esta sede." pista="Ve a Equipo, abre a una persona y elige esta sede como su sede base." />
-              ) : dias.map((iso) => {
+          <div className="space-y-4">
+            {personas.length === 0 ? (
+              <SinDatos texto="Todavía no hay nadie asignado a esta sede." pista="Ve a Equipo, abre a una persona y elige esta sede como su sede base." />
+            ) : (
+              (() => {
+                // ── Vista Día: «mañana y tarde» de UN día; la hora por hora y las metas, debajo, a pedido ──
+                const iso = diaActivo;
+                const dia = diaSemana(iso);
+                const t = tramosDelDia(iso);
+                const sinTurnos = sedeSinTurnosEn(iso);
+                const sug = sugerenciaDe(iso);
+                const trabajan = personas.filter((p) => { const c = celda(p.id, iso); return c.tipo === "turno" || c.tipo === "default"; });
+                const deLaMeta = (ids: Set<string>) => trabajan.filter((p) => ids.has(p.id));
+                const opsTrabajan = trabajan.filter(esOperativa);
+                const abrirChip = puedeVer ? (id: string) => abrir(id, iso) : undefined;
+                const campoMeta = (tramo: "manana" | "tarde") => esAdmin ? (
+                  <CampoMeta
+                    valor={tramo === "manana" ? (metas.get(dia) ?? 0) : (metasTarde.get(dia) ?? 0)}
+                    etiqueta={`Meta de la ${tramo === "manana" ? "mañana" : "tarde"}`}
+                    titulo={`meta de la ${tramo === "manana" ? "mañana" : "tarde"} de todos los ${DIAS_PLURAL[dia]}`}
+                    cuando={`todos los ${DIAS_PLURAL[dia]}`}
+                    onCambio={(v) => editarMeta(dia, tramo, v)}
+                    onSalir={() => comprometerMeta(dia)}
+                  />
+                ) : undefined;
+                const lideresChips = t.lideres.n > 0 ? deLaMeta(t.idsLideres).map((p) => personaDelDia(p, iso)) : [];
+                const libres = personas.filter((p) => { const c = celda(p.id, iso); return c.tipo === "descanso" || c.tipo === "libre"; }).map((p) => personaDelDia(p, iso));
+                const otrasAreas = opsTrabajan.length + deLaMeta(t.idsLideres).length < trabajan.length
+                  ? trabajan.filter((p) => !esOperativa(p) && !esEncargada(p)).map((p) => personaDelDia(p, iso))
+                  : [];
+                return (
+                  <>
+                    <div role="group" aria-label="Día de la semana" className="flex flex-wrap gap-1.5">
+                      {dias.map((d) => {
+                        const { abr, num } = etiquetaDia(d);
+                        const sim = simboloDelDia(d);
+                        return (
+                          <Filtro key={d} activo={d === iso} onClick={() => setDiaSel(d)} title={`${abr} ${num} · ${sim.t}${d === hoyLima() ? " · hoy" : ""}`}>
+                            {abr} <span className="text-[0.85em] opacity-70">{num}</span> <span aria-hidden className="ml-0.5">{sim.s}</span>
+                            <span className="sr-only"> {sim.t}</span>
+                          </Filtro>
+                        );
+                      })}
+                    </div>
+
+                    {sinTurnos ? (
+                      <TarjetaInfo>
+                        <p className="text-sm text-taupe"><strong>{sinTurnos.texto}.</strong> A nadie de la sede le toca este día.</p>
+                      </TarjetaInfo>
+                    ) : (
+                      <>
+                        <div className="grid gap-4 lg:grid-cols-2">
+                          <TarjetaTramo titulo="Mañana" subtitulo="hasta las 14:15" {...t.manana} gente={t.manana.gente.map((g) => personaDelDia(nombrePersona(g.id)!, iso))} metaEditable={campoMeta("manana")} onAbrir={abrirChip} />
+                          <TarjetaTramo titulo="Tarde" subtitulo="desde las 14:15" {...t.tarde} gente={t.tarde.gente.map((g) => personaDelDia(nombrePersona(g.id)!, iso))} metaEditable={campoMeta("tarde")} onAbrir={abrirChip} />
+                        </div>
+                        <TarjetaTramo
+                          titulo="Líderes" subtitulo="meta plana, todo el día" {...t.lideres} gente={lideresChips} onAbrir={abrirChip}
+                          metaEditable={esAdmin ? (
+                            <CampoMeta
+                              valor={metasEncargadas.get(dia) ?? 0}
+                              etiqueta="Meta de líderes"
+                              titulo={`meta de líderes de todos los ${DIAS_PLURAL[dia]}`}
+                              cuando={`todos los ${DIAS_PLURAL[dia]}`}
+                              onCambio={(v) => editarMetaEncargadas(dia, v)}
+                              onSalir={(v) => comprometerMetaEncargadas(dia, v)}
+                            />
+                          ) : undefined}
+                        />
+                        {sug && (
+                          <p className="text-sm" style={{ color: sug.startsWith("↔") ? "var(--color-ambar)" : "var(--color-rojo)" }}>{sug}</p>
+                        )}
+                        <div className="grid gap-4 lg:grid-cols-2">
+                          <TarjetaGrupo titulo="Sin turno ese día" nota={puedeVer ? "toca a alguien para ponerle turno" : undefined} gente={libres} onAbrir={abrirChip} vacio="Todos tienen turno." />
+                          <TarjetaGrupo titulo="Otras áreas" nota="no suman a la meta" gente={otrasAreas} onAbrir={abrirChip} />
+                        </div>
+                      </>
+                    )}
+
+                    <details open={detalleHora} onToggle={(e) => setDetalleHora((e.target as HTMLDetailsElement).open)}>
+                      <summary className="cursor-pointer text-sm font-medium text-taupe hover:text-tinta">Ver hora por hora</summary>
+                      <div className="mt-3 overflow-x-auto">
+                        <div className="min-w-[700px] space-y-4">
+                          {[iso].map((iso) => {
                 const { abr, num } = etiquetaDia(iso);
                 const hoy = iso === hoyLima();
                 const dia = diaSemana(iso);
@@ -1536,7 +1598,13 @@ export default function TurnosPage() {
                   </section>
                 );
               })}
-            </div>
+                        </div>
+                      </div>
+                    </details>
+                  </>
+                );
+              })()
+            )}
           </div>
         )}
 

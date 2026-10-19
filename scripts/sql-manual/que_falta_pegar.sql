@@ -395,7 +395,8 @@ with repo(numero, nombre, nunca) as (values
     (536, 'la_prueba_de_tres_dias', false),
     (537, 'en_la_prueba_se_paga_lo_trabajado_y_quien_se_retira_no_cobra', false),
     (538, 'el_dni_de_quien_esta_de_prueba_lo_sube_quien_lo_registra', false),
-    (539, 'el_terminal_sabe_quien_esta_de_prueba', false)
+    (539, 'el_terminal_sabe_quien_esta_de_prueba', false),
+    (540, 'las_aceptaciones_de_terminos_por_modulo', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
