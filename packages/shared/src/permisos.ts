@@ -289,6 +289,26 @@ export function puedeAnularDocumentoDisciplinario(rol: RolPosible): boolean {
   return tiene(DO, rol);
 }
 
+/**
+ * Cerrar la prueba de tres días de alguien —«no apto» o «se retiró»— y darlo de
+ * baja en el mismo acto (`fn_prueba_cerrar`, 0536).
+ *
+ * DO y administración sobre cualquiera, y la líder de equipo (decidido con
+ * Felipe el 2026-10-19): sola, sin confirmación de DO. Es la misma lista que
+ * `puedeOperarEquipo` pero se nombra aparte porque es otra pregunta —no «quién
+ * abre la pantalla de Equipo» sino «quién deja a una persona sin pago»— y el día
+ * que se ajuste una no debe moverse la otra.
+ *
+ * Que la líder esté acá NO significa que decida sobre cualquiera: solo sobre la
+ * gente de SU sede. Esa regla de alcance la aplica la base
+ * (`fn_prueba_puede_actuar`: `sede_base_id` igual al de ella) y nadie decide
+ * sobre su propia prueba. Si se desincronizan gana la base, y la pantalla
+ * muestra un error en vez de un botón: el lado seguro.
+ */
+export function puedeDecidirPrueba(rol: RolPosible): boolean {
+  return tiene(DO_Y_ENCARGADA, rol);
+}
+
 /** Solo la encargada de sede — no DO. Ver `esRolEncargada` más abajo. */
 const SOLO_ENCARGADA: readonly Rol[] = ["supervisor_sede"];
 

@@ -19,6 +19,7 @@ import { Campo, CampoSelect, CampoCasilla } from "@/components/ui/campo";
 import { AreaTexto } from "@/components/ui/area-texto";
 import { Tabla, TablaEncabezado, Th, Fila } from "@/components/ui/tabla";
 import { Insignia } from "@/components/ui/insignia";
+import { EtiquetaPrueba, usePruebasPorPersona } from "@/components/pruebas/etiqueta-prueba";
 import { Drawer } from "@/components/ui/drawer";
 // Drawer y Modal son hermanos, no uno el reemplazo del otro (lo dice la
 // cabecera de modal.tsx). El drawer de 460px es el sitio correcto para editar
@@ -383,6 +384,7 @@ function SemanaMini({ a }: { a: ReturnType<typeof analizar> }) {
 
 export default function HorariosPage() {
   const router = useRouter();
+  const pruebas = usePruebasPorPersona();
   const { avisar } = useToast();
   const yo = usePersonaActual();
   const rol = yo?.rol ?? null;
@@ -982,7 +984,7 @@ export default function HorariosPage() {
                                 aria-label={`Seleccionar a ${p.nombres} ${p.apellidos}`}
                               />
                             </td>
-                            <td className="px-4 py-2">{p.nombres} {p.apellidos}</td>
+                            <td className="px-4 py-2">{p.nombres} {p.apellidos}<EtiquetaPrueba fila={pruebas.get(p.id)} className="ml-2" /></td>
                             <td className="px-4 py-2">
                               {(!a || a.dias.length === 0) && !leCorresponde(p) ? (
                                 <span className="text-taupe" title="RxH o personal de dirección: no le corresponde horario">no requiere horario</span>
@@ -1081,7 +1083,7 @@ export default function HorariosPage() {
                             aria-label={`Seleccionar a ${p.nombres} ${p.apellidos}`}
                           />
                           <span>
-                            <span className="block text-sm font-medium text-tinta">{p.nombres} {p.apellidos}</span>
+                            <span className="block text-sm font-medium text-tinta">{p.nombres} {p.apellidos}<EtiquetaPrueba fila={pruebas.get(p.id)} className="ml-2" /></span>
                             <span className="block text-xs text-taupe">{sede}</span>
                           </span>
                         </label>

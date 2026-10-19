@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { TipoMarca } from "@cayla-dynamic/shared";
+import { etiquetaDePrueba, type TipoMarca } from "@cayla-dynamic/shared";
 import { createTerminalSupabaseClient } from "@cayla-dynamic/database";
 import { Cargando } from "@/components/cargando";
 import type { RosterEntry } from "@/lib/terminal/offline-db";
@@ -202,6 +202,7 @@ export function NombreGrid({
               <span>
                 {persona.nombres} {persona.apellidos}
               </span>
+              <EtiquetaDePrueba persona={persona} />
             </button>
           );
         }
@@ -219,19 +220,48 @@ export function NombreGrid({
             // El estado ya no se dice con una palabra en la tarjeta —lo dicen el
             // ícono de la foto y, al pasar el mouse, su etiqueta—, así que quien
             // usa lector de pantalla lo escucha acá completo.
-            aria-label={`${nombre}: ${etiqueta}, ${pres.detalle}${pres.detalle2 ? `, ${pres.detalle2}` : ""}`}
+            aria-label={`${nombre}${textoDePrueba(persona) ? `, ${textoDePrueba(persona)}` : ""}: ${etiqueta}, ${pres.detalle}${pres.detalle2 ? `, ${pres.detalle2}` : ""}`}
             className={`${CAJA_PRESENCIA} ${encendida ? estilo.iluminada : REPOSO_PRESENCIA} ${
               atenuada ? "opacity-30" : ""
             } flex flex-col items-center gap-1 px-3 pb-4 pt-5 text-center font-serif text-xl`}
           >
             <AvatarPersona persona={persona} presencia={estilo} etiqueta={etiqueta} />
             <span className={estilo.apagada ? "text-taupe" : undefined}>{nombre}</span>
+            <EtiquetaDePrueba persona={persona} />
             <span className="font-sans text-sm text-taupe">{pres.detalle}</span>
             {pres.detalle2 && <span className="font-sans text-sm text-taupe">{pres.detalle2}</span>}
           </button>
         );
       })}
     </div>
+  );
+}
+
+/** «Prueba · 2 de 3», o null si la persona no está de prueba (0539). */
+function textoDePrueba(persona: RosterEntry): string | null {
+  if (typeof persona.pruebaDias !== "number" || typeof persona.pruebaPlazo !== "number") return null;
+  return etiquetaDePrueba({ dias_trabajados: persona.pruebaDias, dias_plazo: persona.pruebaPlazo }).texto;
+}
+
+const TONO_PRUEBA = {
+  informativo: "bg-pizarra/15 text-pizarra",
+  advertencia: "bg-ambar/15 text-ambar",
+  alerta: "bg-rojo/10 text-rojo-profundo",
+} as const;
+
+/**
+ * La etiqueta de prueba junto al nombre (0539): quien marca ve, de un vistazo, que esa persona está
+ * de prueba y en qué día va. Solo INFORMA: marcar sigue siendo tocar la casilla, sin pedir nada más.
+ * No importa `Insignia` a propósito —el kiosco no carga los componentes del panel—; las tres tintas
+ * son las mismas de esa pieza.
+ */
+function EtiquetaDePrueba({ persona }: { persona: RosterEntry }) {
+  if (typeof persona.pruebaDias !== "number" || typeof persona.pruebaPlazo !== "number") return null;
+  const e = etiquetaDePrueba({ dias_trabajados: persona.pruebaDias, dias_plazo: persona.pruebaPlazo });
+  return (
+    <span className={`rounded-pildora px-2 py-0.5 font-sans text-xs font-medium ${TONO_PRUEBA[e.variante]}`}>
+      {e.texto}
+    </span>
   );
 }
 

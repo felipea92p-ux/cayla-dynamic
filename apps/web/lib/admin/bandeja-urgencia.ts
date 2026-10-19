@@ -1,5 +1,6 @@
 import { fechaLima, hoyLima } from "@cayla-dynamic/shared";
 import { diasEntre, diaYMes } from "../bandeja-mia";
+import { situacionDe, type CierrePrueba, type FilaPrueba } from "./pruebas";
 
 /**
  * EN QUÉ GRUPO DE URGENCIA CAE CADA PENDIENTE DE LA BANDEJA DEL PANEL.
@@ -499,4 +500,46 @@ export const EVENTO_CAMBIO_BANDEJA = "dynamic:bandeja-cambio";
 
 export function avisarCambioEnBandeja(): void {
   if (typeof window !== "undefined") window.dispatchEvent(new Event(EVENTO_CAMBIO_BANDEJA));
+}
+
+// ── La prueba de tres días (0536–0538) ───────────────────────────────────────
+
+/**
+ * Una prueba abierta. Se mide por lo que pasó con sus DÍAS, no por una fecha:
+ * los tres días son de jornada cerrada, así que no hay un «vence el» que decir.
+ *
+ *   · vencida  → «Vencido»: trabajó más de lo que dura la prueba y nadie decidió.
+ *                El riesgo ya corre: es alguien trabajando sin contrato.
+ *   · cumplida → «Hoy»: completó el plazo; lo que toca es decidir.
+ *   · en curso → «Próximos»: faltan días, y se puede decidir antes.
+ */
+export function urgenciaPrueba(f: FilaPrueba): Urgencia {
+  const s = situacionDe(f);
+  if (s === "vencida") {
+    const exceso = f.dias_trabajados - f.dias_plazo;
+    return { grupo: "vencido", plazo: "Pasó el plazo", nota: `${f.dias_trabajados} días trabajados`, orden: -exceso };
+  }
+  if (s === "cumplida") {
+    return { grupo: "hoy", plazo: "Toca decidir", nota: `ya trabajó sus ${f.dias_plazo} días`, orden: 0 };
+  }
+  const faltan = f.dias_plazo - f.dias_trabajados;
+  return {
+    grupo: "proximo",
+    plazo: faltan === 1 ? "Falta 1 día" : `Faltan ${faltan} días`,
+    nota: `lleva ${f.dias_trabajados} de ${f.dias_plazo}`,
+    orden: faltan,
+  };
+}
+
+/**
+ * Una prueba que se cerró hace poco. No tiene plazo: es para enterarse (DO ve lo
+ * que una líder decidió sola). Lo más reciente va primero.
+ */
+export function urgenciaCierrePrueba(c: CierrePrueba): Urgencia {
+  return {
+    grupo: "sin_plazo",
+    plazo: c.resultado === "retirado" ? "Se retiró" : "No fue apto",
+    nota: c.decidida_por ? `decidió ${c.decidida_por}` : null,
+    orden: -Date.parse(c.cerrada_at) / 60_000,
+  };
 }

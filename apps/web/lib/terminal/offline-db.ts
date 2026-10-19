@@ -12,6 +12,13 @@ export interface RosterEntry {
   sedeNombre: string;
   /** Ruta en el bucket público «fotos-perfil» (0381), o ausente si nunca subió una. */
   fotoUrl?: string | null;
+  /**
+   * Días de prueba que lleva y cuánto dura la prueba (0539); ausentes o null si no está de prueba.
+   * Viajan en la misma fila para que se guarden en el dispositivo con el resto: sin red, la etiqueta
+   * «Prueba · 2 de 3» sale igual que con red (con los días de la última vez que hubo conexión).
+   */
+  pruebaDias?: number | null;
+  pruebaPlazo?: number | null;
 }
 
 export interface OutboxEntry {

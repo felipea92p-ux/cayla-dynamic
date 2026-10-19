@@ -22,6 +22,9 @@ import { Drawer } from "@/components/ui/drawer";
 import { Insignia } from "@/components/ui/insignia";
 import { Menu, MenuItem } from "@/components/ui/menu";
 import { Modal } from "@/components/ui/modal";
+import { PanelPrueba } from "@/components/pruebas/panel-prueba";
+import { EtiquetaPrueba } from "@/components/pruebas/etiqueta-prueba";
+import type { FilaPrueba } from "@/lib/admin/pruebas";
 import { Fila, Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
@@ -462,6 +465,21 @@ export default function EquipoPage() {
   // Falla silencioso, igual que el resto de esta pantalla: sin esto, la fila
   // simplemente no muestra el aviso, no se cae la tabla.
   const [pendientes, setPendientes] = useState<Map<string, string[]>>(new Map());
+  // Quién está de prueba y en qué día va (0536). Lo ve quien abre Equipo según su alcance: DO todo,
+  // la líder de equipo su sede. Sin esto, «dar de baja» a alguien de prueba es el cese de siempre
+  // y no dice si no fue apto o se retiró —que es lo que decide si se le paga lo trabajado.
+  const [pruebas, setPruebas] = useState<Map<string, FilaPrueba>>(new Map());
+  // Subir este número vuelve a pedirlas (después de cerrar una prueba).
+  const [versionPruebas, setVersionPruebas] = useState(0);
+  useEffect(() => {
+    let vigente = true;
+    void createAdminSupabaseClient()
+      .rpc("fn_pruebas_abiertas")
+      .then(({ data }) => {
+        if (vigente) setPruebas(new Map(((data as FilaPrueba[] | null) ?? []).map((f) => [f.persona_id, f] as const)));
+      });
+    return () => { vigente = false; };
+  }, [versionPruebas]);
   useEffect(() => {
     if (rol === null) return;
     let vigente = true;
@@ -582,6 +600,10 @@ export default function EquipoPage() {
     const finCerca = p.estado === "activo" && finDeContratoProximo(fin, hoy);
     const yaVencio = p.estado === "activo" && fin !== undefined && fin < hoy;
     const filas: ReactNode[] = [];
+    // Quien está de prueba lo dice primero: es lo que más cambia cómo se lee el resto de su fila (todavía no tiene
+    // contrato, y «sin salario» o «sin contrato» no son un olvido). Mismo texto que en Horas, Horarios y Planilla.
+    const prueba = p.estado === "activo" ? pruebas.get(p.id) : undefined;
+    if (prueba) filas.push(<EtiquetaPrueba key="prueba" fila={prueba} />);
     if (p.estado === "inactivo") {
       filas.push(
         <span key="salio" className="text-xs text-taupe">
@@ -1873,6 +1895,24 @@ export default function EquipoPage() {
   const editorCese = () => {
     const p = personas.find((x) => x.id === ceseId);
     const fin = p ? finesContrato.get(p.id) : undefined;
+    // QUIEN ESTÁ DE PRUEBA NO SE DA DE BAJA CON EL CESE DE SIEMPRE. «No fue apto» y «se retiró» dan de
+    // baja con el mismo gesto, pero de ellos depende si se le paga lo trabajado (decisión de Felipe,
+    // 2026-10-19) y con qué motivo de cese queda. Por eso el panel de la prueba —el mismo de la
+    // Bandeja y Contratos— reemplaza al formulario genérico: la regla vive en un solo sitio.
+    const prueba = p ? pruebas.get(p.id) : undefined;
+    if (p && prueba && p.tipo_vinculo === "prueba") {
+      return (
+        <div className="grid grid-cols-1 gap-4">
+          <BannerAviso enLinea variante="informativo" titulo="Está de prueba.">
+            Para darle de baja hay que decir si no fue apto o se retiró: de eso depende si se le paga lo trabajado.
+          </BannerAviso>
+          <PanelPrueba
+            fila={prueba} supabase={createAdminSupabaseClient()} rol={rol}
+            alCambiar={() => { cerrarPanelLateral(); void cargar(); setVersionPruebas((v) => v + 1); }}
+          />
+        </div>
+      );
+    }
     return (
       <div className="grid grid-cols-1 gap-4">
         <label className="flex flex-col gap-1 text-sm">

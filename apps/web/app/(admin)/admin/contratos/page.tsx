@@ -30,6 +30,8 @@ import { vigentesAl } from "@/lib/admin/parametro-vigente";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 import { abrirArchivoFirmado } from "@/lib/abrir-archivo-firmado";
 import { useToast } from "@/components/toast";
+import { PanelPrueba } from "@/components/pruebas/panel-prueba";
+import { etiquetaDePrueba, nombreDe as nombreDePrueba, puedeHacerContrato, textoDelDia, type FilaPrueba } from "@/lib/admin/pruebas";
 import { hoyLima, maximoSemanalPracticante, puedeEstamparFirmaDeEmpresa, puedeGestionarContratos } from "@cayla-dynamic/shared";
 import {
   construirContrato,
@@ -278,6 +280,9 @@ const TIPO_CONTRATO: Record<string, string> = {
  * traía el `<select>` de "Tipo" antes del rediseño, con "Renovación" primero
  * porque es el caso más frecuente (es también el valor inicial de `tipo`). */
 const ORDEN_TIPOS = ["renovacion", "nuevo", "indefinido", "convenio_practicas", "adendum"] as const;
+
+/** Los contratos de TRABAJO: los que, firmados, sacan a alguien de «Prueba» y la pasan a «Planilla». Un convenio de prácticas o una adenda no. */
+const TIPOS_QUE_PASAN_A_PLANILLA: ReadonlySet<string> = new Set(["nuevo", "renovacion", "indefinido"]);
 
 /** Una frase que explica cada tarjeta de tipo, para elegir sin adivinar. */
 const DESCRIPCION_TIPO: Record<string, string> = {
@@ -530,6 +535,12 @@ export default function ContratosPage() {
   const [falloHistorial, setFalloHistorial] = useState(false);
 
   const [personaId, setPersonaId] = useState("");
+  // Las pruebas de tres días abiertas (0536). Quien está de prueba NO se contrata todavía:
+  // su «documento» es la prueba (DNI de ambos lados y el plazo), y el contrato llega cuando
+  // completa sus días. Se pide con `fn_pruebas_abiertas`; si falla, queda vacío y todo se ve como antes.
+  const [pruebas, setPruebas] = useState<FilaPrueba[]>([]);
+  // «Pasarla a Planilla» al registrar el contrato firmado de alguien que está de prueba.
+  const [pasarAPlanilla, setPasarAPlanilla] = useState(false);
   const [tipo, setTipo] = useState<"nuevo" | "renovacion" | "adendum" | "convenio_practicas" | "indefinido">(
     "renovacion",
   );
@@ -857,6 +868,7 @@ export default function ContratosPage() {
     }
 
     const hoy = hoyLima();
+    const peticionPruebas = supabase.rpc("fn_pruebas_abiertas");
     const [ps, ss, dp, sal, params, rit, ctr, tab, cfg, fichas, firma] = await Promise.all([
       // Sin `.eq("en_planilla", true)`: una practicante también genera un
       // documento acá (su convenio, 0333) aunque `en_planilla` le salga
@@ -914,6 +926,7 @@ export default function ContratosPage() {
       ((ps.data as Persona[]) ?? []).filter((p) => p.en_planilla || p.tipo_vinculo === "practicante"),
     );
     setSedes((ss.data as Sede[]) ?? []);
+    setPruebas(((await peticionPruebas).data as FilaPrueba[] | null) ?? []);
     setDatosPersonales((dp.data as DatoPersonal[]) ?? []);
     setSalarios((sal.data as Salario[]) ?? []);
 
@@ -1136,6 +1149,12 @@ export default function ContratosPage() {
   ]);
 
   const persona = personas.find((p) => p.id === personaId) ?? null;
+  // LA PRUEBA DE TRES DÍAS. Quien está de prueba y todavía no completa sus días NO tiene un
+  // contrato que generar: su documento es la prueba (DNI de ambos lados y el plazo). Cuando
+  // completa el plazo —o lo pasa— el contrato se hace con el generador de siempre, y la persona
+  // sigue «en prueba» hasta que quede firmado (ahí se pasa a Planilla).
+  const pruebaDePersona = persona ? pruebas.find((x) => x.persona_id === persona.id) ?? null : null;
+  const soloPrueba = pruebaDePersona !== null && !puedeHacerContrato(pruebaDePersona);
   // Una practicante no tiene "nuevo ingreso" ni "renovación" — su único
   // documento es el convenio (0333), y esto NO se resuelve reponiendo `tipo`
   // desde un efecto (ver el de abajo, que solo mira `fecha_ingreso`): es un
@@ -1191,7 +1210,7 @@ export default function ContratosPage() {
    * agrupa exactamente los campos que el formulario largo ya mostraba juntos
    * antes del rediseño (ver más abajo, en el render).
    */
-  const pasosGenerador: { id: string; etiqueta: string }[] = !persona
+  const pasosGenerador: { id: string; etiqueta: string }[] = !persona || soloPrueba
     ? [{ id: "persona", etiqueta: "Persona y documento" }]
     : esAdendum
       ? [
@@ -1851,6 +1870,12 @@ export default function ContratosPage() {
     setSubiendoPara(id);
     setArchivo(null);
     setFechaFirma(hoyLima());
+    // Quien está de prueba y firma su contrato de trabajo PASA a Planilla: la casilla nace marcada
+    // (es lo que casi siempre se quiere) y se puede desmarcar. Nace marcada y no vacía por la misma
+    // razón que una fecha: un default que obliga a acordarse es donde se olvida.
+    const c = contratos.find((x) => x.id === id);
+    const enPrueba = c ? personas.find((p) => p.id === c.persona_id)?.tipo_vinculo === "prueba" : false;
+    setPasarAPlanilla(enPrueba && c !== undefined && c.fecha_firma === null && TIPOS_QUE_PASAN_A_PLANILLA.has(c.tipo));
   }
 
   async function guardarFirma() {
@@ -1914,13 +1939,31 @@ export default function ContratosPage() {
       avisar("error", mensajeDeError(error, "registrar la firma"));
       return;
     }
+    // PASAR A PLANILLA. Son dos llamadas (registrar la firma y cambiar el vínculo): si la segunda
+    // falla, el contrato ya está firmado y NO se deshace — se dice claro y la persona sigue en la
+    // Bandeja como «toca decidir», así que no se pierde. No se tocó `fn_contrato_registrar` (13
+    // argumentos, muy usada) para hacerlas atómicas; ver docs/estado.md.
+    let pasoAPlanilla = false;
+    if (pasarAPlanilla && contratoASubir) {
+      const { error: ePasa } = await supabase.rpc("fn_set_tipo_vinculo", { p_persona_id: contratoASubir.persona_id, p_tipo: "planilla" });
+      if (ePasa) {
+        avisar(
+          "error",
+          `La firma quedó registrada, pero no se pudo pasar a ${contratoASubir.persona} de «Prueba» a «Planilla»: ${mensajeDeError(ePasa, "cambiar el vínculo")} Hazlo desde Equipo.`,
+        );
+      } else {
+        pasoAPlanilla = true;
+      }
+    }
     setSubiendoPara(null);
     await cargar();
     avisar(
       "ok",
-      yaFirmado
-        ? "Escaneo de respaldo guardado. La fecha de firma sigue siendo la de la firma digital."
-        : "Contrato firmado registrado. La fecha de vencimiento de la persona se actualizó.",
+      pasoAPlanilla
+        ? `Contrato firmado registrado. ${contratoASubir?.persona} pasó de «Prueba» a «Planilla»: desde ahora cobra la asignación familiar.`
+        : yaFirmado
+          ? "Escaneo de respaldo guardado. La fecha de firma sigue siendo la de la firma digital."
+          : "Contrato firmado registrado. La fecha de vencimiento de la persona se actualizó.",
     );
   }
 
@@ -2095,7 +2138,7 @@ export default function ContratosPage() {
     return () => document.removeEventListener("keydown", alPulsar);
   }, [documentoAbierto]);
 
-  useTituloDocumento(persona ? `${persona.nombres} ${persona.apellidos} — Contrato de trabajo` : null);
+  useTituloDocumento(persona ? `${persona.nombres} ${persona.apellidos} — ${soloPrueba ? "Prueba de tres días" : "Contrato de trabajo"}` : null);
 
   if (rol === null || cargando) {
     return (
@@ -2295,6 +2338,9 @@ export default function ContratosPage() {
                       f.estado === "sin_contrato" && f.fecha_fin_contrato !== null
                       ? "En papel"
                       : (ETIQUETA_CORTA[f.estado] ?? e.texto);
+          // Quien está de prueba no «está sin contrato»: está en su prueba. La fila lo dice con su
+          // etiqueta («Prueba · 2 de 3») y su acción es la de la prueba, no «Generar».
+          const pruebaFila = personaFila && f.estado === "sin_contrato" ? pruebas.find((x) => x.persona_id === f.persona_id) : undefined;
           const tipoFila = esPracticanteFila
             ? "convenio_practicas"
             : tipoQueCorresponde(personaFila?.fecha_ingreso, hoyLima());
@@ -2316,24 +2362,25 @@ export default function ContratosPage() {
               irAlGenerador();
             }
           };
+          const etiquetaPrueba = pruebaFila ? etiquetaDePrueba(pruebaFila) : null;
           return {
             key: f.persona_id,
             persona: f.persona,
-            documento: f.tipo ? (TIPO_CONTRATO[f.tipo] ?? f.tipo) : "—",
+            documento: pruebaFila ? "Prueba de tres días" : f.tipo ? (TIPO_CONTRATO[f.tipo] ?? f.tipo) : "—",
             vigencia: contrato
               ? `${formatearFecha(contrato.fecha_inicio)} – ${contrato.fecha_fin ? formatearFecha(contrato.fecha_fin) : "indeterminado"}`
               : f.fecha_fin_contrato
                 ? `hasta ${formatearFecha(f.fecha_fin_contrato)}`
                 : "—",
             sede: f.sede,
-            estadoLabel,
-            estadoVariante: variantePorEstado(f.estado),
+            estadoLabel: etiquetaPrueba ? etiquetaPrueba.texto : estadoLabel,
+            estadoVariante: etiquetaPrueba ? etiquetaPrueba.variante : variantePorEstado(f.estado),
             banda: bandaDe(f) as Banda | null,
             // «hace 6 días» / «en 9 días»: la urgencia a simple vista, ahora a la vista en la fila y no en un title.
             vence: v.texto,
             venceAlerta: v.alerta,
             fechaFin: f.fecha_fin_contrato,
-            titulo: v.texto === "—" ? e.texto : `${e.texto} · vence ${v.texto}`,
+            titulo: pruebaFila ? textoDelDia(pruebaFila) : v.texto === "—" ? e.texto : `${e.texto} · vence ${v.texto}`,
             onClickRow,
             acciones: contrato ? (
               <span className="inline-flex items-center gap-1">
@@ -2360,7 +2407,7 @@ export default function ContratosPage() {
                   onClickRow();
                 }}
               >
-                Generar
+                {pruebaFila ? (puedeHacerContrato(pruebaFila) ? "Hacer contrato" : "Ver prueba") : "Generar"}
               </Boton>
             ),
           };
@@ -2456,22 +2503,24 @@ export default function ContratosPage() {
                           {editando
                             ? `Editando: ${TIPO_CONTRATO[editando.tipo] ?? editando.tipo}`
                             : persona
-                              ? (TIPO_CONTRATO[tipoEfectivo] ?? tipoEfectivo)
+                              ? soloPrueba
+                                ? "Prueba de tres días"
+                                : (TIPO_CONTRATO[tipoEfectivo] ?? tipoEfectivo)
                               : "Nuevo documento"}
                         </p>
                         {persona && (
                           <p className="text-sm text-taupe">
-                            {persona.nombres} {persona.apellidos} · Paso {indicePaso + 1} de {pasosGenerador.length}
+                            {persona.nombres} {persona.apellidos}{soloPrueba ? "" : ` · Paso ${indicePaso + 1} de ${pasosGenerador.length}`}
                           </p>
                         )}
                       </div>
-                      {persona && (
+                      {persona && !soloPrueba && (
                         <span className="text-sm font-medium tabular-nums text-taupe">
                           {Math.round(((indicePaso + 1) / pasosGenerador.length) * 100)}%
                         </span>
                       )}
                     </div>
-                    {persona && (
+                    {persona && !soloPrueba && (
                       <div className="h-1.5 w-full overflow-hidden rounded-pildora bg-sand">
                         <div
                           className="h-full rounded-pildora bg-tinta transition-all duration-300"
@@ -2538,7 +2587,29 @@ export default function ContratosPage() {
                       onChange={setPersonaId}
                     />
 
-                    {persona?.tipo_vinculo === "practicante" ? (
+                    {pruebaDePersona && !soloPrueba && (
+                      <BannerAviso enLinea variante="advertencia" titulo={`${nombreDePrueba(pruebaDePersona)} ya completó su prueba.`}>
+                        {textoDelDia(pruebaDePersona)}. Este contrato se firma en papel: al registrarlo firmado puedes pasarla de «Prueba» a
+                        «Planilla», y desde ahí cobra la asignación familiar.
+                      </BannerAviso>
+                    )}
+                    {soloPrueba && pruebaDePersona ? (
+                      // Quien está de prueba NO se contrata todavía. El «documento» es la prueba:
+                      // el DNI de ambos lados y el plazo. Nombres, apellidos y número ya vienen de
+                      // Equipo (0513) y no se vuelven a pedir.
+                      <div className="flex flex-col gap-3">
+                        <Campo etiqueta="Tipo" className="disabled:bg-crema disabled:text-taupe" value="Prueba de tres días" disabled />
+                        <div className="rounded-control border border-sand bg-hueso px-3 py-2 text-sm text-taupe">
+                          <p className="font-medium text-tinta">Todavía no se le hace contrato.</p>
+                          <p className="mt-1 text-xs">
+                            Trabaja {pruebaDePersona.dias_plazo} días de prueba. Si pasa, recién ahí se le hace el contrato; si no, se
+                            le da de baja y se le paga lo trabajado, y si se retira por su cuenta no se le paga.
+                            Sus datos —nombres, apellidos y {persona?.documento ? `documento ${persona.documento}` : "documento"}— vienen de Equipo.
+                          </p>
+                        </div>
+                        <PanelPrueba fila={pruebaDePersona} supabase={supabase} rol={rol} alCambiar={() => void cargar()} />
+                      </div>
+                    ) : persona?.tipo_vinculo === "practicante" ? (
                       // Una practicante solo tiene un documento posible — no
                       // "nuevo ingreso" ni "renovación", que son conceptos de
                       // un contrato de trabajo (0333). Se fija sola y no se
@@ -3232,7 +3303,7 @@ export default function ContratosPage() {
                     ) : (
                       <span />
                     )}
-                    {pasoActual !== "revision" && (
+                    {pasoActual !== "revision" && indicePaso < pasosGenerador.length - 1 && (
                       <Boton variante="primario" onClick={() => setPaso(pasosGenerador[indicePaso + 1].id)}>
                         Continuar →
                       </Boton>
@@ -3476,6 +3547,26 @@ export default function ContratosPage() {
             </label>
             <Campo etiqueta="Fecha de firma" type="date" value={fechaFirma} max={hoyLima()} onChange={(e) => setFechaFirma(e.target.value)} />
           </div>
+          {(() => {
+            const c = contratos.find((x) => x.id === subiendoPara);
+            const p = c ? personas.find((x) => x.id === c.persona_id) : undefined;
+            if (!c || p?.tipo_vinculo !== "prueba" || c.fecha_firma !== null || !TIPOS_QUE_PASAN_A_PLANILLA.has(c.tipo)) return null;
+            return (
+              <label className="mb-4 flex items-start gap-2 rounded-control bg-hueso px-3 py-2 text-sm">
+                <input
+                  type="checkbox" checked={pasarAPlanilla} disabled={guardandoFirma}
+                  onChange={(e) => setPasarAPlanilla(e.target.checked)} className="mt-0.5"
+                />
+                <span>
+                  <span className="font-medium">Pasar a {p.nombres} de «Prueba» a «Planilla»</span>
+                  <span className="block text-xs text-taupe">
+                    Con el contrato firmado deja de estar de prueba: desde ese periodo cobra la asignación familiar, si tiene hijos.
+                    Desmárcalo solo si todavía no corresponde.
+                  </span>
+                </span>
+              </label>
+            );
+          })()}
           {progreso !== null && <p className="mb-2 text-xs tabular-nums">{progreso}%</p>}
           <div className="flex justify-end gap-2">
             <Boton onClick={() => setSubiendoPara(null)}>Cancelar</Boton>

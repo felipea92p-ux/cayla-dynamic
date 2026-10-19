@@ -30,17 +30,22 @@
 -- fecha_cese 30/06 contra tramos cerrados el 20/07; con la 0174: la segunda
 -- rebota con «Esa persona ya está inactiva»). Lo que esta prueba cuida es que
 -- esa línea siga estando.
+-- ⚠ DESDE LA 0535 el candado vive en `fn_cese_aplicar`, no en `fn_cesar_persona`:
+-- la segunda quedó como la guardia («¿puede esta sesión pedir un cese?») y
+-- delega el cese en la primera, que también usa `fn_prueba_cerrar` (0536). El
+-- candado se mudó con el cuerpo y esta prueba se mudó con él; el cuarto punto de
+-- abajo comprueba que la guardia siga entregándole el trabajo.
 -- ============================================================================
 begin;
-select plan(3);
+select plan(4);
 
 -- ── 1 · El candado está en la definición viva ───────────────────────────────
 -- Se mira `pg_get_functiondef`, o sea lo que Postgres tiene cargado ahora, no lo
 -- que dice un archivo del repositorio. Un archivo puede estar sin aplicar.
 select matches(
-  pg_get_functiondef('fn_cesar_persona(uuid, date, text, text)'::regprocedure),
+  pg_get_functiondef('fn_cese_aplicar(uuid, date, text, text, uuid)'::regprocedure),
   'from personas where id = p_persona_id for update',
-  'fn_cesar_persona lee la persona con `for update` — sin eso, dos ceses simultáneos pasan los dos');
+  'fn_cese_aplicar lee la persona con `for update` — sin eso, dos ceses simultáneos pasan los dos');
 
 -- ── 2 · Y el candado se toma ANTES de mirar el estado ───────────────────────
 -- Un `for update` puesto después de la comprobación no sirve de nada: la carrera
@@ -51,10 +56,10 @@ select matches(
 -- desapareció. Una prueba que pasa cuando lo que vigila ya no está es peor que
 -- no tenerla.
 select ok(
-  position('for update' in pg_get_functiondef('fn_cesar_persona(uuid, date, text, text)'::regprocedure)) > 0
-  and position('v_p.estado <> ''activo''' in pg_get_functiondef('fn_cesar_persona(uuid, date, text, text)'::regprocedure)) > 0
-  and position('for update' in pg_get_functiondef('fn_cesar_persona(uuid, date, text, text)'::regprocedure))
-    < position('v_p.estado <> ''activo''' in pg_get_functiondef('fn_cesar_persona(uuid, date, text, text)'::regprocedure)),
+  position('for update' in pg_get_functiondef('fn_cese_aplicar(uuid, date, text, text, uuid)'::regprocedure)) > 0
+  and position('v_p.estado <> ''activo''' in pg_get_functiondef('fn_cese_aplicar(uuid, date, text, text, uuid)'::regprocedure)) > 0
+  and position('for update' in pg_get_functiondef('fn_cese_aplicar(uuid, date, text, text, uuid)'::regprocedure))
+    < position('v_p.estado <> ''activo''' in pg_get_functiondef('fn_cese_aplicar(uuid, date, text, text, uuid)'::regprocedure)),
   'el `for update` va antes de comprobar el estado — si va después, la carrera sigue abierta');
 
 -- ── 3 · La función sigue siendo la que decide el cese ───────────────────────
@@ -65,6 +70,14 @@ select ok(
 select has_function(
   'public', 'fn_cesar_persona', array['uuid','date','text','text'],
   'fn_cesar_persona sigue siendo el único camino con reglas para dar de baja');
+
+-- ── 4 · Y la guardia le entrega el cese al núcleo ───────────────────────────
+-- Si alguien vuelve a pegar el cuerpo viejo en `fn_cesar_persona`, el candado de
+-- arriba seguiría existiendo en `fn_cese_aplicar` pero ya nadie lo usaría. Se
+-- comprueba el eslabón, no solo cada extremo.
+select ok(
+  position('fn_cese_aplicar' in pg_get_functiondef('fn_cesar_persona(uuid, date, text, text)'::regprocedure)) > 0,
+  'fn_cesar_persona delega el cese en fn_cese_aplicar — si no, el candado de arriba vigila una función que nadie llama');
 
 select * from finish();
 rollback;
