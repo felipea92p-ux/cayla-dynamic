@@ -6,7 +6,7 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-10-19 — Términos primero, guía después, en «Lo mío» · migración 0540 · SIN PEGAR NI FUSIONAR · rama `claude/dynamic-terms-conditions-modules-44a3d3`
+## 2026-10-19 — Términos primero, guía después, en «Lo mío» · migración 0540 · SQL PEGADO Y VERIFICADO EN PRODUCCIÓN (2026-10-19) · FUSIONADO Y PUBLICADO (PR #561, 2026-10-19) · rama `claude/dynamic-terms-conditions-modules-44a3d3`
 
 **Qué es.** La guía de primera vez (driver.js) arrancaba sola, sin condiciones, y antes o a la vez que
 cualquier otra cosa que se le pide a la persona. Ahora una sola función (`capaActiva`, en
@@ -30,15 +30,22 @@ propia constancia y solo apuntan a ella (Boletas, Mi DNI, Movilidad, Disciplina)
    un humano de DO. Ojo con dos: el de Movilidad ya no dice «carácter no remunerativo conforme al pacto»
    (no se pudo comprobar contra la pantalla) y puede que el laboralista lo quiera de vuelta; y Disciplina no
    menciona un descargo porque la pantalla no tiene dónde presentarlo.
-2. **Pegar la 0540 ANTES de fusionar el PR** (`./scripts/dame-el-sql.sh 540`). Si el código llegara primero
-   no se rompe nada: sin poder leer las aceptaciones no se pide ni se guía. No reescribe ninguna función.
-3. Aprobar los textos de a uno, empezando por «general».
+2. ~~**Pegar la 0540**~~ **HECHO el 2026-10-19.** Se pegó DESPUÉS de fusionar el PR —el orden de CLAUDE.md es
+   el contrario—, y no pasó nada porque con todos los textos en borrador el código no consulta la base. El SQL
+   Editor devolvió «Success», y la consulta de control dio: registro «540 · las_aceptaciones_de_terminos_por_modulo»,
+   las tres funciones (`fn_aceptaciones_terminos_inmutable`, `fn_aceptar_terminos`,
+   `fn_mis_aceptaciones_terminos`), 1 trigger de inmutabilidad, 2 políticas y 0 filas; `authenticated` no puede
+   insertar directo y `anon` no puede ni leer la tabla. El script la copió con el md5 del archivo y GitHub
+   coincidentes, y el portapapeles se comparó aparte con el locale UTF-8 (136 acentos intactos).
+3. **Aprobar los textos de a uno, empezando por «general».** Hasta entonces nadie ve ni acepta nada.
 
 **Probado.** La 0540 con su prueba 433 (28 aserciones) en un clon desechable, con ocho sesiones aceptando
 la misma versión a la vez (una dice true, siete false, una fila); `types.ts` comparado contra los tipos
-generados de verdad con la 0540 aplicada. **No probado:** la prueba 433 en `db-tests` de GitHub, el flujo
-con la 0540 en producción, y el panel de vista previa de la app no dispara `requestAnimationFrame` (las
-guías se vieron con esa función sustituida; en un navegador normal debería verse igual).
+generados de verdad con la 0540 aplicada. La prueba 433 también dio verde en `db-tests` de GitHub, sobre
+una base construida desde cero. **No probado:** el flujo completo de aceptar un texto contra la 0540 en
+producción (nadie ha aceptado nada: no hay texto aprobado), «Tus últimos periodos» de Historial, y el panel
+de vista previa de la app no dispara `requestAnimationFrame` (las guías se vieron con esa función
+sustituida; en un navegador normal debería verse igual).
 
 ## 2026-10-17 — Seguros, etapa 2: «Mi seguro» en Lo mío, para TODO el equipo · migración 0530 · SQL PEGADO Y VERIFICADO EN PRODUCCIÓN (2026-10-19) · FUSIONADO Y PUBLICADO (PR #555, 2026-10-19) · rama `claude/seguros-module-analysis-redesign-70bbe4` (rescató `claude/seguros-etapa-2-mi-seguro`, antes `elegant-mayer-3e584e`)
 
