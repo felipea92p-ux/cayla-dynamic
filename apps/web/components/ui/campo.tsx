@@ -25,13 +25,24 @@
 import type { InputHTMLAttributes, SelectHTMLAttributes, ReactNode } from "react";
 import { cx } from "./cx";
 
+// Dos tamaños, con el mismo vocabulario que <Boton> y <Filtro> (2026-10-19): «md» es el de siempre;
+// «sm» es para una barra de filtros que se mira todo el día junto a filtros «sm» (el buscador y los
+// desplegables del Dashboard), donde el campo a 36 px y 14 px de letra pesaba más que lo que filtra.
+// En celular el control sigue en 16 px sea cual sea el tamaño: Safari de iOS hace zoom por debajo.
+const TAMANO_CAMPO = {
+  md: "py-2 sm:text-sm",
+  sm: "py-1.5 sm:text-xs",
+} as const;
+
 type BaseProps = {
+  tamano?: keyof typeof TAMANO_CAMPO;
   etiqueta?: string;
   /** Mensaje de error, con borde rojo a juego. No valida por sí solo. */
   error?: string;
 };
 
 export function Campo({
+  tamano = "md",
   etiqueta,
   error,
   id,
@@ -44,7 +55,8 @@ export function Campo({
       <input
         id={id}
         className={cx(
-          "rounded-control border border-sand bg-hueso px-3 py-2 text-base text-tinta transition-colors duration-150 placeholder:text-taupe/60 focus-visible:outline-offset-0 sm:text-sm",
+          "rounded-control border border-sand bg-hueso px-3 text-base text-tinta transition-colors duration-150 placeholder:text-taupe/60 focus-visible:outline-offset-0",
+          TAMANO_CAMPO[tamano],
           error && "border-rojo",
           className,
         )}
@@ -92,6 +104,7 @@ export function CampoCasilla({
 }
 
 export function CampoSelect({
+  tamano = "md",
   etiqueta,
   error,
   id,
@@ -106,7 +119,8 @@ export function CampoSelect({
         <select
           id={id}
           className={cx(
-            "w-full appearance-none rounded-control border border-sand bg-hueso px-3 py-2 pr-8 text-base text-tinta transition-colors duration-150 focus-visible:outline-offset-0 sm:text-sm",
+            "w-full appearance-none rounded-control border border-sand bg-hueso px-3 pr-8 text-base text-tinta transition-colors duration-150 focus-visible:outline-offset-0",
+            TAMANO_CAMPO[tamano],
             error && "border-rojo",
             className,
           )}

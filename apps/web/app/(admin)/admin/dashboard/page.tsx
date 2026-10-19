@@ -8,13 +8,18 @@ import { parseAreas, esOperativaEn, AREA_DEFAULT, type Area } from "@/lib/areas"
 import { Cargando } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
 import { Insignia } from "@/components/ui/insignia";
-import { Campo, CampoCasilla, CampoSelect } from "@/components/ui/campo";
+import { Campo, CampoSelect } from "@/components/ui/campo";
 import { Fila, Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
+import { AyudaPantalla } from "@/components/ui/ayuda-pantalla";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
 import { BannerAviso } from "@/components/ui/banner-aviso";
 import { Cifra } from "@/components/ui/cifra";
 import { EstadoVacio } from "@/components/ui/estado-vacio";
 import { RotuloEstado } from "@/components/ui/rotulo";
+import { PanelRightOpen, TriangleAlert, X } from "lucide-react";
+import { Pestanas } from "@/components/ui/pestanas";
+import { PanelTendencias } from "@/components/tendencias/panel-tendencias";
+import { BotonIcono } from "@/components/ui/boton-icono";
 import { Filtro } from "@/components/ui/filtro";
 import { TarjetaInfo } from "@/components/ui/tarjeta-info";
 import { Menu, MenuItem } from "@/components/ui/menu";
@@ -66,6 +71,19 @@ const DIAS_RESPUESTAS_MEMO = 14;
 
 // Día de la semana (0=domingo … 6=sábado) de un ISO — misma convención que
 // metas_cobertura.dia_semana en Turnos.
+/**
+ * Lleva la vista a un elemento DESPUÉS de que React pinte el cambio (dos cuadros: el primero monta, el
+ * segundo ya tiene su lugar). Se usa al abrir un detalle —«start», para que la tabla quede en pantalla
+ * sin que quien mira baje— y al cerrarlo —«center», para volver a lo que estaba mirando antes de
+ * desplegarlo—. Sin animación si la persona pidió menos movimiento.
+ */
+function irA(id: string, block: "start" | "center") {
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    const reducido = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    document.getElementById(id)?.scrollIntoView({ behavior: reducido ? "auto" : "smooth", block });
+  }));
+}
+
 function diaSemanaDe(iso: string): number {
   const [y, m, d] = iso.split("-").map(Number);
   return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
@@ -361,6 +379,7 @@ function TileCobertura({ label, n, meta, sinMeta, tramo, fueraDeHorario = false,
   const detalle = sinMeta ? undefined : ok ? "Completo" : sinMedir ? "Fuera de horario" : porRevisar ? "Meta por revisar" : faltanTexto(meta - n);
   return (
     <Cifra
+      tamano="sm"
       etiqueta={`${label}${sinMeta ? " · sin meta" : tramo ? ` · meta ${tramo}` : ""}`}
       valor={<>{n}{!sinMeta && <span className="text-base text-taupe"> / {meta}</span>}</>}
       detalle={detalle}
@@ -383,6 +402,7 @@ export default function DashboardPage() {
   const [metasPorSede, setMetasPorSede] = useState<Map<string, MetaSede>>(new Map());
   const [actualizado, setActualizado] = useState<string>("");
   const [cargando, setCargando] = useState(true);
+  const [vistaDash, setVistaDash] = useState<"hoy" | "tendencias">("hoy");
   const [error, setError] = useState<string | null>(null);
   const [discTard, setDiscTard] = useState<TardRow[]>([]);
   const [discFaltas, setDiscFaltas] = useState<FaltaRow[]>([]);
@@ -1039,16 +1059,19 @@ export default function DashboardPage() {
                     {/* Celular: una línea («… · en vivo · 05:59 p. m.»). Los segundos y el «se
                         refresca cada 30s» siguen en el menú ⋯ y en el escritorio; la fecha se queda
                         siempre, por la razón de arriba. */}
-                    <span className="hidden sm:inline">{fechaConDia(hoy)} · en vivo · actualizado {actualizado} · se refresca cada 30s</span>
-                    <span className="sm:hidden">{fechaConDia(hoy)} · en vivo · {actualizado.replace(/^(\d{1,2}:\d{2}):\d{2}/, "$1")}</span>
+                    <span>{fechaConDia(hoy)} · en vivo · {actualizado.replace(/^(\d{1,2}:\d{2}):\d{2}/, "$1")}</span>
+                    <AyudaPantalla
+              titulo="Qué tan «en vivo» es esta pantalla"
+              intro="Los números de asistencia se leen de las marcas del terminal."
+              secciones={[
+                { titulo: "Cada 30 segundos", texto: <>Esta pantalla se refresca sola; la última vez fue a las {actualizado}. Si un refresco falla, el aviso deja de decir «en vivo» y muestra de qué hora son los datos.</> },
+                { titulo: "Cada 5 minutos", texto: "Disciplina, memos y contratos: cambian una vez al día, no cada medio minuto, así que van en un refresco aparte." },
+                { titulo: "La fecha", texto: "Siempre se muestra, porque «hoy» sin fecha no dice de qué día son los números cuando alguien guarda una captura." },
+              ]}
+            />
                   </>
                 )}
               </div>
-              {/* Honesto sobre el alcance real de "en vivo": Disciplina y Contratos
-                  no van en el mismo refresco de 30s (cambian una vez al día, no
-                  cada medio minuto) — decirlo evita la promesa que el título de
-                  arriba no cumple para esas dos franjas. */}
-              <div className="mt-0.5 hidden text-taupe sm:block">Disciplina, memos y contratos se actualizan cada 5 minutos.</div>
               {/* Aviso discreto, no un banner: alguien de vacaciones podría verse como
                   "sin marcar" mientras esta consulta no responda. Menos grave que
                   Contratos o la alerta de sede — por eso no interrumpe la pantalla. */}
@@ -1060,13 +1083,26 @@ export default function DashboardPage() {
             </>
           }
           accion={
-            <>
-            {/* Celular: «Personalizar» y «Ver en Google Sheets» pasan a un menú ⋯. Eran dos
-                controles que compiten con el título y que casi nadie toca desde el teléfono
-                (lo personalizado se guarda por navegador). El aviso de que Disciplina, memos y
-                contratos se refrescan cada 5 min también vive aquí: el «en vivo» de arriba no
-                los incluye y ese matiz no se pierde, solo se mueve. */}
-            <div className="sm:hidden">
+            // UN solo menú ⋯ en todos los anchos (2026-10-19). Antes el escritorio mostraba dos controles
+            // —«Personalizar» y «Ver en Google Sheets»— que casi nadie toca más de una vez por semana y que
+            // competían con el título; el celular ya los guardaba aquí. Lo único que sale del menú es lo que
+            // está pasando AHORA: «Listo» mientras se personaliza, y «Alertas» si se ocultó su panel. El
+            // matiz de los refrescos (30 s / 5 min) ya vive en el ⓘ del título, no hace falta repetirlo.
+            <div className="flex flex-wrap items-center gap-2">
+              {prefs.alertasOcultas && (
+                <span className="hidden xl:block">
+                  <BotonIcono
+                    tamano="md"
+                    etiqueta="Mostrar el panel de alertas"
+                    icono={<PanelRightOpen aria-hidden />}
+                    contador={itemsAtencion.filter((it) => it.tono === "critico").length}
+                    onClick={() => setPrefsCrudas(alternarAlertas(prefs))}
+                  />
+                </span>
+              )}
+              {personalizando && (
+                <Boton variante="primario" tamano="sm" aria-pressed onClick={() => setPersonalizando(false)}>Listo</Boton>
+              )}
               <Menu trigger={({ abierto, alternar }) => (
                 <button
                   type="button"
@@ -1074,7 +1110,7 @@ export default function DashboardPage() {
                   aria-haspopup="menu"
                   aria-expanded={abierto}
                   aria-label="Más opciones"
-                  className="flex size-10 items-center justify-center rounded-full border border-sand bg-papel text-xl leading-none text-tinta transition-colors hover:border-taupe/40 hover:bg-sand/50 active:scale-[0.97]"
+                  className="flex size-10 items-center justify-center rounded-full border border-sand bg-papel text-xl leading-none text-tinta transition-colors hover:border-taupe/40 hover:bg-sand/50 active:scale-[0.97] sm:size-9"
                 >
                   ⋯
                 </button>
@@ -1091,38 +1127,24 @@ export default function DashboardPage() {
                 >
                   Ver en Google Sheets ↗
                 </a>
-                <div className="mt-1 w-64 border-t border-sand px-3 py-2 text-xs text-taupe">
-                  Esta pantalla se refresca cada 30 s. Disciplina, memos y contratos, cada 5 minutos.
-                </div>
               </Menu>
             </div>
-            <div className="hidden flex-wrap items-center gap-3 sm:flex">
-              {prefs.alertasOcultas && (
-                <span className="hidden xl:block">
-                  <Boton variante="secundario" tamano="sm" onClick={() => setPrefsCrudas(alternarAlertas(prefs))}>
-                    ⟨ Alertas
-                    {itemsAtencion.some((it) => it.tono === "critico") && (
-                      <span className="ml-1.5 rounded-full bg-rojo px-2 py-0.5 text-crema">{itemsAtencion.filter((it) => it.tono === "critico").length}</span>
-                    )}
-                  </Boton>
-                </span>
-              )}
-              <Boton variante={personalizando ? "primario" : "secundario"} tamano="sm" aria-pressed={personalizando} onClick={() => setPersonalizando((v) => !v)}>
-                {personalizando ? "Listo" : "Personalizar"}
-              </Boton>
-              <a
-                href={URL_SHEET_ASISTENCIA}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm text-taupe underline underline-offset-4 transition-colors hover:text-tinta"
-              >
-                Ver en Google Sheets ↗
-              </a>
-            </div>
-            </>
           }
         />
 
+        {/* Hoy | Tendencias (2026-10-19): lo de hoy se refresca cada 30 s; la historia se pide una vez, al abrir
+            su pestaña, y no entra en ese refresco. */}
+        <Pestanas
+          etiqueta="Secciones del Dashboard"
+          pestanas={[{ clave: "hoy", texto: "Hoy" }, { clave: "tendencias", texto: "Tendencias" }] as const}
+          activa={vistaDash}
+          alElegir={setVistaDash}
+        />
+
+        {vistaDash === "tendencias" ? (
+          <PanelTendencias rol={yo?.rol ?? null} sedes={sedesDeAlcance.map((s) => ({ codigo: s.codigo, nombre: s.etiqueta.texto }))} />
+        ) : (
+          <>
         {error && (
           <BannerAviso enLinea variante="alerta" className="mb-6 text-rojo-profundo">
             {error}{" "}
@@ -1150,34 +1172,36 @@ export default function DashboardPage() {
               alCambiarSoloAlertas={setSoloAlertas}
               alLimpiar={limpiarFiltros}
             />
-            <div className="mb-6 hidden flex-wrap items-end gap-3 rounded-superficie border border-sand bg-papel p-4 sm:flex">
+            {/* Barra de escritorio compacta (2026-10-19): sin rótulos —el buscador y los desplegables ya dicen
+                lo suyo con su texto—, sin caja alrededor, y los controles a 13 px y 32 px de alto en vez de
+                14 px y 36. «Solo alertas» deja de ser una casilla suelta y pasa a ser un filtro, como los de
+                Educación; va sobre una tarjeta (papel) para separarse del fondo de la página. Los campos usan `tamano="sm"` (el mismo vocabulario que Boton y Filtro). */}
+            <TarjetaInfo className="mb-5 hidden flex-wrap items-center gap-2 sm:flex sm:p-4">
               <div className="min-w-48 flex-1">
                 <Campo
-                  etiqueta="Buscar persona"
-                  placeholder="Nombre…"
+                  tamano="sm"
+                  aria-label="Buscar persona"
+                  placeholder="Buscar persona"
                   value={busqueda}
                   onChange={(e) => setBusqueda(e.target.value)}
                 />
               </div>
               {sedes.length > 1 && (
-                <CampoSelect etiqueta="Sede" value={sedeFiltro} onChange={(e) => setSedeFiltro(e.target.value)} className="min-w-32">
-                  <option value="todas">Todas</option>
+                <CampoSelect tamano="sm" aria-label="Sede" value={sedeFiltro} onChange={(e) => setSedeFiltro(e.target.value)} className="min-w-36">
+                  <option value="todas">Todas las sedes</option>
                   {sedes.map((s) => <option key={s.sedeId} value={s.codigo}>{s.etiqueta.texto}</option>)}
                 </CampoSelect>
               )}
-              <CampoSelect etiqueta="Estado" value={estadoFiltro} onChange={(e) => setEstadoFiltro(e.target.value)} className="min-w-36">
-                <option value="todos">Todos</option>
+              <CampoSelect tamano="sm" aria-label="Estado" value={estadoFiltro} onChange={(e) => setEstadoFiltro(e.target.value)} className="min-w-36">
+                <option value="todos">Todos los estados</option>
                 {OPCIONES_FILTRO_ESTADO.map((o) => <option key={o.valor} value={o.valor}>{o.etiqueta}</option>)}
               </CampoSelect>
-              <div className="pb-2">
-                <CampoCasilla etiqueta="Solo alertas" checked={soloAlertas} onChange={(e) => setSoloAlertas(e.target.checked)} />
-              </div>
-              {hayFiltrosActivos && (
-                <Boton variante="enlace" tamano="sm" className="pb-2.5" onClick={limpiarFiltros}>
-                  Limpiar filtros
-                </Boton>
+              <BotonIcono tamano="md" etiqueta="Solo alertas" icono={<TriangleAlert aria-hidden />} activo={soloAlertas} onClick={() => setSoloAlertas(!soloAlertas)} />
+              {/* «Limpiar» solo cuando hay algo MÁS que el ícono de alertas: ese se apaga tocándolo otra vez. */}
+              {(busqueda !== "" || estadoFiltro !== "todos" || sedeFiltro !== "todas") && (
+                <Boton variante="enlace" tamano="sm" onClick={limpiarFiltros}>Limpiar</Boton>
               )}
-            </div>
+            </TarjetaInfo>
 
             <div className={prefs.alertasOcultas ? "" : "xl:grid xl:grid-cols-[minmax(0,1fr)_20rem] xl:items-start xl:gap-6"}>
               {/* Los paneles van en una columna flex y se ordenan con `order`: el
@@ -1251,11 +1275,12 @@ export default function DashboardPage() {
                 acusaría a quien aún no tenía que haber llegado. Una casilla en 0 no abre nada
                 (no hay detalle que mostrar), así que no es un botón. */}
             <div className={resumenDetalle ? "mb-3" : "mb-4 sm:mb-6"}>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <div id="resumen-casillas" className="scroll-mt-24 grid grid-cols-2 gap-2 sm:grid-cols-4">
                 {resumen.map((k) => {
                   const abierto = resumenAbierto === k.clave;
                   return (
                     <Cifra
+      tamano="sm"
                       key={k.clave}
                       etiqueta={<><span aria-hidden className="sm:hidden">{k.corto}</span><span className="sr-only sm:not-sr-only">{k.label}</span></>}
                       valor={k.n}
@@ -1263,7 +1288,7 @@ export default function DashboardPage() {
                       tono={k.tono}
                       activa={abierto}
                       controla="detalle-resumen"
-                      onClick={k.n === 0 ? undefined : () => setResumenAbierto(abierto ? null : k.clave)}
+                      onClick={k.n === 0 ? undefined : () => { setResumenAbierto(abierto ? null : k.clave); irA(abierto ? "resumen-casillas" : "detalle-resumen", abierto ? "center" : "start"); }}
                     />
                   );
                 })}
@@ -1274,15 +1299,13 @@ export default function DashboardPage() {
                 los filtros de más arriba: el número tampoco los aplica, y si la
                 lista los aplicara, al "10" le respondería una lista de 3. */}
             {resumenDetalle && (
-              <section id="detalle-resumen" className="mb-8 rounded-superficie border border-sand bg-papel p-5">
-                <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-                  <h2 className="font-serif text-xl font-medium">
-                    {resumenDetalle.label} <span className="text-taupe">· {resumenDetalle.n}</span>
-                  </h2>
-                  <Boton variante="enlace" tamano="sm" onClick={() => setResumenAbierto(null)}>
-                    Cerrar ↑
-                  </Boton>
-                </div>
+              <TarjetaInfo
+                como="section"
+                id="detalle-resumen"
+                className="mb-8 scroll-mt-24"
+                titulo={<>{resumenDetalle.label} <span className="text-taupe">· {resumenDetalle.n}</span></>}
+                accion={<BotonIcono etiqueta="Cerrar el detalle" icono={<X aria-hidden />} onClick={() => { setResumenAbierto(null); irA("resumen-casillas", "center"); }} />}
+              >
                 {resumenDetalle.clave === "bajo_minimo" ? (
                   // Sedes, no personas: el detalle es qué le falta a cada una, y
                   // un enlace a su tarjeta de más abajo, que ya tiene todo.
@@ -1307,7 +1330,7 @@ export default function DashboardPage() {
                 ) : (
                   <TablaPersonas filas={personasDelResumen[resumenDetalle.clave]} linkCorregir={linkCorregir} ahoraDecimal={ahoraDecimal} conSede />
                 )}
-              </section>
+                            </TarjetaInfo>
             )}
 
             {prefs.kpisExtra.personal && (
@@ -1317,9 +1340,9 @@ export default function DashboardPage() {
                 accion={<Link href="/admin/equipo" className="text-xs text-taupe hover:underline">Equipo →</Link>}
               >
                 <div className="grid grid-cols-3 gap-2">
-                  <Cifra etiqueta="Equipo que marca asistencia" valor={filas.length} />
-                  <Cifra etiqueta="Ausentes hoy" valor={ausentesHoy} />
-                  <Cifra etiqueta="Contratos por vencer" valor={contratos.length} tono={contratos.length > 0 ? "advertencia" : undefined} />
+                  <Cifra tamano="sm" etiqueta="Equipo que marca asistencia" valor={filas.length} />
+                  <Cifra tamano="sm" etiqueta="Ausentes hoy" valor={ausentesHoy} />
+                  <Cifra tamano="sm" etiqueta="Contratos por vencer" valor={contratos.length} tono={contratos.length > 0 ? "advertencia" : undefined} />
                 </div>
                 <p className="mt-3 text-xs text-taupe">Cuenta a quien marca asistencia: no incluye recibos por honorarios ni sueldo fijo.</p>
               </TarjetaInfo>
@@ -1340,10 +1363,10 @@ export default function DashboardPage() {
                 ) : (
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                     {pendientesBandeja.resumen.porModulo.map((m) => (
-                      <Cifra key={m.clave} href={m.ruta} etiqueta={m.etiqueta} valor={m.n} />
+                      <Cifra tamano="sm" key={m.clave} href={m.ruta} etiqueta={m.etiqueta} valor={m.n} />
                     ))}
                     {pendientesBandeja.resumen.otros > 0 && (
-                      <Cifra href="/admin/bandeja" etiqueta="Otros" valor={pendientesBandeja.resumen.otros} />
+                      <Cifra tamano="sm" href="/admin/bandeja" etiqueta="Otros" valor={pendientesBandeja.resumen.otros} />
                     )}
                   </div>
                 )}
@@ -1368,10 +1391,10 @@ export default function DashboardPage() {
                 ) : (
                   <>
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                      <Cifra etiqueta="Últimos 6 meses" valor={casosResumen.resumen.total} />
-                      <Cifra etiqueta="Abiertos ahora" valor={casosResumen.resumen.abiertos} />
-                      <Cifra etiqueta="Con un plazo vencido" valor={casosResumen.resumen.vencidos} tono={casosResumen.resumen.vencidos > 0 ? "alerta" : undefined} />
-                      <Cifra etiqueta="Cerrados" valor={casosResumen.resumen.cerrados} />
+                      <Cifra tamano="sm" etiqueta="Últimos 6 meses" valor={casosResumen.resumen.total} />
+                      <Cifra tamano="sm" etiqueta="Abiertos ahora" valor={casosResumen.resumen.abiertos} />
+                      <Cifra tamano="sm" etiqueta="Con un plazo vencido" valor={casosResumen.resumen.vencidos} tono={casosResumen.resumen.vencidos > 0 ? "alerta" : undefined} />
+                      <Cifra tamano="sm" etiqueta="Cerrados" valor={casosResumen.resumen.cerrados} />
                     </div>
 
                     <div className="mt-4 grid gap-5 sm:grid-cols-2">
@@ -1778,20 +1801,20 @@ export default function DashboardPage() {
                   )}
 
                   {tablaVisible ? (
-                    <>
+                    <div id={`detalle-sede-${codigo}`} className="scroll-mt-24">
                       {deSedeMostrada.length === 0 ? (
                         <p className="text-sm text-taupe">No encontramos personas con estos filtros en esta sede.</p>
                       ) : (
                         <TablaPersonas filas={deSedeMostrada} linkCorregir={linkCorregir} ahoraDecimal={ahoraDecimal} />
                       )}
                       {!hayFiltrosDeContenido && (
-                        <Boton variante="enlace" tamano="sm" className="mt-3" onClick={() => setDetalleAbierto((s) => ({ ...s, [sedeId]: false }))}>
+                        <Boton variante="enlace" className="mt-3 text-xs text-taupe hover:text-tinta" onClick={() => { setDetalleAbierto((s) => ({ ...s, [sedeId]: false })); irA(`sede-${codigo}`, "center"); }}>
                           Ocultar detalle ↑
                         </Boton>
                       )}
-                    </>
+                    </div>
                   ) : (
-                    <Boton variante="enlace" tamano="sm" onClick={() => setDetalleAbierto((s) => ({ ...s, [sedeId]: true }))}>
+                    <Boton variante="enlace" className="text-xs text-taupe hover:text-tinta" onClick={() => { setDetalleAbierto((s) => ({ ...s, [sedeId]: true })); irA(`detalle-sede-${codigo}`, "start"); }}>
                       {/* «del equipo», como la frase de arriba («10 de las 12 personas del
                           equipo»): el detalle lista a todo el equipo, no solo a quien le tocaba hoy. */}
                       Ver detalle ↓ ({deSedeCompleta.length} persona{deSedeCompleta.length === 1 ? "" : "s"} del equipo)
@@ -1871,22 +1894,33 @@ export default function DashboardPage() {
               const [fechaRacimo, cuantos] = [...porFecha.entries()]
                 .sort((a, b) => b[1] - a[1])[0] ?? ["", 0];
               const hayRacimo = cuantos >= 3;
+              // Los que vencen EL MISMO día se agrupan en una sola línea con sus nombres como pastillas:
+              // diecisiete renglones idénticos («vence en 73 días · 31 de diciembre») eran el aviso
+              // repetido diecisiete veces, y empujaban todo lo demás fuera de la pantalla. Las
+              // fechas distintas siguen separadas, de la más cercana a la más lejana.
+              const grupos = [...porVencer.reduce((m, c) => {
+                const g = m.get(c.fecha_fin_contrato) ?? [];
+                g.push(c); m.set(c.fecha_fin_contrato, g);
+                return m;
+              }, new Map<string, ContratoRow[]>()).entries()].sort((x, y) => (x[0] < y[0] ? -1 : 1));
               return (
-                <div className="relative overflow-hidden rounded-superficie border border-sand bg-papel p-5 pl-6">
+                <TarjetaInfo className="relative overflow-hidden pl-6 sm:pl-7">
                   {/* Rojo si alguien ya pasó su fecha (el art. 77 ya corrió);
                       ámbar si solo se acerca. */}
                   <Franja tono={vencidos.length > 0 ? "alerta" : "advertencia"} />
-                  <div className="mb-2 flex items-center justify-between">
-                    <span />
-                    <Link href="/admin/equipo" className="text-xs font-semibold text-rojo-profundo hover:underline">Ver equipo →</Link>
+                  <div className="mb-2 flex items-center justify-between gap-3 text-xs text-taupe">
+                    <span>
+                      {vencidos.length > 0 && <>{vencidos.length} ya venci{vencidos.length === 1 ? "ó" : "eron"}{porVencer.length > 0 ? " · " : ""}</>}
+                      {porVencer.length > 0 && <>{porVencer.length} por vencer</>}
+                    </span>
+                    <Link href="/admin/equipo" className="font-medium text-rojo-profundo hover:underline">Ver equipo →</Link>
                   </div>
                   {hayRacimo && (
-                    <p className="mb-2 rounded-control bg-rojo/10 px-3 py-2 text-sm text-rojo-profundo">
-                      <strong>{cuantos} contratos vencen el mismo día</strong> ({fechaCorta(fechaRacimo)}).
-                      No son {cuantos} trámites repartidos: son {cuantos} decisiones, {cuantos} redacciones
-                      y {cuantos} firmas en la misma semana. Al que se pase de fecha con la persona
-                      todavía trabajando, el <strong>art. 77</strong> lo vuelve indefinido solo.
-                    </p>
+                    <BannerAviso enLinea variante="alerta" className="mb-2">
+                      <strong>{cuantos} contratos vencen el mismo día</strong> ({fechaCorta(fechaRacimo)}): {cuantos} decisiones,
+                      redacciones y firmas la misma semana. Pasada la fecha con la persona todavía trabajando,
+                      el <strong>art. 77</strong> lo vuelve indefinido solo.
+                    </BannerAviso>
                   )}
                   {vencidos.map((c) => (
                     <div key={c.persona_id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-sand/60 py-2 text-sm">
@@ -1899,22 +1933,27 @@ export default function DashboardPage() {
                       <span className="text-xs font-semibold text-rojo-profundo">renovar o registrar su salida →</span>
                     </div>
                   ))}
-                  {porVencer.map((c) => (
-                    <div key={c.persona_id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-sand/60 py-2 text-sm">
-                      <span>
-                        <strong>{c.nombre}</strong> <span className="text-taupe">· {c.sede}</span>
-                        <Insignia variante="advertencia" className="ml-2">
-                          {enCuantos(c.dias_restantes)} · {fechaCorta(c.fecha_fin_contrato)}
-                        </Insignia>
-                      </span>
+                  {grupos.map(([fecha, lista]) => (
+                    <div key={fecha} className="border-t border-sand/60 py-2.5 first:border-t-0">
+                      <p className="mb-1.5 text-sm">
+                        <strong>{enCuantos(lista[0].dias_restantes)}</strong>{" "}
+                        <span className="text-taupe">· {fechaCorta(fecha)} · {lista.length} {lista.length === 1 ? "persona" : "personas"}</span>
+                      </p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {lista.map((c) => (
+                          <Insignia key={c.persona_id} atenuada punto={false}>
+                            {c.nombre} <span className="text-taupe">· {c.sede}</span>
+                          </Insignia>
+                        ))}
+                      </div>
                     </div>
                   ))}
-                  <p className="border-t border-sand/60 pt-2.5 text-xs text-taupe">
+                  <p className="border-t border-sand/60 pt-2 text-xs text-taupe">
                     {vencidos.length > 0
                       ? "Mientras siga de alta sigue marcando, sigue cobrando y sigue acumulando gratificación, CTS y vacaciones. Anotar la fecha no da de baja a nadie: eso se decide y se registra a mano."
                       : "La fecha es lo previsto, no un hecho. Un contrato puede renovarse: esto solo avisa antes de que llegue el día."}
                   </p>
-                </div>
+                </TarjetaInfo>
               );
             })()}
               </PanelColapsable>
@@ -1927,6 +1966,8 @@ export default function DashboardPage() {
                 </aside>
               )}
             </div>
+          </>
+        )}
           </>
         )}
       </main>

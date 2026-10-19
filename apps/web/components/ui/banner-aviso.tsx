@@ -41,6 +41,7 @@ export function BannerAviso({
   titulo,
   variante = "advertencia",
   enLinea = false,
+  role,
   children,
   className,
 }: {
@@ -49,19 +50,24 @@ export function BannerAviso({
   variante?: Variante;
   /** El aviso chico, de una o dos líneas: sin encabezado aparte. */
   enLinea?: boolean;
+  /**
+   * `alert` para lo que apareció porque algo falló («No se pudo traer…»): el lector de pantalla
+   * lo anuncia al instante. Sin él, el aviso es parte de la página y no interrumpe a nadie.
+   */
+  role?: "alert" | "status";
   children: ReactNode;
   className?: string;
 }) {
   if (enLinea) {
     return (
-      <div className={cx("rounded-control border px-4 py-3 text-sm", TONOS[variante], className)}>
+      <div role={role} className={cx("rounded-control border px-4 py-3 text-sm", TONOS[variante], className)}>
         {titulo && <b className={cx("font-medium", TEXTO_TITULO[variante])}>{titulo} </b>}
         {children}
       </div>
     );
   }
   return (
-    <div className={cx("rounded-superficie border p-5 text-sm", TONOS[variante], className)}>
+    <div role={role} className={cx("rounded-superficie border p-5 text-sm", TONOS[variante], className)}>
       {titulo && <h2 className={cx("mb-1 font-serif text-lg", TEXTO_TITULO[variante])}>{titulo}</h2>}
       {children}
     </div>

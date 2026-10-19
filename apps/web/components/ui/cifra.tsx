@@ -33,6 +33,7 @@ import { Punto, type TonoPunto } from "./punto";
 
 
 export function Cifra({
+  tamano = "md",
   etiqueta,
   valor,
   detalle,
@@ -43,6 +44,13 @@ export function Cifra({
   href,
   className,
 }: {
+  /**
+   * «md» es la casilla de siempre (etiqueta arriba, número abajo). «sm» (2026-10-19, a pedido de Felipe
+   * para el resumen del Dashboard): una fila —la etiqueta a la izquierda, el número a la derecha— y
+   * menos margen, de ~92 px de alto a ~48. El número sigue siendo serif y tinta (decisiones 1 y 2): lo
+   * que se achica es el aire, no la cifra.
+   */
+  tamano?: "sm" | "md";
   etiqueta: ReactNode;
   /** Ya formateado: la casilla no decide si lleva miles, decimales ni «—». */
   valor: ReactNode;
@@ -59,13 +67,26 @@ export function Cifra({
   className?: string;
 }) {
   const interactiva = Boolean(onClick || href);
+  const compacta = tamano === "sm";
   const caja = cx(
-    "flex flex-col rounded-superficie border p-3 text-left transition-colors duration-150",
+    "flex rounded-superficie border text-left transition-colors duration-150",
+    compacta ? "items-center justify-between gap-3 px-3 py-2" : "flex-col p-3",
     activa ? "border-taupe bg-hueso" : "border-sand bg-papel",
     interactiva && !activa && "hover:bg-hueso",
     className,
   );
-  const contenido = (
+  const contenido = compacta ? (
+    <>
+      <span className="min-w-0">
+        <span className="flex items-center gap-1.5 text-xs leading-snug text-taupe">
+          {tono && <Punto tono={tono} />}
+          {etiqueta}
+        </span>
+        {detalle && <span className="block text-xs leading-snug text-taupe">{detalle}</span>}
+      </span>
+      <span className="shrink-0 font-serif text-xl tabular-nums text-tinta">{valor}</span>
+    </>
+  ) : (
     <>
       <span className="flex items-center gap-1.5 text-xs text-taupe">
         {tono && <Punto tono={tono} />}

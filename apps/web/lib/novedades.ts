@@ -132,6 +132,22 @@ export const NOVEDADES: readonly Novedad[] = [
     audiencia: "panel",
   },
   {
+    id: "2026-10-19-asistencia-equipo-contratos-y-dashboard-mas-claros",
+    fecha: "2026-10-19",
+    titulo: "Asistencia, Equipo, Contratos y el Dashboard se ven más claros",
+    queMejoro:
+      "Las pantallas de Asistencia, Equipo, Contratos y el Dashboard se rehicieron para que lo que hay que atender se vea " +
+      "primero y lo demás no estorbe. Varias arrancan con una franja «Para atender»: tocas una pastilla y la lista se " +
+      "reduce a eso; si ya no hace falta, vuelves a tocarla. La explicación larga de cada pantalla ahora está detrás del " +
+      "ⓘ junto al título.\n\n" +
+      "El Dashboard tiene una pestaña nueva, «Tendencias», con gráficos de asistencia y puntualidad por sede a lo largo " +
+      "de las semanas. Equipo se ordena por sede y avisa quién no tiene salario o a quién le termina pronto el contrato. " +
+      "En Contratos la lista va de lo más urgente a lo que está al día, cada fila trae el botón que le toca (Renovar, " +
+      "Subir firmado, Copia entregada), el historial de cada persona se abre desde «Ver historial» y, al crear un " +
+      "documento, buscas a la persona por nombre o la filtras por sede y por situación del contrato.",
+    audiencia: "panel",
+  },
+  {
     id: "2026-10-19-mi-seguro-cada-colaborador-ve-el-suyo",
     fecha: "2026-10-19",
     titulo: "Ya puedes ver tu seguro en «Lo mío»",

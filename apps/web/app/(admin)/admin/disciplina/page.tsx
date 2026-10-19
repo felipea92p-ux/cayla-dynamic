@@ -44,6 +44,7 @@ import { Modal } from "@/components/ui/modal";
 import { AreaTexto } from "@/components/ui/area-texto";
 import { Campo } from "@/components/ui/campo";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
+import { BotonAyuda } from "@/components/ui/ayuda-pantalla";
 import { Menu, MenuItem } from "@/components/ui/menu";
 import { cx } from "@/components/ui/cx";
 import { FormularioCargo, MAX_BYTES_CARGO, TITULO_PAPEL } from "@/components/disciplina/formulario-cargo";
@@ -1278,15 +1279,8 @@ export default function DisciplinaPage() {
           accion={puedeTramitar
             ? <Boton variante="primario" onClick={() => setRegistrandoFalta(true)}>Registrar una falta</Boton>
             : undefined}
-          descripcion={
-            <>
-              Revisa incidencias que alcanzan umbrales y gestiona su trazabilidad.
-              <span className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
-                <span><span aria-hidden>ⓘ </span>El sistema detecta condiciones y prepara borradores; la decisión la toma una persona.</span>
-                <Boton variante="enlace" className="text-sm text-tinta" onClick={() => setVerReglas(true)}>Ver reglas y umbrales</Boton>
-              </span>
-            </>
-          }
+          descripcion="Incidencias que alcanzan umbrales y su trazabilidad. El sistema detecta y prepara borradores; la decisión la toma una persona."
+          ayuda={<BotonAyuda etiqueta="Ver reglas y umbrales" onClick={() => setVerReglas(true)} />}
         />
 
         {/* Filtros */}

@@ -390,6 +390,7 @@ with repo(numero, nombre, nunca) as (values
     (531, 'la_politica_de_movilidad_se_firma_con_la_firma_del_sistema', false),
     (532, 'las_boletas_se_firman_y_una_anulacion_se_restablece', false),
     (533, 'la_constancia_de_la_boleta_trae_sus_datos', false),
+    (534, 'la_asistencia_por_sede_y_semana', false),
     (535, 'el_cese_separa_quien_puede_pedirlo_de_como_se_hace', false),
     (536, 'la_prueba_de_tres_dias', false),
     (537, 'en_la_prueba_se_paga_lo_trabajado_y_quien_se_retira_no_cobra', false),

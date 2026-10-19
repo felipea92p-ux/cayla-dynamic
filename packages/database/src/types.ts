@@ -7307,6 +7307,17 @@ export type Database = {
         Args: { p_id: string | null; p_respuesta: string | null }
         Returns: undefined
       }
+      fn_asistencia_serie: {
+        Args: { p_desde: string | null; p_hasta: string | null; p_sede_id?: string | null }
+        Returns: {
+          dia_semana: number
+          dias_trabajados: number
+          faltas: number
+          offsets: number[]
+          sede_codigo: string
+          semana: string
+        }[]
+      }
       fn_ausencia_adjuntar_certificado: {
         Args: { p_ausencia_id: string | null; p_storage_path: string | null }
         Returns: undefined

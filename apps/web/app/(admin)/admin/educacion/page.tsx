@@ -43,6 +43,8 @@ import { Modal } from "@/components/ui/modal";
 import { Drawer } from "@/components/ui/drawer";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
 import { BarraFiltros } from "@/components/educacion/barra-filtros";
+import { ParaAtender } from "@/components/ui/para-atender";
+import { Pestanas } from "@/components/ui/pestanas";
 import { CuadriculaMeses } from "@/components/educacion/cuadricula-meses";
 import { LienzoArchivos } from "@/components/educacion/lienzo-archivos";
 import { AccionesRevision } from "@/components/educacion/revision-entrega";
@@ -801,20 +803,12 @@ function EducacionContenido() {
                 )}
 
                 {/* ── PESTAÑAS ─────────────────────────────────────────────────────── */}
-                <nav aria-label="Secciones de Educación" className="-mx-4 mb-5 flex gap-1 overflow-x-auto border-b border-sand px-4 sm:mx-0 sm:px-0 [scrollbar-width:none]">
-                  {VISTAS.map((v) => {
-                    const n = v.clave === "constancias" ? conteo.pendientes + solicitudesPendientes.length : 0;
-                    return (
-                      <button key={v.clave} type="button" aria-current={vista === v.clave ? "page" : undefined}
-                        onClick={() => setVista(v.clave)}
-                        className={`-mb-px flex shrink-0 items-center gap-1.5 border-b-2 px-3 py-2 text-sm transition-colors duration-150 ${
-                          vista === v.clave ? "border-tinta font-medium text-tinta" : "border-transparent text-taupe hover:text-tinta"}`}>
-                        {v.etiqueta}
-                        {n > 0 && <span className="rounded-full bg-rojo px-1.5 text-[11px] leading-4 text-crema">{n}</span>}
-                      </button>
-                    );
-                  })}
-                </nav>
+                <Pestanas
+                  etiqueta="Secciones de Educación"
+                  pestanas={VISTAS.map((v) => ({ clave: v.clave, texto: v.etiqueta, aviso: v.clave === "constancias" ? conteo.pendientes + solicitudesPendientes.length : 0 }))}
+                  activa={vista}
+                  alElegir={setVista}
+                />
 
                 {vista === "constancias" && (<>
                 {/* ── PARA ATENDER: solo lo que pide algo, en una línea. Un cero no se dibuja. ── */}
@@ -1587,35 +1581,3 @@ const VISTAS: { clave: Vista; etiqueta: string }[] = [
   { clave: "ayuda", etiqueta: "Cómo funciona" },
 ];
 
-const TONO_ATENDER = {
-  pizarra: "border-pizarra/40 bg-pizarra/10 text-pizarra",
-  rojo: "border-rojo/30 bg-rojo/10 text-rojo-profundo",
-  ambar: "border-ambar/40 bg-ambar/15 text-ambar",
-  neutro: "border-sand bg-papel text-tinta",
-} as const;
-
-/**
- * Lo que pide algo hoy, en UNA línea de pastillas que filtran al tocarlas. Reemplaza a las cinco
- * tarjetas grandes: un cero no se dibuja, y si no hay nada pendiente lo dice en tres palabras.
- */
-function ParaAtender({ items, activa, alTocar, extra }: {
-  items: { clave: string; texto: string; n: number; tono: keyof typeof TONO_ATENDER }[];
-  activa: string | null;
-  alTocar: (clave: string) => void;
-  extra: React.ReactNode;
-}) {
-  const con = items.filter((x) => x.n > 0 || x.clave === activa);
-  return (
-    <div className="mb-4 flex flex-wrap items-center gap-2">
-      <span className="text-xs font-medium uppercase tracking-wide text-taupe">Para atender</span>
-      {con.length === 0 && !extra ? <span className="text-sm text-verde">Nada pendiente</span> : con.map((x) => (
-        <button key={x.clave} type="button" aria-pressed={activa === x.clave} onClick={() => alTocar(x.clave)}
-          className={`rounded-full border px-3 py-1 text-xs font-medium tabular-nums transition-shadow duration-150 ${TONO_ATENDER[x.tono]} ${
-            activa === x.clave ? "ring-2 ring-tinta" : ""}`}>
-          {x.texto}
-        </button>
-      ))}
-      {extra}
-    </div>
-  );
-}
