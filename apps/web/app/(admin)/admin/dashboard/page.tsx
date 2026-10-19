@@ -16,7 +16,7 @@ import { BannerAviso } from "@/components/ui/banner-aviso";
 import { Cifra } from "@/components/ui/cifra";
 import { EstadoVacio } from "@/components/ui/estado-vacio";
 import { RotuloEstado } from "@/components/ui/rotulo";
-import { PanelRightOpen } from "lucide-react";
+import { PanelRightOpen, TriangleAlert } from "lucide-react";
 import { BotonIcono } from "@/components/ui/boton-icono";
 import { Filtro } from "@/components/ui/filtro";
 import { TarjetaInfo } from "@/components/ui/tarjeta-info";
@@ -1166,7 +1166,7 @@ export default function DashboardPage() {
                 <option value="todos">Todos los estados</option>
                 {OPCIONES_FILTRO_ESTADO.map((o) => <option key={o.valor} value={o.valor}>{o.etiqueta}</option>)}
               </CampoSelect>
-              <Filtro tamano="sm" activo={soloAlertas} onClick={() => setSoloAlertas(!soloAlertas)}>Solo alertas</Filtro>
+              <BotonIcono tamano="md" etiqueta="Solo alertas" icono={<TriangleAlert aria-hidden />} activo={soloAlertas} onClick={() => setSoloAlertas(!soloAlertas)} />
               {hayFiltrosActivos && (
                 <Boton variante="enlace" tamano="sm" onClick={limpiarFiltros}>Limpiar</Boton>
               )}

@@ -18,6 +18,7 @@ export function BotonIcono({
   icono,
   tamano = "sm",
   contador,
+  activo,
   className,
   ...props
 }: {
@@ -26,6 +27,8 @@ export function BotonIcono({
   icono: ReactNode;
   tamano?: keyof typeof TAMANOS;
   contador?: number;
+  /** Para un botón que enciende un filtro («Solo alertas»): pone `aria-pressed` y lo pinta en tinta, igual que <Filtro>. */
+  activo?: boolean;
   className?: string;
 } & Omit<ButtonHTMLAttributes<HTMLButtonElement>, "children" | "className" | "type" | "aria-label" | "title">) {
   return (
@@ -33,8 +36,10 @@ export function BotonIcono({
       type="button"
       aria-label={etiqueta}
       title={etiqueta}
+      aria-pressed={activo}
       className={cx(
-        "relative inline-flex shrink-0 items-center justify-center rounded-control border border-sand bg-papel text-taupe transition-colors duration-150 hover:border-taupe hover:text-tinta focus-visible:outline-offset-2 [&_svg]:size-4",
+        "relative inline-flex shrink-0 items-center justify-center rounded-control border transition-colors duration-150 focus-visible:outline-offset-2 [&_svg]:size-4",
+        activo ? "border-tinta bg-tinta text-crema" : "border-sand bg-papel text-taupe hover:border-taupe hover:text-tinta",
         TAMANOS[tamano],
         className,
       )}
