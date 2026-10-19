@@ -715,6 +715,14 @@ export default function PlanillaPage() {
             </CampoSelect>
           </div>
           <Boton onClick={abrirNuevo}>+ Nuevo periodo</Boton>
+          {/* Las boletas oficiales (0482) siguen a un toque: cuando el periodo ya está pagado son el botón grande de la
+              franja; mientras tanto, este. Es un módulo de uso mensual y estuvo tan discreto que se preguntó dónde estaba. */}
+          {periodoSel && accion?.tipo !== "boletas" && (
+            <Boton onClick={() => router.push(`/admin/planilla/boletas?periodo=${periodoSel}`)} className="inline-flex items-center gap-2">
+              <ReceiptText size={16} aria-hidden />
+              Boletas del periodo
+            </Boton>
+          )}
           <Menu
             trigger={({ abierto, alternar }) => (
               <Boton
@@ -728,14 +736,6 @@ export default function PlanillaPage() {
               </Boton>
             )}
           >
-            {/* Las boletas oficiales (0482) ya no son siempre el botón grande: solo lo son cuando el periodo está pagado.
-                Mientras tanto se llega desde aquí. */}
-            {periodoSel && accion?.tipo !== "boletas" && (
-              <MenuItem onClick={() => router.push(`/admin/planilla/boletas?periodo=${periodoSel}`)}>
-                Boletas del periodo
-                <span className="block text-xs text-taupe">La boleta oficial llega después de pagar</span>
-              </MenuItem>
-            )}
             {/* El CSV vivía como botón suelto junto al periodo: es una acción de
                 uso ocasional y ocupaba el sitio de lo que se usa cada mes. Al
                 menú con la misma condición de siempre: sin proyección, cargando
@@ -883,6 +883,26 @@ export default function PlanillaPage() {
                   )}
                 </span>
               </TarjetaInfo>
+              {/* Estado de pago por grupo: en la base cada grupo se paga por su cuenta (0323), y en producción son cuatro
+                  (Planilla, Practicantes, Prueba, Honorarios). Es lo primero que se mira al cerrar el mes. */}
+              {grupos && (
+                <ul className="flex flex-wrap gap-2 text-xs" aria-label="Estado de pago por grupo">
+                  {grupos.filter((g) => g.personas > 0).map((g) => (
+                    <li key={g.grupo}>
+                      <button
+                        type="button"
+                        onClick={() => setTablaTab(g.grupo)}
+                        className="inline-flex items-center gap-1.5 rounded-pildora border border-sand bg-papel px-2.5 py-1 hover:bg-sand/40"
+                      >
+                        <span className="font-medium text-tinta">{TIPO_VINCULO_LABEL[g.grupo]}</span>
+                        {g.estado === "pagado"
+                          ? <span className="inline-flex items-center gap-1 text-verde"><Check size={12} aria-hidden />pagado{g.pagado_at ? ` ${fechaLargaLima(g.pagado_at)}` : ""}</span>
+                          : <span className="text-taupe">pendiente</span>}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
               {/* El contexto del periodo, en una línea gris: lo que antes eran tres cifras y una nota. */}
               <p className="text-xs text-taupe">
                 {totalesPeriodo.personas} {totalesPeriodo.personas === 1 ? "persona" : "personas"}
