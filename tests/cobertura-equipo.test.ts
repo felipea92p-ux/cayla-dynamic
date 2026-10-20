@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { cuentaEnCobertura, esRolAdministrativo } from "@cayla-dynamic/shared";
+import { cuentaEnCobertura, esRolAdministrativo, estaDePrueba } from "@cayla-dynamic/shared";
 
 // Los casos son los de producción del 2026-09-19: CCO (cinco administradores en
 // áreas de oficina) y OTRU (cuatro practicantes en «Crecimiento y expansión» y
@@ -8,36 +8,38 @@ const persona = (o: Partial<Parameters<typeof cuentaEnCobertura>[0]> = {}) => ({
   rol: "integrante", tipoVinculo: "planilla", esEncargadaPiso: false, areaOperativa: false, ...o,
 });
 
-describe("cuentaEnCobertura — operativa", () => {
-  it("un practicante en un área de oficina cuenta como operativo (OTRU)", () => {
-    expect(cuentaEnCobertura(persona({ tipoVinculo: "practicante" }), "central").operativa).toBe(true);
+describe("cuentaEnCobertura — operativa (el área manda; la prueba no suma, 2026-10-20)", () => {
+  it("quien está en un área operativa cuenta, sea cual sea su vínculo", () => {
+    for (const tipoVinculo of ["planilla", "practicante", "rxh", "no_trabajador"]) {
+      expect(cuentaEnCobertura(persona({ tipoVinculo, areaOperativa: true }), "tienda").operativa).toBe(true);
+    }
   });
 
-  it("el practicante cuenta en cualquier tipo de sede, no solo en una central", () => {
+  it("un practicante en un área de oficina YA NO cuenta: el área manda (revierte lo del 2026-09-19)", () => {
     for (const tipo of ["tienda", "taller", "central"]) {
-      expect(cuentaEnCobertura(persona({ tipoVinculo: "practicante" }), tipo).operativa).toBe(true);
+      expect(cuentaEnCobertura(persona({ tipoVinculo: "practicante", areaOperativa: false }), tipo).operativa).toBe(false);
     }
   });
 
-  it("quien está de prueba en un área de oficina cuenta como operativo (Robert Cabrera en OTRU, 2026-10-19)", () => {
+  it("quien está de prueba NO cuenta, aunque su área sea operativa (revierte lo del 2026-10-19)", () => {
     for (const tipo of ["tienda", "taller", "central"]) {
-      expect(cuentaEnCobertura(persona({ tipoVinculo: "prueba" }), tipo).operativa).toBe(true);
+      expect(cuentaEnCobertura(persona({ tipoVinculo: "prueba", areaOperativa: true }), tipo).operativa).toBe(false);
+      expect(cuentaEnCobertura(persona({ tipoVinculo: "prueba", areaOperativa: false }), tipo).operativa).toBe(false);
     }
   });
 
-  it("RxH, no trabajador o vínculo vacío en un área de oficina NO cuentan como operativos", () => {
-    for (const tipoVinculo of ["rxh", "no_trabajador", null, undefined, ""]) {
-      expect(cuentaEnCobertura(persona({ tipoVinculo }), "central").operativa).toBe(false);
-    }
+  it("cuando deja de estar de prueba, suma: cambia el vínculo y la regla lo toma sola", () => {
+    expect(cuentaEnCobertura(persona({ tipoVinculo: "prueba", areaOperativa: true }), "tienda").operativa).toBe(false);
+    expect(cuentaEnCobertura(persona({ tipoVinculo: "planilla", areaOperativa: true }), "tienda").operativa).toBe(true);
+  });
+
+  it("estaDePrueba solo es cierto para el vínculo «prueba»", () => {
+    expect(estaDePrueba("prueba")).toBe(true);
+    for (const v of ["planilla", "practicante", "rxh", null, undefined, ""]) expect(estaDePrueba(v)).toBe(false);
   });
 
   it("estar de prueba no hace líder a nadie", () => {
     expect(cuentaEnCobertura(persona({ tipoVinculo: "prueba" }), "central").lider).toBe(false);
-  });
-
-  it("quien no es practicante sigue contando solo si su área es operativa", () => {
-    expect(cuentaEnCobertura(persona({ areaOperativa: true }), "tienda").operativa).toBe(true);
-    expect(cuentaEnCobertura(persona({ areaOperativa: false }), "tienda").operativa).toBe(false);
   });
 
   it("un integrante en planilla de un área de oficina NO cuenta como operativo", () => {

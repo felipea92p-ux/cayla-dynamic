@@ -115,6 +115,17 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-10-20-cobertura-suma-por-area-y-la-prueba-no",
+    fecha: "2026-10-20",
+    titulo: "La cobertura suma por área; quien está de prueba, todavía no",
+    queMejoro:
+      "Para la cobertura de una sede cuenta quien trabaja en un área operativa, sea practicante o tenga el cargo que tenga. " +
+      "Quien está haciendo su prueba no suma hasta que deje de estarlo, y en Equipo lleva la etiqueta «de prueba · no suma cobertura». " +
+      "Ya no aparece esa etiqueta en el resto de las personas.\n\n" +
+      "Qué áreas cuentan se marca en Áreas: si el equipo de una oficina no suma, revisa que su área esté marcada como operativa.",
+    audiencia: "panel",
+  },
+  {
     id: "2026-10-20-correcciones-historial-completo-y-dia-a-dia",
     fecha: "2026-10-20",
     titulo: "Correcciones: el historial muestra también las tardanzas levantadas",
