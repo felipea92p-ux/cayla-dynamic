@@ -115,6 +115,16 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-10-20-costos-con-graficos-y-mas-ancho",
+    fecha: "2026-10-20",
+    titulo: "Costos del equipo ocupa toda la pantalla y trae gráficos",
+    queMejoro:
+      "Las tablas de Costos ya no se quedan en una columna angosta: usan el ancho disponible y, a la derecha, hay tres gráficos " +
+      "—el costo real de cada periodo (lo que se transfirió y las provisiones), dónde va el costo entre tiendas, taller y central, " +
+      "y el costo por hora de cada sede—. En una pantalla estrecha los gráficos bajan debajo de las tablas.",
+    audiencia: "panel",
+  },
+  {
     id: "2026-10-20-almuerzos-en-dashboard-y-desempeno",
     fecha: "2026-10-20",
     titulo: "Ahora se ve cuánto y cuándo almuerza cada quien",
