@@ -115,6 +115,18 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-10-20-almuerzos-en-dashboard-y-desempeno",
+    fecha: "2026-10-20",
+    titulo: "Ahora se ve cuánto y cuándo almuerza cada quien",
+    queMejoro:
+      "El Dashboard tiene una pestaña nueva, «Jornada», junto a «Hoy» y «Tendencias»: muestra por sede el día de cada persona, " +
+      "con la hora de entrada, cuándo salió a almorzar, cuánto fue y si sigue almorzando. Se ve como línea del día o como tabla, " +
+      "y arriba avisa quién está almorzando ahora. CCO y Desarrollo Organizacional van aparte, por área.\n\n" +
+      "En Desempeño, al abrir a una persona, la tabla de días tiene la columna «Almuerzo» y las barras de «Horas por día» llevan " +
+      "una franja de rayitas a la altura en que salió a almorzar. Hasta hoy eso solo se veía abriendo Correcciones.",
+    audiencia: "panel",
+  },
+  {
     id: "2026-10-20-cobertura-suma-por-area-y-la-prueba-no",
     fecha: "2026-10-20",
     titulo: "La cobertura suma por área; quien está de prueba, todavía no",
