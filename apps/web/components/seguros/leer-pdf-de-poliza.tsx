@@ -47,6 +47,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ClienteCayla } from "@cayla-dynamic/database";
 import { Boton } from "@/components/ui/boton";
 import { Campo, CampoCasilla, CampoSelect } from "@/components/ui/campo";
+import { BuscadorPersona } from "@/components/ui/buscador-persona";
 import { cx } from "@/components/ui/cx";
 import { Insignia } from "@/components/ui/insignia";
 import { Modal } from "@/components/ui/modal";
@@ -466,10 +467,14 @@ function TarjetaDePdf({
       {!registrada && !yaEsta && (
         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
-            <CampoSelect etiqueta="A quién asegura" value={t.personaId} disabled={sinEditar} onChange={(ev) => onCambio({ personaId: ev.target.value })}>
-              <option value="">{producto || candidatas.length > 0 ? "Elige a la persona" : "Elige primero el seguro"}</option>
-              {candidatas.map((p) => <option key={p.id} value={p.id}>{p.nombre} · {p.sede}</option>)}
-            </CampoSelect>
+            <BuscadorPersona
+              etiqueta="A quién asegura"
+              opciones={candidatas.map((p) => ({ id: p.id, nombre: p.nombre, sede: p.sede }))}
+              value={t.personaId}
+              disabled={sinEditar}
+              placeholder={producto || candidatas.length > 0 ? "Escribe un nombre…" : "Elige primero el seguro"}
+              onChange={(id) => onCambio({ personaId: id })}
+            />
             {cotejo === "coincide" && <span className="mt-1 block text-xs text-verde">✓ El documento del papel es el de su ficha.</span>}
             {/* Marcada, el rechazo sale en rojo al pie de la tarjeta (es lo que impide registrar); sin marcar, aquí está el porqué. */}
             {cotejo === "distinto" && !t.incluir && (

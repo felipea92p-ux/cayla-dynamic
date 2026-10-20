@@ -29,7 +29,7 @@ import { Fila, Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
 import { RANGOS, RANGO_LABEL, baseDeclaradaDe, formatSoles } from "@/lib/rangos";
-import { type Area, AREA_DEFAULT, AREAS_FALLBACK, parseAreas, areaCorto, esOperativaEn } from "@/lib/areas";
+import { type Area, AREA_DEFAULT, AREAS_FALLBACK, parseAreas, areaCorto } from "@/lib/areas";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { montoAsignacionFamiliar, type MontoAsignacionFamiliar } from "@/lib/admin/asignacion-familiar-monto";
 import { listarPendientesPorPersona } from "@/lib/admin/bandeja-equipo";
@@ -38,6 +38,7 @@ import {
   MOTIVOS_CESE, MOTIVO_CESE_LABELS, etiquetaDeCatalogo, type MotivoCese, type Rol,
   avisoDocumentoEnNombre, puedeMarcarCuentaDeServicio,
   TIPOS_DOCUMENTO, TIPO_DOCUMENTO_LABEL, AYUDA_DOCUMENTO, errorDeDocumento, normalizarDocumento, type TipoDocumento,
+  estaDePrueba,
 } from "@cayla-dynamic/shared";
 
 const ROLES_OPCIONES = [
@@ -585,7 +586,7 @@ export default function EquipoPage() {
         <div className="text-xs text-taupe">
           {cargo} · {areaCorto(areas, p.funcion)}
           {/* Central y administración no cuentan para la cobertura de una tienda: un hecho neutro, no un aviso. */}
-          {!esOperativaEn(areas, p.funcion) && <span className="ml-1.5"><Insignia variante="informativo" tamano="sm" punto={false}>no suma cobertura</Insignia></span>}
+          {estaDePrueba(p.tipo_vinculo) && <span className="ml-1.5"><Insignia variante="informativo" tamano="sm" punto={false}>de prueba · no suma cobertura</Insignia></span>}
         </div>
         {p.email && <div className="truncate text-xs text-taupe">{p.email}</div>}
       </>

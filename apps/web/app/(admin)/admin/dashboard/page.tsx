@@ -19,6 +19,7 @@ import { RotuloEstado } from "@/components/ui/rotulo";
 import { PanelRightOpen, TriangleAlert, X } from "lucide-react";
 import { Pestanas } from "@/components/ui/pestanas";
 import { PanelTendencias } from "@/components/tendencias/panel-tendencias";
+import { PanelJornada } from "@/components/jornada/panel-jornada";
 import { BotonIcono } from "@/components/ui/boton-icono";
 import { Filtro } from "@/components/ui/filtro";
 import { TarjetaInfo } from "@/components/ui/tarjeta-info";
@@ -411,7 +412,7 @@ export default function DashboardPage() {
   const [metasPorSede, setMetasPorSede] = useState<Map<string, MetaSede>>(new Map());
   const [actualizado, setActualizado] = useState<string>("");
   const [cargando, setCargando] = useState(true);
-  const [vistaDash, setVistaDash] = useState<"hoy" | "tendencias">("hoy");
+  const [vistaDash, setVistaDash] = useState<"hoy" | "jornada" | "tendencias">("hoy");
   const [error, setError] = useState<string | null>(null);
   const [discTard, setDiscTard] = useState<TardRow[]>([]);
   const [discFaltas, setDiscFaltas] = useState<FaltaRow[]>([]);
@@ -1151,13 +1152,15 @@ export default function DashboardPage() {
             su pestaña, y no entra en ese refresco. */}
         <Pestanas
           etiqueta="Secciones del Dashboard"
-          pestanas={[{ clave: "hoy", texto: "Hoy" }, { clave: "tendencias", texto: "Tendencias" }] as const}
+          pestanas={[{ clave: "hoy", texto: "Hoy" }, { clave: "jornada", texto: "Jornada" }, { clave: "tendencias", texto: "Tendencias" }] as const}
           activa={vistaDash}
           alElegir={setVistaDash}
         />
 
         {vistaDash === "tendencias" ? (
           <PanelTendencias rol={yo?.rol ?? null} sedes={sedesDeAlcance.map((s) => ({ codigo: s.codigo, nombre: s.etiqueta.texto }))} />
+        ) : vistaDash === "jornada" ? (
+          <PanelJornada sedes={sedesDeAlcance.map((s) => ({ codigo: s.codigo, nombre: s.etiqueta.texto }))} />
         ) : (
           <>
         {error && (

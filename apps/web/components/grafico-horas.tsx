@@ -2,11 +2,18 @@
 
 // Gráfico de barras de horas por día — marca CAYLA (SVG puro, sin librerías).
 // Verde para días normales, rojo para días con incidencia; línea de meta punteada.
+//
+// EL ALMUERZO (2026-10-20): la barra sigue midiendo HORAS TRABAJADAS y sigue siendo UNA sola pieza —mismo color, misma silueta—.
+// El momento en que salió a almorzar se ve como una franja de rayitas claras DENTRO de la barra, a la altura de lo que había
+// trabajado hasta entonces; con el cursor encima dice la hora de salida, la de vuelta y cuánto fue. No parte la barra en dos:
+// partirla en dos colores se leía como dos días distintos.
 
 export interface DiaGrafico {
   fecha: string; // YYYY-MM-DD
   horas: number;
   problema?: boolean; // tardanza / auto-cierre / sin salida
+  /** Cuándo salió a almorzar, si hay marcas. `antesHoras` = horas trabajadas hasta salir. */
+  almuerzo?: { antesHoras: number; texto: string; largo: boolean };
 }
 
 function diaCorto(fecha: string): string {
@@ -40,6 +47,12 @@ export function GraficoHoras({ dias, meta = 7.5 }: { dias: DiaGrafico[]; meta?: 
   return (
     <div className="overflow-x-auto">
       <svg width={W} height={H} className="min-w-full" role="img" aria-label="Horas por día">
+        <defs>
+          {/* Rayitas claras sobre la barra: se ven sobre verde y sobre rojo sin cambiar el color de la barra. */}
+          <pattern id="rayas-almuerzo" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+            <rect width="3" height="6" fill="var(--color-crema)" opacity={0.7} />
+          </pattern>
+        </defs>
         {/* líneas guía + eje Y */}
         {ticks.map((t) => (
           <g key={t}>
@@ -77,6 +90,15 @@ export function GraficoHoras({ dias, meta = 7.5 }: { dias: DiaGrafico[]; meta?: 
             <g key={d.fecha}>
               {d.horas > 0 && (
                 <rect x={x} y={y(d.horas)} width={anchoBarra} height={altoBarra} rx={3} fill={color} />
+              )}
+              {d.horas > 0 && d.almuerzo && d.almuerzo.antesHoras > 0 && d.almuerzo.antesHoras < d.horas && (
+                <g>
+                  <rect x={x} y={y(d.almuerzo.antesHoras) - 3} width={anchoBarra} height={6} fill="url(#rayas-almuerzo)" />
+                  {/* El área sensible es más alta que la franja, para poder apuntarle con el cursor. */}
+                  <rect x={x} y={y(d.almuerzo.antesHoras) - 7} width={anchoBarra} height={14} fill="transparent">
+                    <title>{d.almuerzo.texto}</title>
+                  </rect>
+                </g>
               )}
               <text
                 x={x + anchoBarra / 2}

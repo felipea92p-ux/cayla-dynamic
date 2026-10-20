@@ -115,6 +115,39 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-10-20-costos-con-graficos-y-mas-ancho",
+    fecha: "2026-10-20",
+    titulo: "Costos del equipo ocupa toda la pantalla y trae gráficos",
+    queMejoro:
+      "Las tablas de Costos ya no se quedan en una columna angosta: usan el ancho disponible y, a la derecha, hay tres gráficos " +
+      "—el costo real de cada periodo (lo que se transfirió y las provisiones), dónde va el costo entre tiendas, taller y central, " +
+      "y el costo por hora de cada sede—. En una pantalla estrecha los gráficos bajan debajo de las tablas.",
+    audiencia: "panel",
+  },
+  {
+    id: "2026-10-20-almuerzos-en-dashboard-y-desempeno",
+    fecha: "2026-10-20",
+    titulo: "Ahora se ve cuánto y cuándo almuerza cada quien",
+    queMejoro:
+      "El Dashboard tiene una pestaña nueva, «Jornada», junto a «Hoy» y «Tendencias»: muestra por sede el día de cada persona, " +
+      "con la hora de entrada, cuándo salió a almorzar, cuánto fue y si sigue almorzando. Se ve como línea del día o como tabla, " +
+      "y arriba avisa quién está almorzando ahora. CCO y Desarrollo Organizacional van aparte, por área.\n\n" +
+      "En Desempeño, al abrir a una persona, la tabla de días tiene la columna «Almuerzo» y las barras de «Horas por día» llevan " +
+      "una franja de rayitas a la altura en que salió a almorzar. Hasta hoy eso solo se veía abriendo Correcciones.",
+    audiencia: "panel",
+  },
+  {
+    id: "2026-10-20-cobertura-suma-por-area-y-la-prueba-no",
+    fecha: "2026-10-20",
+    titulo: "La cobertura suma por área; quien está de prueba, todavía no",
+    queMejoro:
+      "Para la cobertura de una sede cuenta quien trabaja en un área operativa, sea practicante o tenga el cargo que tenga. " +
+      "Quien está haciendo su prueba no suma hasta que deje de estarlo, y en Equipo lleva la etiqueta «de prueba · no suma cobertura». " +
+      "Ya no aparece esa etiqueta en el resto de las personas.\n\n" +
+      "Qué áreas cuentan se marca en Áreas: si el equipo de una oficina no suma, revisa que su área esté marcada como operativa.",
+    audiencia: "panel",
+  },
+  {
     id: "2026-10-20-correcciones-historial-completo-y-dia-a-dia",
     fecha: "2026-10-20",
     titulo: "Correcciones: el historial muestra también las tardanzas levantadas",

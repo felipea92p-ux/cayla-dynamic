@@ -30,6 +30,10 @@ import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Cargando } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
+import { BotonIcono } from "@/components/ui/boton-icono";
+import { useSedesPorId } from "@/lib/admin/use-sedes";
+import { BuscadorPersona, type OpcionBuscador } from "@/components/ui/buscador-persona";
+import { Ban, CalendarDays, List } from "lucide-react";
 import { AyudaPantalla } from "@/components/ui/ayuda-pantalla";
 import { BannerAviso } from "@/components/ui/banner-aviso";
 import { TarjetaInfo } from "@/components/ui/tarjeta-info";
@@ -38,7 +42,6 @@ import { Tabla, TablaEncabezado, Th, Fila } from "@/components/ui/tabla";
 import { Campo, CampoSelect } from "@/components/ui/campo";
 import { AreaTexto } from "@/components/ui/area-texto";
 import { Modal } from "@/components/ui/modal";
-import { Filtro } from "@/components/ui/filtro";
 import { Menu, MenuItem } from "@/components/ui/menu";
 import { ParaAtender } from "@/components/ui/para-atender";
 import { Pestanas } from "@/components/ui/pestanas";
@@ -134,7 +137,7 @@ type FiltroEstado = "todas" | "pendientes" | "vigentes" | "anuladas";
 type FiltroPersonaEstado = "activos" | "cesados";
 interface PersonaFacts { fechaCese: string | null; liquidada: boolean }
 
-interface Persona { id: string; nombres: string; apellidos: string }
+interface Persona { id: string; nombres: string; apellidos: string; sede_base_id: string | null }
 interface Tipo {
   codigo: string; nombre: string; paga: boolean;
   requiere_documento: boolean; requiere_aprobacion: boolean;
@@ -211,6 +214,8 @@ export default function AusenciasPage() {
   const supabase = useMemo(() => createAdminSupabaseClient(), []);
 
   const [personas, setPersonas] = useState<Persona[]>([]);
+  // Nombre de cada sede, para las fichas del buscador. Si no llega, el buscador sigue sirviendo, solo sin fichas.
+  const sedePorId = useSedesPorId();
   const [tipos, setTipos] = useState<Tipo[]>([]);
   const [lista, setLista] = useState<Ausencia[]>([]);
   const [alertas, setAlertas] = useState<Alerta[]>([]);
@@ -418,7 +423,7 @@ export default function AusenciasPage() {
     const { data: sesion } = await supabase.auth.getSession();
     if (!sesion.session) { router.replace("/admin/login"); return; }
     const [{ data: p, error: eP }, { data: t }, { data: a, error: eA }, { data: al, error: eAl }, { data: sub, error: eSub }, { data: pv, error: ePv }, { data: pf }] = await Promise.all([
-      supabase.from("personas").select("id, nombres, apellidos").eq("estado", "activo").eq("cuenta_de_servicio", false).order("nombres"),
+      supabase.from("personas").select("id, nombres, apellidos, sede_base_id").eq("estado", "activo").eq("cuenta_de_servicio", false).order("nombres"),
       supabase.rpc("fn_tipos_ausencia"),
       supabase.rpc("fn_ausencias", { p_desde: desde, p_hasta: hasta }),
       supabase.rpc("fn_ausencias_alerta", {}),
@@ -772,16 +777,31 @@ export default function AusenciasPage() {
   // dentro de la confirmación de pago (esa no repite el formulario, solo lo
   // resume; ver más abajo). Separado en función para no duplicar el JSX entre
   // el modal normal y cualquier reapertura tras cancelar la confirmación.
+  // Qué hay en el menú «•••» de una fila. Con UNA sola opción real —casi siempre «Anular»— el menú es un
+  // clic de más: se dibuja esa opción como un ícono. Con dos o más, o cuando lo único que hay es el aviso
+  // «la aprobó DO» (que es texto y no una acción), sigue el menú.
+  const extrasDeFila = (a: Ausencia) => {
+    const verDoc = esDO && esPendiente(a) && Boolean(certificados[a.id]);
+    const adjuntar = esDO && esPendiente(a) && !certificados[a.id] && puedeAdjuntar(a);
+    const anularBloqueada = a.requiere_aprobacion && a.aprobada && !esDO;
+    return { verDoc, adjuntar, anularBloqueada, soloAnular: !verDoc && !adjuntar && !anularBloqueada };
+  };
+  const opcionesPersona: OpcionBuscador[] = personas.map((p) => ({
+    id: p.id,
+    nombre: `${p.nombres} ${p.apellidos}`,
+    sede: p.sede_base_id ? sedePorId.get(p.sede_base_id) ?? null : null,
+  }));
   const formularioContenido = (
     <div className="grid gap-3 sm:grid-cols-2">
-      <CampoSelect
-        etiqueta="Persona"
-        value={personaId}
-        onChange={(e) => { setPersonaId(e.target.value); void revisarCruceMarcaje(e.target.value, inicio, fin); }}
-      >
-        <option value="">Elegir…</option>
-        {personas.map((p) => (<option key={p.id} value={p.id}>{p.nombres} {p.apellidos}</option>))}
-      </CampoSelect>
+      {/* Sede en fichas y búsqueda que va acortando la lista: con 30 personas, un desplegable obliga a
+          recorrerlas todas. Las sedes se leen de la tabla (nunca una lista a mano). */}
+      <div className="sm:col-span-2">
+        <BuscadorPersona
+          opciones={opcionesPersona}
+          value={personaId}
+          onChange={(id) => { setPersonaId(id); void revisarCruceMarcaje(id, inicio, fin); }}
+        />
+      </div>
       {/* Tipo NACE VACÍO a propósito. Antes se rellenaba solo con el primer
           tipo del catálogo ("Vacaciones") y la comprobación de más abajo
           nunca podía avisar — el motivo real de este "Elegir…" está en
@@ -796,6 +816,15 @@ export default function AusenciasPage() {
             </option>
           );
         })}
+      </CampoSelect>
+      {/* Tipo y motivo van juntos (qué ausencia es y de qué se trata), y las dos fechas juntas debajo. */}
+      <CampoSelect
+        etiqueta="Motivo — de qué se trata"
+        value={motivoEtiqueta}
+        onChange={(e) => setMotivoEtiqueta(e.target.value)}
+      >
+        <option value="">Elegir…</option>
+        {MOTIVO_ETIQUETAS.map((m) => (<option key={m} value={m}>{m}</option>))}
       </CampoSelect>
       <Campo
         etiqueta="Desde"
@@ -832,14 +861,6 @@ export default function AusenciasPage() {
         </p>
       )}
 
-      <CampoSelect
-        etiqueta="Motivo — de qué se trata"
-        value={motivoEtiqueta}
-        onChange={(e) => setMotivoEtiqueta(e.target.value)}
-      >
-        <option value="">Elegir…</option>
-        {MOTIVO_ETIQUETAS.map((m) => (<option key={m} value={m}>{m}</option>))}
-      </CampoSelect>
       <div className="sm:col-span-2">
         <AreaTexto
           etiqueta="Detalle (opcional — lo que se conversó; queda en su historial)"
@@ -1096,8 +1117,8 @@ export default function AusenciasPage() {
             </Boton>
           )}
           <div className="ml-auto flex gap-1" role="group" aria-label="Cómo ver las ausencias">
-            <Filtro tamano="sm" activo={vista === "lista"} onClick={() => setVista("lista")}>Lista</Filtro>
-            <Filtro tamano="sm" activo={vista === "calendario"} onClick={() => setVista("calendario")}>Calendario</Filtro>
+            <BotonIcono tamano="md" etiqueta="Ver como lista" icono={<List aria-hidden />} activo={vista === "lista"} onClick={() => setVista("lista")} />
+            <BotonIcono tamano="md" etiqueta="Ver como calendario" icono={<CalendarDays aria-hidden />} activo={vista === "calendario"} onClick={() => setVista("calendario")} />
           </div>
         </div>
 
@@ -1224,7 +1245,17 @@ export default function AusenciasPage() {
                             {adjuntando === a.id ? `Subiendo… ${progreso ?? 0}%` : "Adjuntar documento"}
                           </Boton>
                         ) : null}
-                        {!a.anulada && (
+                        {!a.anulada && extrasDeFila(a).soloAnular && (
+                          <BotonIcono
+                            tamano="md"
+                            etiqueta={`Anular ausencia de ${a.nombre}`}
+                            icono={<Ban aria-hidden />}
+                            className="hover:border-rojo hover:text-rojo-profundo"
+                            onClick={() => pedirAnular(a)}
+                            disabled={guardando}
+                          />
+                        )}
+                        {!a.anulada && !extrasDeFila(a).soloAnular && (
                           <Menu alinear="derecha" trigger={({ abierto, alternar }) => (
                             <Boton variante="sutil" tamano="sm" onClick={alternar}
                               aria-haspopup="menu" aria-expanded={abierto} aria-label={`Más acciones para ${a.nombre}`}>

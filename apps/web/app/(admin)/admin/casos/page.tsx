@@ -13,6 +13,7 @@ import { Insignia } from "@/components/ui/insignia";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
 import { BannerAviso } from "@/components/ui/banner-aviso";
 import { Campo, CampoSelect } from "@/components/ui/campo";
+import { BuscadorPersona } from "@/components/ui/buscador-persona";
 import { Filtro } from "@/components/ui/filtro";
 import { Fila, Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
 import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
@@ -298,10 +299,13 @@ function SeccionOrganos({ organos, puedeNombrar, alGuardar }: {
             <option value="">Elige la sede</option>
             {sedes.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
           </CampoSelect>
-          <CampoSelect etiqueta="Persona" value={persona} onChange={(e) => setPersona(e.target.value)}>
-            <option value="">Elige a la persona</option>
-            {padron.map((p) => <option key={p.id} value={p.id}>{p.nombre}{p.sede_codigo ? ` · ${p.sede_codigo}` : ""}</option>)}
-          </CampoSelect>
+          <div className="sm:col-span-2">
+            <BuscadorPersona
+              opciones={padron.map((p) => ({ id: p.id, nombre: p.nombre, sede: p.sede_codigo }))}
+              value={persona}
+              onChange={setPersona}
+            />
+          </div>
           <CampoSelect etiqueta="Papel" value={papel} onChange={(e) => setPapel(e.target.value)}>
             <option value="designada">Designada (transitoria)</option>
             <option value="delegada">Delegada elegida</option>

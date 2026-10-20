@@ -20,7 +20,7 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
-import { puedeGestionarBoletas } from "@cayla-dynamic/shared";
+import { hoyLima, puedeGestionarBoletas } from "@cayla-dynamic/shared";
 import { Cargando, SinDatos } from "@/components/cargando";
 import { useToast } from "@/components/toast";
 import { Boton } from "@/components/ui/boton";
@@ -42,7 +42,7 @@ import { ModalVerBoleta } from "@/components/boletas/modal-ver-boleta";
 import { TACTIL } from "@/components/boletas/pie-de-modal";
 import { ETIQUETA_ESTADO, contarTablero, estadoVisible, type EstadoVisible, type TipoBoleta } from "@/lib/boletas";
 import {
-  ESTADOS_DEL_FILTRO, accionesDeFila, borradoresDelTablero, etiquetaDePeriodo, filtrarTablero, nombreDePeriodo,
+  ESTADOS_DEL_FILTRO, accionesDeFila, borradoresDelTablero, diasDesdeElPago, etiquetaDePeriodo, filtrarTablero, nombreDePeriodo,
   periodoInicial, sedesDelTablero, type FilaTablero,
 } from "@/lib/admin/boletas-pantalla";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
@@ -123,6 +123,7 @@ function PantallaBoletas() {
   }
 
   const periodoActual = periodos?.find((p) => p.id === periodoId) ?? null;
+  const diasPago = periodoActual?.estado === "pagado" ? diasDesdeElPago(periodoActual.pagado_at, hoyLima()) : null;
   const nombreDelPeriodo = periodoActual ? nombreDePeriodo(periodoActual) : "";
 
   const contadores = useMemo(() => (filas ? contarTablero(filas) : null), [filas]);
@@ -280,7 +281,11 @@ function PantallaBoletas() {
                     </div>
                     <span className="flex flex-wrap items-center gap-2">
                       {contadores.sinPublicar > 0 && <Insignia variante="informativo">{contadores.sinPublicar} sin publicar</Insignia>}
-                      {contadores.faltan > 0 && <Insignia variante="advertencia">{contadores.faltan} faltan por subir</Insignia>}
+                      {/* Con el pago ya hecho, una boleta que falta se DEBE: sale en rojo y dice hace cuántos días se pagó. Antes de pagar, es solo
+                          lo que falta (ámbar). */}
+                      {contadores.faltan > 0 && (diasPago !== null
+                        ? <Insignia variante="alerta">{contadores.faltan} faltan por subir · se pagó {diasPago === 0 ? "hoy" : diasPago === 1 ? "hace 1 día" : `hace ${diasPago} días`}</Insignia>
+                        : <Insignia variante="advertencia">{contadores.faltan} faltan por subir</Insignia>)}
                       {contadores.sinPublicar === 0 && contadores.faltan === 0 && <span className="text-sm text-verde">Nada pendiente</span>}
                       <span className="text-xs text-taupe">{contadores.firmadas} firmaron</span>
                     </span>

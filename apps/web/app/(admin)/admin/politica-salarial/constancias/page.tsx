@@ -239,7 +239,7 @@ function ConstanciasPoliticaSalarialContenido() {
   const esVigente = versionesDisponibles.length === 0 || version === versionesDisponibles[0];
 
   return (
-    <main className="hoja mx-auto max-w-4xl p-6 print:max-w-none print:p-0">
+    <main className="hoja w-full p-6 print:max-w-none print:p-0">
       <div className="print:hidden">
         {esDO && <SubnavPoliticaSalarial />}
         {versionesDisponibles.length > 1 && (

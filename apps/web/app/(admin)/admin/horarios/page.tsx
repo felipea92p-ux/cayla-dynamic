@@ -18,6 +18,7 @@ import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
 import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
 import { Filtro } from "@/components/ui/filtro";
 import { Campo, CampoSelect, CampoCasilla } from "@/components/ui/campo";
+import { BuscadorPersona } from "@/components/ui/buscador-persona";
 import { AreaTexto } from "@/components/ui/area-texto";
 import { Tabla, TablaEncabezado, Th, Fila } from "@/components/ui/tabla";
 import { Insignia } from "@/components/ui/insignia";
@@ -1128,14 +1129,14 @@ export default function HorariosPage() {
 
           <div className="grid grid-cols-1 gap-3">
             <Campo etiqueta="Vigente desde" type="date" min={hoy} value={desde} onChange={(e) => setDesde(e.target.value)} />
-            <CampoSelect etiqueta="Copiar horario de →" value={copiarDeId} onChange={(e) => copiarDe(e.target.value)}>
-              <option value="">(elegir a alguien)</option>
-              {editables
+            <BuscadorPersona
+              etiqueta="Copiar horario de →"
+              opciones={editables
                 .filter((x) => x.id !== editando?.id && horarios.has(x.id))
-                .map((x) => (
-                  <option key={x.id} value={x.id}>{x.nombres} {x.apellidos}</option>
-                ))}
-            </CampoSelect>
+                .map((x) => ({ id: x.id, nombre: `${x.nombres} ${x.apellidos}`, sede: sedes[x.sede_base_id] ?? null }))}
+              value={copiarDeId}
+              onChange={copiarDe}
+            />
           </div>
 
           <p className="mt-2 text-xs text-taupe">

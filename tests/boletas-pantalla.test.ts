@@ -8,7 +8,7 @@
 // ============================================================================
 import { describe, it, expect } from "vitest";
 import {
-  accionesDeFila, borradoresDelTablero, casillaAvisar, fechaHoraLima, filtrarTablero,
+  accionesDeFila, borradoresDelTablero, casillaAvisar, diasDesdeElPago, fechaHoraLima, filtrarTablero,
   nombreDePeriodo, periodoInicial, resumenDelDocumento, sedesDelTablero, type FilaTablero,
 } from "@/lib/admin/boletas-pantalla";
 import { cambiosEntreVersiones } from "@/lib/boletas";
@@ -178,5 +178,20 @@ describe("periodos y fechas", () => {
     expect(resumenDelDocumento({ tipo: "imagen", n_partes: 3, bytes: 1_572_864 })).toBe("3 fotos · 1.5 MB");
     expect(resumenDelDocumento({ tipo: "pdf", n_partes: 1, bytes: 245_760 })).toBe("1 PDF · 240 KB");
     expect(resumenDelDocumento({ tipo: null, n_partes: 0, bytes: 0 })).toBeNull();
+  });
+});
+
+describe("diasDesdeElPago", () => {
+  it("cuenta días de Lima desde el pago", () => {
+    expect(diasDesdeElPago("2026-09-29T20:00:00+00:00", "2026-10-20")).toBe(21);
+    expect(diasDesdeElPago("2026-10-20T15:00:00+00:00", "2026-10-20")).toBe(0);
+  });
+  it("un pago de la noche de Lima cae en el día de Lima, no en el de UTC", () => {
+    // 22:00 en Lima del 19 = 03:00 UTC del 20.
+    expect(diasDesdeElPago("2026-10-20T03:00:00+00:00", "2026-10-20")).toBe(1);
+  });
+  it("sin fecha de pago no hay «vencido»", () => {
+    expect(diasDesdeElPago(null, "2026-10-20")).toBeNull();
+    expect(diasDesdeElPago(undefined, "2026-10-20")).toBeNull();
   });
 });

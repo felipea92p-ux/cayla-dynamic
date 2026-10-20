@@ -129,7 +129,7 @@ export default function CategoriasPoliticaSalarialPage() {
   const fueraDeOrden = cuadro ? categoriasFueraDeOrden(cuadro.categorias) : [];
 
   return (
-    <main className="mx-auto max-w-4xl px-4 py-8">
+    <main className="w-full px-6 py-8">
       <CabeceraPagina titulo="Categorías" descripcion="Propósito, funciones, requisitos, criterio y monto declarado de cada categoría." />
       <SubnavPoliticaSalarial />
 

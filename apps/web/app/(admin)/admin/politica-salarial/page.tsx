@@ -468,7 +468,7 @@ export default function PoliticaSalarialPage() {
   if (cargando) return <Cargando />;
 
   return (
-    <main className="mx-auto max-w-5xl px-4 pb-8 pt-6 print:max-w-none print:p-0">
+    <main className="w-full px-6 pb-8 pt-6 print:max-w-none print:p-0">
       <div className="print:hidden">
         <CabeceraPagina
           titulo="Política salarial"

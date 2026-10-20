@@ -24,6 +24,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { cx } from "@/components/ui/cx";
 import { Check, ChevronDown, ChevronUp, MoreHorizontal, ReceiptText, Search } from "lucide-react";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import {
@@ -883,26 +884,9 @@ export default function PlanillaPage() {
                   )}
                 </span>
               </TarjetaInfo>
-              {/* Estado de pago por grupo: en la base cada grupo se paga por su cuenta (0323), y en producción son cuatro
-                  (Planilla, Practicantes, Prueba, Honorarios). Es lo primero que se mira al cerrar el mes. */}
-              {grupos && (
-                <ul className="flex flex-wrap gap-2 text-xs" aria-label="Estado de pago por grupo">
-                  {grupos.filter((g) => g.personas > 0).map((g) => (
-                    <li key={g.grupo}>
-                      <button
-                        type="button"
-                        onClick={() => setTablaTab(g.grupo)}
-                        className="inline-flex items-center gap-1.5 rounded-pildora border border-sand bg-papel px-2.5 py-1 hover:bg-sand/40"
-                      >
-                        <span className="font-medium text-tinta">{TIPO_VINCULO_LABEL[g.grupo]}</span>
-                        {g.estado === "pagado"
-                          ? <span className="inline-flex items-center gap-1 text-verde"><Check size={12} aria-hidden />pagado{g.pagado_at ? ` ${fechaLargaLima(g.pagado_at)}` : ""}</span>
-                          : <span className="text-taupe">pendiente</span>}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
+              {/* (Aquí había una fila de pastillas «Planilla pendiente · Prueba pendiente» que hacía lo mismo que las pestañas de abajo:
+                  cambiar de grupo. Se quitó el 2026-10-20: el estado de pago de cada grupo ya está en su pestaña —con la palomita
+                  cuando está pagado— y, escrito completo con fecha y quién, en la barra bajo la pestaña.) */}
               {/* El contexto del periodo, en una línea gris: lo que antes eran tres cifras y una nota. */}
               <p className="text-xs text-taupe">
                 {totalesPeriodo.personas} {totalesPeriodo.personas === 1 ? "persona" : "personas"}
@@ -955,29 +939,36 @@ export default function PlanillaPage() {
 
               {/* ── Pestañas por grupo, con conteos del periodo completo ─── */}
               <div>
-                <div role="tablist" aria-label="Grupos del periodo" className="flex flex-wrap gap-1 border-b border-sand">
+                {/* Las pastillas SON el selector de grupo (2026-10-20, decidido con Felipe): cada una dice cuántas personas tiene el grupo y
+                    si ya se pagó —con la fecha— o sigue pendiente. Antes eran dos controles que hacían lo mismo: estas pastillas y unas
+                    pestañas debajo. */}
+                <div role="group" aria-label="Grupos del periodo" className="mb-3 flex flex-wrap gap-2">
                   {tabsVisibles.map((g) => {
-                    const pagadoG = grupos?.find((x) => x.grupo === g)?.estado === "pagado";
+                    const est = grupos?.find((x) => x.grupo === g);
+                    const pagadoG = est?.estado === "pagado";
+                    const activo = tab === g;
                     return (
                       <button
                         key={g}
                         type="button"
-                        role="tab"
-                        aria-selected={tab === g}
+                        aria-pressed={activo}
                         onClick={() => setTablaTab(g)}
-                        className={`inline-flex items-center gap-1.5 rounded-t-control px-4 py-2 text-sm font-medium ${
-                          tab === g ? "border border-b-0 border-sand bg-papel text-tinta" : "text-taupe hover:text-tinta"
-                        }`}
+                        className={cx(
+                          "inline-flex items-center gap-1.5 rounded-pildora border px-3 py-1.5 text-sm transition-colors duration-150",
+                          activo ? "border-tinta bg-tinta text-crema" : "border-sand bg-papel hover:bg-sand/40",
+                        )}
                       >
-                        {TIPO_VINCULO_LABEL[g]} ({porGrupo.get(g)?.length ?? 0})
-                        {pagadoG && <Check size={14} className="text-verde" aria-label="pagado" />}
+                        <span className={cx("font-medium", activo ? "text-crema" : "text-tinta")}>{TIPO_VINCULO_LABEL[g]} ({porGrupo.get(g)?.length ?? 0})</span>
+                        {pagadoG
+                          ? <span className={cx("inline-flex items-center gap-1 text-xs", activo ? "text-crema/90" : "text-verde")}><Check size={12} aria-hidden />pagado{est?.pagado_at ? ` ${fechaLargaLima(est.pagado_at)}` : ""}</span>
+                          : <span className={cx("text-xs", activo ? "text-crema/80" : "text-taupe")}>pendiente</span>}
                       </button>
                     );
                   })}
                 </div>
 
                 {/* ── Barra del grupo: estado, total y la acción principal ── */}
-                <div className="flex flex-wrap items-center justify-between gap-3 rounded-b-superficie border border-t-0 border-sand bg-papel px-4 py-3">
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-superficie border border-sand bg-papel px-4 py-3">
                   <div className="min-w-0 text-sm">
                     <p className="font-medium text-tinta">
                       «{TIPO_VINCULO_LABEL[tab]}» · {totalesGrupo.personas} {totalesGrupo.personas === 1 ? "persona" : "personas"} ·{" "}
