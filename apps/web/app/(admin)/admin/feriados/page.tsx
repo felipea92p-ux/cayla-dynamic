@@ -432,7 +432,6 @@ export default function FeriadosPage() {
   return (
     <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
-        <div className="mx-auto w-full max-w-5xl">
         <CabeceraPagina
           sobretitulo={sobretituloDeHoy("Pago")}
           titulo="Feriados laborados"
@@ -448,8 +447,14 @@ export default function FeriadosPage() {
           }
         />
 
+        {/* `@container`: lo que cabe lo decide el ancho de ESTA zona. Con ancho de sobra, el formulario a la izquierda y, a su
+            derecha, las actas y los descansos ya registrados; abajo, a todo el ancho, quién trabajó feriados. Con poco ancho,
+            todo en una columna, en el orden de siempre. */}
+        <div className="@container">
+          <div className="grid gap-6 @5xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] @5xl:items-start">
+            <div className="min-w-0">
         {/* Registrar por lotes */}
-        <div className="mb-6 rounded-superficie border border-sand bg-papel p-5">
+        <div className="rounded-superficie border border-sand bg-papel p-5">
           <h2 className="mb-3 text-sm font-medium">Registrar días libres a cambio</h2>
 
           {/* 1 · A quiénes */}
@@ -591,8 +596,10 @@ export default function FeriadosPage() {
           )}
         </div>
 
+            </div>
+            <div className="min-w-0 space-y-6">
         {/* Actas firmadas */}
-        <div className="mb-6 rounded-superficie border border-sand bg-papel p-5">
+        <div className="rounded-superficie border border-sand bg-papel p-5">
           <h2 className="mb-1 text-sm font-medium">Actas firmadas</h2>
           <p className="mb-3 text-xs text-taupe">
             El acuerdo se registra arriba; aquí se guarda el <strong>papel firmado</strong> que lo
@@ -677,6 +684,50 @@ export default function FeriadosPage() {
           )}
         </div>
 
+        {/* Registros existentes — incluye los de feriados futuros, que no salen arriba */}
+        <div className="overflow-hidden rounded-superficie border border-sand bg-papel">
+          <h2 className="border-b bg-sand/50 px-4 py-2 text-sm font-medium">
+            Descansos registrados {registros.length > 0 && <span className="font-normal text-taupe">· {registros.length}</span>}
+          </h2>
+          {registros.length === 0 ? (
+            <SinDatos texto="Todavía no hay descansos sustitutorios registrados." pista="Cuando alguien trabaja un feriado y se le da otro día libre a cambio, se anota acá para que quede constancia con su acta firmada." />
+          ) : (
+            <ul className="divide-y">
+              {registros.map((r) => (
+                <li key={r.id} className="px-4 py-3 text-sm">
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                    <span>
+                      <strong>{nombrePorId.get(r.persona_id) ?? "—"}</strong>{" "}
+                      <span className="text-taupe">
+                        · trabajó el {fechaCorta(r.fecha_feriado)} · libre el {fechaCorta(r.fecha_descanso_sustitutorio)}
+                      </span>{" "}
+                      <Insignia variante={varianteEstadoDescanso(r.estado)} className="ml-1">{r.estado}</Insignia>
+                    </span>
+                    <Boton variante="peligro" tamano="sm" onClick={() => quitar(r.id)} disabled={guardando}>
+                      Quitar
+                    </Boton>
+                  </div>
+                  {r.acta_ref && <p className="mt-1 text-xs text-taupe">Acta: {r.acta_ref}</p>}
+                  {/* EN ROJO, con la razón concreta. Este registro le quitó a esa
+                      persona la sobretasa del feriado —unos cien soles— a cambio
+                      de un día libre que, según lo que la base sabe hoy, no
+                      ocurrió. No se corrige solo: quitarlo le DEVUELVE la
+                      sobretasa, o sea que mueve plata, y eso lo decide una
+                      persona con el caso delante. */}
+                  {motivoPorFila.get(`${r.persona_id}|${r.fecha_feriado}`) && (
+                    <p className="mt-1 rounded-control border border-rojo/30 bg-rojo/[0.06] px-2 py-1 text-xs text-rojo">
+                      Este día no compensa: {motivoPorFila.get(`${r.persona_id}|${r.fecha_feriado}`)}.
+                      {r.estado === "OTORGADO" && " Mientras siga en OTORGADO, se le está descontando la sobretasa del feriado."}
+                    </p>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+            </div>
+          </div>
+          <div className="mt-6">
         {/* Quién trabajó feriados en el rango */}
         <div className="overflow-hidden rounded-superficie border border-sand bg-papel">
           <div className="border-b bg-sand/50 px-4 py-2">
@@ -744,47 +795,7 @@ export default function FeriadosPage() {
           )}
         </div>
 
-        {/* Registros existentes — incluye los de feriados futuros, que no salen arriba */}
-        <div className="mt-6 overflow-hidden rounded-superficie border border-sand bg-papel">
-          <h2 className="border-b bg-sand/50 px-4 py-2 text-sm font-medium">
-            Descansos registrados {registros.length > 0 && <span className="font-normal text-taupe">· {registros.length}</span>}
-          </h2>
-          {registros.length === 0 ? (
-            <SinDatos texto="Todavía no hay descansos sustitutorios registrados." pista="Cuando alguien trabaja un feriado y se le da otro día libre a cambio, se anota acá para que quede constancia con su acta firmada." />
-          ) : (
-            <ul className="divide-y">
-              {registros.map((r) => (
-                <li key={r.id} className="px-4 py-3 text-sm">
-                  <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-                    <span>
-                      <strong>{nombrePorId.get(r.persona_id) ?? "—"}</strong>{" "}
-                      <span className="text-taupe">
-                        · trabajó el {fechaCorta(r.fecha_feriado)} · libre el {fechaCorta(r.fecha_descanso_sustitutorio)}
-                      </span>{" "}
-                      <Insignia variante={varianteEstadoDescanso(r.estado)} className="ml-1">{r.estado}</Insignia>
-                    </span>
-                    <Boton variante="peligro" tamano="sm" onClick={() => quitar(r.id)} disabled={guardando}>
-                      Quitar
-                    </Boton>
-                  </div>
-                  {r.acta_ref && <p className="mt-1 text-xs text-taupe">Acta: {r.acta_ref}</p>}
-                  {/* EN ROJO, con la razón concreta. Este registro le quitó a esa
-                      persona la sobretasa del feriado —unos cien soles— a cambio
-                      de un día libre que, según lo que la base sabe hoy, no
-                      ocurrió. No se corrige solo: quitarlo le DEVUELVE la
-                      sobretasa, o sea que mueve plata, y eso lo decide una
-                      persona con el caso delante. */}
-                  {motivoPorFila.get(`${r.persona_id}|${r.fecha_feriado}`) && (
-                    <p className="mt-1 rounded-control border border-rojo/30 bg-rojo/[0.06] px-2 py-1 text-xs text-rojo">
-                      Este día no compensa: {motivoPorFila.get(`${r.persona_id}|${r.fecha_feriado}`)}.
-                      {r.estado === "OTORGADO" && " Mientras siga en OTORGADO, se le está descontando la sobretasa del feriado."}
-                    </p>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+          </div>
         </div>
       </main>
     </div>
