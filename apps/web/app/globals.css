@@ -1017,6 +1017,11 @@
     box-shadow: 0 10px 28px rgb(0 0 0 / 0.14);
     font-family: var(--font-sans);
     font-size: 0.875rem;
+    /* La barra de la lista: la misma taupe translúcida que la del resto del panel. Las reglas
+       `::-webkit-scrollbar` de arriba no llegan aquí —la lista es otro árbol—, así que se dice con
+       las propiedades estándar, que sí. */
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklab, var(--color-taupe) 35%, transparent) transparent;
   }
   select option {
     display: flex;
