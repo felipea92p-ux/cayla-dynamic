@@ -19,6 +19,8 @@ import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
 import { useToast } from "@/components/toast";
 import { Boton } from "@/components/ui/boton";
+import { BotonIcono } from "@/components/ui/boton-icono";
+import { addDias } from "@/lib/admin/incidencias";
 import { AyudaPantalla } from "@/components/ui/ayuda-pantalla";
 import { BannerAviso } from "@/components/ui/banner-aviso";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
@@ -1073,15 +1075,32 @@ export default function CorreccionesPage() {
                 <h2 className="font-serif text-xl text-tinta">
                   {personaSel.nombres} {personaSel.apellidos}
                 </h2>
-                <label className="flex items-center gap-2 rounded-control border border-borde-control bg-papel px-3 py-1.5">
-                  <Calendar size={15} strokeWidth={1.8} className="text-rojo" aria-hidden />
-                  <input
-                    type="date"
-                    value={fecha}
-                    onChange={(e) => { setFecha(e.target.value); setCargado(false); }}
-                    className="bg-transparent text-sm font-medium text-tinta focus:outline-none"
+                {/* Las flechas pasan de día en día; el calendario queda para saltar de mes. */}
+                <div className="flex items-center gap-1.5">
+                  <BotonIcono
+                    tamano="md"
+                    etiqueta="Día anterior"
+                    icono={<ChevronLeft size={16} strokeWidth={1.8} aria-hidden />}
+                    onClick={() => { setFecha(addDias(fecha, -1)); setCargado(false); }}
                   />
-                </label>
+                  <BotonIcono
+                    tamano="md"
+                    etiqueta="Día siguiente"
+                    icono={<ChevronRight size={16} strokeWidth={1.8} aria-hidden />}
+                    disabled={fecha >= hoyLima()}
+                    className="disabled:cursor-not-allowed disabled:opacity-40"
+                    onClick={() => { setFecha(addDias(fecha, 1)); setCargado(false); }}
+                  />
+                  <label className="flex items-center gap-2 rounded-control border border-borde-control bg-papel px-3 py-1.5">
+                    <Calendar size={15} strokeWidth={1.8} className="text-rojo" aria-hidden />
+                    <input
+                      type="date"
+                      value={fecha}
+                      onChange={(e) => { setFecha(e.target.value); setCargado(false); }}
+                      className="bg-transparent text-sm font-medium text-tinta focus:outline-none"
+                    />
+                  </label>
+                </div>
               </div>
 
               <SemanaDePersona
