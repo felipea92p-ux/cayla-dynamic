@@ -1501,21 +1501,25 @@ function ConstanciasTab({
 
       {cargando ? <Cargando texto="Reuniendo las constancias…" /> : (
         <>
-          <p className="mb-1 text-sm text-taupe">{total} / {poblacion} recibidas</p>
-          <div className="mb-5 h-2 w-full overflow-hidden rounded-pildora bg-sand">
-            <div className="h-full bg-verde transition-[width] duration-200" style={{ width: `${pct}%` }} />
-          </div>
-
-          {porSede.length > 0 && (
-            <div className="mb-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
-              {porSede.map((s) => (
-                <div key={s.sede} className="rounded-control border border-sand bg-papel px-3 py-2">
-                  <div className="text-[11px] uppercase tracking-[0.06em] text-taupe">{s.sede}</div>
-                  <div className="font-serif text-xl font-medium tabular-nums text-tinta">{s.completas}/{s.total}</div>
-                </div>
-              ))}
+          {/* UNA línea (variante D de la maqueta, 2026-10-20): el total en grande, una barra corta y una pastilla por sede. Antes eran una barra
+              de ancho completo que repetía «17 / 17» y cuatro cajas que repetían lo mismo cuando todo estaba completo. El color de cada
+              sede dice si le falta gente: verde completa, ámbar si falta poco, rojo si falta mucho. */}
+          <div className="mb-5 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-superficie border border-sand bg-papel px-4 py-3">
+            <span className="font-serif text-2xl leading-none tabular-nums text-tinta">{total}/{poblacion}</span>
+            <span className="text-sm text-taupe">recibidas</span>
+            <div className="h-1.5 min-w-32 max-w-xs flex-1 overflow-hidden rounded-pildora bg-sand" role="progressbar" aria-valuenow={total} aria-valuemin={0} aria-valuemax={poblacion} aria-label="Constancias recibidas">
+              <div className="h-full bg-verde transition-[width] duration-200" style={{ width: `${pct}%` }} />
             </div>
-          )}
+            {porSede.length > 0 && (
+              <span className="flex flex-wrap items-center gap-1.5">
+                {porSede.map((s) => (
+                  <Insignia key={s.sede} tamano="sm" variante={s.completas === s.total ? "positivo" : s.total > 0 && s.completas / s.total >= 0.75 ? "advertencia" : "alerta"}>
+                    {s.sede} {s.completas}/{s.total}
+                  </Insignia>
+                ))}
+              </span>
+            )}
+          </div>
 
           {coberturaAnterior && docActual && (
             <div className="mb-5 flex flex-wrap gap-6">
