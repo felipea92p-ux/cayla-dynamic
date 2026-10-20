@@ -11,7 +11,7 @@ import { Insignia } from "@/components/ui/insignia";
 import { plural, type SeguroDePersona } from "@/lib/admin/seguros";
 
 /** Lo que pide una decisión o un trámite; «cubierto» y «sin póliza que registrar» no cuentan. */
-function pideAlgo(p: SeguroDePersona): boolean {
+export function pideAlgo(p: SeguroDePersona): boolean {
   return p.situacion === "hueco" || p.situacion === "suspendida" || p.situacion === "por_vencer" || p.situacion === "baja_pendiente"
     || p.cambiosPendientes.length > 0 || p.conPapeleo.length > 0;
 }

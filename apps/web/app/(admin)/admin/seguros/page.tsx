@@ -41,7 +41,7 @@ import { ArchivosPoliza, type PolizaHermana } from "@/components/seguros/archivo
 import { AyudaDeSeguros } from "@/components/seguros/ayuda-de-seguros";
 import { CambiarSeguro } from "@/components/seguros/cambiar-seguro";
 import { FichaPersona, type AccionesFicha } from "@/components/seguros/ficha-persona";
-import { GrupoDeSede } from "@/components/seguros/grupo-de-sede";
+import { GrupoDeSede, pideAlgo } from "@/components/seguros/grupo-de-sede";
 import { FormularioPoliza, type BaseDePoliza, type OpcionPersona } from "@/components/seguros/formulario-poliza";
 import { HistorialPoliza } from "@/components/seguros/historial-poliza";
 import { LeerPdfDePoliza } from "@/components/seguros/leer-pdf-de-poliza";
@@ -56,6 +56,8 @@ import { Campo } from "@/components/ui/campo";
 import { EstadoVacio } from "@/components/ui/estado-vacio";
 import { Filtro as FiltroBoton } from "@/components/ui/filtro";
 import { Modal } from "@/components/ui/modal";
+import { Pestanas } from "@/components/ui/pestanas";
+import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
 import { Rotulo } from "@/components/ui/rotulo";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { useRolActual } from "@/lib/admin/use-rol";
@@ -190,16 +192,27 @@ function Seguros() {
   const [sedeAbierta, setSedeAbierta] = useState<Record<string, boolean>>({});
   const [personaAbierta, setPersonaAbierta] = useState<Record<string, boolean>>({});
   const buscando = busqueda.trim() !== "" || filtroVigente !== null || tipoFiltro !== TODOS || soloPersona !== null;
+  // «Todas las sedes» las muestra en grupos plegables; una sede sola muestra directo a sus personas, sin bajar por las demás.
+  // Se recuerda la última vista: quien trabaja siempre con la misma sede no tiene que elegirla cada vez.
+  const [sedeVista, setSedeVista] = useFiltroGuardado<string>("seguros.sede", "todas");
+  const sedesDelEquipo = useMemo(
+    () => [...new Set(personas.map((p) => p.sede))].sort((a, b) => a.localeCompare(b, "es")),
+    [personas],
+  );
+  // Una sede recordada que ya no existe (o una persona de otra sede a la que manda la Bandeja) no deja la pantalla vacía.
+  const sedeActiva = sedeVista !== "todas" && sedesDelEquipo.includes(sedeVista) && !soloPersona ? sedeVista : "todas";
   const grupos = useMemo(() => {
     const m = new Map<string, SeguroDePersona[]>();
     for (const p of visibles) m.set(p.sede, [...(m.get(p.sede) ?? []), p]);
     return [...m.entries()].sort(([a], [b]) => a.localeCompare(b, "es"));
   }, [visibles]);
+  const deLaSede = useMemo(() => visibles.filter((p) => p.sede === sedeActiva), [visibles, sedeActiva]);
   const sedeEstaAbierta = (sede: string) => sedeAbierta[sede] ?? buscando;
   const personaEstaAbierta = (id: string) => personaAbierta[id] ?? soloPersona === id;
   const alternarSede = (sede: string) => setSedeAbierta((a) => ({ ...a, [sede]: !(a[sede] ?? buscando) }));
   const alternarPersona = (id: string) => setPersonaAbierta((a) => ({ ...a, [id]: !(a[id] ?? soloPersona === id) }));
   const abrirSedes = () => setSedeAbierta(Object.fromEntries(grupos.map(([sede]) => [sede, true])));
+  const abrirFichas = () => setPersonaAbierta(Object.fromEntries(deLaSede.map((p) => [p.personaId, true])));
   const cerrarTodo = () => {
     setSedeAbierta(Object.fromEntries(grupos.map(([sede]) => [sede, false])));
     setPersonaAbierta(Object.fromEntries(visibles.map((p) => [p.personaId, false])));
@@ -365,6 +378,20 @@ function Seguros() {
                 </div>
               )}
 
+              <Pestanas
+                etiqueta="Sede"
+                pestanas={[
+                  { clave: "todas", texto: `Todas (${personas.length})` },
+                  ...sedesDelEquipo.map((sede) => ({
+                    clave: sede,
+                    texto: sede,
+                    aviso: personas.filter((p) => p.sede === sede && pideAlgo(p)).length,
+                  })),
+                ]}
+                activa={sedeActiva}
+                alElegir={setSedeVista}
+              />
+
               <div className="mb-3 flex flex-wrap items-end gap-3">
                 <div className="min-w-44 max-w-md flex-1 basis-40">
                   <Campo etiqueta="Buscar" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Nombre, seguro, número de póliza, aseguradora o sede" />
@@ -424,10 +451,23 @@ function Seguros() {
 
               {visibles.length > 0 && (
                 <div className="mb-2 flex justify-end gap-4 text-sm">
-                  <Boton variante="enlace" onClick={abrirSedes}>Abrir las sedes</Boton>
+                  {sedeActiva === "todas"
+                    ? <Boton variante="enlace" onClick={abrirSedes}>Abrir las sedes</Boton>
+                    : <Boton variante="enlace" onClick={abrirFichas}>Abrir todas las fichas</Boton>}
                   <Boton variante="enlace" onClick={cerrarTodo}>Cerrar todo</Boton>
                 </div>
               )}
+              {sedeActiva !== "todas" ? (
+                <div className="space-y-2">
+                  {deLaSede.length === 0 && <p className="text-sm text-taupe">Nadie de {sedeActiva} coincide con ese filtro.</p>}
+                  {deLaSede.map((p) => (
+                    <FichaPersona
+                      key={p.personaId} p={p} hoy={hoy} tipos={tipos} acciones={acciones}
+                      abierta={personaEstaAbierta(p.personaId)} onAlternar={() => alternarPersona(p.personaId)}
+                    />
+                  ))}
+                </div>
+              ) : (
               <div className="space-y-3">
                 {grupos.map(([sede, gente]) => (
                   <GrupoDeSede key={sede} sede={sede} personas={gente} abierto={sedeEstaAbierta(sede)} onAlternar={() => alternarSede(sede)}>
@@ -440,6 +480,7 @@ function Seguros() {
                   </GrupoDeSede>
                 ))}
               </div>
+              )}
             </>
           )}
         </>
