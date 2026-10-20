@@ -32,7 +32,7 @@ import { Cargando } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
 import { BotonIcono } from "@/components/ui/boton-icono";
 import { BuscadorPersona, type OpcionBuscador } from "@/components/ui/buscador-persona";
-import { CalendarDays, List } from "lucide-react";
+import { Ban, CalendarDays, List } from "lucide-react";
 import { AyudaPantalla } from "@/components/ui/ayuda-pantalla";
 import { BannerAviso } from "@/components/ui/banner-aviso";
 import { TarjetaInfo } from "@/components/ui/tarjeta-info";
@@ -782,6 +782,15 @@ export default function AusenciasPage() {
   // dentro de la confirmación de pago (esa no repite el formulario, solo lo
   // resume; ver más abajo). Separado en función para no duplicar el JSX entre
   // el modal normal y cualquier reapertura tras cancelar la confirmación.
+  // Qué hay en el menú «•••» de una fila. Con UNA sola opción real —casi siempre «Anular»— el menú es un
+  // clic de más: se dibuja esa opción como un ícono. Con dos o más, o cuando lo único que hay es el aviso
+  // «la aprobó DO» (que es texto y no una acción), sigue el menú.
+  const extrasDeFila = (a: Ausencia) => {
+    const verDoc = esDO && esPendiente(a) && Boolean(certificados[a.id]);
+    const adjuntar = esDO && esPendiente(a) && !certificados[a.id] && puedeAdjuntar(a);
+    const anularBloqueada = a.requiere_aprobacion && a.aprobada && !esDO;
+    return { verDoc, adjuntar, anularBloqueada, soloAnular: !verDoc && !adjuntar && !anularBloqueada };
+  };
   const opcionesPersona: OpcionBuscador[] = personas.map((p) => ({
     id: p.id,
     nombre: `${p.nombres} ${p.apellidos}`,
@@ -1240,7 +1249,17 @@ export default function AusenciasPage() {
                             {adjuntando === a.id ? `Subiendo… ${progreso ?? 0}%` : "Adjuntar documento"}
                           </Boton>
                         ) : null}
-                        {!a.anulada && (
+                        {!a.anulada && extrasDeFila(a).soloAnular && (
+                          <BotonIcono
+                            tamano="md"
+                            etiqueta={`Anular ausencia de ${a.nombre}`}
+                            icono={<Ban aria-hidden />}
+                            className="hover:border-rojo hover:text-rojo-profundo"
+                            onClick={() => pedirAnular(a)}
+                            disabled={guardando}
+                          />
+                        )}
+                        {!a.anulada && !extrasDeFila(a).soloAnular && (
                           <Menu alinear="derecha" trigger={({ abierto, alternar }) => (
                             <Boton variante="sutil" tamano="sm" onClick={alternar}
                               aria-haspopup="menu" aria-expanded={abierto} aria-label={`Más acciones para ${a.nombre}`}>
