@@ -285,6 +285,20 @@ export function describirCambio(row: Auditoria): { accion: string; cuando: strin
   if (row.campo_modificado === "marca_apartada") {
     return { accion: "Marca apartada", cuando: diaTextoLima(row.valor_nuevo) ?? diaTextoLima(row.valor_anterior), detalle: "no se pudo registrar sola; quedó pendiente de revisión manual" };
   }
+  // Perdonar una tardanza (0541): `valor_anterior` es el DÍA perdonado (AAAA-MM-DD, una
+  // fecha y no un instante) y `valor_nuevo` el motivo. La hora real no se toca, y el
+  // detalle lo dice para que no se lea como una corrección de hora.
+  if (row.campo_modificado === "tardanza_levantada" || row.campo_modificado === "tardanza_levantamiento_quitado") {
+    const dia = /^\d{4}-\d{2}-\d{2}$/.test(row.valor_anterior ?? "") ? fechaCorta(row.valor_anterior!) : null;
+    const motivo = (row.valor_nuevo ?? "").replaceAll("_", " ");
+    return {
+      accion: rotuloDeCampo(row.campo_modificado),
+      cuando: dia,
+      detalle: row.campo_modificado === "tardanza_levantada"
+        ? `${motivo ? `por ${motivo}; ` : ""}la hora real no se tocó`
+        : `${motivo ? `tenía motivo ${motivo}; ` : ""}la tardanza vuelve a contar`,
+    };
+  }
   if (row.campo_modificado === "horarios_asignados") {
     const antes = horarioEnPalabras(row.valor_anterior);
     const despues = horarioEnPalabras(row.valor_nuevo);

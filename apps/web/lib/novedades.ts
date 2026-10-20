@@ -115,6 +115,18 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-10-20-correcciones-historial-completo-y-dia-a-dia",
+    fecha: "2026-10-20",
+    titulo: "Correcciones: el historial muestra también las tardanzas levantadas",
+    queMejoro:
+      "Cuando levantabas una tardanza desde Correcciones, la hora quedaba tachada en el día pero no aparecía en el " +
+      "«Historial de correcciones», y al quitar el levantamiento no quedaba ningún rastro. Ahora las dos cosas se " +
+      "anotan: qué día, con qué motivo y quién lo hizo.\n\n" +
+      "Junto al calendario hay además dos flechas para pasar al día anterior o al siguiente; el calendario queda para " +
+      "saltar de mes.",
+    audiencia: "panel",
+  },
+  {
     id: "2026-10-19-documentacion-y-ausencias-mas-claras",
     fecha: "2026-10-19",
     titulo: "Documentación y Ausencias se ven más claras, y Ausencias tiene calendario",

@@ -29,6 +29,9 @@ export const CAMPOS_DE_MARCAJE: readonly string[] = [
   "timestamp_marca", "tipo", "marcaje_agregado", "marcaje_anulado",
   "marcaje_reactivado", "marcaje_eliminado", "auto_cierre_confirmado",
   "auto_cierre_reemplazado", "marca_apartada", "dia_reabierto_desde_terminal",
+  // Perdonar una tardanza (0541) cambia qué cuenta como tardanza del día: se corrige
+  // desde esta pantalla y tiene que verse en el mismo historial que una hora corregida.
+  "tardanza_levantada", "tardanza_levantamiento_quitado",
 ];
 
 /** Cómo se dice cada tema, para el aviso «+N cambios de …». */
@@ -94,6 +97,8 @@ const ROTULOS: Record<string, string> = {
   auto_cierre_reemplazado: "Salida final repuesta",
   marca_apartada: "Marca apartada",
   dia_reabierto_desde_terminal: "Día reabierto desde el terminal",
+  tardanza_levantada: "Tardanza levantada",
+  tardanza_levantamiento_quitado: "Perdón de la tardanza quitado",
   "turnos.horario": "Turno cambiado",
   horarios_asignados: "Horario cambiado",
   organos_titulo_x: "Nombramiento para investigar el Título X",

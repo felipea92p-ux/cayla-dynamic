@@ -9,6 +9,7 @@
 // (0304/0376) las sigue escribiendo.
 // ============================================================================
 import { describe, expect, it } from "vitest";
+import { esCampoDeMarcaje } from "@cayla-dynamic/shared";
 import { describirCambio, horarioEnPalabras, type Auditoria } from "@/lib/admin/historial-correcciones";
 
 const fila = (campo: string, anterior: string | null, nuevo: string | null): Auditoria => ({
@@ -114,5 +115,26 @@ describe("horario cambiado", () => {
     const tramos = horarioEnPalabras('[{"vigente_desde": "2026-09-01", "vigente_hasta": null, "horario_por_dia": {"0": {"e": "10:00", "s": "19:00"}}}]');
     expect(tramos).toContain("dom 10:00–19:00");
     expect(horarioEnPalabras("algo que nadie escribe {")).not.toMatch(/[{}]/);
+  });
+});
+
+describe("tardanza levantada (0541)", () => {
+  it("dice el día perdonado, el motivo y que la hora real no se tocó", () => {
+    const r = describirCambio(fila("tardanza_levantada", "2026-10-19", "fuerza_mayor"));
+    expect(r.accion).toBe("Tardanza levantada");
+    expect(r.cuando).toMatch(/19/);
+    expect(r.detalle).toMatch(/fuerza mayor/);
+    expect(r.detalle).toMatch(/la hora real no se tocó/);
+  });
+
+  it("quitar el perdón dice que la tardanza vuelve a contar", () => {
+    const r = describirCambio(fila("tardanza_levantamiento_quitado", "2026-10-19", "salud"));
+    expect(r.accion).toBe("Perdón de la tardanza quitado");
+    expect(r.detalle).toMatch(/vuelve a contar/);
+  });
+
+  it("es una corrección de marcaje: se ve en la vista «Marcajes» y no en «otros temas»", () => {
+    expect(esCampoDeMarcaje("tardanza_levantada")).toBe(true);
+    expect(esCampoDeMarcaje("tardanza_levantamiento_quitado")).toBe(true);
   });
 });
