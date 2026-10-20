@@ -883,26 +883,9 @@ export default function PlanillaPage() {
                   )}
                 </span>
               </TarjetaInfo>
-              {/* Estado de pago por grupo: en la base cada grupo se paga por su cuenta (0323), y en producción son cuatro
-                  (Planilla, Practicantes, Prueba, Honorarios). Es lo primero que se mira al cerrar el mes. */}
-              {grupos && (
-                <ul className="flex flex-wrap gap-2 text-xs" aria-label="Estado de pago por grupo">
-                  {grupos.filter((g) => g.personas > 0).map((g) => (
-                    <li key={g.grupo}>
-                      <button
-                        type="button"
-                        onClick={() => setTablaTab(g.grupo)}
-                        className="inline-flex items-center gap-1.5 rounded-pildora border border-sand bg-papel px-2.5 py-1 hover:bg-sand/40"
-                      >
-                        <span className="font-medium text-tinta">{TIPO_VINCULO_LABEL[g.grupo]}</span>
-                        {g.estado === "pagado"
-                          ? <span className="inline-flex items-center gap-1 text-verde"><Check size={12} aria-hidden />pagado{g.pagado_at ? ` ${fechaLargaLima(g.pagado_at)}` : ""}</span>
-                          : <span className="text-taupe">pendiente</span>}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
+              {/* (Aquí había una fila de pastillas «Planilla pendiente · Prueba pendiente» que hacía lo mismo que las pestañas de abajo:
+                  cambiar de grupo. Se quitó el 2026-10-20: el estado de pago de cada grupo ya está en su pestaña —con la palomita
+                  cuando está pagado— y, escrito completo con fecha y quién, en la barra bajo la pestaña.) */}
               {/* El contexto del periodo, en una línea gris: lo que antes eran tres cifras y una nota. */}
               <p className="text-xs text-taupe">
                 {totalesPeriodo.personas} {totalesPeriodo.personas === 1 ? "persona" : "personas"}
