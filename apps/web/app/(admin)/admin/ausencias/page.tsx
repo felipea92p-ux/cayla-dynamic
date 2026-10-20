@@ -30,6 +30,8 @@ import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Cargando } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
+import { BotonIcono } from "@/components/ui/boton-icono";
+import { CalendarDays, List } from "lucide-react";
 import { AyudaPantalla } from "@/components/ui/ayuda-pantalla";
 import { BannerAviso } from "@/components/ui/banner-aviso";
 import { TarjetaInfo } from "@/components/ui/tarjeta-info";
@@ -38,7 +40,6 @@ import { Tabla, TablaEncabezado, Th, Fila } from "@/components/ui/tabla";
 import { Campo, CampoSelect } from "@/components/ui/campo";
 import { AreaTexto } from "@/components/ui/area-texto";
 import { Modal } from "@/components/ui/modal";
-import { Filtro } from "@/components/ui/filtro";
 import { Menu, MenuItem } from "@/components/ui/menu";
 import { ParaAtender } from "@/components/ui/para-atender";
 import { Pestanas } from "@/components/ui/pestanas";
@@ -1096,8 +1097,8 @@ export default function AusenciasPage() {
             </Boton>
           )}
           <div className="ml-auto flex gap-1" role="group" aria-label="Cómo ver las ausencias">
-            <Filtro tamano="sm" activo={vista === "lista"} onClick={() => setVista("lista")}>Lista</Filtro>
-            <Filtro tamano="sm" activo={vista === "calendario"} onClick={() => setVista("calendario")}>Calendario</Filtro>
+            <BotonIcono tamano="md" etiqueta="Ver como lista" icono={<List aria-hidden />} activo={vista === "lista"} onClick={() => setVista("lista")} />
+            <BotonIcono tamano="md" etiqueta="Ver como calendario" icono={<CalendarDays aria-hidden />} activo={vista === "calendario"} onClick={() => setVista("calendario")} />
           </div>
         </div>
 
