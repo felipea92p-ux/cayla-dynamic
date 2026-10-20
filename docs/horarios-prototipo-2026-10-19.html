@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Horarios base — prototipo</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600&family=DM+Sans:wght@400;500;600;700&display=swap">
+<!--
+  Prototipo (2026-10-19): cuatro formas de ordenar «Horarios base». NO es código de la app ni toca ninguna base. Datos ficticios.
+
+  Lo que la pantalla real hace hoy y NINGUNA variante quita:
+    · asignar o cambiar el horario de una persona, desde una fecha, conservando el historial (un horario nuevo no reescribe días ya juzgados);
+    · asignar el mismo horario a varias personas a la vez («Sin horario» → las 3 juntas);
+    · ver la semana de quien tiene un horario que varía por día; ver el horario PROGRAMADO (futuro) junto al vigente;
+    · «Corregir días ya trabajados» (el camino aparte que sí recalcula jornadas pasadas, con motivo);
+    · copiar el horario de otra persona.
+  Quién NO lleva horario a propósito (personal de dirección, quien cobra por recibo) no aparece como «sin horario»: no es un pendiente.
+  Lo que sí cambia: las cuatro cifras grandes y el aviso rojo repetían lo mismo que la lista («3 sin horario» tres veces),
+  y «Corregir días ya trabajados» —una acción delicada— se repetía en CADA fila con el mismo peso que «Cambiar».
+-->
+<style>
+  :root{
+    --color-crema:#f5f0e8; --color-papel:#fbf8f2; --color-tinta:#1a1a18; --color-rojo:#b8412d; --color-rojo-profundo:#8b2a1f;
+    --color-sand:#e8e0d0; --color-taupe:#805c4c; --color-hueso:#eae1d2; --color-pizarra:#4c5d6e; --color-verde:#48603f;
+    --color-ambar:#74501a; --color-ceniza:#635f58;
+    --font-sans:'DM Sans',ui-sans-serif,system-ui,sans-serif; --font-serif:'EB Garamond',ui-serif,Georgia,serif; color-scheme:light;
+  }
+  :root[data-theme="dark"]{
+    --color-crema:#1c1a16; --color-papel:#26221d; --color-tinta:#ede7db; --color-rojo:#d4634a; --color-rojo-profundo:#e8836b;
+    --color-sand:#332e27; --color-taupe:#ab9080; --color-hueso:#15110d; --color-pizarra:#9db0c2; --color-verde:#8fae80;
+    --color-ambar:#c99a4a; --color-ceniza:#aaa59b; color-scheme:dark;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--color-crema);color:var(--color-tinta);font:14.5px/1.5 var(--font-sans)}
+  h1,h2,h3{font-family:var(--font-serif);font-weight:500;margin:0}
+  button,input,select{font:inherit;color:inherit} button{cursor:pointer} p{margin:0}
+  .proto{position:sticky;top:0;z-index:50;background:var(--color-papel);border-bottom:1px solid var(--color-sand);padding:8px 16px;display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center}
+  .vbtn{border:1px solid var(--color-sand);background:var(--color-crema);border-radius:10px;padding:6px 11px;font-weight:600;font-size:.82rem;display:inline-flex;gap:7px;align-items:center}
+  .vbtn b{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:6px;background:var(--color-hueso);color:var(--color-taupe);font-size:.76rem}
+  .vbtn[aria-pressed="true"]{background:var(--color-tinta);color:var(--color-crema);border-color:var(--color-tinta)}
+  .vbtn[aria-pressed="true"] b{background:var(--color-crema);color:var(--color-tinta)}
+  .vbtn small{font-weight:500;opacity:.8}
+  .ctl{display:flex;gap:8px;align-items:center;margin-left:auto}
+  .lema{max-width:1180px;margin:10px auto 0;padding:0 16px;color:var(--color-taupe);font-size:.86rem} .lema strong{color:var(--color-tinta)}
+  .page{max-width:1180px;margin:0 auto;padding:14px 16px 80px}
+  .cab .sob{font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--color-taupe);display:flex;gap:12px;align-items:center;margin-bottom:6px}
+  .cab .sob::before{content:"";width:36px;height:1px;background:var(--color-taupe)}
+  .cab h1{font-size:1.75rem;line-height:1.15} .cab p{color:var(--color-taupe);font-size:.9rem;margin-top:3px}
+  .muted{color:var(--color-taupe);font-size:.8rem}
+  .card{background:var(--color-papel);border:1px solid var(--color-sand);border-radius:16px;overflow:hidden}
+  .btn{border:1px solid var(--color-tinta);background:var(--color-tinta);color:var(--color-crema);border-radius:8px;padding:5px 12px;font-weight:600;font-size:.8rem}
+  .btn.sec{background:transparent;color:var(--color-tinta);border-color:var(--color-taupe)}
+  .btn.sut{background:transparent;color:var(--color-taupe);border-color:var(--color-sand)}
+  .campo{background:var(--color-hueso);border:1px solid transparent;border-radius:8px;padding:6px 10px}
+  .chip{display:inline-flex;align-items:center;gap:5px;font-size:.72rem;font-weight:600;padding:2px 9px;border-radius:999px;background:color-mix(in oklab,var(--c) 14%,var(--color-papel));color:var(--c);white-space:nowrap}
+  .c-ok{--c:var(--color-verde)} .c-al{--c:var(--color-rojo-profundo)} .c-am{--c:var(--color-ambar)} .c-pi{--c:var(--color-pizarra)} .c-ne{--c:var(--color-ceniza)}
+  .para{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:14px 0}
+  .para .rot{text-transform:uppercase;letter-spacing:.07em;font-weight:600;color:var(--color-taupe);font-size:.72rem}
+  .pa{border-radius:999px;border:1px solid;padding:5px 12px;font-size:.78rem;font-weight:600;background:var(--color-papel);cursor:pointer}
+  .pa.al{border-color:color-mix(in oklab,var(--color-rojo) 30%,transparent);background:color-mix(in oklab,var(--color-rojo) 10%,var(--color-papel));color:var(--color-rojo-profundo)}
+  .pa.pi{border-color:color-mix(in oklab,var(--color-pizarra) 40%,transparent);background:color-mix(in oklab,var(--color-pizarra) 10%,var(--color-papel));color:var(--color-pizarra)}
+  .pa[aria-pressed="true"]{box-shadow:0 0 0 2px var(--color-tinta)}
+  .barra{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+  .barra .campo{min-width:200px;flex:1}
+  .sede{margin:18px 0 6px;display:flex;align-items:baseline;gap:8px} .sede h2{font-size:1.15rem}
+  .fila{display:flex;align-items:center;gap:12px;padding:10px 16px;border-top:1px solid var(--color-sand)} .fila:first-child{border-top:0}
+  .fila .nom{flex:1.3;min-width:0} .fila .nom b{font-weight:500;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .fila .hor{flex:1.6;min-width:0;font-size:.85rem} .fila .vig{width:120px;font-size:.8rem;color:var(--color-taupe)} .fila .hs{width:70px;text-align:right;font-variant-numeric:tabular-nums;font-size:.85rem}
+  .fila .acc{display:flex;gap:6px;align-items:center;justify-content:flex-end;min-width:150px}
+  .menu{position:relative}
+  .menu .pop{position:absolute;right:0;top:100%;z-index:20;background:var(--color-papel);border:1px solid var(--color-sand);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.12);min-width:230px;padding:4px;display:none}
+  .menu.on .pop{display:block}
+  .pop button{display:block;width:100%;text-align:left;border:0;background:none;padding:7px 10px;border-radius:7px;font-size:.84rem}
+  .pop button:hover{background:var(--color-crema)} .pop .peli{color:var(--color-rojo-profundo)}
+  .ico{border:1px solid var(--color-sand);background:var(--color-papel);border-radius:8px;width:30px;height:30px;color:var(--color-taupe)}
+  .semana{display:flex;gap:3px;align-items:end}
+  .semana i{display:block;width:16px;border-radius:3px;background:var(--color-hueso)}
+  .semana i.on{background:color-mix(in oklab,var(--color-verde) 55%,var(--color-papel))}
+  .semana span{font-size:.62rem;color:var(--color-taupe);text-align:center;display:block}
+  .grupo{padding:14px 16px;border-top:1px solid var(--color-sand)} .grupo:first-child{border-top:0}
+  .av{width:26px;height:26px;border-radius:99px;background:color-mix(in oklab,var(--color-rojo) 10%,var(--color-papel));color:var(--color-rojo);display:inline-grid;place-items:center;font-family:var(--font-serif);font-size:.76rem;margin-right:-6px;border:2px solid var(--color-papel)}
+  .velo{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:60;display:none} .velo.on{display:block}
+  .cajon{position:fixed;top:0;right:0;bottom:0;width:min(440px,100%);background:var(--color-papel);z-index:61;padding:20px;overflow:auto;transform:translateX(100%);transition:transform .2s} .cajon.on{transform:none}
+  .dias button{border:1px solid var(--color-sand);background:var(--color-crema);border-radius:8px;padding:5px 9px;margin:0 3px 3px 0;font-size:.8rem} .dias button.on{background:var(--color-tinta);color:var(--color-crema);border-color:var(--color-tinta)}
+  .nota{max-width:1180px;margin:18px auto 0;padding:0 16px}
+  .nota details{background:var(--color-papel);border:1px solid var(--color-sand);border-radius:12px;padding:10px 14px;margin-bottom:8px}
+  .nota summary{cursor:pointer;font-weight:600} .nota ul{margin:8px 0 0;padding-left:18px;color:var(--color-taupe)}
+  @media (max-width:760px){ .fila{flex-wrap:wrap} .fila .vig,.fila .hs{width:auto} }
+</style>
+</head>
+<body>
+<div class="proto">
+  <strong style="font-family:var(--font-serif);font-size:1.05rem">Horarios base · 4 formas</strong>
+  <div id="vars" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+  <div class="ctl"><button class="vbtn" id="tema">Modo oscuro</button></div>
+</div>
+<p class="lema" id="lema"></p>
+<div class="page" id="pantalla"></div>
+<div class="nota" id="nota"></div>
+<div class="velo" id="velo"></div>
+<aside class="cajon" id="cajon" aria-label="Horario"></aside>
+
+<script>
+const S={v:'A',filtro:'',menu:null,tema:false,persona:null,sedeSel:''};
+const DIAS=['L','M','X','J','V','S','D'];
+const P=[
+ {id:1,n:'Franco Supervisor',s:'AQP',t:'planilla',dias:[1,1,1,1,1,0,0],e:'09:00',sal:'18:00',hs:'41.25 h',vig:'01 ene. 2026'},
+ {id:2,n:'Gaby Integrante',s:'AQP',t:'planilla',dias:[1,1,1,1,1,1,0],e:'varía',hs:'37.25 h',vig:'19 oct. 2026',varia:'L 08:00–14:15 · M 14:15–21:00 · X 08:00–14:15 · J 14:15–21:00 · V 08:00–14:15 · S 14:15–21:00',prog:'desde 31 oct. 2026 → varía por día'},
+ {id:3,n:'Diego Supervisor',s:'LIM',t:'planilla',dias:[1,1,1,1,1,0,0],e:'09:00',sal:'18:00',hs:'41.25 h',vig:'01 ene. 2026'},
+ {id:4,n:'Elena Integrante',s:'LIM',t:'planilla',dias:[1,1,1,1,1,0,0],e:'09:00',sal:'18:00',hs:'41.25 h',vig:'01 ene. 2026'},
+ {id:5,n:'Pulido Visual',s:'LIM',t:'planilla',sin:true},
+ {id:6,n:'Ana Supervisora',s:'TRU',t:'planilla',dias:[1,1,1,1,1,1,0],e:'08:00',sal:'15:00',hs:'39.00 h',vig:'01 ene. 2026'},
+ {id:7,n:'Bruno Integrante',s:'TRU',t:'planilla',dias:[1,1,1,1,1,1,0],e:'14:15',sal:'21:00',hs:'35.25 h',vig:'01 ene. 2026'},
+ {id:8,n:'Carla Integrante',s:'TRU',t:'planilla',dias:[1,1,1,1,1,1,1],e:'varía',hs:'44.00 h',vig:'01 ene. 2026',varia:'Lun a sáb 09:00–18:00 · Dom 09:00–13:00'},
+ {id:9,n:'ZZ Demo Planilla',s:'TRU',t:'planilla',sin:true},
+ {id:10,n:'ZZ Demo Practicante',s:'TRU',t:'practicante',sin:true},
+];
+const ini=n=>n.split(' ').map(x=>x[0]).slice(0,2).join('');
+const resumenDias=d=>{const on=d.map((x,i)=>x?DIAS[i]:null).filter(Boolean);const desc=d.map((x,i)=>!x?['lunes','martes','miércoles','jueves','viernes','sábado','domingo'][i]:null).filter(Boolean);return desc.length?'descansa '+desc.join(', '):'sin descanso fijo'};
+const lv=d=>d.slice(0,5).every(x=>x)&&!d[5]&&!d[6]?'Lun–Vie':d.slice(0,6).every(x=>x)&&!d[6]?'Lun–Sáb':'Lun–Dom';
+const textoHorario=p=>p.sin?'<span class="chip c-al">sin horario</span>':p.e==='varía'?'<span class="chip c-ne">varía por día</span>':`<strong style="font-weight:600">${lv(p.dias)}</strong> ${p.e}–${p.sal}`;
+const mini=p=>p.sin?'':`<span class="semana" title="${p.varia||''}">${DIAS.map((x,i)=>`<span><i class="${p.dias[i]?'on':''}" style="height:${p.dias[i]?18:6}px"></i>${x}</span>`).join('')}</span>`;
+const prog=p=>p.prog?`<span class="chip c-pi" title="${p.prog}">Programado</span>`:'';
+const filtrar=()=>P.filter(p=>S.filtro==='sin'?p.sin:S.filtro==='prog'?p.prog:true);
+const nSin=P.filter(p=>p.sin).length, nProg=P.filter(p=>p.prog).length;
+const cab=()=>`<div class="cab"><div class="sob">Asistencia · lunes, 19 de octubre</div><h1>Horarios base</h1><p>Jornada semanal y descansos de cada colaborador. Un cambio conserva el historial. <span title="Cómo funciona">ⓘ</span></p></div>`;
+const para=()=>`<div class="para"><span class="rot">Para atender</span>${nSin?`<button class="pa al" data-f="sin" aria-pressed="${S.filtro==='sin'}">${nSin} sin horario</button>`:''}${nProg?`<button class="pa pi" data-f="prog" aria-pressed="${S.filtro==='prog'}">${nProg} programado</button>`:''}${S.filtro==='sin'?`<button class="btn" data-abrir="masivo">Asignar horario a las ${nSin} →</button>`:''}</div>`;
+const barra=()=>`<div class="barra"><input class="campo" placeholder="Buscar persona…"><button class="btn sec">Filtros ▾</button></div>`;
+const porSede=l=>['AQP','LIM','TRU'].map(s=>({s,l:l.filter(p=>p.s===s)})).filter(g=>g.l.length);
+const menu=p=>`<span class="menu ${S.menu===p.id?'on':''}"><button class="ico" data-m="${p.id}" aria-label="Más acciones">•••</button><div class="pop"><button data-abrir="${p.id}">Ver la semana</button><button>Historial de horarios</button><button class="peli">Corregir días ya trabajados…</button></div></span>`;
+const principal=p=>p.sin?`<button class="btn" data-abrir="${p.id}">Asignar</button>`:`<button class="btn sut" data-abrir="${p.id}">Cambiar</button>`;
+
+const V={
+ A:{t:'Para atender + lista',rec:true,lema:'<strong>A · Para atender + lista por sede.</strong> Se quitan las cuatro cifras y el aviso rojo: «3 sin horario» y «1 programado» son pastillas que filtran, y con «sin horario» activo aparece «Asignar a las 3». Cada fila: horario en una línea, vigencia y UN botón (Asignar o Cambiar); lo delicado («Corregir días ya trabajados») vive en «•••».',
+  r:()=>cab()+para()+barra()+porSede(filtrar()).map(g=>`<div class="sede"><h2>${g.s}</h2><span class="muted">${g.l.length} persona${g.l.length>1?'s':''}</span></div><div class="card">${g.l.map(p=>`<div class="fila"><div class="nom"><b>${p.n}</b><span class="muted">${p.t==='practicante'?'practicante':''}</span></div><div class="hor">${textoHorario(p)} ${prog(p)}<div class="muted">${p.sin?'':resumenDias(p.dias)}</div></div><div class="hs">${p.hs||'—'}</div><div class="vig">${p.vig?'desde '+p.vig:''}</div><div class="acc">${principal(p)}${p.sin?'':menu(p)}</div></div>`).join('')}</div>`).join(''),
+  gana:['Se lee lo pendiente en una línea y se actúa con un toque: pastilla → «Asignar a las 3».','Desaparece el texto repetido (cifras, aviso rojo y la columna «sin horario» decían lo mismo).','La acción delicada deja de tener el peso de «Cambiar» en cada fila.'],
+  paga:['«Corregir días ya trabajados» queda un toque más lejos (en «•••»): a quien lo usa a diario le cuesta un clic más.','La columna «Descanso» pasa a una línea gris bajo el horario: menos escaneable que una columna.']},
+ B:{t:'Semana en miniatura',lema:'<strong>B · Semana en miniatura.</strong> Igual que A, pero cada fila dibuja sus siete días (barra alta = trabaja, baja = descansa). Se ve de un vistazo quién descansa cuándo y quién trabaja domingo; «Ver semana →» ya no hace falta para quien varía por día (pasa el cursor).',
+  r:()=>cab()+para()+barra()+porSede(filtrar()).map(g=>`<div class="sede"><h2>${g.s}</h2></div><div class="card">${g.l.map(p=>`<div class="fila"><div class="nom"><b>${p.n}</b></div><div class="hor" style="display:flex;gap:14px;align-items:center">${p.sin?'<span class="chip c-al">sin horario</span>':mini(p)}<span>${p.sin?'':p.e==='varía'?'varía por día':`${p.e}–${p.sal}`} ${prog(p)}</span></div><div class="hs">${p.hs||'—'}</div><div class="vig">${p.vig?'desde '+p.vig:''}</div><div class="acc">${principal(p)}${p.sin?'':menu(p)}</div></div>`).join('')}</div>`).join(''),
+  gana:['El patrón de la semana se ve sin leer: descansos, domingos, medios días.','Ayuda a detectar errores (alguien con 7 días trabajados) sin abrir nada.'],
+  paga:['Más alto por fila (≈ 56 px frente a 48).','En celular la miniatura baja de renglón.','Las barras dicen «trabaja / no trabaja», no la hora: la hora sigue en el texto.']},
+ C:{t:'Agrupado por patrón',lema:'<strong>C · Agrupado por horario.</strong> Las personas con el MISMO horario van juntas: «Lun–Vie 09:00–18:00 · 3 personas». Arriba, el grupo «Sin horario». Cambiar el grupo cambia a todos (con una confirmación que nombra a quién).',
+  r:()=>{const g={};filtrar().forEach(p=>{const k=p.sin?'Sin horario':p.e==='varía'?'Varía por día':`${lv(p.dias)} ${p.e}–${p.sal}`;(g[k]=g[k]||[]).push(p)});const ord=Object.keys(g).sort((a,b)=>a==='Sin horario'?-1:b==='Sin horario'?1:a.localeCompare(b));
+   return cab()+barra()+ord.map(k=>`<div class="sede"><h2>${k}</h2><span class="muted">${g[k].length} persona${g[k].length>1?'s':''}</span><span style="margin-left:auto">${k==='Sin horario'?`<button class="btn" data-abrir="masivo">Asignar horario a las ${g[k].length} →</button>`:`<button class="btn sut" data-abrir="masivo">Cambiar a las ${g[k].length}…</button>`}</span></div><div class="card">${g[k].map(p=>`<div class="fila"><div class="nom"><b>${p.n}</b></div><div class="muted" style="flex:1">${p.s}${p.t==='practicante'?' · practicante':''}</div><div class="vig">${p.vig?'desde '+p.vig:''}</div>${prog(p)}<div class="acc">${principal(p)}${p.sin?'':menu(p)}</div></div>`).join('')}</div>`).join('')},
+  gana:['Cambiar un horario para todo un equipo es un toque, y se ve quién queda dentro.','Las excepciones saltan a la vista: quien no está en el grupo grande.'],
+  paga:['Se pierde la lectura por sede (hay que filtrar).','Un grupo de una sola persona es solo ruido: con muchos horarios distintos la pantalla se fragmenta.','Un error al cambiar «al grupo» afecta a varios a la vez: pide una confirmación con nombres.']},
+ D:{t:'Lista + cajón',lema:'<strong>D · Lista mínima y un cajón por persona.</strong> La lista solo dice nombre, horario y desde cuándo; tocar una fila abre un cajón con la semana, lo programado, el historial y «Corregir días ya trabajados». Nada vive en la fila salvo «Asignar» para quien no tiene.',
+  r:()=>cab()+para()+barra()+porSede(filtrar()).map(g=>`<div class="sede"><h2>${g.s}</h2></div><div class="card">${g.l.map(p=>`<button class="fila" data-abrir="${p.id}" style="width:100%;text-align:left;background:none;border-width:1px 0 0"><div class="nom"><b>${p.n}</b></div><div class="hor">${textoHorario(p)} ${prog(p)}</div><div class="vig">${p.vig?'desde '+p.vig:''}</div><div class="acc">${p.sin?'<span class="btn">Asignar</span>':'<span class="muted">›</span>'}</div></button>`).join('')}</div>`).join(''),
+  gana:['La lista queda limpia; todo lo de una persona está en un solo sitio.','El cajón puede mostrar lo que hoy no cabe: el historial de horarios y lo programado a la vez.'],
+  paga:['Todo cuesta un toque más: para ver o cambiar hay que abrir el cajón.','Menos útil para cambios masivos (sigue necesitando la selección múltiple).']}
+};
+
+function cajon(id){
+  const c=document.getElementById('cajon'),v=document.getElementById('velo');
+  if(id==null){c.classList.remove('on');v.classList.remove('on');return}
+  const masivo=id==='masivo',p=P.find(x=>x.id===id);
+  c.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:start"><h2 style="font-size:1.3rem">${masivo?`Asignar horario a las ${nSin} personas`:(p.sin?'Asignar horario':'Horario')+' · '+p.n}</h2><button class="ico" data-cerrar>✕</button></div>
+  ${masivo?`<p class="muted" style="margin:8px 0">${P.filter(x=>x.sin).map(x=>x.n).join(', ')}</p>`:''}
+  ${!masivo&&p.varia?`<p class="muted" style="margin:10px 0"><strong>Semana actual:</strong> ${p.varia}</p>`:''}
+  ${!masivo&&p.prog?`<p style="margin:10px 0"><span class="chip c-pi">Programado</span> <span class="muted">${p.prog}</span></p>`:''}
+  <p class="muted" style="margin:14px 0 6px">Días que trabaja</p><div class="dias">${DIAS.map((d,i)=>`<button class="${(p&&p.dias?p.dias[i]:i<5)?'on':''}">${d}</button>`).join('')}</div>
+  <div style="display:flex;gap:10px;margin-top:10px"><label class="muted">Entrada<br><input class="campo" value="${p&&p.e&&p.e!=='varía'?p.e:'09:00'}"></label><label class="muted">Salida<br><input class="campo" value="${p&&p.sal?p.sal:'18:00'}"></label></div>
+  <label class="muted" style="display:block;margin-top:10px">Rige desde<br><input class="campo" value="2026-10-20"></label>
+  <label class="muted" style="display:block;margin-top:10px">Motivo (obligatorio)<br><input class="campo" style="width:100%" placeholder="Por qué cambia"></label>
+  <p class="muted" style="margin-top:10px">Un horario nuevo rige desde hoy hacia adelante: no reescribe días ya juzgados.</p>
+  <div style="display:flex;gap:8px;margin-top:14px"><button class="btn">Guardar</button><button class="btn sec" data-cerrar>Cancelar</button></div>
+  ${!masivo&&!p.sin?`<hr style="border:0;border-top:1px solid var(--color-sand);margin:18px 0"><p class="muted">¿Se trabajó distinto de lo que decía el horario? <button class="btn sec fino" style="font-size:.74rem">Corregir días ya trabajados…</button></p>`:''}`;
+  c.classList.add('on');v.classList.add('on');
+}
+function render(){
+  const x=V[S.v];
+  document.getElementById('vars').innerHTML=Object.entries(V).map(([k,v])=>`<button class="vbtn" data-v="${k}" aria-pressed="${S.v===k}"><b>${k}</b>${v.t}${v.rec?' <small>recomendada</small>':''}</button>`).join('');
+  document.getElementById('lema').innerHTML=x.lema;
+  document.getElementById('pantalla').innerHTML=x.r();
+  document.getElementById('nota').innerHTML=`<details open><summary>Qué gana y qué paga la variante ${S.v}</summary><p style="margin-top:8px"><strong>Gana</strong></p><ul>${x.gana.map(i=>`<li>${i}</li>`).join('')}</ul><p style="margin-top:8px"><strong>Paga</strong></p><ul>${x.paga.map(i=>`<li>${i}</li>`).join('')}</ul></details><details><summary>Lo que ninguna variante cambia</summary><ul><li>Un horario nuevo rige hacia adelante y conserva el historial; corregir lo ya trabajado es otro camino, con motivo.</li><li>Quien no lleva horario a propósito (personal de dirección, quien cobra por recibo) no cuenta como pendiente.</li><li>Nada aquí sanciona: es una pantalla de configuración.</li></ul></details>`;
+}
+document.addEventListener('click',e=>{
+  const b=e.target.closest('button,[data-abrir]'); if(!b){S.menu=null;render();return}
+  if(b.dataset.v){S.v=b.dataset.v;S.filtro='';S.menu=null;render()}
+  else if(b.dataset.f){S.filtro=S.filtro===b.dataset.f?'':b.dataset.f;render()}
+  else if(b.dataset.m){S.menu=S.menu===+b.dataset.m?null:+b.dataset.m;render()}
+  else if(b.dataset.abrir){S.menu=null;render();cajon(b.dataset.abrir==='masivo'?'masivo':+b.dataset.abrir)}
+  else if(b.hasAttribute('data-cerrar')||b.id==='velo')cajon(null)
+  else if(b.id==='tema'){S.tema=!S.tema;document.documentElement.dataset.theme=S.tema?'dark':'light';b.textContent=S.tema?'Modo claro':'Modo oscuro'}
+});
+document.getElementById('velo').addEventListener('click',()=>cajon(null));
+render();
+</script>
+</body>
+</html>

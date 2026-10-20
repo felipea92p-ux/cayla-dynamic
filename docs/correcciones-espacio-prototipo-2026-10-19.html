@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Corregir marcajes — usar el ancho (prototipo)</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600&family=DM+Sans:wght@400;500;600;700&display=swap">
+<!--
+  Prototipo (2026-10-19): cuatro formas de usar el ancho que hoy sobra en «Corregir marcajes». NO es código de la app.
+  Datos ficticios. Hoy la columna del día mide 768 px (max-w-3xl): en una pantalla de 1600–1920 px queda más de la
+  mitad vacía, y con la lista del equipo plegada, casi todo.
+
+  Lo que NO cambia en ninguna variante:
+    · toda corrección pide un motivo y deja rastro en correcciones_auditoria; los marcajes no se editan por debajo;
+    · el día se corrige en el marcaje y la jornada se recalcula sola;
+    · una tardanza levantada se ve tachada, con su motivo (como en Horas y en el Dashboard);
+    · Dynamic avisa, no sanciona.
+  El selector de ancho de arriba simula la pantalla; las variantes se adaptan debajo de 1100 px a una sola columna.
+-->
+<style>
+  :root{
+    --color-crema:#f5f0e8; --color-papel:#fbf8f2; --color-tinta:#1a1a18; --color-rojo:#b8412d; --color-rojo-profundo:#8b2a1f;
+    --color-sand:#e8e0d0; --color-taupe:#805c4c; --color-hueso:#eae1d2; --color-pizarra:#4c5d6e; --color-verde:#48603f;
+    --color-ambar:#74501a; --color-ceniza:#635f58;
+    --font-sans:'DM Sans',ui-sans-serif,system-ui,sans-serif; --font-serif:'EB Garamond',ui-serif,Georgia,serif; color-scheme:light;
+  }
+  :root[data-theme="dark"]{
+    --color-crema:#1c1a16; --color-papel:#26221d; --color-tinta:#ede7db; --color-rojo:#d4634a; --color-rojo-profundo:#e8836b;
+    --color-sand:#332e27; --color-taupe:#ab9080; --color-hueso:#15110d; --color-pizarra:#9db0c2; --color-verde:#8fae80;
+    --color-ambar:#c99a4a; --color-ceniza:#aaa59b; color-scheme:dark;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--color-crema);color:var(--color-tinta);font:14.5px/1.5 var(--font-sans)}
+  h1,h2,h3{font-family:var(--font-serif);font-weight:500;margin:0}
+  button,input,select{font:inherit;color:inherit}
+  button{cursor:pointer}
+  p{margin:0}
+  .proto{position:sticky;top:0;z-index:50;background:var(--color-papel);border-bottom:1px solid var(--color-sand);padding:8px 16px;display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center}
+  .vbtn{border:1px solid var(--color-sand);background:var(--color-crema);border-radius:10px;padding:6px 11px;font-weight:600;font-size:.82rem;display:inline-flex;gap:7px;align-items:center}
+  .vbtn b{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:6px;background:var(--color-hueso);color:var(--color-taupe);font-size:.76rem}
+  .vbtn[aria-pressed="true"]{background:var(--color-tinta);color:var(--color-crema);border-color:var(--color-tinta)}
+  .vbtn[aria-pressed="true"] b{background:var(--color-crema);color:var(--color-tinta)}
+  .vbtn small{font-weight:500;opacity:.8}
+  .ctl{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-left:auto;font-size:.78rem;color:var(--color-taupe)}
+  .seg{display:inline-flex;border:1px solid var(--color-sand);border-radius:8px;overflow:hidden;background:var(--color-papel)}
+  .seg button{border:0;background:none;padding:5px 11px;font-size:.8rem;font-weight:600;color:var(--color-taupe)}
+  .seg button[aria-pressed="true"]{background:var(--color-tinta);color:var(--color-crema)}
+  .lema{max-width:1500px;margin:10px auto 0;padding:0 16px;color:var(--color-taupe);font-size:.86rem}
+  .lema strong{color:var(--color-tinta)}
+
+  .marco{margin:12px auto 0;border:1px dashed var(--color-sand);border-radius:12px;padding:20px 24px 40px;background:var(--color-crema);overflow:hidden}
+  .cab .sob{font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--color-taupe);display:flex;gap:12px;align-items:center;margin-bottom:6px}
+  .cab .sob::before{content:"";width:36px;height:1px;background:var(--color-taupe)}
+  .cab h1{font-size:1.75rem;line-height:1.15}
+  .cab p{color:var(--color-taupe);font-size:.9rem;margin-top:3px}
+  .para{display:flex;gap:8px;align-items:center;margin:14px 0;font-size:.78rem}
+  .para .rot{text-transform:uppercase;letter-spacing:.07em;font-weight:600;color:var(--color-taupe);font-size:.72rem}
+
+  .card{background:var(--color-papel);border:1px solid var(--color-sand);border-radius:16px;overflow:hidden}
+  .card > h3{padding:12px 16px;border-bottom:1px solid var(--color-sand);font-family:var(--font-sans);font-size:.9rem;font-weight:600}
+  .card .in{padding:14px 16px}
+  .muted{color:var(--color-taupe);font-size:.8rem}
+  .chip{display:inline-flex;align-items:center;gap:5px;font-size:.72rem;font-weight:600;padding:2px 9px;border-radius:999px;background:color-mix(in oklab,var(--c) 14%,var(--color-papel));color:var(--c);white-space:nowrap}
+  .c-ok{--c:var(--color-verde)} .c-al{--c:var(--color-rojo-profundo)} .c-am{--c:var(--color-ambar)} .c-pi{--c:var(--color-pizarra)} .c-ce{--c:var(--color-ceniza)}
+  .btn{border:1px solid var(--color-tinta);background:var(--color-tinta);color:var(--color-crema);border-radius:8px;padding:6px 13px;font-weight:600;font-size:.82rem}
+  .btn.sec{background:transparent;color:var(--color-tinta);border-color:var(--color-taupe)}
+  .btn.fino{padding:2px 9px;font-size:.76rem}
+  .campo{background:var(--color-hueso);border:1px solid transparent;border-radius:8px;padding:6px 10px;min-width:120px}
+
+  .cifras{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+  .cifra{background:var(--color-papel);border:1px solid var(--color-sand);border-radius:16px;padding:12px 16px}
+  .cifra .e{font-size:.78rem;color:var(--color-taupe)} .cifra .v{font-size:1.15rem;font-weight:500;margin-top:2px} .cifra .s{font-size:.76rem;color:var(--color-taupe)}
+  .persona{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}
+  .persona h2{font-size:1.4rem}
+  .fecha{border:1px solid var(--color-rojo);border-radius:10px;padding:6px 14px;background:var(--color-papel)}
+  table.t{border-collapse:collapse;width:100%;font-size:.84rem}
+  table.t th,table.t td{padding:8px 12px;border-bottom:1px solid var(--color-sand);text-align:left}
+  table.t th{font-size:.72rem;color:var(--color-taupe);font-weight:600}
+  .hist li{list-style:none;padding:10px 16px;border-bottom:1px solid var(--color-sand);font-size:.84rem}
+  .hist{margin:0;padding:0}
+  .hist .mot{color:var(--color-taupe);margin-top:2px}
+  .hist .meta{color:var(--color-taupe);font-size:.76rem}
+  s{color:var(--color-taupe)}
+
+  .rail{background:var(--color-papel);border:1px solid var(--color-sand);border-radius:16px;overflow:hidden}
+  .rail .it{display:flex;gap:10px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--color-sand);font-size:.84rem}
+  .rail .it[aria-current="true"]{background:color-mix(in oklab,var(--color-rojo) 8%,var(--color-papel))}
+  .av{width:28px;height:28px;border-radius:99px;background:var(--color-hueso);display:grid;place-items:center;font-family:var(--font-serif);font-size:.8rem;color:var(--color-taupe)}
+  .pt{width:8px;height:8px;border-radius:99px;background:var(--c);margin-left:auto}
+
+  .semana{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px}
+  .dia{border:1px solid var(--color-sand);background:var(--color-papel);border-radius:12px;padding:8px 10px;text-align:left;font-size:.8rem}
+  .dia[aria-pressed="true"]{border-color:var(--color-tinta);box-shadow:0 0 0 1px var(--color-tinta)}
+  .dia b{display:block;font-family:var(--font-serif);font-weight:500;font-size:1rem}
+
+  .tl{position:relative;height:74px;margin:6px 0 0}
+  .tl .eje{position:absolute;left:0;right:0;top:36px;height:2px;background:var(--color-sand)}
+  .tl .esp{position:absolute;top:28px;height:18px;border-radius:6px;background:color-mix(in oklab,var(--color-verde) 18%,var(--color-papel));border:1px solid color-mix(in oklab,var(--color-verde) 40%,transparent)}
+  .tl .alm{position:absolute;top:28px;height:18px;background:repeating-linear-gradient(135deg,transparent 0 4px,color-mix(in oklab,var(--color-taupe) 25%,transparent) 4px 6px)}
+  .tl .m{position:absolute;top:24px;width:12px;height:26px;margin-left:-6px;border-radius:4px;background:var(--color-tinta)}
+  .tl .m.rev{background:var(--color-ambar)}
+  .tl .lb{position:absolute;top:54px;font-size:.7rem;transform:translateX(-50%);white-space:nowrap;color:var(--color-taupe)}
+  .tl .hr{position:absolute;top:0;font-size:.68rem;color:var(--color-taupe);transform:translateX(-50%)}
+  .nota{max-width:1500px;margin:18px auto 0;padding:0 16px}
+  .nota details{background:var(--color-papel);border:1px solid var(--color-sand);border-radius:12px;padding:10px 14px;margin-bottom:8px}
+  .nota summary{cursor:pointer;font-weight:600}
+  .nota ul{margin:8px 0 0;padding-left:18px;color:var(--color-taupe)}
+  .g2{display:grid;gap:14px}
+  @media (max-width:1100px){ .g2,.g3{grid-template-columns:1fr !important} .semana{grid-template-columns:repeat(4,1fr)} .cifras{grid-template-columns:repeat(2,1fr)} }
+</style>
+</head>
+<body>
+<div class="proto">
+  <strong style="font-family:var(--font-serif);font-size:1.05rem">Corregir marcajes · usar el ancho</strong>
+  <div id="vars" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+  <div class="ctl">
+    <span class="seg" role="group" aria-label="Ancho"><button data-w="1280">1280</button><button data-w="1600">1600</button><button data-w="1920">1920</button></span>
+    <span class="seg" role="group" aria-label="Día"><button data-c="con">Día con marcas</button><button data-c="sin">Día sin marcas</button></span>
+    <button class="vbtn" id="tema">Modo oscuro</button>
+  </div>
+</div>
+<p class="lema" id="lema"></p>
+<div class="marco" id="marco"></div>
+<div class="nota" id="nota"></div>
+
+<script>
+const S={v:'A',w:1600,c:'con',tema:false};
+const hoy=19;
+const SEMANA=[ // día de la persona elegida (Carla)
+  {d:'Lun 19',e:'Tardanza 25 min',t:'tard',lev:true,h:'8 h 03'},{d:'Mar 20',e:'Completa',t:'ok',h:'8 h 40'},
+  {d:'Mié 21',e:'Sin marcar',t:'al',h:'—'},{d:'Jue 22',e:'Descanso',t:'ce',h:'—'},
+  {d:'Vie 23',e:'Pendiente',t:'pi',h:'—'},{d:'Sáb 24',e:'Pendiente',t:'pi',h:'—'},{d:'Dom 25',e:'Descanso',t:'ce',h:'—'}];
+const MARCAS_CON=[
+  {t:'Entrada',h:'09:25',o:'terminal',e:'Normal'},{t:'Salida a almuerzo',h:'13:02',o:'terminal',e:'Normal'},
+  {t:'Retorno de almuerzo',h:'14:03',o:'terminal',e:'Normal'},{t:'Salida final',h:'23:59',o:'cierre automático',e:'Por revisar',rev:true}];
+const EQUIPO=[['AC','Angie Chavez','Tienda TRU','ce'],['CE','Carlos Espejo','Central','ok'],['CP','Catherine Pereyra','Central','ok'],['CF','Chiara Flores','Tienda TRU','ok'],['CP','Claudia Pereyra','Taller LIM','am'],['DR','Daniel Ruiz','Oficina TRU','ok'],['DG','Danitza Gutiérrez','Tienda TRU','ok'],['DV','Danixa Valverde','Tienda TRU','al'],['DR','Dante Ramal','Taller LIM','ok'],['CA','Carla Integrante','Tienda TRU','am']];
+const HIST=[
+  {t:'Hora corregida',d:'del 14 oct. · 07:49 a. m. → 07:45 a. m.',m:'se demoró en abrir la puerta',w:'corregido 14-oct., 07:51 a. m. · por Catherine Pereyra'},
+  {t:'Hora corregida',d:'del 7 oct. · 02:10 p. m. → 01:45 p. m.',m:'error en el terminal',w:'corregido 07-oct., 02:12 p. m. · por Catherine Pereyra'},
+  {t:'Marcaje agregado',d:'1 oct. · salida final 18:00',m:'olvidó marcar la salida',w:'agregado 02-oct., 08:30 a. m. · por Daniel Ruiz'},
+  {t:'Marcaje anulado',d:'28 sep. · entrada duplicada 08:59',m:'doble toque en el terminal',w:'anulado 28-sep., 09:10 a. m. · por Catherine Pereyra'}];
+
+const cifras=()=>{ const c=S.c==='con'; return `<div class="cifras">
+  <div class="cifra"><div class="e">Estado</div><div class="v">${c?'Abierta · por revisar':'Sin jornada'}</div></div>
+  <div class="cifra"><div class="e">Horas</div><div class="v">${c?'8 h 03':'—'}</div><div class="s">${c?'con la salida automática':'sin marcajes'}</div></div>
+  <div class="cifra"><div class="e">Tardanza</div><div class="v">${c?'<s>25 min</s> · levantada':'sin jornada ese día'}</div>${c?'<div class="s">transporte</div>':''}</div>
+  <div class="cifra"><div class="e">Entrada esperada</div><div class="v">${c?'09:00':'—'}</div></div></div>`};
+const marcajes=()=>`<div class="card"><h3>Marcajes del día</h3>${S.c==='sin'?'<div class="in muted">No hay marcajes ese día. Puedes agregar uno abajo.</div>':`<table class="t"><tr><th>Tipo</th><th>Hora</th><th>Origen</th><th>Estado</th><th></th></tr>${MARCAS_CON.map(m=>`<tr><td>${m.t}</td><td>${m.h}</td><td class="muted">${m.o}</td><td><span class="chip ${m.rev?'c-am':'c-ok'}">${m.e}</span></td><td style="text-align:right"><button class="btn sec fino">Corregir</button> <button class="btn sec fino">Anular</button></td></tr>`).join('')}</table>`}</div>`;
+const agregar=()=>`<div class="card"><h3>Agregar un marcaje faltante</h3><div class="in" style="display:flex;gap:10px;align-items:end;flex-wrap:wrap"><label class="muted">Tipo<br><select class="campo"><option>Entrada</option></select></label><label class="muted">Hora<br><input class="campo" value="08:00"></label><label class="muted" style="flex:1;min-width:160px">Motivo<br><input class="campo" style="width:100%" placeholder="Obligatorio"></label><button class="btn">Agregar</button></div></div>`;
+const historial=(alto)=>`<div class="card"><h3 style="display:flex;justify-content:space-between;align-items:center">Historial de correcciones <span class="seg"><button aria-pressed="true">Marcajes</button><button>Todo</button></span></h3><div style="padding:8px 16px;background:var(--color-hueso);font-size:.78rem;color:var(--color-taupe)">Además hay 15 cambios de otros temas que no son de marcajes. <u>Verlos</u></div><ul class="hist" style="${alto?`max-height:${alto}px;overflow:auto`:''}">${HIST.map(h=>`<li><div><strong>${h.t}</strong> <span class="muted">· ${h.d}</span></div><div class="mot">“${h.m}”</div><div class="meta">${h.w}</div></li>`).join('')}</ul></div>`;
+const persona=()=>`<div class="persona"><h2>Carla Integrante <span class="muted" style="font-family:var(--font-sans)">· Tienda TRU</span></h2><span class="fecha">19 / 10 / 2026</span></div>`;
+const rail=()=>`<div class="rail"><div style="padding:10px 12px;border-bottom:1px solid var(--color-sand)"><select class="campo" style="width:100%"><option>Todas las sedes</option></select><input class="campo" style="width:100%;margin-top:8px" placeholder="Buscar por nombre…"></div><div class="muted" style="padding:8px 12px">29 colaboradores</div>${EQUIPO.map(([i,n,s,t],k)=>`<div class="it" ${n.startsWith('Carla')?'aria-current="true"':''}><span class="av">${i}</span><span>${n}<br><span class="muted">${s}</span></span><span class="pt c-${t}" title="${t}"></span></div>`).join('')}</div>`;
+const lineaDia=()=>{ if(S.c==='sin')return `<div class="card"><h3>El día en una línea</h3><div class="in muted">Sin marcas. Turno esperado: 09:00–18:00 (almuerzo 13:00–14:00).</div></div>`;
+  const p=h=>((h-6)/16*100).toFixed(1)+'%';const m=[[9+25/60,'09:25'],[13+2/60,'13:02'],[14+3/60,'14:03'],[23.98,'23:59']];
+  return `<div class="card"><h3>El día en una línea <span class="muted" style="font-weight:400"> · la franja verde es el turno esperado</span></h3><div class="in"><div class="tl"><div class="eje"></div>${[6,9,12,15,18,21].map(h=>`<span class="hr" style="left:${p(h)}">${h}h</span>`).join('')}<div class="esp" style="left:${p(9)};width:calc(${p(18)} - ${p(9)})"></div><div class="alm" style="left:${p(13)};width:calc(${p(14)} - ${p(13)})"></div>${m.map(([h,l],i)=>`<span class="m ${i===3?'rev':''}" style="left:${p(Math.min(h,21.9))}" title="${l}"></span><span class="lb" style="left:${p(Math.min(h,21.7))}">${l}${i===3?' ⚠ auto':''}</span>`).join('')}</div></div></div>`};
+const semanaFila=()=>`<div class="card"><h3>La semana de Carla</h3><div class="in"><div class="semana">${SEMANA.map((x,i)=>`<button class="dia" aria-pressed="${i===0}"><b>${x.d}</b><span class="chip c-${x.t==='tard'?'am':x.t}">${x.t==='tard'?'<s>25 min</s> levantada':x.e}</span><div class="muted" style="margin-top:4px">${x.h}</div></button>`).join('')}</div></div></div>`;
+
+const V={
+ A:{t:'Día + historial al lado',lema:'<strong>A · Dos columnas.</strong> El día a la izquierda (cifras, marcajes, agregar) y, a la derecha y fija mientras se baja, el historial de la persona: lo que se corrigió antes está junto a lo que se corrige ahora.',
+   r:()=>`<div class="cab"><div class="sob">Asistencia · lunes, 19 de octubre</div><h1>Corregir marcajes</h1><p>Corrige una hora, agrega una marca olvidada o anula un duplicado. Cada cambio pide un motivo.</p></div><div class="para"><span class="rot">Para atender</span><span class="muted" style="color:var(--color-verde)">Nada pendiente</span></div>${persona()}<div class="g2" style="grid-template-columns:minmax(0,1.6fr) minmax(320px,1fr);align-items:start"><div style="display:grid;gap:14px">${cifras()}${marcajes()}${agregar()}</div><div style="position:sticky;top:60px">${historial(560)}</div></div>`,
+   gana:['El historial deja de estar «al fondo»: se ve sin bajar, junto a la persona.','Casi no cambia lo que ya conocen: son las mismas piezas en otro orden.','Funciona igual con la lista del equipo plegada.'],
+   paga:['El historial largo necesita su propio scroll (lo tiene, con altura máxima).','En pantallas de menos de 1100 px vuelve a una sola columna.']},
+ B:{t:'Equipo siempre a la vista',lema:'<strong>B · Tres zonas.</strong> En pantallas anchas la lista del equipo deja de plegarse: queda fija a la izquierda, el día en el centro y el historial a la derecha. Cambiar de persona es un toque, sin abrir nada.',
+   r:()=>`<div class="cab"><div class="sob">Asistencia · lunes, 19 de octubre</div><h1>Corregir marcajes</h1><p>Corrige una hora, agrega una marca olvidada o anula un duplicado. Cada cambio pide un motivo.</p></div><div class="para"><span class="rot">Para atender</span><span class="muted" style="color:var(--color-verde)">Nada pendiente</span></div><div class="g3" style="display:grid;gap:14px;grid-template-columns:260px minmax(0,1.5fr) minmax(300px,1fr);align-items:start"><div>${rail()}</div><div style="display:grid;gap:14px">${persona()}${cifras()}${marcajes()}${agregar()}</div><div>${historial(0)}</div></div>`,
+   gana:['Corregir a varias personas seguidas (lo habitual el día 28) es un toque por persona.','Usa todo el ancho sin inventar piezas nuevas: son las tres que ya existen.'],
+   paga:['Pide ≥ 1400 px: por debajo vuelve al comportamiento de hoy (lista plegable).','La zona central queda angosta (~600 px); la tabla de marcajes tiene que apretarse.']},
+ C:{t:'La semana arriba',lema:'<strong>C · La semana de la persona.</strong> Una fila con sus 7 días (estado, tardanza, horas) sirve de navegador: se corrige el lunes y se salta al martes sin abrir el calendario. Debajo, el día y el historial en dos columnas.',
+   r:()=>`<div class="cab"><div class="sob">Asistencia · lunes, 19 de octubre</div><h1>Corregir marcajes</h1><p>Corrige una hora, agrega una marca olvidada o anula un duplicado. Cada cambio pide un motivo.</p></div><div class="para"><span class="rot">Para atender</span><span class="muted" style="color:var(--color-verde)">Nada pendiente</span></div>${persona()}<div style="margin-bottom:14px">${semanaFila()}</div><div class="g2" style="grid-template-columns:minmax(0,1.5fr) minmax(320px,1fr);align-items:start"><div style="display:grid;gap:14px">${cifras()}${marcajes()}${agregar()}</div>${historial(0)}</div>`,
+   gana:['Rellena el ancho con información que sirve: dónde está el problema de la semana.','Evita el calendario para ir al día de al lado (el movimiento más común al corregir).','Una tardanza levantada se ve tachada desde la semana.'],
+   paga:['Es una pieza nueva: pide una consulta de 7 días por persona.','Más cosas en pantalla para quien solo viene a anular un duplicado.']},
+ D:{t:'El día en una línea',lema:'<strong>D · Línea de tiempo.</strong> Una franja ancha muestra el turno esperado y dónde cayó cada marca: la entrada tardía, el almuerzo, la salida automática de las 23:59 (en ámbar). Los números quedan debajo, en la tabla.',
+   r:()=>`<div class="cab"><div class="sob">Asistencia · lunes, 19 de octubre</div><h1>Corregir marcajes</h1><p>Corrige una hora, agrega una marca olvidada o anula un duplicado. Cada cambio pide un motivo.</p></div><div class="para"><span class="rot">Para atender</span><span class="muted" style="color:var(--color-verde)">Nada pendiente</span></div>${persona()}<div style="display:grid;gap:14px">${lineaDia()}${cifras()}<div class="g2" style="grid-template-columns:minmax(0,1.5fr) minmax(320px,1fr);align-items:start"><div style="display:grid;gap:14px">${marcajes()}${agregar()}</div>${historial(0)}</div></div>`,
+   gana:['Se ve «qué pasó» sin leer: una salida a las 23:59 salta a la vista.','Usa el ancho completo con un dibujo que de verdad explica el día.','Ayuda a corregir bien: se ve si la hora nueva queda dentro del turno.'],
+   paga:['Es un dibujo más que mantener y que probar en modo oscuro.','Con muchos marcajes en la misma hora las etiquetas se pisan (hay que apilarlas).']}
+};
+
+function render(){
+  document.getElementById('vars').innerHTML=Object.entries(V).map(([k,v])=>`<button class="vbtn" data-v="${k}" aria-pressed="${S.v===k}"><b>${k}</b>${v.t}</button>`).join('');
+  document.getElementById('lema').innerHTML=V[S.v].lema;
+  const m=document.getElementById('marco'); m.style.maxWidth=S.w+'px'; m.innerHTML=V[S.v].r();
+  document.querySelectorAll('[data-w]').forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.w===S.w)));
+  document.querySelectorAll('[data-c]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.c===S.c)));
+  const x=V[S.v];
+  document.getElementById('nota').innerHTML=`<details open><summary>Qué gana y qué paga la variante ${S.v}</summary><p style="margin-top:8px"><strong>Gana</strong></p><ul>${x.gana.map(i=>`<li>${i}</li>`).join('')}</ul><p style="margin-top:8px"><strong>Paga</strong></p><ul>${x.paga.map(i=>`<li>${i}</li>`).join('')}</ul></details><details><summary>Lo que ninguna variante cambia</summary><ul><li>Toda corrección pide motivo y queda en el historial; el marcaje se corrige, la jornada se recalcula sola.</li><li>Una tardanza levantada se tacha y se dice por qué.</li><li>Nada aquí sanciona: Dynamic avisa y decide una persona.</li></ul></details>`;
+}
+document.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+  if(b.dataset.v){S.v=b.dataset.v;render()} else if(b.dataset.w){S.w=+b.dataset.w;render()} else if(b.dataset.c){S.c=b.dataset.c;render()}
+  else if(b.id==='tema'){S.tema=!S.tema;document.documentElement.dataset.theme=S.tema?'dark':'light';b.textContent=S.tema?'Modo claro':'Modo oscuro'}});
+render();
+</script>
+</body>
+</html>

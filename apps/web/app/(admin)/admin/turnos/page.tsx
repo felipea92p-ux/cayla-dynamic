@@ -27,7 +27,7 @@ import { cx } from "@/components/ui/cx";
 import { cuentaEnCobertura, hoyLima, puedeOperarEquipo, puedeVerTodasLasSedes } from "@cayla-dynamic/shared";
 import { diaDeLaSedeDe, esperadoDelDia, esTurnoEspejoViejo, horarioVigente, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
 import { cicloVigente, type DiaTrabajado } from "@/lib/admin/ciclo-sobretiempo";
-import { colorCobertura, etiquetaCobertura, etiquetaSedeSinTurnos, type TonoCobertura } from "@/lib/admin/cobertura-turnos";
+import { estiloDeHora, etiquetaCobertura, etiquetaSedeSinTurnos, type TonoCobertura } from "@/lib/admin/cobertura-turnos";
 import { resumenDeLideres, resumenDelTramo, type ResumenTramo, type TurnoDecimal } from "@/lib/admin/cobertura-tramos";
 import { CampoMeta, InsigniaTramo, Medidor, TarjetaGrupo, TarjetaTramo, type PersonaDelDia } from "./cobertura-por-tramos";
 
@@ -104,22 +104,13 @@ const inicioFranja = (i: number) => HORA_INICIO_SEMANA + i * 0.5;
 function pctEnRango(horaDec: number): number {
   return Math.min(100, Math.max(0, ((horaDec - HORA_INICIO) / (HORA_FIN - HORA_INICIO)) * 100));
 }
-// `colorCobertura` (de qué color se pinta una hora contra su meta) vive en
+// `estiloDeHora` (de qué color se pinta una hora contra su meta) vive en
 // lib/admin/cobertura-turnos.ts, con su explicación y sus pruebas.
 // La meta cambia a media tarde: hasta 14:15 es la meta de la MAÑANA, después la
 // de la TARDE (fijo por ahora, ambas sedes — decisión de Felipe).
 const CORTE_TARDE = 14.25; // 14:15
 const metaDeHora = (horaFranjaIni: number, metaMan: number, metaTar: number) =>
   horaFranjaIni >= CORTE_TARDE ? metaTar : metaMan;
-// Degradado del mapa de calor (Vista Día), coloreando cada hora contra la meta
-// de SU tramo (mañana o tarde).
-function gradienteCoberturaBanda(horas: number[], metaMan: number, metaTar: number, hi0: number): string {
-  const n = horas.length;
-  const col = (i: number) => colorCobertura(horas[i], metaDeHora(hi0 + i, metaMan, metaTar));
-  const paradas = horas.map((_, i) => `${col(i)} ${((i + 0.5) / n) * 100}%`);
-  return `linear-gradient(to right, ${col(0)} 0%, ${paradas.join(", ")}, ${col(n - 1)} 100%)`;
-}
-
 // Resumen de OPERATIVAS: promedio de qué tan lleno corriste vs la meta del tramo
 // (topado a 100% por franja para que la tarde de sobra NO tape una mañana vacía),
 // más el motor de sugerencia: redistribuir (hay gente que mover) vs falta
@@ -1065,14 +1056,11 @@ export default function TurnosPage() {
                 />
 
         {/* LOS CONTROLES, en una sola fila bajo la cabecera: las tres vistas a la izquierda como pestañas (son la
-            misma semana vista de otra manera) y, a la derecha, sede, semana y copiar.
-            La raya de la pestaña activa tiene que caer SOBRE la línea de la fila (2026-10-19): flotaba 20 px
-            encima porque el "mb-0" no le ganaba al "mb-5" de <Pestanas> (lo arregla cx), y `self-stretch` la
-            estira a la altura de los controles para que su texto quede centrado con ellos. */}
-        <div className="mb-5 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-sand">
+            misma semana vista de otra manera) y, a la derecha, sede, semana y copiar. */}
+        <div className="mb-5 flex flex-wrap items-stretch justify-between gap-x-4 gap-y-1 border-b border-sand">
           <Pestanas
             etiqueta="Vistas de Turnos"
-            className="mb-0 self-stretch border-b-0"
+            enBarra
             pestanas={[
               { clave: "dia", texto: "Día" },
               { clave: "semana", texto: "Semana" },
@@ -1081,7 +1069,7 @@ export default function TurnosPage() {
             activa={vista}
             alElegir={setVista}
           />
-          <div className="flex flex-wrap items-center gap-2 py-1">
+          <div className="flex flex-wrap items-center gap-2 self-center">
             {esAdmin && (
               <div className="w-44">
                 {/* El nombre, no el código: quien arma turnos piensa en «Tienda LIM», no en «003». */}
@@ -1288,14 +1276,14 @@ export default function TurnosPage() {
                               const metaOp = metaDeHora(inicioFranja(fi), metas.get(dia) ?? 0, metasTarde.get(dia) ?? 0);
                               const metaEnc = metasEncargadas.get(dia) ?? 0;
                               const encFalta = metaEnc > 0 && nEnc < metaEnc;
+                              const est = estiloDeHora(nOp, metaOp);
                               const bg = nOp > 0
-                                ? colorCobertura(nOp, metaOp)
+                                ? est.fondo
                                 : nEnc > 0
                                 ? "color-mix(in srgb, var(--color-taupe) 12%, transparent)" // solo encargada esa hora
                                 : metaOp > 0
                                 ? "color-mix(in srgb, var(--color-rojo) 10%, transparent)" // meta puesta pero nadie: falta suave
                                 : "color-mix(in srgb, var(--color-sand) 35%, transparent)"; // sin meta: sand tenue
-                              const claro = nOp > 0;
                               // Cuando SÍ hay encargadas, el déficit contra la meta ya se ve en
                               // la opacidad de sus puntos. Pero si no hay NINGUNA (nEnc === 0),
                               // no hay puntos que atenuar — la franja quedaba en el mismo verde
@@ -1310,8 +1298,7 @@ export default function TurnosPage() {
                                   className="relative m-[1.5px] flex h-6 items-center justify-center rounded-[3px] text-[11px] font-medium tabular-nums transition-all hover:z-10 hover:ring-2 hover:ring-tinta/25"
                                   style={{
                                     background: bg,
-                                    color: claro ? "var(--color-crema)" : "var(--color-taupe)",
-                                    textShadow: claro ? "0 1px 2px rgba(0,0,0,0.30)" : "none",
+                                    color: nOp > 0 ? est.texto : "var(--color-taupe)",
                                     outline: sinEncargadaAlguna ? "1.5px dashed var(--color-ambar)" : "none",
                                     outlineOffset: sinEncargadaAlguna ? "-1.5px" : undefined,
                                   }}>
@@ -1320,7 +1307,7 @@ export default function TurnosPage() {
                                     <span className="pointer-events-none absolute right-[3px] top-[3px] flex gap-[2px]">
                                       {Array.from({ length: nEnc }).map((_, k) => (
                                         <span key={k} className="h-[3px] w-[3px] rounded-full"
-                                          style={{ background: claro ? "var(--color-crema)" : "var(--color-taupe)", opacity: encFalta ? 0.4 : 0.95 }} />
+                                          style={{ background: "var(--color-tinta)", opacity: encFalta ? 0.35 : 0.8 }} />
                                       ))}
                                     </span>
                                   )}
@@ -1440,58 +1427,22 @@ export default function TurnosPage() {
                 // ¿Alguien de un área operativa trabaja este día? Si nadie, la franja de
                 // cobertura de abajo no tiene nada que contar y lo dice con palabras.
                 const sinOperativasHoy = horas.every((n) => n === 0);
-                // Candidato concreto a mover (para la sugerencia de redistribución)
-                let candidato = "";
-                if (r.redistribuir === "adelantar") {
-                  const c = personas.find((p) => { if (!esOperativa(p)) return false; const cel = celda(p.id, iso); return (cel.tipo === "turno" || cel.tipo === "default") && horaADecimal(cel.entrada) >= CORTE_TARDE; });
-                  if (c) candidato = `Ej. adelanta a ${c.nombres}.`;
-                } else if (r.redistribuir === "retrasar") {
-                  const c = personas.find((p) => { if (!esOperativa(p)) return false; const cel = celda(p.id, iso); return (cel.tipo === "turno" || cel.tipo === "default") && cel.salida !== null && cel.salida !== undefined && horaADecimal(cel.salida) <= CORTE_TARDE + 1; });
-                  if (c) candidato = `Ej. retrasa la salida de ${c.nombres}.`;
-                }
                 return (
                   <section key={iso} id={`turnos-dia-${iso}`} className={`overflow-hidden rounded-2xl border bg-papel ${hoy ? "border-tinta" : "border-sand"}`}>
-                    {/* Cabecera del día: fecha + metas editables (mañana/tarde) + resumen */}
+                    {/* Cabecera del día: fecha + resumen (las metas se editan en las tarjetas de arriba) */}
                     <div className="flex flex-wrap items-center justify-between gap-3 bg-sand/50 px-4 py-2">
                       <div className={hoy ? "text-tinta" : ""}>
                         <span className="font-serif text-lg">{abr}</span>{" "}
                         <span className="text-sm text-taupe">{num}</span>
                       </div>
+                      {/* Las metas se editan arriba, en las tarjetas «Mañana», «Tarde» y «Líderes»: acá solo se lee el resumen. */}
                       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-                        <label className="flex items-center gap-1.5 text-taupe">
-                          Meta operativas
-                          {esAdmin ? (
-                            <>
-                              <input type="number" min={0} value={metaMan} title={`meta de la mañana de todos los ${DIAS_PLURAL[dia]} (hasta 14:15)`}
-                                onChange={(e) => editarMeta(dia, "manana", e.target.value)} onBlur={() => comprometerMeta(dia)}
-                                className="w-11 rounded border border-sand bg-crema px-1 py-0.5 text-center" />
-                              <span className="text-taupe">/</span>
-                              <input type="number" min={0} value={metaTar} title={`meta de la tarde de todos los ${DIAS_PLURAL[dia]} (desde 14:15)`}
-                                onChange={(e) => editarMeta(dia, "tarde", e.target.value)} onBlur={() => comprometerMeta(dia)}
-                                className="w-11 rounded border border-sand bg-crema px-1 py-0.5 text-center" />
-                            </>
-                          ) : (
-                            <span>{metaMan}/{metaTar}</span>
-                          )}
-                          <span className="text-taupe">mañana / tarde</span>
-                        </label>
+                        <span className="text-taupe">Meta operativas {metaMan}/{metaTar} <span className="opacity-70">mañana / tarde</span></span>
                         <span className="font-medium" style={{ color: colorDeTono(etOp.tono, r.pct) }}>
                           {etOp.texto}
                           {r.supHoras > 0 && <span className="text-ambar"> · sobra {r.supHoras}h</span>}
                         </span>
-                        <label className="flex items-center gap-1.5 border-l border-sand pl-3 text-taupe">
-                          Líderes
-                          {esAdmin ? (
-                            // La meta es por día de la semana, no por fecha: el Dashboard manda aquí a poner 0
-                            // «en los domingos», y sin este texto nada dice que vale para todos.
-                            <input type="number" min={0} value={metaEnc} title={`meta de líderes de todos los ${DIAS_PLURAL[dia]}`}
-                              onChange={(e) => editarMetaEncargadas(dia, e.target.value)}
-                              onBlur={(e) => comprometerMetaEncargadas(dia, e.target.value)}
-                              className="w-11 rounded border border-sand bg-crema px-1 py-0.5 text-center" />
-                          ) : (
-                            <span>{metaEnc || "—"}</span>
-                          )}
-                        </label>
+                        <span className="border-l border-sand pl-3 text-taupe">Líderes {metaEnc || "—"}</span>
                         {!sinTurnosSede && (
                           <span className="font-medium" style={{ color: colorDeTono(etEnc.tono, rEnc.pct) }}>
                             {etEnc.texto}
@@ -1499,13 +1450,6 @@ export default function TurnosPage() {
                         )}
                       </div>
                     </div>
-                    {/* Sugerencia: redistribuir (hay gente que mover) o falta personal (contratar) */}
-                    {r.sug && (
-                      <div className="border-t border-sand/60 px-4 py-1.5 text-xs" style={{ color: r.redistribuir ? "var(--color-ambar)" : "var(--color-rojo)" }}>
-                        {r.redistribuir ? "↔ " : "＋ "}{r.sug}{candidato && ` ${candidato}`}
-                      </div>
-                    )}
-
                     {/* Eje de horas */}
                     <div className="relative ml-[176px] h-4 border-b border-sand/60 text-[10px] text-taupe">
                       {MARCAS_HORA.map((h) => (
@@ -1569,30 +1513,31 @@ export default function TurnosPage() {
                       );
                     })}
 
-                    {/* Mapa de calor de cobertura por hora: degradado continuo rojo→verde
-                        (rojo = lejos de la meta, verde = la alcanza o la pasa), con el
-                        número exacto de cada hora superpuesto para no perder precisión. */}
+                    {/* Cobertura por hora: un bloque por hora, con el color de su estado (verde = cubierto, rojo = falta,
+                        ámbar = sobra, gris = sin meta) y el número exacto adentro. Antes era un degradado continuo
+                        que a media meta se volvía café y no decía ni «falta» ni «cubierto». */}
                     <div className="flex items-stretch border-t-2 border-sand">
                       <span className="w-[176px] shrink-0 px-3 py-2 text-xs text-taupe">Cobertura</span>
-                      <div className="relative h-8 flex-1" style={{ background: gradienteCoberturaBanda(horas, metaMan, metaTar, HORA_INICIO) }}>
+                      <div className="relative flex h-8 flex-1 gap-px overflow-hidden">
                         {horas.map((n, i) => {
                           const metaHora = metaDeHora(HORA_INICIO + i, metaMan, metaTar);
+                          const e = estiloDeHora(n, metaHora);
                           return (
-                          <span
-                            key={i}
-                            className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 text-[10px] font-medium text-crema"
-                            style={{ left: `${((i + 0.5) / horas.length) * 100}%`, textShadow: "0 1px 2px rgba(0,0,0,0.35)" }}
-                            title={`${HORA_INICIO + i}h–${HORA_INICIO + i + 1}h: ${n} persona${n === 1 ? "" : "s"}${metaHora > 0 ? ` (meta ${metaHora})` : ""}`}
-                          >
-                            {n > 0 ? n : ""}
-                          </span>
+                            <span
+                              key={i}
+                              className="flex flex-1 items-center justify-center text-[11px] font-medium tabular-nums"
+                              style={{ background: e.fondo, color: e.texto }}
+                              title={`${HORA_INICIO + i}h–${HORA_INICIO + i + 1}h: ${n} persona${n === 1 ? "" : "s"}${metaHora > 0 ? ` (meta ${metaHora})` : ""}`}
+                            >
+                              {n > 0 ? n : ""}
+                            </span>
                           );
                         })}
                         {/* Si nadie de un área operativa trabaja ese día, la franja no
                             tiene nada que contar: se dice, en vez de dejar un bloque
                             que parezca «todo cubierto». */}
                         {sinOperativasHoy && (
-                          <span className="absolute inset-0 flex items-center px-3 text-[11px] text-taupe">
+                          <span className="absolute inset-0 flex items-center bg-papel/80 px-3 text-[11px] text-taupe">
                             Nadie de un área operativa trabaja este día: aquí no hay cobertura que medir.
                           </span>
                         )}

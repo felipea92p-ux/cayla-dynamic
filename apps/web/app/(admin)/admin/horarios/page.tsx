@@ -2,7 +2,7 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search } from "lucide-react";
+import { MoreHorizontal } from "lucide-react";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { Cargando } from "@/components/cargando";
@@ -10,10 +10,12 @@ import { useToast } from "@/components/toast";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { Boton } from "@/components/ui/boton";
 import { AyudaPantalla } from "@/components/ui/ayuda-pantalla";
-import { BannerAviso } from "@/components/ui/banner-aviso";
+import { BotonIcono } from "@/components/ui/boton-icono";
+import { Menu, MenuItem } from "@/components/ui/menu";
+import { ParaAtender } from "@/components/ui/para-atender";
+import { TarjetaInfo } from "@/components/ui/tarjeta-info";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
 import { sobretituloDeHoy } from "@/lib/admin/sobretitulo";
-import { Cifra } from "@/components/ui/cifra";
 import { Filtro } from "@/components/ui/filtro";
 import { Campo, CampoSelect, CampoCasilla } from "@/components/ui/campo";
 import { AreaTexto } from "@/components/ui/area-texto";
@@ -850,53 +852,49 @@ export default function HorariosPage() {
 
         {!cargando && personas.length > 0 && (
           <>
-            {/* ── Resumen: sirve para actuar, cada tile es también un filtro ── */}
-            <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <Cifra etiqueta="Total" valor={totalPersonas} activa={sinFiltrosDeEstado} onClick={limpiarFiltros} />
-              <Cifra etiqueta="Con horario" tono="positivo" valor={conHorarioHoy} activa={filtroEstado === "con_horario"} onClick={() => toggleEstado("con_horario")} />
-              <Cifra
-                etiqueta="Sin horario" tono="alerta" valor={sinHorarioHoy}
-                detalle={noRequierenHorario > 0 ? `${noRequierenHorario} no lo requiere${noRequierenHorario === 1 ? "" : "n"}` : undefined}
-                activa={filtroEstado === "sin_horario"} onClick={() => toggleEstado("sin_horario")}
-              />
-              <Cifra etiqueta="Programados" tono="informativo" valor={programadosCount} activa={soloProgramados} onClick={() => setSoloProgramados((v) => !v)} />
-            </div>
+            {/* ── Para atender: lo pendiente en una línea; cada pastilla filtra la lista. Con «sin horario» activo
+                aparece «Asignar horario a las N», que arma la selección y abre el cajón masivo de siempre. ── */}
+            <ParaAtender
+              items={[
+                { clave: "sin", texto: `${sinHorarioHoy} sin horario`, n: sinHorarioHoy, tono: "rojo" },
+                { clave: "prog", texto: `${programadosCount} programado${programadosCount === 1 ? "" : "s"}`, n: programadosCount, tono: "pizarra" },
+              ]}
+              activa={filtroEstado === "sin_horario" ? "sin" : soloProgramados ? "prog" : null}
+              alTocar={(clave) => {
+                if (clave === "sin") { setSoloProgramados(false); toggleEstado("sin_horario"); }
+                else { setFiltroEstado(""); setSoloProgramados((v) => !v); }
+              }}
+              extra={filtroEstado === "sin_horario" && sinHorarioLista.length > 0 ? (
+                <Boton variante="primario" tamano="sm"
+                  onClick={(e) => { setSeleccionados(new Set(sinHorarioLista.map((p) => p.id))); abrirMasivo(e.currentTarget); }}>
+                  Asignar horario a {sinHorarioLista.length === 1 ? "esta persona" : `las ${sinHorarioLista.length}`} →
+                </Boton>
+              ) : undefined}
+            />
 
-            {/* ── Buscador y filtros ── */}
-            <div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto_auto_auto_auto] sm:items-center">
-              <div className="relative">
-                <Search size={15} strokeWidth={1.8} aria-hidden className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-taupe" />
-                <input
-                  value={busca}
-                  onChange={(e) => setBusca(e.target.value)}
-                  placeholder="Buscar persona…"
-                  aria-label="Buscar persona"
-                  className="w-full rounded-lg border border-sand bg-hueso py-2 pl-9 pr-9 text-sm placeholder:text-taupe/60"
-                />
-                {busca && (
-                  <button onClick={() => setBusca("")} aria-label="Limpiar búsqueda" className="absolute right-2 top-1/2 -translate-y-1/2 px-1 leading-none text-taupe hover:text-tinta">
-                    ×
-                  </button>
-                )}
+            {/* ── Buscador y filtros, compactos ── */}
+            <TarjetaInfo className="mb-4 flex flex-wrap items-center gap-2 p-3 sm:p-3">
+              <div className="min-w-48 flex-1">
+                <Campo tamano="sm" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar persona" aria-label="Buscar persona" />
               </div>
-              <CampoSelect value={filtroSede} onChange={(e) => setFiltroSede(e.target.value)} aria-label="Filtrar por sede">
-                <option value="">Todas las sedes</option>
-                {todasLasSedes.map((sd) => <option key={sd} value={sd}>{sd}</option>)}
-              </CampoSelect>
-              <CampoSelect value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value as typeof filtroEstado)} aria-label="Filtrar por estado">
-                <option value="">Cualquier estado</option>
-                <option value="con_horario">Con horario</option>
-                <option value="sin_horario">Sin horario</option>
-              </CampoSelect>
-              <CampoSelect value={filtroTipoHorario} onChange={(e) => setFiltroTipoHorario(e.target.value as typeof filtroTipoHorario)} aria-label="Filtrar por tipo de horario">
-                <option value="">Cualquier tipo</option>
-                <option value="fijo">Rango fijo</option>
-                <option value="varia">Varía por día</option>
-              </CampoSelect>
-              {hayFiltrosActivos && (
-                <Boton variante="secundario" tamano="sm" onClick={limpiarFiltros}>Limpiar filtros</Boton>
+              <div className="w-full sm:w-44">
+                <CampoSelect tamano="sm" value={filtroSede} onChange={(e) => setFiltroSede(e.target.value)} aria-label="Filtrar por sede">
+                  <option value="">Todas las sedes</option>
+                  {todasLasSedes.map((sd) => <option key={sd} value={sd}>{sd}</option>)}
+                </CampoSelect>
+              </div>
+              <div className="w-full sm:w-44">
+                <CampoSelect tamano="sm" value={filtroTipoHorario} onChange={(e) => setFiltroTipoHorario(e.target.value as typeof filtroTipoHorario)} aria-label="Filtrar por tipo de horario">
+                  <option value="">Cualquier tipo</option>
+                  <option value="fijo">Rango fijo</option>
+                  <option value="varia">Varía por día</option>
+                </CampoSelect>
+              </div>
+              {hayFiltrosActivos && <Boton variante="enlace" className="text-xs text-taupe" onClick={limpiarFiltros}>Limpiar</Boton>}
+              {noRequierenHorario > 0 && (
+                <span className="ml-auto text-xs text-taupe">{noRequierenHorario} no requiere{noRequierenHorario === 1 ? "" : "n"} horario (dirección o recibo)</span>
               )}
-            </div>
+            </TarjetaInfo>
           </>
         )}
 
@@ -907,28 +905,6 @@ export default function HorariosPage() {
             <Boton variante="primario" tamano="sm" onClick={(e) => abrirMasivo(e.currentTarget)}>Asignar horario →</Boton>
             <Boton variante="secundario" tamano="sm" onClick={() => setSeleccionados(new Set())}>Cancelar selección</Boton>
           </div>
-        )}
-
-        {/* Cruza las 4 sedes: sin esto, alguien "sin horario" se pierde bajando
-            entre AQP/CCO/LIM/TRU y puede marcar días sin que ninguna tardanza
-            se calcule (auditoría 2026-09-14). Compacta: nombres clicables en
-            vez de un botón "Asignar" por persona. */}
-        {!cargando && sinHorarioLista.length > 0 && (
-          <BannerAviso
-            enLinea variante="alerta" className="mb-6"
-            titulo={<>{sinHorarioLista.length} persona{sinHorarioLista.length === 1 ? "" : "s"} necesita{sinHorarioLista.length === 1 ? "" : "n"} horario</>}
-          >
-            <div className="mt-1.5 flex flex-wrap gap-x-1 gap-y-1">
-              {sinHorarioLista.map((p, i) => (
-                <span key={p.id}>
-                  <button type="button" onClick={(e) => abrirEdicion(p, e.currentTarget)} className="text-tinta underline decoration-rojo/40 underline-offset-2 hover:text-rojo-profundo">
-                    {p.nombres} {p.apellidos}
-                  </button>
-                  {i < sinHorarioLista.length - 1 && <span className="text-taupe">, </span>}
-                </span>
-              ))}
-            </div>
-          </BannerAviso>
         )}
 
         {cargando ? <Cargando /> : porSede.length === 0 ? (
@@ -951,7 +927,6 @@ export default function HorariosPage() {
                     <Th>Nombre</Th>
                     <Th>Horario</Th>
                     <Th>Horas semanales</Th>
-                    <Th>Descanso</Th>
                     <Th>Vigente desde</Th>
                     <Th>{null}</Th>
                   </TablaEncabezado>
@@ -1001,6 +976,9 @@ export default function HorariosPage() {
                                   varía por día · {expandida ? "Ocultar" : "Ver semana →"}
                                 </button>
                               )}
+                              {a && a.dias.length > 0 && (
+                                <p className="mt-0.5 text-xs text-taupe">{textoDescanso(a.dias) === "sin descanso" ? "sin descanso" : `descansa ${textoDescanso(a.dias)}`}</p>
+                              )}
                               {programado && (
                                 <p className="mt-1 flex items-center gap-1.5 text-xs text-taupe">
                                   <Insignia variante="informativo" tamano="sm">Programado</Insignia>
@@ -1024,28 +1002,33 @@ export default function HorariosPage() {
                                 </span>
                               )}
                             </td>
-                            <td className="px-4 py-2 text-taupe">{a ? textoDescanso(a.dias) : "—"}</td>
                             <td className="px-4 py-2 text-taupe">{h ? fechaCorta(h.vigente_desde) : "—"}</td>
                             <td className="px-4 py-2">
-                              <div className="flex items-center justify-end gap-3">
-                                {/* «corregir pasado» hasta el 2026-09-15: no decía que
-                                    vuelve a medir días ya pagados. Al lado de «Cambiar»
-                                    (de hoy en adelante), el nombre tiene que marcar la
-                                    diferencia sin que nadie la explique. */}
-                                {h && (
-                                  <Boton variante="enlace" tamano="sm" onClick={() => abrirRetro(p)}>
-                                    Corregir días ya trabajados
-                                  </Boton>
-                                )}
-                                <Boton variante="secundario" tamano="sm" onClick={(e) => abrirEdicion(p, e.currentTarget)}>
+                              <div className="flex items-center justify-end gap-2">
+                                {/* Un solo botón visible: Asignar (si no tiene) o Cambiar. «Corregir días ya trabajados» —que
+                                    vuelve a medir días ya pagados— vive en «•••», con el nombre que dice la diferencia con
+                                    «Cambiar» (de hoy en adelante). */}
+                                <Boton variante={abierto ? "secundario" : "primario"} tamano="sm" onClick={(e) => abrirEdicion(p, e.currentTarget)}>
                                   {abierto ? "Cambiar" : "Asignar"}
                                 </Boton>
+                                {h && (
+                                  <Menu trigger={({ alternar }) => (
+                                    <BotonIcono etiqueta={`Más acciones para ${p.nombres} ${p.apellidos}`} icono={<MoreHorizontal aria-hidden />} onClick={alternar} />
+                                  )}>
+                                    {a && !a.uniforme && a.dias.length > 0 && (
+                                      <MenuItem onClick={() => setSemanaExpandida((x) => (x === p.id ? null : p.id))}>
+                                        {expandida ? "Ocultar la semana" : "Ver la semana"}
+                                      </MenuItem>
+                                    )}
+                                    <MenuItem onClick={() => abrirRetro(p)}>Corregir días ya trabajados…</MenuItem>
+                                  </Menu>
+                                )}
                               </div>
                             </td>
                           </Fila>
                           {expandida && a && (
                             <Fila className="bg-hueso/50 hover:bg-hueso/50">
-                              <td colSpan={7} className="px-4 py-3">
+                              <td colSpan={6} className="px-4 py-3">
                                 <SemanaMini a={a} />
                               </td>
                             </Fila>

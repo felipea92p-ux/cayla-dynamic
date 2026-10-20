@@ -106,7 +106,9 @@ export function TarjetaTramo({
         <Medidor n={n} meta={meta} estado={estado} />
         <strong className="tabular-nums">{n}</strong>
         <span className="flex items-center gap-1.5 text-sm text-taupe">
-          {metaEditable ?? (meta > 0 ? `de ${meta}` : "sin meta")}
+          {/* «1 de 0» no se lee: sin meta, se dice «1 persona» y que falta fijar la meta. */}
+          {meta === 0 && <span>{n === 1 ? "persona" : "personas"} con turno</span>}
+          {metaEditable ?? (meta > 0 ? `de ${meta}` : "· sin meta")}
         </span>
       </div>
       <div className="mt-3 flex flex-wrap gap-1.5">
@@ -150,7 +152,8 @@ export function CampoMeta({
 }) {
   return (
     <>
-      <span>de</span>
+      {/* Sin meta no se lee «de 0»: se lee «meta: [ ]» (y la tarjeta dice «N personas con turno»). */}
+      <span>{valor > 0 ? "de" : "· meta:"}</span>
       <input
         type="number"
         min={0}

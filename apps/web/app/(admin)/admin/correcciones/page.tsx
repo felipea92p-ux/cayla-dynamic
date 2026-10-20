@@ -19,6 +19,8 @@ import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
 import { useToast } from "@/components/toast";
 import { Boton } from "@/components/ui/boton";
+import { BotonIcono } from "@/components/ui/boton-icono";
+import { addDias } from "@/lib/admin/incidencias";
 import { AyudaPantalla } from "@/components/ui/ayuda-pantalla";
 import { BannerAviso } from "@/components/ui/banner-aviso";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
@@ -105,6 +107,13 @@ function leTocaHorario(p: Persona | undefined): boolean {
   return leCorrespondeHorario(p.tipo_vinculo, p.personal_direccion);
 }
 interface Sede { id: string; nombre: string }
+/** «lun 19 oct»: una FECHA (no un instante), por eso se formatea en UTC para que la zona no la corra un día. */
+function diaCorto(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Intl.DateTimeFormat("es-PE", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" })
+    .format(new Date(Date.UTC(y, m - 1, d))).replace(/\.$/, "");
+}
+
 /** Cuántos días por revisar se piden. Si llegan tantos, puede haber más atrás. */
 const LIMITE_DIAS_POR_REVISAR = 50;
 interface Marcaje {
@@ -760,26 +769,156 @@ export default function CorreccionesPage() {
     setCargado(false);
   };
   const lista = (dias: DiaPorRevisar[], hover: string) => (
-    <ul className="flex flex-col">
+    <ul className="grid gap-2 @2xl:grid-cols-2">
       {dias.map((d) => (
         <li key={`${d.persona_id}-${d.fecha}`}>
           <button
             onClick={() => abrir(d)}
-            className={`w-full rounded-lg px-3 py-2 text-left text-sm transition-colors ${hover}`}
+            className={`flex w-full items-center justify-between gap-3 rounded-control border border-sand bg-papel px-3 py-2 text-left text-sm transition-colors ${hover}`}
           >
-            <span className="font-medium text-tinta">{d.nombre}</span>
-            <span className="text-taupe"> · {d.sede} · {d.fecha}</span>
+            <span className="min-w-0">
+              <span className="block truncate font-medium text-tinta">{d.nombre}</span>
+              <span className="block text-xs text-taupe">{d.sede} · {diaCorto(d.fecha)}</span>
+            </span>
+            <span className="shrink-0 text-xs font-medium text-tinta">Abrir →</span>
           </button>
         </li>
       ))}
     </ul>
   );
 
-
   // Qué lista está abierta bajo «Para atender». `undefined` = nadie eligió todavía: se abre la más
   // grave que tenga algo. `""` = quien usa la pantalla la cerró a propósito.
   const primeraConAlgo = apartadas.length > 0 ? "apartadas" : rotos.length > 0 ? "rotos" : cerrados.length > 0 ? "cerrados" : sellados.length > 0 ? "sellados" : "";
   const atencion = atencionElegida ?? primeraConAlgo;
+
+  // «Para atender» se lee a la derecha, como en Datos personales: con nadie elegido, la lista de lo que hay que
+  // corregir ocupa la ventana; elegir a alguien abre su día en el mismo sitio.
+  const hayPanelDeAtencion =
+    (atencion === "apartadas" && apartadas.length > 0) || (atencion === "rotos" && rotos.length > 0) ||
+    (atencion === "cerrados" && cerrados.length > 0) || (atencion === "sellados" && sellados.length > 0);
+  const panelDeAtencion = (
+    <div className="@container">
+        {/* Va ARRIBA de los días por revisar: aquellos son días que existen y
+            están desordenados; estas son marcas que NO existen todavía. Si nadie
+            las repone, ese día se paga como si la persona no hubiera venido. */}
+        {atencion === "apartadas" && apartadas.length > 0 && (
+          <BannerAviso
+            variante="alerta"
+            
+            titulo={apartadas.length === 1
+              ? "1 marca no llegó a registrarse"
+              : `${apartadas.length} marcas no llegaron a registrarse`}
+          >
+            <p className="mb-3 text-taupe">
+              El terminal las intentó seis veces y las apartó para no perderlas. La persona sí marcó:
+              mientras no se repongan, ese día se paga como si no hubiera venido.
+            </p>
+            {apartadas.length > 1 && (
+              <div className="mb-3">
+                <Boton variante="primario" tamano="sm" onClick={() => { setApartadaMotivo(""); setMasivaAbierta(true); }} disabled={resolviendo !== null}>
+                  Registrar todas con su hora ({apartadas.length})
+                </Boton>
+              </div>
+            )}
+            <ul className="grid gap-2 @2xl:grid-cols-2">
+              {apartadas.map((m) => (
+                <li key={m.id} className="rounded-lg bg-papel px-3 py-2 text-sm">
+                  <div>
+                    <span className="font-medium text-tinta">{m.persona}</span>
+                    <span className="text-taupe">
+                      {" "}· {m.sede} · {m.tipo} del {m.fecha} a las {horaTextoLima(m.timestamp_cliente)}
+                    </span>
+                  </div>
+                  {m.ultimo_error && (
+                    <div className="mt-0.5 text-xs text-taupe">el terminal decía: {m.ultimo_error}</div>
+                  )}
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <Boton
+                      variante="secundario"
+                      tamano="sm"
+                      onClick={() => abrirApartada(m, "repuesta")}
+                      disabled={resolviendo !== null}
+                    >
+                      Registrarla con su hora
+                    </Boton>
+                    <Boton
+                      variante="peligro"
+                      tamano="sm"
+                      onClick={() => abrirApartada(m, "improcedente")}
+                      disabled={resolviendo !== null}
+                    >
+                      No corresponde
+                    </Boton>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </BannerAviso>
+        )}
+
+        {porRevisar.length >= LIMITE_DIAS_POR_REVISAR && atencion !== "apartadas" && (
+          <p className="mb-3 text-xs text-taupe">
+            Se muestran los {LIMITE_DIAS_POR_REVISAR} días más recientes: puede haber más atrás. Al resolver estos, aparecen los siguientes.
+          </p>
+        )}
+        
+        {/* 1 · El día está roto de verdad. Es el único que pide trabajo. */}
+        {atencion === "rotos" && rotos.length > 0 && (
+          <BannerAviso
+            variante="advertencia"
+            
+            titulo={rotos.length === 1
+              ? "1 día quedó con una secuencia imposible"
+              : `${rotos.length} días quedaron con una secuencia imposible`}
+          >
+            <p className="mb-3 text-taupe">
+              Por ejemplo, dos salidas seguidas sin retorno entre medio. Ocurre cuando la
+              terminal pierde señal y una marca llega tarde. No se perdió nada: solo hay que
+              ordenar el día. Toca uno para abrirlo.
+            </p>
+            {lista(rotos, "hover:bg-ambar/10")}
+          </BannerAviso>
+        )}
+
+        {/* 2 · El día cuadra; falta decir si la hora que inventó el robot vale. */}
+        {atencion === "cerrados" && cerrados.length > 0 && (
+          <BannerAviso
+            variante="informativo"
+            
+            titulo={cerrados.length === 1
+              ? "1 día espera que confirmes la hora de salida"
+              : `${cerrados.length} días esperan que confirmes la hora de salida`}
+          >
+            <p className="mb-3 text-taupe">
+              Nadie marcó la salida y el auto-cierre nocturno puso una hora. La secuencia de
+              esos días está bien; lo único pendiente es decir si esa hora es la buena.
+              Mientras siga sin confirmar, el día no mide salida anticipada ni tiempo
+              adicional. Toca uno para abrirlo.
+            </p>
+            {lista(cerrados, "hover:bg-pizarra/10")}
+          </BannerAviso>
+        )}
+
+        {/* 3 · Ya no hay nada que hacer, y aun así siguen marcados. */}
+        {atencion === "sellados" && sellados.length > 0 && (
+          <BannerAviso
+            variante="neutral"
+            
+            titulo={sellados.length === 1
+              ? "1 día quedó marcado y ya cuadra"
+              : `${sellados.length} días quedaron marcados y ya cuadran`}
+          >
+            <p className="mb-3 text-taupe">
+              No hay nada que corregir: su secuencia es correcta. La marca quedó señalada
+              cuando el día estuvo roto, y la marca que llegó después a arreglarlo no levantó
+              esa señal. Sale de la lista en cuanto se corrija cualquier cosa de ese día.
+            </p>
+            {lista(sellados, "hover:bg-sand/40")}
+          </BannerAviso>
+        )}
+    </div>
+  );
 
   return (
     <div className="flex flex-1 flex-col">
@@ -827,127 +966,8 @@ export default function CorreccionesPage() {
             { clave: "sellados", texto: `${sellados.length} ya cuadra${sellados.length === 1 ? "" : "n"}`, n: sellados.length, tono: "neutro" },
           ]}
           activa={atencion || null}
-          alTocar={(clave) => setAtencionElegida(atencion === clave ? "" : clave)}
+          alTocar={(clave) => { setAtencionElegida(personaId || atencion !== clave ? clave : ""); setPersonaId(""); setCargado(false); }}
         />
-
-        {/* Va ARRIBA de los días por revisar: aquellos son días que existen y
-            están desordenados; estas son marcas que NO existen todavía. Si nadie
-            las repone, ese día se paga como si la persona no hubiera venido. */}
-        {atencion === "apartadas" && apartadas.length > 0 && (
-          <BannerAviso
-            variante="alerta"
-            className="mb-6 max-w-3xl"
-            titulo={apartadas.length === 1
-              ? "1 marca no llegó a registrarse"
-              : `${apartadas.length} marcas no llegaron a registrarse`}
-          >
-            <p className="mb-3 text-taupe">
-              El terminal las intentó seis veces y las apartó para no perderlas. La persona sí marcó:
-              mientras no se repongan, ese día se paga como si no hubiera venido.
-            </p>
-            {apartadas.length > 1 && (
-              <div className="mb-3">
-                <Boton variante="primario" tamano="sm" onClick={() => { setApartadaMotivo(""); setMasivaAbierta(true); }} disabled={resolviendo !== null}>
-                  Registrar todas con su hora ({apartadas.length})
-                </Boton>
-              </div>
-            )}
-            <ul className="flex flex-col gap-2">
-              {apartadas.map((m) => (
-                <li key={m.id} className="rounded-lg bg-papel px-3 py-2 text-sm">
-                  <div>
-                    <span className="font-medium text-tinta">{m.persona}</span>
-                    <span className="text-taupe">
-                      {" "}· {m.sede} · {m.tipo} del {m.fecha} a las {horaTextoLima(m.timestamp_cliente)}
-                    </span>
-                  </div>
-                  {m.ultimo_error && (
-                    <div className="mt-0.5 text-xs text-taupe">el terminal decía: {m.ultimo_error}</div>
-                  )}
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    <Boton
-                      variante="secundario"
-                      tamano="sm"
-                      onClick={() => abrirApartada(m, "repuesta")}
-                      disabled={resolviendo !== null}
-                    >
-                      Registrarla con su hora
-                    </Boton>
-                    <Boton
-                      variante="peligro"
-                      tamano="sm"
-                      onClick={() => abrirApartada(m, "improcedente")}
-                      disabled={resolviendo !== null}
-                    >
-                      No corresponde
-                    </Boton>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </BannerAviso>
-        )}
-
-        {porRevisar.length >= LIMITE_DIAS_POR_REVISAR && atencion !== "apartadas" && (
-          <p className="mb-4 max-w-3xl text-xs text-taupe">
-            Se muestran los {LIMITE_DIAS_POR_REVISAR} días más recientes: puede haber más atrás. Al resolver estos, aparecen los siguientes.
-          </p>
-        )}
-        
-        {/* 1 · El día está roto de verdad. Es el único que pide trabajo. */}
-        {atencion === "rotos" && rotos.length > 0 && (
-          <BannerAviso
-            variante="advertencia"
-            className="mb-6 max-w-3xl"
-            titulo={rotos.length === 1
-              ? "1 día quedó con una secuencia imposible"
-              : `${rotos.length} días quedaron con una secuencia imposible`}
-          >
-            <p className="mb-3 text-taupe">
-              Por ejemplo, dos salidas seguidas sin retorno entre medio. Ocurre cuando la
-              terminal pierde señal y una marca llega tarde. No se perdió nada: solo hay que
-              ordenar el día. Toca uno para abrirlo.
-            </p>
-            {lista(rotos, "hover:bg-ambar/10")}
-          </BannerAviso>
-        )}
-
-        {/* 2 · El día cuadra; falta decir si la hora que inventó el robot vale. */}
-        {atencion === "cerrados" && cerrados.length > 0 && (
-          <BannerAviso
-            variante="informativo"
-            className="mb-6 max-w-3xl"
-            titulo={cerrados.length === 1
-              ? "1 día espera que confirmes la hora de salida"
-              : `${cerrados.length} días esperan que confirmes la hora de salida`}
-          >
-            <p className="mb-3 text-taupe">
-              Nadie marcó la salida y el auto-cierre nocturno puso una hora. La secuencia de
-              esos días está bien; lo único pendiente es decir si esa hora es la buena.
-              Mientras siga sin confirmar, el día no mide salida anticipada ni tiempo
-              adicional. Toca uno para abrirlo.
-            </p>
-            {lista(cerrados, "hover:bg-pizarra/10")}
-          </BannerAviso>
-        )}
-
-        {/* 3 · Ya no hay nada que hacer, y aun así siguen marcados. */}
-        {atencion === "sellados" && sellados.length > 0 && (
-          <BannerAviso
-            variante="neutral"
-            className="mb-6 max-w-3xl"
-            titulo={sellados.length === 1
-              ? "1 día quedó marcado y ya cuadra"
-              : `${sellados.length} días quedaron marcados y ya cuadran`}
-          >
-            <p className="mb-3 text-taupe">
-              No hay nada que corregir: su secuencia es correcta. La marca quedó señalada
-              cuando el día estuvo roto, y la marca que llegó después a arreglarlo no levantó
-              esa señal. Sale de la lista en cuanto se corrija cualquier cosa de ese día.
-            </p>
-            {lista(sellados, "hover:bg-sand/40")}
-          </BannerAviso>
-        )}
       </div>
 
       {/* Split view: filtro + lista de personas a la izquierda, el día abierto a
@@ -955,7 +975,7 @@ export default function CorreccionesPage() {
           en 4 sedes, elegir a alguien pedía abrir un <select> larguísimo; acá
           se filtra por sede y se busca por nombre, y el número junto a cada
           fila dice de entrada quién tiene algo por revisar. */}
-      <div className="flex min-h-0 flex-1">
+      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
         {/* Igual que en Datos personales: se oculta del todo (no solo
             visualmente) para que el día abierto —a la derecha, `flex-1`—
             recupere el ancho de verdad. Acá no hace falta tocar ninguna
@@ -1046,10 +1066,10 @@ export default function CorreccionesPage() {
           </div>
         </aside>
 
-        <div className={`${personaId ? "block" : "hidden md:block"} min-w-0 flex-1 overflow-y-auto p-4 md:p-6`}>
+        <div className={`${personaId ? "flex-1 overflow-y-auto" : "order-first md:order-none md:flex-1 md:overflow-y-auto"} block min-w-0 p-4 md:p-6`}>
           <button
             onClick={() => { setPersonaId(""); setCargado(false); }}
-            className="mb-4 inline-flex min-h-11 items-center gap-1 rounded-pildora px-2 text-sm font-medium text-rojo md:hidden"
+            className={`${personaId ? "inline-flex" : "hidden"} mb-4 min-h-11 items-center gap-1 rounded-pildora px-2 text-sm font-medium text-rojo md:hidden`}
           >
             <ChevronLeft size={16} strokeWidth={1.8} aria-hidden /> Equipo
           </button>
@@ -1062,9 +1082,16 @@ export default function CorreccionesPage() {
             </button>
           )}
           {!personaId || !personaSel ? (
-            <div className="flex h-full flex-col items-center justify-center px-6 text-center">
-              <p className="text-sm text-taupe">Elige a alguien de la lista para ver y corregir sus marcajes.</p>
-            </div>
+            hayPanelDeAtencion ? (
+              <>
+                {panelDeAtencion}
+                <p className="mt-4 text-xs text-taupe">O elige a cualquiera de la lista para ver y corregir sus marcajes.</p>
+              </>
+            ) : (
+              <div className="flex h-full flex-col items-center justify-center px-6 text-center">
+                <p className="text-sm text-taupe">Elige a alguien de la lista para ver y corregir sus marcajes.</p>
+              </div>
+            )
           ) : (
             // `@container`: lo que cabe lo decide el ancho de ESTA columna, no el de la ventana. Con el equipo abierto
             // el día tiene ~1000 px y el historial cabe al lado; con poco espacio baja, como siempre.
@@ -1073,15 +1100,32 @@ export default function CorreccionesPage() {
                 <h2 className="font-serif text-xl text-tinta">
                   {personaSel.nombres} {personaSel.apellidos}
                 </h2>
-                <label className="flex items-center gap-2 rounded-control border border-borde-control bg-papel px-3 py-1.5">
-                  <Calendar size={15} strokeWidth={1.8} className="text-rojo" aria-hidden />
-                  <input
-                    type="date"
-                    value={fecha}
-                    onChange={(e) => { setFecha(e.target.value); setCargado(false); }}
-                    className="bg-transparent text-sm font-medium text-tinta focus:outline-none"
+                {/* Las flechas pasan de día en día; el calendario queda para saltar de mes. */}
+                <div className="flex items-center gap-1.5">
+                  <BotonIcono
+                    tamano="md"
+                    etiqueta="Día anterior"
+                    icono={<ChevronLeft size={16} strokeWidth={1.8} aria-hidden />}
+                    onClick={() => { setFecha(addDias(fecha, -1)); setCargado(false); }}
                   />
-                </label>
+                  <BotonIcono
+                    tamano="md"
+                    etiqueta="Día siguiente"
+                    icono={<ChevronRight size={16} strokeWidth={1.8} aria-hidden />}
+                    disabled={fecha >= hoyLima()}
+                    className="disabled:cursor-not-allowed disabled:opacity-40"
+                    onClick={() => { setFecha(addDias(fecha, 1)); setCargado(false); }}
+                  />
+                  <label className="flex items-center gap-2 rounded-control border border-borde-control bg-papel px-3 py-1.5">
+                    <Calendar size={15} strokeWidth={1.8} className="text-rojo" aria-hidden />
+                    <input
+                      type="date"
+                      value={fecha}
+                      onChange={(e) => { setFecha(e.target.value); setCargado(false); }}
+                      className="bg-transparent text-sm font-medium text-tinta focus:outline-none"
+                    />
+                  </label>
+                </div>
               </div>
 
               <SemanaDePersona
@@ -1162,6 +1206,9 @@ export default function CorreccionesPage() {
                       debajo, como siempre. */}
                   <div className="grid gap-4 @4xl:grid-cols-[minmax(0,1.55fr)_minmax(20rem,1fr)] @4xl:items-start">
                   <div className="@container min-w-0">
+                  {/* Cuatro tarjetas de resumen — Estado, Horas, Tardanza (con su
+                      levantar/quitar intacto) y Entrada esperada (con su enlace a
+                      Turnos, aprobado en la auditoría del 2026-09-14). */}
                   {/* Cuatro tarjetas de resumen — Estado, Horas, Tardanza (con su
                       levantar/quitar intacto) y Entrada esperada (con su enlace a
                       Turnos, aprobado en la auditoría del 2026-09-14). */}
