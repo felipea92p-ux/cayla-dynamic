@@ -22,7 +22,7 @@
 // ============================================================================
 
 import type { Database } from "@cayla-dynamic/database";
-import { TZ_LIMA } from "@cayla-dynamic/shared";
+import { TZ_LIMA, fechaLima } from "@cayla-dynamic/shared";
 import {
   estadoVisible, etiquetaDeHojas, puedeElegirNoAvisar, sePuedeRestablecer,
   type CambiosDeVersion, type EstadoVisible, type TipoBoleta,
@@ -212,4 +212,15 @@ export function fechaHoraLima(iso: string | null | undefined): string {
   return new Intl.DateTimeFormat("es-PE", {
     timeZone: TZ_LIMA, day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hour12: false,
   }).format(new Date(iso)).replace(/\./g, "");
+}
+
+/**
+ * Cuántos días hace que se pagó el periodo, contados en días de Lima (`hoy` ya viene en hora de Lima). Null si el periodo no se ha
+ * pagado: sin fecha de pago no hay «vencido» que decir. Una boleta que falta con el pago ya hecho es algo que se debe, no algo pendiente.
+ */
+export function diasDesdeElPago(pagadoAt: string | null | undefined, hoy: string): number | null {
+  if (!pagadoAt) return null;
+  const pago = fechaLima(pagadoAt);
+  const dias = Math.round((Date.UTC(+hoy.slice(0, 4), +hoy.slice(5, 7) - 1, +hoy.slice(8, 10)) - Date.UTC(+pago.slice(0, 4), +pago.slice(5, 7) - 1, +pago.slice(8, 10))) / 86_400_000);
+  return Math.max(0, dias);
 }
