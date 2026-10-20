@@ -7,15 +7,17 @@
 // contestar eso primero: la sede en fichas (reduce la lista de un vistazo) y un campo donde se
 // escribe y la lista se va acortando. Se maneja con teclado (↑ ↓ Enter, Esc) como un buscador.
 //
-// La lista va EN LÍNEA, bajo el campo, y no flotando: estos formularios viven en un <Modal> con
-// `overflow-y-auto`, y una caja flotante dentro de él se recorta o estira el modal. Solo se
-// muestra cuando se está usando (enfocado, con sede elegida o con texto), para que en reposo
-// el formulario no crezca.
+// La lista FLOTA fuera del formulario: se dibuja en <body> con `position: fixed`, justo bajo el
+// campo, igual que el menú «•••» (ver menu.tsx). Estos formularios viven en un <Modal> con
+// `overflow-y-auto`: una caja `absolute` dentro de él se recorta o lo estira, y una lista en línea
+// empuja todo lo de abajo cada vez que se abre. Flotando, el formulario no se mueve. Solo se
+// muestra cuando se está usando (enfocado, con sede elegida o con texto).
 //
 // No decide nada de negocio: recibe las opciones ya filtradas por quien lo usa (activas, sin
 // cuentas de servicio…) y devuelve el id elegido. Las sedes salen de las propias opciones.
 
-import { useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { createPortal } from "react-dom";
 import { Search } from "lucide-react";
 import { Boton } from "./boton";
 import { Filtro } from "./filtro";
@@ -65,6 +67,8 @@ export function BuscadorPersona({
   const [cambiando, setCambiando] = useState(false);
   const [activa, setActiva] = useState(0);
   const entrada = useRef<HTMLInputElement>(null);
+  const campo = useRef<HTMLLabelElement>(null);
+  const [pos, setPos] = useState<{ left: number; top: number; ancho: number; alto: number } | null>(null);
 
   // Las sedes salen de las personas que hay, no de una lista escrita a mano.
   const sedes = useMemo(
@@ -89,6 +93,35 @@ export function BuscadorPersona({
   }
 
   const elegida = opciones.find((o) => o.id === value);
+  const listaAbierta = (enfocado || sede !== "" || busca !== "") && !(elegida && !cambiando);
+
+  // Ubica la lista bajo el campo (o encima, si abajo no cabe). Se recalcula con el scroll de cualquier
+  // contenedor y al cambiar el tamaño: el modal puede estar desplazándose mientras se escribe.
+  useLayoutEffect(() => {
+    if (!listaAbierta) return;
+    const medir = () => {
+      const r = campo.current?.getBoundingClientRect();
+      if (!r) return;
+      const abajo = window.innerHeight - r.bottom - 12;
+      const arriba = r.top - 12;
+      const quiereAlto = 232;
+      const hacia = abajo >= Math.min(quiereAlto, 160) || abajo >= arriba ? "abajo" : "arriba";
+      const alto = Math.max(120, Math.min(quiereAlto, hacia === "abajo" ? abajo : arriba));
+      setPos({ left: r.left, ancho: r.width, alto, top: hacia === "abajo" ? r.bottom + 4 : r.top - 4 - alto });
+    };
+    medir();
+    window.addEventListener("resize", medir);
+    window.addEventListener("scroll", medir, true);
+    return () => {
+      window.removeEventListener("resize", medir);
+      window.removeEventListener("scroll", medir, true);
+    };
+  }, [listaAbierta, visibles.length]);
+
+  // Montado en el cliente: createPortal necesita document.
+  const [montado, setMontado] = useState(false);
+  useEffect(() => setMontado(true), []);
+
   if (elegida && !cambiando) {
     return (
       <div className="space-y-1">
@@ -109,8 +142,6 @@ export function BuscadorPersona({
       </div>
     );
   }
-
-  const listaAbierta = enfocado || sede !== "" || busca !== "";
 
   function teclas(e: KeyboardEvent<HTMLInputElement>) {
     if (e.key === "ArrowDown") {
@@ -150,7 +181,7 @@ export function BuscadorPersona({
           ))}
         </div>
       )}
-      <label className="relative block">
+      <label ref={campo} className="relative block">
         <span className="sr-only">Buscar por nombre</span>
         <Search size={14} strokeWidth={1.8} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-taupe" aria-hidden />
         <input
@@ -171,35 +202,42 @@ export function BuscadorPersona({
           className="w-full rounded-control border border-sand bg-hueso py-2 pl-8 pr-3 text-base text-tinta placeholder:text-taupe/60 focus-visible:outline-offset-0 sm:text-sm"
         />
       </label>
-      {listaAbierta && (
-        <div className="overflow-hidden rounded-control border border-sand bg-papel">
-          {visibles.length === 0 ? (
-            <p className="px-3 py-2.5 text-sm text-taupe">Nadie coincide{sede ? ` en ${sede}` : ""}.</p>
-          ) : (
-            <ul id={idLista} role="listbox" aria-label="Personas" className="max-h-44 overflow-y-auto p-1">
-              {visibles.map((o, i) => (
-                <li key={o.id} id={`${idLista}-${o.id}`} role="option" aria-selected={i === indice}>
-                  <button
-                    type="button"
-                    tabIndex={-1}
-                    // mousedown y no click: el campo no pierde el foco antes de elegir.
-                    onMouseDown={(e) => { e.preventDefault(); elegir(o.id); }}
-                    onMouseMove={() => setActiva(i)}
-                    className={cx(
-                      "flex w-full items-baseline justify-between gap-3 rounded-control px-2.5 py-1.5 text-left text-sm transition-colors duration-100",
-                      i === indice ? "bg-hueso" : "",
-                    )}
-                  >
-                    <span className="truncate text-tinta"><Resaltado texto={o.nombre} q={q} /></span>
-                    <span className="shrink-0 text-xs text-taupe">{[o.sede, o.detalle].filter(Boolean).join(" · ")}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-          <p className="border-t border-sand px-3 py-1 text-xs text-taupe">{visibles.length} de {opciones.length}</p>
-        </div>
-      )}
+      {listaAbierta && montado && pos &&
+        createPortal(
+          <div
+            // z-50: por encima del Modal (z-40) que contiene al campo, igual que <Menu>.
+            style={{ position: "fixed", left: pos.left, top: pos.top, width: pos.ancho, maxHeight: pos.alto }}
+            className="z-50 flex flex-col overflow-hidden rounded-control border border-sand bg-papel shadow-lg"
+            // La lista no le quita el foco al campo (ni al arrastrar su barra): si no, se cerraría antes de elegir.
+            onMouseDown={(e) => e.preventDefault()}
+          >
+            {visibles.length === 0 ? (
+              <p className="px-3 py-2.5 text-sm text-taupe">Nadie coincide{sede ? ` en ${sede}` : ""}.</p>
+            ) : (
+              <ul id={idLista} role="listbox" aria-label="Personas" className="min-h-0 flex-1 overflow-y-auto p-1">
+                {visibles.map((o, i) => (
+                  <li key={o.id} id={`${idLista}-${o.id}`} role="option" aria-selected={i === indice}>
+                    <button
+                      type="button"
+                      tabIndex={-1}
+                      onClick={() => elegir(o.id)}
+                      onMouseMove={() => setActiva(i)}
+                      className={cx(
+                        "flex w-full items-baseline justify-between gap-3 rounded-control px-2.5 py-1.5 text-left text-sm transition-colors duration-100",
+                        i === indice ? "bg-hueso" : "",
+                      )}
+                    >
+                      <span className="truncate text-tinta"><Resaltado texto={o.nombre} q={q} /></span>
+                      <span className="shrink-0 text-xs text-taupe">{[o.sede, o.detalle].filter(Boolean).join(" · ")}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <p className="shrink-0 border-t border-sand px-3 py-1 text-xs text-taupe">{visibles.length} de {opciones.length}</p>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }
