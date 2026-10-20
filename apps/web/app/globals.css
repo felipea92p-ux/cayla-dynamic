@@ -977,3 +977,76 @@
 .recorrido-cayla .recorrido-omitir:focus {
   color: var(--color-tinta);
 }
+
+/* ============================================================================
+   LA LISTA DE UN DESPLEGABLE (2026-10-20)
+   ----------------------------------------------------------------------------
+   Los ~150 <select> del panel abrían la lista del sistema operativo: una caja
+   gris oscura translúcida, con la letra del sistema, igual en claro y en oscuro
+   y sin relación con nada de lo demás. Era la única pieza del panel que no se
+   dibujaba con los trece colores.
+
+   `appearance: base-select` (Chrome 135+) deja pintar esa lista con CSS; los
+   navegadores que no lo entienden (Safari, Firefox) siguen con la suya, nativa,
+   y todo funciona igual — por eso va dentro de `@supports`. No cambia el HTML ni
+   ningún componente: es la lista y nada más. Va FUERA de `@layer` a propósito: el
+   `appearance-none` de <CampoSelect> está en `utilities` y, dentro de una capa,
+   le ganaría a esto.
+
+   Solo se le pide al <select> que acepte el modo; su caja (borde, fondo,
+   relleno, flecha) sigue siendo la de siempre. Donde el componente ya dibuja su
+   propia flecha se oculta la del modo, para no ver dos.
+   ========================================================================== */
+@supports (appearance: base-select) {
+  select,
+  select::picker(select) {
+    appearance: base-select;
+  }
+  select:has(+ span[aria-hidden])::picker-icon {
+    display: none;
+  }
+  select::picker(select) {
+    box-sizing: border-box;
+    margin-block: 4px;
+    padding: 4px;
+    max-height: min(22rem, 60vh);
+    background: var(--color-papel);
+    color: var(--color-tinta);
+    border: 1px solid var(--color-sand);
+    border-radius: var(--radius-superficie);
+    box-shadow: 0 10px 28px rgb(0 0 0 / 0.14);
+    font-family: var(--font-sans);
+    font-size: 0.875rem;
+  }
+  select option {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: var(--radius-control);
+    font-family: var(--font-sans);
+    color: var(--color-tinta);
+    cursor: pointer;
+  }
+  select option:hover,
+  select option:focus-visible {
+    background: var(--color-hueso);
+    outline: none;
+  }
+  select option:checked {
+    font-weight: 500;
+  }
+  select option:disabled {
+    color: var(--color-taupe);
+    cursor: default;
+  }
+  select option::checkmark {
+    color: var(--color-rojo);
+    order: 1;
+    margin-left: auto;
+  }
+  select optgroup {
+    font-weight: 500;
+    color: var(--color-taupe);
+  }
+}
