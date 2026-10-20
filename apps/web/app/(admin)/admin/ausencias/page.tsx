@@ -31,6 +31,7 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Cargando } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
 import { BotonIcono } from "@/components/ui/boton-icono";
+import { BuscadorPersona, type OpcionBuscador } from "@/components/ui/buscador-persona";
 import { CalendarDays, List } from "lucide-react";
 import { AyudaPantalla } from "@/components/ui/ayuda-pantalla";
 import { BannerAviso } from "@/components/ui/banner-aviso";
@@ -135,7 +136,7 @@ type FiltroEstado = "todas" | "pendientes" | "vigentes" | "anuladas";
 type FiltroPersonaEstado = "activos" | "cesados";
 interface PersonaFacts { fechaCese: string | null; liquidada: boolean }
 
-interface Persona { id: string; nombres: string; apellidos: string }
+interface Persona { id: string; nombres: string; apellidos: string; sede_base_id: string | null }
 interface Tipo {
   codigo: string; nombre: string; paga: boolean;
   requiere_documento: boolean; requiere_aprobacion: boolean;
@@ -212,6 +213,8 @@ export default function AusenciasPage() {
   const supabase = useMemo(() => createAdminSupabaseClient(), []);
 
   const [personas, setPersonas] = useState<Persona[]>([]);
+  // Nombre de cada sede, para las fichas del buscador. Si no llega, el buscador sigue sirviendo, solo sin fichas.
+  const [sedePorId, setSedePorId] = useState<Map<string, string>>(new Map());
   const [tipos, setTipos] = useState<Tipo[]>([]);
   const [lista, setLista] = useState<Ausencia[]>([]);
   const [alertas, setAlertas] = useState<Alerta[]>([]);
@@ -419,7 +422,7 @@ export default function AusenciasPage() {
     const { data: sesion } = await supabase.auth.getSession();
     if (!sesion.session) { router.replace("/admin/login"); return; }
     const [{ data: p, error: eP }, { data: t }, { data: a, error: eA }, { data: al, error: eAl }, { data: sub, error: eSub }, { data: pv, error: ePv }, { data: pf }] = await Promise.all([
-      supabase.from("personas").select("id, nombres, apellidos").eq("estado", "activo").eq("cuenta_de_servicio", false).order("nombres"),
+      supabase.from("personas").select("id, nombres, apellidos, sede_base_id").eq("estado", "activo").eq("cuenta_de_servicio", false).order("nombres"),
       supabase.rpc("fn_tipos_ausencia"),
       supabase.rpc("fn_ausencias", { p_desde: desde, p_hasta: hasta }),
       supabase.rpc("fn_ausencias_alerta", {}),
@@ -493,6 +496,12 @@ export default function AusenciasPage() {
   }, [supabase, router, desde, hasta, avisar]);
 
   useEffect(() => { void cargar(); }, [cargar]);
+  useEffect(() => {
+    void (async () => {
+      const { data } = await createAdminSupabaseClient().from("sedes").select("id, nombre").order("nombre");
+      setSedePorId(new Map(((data as { id: string; nombre: string }[] | null) ?? []).map((x) => [x.id, x.nombre])));
+    })();
+  }, []);
 
   /**
    * Abre el certificado de una ausencia en una pestaña nueva.
@@ -773,16 +782,22 @@ export default function AusenciasPage() {
   // dentro de la confirmación de pago (esa no repite el formulario, solo lo
   // resume; ver más abajo). Separado en función para no duplicar el JSX entre
   // el modal normal y cualquier reapertura tras cancelar la confirmación.
+  const opcionesPersona: OpcionBuscador[] = personas.map((p) => ({
+    id: p.id,
+    nombre: `${p.nombres} ${p.apellidos}`,
+    sede: p.sede_base_id ? sedePorId.get(p.sede_base_id) ?? null : null,
+  }));
   const formularioContenido = (
     <div className="grid gap-3 sm:grid-cols-2">
-      <CampoSelect
-        etiqueta="Persona"
-        value={personaId}
-        onChange={(e) => { setPersonaId(e.target.value); void revisarCruceMarcaje(e.target.value, inicio, fin); }}
-      >
-        <option value="">Elegir…</option>
-        {personas.map((p) => (<option key={p.id} value={p.id}>{p.nombres} {p.apellidos}</option>))}
-      </CampoSelect>
+      {/* Sede en fichas y búsqueda que va acortando la lista: con 30 personas, un desplegable obliga a
+          recorrerlas todas. Las sedes se leen de la tabla (nunca una lista a mano). */}
+      <div className="sm:col-span-2">
+        <BuscadorPersona
+          opciones={opcionesPersona}
+          value={personaId}
+          onChange={(id) => { setPersonaId(id); void revisarCruceMarcaje(id, inicio, fin); }}
+        />
+      </div>
       {/* Tipo NACE VACÍO a propósito. Antes se rellenaba solo con el primer
           tipo del catálogo ("Vacaciones") y la comprobación de más abajo
           nunca podía avisar — el motivo real de este "Elegir…" está en
