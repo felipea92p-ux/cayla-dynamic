@@ -20,6 +20,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { ParaAtender } from "@/components/ui/para-atender";
 import { TarjetaInfo } from "@/components/ui/tarjeta-info";
 import { Campo, CampoSelect } from "@/components/ui/campo";
+import { BuscadorPersona } from "@/components/ui/buscador-persona";
 import { Filtro } from "@/components/ui/filtro";
 import { Insignia } from "@/components/ui/insignia";
 import { Modal } from "@/components/ui/modal";
@@ -1620,10 +1621,13 @@ export default function TurnosPage() {
               </div>
 
               {resto.length > 0 && (
-                <CampoSelect etiqueta="Agregar a este día" value="" onChange={(e) => e.target.value && abrirDesdePanel(e.target.value)}>
-                  <option value="">Elegir persona…</option>
-                  {resto.map((p) => <option key={p.id} value={p.id}>{p.nombres} {p.apellidos}</option>)}
-                </CampoSelect>
+                // Al elegir a alguien se abre su turno de ese día: no queda «elegida» en este campo, por eso `value` va vacío.
+                <BuscadorPersona
+                  etiqueta="Agregar a este día"
+                  opciones={resto.map((p) => ({ id: p.id, nombre: `${p.nombres} ${p.apellidos}` }))}
+                  value=""
+                  onChange={(id) => id && abrirDesdePanel(id)}
+                />
               )}
 
               <div className="mt-5 flex justify-end">

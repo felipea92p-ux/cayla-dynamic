@@ -45,6 +45,7 @@ import { hoyLima } from "@cayla-dynamic/shared";
 import { AreaTexto } from "@/components/ui/area-texto";
 import { Boton } from "@/components/ui/boton";
 import { Campo, CampoSelect } from "@/components/ui/campo";
+import { BuscadorPersona } from "@/components/ui/buscador-persona";
 import { Filtro } from "@/components/ui/filtro";
 import { cx } from "@/components/ui/cx";
 import { Modal } from "@/components/ui/modal";
@@ -341,17 +342,16 @@ function Cuerpo({
           </p>
         ) : (
         <div>
-          <CampoSelect
+          <BuscadorPersona
             etiqueta="A quién asegura"
+            opciones={opcionesDePersona.map((p) => ({ id: p.id, nombre: p.nombre, sede: p.sede }))}
             value={f.personaId}
             // Sin seguro elegido no se sabe a quién se puede ofrecer (el principal solo va a quien lo tiene).
             disabled={corrigiendo !== null || (f.producto === "" && f.personaId === "")}
-            onChange={(e) => setF({ ...f, personaId: e.target.value })}
+            placeholder={f.producto || corrigiendo ? "Escribe un nombre…" : "Elige primero el seguro"}
+            onChange={(id) => setF({ ...f, personaId: id })}
             error={mostrar("personaId")}
-          >
-            <option value="">{f.producto || corrigiendo ? "Elige a la persona" : "Elige primero el seguro"}</option>
-            {opcionesDePersona.map((p) => <option key={p.id} value={p.id}>{p.nombre} · {p.sede}</option>)}
-          </CampoSelect>
+          />
           {corrigiendo && <span className="mt-1 block text-xs text-taupe">La persona no se cambia: si está mal, anula la póliza y registra otra.</span>}
           {!corrigiendo && tipo?.principal && candidatas.length === 0 && (
             <span className="mt-1 block text-xs text-ambar">

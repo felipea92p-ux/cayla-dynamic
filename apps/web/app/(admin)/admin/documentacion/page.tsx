@@ -13,6 +13,8 @@ import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { useToast } from "@/components/toast";
 import { Boton } from "@/components/ui/boton";
 import { Campo, CampoSelect } from "@/components/ui/campo";
+import { BuscadorPersona } from "@/components/ui/buscador-persona";
+import { useSedesPorId } from "@/lib/admin/use-sedes";
 import { Tabla, TablaEncabezado, Th, Fila } from "@/components/ui/tabla";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
 import { TarjetaInfo } from "@/components/ui/tarjeta-info";
@@ -354,6 +356,7 @@ const MAX_BYTES_DOC = 50 * 1024 * 1024;
 const TIPOS_DOC = "image/jpeg,image/png,image/heic,image/webp,application/pdf";
 
 export default function DocumentacionPage() {
+  const sedePorId = useSedesPorId();
   const router = useRouter();
   const rol = useRolActual();
   const puede = puedeGestionarCatalogos(rol);
@@ -2516,7 +2519,8 @@ export default function DocumentacionPage() {
               bandeja para no competir con los pendientes — generar uno nuevo
               es una tarea aparte y deliberada. */}
           <Modal abierto={generarAbierto} onCerrar={() => setGenerarAbierto(false)} titulo="Generar documento" ancho="lg">
-            <div className="grid gap-3 sm:grid-cols-2">
+            {/* Una columna: el buscador de persona lleva fichas de sede y no cabe en media. */}
+            <div className="grid gap-3">
               <CampoSelect
                 etiqueta="Documento"
                 value={tipo}
@@ -2526,12 +2530,7 @@ export default function DocumentacionPage() {
               </CampoSelect>
 
               {doc.necesitaPersona && (
-                <CampoSelect
-                  etiqueta="Persona"
-                  value={personaId}
-                  onChange={(e) => setPersonaId(e.target.value)}
-                >
-                  <option value="">Elige a quién…</option>
+                <>
                   {/* Solo en_planilla: "ruta" y "bono" son papeles que declaran una
                       asignación por asistencia y una política de movilidad — que
                       un locador los firme es, en palabras del propio comentario
@@ -2547,12 +2546,14 @@ export default function DocumentacionPage() {
                       CAMBIO 0519: y para "bono" también — decidido por Felipe el
                       2026-10-13, con el texto propio de practicantes (`TextoBono`).
                       Sigue la regla de `fn_persona_le_corresponde_bono`. */}
-                  {personas
-                    .filter((p) => p.en_planilla || ((tipo === "ruta" || tipo === "bono") && p.tipo_vinculo === "practicante"))
-                    .map((p) => (
-                    <option key={p.id} value={p.id}>{p.apellidos}, {p.nombres}</option>
-                  ))}
-                </CampoSelect>
+                  <BuscadorPersona
+                    opciones={personas
+                      .filter((p) => p.en_planilla || ((tipo === "ruta" || tipo === "bono") && p.tipo_vinculo === "practicante"))
+                      .map((p) => ({ id: p.id, nombre: `${p.apellidos}, ${p.nombres}`, sede: sedePorId.get(p.sede_base_id) ?? null }))}
+                    value={personaId}
+                    onChange={setPersonaId}
+                  />
+                </>
               )}
             </div>
 

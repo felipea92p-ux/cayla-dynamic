@@ -31,6 +31,7 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Cargando } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
 import { BotonIcono } from "@/components/ui/boton-icono";
+import { useSedesPorId } from "@/lib/admin/use-sedes";
 import { BuscadorPersona, type OpcionBuscador } from "@/components/ui/buscador-persona";
 import { Ban, CalendarDays, List } from "lucide-react";
 import { AyudaPantalla } from "@/components/ui/ayuda-pantalla";
@@ -214,7 +215,7 @@ export default function AusenciasPage() {
 
   const [personas, setPersonas] = useState<Persona[]>([]);
   // Nombre de cada sede, para las fichas del buscador. Si no llega, el buscador sigue sirviendo, solo sin fichas.
-  const [sedePorId, setSedePorId] = useState<Map<string, string>>(new Map());
+  const sedePorId = useSedesPorId();
   const [tipos, setTipos] = useState<Tipo[]>([]);
   const [lista, setLista] = useState<Ausencia[]>([]);
   const [alertas, setAlertas] = useState<Alerta[]>([]);
@@ -496,12 +497,6 @@ export default function AusenciasPage() {
   }, [supabase, router, desde, hasta, avisar]);
 
   useEffect(() => { void cargar(); }, [cargar]);
-  useEffect(() => {
-    void (async () => {
-      const { data } = await createAdminSupabaseClient().from("sedes").select("id, nombre").order("nombre");
-      setSedePorId(new Map(((data as { id: string; nombre: string }[] | null) ?? []).map((x) => [x.id, x.nombre])));
-    })();
-  }, []);
 
   /**
    * Abre el certificado de una ausencia en una pestaña nueva.

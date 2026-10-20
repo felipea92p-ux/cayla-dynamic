@@ -16,7 +16,7 @@
 // No decide nada de negocio: recibe las opciones ya filtradas por quien lo usa (activas, sin
 // cuentas de servicio…) y devuelve el id elegido. Las sedes salen de las propias opciones.
 
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { Search } from "lucide-react";
 import { Boton } from "./boton";
@@ -53,12 +53,18 @@ export function BuscadorPersona({
   onChange,
   etiqueta = "Persona",
   disabled,
+  error,
+  placeholder = "Escribe un nombre…",
 }: {
   opciones: OpcionBuscador[];
   value: string;
   onChange: (id: string) => void;
   etiqueta?: string;
   disabled?: boolean;
+  /** Mensaje de error, con borde rojo a juego. No valida por sí solo. */
+  error?: string;
+  /** Lo que dice el campo vacío; con `disabled` sirve para decir por qué («Elige primero el seguro»). */
+  placeholder?: string;
 }) {
   const idLista = useId();
   const [busca, setBusca] = useState("");
@@ -117,10 +123,6 @@ export function BuscadorPersona({
       window.removeEventListener("scroll", medir, true);
     };
   }, [listaAbierta, visibles.length]);
-
-  // Montado en el cliente: createPortal necesita document.
-  const [montado, setMontado] = useState(false);
-  useEffect(() => setMontado(true), []);
 
   if (elegida && !cambiando) {
     return (
@@ -193,16 +195,17 @@ export function BuscadorPersona({
           aria-autocomplete="list"
           type="text"
           autoComplete="off"
-          placeholder="Escribe un nombre…"
+          placeholder={placeholder}
           value={busca}
           disabled={disabled}
           autoFocus={cambiando}
           onChange={(e) => { setBusca(e.target.value); setActiva(0); }}
           onKeyDown={teclas}
-          className="w-full rounded-control border border-sand bg-hueso py-2 pl-8 pr-3 text-base text-tinta placeholder:text-taupe/60 focus-visible:outline-offset-0 sm:text-sm"
+          className={cx("w-full rounded-control border border-sand bg-hueso py-2 pl-8 pr-3 text-base text-tinta placeholder:text-taupe/60 focus-visible:outline-offset-0 disabled:opacity-60 sm:text-sm", error && "border-rojo")}
         />
       </label>
-      {listaAbierta && montado && pos &&
+      {error && <span className="block text-xs text-rojo">{error}</span>}
+      {listaAbierta && pos &&
         createPortal(
           <div
             // z-50: por encima del Modal (z-40) que contiene al campo, igual que <Menu>.

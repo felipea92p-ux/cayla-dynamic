@@ -19,6 +19,8 @@ import type { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { NIVEL_DISCIPLINARIO_LABELS, fechaLima, hoyLima } from "@cayla-dynamic/shared";
 import { Modal } from "@/components/ui/modal";
 import { Campo } from "@/components/ui/campo";
+import { BuscadorPersona } from "@/components/ui/buscador-persona";
+import { useSedesPorId } from "@/lib/admin/use-sedes";
 import { AreaTexto } from "@/components/ui/area-texto";
 import { Boton } from "@/components/ui/boton";
 import { Insignia } from "@/components/ui/insignia";
@@ -52,6 +54,7 @@ export function ModalRegistrarFalta({
   onRegistrado: (id: string) => void;
 }) {
   const hoy = hoyLima();
+  const sedePorId = useSedesPorId();
   // ── Lo que se lee al abrir ─────────────────────────────────────────────
   const [catalogo, setCatalogo] = useState<FaltaCatalogo[]>([]);
   const [falloCatalogo, setFalloCatalogo] = useState<string | null>(null);
@@ -179,14 +182,12 @@ export function ModalRegistrarFalta({
           {personaFija ? (
             <p className="text-sm"><span className="text-taupe">Para:</span> <span className="font-medium">{personaFija.nombre}</span></p>
           ) : (
-            <label htmlFor="rf-persona" className="grid gap-1 text-sm font-medium">
-              ¿A quién?
-              <select id="rf-persona" value={personaId} onChange={(e) => setPersonaId(e.target.value)}
-                className="rounded-control border border-sand bg-hueso px-2.5 py-2 text-sm font-normal text-tinta">
-                <option value="">Elige a la persona…</option>
-                {candidatas.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
-              </select>
-            </label>
+            <BuscadorPersona
+              etiqueta="¿A quién?"
+              opciones={candidatas.map((p) => ({ id: p.id, nombre: p.nombre, sede: p.sede_base_id ? sedePorId.get(p.sede_base_id) ?? null : null }))}
+              value={personaId}
+              onChange={setPersonaId}
+            />
           )}
           {!personaFija && (
             <p className="text-xs text-taupe">Solo quien tiene contrato de trabajo. Si eres líder de equipo, solo integrantes de tu sede: a otra líder la amonesta Desarrollo Organizacional.</p>
