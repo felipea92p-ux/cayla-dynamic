@@ -68,7 +68,7 @@ const enMinutosDelDia = (ts: string) => Math.round(horaDecimalLima(ts) * 60);
 export function PanelJornada({ sedes: sedesDeAlcance }: { sedes?: { codigo: string; nombre: string }[] }) {
   const hoy = hoyLima();
   const [dia, setDia] = useState(hoy);
-  const [vista, setVista] = useFiltroGuardado<"linea" | "tabla">("dashboard.jornada.vista", "linea");
+  const [vista, setVista] = useFiltroGuardado<"linea" | "tabla">("dashboard.jornada.vista", "tabla");
   const [sedeSel, setSedeSel] = useState<string>("todas");
   const [solo, setSolo] = useState<"" | "almorzando" | "paso" | "tarde">("");
   const [abiertas, setAbiertas] = useState<Record<string, boolean>>({});
