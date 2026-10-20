@@ -19,7 +19,9 @@
 //   `seguroPorPersona`, que a su vez lee lo que dice la base.
 // ============================================================================
 
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { Boton } from "@/components/ui/boton";
+import { BotonIcono } from "@/components/ui/boton-icono";
 import { Insignia } from "@/components/ui/insignia";
 import { isoADiaMesAnio } from "@/lib/admin/planilla/formato";
 import {
@@ -94,13 +96,14 @@ function MensajeHueco({ p, hoy }: { p: SeguroDePersona; hoy: string }) {
   );
 }
 
-export function FichaPersona({
-  p, hoy, tipos, acciones,
+function FichaAbierta({
+  p, hoy, tipos, acciones, onCerrar,
 }: {
   p: SeguroDePersona;
   hoy: string;
   tipos: TipoSeguro[];
   acciones: AccionesFicha;
+  onCerrar: () => void;
 }) {
   const tipo = tipos.find((t) => t.clave === p.tipo?.clave);
   const hayAdemas = tipos.some((t) => t.activo && t.con_poliza && !t.principal);
@@ -123,6 +126,7 @@ export function FichaPersona({
         <div className="flex flex-wrap items-center gap-2">
           <InsigniaSituacion p={p} />
           {p.activa && <Boton tamano="sm" onClick={() => acciones.cambiarSeguro(p)}>Cambiar su seguro</Boton>}
+          <BotonIcono tamano="md" etiqueta={`Cerrar la ficha de ${p.persona}`} icono={<ChevronUp aria-hidden />} onClick={onCerrar} />
           {p.activa && hayAdemas && <Boton variante="sutil" tamano="sm" onClick={() => acciones.registrar({ personaId: p.personaId, soloAdemas: true })}>Registrar otro seguro</Boton>}
         </div>
       </section>
@@ -149,7 +153,10 @@ export function FichaPersona({
     <section className="rounded-2xl border border-sand bg-papel">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-sand px-5 py-3">
         <h2 className="font-serif text-lg text-tinta">{cabecera}</h2>
-        <InsigniaSituacion p={p} />
+        <span className="flex items-center gap-2">
+          <InsigniaSituacion p={p} />
+          <BotonIcono tamano="md" etiqueta={`Cerrar la ficha de ${p.persona}`} icono={<ChevronUp aria-hidden />} onClick={onCerrar} />
+        </span>
       </div>
       <div className="space-y-3 px-5 py-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -212,5 +219,49 @@ export function FichaPersona({
         )}
       </div>
     </section>
+  );
+}
+
+/** Cuántos pasos o cambios le piden algo a esta persona (lo que se resume en la fila cerrada). */
+function pendientesDe(p: SeguroDePersona): number {
+  return p.cambiosPendientes.length + p.conPapeleo.length;
+}
+
+/**
+ * La ficha de una persona, PLEGABLE. Cerrada es UNA línea —nombre, seguro de hoy, situación y, si hay, cuántas cosas
+ * le piden algo—; abierta es la ficha completa de siempre. Con 30 personas en 4 sedes, ver todo abierto ahogaba a
+ * las pocas que sí piden algo.
+ */
+export function FichaPersona({
+  p, hoy, tipos, acciones, abierta, onAlternar,
+}: {
+  p: SeguroDePersona;
+  hoy: string;
+  tipos: TipoSeguro[];
+  acciones: AccionesFicha;
+  abierta: boolean;
+  onAlternar: () => void;
+}) {
+  if (abierta) return <FichaAbierta p={p} hoy={hoy} tipos={tipos} acciones={acciones} onCerrar={onAlternar} />;
+  const pendientes = pendientesDe(p);
+  return (
+    <button
+      type="button"
+      aria-expanded={false}
+      onClick={onAlternar}
+      className="flex w-full items-center justify-between gap-3 rounded-superficie border border-sand bg-papel px-4 py-2.5 text-left transition-colors duration-150 hover:bg-hueso"
+    >
+      <span className="min-w-0">
+        <span className="block truncate font-serif text-base text-tinta">
+          {p.persona} <span className="font-sans text-sm text-taupe">· {etiquetaVinculo(p.vinculo)}{p.modalidad && ` · ${MODALIDAD[p.modalidad] ?? p.modalidad}`}</span>
+        </span>
+        <span className="block truncate text-sm text-taupe">{p.tipo ? `Seguro: ${p.tipo.nombre}` : `Su vínculo (${etiquetaVinculo(p.vinculo)}) no lleva un seguro de la empresa.`}</span>
+      </span>
+      <span className="flex shrink-0 items-center gap-2">
+        {pendientes > 0 && <Insignia variante="advertencia" tamano="sm">{plural(pendientes, "pendiente", "pendientes")}</Insignia>}
+        <InsigniaSituacion p={p} />
+        <ChevronDown size={16} strokeWidth={1.8} className="text-taupe" aria-hidden />
+      </span>
+    </button>
   );
 }

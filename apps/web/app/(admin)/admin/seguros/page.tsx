@@ -41,6 +41,7 @@ import { ArchivosPoliza, type PolizaHermana } from "@/components/seguros/archivo
 import { AyudaDeSeguros } from "@/components/seguros/ayuda-de-seguros";
 import { CambiarSeguro } from "@/components/seguros/cambiar-seguro";
 import { FichaPersona, type AccionesFicha } from "@/components/seguros/ficha-persona";
+import { GrupoDeSede } from "@/components/seguros/grupo-de-sede";
 import { FormularioPoliza, type BaseDePoliza, type OpcionPersona } from "@/components/seguros/formulario-poliza";
 import { HistorialPoliza } from "@/components/seguros/historial-poliza";
 import { LeerPdfDePoliza } from "@/components/seguros/leer-pdf-de-poliza";
@@ -181,6 +182,28 @@ function Seguros() {
     if (filtroVigente === "cambios") return p.cambiosPendientes.length > 0;
     return p.situacion === filtroVigente;
   }), [personas, busqueda, filtroVigente, tipoFiltro, soloPersona]);
+
+  // ── Qué está abierto ──────────────────────────────────────────────────
+  // TODO ARRANCA CERRADO: las sedes y, dentro, cada persona. Lo que se abre o cierra a mano manda; mientras nadie lo toque,
+  // una sede se abre sola solo si se está buscando o filtrando algo (si no, el resultado quedaría escondido tras un clic),
+  // y una persona solo si la Bandeja llegó aquí por ella.
+  const [sedeAbierta, setSedeAbierta] = useState<Record<string, boolean>>({});
+  const [personaAbierta, setPersonaAbierta] = useState<Record<string, boolean>>({});
+  const buscando = busqueda.trim() !== "" || filtroVigente !== null || tipoFiltro !== TODOS || soloPersona !== null;
+  const grupos = useMemo(() => {
+    const m = new Map<string, SeguroDePersona[]>();
+    for (const p of visibles) m.set(p.sede, [...(m.get(p.sede) ?? []), p]);
+    return [...m.entries()].sort(([a], [b]) => a.localeCompare(b, "es"));
+  }, [visibles]);
+  const sedeEstaAbierta = (sede: string) => sedeAbierta[sede] ?? buscando;
+  const personaEstaAbierta = (id: string) => personaAbierta[id] ?? soloPersona === id;
+  const alternarSede = (sede: string) => setSedeAbierta((a) => ({ ...a, [sede]: !(a[sede] ?? buscando) }));
+  const alternarPersona = (id: string) => setPersonaAbierta((a) => ({ ...a, [id]: !(a[id] ?? soloPersona === id) }));
+  const abrirSedes = () => setSedeAbierta(Object.fromEntries(grupos.map(([sede]) => [sede, true])));
+  const cerrarTodo = () => {
+    setSedeAbierta(Object.fromEntries(grupos.map(([sede]) => [sede, false])));
+    setPersonaAbierta(Object.fromEntries(visibles.map((p) => [p.personaId, false])));
+  };
 
   // ── Registrar, renovar y corregir una póliza ──────────────────────────
   const [formAbierto, setFormAbierto] = useState(false);
@@ -399,8 +422,23 @@ function Seguros() {
                 <p className="text-sm text-taupe">Nadie coincide con ese filtro{busqueda ? ` y con «${busqueda}»` : ""}.</p>
               )}
 
+              {visibles.length > 0 && (
+                <div className="mb-2 flex justify-end gap-4 text-sm">
+                  <Boton variante="enlace" onClick={abrirSedes}>Abrir las sedes</Boton>
+                  <Boton variante="enlace" onClick={cerrarTodo}>Cerrar todo</Boton>
+                </div>
+              )}
               <div className="space-y-3">
-                {visibles.map((p) => <FichaPersona key={p.personaId} p={p} hoy={hoy} tipos={tipos} acciones={acciones} />)}
+                {grupos.map(([sede, gente]) => (
+                  <GrupoDeSede key={sede} sede={sede} personas={gente} abierto={sedeEstaAbierta(sede)} onAlternar={() => alternarSede(sede)}>
+                    {gente.map((p) => (
+                      <FichaPersona
+                        key={p.personaId} p={p} hoy={hoy} tipos={tipos} acciones={acciones}
+                        abierta={personaEstaAbierta(p.personaId)} onAlternar={() => alternarPersona(p.personaId)}
+                      />
+                    ))}
+                  </GrupoDeSede>
+                ))}
               </div>
             </>
           )}
