@@ -822,6 +822,15 @@ export default function AusenciasPage() {
           );
         })}
       </CampoSelect>
+      {/* Tipo y motivo van juntos (qué ausencia es y de qué se trata), y las dos fechas juntas debajo. */}
+      <CampoSelect
+        etiqueta="Motivo — de qué se trata"
+        value={motivoEtiqueta}
+        onChange={(e) => setMotivoEtiqueta(e.target.value)}
+      >
+        <option value="">Elegir…</option>
+        {MOTIVO_ETIQUETAS.map((m) => (<option key={m} value={m}>{m}</option>))}
+      </CampoSelect>
       <Campo
         etiqueta="Desde"
         type="date"
@@ -857,14 +866,6 @@ export default function AusenciasPage() {
         </p>
       )}
 
-      <CampoSelect
-        etiqueta="Motivo — de qué se trata"
-        value={motivoEtiqueta}
-        onChange={(e) => setMotivoEtiqueta(e.target.value)}
-      >
-        <option value="">Elegir…</option>
-        {MOTIVO_ETIQUETAS.map((m) => (<option key={m} value={m}>{m}</option>))}
-      </CampoSelect>
       <div className="sm:col-span-2">
         <AreaTexto
           etiqueta="Detalle (opcional — lo que se conversó; queda en su historial)"
