@@ -200,7 +200,7 @@ export default function VersionesPoliticaSalarialPage() {
   }
 
   return (
-    <main className="mx-auto max-w-4xl px-4 py-8">
+    <main className="w-full px-6 py-8">
       <CabeceraPagina titulo="Versiones y publicación" descripcion="Cada versión queda registrada con su fecha; las anteriores se conservan tal como se comunicaron." />
       <SubnavPoliticaSalarial />
 

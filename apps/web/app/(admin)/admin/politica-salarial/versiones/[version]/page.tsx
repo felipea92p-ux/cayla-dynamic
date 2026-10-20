@@ -69,7 +69,7 @@ export default function VersionHistoricaPage() {
   const doc = documentoDesdeGuardado(fila.documento);
 
   return (
-    <main className="mx-auto max-w-4xl px-4 py-8 print:max-w-none print:p-0">
+    <main className="w-full px-6 py-8 print:max-w-none print:p-0">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3 print:hidden">
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="font-serif text-xl text-tinta">Versión {fila.version}</h1>
