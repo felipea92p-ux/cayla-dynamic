@@ -167,11 +167,11 @@ export default function FeriadosPage() {
     if (!sesion.session) { router.replace("/admin/login"); return; }
     const [{ data: p, error: eP }, { data: pt }, { data: sd }, { data: f }, { data: l, error: eL }, { data: r }, { data: ac }] = await Promise.all([
       // Mismo criterio del dashboard (7afe8e5): el practicante sí sale en la
-      // lista para que la encargada no lo eche de menos, pero `tipo_vinculo`
-      // viaja para poder deshabilitar su casilla más abajo — un practicante
-      // no cobra la sobretasa de feriado (no es remuneración que le
-      // corresponda, mismo criterio que un locador desde la 0154) ni tiene
-      // "falta injustificada" que perdonar con un descanso sustitutorio.
+      // lista y desde el 2026-10-20 también se puede marcar (ver `alternar`).
+      // `tipo_vinculo` viaja para rotularlo: un practicante no cobra la
+      // sobretasa de feriado (no es remuneración que le corresponda, mismo
+      // criterio que un locador desde la 0154), así que su día libre no
+      // cambia su pago.
       supabase.from("personas").select("id, nombres, apellidos, sede_base_id, tipo_vinculo")
         .eq("estado", "activo").eq("cuenta_de_servicio", false)
         .or("en_planilla.eq.true,tipo_vinculo.eq.practicante")
@@ -332,12 +332,10 @@ export default function FeriadosPage() {
     setTimeout(() => URL.revokeObjectURL(url), 60_000);
   }
 
-  // Un practicante no cobra sobretasa de feriado ni tiene falta injustificada
-  // que perdonar con esto (ver el porqué en la consulta de `personas`, más
-  // arriba): su casilla se ve pero no se puede marcar, ni a mano ni por el
-  // atajo "Marcar / desmarcar visibles".
+  // Un practicante SÍ se puede marcar (2026-10-20, a pedido de Felipe: también tiene descansos y se le da el día libre cuando trabaja un
+  // feriado). Lo que no tiene es sobretasa que perder ni falta injustificada que perdonar, así que registrarle el día libre no mueve su
+  // pago: queda el registro y su acta, que es lo que se quiere. Antes su casilla estaba deshabilitada.
   function alternar(id: string) {
-    if (personas.find((p) => p.id === id)?.tipo_vinculo === "practicante") return;
     setElegidas((prev) => {
       const s = new Set(prev);
       if (s.has(id)) s.delete(id); else s.add(id);
@@ -345,7 +343,7 @@ export default function FeriadosPage() {
     });
   }
   function todasVisibles() {
-    const ids = visibles.filter((p) => p.tipo_vinculo !== "practicante").map((p) => p.id);
+    const ids = visibles.map((p) => p.id);
     const faltan = ids.some((id) => !elegidas.has(id));
     setElegidas((prev) => {
       const s = new Set(prev);
@@ -484,18 +482,17 @@ export default function FeriadosPage() {
                 return (
                   <label
                     key={p.id}
-                    className={`flex items-center gap-2 rounded px-2 py-1 text-sm ${esPracticante ? "text-taupe" : "hover:bg-sand/40"}`}
-                    title={esPracticante ? "Practicante: no cobra sobretasa de feriado ni tiene falta que perdonar con un descanso sustitutorio." : undefined}
+                    className="flex items-center gap-2 rounded px-2 py-1 text-sm hover:bg-sand/40"
+                    title={esPracticante ? "Practicante: no cobra sobretasa de feriado, así que el día libre queda registrado pero no cambia su pago." : undefined}
                   >
                     <input
                       type="checkbox"
                       checked={elegidas.has(p.id)}
                       onChange={() => alternar(p.id)}
-                      disabled={esPracticante}
-                      className="size-4 accent-tinta disabled:cursor-not-allowed disabled:opacity-40"
+                      className="size-4 accent-tinta"
                     />
                     {p.nombres} {p.apellidos}
-                    {esPracticante && <span className="text-xs">· practicante</span>}
+                    {esPracticante && <span className="text-xs text-taupe">· practicante</span>}
                   </label>
                 );
               })}
