@@ -57,6 +57,8 @@ import { hoyLima, TZ_LIMA, formatoMinutos } from "@cayla-dynamic/shared";
 import { type Area, AREAS_FALLBACK, parseAreas, areaCorto, areaNombre } from "@/lib/areas";
 import { MESES, lecturaObjetivos, type ObjetivoItem } from "@/lib/objetivos";
 import { GraficoHoras, type DiaGrafico } from "@/components/grafico-horas";
+import { horasAntesDeAlmorzar, sePaso } from "@/lib/admin/almuerzo";
+import { useAlmuerzosDePersona } from "@/lib/admin/use-almuerzos-de-persona";
 import {
   esperadoDelDia, horarioVigente, fechasDelRango, dowDe, estadoDelDia,
   esJornadaEnCurso, cuentaEnLoQueLeTocaba,
@@ -498,13 +500,28 @@ function DetallePersona({ f, meta, anio, mes, mesEnCurso, sel, onDia, enCajon = 
   const objPorcentaje = f.objTotal > 0 ? Math.round((f.objCumplidos / f.objTotal) * 100) : 0;
   const nivel = lecturaObjetivos(f.objCumplidos, f.objTotal);
   const conMarcaje = f.dias.filter((d) => d.entradaTs !== null || d.horas !== null);
+  // Cuándo salió a almorzar cada día del rango (se pide al abrir el detalle: ver use-almuerzos-de-persona.ts).
+  const fechasDelRango = f.dias.map((d) => d.fecha).sort();
+  const { almuerzos, permitido } = useAlmuerzosDePersona(f.personaId, fechasDelRango[0] ?? "", fechasDelRango[fechasDelRango.length - 1] ?? "");
+  const textoAlmuerzo = (fecha: string) => {
+    const a = almuerzos.get(fecha);
+    if (!a) return null;
+    const p = permitido.get(fecha) ?? null;
+    if (!a.volvioTs) return `Salió a almorzar ${horaLima(a.salioTs)} y no marcó el regreso`;
+    return `Almuerzo ${horaLima(a.salioTs)} – ${horaLima(a.volvioTs)} · ${a.minutos} min${sePaso(a.minutos, p) ? ` (pasó de los ${p} min permitidos)` : ""}`;
+  };
   const grafico: DiaGrafico[] = conMarcaje
     .filter((d) => !d.agregado)
-    .map((d) => ({
-      fecha: d.fecha,
-      horas: d.horas ?? 0,
-      problema: d.estado === "tarde" || (d.estado === "revisar" && !d.enCurso),
-    }));
+    .map((d) => {
+      const a = almuerzos.get(d.fecha) ?? null;
+      const antes = horasAntesDeAlmorzar(d.entradaTs, a);
+      return {
+        fecha: d.fecha,
+        horas: d.horas ?? 0,
+        problema: d.estado === "tarde" || (d.estado === "revisar" && !d.enCurso),
+        almuerzo: antes !== null ? { antesHoras: antes, texto: textoAlmuerzo(d.fecha) ?? "", largo: sePaso(a?.minutos ?? null, permitido.get(d.fecha) ?? null) } : undefined,
+      };
+    });
   const promedio = f.diasTrabajados > 0 ? f.horasReales / f.diasTrabajados : 0;
   const diasSospechosos = conMarcaje.filter((d) => medidoContra(d).sospechoso);
   const sinTurnoConNovedad = diasSospechosos.length;
@@ -634,6 +651,7 @@ function DetallePersona({ f, meta, anio, mes, mesEnCurso, sel, onDia, enCajon = 
         <TablaEncabezado>
           <Th>Fecha</Th>
           <Th>Entrada</Th>
+          <Th>Almuerzo</Th>
           <Th>Salida</Th>
           <Th>Horas</Th>
           <Th>Tardanza</Th>
@@ -644,7 +662,7 @@ function DetallePersona({ f, meta, anio, mes, mesEnCurso, sel, onDia, enCajon = 
         </TablaEncabezado>
         <tbody>
           {conMarcaje.length === 0 ? (
-            <tr><td colSpan={9} className="px-4 py-6 text-center text-taupe">Sin jornadas en el periodo.</td></tr>
+            <tr><td colSpan={10} className="px-4 py-6 text-center text-taupe">Sin jornadas en el periodo.</td></tr>
           ) : conMarcaje.map((d) => {
             const mc = medidoContra(d);
             const activa = sel?.personaId === f.personaId && sel?.fecha === d.fecha;
@@ -658,6 +676,21 @@ function DetallePersona({ f, meta, anio, mes, mesEnCurso, sel, onDia, enCajon = 
                 title="Abrir este día">
                 <td className="px-4 py-2 capitalize">{fechaLarga(d.fecha)}</td>
                 <td className="px-4 py-2">{horaLima(d.entradaTs)}</td>
+                <td className="px-4 py-2 whitespace-nowrap">
+                  {(() => {
+                    const a = almuerzos.get(d.fecha);
+                    if (!a) return <span className="text-taupe/50">—</span>;
+                    const largo = sePaso(a.minutos, permitido.get(d.fecha) ?? null);
+                    return a.volvioTs ? (
+                      <span title={textoAlmuerzo(d.fecha) ?? undefined}>
+                        {horaLima(a.salioTs)} – {horaLima(a.volvioTs)}
+                        <span className={cx("ml-1.5 text-xs", largo ? "text-rojo" : "text-taupe")}>{a.minutos} min</span>
+                      </span>
+                    ) : (
+                      <span className="text-ambar" title={textoAlmuerzo(d.fecha) ?? undefined}>{horaLima(a.salioTs)} · sin regreso</span>
+                    );
+                  })()}
+                </td>
                 <td className="px-4 py-2">{d.salidaTs ? horaLima(d.salidaTs) : <span className={d.enCurso ? "text-taupe" : "text-ambar"}>—</span>}</td>
                 <td className="px-4 py-2">{d.horas !== null ? fmtHoras(d.horas) : "—"}</td>
                 <td className="px-4 py-2">
