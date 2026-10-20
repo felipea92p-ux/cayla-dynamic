@@ -187,11 +187,9 @@ function Seguros() {
 
   // ── Qué está abierto ──────────────────────────────────────────────────
   // TODO ARRANCA CERRADO: las sedes y, dentro, cada persona. Lo que se abre o cierra a mano manda; mientras nadie lo toque,
-  // una sede se abre sola solo si se está buscando o filtrando algo (si no, el resultado quedaría escondido tras un clic),
-  // y una persona solo si la Bandeja llegó aquí por ella.
+  // solo se abre una persona: aquella a la que la Bandeja mandó aquí.
   const [sedeAbierta, setSedeAbierta] = useState<Record<string, boolean>>({});
   const [personaAbierta, setPersonaAbierta] = useState<Record<string, boolean>>({});
-  const buscando = busqueda.trim() !== "" || filtroVigente !== null || tipoFiltro !== TODOS || soloPersona !== null;
   // «Todas las sedes» las muestra en grupos plegables; una sede sola muestra directo a sus personas, sin bajar por las demás.
   // Se recuerda la última vista: quien trabaja siempre con la misma sede no tiene que elegirla cada vez.
   const [sedeVista, setSedeVista] = useFiltroGuardado<string>("seguros.sede", "todas");
@@ -207,9 +205,11 @@ function Seguros() {
     return [...m.entries()].sort(([a], [b]) => a.localeCompare(b, "es"));
   }, [visibles]);
   const deLaSede = useMemo(() => visibles.filter((p) => p.sede === sedeActiva), [visibles, sedeActiva]);
-  const sedeEstaAbierta = (sede: string) => sedeAbierta[sede] ?? buscando;
+  // Todo cerrado por defecto, también al buscar o filtrar (a pedido de Felipe, 2026-10-20): el encabezado de cada sede ya dice cuántas personas
+  // quedaron y cuántas piden algo, y se abre con un toque.
+  const sedeEstaAbierta = (sede: string) => sedeAbierta[sede] ?? false;
   const personaEstaAbierta = (id: string) => personaAbierta[id] ?? soloPersona === id;
-  const alternarSede = (sede: string) => setSedeAbierta((a) => ({ ...a, [sede]: !(a[sede] ?? buscando) }));
+  const alternarSede = (sede: string) => setSedeAbierta((a) => ({ ...a, [sede]: !(a[sede] ?? false) }));
   const alternarPersona = (id: string) => setPersonaAbierta((a) => ({ ...a, [id]: !(a[id] ?? soloPersona === id) }));
   const abrirSedes = () => setSedeAbierta(Object.fromEntries(grupos.map(([sede]) => [sede, true])));
   const abrirFichas = () => setPersonaAbierta(Object.fromEntries(deLaSede.map((p) => [p.personaId, true])));
