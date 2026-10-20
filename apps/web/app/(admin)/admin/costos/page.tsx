@@ -179,7 +179,9 @@ export default function CostosPage() {
   // Se usa `fn_periodos` —la misma fuente que la pantalla de Planilla— para que
   // las dos no puedan discrepar sobre qué periodos hay.
   const vivoRef = useRef(true);
-  useEffect(() => () => { vivoRef.current = false; }, []);
+  // `vivoRef.current = true` al montar: en desarrollo React monta, desmonta y vuelve a montar cada componente, y sin esto el
+  // desmontaje intermedio dejaba la marca en `false` para siempre y las listas nunca se pintaban.
+  useEffect(() => { vivoRef.current = true; return () => { vivoRef.current = false; }; }, []);
 
   // Si esta consulta falla, NO es lo mismo que "todavía no hay periodos
   // pagados": es un error real, y se guarda en el mismo `error` que usa
