@@ -276,8 +276,8 @@ export function PanelJornada({ sedes: sedesDeAlcance }: { sedes?: { codigo: stri
 
   const grupo = (clave: string, titulo: string, ds: typeof datos, opciones: { nota?: string; hijos?: React.ReactNode } = {}) => {
     const { nota, hijos } = opciones;
-    // Todo arranca cerrado (a pedido de Felipe, 2026-10-20), también al elegir una sede o un aviso: se abre con un toque.
-    const abierto = abiertas[clave] ?? false;
+    // Las sedes arrancan ABIERTAS (a pedido de Felipe, 2026-10-20; un rato las tuvo cerradas): se cierran con un toque en su encabezado.
+    const abierto = abiertas[clave] ?? true;
     const r = resumenDe(ds);
     const Chevron = abierto ? ChevronDown : ChevronRight;
     return (
