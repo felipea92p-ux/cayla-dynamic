@@ -7,8 +7,7 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { ESTADO_CIVIL_LABELS, GENERO_LABELS, GRADO_INSTRUCCION_LABELS, TZ_LIMA, TIPO_VINCULO_LABEL, etiquetaDeCatalogo, hoyLima, puedeMarcarCuentaDeServicio, puedeOperarEquipo, puedeVerIdentidad, puedeVerPlanilla } from "@cayla-dynamic/shared";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
-import { BUCKET_SOLICITUDES_PERFIL, CARAS_DNI, type CaraDni } from "@/lib/foto-dni";
-import { abrirArchivoFirmado } from "@/lib/abrir-archivo-firmado";
+import { BUCKET_SOLICITUDES_PERFIL, CARAS_DNI, urlFirmadaSolicitudPerfil, type CaraDni } from "@/lib/foto-dni";
 import { Cargando } from "@/components/cargando";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { GraficoHoras, type DiaGrafico } from "@/components/grafico-horas";
@@ -292,20 +291,31 @@ export default function PerfilPersonaPage() {
     }
   }
   /**
-   * Abre una cara del DNI YA APROBADO. Hasta aquí la foto solo se podía mirar
-   * en /admin/bandeja mientras estaba pendiente: una vez aprobada, la ficha
-   * decía «Cargadas y aprobadas» y el único botón al lado era «Cancelar
-   * documento» — que borra y no se deshace. Quien entraba a mirar el DNI solo
-   * encontraba la acción destructiva.
+   * Muestra una cara del DNI YA APROBADO dentro de un modal, sin abrir pestaña.
+   * Hasta aquí la foto solo se podía mirar en /admin/bandeja mientras estaba
+   * pendiente: una vez aprobada, la ficha decía «Cargadas y aprobadas» y el
+   * único botón al lado era «Cancelar documento» — que borra y no se deshace.
    *
-   * Pasa por `abrirArchivoFirmado` y no por `window.open` tras la firma: el
-   * navegador bloquea a ratos la pestaña si la firma tarda (ver ese archivo).
-   * 60 segundos alcanzan para que cargue; el enlace no queda vivo dando vueltas.
-   * Quién puede leerla lo decide la política del bucket (0403), no esta pantalla.
+   * Antes se abría con `abrirArchivoFirmado` (pestaña nueva) y había
+   * navegadores donde SIEMPRE salía «El navegador bloqueó la ventana»
+   * (2026-10-20, dos clics, dos avisos): una pestaña emergente depende de un
+   * permiso del navegador que esta pantalla no controla. Una imagen no
+   * necesita pestaña — /mio ya la muestra en un modal —, así que no se vuelve a
+   * pedir ese permiso. Quién puede leerla lo decide la política del bucket
+   * (0403), no esta pantalla.
    */
-  async function verCaraDni(ruta: string) {
-    const fallo = await abrirArchivoFirmado(supabase, BUCKET_SOLICITUDES_PERFIL, ruta);
-    if (fallo) avisar("error", fallo);
+  const [dniAmpliado, setDniAmpliado] = useState<{ titulo: string; url: string } | null>(null);
+  const [abriendoDni, setAbriendoDni] = useState<CaraDni | null>(null);
+  async function verCaraDni(cara: CaraDni, etiqueta: string, ruta: string) {
+    if (abriendoDni) return;
+    setAbriendoDni(cara);
+    try {
+      const url = await urlFirmadaSolicitudPerfil(supabase, ruta);
+      if (!url) { avisar("error", "No se pudo abrir la foto. Revisa tu conexión y vuelve a intentarlo."); return; }
+      setDniAmpliado({ titulo: `DNI — ${etiqueta.toLowerCase()}`, url });
+    } finally {
+      setAbriendoDni(null);
+    }
   }
   const [incluirSueldo, setIncluirSueldo] = useState(true); // controla si el sueldo entra al PDF
   const [vacas, setVacas] = useState<VacacionesSaldo | null>(null);
@@ -627,7 +637,8 @@ export default function PerfilPersonaPage() {
                   {CARAS_DNI.map((cara) => {
                     const ruta = rutaCaraDni(cara.clave);
                     return ruta ? (
-                      <Boton key={cara.clave} variante="secundario" tamano="sm" onClick={() => void verCaraDni(ruta)}>
+                      <Boton key={cara.clave} variante="secundario" tamano="sm" cargando={abriendoDni === cara.clave}
+                        onClick={() => void verCaraDni(cara.clave, cara.etiqueta, ruta)}>
                         Ver {cara.etiqueta.toLowerCase()}
                       </Boton>
                     ) : null;
@@ -1241,6 +1252,14 @@ export default function PerfilPersonaPage() {
             Cancelar el DNI
           </Boton>
         </div>
+      </Modal>
+
+      {/* Foto del DNI ya aprobado, ampliada. Imagen de un bucket privado con URL firmada de 5 min. */}
+      <Modal abierto={dniAmpliado !== null} onCerrar={() => setDniAmpliado(null)} titulo={dniAmpliado?.titulo} ancho="xl">
+        {dniAmpliado && (
+          // eslint-disable-next-line @next/next/no-img-element -- imagen de un bucket privado, no un asset local
+          <img src={dniAmpliado.url} alt={dniAmpliado.titulo} className="mx-auto w-auto max-w-full rounded-lg" />
+        )}
       </Modal>
 
       {/* Cuenta de servicio (0490). Marcar saca de la planilla: por eso se
