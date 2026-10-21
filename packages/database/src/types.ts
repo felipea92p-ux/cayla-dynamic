@@ -3619,6 +3619,83 @@ export type Database = {
           },
         ]
       }
+      liquidacion_constancias: {
+        Row: {
+          apoyo: string | null
+          constatada_at: string
+          constatada_por: string
+          decision: string
+          diferencias: Json
+          huella: string
+          id: string
+          motivo: string
+          orden: number
+          persona_id: string
+          reemplaza_id: string | null
+          sentido: string
+          version: number
+        }
+        Insert: {
+          apoyo?: string | null
+          constatada_at?: string
+          constatada_por: string
+          decision: string
+          diferencias: Json
+          huella: string
+          id?: string
+          motivo: string
+          orden?: never
+          persona_id: string
+          reemplaza_id?: string | null
+          sentido: string
+          version: number
+        }
+        Update: {
+          apoyo?: string | null
+          constatada_at?: string
+          constatada_por?: string
+          decision?: string
+          diferencias?: Json
+          huella?: string
+          id?: string
+          motivo?: string
+          orden?: never
+          persona_id?: string
+          reemplaza_id?: string | null
+          sentido?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "constancia_cadena"
+            columns: ["reemplaza_id", "persona_id", "version", "huella"]
+            isOneToOne: false
+            referencedRelation: "liquidacion_constancias"
+            referencedColumns: ["id", "persona_id", "version", "huella"]
+          },
+          {
+            foreignKeyName: "constancia_version_existe"
+            columns: ["persona_id", "version"]
+            isOneToOne: false
+            referencedRelation: "liquidacion_pagada"
+            referencedColumns: ["persona_id", "version"]
+          },
+          {
+            foreignKeyName: "liquidacion_constancias_constatada_por_fkey"
+            columns: ["constatada_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "liquidacion_constancias_constatada_por_fkey"
+            columns: ["constatada_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       liquidacion_pagada: {
         Row: {
           anula_version: number | null
@@ -8999,6 +9076,33 @@ export type Database = {
         Args: { p_motivo: string | null; p_persona_id: string | null }
         Returns: Json
       }
+      fn_liquidacion_constancia_estado: {
+        Args: { p_persona_id: string | null }
+        Returns: {
+          anterior: Json
+          cabeza_id: string
+          filas: Json
+          hay_real: boolean
+          huella: string
+          motivo_no: string
+          puede_constatar: boolean
+          sentido: string
+          version: number
+          vigente: Json
+        }[]
+      }
+      fn_liquidacion_constatar: {
+        Args: {
+          p_apoyo: string | null
+          p_decision: string | null
+          p_huella: string | null
+          p_motivo: string | null
+          p_persona_id: string | null
+          p_reemplaza_id?: string | null
+          p_version: number | null
+        }
+        Returns: Json
+      }
       fn_liquidacion_descuentos_del_cese: {
         Args: { p_persona_id: string | null }
         Returns: {
@@ -9020,6 +9124,10 @@ export type Database = {
           origen: string
           pagado: number
         }[]
+      }
+      fn_liquidacion_huella: {
+        Args: { p_real: Json | null }
+        Returns: string
       }
       fn_liquidacion_pagar: {
         Args: { p_fecha_pago?: string | null; p_nota?: string | null; p_persona_id: string | null }

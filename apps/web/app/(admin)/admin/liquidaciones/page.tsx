@@ -10,7 +10,12 @@ import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { generarCsv, descargarCsv } from "@/lib/admin/csv";
 import { formatSoles } from "@/lib/rangos";
-import { EMPRESA, hoyLima, nombreCorto, nombreOficial, puedeEstamparFirmaDeEmpresa, puedeVerPlanilla, usaNombreDelDni } from "@cayla-dynamic/shared";
+import {
+  APOYOS_CONSTANCIA, EMPRESA, ETIQUETA_APOYO, ETIQUETA_DECISION, decisionesPara, fechaLima, hoyLima,
+  motivoDeConstanciaValido, nombreCorto, nombreOficial, puedeEstamparFirmaDeEmpresa, puedeVerPlanilla,
+  queDibujarDeLaConstancia, usaNombreDelDni,
+  type ApoyoConstancia, type DecisionConstancia, type EstadoRegistroDiferencia, type FilaDiferenciaConstancia,
+} from "@cayla-dynamic/shared";
 import { Boton } from "@/components/ui/boton";
 import { Campo } from "@/components/ui/campo";
 import { CampoSelect } from "@/components/ui/campo";
@@ -205,6 +210,16 @@ export default function LiquidacionesPage() {
   const [detalle, setDetalle] = useState<Detalle | null>(null);
   const [diferencias, setDiferencias] = useState<Diferencia[]>([]);
   const [diferenciasError, setDiferenciasError] = useState<string | null>(null);
+  // Qué pasó con una diferencia real (0542). `null` en cualquiera de los dos
+  // es «no sé» —la 0542 todavía no está pegada, o la lectura falló—, y la
+  // pantalla se comporta como antes: ver `queDibujarDeLaConstancia`.
+  const [constancia, setConstancia] = useState<EstadoRegistroDiferencia | null>(null);
+  const [constanciaError, setConstanciaError] = useState<string | null>(null);
+  const [registroAccion, setRegistroAccion] =
+    useState<{ personaId: string; nombre: string; modo: "registrar" | "corregir" | "retirar" } | null>(null);
+  const [registroDecision, setRegistroDecision] = useState<DecisionConstancia | "">("");
+  const [registroApoyo, setRegistroApoyo] = useState<ApoyoConstancia | "">("");
+  const [registroMotivo, setRegistroMotivo] = useState("");
   const [ocupado, setOcupado] = useState(false);
   const [nota, setNota] = useState("");
   const [miFirma, setMiFirma] = useState<string | null>(null);
@@ -324,10 +339,12 @@ export default function LiquidacionesPage() {
   }, [supabase]);
 
   async function cargarDetalle(personaId: string) {
-    const [liq, dif, papeles] = await Promise.all([
+    const [liq, dif, papeles, con] = await Promise.all([
       supabase.rpc("fn_liquidacion", { p_persona_id: personaId }),
       supabase.rpc("fn_liquidacion_diferencias", { p_persona_id: personaId }),
       supabase.rpc("fn_papeles_cese", { p_persona_id: personaId }),
+      // De una liquidación sin pagar devuelve cero filas, y barato.
+      supabase.rpc("fn_liquidacion_constancia_estado", { p_persona_id: personaId }),
     ]);
     if (liq.error) { avisar("error", mensajeDeError(liq.error)); return; }
     setDetalle(liq.data as Detalle);
@@ -338,6 +355,10 @@ export default function LiquidacionesPage() {
     // Quien está por apretar «Marcar como pagada» necesita saber que esto no
     // se comprobó, no ver un desglose que parece cuadrado por accidente.
     setDiferenciasError(dif.error ? mensajeDeError(dif.error) : null);
+    // «Sin filas» y «falló» no son lo mismo: lo primero es «nada que registrar»,
+    // lo segundo es «no sé» y no dibuja nada nuevo (ver queDibujarDeLaConstancia).
+    setConstancia(con.error ? null : (((con.data as unknown as EstadoRegistroDiferencia[] | null) ?? [])[0] ?? null));
+    setConstanciaError(con.error ? mensajeDeError(con.error) : null);
     // Sin bloquear la pantalla si esto falla: los papeles de salida son un
     // extra sobre la liquidación, no una condición para verla. Si falla, los
     // dos botones nuevos simplemente no aparecen (quedan detrás de `papelesCese`).
@@ -359,10 +380,10 @@ export default function LiquidacionesPage() {
 
   async function abrir(personaId: string) {
     if (abierta === personaId) {
-      setAbierta(null); setDetalle(null); setDiferencias([]); setDiferenciasError(null); setPapelesCese(null);
+      setAbierta(null); setDetalle(null); setDiferencias([]); setDiferenciasError(null); setConstancia(null); setConstanciaError(null); setPapelesCese(null);
       return;
     }
-    setAbierta(personaId); setDetalle(null); setDiferencias([]); setDiferenciasError(null); setPapelesCese(null);
+    setAbierta(personaId); setDetalle(null); setDiferencias([]); setDiferenciasError(null); setConstancia(null); setConstanciaError(null); setPapelesCese(null);
     setNota(""); setApreciacion(""); setModalAbierto(null);
     await cargarDetalle(personaId);
   }
@@ -421,7 +442,7 @@ export default function LiquidacionesPage() {
     if (error) { avisar("error", mensajeDeError(error)); return; }
     setPagoAccion(null);
     await cargar();
-    setAbierta(personaId); setDetalle(null); setDiferencias([]); setDiferenciasError(null);
+    setAbierta(personaId); setDetalle(null); setDiferencias([]); setDiferenciasError(null); setConstancia(null); setConstanciaError(null);
     await cargarDetalle(personaId);
     const v = (data as { version?: number } | null)?.version;
     avisar("ok",
@@ -464,9 +485,69 @@ export default function LiquidacionesPage() {
     if (error) { avisar("error", mensajeDeError(error)); return; }
     setAnularAccion(null); setMotivoAnular("");
     await cargar();
-    setAbierta(personaId); setDetalle(null); setDiferencias([]); setDiferenciasError(null);
+    setAbierta(personaId); setDetalle(null); setDiferencias([]); setDiferenciasError(null); setConstancia(null); setConstanciaError(null);
     await cargarDetalle(personaId);
     avisar("ok", `Liquidación de ${nombre} anulada con constancia. Vuelve a marcarla cuando el número esté bien.`);
+  }
+
+  // ── Qué pasó con una diferencia real (0542) ───────────────────────────────
+  // La decisión es de una persona: el sistema nombra la diferencia y calcula su
+  // sentido, no la resuelve. Aquí solo se junta lo que la pantalla vio —versión,
+  // huella, cabeza de la cadena— y se manda tal cual: el servidor lo recalcula y
+  // lo rechaza si ya no es lo que da el cálculo.
+  function abrirRegistro(modo: "registrar" | "corregir" | "retirar") {
+    if (!abierta || !constancia) return;
+    const previa = constancia.vigente;
+    setRegistroAccion({
+      personaId: abierta, modo,
+      nombre: pendientes.find((p) => p.persona_id === abierta)?.persona ?? "",
+    });
+    // Sin opción por defecto al registrar: quien aprieta tiene que elegir. Al
+    // corregir se parte de lo que había, pero el motivo se vuelve a escribir.
+    setRegistroDecision(modo === "retirar" ? "retirada" : modo === "corregir" && previa ? previa.decision : "");
+    setRegistroApoyo(modo === "corregir" && previa?.apoyo ? previa.apoyo : "");
+    setRegistroMotivo("");
+  }
+
+  async function ejecutarRegistro() {
+    if (!registroAccion || !constancia?.huella || !registroDecision) return;
+    const { personaId, nombre, modo } = registroAccion;
+    if (!motivoDeConstanciaValido(registroMotivo)) {
+      avisar("error", "Cuéntalo en al menos 10 caracteres: dentro de un año ese texto es lo único que explica por qué se cerró el aviso.");
+      return;
+    }
+    if (registroDecision === "pagado_es_correcto" && !registroApoyo) {
+      avisar("error", "Elige en qué te apoyas para decir que lo pagado era lo correcto.");
+      return;
+    }
+    setOcupado(true);
+    const { error } = await supabase.rpc("fn_liquidacion_constatar", {
+      p_persona_id: personaId,
+      p_version: constancia.version,
+      p_huella: constancia.huella,
+      p_decision: registroDecision,
+      p_apoyo: registroDecision === "pagado_es_correcto" ? registroApoyo : null,
+      p_motivo: registroMotivo.trim(),
+      p_reemplaza_id: constancia.cabeza_id,
+    });
+    setOcupado(false);
+    if (error) {
+      const mensaje = mensajeDeError(error);
+      avisar("error", mensaje);
+      // Si lo que se vio ya no es lo que hay (el cálculo cambió, hay una versión
+      // nueva, o alguien se adelantó) el modal ya no sirve: se cierra y se vuelve
+      // a leer, para ver las cifras de ahora.
+      if (/cambió mientras mirabas|Otra persona ya registró|versión nueva|Ya no hay una diferencia/.test(mensaje)) {
+        setRegistroAccion(null);
+        await cargarDetalle(personaId);
+      }
+      return;
+    }
+    setRegistroAccion(null);
+    await cargarDetalle(personaId);
+    avisar("ok", modo === "retirar"
+      ? `Registro de ${nombre} retirado: la diferencia vuelve a estar abierta.`
+      : `Quedó registrado qué pasó con la diferencia de ${nombre}.`);
   }
 
   // El nombre con el que se guarda el PDF. Ver use-titulo-documento.ts: sin
@@ -548,6 +629,7 @@ export default function LiquidacionesPage() {
   }
 
   const listaActiva = tab === "pendientes" ? visibleEnPlazo : tab === "vencidas" ? visibleVencidas : visiblePagadas;
+  const registro: RegistroDiferencia = { estado: constancia, error: constanciaError, abrir: abrirRegistro };
 
   return (
     <div className="flex flex-1 flex-col">
@@ -651,7 +733,7 @@ export default function LiquidacionesPage() {
               abierta={abierta} onAbrir={abrir}
               detalle={detalle} diferencias={diferencias} diferenciasError={diferenciasError}
               nota={nota} setNota={setNota} ocupado={ocupado}
-              onPagar={abrirPagar} onAnular={abrirAnular} miFirma={miFirma}
+              onPagar={abrirPagar} onAnular={abrirAnular} miFirma={miFirma} registro={registro}
               papelesCese={papelesCese} apreciacion={apreciacion} setApreciacion={setApreciacion}
               onImprimir={imprimir}
             />
@@ -665,7 +747,7 @@ export default function LiquidacionesPage() {
               abierta={abierta} onAbrir={abrir}
               detalle={detalle} diferencias={diferencias} diferenciasError={diferenciasError}
               nota={nota} setNota={setNota} ocupado={ocupado}
-              onPagar={abrirPagar} onAnular={abrirAnular} miFirma={miFirma}
+              onPagar={abrirPagar} onAnular={abrirAnular} miFirma={miFirma} registro={registro}
               papelesCese={papelesCese} apreciacion={apreciacion} setApreciacion={setApreciacion}
               onImprimir={imprimir}
             />
@@ -679,7 +761,7 @@ export default function LiquidacionesPage() {
               abierta={abierta} onAbrir={abrir}
               detalle={detalle} diferencias={diferencias} diferenciasError={diferenciasError}
               nota={nota} setNota={setNota} ocupado={ocupado}
-              onPagar={abrirPagar} onAnular={abrirAnular} miFirma={miFirma}
+              onPagar={abrirPagar} onAnular={abrirAnular} miFirma={miFirma} registro={registro}
               papelesCese={papelesCese} apreciacion={apreciacion} setApreciacion={setApreciacion}
               onImprimir={imprimir}
             />
@@ -871,13 +953,130 @@ export default function LiquidacionesPage() {
           </>
         )}
       </Modal>
+
+      {/* Modal: qué pasó con la diferencia real de una liquidación ya pagada (0542). */}
+      <Modal
+        abierto={registroAccion !== null}
+        onCerrar={() => setRegistroAccion(null)}
+        bloqueado={ocupado}
+        titulo={registroAccion?.modo === "retirar" ? "Retirar el registro" : "Qué pasó con esta diferencia"}
+        ancho="md"
+      >
+        {registroAccion && constancia && (
+          <>
+            {registroAccion.modo === "retirar" ? (
+              <p className="mb-3 text-sm text-taupe">
+                Vas a retirar el registro de la diferencia de{" "}
+                <strong className="text-tinta">{registroAccion.nombre}</strong>. La diferencia vuelve a quedar
+                abierta. El registro anterior no se borra: queda en el historial.
+              </p>
+            ) : (
+              <>
+                <p className="mb-2 text-sm text-taupe">
+                  El cálculo de hoy no coincide con la liquidación de{" "}
+                  <strong className="text-tinta">{registroAccion.nombre}</strong>:
+                </p>
+                <LineasDeDiferencia filas={constancia.filas} className="mb-3" />
+                {constancia.sentido === "a_favor_persona" && (
+                  <p className="mb-3 text-xs text-taupe">
+                    Hoy se le daría MÁS que lo que se le pagó. Si esa diferencia se le debe, no la cierres:
+                    págala y usa «Volver a marcarla como pagada».
+                  </p>
+                )}
+                {constancia.sentido === "a_favor_cayla" && (
+                  <p className="mb-3 text-xs text-taupe">
+                    Se le pagó DE MÁS. Según el numeral 29.6 del Reglamento, eso se comunica por escrito con el
+                    detalle del cálculo y se acuerda la devolución; no se descuenta de golpe sin su conformidad escrita.
+                  </p>
+                )}
+                {(constancia.sentido === "a_favor_persona" || constancia.sentido === "a_favor_cayla") && (
+                  <fieldset className="mb-3 flex flex-col gap-2">
+                    <legend className="mb-1 text-sm text-taupe">¿Qué pasó?</legend>
+                    {decisionesPara(constancia.sentido).map((d) => (
+                      <label key={d} className="flex items-start gap-2 text-sm">
+                        <input
+                          type="radio"
+                          name="registro-decision"
+                          className="mt-1 size-4 accent-tinta"
+                          checked={registroDecision === d}
+                          onChange={() => setRegistroDecision(d)}
+                        />
+                        {ETIQUETA_DECISION[d]}
+                      </label>
+                    ))}
+                  </fieldset>
+                )}
+                {registroDecision === "pagado_es_correcto" && (
+                  <div className="mb-3">
+                    <CampoSelect
+                      etiqueta="¿En qué te apoyas?"
+                      value={registroApoyo}
+                      onChange={(e) => setRegistroApoyo(e.target.value as ApoyoConstancia | "")}
+                    >
+                      <option value="">Elige…</option>
+                      {APOYOS_CONSTANCIA.map((a) => <option key={a} value={a}>{ETIQUETA_APOYO[a]}</option>)}
+                    </CampoSelect>
+                  </div>
+                )}
+              </>
+            )}
+            <label className="mb-4 flex flex-col gap-1 text-sm">
+              {registroAccion.modo === "retirar" ? "¿Por qué lo retiras?" : "Cuéntalo"} (mínimo 10 caracteres, obligatorio)
+              <AreaTexto
+                value={registroMotivo}
+                onChange={(e) => setRegistroMotivo(e.target.value)}
+                rows={3}
+                autoFocus
+                placeholder={registroAccion.modo === "retirar"
+                  ? "ej. se registró por error: falta confirmarlo con el laboralista."
+                  : "ej. la regla de vacaciones truncas cambió después del pago; lo confirmó el contador el 20/10."}
+              />
+            </label>
+            <div className="flex justify-end gap-2">
+              <Boton onClick={() => setRegistroAccion(null)} disabled={ocupado}>Cancelar</Boton>
+              <Boton
+                variante="primario"
+                onClick={() => void ejecutarRegistro()}
+                cargando={ocupado}
+                disabled={
+                  !registroDecision || !motivoDeConstanciaValido(registroMotivo)
+                  || (registroDecision === "pagado_es_correcto" && !registroApoyo)
+                }
+              >
+                {registroAccion.modo === "retirar" ? "Retirar" : "Guardar"}
+              </Boton>
+            </div>
+          </>
+        )}
+      </Modal>
     </div>
+  );
+}
+
+// Lo que baja de la página hasta el desglose para el registro de una diferencia.
+interface RegistroDiferencia {
+  estado: EstadoRegistroDiferencia | null;
+  error: string | null;
+  abrir: (modo: "registrar" | "corregir" | "retirar") => void;
+}
+
+// Las filas de una diferencia, una por línea y sin tabla: «se pagó X, hoy daría Y».
+function LineasDeDiferencia({ filas, className }: { filas: FilaDiferenciaConstancia[]; className?: string }) {
+  return (
+    <ul className={className}>
+      {filas.map((x) => (
+        <li key={x.concepto} className="text-sm tabular-nums">
+          <span className="text-taupe">{x.concepto}:</span> se pagó {formatSoles(x.pagado)}, hoy daría{" "}
+          {formatSoles(x.ahora)} ({x.diferencia > 0 ? "+" : ""}{formatSoles(x.diferencia)})
+        </li>
+      ))}
+    </ul>
   );
 }
 
 function SeccionTabla({
   vacio, filas, modo, abierta, onAbrir, detalle, diferencias, diferenciasError, nota, setNota, ocupado,
-  onPagar, onAnular, miFirma, papelesCese, apreciacion, setApreciacion, onImprimir,
+  onPagar, onAnular, miFirma, registro, papelesCese, apreciacion, setApreciacion, onImprimir,
 }: {
   vacio: { titulo: string; texto: string };
   filas: Pendiente[];
@@ -889,6 +1088,7 @@ function SeccionTabla({
   onPagar: (id: string, nombre: string, total: number, yaPagada: boolean, fechaCese: string, venceEl: string) => void;
   onAnular: (id: string, nombre: string) => void;
   miFirma: string | null;
+  registro: RegistroDiferencia;
   papelesCese: PapelesCese | null; apreciacion: string; setApreciacion: (v: string) => void;
   onImprimir: (doc: "liquidacion" | "certificado" | "constancia") => void;
 }) {
@@ -946,7 +1146,7 @@ function SeccionTabla({
                 <td colSpan={6} className="bg-crema/50 px-4 py-3">
                   <Desglose
                     d={detalle} diferencias={diferencias} diferenciasError={diferenciasError} pagada={f.pagada}
-                    nota={nota} setNota={setNota} ocupado={ocupado} miFirma={miFirma}
+                    nota={nota} setNota={setNota} ocupado={ocupado} miFirma={miFirma} registro={registro}
                     // `detalle.total` — no `f.total` — porque es el número que la
                     // persona acaba de leer en el Desglose de abajo, recién
                     // calculado. `f.total` es el que trajo la lista al montar la
@@ -1013,18 +1213,22 @@ function Linea({ etiqueta, jsonb }: { etiqueta: string; jsonb: Record<string, un
 }
 
 function Desglose({
-  d, diferencias, diferenciasError, pagada, nota, setNota, ocupado, onPagar, onAnular, miFirma,
+  d, diferencias, diferenciasError, pagada, nota, setNota, ocupado, onPagar, onAnular, miFirma, registro,
   papelesCese, apreciacion, setApreciacion, onImprimir,
 }: {
   d: Detalle; diferencias: Diferencia[]; diferenciasError: string | null; pagada: boolean;
   nota: string; setNota: (v: string) => void; ocupado: boolean;
   onPagar: () => void; onAnular: () => void;
   miFirma: string | null;
+  registro: RegistroDiferencia;
   papelesCese: PapelesCese | null; apreciacion: string; setApreciacion: (v: string) => void;
   onImprimir: (doc: "liquidacion" | "certificado" | "constancia") => void;
 }) {
   const esperadas = diferencias.filter((x) => x.origen === "esperada_por_cierre");
   const reales = diferencias.filter((x) => x.origen === "real");
+  const que = queDibujarDeLaConstancia({ error: registro.error, fila: registro.estado }, pagada);
+  const vigente = registro.estado?.vigente ?? null;
+  const anterior = registro.estado?.anterior ?? null;
 
   return (
     <div className="rounded-control border border-sand bg-papel p-3">
@@ -1082,7 +1286,7 @@ function Desglose({
               cambió. El sistema la nombra; qué hacer con ella —pagarla,
               compensarla o dejar constancia— sigue siendo una decisión
               humana: nunca se ajusta sola (Decisión XI). */}
-          {reales.length > 0 && (
+          {reales.length > 0 && que !== "vigente" && (
             <BannerAviso variante="alerta" titulo="Revisar — esto no lo explica el cierre del mes" className="mt-3 p-3">
               <table className="w-full">
                 <tbody>
@@ -1098,10 +1302,50 @@ function Desglose({
                 </tbody>
               </table>
               <p className="mt-2 text-xs text-taupe">
-                Qué hacer con la diferencia —pagarla, compensarla o dejar constancia— es una decisión
-                tuya: el sistema la nombra, no la resuelve.
+                Qué hacer con la diferencia es una decisión tuya: el sistema la nombra, no la resuelve.
+                Si se le debe, págala con «Volver a marcarla como pagada»; si no, registra qué pasó.
               </p>
             </BannerAviso>
+          )}
+          {/* Ya se registró qué pasó (0542): el rojo se calma y queda quién, cuándo y por qué. */}
+          {que === "vigente" && vigente && (
+            <BannerAviso variante="informativo" titulo="Ya se registró qué pasó con esta diferencia" className="mt-3 p-3">
+              <p>
+                {ETIQUETA_DECISION[vigente.decision]}.
+                {vigente.apoyo ? ` Apoyo: ${ETIQUETA_APOYO[vigente.apoyo].toLowerCase()}.` : ""} Lo registró{" "}
+                {vigente.por} el {fechaLarga(fechaLima(vigente.cuando))}.
+              </p>
+              <p className="mt-1 text-xs text-taupe">«{vigente.motivo}»</p>
+              <LineasDeDiferencia filas={vigente.diferencias} className="mt-2" />
+              <p className="mt-2 text-xs text-taupe">
+                Si el cálculo cambia otra vez, el aviso vuelve solo.
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <Boton variante="secundario" tamano="sm" onClick={() => registro.abrir("corregir")} disabled={ocupado}>
+                  Corregir
+                </Boton>
+                <Boton variante="secundario" tamano="sm" onClick={() => registro.abrir("retirar")} disabled={ocupado}>
+                  Retirar el registro
+                </Boton>
+              </div>
+            </BannerAviso>
+          )}
+          {que === "registrar" && (
+            <div className="mt-3">
+              {anterior && (
+                <p className="mb-2 text-xs text-taupe">
+                  El {fechaLarga(fechaLima(anterior.cuando))} se había registrado «{ETIQUETA_DECISION[anterior.decision]}»
+                  con otras cifras. El cálculo cambió desde entonces; las de ahora son las de arriba:
+                  <LineasDeDiferencia filas={anterior.diferencias} className="mt-1" />
+                </p>
+              )}
+              <Boton variante="secundario" tamano="sm" onClick={() => registro.abrir("registrar")} disabled={ocupado}>
+                Registrar qué pasó con la diferencia
+              </Boton>
+            </div>
+          )}
+          {que === "no_se_puede" && registro.estado?.motivo_no && (
+            <p className="mt-2 text-xs text-taupe">{registro.estado.motivo_no}</p>
           )}
         </>
       )}
