@@ -432,6 +432,11 @@ function Cuerpo({
           </label>
         )}
       </div>
+      {!corrigiendo && (
+        <p className="mt-4 text-sm text-taupe">
+          El PDF de la póliza y el convenio de pago se adjuntan en el paso siguiente, apenas la registres.
+        </p>
+      )}
       <div className="mt-5 flex justify-end gap-2">
         <Boton onClick={onCerrar} disabled={guardando}>Cancelar</Boton>
         <Boton variante="primario" onClick={() => void guardar()} cargando={guardando}>
