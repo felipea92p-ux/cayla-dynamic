@@ -398,7 +398,8 @@ with repo(numero, nombre, nunca) as (values
     (539, 'el_terminal_sabe_quien_esta_de_prueba', false),
     (540, 'las_aceptaciones_de_terminos_por_modulo', false),
     (541, 'levantar_una_tardanza_deja_rastro_en_el_historial', false),
-    (542, 'la_diferencia_de_una_liquidacion_pagada_se_cierra_con_constancia', false)
+    (542, 'la_diferencia_de_una_liquidacion_pagada_se_cierra_con_constancia', false),
+    (543, 'vida_ley_es_un_seguro_del_sistema', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
