@@ -6,6 +6,38 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-10-21 — Vida Ley entra a los tipos de seguro como seguro del sistema · migración 0543 · SQL SIN PEGAR · SIN FUSIONAR · rama `claude/seguro-vida-ley-tipo-9df9ee`
+
+**Qué es.** Felipe vio «Tipos de seguro» con solo EsSalud y FOLA y preguntó si se agregaba Vida Ley. La 0528 ya
+la daba por hecha como algo que DO agregaría con «+ Agregar un seguro»; ahora viene sembrada: una fila en
+`seguros_tipos` con clave `vida_ley`, **complementaria** (va además del principal), con póliza, sin vínculos
+automáticos y **del sistema** (no se archiva ni cambia de nombre por un clic). Con ella ya se puede registrar la póliza
+colectiva a todas de una vez, leer el PDF y bajar la lista de asegurados. La descripción lleva lo que el
+repositorio ya decía (D. Leg. 688 modificado por el D.U. 044-2019 y la Ley 31408; 16 y 32 remuneraciones; MTPE
+en 30 días) y se puede editar desde la pantalla si el contador corrige algo.
+
+**Por qué sembrada y no «que la agregue DO».** La clave. El día que se construya el aviso «persona en planilla
+sin Vida Ley» tiene que apuntar a un tipo que existe con un nombre estable; agregada a mano habría podido
+salir `seguro_de_vida` y habría que adivinar cuál es la buena.
+
+**Lo que NO se hizo, y sigue decidido así.** No hay aviso de quién está en planilla y fuera de la póliza: Felipe
+decidió el 2026-10-19 que espera la respuesta del contador (y qué vínculos obligan, ¿entra quien está de prueba?).
+Para un complementario, «estar en él» sigue siendo tener su póliza vigente. Tampoco se registró ninguna póliza:
+la de La Positiva no está firmada.
+
+**Antes de pegar.** La consulta de solo lectura está en la cabecera de la 0543 (esperado: tipos de hoy = FOLA y
+EsSalud, cero pólizas de `vida_ley`). Si DO ya la agregó a mano con esa clave, la migración solo la marca «del
+sistema» sin tocar su descripción; si la dejó como principal por error, no la toca y la comprobación final lo
+muestra. **El PR no se fusiona hasta que esté pegada** (CLAUDE.md: la migración va antes).
+
+**Probado.** En un Postgres desechable con las 519 migraciones de `main`: la prueba 422 pasó de 308 a 312
+aserciones, 312 verdes (había que editarla: creaba «Vida Ley» ella misma y ahora chocaría); la 423, 116 de 116;
+repegar la 0543 no duplica nada; su propio bloque de revertir la quita; **sin la migración las aserciones nuevas
+se ponen en rojo** (37, 39, 40, 41, 42), con ella en verde. Probados los dos estados previos que podría tener
+producción (ya agregada bien, o agregada como principal). **No probado:** la pantalla con la fila nueva (no
+cambió código de pantalla) ni contra la base real: el estado actual de `seguros_tipos` en producción solo lo
+ve Felipe.
+
 ## 2026-10-21 — Una oficina mide su meta en integrantes en la sede · SIN SQL · PR #576 ABIERTO, SIN FUSIONAR · rama `claude/problema-con-el-5-ca9a30`
 
 **Qué es.** Oficina TRU (sede de tipo `central`) salía en ámbar «5 trabajando ahora · meta por revisar» todos

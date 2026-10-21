@@ -24,7 +24,7 @@
 --     seguro guardan solo el último estado: ver «LÍMITES CONOCIDOS» en la 0528.)
 -- ============================================================================
 begin;
-select plan(308);
+select plan(312);
 
 -- ── Sede y personas ──────────────────────────────────────────────────────
 insert into sedes (id, codigo, nombre, activa, tipo) values
@@ -219,24 +219,45 @@ select throws_ok(
   $$ select fn_seguro_tipo_crear('Algo', null, null, true, null, null) $$,
   'P0001', 'Falta decir si es el seguro principal y si lleva póliza.', 'ni uno sin decir si es principal');
 
-select set_config('t.eps', fn_seguro_tipo_crear('EPS', null, false, true, 'Registrar la póliza de la EPS', null), true);
-select set_config('t.vl',  fn_seguro_tipo_crear('Vida Ley', '  Seguro de vida  ', false, true, null, null), true);
+-- «Vida Ley» ya NO se crea acá: desde la 0543 viene sembrada como seguro del sistema (clave
+-- `vida_ley`), y volver a agregarla con ese nombre se rechaza (más abajo). Lo que esta prueba
+-- hacía con ella —recortar la descripción y anotar quién creó el tipo— pasa a hacerse con la EPS.
+select set_config('t.eps', fn_seguro_tipo_crear('EPS', '  Seguro de salud privado  ', false, true, 'Registrar la póliza de la EPS', null), true);
+-- «Vida-Ley» no es el mismo NOMBRE que «Vida Ley» pero sí la misma CLAVE: por eso recibe el `_2`.
 select set_config('t.vl2', fn_seguro_tipo_crear('Vida-Ley', null, false, true, null, null), true);
 select set_config('t.nandu', fn_seguro_tipo_crear('Seguro Médico Ñandú', null, false, true, null, null), true);
 select set_config('t.sis', fn_seguro_tipo_crear('SIS', null, true, false, null, null), true);
 select set_config('t.pp', fn_seguro_tipo_crear('Plan Premium', null, true, true, null, null), true);
 
 select is(
-  (select string_agg(x, ',' order by x) from unnest(array[current_setting('t.eps'), current_setting('t.vl'),
+  (select string_agg(x, ',' order by x) from unnest(array[current_setting('t.eps'),
      current_setting('t.vl2'), current_setting('t.nandu'), current_setting('t.sis'), current_setting('t.pp')]) x),
-  'eps,plan_premium,seguro_medico_nandu,sis,vida_ley,vida_ley_2',
-  'la clave sale del nombre (sin tildes, con guiones bajos) y si ya existe se le suma un número');
+  'eps,plan_premium,seguro_medico_nandu,sis,vida_ley_2',
+  'la clave sale del nombre (sin tildes, con guiones bajos) y si ya existe —«Vida-Ley» choca con la del sistema— se le suma un número');
 
 select is(
   (select row(nombre, descripcion, principal, con_poliza, aplica_a_vinculos, de_sistema, activo, creado_por)::text
-     from seguros_tipos where clave = 'vida_ley'),
-  row('Vida Ley', 'Seguro de vida', false, true, array[]::text[], false, true, '00000000-0000-0000-0000-00000528a001'::uuid)::text,
+     from seguros_tipos where clave = 'eps'),
+  row('EPS', 'Seguro de salud privado', false, true, array[]::text[], false, true, '00000000-0000-0000-0000-00000528a001'::uuid)::text,
   'un tipo que agrega DO nace sin vínculos automáticos, recortado y con quién lo creó');
+
+-- Vida Ley (0543): del sistema, complementaria, con póliza y sin vínculos automáticos. Es la única
+-- obligación de la lista que se paga con patrimonio propio: no puede ser principal (sacaría a quien la
+-- tenga de EsSalud) ni quedar sin póliza, y no se archiva ni cambia de nombre por un clic.
+select is(
+  (select row(nombre, principal, con_poliza, aplica_a_vinculos, de_sistema, activo, creado_por, char_length(descripcion) > 100)::text
+     from seguros_tipos where clave = 'vida_ley'),
+  row('Vida Ley', false, true, array[]::text[], true, true, null::uuid, true)::text,
+  'Vida Ley viene del sistema: complementaria, con póliza, sin vínculos automáticos, sin quién la creó y con su texto');
+select throws_ok(
+  $$ select fn_seguro_tipo_crear('Vida Ley', null, false, true, null, null) $$,
+  'P0001', 'Ya hay un seguro con ese nombre.', 'y DO no la agrega otra vez con su nombre (clave y nombre, una sola vez)');
+select throws_ok(
+  $$ select fn_seguro_tipo_activar('vida_ley', false, 'ya no lo usamos') $$,
+  'P0001', 'Los seguros de sistema no se archivan.', 'Vida Ley no se archiva');
+select throws_ok(
+  $$ select fn_seguro_tipo_editar('vida_ley', 'Seguro de vida', null, null, null) $$,
+  'P0001', 'Un seguro de sistema conserva su nombre.', 'ni cambia de nombre');
 
 select throws_ok(
   $$ select fn_seguro_tipo_crear('eps', null, false, true, null, null) $$,
