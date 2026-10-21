@@ -6,6 +6,37 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-10-21 — Una estación de retail deja de figurar en planilla · migración 0544 · SQL SIN PEGAR · SIN FUSIONAR · rama `claude/intelligent-elbakyan-cafd3f`
+
+**Qué es.** Al cruzar el Seguro de Vida Ley contra quién está en planilla, «ESTACIÓN — Producción» salió como una
+persona a asegurar (21 «a cubrir» cuando eran 20). Nació con los defaults de la tabla —vínculo `planilla`, en planilla,
+S/ 1230— y solo después se marcó como cuenta de servicio; las seis anteriores estaban en «Sin vínculo laboral» porque
+alguien las cambió a mano. La 0544 hace que `fn_set_cuenta_de_servicio`, al marcar, deje el vínculo en «Sin vínculo
+laboral» (por `fn_set_tipo_vinculo`, con su rastro). Las dos entradas pasan por esa puerta: el alta de Equipo y el
+interruptor de la ficha. Elegida por Felipe el 2026-10-21 entre tres (solo el alta · la puerta · la puerta + candado).
+
+**Lo que cambia para quien la usa.** Desmarcar ya NO devuelve a la planilla: el vínculo se decide en Equipo, y la
+ficha lo dice en el aviso. Una ficha cesada con otro vínculo ya no se puede marcar. Las consultas del Seguro de Vida
+Ley filtran `cuenta_de_servicio` (las cuatro).
+
+**Antes de pegar.** La consulta de solo lectura está en la cabecera de la 0544. **El md5 de producción de
+`fn_set_cuenta_de_servicio` está PENDIENTE** (Felipe no ha devuelto las filas; el del repositorio, calculado del
+archivo, es `b9b3eb85…`). La migración trae un freno que se detiene si la función no es la de la 0490. **La migración
+va ANTES de fusionar el PR**, y el PR no se fusiona sin OK de Felipe.
+
+**Pendiente de Felipe (a mano, no lo hace la migración).** «ESTACIÓN — Producción» sigue en `planilla` hasta que la
+pase a «Sin vínculo laboral» desde Equipo. La comprobación final de la 0544 la nombra mientras siga así. El candado
+en la tabla (`check (not cuenta_de_servicio or tipo_vinculo = 'no_trabajador')`) queda para después, cuando esa fila
+ya esté bien.
+
+**Probado.** En un Postgres desechable con las 520 migraciones de `main`: la prueba nueva 436, 23 de 23; **sin la
+migración 12 de sus aserciones se ponen en rojo**. Toda la suite (344 archivos), con y sin la 0544: la ÚNICA
+diferencia es la 436 (los 19 archivos que fallan en ese banco fallan igual en los dos estados). Repegar la 0544 no
+cambia nada; el freno se detiene ante una versión posterior, dos firmas o sin `fn_set_tipo_vinculo`. **No probado:**
+la ficha en el navegador (solo cambiaron dos textos) ni contra la base real.
+
+---
+
 ## 2026-10-21 — Vida Ley entra a los tipos de seguro como seguro del sistema · migración 0543 · SQL SIN PEGAR · SIN FUSIONAR · rama `claude/seguro-vida-ley-tipo-9df9ee`
 
 **Qué es.** Felipe vio «Tipos de seguro» con solo EsSalud y FOLA y preguntó si se agregaba Vida Ley. La 0528 ya

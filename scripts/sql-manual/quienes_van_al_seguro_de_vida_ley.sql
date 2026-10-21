@@ -52,6 +52,7 @@ select
   count(*)                                              as personas,
   count(*) filter (where p.fecha_cese is not null)      as con_fecha_de_cese
 from personas p
+where not p.cuenta_de_servicio                          -- una estación de retail no es una persona (0490)
 group by 1, 2
 order by 1, 2;
 
@@ -65,6 +66,11 @@ order by 1, 2;
 -- Quedan fuera, y está bien que queden fuera:
 --   · 'rxh'            → contrato civil, no hay vínculo laboral
 --   · 'no_trabajador'  → accionistas
+--   · cuenta_de_servicio → las «ESTACIÓN — …» de retail: son una caja o un
+--                          almacén compartido, no una persona (0490). Desde la
+--                          0544 nacen 'no_trabajador'; el filtro sigue por si
+--                          alguna quedó en planilla de antes (el 2026-10-21 la
+--                          de Producción hizo salir 21 «a cubrir» cuando eran 20).
 --   · estado inactivo o con fecha de cese cumplida → ya no trabajan
 
 select
@@ -81,6 +87,7 @@ join sedes s                on s.id = p.sede_base_id
 left join datos_personales dp on dp.persona_id = p.id
 where p.estado = 'activo'
   and p.en_planilla                                     -- planilla + prueba
+  and not p.cuenta_de_servicio                          -- una estación de retail no es una persona (0490)
   and (p.fecha_cese is null or p.fecha_cese > current_date)
 order by p.apellidos, p.nombres;
 
@@ -102,6 +109,7 @@ from personas p
 left join datos_personales dp on dp.persona_id = p.id
 where p.estado = 'activo'
   and p.en_planilla
+  and not p.cuenta_de_servicio                          -- una estación de retail no es una persona (0490)
   and (p.fecha_cese is null or p.fecha_cese > current_date)
   and (p.documento is null
        or dp.persona_id is null
@@ -128,6 +136,7 @@ select
 from personas p
 where p.estado = 'activo'
   and p.en_planilla
+  and not p.cuenta_de_servicio                          -- una estación de retail no es una persona (0490)
   and (p.fecha_cese is null or p.fecha_cese > current_date);
 
 -- Sobre la última columna: la prima del Seguro de Vida Ley se cotiza como un
