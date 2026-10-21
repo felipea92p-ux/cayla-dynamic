@@ -6,6 +6,30 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-10-21 — Una oficina mide su meta en integrantes en la sede · SIN SQL · SIN COMMITEAR · rama `claude/problema-con-el-5-ca9a30`
+
+**Qué es.** Oficina TRU (sede de tipo `central`) salía en ámbar «5 trabajando ahora · meta por revisar» todos
+los días: su meta de 4 se medía contra personal de áreas operativas, y en una oficina no hay. Decisión de
+Felipe: la meta de una central es cuántos integrantes hay en la sede, y con ellos en piso sale verde
+(«5 / 4 integrantes · Cobertura correcta»). Sigue al #574, que solo había cambiado el titular de la fila.
+
+**Cómo.** Una sola regla, en `cuentaEnCobertura` (`packages/shared/src/cobertura-equipo.ts`): `cuentaEnMetaOp`
+= la persona operativa y, en una central, cualquiera del equipo menos quien está de prueba. `operativa` NO
+cambia —sigue diciendo «su área es operativa»— porque la usa el aviso de «marcó sin horario», que en una
+oficina sería ruido diario. Dashboard, Turnos y Reporte de sede leen el campo nuevo; la palabra pasa a
+«integrantes» solo en una central. Tienda y taller: nada cambia.
+
+**Lo que NO se hizo.** Turnos y Reporte de sede cuentan igual, pero Turnos todavía escribe «operativas» en sus
+rótulos aunque la sede sea central. Y la meta de 4 sigue guardada tal cual en Turnos: si Oficina TRU crece,
+se sube ahí. La salida de marcar sus áreas como operativas en Áreas (la que dejó escrita el 2026-10-20) ya no
+hace falta para una central.
+
+**Probado.** 2 527 pruebas verdes; se rompió la regla a propósito y la prueba nueva se puso en rojo. Visto en
+el navegador contra un simulador de la API con datos inventados (oficina central de 6 con 5 en piso y meta 4,
+y una tienda de 3 con 2 en piso y meta 3): la oficina sale verde con «5 / 4 integrantes», no aparece en
+«Requiere atención», y la tienda sigue en rojo con «2 / 3 operativas». **No probado:** contra datos reales de
+producción (esta sesión no los consulta) ni el Reporte de sede ni Turnos en pantalla.
+
 ## 2026-10-19 — Términos primero, guía después, en «Lo mío» · migración 0540 · SQL PEGADO Y VERIFICADO EN PRODUCCIÓN (2026-10-19) · FUSIONADO Y PUBLICADO (PR #561, 2026-10-19) · rama `claude/dynamic-terms-conditions-modules-44a3d3`
 
 **Qué es.** La guía de primera vez (driver.js) arrancaba sola, sin condiciones, y antes o a la vez que

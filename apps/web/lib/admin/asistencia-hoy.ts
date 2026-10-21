@@ -26,7 +26,7 @@
 // de esto se podía probar sin abrir un navegador.
 // ============================================================================
 
-import { TZ_LIMA, formatoMinutos } from "@cayla-dynamic/shared";
+import { TZ_LIMA, esSedeCentral, formatoMinutos } from "@cayla-dynamic/shared";
 import { diaDeLaSede } from "@/lib/admin/jornada-esperada";
 
 // Margen antes de avisar que una sede entera no marcó nada. No es la tolerancia
@@ -56,7 +56,9 @@ export interface FilaPersona {
   tardanzaLevantada?: boolean;
   salidaTemprana: number | null;
   enPausaSinRetorno: boolean;
-  esOperativa: boolean; // cuenta contra la meta de operativas
+  esOperativa: boolean; // su área es operativa (y no está de prueba)
+  /** Cuenta contra la meta de «operativas»: la persona operativa y, en una central, cualquiera del equipo. Ver `cuentaEnCobertura`. */
+  cuentaEnMetaOp: boolean;
   esEncargada: boolean; // supervisor_sede o marca es_encargada_piso
   // Vacaciones, descanso médico u otra ausencia de `ausencias` que cubre HOY.
   // Sin esto, alguien de vacaciones se ve idéntico a un "sin marcar" real en
@@ -196,8 +198,13 @@ export interface CoberturaSede {
   sinMarcarReal: number;
   programadosHoy: number;
   alertaSinEntrada: string | null;
-  /** Cuántas personas del EQUIPO —estén hoy o no— son de un área operativa. */
+  /** Cuántas personas del EQUIPO —estén hoy o no— cuentan contra la meta de «operativas» (`cuentaEnMetaOp`). */
   equipoOperativas: number;
+  /**
+   * La sede es una central: su meta de «operativas» se mide en INTEGRANTES en la sede,
+   * no en gente de áreas operativas, y las pantallas lo dicen así (`sustantivoMetaOp`).
+   */
+  metaEnIntegrantes: boolean;
   /** Cuántas del EQUIPO cuentan como líder en piso (rol de líder de sede o marca de piso). */
   equipoLideres: number;
   /**
@@ -417,6 +424,9 @@ export function calcularCoberturaSede(
   ahoraDecimal: number,
   // false = la consulta de turnos u horarios falló: ver `CoberturaSede.sinTurnosHoy`.
   horarioConocido = true,
+  // `sedes.tipo`. Solo decide cómo se DICE la meta de operativas (integrantes en una central);
+  // quién cuenta ya viene resuelto en cada fila (`cuentaEnMetaOp`).
+  sedeTipo: string | null = null,
 ): CoberturaSede {
   const trabajando = deSede.filter((f) => trabajandoAhora(f.estado));
   const enPausa = deSede.filter((f) => enPausaAhora(f.estado));
@@ -424,7 +434,7 @@ export function calcularCoberturaSede(
   // Cobertura EN VIVO: "en piso" = trabajando ahora. Quien está en pausa no
   // cuenta — no está físicamente cubriendo. Sale de la MISMA lista que el
   // recuadro «Trabajando ahora», así que las dos cifras no pueden discrepar.
-  const opPiso = trabajando.filter((f) => f.esOperativa).length;
+  const opPiso = trabajando.filter((f) => f.cuentaEnMetaOp).length;
   const encPiso = trabajando.filter((f) => f.esEncargada).length;
   const sinMetaOp = metaOp <= 0;
   const sinMetaEnc = meta.enc <= 0;
@@ -452,7 +462,7 @@ export function calcularCoberturaSede(
       else desgloseProgramadas.aunNoLlegan++;
     } else desgloseProgramadas.yaSalieron++;
   }
-  const lideresEnAmbasMetas = trabajando.filter((f) => f.esOperativa && f.esEncargada).length;
+  const lideresEnAmbasMetas = trabajando.filter((f) => f.cuentaEnMetaOp && f.esEncargada).length;
 
   // Alerta de sede sin actividad: a alguien ya le tocaba entrar (según su
   // horario u horario), con margen, y todavía nadie de la sede marcó nada.
@@ -495,7 +505,7 @@ export function calcularCoberturaSede(
 
   // El equipo que PODRÍA cubrir cada meta, esté hoy o no. Sin esto, «0 de 1» no
   // distingue «faltó alguien que sí existe» de «en esta sede no hay quién pueda».
-  const equipoOperativas = deSede.filter((f) => f.esOperativa).length;
+  const equipoOperativas = deSede.filter((f) => f.cuentaEnMetaOp).length;
   const equipoLideres = deSede.filter((f) => f.esEncargada).length;
 
   // ¿Lo que falta es gente que podría venir, o una meta que NO se puede cumplir
@@ -519,7 +529,7 @@ export function calcularCoberturaSede(
   return {
     trabajando, enPausa, opPiso, encPiso, metaOp, metaEnc: meta.enc, sinMetaOp, sinMetaEnc,
     faltanOp, faltanEnc, problema: faltanOp || faltanEnc || metaSinTurnos, sinMarcarReal, programadosHoy, alertaSinEntrada,
-    equipoOperativas, equipoLideres, fueraDeHorario, desgloseProgramadas, lideresEnAmbasMetas,
+    equipoOperativas, metaEnIntegrantes: esSedeCentral(sedeTipo), equipoLideres, fueraDeHorario, desgloseProgramadas, lideresEnAmbasMetas,
     marcaronSinHorario: marcaronSinHorario(deSede),
     metaOpImposible, metaEncImposible, sinTurnosHoy, hayMetaHoy, metaOpDelDia, noAbreHoy, metaSinTurnos, feriadoSinConfirmar, gravedad,
   };
@@ -604,10 +614,21 @@ export function diaDeLaSemanaEnPlural(iso: string): string {
   return dia.endsWith("s") ? dia : `${dia}s`;
 }
 
+/**
+ * «operativa(s)» o «integrante(s)», según lo que mida la meta de la sede: en una tienda o un
+ * taller es gente de áreas operativas; en una central es cualquiera del equipo en la sede
+ * (`CoberturaSede.metaEnIntegrantes`). Una sola palabra para que la fila, «Requiere atención»
+ * y el papel no digan cosas distintas de la misma meta.
+ */
+export function sustantivoMetaOp(enIntegrantes: boolean | undefined, n: number): string {
+  const base = enIntegrantes ? "integrante" : "operativa";
+  return n === 1 ? base : `${base}s`;
+}
+
 /** «4 operativas y 1 líder»: la meta de hoy con la concordancia de cada grupo. */
-export function metaDelDiaTexto(cob: Pick<CoberturaSede, "metaOpDelDia" | "metaEnc">): string {
+export function metaDelDiaTexto(cob: Pick<CoberturaSede, "metaOpDelDia" | "metaEnc"> & { metaEnIntegrantes?: boolean }): string {
   const partes: string[] = [];
-  if (cob.metaOpDelDia > 0) partes.push(`${cob.metaOpDelDia} operativa${cob.metaOpDelDia === 1 ? "" : "s"}`);
+  if (cob.metaOpDelDia > 0) partes.push(`${cob.metaOpDelDia} ${sustantivoMetaOp(cob.metaEnIntegrantes, cob.metaOpDelDia)}`);
   if (cob.metaEnc > 0) partes.push(`${cob.metaEnc} ${cob.metaEnc === 1 ? "líder" : "líderes"}`);
   return partes.join(" y ");
 }
@@ -634,7 +655,7 @@ export function textoMetaPorRevisar(cob: CoberturaSede): string {
   // «Revisar meta», y con meta y sin turnos no se sabe cuál de los dos datos está mal.
   if (cob.metaSinTurnos) return textoMetaSinTurnos(cob);
   const partes: string[] = [];
-  if (cob.metaOpImposible) partes.push(`personal operativo: ${causaMetaImposible("operativas", cob.metaOp, cob.equipoOperativas)!.resumen}`);
+  if (cob.metaOpImposible) partes.push(`${cob.metaEnIntegrantes ? "integrantes" : "personal operativo"}: ${causaMetaImposible("operativas", cob.metaOp, cob.equipoOperativas)!.resumen}`);
   if (cob.metaEncImposible) partes.push(`líderes: ${causaMetaImposible("lideres", cob.metaEnc, cob.equipoLideres)!.resumen}`);
   return `revisa la meta en Turnos — ${partes.join("; ")}`;
 }
@@ -644,7 +665,7 @@ export function textoMetaPorRevisar(cob: CoberturaSede): string {
 // las mismas palabras (y las dos le agregan «en piso»).
 export function loQueFalta(cob: CoberturaSede): string {
   const partes: string[] = [];
-  if (cob.faltanOp) partes.push(`${cob.metaOp - cob.opPiso} operativa${cob.metaOp - cob.opPiso === 1 ? "" : "s"}`);
+  if (cob.faltanOp) partes.push(`${cob.metaOp - cob.opPiso} ${sustantivoMetaOp(cob.metaEnIntegrantes, cob.metaOp - cob.opPiso)}`);
   if (cob.faltanEnc) partes.push(`${cob.metaEnc - cob.encPiso} ${cob.metaEnc - cob.encPiso === 1 ? "líder" : "líderes"}`);
   return partes.join(" y ");
 }
@@ -755,11 +776,12 @@ export function textoSinHorario(nombres: string[]): string | null {
 }
 
 /** Aviso de que los dos recuadros de cobertura pueden contar a la misma persona. */
-export function textoLiderEnLasDosMetas(n: number): string | null {
+export function textoLiderEnLasDosMetas(n: number, enIntegrantes = false): string | null {
   if (n <= 0) return null;
+  const metas = `${enIntegrantes ? "integrantes" : "personal operativo"} y líderes`;
   return n === 1
-    ? "1 líder de equipo cuenta en las dos metas: personal operativo y líderes."
-    : `${n} líderes de equipo cuentan en las dos metas: personal operativo y líderes.`;
+    ? `1 líder de equipo cuenta en las dos metas: ${metas}.`
+    : `${n} líderes de equipo cuentan en las dos metas: ${metas}.`;
 }
 
 // ============================================================================

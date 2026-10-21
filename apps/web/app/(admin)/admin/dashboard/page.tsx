@@ -33,7 +33,7 @@ import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
 import {
   calcularCoberturaSede, causaMetaImposible, coincideConFiltroDeEstado, enPausaAhora, faltanTexto, fechaConDia, fechaCorta, llegaronTarde, llegoTarde, loQueFalta,
   minutosDesde, porPausaMasLarga, sinMarcarYaLeTocaba, subEstadoSinMarcar, textoDesglose, textoEquipoDelDia,
-  diaDeLaSemanaEnPlural, metaDelDiaTexto, metaOperativasSinMedir, OPCIONES_FILTRO_ESTADO, textoFueraDeHorario, textoLiderEnLasDosMetas, textoMetaPorRevisar, textoMetaSinTurnos, textoSinHorario, textoPausa, textoPausaDesde, textoSinMarcar, trabajandoAhora,
+  diaDeLaSemanaEnPlural, metaDelDiaTexto, metaOperativasSinMedir, OPCIONES_FILTRO_ESTADO, sustantivoMetaOp, textoFueraDeHorario, textoLiderEnLasDosMetas, textoMetaPorRevisar, textoMetaSinTurnos, textoSinHorario, textoPausa, textoPausaDesde, textoSinMarcar, trabajandoAhora,
   type CoberturaSede, type FilaPersona, type MetaSede,
 } from "@/lib/admin/asistencia-hoy";
 import { traerPausasAbiertas } from "@/lib/admin/pausas-abiertas";
@@ -771,6 +771,7 @@ export default function DashboardPage() {
         salidaTemprana: salidaTempranaPorPersona.get(p.id) ?? null,
         enPausaSinRetorno: j?.tiene_salida_no_retornada ?? false,
         esOperativa: cuenta.operativa,
+        cuentaEnMetaOp: cuenta.cuentaEnMetaOp,
         esEncargada: cuenta.lider,
         ausenciaHoy: ausenciaPorPersona.get(p.id) ?? null,
       };
@@ -840,7 +841,7 @@ export default function DashboardPage() {
     // `etiqueta` es la única forma de decir una sede (packages/shared/src/sedes.ts):
     // «Taller · Lima» y «Tienda · Lima» no se pueden confundir; el código viaja
     // aparte porque es lo que las separa si dos comparten título.
-    .map((s) => ({ sedeId: s.id, codigo: s.codigo, etiqueta: etiquetaDeSede(s) }))
+    .map((s) => ({ sedeId: s.id, codigo: s.codigo, tipo: s.tipo, etiqueta: etiquetaDeSede(s) }))
     .filter((s) => !yo || esAdmin || s.sedeId === yo.sedeBaseId);
 
   // Cobertura de cada sede, calculada una sola vez y reutilizada para ordenar,
@@ -856,7 +857,7 @@ export default function DashboardPage() {
   for (const s of sedesDeAlcance) {
     const deSede = filas.filter((f) => f.sedeId === s.sedeId);
     const meta = metasPorSede.get(s.sedeId) ?? { man: 0, tar: 0, enc: 0 };
-    coberturaPorSede.set(s.sedeId, calcularCoberturaSede(deSede, meta, tramoTarde, ahoraDecimal, horarioConocido));
+    coberturaPorSede.set(s.sedeId, calcularCoberturaSede(deSede, meta, tramoTarde, ahoraDecimal, horarioConocido, s.tipo));
   }
 
   // Orden: primero la sede con cobertura insuficiente (decisión de la
@@ -1533,7 +1534,7 @@ export default function DashboardPage() {
               // «Sin horario» se apaga si la consulta de turnos u horarios falló: entonces
               // TODAS las filas llegan sin horario, y el aviso acusaría a cada quien que marcó.
               const aviso = {
-                lider: textoLiderEnLasDosMetas(cob.lideresEnAmbasMetas),
+                lider: textoLiderEnLasDosMetas(cob.lideresEnAmbasMetas, cob.metaEnIntegrantes),
                 desglose: textoDesglose(cob.desgloseProgramadas),
                 sinHorario: horarioEsperadoNoRespondio ? null : textoSinHorario(cob.marcaronSinHorario.map((f) => f.nombre)),
               };
@@ -1549,10 +1550,12 @@ export default function DashboardPage() {
               // contra una meta de un día en que quizá la sede ni abre sería el mismo rojo que
               // esa pregunta viene a evitar.
               const apagada = cob.noAbreHoy || cob.metaSinTurnos || cob.feriadoSinConfirmar;
-              const mostrarTileOperativas = !apagada && !(cob.equipoOperativas === 0 && cob.sinMetaOp);
+              // Una central sin meta de integrantes no pinta el recuadro: contaría a todo su equipo
+              // contra nada, y de paso diría «líderes en las dos metas» de una meta que no existe.
+              const mostrarTileOperativas = !apagada && !(cob.sinMetaOp && (cob.equipoOperativas === 0 || cob.metaEnIntegrantes));
               const mostrarTileLideres = !apagada && !(cob.equipoLideres === 0 && cob.sinMetaEnc);
               const causasMeta = [
-                { quien: "Personal operativo", causa: causaMetaImposible("operativas", cob.metaOp, cob.equipoOperativas) },
+                { quien: cob.metaEnIntegrantes ? "Integrantes" : "Personal operativo", causa: causaMetaImposible("operativas", cob.metaOp, cob.equipoOperativas) },
                 { quien: "Líderes", causa: causaMetaImposible("lideres", cob.metaEnc, cob.equipoLideres) },
               ].flatMap((c) => (c.causa ? [{ quien: c.quien, detalle: c.causa.detalle }] : []));
 
@@ -1576,7 +1579,7 @@ export default function DashboardPage() {
                   : metaOperativasSinMedir(cob.metaOp, cob.equipoOperativas)
                     ? { texto: `${cob.trabajando.length} trabajando ahora · meta por revisar`, pct: null }
                   : !cob.sinMetaOp
-                    ? { texto: `${cob.opPiso} / ${cob.metaOp} operativas`, pct: Math.min(100, Math.round((cob.opPiso / cob.metaOp) * 100)) }
+                    ? { texto: `${cob.opPiso} / ${cob.metaOp} ${sustantivoMetaOp(cob.metaEnIntegrantes, cob.metaOp)}`, pct: Math.min(100, Math.round((cob.opPiso / cob.metaOp) * 100)) }
                     : !cob.sinMetaEnc
                       ? { texto: `${cob.encPiso} / ${cob.metaEnc} líderes`, pct: Math.min(100, Math.round((cob.encPiso / cob.metaEnc) * 100)) }
                       : { texto: `${cob.trabajando.length} trabajando ahora`, pct: null };
@@ -1743,7 +1746,7 @@ export default function DashboardPage() {
                   {(mostrarTileOperativas || mostrarTileLideres) && (
                     <div className={`mb-4 grid gap-3 sm:max-w-md ${mostrarTileOperativas && mostrarTileLideres ? "grid-cols-2" : "grid-cols-1 sm:max-w-[13.5rem]"}`}>
                       {mostrarTileOperativas && (
-                        <TileCobertura label="Personal operativo en piso" n={cob.opPiso} meta={cob.metaOp} sinMeta={cob.sinMetaOp} tramo={tramoLabel} fueraDeHorario={fueraDeHorarioVisible} porRevisar={cob.metaOpImposible} />
+                        <TileCobertura label={cob.metaEnIntegrantes ? "Integrantes en la sede" : "Personal operativo en piso"} n={cob.opPiso} meta={cob.metaOp} sinMeta={cob.sinMetaOp} tramo={tramoLabel} fueraDeHorario={fueraDeHorarioVisible} porRevisar={cob.metaOpImposible} />
                       )}
                       {mostrarTileLideres && (
                         <TileCobertura label="Líderes en piso" n={cob.encPiso} meta={cob.metaEnc} sinMeta={cob.sinMetaEnc} fueraDeHorario={fueraDeHorarioVisible} porRevisar={cob.metaEncImposible} />

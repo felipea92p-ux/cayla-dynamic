@@ -12,7 +12,7 @@ import { Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { traerTodo } from "@/lib/admin/traer-todo";
 import { loQueNoSePudo, sePuedeEntregar } from "@/lib/admin/lo-que-no-se-pudo";
-import { NIVEL_DISCIPLINARIO_CORTO, TZ_LIMA, cuentaEnCobertura, hoyLima, primeroDeMesLima } from "@cayla-dynamic/shared";
+import { NIVEL_DISCIPLINARIO_CORTO, TZ_LIMA, cuentaEnCobertura, esSedeCentral, hoyLima, primeroDeMesLima } from "@cayla-dynamic/shared";
 import { causaMetaImposible, enPausaAhora, metaOperativasSinMedir, porPausaMasLarga, textoPausaDesde, trabajandoAhora, type PausaAbierta } from "@/lib/admin/asistencia-hoy";
 import { traerPausasAbiertas } from "@/lib/admin/pausas-abiertas";
 import { diaDeLaSedeDe, type DiaDeLaSede, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
@@ -57,7 +57,8 @@ interface Fila {
   estadoHoy: string; // abierta / en_pausa / cerrada / sin_marcar
   // Desde cuándo está en pausa, si `estadoHoy` es `en_pausa` y se pudo saber.
   pausa?: PausaAbierta | null;
-  esOperativa: boolean; esEncargada: boolean;
+  // Cuenta contra la meta de «operativas»: en una central, cualquiera del equipo (ver `cuentaEnCobertura`).
+  cuentaEnMetaOp: boolean; esEncargada: boolean;
   dias: number; horas: number; tardanzas: number; minTarde: number; salidasTemp: number;
 }
 interface Meta { man: number; tar: number; enc: number }
@@ -308,7 +309,7 @@ function ReporteSedeContenido() {
         personaId: p.id,
         nombre: `${p.nombres} ${p.apellidos}`,
         estadoHoy: hoyJ?.estado ?? "sin_marcar",
-        esOperativa: cuenta.operativa,
+        cuentaEnMetaOp: cuenta.cuentaEnMetaOp,
         esEncargada: cuenta.lider,
         dias: reales.filter((j) => (j.horas_trabajadas ?? 0) > 0).length,
         horas: js.reduce((s, j) => s + (j.horas_trabajadas ?? 0), 0),
@@ -374,16 +375,19 @@ function ReporteSedeContenido() {
   // imprime y la pantalla no digan números distintos a la misma hora.
   const trabajando = filas.filter((f) => trabajandoAhora(f.estadoHoy));
   const enPausa = filas.filter((f) => enPausaAhora(f.estadoHoy));
-  const opPiso = trabajando.filter((f) => f.esOperativa).length;
+  const opPiso = trabajando.filter((f) => f.cuentaEnMetaOp).length;
   const encPiso = trabajando.filter((f) => f.esEncargada).length;
   const metaOp = tramoTarde ? meta.tar : meta.man;
   // El equipo que PODRÍA cubrir cada meta (esté hoy o no): ver causaMetaImposible.
-  const equipoOperativas = filas.filter((f) => f.esOperativa).length;
+  const equipoOperativas = filas.filter((f) => f.cuentaEnMetaOp).length;
   const equipoLideres = filas.filter((f) => f.esEncargada).length;
-  const mostrarOperativas = !(equipoOperativas === 0 && metaOp <= 0);
+  // En una central la meta se mide en integrantes en la sede: sin meta no se imprime esa línea
+  // (contaría a todo el equipo contra nada), igual que cuando no había equipo operativo.
+  const metaEnIntegrantes = esSedeCentral(sede?.tipo);
+  const mostrarOperativas = !(metaOp <= 0 && (equipoOperativas === 0 || metaEnIntegrantes));
   const mostrarLideres = !(equipoLideres === 0 && meta.enc <= 0);
   const causasMeta = [
-    { quien: "Operativas", causa: causaMetaImposible("operativas", metaOp, equipoOperativas) },
+    { quien: metaEnIntegrantes ? "Integrantes" : "Operativas", causa: causaMetaImposible("operativas", metaOp, equipoOperativas) },
     { quien: "Líderes", causa: causaMetaImposible("lideres", meta.enc, equipoLideres) },
   ].flatMap((c) => (c.causa ? [{ quien: c.quien, detalle: c.causa.detalle }] : []));
   const rango = rangoLabel(desde, hasta);
@@ -564,7 +568,7 @@ function ReporteSedeContenido() {
                   </div>
                 ) : (mostrarOperativas || mostrarLideres) && (
                   <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-1 border-t border-verde/15 pt-3">
-                    {mostrarOperativas && <Cobertura label="Operativas en piso" n={opPiso} m={metaOp} sinEquipo={metaOperativasSinMedir(metaOp, equipoOperativas)} />}
+                    {mostrarOperativas && <Cobertura label={metaEnIntegrantes ? "Integrantes en la sede" : "Operativas en piso"} n={opPiso} m={metaOp} sinEquipo={metaOperativasSinMedir(metaOp, equipoOperativas)} />}
                     {mostrarLideres && <Cobertura label="Líderes en piso" n={encPiso} m={meta.enc} />}
                   </div>
                 )}

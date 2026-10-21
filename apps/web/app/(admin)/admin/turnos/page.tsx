@@ -817,7 +817,8 @@ export default function TurnosPage() {
     ),
     [areas, tipoSedeSel],
   );
-  const esOperativa = useCallback((p: Persona) => cuentaEnPiso(p).operativa, [cuentaEnPiso]);
+  // «Operativa» de Turnos es quien cuenta contra la meta de la sede: en una central, cualquiera del equipo.
+  const esOperativa = useCallback((p: Persona) => cuentaEnPiso(p).cuentaEnMetaOp, [cuentaEnPiso]);
   const esEncargada = (p: Persona) => cuentaEnPiso(p).lider;
   // ¿Ese día la sede simplemente no se labora? (ver etiquetaSedeSinTurnos). «Nadie
   // tiene turno» se le pregunta a jornada-esperada.ts con TODAS las personas de la
