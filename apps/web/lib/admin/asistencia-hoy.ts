@@ -565,6 +565,24 @@ export function causaMetaImposible(
 }
 
 /**
+ * ¿Hay una meta de operativas que NO se puede medir, porque nadie del equipo cuenta como
+ * operativo? Entonces «0 / 4 operativas» no dice cuánta gente falta: dice que la cuenta
+ * no tiene a quién contar. Quien la lee entiende «faltan 4», y puede haber cinco personas
+ * trabajando.
+ *
+ * El caso que la originó (2026-10-21): Oficina TRU tenía una meta de 4 operativas y su
+ * equipo es administrativo. Con cinco personas en piso, la fila de la sede decía
+ * «0 / 4 operativas» con la barra vacía. La causa ya salía escrita más abajo («Nadie del
+ * equipo es de un área operativa»); lo que mentía era el titular.
+ *
+ * Es solo `equipo === 0`, y no cualquier `causaMetaImposible`: con 3 operativas contra una
+ * meta de 4 (LIM), «2 / 4» SÍ informa —hay a quién contar— y se queda como está.
+ */
+export function metaOperativasSinMedir(metaOp: number, equipoOperativas: number): boolean {
+  return metaOp > 0 && equipoOperativas === 0;
+}
+
+/**
  * «hay meta de 1 líder para hoy, pero a nadie del equipo le toca trabajar». Es la
  * frase de una sede con meta y sin ningún turno (`metaSinTurnos`): dice los dos lados
  * de la contradicción, para que quien la lee sepa que se arregla en Turnos y no

@@ -13,7 +13,7 @@ import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { traerTodo } from "@/lib/admin/traer-todo";
 import { loQueNoSePudo, sePuedeEntregar } from "@/lib/admin/lo-que-no-se-pudo";
 import { NIVEL_DISCIPLINARIO_CORTO, TZ_LIMA, cuentaEnCobertura, hoyLima, primeroDeMesLima } from "@cayla-dynamic/shared";
-import { causaMetaImposible, enPausaAhora, porPausaMasLarga, textoPausaDesde, trabajandoAhora, type PausaAbierta } from "@/lib/admin/asistencia-hoy";
+import { causaMetaImposible, enPausaAhora, metaOperativasSinMedir, porPausaMasLarga, textoPausaDesde, trabajandoAhora, type PausaAbierta } from "@/lib/admin/asistencia-hoy";
 import { traerPausasAbiertas } from "@/lib/admin/pausas-abiertas";
 import { diaDeLaSedeDe, type DiaDeLaSede, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
 import { coberturaDeHoyApagada, hojaIncluyeHoy, textoCoberturaApagada, textoMetaDeHoy } from "@/lib/admin/cobertura-hoja-sede";
@@ -71,7 +71,17 @@ interface FaltaRow { persona_id: string; nombre: string; sede: string; nivel: st
 // render se vuelve a crear en cada render y reinicia su estado (la regla
 // `react-hooks/static-components`). No usa nada de la pantalla, solo sus propias
 // propiedades, así que moverlo no cambia lo que dibuja.
-const Cobertura = ({ label, n, m }: { label: string; n: number; m: number }) => {
+const Cobertura = ({ label, n, m, sinEquipo = false }: { label: string; n: number; m: number; sinEquipo?: boolean }) => {
+  // Hay meta y nadie del equipo cuenta para ella: «0 / meta 4 · faltan 4» se leería como gente que
+  // falta, en un papel que se firma. La causa va escrita debajo (`causasMeta`).
+  if (sinEquipo) {
+    return (
+      <span className="flex items-center gap-1.5 text-sm">
+        <span className="text-taupe">{label}</span>
+        <span className="text-xs font-medium" style={{ color: "var(--color-ambar)" }}>meta de {m} por revisar</span>
+      </span>
+    );
+  }
   const sinMeta = m <= 0; const ok = !sinMeta && n >= m;
   const color = sinMeta ? "var(--color-taupe)" : ok ? "var(--color-verde)" : "var(--color-rojo)";
   return (
@@ -554,7 +564,7 @@ function ReporteSedeContenido() {
                   </div>
                 ) : (mostrarOperativas || mostrarLideres) && (
                   <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-1 border-t border-verde/15 pt-3">
-                    {mostrarOperativas && <Cobertura label="Operativas en piso" n={opPiso} m={metaOp} />}
+                    {mostrarOperativas && <Cobertura label="Operativas en piso" n={opPiso} m={metaOp} sinEquipo={metaOperativasSinMedir(metaOp, equipoOperativas)} />}
                     {mostrarLideres && <Cobertura label="Líderes en piso" n={encPiso} m={meta.enc} />}
                   </div>
                 )}
