@@ -68,9 +68,10 @@ export function decisionesPara(sentido: SentidoDiferencia): DecisionConstancia[]
 }
 
 /**
- * Lo mismo que exige la base, un poco más estricto a propósito: `trim()` quita
- * también tabuladores y saltos de línea, `btrim` de Postgres solo espacios. Lo
- * que esto acepte, la base lo acepta.
+ * Lo mismo que exige la base, un poco más estricto a propósito: la base quita
+ * espacios, tabuladores y saltos de línea antes de contar (`btrim(motivo, E' \t\r\n')`);
+ * `trim()` de JavaScript quita además otros espacios de Unicode. Lo que esto
+ * acepte, la base lo acepta.
  */
 export function motivoDeConstanciaValido(texto: string): boolean {
   return texto.trim().length >= MOTIVO_MINIMO_CONSTANCIA;

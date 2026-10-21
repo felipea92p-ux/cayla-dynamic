@@ -54,7 +54,8 @@ describe("los catálogos de la pantalla y los CHECK de la 0542 son los mismos", 
   }, 30_000);
 
   it("el motivo mínimo es el de la base", () => {
-    expect(sql).toContain(`char_length(btrim(motivo)) >= ${MOTIVO_MINIMO_CONSTANCIA}`);
+    // btrim con espacio, tabulador, retorno y salto de línea: diez saltos de línea no son un motivo.
+    expect(sql).toContain(`char_length(btrim(motivo, E' \\t\\r\\n')) >= ${MOTIVO_MINIMO_CONSTANCIA}`);
   }, 30_000);
 
   it("toda decisión y todo apoyo tienen etiqueta en español, y ninguna queda vacía", () => {
