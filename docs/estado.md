@@ -19,10 +19,11 @@ interruptor de la ficha. Elegida por Felipe el 2026-10-21 entre tres (solo el al
 ficha lo dice en el aviso. Una ficha cesada con otro vínculo ya no se puede marcar. Las consultas del Seguro de Vida
 Ley filtran `cuenta_de_servicio` (las cuatro).
 
-**Antes de pegar.** La consulta de solo lectura está en la cabecera de la 0544. **El md5 de producción de
-`fn_set_cuenta_de_servicio` está PENDIENTE** (Felipe no ha devuelto las filas; el del repositorio, calculado del
-archivo, es `b9b3eb85…`). La migración trae un freno que se detiene si la función no es la de la 0490. **La migración
-va ANTES de fusionar el PR**, y el PR no se fusiona sin OK de Felipe.
+**Antes de pegar.** md5 de producción medido el 2026-10-21 (Felipe devolvió las filas): `fn_set_cuenta_de_servicio`
+da `2ef42078…` con 2571 caracteres y 59 `\r` — es la 0490 pegada desde Windows (el cuerpo del archivo con `\r\n` da
+exactamente ese md5; `b9b3eb85…` es el del archivo con `\n`). Mismo código, nada roto. `fn_set_tipo_vinculo` y
+`fn_crear_persona` coinciden byte a byte con el repositorio; la 490, la 504 y la 513 están registradas. El freno de la
+0544 pasa contra esa variante. **La migración va ANTES de fusionar el PR**, y el PR no se fusiona sin OK de Felipe.
 
 **Pendiente de Felipe (a mano, no lo hace la migración).** «ESTACIÓN — Producción» sigue en `planilla` hasta que la
 pase a «Sin vínculo laboral» desde Equipo. La comprobación final de la 0544 la nombra mientras siga así. El candado

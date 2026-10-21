@@ -67,20 +67,39 @@
 -- ── QUÉ ASUME ───────────────────────────────────────────────────────────────
 --
 --   · `fn_set_cuenta_de_servicio` es la de la 0490: una sola versión, tres
---     argumentos. Cuerpo del repositorio, calculado del archivo (NO de una
---     base): md5 b9b3eb85073483a49cb1b0f8ba36548c, 2512 caracteres; sin
---     comentarios c1af7d990a88997fed1d160d925aca15. md5 de PRODUCCIÓN:
---     PENDIENTE — se pide a Felipe con la consulta de «ANTES DE PEGAR» y se
---     anota aquí. El freno de abajo comprueba PRESENCIA de lo que importa (los
---     cuatro textos de la 0490 y que ninguna versión posterior haya dejado un
---     marcador `CAMBIO 0NNN` distinto del de esta), no un md5: una base armada
---     desde cero no tiene el md5 de producción.
+--     argumentos. md5 de partida, pedido a PRODUCCIÓN el 2026-10-21 ANTES de
+--     entregar esto (Felipe pegó la consulta de solo lectura y devolvió las
+--     filas):
+--       tal cual            2ef42078ddcb4d0304587528f423c91b  (2571 caracteres)
+--       sin comentarios     9a280e81c0c21be84eb86ac5f6b4d737
+--       retornos de carro   59 (uno por línea)
+--     NO es el del repositorio (b9b3eb85073483a49cb1b0f8ba36548c, 2512
+--     caracteres, 0 retornos), y es la firma CONOCIDA de CLAUDE.md —«pegar
+--     desde Windows»—: el cuerpo del archivo con cada \n convertido en \r\n da
+--     EXACTAMENTE esos dos md5 y esos 2571 caracteres (medido: 2512 + 59 líneas;
+--     y la 0490 simulada con \r\n en un Postgres desechable da 2ef42078…).
+--     Mismo código, nada roto: un \r antes del salto de línea es espacio en
+--     blanco para PL/pgSQL. El freno de abajo comprueba PRESENCIA de lo que
+--     importa (los cuatro textos de la 0490 y que ninguna versión posterior
+--     haya dejado un marcador `CAMBIO 0NNN` distinto del de esta), no un md5:
+--     una base armada desde cero no tiene el md5 de producción. Se probó
+--     también contra esa variante con \r\n: pasa.
+--     Hacia adelante: esta función quedará con el md5 que dé el camino por el
+--     que se pegue. Esperado de llegada si se pega con \n:
+--     50c00bbdbdf28b4185649b32e45ca4d8 (3678 caracteres); si se pega desde
+--     Windows, 7ed263f532e755cc11338c9140649c83 (con un \r por línea).
+--     Cualquiera de los dos es correcto; otro valor, no.
 --   · `fn_set_tipo_vinculo(uuid, text)` existe y acepta `no_trabajador`. Es la
---     de la 0504 (md5 en repositorio da6490ac5d12722e38fcba0a2d47dea9; si
---     producción aún tiene la 0324 el efecto es el mismo). Esta migración la
---     LLAMA, no la reescribe: si alguien le cambia la firma, marcar una
---     estación fallará con «function does not exist» y el freno de abajo lo
---     avisa antes de pegar.
+--     de la 0504: producción devolvió el md5 del repositorio,
+--     da6490ac5d12722e38fcba0a2d47dea9, 2624 caracteres, 0 retornos —idéntica
+--     byte a byte—. Esta migración la LLAMA, no la reescribe: si alguien le
+--     cambia la firma, marcar una estación fallará con «function does not
+--     exist» y el freno de abajo lo avisa antes de pegar.
+--   · Medidos en el mismo momento en producción: `fn_crear_persona` es la de la
+--     0513 (dbabb62a95b67490d1c55609dc1578d6, 6512 caracteres, idéntica) y están
+--     registradas la 490, la 504 y la 513. Las siete cuentas de servicio:
+--     seis en `no_trabajador` (S/ 1130) y «ESTACIÓN — Producción Lima» en
+--     `planilla` (S/ 1230), que es la que se corrige a mano desde Equipo.
 --   · Repegar esta migración es seguro: reemplaza la función por el mismo
 --     cuerpo. Lo que NO es seguro es repegar la 0490 encima: devolvería la
 --     función a la versión que deja la estación en planilla.
