@@ -132,6 +132,18 @@ export function llegoTarde(f: FilaPersona): boolean {
   // Una tardanza levantada ya no es tardanza: contarla en «Tardanzas hoy» sería acusar a quien DO ya perdonó.
   return (f.minutosTarde ?? 0) > 0 && !f.tardanzaLevantada;
 }
+/**
+ * Quién llegó tarde, de quien más a quien menos: es a quien hay que mirar primero.
+ * A igual de minutos, por nombre, para que el refresco de 30 s no baraje la lista.
+ * Usa `llegoTarde`, así que quien tiene la tardanza levantada no aparece: es la
+ * misma cuenta que dice «N tarde» en la fila de la sede, y las dos tienen que
+ * coincidir —una insignia que dice 2 sobre una lista de 1 es lo que se rompe—.
+ */
+export function llegaronTarde(filas: FilaPersona[]): FilaPersona[] {
+  return filas
+    .filter(llegoTarde)
+    .sort((a, b) => (b.minutosTarde ?? 0) - (a.minutosTarde ?? 0) || a.nombre.localeCompare(b.nombre, "es"));
+}
 // Sin marcar, sin ausencia que lo cubra, y con la hora de entrada (más el
 // margen) ya pasada. Quien aún no entra o descansa hoy NO cuenta.
 export function sinMarcarYaLeTocaba(f: FilaPersona, ahoraDecimal: number): boolean {

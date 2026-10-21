@@ -31,7 +31,7 @@ import { esFeriadoSinTurno, esperadoDelDia, horarioVigente, SEDE_SIN_TURNOS, typ
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
 import {
-  calcularCoberturaSede, causaMetaImposible, coincideConFiltroDeEstado, enPausaAhora, faltanTexto, fechaConDia, fechaCorta, llegoTarde, loQueFalta,
+  calcularCoberturaSede, causaMetaImposible, coincideConFiltroDeEstado, enPausaAhora, faltanTexto, fechaConDia, fechaCorta, llegaronTarde, llegoTarde, loQueFalta,
   minutosDesde, porPausaMasLarga, sinMarcarYaLeTocaba, subEstadoSinMarcar, textoDesglose, textoEquipoDelDia,
   diaDeLaSemanaEnPlural, metaDelDiaTexto, OPCIONES_FILTRO_ESTADO, textoFueraDeHorario, textoLiderEnLasDosMetas, textoMetaPorRevisar, textoMetaSinTurnos, textoSinHorario, textoPausa, textoPausaDesde, textoSinMarcar, trabajandoAhora,
   type CoberturaSede, type FilaPersona, type MetaSede,
@@ -1576,7 +1576,11 @@ export default function DashboardPage() {
                       ? { texto: `${cob.encPiso} / ${cob.metaEnc} líderes`, pct: Math.min(100, Math.round((cob.encPiso / cob.metaEnc) * 100)) }
                       : { texto: `${cob.trabajando.length} trabajando ahora`, pct: null };
               const colorBarra = estadoSede.tono === "alerta" ? "bg-rojo" : estadoSede.tono === "advertencia" ? "bg-ambar" : estadoSede.tono === "positivo" ? "bg-verde" : "bg-taupe/40";
-              const tardanzasSede = deSedeCompleta.filter(llegoTarde).length;
+              // La misma lista alimenta la insignia «N tarde» y el recuadro «Llegaron tarde» del
+              // detalle: dos cuentas por separado podrían diferir, y una insignia que promete 2
+              // sobre una lista de 1 no se sabe cuál de las dos miente.
+              const llegaronTardeSede = llegaronTarde(deSedeCompleta);
+              const tardanzasSede = llegaronTardeSede.length;
 
               return (
                 <section key={sedeId} id={`sede-${codigo}`} className="scroll-mt-24 border-t border-sand first:border-t-0">
@@ -1604,6 +1608,9 @@ export default function DashboardPage() {
                       </span>
                       <span className="mt-1.5 block">
                         <Insignia variante={estadoSede.tono} atenuada={estadoSede.tono === "neutral"} className="px-3 py-1 font-semibold">{estadoSede.texto}</Insignia>
+                        {/* En escritorio la cuenta de tardanzas tiene su columna; en celular no la tenía, y
+                            quien llega tarde solo aparecía abriendo el detalle completo de la sede. */}
+                        {tardanzasSede > 0 && <Insignia variante="alerta" className="ml-2">{tardanzasSede} tarde</Insignia>}
                       </span>
                       {resumenCob && (
                         <span className="mt-2 block">
@@ -1653,6 +1660,34 @@ export default function DashboardPage() {
                   </button>
                   {abierta && (
                   <div id={`sede-${codigo}-detalle`} className="border-t border-dashed border-sand bg-hueso/40 px-4 py-3 sm:px-5 sm:py-4 sm:pl-6">
+                  {/* QUIÉN LLEGÓ TARDE, lo primero que se ve al abrir la sede. La fila dice «1 tarde» y
+                      quien le da clic pregunta «¿quién?»: antes la respuesta estaba dos clics más abajo
+                      («Ver detalle») y entre doce filas de la tabla. Va antes que la cobertura porque
+                      es lo único que el clic prometió. Cada nombre lleva a Correcciones, donde DO
+                      puede levantar la tardanza si fue fuerza mayor; el sistema avisa, no sanciona. */}
+                  {llegaronTardeSede.length > 0 && (
+                    <div id={`tardanzas-${codigo}`} className="mb-4 rounded-superficie border border-sand bg-crema px-4 py-3">
+                      <RotuloEstado tono="alerta">{llegaronTardeSede.length === 1 ? "Llegó tarde" : "Llegaron tarde"} · {llegaronTardeSede.length}</RotuloEstado>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {llegaronTardeSede.map((f) => (
+                          <Link
+                            key={f.personaId}
+                            href={linkCorregir(f.personaId)}
+                            title={`Ver el día de ${f.nombre} en Correcciones`}
+                            className="inline-flex items-start gap-2 rounded-superficie border border-rojo/45 bg-papel px-3 py-1.5 text-sm transition-colors hover:border-rojo hover:bg-rojo/10"
+                          >
+                            <span aria-hidden className="mt-1.5 size-1.5 shrink-0 rounded-full bg-rojo" />
+                            <span>
+                              {f.nombre}
+                              <span className="block text-xs text-taupe">
+                                entró a las <span className="whitespace-nowrap">{horaLima(f.entrada)}</span> · <span className="whitespace-nowrap font-semibold text-rojo-profundo">{formatoMinutos(f.minutosTarde ?? 0)} tarde</span>
+                              </span>
+                            </span>
+                          </Link>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   {/* La frase «a N de las M personas les tocaba» vive en la fila, que siempre está a la
                       vista: repetirla al abrir el detalle era decir lo mismo dos veces seguidas. */}
                   {/* Quien marcó sin horario no entra en «les tocaba a N»: sin esta línea,

@@ -24,6 +24,7 @@ import {
   fechaCorta,
   fueraDeHorarioDeHoy,
   horaCortaLima,
+  llegaronTarde,
   llegoTarde,
   loQueFalta,
   diaDeLaSemanaEnPlural,
@@ -1364,5 +1365,43 @@ describe("llegoTarde: una tardanza levantada ya no es tardanza", () => {
 
   it("una fila que nunca trae el dato (ausente) se comporta como siempre", () => {
     expect(llegoTarde(fila({ minutosTarde: 5 }))).toBe(true);
+  });
+});
+
+describe("llegaronTarde: la lista que abre el «1 tarde» de la sede", () => {
+  it("trae solo a quien llegó tarde, y la más tarde primero", () => {
+    const lista = llegaronTarde([
+      fila({ personaId: "a", nombre: "Ana", minutosTarde: 5 }),
+      fila({ personaId: "b", nombre: "Beto", minutosTarde: 0 }),
+      fila({ personaId: "c", nombre: "Carla", minutosTarde: 40 }),
+      fila({ personaId: "d", nombre: "Dora", minutosTarde: null }),
+    ]);
+    expect(lista.map((f) => f.personaId)).toEqual(["c", "a"]);
+  });
+
+  it("quien tiene la tardanza levantada no aparece: la lista y el «N tarde» de la fila no pueden discrepar", () => {
+    const filas = [
+      fila({ personaId: "a", nombre: "Ana", minutosTarde: 30, tardanzaLevantada: true }),
+      fila({ personaId: "b", nombre: "Beto", minutosTarde: 3 }),
+    ];
+    expect(llegaronTarde(filas).map((f) => f.personaId)).toEqual(["b"]);
+    expect(llegaronTarde(filas)).toHaveLength(filas.filter(llegoTarde).length);
+  });
+
+  it("a igual de minutos desempata por nombre, para que el refresco de 30 s no baraje la lista", () => {
+    const lista = llegaronTarde([
+      fila({ personaId: "z", nombre: "Zoila", minutosTarde: 10 }),
+      fila({ personaId: "a", nombre: "Ángela", minutosTarde: 10 }),
+      fila({ personaId: "m", nombre: "Marta", minutosTarde: 10 }),
+    ]);
+    expect(lista.map((f) => f.nombre)).toEqual(["Ángela", "Marta", "Zoila"]);
+  });
+
+  it("no toca el arreglo que recibe y sin tardanzas devuelve vacío", () => {
+    const entrada = [fila({ personaId: "a", minutosTarde: 5 }), fila({ personaId: "b", minutosTarde: 20 })];
+    const copia = [...entrada];
+    llegaronTarde(entrada);
+    expect(entrada).toEqual(copia);
+    expect(llegaronTarde([fila({ minutosTarde: 0 })])).toEqual([]);
   });
 });
