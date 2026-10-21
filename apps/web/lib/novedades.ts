@@ -115,6 +115,20 @@ export const LARGO_MAXIMO_ID_NOVEDAD = 100;
 // La más reciente primero. Ver «CÓMO SE AGREGA» arriba.
 export const NOVEDADES: readonly Novedad[] = [
   {
+    id: "2026-10-21-liquidaciones-registra-que-paso-con-una-diferencia",
+    fecha: "2026-10-21",
+    titulo: "Liquidaciones: ya se puede registrar qué pasó con una diferencia",
+    queMejoro:
+      "Dentro de una liquidación ya pagada, cuando el cálculo de hoy no coincide con lo que se pagó, hay un botón nuevo: " +
+      "«Registrar qué pasó con la diferencia». Se elige qué pasó, en qué se apoya y se cuenta por qué; queda guardado con quién " +
+      "lo registró y cuándo, y el aviso rojo se calma. Si después el cálculo cambia otra vez, el aviso vuelve solo, y el registro " +
+      "se puede corregir o retirar.\n\n" +
+      "Y en la lista de pagadas ya no aparece «Cálculo cambió» en cada fila: ese aviso no se podía cerrar nunca y acababa " +
+      "siendo ruido. Sigue dentro de cada liquidación, que es donde se decide. Si una diferencia sí se le debe a la persona, " +
+      "no se cierra con esto: se paga y se usa «Volver a marcarla como pagada».",
+    audiencia: "do",
+  },
+  {
     id: "2026-10-20-costos-con-graficos-y-mas-ancho",
     fecha: "2026-10-20",
     titulo: "Costos del equipo ocupa toda la pantalla y trae gráficos",

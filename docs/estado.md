@@ -6,6 +6,76 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-10-21 — La diferencia real de una liquidación pagada se cierra con una constancia · migración 0542 · SQL SIN PEGAR · SIN FUSIONAR · rama `claude/remover-pago-duplicado-8c818a`
+
+**Qué es.** La pantalla de Liquidaciones decía «pagarla, compensarla o dejar constancia», y «dejar constancia»
+nunca existió: una diferencia real en una liquidación ya pagada no se podía cerrar, así que «3 con
+diferencias» no bajaba jamás y acabó leyéndose como ruido. Felipe pidió quitarlo (2026-10-21) y se hizo en dos
+pasos, en commits separados:
+
+1. **La lista deja de marcar «Cálculo cambió»** (sin SQL): se fueron la pastilla, la casilla y la insignia por
+   fila. El aviso rojo sigue dentro del desglose y la columna «Cálculo cambió» sigue en el CSV.
+2. **Registrar qué pasó con la diferencia** (0542 + pantalla): un libro de constancias que solo se agrega, una
+   sola puerta de escritura (`fn_liquidacion_constatar`) y una lectura de un solo instante
+   (`fn_liquidacion_constancia_estado`). **No toca ninguna función ni tabla existente**, por eso no lleva md5
+   de partida. Detalle de diseño en la cabecera de la migración.
+
+**Decidido (Felipe, 2026-10-21): opción 1, la constancia mínima.** El servidor calcula el SENTIDO de la
+diferencia (`ahora − pagado`) y la decisión depende de él: a favor de la persona → «lo pagado era lo correcto»
+con un apoyo obligatorio; a favor de CAYLA → «no se reclama» o «devolución acordada» (Reglamento 29.6); y
+«retirar», que reabre. Una diferencia mixta no se puede constatar: queda abierta. **No hay «ya se pagó por
+fuera»** (ese camino es «Volver a marcarla como pagada», que guarda la fecha real de pago) ni «compensada»
+(choca con 29.6). Vale mientras la «huella» del cálculo coincida: si cambia, el aviso vuelve solo.
+
+**Pendiente, en este orden.**
+1. **Pegar la 0542 ANTES de fusionar** (`./scripts/dame-el-sql.sh 542`). Si el código llega primero no se
+   rompe nada: sin poder leer el estado la pantalla se comporta como antes (`queDibujarDeLaConstancia`, con
+   su prueba). La consulta del final de la migración tiene que dar: tabla con RLS, `authenticated` sin
+   insert/update/delete/truncate, tres funciones y el registro `542 · la_diferencia_de_una_liquidacion_pagada…`.
+2. **Las tres diferencias reales de producción** (Felipe las pasa aparte). Con ellas se ve si el catálogo
+   alcanza: concepto, signo, y si alguna es mixta. Ninguna sesión pudo leerlas: producción no está a su alcance.
+3. **Una pregunta nueva al laboralista**, que no está en ninguna consulta abierta: ¿puede CAYLA dejar sin
+   pagar una diferencia a favor de alguien que ya cesó? De la respuesta sale el texto de «lo pagado era lo
+   correcto». Una constancia así es un registro con nombre y fecha de que CAYLA vio el número y decidió.
+4. **Cerrar `liquidacion_pagada`** (propuesto, NO escrito): ninguna migración ni prueba revoca sus privilegios;
+   el trigger frena UPDATE y DELETE pero no TRUNCATE. Se llegaría solo con una conexión directa, no por la API.
+   (La 0542 agrega una FK hacia esa tabla, así que `truncate liquidacion_pagada` ya exige `cascade`; eso no la cierra.)
+   Primero confirmarlo en producción con `has_table_privilege('authenticated', 'liquidacion_pagada', 'truncate')`.
+5. **La pastilla «N con diferencias» NO vuelve a la lista** y no se decidió que vuelva. Exigiría reescribir
+   `fn_liquidaciones_pendientes` (0475; otro ritual de md5) y los números que se estimaron («~0.5 s hoy») salían
+   del Postgres local; producción ya canceló esa misma consulta por tiempo (0474). Medir primero en el SQL Editor
+   —con el claim de un admin puesto, o devuelve cero filas— el tiempo de la lista.
+6. **El CSV** sigue diciendo «Cálculo cambió: sí» aunque ya haya un registro, porque la lista no sabe de
+   constancias. Decidir si la columna pasa a «abierta / resuelta».
+
+**Lo que encontró la revisión independiente (tres revisores, 2026-10-21) y ya está corregido en la 0542.**
+La más seria: si la diferencia real está en «Sueldo del periodo» y el periodo ya tiene registrado el descuento
+del cierre, esa fila pasa a ser Δ − D y puede cambiar de SIGNO (+11.54 a favor de la persona se volvía −488.46
+«a favor de CAYLA»), y la base dejaba registrar «devolución acordada» sobre una cifra que nunca existió. Esta
+sesión lo había dado por benigno; no lo era. Ahora, mientras haya un descuento de cierre registrado y esa fila
+esté entre las reales, **no se puede constatar**; al cerrar el mes la fila pasa a «esperada por el cierre» y el
+aviso desaparece solo. Además: una versión NULL ya no se salta la comprobación de versión; un motivo de solo
+saltos de línea o tabuladores ya no cuenta; **retirar** ya no depende de poder registrar algo nuevo (quien se
+equivocó puede reabrir aunque la persona se haya reactivado); «anterior» no se devuelve junto a una vigente;
+la guardia de la migración para si `fn_persona_liquidada` es la 0421 (sin la 0499 una constancia podría cerrar
+el aviso de un cese que ya no es el de la persona); `huella_formula` (cambiar la fórmula de la huella ya no
+reabre todas las constancias por accidente); la secuencia de `orden` y el TRUNCATE quedaron cerrados.
+
+**Probado.** La 0542 aplicada dos veces sobre un Postgres desechable con las 518 migraciones de la rama, y su
+guardia comprobada (aborta si `fn_persona_liquidada` es la 0421). Prueba 435 con 118 aserciones en verde, que
+incluye 30 que escribió un revisor tras ejecutar 35 mutaciones nuevas (la prueba de entonces cazaba 6 y dejaba
+pasar 29). **39 mutaciones de la migración (26 de funciones y 13 de esquema), todas puestas en rojo.** Dos
+revisores ejecutaron además dos sesiones concurrentes reales: el candado por persona sí serializa, y la
+carrera con «Volver a marcarla como pagada» es inerte. Suite pgTAP completa con y sin la 0542 —quitándola con
+su propio bloque «cómo se revierte», que así también quedó probado—: mismas aserciones en los 342 archivos
+restantes. Fallan 28 archivos con o sin la 0542, no 20: los 8 de más cuentan filas globales (personas, periodos)
+y los alteran los datos de prueba que se dejaron en el banco para ver la pantalla; no tienen que ver con esto.
+Pantalla probada en el navegador contra las funciones SQL REALES (no un simulador): registrar, corregir,
+retirar y las cuatro situaciones (a favor de la persona, a favor de CAYLA, mixta, la que cuadra). `vitest`
+2 525 en verde, typecheck limpio. **No probado:** `db-tests` de GitHub, producción, dos personas pulsando a la
+vez desde el navegador (sí desde SQL), la pantalla en móvil, y la ventana «descuento registrado, mes abierto»
+en el navegador (sí en SQL, prueba 435).
+
 ## 2026-10-19 — Términos primero, guía después, en «Lo mío» · migración 0540 · SQL PEGADO Y VERIFICADO EN PRODUCCIÓN (2026-10-19) · FUSIONADO Y PUBLICADO (PR #561, 2026-10-19) · rama `claude/dynamic-terms-conditions-modules-44a3d3`
 
 **Qué es.** La guía de primera vez (driver.js) arrancaba sola, sin condiciones, y antes o a la vez que

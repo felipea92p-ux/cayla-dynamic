@@ -21,3 +21,4 @@ export * from "./documento";
 export * from "./pruebas";
 export * from "./capa-activa";
 export * from "./terminos";
+export * from "./liquidacion-constancias";
