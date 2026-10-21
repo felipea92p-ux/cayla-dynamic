@@ -29,6 +29,7 @@ import {
   diaDeLaSemanaEnPlural,
   metaDelDiaTexto,
   marcaronSinHorario,
+  metaOperativasSinMedir,
   minutosDesde,
   motivoDePausa,
   OPCIONES_FILTRO_ESTADO,
@@ -599,6 +600,37 @@ describe("causaMetaImposible — por qué una meta no se cumple aunque vengan to
   it("una sola persona que cuenta, concordancia en singular", () => {
     expect(causaMetaImposible("operativas", 2, 1)!.detalle)
       .toBe("La meta (2) es mayor que la única persona del equipo que cuenta: aunque venga, no se cumple.");
+  });
+});
+
+// ----------------------------------------------------------------------------
+// El error de la captura de 2026-10-21: Oficina TRU decía «0 / 4 operativas» con
+// cinco personas trabajando. Su equipo es administrativo, así que nadie cuenta
+// como operativo y la meta de 4 no tiene a quién contar: no es «faltan 4».
+// ----------------------------------------------------------------------------
+describe("metaOperativasSinMedir — «0 / 4» con cinco personas en piso", () => {
+  it("Oficina TRU: cinco en piso, ninguna operativa, meta de 4", () => {
+    const equipo = ["a", "b", "c", "d", "e"].map((id) =>
+      fila({ personaId: id, esOperativa: false, estado: "abierta", entrada: "x" }));
+    const cob = calcularCoberturaSede(equipo, { man: 4, tar: 4, enc: 0 }, false, 10);
+    expect(cob.trabajando).toHaveLength(5);
+    expect(cob.opPiso).toBe(0); // el 0 de «0 / 4» es cierto…
+    expect(metaOperativasSinMedir(cob.metaOp, cob.equipoOperativas)).toBe(true); // …y por eso no se muestra
+  });
+
+  it("una tienda con operativas contra su meta SÍ se mide, aunque no alcance (LIM: 3 de 4)", () => {
+    expect(metaOperativasSinMedir(4, 3)).toBe(false);
+    expect(metaOperativasSinMedir(4, 1)).toBe(false);
+  });
+
+  it("sin meta no hay nada que no se pueda medir", () => {
+    expect(metaOperativasSinMedir(0, 0)).toBe(false);
+  });
+
+  it("el equipo operativo se cuenta aunque hoy nadie haya llegado", () => {
+    const equipo = [fila({ personaId: "a", esOperativa: true }), fila({ personaId: "b", esOperativa: true })];
+    const cob = calcularCoberturaSede(equipo, { man: 4, tar: 4, enc: 0 }, false, 6);
+    expect(metaOperativasSinMedir(cob.metaOp, cob.equipoOperativas)).toBe(false);
   });
 });
 

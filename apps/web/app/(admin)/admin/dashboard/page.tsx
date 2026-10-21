@@ -33,7 +33,7 @@ import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
 import {
   calcularCoberturaSede, causaMetaImposible, coincideConFiltroDeEstado, enPausaAhora, faltanTexto, fechaConDia, fechaCorta, llegoTarde, loQueFalta,
   minutosDesde, porPausaMasLarga, sinMarcarYaLeTocaba, subEstadoSinMarcar, textoDesglose, textoEquipoDelDia,
-  diaDeLaSemanaEnPlural, metaDelDiaTexto, OPCIONES_FILTRO_ESTADO, textoFueraDeHorario, textoLiderEnLasDosMetas, textoMetaPorRevisar, textoMetaSinTurnos, textoSinHorario, textoPausa, textoPausaDesde, textoSinMarcar, trabajandoAhora,
+  diaDeLaSemanaEnPlural, metaDelDiaTexto, metaOperativasSinMedir, OPCIONES_FILTRO_ESTADO, textoFueraDeHorario, textoLiderEnLasDosMetas, textoMetaPorRevisar, textoMetaSinTurnos, textoSinHorario, textoPausa, textoPausaDesde, textoSinMarcar, trabajandoAhora,
   type CoberturaSede, type FilaPersona, type MetaSede,
 } from "@/lib/admin/asistencia-hoy";
 import { traerPausasAbiertas } from "@/lib/admin/pausas-abiertas";
@@ -1570,6 +1570,11 @@ export default function DashboardPage() {
                   ? { texto: `Meta de ${metaDelDiaTexto(cob)} · sin turnos`, pct: null }
                   : cob.feriadoSinConfirmar
                     ? { texto: "Feriado · sin turnos armados", pct: null }
+                  // Hay meta de operativas y nadie del equipo cuenta como operativo (una oficina): «0 / 4»
+                  // se leía «faltan 4» con cinco personas en piso. Se dice cuánta gente hay, sin barra, y
+                  // que la meta es lo que hay que revisar. Ver `metaOperativasSinMedir`.
+                  : metaOperativasSinMedir(cob.metaOp, cob.equipoOperativas)
+                    ? { texto: `${cob.trabajando.length} trabajando ahora · meta por revisar`, pct: null }
                   : !cob.sinMetaOp
                     ? { texto: `${cob.opPiso} / ${cob.metaOp} operativas`, pct: Math.min(100, Math.round((cob.opPiso / cob.metaOp) * 100)) }
                     : !cob.sinMetaEnc
