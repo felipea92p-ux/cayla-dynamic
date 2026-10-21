@@ -16,7 +16,6 @@ import { Campo } from "@/components/ui/campo";
 import { CampoSelect } from "@/components/ui/campo";
 import { AreaTexto } from "@/components/ui/area-texto";
 import { Modal } from "@/components/ui/modal";
-import { Insignia } from "@/components/ui/insignia";
 import { BannerAviso } from "@/components/ui/banner-aviso";
 import { AyudaPantalla } from "@/components/ui/ayuda-pantalla";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
@@ -37,12 +36,16 @@ import { Tabla, TablaEncabezado, Th, Fila } from "@/components/ui/tabla";
 //      reales arriba, y cuatro cifras accionables encima de las tabs.
 //   2. VENCIDAS SOLO EN SU TAB. Sin franja permanente: su propio conteo en
 //      rojo en la pestaña es la señal.
-//   3. DIFERENCIA ESPERADA vs REAL, CON FILTRO. `fn_liquidacion_diferencias`
-//      (0454) dice si una diferencia la explica el descuento que el cierre de
-//      Planilla obliga a registrar (0244) — el estado normal de casi toda
-//      cesada, no una avería — o si es una diferencia de verdad. Solo la real
-//      enciende el badge de la fila y el filtro «Con diferencias»; la
-//      esperada se explica, en tono neutro, dentro del desglose.
+//   3. DIFERENCIA ESPERADA vs REAL, SOLO DENTRO DEL DESGLOSE.
+//      `fn_liquidacion_diferencias` (0454) dice si una diferencia la explica
+//      el descuento que el cierre de Planilla obliga a registrar (0244) — el
+//      estado normal de casi toda cesada, no una avería — o si es una
+//      diferencia de verdad. Se muestra al abrir una liquidación pagada: la
+//      esperada en tono neutro, la real en rojo. Hasta el 2026-10-21 la real
+//      además encendía una insignia en la fila, una pastilla en «Para
+//      atender» y un filtro; se quitaron porque una liquidación ya pagada no
+//      tiene cómo cerrar ese aviso —no hay un «dejar constancia»—, así que
+//      «3 con diferencias» no bajaba nunca y acababa leyéndose como ruido.
 //
 // QUÉ MUESTRA Y QUÉ NO. Todas las cesadas con liquidación por resolver, sin
 // filtrar por vínculo. `fn_liquidaciones_pendientes` no descarta los totales
@@ -197,9 +200,6 @@ export default function LiquidacionesPage() {
   const [tab, setTab] = useState<Tab>("pendientes");
   const [busqueda, setBusqueda] = useState("");
   const [filtroSede, setFiltroSede] = useState("");
-  // Solo tiene sentido en Pagadas: aísla las que de verdad hay que revisar
-  // (Decisión III — separar esperada de real, con filtro).
-  const [soloConDiferencias, setSoloConDiferencias] = useState(false);
 
   const [abierta, setAbierta] = useState<string | null>(null);
   const [detalle, setDetalle] = useState<Detalle | null>(null);
@@ -493,7 +493,6 @@ export default function LiquidacionesPage() {
   const pagadas  = pendientes.filter((p) => p.pagada);
   const sinMonto = pendientes.filter((p) => !p.pagada && p.total === 0);
   const avisoUrgente = avisos.filter((a) => a.ya_devenga);
-  const conDiferenciasReales = pagadas.filter((p) => p.descuadra_real).length;
 
   const coincideBusqueda = (p: Pendiente) =>
     busqueda.trim() === "" || p.persona.toLowerCase().includes(busqueda.trim().toLowerCase());
@@ -502,16 +501,16 @@ export default function LiquidacionesPage() {
   // Sin useMemo a propósito: son unas 30 personas en todo CAYLA y ~20 ceses al
   // año — filtrar en cada render no mide nada, y complicar esto con
   // dependencias de un helper redefinido cada vez no compra nada a cambio.
-  const filaFiltrada = (lista: Pendiente[], soloDif: boolean) =>
-    lista.filter((p) => coincideBusqueda(p) && coincideSede(p) && (!soloDif || p.descuadra_real));
+  const filaFiltrada = (lista: Pendiente[]) =>
+    lista.filter((p) => coincideBusqueda(p) && coincideSede(p));
 
-  const visibleEnPlazo = filaFiltrada(enPlazo, false);
-  const visibleVencidas = filaFiltrada(vencidas, false);
-  const visiblePagadas = filaFiltrada(pagadas, soloConDiferencias);
+  const visibleEnPlazo = filaFiltrada(enPlazo);
+  const visibleVencidas = filaFiltrada(vencidas);
+  const visiblePagadas = filaFiltrada(pagadas);
 
-  const hayFiltrosActivos = busqueda.trim() !== "" || filtroSede !== "" || soloConDiferencias;
+  const hayFiltrosActivos = busqueda.trim() !== "" || filtroSede !== "";
   function limpiarFiltros() {
-    setBusqueda(""); setFiltroSede(""); setSoloConDiferencias(false);
+    setBusqueda(""); setFiltroSede("");
   }
 
   function exportarCsv() {
@@ -565,7 +564,7 @@ export default function LiquidacionesPage() {
                 intro="La ley da 48 horas desde el cese para pagar la liquidación."
                 secciones={[
                   { titulo: "El plazo", texto: "Es el último día trabajado más dos días de calendario, sin excepción por fin de semana o feriado (art. 4 del D.S. 001-97-TR)." },
-                  { titulo: "Al marcar como pagada", texto: "La cifra se congela: si después el cálculo cambia, el sistema lo dice y no mueve el número." },
+                  { titulo: "Al marcar como pagada", texto: "La cifra se congela y no se mueve. Si después el cálculo de hoy da otra cosa, lo verás al abrir la liquidación pagada." },
                   { titulo: "Vencidas", texto: "Pasado el plazo sin pagar, la liquidación pasa a «Vencidas». Si ya se pagó por fuera, falta anotarlo para que deje de figurar." },
                 ]}
               />
@@ -593,7 +592,7 @@ export default function LiquidacionesPage() {
             </BannerAviso>
           ))}
 
-          {/* ── Para atender (Decisión I): lo vencido y lo que difiere va primero; tocar una pastilla abre su pestaña ── */}
+          {/* ── Para atender (Decisión I): lo vencido va primero; tocar una pastilla abre su pestaña ── */}
           <ParaAtender
             items={[
               {
@@ -602,15 +601,10 @@ export default function LiquidacionesPage() {
                 n: vencidas.length,
                 tono: "rojo",
               },
-              { clave: "diferencias", texto: `${conDiferenciasReales} con diferencias`, n: conDiferenciasReales, tono: "ambar" },
               { clave: "pendientes", texto: `${enPlazo.length} en plazo`, n: enPlazo.length, tono: "pizarra" },
             ]}
-            activa={tab === "vencidas" ? "vencidas" : tab === "pagadas" && soloConDiferencias ? "diferencias" : null}
-            alTocar={(clave) => {
-              if (clave === "diferencias") { setTab("pagadas"); setSoloConDiferencias(true); return; }
-              setSoloConDiferencias(false);
-              setTab(clave === "vencidas" ? "vencidas" : "pendientes");
-            }}
+            activa={tab === "vencidas" ? "vencidas" : null}
+            alTocar={(clave) => setTab(clave === "vencidas" ? "vencidas" : "pendientes")}
           />
 
           {/* ── Búsqueda y filtros, en una fila y sin rótulos encima ───────── */}
@@ -624,17 +618,6 @@ export default function LiquidacionesPage() {
                 {sedes.map((sd) => <option key={sd.id} value={sd.codigo}>{sd.codigo} — {sd.nombre}</option>)}
               </CampoSelect>
             </div>
-            {tab === "pagadas" && (
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  className="size-4 accent-tinta"
-                  checked={soloConDiferencias}
-                  onChange={(e) => setSoloConDiferencias(e.target.checked)}
-                />
-                Con diferencias reales
-              </label>
-            )}
             {hayFiltrosActivos && (
               <Boton variante="enlace" className="text-sm text-taupe" onClick={limpiarFiltros}>
                 Limpiar filtros
@@ -934,13 +917,6 @@ function SeccionTabla({
             <Fila>
               <td className="px-4 py-2.5">
                 <strong>{f.persona}</strong>
-                {/* Decisión III: solo la diferencia REAL enciende el badge de la
-                    fila — la esperada por el cierre de Planilla es el curso
-                    normal de una cesada y se explica, en tono neutro, dentro
-                    del desglose, no acá. */}
-                {f.descuadra_real && (
-                  <Insignia variante="alerta" className="ml-2">⚠ Cálculo cambió</Insignia>
-                )}
               </td>
               <td className="px-4 py-2.5 text-taupe">{f.sede}</td>
               <td className="px-4 py-2.5 text-taupe">{fechaCorta(f.fecha_cese)}</td>
