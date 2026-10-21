@@ -35,9 +35,13 @@ select fn_levantar_tardanza('cccccccc-0541-0000-0000-00000000000b', date '2019-0
 select is((select count(*)::int from correcciones_auditoria
             where persona_id = 'cccccccc-0541-0000-0000-00000000000b' and campo_modificado = 'tardanza_levantada'),
           2, 'cambiar el motivo del perdón también deja fila');
+-- La fila del cambio se elige por lo que dice (su motivo nuevo es 'otro'), NO por ser
+-- «la última»: las dos filas nacen en esta misma transacción, así que `corregido_at`
+-- (default now()) empata, y `id desc` es un uuid al azar — la prueba acertaba la mitad
+-- de las veces (falló en main el 2026-10-20 y en el PR #573 sin tocar nada de SQL).
 select matches((select motivo from correcciones_auditoria
                  where persona_id = 'cccccccc-0541-0000-0000-00000000000b' and campo_modificado = 'tardanza_levantada'
-                 order by corregido_at desc, id desc limit 1),
+                   and valor_nuevo = 'otro'),
                'antes: salud', 'la fila del cambio dice cuál era el motivo anterior');
 
 select fn_quitar_levantamiento('cccccccc-0541-0000-0000-00000000000b', date '2019-03-04');
